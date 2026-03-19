@@ -341,6 +341,49 @@ function selectSection(sec) {
   deselectAll();
   sec.classList.add('selected');
   syncLayerActive(sec);
+  showSectionProperties(sec);
+}
+
+function showSectionProperties(sec) {
+  const currentBg = sec.style.background || sec.style.backgroundColor || '#ffffff';
+  const hexBg = /^#[0-9a-f]{6}$/i.test(currentBg) ? currentBg : '#ffffff';
+
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+          </svg>
+        </div>
+        <span class="prop-block-name">Section</span>
+      </div>
+      <div class="prop-section-title">배경</div>
+      <div class="prop-color-row">
+        <span class="prop-label">배경색</span>
+        <div class="prop-color-swatch" style="background:${hexBg}">
+          <input type="color" id="sec-bg-color" value="${hexBg}">
+        </div>
+        <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg}" maxlength="7">
+      </div>
+    </div>`;
+
+  const picker = document.getElementById('sec-bg-color');
+  const hex    = document.getElementById('sec-bg-hex');
+  const swatch = picker.closest('.prop-color-swatch');
+
+  picker.addEventListener('input', () => {
+    sec.style.background = picker.value;
+    hex.value = picker.value;
+    swatch.style.background = picker.value;
+  });
+  hex.addEventListener('input', () => {
+    if (/^#[0-9a-f]{6}$/i.test(hex.value)) {
+      sec.style.background = hex.value;
+      picker.value = hex.value;
+      swatch.style.background = hex.value;
+    }
+  });
 }
 
 /* 블록이 선택된 상태에서 소속 섹션만 하이라이트 (deselectAll 없이) */
