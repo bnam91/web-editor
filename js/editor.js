@@ -687,7 +687,9 @@ function addSection() {
       <div class="gap-block" data-type="gap"></div>
     </div>`;
 
-  canvas.appendChild(sec);
+  const selectedSec = document.querySelector('.section-block.selected');
+  if (selectedSec) selectedSec.after(sec);
+  else canvas.appendChild(sec);
 
   // 이벤트 바인딩
   sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
