@@ -476,6 +476,7 @@ function makeEmptyCol(flexVal) {
   if (flexVal) { col.style.flex = flexVal; col.dataset.flex = flexVal; }
   const ab = document.createElement('div');
   ab.className = 'asset-block';
+  ab.style.height = '460px';
   ab.innerHTML = `
     <span class="asset-tag">Image / GIF</span>
     ${ASSET_SVG}
@@ -1130,6 +1131,7 @@ function addRowBlock() {
     col.dataset.flex = '1';
     const ab = document.createElement('div');
     ab.className = 'asset-block';
+    ab.style.height = '460px';
     ab.innerHTML = `
       <span class="asset-tag">Image / GIF</span>
       ${ASSET_SVG}
