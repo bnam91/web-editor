@@ -165,8 +165,62 @@ function buildLayerPanel() {
       block.addEventListener('mouseenter', () => item.style.background = '#252525');
       block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
 
+      // 레이어 아이템 드래그
+      const itemDragTarget = isGap ? block : (block.closest('.row') || block);
+      item._dragTarget = itemDragTarget;
+      item.setAttribute('draggable', 'true');
+      item.addEventListener('dragstart', e => {
+        e.stopPropagation();
+        layerDragSrc = item;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+        requestAnimationFrame(() => item.classList.add('layer-dragging'));
+      });
+      item.addEventListener('dragend', () => {
+        item.classList.remove('layer-dragging');
+        clearLayerIndicators();
+        layerDragSrc = null;
+      });
+
       children.appendChild(item);
       block._layerItem = item;
+    });
+
+    // 레이어 패널 드롭존
+    children.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!layerDragSrc) return;
+      clearLayerIndicators();
+      const after = getLayerDragAfterItem(children, e.clientY);
+      const indicator = document.createElement('div');
+      indicator.className = 'layer-drop-indicator';
+      if (after) children.insertBefore(indicator, after);
+      else children.appendChild(indicator);
+    });
+    children.addEventListener('dragleave', e => {
+      if (!children.contains(e.relatedTarget)) clearLayerIndicators();
+    });
+    children.addEventListener('drop', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!layerDragSrc) return;
+      const sectionInner = sec.querySelector('.section-inner');
+      const dragTarget = layerDragSrc._dragTarget;
+      const indicator = children.querySelector('.layer-drop-indicator');
+      if (indicator) {
+        const nextItem = indicator.nextElementSibling;
+        if (nextItem && nextItem._dragTarget) {
+          sectionInner.insertBefore(dragTarget, nextItem._dragTarget);
+        } else {
+          const bottomGap = [...sectionInner.querySelectorAll(':scope > .gap-block')].at(-1);
+          if (bottomGap && bottomGap !== dragTarget) sectionInner.insertBefore(dragTarget, bottomGap);
+          else sectionInner.appendChild(dragTarget);
+        }
+      }
+      clearLayerIndicators();
+      buildLayerPanel();
+      layerDragSrc = null;
     });
 
     sectionEl.appendChild(header);
@@ -556,6 +610,7 @@ function getSelectedSection() {
    DRAG AND DROP
 ═══════════════════════════════════ */
 let dragSrc = null;
+let layerDragSrc = null;
 
 function getDragAfterElement(container, y) {
   const children = [...container.children].filter(el =>
@@ -571,6 +626,22 @@ function getDragAfterElement(container, y) {
 
 function clearDropIndicators() {
   document.querySelectorAll('.drop-indicator').forEach(d => d.remove());
+}
+
+function clearLayerIndicators() {
+  document.querySelectorAll('.layer-drop-indicator').forEach(d => d.remove());
+}
+
+function getLayerDragAfterItem(container, y) {
+  const items = [...container.children].filter(el =>
+    el.classList.contains('layer-item') && el !== layerDragSrc
+  );
+  return items.reduce((closest, item) => {
+    const box = item.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) return { offset, element: item };
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
 function bindSectionDropZone(sec) {
