@@ -67,6 +67,7 @@ const layerIcons = {
   caption: `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4"/><line x1="1" y1="7" x2="8" y2="7"/></svg>`,
   asset:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><circle cx="4" cy="4" r="1"/><polyline points="11 8 8 5 3 11"/></svg>`,
   gap:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4" stroke-dasharray="2,1"/><line x1="1" y1="8" x2="11" y2="8" stroke-dasharray="2,1"/></svg>`,
+  label:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="10" height="6" rx="1.5"/></svg>`,
 };
 
 /* 레이어 아이템 생성 (단일 블록용) */
@@ -74,12 +75,12 @@ function makeLayerBlockItem(block, dragTarget, sec) {
   const isText = block.classList.contains('text-block');
   const isGap  = block.classList.contains('gap-block');
   const type   = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', asset:'Asset', gap:'Gap' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   asset:'Image', gap:'Gap' };
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
-  item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
+  item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name">${labels[type] || type}</span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
   item._dragTarget = dragTarget;
 
   item.addEventListener('click', e => {
@@ -137,8 +138,8 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
     const isText = block.classList.contains('text-block');
     const isGap  = block.classList.contains('gap-block');
     const type   = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : 'asset';
-    const labels    = { heading:'Heading', body:'Body', caption:'Caption', asset:'Asset', gap:'Gap' };
-    const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   asset:'Image', gap:'Gap' };
+    const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap' };
+    const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap' };
 
     const item = document.createElement('div');
     item.className = 'layer-item layer-item-nested';
@@ -641,7 +642,11 @@ function showTextProperties(tb) {
   const contentEl = tb.querySelector('[contenteditable]');
   const computed   = window.getComputedStyle(contentEl);
 
-  const currentClass = ['tb-h1','tb-h2','tb-body','tb-caption'].find(c => contentEl.classList.contains(c)) || 'tb-body';
+  const currentClass = ['tb-h1','tb-h2','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || 'tb-body';
+  const rawBg = window.getComputedStyle(contentEl).backgroundColor;
+  const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
+  const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
+  const isLabel = currentClass === 'tb-label';
   const currentAlign = contentEl.style.textAlign || 'left';
   const currentSize  = parseInt(computed.fontSize) || 15;
   const currentColor = rgbToHex(computed.color) || '#111111';
@@ -674,6 +679,24 @@ function showTextProperties(tb) {
         <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
         <button class="prop-type-btn ${currentClass==='tb-body'?'active':''}"    data-cls="tb-body">Body</button>
         <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Cap</button>
+        <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
+      </div>
+    </div>
+    <div id="label-style-section" style="display:${isLabel?'block':'none'}">
+      <div class="prop-section">
+        <div class="prop-section-title">태그 스타일</div>
+        <div class="prop-color-row">
+          <span class="prop-label">배경색</span>
+          <div class="prop-color-swatch" style="background:${currentBgColor}">
+            <input type="color" id="label-bg-color" value="${currentBgColor}">
+          </div>
+          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor}" maxlength="7">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">모서리</span>
+          <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
+          <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
+        </div>
       </div>
     </div>
 
@@ -762,8 +785,8 @@ function showTextProperties(tb) {
   });
 
   /* 타입 전환 */
-  const labelMap = { 'tb-h1':'Heading','tb-h2':'Heading','tb-body':'Body','tb-caption':'Caption' };
-  const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-body':'body','tb-caption':'caption' };
+  const labelMap = { 'tb-h1':'Heading','tb-h2':'Heading','tb-body':'Body','tb-caption':'Caption','tb-label':'Label' };
+  const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
   propPanel.querySelectorAll('.prop-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const cls = btn.dataset.cls;
@@ -771,8 +794,50 @@ function showTextProperties(tb) {
       tb.querySelector('.text-block-label').textContent = labelMap[cls];
       tb.dataset.type = typeMap2[cls];
       propPanel.querySelectorAll('.prop-type-btn').forEach(b => b.classList.toggle('active', b===btn));
+
+      const labelSection = document.getElementById('label-style-section');
+      if (labelSection) labelSection.style.display = cls === 'tb-label' ? 'block' : 'none';
+
+      // label로 전환 시 기본 스타일 적용, 다른 타입으로 전환 시 초기화
+      if (cls === 'tb-label') {
+        if (!contentEl.style.backgroundColor) contentEl.style.backgroundColor = '#111111';
+        if (!contentEl.style.color) contentEl.style.color = '#ffffff';
+        if (!contentEl.style.borderRadius) contentEl.style.borderRadius = '4px';
+      } else {
+        contentEl.style.backgroundColor = '';
+        contentEl.style.borderRadius = '';
+      }
     });
   });
+
+  /* 태그 배경색 */
+  const labelBgPicker = document.getElementById('label-bg-color');
+  const labelBgHex    = document.getElementById('label-bg-hex');
+  if (labelBgPicker) {
+    const labelBgSwatch = labelBgPicker.closest('.prop-color-swatch');
+    labelBgPicker.addEventListener('input', () => {
+      contentEl.style.backgroundColor = labelBgPicker.value;
+      labelBgHex.value = labelBgPicker.value;
+      labelBgSwatch.style.background = labelBgPicker.value;
+    });
+    labelBgHex.addEventListener('input', () => {
+      if (/^#[0-9a-f]{6}$/i.test(labelBgHex.value)) {
+        contentEl.style.backgroundColor = labelBgHex.value;
+        labelBgPicker.value = labelBgHex.value;
+        labelBgSwatch.style.background = labelBgHex.value;
+      }
+    });
+  }
+  /* 태그 모서리 */
+  const rSlider = document.getElementById('label-radius-slider');
+  const rNumber = document.getElementById('label-radius-number');
+  if (rSlider) {
+    rSlider.addEventListener('input', () => { contentEl.style.borderRadius = rSlider.value+'px'; rNumber.value = rSlider.value; });
+    rNumber.addEventListener('input', () => {
+      const v = Math.min(40, Math.max(0, parseInt(rNumber.value)||0));
+      contentEl.style.borderRadius = v+'px'; rSlider.value = v;
+    });
+  }
 
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
@@ -1089,10 +1154,10 @@ function bindBlock(block) {
 }
 
 function makeTextBlock(type) {
-  const classMap  = { h1:'tb-h1', h2:'tb-h2', body:'tb-body', caption:'tb-caption' };
-  const labelMap  = { h1:'Heading', h2:'Heading', body:'Body', caption:'Caption' };
+  const classMap  = { h1:'tb-h1', h2:'tb-h2', body:'tb-body', caption:'tb-caption', label:'tb-label' };
+  const labelMap  = { h1:'Heading', h2:'Heading', body:'Body', caption:'Caption', label:'Label' };
   const dataType  = (type==='h1'||type==='h2') ? 'heading' : type;
-  const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', body:'본문을 입력하세요', caption:'캡션을 입력하세요' };
+  const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', body:'본문을 입력하세요', caption:'캡션을 입력하세요', label:'Label' };
 
   const row = document.createElement('div');
   row.className = 'row'; row.dataset.layout = 'stack';
@@ -1278,6 +1343,15 @@ function addSection() {
   selectSection(sec);
   sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+/* ── 플로팅 패널 Text 드롭다운 ── */
+function toggleFpDropdown() {
+  document.getElementById('fp-text-dropdown').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const dd = document.getElementById('fp-text-dropdown');
+  if (dd && !dd.contains(e.target)) dd.classList.remove('open');
+});
 
 /* ── Init ── */
 canvasWrap.style.background = pageSettings.bg;

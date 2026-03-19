@@ -230,24 +230,21 @@
     Section
   </button>
   <div class="fp-divider"></div>
-  <button class="fp-btn" onclick="addTextBlock('h2')">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
-    </svg>
-    Heading
-  </button>
-  <button class="fp-btn" onclick="addTextBlock('body')">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
-    </svg>
-    Body
-  </button>
-  <button class="fp-btn" onclick="addTextBlock('caption')">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
-    </svg>
-    Caption
-  </button>
+  <div class="fp-dropdown" id="fp-text-dropdown">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown()">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+        <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="6" x2="8" y2="6"/><line x1="1" y1="9" x2="6" y2="9"/>
+      </svg>
+      Text
+      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+    </button>
+    <div class="fp-dropdown-menu" id="fp-text-menu">
+      <button class="fp-menu-item" onclick="addTextBlock('h2');toggleFpDropdown()">Heading</button>
+      <button class="fp-menu-item" onclick="addTextBlock('body');toggleFpDropdown()">Body</button>
+      <button class="fp-menu-item" onclick="addTextBlock('caption');toggleFpDropdown()">Caption</button>
+      <button class="fp-menu-item" onclick="addTextBlock('label');toggleFpDropdown()">Label</button>
+    </div>
+  </div>
   <div class="fp-divider"></div>
   <button class="fp-btn" onclick="addRowBlock()">
     <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
