@@ -1112,6 +1112,40 @@ function addTextBlock(type) {
   selectSection(sec);
 }
 
+function addRowBlock() {
+  const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+  if (!sec) return;
+
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.dataset.layout = 'flex';
+  row.dataset.ratioStr = '2*1';
+  row.style.display = '';
+  row.style.gridTemplateColumns = '';
+
+  [0, 1].forEach(() => {
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.style.flex = '1';
+    col.dataset.flex = '1';
+    const ab = document.createElement('div');
+    ab.className = 'asset-block';
+    ab.innerHTML = `
+      <span class="asset-tag">Image / GIF</span>
+      ${ASSET_SVG}
+      <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
+      <span class="asset-sub">PNG · JPG · GIF · WebP</span>
+      <span class="asset-size">860 × 780</span>`;
+    col.appendChild(ab);
+    row.appendChild(col);
+    bindBlock(ab);
+  });
+
+  insertBeforeBottomGap(sec, row);
+  buildLayerPanel();
+  selectSection(sec);
+}
+
 function addAssetBlock() {
   const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
   if (!sec) return;
