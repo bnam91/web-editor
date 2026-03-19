@@ -229,6 +229,28 @@ function buildLayerPanel() {
 
     sec._layerEl = sectionEl;
     sec._layerHeader = header;
+    sectionEl._canvasSec = sec;
+
+    // 레이어 섹션 헤더 드래그 (섹션 순서 변경)
+    header.setAttribute('draggable', 'true');
+    header.addEventListener('dragstart', e => {
+      if (nameEl.classList.contains('editing')) { e.preventDefault(); return; }
+      e.stopPropagation();
+      layerSectionDragSrc = { sec, sectionEl };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      const ghost = document.createElement('div');
+      ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 0, 0);
+      setTimeout(() => ghost.remove(), 0);
+      requestAnimationFrame(() => sectionEl.classList.add('layer-section-dragging'));
+    });
+    header.addEventListener('dragend', () => {
+      sectionEl.classList.remove('layer-section-dragging');
+      clearLayerSectionIndicators();
+      layerSectionDragSrc = null;
+    });
   });
 }
 
@@ -287,6 +309,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
   sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
   bindSectionDelete(sec);
   bindSectionDropZone(sec);
+  bindSectionDrag(sec);
 });
 
 document.getElementById('canvas-wrap').addEventListener('click', e => {
@@ -611,6 +634,8 @@ function getSelectedSection() {
 ═══════════════════════════════════ */
 let dragSrc = null;
 let layerDragSrc = null;
+let sectionDragSrc = null;
+let layerSectionDragSrc = null;
 
 function getDragAfterElement(container, y) {
   const children = [...container.children].filter(el =>
@@ -632,6 +657,38 @@ function clearLayerIndicators() {
   document.querySelectorAll('.layer-drop-indicator').forEach(d => d.remove());
 }
 
+function clearSectionIndicators() {
+  document.querySelectorAll('.section-drop-indicator').forEach(d => d.remove());
+}
+
+function clearLayerSectionIndicators() {
+  document.querySelectorAll('.layer-section-drop-indicator').forEach(d => d.remove());
+}
+
+function getSectionDragAfterEl(container, y) {
+  const sections = [...container.children].filter(el =>
+    el.classList.contains('section-block') && el !== sectionDragSrc
+  );
+  return sections.reduce((closest, sec) => {
+    const box = sec.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) return { offset, element: sec };
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function getLayerSectionDragAfterEl(panel, y) {
+  const sections = [...panel.children].filter(el =>
+    el.classList.contains('layer-section') && el !== layerSectionDragSrc?.sectionEl
+  );
+  return sections.reduce((closest, sec) => {
+    const box = sec.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) return { offset, element: sec };
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
 function getLayerDragAfterItem(container, y) {
   const items = [...container.children].filter(el =>
     el.classList.contains('layer-item') && el !== layerDragSrc
@@ -644,9 +701,35 @@ function getLayerDragAfterItem(container, y) {
   }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
+function bindSectionDrag(sec) {
+  const label = sec.querySelector('.section-label');
+  if (!label || label._sectionDragBound) return;
+  label._sectionDragBound = true;
+  label.setAttribute('draggable', 'true');
+
+  label.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    sectionDragSrc = sec;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => ghost.remove(), 0);
+    requestAnimationFrame(() => sec.classList.add('section-dragging'));
+  });
+  label.addEventListener('dragend', () => {
+    sec.classList.remove('section-dragging');
+    clearSectionIndicators();
+    sectionDragSrc = null;
+  });
+}
+
 function bindSectionDropZone(sec) {
   const inner = sec.querySelector('.section-inner');
   inner.addEventListener('dragover', e => {
+    if (!dragSrc) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     clearDropIndicators();
@@ -882,6 +965,7 @@ function addSection() {
   sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
   bindSectionDelete(sec);
   bindSectionDropZone(sec);
+  bindSectionDrag(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => bindBlock(b));
 
   buildLayerPanel();
@@ -894,3 +978,63 @@ canvasWrap.style.background = pageSettings.bg;
 canvasEl.style.gap = pageSettings.gap + 'px';
 buildLayerPanel();
 showPageProperties();
+
+/* 캔버스 — 섹션 드래그 드롭 */
+canvasEl.addEventListener('dragover', e => {
+  if (!sectionDragSrc) return;
+  e.preventDefault();
+  clearSectionIndicators();
+  const after = getSectionDragAfterEl(canvasEl, e.clientY);
+  const indicator = document.createElement('div');
+  indicator.className = 'section-drop-indicator';
+  if (after) canvasEl.insertBefore(indicator, after);
+  else canvasEl.appendChild(indicator);
+});
+canvasEl.addEventListener('dragleave', e => {
+  if (!sectionDragSrc) return;
+  if (!canvasEl.contains(e.relatedTarget)) clearSectionIndicators();
+});
+canvasEl.addEventListener('drop', e => {
+  if (!sectionDragSrc) return;
+  e.preventDefault();
+  const indicator = canvasEl.querySelector('.section-drop-indicator');
+  if (indicator) canvasEl.insertBefore(sectionDragSrc, indicator);
+  else canvasEl.appendChild(sectionDragSrc);
+  clearSectionIndicators();
+  buildLayerPanel();
+  sectionDragSrc = null;
+});
+
+/* 레이어 패널 — 섹션 순서 변경 */
+const layerPanelBody = document.getElementById('layer-panel-body');
+layerPanelBody.addEventListener('dragover', e => {
+  if (!layerSectionDragSrc) return;
+  e.preventDefault();
+  clearLayerSectionIndicators();
+  const after = getLayerSectionDragAfterEl(layerPanelBody, e.clientY);
+  const indicator = document.createElement('div');
+  indicator.className = 'layer-section-drop-indicator';
+  if (after) layerPanelBody.insertBefore(indicator, after);
+  else layerPanelBody.appendChild(indicator);
+});
+layerPanelBody.addEventListener('dragleave', e => {
+  if (!layerSectionDragSrc) return;
+  if (!layerPanelBody.contains(e.relatedTarget)) clearLayerSectionIndicators();
+});
+layerPanelBody.addEventListener('drop', e => {
+  if (!layerSectionDragSrc) return;
+  e.preventDefault();
+  const { sec } = layerSectionDragSrc;
+  const indicator = layerPanelBody.querySelector('.layer-section-drop-indicator');
+  if (indicator) {
+    const nextLayerSec = indicator.nextElementSibling;
+    if (nextLayerSec && nextLayerSec._canvasSec) {
+      canvasEl.insertBefore(sec, nextLayerSec._canvasSec);
+    } else {
+      canvasEl.appendChild(sec);
+    }
+  }
+  clearLayerSectionIndicators();
+  buildLayerPanel();
+  layerSectionDragSrc = null;
+});

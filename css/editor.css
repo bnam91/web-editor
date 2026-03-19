@@ -485,6 +485,46 @@ body {
 }
 .layer-item.layer-dragging { opacity: 0.3; }
 
+/* 섹션 드래그 상태 */
+.section-block.section-dragging { opacity: 0.25; pointer-events: none; }
+
+/* 섹션 간 드롭 인디케이터 (캔버스) */
+.section-drop-indicator {
+  height: 4px; background: #2d6fe8;
+  border-radius: 2px; flex-shrink: 0;
+  pointer-events: none;
+  position: relative;
+  box-shadow: 0 0 10px rgba(45,111,232,0.8);
+}
+.section-drop-indicator::before {
+  content: '';
+  position: absolute;
+  left: -5px; top: -5px;
+  width: 14px; height: 14px;
+  border-radius: 50%; background: #2d6fe8;
+  box-shadow: 0 0 6px rgba(45,111,232,0.6);
+}
+
+/* 레이어 패널 섹션 드롭 인디케이터 */
+.layer-section-drop-indicator {
+  height: 2px; background: #2d6fe8;
+  border-radius: 1px; flex-shrink: 0;
+  pointer-events: none; margin: 1px 0;
+  position: relative;
+}
+.layer-section-drop-indicator::before {
+  content: '';
+  position: absolute;
+  left: -3px; top: -3px;
+  width: 8px; height: 8px;
+  border-radius: 50%; background: #2d6fe8;
+}
+.layer-section.layer-section-dragging { opacity: 0.3; }
+
+/* 섹션 라벨 — 드래그 커서 */
+.section-label { cursor: grab; }
+.section-label:active { cursor: grabbing; }
+
 /* ═══════════════════════════════════
    FLOATING ACTION PANEL
 ═══════════════════════════════════ */
