@@ -647,7 +647,7 @@ function showTextProperties(tb) {
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
   const isLabel = currentClass === 'tb-label';
-  const currentAlign = contentEl.style.textAlign || 'left';
+  const currentAlign = isLabel ? (tb.style.textAlign || 'left') : (contentEl.style.textAlign || 'left');
   const currentSize  = parseInt(computed.fontSize) || 15;
   const currentColor = rgbToHex(computed.color) || '#111111';
   const currentLH    = (parseFloat(computed.lineHeight) / parseFloat(computed.fontSize) || 1.5).toFixed(2);
@@ -842,7 +842,12 @@ function showTextProperties(tb) {
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      contentEl.style.textAlign = btn.dataset.align;
+      // label(inline-block)은 부모 tb에 text-align 적용해야 블록 자체가 정렬됨
+      if (contentEl.classList.contains('tb-label')) {
+        tb.style.textAlign = btn.dataset.align;
+      } else {
+        contentEl.style.textAlign = btn.dataset.align;
+      }
       propPanel.querySelectorAll('.prop-align-btn').forEach(b => b.classList.toggle('active', b===btn));
     });
   });
