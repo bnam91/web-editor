@@ -173,7 +173,7 @@ function deselectAll() {
   document.querySelectorAll('.gap-block').forEach(g => g.classList.remove('selected'));
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
   document.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
-  showEmptyProperties();
+  showPageProperties();
 }
 
 function bindSectionDelete(sec) {
@@ -204,16 +204,71 @@ document.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => 
    PROPERTIES PANEL
 ═══════════════════════════════════ */
 const propPanel = document.querySelector('#panel-right .panel-body');
+const canvasEl  = document.getElementById('canvas');
 
-function showEmptyProperties() {
+let pageSettings = { bg: '#ffffff', gap: 20 };
+
+function showPageProperties() {
+  const { bg, gap } = pageSettings;
   propPanel.innerHTML = `
-    <div class="empty-state">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
-      </svg>
-      블록을 선택하면<br>속성이 표시돼요
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+          </svg>
+        </div>
+        <span class="prop-block-name">Page</span>
+      </div>
+      <div class="prop-section-title">배경</div>
+      <div class="prop-color-row">
+        <span class="prop-label">배경색</span>
+        <div class="prop-color-swatch" style="background:${bg}">
+          <input type="color" id="page-bg-color" value="${bg}">
+        </div>
+        <input type="text" class="prop-color-hex" id="page-bg-hex" value="${bg}" maxlength="7">
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">레이아웃</div>
+      <div class="prop-row">
+        <span class="prop-label">섹션 간격</span>
+        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="100" step="4" value="${gap}">
+        <input type="number" class="prop-number" id="section-gap-number" min="0" max="100" value="${gap}">
+      </div>
     </div>`;
+
+  const bgPicker = document.getElementById('page-bg-color');
+  const bgHex    = document.getElementById('page-bg-hex');
+  const bgSwatch = bgPicker.closest('.prop-color-swatch');
+  bgPicker.addEventListener('input', () => {
+    pageSettings.bg = bgPicker.value;
+    canvasEl.style.background = pageSettings.bg;
+    bgHex.value = pageSettings.bg;
+    bgSwatch.style.background = pageSettings.bg;
+  });
+  bgHex.addEventListener('input', () => {
+    if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
+      pageSettings.bg = bgHex.value;
+      bgPicker.value = pageSettings.bg;
+      canvasEl.style.background = pageSettings.bg;
+      bgSwatch.style.background = pageSettings.bg;
+    }
+  });
+
+  const gapSlider = document.getElementById('section-gap-slider');
+  const gapNumber = document.getElementById('section-gap-number');
+  gapSlider.addEventListener('input', () => {
+    pageSettings.gap = parseInt(gapSlider.value);
+    canvasEl.style.gap = pageSettings.gap + 'px';
+    gapNumber.value = pageSettings.gap;
+  });
+  gapNumber.addEventListener('input', () => {
+    const v = Math.min(100, Math.max(0, parseInt(gapNumber.value) || 0));
+    pageSettings.gap = v;
+    canvasEl.style.gap = v + 'px';
+    gapSlider.value = v;
+  });
 }
 
 function showTextProperties(tb) {
@@ -644,5 +699,7 @@ function addSection() {
 }
 
 /* ── Init ── */
+canvasEl.style.background = pageSettings.bg;
+canvasEl.style.gap = pageSettings.gap + 'px';
 buildLayerPanel();
-showEmptyProperties();
+showPageProperties();
