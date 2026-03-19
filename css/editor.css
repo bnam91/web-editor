@@ -435,9 +435,11 @@ body {
 }
 .gap-block:hover::before { display: block; }
 
-/* 첫 번째 gap-block 라벨 ↔ 섹션 라벨 겹침 방지 */
-.section-block:hover .section-inner > .gap-block:first-child::before,
-.section-block.selected .section-inner > .gap-block:first-child::before { display: none; }
+/* 첫 번째 블록 라벨 ↔ 섹션 라벨 겹침 방지 */
+.section-block:hover .section-inner > :first-child::before,
+.section-block.selected .section-inner > :first-child::before,
+.section-block:hover .section-inner > :first-child .text-block-label,
+.section-block.selected .section-inner > :first-child .text-block-label { display: none; }
 
 .gap-block.selected {
   background: rgba(45,111,232,0.05);
