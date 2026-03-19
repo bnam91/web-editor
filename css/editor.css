@@ -450,20 +450,37 @@ body {
 /* ── Drag & Drop ── */
 .row.dragging, .gap-block.dragging { opacity: 0.25; pointer-events: none; }
 
-.drop-indicator, .layer-drop-indicator {
+/* 캔버스 드롭 인디케이터 — 줌 보정을 위해 두껍게 */
+.drop-indicator {
+  height: 3px; background: #2d6fe8;
+  border-radius: 2px; flex-shrink: 0;
+  pointer-events: none; margin: 2px 0;
+  position: relative;
+  box-shadow: 0 0 6px rgba(45,111,232,0.6);
+}
+.drop-indicator::before {
+  content: '';
+  position: absolute;
+  left: -4px; top: -4px;
+  width: 11px; height: 11px;
+  border-radius: 50%; background: #2d6fe8;
+  box-shadow: 0 0 4px rgba(45,111,232,0.5);
+}
+
+/* 레이어 패널 드롭 인디케이터 */
+.layer-drop-indicator {
   height: 2px; background: #2d6fe8;
   border-radius: 1px; flex-shrink: 0;
-  pointer-events: none; margin: 0;
+  pointer-events: none; margin: 1px 6px;
   position: relative;
 }
-.drop-indicator::before, .layer-drop-indicator::before {
+.layer-drop-indicator::before {
   content: '';
   position: absolute;
   left: -3px; top: -3px;
   width: 8px; height: 8px;
   border-radius: 50%; background: #2d6fe8;
 }
-.layer-drop-indicator { margin: 1px 6px; }
 .layer-item.layer-dragging { opacity: 0.3; }
 
 /* ═══════════════════════════════════
