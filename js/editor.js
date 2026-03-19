@@ -1103,11 +1103,25 @@ function insertBeforeBottomGap(section, el) {
   else inner.appendChild(el);
 }
 
+/* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
+function insertAfterSelected(section, el) {
+  const inner = section.querySelector('.section-inner');
+  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected');
+
+  if (sel && sel.closest('.section-block') === section) {
+    const isGap = sel.classList.contains('gap-block');
+    const ref = isGap ? sel : (sel.closest('.row') || sel);
+    ref.after(el);
+  } else {
+    insertBeforeBottomGap(section, el);
+  }
+}
+
 function addTextBlock(type) {
   const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
   if (!sec) return;
   const { row, block } = makeTextBlock(type);
-  insertBeforeBottomGap(sec, row);
+  insertAfterSelected(sec, row);
   bindBlock(block);
   buildLayerPanel();
   selectSection(sec);
@@ -1143,7 +1157,7 @@ function addRowBlock() {
     bindBlock(ab);
   });
 
-  insertBeforeBottomGap(sec, row);
+  insertAfterSelected(sec, row);
   buildLayerPanel();
   selectSection(sec);
 }
@@ -1152,7 +1166,7 @@ function addAssetBlock() {
   const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
   if (!sec) return;
   const { row, block } = makeAssetBlock();
-  insertBeforeBottomGap(sec, row);
+  insertAfterSelected(sec, row);
   bindBlock(block);
   buildLayerPanel();
   selectSection(sec);
@@ -1162,7 +1176,7 @@ function addGapBlock() {
   const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
   if (!sec) return;
   const gb = makeGapBlock();
-  insertBeforeBottomGap(sec, gb);
+  insertAfterSelected(sec, gb);
   bindBlock(gb);
   buildLayerPanel();
   selectSection(sec);
