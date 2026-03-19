@@ -160,6 +160,7 @@ function buildLayerPanel() {
         highlightBlock(block, item);
         if (isText) showTextProperties(block);
         else if (isGap) showGapProperties(block);
+        else showAssetProperties(block);
       });
 
       block.addEventListener('mouseenter', () => item.style.background = '#252525');
@@ -391,6 +392,99 @@ function showPageProperties() {
   });
 }
 
+function getCurrentRatioStr(block) {
+  const row = block.closest('.row');
+  if (!row) return '1';
+  const cols = [...row.querySelectorAll(':scope > .col')];
+  if (cols.length <= 1) return '1';
+  return cols.map(col => col.dataset.flex || '1').join('*');
+}
+
+function applyRowLayout(block, ratioStr) {
+  const ratios = ratioStr.trim().split('*')
+    .map(n => parseInt(n.trim()))
+    .filter(n => n > 0 && !isNaN(n));
+  if (ratios.length === 0) return;
+
+  const row = block.closest('.row');
+  if (!row) return;
+
+  const existingCols = [...row.querySelectorAll(':scope > .col')];
+
+  if (ratios.length === 1) {
+    row.dataset.layout = 'stack';
+    existingCols.slice(1).forEach(col => col.remove());
+    if (existingCols[0]) {
+      existingCols[0].style.flex = '';
+      delete existingCols[0].dataset.flex;
+    }
+  } else {
+    row.dataset.layout = 'flex';
+
+    // 기존 col 업데이트 또는 제거
+    existingCols.forEach((col, i) => {
+      if (i < ratios.length) {
+        col.style.flex = ratios[i];
+        col.dataset.flex = ratios[i];
+      } else {
+        col.remove();
+      }
+    });
+
+    // 부족한 col 추가
+    for (let i = existingCols.length; i < ratios.length; i++) {
+      const col = document.createElement('div');
+      col.className = 'col';
+      col.style.flex = ratios[i];
+      col.dataset.flex = ratios[i];
+
+      const ab = document.createElement('div');
+      ab.className = 'asset-block';
+      ab.innerHTML = `
+        <span class="asset-tag">Image / GIF</span>
+        ${ASSET_SVG}
+        <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
+        <span class="asset-sub">PNG · JPG · GIF · WebP</span>
+        <span class="asset-size">860 × 780</span>`;
+      col.appendChild(ab);
+      row.appendChild(col);
+      bindBlock(ab);
+    }
+  }
+  buildLayerPanel();
+}
+
+function bindLayoutInput(block) {
+  const input = document.getElementById('layout-ratio');
+  if (!input) return;
+  const apply = () => applyRowLayout(block, input.value);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
+  input.addEventListener('blur', apply);
+}
+
+function showAssetProperties(ab) {
+  const ratioStr = getCurrentRatioStr(ab);
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <rect x="1" y="1" width="10" height="10" rx="1"/>
+            <circle cx="4" cy="4" r="1"/>
+            <polyline points="11 8 8 5 3 11"/>
+          </svg>
+        </div>
+        <span class="prop-block-name">Asset Block</span>
+      </div>
+      <div class="prop-section-title">레이아웃</div>
+      <div class="prop-row">
+        <span class="prop-label">비율</span>
+        <input type="text" class="prop-layout-input" id="layout-ratio" value="${ratioStr}" placeholder="1*2*1">
+      </div>
+    </div>`;
+  bindLayoutInput(ab);
+}
+
 function showTextProperties(tb) {
   const contentEl = tb.querySelector('[contenteditable]');
   const computed   = window.getComputedStyle(contentEl);
@@ -404,6 +498,7 @@ function showTextProperties(tb) {
   const currentPadB  = parseInt(tb.style.paddingBottom) || 32;
   const currentFont  = contentEl.style.fontFamily || '';
 
+  const ratioStr = getCurrentRatioStr(tb);
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -414,6 +509,13 @@ function showTextProperties(tb) {
         </div>
         <span class="prop-block-name">Text Block</span>
       </div>
+      <div class="prop-section-title">레이아웃</div>
+      <div class="prop-row">
+        <span class="prop-label">비율</span>
+        <input type="text" class="prop-layout-input" id="layout-ratio" value="${ratioStr}" placeholder="1*2*1">
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">타입</div>
       <div class="prop-type-group">
         <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
@@ -572,6 +674,8 @@ function showTextProperties(tb) {
   ptNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(ptNumber.value)||0)); tb.style.paddingTop=v+'px'; ptSlider.value=v; });
   pbSlider.addEventListener('input', () => { tb.style.paddingBottom = pbSlider.value+'px'; pbNumber.value = pbSlider.value; });
   pbNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pbNumber.value)||0)); tb.style.paddingBottom=v+'px'; pbSlider.value=v; });
+
+  bindLayoutInput(tb);
 }
 
 function rgbToHex(rgb) {
@@ -785,6 +889,7 @@ function bindBlock(block) {
       block.classList.add('selected');
       syncSection(block.closest('.section-block'));
       highlightBlock(block, block._layerItem);
+      showAssetProperties(block);
     });
   }
 

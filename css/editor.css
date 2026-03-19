@@ -205,7 +205,7 @@ body {
 ═══════════════════════════════════ */
 .row { position: relative; display: flex; width: 100%; }
 .row[data-layout="stack"] { flex-direction: column; }
-.row[data-layout="flex"]  { flex-direction: row; }
+.row[data-layout="flex"]  { flex-direction: row; gap: 8px; align-items: stretch; }
 .row[data-layout="grid"]  { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
 
 .row:hover::before {
@@ -331,6 +331,16 @@ body {
   font-size: 11px; text-align: center; outline: none;
 }
 .prop-number:focus { border-color: #2d6fe8; }
+
+.prop-layout-input {
+  flex: 1; height: 26px;
+  background: #1a1a1a; border: 1px solid #333;
+  border-radius: 4px; color: #ddd;
+  font-size: 12px; font-family: monospace;
+  padding: 0 8px; outline: none;
+}
+.prop-layout-input:focus { border-color: #2d6fe8; }
+.prop-layout-input::placeholder { color: #444; }
 
 .prop-block-label { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
 .prop-block-icon {
