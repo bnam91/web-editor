@@ -69,6 +69,120 @@ const layerIcons = {
   gap:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4" stroke-dasharray="2,1"/><line x1="1" y1="8" x2="11" y2="8" stroke-dasharray="2,1"/></svg>`,
 };
 
+/* 레이어 아이템 생성 (단일 블록용) */
+function makeLayerBlockItem(block, dragTarget, sec) {
+  const isText = block.classList.contains('text-block');
+  const isGap  = block.classList.contains('gap-block');
+  const type   = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', asset:'Asset', gap:'Gap' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   asset:'Image', gap:'Gap' };
+
+  const item = document.createElement('div');
+  item.className = 'layer-item';
+  item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
+  item._dragTarget = dragTarget;
+
+  item.addEventListener('click', e => {
+    e.stopPropagation();
+    deselectAll();
+    block.classList.add('selected');
+    syncSection(sec);
+    highlightBlock(block, item);
+    if (isText) showTextProperties(block);
+    else if (isGap) showGapProperties(block);
+    else showAssetProperties(block);
+  });
+  block.addEventListener('mouseenter', () => item.style.background = '#252525');
+  block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
+
+  item.setAttribute('draggable', 'true');
+  item.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    layerDragSrc = item;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => item.classList.add('layer-dragging'));
+  });
+  item.addEventListener('dragend', () => {
+    item.classList.remove('layer-dragging');
+    clearLayerIndicators();
+    layerDragSrc = null;
+  });
+
+  block._layerItem = item;
+  return item;
+}
+
+/* 레이어 Row 그룹 생성 (멀티컬럼용) */
+function makeLayerRowGroup(rowEl, blocks, sec) {
+  const ratioStr = rowEl.dataset.ratioStr || `${blocks.length}*1`;
+  const group = document.createElement('div');
+  group.className = 'layer-row-group';
+  group._dragTarget = rowEl;
+
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  header.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+      <rect x="1" y="1" width="4" height="10" rx="0.5"/><rect x="7" y="1" width="4" height="10" rx="0.5"/>
+    </svg>
+    <span class="layer-item-name">Row</span>
+    <span class="layer-item-type">${ratioStr}</span>`;
+
+  const groupChildren = document.createElement('div');
+  groupChildren.className = 'layer-row-children';
+
+  blocks.forEach(block => {
+    const isText = block.classList.contains('text-block');
+    const isGap  = block.classList.contains('gap-block');
+    const type   = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : 'asset';
+    const labels    = { heading:'Heading', body:'Body', caption:'Caption', asset:'Asset', gap:'Gap' };
+    const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   asset:'Image', gap:'Gap' };
+
+    const item = document.createElement('div');
+    item.className = 'layer-item layer-item-nested';
+    item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
+
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      deselectAll();
+      block.classList.add('selected');
+      syncSection(sec);
+      highlightBlock(block, item);
+      if (isText) showTextProperties(block);
+      else if (isGap) showGapProperties(block);
+      else showAssetProperties(block);
+    });
+    block.addEventListener('mouseenter', () => item.style.background = '#252525');
+    block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
+
+    block._layerItem = item;
+    groupChildren.appendChild(item);
+  });
+
+  header.addEventListener('click', () => group.classList.toggle('collapsed'));
+
+  // Row 그룹 드래그 (섹션 내 Row 순서 변경)
+  header.setAttribute('draggable', 'true');
+  header.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    layerDragSrc = group;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => group.classList.add('layer-dragging'));
+  });
+  header.addEventListener('dragend', () => {
+    group.classList.remove('layer-dragging');
+    clearLayerIndicators();
+    layerDragSrc = null;
+  });
+
+  group.appendChild(header);
+  group.appendChild(groupChildren);
+  return group;
+}
+
 function buildLayerPanel() {
   const panel = document.getElementById('layer-panel-body');
   panel.innerHTML = '';
@@ -93,19 +207,11 @@ function buildLayerPanel() {
     header.appendChild(chevron);
     header.appendChild(nameEl);
 
-    // 헤더 클릭 (이름 영역 제외) → 접기/펼치기 + 선택
     chevron.addEventListener('click', () => {
       const collapsed = sectionEl.classList.toggle('collapsed');
       if (!collapsed) selectSection(sec);
     });
-
-    // 이름 클릭 → 섹션 선택
-    nameEl.addEventListener('click', e => {
-      e.stopPropagation();
-      selectSection(sec);
-    });
-
-    // 이름 더블클릭 → 인라인 편집
+    nameEl.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
     nameEl.addEventListener('dblclick', e => {
       e.stopPropagation();
       nameEl.contentEditable = 'true';
@@ -115,7 +221,6 @@ function buildLayerPanel() {
       range.selectNodeContents(nameEl);
       window.getSelection().removeAllRanges();
       window.getSelection().addRange(range);
-
       const finish = () => {
         nameEl.contentEditable = 'false';
         nameEl.classList.remove('editing');
@@ -135,59 +240,23 @@ function buildLayerPanel() {
     const children = document.createElement('div');
     children.className = 'layer-children';
 
-    let itemIdx = 0;
-    sec.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(block => {
-      const isText = block.classList.contains('text-block');
-      const isGap  = block.classList.contains('gap-block');
-      const type   = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : 'asset';
-      const labels     = { heading: 'Heading', body: 'Body', caption: 'Caption', asset: 'Asset', gap: 'Gap' };
-      const typeLabels = { heading: 'Text', body: 'Text', caption: 'Text', asset: 'Image', gap: 'Gap' };
-
-      const item = document.createElement('div');
-      item.className = 'layer-item';
-      item.dataset.blockIdx = itemIdx++;
-      item.innerHTML = `
-        ${layerIcons[type]}
-        <span class="layer-item-name">${labels[type]}</span>
-        <span class="layer-item-type">${typeLabels[type]}</span>
-      `;
-
-      item.addEventListener('click', e => {
-        e.stopPropagation();
-        deselectAll();
-        block.classList.add('selected');
-        syncSection(sec);
-        highlightBlock(block, item);
-        if (isText) showTextProperties(block);
-        else if (isGap) showGapProperties(block);
-        else showAssetProperties(block);
-      });
-
-      block.addEventListener('mouseenter', () => item.style.background = '#252525');
-      block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
-
-      // 레이어 아이템 드래그
-      const itemDragTarget = isGap ? block : (block.closest('.row') || block);
-      item._dragTarget = itemDragTarget;
-      item.setAttribute('draggable', 'true');
-      item.addEventListener('dragstart', e => {
-        e.stopPropagation();
-        layerDragSrc = item;
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', '');
-        requestAnimationFrame(() => item.classList.add('layer-dragging'));
-      });
-      item.addEventListener('dragend', () => {
-        item.classList.remove('layer-dragging');
-        clearLayerIndicators();
-        layerDragSrc = null;
-      });
-
-      children.appendChild(item);
-      block._layerItem = item;
+    // section-inner 직접 자식 순회 (Row 단위로 처리)
+    const sectionInner = sec.querySelector('.section-inner');
+    [...sectionInner.children].forEach(child => {
+      if (child.classList.contains('gap-block')) {
+        children.appendChild(makeLayerBlockItem(child, child, sec));
+      } else if (child.classList.contains('row')) {
+        const colBlocks = [...child.querySelectorAll(':scope > .col > *')];
+        if (colBlocks.length <= 1) {
+          const block = colBlocks[0];
+          if (block) children.appendChild(makeLayerBlockItem(block, child, sec));
+        } else {
+          children.appendChild(makeLayerRowGroup(child, colBlocks, sec));
+        }
+      }
     });
 
-    // 레이어 패널 드롭존
+    // 레이어 패널 드롭존 (Row/Gap 단위 재배치)
     children.addEventListener('dragover', e => {
       e.preventDefault();
       e.stopPropagation();
@@ -206,13 +275,13 @@ function buildLayerPanel() {
       e.preventDefault();
       e.stopPropagation();
       if (!layerDragSrc) return;
-      const sectionInner = sec.querySelector('.section-inner');
       const dragTarget = layerDragSrc._dragTarget;
       const indicator = children.querySelector('.layer-drop-indicator');
       if (indicator) {
-        const nextItem = indicator.nextElementSibling;
-        if (nextItem && nextItem._dragTarget) {
-          sectionInner.insertBefore(dragTarget, nextItem._dragTarget);
+        const nextEl = indicator.nextElementSibling;
+        const nextTarget = nextEl?._dragTarget || null;
+        if (nextTarget) {
+          sectionInner.insertBefore(dragTarget, nextTarget);
         } else {
           const bottomGap = [...sectionInner.querySelectorAll(':scope > .gap-block')].at(-1);
           if (bottomGap && bottomGap !== dragTarget) sectionInner.insertBefore(dragTarget, bottomGap);
@@ -232,7 +301,7 @@ function buildLayerPanel() {
     sec._layerHeader = header;
     sectionEl._canvasSec = sec;
 
-    // 레이어 섹션 헤더 드래그 (섹션 순서 변경)
+    // 섹션 헤더 드래그 (섹션 순서 변경)
     header.setAttribute('draggable', 'true');
     header.addEventListener('dragstart', e => {
       if (nameEl.classList.contains('editing')) { e.preventDefault(); return; }
@@ -394,63 +463,77 @@ function showPageProperties() {
 
 function getCurrentRatioStr(block) {
   const row = block.closest('.row');
-  if (!row) return '1';
+  if (!row) return '1*1';
+  if (row.dataset.ratioStr) return row.dataset.ratioStr;
   const cols = [...row.querySelectorAll(':scope > .col')];
-  if (cols.length <= 1) return '1';
-  return cols.map(col => col.dataset.flex || '1').join('*');
+  if (cols.length <= 1) return '1*1';
+  return `${cols.length}*1`;
+}
+
+function makeEmptyCol(flexVal) {
+  const col = document.createElement('div');
+  col.className = 'col';
+  if (flexVal) { col.style.flex = flexVal; col.dataset.flex = flexVal; }
+  const ab = document.createElement('div');
+  ab.className = 'asset-block';
+  ab.innerHTML = `
+    <span class="asset-tag">Image / GIF</span>
+    ${ASSET_SVG}
+    <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
+    <span class="asset-sub">PNG · JPG · GIF · WebP</span>
+    <span class="asset-size">860 × 780</span>`;
+  col.appendChild(ab);
+  bindBlock(ab);
+  return col;
 }
 
 function applyRowLayout(block, ratioStr) {
-  const ratios = ratioStr.trim().split('*')
-    .map(n => parseInt(n.trim()))
-    .filter(n => n > 0 && !isNaN(n));
-  if (ratios.length === 0) return;
+  const parts = ratioStr.trim().split('*').map(n => parseInt(n.trim())).filter(n => n > 0 && !isNaN(n));
+  if (parts.length === 0) return;
+
+  const cols  = parts[0] || 1;
+  const rows  = parts[1] || 1;
+  const total = cols * rows;
 
   const row = block.closest('.row');
   if (!row) return;
 
   const existingCols = [...row.querySelectorAll(':scope > .col')];
 
-  if (ratios.length === 1) {
+  if (cols === 1 && rows === 1) {
+    // 단일 셀: stack 복귀
     row.dataset.layout = 'stack';
+    row.dataset.ratioStr = '1*1';
+    row.style.display = '';
+    row.style.gridTemplateColumns = '';
     existingCols.slice(1).forEach(col => col.remove());
-    if (existingCols[0]) {
-      existingCols[0].style.flex = '';
-      delete existingCols[0].dataset.flex;
-    }
-  } else {
+    if (existingCols[0]) { existingCols[0].style.flex = ''; delete existingCols[0].dataset.flex; }
+
+  } else if (rows === 1) {
+    // Flex row: 여러 열, 1행
     row.dataset.layout = 'flex';
-
-    // 기존 col 업데이트 또는 제거
+    row.dataset.ratioStr = `${cols}*1`;
+    row.style.display = '';
+    row.style.gridTemplateColumns = '';
     existingCols.forEach((col, i) => {
-      if (i < ratios.length) {
-        col.style.flex = ratios[i];
-        col.dataset.flex = ratios[i];
-      } else {
-        col.remove();
-      }
+      if (i < cols) { col.style.flex = '1'; col.dataset.flex = '1'; }
+      else col.remove();
     });
+    for (let i = existingCols.length; i < cols; i++) row.appendChild(makeEmptyCol('1'));
 
-    // 부족한 col 추가
-    for (let i = existingCols.length; i < ratios.length; i++) {
-      const col = document.createElement('div');
-      col.className = 'col';
-      col.style.flex = ratios[i];
-      col.dataset.flex = ratios[i];
-
-      const ab = document.createElement('div');
-      ab.className = 'asset-block';
-      ab.innerHTML = `
-        <span class="asset-tag">Image / GIF</span>
-        ${ASSET_SVG}
-        <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-        <span class="asset-sub">PNG · JPG · GIF · WebP</span>
-        <span class="asset-size">860 × 780</span>`;
-      col.appendChild(ab);
-      row.appendChild(col);
-      bindBlock(ab);
-    }
+  } else {
+    // CSS Grid: cols열 × rows행
+    row.dataset.layout = 'grid';
+    row.dataset.ratioStr = `${cols}*${rows}`;
+    row.style.display = 'grid';
+    row.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    existingCols.forEach((col, i) => {
+      if (i < total) { col.style.flex = ''; delete col.dataset.flex; }
+      else col.remove();
+    });
+    for (let i = existingCols.length; i < total; i++) row.appendChild(makeEmptyCol(null));
   }
+
   buildLayerPanel();
 }
 
@@ -464,6 +547,7 @@ function bindLayoutInput(block) {
 
 function showAssetProperties(ab) {
   const ratioStr = getCurrentRatioStr(ab);
+  const currentH = parseInt(ab.style.height) || ab.offsetHeight || 780;
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -479,10 +563,34 @@ function showAssetProperties(ab) {
       <div class="prop-section-title">레이아웃</div>
       <div class="prop-row">
         <span class="prop-label">비율</span>
-        <input type="text" class="prop-layout-input" id="layout-ratio" value="${ratioStr}" placeholder="1*2*1">
+        <input type="text" class="prop-layout-input" id="layout-ratio" value="${ratioStr}" placeholder="2*2">
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">크기</div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="asset-h-slider" min="100" max="1200" step="20" value="${currentH}">
+        <input type="number" class="prop-number" id="asset-h-number" min="100" max="1200" value="${currentH}">
       </div>
     </div>`;
+
   bindLayoutInput(ab);
+
+  const applyH = v => {
+    const row = ab.closest('.row');
+    const targets = (row && row.dataset.layout !== 'stack')
+      ? [...row.querySelectorAll(':scope > .col > .asset-block')]
+      : [ab];
+    targets.forEach(b => b.style.height = v + 'px');
+  };
+  const hSlider = document.getElementById('asset-h-slider');
+  const hNumber = document.getElementById('asset-h-number');
+  hSlider.addEventListener('input', () => { applyH(parseInt(hSlider.value)); hNumber.value = hSlider.value; });
+  hNumber.addEventListener('input', () => {
+    const v = Math.min(1200, Math.max(100, parseInt(hNumber.value) || 100));
+    applyH(v); hSlider.value = v;
+  });
 }
 
 function showTextProperties(tb) {
@@ -795,7 +903,7 @@ function getLayerSectionDragAfterEl(panel, y) {
 
 function getLayerDragAfterItem(container, y) {
   const items = [...container.children].filter(el =>
-    el.classList.contains('layer-item') && el !== layerDragSrc
+    (el.classList.contains('layer-item') || el.classList.contains('layer-row-group')) && el !== layerDragSrc
   );
   return items.reduce((closest, item) => {
     const box = item.getBoundingClientRect();

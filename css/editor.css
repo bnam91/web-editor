@@ -116,6 +116,22 @@ body {
 .layer-children { padding-left: 16px; overflow: hidden; }
 .layer-section.collapsed .layer-children { display: none; }
 
+/* ── Layer Row Group (멀티컬럼 컨테이너) ── */
+.layer-row-group { margin-bottom: 1px; border-radius: 4px; overflow: hidden; }
+.layer-row-header {
+  display: flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 8px;
+  cursor: pointer; border-radius: 4px;
+  transition: background 0.1s; user-select: none;
+}
+.layer-row-header:hover { background: #2a2a2a; }
+.layer-row-header.active { background: rgba(45,111,232,0.12); }
+.layer-row-children { padding-left: 16px; overflow: hidden; }
+.layer-row-group.collapsed .layer-row-children { display: none; }
+.layer-row-group.collapsed .layer-chevron { transform: rotate(-90deg); }
+.layer-row-group.layer-dragging { opacity: 0.3; }
+.layer-item-nested { padding-left: 4px; }
+
 .layer-item {
   display: flex; align-items: center; gap: 6px;
   height: 26px; padding: 0 8px;
@@ -174,7 +190,7 @@ body {
   color: #2d6fe8; letter-spacing: 0.06em; text-transform: uppercase;
   background: #1a2d50;
   padding: 2px 7px; border-radius: 3px 3px 0 0;
-  pointer-events: none;
+  pointer-events: auto;
 }
 .section-block.selected .section-label,
 .section-block:hover .section-label { display: block; }
@@ -206,7 +222,7 @@ body {
 .row { position: relative; display: flex; width: 100%; }
 .row[data-layout="stack"] { flex-direction: column; }
 .row[data-layout="flex"]  { flex-direction: row; gap: 8px; align-items: stretch; }
-.row[data-layout="grid"]  { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.row[data-layout="grid"]  { display: grid; gap: 8px; } /* grid-template-columns은 JS에서 inline으로 설정 */
 
 .row:hover::before {
   content: '';
