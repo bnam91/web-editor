@@ -557,14 +557,8 @@ function getSelectedSection() {
 ═══════════════════════════════════ */
 let dragSrc = null;
 
-function clearDropIndicators() {
-  document.querySelectorAll('.drop-indicator').forEach(d => d.remove());
-}
-
 function getDragAfterElement(container, y) {
-  const children = [...container.children].filter(el =>
-    !el.classList.contains('drop-indicator') && el !== dragSrc
-  );
+  const children = [...container.children].filter(el => el !== dragSrc);
   return children.reduce((closest, child) => {
     const box = child.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
@@ -578,23 +572,18 @@ function bindSectionDropZone(sec) {
   inner.addEventListener('dragover', e => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    clearDropIndicators();
-    const after = getDragAfterElement(inner, e.clientY);
-    const indicator = document.createElement('div');
-    indicator.className = 'drop-indicator';
-    if (after) inner.insertBefore(indicator, after);
-    else inner.appendChild(indicator);
+    inner.classList.add('drag-over');
   });
   inner.addEventListener('dragleave', e => {
-    if (!inner.contains(e.relatedTarget)) clearDropIndicators();
+    if (!inner.contains(e.relatedTarget)) inner.classList.remove('drag-over');
   });
   inner.addEventListener('drop', e => {
     e.preventDefault();
+    inner.classList.remove('drag-over');
     if (!dragSrc) return;
-    const indicator = inner.querySelector('.drop-indicator');
-    if (indicator) inner.insertBefore(dragSrc, indicator);
+    const after = getDragAfterElement(inner, e.clientY);
+    if (after) inner.insertBefore(dragSrc, after);
     else inner.appendChild(dragSrc);
-    clearDropIndicators();
     buildLayerPanel();
     dragSrc = null;
   });
@@ -649,32 +638,28 @@ function bindBlock(block) {
   block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = '#252525'; });
   block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
 
-  // 드래그 핸들 + 드래그 이벤트
+  // 드래그 이벤트
   const dragTarget = isGap ? block : (block.closest('.row') || block);
   if (dragTarget && !dragTarget._dragBound) {
     dragTarget._dragBound = true;
     dragTarget.setAttribute('draggable', 'true');
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
-    const handle = document.createElement('div');
-    handle.className = 'drag-handle';
-    handle.innerHTML = `<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
-      <circle cx="3" cy="2.5"  r="1.3"/><circle cx="7" cy="2.5"  r="1.3"/>
-      <circle cx="3" cy="7"    r="1.3"/><circle cx="7" cy="7"    r="1.3"/>
-      <circle cx="3" cy="11.5" r="1.3"/><circle cx="7" cy="11.5" r="1.3"/>
-    </svg>`;
-    block.appendChild(handle);
-
     dragTarget.addEventListener('dragstart', e => {
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
       dragSrc = dragTarget;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
+      // ghost 이미지 투명 처리 (zoom 왜곡 방지)
+      const ghost = document.createElement('div');
+      ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 0, 0);
+      setTimeout(() => ghost.remove(), 0);
       requestAnimationFrame(() => dragTarget.classList.add('dragging'));
     });
     dragTarget.addEventListener('dragend', () => {
       dragTarget.classList.remove('dragging');
-      clearDropIndicators();
       dragSrc = null;
     });
   }

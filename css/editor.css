@@ -443,38 +443,8 @@ body {
 
 
 /* ── Drag & Drop ── */
-.drag-handle {
-  position: absolute;
-  left: 5px; top: 50%;
-  transform: translateY(-50%);
-  width: 14px; height: 22px;
-  display: none; align-items: center; justify-content: center;
-  cursor: grab; color: #aaa; opacity: 0.5;
-  z-index: 10; user-select: none;
-}
-.drag-handle:active { cursor: grabbing; }
-.text-block:hover .drag-handle,
-.text-block.selected .drag-handle,
-.asset-block:hover .drag-handle,
-.asset-block.selected .drag-handle,
-.gap-block:hover .drag-handle,
-.gap-block.selected .drag-handle { display: flex; }
-.drag-handle:hover { opacity: 1; }
-
-.row.dragging, .gap-block.dragging { opacity: 0.3; pointer-events: none; }
-
-.drop-indicator {
-  height: 2px; background: #2d6fe8;
-  border-radius: 1px; flex-shrink: 0;
-  pointer-events: none; position: relative; margin: 1px 0;
-}
-.drop-indicator::before {
-  content: '';
-  position: absolute;
-  left: -3px; top: -3px;
-  width: 8px; height: 8px;
-  border-radius: 50%; background: #2d6fe8;
-}
+.row.dragging, .gap-block.dragging { opacity: 0.25; pointer-events: none; }
+.section-inner.drag-over { outline: 1.5px dashed rgba(45,111,232,0.35); outline-offset: -2px; }
 
 /* ═══════════════════════════════════
    FLOATING ACTION PANEL
