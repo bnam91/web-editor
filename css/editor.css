@@ -283,7 +283,7 @@ body {
   display: inline-block;
   background: #111111; color: #ffffff;
   font-size: 12px; font-weight: 700;
-  padding: 5px 14px; border-radius: 4px;
+  padding: 5px 16px; border-radius: 4px;
   letter-spacing: 0.06em;
 }
 
