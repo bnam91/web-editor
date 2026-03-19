@@ -203,10 +203,11 @@ document.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => 
 /* ═══════════════════════════════════
    PROPERTIES PANEL
 ═══════════════════════════════════ */
-const propPanel = document.querySelector('#panel-right .panel-body');
-const canvasEl  = document.getElementById('canvas');
+const propPanel   = document.querySelector('#panel-right .panel-body');
+const canvasEl    = document.getElementById('canvas');
+const canvasWrap  = document.getElementById('canvas-wrap');
 
-let pageSettings = { bg: '#ffffff', gap: 20 };
+let pageSettings = { bg: '#141414', gap: 20 };
 
 function showPageProperties() {
   const { bg, gap } = pageSettings;
@@ -243,7 +244,7 @@ function showPageProperties() {
   const bgSwatch = bgPicker.closest('.prop-color-swatch');
   bgPicker.addEventListener('input', () => {
     pageSettings.bg = bgPicker.value;
-    canvasEl.style.background = pageSettings.bg;
+    canvasWrap.style.background = pageSettings.bg;
     bgHex.value = pageSettings.bg;
     bgSwatch.style.background = pageSettings.bg;
   });
@@ -251,7 +252,7 @@ function showPageProperties() {
     if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
       pageSettings.bg = bgHex.value;
       bgPicker.value = pageSettings.bg;
-      canvasEl.style.background = pageSettings.bg;
+      canvasWrap.style.background = pageSettings.bg;
       bgSwatch.style.background = pageSettings.bg;
     }
   });
@@ -699,7 +700,7 @@ function addSection() {
 }
 
 /* ── Init ── */
-canvasEl.style.background = pageSettings.bg;
+canvasWrap.style.background = pageSettings.bg;
 canvasEl.style.gap = pageSettings.gap + 'px';
 buildLayerPanel();
 showPageProperties();
