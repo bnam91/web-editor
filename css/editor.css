@@ -444,7 +444,20 @@ body {
 
 /* ── Drag & Drop ── */
 .row.dragging, .gap-block.dragging { opacity: 0.25; pointer-events: none; }
-.section-inner.drag-over { outline: 1.5px dashed rgba(45,111,232,0.35); outline-offset: -2px; }
+
+.drop-indicator {
+  height: 2px; background: #2d6fe8;
+  border-radius: 1px; flex-shrink: 0;
+  pointer-events: none; margin: 0;
+  position: relative;
+}
+.drop-indicator::before {
+  content: '';
+  position: absolute;
+  left: -3px; top: -3px;
+  width: 8px; height: 8px;
+  border-radius: 50%; background: #2d6fe8;
+}
 
 /* ═══════════════════════════════════
    FLOATING ACTION PANEL

@@ -558,7 +558,9 @@ function getSelectedSection() {
 let dragSrc = null;
 
 function getDragAfterElement(container, y) {
-  const children = [...container.children].filter(el => el !== dragSrc);
+  const children = [...container.children].filter(el =>
+    !el.classList.contains('drop-indicator') && el !== dragSrc
+  );
   return children.reduce((closest, child) => {
     const box = child.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
@@ -567,23 +569,32 @@ function getDragAfterElement(container, y) {
   }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
+function clearDropIndicators() {
+  document.querySelectorAll('.drop-indicator').forEach(d => d.remove());
+}
+
 function bindSectionDropZone(sec) {
   const inner = sec.querySelector('.section-inner');
   inner.addEventListener('dragover', e => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    inner.classList.add('drag-over');
+    clearDropIndicators();
+    const after = getDragAfterElement(inner, e.clientY);
+    const indicator = document.createElement('div');
+    indicator.className = 'drop-indicator';
+    if (after) inner.insertBefore(indicator, after);
+    else inner.appendChild(indicator);
   });
   inner.addEventListener('dragleave', e => {
-    if (!inner.contains(e.relatedTarget)) inner.classList.remove('drag-over');
+    if (!inner.contains(e.relatedTarget)) clearDropIndicators();
   });
   inner.addEventListener('drop', e => {
     e.preventDefault();
-    inner.classList.remove('drag-over');
     if (!dragSrc) return;
-    const after = getDragAfterElement(inner, e.clientY);
-    if (after) inner.insertBefore(dragSrc, after);
+    const indicator = inner.querySelector('.drop-indicator');
+    if (indicator) inner.insertBefore(dragSrc, indicator);
     else inner.appendChild(dragSrc);
+    clearDropIndicators();
     buildLayerPanel();
     dragSrc = null;
   });
@@ -660,6 +671,7 @@ function bindBlock(block) {
     });
     dragTarget.addEventListener('dragend', () => {
       dragTarget.classList.remove('dragging');
+      clearDropIndicators();
       dragSrc = null;
     });
   }
