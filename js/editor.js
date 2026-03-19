@@ -81,14 +81,55 @@ function buildLayerPanel() {
 
     const header = document.createElement('div');
     header.className = 'layer-section-header';
-    header.innerHTML = `
-      <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
-      ${layerIcons.section}
-      <span class="layer-section-name">Section ${String(sIdx).padStart(2,'0')}</span>
-    `;
-    header.addEventListener('click', () => {
+
+    const chevron = document.createElement('div');
+    chevron.innerHTML = `<svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>${layerIcons.section}`;
+    chevron.style.cssText = 'display:flex;align-items:center;gap:6px;flex-shrink:0;';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'layer-section-name';
+    nameEl.textContent = sec._name || 'Section';
+
+    header.appendChild(chevron);
+    header.appendChild(nameEl);
+
+    // 헤더 클릭 (이름 영역 제외) → 접기/펼치기 + 선택
+    chevron.addEventListener('click', () => {
       const collapsed = sectionEl.classList.toggle('collapsed');
       if (!collapsed) selectSection(sec);
+    });
+
+    // 이름 클릭 → 섹션 선택
+    nameEl.addEventListener('click', e => {
+      e.stopPropagation();
+      selectSection(sec);
+    });
+
+    // 이름 더블클릭 → 인라인 편집
+    nameEl.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      nameEl.contentEditable = 'true';
+      nameEl.classList.add('editing');
+      nameEl.focus();
+      const range = document.createRange();
+      range.selectNodeContents(nameEl);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+
+      const finish = () => {
+        nameEl.contentEditable = 'false';
+        nameEl.classList.remove('editing');
+        const newName = nameEl.textContent.trim() || 'Section';
+        nameEl.textContent = newName;
+        sec._name = newName;
+        const label = sec.querySelector('.section-label');
+        if (label) label.textContent = newName;
+      };
+      nameEl.addEventListener('blur', finish, { once: true });
+      nameEl.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter')  { ev.preventDefault(); nameEl.blur(); }
+        if (ev.key === 'Escape') { nameEl.textContent = sec._name || 'Section'; nameEl.blur(); }
+      });
     });
 
     const children = document.createElement('div');
