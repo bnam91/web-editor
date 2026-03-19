@@ -651,8 +651,9 @@ function showTextProperties(tb) {
   const currentSize  = parseInt(computed.fontSize) || 15;
   const currentColor = rgbToHex(computed.color) || '#111111';
   const currentLH    = (parseFloat(computed.lineHeight) / parseFloat(computed.fontSize) || 1.5).toFixed(2);
-  const currentPadT  = parseInt(tb.style.paddingTop)    || 32;
-  const currentPadB  = parseInt(tb.style.paddingBottom) || 32;
+  const defaultPad   = isLabel ? 12 : 32;
+  const currentPadT  = parseInt(tb.style.paddingTop)    || defaultPad;
+  const currentPadB  = parseInt(tb.style.paddingBottom) || defaultPad;
   const currentFont  = contentEl.style.fontFamily || '';
 
   const ratioStr = getCurrentRatioStr(tb);
