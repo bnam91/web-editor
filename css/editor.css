@@ -165,6 +165,104 @@ body {
   display: none;
 }
 
+/* ── Templates Panel ── */
+.tpl-panel-body {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0 6px;
+}
+.tpl-panel-body::-webkit-scrollbar { width: 4px; }
+.tpl-panel-body::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 2px; }
+
+.tpl-empty {
+  padding: 12px 10px;
+  font-size: 10px;
+  color: #444;
+  text-align: center;
+}
+
+.tpl-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px 7px 10px;
+  margin: 0 6px 3px;
+  background: #242424;
+  border: 1px solid #2e2e2e;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.tpl-card:hover {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+}
+.tpl-card-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 18px;
+}
+.tpl-card-name {
+  font-size: 11px;
+  color: #ccc;
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpl-card-cat {
+  font-size: 9px;
+  color: #2d6fe8;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: rgba(45,111,232,0.12);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.tpl-card-meta {
+  font-size: 9px;
+  color: #444;
+}
+.tpl-delete-btn {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: #555;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.tpl-card:hover .tpl-delete-btn { opacity: 1; }
+.tpl-delete-btn:hover { background: #3a2020; color: #e06c6c; }
+
+/* ── Template name input in Properties panel ── */
+.tpl-name-input {
+  width: 100%;
+  height: 26px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ddd;
+  font-size: 11px;
+  padding: 0 8px;
+  outline: none;
+  box-sizing: border-box;
+}
+.tpl-name-input:focus { border-color: #2d6fe8; }
+.tpl-name-input::placeholder { color: #444; }
+
 /* ── File Page Items ── */
 #page-props-in-file { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 8px; }
 
