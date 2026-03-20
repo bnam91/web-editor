@@ -84,16 +84,17 @@
 <!-- Main -->
 <div id="main">
 
-  <!-- Left: Layers / Branch -->
+  <!-- Left: File / Branch / Inspector -->
   <div class="panel" id="panel-left">
     <div class="panel-tabs">
-      <button class="panel-tab active" data-tab="layers" onclick="switchToTab('layers')">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-          <rect x="1" y="2" width="14" height="2" rx="1"/>
-          <rect x="1" y="7" width="14" height="2" rx="1"/>
-          <rect x="1" y="12" width="14" height="2" rx="1"/>
+      <button class="panel-tab active" data-tab="file" onclick="switchToTab('file')">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="2" y="1" width="8" height="10" rx="1.5"/>
+          <line x1="4" y1="4" x2="8" y2="4"/>
+          <line x1="4" y1="6.5" x2="8" y2="6.5"/>
+          <line x1="4" y1="9" x2="6.5" y2="9"/>
         </svg>
-        Layers
+        File
       </button>
       <button class="panel-tab" data-tab="branch" onclick="switchToTab('branch')">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
@@ -102,14 +103,47 @@
         </svg>
         Branch
       </button>
+      <button class="panel-tab" data-tab="inspector" onclick="switchToTab('inspector')">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+          <circle cx="6" cy="6" r="4.5"/>
+          <line x1="6" y1="4" x2="6" y2="6.5"/>
+          <circle cx="6" cy="8.2" r="0.5" fill="currentColor" stroke="none"/>
+        </svg>
+        Inspector
+      </button>
       <button class="panel-tab-action" id="layer-collapse-all" onclick="toggleAllSections()" title="전체 접기/펼치기">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M2 4l4-3 4 3M2 8l4 3 4-3"/>
         </svg>
       </button>
     </div>
-    <div class="panel-body" id="layer-panel-body"></div>
+    <!-- File tab -->
+    <div id="file-panel-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="file-panel-section">
+        <div class="file-panel-section-header" id="page-section-header">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" class="file-section-chevron">
+            <path d="M2 3l3 3 3-3"/>
+          </svg>
+          <span>Page</span>
+        </div>
+        <div class="file-panel-section-body" id="page-section-body">
+          <div id="page-props-in-file"></div>
+        </div>
+      </div>
+      <div class="file-panel-section file-panel-section--grow">
+        <div class="file-panel-section-header" id="layers-section-header">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" class="file-section-chevron">
+            <path d="M2 3l3 3 3-3"/>
+          </svg>
+          <span>Layers</span>
+        </div>
+        <div class="file-panel-section-body file-panel-section-body--scroll" id="layers-section-body">
+          <div id="layer-panel-body"></div>
+        </div>
+      </div>
+    </div>
     <div class="panel-body" id="branch-panel-body" style="display:none"></div>
+    <div class="panel-body" id="inspector-panel-body" style="display:none"></div>
   </div>
 
   <!-- Canvas -->

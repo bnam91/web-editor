@@ -10,9 +10,23 @@ function toggleAllSections() {
 function switchToTab(tabName) {
   document.querySelectorAll('.panel-tab').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === tabName));
-  document.getElementById('layer-panel-body').style.display  = tabName === 'layers'  ? '' : 'none';
-  document.getElementById('branch-panel-body').style.display = tabName === 'branch' ? '' : 'none';
+  const filePanel = document.getElementById('file-panel-body');
+  if (filePanel) filePanel.style.display = tabName === 'file' ? 'flex' : 'none';
+  document.getElementById('branch-panel-body').style.display    = tabName === 'branch'    ? '' : 'none';
+  document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? '' : 'none';
+  const collapseBtn = document.getElementById('layer-collapse-all');
+  if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
   if (tabName === 'branch') renderBranchPanel();
+}
+
+function initFileTabToggle() {
+  ['page-section-header', 'layers-section-header'].forEach(id => {
+    const header = document.getElementById(id);
+    if (!header) return;
+    header.addEventListener('click', () => {
+      header.closest('.file-panel-section').classList.toggle('collapsed');
+    });
+  });
 }
 
 /* ═══════════════════════════════════
@@ -761,6 +775,8 @@ function buildLayerPanel() {
       layerSectionDragSrc = null;
     });
   });
+
+  buildFilePageSection();
 }
 
 function syncLayerActive(sec) {
@@ -884,8 +900,26 @@ function applyPreset(sec, presetId) {
 }
 
 function showSectionProperties(sec) {
-  const currentBg = sec.style.background || sec.style.backgroundColor || '#ffffff';
-  const hexBg = /^#[0-9a-f]{6}$/i.test(currentBg) ? currentBg : '#ffffff';
+  const rawBg = sec.style.backgroundColor || sec.style.background || '';
+  const hexBg = rawBg
+    ? (/^#[0-9a-f]{6}$/i.test(rawBg) ? rawBg : rgbToHex(rawBg))
+    : '#ffffff';
+  const hasBgImg  = !!sec.dataset.bgImg;
+  const bgSize    = sec.dataset.bgSize || 'cover';
+  const bgImgHTML = hasBgImg ? `
+    <div class="prop-row" style="margin-top:6px;">
+      <span class="prop-label">사이즈</span>
+      <select class="prop-select" id="sec-bg-size">
+        <option value="cover"   ${bgSize==='cover'   ?'selected':''}>Cover</option>
+        <option value="contain" ${bgSize==='contain' ?'selected':''}>Contain</option>
+        <option value="auto"    ${bgSize==='auto'    ?'selected':''}>Auto</option>
+      </select>
+    </div>
+    <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:6px;">이미지 제거</button>
+  ` : `
+    <button class="prop-action-btn secondary" id="sec-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
+    <input type="file" id="sec-bg-img-input" accept="image/*" style="display:none">
+  `;
 
   // 섹션 내 텍스트 블록 타입별 수집
   const typeMap = { heading: 'Heading', body: 'Body', caption: 'Caption', label: 'Label' };
@@ -946,6 +980,8 @@ function showSectionProperties(sec) {
         </div>
         <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg}" maxlength="7">
       </div>
+      <div class="prop-section-title" style="margin-top:10px;">배경 이미지</div>
+      ${bgImgHTML}
     </div>
     ${colorRows ? `<div class="prop-section"><div class="prop-section-title">텍스트 컬러</div>${colorRows}</div>` : ''}
     <div class="prop-section">
@@ -996,6 +1032,49 @@ function showSectionProperties(sec) {
       swatch.style.background = hex.value;
     }
   });
+
+  // 배경 이미지 이벤트
+  const bgImgBtn    = document.getElementById('sec-bg-img-btn');
+  const bgImgInput  = document.getElementById('sec-bg-img-input');
+  const bgSizeEl    = document.getElementById('sec-bg-size');
+  const bgImgRemove = document.getElementById('sec-bg-img-remove');
+
+  if (bgImgBtn && bgImgInput) {
+    bgImgBtn.addEventListener('click', () => bgImgInput.click());
+    bgImgInput.addEventListener('change', () => {
+      const file = bgImgInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        sec.dataset.bgImg = dataUrl;
+        sec.dataset.bgSize = 'cover';
+        sec.style.backgroundImage = `url(${dataUrl})`;
+        sec.style.backgroundSize = 'cover';
+        sec.style.backgroundPosition = 'center';
+        sec.style.backgroundRepeat = 'no-repeat';
+        showSectionProperties(sec);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  if (bgSizeEl) {
+    bgSizeEl.addEventListener('change', () => {
+      sec.dataset.bgSize = bgSizeEl.value;
+      sec.style.backgroundSize = bgSizeEl.value;
+    });
+  }
+  if (bgImgRemove) {
+    bgImgRemove.addEventListener('click', () => {
+      delete sec.dataset.bgImg;
+      delete sec.dataset.bgSize;
+      sec.style.backgroundImage = '';
+      sec.style.backgroundSize = '';
+      sec.style.backgroundPosition = '';
+      sec.style.backgroundRepeat = '';
+      showSectionProperties(sec);
+    });
+  }
 
   // Preset 버튼 이벤트
   propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
@@ -1150,6 +1229,12 @@ const canvasEl    = document.getElementById('canvas');
 const canvasWrap  = document.getElementById('canvas-wrap');
 
 let pageSettings = { bg: '#969696', gap: 100, padX: 32, padY: 32 };
+
+/* ── Multi-page state ── */
+const PAGE_LABELS = ['', 'Hook', 'Main', 'Detail', 'CTA'];
+let pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 }, canvas: '' }];
+let currentPageId = 'page_1';
+let _suppressAutoSave = false;
 
 function showPageProperties() {
   const { bg, gap, padX, padY } = pageSettings;
@@ -2534,6 +2619,164 @@ function goHome() {
   window.location.href = 'pages/projects.html';
 }
 
+/* ── Page Management ── */
+function getCurrentPage() {
+  return pages.find(p => p.id === currentPageId) || pages[0];
+}
+
+function flushCurrentPage() {
+  const page = getCurrentPage();
+  if (!page) return;
+  page.canvas = getSerializedCanvas();
+  page.pageSettings = { ...pageSettings };
+}
+
+function switchPage(pageId) {
+  if (pageId === currentPageId) return;
+  flushCurrentPage();
+  _suppressAutoSave = true;
+  currentPageId = pageId;
+  const page = getCurrentPage();
+  if (page.pageSettings) Object.assign(pageSettings, page.pageSettings);
+  canvasEl.innerHTML = page.canvas || '';
+  canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+  rebindAll();
+  applyPageSettings();
+  deselectAll();
+  showPageProperties();
+  buildLayerPanel(); // also calls buildFilePageSection
+  _suppressAutoSave = false;
+  scheduleAutoSave();
+}
+
+function addPage() {
+  flushCurrentPage();
+  const id = 'page_' + Date.now();
+  const n = pages.length + 1;
+  pages.push({ id, name: `Page ${n}`, label: '', pageSettings: { ...pageSettings }, canvas: '' });
+  switchPage(id);
+}
+
+function deletePage(pageId) {
+  if (pages.length <= 1) { showToast('⚠️ 페이지가 1개 이상이어야 합니다.'); return; }
+  const idx = pages.findIndex(p => p.id === pageId);
+  if (idx === -1) return;
+  const wasActive = pageId === currentPageId;
+  pages.splice(idx, 1);
+  if (wasActive) {
+    const next = pages[Math.min(idx, pages.length - 1)];
+    _suppressAutoSave = true;
+    currentPageId = next.id;
+    if (next.pageSettings) Object.assign(pageSettings, next.pageSettings);
+    canvasEl.innerHTML = next.canvas || '';
+    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+    rebindAll();
+    applyPageSettings();
+    deselectAll();
+    showPageProperties();
+    _suppressAutoSave = false;
+  }
+  buildLayerPanel();
+  scheduleAutoSave();
+}
+
+function buildFilePageSection() {
+  const container = document.getElementById('page-props-in-file');
+  if (!container) return;
+  container.innerHTML = '';
+
+  pages.forEach(page => {
+    const isActive = page.id === currentPageId;
+
+    // Section count from stored (or live) canvas
+    const canvasHtml = isActive ? getSerializedCanvas() : (page.canvas || '');
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div>${canvasHtml}</div>`, 'text/html');
+    const sectionCount = doc.querySelectorAll('.section-block').length;
+    const bg = (isActive ? pageSettings.bg : page.pageSettings?.bg) || '#969696';
+
+    const item = document.createElement('div');
+    item.className = 'file-page-item' + (isActive ? ' active' : '');
+    item.dataset.pageId = page.id;
+
+    // Label badge (left side)
+    const labelBadge = document.createElement('select');
+    labelBadge.className = 'file-page-label' + (page.label ? ' has-label' : '');
+    labelBadge.dataset.label = page.label || '';
+    PAGE_LABELS.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = l;
+      opt.textContent = l || '—';
+      opt.selected = (l === (page.label || ''));
+      labelBadge.appendChild(opt);
+    });
+    labelBadge.addEventListener('click', e => e.stopPropagation());
+    labelBadge.addEventListener('change', e => {
+      e.stopPropagation();
+      page.label = labelBadge.value;
+      labelBadge.dataset.label = page.label;
+      labelBadge.className = 'file-page-label' + (page.label ? ' has-label' : '');
+      scheduleAutoSave();
+    });
+
+    // Info
+    const info = document.createElement('div');
+    info.className = 'file-page-info';
+
+    const name = document.createElement('div');
+    name.className = 'file-page-name';
+    name.textContent = page.name;
+    name.title = '더블클릭으로 이름 변경';
+    name.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      name.contentEditable = 'true';
+      name.classList.add('editing');
+      name.focus();
+      document.execCommand('selectAll', false, null);
+      name.addEventListener('blur', function commit() {
+        name.contentEditable = 'false';
+        name.classList.remove('editing');
+        const newName = name.textContent.trim() || page.name;
+        name.textContent = newName;
+        page.name = newName;
+        scheduleAutoSave();
+        name.removeEventListener('blur', commit);
+      }, { once: true });
+      name.addEventListener('keydown', function onKey(e2) {
+        if (e2.key === 'Enter') { e2.preventDefault(); name.blur(); }
+        if (e2.key === 'Escape') { name.textContent = page.name; name.blur(); }
+        name.removeEventListener('keydown', onKey);
+      });
+    });
+
+    const meta = document.createElement('div');
+    meta.className = 'file-page-meta';
+    meta.textContent = `섹션 ${sectionCount}개`;
+
+    info.appendChild(name);
+    info.appendChild(meta);
+
+    // Delete button
+    const delBtn = document.createElement('button');
+    delBtn.className = 'file-page-del';
+    delBtn.innerHTML = '✕';
+    delBtn.title = '페이지 삭제';
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deletePage(page.id); });
+
+    item.appendChild(labelBadge);
+    item.appendChild(info);
+    item.appendChild(delBtn);
+    item.addEventListener('click', () => switchPage(page.id));
+    container.appendChild(item);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'file-page-add';
+  addBtn.textContent = '+ 페이지 추가';
+  addBtn.addEventListener('click', addPage);
+  container.appendChild(addBtn);
+}
+
 function getSerializedCanvas() {
   // section data-name 속성 동기화
   canvasEl.querySelectorAll('.section-block').forEach(sec => {
@@ -2546,17 +2789,27 @@ function getSerializedCanvas() {
 }
 
 function serializeProject() {
-  return JSON.stringify({ version: 1, pageSettings, canvas: getSerializedCanvas() });
+  flushCurrentPage();
+  return JSON.stringify({ version: 2, currentPageId, pages });
 }
 
 function applyProjectData(data) {
-  if (data.pageSettings) Object.assign(pageSettings, data.pageSettings);
-  canvasEl.innerHTML = data.canvas || '';
-  // 구버전 저장본의 라벨 잔재 제거
+  if (data.version === 2 && Array.isArray(data.pages)) {
+    pages = data.pages;
+    currentPageId = data.currentPageId || data.pages[0]?.id;
+  } else {
+    // v1 backward compat
+    const id = 'page_1';
+    pages = [{ id, name: 'Page 1', label: '', pageSettings: data.pageSettings || { ...pageSettings }, canvas: data.canvas || '' }];
+    currentPageId = id;
+  }
+  const page = getCurrentPage();
+  if (page.pageSettings) Object.assign(pageSettings, page.pageSettings);
+  canvasEl.innerHTML = page.canvas || '';
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
   rebindAll();
   applyPageSettings();
-  buildLayerPanel();
+  buildLayerPanel(); // also calls buildFilePageSection
   showPageProperties();
 }
 
@@ -2578,6 +2831,13 @@ function applyPageSettings() {
 function rebindAll() {
   canvasEl.querySelectorAll('.section-block').forEach(sec => {
     if (sec.dataset.name) sec._name = sec.dataset.name;
+    // 배경 이미지 복원
+    if (sec.dataset.bgImg && !sec.style.backgroundImage) {
+      sec.style.backgroundImage = `url(${sec.dataset.bgImg})`;
+      sec.style.backgroundSize = sec.dataset.bgSize || 'cover';
+      sec.style.backgroundPosition = 'center';
+      sec.style.backgroundRepeat = 'no-repeat';
+    }
     sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
     bindSectionDelete(sec);
     bindSectionOrder(sec);
@@ -2629,6 +2889,7 @@ function loadProjectFile(e) {
 }
 
 function scheduleAutoSave() {
+  if (_suppressAutoSave) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
     const snap = serializeProject();
@@ -2694,6 +2955,9 @@ document.querySelectorAll('.text-block').forEach(tb => {
   if (saved) {
     try { applyProjectData(JSON.parse(saved)); return; } catch {}
   }
+  // 새 프로젝트 — 기본 1페이지 초기화
+  pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...pageSettings }, canvas: '' }];
+  currentPageId = 'page_1';
   buildLayerPanel();
   showPageProperties();
 })();
@@ -2702,6 +2966,9 @@ autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, attributes:
 
 // 브랜치 시스템 초기화
 initBranchStore();
+
+// File 탭 섹션 토글
+initFileTabToggle();
 
 // Cmd+G 그룹 — capture phase로 브라우저 Find Next 보다 먼저 처리
 document.addEventListener('keydown', e => {
