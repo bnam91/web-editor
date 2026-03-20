@@ -23,12 +23,17 @@
   <div id="zoom-ctrl">
     <button class="zoom-btn" onclick="zoomStep(-10)">−</button>
     <div class="zoom-sep"></div>
-    <span id="zoom-display">70%</span>
+    <span id="zoom-display">40%</span>
     <div class="zoom-sep"></div>
     <button class="zoom-btn" onclick="zoomStep(+10)">+</button>
     <div class="zoom-sep"></div>
     <button class="zoom-btn" onclick="zoomFit()" style="font-size:11px;width:auto;padding:0 6px;">Fit</button>
   </div>
+  <div class="divider"></div>
+  <button class="tb-btn" onclick="saveProject()" title="저장 (JSON)">저장</button>
+  <label class="tb-btn" title="불러오기 (JSON)" style="cursor:pointer;">
+    불러오기<input type="file" id="load-file-input" accept=".json" style="display:none" onchange="loadProjectFile(event)">
+  </label>
   <div class="divider"></div>
   <button class="tb-btn active" style="background:#2d6fe8;border-color:#2d6fe8;">Publish</button>
 </div>
@@ -92,8 +97,6 @@
                     <polyline points="21 15 16 10 5 21"/>
                   </svg>
                   <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-                  <span class="asset-sub">PNG · JPG · GIF · WebP</span>
-                  <span class="asset-size">860 × 780</span>
                 </div>
               </div>
             </div>
@@ -139,8 +142,6 @@
                     <polyline points="21 15 16 10 5 21"/>
                   </svg>
                   <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-                  <span class="asset-sub">PNG · JPG · GIF · WebP</span>
-                  <span class="asset-size">860 × 780</span>
                 </div>
               </div>
             </div>
@@ -194,8 +195,6 @@
                     <polyline points="21 15 16 10 5 21"/>
                   </svg>
                   <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-                  <span class="asset-sub">PNG · JPG · GIF · WebP</span>
-                  <span class="asset-size">860 × 780</span>
                 </div>
               </div>
             </div>
@@ -266,6 +265,7 @@
   </button>
 </div>
 
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script src="js/editor.js"></script>
 </body>
 </html>

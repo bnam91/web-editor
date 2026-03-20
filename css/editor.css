@@ -185,12 +185,14 @@ body {
 .section-label {
   display: none;
   position: absolute;
-  top: -22px; left: 0;
-  font-size: 10px; font-weight: 600;
+  top: -26px; left: 0;
+  font-size: 13px; font-weight: 600;
   color: #2d6fe8; letter-spacing: 0.06em; text-transform: uppercase;
   background: #1a2d50;
-  padding: 2px 7px; border-radius: 3px 3px 0 0;
+  padding: 3px 10px; border-radius: 4px 4px 0 0;
   pointer-events: auto;
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: bottom left;
 }
 .section-block.selected .section-label,
 .section-block:hover .section-label { display: block; }
@@ -203,6 +205,8 @@ body {
   background: #242424; border: 1px solid #3a3a3a;
   border-radius: 3px 3px 0 0;
   align-items: center; padding: 0 4px; gap: 2px; z-index: 200;
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: bottom right;
 }
 .section-block.selected .section-toolbar { display: flex; }
 
@@ -262,11 +266,13 @@ body {
 .text-block-label {
   display: none;
   position: absolute;
-  top: -18px; left: 0;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  top: -22px; left: 0;
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: bottom left;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   color: #2d6fe8;
   background: rgba(45,111,232,0.12);
-  padding: 1px 5px; border-radius: 2px;
+  padding: 2px 7px; border-radius: 3px;
   pointer-events: none;
 }
 .text-block:hover .text-block-label,
@@ -277,46 +283,80 @@ body {
 .text-block .tb-h1     { font-size: 104px; font-weight: 700; color: #111; line-height: 1.1; letter-spacing: -0.02em; }
 .text-block .tb-h2     { font-size: 72px; font-weight: 600; color: #1a1a1a; line-height: 1.15; }
 .text-block .tb-body   { font-size: 36px; color: #555; line-height: 1.6; }
-.text-block .tb-caption { font-size: 12px; color: #999; line-height: 1.6; letter-spacing: 0.01em; }
-.text-block[data-type="label"] { padding: 12px 20px; }
+.text-block .tb-caption { font-size: 26px; color: #999; line-height: 1.6; letter-spacing: 0.01em; }
+.text-block[data-type="label"] { padding: 0 20px; }
 .text-block .tb-label {
   display: inline-block;
   background: #111111; color: #ffffff;
-  font-size: 12px; font-weight: 700;
-  padding: 5px 16px; border-radius: 4px;
+  font-size: 26px; font-weight: 700;
+  padding: 11px 36px; border-radius: 8px;
   letter-spacing: 0.06em;
 }
 
 /* ═══════════════════════════════════
    ASSET BLOCK — 860×780 표준 (풀블리드)
 ═══════════════════════════════════ */
+/* Col Placeholder */
+.col-placeholder {
+  position: relative;
+  width: 100%; min-height: 200px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px dashed #ccc;
+  background: #f9f9f9;
+}
+.col-add-btn {
+  width: 40px; height: 40px;
+  border-radius: 50%; border: 1.5px solid #ccc;
+  background: #fff; color: #888;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: border-color .15s, color .15s;
+  transform: scale(var(--inv-zoom, 1));
+}
+.col-add-btn:hover { border-color: #2d6fe8; color: #2d6fe8; }
+.col-add-menu {
+  position: absolute; top: calc(50% + 24px); left: 50%;
+  transform: translateX(-50%) scale(var(--inv-zoom, 1));
+  transform-origin: top center;
+  background: #1e1e1e; border: 1px solid #333;
+  border-radius: 8px; padding: 4px;
+  min-width: 110px; z-index: 200;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+.col-add-item {
+  display: block; width: 100%;
+  padding: 7px 12px; text-align: left;
+  background: none; border: none;
+  color: #ddd; font-size: 12px;
+  border-radius: 5px; cursor: pointer;
+}
+.col-add-item:hover { background: #2d6fe8; color: #fff; }
+.col-add-divider { height: 1px; background: #333; margin: 4px 0; }
+
 .asset-block {
   position: relative;
   width: 100%; height: 780px;
-  background: #f4f4f4;
-  border-top: 1.5px dashed #ddd;
-  border-bottom: 1.5px dashed #ddd;
+  background: rgba(244,244,244,0.45);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 12px; cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s;
 }
-.asset-block:hover    { background: rgba(45,111,232,0.03); border-color: #2d6fe8; }
-.asset-block.selected { background: rgba(45,111,232,0.04); border-color: #2d6fe8; border-style: solid; }
+.asset-block:hover    { background: rgba(45,111,232,0.05); }
+.asset-block.selected { background: rgba(45,111,232,0.07); outline: 1.5px solid #2d6fe8; outline-offset: -1px; }
 .asset-block:hover .asset-icon { opacity: 0.5; }
 .asset-icon { opacity: 0.18; transition: opacity 0.15s; }
-.asset-block .asset-label { font-size: 13px; color: #bbb; font-weight: 500; letter-spacing: 0.03em; }
-.asset-block .asset-sub  { font-size: 11px; color: #ccc; }
+.asset-block .asset-label { font-size: 22px; color: #bbb; font-weight: 500; letter-spacing: 0.03em; }
+.asset-block .asset-sub  { font-size: 18px; color: #ccc; }
 
 .asset-tag {
-  position: absolute; top: 16px; left: 16px;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  position: absolute; top: 24px; left: 24px;
+  font-size: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
   color: #bbb; background: #e8e8e8;
-  padding: 3px 7px; border-radius: 3px;
+  padding: 6px 14px; border-radius: 5px;
 }
 .asset-size {
-  position: absolute; bottom: 16px; right: 16px;
-  font-size: 10px; color: #ccc;
+  position: absolute; bottom: 24px; right: 24px;
+  font-size: 18px; color: #ccc;
   font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
 }
 
@@ -428,6 +468,19 @@ body {
   font-family: monospace;
 }
 .prop-color-hex:focus { border-color: #2d6fe8; }
+.prop-color-swatch.swatch-none {
+  background: transparent !important;
+  background-image: linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%),
+                    linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%) !important;
+  background-size: 8px 8px !important;
+  background-position: 0 0, 4px 4px !important;
+}
+.prop-none-check {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11px; color: #888; cursor: pointer;
+  white-space: nowrap; flex-shrink: 0;
+}
+.prop-none-check input { cursor: pointer; accent-color: #2d6fe8; }
 
 /* 폰트 셀렉터 */
 .prop-select {
@@ -443,6 +496,123 @@ body {
   padding-right: 24px;
 }
 .prop-select:focus { border-color: #2d6fe8; }
+
+/* 내보내기 버튼 */
+.prop-export-btn {
+  width: 100%;
+  padding: 8px 0;
+  background: #2d6fe8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+.prop-export-btn:hover { background: #3d7ff8; }
+.prop-export-btn:active { background: #1d5fd0; }
+.prop-export-btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+
+.prop-export-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.prop-export-row .prop-select { flex: 1; }
+
+/* ═══════════════════════════════════
+   ASSET BLOCK — 이미지 업로드 상태
+═══════════════════════════════════ */
+.asset-block.has-image {
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  background: transparent;
+}
+.asset-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 이미지 편집 모드 */
+.asset-block.img-editing {
+  outline: 2px solid #2d6fe8 !important;
+  outline-offset: -2px;
+  cursor: default;
+}
+.asset-block.img-editing .asset-img {
+  cursor: move;
+  user-select: none;
+}
+.img-corner-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border: 2px solid #2d6fe8;
+  border-radius: 2px;
+  z-index: 20;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+.img-edit-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%) scale(var(--inv-zoom, 1));
+  transform-origin: bottom center;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 20;
+}
+.asset-overlay-clear {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.asset-block.has-image:hover .asset-overlay-clear,
+.asset-block.has-image.selected .asset-overlay-clear { opacity: 1; }
+.asset-block.drag-over { outline: 2px dashed #2d6fe8 !important; outline-offset: -3px; }
+
+/* 프로퍼티 패널 내 액션 버튼 (이미지 선택/제거) */
+.prop-action-btn {
+  width: 100%;
+  padding: 7px 0;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 5px;
+  letter-spacing: 0.02em;
+}
+.prop-action-btn.primary { background: #2d6fe8; color: #fff; }
+.prop-action-btn.primary:hover { background: #3d7ff8; }
+.prop-action-btn.secondary { background: #2a2a2a; color: #ccc; border: 1px solid #444; }
+.prop-action-btn.secondary:hover { background: #333; }
+.prop-action-btn.danger { background: #c0392b; color: #fff; }
+.prop-action-btn.danger:hover { background: #e74c3c; }
 
 /* ═══════════════════════════════════
    GAP BLOCK — 섹션과 에셋 사이 여백
