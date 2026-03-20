@@ -45,6 +45,8 @@ function saveTemplates(arr) {
 function saveAsTemplate(sec, name, category) {
   const clone = sec.cloneNode(true);
   clone.classList.remove('selected');
+  clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
+  clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
   clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
   const templates = loadTemplates();
   templates.unshift({
@@ -111,9 +113,14 @@ function insertTemplate(tpl) {
     col.replaceChild(fresh, ph);
   });
 
+  applyPageSettings();
   pushHistory();
   buildLayerPanel();
   selectSection(sec, true);
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function renderTemplatePanel() {
@@ -127,13 +134,13 @@ function renderTemplatePanel() {
   body.innerHTML = templates.map(tpl => {
     const date = tpl.createdAt ? tpl.createdAt.slice(0, 10) : '';
     return `
-      <div class="tpl-card" data-tpl-id="${tpl.id}">
+      <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
         <div class="tpl-card-main">
-          <span class="tpl-card-name">${tpl.name}</span>
-          <span class="tpl-card-cat">${tpl.category}</span>
+          <span class="tpl-card-name">${escHtml(tpl.name)}</span>
+          <span class="tpl-card-cat">${escHtml(tpl.category)}</span>
         </div>
-        <div class="tpl-card-meta">${date}</div>
-        <button class="tpl-delete-btn" data-tpl-id="${tpl.id}" title="삭제">
+        <div class="tpl-card-meta">${escHtml(date)}</div>
+        <button class="tpl-delete-btn" data-tpl-id="${escHtml(tpl.id)}" title="삭제">
           <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
             <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
           </svg>
