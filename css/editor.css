@@ -532,6 +532,20 @@ body {
 .layer-section-header.active .layer-section-name { color: #6fa3f7; }
 .layer-section-name.editing { background: #2a3a55; color: #aecbff; outline: none; cursor: text; }
 
+.layer-eye-btn {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 18px; height: 18px; flex-shrink: 0;
+  background: none; border: none; padding: 0;
+  color: #555; cursor: pointer; border-radius: 3px;
+  transition: color 0.1s;
+}
+.layer-eye-btn svg { width: 12px; height: 12px; }
+.layer-eye-btn:hover { color: #aaa; }
+.layer-section-header:hover .layer-eye-btn { display: flex; }
+.layer-section-hidden .layer-eye-btn { display: flex; color: #444; }
+.layer-section-hidden .layer-section-name { color: #555; text-decoration: line-through; }
+
 .layer-children { padding-left: 16px; overflow: hidden; }
 .layer-section.collapsed .layer-children { display: none; }
 

@@ -792,8 +792,37 @@ function buildLayerPanel() {
     nameEl.className = 'layer-section-name';
     nameEl.textContent = sec._name || 'Section';
 
+    // 눈 아이콘 (섹션 숨김 토글)
+    const eyeBtn = document.createElement('button');
+    eyeBtn.className = 'layer-eye-btn';
+    const isHidden = sec.dataset.hidden === '1';
+    eyeBtn.innerHTML = isHidden
+      ? `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><line x1="2" y1="2" x2="12" y2="12"/></svg>`
+      : `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="1.8"/></svg>`;
+    eyeBtn.title = isHidden ? '섹션 표시' : '섹션 숨기기';
+    if (isHidden) { sec.style.visibility = 'hidden'; sec.style.opacity = '0'; sectionEl.classList.add('layer-section-hidden'); }
+
     header.appendChild(chevron);
     header.appendChild(nameEl);
+    header.appendChild(eyeBtn);
+
+    eyeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const hidden = sec.dataset.hidden === '1';
+      if (hidden) {
+        sec.dataset.hidden = '0';
+        sec.style.visibility = ''; sec.style.opacity = '';
+        eyeBtn.innerHTML = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="1.8"/></svg>`;
+        eyeBtn.title = '섹션 숨기기';
+        sectionEl.classList.remove('layer-section-hidden');
+      } else {
+        sec.dataset.hidden = '1';
+        sec.style.visibility = 'hidden'; sec.style.opacity = '0';
+        eyeBtn.innerHTML = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><line x1="2" y1="2" x2="12" y2="12"/></svg>`;
+        eyeBtn.title = '섹션 표시';
+        sectionEl.classList.add('layer-section-hidden');
+      }
+    });
 
     chevron.addEventListener('click', () => {
       const collapsed = sectionEl.classList.toggle('collapsed');
