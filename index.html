@@ -46,7 +46,31 @@
     불러오기<input type="file" id="load-file-input" accept=".json" style="display:none" onchange="loadProjectFile(event)">
   </label>
   <div class="divider"></div>
-  <button class="tb-btn active" style="background:#2d6fe8;border-color:#2d6fe8;">Publish</button>
+  <div id="publish-dropdown-wrap">
+    <button id="publish-btn" onclick="togglePublishDropdown(event)">
+      Publish
+      <svg class="publish-dd-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+    </button>
+    <div id="publish-dropdown-menu">
+      <div class="pub-dd-item pub-dd-primary" onclick="doPublish()">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1v7M3 5l3-4 3 4"/><path d="M1 10h10"/></svg>
+        Publish
+      </div>
+      <div class="pub-dd-divider"></div>
+      <div class="pub-dd-item" onclick="exportDesignJSON(); closePublishDropdown()">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><rect x="4" y="7" width="4" height="4"/><rect x="3" y="1" width="6" height="3"/></svg>
+        JSON 내보내기
+      </div>
+      <div class="pub-dd-item" onclick="exportHTMLFile(); closePublishDropdown()">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="8" height="10" rx="1"/><path d="M4 4h4M4 6h4M4 8h2"/></svg>
+        HTML 내보내기
+      </div>
+      <div class="pub-dd-item" onclick="exportAllSections('png'); closePublishDropdown()">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="10" height="8" rx="1"/><circle cx="4" cy="5" r="1"/><path d="M1 9l3-3 2 2 2-2 3 3"/></svg>
+        PNG 내보내기
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Main -->

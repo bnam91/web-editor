@@ -145,6 +145,42 @@ body {
 }
 .branch-dd-manage:hover { background: #2a2a2a; color: #888; }
 
+/* ── Publish Dropdown (topbar) ── */
+#publish-dropdown-wrap { position: relative; }
+#publish-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 10px; height: 24px;
+  background: #2d6fe8; border: 1px solid #2d6fe8;
+  border-radius: 5px; cursor: pointer;
+  font-size: 11px; font-weight: 600; color: #fff;
+  transition: all 0.15s;
+}
+#publish-btn:hover { background: #3a7ff0; border-color: #3a7ff0; }
+.publish-dd-chevron { transition: transform 0.15s; }
+#publish-dropdown-wrap.open .publish-dd-chevron { transform: rotate(180deg); }
+#publish-dropdown-menu {
+  display: none;
+  position: absolute; top: calc(100% + 6px); right: 0;
+  min-width: 170px;
+  background: #242424; border: 1px solid #3a3a3a;
+  border-radius: 7px; padding: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 999;
+}
+#publish-dropdown-wrap.open #publish-dropdown-menu { display: block; }
+.pub-dd-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 9px; border-radius: 5px;
+  cursor: pointer; font-size: 11px; color: #ccc;
+  transition: background 0.1s;
+}
+.pub-dd-item:hover { background: #333; color: #fff; }
+.pub-dd-primary {
+  color: #7cb8ff; font-weight: 600;
+}
+.pub-dd-primary:hover { background: #1a2a3a; color: #9dd0ff; }
+.pub-dd-divider { height: 1px; background: #333; margin: 4px 0; }
+
 /* ── Branch Panel ── */
 .branch-list { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
 .branch-item {
