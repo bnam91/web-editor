@@ -3669,7 +3669,7 @@ function exportFigmaJSON() {
     return parseFloat(el.style.height) || 0;
   }
 
-  function parseBlock(el) {
+  function parseBlock(el, ps) {
     // gap-block
     if (el.classList.contains('gap-block')) {
       return { type: 'gap', height: parseHeight(el) || 50 };
@@ -3679,35 +3679,51 @@ function exportFigmaJSON() {
     if (el.classList.contains('text-block')) {
       const inner = el.querySelector('.tb-h1, .tb-h2, .tb-body, .tb-caption, .tb-label');
       if (!inner) return null;
-      const cls = inner.className; // e.g. "tb-h1"
+      const cls = inner.className;
       const text = inner.textContent.trim();
 
-      if (cls.includes('tb-h1')) return { type: 'heading', tag: 'h1', text };
-      if (cls.includes('tb-h2')) return { type: 'heading', tag: 'h2', text };
-      if (cls.includes('tb-body'))    return { type: 'body',    text };
-      if (cls.includes('tb-caption')) return { type: 'caption', text };
-      if (cls.includes('tb-label'))   return { type: 'label',   text };
-      return { type: 'body', text };
+      // letterSpacing: inline style px 문자열 → 숫자
+      let letterSpacing;
+      const lsRaw = inner.style.letterSpacing;
+      if (lsRaw && lsRaw !== 'normal') {
+        const lsVal = parseFloat(lsRaw);
+        if (!isNaN(lsVal)) letterSpacing = lsVal;
+      }
+
+      const base = letterSpacing !== undefined ? { text, letterSpacing } : { text };
+
+      if (cls.includes('tb-h1')) return { type: 'heading', tag: 'h1', ...base };
+      if (cls.includes('tb-h2')) return { type: 'heading', tag: 'h2', ...base };
+      if (cls.includes('tb-body'))    return { type: 'body',    ...base };
+      if (cls.includes('tb-caption')) return { type: 'caption', ...base };
+      if (cls.includes('tb-label'))   return { type: 'label',   ...base };
+      return { type: 'body', ...base };
     }
 
     // asset-block
     if (el.classList.contains('asset-block')) {
       const h = parseHeight(el) || 400;
       const src = el.dataset.imgSrc || null;
-      // col width는 상위 col의 data-width로 결정 (parseCol에서 채움)
-      return { type: 'asset', src, height: h };
+      const padX = ps ? (ps.padX || 0) : 0;
+      const padding = {
+        top:    parseFloat(el.style.paddingTop)    || 0,
+        right:  parseFloat(el.style.paddingRight)  || padX,
+        bottom: parseFloat(el.style.paddingBottom) || 0,
+        left:   parseFloat(el.style.paddingLeft)   || padX,
+      };
+      // col width는 parseCol에서 주입
+      return { type: 'asset', src, height: h, padding };
     }
 
     return null;
   }
 
-  function parseCol(colEl) {
+  function parseCol(colEl, ps) {
     const width = parseInt(colEl.dataset.width) || 100;
     const blocks = [];
     colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
-      const block = parseBlock(b);
+      const block = parseBlock(b, ps);
       if (block) {
-        // asset에 col width 주입
         if (block.type === 'asset') block.width = width;
         blocks.push(block);
       }
@@ -3715,26 +3731,23 @@ function exportFigmaJSON() {
     return { width, blocks };
   }
 
-  function parseRow(rowEl) {
+  function parseRow(rowEl, ps) {
     const layout = rowEl.dataset.layout || 'stack';
     const cols = [];
-    rowEl.querySelectorAll(':scope > .col').forEach(c => cols.push(parseCol(c)));
+    rowEl.querySelectorAll(':scope > .col').forEach(c => cols.push(parseCol(c, ps)));
     return { layout, cols };
   }
 
-  function parseSection(secEl, idx) {
+  function parseSection(secEl, idx, ps) {
     const inner = secEl.querySelector('.section-inner');
     const rows = [];
     if (inner) {
       [...inner.children].forEach(child => {
         if (child.classList.contains('row')) {
-          rows.push(parseRow(child));
+          rows.push(parseRow(child, ps));
         } else if (child.classList.contains('group-block')) {
-          // group 내부 row들을 평탄화
-          child.querySelectorAll(':scope > .group-inner > .row').forEach(r => rows.push(parseRow(r)));
-        }
-        // section 레벨 gap-block은 row 사이 여백이므로 별도 row로 포함
-        else if (child.classList.contains('gap-block')) {
+          child.querySelectorAll(':scope > .group-inner > .row').forEach(r => rows.push(parseRow(r, ps)));
+        } else if (child.classList.contains('gap-block')) {
           const h = parseFloat(child.style.height) || 50;
           rows.push({ layout: 'stack', cols: [{ width: 100, blocks: [{ type: 'gap', height: h }] }] });
         }
@@ -3751,7 +3764,7 @@ function exportFigmaJSON() {
     const ps = page.pageSettings || {};
     const sections = [];
     canvasDiv.querySelectorAll(':scope > .section-block').forEach((sec, i) => {
-      sections.push(parseSection(sec, i));
+      sections.push(parseSection(sec, i, ps));
     });
     return {
       name:     page.name  || 'Page',
