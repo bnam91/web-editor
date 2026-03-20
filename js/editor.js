@@ -1791,6 +1791,16 @@ function showTextProperties(tb) {
         <input type="range" class="prop-slider" id="txt-pb-slider" min="0" max="120" step="4" value="${currentPadB}">
         <input type="number" class="prop-number" id="txt-pb-number" min="0" max="120" value="${currentPadB}">
       </div>
+    </div>
+
+    <div class="prop-section prop-section--anim">
+      <button class="prop-anim-btn" id="open-anim-btn">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="3" width="12" height="8" rx="1.5"/>
+          <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
+        </svg>
+        애니메이션 GIF 만들기
+      </button>
     </div>`;
 
   /* 폰트 종류 */
@@ -1932,6 +1942,9 @@ function showTextProperties(tb) {
   ptNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(ptNumber.value)||0)); tb.style.paddingTop=v+'px'; ptSlider.value=v; });
   pbSlider.addEventListener('input', () => { tb.style.paddingBottom = pbSlider.value+'px'; pbNumber.value = pbSlider.value; });
   pbNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pbNumber.value)||0)); tb.style.paddingBottom=v+'px'; pbSlider.value=v; });
+
+  /* 애니메이션 GIF 버튼 */
+  document.getElementById('open-anim-btn').addEventListener('click', () => openAnimModal(tb));
 
   bindLayoutInput(tb);
 }
@@ -3779,3 +3792,331 @@ layerPanelBody.addEventListener('drop', e => {
   buildLayerPanel();
   layerSectionDragSrc = null;
 });
+
+
+/* ═══════════════════════════════════════════════════════
+   ANIMATION GIF ENGINE
+═══════════════════════════════════════════════════════ */
+
+const ANIM_LIST = [
+  { id: 'slide-up',     label: '슬라이드업',     desc: '아래→위로 올라오며 등장' },
+  { id: 'typewriter',   label: '타이핑',          desc: '한 글자씩 입력되듯 등장' },
+  { id: 'slot-machine', label: '슬롯머신',        desc: '숫자가 롤링되다 멈춤' },
+  { id: 'fade-in',      label: '페이드인',        desc: '투명→불투명 부드럽게' },
+  { id: 'word-pop',     label: '단어별 순차등장', desc: '단어 하나씩 팝인' },
+  { id: 'glow-pulse',   label: '글로우 펄스',     desc: '빛이 번쩍이며 강조' },
+  { id: 'count-up',     label: '카운트업',        desc: '0부터 목표 숫자까지 카운팅' },
+];
+
+let _animTb      = null;
+let _animType    = 'slide-up';
+let _animRafId   = null;
+let _animStart   = null;
+let _animLoops   = 0;
+
+function openAnimModal(tb) {
+  _animTb = tb;
+  const modal = document.getElementById('anim-gif-modal');
+  modal.style.display = 'flex';
+  _buildAnimList();
+  _selectAnim('slide-up');
+}
+
+function closeAnimModal() {
+  document.getElementById('anim-gif-modal').style.display = 'none';
+  _stopAnimPreview();
+}
+
+function _buildAnimList() {
+  const list = document.getElementById('anim-list');
+  list.innerHTML = ANIM_LIST.map(a => `
+    <div class="anim-item${a.id === _animType ? ' active' : ''}" data-id="${a.id}">
+      <div class="anim-item-name">${a.label}</div>
+      <div class="anim-item-desc">${a.desc}</div>
+    </div>
+  `).join('');
+  list.querySelectorAll('.anim-item').forEach(el => {
+    el.addEventListener('click', () => _selectAnim(el.dataset.id));
+  });
+}
+
+function _selectAnim(id) {
+  _animType = id;
+  document.querySelectorAll('.anim-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.id === id));
+  _startAnimPreview();
+}
+
+function restartAnimPreview() {
+  _startAnimPreview();
+}
+
+function _stopAnimPreview() {
+  if (_animRafId) { cancelAnimationFrame(_animRafId); _animRafId = null; }
+  _animStart = null;
+  _animLoops = 0;
+}
+
+function _getTextStyle(tb) {
+  const el = tb.querySelector('[contenteditable]');
+  const cs = window.getComputedStyle(el);
+  return {
+    text:          (el.innerText || el.textContent || 'Sample Text').trim(),
+    fontSize:      parseFloat(cs.fontSize)    || 24,
+    color:         cs.color                   || '#111111',
+    fontFamily:    cs.fontFamily              || 'sans-serif',
+    fontWeight:    cs.fontWeight              || '400',
+    letterSpacing: parseFloat(cs.letterSpacing) || 0,
+  };
+}
+
+function _startAnimPreview() {
+  _stopAnimPreview();
+  if (!_animTb) return;
+  const canvas = document.getElementById('anim-preview-canvas');
+  const ctx    = canvas.getContext('2d');
+  const style  = _getTextStyle(_animTb);
+  const speed  = parseFloat(document.getElementById('anim-speed')?.value  || 1);
+  const repeat = parseInt(document.getElementById('anim-repeat')?.value   || 1);
+  const W = canvas.width, H = canvas.height;
+
+  // Scale font to fit canvas (max 56px)
+  const displaySize = Math.min(56, Math.round(style.fontSize));
+  const duration    = 1200 / speed; // ms for one cycle
+
+  _animLoops = 0;
+
+  function tick(ts) {
+    if (!_animStart) _animStart = ts;
+    const elapsed = ts - _animStart;
+    const t       = Math.min(elapsed / duration, 1);
+
+    ctx.clearRect(0, 0, W, H);
+    _drawFrame(ctx, W, H, style, displaySize, _animType, t);
+
+    if (t < 1) {
+      _animRafId = requestAnimationFrame(tick);
+    } else {
+      _animLoops++;
+      if (_animLoops < repeat) {
+        _animStart = null;
+        _animRafId = requestAnimationFrame(tick);
+      } else {
+        // hold 800ms then restart loop
+        _animRafId = setTimeout(() => {
+          _animLoops = 0;
+          _animStart = null;
+          _animRafId = requestAnimationFrame(tick);
+        }, 800);
+      }
+    }
+  }
+  _animRafId = requestAnimationFrame(tick);
+}
+
+function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
+  const cx   = W / 2;
+  const cy   = H / 2;
+  const text = style.text;
+
+  ctx.font        = `${style.fontWeight} ${displaySize}px ${style.fontFamily}`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign    = 'center';
+  try { ctx.letterSpacing = style.letterSpacing + 'px'; } catch(e) {}
+
+  switch (animType) {
+
+    /* ── 슬라이드업 ── */
+    case 'slide-up': {
+      const offset = (1 - _easeOut(t)) * H * 0.45;
+      ctx.save();
+      ctx.globalAlpha = _easeInOut(t);
+      ctx.fillStyle   = style.color;
+      ctx.fillText(text, cx, cy + offset);
+      ctx.restore();
+      break;
+    }
+
+    /* ── 타이핑 ── */
+    case 'typewriter': {
+      const n = Math.floor(t * text.length);
+      ctx.fillStyle = style.color;
+      ctx.fillText(text.slice(0, n), cx, cy);
+      // cursor blink
+      if (t < 1) {
+        const tw   = ctx.measureText(text.slice(0, n)).width;
+        const curX = cx + tw / 2 + 2;
+        ctx.fillRect(curX, cy - displaySize * 0.45, 2, displaySize * 0.9);
+      }
+      break;
+    }
+
+    /* ── 슬롯머신 ── */
+    case 'slot-machine': {
+      const numMatch = text.match(/\d+/);
+      if (!numMatch) {
+        // non-numeric: just use slide-up fallback
+        const offset = (1 - _easeOut(t)) * H * 0.4;
+        ctx.save(); ctx.globalAlpha = t;
+        ctx.fillStyle = style.color;
+        ctx.fillText(text, cx, cy + offset);
+        ctx.restore();
+        break;
+      }
+      const target  = parseInt(numMatch[0]);
+      const current = Math.floor(target * _easeOut(t));
+      const display = text.replace(/\d+/, current.toString());
+      // rolling offset: digits fall from top
+      const rollY = (1 - _easeOut(t)) * displaySize * 1.5;
+      ctx.save();
+      ctx.rect(0, cy - displaySize, W, displaySize * 2);
+      ctx.clip();
+      ctx.fillStyle = style.color;
+      ctx.fillText(display, cx, cy + rollY);
+      // ghost above
+      ctx.globalAlpha = 0.3 * (1 - t);
+      ctx.fillText(text.replace(/\d+/, (target + 10).toString()), cx, cy + rollY - displaySize * 1.2);
+      ctx.restore();
+      break;
+    }
+
+    /* ── 페이드인 ── */
+    case 'fade-in': {
+      ctx.save();
+      ctx.globalAlpha = _easeInOut(t);
+      ctx.fillStyle   = style.color;
+      ctx.fillText(text, cx, cy);
+      ctx.restore();
+      break;
+    }
+
+    /* ── 단어별 순차등장 ── */
+    case 'word-pop': {
+      const words = text.split(/\s+/).filter(w => w);
+      if (!words.length) break;
+
+      ctx.textAlign = 'left';
+      const spaceW  = ctx.measureText(' ').width;
+      const widths  = words.map(w => ctx.measureText(w).width);
+      const totalW  = widths.reduce((s, w) => s + w, 0) + spaceW * (words.length - 1);
+      let x = cx - totalW / 2;
+
+      words.forEach((word, i) => {
+        const prog  = Math.max(0, Math.min(1, t * words.length - i));
+        const alpha = prog;
+        const sc    = 0.6 + 0.4 * _easeOut(prog);
+        const wx    = x + widths[i] / 2;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(wx, cy);
+        ctx.scale(sc, sc);
+        ctx.fillStyle = style.color;
+        ctx.fillText(word, -widths[i] / 2, 0);
+        ctx.restore();
+
+        x += widths[i] + spaceW;
+      });
+      break;
+    }
+
+    /* ── 글로우 펄스 ── */
+    case 'glow-pulse': {
+      // 2 full pulses across t 0→1
+      const phase  = t * Math.PI * 4;
+      const glow   = 0.5 + 0.5 * Math.sin(phase);
+      ctx.save();
+      ctx.shadowColor = style.color;
+      ctx.shadowBlur  = 4 + 32 * glow;
+      ctx.globalAlpha = 0.6 + 0.4 * glow;
+      ctx.fillStyle   = style.color;
+      ctx.fillText(text, cx, cy);
+      ctx.restore();
+      break;
+    }
+
+    /* ── 카운트업 ── */
+    case 'count-up': {
+      const numMatch = text.match(/\d+/);
+      const target   = numMatch ? parseInt(numMatch[0]) : 100;
+      const current  = Math.floor(target * _easeOut(t));
+      const display  = numMatch ? text.replace(/\d+/, current.toString()) : current.toString();
+      // slight scale bounce on last frame
+      const scale    = t === 1 ? 1 : (1 + 0.05 * Math.sin(t * Math.PI * 8) * (1 - t));
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = style.color;
+      ctx.fillText(display, 0, 0);
+      ctx.restore();
+      break;
+    }
+  }
+}
+
+function _easeOut(t)   { return 1 - Math.pow(1 - t, 3); }
+function _easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
+
+/* ── GIF 내보내기 ── */
+async function exportAnimGif() {
+  if (!_animTb) return;
+
+  const btn = document.querySelector('.anim-export-btn');
+  btn.disabled    = true;
+  btn.textContent = '생성 중...';
+
+  try {
+    const style  = _getTextStyle(_animTb);
+    const speed  = parseFloat(document.getElementById('anim-speed')?.value  || 1);
+    const repeat = parseInt(document.getElementById('anim-repeat')?.value   || 1);
+
+    // 2x 해상도 캔버스
+    const W = 960, H = 320;
+    const offCanvas  = document.createElement('canvas');
+    offCanvas.width  = W;
+    offCanvas.height = H;
+    const ctx = offCanvas.getContext('2d');
+
+    const displaySize = Math.min(96, Math.round(style.fontSize * 2));
+    const duration    = 1200 / speed; // ms
+    const fps         = 20;
+    const frames      = Math.ceil((duration / 1000) * fps);
+    const delay       = Math.round(1000 / fps);
+
+    const gif = new GIF({
+      workers:      2,
+      quality:      8,
+      width:        W,
+      height:       H,
+      workerScript: 'js/gif.worker.js',
+      repeat:       repeat <= 1 ? 0 : repeat - 1,
+    });
+
+    for (let i = 0; i <= frames; i++) {
+      const t = i / frames;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+      _drawFrame(ctx, W, H, style, displaySize, _animType, t);
+      gif.addFrame(ctx, { copy: true, delay });
+    }
+
+    gif.on('finished', blob => {
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = 'sangpe_animation.gif';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      btn.disabled    = false;
+      btn.innerHTML   = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1v7M3 5l3 4 3-4"/><path d="M1 10h10"/></svg> GIF 저장`;
+    });
+
+    gif.render();
+
+  } catch (err) {
+    console.error('GIF export error:', err);
+    alert('GIF 생성 중 오류가 발생했습니다: ' + err.message);
+    btn.disabled    = false;
+    btn.textContent = 'GIF 저장';
+  }
+}

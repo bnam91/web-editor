@@ -1198,3 +1198,212 @@ body {
   transition: background 0.1s, color 0.1s;
 }
 .fp-menu-item:hover { background: #2a2a2a; color: #fff; }
+
+/* ═══════════════════════════════════
+   ANIMATION GIF — 프로퍼티 패널 버튼
+═══════════════════════════════════ */
+.prop-section--anim {
+  padding: 12px 14px;
+  border-top: 1px solid #2e2e2e;
+}
+.prop-anim-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  background: #1e2a3e;
+  border: 1px solid #2d4a72;
+  border-radius: 7px;
+  color: #6aabf7;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.prop-anim-btn:hover {
+  background: #243450;
+  border-color: #4d7fc0;
+  color: #9bcbff;
+}
+.prop-anim-btn svg { flex-shrink: 0; }
+
+/* ═══════════════════════════════════
+   ANIMATION GIF — 모달
+═══════════════════════════════════ */
+.anim-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.anim-modal {
+  background: #242424;
+  border: 1px solid #383838;
+  border-radius: 12px;
+  width: 720px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+
+/* 헤더 */
+.anim-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+.anim-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+.anim-modal-close {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 5px;
+  color: #666; cursor: pointer; transition: all 0.12s;
+}
+.anim-modal-close:hover { background: #333; color: #ccc; }
+
+/* 바디 */
+.anim-modal-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* 좌측 리스트 */
+.anim-list {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid #333;
+  overflow-y: auto;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.anim-item {
+  padding: 10px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s;
+  border: 1px solid transparent;
+}
+.anim-item:hover { background: #2e2e2e; }
+.anim-item.active {
+  background: #1e2a3e;
+  border-color: #2d4a72;
+}
+.anim-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ddd;
+  margin-bottom: 3px;
+}
+.anim-item.active .anim-item-name { color: #6aabf7; }
+.anim-item-desc {
+  font-size: 10px;
+  color: #777;
+  line-height: 1.4;
+}
+
+/* 우측 미리보기 + 옵션 */
+.anim-preview-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  overflow-y: auto;
+}
+.anim-preview-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.anim-canvas-box {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#anim-preview-canvas {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+}
+
+/* 옵션 */
+.anim-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.anim-opt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.anim-opt-label {
+  font-size: 11px;
+  color: #888;
+  width: 32px;
+  flex-shrink: 0;
+}
+.anim-opt-slider {
+  flex: 1;
+  height: 3px;
+  accent-color: #4d7fc0;
+  cursor: pointer;
+}
+.anim-opt-val {
+  font-size: 11px;
+  color: #aaa;
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* 푸터 */
+.anim-modal-footer {
+  padding-top: 4px;
+}
+.anim-export-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  background: #2d6fe8;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.anim-export-btn:hover { background: #3878f0; }
+.anim-export-btn:disabled { background: #333; color: #666; cursor: not-allowed; }

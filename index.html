@@ -65,6 +65,10 @@
         Publish
       </div>
       <div class="pub-dd-divider"></div>
+      <div class="pub-dd-item" onclick="exportFigmaJSON(); closePublishDropdown()">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="4.5" height="4.5" rx="1"/><rect x="6.5" y="1" width="4.5" height="4.5" rx="1"/><rect x="1" y="6.5" width="4.5" height="4.5" rx="1"/><circle cx="8.75" cy="8.75" r="2.25"/></svg>
+        피그마로 내보내기
+      </div>
       <div class="pub-dd-item" onclick="exportDesignJSON(); closePublishDropdown()">
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><rect x="4" y="7" width="4" height="4"/><rect x="3" y="1" width="6" height="3"/></svg>
         JSON 내보내기
@@ -360,6 +364,67 @@
 </div>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script src="js/gif.js"></script>
 <script src="js/editor.js"></script>
+
+<!-- ══════════════════════════
+     ANIMATION GIF MODAL
+══════════════════════════ -->
+<div id="anim-gif-modal" class="anim-modal-overlay" style="display:none">
+  <div class="anim-modal">
+    <div class="anim-modal-header">
+      <div class="anim-modal-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="3" width="12" height="8" rx="1.5"/>
+          <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
+        </svg>
+        애니메이션 GIF 만들기
+      </div>
+      <button class="anim-modal-close" onclick="closeAnimModal()">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="anim-modal-body">
+      <!-- Left: animation list -->
+      <div class="anim-list" id="anim-list"></div>
+
+      <!-- Right: preview + options -->
+      <div class="anim-preview-wrap">
+        <div class="anim-preview-label">미리보기</div>
+        <div class="anim-canvas-box">
+          <canvas id="anim-preview-canvas" width="480" height="160"></canvas>
+        </div>
+
+        <div class="anim-options">
+          <div class="anim-opt-row">
+            <span class="anim-opt-label">속도</span>
+            <input type="range" class="anim-opt-slider" id="anim-speed" min="0.5" max="3" step="0.5" value="1"
+              oninput="document.getElementById('anim-speed-val').textContent=this.value+'x'; restartAnimPreview()">
+            <span class="anim-opt-val" id="anim-speed-val">1x</span>
+          </div>
+          <div class="anim-opt-row">
+            <span class="anim-opt-label">반복</span>
+            <input type="range" class="anim-opt-slider" id="anim-repeat" min="1" max="5" step="1" value="1"
+              oninput="document.getElementById('anim-repeat-val').textContent=this.value+'회'; restartAnimPreview()">
+            <span class="anim-opt-val" id="anim-repeat-val">1회</span>
+          </div>
+        </div>
+
+        <div class="anim-modal-footer">
+          <button class="anim-export-btn" onclick="exportAnimGif()">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 1v7M3 5l3 4 3-4"/><path d="M1 10h10"/>
+            </svg>
+            GIF 저장
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
