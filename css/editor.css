@@ -1198,3 +1198,121 @@ body {
   transition: background 0.1s, color 0.1s;
 }
 .fp-menu-item:hover { background: #2a2a2a; color: #fff; }
+
+/* ═══════════════════════════════════
+   ICON CIRCLE BLOCK
+═══════════════════════════════════ */
+.icon-circle-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: outline 0.1s;
+}
+.icon-circle-block:hover   { outline: 1.5px dashed rgba(45,111,232,0.4); outline-offset: -1px; }
+.icon-circle-block.selected { outline: 1.5px dashed #2d6fe8; outline-offset: -1px; background: rgba(45,111,232,0.03); }
+
+.icb-circle {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: #e8e8e8;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.icb-circle img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.icb-content {
+  font-size: 36px;
+  line-height: 1;
+  user-select: none;
+}
+.icb-label {
+  font-size: 28px;
+  color: #333;
+  text-align: center;
+  min-height: 1em;
+  outline: none;
+}
+.icb-label:empty::before {
+  content: attr(data-placeholder);
+  color: #aaa;
+}
+
+/* 테두리 스타일 variants */
+.icb-circle[data-border="solid"]  { border: 3px solid #333; }
+.icb-circle[data-border="dashed"] { border: 3px dashed #333; }
+
+/* ═══════════════════════════════════
+   TABLE BLOCK
+═══════════════════════════════════ */
+.table-block {
+  width: 100%;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  box-sizing: border-box;
+  transition: outline 0.1s;
+}
+.table-block:hover   { outline: 1.5px dashed rgba(45,111,232,0.4); outline-offset: -1px; }
+.table-block.selected { outline: 1.5px dashed #2d6fe8; outline-offset: -1px; background: rgba(45,111,232,0.03); }
+
+.tb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 28px;
+  table-layout: fixed;
+}
+
+/* 기본 스타일 */
+.table-block[data-style="default"] .tb-table th,
+.table-block[data-style="default"] .tb-table td,
+.table-block:not([data-style]) .tb-table th,
+.table-block:not([data-style]) .tb-table td {
+  border: 1px solid #ccc;
+  padding: 10px 16px;
+  text-align: left;
+  vertical-align: middle;
+}
+.table-block[data-style="default"] .tb-table thead th,
+.table-block:not([data-style]) .tb-table thead th {
+  background: #f0f0f0;
+  font-weight: 600;
+}
+
+/* 스트라이프 스타일 */
+.table-block[data-style="stripe"] .tb-table th,
+.table-block[data-style="stripe"] .tb-table td {
+  border: 1px solid #ddd;
+  padding: 10px 16px;
+  text-align: left;
+  vertical-align: middle;
+}
+.table-block[data-style="stripe"] .tb-table thead th { background: #333; color: #fff; font-weight: 600; }
+.table-block[data-style="stripe"] .tb-table tbody tr:nth-child(even) td { background: #f7f7f7; }
+
+/* 보더리스 스타일 */
+.table-block[data-style="borderless"] .tb-table th,
+.table-block[data-style="borderless"] .tb-table td {
+  border: none;
+  border-bottom: 1px solid #eee;
+  padding: 10px 16px;
+  text-align: left;
+  vertical-align: middle;
+}
+.table-block[data-style="borderless"] .tb-table thead th { font-weight: 600; color: #555; }
+
+/* 셀 편집 모드 */
+.tb-table td[contenteditable="true"],
+.tb-table th[contenteditable="true"] {
+  outline: 2px solid #2d6fe8;
+  outline-offset: -2px;
+  background: rgba(45,111,232,0.05) !important;
+  cursor: text;
+}

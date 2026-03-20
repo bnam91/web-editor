@@ -296,10 +296,11 @@ function redo() {
 let clipboard = null;
 
 function copySelected() {
-  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected');
+  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected');
   const selSection = document.querySelector('.section-block.selected');
   if (selBlock) {
-    const target = selBlock.classList.contains('gap-block') ? selBlock : (selBlock.closest('.row') || selBlock);
+    const isGapSel = selBlock.classList.contains('gap-block');
+    const target = isGapSel ? selBlock : (selBlock.closest('.row') || selBlock);
     clipboard = { type: 'block', html: target.outerHTML };
   } else if (selSection) {
     clipboard = { type: 'section', html: selSection.outerHTML };
@@ -319,7 +320,7 @@ function pasteClipboard() {
     bindSectionOrder(el);
     bindSectionDrag(el);
     bindSectionDropZone(el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => bindBlock(b));
+    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
     el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
       const col = ph.parentElement;
       col.replaceChild(makeColPlaceholder(col), ph);
@@ -329,7 +330,7 @@ function pasteClipboard() {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
     insertAfterSelected(sec, el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => bindBlock(b));
+    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
     el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
       const col = ph.parentElement;
       col.replaceChild(makeColPlaceholder(col), ph);
@@ -379,7 +380,7 @@ document.addEventListener('keydown', e => {
     const selGap     = document.querySelector('.gap-block.selected');
     const selSection = document.querySelector('.section-block.selected');
 
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected')];
     if (allSelBlocks.length > 0) {
       e.preventDefault();
       pushHistory();
@@ -417,16 +418,20 @@ const layerIcons = {
   caption: `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4"/><line x1="1" y1="7" x2="8" y2="7"/></svg>`,
   asset:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><circle cx="4" cy="4" r="1"/><polyline points="11 8 8 5 3 11"/></svg>`,
   gap:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4" stroke-dasharray="2,1"/><line x1="1" y1="8" x2="11" y2="8" stroke-dasharray="2,1"/></svg>`,
-  label:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="10" height="6" rx="1.5"/></svg>`,
+  label:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="10" height="6" rx="1.5"/></svg>`,
+  'icon-circle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="5"/><text x="3.5" y="9" font-size="6" fill="currentColor" stroke="none">★</text></svg>`,
+  table:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><line x1="1" y1="4.5" x2="11" y2="4.5"/><line x1="5" y1="4.5" x2="5" y2="11"/></svg>`,
 };
 
 /* 레이어 아이템 생성 (단일 블록용) */
 function makeLayerBlockItem(block, dragTarget, sec) {
-  const isText = block.classList.contains('text-block');
-  const isGap  = block.classList.contains('gap-block');
-  const type   = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap' };
+  const isText   = block.classList.contains('text-block');
+  const isGap    = block.classList.contains('gap-block');
+  const isIconCb = block.classList.contains('icon-circle-block');
+  const isTable  = block.classList.contains('table-block');
+  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -452,6 +457,8 @@ function makeLayerBlockItem(block, dragTarget, sec) {
       highlightBlock(block, item);
       if (isText) showTextProperties(block);
       else if (isGap) showGapProperties(block);
+      else if (isIconCb) showIconCircleProperties(block);
+      else if (isTable) showTableProperties(block);
       else showAssetProperties(block);
     }
   });
@@ -554,11 +561,13 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
   groupChildren.className = 'layer-row-children';
 
   blocks.forEach(block => {
-    const isText = block.classList.contains('text-block');
-    const isGap  = block.classList.contains('gap-block');
-    const type   = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : 'asset';
-    const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap' };
-    const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap' };
+    const isText   = block.classList.contains('text-block');
+    const isGap    = block.classList.contains('gap-block');
+    const isIconCb = block.classList.contains('icon-circle-block');
+    const isTable  = block.classList.contains('table-block');
+    const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : 'asset';
+    const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table' };
+    const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component' };
 
     const item = document.createElement('div');
     item.className = 'layer-item layer-item-nested';
@@ -582,6 +591,8 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
         highlightBlock(block, item);
         if (isText) showTextProperties(block);
         else if (isGap) showGapProperties(block);
+        else if (isIconCb) showIconCircleProperties(block);
+        else if (isTable) showTableProperties(block);
         else showAssetProperties(block);
       }
     });
@@ -1158,6 +1169,11 @@ function deselectAll() {
     exitImageEditMode(a);
   });
   document.querySelectorAll('.gap-block').forEach(g => g.classList.remove('selected'));
+  document.querySelectorAll('.icon-circle-block').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.table-block').forEach(b => {
+    b.classList.remove('selected');
+    b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));
+  });
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
   document.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
   document.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
@@ -2156,9 +2172,11 @@ function bindSectionDropZone(sec) {
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
-  const isText  = block.classList.contains('text-block');
-  const isGap   = block.classList.contains('gap-block');
-  const isAsset = block.classList.contains('asset-block');
+  const isText   = block.classList.contains('text-block');
+  const isGap    = block.classList.contains('gap-block');
+  const isAsset  = block.classList.contains('asset-block');
+  const isIconCb = block.classList.contains('icon-circle-block');
+  const isTableB = block.classList.contains('table-block');
 
 
   if (isText) {
@@ -2265,6 +2283,59 @@ function bindBlock(block) {
     });
   }
 
+  if (isIconCb) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        syncSection(block.closest('.section-block'));
+        return;
+      }
+      deselectAll();
+      block.classList.add('selected');
+      syncSection(block.closest('.section-block'));
+      highlightBlock(block, block._layerItem);
+      showIconCircleProperties(block);
+    });
+  }
+
+  if (isTableB) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        syncSection(block.closest('.section-block'));
+        return;
+      }
+      deselectAll();
+      block.classList.add('selected');
+      syncSection(block.closest('.section-block'));
+      highlightBlock(block, block._layerItem);
+      showTableProperties(block);
+    });
+    // 셀 더블클릭 → contenteditable 활성화
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const cell = e.target.closest('th, td');
+      if (cell && block.classList.contains('selected')) {
+        block.querySelectorAll('[contenteditable="true"]').forEach(el => {
+          if (el !== cell) el.setAttribute('contenteditable','false');
+        });
+        cell.setAttribute('contenteditable','true');
+        cell.focus();
+        // 커서를 끝으로 이동
+        const range = document.createRange();
+        range.selectNodeContents(cell);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    });
+  }
+
   // hover ↔ layer item
   block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = '#252525'; });
   block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
@@ -2350,6 +2421,56 @@ function makeGapBlock() {
   return gb;
 }
 
+function makeIconCircleBlock() {
+  const row = document.createElement('div');
+  row.className = 'row'; row.dataset.layout = 'stack';
+
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+
+  const icb = document.createElement('div');
+  icb.className = 'icon-circle-block'; icb.dataset.type = 'icon-circle';
+  icb.dataset.size = '80';
+  icb.dataset.bgColor = '#e8e8e8';
+  icb.dataset.border = 'none';
+  icb.innerHTML = `
+    <div class="icb-circle" style="width:80px;height:80px;background:#e8e8e8;">
+      <span class="icb-content">⭐</span>
+    </div>
+    <div class="icb-label" data-placeholder="라벨 텍스트 (선택)" contenteditable="false"></div>`;
+
+  col.appendChild(icb);
+  row.appendChild(col);
+  return { row, block: icb };
+}
+
+function makeTableBlock() {
+  const row = document.createElement('div');
+  row.className = 'row'; row.dataset.layout = 'stack';
+
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+
+  const tb = document.createElement('div');
+  tb.className = 'table-block'; tb.dataset.type = 'table';
+  tb.dataset.style = 'default';
+  tb.dataset.showHeader = 'true';
+  tb.innerHTML = `
+    <table class="tb-table">
+      <thead>
+        <tr><th>항목</th><th>내용</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>소재</td><td>100% 면</td></tr>
+        <tr><td>사이즈</td><td>Free</td></tr>
+      </tbody>
+    </table>`;
+
+  col.appendChild(tb);
+  row.appendChild(col);
+  return { row, block: tb };
+}
+
 /* 섹션 안 삽입 — 하단 Gap Block 바로 앞에 */
 function insertBeforeBottomGap(section, el) {
   const inner = section.querySelector('.section-inner');
@@ -2361,7 +2482,7 @@ function insertBeforeBottomGap(section, el) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   const inner = section.querySelector('.section-inner');
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected');
+  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected');
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
@@ -2422,7 +2543,7 @@ function addTextBlock(type) {
 }
 
 function groupSelectedBlocks() {
-  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected')];
+  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected')];
   if (selected.length < 2) return;
 
   // 같은 섹션의 블록만 그룹
@@ -2505,6 +2626,28 @@ function addGapBlock() {
   const gb = makeGapBlock();
   insertAfterSelected(sec, gb);
   bindBlock(gb);
+  buildLayerPanel();
+  selectSection(sec);
+}
+
+function addIconCircleBlock() {
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  pushHistory();
+  const { row, block } = makeIconCircleBlock();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  buildLayerPanel();
+  selectSection(sec);
+}
+
+function addTableBlock() {
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  pushHistory();
+  const { row, block } = makeTableBlock();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
   buildLayerPanel();
   selectSection(sec);
 }
