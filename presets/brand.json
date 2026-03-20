@@ -1,0 +1,17 @@
+{
+  "id": "brand",
+  "name": "Brand",
+  "dots": ["#1a3a6b", "#444444", "#2d6fe8"],
+  "variables": {
+    "--preset-h1-color": "#1a3a6b",
+    "--preset-h1-family": "'Noto Serif KR', serif",
+    "--preset-h2-color": "#2d4a7a",
+    "--preset-h2-family": "'Noto Serif KR', serif",
+    "--preset-body-color": "#444444",
+    "--preset-body-family": "'Noto Sans KR', sans-serif",
+    "--preset-caption-color": "#888888",
+    "--preset-label-bg": "#2d6fe8",
+    "--preset-label-color": "#ffffff",
+    "--preset-label-radius": "8px"
+  }
+}

@@ -778,29 +778,76 @@ function rgbToHex(rgb) {
 }
 
 /* ── Design Presets ── */
-const PRESETS = [
+// Electron에서는 preload를 통해 JSON 파일 로드, 브라우저 fallback은 하드코딩
+const PRESET_FALLBACK = [
   {
     id: 'default', name: 'Default',
     dots: ['#111111', '#555555', '#111111'],
+    variables: {
+      '--preset-h1-color': '#111111', '--preset-h1-family': "'Noto Sans KR', sans-serif",
+      '--preset-h2-color': '#1a1a1a', '--preset-h2-family': "'Noto Sans KR', sans-serif",
+      '--preset-body-color': '#555555', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-caption-color': '#999999',
+      '--preset-label-bg': '#111111', '--preset-label-color': '#ffffff', '--preset-label-radius': '8px',
+    },
   },
   {
     id: 'dark', name: 'Dark',
     dots: ['#ffffff', '#aaaaaa', '#2d6fe8'],
+    variables: {
+      '--preset-h1-color': '#ffffff', '--preset-h1-family': "'Noto Sans KR', sans-serif",
+      '--preset-h2-color': '#eeeeee', '--preset-h2-family': "'Noto Sans KR', sans-serif",
+      '--preset-body-color': '#aaaaaa', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-caption-color': '#666666',
+      '--preset-label-bg': '#2d6fe8', '--preset-label-color': '#ffffff', '--preset-label-radius': '8px',
+    },
   },
   {
     id: 'brand', name: 'Brand',
     dots: ['#1a3a6b', '#444444', '#2d6fe8'],
+    variables: {
+      '--preset-h1-color': '#1a3a6b', '--preset-h1-family': "'Noto Serif KR', serif",
+      '--preset-h2-color': '#2d4a7a', '--preset-h2-family': "'Noto Serif KR', serif",
+      '--preset-body-color': '#444444', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-caption-color': '#888888',
+      '--preset-label-bg': '#2d6fe8', '--preset-label-color': '#ffffff', '--preset-label-radius': '8px',
+    },
   },
   {
     id: 'minimal', name: 'Minimal',
     dots: ['#000000', '#666666', '#000000'],
+    variables: {
+      '--preset-h1-color': '#000000', '--preset-h1-family': "'Space Grotesk', sans-serif",
+      '--preset-h2-color': '#222222', '--preset-h2-family': "'Space Grotesk', sans-serif",
+      '--preset-body-color': '#666666', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-caption-color': '#aaaaaa',
+      '--preset-label-bg': '#000000', '--preset-label-color': '#ffffff', '--preset-label-radius': '0px',
+    },
   },
 ];
 
+let PRESETS = PRESET_FALLBACK;
+
+// Electron 환경이면 JSON 파일에서 프리셋 로드
+if (window.electronAPI) {
+  window.electronAPI.readPresets().then(loaded => {
+    if (loaded && loaded.length) {
+      PRESETS = loaded.sort((a, b) => {
+        const order = ['default', 'dark', 'brand', 'minimal'];
+        return (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99);
+      });
+    }
+  });
+}
+
 function applyPreset(sec, presetId) {
-  if (presetId === 'default') {
-    delete sec.dataset.preset;
-  } else {
+  const preset = PRESETS.find(p => p.id === presetId);
+  // 기존 preset 변수 초기화
+  PRESETS.forEach(p => Object.keys(p.variables).forEach(k => sec.style.removeProperty(k)));
+  delete sec.dataset.preset;
+
+  if (preset && presetId !== 'default') {
+    Object.entries(preset.variables).forEach(([k, v]) => sec.style.setProperty(k, v));
     sec.dataset.preset = presetId;
   }
   pushHistory();

@@ -1,0 +1,17 @@
+{
+  "id": "minimal",
+  "name": "Minimal",
+  "dots": ["#000000", "#666666", "#000000"],
+  "variables": {
+    "--preset-h1-color": "#000000",
+    "--preset-h1-family": "'Space Grotesk', sans-serif",
+    "--preset-h2-color": "#222222",
+    "--preset-h2-family": "'Space Grotesk', sans-serif",
+    "--preset-body-color": "#666666",
+    "--preset-body-family": "'Noto Sans KR', sans-serif",
+    "--preset-caption-color": "#aaaaaa",
+    "--preset-label-bg": "#000000",
+    "--preset-label-color": "#ffffff",
+    "--preset-label-radius": "0px"
+  }
+}

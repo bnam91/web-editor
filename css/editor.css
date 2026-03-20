@@ -14,40 +14,8 @@
   --preset-label-radius:  8px;
 }
 
-/* Dark */
-.section-block[data-preset="dark"] {
-  --preset-h1-color:      #ffffff;
-  --preset-h2-color:      #eeeeee;
-  --preset-body-color:    #aaaaaa;
-  --preset-caption-color: #666666;
-  --preset-label-bg:      #2d6fe8;
-  --preset-label-color:   #ffffff;
-}
-
-/* Brand */
-.section-block[data-preset="brand"] {
-  --preset-h1-color:      #1a3a6b;
-  --preset-h1-family:     'Noto Serif KR', serif;
-  --preset-h2-color:      #2d4a7a;
-  --preset-h2-family:     'Noto Serif KR', serif;
-  --preset-body-color:    #444444;
-  --preset-caption-color: #888888;
-  --preset-label-bg:      #2d6fe8;
-  --preset-label-color:   #ffffff;
-}
-
-/* Minimal */
-.section-block[data-preset="minimal"] {
-  --preset-h1-color:      #000000;
-  --preset-h1-family:     'Space Grotesk', sans-serif;
-  --preset-h2-color:      #222222;
-  --preset-h2-family:     'Space Grotesk', sans-serif;
-  --preset-body-color:    #666666;
-  --preset-caption-color: #aaaaaa;
-  --preset-label-bg:      #000000;
-  --preset-label-color:   #ffffff;
-  --preset-label-radius:  0px;
-}
+/* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)
+   → applyPreset() 참고 */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 

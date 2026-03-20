@@ -1,0 +1,17 @@
+{
+  "id": "dark",
+  "name": "Dark",
+  "dots": ["#ffffff", "#aaaaaa", "#2d6fe8"],
+  "variables": {
+    "--preset-h1-color": "#ffffff",
+    "--preset-h1-family": "'Noto Sans KR', sans-serif",
+    "--preset-h2-color": "#eeeeee",
+    "--preset-h2-family": "'Noto Sans KR', sans-serif",
+    "--preset-body-color": "#aaaaaa",
+    "--preset-body-family": "'Noto Sans KR', sans-serif",
+    "--preset-caption-color": "#666666",
+    "--preset-label-bg": "#2d6fe8",
+    "--preset-label-color": "#ffffff",
+    "--preset-label-radius": "8px"
+  }
+}

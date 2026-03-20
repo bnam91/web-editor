@@ -1,0 +1,17 @@
+{
+  "id": "default",
+  "name": "Default",
+  "dots": ["#111111", "#555555", "#111111"],
+  "variables": {
+    "--preset-h1-color": "#111111",
+    "--preset-h1-family": "'Noto Sans KR', sans-serif",
+    "--preset-h2-color": "#1a1a1a",
+    "--preset-h2-family": "'Noto Sans KR', sans-serif",
+    "--preset-body-color": "#555555",
+    "--preset-body-family": "'Noto Sans KR', sans-serif",
+    "--preset-caption-color": "#999999",
+    "--preset-label-bg": "#111111",
+    "--preset-label-color": "#ffffff",
+    "--preset-label-radius": "8px"
+  }
+}
