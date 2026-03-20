@@ -20,11 +20,147 @@ function switchToTab(tabName) {
 }
 
 function initFileTabToggle() {
-  ['page-section-header', 'layers-section-header'].forEach(id => {
+  ['page-section-header', 'layers-section-header', 'templates-section-header'].forEach(id => {
     const header = document.getElementById(id);
     if (!header) return;
     header.addEventListener('click', () => {
       header.closest('.file-panel-section').classList.toggle('collapsed');
+    });
+  });
+}
+
+/* ═══════════════════════════════════
+   TEMPLATE SYSTEM
+═══════════════════════════════════ */
+const TEMPLATE_KEY = 'sangpe-templates';
+
+function loadTemplates() {
+  try { return JSON.parse(localStorage.getItem(TEMPLATE_KEY)) || []; } catch { return []; }
+}
+
+function saveTemplates(arr) {
+  localStorage.setItem(TEMPLATE_KEY, JSON.stringify(arr));
+}
+
+function saveAsTemplate(sec, name, category) {
+  const clone = sec.cloneNode(true);
+  clone.classList.remove('selected');
+  clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
+  clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
+  const templates = loadTemplates();
+  templates.unshift({
+    id: 'tpl_' + Date.now(),
+    name,
+    category,
+    createdAt: new Date().toISOString(),
+    thumbnail: null,
+    canvas: clone.outerHTML
+  });
+  saveTemplates(templates);
+  renderTemplatePanel();
+}
+
+function deleteTemplate(id) {
+  const templates = loadTemplates().filter(t => t.id !== id);
+  saveTemplates(templates);
+  renderTemplatePanel();
+}
+
+function insertTemplate(tpl) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = tpl.canvas;
+  const sec = tmp.firstElementChild;
+  if (!sec || !sec.classList.contains('section-block')) return;
+
+  // 섹션 번호 갱신
+  const secList = canvasEl.querySelectorAll('.section-block');
+  const newIdx  = secList.length + 1;
+  sec.dataset.section = newIdx;
+  const labelEl = sec.querySelector('.section-label');
+  if (labelEl) labelEl.textContent = `Section ${String(newIdx).padStart(2,'0')}`;
+
+  // 선택 상태 초기화
+  sec.classList.remove('selected');
+
+  canvasEl.appendChild(sec);
+
+  // 이벤트 바인딩
+  if (sec.dataset.bgImg && !sec.style.backgroundImage) {
+    sec.style.backgroundImage = `url(${sec.dataset.bgImg})`;
+    sec.style.backgroundSize  = sec.dataset.bgSize || 'cover';
+    sec.style.backgroundPosition = 'center';
+    sec.style.backgroundRepeat   = 'no-repeat';
+  }
+  sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
+  bindSectionDelete(sec);
+  bindSectionOrder(sec);
+  bindSectionDrag(sec);
+  bindSectionDropZone(sec);
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.group-block').forEach(g => {
+    if (!g.querySelector(':scope > .group-block-label')) {
+      const lbl = document.createElement('span');
+      lbl.className = 'group-block-label';
+      lbl.textContent = g.dataset.name || 'Group';
+      g.prepend(lbl);
+    }
+    bindGroupDrag(g);
+  });
+  sec.querySelectorAll('.col > .col-placeholder').forEach(ph => {
+    const col = ph.parentElement;
+    const fresh = makeColPlaceholder(col);
+    col.replaceChild(fresh, ph);
+  });
+
+  applyPageSettings();
+  pushHistory();
+  buildLayerPanel();
+  selectSection(sec, true);
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderTemplatePanel() {
+  const body = document.getElementById('template-panel-body');
+  if (!body) return;
+  const templates = loadTemplates();
+  if (!templates.length) {
+    body.innerHTML = '<div class="tpl-empty">저장된 템플릿이 없습니다</div>';
+    return;
+  }
+  body.innerHTML = templates.map(tpl => {
+    const date = tpl.createdAt ? tpl.createdAt.slice(0, 10) : '';
+    return `
+      <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
+        <div class="tpl-card-main">
+          <span class="tpl-card-name">${escHtml(tpl.name)}</span>
+          <span class="tpl-card-cat">${escHtml(tpl.category)}</span>
+        </div>
+        <div class="tpl-card-meta">${escHtml(date)}</div>
+        <button class="tpl-delete-btn" data-tpl-id="${escHtml(tpl.id)}" title="삭제">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
+            <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+          </svg>
+        </button>
+      </div>`;
+  }).join('');
+
+  body.querySelectorAll('.tpl-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.tpl-delete-btn')) return;
+      const id  = card.dataset.tplId;
+      const tpl = loadTemplates().find(t => t.id === id);
+      if (tpl) insertTemplate(tpl);
+    });
+  });
+
+  body.querySelectorAll('.tpl-delete-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteTemplate(btn.dataset.tplId);
     });
   });
 }
@@ -1025,6 +1161,19 @@ function showSectionProperties(sec) {
         <option value="jpg">JPG</option>
       </select>
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">템플릿</div>
+      <select class="prop-select" id="sec-tpl-cat" style="width:100%;margin-bottom:6px;">
+        <option value="Hero">Hero</option>
+        <option value="Feature">Feature</option>
+        <option value="Detail">Detail</option>
+        <option value="CTA">CTA</option>
+        <option value="Event">Event</option>
+        <option value="기타">기타</option>
+      </select>
+      <input type="text" id="sec-tpl-name" class="tpl-name-input" placeholder="템플릿 이름 입력">
+      <button class="prop-action-btn primary" id="sec-tpl-save-btn" style="margin-top:6px;">템플릿으로 저장</button>
     </div>`;
 
   // 배경색 이벤트
@@ -1146,6 +1295,23 @@ function showSectionProperties(sec) {
         secExportBtn.disabled = false;
         secExportBtn.textContent = '이 섹션 내보내기';
       }
+    });
+  }
+
+  // 템플릿 저장
+  const tplSaveBtn = document.getElementById('sec-tpl-save-btn');
+  if (tplSaveBtn) {
+    tplSaveBtn.addEventListener('click', () => {
+      const name = document.getElementById('sec-tpl-name').value.trim();
+      if (!name) { document.getElementById('sec-tpl-name').focus(); return; }
+      const category = document.getElementById('sec-tpl-cat').value;
+      saveAsTemplate(sec, name, category);
+      document.getElementById('sec-tpl-name').value = '';
+      tplSaveBtn.textContent = '저장됨 ✓';
+      tplSaveBtn.disabled = true;
+      setTimeout(() => {
+        if (tplSaveBtn) { tplSaveBtn.textContent = '템플릿으로 저장'; tplSaveBtn.disabled = false; }
+      }, 1500);
     });
   }
 }
@@ -3177,6 +3343,9 @@ initBranchStore();
 
 // File 탭 섹션 토글
 initFileTabToggle();
+
+// 템플릿 패널 초기 렌더
+renderTemplatePanel();
 
 // Cmd+G 그룹 — capture phase로 브라우저 Find Next 보다 먼저 처리
 document.addEventListener('keydown', e => {
