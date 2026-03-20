@@ -1231,7 +1231,7 @@ const canvasWrap  = document.getElementById('canvas-wrap');
 let pageSettings = { bg: '#969696', gap: 100, padX: 32, padY: 32 };
 
 /* ── Multi-page state ── */
-const PAGE_LABELS = ['', 'Hook', 'Main', 'Detail', 'CTA'];
+const PAGE_LABELS = ['', 'Hook', 'Main', 'Detail', 'CTA', 'Event'];
 let pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 }, canvas: '' }];
 let currentPageId = 'page_1';
 let _suppressAutoSave = false;
@@ -2491,12 +2491,8 @@ function addAssetBlock() {
   const sec = getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   pushHistory();
-  const gapBefore = makeGapBlock();
-  gapBefore.style.height = '20px';
   const { row, block } = makeAssetBlock();
-  insertAfterSelected(sec, gapBefore);
-  gapBefore.after(row);
-  bindBlock(gapBefore);
+  insertAfterSelected(sec, row);
   bindBlock(block);
   buildLayerPanel();
   selectSection(sec);
@@ -2688,11 +2684,6 @@ function buildFilePageSection() {
   pages.forEach(page => {
     const isActive = page.id === currentPageId;
 
-    // Section count from stored (or live) canvas
-    const canvasHtml = isActive ? getSerializedCanvas() : (page.canvas || '');
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div>${canvasHtml}</div>`, 'text/html');
-    const sectionCount = doc.querySelectorAll('.section-block').length;
     const bg = (isActive ? pageSettings.bg : page.pageSettings?.bg) || '#969696';
 
     const item = document.createElement('div');
@@ -2749,12 +2740,27 @@ function buildFilePageSection() {
       });
     });
 
-    const meta = document.createElement('div');
-    meta.className = 'file-page-meta';
-    meta.textContent = `섹션 ${sectionCount}개`;
-
     info.appendChild(name);
-    info.appendChild(meta);
+
+    // Copy button
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'file-page-copy';
+    copyBtn.innerHTML = '⧉';
+    copyBtn.title = '페이지 복사';
+    copyBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      flushCurrentPage();
+      const srcPage = pages.find(p => p.id === page.id);
+      if (!srcPage) return;
+      const newId = 'page_' + Date.now();
+      const copy = JSON.parse(JSON.stringify(srcPage)); // deep copy
+      copy.id = newId;
+      copy.name = srcPage.name + ' 사본';
+      const srcIdx = pages.findIndex(p => p.id === page.id);
+      pages.splice(srcIdx + 1, 0, copy);
+      buildFilePageSection();
+      scheduleAutoSave();
+    });
 
     // Delete button
     const delBtn = document.createElement('button');
@@ -2765,8 +2771,49 @@ function buildFilePageSection() {
 
     item.appendChild(labelBadge);
     item.appendChild(info);
+    item.appendChild(copyBtn);
     item.appendChild(delBtn);
     item.addEventListener('click', () => switchPage(page.id));
+
+    // Drag-and-drop reorder
+    item.setAttribute('draggable', 'true');
+    item.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', page.id);
+      setTimeout(() => item.classList.add('page-dragging'), 0);
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('page-dragging');
+      container.querySelectorAll('.page-drop-indicator').forEach(el => el.remove());
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      container.querySelectorAll('.page-drop-indicator').forEach(el => el.remove());
+      const rect = item.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      const indicator = document.createElement('div');
+      indicator.className = 'page-drop-indicator';
+      if (after) item.after(indicator);
+      else item.before(indicator);
+    });
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      container.querySelectorAll('.page-drop-indicator').forEach(el => el.remove());
+      const srcId = e.dataTransfer.getData('text/plain');
+      if (srcId === page.id) return;
+      const srcIdx = pages.findIndex(p => p.id === srcId);
+      const tgtIdx = pages.findIndex(p => p.id === page.id);
+      if (srcIdx === -1 || tgtIdx === -1) return;
+      const rect = item.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      const [moved] = pages.splice(srcIdx, 1);
+      const insertAt = pages.findIndex(p => p.id === page.id) + (after ? 1 : 0);
+      pages.splice(insertAt, 0, moved);
+      buildFilePageSection();
+      scheduleAutoSave();
+    });
+
     container.appendChild(item);
   });
 
@@ -2774,6 +2821,24 @@ function buildFilePageSection() {
   addBtn.className = 'file-page-add';
   addBtn.textContent = '+ 페이지 추가';
   addBtn.addEventListener('click', addPage);
+  addBtn.addEventListener('dragover', e => {
+    e.preventDefault();
+    container.querySelectorAll('.page-drop-indicator').forEach(el => el.remove());
+    const indicator = document.createElement('div');
+    indicator.className = 'page-drop-indicator';
+    addBtn.before(indicator);
+  });
+  addBtn.addEventListener('drop', e => {
+    e.preventDefault();
+    container.querySelectorAll('.page-drop-indicator').forEach(el => el.remove());
+    const srcId = e.dataTransfer.getData('text/plain');
+    const srcIdx = pages.findIndex(p => p.id === srcId);
+    if (srcIdx === -1) return;
+    const [moved] = pages.splice(srcIdx, 1);
+    pages.push(moved);
+    buildFilePageSection();
+    scheduleAutoSave();
+  });
   container.appendChild(addBtn);
 }
 

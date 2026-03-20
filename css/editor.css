@@ -186,9 +186,10 @@ body {
 }
 .file-page-label[data-label=""]      { color: #3a3a3a; }
 .file-page-label[data-label="Hook"]   { color: #e07b5a; }
-.file-page-label[data-label="Main"]   { color: #6c8eff; }
-.file-page-label[data-label="Detail"] { color: #5aaa7b; }
+.file-page-label[data-label="Main"]   { color: #5aaa7b; }
+.file-page-label[data-label="Detail"] { color: #6c8eff; }
 .file-page-label[data-label="CTA"]    { color: #c97be0; }
+.file-page-label[data-label="Event"]  { color: #e0b84a; }
 
 .file-page-info { flex: 1; min-width: 0; }
 .file-page-name {
@@ -198,17 +199,27 @@ body {
 }
 .file-page-name.editing { background: #333; padding: 1px 4px; }
 .file-page-item.active .file-page-name { color: #6fa3f7; }
-.file-page-meta { font-size: 10px; color: #484848; margin-top: 1px; }
 
+.file-page-copy,
 .file-page-del {
   width: 18px; height: 18px; flex-shrink: 0;
   background: transparent; border: none; color: #444;
-  font-size: 10px; cursor: pointer; border-radius: 3px;
+  font-size: 11px; cursor: pointer; border-radius: 3px;
   display: none; align-items: center; justify-content: center;
   transition: all 0.1s;
 }
+.file-page-item:hover .file-page-copy,
 .file-page-item:hover .file-page-del { display: flex; }
+.file-page-copy:hover { background: #2a2a2a; color: #aaa; }
 .file-page-del:hover { background: #c0392b; color: #fff; }
+
+.file-page-item.page-dragging { opacity: 0.35; }
+
+.page-drop-indicator {
+  height: 2px; margin: 1px 8px;
+  background: #2d6fe8; border-radius: 1px;
+  pointer-events: none;
+}
 
 .file-page-add {
   margin: 2px 8px 0; padding: 5px 0;
@@ -673,6 +684,7 @@ body {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 12px; cursor: pointer;
+  margin-top: 16px; margin-bottom: 16px;
   transition: background 0.15s;
 }
 .asset-block:hover    { background: rgba(140,140,140,0.75); }
@@ -985,6 +997,8 @@ body {
 /* ═══════════════════════════════════
    GAP BLOCK — 섹션과 에셋 사이 여백
 ═══════════════════════════════════ */
+.gap-block { cursor: grab; }
+.gap-block:active { cursor: grabbing; }
 .gap-block {
   position: relative;
   width: 100%; height: 50px;
@@ -1011,7 +1025,11 @@ body {
 
 
 /* ── Drag & Drop ── */
-.row.dragging, .gap-block.dragging { opacity: 0.25; pointer-events: none; }
+.row { cursor: grab; }
+.row:active { cursor: grabbing; }
+.row [contenteditable="true"] { cursor: text; }
+.row [contenteditable="true"]:active { cursor: text; }
+.row.dragging, .gap-block.dragging { opacity: 0.25; pointer-events: none; cursor: grabbing; }
 
 /* 캔버스 드롭 인디케이터 — 줌 보정을 위해 두껍게 */
 .drop-indicator {
