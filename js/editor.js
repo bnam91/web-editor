@@ -3968,6 +3968,140 @@ function exportDesignJSON() {
   URL.revokeObjectURL(a.href);
 }
 
+/* ══════════════════════════════════════
+   피그마 JSON 내보내기
+══════════════════════════════════════ */
+function exportFigmaJSON() {
+  // 현재 페이지를 pages 배열에 반영
+  flushCurrentPage();
+
+  const parser = new DOMParser();
+
+  function parseHeight(el) {
+    return parseFloat(el.style.height) || 0;
+  }
+
+  function parseBlock(el, ps) {
+    // gap-block
+    if (el.classList.contains('gap-block')) {
+      return { type: 'gap', height: parseHeight(el) || 50 };
+    }
+
+    // text-block
+    if (el.classList.contains('text-block')) {
+      const inner = el.querySelector('.tb-h1, .tb-h2, .tb-body, .tb-caption, .tb-label');
+      if (!inner) return null;
+      const cls = inner.className;
+      const text = inner.textContent.trim();
+
+      // letterSpacing: inline style px 문자열 → 숫자
+      let letterSpacing;
+      const lsRaw = inner.style.letterSpacing;
+      if (lsRaw && lsRaw !== 'normal') {
+        const lsVal = parseFloat(lsRaw);
+        if (!isNaN(lsVal)) letterSpacing = lsVal;
+      }
+
+      const base = letterSpacing !== undefined ? { text, letterSpacing } : { text };
+
+      if (cls.includes('tb-h1')) return { type: 'heading', tag: 'h1', ...base };
+      if (cls.includes('tb-h2')) return { type: 'heading', tag: 'h2', ...base };
+      if (cls.includes('tb-body'))    return { type: 'body',    ...base };
+      if (cls.includes('tb-caption')) return { type: 'caption', ...base };
+      if (cls.includes('tb-label'))   return { type: 'label',   ...base };
+      return { type: 'body', ...base };
+    }
+
+    // asset-block
+    if (el.classList.contains('asset-block')) {
+      const h = parseHeight(el) || 400;
+      const src = el.dataset.imgSrc || null;
+      const padX = ps ? (ps.padX || 0) : 0;
+      const padding = {
+        top:    parseFloat(el.style.paddingTop)    || 0,
+        right:  parseFloat(el.style.paddingRight)  || padX,
+        bottom: parseFloat(el.style.paddingBottom) || 0,
+        left:   parseFloat(el.style.paddingLeft)   || padX,
+      };
+      // col width는 parseCol에서 주입
+      return { type: 'asset', src, height: h, padding };
+    }
+
+    return null;
+  }
+
+  function parseCol(colEl, ps) {
+    const width = parseInt(colEl.dataset.width) || 100;
+    const blocks = [];
+    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+      const block = parseBlock(b, ps);
+      if (block) {
+        if (block.type === 'asset') block.width = width;
+        blocks.push(block);
+      }
+    });
+    return { width, blocks };
+  }
+
+  function parseRow(rowEl, ps) {
+    const layout = rowEl.dataset.layout || 'stack';
+    const cols = [];
+    rowEl.querySelectorAll(':scope > .col').forEach(c => cols.push(parseCol(c, ps)));
+    return { layout, cols };
+  }
+
+  function parseSection(secEl, idx, ps) {
+    const inner = secEl.querySelector('.section-inner');
+    const rows = [];
+    if (inner) {
+      [...inner.children].forEach(child => {
+        if (child.classList.contains('row')) {
+          rows.push(parseRow(child, ps));
+        } else if (child.classList.contains('group-block')) {
+          child.querySelectorAll(':scope > .group-inner > .row').forEach(r => rows.push(parseRow(r, ps)));
+        } else if (child.classList.contains('gap-block')) {
+          const h = parseFloat(child.style.height) || 50;
+          rows.push({ layout: 'stack', cols: [{ width: 100, blocks: [{ type: 'gap', height: h }] }] });
+        }
+      });
+    }
+    return { index: idx + 1, rows };
+  }
+
+  function parsePage(page) {
+    const doc = parser.parseFromString(
+      `<div id="canvas">${page.canvas || ''}</div>`, 'text/html'
+    );
+    const canvasDiv = doc.getElementById('canvas');
+    const ps = page.pageSettings || {};
+    const sections = [];
+    canvasDiv.querySelectorAll(':scope > .section-block').forEach((sec, i) => {
+      sections.push(parseSection(sec, i, ps));
+    });
+    return {
+      name:     page.name  || 'Page',
+      label:    page.label || '',
+      bg:       (ps.bg)    || '#ffffff',
+      sections,
+    };
+  }
+
+  const exportPages = pages.map(p => parsePage(p));
+
+  const output = {
+    source:  'sangpe-wizard',
+    version: 1,
+    pages:   exportPages,
+  };
+
+  const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sangpe_export.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function exportHTMLFile() {
   // canvas clone — 에디터 UI 요소 제거
   const clone = canvasEl.cloneNode(true);
