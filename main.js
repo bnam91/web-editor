@@ -4,6 +4,35 @@ const fs = require('fs');
 
 let mainWindow;
 
+/* ── Hot Reload (개발용) ── */
+function watchFiles() {
+  const watchTargets = [
+    path.join(__dirname, 'index.html'),
+    path.join(__dirname, 'js'),
+    path.join(__dirname, 'css'),
+    path.join(__dirname, 'presets'),
+  ];
+
+  let reloadTimer = null;
+
+  function scheduleReload() {
+    if (reloadTimer) clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.reload();
+        console.log('[hot-reload] reloaded');
+      }
+    }, 300);
+  }
+
+  watchTargets.forEach(target => {
+    if (!fs.existsSync(target)) return;
+    fs.watch(target, { recursive: true }, (eventType, filename) => {
+      if (filename) scheduleReload();
+    });
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -18,12 +47,19 @@ function createWindow() {
     },
   });
 
-  // 추후: 로그인 → 프로젝트 목록 → 에디터 플로우 구현 시
-  // mainWindow.loadFile('pages/login.html');
-  mainWindow.loadFile('index.html');
+  mainWindow.loadFile('pages/projects.html');
+
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-change', true);
+  });
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow.webContents.send('fullscreen-change', false);
+  });
 }
 
 /* ── IPC: Presets ── */
+ipcMain.handle('fullscreen:get', () => mainWindow?.isFullScreen() ?? false);
+
 ipcMain.handle('presets:read-all', () => {
   const dir = path.join(__dirname, 'presets');
   return fs.readdirSync(dir)
@@ -54,7 +90,10 @@ ipcMain.handle('presets:delete', (event, presetId) => {
 // });
 
 /* ── App lifecycle ── */
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  watchFiles();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

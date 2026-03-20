@@ -9,6 +9,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Navigation — 추후 로그인/프로젝트 페이지 구현 시 사용
   // navigate: (page) => ipcRenderer.invoke('navigate', page),
 
+  // Fullscreen
+  getFullscreen: () => ipcRenderer.invoke('fullscreen:get'),
+  onFullscreenChange: (cb) => ipcRenderer.on('fullscreen-change', (_e, val) => cb(val)),
+
   // App info
   isElectron: true,
 });

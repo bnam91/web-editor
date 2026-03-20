@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>상페마법사</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #1a1a1a; color: #e0e0e0;
+  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ── Titlebar ── */
+#titlebar {
+  height: 44px; background: #1e1e1e; border-bottom: 1px solid #2a2a2a;
+  display: flex; align-items: center; padding: 0 16px;
+  -webkit-app-region: drag; flex-shrink: 0;
+}
+#titlebar * { -webkit-app-region: no-drag; }
+.electron-app #titlebar { padding-left: 80px; }
+.electron-app.fullscreen #titlebar { padding-left: 16px; }
+#app-logo {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 700; color: #ddd;
+}
+#app-logo svg { opacity: 0.8; }
+
+/* ── Main ── */
+#main {
+  flex: 1; overflow-y: auto; padding: 40px 48px;
+}
+#main::-webkit-scrollbar { width: 6px; }
+#main::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+/* ── Header ── */
+#header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 28px;
+}
+#header h1 { font-size: 18px; font-weight: 700; color: #f0f0f0; }
+
+#btn-new {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 14px; height: 32px;
+  background: #2d6fe8; border: none; border-radius: 7px;
+  color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s;
+}
+#btn-new:hover { background: #3a7df0; }
+
+/* ── Grid ── */
+#project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+/* ── Card ── */
+.project-card {
+  background: #242424; border: 1px solid #2e2e2e;
+  border-radius: 10px; overflow: hidden;
+  cursor: pointer; position: relative;
+  transition: border-color 0.15s, transform 0.12s;
+}
+.project-card:hover { border-color: #484848; transform: translateY(-2px); }
+
+.card-thumb {
+  height: 130px; background: #1e1e1e;
+  display: flex; align-items: center; justify-content: center;
+  border-bottom: 1px solid #2e2e2e;
+}
+.card-body { padding: 12px; }
+.card-name {
+  font-size: 12px; font-weight: 600; color: #e0e0e0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.card-date { font-size: 10px; color: #555; }
+
+.card-delete {
+  position: absolute; top: 8px; right: 8px;
+  width: 22px; height: 22px;
+  background: rgba(24,24,24,0.9); border: 1px solid #3a3a3a;
+  border-radius: 4px; color: #666; font-size: 11px;
+  cursor: pointer; display: none;
+  align-items: center; justify-content: center;
+  transition: background 0.1s, color 0.1s;
+  line-height: 1;
+}
+.project-card:hover .card-delete { display: flex; }
+.card-delete:hover { background: #c0392b; border-color: #c0392b; color: #fff; }
+
+/* ── Empty state ── */
+#empty-state {
+  display: none; text-align: center; padding: 100px 0; color: #444;
+}
+#empty-state svg { opacity: 0.2; margin-bottom: 16px; }
+#empty-state p { font-size: 13px; line-height: 1.7; }
+
+/* ── Rename input ── */
+.card-name-input {
+  font-size: 12px; font-weight: 600; color: #e0e0e0;
+  background: #333; border: 1px solid #555;
+  border-radius: 4px; padding: 1px 5px; width: 100%;
+  outline: none;
+}
+</style>
+</head>
+<body>
+
+<div id="titlebar">
+  <div id="app-logo">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <rect x="1" y="2" width="14" height="12" rx="2"/>
+      <line x1="4" y1="6" x2="12" y2="6"/>
+      <line x1="4" y1="9" x2="12" y2="9"/>
+      <line x1="4" y1="12" x2="8" y2="12"/>
+    </svg>
+    상페마법사
+  </div>
+</div>
+
+<div id="main">
+  <div id="header">
+    <h1>프로젝트</h1>
+    <button id="btn-new" onclick="createProject()">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
+      </svg>
+      새 프로젝트
+    </button>
+  </div>
+  <div id="project-grid"></div>
+  <div id="empty-state">
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#888" stroke-width="1.2">
+      <rect x="8" y="6" width="32" height="36" rx="3"/>
+      <line x1="15" y1="18" x2="33" y2="18"/>
+      <line x1="15" y1="25" x2="33" y2="25"/>
+      <line x1="15" y1="32" x2="24" y2="32"/>
+    </svg>
+    <p>아직 프로젝트가 없어요.<br>새 프로젝트를 만들어보세요.</p>
+  </div>
+</div>
+
+<script>
+const PROJECTS_KEY = 'sangpe-projects';
+
+function loadProjects() {
+  try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || []; } catch { return []; }
+}
+function saveProjectsList(list) {
+  localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+}
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function renderGrid() {
+  const list = loadProjects();
+  const grid = document.getElementById('project-grid');
+  const empty = document.getElementById('empty-state');
+  grid.innerHTML = '';
+
+  if (!list.length) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  list.slice().reverse().forEach(proj => {
+    const card = document.createElement('div');
+    card.className = 'project-card';
+    card.dataset.id = proj.id;
+    card.innerHTML = `
+      <div class="card-thumb">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#555" stroke-width="1.2">
+          <rect x="5" y="5" width="30" height="30" rx="2"/>
+          <line x1="11" y1="15" x2="29" y2="15"/>
+          <line x1="11" y1="21" x2="29" y2="21"/>
+          <line x1="11" y1="27" x2="22" y2="27"/>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div class="card-name" data-id="${proj.id}" ondblclick="startRename(event, '${proj.id}')">${proj.name}</div>
+        <div class="card-date">${formatDate(proj.updatedAt)}</div>
+      </div>
+      <button class="card-delete" onclick="deleteProject(event, '${proj.id}')">✕</button>
+    `;
+    card.addEventListener('click', (e) => {
+      if (e.target.classList.contains('card-delete')) return;
+      if (e.target.classList.contains('card-name-input')) return;
+      openProject(proj.id);
+    });
+    grid.appendChild(card);
+  });
+}
+
+function createProject() {
+  const list = loadProjects();
+  const id = 'proj_' + Date.now();
+  const now = new Date().toISOString();
+  list.push({ id, name: 'Untitled', createdAt: now, updatedAt: now, snapshot: null });
+  saveProjectsList(list);
+  openProject(id);
+}
+
+function openProject(id) {
+  window.location.href = '../index.html?project=' + id;
+}
+
+function deleteProject(e, id) {
+  e.stopPropagation();
+  const list = loadProjects();
+  const proj = list.find(p => p.id === id);
+  if (!proj) return;
+  if (!confirm(`"${proj.name}" 프로젝트를 삭제할까요?`)) return;
+  saveProjectsList(list.filter(p => p.id !== id));
+  renderGrid();
+}
+
+function startRename(e, id) {
+  e.stopPropagation();
+  const nameEl = e.target;
+  const current = nameEl.textContent;
+  const input = document.createElement('input');
+  input.className = 'card-name-input';
+  input.value = current;
+  nameEl.replaceWith(input);
+  input.focus(); input.select();
+
+  function commit() {
+    const newName = input.value.trim() || current;
+    const list = loadProjects();
+    const proj = list.find(p => p.id === id);
+    if (proj) { proj.name = newName; saveProjectsList(list); }
+    renderGrid();
+  }
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = current; input.blur(); }
+  });
+}
+
+// 샘플 프로젝트 (최초 실행 시 한 번만)
+function initSampleProject() {
+  const list = loadProjects();
+  // 샘플이 이미 있으면 덮어쓰기, 없고 비어있으면 새로 생성
+  const existing = list.find(p => p.id === 'proj_sample');
+  if (existing && existing.snapshot?.canvas?.includes('Section 03')) return;
+  if (list.length > 0 && !existing) return;
+  const id = 'proj_sample';
+  const now = new Date().toISOString();
+  const sampleCanvas = `
+<div class="section-block" data-section="1">
+  <span class="section-label">Section 01</span>
+  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:#e06c6c;">✕</button></div>
+  <div class="section-inner">
+    <div class="gap-block" data-type="gap" style="height:100px"></div>
+    <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="heading"><div class="tb-h1" contenteditable="false">Headline goes here</div></div></div></div>
+    <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="body"><div class="tb-body" contenteditable="false">서브타이틀 텍스트를 여기에 입력하세요. 클릭해서 바로 수정할 수 있습니다.</div></div></div></div>
+    <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="asset-block"><svg class="asset-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span class="asset-label">에셋을 업로드하거나 드래그하세요</span></div></div></div>
+    <div class="gap-block" data-type="gap" style="height:100px"></div>
+  </div>
+</div>
+<div class="section-block" data-section="2">
+  <span class="section-label">Section 02</span>
+  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:#e06c6c;">✕</button></div>
+  <div class="section-inner">
+    <div class="gap-block" data-type="gap" style="height:100px"></div>
+    <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="heading"><div class="tb-h2" contenteditable="false">섹션 제목을 입력하세요</div></div></div></div>
+    <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="body"><div class="tb-body" contenteditable="false">본문 내용을 여기에 작성하세요. 더블클릭하면 텍스트를 바로 수정할 수 있습니다.</div></div></div></div>
+    <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="asset-block"><svg class="asset-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span class="asset-label">에셋을 업로드하거나 드래그하세요</span></div></div></div>
+    <div class="gap-block" data-type="gap" style="height:100px"></div>
+  </div>
+</div>
+<div class="section-block" data-section="3">
+  <span class="section-label">Section 03</span>
+  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:#e06c6c;">✕</button></div>
+  <div class="section-inner">
+    <div class="gap-block" data-type="gap" style="height:100px"></div>
+    <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="heading"><div class="tb-h2" contenteditable="false">마지막 섹션 제목</div></div></div></div>
+    <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="body"><div class="tb-body" contenteditable="false">세 번째 섹션의 본문입니다. 텍스트 블록과 에셋 블록을 자유롭게 배치할 수 있어요.</div></div></div></div>
+    <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="caption"><div class="tb-caption" contenteditable="false">* 주석 혹은 캡션 텍스트를 여기에 입력합니다.</div></div></div></div>
+    <div class="gap-block" data-type="gap" style="height:100px"></div>
+  </div>
+</div>`;
+  const snapshot = {
+    version: 1,
+    pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 },
+    canvas: sampleCanvas
+  };
+  const updated = list.filter(p => p.id !== 'proj_sample');
+  updated.unshift({ id, name: '샘플 프로젝트', createdAt: now, updatedAt: now, snapshot });
+  saveProjectsList(updated);
+}
+
+// Electron fullscreen 감지
+if (window.electronAPI?.isElectron) {
+  document.body.classList.add('electron-app');
+  window.electronAPI.getFullscreen?.().then(isFullscreen => {
+    document.body.classList.toggle('fullscreen', isFullscreen);
+  });
+  window.electronAPI.onFullscreenChange?.(isFullscreen => {
+    document.body.classList.toggle('fullscreen', isFullscreen);
+  });
+}
+
+initSampleProject();
+renderGrid();
+</script>
+</body>
+</html>

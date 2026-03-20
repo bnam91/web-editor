@@ -478,10 +478,29 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
       <line x1="3" y1="4" x2="9" y2="4"/><line x1="3" y1="6.5" x2="7" y2="6.5"/><line x1="3" y1="9" x2="8" y2="9"/>
     </svg>
     <span class="layer-item-name">${name}</span>
-    <span class="layer-item-type">Group</span>`;
+    <span class="layer-item-type">Group</span>
+    <button class="layer-ungroup-btn" title="그룹 해제">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="1" y="1" width="3.5" height="3.5" rx="0.5"/>
+        <rect x="5.5" y="1" width="3.5" height="3.5" rx="0.5"/>
+        <rect x="1" y="5.5" width="3.5" height="3.5" rx="0.5"/>
+        <rect x="5.5" y="5.5" width="3.5" height="3.5" rx="0.5"/>
+      </svg>
+    </button>`;
 
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+    if (e.target.closest('.layer-ungroup-btn')) {
+      ungroupBlock(groupEl);
+      return;
+    }
+    // 그룹 선택 — 캔버스 그룹 강조 + 섹션 선택
+    deselectAll();
+    groupEl.classList.add('group-selected');
+    const sec = groupEl.closest('.section-block');
+    if (sec) selectSection(sec);
+    document.querySelectorAll('.layer-row-group').forEach(g => g.classList.remove('active'));
+    wrapper.classList.add('active');
   });
 
   const groupChildren = document.createElement('div');
@@ -828,6 +847,17 @@ const PRESET_FALLBACK = [
 
 let PRESETS = PRESET_FALLBACK;
 
+// Electron 환경 감지 → body 클래스 추가 (신호등 영역 확보 등 CSS 처리)
+if (window.electronAPI) {
+  document.body.classList.add('electron-app');
+  window.electronAPI.getFullscreen().then(isFullscreen => {
+    document.body.classList.toggle('fullscreen', isFullscreen);
+  });
+  window.electronAPI.onFullscreenChange(isFullscreen => {
+    document.body.classList.toggle('fullscreen', isFullscreen);
+  });
+}
+
 // Electron 환경이면 JSON 파일에서 프리셋 로드
 if (window.electronAPI) {
   window.electronAPI.readPresets().then(loaded => {
@@ -1038,6 +1068,7 @@ function syncSection(sec) {
 }
 
 function deselectAll() {
+  document.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected'));
   document.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
   document.querySelectorAll('.text-block').forEach(t => {
     t.classList.remove('selected', 'editing');
@@ -1118,7 +1149,7 @@ const propPanel   = document.querySelector('#panel-right .panel-body');
 const canvasEl    = document.getElementById('canvas');
 const canvasWrap  = document.getElementById('canvas-wrap');
 
-let pageSettings = { bg: '#141414', gap: 32, padX: 32, padY: 32 };
+let pageSettings = { bg: '#969696', gap: 100, padX: 32, padY: 32 };
 
 function showPageProperties() {
   const { bg, gap, padX, padY } = pageSettings;
@@ -1168,8 +1199,8 @@ function showPageProperties() {
       <div class="prop-section-title">레이아웃</div>
       <div class="prop-row">
         <span class="prop-label">섹션 간격</span>
-        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="100" step="4" value="${gap}">
-        <input type="number" class="prop-number" id="section-gap-number" min="0" max="100" value="${gap}">
+        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="200" step="4" value="${gap}">
+        <input type="number" class="prop-number" id="section-gap-number" min="0" max="200" value="${gap}">
       </div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
@@ -1217,7 +1248,7 @@ function showPageProperties() {
     gapNumber.value = pageSettings.gap;
   });
   gapNumber.addEventListener('input', () => {
-    const v = Math.min(100, Math.max(0, parseInt(gapNumber.value) || 0));
+    const v = Math.min(200, Math.max(0, parseInt(gapNumber.value) || 0));
     pageSettings.gap = v;
     canvasEl.style.gap = v + 'px';
     gapSlider.value = v;
@@ -1419,7 +1450,9 @@ function showAssetProperties(ab) {
   const hasImage   = ab.classList.contains('has-image');
   const currentR   = parseInt(ab.style.borderRadius) || 0;
   const currentW   = ab.offsetWidth || 400;
-  const currentAlign = ab.dataset.align || 'left';
+  const currentAlign = ab.dataset.align || 'center';
+  if (!ab.dataset.align) { ab.dataset.align = 'center'; ab.style.alignSelf = 'center'; }
+  const currentSize  = ab.dataset.size  || '100';
 
   const imageSection = hasImage ? `
     <div class="prop-section">
@@ -1456,15 +1489,24 @@ function showAssetProperties(ab) {
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="asset-align-group">
-          <button class="prop-align-btn${currentAlign==='left'?' active':''}" data-align="left">←</button>
+          <button class="prop-align-btn${currentAlign==='left'?' active':''}"   data-align="left">←</button>
           <button class="prop-align-btn${currentAlign==='center'?' active':''}" data-align="center">↔</button>
-          <button class="prop-align-btn${currentAlign==='right'?' active':''}" data-align="right">→</button>
+          <button class="prop-align-btn${currentAlign==='right'?' active':''}"  data-align="right">→</button>
         </div>
       </div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
         <input type="range" class="prop-slider" id="asset-r-slider" min="0" max="120" step="2" value="${currentR}">
         <input type="number" class="prop-number" id="asset-r-number" min="0" max="120" value="${currentR}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">사이즈</span>
+        <select class="prop-select" id="asset-size-select">
+          <option value="85"  ${currentSize==='85'  ?'selected':''}>85%</option>
+          <option value="90"  ${currentSize==='90'  ?'selected':''}>90%</option>
+          <option value="95"  ${currentSize==='95'  ?'selected':''}>95%</option>
+          <option value="100" ${currentSize==='100' ?'selected':''}>100%</option>
+        </select>
       </div>
     </div>
     ${imageSection}`;
@@ -1490,6 +1532,23 @@ function showAssetProperties(ab) {
   rNumber.addEventListener('input', () => {
     const v = Math.min(120, Math.max(0, parseInt(rNumber.value) || 0));
     applyR(v); rSlider.value = v;
+  });
+
+  document.getElementById('asset-size-select').addEventListener('change', e => {
+    const v = e.target.value;
+    ab.dataset.size = v;
+
+    const prevW = ab.offsetWidth;
+    const prevH = parseInt(ab.style.height) || ab.offsetHeight;
+    const ratio = prevH / prevW;
+
+    ab.style.width = v === '100' ? '' : v + '%';
+
+    requestAnimationFrame(() => {
+      const newW = ab.offsetWidth;
+      ab.style.height = Math.round(newW * ratio) + 'px';
+      pushHistory();
+    });
   });
 
   if (hasImage) {
@@ -1919,6 +1978,43 @@ function getLayerDragAfterItem(container, y) {
   }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
+function ungroupBlock(groupEl) {
+  const inner = groupEl.querySelector('.group-inner');
+  if (!inner) { groupEl.remove(); return; }
+  pushHistory();
+  // group-inner의 자식들을 group-block 위치로 이동
+  [...inner.children].forEach(child => groupEl.before(child));
+  groupEl.remove();
+  buildLayerPanel();
+}
+
+function bindGroupDrag(groupEl) {
+  if (groupEl._groupDragBound) return;
+  groupEl._groupDragBound = true;
+
+  const label = groupEl.querySelector(':scope > .group-block-label');
+  if (!label) return;
+
+  label.setAttribute('draggable', 'true');
+  label.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    dragSrc = groupEl;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => ghost.remove(), 0);
+    requestAnimationFrame(() => groupEl.classList.add('dragging'));
+  });
+  label.addEventListener('dragend', () => {
+    groupEl.classList.remove('dragging');
+    clearDropIndicators();
+    dragSrc = null;
+  });
+}
+
 function bindSectionDrag(sec) {
   const label = sec.querySelector('.section-label');
   if (!label || label._sectionDragBound) return;
@@ -2152,6 +2248,8 @@ function makeAssetBlock() {
 
   const ab = document.createElement('div');
   ab.className = 'asset-block';
+  ab.dataset.align = 'center';
+  ab.style.alignSelf = 'center';
   ab.innerHTML = `
     ${ASSET_SVG}
     <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
@@ -2189,11 +2287,49 @@ function insertAfterSelected(section, el) {
   }
 }
 
+function showNoSelectionHint() {
+  const fp = document.getElementById('floating-panel');
+  fp.classList.add('fp-shake');
+  setTimeout(() => fp.classList.remove('fp-shake'), 400);
+  showToast('⚠️ 섹션 또는 블록을 먼저 선택하세요');
+}
+
+function showToast(msg) {
+  let t = document.getElementById('editor-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'editor-toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function getSectionAlign(sec) {
+  const first = sec.querySelector('.text-block .tb-h1, .text-block .tb-h2, .text-block .tb-body');
+  if (!first) return null;
+  return first.style.textAlign || null;
+}
+
 function addTextBlock(type) {
-  const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-  if (!sec) return;
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
   pushHistory();
   const { row, block } = makeTextBlock(type);
+
+  // 섹션의 기존 텍스트 정렬 상속
+  const align = getSectionAlign(sec);
+  if (align) {
+    const contentEl = block.querySelector('[class^="tb-"]');
+    if (type === 'label') {
+      block.style.textAlign = align;
+    } else if (contentEl) {
+      contentEl.style.textAlign = align;
+    }
+  }
+
   insertAfterSelected(sec, row);
   bindBlock(block);
   buildLayerPanel();
@@ -2237,14 +2373,15 @@ function groupSelectedBlocks() {
   rows[0].before(groupEl);
   rows.forEach(row => groupInner.appendChild(row));
 
+  bindGroupDrag(groupEl);
   deselectAll();
   buildLayerPanel();
   selectSection(sec);
 }
 
 function addRowBlock() {
-  const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-  if (!sec) return;
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
   pushHistory();
   const row = document.createElement('div');
   row.className = 'row';
@@ -2266,8 +2403,8 @@ function addRowBlock() {
 }
 
 function addAssetBlock() {
-  const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-  if (!sec) return;
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
   pushHistory();
   const gapBefore = makeGapBlock();
   gapBefore.style.height = '20px';
@@ -2281,8 +2418,8 @@ function addAssetBlock() {
 }
 
 function addGapBlock() {
-  const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-  if (!sec) return;
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
   pushHistory();
   const gb = makeGapBlock();
   insertAfterSelected(sec, gb);
@@ -2306,7 +2443,7 @@ function addSection() {
       <button class="st-btn" style="color:#e06c6c;">✕</button>
     </div>
     <div class="section-inner">
-      <div class="gap-block" data-type="gap"></div>
+      <div class="gap-block" data-type="gap" style="height:100px"></div>
       <div class="row" data-layout="stack">
         <div class="col" data-width="100">
           <div class="text-block" data-type="heading">
@@ -2322,7 +2459,7 @@ function addSection() {
           </div>
         </div>
       </div>
-      <div class="gap-block" data-type="gap"></div>
+      <div class="gap-block" data-type="gap" style="height:100px"></div>
     </div>`;
 
   const selectedSec = document.querySelector('.section-block.selected');
@@ -2361,7 +2498,41 @@ document.addEventListener('click', e => {
    저장 / 불러오기
 ══════════════════════════════════════ */
 const SAVE_KEY = 'web-editor-autosave';
+const PROJECTS_KEY = 'sangpe-projects';
 let autoSaveTimer = null;
+
+/* ── 프로젝트 관리 ── */
+const _urlParams = new URLSearchParams(window.location.search);
+const CURRENT_PROJECT_ID = _urlParams.get('project');
+
+function loadProjectsList() {
+  try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || []; } catch { return []; }
+}
+function saveProjectToList(snapshot) {
+  if (!CURRENT_PROJECT_ID) return;
+  const list = loadProjectsList();
+  const proj = list.find(p => p.id === CURRENT_PROJECT_ID);
+  if (proj) {
+    proj.snapshot = JSON.parse(snapshot);
+    proj.updatedAt = new Date().toISOString();
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+  }
+}
+function getProjectName() {
+  if (!CURRENT_PROJECT_ID) return null;
+  const proj = loadProjectsList().find(p => p.id === CURRENT_PROJECT_ID);
+  return proj?.name || null;
+}
+function setProjectName(name) {
+  if (!CURRENT_PROJECT_ID) return;
+  const list = loadProjectsList();
+  const proj = list.find(p => p.id === CURRENT_PROJECT_ID);
+  if (proj) { proj.name = name; localStorage.setItem(PROJECTS_KEY, JSON.stringify(list)); }
+}
+
+function goHome() {
+  window.location.href = 'pages/projects.html';
+}
 
 function getSerializedCanvas() {
   // section data-name 속성 동기화
@@ -2422,6 +2593,7 @@ function rebindAll() {
       lbl.textContent = g.dataset.name || 'Group';
       g.prepend(lbl);
     }
+    bindGroupDrag(g);
   });
   // col-placeholder 이벤트 재연결
   canvasEl.querySelectorAll('.col > .col-placeholder').forEach(ph => {
@@ -2459,7 +2631,9 @@ function loadProjectFile(e) {
 function scheduleAutoSave() {
   clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
-    localStorage.setItem(SAVE_KEY, serializeProject());
+    const snap = serializeProject();
+    localStorage.setItem(SAVE_KEY, snap);
+    saveProjectToList(snap);
   }, 1500);
 }
 
@@ -2477,17 +2651,52 @@ document.querySelectorAll('.text-block').forEach(tb => {
   }
 });
 
-// 자동저장 복원
-const saved = localStorage.getItem(SAVE_KEY);
-if (saved) {
-  try {
-    const data = JSON.parse(saved);
-    applyProjectData(data);
-  } catch { buildLayerPanel(); showPageProperties(); }
-} else {
+// 프로젝트 로드 (URL ?project=id 우선, 없으면 autosave 폴백)
+(function initLoad() {
+  // 프로젝트 탭 이름
+  const projName = getProjectName();
+  if (projName) {
+    const tabName = document.getElementById('project-tab-name');
+    if (tabName) tabName.textContent = projName;
+  }
+
+  // 더블클릭으로 프로젝트 이름 변경
+  const tabName = document.getElementById('project-tab-name');
+  if (tabName) {
+    tabName.addEventListener('dblclick', () => {
+      const current = tabName.textContent;
+      tabName.contentEditable = 'true';
+      tabName.focus();
+      document.execCommand('selectAll', false, null);
+      tabName.addEventListener('blur', function commit() {
+        tabName.contentEditable = 'false';
+        const newName = tabName.textContent.trim() || current;
+        tabName.textContent = newName;
+        setProjectName(newName);
+        tabName.removeEventListener('blur', commit);
+      }, { once: true });
+      tabName.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Enter') { e.preventDefault(); tabName.blur(); }
+        if (e.key === 'Escape') { tabName.textContent = current; tabName.blur(); }
+        tabName.removeEventListener('keydown', onKey);
+      });
+    });
+  }
+
+  // 데이터 로드
+  if (CURRENT_PROJECT_ID) {
+    const proj = loadProjectsList().find(p => p.id === CURRENT_PROJECT_ID);
+    if (proj?.snapshot) {
+      try { applyProjectData(proj.snapshot); return; } catch {}
+    }
+  }
+  const saved = localStorage.getItem(SAVE_KEY);
+  if (saved) {
+    try { applyProjectData(JSON.parse(saved)); return; } catch {}
+  }
   buildLayerPanel();
   showPageProperties();
-}
+})();
 
 autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, attributes: true, characterData: true });
 
@@ -2992,7 +3201,7 @@ function exportDesignJSON() {
 
   function serializeBlock(el) {
     if (el.classList.contains('gap-block')) {
-      const h = parseFloat(el.style.height) || 60;
+      const h = parseFloat(el.style.height) || 50;
       return { id: uid('gap'), type: 'gap', height: h };
     }
 
