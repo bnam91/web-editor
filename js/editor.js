@@ -3808,11 +3808,12 @@ const ANIM_LIST = [
   { id: 'count-up',     label: '카운트업',        desc: '0부터 목표 숫자까지 카운팅' },
 ];
 
-let _animTb      = null;
-let _animType    = 'slide-up';
-let _animRafId   = null;
-let _animStart   = null;
-let _animLoops   = 0;
+let _animTb        = null;
+let _animType      = 'slide-up';
+let _animRafId     = null;
+let _animTimeoutId = null;   // setTimeout 전용 (cancelAnimationFrame과 분리)
+let _animStart     = null;
+let _animLoops     = 0;
 
 function openAnimModal(tb) {
   _animTb = tb;
@@ -3852,7 +3853,8 @@ function restartAnimPreview() {
 }
 
 function _stopAnimPreview() {
-  if (_animRafId) { cancelAnimationFrame(_animRafId); _animRafId = null; }
+  if (_animRafId)     { cancelAnimationFrame(_animRafId); _animRafId = null; }
+  if (_animTimeoutId) { clearTimeout(_animTimeoutId); _animTimeoutId = null; }
   _animStart = null;
   _animLoops = 0;
 }
@@ -3903,7 +3905,8 @@ function _startAnimPreview() {
         _animRafId = requestAnimationFrame(tick);
       } else {
         // hold 800ms then restart loop
-        _animRafId = setTimeout(() => {
+        _animTimeoutId = setTimeout(() => {
+          _animTimeoutId = null;
           _animLoops = 0;
           _animStart = null;
           _animRafId = requestAnimationFrame(tick);
