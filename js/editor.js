@@ -3656,6 +3656,127 @@ function exportDesignJSON() {
   URL.revokeObjectURL(a.href);
 }
 
+/* ══════════════════════════════════════
+   피그마 JSON 내보내기
+══════════════════════════════════════ */
+function exportFigmaJSON() {
+  // 현재 페이지를 pages 배열에 반영
+  flushCurrentPage();
+
+  const parser = new DOMParser();
+
+  function parseHeight(el) {
+    return parseFloat(el.style.height) || 0;
+  }
+
+  function parseBlock(el) {
+    // gap-block
+    if (el.classList.contains('gap-block')) {
+      return { type: 'gap', height: parseHeight(el) || 50 };
+    }
+
+    // text-block
+    if (el.classList.contains('text-block')) {
+      const inner = el.querySelector('.tb-h1, .tb-h2, .tb-body, .tb-caption, .tb-label');
+      if (!inner) return null;
+      const cls = inner.className; // e.g. "tb-h1"
+      const text = inner.textContent.trim();
+
+      if (cls.includes('tb-h1')) return { type: 'heading', tag: 'h1', text };
+      if (cls.includes('tb-h2')) return { type: 'heading', tag: 'h2', text };
+      if (cls.includes('tb-body'))    return { type: 'body',    text };
+      if (cls.includes('tb-caption')) return { type: 'caption', text };
+      if (cls.includes('tb-label'))   return { type: 'label',   text };
+      return { type: 'body', text };
+    }
+
+    // asset-block
+    if (el.classList.contains('asset-block')) {
+      const h = parseHeight(el) || 400;
+      const src = el.dataset.imgSrc || null;
+      // col width는 상위 col의 data-width로 결정 (parseCol에서 채움)
+      return { type: 'asset', src, height: h };
+    }
+
+    return null;
+  }
+
+  function parseCol(colEl) {
+    const width = parseInt(colEl.dataset.width) || 100;
+    const blocks = [];
+    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+      const block = parseBlock(b);
+      if (block) {
+        // asset에 col width 주입
+        if (block.type === 'asset') block.width = width;
+        blocks.push(block);
+      }
+    });
+    return { width, blocks };
+  }
+
+  function parseRow(rowEl) {
+    const layout = rowEl.dataset.layout || 'stack';
+    const cols = [];
+    rowEl.querySelectorAll(':scope > .col').forEach(c => cols.push(parseCol(c)));
+    return { layout, cols };
+  }
+
+  function parseSection(secEl, idx) {
+    const inner = secEl.querySelector('.section-inner');
+    const rows = [];
+    if (inner) {
+      [...inner.children].forEach(child => {
+        if (child.classList.contains('row')) {
+          rows.push(parseRow(child));
+        } else if (child.classList.contains('group-block')) {
+          // group 내부 row들을 평탄화
+          child.querySelectorAll(':scope > .group-inner > .row').forEach(r => rows.push(parseRow(r)));
+        }
+        // section 레벨 gap-block은 row 사이 여백이므로 별도 row로 포함
+        else if (child.classList.contains('gap-block')) {
+          const h = parseFloat(child.style.height) || 50;
+          rows.push({ layout: 'stack', cols: [{ width: 100, blocks: [{ type: 'gap', height: h }] }] });
+        }
+      });
+    }
+    return { index: idx + 1, rows };
+  }
+
+  function parsePage(page) {
+    const doc = parser.parseFromString(
+      `<div id="canvas">${page.canvas || ''}</div>`, 'text/html'
+    );
+    const canvasDiv = doc.getElementById('canvas');
+    const ps = page.pageSettings || {};
+    const sections = [];
+    canvasDiv.querySelectorAll(':scope > .section-block').forEach((sec, i) => {
+      sections.push(parseSection(sec, i));
+    });
+    return {
+      name:     page.name  || 'Page',
+      label:    page.label || '',
+      bg:       (ps.bg)    || '#ffffff',
+      sections,
+    };
+  }
+
+  const exportPages = pages.map(p => parsePage(p));
+
+  const output = {
+    source:  'sangpe-wizard',
+    version: 1,
+    pages:   exportPages,
+  };
+
+  const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sangpe_export.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function exportHTMLFile() {
   // canvas clone — 에디터 UI 요소 제거
   const clone = canvasEl.cloneNode(true);
