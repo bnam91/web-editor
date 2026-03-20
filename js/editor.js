@@ -1,4 +1,224 @@
 /* ═══════════════════════════════════
+   PANEL TABS
+═══════════════════════════════════ */
+function toggleAllSections() {
+  const sections = document.querySelectorAll('#layer-panel-body .layer-section');
+  const anyOpen = [...sections].some(s => !s.classList.contains('collapsed'));
+  sections.forEach(s => s.classList.toggle('collapsed', anyOpen));
+}
+
+function switchToTab(tabName) {
+  document.querySelectorAll('.panel-tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.tab === tabName));
+  document.getElementById('layer-panel-body').style.display  = tabName === 'layers'  ? '' : 'none';
+  document.getElementById('branch-panel-body').style.display = tabName === 'branch' ? '' : 'none';
+  if (tabName === 'branch') renderBranchPanel();
+}
+
+/* ═══════════════════════════════════
+   BRANCH SYSTEM
+═══════════════════════════════════ */
+const BRANCH_KEY = 'web-editor-branches';
+
+function loadBranchStore() {
+  try { return JSON.parse(localStorage.getItem(BRANCH_KEY)) || null; } catch { return null; }
+}
+function saveBranchStore(store) {
+  localStorage.setItem(BRANCH_KEY, JSON.stringify(store));
+}
+function initBranchStore() {
+  let store = loadBranchStore();
+  if (!store) {
+    const snap = serializeProject();
+    store = {
+      current: 'main',
+      branches: {
+        main: { snapshot: snap, createdAt: Date.now(), updatedAt: Date.now() },
+        dev:  { snapshot: snap, createdAt: Date.now(), updatedAt: Date.now() }
+      }
+    };
+    saveBranchStore(store);
+  }
+  updateBranchIndicator(store.current);
+  return store;
+}
+
+function updateBranchIndicator(name) {
+  const el = document.getElementById('branch-name');
+  if (el) el.textContent = name;
+  renderBranchDropdown();
+}
+
+function toggleBranchDropdown(e) {
+  e.stopPropagation();
+  const wrap = document.getElementById('branch-dropdown-wrap');
+  const isOpen = wrap.classList.toggle('open');
+  if (isOpen) renderBranchDropdown();
+}
+
+function renderBranchDropdown() {
+  const menu = document.getElementById('branch-dropdown-menu');
+  if (!menu) return;
+  const store = loadBranchStore();
+  if (!store) return;
+  const order = ['main', 'dev', ...Object.keys(store.branches).filter(n => n !== 'main' && n !== 'dev')];
+  const sorted = [...new Set(order.filter(n => store.branches[n]))];
+
+  menu.innerHTML = sorted.map(name => {
+    const isCurrent = name === store.current;
+    return `<div class="branch-dd-item ${isCurrent ? 'current' : ''}" onclick="selectBranchFromDropdown('${name}')">
+      <span class="branch-dd-item-dot"></span>
+      <span>${name}</span>
+      ${isCurrent ? '<span style="margin-left:auto;font-size:9px;color:#2d6fe8;font-weight:700;">NOW</span>' : ''}
+    </div>`;
+  }).join('') + `
+  <div class="branch-dd-divider"></div>
+  <div class="branch-dd-manage" onclick="switchToTab('branch');closeBranchDropdown()">
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+      <circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="5" r="1.5"/>
+      <path d="M3 4v4M3 4C3 6 9 4 9 5"/>
+    </svg>
+    브랜치 관리 →
+  </div>`;
+}
+
+function selectBranchFromDropdown(name) {
+  closeBranchDropdown();
+  switchBranch(name);
+}
+
+function closeBranchDropdown() {
+  document.getElementById('branch-dropdown-wrap')?.classList.remove('open');
+}
+
+function getCurrentBranch() {
+  const store = loadBranchStore();
+  return store ? store.current : 'main';
+}
+
+function saveCurrentBranchSnapshot() {
+  const store = loadBranchStore();
+  if (!store) return;
+  store.branches[store.current].snapshot = serializeProject();
+  store.branches[store.current].updatedAt = Date.now();
+  saveBranchStore(store);
+}
+
+function switchBranch(name) {
+  const store = loadBranchStore();
+  if (!store || !store.branches[name] || store.current === name) return;
+  // 현재 브랜치 스냅샷 저장
+  store.branches[store.current].snapshot = serializeProject();
+  store.branches[store.current].updatedAt = Date.now();
+  // 대상 브랜치 로드
+  store.current = name;
+  saveBranchStore(store);
+  const data = JSON.parse(store.branches[name].snapshot);
+  applyProjectData(data);
+  updateBranchIndicator(name);
+  renderBranchPanel();
+}
+
+function createBranch(name) {
+  name = name.trim();
+  if (!name) return;
+  const store = loadBranchStore();
+  if (!store) return;
+  if (store.branches[name]) { alert(`'${name}' 브랜치가 이미 존재합니다.`); return; }
+  store.branches[name] = {
+    snapshot: serializeProject(),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  saveBranchStore(store);
+  renderBranchPanel();
+}
+
+function deleteBranch(name) {
+  const store = loadBranchStore();
+  if (!store) return;
+  if (name === 'main') { alert('main 브랜치는 삭제할 수 없습니다.'); return; }
+  if (store.current === name) { alert('현재 작업 중인 브랜치는 삭제할 수 없습니다.'); return; }
+  if (!confirm(`'${name}' 브랜치를 삭제할까요?`)) return;
+  delete store.branches[name];
+  saveBranchStore(store);
+  renderBranchPanel();
+}
+
+function mergeBranch(fromName) {
+  const store = loadBranchStore();
+  if (!store) return;
+  const toName = store.current;
+  if (fromName === toName) return;
+  if (!confirm(`'${fromName}' → '${toName}' 으로 병합할까요?\n현재 브랜치의 내용이 대체됩니다.`)) return;
+  store.branches[toName].snapshot = store.branches[fromName].snapshot;
+  store.branches[toName].updatedAt = Date.now();
+  store.current = toName;
+  saveBranchStore(store);
+  const data = JSON.parse(store.branches[toName].snapshot);
+  applyProjectData(data);
+  updateBranchIndicator(toName);
+  renderBranchPanel();
+}
+
+function renderBranchPanel() {
+  const panel = document.getElementById('branch-panel-body');
+  if (!panel) return;
+  const store = loadBranchStore();
+  if (!store) return;
+  const branchNames = Object.keys(store.branches);
+  const order = ['main', 'dev', ...branchNames.filter(n => n !== 'main' && n !== 'dev')];
+  const sorted = [...new Set(order.filter(n => store.branches[n]))];
+
+  panel.innerHTML = `
+    <div class="branch-section-title">브랜치</div>
+    <div class="branch-list">
+      ${sorted.map(name => {
+        const isCurrent = name === store.current;
+        const ago = timeSince(store.branches[name].updatedAt);
+        return `
+        <div class="branch-item ${isCurrent ? 'current' : ''}" data-branch="${name}">
+          <svg class="branch-item-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+            <circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="5" r="1.5"/>
+            <path d="M3 4v4M3 4C3 6 9 4 9 5"/>
+          </svg>
+          <span class="branch-item-name">${name}</span>
+          ${isCurrent ? '<span class="branch-item-badge">현재</span>' : ''}
+          <div class="branch-item-actions">
+            ${!isCurrent ? `<button class="branch-action-btn" onclick="switchBranch('${name}')">전환</button>` : ''}
+            ${!isCurrent ? `<button class="branch-action-btn merge" onclick="mergeBranch('${name}')">병합</button>` : ''}
+            ${name !== 'main' && name !== 'dev' ? `<button class="branch-action-btn danger" onclick="deleteBranch('${name}')">✕</button>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="branch-divider"></div>
+    <div class="branch-section-title">새 브랜치</div>
+    <div class="branch-new-form">
+      <input class="branch-new-input" id="branch-new-input" placeholder="feature/이름" type="text">
+      <button class="branch-new-btn" onclick="createBranchFromInput()">만들기</button>
+    </div>`;
+
+  const input = document.getElementById('branch-new-input');
+  if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') createBranchFromInput(); });
+}
+
+function createBranchFromInput() {
+  const input = document.getElementById('branch-new-input');
+  if (!input) return;
+  createBranch(input.value);
+  input.value = '';
+}
+
+function timeSince(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return '방금';
+  if (s < 3600) return Math.floor(s/60) + '분 전';
+  if (s < 86400) return Math.floor(s/3600) + '시간 전';
+  return Math.floor(s/86400) + '일 전';
+}
+
+/* ═══════════════════════════════════
    ZOOM
 ═══════════════════════════════════ */
 const CANVAS_W = 860;
@@ -145,17 +365,20 @@ document.addEventListener('keydown', e => {
     const selGap     = document.querySelector('.gap-block.selected');
     const selSection = document.querySelector('.section-block.selected');
 
-    if (selText || selAsset) {
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected')];
+    if (allSelBlocks.length > 0) {
       e.preventDefault();
       pushHistory();
-      const block = selText || selAsset;
-      (block.closest('.row') || block).remove();
-      deselectAll();
-      buildLayerPanel();
-    } else if (selGap) {
-      e.preventDefault();
-      pushHistory();
-      selGap.remove();
+      const rowsToRemove = new Set();
+      allSelBlocks.forEach(block => {
+        if (block.classList.contains('gap-block')) {
+          block.remove();
+        } else {
+          const row = block.closest('.row');
+          if (row) rowsToRemove.add(row); else block.remove();
+        }
+      });
+      rowsToRemove.forEach(r => r.remove());
       deselectAll();
       buildLayerPanel();
     } else if (selSection) {
@@ -198,13 +421,25 @@ function makeLayerBlockItem(block, dragTarget, sec) {
 
   item.addEventListener('click', e => {
     e.stopPropagation();
-    deselectAll();
-    block.classList.add('selected');
-    syncSection(sec);
-    highlightBlock(block, item);
-    if (isText) showTextProperties(block);
-    else if (isGap) showGapProperties(block);
-    else showAssetProperties(block);
+    if (e.shiftKey) {
+      // Shift+클릭: 다중선택 토글
+      if (block.classList.contains('selected')) {
+        block.classList.remove('selected');
+        item.classList.remove('active');
+      } else {
+        block.classList.add('selected');
+        item.classList.add('active');
+      }
+      syncSection(sec);
+    } else {
+      deselectAll();
+      block.classList.add('selected');
+      syncSection(sec);
+      highlightBlock(block, item);
+      if (isText) showTextProperties(block);
+      else if (isGap) showGapProperties(block);
+      else showAssetProperties(block);
+    }
   });
   block.addEventListener('mouseenter', () => item.style.background = '#252525');
   block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
@@ -225,6 +460,44 @@ function makeLayerBlockItem(block, dragTarget, sec) {
 
   block._layerItem = item;
   return item;
+}
+
+/* 레이어 Group 아이템 생성 (group-block용) */
+function makeLayerGroupItem(groupEl, sec, appendRowFn) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'layer-row-group';
+  wrapper._dragTarget = groupEl;
+
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  const name = groupEl.dataset.name || 'Group';
+  header.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+      <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+      <line x1="3" y1="4" x2="9" y2="4"/><line x1="3" y1="6.5" x2="7" y2="6.5"/><line x1="3" y1="9" x2="8" y2="9"/>
+    </svg>
+    <span class="layer-item-name">${name}</span>
+    <span class="layer-item-type">Group</span>`;
+
+  header.addEventListener('click', e => {
+    if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+  });
+
+  const groupChildren = document.createElement('div');
+  groupChildren.className = 'layer-row-children';
+
+  const groupInner = groupEl.querySelector('.group-inner');
+  if (groupInner) {
+    [...groupInner.children].forEach(child => {
+      if (child.classList.contains('row')) appendRowFn(child, groupChildren);
+      else if (child.classList.contains('gap-block')) groupChildren.appendChild(makeLayerBlockItem(child, child, sec));
+    });
+  }
+
+  wrapper.appendChild(header);
+  wrapper.appendChild(groupChildren);
+  return wrapper;
 }
 
 /* 레이어 Row 그룹 생성 (멀티컬럼용) */
@@ -260,13 +533,24 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
     item.addEventListener('click', e => {
       e.stopPropagation();
-      deselectAll();
-      block.classList.add('selected');
-      syncSection(sec);
-      highlightBlock(block, item);
-      if (isText) showTextProperties(block);
-      else if (isGap) showGapProperties(block);
-      else showAssetProperties(block);
+      if (e.shiftKey) {
+        if (block.classList.contains('selected')) {
+          block.classList.remove('selected');
+          item.classList.remove('active');
+        } else {
+          block.classList.add('selected');
+          item.classList.add('active');
+        }
+        syncSection(sec);
+      } else {
+        deselectAll();
+        block.classList.add('selected');
+        syncSection(sec);
+        highlightBlock(block, item);
+        if (isText) showTextProperties(block);
+        else if (isGap) showGapProperties(block);
+        else showAssetProperties(block);
+      }
     });
     block.addEventListener('mouseenter', () => item.style.background = '#252525');
     block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
@@ -366,23 +650,29 @@ function buildLayerPanel() {
 
     // section-inner 직접 자식 순회 (Row 단위로 처리)
     const sectionInner = sec.querySelector('.section-inner');
+
+    function appendRowToLayer(child, container) {
+      const colBlocks = [...child.querySelectorAll(':scope > .col > *')]
+        .filter(el => !el.classList.contains('col-placeholder'));
+      const allCols = [...child.querySelectorAll(':scope > .col')];
+      const hasPlaceholderOnly = colBlocks.length === 0 && allCols.length > 0;
+      if (hasPlaceholderOnly) {
+        container.appendChild(makeLayerRowGroup(child, [], sec));
+      } else if (colBlocks.length <= 1) {
+        const block = colBlocks[0];
+        if (block) container.appendChild(makeLayerBlockItem(block, child, sec));
+      } else {
+        container.appendChild(makeLayerRowGroup(child, colBlocks, sec));
+      }
+    }
+
     [...sectionInner.children].forEach(child => {
       if (child.classList.contains('gap-block')) {
         children.appendChild(makeLayerBlockItem(child, child, sec));
       } else if (child.classList.contains('row')) {
-        const colBlocks = [...child.querySelectorAll(':scope > .col > *')]
-          .filter(el => !el.classList.contains('col-placeholder'));
-        const allCols = [...child.querySelectorAll(':scope > .col')];
-        const hasPlaceholderOnly = colBlocks.length === 0 && allCols.length > 0;
-        if (hasPlaceholderOnly) {
-          // 빈 row → Empty row 항목으로 표시
-          children.appendChild(makeLayerRowGroup(child, [], sec));
-        } else if (colBlocks.length <= 1) {
-          const block = colBlocks[0];
-          if (block) children.appendChild(makeLayerBlockItem(block, child, sec));
-        } else {
-          children.appendChild(makeLayerRowGroup(child, colBlocks, sec));
-        }
+        appendRowToLayer(child, children);
+      } else if (child.classList.contains('group-block')) {
+        children.appendChild(makeLayerGroupItem(child, sec, appendRowToLayer));
       }
     });
 
@@ -754,24 +1044,6 @@ function showPageProperties() {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">레이아웃</div>
-      <div class="prop-row">
-        <span class="prop-label">섹션 간격</span>
-        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="100" step="4" value="${gap}">
-        <input type="number" class="prop-number" id="section-gap-number" min="0" max="100" value="${gap}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="4" value="${padX}">
-        <input type="number" class="prop-number" id="page-padx-number" min="0" max="200" value="${padX}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">상하 패딩</span>
-        <input type="range" class="prop-slider" id="page-pady-slider" min="0" max="200" step="4" value="${padY}">
-        <input type="number" class="prop-number" id="page-pady-number" min="0" max="200" value="${padY}">
-      </div>
-    </div>
-    <div class="prop-section">
       <div class="prop-section-title">일괄 정렬</div>
       <div class="prop-align-group">
         <button class="prop-align-btn" id="page-align-left">
@@ -792,6 +1064,24 @@ function showPageProperties() {
             <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
           </svg>
         </button>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">레이아웃</div>
+      <div class="prop-row">
+        <span class="prop-label">섹션 간격</span>
+        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="100" step="4" value="${gap}">
+        <input type="number" class="prop-number" id="section-gap-number" min="0" max="100" value="${gap}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="4" value="${padX}">
+        <input type="number" class="prop-number" id="page-padx-number" min="0" max="200" value="${padX}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">상하 패딩</span>
+        <input type="range" class="prop-slider" id="page-pady-slider" min="0" max="200" step="4" value="${padY}">
+        <input type="number" class="prop-number" id="page-pady-number" min="0" max="200" value="${padY}">
       </div>
     </div>
     <div class="prop-section">
@@ -943,7 +1233,6 @@ function makeColPlaceholder(col) {
         ab.className = 'asset-block';
         ab.style.height = '460px';
         ab.innerHTML = `
-          <span class="asset-tag">Image / GIF</span>
           ${ASSET_SVG}
           <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
         block = ab;
@@ -1067,16 +1356,6 @@ function showAssetProperties(ab) {
     <div class="prop-section">
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="asset-h-slider" min="100" max="1200" step="20" value="${currentH}">
-        <input type="number" class="prop-number" id="asset-h-number" min="100" max="1200" value="${currentH}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="asset-w-slider" min="100" max="1200" step="10" value="${currentW}">
-        <input type="number" class="prop-number" id="asset-w-number" min="100" max="1200" value="${currentW}">
-      </div>
-      <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="asset-align-group">
           <button class="prop-align-btn${currentAlign==='left'?' active':''}" data-align="left">←</button>
@@ -1094,29 +1373,6 @@ function showAssetProperties(ab) {
 
   bindLayoutInput(ab);
 
-  const applyH = v => {
-    const row = ab.closest('.row');
-    const targets = (row && row.dataset.layout !== 'stack')
-      ? [...row.querySelectorAll(':scope > .col > .asset-block')]
-      : [ab];
-    targets.forEach(b => b.style.height = v + 'px');
-  };
-  const hSlider = document.getElementById('asset-h-slider');
-  const hNumber = document.getElementById('asset-h-number');
-  hSlider.addEventListener('input', () => { applyH(parseInt(hSlider.value)); hNumber.value = hSlider.value; });
-  hNumber.addEventListener('input', () => {
-    const v = Math.min(1200, Math.max(100, parseInt(hNumber.value) || 100));
-    applyH(v); hSlider.value = v;
-  });
-
-  const wSlider = document.getElementById('asset-w-slider');
-  const wNumber = document.getElementById('asset-w-number');
-  const applyW = v => { ab.style.width = v + 'px'; };
-  wSlider.addEventListener('input', () => { applyW(parseInt(wSlider.value)); wNumber.value = wSlider.value; });
-  wNumber.addEventListener('input', () => {
-    const v = Math.min(1200, Math.max(100, parseInt(wNumber.value) || 100));
-    applyW(v); wSlider.value = v;
-  });
 
   const applyAlign = a => {
     ab.dataset.align = a;
@@ -1307,7 +1563,6 @@ function showTextProperties(tb) {
     btn.addEventListener('click', () => {
       const cls = btn.dataset.cls;
       contentEl.className = cls;
-      tb.querySelector('.text-block-label').textContent = labelMap[cls];
       tb.dataset.type = typeMap2[cls];
       propPanel.querySelectorAll('.prop-type-btn').forEach(b => b.classList.toggle('active', b===btn));
 
@@ -1626,9 +1881,21 @@ function bindBlock(block) {
   const isGap   = block.classList.contains('gap-block');
   const isAsset = block.classList.contains('asset-block');
 
+
   if (isText) {
     block.addEventListener('click', e => {
       e.stopPropagation();
+      if (e.shiftKey) {
+        if (block.classList.contains('selected')) {
+          block.classList.remove('selected');
+          if (block._layerItem) { block._layerItem.classList.remove('active'); block._layerItem.style.background = ''; }
+        } else {
+          block.classList.add('selected');
+          if (block._layerItem) block._layerItem.classList.add('active');
+        }
+        syncSection(block.closest('.section-block'));
+        return;
+      }
       deselectAll();
       block.classList.add('selected');
       syncSection(block.closest('.section-block'));
@@ -1648,6 +1915,17 @@ function bindBlock(block) {
   if (isAsset) {
     block.addEventListener('click', e => {
       e.stopPropagation();
+      if (e.shiftKey) {
+        if (block.classList.contains('selected')) {
+          block.classList.remove('selected');
+          if (block._layerItem) { block._layerItem.classList.remove('active'); block._layerItem.style.background = ''; }
+        } else {
+          block.classList.add('selected');
+          if (block._layerItem) block._layerItem.classList.add('active');
+        }
+        syncSection(block.closest('.section-block'));
+        return;
+      }
       deselectAll();
       block.classList.add('selected');
       syncSection(block.closest('.section-block'));
@@ -1755,7 +2033,6 @@ function makeTextBlock(type) {
   const tb = document.createElement('div');
   tb.className = 'text-block'; tb.dataset.type = dataType;
   tb.innerHTML = `
-    <span class="text-block-label">${labelMap[type]}</span>
     <div class="${classMap[type]}" contenteditable="false">${placeholder[type]}</div>`;
 
   if (pageSettings.padX > 0) { tb.style.paddingLeft = pageSettings.padX + 'px'; tb.style.paddingRight = pageSettings.padX + 'px'; }
@@ -1778,7 +2055,6 @@ function makeAssetBlock() {
   const ab = document.createElement('div');
   ab.className = 'asset-block';
   ab.innerHTML = `
-    <span class="asset-tag">Image / GIF</span>
     ${ASSET_SVG}
     <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
 
@@ -1826,6 +2102,48 @@ function addTextBlock(type) {
   selectSection(sec);
 }
 
+function groupSelectedBlocks() {
+  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected')];
+  if (selected.length < 2) return;
+
+  // 같은 섹션의 블록만 그룹
+  const sec = selected[0].closest('.section-block');
+  if (!selected.every(b => b.closest('.section-block') === sec)) return;
+
+  pushHistory();
+
+  // DOM 순서대로 부모 row/gap 수집 (중복 제거)
+  const sectionInner = sec.querySelector('.section-inner');
+  const childrenInOrder = [...sectionInner.children];
+  const rows = [];
+  selected.forEach(b => {
+    const row = b.classList.contains('gap-block') ? b : b.closest('.row');
+    if (row && !rows.includes(row)) rows.push(row);
+  });
+  rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
+
+  // group-block 생성
+  const groupCount = sectionInner.querySelectorAll('.group-block').length + 1;
+  const groupEl = document.createElement('div');
+  groupEl.className = 'group-block';
+  groupEl.dataset.name = `Group ${groupCount}`;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'group-block-label';
+  labelEl.textContent = groupEl.dataset.name;
+  const groupInner = document.createElement('div');
+  groupInner.className = 'group-inner';
+  groupEl.appendChild(labelEl);
+  groupEl.appendChild(groupInner);
+
+  // 첫 번째 row 자리에 group-block 삽입 후 rows 이동
+  rows[0].before(groupEl);
+  rows.forEach(row => groupInner.appendChild(row));
+
+  deselectAll();
+  buildLayerPanel();
+  selectSection(sec);
+}
+
 function addRowBlock() {
   const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
   if (!sec) return;
@@ -1853,8 +2171,12 @@ function addAssetBlock() {
   const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
   if (!sec) return;
   pushHistory();
+  const gapBefore = makeGapBlock();
+  gapBefore.style.height = '20px';
   const { row, block } = makeAssetBlock();
-  insertAfterSelected(sec, row);
+  insertAfterSelected(sec, gapBefore);
+  gapBefore.after(row);
+  bindBlock(gapBefore);
   bindBlock(block);
   buildLayerPanel();
   selectSection(sec);
@@ -1890,7 +2212,6 @@ function addSection() {
       <div class="row" data-layout="stack">
         <div class="col" data-width="100">
           <div class="text-block" data-type="heading">
-            <span class="text-block-label">Heading</span>
             <div class="tb-h2" contenteditable="false">새 섹션 제목</div>
           </div>
         </div>
@@ -1898,7 +2219,6 @@ function addSection() {
       <div class="row" data-layout="stack">
         <div class="col" data-width="100">
           <div class="asset-block">
-            <span class="asset-tag">Image / GIF</span>
             ${ASSET_SVG}
             <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
           </div>
@@ -1932,6 +2252,8 @@ function toggleFpDropdown() {
 document.addEventListener('click', e => {
   const dd = document.getElementById('fp-text-dropdown');
   if (dd && !dd.contains(e.target)) dd.classList.remove('open');
+  const bdw = document.getElementById('branch-dropdown-wrap');
+  if (bdw && !bdw.contains(e.target)) bdw.classList.remove('open');
   if (!e.target.closest('.col-add-btn') && !e.target.closest('.col-add-menu')) {
     document.querySelectorAll('.col-add-menu').forEach(m => m.style.display = 'none');
   }
@@ -1961,6 +2283,8 @@ function serializeProject() {
 function applyProjectData(data) {
   if (data.pageSettings) Object.assign(pageSettings, data.pageSettings);
   canvasEl.innerHTML = data.canvas || '';
+  // 구버전 저장본의 라벨 잔재 제거
+  canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
   rebindAll();
   applyPageSettings();
   buildLayerPanel();
@@ -1973,6 +2297,8 @@ function applyPageSettings() {
   canvasEl.querySelectorAll('.text-block').forEach(tb => {
     tb.style.paddingLeft  = pageSettings.padX + 'px';
     tb.style.paddingRight = pageSettings.padX + 'px';
+  });
+  canvasEl.querySelectorAll('.text-block').forEach(tb => {
     if (tb.dataset.type !== 'label') {
       tb.style.paddingTop    = pageSettings.padY + 'px';
       tb.style.paddingBottom = pageSettings.padY + 'px';
@@ -1990,6 +2316,15 @@ function rebindAll() {
     bindSectionDropZone(sec);
   });
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => bindBlock(b));
+  // group-block 라벨 복원
+  canvasEl.querySelectorAll('.group-block').forEach(g => {
+    if (!g.querySelector(':scope > .group-block-label')) {
+      const lbl = document.createElement('span');
+      lbl.className = 'group-block-label';
+      lbl.textContent = g.dataset.name || 'Group';
+      g.prepend(lbl);
+    }
+  });
   // col-placeholder 이벤트 재연결
   canvasEl.querySelectorAll('.col > .col-placeholder').forEach(ph => {
     const col = ph.parentElement;
@@ -2057,6 +2392,18 @@ if (saved) {
 }
 
 autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, attributes: true, characterData: true });
+
+// 브랜치 시스템 초기화
+initBranchStore();
+
+// Cmd+G 그룹 — capture phase로 브라우저 Find Next 보다 먼저 처리
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'g') {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    groupSelectedBlocks();
+  }
+}, true);
 
 // 초기 스냅샷
 pushHistory();
@@ -2173,6 +2520,25 @@ function enterImageEditMode(ab) {
           <input type="number" class="prop-number" id="img-h" style="width:64px" value="${Math.round(img.offsetHeight)}" disabled>
         </div>
       </div>
+      <div class="prop-section">
+        <div class="prop-section-title">정렬</div>
+        <div class="prop-row">
+          <span class="prop-label">가로</span>
+          <div class="prop-align-group">
+            <button class="prop-align-btn" id="img-align-hl">←</button>
+            <button class="prop-align-btn" id="img-align-hc">↔</button>
+            <button class="prop-align-btn" id="img-align-hr">→</button>
+          </div>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">세로</span>
+          <div class="prop-align-group">
+            <button class="prop-align-btn" id="img-align-vt">↑</button>
+            <button class="prop-align-btn" id="img-align-vc">↕</button>
+            <button class="prop-align-btn" id="img-align-vb">↓</button>
+          </div>
+        </div>
+      </div>
       <div class="prop-section" style="color:#555;font-size:11px;padding-top:0;">
         Esc 또는 블록 밖 클릭으로 편집 종료
       </div>`;
@@ -2192,10 +2558,22 @@ function enterImageEditMode(ab) {
       img.style.width = v + 'px';
       ab.dataset.imgW = v;
       syncHandles();
-      // 높이 업데이트
       const hEl = document.getElementById('img-h');
       if (hEl) hEl.value = Math.round(img.offsetHeight);
     });
+
+    const savePos = () => {
+      ab.dataset.imgX = parseFloat(img.style.left) || 0;
+      ab.dataset.imgY = parseFloat(img.style.top)  || 0;
+      syncHandles(); syncPanel();
+    };
+    const fw = ab.offsetWidth, fh = ab.offsetHeight;
+    document.getElementById('img-align-hl').addEventListener('click', () => { img.style.left = '0px'; savePos(); });
+    document.getElementById('img-align-hc').addEventListener('click', () => { img.style.left = ((fw - img.offsetWidth)  / 2) + 'px'; savePos(); });
+    document.getElementById('img-align-hr').addEventListener('click', () => { img.style.left = (fw - img.offsetWidth)        + 'px'; savePos(); });
+    document.getElementById('img-align-vt').addEventListener('click', () => { img.style.top  = '0px'; savePos(); });
+    document.getElementById('img-align-vc').addEventListener('click', () => { img.style.top  = ((fh - img.offsetHeight) / 2) + 'px'; savePos(); });
+    document.getElementById('img-align-vb').addEventListener('click', () => { img.style.top  = (fh - img.offsetHeight)       + 'px'; savePos(); });
   }
 
   // 드래그/스케일 후 패널 값 동기화
@@ -2322,8 +2700,8 @@ function enterImageEditMode(ab) {
     img.removeEventListener('mousedown', onImgDown);
     Object.values(cornerEls).forEach(h => h.remove());
     hint.remove();
-    img.draggable = true;
-    ab.draggable = true;
+    img.draggable = false;
+    ab.draggable = false;
     if (_row) _row.draggable = true; // row draggable 복원
   };
 
@@ -2380,7 +2758,7 @@ function loadImageToAsset(ab, file) {
     delete ab.dataset.imgX;
     delete ab.dataset.imgY;
     ab.innerHTML = `
-      <img class="asset-img" src="${src}" style="object-fit:${ab.dataset.fit}">
+      <img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}">
       <button class="asset-overlay-clear" title="이미지 제거">✕</button>`;
     ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
       e.stopPropagation();
@@ -2401,7 +2779,6 @@ function clearAssetImage(ab) {
   delete ab.dataset.imgX;
   delete ab.dataset.imgY;
   ab.innerHTML = `
-    <span class="asset-tag">Image / GIF</span>
     ${ASSET_SVG}
     <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
   showAssetProperties(ab);
