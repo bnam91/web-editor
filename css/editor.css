@@ -1,3 +1,54 @@
+/* ═══════════════════════════════════
+   DESIGN PRESET — CSS Variables
+═══════════════════════════════════ */
+:root {
+  --preset-h1-color:      #111111;
+  --preset-h1-family:     'Noto Sans KR', sans-serif;
+  --preset-h2-color:      #1a1a1a;
+  --preset-h2-family:     'Noto Sans KR', sans-serif;
+  --preset-body-color:    #555555;
+  --preset-body-family:   'Noto Sans KR', sans-serif;
+  --preset-caption-color: #999999;
+  --preset-label-bg:      #111111;
+  --preset-label-color:   #ffffff;
+  --preset-label-radius:  8px;
+}
+
+/* Dark */
+.section-block[data-preset="dark"] {
+  --preset-h1-color:      #ffffff;
+  --preset-h2-color:      #eeeeee;
+  --preset-body-color:    #aaaaaa;
+  --preset-caption-color: #666666;
+  --preset-label-bg:      #2d6fe8;
+  --preset-label-color:   #ffffff;
+}
+
+/* Brand */
+.section-block[data-preset="brand"] {
+  --preset-h1-color:      #1a3a6b;
+  --preset-h1-family:     'Noto Serif KR', serif;
+  --preset-h2-color:      #2d4a7a;
+  --preset-h2-family:     'Noto Serif KR', serif;
+  --preset-body-color:    #444444;
+  --preset-caption-color: #888888;
+  --preset-label-bg:      #2d6fe8;
+  --preset-label-color:   #ffffff;
+}
+
+/* Minimal */
+.section-block[data-preset="minimal"] {
+  --preset-h1-color:      #000000;
+  --preset-h1-family:     'Space Grotesk', sans-serif;
+  --preset-h2-color:      #222222;
+  --preset-h2-family:     'Space Grotesk', sans-serif;
+  --preset-body-color:    #666666;
+  --preset-caption-color: #aaaaaa;
+  --preset-label-bg:      #000000;
+  --preset-label-color:   #ffffff;
+  --preset-label-radius:  0px;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -456,16 +507,16 @@ body {
 
 .text-block [contenteditable] { outline: none; cursor: inherit; }
 
-.text-block .tb-h1     { font-size: 104px; font-weight: 700; color: #111; line-height: 1.1; letter-spacing: -0.02em; }
-.text-block .tb-h2     { font-size: 72px; font-weight: 600; color: #1a1a1a; line-height: 1.15; }
-.text-block .tb-body   { font-size: 36px; color: #555; line-height: 1.6; }
-.text-block .tb-caption { font-size: 26px; color: #999; line-height: 1.6; letter-spacing: 0.01em; }
+.text-block .tb-h1     { font-size: 104px; font-weight: 700; color: var(--preset-h1-color); font-family: var(--preset-h1-family); line-height: 1.1; letter-spacing: -0.02em; }
+.text-block .tb-h2     { font-size: 72px;  font-weight: 600; color: var(--preset-h2-color); font-family: var(--preset-h2-family); line-height: 1.15; }
+.text-block .tb-body   { font-size: 36px;  color: var(--preset-body-color);    font-family: var(--preset-body-family);   line-height: 1.6; }
+.text-block .tb-caption { font-size: 26px; color: var(--preset-caption-color); font-family: var(--preset-body-family);   line-height: 1.6; letter-spacing: 0.01em; }
 .text-block[data-type="label"] { padding: 0 20px; }
 .text-block .tb-label {
   display: inline-block;
-  background: #111111; color: #ffffff;
+  background: var(--preset-label-bg); color: var(--preset-label-color);
   font-size: 26px; font-weight: 700;
-  padding: 11px 36px; border-radius: 8px;
+  padding: 11px 36px; border-radius: var(--preset-label-radius);
   letter-spacing: 0.06em;
 }
 
@@ -667,6 +718,33 @@ body {
   padding-right: 24px;
 }
 .prop-select:focus { border-color: #2d6fe8; }
+
+/* Preset Picker */
+.prop-preset-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 6px; margin-top: 2px;
+}
+.prop-preset-btn {
+  display: flex; flex-direction: column; align-items: flex-start;
+  gap: 5px; padding: 8px 10px;
+  background: #1a1a1a; border: 1.5px solid #333;
+  border-radius: 7px; cursor: pointer;
+  transition: all 0.15s;
+}
+.prop-preset-btn:hover { border-color: #555; background: #222; }
+.prop-preset-btn.active { border-color: #2d6fe8; background: #1a2a3a; }
+.prop-preset-swatches {
+  display: flex; gap: 3px;
+}
+.prop-preset-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.prop-preset-name {
+  font-size: 10px; font-weight: 600; color: #777;
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+.prop-preset-btn.active .prop-preset-name { color: #7cb8ff; }
 
 /* 내보내기 버튼 */
 .prop-export-btn {

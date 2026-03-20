@@ -777,6 +777,35 @@ function rgbToHex(rgb) {
   return '#' + m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
 }
 
+/* ── Design Presets ── */
+const PRESETS = [
+  {
+    id: 'default', name: 'Default',
+    dots: ['#111111', '#555555', '#111111'],
+  },
+  {
+    id: 'dark', name: 'Dark',
+    dots: ['#ffffff', '#aaaaaa', '#2d6fe8'],
+  },
+  {
+    id: 'brand', name: 'Brand',
+    dots: ['#1a3a6b', '#444444', '#2d6fe8'],
+  },
+  {
+    id: 'minimal', name: 'Minimal',
+    dots: ['#000000', '#666666', '#000000'],
+  },
+];
+
+function applyPreset(sec, presetId) {
+  if (presetId === 'default') {
+    delete sec.dataset.preset;
+  } else {
+    sec.dataset.preset = presetId;
+  }
+  pushHistory();
+}
+
 function showSectionProperties(sec) {
   const currentBg = sec.style.background || sec.style.backgroundColor || '#ffffff';
   const hexBg = /^#[0-9a-f]{6}$/i.test(currentBg) ? currentBg : '#ffffff';
@@ -809,6 +838,15 @@ function showSectionProperties(sec) {
       </div>`;
   }).join('');
 
+  const currentPreset = sec.dataset.preset || 'default';
+  const presetGridHTML = PRESETS.map(p => `
+    <button class="prop-preset-btn${p.id === currentPreset ? ' active' : ''}" data-preset-id="${p.id}">
+      <div class="prop-preset-swatches">
+        ${p.dots.map(c => `<div class="prop-preset-dot" style="background:${c}"></div>`).join('')}
+      </div>
+      <span class="prop-preset-name">${p.name}</span>
+    </button>`).join('');
+
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -819,6 +857,10 @@ function showSectionProperties(sec) {
         </div>
         <span class="prop-block-name">Section</span>
       </div>
+      <div class="prop-section-title">Preset</div>
+      <div class="prop-preset-grid">${presetGridHTML}</div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">배경</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
@@ -876,6 +918,15 @@ function showSectionProperties(sec) {
       picker.value = hex.value;
       swatch.style.background = hex.value;
     }
+  });
+
+  // Preset 버튼 이벤트
+  propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      applyPreset(sec, btn.dataset.presetId);
+      propPanel.querySelectorAll('.prop-preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
   });
 
   // 텍스트 컬러 이벤트
@@ -2924,8 +2975,8 @@ function exportDesignJSON() {
           borderRadius: parseFloat(el.style.borderRadius) || 0,
         },
       };
-      const h = parseFloat(el.style.height);
-      if (h) block.height = h;
+      const h = parseFloat(el.style.height) || 400; // 기본값 400px
+      block.height = h;
       if (el.dataset.imgSrc) {
         block.src        = el.dataset.imgSrc;
         block.fit        = el.dataset.fit || 'cover';
@@ -2950,7 +3001,7 @@ function exportDesignJSON() {
   function serializeRow(rowEl) {
     const cols = [];
     rowEl.querySelectorAll(':scope > .col').forEach(col => cols.push(serializeCol(col)));
-    return { id: uid('row'), layout: rowEl.dataset.layout || 'stack', columns: cols };
+    return { id: uid('row'), type: 'row', layout: rowEl.dataset.layout || 'stack', columns: cols };
   }
 
   function serializeSection(secEl, idx) {
@@ -2978,12 +3029,14 @@ function exportDesignJSON() {
       });
     }
 
-    return {
+    const result = {
       id:         uid('sec'),
       name:       secEl._name || secEl.dataset.name || `Section ${idx + 1}`,
       background: bg,
       blocks,
     };
+    if (secEl.dataset.preset) result.stylePreset = secEl.dataset.preset;
+    return result;
   }
 
   const sections = [];
