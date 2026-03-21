@@ -559,6 +559,44 @@ function buildFigmaExportJSON() {
   // sangpe_to_figma.mjs 가 기대하는 포맷으로 빌드
   // sections[].blocks[] — gap / text / image / { columns:[{width,blocks}] }
 
+  // CSS 클래스 기본값 (editor.css 기준)
+  const TEXT_DEFAULTS = {
+    'tb-h1':      { fontSize: 104, fontWeight: 700, color: '#111111', lineHeight: 1.1,  letterSpacing: -2.08 },
+    'tb-h2':      { fontSize: 72,  fontWeight: 600, color: '#111111', lineHeight: 1.15, letterSpacing: 0 },
+    'tb-body':    { fontSize: 36,  fontWeight: 400, color: '#111111', lineHeight: 1.6,  letterSpacing: 0 },
+    'tb-caption': { fontSize: 26,  fontWeight: 400, color: '#111111', lineHeight: 1.6,  letterSpacing: 0.26 },
+    'tb-label':   { fontSize: 26,  fontWeight: 700, color: '#111111', lineHeight: 1.4,  letterSpacing: 1.56 },
+  };
+
+  function _getTextStyle(inner, el) {
+    const cls = [...inner.classList].find(c => TEXT_DEFAULTS[c]) || 'tb-body';
+    const def = TEXT_DEFAULTS[cls] || TEXT_DEFAULTS['tb-body'];
+
+    // 인라인 스타일 우선, 없으면 CSS 기본값
+    const fontSize   = parseFloat(inner.style.fontSize)   || def.fontSize;
+    const fontWeight = parseInt(inner.style.fontWeight)   || def.fontWeight;
+    const lsRaw      = parseFloat(inner.style.letterSpacing);
+    const letterSpacing = isNaN(lsRaw) ? def.letterSpacing : lsRaw;
+
+    // color: inline → computed (live DOM) → 기본값
+    let color = inner.style.color;
+    if (!color) {
+      try { color = window.getComputedStyle(inner).color; } catch {}
+    }
+    if (!color || color.startsWith('var(')) color = def.color;
+
+    // lineHeight
+    let lineHeight = def.lineHeight;
+    if (inner.style.lineHeight) {
+      const lh = parseFloat(inner.style.lineHeight);
+      if (!isNaN(lh)) lineHeight = lh > 10 ? lh / fontSize : lh;
+    }
+
+    const textAlign = el.style.textAlign || inner.style.textAlign || 'left';
+
+    return { fontSize, fontWeight, color, lineHeight, letterSpacing, textAlign };
+  }
+
   function _block(el, ps) {
     if (el.classList.contains('gap-block')) {
       return { type: 'gap', height: parseFloat(el.style.height) || 50 };
@@ -566,24 +604,24 @@ function buildFigmaExportJSON() {
     if (el.classList.contains('text-block')) {
       const inner = el.querySelector('.tb-h1,.tb-h2,.tb-body,.tb-caption,.tb-label');
       if (!inner) return null;
-      const cs  = window.getComputedStyle(inner);
       const padX = ps?.padX || 0;
       const variant = inner.classList.contains('tb-h1') ? 'heading'
         : inner.classList.contains('tb-h2') ? 'subheading'
         : inner.classList.contains('tb-body') ? 'body'
         : inner.classList.contains('tb-caption') ? 'caption' : 'label';
+      const style = _getTextStyle(inner, el);
       return {
         type: 'text',
         variant,
         id: el.id || ('tb_' + Math.random().toString(36).slice(2,8)),
         content: inner.textContent.trim(),
         style: {
-          fontSize:     parseFloat(cs.fontSize) || 16,
-          fontWeight:   parseInt(cs.fontWeight) || 400,
-          color:        cs.color || '#111111',
-          textAlign:    el.style.textAlign || cs.textAlign || 'left',
-          lineHeight:   parseFloat(cs.lineHeight) / (parseFloat(cs.fontSize) || 1) || 1.4,
-          letterSpacing: parseFloat(inner.style.letterSpacing) || 0,
+          fontSize:      style.fontSize,
+          fontWeight:    style.fontWeight,
+          color:         style.color,
+          textAlign:     style.textAlign,
+          lineHeight:    style.lineHeight,
+          letterSpacing: style.letterSpacing,
         },
         padding: {
           top:    parseFloat(el.style.paddingTop)    || 0,
