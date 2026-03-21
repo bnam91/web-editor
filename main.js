@@ -115,6 +115,27 @@ ipcMain.handle('figma:upload', (event, { channel, designJSON }) => {
   }
 });
 
+/* ── IPC: Node Map (섹션 ↔ Figma 노드 ID 매핑) ── */
+const NODE_MAP_PATH = path.join(__dirname, 'figma-renderer', 'node_map.json');
+
+ipcMain.handle('figma:read-node-map', () => {
+  try {
+    if (!fs.existsSync(NODE_MAP_PATH)) return {};
+    return JSON.parse(fs.readFileSync(NODE_MAP_PATH, 'utf8'));
+  } catch {
+    return {};
+  }
+});
+
+ipcMain.handle('figma:write-node-map', (event, nodeMap) => {
+  try {
+    fs.writeFileSync(NODE_MAP_PATH, JSON.stringify(nodeMap, null, 2), 'utf8');
+    return true;
+  } catch (err) {
+    return false;
+  }
+});
+
 /* ── IPC: Navigation (추후 구현) ── */
 // ipcMain.handle('navigate', (event, page) => {
 //   const pages = {

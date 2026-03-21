@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * sangpe-design-v1 JSON → Figma 변환기 v3
- * - create_text에 fontSize/fontWeight/fontColor/align/width 한 번에 전달
- * - create_* 에 parentId 전달로 즉시 부모 프레임에 삽입
- * - textAutoResize:"HEIGHT"로 Figma 실제 높이 반환 → 정확한 위치 계산
+ * sangpe-design-v1 JSON → Figma 변환기 v4
+ * - 선택된 섹션만 업로드 지원
+ * - section.figmaId 가 있으면 해당 프레임 삭제 후 같은 Y 위치에 재생성 (update)
+ * - section.figmaId 가 없으면 신규 생성 (upload)
+ * - 각 섹션 완료 시 SECTION_MAP:{...} 라인 출력 → 호출자가 파싱해 node_map 갱신
+ *
  * 사용법: node sangpe_to_figma.mjs <channelId> <jsonPath>
  */
 
@@ -149,11 +151,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const p   = block.padding || { top: 0, right: 0, bottom: 0, left: 0 };
     const textWidth = availableWidth - (p.left || 0) - (p.right || 0);
 
-    // 폰트 패밀리 파싱 (첫 번째 이름만 추출)
     const rawFamily = (s.fontFamily || 'Noto Sans KR').replace(/["']/g, '').split(',')[0].trim();
     const fontStyle = s.fontWeight >= 700 ? 'Bold' : s.fontWeight >= 600 ? 'Semi Bold' : 'Regular';
 
-    // 폰트 로드
     run('load_font_async', { family: rawFamily, style: fontStyle });
 
     const node = run('create_text', {
@@ -175,23 +175,18 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       return fallbackH + (p.top || 0) + (p.bottom || 0);
     }
 
-    // 폰트 패밀리 적용
     run('set_font_name', { nodeId: node.id, family: rawFamily, style: fontStyle });
 
-    // letterSpacing 적용 (px 단위)
     if (s.letterSpacing !== undefined && s.letterSpacing !== 0) {
       run('set_letter_spacing', { nodeId: node.id, letterSpacing: s.letterSpacing, unit: 'PIXELS' });
     }
 
-    // lineHeight 적용
     if (s.lineHeight) {
       run('set_line_height', { nodeId: node.id, lineHeight: s.lineHeight * s.fontSize, unit: 'PIXELS' });
     }
 
-    // width 강제 적용 → 줄바꿈 트리거
     run('resize_node', { nodeId: node.id, width: textWidth, height: node.height || 100 });
 
-    // 실제 높이 재확인
     const nodeInfo = run('get_node_info', { nodeId: node.id });
     const actualH  = nodeInfo?.absoluteBoundingBox?.height || node.height || Math.ceil((s.fontSize || 16) * (s.lineHeight || 1.4));
     const totalH   = actualH + (p.top || 0) + (p.bottom || 0);
@@ -230,50 +225,92 @@ const data        = JSON.parse(readFileSync(JSON_PATH, 'utf-8'));
 const { meta, sections } = data;
 const canvasWidth = meta.canvasWidth || 860;
 const sectionGap  = meta.theme?.sectionGap || 28;
-const pageBg      = hex(meta.theme?.background || '#ffffff');
 
 console.log(`\n🎨 sangpe → Figma 변환 시작`);
 console.log(`   캔버스: ${canvasWidth}px  섹션: ${sections.length}개  섹션 간격: ${sectionGap}px\n`);
 
-// ─── 기존 페이지 프레임 전체 삭제 ──────────────────────────────
-console.log('🗑  기존 노드 정리 중...');
-const docInfo = run('get_document_info', {});
-const pageChildren = docInfo?.children || [];
-let deletedCount = 0;
-for (const child of pageChildren) {
-  run('delete_node', { nodeId: child.id });
-  deletedCount++;
-}
-if (deletedCount > 0) console.log(`   → ${deletedCount}개 삭제됨\n`);
+// ─── 모드 판단 ────────────────────────────────────────────────────
+// 하나라도 figmaId 가 있으면 "부분 업로드" 모드 → 전체 삭제 안 함
+const isPartialUpload = sections.some(s => s.figmaId);
 
-let currentY = 0;
+if (!isPartialUpload) {
+  // 전체 업로드: 기존 페이지 프레임 전체 삭제
+  console.log('🗑  기존 노드 정리 중...');
+  const docInfo = run('get_document_info', {});
+  const pageChildren = docInfo?.children || [];
+  let deletedCount = 0;
+  for (const child of pageChildren) {
+    run('delete_node', { nodeId: child.id });
+    deletedCount++;
+  }
+  if (deletedCount > 0) console.log(`   → ${deletedCount}개 삭제됨\n`);
+} else {
+  // 부분 업로드: 업데이트 대상 섹션 프레임만 삭제
+  console.log('🔄 업데이트 대상 섹션 정리 중...');
+  let deletedCount = 0;
+  for (const section of sections) {
+    if (section.figmaId) {
+      run('delete_node', { nodeId: section.figmaId });
+      deletedCount++;
+      console.log(`   → 삭제: ${section.name} (${section.figmaId})`);
+    }
+  }
+  if (deletedCount > 0) console.log(`   → ${deletedCount}개 삭제됨\n`);
+}
+
+// ─── 신규 섹션 추가 위치 계산 (부분 업로드 시) ──────────────────
+let appendY = 0;
+if (isPartialUpload) {
+  const docInfo = run('get_document_info', {});
+  const children = docInfo?.children || [];
+  for (const child of children) {
+    const info = run('get_node_info', { nodeId: child.id });
+    const bbox = info?.absoluteBoundingBox;
+    if (bbox) appendY = Math.max(appendY, bbox.y + bbox.height + sectionGap);
+  }
+}
+
+// ─── 섹션 렌더링 ─────────────────────────────────────────────────
+let currentY = appendY;
 
 for (let si = 0; si < sections.length; si++) {
   const section = sections[si];
-  console.log(`📦 [${si + 1}/${sections.length}] "${section.name}"  bg:${section.background || '#fff'}`);
 
-  // 섹션 프레임을 페이지에 직접 생성 (parentId 없음)
+  // 업데이트 모드: 저장된 Y 위치에 재생성; 신규: currentY 에 추가
+  const sectionY = (isPartialUpload && section.figmaY !== undefined)
+    ? section.figmaY
+    : currentY;
+
+  console.log(`📦 [${si + 1}/${sections.length}] "${section.name}"  bg:${section.background || '#fff'}  y:${sectionY}`);
+
   const secFrame = run('create_frame', {
-    x: 0, y: currentY,
+    x: 0, y: sectionY,
     width: canvasWidth, height: 100,
     name: section.name,
   });
-  if (!secFrame) { currentY += 100 + sectionGap; continue; }
+  if (!secFrame) {
+    currentY += 100 + sectionGap;
+    continue;
+  }
   run('set_fill_color', { nodeId: secFrame.id, color: hex(section.background || '#ffffff') });
 
-  // 블록 렌더링 → 실제 높이 누적
   let blockY = 0;
   for (const block of section.blocks) {
     const h = renderBlock(block, secFrame.id, 0, blockY, canvasWidth);
     blockY += h;
   }
 
-  // 실제 높이로 섹션 프레임 리사이즈
   run('resize_node', { nodeId: secFrame.id, width: canvasWidth, height: blockY });
   console.log(`   → 섹션 높이: ${blockY}px  ID: ${secFrame.id}\n`);
 
-  currentY += blockY + sectionGap;
+  // 섹션 매핑 정보 출력 (호출자가 파싱해 node_map 갱신)
+  console.log(`SECTION_MAP:${JSON.stringify({ id: section.id, figmaId: secFrame.id, y: sectionY, height: blockY, name: section.name })}`);
+
+  // 신규 섹션만 currentY 전진 (업데이트 섹션은 기존 위치 유지)
+  if (!isPartialUpload || section.figmaY === undefined) {
+    currentY = sectionY + blockY + sectionGap;
+  }
 }
 
 console.log('✅ 완료!');
-console.log(`   섹션 ${sections.length}개 생성  총 높이: ${currentY - sectionGap}px`);
+console.log(`   섹션 ${sections.length}개 처리 완료`);
