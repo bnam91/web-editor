@@ -97,7 +97,7 @@ function insertTemplate(tpl) {
   bindSectionOrder(sec);
   bindSectionDrag(sec);
   bindSectionDropZone(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {
       const lbl = document.createElement('span');
@@ -641,8 +641,14 @@ function pasteClipboard() {
 
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey) {
-    if (e.key === '=' || e.key === '+') { e.preventDefault(); zoomStep(10); }
-    if (e.key === '-')                  { e.preventDefault(); zoomStep(-10); }
+    if (e.key === '=' || e.key === '+') {
+      e.preventDefault();
+      document.body.classList.contains('preview-mode') ? previewZoomStep(10) : zoomStep(10);
+    }
+    if (e.key === '-') {
+      e.preventDefault();
+      document.body.classList.contains('preview-mode') ? previewZoomStep(-10) : zoomStep(-10);
+    }
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100); }
     if (e.key === 'z' && !e.shiftKey)   { e.preventDefault(); undo(); return; }
     if (e.key === 'z' && e.shiftKey)    { e.preventDefault(); redo(); return; }
@@ -989,8 +995,7 @@ function buildLayerPanel() {
     });
 
     chevron.addEventListener('click', () => {
-      const collapsed = sectionEl.classList.toggle('collapsed');
-      if (!collapsed) selectSection(sec, true);
+      sectionEl.classList.toggle('collapsed');
     });
     nameEl.addEventListener('click', e => { e.stopPropagation(); selectSection(sec, true); });
     nameEl.addEventListener('dblclick', e => {
@@ -2331,6 +2336,264 @@ function rgbToHex(rgb) {
   return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
 }
 
+function showIconCircleProperties(block) {
+  const circle   = block.querySelector('.icb-circle');
+  const size     = parseInt(block.dataset.size)    || 80;
+  const bgColor  = block.dataset.bgColor           || '#e8e8e8';
+  const borderV  = block.dataset.border            || 'none';
+  const radius   = parseInt(block.dataset.radius)  || 0;
+
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <circle cx="6" cy="6" r="5"/>
+          </svg>
+        </div>
+        <span class="prop-block-name">Icon Circle</span>
+      </div>
+      <div class="prop-section-title">크기</div>
+      <div class="prop-row">
+        <span class="prop-label">지름</span>
+        <input type="range" class="prop-slider" id="icb-size-slider" min="40" max="200" step="4" value="${size}">
+        <input type="number" class="prop-number"  id="icb-size-number" min="40" max="200" value="${size}">
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">색상</div>
+      <div class="prop-row">
+        <span class="prop-label">배경</span>
+        <input type="color" class="prop-color" id="icb-bg-color" value="${bgColor}">
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">테두리</div>
+      <div class="prop-row">
+        <span class="prop-label">스타일</span>
+        <select class="prop-select" id="icb-border-select">
+          <option value="none"   ${borderV==='none'   ?'selected':''}>없음</option>
+          <option value="solid"  ${borderV==='solid'  ?'selected':''}>실선</option>
+          <option value="dashed" ${borderV==='dashed' ?'selected':''}>점선</option>
+        </select>
+      </div>
+    </div>`;
+
+  const applySize = v => {
+    v = Math.min(200, Math.max(40, v));
+    block.dataset.size     = v;
+    circle.style.width     = v + 'px';
+    circle.style.height    = v + 'px';
+    document.getElementById('icb-size-slider').value = v;
+    document.getElementById('icb-size-number').value = v;
+  };
+  document.getElementById('icb-size-slider').addEventListener('input',  e => applySize(parseInt(e.target.value)));
+  document.getElementById('icb-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); pushHistory(); });
+  document.getElementById('icb-size-slider').addEventListener('change', () => pushHistory());
+
+  document.getElementById('icb-bg-color').addEventListener('input', e => {
+    block.dataset.bgColor  = e.target.value;
+    circle.style.background = e.target.value;
+  });
+  document.getElementById('icb-bg-color').addEventListener('change', () => pushHistory());
+
+  document.getElementById('icb-border-select').addEventListener('change', e => {
+    block.dataset.border   = e.target.value;
+    circle.dataset.border  = e.target.value;
+    pushHistory();
+  });
+}
+
+function showTableProperties(block) {
+  const table    = block.querySelector('.tb-table');
+  const thead    = table.querySelector('thead');
+  const tbody    = table.querySelector('tbody');
+  const colCount = table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
+  const rowCount = tbody?.querySelectorAll('tr').length || 0;
+  const curStyle = block.dataset.style || 'default';
+  const curAlign = block.dataset.cellAlign || 'left';
+  const curPad   = parseInt(block.dataset.cellPad) || 10;
+  const curSize  = parseInt(table.style.fontSize) || 28;
+
+  const rebuildTable = () => {
+    const cols = table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
+    const rows = [...(tbody?.querySelectorAll('tr') || [])];
+    rows.forEach(tr => {
+      const cur = tr.querySelectorAll('td').length;
+      if (cur < cols) {
+        for (let i = cur; i < cols; i++) {
+          const td = document.createElement('td');
+          td.setAttribute('contenteditable','false');
+          td.textContent = '-';
+          tr.appendChild(td);
+        }
+      } else {
+        for (let i = cur; i > cols; i--) tr.lastElementChild?.remove();
+      }
+    });
+    if (thead) {
+      const ths = thead.querySelectorAll('th');
+      if (ths.length < cols) {
+        const tr = thead.querySelector('tr');
+        for (let i = ths.length; i < cols; i++) {
+          const th = document.createElement('th');
+          th.setAttribute('contenteditable','false');
+          th.textContent = '항목';
+          tr.appendChild(th);
+        }
+      } else {
+        const tr = thead.querySelector('tr');
+        for (let i = ths.length; i > cols; i--) tr.lastElementChild?.remove();
+      }
+    }
+    pushHistory();
+  };
+
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <rect x="1" y="1" width="10" height="10" rx="1"/>
+            <line x1="1" y1="4" x2="11" y2="4"/>
+            <line x1="5" y1="4" x2="5" y2="11"/>
+          </svg>
+        </div>
+        <span class="prop-block-name">Table Block</span>
+      </div>
+      <div class="prop-section-title">행 / 열</div>
+      <div class="prop-row">
+        <span class="prop-label">행</span>
+        <button class="prop-count-btn" id="tbl-row-minus">−</button>
+        <span class="prop-count-val" id="tbl-row-count">${rowCount}</span>
+        <button class="prop-count-btn" id="tbl-row-plus">+</button>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">열</span>
+        <button class="prop-count-btn" id="tbl-col-minus">−</button>
+        <span class="prop-count-val" id="tbl-col-count">${colCount}</span>
+        <button class="prop-count-btn" id="tbl-col-plus">+</button>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">스타일</div>
+      <div class="prop-row">
+        <span class="prop-label">테마</span>
+        <select class="prop-select" id="tbl-style-select">
+          <option value="default"    ${curStyle==='default'   ?'selected':''}>기본</option>
+          <option value="stripe"     ${curStyle==='stripe'    ?'selected':''}>스트라이프</option>
+          <option value="borderless" ${curStyle==='borderless'?'selected':''}>보더리스</option>
+        </select>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">정렬</span>
+        <div class="prop-align-group" id="tbl-align-group">
+          <button class="prop-align-btn${curAlign==='left'   ?' active':''}" data-align="left">←</button>
+          <button class="prop-align-btn${curAlign==='center' ?' active':''}" data-align="center">↔</button>
+          <button class="prop-align-btn${curAlign==='right'  ?' active':''}" data-align="right">→</button>
+        </div>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">폰트</span>
+        <input type="range" class="prop-slider" id="tbl-size-slider" min="12" max="60" step="2" value="${curSize}">
+        <input type="number" class="prop-number"  id="tbl-size-number" min="12" max="60" value="${curSize}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">여백</span>
+        <input type="range" class="prop-slider" id="tbl-pad-slider" min="4" max="32" step="2" value="${curPad}">
+        <input type="number" class="prop-number"  id="tbl-pad-number" min="4" max="32" value="${curPad}">
+      </div>
+    </div>
+    <div class="prop-section">
+      <div style="font-size:11px;color:#888;">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>
+    </div>`;
+
+  /* 행 추가/삭제 */
+  document.getElementById('tbl-row-plus').addEventListener('click', () => {
+    const cols = table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
+    const tr = document.createElement('tr');
+    for (let i = 0; i < cols; i++) {
+      const td = document.createElement('td');
+      td.setAttribute('contenteditable','false');
+      td.textContent = '-';
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+    document.getElementById('tbl-row-count').textContent = tbody.querySelectorAll('tr').length;
+    pushHistory();
+  });
+  document.getElementById('tbl-row-minus').addEventListener('click', () => {
+    const rows = tbody.querySelectorAll('tr');
+    if (rows.length > 1) { rows[rows.length - 1].remove(); }
+    document.getElementById('tbl-row-count').textContent = tbody.querySelectorAll('tr').length;
+    pushHistory();
+  });
+
+  /* 열 추가/삭제 */
+  document.getElementById('tbl-col-plus').addEventListener('click', () => {
+    table.querySelectorAll('tr').forEach(tr => {
+      const isHead = tr.closest('thead');
+      const cell = document.createElement(isHead ? 'th' : 'td');
+      cell.setAttribute('contenteditable','false');
+      cell.textContent = isHead ? '항목' : '-';
+      tr.appendChild(cell);
+    });
+    document.getElementById('tbl-col-count').textContent = table.querySelector('tr')?.querySelectorAll('th,td').length || 0;
+    rebuildTable();
+  });
+  document.getElementById('tbl-col-minus').addEventListener('click', () => {
+    const cols = table.querySelector('tr')?.querySelectorAll('th,td').length || 0;
+    if (cols > 1) {
+      table.querySelectorAll('tr').forEach(tr => tr.lastElementChild?.remove());
+    }
+    document.getElementById('tbl-col-count').textContent = table.querySelector('tr')?.querySelectorAll('th,td').length || 0;
+    pushHistory();
+  });
+
+  /* 스타일 */
+  document.getElementById('tbl-style-select').addEventListener('change', e => {
+    block.dataset.style = e.target.value;
+    pushHistory();
+  });
+
+  /* 정렬 */
+  document.querySelectorAll('#tbl-align-group .prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const align = btn.dataset.align;
+      block.dataset.cellAlign = align;
+      table.querySelectorAll('th, td').forEach(cell => cell.style.textAlign = align);
+      document.querySelectorAll('#tbl-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
+      pushHistory();
+    });
+  });
+
+  /* 폰트 크기 */
+  const applySize = v => {
+    table.style.fontSize = v + 'px';
+    block.dataset.fontSize = v;
+    document.getElementById('tbl-size-slider').value = v;
+    document.getElementById('tbl-size-number').value = v;
+  };
+  document.getElementById('tbl-size-slider').addEventListener('input',  e => applySize(parseInt(e.target.value)));
+  document.getElementById('tbl-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); pushHistory(); });
+  document.getElementById('tbl-size-slider').addEventListener('change', () => pushHistory());
+
+  /* 셀 여백 */
+  const applyPad = v => {
+    block.dataset.cellPad = v;
+    const style = document.getElementById('_tbl-pad-style') || (() => {
+      const s = document.createElement('style'); s.id = '_tbl-pad-style'; document.head.appendChild(s); return s;
+    })();
+    style.textContent = '';
+    table.querySelectorAll('th, td').forEach(cell => { cell.style.padding = v + 'px 16px'; });
+    document.getElementById('tbl-pad-slider').value = v;
+    document.getElementById('tbl-pad-number').value = v;
+  };
+  document.getElementById('tbl-pad-slider').addEventListener('input',  e => applyPad(parseInt(e.target.value)));
+  document.getElementById('tbl-pad-number').addEventListener('change', e => { applyPad(parseInt(e.target.value)); pushHistory(); });
+  document.getElementById('tbl-pad-slider').addEventListener('change', () => pushHistory());
+}
+
 function showGapProperties(gb) {
   const currentH = gb.offsetHeight;
   propPanel.innerHTML = `
@@ -2810,7 +3073,7 @@ function makeIconCircleBlock() {
     <div class="icb-circle" style="width:80px;height:80px;background:#e8e8e8;">
       <span class="icb-content">⭐</span>
     </div>
-    <div class="icb-label" data-placeholder="라벨 텍스트 (선택)" contenteditable="false"></div>`;
+    <div class="icb-label" contenteditable="false"></div>`;
 
   col.appendChild(icb);
   row.appendChild(col);
@@ -3070,7 +3333,7 @@ function addSection() {
   bindSectionOrder(sec);
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
 
   buildLayerPanel();
   selectSection(sec);
@@ -4489,7 +4752,6 @@ function enterPreview() {
     const block = document.createElement('div');
     block.className = 'preview-page-block';
     block.dataset.pageIdx = idx;
-    block.style.background   = bg;
     block.style.paddingTop    = padY + 'px';
     block.style.paddingBottom = padY + 'px';
 
@@ -4549,6 +4811,26 @@ function exitPreview() {
 
   document.getElementById('preview-content').innerHTML   = '';
   document.getElementById('preview-navigator').innerHTML = '';
+
+  // zoom 리셋
+  _previewZoom = 100;
+  const content = document.getElementById('preview-content');
+  if (content) { content.style.transform = ''; content.style.transformOrigin = ''; }
+  const zd = document.getElementById('preview-zoom-display');
+  if (zd) zd.textContent = '100%';
+}
+
+/* ── Preview Zoom ── */
+let _previewZoom = 100;
+function previewZoomStep(delta) {
+  _previewZoom = Math.min(200, Math.max(50, _previewZoom + delta));
+  const content = document.getElementById('preview-content');
+  if (content) {
+    content.style.transform       = `scale(${_previewZoom / 100})`;
+    content.style.transformOrigin = 'top center';
+  }
+  const zd = document.getElementById('preview-zoom-display');
+  if (zd) zd.textContent = _previewZoom + '%';
 }
 
 function _updatePreviewNav(overlay) {
@@ -4640,16 +4922,37 @@ function _stopAnimPreview() {
   _animLoops = 0;
 }
 
+function _extractText(el) {
+  // innerHTML 기반으로 줄바꿈을 안정적으로 추출
+  const html = el.innerHTML || '';
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')       // <br> → 줄바꿈
+    .replace(/<div/gi, '\n<div')         // <div> 앞에 줄바꿈 삽입
+    .replace(/<p(?=[\s>])/gi, '\n<p')    // <p> 앞에 줄바꿈 삽입
+    .replace(/<[^>]+>/g, '')             // 모든 태그 제거
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\n{3,}/g, '\n\n')          // 3개 이상 연속 줄바꿈 → 최대 2개
+    .trim() || el.textContent?.trim() || 'Sample Text';
+}
+
 function _getTextStyle(tb) {
-  const el = tb.querySelector('[contenteditable]');
-  const cs = window.getComputedStyle(el);
+  const el  = tb.querySelector('[contenteditable]');
+  const cs  = window.getComputedStyle(el);
+  const sec = tb.closest('.section-block');
+  const bg  = sec ? (sec.style.backgroundColor || sec.style.background || '#ffffff') : '#ffffff';
   return {
-    text:          (el.innerText || el.textContent || 'Sample Text').trim(),
-    fontSize:      parseFloat(cs.fontSize)    || 24,
-    color:         cs.color                   || '#111111',
-    fontFamily:    cs.fontFamily              || 'sans-serif',
-    fontWeight:    cs.fontWeight              || '400',
+    text:          _extractText(el),
+    fontSize:      parseFloat(cs.fontSize)      || 24,
+    color:         cs.color                     || '#111111',
+    fontFamily:    cs.fontFamily                || 'sans-serif',
+    fontWeight:    cs.fontWeight                || '400',
     letterSpacing: parseFloat(cs.letterSpacing) || 0,
+    textAlign:     el.style.textAlign || (cs.textAlign === 'start' ? 'left' : cs.textAlign) || 'left',
+    lineHeight:    parseFloat(cs.lineHeight) / (parseFloat(cs.fontSize) || 1) || 1.4,
+    sectionBg:     bg || '#ffffff',
   };
 }
 
@@ -4662,10 +4965,20 @@ function _startAnimPreview() {
   const style  = _getTextStyle(_animTb);
   const speed  = parseFloat(document.getElementById('anim-speed')?.value  || 1);
   const repeat = parseInt(document.getElementById('anim-repeat')?.value   || 1);
-  const W = canvas.width, H = canvas.height;
 
-  // Scale font to fit canvas (max 56px)
-  const displaySize = Math.min(56, Math.round(style.fontSize));
+  // 블록 비율 기반으로 캔버스 해상도 설정 (고정 너비 480 기준)
+  // offsetWidth/offsetHeight: CSS transform(zoom) 영향 없는 실제 논리 크기
+  const bW = Math.max(_animTb.offsetWidth,  1);
+  const bH = Math.max(_animTb.offsetHeight, 1);
+  const CANVAS_PREVIEW_W = 480;
+  const ratio    = bH / bW;
+  canvas.width   = CANVAS_PREVIEW_W;
+  canvas.height  = Math.round(CANVAS_PREVIEW_W * ratio);
+
+  // 폰트 크기도 비율에 맞게 스케일
+  const scale       = CANVAS_PREVIEW_W / bW;
+  const displaySize = Math.round(style.fontSize * scale);
+  const W = canvas.width, H = canvas.height;
   const duration    = 1200 / speed; // ms for one cycle
 
   _animLoops = 0;
@@ -4676,6 +4989,8 @@ function _startAnimPreview() {
     const t       = Math.min(elapsed / duration, 1);
 
     ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = style.sectionBg || '#ffffff';
+    ctx.fillRect(0, 0, W, H);
     _drawFrame(ctx, W, H, style, displaySize, _animType, t);
 
     if (t < 1) {
@@ -4725,9 +5040,30 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
     ctx.textAlign = 'center';
   }
 
-  // multiline support
-  const lines     = style.text.split('\n');
-  const lineH     = displaySize * 1.4;
+  // word-wrap: 긴 줄을 maxWidth 안에 맞게 자동 분할
+  const maxTextW = W - paddingX * 2;
+  function wrapLine(text) {
+    if (!text) return [''];
+    const words = text.split(' ');
+    const result = [];
+    let cur = '';
+    for (const word of words) {
+      const test = cur ? cur + ' ' + word : word;
+      if (ctx.measureText(test).width > maxTextW && cur) {
+        result.push(cur);
+        cur = word;
+      } else {
+        cur = test;
+      }
+    }
+    if (cur) result.push(cur);
+    return result.length ? result : [''];
+  }
+
+  // multiline support (explicit \n + word-wrap)
+  const rawLines  = style.text.split('\n');
+  const lines     = rawLines.flatMap(l => wrapLine(l));
+  const lineH     = displaySize * (style.lineHeight || 1.4);
   const firstLine = lines[0];
 
   // draw all lines centered vertically around baseY
@@ -4811,29 +5147,51 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
 
     /* ── 단어별 순차등장 ── */
     case 'word-pop': {
-      const words = style.text.split(/[\s\n]+/).filter(w => w);
-      if (!words.length) break;
-      ctx.textAlign = 'left';
-      const spaceW  = ctx.measureText(' ').width;
-      const widths  = words.map(w => ctx.measureText(w).width);
-      const totalW  = widths.reduce((s, w) => s + w, 0) + spaceW * (words.length - 1);
-      let x;
-      if (style.textAlign === 'left')       x = anchorX;
-      else if (style.textAlign === 'right') x = anchorX - totalW;
-      else                                  x = cx - totalW / 2;
+      // wrapLine으로 줄 나눔 후 단어 순서 재구성
+      const wrappedLines = lines; // 이미 위에서 wrapLine 처리됨
+      const spaceW = ctx.measureText(' ').width;
 
-      words.forEach((word, i) => {
-        const prog = Math.max(0, Math.min(1, t * words.length - i));
-        const sc   = 0.6 + 0.4 * _easeOut(prog);
-        const wx   = x + widths[i] / 2;
-        ctx.save();
-        ctx.globalAlpha = prog;
-        ctx.translate(wx, cy);
-        ctx.scale(sc, sc);
-        ctx.fillStyle = style.color;
-        ctx.fillText(word, -widths[i] / 2, 0);
-        ctx.restore();
-        x += widths[i] + spaceW;
+      // 전체 단어 목록 (줄 순서 유지, 줄 정보 포함)
+      const wordEntries = [];
+      wrappedLines.forEach((line, lineIdx) => {
+        line.split(' ').filter(w => w).forEach(word => {
+          wordEntries.push({ word, lineIdx });
+        });
+      });
+      if (!wordEntries.length) break;
+
+      const totalWords = wordEntries.length;
+      const totalH = wrappedLines.length * lineH;
+      const startY = cy - totalH / 2 + lineH / 2;
+
+      wrappedLines.forEach((line, lineIdx) => {
+        const lineWords = line.split(' ').filter(w => w);
+        const lineWidths = lineWords.map(w => ctx.measureText(w).width);
+        const lineW = lineWidths.reduce((s, w) => s + w, 0) + spaceW * (lineWords.length - 1);
+        let x;
+        if (style.textAlign === 'left')       x = anchorX;
+        else if (style.textAlign === 'right') x = anchorX - lineW;
+        else                                  x = cx - lineW / 2;
+
+        const y = startY + lineIdx * lineH;
+        // 이 줄의 첫 단어가 전체에서 몇 번째인지
+        const lineStartIdx = wordEntries.findIndex(e => e.lineIdx === lineIdx);
+
+        lineWords.forEach((word, wi) => {
+          const globalIdx = lineStartIdx + wi;
+          const prog = Math.max(0, Math.min(1, t * totalWords - globalIdx));
+          const sc   = 0.6 + 0.4 * _easeOut(prog);
+          const wx   = x + lineWidths[wi] / 2;
+          ctx.save();
+          ctx.globalAlpha = prog;
+          ctx.textAlign = 'left';
+          ctx.translate(wx, y);
+          ctx.scale(sc, sc);
+          ctx.fillStyle = style.color;
+          ctx.fillText(word, -lineWidths[wi] / 2, 0);
+          ctx.restore();
+          x += lineWidths[wi] + spaceW;
+        });
       });
       break;
     }
@@ -4887,15 +5245,16 @@ async function exportAnimGif() {
     const repeat = parseInt(document.getElementById('anim-repeat')?.value   || 1);
 
     // 동적 캔버스 크기: 실제 블록 크기 기반 2x 해상도
-    const blockRect = _animTb.getBoundingClientRect();
-    const W = Math.max(320, Math.round(blockRect.width  * 2));
-    const H = Math.max(80,  Math.round(blockRect.height * 2));
+    // offsetWidth/offsetHeight: CSS transform(zoom) 영향 없는 실제 논리 크기
+    const W = Math.max(320, Math.round(_animTb.offsetWidth  * 2));
+    const H = Math.max(80,  Math.round(_animTb.offsetHeight * 2));
     const offCanvas  = document.createElement('canvas');
     offCanvas.width  = W;
     offCanvas.height = H;
     const ctx = offCanvas.getContext('2d');
 
-    const displaySize = Math.min(96, Math.round(style.fontSize * 2));
+    const scale       = W / _animTb.offsetWidth;
+    const displaySize = Math.round(style.fontSize * scale);
     const duration    = 1200 / speed; // ms
     const fps         = 20;
     const frames      = Math.ceil((duration / 1000) * fps);
