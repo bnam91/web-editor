@@ -2,8 +2,9 @@
    PREVIEW MODE
 ══════════════════════════════════════════════════════ */
 
-let _previewScrollHandler = null;
-let _previewEscHandler    = null;
+let _previewScrollHandler  = null;
+let _previewEscHandler     = null;
+let _previewTopbarToggle   = null;
 
 function enterPreview() {
   flushCurrentPage();
@@ -70,6 +71,15 @@ function enterPreview() {
 
   _previewEscHandler = e => { if (e.key === 'Escape') exitPreview(); };
   document.addEventListener('keydown', _previewEscHandler);
+
+  // 탑바 토글: overlay 클릭 시 표시/숨김 (탑바 내부 클릭은 무시)
+  const topbar = document.getElementById('preview-topbar');
+  topbar.classList.remove('visible');
+  _previewTopbarToggle = e => {
+    if (topbar.contains(e.target)) return;
+    topbar.classList.toggle('visible');
+  };
+  overlay.addEventListener('click', _previewTopbarToggle);
 }
 
 function exitPreview() {
@@ -89,6 +99,11 @@ function exitPreview() {
     document.removeEventListener('keydown', _previewEscHandler);
     _previewEscHandler = null;
   }
+  if (_previewTopbarToggle) {
+    overlay.removeEventListener('click', _previewTopbarToggle);
+    _previewTopbarToggle = null;
+  }
+  document.getElementById('preview-topbar').classList.remove('visible');
 
   document.getElementById('preview-content').innerHTML   = '';
   document.getElementById('preview-navigator').innerHTML = '';

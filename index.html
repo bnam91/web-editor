@@ -421,18 +421,28 @@
 <div id="preview-overlay">
   <div id="preview-content"></div>
 </div>
-<button id="preview-close-btn" onclick="exitPreview()">
-  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-    <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
-  </svg>
-  편집으로 돌아가기
-</button>
-<div id="preview-navigator"></div>
-<div id="preview-zoom-ctrl">
-  <button onclick="previewZoomStep(-10)">−</button>
-  <span id="preview-zoom-display">100%</span>
-  <button onclick="previewZoomStep(10)">+</button>
+
+<!-- Preview Top Bar (클릭으로 토글) -->
+<div id="preview-topbar">
+  <div class="preview-tb-left"></div>
+  <div class="preview-tb-center">
+    <div id="preview-zoom-ctrl">
+      <button onclick="previewZoomStep(-10)">−</button>
+      <span id="preview-zoom-display">100%</span>
+      <button onclick="previewZoomStep(10)">+</button>
+    </div>
+  </div>
+  <div class="preview-tb-right">
+    <button id="preview-close-btn" onclick="exitPreview()">
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+        <polyline points="3,7 1,5 3,3"/><line x1="1" y1="5" x2="9" y2="5"/>
+      </svg>
+      편집으로 돌아가기
+    </button>
+  </div>
 </div>
+
+<div id="preview-navigator"></div>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script src="js/gif.js"></script>

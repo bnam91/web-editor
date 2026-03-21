@@ -1618,24 +1618,47 @@ body.preview-mode #floating-panel { display: none !important; }
 }
 body.preview-mode #preview-overlay { display: block; }
 
-/* Close button */
-#preview-close-btn {
+/* Preview Top Bar */
+#preview-topbar {
   display: none;
   position: fixed;
-  top: 16px; right: 20px;
+  top: 0; left: 0; right: 0;
+  height: 48px;
   z-index: 2100;
+  align-items: center;
+  padding: 0 20px;
+  background: rgba(14,14,14,0.90);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.5);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-100%);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+body.preview-mode #preview-topbar { display: flex; }
+body.preview-mode #preview-topbar.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.preview-tb-left, .preview-tb-right { flex: 1; display: flex; align-items: center; }
+.preview-tb-center { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.preview-tb-right { justify-content: flex-end; }
+
+/* Close button (topbar 내부) */
+#preview-close-btn {
+  display: flex;
   align-items: center; gap: 7px;
   padding: 0 14px; height: 32px;
-  background: rgba(20,20,20,0.82);
+  background: rgba(40,40,40,0.7);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 8px;
   color: #ccc; font-size: 12px; font-weight: 500;
   cursor: pointer;
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   transition: all 0.15s;
 }
-#preview-close-btn:hover { background: rgba(50,50,50,0.95); color: #fff; }
-body.preview-mode #preview-close-btn { display: flex; }
+#preview-close-btn:hover { background: rgba(60,60,60,0.95); color: #fff; }
 
 /* Page navigator */
 #preview-navigator {
@@ -1933,21 +1956,15 @@ body.preview-mode #preview-navigator { display: flex; }
   margin-bottom: 8px;
 }
 
-/* ── Preview Zoom Control ── */
+/* ── Preview Zoom Control (topbar 내부) ── */
 #preview-zoom-ctrl {
-  display: none;
-  position: fixed;
-  top: 16px; right: 190px;
-  z-index: 2100;
+  display: flex;
   align-items: center; gap: 6px;
-  background: rgba(20,20,20,0.85);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(40,40,40,0.7);
+  border: 1px solid rgba(255,255,255,0.10);
   border-radius: 8px;
   padding: 0 10px; height: 32px;
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
 }
-body.preview-mode #preview-zoom-ctrl { display: flex; }
 #preview-zoom-ctrl button {
   background: none; border: none;
   color: #aaa; font-size: 16px;
