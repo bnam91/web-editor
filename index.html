@@ -34,8 +34,8 @@
     </button>
   </div>
   <div class="divider"></div>
-  <button class="tb-btn active">Design</button>
-  <button class="tb-btn">Preview</button>
+  <button class="tb-btn active" id="mode-design-btn" onclick="exitPreview()">Design</button>
+  <button class="tb-btn" id="mode-preview-btn" onclick="enterPreview()">Preview</button>
   <div class="spacer"></div>
   <span id="canvas-size-label">860px</span>
   <div class="divider"></div>
@@ -65,6 +65,10 @@
         Publish
       </div>
       <div class="pub-dd-divider"></div>
+      <div class="pub-dd-item" onclick="exportFigmaJSON(); closePublishDropdown()">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="4.5" height="4.5" rx="1"/><rect x="6.5" y="1" width="4.5" height="4.5" rx="1"/><rect x="1" y="6.5" width="4.5" height="4.5" rx="1"/><circle cx="8.75" cy="8.75" r="2.25"/></svg>
+        피그마로 내보내기
+      </div>
       <div class="pub-dd-item" onclick="exportDesignJSON(); closePublishDropdown()">
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><rect x="4" y="7" width="4" height="4"/><rect x="3" y="1" width="6" height="3"/></svg>
         JSON 내보내기
@@ -111,11 +115,6 @@
         </svg>
         Inspector
       </button>
-      <button class="panel-tab-action" id="layer-collapse-all" onclick="toggleAllSections()" title="전체 접기/펼치기">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M2 4l4-3 4 3M2 8l4 3 4-3"/>
-        </svg>
-      </button>
     </div>
     <!-- File tab -->
     <div id="file-panel-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
@@ -136,9 +135,25 @@
             <path d="M2 3l3 3 3-3"/>
           </svg>
           <span>Layers</span>
+          <button class="panel-tab-action" id="layer-collapse-all" onclick="toggleAllSections()" title="전체 접기/펼치기" style="margin-left:auto;flex-shrink:0;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 4l4-3 4 3M2 8l4 3 4-3"/>
+            </svg>
+          </button>
         </div>
         <div class="file-panel-section-body file-panel-section-body--scroll" id="layers-section-body">
           <div id="layer-panel-body"></div>
+        </div>
+      </div>
+      <div class="file-panel-section" id="templates-file-section">
+        <div class="file-panel-section-header" id="templates-section-header">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" class="file-section-chevron">
+            <path d="M2 3l3 3 3-3"/>
+          </svg>
+          <span>Templates</span>
+        </div>
+        <div class="file-panel-section-body tpl-panel-body" id="templates-section-body">
+          <div id="template-panel-body"></div>
         </div>
       </div>
     </div>
@@ -357,9 +372,113 @@
     </svg>
     Gap
   </button>
+  <div class="fp-divider"></div>
+  <button class="fp-btn" onclick="addIconCircleBlock()">
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="5.5" cy="5.5" r="4.5"/>
+    </svg>
+    Circle
+  </button>
+  <button class="fp-btn" onclick="addTableBlock()">
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="1" y="1" width="9" height="9" rx="1"/>
+      <line x1="1" y1="4" x2="10" y2="4"/>
+      <line x1="5" y1="4" x2="5" y2="10"/>
+    </svg>
+    Table
+  </button>
+  <div class="fp-divider"></div>
+  <button class="fp-btn fp-preview-btn" onclick="enterPreview()">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
+      <polygon points="2,1 9,5 2,9" fill="currentColor" stroke="none"/>
+    </svg>
+    Preview
+  </button>
+</div>
+
+<!-- Preview Overlay -->
+<div id="preview-overlay">
+  <div id="preview-content"></div>
+</div>
+<button id="preview-close-btn" onclick="exitPreview()">
+  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+    <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+  </svg>
+  편집으로 돌아가기
+</button>
+<div id="preview-navigator"></div>
+<div id="preview-zoom-ctrl">
+  <button onclick="previewZoomStep(-10)">−</button>
+  <span id="preview-zoom-display">100%</span>
+  <button onclick="previewZoomStep(10)">+</button>
 </div>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script src="js/gif.js"></script>
 <script src="js/editor.js"></script>
+
+<!-- ══════════════════════════
+     ANIMATION GIF MODAL
+══════════════════════════ -->
+<div id="anim-gif-modal" class="anim-modal-overlay" style="display:none">
+  <div class="anim-modal">
+    <div class="anim-modal-header">
+      <div class="anim-modal-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="3" width="12" height="8" rx="1.5"/>
+          <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
+        </svg>
+        애니메이션 GIF 만들기
+      </div>
+      <button class="anim-modal-close" onclick="closeAnimModal()">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="anim-modal-body">
+      <!-- Left: animation list -->
+      <div class="anim-list" id="anim-list"></div>
+
+      <!-- Right: preview + options -->
+      <div class="anim-preview-wrap">
+        <div class="anim-preview-label">미리보기</div>
+        <div class="anim-canvas-box">
+          <canvas id="anim-preview-canvas" width="480" height="160"></canvas>
+        </div>
+
+        <div id="anim-conflict-warn" style="display:none" class="anim-conflict-warn">
+          ⚠️ 줄바꿈이 포함된 텍스트는 카운트업/슬롯머신에서 첫 줄만 재생됩니다.
+        </div>
+
+        <div class="anim-options">
+          <div class="anim-opt-row">
+            <span class="anim-opt-label">속도</span>
+            <input type="range" class="anim-opt-slider" id="anim-speed" min="0.5" max="3" step="0.5" value="1"
+              oninput="document.getElementById('anim-speed-val').textContent=this.value+'x'; restartAnimPreview()">
+            <span class="anim-opt-val" id="anim-speed-val">1x</span>
+          </div>
+          <div class="anim-opt-row">
+            <span class="anim-opt-label">반복</span>
+            <input type="range" class="anim-opt-slider" id="anim-repeat" min="1" max="5" step="1" value="1"
+              oninput="document.getElementById('anim-repeat-val').textContent=this.value+'회'; restartAnimPreview()">
+            <span class="anim-opt-val" id="anim-repeat-val">1회</span>
+          </div>
+        </div>
+
+        <div class="anim-modal-footer">
+          <button class="anim-export-btn" onclick="exportAnimGif()">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 1v7M3 5l3 4 3-4"/><path d="M1 10h10"/>
+            </svg>
+            GIF 저장
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
