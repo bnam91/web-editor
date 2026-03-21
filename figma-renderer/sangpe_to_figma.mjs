@@ -127,7 +127,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const s   = block.style  || {};
     const imgH = block.height || 400;
 
-    const node = run('create_rectangle', {
+    const node = run('create_frame', {
       x, y,
       width:  availableWidth,
       height: imgH,
