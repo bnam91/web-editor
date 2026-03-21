@@ -604,7 +604,9 @@ function addRowBlock() {
     col.className = 'col';
     col.style.flex = '1';
     col.dataset.flex = '1';
-    col.appendChild(makeColPlaceholder(col));
+    const ph = makeColPlaceholder(col);
+    ph.style.minHeight = '390px';
+    col.appendChild(ph);
     row.appendChild(col);
   });
 
