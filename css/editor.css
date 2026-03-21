@@ -1912,6 +1912,19 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 .anim-export-btn:hover { background: #3878f0; }
 .anim-export-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+.anim-conflict-warn {
+  display: none;
+  align-items: flex-start;
+  gap: 6px;
+  background: #2a1f00;
+  border: 1px solid #6b4d00;
+  color: #f0b800;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 7px 10px;
+  border-radius: 5px;
+  margin-bottom: 8px;
+}
 
 /* ── Preview Zoom Control ── */
 #preview-zoom-ctrl {
