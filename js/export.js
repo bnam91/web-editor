@@ -509,3 +509,153 @@ layerPanelBody.addEventListener('drop', e => {
   buildLayerPanel();
   layerSectionDragSrc = null;
 });
+
+/* ── Figma 업로드 ── */
+function openFigmaUploadModal() {
+  closePublishDropdown();
+  document.getElementById('figma-upload-modal').style.display = 'flex';
+  const input = document.getElementById('figma-channel-input');
+  input.value = localStorage.getItem('figma-last-channel') || '';
+  input.focus();
+}
+
+function closeFigmaUploadModal() {
+  document.getElementById('figma-upload-modal').style.display = 'none';
+}
+
+async function doFigmaUpload() {
+  const channel = document.getElementById('figma-channel-input').value.trim();
+  if (!channel) { alert('채널 ID를 입력해주세요.'); return; }
+  localStorage.setItem('figma-last-channel', channel);
+
+  const logEl = document.getElementById('figma-upload-log');
+  const btn   = document.getElementById('figma-upload-btn');
+  logEl.style.display = 'block';
+  logEl.textContent   = '⏳ Figma에 업로드 중...';
+  btn.disabled = true;
+
+  flushCurrentPage();
+  const designJSON = buildFigmaExportJSON();
+
+  try {
+    const result = await window.electronAPI.figmaUpload(channel, designJSON);
+    logEl.textContent = result.logs || (result.success ? '✅ 완료!' : '❌ 실패');
+    if (!result.success) logEl.style.color = '#f87171';
+    else logEl.style.color = '#4ade80';
+  } catch (e) {
+    logEl.textContent = '❌ 오류: ' + e.message;
+    logEl.style.color = '#f87171';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function buildFigmaExportJSON() {
+  // sangpe_to_figma.mjs 가 기대하는 포맷으로 빌드
+  // sections[].blocks[] — gap / text / image / { columns:[{width,blocks}] }
+
+  function _block(el, ps) {
+    if (el.classList.contains('gap-block')) {
+      return { type: 'gap', height: parseFloat(el.style.height) || 50 };
+    }
+    if (el.classList.contains('text-block')) {
+      const inner = el.querySelector('.tb-h1,.tb-h2,.tb-body,.tb-caption,.tb-label');
+      if (!inner) return null;
+      const cs  = window.getComputedStyle(inner);
+      const padX = ps?.padX || 0;
+      const variant = inner.classList.contains('tb-h1') ? 'heading'
+        : inner.classList.contains('tb-h2') ? 'subheading'
+        : inner.classList.contains('tb-body') ? 'body'
+        : inner.classList.contains('tb-caption') ? 'caption' : 'label';
+      return {
+        type: 'text',
+        variant,
+        id: el.id || ('tb_' + Math.random().toString(36).slice(2,8)),
+        content: inner.textContent.trim(),
+        style: {
+          fontSize:     parseFloat(cs.fontSize) || 16,
+          fontWeight:   parseInt(cs.fontWeight) || 400,
+          color:        cs.color || '#111111',
+          textAlign:    el.style.textAlign || cs.textAlign || 'left',
+          lineHeight:   parseFloat(cs.lineHeight) / (parseFloat(cs.fontSize) || 1) || 1.4,
+          letterSpacing: parseFloat(inner.style.letterSpacing) || 0,
+        },
+        padding: {
+          top:    parseFloat(el.style.paddingTop)    || 0,
+          right:  parseFloat(el.style.paddingRight)  || padX,
+          bottom: parseFloat(el.style.paddingBottom) || 0,
+          left:   parseFloat(el.style.paddingLeft)   || padX,
+        },
+      };
+    }
+    if (el.classList.contains('asset-block')) {
+      return {
+        type: 'image',
+        height: parseFloat(el.style.height) || 400,
+        style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
+      };
+    }
+    return null;
+  }
+
+  function _row(rowEl, ps) {
+    const cols = [];
+    rowEl.querySelectorAll(':scope > .col').forEach(col => {
+      const w = parseInt(col.dataset.width) || 100;
+      const blocks = [];
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+        const parsed = _block(b, ps);
+        if (parsed) blocks.push(parsed);
+      });
+      cols.push({ width: w, blocks });
+    });
+    // stack(단일 컬럼) → blocks 직접 반환, 멀티컬럼 → { columns }
+    if (cols.length === 1) return cols[0].blocks;
+    return [{ columns: cols }];
+  }
+
+  function _section(secEl, ps) {
+    const inner = secEl.querySelector('.section-inner');
+    if (!inner) return null;
+    const blocks = [];
+    [...inner.children].forEach(child => {
+      if (child.classList.contains('row')) {
+        _row(child, ps).forEach(b => blocks.push(b));
+      } else if (child.classList.contains('group-block')) {
+        child.querySelectorAll(':scope > .group-inner > .row').forEach(r => {
+          _row(r, ps).forEach(b => blocks.push(b));
+        });
+      } else if (child.classList.contains('gap-block')) {
+        blocks.push({ type: 'gap', height: parseFloat(child.style.height) || 50 });
+      }
+    });
+    const bg = secEl.style.backgroundColor || secEl.style.background || '';
+    const name = secEl.dataset.name
+      || secEl.querySelector('.section-label')?.textContent?.trim()
+      || 'Section';
+    return { name, background: bg || '#ffffff', blocks };
+  }
+
+  const parser = new DOMParser();
+  const allSections = [];
+  pages.forEach(pg => {
+    const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
+    const ps  = pg.pageSettings || pageSettings;
+    doc.querySelectorAll('#c > .section-block').forEach(sec => {
+      const s = _section(sec, ps);
+      if (s) allSections.push(s);
+    });
+  });
+
+  const ps = pageSettings;
+  return {
+    version: 'sangpe-design-v1',
+    meta: {
+      title: document.getElementById('project-tab-name')?.textContent?.trim() || 'Untitled',
+      canvasWidth: CANVAS_W || 860,
+      theme: { background: ps.bg, sectionGap: ps.gap },
+      exportedAt: new Date().toISOString(),
+    },
+    sections: allSections,
+  };
+}

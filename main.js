@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const { spawnSync } = require('child_process');
 
 let mainWindow;
 
@@ -90,6 +92,27 @@ ipcMain.handle('presets:delete', (event, presetId) => {
   const filePath = path.join(__dirname, 'presets', `${presetId}.json`);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   return true;
+});
+
+/* ── IPC: Figma Upload ── */
+ipcMain.handle('figma:upload', (event, { channel, designJSON }) => {
+  const tmpPath = path.join(os.tmpdir(), `sangpe_export_${Date.now()}.json`);
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify(designJSON, null, 2), 'utf8');
+    const scriptPath = path.join(__dirname, 'figma-renderer', 'sangpe_to_figma.mjs');
+    const result = spawnSync('node', [scriptPath, channel, tmpPath], {
+      encoding: 'utf-8',
+      timeout: 120000,
+    });
+    fs.unlinkSync(tmpPath);
+    if (result.error) throw result.error;
+    const logs = (result.stdout || '') + (result.stderr || '');
+    const success = result.status === 0;
+    return { success, logs };
+  } catch (err) {
+    try { fs.unlinkSync(tmpPath); } catch {}
+    return { success: false, logs: err.message };
+  }
 });
 
 /* ── IPC: Navigation (추후 구현) ── */

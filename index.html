@@ -73,6 +73,27 @@
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="8" height="10" rx="1"/><path d="M4 4h4M4 6h4M4 8h2"/></svg>
         HTML 내보내기
       </div>
+      <div class="pub-dd-divider"></div>
+      <div class="pub-dd-item" onclick="openFigmaUploadModal()">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1C4.3 1 3 2.3 3 4s1.3 3 3 3 3-1.3 3-3S7.7 1 6 1z"/><path d="M3 7c-1.7 0-2 1.3-2 2s.3 2 2 2h6c1.7 0 2-1.3 2-2s-.3-2-2-2"/></svg>
+        Figma 업로드
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Figma Upload Modal -->
+<div id="figma-upload-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#1e1e1e; border:1px solid #333; border-radius:10px; padding:24px; width:360px; display:flex; flex-direction:column; gap:14px;">
+    <div style="font-size:13px; font-weight:600; color:#e0e0e0;">Figma 업로드</div>
+    <div style="font-size:11px; color:#888;">Figma 플러그인에 표시된 채널 ID를 입력하세요.<br><span style="color:#555;">예: Connected to server in channel: <b style="color:#aaa;">7gjma3o6</b></span></div>
+    <input id="figma-channel-input" type="text" placeholder="채널 ID (예: 7gjma3o6)"
+      style="background:#2a2a2a; border:1px solid #444; border-radius:6px; color:#e0e0e0; padding:8px 10px; font-size:12px; outline:none;"
+      onkeydown="if(event.key==='Enter') doFigmaUpload(); if(event.key==='Escape') closeFigmaUploadModal();" />
+    <pre id="figma-upload-log" style="display:none; background:#111; border-radius:6px; padding:10px; font-size:10px; color:#aaa; max-height:200px; overflow-y:auto; white-space:pre-wrap; margin:0;"></pre>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button onclick="closeFigmaUploadModal()" style="background:#2a2a2a; border:1px solid #444; border-radius:6px; color:#aaa; padding:6px 14px; font-size:11px; cursor:pointer;">취소</button>
+      <button id="figma-upload-btn" onclick="doFigmaUpload()" style="background:#2563eb; border:none; border-radius:6px; color:#fff; padding:6px 14px; font-size:11px; cursor:pointer; font-weight:600;">업로드</button>
     </div>
   </div>
 </div>
