@@ -521,6 +521,16 @@ function openFigmaUploadModal() {
 
 function closeFigmaUploadModal() {
   document.getElementById('figma-upload-modal').style.display = 'none';
+  // 상태 초기화
+  document.getElementById('figma-upload-log').style.display     = 'none';
+  document.getElementById('figma-upload-spinner').style.display = 'none';
+  const btn       = document.getElementById('figma-upload-btn');
+  const cancelBtn = document.getElementById('figma-cancel-btn');
+  btn.style.display      = '';
+  btn.disabled           = false;
+  cancelBtn.disabled     = false;
+  cancelBtn.textContent  = '취소';
+  cancelBtn.style.color  = '';
 }
 
 async function doFigmaUpload() {
@@ -531,27 +541,33 @@ async function doFigmaUpload() {
   const logEl     = document.getElementById('figma-upload-log');
   const spinnerEl = document.getElementById('figma-upload-spinner');
   const btn       = document.getElementById('figma-upload-btn');
+  const cancelBtn = document.getElementById('figma-cancel-btn');
 
   logEl.style.display     = 'none';
   spinnerEl.style.display = 'flex';
   btn.disabled = true;
+  cancelBtn.disabled = true;
 
   flushCurrentPage();
   const designJSON = buildFigmaExportJSON();
 
+  function showDone(success, text) {
+    spinnerEl.style.display = 'none';
+    logEl.style.display     = 'block';
+    logEl.textContent = text;
+    logEl.style.color = success ? '#4ade80' : '#f87171';
+    // 버튼 → 닫기 하나만
+    btn.style.display    = 'none';
+    cancelBtn.disabled   = false;
+    cancelBtn.textContent = '닫기';
+    cancelBtn.style.color = '#e0e0e0';
+  }
+
   try {
     const result = await window.electronAPI.figmaUpload(channel, designJSON);
-    spinnerEl.style.display = 'none';
-    logEl.style.display     = 'block';
-    logEl.textContent = result.logs || (result.success ? '✅ 완료!' : '❌ 실패');
-    logEl.style.color = result.success ? '#4ade80' : '#f87171';
+    showDone(result.success, result.logs || (result.success ? '✅ 완료!' : '❌ 실패'));
   } catch (e) {
-    spinnerEl.style.display = 'none';
-    logEl.style.display     = 'block';
-    logEl.textContent = '❌ 오류: ' + e.message;
-    logEl.style.color = '#f87171';
-  } finally {
-    btn.disabled = false;
+    showDone(false, '❌ 오류: ' + e.message);
   }
 }
 
