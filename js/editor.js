@@ -149,6 +149,8 @@ document.addEventListener('keydown', e => {
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100); }
     if (e.key === 'z' && !e.shiftKey)   { e.preventDefault(); undo(); return; }
     if (e.key === 'z' && e.shiftKey)    { e.preventDefault(); redo(); return; }
+    if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }
+    if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
     if (e.key === 'c') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
