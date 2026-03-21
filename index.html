@@ -88,12 +88,29 @@
 
 <!-- Figma Upload Modal -->
 <div id="figma-upload-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
-  <div style="background:#1e1e1e; border:1px solid #333; border-radius:10px; padding:24px; width:360px; display:flex; flex-direction:column; gap:14px;">
+  <div style="background:#1e1e1e; border:1px solid #333; border-radius:10px; padding:24px; width:400px; display:flex; flex-direction:column; gap:14px;">
     <div style="font-size:13px; font-weight:600; color:#e0e0e0;">Figma 업로드</div>
     <div style="font-size:11px; color:#888;">Figma 플러그인에 표시된 채널 ID를 입력하세요.<br><span style="color:#555;">예: Connected to server in channel: <b style="color:#aaa;">7gjma3o6</b></span></div>
     <input id="figma-channel-input" type="text" placeholder="채널 ID (예: 7gjma3o6)"
       style="background:#2a2a2a; border:1px solid #444; border-radius:6px; color:#e0e0e0; padding:8px 10px; font-size:12px; outline:none;"
       onkeydown="if(event.key==='Enter') doFigmaUpload(); if(event.key==='Escape') closeFigmaUploadModal();" />
+
+    <!-- 섹션 선택 -->
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-size:11px; color:#888;">업로드할 섹션 선택</span>
+        <label style="display:flex; align-items:center; gap:5px; font-size:11px; color:#aaa; cursor:pointer;">
+          <input type="checkbox" id="figma-select-all" checked onchange="toggleFigmaSelectAll(this.checked)"
+            style="accent-color:#2563eb; cursor:pointer;" />
+          전체
+        </label>
+      </div>
+      <div id="figma-section-list"
+        style="background:#141414; border:1px solid #2a2a2a; border-radius:6px; padding:6px 8px; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+        <!-- openFigmaUploadModal() 에서 동적 생성 -->
+      </div>
+    </div>
+
     <div id="figma-upload-spinner" style="display:none; align-items:center; gap:10px; color:#aaa; font-size:11px;">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="animation:figma-spin 0.8s linear infinite; flex-shrink:0;">
         <circle cx="8" cy="8" r="6" stroke="#444" stroke-width="2"/>
@@ -101,12 +118,22 @@
       </svg>
       Figma에 업로드 중...
     </div>
-    <pre id="figma-upload-log" style="display:none; background:#111; border-radius:6px; padding:10px; font-size:10px; color:#aaa; max-height:200px; overflow-y:auto; white-space:pre-wrap; margin:0;"></pre>
+    <pre id="figma-upload-log" style="display:none; background:#111; border-radius:6px; padding:10px; font-size:10px; color:#aaa; max-height:180px; overflow-y:auto; white-space:pre-wrap; margin:0;"></pre>
     <div id="figma-modal-actions" style="display:flex; gap:8px; justify-content:flex-end;">
       <button id="figma-cancel-btn" onclick="closeFigmaUploadModal()" style="background:#2a2a2a; border:1px solid #444; border-radius:6px; color:#aaa; padding:6px 14px; font-size:11px; cursor:pointer;">취소</button>
       <button id="figma-upload-btn" onclick="doFigmaUpload()" style="background:#2563eb; border:none; border-radius:6px; color:#fff; padding:6px 14px; font-size:11px; cursor:pointer; font-weight:600;">업로드</button>
     </div>
-    <style>@keyframes figma-spin { to { transform: rotate(360deg); } }</style>
+    <style>
+      @keyframes figma-spin { to { transform: rotate(360deg); } }
+      #figma-section-list::-webkit-scrollbar { width: 4px; }
+      #figma-section-list::-webkit-scrollbar-track { background: transparent; }
+      #figma-section-list::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+      .figma-sec-row { display:flex; align-items:center; gap:7px; padding:3px 2px; border-radius:4px; }
+      .figma-sec-row:hover { background:#1f1f1f; }
+      .figma-sec-badge { font-size:9px; padding:1px 5px; border-radius:3px; font-weight:600; white-space:nowrap; }
+      .figma-sec-badge.synced { background:#1a3a1a; color:#4ade80; border:1px solid #2d5a2d; }
+      .figma-sec-badge.new    { background:#1a2a3a; color:#60a5fa; border:1px solid #1e3a5f; }
+    </style>
   </div>
 </div>
 

@@ -10,7 +10,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // navigate: (page) => ipcRenderer.invoke('navigate', page),
 
   // Figma Upload
-  figmaUpload: (channel, designJSON) => ipcRenderer.invoke('figma:upload', { channel, designJSON }),
+  figmaUpload:    (channel, designJSON) => ipcRenderer.invoke('figma:upload', { channel, designJSON }),
+  readNodeMap:    ()        => ipcRenderer.invoke('figma:read-node-map'),
+  writeNodeMap:   (nodeMap) => ipcRenderer.invoke('figma:write-node-map', nodeMap),
 
   // Fullscreen
   getFullscreen: () => ipcRenderer.invoke('fullscreen:get'),
