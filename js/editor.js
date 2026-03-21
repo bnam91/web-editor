@@ -14,8 +14,6 @@ function switchToTab(tabName) {
   if (filePanel) filePanel.style.display = tabName === 'file' ? 'flex' : 'none';
   document.getElementById('branch-panel-body').style.display    = tabName === 'branch'    ? '' : 'none';
   document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? '' : 'none';
-  const collapseBtn = document.getElementById('layer-collapse-all');
-  if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
   if (tabName === 'branch') renderBranchPanel();
 }
 
@@ -123,6 +121,50 @@ function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+/* ── P2: 폴더 상태 ── */
+const TPL_FOLDER_KEY = 'tpl-folder-state';
+function loadFolderState() {
+  try { return JSON.parse(localStorage.getItem(TPL_FOLDER_KEY)) || {}; } catch { return {}; }
+}
+function saveFolderState(state) {
+  localStorage.setItem(TPL_FOLDER_KEY, JSON.stringify(state));
+}
+
+/* ── P3: 템플릿 수정 ── */
+function updateTemplate(id, name, category) {
+  const templates = loadTemplates().map(t => t.id === id ? { ...t, name, category } : t);
+  saveTemplates(templates);
+  renderTemplatePanel();
+}
+
+/* ── P1: 미리보기 패널 ── */
+function showTemplatePreview(tplId) {
+  const tpl = loadTemplates().find(t => t.id === tplId);
+  if (!tpl) return;
+  const panelW = propPanel.clientWidth || 228;
+  const scale  = ((panelW - 24) / 860).toFixed(3);
+  propPanel.innerHTML = `
+    <div class="prop-section tpl-preview-section">
+      <div class="tpl-preview-meta">
+        <div class="tpl-preview-name">${escHtml(tpl.name)}</div>
+        <span class="tpl-card-cat">${escHtml(tpl.category)}</span>
+      </div>
+      <div class="tpl-preview-viewport">
+        <div class="tpl-preview-scaler" style="transform:scale(${scale});transform-origin:top left;width:860px;">
+          ${tpl.canvas}
+        </div>
+      </div>
+      <button class="prop-action-btn primary" id="tpl-insert-btn" style="margin-top:8px;">섹션 추가</button>
+    </div>`;
+
+  document.getElementById('tpl-insert-btn').addEventListener('click', () => {
+    const t = loadTemplates().find(x => x.id === tplId);
+    if (t) insertTemplate(t);
+    document.querySelectorAll('.tpl-card').forEach(c => c.classList.remove('active'));
+    showPageProperties();
+  });
+}
+
 function renderTemplatePanel() {
   const body = document.getElementById('template-panel-body');
   if (!body) return;
@@ -131,32 +173,115 @@ function renderTemplatePanel() {
     body.innerHTML = '<div class="tpl-empty">저장된 템플릿이 없습니다</div>';
     return;
   }
-  body.innerHTML = templates.map(tpl => {
-    const date = tpl.createdAt ? tpl.createdAt.slice(0, 10) : '';
+
+  const CAT_ORDER = ['Hero', 'Main', 'Feature', 'Detail', 'CTA', 'Event', '기타'];
+  const folderState = loadFolderState();
+
+  const grouped = {};
+  templates.forEach(tpl => {
+    const cat = tpl.category || '기타';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(tpl);
+  });
+  const orderedCats = [
+    ...CAT_ORDER.filter(c => grouped[c]),
+    ...Object.keys(grouped).filter(c => !CAT_ORDER.includes(c))
+  ];
+
+  body.innerHTML = orderedCats.map(cat => {
+    const isOpen = folderState[cat] === true;
+    const items  = grouped[cat];
+    const cards  = items.map(tpl => {
+      const date = tpl.createdAt ? tpl.createdAt.slice(0, 10) : '';
+      return `
+        <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
+          <div class="tpl-card-main">
+            <span class="tpl-card-name">${escHtml(tpl.name)}</span>
+          </div>
+          <div class="tpl-card-meta">${escHtml(date)}</div>
+          <div class="tpl-card-actions">
+            <button class="tpl-edit-btn" data-tpl-id="${escHtml(tpl.id)}" title="수정">
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M6.5 1.5l2 2L3 9H1V7L6.5 1.5z"/>
+              </svg>
+            </button>
+            <button class="tpl-delete-btn" data-tpl-id="${escHtml(tpl.id)}" title="삭제">
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
+                <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+              </svg>
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+
     return `
-      <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
-        <div class="tpl-card-main">
-          <span class="tpl-card-name">${escHtml(tpl.name)}</span>
-          <span class="tpl-card-cat">${escHtml(tpl.category)}</span>
-        </div>
-        <div class="tpl-card-meta">${escHtml(date)}</div>
-        <button class="tpl-delete-btn" data-tpl-id="${escHtml(tpl.id)}" title="삭제">
-          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
-            <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+      <div class="tpl-folder ${isOpen ? 'open' : ''}" data-cat="${escHtml(cat)}">
+        <div class="tpl-folder-header">
+          <svg class="tpl-folder-chevron" width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
+            <path d="M1.5 2.5l2.5 2.5 2.5-2.5"/>
           </svg>
-        </button>
+          <span class="tpl-folder-name">${escHtml(cat)}</span>
+          <span class="tpl-folder-count">${items.length}</span>
+        </div>
+        <div class="tpl-folder-body">${cards}</div>
       </div>`;
   }).join('');
 
-  body.querySelectorAll('.tpl-card').forEach(card => {
-    card.addEventListener('click', e => {
-      if (e.target.closest('.tpl-delete-btn')) return;
-      const id  = card.dataset.tplId;
-      const tpl = loadTemplates().find(t => t.id === id);
-      if (tpl) insertTemplate(tpl);
+  // P2: 폴더 토글
+  body.querySelectorAll('.tpl-folder-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const folder = header.closest('.tpl-folder');
+      const cat    = folder.dataset.cat;
+      const isNowOpen = folder.classList.toggle('open');
+      const state  = loadFolderState();
+      state[cat]   = isNowOpen;
+      saveFolderState(state);
     });
   });
 
+  // P1: 카드 클릭 → 미리보기
+  body.querySelectorAll('.tpl-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.tpl-edit-btn') || e.target.closest('.tpl-delete-btn')) return;
+      body.querySelectorAll('.tpl-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      showTemplatePreview(card.dataset.tplId);
+    });
+  });
+
+  // P3: 인라인 수정
+  body.querySelectorAll('.tpl-edit-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id  = btn.dataset.tplId;
+      const tpl = loadTemplates().find(t => t.id === id);
+      if (!tpl) return;
+      const card = btn.closest('.tpl-card');
+      const CATS = ['Hero', 'Main', 'Feature', 'Detail', 'CTA', 'Event', '기타'];
+      card.classList.add('is-editing');
+      card.innerHTML = `
+        <div class="tpl-inline-edit">
+          <input type="text" class="tpl-name-input" value="${escHtml(tpl.name)}" placeholder="템플릿 이름">
+          <select class="prop-select tpl-edit-cat" style="width:100%;height:22px;margin-top:4px;">
+            ${CATS.map(c => `<option value="${c}"${c === tpl.category ? ' selected' : ''}>${c}</option>`).join('')}
+          </select>
+          <div class="tpl-edit-btns">
+            <button class="tpl-edit-save-btn" data-id="${escHtml(id)}">저장</button>
+            <button class="tpl-edit-cancel-btn">취소</button>
+          </div>
+        </div>`;
+      card.querySelector('.tpl-name-input').focus();
+      card.querySelector('.tpl-edit-save-btn').addEventListener('click', () => {
+        const newName = card.querySelector('.tpl-name-input').value.trim();
+        const newCat  = card.querySelector('.tpl-edit-cat').value;
+        if (!newName) { card.querySelector('.tpl-name-input').focus(); return; }
+        updateTemplate(id, newName, newCat);
+      });
+      card.querySelector('.tpl-edit-cancel-btn').addEventListener('click', () => renderTemplatePanel());
+    });
+  });
+
+  // 삭제
   body.querySelectorAll('.tpl-delete-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -164,6 +289,7 @@ function renderTemplatePanel() {
     });
   });
 }
+
 
 /* ═══════════════════════════════════
    BRANCH SYSTEM
@@ -773,6 +899,13 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
 function buildLayerPanel() {
   const panel = document.getElementById('layer-panel-body');
+
+  // 재빌드 전 각 섹션의 collapsed 상태 보존 (section index 기준)
+  const collapsedState = {};
+  panel.querySelectorAll('.layer-section').forEach(el => {
+    collapsedState[el.dataset.section] = el.classList.contains('collapsed');
+  });
+
   panel.innerHTML = '';
 
   document.querySelectorAll('.section-block').forEach((sec, si) => {
@@ -780,6 +913,8 @@ function buildLayerPanel() {
     const sectionEl = document.createElement('div');
     sectionEl.className = 'layer-section';
     sectionEl.dataset.section = sIdx;
+    // collapsed 상태 복원
+    if (collapsedState[sIdx]) sectionEl.classList.add('collapsed');
 
     const header = document.createElement('div');
     header.className = 'layer-section-header';
@@ -4469,13 +4604,35 @@ function _stopAnimPreview() {
 function _getTextStyle(tb) {
   const el = tb.querySelector('[contenteditable]');
   const cs = window.getComputedStyle(el);
+
+  // innerHTML에서 <br> → \n 변환으로 줄바꿈 포함 텍스트 추출
+  const text = (el.innerHTML || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .trim() || 'Sample Text';
+
+  // 섹션 배경색
+  const sec = tb.closest('.section-block');
+  let sectionBg = (typeof pageSettings !== 'undefined' && pageSettings?.bg) || '#ffffff';
+  if (sec) {
+    const rawBg = sec.style.background || sec.style.backgroundColor || '';
+    if (rawBg && rawBg !== 'transparent' && rawBg !== 'rgba(0, 0, 0, 0)') sectionBg = rawBg;
+  }
+
+  // textAlign: label은 부모 tb에, 그 외는 contenteditable el
+  const isLabel = el.classList.contains('tb-label');
+  const textAlign = isLabel ? (tb.style.textAlign || 'left') : (cs.textAlign || 'left');
+
   return {
-    text:          (el.innerText || el.textContent || 'Sample Text').trim(),
+    text,
     fontSize:      parseFloat(cs.fontSize)    || 24,
     color:         cs.color                   || '#111111',
     fontFamily:    cs.fontFamily              || 'sans-serif',
     fontWeight:    cs.fontWeight              || '400',
     letterSpacing: parseFloat(cs.letterSpacing) || 0,
+    textAlign,
+    sectionBg,
   };
 }
 
