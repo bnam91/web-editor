@@ -1,0 +1,11 @@
+{
+  "name": "figma-mcp-bot",
+  "private": true,
+  "scripts": {
+    "start": "node combined_resize_and_align.mjs"
+  },
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
