@@ -4044,7 +4044,20 @@ function exportFigmaJSON() {
         if (!isNaN(lsVal)) letterSpacing = lsVal;
       }
 
-      const base = letterSpacing !== undefined ? { text, letterSpacing } : { text };
+      // padding (pageSettings.padX fallback)
+      const padX = ps ? (ps.padX || 0) : 0;
+      const padding = {
+        top:    parseFloat(el.style.paddingTop)    || 0,
+        right:  parseFloat(el.style.paddingRight)  || padX,
+        bottom: parseFloat(el.style.paddingBottom) || 0,
+        left:   parseFloat(el.style.paddingLeft)   || padX,
+      };
+
+      const base = {
+        text,
+        padding,
+        ...(letterSpacing !== undefined ? { letterSpacing } : {}),
+      };
 
       if (cls.includes('tb-h1')) return { type: 'heading', tag: 'h1', ...base };
       if (cls.includes('tb-h2')) return { type: 'heading', tag: 'h2', ...base };
@@ -4107,7 +4120,15 @@ function exportFigmaJSON() {
         }
       });
     }
-    return { index: idx + 1, rows };
+    // 빈 blocks 배열 rows 제거
+    const filteredRows = rows.filter(r => r.cols.some(c => c.blocks.length > 0));
+
+    const name = secEl.dataset.name || secEl._name
+      || secEl.querySelector('.section-label')?.textContent?.trim()
+      || `Section ${idx + 1}`;
+    const bg = secEl.style.backgroundColor || secEl.style.background || '';
+
+    return { index: idx + 1, name, bg, rows: filteredRows };
   }
 
   function parsePage(page) {
