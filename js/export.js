@@ -528,10 +528,12 @@ async function doFigmaUpload() {
   if (!channel) { alert('채널 ID를 입력해주세요.'); return; }
   localStorage.setItem('figma-last-channel', channel);
 
-  const logEl = document.getElementById('figma-upload-log');
-  const btn   = document.getElementById('figma-upload-btn');
-  logEl.style.display = 'block';
-  logEl.textContent   = '⏳ Figma에 업로드 중...';
+  const logEl     = document.getElementById('figma-upload-log');
+  const spinnerEl = document.getElementById('figma-upload-spinner');
+  const btn       = document.getElementById('figma-upload-btn');
+
+  logEl.style.display     = 'none';
+  spinnerEl.style.display = 'flex';
   btn.disabled = true;
 
   flushCurrentPage();
@@ -539,10 +541,13 @@ async function doFigmaUpload() {
 
   try {
     const result = await window.electronAPI.figmaUpload(channel, designJSON);
+    spinnerEl.style.display = 'none';
+    logEl.style.display     = 'block';
     logEl.textContent = result.logs || (result.success ? '✅ 완료!' : '❌ 실패');
-    if (!result.success) logEl.style.color = '#f87171';
-    else logEl.style.color = '#4ade80';
+    logEl.style.color = result.success ? '#4ade80' : '#f87171';
   } catch (e) {
+    spinnerEl.style.display = 'none';
+    logEl.style.display     = 'block';
     logEl.textContent = '❌ 오류: ' + e.message;
     logEl.style.color = '#f87171';
   } finally {
