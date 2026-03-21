@@ -90,9 +90,14 @@ async function main() {
   ws.send(JSON.stringify({ type: "join", channel }));
   await sleep(400);
 
-  ws.send(JSON.stringify({ type: "message", channel, message: { command: args.command, params } }));
+  // join 대기 중 수신된 이전 브로드캐스트 제거 (응답 오염 방지)
+  queue.length = 0;
 
-  // 응답 대기
+  // 명령 ID 생성 — 응답 매칭용
+  const cmdId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  ws.send(JSON.stringify({ type: "message", channel, message: { id: cmdId, command: args.command, params } }));
+
+  // 응답 대기 (cmdId 매칭 우선, fallback으로 result 필드만 확인)
   const timeout = Number(args.timeout) || 8000;
   const started = Date.now();
   let result = null;
@@ -101,9 +106,12 @@ async function main() {
     for (let i = 0; i < queue.length; i++) {
       const msg = queue[i];
       if (msg?.type === "broadcast" && msg?.message?.result !== undefined) {
-        result = msg.message.result;
-        queue.splice(i, 1);
-        break;
+        // ID 매칭이 있으면 우선, 없으면 첫 번째 result 응답 사용
+        if (!msg.message.id || msg.message.id === cmdId) {
+          result = msg.message.result;
+          queue.splice(i, 1);
+          break;
+        }
       }
     }
     if (result !== null) break;

@@ -318,6 +318,7 @@ function applyPageSettings() {
 
 function rebindAll() {
   canvasEl.querySelectorAll('.section-block').forEach(sec => {
+    if (!sec.id) sec.id = 'sec_' + Math.random().toString(36).slice(2, 9);
     if (sec.dataset.name) sec._name = sec.dataset.name;
     // 배경 이미지 복원
     if (sec.dataset.bgImg && !sec.style.backgroundImage) {
@@ -332,7 +333,16 @@ function rebindAll() {
     bindSectionDrag(sec);
     bindSectionDropZone(sec);
   });
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => bindBlock(b));
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => {
+    if (!b.id) {
+      const prefix = b.classList.contains('text-block') ? 'tb'
+        : b.classList.contains('asset-block') ? 'ab'
+        : b.classList.contains('gap-block') ? 'gb'
+        : b.classList.contains('icon-circle-block') ? 'icb' : 'tbl';
+      b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
+    }
+    bindBlock(b);
+  });
   // group-block 라벨 복원
   canvasEl.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {

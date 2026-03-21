@@ -1,6 +1,10 @@
 /* ═══════════════════════════════════
    DRAG AND DROP
 ═══════════════════════════════════ */
+function genId(prefix) {
+  return (prefix || 'b') + '_' + Math.random().toString(36).slice(2, 9);
+}
+
 let dragSrc = null;
 let layerDragSrc = null;
 let sectionDragSrc = null;
@@ -373,6 +377,7 @@ function makeTextBlock(type) {
 
   const tb = document.createElement('div');
   tb.className = 'text-block'; tb.dataset.type = dataType;
+  tb.id = genId('tb');
   tb.innerHTML = `
     <div class="${classMap[type]}" contenteditable="false">${placeholder[type]}</div>`;
 
@@ -395,6 +400,7 @@ function makeAssetBlock() {
 
   const ab = document.createElement('div');
   ab.className = 'asset-block';
+  ab.id = genId('ab');
   ab.dataset.align = 'center';
   ab.style.alignSelf = 'center';
   ab.innerHTML = `
@@ -409,6 +415,7 @@ function makeAssetBlock() {
 function makeGapBlock() {
   const gb = document.createElement('div');
   gb.className = 'gap-block'; gb.dataset.type = 'gap';
+  gb.id = genId('gb');
   return gb;
 }
 
@@ -421,6 +428,7 @@ function makeIconCircleBlock() {
 
   const icb = document.createElement('div');
   icb.className = 'icon-circle-block'; icb.dataset.type = 'icon-circle';
+  icb.id = genId('icb');
   icb.dataset.size = '80';
   icb.dataset.bgColor = '#e8e8e8';
   icb.dataset.border = 'none';
@@ -444,6 +452,7 @@ function makeTableBlock() {
 
   const tb = document.createElement('div');
   tb.className = 'table-block'; tb.dataset.type = 'table';
+  tb.id = genId('tbl');
   tb.dataset.style = 'default';
   tb.dataset.showHeader = 'true';
   tb.innerHTML = `
@@ -650,6 +659,7 @@ function addSection() {
 
   const sec = document.createElement('div');
   sec.className = 'section-block'; sec.dataset.section = newIdx;
+  sec.id = genId('sec');
   sec.innerHTML = `
     <span class="section-label">Section ${String(newIdx).padStart(2,'0')}</span>
     <div class="section-toolbar">
@@ -658,23 +668,23 @@ function addSection() {
       <button class="st-btn" style="color:#e06c6c;">✕</button>
     </div>
     <div class="section-inner">
-      <div class="gap-block" data-type="gap" style="height:100px"></div>
+      <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
       <div class="row" data-layout="stack">
         <div class="col" data-width="100">
-          <div class="text-block" data-type="heading">
+          <div class="text-block" data-type="heading" id="${genId('tb')}">
             <div class="tb-h2" contenteditable="false">새 섹션 제목</div>
           </div>
         </div>
       </div>
       <div class="row" data-layout="stack">
         <div class="col" data-width="100">
-          <div class="asset-block">
+          <div class="asset-block" id="${genId('ab')}">
             ${ASSET_SVG}
             <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
           </div>
         </div>
       </div>
-      <div class="gap-block" data-type="gap" style="height:100px"></div>
+      <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
     </div>`;
 
   const selectedSec = document.querySelector('.section-block.selected');

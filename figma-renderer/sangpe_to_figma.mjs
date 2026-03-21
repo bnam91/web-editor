@@ -83,6 +83,66 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     return rowHeight;
   }
 
+  // ── LABEL (배경 박스 + 텍스트) ────────────────────────────────
+  if (block.type === 'text' && block.variant === 'label' && block.labelBox) {
+    const s  = block.style   || {};
+    const p  = block.padding || { top: 0, right: 0, bottom: 0, left: 0 };
+    const lb = block.labelBox;
+
+    const rawFamily = (s.fontFamily || 'Noto Sans KR').replace(/[\"']/g, '').split(',')[0].trim();
+    const fontStyle = s.fontWeight >= 700 ? 'Bold' : s.fontWeight >= 600 ? 'Semi Bold' : 'Regular';
+    run('load_font_async', { family: rawFamily, style: fontStyle });
+
+    // 1. 텍스트 노드 생성 (자연 너비 측정용 — textAutoResize: WIDTH_AND_HEIGHT)
+    const textNode = run('create_text', {
+      x: 0, y: 0,
+      text:               block.content,
+      fontSize:           s.fontSize   || 26,
+      fontWeight:         s.fontWeight || 700,
+      fontColor:          hex(s.color  || '#ffffff'),
+      textAlignHorizontal: 'CENTER',
+      textAutoResize:     'WIDTH_AND_HEIGHT',
+      name: `label_text_${block.id}`,
+      parentId,
+    });
+    if (!textNode) {
+      return (s.fontSize || 26) * 1.4 + (p.top || 0) + (p.bottom || 0);
+    }
+    run('set_font_name', { nodeId: textNode.id, family: rawFamily, style: fontStyle });
+
+    // 2. 실제 텍스트 크기 조회
+    const textInfo = run('get_node_info', { nodeId: textNode.id });
+    const textW = textInfo?.absoluteBoundingBox?.width  || 100;
+    const textH = textInfo?.absoluteBoundingBox?.height || (s.fontSize || 26) * 1.4;
+
+    // 3. 배경 프레임 생성 (label box)
+    const boxW   = textW + lb.paddingH * 2;
+    const boxH   = textH + lb.paddingV * 2;
+    const boxX   = x + (p.left || 0) + (availableWidth - (p.left || 0) - (p.right || 0) - boxW) / 2;
+    const boxY   = y + (p.top  || 0);
+
+    const labelFrame = run('create_frame', {
+      x: boxX, y: boxY,
+      width:  boxW,
+      height: boxH,
+      name: `label_box_${block.id}`,
+      parentId,
+    });
+    if (labelFrame) {
+      run('set_fill_color', { nodeId: labelFrame.id, color: hex(lb.bg) });
+      if (lb.radius > 0)
+        run('set_corner_radius', { nodeId: labelFrame.id, cornerRadius: lb.radius });
+
+      // 4. 텍스트를 배경 프레임 안으로 이동 + 위치 정렬
+      run('insert_child', { parentId: labelFrame.id, childId: textNode.id, index: 0 });
+      run('move_node', { nodeId: textNode.id, x: lb.paddingH, y: lb.paddingV });
+    }
+
+    const totalH = boxH + (p.top || 0) + (p.bottom || 0);
+    console.log(`      · label "${block.content}"  box:${Math.round(boxW)}×${Math.round(boxH)} → ${labelFrame?.id}`);
+    return totalH;
+  }
+
   // ── TEXT ─────────────────────────────────────────────────────
   if (block.type === 'text') {
     const s   = block.style   || {};
@@ -91,7 +151,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
 
     // 폰트 패밀리 파싱 (첫 번째 이름만 추출)
     const rawFamily = (s.fontFamily || 'Noto Sans KR').replace(/["']/g, '').split(',')[0].trim();
-    const fontStyle = s.fontWeight >= 700 ? 'Bold' : s.fontWeight >= 600 ? 'SemiBold' : 'Regular';
+    const fontStyle = s.fontWeight >= 700 ? 'Bold' : s.fontWeight >= 600 ? 'Semi Bold' : 'Regular';
 
     // 폰트 로드
     run('load_font_async', { family: rawFamily, style: fontStyle });
@@ -116,7 +176,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     }
 
     // 폰트 패밀리 적용
-    run('set_font_name', { nodeId: node.id, fontFamily: rawFamily, fontStyle });
+    run('set_font_name', { nodeId: node.id, family: rawFamily, style: fontStyle });
 
     // letterSpacing 적용 (px 단위)
     if (s.letterSpacing !== undefined && s.letterSpacing !== 0) {
@@ -174,6 +234,17 @@ const pageBg      = hex(meta.theme?.background || '#ffffff');
 
 console.log(`\n🎨 sangpe → Figma 변환 시작`);
 console.log(`   캔버스: ${canvasWidth}px  섹션: ${sections.length}개  섹션 간격: ${sectionGap}px\n`);
+
+// ─── 기존 페이지 프레임 전체 삭제 ──────────────────────────────
+console.log('🗑  기존 노드 정리 중...');
+const docInfo = run('get_document_info', {});
+const pageChildren = docInfo?.children || [];
+let deletedCount = 0;
+for (const child of pageChildren) {
+  run('delete_node', { nodeId: child.id });
+  deletedCount++;
+}
+if (deletedCount > 0) console.log(`   → ${deletedCount}개 삭제됨\n`);
 
 let currentY = 0;
 

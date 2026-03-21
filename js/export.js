@@ -633,7 +633,13 @@ function buildFigmaExportJSON() {
         : inner.classList.contains('tb-body') ? 'body'
         : inner.classList.contains('tb-caption') ? 'caption' : 'label';
       const style = _getTextStyle(inner, el);
-      return {
+
+      // label: 텍스트 색상을 CSS 변수에서 직접 가져옴 (DOMParser에서 var() 미해석 대응)
+      const textColor = variant === 'label'
+        ? (ps?.labelColor || '#ffffff')
+        : style.color;
+
+      const block = {
         type: 'text',
         variant,
         id: el.id || ('tb_' + Math.random().toString(36).slice(2,8)),
@@ -642,7 +648,7 @@ function buildFigmaExportJSON() {
           fontSize:      style.fontSize,
           fontWeight:    style.fontWeight,
           fontFamily:    style.fontFamily,
-          color:         style.color,
+          color:         textColor,
           textAlign:     style.textAlign,
           lineHeight:    style.lineHeight,
           letterSpacing: style.letterSpacing,
@@ -654,6 +660,18 @@ function buildFigmaExportJSON() {
           left:   parseFloat(el.style.paddingLeft)   || padX,
         },
       };
+
+      // label: 배경 박스 정보 추가
+      if (variant === 'label') {
+        block.labelBox = {
+          bg:       ps?.labelBg     || '#111111',
+          radius:   ps?.labelRadius || 8,
+          paddingH: 36,
+          paddingV: 11,
+        };
+      }
+
+      return block;
     }
     if (el.classList.contains('asset-block')) {
       return {
@@ -685,13 +703,20 @@ function buildFigmaExportJSON() {
   function _section(secEl, ps) {
     const inner = secEl.querySelector('.section-inner');
     if (!inner) return null;
+
+    // 섹션 인라인 스타일에서 label CSS 변수 추출 (DOMParser 환경에서도 동작)
+    const labelBg     = secEl.style.getPropertyValue('--preset-label-bg').trim()     || '#111111';
+    const labelColor  = secEl.style.getPropertyValue('--preset-label-color').trim()  || '#ffffff';
+    const labelRadius = parseFloat(secEl.style.getPropertyValue('--preset-label-radius')) || 8;
+    const psEx = { ...ps, labelBg, labelColor, labelRadius };
+
     const blocks = [];
     [...inner.children].forEach(child => {
       if (child.classList.contains('row')) {
-        _row(child, ps).forEach(b => blocks.push(b));
+        _row(child, psEx).forEach(b => blocks.push(b));
       } else if (child.classList.contains('group-block')) {
         child.querySelectorAll(':scope > .group-inner > .row').forEach(r => {
-          _row(r, ps).forEach(b => blocks.push(b));
+          _row(r, psEx).forEach(b => blocks.push(b));
         });
       } else if (child.classList.contains('gap-block')) {
         blocks.push({ type: 'gap', height: parseFloat(child.style.height) || 50 });
