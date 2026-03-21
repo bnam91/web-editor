@@ -333,6 +333,16 @@ function rebindAll() {
     bindSectionOrder(sec);
     bindSectionDrag(sec);
     bindSectionDropZone(sec);
+    // ⎇ 버튼 없으면 툴바에 추가 (T9 — 기존 섹션 호환)
+    const toolbar = sec.querySelector('.section-toolbar');
+    if (toolbar && !toolbar.querySelector('.st-branch-btn')) {
+      const branchBtn = document.createElement('button');
+      branchBtn.className = 'st-btn st-branch-btn';
+      branchBtn.title = 'feature 브랜치로 실험';
+      branchBtn.textContent = '⎇';
+      branchBtn.onclick = function() { openSectionBranchMenu(this); };
+      toolbar.appendChild(branchBtn);
+    }
   });
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => {
     if (!b.id) {
