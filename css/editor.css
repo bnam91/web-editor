@@ -1325,7 +1325,7 @@ body {
   transition: outline 0.1s;
 }
 .icon-circle-block:hover   { outline: 1.5px dashed rgba(45,111,232,0.4); outline-offset: -1px; }
-.icon-circle-block.selected { outline: 1.5px dashed #2d6fe8; outline-offset: -1px; background: rgba(45,111,232,0.03); }
+.icon-circle-block.selected { outline: 1.5px solid #2d6fe8; outline-offset: -1px; background: rgba(45,111,232,0.03); }
 
 .icb-circle {
   width: 80px; height: 80px;
@@ -1373,14 +1373,16 @@ body {
   transition: outline 0.1s;
 }
 .table-block:hover   { outline: 1.5px dashed rgba(45,111,232,0.4); outline-offset: -1px; }
-.table-block.selected { outline: 1.5px dashed #2d6fe8; outline-offset: -1px; background: rgba(45,111,232,0.03); }
+.table-block.selected { outline: 1.5px solid #2d6fe8; outline-offset: -1px; background: rgba(45,111,232,0.03); }
 
 .tb-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 28px;
   table-layout: fixed;
+  color: #222;
 }
+.tb-table thead th { font-weight: 600; }
 
 /* 기본 스타일 */
 .table-block[data-style="default"] .tb-table th,

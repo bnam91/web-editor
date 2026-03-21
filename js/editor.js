@@ -1346,13 +1346,13 @@ function showSectionProperties(sec) {
   const hex    = document.getElementById('sec-bg-hex');
   const swatch = picker.closest('.prop-color-swatch');
   picker.addEventListener('input', () => {
-    sec.style.background = picker.value;
+    sec.style.backgroundColor = picker.value;
     hex.value = picker.value;
     swatch.style.background = picker.value;
   });
   hex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(hex.value)) {
-      sec.style.background = hex.value;
+      sec.style.backgroundColor = hex.value;
       picker.value = hex.value;
       swatch.style.background = hex.value;
     }
@@ -2338,6 +2338,255 @@ function showGapProperties(gb) {
 }
 
 /* ═══════════════════════════════════
+   ICON CIRCLE BLOCK PROPERTIES
+═══════════════════════════════════ */
+function showIconCircleProperties(icb) {
+  const circle    = icb.querySelector('.icb-circle');
+  const labelEl   = icb.querySelector('.icb-label');
+  const contentEl = icb.querySelector('.icb-content');
+  const hasImg    = !!circle.querySelector('img');
+  const currentSize   = icb.dataset.size   || '80';
+  const currentBg     = icb.dataset.bgColor || '#e8e8e8';
+  const currentBorder = circle.dataset.border || icb.dataset.border || 'none';
+  const currentEmoji  = contentEl ? contentEl.textContent.trim() : '⭐';
+  const currentLabel  = labelEl   ? labelEl.textContent : '';
+
+  const imgSection = hasImg ? `
+    <div class="prop-section">
+      <div class="prop-section-title">이미지</div>
+      <button class="prop-action-btn secondary" id="icb-replace-btn" style="margin-bottom:6px">이미지 교체</button>
+      <button class="prop-action-btn danger"    id="icb-remove-btn">이미지 제거</button>
+    </div>` : `
+    <div class="prop-section">
+      <div class="prop-section-title">이미지</div>
+      <button class="prop-action-btn primary" id="icb-upload-btn">이미지 선택</button>
+    </div>`;
+
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 11 11" fill="none" stroke="#888" stroke-width="1.3"><circle cx="5.5" cy="5.5" r="4.5"/></svg>
+        </div>
+        <span class="prop-block-name">Icon Circle Block</span>
+      </div>
+      <div class="prop-section-title">크기</div>
+      <div class="prop-row">
+        <span class="prop-label">원 크기</span>
+        <select class="prop-select" id="icb-size-select">
+          <option value="60"  ${currentSize==='60' ?'selected':''}>60px</option>
+          <option value="80"  ${currentSize==='80' ?'selected':''}>80px</option>
+          <option value="100" ${currentSize==='100'?'selected':''}>100px</option>
+          <option value="120" ${currentSize==='120'?'selected':''}>120px</option>
+        </select>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">스타일</div>
+      <div class="prop-row">
+        <span class="prop-label">배경색</span>
+        <div class="prop-color-swatch">
+          <input type="color" id="icb-bg-color" value="${currentBg}">
+        </div>
+        <input type="text" class="prop-color-hex" id="icb-bg-hex" value="${currentBg}" maxlength="7">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">테두리</span>
+        <select class="prop-select" id="icb-border-select">
+          <option value="none"   ${currentBorder==='none'  ?'selected':''}>없음</option>
+          <option value="solid"  ${currentBorder==='solid' ?'selected':''}>실선</option>
+          <option value="dashed" ${currentBorder==='dashed'?'selected':''}>점선</option>
+        </select>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">내용</div>
+      <div class="prop-row">
+        <span class="prop-label">이모지</span>
+        <input type="text" class="prop-select" id="icb-emoji-input" value="${currentEmoji}" placeholder="⭐" style="width:60px;flex:none;">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">라벨</span>
+        <input type="text" class="prop-color-hex" id="icb-label-input" value="${currentLabel}" placeholder="라벨 텍스트" style="flex:1;">
+      </div>
+    </div>
+    ${imgSection}`;
+
+  // 크기
+  document.getElementById('icb-size-select').addEventListener('change', e => {
+    const v = e.target.value;
+    icb.dataset.size = v;
+    circle.style.width  = v + 'px';
+    circle.style.height = v + 'px';
+  });
+
+  // 배경색 피커 + 헥스 연동
+  const bgPicker = document.getElementById('icb-bg-color');
+  const bgHex    = document.getElementById('icb-bg-hex');
+  const applyBg  = v => { icb.dataset.bgColor = v; circle.style.background = v; };
+  bgPicker.addEventListener('input', e => { applyBg(e.target.value); bgHex.value = e.target.value; });
+  bgHex.addEventListener('input', e => {
+    const v = e.target.value;
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyBg(v); bgPicker.value = v; }
+  });
+
+  // 테두리
+  document.getElementById('icb-border-select').addEventListener('change', e => {
+    const v = e.target.value;
+    icb.dataset.border  = v;
+    circle.dataset.border = v;
+  });
+
+  // 이모지
+  document.getElementById('icb-emoji-input').addEventListener('input', e => {
+    const el = icb.querySelector('.icb-content');
+    if (el) el.textContent = e.target.value;
+  });
+
+  // 라벨
+  document.getElementById('icb-label-input').addEventListener('input', e => {
+    const el = icb.querySelector('.icb-label');
+    if (el) el.textContent = e.target.value;
+  });
+
+  // 이미지 업로드 공통
+  function loadImageToCircle(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const emoji = icb.querySelector('.icb-content')?.textContent || '⭐';
+      circle.innerHTML = `<img src="${ev.target.result}" draggable="false"><span class="icb-content" style="display:none">${emoji}</span>`;
+      showIconCircleProperties(icb);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  if (hasImg) {
+    document.getElementById('icb-replace-btn').addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = e => loadImageToCircle(e.target.files[0]);
+      inp.click();
+    });
+    document.getElementById('icb-remove-btn').addEventListener('click', () => {
+      const emoji = circle.querySelector('.icb-content')?.textContent || '⭐';
+      circle.innerHTML = `<span class="icb-content">${emoji}</span>`;
+      showIconCircleProperties(icb);
+    });
+  } else {
+    document.getElementById('icb-upload-btn').addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = e => loadImageToCircle(e.target.files[0]);
+      inp.click();
+    });
+  }
+}
+
+/* ═══════════════════════════════════
+   TABLE BLOCK PROPERTIES
+═══════════════════════════════════ */
+function showTableProperties(tb) {
+  const currentStyle = tb.dataset.style || 'default';
+  const showHeader   = tb.dataset.showHeader !== 'false';
+
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <rect x="1" y="1" width="10" height="10" rx="1"/>
+            <line x1="1" y1="5" x2="11" y2="5"/>
+            <line x1="5" y1="1" x2="5" y2="11"/>
+          </svg>
+        </div>
+        <span class="prop-block-name">Table Block</span>
+      </div>
+      <div class="prop-section-title">스타일</div>
+      <div class="prop-row">
+        <span class="prop-label">유형</span>
+        <select class="prop-select" id="tb-style-select">
+          <option value="default"    ${currentStyle==='default'   ?'selected':''}>기본</option>
+          <option value="stripe"     ${currentStyle==='stripe'    ?'selected':''}>스트라이프</option>
+          <option value="borderless" ${currentStyle==='borderless'?'selected':''}>보더리스</option>
+        </select>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">헤더 행</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:#ccc;">
+          <input type="checkbox" id="tb-header-toggle" ${showHeader?'checked':''} style="accent-color:#2d6fe8;cursor:pointer;">
+          표시
+        </label>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">행</div>
+      <div class="prop-row" style="gap:6px;">
+        <button class="prop-action-btn secondary" id="tb-add-row" style="flex:1">행 추가 +</button>
+        <button class="prop-action-btn danger"    id="tb-del-row" style="flex:1">마지막 행 삭제</button>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">열</div>
+      <div class="prop-row" style="gap:6px;">
+        <button class="prop-action-btn secondary" id="tb-add-col" style="flex:1">열 추가 +</button>
+        <button class="prop-action-btn danger"    id="tb-del-col" style="flex:1">마지막 열 삭제</button>
+      </div>
+    </div>`;
+
+  document.getElementById('tb-style-select').addEventListener('change', e => {
+    tb.dataset.style = e.target.value;
+  });
+
+  document.getElementById('tb-header-toggle').addEventListener('change', e => {
+    tb.dataset.showHeader = e.target.checked ? 'true' : 'false';
+    const thead = tb.querySelector('thead');
+    if (thead) thead.style.display = e.target.checked ? '' : 'none';
+  });
+
+  document.getElementById('tb-add-row').addEventListener('click', () => {
+    const tbody = tb.querySelector('tbody');
+    if (!tbody) return;
+    pushHistory();
+    const colCount = tbody.querySelector('tr')?.children.length
+                  || tb.querySelector('thead tr')?.children.length || 2;
+    const tr = document.createElement('tr');
+    for (let i = 0; i < colCount; i++) {
+      const td = document.createElement('td'); td.textContent = ''; tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('tb-del-row').addEventListener('click', () => {
+    const tbody = tb.querySelector('tbody');
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll('tr');
+    if (rows.length <= 1) return;
+    pushHistory();
+    rows[rows.length - 1].remove();
+  });
+
+  document.getElementById('tb-add-col').addEventListener('click', () => {
+    pushHistory();
+    const headerRow = tb.querySelector('thead tr');
+    if (headerRow) { const th = document.createElement('th'); th.textContent = '항목'; headerRow.appendChild(th); }
+    tb.querySelectorAll('tbody tr').forEach(tr => {
+      const td = document.createElement('td'); td.textContent = ''; tr.appendChild(td);
+    });
+  });
+
+  document.getElementById('tb-del-col').addEventListener('click', () => {
+    const headerRow = tb.querySelector('thead tr');
+    const bodyRows  = [...tb.querySelectorAll('tbody tr')];
+    const colCount  = headerRow ? headerRow.children.length : (bodyRows[0]?.children.length || 0);
+    if (colCount <= 1) return;
+    pushHistory();
+    if (headerRow) headerRow.lastElementChild.remove();
+    bodyRows.forEach(tr => { if (tr.lastElementChild) tr.lastElementChild.remove(); });
+  });
+}
+
+/* ═══════════════════════════════════
    BLOCK / SECTION 추가
 ═══════════════════════════════════ */
 const ASSET_SVG = `
@@ -2692,7 +2941,7 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
-      if (block.classList.contains('editing')) { e.preventDefault(); return; }
+      if (block.classList.contains('editing') || dragTarget.querySelector('.text-block.editing')) { e.preventDefault(); return; }
       dragSrc = dragTarget;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
@@ -2781,7 +3030,7 @@ function makeIconCircleBlock() {
     <div class="icb-circle" style="width:80px;height:80px;background:#e8e8e8;">
       <span class="icb-content">⭐</span>
     </div>
-    <div class="icb-label" data-placeholder="라벨 텍스트 (선택)" contenteditable="false"></div>`;
+    <div class="icb-label" contenteditable="false"></div>`;
 
   col.appendChild(icb);
   row.appendChild(col);
