@@ -99,6 +99,7 @@ function switchBranch(name) {
   const data = JSON.parse(store.branches[name].snapshot);
   applyProjectData(data);
   updateBranchIndicator(name);
+  applyFocusMode(name);
   renderBranchPanel();
 }
 
@@ -133,14 +134,56 @@ function mergeBranch(fromName) {
   if (!store) return;
   const toName = store.current;
   if (fromName === toName) return;
-  if (!confirm(`'${fromName}' → '${toName}' 으로 병합할까요?\n현재 브랜치의 내용이 대체됩니다.`)) return;
-  store.branches[toName].snapshot = store.branches[fromName].snapshot;
+
+  const fromBranch = store.branches[fromName];
+  const scope = fromBranch?.scope;
+  const confirmMsg = scope && scope.length > 0
+    ? `'${fromName}' → '${toName}' 병합\n스코프 섹션(${scope.length}개)만 교체됩니다.`
+    : `'${fromName}' → '${toName}' 으로 병합할까요?\n현재 브랜치의 내용이 대체됩니다.`;
+
+  if (!confirm(confirmMsg)) return;
+
+  if (!scope || scope.length === 0) {
+    // 전체 병합 (기존 동작)
+    store.branches[toName].snapshot = fromBranch.snapshot;
+  } else {
+    // 섹션 단위 병합
+    const fromData = JSON.parse(fromBranch.snapshot);
+    const toData = JSON.parse(store.branches[toName].snapshot);
+
+    toData.pages = toData.pages.map(toPage => {
+      const fromPage = fromData.pages.find(p => p.id === toPage.id) || fromData.pages[0];
+      if (!fromPage) return toPage;
+
+      const parser = new DOMParser();
+      const toDoc = parser.parseFromString(`<div id="c">${toPage.canvas}</div>`, 'text/html');
+      const fromDoc = parser.parseFromString(`<div id="c">${fromPage.canvas}</div>`, 'text/html');
+      const toCanvas = toDoc.getElementById('c');
+      const fromCanvas = fromDoc.getElementById('c');
+
+      scope.forEach(sectionId => {
+        const fromSec = fromCanvas.querySelector(`#${sectionId}`);
+        const toSec = toCanvas.querySelector(`#${sectionId}`);
+        if (fromSec && toSec) {
+          toSec.replaceWith(fromSec.cloneNode(true));
+        } else if (fromSec) {
+          toCanvas.appendChild(fromSec.cloneNode(true));
+        }
+      });
+
+      return { ...toPage, canvas: toCanvas.innerHTML };
+    });
+
+    store.branches[toName].snapshot = JSON.stringify(toData);
+  }
+
   store.branches[toName].updatedAt = Date.now();
   store.current = toName;
   saveBranchStore(store);
   const data = JSON.parse(store.branches[toName].snapshot);
   applyProjectData(data);
   updateBranchIndicator(toName);
+  applyFocusMode(toName);
   renderBranchPanel();
 }
 
@@ -158,7 +201,23 @@ function renderBranchPanel() {
     <div class="branch-list">
       ${sorted.map(name => {
         const isCurrent = name === store.current;
-        const ago = timeSince(store.branches[name].updatedAt);
+        const branch = store.branches[name];
+        const scope = branch.scope;
+        const hasScopeInfo = scope && scope.length > 0;
+
+        // 스코프 섹션 태그
+        const scopeHtml = hasScopeInfo ? `
+          <div class="branch-scope-list">
+            ${scope.map(id => {
+              const el = document.getElementById(id);
+              const label = el ? (el.querySelector('.section-label')?.textContent?.trim() || id) : id;
+              return `<span class="branch-scope-tag">${label}${isCurrent
+                ? `<button class="branch-scope-remove" onclick="event.stopPropagation();removeSectionFromScope('${name}','${id}')">✕</button>`
+                : ''}</span>`;
+            }).join('')}
+            ${isCurrent ? `<button class="branch-scope-add" onclick="promptAddSectionToScope('${name}')">+ 섹션</button>` : ''}
+          </div>` : '';
+
         return `
         <div class="branch-item ${isCurrent ? 'current' : ''}" data-branch="${name}">
           <svg class="branch-item-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
@@ -172,7 +231,8 @@ function renderBranchPanel() {
             ${!isCurrent ? `<button class="branch-action-btn merge" onclick="mergeBranch('${name}')">병합</button>` : ''}
             ${name !== 'main' && name !== 'dev' ? `<button class="branch-action-btn danger" onclick="deleteBranch('${name}')">✕</button>` : ''}
           </div>
-        </div>`;
+        </div>
+        ${scopeHtml}`;
       }).join('')}
     </div>
     <div class="branch-divider"></div>
@@ -199,4 +259,183 @@ function timeSince(ts) {
   if (s < 3600) return Math.floor(s/60) + '분 전';
   if (s < 86400) return Math.floor(s/3600) + '시간 전';
   return Math.floor(s/86400) + '일 전';
+}
+
+/* ═══════════════════════════════════
+   FEATURE BRANCH + FOCUS MODE
+═══════════════════════════════════ */
+
+// 섹션 툴바 ⎇ 버튼 클릭 → feature 브랜치 생성
+function openSectionBranchMenu(btn) {
+  const sec = btn.closest('.section-block');
+  if (!sec || !sec.id) { showToast('⚠️ 섹션 ID가 없습니다.'); return; }
+  const secLabel = sec.querySelector('.section-label')?.textContent?.trim() || sec.id;
+  const name = prompt(`[${secLabel}]을 feature 브랜치로 실험\n브랜치 이름:`, 'feature/');
+  if (!name || !name.trim()) return;
+  createFeatureBranchFromSection(sec.id, name.trim());
+}
+
+// feature 브랜치 생성 (특정 섹션 스코프)
+function createFeatureBranchFromSection(sectionId, name) {
+  name = name.trim();
+  if (!name) return;
+  const store = loadBranchStore();
+  if (!store) return;
+  if (store.branches[name]) { alert(`'${name}' 브랜치가 이미 존재합니다.`); return; }
+
+  // 현재 브랜치 저장 후 새 브랜치 생성
+  store.branches[store.current].snapshot = serializeProject();
+  store.branches[store.current].updatedAt = Date.now();
+  store.branches[name] = {
+    snapshot: serializeProject(),
+    scope: [sectionId],
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  store.current = name;
+  saveBranchStore(store);
+  updateBranchIndicator(name);
+  applyFocusMode(name);
+  renderBranchPanel();
+}
+
+// 스코프에 섹션 추가 (브랜치 패널 "+ 섹션" 버튼)
+function promptAddSectionToScope(branchName) {
+  const store = loadBranchStore();
+  if (!store || !store.branches[branchName]) return;
+  const currentScope = store.branches[branchName].scope || [];
+
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return;
+  const sections = [...canvas.querySelectorAll('.section-block')]
+    .filter(sec => sec.id && !currentScope.includes(sec.id));
+
+  if (sections.length === 0) { showToast('추가할 수 있는 섹션이 없습니다.'); return; }
+
+  const options = sections.map((sec, i) => {
+    const label = sec.querySelector('.section-label')?.textContent?.trim() || sec.id;
+    return `${i + 1}. ${label}`;
+  }).join('\n');
+
+  const input = prompt(`스코프에 추가할 섹션 번호:\n${options}`);
+  if (!input) return;
+  const idx = parseInt(input) - 1;
+  if (idx >= 0 && idx < sections.length) {
+    addSectionToScope(branchName, sections[idx].id);
+  }
+}
+
+// 스코프에 섹션 추가
+function addSectionToScope(branchName, sectionId) {
+  const store = loadBranchStore();
+  if (!store || !store.branches[branchName]) return;
+  const branch = store.branches[branchName];
+  if (!branch.scope) branch.scope = [];
+  if (!branch.scope.includes(sectionId)) {
+    branch.scope.push(sectionId);
+    saveBranchStore(store);
+    if (store.current === branchName) applyFocusMode(branchName);
+    renderBranchPanel();
+  }
+}
+
+// 스코프에서 섹션 제거
+function removeSectionFromScope(branchName, sectionId) {
+  const store = loadBranchStore();
+  if (!store || !store.branches[branchName]) return;
+  const branch = store.branches[branchName];
+  if (!branch.scope) return;
+  branch.scope = branch.scope.filter(id => id !== sectionId);
+  saveBranchStore(store);
+  if (store.current === branchName) applyFocusMode(branchName);
+  renderBranchPanel();
+}
+
+// 포커스 모드 적용 (스코프 있는 브랜치로 전환 시 호출)
+function applyFocusMode(branchName) {
+  const store = loadBranchStore();
+  if (!store) return;
+  const scope = store.branches[branchName]?.scope;
+  const bar = document.getElementById('focus-mode-bar');
+  const canvas = document.getElementById('canvas');
+
+  if (!scope || scope.length === 0) {
+    // 스코프 없음 — 전체 표시
+    if (bar) bar.style.display = 'none';
+    if (canvas) canvas.querySelectorAll('.section-block').forEach(sec => {
+      sec.style.display = '';
+      sec.classList.remove('section-focus-dimmed');
+    });
+    return;
+  }
+
+  // 배너 업데이트
+  if (bar) {
+    bar.style.display = '';
+    bar.dataset.showAll = 'false';
+    const nameEl = document.getElementById('focus-mode-branch-name');
+    if (nameEl) nameEl.textContent = branchName;
+    const sectionsEl = document.getElementById('focus-mode-sections');
+    if (sectionsEl && canvas) {
+      const labels = scope.map(id => {
+        const el = document.getElementById(id);
+        return el ? (el.querySelector('.section-label')?.textContent?.trim() || id) : id;
+      }).join(', ');
+      sectionsEl.textContent = labels;
+    }
+    const toggleBtn = document.getElementById('focus-show-all-btn');
+    if (toggleBtn) toggleBtn.textContent = '전체 보기';
+  }
+
+  // 섹션 가시성 적용
+  if (canvas) {
+    canvas.querySelectorAll('.section-block').forEach(sec => {
+      const inScope = scope.includes(sec.id);
+      sec.style.display = inScope ? '' : 'none';
+      sec.classList.remove('section-focus-dimmed');
+    });
+  }
+}
+
+// "전체 보기 ↔ 집중 모드" 토글
+function toggleFocusAll() {
+  const bar = document.getElementById('focus-mode-bar');
+  if (!bar) return;
+  const store = loadBranchStore();
+  if (!store) return;
+  const scope = store.branches[store.current]?.scope;
+  if (!scope) return;
+
+  const showAll = bar.dataset.showAll !== 'true';
+  bar.dataset.showAll = showAll ? 'true' : 'false';
+  const toggleBtn = document.getElementById('focus-show-all-btn');
+  if (toggleBtn) toggleBtn.textContent = showAll ? '집중 모드' : '전체 보기';
+
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return;
+  canvas.querySelectorAll('.section-block').forEach(sec => {
+    const inScope = scope.includes(sec.id);
+    if (inScope) {
+      sec.style.display = '';
+      sec.classList.remove('section-focus-dimmed');
+    } else if (showAll) {
+      sec.style.display = '';
+      sec.classList.add('section-focus-dimmed');
+    } else {
+      sec.style.display = 'none';
+      sec.classList.remove('section-focus-dimmed');
+    }
+  });
+}
+
+// 새 섹션 추가 시 현재 스코프 브랜치에 자동 등록 (drag-drop.js의 addSection() 끝에서 호출)
+function maybeAddNewSectionToScope(sectionId) {
+  const store = loadBranchStore();
+  if (!store) return;
+  const branch = store.branches[store.current];
+  if (branch?.scope && branch.scope.length > 0) {
+    branch.scope.push(sectionId);
+    saveBranchStore(store);
+    renderBranchPanel();
+  }
 }
