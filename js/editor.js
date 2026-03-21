@@ -4296,6 +4296,21 @@ layerPanelBody.addEventListener('drop', e => {
 
 let _previewScrollHandler = null;
 let _previewEscHandler    = null;
+let previewZoom = 100;
+
+function _applyPreviewZoom() {
+  previewZoom = Math.min(200, Math.max(50, previewZoom));
+  document.querySelectorAll('.preview-page-inner').forEach(el => {
+    el.style.width = Math.round(860 * previewZoom / 100) + 'px';
+  });
+  const d = document.getElementById('preview-zoom-display');
+  if (d) d.textContent = previewZoom + '%';
+}
+
+function previewZoomStep(delta) {
+  previewZoom = Math.min(200, Math.max(50, previewZoom + delta));
+  _applyPreviewZoom();
+}
 
 function enterPreview() {
   flushCurrentPage();
@@ -4361,8 +4376,16 @@ function enterPreview() {
   _previewScrollHandler = () => _updatePreviewNav(overlay);
   overlay.addEventListener('scroll', _previewScrollHandler);
 
-  _previewEscHandler = e => { if (e.key === 'Escape') exitPreview(); };
+  _previewEscHandler = e => {
+    if (e.key === 'Escape') { exitPreview(); return; }
+    if (!document.body.classList.contains('preview-mode')) return;
+    if (e.key === '=' || e.key === '+') { e.preventDefault(); previewZoomStep(10); }
+    if (e.key === '-')                  { e.preventDefault(); previewZoomStep(-10); }
+  };
   document.addEventListener('keydown', _previewEscHandler);
+
+  previewZoom = 100;
+  _applyPreviewZoom();
 }
 
 function exitPreview() {
@@ -4385,6 +4408,7 @@ function exitPreview() {
 
   document.getElementById('preview-content').innerHTML   = '';
   document.getElementById('preview-navigator').innerHTML = '';
+  previewZoom = 100;
 }
 
 function _updatePreviewNav(overlay) {
