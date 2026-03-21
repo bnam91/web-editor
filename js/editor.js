@@ -4860,7 +4860,17 @@ function _selectAnim(id) {
   _animType = id;
   document.querySelectorAll('.anim-item').forEach(el =>
     el.classList.toggle('active', el.dataset.id === id));
+  _updateAnimConflictWarning();
   _startAnimPreview();
+}
+
+function _updateAnimConflictWarning() {
+  const warn = document.getElementById('anim-conflict-warn');
+  if (!warn || !_animTb) return;
+  const conflictTypes = ['count-up', 'slot-machine'];
+  const style = _getTextStyle(_animTb);
+  const hasMultiline = style.text.includes('\n');
+  warn.style.display = (conflictTypes.includes(_animType) && hasMultiline) ? 'flex' : 'none';
 }
 
 function restartAnimPreview() {
@@ -4912,6 +4922,7 @@ function _getTextStyle(tb) {
 function _startAnimPreview() {
   _stopAnimPreview();
   if (!_animTb) return;
+  _updateAnimConflictWarning();
   const canvas = document.getElementById('anim-preview-canvas');
   const ctx    = canvas.getContext('2d');
   const style  = _getTextStyle(_animTb);
@@ -4959,14 +4970,37 @@ function _startAnimPreview() {
 }
 
 function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
-  const cx   = W / 2;
-  const cy   = H / 2;
-  const text = style.text;
+  const cx = W / 2;
+  const cy = H / 2;
 
-  ctx.font        = `${style.fontWeight} ${displaySize}px ${style.fontFamily}`;
+  ctx.font         = `${style.fontWeight} ${displaySize}px ${style.fontFamily}`;
   ctx.textBaseline = 'middle';
-  ctx.textAlign    = 'center';
   try { ctx.letterSpacing = style.letterSpacing + 'px'; } catch(e) {}
+
+  // textAlign & x-anchor
+  const paddingX = Math.round(W * 0.05);
+  let anchorX;
+  if (style.textAlign === 'left') {
+    anchorX = paddingX;
+    ctx.textAlign = 'left';
+  } else if (style.textAlign === 'right') {
+    anchorX = W - paddingX;
+    ctx.textAlign = 'right';
+  } else {
+    anchorX = cx;
+    ctx.textAlign = 'center';
+  }
+
+  // multiline support
+  const lines     = style.text.split('\n');
+  const lineH     = displaySize * 1.4;
+  const firstLine = lines[0];
+
+  // draw all lines centered vertically around baseY
+  const drawLines = (linesArr, baseY, drawFn) => {
+    const totalH = (linesArr.length - 1) * lineH;
+    linesArr.forEach((line, i) => drawFn(line, anchorX, baseY - totalH / 2 + i * lineH));
+  };
 
   switch (animType) {
 
@@ -4976,50 +5010,57 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       ctx.save();
       ctx.globalAlpha = _easeInOut(t);
       ctx.fillStyle   = style.color;
-      ctx.fillText(text, cx, cy + offset);
+      drawLines(lines, cy + offset, (line, x, y) => ctx.fillText(line, x, y));
       ctx.restore();
       break;
     }
 
     /* ── 타이핑 ── */
     case 'typewriter': {
-      const n = Math.floor(t * text.length);
+      const n            = Math.floor(t * style.text.length);
+      const partial      = style.text.slice(0, n);
+      const partialLines = partial.split('\n');
+      const totalH       = (lines.length - 1) * lineH;
       ctx.fillStyle = style.color;
-      ctx.fillText(text.slice(0, n), cx, cy);
+      partialLines.forEach((line, i) => {
+        ctx.fillText(line, anchorX, cy - totalH / 2 + i * lineH);
+      });
       // cursor blink
       if (t < 1) {
-        const tw   = ctx.measureText(text.slice(0, n)).width;
-        const curX = cx + tw / 2 + 2;
-        ctx.fillRect(curX, cy - displaySize * 0.45, 2, displaySize * 0.9);
+        const lastLine = partialLines[partialLines.length - 1];
+        const lastY    = cy - totalH / 2 + (partialLines.length - 1) * lineH;
+        const tw       = ctx.measureText(lastLine).width;
+        let curX;
+        if (style.textAlign === 'left')       curX = anchorX + tw + 2;
+        else if (style.textAlign === 'right') curX = anchorX - tw - 2;
+        else                                  curX = anchorX + tw / 2 + 2;
+        ctx.fillRect(curX, lastY - displaySize * 0.45, 2, displaySize * 0.9);
       }
       break;
     }
 
-    /* ── 슬롯머신 ── */
+    /* ── 슬롯머신 (줄바꿈 시 첫줄만) ── */
     case 'slot-machine': {
-      const numMatch = text.match(/\d+/);
+      const numMatch = firstLine.match(/\d+/);
       if (!numMatch) {
-        // non-numeric: just use slide-up fallback
         const offset = (1 - _easeOut(t)) * H * 0.4;
         ctx.save(); ctx.globalAlpha = t;
         ctx.fillStyle = style.color;
-        ctx.fillText(text, cx, cy + offset);
+        ctx.fillText(firstLine, anchorX, cy + offset);
         ctx.restore();
         break;
       }
       const target  = parseInt(numMatch[0]);
       const current = Math.floor(target * _easeOut(t));
-      const display = text.replace(/\d+/, current.toString());
-      // rolling offset: digits fall from top
-      const rollY = (1 - _easeOut(t)) * displaySize * 1.5;
+      const display = firstLine.replace(/\d+/, current.toString());
+      const rollY   = (1 - _easeOut(t)) * displaySize * 1.5;
       ctx.save();
       ctx.rect(0, cy - displaySize, W, displaySize * 2);
       ctx.clip();
       ctx.fillStyle = style.color;
-      ctx.fillText(display, cx, cy + rollY);
-      // ghost above
+      ctx.fillText(display, anchorX, cy + rollY);
       ctx.globalAlpha = 0.3 * (1 - t);
-      ctx.fillText(text.replace(/\d+/, (target + 10).toString()), cx, cy + rollY - displaySize * 1.2);
+      ctx.fillText(firstLine.replace(/\d+/, (target + 10).toString()), anchorX, cy + rollY - displaySize * 1.2);
       ctx.restore();
       break;
     }
@@ -5029,36 +5070,35 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       ctx.save();
       ctx.globalAlpha = _easeInOut(t);
       ctx.fillStyle   = style.color;
-      ctx.fillText(text, cx, cy);
+      drawLines(lines, cy, (line, x, y) => ctx.fillText(line, x, y));
       ctx.restore();
       break;
     }
 
     /* ── 단어별 순차등장 ── */
     case 'word-pop': {
-      const words = text.split(/\s+/).filter(w => w);
+      const words = style.text.split(/[\s\n]+/).filter(w => w);
       if (!words.length) break;
-
       ctx.textAlign = 'left';
       const spaceW  = ctx.measureText(' ').width;
       const widths  = words.map(w => ctx.measureText(w).width);
       const totalW  = widths.reduce((s, w) => s + w, 0) + spaceW * (words.length - 1);
-      let x = cx - totalW / 2;
+      let x;
+      if (style.textAlign === 'left')       x = anchorX;
+      else if (style.textAlign === 'right') x = anchorX - totalW;
+      else                                  x = cx - totalW / 2;
 
       words.forEach((word, i) => {
-        const prog  = Math.max(0, Math.min(1, t * words.length - i));
-        const alpha = prog;
-        const sc    = 0.6 + 0.4 * _easeOut(prog);
-        const wx    = x + widths[i] / 2;
-
+        const prog = Math.max(0, Math.min(1, t * words.length - i));
+        const sc   = 0.6 + 0.4 * _easeOut(prog);
+        const wx   = x + widths[i] / 2;
         ctx.save();
-        ctx.globalAlpha = alpha;
+        ctx.globalAlpha = prog;
         ctx.translate(wx, cy);
         ctx.scale(sc, sc);
         ctx.fillStyle = style.color;
         ctx.fillText(word, -widths[i] / 2, 0);
         ctx.restore();
-
         x += widths[i] + spaceW;
       });
       break;
@@ -5066,29 +5106,27 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
 
     /* ── 글로우 펄스 ── */
     case 'glow-pulse': {
-      // 2 full pulses across t 0→1
-      const phase  = t * Math.PI * 4;
-      const glow   = 0.5 + 0.5 * Math.sin(phase);
+      const phase = t * Math.PI * 4;
+      const glow  = 0.5 + 0.5 * Math.sin(phase);
       ctx.save();
       ctx.shadowColor = style.color;
       ctx.shadowBlur  = 4 + 32 * glow;
       ctx.globalAlpha = 0.6 + 0.4 * glow;
       ctx.fillStyle   = style.color;
-      ctx.fillText(text, cx, cy);
+      drawLines(lines, cy, (line, x, y) => ctx.fillText(line, x, y));
       ctx.restore();
       break;
     }
 
-    /* ── 카운트업 ── */
+    /* ── 카운트업 (줄바꿈 시 첫줄만) ── */
     case 'count-up': {
-      const numMatch = text.match(/\d+/);
+      const numMatch = firstLine.match(/\d+/);
       const target   = numMatch ? parseInt(numMatch[0]) : 100;
       const current  = Math.floor(target * _easeOut(t));
-      const display  = numMatch ? text.replace(/\d+/, current.toString()) : current.toString();
-      // slight scale bounce on last frame
+      const display  = numMatch ? firstLine.replace(/\d+/, current.toString()) : current.toString();
       const scale    = t === 1 ? 1 : (1 + 0.05 * Math.sin(t * Math.PI * 8) * (1 - t));
       ctx.save();
-      ctx.translate(cx, cy);
+      ctx.translate(anchorX, cy);
       ctx.scale(scale, scale);
       ctx.fillStyle = style.color;
       ctx.fillText(display, 0, 0);
@@ -5114,8 +5152,10 @@ async function exportAnimGif() {
     const speed  = parseFloat(document.getElementById('anim-speed')?.value  || 1);
     const repeat = parseInt(document.getElementById('anim-repeat')?.value   || 1);
 
-    // 2x 해상도 캔버스
-    const W = 960, H = 320;
+    // 동적 캔버스 크기: 실제 블록 크기 기반 2x 해상도
+    const blockRect = _animTb.getBoundingClientRect();
+    const W = Math.max(320, Math.round(blockRect.width  * 2));
+    const H = Math.max(80,  Math.round(blockRect.height * 2));
     const offCanvas  = document.createElement('canvas');
     offCanvas.width  = W;
     offCanvas.height = H;
@@ -5139,7 +5179,7 @@ async function exportAnimGif() {
     for (let i = 0; i <= frames; i++) {
       const t = i / frames;
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = style.sectionBg || '#ffffff';
       ctx.fillRect(0, 0, W, H);
       _drawFrame(ctx, W, H, style, displaySize, _animType, t);
       gif.addFrame(ctx, { copy: true, delay });
@@ -5148,7 +5188,7 @@ async function exportAnimGif() {
     const holdFrames = Math.ceil(fps * 1.5);
     for (let i = 0; i < holdFrames; i++) {
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = style.sectionBg || '#ffffff';
       ctx.fillRect(0, 0, W, H);
       _drawFrame(ctx, W, H, style, displaySize, _animType, 1);
       gif.addFrame(ctx, { copy: true, delay });
