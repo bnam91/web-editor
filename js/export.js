@@ -650,7 +650,7 @@ function buildFigmaExportJSON() {
     if (el.classList.contains('asset-block')) {
       return {
         type: 'image',
-        height: parseFloat(el.style.height) || 400,
+        height: parseFloat(el.style.height) || 780,
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
       };
     }
