@@ -156,28 +156,17 @@ const pageBg      = hex(meta.theme?.background || '#ffffff');
 console.log(`\n🎨 sangpe → Figma 변환 시작`);
 console.log(`   캔버스: ${canvasWidth}px  섹션: ${sections.length}개  섹션 간격: ${sectionGap}px\n`);
 
-// 메인 프레임 (높이는 나중에 resize)
-const mainFrame = run('create_frame', {
-  x: 0, y: 0, width: canvasWidth, height: 100,
-  name: meta.title || '상세페이지',
-});
-if (!mainFrame) { console.error('메인 프레임 생성 실패'); process.exit(1); }
-run('set_fill_color', { nodeId: mainFrame.id, color: pageBg });
-console.log(`🖼️  메인 프레임: ${mainFrame.id}\n`);
-
-let currentY    = 0;
-let totalHeight = 0;
+let currentY = 0;
 
 for (let si = 0; si < sections.length; si++) {
   const section = sections[si];
   console.log(`📦 [${si + 1}/${sections.length}] "${section.name}"  bg:${section.background || '#fff'}`);
 
-  // 섹션 프레임 (mainFrame 자식으로 바로 생성, 높이는 나중에 resize)
+  // 섹션 프레임을 페이지에 직접 생성 (parentId 없음)
   const secFrame = run('create_frame', {
     x: 0, y: currentY,
     width: canvasWidth, height: 100,
     name: section.name,
-    parentId: mainFrame.id,
   });
   if (!secFrame) { currentY += 100 + sectionGap; continue; }
   run('set_fill_color', { nodeId: secFrame.id, color: hex(section.background || '#ffffff') });
@@ -191,17 +180,10 @@ for (let si = 0; si < sections.length; si++) {
 
   // 실제 높이로 섹션 프레임 리사이즈
   run('resize_node', { nodeId: secFrame.id, width: canvasWidth, height: blockY });
-  console.log(`   → 섹션 높이: ${blockY}px\n`);
+  console.log(`   → 섹션 높이: ${blockY}px  ID: ${secFrame.id}\n`);
 
-  currentY    += blockY + sectionGap;
-  totalHeight += blockY + sectionGap;
+  currentY += blockY + sectionGap;
 }
 
-totalHeight = Math.max(totalHeight - sectionGap, 100);
-
-// 메인 프레임 최종 높이
-run('resize_node', { nodeId: mainFrame.id, width: canvasWidth, height: totalHeight });
-
 console.log('✅ 완료!');
-console.log(`   메인 프레임 ID: ${mainFrame.id}`);
-console.log(`   총 높이: ${totalHeight}px`);
+console.log(`   섹션 ${sections.length}개 생성  총 높이: ${currentY - sectionGap}px`);
