@@ -4486,16 +4486,20 @@ function _startAnimPreview() {
     } else {
       _animLoops++;
       if (_animLoops < repeat) {
-        _animStart = null;
-        _animRafId = requestAnimationFrame(tick);
+        // 루프 간 300ms 대기 (카운트업 등 마지막 값 인식 시간)
+        _animTimeoutId = setTimeout(() => {
+          _animTimeoutId = null;
+          _animStart = null;
+          _animRafId = requestAnimationFrame(tick);
+        }, 300);
       } else {
-        // hold 800ms then restart loop
+        // hold 1500ms then restart loop
         _animTimeoutId = setTimeout(() => {
           _animTimeoutId = null;
           _animLoops = 0;
           _animStart = null;
           _animRafId = requestAnimationFrame(tick);
-        }, 800);
+        }, 1500);
       }
     }
   }
@@ -4688,6 +4692,15 @@ async function exportAnimGif() {
       _drawFrame(ctx, W, H, style, displaySize, _animType, t);
       gif.addFrame(ctx, { copy: true, delay });
     }
+    // 마지막 값에서 1.5초 정지 (카운트업 등 UX)
+    const holdFrames = Math.ceil(fps * 1.5);
+    for (let i = 0; i < holdFrames; i++) {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+      _drawFrame(ctx, W, H, style, displaySize, _animType, 1);
+      gif.addFrame(ctx, { copy: true, delay });
+    }
 
     gif.on('finished', blob => {
       const a    = document.createElement('a');
@@ -4695,6 +4708,7 @@ async function exportAnimGif() {
       a.download = 'sangpe_animation.gif';
       a.click();
       URL.revokeObjectURL(a.href);
+      showToast('✅ GIF 저장 완료!');
       btn.disabled    = false;
       btn.innerHTML   = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1v7M3 5l3 4 3-4"/><path d="M1 10h10"/></svg> GIF 저장`;
     });
