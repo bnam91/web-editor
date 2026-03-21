@@ -89,7 +89,13 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const p   = block.padding || { top: 0, right: 0, bottom: 0, left: 0 };
     const textWidth = availableWidth - (p.left || 0) - (p.right || 0);
 
-    // create_text 한 번에 모든 스타일 전달
+    // 폰트 패밀리 파싱 (첫 번째 이름만 추출)
+    const rawFamily = (s.fontFamily || 'Noto Sans KR').replace(/["']/g, '').split(',')[0].trim();
+    const fontStyle = s.fontWeight >= 700 ? 'Bold' : s.fontWeight >= 600 ? 'SemiBold' : 'Regular';
+
+    // 폰트 로드
+    run('load_font_async', { family: rawFamily, style: fontStyle });
+
     const node = run('create_text', {
       x: x + (p.left || 0),
       y: y + (p.top  || 0),
@@ -99,7 +105,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       fontColor:          hex(s.color  || '#111111'),
       textAlignHorizontal: toFigmaAlign(s.textAlign),
       width:              textWidth,
-      textAutoResize:     'HEIGHT',   // Figma가 실제 높이 반환
+      textAutoResize:     'HEIGHT',
       name: `${block.variant || 'text'}_${block.id}`,
       parentId,
     });
@@ -109,7 +115,20 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       return fallbackH + (p.top || 0) + (p.bottom || 0);
     }
 
-    // width 강제 적용 → 줄바꿈 트리거 (textAutoResize:HEIGHT로 높이 자동 재계산)
+    // 폰트 패밀리 적용
+    run('set_font_name', { nodeId: node.id, fontFamily: rawFamily, fontStyle });
+
+    // letterSpacing 적용 (px 단위)
+    if (s.letterSpacing !== undefined && s.letterSpacing !== 0) {
+      run('set_letter_spacing', { nodeId: node.id, letterSpacing: s.letterSpacing, unit: 'PIXELS' });
+    }
+
+    // lineHeight 적용
+    if (s.lineHeight) {
+      run('set_line_height', { nodeId: node.id, lineHeight: s.lineHeight * s.fontSize, unit: 'PIXELS' });
+    }
+
+    // width 강제 적용 → 줄바꿈 트리거
     run('resize_node', { nodeId: node.id, width: textWidth, height: node.height || 100 });
 
     // 실제 높이 재확인

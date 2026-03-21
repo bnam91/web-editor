@@ -610,7 +610,14 @@ function buildFigmaExportJSON() {
 
     const textAlign = el.style.textAlign || inner.style.textAlign || 'left';
 
-    return { fontSize, fontWeight, color, lineHeight, letterSpacing, textAlign };
+    // fontFamily: 인라인 우선, 없으면 CSS 기본값
+    let fontFamily = inner.style.fontFamily;
+    if (!fontFamily) {
+      try { fontFamily = window.getComputedStyle(inner).fontFamily; } catch {}
+    }
+    fontFamily = (fontFamily || 'Noto Sans KR').replace(/["']/g, '').split(',')[0].trim();
+
+    return { fontSize, fontWeight, color, lineHeight, letterSpacing, textAlign, fontFamily };
   }
 
   function _block(el, ps) {
@@ -634,6 +641,7 @@ function buildFigmaExportJSON() {
         style: {
           fontSize:      style.fontSize,
           fontWeight:    style.fontWeight,
+          fontFamily:    style.fontFamily,
           color:         style.color,
           textAlign:     style.textAlign,
           lineHeight:    style.lineHeight,
@@ -650,6 +658,7 @@ function buildFigmaExportJSON() {
     if (el.classList.contains('asset-block')) {
       return {
         type: 'image',
+        id: el.id || ('ab_' + Math.random().toString(36).slice(2, 8)),
         height: parseFloat(el.style.height) || 780,
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
       };
