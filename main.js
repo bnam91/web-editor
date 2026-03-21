@@ -55,6 +55,19 @@ function createWindow() {
   mainWindow.on('leave-full-screen', () => {
     mainWindow.webContents.send('fullscreen-change', false);
   });
+
+  // F12 → DevTools (dev 모드에서만)
+  if (process.argv.includes('--enable-logging')) {
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      if (input.key === 'F12') {
+        if (mainWindow.webContents.isDevToolsOpened()) {
+          mainWindow.webContents.closeDevTools();
+        } else {
+          mainWindow.webContents.openDevTools();
+        }
+      }
+    });
+  }
 }
 
 /* ── IPC: Presets ── */

@@ -1,0 +1,511 @@
+/* ══════════════════════════════════════
+   내보내기 (Export)
+══════════════════════════════════════ */
+async function exportSection(sec, format) {
+  const fmt = format || 'png';
+
+  // 클론을 transform 밖(body)에 배치해서 html2canvas가 부모 scale 영향 안 받게 함
+  const clone = sec.cloneNode(true);
+  const cloneLabel   = clone.querySelector('.section-label');
+  const cloneToolbar = clone.querySelector('.section-toolbar');
+  if (cloneLabel)   cloneLabel.remove();
+  if (cloneToolbar) cloneToolbar.remove();
+  clone.classList.remove('selected');
+  clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + CANVAS_W + 'px;margin:0;outline:none;';
+
+  document.body.appendChild(clone);
+
+  const secBg   = sec.style.background || sec.style.backgroundColor || '';
+  const bgColor = (secBg && secBg !== 'transparent') ? secBg : (pageSettings.bg || '#ffffff');
+
+  try {
+    const canvas = await html2canvas(clone, {
+      scale: 1,
+      useCORS: true,
+      backgroundColor: bgColor,
+      logging: false,
+    });
+
+    const secList = [...canvasEl.querySelectorAll('.section-block')];
+    const idx     = secList.indexOf(sec) + 1;
+    const name    = (sec._name || `section-${String(idx).padStart(2,'0')}`).replace(/\s+/g, '-');
+
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href = url;
+      a.download = `${name}.${fmt}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95);
+
+  } finally {
+    document.body.removeChild(clone);
+  }
+}
+
+async function exportAllSections(format) {
+  const sections = [...canvasEl.querySelectorAll('.section-block')];
+  for (const sec of sections) {
+    await exportSection(sec, format);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+/* ══════════════════════════════════════
+   디자인 메타데이터 JSON 내보내기
+══════════════════════════════════════ */
+function exportDesignJSON() {
+  let _uid = 0;
+  const uid = prefix => `${prefix}_${String(++_uid).padStart(3, '0')}`;
+
+  function rgbToHex(rgb) {
+    if (!rgb || rgb === 'transparent' || rgb === '') return null;
+    if (rgb.startsWith('#')) return rgb;
+    const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!m) return rgb;
+    return '#' + [m[1], m[2], m[3]].map(n => parseInt(n).toString(16).padStart(2, '0')).join('');
+  }
+
+  // variant별 기본 fontFamily (CSS에서 선언된 값 — getComputedStyle 폴백 문제 방지)
+  const VARIANT_FONT = {
+    h1:      'Noto Sans KR',
+    h2:      'Noto Sans KR',
+    body:    'Noto Sans KR',
+    caption: 'Noto Sans KR',
+    label:   'Noto Sans KR',
+  };
+
+  function extractTextStyle(innerEl) {
+    if (!innerEl) return {};
+    const cs = getComputedStyle(innerEl);
+    const fsz = parseFloat(cs.fontSize);
+    const lhRaw = parseFloat(cs.lineHeight);
+    const lh = !isNaN(lhRaw) && !isNaN(fsz) && fsz > 0
+      ? Math.round((lhRaw / fsz) * 100) / 100
+      : null;
+
+    // inline style에 fontFamily가 지정돼 있으면 그것 우선, 아니면 variant 기본값
+    const inlineFF = innerEl.style.fontFamily;
+    const variant  = (innerEl.className || '').replace('tb-', '');
+    const fontFamily = inlineFF
+      ? inlineFF.split(',')[0].replace(/["']/g, '').trim()
+      : (VARIANT_FONT[variant] || 'Noto Sans KR');
+
+    const style = {
+      fontSize:   fsz,
+      fontWeight: parseInt(cs.fontWeight),
+      color:      rgbToHex(cs.color) || cs.color,
+      fontFamily,
+      textAlign:  cs.textAlign,
+    };
+    if (lh !== null) style.lineHeight = lh;
+    if (cs.letterSpacing && cs.letterSpacing !== 'normal' && cs.letterSpacing !== '0px') {
+      style.letterSpacing = cs.letterSpacing;
+    }
+    return style;
+  }
+
+  function serializeBlock(el) {
+    if (el.classList.contains('gap-block')) {
+      const h = parseFloat(el.style.height) || 50;
+      return { id: uid('gap'), type: 'gap', height: h };
+    }
+
+    if (el.classList.contains('text-block')) {
+      const inner = el.querySelector('.tb-h1, .tb-h2, .tb-body, .tb-caption, .tb-label');
+      const variant = inner ? inner.className.replace('tb-', '') : (el.dataset.type || 'body');
+      return {
+        id:      uid('txt'),
+        type:    'text',
+        variant,
+        content: inner ? inner.textContent.trim() : '',
+        style:   extractTextStyle(inner),
+        padding: {
+          top:    parseFloat(el.style.paddingTop)    || 0,
+          right:  parseFloat(el.style.paddingRight)  || 0,
+          bottom: parseFloat(el.style.paddingBottom) || 0,
+          left:   parseFloat(el.style.paddingLeft)   || 0,
+        },
+      };
+    }
+
+    if (el.classList.contains('asset-block')) {
+      const block = {
+        id:    uid('img'),
+        type:  'image',
+        style: {
+          borderRadius: parseFloat(el.style.borderRadius) || 0,
+        },
+      };
+      const h = parseFloat(el.style.height) || 400; // 기본값 400px
+      block.height = h;
+      if (el.dataset.imgSrc) {
+        block.src        = el.dataset.imgSrc;
+        block.fit        = el.dataset.fit || 'cover';
+        if (el.dataset.imgW) block.imageScale = parseFloat(el.dataset.imgW);
+        if (el.dataset.imgX) block.offsetX    = parseFloat(el.dataset.imgX);
+        if (el.dataset.imgY) block.offsetY    = parseFloat(el.dataset.imgY);
+      }
+      return block;
+    }
+    return null;
+  }
+
+  function serializeCol(colEl) {
+    const blocks = [];
+    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+      const s = serializeBlock(b);
+      if (s) blocks.push(s);
+    });
+    return { id: uid('col'), width: parseInt(colEl.dataset.width) || 100, blocks };
+  }
+
+  function serializeRow(rowEl) {
+    const cols = [];
+    rowEl.querySelectorAll(':scope > .col').forEach(col => cols.push(serializeCol(col)));
+    return { id: uid('row'), type: 'row', layout: rowEl.dataset.layout || 'stack', columns: cols };
+  }
+
+  function serializeSection(secEl, idx) {
+    const rawBg = secEl.style.background || secEl.style.backgroundColor || '';
+    const bg    = rgbToHex(rawBg) || pageSettings.bg || '#ffffff';
+    const inner = secEl.querySelector('.section-inner');
+    const blocks = [];
+
+    if (inner) {
+      [...inner.children].forEach(child => {
+        if (child.classList.contains('gap-block')) {
+          blocks.push(serializeBlock(child));
+        } else if (child.classList.contains('row')) {
+          blocks.push(serializeRow(child));
+        } else if (child.classList.contains('group-block')) {
+          const groupRows = [];
+          child.querySelectorAll(':scope > .group-inner > .row').forEach(r => groupRows.push(serializeRow(r)));
+          blocks.push({
+            id:   uid('grp'),
+            type: 'group',
+            name: child.dataset.name || 'Group',
+            rows: groupRows,
+          });
+        }
+      });
+    }
+
+    const result = {
+      id:         uid('sec'),
+      name:       secEl._name || secEl.dataset.name || `Section ${idx + 1}`,
+      background: bg,
+      blocks,
+    };
+    if (secEl.dataset.preset) result.stylePreset = secEl.dataset.preset;
+    return result;
+  }
+
+  const sections = [];
+  canvasEl.querySelectorAll(':scope > .section-block').forEach((sec, i) => {
+    sections.push(serializeSection(sec, i));
+  });
+
+  const output = {
+    schema: 'sangpe-design-v1',
+    meta: {
+      exportedAt:  new Date().toISOString().split('T')[0],
+      canvasWidth: CANVAS_W,
+      theme: {
+        background:  pageSettings.bg  || '#ffffff',
+        fontFamily:  'Noto Sans KR',
+        sectionGap:  pageSettings.gap  ?? 0,
+        paddingX:    pageSettings.padX ?? 0,
+        paddingY:    pageSettings.padY ?? 0,
+      },
+    },
+    sections,
+  };
+
+  const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'design-export.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ══════════════════════════════════════
+   피그마 JSON 내보내기
+══════════════════════════════════════ */
+function exportFigmaJSON() {
+  // 현재 페이지를 pages 배열에 반영
+  flushCurrentPage();
+
+  const parser = new DOMParser();
+
+  function parseHeight(el) {
+    return parseFloat(el.style.height) || 0;
+  }
+
+  function parseBlock(el, ps) {
+    // gap-block
+    if (el.classList.contains('gap-block')) {
+      return { type: 'gap', height: parseHeight(el) || 50 };
+    }
+
+    // text-block
+    if (el.classList.contains('text-block')) {
+      const inner = el.querySelector('.tb-h1, .tb-h2, .tb-body, .tb-caption, .tb-label');
+      if (!inner) return null;
+      const cls = inner.className;
+      const text = inner.textContent.trim();
+
+      // letterSpacing: inline style px 문자열 → 숫자
+      let letterSpacing;
+      const lsRaw = inner.style.letterSpacing;
+      if (lsRaw && lsRaw !== 'normal') {
+        const lsVal = parseFloat(lsRaw);
+        if (!isNaN(lsVal)) letterSpacing = lsVal;
+      }
+
+      // padding (pageSettings.padX fallback)
+      const padX = ps ? (ps.padX || 0) : 0;
+      const padding = {
+        top:    parseFloat(el.style.paddingTop)    || 0,
+        right:  parseFloat(el.style.paddingRight)  || padX,
+        bottom: parseFloat(el.style.paddingBottom) || 0,
+        left:   parseFloat(el.style.paddingLeft)   || padX,
+      };
+
+      const base = {
+        text,
+        padding,
+        ...(letterSpacing !== undefined ? { letterSpacing } : {}),
+      };
+
+      if (cls.includes('tb-h1')) return { type: 'heading', tag: 'h1', ...base };
+      if (cls.includes('tb-h2')) return { type: 'heading', tag: 'h2', ...base };
+      if (cls.includes('tb-body'))    return { type: 'body',    ...base };
+      if (cls.includes('tb-caption')) return { type: 'caption', ...base };
+      if (cls.includes('tb-label'))   return { type: 'label',   ...base };
+      return { type: 'body', ...base };
+    }
+
+    // asset-block
+    if (el.classList.contains('asset-block')) {
+      const h = parseHeight(el) || 400;
+      const src = el.dataset.imgSrc || null;
+      const padX = ps ? (ps.padX || 0) : 0;
+      const padding = {
+        top:    parseFloat(el.style.paddingTop)    || 0,
+        right:  parseFloat(el.style.paddingRight)  || padX,
+        bottom: parseFloat(el.style.paddingBottom) || 0,
+        left:   parseFloat(el.style.paddingLeft)   || padX,
+      };
+      // col width는 parseCol에서 주입
+      return { type: 'asset', src, height: h, padding };
+    }
+
+    return null;
+  }
+
+  function parseCol(colEl, ps) {
+    const width = parseInt(colEl.dataset.width) || 100;
+    const blocks = [];
+    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+      const block = parseBlock(b, ps);
+      if (block) {
+        if (block.type === 'asset') block.width = width;
+        blocks.push(block);
+      }
+    });
+    return { width, blocks };
+  }
+
+  function parseRow(rowEl, ps) {
+    const layout = rowEl.dataset.layout || 'stack';
+    const cols = [];
+    rowEl.querySelectorAll(':scope > .col').forEach(c => cols.push(parseCol(c, ps)));
+    return { layout, cols };
+  }
+
+  function parseSection(secEl, idx, ps) {
+    const inner = secEl.querySelector('.section-inner');
+    const rows = [];
+    if (inner) {
+      [...inner.children].forEach(child => {
+        if (child.classList.contains('row')) {
+          rows.push(parseRow(child, ps));
+        } else if (child.classList.contains('group-block')) {
+          child.querySelectorAll(':scope > .group-inner > .row').forEach(r => rows.push(parseRow(r, ps)));
+        } else if (child.classList.contains('gap-block')) {
+          const h = parseFloat(child.style.height) || 50;
+          rows.push({ layout: 'stack', cols: [{ width: 100, blocks: [{ type: 'gap', height: h }] }] });
+        }
+      });
+    }
+    // 빈 blocks 배열 rows 제거
+    const filteredRows = rows.filter(r => r.cols.some(c => c.blocks.length > 0));
+
+    const name = secEl.dataset.name || secEl._name
+      || secEl.querySelector('.section-label')?.textContent?.trim()
+      || `Section ${idx + 1}`;
+    const bg = secEl.style.backgroundColor || secEl.style.background || '';
+
+    return { index: idx + 1, name, bg, rows: filteredRows };
+  }
+
+  function parsePage(page) {
+    const doc = parser.parseFromString(
+      `<div id="canvas">${page.canvas || ''}</div>`, 'text/html'
+    );
+    const canvasDiv = doc.getElementById('canvas');
+    const ps = page.pageSettings || {};
+    const sections = [];
+    canvasDiv.querySelectorAll(':scope > .section-block').forEach((sec, i) => {
+      sections.push(parseSection(sec, i, ps));
+    });
+    return {
+      name:     page.name  || 'Page',
+      label:    page.label || '',
+      bg:       (ps.bg)    || '#ffffff',
+      sections,
+    };
+  }
+
+  const exportPages = pages.map(p => parsePage(p));
+
+  const output = {
+    source:  'sangpe-wizard',
+    version: 1,
+    pages:   exportPages,
+  };
+
+  const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sangpe_export.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportHTMLFile() {
+  // canvas clone — 에디터 UI 요소 제거
+  const clone = canvasEl.cloneNode(true);
+  clone.querySelectorAll('.section-label, .section-toolbar, .col-placeholder, .col-add-btn, .col-add-menu, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
+  clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+  clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+  clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+
+  const fontLink = `<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&family=Noto+Serif+KR:wght@400;600;700&family=Inter:wght@400;600;700&family=Playfair+Display:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">`;
+
+  const bg = pageSettings.bg || '#ffffff';
+  const css = `
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
+#canvas{width:${CANVAS_W}px;margin:0 auto;}
+/* layout */
+.section-block{position:relative;width:100%;}
+.section-inner{display:flex;flex-direction:column;}
+.row{position:relative;display:flex;width:100%;}
+.row[data-layout="stack"]{flex-direction:column;}
+.row[data-layout="flex"]{flex-direction:row;gap:8px;align-items:stretch;}
+.row[data-layout="grid"]{display:grid;gap:8px;}
+.col{position:relative;min-width:0;display:flex;flex-direction:column;}
+.col[data-width="100"]{flex:100;}
+.col[data-width="75"]{flex:75;}
+.col[data-width="66"]{flex:66;}
+.col[data-width="50"]{flex:50;}
+.col[data-width="33"]{flex:33;}
+.col[data-width="25"]{flex:25;}
+/* gap */
+.gap-block{display:block;width:100%;}
+/* text */
+.text-block{width:100%;}
+.tb-h1{font-size:104px;font-weight:700;color:#111;line-height:1.1;letter-spacing:-0.02em;}
+.tb-h2{font-size:72px;font-weight:600;color:#1a1a1a;line-height:1.15;}
+.tb-body{font-size:36px;color:#555;line-height:1.6;}
+.tb-caption{font-size:26px;color:#999;line-height:1.6;letter-spacing:0.01em;}
+.tb-label{display:inline-block;background:#111;color:#fff;font-size:22px;font-weight:600;padding:6px 18px;border-radius:4px;}
+/* asset */
+.asset-block{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+.asset-block .asset-icon,.asset-block .asset-label{display:none;}
+.asset-block.has-image{overflow:hidden;}
+.asset-block.has-image img{display:block;max-width:100%;height:auto;}
+/* group */
+.group-block{width:100%;}
+.group-inner{display:flex;flex-direction:column;}
+`;
+
+  const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Export</title>
+${fontLink}
+<style>${css}</style>
+</head>
+<body>
+<div id="canvas">
+${clone.innerHTML}
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'export.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ── Publish Dropdown ── */
+function togglePublishDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('publish-dropdown-wrap').classList.toggle('open');
+}
+function closePublishDropdown() {
+  document.getElementById('publish-dropdown-wrap').classList.remove('open');
+}
+function doPublish() {
+  closePublishDropdown();
+  alert('Publish 기능은 준비 중입니다.');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#publish-dropdown-wrap')) closePublishDropdown();
+});
+
+/* 레이어 패널 — 섹션 순서 변경 */
+const layerPanelBody = document.getElementById('layer-panel-body');
+layerPanelBody.addEventListener('dragover', e => {
+  if (!layerSectionDragSrc) return;
+  e.preventDefault();
+  clearLayerSectionIndicators();
+  const after = getLayerSectionDragAfterEl(layerPanelBody, e.clientY);
+  const indicator = document.createElement('div');
+  indicator.className = 'layer-section-drop-indicator';
+  if (after) layerPanelBody.insertBefore(indicator, after);
+  else layerPanelBody.appendChild(indicator);
+});
+layerPanelBody.addEventListener('dragleave', e => {
+  if (!layerSectionDragSrc) return;
+  if (!layerPanelBody.contains(e.relatedTarget)) clearLayerSectionIndicators();
+});
+layerPanelBody.addEventListener('drop', e => {
+  if (!layerSectionDragSrc) return;
+  e.preventDefault();
+  const { sec } = layerSectionDragSrc;
+  const indicator = layerPanelBody.querySelector('.layer-section-drop-indicator');
+  if (indicator) {
+    const nextLayerSec = indicator.nextElementSibling;
+    if (nextLayerSec && nextLayerSec._canvasSec) {
+      canvasEl.insertBefore(sec, nextLayerSec._canvasSec);
+    } else {
+      canvasEl.appendChild(sec);
+    }
+  }
+  clearLayerSectionIndicators();
+  buildLayerPanel();
+  layerSectionDragSrc = null;
+});
