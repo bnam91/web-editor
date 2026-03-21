@@ -196,13 +196,14 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
   header.addEventListener('click', e => {
     // chevron 클릭이면 토글만
     if (e.target.closest('.layer-chevron')) { group.classList.toggle('collapsed'); return; }
-    // Row 헤더 클릭 → 하위 블록 전체 선택
+    // Row 헤더 클릭 → 하위 블록 전체 선택 + Properties 표시
     deselectAll();
     blocks.forEach(block => block.classList.add('selected'));
     syncSection(sec);
     // 레이어 하위 아이템 모두 하이라이트
     groupChildren.querySelectorAll('.layer-item').forEach(it => it.classList.add('active'));
     header.classList.add('active');
+    showRowProperties(rowEl);
   });
 
   // Row 그룹 드래그 (섹션 내 Row 순서 변경)
