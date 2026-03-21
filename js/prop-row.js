@@ -5,8 +5,8 @@
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';
   const cols = [...rowEl.querySelectorAll(':scope > .col')];
-  const currentGap = parseInt(rowEl.dataset.gap) != null && rowEl.dataset.gap !== ''
-    ? parseInt(rowEl.dataset.gap)
+  const currentGap = rowEl.hasAttribute('data-gap')
+    ? (parseInt(rowEl.dataset.gap) || 0)
     : (layout !== 'stack' ? 8 : 0);
 
   /* 컬럼 비율 HTML (flex 전용) */
@@ -88,6 +88,7 @@ function showRowProperties(rowEl) {
 
   /* ── Gap ── */
   const applyGap = v => {
+    if (isNaN(v)) v = 0;
     v = Math.min(80, Math.max(0, v));
     rowEl.style.gap = v + 'px';
     rowEl.dataset.gap = v;
