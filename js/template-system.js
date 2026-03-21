@@ -11,7 +11,7 @@ function saveTemplates(arr) {
   localStorage.setItem(TEMPLATE_KEY, JSON.stringify(arr));
 }
 
-function saveAsTemplate(sec, name, category) {
+function saveAsTemplate(sec, name, folder, category) {
   const clone = sec.cloneNode(true);
   clone.classList.remove('selected');
   clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
@@ -21,6 +21,7 @@ function saveAsTemplate(sec, name, category) {
   templates.unshift({
     id: 'tpl_' + Date.now(),
     name,
+    folder: folder || '기타',
     category,
     createdAt: new Date().toISOString(),
     thumbnail: null,
@@ -93,6 +94,7 @@ function escHtml(str) {
 }
 
 const TPL_FOLDER_KEY = 'tpl-folder-state';
+let _activeFolderFilter = '전체';
 
 function loadFolderState() {
   try { return JSON.parse(localStorage.getItem(TPL_FOLDER_KEY)) || {}; } catch { return {}; }
@@ -106,37 +108,45 @@ function showTemplatePreview(id) {
   if (!tpl) return;
 
   // 기존 미리보기 제거
-  document.querySelectorAll('.tpl-preview-overlay').forEach(el => el.remove());
+  document.querySelectorAll('.tpl-preview-backdrop').forEach(el => el.remove());
 
-  const overlay = document.createElement('div');
-  overlay.className = 'tpl-preview-overlay';
-  overlay.innerHTML = `
-    <div class="tpl-preview-header">
-      <span class="tpl-preview-title">${escHtml(tpl.name)}</span>
-      <span class="tpl-preview-cat">${escHtml(tpl.category || '')}</span>
-      <button class="tpl-preview-close" title="닫기">
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
-          <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
-        </svg>
-      </button>
-    </div>
-    <div class="tpl-preview-canvas">${tpl.canvas}</div>
-    <div class="tpl-preview-footer">
-      <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">+ 섹션 추가</button>
+  const backdrop = document.createElement('div');
+  backdrop.className = 'tpl-preview-backdrop';
+  backdrop.innerHTML = `
+    <div class="tpl-preview-modal" role="dialog">
+      <div class="tpl-preview-header">
+        <div class="tpl-preview-header-info">
+          <span class="tpl-preview-title">${escHtml(tpl.name)}</span>
+          <span class="tpl-preview-cat">${escHtml(tpl.category || '')}</span>
+          ${tpl.folder ? `<span class="tpl-preview-folder">${escHtml(tpl.folder)}</span>` : ''}
+        </div>
+        <button class="tpl-preview-close" title="닫기">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
+            <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+          </svg>
+        </button>
+      </div>
+      <div class="tpl-preview-canvas">${tpl.canvas}</div>
+      <div class="tpl-preview-footer">
+        <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">+ 섹션 추가</button>
+      </div>
     </div>`;
 
-  const body = document.getElementById('template-panel-body');
-  body.appendChild(overlay);
+  document.body.appendChild(backdrop);
 
-  overlay.querySelector('.tpl-preview-close').addEventListener('click', e => {
-    e.stopPropagation();
-    overlay.remove();
+  backdrop.addEventListener('click', e => {
+    if (e.target === backdrop) backdrop.remove();
   });
 
-  overlay.querySelector('.tpl-preview-insert-btn').addEventListener('click', e => {
+  backdrop.querySelector('.tpl-preview-close').addEventListener('click', e => {
+    e.stopPropagation();
+    backdrop.remove();
+  });
+
+  backdrop.querySelector('.tpl-preview-insert-btn').addEventListener('click', e => {
     e.stopPropagation();
     const t = loadTemplates().find(x => x.id === e.currentTarget.dataset.tplId);
-    if (t) { insertTemplate(t); overlay.remove(); }
+    if (t) { insertTemplate(t); backdrop.remove(); }
   });
 }
 
@@ -152,11 +162,23 @@ function startEditTemplate(id) {
   if (!card) return;
   card.classList.add('editing-mode');
 
+  const allTemplates = loadTemplates();
+  const existingFolders = [...new Set(allTemplates.map(t => t.folder || '기타'))];
+  const currentFolder = tpl.folder || '기타';
+  const folderOptions = existingFolders.map(f =>
+    `<option value="${escHtml(f)}" ${f === currentFolder ? 'selected' : ''}>${escHtml(f)}</option>`
+  ).join('');
+  const catOptions = ['Hero','Main','Feature','Detail','CTA','Event','기타'].map(c =>
+    `<option value="${escHtml(c)}" ${c === (tpl.category || '기타') ? 'selected' : ''}>${escHtml(c)}</option>`
+  ).join('');
+
   const form = document.createElement('div');
   form.className = 'tpl-edit-form';
   form.innerHTML = `
     <input class="tpl-edit-name" type="text" value="${escHtml(tpl.name)}" placeholder="템플릿 이름" />
-    <input class="tpl-edit-cat" type="text" value="${escHtml(tpl.category || '')}" placeholder="카테고리" />
+    <select class="tpl-edit-folder">${folderOptions}<option value="__new__">새 폴더...</option></select>
+    <input class="tpl-edit-folder-new" type="text" placeholder="새 폴더 이름" style="display:none;" />
+    <select class="tpl-edit-cat">${catOptions}</select>
     <div class="tpl-edit-actions">
       <button class="tpl-edit-save">저장</button>
       <button class="tpl-edit-cancel">취소</button>
@@ -165,18 +187,28 @@ function startEditTemplate(id) {
 
   card.insertAdjacentElement('afterend', form);
 
+  const folderSel = form.querySelector('.tpl-edit-folder');
+  const folderNewInput = form.querySelector('.tpl-edit-folder-new');
+  folderSel.addEventListener('change', () => {
+    folderNewInput.style.display = folderSel.value === '__new__' ? 'block' : 'none';
+  });
+
   form.querySelector('.tpl-edit-cancel').addEventListener('click', () => {
     form.remove(); card.classList.remove('editing-mode');
   });
 
   form.querySelector('.tpl-edit-save').addEventListener('click', () => {
     const newName = form.querySelector('.tpl-edit-name').value.trim();
-    const newCat  = form.querySelector('.tpl-edit-cat').value.trim();
+    const newCat  = form.querySelector('.tpl-edit-cat').value;
+    let newFolder = folderSel.value === '__new__'
+      ? (folderNewInput.value.trim() || '기타')
+      : folderSel.value;
     if (!newName) return;
     const templates = loadTemplates();
     const idx = templates.findIndex(t => t.id === id);
     if (idx !== -1) {
       templates[idx].name = newName;
+      templates[idx].folder = newFolder;
       templates[idx].category = newCat;
       saveTemplates(templates);
     }
@@ -206,14 +238,38 @@ function renderTemplatePanel() {
   const body = document.getElementById('template-panel-body');
   if (!body) return;
   const templates = loadTemplates();
+
+  // 전체 폴더 목록 (기존 데이터 호환: folder 없으면 "기타")
+  const allFolders = [...new Set(templates.map(t => t.folder || '기타'))];
+
+  // 폴더 필터가 더 이상 유효하지 않으면 "전체"로 리셋
+  if (_activeFolderFilter !== '전체' && !allFolders.includes(_activeFolderFilter)) {
+    _activeFolderFilter = '전체';
+  }
+
+  // 폴더 드롭다운 HTML
+  const folderDropdown = `
+    <div class="tpl-folder-filter">
+      <select class="tpl-folder-select">
+        <option value="전체" ${_activeFolderFilter === '전체' ? 'selected' : ''}>전체 보기</option>
+        ${allFolders.map(f => `<option value="${escHtml(f)}" ${f === _activeFolderFilter ? 'selected' : ''}>${escHtml(f)}</option>`).join('')}
+      </select>
+    </div>`;
+
   if (!templates.length) {
-    body.innerHTML = '<div class="tpl-empty">저장된 템플릿이 없습니다</div>';
+    body.innerHTML = folderDropdown + '<div class="tpl-empty">저장된 템플릿이 없습니다</div>';
+    _bindFolderDropdown(body);
     return;
   }
 
+  // 폴더 필터 적용
+  const filtered = _activeFolderFilter === '전체'
+    ? templates
+    : templates.filter(t => (t.folder || '기타') === _activeFolderFilter);
+
   // 카테고리별 그룹핑
   const groups = {};
-  templates.forEach(tpl => {
+  filtered.forEach(tpl => {
     const cat = tpl.category || '기타';
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push(tpl);
@@ -221,8 +277,8 @@ function renderTemplatePanel() {
 
   const folderState = loadFolderState();
 
-  body.innerHTML = Object.entries(groups).map(([cat, tpls]) => {
-    const isOpen = folderState[cat] !== false; // 기본 접힘 → true = 펼침
+  const listHtml = Object.entries(groups).map(([cat, tpls]) => {
+    const isOpen = folderState[cat] !== false;
     return `
       <div class="tpl-folder" data-folder-cat="${escHtml(cat)}">
         <div class="tpl-folder-header ${isOpen ? 'open' : ''}">
@@ -259,7 +315,11 @@ function renderTemplatePanel() {
       </div>`;
   }).join('');
 
-  // 폴더 토글
+  body.innerHTML = folderDropdown + (listHtml || '<div class="tpl-empty">이 폴더에 템플릿이 없습니다</div>');
+
+  _bindFolderDropdown(body);
+
+  // 카테고리 토글
   body.querySelectorAll('.tpl-folder-header').forEach(header => {
     header.addEventListener('click', () => {
       const folder = header.closest('.tpl-folder');
@@ -273,7 +333,7 @@ function renderTemplatePanel() {
     });
   });
 
-  // 카드 클릭 → 미리보기 (P1)
+  // 카드 클릭 → 미리보기
   body.querySelectorAll('.tpl-card').forEach(card => {
     card.addEventListener('click', e => {
       if (e.target.closest('.tpl-delete-btn') || e.target.closest('.tpl-edit-btn')) return;
@@ -281,7 +341,7 @@ function renderTemplatePanel() {
     });
   });
 
-  // 수정 버튼 (P3)
+  // 수정 버튼
   body.querySelectorAll('.tpl-edit-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -295,5 +355,14 @@ function renderTemplatePanel() {
       e.stopPropagation();
       deleteTemplate(btn.dataset.tplId);
     });
+  });
+}
+
+function _bindFolderDropdown(body) {
+  const sel = body.querySelector('.tpl-folder-select');
+  if (!sel) return;
+  sel.addEventListener('change', () => {
+    _activeFolderFilter = sel.value;
+    renderTemplatePanel();
   });
 }

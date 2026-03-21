@@ -439,6 +439,16 @@ function showSectionProperties(sec) {
     </div>
     <div class="prop-section">
       <div class="prop-section-title">템플릿</div>
+      <select class="prop-select" id="sec-tpl-folder" style="width:100%;margin-bottom:6px;">
+        ${(()=>{
+          const tpls = loadTemplates ? loadTemplates() : [];
+          const folders = [...new Set(tpls.map(t => t.folder || '기타'))];
+          if (!folders.length) folders.push('내 템플릿');
+          return folders.map(f => `<option value="${f.replace(/"/g,'&quot;')}">${f.replace(/</g,'&lt;')}</option>`).join('') +
+            '<option value="__new__">새 폴더...</option>';
+        })()}
+      </select>
+      <input type="text" id="sec-tpl-folder-new" class="tpl-name-input" placeholder="새 폴더 이름" style="display:none;margin-bottom:6px;">
       <select class="prop-select" id="sec-tpl-cat" style="width:100%;margin-bottom:6px;">
         <option value="Hero">Hero</option>
         <option value="Main">Main</option>
@@ -574,6 +584,15 @@ function showSectionProperties(sec) {
     });
   }
 
+  // 폴더 드롭다운 → 새 폴더 입력 토글
+  const tplFolderSel = document.getElementById('sec-tpl-folder');
+  const tplFolderNew = document.getElementById('sec-tpl-folder-new');
+  if (tplFolderSel && tplFolderNew) {
+    tplFolderSel.addEventListener('change', () => {
+      tplFolderNew.style.display = tplFolderSel.value === '__new__' ? 'block' : 'none';
+    });
+  }
+
   // 템플릿 저장
   const tplSaveBtn = document.getElementById('sec-tpl-save-btn');
   if (tplSaveBtn) {
@@ -581,7 +600,11 @@ function showSectionProperties(sec) {
       const name = document.getElementById('sec-tpl-name').value.trim();
       if (!name) { document.getElementById('sec-tpl-name').focus(); return; }
       const category = document.getElementById('sec-tpl-cat').value;
-      saveAsTemplate(sec, name, category);
+      let folder = tplFolderSel ? tplFolderSel.value : '기타';
+      if (folder === '__new__') {
+        folder = (tplFolderNew ? tplFolderNew.value.trim() : '') || '기타';
+      }
+      saveAsTemplate(sec, name, folder, category);
       document.getElementById('sec-tpl-name').value = '';
       tplSaveBtn.textContent = '저장됨 ✓';
       tplSaveBtn.disabled = true;
