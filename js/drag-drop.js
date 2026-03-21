@@ -461,8 +461,13 @@ function makeTableBlock() {
         <tr><th>항목</th><th>내용</th></tr>
       </thead>
       <tbody>
-        <tr><td>소재</td><td>100% 면</td></tr>
-        <tr><td>사이즈</td><td>Free</td></tr>
+        <tr><td>항목 1</td><td></td></tr>
+        <tr><td>항목 2</td><td></td></tr>
+        <tr><td>항목 3</td><td></td></tr>
+        <tr><td>항목 4</td><td></td></tr>
+        <tr><td>항목 5</td><td></td></tr>
+        <tr><td>항목 6</td><td></td></tr>
+        <tr><td>항목 7</td><td></td></tr>
       </tbody>
     </table>`;
 
