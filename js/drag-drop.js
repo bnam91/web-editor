@@ -671,6 +671,7 @@ function addSection() {
       <button class="st-btn">↑</button>
       <button class="st-btn">↓</button>
       <button class="st-btn" style="color:#e06c6c;">✕</button>
+      <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
     </div>
     <div class="section-inner">
       <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
@@ -708,4 +709,5 @@ function addSection() {
   buildLayerPanel();
   selectSection(sec);
   sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  maybeAddNewSectionToScope(sec.id);
 }
