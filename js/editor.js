@@ -14,6 +14,8 @@ function switchToTab(tabName) {
   if (filePanel) filePanel.style.display = tabName === 'file' ? 'flex' : 'none';
   document.getElementById('branch-panel-body').style.display    = tabName === 'branch'    ? '' : 'none';
   document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? '' : 'none';
+  const collapseBtn = document.getElementById('layer-collapse-all');
+  if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
   if (tabName === 'branch') renderBranchPanel();
 }
 
@@ -121,8 +123,8 @@ function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-/* ── P2: 폴더 상태 ── */
 const TPL_FOLDER_KEY = 'tpl-folder-state';
+
 function loadFolderState() {
   try { return JSON.parse(localStorage.getItem(TPL_FOLDER_KEY)) || {}; } catch { return {}; }
 }
@@ -130,39 +132,105 @@ function saveFolderState(state) {
   localStorage.setItem(TPL_FOLDER_KEY, JSON.stringify(state));
 }
 
-/* ── P3: 템플릿 수정 ── */
-function updateTemplate(id, name, category) {
-  const templates = loadTemplates().map(t => t.id === id ? { ...t, name, category } : t);
-  saveTemplates(templates);
-  renderTemplatePanel();
-}
-
-/* ── P1: 미리보기 패널 ── */
-function showTemplatePreview(tplId) {
-  const tpl = loadTemplates().find(t => t.id === tplId);
+function showTemplatePreview(id) {
+  const tpl = loadTemplates().find(t => t.id === id);
   if (!tpl) return;
-  const panelW = propPanel.clientWidth || 228;
-  const scale  = ((panelW - 24) / 860).toFixed(3);
-  propPanel.innerHTML = `
-    <div class="prop-section tpl-preview-section">
-      <div class="tpl-preview-meta">
-        <div class="tpl-preview-name">${escHtml(tpl.name)}</div>
-        <span class="tpl-card-cat">${escHtml(tpl.category)}</span>
-      </div>
-      <div class="tpl-preview-viewport">
-        <div class="tpl-preview-scaler" style="transform:scale(${scale});transform-origin:top left;width:860px;">
-          ${tpl.canvas}
-        </div>
-      </div>
-      <button class="prop-action-btn primary" id="tpl-insert-btn" style="margin-top:8px;">섹션 추가</button>
+
+  // 기존 미리보기 제거
+  document.querySelectorAll('.tpl-preview-overlay').forEach(el => el.remove());
+
+  const overlay = document.createElement('div');
+  overlay.className = 'tpl-preview-overlay';
+  overlay.innerHTML = `
+    <div class="tpl-preview-header">
+      <span class="tpl-preview-title">${escHtml(tpl.name)}</span>
+      <span class="tpl-preview-cat">${escHtml(tpl.category || '')}</span>
+      <button class="tpl-preview-close" title="닫기">
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
+          <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+        </svg>
+      </button>
+    </div>
+    <div class="tpl-preview-canvas">${tpl.canvas}</div>
+    <div class="tpl-preview-footer">
+      <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">+ 섹션 추가</button>
     </div>`;
 
-  document.getElementById('tpl-insert-btn').addEventListener('click', () => {
-    const t = loadTemplates().find(x => x.id === tplId);
-    if (t) insertTemplate(t);
-    document.querySelectorAll('.tpl-card').forEach(c => c.classList.remove('active'));
-    showPageProperties();
+  const body = document.getElementById('template-panel-body');
+  body.appendChild(overlay);
+
+  overlay.querySelector('.tpl-preview-close').addEventListener('click', e => {
+    e.stopPropagation();
+    overlay.remove();
   });
+
+  overlay.querySelector('.tpl-preview-insert-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    const t = loadTemplates().find(x => x.id === e.currentTarget.dataset.tplId);
+    if (t) { insertTemplate(t); overlay.remove(); }
+  });
+}
+
+function startEditTemplate(id) {
+  const tpl = loadTemplates().find(t => t.id === id);
+  if (!tpl) return;
+
+  // 기존 인라인 편집 닫기
+  document.querySelectorAll('.tpl-edit-form').forEach(el => el.remove());
+  document.querySelectorAll('.tpl-card.editing-mode').forEach(el => el.classList.remove('editing-mode'));
+
+  const card = document.querySelector(`.tpl-card[data-tpl-id="${CSS.escape(id)}"]`);
+  if (!card) return;
+  card.classList.add('editing-mode');
+
+  const form = document.createElement('div');
+  form.className = 'tpl-edit-form';
+  form.innerHTML = `
+    <input class="tpl-edit-name" type="text" value="${escHtml(tpl.name)}" placeholder="템플릿 이름" />
+    <input class="tpl-edit-cat" type="text" value="${escHtml(tpl.category || '')}" placeholder="카테고리" />
+    <div class="tpl-edit-actions">
+      <button class="tpl-edit-save">저장</button>
+      <button class="tpl-edit-cancel">취소</button>
+      <button class="tpl-edit-overwrite" title="현재 선택된 섹션으로 덮어쓰기">덮어쓰기</button>
+    </div>`;
+
+  card.insertAdjacentElement('afterend', form);
+
+  form.querySelector('.tpl-edit-cancel').addEventListener('click', () => {
+    form.remove(); card.classList.remove('editing-mode');
+  });
+
+  form.querySelector('.tpl-edit-save').addEventListener('click', () => {
+    const newName = form.querySelector('.tpl-edit-name').value.trim();
+    const newCat  = form.querySelector('.tpl-edit-cat').value.trim();
+    if (!newName) return;
+    const templates = loadTemplates();
+    const idx = templates.findIndex(t => t.id === id);
+    if (idx !== -1) {
+      templates[idx].name = newName;
+      templates[idx].category = newCat;
+      saveTemplates(templates);
+    }
+    form.remove();
+    renderTemplatePanel();
+  });
+
+  form.querySelector('.tpl-edit-overwrite').addEventListener('click', () => {
+    const sec = canvasEl.querySelector('.section-block.selected');
+    if (!sec) { alert('덮어쓸 섹션을 먼저 선택하세요.'); return; }
+    const clone = sec.cloneNode(true);
+    clone.classList.remove('selected');
+    clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
+    clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
+    clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
+    const templates = loadTemplates();
+    const idx = templates.findIndex(t => t.id === id);
+    if (idx !== -1) { templates[idx].canvas = clone.outerHTML; saveTemplates(templates); }
+    form.remove();
+    renderTemplatePanel();
+  });
+
+  form.querySelector('.tpl-edit-name').focus();
 }
 
 function renderTemplatePanel() {
@@ -174,114 +242,85 @@ function renderTemplatePanel() {
     return;
   }
 
-  const CAT_ORDER = ['Hero', 'Main', 'Feature', 'Detail', 'CTA', 'Event', '기타'];
-  const folderState = loadFolderState();
-
-  const grouped = {};
+  // 카테고리별 그룹핑
+  const groups = {};
   templates.forEach(tpl => {
     const cat = tpl.category || '기타';
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(tpl);
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(tpl);
   });
-  const orderedCats = [
-    ...CAT_ORDER.filter(c => grouped[c]),
-    ...Object.keys(grouped).filter(c => !CAT_ORDER.includes(c))
-  ];
 
-  body.innerHTML = orderedCats.map(cat => {
-    const isOpen = folderState[cat] === true;
-    const items  = grouped[cat];
-    const cards  = items.map(tpl => {
-      const date = tpl.createdAt ? tpl.createdAt.slice(0, 10) : '';
-      return `
-        <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
-          <div class="tpl-card-main">
-            <span class="tpl-card-name">${escHtml(tpl.name)}</span>
-          </div>
-          <div class="tpl-card-meta">${escHtml(date)}</div>
-          <div class="tpl-card-actions">
-            <button class="tpl-edit-btn" data-tpl-id="${escHtml(tpl.id)}" title="수정">
-              <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
-                <path d="M6.5 1.5l2 2L3 9H1V7L6.5 1.5z"/>
-              </svg>
-            </button>
-            <button class="tpl-delete-btn" data-tpl-id="${escHtml(tpl.id)}" title="삭제">
-              <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
-                <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
-              </svg>
-            </button>
-          </div>
-        </div>`;
-    }).join('');
+  const folderState = loadFolderState();
 
+  body.innerHTML = Object.entries(groups).map(([cat, tpls]) => {
+    const isOpen = folderState[cat] !== false; // 기본 접힘 → true = 펼침
     return `
-      <div class="tpl-folder ${isOpen ? 'open' : ''}" data-cat="${escHtml(cat)}">
-        <div class="tpl-folder-header">
-          <svg class="tpl-folder-chevron" width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
-            <path d="M1.5 2.5l2.5 2.5 2.5-2.5"/>
+      <div class="tpl-folder" data-folder-cat="${escHtml(cat)}">
+        <div class="tpl-folder-header ${isOpen ? 'open' : ''}">
+          <svg class="tpl-folder-arrow" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
+            <polyline points="2,2 6,4 2,6"/>
           </svg>
-          <span class="tpl-folder-name">${escHtml(cat)}</span>
-          <span class="tpl-folder-count">${items.length}</span>
+          <span class="tpl-folder-cat-name">${escHtml(cat)}</span>
+          <span class="tpl-folder-count">${tpls.length}</span>
         </div>
-        <div class="tpl-folder-body">${cards}</div>
+        <div class="tpl-folder-body" style="display:${isOpen ? 'block' : 'none'}">
+          ${tpls.map(tpl => {
+            const date = tpl.createdAt ? tpl.createdAt.slice(0, 10) : '';
+            return `
+              <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
+                <div class="tpl-card-main">
+                  <span class="tpl-card-name">${escHtml(tpl.name)}</span>
+                </div>
+                <div class="tpl-card-meta">${escHtml(date)}</div>
+                <div class="tpl-card-actions">
+                  <button class="tpl-edit-btn" data-tpl-id="${escHtml(tpl.id)}" title="수정">
+                    <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path d="M1 9 L2.5 5.5 L7.5 0.5 L9.5 2.5 L4.5 7.5 Z"/><line x1="6" y1="2" x2="8" y2="4"/>
+                    </svg>
+                  </button>
+                  <button class="tpl-delete-btn" data-tpl-id="${escHtml(tpl.id)}" title="삭제">
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
       </div>`;
   }).join('');
 
-  // P2: 폴더 토글
+  // 폴더 토글
   body.querySelectorAll('.tpl-folder-header').forEach(header => {
     header.addEventListener('click', () => {
       const folder = header.closest('.tpl-folder');
-      const cat    = folder.dataset.cat;
-      const isNowOpen = folder.classList.toggle('open');
-      const state  = loadFolderState();
-      state[cat]   = isNowOpen;
+      const cat = folder.dataset.folderCat;
+      const folderBody = folder.querySelector('.tpl-folder-body');
+      const isOpen = header.classList.toggle('open');
+      folderBody.style.display = isOpen ? 'block' : 'none';
+      const state = loadFolderState();
+      state[cat] = isOpen;
       saveFolderState(state);
     });
   });
 
-  // P1: 카드 클릭 → 미리보기
+  // 카드 클릭 → 미리보기 (P1)
   body.querySelectorAll('.tpl-card').forEach(card => {
     card.addEventListener('click', e => {
-      if (e.target.closest('.tpl-edit-btn') || e.target.closest('.tpl-delete-btn')) return;
-      body.querySelectorAll('.tpl-card').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
+      if (e.target.closest('.tpl-delete-btn') || e.target.closest('.tpl-edit-btn')) return;
       showTemplatePreview(card.dataset.tplId);
     });
   });
 
-  // P3: 인라인 수정
+  // 수정 버튼 (P3)
   body.querySelectorAll('.tpl-edit-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      const id  = btn.dataset.tplId;
-      const tpl = loadTemplates().find(t => t.id === id);
-      if (!tpl) return;
-      const card = btn.closest('.tpl-card');
-      const CATS = ['Hero', 'Main', 'Feature', 'Detail', 'CTA', 'Event', '기타'];
-      card.classList.add('is-editing');
-      card.innerHTML = `
-        <div class="tpl-inline-edit">
-          <input type="text" class="tpl-name-input" value="${escHtml(tpl.name)}" placeholder="템플릿 이름">
-          <select class="prop-select tpl-edit-cat" style="width:100%;height:22px;margin-top:4px;">
-            ${CATS.map(c => `<option value="${c}"${c === tpl.category ? ' selected' : ''}>${c}</option>`).join('')}
-          </select>
-          <div class="tpl-edit-btns">
-            <button class="tpl-edit-save-btn" data-id="${escHtml(id)}">저장</button>
-            <button class="tpl-edit-cancel-btn">취소</button>
-          </div>
-        </div>`;
-      card.querySelector('.tpl-name-input').focus();
-      card.querySelector('.tpl-edit-save-btn').addEventListener('click', () => {
-        const newName = card.querySelector('.tpl-name-input').value.trim();
-        const newCat  = card.querySelector('.tpl-edit-cat').value;
-        if (!newName) { card.querySelector('.tpl-name-input').focus(); return; }
-        updateTemplate(id, newName, newCat);
-      });
-      card.querySelector('.tpl-edit-cancel-btn').addEventListener('click', () => renderTemplatePanel());
+      startEditTemplate(btn.dataset.tplId);
     });
   });
 
-  // 삭제
+  // 삭제 버튼
   body.querySelectorAll('.tpl-delete-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -289,7 +328,6 @@ function renderTemplatePanel() {
     });
   });
 }
-
 
 /* ═══════════════════════════════════
    BRANCH SYSTEM
@@ -899,13 +937,6 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
 function buildLayerPanel() {
   const panel = document.getElementById('layer-panel-body');
-
-  // 재빌드 전 각 섹션의 collapsed 상태 보존 (section index 기준)
-  const collapsedState = {};
-  panel.querySelectorAll('.layer-section').forEach(el => {
-    collapsedState[el.dataset.section] = el.classList.contains('collapsed');
-  });
-
   panel.innerHTML = '';
 
   document.querySelectorAll('.section-block').forEach((sec, si) => {
@@ -913,8 +944,6 @@ function buildLayerPanel() {
     const sectionEl = document.createElement('div');
     sectionEl.className = 'layer-section';
     sectionEl.dataset.section = sIdx;
-    // collapsed 상태 복원
-    if (collapsedState[sIdx]) sectionEl.classList.add('collapsed');
 
     const header = document.createElement('div');
     header.className = 'layer-section-header';
@@ -1346,13 +1375,13 @@ function showSectionProperties(sec) {
   const hex    = document.getElementById('sec-bg-hex');
   const swatch = picker.closest('.prop-color-swatch');
   picker.addEventListener('input', () => {
-    sec.style.backgroundColor = picker.value;
+    sec.style.background = picker.value;
     hex.value = picker.value;
     swatch.style.background = picker.value;
   });
   hex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(hex.value)) {
-      sec.style.backgroundColor = hex.value;
+      sec.style.background = hex.value;
       picker.value = hex.value;
       swatch.style.background = hex.value;
     }
@@ -2338,255 +2367,6 @@ function showGapProperties(gb) {
 }
 
 /* ═══════════════════════════════════
-   ICON CIRCLE BLOCK PROPERTIES
-═══════════════════════════════════ */
-function showIconCircleProperties(icb) {
-  const circle    = icb.querySelector('.icb-circle');
-  const labelEl   = icb.querySelector('.icb-label');
-  const contentEl = icb.querySelector('.icb-content');
-  const hasImg    = !!circle.querySelector('img');
-  const currentSize   = icb.dataset.size   || '80';
-  const currentBg     = icb.dataset.bgColor || '#e8e8e8';
-  const currentBorder = circle.dataset.border || icb.dataset.border || 'none';
-  const currentEmoji  = contentEl ? contentEl.textContent.trim() : '⭐';
-  const currentLabel  = labelEl   ? labelEl.textContent : '';
-
-  const imgSection = hasImg ? `
-    <div class="prop-section">
-      <div class="prop-section-title">이미지</div>
-      <button class="prop-action-btn secondary" id="icb-replace-btn" style="margin-bottom:6px">이미지 교체</button>
-      <button class="prop-action-btn danger"    id="icb-remove-btn">이미지 제거</button>
-    </div>` : `
-    <div class="prop-section">
-      <div class="prop-section-title">이미지</div>
-      <button class="prop-action-btn primary" id="icb-upload-btn">이미지 선택</button>
-    </div>`;
-
-  propPanel.innerHTML = `
-    <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 11 11" fill="none" stroke="#888" stroke-width="1.3"><circle cx="5.5" cy="5.5" r="4.5"/></svg>
-        </div>
-        <span class="prop-block-name">Icon Circle Block</span>
-      </div>
-      <div class="prop-section-title">크기</div>
-      <div class="prop-row">
-        <span class="prop-label">원 크기</span>
-        <select class="prop-select" id="icb-size-select">
-          <option value="60"  ${currentSize==='60' ?'selected':''}>60px</option>
-          <option value="80"  ${currentSize==='80' ?'selected':''}>80px</option>
-          <option value="100" ${currentSize==='100'?'selected':''}>100px</option>
-          <option value="120" ${currentSize==='120'?'selected':''}>120px</option>
-        </select>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">스타일</div>
-      <div class="prop-row">
-        <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch">
-          <input type="color" id="icb-bg-color" value="${currentBg}">
-        </div>
-        <input type="text" class="prop-color-hex" id="icb-bg-hex" value="${currentBg}" maxlength="7">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">테두리</span>
-        <select class="prop-select" id="icb-border-select">
-          <option value="none"   ${currentBorder==='none'  ?'selected':''}>없음</option>
-          <option value="solid"  ${currentBorder==='solid' ?'selected':''}>실선</option>
-          <option value="dashed" ${currentBorder==='dashed'?'selected':''}>점선</option>
-        </select>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">내용</div>
-      <div class="prop-row">
-        <span class="prop-label">이모지</span>
-        <input type="text" class="prop-select" id="icb-emoji-input" value="${currentEmoji}" placeholder="⭐" style="width:60px;flex:none;">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">라벨</span>
-        <input type="text" class="prop-color-hex" id="icb-label-input" value="${currentLabel}" placeholder="라벨 텍스트" style="flex:1;">
-      </div>
-    </div>
-    ${imgSection}`;
-
-  // 크기
-  document.getElementById('icb-size-select').addEventListener('change', e => {
-    const v = e.target.value;
-    icb.dataset.size = v;
-    circle.style.width  = v + 'px';
-    circle.style.height = v + 'px';
-  });
-
-  // 배경색 피커 + 헥스 연동
-  const bgPicker = document.getElementById('icb-bg-color');
-  const bgHex    = document.getElementById('icb-bg-hex');
-  const applyBg  = v => { icb.dataset.bgColor = v; circle.style.background = v; };
-  bgPicker.addEventListener('input', e => { applyBg(e.target.value); bgHex.value = e.target.value; });
-  bgHex.addEventListener('input', e => {
-    const v = e.target.value;
-    if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyBg(v); bgPicker.value = v; }
-  });
-
-  // 테두리
-  document.getElementById('icb-border-select').addEventListener('change', e => {
-    const v = e.target.value;
-    icb.dataset.border  = v;
-    circle.dataset.border = v;
-  });
-
-  // 이모지
-  document.getElementById('icb-emoji-input').addEventListener('input', e => {
-    const el = icb.querySelector('.icb-content');
-    if (el) el.textContent = e.target.value;
-  });
-
-  // 라벨
-  document.getElementById('icb-label-input').addEventListener('input', e => {
-    const el = icb.querySelector('.icb-label');
-    if (el) el.textContent = e.target.value;
-  });
-
-  // 이미지 업로드 공통
-  function loadImageToCircle(file) {
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const emoji = icb.querySelector('.icb-content')?.textContent || '⭐';
-      circle.innerHTML = `<img src="${ev.target.result}" draggable="false"><span class="icb-content" style="display:none">${emoji}</span>`;
-      showIconCircleProperties(icb);
-    };
-    reader.readAsDataURL(file);
-  }
-
-  if (hasImg) {
-    document.getElementById('icb-replace-btn').addEventListener('click', () => {
-      const inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = 'image/*';
-      inp.onchange = e => loadImageToCircle(e.target.files[0]);
-      inp.click();
-    });
-    document.getElementById('icb-remove-btn').addEventListener('click', () => {
-      const emoji = circle.querySelector('.icb-content')?.textContent || '⭐';
-      circle.innerHTML = `<span class="icb-content">${emoji}</span>`;
-      showIconCircleProperties(icb);
-    });
-  } else {
-    document.getElementById('icb-upload-btn').addEventListener('click', () => {
-      const inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = 'image/*';
-      inp.onchange = e => loadImageToCircle(e.target.files[0]);
-      inp.click();
-    });
-  }
-}
-
-/* ═══════════════════════════════════
-   TABLE BLOCK PROPERTIES
-═══════════════════════════════════ */
-function showTableProperties(tb) {
-  const currentStyle = tb.dataset.style || 'default';
-  const showHeader   = tb.dataset.showHeader !== 'false';
-
-  propPanel.innerHTML = `
-    <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
-            <rect x="1" y="1" width="10" height="10" rx="1"/>
-            <line x1="1" y1="5" x2="11" y2="5"/>
-            <line x1="5" y1="1" x2="5" y2="11"/>
-          </svg>
-        </div>
-        <span class="prop-block-name">Table Block</span>
-      </div>
-      <div class="prop-section-title">스타일</div>
-      <div class="prop-row">
-        <span class="prop-label">유형</span>
-        <select class="prop-select" id="tb-style-select">
-          <option value="default"    ${currentStyle==='default'   ?'selected':''}>기본</option>
-          <option value="stripe"     ${currentStyle==='stripe'    ?'selected':''}>스트라이프</option>
-          <option value="borderless" ${currentStyle==='borderless'?'selected':''}>보더리스</option>
-        </select>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">헤더 행</span>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:#ccc;">
-          <input type="checkbox" id="tb-header-toggle" ${showHeader?'checked':''} style="accent-color:#2d6fe8;cursor:pointer;">
-          표시
-        </label>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">행</div>
-      <div class="prop-row" style="gap:6px;">
-        <button class="prop-action-btn secondary" id="tb-add-row" style="flex:1">행 추가 +</button>
-        <button class="prop-action-btn danger"    id="tb-del-row" style="flex:1">마지막 행 삭제</button>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">열</div>
-      <div class="prop-row" style="gap:6px;">
-        <button class="prop-action-btn secondary" id="tb-add-col" style="flex:1">열 추가 +</button>
-        <button class="prop-action-btn danger"    id="tb-del-col" style="flex:1">마지막 열 삭제</button>
-      </div>
-    </div>`;
-
-  document.getElementById('tb-style-select').addEventListener('change', e => {
-    tb.dataset.style = e.target.value;
-  });
-
-  document.getElementById('tb-header-toggle').addEventListener('change', e => {
-    tb.dataset.showHeader = e.target.checked ? 'true' : 'false';
-    const thead = tb.querySelector('thead');
-    if (thead) thead.style.display = e.target.checked ? '' : 'none';
-  });
-
-  document.getElementById('tb-add-row').addEventListener('click', () => {
-    const tbody = tb.querySelector('tbody');
-    if (!tbody) return;
-    pushHistory();
-    const colCount = tbody.querySelector('tr')?.children.length
-                  || tb.querySelector('thead tr')?.children.length || 2;
-    const tr = document.createElement('tr');
-    for (let i = 0; i < colCount; i++) {
-      const td = document.createElement('td'); td.textContent = ''; tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
-  });
-
-  document.getElementById('tb-del-row').addEventListener('click', () => {
-    const tbody = tb.querySelector('tbody');
-    if (!tbody) return;
-    const rows = tbody.querySelectorAll('tr');
-    if (rows.length <= 1) return;
-    pushHistory();
-    rows[rows.length - 1].remove();
-  });
-
-  document.getElementById('tb-add-col').addEventListener('click', () => {
-    pushHistory();
-    const headerRow = tb.querySelector('thead tr');
-    if (headerRow) { const th = document.createElement('th'); th.textContent = '항목'; headerRow.appendChild(th); }
-    tb.querySelectorAll('tbody tr').forEach(tr => {
-      const td = document.createElement('td'); td.textContent = ''; tr.appendChild(td);
-    });
-  });
-
-  document.getElementById('tb-del-col').addEventListener('click', () => {
-    const headerRow = tb.querySelector('thead tr');
-    const bodyRows  = [...tb.querySelectorAll('tbody tr')];
-    const colCount  = headerRow ? headerRow.children.length : (bodyRows[0]?.children.length || 0);
-    if (colCount <= 1) return;
-    pushHistory();
-    if (headerRow) headerRow.lastElementChild.remove();
-    bodyRows.forEach(tr => { if (tr.lastElementChild) tr.lastElementChild.remove(); });
-  });
-}
-
-/* ═══════════════════════════════════
    BLOCK / SECTION 추가
 ═══════════════════════════════════ */
 const ASSET_SVG = `
@@ -2941,7 +2721,7 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
-      if (block.classList.contains('editing') || dragTarget.querySelector('.text-block.editing')) { e.preventDefault(); return; }
+      if (block.classList.contains('editing')) { e.preventDefault(); return; }
       dragSrc = dragTarget;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
@@ -3030,7 +2810,7 @@ function makeIconCircleBlock() {
     <div class="icb-circle" style="width:80px;height:80px;background:#e8e8e8;">
       <span class="icb-content">⭐</span>
     </div>
-    <div class="icb-label" contenteditable="false"></div>`;
+    <div class="icb-label" data-placeholder="라벨 텍스트 (선택)" contenteditable="false"></div>`;
 
   col.appendChild(icb);
   row.appendChild(col);
@@ -4680,21 +4460,6 @@ layerPanelBody.addEventListener('drop', e => {
 
 let _previewScrollHandler = null;
 let _previewEscHandler    = null;
-let previewZoom = 100;
-
-function _applyPreviewZoom() {
-  previewZoom = Math.min(200, Math.max(50, previewZoom));
-  document.querySelectorAll('.preview-page-inner').forEach(el => {
-    el.style.width = Math.round(860 * previewZoom / 100) + 'px';
-  });
-  const d = document.getElementById('preview-zoom-display');
-  if (d) d.textContent = previewZoom + '%';
-}
-
-function previewZoomStep(delta) {
-  previewZoom = Math.min(200, Math.max(50, previewZoom + delta));
-  _applyPreviewZoom();
-}
 
 function enterPreview() {
   flushCurrentPage();
@@ -4760,16 +4525,8 @@ function enterPreview() {
   _previewScrollHandler = () => _updatePreviewNav(overlay);
   overlay.addEventListener('scroll', _previewScrollHandler);
 
-  _previewEscHandler = e => {
-    if (e.key === 'Escape') { exitPreview(); return; }
-    if (!document.body.classList.contains('preview-mode')) return;
-    if (e.key === '=' || e.key === '+') { e.preventDefault(); previewZoomStep(10); }
-    if (e.key === '-')                  { e.preventDefault(); previewZoomStep(-10); }
-  };
+  _previewEscHandler = e => { if (e.key === 'Escape') exitPreview(); };
   document.addEventListener('keydown', _previewEscHandler);
-
-  previewZoom = 100;
-  _applyPreviewZoom();
 }
 
 function exitPreview() {
@@ -4792,7 +4549,6 @@ function exitPreview() {
 
   document.getElementById('preview-content').innerHTML   = '';
   document.getElementById('preview-navigator').innerHTML = '';
-  previewZoom = 100;
 }
 
 function _updatePreviewNav(overlay) {
@@ -4877,35 +4633,13 @@ function _stopAnimPreview() {
 function _getTextStyle(tb) {
   const el = tb.querySelector('[contenteditable]');
   const cs = window.getComputedStyle(el);
-
-  // innerHTML에서 <br> → \n 변환으로 줄바꿈 포함 텍스트 추출
-  const text = (el.innerHTML || '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .trim() || 'Sample Text';
-
-  // 섹션 배경색
-  const sec = tb.closest('.section-block');
-  let sectionBg = (typeof pageSettings !== 'undefined' && pageSettings?.bg) || '#ffffff';
-  if (sec) {
-    const rawBg = sec.style.background || sec.style.backgroundColor || '';
-    if (rawBg && rawBg !== 'transparent' && rawBg !== 'rgba(0, 0, 0, 0)') sectionBg = rawBg;
-  }
-
-  // textAlign: label은 부모 tb에, 그 외는 contenteditable el
-  const isLabel = el.classList.contains('tb-label');
-  const textAlign = isLabel ? (tb.style.textAlign || 'left') : (cs.textAlign || 'left');
-
   return {
-    text,
+    text:          (el.innerText || el.textContent || 'Sample Text').trim(),
     fontSize:      parseFloat(cs.fontSize)    || 24,
     color:         cs.color                   || '#111111',
     fontFamily:    cs.fontFamily              || 'sans-serif',
     fontWeight:    cs.fontWeight              || '400',
     letterSpacing: parseFloat(cs.letterSpacing) || 0,
-    textAlign,
-    sectionBg,
   };
 }
 
