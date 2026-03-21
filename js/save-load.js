@@ -4,6 +4,7 @@
 const SAVE_KEY = 'web-editor-autosave';
 const PROJECTS_KEY = 'sangpe-projects';
 let autoSaveTimer = null;
+let currentFileName = null; // 현재 세션의 저장 파일명 (null = 최초 저장 전)
 
 /* ── 프로젝트 관리 ── */
 const _urlParams = new URLSearchParams(window.location.search);
@@ -361,15 +362,43 @@ function rebindAll() {
   });
 }
 
-function saveProject() {
-  const json = serializeProject();
-  localStorage.setItem(SAVE_KEY, json);
+function _downloadJSON(json, filename) {
   const blob = new Blob([json], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `web-editor-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = filename.endsWith('.json') ? filename : filename + '.json';
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+function saveProject() {
+  const json = serializeProject();
+  localStorage.setItem(SAVE_KEY, json);
+
+  if (!currentFileName) {
+    // 최초 저장: 파일명 입력 다이얼로그
+    const defaultName = getProjectName() || `web-editor-${new Date().toISOString().slice(0,10)}`;
+    const name = prompt('파일명을 입력하세요', defaultName);
+    if (name === null) return; // 취소
+    currentFileName = name.trim() || defaultName;
+  }
+
+  _downloadJSON(json, currentFileName);
+  showToast('✅ 저장됨 — ' + currentFileName);
+}
+
+function saveProjectAs() {
+  const json = serializeProject();
+  localStorage.setItem(SAVE_KEY, json);
+
+  const defaultName = currentFileName || getProjectName() || `web-editor-${new Date().toISOString().slice(0,10)}`;
+  const name = prompt('다른 이름으로 저장', defaultName);
+  if (name === null) return; // 취소
+  const trimmed = name.trim() || defaultName;
+  currentFileName = trimmed;
+
+  _downloadJSON(json, currentFileName);
+  showToast('✅ 저장됨 — ' + currentFileName);
 }
 
 function loadProjectFile(e) {
