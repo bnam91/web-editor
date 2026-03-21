@@ -1195,6 +1195,7 @@ function showSectionProperties(sec) {
       <div class="prop-section-title">템플릿</div>
       <select class="prop-select" id="sec-tpl-cat" style="width:100%;margin-bottom:6px;">
         <option value="Hero">Hero</option>
+        <option value="Main">Main</option>
         <option value="Feature">Feature</option>
         <option value="Detail">Detail</option>
         <option value="CTA">CTA</option>
