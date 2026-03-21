@@ -1748,3 +1748,33 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 .anim-export-btn:hover { background: #3878f0; }
 .anim-export-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+/* ── Preview Zoom Control ── */
+#preview-zoom-ctrl {
+  display: none;
+  position: fixed;
+  bottom: 20px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 2100;
+  align-items: center; gap: 6px;
+  background: rgba(20,20,20,0.85);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 0 10px; height: 32px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+body.preview-mode #preview-zoom-ctrl { display: flex; }
+#preview-zoom-ctrl button {
+  background: none; border: none;
+  color: #aaa; font-size: 16px;
+  cursor: pointer; line-height: 1;
+  padding: 0 4px;
+  transition: color 0.1s;
+}
+#preview-zoom-ctrl button:hover { color: #fff; }
+#preview-zoom-display {
+  font-size: 11px; color: #ccc;
+  min-width: 36px; text-align: center;
+  user-select: none;
+}

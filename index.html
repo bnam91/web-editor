@@ -407,6 +407,11 @@
   편집으로 돌아가기
 </button>
 <div id="preview-navigator"></div>
+<div id="preview-zoom-ctrl">
+  <button onclick="previewZoomStep(-10)">−</button>
+  <span id="preview-zoom-display">100%</span>
+  <button onclick="previewZoomStep(10)">+</button>
+</div>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script src="js/gif.js"></script>
