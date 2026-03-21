@@ -1211,13 +1211,13 @@ function showSectionProperties(sec) {
   const hex    = document.getElementById('sec-bg-hex');
   const swatch = picker.closest('.prop-color-swatch');
   picker.addEventListener('input', () => {
-    sec.style.background = picker.value;
+    sec.style.backgroundColor = picker.value;
     hex.value = picker.value;
     swatch.style.background = picker.value;
   });
   hex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(hex.value)) {
-      sec.style.background = hex.value;
+      sec.style.backgroundColor = hex.value;
       picker.value = hex.value;
       swatch.style.background = hex.value;
     }
@@ -2806,7 +2806,7 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
-      if (block.classList.contains('editing')) { e.preventDefault(); return; }
+      if (block.classList.contains('editing') || dragTarget.querySelector('.text-block.editing')) { e.preventDefault(); return; }
       dragSrc = dragTarget;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
