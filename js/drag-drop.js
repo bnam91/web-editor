@@ -605,7 +605,7 @@ function addRowBlock() {
     col.style.flex = '1';
     col.dataset.flex = '1';
     const ph = makeColPlaceholder(col);
-    ph.style.minHeight = '390px';
+    ph.style.minHeight = '390px'; // 단독 Asset 기본 높이(780px)의 약 절반
     col.appendChild(ph);
     row.appendChild(col);
   });
