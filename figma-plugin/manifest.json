@@ -1,0 +1,19 @@
+{
+  "name": "Goya Talk to Figma",
+  "id": "1617287018592267633",
+  "api": "1.0.0",
+  "main": "code.js",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "documentAccess": "dynamic-page",
+  "editorType": ["figma"],
+  "ui": "ui.html",
+  "networkAccess": {
+    "allowedDomains": ["none"],
+    "reasoning": "WebSocket connection to local MCP server for AI agent communication",
+    "devAllowedDomains": [
+      "ws://localhost:3055",
+      "http://localhost:3055"
+    ]
+  }
+}
