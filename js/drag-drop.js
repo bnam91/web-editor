@@ -294,6 +294,30 @@ function bindBlock(block) {
       highlightBlock(block, block._layerItem);
       showIconCircleProperties(block);
     });
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      triggerCircleUpload(block);
+    });
+    block.addEventListener('dragover', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.add('drag-over');
+    });
+    block.addEventListener('dragleave', e => {
+      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
+    });
+    block.addEventListener('drop', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) loadImageToCircle(block, file);
+    });
+    // 로드/undo 후 has-image 복원
+    if (block.classList.contains('has-image')) {
+      const clearBtn = block.querySelector('.icb-clear-btn');
+      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); clearCircleImage(block); });
+    }
   }
 
   if (isTableB) {
@@ -438,10 +462,10 @@ function bindBlock(block) {
 }
 
 function makeTextBlock(type) {
-  const classMap  = { h1:'tb-h1', h2:'tb-h2', body:'tb-body', caption:'tb-caption', label:'tb-label' };
-  const labelMap  = { h1:'Heading', h2:'Heading', body:'Body', caption:'Caption', label:'Label' };
-  const dataType  = (type==='h1'||type==='h2') ? 'heading' : type;
-  const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', body:'본문을 입력하세요', caption:'캡션을 입력하세요', label:'Label' };
+  const classMap  = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label' };
+  const labelMap  = { h1:'Heading', h2:'Heading', h3:'Heading', body:'Body', caption:'Caption', label:'Label' };
+  const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
+  const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', h3:'소항목을 입력하세요', body:'본문을 입력하세요', caption:'캡션을 입력하세요', label:'Label' };
 
   const row = document.createElement('div');
   row.className = 'row'; row.dataset.layout = 'stack';
@@ -476,10 +500,12 @@ function makeAssetBlock() {
   ab.className = 'asset-block';
   ab.id = genId('ab');
   ab.dataset.align = 'center';
+  ab.dataset.overlay = 'false';
   ab.style.alignSelf = 'center';
   ab.innerHTML = `
     ${ASSET_SVG}
-    <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
+    <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
+    <div class="asset-overlay" contenteditable="true">텍스트를 입력하세요</div>`;
 
   col.appendChild(ab);
   row.appendChild(col);
@@ -503,14 +529,13 @@ function makeIconCircleBlock() {
   const icb = document.createElement('div');
   icb.className = 'icon-circle-block'; icb.dataset.type = 'icon-circle';
   icb.id = genId('icb');
-  icb.dataset.size = '80';
+  icb.dataset.size = '240';
   icb.dataset.bgColor = '#e8e8e8';
   icb.dataset.border = 'none';
   icb.innerHTML = `
-    <div class="icb-circle" style="width:80px;height:80px;background:#e8e8e8;">
-      <span class="icb-content">⭐</span>
-    </div>
-    <div class="icb-label" contenteditable="false"></div>`;
+    <div class="icb-circle" style="width:240px;height:240px;background:#e8e8e8;">
+      <span class="icb-placeholder">+</span>
+    </div>`;
 
   col.appendChild(icb);
   row.appendChild(col);
@@ -659,7 +684,7 @@ function showToast(msg) {
 }
 
 function getSectionAlign(sec) {
-  const first = sec.querySelector('.text-block .tb-h1, .text-block .tb-h2, .text-block .tb-body');
+  const first = sec.querySelector('.text-block .tb-h1, .text-block .tb-h2, .text-block .tb-h3, .text-block .tb-body');
   if (!first) return null;
   return first.style.textAlign || null;
 }
@@ -810,9 +835,6 @@ function addSection() {
   sec.innerHTML = `
     <span class="section-label">Section ${String(newIdx).padStart(2,'0')}</span>
     <div class="section-toolbar">
-      <button class="st-btn">↑</button>
-      <button class="st-btn">↓</button>
-      <button class="st-btn" style="color:#e06c6c;">✕</button>
       <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
     </div>
     <div class="section-inner">
@@ -826,9 +848,10 @@ function addSection() {
       </div>
       <div class="row" data-layout="stack">
         <div class="col" data-width="100">
-          <div class="asset-block" id="${genId('ab')}">
+          <div class="asset-block" id="${genId('ab')}" data-align="center" data-overlay="false">
             ${ASSET_SVG}
             <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
+            <div class="asset-overlay" contenteditable="true">텍스트를 입력하세요</div>
           </div>
         </div>
       </div>

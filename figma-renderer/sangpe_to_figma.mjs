@@ -401,13 +401,55 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     return totalH;
   }
 
+  // ── CIRCLE (icon-circle-block) ────────────────────────────────
+  if (block.type === 'circle') {
+    const size    = block.size || 240;
+    const bgColor = block.bgColor || '#e8e8e8';
+    const circleX = x + Math.round((availableWidth - size) / 2);
+
+    // hex → figma RGB
+    const hexToRgb = h => {
+      const v = h.replace('#','');
+      return { r: parseInt(v.slice(0,2),16)/255, g: parseInt(v.slice(2,4),16)/255, b: parseInt(v.slice(4,6),16)/255, a: 1 };
+    };
+
+    const node = run('create_frame', { x: circleX, y, width: size, height: size, name: `circle_${block.id}`, parentId });
+    if (node) {
+      run('set_corner_radius', { nodeId: node.id, radius: size / 2 });
+      if (block.src) {
+        const sourceType  = block.src.startsWith('data:') ? 'base64' : 'url';
+        const imageSource = block.src.startsWith('data:') ? block.src.split(',')[1] : block.src;
+        const fillResult  = run('set_image_fill', { nodeId: node.id, imageSource, sourceType, scaleMode: 'FILL' }, { timeout: 30000 });
+        if (!fillResult) run('set_fill_color', { nodeId: node.id, color: hexToRgb(bgColor) });
+        console.log(`      · circle ${size}×${size} → ${node.id}${fillResult ? ' ✓ 이미지' : ' (배경색)'}`);
+      } else {
+        run('set_fill_color', { nodeId: node.id, color: hexToRgb(bgColor) });
+        console.log(`      · circle ${size}×${size} → ${node.id} (배경색: ${bgColor})`);
+      }
+    }
+    return size;
+  }
+
+  // ── TABLE (table-block) ────────────────────────────────────────
+  if (block.type === 'table') {
+    const tblH = block.height || 200;
+    const node = run('create_frame', { x, y, width: availableWidth, height: tblH, name: `table_${block.id}`, parentId });
+    if (node) {
+      run('set_fill_color', { nodeId: node.id, color: { r: 0.95, g: 0.95, b: 0.95, a: 1 } });
+      console.log(`      · table ${block.colCount}열×${block.rowCount}행 → ${node.id} (플레이스홀더 ${availableWidth}×${tblH})`);
+    }
+    return tblH;
+  }
+
   // ── IMAGE ─────────────────────────────────────────────────────
   if (block.type === 'image') {
     const s      = block.style || {};
     const imgH   = block.height || 400;
+    const padX   = block.padX  || 0;
+    const effectiveW = availableWidth - padX * 2;
     const sizePct = block.sizePct || 100;
-    const imgW   = Math.round(availableWidth * sizePct / 100);
-    const imgX   = x + Math.round((availableWidth - imgW) / 2);
+    const imgW   = Math.round(effectiveW * sizePct / 100);
+    const imgX   = x + padX + Math.round((effectiveW - imgW) / 2);
 
     const node = run('create_frame', {
       x: imgX, y,
@@ -448,6 +490,38 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       }
       if ((s.borderRadius || 0) > 0)
         run('set_corner_radius', { nodeId: node.id, radius: s.borderRadius });
+
+      // ── 오버레이 렌더링 ──
+      if (block.overlayOn && node) {
+        const opacity = typeof block.overlayBg === 'number' ? block.overlayBg : 0.35;
+        const ovRect = run('create_frame', {
+          x: imgX, y,
+          width: imgW, height: imgH,
+          name: `overlay_bg_${block.id}`,
+          parentId,
+        });
+        if (ovRect) {
+          run('set_fill_color', { nodeId: ovRect.id, color: { r: 0, g: 0, b: 0, a: opacity } });
+        }
+
+        if (block.overlayText) {
+          const hexToRgb = hex => {
+            const m = (hex || '#ffffff').replace('#','').match(/.{2}/g);
+            return m ? { r: parseInt(m[0],16)/255, g: parseInt(m[1],16)/255, b: parseInt(m[2],16)/255, a: 1 } : { r:1, g:1, b:1, a:1 };
+          };
+          const textColor = hexToRgb(block.overlayColor);
+          run('create_text', {
+            x: imgX + 24, y: y + Math.round(imgH / 2) - 24,
+            width: imgW - 48,
+            text: block.overlayText,
+            fontSize: 32,
+            fontColor: textColor,
+            name: `overlay_text_${block.id}`,
+            parentId,
+          });
+        }
+        console.log(`      · overlay → opacity:${opacity}, text:"${block.overlayText?.slice(0,20) || ''}"`);
+      }
     }
     return imgH;
   }

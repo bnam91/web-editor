@@ -21,6 +21,18 @@ function showAssetProperties(ab) {
   if (!ab.dataset.align) { ab.dataset.align = 'center'; ab.style.alignSelf = 'center'; }
   const currentSize   = ab.dataset.size    || '100';
   const usePadX       = ab.dataset.usePadx === 'true';
+  const overlayOn     = ab.dataset.overlay === 'true';
+  // 기존 overlay 요소 가져오기 (없으면 생성)
+  let overlayEl = ab.querySelector('.asset-overlay');
+  if (!overlayEl) {
+    overlayEl = document.createElement('div');
+    overlayEl.className = 'asset-overlay';
+    overlayEl.contentEditable = 'true';
+    overlayEl.textContent = '텍스트를 입력하세요';
+    ab.appendChild(overlayEl);
+  }
+  const overlayColor = overlayEl.style.color || '#ffffff';
+  const overlayOpacity = parseFloat(overlayEl.dataset.ovOpacity ?? '0.35');
 
   const imageSection = hasImage ? `
     <div class="prop-section">
@@ -90,7 +102,28 @@ function showAssetProperties(ab) {
         </label>
       </div>
     </div>
-    ${imageSection}`;
+    ${imageSection}
+    <div class="prop-section">
+      <div class="prop-section-title">텍스트 오버레이</div>
+      <div class="prop-row">
+        <span class="prop-label">활성화</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="asset-overlay-toggle" ${overlayOn ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div id="asset-overlay-controls" style="${overlayOn ? '' : 'display:none'}">
+        <div class="prop-row">
+          <span class="prop-label">색상</span>
+          <input type="color" id="asset-overlay-color" value="${overlayColor.startsWith('#') ? overlayColor : '#ffffff'}" style="width:60px;height:24px;border:none;background:none;cursor:pointer;padding:0;">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">불투명</span>
+          <input type="range" class="prop-slider" id="asset-overlay-opacity" min="0" max="100" step="1" value="${Math.round(overlayOpacity * 100)}">
+          <input type="number" class="prop-number" id="asset-overlay-opacity-num" min="0" max="100" value="${Math.round(overlayOpacity * 100)}">
+        </div>
+      </div>
+    </div>`;
 
   bindLayoutInput(ab);
 
@@ -172,4 +205,41 @@ function showAssetProperties(ab) {
   } else {
     document.getElementById('asset-upload-btn').addEventListener('click', () => triggerAssetUpload(ab));
   }
+
+  // ── 오버레이 이벤트 바인딩 ──
+  const applyOverlayBg = opacity => {
+    overlayEl.style.background = `rgba(0,0,0,${opacity})`;
+    overlayEl.dataset.ovOpacity = String(opacity);
+  };
+
+  document.getElementById('asset-overlay-toggle').addEventListener('change', e => {
+    const on = e.target.checked;
+    ab.dataset.overlay = on ? 'true' : 'false';
+    document.getElementById('asset-overlay-controls').style.display = on ? '' : 'none';
+
+    pushHistory();
+  });
+
+  document.getElementById('asset-overlay-color').addEventListener('input', e => {
+    overlayEl.style.color = e.target.value;
+
+  });
+
+  const ovOpSlider = document.getElementById('asset-overlay-opacity');
+  const ovOpNum    = document.getElementById('asset-overlay-opacity-num');
+  ovOpSlider.addEventListener('input', () => {
+    const v = parseInt(ovOpSlider.value) / 100;
+    ovOpNum.value = ovOpSlider.value;
+    applyOverlayBg(v);
+
+  });
+  ovOpNum.addEventListener('change', () => {
+    const v = Math.min(100, Math.max(0, parseInt(ovOpNum.value) || 0));
+    ovOpSlider.value = v;
+    applyOverlayBg(v / 100);
+
+  });
+
+  // overlay 클릭 시 블록 선택 방해 방지
+  overlayEl.addEventListener('click', e => { e.stopPropagation(); });
 }

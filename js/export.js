@@ -695,6 +695,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
   const TEXT_DEFAULTS = {
     'tb-h1':      { fontSize: 104, fontWeight: 700, color: '#111111', lineHeight: 1.1,  letterSpacing: -2.08 },
     'tb-h2':      { fontSize: 72,  fontWeight: 600, color: '#111111', lineHeight: 1.15, letterSpacing: 0 },
+    'tb-h3':      { fontSize: 52,  fontWeight: 600, color: '#111111', lineHeight: 1.2,  letterSpacing: 0 },
     'tb-body':    { fontSize: 36,  fontWeight: 400, color: '#111111', lineHeight: 1.6,  letterSpacing: 0 },
     'tb-caption': { fontSize: 26,  fontWeight: 400, color: '#111111', lineHeight: 1.6,  letterSpacing: 0.26 },
     'tb-label':   { fontSize: 26,  fontWeight: 700, color: '#111111', lineHeight: 1.4,  letterSpacing: 1.56 },
@@ -741,11 +742,12 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       return { type: 'gap', height: parseFloat(el.style.height) || 50 };
     }
     if (el.classList.contains('text-block')) {
-      const inner = el.querySelector('.tb-h1,.tb-h2,.tb-body,.tb-caption,.tb-label');
+      const inner = el.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
       if (!inner) return null;
       const padX = ps?.padX || 0;
       const variant = inner.classList.contains('tb-h1') ? 'heading'
         : inner.classList.contains('tb-h2') ? 'subheading'
+        : inner.classList.contains('tb-h3') ? 'subheading3'
         : inner.classList.contains('tb-body') ? 'body'
         : inner.classList.contains('tb-caption') ? 'caption' : 'label';
       const style = _getTextStyle(inner, el);
@@ -816,14 +818,52 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       };
     }
     if (el.classList.contains('asset-block')) {
-      const sizePct = parseInt(el.dataset.size) || 100;
+      const sizePct   = parseInt(el.dataset.size) || 100;
+      const usePadx   = el.dataset.usePadx === 'true';
+      const padX      = usePadx ? (ps?.padX || 0) : 0;
+      const overlayOn = el.dataset.overlay === 'true';
+      const ovEl      = el.querySelector('.asset-overlay');
+      const overlayText    = overlayOn ? (ovEl?.innerText || '') : '';
+      const overlayColor   = overlayOn ? (ovEl?.style.color || '#ffffff') : '';
+      const overlayBg      = overlayOn ? parseFloat(ovEl?.dataset.ovOpacity ?? '0.35') : 0;
       return {
         type: 'image',
         id: el.id || ('ab_' + Math.random().toString(36).slice(2, 8)),
         height: parseFloat(el.style.height) || 780,
         sizePct,
+        padX,
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
         src: el.dataset.imgSrc || null,
+        overlayOn,
+        overlayText,
+        overlayColor,
+        overlayBg,
+      };
+    }
+    if (el.classList.contains('icon-circle-block')) {
+      const size    = parseInt(el.dataset.size) || 240;
+      const bgColor = el.dataset.bgColor || '#e8e8e8';
+      const imgSrc  = el.dataset.imgSrc  || null;
+      return {
+        type:    'circle',
+        id:      el.id || ('icb_' + Math.random().toString(36).slice(2, 8)),
+        size,
+        bgColor,
+        src:     imgSrc,
+      };
+    }
+    if (el.classList.contains('table-block')) {
+      const table    = el.querySelector('.tb-table');
+      const rowCount = (table?.querySelectorAll('tbody tr').length || 2) + 1; // +1 for header
+      const fontSize = parseInt(table?.style.fontSize) || 28;
+      const cellPad  = parseInt(el.dataset.cellPad) || 10;
+      const approxH  = rowCount * (fontSize + cellPad * 2 + 4) + 24;
+      return {
+        type:    'table',
+        id:      el.id || ('tbl_' + Math.random().toString(36).slice(2, 8)),
+        height:  approxH,
+        colCount: table?.querySelector('tr')?.querySelectorAll('th,td').length || 2,
+        rowCount,
       };
     }
     return null;
@@ -834,7 +874,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block').forEach(b => {
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block').forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });
