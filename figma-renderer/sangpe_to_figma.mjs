@@ -9,10 +9,11 @@
  * 사용법: node sangpe_to_figma.mjs <channelId> <jsonPath>
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import os from 'os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,12 +28,30 @@ if (!CHANNEL || !JSON_PATH) {
 const FIGMA_CMD = path.join(__dirname, 'figma_cmd.mjs');
 
 // ─── Figma 커맨드 ────────────────────────────────────────────────
-function run(command, params) {
-  const result = spawnSync(
-    'node',
-    [FIGMA_CMD, '--channel', CHANNEL, '--command', command, '--params', JSON.stringify(params)],
-    { encoding: 'utf-8', timeout: 15000 }
-  );
+// opts: { timeout } (ms)
+function run(command, params, opts = {}) {
+  const paramsStr  = JSON.stringify(params);
+  const spawnMs    = (opts.timeout || 15000) + 3000; // spawnSync는 ws timeout보다 여유 있게
+  const timeoutArg = String(opts.timeout || 8000);
+
+  let args;
+  let tmpFile = null;
+
+  // CLI 인수 크기 한계(~2MB) 초과 시 임시 파일로 전달
+  if (paramsStr.length > 100000) {
+    tmpFile = path.join(os.tmpdir(), `figma_params_${Date.now()}.json`);
+    writeFileSync(tmpFile, paramsStr);
+    args = [FIGMA_CMD, '--channel', CHANNEL, '--command', command,
+            '--params-file', tmpFile, '--timeout', timeoutArg];
+  } else {
+    args = [FIGMA_CMD, '--channel', CHANNEL, '--command', command,
+            '--params', paramsStr, '--timeout', timeoutArg];
+  }
+
+  const result = spawnSync('node', args, { encoding: 'utf-8', timeout: spawnMs });
+
+  if (tmpFile) { try { unlinkSync(tmpFile); } catch {} }
+
   if (result.error) throw result.error;
   try {
     return JSON.parse(result.stdout);
@@ -239,7 +258,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           imageSource,
           sourceType,
           scaleMode: 'FILL',
-        });
+        }, { timeout: 30000 });
         if (!fillResult) {
           // 이미지 업로드 실패 시 회색 fallback
           run('set_fill_color', { nodeId: node.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
