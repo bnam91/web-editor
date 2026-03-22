@@ -1273,9 +1273,9 @@ body {
 .prop-toggle input:checked + .prop-toggle-track::after { transform: translateX(14px); background: #fff; }
 
 /* 에셋 프리셋 버튼 */
-.prop-preset-group { display: flex; gap: 6px; }
+.prop-preset-group { display: flex; flex-wrap: wrap; gap: 6px; }
 .prop-preset-btn {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  flex: 1 1 calc(50% - 3px); display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 7px 4px; border: 1px solid #333; border-radius: 6px;
   background: #1a1a1a; color: #ccc; cursor: pointer; font-size: 11px; font-weight: 600;
   transition: border-color 0.15s, background 0.15s;
