@@ -138,6 +138,10 @@ function pasteClipboard() {
 }
 
 document.addEventListener('keydown', e => {
+  // contenteditable 편집 중: 에디터 전역 단축키 차단
+  // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
+  if (document.activeElement?.isContentEditable && !e.metaKey && !e.ctrlKey) return;
+
   if (e.metaKey || e.ctrlKey) {
     if (e.key === '=' || e.key === '+') {
       e.preventDefault();

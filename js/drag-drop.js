@@ -181,6 +181,8 @@ function bindBlock(block) {
   if (isText) {
     block.addEventListener('click', e => {
       e.stopPropagation();
+      // 편집 모드 중 클릭은 무시 (커서 이동/텍스트 선택 기본 동작 유지)
+      if (block.classList.contains('editing')) return;
       if (e.shiftKey) {
         if (block.classList.contains('selected')) {
           block.classList.remove('selected');
@@ -201,10 +203,38 @@ function bindBlock(block) {
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
       block.classList.add('editing');
-      block.querySelectorAll('[contenteditable]').forEach(el => {
-        el.setAttribute('contenteditable', 'true');
-        el.focus();
-      });
+      const editEls = block.querySelectorAll('[contenteditable]');
+      editEls.forEach(el => el.setAttribute('contenteditable', 'true'));
+
+      // 클릭 위치에 해당하는 편집 요소 찾기 (보통 1개)
+      const clicked = [...editEls].find(el => el.contains(document.elementFromPoint(e.clientX, e.clientY))) || editEls[0];
+      if (clicked) {
+        clicked.focus();
+        // 클릭 위치에 정확히 커서 지정
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (range) {
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        // 편집 이벤트 바인딩 (최초 1회)
+        if (!clicked._editBound) {
+          clicked._editBound = true;
+          // blur → 편집 종료 (외부 클릭, 포커스 이탈 시)
+          clicked.addEventListener('blur', () => {
+            block.classList.remove('editing');
+            clicked.setAttribute('contenteditable', 'false');
+          });
+          // Escape → 편집 종료, 블록 선택 상태 유지
+          clicked.addEventListener('keydown', ev => {
+            if (ev.key === 'Escape') {
+              ev.preventDefault();
+              ev.stopPropagation(); // 전역 deselectAll() 차단
+              clicked.blur();       // blur 핸들러가 editing 정리
+            }
+          });
+        }
+      }
     });
   }
 
@@ -576,6 +606,7 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
+      if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
       dragSrc = dragTarget;
       e.dataTransfer.effectAllowed = 'move';
