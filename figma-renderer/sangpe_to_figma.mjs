@@ -53,6 +53,8 @@ function run(command, params, opts = {}) {
   if (tmpFile) { try { unlinkSync(tmpFile); } catch {} }
 
   if (result.error) throw result.error;
+  // delete_node 등 반환값 없는 커맨드는 파싱 경고 생략
+  if (!result.stdout?.trim()) return null;
   try {
     return JSON.parse(result.stdout);
   } catch {
@@ -96,8 +98,18 @@ function toFigmaAlign(align) {
 // 반환값: 실제 점유 높이(px)
 function renderBlock(block, parentId, x, y, availableWidth) {
 
-  // ── GAP (Y 오프셋만 추가, 노드 생성 안 함) ──────────────────
+  // ── GAP (빈 프레임 스페이서) ─────────────────────────────────
   if (block.type === 'gap') {
+    const frame = run('create_frame', {
+      x, y,
+      width: availableWidth,
+      height: block.height,
+      name: 'gap',
+      parentId,
+    });
+    if (frame) {
+      run('set_fill_color', { nodeId: frame.id, color: { r: 0, g: 0, b: 0, a: 0 } });
+    }
     return block.height;
   }
 
@@ -118,6 +130,116 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     return rowHeight;
   }
 
+  // ── LABEL GROUP (여러 라벨 가로 배치) ────────────────────────
+  if (block.type === 'label-group') {
+    const items    = block.items || [];
+    const style    = block.style || {};
+    const gap      = style.gap      || 10;
+    const paddingX = style.paddingX || 20;
+    const align    = style.align    || 'left';
+    const fontSize = 26;
+    const padH = 36, padV = 11;
+    const totalH = block.height || (fontSize * 1.4 + padV * 2 + 16);
+
+    const family    = 'Noto Sans KR';
+    const fontStyle = 'Bold';
+    run('load_font_async', { family, style: fontStyle });
+
+    // 1단계: 모든 아이템 텍스트 너비 사전 측정 (임시 생성 → 측정 → 삭제)
+    const measured = [];
+    for (const item of items) {
+      const tmp = run('create_text', {
+        x: 0, y: 0,
+        text: item.text || 'Tag',
+        fontSize, fontWeight: 700,
+        fontColor: hex(item.color || '#ffffff'),
+        textAutoResize: 'WIDTH_AND_HEIGHT',
+        name: `_tmp_measure_${item.text}`,
+        parentId,
+      });
+      if (!tmp) { measured.push({ textW: fontSize * 3, textH: fontSize * 1.4 }); continue; }
+      run('set_font_name', { nodeId: tmp.id, family, style: fontStyle });
+      const info  = run('get_node_info', { nodeId: tmp.id });
+      const textW = info?.absoluteBoundingBox?.width  || fontSize * (item.text?.length || 3) * 0.65;
+      const textH = info?.absoluteBoundingBox?.height || fontSize * 1.4;
+      run('delete_node', { nodeId: tmp.id });
+      measured.push({ textW: Math.ceil(textW), textH: Math.ceil(textH) });
+    }
+
+    // 2단계: 래퍼 프레임 생성 + 오토레이아웃 (HORIZONTAL)
+    const primaryAlign = align === 'center' ? 'CENTER' : align === 'right' ? 'MAX' : 'MIN';
+    const wrapper = run('create_frame', {
+      x, y, width: availableWidth, height: totalH,
+      name: `label-group_${block.id || ''}`,
+      parentId,
+    });
+    if (!wrapper) return totalH;
+    run('set_fill_color', { nodeId: wrapper.id, color: { r: 0, g: 0, b: 0, a: 0 } });
+    run('set_auto_layout', {
+      nodeId: wrapper.id,
+      layoutMode: 'HORIZONTAL',
+      paddingLeft: paddingX, paddingRight: paddingX,
+      paddingTop: 0, paddingBottom: 0,
+      itemSpacing: gap,
+      primaryAxisAlignItems: primaryAlign,
+      counterAxisAlignItems: 'CENTER',
+      layoutWrap: 'WRAP',
+      primaryAxisSizingMode: 'FIXED',
+      counterAxisSizingMode: 'AUTO',
+    });
+    // 오토레이아웃 후 hug 모드로 바뀌므로 너비 고정 (fallback)
+    run('resize_node', { nodeId: wrapper.id, width: availableWidth, height: totalH });
+
+    // 3단계: 태그 프레임 생성 (래퍼 자식 — 오토레이아웃이 위치 자동 계산)
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const { textW, textH } = measured[i];
+      const boxW = textW + padH * 2;
+      const boxH = textH + padV * 2;
+
+      const frame = run('create_frame', {
+        x: 0, y: 0,
+        width: boxW, height: boxH,
+        name: `lgi_${item.text}`,
+        parentId: wrapper.id,
+      });
+      if (!frame) continue;
+
+      run('set_fill_color', { nodeId: frame.id, color: hex(item.bg || '#111111') });
+      if ((item.radius || 0) > 0) run('set_corner_radius', { nodeId: frame.id, radius: item.radius });
+      // 태그 내부 오토레이아웃 — hug content, 텍스트 수정 시 태그 박스 자동 확장
+      run('set_auto_layout', {
+        nodeId: frame.id,
+        layoutMode: 'HORIZONTAL',
+        paddingLeft: padH, paddingRight: padH,
+        paddingTop: padV, paddingBottom: padV,
+        itemSpacing: 0,
+        primaryAxisAlignItems: 'CENTER',
+        counterAxisAlignItems: 'CENTER',
+        primaryAxisSizingMode: 'AUTO',
+        counterAxisSizingMode: 'AUTO',
+      });
+
+      const textNode = run('create_text', {
+        x: 0, y: 0,
+        text: item.text || 'Tag',
+        fontSize, fontWeight: 700,
+        fontColor: hex(item.color || '#ffffff'),
+        textAlignHorizontal: 'CENTER',
+        textAutoResize: 'WIDTH_AND_HEIGHT',
+        name: `lgi_text_${item.text}`,
+        parentId: frame.id,
+      });
+      if (textNode) {
+        run('set_font_name', { nodeId: textNode.id, family, style: fontStyle });
+      }
+    }
+
+    const preview = items.map(i => i.text).join(' | ');
+    console.log(`      · label-group [${items.length}개] "${preview}"  정렬:${align}  높이:${totalH}px`);
+    return totalH;
+  }
+
   // ── LABEL (배경 박스 + 텍스트) ────────────────────────────────
   if (block.type === 'text' && block.variant === 'label' && block.labelBox) {
     const s  = block.style   || {};
@@ -128,8 +250,8 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const fontStyle = s.fontWeight >= 700 ? 'Bold' : 'Regular';
     run('load_font_async', { family: rawFamily, style: fontStyle });
 
-    // 1. 텍스트 노드 생성 (자연 너비 측정용 — textAutoResize: WIDTH_AND_HEIGHT)
-    const textNode = run('create_text', {
+    // 1. 텍스트 측정용 임시 노드 생성 → 크기 조회 → 삭제
+    const tmpNode = run('create_text', {
       x: 0, y: 0,
       text:               block.content,
       fontSize:           s.fontSize   || 26,
@@ -137,44 +259,84 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       fontColor:          hex(s.color  || '#ffffff'),
       textAlignHorizontal: 'CENTER',
       textAutoResize:     'WIDTH_AND_HEIGHT',
-      name: `label_text_${block.id}`,
+      name: `_tmp_label_${block.id}`,
       parentId,
     });
-    if (!textNode) {
-      return (s.fontSize || 26) * 1.4 + (p.top || 0) + (p.bottom || 0);
-    }
-    run('set_font_name', { nodeId: textNode.id, family: rawFamily, style: fontStyle });
-
-    // 2. 실제 텍스트 크기 조회
-    const textInfo = run('get_node_info', { nodeId: textNode.id });
+    if (!tmpNode) return (s.fontSize || 26) * 1.4 + (p.top || 0) + (p.bottom || 0);
+    run('set_font_name', { nodeId: tmpNode.id, family: rawFamily, style: fontStyle });
+    const textInfo = run('get_node_info', { nodeId: tmpNode.id });
     const textW = textInfo?.absoluteBoundingBox?.width  || 100;
     const textH = textInfo?.absoluteBoundingBox?.height || (s.fontSize || 26) * 1.4;
+    run('delete_node', { nodeId: tmpNode.id });
 
-    // 3. 배경 프레임 생성 (label box)
-    const boxW   = textW + lb.paddingH * 2;
-    const boxH   = textH + lb.paddingV * 2;
-    const boxX   = x + (p.left || 0) + (availableWidth - (p.left || 0) - (p.right || 0) - boxW) / 2;
-    const boxY   = y + (p.top  || 0);
+    const boxW  = textW + lb.paddingH * 2;
+    const boxH  = textH + lb.paddingV * 2;
+    const totalH = boxH + (p.top || 0) + (p.bottom || 0);
 
-    const labelFrame = run('create_frame', {
-      x: boxX, y: boxY,
-      width:  boxW,
-      height: boxH,
-      name: `label_box_${block.id}`,
+    // 2. 래퍼 프레임 (투명, 전체 너비 × 총 높이)
+    const wrapper = run('create_frame', {
+      x, y, width: availableWidth, height: totalH,
+      name: `label_${block.id}`,
       parentId,
+    });
+    if (!wrapper) return totalH;
+    run('set_fill_color', { nodeId: wrapper.id, color: { r: 0, g: 0, b: 0, a: 0 } });
+
+    // 래퍼에 오토레이아웃 → label_box 중앙 정렬, 텍스트 변경 시 양옆으로 균등 확장
+    run('set_auto_layout', {
+      nodeId: wrapper.id,
+      layoutMode: 'HORIZONTAL',
+      paddingLeft: p.left || 0, paddingRight: p.right || 0,
+      paddingTop: p.top || 0, paddingBottom: p.bottom || 0,
+      itemSpacing: 0,
+      primaryAxisAlignItems: 'CENTER',
+      counterAxisAlignItems: 'CENTER',
+      primaryAxisSizingMode: 'FIXED',
+      counterAxisSizingMode: 'AUTO',
+    });
+
+    // 3. 배경 프레임 (래퍼 자식 — 오토레이아웃이 중앙 배치)
+    const labelFrame = run('create_frame', {
+      x: 0, y: 0,
+      width: boxW, height: boxH,
+      name: `label_box_${block.id}`,
+      parentId: wrapper.id,
     });
     if (labelFrame) {
       run('set_fill_color', { nodeId: labelFrame.id, color: hex(lb.bg) });
-      if (lb.radius > 0)
-        run('set_corner_radius', { nodeId: labelFrame.id, radius: lb.radius });
+      if (lb.radius > 0) run('set_corner_radius', { nodeId: labelFrame.id, radius: lb.radius });
 
-      // 4. 텍스트를 배경 프레임 안으로 이동 + 위치 정렬
-      run('insert_child', { parentId: labelFrame.id, childId: textNode.id, index: 0 });
-      run('move_node', { nodeId: textNode.id, x: lb.paddingH, y: lb.paddingV });
+      // 오토레이아웃 적용 (Shift+A) — 텍스트 수정 시 박스 자동 크기 조절
+      run('set_auto_layout', {
+        nodeId: labelFrame.id,
+        layoutMode: 'HORIZONTAL',
+        paddingLeft: lb.paddingH, paddingRight: lb.paddingH,
+        paddingTop: lb.paddingV, paddingBottom: lb.paddingV,
+        itemSpacing: 0,
+        primaryAxisAlignItems: 'CENTER',
+        counterAxisAlignItems: 'CENTER',
+        primaryAxisSizingMode: 'AUTO',
+        counterAxisSizingMode: 'AUTO',
+      });
+
+      // 4. 텍스트를 배경 프레임 자식으로 생성 (오토레이아웃이 위치/크기 자동 계산)
+      const textNode = run('create_text', {
+        x: 0, y: 0,
+        text:               block.content,
+        fontSize:           s.fontSize   || 26,
+        fontWeight:         s.fontWeight || 700,
+        fontColor:          hex(s.color  || '#ffffff'),
+        textAlignHorizontal: 'CENTER',
+        textAutoResize:     'WIDTH_AND_HEIGHT',
+        name: `label_text_${block.id}`,
+        parentId: labelFrame.id,
+      });
+      if (textNode) {
+        run('set_font_name', { nodeId: textNode.id, family: rawFamily, style: fontStyle });
+      }
     }
 
-    const totalH = boxH + (p.top || 0) + (p.bottom || 0);
-    console.log(`      · label "${block.content}"  box:${Math.round(boxW)}×${Math.round(boxH)} → ${labelFrame?.id}`);
+    console.log(`      · label "${block.content}"  box:${Math.round(boxW)}×${Math.round(boxH)} → ${wrapper?.id}`);
     return totalH;
   }
 
@@ -183,49 +345,53 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const s   = block.style   || {};
     const p   = block.padding || { top: 0, right: 0, bottom: 0, left: 0 };
     const textWidth = availableWidth - (p.left || 0) - (p.right || 0);
+    const totalH = (block.height && block.height > 0)
+      ? block.height
+      : Math.ceil((s.fontSize || 16) * (s.lineHeight || 1.4)) + (p.top || 0) + (p.bottom || 0);
 
     const rawFamily = (s.fontFamily || 'Noto Sans KR').replace(/["']/g, '').split(',')[0].trim();
     const fontStyle = s.fontWeight >= 700 ? 'Bold' : 'Regular';
-
     run('load_font_async', { family: rawFamily, style: fontStyle });
 
-    const node = run('create_text', {
-      x: x + (p.left || 0),
-      y: y + (p.top  || 0),
-      text:               block.content,
-      fontSize:           s.fontSize   || 16,
-      fontWeight:         s.fontWeight || 400,
-      fontColor:          hex(s.color  || '#111111'),
-      textAlignHorizontal: toFigmaAlign(s.textAlign),
-      width:              textWidth,
-      textAutoResize:     'HEIGHT',
+    // 1. 텍스트 블록 래퍼 프레임 생성
+    const frame = run('create_frame', {
+      x, y,
+      width: availableWidth,
+      height: totalH,
       name: `${block.variant || 'text'}_${block.id}`,
       parentId,
     });
+    if (!frame) return totalH;
+    run('set_fill_color', { nodeId: frame.id, color: { r: 0, g: 0, b: 0, a: 0 } });
 
-    if (!node) {
-      const fallbackH = Math.ceil((s.fontSize || 16) * (s.lineHeight || 1.4) * 2);
-      return fallbackH + (p.top || 0) + (p.bottom || 0);
+    // 2. 텍스트를 프레임 자식으로 생성 (로컬 좌표)
+    const node = run('create_text', {
+      x: p.left || 0,
+      y: p.top  || 0,
+      text:                block.content,
+      fontSize:            s.fontSize   || 16,
+      fontWeight:          s.fontWeight || 400,
+      fontColor:           hex(s.color  || '#111111'),
+      textAlignHorizontal: toFigmaAlign(s.textAlign),
+      width:               textWidth,
+      textAutoResize:      'HEIGHT',
+      name: `text_${block.id}`,
+      parentId: frame.id,
+    });
+
+    if (node) {
+      run('set_font_name', { nodeId: node.id, family: rawFamily, style: fontStyle });
+      if (s.letterSpacing !== undefined && s.letterSpacing !== 0) {
+        run('set_letter_spacing', { nodeId: node.id, letterSpacing: s.letterSpacing, unit: 'PIXELS' });
+      }
+      if (s.lineHeight) {
+        run('set_line_height', { nodeId: node.id, lineHeight: s.lineHeight * s.fontSize, unit: 'PIXELS' });
+      }
+      run('resize_node', { nodeId: node.id, width: textWidth, height: node.height || 100 });
     }
-
-    run('set_font_name', { nodeId: node.id, family: rawFamily, style: fontStyle });
-
-    if (s.letterSpacing !== undefined && s.letterSpacing !== 0) {
-      run('set_letter_spacing', { nodeId: node.id, letterSpacing: s.letterSpacing, unit: 'PIXELS' });
-    }
-
-    if (s.lineHeight) {
-      run('set_line_height', { nodeId: node.id, lineHeight: s.lineHeight * s.fontSize, unit: 'PIXELS' });
-    }
-
-    run('resize_node', { nodeId: node.id, width: textWidth, height: node.height || 100 });
-
-    const nodeInfo = run('get_node_info', { nodeId: node.id });
-    const actualH  = nodeInfo?.absoluteBoundingBox?.height || node.height || Math.ceil((s.fontSize || 16) * (s.lineHeight || 1.4));
-    const totalH   = actualH + (p.top || 0) + (p.bottom || 0);
 
     const preview = block.content.slice(0, 24) + (block.content.length > 24 ? '…' : '');
-    console.log(`      · text[${block.variant}] ${s.fontSize}px "${preview}"  실제높이:${actualH}px → ${node.id}`);
+    console.log(`      · text[${block.variant}] ${s.fontSize}px "${preview}"  DOM높이:${totalH}px → ${frame.id}`);
     return totalH;
   }
 
@@ -289,6 +455,13 @@ const sectionGap  = meta.theme?.sectionGap || 28;
 console.log(`\n🎨 sangpe → Figma 변환 시작`);
 console.log(`   캔버스: ${canvasWidth}px  섹션: ${sections.length}개  섹션 간격: ${sectionGap}px\n`);
 
+// ─── Figma 연결 확인 ─────────────────────────────────────────────
+const pingResult = run('get_document_info', {}, { timeout: 6000 });
+if (!pingResult) {
+  console.error('❌ Figma 연결 실패: 채널 ID를 확인하거나 Figma 플러그인이 실행 중인지 확인해주세요.');
+  process.exit(1);
+}
+
 // ─── 모드 판단 ────────────────────────────────────────────────────
 // 하나라도 figmaId 가 있으면 "부분 업로드" 모드 → 전체 삭제 안 함
 const isPartialUpload = sections.some(s => s.figmaId);
@@ -296,8 +469,7 @@ const isPartialUpload = sections.some(s => s.figmaId);
 if (!isPartialUpload) {
   // 전체 업로드: 기존 페이지 프레임 전체 삭제
   console.log('🗑  기존 노드 정리 중...');
-  const docInfo = run('get_document_info', {});
-  const pageChildren = docInfo?.children || [];
+  const pageChildren = pingResult?.children || [];
   let deletedCount = 0;
   for (const child of pageChildren) {
     run('delete_node', { nodeId: child.id });

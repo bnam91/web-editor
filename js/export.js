@@ -745,7 +745,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         variant,
         id: el.id || ('tb_' + Math.random().toString(36).slice(2,8)),
         content: inner.textContent.trim(),
-        height: Math.round(el.offsetHeight),  // DOM 실측 높이 (패딩 포함)
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),  // 라이브 DOM 실측 높이
         style: {
           fontSize:      style.fontSize,
           fontWeight:    style.fontWeight,
@@ -795,7 +795,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         type:   'label-group',
         id:     el.id || ('lg_' + Math.random().toString(36).slice(2, 8)),
         items,
-        height: Math.round(el.offsetHeight),
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),
         style:  { gap, align, paddingX: parseInt(el.style.paddingLeft) || 20 },
       };
     }
