@@ -990,7 +990,7 @@ body {
    COL — 열 단위
    data-width: "100" | "75" | "66" | "50" | "33" | "25"
 ═══════════════════════════════════ */
-.col { position: relative; min-width: 0; display: flex; flex-direction: column; }
+.col { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .col[data-width="100"] { flex: 100; }
 .col[data-width="75"]  { flex: 75; }
 .col[data-width="66"]  { flex: 66; }
@@ -1076,7 +1076,6 @@ body {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 12px; cursor: pointer;
-  margin-top: 16px; margin-bottom: 16px;
   transition: background 0.15s;
 }
 .asset-block:hover    { background: rgba(140,140,140,0.75); }
@@ -1674,7 +1673,7 @@ body {
 .table-block:not([data-style]) .tb-table td {
   border: 1px solid #ccc;
   padding: 10px 16px;
-  text-align: left;
+  text-align: center;
   vertical-align: middle;
 }
 .table-block[data-style="default"] .tb-table thead th,
@@ -1688,7 +1687,7 @@ body {
 .table-block[data-style="stripe"] .tb-table td {
   border: 1px solid #ddd;
   padding: 10px 16px;
-  text-align: left;
+  text-align: center;
   vertical-align: middle;
 }
 .table-block[data-style="stripe"] .tb-table thead th { background: #333; color: #fff; font-weight: 600; }
@@ -1700,7 +1699,7 @@ body {
   border: none;
   border-bottom: 1px solid #eee;
   padding: 10px 16px;
-  text-align: left;
+  text-align: center;
   vertical-align: middle;
 }
 .table-block[data-style="borderless"] .tb-table thead th { font-weight: 600; color: #555; }
