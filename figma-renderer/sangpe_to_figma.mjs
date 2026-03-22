@@ -189,8 +189,8 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       primaryAxisSizingMode: 'FIXED',
       counterAxisSizingMode: 'AUTO',
     });
-    // 오토레이아웃 후 hug 모드로 바뀌므로 너비 고정 (fallback)
-    run('resize_node', { nodeId: wrapper.id, width: availableWidth, height: totalH });
+    // 너비만 고정, 높이는 AUTO로 Figma가 결정 (2줄 wrap 시 높이가 달라질 수 있음)
+    run('resize_node', { nodeId: wrapper.id, width: availableWidth });
 
     // 3단계: 태그 프레임 생성 (래퍼 자식 — 오토레이아웃이 위치 자동 계산)
     for (let i = 0; i < items.length; i++) {
@@ -237,9 +237,13 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       }
     }
 
+    // 태그 생성 후 실제 높이 읽기 (wrap 2줄 시 totalH와 다를 수 있음)
+    const wrapperInfo = run('get_node_info', { nodeId: wrapper.id });
+    const actualH = wrapperInfo?.absoluteBoundingBox?.height || totalH;
+
     const preview = items.map(i => i.text).join(' | ');
-    console.log(`      · label-group [${items.length}개] "${preview}"  정렬:${align}  높이:${totalH}px`);
-    return totalH;
+    console.log(`      · tag-group [${items.length}개] "${preview}"  정렬:${align}  높이:${actualH}px`);
+    return actualH;
   }
 
   // ── LABEL (배경 박스 + 텍스트) ────────────────────────────────
