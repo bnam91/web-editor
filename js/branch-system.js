@@ -265,14 +265,33 @@ function timeSince(ts) {
    FEATURE BRANCH + FOCUS MODE
 ═══════════════════════════════════ */
 
-// 섹션 툴바 ⎇ 버튼 클릭 → feature 브랜치 생성
+// 섹션 툴바 ⎇ 버튼 클릭 → feature 브랜치 즉시 생성
 function openSectionBranchMenu(btn) {
   const sec = btn.closest('.section-block');
   if (!sec || !sec.id) { showToast('⚠️ 섹션 ID가 없습니다.'); return; }
+
   const secLabel = sec.querySelector('.section-label')?.textContent?.trim() || sec.id;
-  const name = prompt(`[${secLabel}]을 feature 브랜치로 실험\n브랜치 이름:`, 'feature/');
-  if (!name || !name.trim()) return;
-  createFeatureBranchFromSection(sec.id, name.trim());
+
+  // 섹션 라벨 → 브랜치 이름 자동 생성 (영문/숫자/한글 허용, 나머지는 -)
+  const slug = secLabel
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9가-힣\-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || sec.id;
+
+  const store = loadBranchStore();
+  if (!store) return;
+
+  // 이름 중복 시 숫자 suffix
+  let name = `feature/${slug}`;
+  let suffix = 2;
+  while (store.branches[name]) {
+    name = `feature/${slug}-${suffix++}`;
+  }
+
+  createFeatureBranchFromSection(sec.id, name);
+  showToast(`✅ 브랜치 생성: ${name}`);
 }
 
 // feature 브랜치 생성 (특정 섹션 스코프)
