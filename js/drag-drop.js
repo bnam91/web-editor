@@ -915,6 +915,106 @@ function addRowBlock() {
   selectSection(sec);
 }
 
+// ── Row 프리셋 생성 ──────────────────────────────────────────
+function makePresetRow(type) {
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  const makeAb = () => {
+    const ab = document.createElement('div');
+    ab.className = 'asset-block';
+    ab.id = genId('ab');
+    ab.dataset.align = 'center';
+    ab.dataset.overlay = 'false';
+    ab.style.alignSelf = 'center';
+    ab.innerHTML = `${ASSET_SVG}<span class="asset-label">에셋을 업로드하거나 드래그하세요</span><div class="asset-overlay" contenteditable="true">텍스트를 입력하세요</div>`;
+    return ab;
+  };
+
+  const makeCol = (flex) => {
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.style.flex = flex;
+    col.dataset.flex = flex;
+    return col;
+  };
+
+  if (type === 'img1') {
+    row.dataset.layout = 'stack';
+    const col = document.createElement('div');
+    col.className = 'col'; col.dataset.width = '100';
+    const ab = makeAb();
+    col.appendChild(ab);
+    row.appendChild(col);
+    return { row, firstBlock: ab };
+  }
+
+  if (type === 'img2') {
+    row.dataset.layout = 'flex'; row.dataset.ratioStr = '1*1';
+    const blocks = [];
+    [1, 1].forEach(flex => {
+      const col = makeCol(flex);
+      const ab = makeAb();
+      col.appendChild(ab);
+      row.appendChild(col);
+      blocks.push(ab);
+    });
+    return { row, firstBlock: blocks[0], allBlocks: blocks };
+  }
+
+  if (type === 'img3') {
+    row.dataset.layout = 'flex'; row.dataset.ratioStr = '1*1*1';
+    const blocks = [];
+    [1, 1, 1].forEach(flex => {
+      const col = makeCol(flex);
+      const ab = makeAb();
+      col.appendChild(ab);
+      row.appendChild(col);
+      blocks.push(ab);
+    });
+    return { row, firstBlock: blocks[0], allBlocks: blocks };
+  }
+
+  if (type === 'text-img') {
+    row.dataset.layout = 'flex'; row.dataset.ratioStr = '1*1';
+    // 텍스트 col
+    const colText = makeCol(1);
+    const tb = document.createElement('div');
+    tb.className = 'text-block'; tb.dataset.type = 'body';
+    tb.id = genId('tb');
+    tb.innerHTML = `<div class="tb-body" contenteditable="false">본문을 입력하세요</div>`;
+    if (pageSettings.padX > 0) { tb.style.paddingLeft = pageSettings.padX + 'px'; tb.style.paddingRight = pageSettings.padX + 'px'; }
+    tb.style.paddingTop = pageSettings.padY + 'px';
+    tb.style.paddingBottom = pageSettings.padY + 'px';
+    colText.appendChild(tb);
+    // 이미지 col
+    const colImg = makeCol(1);
+    const ab = makeAb();
+    colImg.appendChild(ab);
+    row.appendChild(colText);
+    row.appendChild(colImg);
+    return { row, firstBlock: ab, allBlocks: [tb, ab] };
+  }
+
+  return { row, firstBlock: null };
+}
+
+function addPresetRow(type) {
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  pushHistory();
+  const { row, firstBlock, allBlocks } = makePresetRow(type);
+  insertAfterSelected(sec, row);
+  if (allBlocks) allBlocks.forEach(b => bindBlock(b));
+  else if (firstBlock) bindBlock(firstBlock);
+  buildLayerPanel();
+  selectSection(sec);
+  // 첫 번째 asset-block 자동 선택 (이미지 업로드 유도)
+  if (firstBlock && firstBlock.classList.contains('asset-block')) {
+    firstBlock.click();
+  }
+}
+
 function addAssetBlock() {
   const sec = getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
