@@ -404,3 +404,72 @@ function showCardProperties(block) {
     rSlider.value = v; applyRadius(v);
   });
 }
+
+function showStripBannerProperties(block) {
+  const bgColor = block.dataset.bgColor || '#f5f5f5';
+  const radius  = parseInt(block.dataset.radius) || 12;
+
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <rect x="1" y="2" width="10" height="8" rx="1.5"/>
+            <line x1="4" y1="2" x2="4" y2="10"/>
+          </svg>
+        </div>
+        <span class="prop-block-name">Strip Banner</span>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
+      </div>
+      <div class="prop-section-title">이미지</div>
+      <div class="prop-row">
+        <button class="prop-btn-full" onclick="triggerStripBannerImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
+      </div>
+      ${block.classList.contains('has-image') ? `
+      <div class="prop-row">
+        <button class="prop-btn-full prop-btn-danger" onclick="clearStripBannerImage(document.getElementById('${block.id}'))">이미지 제거</button>
+      </div>` : ''}
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">텍스트 영역</div>
+      <div class="prop-color-row">
+        <span class="prop-label">배경색</span>
+        <div class="prop-color-swatch" style="background:${bgColor}">
+          <input type="color" id="sbb-bg-color" value="${bgColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="sbb-bg-hex" value="${bgColor}" maxlength="7">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="sbb-radius-slider" min="0" max="40" step="1" value="${radius}">
+        <input type="number" class="prop-number" id="sbb-radius-number" min="0" max="40" value="${radius}">
+      </div>
+    </div>`;
+
+  const bgInput  = document.getElementById('sbb-bg-color');
+  const bgHex    = document.getElementById('sbb-bg-hex');
+  const content  = block.querySelector('.sbb-content');
+
+  function applyBg(val) {
+    block.dataset.bgColor = val;
+    content.style.background = val;
+  }
+  bgInput.addEventListener('input', () => { bgHex.value = bgInput.value; applyBg(bgInput.value); });
+  bgHex.addEventListener('change', () => {
+    const v = bgHex.value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) { bgInput.value = v; applyBg(v); }
+  });
+
+  const rSlider = document.getElementById('sbb-radius-slider');
+  const rNumber = document.getElementById('sbb-radius-number');
+
+  function applyRadius(val) {
+    block.dataset.radius = val;
+    block.style.borderRadius = val + 'px';
+  }
+  rSlider.addEventListener('input', () => { rNumber.value = rSlider.value; applyRadius(rSlider.value); });
+  rNumber.addEventListener('input', () => {
+    const v = Math.min(40, Math.max(0, parseInt(rNumber.value) || 0));
+    rSlider.value = v; applyRadius(v);
+  });
+}

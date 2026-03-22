@@ -174,6 +174,7 @@ function bindBlock(block) {
   const isTableB     = block.classList.contains('table-block');
   const isLabelGroup = block.classList.contains('label-group-block');
   const isCard       = block.classList.contains('card-block');
+  const isStripBanner = block.classList.contains('strip-banner-block');
 
 
   if (isText) {
@@ -489,6 +490,62 @@ function bindBlock(block) {
     }
   }
 
+  if (isStripBanner) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        syncSection(block.closest('.section-block'));
+        return;
+      }
+      deselectAll();
+      block.classList.add('selected');
+      syncSection(block.closest('.section-block'));
+      highlightBlock(block, block._layerItem);
+      showStripBannerProperties(block);
+    });
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      if (e.target.closest('.sbb-image')) {
+        triggerStripBannerImageUpload(block);
+        return;
+      }
+      const textEl = e.target.closest('.sbb-heading, .sbb-body');
+      if (textEl) {
+        textEl.contentEditable = 'true';
+        textEl.focus();
+        block.classList.add('editing');
+        textEl.addEventListener('blur', () => {
+          textEl.contentEditable = 'false';
+          block.classList.remove('editing');
+        }, { once: true });
+        textEl.addEventListener('keydown', ev => {
+          if (ev.key === 'Escape') { textEl.blur(); }
+        }, { once: true });
+      }
+    });
+    block.addEventListener('dragover', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.add('drag-over');
+    });
+    block.addEventListener('dragleave', e => {
+      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
+    });
+    block.addEventListener('drop', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) loadImageToStripBanner(block, file);
+    });
+    if (block.classList.contains('has-image')) {
+      const clearBtn = block.querySelector('.sbb-clear-btn');
+      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); clearStripBannerImage(block); });
+    }
+  }
+
   // hover ↔ layer item
   block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = '#252525'; });
   block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
@@ -712,7 +769,7 @@ function insertBeforeBottomGap(section, el) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   const inner = section.querySelector('.section-inner');
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected');
+  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected');
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
@@ -773,7 +830,7 @@ function addTextBlock(type) {
 }
 
 function groupSelectedBlocks() {
-  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .card-block.selected')];
+  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .card-block.selected, .strip-banner-block.selected')];
   if (selected.length < 2) return;
 
   // 같은 섹션의 블록만 그룹
@@ -921,6 +978,43 @@ function addCardBlock() {
   selectSection(sec);
 }
 
+function makeStripBannerBlock() {
+  const row = document.createElement('div');
+  row.className = 'row'; row.dataset.layout = 'stack';
+
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+
+  const sbb = document.createElement('div');
+  sbb.className = 'strip-banner-block'; sbb.dataset.type = 'strip-banner';
+  sbb.id = genId('sbb');
+  sbb.dataset.bgColor = '#f5f5f5';
+  sbb.dataset.radius = '12';
+  sbb.innerHTML = `
+    <div class="sbb-image">
+      <span class="sbb-img-placeholder">+</span>
+    </div>
+    <div class="sbb-content" style="background:#f5f5f5;">
+      <div class="sbb-heading" contenteditable="false">제목을 입력하세요</div>
+      <div class="sbb-body" contenteditable="false">내용을 입력하세요. 제품의 특징이나 설명을 간결하게 작성해보세요.</div>
+    </div>`;
+
+  col.appendChild(sbb);
+  row.appendChild(col);
+  return { row, block: sbb };
+}
+
+function addStripBannerBlock() {
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  pushHistory();
+  const { row, block } = makeStripBannerBlock();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  buildLayerPanel();
+  selectSection(sec);
+}
+
 function addSection() {
   const canvas  = document.getElementById('canvas');
   const secList = canvas.querySelectorAll('.section-block');
@@ -966,7 +1060,7 @@ function addSection() {
   bindSectionOrder(sec);
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block').forEach(b => bindBlock(b));
 
   buildLayerPanel();
   selectSection(sec);

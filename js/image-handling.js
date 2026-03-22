@@ -432,3 +432,44 @@ function clearCardImage(cdb) {
   imageArea.innerHTML = `<span class="cdb-img-placeholder">+</span>`;
   showCardProperties(cdb);
 }
+
+function triggerStripBannerImageUpload(sbb) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (file) loadImageToStripBanner(sbb, file);
+  };
+  input.click();
+}
+
+function loadImageToStripBanner(sbb, file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  pushHistory();
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const src = ev.target.result;
+    const imageArea = sbb.querySelector('.sbb-image');
+    sbb.classList.add('has-image');
+    sbb.dataset.imgSrc = src;
+    imageArea.innerHTML = `
+      <img class="sbb-img" src="${src}" draggable="false">
+      <button class="sbb-clear-btn" title="이미지 제거">✕</button>`;
+    imageArea.querySelector('.sbb-clear-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      clearStripBannerImage(sbb);
+    });
+    showStripBannerProperties(sbb);
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearStripBannerImage(sbb) {
+  pushHistory();
+  sbb.classList.remove('has-image');
+  delete sbb.dataset.imgSrc;
+  const imageArea = sbb.querySelector('.sbb-image');
+  imageArea.innerHTML = `<span class="sbb-img-placeholder">+</span>`;
+  showStripBannerProperties(sbb);
+}
