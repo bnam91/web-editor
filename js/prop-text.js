@@ -20,7 +20,6 @@ function showTextProperties(tb) {
   const currentPadB  = tb.style.paddingBottom ? (parseInt(tb.style.paddingBottom) || 0) : defaultPad;
   const currentFont  = contentEl.style.fontFamily || '';
 
-  const ratioStr = getCurrentRatioStr(tb);
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -31,11 +30,6 @@ function showTextProperties(tb) {
         </div>
         <span class="prop-block-name">Text Block</span>
         ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${tb.id}')">${tb.id}</span>` : ''}
-      </div>
-      <div class="prop-section-title">레이아웃</div>
-      <div class="prop-row">
-        <span class="prop-label">비율</span>
-        <input type="text" class="prop-layout-input" id="layout-ratio" value="${ratioStr}" placeholder="1*2*1">
       </div>
     </div>
     <div class="prop-section">
