@@ -1,45 +1,102 @@
 /* ═══════════════════════════════════
    TEMPLATE SYSTEM
 ═══════════════════════════════════ */
-const TEMPLATE_KEY = 'sangpe-templates';
+const TEMPLATE_KEY = 'sangpe-templates'; // localStorage fallback key
+
+let _templatesCache = null;  // 메타데이터 전용 (canvas 없음)
+let _lsFullCache    = [];    // 비-Electron 전용: canvas 포함 전체 데이터
+
+// 앱 시작 시 1회 호출
+async function initTemplates() {
+  if (window.electronAPI?.loadTemplateIndex) {
+    _templatesCache = await window.electronAPI.loadTemplateIndex();
+    // localStorage 기존 데이터 → 파일로 마이그레이션
+    const lsRaw = localStorage.getItem(TEMPLATE_KEY);
+    if (lsRaw && _templatesCache.length === 0) {
+      try {
+        const old = JSON.parse(lsRaw) || [];
+        const index = [];
+        for (const tpl of old) {
+          const { canvas, ...meta } = tpl;
+          index.push(meta);
+          if (canvas) await window.electronAPI.saveTemplateCanvas(tpl.id, canvas);
+        }
+        _templatesCache = index;
+        await window.electronAPI.saveTemplateIndex(index);
+        localStorage.removeItem(TEMPLATE_KEY);
+      } catch {}
+    }
+  } else {
+    // 비-Electron fallback — localStorage에서 canvas 포함 전체 로드
+    try { _lsFullCache = JSON.parse(localStorage.getItem(TEMPLATE_KEY)) || []; } catch {}
+    _templatesCache = _lsFullCache.map(({ canvas, ...meta }) => meta);
+  }
+}
 
 function loadTemplates() {
-  try { return JSON.parse(localStorage.getItem(TEMPLATE_KEY)) || []; } catch { return []; }
+  return _templatesCache || [];
 }
 
 function saveTemplates(arr) {
-  localStorage.setItem(TEMPLATE_KEY, JSON.stringify(arr));
+  _templatesCache = arr;
+  if (window.electronAPI?.saveTemplateIndex) {
+    window.electronAPI.saveTemplateIndex(arr);
+  } else {
+    // localStorage: 메타 업데이트하되 canvas 데이터 유지
+    _lsFullCache = arr.map(meta => {
+      const existing = _lsFullCache.find(t => t.id === meta.id);
+      return existing ? { ...meta, canvas: existing.canvas } : meta;
+    });
+    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(_lsFullCache));
+  }
 }
 
-function saveAsTemplate(sec, name, folder, category) {
+// canvas HTML 로드 (파일 or localStorage fallback)
+async function _loadCanvas(id) {
+  if (window.electronAPI?.loadTemplateCanvas) {
+    return await window.electronAPI.loadTemplateCanvas(id);
+  }
+  const full = _lsFullCache.find(t => t.id === id);
+  return full ? full.canvas : null;
+}
+
+async function saveAsTemplate(sec, name, folder, category) {
   const clone = sec.cloneNode(true);
   clone.classList.remove('selected');
   clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
   clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
   clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
+
+  const id  = 'tpl_' + Date.now();
+  const html = clone.outerHTML;
+
+  if (window.electronAPI?.saveTemplateCanvas) {
+    await window.electronAPI.saveTemplateCanvas(id, html);
+  } else {
+    _lsFullCache.unshift({ id, name, folder: folder || '기타', category, createdAt: new Date().toISOString(), thumbnail: null, canvas: html });
+  }
+
   const templates = loadTemplates();
-  templates.unshift({
-    id: 'tpl_' + Date.now(),
-    name,
-    folder: folder || '기타',
-    category,
-    createdAt: new Date().toISOString(),
-    thumbnail: null,
-    canvas: clone.outerHTML
-  });
+  templates.unshift({ id, name, folder: folder || '기타', category, createdAt: new Date().toISOString(), thumbnail: null });
   saveTemplates(templates);
   renderTemplatePanel();
 }
 
-function deleteTemplate(id) {
-  const templates = loadTemplates().filter(t => t.id !== id);
-  saveTemplates(templates);
+async function deleteTemplate(id) {
+  if (window.electronAPI?.deleteTemplateCanvas) {
+    await window.electronAPI.deleteTemplateCanvas(id);
+  } else {
+    _lsFullCache = _lsFullCache.filter(t => t.id !== id);
+  }
+  saveTemplates(loadTemplates().filter(t => t.id !== id));
   renderTemplatePanel();
 }
 
-function insertTemplate(tpl) {
+async function insertTemplate(tpl) {
+  const canvas = await _loadCanvas(tpl.id);
+  if (!canvas) return;
   const tmp = document.createElement('div');
-  tmp.innerHTML = tpl.canvas;
+  tmp.innerHTML = canvas;
   const sec = tmp.firstElementChild;
   if (!sec || !sec.classList.contains('section-block')) return;
 
@@ -103,9 +160,11 @@ function saveFolderState(state) {
   localStorage.setItem(TPL_FOLDER_KEY, JSON.stringify(state));
 }
 
-function showTemplatePreview(id) {
+async function showTemplatePreview(id) {
   const tpl = loadTemplates().find(t => t.id === id);
   if (!tpl) return;
+  const canvas = await _loadCanvas(id);
+  if (!canvas) return;
 
   // 기존 미리보기 제거
   document.querySelectorAll('.tpl-preview-backdrop').forEach(el => el.remove());
@@ -126,7 +185,7 @@ function showTemplatePreview(id) {
           </svg>
         </button>
       </div>
-      <div class="tpl-preview-canvas">${tpl.canvas}</div>
+      <div class="tpl-preview-canvas">${canvas}</div>
       <div class="tpl-preview-footer">
         <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">+ 섹션 추가</button>
       </div>
@@ -143,10 +202,10 @@ function showTemplatePreview(id) {
     backdrop.remove();
   });
 
-  backdrop.querySelector('.tpl-preview-insert-btn').addEventListener('click', e => {
+  backdrop.querySelector('.tpl-preview-insert-btn').addEventListener('click', async e => {
     e.stopPropagation();
     const t = loadTemplates().find(x => x.id === e.currentTarget.dataset.tplId);
-    if (t) { insertTemplate(t); backdrop.remove(); }
+    if (t) { backdrop.remove(); await insertTemplate(t); }
   });
 }
 
@@ -216,7 +275,7 @@ function startEditTemplate(id) {
     renderTemplatePanel();
   });
 
-  form.querySelector('.tpl-edit-overwrite').addEventListener('click', () => {
+  form.querySelector('.tpl-edit-overwrite').addEventListener('click', async () => {
     const sec = canvasEl.querySelector('.section-block.selected');
     if (!sec) { alert('덮어쓸 섹션을 먼저 선택하세요.'); return; }
     const clone = sec.cloneNode(true);
@@ -224,9 +283,12 @@ function startEditTemplate(id) {
     clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
     clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
     clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
-    const templates = loadTemplates();
-    const idx = templates.findIndex(t => t.id === id);
-    if (idx !== -1) { templates[idx].canvas = clone.outerHTML; saveTemplates(templates); }
+    if (window.electronAPI?.saveTemplateCanvas) {
+      await window.electronAPI.saveTemplateCanvas(id, clone.outerHTML);
+    } else {
+      const fi = _lsFullCache.findIndex(t => t.id === id);
+      if (fi !== -1) { _lsFullCache[fi].canvas = clone.outerHTML; localStorage.setItem(TEMPLATE_KEY, JSON.stringify(_lsFullCache)); }
+    }
     form.remove();
     renderTemplatePanel();
   });

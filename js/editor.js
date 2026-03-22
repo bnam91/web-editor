@@ -655,44 +655,11 @@ function deselectAll() {
 
 
 function bindSectionDelete(sec) {
-  const btns = sec.querySelectorAll('.section-toolbar .st-btn');
-  if (btns[2]) {
-    btns[2].addEventListener('click', e => {
-      e.stopPropagation();
-      pushHistory();
-      sec.remove();
-      deselectAll();
-      buildLayerPanel();
-    });
-  }
+  // 삭제 버튼 제거됨 — 레이어 패널 또는 컨텍스트 메뉴에서 처리
 }
 
 function bindSectionOrder(sec) {
-  const btns = sec.querySelectorAll('.section-toolbar .st-btn');
-  if (btns[0]) {
-    btns[0].addEventListener('click', e => {
-      e.stopPropagation();
-      const prev = sec.previousElementSibling;
-      if (prev && prev.classList.contains('section-block')) {
-        pushHistory();
-        canvasEl.insertBefore(sec, prev);
-        buildLayerPanel();
-        selectSection(sec);
-      }
-    });
-  }
-  if (btns[1]) {
-    btns[1].addEventListener('click', e => {
-      e.stopPropagation();
-      const next = sec.nextElementSibling;
-      if (next && next.classList.contains('section-block')) {
-        pushHistory();
-        canvasEl.insertBefore(next, sec);
-        buildLayerPanel();
-        selectSection(sec);
-      }
-    });
-  }
+  // 순서 버튼 제거됨 — 드래그 또는 레이어 패널에서 처리
 }
 
 document.querySelectorAll('.section-block').forEach(sec => {
@@ -724,13 +691,19 @@ function getSelectedSection() {
   return document.querySelector('.section-block.selected');
 }
 
-/* ── 플로팅 패널 Text 드롭다운 ── */
-function toggleFpDropdown() {
-  document.getElementById('fp-text-dropdown').classList.toggle('open');
+/* ── 플로팅 패널 드롭다운 ── */
+function toggleFpDropdown(id) {
+  const targetId = id || 'fp-text-dropdown';
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  const wasOpen = target.classList.contains('open');
+  document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
+  if (!wasOpen) target.classList.add('open');
 }
 document.addEventListener('click', e => {
-  const dd = document.getElementById('fp-text-dropdown');
-  if (dd && !dd.contains(e.target)) dd.classList.remove('open');
+  if (!e.target.closest('.fp-dropdown')) {
+    document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
+  }
   const bdw = document.getElementById('branch-dropdown-wrap');
   if (bdw && !bdw.contains(e.target)) bdw.classList.remove('open');
   if (!e.target.closest('.col-add-btn') && !e.target.closest('.col-add-menu')) {

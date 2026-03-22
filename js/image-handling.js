@@ -347,3 +347,47 @@ function clearAssetImage(ab) {
     <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
   showAssetProperties(ab);
 }
+
+/* ══════════════════════════════════════
+   원형 프레임 (Icon Circle) 이미지
+══════════════════════════════════════ */
+function triggerCircleUpload(icb) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (file) loadImageToCircle(icb, file);
+  };
+  input.click();
+}
+
+function loadImageToCircle(icb, file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  pushHistory();
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const src = ev.target.result;
+    const circle = icb.querySelector('.icb-circle');
+    icb.classList.add('has-image');
+    icb.dataset.imgSrc = src;
+    circle.innerHTML = `
+      <img class="icb-img" src="${src}" draggable="false">
+      <button class="icb-clear-btn" title="이미지 제거">✕</button>`;
+    circle.querySelector('.icb-clear-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      clearCircleImage(icb);
+    });
+    showIconCircleProperties(icb);
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearCircleImage(icb) {
+  pushHistory();
+  icb.classList.remove('has-image');
+  delete icb.dataset.imgSrc;
+  const circle = icb.querySelector('.icb-circle');
+  circle.innerHTML = `<span class="icb-placeholder">+</span>`;
+  showIconCircleProperties(icb);
+}

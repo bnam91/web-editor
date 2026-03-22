@@ -19,15 +19,18 @@ function showIconCircleProperties(block) {
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
         <span class="prop-label">지름</span>
-        <input type="range" class="prop-slider" id="icb-size-slider" min="40" max="200" step="4" value="${size}">
-        <input type="number" class="prop-number"  id="icb-size-number" min="40" max="200" value="${size}">
+        <input type="range" class="prop-slider" id="icb-size-slider" min="40" max="860" step="4" value="${size}">
+        <input type="number" class="prop-number"  id="icb-size-number" min="40" max="860" value="${size}">
       </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">색상</div>
-      <div class="prop-row">
+      <div class="prop-color-row">
         <span class="prop-label">배경</span>
-        <input type="color" class="prop-color" id="icb-bg-color" value="${bgColor}">
+        <div class="prop-color-swatch" style="background:${bgColor}">
+          <input type="color" id="icb-bg-color" value="${bgColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="icb-bg-hex" value="${bgColor}" maxlength="7">
       </div>
     </div>
     <div class="prop-section">
@@ -42,8 +45,29 @@ function showIconCircleProperties(block) {
       </div>
     </div>`;
 
+  // 이미지 섹션 추가
+  const hasImage = block.classList.contains('has-image');
+  propPanel.innerHTML += hasImage ? `
+    <div class="prop-section">
+      <div class="prop-section-title">이미지</div>
+      <button class="prop-action-btn secondary" id="icb-replace-btn">이미지 교체</button>
+      <button class="prop-action-btn danger"    id="icb-remove-btn">이미지 제거</button>
+    </div>` : `
+    <div class="prop-section">
+      <div class="prop-section-title">이미지</div>
+      <button class="prop-action-btn primary" id="icb-upload-btn">이미지 선택</button>
+      <div style="text-align:center;font-size:11px;color:#555;margin-top:6px;">또는 블록에 파일을 드래그</div>
+    </div>`;
+
+  if (hasImage) {
+    document.getElementById('icb-replace-btn').addEventListener('click', () => triggerCircleUpload(block));
+    document.getElementById('icb-remove-btn').addEventListener('click', () => clearCircleImage(block));
+  } else {
+    document.getElementById('icb-upload-btn').addEventListener('click', () => triggerCircleUpload(block));
+  }
+
   const applySize = v => {
-    v = Math.min(200, Math.max(40, v));
+    v = Math.min(860, Math.max(40, v));
     block.dataset.size     = v;
     circle.style.width     = v + 'px';
     circle.style.height    = v + 'px';
@@ -54,11 +78,25 @@ function showIconCircleProperties(block) {
   document.getElementById('icb-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); pushHistory(); });
   document.getElementById('icb-size-slider').addEventListener('change', () => pushHistory());
 
-  document.getElementById('icb-bg-color').addEventListener('input', e => {
-    block.dataset.bgColor  = e.target.value;
-    circle.style.background = e.target.value;
+  const bgPicker = document.getElementById('icb-bg-color');
+  const bgHex    = document.getElementById('icb-bg-hex');
+  const bgSwatch = bgPicker.closest('.prop-color-swatch');
+  bgPicker.addEventListener('input', () => {
+    block.dataset.bgColor   = bgPicker.value;
+    circle.style.background = bgPicker.value;
+    bgHex.value             = bgPicker.value;
+    bgSwatch.style.background = bgPicker.value;
   });
-  document.getElementById('icb-bg-color').addEventListener('change', () => pushHistory());
+  bgPicker.addEventListener('change', () => pushHistory());
+  bgHex.addEventListener('input', () => {
+    if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
+      block.dataset.bgColor   = bgHex.value;
+      circle.style.background = bgHex.value;
+      bgPicker.value          = bgHex.value;
+      bgSwatch.style.background = bgHex.value;
+      pushHistory();
+    }
+  });
 
   document.getElementById('icb-border-select').addEventListener('change', e => {
     block.dataset.border   = e.target.value;

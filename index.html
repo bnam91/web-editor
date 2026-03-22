@@ -20,20 +20,17 @@
       <rect x="6" y="10" width="4" height="4"/>
     </svg>
   </button>
-  <!-- 프로젝트 탭 -->
-  <div id="project-tab">
-    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6">
-      <rect x="1" y="1" width="10" height="10" rx="1.5"/>
-      <line x1="3.5" y1="4" x2="8.5" y2="4"/><line x1="3.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="3.5" y1="9" x2="6.5" y2="9"/>
-    </svg>
-    <span id="project-tab-name">Untitled</span>
-    <button id="project-tab-close" title="닫기">
-      <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5">
-        <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+  <!-- 탭바 -->
+  <div id="tab-bar"></div>
+  <!-- + 새 탭 -->
+  <div id="tab-add-wrap">
+    <button id="tab-add-btn" title="다른 프로젝트 열기" onclick="toggleTabAddMenu(event)">
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
       </svg>
     </button>
+    <div id="tab-add-menu"></div>
   </div>
-  <div class="divider"></div>
   <button class="tb-btn active" id="mode-design-btn" onclick="exitPreview()" style="display:none">Design</button>
   <button class="tb-btn" id="mode-preview-btn" onclick="enterPreview()" style="display:none">Preview</button>
   <div class="spacer"></div>
@@ -49,12 +46,7 @@
     <button class="zoom-btn" onclick="zoomFit()" style="font-size:11px;width:auto;padding:0 6px;">Fit</button>
   </div>
   <div class="divider"></div>
-  <button class="tb-btn" onclick="saveProject()" title="Commit (JSON 저장)">Commit</button>
-  <button class="tb-btn tb-btn--icon" onclick="revertToLastCommit()" title="마지막 커밋으로 되돌리기" id="revert-btn">
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6">
-      <path d="M2 7a5 5 0 1 0 1.5-3.5L2 2v4h4L4.5 4.5"/>
-    </svg>
-  </button>
+  <button class="tb-btn" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
   <div class="divider"></div>
   <div id="publish-dropdown-wrap">
     <button id="publish-btn" onclick="togglePublishDropdown(event)">
@@ -155,6 +147,25 @@
 
   <!-- Left: File / Branch / Inspector -->
   <div class="panel" id="panel-left">
+    <div id="project-name-bar">
+      <div id="editor-logo">
+        <svg id="logo-mark" width="11" height="11" viewBox="0 0 16 16" fill="none">
+          <!-- 살짝 오목한 카드 다이아 (흰색 라인) -->
+          <path d="M8 1 Q10 6 15 8 Q10 10 8 15 Q6 10 1 8 Q6 6 8 1Z" stroke="white" stroke-width="1.4" stroke-linejoin="round" opacity="0.9"/>
+          <!-- 반짝 하이라이트 -->
+          <path d="M5.5 5 Q7 3.8 9.5 5.2" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <circle cx="5.2" cy="5.2" r="0.75" fill="white" opacity="0.7"/>
+        </svg>
+        <div id="logo-text">
+          <span id="logo-name">GOYA DESIGN EDITOR</span>
+          <span id="logo-version-badge">v0.5.0</span>
+        </div>
+      </div>
+      <div id="project-name-row">
+        <span id="project-name-display" ondblclick="startRenameProject()" title="더블클릭하여 이름 변경"></span>
+        <input id="project-name-input" type="text" onblur="finishRenameProject()" onkeydown="if(event.key==='Enter')finishRenameProject();if(event.key==='Escape')cancelRenameProject();" style="display:none">
+      </div>
+    </div>
     <div class="panel-tabs">
       <button class="panel-tab active" data-tab="file" onclick="switchToTab('file')">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
@@ -413,7 +424,7 @@
   </button>
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-text-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown()">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-text-dropdown')">
       <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
         <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="6" x2="8" y2="6"/><line x1="1" y1="9" x2="6" y2="9"/>
       </svg>
@@ -421,11 +432,11 @@
       <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-text-menu">
-      <button class="fp-menu-item" onclick="addTextBlock('h2');toggleFpDropdown()">Heading</button>
-      <button class="fp-menu-item" onclick="addTextBlock('body');toggleFpDropdown()">Body</button>
-      <button class="fp-menu-item" onclick="addTextBlock('caption');toggleFpDropdown()">Caption</button>
-      <button class="fp-menu-item" onclick="addTextBlock('label');toggleFpDropdown()">Label</button>
-    <button class="fp-menu-item" onclick="addLabelGroupBlock();toggleFpDropdown()">Tags</button>
+      <button class="fp-menu-item" onclick="addTextBlock('h2');toggleFpDropdown('fp-text-dropdown')">Heading</button>
+      <button class="fp-menu-item" onclick="addTextBlock('body');toggleFpDropdown('fp-text-dropdown')">Body</button>
+      <button class="fp-menu-item" onclick="addTextBlock('caption');toggleFpDropdown('fp-text-dropdown')">Caption</button>
+      <button class="fp-menu-item" onclick="addTextBlock('label');toggleFpDropdown('fp-text-dropdown')">Label</button>
+      <button class="fp-menu-item" onclick="addLabelGroupBlock();toggleFpDropdown('fp-text-dropdown')">Tags</button>
     </div>
   </div>
   <div class="fp-divider"></div>
@@ -448,20 +459,22 @@
     Gap
   </button>
   <div class="fp-divider"></div>
-  <button class="fp-btn" onclick="addIconCircleBlock()">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <circle cx="5.5" cy="5.5" r="4.5"/>
-    </svg>
-    Circle
-  </button>
-  <button class="fp-btn" onclick="addTableBlock()">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <rect x="1" y="1" width="9" height="9" rx="1"/>
-      <line x1="1" y1="4" x2="10" y2="4"/>
-      <line x1="5" y1="4" x2="5" y2="10"/>
-    </svg>
-    Table
-  </button>
+  <div class="fp-dropdown" id="fp-component-dropdown">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="1" y="1" width="4" height="4" rx="0.5"/>
+        <rect x="6" y="1" width="4" height="4" rx="0.5"/>
+        <rect x="1" y="6" width="4" height="4" rx="0.5"/>
+        <rect x="6" y="6" width="4" height="4" rx="0.5"/>
+      </svg>
+      Component
+      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+    </button>
+    <div class="fp-dropdown-menu" id="fp-component-menu">
+      <button class="fp-menu-item" onclick="addIconCircleBlock();toggleFpDropdown('fp-component-dropdown')">Circle</button>
+      <button class="fp-menu-item" onclick="addTableBlock();toggleFpDropdown('fp-component-dropdown')">Table</button>
+    </div>
+  </div>
 </div>
 
 <!-- Preview Overlay -->

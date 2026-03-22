@@ -172,6 +172,53 @@ ipcMain.handle('figma:write-node-map', (event, nodeMap) => {
   }
 });
 
+/* ── IPC: Templates ── */
+const TEMPLATES_DIR        = path.join(__dirname, 'templates');
+const TEMPLATES_CANVAS_DIR = path.join(TEMPLATES_DIR, 'canvas');
+const TEMPLATES_INDEX_FILE = path.join(TEMPLATES_DIR, 'index.json');
+if (!fs.existsSync(TEMPLATES_CANVAS_DIR)) fs.mkdirSync(TEMPLATES_CANVAS_DIR, { recursive: true });
+
+ipcMain.handle('templates:load-index', () => {
+  // 구버전 templates.json → 분리 구조로 자동 마이그레이션
+  const oldFile = path.join(TEMPLATES_DIR, 'templates.json');
+  if (fs.existsSync(oldFile)) {
+    try {
+      const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
+      const index = old.map(({ canvas, ...meta }) => {
+        if (canvas) fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${meta.id}.html`), canvas, 'utf8');
+        return meta;
+      });
+      fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
+      fs.unlinkSync(oldFile);
+      return index;
+    } catch { return []; }
+  }
+  if (!fs.existsSync(TEMPLATES_INDEX_FILE)) return [];
+  try { return JSON.parse(fs.readFileSync(TEMPLATES_INDEX_FILE, 'utf8')); } catch { return []; }
+});
+
+ipcMain.handle('templates:save-index', (event, index) => {
+  fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
+  return true;
+});
+
+ipcMain.handle('templates:load-canvas', (event, id) => {
+  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${id}.html`);
+  if (!fs.existsSync(filePath)) return null;
+  try { return fs.readFileSync(filePath, 'utf8'); } catch { return null; }
+});
+
+ipcMain.handle('templates:save-canvas', (event, id, html) => {
+  fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${id}.html`), html, 'utf8');
+  return true;
+});
+
+ipcMain.handle('templates:delete-canvas', (event, id) => {
+  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${id}.html`);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  return true;
+});
+
 /* ── IPC: Navigation (추후 구현) ── */
 // ipcMain.handle('navigate', (event, page) => {
 //   const pages = {

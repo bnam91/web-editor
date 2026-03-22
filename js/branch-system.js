@@ -1,20 +1,61 @@
 /* ═══════════════════════════════════
    BRANCH SYSTEM
 ═══════════════════════════════════ */
-const BRANCH_KEY = 'web-editor-branches';
+
+// 브랜치별 색상 (커밋 모달과 공유)
+function getBranchColor(name) {
+  if (!name || name === 'main') return { dot: '#27ae60', text: '#4ecb7a' }; // 초록
+  if (name.startsWith('dev'))  return { dot: '#e07b2a', text: '#f0a05a' }; // 주황
+  return                              { dot: '#2d6fe8', text: '#5a9af0' }; // 파랑 (feature/*)
+}
+
+// 프로젝트별 키 (탭 간 브랜치 상태 분리)
+function getBranchKey() {
+  return activeProjectId ? `web-editor-branches-${activeProjectId}` : 'web-editor-branches';
+}
 
 function loadBranchStore() {
-  try { return JSON.parse(localStorage.getItem(BRANCH_KEY)) || null; } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(getBranchKey())) || null; } catch { return null; }
 }
+
 function saveBranchStore(store) {
-  localStorage.setItem(BRANCH_KEY, JSON.stringify(store));
+  localStorage.setItem(getBranchKey(), JSON.stringify(store));
+  _persistBranchesToFile(store);
 }
-function initBranchStore() {
+
+async function _persistBranchesToFile(store) {
+  if (!activeProjectId || !IS_ELECTRON) return;
+  try {
+    const proj = await window.electronAPI.loadProject(activeProjectId);
+    if (!proj) return;
+    proj.branches = store.branches;
+    proj.currentBranch = store.current;
+    proj.updatedAt = new Date().toISOString();
+    await window.electronAPI.saveProject(proj);
+  } catch {}
+}
+
+async function initBranchStore() {
+  // Electron: 프로젝트 파일에서 브랜치 로드
+  if (activeProjectId && IS_ELECTRON) {
+    try {
+      const proj = await window.electronAPI.loadProject(activeProjectId);
+      if (proj?.branches) {
+        const store = { current: proj.currentBranch || 'main', branches: proj.branches };
+        localStorage.setItem(getBranchKey(), JSON.stringify(store)); // 로컬 캐시
+        updateBranchIndicator(store.current);
+        applyFocusMode(store.current);
+        renderBranchPanel();
+        return store;
+      }
+    } catch {}
+  }
+  // localStorage 폴백 (브라우저 or 파일 없을 때)
   let store = loadBranchStore();
   if (!store) {
     const snap = serializeProject();
     store = {
-      current: 'main',
+      current: 'dev',
       branches: {
         main: { snapshot: snap, createdAt: Date.now(), updatedAt: Date.now() },
         dev:  { snapshot: snap, createdAt: Date.now(), updatedAt: Date.now() }
@@ -23,12 +64,23 @@ function initBranchStore() {
     saveBranchStore(store);
   }
   updateBranchIndicator(store.current);
+  applyFocusMode(store.current);
+  applyMainLock(store.current);
   return store;
 }
 
 function updateBranchIndicator(name) {
   const el = document.getElementById('branch-name');
-  if (el) el.textContent = name;
+  const indicator = document.getElementById('branch-indicator');
+  const col = getBranchColor(name);
+  if (el) {
+    el.textContent = name;
+    el.style.color = col.text;
+  }
+  if (indicator) {
+    const icon = indicator.querySelector('svg');
+    if (icon) icon.style.stroke = col.text;
+  }
   renderBranchDropdown();
 }
 
@@ -49,10 +101,11 @@ function renderBranchDropdown() {
 
   menu.innerHTML = sorted.map(name => {
     const isCurrent = name === store.current;
+    const col = getBranchColor(name);
     return `<div class="branch-dd-item ${isCurrent ? 'current' : ''}" onclick="selectBranchFromDropdown('${name}')">
-      <span class="branch-dd-item-dot"></span>
+      <span class="branch-dd-item-dot" style="background:${col.dot}"></span>
       <span>${name}</span>
-      ${isCurrent ? '<span style="margin-left:auto;font-size:9px;color:#2d6fe8;font-weight:700;">NOW</span>' : ''}
+      ${isCurrent ? '<span style="margin-left:auto;font-size:9px;color:#666;font-weight:600;">NOW</span>' : ''}
     </div>`;
   }).join('') + `
   <div class="branch-dd-divider"></div>
@@ -100,6 +153,8 @@ function switchBranch(name) {
   applyProjectData(data);
   updateBranchIndicator(name);
   applyFocusMode(name);
+  _mainUnlocked = false; // 브랜치 전환 시 임시 해제 초기화
+  applyMainLock(name);
   renderBranchPanel();
 }
 
@@ -218,9 +273,10 @@ function renderBranchPanel() {
             ${isCurrent ? `<button class="branch-scope-add" onclick="promptAddSectionToScope('${name}')">+ 섹션</button>` : ''}
           </div>` : '';
 
+        const col = getBranchColor(name);
         return `
         <div class="branch-item ${isCurrent ? 'current' : ''}" data-branch="${name}">
-          <svg class="branch-item-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+          <svg class="branch-item-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="${col.dot}" stroke-width="1.4">
             <circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="5" r="1.5"/>
             <path d="M3 4v4M3 4C3 6 9 4 9 5"/>
           </svg>
@@ -457,4 +513,53 @@ function maybeAddNewSectionToScope(sectionId) {
     saveBranchStore(store);
     renderBranchPanel();
   }
+}
+
+// main 브랜치 잠금
+let _mainUnlocked = false;
+
+function applyMainLock(branchName) {
+  const isMain = branchName === 'main';
+  const canvas = document.getElementById('canvas');
+  const canvasWrap = document.getElementById('canvas-wrap');
+  let banner = document.getElementById('main-lock-banner');
+
+  if (!isMain || _mainUnlocked) {
+    // 잠금 해제
+    if (banner) banner.remove();
+    if (canvas) canvas.style.pointerEvents = '';
+    if (canvasWrap) canvasWrap.classList.remove('main-locked');
+    return;
+  }
+
+  // 캔버스 편집 불가
+  if (canvas) canvas.style.pointerEvents = 'none';
+  if (canvasWrap) canvasWrap.classList.add('main-locked');
+
+  // 배너 (없으면 생성)
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'main-lock-banner';
+    banner.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="3" y="6" width="8" height="7" rx="1.5"/>
+        <path d="M5 6V4a2 2 0 0 1 4 0v2"/>
+      </svg>
+      <span>main은 읽기 전용이에요 — dev에서 작업 후 병합하세요</span>
+      <button onclick="unlockMainBranch()">임시 잠금 해제</button>
+    `;
+    // focus-mode-bar 바로 뒤에 삽입 (같은 레벨 상단 배너)
+    const focusBar = document.getElementById('focus-mode-bar');
+    if (focusBar) focusBar.insertAdjacentElement('afterend', banner);
+    else document.body.prepend(banner);
+  }
+}
+
+function unlockMainBranch() {
+  if (!confirm('main 브랜치를 임시로 잠금 해제할까요?\n직접 수정은 권장하지 않아요.')) return;
+  _mainUnlocked = true;
+  applyMainLock('main'); // 잠금 제거
+  const canvas = document.getElementById('canvas');
+  if (canvas) canvas.style.pointerEvents = '';
+  // 다른 브랜치로 전환하면 자동 재잠금
 }

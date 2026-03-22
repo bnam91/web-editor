@@ -7,6 +7,8 @@
     "--preset-h1-family": "'Noto Serif KR', serif",
     "--preset-h2-color": "#2d4a7a",
     "--preset-h2-family": "'Noto Serif KR', serif",
+    "--preset-h3-color": "#3d5a8a",
+    "--preset-h3-family": "'Noto Serif KR', serif",
     "--preset-body-color": "#444444",
     "--preset-body-family": "'Noto Sans KR', sans-serif",
     "--preset-caption-color": "#888888",

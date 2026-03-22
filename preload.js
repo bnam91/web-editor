@@ -15,6 +15,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Navigation — 추후 로그인/프로젝트 페이지 구현 시 사용
   // navigate: (page) => ipcRenderer.invoke('navigate', page),
 
+  // Templates
+  loadTemplateIndex:   ()         => ipcRenderer.invoke('templates:load-index'),
+  saveTemplateIndex:   (arr)      => ipcRenderer.invoke('templates:save-index', arr),
+  loadTemplateCanvas:  (id)       => ipcRenderer.invoke('templates:load-canvas', id),
+  saveTemplateCanvas:  (id, html) => ipcRenderer.invoke('templates:save-canvas', id, html),
+  deleteTemplateCanvas:(id)       => ipcRenderer.invoke('templates:delete-canvas', id),
+
   // Figma Upload
   figmaUpload:    (channel, designJSON) => ipcRenderer.invoke('figma:upload', { channel, designJSON }),
   readNodeMap:    ()        => ipcRenderer.invoke('figma:read-node-map'),

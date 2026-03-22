@@ -2,7 +2,7 @@ function showTextProperties(tb) {
   const contentEl = tb.querySelector('[contenteditable]');
   const computed   = window.getComputedStyle(contentEl);
 
-  const currentClass = ['tb-h1','tb-h2','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || 'tb-body';
+  const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || 'tb-body';
   const rawBg = window.getComputedStyle(contentEl).backgroundColor;
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
@@ -43,6 +43,7 @@ function showTextProperties(tb) {
       <div class="prop-type-group">
         <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
         <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
+        <button class="prop-type-btn ${currentClass==='tb-h3'?'active':''}"      data-cls="tb-h3">H3</button>
         <button class="prop-type-btn ${currentClass==='tb-body'?'active':''}"    data-cls="tb-body">Body</button>
         <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Cap</button>
         <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
@@ -172,8 +173,8 @@ function showTextProperties(tb) {
   });
 
   /* 타입 전환 */
-  const labelMap = { 'tb-h1':'Heading','tb-h2':'Heading','tb-body':'Body','tb-caption':'Caption','tb-label':'Label' };
-  const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
+  const labelMap = { 'tb-h1':'Heading','tb-h2':'Heading','tb-h3':'Heading','tb-body':'Body','tb-caption':'Caption','tb-label':'Label' };
+  const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
   propPanel.querySelectorAll('.prop-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const cls = btn.dataset.cls;
