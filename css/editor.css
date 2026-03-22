@@ -1254,6 +1254,8 @@ body {
   display: flex; align-items: center; justify-content: center;
 }
 .prop-block-name { font-size: 12px; font-weight: 600; color: #ccc; }
+.prop-block-id { font-size: 10px; font-weight: 400; color: #555; margin-left: 4px; cursor: pointer; }
+.prop-block-id:hover { color: #888; }
 
 /* 타입 토글 버튼 그룹 */
 .prop-type-group {

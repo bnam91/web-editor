@@ -30,6 +30,7 @@ function showTextProperties(tb) {
           </svg>
         </div>
         <span class="prop-block-name">Text Block</span>
+        ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${tb.id}')">${tb.id}</span>` : ''}
       </div>
       <div class="prop-section-title">레이아웃</div>
       <div class="prop-row">

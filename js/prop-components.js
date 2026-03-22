@@ -14,6 +14,7 @@ function showIconCircleProperties(block) {
           </svg>
         </div>
         <span class="prop-block-name">Icon Circle</span>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
@@ -122,6 +123,7 @@ function showTableProperties(block) {
           </svg>
         </div>
         <span class="prop-block-name">Table Block</span>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">행 / 열</div>
       <div class="prop-row">
@@ -268,6 +270,7 @@ function showGapProperties(gb) {
           </svg>
         </div>
         <span class="prop-block-name">Gap Block</span>
+        ${gb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${gb.id}')">${gb.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
