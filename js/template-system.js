@@ -193,6 +193,22 @@ async function showTemplatePreview(id) {
 
   document.body.appendChild(backdrop);
 
+  // Scale section to fit preview viewport
+  const previewCanvas = backdrop.querySelector('.tpl-preview-canvas');
+  const section = previewCanvas.querySelector('.section-block');
+  if (section) {
+    const CANVAS_WIDTH = 860;
+    section.style.width = CANVAS_WIDTH + 'px';
+    const sectionH = section.scrollHeight;
+    const viewportW = previewCanvas.clientWidth;
+    const viewportH = previewCanvas.clientHeight;
+    const scaleX = viewportW / CANVAS_WIDTH;
+    const scaleY = viewportH / sectionH;
+    const scale = Math.min(scaleX, scaleY);
+    section.style.transform = `scale(${scale})`;
+    section.style.transformOrigin = 'top left';
+  }
+
   backdrop.addEventListener('click', e => {
     if (e.target === backdrop) backdrop.remove();
   });
