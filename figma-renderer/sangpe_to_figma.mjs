@@ -170,17 +170,19 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const primaryAlign = align === 'center' ? 'CENTER' : align === 'right' ? 'MAX' : 'MIN';
     const wrapper = run('create_frame', {
       x, y, width: availableWidth, height: totalH,
-      name: `label-group_${block.id || ''}`,
+      name: `tag-group_${block.id || ''}`,
       parentId,
     });
     if (!wrapper) return totalH;
     run('set_fill_color', { nodeId: wrapper.id, color: { r: 0, g: 0, b: 0, a: 0 } });
+    const rowGap = style.rowGap || gap;
     run('set_auto_layout', {
       nodeId: wrapper.id,
       layoutMode: 'HORIZONTAL',
       paddingLeft: paddingX, paddingRight: paddingX,
       paddingTop: 0, paddingBottom: 0,
       itemSpacing: gap,
+      counterAxisSpacing: rowGap,
       primaryAxisAlignItems: primaryAlign,
       counterAxisAlignItems: 'CENTER',
       layoutWrap: 'WRAP',
@@ -397,12 +399,15 @@ function renderBlock(block, parentId, x, y, availableWidth) {
 
   // ── IMAGE ─────────────────────────────────────────────────────
   if (block.type === 'image') {
-    const s    = block.style || {};
-    const imgH = block.height || 400;
+    const s      = block.style || {};
+    const imgH   = block.height || 400;
+    const sizePct = block.sizePct || 100;
+    const imgW   = Math.round(availableWidth * sizePct / 100);
+    const imgX   = x + Math.round((availableWidth - imgW) / 2);
 
     const node = run('create_frame', {
-      x, y,
-      width:  availableWidth,
+      x: imgX, y,
+      width:  imgW,
       height: imgH,
       name: `image_${block.id}`,
       parentId,

@@ -806,19 +806,22 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const gap   = parseInt(el.style.gap) || 10;
       const jc    = el.style.justifyContent || 'flex-start';
       const align = jc === 'center' ? 'center' : jc === 'flex-end' ? 'right' : 'left';
+      const rowGap = parseInt(el.style.rowGap) || gap;
       return {
         type:   'label-group',
         id:     el.id || ('lg_' + Math.random().toString(36).slice(2, 8)),
         items,
         height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),
-        style:  { gap, align, paddingX: parseInt(el.style.paddingLeft) || 20 },
+        style:  { gap, rowGap, align, paddingX: parseInt(el.style.paddingLeft) || 20 },
       };
     }
     if (el.classList.contains('asset-block')) {
+      const sizePct = parseInt(el.dataset.size) || 100;
       return {
         type: 'image',
         id: el.id || ('ab_' + Math.random().toString(36).slice(2, 8)),
         height: parseFloat(el.style.height) || 780,
+        sizePct,
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
         src: el.dataset.imgSrc || null,
       };
