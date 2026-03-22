@@ -107,17 +107,21 @@ function showPageProperties() {
 
   const applyPadX = (v) => {
     pageSettings.padX = v;
-    document.querySelectorAll('.text-block, .label-group-block').forEach(tb => {
+    document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
       tb.style.paddingLeft = v + 'px';
       tb.style.paddingRight = v + 'px';
     });
     document.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
       applyAssetPadX(ab, v);
     });
+    document.querySelectorAll('.card-block, .strip-banner-block, .graph-block').forEach(b => {
+      b.style.paddingLeft = v + 'px';
+      b.style.paddingRight = v + 'px';
+    });
   };
   const applyPadY = (v) => {
     pageSettings.padY = v;
-    document.querySelectorAll('.text-block').forEach(tb => {
+    document.querySelectorAll('.text-block:not(.overlay-tb)').forEach(tb => {
       if (tb.dataset.type === 'label') return;
       tb.style.paddingTop = v + 'px';
       tb.style.paddingBottom = v + 'px';

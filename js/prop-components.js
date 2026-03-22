@@ -333,8 +333,10 @@ function showGapProperties(gb) {
 }
 
 function showCardProperties(block) {
-  const bgColor = block.dataset.bgColor || '#f5f5f5';
-  const radius  = parseInt(block.dataset.radius) || 12;
+  const bgColor    = block.dataset.bgColor    || '#f5f5f5';
+  const radius     = parseInt(block.dataset.radius)     || 12;
+  const titleSize  = parseInt(block.dataset.titleSize)  || 24;
+  const descSize   = parseInt(block.dataset.descSize)   || 18;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -371,6 +373,29 @@ function showCardProperties(block) {
         <input type="range" class="prop-slider" id="card-radius-slider" min="0" max="40" step="1" value="${radius}">
         <input type="number" class="prop-number" id="card-radius-number" min="0" max="40" value="${radius}">
       </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">텍스트 크기</div>
+      <div class="prop-row">
+        <span class="prop-label">제목</span>
+        <input type="range" class="prop-slider" id="card-title-slider" min="12" max="60" step="1" value="${titleSize}">
+        <input type="number" class="prop-number" id="card-title-number" min="12" max="60" value="${titleSize}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">설명</span>
+        <input type="range" class="prop-slider" id="card-desc-slider" min="10" max="40" step="1" value="${descSize}">
+        <input type="number" class="prop-number" id="card-desc-number" min="10" max="40" value="${descSize}">
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">텍스트 정렬</div>
+      <div class="prop-row">
+        <div class="prop-align-group" id="card-align-group">
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='left'?' active':''}"   data-align="left">←</button>
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='center'?' active':''}" data-align="center">↔</button>
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='right'?' active':''}"  data-align="right">→</button>
+        </div>
+      </div>
     </div>`;
 
   // 배경색
@@ -403,11 +428,56 @@ function showCardProperties(block) {
     const v = Math.min(40, Math.max(0, parseInt(rNumber.value) || 0));
     rSlider.value = v; applyRadius(v);
   });
+
+  // 텍스트 정렬
+  const applyCardAlign = a => {
+    block.dataset.textAlign = a;
+    const titleEl2 = block.querySelector('.cdb-title');
+    const descEl2  = block.querySelector('.cdb-desc');
+    if (titleEl2) titleEl2.style.textAlign = a;
+    if (descEl2)  descEl2.style.textAlign  = a;
+    document.querySelectorAll('#card-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
+    pushHistory();
+  };
+  document.querySelectorAll('#card-align-group .prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyCardAlign(btn.dataset.align));
+  });
+
+  // 제목 크기
+  const titleEl  = block.querySelector('.cdb-title');
+  const tSlider  = document.getElementById('card-title-slider');
+  const tNumber  = document.getElementById('card-title-number');
+  const applyTitleSize = v => {
+    v = Math.min(60, Math.max(12, v));
+    block.dataset.titleSize  = v;
+    if (titleEl) titleEl.style.fontSize = v + 'px';
+    tSlider.value = v; tNumber.value = v;
+  };
+  tSlider.addEventListener('input',  () => applyTitleSize(parseInt(tSlider.value)));
+  tNumber.addEventListener('change', () => { applyTitleSize(parseInt(tNumber.value)); pushHistory(); });
+  tSlider.addEventListener('change', () => pushHistory());
+
+  // 설명 크기
+  const descEl   = block.querySelector('.cdb-desc');
+  const dSlider  = document.getElementById('card-desc-slider');
+  const dNumber  = document.getElementById('card-desc-number');
+  const applyDescSize = v => {
+    v = Math.min(40, Math.max(10, v));
+    block.dataset.descSize   = v;
+    if (descEl) descEl.style.fontSize = v + 'px';
+    dSlider.value = v; dNumber.value = v;
+  };
+  dSlider.addEventListener('input',  () => applyDescSize(parseInt(dSlider.value)));
+  dNumber.addEventListener('change', () => { applyDescSize(parseInt(dNumber.value)); pushHistory(); });
+  dSlider.addEventListener('change', () => pushHistory());
 }
 
 function showStripBannerProperties(block) {
-  const bgColor = block.dataset.bgColor || '#f5f5f5';
-  const radius  = parseInt(block.dataset.radius) || 12;
+  const bgColor    = block.dataset.bgColor    || '#f5f5f5';
+  const radius     = parseInt(block.dataset.radius)     || 12;
+  const blockH     = parseInt(block.dataset.height)     || 200;
+  const titleSize  = parseInt(block.dataset.titleSize)  || 28;
+  const bodySize   = parseInt(block.dataset.bodySize)   || 20;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -431,6 +501,14 @@ function showStripBannerProperties(block) {
       </div>` : ''}
     </div>
     <div class="prop-section">
+      <div class="prop-section-title">크기</div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="sbb-h-slider" min="80" max="600" step="8" value="${blockH}">
+        <input type="number" class="prop-number" id="sbb-h-number" min="80" max="600" value="${blockH}">
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">텍스트 영역</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
@@ -444,8 +522,62 @@ function showStripBannerProperties(block) {
         <input type="range" class="prop-slider" id="sbb-radius-slider" min="0" max="40" step="1" value="${radius}">
         <input type="number" class="prop-number" id="sbb-radius-number" min="0" max="40" value="${radius}">
       </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">텍스트 크기</div>
+      <div class="prop-row">
+        <span class="prop-label">제목</span>
+        <input type="range" class="prop-slider" id="sbb-title-slider" min="12" max="72" step="1" value="${titleSize}">
+        <input type="number" class="prop-number" id="sbb-title-number" min="12" max="72" value="${titleSize}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">본문</span>
+        <input type="range" class="prop-slider" id="sbb-body-slider" min="10" max="48" step="1" value="${bodySize}">
+        <input type="number" class="prop-number" id="sbb-body-number" min="10" max="48" value="${bodySize}">
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">텍스트 정렬</div>
+      <div class="prop-row">
+        <div class="prop-align-group" id="sbb-align-group">
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='left'?' active':''}"   data-align="left">←</button>
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='center'?' active':''}" data-align="center">↔</button>
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='right'?' active':''}"  data-align="right">→</button>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">이미지 위치</div>
+      <div class="prop-row">
+        <div class="prop-align-group" id="sbb-imgpos-group">
+          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='left'?' active':''}"  data-pos="left">◁ 왼쪽</button>
+          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='right'?' active':''}" data-pos="right">오른쪽 ▷</button>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">텍스트 행</div>
+      <div class="prop-row">
+        <button class="prop-action-btn primary" id="sbb-add-row-btn">+ 행 추가</button>
+        <button class="prop-action-btn secondary" id="sbb-remove-row-btn">- 행 제거</button>
+      </div>
+      <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭으로 편집</div>
     </div>`;
 
+  // 높이
+  const hSlider = document.getElementById('sbb-h-slider');
+  const hNumber = document.getElementById('sbb-h-number');
+  const applyHeight = v => {
+    v = Math.min(600, Math.max(80, v));
+    block.dataset.height = v;
+    block.style.minHeight = v + 'px';
+    hSlider.value = v; hNumber.value = v;
+  };
+  hSlider.addEventListener('input',  () => applyHeight(parseInt(hSlider.value)));
+  hNumber.addEventListener('change', () => { applyHeight(parseInt(hNumber.value)); pushHistory(); });
+  hSlider.addEventListener('change', () => pushHistory());
+
+  // 배경색
   const bgInput  = document.getElementById('sbb-bg-color');
   const bgHex    = document.getElementById('sbb-bg-hex');
   const content  = block.querySelector('.sbb-content');
@@ -460,6 +592,7 @@ function showStripBannerProperties(block) {
     if (/^#[0-9a-fA-F]{6}$/.test(v)) { bgInput.value = v; applyBg(v); }
   });
 
+  // 모서리
   const rSlider = document.getElementById('sbb-radius-slider');
   const rNumber = document.getElementById('sbb-radius-number');
 
@@ -472,12 +605,81 @@ function showStripBannerProperties(block) {
     const v = Math.min(40, Math.max(0, parseInt(rNumber.value) || 0));
     rSlider.value = v; applyRadius(v);
   });
+
+  // 제목 크기
+  const headingEl  = block.querySelector('.sbb-heading');
+  const tsSlider   = document.getElementById('sbb-title-slider');
+  const tsNumber   = document.getElementById('sbb-title-number');
+  const applyTitleSize = v => {
+    v = Math.min(72, Math.max(12, v));
+    block.dataset.titleSize  = v;
+    if (headingEl) headingEl.style.fontSize = v + 'px';
+    tsSlider.value = v; tsNumber.value = v;
+  };
+  tsSlider.addEventListener('input',  () => applyTitleSize(parseInt(tsSlider.value)));
+  tsNumber.addEventListener('change', () => { applyTitleSize(parseInt(tsNumber.value)); pushHistory(); });
+  tsSlider.addEventListener('change', () => pushHistory());
+
+  // 본문 크기
+  const bodyEl   = block.querySelector('.sbb-body');
+  const bsSlider = document.getElementById('sbb-body-slider');
+  const bsNumber = document.getElementById('sbb-body-number');
+  const applyBodySize = v => {
+    v = Math.min(48, Math.max(10, v));
+    block.dataset.bodySize   = v;
+    if (bodyEl) bodyEl.style.fontSize = v + 'px';
+    bsSlider.value = v; bsNumber.value = v;
+  };
+  bsSlider.addEventListener('input',  () => applyBodySize(parseInt(bsSlider.value)));
+  bsNumber.addEventListener('change', () => { applyBodySize(parseInt(bsNumber.value)); pushHistory(); });
+  bsSlider.addEventListener('change', () => pushHistory());
+
+  // 텍스트 정렬
+  const applyStripAlign = a => {
+    block.dataset.textAlign = a;
+    block.querySelectorAll('.sbb-heading, .sbb-body').forEach(el => el.style.textAlign = a);
+    document.querySelectorAll('#sbb-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
+    pushHistory();
+  };
+  document.querySelectorAll('#sbb-align-group .prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyStripAlign(btn.dataset.align));
+  });
+
+  // 이미지 위치
+  const applyImgPos = pos => {
+    block.dataset.imgPos = pos;
+    document.querySelectorAll('#sbb-imgpos-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.pos === pos));
+    pushHistory();
+  };
+  document.querySelectorAll('#sbb-imgpos-group .prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyImgPos(btn.dataset.pos));
+  });
+
+  // 텍스트 행 추가/제거
+  const sbbContent = block.querySelector('.sbb-content');
+  document.getElementById('sbb-add-row-btn').addEventListener('click', () => {
+    const newRow = document.createElement('div');
+    newRow.className = 'sbb-body';
+    newRow.setAttribute('contenteditable', 'false');
+    newRow.textContent = '텍스트를 입력하세요';
+    const curAlign = block.dataset.textAlign || 'left';
+    newRow.style.textAlign = curAlign;
+    if (sbbContent) sbbContent.appendChild(newRow);
+    pushHistory();
+  });
+  document.getElementById('sbb-remove-row-btn').addEventListener('click', () => {
+    if (!sbbContent) return;
+    const rows = sbbContent.children;
+    if (rows.length > 1) { rows[rows.length - 1].remove(); pushHistory(); }
+  });
 }
 
 function showGraphProperties(block) {
-  const chartType = block.dataset.chartType || 'bar-v';
-  const preset    = block.dataset.preset    || 'default';
-  const items     = JSON.parse(block.dataset.items || '[]');
+  const chartType  = block.dataset.chartType  || 'bar-v';
+  const preset     = block.dataset.preset     || 'default';
+  const items      = JSON.parse(block.dataset.items || '[]');
+  const chartH     = parseInt(block.dataset.chartHeight) || 240;
+  const labelSize  = parseInt(block.dataset.labelSize)   || 13;
 
   const presets = [
     { id: 'default',  label: '기본' },
@@ -499,6 +701,19 @@ function showGraphProperties(block) {
         <span class="prop-block-name">Graph Block</span>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
+      <div class="prop-section-title">크기</div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="grb-h-slider" min="80" max="600" step="8" value="${chartH}">
+        <input type="number" class="prop-number" id="grb-h-number" min="80" max="600" value="${chartH}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">라벨</span>
+        <input type="range" class="prop-slider" id="grb-label-slider" min="8" max="28" step="1" value="${labelSize}">
+        <input type="number" class="prop-number" id="grb-label-number" min="8" max="28" value="${labelSize}">
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">차트 타입</div>
       <div class="prop-type-group">
         <button class="prop-type-btn ${chartType === 'bar-v' ? 'active' : ''}" id="grb-type-v">세로 막대</button>
@@ -579,4 +794,130 @@ function showGraphProperties(block) {
     renderGraph(block);
     showGraphProperties(block);
   });
+
+  // 차트 높이
+  const hSlider = document.getElementById('grb-h-slider');
+  const hNumber = document.getElementById('grb-h-number');
+  const applyChartH = v => {
+    v = Math.min(600, Math.max(80, v));
+    block.dataset.chartHeight = v;
+    renderGraph(block);
+    hSlider.value = v; hNumber.value = v;
+  };
+  hSlider.addEventListener('input',  () => applyChartH(parseInt(hSlider.value)));
+  hNumber.addEventListener('change', () => { applyChartH(parseInt(hNumber.value)); pushHistory(); });
+  hSlider.addEventListener('change', () => pushHistory());
+
+  // 라벨 크기
+  const lSlider = document.getElementById('grb-label-slider');
+  const lNumber = document.getElementById('grb-label-number');
+  const applyLabelSize = v => {
+    v = Math.min(28, Math.max(8, v));
+    block.dataset.labelSize = v;
+    renderGraph(block);
+    lSlider.value = v; lNumber.value = v;
+  };
+  lSlider.addEventListener('input',  () => applyLabelSize(parseInt(lSlider.value)));
+  lNumber.addEventListener('change', () => { applyLabelSize(parseInt(lNumber.value)); pushHistory(); });
+  lSlider.addEventListener('change', () => pushHistory());
+}
+
+function showDividerProperties(block) {
+  const lineColor  = block.dataset.lineColor  || '#cccccc';
+  const lineStyle  = block.dataset.lineStyle  || 'solid';
+  const lineWeight = parseInt(block.dataset.lineWeight) || 1;
+  const padV       = parseInt(block.dataset.padV)       || 12;
+
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <line x1="1" y1="6" x2="11" y2="6"/>
+          </svg>
+        </div>
+        <span class="prop-block-name">Divider</span>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
+      </div>
+      <div class="prop-section-title">선 스타일</div>
+      <div class="prop-color-row">
+        <span class="prop-label">색상</span>
+        <div class="prop-color-swatch" style="background:${lineColor}">
+          <input type="color" id="dvd-color" value="${lineColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="dvd-hex" value="${lineColor}" maxlength="7">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">스타일</span>
+        <select class="prop-select" id="dvd-style">
+          <option value="solid"  ${lineStyle==='solid'  ?'selected':''}>실선</option>
+          <option value="dashed" ${lineStyle==='dashed' ?'selected':''}>파선</option>
+          <option value="dotted" ${lineStyle==='dotted' ?'selected':''}>점선</option>
+        </select>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">두께</span>
+        <input type="range" class="prop-slider" id="dvd-weight-slider" min="1" max="12" step="1" value="${lineWeight}">
+        <input type="number" class="prop-number" id="dvd-weight-number" min="1" max="12" value="${lineWeight}">
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">여백</div>
+      <div class="prop-row">
+        <span class="prop-label">상하</span>
+        <input type="range" class="prop-slider" id="dvd-pady-slider" min="0" max="120" step="4" value="${padV}">
+        <input type="number" class="prop-number" id="dvd-pady-number" min="0" max="120" value="${padV}">
+      </div>
+    </div>`;
+
+  const colorPicker = document.getElementById('dvd-color');
+  const colorHex    = document.getElementById('dvd-hex');
+  const colorSwatch = colorPicker.closest('.prop-color-swatch');
+
+  const applyAll = () => applyDividerStyle(block);
+
+  colorPicker.addEventListener('input', () => {
+    block.dataset.lineColor = colorPicker.value;
+    colorHex.value = colorPicker.value;
+    colorSwatch.style.background = colorPicker.value;
+    applyAll();
+  });
+  colorPicker.addEventListener('change', () => pushHistory());
+  colorHex.addEventListener('input', () => {
+    if (/^#[0-9a-f]{6}$/i.test(colorHex.value)) {
+      block.dataset.lineColor = colorHex.value;
+      colorPicker.value = colorHex.value;
+      colorSwatch.style.background = colorHex.value;
+      applyAll(); pushHistory();
+    }
+  });
+
+  document.getElementById('dvd-style').addEventListener('change', e => {
+    block.dataset.lineStyle = e.target.value;
+    applyAll(); pushHistory();
+  });
+
+  const wSlider = document.getElementById('dvd-weight-slider');
+  const wNumber = document.getElementById('dvd-weight-number');
+  const applyWeight = v => {
+    v = Math.min(12, Math.max(1, v));
+    block.dataset.lineWeight = v;
+    applyAll();
+    wSlider.value = v; wNumber.value = v;
+  };
+  wSlider.addEventListener('input',  () => applyWeight(parseInt(wSlider.value)));
+  wNumber.addEventListener('change', () => { applyWeight(parseInt(wNumber.value)); pushHistory(); });
+  wSlider.addEventListener('change', () => pushHistory());
+
+  const pySlider = document.getElementById('dvd-pady-slider');
+  const pyNumber = document.getElementById('dvd-pady-number');
+  const applyPadV = v => {
+    v = Math.min(120, Math.max(0, v));
+    block.dataset.padV = v;
+    applyAll();
+    pySlider.value = v; pyNumber.value = v;
+  };
+  pySlider.addEventListener('input',  () => applyPadV(parseInt(pySlider.value)));
+  pyNumber.addEventListener('change', () => { applyPadV(parseInt(pyNumber.value)); pushHistory(); });
+  pySlider.addEventListener('change', () => pushHistory());
 }

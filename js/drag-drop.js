@@ -173,9 +173,10 @@ function bindBlock(block) {
   const isIconCb     = block.classList.contains('icon-circle-block');
   const isTableB     = block.classList.contains('table-block');
   const isLabelGroup = block.classList.contains('label-group-block');
-  const isCard       = block.classList.contains('card-block');
+  const isCard        = block.classList.contains('card-block');
   const isStripBanner = block.classList.contains('strip-banner-block');
   const isGraph       = block.classList.contains('graph-block');
+  const isDivider     = block.classList.contains('divider-block');
 
 
   if (isText) {
@@ -594,6 +595,24 @@ function bindBlock(block) {
     });
   }
 
+  if (isDivider) {
+    applyDividerStyle(block);
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        syncSection(block.closest('.section-block'));
+        return;
+      }
+      deselectAll();
+      block.classList.add('selected');
+      syncSection(block.closest('.section-block'));
+      highlightBlock(block, block._layerItem);
+      showDividerProperties(block);
+    });
+  }
+
   // hover ↔ layer item
   block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = '#252525'; });
   block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
@@ -818,7 +837,7 @@ function insertBeforeBottomGap(section, el) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   const inner = section.querySelector('.section-inner');
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected');
+  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected');
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
@@ -879,7 +898,7 @@ function addTextBlock(type) {
 }
 
 function groupSelectedBlocks() {
-  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected')];
+  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected')];
   if (selected.length < 2) return;
 
   // 같은 섹션의 블록만 그룹
@@ -1173,22 +1192,25 @@ const GRAPH_DEFAULT_ITEMS = [
 ];
 
 function renderGraph(block) {
-  const items     = JSON.parse(block.dataset.items || '[]');
-  const chartType = block.dataset.chartType || 'bar-v';
-  const maxVal    = Math.max(...items.map(i => i.value), 1);
+  const items      = JSON.parse(block.dataset.items || '[]');
+  const chartType  = block.dataset.chartType  || 'bar-v';
+  const maxVal     = Math.max(...items.map(i => i.value), 1);
+  const chartH     = parseInt(block.dataset.chartHeight) || 240;
+  const labelSize  = parseInt(block.dataset.labelSize)   || 13;
+  const valSize    = Math.round(labelSize * 1.07);
 
   if (chartType === 'bar-v') {
     block.innerHTML = `
-      <div class="grb-bars-v">
+      <div class="grb-bars-v" style="height:${chartH}px">
         ${items.map(item => {
           const pct = Math.round((item.value / maxVal) * 100);
           return `
             <div class="grb-bar-col">
-              <div class="grb-bar-val-label">${item.value}</div>
+              <div class="grb-bar-val-label" style="font-size:${valSize}px">${item.value}</div>
               <div class="grb-bar-fill-wrap">
                 <div class="grb-bar-fill" style="height:${pct}%"></div>
               </div>
-              <div class="grb-bar-label">${item.label}</div>
+              <div class="grb-bar-label" style="font-size:${labelSize}px">${item.label}</div>
             </div>`;
         }).join('')}
       </div>`;
@@ -1199,10 +1221,10 @@ function renderGraph(block) {
           const pct = Math.round((item.value / maxVal) * 100);
           return `
             <div class="grb-bar-row">
-              <div class="grb-bar-row-label">${item.label}</div>
-              <div class="grb-bar-h-wrap">
+              <div class="grb-bar-row-label" style="font-size:${labelSize}px">${item.label}</div>
+              <div class="grb-bar-h-wrap" style="height:${Math.round(chartH / 10)}px">
                 <div class="grb-bar-h-fill" style="width:${pct}%">
-                  <span class="grb-bar-h-val">${item.value}</span>
+                  <span class="grb-bar-h-val" style="font-size:${labelSize}px">${item.value}</span>
                 </div>
               </div>
             </div>`;
@@ -1241,6 +1263,49 @@ function addGraphBlock() {
   bindBlock(block);
   buildLayerPanel();
   selectSection(sec);
+}
+
+function makeDividerBlock() {
+  const row = document.createElement('div');
+  row.className = 'row'; row.dataset.layout = 'stack';
+
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+
+  const dvd = document.createElement('div');
+  dvd.className = 'divider-block'; dvd.dataset.type = 'divider';
+  dvd.id = genId('dvd');
+  dvd.dataset.lineColor   = '#cccccc';
+  dvd.dataset.lineStyle   = 'solid';
+  dvd.dataset.lineWeight  = '1';
+  dvd.dataset.padV        = '12';
+  dvd.innerHTML = `<hr class="dvd-line" style="border-top:1px solid #cccccc;">`;
+
+  col.appendChild(dvd);
+  row.appendChild(col);
+  return { row, block: dvd };
+}
+
+function addDividerBlock() {
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  pushHistory();
+  const { row, block } = makeDividerBlock();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  buildLayerPanel();
+  selectSection(sec);
+}
+
+function applyDividerStyle(block) {
+  const hr      = block.querySelector('.dvd-line');
+  if (!hr) return;
+  const weight  = block.dataset.lineWeight  || '1';
+  const style   = block.dataset.lineStyle   || 'solid';
+  const color   = block.dataset.lineColor   || '#cccccc';
+  const padV    = block.dataset.padV        || '12';
+  hr.style.borderTop = `${weight}px ${style} ${color}`;
+  block.style.padding = `${padV}px 0`;
 }
 
 function addSection() {
@@ -1288,7 +1353,7 @@ function addSection() {
   bindSectionOrder(sec);
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => bindBlock(b));
 
   buildLayerPanel();
   selectSection(sec);

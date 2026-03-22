@@ -629,16 +629,22 @@ function applyProjectData(data) {
 function applyPageSettings() {
   canvasWrap.style.background = pageSettings.bg;
   canvasEl.style.gap = pageSettings.gap + 'px';
-  canvasEl.querySelectorAll('.text-block, .label-group-block').forEach(tb => {
+  canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
     tb.style.paddingLeft  = pageSettings.padX + 'px';
     tb.style.paddingRight = pageSettings.padX + 'px';
   });
-  canvasEl.querySelectorAll('.text-block').forEach(tb => {
+  canvasEl.querySelectorAll('.text-block:not(.overlay-tb)').forEach(tb => {
     if (tb.dataset.type !== 'label') {
       tb.style.paddingTop    = pageSettings.padY + 'px';
       tb.style.paddingBottom = pageSettings.padY + 'px';
     }
   });
+  if (pageSettings.padX > 0) {
+    canvasEl.querySelectorAll('.card-block, .strip-banner-block, .graph-block').forEach(b => {
+      b.style.paddingLeft  = pageSettings.padX + 'px';
+      b.style.paddingRight = pageSettings.padX + 'px';
+    });
+  }
 }
 
 function rebindAll() {
@@ -673,13 +679,17 @@ function rebindAll() {
       branchBtn.onclick = function() { openSectionBranchMenu(this); };
     }
   });
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
         : b.classList.contains('gap-block') ? 'gb'
         : b.classList.contains('icon-circle-block') ? 'icb'
-        : b.classList.contains('label-group-block') ? 'lg' : 'tbl';
+        : b.classList.contains('label-group-block') ? 'lg'
+        : b.classList.contains('card-block') ? 'cdb'
+        : b.classList.contains('strip-banner-block') ? 'sbb'
+        : b.classList.contains('graph-block') ? 'grb'
+        : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     bindBlock(b);
@@ -995,13 +1005,19 @@ function initApp() {
   }
   canvasWrap.style.background = pageSettings.bg;
   canvasEl.style.gap = pageSettings.gap + 'px';
-  document.querySelectorAll('.text-block, .label-group-block').forEach(tb => {
+  document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
     if (pageSettings.padX > 0) { tb.style.paddingLeft = pageSettings.padX + 'px'; tb.style.paddingRight = pageSettings.padX + 'px'; }
     if (tb.dataset.type !== 'label') {
       tb.style.paddingTop = pageSettings.padY + 'px';
       tb.style.paddingBottom = pageSettings.padY + 'px';
     }
   });
+  if (pageSettings.padX > 0) {
+    document.querySelectorAll('.card-block, .strip-banner-block, .graph-block').forEach(b => {
+      b.style.paddingLeft  = pageSettings.padX + 'px';
+      b.style.paddingRight = pageSettings.padX + 'px';
+    });
+  }
 
   // 탭 이름 더블클릭 변경 — 탭바 이벤트 위임
   document.getElementById('tab-bar')?.addEventListener('dblclick', e => {

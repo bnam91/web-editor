@@ -27,8 +27,6 @@ function showAssetProperties(ab) {
   if (!overlayEl) {
     overlayEl = document.createElement('div');
     overlayEl.className = 'asset-overlay';
-    overlayEl.contentEditable = 'true';
-    overlayEl.textContent = '텍스트를 입력하세요';
     ab.appendChild(overlayEl);
   }
   const overlayColor = overlayEl.style.color || '#ffffff';
@@ -114,14 +112,15 @@ function showAssetProperties(ab) {
       </div>
       <div id="asset-overlay-controls" style="${overlayOn ? '' : 'display:none'}">
         <div class="prop-row">
-          <span class="prop-label">색상</span>
-          <input type="color" id="asset-overlay-color" value="${overlayColor.startsWith('#') ? overlayColor : '#ffffff'}" style="width:60px;height:24px;border:none;background:none;cursor:pointer;padding:0;">
-        </div>
-        <div class="prop-row">
           <span class="prop-label">불투명</span>
           <input type="range" class="prop-slider" id="asset-overlay-opacity" min="0" max="100" step="1" value="${Math.round(overlayOpacity * 100)}">
           <input type="number" class="prop-number" id="asset-overlay-opacity-num" min="0" max="100" value="${Math.round(overlayOpacity * 100)}">
         </div>
+        <div class="prop-row">
+          <button class="prop-action-btn primary" id="overlay-add-text-btn">+ 텍스트 추가</button>
+          <button class="prop-action-btn secondary" id="overlay-del-text-btn">− 텍스트 제거</button>
+        </div>
+        <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭으로 편집</div>
       </div>
     </div>`;
 
@@ -216,13 +215,17 @@ function showAssetProperties(ab) {
     const on = e.target.checked;
     ab.dataset.overlay = on ? 'true' : 'false';
     document.getElementById('asset-overlay-controls').style.display = on ? '' : 'none';
-
+    // 첫 활성화 시 기본 텍스트 블록 생성
+    if (on && !overlayEl.querySelector('.overlay-tb')) {
+      const tb = document.createElement('div');
+      tb.className = 'text-block overlay-tb';
+      tb.dataset.type = 'heading';
+      tb.id = 'tb_' + Math.random().toString(36).slice(2, 9);
+      tb.innerHTML = `<div class="tb-h2" contenteditable="false" style="text-align:center">제목을 입력하세요</div>`;
+      overlayEl.appendChild(tb);
+      bindBlock(tb);
+    }
     pushHistory();
-  });
-
-  document.getElementById('asset-overlay-color').addEventListener('input', e => {
-    overlayEl.style.color = e.target.value;
-
   });
 
   const ovOpSlider = document.getElementById('asset-overlay-opacity');
@@ -231,15 +234,30 @@ function showAssetProperties(ab) {
     const v = parseInt(ovOpSlider.value) / 100;
     ovOpNum.value = ovOpSlider.value;
     applyOverlayBg(v);
-
   });
   ovOpNum.addEventListener('change', () => {
     const v = Math.min(100, Math.max(0, parseInt(ovOpNum.value) || 0));
     ovOpSlider.value = v;
     applyOverlayBg(v / 100);
-
   });
 
-  // overlay 클릭 시 블록 선택 방해 방지
+  // 텍스트 추가/제거
+  document.getElementById('overlay-add-text-btn').addEventListener('click', () => {
+    const tb = document.createElement('div');
+    tb.className = 'text-block overlay-tb';
+    tb.dataset.type = 'body';
+    tb.id = 'tb_' + Math.random().toString(36).slice(2, 9);
+    tb.innerHTML = `<div class="tb-body" contenteditable="false" style="text-align:center">텍스트를 입력하세요</div>`;
+    overlayEl.appendChild(tb);
+    tb._blockBound = false;
+    bindBlock(tb);
+    pushHistory();
+  });
+  document.getElementById('overlay-del-text-btn').addEventListener('click', () => {
+    const tbs = [...overlayEl.querySelectorAll('.overlay-tb')];
+    if (tbs.length > 0) { tbs[tbs.length - 1].remove(); pushHistory(); }
+  });
+
+  // overlay 클릭 시 asset 블록 선택 방해 방지
   overlayEl.addEventListener('click', e => { e.stopPropagation(); });
 }

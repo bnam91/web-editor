@@ -11,6 +11,7 @@ const layerIcons = {
   label:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="10" height="6" rx="1.5"/></svg>`,
   'icon-circle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="5"/><text x="3.5" y="9" font-size="6" fill="currentColor" stroke="none">★</text></svg>`,
   table:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><line x1="1" y1="4.5" x2="11" y2="4.5"/><line x1="5" y1="4.5" x2="5" y2="11"/></svg>`,
+  divider:    `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="11" y2="6"/></svg>`,
 };
 
 /* 레이어 아이템 생성 (단일 블록용) */
@@ -20,9 +21,10 @@ function makeLayerBlockItem(block, dragTarget, sec) {
   const isIconCb     = block.classList.contains('icon-circle-block');
   const isTable      = block.classList.contains('table-block');
   const isLabelGroup = block.classList.contains('label-group-block');
-  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags' };
+  const isDivider    = block.classList.contains('divider-block');
+  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -230,6 +232,18 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
 function buildLayerPanel() {
   const panel = document.getElementById('layer-panel-body');
+
+  // 재빌드 전 collapsed 상태 저장
+  const collapsedSections = new Set(
+    [...panel.querySelectorAll('.layer-section.collapsed')].map(s => s.dataset.section)
+  );
+  const collapsedRows = new Set();
+  panel.querySelectorAll('.layer-section').forEach(s => {
+    s.querySelectorAll('.layer-children > .layer-row-group').forEach((g, ri) => {
+      if (g.classList.contains('collapsed')) collapsedRows.add(`${s.dataset.section}:${ri}`);
+    });
+  });
+
   panel.innerHTML = '';
 
   document.querySelectorAll('.section-block').forEach((sec, si) => {
@@ -381,6 +395,12 @@ function buildLayerPanel() {
     sectionEl.appendChild(header);
     sectionEl.appendChild(children);
     panel.appendChild(sectionEl);
+
+    // collapsed 상태 복원
+    if (collapsedSections.has(String(sIdx))) sectionEl.classList.add('collapsed');
+    children.querySelectorAll(':scope > .layer-row-group').forEach((g, ri) => {
+      if (collapsedRows.has(`${sIdx}:${ri}`)) g.classList.add('collapsed');
+    });
 
     sec._layerEl = sectionEl;
     sec._layerHeader = header;

@@ -321,13 +321,20 @@ function loadImageToAsset(ab, file) {
     delete ab.dataset.imgW;
     delete ab.dataset.imgX;
     delete ab.dataset.imgY;
+    // 기존 overlay 내용 보존
+    const prevOverlayEl = ab.querySelector('.asset-overlay');
+    const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
+    const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
     ab.innerHTML = `
       <img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}">
-      <button class="asset-overlay-clear" title="이미지 제거">✕</button>`;
+      <button class="asset-overlay-clear" title="이미지 제거">✕</button>
+      <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
     ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
       e.stopPropagation();
       clearAssetImage(ab);
     });
+    // overlay-tb 블록 재바인딩
+    ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
     showAssetProperties(ab);
   };
   reader.readAsDataURL(file);
@@ -342,9 +349,14 @@ function clearAssetImage(ab) {
   delete ab.dataset.imgW;
   delete ab.dataset.imgX;
   delete ab.dataset.imgY;
+  const prevOverlayEl2 = ab.querySelector('.asset-overlay');
+  const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
+  const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
   ab.innerHTML = `
     ${ASSET_SVG}
-    <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
+    <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
+    <div class="asset-overlay" ${prevOverlayStyle2 ? `style="${prevOverlayStyle2}"` : ''}>${prevOverlayHTML2}</div>`;
+  ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
   showAssetProperties(ab);
 }
 
