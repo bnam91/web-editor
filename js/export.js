@@ -672,12 +672,18 @@ async function doFigmaUpload() {
  * @param {string[]|null} selectedIds  업로드할 섹션 DOM ID 배열. null 이면 전체
  * @param {Object}        nodeMap      섹션ID → { figmaId, y } 매핑 (업데이트 모드용)
  */
-// <br> 태그를 \n으로 변환하여 줄바꿈 보존
+// contenteditable 줄바꿈 보존 (<br> 및 <div>/<p> 블록 모두 처리)
 function getTextWithLineBreaks(el) {
   if (!el) return '';
-  const clone = el.cloneNode(true);
-  clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-  return clone.textContent.trim();
+  // innerHTML 기반으로 처리 — <br>과 블록요소 닫힘태그를 \n으로 변환
+  let html = el.innerHTML;
+  html = html.replace(/<br\s*\/?>/gi, '\n');          // <br> → \n
+  html = html.replace(/<\/div>/gi, '\n');              // </div> → \n
+  html = html.replace(/<\/p>/gi, '\n');                // </p> → \n
+  // 나머지 태그 제거
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function buildFigmaExportJSON(selectedIds, nodeMap) {
