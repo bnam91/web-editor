@@ -1257,6 +1257,17 @@ body {
 .prop-block-id { font-size: 10px; font-weight: 400; color: #555; margin-left: 4px; cursor: pointer; }
 .prop-block-id:hover { color: #888; }
 
+/* 에셋 프리셋 버튼 */
+.prop-preset-group { display: flex; gap: 6px; }
+.prop-preset-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 7px 4px; border: 1px solid #333; border-radius: 6px;
+  background: #1a1a1a; color: #ccc; cursor: pointer; font-size: 11px; font-weight: 600;
+  transition: border-color 0.15s, background 0.15s;
+}
+.prop-preset-btn span { font-size: 9px; font-weight: 400; color: #555; }
+.prop-preset-btn:hover { border-color: #555; background: #222; }
+
 /* 타입 토글 버튼 그룹 */
 .prop-type-group {
   display: flex; gap: 4px; margin-bottom: 8px;

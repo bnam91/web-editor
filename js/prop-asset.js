@@ -40,6 +40,14 @@ function showAssetProperties(ab) {
       </div>
     </div>
     <div class="prop-section">
+      <div class="prop-section-title">프리셋</div>
+      <div class="prop-preset-group">
+        <button class="prop-preset-btn" data-w="860" data-h="780">Standard<span>860×780</span></button>
+        <button class="prop-preset-btn" data-w="860" data-h="1032">Tall<span>860×1032</span></button>
+        <button class="prop-preset-btn" data-w="860" data-h="575">Wide<span>860×575</span></button>
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
         <span class="prop-label">정렬</span>
@@ -67,6 +75,17 @@ function showAssetProperties(ab) {
     ${imageSection}`;
 
   bindLayoutInput(ab);
+
+  document.querySelectorAll('.prop-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const h = parseInt(btn.dataset.h);
+      ab.style.width  = '';
+      ab.style.height = h + 'px';
+      ab.dataset.size = '100';
+      document.getElementById('asset-size-select').value = '100';
+      pushHistory();
+    });
+  });
 
 
   const applyAlign = a => {
