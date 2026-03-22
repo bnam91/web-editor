@@ -57,6 +57,7 @@ function showAssetProperties(ab) {
       <div class="prop-section-title">프리셋</div>
       <div class="prop-preset-group">
         <button class="prop-preset-btn" data-w="860" data-h="780">Standard<span>860×780</span></button>
+        <button class="prop-preset-btn" data-w="860" data-h="860">Square<span>860×860</span></button>
         <button class="prop-preset-btn" data-w="860" data-h="1032">Tall<span>860×1032</span></button>
         <button class="prop-preset-btn" data-w="860" data-h="575">Wide<span>860×575</span></button>
       </div>
