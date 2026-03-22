@@ -1257,6 +1257,21 @@ body {
 .prop-block-id { font-size: 10px; font-weight: 400; color: #555; margin-left: 4px; cursor: pointer; }
 .prop-block-id:hover { color: #888; }
 
+/* 토글 스위치 */
+.prop-toggle { position: relative; display: inline-block; width: 32px; height: 18px; cursor: pointer; }
+.prop-toggle input { opacity: 0; width: 0; height: 0; }
+.prop-toggle-track {
+  position: absolute; inset: 0; border-radius: 18px; background: #333;
+  transition: background 0.2s;
+}
+.prop-toggle-track::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 12px; height: 12px; border-radius: 50%; background: #666;
+  transition: transform 0.2s, background 0.2s;
+}
+.prop-toggle input:checked + .prop-toggle-track { background: #2d6fe8; }
+.prop-toggle input:checked + .prop-toggle-track::after { transform: translateX(14px); background: #fff; }
+
 /* 에셋 프리셋 버튼 */
 .prop-preset-group { display: flex; gap: 6px; }
 .prop-preset-btn {

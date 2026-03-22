@@ -111,6 +111,9 @@ function showPageProperties() {
       tb.style.paddingLeft = v + 'px';
       tb.style.paddingRight = v + 'px';
     });
+    document.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
+      applyAssetPadX(ab, v);
+    });
   };
   const applyPadY = (v) => {
     pageSettings.padY = v;

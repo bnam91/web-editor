@@ -1,3 +1,14 @@
+function applyAssetPadX(ab, padX) {
+  const canvasW = 860;
+  const baseH   = parseInt(ab.dataset.baseHeight) || parseInt(ab.style.height) || 780;
+  const baseW   = canvasW;
+  const newW    = canvasW - padX * 2;
+  const newH    = Math.round(baseH * newW / baseW);
+  ab.style.paddingLeft  = padX + 'px';
+  ab.style.paddingRight = padX + 'px';
+  ab.style.height = newH + 'px';
+}
+
 function showAssetProperties(ab) {
   const ratioStr   = getCurrentRatioStr(ab);
   const currentH   = parseInt(ab.style.height) || ab.offsetHeight || 780;
@@ -6,7 +17,8 @@ function showAssetProperties(ab) {
   const currentW   = ab.offsetWidth || 400;
   const currentAlign = ab.dataset.align || 'center';
   if (!ab.dataset.align) { ab.dataset.align = 'center'; ab.style.alignSelf = 'center'; }
-  const currentSize  = ab.dataset.size  || '100';
+  const currentSize   = ab.dataset.size    || '100';
+  const usePadX       = ab.dataset.usePadx === 'true';
 
   const imageSection = hasImage ? `
     <div class="prop-section">
@@ -68,6 +80,13 @@ function showAssetProperties(ab) {
         <input type="number" class="prop-number" id="asset-r-number" min="0" max="120" value="${currentR}">
       </div>
       <div class="prop-row">
+        <span class="prop-label">페이지 패딩</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="asset-padx-toggle" ${usePadX ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">사이즈</span>
         <select class="prop-select" id="asset-size-select">
           <option value="85"  ${currentSize==='85'  ?'selected':''}>85%</option>
@@ -80,6 +99,23 @@ function showAssetProperties(ab) {
     ${imageSection}`;
 
   bindLayoutInput(ab);
+
+  document.getElementById('asset-padx-toggle').addEventListener('change', e => {
+    if (e.target.checked) {
+      ab.dataset.usePadx = 'true';
+      ab.dataset.baseHeight = parseInt(ab.style.height) || 780;
+      applyAssetPadX(ab, pageSettings.padX || 0);
+    } else {
+      ab.dataset.usePadx = 'false';
+      const baseH = parseInt(ab.dataset.baseHeight) || 780;
+      ab.style.paddingLeft  = '';
+      ab.style.paddingRight = '';
+      ab.style.height = baseH + 'px';
+    }
+    hSlider.value = parseInt(ab.style.height);
+    hNumber.value = parseInt(ab.style.height);
+    pushHistory();
+  });
 
   const hSlider = document.getElementById('asset-h-slider');
   const hNumber = document.getElementById('asset-h-number');
