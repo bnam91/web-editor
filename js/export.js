@@ -779,6 +779,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         id: el.id || ('ab_' + Math.random().toString(36).slice(2, 8)),
         height: parseFloat(el.style.height) || 780,
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
+        src: el.dataset.imgSrc || null,
       };
     }
     return null;

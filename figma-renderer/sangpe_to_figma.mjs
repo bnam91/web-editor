@@ -210,9 +210,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     return totalH;
   }
 
-  // ── IMAGE (플레이스홀더) ──────────────────────────────────────
+  // ── IMAGE ─────────────────────────────────────────────────────
   if (block.type === 'image') {
-    const s   = block.style  || {};
+    const s    = block.style || {};
     const imgH = block.height || 400;
 
     const node = run('create_frame', {
@@ -223,10 +223,37 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       parentId,
     });
     if (node) {
-      run('set_fill_color', { nodeId: node.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
+      if (block.src) {
+        // 실제 이미지 데이터가 있으면 fill로 적용
+        let sourceType, imageSource;
+        if (block.src.startsWith('data:')) {
+          // data:image/xxx;base64,XXXX → base64 부분만 추출
+          sourceType   = 'base64';
+          imageSource  = block.src.split(',')[1];
+        } else {
+          sourceType   = 'url';
+          imageSource  = block.src;
+        }
+        const fillResult = run('set_image_fill', {
+          nodeId: node.id,
+          imageSource,
+          sourceType,
+          scaleMode: 'FILL',
+        });
+        if (!fillResult) {
+          // 이미지 업로드 실패 시 회색 fallback
+          run('set_fill_color', { nodeId: node.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
+          console.log(`      · image ${availableWidth}×${imgH} → ${node.id} ⚠️ 이미지 업로드 실패, 회색 플레이스홀더`);
+        } else {
+          console.log(`      · image ${availableWidth}×${imgH} → ${node.id} ✓ 이미지 적용`);
+        }
+      } else {
+        // 이미지 없으면 회색 플레이스홀더
+        run('set_fill_color', { nodeId: node.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
+        console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (플레이스홀더)`);
+      }
       if ((s.borderRadius || 0) > 0)
         run('set_corner_radius', { nodeId: node.id, radius: s.borderRadius });
-      console.log(`      · image ${availableWidth}×${imgH} → ${node.id}`);
     }
     return imgH;
   }
