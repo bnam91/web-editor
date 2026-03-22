@@ -49,10 +49,12 @@
     <button class="zoom-btn" onclick="zoomFit()" style="font-size:11px;width:auto;padding:0 6px;">Fit</button>
   </div>
   <div class="divider"></div>
-  <button class="tb-btn" onclick="saveProject()" title="저장 (JSON)">저장</button>
-  <label class="tb-btn" title="불러오기 (JSON)" style="cursor:pointer;">
-    불러오기<input type="file" id="load-file-input" accept=".json" style="display:none" onchange="loadProjectFile(event)">
-  </label>
+  <button class="tb-btn" onclick="saveProject()" title="Commit (JSON 저장)">Commit</button>
+  <button class="tb-btn tb-btn--icon" onclick="revertToLastCommit()" title="마지막 커밋으로 되돌리기" id="revert-btn">
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6">
+      <path d="M2 7a5 5 0 1 0 1.5-3.5L2 2v4h4L4.5 4.5"/>
+    </svg>
+  </button>
   <div class="divider"></div>
   <div id="publish-dropdown-wrap">
     <button id="publish-btn" onclick="togglePublishDropdown(event)">
@@ -60,11 +62,10 @@
       <svg class="publish-dd-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div id="publish-dropdown-menu">
-      <div class="pub-dd-item pub-dd-primary" onclick="doPublish()">
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1v7M3 5l3-4 3 4"/><path d="M1 10h10"/></svg>
-        Publish
-      </div>
-      <div class="pub-dd-divider"></div>
+      <label class="pub-dd-item" onclick="closePublishDropdown()" style="cursor:pointer;" title="불러오기 (JSON)">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><path d="M4 6h4M6 4v4"/></svg>
+        불러오기<input type="file" id="load-file-input" accept=".json" style="display:none" onchange="loadProjectFile(event)">
+      </label>
       <div class="pub-dd-item" onclick="saveProjectAs(); closePublishDropdown()">
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><path d="M7 1v3H3"/><path d="M3 7h6M3 9h4"/></svg>
         다른 이름으로 저장
@@ -372,6 +373,12 @@
 
   <!-- Right: Properties -->
   <div class="panel" id="panel-right">
+    <button id="rp-preview-btn" onclick="enterPreview()">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
+        <polygon points="2,1 9,5 2,9" fill="currentColor" stroke="none"/>
+      </svg>
+      Preview
+    </button>
     <div class="panel-header">
       <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
         <circle cx="8" cy="8" r="2"/>
@@ -418,6 +425,7 @@
       <button class="fp-menu-item" onclick="addTextBlock('body');toggleFpDropdown()">Body</button>
       <button class="fp-menu-item" onclick="addTextBlock('caption');toggleFpDropdown()">Caption</button>
       <button class="fp-menu-item" onclick="addTextBlock('label');toggleFpDropdown()">Label</button>
+    <button class="fp-menu-item" onclick="addLabelGroupBlock();toggleFpDropdown()">Tags</button>
     </div>
   </div>
   <div class="fp-divider"></div>
@@ -453,13 +461,6 @@
       <line x1="5" y1="4" x2="5" y2="10"/>
     </svg>
     Table
-  </button>
-  <div class="fp-divider"></div>
-  <button class="fp-btn fp-preview-btn" onclick="enterPreview()">
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
-      <polygon points="2,1 9,5 2,9" fill="currentColor" stroke="none"/>
-    </svg>
-    Preview
   </button>
 </div>
 
@@ -501,6 +502,7 @@
 <script src="js/prop-asset.js"></script>
 <script src="js/prop-text.js"></script>
 <script src="js/prop-components.js"></script>
+<script src="js/prop-label-group.js"></script>
 <script src="js/prop-row.js"></script>
 <script src="js/drag-drop.js"></script>
 <script src="js/save-load.js"></script>

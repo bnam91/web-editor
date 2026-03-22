@@ -305,7 +305,7 @@ function applyProjectData(data) {
 function applyPageSettings() {
   canvasWrap.style.background = pageSettings.bg;
   canvasEl.style.gap = pageSettings.gap + 'px';
-  canvasEl.querySelectorAll('.text-block').forEach(tb => {
+  canvasEl.querySelectorAll('.text-block, .label-group-block').forEach(tb => {
     tb.style.paddingLeft  = pageSettings.padX + 'px';
     tb.style.paddingRight = pageSettings.padX + 'px';
   });
@@ -344,12 +344,13 @@ function rebindAll() {
       toolbar.appendChild(branchBtn);
     }
   });
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
         : b.classList.contains('gap-block') ? 'gb'
-        : b.classList.contains('icon-circle-block') ? 'icb' : 'tbl';
+        : b.classList.contains('icon-circle-block') ? 'icb'
+        : b.classList.contains('label-group-block') ? 'lg' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     bindBlock(b);
@@ -381,20 +382,40 @@ function _downloadJSON(json, filename) {
   URL.revokeObjectURL(a.href);
 }
 
+const LAST_COMMIT_KEY = 'goya-last-commit';
+
 function saveProject() {
+  // 현재 저장된 상태를 "이전 커밋"으로 백업
+  const prev = localStorage.getItem(SAVE_KEY);
+  if (prev) localStorage.setItem(LAST_COMMIT_KEY, prev);
+
   const json = serializeProject();
   localStorage.setItem(SAVE_KEY, json);
 
+  // 되돌리기 버튼 활성화
+  const revertBtn = document.getElementById('revert-btn');
+  if (revertBtn) revertBtn.classList.add('has-commit');
+
   if (!currentFileName) {
-    // 최초 저장: 파일명 입력 다이얼로그
     const defaultName = getProjectName() || `web-editor-${new Date().toISOString().slice(0,10)}`;
     const name = prompt('파일명을 입력하세요', defaultName);
-    if (name === null) return; // 취소
+    if (name === null) return;
     currentFileName = name.trim() || defaultName;
   }
 
   _downloadJSON(json, currentFileName);
-  showToast('✅ 저장됨 — ' + currentFileName);
+  showToast('✅ Committed — ' + currentFileName);
+}
+
+function revertToLastCommit() {
+  const snap = localStorage.getItem(LAST_COMMIT_KEY);
+  if (!snap) { showToast('⚠️ 되돌릴 커밋이 없어요'); return; }
+  if (!confirm('마지막 커밋으로 되돌릴까요? 현재 변경사항은 사라져요.')) return;
+  try {
+    const data = JSON.parse(snap);
+    applyProjectData(data);
+    showToast('↩ 마지막 커밋으로 되돌렸어요');
+  } catch { showToast('❌ 되돌리기 실패'); }
 }
 
 function saveProjectAs() {
@@ -440,9 +461,14 @@ const autoSaveObserver = new MutationObserver(scheduleAutoSave);
 
 /* ── Init (called from editor.js after all scripts loaded) ── */
 function initApp() {
+  // 이미 백업이 있으면 되돌리기 버튼 활성화
+  if (localStorage.getItem(LAST_COMMIT_KEY)) {
+    const revertBtn = document.getElementById('revert-btn');
+    if (revertBtn) revertBtn.classList.add('has-commit');
+  }
   canvasWrap.style.background = pageSettings.bg;
   canvasEl.style.gap = pageSettings.gap + 'px';
-  document.querySelectorAll('.text-block').forEach(tb => {
+  document.querySelectorAll('.text-block, .label-group-block').forEach(tb => {
     if (pageSettings.padX > 0) { tb.style.paddingLeft = pageSettings.padX + 'px'; tb.style.paddingRight = pageSettings.padX + 'px'; }
     if (tb.dataset.type !== 'label') {
       tb.style.paddingTop = pageSettings.padY + 'px';

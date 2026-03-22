@@ -167,11 +167,12 @@ function bindSectionDropZone(sec) {
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
-  const isText   = block.classList.contains('text-block');
-  const isGap    = block.classList.contains('gap-block');
-  const isAsset  = block.classList.contains('asset-block');
-  const isIconCb = block.classList.contains('icon-circle-block');
-  const isTableB = block.classList.contains('table-block');
+  const isText       = block.classList.contains('text-block');
+  const isGap        = block.classList.contains('gap-block');
+  const isAsset      = block.classList.contains('asset-block');
+  const isIconCb     = block.classList.contains('icon-circle-block');
+  const isTableB     = block.classList.contains('table-block');
+  const isLabelGroup = block.classList.contains('label-group-block');
 
 
   if (isText) {
@@ -331,6 +332,79 @@ function bindBlock(block) {
     });
   }
 
+  if (isLabelGroup) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      // + 버튼: 새 라벨 추가
+      if (e.target.classList.contains('label-group-add-btn')) {
+        pushHistory();
+        const items  = block.querySelectorAll('.label-item');
+        const first  = items[0];
+        const lastBg     = first?.dataset.bg     || '#111111';
+        const lastColor  = first?.dataset.color  || '#ffffff';
+        const lastRadius = parseInt(first?.dataset.radius) || 40;
+        const newItem = makeLabelItem('Tag', lastBg, lastColor, lastRadius);
+        block.querySelector('.label-group-add-btn').before(newItem);
+        block.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
+        newItem.classList.add('item-selected');
+        showLabelGroupProperties(block, newItem);
+        return;
+      }
+      // × 버튼: 라벨 삭제
+      if (e.target.classList.contains('label-item-delete-btn')) {
+        const items = block.querySelectorAll('.label-item');
+        if (items.length <= 1) { showToast('⚠️ 마지막 라벨은 삭제할 수 없어요.'); return; }
+        pushHistory();
+        e.target.closest('.label-item').remove();
+        showLabelGroupProperties(block, null);
+        return;
+      }
+      // 라벨 아이템 클릭: 아이템 선택
+      const item = e.target.closest('.label-item');
+      if (item) {
+        if (!block.classList.contains('selected')) {
+          deselectAll();
+          block.classList.add('selected');
+          syncSection(block.closest('.section-block'));
+          highlightBlock(block, block._layerItem);
+        }
+        block.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
+        item.classList.add('item-selected');
+        showLabelGroupProperties(block, item);
+        return;
+      }
+      // 블록 배경 클릭: 블록만 선택
+      deselectAll();
+      block.classList.add('selected');
+      syncSection(block.closest('.section-block'));
+      highlightBlock(block, block._layerItem);
+      showLabelGroupProperties(block, null);
+    });
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const item = e.target.closest('.label-item');
+      if (!item) return;
+      const span = item.querySelector('.label-item-text');
+      if (!span) return;
+      span.contentEditable = 'true';
+      span.focus();
+      const range = document.createRange();
+      range.selectNodeContents(span);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      block.classList.add('editing');
+      span.addEventListener('blur', () => {
+        span.contentEditable = 'false';
+        block.classList.remove('editing');
+      }, { once: true });
+      span.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') { ev.preventDefault(); span.blur(); }
+        if (ev.key === 'Escape') { span.blur(); }
+      }, { once: true });
+    });
+  }
+
   // hover ↔ layer item
   block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = '#252525'; });
   block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
@@ -443,6 +517,71 @@ function makeIconCircleBlock() {
   return { row, block: icb };
 }
 
+function makeLabelItem(text = 'Label', bg = '#111111', color = '#ffffff', radius = 40) {
+  const item = document.createElement('div');
+  item.className = 'label-item';
+  item.dataset.bg     = bg;
+  item.dataset.color  = color;
+  item.dataset.radius = radius;
+  item.style.backgroundColor = bg;
+  item.style.color            = color;
+  item.style.borderRadius     = radius + 'px';
+
+  const span = document.createElement('span');
+  span.className = 'label-item-text';
+  span.contentEditable = 'false';
+  span.textContent = text;
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'label-item-delete-btn';
+  delBtn.textContent = '×';
+  delBtn.title = '라벨 삭제';
+
+  item.appendChild(span);
+  item.appendChild(delBtn);
+  return item;
+}
+
+function makeLabelGroupBlock() {
+  const row = document.createElement('div');
+  row.className = 'row'; row.dataset.layout = 'stack';
+
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+
+  const block = document.createElement('div');
+  block.className = 'label-group-block';
+  block.id = genId('lg');
+
+  block.appendChild(makeLabelItem('Tag', '#111111', '#ffffff', 40));
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'label-group-add-btn';
+  addBtn.textContent = '+';
+  addBtn.title = '라벨 추가';
+  block.appendChild(addBtn);
+
+  if (pageSettings.padX > 0) {
+    block.style.paddingLeft  = pageSettings.padX + 'px';
+    block.style.paddingRight = pageSettings.padX + 'px';
+  }
+
+  col.appendChild(block);
+  row.appendChild(col);
+  return { row, block };
+}
+
+function addLabelGroupBlock() {
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  pushHistory();
+  const { row, block } = makeLabelGroupBlock();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  buildLayerPanel();
+  selectSection(sec);
+}
+
 function makeTableBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.dataset.layout = 'stack';
@@ -455,19 +594,20 @@ function makeTableBlock() {
   tb.id = genId('tbl');
   tb.dataset.style = 'default';
   tb.dataset.showHeader = 'true';
+  tb.dataset.cellAlign = 'center';
   tb.innerHTML = `
     <table class="tb-table">
       <thead>
-        <tr><th>항목</th><th>내용</th></tr>
+        <tr><th style="text-align:center">항목</th><th style="text-align:center">내용</th></tr>
       </thead>
       <tbody>
-        <tr><td>항목 1</td><td></td></tr>
-        <tr><td>항목 2</td><td></td></tr>
-        <tr><td>항목 3</td><td></td></tr>
-        <tr><td>항목 4</td><td></td></tr>
-        <tr><td>항목 5</td><td></td></tr>
-        <tr><td>항목 6</td><td></td></tr>
-        <tr><td>항목 7</td><td></td></tr>
+        <tr><td style="text-align:center">항목 1</td><td style="text-align:center"></td></tr>
+        <tr><td style="text-align:center">항목 2</td><td style="text-align:center"></td></tr>
+        <tr><td style="text-align:center">항목 3</td><td style="text-align:center"></td></tr>
+        <tr><td style="text-align:center">항목 4</td><td style="text-align:center"></td></tr>
+        <tr><td style="text-align:center">항목 5</td><td style="text-align:center"></td></tr>
+        <tr><td style="text-align:center">항목 6</td><td style="text-align:center"></td></tr>
+        <tr><td style="text-align:center">항목 7</td><td style="text-align:center"></td></tr>
       </tbody>
     </table>`;
 
@@ -487,7 +627,7 @@ function insertBeforeBottomGap(section, el) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   const inner = section.querySelector('.section-inner');
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected');
+  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected');
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');

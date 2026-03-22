@@ -170,7 +170,7 @@ document.addEventListener('keydown', e => {
   const isDelete = e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey));
   if (isDelete) {
     // 텍스트 편집 중이거나 input에 포커스가 있으면 기본 동작 유지
-    if (document.querySelector('.text-block.editing')) return;
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
 
     // 이미지 편집 모드 중이면 이미지 삭제
@@ -186,7 +186,7 @@ document.addEventListener('keydown', e => {
     const selGap     = document.querySelector('.gap-block.selected');
     const selSection = document.querySelector('.section-block.selected');
 
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected')];
     if (allSelBlocks.length > 0) {
       e.preventDefault();
       pushHistory();
@@ -638,6 +638,11 @@ function deselectAll() {
   });
   document.querySelectorAll('.gap-block').forEach(g => g.classList.remove('selected'));
   document.querySelectorAll('.icon-circle-block').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.label-group-block').forEach(b => {
+    b.classList.remove('selected', 'editing');
+    b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
+    b.querySelectorAll('.label-item-text').forEach(el => el.setAttribute('contenteditable','false'));
+  });
   document.querySelectorAll('.table-block').forEach(b => {
     b.classList.remove('selected');
     b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));

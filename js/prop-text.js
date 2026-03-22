@@ -7,6 +7,9 @@ function showTextProperties(tb) {
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
   const isLabel = currentClass === 'tb-label';
+  const labelPillPadT = parseInt(contentEl.style.paddingTop)    || 4;
+  const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
+  const labelPillH    = labelPillPadT + labelPillPadB;
   const currentAlign = isLabel ? (tb.style.textAlign || 'left') : (contentEl.style.textAlign || 'left');
   const currentSize  = parseInt(computed.fontSize) || 15;
   const currentColor = rgbToHex(computed.color) || '#111111';
@@ -59,6 +62,11 @@ function showTextProperties(tb) {
           <span class="prop-label">모서리</span>
           <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
           <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">높이</span>
+          <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="${labelPillH}">
+          <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="${labelPillH}">
         </div>
       </div>
     </div>
@@ -227,6 +235,18 @@ function showTextProperties(tb) {
     rNumber.addEventListener('input', () => {
       const v = Math.min(40, Math.max(0, parseInt(rNumber.value)||0));
       contentEl.style.borderRadius = v+'px'; rSlider.value = v;
+    });
+  }
+
+  /* 태그 pill 높이 (상하 패딩으로 조절) */
+  const pillHSlider = document.getElementById('label-pill-height-slider');
+  const pillHNumber = document.getElementById('label-pill-height-number');
+  if (pillHSlider) {
+    const setPillH = v => { const half = Math.round(v/2); contentEl.style.paddingTop = half+'px'; contentEl.style.paddingBottom = half+'px'; };
+    pillHSlider.addEventListener('input', () => { setPillH(parseInt(pillHSlider.value)); pillHNumber.value = pillHSlider.value; });
+    pillHNumber.addEventListener('input', () => {
+      const v = Math.min(120, Math.max(0, parseInt(pillHNumber.value)||0));
+      setPillH(v); pillHSlider.value = v;
     });
   }
 

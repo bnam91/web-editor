@@ -90,6 +90,10 @@ body {
 }
 .tb-btn:hover { background: #333; color: #fff; border-color: #444; }
 .tb-btn.active { background: #2d6fe8; color: #fff; border-color: #2d6fe8; }
+.tb-btn--icon { width: 28px; padding: 0; color: #555; }
+.tb-btn--icon:hover { color: #fff; }
+.tb-btn--icon.has-commit { color: #aaa; }
+.tb-btn--icon:not(.has-commit) { opacity: 0.35; pointer-events: none; }
 
 /* Zoom */
 #zoom-ctrl {
@@ -117,6 +121,18 @@ body {
   display: flex; flex-direction: column; overflow: hidden;
 }
 #panel-right { border-right: none; border-left: 1px solid #2e2e2e; }
+
+#rp-preview-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin: 10px 12px 0;
+  width: calc(100% - 24px);
+  height: 30px;
+  background: #2d6fe8; color: #fff;
+  border: none; border-radius: 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  cursor: pointer;
+}
+#rp-preview-btn:hover { background: #2460cc; }
 
 .panel-header {
   height: 36px; padding: 0 14px;
@@ -1029,6 +1045,86 @@ body {
   padding: 11px 36px; border-radius: var(--preset-label-radius);
   letter-spacing: 0.06em;
 }
+
+/* ═══════════════════════════════════
+   LABEL GROUP BLOCK
+═══════════════════════════════════ */
+.label-group-block {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  min-height: 60px;
+  width: 100%;
+  cursor: default;
+  outline: 2px solid transparent;
+  transition: outline 0.1s, padding-right 0.15s;
+}
+.label-group-block.selected { padding-right: 58px; }
+.label-group-block:hover { outline: 2px solid rgba(45,111,232,0.25); outline-offset: -2px; }
+.label-group-block.selected { outline: 2px solid #2d6fe8; outline-offset: -2px; }
+
+.label-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 11px 36px;
+  border-radius: 40px;
+  background: #111111;
+  color: #ffffff;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: outline 0.1s;
+}
+.label-item.item-selected { outline: 2px solid #2d6fe8; outline-offset: 2px; }
+.label-item-text { outline: none; min-width: 20px; white-space: nowrap; }
+
+.label-group-add-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 1.5px dashed #555;
+  background: none;
+  color: #888;
+  font-size: 20px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.label-group-block.selected .label-group-add-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.label-group-add-btn:hover { border-color: #2d6fe8; color: #2d6fe8; }
+
+.label-item-delete-btn {
+  position: absolute;
+  top: -8px; right: -8px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #e84040;
+  border: none;
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  display: none;
+  padding: 0;
+}
+.label-item.item-selected .label-item-delete-btn { display: block; }
 
 /* ═══════════════════════════════════
    ASSET BLOCK — 860×780 표준 (풀블리드)

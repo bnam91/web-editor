@@ -15,13 +15,14 @@ const layerIcons = {
 
 /* 레이어 아이템 생성 (단일 블록용) */
 function makeLayerBlockItem(block, dragTarget, sec) {
-  const isText   = block.classList.contains('text-block');
-  const isGap    = block.classList.contains('gap-block');
-  const isIconCb = block.classList.contains('icon-circle-block');
-  const isTable  = block.classList.contains('table-block');
-  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component' };
+  const isText       = block.classList.contains('text-block');
+  const isGap        = block.classList.contains('gap-block');
+  const isIconCb     = block.classList.contains('icon-circle-block');
+  const isTable      = block.classList.contains('table-block');
+  const isLabelGroup = block.classList.contains('label-group-block');
+  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -151,13 +152,14 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
   groupChildren.className = 'layer-row-children';
 
   blocks.forEach(block => {
-    const isText   = block.classList.contains('text-block');
-    const isGap    = block.classList.contains('gap-block');
-    const isIconCb = block.classList.contains('icon-circle-block');
-    const isTable  = block.classList.contains('table-block');
-    const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : 'asset';
-    const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table' };
-    const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component' };
+    const isText       = block.classList.contains('text-block');
+    const isGap        = block.classList.contains('gap-block');
+    const isIconCb     = block.classList.contains('icon-circle-block');
+    const isTable      = block.classList.contains('table-block');
+    const isLabelGroup = block.classList.contains('label-group-block');
+    const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : 'asset';
+    const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags' };
+    const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags' };
 
     const item = document.createElement('div');
     item.className = 'layer-item layer-item-nested';

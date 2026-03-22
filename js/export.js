@@ -602,8 +602,11 @@ function closeFigmaUploadModal() {
 }
 
 async function doFigmaUpload() {
-  const channel = document.getElementById('figma-channel-input').value.trim();
-  if (!channel) { alert('채널 ID를 입력해주세요.'); return; }
+  const raw = document.getElementById('figma-channel-input').value.trim();
+  if (!raw) { alert('채널 ID를 입력해주세요.'); return; }
+  // "Connect to Figma, channel abc123" 형태도 허용 — 마지막 단어만 추출
+  const channelMatch = raw.match(/channel\s+(\S+)/i);
+  const channel = channelMatch ? channelMatch[1] : raw;
   localStorage.setItem('figma-last-channel', channel);
 
   // 선택된 섹션 ID 수집
@@ -742,6 +745,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         variant,
         id: el.id || ('tb_' + Math.random().toString(36).slice(2,8)),
         content: inner.textContent.trim(),
+        height: Math.round(el.offsetHeight),  // DOM 실측 높이 (패딩 포함)
         style: {
           fontSize:      style.fontSize,
           fontWeight:    style.fontWeight,
@@ -773,6 +777,28 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
       return block;
     }
+    if (el.classList.contains('label-group-block')) {
+      const items = [];
+      el.querySelectorAll('.label-item').forEach(item => {
+        const span = item.querySelector('.label-item-text');
+        items.push({
+          text:   span?.textContent.trim() || 'Label',
+          bg:     item.dataset.bg    || '#111111',
+          color:  item.dataset.color || '#ffffff',
+          radius: parseInt(item.dataset.radius) || 40,
+        });
+      });
+      const gap   = parseInt(el.style.gap) || 10;
+      const jc    = el.style.justifyContent || 'flex-start';
+      const align = jc === 'center' ? 'center' : jc === 'flex-end' ? 'right' : 'left';
+      return {
+        type:   'label-group',
+        id:     el.id || ('lg_' + Math.random().toString(36).slice(2, 8)),
+        items,
+        height: Math.round(el.offsetHeight),
+        style:  { gap, align, paddingX: parseInt(el.style.paddingLeft) || 20 },
+      };
+    }
     if (el.classList.contains('asset-block')) {
       return {
         type: 'image',
@@ -790,7 +816,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block').forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });

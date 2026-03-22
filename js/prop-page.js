@@ -107,7 +107,7 @@ function showPageProperties() {
 
   const applyPadX = (v) => {
     pageSettings.padX = v;
-    document.querySelectorAll('.text-block').forEach(tb => {
+    document.querySelectorAll('.text-block, .label-group-block').forEach(tb => {
       tb.style.paddingLeft = v + 'px';
       tb.style.paddingRight = v + 'px';
     });
@@ -140,6 +140,9 @@ function showPageProperties() {
           const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
           if (contentEl) contentEl.style.textAlign = align;
         }
+      });
+      document.querySelectorAll('.label-group-block').forEach(block => {
+        block.style.justifyContent = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
       });
       propPanel.querySelectorAll('#page-align-left,#page-align-center,#page-align-right')
         .forEach(b => b.classList.toggle('active', b === btn));
