@@ -173,6 +173,7 @@ function bindBlock(block) {
   const isIconCb     = block.classList.contains('icon-circle-block');
   const isTableB     = block.classList.contains('table-block');
   const isLabelGroup = block.classList.contains('label-group-block');
+  const isCard       = block.classList.contains('card-block');
 
 
   if (isText) {
@@ -429,6 +430,65 @@ function bindBlock(block) {
     });
   }
 
+  if (isCard) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        syncSection(block.closest('.section-block'));
+        return;
+      }
+      deselectAll();
+      block.classList.add('selected');
+      syncSection(block.closest('.section-block'));
+      highlightBlock(block, block._layerItem);
+      showCardProperties(block);
+    });
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      // 이미지 영역 더블클릭 → 이미지 업로드
+      if (e.target.closest('.cdb-image')) {
+        triggerCardImageUpload(block);
+        return;
+      }
+      // 텍스트 영역 더블클릭 → contenteditable 활성화
+      const textEl = e.target.closest('.cdb-title, .cdb-desc');
+      if (textEl) {
+        textEl.contentEditable = 'true';
+        textEl.focus();
+        block.classList.add('editing');
+        textEl.addEventListener('blur', () => {
+          textEl.contentEditable = 'false';
+          block.classList.remove('editing');
+        }, { once: true });
+        textEl.addEventListener('keydown', ev => {
+          if (ev.key === 'Escape') { textEl.blur(); }
+        }, { once: true });
+      }
+    });
+    block.addEventListener('dragover', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.add('drag-over');
+    });
+    block.addEventListener('dragleave', e => {
+      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
+    });
+    block.addEventListener('drop', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) loadImageToCard(block, file);
+    });
+    // 로드/undo 후 has-image 복원
+    if (block.classList.contains('has-image')) {
+      const clearBtn = block.querySelector('.cdb-clear-btn');
+      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); clearCardImage(block); });
+    }
+  }
+
   // hover ↔ layer item
   block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = '#252525'; });
   block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
@@ -652,7 +712,7 @@ function insertBeforeBottomGap(section, el) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   const inner = section.querySelector('.section-inner');
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected');
+  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected');
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
@@ -713,7 +773,7 @@ function addTextBlock(type) {
 }
 
 function groupSelectedBlocks() {
-  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected')];
+  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .card-block.selected')];
   if (selected.length < 2) return;
 
   // 같은 섹션의 블록만 그룹
@@ -824,6 +884,43 @@ function addTableBlock() {
   selectSection(sec);
 }
 
+function makeCardBlock() {
+  const row = document.createElement('div');
+  row.className = 'row'; row.dataset.layout = 'stack';
+
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+
+  const cdb = document.createElement('div');
+  cdb.className = 'card-block'; cdb.dataset.type = 'card';
+  cdb.id = genId('cdb');
+  cdb.dataset.bgColor = '#f5f5f5';
+  cdb.dataset.radius = '12';
+  cdb.innerHTML = `
+    <div class="cdb-image">
+      <span class="cdb-img-placeholder">+</span>
+    </div>
+    <div class="cdb-body" style="background:#f5f5f5; border-radius:0 0 12px 12px;">
+      <div class="cdb-title" contenteditable="false">카드 제목</div>
+      <div class="cdb-desc" contenteditable="false">설명 텍스트를 입력하세요</div>
+    </div>`;
+
+  col.appendChild(cdb);
+  row.appendChild(col);
+  return { row, block: cdb };
+}
+
+function addCardBlock() {
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  pushHistory();
+  const { row, block } = makeCardBlock();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  buildLayerPanel();
+  selectSection(sec);
+}
+
 function addSection() {
   const canvas  = document.getElementById('canvas');
   const secList = canvas.querySelectorAll('.section-block');
@@ -869,7 +966,7 @@ function addSection() {
   bindSectionOrder(sec);
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block').forEach(b => bindBlock(b));
 
   buildLayerPanel();
   selectSection(sec);

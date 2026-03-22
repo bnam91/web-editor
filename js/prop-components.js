@@ -331,3 +331,76 @@ function showGapProperties(gb) {
     slider.value = v;
   });
 }
+
+function showCardProperties(block) {
+  const bgColor = block.dataset.bgColor || '#f5f5f5';
+  const radius  = parseInt(block.dataset.radius) || 12;
+
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <rect x="1" y="1" width="10" height="10" rx="2"/>
+            <line x1="1" y1="6" x2="11" y2="6"/>
+          </svg>
+        </div>
+        <span class="prop-block-name">Card Block</span>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
+      </div>
+      <div class="prop-section-title">이미지</div>
+      <div class="prop-row">
+        <button class="prop-btn-full" onclick="triggerCardImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
+      </div>
+      ${block.classList.contains('has-image') ? `
+      <div class="prop-row">
+        <button class="prop-btn-full prop-btn-danger" onclick="clearCardImage(document.getElementById('${block.id}'))">이미지 제거</button>
+      </div>` : ''}
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">하단 영역</div>
+      <div class="prop-color-row">
+        <span class="prop-label">배경색</span>
+        <div class="prop-color-swatch" style="background:${bgColor}">
+          <input type="color" id="card-bg-color" value="${bgColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="card-bg-hex" value="${bgColor}" maxlength="7">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="card-radius-slider" min="0" max="40" step="1" value="${radius}">
+        <input type="number" class="prop-number" id="card-radius-number" min="0" max="40" value="${radius}">
+      </div>
+    </div>`;
+
+  // 배경색
+  const bgInput = document.getElementById('card-bg-color');
+  const bgHex   = document.getElementById('card-bg-hex');
+  const body    = block.querySelector('.cdb-body');
+
+  function applyBg(val) {
+    block.dataset.bgColor = val;
+    body.style.background = val;
+    body.style.borderRadius = `0 0 ${block.dataset.radius || 12}px ${block.dataset.radius || 12}px`;
+  }
+  bgInput.addEventListener('input', () => { bgHex.value = bgInput.value; applyBg(bgInput.value); });
+  bgHex.addEventListener('change', () => {
+    const v = bgHex.value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) { bgInput.value = v; applyBg(v); }
+  });
+
+  // 모서리
+  const rSlider = document.getElementById('card-radius-slider');
+  const rNumber = document.getElementById('card-radius-number');
+
+  function applyRadius(val) {
+    block.dataset.radius = val;
+    block.style.borderRadius = val + 'px';
+    body.style.borderRadius = `0 0 ${val}px ${val}px`;
+  }
+  rSlider.addEventListener('input', () => { rNumber.value = rSlider.value; applyRadius(rSlider.value); });
+  rNumber.addEventListener('input', () => {
+    const v = Math.min(40, Math.max(0, parseInt(rNumber.value) || 0));
+    rSlider.value = v; applyRadius(v);
+  });
+}
