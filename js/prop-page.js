@@ -5,6 +5,7 @@
 function showPageProperties() {
   const { bg, gap, padX, padY } = pageSettings;
   propPanel.innerHTML = `
+    <p class="prop-hint">블록을 선택하면 속성이 표시됩니다</p>
     <div class="prop-section">
       <div class="prop-block-label">
         <div class="prop-block-icon">

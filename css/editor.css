@@ -1419,7 +1419,7 @@ body {
   margin-top: 0; margin-bottom: 0;
   transition: background 0.15s;
 }
-.asset-block:hover    { background: rgba(140,140,140,0.75); }
+.asset-block:hover    { background: rgba(140,140,140,0.75); outline: 1px dashed #ccc; outline-offset: -2px; }
 .asset-block.selected { background: rgba(130,130,130,0.8); }
 .asset-block:hover .asset-icon { opacity: 0.5; }
 .asset-icon { width: 120px; height: 120px; opacity: 0.5; filter: brightness(0) invert(1); transition: opacity 0.15s; }
