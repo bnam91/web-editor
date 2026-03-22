@@ -58,6 +58,11 @@ function showAssetProperties(ab) {
         </div>
       </div>
       <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="asset-h-slider" min="200" max="1600" step="10" value="${currentH}">
+        <input type="number" class="prop-number" id="asset-h-number" min="200" max="1600" value="${currentH}">
+      </div>
+      <div class="prop-row">
         <span class="prop-label">모서리</span>
         <input type="range" class="prop-slider" id="asset-r-slider" min="0" max="120" step="2" value="${currentR}">
         <input type="number" class="prop-number" id="asset-r-number" min="0" max="120" value="${currentR}">
@@ -76,6 +81,19 @@ function showAssetProperties(ab) {
 
   bindLayoutInput(ab);
 
+  const hSlider = document.getElementById('asset-h-slider');
+  const hNumber = document.getElementById('asset-h-number');
+  const applyH = v => {
+    ab.style.height = v + 'px';
+    hSlider.value = v;
+    hNumber.value = v;
+  };
+  hSlider.addEventListener('input', () => { applyH(parseInt(hSlider.value)); pushHistory(); });
+  hNumber.addEventListener('change', () => {
+    const v = Math.min(1600, Math.max(200, parseInt(hNumber.value) || 780));
+    applyH(v); pushHistory();
+  });
+
   document.querySelectorAll('.prop-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const h = parseInt(btn.dataset.h);
@@ -83,6 +101,7 @@ function showAssetProperties(ab) {
       ab.style.height = h + 'px';
       ab.dataset.size = '100';
       document.getElementById('asset-size-select').value = '100';
+      applyH(h);
       pushHistory();
     });
   });
