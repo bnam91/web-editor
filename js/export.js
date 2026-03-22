@@ -119,7 +119,7 @@ function exportDesignJSON() {
         id:      uid('txt'),
         type:    'text',
         variant,
-        content: inner ? inner.textContent.trim() : '',
+        content: inner ? getTextWithLineBreaks(inner) : '',
         style:   extractTextStyle(inner),
         padding: {
           top:    parseFloat(el.style.paddingTop)    || 0,
@@ -672,6 +672,14 @@ async function doFigmaUpload() {
  * @param {string[]|null} selectedIds  업로드할 섹션 DOM ID 배열. null 이면 전체
  * @param {Object}        nodeMap      섹션ID → { figmaId, y } 매핑 (업데이트 모드용)
  */
+// <br> 태그를 \n으로 변환하여 줄바꿈 보존
+function getTextWithLineBreaks(el) {
+  if (!el) return '';
+  const clone = el.cloneNode(true);
+  clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+  return clone.textContent.trim();
+}
+
 function buildFigmaExportJSON(selectedIds, nodeMap) {
   // sangpe_to_figma.mjs 가 기대하는 포맷으로 빌드
   // sections[].blocks[] — gap / text / image / { columns:[{width,blocks}] }
@@ -744,7 +752,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         type: 'text',
         variant,
         id: el.id || ('tb_' + Math.random().toString(36).slice(2,8)),
-        content: inner.textContent.trim(),
+        content: getTextWithLineBreaks(inner),
         height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),  // 라이브 DOM 실측 높이
         style: {
           fontSize:      style.fontSize,
