@@ -145,21 +145,55 @@ body {
 </div>
 
 <script>
+const IS_ELECTRON = !!window.electronAPI?.isElectron;
+
+/* ── 스토리지 추상화 (Electron: 파일, 브라우저: localStorage) ── */
 const PROJECTS_KEY = 'sangpe-projects';
 
-function loadProjects() {
+async function loadProjects() {
+  if (IS_ELECTRON) {
+    return await window.electronAPI.listProjects();
+  }
   try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || []; } catch { return []; }
 }
-function saveProjectsList(list) {
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+
+async function saveNewProject(proj) {
+  if (IS_ELECTRON) {
+    await window.electronAPI.saveProject(proj);
+  } else {
+    const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+    list.push(proj);
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+  }
 }
+
+async function renameProject(id, newName) {
+  if (IS_ELECTRON) {
+    const proj = await window.electronAPI.loadProject(id);
+    if (proj) { proj.name = newName; proj.updatedAt = new Date().toISOString(); await window.electronAPI.saveProject(proj); }
+  } else {
+    const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+    const proj = list.find(p => p.id === id);
+    if (proj) { proj.name = newName; localStorage.setItem(PROJECTS_KEY, JSON.stringify(list)); }
+  }
+}
+
+async function removeProject(id) {
+  if (IS_ELECTRON) {
+    await window.electronAPI.deleteProject(id);
+  } else {
+    const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list.filter(p => p.id !== id)));
+  }
+}
+
 function formatDate(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function renderGrid() {
-  const list = loadProjects();
+async function renderGrid() {
+  const list = await loadProjects();
   const grid = document.getElementById('project-grid');
   const empty = document.getElementById('empty-state');
   grid.innerHTML = '';
@@ -167,7 +201,7 @@ function renderGrid() {
   if (!list.length) { empty.style.display = 'block'; return; }
   empty.style.display = 'none';
 
-  list.slice().reverse().forEach(proj => {
+  list.forEach(proj => {
     const card = document.createElement('div');
     card.className = 'project-card';
     card.dataset.id = proj.id;
@@ -195,12 +229,17 @@ function renderGrid() {
   });
 }
 
-function createProject() {
-  const list = loadProjects();
+async function createProject() {
   const id = 'proj_' + Date.now();
   const now = new Date().toISOString();
-  list.push({ id, name: 'Untitled', createdAt: now, updatedAt: now, snapshot: null });
-  saveProjectsList(list);
+  const proj = {
+    id, name: 'Untitled',
+    createdAt: now, updatedAt: now,
+    version: 2,
+    currentPageId: 'page_1',
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 32, padY: 32 }, canvas: '' }]
+  };
+  await saveNewProject(proj);
   openProject(id);
 }
 
@@ -208,13 +247,13 @@ function openProject(id) {
   window.location.href = '../index.html?project=' + id;
 }
 
-function deleteProject(e, id) {
+async function deleteProject(e, id) {
   e.stopPropagation();
-  const list = loadProjects();
+  const list = await loadProjects();
   const proj = list.find(p => p.id === id);
   if (!proj) return;
   if (!confirm(`"${proj.name}" 프로젝트를 삭제할까요?`)) return;
-  saveProjectsList(list.filter(p => p.id !== id));
+  await removeProject(id);
   renderGrid();
 }
 
@@ -228,11 +267,9 @@ function startRename(e, id) {
   nameEl.replaceWith(input);
   input.focus(); input.select();
 
-  function commit() {
+  async function commit() {
     const newName = input.value.trim() || current;
-    const list = loadProjects();
-    const proj = list.find(p => p.id === id);
-    if (proj) { proj.name = newName; saveProjectsList(list); }
+    await renameProject(id, newName);
     renderGrid();
   }
   input.addEventListener('blur', commit);
@@ -243,12 +280,11 @@ function startRename(e, id) {
 }
 
 // 샘플 프로젝트 (최초 실행 시 한 번만)
-function initSampleProject() {
-  const list = loadProjects();
-  // 샘플이 이미 있으면 덮어쓰기, 없고 비어있으면 새로 생성
-  const existing = list.find(p => p.id === 'proj_sample');
-  if (existing && existing.snapshot?.canvas?.includes('Section 03')) return;
-  if (list.length > 0 && !existing) return;
+async function initSampleProject() {
+  const list = await loadProjects();
+  // 샘플이 이미 있으면 스킵
+  if (list.find(p => p.id === 'proj_sample')) return;
+  if (list.length > 0) return;
   const id = 'proj_sample';
   const now = new Date().toISOString();
   const sampleCanvas = `
@@ -285,14 +321,18 @@ function initSampleProject() {
     <div class="gap-block" data-type="gap" style="height:100px"></div>
   </div>
 </div>`;
-  const snapshot = {
-    version: 1,
-    pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 },
-    canvas: sampleCanvas
+  const proj = {
+    id, name: '샘플 프로젝트',
+    createdAt: now, updatedAt: now,
+    version: 2,
+    currentPageId: 'page_1',
+    pages: [{
+      id: 'page_1', name: 'Page 1', label: '',
+      pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 },
+      canvas: sampleCanvas
+    }]
   };
-  const updated = list.filter(p => p.id !== 'proj_sample');
-  updated.unshift({ id, name: '샘플 프로젝트', createdAt: now, updatedAt: now, snapshot });
-  saveProjectsList(updated);
+  await saveNewProject(proj);
 }
 
 // Electron fullscreen 감지
@@ -306,8 +346,7 @@ if (window.electronAPI?.isElectron) {
   });
 }
 
-initSampleProject();
-renderGrid();
+initSampleProject().then(() => renderGrid());
 </script>
 </body>
 </html>

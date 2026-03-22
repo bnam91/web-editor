@@ -1,6 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Projects (파일 기반)
+  listProjects:   ()        => ipcRenderer.invoke('projects:list'),
+  loadProject:    (id)      => ipcRenderer.invoke('projects:load', id),
+  saveProject:    (project) => ipcRenderer.invoke('projects:save', project),
+  deleteProject:  (id)      => ipcRenderer.invoke('projects:delete', id),
+
   // Presets
   readPresets:  ()         => ipcRenderer.invoke('presets:read-all'),
   savePreset:   (preset)   => ipcRenderer.invoke('presets:save', preset),

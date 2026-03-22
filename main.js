@@ -46,6 +46,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
   });
 
@@ -71,6 +72,41 @@ function createWindow() {
     });
   }
 }
+
+/* ── IPC: Projects (파일 기반 저장소) ── */
+const PROJECTS_DIR = path.join(__dirname, 'projects');
+if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+
+ipcMain.handle('projects:list', () => {
+  return fs.readdirSync(PROJECTS_DIR)
+    .filter(f => f.endsWith('.json'))
+    .map(f => {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
+        return { id: data.id, name: data.name, createdAt: data.createdAt, updatedAt: data.updatedAt };
+      } catch { return null; }
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+});
+
+ipcMain.handle('projects:load', (event, id) => {
+  const filePath = path.join(PROJECTS_DIR, `${id}.json`);
+  if (!fs.existsSync(filePath)) return null;
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
+});
+
+ipcMain.handle('projects:save', (event, project) => {
+  const filePath = path.join(PROJECTS_DIR, `${project.id}.json`);
+  fs.writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf8');
+  return true;
+});
+
+ipcMain.handle('projects:delete', (event, id) => {
+  const filePath = path.join(PROJECTS_DIR, `${id}.json`);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  return true;
+});
 
 /* ── IPC: Presets ── */
 ipcMain.handle('fullscreen:get', () => mainWindow?.isFullScreen() ?? false);

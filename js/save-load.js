@@ -10,29 +10,57 @@ let currentFileName = null; // 현재 세션의 저장 파일명 (null = 최초 
 const _urlParams = new URLSearchParams(window.location.search);
 const CURRENT_PROJECT_ID = _urlParams.get('project');
 
-function loadProjectsList() {
-  try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || []; } catch { return []; }
-}
-function saveProjectToList(snapshot) {
+const IS_ELECTRON = !!window.electronAPI?.isElectron;
+
+/* ── 프로젝트 파일 저장 (Electron: projects/{id}.json, 브라우저: localStorage) ── */
+async function saveProjectToFile(snapshot) {
   if (!CURRENT_PROJECT_ID) return;
-  const list = loadProjectsList();
-  const proj = list.find(p => p.id === CURRENT_PROJECT_ID);
-  if (proj) {
-    proj.snapshot = JSON.parse(snapshot);
-    proj.updatedAt = new Date().toISOString();
+  const data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+
+  if (IS_ELECTRON) {
+    // 기존 파일 로드해서 name/createdAt 보존
+    const existing = await window.electronAPI.loadProject(CURRENT_PROJECT_ID);
+    const proj = {
+      ...(existing || {}),
+      ...data,
+      id: CURRENT_PROJECT_ID,
+      name: existing?.name || data.name || 'Untitled',
+      updatedAt: new Date().toISOString(),
+    };
+    await window.electronAPI.saveProject(proj);
+  } else {
+    // 브라우저 fallback: localStorage
+    const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+    const proj = list.find(p => p.id === CURRENT_PROJECT_ID);
+    if (proj) { proj.snapshot = data; proj.updatedAt = new Date().toISOString(); }
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
   }
 }
+
+function loadProjectsList() {
+  try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || []; } catch { return []; }
+}
+
 function getProjectName() {
   if (!CURRENT_PROJECT_ID) return null;
-  const proj = loadProjectsList().find(p => p.id === CURRENT_PROJECT_ID);
-  return proj?.name || null;
+  if (!IS_ELECTRON) {
+    const proj = loadProjectsList().find(p => p.id === CURRENT_PROJECT_ID);
+    return proj?.name || null;
+  }
+  // Electron: 탭 이름은 초기 로드 시 파일에서 읽어옴 (비동기라 캐시 활용)
+  return document.getElementById('project-tab-name')?.textContent?.trim() || null;
 }
-function setProjectName(name) {
+
+async function setProjectName(name) {
   if (!CURRENT_PROJECT_ID) return;
-  const list = loadProjectsList();
-  const proj = list.find(p => p.id === CURRENT_PROJECT_ID);
-  if (proj) { proj.name = name; localStorage.setItem(PROJECTS_KEY, JSON.stringify(list)); }
+  if (IS_ELECTRON) {
+    const proj = await window.electronAPI.loadProject(CURRENT_PROJECT_ID);
+    if (proj) { proj.name = name; proj.updatedAt = new Date().toISOString(); await window.electronAPI.saveProject(proj); }
+  } else {
+    const list = loadProjectsList();
+    const proj = list.find(p => p.id === CURRENT_PROJECT_ID);
+    if (proj) { proj.name = name; localStorage.setItem(PROJECTS_KEY, JSON.stringify(list)); }
+  }
 }
 
 function goHome() {
@@ -333,15 +361,18 @@ function rebindAll() {
     bindSectionOrder(sec);
     bindSectionDrag(sec);
     bindSectionDropZone(sec);
-    // ⎇ 버튼 없으면 툴바에 추가 (T9 — 기존 섹션 호환)
+    // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');
-    if (toolbar && !toolbar.querySelector('.st-branch-btn')) {
-      const branchBtn = document.createElement('button');
-      branchBtn.className = 'st-btn st-branch-btn';
-      branchBtn.title = 'feature 브랜치로 실험';
-      branchBtn.textContent = '⎇';
+    if (toolbar) {
+      let branchBtn = toolbar.querySelector('.st-branch-btn');
+      if (!branchBtn) {
+        branchBtn = document.createElement('button');
+        branchBtn.className = 'st-btn st-branch-btn';
+        branchBtn.title = 'feature 브랜치로 실험';
+        branchBtn.textContent = '⎇';
+        toolbar.appendChild(branchBtn);
+      }
       branchBtn.onclick = function() { openSectionBranchMenu(this); };
-      toolbar.appendChild(branchBtn);
     }
   });
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block').forEach(b => {
@@ -384,6 +415,45 @@ function _downloadJSON(json, filename) {
 
 const LAST_COMMIT_KEY = 'goya-last-commit';
 
+/* ── 인라인 파일명 입력 모달 (prompt() Electron 미지원 대체) ── */
+function showFilenameModal(defaultName, onConfirm) {
+  const existing = document.getElementById('filename-modal-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'filename-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45)';
+
+  overlay.innerHTML = `
+    <div style="background:#1e1e1e;border:1px solid #3a3a3a;border-radius:10px;padding:20px 24px;min-width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
+      <div style="font-size:13px;color:#ccc;margin-bottom:10px;">파일명을 입력하세요</div>
+      <input id="filename-modal-input" type="text" value="${defaultName}"
+        style="width:100%;box-sizing:border-box;background:#2a2a2a;border:1px solid #555;border-radius:6px;color:#eee;font-size:13px;padding:7px 10px;outline:none;">
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        <button id="filename-modal-cancel" style="padding:6px 14px;border-radius:6px;border:1px solid #444;background:#333;color:#aaa;cursor:pointer;font-size:12px;">취소</button>
+        <button id="filename-modal-ok" style="padding:6px 14px;border-radius:6px;border:none;background:#4c8aff;color:#fff;cursor:pointer;font-size:12px;">저장</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  const input = document.getElementById('filename-modal-input');
+  input.select();
+
+  const close = () => overlay.remove();
+  const confirm = () => {
+    const val = input.value.trim() || defaultName;
+    close();
+    onConfirm(val);
+  };
+
+  document.getElementById('filename-modal-ok').onclick = confirm;
+  document.getElementById('filename-modal-cancel').onclick = close;
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirm();
+    if (e.key === 'Escape') close();
+  });
+}
+
 function saveProject() {
   // 현재 저장된 상태를 "이전 커밋"으로 백업
   const prev = localStorage.getItem(SAVE_KEY);
@@ -398,9 +468,12 @@ function saveProject() {
 
   if (!currentFileName) {
     const defaultName = getProjectName() || `web-editor-${new Date().toISOString().slice(0,10)}`;
-    const name = prompt('파일명을 입력하세요', defaultName);
-    if (name === null) return;
-    currentFileName = name.trim() || defaultName;
+    showFilenameModal(defaultName, name => {
+      currentFileName = name;
+      _downloadJSON(json, currentFileName);
+      showToast('✅ Committed — ' + currentFileName);
+    });
+    return;
   }
 
   _downloadJSON(json, currentFileName);
@@ -423,13 +496,11 @@ function saveProjectAs() {
   localStorage.setItem(SAVE_KEY, json);
 
   const defaultName = currentFileName || getProjectName() || `web-editor-${new Date().toISOString().slice(0,10)}`;
-  const name = prompt('다른 이름으로 저장', defaultName);
-  if (name === null) return; // 취소
-  const trimmed = name.trim() || defaultName;
-  currentFileName = trimmed;
-
-  _downloadJSON(json, currentFileName);
-  showToast('✅ 저장됨 — ' + currentFileName);
+  showFilenameModal(defaultName, name => {
+    currentFileName = name;
+    _downloadJSON(json, currentFileName);
+    showToast('✅ 저장됨 — ' + currentFileName);
+  });
 }
 
 function loadProjectFile(e) {
@@ -452,7 +523,7 @@ function scheduleAutoSave() {
   autoSaveTimer = setTimeout(() => {
     const snap = serializeProject();
     localStorage.setItem(SAVE_KEY, snap);
-    saveProjectToList(snap);
+    saveProjectToFile(snap); // 파일 기반 저장 (Electron) 또는 localStorage 폴백
   }, 1500);
 }
 
@@ -476,54 +547,58 @@ function initApp() {
     }
   });
 
-  // 프로젝트 로드 (URL ?project=id 우선, 없으면 autosave 폴백)
-  (function initLoad() {
-    // 프로젝트 탭 이름
-    const projName = getProjectName();
-    if (projName) {
-      const tabName = document.getElementById('project-tab-name');
-      if (tabName) tabName.textContent = projName;
-    }
-
-    // 더블클릭으로 프로젝트 이름 변경
-    const tabName = document.getElementById('project-tab-name');
-    if (tabName) {
-      tabName.addEventListener('dblclick', () => {
-        const current = tabName.textContent;
-        tabName.contentEditable = 'true';
-        tabName.focus();
-        document.execCommand('selectAll', false, null);
-        tabName.addEventListener('blur', function commit() {
-          tabName.contentEditable = 'false';
-          const newName = tabName.textContent.trim() || current;
-          tabName.textContent = newName;
-          setProjectName(newName);
-          tabName.removeEventListener('blur', commit);
-        }, { once: true });
-        tabName.addEventListener('keydown', function onKey(e) {
-          if (e.key === 'Enter') { e.preventDefault(); tabName.blur(); }
-          if (e.key === 'Escape') { tabName.textContent = current; tabName.blur(); }
-          tabName.removeEventListener('keydown', onKey);
-        });
+  // 프로젝트 탭 이름 더블클릭 변경
+  const tabName = document.getElementById('project-tab-name');
+  if (tabName) {
+    tabName.addEventListener('dblclick', () => {
+      const current = tabName.textContent;
+      tabName.contentEditable = 'true';
+      tabName.focus();
+      document.execCommand('selectAll', false, null);
+      tabName.addEventListener('blur', function commit() {
+        tabName.contentEditable = 'false';
+        const newName = tabName.textContent.trim() || current;
+        tabName.textContent = newName;
+        setProjectName(newName);
+        tabName.removeEventListener('blur', commit);
+      }, { once: true });
+      tabName.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Enter') { e.preventDefault(); tabName.blur(); }
+        if (e.key === 'Escape') { tabName.textContent = current; tabName.blur(); }
+        tabName.removeEventListener('keydown', onKey);
       });
+    });
+  }
+
+  // 프로젝트 로드 (Electron: 파일, 브라우저: localStorage)
+  (async function initLoad() {
+    function applyAndFinish(data) {
+      try { applyProjectData(data); } catch {}
+    }
+    function initEmpty() {
+      pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...pageSettings }, canvas: '' }];
+      currentPageId = 'page_1';
+      buildLayerPanel();
+      showPageProperties();
     }
 
-    // 데이터 로드
     if (CURRENT_PROJECT_ID) {
-      const proj = loadProjectsList().find(p => p.id === CURRENT_PROJECT_ID);
-      if (proj?.snapshot) {
-        try { applyProjectData(proj.snapshot); return; } catch {}
+      if (IS_ELECTRON) {
+        const proj = await window.electronAPI.loadProject(CURRENT_PROJECT_ID);
+        if (proj) {
+          if (tabName) tabName.textContent = proj.name || 'Untitled';
+          if (proj.version === 2 && proj.pages) { applyAndFinish(proj); return; }
+          if (proj.snapshot) { applyAndFinish(proj.snapshot); return; }
+        }
+      } else {
+        const proj = loadProjectsList().find(p => p.id === CURRENT_PROJECT_ID);
+        if (tabName && proj?.name) tabName.textContent = proj.name;
+        if (proj?.snapshot) { applyAndFinish(proj.snapshot); return; }
       }
     }
     const saved = localStorage.getItem(SAVE_KEY);
-    if (saved) {
-      try { applyProjectData(JSON.parse(saved)); return; } catch {}
-    }
-    // 새 프로젝트 — 기본 1페이지 초기화
-    pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...pageSettings }, canvas: '' }];
-    currentPageId = 'page_1';
-    buildLayerPanel();
-    showPageProperties();
+    if (saved) { try { applyAndFinish(JSON.parse(saved)); return; } catch {} }
+    initEmpty();
   })();
 
   autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, attributes: true, characterData: true });
