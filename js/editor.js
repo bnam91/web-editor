@@ -17,6 +17,7 @@ function switchToTab(tabName) {
   const collapseBtn = document.getElementById('layer-collapse-all');
   if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
   if (tabName === 'branch') renderBranchPanel();
+  if (tabName === 'inspector') renderInspectorPanel();
 }
 
 function initFileTabToggle() {
