@@ -446,12 +446,22 @@
     </svg>
     Asset
   </button>
-  <button class="fp-btn" onclick="addRowBlock()">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <rect x="1" y="2" width="3.5" height="7" rx="0.5"/><rect x="6.5" y="2" width="3.5" height="7" rx="0.5"/>
-    </svg>
-    Row
-  </button>
+  <div class="fp-dropdown" id="fp-row-dropdown">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-row-dropdown')">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="1" y="2" width="3.5" height="7" rx="0.5"/><rect x="6.5" y="2" width="3.5" height="7" rx="0.5"/>
+      </svg>
+      Row
+      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+    </button>
+    <div class="fp-dropdown-menu" id="fp-row-menu">
+      <button class="fp-menu-item" onclick="addRowBlock();toggleFpDropdown('fp-row-dropdown')">빈 로우</button>
+      <button class="fp-menu-item" onclick="addPresetRow('img1');toggleFpDropdown('fp-row-dropdown')">이미지 1개</button>
+      <button class="fp-menu-item" onclick="addPresetRow('img2');toggleFpDropdown('fp-row-dropdown')">이미지 2개</button>
+      <button class="fp-menu-item" onclick="addPresetRow('img3');toggleFpDropdown('fp-row-dropdown')">이미지 3개</button>
+      <button class="fp-menu-item" onclick="addPresetRow('text-img');toggleFpDropdown('fp-row-dropdown')">텍스트 + 이미지</button>
+    </div>
+  </div>
   <button class="fp-btn" onclick="addGapBlock()">
     <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
       <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="8" x2="10" y2="8"/><line x1="5.5" y1="3" x2="5.5" y2="8" stroke-dasharray="1.5 1.5"/>
