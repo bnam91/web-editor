@@ -1,12 +1,14 @@
 function applyAssetPadX(ab, padX) {
   const canvasW = 860;
   const baseH   = parseInt(ab.dataset.baseHeight) || parseInt(ab.style.height) || 780;
-  const baseW   = canvasW;
   const newW    = canvasW - padX * 2;
-  const newH    = Math.round(baseH * newW / baseW);
-  ab.style.paddingLeft  = padX + 'px';
-  ab.style.paddingRight = padX + 'px';
-  ab.style.height = newH + 'px';
+  const newH    = Math.round(baseH * newW / canvasW);
+  const pct     = Math.round(newW / canvasW * 10000) / 100; // 소수점 2자리 %
+  ab.style.paddingLeft  = '';
+  ab.style.paddingRight = '';
+  ab.style.width        = pct + '%';
+  ab.style.alignSelf    = 'center';
+  ab.style.height       = newH + 'px';
 }
 
 function showAssetProperties(ab) {
@@ -110,6 +112,7 @@ function showAssetProperties(ab) {
       const baseH = parseInt(ab.dataset.baseHeight) || 780;
       ab.style.paddingLeft  = '';
       ab.style.paddingRight = '';
+      ab.style.width  = '';
       ab.style.height = baseH + 'px';
     }
     hSlider.value = parseInt(ab.style.height);
