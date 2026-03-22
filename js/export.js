@@ -761,9 +761,11 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
       // label: 배경 박스 정보 추가
       if (variant === 'label') {
+        // 개별 라벨의 inline borderRadius 우선, 없으면 프리셋 fallback
+        const inlineRadius = parseFloat(inner.style.borderRadius);
         block.labelBox = {
           bg:       ps?.labelBg     || '#111111',
-          radius:   ps?.labelRadius || 8,
+          radius:   !isNaN(inlineRadius) ? inlineRadius : (ps?.labelRadius || 8),
           paddingH: 36,
           paddingV: 11,
         };
