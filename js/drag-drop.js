@@ -175,6 +175,7 @@ function bindBlock(block) {
   const isLabelGroup = block.classList.contains('label-group-block');
   const isCard       = block.classList.contains('card-block');
   const isStripBanner = block.classList.contains('strip-banner-block');
+  const isGraph       = block.classList.contains('graph-block');
 
 
   if (isText) {
@@ -546,6 +547,23 @@ function bindBlock(block) {
     }
   }
 
+  if (isGraph) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        syncSection(block.closest('.section-block'));
+        return;
+      }
+      deselectAll();
+      block.classList.add('selected');
+      syncSection(block.closest('.section-block'));
+      highlightBlock(block, block._layerItem);
+      showGraphProperties(block);
+    });
+  }
+
   // hover ↔ layer item
   block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = '#252525'; });
   block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
@@ -769,7 +787,7 @@ function insertBeforeBottomGap(section, el) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   const inner = section.querySelector('.section-inner');
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected');
+  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected');
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
@@ -830,7 +848,7 @@ function addTextBlock(type) {
 }
 
 function groupSelectedBlocks() {
-  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .card-block.selected, .strip-banner-block.selected')];
+  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected')];
   if (selected.length < 2) return;
 
   // 같은 섹션의 블록만 그룹
@@ -1015,6 +1033,85 @@ function addStripBannerBlock() {
   selectSection(sec);
 }
 
+const GRAPH_DEFAULT_ITEMS = [
+  { label: '항목 1', value: 75 },
+  { label: '항목 2', value: 90 },
+  { label: '항목 3', value: 55 },
+  { label: '항목 4', value: 80 },
+  { label: '항목 5', value: 65 },
+];
+
+function renderGraph(block) {
+  const items     = JSON.parse(block.dataset.items || '[]');
+  const chartType = block.dataset.chartType || 'bar-v';
+  const maxVal    = Math.max(...items.map(i => i.value), 1);
+
+  if (chartType === 'bar-v') {
+    block.innerHTML = `
+      <div class="grb-bars-v">
+        ${items.map(item => {
+          const pct = Math.round((item.value / maxVal) * 100);
+          return `
+            <div class="grb-bar-col">
+              <div class="grb-bar-val-label">${item.value}</div>
+              <div class="grb-bar-fill-wrap">
+                <div class="grb-bar-fill" style="height:${pct}%"></div>
+              </div>
+              <div class="grb-bar-label">${item.label}</div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  } else {
+    block.innerHTML = `
+      <div class="grb-bars-h">
+        ${items.map(item => {
+          const pct = Math.round((item.value / maxVal) * 100);
+          return `
+            <div class="grb-bar-row">
+              <div class="grb-bar-row-label">${item.label}</div>
+              <div class="grb-bar-h-wrap">
+                <div class="grb-bar-h-fill" style="width:${pct}%">
+                  <span class="grb-bar-h-val">${item.value}</span>
+                </div>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
+}
+
+function makeGraphBlock() {
+  const row = document.createElement('div');
+  row.className = 'row'; row.dataset.layout = 'stack';
+
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+
+  const grb = document.createElement('div');
+  grb.className = 'graph-block'; grb.dataset.type = 'graph';
+  grb.id = genId('grb');
+  grb.dataset.chartType = 'bar-v';
+  grb.dataset.preset = 'default';
+  grb.dataset.items = JSON.stringify(GRAPH_DEFAULT_ITEMS);
+
+  renderGraph(grb);
+
+  col.appendChild(grb);
+  row.appendChild(col);
+  return { row, block: grb };
+}
+
+function addGraphBlock() {
+  const sec = getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  pushHistory();
+  const { row, block } = makeGraphBlock();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  buildLayerPanel();
+  selectSection(sec);
+}
+
 function addSection() {
   const canvas  = document.getElementById('canvas');
   const secList = canvas.querySelectorAll('.section-block');
@@ -1060,7 +1157,7 @@ function addSection() {
   bindSectionOrder(sec);
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block').forEach(b => bindBlock(b));
 
   buildLayerPanel();
   selectSection(sec);
