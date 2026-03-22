@@ -128,10 +128,18 @@ function showAssetProperties(ab) {
   document.querySelectorAll('.prop-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const h = parseInt(btn.dataset.h);
-      ab.style.width  = '';
-      ab.style.height = h + 'px';
-      ab.dataset.size = '100';
-      applyH(h);
+      ab.dataset.size       = '100';
+      ab.dataset.baseHeight = h;  // 항상 baseHeight 갱신
+
+      if (ab.dataset.usePadx === 'true') {
+        // 패딩 ON 상태 → 패딩 적용한 너비/높이로 계산
+        applyAssetPadX(ab, pageSettings.padX || 0);
+        applyH(parseInt(ab.style.height));
+      } else {
+        ab.style.width  = '';
+        ab.style.height = h + 'px';
+        applyH(h);
+      }
       pushHistory();
     });
   });
