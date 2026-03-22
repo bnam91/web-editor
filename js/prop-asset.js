@@ -88,15 +88,6 @@ function showAssetProperties(ab) {
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">사이즈</span>
-        <select class="prop-select" id="asset-size-select">
-          <option value="85"  ${currentSize==='85'  ?'selected':''}>85%</option>
-          <option value="90"  ${currentSize==='90'  ?'selected':''}>90%</option>
-          <option value="95"  ${currentSize==='95'  ?'selected':''}>95%</option>
-          <option value="100" ${currentSize==='100' ?'selected':''}>100%</option>
-        </select>
-      </div>
     </div>
     ${imageSection}`;
 
@@ -139,7 +130,6 @@ function showAssetProperties(ab) {
       ab.style.width  = '';
       ab.style.height = h + 'px';
       ab.dataset.size = '100';
-      document.getElementById('asset-size-select').value = '100';
       applyH(h);
       pushHistory();
     });
@@ -166,22 +156,6 @@ function showAssetProperties(ab) {
     applyR(v); rSlider.value = v;
   });
 
-  document.getElementById('asset-size-select').addEventListener('change', e => {
-    const v = e.target.value;
-    ab.dataset.size = v;
-
-    const prevW = ab.offsetWidth;
-    const prevH = parseInt(ab.style.height) || ab.offsetHeight;
-    const ratio = prevH / prevW;
-
-    ab.style.width = v === '100' ? '' : v + '%';
-
-    requestAnimationFrame(() => {
-      const newW = ab.offsetWidth;
-      ab.style.height = Math.round(newW * ratio) + 'px';
-      pushHistory();
-    });
-  });
 
   if (hasImage) {
     document.getElementById('asset-replace-btn').addEventListener('click', () => triggerAssetUpload(ab));
