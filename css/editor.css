@@ -1172,7 +1172,7 @@ body {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 12px; cursor: pointer;
-  margin-top: 16px; margin-bottom: 16px;
+  margin-top: 0; margin-bottom: 0;
   transition: background 0.15s;
 }
 .asset-block:hover    { background: rgba(140,140,140,0.75); }
