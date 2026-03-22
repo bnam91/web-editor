@@ -42,13 +42,27 @@ function run(command, params) {
   }
 }
 
-// ─── 색상 (hex → {r,g,b,a}) ──────────────────────────────────────
+// ─── 색상 (hex / rgb() → {r,g,b,a}) ─────────────────────────────
 function hex(h) {
-  if (!h || !h.startsWith('#')) return { r: 0, g: 0, b: 0, a: 1 };
+  if (!h) return { r: 0, g: 0, b: 0, a: 1 };
+  // rgb(r, g, b) or rgba(r, g, b, a)
+  const rgbMatch = h.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)/);
+  if (rgbMatch) {
+    return {
+      r: parseFloat(rgbMatch[1]) / 255,
+      g: parseFloat(rgbMatch[2]) / 255,
+      b: parseFloat(rgbMatch[3]) / 255,
+      a: rgbMatch[4] !== undefined ? parseFloat(rgbMatch[4]) : 1,
+    };
+  }
+  if (!h.startsWith('#')) return { r: 1, g: 1, b: 1, a: 1 };
+  const clean = h.length === 4
+    ? '#' + h[1]+h[1] + h[2]+h[2] + h[3]+h[3]
+    : h;
   return {
-    r: parseInt(h.slice(1, 3), 16) / 255,
-    g: parseInt(h.slice(3, 5), 16) / 255,
-    b: parseInt(h.slice(5, 7), 16) / 255,
+    r: parseInt(clean.slice(1, 3), 16) / 255,
+    g: parseInt(clean.slice(3, 5), 16) / 255,
+    b: parseInt(clean.slice(5, 7), 16) / 255,
     a: 1,
   };
 }
@@ -92,7 +106,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const lb = block.labelBox;
 
     const rawFamily = (s.fontFamily || 'Noto Sans KR').replace(/[\"']/g, '').split(',')[0].trim();
-    const fontStyle = s.fontWeight >= 700 ? 'Bold' : s.fontWeight >= 600 ? 'Semi Bold' : 'Regular';
+    const fontStyle = s.fontWeight >= 700 ? 'Bold' : 'Regular';
     run('load_font_async', { family: rawFamily, style: fontStyle });
 
     // 1. 텍스트 노드 생성 (자연 너비 측정용 — textAutoResize: WIDTH_AND_HEIGHT)
@@ -133,7 +147,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     if (labelFrame) {
       run('set_fill_color', { nodeId: labelFrame.id, color: hex(lb.bg) });
       if (lb.radius > 0)
-        run('set_corner_radius', { nodeId: labelFrame.id, cornerRadius: lb.radius });
+        run('set_corner_radius', { nodeId: labelFrame.id, radius: lb.radius });
 
       // 4. 텍스트를 배경 프레임 안으로 이동 + 위치 정렬
       run('insert_child', { parentId: labelFrame.id, childId: textNode.id, index: 0 });
@@ -152,7 +166,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const textWidth = availableWidth - (p.left || 0) - (p.right || 0);
 
     const rawFamily = (s.fontFamily || 'Noto Sans KR').replace(/["']/g, '').split(',')[0].trim();
-    const fontStyle = s.fontWeight >= 700 ? 'Bold' : s.fontWeight >= 600 ? 'Semi Bold' : 'Regular';
+    const fontStyle = s.fontWeight >= 700 ? 'Bold' : 'Regular';
 
     run('load_font_async', { family: rawFamily, style: fontStyle });
 
@@ -211,7 +225,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     if (node) {
       run('set_fill_color', { nodeId: node.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
       if ((s.borderRadius || 0) > 0)
-        run('set_corner_radius', { nodeId: node.id, cornerRadius: s.borderRadius });
+        run('set_corner_radius', { nodeId: node.id, radius: s.borderRadius });
       console.log(`      · image ${availableWidth}×${imgH} → ${node.id}`);
     }
     return imgH;
