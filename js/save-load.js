@@ -652,6 +652,12 @@ function applyPageSettings() {
 }
 
 function rebindAll() {
+  // asset-overlay 오염 정리: contenteditable 제거 + 직접 텍스트 노드 제거
+  canvasEl.querySelectorAll('.asset-overlay').forEach(overlay => {
+    overlay.removeAttribute('contenteditable');
+    [...overlay.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).forEach(n => n.remove());
+  });
+
   canvasEl.querySelectorAll('.section-block').forEach(sec => {
     if (!sec.id) sec.id = 'sec_' + Math.random().toString(36).slice(2, 9);
     if (sec.dataset.name) sec._name = sec.dataset.name;

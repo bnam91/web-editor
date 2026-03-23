@@ -692,7 +692,7 @@ function makeAssetBlock() {
   ab.innerHTML = `
     ${ASSET_SVG}
     <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-    <div class="asset-overlay" contenteditable="true">텍스트를 입력하세요</div>`;
+    <div class="asset-overlay"></div>`;
 
   col.appendChild(ab);
   row.appendChild(col);
@@ -979,7 +979,7 @@ function makePresetRow(type) {
     ab.dataset.align = 'center';
     ab.dataset.overlay = 'false';
     ab.style.alignSelf = 'center';
-    ab.innerHTML = `${ASSET_SVG}<span class="asset-label">에셋을 업로드하거나 드래그하세요</span><div class="asset-overlay" contenteditable="true">텍스트를 입력하세요</div>`;
+    ab.innerHTML = `${ASSET_SVG}<span class="asset-label">에셋을 업로드하거나 드래그하세요</span><div class="asset-overlay"></div>`;
     return ab;
   };
 
@@ -1158,15 +1158,16 @@ function makeStripBannerBlock() {
   const sbb = document.createElement('div');
   sbb.className = 'strip-banner-block'; sbb.dataset.type = 'strip-banner';
   sbb.id = genId('sbb');
-  sbb.dataset.bgColor = '#f5f5f5';
-  sbb.dataset.radius = '12';
+  sbb.dataset.bgColor = '#ede9e3';
+  sbb.dataset.radius = '0';
+  sbb.dataset.imgPos = 'right';
+  sbb.style.background = '#ede9e3';
   sbb.innerHTML = `
     <div class="sbb-image">
       <span class="sbb-img-placeholder">+</span>
     </div>
-    <div class="sbb-content" style="background:#f5f5f5;">
-      <div class="sbb-heading" contenteditable="false">제목을 입력하세요</div>
-      <div class="sbb-body" contenteditable="false">내용을 입력하세요. 제품의 특징이나 설명을 간결하게 작성해보세요.</div>
+    <div class="sbb-content" style="background:transparent;">
+      <div class="sbb-body" contenteditable="false" style="font-size:20px;">내용을 입력하세요.</div>
     </div>`;
 
   col.appendChild(sbb);
@@ -1337,7 +1338,7 @@ function addSection() {
           <div class="asset-block" id="${genId('ab')}" data-align="center" data-overlay="false">
             ${ASSET_SVG}
             <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-            <div class="asset-overlay" contenteditable="true">텍스트를 입력하세요</div>
+            <div class="asset-overlay"></div>
           </div>
         </div>
       </div>
