@@ -1158,16 +1158,17 @@ function makeStripBannerBlock() {
   const sbb = document.createElement('div');
   sbb.className = 'strip-banner-block'; sbb.dataset.type = 'strip-banner';
   sbb.id = genId('sbb');
-  sbb.dataset.bgColor = '#ede9e3';
-  sbb.dataset.radius = '0';
-  sbb.dataset.imgPos = 'right';
-  sbb.style.background = '#ede9e3';
+  sbb.dataset.bgColor = '#f5f5f5';
+  sbb.dataset.radius = '12';
+  sbb.dataset.imgPos = 'left';
+  sbb.style.background = '#f5f5f5';
   sbb.innerHTML = `
     <div class="sbb-image">
       <span class="sbb-img-placeholder">+</span>
     </div>
-    <div class="sbb-content" style="background:transparent;">
-      <div class="sbb-body" contenteditable="false" style="font-size:20px;">내용을 입력하세요.</div>
+    <div class="sbb-content" style="background:#f5f5f5;">
+      <div class="sbb-heading" contenteditable="false">제목을 입력하세요</div>
+      <div class="sbb-body" contenteditable="false">내용을 입력하세요.</div>
     </div>`;
 
   col.appendChild(sbb);

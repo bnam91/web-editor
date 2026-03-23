@@ -1457,6 +1457,10 @@ body {
 .asset-block[data-overlay="true"] .asset-overlay {
   display: flex;
 }
+.asset-block[data-overlay="true"] .asset-icon,
+.asset-block[data-overlay="true"] .asset-label {
+  display: none;
+}
 .overlay-tb {
   width: 100%;
   pointer-events: auto;
@@ -2398,20 +2402,20 @@ body {
 .strip-banner-block {
   display: flex;
   flex-direction: row;
-  background: #ede9e3;
+  background: #f5f5f5;
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
   transition: outline 0.1s;
   width: 100%;
-  min-height: 160px;
+  min-height: 200px;
 }
 .strip-banner-block:hover    { outline: 1.5px dashed rgba(45,111,232,0.4); outline-offset: -1px; }
 .strip-banner-block.selected { background: rgba(45,111,232,0.03); outline: 2px solid #4A90E2; outline-offset: -1px; }
 .strip-banner-block.drag-over .sbb-image { outline: 2px dashed #2d6fe8; }
 
 .sbb-image {
-  flex: 4;
+  flex: 3;
   background: #e8e8e8;
   display: flex;
   align-items: center;
@@ -2449,8 +2453,8 @@ body {
 .strip-banner-block.selected .sbb-clear-btn { display: block; }
 
 .sbb-content {
-  flex: 6;
-  padding: 20px 40px;
+  flex: 7;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
   justify-content: center;
