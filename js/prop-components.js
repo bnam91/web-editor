@@ -396,6 +396,13 @@ function showCardProperties(block) {
           <button class="prop-align-btn${(block.dataset.textAlign||'left')==='right'?' active':''}"  data-align="right">→</button>
         </div>
       </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">카드 수</div>
+      <div class="prop-row">
+        <button class="prop-action-btn primary" id="card-add-btn">+ 카드 추가</button>
+        <button class="prop-action-btn secondary" id="card-remove-btn">− 제거</button>
+      </div>
     </div>`;
 
   // 배경색
@@ -441,6 +448,68 @@ function showCardProperties(block) {
   };
   document.querySelectorAll('#card-align-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => applyCardAlign(btn.dataset.align));
+  });
+
+  // 카드 추가 / 제거
+  document.getElementById('card-add-btn').addEventListener('click', () => {
+    const row = block.closest('.row');
+    if (!row) return;
+    pushHistory();
+    // flex 레이아웃으로 전환 (stack이면)
+    if (row.dataset.layout === 'stack') {
+      row.dataset.layout = 'flex';
+      row.style.display = '';
+      row.style.gridTemplateColumns = '';
+      [...row.querySelectorAll(':scope > .col')].forEach(col => {
+        col.style.flex = col.dataset.flex || '1';
+        col.dataset.flex = '1';
+      });
+    }
+    // 새 col + card 생성
+    const newCol = document.createElement('div');
+    newCol.className = 'col'; newCol.style.flex = '1'; newCol.dataset.flex = '1';
+    const cdb = document.createElement('div');
+    cdb.className = 'card-block'; cdb.dataset.type = 'card';
+    cdb.id = genId('cdb');
+    cdb.dataset.bgColor = block.dataset.bgColor || '#f5f5f5';
+    cdb.dataset.radius  = block.dataset.radius  || '12';
+    const r = cdb.dataset.radius;
+    const bg = cdb.dataset.bgColor;
+    cdb.innerHTML = `
+      <div class="cdb-image"><span class="cdb-img-placeholder">+</span></div>
+      <div class="cdb-body" style="background:${bg}; border-radius:0 0 ${r}px ${r}px;">
+        <div class="cdb-title" contenteditable="false">카드 제목</div>
+        <div class="cdb-desc" contenteditable="false">설명 텍스트를 입력하세요</div>
+      </div>`;
+    newCol.appendChild(cdb);
+    row.appendChild(newCol);
+    bindBlock(cdb);
+    // 모든 col flex 균등 분배
+    const count = row.querySelectorAll(':scope > .col').length;
+    row.dataset.ratioStr = `${count}*1`;
+    buildLayerPanel();
+    showCardProperties(block);
+  });
+
+  document.getElementById('card-remove-btn').addEventListener('click', () => {
+    const row = block.closest('.row');
+    if (!row) return;
+    const cols = [...row.querySelectorAll(':scope > .col')];
+    if (cols.length <= 1) { showToast('⚠️ 마지막 카드는 제거할 수 없어요.'); return; }
+    pushHistory();
+    const myCol = block.closest('.col');
+    if (myCol) myCol.remove();
+    const remaining = row.querySelectorAll(':scope > .col').length;
+    row.dataset.ratioStr = `${remaining}*1`;
+    if (remaining === 1) {
+      row.dataset.layout = 'stack';
+      row.style.display = '';
+      const lastCol = row.querySelector(':scope > .col');
+      if (lastCol) { lastCol.style.flex = ''; delete lastCol.dataset.flex; }
+    }
+    buildLayerPanel();
+    deselectAll();
+    showPageProperties();
   });
 
   // 제목 크기
