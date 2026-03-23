@@ -152,14 +152,6 @@ function showTextProperties(tb) {
       </div>
     </div>
 
-    ${isOverlayTb ? `
-    <div class="prop-section">
-      <div class="prop-section-title">위치</div>
-      <div class="prop-row">
-        <span class="prop-label" style="width:auto;flex:1;font-size:10px;color:#555">드래그로 위치 이동 가능</span>
-        <button class="prop-action-btn secondary" id="overlay-tb-center-btn">중앙</button>
-      </div>
-    </div>` : ''}
 
     <div class="prop-section prop-section--anim" style="${isOverlayTb ? 'display:none' : ''}">
       <button class="prop-anim-btn" id="open-anim-btn">
@@ -325,17 +317,6 @@ function showTextProperties(tb) {
       pbSlider.addEventListener('input', () => { tb.style.paddingBottom = pbSlider.value+'px'; pbNumber.value = pbSlider.value; });
       pbNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pbNumber.value)||0)); tb.style.paddingBottom=v+'px'; pbSlider.value=v; });
     }
-  }
-
-  /* overlay-tb 중앙 초기화 버튼 */
-  const centerBtn = document.getElementById('overlay-tb-center-btn');
-  if (centerBtn) {
-    centerBtn.addEventListener('click', () => {
-      tb.style.left = '50%';
-      tb.style.top = '50%';
-      tb.style.transform = 'translate(-50%, -50%)';
-      pushHistory();
-    });
   }
 
   /* 애니메이션 GIF 버튼 */

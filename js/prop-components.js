@@ -478,6 +478,7 @@ function showStripBannerProperties(block) {
   const blockH     = parseInt(block.dataset.height)     || 200;
   const titleSize  = parseInt(block.dataset.titleSize)  || 28;
   const bodySize   = parseInt(block.dataset.bodySize)   || 20;
+  const usePadX    = block.dataset.usePadx === 'true';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -549,10 +550,20 @@ function showStripBannerProperties(block) {
     <div class="prop-section">
       <div class="prop-section-title">이미지 위치</div>
       <div class="prop-row">
-        <div class="prop-align-group" id="sbb-imgpos-group">
-          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='left'?' active':''}"  data-pos="left">◁ 왼쪽</button>
-          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='right'?' active':''}" data-pos="right">오른쪽 ▷</button>
+        <div class="prop-align-group" id="sbb-imgpos-group" style="width:100%">
+          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='left'?' active':''}"  data-pos="left" style="flex:1;font-size:11px">← 왼쪽</button>
+          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='right'?' active':''}" data-pos="right" style="flex:1;font-size:11px">오른쪽 →</button>
         </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">레이아웃</div>
+      <div class="prop-row">
+        <span class="prop-label">페이지 패딩</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="sbb-padx-toggle" ${usePadX ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>
     </div>
     <div class="prop-section">
@@ -561,7 +572,7 @@ function showStripBannerProperties(block) {
         <button class="prop-action-btn primary" id="sbb-add-row-btn">+ 행 추가</button>
         <button class="prop-action-btn secondary" id="sbb-remove-row-btn">- 행 제거</button>
       </div>
-      <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭으로 편집</div>
+      <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭 편집 · 드래그로 순서 변경</div>
     </div>`;
 
   // 높이
@@ -655,21 +666,77 @@ function showStripBannerProperties(block) {
     btn.addEventListener('click', () => applyImgPos(btn.dataset.pos));
   });
 
+  // padX 토글
+  document.getElementById('sbb-padx-toggle').addEventListener('change', e => {
+    block.dataset.usePadx = e.target.checked ? 'true' : 'false';
+    block.style.paddingLeft  = e.target.checked ? pageSettings.padX + 'px' : '';
+    block.style.paddingRight = e.target.checked ? pageSettings.padX + 'px' : '';
+    pushHistory();
+  });
+
   // 텍스트 행 추가/제거
   const sbbContent = block.querySelector('.sbb-content');
+
+  const bindSbbRowDrag = (sbbContent) => {
+    let sbbRowSrc = null;
+    [...sbbContent.children].forEach(row => {
+      if (row._sbbRowDragBound) return;
+      row._sbbRowDragBound = true;
+      row.setAttribute('draggable', 'true');
+      row.style.cursor = 'grab';
+      row.addEventListener('dragstart', e => {
+        e.stopPropagation();
+        sbbRowSrc = row;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+        setTimeout(() => row.style.opacity = '0.4', 0);
+      });
+      row.addEventListener('dragend', () => { row.style.opacity = ''; sbbRowSrc = null; sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove()); });
+    });
+    if (sbbContent._sbbDropBound) return;
+    sbbContent._sbbDropBound = true;
+    sbbContent.addEventListener('dragover', e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!sbbRowSrc) return;
+      sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove());
+      const rows = [...sbbContent.children].filter(el => !el.classList.contains('sbb-row-indicator'));
+      const after = rows.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = e.clientY - box.top - box.height / 2;
+        return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+      const ind = document.createElement('div');
+      ind.className = 'sbb-row-indicator';
+      ind.style.cssText = 'height:2px;background:#2d6fe8;margin:2px 0;pointer-events:none';
+      if (after) sbbContent.insertBefore(ind, after);
+      else sbbContent.appendChild(ind);
+    });
+    sbbContent.addEventListener('dragleave', e => {
+      if (!sbbContent.contains(e.relatedTarget)) sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove());
+    });
+    sbbContent.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!sbbRowSrc) return;
+      const ind = sbbContent.querySelector('.sbb-row-indicator');
+      if (ind) { sbbContent.insertBefore(sbbRowSrc, ind); ind.remove(); }
+      sbbRowSrc.style.opacity = '';
+      sbbRowSrc = null;
+      pushHistory();
+    });
+  };
+  if (sbbContent) bindSbbRowDrag(sbbContent);
+
   document.getElementById('sbb-add-row-btn').addEventListener('click', () => {
     const newRow = document.createElement('div');
     newRow.className = 'sbb-body';
     newRow.setAttribute('contenteditable', 'false');
-    newRow.textContent = '텍스트를 입력하세요';
-    const curAlign = block.dataset.textAlign || 'left';
-    newRow.style.textAlign = curAlign;
-    if (sbbContent) sbbContent.appendChild(newRow);
+    newRow.style.textAlign = block.dataset.textAlign || 'left';
+    if (sbbContent) { sbbContent.appendChild(newRow); bindSbbRowDrag(sbbContent); }
     pushHistory();
   });
   document.getElementById('sbb-remove-row-btn').addEventListener('click', () => {
     if (!sbbContent) return;
-    const rows = sbbContent.children;
+    const rows = [...sbbContent.children].filter(el => !el.classList.contains('sbb-row-indicator'));
     if (rows.length > 1) { rows[rows.length - 1].remove(); pushHistory(); }
   });
 }

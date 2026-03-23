@@ -651,6 +651,7 @@ function deselectAll() {
     b.classList.remove('selected');
     b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));
   });
+  document.querySelectorAll('.card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => b.classList.remove('selected'));
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
   document.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
   document.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));

@@ -238,46 +238,6 @@ function bindBlock(block) {
       }
     });
 
-    // overlay-tb: 오버레이 안에서 마우스 드래그로 위치 이동
-    if (block.classList.contains('overlay-tb')) {
-      // 초기 포지션 미설정 시 중앙 배치
-      if (!block.style.left && !block.style.top) {
-        block.style.left = '50%';
-        block.style.top = '50%';
-        block.style.transform = 'translate(-50%, -50%)';
-      }
-      block.addEventListener('mousedown', e => {
-        if (block.classList.contains('editing')) return;
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        const overlay = block.closest('.asset-overlay');
-        if (!overlay) return;
-        const oRect = overlay.getBoundingClientRect();
-        const bRect = block.getBoundingClientRect();
-        // transform 기반 위치를 절대 px로 고정
-        const absLeft = bRect.left - oRect.left;
-        const absTop  = bRect.top  - oRect.top;
-        block.style.transform = '';
-        block.style.left = absLeft + 'px';
-        block.style.top  = absTop  + 'px';
-        const startX = e.clientX;
-        const startY = e.clientY;
-        let moved = false;
-        const onMove = ev => {
-          ev.preventDefault();
-          moved = true;
-          block.style.left = (absLeft + ev.clientX - startX) + 'px';
-          block.style.top  = (absTop  + ev.clientY - startY) + 'px';
-        };
-        const onUp = () => {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-          if (moved) pushHistory();
-        };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
-    }
   }
 
   if (isAsset) {

@@ -133,6 +133,126 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
   return wrapper;
 }
 
+/* 에셋 블록 + overlay-tb 자식 포함 레이어 아이템 */
+function makeLayerAssetItem(block, dragTarget, sec) {
+  const overlayEl = block.querySelector('.asset-overlay');
+  const overlayTbs = overlayEl ? [...overlayEl.querySelectorAll('.overlay-tb')] : [];
+  if (overlayTbs.length === 0) return makeLayerBlockItem(block, dragTarget, sec);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'layer-row-group';
+  wrapper._dragTarget = dragTarget;
+
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  header.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    ${layerIcons.asset}
+    <span class="layer-item-name">Asset</span>
+    <span class="layer-item-type">Image + Overlay</span>`;
+
+  header.addEventListener('click', e => {
+    if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+    deselectAll();
+    block.classList.add('selected');
+    syncSection(sec);
+    highlightBlock(block, header);
+    showAssetProperties(block);
+  });
+  block._layerItem = header;
+
+  header.setAttribute('draggable', 'true');
+  header.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    layerDragSrc = wrapper;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => wrapper.classList.add('layer-dragging'));
+  });
+  header.addEventListener('dragend', () => {
+    wrapper.classList.remove('layer-dragging');
+    clearLayerIndicators();
+    layerDragSrc = null;
+  });
+
+  const children = document.createElement('div');
+  children.className = 'layer-row-children';
+
+  const buildOverlayChildren = () => {
+    children.innerHTML = '';
+    [...overlayEl.querySelectorAll('.overlay-tb')].forEach(tb => {
+      const tbType = tb.dataset.type || 'body';
+      const item = document.createElement('div');
+      item.className = 'layer-item layer-item-nested';
+      item.innerHTML = `${layerIcons[tbType] || layerIcons.body}<span class="layer-item-name">${tbType === 'heading' ? 'Overlay H' : 'Overlay Text'}</span><span class="layer-item-type">Overlay</span>`;
+      item._dragTarget = tb;
+
+      item.addEventListener('click', e => {
+        e.stopPropagation();
+        deselectAll();
+        tb.classList.add('selected');
+        syncSection(sec);
+        highlightBlock(tb, item);
+        showTextProperties(tb);
+      });
+      tb._layerItem = item;
+
+      item.setAttribute('draggable', 'true');
+      item.addEventListener('dragstart', e => {
+        e.stopPropagation();
+        layerDragSrc = item;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+        requestAnimationFrame(() => item.classList.add('layer-dragging'));
+      });
+      item.addEventListener('dragend', () => {
+        item.classList.remove('layer-dragging');
+        clearLayerIndicators();
+        layerDragSrc = null;
+      });
+      children.appendChild(item);
+    });
+  };
+  buildOverlayChildren();
+
+  // overlay-tb 순서 변경 드롭존
+  children.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!layerDragSrc?._dragTarget?.classList.contains('overlay-tb')) return;
+    clearLayerIndicators();
+    const after = getLayerDragAfterItem(children, e.clientY);
+    const indicator = document.createElement('div');
+    indicator.className = 'layer-drop-indicator';
+    if (after) children.insertBefore(indicator, after);
+    else children.appendChild(indicator);
+  });
+  children.addEventListener('dragleave', e => {
+    if (!children.contains(e.relatedTarget)) clearLayerIndicators();
+  });
+  children.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!layerDragSrc?._dragTarget?.classList.contains('overlay-tb')) return;
+    const tbEl = layerDragSrc._dragTarget;
+    const indicator = children.querySelector('.layer-drop-indicator');
+    if (indicator) {
+      const nextItem = indicator.nextElementSibling;
+      const nextTb = nextItem?._dragTarget || null;
+      if (nextTb) overlayEl.insertBefore(tbEl, nextTb);
+      else overlayEl.appendChild(tbEl);
+    }
+    clearLayerIndicators();
+    buildLayerPanel();
+    pushHistory();
+    layerDragSrc = null;
+  });
+
+  wrapper.appendChild(header);
+  wrapper.appendChild(children);
+  return wrapper;
+}
+
 /* 레이어 Row 그룹 생성 (멀티컬럼용) */
 function makeLayerRowGroup(rowEl, blocks, sec) {
   const ratioStr = rowEl.dataset.ratioStr || `${blocks.length}*1`;
@@ -339,7 +459,13 @@ function buildLayerPanel() {
         container.appendChild(makeLayerRowGroup(child, [], sec));
       } else if (colBlocks.length <= 1) {
         const block = colBlocks[0];
-        if (block) container.appendChild(makeLayerBlockItem(block, child, sec));
+        if (block) {
+          if (block.classList.contains('asset-block')) {
+            container.appendChild(makeLayerAssetItem(block, child, sec));
+          } else {
+            container.appendChild(makeLayerBlockItem(block, child, sec));
+          }
+        }
       } else {
         container.appendChild(makeLayerRowGroup(child, colBlocks, sec));
       }

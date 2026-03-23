@@ -114,7 +114,11 @@ function showPageProperties() {
     document.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
       applyAssetPadX(ab, v);
     });
-    document.querySelectorAll('.card-block, .strip-banner-block, .graph-block').forEach(b => {
+    document.querySelectorAll('.card-block, .graph-block').forEach(b => {
+      b.style.paddingLeft = v + 'px';
+      b.style.paddingRight = v + 'px';
+    });
+    document.querySelectorAll('.strip-banner-block[data-use-padx="true"]').forEach(b => {
       b.style.paddingLeft = v + 'px';
       b.style.paddingRight = v + 'px';
     });

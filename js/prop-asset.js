@@ -215,6 +215,18 @@ function showAssetProperties(ab) {
     const on = e.target.checked;
     ab.dataset.overlay = on ? 'true' : 'false';
     document.getElementById('asset-overlay-controls').style.display = on ? '' : 'none';
+    // 첫 활성화 시 기본 텍스트 블록 자동 추가
+    if (on && !overlayEl.querySelector('.overlay-tb')) {
+      const tb = document.createElement('div');
+      tb.className = 'text-block overlay-tb';
+      tb.dataset.type = 'heading';
+      tb.id = 'tb_' + Math.random().toString(36).slice(2, 9);
+      tb.innerHTML = `<div class="tb-h2" contenteditable="false" style="font-size:32px;text-align:center"></div>`;
+      overlayEl.appendChild(tb);
+      tb._blockBound = false;
+      bindBlock(tb);
+      buildLayerPanel();
+    }
     pushHistory();
   });
 
@@ -235,18 +247,13 @@ function showAssetProperties(ab) {
   document.getElementById('overlay-add-text-btn').addEventListener('click', () => {
     const tb = document.createElement('div');
     tb.className = 'text-block overlay-tb';
-    tb.dataset.type = 'heading';
+    tb.dataset.type = 'body';
     tb.id = 'tb_' + Math.random().toString(36).slice(2, 9);
-    // 오버레이 중앙에 배치
-    const existingCount = overlayEl.querySelectorAll('.overlay-tb').length;
-    const topPct = 30 + existingCount * 18;
-    tb.style.left = '50%';
-    tb.style.top = topPct + '%';
-    tb.style.transform = 'translateX(-50%)';
-    tb.innerHTML = `<div class="tb-h2" contenteditable="false" style="font-size:32px;text-align:center">텍스트 입력</div>`;
+    tb.innerHTML = `<div class="tb-body" contenteditable="false" style="text-align:center"></div>`;
     overlayEl.appendChild(tb);
     tb._blockBound = false;
     bindBlock(tb);
+    buildLayerPanel();
     // 추가 후 즉시 선택 & 우측 패널 표시
     deselectAll();
     tb.classList.add('selected');
@@ -255,6 +262,6 @@ function showAssetProperties(ab) {
   });
   document.getElementById('overlay-del-text-btn').addEventListener('click', () => {
     const tbs = [...overlayEl.querySelectorAll('.overlay-tb')];
-    if (tbs.length > 0) { tbs[tbs.length - 1].remove(); pushHistory(); }
+    if (tbs.length > 0) { tbs[tbs.length - 1].remove(); buildLayerPanel(); pushHistory(); }
   });
 }

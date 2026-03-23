@@ -640,7 +640,11 @@ function applyPageSettings() {
     }
   });
   if (pageSettings.padX > 0) {
-    canvasEl.querySelectorAll('.card-block, .strip-banner-block, .graph-block').forEach(b => {
+    canvasEl.querySelectorAll('.card-block, .graph-block').forEach(b => {
+      b.style.paddingLeft  = pageSettings.padX + 'px';
+      b.style.paddingRight = pageSettings.padX + 'px';
+    });
+    canvasEl.querySelectorAll('.strip-banner-block[data-use-padx="true"]').forEach(b => {
       b.style.paddingLeft  = pageSettings.padX + 'px';
       b.style.paddingRight = pageSettings.padX + 'px';
     });
