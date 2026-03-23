@@ -1233,7 +1233,7 @@ body {
 .row:has(.asset-block.selected),
 .row:has(.icon-circle-block.selected),
 .row:has(.table-block.selected) {
-  box-shadow: inset 0 0 0 3px #2d6fe8;
+  box-shadow: inset 0 0 0 3px var(--sel-color);
 }
 .row[data-layout="stack"] { flex-direction: column; }
 .row[data-layout="flex"]  { flex-direction: row; gap: 8px; align-items: stretch; }
@@ -1852,7 +1852,7 @@ body {
 
 .gap-block.selected {
   background: rgba(45,111,232,0.05);
-  outline: 1.5px dashed #2d6fe8;
+  outline: 2px solid var(--sel-color);
   outline-offset: -1px;
 }
 .gap-block.selected::before { display: block; }
@@ -2338,8 +2338,8 @@ body {
   transition: outline 0.1s;
   width: 100%;
 }
-.card-block:hover    { outline: 1.5px dashed rgba(45,111,232,0.4); outline-offset: -1px; }
-.card-block.selected { background: rgba(45,111,232,0.03); outline: 2px solid var(--sel-color); outline-offset: -1px; }
+.card-block:hover    { box-shadow: inset 0 0 0 1.5px var(--sel-color-hover); }
+.card-block.selected { background: rgba(45,111,232,0.03); box-shadow: inset 0 0 0 2px var(--sel-color); }
 .card-block.drag-over .cdb-image { outline: 2px dashed #2d6fe8; }
 
 .cdb-image {
@@ -2416,8 +2416,8 @@ body {
   width: 100%;
   min-height: 200px;
 }
-.strip-banner-block:hover    { outline: 1.5px dashed rgba(45,111,232,0.4); outline-offset: -1px; }
-.strip-banner-block.selected { background: rgba(45,111,232,0.03); outline: 2px solid var(--sel-color); outline-offset: -1px; }
+.strip-banner-block:hover    { box-shadow: inset 0 0 0 1.5px var(--sel-color-hover); }
+.strip-banner-block.selected { background: rgba(45,111,232,0.03); box-shadow: inset 0 0 0 2px var(--sel-color); }
 .strip-banner-block.drag-over .sbb-image { outline: 2px dashed #2d6fe8; }
 
 .sbb-image {
