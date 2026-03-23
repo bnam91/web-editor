@@ -1,4 +1,5 @@
 function showTextProperties(tb) {
+  const isOverlayTb = tb.classList.contains('overlay-tb');
   const contentEl = tb.querySelector('[contenteditable]');
   const computed   = window.getComputedStyle(contentEl);
 
@@ -28,7 +29,7 @@ function showTextProperties(tb) {
             <line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9" x2="7" y2="9"/>
           </svg>
         </div>
-        <span class="prop-block-name">Text Block</span>
+        <span class="prop-block-name">${isOverlayTb ? 'Overlay Text' : 'Text Block'}</span>
         ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${tb.id}')">${tb.id}</span>` : ''}
       </div>
     </div>
@@ -139,19 +140,28 @@ function showTextProperties(tb) {
         <input type="range" class="prop-slider" id="txt-ls-slider" min="-10" max="40" step="0.5" value="${currentLS}">
         <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
       </div>
-      <div class="prop-row">
+      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
         <span class="prop-label">상단</span>
         <input type="range" class="prop-slider" id="txt-pt-slider" min="0" max="120" step="4" value="${currentPadT}">
         <input type="number" class="prop-number" id="txt-pt-number" min="0" max="120" value="${currentPadT}">
       </div>
-      <div class="prop-row">
+      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
         <span class="prop-label">하단</span>
         <input type="range" class="prop-slider" id="txt-pb-slider" min="0" max="120" step="4" value="${currentPadB}">
         <input type="number" class="prop-number" id="txt-pb-number" min="0" max="120" value="${currentPadB}">
       </div>
     </div>
 
-    <div class="prop-section prop-section--anim">
+    ${isOverlayTb ? `
+    <div class="prop-section">
+      <div class="prop-section-title">위치</div>
+      <div class="prop-row">
+        <span class="prop-label" style="width:auto;flex:1;font-size:10px;color:#555">드래그로 위치 이동 가능</span>
+        <button class="prop-action-btn secondary" id="overlay-tb-center-btn">중앙</button>
+      </div>
+    </div>` : ''}
+
+    <div class="prop-section prop-section--anim" style="${isOverlayTb ? 'display:none' : ''}">
       <button class="prop-anim-btn" id="open-anim-btn">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="1" y="3" width="12" height="8" rx="1.5"/>
@@ -303,18 +313,34 @@ function showTextProperties(tb) {
     contentEl.style.letterSpacing = v + 'px'; lsSlider.value = v;
   });
 
-  /* 패딩 */
-  const ptSlider = document.getElementById('txt-pt-slider');
-  const ptNumber = document.getElementById('txt-pt-number');
-  const pbSlider = document.getElementById('txt-pb-slider');
-  const pbNumber = document.getElementById('txt-pb-number');
-  ptSlider.addEventListener('input', () => { tb.style.paddingTop    = ptSlider.value+'px'; ptNumber.value = ptSlider.value; });
-  ptNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(ptNumber.value)||0)); tb.style.paddingTop=v+'px'; ptSlider.value=v; });
-  pbSlider.addEventListener('input', () => { tb.style.paddingBottom = pbSlider.value+'px'; pbNumber.value = pbSlider.value; });
-  pbNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pbNumber.value)||0)); tb.style.paddingBottom=v+'px'; pbSlider.value=v; });
+  /* 패딩 (overlay-tb는 해당 없음) */
+  if (!isOverlayTb) {
+    const ptSlider = document.getElementById('txt-pt-slider');
+    const ptNumber = document.getElementById('txt-pt-number');
+    const pbSlider = document.getElementById('txt-pb-slider');
+    const pbNumber = document.getElementById('txt-pb-number');
+    if (ptSlider) {
+      ptSlider.addEventListener('input', () => { tb.style.paddingTop    = ptSlider.value+'px'; ptNumber.value = ptSlider.value; });
+      ptNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(ptNumber.value)||0)); tb.style.paddingTop=v+'px'; ptSlider.value=v; });
+      pbSlider.addEventListener('input', () => { tb.style.paddingBottom = pbSlider.value+'px'; pbNumber.value = pbSlider.value; });
+      pbNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pbNumber.value)||0)); tb.style.paddingBottom=v+'px'; pbSlider.value=v; });
+    }
+  }
+
+  /* overlay-tb 중앙 초기화 버튼 */
+  const centerBtn = document.getElementById('overlay-tb-center-btn');
+  if (centerBtn) {
+    centerBtn.addEventListener('click', () => {
+      tb.style.left = '50%';
+      tb.style.top = '50%';
+      tb.style.transform = 'translate(-50%, -50%)';
+      pushHistory();
+    });
+  }
 
   /* 애니메이션 GIF 버튼 */
-  document.getElementById('open-anim-btn').addEventListener('click', () => openAnimModal(tb));
+  const animBtn = document.getElementById('open-anim-btn');
+  if (animBtn) animBtn.addEventListener('click', () => openAnimModal(tb));
 
   bindLayoutInput(tb);
 }
