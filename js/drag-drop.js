@@ -1159,7 +1159,7 @@ function makeStripBannerBlock() {
   sbb.className = 'strip-banner-block'; sbb.dataset.type = 'strip-banner';
   sbb.id = genId('sbb');
   sbb.dataset.bgColor = '#f5f5f5';
-  sbb.dataset.radius = '12';
+  sbb.dataset.radius = '0';
   sbb.dataset.imgPos = 'left';
   sbb.style.background = '#f5f5f5';
   sbb.innerHTML = `
