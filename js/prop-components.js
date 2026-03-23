@@ -474,7 +474,7 @@ function showCardProperties(block) {
 
 function showStripBannerProperties(block) {
   const bgColor    = block.dataset.bgColor    || '#f5f5f5';
-  const radius     = parseInt(block.dataset.radius)     || 12;
+  const radius     = block.dataset.radius !== undefined ? parseInt(block.dataset.radius) : 0;
   const blockH     = parseInt(block.dataset.height)     || 200;
   const titleSize  = parseInt(block.dataset.titleSize)  || 28;
   const bodySize   = parseInt(block.dataset.bodySize)   || 20;
