@@ -1229,10 +1229,7 @@ body {
 .row:has(.text-block.selected),
 .row:has(.asset-block.selected),
 .row:has(.icon-circle-block.selected),
-.row:has(.table-block.selected),
-.row:has(.card-block.selected),
-.row:has(.strip-banner-block.selected),
-.row:has(.graph-block.selected) {
+.row:has(.table-block.selected) {
   box-shadow: inset 0 0 0 3px #2d6fe8;
 }
 .row[data-layout="stack"] { flex-direction: column; }
