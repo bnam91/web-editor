@@ -472,12 +472,18 @@ function showCardProperties(block) {
   dSlider.addEventListener('change', () => pushHistory());
 }
 
+/* 타입별 프리셋 폰트 사이즈 (strip banner 스케일) */
+const SBB_TITLE_TYPES = { h1: { size: 48, weight: 700 }, h2: { size: 36, weight: 700 }, h3: { size: 28, weight: 600 }, body: { size: 22, weight: 400 } };
+const SBB_BODY_TYPES  = { body: { size: 18, weight: 400 }, caption: { size: 14, weight: 400 } };
+
 function showStripBannerProperties(block) {
   const bgColor    = block.dataset.bgColor    || '#f5f5f5';
   const radius     = block.dataset.radius !== undefined ? parseInt(block.dataset.radius) : 0;
   const blockH     = parseInt(block.dataset.height)     || 200;
   const titleSize  = parseInt(block.dataset.titleSize)  || 28;
   const bodySize   = parseInt(block.dataset.bodySize)   || 20;
+  const titleType  = block.dataset.titleType  || 'h3';
+  const bodyType   = block.dataset.bodyType   || 'body';
   const usePadX    = block.dataset.usePadx === 'true';
 
   propPanel.innerHTML = `
@@ -525,14 +531,27 @@ function showStripBannerProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">텍스트 크기</div>
-      <div class="prop-row">
-        <span class="prop-label">제목</span>
+      <div class="prop-section-title">제목 타입</div>
+      <div class="prop-type-group">
+        <button class="prop-type-btn ${titleType==='h1'?'active':''}" data-title-type="h1">H1</button>
+        <button class="prop-type-btn ${titleType==='h2'?'active':''}" data-title-type="h2">H2</button>
+        <button class="prop-type-btn ${titleType==='h3'?'active':''}" data-title-type="h3">H3</button>
+        <button class="prop-type-btn ${titleType==='body'?'active':''}" data-title-type="body">Body</button>
+      </div>
+      <div class="prop-row" style="margin-top:6px">
+        <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="sbb-title-slider" min="12" max="72" step="1" value="${titleSize}">
         <input type="number" class="prop-number" id="sbb-title-number" min="12" max="72" value="${titleSize}">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">본문</span>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">본문 타입</div>
+      <div class="prop-type-group">
+        <button class="prop-type-btn ${bodyType==='body'?'active':''}" data-body-type="body">Body</button>
+        <button class="prop-type-btn ${bodyType==='caption'?'active':''}" data-body-type="caption">Caption</button>
+      </div>
+      <div class="prop-row" style="margin-top:6px">
+        <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="sbb-body-slider" min="10" max="48" step="1" value="${bodySize}">
         <input type="number" class="prop-number" id="sbb-body-number" min="10" max="48" value="${bodySize}">
       </div>
@@ -617,7 +636,7 @@ function showStripBannerProperties(block) {
     rSlider.value = v; applyRadius(v);
   });
 
-  // 제목 크기
+  // 제목 타입 + 크기
   const headingEl  = block.querySelector('.sbb-heading');
   const tsSlider   = document.getElementById('sbb-title-slider');
   const tsNumber   = document.getElementById('sbb-title-number');
@@ -627,11 +646,23 @@ function showStripBannerProperties(block) {
     if (headingEl) headingEl.style.fontSize = v + 'px';
     tsSlider.value = v; tsNumber.value = v;
   };
+  const applyTitleType = type => {
+    const preset = SBB_TITLE_TYPES[type];
+    if (!preset) return;
+    block.dataset.titleType = type;
+    if (headingEl) headingEl.style.fontWeight = preset.weight;
+    applyTitleSize(preset.size);
+    document.querySelectorAll('[data-title-type]').forEach(b => b.classList.toggle('active', b.dataset.titleType === type));
+    pushHistory();
+  };
+  document.querySelectorAll('[data-title-type]').forEach(btn =>
+    btn.addEventListener('click', () => applyTitleType(btn.dataset.titleType))
+  );
   tsSlider.addEventListener('input',  () => applyTitleSize(parseInt(tsSlider.value)));
   tsNumber.addEventListener('change', () => { applyTitleSize(parseInt(tsNumber.value)); pushHistory(); });
   tsSlider.addEventListener('change', () => pushHistory());
 
-  // 본문 크기
+  // 본문 타입 + 크기
   const bodyEl   = block.querySelector('.sbb-body');
   const bsSlider = document.getElementById('sbb-body-slider');
   const bsNumber = document.getElementById('sbb-body-number');
@@ -641,6 +672,18 @@ function showStripBannerProperties(block) {
     if (bodyEl) bodyEl.style.fontSize = v + 'px';
     bsSlider.value = v; bsNumber.value = v;
   };
+  const applyBodyType = type => {
+    const preset = SBB_BODY_TYPES[type];
+    if (!preset) return;
+    block.dataset.bodyType = type;
+    if (bodyEl) bodyEl.style.fontWeight = preset.weight;
+    applyBodySize(preset.size);
+    document.querySelectorAll('[data-body-type]').forEach(b => b.classList.toggle('active', b.dataset.bodyType === type));
+    pushHistory();
+  };
+  document.querySelectorAll('[data-body-type]').forEach(btn =>
+    btn.addEventListener('click', () => applyBodyType(btn.dataset.bodyType))
+  );
   bsSlider.addEventListener('input',  () => applyBodySize(parseInt(bsSlider.value)));
   bsNumber.addEventListener('change', () => { applyBodySize(parseInt(bsNumber.value)); pushHistory(); });
   bsSlider.addEventListener('change', () => pushHistory());

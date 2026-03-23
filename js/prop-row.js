@@ -9,6 +9,47 @@ function showRowProperties(rowEl) {
     ? (parseInt(rowEl.dataset.gap) || 0)
     : (layout !== 'stack' ? 8 : 0);
 
+  /* 자식 블록 일괄 조절용 데이터 */
+  const childBlocks = [...rowEl.querySelectorAll(':scope > .col > *')].filter(el =>
+    el.classList.contains('text-block') || el.classList.contains('asset-block') ||
+    el.classList.contains('card-block') || el.classList.contains('strip-banner-block') ||
+    el.classList.contains('icon-circle-block') || el.classList.contains('table-block') ||
+    el.classList.contains('graph-block') || el.classList.contains('divider-block')
+  );
+  const hasChildren = childBlocks.length > 0;
+  const allCards = hasChildren && childBlocks.every(b => b.classList.contains('card-block'));
+
+  /* 자식 블록들의 현재 높이 (min-height) — 공통값 or '' */
+  let childHeightVal = '';
+  if (hasChildren) {
+    const heights = childBlocks.map(b => parseInt(b.style.minHeight) || 0);
+    childHeightVal = heights.every(h => h === heights[0]) ? heights[0] : '';
+  }
+
+  /* 자식 블록들의 현재 radius (card 전용) */
+  let childRadiusVal = '';
+  if (allCards) {
+    const radii = childBlocks.map(b => b.dataset.radius !== undefined ? parseInt(b.dataset.radius) : 12);
+    childRadiusVal = radii.every(r => r === radii[0]) ? radii[0] : '';
+  }
+
+  const childBatchHTML = hasChildren ? `
+    <div class="prop-section">
+      <div class="prop-section-title">하위 블록 일괄</div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="row-child-h-slider" min="0" max="600" step="4" value="${childHeightVal || 0}">
+        <input type="number" class="prop-number" id="row-child-h-number" min="0" max="600" value="${childHeightVal}" placeholder="auto">
+      </div>
+      ${allCards ? `
+      <div class="prop-row">
+        <span class="prop-label">radius</span>
+        <input type="range" class="prop-slider" id="row-child-r-slider" min="0" max="40" step="2" value="${childRadiusVal || 0}">
+        <input type="number" class="prop-number" id="row-child-r-number" min="0" max="40" value="${childRadiusVal}">
+      </div>` : ''}
+    </div>` : '';
+
+
   /* 컬럼 비율 HTML (flex 전용) */
   let colRatioHTML = '';
   if (layout === 'flex') {
@@ -50,6 +91,7 @@ function showRowProperties(rowEl) {
         </div>
       </div>
     </div>
+    ${childBatchHTML}
     ${layout !== 'stack' ? `
     <div class="prop-section">
       <div class="prop-section-title">${layout === 'flex' ? '컬럼 비율' : '컬럼 수'}</div>
@@ -83,6 +125,39 @@ function showRowProperties(rowEl) {
       pushHistory();
     });
   });
+
+  /* ── 자식 블록 일괄: 높이 ── */
+  if (hasChildren) {
+    const applyChildHeight = v => {
+      if (isNaN(v) || v < 0) v = 0;
+      childBlocks.forEach(b => { b.style.minHeight = v ? v + 'px' : ''; });
+      const s = document.getElementById('row-child-h-slider');
+      const n = document.getElementById('row-child-h-number');
+      if (s) s.value = v;
+      if (n) n.value = v || '';
+    };
+    document.getElementById('row-child-h-slider').addEventListener('input',  e => applyChildHeight(parseInt(e.target.value)));
+    document.getElementById('row-child-h-number').addEventListener('change', e => { applyChildHeight(parseInt(e.target.value)); pushHistory(); });
+    document.getElementById('row-child-h-slider').addEventListener('change', () => pushHistory());
+
+    /* ── 자식 블록 일괄: radius (card 전용) ── */
+    if (allCards) {
+      const applyChildRadius = v => {
+        if (isNaN(v) || v < 0) v = 0;
+        childBlocks.forEach(b => {
+          b.dataset.radius = v;
+          b.style.borderRadius = v + 'px';
+        });
+        const s = document.getElementById('row-child-r-slider');
+        const n = document.getElementById('row-child-r-number');
+        if (s) s.value = v;
+        if (n) n.value = v;
+      };
+      document.getElementById('row-child-r-slider').addEventListener('input',  e => applyChildRadius(parseInt(e.target.value)));
+      document.getElementById('row-child-r-number').addEventListener('change', e => { applyChildRadius(parseInt(e.target.value)); pushHistory(); });
+      document.getElementById('row-child-r-slider').addEventListener('change', () => pushHistory());
+    }
+  }
 
   if (layout === 'stack') return;
 

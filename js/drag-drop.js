@@ -1007,6 +1007,7 @@ function makePresetRow(type) {
     [1, 1].forEach(flex => {
       const col = makeCol(flex);
       const ab = makeAb();
+      ab.style.height = '390px'; // 2컬럼: 기본 높이 절반
       col.appendChild(ab);
       row.appendChild(col);
       blocks.push(ab);
@@ -1020,6 +1021,7 @@ function makePresetRow(type) {
     [1, 1, 1].forEach(flex => {
       const col = makeCol(flex);
       const ab = makeAb();
+      ab.style.height = '300px'; // 3컬럼: 더 낮게
       col.appendChild(ab);
       row.appendChild(col);
       blocks.push(ab);

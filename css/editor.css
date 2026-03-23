@@ -1317,7 +1317,7 @@ body {
 }
 .label-group-block.selected { padding-right: 58px; }
 .label-group-block:hover { outline: 2px solid rgba(45,111,232,0.25); outline-offset: -2px; }
-.label-group-block.selected { outline: 2px solid #2d6fe8; outline-offset: -2px; }
+.label-group-block.selected { background: rgba(45,111,232,0.03); outline: 2px solid var(--sel-color); outline-offset: -1px; }
 
 .label-item {
   display: inline-flex;
@@ -1429,7 +1429,7 @@ body {
   transition: background 0.15s;
 }
 .asset-block:hover    { outline: 1.5px dashed var(--sel-color-hover); outline-offset: -1px; }
-.asset-block.selected { outline: 2px solid var(--sel-color); outline-offset: -2px; }
+.asset-block.selected { background: rgba(45,111,232,0.03); outline: 2px solid var(--sel-color); outline-offset: -1px; }
 .asset-block:hover .asset-icon { opacity: 0.5; }
 .asset-icon { width: 120px; height: 120px; opacity: 0.5; filter: brightness(0) invert(1); transition: opacity 0.15s; }
 .asset-block:hover .asset-icon { opacity: 0.75; }
@@ -2177,7 +2177,7 @@ body {
   background: #ffffff;
 }
 .graph-block:hover    { outline: 1.5px dashed var(--sel-color-hover); outline-offset: -1px; }
-.graph-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
+.graph-block.selected { background: rgba(45,111,232,0.03); outline: 2px solid var(--sel-color); outline-offset: -1px; }
 
 /* ── 세로 막대 (bar-v) ── */
 .grb-bars-v {
@@ -2496,7 +2496,7 @@ body {
   transition: outline 0.1s;
 }
 .divider-block:hover    { outline: 1.5px dashed var(--sel-color-hover); outline-offset: -1px; }
-.divider-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
+.divider-block.selected { background: rgba(45,111,232,0.03); outline: 2px solid var(--sel-color); outline-offset: -1px; }
 
 .dvd-line {
   width: 100%;
