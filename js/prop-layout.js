@@ -127,3 +127,6 @@ function bindLayoutInput(block) {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
   input.addEventListener('blur', apply);
 }
+
+window.getCurrentRatioStr = getCurrentRatioStr;
+window.bindLayoutInput    = bindLayoutInput;
