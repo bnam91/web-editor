@@ -52,6 +52,7 @@
   <button class="tb-btn" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
   <div class="divider"></div>
   <button class="tb-btn tb-btn-ai" id="ai-btn" onclick="openAiPrompt()" title="AI 섹션 생성 (⌘K)">✨ AI</button>
+  <button class="tb-btn" id="ref-modal-btn" onclick="window._refModalToggle()" title="레퍼런스 이미지 (⌘⇧R)">🖼 레퍼런스</button>
   <div class="divider"></div>
   <div id="publish-dropdown-wrap">
     <button id="publish-btn" onclick="togglePublishDropdown(event)">
@@ -568,6 +569,7 @@
 <script type="module" src="js/animation-engine.js"></script>
 <script type="module" src="js/inspector.js"></script>
 <script type="module" src="js/editor.js"></script>
+<script type="module" src="js/reference-modal.js"></script>
 
 <!-- ══════════════════════════
      ANIMATION GIF MODAL

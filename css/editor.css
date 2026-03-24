@@ -1031,6 +1031,72 @@ body {
 .st-branch-btn { color: #5a8ab8 !important; }
 .st-branch-btn:hover { color: #7cb8ff !important; background: #1a2840 !important; }
 
+/* ── Section Toolbar: A/B Variation Button ── */
+.st-ab-btn { color: #2d6fe8 !important; }
+.st-ab-btn:hover { color: #7cb8ff !important; background: #1a2840 !important; }
+
+/* ── A/B Variation Badge (섹션 좌상단) ── */
+.variation-badge {
+  position: absolute;
+  top: 4px; left: 4px;
+  width: 20px; height: 20px;
+  border-radius: 3px;
+  background: #2d6fe8;
+  color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  z-index: 100;
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: top left;
+  user-select: none;
+  transition: background 0.15s;
+}
+.variation-badge:hover { background: #1a5ac8; }
+.variation-badge.variation-badge-b { background: #e88c2d; }
+.variation-badge.variation-badge-b:hover { background: #c87018; }
+
+/* ── 비활성 베리에이션 섹션 숨김 ── */
+.section-block[data-variation-active="0"] { display: none !important; }
+
+/* ── 레이어 패널: A/B 베리에이션 그룹 ── */
+.layer-variation-group {
+  border: 1px solid rgba(45,111,232,0.4);
+  border-radius: 4px;
+  margin: 3px 0;
+  overflow: hidden;
+}
+.layer-variation-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: #141e2e;
+  font-size: 10px;
+  color: #5a8ab8;
+  user-select: none;
+}
+.layer-variation-header span { flex: 1; }
+.layer-variation-toggle {
+  background: none;
+  border: 1px solid #5a8ab8;
+  border-radius: 2px;
+  color: #5a8ab8;
+  font-size: 9px;
+  padding: 1px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.layer-variation-toggle:hover { background: #1f3a60; color: #7cb8ff; border-color: #7cb8ff; }
+.layer-variation-group .layer-section { margin: 0; border-radius: 0; }
+.layer-variation-group .layer-section-header { padding-left: 16px; }
+.layer-section.layer-section-inactive-var { opacity: 0.45; }
+.layer-section.layer-section-inactive-var .layer-section-name::after {
+  content: ' (숨김)';
+  color: #555;
+  font-size: 9px;
+}
+
 .empty-state {
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; height: 120px; gap: 8px;
@@ -3241,3 +3307,10 @@ body.preview-mode #preview-navigator { display: flex; }
   animation: ai-spin 0.7s linear infinite;
 }
 @keyframes ai-spin { to { transform: rotate(360deg); } }
+
+/* ── 레퍼런스 이미지 버튼 ── */
+#ref-modal-btn.active {
+  background: #2d4a8a;
+  border-color: #3d5a9a;
+  color: #8ab4f8;
+}
