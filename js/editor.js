@@ -204,8 +204,8 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') deselectAll();
 
-  // ── 키보드 Nudge: 블록 이동 (편집 중이거나 입력 포커스 시 무시) ──
-  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey) {
+  // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
     const selBlock = document.querySelector(
