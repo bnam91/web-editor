@@ -1361,8 +1361,7 @@ function addSection() {
   sec.className = 'section-block'; sec.dataset.section = newIdx;
   sec.id = genId('sec');
   sec.innerHTML = `
-    <div class="section-hitzone"></div>
-    <span class="section-label">Section ${String(newIdx).padStart(2,'0')}</span>
+    <div class="section-hitzone"><span class="section-label">Section ${String(newIdx).padStart(2,'0')}</span></div>
     <div class="section-toolbar">
       <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
     </div>

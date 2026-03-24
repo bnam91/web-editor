@@ -920,8 +920,13 @@ function bindSectionHitzone(sec) {
     hz.className = 'section-hitzone';
     sec.insertBefore(hz, sec.firstChild);
   }
+  // 레이블이 hitzone 밖에 있으면 안으로 이동
+  const label = sec.querySelector('.section-label');
+  if (label && !hz.contains(label)) {
+    hz.appendChild(label);
+  }
   // 기존 리스너 중복 방지: 새 노드로 교체 후 바인딩
-  const fresh = hz.cloneNode(false);
+  const fresh = hz.cloneNode(true);
   hz.replaceWith(fresh);
   fresh.addEventListener('click', e => {
     e.stopPropagation();
