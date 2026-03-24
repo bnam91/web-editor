@@ -1319,7 +1319,6 @@ function makeDividerBlock() {
   dvd.dataset.lineStyle   = 'solid';
   dvd.dataset.lineWeight  = '1';
   dvd.dataset.padV        = '12';
-  dvd.dataset.padH        = '0';
   dvd.innerHTML = `<hr class="dvd-line" style="border-top:1px solid #cccccc;">`;
 
   col.appendChild(dvd);
@@ -1345,9 +1344,8 @@ function applyDividerStyle(block) {
   const style   = block.dataset.lineStyle   || 'solid';
   const color   = block.dataset.lineColor   || '#cccccc';
   const padV    = block.dataset.padV        || '12';
-  const padH    = block.dataset.padH        || '0';
   hr.style.borderTop = `${weight}px ${style} ${color}`;
-  block.style.padding = `${padV}px ${padH}px`;
+  block.style.padding = `${padV}px 0`;
 }
 
 function addSection() {

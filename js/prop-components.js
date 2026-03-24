@@ -1117,7 +1117,6 @@ export function showDividerProperties(block) {
   const lineStyle  = block.dataset.lineStyle  || 'solid';
   const lineWeight = parseInt(block.dataset.lineWeight) || 1;
   const padV       = parseInt(block.dataset.padV)       || 12;
-  const padH       = parseInt(block.dataset.padH)       || 0;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -1161,11 +1160,6 @@ export function showDividerProperties(block) {
         <span class="prop-label">상하</span>
         <input type="range" class="prop-slider" id="dvd-pady-slider" min="0" max="120" step="4" value="${padV}">
         <input type="number" class="prop-number" id="dvd-pady-number" min="0" max="120" value="${padV}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">좌우</span>
-        <input type="range" class="prop-slider" id="dvd-padx-slider" min="0" max="200" step="4" value="${padH}">
-        <input type="number" class="prop-number" id="dvd-padx-number" min="0" max="200" value="${padH}">
       </div>
     </div>`;
 
@@ -1219,18 +1213,6 @@ export function showDividerProperties(block) {
   pySlider.addEventListener('input',  () => applyPadV(parseInt(pySlider.value)));
   pyNumber.addEventListener('change', () => { applyPadV(parseInt(pyNumber.value)); window.pushHistory(); });
   pySlider.addEventListener('change', () => window.pushHistory());
-
-  const pxSlider = document.getElementById('dvd-padx-slider');
-  const pxNumber = document.getElementById('dvd-padx-number');
-  const applyPadH = v => {
-    v = Math.min(200, Math.max(0, v));
-    block.dataset.padH = v;
-    applyAll();
-    pxSlider.value = v; pxNumber.value = v;
-  };
-  pxSlider.addEventListener('input',  () => applyPadH(parseInt(pxSlider.value)));
-  pxNumber.addEventListener('change', () => { applyPadH(parseInt(pxNumber.value)); window.pushHistory(); });
-  pxSlider.addEventListener('change', () => window.pushHistory());
 }
 
 // Backward compat: classic scripts call these via window.*
