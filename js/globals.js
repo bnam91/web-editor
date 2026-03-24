@@ -14,3 +14,4 @@ export const state = {
   currentPageId: 'page_1',
   _suppressAutoSave: false
 };
+window.state = state;

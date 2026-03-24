@@ -1168,6 +1168,8 @@ document.addEventListener('click', e => {
 canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
+  // 블록 자체를 shift+클릭한 경우 블록 핸들러가 처리하도록 패스
+  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block')) return;
   if (e.metaKey || e.ctrlKey || e.shiftKey) {
     e.stopPropagation();
     selectColWithModifier(col, e);

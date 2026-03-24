@@ -27,6 +27,7 @@ function enterPreview() {
     '--preset-label-bg','--preset-label-color','--preset-label-radius',
   ].map(v => `${v}:${rootStyles.getPropertyValue(v)}`).join(';');
 
+  const { pages, currentPageId, pageSettings } = window.state;
   pages.forEach((page, idx) => {
     const ps   = page.id === currentPageId ? pageSettings : (page.pageSettings || pageSettings);
     const bg   = ps.bg   || '#969696';
@@ -190,14 +191,15 @@ function _initSBS() {
   ['left', 'right'].forEach((side, si) => {
     const sel = document.getElementById(`sbs-select-${side}`);
     sel.innerHTML = '';
-    pages.forEach((page, idx) => {
+    const { pages: sbsPages } = window.state;
+    sbsPages.forEach((page, idx) => {
       const opt = document.createElement('option');
       opt.value = idx;
       opt.textContent = page.label || page.name || `Page ${idx + 1}`;
       sel.appendChild(opt);
     });
     // 기본값: 좌=0, 우=1(없으면 0)
-    sel.value = si === 0 ? 0 : Math.min(1, pages.length - 1);
+    sel.value = si === 0 ? 0 : Math.min(1, sbsPages.length - 1);
     sel.addEventListener('change', () => _renderSBSPanel(side, parseInt(sel.value), presetVars));
     _renderSBSPanel(side, parseInt(sel.value), presetVars);
   });
@@ -207,6 +209,7 @@ function _renderSBSPanel(side, pageIdx, presetVars) {
   const bodyEl = document.getElementById(`sbs-body-${side}`);
   bodyEl.innerHTML = '';
 
+  const { pages, currentPageId, pageSettings } = window.state;
   const page = pages[pageIdx];
   if (!page) return;
 
