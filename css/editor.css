@@ -3624,12 +3624,11 @@ body.preview-mode #preview-navigator { display: flex; }
 ══════════════════════════════════════ */
 .section-hitzone {
   position: absolute;
-  top: -26px; left: 0; right: 0;
-  height: 26px;
+  bottom: 100%; left: 0; right: 0;
   z-index: 8;
   display: flex;
-  align-items: center;
-  padding: 0 10px;
+  align-items: flex-end;
+  padding: 0;
   background: transparent;
   cursor: pointer;
   pointer-events: auto;
