@@ -228,15 +228,18 @@
         </div>
       </div>
       <div class="file-panel-section" id="templates-file-section">
-        <div class="file-panel-section-header" id="templates-section-header">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" class="file-section-chevron">
-            <path d="M2 3l3 3 3-3"/>
+        <div class="file-panel-section-header tpl-browser-trigger" id="templates-section-header" title="템플릿 브라우저 열기">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" class="file-section-chevron">
+            <rect x="1" y="1" width="8" height="8" rx="1"/>
+            <line x1="1" y1="4" x2="9" y2="4"/>
+            <line x1="3.5" y1="1" x2="3.5" y2="4"/>
           </svg>
           <span>Templates</span>
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-left:auto;opacity:0.4">
+            <polyline points="3,1 7,4 3,7"/>
+          </svg>
         </div>
-        <div class="file-panel-section-body tpl-panel-body" id="templates-section-body">
-          <div id="template-panel-body"></div>
-        </div>
+        <div id="template-panel-body" style="display:none"></div>
       </div>
     </div>
     <div class="panel-body" id="branch-panel-body" style="display:none"></div>
@@ -511,6 +514,47 @@
   </button>
 </div>
 
+<!-- Template Browser Panel -->
+<div id="tpl-browser" class="tpl-browser" style="display:none" role="dialog" aria-label="템플릿 브라우저">
+  <div class="tpl-browser-header">
+    <div class="tpl-browser-search-wrap">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#777" stroke-width="1.6">
+        <circle cx="5" cy="5" r="3.5"/><line x1="7.7" y1="7.7" x2="11" y2="11"/>
+      </svg>
+      <input class="tpl-browser-search" id="tpl-browser-search" type="text" placeholder="템플릿 검색...">
+    </div>
+    <button class="tpl-browser-close" id="tpl-browser-close" title="닫기">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+        <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+      </svg>
+    </button>
+  </div>
+  <div class="tpl-browser-body">
+    <div class="tpl-browser-tree" id="tpl-browser-tree"></div>
+    <div class="tpl-browser-right">
+      <div class="tpl-browser-preview-area" id="tpl-browser-preview-area">
+        <div class="tpl-browser-preview-empty" id="tpl-browser-preview-empty">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="#444" stroke-width="1.4">
+            <rect x="3" y="3" width="26" height="26" rx="3"/>
+            <line x1="3" y1="12" x2="29" y2="12"/>
+            <line x1="10" y1="3" x2="10" y2="12"/>
+          </svg>
+          <span>템플릿을 선택하면<br>미리보기가 표시됩니다</span>
+        </div>
+        <div class="tpl-browser-preview-canvas" id="tpl-browser-preview-canvas" style="display:none"></div>
+        <div class="tpl-browser-preview-footer" id="tpl-browser-preview-footer" style="display:none">
+          <div class="tpl-browser-preview-info">
+            <span class="tpl-browser-preview-name" id="tpl-browser-preview-name"></span>
+            <span class="tpl-browser-preview-cat" id="tpl-browser-preview-cat"></span>
+          </div>
+          <button class="tpl-browser-insert-btn" id="tpl-browser-insert-btn">+ 섹션 추가</button>
+        </div>
+      </div>
+      <div class="tpl-browser-cards" id="tpl-browser-cards"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Preview Overlay -->
 <div id="preview-overlay">
   <div id="preview-content"></div>
@@ -558,6 +602,7 @@
 <script defer src="js/gif.js"></script>
 <script type="module" src="js/globals.js"></script>
 <script type="module" src="js/template-system.js"></script>
+<script type="module" src="js/template-browser.js"></script>
 <script type="module" src="js/branch-system.js"></script>
 <script type="module" src="js/layer-panel.js"></script>
 <script type="module" src="js/prop-page.js"></script>

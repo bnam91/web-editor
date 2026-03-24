@@ -444,3 +444,12 @@ function _bindFolderDropdown(body) {
     renderTemplatePanel();
   });
 }
+
+// 크로스 모듈 접근용 window 노출
+window.loadTemplates        = loadTemplates;
+window.saveAsTemplate       = saveAsTemplate;
+window.deleteTemplate       = deleteTemplate;
+window.insertTemplate       = insertTemplate;
+window.renderTemplatePanel  = renderTemplatePanel;
+window.initTemplates        = initTemplates;
+window._loadCanvas          = _loadCanvas;

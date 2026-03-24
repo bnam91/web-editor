@@ -1222,7 +1222,10 @@ function initApp() {
   window.initFileTabToggle();
 
   // 템플릿 패널 초기 렌더 (파일 로드 후)
-  initTemplates().then(() => window.renderTemplatePanel());
+  initTemplates().then(() => {
+    window.renderTemplatePanel();
+    if (window.initTemplateBrowser) window.initTemplateBrowser();
+  });
 
   // Cmd+G 그룹 — capture phase로 브라우저 Find Next 보다 먼저 처리
   document.addEventListener('keydown', e => {
