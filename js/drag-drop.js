@@ -1388,7 +1388,7 @@ function addSection() {
 
   // 이벤트 바인딩
   window.pushHistory();
-  sec.addEventListener('click', e => { e.stopPropagation(); window.selectSection(sec); });
+  sec.addEventListener('click', e => { e.stopPropagation(); window.selectSectionWithModifier(sec, e); });
   window.bindSectionDelete(sec);
   window.bindSectionOrder(sec);
   bindSectionDropZone(sec);
