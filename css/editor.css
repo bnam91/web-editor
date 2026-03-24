@@ -1287,6 +1287,8 @@ body {
   padding: 3px 10px; border-radius: 4px 4px 0 0;
   pointer-events: none;
   white-space: nowrap;
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: left center;
 }
 
 /* ── Group Block ── */
