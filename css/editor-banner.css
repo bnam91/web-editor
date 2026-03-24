@@ -102,7 +102,7 @@
   min-height: 200px;
 }
 .strip-banner-block:hover    { background: rgba(45,111,232,0.05); }
-.strip-banner-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
+.strip-banner-block.selected { outline: 2px solid var(--sel-color); outline-offset: 2px; }
 .strip-banner-block.drag-over .sbb-image { outline: 2px dashed #2d6fe8; }
 
 .sbb-image {

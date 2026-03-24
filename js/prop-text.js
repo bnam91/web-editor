@@ -157,14 +157,9 @@ export function showTextProperties(tb) {
         <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
       </div>
       <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
-        <span class="prop-label">상단</span>
-        <input type="range" class="prop-slider" id="txt-pt-slider" min="0" max="120" step="4" value="${currentPadT}">
-        <input type="number" class="prop-number" id="txt-pt-number" min="0" max="120" value="${currentPadT}">
-      </div>
-      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
-        <span class="prop-label">하단</span>
-        <input type="range" class="prop-slider" id="txt-pb-slider" min="0" max="120" step="4" value="${currentPadB}">
-        <input type="number" class="prop-number" id="txt-pb-number" min="0" max="120" value="${currentPadB}">
+        <span class="prop-label">상하</span>
+        <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}">
+        <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}">
       </div>
     </div>
 
@@ -407,15 +402,11 @@ export function showTextProperties(tb) {
 
   /* 패딩 (overlay-tb는 해당 없음) */
   if (!isOverlayTb) {
-    const ptSlider = document.getElementById('txt-pt-slider');
-    const ptNumber = document.getElementById('txt-pt-number');
-    const pbSlider = document.getElementById('txt-pb-slider');
-    const pbNumber = document.getElementById('txt-pb-number');
-    if (ptSlider) {
-      ptSlider.addEventListener('input', () => { tb.style.paddingTop    = ptSlider.value+'px'; ptNumber.value = ptSlider.value; });
-      ptNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(ptNumber.value)||0)); tb.style.paddingTop=v+'px'; ptSlider.value=v; });
-      pbSlider.addEventListener('input', () => { tb.style.paddingBottom = pbSlider.value+'px'; pbNumber.value = pbSlider.value; });
-      pbNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pbNumber.value)||0)); tb.style.paddingBottom=v+'px'; pbSlider.value=v; });
+    const pvSlider = document.getElementById('txt-pv-slider');
+    const pvNumber = document.getElementById('txt-pv-number');
+    if (pvSlider) {
+      pvSlider.addEventListener('input', () => { tb.style.paddingTop = pvSlider.value+'px'; tb.style.paddingBottom = pvSlider.value+'px'; pvNumber.value = pvSlider.value; });
+      pvNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pvNumber.value)||0)); tb.style.paddingTop=v+'px'; tb.style.paddingBottom=v+'px'; pvSlider.value=v; });
     }
   }
 

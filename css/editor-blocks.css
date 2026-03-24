@@ -231,7 +231,7 @@
 .tb-table td[contenteditable="true"],
 .tb-table th[contenteditable="true"] {
   outline: 2px solid #2d6fe8;
-  outline-offset: -2px;
+  outline-offset: 2px;
   background: rgba(45,111,232,0.05) !important;
   cursor: text;
 }

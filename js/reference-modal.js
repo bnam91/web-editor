@@ -43,11 +43,10 @@ function createModal() {
     width: ${W}px; height: ${H}px;
     z-index: 9999;
     display: none;
-    flex-direction: column;
-    background: #1e1e1e;
-    border: 1px solid #3a3a3a;
-    border-radius: 10px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    background: #141414;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7);
     overflow: hidden;
     min-width: 200px; min-height: 150px;
     opacity: ${opacity / 100};
@@ -55,106 +54,111 @@ function createModal() {
   `;
 
   modalEl.innerHTML = `
-    <!-- 헤더 (드래그 핸들) -->
-    <div id="ref-header" style="
-      height: 36px; flex-shrink: 0;
-      background: #282828;
-      border-bottom: 1px solid #333;
-      display: flex; align-items: center;
-      padding: 0 10px; gap: 8px;
-      cursor: grab; user-select: none;
-    ">
-      <span style="font-size:11px; color:#888; font-weight:500; flex:1;">🖼 레퍼런스 이미지</span>
-
-      <!-- 불투명도 슬라이더 -->
-      <input id="ref-opacity-slider" type="range" min="30" max="100" value="${opacity}"
-        title="불투명도"
-        style="width:60px; cursor:pointer; accent-color:#2d6fe8;"
-        oninput="window._refModalSetOpacity(this.value)"
-      />
-      <span id="ref-opacity-label" style="font-size:10px; color:#666; width:28px; text-align:right;">${opacity}%</span>
-
-      <!-- 닫기 버튼 -->
-      <button onclick="window._refModalHide()" style="
-        width:20px; height:20px;
-        background:transparent; border:none;
-        color:#555; cursor:pointer; font-size:14px; line-height:1;
-        border-radius:4px; display:flex; align-items:center; justify-content:center;
-        transition: all 0.1s;
-      " onmouseover="this.style.background='#3a3a3a';this.style.color='#ccc'"
-         onmouseout="this.style.background='transparent';this.style.color='#555'"
-         title="닫기">✕</button>
-    </div>
-
-    <!-- 툴바 -->
-    <div style="
-      height: 32px; flex-shrink: 0;
-      background: #242424;
-      border-bottom: 1px solid #2e2e2e;
-      display: flex; align-items: center;
-      padding: 0 8px; gap: 6px;
-    ">
-      <label style="
-        height:22px; padding: 0 8px;
-        background:#333; border:1px solid #444; border-radius:4px;
-        color:#aaa; font-size:11px; cursor:pointer;
-        display:flex; align-items:center; gap:4px;
-        transition: all 0.15s;
-      "
-      onmouseover="this.style.background='#3d3d3d';this.style.color='#fff'"
-      onmouseout="this.style.background='#333';this.style.color='#aaa'"
-      title="로컬 이미지 업로드">
-        📁 업로드
-        <input id="ref-file-input" type="file" accept="image/*" style="display:none"
-          onchange="window._refModalLoadFile(event)">
-      </label>
-
-      <div style="flex:1; display:flex; gap:4px;">
-        <input id="ref-url-input" type="text" placeholder="이미지 URL 입력..."
-          style="
-            flex:1; height:22px; padding: 0 6px;
-            background:#1a1a1a; border:1px solid #333; border-radius:4px;
-            color:#ccc; font-size:11px; outline:none;
-          "
-          onkeydown="if(event.key==='Enter') window._refModalLoadUrl()"
-        />
-        <button onclick="window._refModalLoadUrl()" style="
-          height:22px; padding:0 8px;
-          background:#333; border:1px solid #444; border-radius:4px;
-          color:#aaa; font-size:11px; cursor:pointer;
-          transition: all 0.15s;
-        "
-        onmouseover="this.style.background='#3d3d3d';this.style.color='#fff'"
-        onmouseout="this.style.background='#333';this.style.color='#aaa'"
-        >불러오기</button>
-      </div>
-    </div>
-
-    <!-- 이미지 영역 -->
+    <style>
+      #ref-opacity-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 12px; height: 12px; border-radius: 50%;
+        background: rgba(255,255,255,0.75); cursor: pointer;
+      }
+    </style>
+    <!-- 이미지 영역 (드래그로 모달 이동, 항상 전체 크기) -->
     <div id="ref-image-wrap" style="
-      flex:1; overflow:hidden; position:relative;
+      width:100%; height:100%; position:relative;
       display:flex; align-items:center; justify-content:center;
-      background:#141414;
+      background:#141414; cursor:grab;
+      border-radius: 12px;
+      overflow: hidden;
     ">
       <span id="ref-placeholder" style="
-        font-size:11px; color:#444; text-align:center; line-height:1.6; pointer-events:none;
+        font-size:11px; color:#555; text-align:center; line-height:1.8; pointer-events:none;
       ">이미지를 업로드하거나<br>URL을 입력하세요</span>
       <img id="ref-image" src="" alt="" style="
         max-width:100%; max-height:100%; object-fit:contain; display:none;
+        pointer-events:none; user-select:none;
       " />
+
+      <!-- 툴바 오버레이 (호버 시 슬라이드다운) -->
+      <div id="ref-header" style="
+        position:absolute; top:0; left:0; right:0;
+        height:0; overflow:hidden;
+        display:flex; align-items:center;
+        padding: 0 8px; gap: 6px;
+        background: rgba(20,20,20,0.72);
+        backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+        user-select: none;
+        transition: height 0.18s cubic-bezier(0.4,0,0.2,1);
+        z-index: 2;
+      ">
+        <!-- URL 인풋 -->
+        <input id="ref-url-input" type="text" placeholder="이미지 URL..."
+          style="
+            flex:1; height:20px; padding: 0 8px; min-width:0;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 6px;
+            color: rgba(255,255,255,0.85); font-size:11px; outline:none;
+            transition: border-color 0.15s;
+          "
+          onfocus="this.style.borderColor='rgba(255,255,255,0.3)'"
+          onblur="this.style.borderColor='rgba(255,255,255,0.12)'"
+          onkeydown="if(event.key==='Enter') window._refModalLoadUrl()"
+        />
+
+        <!-- 불러오기 버튼 (URL 있으면 URL, 없으면 파일 선택) -->
+        <button onclick="window._refModalLoadOrPick()" style="
+          height:20px; padding: 0 10px; flex-shrink:0;
+          background: rgba(255,255,255,0.1);
+          border: 1px solid rgba(255,255,255,0.15);
+          border-radius: 6px;
+          color: rgba(255,255,255,0.75); font-size:11px; cursor:pointer;
+          display:flex; align-items:center;
+          transition: background 0.15s;
+        "
+        onmouseover="this.style.background='rgba(255,255,255,0.18)'"
+        onmouseout="this.style.background='rgba(255,255,255,0.1)'"
+        title="URL 입력 후 Enter, 또는 클릭하여 파일 선택">불러오기</button>
+        <input id="ref-file-input" type="file" accept="image/*" style="display:none"
+          onchange="window._refModalLoadFile(event)">
+
+        <!-- 투명도 슬라이더 -->
+        <input id="ref-opacity-slider" type="range" min="30" max="100" value="${opacity}"
+          title="투명도"
+          style="
+            width:52px; flex-shrink:0; cursor:pointer;
+            -webkit-appearance:none; appearance:none;
+            height:3px; border-radius:2px;
+            background:#555; outline:none;
+          "
+          oninput="window._refModalSetOpacity(this.value)"
+        />
+
+        <!-- 닫기 -->
+        <button onclick="window._refModalHide()" style="
+          width:18px; height:18px; flex-shrink:0;
+          background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+          color: rgba(255,255,255,0.5); cursor:pointer; font-size:11px; line-height:1;
+          border-radius: 50%; display:flex; align-items:center; justify-content:center;
+          transition: all 0.15s;
+        "
+        onmouseover="this.style.background='rgba(255,80,80,0.5)';this.style.color='#fff';this.style.borderColor='transparent'"
+        onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.color='rgba(255,255,255,0.5)';this.style.borderColor='rgba(255,255,255,0.12)'"
+        title="닫기">✕</button>
+      </div>
+
+      <!-- 리사이즈 핸들 (우하단, 이미지 위에 고정) -->
+      <div id="ref-resize-handle" style="
+        position:absolute; bottom:0; right:0;
+        width:20px; height:20px; cursor:se-resize; z-index:3;
+        display:flex; align-items:flex-end; justify-content:flex-end;
+        padding:4px;
+      ">
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style="pointer-events:none;">
+          <path d="M1 7L7 1M4 7L7 4" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
     </div>
 
-    <!-- 리사이즈 핸들 (우하단) -->
-    <div id="ref-resize-handle" style="
-      position:absolute; bottom:0; right:0;
-      width:16px; height:16px; cursor:se-resize;
-      display:flex; align-items:flex-end; justify-content:flex-end;
-      padding:3px;
-    ">
-      <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-        <path d="M1 7L7 1M4 7L7 4M7 7V7" stroke="#444" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-    </div>
   `;
 
   document.body.appendChild(modalEl);
@@ -163,6 +167,11 @@ function createModal() {
   if (saved.imgSrc && saved.imgSrc !== 'about:blank' && saved.imgSrc !== window.location.href) {
     _setImage(saved.imgSrc);
   }
+
+  // 툴바 호버 표시/숨김 (이미지 영역 기준)
+  const header = document.getElementById('ref-header');
+  modalEl.addEventListener('mouseenter', () => { header.style.height = '32px'; });
+  modalEl.addEventListener('mouseleave', () => { header.style.height = '0'; });
 
   _initDrag();
   _initResize();
@@ -199,12 +208,21 @@ window._refModalLoadUrl = function() {
   if (input) input.value = '';
 };
 
+// ── URL 있으면 URL로, 없으면 파일 선택 ────────────────────
+window._refModalLoadOrPick = function() {
+  const input = document.getElementById('ref-url-input');
+  const url = input?.value?.trim();
+  if (url) {
+    window._refModalLoadUrl();
+  } else {
+    document.getElementById('ref-file-input')?.click();
+  }
+};
+
 // ── 불투명도 ───────────────────────────────────────────────
 window._refModalSetOpacity = function(val) {
   if (!modalEl) return;
   modalEl.style.opacity = val / 100;
-  const label = document.getElementById('ref-opacity-label');
-  if (label) label.textContent = val + '%';
   saveState();
 };
 
@@ -229,30 +247,31 @@ export function toggleReferenceModal() {
   }
 }
 
-// ── 드래그 (헤더) ──────────────────────────────────────────
+// ── 드래그 (이미지 영역) ───────────────────────────────────
 function _initDrag() {
-  const header = document.getElementById('ref-header');
-  if (!header) return;
+  const wrap = document.getElementById('ref-image-wrap');
+  if (!wrap) return;
 
   let startX, startY, startLeft, startTop;
 
-  header.addEventListener('mousedown', e => {
-    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+  wrap.addEventListener('mousedown', e => {
+    if (e.target.closest('button, input, label, #ref-resize-handle')) return;
     e.preventDefault();
+    e.stopPropagation();
     startX = e.clientX;
     startY = e.clientY;
-    startLeft = parseInt(modalEl.style.left);
-    startTop  = parseInt(modalEl.style.top);
-    header.style.cursor = 'grabbing';
+    startLeft = parseInt(modalEl.style.left) || 0;
+    startTop  = parseInt(modalEl.style.top)  || 0;
+    wrap.style.cursor = 'grabbing';
 
-    function onMove(e) {
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
+    function onMove(ev) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
       modalEl.style.left = (startLeft + dx) + 'px';
       modalEl.style.top  = (startTop  + dy) + 'px';
     }
     function onUp() {
-      header.style.cursor = 'grab';
+      wrap.style.cursor = 'grab';
       saveState();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);

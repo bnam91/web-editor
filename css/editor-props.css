@@ -280,7 +280,7 @@
 /* 이미지 편집 모드 */
 .asset-block.img-editing {
   outline: 2px solid #2d6fe8 !important;
-  outline-offset: -2px;
+  outline-offset: 2px;
   cursor: default;
 }
 .asset-block.img-editing .asset-img {
