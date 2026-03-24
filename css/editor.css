@@ -1255,6 +1255,7 @@ body {
 #canvas-wrap::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 
 #canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; }
+#canvas-wrap.panning #canvas-scaler { transition: none; }
 
 #canvas {
   width: 860px;
@@ -1348,12 +1349,6 @@ body {
    data-layout: "stack" | "flex" | "grid"
 ═══════════════════════════════════ */
 .row { position: relative; display: flex; width: 100%; }
-.row:has(.text-block.selected),
-.row:has(.asset-block.selected),
-.row:has(.icon-circle-block.selected),
-.row:has(.table-block.selected) {
-  box-shadow: inset 0 0 0 3px var(--sel-color);
-}
 .row[data-layout="stack"] { flex-direction: column; }
 .row[data-layout="flex"]  { flex-direction: row; gap: 8px; align-items: stretch; }
 .row[data-layout="grid"]  { display: grid; gap: 8px; } /* grid-template-columns은 JS에서 inline으로 설정 */

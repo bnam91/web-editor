@@ -40,11 +40,24 @@ let currentZoom = 40;
 const scaler = document.getElementById('canvas-scaler');
 const zoomDisplay = document.getElementById('zoom-display');
 
+let panOffsetX = 0;
+let panOffsetY = 0;
+
 function applyZoom(z) {
   currentZoom = Math.min(150, Math.max(25, z));
-  scaler.style.transform = `scale(${currentZoom / 100})`;
+  _applyScalerTransform();
   zoomDisplay.textContent = currentZoom + '%';
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
+}
+
+function _applyScalerTransform() {
+  scaler.style.transform = `translate(${panOffsetX}px, ${panOffsetY}px) scale(${currentZoom / 100})`;
+}
+
+function resetPanOffset() {
+  panOffsetX = 0;
+  panOffsetY = 0;
+  _applyScalerTransform();
 }
 function zoomStep(delta) { applyZoom(currentZoom + delta); }
 function zoomFit() {
@@ -901,12 +914,16 @@ function bindSectionOrder(sec) {
 }
 
 function bindSectionHitzone(sec) {
-  // 이미 있으면 스킵
-  if (sec.querySelector('.section-hitzone')) return;
-  const hz = document.createElement('div');
-  hz.className = 'section-hitzone';
-  sec.insertBefore(hz, sec.firstChild);
-  hz.addEventListener('click', e => {
+  let hz = sec.querySelector('.section-hitzone');
+  if (!hz) {
+    hz = document.createElement('div');
+    hz.className = 'section-hitzone';
+    sec.insertBefore(hz, sec.firstChild);
+  }
+  // 기존 리스너 중복 방지: 새 노드로 교체 후 바인딩
+  const fresh = hz.cloneNode(false);
+  hz.replaceWith(fresh);
+  fresh.addEventListener('click', e => {
     e.stopPropagation();
     selectSectionWithModifier(sec, e);
   });
@@ -1048,18 +1065,18 @@ document.addEventListener('click', e => {
 
 
 /* ═══════════════════════════════════
-   CANVAS PAN (Space + Drag)
+   CANVAS PAN (Space + Drag) — transform offset 방식
 ═══════════════════════════════════ */
 {
   const canvasWrap = document.getElementById('canvas-wrap');
   let panMode = false;
   let panning = false;
   let panStart = null;
-  let panScrollStart = null;
+  let panOffsetStart = null;
 
   function isTyping() {
     const el = document.activeElement;
-    return el && (el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    return el && (el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
   }
 
   document.addEventListener('keydown', e => {
@@ -1080,19 +1097,23 @@ document.addEventListener('click', e => {
     }
   });
 
+  // capture 단계: 하위 요소 stopPropagation 우회
   canvasWrap.addEventListener('mousedown', e => {
     if (!panMode || e.button !== 0) return;
     panning = true;
     panStart = { x: e.clientX, y: e.clientY };
-    panScrollStart = { x: canvasWrap.scrollLeft, y: canvasWrap.scrollTop };
+    panOffsetStart = { x: panOffsetX, y: panOffsetY };
     canvasWrap.classList.add('panning');
     e.preventDefault();
-  });
+    e.stopPropagation();
+  }, true);
 
   window.addEventListener('mousemove', e => {
     if (!panning) return;
-    canvasWrap.scrollLeft = panScrollStart.x - (e.clientX - panStart.x);
-    canvasWrap.scrollTop  = panScrollStart.y - (e.clientY - panStart.y);
+    panOffsetX = panOffsetStart.x + (e.clientX - panStart.x);
+    panOffsetY = panOffsetStart.y + (e.clientY - panStart.y);
+    _applyScalerTransform();
+    if (window.updateNotchPosition) window.updateNotchPosition();
   });
 
   window.addEventListener('mouseup', () => {
@@ -1110,28 +1131,37 @@ document.addEventListener('click', e => {
   const notchBar   = document.getElementById('canvas-notch-bar');
   const notch      = document.getElementById('canvas-notch');
 
-  function updateNotch() {
-    const barWidth = notchBar.offsetWidth;
-    if (!barWidth) return;
-    const viewCenter = canvasWrap.scrollLeft + canvasWrap.clientWidth / 2;
-    const ratio = canvasWrap.scrollWidth > 0 ? viewCenter / canvasWrap.scrollWidth : 0.5;
-    const x = Math.max(2, Math.min(barWidth - 2, ratio * barWidth));
-    notch.style.left = x + 'px';
+  let _notchHideTimer = null;
 
-    const contentCenter = canvasWrap.scrollWidth / 2;
-    const tolerance = canvasWrap.clientWidth * 0.015;
-    notch.classList.toggle('centered', Math.abs(viewCenter - contentCenter) <= tolerance);
+  function updateNotchPosition() {
+    // panOffset 기준으로 노치 위치 표시 (0 = 중앙)
+    const isCentered = Math.abs(panOffsetX) < 5 && Math.abs(panOffsetY) < 5;
+    notch.classList.toggle('centered', isCentered);
+    // 노치 위치: pill 가로 중앙 기준으로 offset 반영
+    const pill = 80;
+    const clampedX = Math.max(4, Math.min(pill - 4, pill / 2 - panOffsetX / 10));
+    notch.style.left = clampedX + 'px';
+
+    if (!isCentered) {
+      notchBar.classList.add('visible');
+      clearTimeout(_notchHideTimer);
+      _notchHideTimer = setTimeout(() => {
+        if (Math.abs(panOffsetX) < 5 && Math.abs(panOffsetY) < 5)
+          notchBar.classList.remove('visible');
+      }, 2500);
+    }
   }
-
-  canvasWrap.addEventListener('scroll', updateNotch, { passive: true });
-  window.addEventListener('resize', updateNotch);
+  window.updateNotchPosition = updateNotchPosition;
 
   notchBar.addEventListener('click', () => {
-    const targetLeft = Math.max(0, (canvasWrap.scrollWidth - canvasWrap.clientWidth) / 2);
-    canvasWrap.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    // 팬 오프셋 리셋 (애니메이션)
+    scaler.style.transition = 'transform 0.3s ease';
+    resetPanOffset();
+    setTimeout(() => { scaler.style.transition = ''; }, 320);
+    notchBar.classList.remove('visible');
   });
 
-  setTimeout(updateNotch, 100);
+  setTimeout(updateNotchPosition, 100);
 }
 
 /* ── Col 다중선택: capture-phase ── */
