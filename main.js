@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -319,10 +320,42 @@ ipcMain.handle('templates:delete-canvas', (event, id) => {
 //   if (pages[page]) mainWindow.loadFile(pages[page]);
 // });
 
+/* ── 자동업데이트 ── */
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[updater] 새 버전 발견:', info.version);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '업데이트 준비 완료',
+      message: `새 버전 (v${info.version})이 다운로드됐습니다.\n지금 재시작해서 적용할까요?`,
+      buttons: ['재시작', '나중에'],
+      defaultId: 0,
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall();
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[updater] 오류:', err.message);
+  });
+
+  autoUpdater.checkForUpdatesAndNotify();
+}
+
 /* ── App lifecycle ── */
 app.whenReady().then(() => {
   createWindow();
   watchFiles();
+  // 개발 모드에서는 자동업데이트 스킵
+  if (!process.argv.includes('--enable-logging')) {
+    setupAutoUpdater();
+  }
 });
 
 app.on('window-all-closed', () => {
