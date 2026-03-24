@@ -812,6 +812,93 @@ document.addEventListener('click', e => {
 });
 
 
+/* ═══════════════════════════════════
+   CANVAS PAN (Space + Drag)
+═══════════════════════════════════ */
+{
+  const canvasWrap = document.getElementById('canvas-wrap');
+  let panMode = false;
+  let panning = false;
+  let panStart = null;
+  let panScrollStart = null;
+
+  function isTyping() {
+    const el = document.activeElement;
+    return el && (el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && !e.metaKey && !e.ctrlKey && !isTyping()) {
+      e.preventDefault();
+      if (!panMode) {
+        panMode = true;
+        canvasWrap.classList.add('pan-mode');
+      }
+    }
+  });
+
+  document.addEventListener('keyup', e => {
+    if (e.code === 'Space') {
+      panMode = false;
+      panning = false;
+      canvasWrap.classList.remove('pan-mode', 'panning');
+    }
+  });
+
+  canvasWrap.addEventListener('mousedown', e => {
+    if (!panMode || e.button !== 0) return;
+    panning = true;
+    panStart = { x: e.clientX, y: e.clientY };
+    panScrollStart = { x: canvasWrap.scrollLeft, y: canvasWrap.scrollTop };
+    canvasWrap.classList.add('panning');
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!panning) return;
+    canvasWrap.scrollLeft = panScrollStart.x - (e.clientX - panStart.x);
+    canvasWrap.scrollTop  = panScrollStart.y - (e.clientY - panStart.y);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!panning) return;
+    panning = false;
+    if (panMode) canvasWrap.classList.remove('panning');
+  });
+}
+
+/* ═══════════════════════════════════
+   CENTER NOTCH BAR
+═══════════════════════════════════ */
+{
+  const canvasWrap = document.getElementById('canvas-wrap');
+  const notchBar   = document.getElementById('canvas-notch-bar');
+  const notch      = document.getElementById('canvas-notch');
+
+  function updateNotch() {
+    const barWidth = notchBar.offsetWidth;
+    if (!barWidth) return;
+    const viewCenter = canvasWrap.scrollLeft + canvasWrap.clientWidth / 2;
+    const ratio = canvasWrap.scrollWidth > 0 ? viewCenter / canvasWrap.scrollWidth : 0.5;
+    const x = Math.max(2, Math.min(barWidth - 2, ratio * barWidth));
+    notch.style.left = x + 'px';
+
+    const contentCenter = canvasWrap.scrollWidth / 2;
+    const tolerance = canvasWrap.clientWidth * 0.015;
+    notch.classList.toggle('centered', Math.abs(viewCenter - contentCenter) <= tolerance);
+  }
+
+  canvasWrap.addEventListener('scroll', updateNotch, { passive: true });
+  window.addEventListener('resize', updateNotch);
+
+  notchBar.addEventListener('click', () => {
+    const targetLeft = Math.max(0, (canvasWrap.scrollWidth - canvasWrap.clientWidth) / 2);
+    canvasWrap.scrollTo({ left: targetLeft, behavior: 'smooth' });
+  });
+
+  setTimeout(updateNotch, 100);
+}
+
 // window 할당을 initApp() 보다 먼저 — save-load.js의 initApp 내부에서 참조하기 때문
 window.ASSET_SVG = ASSET_SVG;
 window.pushHistory = pushHistory;
