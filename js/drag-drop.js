@@ -1202,9 +1202,11 @@ function makeStripBannerBlock() {
       <span class="sbb-img-placeholder">+</span>
     </div>
     <div class="sbb-content" style="background:#f5f5f5;">
+      <div class="sbb-gap sbb-gap-top" style="height:20px"></div>
       <div class="sbb-heading" contenteditable="false">제목을 입력하세요</div>
       <div class="sbb-gap" style="height:8px"></div>
       <div class="sbb-body" contenteditable="false">내용을 입력하세요.</div>
+      <div class="sbb-gap sbb-gap-bottom" style="height:20px"></div>
     </div>`;
 
   col.appendChild(sbb);

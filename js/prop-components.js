@@ -570,6 +570,10 @@ export function showStripBannerProperties(block) {
   const titleColor = block.dataset.titleColor || '#111111';
   const bodyColor  = block.dataset.bodyColor  || '#555555';
   const usePadX    = block.dataset.usePadx !== 'false'; // 기본값 true (미설정 포함)
+  const gapTopEl   = block.querySelector('.sbb-gap-top');
+  const gapBotEl   = block.querySelector('.sbb-gap-bottom');
+  const gapTopH    = parseInt(gapTopEl?.style.height)    || 20;
+  const gapBotH    = parseInt(gapBotEl?.style.height)    || 20;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -617,6 +621,16 @@ export function showStripBannerProperties(block) {
         <span class="prop-label">모서리</span>
         <input type="range" class="prop-slider" id="sbb-radius-slider" min="0" max="40" step="1" value="${radius}">
         <input type="number" class="prop-number" id="sbb-radius-number" min="0" max="40" value="${radius}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">상단 갭</span>
+        <input type="range" class="prop-slider" id="sbb-gap-top-slider" min="0" max="120" step="2" value="${gapTopH}">
+        <input type="number" class="prop-number" id="sbb-gap-top-number" min="0" max="120" value="${gapTopH}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">하단 갭</span>
+        <input type="range" class="prop-slider" id="sbb-gap-bot-slider" min="0" max="120" step="2" value="${gapBotH}">
+        <input type="number" class="prop-number" id="sbb-gap-bot-number" min="0" max="120" value="${gapBotH}">
       </div>
     </div>
     <div class="prop-section">
@@ -870,6 +884,32 @@ export function showStripBannerProperties(block) {
     });
   };
   bindSbbGaps();
+
+  // 상단 갭 슬라이더
+  const gapTopSlider = document.getElementById('sbb-gap-top-slider');
+  const gapTopNumber = document.getElementById('sbb-gap-top-number');
+  const applyGapTop = val => {
+    const el = block.querySelector('.sbb-gap-top');
+    if (el) el.style.height = val + 'px';
+    if (gapTopSlider) gapTopSlider.value = val;
+    if (gapTopNumber) gapTopNumber.value = val;
+  };
+  gapTopSlider?.addEventListener('input', e => applyGapTop(parseInt(e.target.value)));
+  gapTopSlider?.addEventListener('change', () => window.pushHistory());
+  gapTopNumber?.addEventListener('change', e => { applyGapTop(parseInt(e.target.value) || 0); window.pushHistory(); });
+
+  // 하단 갭 슬라이더
+  const gapBotSlider = document.getElementById('sbb-gap-bot-slider');
+  const gapBotNumber = document.getElementById('sbb-gap-bot-number');
+  const applyGapBot = val => {
+    const el = block.querySelector('.sbb-gap-bottom');
+    if (el) el.style.height = val + 'px';
+    if (gapBotSlider) gapBotSlider.value = val;
+    if (gapBotNumber) gapBotNumber.value = val;
+  };
+  gapBotSlider?.addEventListener('input', e => applyGapBot(parseInt(e.target.value)));
+  gapBotSlider?.addEventListener('change', () => window.pushHistory());
+  gapBotNumber?.addEventListener('change', e => { applyGapBot(parseInt(e.target.value) || 0); window.pushHistory(); });
 
   // 텍스트 정렬
   const applyStripAlign = a => {
