@@ -18,6 +18,37 @@ const layerIcons = {
   graph:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polyline points="1,10 4,5 7,7 10,2"/></svg>`,
 };
 
+/* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */
+function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerName') {
+  nameSpan.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    const orig = nameSpan.textContent;
+    nameSpan.contentEditable = 'true';
+    nameSpan.classList.add('editing');
+    nameSpan.focus();
+    const range = document.createRange();
+    range.selectNodeContents(nameSpan);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    const finish = () => {
+      nameSpan.contentEditable = 'false';
+      nameSpan.classList.remove('editing');
+      const newName = nameSpan.textContent.trim() || fallbackName;
+      nameSpan.textContent = newName;
+      if (newName !== fallbackName) {
+        targetEl.dataset[datasetKey] = newName;
+      } else {
+        delete targetEl.dataset[datasetKey];
+      }
+    };
+    nameSpan.addEventListener('blur', finish, { once: true });
+    nameSpan.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter')  { ev.preventDefault(); nameSpan.blur(); }
+      if (ev.key === 'Escape') { nameSpan.textContent = orig; nameSpan.blur(); }
+    }, { once: true });
+  });
+}
+
 /* 레이어 아이템 생성 (단일 블록용) */
 function makeLayerBlockItem(block, dragTarget, sec) {
   const isText       = block.classList.contains('text-block');
@@ -35,11 +66,14 @@ function makeLayerBlockItem(block, dragTarget, sec) {
 
   const item = document.createElement('div');
   item.className = 'layer-item';
-  item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name">${labels[type] || type}</span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
+  const displayName = block.dataset.layerName || labels[type] || type;
+  item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name">${displayName}</span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
   item._dragTarget = dragTarget;
+  addLayerRename(item.querySelector('.layer-item-name'), block, labels[type] || type);
 
   item.addEventListener('click', e => {
     e.stopPropagation();
+    if (e.target.classList.contains('editing')) return;
     if (e.shiftKey) {
       // Shift+클릭: 다중선택 토글
       if (block.classList.contains('selected')) {
@@ -110,6 +144,7 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
         <rect x="5.5" y="5.5" width="3.5" height="3.5" rx="0.5"/>
       </svg>
     </button>`;
+  addLayerRename(header.querySelector('.layer-item-name'), groupEl, 'Group', 'name');
 
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
@@ -157,8 +192,9 @@ function makeLayerAssetItem(block, dragTarget, sec) {
   header.innerHTML = `
     <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
     ${layerIcons.asset}
-    <span class="layer-item-name">Asset</span>
+    <span class="layer-item-name">${block.dataset.layerName || 'Asset'}</span>
     <span class="layer-item-type">Image + Overlay</span>`;
+  addLayerRename(header.querySelector('.layer-item-name'), block, 'Asset');
 
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
@@ -273,8 +309,9 @@ function makeLayerCardItem(block, dragTarget, sec) {
   header.innerHTML = `
     <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
     ${layerIcons.card}
-    <span class="layer-item-name">Card</span>
+    <span class="layer-item-name">${block.dataset.layerName || 'Card'}</span>
     <span class="layer-item-type">Component</span>`;
+  addLayerRename(header.querySelector('.layer-item-name'), block, 'Card');
 
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
@@ -353,8 +390,9 @@ function makeLayerBannerItem(block, dragTarget, sec) {
   header.innerHTML = `
     <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
     ${layerIcons.banner}
-    <span class="layer-item-name">Banner</span>
+    <span class="layer-item-name">${block.dataset.layerName || 'Banner'}</span>
     <span class="layer-item-type">Component</span>`;
+  addLayerRename(header.querySelector('.layer-item-name'), block, 'Banner');
 
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
