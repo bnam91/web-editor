@@ -291,6 +291,7 @@ export function showTextProperties(tb) {
   let _savedBoldSel = null;
   let _savedItalicSel = null;
   let _savedColorSel = null;
+  let _colorSpan = null; // 색상 적용 시 생성한 span (input 반복 호출에 재사용)
 
   const hasSel = () => {
     const sel = window.getSelection();
@@ -356,28 +357,36 @@ export function showTextProperties(tb) {
   const colorHex    = document.getElementById('txt-color-hex');
   const colorSwatch = colorPicker.closest('.prop-color-swatch');
   colorSwatch.addEventListener('mousedown', () => {
-    if (hasSel()) _savedColorSel = window.getSelection().getRangeAt(0).cloneRange();
-    else _savedColorSel = null;
+    if (hasSel()) { _savedColorSel = window.getSelection().getRangeAt(0).cloneRange(); _colorSpan = null; }
+    else { _savedColorSel = null; _colorSpan = null; }
   });
-  colorPicker.addEventListener('input', () => {
-    if (_savedColorSel) {
-      applyExecCmd(_savedColorSel, 'foreColor', colorPicker.value);
-      // 색 선택이 연속될 수 있으므로 savedSel 유지
+
+  const applyColorToSel = (color) => {
+    if (!_savedColorSel) { contentEl.style.color = color; return; }
+    if (_colorSpan) {
+      // 이미 span 생성됨 → color만 업데이트 (DOM 재조작 없음)
+      _colorSpan.style.color = color;
     } else {
-      contentEl.style.color = colorPicker.value;
+      // 처음 적용: range에서 내용 추출 → span으로 감싸 재삽입
+      const r = _savedColorSel.cloneRange();
+      const frag = r.extractContents();
+      _colorSpan = document.createElement('span');
+      _colorSpan.style.color = color;
+      _colorSpan.appendChild(frag);
+      r.insertNode(_colorSpan);
     }
+  };
+
+  colorPicker.addEventListener('input', () => {
+    applyColorToSel(colorPicker.value);
     colorHex.value = colorPicker.value;
     colorSwatch.style.background = colorPicker.value;
   });
-  colorPicker.addEventListener('change', () => { _savedColorSel = null; window.pushHistory(); });
+  colorPicker.addEventListener('change', () => { _savedColorSel = null; _colorSpan = null; window.pushHistory(); });
   colorHex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(colorHex.value)) {
       colorPicker.value = colorHex.value;
-      if (_savedColorSel) {
-        applyExecCmd(_savedColorSel, 'foreColor', colorHex.value);
-      } else {
-        contentEl.style.color = colorHex.value;
-      }
+      applyColorToSel(colorHex.value);
       colorSwatch.style.background = colorHex.value;
     }
   });
