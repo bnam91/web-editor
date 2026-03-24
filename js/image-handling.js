@@ -361,6 +361,95 @@ function clearAssetImage(ab) {
 }
 
 /* ══════════════════════════════════════
+   이미지 포지션 드래그 모드
+══════════════════════════════════════ */
+function enterPosDragMode(ab) {
+  if (ab._posDragging) return;
+  const img = ab.querySelector('.asset-img');
+  if (!img) return;
+
+  ab._posDragging = true;
+  ab.classList.add('pos-dragging');
+
+  const stored = ab.dataset.imgPosition || '50% 50%';
+  const parts  = stored.split(' ');
+  let posX = parseFloat(parts[0]) || 50;
+  let posY = parseFloat(parts[1]) || 50;
+
+  const applyPos = () => {
+    img.style.objectPosition = `${posX}% ${posY}%`;
+    ab.dataset.imgPosition   = `${posX}% ${posY}%`;
+  };
+  applyPos();
+
+  const hint = document.createElement('div');
+  hint.className = 'img-edit-hint';
+  hint.textContent = '드래그로 이미지 위치 조절 · Esc / 블록 밖: 완료';
+  ab.appendChild(hint);
+
+  let isDragging = false;
+  let startX, startY, startPosX, startPosY;
+
+  function onMouseDown(e) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    isDragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startPosX = posX;   startPosY = posY;
+  }
+  function onMouseMove(e) {
+    if (!isDragging) return;
+    const zs = currentZoom / 100;
+    const fw = ab.offsetWidth;
+    const fh = ab.offsetHeight;
+    const dx = (e.clientX - startX) / zs;
+    const dy = (e.clientY - startY) / zs;
+    posX = Math.max(0, Math.min(100, startPosX - (dx / fw * 100)));
+    posY = Math.max(0, Math.min(100, startPosY - (dy / fh * 100)));
+    applyPos();
+  }
+  function onMouseUp() {
+    if (!isDragging) return;
+    isDragging = false;
+    pushHistory();
+  }
+
+  ab.addEventListener('mousedown', onMouseDown);
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup',   onMouseUp);
+
+  ab._posDragCleanup = () => {
+    ab.removeEventListener('mousedown', onMouseDown);
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup',   onMouseUp);
+    hint.remove();
+  };
+
+  ab._exitPosDrag    = e => { if (!ab.contains(e.target)) exitPosDragMode(ab); };
+  ab._exitPosDragEsc = e => { if (e.key === 'Escape') exitPosDragMode(ab); };
+  setTimeout(() => {
+    document.addEventListener('click',   ab._exitPosDrag);
+    document.addEventListener('keydown', ab._exitPosDragEsc);
+  }, 0);
+}
+
+function exitPosDragMode(ab) {
+  if (!ab._posDragging) return;
+  ab._posDragging = false;
+  ab.classList.remove('pos-dragging');
+  if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
+  document.removeEventListener('click',   ab._exitPosDrag);
+  document.removeEventListener('keydown', ab._exitPosDragEsc);
+  ab._exitPosDrag    = null;
+  ab._exitPosDragEsc = null;
+  showAssetProperties(ab);
+}
+
+window.enterPosDragMode  = enterPosDragMode;
+window.exitPosDragMode   = exitPosDragMode;
+window.exitImageEditMode = exitImageEditMode;
+
+/* ══════════════════════════════════════
    원형 프레임 (Icon Circle) 이미지
 ══════════════════════════════════════ */
 function triggerCircleUpload(icb) {
