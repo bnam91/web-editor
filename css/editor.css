@@ -1293,7 +1293,8 @@ body {
   transform-origin: bottom left;
 }
 .section-block.selected .section-label,
-.section-block:hover .section-label { display: block; }
+.section-hitzone:hover ~ .section-label,
+.section-label:hover { display: block; }
 
 /* ── Group Block ── */
 .group-block {
