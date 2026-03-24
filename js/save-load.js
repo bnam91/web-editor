@@ -765,6 +765,24 @@ function rebindAll() {
       branchBtn.onclick = function() { openSectionBranchMenu(this); };
     }
   });
+  // 구버전 배너 블록 마이그레이션: sbb-gap-top/bottom 없는 경우 추가
+  canvasEl.querySelectorAll('.strip-banner-block').forEach(sbb => {
+    const content = sbb.querySelector('.sbb-content');
+    if (!content) return;
+    if (!content.querySelector('.sbb-gap-top')) {
+      const topGap = document.createElement('div');
+      topGap.className = 'sbb-gap sbb-gap-top';
+      topGap.style.height = '20px';
+      content.prepend(topGap);
+    }
+    if (!content.querySelector('.sbb-gap-bottom')) {
+      const botGap = document.createElement('div');
+      botGap.className = 'sbb-gap sbb-gap-bottom';
+      botGap.style.height = '20px';
+      content.append(botGap);
+    }
+  });
+
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
