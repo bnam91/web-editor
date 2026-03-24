@@ -1361,6 +1361,7 @@ function addSection() {
   sec.className = 'section-block'; sec.dataset.section = newIdx;
   sec.id = genId('sec');
   sec.innerHTML = `
+    <div class="section-hitzone"></div>
     <span class="section-label">Section ${String(newIdx).padStart(2,'0')}</span>
     <div class="section-toolbar">
       <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
@@ -1397,6 +1398,7 @@ function addSection() {
   window.bindSectionOrder(sec);
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
+  if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => bindBlock(b));
 
   window.buildLayerPanel();

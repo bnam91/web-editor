@@ -3314,3 +3314,24 @@ body.preview-mode #preview-navigator { display: flex; }
   border-color: #3d5a9a;
   color: #8ab4f8;
 }
+
+/* ══════════════════════════════════════
+   SECTION HIT ZONE (T40)
+══════════════════════════════════════ */
+.section-hitzone {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 24px;
+  z-index: 8;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+/* 선택된 섹션은 히트존 비활성 — 내부 블록 클릭 정상 작동 */
+.section-block.selected .section-hitzone {
+  pointer-events: none;
+}
+/* 호버 시 상단에 미묘한 힌트 */
+.section-hitzone:hover {
+  background: rgba(45, 111, 232, 0.06);
+}
