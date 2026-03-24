@@ -126,6 +126,118 @@ function getBlockBreadcrumb(el) {
 ══════════════════════════════════════ */
 let clipboard = null;
 
+/* ═══════════════════════════════════
+   MULTI-SELECT STATE
+═══════════════════════════════════ */
+const multiSel = {
+  sections: new Set(),
+  cols:     new Set(),
+  lastSection: null,
+  lastCol:     null,
+};
+
+function clearMultiSel() {
+  multiSel.sections.forEach(s => s.classList.remove('multi-selected'));
+  multiSel.cols.forEach(c => c.classList.remove('multi-selected'));
+  multiSel.sections.clear();
+  multiSel.cols.clear();
+  multiSel.lastSection = null;
+  multiSel.lastCol     = null;
+}
+
+function showMultiSelPanel() {
+  const n = multiSel.sections.size || multiSel.cols.size;
+  if (!propPanel) return;
+  propPanel.innerHTML = `<div style="padding:20px;color:#888;font-size:13px;">${n}개 선택됨</div>`;
+}
+
+function selectSectionWithModifier(sec, e) {
+  if (e && (e.metaKey || e.ctrlKey)) {
+    // Cmd: toggle
+    if (multiSel.sections.has(sec)) {
+      sec.classList.remove('selected', 'multi-selected');
+      multiSel.sections.delete(sec);
+    } else {
+      // 기존 단일 선택도 multiSel에 합류
+      const prev = document.querySelector('.section-block.selected:not(.multi-selected)');
+      if (prev && !multiSel.sections.has(prev)) {
+        prev.classList.add('multi-selected');
+        multiSel.sections.add(prev);
+        multiSel.lastSection = prev;
+      }
+      sec.classList.add('selected', 'multi-selected');
+      multiSel.sections.add(sec);
+    }
+    multiSel.lastSection = sec;
+    if (multiSel.sections.size > 1) { showMultiSelPanel(); return; }
+    if (multiSel.sections.size === 1) { selectSection([...multiSel.sections][0]); clearMultiSel(); return; }
+    deselectAll();
+  } else if (e && e.shiftKey && multiSel.lastSection) {
+    // Shift: range
+    const all = [...document.querySelectorAll('.section-block')];
+    const a = all.indexOf(multiSel.lastSection);
+    const b = all.indexOf(sec);
+    const [lo, hi] = a < b ? [a, b] : [b, a];
+    deselectAll();
+    clearMultiSel();
+    for (let i = lo; i <= hi; i++) {
+      all[i].classList.add('selected', 'multi-selected');
+      multiSel.sections.add(all[i]);
+    }
+    multiSel.lastSection = sec;
+    if (multiSel.sections.size > 1) { showMultiSelPanel(); return; }
+    if (multiSel.sections.size === 1) { selectSection([...multiSel.sections][0]); clearMultiSel(); return; }
+  } else {
+    // 일반 클릭: 단일 선택
+    clearMultiSel();
+    selectSection(sec);
+    multiSel.lastSection = sec;
+  }
+}
+
+function selectColWithModifier(col, e) {
+  if (!e || (!e.metaKey && !e.ctrlKey && !e.shiftKey)) return false;
+  const row = col.closest('.row');
+  if (!row) return false;
+  const rowCols = [...row.querySelectorAll(':scope > .col')];
+
+  if (e.metaKey || e.ctrlKey) {
+    if (multiSel.cols.has(col)) {
+      col.classList.remove('selected', 'multi-selected');
+      multiSel.cols.delete(col);
+    } else {
+      const prevCol = row.querySelector('.col.selected:not(.multi-selected)');
+      if (prevCol && !multiSel.cols.has(prevCol)) {
+        prevCol.classList.add('multi-selected');
+        multiSel.cols.add(prevCol);
+        multiSel.lastCol = prevCol;
+      }
+      col.classList.add('selected', 'multi-selected');
+      multiSel.cols.add(col);
+    }
+    multiSel.lastCol = col;
+    if (multiSel.cols.size > 1) { showMultiSelPanel(); return true; }
+    if (multiSel.cols.size === 1) { clearMultiSel(); return false; }
+    return true;
+  } else if (e.shiftKey && multiSel.lastCol) {
+    const a = rowCols.indexOf(multiSel.lastCol);
+    const b = rowCols.indexOf(col);
+    if (a === -1 || b === -1) return false;
+    const [lo, hi] = a < b ? [a, b] : [b, a];
+    multiSel.cols.forEach(c => c.classList.remove('selected','multi-selected'));
+    multiSel.cols.clear();
+    for (let i = lo; i <= hi; i++) {
+      rowCols[i].classList.add('selected', 'multi-selected');
+      multiSel.cols.add(rowCols[i]);
+    }
+    multiSel.lastCol = col;
+    if (multiSel.cols.size > 1) { showMultiSelPanel(); return true; }
+    if (multiSel.cols.size === 1) { clearMultiSel(); return false; }
+    return true;
+  }
+  return false;
+}
+
 function copySelected() {
   const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected');
   const selSection = document.querySelector('.section-block.selected');
@@ -156,7 +268,7 @@ function pasteClipboard() {
       const col = ph.parentElement;
       col.replaceChild(makeColPlaceholder(col), ph);
     });
-    el.addEventListener('click', e2 => { e2.stopPropagation(); selectSection(el); });
+    el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
   } else {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
@@ -248,6 +360,30 @@ document.addEventListener('keydown', e => {
       return;
     }
 
+    // 다중 선택 삭제: col 다중
+    if (multiSel.cols.size > 1) {
+      e.preventDefault();
+      pushHistory();
+      multiSel.cols.forEach(col => {
+        const row = col.closest('.row');
+        col.remove();
+        if (row && !row.querySelector('.col')) row.remove();
+      });
+      clearMultiSel();
+      deselectAll();
+      window.buildLayerPanel();
+      return;
+    }
+    // 다중 선택 삭제: section 다중
+    if (multiSel.sections.size > 1) {
+      e.preventDefault();
+      pushHistory();
+      multiSel.sections.forEach(s => s.remove());
+      clearMultiSel();
+      deselectAll();
+      window.buildLayerPanel();
+      return;
+    }
     const selText    = document.querySelector('.text-block.selected');
     const selAsset   = document.querySelector('.asset-block.selected');
     const selGap     = document.querySelector('.gap-block.selected');
@@ -724,6 +860,8 @@ function syncSection(sec) {
 }
 
 function deselectAll() {
+  clearMultiSel();
+  document.querySelectorAll('.col').forEach(c => c.classList.remove('multi-selected', 'selected'));
   document.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected'));
   document.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
   document.querySelectorAll('.text-block').forEach(t => {
@@ -763,7 +901,7 @@ function bindSectionOrder(sec) {
 }
 
 document.querySelectorAll('.section-block').forEach(sec => {
-  sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
+  sec.addEventListener('click', e => { e.stopPropagation(); selectSectionWithModifier(sec, e); });
   bindSectionDelete(sec);
   bindSectionOrder(sec);
   bindSectionDropZone(sec);
@@ -812,6 +950,15 @@ document.addEventListener('click', e => {
 });
 
 
+/* ── Col 다중선택: capture-phase ── */
+canvasEl.addEventListener('click', e => {
+  const col = e.target.closest('.col');
+  if (!col) return;
+  if (e.metaKey || e.ctrlKey || e.shiftKey) {
+    e.stopPropagation();
+    selectColWithModifier(col, e);
+  }
+}, true);
 // window 할당을 initApp() 보다 먼저 — save-load.js의 initApp 내부에서 참조하기 때문
 window.ASSET_SVG = ASSET_SVG;
 window.pushHistory = pushHistory;
@@ -837,6 +984,11 @@ window.toggleFpDropdown = toggleFpDropdown;
 window.copySelected = copySelected;
 window.pasteClipboard = pasteClipboard;
 
+window.multiSel = multiSel;
+window.clearMultiSel = clearMultiSel;
+window.selectSectionWithModifier = selectSectionWithModifier;
+window.selectColWithModifier = selectColWithModifier;
+window.showMultiSelPanel = showMultiSelPanel;
 // 모든 모듈 로드 후 앱 초기화
 initApp();
 
@@ -866,6 +1018,9 @@ export {
   toggleFpDropdown,
   copySelected,
   pasteClipboard,
+  selectSectionWithModifier,
+  selectColWithModifier,
+  clearMultiSel,
 };
 
 // (window 할당은 initApp() 호출 전 블록에서 처리됨)
