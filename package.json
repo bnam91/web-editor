@@ -5,7 +5,36 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --enable-logging --remote-debugging-port=9334 --remote-allow-origins=* admin"
+    "dev": "electron . --enable-logging --remote-debugging-port=9334 --remote-allow-origins=* admin",
+    "build:mac": "electron-builder --mac --dir",
+    "release:mac": "electron-builder --mac --publish always",
+    "release:win": "electron-builder --win --publish always"
+  },
+  "build": {
+    "appId": "com.goyamkt.sangpe-editor",
+    "productName": "상페마법사",
+    "publish": {
+      "provider": "github",
+      "owner": "bnam91",
+      "repo": "web-editor"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ]
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "files": [
+      "**/*",
+      "!.git",
+      "!dist",
+      "!*.md"
+    ]
   },
   "repository": {
     "type": "git",
@@ -20,9 +49,11 @@
   },
   "homepage": "https://github.com/bnam91/web-editor#readme",
   "devDependencies": {
-    "electron": "^41.0.3"
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1"
   },
   "dependencies": {
+    "electron-updater": "^6.8.3",
     "mongodb": "^7.1.0",
     "ws": "^8.20.0"
   }
