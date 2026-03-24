@@ -1277,7 +1277,7 @@ body {
   outline: 2px solid transparent;
   transition: outline 0.1s;
 }
-.section-block:hover { outline: 2px solid rgba(45,111,232,0.25); outline-offset: -2px; }
+.section-block:hover { background: var(--sel-color-fill); }
 .section-block.selected { outline: 2px solid #2d6fe8; outline-offset: -2px; }
 
 .section-label {
@@ -1384,7 +1384,7 @@ body {
   padding: 32px 20px;
   width: 100%;
 }
-.text-block:hover   { outline: 1.5px dashed rgba(45,111,232,0.4); }
+.text-block:hover   { background: var(--sel-color-fill); }
 .text-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
 .text-block.editing  { outline: 1.5px dashed #2d6fe8; background: rgba(45,111,232,0.05); }
 
@@ -1470,7 +1470,7 @@ body {
   transition: outline 0.1s, padding-right 0.15s;
 }
 .label-group-block.selected { padding-right: 58px; }
-.label-group-block:hover { outline: 2px solid rgba(45,111,232,0.25); outline-offset: -2px; }
+.label-group-block:hover { background: var(--sel-color-fill); }
 .label-group-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
 
 .label-item {
@@ -1582,7 +1582,7 @@ body {
   margin-top: 0; margin-bottom: 0;
   transition: background 0.15s;
 }
-.asset-block:hover    { outline: 1.5px dashed var(--sel-color-hover); outline-offset: -1px; }
+.asset-block:hover    { background: var(--sel-color-fill); }
 .asset-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
 .asset-block:hover .asset-icon { opacity: 0.5; }
 .asset-icon { width: 120px; height: 120px; opacity: 0.5; filter: brightness(0) invert(1); transition: opacity 0.15s; }
@@ -2215,7 +2215,7 @@ body {
   border-radius: 8px;
   transition: outline 0.1s;
 }
-.icon-circle-block:hover    { outline: 1.5px dashed rgba(45,111,232,0.4); outline-offset: -1px; }
+.icon-circle-block:hover    { background: var(--sel-color-fill); }
 .icon-circle-block { position: relative; }
 .icon-circle-block.selected { outline: none; }
 .icon-circle-block.selected::after {
@@ -2280,7 +2280,7 @@ body {
   box-sizing: border-box;
   transition: outline 0.1s;
 }
-.table-block:hover   { outline: 1.5px dashed rgba(45,111,232,0.4); outline-offset: -1px; }
+.table-block:hover   { background: var(--sel-color-fill); }
 .table-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
 
 .tb-table {
@@ -2351,7 +2351,7 @@ body {
   transition: outline 0.1s;
   background: #ffffff;
 }
-.graph-block:hover    { outline: 1.5px dashed var(--sel-color-hover); outline-offset: -1px; }
+.graph-block:hover    { background: var(--sel-color-fill); }
 .graph-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
 
 /* ── 세로 막대 (bar-v) ── */
@@ -2513,7 +2513,7 @@ body {
   transition: outline 0.1s;
   width: 100%;
 }
-.card-block:hover    { box-shadow: inset 0 0 0 1.5px var(--sel-color-hover); }
+.card-block:hover    { background: var(--sel-color-fill); }
 .card-block { position: relative; }
 .card-block.selected { box-shadow: 0 0 0 2px var(--sel-color); }
 .card-block.drag-over .cdb-image { outline: 2px dashed #2d6fe8; }
@@ -2592,7 +2592,7 @@ body {
   width: 100%;
   min-height: 200px;
 }
-.strip-banner-block:hover    { box-shadow: inset 0 0 0 1.5px var(--sel-color-hover); }
+.strip-banner-block:hover    { background: var(--sel-color-fill); }
 .strip-banner-block.selected { box-shadow: 0 0 0 2px var(--sel-color); }
 .strip-banner-block.drag-over .sbb-image { outline: 2px dashed #2d6fe8; }
 
@@ -2671,7 +2671,7 @@ body {
   padding: 12px 0;
   transition: outline 0.1s;
 }
-.divider-block:hover    { outline: 1.5px dashed var(--sel-color-hover); outline-offset: -1px; }
+.divider-block:hover    { background: var(--sel-color-fill); }
 .divider-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
 
 .dvd-line {
