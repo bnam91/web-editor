@@ -900,12 +900,25 @@ function bindSectionOrder(sec) {
   // 순서 버튼 제거됨 — 드래그 또는 레이어 패널에서 처리
 }
 
+function bindSectionHitzone(sec) {
+  // 이미 있으면 스킵
+  if (sec.querySelector('.section-hitzone')) return;
+  const hz = document.createElement('div');
+  hz.className = 'section-hitzone';
+  sec.insertBefore(hz, sec.firstChild);
+  hz.addEventListener('click', e => {
+    e.stopPropagation();
+    selectSectionWithModifier(sec, e);
+  });
+}
+
 document.querySelectorAll('.section-block').forEach(sec => {
   sec.addEventListener('click', e => { e.stopPropagation(); selectSectionWithModifier(sec, e); });
   bindSectionDelete(sec);
   bindSectionOrder(sec);
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
+  bindSectionHitzone(sec);
 });
 
 document.getElementById('canvas-wrap').addEventListener('click', e => {
@@ -1064,7 +1077,8 @@ window.initFileTabToggle = initFileTabToggle;
 window.rgbToHex = rgbToHex;
 window.applyPreset = applyPreset;
 window.showSectionProperties = showSectionProperties;
-window.bindSectionDelete = bindSectionDelete;
+window.bindSectionDelete  = bindSectionDelete;
+window.bindSectionHitzone = bindSectionHitzone;
 window.bindSectionOrder = bindSectionOrder;
 window.getSelectedSection = getSelectedSection;
 window.toggleFpDropdown = toggleFpDropdown;
