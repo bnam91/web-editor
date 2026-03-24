@@ -51,6 +51,8 @@
   <div class="divider"></div>
   <button class="tb-btn" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
   <div class="divider"></div>
+  <button class="tb-btn tb-btn-ai" id="ai-btn" onclick="openAiPrompt()" title="AI 섹션 생성 (⌘K)">✨ AI</button>
+  <div class="divider"></div>
   <div id="publish-dropdown-wrap">
     <button id="publish-btn" onclick="togglePublishDropdown(event)">
       Publish
@@ -505,11 +507,27 @@
 <!-- Preview Overlay -->
 <div id="preview-overlay">
   <div id="preview-content"></div>
+  <div id="preview-sbs-container">
+    <div class="sbs-panel" id="sbs-panel-left">
+      <div class="sbs-panel-header">
+        <select class="sbs-page-select" id="sbs-select-left"></select>
+      </div>
+      <div class="sbs-panel-body" id="sbs-body-left"></div>
+    </div>
+    <div class="sbs-panel" id="sbs-panel-right">
+      <div class="sbs-panel-header">
+        <select class="sbs-page-select" id="sbs-select-right"></select>
+      </div>
+      <div class="sbs-panel-body" id="sbs-body-right"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Preview Top Bar (클릭으로 토글) -->
 <div id="preview-topbar">
-  <div class="preview-tb-left"></div>
+  <div class="preview-tb-left">
+    <button id="preview-sbs-btn" onclick="togglePreviewSideBySide()">⊞ Side by Side</button>
+  </div>
   <div class="preview-tb-center">
     <div id="preview-zoom-ctrl">
       <button onclick="previewZoomStep(-10)">−</button>
