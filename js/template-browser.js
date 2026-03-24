@@ -16,6 +16,7 @@ function openTemplateBrowser() {
   document.getElementById('templates-section-header')?.classList.add('browser-open');
   _renderBrowserTree();
   _renderBrowserCards();
+  _syncInsertBtn();
   document.getElementById('tpl-browser-search')?.focus();
 }
 
@@ -98,14 +99,11 @@ function _renderBrowserTree() {
 
   tree.innerHTML = html;
 
-  // 이벤트
-  tree.querySelectorAll('[data-folder]').forEach(el => {
-    if (el.classList.contains('tb-tree-folder')) return; // 폴더 컨테이너 자체는 스킵
+  // 전체 / 카테고리 클릭 → 필터 적용
+  tree.querySelectorAll('.tb-tree-all, .tb-tree-cat').forEach(el => {
     el.addEventListener('click', e => {
       e.stopPropagation();
-      const folder = el.dataset.folder;
-      const cat    = el.dataset.cat;
-      _browserFilter = { folder, category: cat };
+      _browserFilter = { folder: el.dataset.folder, category: el.dataset.cat };
       _browserSelected = null;
       _hidePreview();
       _renderBrowserTree();
@@ -113,12 +111,20 @@ function _renderBrowserTree() {
     });
   });
 
-  // 폴더 헤더 chevron 클릭 → 접기/펼치기
-  tree.querySelectorAll('.tb-tree-chevron').forEach(chevron => {
-    chevron.addEventListener('click', e => {
+  // 폴더 헤더 클릭 → 접기/펼치기 + 폴더 전체 필터
+  tree.querySelectorAll('.tb-tree-folder-header').forEach(header => {
+    header.addEventListener('click', e => {
       e.stopPropagation();
-      const folderEl = chevron.closest('.tb-tree-folder');
+      const folderEl = header.closest('.tb-tree-folder');
       folderEl?.classList.toggle('expanded');
+      // 폴더 선택도 적용
+      _browserFilter = { folder: header.dataset.folder, category: '전체' };
+      _browserSelected = null;
+      _hidePreview();
+      _renderBrowserCards();
+      // 활성 표시만 갱신 (트리 재렌더 없이)
+      tree.querySelectorAll('.tb-tree-all, .tb-tree-folder-header, .tb-tree-cat').forEach(el => el.classList.remove('active'));
+      header.classList.add('active');
     });
   });
 }
@@ -187,6 +193,62 @@ function _renderBrowserCards() {
       if (e.target.closest('.tb-card-edit-btn') || e.target.closest('.tb-card-del-btn')) return;
       _selectBrowserTemplate(card.dataset.tplId);
     });
+
+    // 드래그 앤 드롭으로 섹션 추가
+    card.addEventListener('mousedown', e => {
+      if (e.target.closest('.tb-card-edit-btn') || e.target.closest('.tb-card-del-btn')) return;
+      if (e.button !== 0) return;
+      e.preventDefault(); // 네이티브 드래그(SVG 이미지 등) 차단
+
+      const tplId = card.dataset.tplId;
+      const tpl = loadTemplates().find(x => x.id === tplId);
+      if (!tpl) return;
+
+      const startX = e.clientX, startY = e.clientY;
+      let dragging = false;
+      let ghost = null;
+
+      const onMove = mv => {
+        const dx = mv.clientX - startX, dy = mv.clientY - startY;
+        if (!dragging) {
+          if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+          dragging = true;
+          ghost = document.createElement('div');
+          ghost.className = 'tpl-card-drag-ghost';
+          ghost.textContent = '+ ' + tpl.name;
+          document.body.appendChild(ghost);
+        }
+        if (ghost) {
+          ghost.style.left = mv.clientX + 14 + 'px';
+          ghost.style.top  = mv.clientY - 12 + 'px';
+        }
+        // 패널 밖이면 ghost 강조
+        const browser = document.getElementById('tpl-browser');
+        const r = browser.getBoundingClientRect();
+        const outside = mv.clientX < r.left || mv.clientX > r.right ||
+                        mv.clientY < r.top  || mv.clientY > r.bottom;
+        if (ghost) ghost.style.opacity = outside ? '1' : '0.5';
+      };
+
+      const onUp = async up => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (ghost) { ghost.remove(); ghost = null; }
+        if (!dragging) return;
+
+        const browser = document.getElementById('tpl-browser');
+        const r = browser.getBoundingClientRect();
+        const outside = up.clientX < r.left || up.clientX > r.right ||
+                        up.clientY < r.top  || up.clientY > r.bottom;
+        if (outside) {
+          closeTemplateBrowser();
+          await insertTemplate(tpl);
+        }
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
   });
 
   container.querySelectorAll('.tb-card-edit-btn').forEach(btn => {
@@ -211,9 +273,18 @@ function _renderBrowserCards() {
   });
 }
 
+function _syncInsertBtn() {
+  const btn = document.getElementById('tpl-browser-insert-btn');
+  if (!btn) return;
+  btn.disabled = !_browserSelected;
+  btn.style.opacity = _browserSelected ? '1' : '0.4';
+  btn.style.cursor  = _browserSelected ? 'pointer' : 'default';
+}
+
 /* ── 미리보기 ── */
 async function _selectBrowserTemplate(id) {
   _browserSelected = id;
+  _syncInsertBtn();
 
   // 카드 selected 상태 갱신
   document.querySelectorAll('#tpl-browser-cards .tb-card').forEach(c => {
@@ -244,25 +315,21 @@ async function _selectBrowserTemplate(id) {
     section.style.pointerEvents = 'none';
     section.style.userSelect    = 'none';
     requestAnimationFrame(() => {
-      const vw = previewCanvas.clientWidth;
-      const vh = previewCanvas.clientHeight || 300;
+      const vw = previewCanvas.getBoundingClientRect().width;
+      const vh = previewCanvas.getBoundingClientRect().height || 300;
       const sh = section.scrollHeight || 400;
       const scale = Math.min(vw / CANVAS_W, vh / sh, 1);
+      const leftOffset = (vw - CANVAS_W * scale) / 2;
       section.style.transform       = `scale(${scale})`;
       section.style.transformOrigin = 'top left';
+      section.style.position        = 'relative';
+      section.style.left            = Math.max(0, leftOffset) + 'px';
       previewCanvas.style.height    = Math.round(sh * scale) + 'px';
     });
   }
 
   document.getElementById('tpl-browser-preview-name').textContent = tpl.name;
   document.getElementById('tpl-browser-preview-cat').textContent  = tpl.category || '';
-
-  // Insert 버튼
-  const insertBtn = document.getElementById('tpl-browser-insert-btn');
-  insertBtn.onclick = async () => {
-    const t = loadTemplates().find(x => x.id === id);
-    if (t) { closeTemplateBrowser(); await insertTemplate(t); }
-  };
 }
 
 function _hidePreview() {
@@ -289,10 +356,22 @@ function initTemplateBrowser() {
     if (e.key === 'Escape' && _browserOpen) closeTemplateBrowser();
   });
 
+  // 캔버스 영역 클릭 시 닫기
+  document.getElementById('canvas-area')?.addEventListener('mousedown', () => {
+    if (_browserOpen) closeTemplateBrowser();
+  });
+
   // 검색
   document.getElementById('tpl-browser-search')?.addEventListener('input', e => {
     _browserSearchQ = e.target.value;
     _renderBrowserCards();
+  });
+
+  // 섹션 추가 버튼 (항상 존재, 선택된 템플릿 기준으로 삽입)
+  document.getElementById('tpl-browser-insert-btn')?.addEventListener('click', async () => {
+    if (!_browserSelected) return;
+    const t = loadTemplates().find(x => x.id === _browserSelected);
+    if (t) { closeTemplateBrowser(); await insertTemplate(t); }
   });
 
   // 좌측 패널 Templates 헤더 → 브라우저 토글 (기존 collapsible 대신)
@@ -300,6 +379,48 @@ function initTemplateBrowser() {
   if (tplHeader) {
     tplHeader.style.cursor = 'pointer';
     tplHeader.addEventListener('click', () => toggleTemplateBrowser());
+  }
+
+  // 미리보기 리사이즈 핸들
+  const resizeHandle = document.getElementById('tpl-preview-resize-handle');
+  const previewArea  = document.getElementById('tpl-browser-preview-area');
+  if (resizeHandle && previewArea) {
+    resizeHandle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startY  = e.clientY;
+      const startH  = previewArea.getBoundingClientRect().height;
+
+      const onMove = mv => {
+        const newH = Math.max(80, Math.min(520, startH + mv.clientY - startY));
+        previewArea.style.flex = `0 0 ${newH}px`;
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.cursor = '';
+        // 스케일 재계산
+        const canvas = document.getElementById('tpl-browser-preview-canvas');
+        if (canvas && canvas.style.display !== 'none') {
+          const section = canvas.querySelector('.section-block');
+          if (section) {
+            const CANVAS_W = 860;
+            const vw = canvas.getBoundingClientRect().width;
+            const vh = canvas.getBoundingClientRect().height || 300;
+            const sh = section.scrollHeight || 400;
+            const scale = Math.min(vw / CANVAS_W, vh / sh, 1);
+            const leftOffset = (vw - CANVAS_W * scale) / 2;
+            section.style.transform  = `scale(${scale})`;
+            section.style.left       = Math.max(0, leftOffset) + 'px';
+            canvas.style.height      = Math.round(sh * scale) + 'px';
+          }
+        }
+      };
+
+      document.body.style.cursor = 'ns-resize';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
   }
 }
 
