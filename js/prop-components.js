@@ -607,10 +607,11 @@ export function showStripBannerProperties(block) {
       <div class="prop-section-title">텍스트 영역</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch" style="background:${bgColor}">
-          <input type="color" id="sbb-bg-color" value="${bgColor}">
+        <div class="prop-color-swatch${bgColor==='transparent'?' swatch-none':''}" style="background:${bgColor==='transparent'?'transparent':bgColor}">
+          <input type="color" id="sbb-bg-color" value="${bgColor==='transparent'?'#f5f5f5':bgColor}">
         </div>
-        <input type="text" class="prop-color-hex" id="sbb-bg-hex" value="${bgColor}" maxlength="7">
+        <input type="text" class="prop-color-hex" id="sbb-bg-hex" value="${bgColor==='transparent'?'':bgColor}" maxlength="7" placeholder="없음">
+        <label class="prop-none-check"><input type="checkbox" id="sbb-bg-none" ${bgColor==='transparent'?'checked':''}>없음</label>
       </div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
@@ -688,11 +689,6 @@ export function showStripBannerProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">텍스트 행</div>
-      <div class="prop-row">
-        <button class="prop-action-btn primary" id="sbb-add-row-btn">+ 갭 추가</button>
-        <button class="prop-action-btn secondary" id="sbb-remove-row-btn">- 갭 제거</button>
-      </div>
       <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭 편집 · 드래그로 순서 변경</div>
     </div>`;
 
@@ -712,16 +708,40 @@ export function showStripBannerProperties(block) {
   // 배경색
   const bgInput  = document.getElementById('sbb-bg-color');
   const bgHex    = document.getElementById('sbb-bg-hex');
+  const bgNone   = document.getElementById('sbb-bg-none');
   const content  = block.querySelector('.sbb-content');
 
   function applyBg(val) {
     block.dataset.bgColor = val;
     content.style.background = val;
+    if (val === 'transparent') {
+      block.style.background = '';
+    }
   }
-  bgInput.addEventListener('input', () => { bgHex.value = bgInput.value; applyBg(bgInput.value); });
+  const bgSwatch = bgInput.closest('.prop-color-swatch');
+  bgInput.addEventListener('input', () => {
+    if (bgNone.checked) return;
+    bgHex.value = bgInput.value;
+    bgSwatch.style.background = bgInput.value;
+    applyBg(bgInput.value);
+  });
   bgHex.addEventListener('change', () => {
     const v = bgHex.value.trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(v)) { bgInput.value = v; applyBg(v); }
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) { bgInput.value = v; bgSwatch.style.background = v; applyBg(v); }
+  });
+  bgNone.addEventListener('change', () => {
+    if (bgNone.checked) {
+      bgSwatch.style.background = 'transparent';
+      bgSwatch.classList.add('swatch-none');
+      bgHex.value = '';
+      applyBg('transparent');
+    } else {
+      const v = bgInput.value || '#f5f5f5';
+      bgSwatch.style.background = v;
+      bgSwatch.classList.remove('swatch-none');
+      bgHex.value = v;
+      applyBg(v);
+    }
   });
 
   // 모서리
@@ -939,21 +959,6 @@ export function showStripBannerProperties(block) {
   };
   if (sbbContent) bindSbbRowDrag(sbbContent);
 
-  document.getElementById('sbb-add-row-btn').addEventListener('click', () => {
-    if (!sbbContent) return;
-    const newGap = document.createElement('div');
-    newGap.className = 'sbb-gap';
-    newGap.style.height = '8px';
-    sbbContent.appendChild(newGap);
-    bindSbbRowDrag(sbbContent);
-    bindSbbGaps();
-    window.pushHistory();
-  });
-  document.getElementById('sbb-remove-row-btn').addEventListener('click', () => {
-    if (!sbbContent) return;
-    const gaps = [...sbbContent.querySelectorAll('.sbb-gap')];
-    if (gaps.length > 0) { gaps[gaps.length - 1].remove(); window.pushHistory(); }
-  });
 }
 
 export function showGraphProperties(block) {

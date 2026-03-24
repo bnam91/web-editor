@@ -1099,9 +1099,16 @@ function initApp() {
     }
   });
   if (state.pageSettings.padX > 0) {
-    document.querySelectorAll('.card-block, .strip-banner-block, .graph-block').forEach(b => {
+    document.querySelectorAll('.graph-block').forEach(b => {
       b.style.paddingLeft  = state.pageSettings.padX + 'px';
       b.style.paddingRight = state.pageSettings.padX + 'px';
+    });
+    document.querySelectorAll('.strip-banner-block:not([data-use-padx="false"])').forEach(b => {
+      const sbbC = b.querySelector('.sbb-content');
+      if (sbbC) {
+        sbbC.style.paddingLeft  = state.pageSettings.padX + 'px';
+        sbbC.style.paddingRight = state.pageSettings.padX + 'px';
+      }
     });
   }
 

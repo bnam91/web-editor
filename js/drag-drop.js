@@ -1091,11 +1091,21 @@ function addPresetRow(type) {
   }
 }
 
-function addAssetBlock() {
+const ASSET_PRESETS = {
+  standard: { height: 780 },
+  square:   { height: 860 },
+  tall:     { height: 1032 },
+  wide:     { height: 575 },
+};
+
+function addAssetBlock(preset) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const { row, block } = makeAssetBlock();
+  if (preset && ASSET_PRESETS[preset]) {
+    block.style.height = ASSET_PRESETS[preset].height + 'px';
+  }
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();

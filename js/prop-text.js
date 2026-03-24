@@ -274,16 +274,59 @@ export function showTextProperties(tb) {
     });
   });
 
-  /* Bold / Italic */
+  /* Bold / Italic — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
+  let _savedBoldSel = null;
+  let _savedItalicSel = null;
+  let _savedColorSel = null;
+
+  const hasSel = () => {
+    const sel = window.getSelection();
+    return sel && !sel.isCollapsed && (contentEl.contains(sel.anchorNode) || contentEl.contains(sel.focusNode));
+  };
+  const applyExecCmd = (savedSel, cmd, val = null) => {
+    if (!savedSel) return false;
+    const wasEditable = contentEl.contentEditable;
+    contentEl.contentEditable = 'true';
+    contentEl.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedSel);
+    if (val) document.execCommand(cmd, false, val);
+    else document.execCommand(cmd, false, null);
+    contentEl.contentEditable = wasEditable;
+    return true;
+  };
+
+  document.getElementById('txt-bold-btn').addEventListener('mousedown', () => {
+    if (hasSel()) _savedBoldSel = window.getSelection().getRangeAt(0).cloneRange();
+    else _savedBoldSel = null;
+  });
   document.getElementById('txt-bold-btn').addEventListener('click', () => {
-    const isNowBold = contentEl.style.fontWeight === 'bold';
-    contentEl.style.fontWeight = isNowBold ? '' : 'bold';
-    document.getElementById('txt-bold-btn').classList.toggle('active', !isNowBold);
+    if (_savedBoldSel) {
+      applyExecCmd(_savedBoldSel, 'bold');
+      _savedBoldSel = null;
+    } else {
+      const isNowBold = contentEl.style.fontWeight === 'bold';
+      contentEl.style.fontWeight = isNowBold ? '' : 'bold';
+      document.getElementById('txt-bold-btn').classList.toggle('active', !isNowBold);
+    }
+    window.pushHistory();
+  });
+
+  document.getElementById('txt-italic-btn').addEventListener('mousedown', () => {
+    if (hasSel()) _savedItalicSel = window.getSelection().getRangeAt(0).cloneRange();
+    else _savedItalicSel = null;
   });
   document.getElementById('txt-italic-btn').addEventListener('click', () => {
-    const isNowItalic = contentEl.style.fontStyle === 'italic';
-    contentEl.style.fontStyle = isNowItalic ? '' : 'italic';
-    document.getElementById('txt-italic-btn').classList.toggle('active', !isNowItalic);
+    if (_savedItalicSel) {
+      applyExecCmd(_savedItalicSel, 'italic');
+      _savedItalicSel = null;
+    } else {
+      const isNowItalic = contentEl.style.fontStyle === 'italic';
+      contentEl.style.fontStyle = isNowItalic ? '' : 'italic';
+      document.getElementById('txt-italic-btn').classList.toggle('active', !isNowItalic);
+    }
+    window.pushHistory();
   });
 
   /* 폰트 크기 */
@@ -295,19 +338,33 @@ export function showTextProperties(tb) {
     contentEl.style.fontSize = v+'px'; sizeSlider.value = v;
   });
 
-  /* 색상 */
+  /* 색상 — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   const colorPicker = document.getElementById('txt-color');
   const colorHex    = document.getElementById('txt-color-hex');
   const colorSwatch = colorPicker.closest('.prop-color-swatch');
+  colorSwatch.addEventListener('mousedown', () => {
+    if (hasSel()) _savedColorSel = window.getSelection().getRangeAt(0).cloneRange();
+    else _savedColorSel = null;
+  });
   colorPicker.addEventListener('input', () => {
-    contentEl.style.color = colorPicker.value;
+    if (_savedColorSel) {
+      applyExecCmd(_savedColorSel, 'foreColor', colorPicker.value);
+      // 색 선택이 연속될 수 있으므로 savedSel 유지
+    } else {
+      contentEl.style.color = colorPicker.value;
+    }
     colorHex.value = colorPicker.value;
     colorSwatch.style.background = colorPicker.value;
   });
+  colorPicker.addEventListener('change', () => { _savedColorSel = null; window.pushHistory(); });
   colorHex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(colorHex.value)) {
       colorPicker.value = colorHex.value;
-      contentEl.style.color = colorHex.value;
+      if (_savedColorSel) {
+        applyExecCmd(_savedColorSel, 'foreColor', colorHex.value);
+      } else {
+        contentEl.style.color = colorHex.value;
+      }
       colorSwatch.style.background = colorHex.value;
     }
   });

@@ -1,4 +1,6 @@
-function applyAssetPadX(ab, padX) {
+import { propPanel, state } from './globals.js';
+
+export function applyAssetPadX(ab, padX) {
   const canvasW = 860;
   const baseH   = parseInt(ab.dataset.baseHeight) || parseInt(ab.style.height) || 780;
   const newW    = canvasW - padX * 2;
@@ -11,8 +13,8 @@ function applyAssetPadX(ab, padX) {
   ab.style.height       = newH + 'px';
 }
 
-function showAssetProperties(ab) {
-  const ratioStr   = getCurrentRatioStr(ab);
+export function showAssetProperties(ab) {
+  const ratioStr   = window.getCurrentRatioStr(ab);
   const currentH   = parseInt(ab.style.height) || ab.offsetHeight || 780;
   const hasImage   = ab.classList.contains('has-image');
   const currentR   = parseInt(ab.style.borderRadius) || 0;
@@ -54,7 +56,10 @@ function showAssetProperties(ab) {
             <polyline points="11 8 8 5 3 11"/>
           </svg>
         </div>
-        <span class="prop-block-name">Asset Block</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Asset Block</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(ab)}</span>
+        </div>
         ${ab.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${ab.id}')">${ab.id}</span>` : ''}
       </div>
       <div class="prop-section-title">레이아웃</div>
@@ -117,6 +122,14 @@ function showAssetProperties(ab) {
           <input type="number" class="prop-number" id="asset-overlay-opacity-num" min="0" max="100" value="${Math.round(overlayOpacity * 100)}">
         </div>
         <div class="prop-row">
+          <span class="prop-label">위치</span>
+          <div class="prop-align-group" id="overlay-position-group" style="flex:1">
+            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-start'?' active':''}" data-pos="flex-start" style="flex:1;font-size:11px">↑ 상단</button>
+            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='center'?' active':''}" data-pos="center" style="flex:1;font-size:11px">↕ 중앙</button>
+            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-end'?' active':''}" data-pos="flex-end" style="flex:1;font-size:11px">↓ 하단</button>
+          </div>
+        </div>
+        <div class="prop-row">
           <button class="prop-action-btn primary" id="overlay-add-text-btn">+ 텍스트 추가</button>
           <button class="prop-action-btn secondary" id="overlay-del-text-btn">− 텍스트 제거</button>
         </div>
@@ -124,13 +137,16 @@ function showAssetProperties(ab) {
       </div>
     </div>`;
 
-  bindLayoutInput(ab);
+  window.bindLayoutInput(ab);
+
+  const hSlider = document.getElementById('asset-h-slider');
+  const hNumber = document.getElementById('asset-h-number');
 
   document.getElementById('asset-padx-toggle').addEventListener('change', e => {
     if (e.target.checked) {
       ab.dataset.usePadx = 'true';
       ab.dataset.baseHeight = parseInt(ab.style.height) || 780;
-      applyAssetPadX(ab, pageSettings.padX || 0);
+      applyAssetPadX(ab, state.pageSettings.padX || 0);
     } else {
       ab.dataset.usePadx = 'false';
       const baseH = parseInt(ab.dataset.baseHeight) || 780;
@@ -141,20 +157,18 @@ function showAssetProperties(ab) {
     }
     hSlider.value = parseInt(ab.style.height);
     hNumber.value = parseInt(ab.style.height);
-    pushHistory();
+    window.pushHistory();
   });
 
-  const hSlider = document.getElementById('asset-h-slider');
-  const hNumber = document.getElementById('asset-h-number');
   const applyH = v => {
     ab.style.height = v + 'px';
     hSlider.value = v;
     hNumber.value = v;
   };
-  hSlider.addEventListener('input', () => { applyH(parseInt(hSlider.value)); pushHistory(); });
+  hSlider.addEventListener('input', () => { applyH(parseInt(hSlider.value)); window.pushHistory(); });
   hNumber.addEventListener('change', () => {
     const v = Math.min(1600, Math.max(200, parseInt(hNumber.value) || 780));
-    applyH(v); pushHistory();
+    applyH(v); window.pushHistory();
   });
 
   document.querySelectorAll('.prop-preset-btn').forEach(btn => {
@@ -165,14 +179,14 @@ function showAssetProperties(ab) {
 
       if (ab.dataset.usePadx === 'true') {
         // 패딩 ON 상태 → 패딩 적용한 너비/높이로 계산
-        applyAssetPadX(ab, pageSettings.padX || 0);
+        applyAssetPadX(ab, state.pageSettings.padX || 0);
         applyH(parseInt(ab.style.height));
       } else {
         ab.style.width  = '';
         ab.style.height = h + 'px';
         applyH(h);
       }
-      pushHistory();
+      window.pushHistory();
     });
   });
 
@@ -199,10 +213,10 @@ function showAssetProperties(ab) {
 
 
   if (hasImage) {
-    document.getElementById('asset-replace-btn').addEventListener('click', () => triggerAssetUpload(ab));
-    document.getElementById('asset-remove-btn').addEventListener('click', () => clearAssetImage(ab));
+    document.getElementById('asset-replace-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
+    document.getElementById('asset-remove-btn').addEventListener('click', () => window.clearAssetImage(ab));
   } else {
-    document.getElementById('asset-upload-btn').addEventListener('click', () => triggerAssetUpload(ab));
+    document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
   }
 
   // ── 오버레이 이벤트 바인딩 ──
@@ -224,10 +238,10 @@ function showAssetProperties(ab) {
       tb.innerHTML = `<div class="tb-h2" contenteditable="false" style="font-size:32px;text-align:center"></div>`;
       overlayEl.appendChild(tb);
       tb._blockBound = false;
-      bindBlock(tb);
-      buildLayerPanel();
+      window.bindBlock(tb);
+      window.buildLayerPanel();
     }
-    pushHistory();
+    window.pushHistory();
   });
 
   const ovOpSlider = document.getElementById('asset-overlay-opacity');
@@ -243,6 +257,15 @@ function showAssetProperties(ab) {
     applyOverlayBg(v / 100);
   });
 
+  // 오버레이 위치
+  document.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      overlayEl.style.justifyContent = btn.dataset.pos;
+      document.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
+      window.pushHistory();
+    });
+  });
+
   // 텍스트 추가/제거
   document.getElementById('overlay-add-text-btn').addEventListener('click', () => {
     const tb = document.createElement('div');
@@ -252,16 +275,20 @@ function showAssetProperties(ab) {
     tb.innerHTML = `<div class="tb-body" contenteditable="false" style="text-align:center"></div>`;
     overlayEl.appendChild(tb);
     tb._blockBound = false;
-    bindBlock(tb);
-    buildLayerPanel();
+    window.bindBlock(tb);
+    window.buildLayerPanel();
     // 추가 후 즉시 선택 & 우측 패널 표시
-    deselectAll();
+    window.deselectAll();
     tb.classList.add('selected');
-    showTextProperties(tb);
-    pushHistory();
+    window.showTextProperties(tb);
+    window.pushHistory();
   });
   document.getElementById('overlay-del-text-btn').addEventListener('click', () => {
     const tbs = [...overlayEl.querySelectorAll('.overlay-tb')];
-    if (tbs.length > 0) { tbs[tbs.length - 1].remove(); buildLayerPanel(); pushHistory(); }
+    if (tbs.length > 0) { tbs[tbs.length - 1].remove(); window.buildLayerPanel(); window.pushHistory(); }
   });
 }
+
+// Backward compat: classic scripts call these via window.*
+window.applyAssetPadX    = applyAssetPadX;
+window.showAssetProperties = showAssetProperties;

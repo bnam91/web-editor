@@ -262,6 +262,86 @@ function makeLayerAssetItem(block, dragTarget, sec) {
   return wrapper;
 }
 
+/* 카드 블록 + 하위 이미지/제목/설명 자식 포함 레이어 아이템 */
+function makeLayerCardItem(block, dragTarget, sec) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'layer-row-group';
+  wrapper._dragTarget = dragTarget;
+
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  header.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    ${layerIcons.card}
+    <span class="layer-item-name">Card</span>
+    <span class="layer-item-type">Component</span>`;
+
+  header.addEventListener('click', e => {
+    if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+    window.deselectAll();
+    block.classList.add('selected');
+    syncSection(sec);
+    highlightBlock(block, header);
+    showCardProperties(block);
+  });
+  block._layerItem = header;
+
+  header.setAttribute('draggable', 'true');
+  header.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    window.layerDragSrc = wrapper;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => wrapper.classList.add('layer-dragging'));
+  });
+  header.addEventListener('dragend', () => {
+    wrapper.classList.remove('layer-dragging');
+    clearLayerIndicators();
+    window.layerDragSrc = null;
+  });
+
+  const children = document.createElement('div');
+  children.className = 'layer-row-children';
+
+  const selectCard = e => {
+    e.stopPropagation();
+    window.deselectAll();
+    block.classList.add('selected');
+    syncSection(sec);
+    highlightBlock(block, header);
+    showCardProperties(block);
+  };
+
+  const imgEl = block.querySelector('.cdb-image');
+  if (imgEl) {
+    const imgItem = document.createElement('div');
+    imgItem.className = 'layer-item layer-item-nested';
+    imgItem.innerHTML = `${layerIcons.asset}<span class="layer-item-name">Image</span><span class="layer-item-type">Image</span>`;
+    imgItem.addEventListener('click', selectCard);
+    children.appendChild(imgItem);
+  }
+  const titleEl = block.querySelector('.cdb-title');
+  if (titleEl) {
+    const item = document.createElement('div');
+    item.className = 'layer-item layer-item-nested';
+    item.innerHTML = `${layerIcons.heading}<span class="layer-item-name">Title</span><span class="layer-item-type">Text</span>`;
+    item.addEventListener('click', selectCard);
+    children.appendChild(item);
+  }
+  const descEl = block.querySelector('.cdb-desc');
+  if (descEl) {
+    const item = document.createElement('div');
+    item.className = 'layer-item layer-item-nested';
+    item.innerHTML = `${layerIcons.body}<span class="layer-item-name">Description</span><span class="layer-item-type">Text</span>`;
+    item.addEventListener('click', selectCard);
+    children.appendChild(item);
+  }
+
+  wrapper.appendChild(header);
+  wrapper.appendChild(children);
+  return wrapper;
+}
+
 /* 배너 블록 + 하위 텍스트/갭 자식 포함 레이어 아이템 */
 function makeLayerBannerItem(block, dragTarget, sec) {
   const wrapper = document.createElement('div');
@@ -344,6 +424,10 @@ function makeLayerBannerItem(block, dragTarget, sec) {
           block.classList.add('selected');
           syncSection(sec);
           highlightBlock(block, header);
+          // 하위 요소 하이라이트
+          block.querySelectorAll('.sbb-focused').forEach(el => el.classList.remove('sbb-focused'));
+          child.classList.add('sbb-focused');
+          child.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           showStripBannerProperties(block);
         });
         children.appendChild(childItem);
@@ -393,6 +477,10 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
     if (isBanner) {
       groupChildren.appendChild(makeLayerBannerItem(block, block.closest('.row') || block, sec));
+      return;
+    }
+    if (isCard) {
+      groupChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec));
       return;
     }
 
@@ -580,6 +668,8 @@ export function buildLayerPanel() {
             container.appendChild(makeLayerAssetItem(block, child, sec));
           } else if (block.classList.contains('strip-banner-block')) {
             container.appendChild(makeLayerBannerItem(block, child, sec));
+          } else if (block.classList.contains('card-block')) {
+            container.appendChild(makeLayerCardItem(block, child, sec));
           } else {
             container.appendChild(makeLayerBlockItem(block, child, sec));
           }
