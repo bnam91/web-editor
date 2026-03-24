@@ -1,4 +1,6 @@
-function showTextProperties(tb) {
+import { propPanel, state } from './globals.js';
+
+export function showTextProperties(tb) {
   const isOverlayTb = tb.classList.contains('overlay-tb');
   const contentEl = tb.querySelector('[contenteditable]');
   const computed   = window.getComputedStyle(contentEl);
@@ -16,10 +18,12 @@ function showTextProperties(tb) {
   const currentColor = rgbToHex(computed.color) || '#111111';
   const currentLH    = (parseFloat(computed.lineHeight) / parseFloat(computed.fontSize) || 1.5).toFixed(2);
   const currentLS    = parseFloat(contentEl.style.letterSpacing) || 0;
-  const defaultPad   = isLabel ? 0 : pageSettings.padY;
+  const defaultPad   = isLabel ? 0 : state.pageSettings.padY;
   const currentPadT  = tb.style.paddingTop    ? (parseInt(tb.style.paddingTop)    || 0) : defaultPad;
   const currentPadB  = tb.style.paddingBottom ? (parseInt(tb.style.paddingBottom) || 0) : defaultPad;
-  const currentFont  = contentEl.style.fontFamily || '';
+  const currentFont   = contentEl.style.fontFamily || '';
+  const isBold        = contentEl.style.fontWeight === 'bold';
+  const isItalic      = contentEl.style.fontStyle  === 'italic';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -29,7 +33,10 @@ function showTextProperties(tb) {
             <line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9" x2="7" y2="9"/>
           </svg>
         </div>
-        <span class="prop-block-name">${isOverlayTb ? 'Overlay Text' : 'Text Block'}</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">${isOverlayTb ? 'Overlay Text' : 'Text Block'}</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(tb)}</span>
+        </div>
         ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${tb.id}')">${tb.id}</span>` : ''}
       </div>
     </div>
@@ -115,6 +122,13 @@ function showTextProperties(tb) {
         </select>
       </div>
       <div class="prop-row">
+        <span class="prop-label">스타일</span>
+        <div class="prop-style-group">
+          <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (Bold)"><b>B</b></button>
+          <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic)"><i>I</i></button>
+        </div>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="txt-size-slider" min="8" max="400" step="1" value="${currentSize}">
         <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}">
@@ -169,7 +183,6 @@ function showTextProperties(tb) {
   });
 
   /* 타입 전환 */
-  const labelMap = { 'tb-h1':'Heading','tb-h2':'Heading','tb-h3':'Heading','tb-body':'Body','tb-caption':'Caption','tb-label':'Label' };
   const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
   propPanel.querySelectorAll('.prop-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -261,6 +274,18 @@ function showTextProperties(tb) {
     });
   });
 
+  /* Bold / Italic */
+  document.getElementById('txt-bold-btn').addEventListener('click', () => {
+    const isNowBold = contentEl.style.fontWeight === 'bold';
+    contentEl.style.fontWeight = isNowBold ? '' : 'bold';
+    document.getElementById('txt-bold-btn').classList.toggle('active', !isNowBold);
+  });
+  document.getElementById('txt-italic-btn').addEventListener('click', () => {
+    const isNowItalic = contentEl.style.fontStyle === 'italic';
+    contentEl.style.fontStyle = isNowItalic ? '' : 'italic';
+    document.getElementById('txt-italic-btn').classList.toggle('active', !isNowItalic);
+  });
+
   /* 폰트 크기 */
   const sizeSlider = document.getElementById('txt-size-slider');
   const sizeNumber = document.getElementById('txt-size-number');
@@ -321,13 +346,17 @@ function showTextProperties(tb) {
 
   /* 애니메이션 GIF 버튼 */
   const animBtn = document.getElementById('open-anim-btn');
-  if (animBtn) animBtn.addEventListener('click', () => openAnimModal(tb));
+  if (animBtn) animBtn.addEventListener('click', () => window.openAnimModal(tb));
 
-  bindLayoutInput(tb);
+  window.bindLayoutInput(tb);
 }
 
-function rgbToHex(rgb) {
+export function rgbToHex(rgb) {
   const m = rgb.match(/\d+/g);
   if (!m) return '#111111';
   return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
 }
+
+// Backward compat: classic scripts call these via window.*
+window.showTextProperties = showTextProperties;
+window.rgbToHex           = rgbToHex;

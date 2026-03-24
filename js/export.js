@@ -1,3 +1,7 @@
+import { canvasEl, state } from './globals.js';
+
+const CANVAS_W = 860;
+
 /* ══════════════════════════════════════
    내보내기 (Export)
 ══════════════════════════════════════ */
@@ -16,7 +20,7 @@ async function exportSection(sec, format) {
   document.body.appendChild(clone);
 
   const secBg   = sec.style.background || sec.style.backgroundColor || '';
-  const bgColor = (secBg && secBg !== 'transparent') ? secBg : (pageSettings.bg || '#ffffff');
+  const bgColor = (secBg && secBg !== 'transparent') ? secBg : (state.pageSettings.bg || '#ffffff');
 
   try {
     const canvas = await html2canvas(clone, {
@@ -169,7 +173,7 @@ function exportDesignJSON() {
 
   function serializeSection(secEl, idx) {
     const rawBg = secEl.style.background || secEl.style.backgroundColor || '';
-    const bg    = rgbToHex(rawBg) || pageSettings.bg || '#ffffff';
+    const bg    = rgbToHex(rawBg) || state.pageSettings.bg || '#ffffff';
     const inner = secEl.querySelector('.section-inner');
     const blocks = [];
 
@@ -213,11 +217,11 @@ function exportDesignJSON() {
       exportedAt:  new Date().toISOString().split('T')[0],
       canvasWidth: CANVAS_W,
       theme: {
-        background:  pageSettings.bg  || '#ffffff',
+        background:  state.pageSettings.bg  || '#ffffff',
         fontFamily:  'Noto Sans KR',
-        sectionGap:  pageSettings.gap  ?? 0,
-        paddingX:    pageSettings.padX ?? 0,
-        paddingY:    pageSettings.padY ?? 0,
+        sectionGap:  state.pageSettings.gap  ?? 0,
+        paddingX:    state.pageSettings.padX ?? 0,
+        paddingY:    state.pageSettings.padY ?? 0,
       },
     },
     sections,
@@ -236,7 +240,7 @@ function exportDesignJSON() {
 ══════════════════════════════════════ */
 function exportFigmaJSON() {
   // 현재 페이지를 pages 배열에 반영
-  flushCurrentPage();
+  window.flushCurrentPage();
 
   const parser = new DOMParser();
 
@@ -370,7 +374,7 @@ function exportFigmaJSON() {
     };
   }
 
-  const exportPages = pages.map(p => parsePage(p));
+  const exportPages = state.pages.map(p => parsePage(p));
 
   const output = {
     source:  'sangpe-wizard',
@@ -398,7 +402,7 @@ function exportHTMLFile() {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&family=Noto+Serif+KR:wght@400;600;700&family=Inter:wght@400;600;700&family=Playfair+Display:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">`;
 
-  const bg = pageSettings.bg || '#ffffff';
+  const bg = state.pageSettings.bg || '#ffffff';
   const css = `
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
@@ -481,8 +485,8 @@ const layerPanelBody = document.getElementById('layer-panel-body');
 layerPanelBody.addEventListener('dragover', e => {
   if (!layerSectionDragSrc) return;
   e.preventDefault();
-  clearLayerSectionIndicators();
-  const after = getLayerSectionDragAfterEl(layerPanelBody, e.clientY);
+  window.clearLayerSectionIndicators();
+  const after = window.getLayerSectionDragAfterEl(layerPanelBody, e.clientY);
   const indicator = document.createElement('div');
   indicator.className = 'layer-section-drop-indicator';
   if (after) layerPanelBody.insertBefore(indicator, after);
@@ -490,7 +494,7 @@ layerPanelBody.addEventListener('dragover', e => {
 });
 layerPanelBody.addEventListener('dragleave', e => {
   if (!layerSectionDragSrc) return;
-  if (!layerPanelBody.contains(e.relatedTarget)) clearLayerSectionIndicators();
+  if (!layerPanelBody.contains(e.relatedTarget)) window.clearLayerSectionIndicators();
 });
 layerPanelBody.addEventListener('drop', e => {
   if (!layerSectionDragSrc) return;
@@ -505,8 +509,8 @@ layerPanelBody.addEventListener('drop', e => {
       canvasEl.appendChild(sec);
     }
   }
-  clearLayerSectionIndicators();
-  buildLayerPanel();
+  window.clearLayerSectionIndicators();
+  window.buildLayerPanel();
   layerSectionDragSrc = null;
 });
 
@@ -519,7 +523,7 @@ async function openFigmaUploadModal() {
   closePublishDropdown();
   document.getElementById('figma-upload-modal').style.display = 'flex';
   const input = document.getElementById('figma-channel-input');
-  input.value = localStorage.getItem('figma-last-channel') || '';
+  input.value = localStorage.getItem('figma-last-channel') || 'hyfppeyj';
 
   // 섹션 목록 빌드
   await _buildFigmaSectionList();
@@ -531,7 +535,7 @@ async function openFigmaUploadModal() {
  * node_map 로드 후 이미 업로드된 섹션엔 "업데이트" 배지 표시
  */
 async function _buildFigmaSectionList() {
-  flushCurrentPage();
+  window.flushCurrentPage();
 
   const nodeMap = (window.electronAPI?.readNodeMap)
     ? (await window.electronAPI.readNodeMap() || {})
@@ -541,7 +545,7 @@ async function _buildFigmaSectionList() {
   listEl.innerHTML = '';
 
   const parser = new DOMParser();
-  pages.forEach((pg, pgIdx) => {
+  state.pages.forEach((pg, pgIdx) => {
     const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
     doc.querySelectorAll('#c > .section-block').forEach((sec, secIdx) => {
       const id   = sec.id || '';
@@ -549,7 +553,7 @@ async function _buildFigmaSectionList() {
         || sec.querySelector('.section-label')?.textContent?.trim()
         || `Section ${secIdx + 1}`;
       const isSynced = !!nodeMap[id]?.figmaId;
-      const pageLabel = pages.length > 1 ? ` <span style="color:#555;">[${pg.name || `P${pgIdx + 1}`}]</span>` : '';
+      const pageLabel = state.pages.length > 1 ? ` <span style="color:#555;">[${pg.name || `P${pgIdx + 1}`}]</span>` : '';
 
       const row = document.createElement('label');
       row.className = 'figma-sec-row';
@@ -621,14 +625,19 @@ async function doFigmaUpload() {
   logEl.style.display     = 'none';
   spinnerEl.style.display = 'flex';
   btn.disabled    = true;
-  cancelBtn.disabled = true;
+  cancelBtn.disabled = false;
+  cancelBtn.textContent = '취소';
+  cancelBtn.onclick = async () => {
+    await window.electronAPI?.figmaCancelUpload?.();
+    showDone(false, '⛔ 업로드가 취소됐습니다.');
+  };
 
   // node_map 로드 → 선택 섹션에 figmaId / figmaY 주입
   const nodeMap = (window.electronAPI?.readNodeMap)
     ? (await window.electronAPI.readNodeMap() || {})
     : {};
 
-  flushCurrentPage();
+  window.flushCurrentPage();
   const designJSON = buildFigmaExportJSON(selectedIds, nodeMap);
 
   function showDone(success, text) {
@@ -640,6 +649,29 @@ async function doFigmaUpload() {
     cancelBtn.disabled   = false;
     cancelBtn.textContent = '닫기';
     cancelBtn.style.color = '#e0e0e0';
+    cancelBtn.onclick = () => window.closeFigmaUploadModal();
+
+    // 실패 시 재시도 버튼 표시
+    let retryBtn = document.getElementById('figma-retry-btn');
+    if (!success) {
+      if (!retryBtn) {
+        retryBtn = document.createElement('button');
+        retryBtn.id = 'figma-retry-btn';
+        retryBtn.className = 'figma-upload-btn-primary';
+        retryBtn.style.cssText = 'margin-top:8px;width:100%;';
+        cancelBtn.parentElement.insertBefore(retryBtn, cancelBtn);
+      }
+      retryBtn.textContent = '↺ 재시도';
+      retryBtn.style.display = '';
+      retryBtn.onclick = () => {
+        retryBtn.style.display = 'none';
+        logEl.style.display = 'none';
+        btn.style.display = '';
+        doFigmaUpload();
+      };
+    } else if (retryBtn) {
+      retryBtn.style.display = 'none';
+    }
   }
 
   try {
@@ -919,9 +951,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
   const allSections = [];
   const nm = nodeMap || {};
 
-  pages.forEach(pg => {
+  state.pages.forEach(pg => {
     const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
-    const ps  = pg.pageSettings || pageSettings;
+    const ps  = pg.pageSettings || state.pageSettings;
     doc.querySelectorAll('#c > .section-block').forEach(sec => {
       const secId = sec.id || '';
       // selectedIds 필터링 (null 이면 전체 포함)
@@ -941,7 +973,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     });
   });
 
-  const ps = pageSettings;
+  const ps = state.pageSettings;
   return {
     version: 'sangpe-design-v1',
     meta: {
@@ -953,3 +985,40 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     sections: allSections,
   };
 }
+
+export {
+  exportSection,
+  exportAllSections,
+  exportDesignJSON,
+  exportFigmaJSON,
+  exportHTMLFile,
+  togglePublishDropdown,
+  closePublishDropdown,
+  doPublish,
+  openFigmaUploadModal,
+  _buildFigmaSectionList,
+  _syncFigmaSelectAll,
+  toggleFigmaSelectAll,
+  closeFigmaUploadModal,
+  doFigmaUpload,
+  getTextWithLineBreaks,
+  buildFigmaExportJSON,
+};
+
+// Backward compat
+window.exportSection = exportSection;
+window.exportAllSections = exportAllSections;
+window.exportDesignJSON = exportDesignJSON;
+window.exportFigmaJSON = exportFigmaJSON;
+window.exportHTMLFile = exportHTMLFile;
+window.togglePublishDropdown = togglePublishDropdown;
+window.closePublishDropdown = closePublishDropdown;
+window.doPublish = doPublish;
+window.openFigmaUploadModal = openFigmaUploadModal;
+window._buildFigmaSectionList = _buildFigmaSectionList;
+window._syncFigmaSelectAll = _syncFigmaSelectAll;
+window.toggleFigmaSelectAll = toggleFigmaSelectAll;
+window.closeFigmaUploadModal = closeFigmaUploadModal;
+window.doFigmaUpload = doFigmaUpload;
+window.getTextWithLineBreaks = getTextWithLineBreaks;
+window.buildFigmaExportJSON = buildFigmaExportJSON;

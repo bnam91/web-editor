@@ -1,3 +1,5 @@
+import { state } from './globals.js';
+
 /* ═══════════════════════════════════
    DRAG AND DROP
 ═══════════════════════════════════ */
@@ -9,6 +11,17 @@ let dragSrc = null;
 let layerDragSrc = null;
 let sectionDragSrc = null;
 let layerSectionDragSrc = null;
+
+Object.defineProperty(window, 'layerDragSrc', {
+  get() { return layerDragSrc; },
+  set(v) { layerDragSrc = v; },
+  configurable: true,
+});
+Object.defineProperty(window, 'layerSectionDragSrc', {
+  get() { return layerSectionDragSrc; },
+  set(v) { layerSectionDragSrc = v; },
+  configurable: true,
+});
 
 function getDragAfterElement(container, y) {
   const children = [...container.children].filter(el =>
@@ -77,11 +90,11 @@ function getLayerDragAfterItem(container, y) {
 function ungroupBlock(groupEl) {
   const inner = groupEl.querySelector('.group-inner');
   if (!inner) { groupEl.remove(); return; }
-  pushHistory();
+  window.pushHistory();
   // group-inner의 자식들을 group-block 위치로 이동
   [...inner.children].forEach(child => groupEl.before(child));
   groupEl.remove();
-  buildLayerPanel();
+  window.buildLayerPanel();
 }
 
 function bindGroupDrag(groupEl) {
@@ -159,7 +172,7 @@ function bindSectionDropZone(sec) {
     if (indicator) inner.insertBefore(dragSrc, indicator);
     else inner.appendChild(dragSrc);
     clearDropIndicators();
-    buildLayerPanel();
+    window.buildLayerPanel();
     dragSrc = null;
   });
 }
@@ -192,14 +205,14 @@ function bindBlock(block) {
           block.classList.add('selected');
           if (block._layerItem) block._layerItem.classList.add('active');
         }
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showTextProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showTextProperties(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
@@ -230,7 +243,7 @@ function bindBlock(block) {
           clicked.addEventListener('keydown', ev => {
             if (ev.key === 'Escape') {
               ev.preventDefault();
-              ev.stopPropagation(); // 전역 deselectAll() 차단
+              ev.stopPropagation(); // 전역 window.deselectAll() 차단
               clicked.blur();       // blur 핸들러가 editing 정리
             }
           });
@@ -251,21 +264,21 @@ function bindBlock(block) {
           block.classList.add('selected');
           if (block._layerItem) block._layerItem.classList.add('active');
         }
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showAssetProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showAssetProperties(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
       if (block.classList.contains('has-image')) {
-        enterImageEditMode(block);
+        window.enterImageEditMode(block);
       } else {
-        triggerAssetUpload(block);
+        window.triggerAssetUpload(block);
       }
     });
     // 파일 드래그 드롭
@@ -284,17 +297,17 @@ function bindBlock(block) {
       e.stopPropagation();
       block.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) loadImageToAsset(block, file);
+      if (file && file.type.startsWith('image/')) window.loadImageToAsset(block, file);
     });
     // 로드/undo 후 has-image 상태 복원
     if (block.classList.contains('has-image')) {
       const overlayBtn = block.querySelector('.asset-overlay-clear');
       if (overlayBtn) overlayBtn.addEventListener('click', e => {
         e.stopPropagation();
-        clearAssetImage(block);
+        window.clearAssetImage(block);
       });
       // 수동 편집된 위치/크기 복원 (imgW가 있으면 절대 위치 모드)
-      applyImageTransform(block);
+      window.applyImageTransform(block);
       // 수동 편집 없으면 object-fit 적용
       if (!block.dataset.imgW) {
         const img = block.querySelector('.asset-img');
@@ -306,11 +319,11 @@ function bindBlock(block) {
   if (isGap) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showGapProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showGapProperties(block);
     });
   }
 
@@ -320,18 +333,18 @@ function bindBlock(block) {
       if (e.shiftKey) {
         block.classList.toggle('selected');
         if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showIconCircleProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showIconCircleProperties(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
-      triggerCircleUpload(block);
+      window.triggerCircleUpload(block);
     });
     block.addEventListener('dragover', e => {
       if (!e.dataTransfer.types.includes('Files')) return;
@@ -346,12 +359,12 @@ function bindBlock(block) {
       e.preventDefault(); e.stopPropagation();
       block.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) loadImageToCircle(block, file);
+      if (file && file.type.startsWith('image/')) window.loadImageToCircle(block, file);
     });
     // 로드/undo 후 has-image 복원
     if (block.classList.contains('has-image')) {
       const clearBtn = block.querySelector('.icb-clear-btn');
-      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); clearCircleImage(block); });
+      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); window.clearCircleImage(block); });
     }
   }
 
@@ -361,14 +374,14 @@ function bindBlock(block) {
       if (e.shiftKey) {
         block.classList.toggle('selected');
         if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showTableProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showTableProperties(block);
     });
     // 셀 더블클릭 → contenteditable 활성화
     block.addEventListener('dblclick', e => {
@@ -396,7 +409,7 @@ function bindBlock(block) {
       e.stopPropagation();
       // + 버튼: 새 라벨 추가
       if (e.target.classList.contains('label-group-add-btn')) {
-        pushHistory();
+        window.pushHistory();
         const items  = block.querySelectorAll('.label-item');
         const first  = items[0];
         const lastBg     = first?.dataset.bg     || '#111111';
@@ -406,38 +419,38 @@ function bindBlock(block) {
         block.querySelector('.label-group-add-btn').before(newItem);
         block.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
         newItem.classList.add('item-selected');
-        showLabelGroupProperties(block, newItem);
+        window.showLabelGroupProperties(block, newItem);
         return;
       }
       // × 버튼: 라벨 삭제
       if (e.target.classList.contains('label-item-delete-btn')) {
         const items = block.querySelectorAll('.label-item');
         if (items.length <= 1) { showToast('⚠️ 마지막 라벨은 삭제할 수 없어요.'); return; }
-        pushHistory();
+        window.pushHistory();
         e.target.closest('.label-item').remove();
-        showLabelGroupProperties(block, null);
+        window.showLabelGroupProperties(block, null);
         return;
       }
       // 라벨 아이템 클릭: 아이템 선택
       const item = e.target.closest('.label-item');
       if (item) {
         if (!block.classList.contains('selected')) {
-          deselectAll();
+          window.deselectAll();
           block.classList.add('selected');
-          syncSection(block.closest('.section-block'));
-          highlightBlock(block, block._layerItem);
+          window.syncSection(block.closest('.section-block'));
+          window.highlightBlock(block, block._layerItem);
         }
         block.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
         item.classList.add('item-selected');
-        showLabelGroupProperties(block, item);
+        window.showLabelGroupProperties(block, item);
         return;
       }
       // 블록 배경 클릭: 블록만 선택
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showLabelGroupProperties(block, null);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showLabelGroupProperties(block, null);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
@@ -470,20 +483,29 @@ function bindBlock(block) {
       if (e.shiftKey) {
         block.classList.toggle('selected');
         if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      const rowEl = block.closest('.row');
+      const isRowActive = rowEl && rowEl.classList.contains('row-active');
+      window.deselectAll();
+      if (rowEl && !isRowActive) {
+        // 첫 번째 클릭: Row 전체 선택 → Row Properties 표시
+        rowEl.classList.add('row-active');
+        window.showRowProperties(rowEl);
+        return;
+      }
+      // 두 번째 클릭 (또는 단독 카드): 카드 선택 → Card Properties 표시
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showCardProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showCardProperties(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
       // 이미지 영역 더블클릭 → 이미지 업로드
       if (e.target.closest('.cdb-image')) {
-        triggerCardImageUpload(block);
+        window.triggerCardImageUpload(block);
         return;
       }
       // 텍스트 영역 더블클릭 → contenteditable 활성화
@@ -514,12 +536,12 @@ function bindBlock(block) {
       e.preventDefault(); e.stopPropagation();
       block.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) loadImageToCard(block, file);
+      if (file && file.type.startsWith('image/')) window.loadImageToCard(block, file);
     });
     // 로드/undo 후 has-image 복원
     if (block.classList.contains('has-image')) {
       const clearBtn = block.querySelector('.cdb-clear-btn');
-      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); clearCardImage(block); });
+      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); window.clearCardImage(block); });
     }
   }
 
@@ -529,19 +551,19 @@ function bindBlock(block) {
       if (e.shiftKey) {
         block.classList.toggle('selected');
         if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showStripBannerProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showStripBannerProperties(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
       if (e.target.closest('.sbb-image')) {
-        triggerStripBannerImageUpload(block);
+        window.triggerStripBannerImageUpload(block);
         return;
       }
       const textEl = e.target.closest('.sbb-heading, .sbb-body');
@@ -571,11 +593,11 @@ function bindBlock(block) {
       e.preventDefault(); e.stopPropagation();
       block.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) loadImageToStripBanner(block, file);
+      if (file && file.type.startsWith('image/')) window.loadImageToStripBanner(block, file);
     });
     if (block.classList.contains('has-image')) {
       const clearBtn = block.querySelector('.sbb-clear-btn');
-      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); clearStripBannerImage(block); });
+      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); window.clearStripBannerImage(block); });
     }
   }
 
@@ -585,14 +607,14 @@ function bindBlock(block) {
       if (e.shiftKey) {
         block.classList.toggle('selected');
         if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showGraphProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showGraphProperties(block);
     });
   }
 
@@ -603,14 +625,14 @@ function bindBlock(block) {
       if (e.shiftKey) {
         block.classList.toggle('selected');
         if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showDividerProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showDividerProperties(block);
     });
   }
 
@@ -652,7 +674,7 @@ function makeTextBlock(type) {
   const classMap  = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label' };
   const labelMap  = { h1:'Heading', h2:'Heading', h3:'Heading', body:'Body', caption:'Caption', label:'Label' };
   const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
-  const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', h3:'소항목을 입력하세요', body:'본문을 입력하세요', caption:'캡션을 입력하세요', label:'Label' };
+  const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', h3:'소항목을 입력하세요', body:'본문 내용을 입력하세요.', caption:'캡션을 입력하세요', label:'Label' };
 
   const row = document.createElement('div');
   row.className = 'row'; row.dataset.layout = 'stack';
@@ -666,10 +688,10 @@ function makeTextBlock(type) {
   tb.innerHTML = `
     <div class="${classMap[type]}" contenteditable="false">${placeholder[type]}</div>`;
 
-  if (pageSettings.padX > 0) { tb.style.paddingLeft = pageSettings.padX + 'px'; tb.style.paddingRight = pageSettings.padX + 'px'; }
+  if (state.pageSettings.padX > 0) { tb.style.paddingLeft = state.pageSettings.padX + 'px'; tb.style.paddingRight = state.pageSettings.padX + 'px'; }
   if (type !== 'label') {
-    tb.style.paddingTop = pageSettings.padY + 'px';
-    tb.style.paddingBottom = pageSettings.padY + 'px';
+    tb.style.paddingTop = state.pageSettings.padY + 'px';
+    tb.style.paddingBottom = state.pageSettings.padY + 'px';
   }
   col.appendChild(tb);
   row.appendChild(col);
@@ -773,9 +795,9 @@ function makeLabelGroupBlock() {
   addBtn.title = '라벨 추가';
   block.appendChild(addBtn);
 
-  if (pageSettings.padX > 0) {
-    block.style.paddingLeft  = pageSettings.padX + 'px';
-    block.style.paddingRight = pageSettings.padX + 'px';
+  if (state.pageSettings.padX > 0) {
+    block.style.paddingLeft  = state.pageSettings.padX + 'px';
+    block.style.paddingRight = state.pageSettings.padX + 'px';
   }
 
   col.appendChild(block);
@@ -784,14 +806,14 @@ function makeLabelGroupBlock() {
 }
 
 function addLabelGroupBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, block } = makeLabelGroupBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function makeTableBlock() {
@@ -877,9 +899,9 @@ function getSectionAlign(sec) {
 }
 
 function addTextBlock(type) {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, block } = makeTextBlock(type);
 
   // 섹션의 기존 텍스트 정렬 상속
@@ -895,8 +917,8 @@ function addTextBlock(type) {
 
   insertAfterSelected(sec, row);
   bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function groupSelectedBlocks() {
@@ -907,7 +929,7 @@ function groupSelectedBlocks() {
   const sec = selected[0].closest('.section-block');
   if (!selected.every(b => b.closest('.section-block') === sec)) return;
 
-  pushHistory();
+  window.pushHistory();
 
   // DOM 순서대로 부모 row/gap 수집 (중복 제거)
   const sectionInner = sec.querySelector('.section-inner');
@@ -937,15 +959,15 @@ function groupSelectedBlocks() {
   rows.forEach(row => groupInner.appendChild(row));
 
   bindGroupDrag(groupEl);
-  deselectAll();
-  buildLayerPanel();
-  selectSection(sec);
+  window.deselectAll();
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function addRowBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const row = document.createElement('div');
   row.className = 'row';
   row.dataset.layout = 'flex';
@@ -956,15 +978,15 @@ function addRowBlock() {
     col.className = 'col';
     col.style.flex = '1';
     col.dataset.flex = '1';
-    const ph = makeColPlaceholder(col);
+    const ph = window.makeColPlaceholder(col);
     ph.style.minHeight = '390px'; // 단독 Asset 기본 높이(780px)의 약 절반
     col.appendChild(ph);
     row.appendChild(col);
   });
 
   insertAfterSelected(sec, row);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 // ── Row 프리셋 생성 ──────────────────────────────────────────
@@ -1037,9 +1059,9 @@ function makePresetRow(type) {
     tb.className = 'text-block'; tb.dataset.type = 'body';
     tb.id = genId('tb');
     tb.innerHTML = `<div class="tb-body" contenteditable="false">본문을 입력하세요</div>`;
-    if (pageSettings.padX > 0) { tb.style.paddingLeft = pageSettings.padX + 'px'; tb.style.paddingRight = pageSettings.padX + 'px'; }
-    tb.style.paddingTop = pageSettings.padY + 'px';
-    tb.style.paddingBottom = pageSettings.padY + 'px';
+    if (state.pageSettings.padX > 0) { tb.style.paddingLeft = state.pageSettings.padX + 'px'; tb.style.paddingRight = state.pageSettings.padX + 'px'; }
+    tb.style.paddingTop = state.pageSettings.padY + 'px';
+    tb.style.paddingBottom = state.pageSettings.padY + 'px';
     colText.appendChild(tb);
     // 이미지 col
     const colImg = makeCol(1);
@@ -1054,15 +1076,15 @@ function makePresetRow(type) {
 }
 
 function addPresetRow(type) {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, firstBlock, allBlocks } = makePresetRow(type);
   insertAfterSelected(sec, row);
   if (allBlocks) allBlocks.forEach(b => bindBlock(b));
   else if (firstBlock) bindBlock(firstBlock);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
   // 첫 번째 asset-block 자동 선택 (이미지 업로드 유도)
   if (firstBlock && firstBlock.classList.contains('asset-block')) {
     firstBlock.click();
@@ -1070,47 +1092,47 @@ function addPresetRow(type) {
 }
 
 function addAssetBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, block } = makeAssetBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function addGapBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const gb = makeGapBlock();
   insertAfterSelected(sec, gb);
   bindBlock(gb);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function addIconCircleBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, block } = makeIconCircleBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function addTableBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, block } = makeTableBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function makeCardBlock() {
@@ -1140,14 +1162,14 @@ function makeCardBlock() {
 }
 
 function addCardBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, block } = makeCardBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function makeStripBannerBlock() {
@@ -1163,6 +1185,7 @@ function makeStripBannerBlock() {
   sbb.dataset.bgColor = '#f5f5f5';
   sbb.dataset.radius = '0';
   sbb.dataset.imgPos = 'left';
+  sbb.dataset.usePadx = 'true';
   sbb.style.background = '#f5f5f5';
   sbb.innerHTML = `
     <div class="sbb-image">
@@ -1170,6 +1193,7 @@ function makeStripBannerBlock() {
     </div>
     <div class="sbb-content" style="background:#f5f5f5;">
       <div class="sbb-heading" contenteditable="false">제목을 입력하세요</div>
+      <div class="sbb-gap" style="height:8px"></div>
       <div class="sbb-body" contenteditable="false">내용을 입력하세요.</div>
     </div>`;
 
@@ -1179,14 +1203,14 @@ function makeStripBannerBlock() {
 }
 
 function addStripBannerBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, block } = makeStripBannerBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 const GRAPH_DEFAULT_ITEMS = [
@@ -1261,14 +1285,14 @@ function makeGraphBlock() {
 }
 
 function addGraphBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, block } = makeGraphBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function makeDividerBlock() {
@@ -1293,14 +1317,14 @@ function makeDividerBlock() {
 }
 
 function addDividerBlock() {
-  const sec = getSelectedSection();
+  const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
+  window.pushHistory();
   const { row, block } = makeDividerBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function applyDividerStyle(block) {
@@ -1353,16 +1377,115 @@ function addSection() {
   else canvas.appendChild(sec);
 
   // 이벤트 바인딩
-  pushHistory();
-  sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
-  bindSectionDelete(sec);
-  bindSectionOrder(sec);
+  window.pushHistory();
+  sec.addEventListener('click', e => { e.stopPropagation(); window.selectSection(sec); });
+  window.bindSectionDelete(sec);
+  window.bindSectionOrder(sec);
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => bindBlock(b));
 
-  buildLayerPanel();
-  selectSection(sec);
+  window.buildLayerPanel();
+  window.selectSection(sec);
   sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  maybeAddNewSectionToScope(sec.id);
+  window.maybeAddNewSectionToScope(sec.id);
 }
+
+export {
+  genId,
+  getDragAfterElement,
+  clearDropIndicators,
+  clearLayerIndicators,
+  clearSectionIndicators,
+  clearLayerSectionIndicators,
+  getSectionDragAfterEl,
+  getLayerSectionDragAfterEl,
+  getLayerDragAfterItem,
+  ungroupBlock,
+  bindGroupDrag,
+  bindSectionDrag,
+  bindSectionDropZone,
+  bindBlock,
+  makeTextBlock,
+  makeAssetBlock,
+  makeGapBlock,
+  makeIconCircleBlock,
+  makeLabelItem,
+  makeLabelGroupBlock,
+  addLabelGroupBlock,
+  makeTableBlock,
+  insertBeforeBottomGap,
+  insertAfterSelected,
+  showNoSelectionHint,
+  showToast,
+  getSectionAlign,
+  addTextBlock,
+  groupSelectedBlocks,
+  addRowBlock,
+  makePresetRow,
+  addPresetRow,
+  addAssetBlock,
+  addGapBlock,
+  addIconCircleBlock,
+  addTableBlock,
+  makeCardBlock,
+  addCardBlock,
+  makeStripBannerBlock,
+  addStripBannerBlock,
+  renderGraph,
+  makeGraphBlock,
+  addGraphBlock,
+  makeDividerBlock,
+  addDividerBlock,
+  applyDividerStyle,
+  addSection,
+};
+
+// Backward compat
+window.genId = genId;
+window.getDragAfterElement = getDragAfterElement;
+window.clearDropIndicators = clearDropIndicators;
+window.clearLayerIndicators = clearLayerIndicators;
+window.clearSectionIndicators = clearSectionIndicators;
+window.clearLayerSectionIndicators = clearLayerSectionIndicators;
+window.getSectionDragAfterEl = getSectionDragAfterEl;
+window.getLayerSectionDragAfterEl = getLayerSectionDragAfterEl;
+window.getLayerDragAfterItem = getLayerDragAfterItem;
+window.ungroupBlock = ungroupBlock;
+window.bindGroupDrag = bindGroupDrag;
+window.bindSectionDrag = bindSectionDrag;
+window.bindSectionDropZone = bindSectionDropZone;
+window.bindBlock = bindBlock;
+window.makeTextBlock = makeTextBlock;
+window.makeAssetBlock = makeAssetBlock;
+window.makeGapBlock = makeGapBlock;
+window.makeIconCircleBlock = makeIconCircleBlock;
+window.makeLabelItem = makeLabelItem;
+window.makeLabelGroupBlock = makeLabelGroupBlock;
+window.addLabelGroupBlock = addLabelGroupBlock;
+window.makeTableBlock = makeTableBlock;
+window.insertBeforeBottomGap = insertBeforeBottomGap;
+window.insertAfterSelected = insertAfterSelected;
+window.showNoSelectionHint = showNoSelectionHint;
+window.showToast = showToast;
+window.getSectionAlign = getSectionAlign;
+window.addTextBlock = addTextBlock;
+window.groupSelectedBlocks = groupSelectedBlocks;
+window.addRowBlock = addRowBlock;
+window.makePresetRow = makePresetRow;
+window.addPresetRow = addPresetRow;
+window.addAssetBlock = addAssetBlock;
+window.addGapBlock = addGapBlock;
+window.addIconCircleBlock = addIconCircleBlock;
+window.addTableBlock = addTableBlock;
+window.makeCardBlock = makeCardBlock;
+window.addCardBlock = addCardBlock;
+window.makeStripBannerBlock = makeStripBannerBlock;
+window.addStripBannerBlock = addStripBannerBlock;
+window.renderGraph = renderGraph;
+window.makeGraphBlock = makeGraphBlock;
+window.addGraphBlock = addGraphBlock;
+window.makeDividerBlock = makeDividerBlock;
+window.addDividerBlock = addDividerBlock;
+window.applyDividerStyle = applyDividerStyle;
+window.addSection = addSection;

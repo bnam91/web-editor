@@ -30,7 +30,7 @@ function makeLayerBlockItem(block, dragTarget, sec) {
   const isBanner     = block.classList.contains('strip-banner-block');
   const isGraph      = block.classList.contains('graph-block');
   const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Strip Banner', graph:'Graph' };
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph' };
   const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component' };
 
   const item = document.createElement('div');
@@ -51,17 +51,17 @@ function makeLayerBlockItem(block, dragTarget, sec) {
       }
       syncSection(sec);
     } else {
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
       syncSection(sec);
       highlightBlock(block, item);
-      if (isText) showTextProperties(block);
+      if (isText) window.showTextProperties(block);
       else if (isGap) showGapProperties(block);
       else if (isIconCb) showIconCircleProperties(block);
       else if (isTable) showTableProperties(block);
       else if (isCard) showCardProperties(block);
       else if (isBanner) showStripBannerProperties(block);
-      else showAssetProperties(block);
+      else window.showAssetProperties(block);
     }
   });
   block.addEventListener('mouseenter', () => item.style.background = '#252525');
@@ -70,7 +70,7 @@ function makeLayerBlockItem(block, dragTarget, sec) {
   item.setAttribute('draggable', 'true');
   item.addEventListener('dragstart', e => {
     e.stopPropagation();
-    layerDragSrc = item;
+    window.layerDragSrc = item;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
     requestAnimationFrame(() => item.classList.add('layer-dragging'));
@@ -78,7 +78,7 @@ function makeLayerBlockItem(block, dragTarget, sec) {
   item.addEventListener('dragend', () => {
     item.classList.remove('layer-dragging');
     clearLayerIndicators();
-    layerDragSrc = null;
+    window.layerDragSrc = null;
   });
 
   block._layerItem = item;
@@ -118,7 +118,7 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
       return;
     }
     // 그룹 선택 — 캔버스 그룹 강조 + 섹션 선택
-    deselectAll();
+    window.deselectAll();
     groupEl.classList.add('group-selected');
     const sec = groupEl.closest('.section-block');
     if (sec) selectSection(sec);
@@ -162,18 +162,18 @@ function makeLayerAssetItem(block, dragTarget, sec) {
 
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
-    deselectAll();
+    window.deselectAll();
     block.classList.add('selected');
     syncSection(sec);
     highlightBlock(block, header);
-    showAssetProperties(block);
+    window.showAssetProperties(block);
   });
   block._layerItem = header;
 
   header.setAttribute('draggable', 'true');
   header.addEventListener('dragstart', e => {
     e.stopPropagation();
-    layerDragSrc = wrapper;
+    window.layerDragSrc = wrapper;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
     requestAnimationFrame(() => wrapper.classList.add('layer-dragging'));
@@ -181,7 +181,7 @@ function makeLayerAssetItem(block, dragTarget, sec) {
   header.addEventListener('dragend', () => {
     wrapper.classList.remove('layer-dragging');
     clearLayerIndicators();
-    layerDragSrc = null;
+    window.layerDragSrc = null;
   });
 
   const children = document.createElement('div');
@@ -198,18 +198,18 @@ function makeLayerAssetItem(block, dragTarget, sec) {
 
       item.addEventListener('click', e => {
         e.stopPropagation();
-        deselectAll();
+        window.deselectAll();
         tb.classList.add('selected');
         syncSection(sec);
         highlightBlock(tb, item);
-        showTextProperties(tb);
+        window.showTextProperties(tb);
       });
       tb._layerItem = item;
 
       item.setAttribute('draggable', 'true');
       item.addEventListener('dragstart', e => {
         e.stopPropagation();
-        layerDragSrc = item;
+        window.layerDragSrc = item;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', '');
         requestAnimationFrame(() => item.classList.add('layer-dragging'));
@@ -217,7 +217,7 @@ function makeLayerAssetItem(block, dragTarget, sec) {
       item.addEventListener('dragend', () => {
         item.classList.remove('layer-dragging');
         clearLayerIndicators();
-        layerDragSrc = null;
+        window.layerDragSrc = null;
       });
       children.appendChild(item);
     });
@@ -228,7 +228,7 @@ function makeLayerAssetItem(block, dragTarget, sec) {
   children.addEventListener('dragover', e => {
     e.preventDefault();
     e.stopPropagation();
-    if (!layerDragSrc?._dragTarget?.classList.contains('overlay-tb')) return;
+    if (!window.layerDragSrc?._dragTarget?.classList.contains('overlay-tb')) return;
     clearLayerIndicators();
     const after = getLayerDragAfterItem(children, e.clientY);
     const indicator = document.createElement('div');
@@ -242,8 +242,8 @@ function makeLayerAssetItem(block, dragTarget, sec) {
   children.addEventListener('drop', e => {
     e.preventDefault();
     e.stopPropagation();
-    if (!layerDragSrc?._dragTarget?.classList.contains('overlay-tb')) return;
-    const tbEl = layerDragSrc._dragTarget;
+    if (!window.layerDragSrc?._dragTarget?.classList.contains('overlay-tb')) return;
+    const tbEl = window.layerDragSrc._dragTarget;
     const indicator = children.querySelector('.layer-drop-indicator');
     if (indicator) {
       const nextItem = indicator.nextElementSibling;
@@ -253,9 +253,104 @@ function makeLayerAssetItem(block, dragTarget, sec) {
     }
     clearLayerIndicators();
     buildLayerPanel();
-    pushHistory();
-    layerDragSrc = null;
+    window.pushHistory();
+    window.layerDragSrc = null;
   });
+
+  wrapper.appendChild(header);
+  wrapper.appendChild(children);
+  return wrapper;
+}
+
+/* 배너 블록 + 하위 텍스트/갭 자식 포함 레이어 아이템 */
+function makeLayerBannerItem(block, dragTarget, sec) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'layer-row-group';
+  wrapper._dragTarget = dragTarget;
+
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  header.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    ${layerIcons.banner}
+    <span class="layer-item-name">Banner</span>
+    <span class="layer-item-type">Component</span>`;
+
+  header.addEventListener('click', e => {
+    if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+    window.deselectAll();
+    block.classList.add('selected');
+    syncSection(sec);
+    highlightBlock(block, header);
+    showStripBannerProperties(block);
+  });
+  block._layerItem = header;
+
+  header.setAttribute('draggable', 'true');
+  header.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    window.layerDragSrc = wrapper;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => wrapper.classList.add('layer-dragging'));
+  });
+  header.addEventListener('dragend', () => {
+    wrapper.classList.remove('layer-dragging');
+    clearLayerIndicators();
+    window.layerDragSrc = null;
+  });
+
+  const children = document.createElement('div');
+  children.className = 'layer-row-children';
+
+  const buildBannerChildren = () => {
+    children.innerHTML = '';
+
+    // 이미지 영역
+    const imgEl = block.querySelector('.sbb-image');
+    if (imgEl) {
+      const imgItem = document.createElement('div');
+      imgItem.className = 'layer-item layer-item-nested';
+      imgItem.innerHTML = `${layerIcons.asset}<span class="layer-item-name">Image</span><span class="layer-item-type">Image</span>`;
+      imgItem.addEventListener('click', e => {
+        e.stopPropagation();
+        window.deselectAll();
+        block.classList.add('selected');
+        syncSection(sec);
+        highlightBlock(block, header);
+        showStripBannerProperties(block);
+      });
+      children.appendChild(imgItem);
+    }
+
+    // sbb-content 하위 자식 (heading, gap, body)
+    const sbbContent = block.querySelector('.sbb-content');
+    if (sbbContent) {
+      [...sbbContent.children].forEach(child => {
+        if (child.classList.contains('sbb-row-indicator')) return;
+        const isHeading = child.classList.contains('sbb-heading');
+        const isBody    = child.classList.contains('sbb-body');
+        const isGap     = child.classList.contains('sbb-gap');
+        const iconKey   = isHeading ? 'heading' : isBody ? 'body' : 'gap';
+        const label     = isHeading ? 'Heading' : isBody ? 'Body' : 'Gap';
+        const typeLabel = isHeading ? 'Text' : isBody ? 'Text' : 'Gap';
+
+        const childItem = document.createElement('div');
+        childItem.className = 'layer-item layer-item-nested';
+        childItem.innerHTML = `${layerIcons[iconKey] || layerIcons.body}<span class="layer-item-name">${label}</span><span class="layer-item-type">${typeLabel}</span>`;
+        childItem.addEventListener('click', e => {
+          e.stopPropagation();
+          window.deselectAll();
+          block.classList.add('selected');
+          syncSection(sec);
+          highlightBlock(block, header);
+          showStripBannerProperties(block);
+        });
+        children.appendChild(childItem);
+      });
+    }
+  };
+  buildBannerChildren();
 
   wrapper.appendChild(header);
   wrapper.appendChild(children);
@@ -293,8 +388,13 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
     const isBanner     = block.classList.contains('strip-banner-block');
     const isGraph      = block.classList.contains('graph-block');
     const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : 'asset';
-    const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Strip Banner', graph:'Graph' };
+    const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph' };
     const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component' };
+
+    if (isBanner) {
+      groupChildren.appendChild(makeLayerBannerItem(block, block.closest('.row') || block, sec));
+      return;
+    }
 
     const item = document.createElement('div');
     item.className = 'layer-item layer-item-nested';
@@ -312,17 +412,16 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
         }
         syncSection(sec);
       } else {
-        deselectAll();
+        window.deselectAll();
         block.classList.add('selected');
         syncSection(sec);
         highlightBlock(block, item);
-        if (isText) showTextProperties(block);
+        if (isText) window.showTextProperties(block);
         else if (isGap) showGapProperties(block);
         else if (isIconCb) showIconCircleProperties(block);
         else if (isTable) showTableProperties(block);
         else if (isCard) showCardProperties(block);
-        else if (isBanner) showStripBannerProperties(block);
-        else showAssetProperties(block);
+        else window.showAssetProperties(block);
       }
     });
     block.addEventListener('mouseenter', () => item.style.background = '#252525');
@@ -336,20 +435,20 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
     // chevron 클릭이면 토글만
     if (e.target.closest('.layer-chevron')) { group.classList.toggle('collapsed'); return; }
     // Row 헤더 클릭 → 하위 블록 전체 선택 + Properties 표시
-    deselectAll();
+    window.deselectAll();
     blocks.forEach(block => block.classList.add('selected'));
     syncSection(sec);
     // 레이어 하위 아이템 모두 하이라이트
     groupChildren.querySelectorAll('.layer-item').forEach(it => it.classList.add('active'));
     header.classList.add('active');
-    showRowProperties(rowEl);
+    window.showRowProperties(rowEl);
   });
 
   // Row 그룹 드래그 (섹션 내 Row 순서 변경)
   header.setAttribute('draggable', 'true');
   header.addEventListener('dragstart', e => {
     e.stopPropagation();
-    layerDragSrc = group;
+    window.layerDragSrc = group;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
     requestAnimationFrame(() => group.classList.add('layer-dragging'));
@@ -357,7 +456,7 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
   header.addEventListener('dragend', () => {
     group.classList.remove('layer-dragging');
     clearLayerIndicators();
-    layerDragSrc = null;
+    window.layerDragSrc = null;
   });
 
   group.appendChild(header);
@@ -365,7 +464,7 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
   return group;
 }
 
-function buildLayerPanel() {
+export function buildLayerPanel() {
   const panel = document.getElementById('layer-panel-body');
 
   // 재빌드 전 collapsed 상태 저장
@@ -430,7 +529,9 @@ function buildLayerPanel() {
       }
     });
 
-    chevron.addEventListener('click', () => {
+    header.addEventListener('click', () => { selectSection(sec, true); });
+    chevron.addEventListener('click', e => {
+      e.stopPropagation();
       sectionEl.classList.toggle('collapsed');
     });
     nameEl.addEventListener('click', e => { e.stopPropagation(); selectSection(sec, true); });
@@ -477,6 +578,8 @@ function buildLayerPanel() {
         if (block) {
           if (block.classList.contains('asset-block')) {
             container.appendChild(makeLayerAssetItem(block, child, sec));
+          } else if (block.classList.contains('strip-banner-block')) {
+            container.appendChild(makeLayerBannerItem(block, child, sec));
           } else {
             container.appendChild(makeLayerBlockItem(block, child, sec));
           }
@@ -500,7 +603,7 @@ function buildLayerPanel() {
     children.addEventListener('dragover', e => {
       e.preventDefault();
       e.stopPropagation();
-      if (!layerDragSrc) return;
+      if (!window.layerDragSrc) return;
       clearLayerIndicators();
       const after = getLayerDragAfterItem(children, e.clientY);
       const indicator = document.createElement('div');
@@ -514,8 +617,8 @@ function buildLayerPanel() {
     children.addEventListener('drop', e => {
       e.preventDefault();
       e.stopPropagation();
-      if (!layerDragSrc) return;
-      const dragTarget = layerDragSrc._dragTarget;
+      if (!window.layerDragSrc) return;
+      const dragTarget = window.layerDragSrc._dragTarget;
       const indicator = children.querySelector('.layer-drop-indicator');
       if (indicator) {
         const nextEl = indicator.nextElementSibling;
@@ -530,7 +633,7 @@ function buildLayerPanel() {
       }
       clearLayerIndicators();
       buildLayerPanel();
-      layerDragSrc = null;
+      window.layerDragSrc = null;
     });
 
     sectionEl.appendChild(header);
@@ -552,7 +655,7 @@ function buildLayerPanel() {
     header.addEventListener('dragstart', e => {
       if (nameEl.classList.contains('editing')) { e.preventDefault(); return; }
       e.stopPropagation();
-      layerSectionDragSrc = { sec, sectionEl };
+      window.layerSectionDragSrc = { sec, sectionEl };
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
       const ghost = document.createElement('div');
@@ -565,19 +668,24 @@ function buildLayerPanel() {
     header.addEventListener('dragend', () => {
       sectionEl.classList.remove('layer-section-dragging');
       clearLayerSectionIndicators();
-      layerSectionDragSrc = null;
+      window.layerSectionDragSrc = null;
     });
   });
 
   buildFilePageSection();
 }
 
-function syncLayerActive(sec) {
+export function syncLayerActive(sec) {
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
   if (sec && sec._layerHeader) sec._layerHeader.classList.add('active');
 }
 
-function highlightBlock(block, layerItem) {
+export function highlightBlock(block, layerItem) {
   document.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
   if (layerItem) layerItem.classList.add('active');
 }
+
+// Backward compat
+window.buildLayerPanel = buildLayerPanel;
+window.syncLayerActive = syncLayerActive;
+window.highlightBlock  = highlightBlock;

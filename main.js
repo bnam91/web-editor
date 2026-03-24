@@ -2,7 +2,8 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
+const { getPublicIp, findUserByIp, registerLicense, removeIp, updateIpAlias, updateUserName, createLicenseKey, listLicenseKeys } = require('./services/licenseService');
 
 let mainWindow;
 
@@ -50,7 +51,8 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadFile('pages/projects.html');
+  // 라이선스 체크 후 페이지 결정
+  checkLicenseAndLoad();
 
   mainWindow.on('enter-full-screen', () => {
     mainWindow.webContents.send('fullscreen-change', true);
@@ -73,6 +75,60 @@ function createWindow() {
   }
 }
 
+/* ── 라이선스 체크 + 초기 페이지 로드 ── */
+async function checkLicenseAndLoad() {
+  if (process.argv.includes('admin')) {
+    mainWindow.loadFile('pages/projects.html');
+    return;
+  }
+  try {
+    const ip = await getPublicIp();
+    if (ip) {
+      const result = await findUserByIp(ip);
+      if (result.found) {
+        mainWindow.loadFile('pages/projects.html');
+        return;
+      }
+    }
+  } catch {}
+  mainWindow.loadFile('pages/license.html');
+}
+
+/* ── IPC: License ── */
+ipcMain.handle('license:get-ip', () => getPublicIp());
+
+ipcMain.handle('license:find-by-ip', async () => {
+  const ip = await getPublicIp();
+  if (!ip) return { found: false };
+  return findUserByIp(ip);
+});
+
+ipcMain.handle('license:register', (event, licenseKey, ip, userId) =>
+  registerLicense(licenseKey, ip, userId)
+);
+
+ipcMain.handle('license:remove-ip', (event, licenseKey, ip) =>
+  removeIp(licenseKey, ip)
+);
+
+ipcMain.handle('license:update-alias', (event, licenseKey, ip, alias) =>
+  updateIpAlias(licenseKey, ip, alias)
+);
+
+ipcMain.handle('license:update-name', (event, licenseKey, userName) =>
+  updateUserName(licenseKey, userName)
+);
+
+ipcMain.handle('license:create-key', (event, plan, memo) =>
+  createLicenseKey(plan, memo)
+);
+
+ipcMain.handle('license:list-keys', () => listLicenseKeys());
+
+ipcMain.handle('license:navigate-projects', () => {
+  mainWindow.loadFile('pages/projects.html');
+});
+
 /* ── IPC: Projects (파일 기반 저장소) ── */
 const PROJECTS_DIR = path.join(__dirname, 'projects');
 if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
@@ -83,7 +139,7 @@ ipcMain.handle('projects:list', () => {
     .map(f => {
       try {
         const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
-        return { id: data.id, name: data.name, createdAt: data.createdAt, updatedAt: data.updatedAt };
+        return { id: data.id, name: data.name, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail: data.thumbnail || null };
       } catch { return null; }
     })
     .filter(Boolean)
@@ -131,24 +187,58 @@ ipcMain.handle('presets:delete', (event, presetId) => {
 });
 
 /* ── IPC: Figma Upload ── */
+let _figmaUploadProc = null;
+
 ipcMain.handle('figma:upload', (event, { channel, designJSON }) => {
-  const tmpPath = path.join(os.tmpdir(), `sangpe_export_${Date.now()}.json`);
-  try {
-    fs.writeFileSync(tmpPath, JSON.stringify(designJSON, null, 2), 'utf8');
+  return new Promise((resolve) => {
+    const tmpPath = path.join(os.tmpdir(), `sangpe_export_${Date.now()}.json`);
+    try {
+      fs.writeFileSync(tmpPath, JSON.stringify(designJSON, null, 2), 'utf8');
+    } catch (err) {
+      return resolve({ success: false, logs: '파일 쓰기 실패: ' + err.message });
+    }
+
     const scriptPath = path.join(__dirname, 'figma-renderer', 'sangpe_to_figma.mjs');
-    const result = spawnSync('node', [scriptPath, channel, tmpPath], {
-      encoding: 'utf-8',
-      timeout: 120000,
+    const child = spawn('node', [scriptPath, channel, tmpPath], { encoding: 'utf-8' });
+    _figmaUploadProc = child;
+
+    let stdout = '', stderr = '';
+    child.stdout?.on('data', d => { stdout += d; });
+    child.stderr?.on('data', d => { stderr += d; });
+
+    const cleanup = () => {
+      _figmaUploadProc = null;
+      try { fs.unlinkSync(tmpPath); } catch {}
+    };
+
+    const timer = setTimeout(() => {
+      child.kill();
+      cleanup();
+      resolve({ success: false, logs: '❌ 타임아웃 (120초 초과)' });
+    }, 120000);
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      cleanup();
+      const logs = stdout + stderr;
+      resolve({ success: code === 0, logs });
     });
-    fs.unlinkSync(tmpPath);
-    if (result.error) throw result.error;
-    const logs = (result.stdout || '') + (result.stderr || '');
-    const success = result.status === 0;
-    return { success, logs };
-  } catch (err) {
-    try { fs.unlinkSync(tmpPath); } catch {}
-    return { success: false, logs: err.message };
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      cleanup();
+      resolve({ success: false, logs: '❌ 실행 오류: ' + err.message });
+    });
+  });
+});
+
+ipcMain.handle('figma:cancel-upload', () => {
+  if (_figmaUploadProc) {
+    _figmaUploadProc.kill();
+    _figmaUploadProc = null;
+    return true;
   }
+  return false;
 });
 
 /* ── IPC: Node Map (섹션 ↔ Figma 노드 ID 매핑) ── */

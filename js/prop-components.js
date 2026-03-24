@@ -1,4 +1,6 @@
-function showIconCircleProperties(block) {
+import { propPanel, state } from './globals.js';
+
+export function showIconCircleProperties(block) {
   const circle   = block.querySelector('.icb-circle');
   const size     = parseInt(block.dataset.size)    || 80;
   const bgColor  = block.dataset.bgColor           || '#e8e8e8';
@@ -13,7 +15,10 @@ function showIconCircleProperties(block) {
             <circle cx="6" cy="6" r="5"/>
           </svg>
         </div>
-        <span class="prop-block-name">Icon Circle</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Icon Circle</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
+        </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
@@ -60,10 +65,10 @@ function showIconCircleProperties(block) {
     </div>`;
 
   if (hasImage) {
-    document.getElementById('icb-replace-btn').addEventListener('click', () => triggerCircleUpload(block));
-    document.getElementById('icb-remove-btn').addEventListener('click', () => clearCircleImage(block));
+    document.getElementById('icb-replace-btn').addEventListener('click', () => window.triggerCircleUpload(block));
+    document.getElementById('icb-remove-btn').addEventListener('click', () => window.clearCircleImage(block));
   } else {
-    document.getElementById('icb-upload-btn').addEventListener('click', () => triggerCircleUpload(block));
+    document.getElementById('icb-upload-btn').addEventListener('click', () => window.triggerCircleUpload(block));
   }
 
   const applySize = v => {
@@ -75,8 +80,8 @@ function showIconCircleProperties(block) {
     document.getElementById('icb-size-number').value = v;
   };
   document.getElementById('icb-size-slider').addEventListener('input',  e => applySize(parseInt(e.target.value)));
-  document.getElementById('icb-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); pushHistory(); });
-  document.getElementById('icb-size-slider').addEventListener('change', () => pushHistory());
+  document.getElementById('icb-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); window.pushHistory(); });
+  document.getElementById('icb-size-slider').addEventListener('change', () => window.pushHistory());
 
   const bgPicker = document.getElementById('icb-bg-color');
   const bgHex    = document.getElementById('icb-bg-hex');
@@ -87,25 +92,25 @@ function showIconCircleProperties(block) {
     bgHex.value             = bgPicker.value;
     bgSwatch.style.background = bgPicker.value;
   });
-  bgPicker.addEventListener('change', () => pushHistory());
+  bgPicker.addEventListener('change', () => window.pushHistory());
   bgHex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
       block.dataset.bgColor   = bgHex.value;
       circle.style.background = bgHex.value;
       bgPicker.value          = bgHex.value;
       bgSwatch.style.background = bgHex.value;
-      pushHistory();
+      window.pushHistory();
     }
   });
 
   document.getElementById('icb-border-select').addEventListener('change', e => {
     block.dataset.border   = e.target.value;
     circle.dataset.border  = e.target.value;
-    pushHistory();
+    window.pushHistory();
   });
 }
 
-function showTableProperties(block) {
+export function showTableProperties(block) {
   const table    = block.querySelector('.tb-table');
   const thead    = table.querySelector('thead');
   const tbody    = table.querySelector('tbody');
@@ -147,7 +152,7 @@ function showTableProperties(block) {
         for (let i = ths.length; i > cols; i--) tr.lastElementChild?.remove();
       }
     }
-    pushHistory();
+    window.pushHistory();
   };
 
   propPanel.innerHTML = `
@@ -160,7 +165,10 @@ function showTableProperties(block) {
             <line x1="5" y1="4" x2="5" y2="11"/>
           </svg>
         </div>
-        <span class="prop-block-name">Table Block</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Table Block</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
+        </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">행 / 열</div>
@@ -222,13 +230,13 @@ function showTableProperties(block) {
     }
     tbody.appendChild(tr);
     document.getElementById('tbl-row-count').textContent = tbody.querySelectorAll('tr').length;
-    pushHistory();
+    window.pushHistory();
   });
   document.getElementById('tbl-row-minus').addEventListener('click', () => {
     const rows = tbody.querySelectorAll('tr');
     if (rows.length > 1) { rows[rows.length - 1].remove(); }
     document.getElementById('tbl-row-count').textContent = tbody.querySelectorAll('tr').length;
-    pushHistory();
+    window.pushHistory();
   });
 
   /* 열 추가/삭제 */
@@ -249,13 +257,13 @@ function showTableProperties(block) {
       table.querySelectorAll('tr').forEach(tr => tr.lastElementChild?.remove());
     }
     document.getElementById('tbl-col-count').textContent = table.querySelector('tr')?.querySelectorAll('th,td').length || 0;
-    pushHistory();
+    window.pushHistory();
   });
 
   /* 스타일 */
   document.getElementById('tbl-style-select').addEventListener('change', e => {
     block.dataset.style = e.target.value;
-    pushHistory();
+    window.pushHistory();
   });
 
   /* 정렬 */
@@ -265,7 +273,7 @@ function showTableProperties(block) {
       block.dataset.cellAlign = align;
       table.querySelectorAll('th, td').forEach(cell => cell.style.textAlign = align);
       document.querySelectorAll('#tbl-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
-      pushHistory();
+      window.pushHistory();
     });
   });
 
@@ -277,8 +285,8 @@ function showTableProperties(block) {
     document.getElementById('tbl-size-number').value = v;
   };
   document.getElementById('tbl-size-slider').addEventListener('input',  e => applySize(parseInt(e.target.value)));
-  document.getElementById('tbl-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); pushHistory(); });
-  document.getElementById('tbl-size-slider').addEventListener('change', () => pushHistory());
+  document.getElementById('tbl-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); window.pushHistory(); });
+  document.getElementById('tbl-size-slider').addEventListener('change', () => window.pushHistory());
 
   /* 셀 여백 */
   const applyPad = v => {
@@ -292,11 +300,11 @@ function showTableProperties(block) {
     document.getElementById('tbl-pad-number').value = v;
   };
   document.getElementById('tbl-pad-slider').addEventListener('input',  e => applyPad(parseInt(e.target.value)));
-  document.getElementById('tbl-pad-number').addEventListener('change', e => { applyPad(parseInt(e.target.value)); pushHistory(); });
-  document.getElementById('tbl-pad-slider').addEventListener('change', () => pushHistory());
+  document.getElementById('tbl-pad-number').addEventListener('change', e => { applyPad(parseInt(e.target.value)); window.pushHistory(); });
+  document.getElementById('tbl-pad-slider').addEventListener('change', () => window.pushHistory());
 }
 
-function showGapProperties(gb) {
+export function showGapProperties(gb) {
   const currentH = gb.offsetHeight;
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -307,7 +315,10 @@ function showGapProperties(gb) {
             <line x1="1" y1="8" x2="11" y2="8" stroke-dasharray="2,1"/>
           </svg>
         </div>
-        <span class="prop-block-name">Gap Block</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Gap Block</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(gb)}</span>
+        </div>
         ${gb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${gb.id}')">${gb.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
@@ -332,7 +343,7 @@ function showGapProperties(gb) {
   });
 }
 
-function showCardProperties(block) {
+export function showCardProperties(block) {
   const bgColor    = block.dataset.bgColor    || '#f5f5f5';
   const radius     = parseInt(block.dataset.radius)     || 12;
   const titleSize  = parseInt(block.dataset.titleSize)  || 24;
@@ -347,16 +358,19 @@ function showCardProperties(block) {
             <line x1="1" y1="6" x2="11" y2="6"/>
           </svg>
         </div>
-        <span class="prop-block-name">Card Block</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Card Block</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
+        </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">이미지</div>
       <div class="prop-row">
-        <button class="prop-btn-full" onclick="triggerCardImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
+        <button class="prop-btn-full" onclick="window.triggerCardImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
       </div>
       ${block.classList.contains('has-image') ? `
       <div class="prop-row">
-        <button class="prop-btn-full prop-btn-danger" onclick="clearCardImage(document.getElementById('${block.id}'))">이미지 제거</button>
+        <button class="prop-btn-full prop-btn-danger" onclick="window.clearCardImage(document.getElementById('${block.id}'))">이미지 제거</button>
       </div>` : ''}
     </div>
     <div class="prop-section">
@@ -444,7 +458,7 @@ function showCardProperties(block) {
     if (titleEl2) titleEl2.style.textAlign = a;
     if (descEl2)  descEl2.style.textAlign  = a;
     document.querySelectorAll('#card-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
-    pushHistory();
+    window.pushHistory();
   };
   document.querySelectorAll('#card-align-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => applyCardAlign(btn.dataset.align));
@@ -454,7 +468,7 @@ function showCardProperties(block) {
   document.getElementById('card-add-btn').addEventListener('click', () => {
     const row = block.closest('.row');
     if (!row) return;
-    pushHistory();
+    window.pushHistory();
     // flex 레이아웃으로 전환 (stack이면)
     if (row.dataset.layout === 'stack') {
       row.dataset.layout = 'flex';
@@ -483,11 +497,11 @@ function showCardProperties(block) {
       </div>`;
     newCol.appendChild(cdb);
     row.appendChild(newCol);
-    bindBlock(cdb);
+    window.bindBlock(cdb);
     // 모든 col flex 균등 분배
     const count = row.querySelectorAll(':scope > .col').length;
     row.dataset.ratioStr = `${count}*1`;
-    buildLayerPanel();
+    window.buildLayerPanel();
     showCardProperties(block);
   });
 
@@ -495,8 +509,8 @@ function showCardProperties(block) {
     const row = block.closest('.row');
     if (!row) return;
     const cols = [...row.querySelectorAll(':scope > .col')];
-    if (cols.length <= 1) { showToast('⚠️ 마지막 카드는 제거할 수 없어요.'); return; }
-    pushHistory();
+    if (cols.length <= 1) { window.showToast('⚠️ 마지막 카드는 제거할 수 없어요.'); return; }
+    window.pushHistory();
     const myCol = block.closest('.col');
     if (myCol) myCol.remove();
     const remaining = row.querySelectorAll(':scope > .col').length;
@@ -507,8 +521,8 @@ function showCardProperties(block) {
       const lastCol = row.querySelector(':scope > .col');
       if (lastCol) { lastCol.style.flex = ''; delete lastCol.dataset.flex; }
     }
-    buildLayerPanel();
-    deselectAll();
+    window.buildLayerPanel();
+    window.deselectAll();
     showPageProperties();
   });
 
@@ -523,8 +537,8 @@ function showCardProperties(block) {
     tSlider.value = v; tNumber.value = v;
   };
   tSlider.addEventListener('input',  () => applyTitleSize(parseInt(tSlider.value)));
-  tNumber.addEventListener('change', () => { applyTitleSize(parseInt(tNumber.value)); pushHistory(); });
-  tSlider.addEventListener('change', () => pushHistory());
+  tNumber.addEventListener('change', () => { applyTitleSize(parseInt(tNumber.value)); window.pushHistory(); });
+  tSlider.addEventListener('change', () => window.pushHistory());
 
   // 설명 크기
   const descEl   = block.querySelector('.cdb-desc');
@@ -537,15 +551,15 @@ function showCardProperties(block) {
     dSlider.value = v; dNumber.value = v;
   };
   dSlider.addEventListener('input',  () => applyDescSize(parseInt(dSlider.value)));
-  dNumber.addEventListener('change', () => { applyDescSize(parseInt(dNumber.value)); pushHistory(); });
-  dSlider.addEventListener('change', () => pushHistory());
+  dNumber.addEventListener('change', () => { applyDescSize(parseInt(dNumber.value)); window.pushHistory(); });
+  dSlider.addEventListener('change', () => window.pushHistory());
 }
 
 /* 타입별 프리셋 폰트 사이즈 (strip banner 스케일) */
 const SBB_TITLE_TYPES = { h1: { size: 48, weight: 700 }, h2: { size: 36, weight: 700 }, h3: { size: 28, weight: 600 }, body: { size: 22, weight: 400 } };
 const SBB_BODY_TYPES  = { body: { size: 18, weight: 400 }, caption: { size: 14, weight: 400 } };
 
-function showStripBannerProperties(block) {
+export function showStripBannerProperties(block) {
   const bgColor    = block.dataset.bgColor    || '#f5f5f5';
   const radius     = block.dataset.radius !== undefined ? parseInt(block.dataset.radius) : 0;
   const blockH     = parseInt(block.dataset.height)     || 200;
@@ -553,7 +567,9 @@ function showStripBannerProperties(block) {
   const bodySize   = parseInt(block.dataset.bodySize)   || 20;
   const titleType  = block.dataset.titleType  || 'h3';
   const bodyType   = block.dataset.bodyType   || 'body';
-  const usePadX    = block.dataset.usePadx === 'true';
+  const titleColor = block.dataset.titleColor || '#111111';
+  const bodyColor  = block.dataset.bodyColor  || '#555555';
+  const usePadX    = block.dataset.usePadx !== 'false'; // 기본값 true (미설정 포함)
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -564,16 +580,19 @@ function showStripBannerProperties(block) {
             <line x1="4" y1="2" x2="4" y2="10"/>
           </svg>
         </div>
-        <span class="prop-block-name">Strip Banner</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Banner</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
+        </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">이미지</div>
       <div class="prop-row">
-        <button class="prop-btn-full" onclick="triggerStripBannerImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
+        <button class="prop-btn-full" onclick="window.triggerStripBannerImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
       </div>
       ${block.classList.contains('has-image') ? `
       <div class="prop-row">
-        <button class="prop-btn-full prop-btn-danger" onclick="clearStripBannerImage(document.getElementById('${block.id}'))">이미지 제거</button>
+        <button class="prop-btn-full prop-btn-danger" onclick="window.clearStripBannerImage(document.getElementById('${block.id}'))">이미지 제거</button>
       </div>` : ''}
     </div>
     <div class="prop-section">
@@ -612,6 +631,13 @@ function showStripBannerProperties(block) {
         <input type="range" class="prop-slider" id="sbb-title-slider" min="12" max="72" step="1" value="${titleSize}">
         <input type="number" class="prop-number" id="sbb-title-number" min="12" max="72" value="${titleSize}">
       </div>
+      <div class="prop-color-row">
+        <span class="prop-label">글자색</span>
+        <div class="prop-color-swatch" style="background:${titleColor}">
+          <input type="color" id="sbb-title-color" value="${titleColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="sbb-title-color-hex" value="${titleColor}" maxlength="7">
+      </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">본문 타입</div>
@@ -623,6 +649,13 @@ function showStripBannerProperties(block) {
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="sbb-body-slider" min="10" max="48" step="1" value="${bodySize}">
         <input type="number" class="prop-number" id="sbb-body-number" min="10" max="48" value="${bodySize}">
+      </div>
+      <div class="prop-color-row">
+        <span class="prop-label">글자색</span>
+        <div class="prop-color-swatch" style="background:${bodyColor}">
+          <input type="color" id="sbb-body-color" value="${bodyColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="sbb-body-color-hex" value="${bodyColor}" maxlength="7">
       </div>
     </div>
     <div class="prop-section">
@@ -657,8 +690,8 @@ function showStripBannerProperties(block) {
     <div class="prop-section">
       <div class="prop-section-title">텍스트 행</div>
       <div class="prop-row">
-        <button class="prop-action-btn primary" id="sbb-add-row-btn">+ 행 추가</button>
-        <button class="prop-action-btn secondary" id="sbb-remove-row-btn">- 행 제거</button>
+        <button class="prop-action-btn primary" id="sbb-add-row-btn">+ 갭 추가</button>
+        <button class="prop-action-btn secondary" id="sbb-remove-row-btn">- 갭 제거</button>
       </div>
       <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭 편집 · 드래그로 순서 변경</div>
     </div>`;
@@ -673,8 +706,8 @@ function showStripBannerProperties(block) {
     hSlider.value = v; hNumber.value = v;
   };
   hSlider.addEventListener('input',  () => applyHeight(parseInt(hSlider.value)));
-  hNumber.addEventListener('change', () => { applyHeight(parseInt(hNumber.value)); pushHistory(); });
-  hSlider.addEventListener('change', () => pushHistory());
+  hNumber.addEventListener('change', () => { applyHeight(parseInt(hNumber.value)); window.pushHistory(); });
+  hSlider.addEventListener('change', () => window.pushHistory());
 
   // 배경색
   const bgInput  = document.getElementById('sbb-bg-color');
@@ -722,14 +755,14 @@ function showStripBannerProperties(block) {
     if (headingEl) headingEl.style.fontWeight = preset.weight;
     applyTitleSize(preset.size);
     document.querySelectorAll('[data-title-type]').forEach(b => b.classList.toggle('active', b.dataset.titleType === type));
-    pushHistory();
+    window.pushHistory();
   };
   document.querySelectorAll('[data-title-type]').forEach(btn =>
     btn.addEventListener('click', () => applyTitleType(btn.dataset.titleType))
   );
   tsSlider.addEventListener('input',  () => applyTitleSize(parseInt(tsSlider.value)));
-  tsNumber.addEventListener('change', () => { applyTitleSize(parseInt(tsNumber.value)); pushHistory(); });
-  tsSlider.addEventListener('change', () => pushHistory());
+  tsNumber.addEventListener('change', () => { applyTitleSize(parseInt(tsNumber.value)); window.pushHistory(); });
+  tsSlider.addEventListener('change', () => window.pushHistory());
 
   // 본문 타입 + 크기
   const bodyEl   = block.querySelector('.sbb-body');
@@ -748,21 +781,82 @@ function showStripBannerProperties(block) {
     if (bodyEl) bodyEl.style.fontWeight = preset.weight;
     applyBodySize(preset.size);
     document.querySelectorAll('[data-body-type]').forEach(b => b.classList.toggle('active', b.dataset.bodyType === type));
-    pushHistory();
+    window.pushHistory();
   };
   document.querySelectorAll('[data-body-type]').forEach(btn =>
     btn.addEventListener('click', () => applyBodyType(btn.dataset.bodyType))
   );
   bsSlider.addEventListener('input',  () => applyBodySize(parseInt(bsSlider.value)));
-  bsNumber.addEventListener('change', () => { applyBodySize(parseInt(bsNumber.value)); pushHistory(); });
-  bsSlider.addEventListener('change', () => pushHistory());
+  bsNumber.addEventListener('change', () => { applyBodySize(parseInt(bsNumber.value)); window.pushHistory(); });
+  bsSlider.addEventListener('change', () => window.pushHistory());
+
+  // 제목 글자색
+  const titleColorInput = document.getElementById('sbb-title-color');
+  const titleColorHex   = document.getElementById('sbb-title-color-hex');
+  const titleColorSwatch = titleColorInput?.closest('.prop-color-swatch');
+  const applyTitleColor = val => {
+    block.dataset.titleColor = val;
+    if (headingEl) headingEl.style.color = val;
+    if (titleColorSwatch) titleColorSwatch.style.background = val;
+    if (titleColorInput) titleColorInput.value = val;
+    if (titleColorHex)   titleColorHex.value   = val;
+  };
+  titleColorInput?.addEventListener('input', () => applyTitleColor(titleColorInput.value));
+  titleColorHex?.addEventListener('change', () => {
+    if (/^#[0-9a-fA-F]{6}$/.test(titleColorHex.value)) { applyTitleColor(titleColorHex.value); window.pushHistory(); }
+  });
+  titleColorInput?.addEventListener('change', () => window.pushHistory());
+
+  // 본문 글자색
+  const bodyColorInput  = document.getElementById('sbb-body-color');
+  const bodyColorHex    = document.getElementById('sbb-body-color-hex');
+  const bodyColorSwatch = bodyColorInput?.closest('.prop-color-swatch');
+  const applyBodyColor = val => {
+    block.dataset.bodyColor = val;
+    block.querySelectorAll('.sbb-body').forEach(el => el.style.color = val);
+    if (bodyColorSwatch) bodyColorSwatch.style.background = val;
+    if (bodyColorInput) bodyColorInput.value = val;
+    if (bodyColorHex)   bodyColorHex.value   = val;
+  };
+  bodyColorInput?.addEventListener('input', () => applyBodyColor(bodyColorInput.value));
+  bodyColorHex?.addEventListener('change', () => {
+    if (/^#[0-9a-fA-F]{6}$/.test(bodyColorHex.value)) { applyBodyColor(bodyColorHex.value); window.pushHistory(); }
+  });
+  bodyColorInput?.addEventListener('change', () => window.pushHistory());
+
+  // sbb-gap 드래그 리사이즈 바인딩
+  const bindSbbGaps = () => {
+    block.querySelectorAll('.sbb-gap').forEach(gap => {
+      if (gap._sbbGapBound) return;
+      gap._sbbGapBound = true;
+      gap.addEventListener('mousedown', e => {
+        if (!block.classList.contains('selected')) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const startY = e.clientY;
+        const startH = parseInt(gap.style.height) || 12;
+        const onMove = ev => {
+          const newH = Math.max(0, Math.min(120, startH + (ev.clientY - startY)));
+          gap.style.height = newH + 'px';
+        };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          window.pushHistory();
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+  };
+  bindSbbGaps();
 
   // 텍스트 정렬
   const applyStripAlign = a => {
     block.dataset.textAlign = a;
     block.querySelectorAll('.sbb-heading, .sbb-body').forEach(el => el.style.textAlign = a);
     document.querySelectorAll('#sbb-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
-    pushHistory();
+    window.pushHistory();
   };
   document.querySelectorAll('#sbb-align-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => applyStripAlign(btn.dataset.align));
@@ -772,25 +866,32 @@ function showStripBannerProperties(block) {
   const applyImgPos = pos => {
     block.dataset.imgPos = pos;
     document.querySelectorAll('#sbb-imgpos-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.pos === pos));
-    pushHistory();
+    window.pushHistory();
   };
   document.querySelectorAll('#sbb-imgpos-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => applyImgPos(btn.dataset.pos));
   });
 
-  // padX 토글
+  // padX 토글 — sbb-content 에만 적용 (이미지는 full-bleed 유지)
+  const sbbContentEl2 = block.querySelector('.sbb-content');
+  const applyPadX = checked => {
+    block.dataset.usePadx = checked ? 'true' : 'false';
+    if (sbbContentEl2) {
+      sbbContentEl2.style.paddingLeft  = checked ? state.pageSettings.padX + 'px' : '24px';
+      sbbContentEl2.style.paddingRight = checked ? state.pageSettings.padX + 'px' : '24px';
+    }
+  };
+  applyPadX(usePadX); // 현재 상태 반영
   document.getElementById('sbb-padx-toggle').addEventListener('change', e => {
-    block.dataset.usePadx = e.target.checked ? 'true' : 'false';
-    block.style.paddingLeft  = e.target.checked ? pageSettings.padX + 'px' : '';
-    block.style.paddingRight = e.target.checked ? pageSettings.padX + 'px' : '';
-    pushHistory();
+    applyPadX(e.target.checked);
+    window.pushHistory();
   });
 
   // 텍스트 행 추가/제거
   const sbbContent = block.querySelector('.sbb-content');
 
   const bindSbbRowDrag = (sbbContent) => {
-    let sbbRowSrc = null;
+    // sbbRowSrc를 element에 저장해 여러 번 호출해도 동일한 상태 공유
     [...sbbContent.children].forEach(row => {
       if (row._sbbRowDragBound) return;
       row._sbbRowDragBound = true;
@@ -798,18 +899,18 @@ function showStripBannerProperties(block) {
       row.style.cursor = 'grab';
       row.addEventListener('dragstart', e => {
         e.stopPropagation();
-        sbbRowSrc = row;
+        sbbContent._sbbRowSrc = row;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', '');
         setTimeout(() => row.style.opacity = '0.4', 0);
       });
-      row.addEventListener('dragend', () => { row.style.opacity = ''; sbbRowSrc = null; sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove()); });
+      row.addEventListener('dragend', () => { row.style.opacity = ''; sbbContent._sbbRowSrc = null; sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove()); });
     });
     if (sbbContent._sbbDropBound) return;
     sbbContent._sbbDropBound = true;
     sbbContent.addEventListener('dragover', e => {
       e.preventDefault(); e.stopPropagation();
-      if (!sbbRowSrc) return;
+      if (!sbbContent._sbbRowSrc) return;
       sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove());
       const rows = [...sbbContent.children].filter(el => !el.classList.contains('sbb-row-indicator'));
       const after = rows.reduce((closest, child) => {
@@ -828,32 +929,34 @@ function showStripBannerProperties(block) {
     });
     sbbContent.addEventListener('drop', e => {
       e.preventDefault(); e.stopPropagation();
-      if (!sbbRowSrc) return;
+      if (!sbbContent._sbbRowSrc) return;
       const ind = sbbContent.querySelector('.sbb-row-indicator');
-      if (ind) { sbbContent.insertBefore(sbbRowSrc, ind); ind.remove(); }
-      sbbRowSrc.style.opacity = '';
-      sbbRowSrc = null;
-      pushHistory();
+      if (ind) { sbbContent.insertBefore(sbbContent._sbbRowSrc, ind); ind.remove(); }
+      sbbContent._sbbRowSrc.style.opacity = '';
+      sbbContent._sbbRowSrc = null;
+      window.pushHistory();
     });
   };
   if (sbbContent) bindSbbRowDrag(sbbContent);
 
   document.getElementById('sbb-add-row-btn').addEventListener('click', () => {
-    const newRow = document.createElement('div');
-    newRow.className = 'sbb-body';
-    newRow.setAttribute('contenteditable', 'false');
-    newRow.style.textAlign = block.dataset.textAlign || 'left';
-    if (sbbContent) { sbbContent.appendChild(newRow); bindSbbRowDrag(sbbContent); }
-    pushHistory();
+    if (!sbbContent) return;
+    const newGap = document.createElement('div');
+    newGap.className = 'sbb-gap';
+    newGap.style.height = '8px';
+    sbbContent.appendChild(newGap);
+    bindSbbRowDrag(sbbContent);
+    bindSbbGaps();
+    window.pushHistory();
   });
   document.getElementById('sbb-remove-row-btn').addEventListener('click', () => {
     if (!sbbContent) return;
-    const rows = [...sbbContent.children].filter(el => !el.classList.contains('sbb-row-indicator'));
-    if (rows.length > 1) { rows[rows.length - 1].remove(); pushHistory(); }
+    const gaps = [...sbbContent.querySelectorAll('.sbb-gap')];
+    if (gaps.length > 0) { gaps[gaps.length - 1].remove(); window.pushHistory(); }
   });
 }
 
-function showGraphProperties(block) {
+export function showGraphProperties(block) {
   const chartType  = block.dataset.chartType  || 'bar-v';
   const preset     = block.dataset.preset     || 'default';
   const items      = JSON.parse(block.dataset.items || '[]');
@@ -877,7 +980,10 @@ function showGraphProperties(block) {
             <rect x="9" y="4" width="2" height="7" rx="0.5"/>
           </svg>
         </div>
-        <span class="prop-block-name">Graph Block</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Graph Block</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
+        </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
@@ -984,8 +1090,8 @@ function showGraphProperties(block) {
     hSlider.value = v; hNumber.value = v;
   };
   hSlider.addEventListener('input',  () => applyChartH(parseInt(hSlider.value)));
-  hNumber.addEventListener('change', () => { applyChartH(parseInt(hNumber.value)); pushHistory(); });
-  hSlider.addEventListener('change', () => pushHistory());
+  hNumber.addEventListener('change', () => { applyChartH(parseInt(hNumber.value)); window.pushHistory(); });
+  hSlider.addEventListener('change', () => window.pushHistory());
 
   // 라벨 크기
   const lSlider = document.getElementById('grb-label-slider');
@@ -997,11 +1103,11 @@ function showGraphProperties(block) {
     lSlider.value = v; lNumber.value = v;
   };
   lSlider.addEventListener('input',  () => applyLabelSize(parseInt(lSlider.value)));
-  lNumber.addEventListener('change', () => { applyLabelSize(parseInt(lNumber.value)); pushHistory(); });
-  lSlider.addEventListener('change', () => pushHistory());
+  lNumber.addEventListener('change', () => { applyLabelSize(parseInt(lNumber.value)); window.pushHistory(); });
+  lSlider.addEventListener('change', () => window.pushHistory());
 }
 
-function showDividerProperties(block) {
+export function showDividerProperties(block) {
   const lineColor  = block.dataset.lineColor  || '#cccccc';
   const lineStyle  = block.dataset.lineStyle  || 'solid';
   const lineWeight = parseInt(block.dataset.lineWeight) || 1;
@@ -1015,7 +1121,10 @@ function showDividerProperties(block) {
             <line x1="1" y1="6" x2="11" y2="6"/>
           </svg>
         </div>
-        <span class="prop-block-name">Divider</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Divider</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
+        </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">선 스타일</div>
@@ -1061,19 +1170,19 @@ function showDividerProperties(block) {
     colorSwatch.style.background = colorPicker.value;
     applyAll();
   });
-  colorPicker.addEventListener('change', () => pushHistory());
+  colorPicker.addEventListener('change', () => window.pushHistory());
   colorHex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(colorHex.value)) {
       block.dataset.lineColor = colorHex.value;
       colorPicker.value = colorHex.value;
       colorSwatch.style.background = colorHex.value;
-      applyAll(); pushHistory();
+      applyAll(); window.pushHistory();
     }
   });
 
   document.getElementById('dvd-style').addEventListener('change', e => {
     block.dataset.lineStyle = e.target.value;
-    applyAll(); pushHistory();
+    applyAll(); window.pushHistory();
   });
 
   const wSlider = document.getElementById('dvd-weight-slider');
@@ -1085,8 +1194,8 @@ function showDividerProperties(block) {
     wSlider.value = v; wNumber.value = v;
   };
   wSlider.addEventListener('input',  () => applyWeight(parseInt(wSlider.value)));
-  wNumber.addEventListener('change', () => { applyWeight(parseInt(wNumber.value)); pushHistory(); });
-  wSlider.addEventListener('change', () => pushHistory());
+  wNumber.addEventListener('change', () => { applyWeight(parseInt(wNumber.value)); window.pushHistory(); });
+  wSlider.addEventListener('change', () => window.pushHistory());
 
   const pySlider = document.getElementById('dvd-pady-slider');
   const pyNumber = document.getElementById('dvd-pady-number');
@@ -1097,6 +1206,15 @@ function showDividerProperties(block) {
     pySlider.value = v; pyNumber.value = v;
   };
   pySlider.addEventListener('input',  () => applyPadV(parseInt(pySlider.value)));
-  pyNumber.addEventListener('change', () => { applyPadV(parseInt(pyNumber.value)); pushHistory(); });
-  pySlider.addEventListener('change', () => pushHistory());
+  pyNumber.addEventListener('change', () => { applyPadV(parseInt(pyNumber.value)); window.pushHistory(); });
+  pySlider.addEventListener('change', () => window.pushHistory());
 }
+
+// Backward compat: classic scripts call these via window.*
+window.showIconCircleProperties  = showIconCircleProperties;
+window.showTableProperties       = showTableProperties;
+window.showGapProperties         = showGapProperties;
+window.showCardProperties        = showCardProperties;
+window.showStripBannerProperties = showStripBannerProperties;
+window.showGraphProperties       = showGraphProperties;
+window.showDividerProperties     = showDividerProperties;

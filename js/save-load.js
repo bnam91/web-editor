@@ -1,3 +1,5 @@
+import { canvasEl, canvasWrap, state, PAGE_LABELS } from './globals.js';
+
 /* ══════════════════════════════════════
    저장 / 불러오기
 ══════════════════════════════════════ */
@@ -232,7 +234,7 @@ async function switchTab(id) {
 async function closeTab(id) {
   const idx = openTabs.findIndex(t => t.id === id);
   if (idx === -1) return;
-  if (openTabs.length === 1) { goHome(); return; }
+  if (openTabs.length === 1) { openTabs = []; saveTabState(); goHome(); return; }
   if (id === activeProjectId) {
     const nextTab = openTabs[idx + 1] || openTabs[idx - 1];
     await switchTab(nextTab.id);
@@ -245,7 +247,7 @@ async function closeTab(id) {
 async function openTabForProject(id) {
   if (openTabs.find(t => t.id === id)) { await switchTab(id); return; }
   if (openTabs.length >= MAX_TABS) {
-    showToast(`탭은 최대 ${MAX_TABS}개까지 열 수 있어요`);
+    window.showToast(`탭은 최대 ${MAX_TABS}개까지 열 수 있어요`);
     return;
   }
   let name = 'Untitled';
@@ -259,6 +261,49 @@ async function openTabForProject(id) {
   openTabs.push({ id, name });
   await switchTab(id);
 }
+
+/* ── 새 프로젝트를 직접 생성하고 탭으로 열기 ── */
+async function createNewProjectTab() {
+  document.getElementById('tab-add-wrap').classList.remove('open');
+  if (openTabs.length >= MAX_TABS) {
+    window.showToast(`탭은 최대 ${MAX_TABS}개까지 열 수 있어요`);
+    return;
+  }
+  const id = 'proj_' + Date.now();
+  const now = new Date().toISOString();
+  const emptySnap = JSON.stringify({
+    version: 2, currentPageId: 'page_1',
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 32, padY: 32 }, canvas: '' }]
+  });
+  const proj = {
+    id, name: 'Untitled',
+    createdAt: now, updatedAt: now,
+    version: 2,
+    currentPageId: 'page_1',
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 32, padY: 32 }, canvas: '' }],
+    currentBranch: 'dev',
+    branches: {
+      main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
+      dev:  { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() }
+    }
+  };
+  if (IS_ELECTRON) {
+    await window.electronAPI.saveProject(proj);
+  } else {
+    const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+    list.push(proj);
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+  }
+  await openTabForProject(id);
+}
+
+const NEW_PROJECT_BTN_HTML = `
+  <div class="tab-add-item tab-add-new" onclick="createNewProjectTab()">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
+    </svg>
+    <span class="tab-add-item-name">새 프로젝트 만들기</span>
+  </div>`;
 
 /* ── + 버튼 드롭다운 ── */
 async function toggleTabAddMenu(e) {
@@ -282,12 +327,7 @@ async function toggleTabAddMenu(e) {
   list = list.filter(p => !openIds.has(p.id)).slice(0, 12);
 
   if (!list.length) {
-    menu.innerHTML = `<div class="tab-add-item tab-add-new" onclick="goHome()">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
-      </svg>
-      <span class="tab-add-item-name">새 프로젝트 만들기</span>
-    </div>`;
+    menu.innerHTML = NEW_PROJECT_BTN_HTML;
     return;
   }
 
@@ -301,13 +341,41 @@ async function toggleTabAddMenu(e) {
       <span class="tab-add-item-name">${p.name}</span>
       <span class="tab-add-item-date">${date}</span>
     </div>`;
-  }).join('');
+  }).join('') + NEW_PROJECT_BTN_HTML;
+}
+
+/* ── 썸네일 생성 (첫 섹션 캡처 → base64, 200px 너비 축소) ── */
+async function captureThumbnail() {
+  try {
+    const firstSec = canvasEl?.querySelector('.section-block');
+    if (!firstSec || typeof html2canvas === 'undefined') return null;
+
+    const clone = firstSec.cloneNode(true);
+    clone.querySelector?.('.section-label')?.remove();
+    clone.querySelector?.('.section-toolbar')?.remove();
+    clone.classList.remove('selected');
+    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;';
+    document.body.appendChild(clone);
+
+    const bgColor = firstSec.style.background || firstSec.style.backgroundColor || '#ffffff';
+    const canvas = await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false });
+    document.body.removeChild(clone);
+
+    // 200px 너비로 축소
+    const thumb = document.createElement('canvas');
+    const ratio = 200 / canvas.width;
+    thumb.width = 200;
+    thumb.height = Math.round(canvas.height * ratio);
+    thumb.getContext('2d').drawImage(canvas, 0, 0, thumb.width, thumb.height);
+    return thumb.toDataURL('image/jpeg', 0.7);
+  } catch { return null; }
 }
 
 /* ── 프로젝트 파일 저장 (Electron: projects/{id}.json, 브라우저: localStorage) ── */
-async function saveProjectToFile(snapshot) {
+async function saveProjectToFile(snapshot, opts = {}) {
   if (!activeProjectId) return;
   const data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+  const thumbnail = opts.skipThumbnail ? null : await captureThumbnail();
 
   if (IS_ELECTRON) {
     const existing = await window.electronAPI.loadProject(activeProjectId);
@@ -317,12 +385,17 @@ async function saveProjectToFile(snapshot) {
       id: activeProjectId,
       name: existing?.name || data.name || 'Untitled',
       updatedAt: new Date().toISOString(),
+      ...(thumbnail ? { thumbnail } : {}),
     };
     await window.electronAPI.saveProject(proj);
   } else {
     const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
     const proj = list.find(p => p.id === activeProjectId);
-    if (proj) { proj.snapshot = data; proj.updatedAt = new Date().toISOString(); }
+    if (proj) {
+      proj.snapshot = data;
+      proj.updatedAt = new Date().toISOString();
+      if (thumbnail) proj.thumbnail = thumbnail;
+    }
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
   }
 }
@@ -355,72 +428,72 @@ async function setProjectName(name) {
   }
 }
 
-function goHome() {
+async function goHome() {
   const curTab = openTabs.find(t => t.id === activeProjectId);
   if (curTab) curTab._cache = serializeProject();
-  saveProjectToFile(serializeProject());
+  await saveProjectToFile(serializeProject()); // 홈으로 나갈 때 썸네일 캡처
   saveTabState();
   window.location.href = 'pages/projects.html';
 }
 
 /* ── Page Management ── */
 function getCurrentPage() {
-  return pages.find(p => p.id === currentPageId) || pages[0];
+  return state.pages.find(p => p.id === state.currentPageId) || state.pages[0];
 }
 
 function flushCurrentPage() {
   const page = getCurrentPage();
   if (!page) return;
   page.canvas = getSerializedCanvas();
-  page.pageSettings = { ...pageSettings };
+  page.pageSettings = { ...state.pageSettings };
 }
 
 function switchPage(pageId) {
-  if (pageId === currentPageId) return;
+  if (pageId === state.currentPageId) return;
   flushCurrentPage();
-  _suppressAutoSave = true;
-  currentPageId = pageId;
+  state._suppressAutoSave = true;
+  state.currentPageId = pageId;
   const page = getCurrentPage();
-  if (page.pageSettings) Object.assign(pageSettings, page.pageSettings);
+  if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
   canvasEl.innerHTML = page.canvas || '';
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
   rebindAll();
   applyPageSettings();
-  deselectAll();
-  showPageProperties();
-  buildLayerPanel(); // also calls buildFilePageSection
-  _suppressAutoSave = false;
+  window.deselectAll();
+  window.showPageProperties();
+  window.buildLayerPanel(); // also calls buildFilePageSection
+  state._suppressAutoSave = false;
   scheduleAutoSave();
 }
 
 function addPage() {
   flushCurrentPage();
   const id = 'page_' + Date.now();
-  const n = pages.length + 1;
-  pages.push({ id, name: `Page ${n}`, label: '', pageSettings: { ...pageSettings }, canvas: '' });
+  const n = state.pages.length + 1;
+  state.pages.push({ id, name: `Page ${n}`, label: '', pageSettings: { ...state.pageSettings }, canvas: '' });
   switchPage(id);
 }
 
 function deletePage(pageId) {
-  if (pages.length <= 1) { showToast('⚠️ 페이지가 1개 이상이어야 합니다.'); return; }
-  const idx = pages.findIndex(p => p.id === pageId);
+  if (state.pages.length <= 1) { window.showToast('⚠️ 페이지가 1개 이상이어야 합니다.'); return; }
+  const idx = state.pages.findIndex(p => p.id === pageId);
   if (idx === -1) return;
-  const wasActive = pageId === currentPageId;
-  pages.splice(idx, 1);
+  const wasActive = pageId === state.currentPageId;
+  state.pages.splice(idx, 1);
   if (wasActive) {
-    const next = pages[Math.min(idx, pages.length - 1)];
-    _suppressAutoSave = true;
-    currentPageId = next.id;
-    if (next.pageSettings) Object.assign(pageSettings, next.pageSettings);
+    const next = state.pages[Math.min(idx, state.pages.length - 1)];
+    state._suppressAutoSave = true;
+    state.currentPageId = next.id;
+    if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
     canvasEl.innerHTML = next.canvas || '';
     canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
     rebindAll();
     applyPageSettings();
-    deselectAll();
-    showPageProperties();
-    _suppressAutoSave = false;
+    window.deselectAll();
+    window.showPageProperties();
+    state._suppressAutoSave = false;
   }
-  buildLayerPanel();
+  window.buildLayerPanel();
   scheduleAutoSave();
 }
 
@@ -429,10 +502,10 @@ function buildFilePageSection() {
   if (!container) return;
   container.innerHTML = '';
 
-  pages.forEach(page => {
-    const isActive = page.id === currentPageId;
+  state.pages.forEach(page => {
+    const isActive = page.id === state.currentPageId;
 
-    const bg = (isActive ? pageSettings.bg : page.pageSettings?.bg) || '#969696';
+    const bg = (isActive ? state.pageSettings.bg : page.pageSettings?.bg) || '#969696';
 
     const item = document.createElement('div');
     item.className = 'file-page-item' + (isActive ? ' active' : '');
@@ -498,14 +571,14 @@ function buildFilePageSection() {
     copyBtn.addEventListener('click', e => {
       e.stopPropagation();
       flushCurrentPage();
-      const srcPage = pages.find(p => p.id === page.id);
+      const srcPage = state.pages.find(p => p.id === page.id);
       if (!srcPage) return;
       const newId = 'page_' + Date.now();
       const copy = JSON.parse(JSON.stringify(srcPage)); // deep copy
       copy.id = newId;
       copy.name = srcPage.name + ' 사본';
-      const srcIdx = pages.findIndex(p => p.id === page.id);
-      pages.splice(srcIdx + 1, 0, copy);
+      const srcIdx = state.pages.findIndex(p => p.id === page.id);
+      state.pages.splice(srcIdx + 1, 0, copy);
       buildFilePageSection();
       scheduleAutoSave();
     });
@@ -550,14 +623,14 @@ function buildFilePageSection() {
       container.querySelectorAll('.page-drop-indicator').forEach(el => el.remove());
       const srcId = e.dataTransfer.getData('text/plain');
       if (srcId === page.id) return;
-      const srcIdx = pages.findIndex(p => p.id === srcId);
-      const tgtIdx = pages.findIndex(p => p.id === page.id);
+      const srcIdx = state.pages.findIndex(p => p.id === srcId);
+      const tgtIdx = state.pages.findIndex(p => p.id === page.id);
       if (srcIdx === -1 || tgtIdx === -1) return;
       const rect = item.getBoundingClientRect();
       const after = e.clientY > rect.top + rect.height / 2;
-      const [moved] = pages.splice(srcIdx, 1);
-      const insertAt = pages.findIndex(p => p.id === page.id) + (after ? 1 : 0);
-      pages.splice(insertAt, 0, moved);
+      const [moved] = state.pages.splice(srcIdx, 1);
+      const insertAt = state.pages.findIndex(p => p.id === page.id) + (after ? 1 : 0);
+      state.pages.splice(insertAt, 0, moved);
       buildFilePageSection();
       scheduleAutoSave();
     });
@@ -580,10 +653,10 @@ function buildFilePageSection() {
     e.preventDefault();
     container.querySelectorAll('.page-drop-indicator').forEach(el => el.remove());
     const srcId = e.dataTransfer.getData('text/plain');
-    const srcIdx = pages.findIndex(p => p.id === srcId);
+    const srcIdx = state.pages.findIndex(p => p.id === srcId);
     if (srcIdx === -1) return;
-    const [moved] = pages.splice(srcIdx, 1);
-    pages.push(moved);
+    const [moved] = state.pages.splice(srcIdx, 1);
+    state.pages.push(moved);
     buildFilePageSection();
     scheduleAutoSave();
   });
@@ -603,50 +676,53 @@ function getSerializedCanvas() {
 
 function serializeProject() {
   flushCurrentPage();
-  return JSON.stringify({ version: 2, currentPageId, pages });
+  return JSON.stringify({ version: 2, currentPageId: state.currentPageId, pages: state.pages });
 }
 
 function applyProjectData(data) {
   if (data.version === 2 && Array.isArray(data.pages)) {
-    pages = data.pages;
-    currentPageId = data.currentPageId || data.pages[0]?.id;
+    state.pages = data.pages;
+    state.currentPageId = data.currentPageId || data.pages[0]?.id;
   } else {
     // v1 backward compat
     const id = 'page_1';
-    pages = [{ id, name: 'Page 1', label: '', pageSettings: data.pageSettings || { ...pageSettings }, canvas: data.canvas || '' }];
-    currentPageId = id;
+    state.pages = [{ id, name: 'Page 1', label: '', pageSettings: data.pageSettings || { ...state.pageSettings }, canvas: data.canvas || '' }];
+    state.currentPageId = id;
   }
   const page = getCurrentPage();
-  if (page.pageSettings) Object.assign(pageSettings, page.pageSettings);
+  if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
   canvasEl.innerHTML = page.canvas || '';
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
   rebindAll();
   applyPageSettings();
-  buildLayerPanel(); // also calls buildFilePageSection
-  showPageProperties();
+  window.buildLayerPanel(); // also calls buildFilePageSection
+  window.showPageProperties();
 }
 
 function applyPageSettings() {
-  canvasWrap.style.background = pageSettings.bg;
-  canvasEl.style.gap = pageSettings.gap + 'px';
+  canvasWrap.style.background = state.pageSettings.bg;
+  canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-    tb.style.paddingLeft  = pageSettings.padX + 'px';
-    tb.style.paddingRight = pageSettings.padX + 'px';
+    tb.style.paddingLeft  = state.pageSettings.padX + 'px';
+    tb.style.paddingRight = state.pageSettings.padX + 'px';
   });
   canvasEl.querySelectorAll('.text-block:not(.overlay-tb)').forEach(tb => {
     if (tb.dataset.type !== 'label') {
-      tb.style.paddingTop    = pageSettings.padY + 'px';
-      tb.style.paddingBottom = pageSettings.padY + 'px';
+      tb.style.paddingTop    = state.pageSettings.padY + 'px';
+      tb.style.paddingBottom = state.pageSettings.padY + 'px';
     }
   });
-  if (pageSettings.padX > 0) {
+  if (state.pageSettings.padX > 0) {
     canvasEl.querySelectorAll('.card-block, .graph-block').forEach(b => {
-      b.style.paddingLeft  = pageSettings.padX + 'px';
-      b.style.paddingRight = pageSettings.padX + 'px';
+      b.style.paddingLeft  = state.pageSettings.padX + 'px';
+      b.style.paddingRight = state.pageSettings.padX + 'px';
     });
-    canvasEl.querySelectorAll('.strip-banner-block[data-use-padx="true"]').forEach(b => {
-      b.style.paddingLeft  = pageSettings.padX + 'px';
-      b.style.paddingRight = pageSettings.padX + 'px';
+    canvasEl.querySelectorAll('.strip-banner-block:not([data-use-padx="false"])').forEach(b => {
+      const sbbContent = b.querySelector('.sbb-content');
+      if (sbbContent) {
+        sbbContent.style.paddingLeft  = state.pageSettings.padX + 'px';
+        sbbContent.style.paddingRight = state.pageSettings.padX + 'px';
+      }
     });
   }
 }
@@ -668,7 +744,7 @@ function rebindAll() {
       sec.style.backgroundPosition = 'center';
       sec.style.backgroundRepeat = 'no-repeat';
     }
-    sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
+    sec.addEventListener('click', e => { e.stopPropagation(); window.selectSection(sec); });
     bindSectionDelete(sec);
     bindSectionOrder(sec);
     bindSectionDrag(sec);
@@ -949,7 +1025,7 @@ async function doCommit() {
   }
 
   document.getElementById('commit-modal-overlay')?.remove();
-  showToast('✅ Committed — ' + message);
+  window.showToast('✅ Committed — ' + message);
 }
 
 async function restoreCommit(id) {
@@ -960,11 +1036,11 @@ async function restoreCommit(id) {
     const proj = await window.electronAPI.loadProject(activeProjectId);
     commit = proj?.commits?.find(c => c.id === id);
   }
-  if (!commit) { showToast('❌ 커밋을 찾을 수 없어요'); return; }
+  if (!commit) { window.showToast('❌ 커밋을 찾을 수 없어요'); return; }
 
   document.getElementById('commit-modal-overlay')?.remove();
   applyProjectData(commit.snapshot);
-  showToast(`↩ 복원됨 — ${commit.message}`);
+  window.showToast(`↩ 복원됨 — ${commit.message}`);
 }
 
 function saveProjectAs() {
@@ -975,7 +1051,7 @@ function saveProjectAs() {
   showFilenameModal(defaultName, name => {
     currentFileName = name;
     _downloadJSON(json, currentFileName);
-    showToast('✅ 저장됨 — ' + currentFileName);
+    window.showToast('✅ 저장됨 — ' + currentFileName);
   });
 }
 
@@ -994,12 +1070,12 @@ function loadProjectFile(e) {
 }
 
 function scheduleAutoSave() {
-  if (_suppressAutoSave) return;
+  if (state._suppressAutoSave) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
     const snap = serializeProject();
     localStorage.setItem(SAVE_KEY, snap);
-    saveProjectToFile(snap); // 파일 기반 저장 (Electron) 또는 localStorage 폴백
+    saveProjectToFile(snap, { skipThumbnail: true }); // 자동저장은 썸네일 캡처 생략
   }, 1500);
 }
 
@@ -1013,19 +1089,19 @@ function initApp() {
     const revertBtn = document.getElementById('revert-btn');
     if (revertBtn) revertBtn.classList.add('has-commit');
   }
-  canvasWrap.style.background = pageSettings.bg;
-  canvasEl.style.gap = pageSettings.gap + 'px';
+  canvasWrap.style.background = state.pageSettings.bg;
+  canvasEl.style.gap = state.pageSettings.gap + 'px';
   document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-    if (pageSettings.padX > 0) { tb.style.paddingLeft = pageSettings.padX + 'px'; tb.style.paddingRight = pageSettings.padX + 'px'; }
+    if (state.pageSettings.padX > 0) { tb.style.paddingLeft = state.pageSettings.padX + 'px'; tb.style.paddingRight = state.pageSettings.padX + 'px'; }
     if (tb.dataset.type !== 'label') {
-      tb.style.paddingTop = pageSettings.padY + 'px';
-      tb.style.paddingBottom = pageSettings.padY + 'px';
+      tb.style.paddingTop = state.pageSettings.padY + 'px';
+      tb.style.paddingBottom = state.pageSettings.padY + 'px';
     }
   });
-  if (pageSettings.padX > 0) {
+  if (state.pageSettings.padX > 0) {
     document.querySelectorAll('.card-block, .strip-banner-block, .graph-block').forEach(b => {
-      b.style.paddingLeft  = pageSettings.padX + 'px';
-      b.style.paddingRight = pageSettings.padX + 'px';
+      b.style.paddingLeft  = state.pageSettings.padX + 'px';
+      b.style.paddingRight = state.pageSettings.padX + 'px';
     });
   }
 
@@ -1064,10 +1140,10 @@ function initApp() {
       try { applyProjectData(data); } catch {}
     }
     function initEmpty() {
-      pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...pageSettings }, canvas: '' }];
-      currentPageId = 'page_1';
-      buildLayerPanel();
-      showPageProperties();
+      state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
+      state.currentPageId = 'page_1';
+      window.buildLayerPanel();
+      window.showPageProperties();
     }
 
     // localStorage에서 이전 탭 상태 복원
@@ -1115,13 +1191,13 @@ function initApp() {
 
   // 브랜치 시스템 초기화
   initBranchStore();
-  setTimeout(() => applyMainLock(getCurrentBranch()), 100);
+  setTimeout(() => window.applyMainLock(getCurrentBranch()), 100);
 
   // File 탭 섹션 토글
-  initFileTabToggle();
+  window.initFileTabToggle();
 
   // 템플릿 패널 초기 렌더 (파일 로드 후)
-  initTemplates().then(() => renderTemplatePanel());
+  initTemplates().then(() => window.renderTemplatePanel());
 
   // Cmd+G 그룹 — capture phase로 브라우저 Find Next 보다 먼저 처리
   document.addEventListener('keydown', e => {
@@ -1157,7 +1233,94 @@ function initApp() {
     if (indicator) canvasEl.insertBefore(sectionDragSrc, indicator);
     else canvasEl.appendChild(sectionDragSrc);
     clearSectionIndicators();
-    buildLayerPanel();
+    window.buildLayerPanel();
     sectionDragSrc = null;
   });
 }
+
+export {
+  saveTabState,
+  renderTabBar,
+  updateProjectNameDisplay,
+  startRenameProject,
+  finishRenameProject,
+  cancelRenameProject,
+  switchTab,
+  closeTab,
+  openTabForProject,
+  toggleTabAddMenu,
+  createNewProjectTab,
+  saveProjectToFile,
+  loadProjectsList,
+  getProjectName,
+  setProjectName,
+  goHome,
+  getCurrentPage,
+  flushCurrentPage,
+  switchPage,
+  addPage,
+  deletePage,
+  buildFilePageSection,
+  getSerializedCanvas,
+  serializeProject,
+  applyProjectData,
+  applyPageSettings,
+  rebindAll,
+  showFilenameModal,
+  saveProject,
+  openCommitModal,
+  filterCommitHistory,
+  doCommit,
+  restoreCommit,
+  saveProjectAs,
+  loadProjectFile,
+  scheduleAutoSave,
+  initApp,
+};
+
+// Backward compat
+window.saveTabState = saveTabState;
+window.renderTabBar = renderTabBar;
+window.updateProjectNameDisplay = updateProjectNameDisplay;
+window.startRenameProject = startRenameProject;
+window.finishRenameProject = finishRenameProject;
+window.cancelRenameProject = cancelRenameProject;
+window.switchTab = switchTab;
+window.closeTab = closeTab;
+window.openTabForProject = openTabForProject;
+window.toggleTabAddMenu = toggleTabAddMenu;
+window.createNewProjectTab = createNewProjectTab;
+window.saveProjectToFile = saveProjectToFile;
+window.loadProjectsList = loadProjectsList;
+window.getProjectName = getProjectName;
+window.setProjectName = setProjectName;
+window.goHome = goHome;
+window.getCurrentPage = getCurrentPage;
+window.flushCurrentPage = flushCurrentPage;
+window.switchPage = switchPage;
+window.addPage = addPage;
+window.deletePage = deletePage;
+window.buildFilePageSection = buildFilePageSection;
+window.getSerializedCanvas = getSerializedCanvas;
+window.serializeProject = serializeProject;
+window.applyProjectData = applyProjectData;
+window.applyPageSettings = applyPageSettings;
+window.rebindAll = rebindAll;
+window.showFilenameModal = showFilenameModal;
+window.saveProject = saveProject;
+window.openCommitModal = openCommitModal;
+window.filterCommitHistory = filterCommitHistory;
+window.doCommit = doCommit;
+window.restoreCommit = restoreCommit;
+window.saveProjectAs = saveProjectAs;
+window.loadProjectFile = loadProjectFile;
+window.scheduleAutoSave = scheduleAutoSave;
+window.initApp = initApp;
+
+// branch-system.js 등 다른 모듈에서 참조하는 변수들 노출
+window.IS_ELECTRON = IS_ELECTRON;
+Object.defineProperty(window, 'activeProjectId', {
+  get: () => activeProjectId,
+  set: (v) => { activeProjectId = v; },
+  configurable: true,
+});

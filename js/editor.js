@@ -1,3 +1,5 @@
+import { canvasEl, propPanel, state } from './globals.js';
+
 /* ═══════════════════════════════════
    PANEL TABS
 ═══════════════════════════════════ */
@@ -16,8 +18,8 @@ function switchToTab(tabName) {
   document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? '' : 'none';
   const collapseBtn = document.getElementById('layer-collapse-all');
   if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
-  if (tabName === 'branch') renderBranchPanel();
-  if (tabName === 'inspector') renderInspectorPanel();
+  if (tabName === 'branch') window.renderBranchPanel();
+  if (tabName === 'inspector') window.renderInspectorPanel();
 }
 
 function initFileTabToggle() {
@@ -58,23 +60,40 @@ let historyStack = [];
 let historyPos   = -1;
 let _historyPaused = false;
 
-function pushHistory() {
+function pushHistory(action = '작업') {
   if (_historyPaused) return;
   historyStack = historyStack.slice(0, historyPos + 1);
-  historyStack.push({ canvas: getSerializedCanvas(), settings: { ...pageSettings } });
+  historyStack.push({ canvas: getSerializedCanvas(), settings: { ...state.pageSettings }, action });
   if (historyStack.length > MAX_HISTORY) historyStack.shift();
   else historyPos++;
+  _updateUndoRedoBtns();
+}
+
+function _updateUndoRedoBtns() {
+  const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
+  if (undoBtn) {
+    const canUndo = historyPos > 0;
+    undoBtn.disabled = !canUndo;
+    undoBtn.title = canUndo ? `실행 취소: ${historyStack[historyPos].action}` : '실행 취소 없음';
+  }
+  if (redoBtn) {
+    const canRedo = historyPos < historyStack.length - 1;
+    redoBtn.disabled = !canRedo;
+    redoBtn.title = canRedo ? `다시 실행: ${historyStack[historyPos + 1]?.action || ''}` : '다시 실행 없음';
+  }
 }
 
 function restoreSnapshot(snap) {
   _historyPaused = true;
-  Object.assign(pageSettings, snap.settings);
+  Object.assign(state.pageSettings, snap.settings);
   canvasEl.innerHTML = snap.canvas;
   rebindAll();
   applyPageSettings();
-  buildLayerPanel();
+  window.buildLayerPanel();
   deselectAll();
   _historyPaused = false;
+  _updateUndoRedoBtns();
 }
 
 function undo() {
@@ -88,13 +107,27 @@ function redo() {
   restoreSnapshot(historyStack[historyPos]);
 }
 
+/* ══ 브레드크럼 헬퍼 ══ */
+function getBlockBreadcrumb(el) {
+  const sec = el.closest('.section-block');
+  if (!sec) return '';
+  const sections = [...document.querySelectorAll('.section-block')];
+  const sIdx = sections.indexOf(sec) + 1;
+  const row = el.classList.contains('row') ? el : el.closest('.row');
+  if (!row) return `Section ${sIdx}`;
+  const inner = sec.querySelector('.section-inner');
+  const rows = inner ? [...inner.querySelectorAll(':scope > .row')] : [];
+  const rIdx = rows.indexOf(row) + 1;
+  return `Section ${sIdx}  ·  Row ${rIdx}`;
+}
+
 /* ══════════════════════════════════════
    복사 / 붙여넣기
 ══════════════════════════════════════ */
 let clipboard = null;
 
 function copySelected() {
-  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected');
+  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected');
   const selSection = document.querySelector('.section-block.selected');
   if (selBlock) {
     const isGapSel = selBlock.classList.contains('gap-block');
@@ -118,7 +151,7 @@ function pasteClipboard() {
     bindSectionOrder(el);
     bindSectionDrag(el);
     bindSectionDropZone(el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
+    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => window.bindBlock(b));
     el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
       const col = ph.parentElement;
       col.replaceChild(makeColPlaceholder(col), ph);
@@ -128,13 +161,13 @@ function pasteClipboard() {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
     insertAfterSelected(sec, el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
+    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => window.bindBlock(b));
     el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
       const col = ph.parentElement;
       col.replaceChild(makeColPlaceholder(col), ph);
     });
   }
-  buildLayerPanel();
+  window.buildLayerPanel();
 }
 
 document.addEventListener('keydown', e => {
@@ -171,6 +204,36 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') deselectAll();
 
+  // ── 키보드 Nudge: 블록 이동 (편집 중이거나 입력 포커스 시 무시) ──
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey) {
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    const selBlock = document.querySelector(
+      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+      '.card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected'
+    );
+    const selSection = document.querySelector('.section-block.selected');
+    const moveTarget = selBlock
+      ? (selBlock.classList.contains('gap-block') ? selBlock : (selBlock.closest('.row') || selBlock))
+      : selSection;
+    if (moveTarget) {
+      e.preventDefault();
+      const parent = moveTarget.parentElement;
+      if (!parent) return;
+      if (e.key === 'ArrowUp') {
+        const prev = moveTarget.previousElementSibling;
+        if (prev && !prev.classList.contains('drop-indicator')) parent.insertBefore(moveTarget, prev);
+      } else {
+        const next = moveTarget.nextElementSibling;
+        if (next && !next.classList.contains('drop-indicator')) parent.insertBefore(next, moveTarget);
+      }
+      window.buildLayerPanel();
+      pushHistory('블록 이동');
+      return;
+    }
+  }
+
   const isDelete = e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey));
   if (isDelete) {
     // 텍스트 편집 중이거나 input에 포커스가 있으면 기본 동작 유지
@@ -205,13 +268,13 @@ document.addEventListener('keydown', e => {
       });
       rowsToRemove.forEach(r => r.remove());
       deselectAll();
-      buildLayerPanel();
+      window.buildLayerPanel();
     } else if (selSection) {
       e.preventDefault();
       pushHistory();
       selSection.remove();
       deselectAll();
-      buildLayerPanel();
+      window.buildLayerPanel();
     }
   }
 });
@@ -257,7 +320,8 @@ const PRESET_FALLBACK = [
   },
   {
     id: 'dark', name: 'Dark',
-    dots: ['#ffffff', '#aaaaaa', '#2d6fe8'],
+    dots: ['#1a1a1a', '#ffffff', '#2d6fe8'],
+    backgroundColor: '#1a1a1a',
     variables: {
       '--preset-h1-color': '#ffffff', '--preset-h1-family': "'Noto Sans KR', sans-serif",
       '--preset-h2-color': '#eeeeee', '--preset-h2-family': "'Noto Sans KR', sans-serif",
@@ -325,6 +389,10 @@ function applyPreset(sec, presetId) {
     Object.entries(preset.variables).forEach(([k, v]) => sec.style.setProperty(k, v));
     sec.dataset.preset = presetId;
   }
+  // 프리셋 배경색 적용 (정의된 경우에만)
+  if (preset?.backgroundColor) {
+    sec.style.backgroundColor = preset.backgroundColor;
+  }
   pushHistory();
 }
 
@@ -335,6 +403,7 @@ function showSectionProperties(sec) {
     : '#ffffff';
   const hasBgImg  = !!sec.dataset.bgImg;
   const bgSize    = sec.dataset.bgSize || 'cover';
+  const secPadB   = parseInt(sec.style.paddingBottom) || 0;
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row" style="margin-top:6px;">
       <span class="prop-label">사이즈</span>
@@ -395,7 +464,10 @@ function showSectionProperties(sec) {
             <rect x="1" y="1" width="10" height="10" rx="1.5"/>
           </svg>
         </div>
-        <span class="prop-block-name">Section</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Section</span>
+          <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
+        </div>
       </div>
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-grid">${presetGridHTML}</div>
@@ -437,6 +509,14 @@ function showSectionProperties(sec) {
       </div>
     </div>
     <div class="prop-section">
+      <div class="prop-section-title">여백</div>
+      <div class="prop-row">
+        <span class="prop-label">아래 여백</span>
+        <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
+        <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">내보내기</div>
       <select class="prop-select" id="sec-export-format" style="width:100%;margin-bottom:6px;">
         <option value="png">PNG</option>
@@ -468,6 +548,21 @@ function showSectionProperties(sec) {
       <input type="text" id="sec-tpl-name" class="tpl-name-input" placeholder="템플릿 이름 입력">
       <button class="prop-action-btn primary" id="sec-tpl-save-btn" style="margin-top:6px;">템플릿으로 저장</button>
     </div>`;
+
+  // 아래 여백 이벤트
+  const padBSlider = document.getElementById('sec-padb-slider');
+  const padBNumber = document.getElementById('sec-padb-number');
+  if (padBSlider) {
+    const applyPadB = v => {
+      v = Math.min(200, Math.max(0, isNaN(v) ? 0 : v));
+      sec.style.paddingBottom = v ? v + 'px' : '';
+      padBSlider.value = v;
+      padBNumber.value = v || '';
+    };
+    padBSlider.addEventListener('input',  e => applyPadB(parseInt(e.target.value)));
+    padBSlider.addEventListener('change', () => pushHistory('섹션 여백'));
+    padBNumber.addEventListener('change', e => { applyPadB(parseInt(e.target.value)); pushHistory('섹션 여백'); });
+  }
 
   // 배경색 이벤트
   const picker = document.getElementById('sec-bg-color');
@@ -533,8 +628,7 @@ function showSectionProperties(sec) {
   propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       applyPreset(sec, btn.dataset.presetId);
-      propPanel.querySelectorAll('.prop-preset-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      showSectionProperties(sec);
     });
   });
 
@@ -655,7 +749,8 @@ function deselectAll() {
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
   document.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
   document.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
-  showPageProperties();
+  document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+  window.showPageProperties();
 }
 
 
@@ -680,7 +775,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 });
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
@@ -717,5 +812,60 @@ document.addEventListener('click', e => {
 });
 
 
+// window 할당을 initApp() 보다 먼저 — save-load.js의 initApp 내부에서 참조하기 때문
+window.ASSET_SVG = ASSET_SVG;
+window.pushHistory = pushHistory;
+window.undo = undo;
+window.redo = redo;
+window.deselectAll = deselectAll;
+window.getBlockBreadcrumb = getBlockBreadcrumb;
+window.syncSection = syncSection;
+window.selectSection = selectSection;
+window.zoomStep = zoomStep;
+window.zoomFit = zoomFit;
+window.applyZoom = applyZoom;
+window.toggleAllSections = toggleAllSections;
+window.switchToTab = switchToTab;
+window.initFileTabToggle = initFileTabToggle;
+window.rgbToHex = rgbToHex;
+window.applyPreset = applyPreset;
+window.showSectionProperties = showSectionProperties;
+window.bindSectionDelete = bindSectionDelete;
+window.bindSectionOrder = bindSectionOrder;
+window.getSelectedSection = getSelectedSection;
+window.toggleFpDropdown = toggleFpDropdown;
+window.copySelected = copySelected;
+window.pasteClipboard = pasteClipboard;
+
 // 모든 모듈 로드 후 앱 초기화
 initApp();
+
+/* ═══════════════════════════════════
+   EXPORTS
+═══════════════════════════════════ */
+export {
+  pushHistory,
+  undo,
+  redo,
+  deselectAll,
+  getBlockBreadcrumb,
+  syncSection,
+  selectSection,
+  zoomStep,
+  zoomFit,
+  applyZoom,
+  toggleAllSections,
+  switchToTab,
+  initFileTabToggle,
+  rgbToHex,
+  applyPreset,
+  showSectionProperties,
+  bindSectionDelete,
+  bindSectionOrder,
+  getSelectedSection,
+  toggleFpDropdown,
+  copySelected,
+  pasteClipboard,
+};
+
+// (window 할당은 initApp() 호출 전 블록에서 처리됨)

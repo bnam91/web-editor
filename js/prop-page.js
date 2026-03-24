@@ -1,9 +1,10 @@
 /* ═══════════════════════════════════
    PROPERTIES PANEL
 ═══════════════════════════════════ */
+import { propPanel, canvasEl, canvasWrap, state } from './globals.js';
 
-function showPageProperties() {
-  const { bg, gap, padX, padY } = pageSettings;
+export function showPageProperties() {
+  const { bg, gap, padX, padY } = state.pageSettings;
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -77,54 +78,54 @@ function showPageProperties() {
   const bgHex    = document.getElementById('page-bg-hex');
   const bgSwatch = bgPicker.closest('.prop-color-swatch');
   bgPicker.addEventListener('input', () => {
-    pageSettings.bg = bgPicker.value;
-    canvasWrap.style.background = pageSettings.bg;
-    bgHex.value = pageSettings.bg;
-    bgSwatch.style.background = pageSettings.bg;
+    state.pageSettings.bg = bgPicker.value;
+    canvasWrap.style.background = state.pageSettings.bg;
+    bgHex.value = state.pageSettings.bg;
+    bgSwatch.style.background = state.pageSettings.bg;
   });
   bgHex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
-      pageSettings.bg = bgHex.value;
-      bgPicker.value = pageSettings.bg;
-      canvasWrap.style.background = pageSettings.bg;
-      bgSwatch.style.background = pageSettings.bg;
+      state.pageSettings.bg = bgHex.value;
+      bgPicker.value = state.pageSettings.bg;
+      canvasWrap.style.background = state.pageSettings.bg;
+      bgSwatch.style.background = state.pageSettings.bg;
     }
   });
 
   const gapSlider = document.getElementById('section-gap-slider');
   const gapNumber = document.getElementById('section-gap-number');
   gapSlider.addEventListener('input', () => {
-    pageSettings.gap = parseInt(gapSlider.value);
-    canvasEl.style.gap = pageSettings.gap + 'px';
-    gapNumber.value = pageSettings.gap;
+    state.pageSettings.gap = parseInt(gapSlider.value);
+    canvasEl.style.gap = state.pageSettings.gap + 'px';
+    gapNumber.value = state.pageSettings.gap;
   });
   gapNumber.addEventListener('input', () => {
     const v = Math.min(200, Math.max(0, parseInt(gapNumber.value) || 0));
-    pageSettings.gap = v;
+    state.pageSettings.gap = v;
     canvasEl.style.gap = v + 'px';
     gapSlider.value = v;
   });
 
   const applyPadX = (v) => {
-    pageSettings.padX = v;
+    state.pageSettings.padX = v;
     document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
       tb.style.paddingLeft = v + 'px';
       tb.style.paddingRight = v + 'px';
     });
     document.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
-      applyAssetPadX(ab, v);
+      window.applyAssetPadX(ab, v);
     });
     document.querySelectorAll('.card-block, .graph-block').forEach(b => {
       b.style.paddingLeft = v + 'px';
       b.style.paddingRight = v + 'px';
     });
-    document.querySelectorAll('.strip-banner-block[data-use-padx="true"]').forEach(b => {
-      b.style.paddingLeft = v + 'px';
-      b.style.paddingRight = v + 'px';
+    document.querySelectorAll('.strip-banner-block:not([data-use-padx="false"])').forEach(b => {
+      const content = b.querySelector('.sbb-content');
+      if (content) { content.style.paddingLeft = v + 'px'; content.style.paddingRight = v + 'px'; }
     });
   };
   const applyPadY = (v) => {
-    pageSettings.padY = v;
+    state.pageSettings.padY = v;
     document.querySelectorAll('.text-block:not(.overlay-tb)').forEach(tb => {
       if (tb.dataset.type === 'label') return;
       tb.style.paddingTop = v + 'px';
@@ -170,7 +171,7 @@ function showPageProperties() {
       pageExportBtn.disabled = true;
       pageExportBtn.textContent = '내보내는 중...';
       try {
-        await exportAllSections(fmt);
+        await window.exportAllSections(fmt);
       } finally {
         pageExportBtn.disabled = false;
         pageExportBtn.textContent = '전체 섹션 내보내기';
@@ -178,3 +179,6 @@ function showPageProperties() {
     });
   }
 }
+
+// Backward compat: classic scripts call this via window.*
+window.showPageProperties = showPageProperties;
