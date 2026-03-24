@@ -34,9 +34,11 @@ export function showAssetProperties(ab) {
   const overlayColor = overlayEl.style.color || '#ffffff';
   const overlayOpacity = parseFloat(overlayEl.dataset.ovOpacity ?? '0.35');
 
+  const currentBgColor = ab.dataset.bgColor || '#a0a0a0';
   const imageSection = hasImage ? `
     <div class="prop-section">
       <div class="prop-section-title">이미지</div>
+      <button class="prop-action-btn secondary" id="asset-pos-btn">이미지 위치 조절</button>
       <button class="prop-action-btn secondary" id="asset-replace-btn">이미지 교체</button>
       <button class="prop-action-btn danger"    id="asset-remove-btn">이미지 제거</button>
     </div>` : `
@@ -44,6 +46,11 @@ export function showAssetProperties(ab) {
       <div class="prop-section-title">이미지</div>
       <button class="prop-action-btn primary" id="asset-upload-btn">이미지 선택</button>
       <div style="text-align:center;font-size:11px;color:#555;margin-top:6px;">또는 블록에 파일을 드래그</div>
+      <div class="prop-row" style="margin-top:10px;">
+        <span class="prop-label">배경색</span>
+        <input type="color" id="asset-bg-color" value="${currentBgColor}" style="width:32px;height:22px;border:none;background:none;cursor:pointer;padding:0;border-radius:3px;">
+        <button class="prop-align-btn" id="asset-bg-clear" style="font-size:10px;padding:0 8px;margin-left:4px;">초기화</button>
+      </div>
     </div>`;
 
   propPanel.innerHTML = `
@@ -213,10 +220,23 @@ export function showAssetProperties(ab) {
 
 
   if (hasImage) {
+    document.getElementById('asset-pos-btn').addEventListener('click', () => window.enterPosDragMode(ab));
     document.getElementById('asset-replace-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
     document.getElementById('asset-remove-btn').addEventListener('click', () => window.clearAssetImage(ab));
   } else {
     document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
+    const bgColorInput = document.getElementById('asset-bg-color');
+    bgColorInput.addEventListener('input', e => {
+      ab.dataset.bgColor = e.target.value;
+      ab.style.backgroundColor = e.target.value;
+      window.pushHistory();
+    });
+    document.getElementById('asset-bg-clear').addEventListener('click', () => {
+      delete ab.dataset.bgColor;
+      ab.style.backgroundColor = '';
+      bgColorInput.value = '#a0a0a0';
+      window.pushHistory();
+    });
   }
 
   // ── 오버레이 이벤트 바인딩 ──
