@@ -1126,12 +1126,46 @@ body {
 .layer-item.active .layer-item-type { color: #3a5fa0; }
 
 /* ── Canvas Area ── */
+#canvas-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+/* ── Center Notch Bar ── */
+#canvas-notch-bar {
+  height: 24px;
+  background: rgba(22, 22, 22, 0.82);
+  flex-shrink: 0;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  z-index: 20;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+#canvas-notch-bar:hover { background: rgba(30, 30, 30, 0.9); }
+#canvas-notch {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 14px;
+  background: #4a4a4a;
+  border-radius: 1px;
+  transition: background 0.2s;
+  pointer-events: none;
+}
+#canvas-notch.centered { background: #4a8af4; box-shadow: 0 0 4px rgba(74,138,244,0.6); }
 #canvas-wrap {
   flex: 1; background: #969696;
   display: flex; align-items: flex-start; justify-content: center;
   overflow: auto; padding: 40px;
   position: relative;
 }
+#canvas-wrap.pan-mode { cursor: grab; }
+#canvas-wrap.pan-mode.panning { cursor: grabbing; user-select: none; }
 #canvas-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
 #canvas-wrap::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 
