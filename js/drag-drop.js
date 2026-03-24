@@ -412,8 +412,8 @@ function bindBlock(block) {
         window.pushHistory();
         const items  = block.querySelectorAll('.label-item');
         const first  = items[0];
-        const lastBg     = first?.dataset.bg     || '#111111';
-        const lastColor  = first?.dataset.color  || '#ffffff';
+        const lastBg     = first?.dataset.bg     || '#e8e8e8';
+        const lastColor  = first?.dataset.color  || '#333333';
         const lastRadius = parseInt(first?.dataset.radius) || 40;
         const newItem = makeLabelItem('Tag', lastBg, lastColor, lastRadius);
         block.querySelector('.label-group-add-btn').before(newItem);
@@ -751,7 +751,7 @@ function makeIconCircleBlock() {
   return { row, block: icb };
 }
 
-function makeLabelItem(text = 'Label', bg = '#111111', color = '#ffffff', radius = 40) {
+function makeLabelItem(text = 'Label', bg = '#e8e8e8', color = '#333333', radius = 40) {
   const item = document.createElement('div');
   item.className = 'label-item';
   item.dataset.bg     = bg;
@@ -787,7 +787,7 @@ function makeLabelGroupBlock() {
   block.className = 'label-group-block';
   block.id = genId('lg');
 
-  block.appendChild(makeLabelItem('Tag', '#111111', '#ffffff', 40));
+  block.appendChild(makeLabelItem('Tag', '#e8e8e8', '#333333', 40));
 
   const addBtn = document.createElement('button');
   addBtn.className = 'label-group-add-btn';
