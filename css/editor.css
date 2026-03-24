@@ -2931,3 +2931,86 @@ body.preview-mode #preview-navigator { display: flex; }
 .insp-empty {
   font-size: 11px; color: #444; font-style: italic;
 }
+
+/* ═══════════════════════════════════
+   PREVIEW — SIDE BY SIDE
+═══════════════════════════════════ */
+
+/* SBS 토글 버튼 */
+#preview-sbs-btn {
+  display: flex;
+  align-items: center;
+  padding: 0 12px; height: 30px;
+  background: rgba(40,40,40,0.7);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 7px;
+  color: #999; font-size: 11px; font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+#preview-sbs-btn:hover { background: rgba(60,60,60,0.9); color: #ddd; }
+#preview-sbs-btn.active {
+  background: rgba(45,111,232,0.25);
+  border-color: rgba(45,111,232,0.5);
+  color: #7cb8ff;
+}
+
+/* SBS 컨테이너: 오버레이 위에 fullscreen flex */
+#preview-sbs-container {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  flex-direction: row;
+}
+
+/* 각 패널 */
+.sbs-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid rgba(255,255,255,0.07);
+}
+.sbs-panel:last-child { border-right: none; }
+
+/* 패널 헤더 (드롭다운) */
+.sbs-panel-header {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  background: rgba(18,18,18,0.95);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  z-index: 10;
+}
+.sbs-page-select {
+  background: rgba(40,40,40,0.9);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  color: #ccc;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  cursor: pointer;
+  outline: none;
+  min-width: 120px;
+}
+.sbs-page-select:focus { border-color: rgba(45,111,232,0.6); }
+
+/* 패널 본문: 스크롤 독립 */
+.sbs-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.sbs-panel-body::-webkit-scrollbar { width: 4px; }
+.sbs-panel-body::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+/* 스케일 래퍼: zoom으로 860px 캔버스를 패널에 맞춤 */
+.sbs-scale-wrap {
+  transform-origin: top left;
+  width: 860px;
+}
