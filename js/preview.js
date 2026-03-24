@@ -272,3 +272,8 @@ function _updatePreviewNav(overlay) {
     btn.classList.toggle('active', idx === activeIdx);
   });
 }
+
+window.enterPreview             = enterPreview;
+window.exitPreview              = exitPreview;
+window.togglePreviewSideBySide  = togglePreviewSideBySide;
+window.previewZoomStep          = previewZoomStep;

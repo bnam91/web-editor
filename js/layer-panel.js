@@ -800,6 +800,38 @@ export function buildLayerPanel() {
     });
   });
 
+  // variation 그룹 포스트 처리: A/B 쌍을 wrapper로 묶기
+  const varGroups = new Map();
+  document.querySelectorAll('.section-block[data-variation-group]').forEach(sec => {
+    const gid = sec.dataset.variationGroup;
+    if (!varGroups.has(gid)) varGroups.set(gid, []);
+    varGroups.get(gid).push(sec);
+  });
+  varGroups.forEach((secs, gid) => {
+    const firstLayerEl = secs[0]?._layerEl;
+    if (!firstLayerEl) return;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'layer-variation-group';
+    const groupHeader = document.createElement('div');
+    groupHeader.className = 'layer-variation-header';
+    groupHeader.innerHTML = `<span>A/B 그룹</span>`;
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'layer-variation-toggle';
+    const activeV = secs.find(s => s.dataset.variationActive === '1')?.dataset.variation || 'A';
+    toggleBtn.textContent = activeV === 'A' ? '▷ B' : '◁ A';
+    toggleBtn.title = '베리에이션 전환';
+    toggleBtn.onclick = () => { if (window.toggleVariation) window.toggleVariation(secs[0]); };
+    groupHeader.appendChild(toggleBtn);
+    panel.insertBefore(wrapper, firstLayerEl);
+    secs.forEach(s => { if (s._layerEl) wrapper.appendChild(s._layerEl); });
+    wrapper.insertBefore(groupHeader, wrapper.firstChild);
+    secs.forEach(s => {
+      if (s._layerEl && s.dataset.variationActive === '0') {
+        s._layerEl.classList.add('layer-section-inactive-var');
+      }
+    });
+  });
+
   buildFilePageSection();
 }
 

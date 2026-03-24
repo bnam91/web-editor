@@ -450,8 +450,9 @@ function exitPosDragMode(ab) {
   showAssetProperties(ab);
 }
 
-window.enterPosDragMode = enterPosDragMode;
-window.exitPosDragMode  = exitPosDragMode;
+window.enterPosDragMode  = enterPosDragMode;
+window.exitPosDragMode   = exitPosDragMode;
+window.exitImageEditMode = exitImageEditMode;
 
 /* ══════════════════════════════════════
    원형 프레임 (Icon Circle) 이미지

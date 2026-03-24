@@ -1400,6 +1400,7 @@ function addSection() {
   bindSectionDrag(sec);
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => bindBlock(b));
+  if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
   window.buildLayerPanel();
   window.selectSection(sec);

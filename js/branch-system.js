@@ -563,3 +563,16 @@ function unlockMainBranch() {
   if (canvas) canvas.style.pointerEvents = '';
   // 다른 브랜치로 전환하면 자동 재잠금
 }
+
+// 크로스 모듈 접근용 window 노출
+window.maybeAddNewSectionToScope  = maybeAddNewSectionToScope;
+window.openSectionBranchMenu      = openSectionBranchMenu;
+window.getCurrentBranch           = getCurrentBranch;
+window.renderBranchPanel          = renderBranchPanel;
+window.initBranchStore            = initBranchStore;
+window.unlockMainBranch           = unlockMainBranch;
+window.toggleBranchDropdown       = toggleBranchDropdown;
+window.selectBranchFromDropdown   = selectBranchFromDropdown;
+window.closeBranchDropdown        = closeBranchDropdown;
+window.createBranchFromInput      = createBranchFromInput;
+window.switchBranch               = switchBranch;

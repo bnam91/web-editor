@@ -138,3 +138,5 @@ function renderInspectorPanel() {
     </div>
   `;
 }
+
+window.renderInspectorPanel = renderInspectorPanel;

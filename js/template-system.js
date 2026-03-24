@@ -453,3 +453,4 @@ window.insertTemplate       = insertTemplate;
 window.renderTemplatePanel  = renderTemplatePanel;
 window.initTemplates        = initTemplates;
 window._loadCanvas          = _loadCanvas;
+window.showTemplatePreview  = showTemplatePreview;

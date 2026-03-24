@@ -754,7 +754,7 @@ function rebindAll() {
     const toolbar = sec.querySelector('.section-toolbar');
     if (toolbar) {
       // 구버전 ↑ ↓ ✕ 버튼 제거
-      toolbar.querySelectorAll('.st-btn:not(.st-branch-btn)').forEach(el => el.remove());
+      toolbar.querySelectorAll('.st-btn:not(.st-branch-btn):not(.st-ab-btn)').forEach(el => el.remove());
       let branchBtn = toolbar.querySelector('.st-branch-btn');
       if (!branchBtn) {
         branchBtn = document.createElement('button');
@@ -764,6 +764,8 @@ function rebindAll() {
         toolbar.appendChild(branchBtn);
       }
       branchBtn.onclick = function() { openSectionBranchMenu(this); };
+      // variation 툴바 버튼 복원
+      if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
     }
   });
   // 구버전 배너 블록 마이그레이션: sbb-gap-top/bottom 없는 경우 추가

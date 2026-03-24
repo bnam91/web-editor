@@ -290,11 +290,11 @@ document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey) {
     if (e.key === '=' || e.key === '+') {
       e.preventDefault();
-      document.body.classList.contains('preview-mode') ? previewZoomStep(10) : zoomStep(10);
+      document.body.classList.contains('preview-mode') ? window.previewZoomStep?.(10) : zoomStep(10);
     }
     if (e.key === '-') {
       e.preventDefault();
-      document.body.classList.contains('preview-mode') ? previewZoomStep(-10) : zoomStep(-10);
+      document.body.classList.contains('preview-mode') ? window.previewZoomStep?.(-10) : zoomStep(-10);
     }
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100); }
     if (e.key === 'z' && !e.shiftKey)   { e.preventDefault(); undo(); return; }
@@ -664,7 +664,7 @@ function showSectionProperties(sec) {
       <div class="prop-section-title">템플릿</div>
       <select class="prop-select" id="sec-tpl-folder" style="width:100%;margin-bottom:6px;">
         ${(()=>{
-          const tpls = loadTemplates ? loadTemplates() : [];
+          const tpls = window.loadTemplates ? window.loadTemplates() : [];
           const folders = [...new Set(tpls.map(t => t.folder || '기타'))];
           if (!folders.length) folders.push('내 템플릿');
           return folders.map(f => `<option value="${f.replace(/"/g,'&quot;')}">${f.replace(/</g,'&lt;')}</option>`).join('') +
@@ -841,7 +841,7 @@ function showSectionProperties(sec) {
       if (folder === '__new__') {
         folder = (tplFolderNew ? tplFolderNew.value.trim() : '') || '기타';
       }
-      saveAsTemplate(sec, name, folder, category);
+      window.saveAsTemplate?.(sec, name, folder, category);
       document.getElementById('sec-tpl-name').value = '';
       tplSaveBtn.textContent = '저장됨 ✓';
       tplSaveBtn.disabled = true;
@@ -870,7 +870,7 @@ function deselectAll() {
   });
   document.querySelectorAll('.asset-block').forEach(a => {
     a.classList.remove('selected');
-    exitImageEditMode(a);
+    window.exitImageEditMode?.(a);
   });
   document.querySelectorAll('.gap-block').forEach(g => g.classList.remove('selected'));
   document.querySelectorAll('.icon-circle-block').forEach(b => b.classList.remove('selected'));
@@ -910,6 +910,90 @@ function bindSectionHitzone(sec) {
     e.stopPropagation();
     selectSectionWithModifier(sec, e);
   });
+}
+
+/* ═══════════════════════════════════
+   A/B VARIATION
+═══════════════════════════════════ */
+function _addVariationBadge(sec) {
+  sec.querySelector('.variation-badge')?.remove();
+  const v = sec.dataset.variation;
+  if (!v) return;
+  const badge = document.createElement('div');
+  badge.className = `variation-badge${v === 'B' ? ' variation-badge-b' : ''}`;
+  badge.textContent = v;
+  badge.title = `${v}안 — 클릭하여 ${v === 'A' ? 'B' : 'A'}안으로 전환`;
+  badge.addEventListener('click', e => { e.stopPropagation(); toggleVariation(sec); });
+  sec.appendChild(badge);
+}
+
+function bindVariationToolbarBtn(sec) {
+  const toolbar = sec.querySelector('.section-toolbar');
+  if (!toolbar) return;
+  if (sec.dataset.variationGroup) _addVariationBadge(sec);
+  let abBtn = toolbar.querySelector('.st-ab-btn');
+  if (sec.dataset.variationGroup) {
+    if (!abBtn) {
+      abBtn = document.createElement('button');
+      abBtn.className = 'st-btn st-ab-btn';
+      toolbar.insertBefore(abBtn, toolbar.firstChild);
+    }
+    const v = sec.dataset.variation || 'A';
+    abBtn.textContent = v === 'A' ? '▷ B' : '◁ A';
+    abBtn.title = `${v === 'A' ? 'B' : 'A'}안으로 전환`;
+    abBtn.onclick = e => { e.stopPropagation(); toggleVariation(sec); };
+  } else {
+    if (!abBtn) {
+      abBtn = document.createElement('button');
+      abBtn.className = 'st-btn st-ab-btn';
+      abBtn.textContent = 'A/B';
+      abBtn.title = 'A/B 베리에이션 생성';
+      toolbar.insertBefore(abBtn, toolbar.firstChild);
+    }
+    abBtn.onclick = e => { e.stopPropagation(); createVariation(sec); };
+  }
+}
+
+function createVariation(sec) {
+  if (sec.dataset.variationGroup) return;
+  pushHistory('A/B 베리에이션 생성');
+  const groupId = 'vg_' + Math.random().toString(36).slice(2, 8);
+  sec.dataset.variationGroup = groupId;
+  sec.dataset.variation = 'A';
+  sec.dataset.variationActive = '1';
+  bindVariationToolbarBtn(sec);
+  const clone = sec.cloneNode(true);
+  clone.id = window.genId ? window.genId('sec') : 'sec_' + Math.random().toString(36).slice(2, 9);
+  clone.querySelectorAll('[id]').forEach(el => {
+    const prefix = el.id.split('_')[0];
+    el.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
+  });
+  clone.dataset.variation = 'B';
+  clone.dataset.variationActive = '0';
+  sec.after(clone);
+  clone.addEventListener('click', e => { e.stopPropagation(); selectSectionWithModifier(clone, e); });
+  bindSectionDelete(clone);
+  bindSectionOrder(clone);
+  if (window.bindSectionDrag) window.bindSectionDrag(clone);
+  if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
+  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => window.bindBlock && window.bindBlock(b));
+  bindVariationToolbarBtn(clone);
+  if (window.buildLayerPanel) window.buildLayerPanel();
+}
+
+function toggleVariation(sec) {
+  const groupId = sec.dataset.variationGroup;
+  if (!groupId) return;
+  const all = [...document.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)];
+  const active = all.find(s => s.dataset.variationActive === '1');
+  const inactive = all.find(s => s.dataset.variationActive === '0');
+  if (!active || !inactive) return;
+  active.dataset.variationActive = '0';
+  inactive.dataset.variationActive = '1';
+  all.forEach(s => bindVariationToolbarBtn(s));
+  selectSection(inactive);
+  if (window.buildLayerPanel) window.buildLayerPanel();
+  pushHistory('베리에이션 전환');
 }
 
 document.querySelectorAll('.section-block').forEach(sec => {
@@ -1090,6 +1174,9 @@ window.clearMultiSel = clearMultiSel;
 window.selectSectionWithModifier = selectSectionWithModifier;
 window.selectColWithModifier = selectColWithModifier;
 window.showMultiSelPanel = showMultiSelPanel;
+window.bindVariationToolbarBtn = bindVariationToolbarBtn;
+window.createVariation = createVariation;
+window.toggleVariation = toggleVariation;
 // 모든 모듈 로드 후 앱 초기화
 initApp();
 
@@ -1122,6 +1209,9 @@ export {
   selectSectionWithModifier,
   selectColWithModifier,
   clearMultiSel,
+  bindVariationToolbarBtn,
+  createVariation,
+  toggleVariation,
 };
 
 // (window 할당은 initApp() 호출 전 블록에서 처리됨)
