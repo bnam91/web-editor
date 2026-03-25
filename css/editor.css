@@ -1661,6 +1661,11 @@ body {
 /* ═══════════════════════════════════
    PROPERTIES PANEL
 ═══════════════════════════════════ */
+
+.prop-hint {
+  font-size: 10px; color: #555; text-align: center;
+  padding: 8px 12px 4px; letter-spacing: 0.02em;
+}
 .prop-section {
   padding: 12px 12px 8px;
   border-bottom: 1px solid #272727;
@@ -2115,6 +2120,13 @@ body {
 /* 섹션 라벨 — 드래그 커서 */
 .section-label { cursor: grab; }
 .section-label:active { cursor: grabbing; }
+.section-label::before {
+  content: '⠿';
+  margin-right: 5px;
+  opacity: 0.5;
+  font-size: 12px;
+  vertical-align: middle;
+}
 
 /* ═══════════════════════════════════
    FLOATING ACTION PANEL
