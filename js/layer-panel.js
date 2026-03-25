@@ -558,7 +558,8 @@ function makeLayerColItem(colEl, colIdx, sec) {
     if (rowLayerHeader) rowLayerHeader.classList.add('active');
     syncSection(sec);
     colHeader.classList.add('active');
-    if (window.showRowProperties && row) window.showRowProperties(row);
+    if (window.showColProperties) window.showColProperties(colEl);
+    else if (window.showRowProperties && row) window.showRowProperties(row);
   });
 
   colWrapper.appendChild(colHeader);

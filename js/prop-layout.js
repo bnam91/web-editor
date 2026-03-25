@@ -132,3 +132,77 @@ window.getCurrentRatioStr = getCurrentRatioStr;
 window.bindLayoutInput    = bindLayoutInput;
 window.makeColPlaceholder  = makeColPlaceholder;
 window.makeEmptyCol        = makeEmptyCol;
+
+/* ── Col 프로퍼티 패널 ── */
+function showColProperties(colEl) {
+  const row = colEl.closest('.row');
+  const cols = row ? [...row.querySelectorAll(':scope > .col')] : [];
+  const colIdx = cols.indexOf(colEl) + 1;
+  const block = [...colEl.children].find(el =>
+    !el.classList.contains('col-placeholder') && !el.classList.contains('col-add-menu')
+  );
+
+  /* 블록이 있으면 해당 prop 패널로 위임 */
+  if (block) {
+    if (block.classList.contains('asset-block')        && window.showAssetProperties)       return window.showAssetProperties(block);
+    if (block.classList.contains('text-block')         && window.showTextProperties)        return window.showTextProperties(block);
+    if (block.classList.contains('icon-circle-block')  && window.showIconCircleProperties)  return window.showIconCircleProperties(block);
+    if (block.classList.contains('table-block')        && window.showTableProperties)       return window.showTableProperties(block);
+    if (block.classList.contains('card-block')         && window.showCardProperties)        return window.showCardProperties(block);
+    if (block.classList.contains('strip-banner-block') && window.showStripBannerProperties) return window.showStripBannerProperties(block);
+    if (block.classList.contains('graph-block')        && window.showGraphProperties)       return window.showGraphProperties(block);
+    if (block.classList.contains('divider-block')      && window.showDividerProperties)     return window.showDividerProperties(block);
+    if (block.classList.contains('label-group-block')  && window.showLabelGroupProperties)  return window.showLabelGroupProperties(block);
+  }
+
+  /* 비어있는 col: 간단한 패널 표시 */
+  const panel = document.querySelector('#panel-right .panel-body');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label">
+        <div class="prop-block-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <rect x="1" y="1" width="10" height="10" rx="1"/>
+          </svg>
+        </div>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Col ${colIdx}</span>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">블록 추가</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+        <button class="prop-action-btn secondary" data-add="h2">Heading</button>
+        <button class="prop-action-btn secondary" data-add="body">Body</button>
+        <button class="prop-action-btn secondary" data-add="caption">Caption</button>
+        <button class="prop-action-btn secondary" data-add="asset">Asset</button>
+      </div>
+    </div>`;
+
+  panel.querySelectorAll('[data-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.add;
+      let block;
+      const ph = colEl.querySelector('.col-placeholder');
+      if (type === 'asset') {
+        const ab = document.createElement('div');
+        ab.className = 'asset-block';
+        ab.style.height = '460px';
+        ab.innerHTML = `${window.ASSET_SVG || ''}<span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
+        block = ab;
+      } else {
+        const { block: tb } = window.makeTextBlock(type);
+        block = tb;
+      }
+      if (ph) colEl.replaceChild(block, ph);
+      else colEl.appendChild(block);
+      window.bindBlock(block);
+      window.buildLayerPanel();
+      if (window.showColProperties) window.showColProperties(colEl);
+    });
+  });
+}
+
+window.showColProperties = showColProperties;
