@@ -44,7 +44,9 @@ function makeColPlaceholder(col) {
       if (type === 'asset') {
         const ab = document.createElement('div');
         ab.className = 'asset-block';
-        ab.style.height = '460px';
+        // grid/flex col 안에서는 부모 높이에 맞춤, stack에서만 고정 높이
+        const rowLayout = col.closest('.row')?.dataset.layout;
+        if (rowLayout !== 'grid' && rowLayout !== 'flex') ab.style.height = '460px';
         ab.innerHTML = `
           ${ASSET_SVG}
           <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
@@ -189,7 +191,8 @@ function showColProperties(colEl) {
       if (type === 'asset') {
         const ab = document.createElement('div');
         ab.className = 'asset-block';
-        ab.style.height = '460px';
+        const rowLayout = colEl.closest('.row')?.dataset.layout;
+        if (rowLayout !== 'grid' && rowLayout !== 'flex') ab.style.height = '460px';
         ab.innerHTML = `${window.ASSET_SVG || ''}<span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
         block = ab;
       } else {
