@@ -1,6 +1,8 @@
 /* ═══════════════════════════════════
    TEMPLATE SYSTEM
 ═══════════════════════════════════ */
+import { canvasEl } from './globals.js';
+
 const TEMPLATE_KEY = 'sangpe-templates'; // localStorage fallback key
 
 let _templatesCache = null;  // 메타데이터 전용 (canvas 없음)
