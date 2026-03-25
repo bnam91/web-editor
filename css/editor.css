@@ -1570,15 +1570,16 @@ body {
 .row[data-layout="grid"][style*="grid-template-rows"] .col-placeholder {
   min-height: 0;
 }
-/* grid/flex col 안의 asset은 부모 col 높이에 맞춤 (자식이 부모 크기를 바꾸지 않음) */
-.row[data-layout="grid"] > .col,
-.row[data-layout="flex"] > .col {
-  height: 100%;
-  overflow: hidden;
-}
+/* grid/flex col 안의 asset은 부모 col 높이에 맞춤 */
 .row[data-layout="grid"] > .col > .asset-block,
 .row[data-layout="flex"] > .col > .asset-block {
   height: 100%;
+}
+/* text block은 자연스럽게 늘어나도록 — col이 내용에 맞게 성장 */
+.row[data-layout="grid"] > .col > .text-block,
+.row[data-layout="flex"] > .col > .text-block {
+  height: auto;
+  min-height: 0;
 }
 .col-add-btn {
   width: 22px; height: 22px;
