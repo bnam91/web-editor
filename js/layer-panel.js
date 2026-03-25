@@ -563,6 +563,7 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
     // Row 헤더 클릭 → 하위 블록 전체 선택 + Properties 표시
     window.deselectAll();
     blocks.forEach(block => block.classList.add('selected'));
+    rowEl.classList.add('row-active');
     syncSection(sec);
     // 레이어 하위 아이템 모두 하이라이트
     groupChildren.querySelectorAll('.layer-item').forEach(it => it.classList.add('active'));
@@ -816,20 +817,31 @@ export function buildLayerPanel() {
     wrapper.className = 'layer-variation-group';
     const groupHeader = document.createElement('div');
     groupHeader.className = 'layer-variation-header';
-    groupHeader.innerHTML = `<span>A/B 그룹</span>`;
+    const VLABELS = ['A', 'B', 'C', 'D', 'E'];
+    const activeV = secs.find(s => s.dataset.variationActive === '1')?.dataset.variation || 'A';
+    const activeIdx = VLABELS.indexOf(activeV);
+    const nextV = VLABELS[(activeIdx + 1) % secs.length];
+    groupHeader.innerHTML = `<span>Variant (${secs.map(s => s.dataset.variation).join('/')})</span>`;
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'layer-variation-toggle';
-    const activeV = secs.find(s => s.dataset.variationActive === '1')?.dataset.variation || 'A';
-    toggleBtn.textContent = activeV === 'A' ? '▷ B' : '◁ A';
-    toggleBtn.title = '베리에이션 전환';
+    toggleBtn.textContent = `▷ ${nextV}`;
+    toggleBtn.title = '다음 베리에이션으로 전환';
     toggleBtn.onclick = () => { if (window.toggleVariation) window.toggleVariation(secs[0]); };
     groupHeader.appendChild(toggleBtn);
+    const addBtn = document.createElement('button');
+    addBtn.className = 'layer-variation-add';
+    addBtn.textContent = '+';
+    addBtn.title = '베리에이션 추가 (최대 E)';
+    addBtn.disabled = secs.length >= 5;
+    addBtn.onclick = () => { if (window.addVariation) window.addVariation(secs[0]); };
+    groupHeader.appendChild(addBtn);
     panel.insertBefore(wrapper, firstLayerEl);
     secs.forEach(s => { if (s._layerEl) wrapper.appendChild(s._layerEl); });
     wrapper.insertBefore(groupHeader, wrapper.firstChild);
     secs.forEach(s => {
       if (s._layerEl && s.dataset.variationActive === '0') {
         s._layerEl.classList.add('layer-section-inactive-var');
+        s._layerEl.classList.add('collapsed');
       }
     });
   });

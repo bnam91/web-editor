@@ -130,3 +130,5 @@ function bindLayoutInput(block) {
 
 window.getCurrentRatioStr = getCurrentRatioStr;
 window.bindLayoutInput    = bindLayoutInput;
+window.makeColPlaceholder  = makeColPlaceholder;
+window.makeEmptyCol        = makeEmptyCol;

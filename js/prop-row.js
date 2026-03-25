@@ -8,6 +8,7 @@ function showRowProperties(rowEl) {
   const currentGap = rowEl.hasAttribute('data-gap')
     ? (parseInt(rowEl.dataset.gap) || 0)
     : (layout !== 'stack' ? 8 : 0);
+  const padX = parseInt(rowEl.dataset.padX) || 0;
 
   /* 자식 블록 일괄 조절용 데이터 */
   const childBlocks = [...rowEl.querySelectorAll(':scope > .col > *')].filter(el =>
@@ -82,6 +83,14 @@ function showRowProperties(rowEl) {
         </div>
         <span class="prop-block-name">Row</span>
       </div>
+      <div class="prop-section-title">여백</div>
+      <div class="prop-row">
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="row-padx-slider" min="0" max="80" step="4" value="${padX}">
+        <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">레이아웃</div>
       <div class="prop-row">
         <div class="prop-align-group" id="row-layout-group">
@@ -114,7 +123,29 @@ function showRowProperties(rowEl) {
       </div>
     </div>
     ` : ''}
-    ` : ''}`;
+    ` : ''}
+    <div class="prop-section">
+      <div class="prop-section-title">Col 안 갭</div>
+      <div class="prop-row">
+        <button class="prop-count-btn" id="row-col-gap-add" style="width:auto;padding:0 10px;font-size:13px;">+ 갭 추가</button>
+      </div>
+    </div>`;
+
+  /* ── 좌우 패딩 ── */
+  const applyPadX = v => {
+    if (isNaN(v) || v < 0) v = 0;
+    v = Math.min(80, v);
+    rowEl.style.paddingLeft  = v + 'px';
+    rowEl.style.paddingRight = v + 'px';
+    rowEl.dataset.padX = v;
+    const s = document.getElementById('row-padx-slider');
+    const n = document.getElementById('row-padx-number');
+    if (s) s.value = v;
+    if (n) n.value = v;
+  };
+  document.getElementById('row-padx-slider').addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
+  document.getElementById('row-padx-number').addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory(); });
+  document.getElementById('row-padx-slider').addEventListener('change', () => pushHistory());
 
   /* ── 레이아웃 토글 ── */
   document.querySelectorAll('#row-layout-group .prop-align-btn').forEach(btn => {
@@ -158,6 +189,18 @@ function showRowProperties(rowEl) {
       document.getElementById('row-child-r-slider').addEventListener('change', () => pushHistory());
     }
   }
+
+  /* ── Col 안 갭 추가 ── */
+  document.getElementById('row-col-gap-add').addEventListener('click', () => {
+    pushHistory();
+    cols.forEach(col => {
+      const gb = window.makeGapBlock();
+      gb.style.height = '40px';
+      col.appendChild(gb);
+      window.bindBlock(gb);
+    });
+    buildLayerPanel();
+  });
 
   if (layout === 'stack') return;
 
@@ -283,3 +326,6 @@ function applyRowLayoutDirect(rowEl, newLayout) {
     rowEl.dataset.ratioStr = `${count}*1`;
   }
 }
+
+window.showRowProperties   = showRowProperties;
+window.applyRowLayoutDirect = applyRowLayoutDirect;

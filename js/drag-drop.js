@@ -972,6 +972,7 @@ function addRowBlock() {
   row.className = 'row';
   row.dataset.layout = 'flex';
   row.dataset.ratioStr = '2*1';
+  row.style.gap = '0';
 
   [0, 1].forEach(() => {
     const col = document.createElement('div');
@@ -979,7 +980,6 @@ function addRowBlock() {
     col.style.flex = '1';
     col.dataset.flex = '1';
     const ph = window.makeColPlaceholder(col);
-    ph.style.minHeight = '390px'; // 단독 Asset 기본 높이(780px)의 약 절반
     col.appendChild(ph);
     row.appendChild(col);
   });
