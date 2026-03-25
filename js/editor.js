@@ -418,12 +418,26 @@ document.addEventListener('keydown', e => {
       rowsToRemove.forEach(r => r.remove());
       deselectAll();
       window.buildLayerPanel();
-    } else if (selSection) {
-      e.preventDefault();
-      pushHistory();
-      selSection.remove();
-      deselectAll();
-      window.buildLayerPanel();
+    } else {
+      const selRow = document.querySelector('.row.row-active');
+      if (selRow) {
+        e.preventDefault();
+        pushHistory();
+        selRow.remove();
+        deselectAll();
+        window.buildLayerPanel();
+      } else if (selSection) {
+        e.preventDefault();
+        pushHistory();
+        if (selSection.dataset.variationGroup) {
+          const gid = selSection.dataset.variationGroup;
+          document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`).forEach(s => s.remove());
+        } else {
+          selSection.remove();
+        }
+        deselectAll();
+        window.buildLayerPanel();
+      }
     }
   }
 });
@@ -545,6 +559,19 @@ function applyPreset(sec, presetId) {
   pushHistory();
 }
 
+function setRpIdBadge(id) {
+  const badge = document.getElementById('rp-block-id-badge');
+  if (!badge) return;
+  if (id) {
+    badge.textContent = id;
+    badge.style.display = '';
+    badge.onclick = () => navigator.clipboard.writeText(id);
+  } else {
+    badge.style.display = 'none';
+  }
+}
+window.setRpIdBadge = setRpIdBadge;
+
 function showSectionProperties(sec) {
   const rawBg = sec.style.backgroundColor || sec.style.background || '';
   const hexBg = rawBg
@@ -617,6 +644,7 @@ function showSectionProperties(sec) {
           <span class="prop-block-name">Section</span>
           <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
         </div>
+        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${sec.id}')">${sec.id}</span>` : ''}
       </div>
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-grid">${presetGridHTML}</div>
@@ -697,6 +725,8 @@ function showSectionProperties(sec) {
       <input type="text" id="sec-tpl-name" class="tpl-name-input" placeholder="템플릿 이름 입력">
       <button class="prop-action-btn primary" id="sec-tpl-save-btn" style="margin-top:6px;">템플릿으로 저장</button>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(sec.id || null);
 
   // 아래 여백 이벤트
   const padBSlider = document.getElementById('sec-padb-slider');
@@ -902,6 +932,7 @@ function deselectAll() {
   document.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
   document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
   document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
+  if (window.setRpIdBadge) window.setRpIdBadge(null);
   window.showPageProperties();
 }
 

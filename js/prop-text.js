@@ -174,6 +174,8 @@ export function showTextProperties(tb) {
       </button>
     </div>`;
 
+  if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
+
   /* 폰트 종류 */
   document.getElementById('txt-font-family').addEventListener('change', e => {
     contentEl.style.fontFamily = e.target.value;

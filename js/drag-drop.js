@@ -964,25 +964,61 @@ function groupSelectedBlocks() {
   window.selectSection(sec);
 }
 
-function addRowBlock() {
+function addRowBlock(cols = 2, rows = 1) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
+
+  const totalCols = cols * rows;
+
   const row = document.createElement('div');
   row.className = 'row';
-  row.dataset.layout = 'flex';
-  row.dataset.ratioStr = '2*1';
-  row.style.gap = '0';
+  row.id = genId('row');
+  row.dataset.ratioStr = `${cols}*${rows}`;
 
-  [0, 1].forEach(() => {
+  if (rows > 1) {
+    row.dataset.layout = 'grid';
+    row.style.display = 'grid';
+    row.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    row.style.gap = '12px';
+    row.dataset.gap = '12';
+  } else {
+    row.dataset.layout = 'flex';
+    row.style.gap = '12px';
+    row.dataset.gap = '12';
+  }
+
+  for (let i = 0; i < totalCols; i++) {
     const col = document.createElement('div');
     col.className = 'col';
-    col.style.flex = '1';
-    col.dataset.flex = '1';
+    if (rows === 1) { col.style.flex = '1'; col.dataset.flex = '1'; }
     const ph = window.makeColPlaceholder(col);
     col.appendChild(ph);
     row.appendChild(col);
-  });
+  }
+
+  // row 자체에 drag 바인딩 (블록 없이도 드래그 가능하게)
+  if (!row._dragBound) {
+    row._dragBound = true;
+    row.setAttribute('draggable', 'true');
+    row.addEventListener('dragstart', e => {
+      if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
+      dragSrc = row;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      const ghost = document.createElement('div');
+      ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 0, 0);
+      setTimeout(() => ghost.remove(), 0);
+      requestAnimationFrame(() => row.classList.add('dragging'));
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      clearDropIndicators();
+      dragSrc = null;
+    });
+  }
 
   insertAfterSelected(sec, row);
   window.buildLayerPanel();

@@ -411,6 +411,7 @@
         <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.5" fill="none"/>
       </svg>
       Properties
+      <span id="rp-block-id-badge" style="display:none;margin-left:auto;font-size:9px;font-weight:400;color:#555;cursor:pointer;letter-spacing:0.02em;" title="클릭하여 복사"></span>
     </div>
     <div class="panel-body"></div>
   </div>
@@ -442,11 +443,12 @@
       <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
         <rect x="1" y="2" width="3.5" height="7" rx="0.5"/><rect x="6.5" y="2" width="3.5" height="7" rx="0.5"/>
       </svg>
-      Row
+      Grid
       <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-row-menu">
-      <button class="fp-menu-item" onclick="addRowBlock();toggleFpDropdown('fp-row-dropdown')">2 × 1</button>
+      <button class="fp-menu-item" onclick="addRowBlock(2,1);toggleFpDropdown('fp-row-dropdown')">2 × 1</button>
+      <button class="fp-menu-item" onclick="addRowBlock(2,2);toggleFpDropdown('fp-row-dropdown')">2 × 2</button>
     </div>
   </div>
   <div class="fp-divider"></div>

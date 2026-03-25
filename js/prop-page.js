@@ -4,6 +4,7 @@
 import { propPanel, canvasEl, canvasWrap, state } from './globals.js';
 
 export function showPageProperties() {
+  if (window.setRpIdBadge) window.setRpIdBadge(null);
   const { bg, gap, padX, padY } = state.pageSettings;
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -13,7 +14,7 @@ export function showPageProperties() {
             <rect x="1" y="1" width="10" height="10" rx="1.5"/>
           </svg>
         </div>
-        <span class="prop-block-name">Page</span>
+        <span class="prop-block-name">Background</span>
       </div>
       <div class="prop-section-title">배경</div>
       <div class="prop-color-row">
