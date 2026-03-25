@@ -861,6 +861,14 @@ function insertBeforeBottomGap(section, el) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   const inner = section.querySelector('.section-inner');
+
+  // row-active 우선: 그리드/flex row가 선택된 경우 그 row 뒤에 삽입
+  const activeRow = document.querySelector('.row.row-active');
+  if (activeRow && activeRow.closest('.section-block') === section) {
+    activeRow.after(el);
+    return;
+  }
+
   const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected');
 
   if (sel && sel.closest('.section-block') === section) {
