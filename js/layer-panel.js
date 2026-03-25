@@ -924,7 +924,25 @@ export function highlightBlock(block, layerItem) {
   if (layerItem) layerItem.classList.add('active');
 }
 
+/* 캔버스에서 row 선택 시 레이어 패널 row 헤더 하이라이트 */
+export function syncLayerRow(rowEl) {
+  document.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
+  if (!rowEl) return;
+  /* wrapper._dragTarget === rowEl 인 wrapper의 첫번째 .layer-row-header */
+  const panel = document.getElementById('layer-list');
+  if (!panel) return;
+  panel.querySelectorAll('.layer-section').forEach(sec => {
+    sec.querySelectorAll('.layer-row-wrapper, .layer-row-group').forEach(wrapper => {
+      if (wrapper._dragTarget === rowEl) {
+        const h = wrapper.querySelector(':scope > .layer-row-header');
+        if (h) h.classList.add('active');
+      }
+    });
+  });
+}
+
 // Backward compat
 window.buildLayerPanel = buildLayerPanel;
 window.syncLayerActive = syncLayerActive;
+window.syncLayerRow    = syncLayerRow;
 window.highlightBlock  = highlightBlock;

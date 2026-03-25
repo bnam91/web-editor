@@ -1276,6 +1276,7 @@ canvasEl.addEventListener('click', e => {
     document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
     document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
     row.classList.add('row-active');
+    if (window.syncLayerRow) window.syncLayerRow(row);
     if (window.showRowProperties) window.showRowProperties(row);
   } else {
     // 2번 클릭: Col 활성화

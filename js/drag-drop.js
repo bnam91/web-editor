@@ -1024,6 +1024,7 @@ function addRowBlock(cols = 2, rows = 1) {
   window.buildLayerPanel();
   document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
   row.classList.add('row-active');
+  if (window.syncLayerRow) window.syncLayerRow(row);
   if (window.showRowProperties) window.showRowProperties(row);
 }
 

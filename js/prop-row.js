@@ -117,7 +117,7 @@ function showRowProperties(rowEl) {
       <div class="prop-section-title">컬럼 비율</div>
       ${colRatioHTML}
     </div>
-    ${layout === 'grid' ? `
+    ${layout !== 'stack' ? `
     <div class="prop-section">
       <div class="prop-section-title">그리드 크기</div>
       <div class="grid-picker" id="row-grid-picker"></div>
@@ -274,7 +274,7 @@ function showRowProperties(rowEl) {
   }
 
   /* ── Grid 크기 피커 ── */
-  if (layout === 'grid') {
+  if (layout !== 'stack') {
     const picker = document.getElementById('row-grid-picker');
     const pickerLabel = document.getElementById('row-grid-picker-label');
     const MAX = 4;
@@ -324,7 +324,20 @@ function showRowProperties(rowEl) {
       } else {
         for (let i = curCols.length - 1; i >= totalNeeded; i--) curCols[i].remove();
       }
+      /* layout/display 동기화 */
+      if (targetRows > 1) {
+        rowEl.dataset.layout = 'grid';
+        rowEl.style.display = 'grid';
+      } else {
+        rowEl.dataset.layout = 'flex';
+        rowEl.style.display = '';
+        rowEl.style.gridTemplateRows = '';
+      }
       rowEl.style.gridTemplateColumns = `repeat(${targetCols}, 1fr)`;
+      /* flex 단일행은 col flex 값 초기화 */
+      if (targetRows === 1) {
+        [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
+      }
       rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
 
       /* 높이 반응형 조정 */
