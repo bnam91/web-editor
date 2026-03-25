@@ -259,6 +259,15 @@ function showColProperties(colEl) {
         const rowLayout = row?.dataset.layout;
         if (rowLayout !== 'grid' && rowLayout !== 'flex') newBlock.style.height = '460px';
         newBlock.innerHTML = `${window.ASSET_SVG || ''}<span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
+      } else if (newType === 'icon-circle') {
+        const { block: icb } = window.makeIconCircleBlock();
+        newBlock = icb;
+      } else if (newType === 'table') {
+        const { block: tbl } = window.makeTableBlock();
+        newBlock = tbl;
+      } else if (newType === 'divider') {
+        const { block: dvd } = window.makeDividerBlock();
+        newBlock = dvd;
       } else {
         const { block: tb } = window.makeTextBlock(newType);
         newBlock = tb;
