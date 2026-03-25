@@ -901,6 +901,7 @@ function deselectAll() {
   document.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
   document.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
   document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+  document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
   window.showPageProperties();
 }
 
@@ -1053,7 +1054,16 @@ function addVariation(sec) {
 }
 
 document.querySelectorAll('.section-block').forEach(sec => {
-  sec.addEventListener('click', e => { e.stopPropagation(); selectSectionWithModifier(sec, e); });
+  sec.addEventListener('click', e => {
+    e.stopPropagation();
+    selectSectionWithModifier(sec, e);
+    // deselectAll() 이후 row-active 복원
+    const row = e.target.closest('.row');
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block')) {
+      document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+      row.classList.add('row-active');
+    }
+  });
   bindSectionDelete(sec);
   bindSectionOrder(sec);
   bindSectionDropZone(sec);
@@ -1064,6 +1074,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
 document.getElementById('canvas-wrap').addEventListener('click', e => {
   if (['canvas-wrap','canvas-scaler','canvas'].includes(e.target.id)) deselectAll();
 });
+
 
 /* ── Static 블록 초기 바인딩 ── */
 document.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => window.bindBlock(b));
@@ -1203,15 +1214,41 @@ document.addEventListener('click', e => {
   setTimeout(updateNotchPosition, 100);
 }
 
-/* ── Col 다중선택: capture-phase ── */
+/* ── Col 클릭: capture-phase ── */
 canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
-  // 블록 자체를 shift+클릭한 경우 블록 핸들러가 처리하도록 패스
+  // 블록 클릭은 블록 핸들러에게 위임
   if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block')) return;
+  // col-add 버튼/메뉴는 통과 (메뉴 열기 동작 유지)
+  if (e.target.closest('.col-add-btn, .col-add-menu')) return;
+
+  const row = col.closest('.row');
+  if (!row) return;
+
   if (e.metaKey || e.ctrlKey || e.shiftKey) {
     e.stopPropagation();
     selectColWithModifier(col, e);
+    return;
+  }
+
+  e.stopPropagation();
+  const isRowActive = row.classList.contains('row-active');
+
+  if (!isRowActive) {
+    // 1번 클릭: Row 활성화
+    const sec = row.closest('.section-block');
+    if (sec) selectSection(sec);
+    document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+    document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
+    row.classList.add('row-active');
+    if (window.showRowProperties) window.showRowProperties(row);
+  } else {
+    // 2번 클릭: Col 활성화
+    document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
+    col.classList.add('col-active');
+    if (window.showColProperties) window.showColProperties(col);
+    else if (window.showRowProperties) window.showRowProperties(row);
   }
 }, true);
 // window 할당을 initApp() 보다 먼저 — save-load.js의 initApp 내부에서 참조하기 때문

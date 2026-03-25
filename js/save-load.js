@@ -744,7 +744,15 @@ function rebindAll() {
       sec.style.backgroundPosition = 'center';
       sec.style.backgroundRepeat = 'no-repeat';
     }
-    sec.addEventListener('click', e => { e.stopPropagation(); window.selectSection(sec); });
+    sec.addEventListener('click', e => {
+      e.stopPropagation();
+      window.selectSection(sec);
+      const row = e.target.closest('.row');
+      if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block')) {
+        document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+        row.classList.add('row-active');
+      }
+    });
     bindSectionDelete(sec);
     bindSectionOrder(sec);
     bindSectionDrag(sec);

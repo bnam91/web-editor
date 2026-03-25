@@ -563,6 +563,7 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
     // Row 헤더 클릭 → 하위 블록 전체 선택 + Properties 표시
     window.deselectAll();
     blocks.forEach(block => block.classList.add('selected'));
+    rowEl.classList.add('row-active');
     syncSection(sec);
     // 레이어 하위 아이템 모두 하이라이트
     groupChildren.querySelectorAll('.layer-item').forEach(it => it.classList.add('active'));
