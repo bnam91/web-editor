@@ -164,22 +164,6 @@ export function showTextProperties(tb) {
     </div>
 
 
-    <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
-      <div class="prop-section-title">텍스트 효과</div>
-      <div class="prop-type-group" id="highlight-type-group">
-        <button class="prop-type-btn ${currentHighlight==='none'?'active':''}" data-hl="none">없음</button>
-        <button class="prop-type-btn ${currentHighlight==='highlight'?'active':''}" data-hl="highlight">형광펜</button>
-        <button class="prop-type-btn ${currentHighlight==='underline'?'active':''}" data-hl="underline">밑줄</button>
-      </div>
-      <div class="prop-color-row" id="highlight-color-row" style="${currentHighlight==='none'?'display:none':''}">
-        <span class="prop-label">색상</span>
-        <div class="prop-color-swatch" style="background:${currentHighlightColor}">
-          <input type="color" id="hl-color" value="${currentHighlightColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="hl-color-hex" value="${currentHighlightColor}" maxlength="7">
-      </div>
-    </div>
-
     <div class="prop-section prop-section--anim" style="${isOverlayTb ? 'display:none' : ''}">
       <button class="prop-anim-btn" id="open-anim-btn">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -417,45 +401,6 @@ export function showTextProperties(tb) {
       pvSlider.addEventListener('input', () => { tb.style.paddingTop = pvSlider.value+'px'; tb.style.paddingBottom = pvSlider.value+'px'; pvNumber.value = pvSlider.value; });
       pvNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pvNumber.value)||0)); tb.style.paddingTop=v+'px'; tb.style.paddingBottom=v+'px'; pvSlider.value=v; });
     }
-  }
-
-  /* 텍스트 효과 (형광펜 / 밑줄) */
-  const hlColorRow = document.getElementById('highlight-color-row');
-  const applyHighlightColor = (hex) => {
-    tb.dataset.highlightColor = hex;
-    tb.style.setProperty('--tb-highlight-color', hex);
-    const hlSwatchEl = document.getElementById('hl-color')?.closest('.prop-color-swatch');
-    if (hlSwatchEl) hlSwatchEl.style.background = hex;
-    const hlPickerEl = document.getElementById('hl-color');
-    if (hlPickerEl) hlPickerEl.value = hex;
-    const hlHexEl = document.getElementById('hl-color-hex');
-    if (hlHexEl) hlHexEl.value = hex;
-  };
-  document.getElementById('highlight-type-group')?.querySelectorAll('.prop-type-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const hl = btn.dataset.hl;
-      document.getElementById('highlight-type-group').querySelectorAll('.prop-type-btn').forEach(b => b.classList.toggle('active', b === btn));
-      if (hl === 'none') {
-        delete tb.dataset.highlight;
-      } else {
-        tb.dataset.highlight = hl;
-        const color = tb.dataset.highlightColor || '#ffeb3b';
-        tb.style.setProperty('--tb-highlight-color', color);
-      }
-      if (hlColorRow) hlColorRow.style.display = hl === 'none' ? 'none' : '';
-      window.pushHistory?.();
-    });
-  });
-  const hlPicker = document.getElementById('hl-color');
-  const hlHex    = document.getElementById('hl-color-hex');
-  if (hlPicker) {
-    hlPicker.addEventListener('input', () => applyHighlightColor(hlPicker.value));
-    hlPicker.addEventListener('change', () => window.pushHistory?.());
-  }
-  if (hlHex) {
-    hlHex.addEventListener('input', () => {
-      if (/^#[0-9a-f]{6}$/i.test(hlHex.value)) applyHighlightColor(hlHex.value);
-    });
   }
 
   /* 애니메이션 GIF 버튼 */

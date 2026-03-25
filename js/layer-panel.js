@@ -631,7 +631,7 @@ export function buildLayerPanel() {
       ? `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><line x1="2" y1="2" x2="12" y2="12"/></svg>`
       : `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="1.8"/></svg>`;
     eyeBtn.title = isHidden ? '섹션 표시' : '섹션 숨기기';
-    if (isHidden) { sec.style.visibility = 'hidden'; sec.style.opacity = '0'; sectionEl.classList.add('layer-section-hidden'); }
+    if (isHidden) { sec.style.visibility = 'hidden'; sec.style.opacity = '0'; sectionEl.classList.add('layer-section-hidden'); sectionEl.classList.add('collapsed'); }
 
     header.appendChild(chevron);
     header.appendChild(nameEl);
@@ -646,12 +646,14 @@ export function buildLayerPanel() {
         eyeBtn.innerHTML = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="1.8"/></svg>`;
         eyeBtn.title = '섹션 숨기기';
         sectionEl.classList.remove('layer-section-hidden');
+        sectionEl.classList.remove('collapsed');
       } else {
         sec.dataset.hidden = '1';
         sec.style.visibility = 'hidden'; sec.style.opacity = '0';
         eyeBtn.innerHTML = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><line x1="2" y1="2" x2="12" y2="12"/></svg>`;
         eyeBtn.title = '섹션 표시';
         sectionEl.classList.add('layer-section-hidden');
+        sectionEl.classList.add('collapsed');
       }
     });
 
