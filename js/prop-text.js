@@ -39,7 +39,6 @@ export function showTextProperties(tb) {
           <span class="prop-block-name">${isOverlayTb ? 'Overlay Text' : 'Text Block'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(tb)}</span>
         </div>
-        ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${tb.id}')">${tb.id}</span>` : ''}
       </div>
     </div>
     <div class="prop-section">

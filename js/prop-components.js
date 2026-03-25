@@ -19,7 +19,6 @@ export function showIconCircleProperties(block) {
           <span class="prop-block-name">Icon Circle</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
@@ -49,6 +48,8 @@ export function showIconCircleProperties(block) {
         </select>
       </div>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   // 이미지 섹션 추가
   const hasImage = block.classList.contains('has-image');
@@ -169,7 +170,6 @@ export function showTableProperties(block) {
           <span class="prop-block-name">Table Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">행 / 열</div>
       <div class="prop-row">
@@ -217,6 +217,8 @@ export function showTableProperties(block) {
     <div class="prop-section">
       <div style="font-size:11px;color:#888;">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   /* 행 추가/삭제 */
   document.getElementById('tbl-row-plus').addEventListener('click', () => {
@@ -319,7 +321,6 @@ export function showGapProperties(gb) {
           <span class="prop-block-name">Gap Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(gb)}</span>
         </div>
-        ${gb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${gb.id}')">${gb.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
@@ -328,6 +329,8 @@ export function showGapProperties(gb) {
         <input type="number" class="prop-number" id="gap-number" min="0" max="400" value="${currentH}">
       </div>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(gb.id || null);
 
   const slider = document.getElementById('gap-slider');
   const number = document.getElementById('gap-number');
@@ -362,7 +365,6 @@ export function showCardProperties(block) {
           <span class="prop-block-name">Card Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">이미지</div>
       <div class="prop-row">
@@ -418,6 +420,8 @@ export function showCardProperties(block) {
         <button class="prop-action-btn secondary" id="card-remove-btn">− 제거</button>
       </div>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   // 배경색
   const bgInput = document.getElementById('card-bg-color');
@@ -588,7 +592,6 @@ export function showStripBannerProperties(block) {
           <span class="prop-block-name">Banner</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">이미지</div>
       <div class="prop-row">
@@ -705,6 +708,8 @@ export function showStripBannerProperties(block) {
     <div class="prop-section">
       <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭 편집 · 드래그로 순서 변경</div>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   // 높이
   const hSlider = document.getElementById('sbb-h-slider');
@@ -1029,7 +1034,6 @@ export function showGraphProperties(block) {
           <span class="prop-block-name">Graph Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
@@ -1071,6 +1075,8 @@ export function showGraphProperties(block) {
       </div>
       <button class="prop-btn-full" id="grb-add-item">+ 항목 추가</button>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   // 타입 토글
   document.getElementById('grb-type-v').addEventListener('click', () => {
@@ -1171,7 +1177,6 @@ export function showDividerProperties(block) {
           <span class="prop-block-name">Divider</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">선 스타일</div>
       <div class="prop-color-row">
@@ -1208,6 +1213,8 @@ export function showDividerProperties(block) {
         <input type="number" class="prop-number" id="dvd-padx-number" min="0" max="200" value="${padH}">
       </div>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   const colorPicker = document.getElementById('dvd-color');
   const colorHex    = document.getElementById('dvd-hex');

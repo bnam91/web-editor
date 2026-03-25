@@ -67,7 +67,6 @@ export function showAssetProperties(ab) {
           <span class="prop-block-name">Asset Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(ab)}</span>
         </div>
-        ${ab.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${ab.id}')">${ab.id}</span>` : ''}
       </div>
       <div class="prop-section-title">레이아웃</div>
       <div class="prop-row">

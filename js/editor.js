@@ -644,7 +644,6 @@ function showSectionProperties(sec) {
           <span class="prop-block-name">Section</span>
           <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
         </div>
-        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${sec.id}')">${sec.id}</span>` : ''}
       </div>
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-grid">${presetGridHTML}</div>
