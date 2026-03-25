@@ -840,6 +840,7 @@ export function buildLayerPanel() {
     secs.forEach(s => {
       if (s._layerEl && s.dataset.variationActive === '0') {
         s._layerEl.classList.add('layer-section-inactive-var');
+        s._layerEl.classList.add('collapsed');
       }
     });
   });
