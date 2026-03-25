@@ -930,7 +930,7 @@ export function syncLayerRow(rowEl) {
   document.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
   if (!rowEl) return;
   /* wrapper._dragTarget === rowEl 인 wrapper의 첫번째 .layer-row-header */
-  const panel = document.getElementById('layer-list');
+  const panel = document.getElementById('layer-panel-body');
   if (!panel) return;
   panel.querySelectorAll('.layer-section').forEach(sec => {
     sec.querySelectorAll('.layer-row-wrapper, .layer-row-group').forEach(wrapper => {

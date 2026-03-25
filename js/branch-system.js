@@ -571,6 +571,7 @@ window.getCurrentBranch           = getCurrentBranch;
 window.renderBranchPanel          = renderBranchPanel;
 window.initBranchStore            = initBranchStore;
 window.unlockMainBranch           = unlockMainBranch;
+window.applyMainLock              = applyMainLock;
 window.toggleBranchDropdown       = toggleBranchDropdown;
 window.selectBranchFromDropdown   = selectBranchFromDropdown;
 window.closeBranchDropdown        = closeBranchDropdown;
