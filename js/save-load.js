@@ -703,8 +703,8 @@ function applyPageSettings() {
   canvasWrap.style.background = state.pageSettings.bg;
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-    tb.style.paddingLeft  = state.pageSettings.padX + 'px';
-    tb.style.paddingRight = state.pageSettings.padX + 'px';
+    if (!tb.dataset.customPadL) tb.style.paddingLeft  = state.pageSettings.padX + 'px';
+    if (!tb.dataset.customPadR) tb.style.paddingRight = state.pageSettings.padX + 'px';
   });
   canvasEl.querySelectorAll('.text-block:not(.overlay-tb)').forEach(tb => {
     if (tb.dataset.type !== 'label') {
@@ -1122,7 +1122,7 @@ function initApp() {
   canvasWrap.style.background = state.pageSettings.bg;
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-    if (state.pageSettings.padX > 0) { tb.style.paddingLeft = state.pageSettings.padX + 'px'; tb.style.paddingRight = state.pageSettings.padX + 'px'; }
+    if (state.pageSettings.padX > 0) { if (!tb.dataset.customPadL) tb.style.paddingLeft = state.pageSettings.padX + 'px'; if (!tb.dataset.customPadR) tb.style.paddingRight = state.pageSettings.padX + 'px'; }
     if (tb.dataset.type !== 'label') {
       tb.style.paddingTop = state.pageSettings.padY + 'px';
       tb.style.paddingBottom = state.pageSettings.padY + 'px';

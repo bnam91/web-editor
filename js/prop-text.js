@@ -451,13 +451,15 @@ export function showTextProperties(tb) {
 
       const setL = v => {
         tb.style.paddingLeft = v + 'px';
+        tb.dataset.customPadL = '1';
         plSlider.value = v; plNumber.value = v;
-        if (phLinked) { tb.style.paddingRight = v + 'px'; prSlider.value = v; prNumber.value = v; }
+        if (phLinked) { tb.style.paddingRight = v + 'px'; tb.dataset.customPadR = '1'; prSlider.value = v; prNumber.value = v; }
       };
       const setR = v => {
         tb.style.paddingRight = v + 'px';
+        tb.dataset.customPadR = '1';
         prSlider.value = v; prNumber.value = v;
-        if (phLinked) { tb.style.paddingLeft = v + 'px'; plSlider.value = v; plNumber.value = v; }
+        if (phLinked) { tb.style.paddingLeft = v + 'px'; tb.dataset.customPadL = '1'; plSlider.value = v; plNumber.value = v; }
       };
 
       plSlider.addEventListener('input', () => setL(parseInt(plSlider.value)));

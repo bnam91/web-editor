@@ -102,6 +102,8 @@ function restoreSnapshot(snap) {
   Object.assign(state.pageSettings, snap.settings);
   canvasEl.innerHTML = snap.canvas;
   rebindAll();
+  deselectAll();
+  if (window.buildLayerPanel) window.buildLayerPanel();
   applyPageSettings();
   window.buildLayerPanel();
   deselectAll();

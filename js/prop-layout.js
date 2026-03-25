@@ -267,6 +267,7 @@ function showColProperties(colEl) {
       else colEl.appendChild(newBlock);
       window.bindBlock(newBlock);
     }
+    if (window.pushHistory) window.pushHistory('Col 블록 교체');
     window.buildLayerPanel();
     showColProperties(colEl);
   });
