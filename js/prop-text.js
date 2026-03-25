@@ -165,7 +165,7 @@ export function showTextProperties(tb) {
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}">
       </div>
       <div class="prop-ph-header" style="${isOverlayTb ? 'display:none' : ''}">
-        <span class="prop-section-title" style="margin-bottom:0">좌우 패딩</span>
+        <span class="prop-section-title" style="margin-bottom:0">패딩</span>
         <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
@@ -175,12 +175,12 @@ export function showTextProperties(tb) {
         </button>
       </div>
       <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
-        <span class="prop-label">좌</span>
+        <span class="prop-label" style="width:60px">왼쪽 패딩</span>
         <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="${currentPadL}">
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
       </div>
       <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
-        <span class="prop-label">우</span>
+        <span class="prop-label" style="width:60px">오른쪽 패딩</span>
         <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="${currentPadR}">
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
       </div>
