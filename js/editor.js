@@ -1096,6 +1096,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
     if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
+      if (window.syncLayerRow) window.syncLayerRow(row);
     }
   });
   bindSectionDelete(sec);
@@ -1282,6 +1283,12 @@ canvasEl.addEventListener('click', e => {
     // 2번 클릭: Col 활성화
     document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
     col.classList.add('col-active');
+    // Col 레이어 헤더 하이라이트
+    document.getElementById('layer-panel-body')?.querySelectorAll('.layer-col-group').forEach(wrapper => {
+      if (wrapper._dragTarget === col) {
+        wrapper.querySelector(':scope > .layer-col-header')?.classList.add('active');
+      }
+    });
     if (window.showColProperties) window.showColProperties(col);
     else if (window.showRowProperties) window.showRowProperties(row);
   }

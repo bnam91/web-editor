@@ -1439,7 +1439,16 @@ function addSection() {
 
   // 이벤트 바인딩
   window.pushHistory();
-  sec.addEventListener('click', e => { e.stopPropagation(); window.selectSectionWithModifier(sec, e); });
+  sec.addEventListener('click', e => {
+    e.stopPropagation();
+    window.selectSectionWithModifier(sec, e);
+    const row = e.target.closest('.row');
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block')) {
+      document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+      row.classList.add('row-active');
+      if (window.syncLayerRow) window.syncLayerRow(row);
+    }
+  });
   window.bindSectionDelete(sec);
   window.bindSectionOrder(sec);
   bindSectionDropZone(sec);
