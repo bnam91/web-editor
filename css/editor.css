@@ -1772,8 +1772,8 @@ body {
 }
 .prop-block-name { font-size: 12px; font-weight: 600; color: #ccc; }
 .prop-breadcrumb { display: none; }
-.prop-block-id { font-size: 10px; font-weight: 400; color: #555; margin-left: 4px; cursor: pointer; }
-.prop-block-id:hover { color: #888; }
+.prop-block-id { font-size: 9px; font-weight: 400; color: #666; margin-left: auto; cursor: pointer; letter-spacing: 0.02em; }
+.prop-block-id:hover { color: #999; }
 
 /* 토글 스위치 */
 .prop-toggle { position: relative; display: inline-block; width: 32px; height: 18px; cursor: pointer; }

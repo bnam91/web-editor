@@ -253,11 +253,14 @@ function selectColWithModifier(col, e) {
 
 function copySelected() {
   const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected');
+  const selRow     = document.querySelector('.row.row-active');
   const selSection = document.querySelector('.section-block.selected');
   if (selBlock) {
     const isGapSel = selBlock.classList.contains('gap-block');
     const target = isGapSel ? selBlock : (selBlock.closest('.row') || selBlock);
     clipboard = { type: 'block', html: target.outerHTML };
+  } else if (selRow) {
+    clipboard = { type: 'block', html: selRow.outerHTML };
   } else if (selSection) {
     clipboard = { type: 'section', html: selSection.outerHTML };
   }
@@ -644,6 +647,7 @@ function showSectionProperties(sec) {
           <span class="prop-block-name">Section</span>
           <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
         </div>
+        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${sec.id}')">${sec.id}</span>` : ''}
       </div>
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-grid">${presetGridHTML}</div>

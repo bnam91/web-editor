@@ -1022,7 +1022,9 @@ function addRowBlock(cols = 2, rows = 1) {
 
   insertAfterSelected(sec, row);
   window.buildLayerPanel();
-  window.selectSection(sec);
+  document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+  row.classList.add('row-active');
+  if (window.showRowProperties) window.showRowProperties(row);
 }
 
 // ── Row 프리셋 생성 ──────────────────────────────────────────

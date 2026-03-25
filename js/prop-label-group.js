@@ -23,6 +23,7 @@ function showLabelGroupProperties(block, selectedItem) {
           </svg>
         </div>
         <span class="prop-block-name">Tags</span>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">정렬</div>
       <div class="prop-align-group">

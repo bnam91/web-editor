@@ -19,6 +19,7 @@ export function showIconCircleProperties(block) {
           <span class="prop-block-name">Icon Circle</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
@@ -170,6 +171,7 @@ export function showTableProperties(block) {
           <span class="prop-block-name">Table Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">행 / 열</div>
       <div class="prop-row">
@@ -321,6 +323,7 @@ export function showGapProperties(gb) {
           <span class="prop-block-name">Gap Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(gb)}</span>
         </div>
+        ${gb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${gb.id}')">${gb.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
@@ -365,6 +368,7 @@ export function showCardProperties(block) {
           <span class="prop-block-name">Card Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">이미지</div>
       <div class="prop-row">
@@ -592,6 +596,7 @@ export function showStripBannerProperties(block) {
           <span class="prop-block-name">Banner</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">이미지</div>
       <div class="prop-row">
@@ -1034,6 +1039,7 @@ export function showGraphProperties(block) {
           <span class="prop-block-name">Graph Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
@@ -1177,6 +1183,7 @@ export function showDividerProperties(block) {
           <span class="prop-block-name">Divider</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">선 스타일</div>
       <div class="prop-color-row">
