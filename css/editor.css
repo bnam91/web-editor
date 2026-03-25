@@ -1730,6 +1730,10 @@ body {
 }
 .prop-number:focus { border-color: #2d6fe8; }
 
+.prop-ph-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
 .prop-chain-btn {
   width: 22px; height: 22px; flex-shrink: 0;
   background: transparent;
