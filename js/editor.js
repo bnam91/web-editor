@@ -76,7 +76,7 @@ let _historyPaused = false;
 function pushHistory(action = '작업') {
   if (_historyPaused) return;
   historyStack = historyStack.slice(0, historyPos + 1);
-  historyStack.push({ canvas: getSerializedCanvas(), settings: { ...state.pageSettings }, action });
+  historyStack.push({ canvas: getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId });
   if (historyStack.length > MAX_HISTORY) historyStack.shift();
   else historyPos++;
   _updateUndoRedoBtns();
@@ -99,6 +99,14 @@ function _updateUndoRedoBtns() {
 
 function restoreSnapshot(snap) {
   _historyPaused = true;
+  // 페이지가 다르면 현재 페이지 flush 후 대상 페이지로 전환
+  if (snap.pageId && snap.pageId !== state.currentPageId) {
+    if (window.flushCurrentPage) window.flushCurrentPage();
+    state.currentPageId = snap.pageId;
+    const page = state.pages?.find(p => p.id === snap.pageId);
+    if (page?.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
+    if (window.buildFilePageSection) window.buildFilePageSection();
+  }
   Object.assign(state.pageSettings, snap.settings);
   canvasEl.innerHTML = snap.canvas;
   rebindAll();
@@ -456,7 +464,7 @@ function selectSection(sec, scrollIntoView = false) {
   deselectAll();
   sec.classList.add('selected');
   syncLayerActive(sec);
-  showSectionProperties(sec);
+  window.showSectionProperties(sec);
   if (scrollIntoView) {
     const canvasWrapEl = document.getElementById('canvas-wrap');
     const scalerEl = document.getElementById('canvas-scaler');
@@ -547,365 +555,6 @@ if (window.electronAPI) {
   });
 }
 
-function applyPreset(sec, presetId) {
-  const preset = PRESETS.find(p => p.id === presetId);
-  // 기존 preset 변수 초기화
-  PRESETS.forEach(p => Object.keys(p.variables).forEach(k => sec.style.removeProperty(k)));
-  delete sec.dataset.preset;
-
-  if (preset && presetId !== 'default') {
-    Object.entries(preset.variables).forEach(([k, v]) => sec.style.setProperty(k, v));
-    sec.dataset.preset = presetId;
-  }
-  // 프리셋 배경색 적용 (정의된 경우에만)
-  if (preset?.backgroundColor) {
-    sec.style.backgroundColor = preset.backgroundColor;
-  }
-  pushHistory();
-}
-
-function setRpIdBadge(id) {
-  const badge = document.getElementById('rp-block-id-badge');
-  if (!badge) return;
-  if (id) {
-    badge.textContent = id;
-    badge.style.display = '';
-    badge.onclick = () => navigator.clipboard.writeText(id);
-  } else {
-    badge.style.display = 'none';
-  }
-}
-window.setRpIdBadge = setRpIdBadge;
-
-function showSectionProperties(sec) {
-  const rawBg = sec.style.backgroundColor || sec.style.background || '';
-  const hexBg = rawBg
-    ? (/^#[0-9a-f]{6}$/i.test(rawBg) ? rawBg : rgbToHex(rawBg))
-    : '#ffffff';
-  const hasBgImg  = !!sec.dataset.bgImg;
-  const bgSize    = sec.dataset.bgSize || 'cover';
-  const secPadB   = parseInt(sec.style.paddingBottom) || 0;
-  const bgImgHTML = hasBgImg ? `
-    <div class="prop-row" style="margin-top:6px;">
-      <span class="prop-label">사이즈</span>
-      <select class="prop-select" id="sec-bg-size">
-        <option value="cover"   ${bgSize==='cover'   ?'selected':''}>Cover</option>
-        <option value="contain" ${bgSize==='contain' ?'selected':''}>Contain</option>
-        <option value="auto"    ${bgSize==='auto'    ?'selected':''}>Auto</option>
-      </select>
-    </div>
-    <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:6px;">이미지 제거</button>
-  ` : `
-    <button class="prop-action-btn secondary" id="sec-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
-    <input type="file" id="sec-bg-img-input" accept="image/*" style="display:none">
-  `;
-
-  // 섹션 내 텍스트 블록 타입별 수집
-  const typeMap = { heading: 'Heading', body: 'Body', caption: 'Caption', label: 'Label' };
-  const typeOrder = ['heading', 'body', 'caption', 'label'];
-  const found = {}; // type → { blocks: [], color: hex }
-  sec.querySelectorAll('.text-block').forEach(tb => {
-    const type = tb.dataset.type;
-    if (!typeMap[type]) return;
-    const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
-    const computed = window.getComputedStyle(contentEl);
-    const colorHex = contentEl.style.color
-      ? (/^#/.test(contentEl.style.color) ? contentEl.style.color : rgbToHex(contentEl.style.color))
-      : rgbToHex(computed.color);
-    if (!found[type]) found[type] = { blocks: [], color: colorHex };
-    found[type].blocks.push(tb);
-  });
-
-  const colorRows = typeOrder.filter(t => found[t]).map(t => {
-    const c = found[t].color;
-    return `
-      <div class="prop-color-row">
-        <span class="prop-label">${typeMap[t]}</span>
-        <div class="prop-color-swatch" style="background:${c}">
-          <input type="color" id="sec-txt-${t}" value="${c}">
-        </div>
-        <input type="text" class="prop-color-hex" id="sec-txt-${t}-hex" value="${c}" maxlength="7">
-      </div>`;
-  }).join('');
-
-  const currentPreset = sec.dataset.preset || 'default';
-  const presetGridHTML = PRESETS.map(p => `
-    <button class="prop-preset-btn${p.id === currentPreset ? ' active' : ''}" data-preset-id="${p.id}">
-      <div class="prop-preset-swatches">
-        ${p.dots.map(c => `<div class="prop-preset-dot" style="background:${c}"></div>`).join('')}
-      </div>
-      <span class="prop-preset-name">${p.name}</span>
-    </button>`).join('');
-
-  propPanel.innerHTML = `
-    <div class="prop-section">
-      <div class="prop-block-label">
-        <div class="prop-block-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
-            <rect x="1" y="1" width="10" height="10" rx="1.5"/>
-          </svg>
-        </div>
-        <div class="prop-block-info">
-          <span class="prop-block-name">Section</span>
-          <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
-        </div>
-        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${sec.id}')">${sec.id}</span>` : ''}
-      </div>
-      <div class="prop-section-title">Preset</div>
-      <div class="prop-preset-grid">${presetGridHTML}</div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">배경</div>
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch" style="background:${hexBg}">
-          <input type="color" id="sec-bg-color" value="${hexBg}">
-        </div>
-        <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg}" maxlength="7">
-      </div>
-      <div class="prop-section-title" style="margin-top:10px;">배경 이미지</div>
-      ${bgImgHTML}
-    </div>
-    ${colorRows ? `<div class="prop-section"><div class="prop-section-title">텍스트 컬러</div>${colorRows}</div>` : ''}
-    <div class="prop-section">
-      <div class="prop-section-title">일괄 정렬</div>
-      <div class="prop-align-group">
-        <button class="prop-align-btn" id="sec-align-left">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
-            <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
-          </svg>
-        </button>
-        <button class="prop-align-btn" id="sec-align-center">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
-            <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
-          </svg>
-        </button>
-        <button class="prop-align-btn" id="sec-align-right">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
-            <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">여백</div>
-      <div class="prop-row">
-        <span class="prop-label">아래 여백</span>
-        <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
-        <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">내보내기</div>
-      <select class="prop-select" id="sec-export-format" style="width:100%;margin-bottom:6px;">
-        <option value="png">PNG</option>
-        <option value="jpg">JPG</option>
-      </select>
-      <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">템플릿</div>
-      <select class="prop-select" id="sec-tpl-folder" style="width:100%;margin-bottom:6px;">
-        ${(()=>{
-          const tpls = window.loadTemplates ? window.loadTemplates() : [];
-          const folders = [...new Set(tpls.map(t => t.folder || '기타'))];
-          if (!folders.length) folders.push('내 템플릿');
-          return folders.map(f => `<option value="${f.replace(/"/g,'&quot;')}">${f.replace(/</g,'&lt;')}</option>`).join('') +
-            '<option value="__new__">새 폴더...</option>';
-        })()}
-      </select>
-      <input type="text" id="sec-tpl-folder-new" class="tpl-name-input" placeholder="새 폴더 이름" style="display:none;margin-bottom:6px;">
-      <select class="prop-select" id="sec-tpl-cat" style="width:100%;margin-bottom:6px;">
-        <option value="Hero">Hero</option>
-        <option value="Main">Main</option>
-        <option value="Feature">Feature</option>
-        <option value="Detail">Detail</option>
-        <option value="CTA">CTA</option>
-        <option value="Event">Event</option>
-        <option value="기타">기타</option>
-      </select>
-      <input type="text" id="sec-tpl-name" class="tpl-name-input" placeholder="템플릿 이름 입력">
-      <button class="prop-action-btn primary" id="sec-tpl-save-btn" style="margin-top:6px;">템플릿으로 저장</button>
-    </div>`;
-
-  if (window.setRpIdBadge) window.setRpIdBadge(sec.id || null);
-
-  // 아래 여백 이벤트
-  const padBSlider = document.getElementById('sec-padb-slider');
-  const padBNumber = document.getElementById('sec-padb-number');
-  if (padBSlider) {
-    const applyPadB = v => {
-      v = Math.min(200, Math.max(0, isNaN(v) ? 0 : v));
-      sec.style.paddingBottom = v ? v + 'px' : '';
-      padBSlider.value = v;
-      padBNumber.value = v || '';
-    };
-    padBSlider.addEventListener('input',  e => applyPadB(parseInt(e.target.value)));
-    padBSlider.addEventListener('change', () => pushHistory('섹션 여백'));
-    padBNumber.addEventListener('change', e => { applyPadB(parseInt(e.target.value)); pushHistory('섹션 여백'); });
-  }
-
-  // 배경색 이벤트
-  const picker = document.getElementById('sec-bg-color');
-  const hex    = document.getElementById('sec-bg-hex');
-  const swatch = picker.closest('.prop-color-swatch');
-  picker.addEventListener('input', () => {
-    sec.style.background = picker.value;
-    hex.value = picker.value;
-    swatch.style.background = picker.value;
-  });
-  hex.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(hex.value)) {
-      sec.style.background = hex.value;
-      picker.value = hex.value;
-      swatch.style.background = hex.value;
-    }
-  });
-
-  // 배경 이미지 이벤트
-  const bgImgBtn    = document.getElementById('sec-bg-img-btn');
-  const bgImgInput  = document.getElementById('sec-bg-img-input');
-  const bgSizeEl    = document.getElementById('sec-bg-size');
-  const bgImgRemove = document.getElementById('sec-bg-img-remove');
-
-  if (bgImgBtn && bgImgInput) {
-    bgImgBtn.addEventListener('click', () => bgImgInput.click());
-    bgImgInput.addEventListener('change', () => {
-      const file = bgImgInput.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target.result;
-        sec.dataset.bgImg = dataUrl;
-        sec.dataset.bgSize = 'cover';
-        sec.style.backgroundImage = `url(${dataUrl})`;
-        sec.style.backgroundSize = 'cover';
-        sec.style.backgroundPosition = 'center';
-        sec.style.backgroundRepeat = 'no-repeat';
-        showSectionProperties(sec);
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-  if (bgSizeEl) {
-    bgSizeEl.addEventListener('change', () => {
-      sec.dataset.bgSize = bgSizeEl.value;
-      sec.style.backgroundSize = bgSizeEl.value;
-    });
-  }
-  if (bgImgRemove) {
-    bgImgRemove.addEventListener('click', () => {
-      delete sec.dataset.bgImg;
-      delete sec.dataset.bgSize;
-      sec.style.backgroundImage = '';
-      sec.style.backgroundSize = '';
-      sec.style.backgroundPosition = '';
-      sec.style.backgroundRepeat = '';
-      showSectionProperties(sec);
-    });
-  }
-
-  // Preset 버튼 이벤트
-  propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      applyPreset(sec, btn.dataset.presetId);
-      showSectionProperties(sec);
-    });
-  });
-
-  // 텍스트 컬러 이벤트
-  typeOrder.filter(t => found[t]).forEach(t => {
-    const blocks = found[t].blocks;
-    const applyColor = (val) => {
-      blocks.forEach(tb => {
-        const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
-        contentEl.style.color = val;
-      });
-    };
-    const p = document.getElementById(`sec-txt-${t}`);
-    const h = document.getElementById(`sec-txt-${t}-hex`);
-    const sw = p.closest('.prop-color-swatch');
-    p.addEventListener('input', () => { applyColor(p.value); h.value = p.value; sw.style.background = p.value; });
-    h.addEventListener('input', () => {
-      if (/^#[0-9a-f]{6}$/i.test(h.value)) { applyColor(h.value); p.value = h.value; sw.style.background = h.value; }
-    });
-  });
-
-  // 일괄 정렬
-  const allTextBlocks = [...sec.querySelectorAll('.text-block')];
-  ['left','center','right'].forEach(align => {
-    const btn = document.getElementById(`sec-align-${align}`);
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      allTextBlocks.forEach(tb => {
-        const isLabel = tb.querySelector('.tb-label');
-        if (isLabel) { tb.style.textAlign = align; }
-        else {
-          const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
-          if (contentEl) contentEl.style.textAlign = align;
-        }
-      });
-      propPanel.querySelectorAll('#sec-align-left,#sec-align-center,#sec-align-right')
-        .forEach(b => b.classList.toggle('active', b === btn));
-    });
-  });
-
-  // 내보내기
-  const secExportBtn = document.getElementById('sec-export-btn');
-  if (secExportBtn) {
-    secExportBtn.addEventListener('click', async () => {
-      const fmt = document.getElementById('sec-export-format').value;
-      secExportBtn.disabled = true;
-      secExportBtn.textContent = '내보내는 중...';
-      try {
-        await exportSection(sec, fmt);
-      } finally {
-        secExportBtn.disabled = false;
-        secExportBtn.textContent = '이 섹션 내보내기';
-      }
-    });
-  }
-
-  // 폴더 드롭다운 → 새 폴더 입력 토글
-  const tplFolderSel = document.getElementById('sec-tpl-folder');
-  const tplFolderNew = document.getElementById('sec-tpl-folder-new');
-  if (tplFolderSel && tplFolderNew) {
-    tplFolderSel.addEventListener('change', () => {
-      tplFolderNew.style.display = tplFolderSel.value === '__new__' ? 'block' : 'none';
-    });
-  }
-
-  // 템플릿 저장
-  const tplSaveBtn = document.getElementById('sec-tpl-save-btn');
-  if (tplSaveBtn) {
-    tplSaveBtn.addEventListener('click', () => {
-      const name = document.getElementById('sec-tpl-name').value.trim();
-      if (!name) { document.getElementById('sec-tpl-name').focus(); return; }
-      const category = document.getElementById('sec-tpl-cat').value;
-      let folder = tplFolderSel ? tplFolderSel.value : '기타';
-      if (folder === '__new__') {
-        folder = (tplFolderNew ? tplFolderNew.value.trim() : '') || '기타';
-      }
-      window.saveAsTemplate?.(sec, name, folder, category);
-      document.getElementById('sec-tpl-name').value = '';
-      tplSaveBtn.textContent = '저장됨 ✓';
-      tplSaveBtn.disabled = true;
-      setTimeout(() => {
-        if (tplSaveBtn) { tplSaveBtn.textContent = '템플릿으로 저장'; tplSaveBtn.disabled = false; }
-      }, 1500);
-    });
-  }
-}
-
-/* 블록이 선택된 상태에서 소속 섹션만 하이라이트 (deselectAll 없이) */
-function syncSection(sec) {
-  document.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
-  sec.classList.add('selected');
-  syncLayerActive(sec);
-}
 
 function deselectAll() {
   clearMultiSel();
@@ -971,123 +620,6 @@ function bindSectionHitzone(sec) {
   });
 }
 
-/* ═══════════════════════════════════
-   A/B VARIATION
-═══════════════════════════════════ */
-const VARIATION_LABELS = ['A', 'B', 'C', 'D', 'E'];
-
-function _addVariationBadge(sec) {
-  sec.querySelector('.variation-badge')?.remove();
-  const v = sec.dataset.variation;
-  if (!v) return;
-  const badge = document.createElement('div');
-  badge.className = `variation-badge variation-badge-${v.toLowerCase()}`;
-  badge.textContent = v;
-  badge.title = `${v}안 — 클릭하여 다음 안으로 전환`;
-  badge.addEventListener('click', e => { e.stopPropagation(); toggleVariation(sec); });
-  sec.appendChild(badge);
-}
-
-function bindVariationToolbarBtn(sec) {
-  const toolbar = sec.querySelector('.section-toolbar');
-  if (!toolbar) return;
-  if (sec.dataset.variationGroup) _addVariationBadge(sec);
-  let abBtn = toolbar.querySelector('.st-ab-btn');
-  if (sec.dataset.variationGroup) {
-    if (!abBtn) {
-      abBtn = document.createElement('button');
-      abBtn.className = 'st-btn st-ab-btn';
-      toolbar.insertBefore(abBtn, toolbar.firstChild);
-    }
-    const groupId = sec.dataset.variationGroup;
-    const all = [...document.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)];
-    const v = sec.dataset.variation || 'A';
-    const idx = VARIATION_LABELS.indexOf(v);
-    const nextV = VARIATION_LABELS[(idx + 1) % all.length];
-    abBtn.textContent = `▷ ${nextV}`;
-    abBtn.title = `${nextV}안으로 전환`;
-    abBtn.onclick = e => { e.stopPropagation(); toggleVariation(sec); };
-  } else {
-    if (!abBtn) {
-      abBtn = document.createElement('button');
-      abBtn.className = 'st-btn st-ab-btn';
-      abBtn.textContent = 'A/B';
-      abBtn.title = 'A/B 베리에이션 생성';
-      toolbar.insertBefore(abBtn, toolbar.firstChild);
-    }
-    abBtn.onclick = e => { e.stopPropagation(); createVariation(sec); };
-  }
-}
-
-function createVariation(sec) {
-  if (sec.dataset.variationGroup) return;
-  pushHistory('A/B 베리에이션 생성');
-  const groupId = 'vg_' + Math.random().toString(36).slice(2, 8);
-  sec.dataset.variationGroup = groupId;
-  sec.dataset.variation = 'A';
-  sec.dataset.variationActive = '1';
-  bindVariationToolbarBtn(sec);
-  const clone = sec.cloneNode(true);
-  clone.id = window.genId ? window.genId('sec') : 'sec_' + Math.random().toString(36).slice(2, 9);
-  clone.querySelectorAll('[id]').forEach(el => {
-    const prefix = el.id.split('_')[0];
-    el.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
-  });
-  clone.dataset.variation = 'B';
-  clone.dataset.variationActive = '0';
-  sec.after(clone);
-  clone.addEventListener('click', e => { e.stopPropagation(); selectSectionWithModifier(clone, e); });
-  bindSectionDelete(clone);
-  bindSectionOrder(clone);
-  if (window.bindSectionDrag) window.bindSectionDrag(clone);
-  if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => window.bindBlock && window.bindBlock(b));
-  bindVariationToolbarBtn(clone);
-  if (window.buildLayerPanel) window.buildLayerPanel();
-}
-
-function toggleVariation(sec) {
-  const groupId = sec.dataset.variationGroup;
-  if (!groupId) return;
-  const all = [...document.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)]
-    .sort((a, b) => VARIATION_LABELS.indexOf(a.dataset.variation) - VARIATION_LABELS.indexOf(b.dataset.variation));
-  const activeIdx = all.findIndex(s => s.dataset.variationActive === '1');
-  if (activeIdx === -1) return;
-  const nextIdx = (activeIdx + 1) % all.length;
-  all.forEach((s, i) => { s.dataset.variationActive = i === nextIdx ? '1' : '0'; });
-  all.forEach(s => bindVariationToolbarBtn(s));
-  selectSection(all[nextIdx]);
-  if (window.buildLayerPanel) window.buildLayerPanel();
-  pushHistory('베리에이션 전환');
-}
-
-function addVariation(sec) {
-  const groupId = sec.dataset.variationGroup;
-  if (!groupId) return;
-  const all = [...document.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)];
-  if (all.length >= VARIATION_LABELS.length) return;
-  const nextLabel = VARIATION_LABELS[all.length];
-  const active = all.find(s => s.dataset.variationActive === '1') || all[0];
-  const clone = active.cloneNode(true);
-  clone.id = window.genId ? window.genId('sec') : 'sec_' + Math.random().toString(36).slice(2, 9);
-  clone.querySelectorAll('[id]').forEach(el => {
-    const prefix = el.id.split('_')[0];
-    el.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
-  });
-  clone.dataset.variation = nextLabel;
-  clone.dataset.variationActive = '0';
-  all[all.length - 1].after(clone);
-  clone.addEventListener('click', e => { e.stopPropagation(); selectSectionWithModifier(clone, e); });
-  bindSectionDelete(clone);
-  bindSectionOrder(clone);
-  if (window.bindSectionDrag) window.bindSectionDrag(clone);
-  if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => window.bindBlock && window.bindBlock(b));
-  bindVariationToolbarBtn(clone);
-  all.forEach(s => bindVariationToolbarBtn(s));
-  if (window.buildLayerPanel) window.buildLayerPanel();
-  pushHistory(`${nextLabel}안 추가`);
-}
 
 document.querySelectorAll('.section-block').forEach(sec => {
   sec.addEventListener('click', e => {
@@ -1302,7 +834,6 @@ window.undo = undo;
 window.redo = redo;
 window.deselectAll = deselectAll;
 window.getBlockBreadcrumb = getBlockBreadcrumb;
-window.syncSection = syncSection;
 window.selectSection = selectSection;
 window.zoomStep = zoomStep;
 window.zoomFit = zoomFit;
@@ -1311,8 +842,6 @@ window.toggleAllSections = toggleAllSections;
 window.switchToTab = switchToTab;
 window.initFileTabToggle = initFileTabToggle;
 window.rgbToHex = rgbToHex;
-window.applyPreset = applyPreset;
-window.showSectionProperties = showSectionProperties;
 window.bindSectionDelete  = bindSectionDelete;
 window.bindSectionHitzone = bindSectionHitzone;
 window.bindSectionOrder = bindSectionOrder;
@@ -1326,10 +855,6 @@ window.clearMultiSel = clearMultiSel;
 window.selectSectionWithModifier = selectSectionWithModifier;
 window.selectColWithModifier = selectColWithModifier;
 window.showMultiSelPanel = showMultiSelPanel;
-window.bindVariationToolbarBtn = bindVariationToolbarBtn;
-window.createVariation = createVariation;
-window.toggleVariation = toggleVariation;
-window.addVariation = addVariation;
 // 모든 모듈 로드 후 앱 초기화
 initApp();
 
@@ -1342,7 +867,6 @@ export {
   redo,
   deselectAll,
   getBlockBreadcrumb,
-  syncSection,
   selectSection,
   zoomStep,
   zoomFit,
@@ -1351,8 +875,7 @@ export {
   switchToTab,
   initFileTabToggle,
   rgbToHex,
-  applyPreset,
-  showSectionProperties,
+  PRESETS,
   bindSectionDelete,
   bindSectionOrder,
   getSelectedSection,
@@ -1362,10 +885,6 @@ export {
   selectSectionWithModifier,
   selectColWithModifier,
   clearMultiSel,
-  bindVariationToolbarBtn,
-  createVariation,
-  toggleVariation,
-  addVariation,
 };
 
 // (window 할당은 initApp() 호출 전 블록에서 처리됨)
