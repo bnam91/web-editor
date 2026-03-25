@@ -21,6 +21,9 @@ export function showTextProperties(tb) {
   const defaultPad   = isLabel ? 0 : state.pageSettings.padY;
   const currentPadT  = tb.style.paddingTop    ? (parseInt(tb.style.paddingTop)    || 0) : defaultPad;
   const currentPadB  = tb.style.paddingBottom ? (parseInt(tb.style.paddingBottom) || 0) : defaultPad;
+  const currentPadL  = parseInt(tb.style.paddingLeft)  || 0;
+  const currentPadR  = parseInt(tb.style.paddingRight) || 0;
+  let   phLinked     = currentPadL === currentPadR;
   const currentFont   = contentEl.style.fontFamily || '';
   const isBold        = contentEl.style.fontWeight === 'bold';
   const isItalic      = contentEl.style.fontStyle  === 'italic';
@@ -160,6 +163,23 @@ export function showTextProperties(tb) {
         <span class="prop-label">상하</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}">
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}">
+      </div>
+      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+        <span class="prop-label">좌</span>
+        <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="${currentPadL}">
+        <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
+        <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+            <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
+            <rect x="7.5" y="3.5" width="4" height="5" rx="2"/>
+            <line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+        <span class="prop-label">우</span>
+        <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="${currentPadR}">
+        <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
       </div>
     </div>
 
@@ -402,6 +422,45 @@ export function showTextProperties(tb) {
     if (pvSlider) {
       pvSlider.addEventListener('input', () => { tb.style.paddingTop = pvSlider.value+'px'; tb.style.paddingBottom = pvSlider.value+'px'; pvNumber.value = pvSlider.value; });
       pvNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pvNumber.value)||0)); tb.style.paddingTop=v+'px'; tb.style.paddingBottom=v+'px'; pvSlider.value=v; });
+    }
+
+    /* 좌우 패딩 */
+    const plSlider = document.getElementById('txt-pl-slider');
+    const plNumber = document.getElementById('txt-pl-number');
+    const prSlider = document.getElementById('txt-pr-slider');
+    const prNumber = document.getElementById('txt-pr-number');
+    const chainBtn = document.getElementById('txt-ph-chain');
+
+    const CHAIN_SVG_LINKED = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>`;
+    const CHAIN_SVG_BROKEN = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="5.2" y1="4.8" x2="6.8" y2="7.2" stroke-linecap="round"/></svg>`;
+
+    if (plSlider) {
+      chainBtn.addEventListener('click', () => {
+        phLinked = !phLinked;
+        chainBtn.classList.toggle('active', phLinked);
+        chainBtn.innerHTML = phLinked ? CHAIN_SVG_LINKED : CHAIN_SVG_BROKEN;
+        if (phLinked) {
+          const v = parseInt(plSlider.value);
+          tb.style.paddingRight = v + 'px';
+          prSlider.value = v; prNumber.value = v;
+        }
+      });
+
+      const setL = v => {
+        tb.style.paddingLeft = v + 'px';
+        plSlider.value = v; plNumber.value = v;
+        if (phLinked) { tb.style.paddingRight = v + 'px'; prSlider.value = v; prNumber.value = v; }
+      };
+      const setR = v => {
+        tb.style.paddingRight = v + 'px';
+        prSlider.value = v; prNumber.value = v;
+        if (phLinked) { tb.style.paddingLeft = v + 'px'; plSlider.value = v; plNumber.value = v; }
+      };
+
+      plSlider.addEventListener('input', () => setL(parseInt(plSlider.value)));
+      plNumber.addEventListener('input', () => setL(Math.min(120, Math.max(0, parseInt(plNumber.value) || 0))));
+      prSlider.addEventListener('input', () => setR(parseInt(prSlider.value)));
+      prNumber.addEventListener('input', () => setR(Math.min(120, Math.max(0, parseInt(prNumber.value) || 0))));
     }
   }
 

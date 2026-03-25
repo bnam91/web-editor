@@ -1730,6 +1730,19 @@ body {
 }
 .prop-number:focus { border-color: #2d6fe8; }
 
+.prop-chain-btn {
+  width: 22px; height: 22px; flex-shrink: 0;
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #555;
+  padding: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.prop-chain-btn:hover { border-color: #888; color: #aaa; }
+.prop-chain-btn.active { border-color: #2d6fe8; color: #2d6fe8; background: rgba(45,111,232,0.12); }
+
 .prop-select {
   flex: 1; height: 24px;
   background: #1a1a1a; border: 1px solid #333;
