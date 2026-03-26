@@ -157,17 +157,21 @@ function enterImageEditMode(ab) {
     if (hEl) hEl.value = Math.round(img.offsetHeight);
   }
 
-  // 4 모서리 핸들 생성
-  const CORNERS = [
-    { id: 'tl', cursor: 'nwse-resize' },
-    { id: 'tr', cursor: 'nesw-resize' },
-    { id: 'bl', cursor: 'nesw-resize' },
-    { id: 'br', cursor: 'nwse-resize' },
+  // 8 핸들 생성 (4 모서리 + 4 변 중앙)
+  const HANDLES = [
+    { id: 'tl', cursor: 'nwse-resize', cls: 'img-corner-handle' },
+    { id: 'tc', cursor: 'ns-resize',   cls: 'img-edge-handle'   },
+    { id: 'tr', cursor: 'nesw-resize', cls: 'img-corner-handle' },
+    { id: 'rc', cursor: 'ew-resize',   cls: 'img-edge-handle'   },
+    { id: 'br', cursor: 'nwse-resize', cls: 'img-corner-handle' },
+    { id: 'bc', cursor: 'ns-resize',   cls: 'img-edge-handle'   },
+    { id: 'bl', cursor: 'nesw-resize', cls: 'img-corner-handle' },
+    { id: 'lc', cursor: 'ew-resize',   cls: 'img-edge-handle'   },
   ];
   const cornerEls = {};
-  CORNERS.forEach(({ id, cursor }) => {
+  HANDLES.forEach(({ id, cursor, cls }) => {
     const h = document.createElement('div');
-    h.className = 'img-corner-handle';
+    h.className = cls;
     h.style.cursor = cursor;
     h.draggable = false;
     h.addEventListener('dragstart', e => e.preventDefault());
@@ -180,7 +184,7 @@ function enterImageEditMode(ab) {
   hint.textContent = '드래그: 위치 · 모서리: 크기 · Esc: 완료';
   ab.appendChild(hint);
 
-  // 핸들 위치를 이미지 4 모서리에 동기화
+  // 핸들 위치를 이미지 8곳에 동기화
   const HS = 5; // 핸들 절반 크기 (10px / 2)
   function syncHandles() {
     const x = parseFloat(img.style.left) || 0;
@@ -188,10 +192,14 @@ function enterImageEditMode(ab) {
     const w = img.offsetWidth;
     const h = img.offsetHeight;
     const pos = {
-      tl: [x - HS,     y - HS    ],
-      tr: [x + w - HS, y - HS    ],
-      bl: [x - HS,     y + h - HS],
-      br: [x + w - HS, y + h - HS],
+      tl: [x - HS,         y - HS        ],
+      tc: [x + w/2 - HS,   y - HS        ],
+      tr: [x + w - HS,     y - HS        ],
+      rc: [x + w - HS,     y + h/2 - HS  ],
+      br: [x + w - HS,     y + h - HS    ],
+      bc: [x + w/2 - HS,   y + h - HS    ],
+      bl: [x - HS,         y + h - HS    ],
+      lc: [x - HS,         y + h/2 - HS  ],
     };
     Object.entries(pos).forEach(([id, [lx, ly]]) => {
       cornerEls[id].style.left = lx + 'px';
@@ -223,28 +231,52 @@ function enterImageEditMode(ab) {
     document.addEventListener('mouseup', onUp);
   }
 
-  // 모서리 드래그 (스케일 — 반대 모서리 앵커 고정)
-  function onCornerDown(e, corner) {
+  // 핸들 드래그 (스케일 — 모서리 + 변 중앙)
+  function onCornerDown(e, handle) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     const zs      = (window.currentZoom || 100) / 100;
     const startX  = e.clientX;
+    const startY  = e.clientY;
     const startIX = parseFloat(img.style.left) || 0;
     const startIY = parseFloat(img.style.top)  || 0;
     const startW  = img.offsetWidth;
     const startH  = img.offsetHeight;
     const ratio   = startW / startH;
-    const isLeft  = corner === 'tl' || corner === 'bl';
-    const isTop   = corner === 'tl' || corner === 'tr';
+    const isLeft  = handle === 'tl' || handle === 'bl' || handle === 'lc';
+    const isTop   = handle === 'tl' || handle === 'tr' || handle === 'tc';
+    const isEdgeH = handle === 'lc' || handle === 'rc';
+    const isEdgeV = handle === 'tc' || handle === 'bc';
 
     function onMove(e) {
       const rawDx = (e.clientX - startX) / zs;
-      const dx    = isLeft ? -rawDx : rawDx;
-      const newW  = Math.max(40, startW + dx);
-      const newH  = newW / ratio;
-      img.style.width = newW + 'px';
-      if (isLeft) img.style.left = (startIX + (startW - newW)) + 'px';
-      if (isTop)  img.style.top  = (startIY + (startH - newH)) + 'px';
+      const rawDy = (e.clientY - startY) / zs;
+      let newW, newH;
+      if (isEdgeH) {
+        // 좌/우 변: 가로 드래그로 너비 변경, 세로 중앙 유지
+        const dx = isLeft ? -rawDx : rawDx;
+        newW = Math.max(40, startW + dx);
+        newH = newW / ratio;
+        img.style.width = newW + 'px';
+        if (isLeft) img.style.left = (startIX + (startW - newW)) + 'px';
+        img.style.top = (startIY + (startH - newH) / 2) + 'px';
+      } else if (isEdgeV) {
+        // 상/하 변: 세로 드래그로 높이 변경, 가로 중앙 유지
+        const dy = isTop ? -rawDy : rawDy;
+        newH = Math.max(40 / ratio, startH + dy);
+        newW = newH * ratio;
+        img.style.width = newW + 'px';
+        if (isTop) img.style.top = (startIY + (startH - newH)) + 'px';
+        img.style.left = (startIX + (startW - newW) / 2) + 'px';
+      } else {
+        // 모서리: 대각선 드래그
+        const dx = isLeft ? -rawDx : rawDx;
+        newW = Math.max(40, startW + dx);
+        newH = newW / ratio;
+        img.style.width = newW + 'px';
+        if (isLeft) img.style.left = (startIX + (startW - newW)) + 'px';
+        if (isTop)  img.style.top  = (startIY + (startH - newH)) + 'px';
+      }
       syncHandles(); syncPanel();
     }
     function onUp() {
@@ -463,6 +495,9 @@ window.loadImageToAsset   = loadImageToAsset;
 window.triggerCircleUpload        = triggerCircleUpload;
 window.loadImageToCircle          = loadImageToCircle;
 window.clearCircleImage           = clearCircleImage;
+window.applyCircleImageTransform  = applyCircleImageTransform;
+window.enterCircleImageEditMode   = enterCircleImageEditMode;
+window.exitCircleImageEditMode    = exitCircleImageEditMode;
 
 window.triggerCardImageUpload     = triggerCardImageUpload;
 window.loadImageToCard            = loadImageToCard;
@@ -488,6 +523,7 @@ function triggerCircleUpload(icb) {
 
 function loadImageToCircle(icb, file) {
   if (!file || !file.type.startsWith('image/')) return;
+  exitCircleImageEditMode(icb);
   pushHistory();
   const reader = new FileReader();
   reader.onload = ev => {
@@ -495,8 +531,13 @@ function loadImageToCircle(icb, file) {
     const circle = icb.querySelector('.icb-circle');
     icb.classList.add('has-image');
     icb.dataset.imgSrc = src;
+    // 기존 위치/크기 초기화
+    delete icb.dataset.imgW;
+    delete icb.dataset.imgX;
+    delete icb.dataset.imgY;
+    circle.style.position = 'relative';
     circle.innerHTML = `
-      <img class="icb-img" src="${src}" draggable="false">
+      <img class="icb-img" src="${src}" style="width:100%;height:100%;object-fit:cover;display:block;" draggable="false">
       <button class="icb-clear-btn" title="이미지 제거">✕</button>`;
     circle.querySelector('.icb-clear-btn').addEventListener('click', e => {
       e.stopPropagation();
@@ -505,6 +546,288 @@ function loadImageToCircle(icb, file) {
     showIconCircleProperties(icb);
   };
   reader.readAsDataURL(file);
+}
+
+/* ── Circle 이미지 위치/스케일 복원 ── */
+function applyCircleImageTransform(icb) {
+  const circle = icb.querySelector('.icb-circle');
+  const img = icb.querySelector('.icb-img');
+  if (!img || !icb.dataset.imgW) return;
+  circle.style.position = 'relative';
+  img.style.position  = 'absolute';
+  img.style.objectFit = 'fill';
+  img.style.width     = icb.dataset.imgW + 'px';
+  img.style.height    = 'auto';
+  img.style.left      = (parseFloat(icb.dataset.imgX) || 0) + 'px';
+  img.style.top       = (parseFloat(icb.dataset.imgY) || 0) + 'px';
+}
+
+/* ── Circle 이미지 편집 모드 ── */
+function enterCircleImageEditMode(icb) {
+  if (icb._imgEditing) return;
+  const circle = icb.querySelector('.icb-circle');
+  const img    = icb.querySelector('.icb-img');
+  if (!img) return;
+
+  icb._imgEditing = true;
+  icb.classList.add('img-editing');
+  icb.draggable = false;
+  const _row = icb.closest('.row');
+  if (_row) _row.draggable = false;
+
+  const frameW = circle.offsetWidth;
+  const frameH = circle.offsetHeight;
+  circle.style.position = 'relative';
+
+  if (icb.dataset.imgW) {
+    applyCircleImageTransform(icb);
+  } else {
+    const ratio  = (img.naturalWidth / img.naturalHeight) || 1;
+    const initW  = frameW;
+    const initH  = initW / ratio;
+    img.style.position  = 'absolute';
+    img.style.objectFit = 'fill';
+    img.style.width     = initW + 'px';
+    img.style.height    = 'auto';
+    img.style.left      = '0px';
+    img.style.top       = ((frameH - initH) / 2) + 'px';
+    icb.dataset.imgW = initW;
+    icb.dataset.imgX = 0;
+    icb.dataset.imgY = (frameH - initH) / 2;
+  }
+  img.draggable = false;
+
+  function renderCircleImgPanel() {
+    const x = Math.round(parseFloat(img.style.left) || 0);
+    const y = Math.round(parseFloat(img.style.top)  || 0);
+    const w = Math.round(img.offsetWidth);
+    propPanel.innerHTML = `
+      <div class="prop-section">
+        <div class="prop-block-label">
+          <div class="prop-block-icon">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+              <circle cx="6" cy="6" r="5"/><circle cx="4" cy="4" r="1"/><polyline points="11 8 8 5 3 11"/>
+            </svg>
+          </div>
+          <span class="prop-block-name">이미지 편집</span>
+        </div>
+        <div class="prop-section-title">위치</div>
+        <div class="prop-row"><span class="prop-label">X</span>
+          <input type="number" class="prop-number" id="icb-img-x" style="width:64px" value="${x}">
+        </div>
+        <div class="prop-row"><span class="prop-label">Y</span>
+          <input type="number" class="prop-number" id="icb-img-y" style="width:64px" value="${y}">
+        </div>
+      </div>
+      <div class="prop-section">
+        <div class="prop-section-title">크기</div>
+        <div class="prop-row"><span class="prop-label">너비</span>
+          <input type="number" class="prop-number" id="icb-img-w" style="width:64px" value="${w}" min="40">
+        </div>
+        <div class="prop-row"><span class="prop-label">높이</span>
+          <input type="number" class="prop-number" id="icb-img-h" style="width:64px" value="${Math.round(img.offsetHeight)}" disabled>
+        </div>
+      </div>
+      <div class="prop-section" style="color:#555;font-size:11px;padding-top:0;">
+        Esc 또는 블록 밖 클릭으로 편집 종료
+      </div>`;
+    document.getElementById('icb-img-x').addEventListener('input', e => {
+      img.style.left = (parseInt(e.target.value) || 0) + 'px';
+      icb.dataset.imgX = parseInt(e.target.value) || 0;
+      syncHandles();
+    });
+    document.getElementById('icb-img-y').addEventListener('input', e => {
+      img.style.top = (parseInt(e.target.value) || 0) + 'px';
+      icb.dataset.imgY = parseInt(e.target.value) || 0;
+      syncHandles();
+    });
+    document.getElementById('icb-img-w').addEventListener('input', e => {
+      const v = Math.max(40, parseInt(e.target.value) || 40);
+      img.style.width = v + 'px';
+      icb.dataset.imgW = v;
+      syncHandles();
+      const hEl = document.getElementById('icb-img-h');
+      if (hEl) hEl.value = Math.round(img.offsetHeight);
+    });
+  }
+
+  function syncPanel() {
+    const xEl = document.getElementById('icb-img-x');
+    const yEl = document.getElementById('icb-img-y');
+    const wEl = document.getElementById('icb-img-w');
+    const hEl = document.getElementById('icb-img-h');
+    if (xEl) xEl.value = Math.round(parseFloat(img.style.left) || 0);
+    if (yEl) yEl.value = Math.round(parseFloat(img.style.top)  || 0);
+    if (wEl) wEl.value = Math.round(img.offsetWidth);
+    if (hEl) hEl.value = Math.round(img.offsetHeight);
+  }
+
+  // 8 핸들 (icb 기준, circle offsetLeft/Top 보정)
+  const ICB_HANDLES = [
+    { id: 'tl', cursor: 'nwse-resize', cls: 'img-corner-handle' },
+    { id: 'tc', cursor: 'ns-resize',   cls: 'img-edge-handle'   },
+    { id: 'tr', cursor: 'nesw-resize', cls: 'img-corner-handle' },
+    { id: 'rc', cursor: 'ew-resize',   cls: 'img-edge-handle'   },
+    { id: 'br', cursor: 'nwse-resize', cls: 'img-corner-handle' },
+    { id: 'bc', cursor: 'ns-resize',   cls: 'img-edge-handle'   },
+    { id: 'bl', cursor: 'nesw-resize', cls: 'img-corner-handle' },
+    { id: 'lc', cursor: 'ew-resize',   cls: 'img-edge-handle'   },
+  ];
+  const handleEls = {};
+  const HS = 5;
+  ICB_HANDLES.forEach(({ id, cursor, cls }) => {
+    const h = document.createElement('div');
+    h.className = cls;
+    h.style.cursor = cursor;
+    h.draggable = false;
+    h.addEventListener('dragstart', e => e.preventDefault());
+    icb.appendChild(h);
+    handleEls[id] = h;
+  });
+
+  const hint = document.createElement('div');
+  hint.className = 'img-edit-hint';
+  hint.textContent = '드래그: 위치 · 모서리: 크기 · Esc: 완료';
+  icb.appendChild(hint);
+
+  function syncHandles() {
+    const cx = circle.offsetLeft;
+    const cy = circle.offsetTop;
+    const x  = parseFloat(img.style.left) || 0;
+    const y  = parseFloat(img.style.top)  || 0;
+    const w  = img.offsetWidth;
+    const h  = img.offsetHeight;
+    const pos = {
+      tl: [cx + x - HS,         cy + y - HS        ],
+      tc: [cx + x + w/2 - HS,   cy + y - HS        ],
+      tr: [cx + x + w - HS,     cy + y - HS        ],
+      rc: [cx + x + w - HS,     cy + y + h/2 - HS  ],
+      br: [cx + x + w - HS,     cy + y + h - HS    ],
+      bc: [cx + x + w/2 - HS,   cy + y + h - HS    ],
+      bl: [cx + x - HS,         cy + y + h - HS    ],
+      lc: [cx + x - HS,         cy + y + h/2 - HS  ],
+    };
+    Object.entries(pos).forEach(([id, [lx, ly]]) => {
+      handleEls[id].style.left = lx + 'px';
+      handleEls[id].style.top  = ly + 'px';
+    });
+  }
+  syncHandles();
+
+  function onImgDown(e) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const zs = (window.currentZoom || 100) / 100;
+    const sx = e.clientX, sy = e.clientY;
+    const sl = parseFloat(img.style.left) || 0;
+    const st = parseFloat(img.style.top)  || 0;
+    function onMove(e) {
+      img.style.left = (sl + (e.clientX - sx) / zs) + 'px';
+      img.style.top  = (st + (e.clientY - sy) / zs) + 'px';
+      syncHandles(); syncPanel();
+    }
+    function onUp() {
+      icb.dataset.imgX = parseFloat(img.style.left) || 0;
+      icb.dataset.imgY = parseFloat(img.style.top)  || 0;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  function onHandleDown(e, handle) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const zs      = (window.currentZoom || 100) / 100;
+    const startX  = e.clientX, startY = e.clientY;
+    const startIX = parseFloat(img.style.left) || 0;
+    const startIY = parseFloat(img.style.top)  || 0;
+    const startW  = img.offsetWidth;
+    const startH  = img.offsetHeight;
+    const ratio   = startW / startH;
+    const isLeft  = handle === 'tl' || handle === 'bl' || handle === 'lc';
+    const isTop   = handle === 'tl' || handle === 'tr' || handle === 'tc';
+    const isEdgeH = handle === 'lc' || handle === 'rc';
+    const isEdgeV = handle === 'tc' || handle === 'bc';
+    function onMove(e) {
+      const rawDx = (e.clientX - startX) / zs;
+      const rawDy = (e.clientY - startY) / zs;
+      let newW, newH;
+      if (isEdgeH) {
+        const dx = isLeft ? -rawDx : rawDx;
+        newW = Math.max(40, startW + dx);
+        newH = newW / ratio;
+        img.style.width = newW + 'px';
+        if (isLeft) img.style.left = (startIX + (startW - newW)) + 'px';
+        img.style.top = (startIY + (startH - newH) / 2) + 'px';
+      } else if (isEdgeV) {
+        const dy = isTop ? -rawDy : rawDy;
+        newH = Math.max(40 / ratio, startH + dy);
+        newW = newH * ratio;
+        img.style.width = newW + 'px';
+        if (isTop) img.style.top = (startIY + (startH - newH)) + 'px';
+        img.style.left = (startIX + (startW - newW) / 2) + 'px';
+      } else {
+        const dx = isLeft ? -rawDx : rawDx;
+        newW = Math.max(40, startW + dx);
+        newH = newW / ratio;
+        img.style.width = newW + 'px';
+        if (isLeft) img.style.left = (startIX + (startW - newW)) + 'px';
+        if (isTop)  img.style.top  = (startIY + (startH - newH)) + 'px';
+      }
+      syncHandles(); syncPanel();
+    }
+    function onUp() {
+      icb.dataset.imgW = img.offsetWidth;
+      icb.dataset.imgX = parseFloat(img.style.left) || 0;
+      icb.dataset.imgY = parseFloat(img.style.top)  || 0;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  img.addEventListener('mousedown', onImgDown);
+  Object.entries(handleEls).forEach(([id, el]) => {
+    el.addEventListener('mousedown', e => onHandleDown(e, id));
+  });
+
+  renderCircleImgPanel();
+
+  icb._imgEditCleanup = () => {
+    img.removeEventListener('mousedown', onImgDown);
+    Object.values(handleEls).forEach(h => h.remove());
+    hint.remove();
+    img.draggable = false;
+    icb.draggable = false;
+    if (_row) _row.draggable = true;
+  };
+
+  icb._exitImgEdit = e => { if (!icb.contains(e.target)) exitCircleImageEditMode(icb); };
+  icb._exitImgEsc  = e => { if (e.key === 'Escape') exitCircleImageEditMode(icb); };
+  setTimeout(() => {
+    document.addEventListener('click',   icb._exitImgEdit);
+    document.addEventListener('keydown', icb._exitImgEsc);
+  }, 0);
+}
+
+function exitCircleImageEditMode(icb) {
+  if (!icb._imgEditing) return;
+  icb._imgEditing = false;
+  icb.classList.remove('img-editing');
+  const img = icb.querySelector('.icb-img');
+  if (img) {
+    icb.dataset.imgW = img.offsetWidth;
+    icb.dataset.imgX = parseFloat(img.style.left) || 0;
+    icb.dataset.imgY = parseFloat(img.style.top)  || 0;
+  }
+  if (icb._imgEditCleanup) { icb._imgEditCleanup(); icb._imgEditCleanup = null; }
+  document.removeEventListener('click',   icb._exitImgEdit);
+  document.removeEventListener('keydown', icb._exitImgEsc);
+  icb._exitImgEdit = null;
+  icb._exitImgEsc  = null;
 }
 
 function clearCircleImage(icb) {
