@@ -90,11 +90,11 @@ function makeLayerBlockItem(block, dragTarget, sec) {
       syncSection(sec);
       highlightBlock(block, item);
       if (isText) window.showTextProperties(block);
-      else if (isGap) showGapProperties(block);
-      else if (isIconCb) showIconCircleProperties(block);
-      else if (isTable) showTableProperties(block);
-      else if (isCard) showCardProperties(block);
-      else if (isBanner) showStripBannerProperties(block);
+      else if (isGap) window.showGapProperties(block);
+      else if (isIconCb) window.showIconCircleProperties(block);
+      else if (isTable) window.showTableProperties(block);
+      else if (isCard) window.showCardProperties(block);
+      else if (isBanner) window.showStripBannerProperties(block);
       else window.showAssetProperties(block);
     }
   });
@@ -319,7 +319,7 @@ function makeLayerCardItem(block, dragTarget, sec) {
     block.classList.add('selected');
     syncSection(sec);
     highlightBlock(block, header);
-    showCardProperties(block);
+    window.showCardProperties(block);
   });
   block._layerItem = header;
 
@@ -346,7 +346,7 @@ function makeLayerCardItem(block, dragTarget, sec) {
     block.classList.add('selected');
     syncSection(sec);
     highlightBlock(block, header);
-    showCardProperties(block);
+    window.showCardProperties(block);
   };
 
   const imgEl = block.querySelector('.cdb-image');
@@ -400,7 +400,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
     block.classList.add('selected');
     syncSection(sec);
     highlightBlock(block, header);
-    showStripBannerProperties(block);
+    window.showStripBannerProperties(block);
   });
   block._layerItem = header;
 
@@ -436,7 +436,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
         block.classList.add('selected');
         syncSection(sec);
         highlightBlock(block, header);
-        showStripBannerProperties(block);
+        window.showStripBannerProperties(block);
       });
       children.appendChild(imgItem);
     }
@@ -466,7 +466,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
           block.querySelectorAll('.sbb-focused').forEach(el => el.classList.remove('sbb-focused'));
           child.classList.add('sbb-focused');
           child.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          showStripBannerProperties(block);
+          window.showStripBannerProperties(block);
         });
         children.appendChild(childItem);
       });
@@ -537,9 +537,9 @@ function makeLayerColItem(colEl, colIdx, sec) {
       syncSection(sec);
       highlightBlock(block, item);
       if (isText) window.showTextProperties(block);
-      else if (isGap) showGapProperties(block);
-      else if (isIconCb) showIconCircleProperties(block);
-      else if (isTable) showTableProperties(block);
+      else if (isGap) window.showGapProperties(block);
+      else if (isIconCb) window.showIconCircleProperties(block);
+      else if (isTable) window.showTableProperties(block);
       else window.showAssetProperties(block);
     });
     block._layerItem = item;

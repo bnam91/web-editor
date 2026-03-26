@@ -531,7 +531,7 @@ export function showCardProperties(block) {
     }
     window.buildLayerPanel();
     window.deselectAll();
-    showPageProperties();
+    window.showPageProperties();
   });
 
   // 제목 크기
