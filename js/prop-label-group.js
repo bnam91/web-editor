@@ -199,3 +199,5 @@ function showLabelGroupProperties(block, selectedItem) {
     setItemH(v); iHSlider.value = v;
   });
 }
+
+window.showLabelGroupProperties = showLabelGroupProperties;

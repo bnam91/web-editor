@@ -1,6 +1,7 @@
 /* ══════════════════════════════════════
    이미지 업로드 (Asset)
 ══════════════════════════════════════ */
+import { propPanel } from './globals.js';
 /* ── 이미지 위치/스케일 복원 (로드·undo 후) ── */
 function applyImageTransform(ab) {
   const img = ab.querySelector('.asset-img');
@@ -452,9 +453,24 @@ function exitPosDragMode(ab) {
 
 window.enterPosDragMode   = enterPosDragMode;
 window.exitPosDragMode    = exitPosDragMode;
+window.enterImageEditMode = enterImageEditMode;
 window.exitImageEditMode  = exitImageEditMode;
+window.applyImageTransform = applyImageTransform;
 window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;
+window.loadImageToAsset   = loadImageToAsset;
+
+window.triggerCircleUpload        = triggerCircleUpload;
+window.loadImageToCircle          = loadImageToCircle;
+window.clearCircleImage           = clearCircleImage;
+
+window.triggerCardImageUpload     = triggerCardImageUpload;
+window.loadImageToCard            = loadImageToCard;
+window.clearCardImage             = clearCardImage;
+
+window.triggerStripBannerImageUpload = triggerStripBannerImageUpload;
+window.loadImageToStripBanner        = loadImageToStripBanner;
+window.clearStripBannerImage         = clearStripBannerImage;
 
 /* ══════════════════════════════════════
    원형 프레임 (Icon Circle) 이미지

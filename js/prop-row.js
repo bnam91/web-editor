@@ -172,9 +172,9 @@ function showRowProperties(rowEl) {
     if (s) s.value = v;
     if (n) n.value = v || '';
   };
-  document.getElementById('row-height-slider').addEventListener('input',  e => applyRowHeight(parseInt(e.target.value)));
-  document.getElementById('row-height-number').addEventListener('change', e => { applyRowHeight(parseInt(e.target.value)); pushHistory(); });
-  document.getElementById('row-height-slider').addEventListener('change', () => pushHistory());
+  document.getElementById('row-height-slider')?.addEventListener('input',  e => applyRowHeight(parseInt(e.target.value)));
+  document.getElementById('row-height-number')?.addEventListener('change', e => { applyRowHeight(parseInt(e.target.value)); pushHistory(); });
+  document.getElementById('row-height-slider')?.addEventListener('change', () => pushHistory());
 
   /* ── 좌우 패딩 ── */
   const applyPadX = v => {
@@ -188,9 +188,9 @@ function showRowProperties(rowEl) {
     if (s) s.value = v;
     if (n) n.value = v;
   };
-  document.getElementById('row-padx-slider').addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
-  document.getElementById('row-padx-number').addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory(); });
-  document.getElementById('row-padx-slider').addEventListener('change', () => pushHistory());
+  document.getElementById('row-padx-slider')?.addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
+  document.getElementById('row-padx-number')?.addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory(); });
+  document.getElementById('row-padx-slider')?.addEventListener('change', () => pushHistory());
 
   /* ── 자식 블록 일괄: 높이 ── */
   if (hasChildren) {
