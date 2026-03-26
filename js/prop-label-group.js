@@ -1,3 +1,5 @@
+import { propPanel } from './globals.js';
+
 function showLabelGroupProperties(block, selectedItem) {
   const gap        = parseInt(block.style.gap) || 10;
   const jc         = block.style.justifyContent || 'flex-start';

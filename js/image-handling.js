@@ -204,7 +204,7 @@ function enterImageEditMode(ab) {
   function onImgDown(e) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
-    const zs = currentZoom / 100;
+    const zs = (window.currentZoom || 100) / 100;
     const sx = e.clientX, sy = e.clientY;
     const sl = parseFloat(img.style.left) || 0;
     const st = parseFloat(img.style.top)  || 0;
@@ -227,7 +227,7 @@ function enterImageEditMode(ab) {
   function onCornerDown(e, corner) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
-    const zs      = currentZoom / 100;
+    const zs      = (window.currentZoom || 100) / 100;
     const startX  = e.clientX;
     const startIX = parseFloat(img.style.left) || 0;
     const startIY = parseFloat(img.style.top)  || 0;
@@ -405,7 +405,7 @@ function enterPosDragMode(ab) {
   }
   function onMouseMove(e) {
     if (!isDragging) return;
-    const zs = currentZoom / 100;
+    const zs = (window.currentZoom || 100) / 100;
     const fw = ab.offsetWidth;
     const fh = ab.offsetHeight;
     const dx = (e.clientX - startX) / zs;

@@ -45,6 +45,7 @@ let panOffsetY = 0;
 
 function applyZoom(z) {
   currentZoom = Math.min(150, Math.max(25, z));
+  window.currentZoom = currentZoom;
   _applyScalerTransform();
   zoomDisplay.textContent = currentZoom + '%';
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
