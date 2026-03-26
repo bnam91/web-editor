@@ -658,7 +658,7 @@ async function doFigmaUpload() {
         retryBtn = document.createElement('button');
         retryBtn.id = 'figma-retry-btn';
         retryBtn.className = 'figma-upload-btn-primary';
-        retryBtn.style.cssText = 'margin-top:8px;width:100%;';
+        retryBtn.style.cssText = 'margin-top:8px;width:100%;background:#2563eb;border:none;border-radius:6px;color:#fff;padding:6px 14px;font-size:11px;cursor:pointer;font-weight:600;';
         cancelBtn.parentElement.insertBefore(retryBtn, cancelBtn);
       }
       retryBtn.textContent = '↺ 재시도';
