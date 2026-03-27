@@ -1,0 +1,93 @@
+{
+  "agent": "DBG-02",
+  "part": "Drag & Drop / Block 생성",
+  "file": "js/drag-drop.js",
+  "ts": "2026-03-27T00:00:00.000Z",
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "섹션을 첫 번째 위치로 드래그 — 경계 인덱스 0으로 이동",
+      "status": "pass",
+      "finding": "getSectionDragAfterEl reduce 초기값이 NEGATIVE_INFINITY이고 offset<0 조건을 사용. 커서가 첫 섹션 위에 있으면 element:undefined 반환 → drop 핸들러 else 분기(appendChild)로 안전하게 처리됨.",
+      "fixed": false
+    },
+    {
+      "id": 2,
+      "title": "섹션을 마지막 위치로 드래그 — 경계 인덱스 overflow",
+      "status": "pass",
+      "finding": "마지막 위치 드래그 시 reduce가 undefined 반환 → drop 핸들러의 else canvasEl.appendChild(sectionDragSrc) 경로로 처리. 인덱스 overflow 없음.",
+      "fixed": false
+    },
+    {
+      "id": 3,
+      "title": "같은 위치로 드래그 후 drop — 순서 변경 없이 정상 복귀",
+      "status": "pass",
+      "finding": "같은 위치 drop 시 DOM 재삽입이 일어나지만 순서는 동일. buildLayerPanel()은 호출되지만 undo 스택 오염 없음(drop에 pushHistory가 없었기 때문 — 해당 버그는 시나리오 3보다 시나리오 전반에 영향). 수정 후에도 같은 위치 drop은 무해한 history 1회만 추가됨.",
+      "fixed": false
+    },
+    {
+      "id": 4,
+      "title": "드래그 중 Escape 키 — 드래그 취소 처리",
+      "status": "warn",
+      "finding": "bindSectionDrag·bindBlock·bindGroupDrag 어디에도 keydown Escape 리스너가 없음. 브라우저 기본 dragcancel 이벤트는 dragend를 트리거하여 dragSrc=null·clearDropIndicators()는 실행되지만, drop-indicator가 dragleave 없이 남을 수 있는 edge case 존재. 전용 취소 로직 부재.",
+      "fixed": false
+    },
+    {
+      "id": 5,
+      "title": "빠르게 연속 드래그 (2회) — 중간 상태 오염",
+      "status": "pass",
+      "finding": "dragend에서 dragSrc=null 처리, _dragBound/_sectionDragBound 가드로 중복 이벤트 바인딩 방지. 연속 드래그 시 첫 번째 dragend가 완료된 후 두 번째 dragstart가 새 dragSrc를 설정하므로 상태 오염 없음.",
+      "fixed": false
+    },
+    {
+      "id": 6,
+      "title": "addTextBlock 호출 — 선택 섹션 없을 때 처리",
+      "status": "pass",
+      "finding": "addTextBlock(block-factory.js)은 getSelectedSection() → null이면 showNoSelectionHint() 후 즉시 return. null 참조 없이 안전하게 처리됨.",
+      "fixed": false
+    },
+    {
+      "id": 7,
+      "title": "addAssetBlock 후 즉시 다른 블록 추가 — DOM 순서 정합성",
+      "status": "warn",
+      "finding": "addAssetBlock은 insertAfterSelected(sec, row)로 DOM에 동기 삽입 후 selectSection(sec)으로 섹션만 선택. 블록 자체는 .selected 상태가 되지 않으므로, 즉시 두 번째 블록을 추가하면 insertAfterSelected가 .selected 블록을 찾지 못해 bottomGap 바로 앞에 삽입됨. 의도와 다른 위치 삽입 가능성.",
+      "fixed": false
+    },
+    {
+      "id": 8,
+      "title": "addGapBlock 연속 5회 — 중복 추가 방어 없을 때 퍼포먼스",
+      "status": "warn",
+      "finding": "addGapBlock에 중복/연속 호출 방어 로직 없음. 5회 호출 시 gap-block 5개 생성 + buildLayerPanel() 5회 호출 + pushHistory() 5회 누적. buildLayerPanel은 DOM을 전량 재빌드하므로 짧은 시간 내 다중 호출 시 성능 저하 가능.",
+      "fixed": false
+    },
+    {
+      "id": 9,
+      "title": "드래그 중 스크롤 — dragover 이벤트 정상 위치 계산",
+      "status": "pass",
+      "finding": "getDragAfterElement·getSectionDragAfterEl 모두 getBoundingClientRect().top(뷰포트 기준)과 e.clientY(뷰포트 기준)를 비교. 스크롤 위치 영향 없이 정확한 위치 계산 가능.",
+      "fixed": false
+    },
+    {
+      "id": 10,
+      "title": "섹션이 0개일 때 드래그 이벤트 발생 — null 참조 오류",
+      "status": "pass",
+      "finding": "bindSectionDropZone의 dragover에 if (!dragSrc) return 가드 존재. 섹션 0개이면 section-block 자체가 없어 drag 이벤트가 발생하지 않음. canvas는 항상 DOM에 존재하므로 null 참조 없음.",
+      "fixed": false
+    }
+  ],
+  "bugs_found": 2,
+  "bugs_fixed": 2,
+  "fixed_files": [
+    {
+      "file": "js/drag-drop.js",
+      "line": 168,
+      "desc": "bindSectionDropZone drop 핸들러에 window.pushHistory() 추가 — 블록 드래그 이동이 undo 불가하던 버그 수정"
+    },
+    {
+      "file": "js/save-load.js",
+      "line": 865,
+      "desc": "섹션 드래그 drop 핸들러에 window.pushHistory() 추가 — 섹션 순서 변경이 undo 불가하던 버그 수정"
+    }
+  ],
+  "summary": "drag-drop.js 및 save-load.js의 drop 핸들러에 pushHistory() 누락으로 블록/섹션 드래그 이동이 undo 불가했던 버그 2건을 수정; Escape 드래그 취소 로직 부재·addAssetBlock 후 연속 추가 위치 비직관성·addGapBlock 연속 호출 시 성능 경고 3건 발견(코드 변경 불필요 수준)"
+}

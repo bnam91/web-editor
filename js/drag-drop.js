@@ -168,6 +168,7 @@ function bindSectionDropZone(sec) {
   inner.addEventListener('drop', e => {
     e.preventDefault();
     if (!dragSrc) return;
+    window.pushHistory();
     const indicator = inner.querySelector('.drop-indicator');
     if (indicator) inner.insertBefore(dragSrc, indicator);
     else inner.appendChild(dragSrc);
