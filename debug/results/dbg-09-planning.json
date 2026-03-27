@@ -1,0 +1,81 @@
+{
+  "agent": "DBG-09",
+  "part": "Planning / Outline Editor",
+  "files": ["js/planning.js", "pages/planning.html"],
+  "ts": "2026-03-27T00:00:00.000Z",
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "볼륨 outline→develop3 확장",
+      "status": "pass",
+      "finding": "blocksForVolume()에서 indexOf 반환값 < 0 시 즉시 [] 반환하는 방어 코드 존재. develop3(idx=3)이면 d.vol<=3 필터로 BLOCK_DEFS 34개 전체 포함. 정상 동작.",
+      "fixed": false
+    },
+    {
+      "id": 2,
+      "title": "볼륨 develop3→outline 축소 — enabled 상태 보존",
+      "status": "pass",
+      "finding": "applyVolume()이 section+role 복합 키로 기존 블록을 찾아 enabled/layout을 유지한다. outline으로 축소해도 이전에 활성화한 블록(해당 vol 범위 내)의 상태가 보존됨. 정상 동작.",
+      "fixed": false
+    },
+    {
+      "id": 3,
+      "title": "블록 드래그 첫 번째→마지막 — off-by-one",
+      "status": "fail",
+      "finding": "drop 핸들러에서 fromIdx < toIdx일 때 insertIdx = toIdx - 1 로 보정했으나 이 보정이 잘못됨. fromIdx=0, toIdx=4(마지막, 5개)일 때: splice(0,1) 후 배열은 [B,C,D,E], insertIdx=3 → splice(3,0,A) → [B,C,D,A,E]. 기대값 [B,C,D,E,A]와 다름. toIdx 그대로 사용해야 정확. 수정 완료.",
+      "fixed": true
+    },
+    {
+      "id": 4,
+      "title": "블록 드래그 마지막→첫 번째 — 경계 처리",
+      "status": "pass",
+      "finding": "fromIdx >= toIdx 케이스는 insertIdx = toIdx = 0. splice(last,1) 후 splice(0,0,moved) → 첫 번째 삽입. 정상 동작. (수정 후에도 동일 결과 확인됨)",
+      "fixed": false
+    },
+    {
+      "id": 5,
+      "title": "블록 클릭 → inspector layout 반영",
+      "status": "pass",
+      "finding": "renderInspector()에서 state.blocks[state.selectedIdx].layout을 LAYOUT_OPTIONS에서 선택(selected attribute)으로 정확히 반영. guard 코드(selectedIdx===null 또는 blocks[idx] 없을 때 empty message)도 존재.",
+      "fixed": false
+    },
+    {
+      "id": 6,
+      "title": "inspector layout 변경 후 다른 블록 클릭 → 돌아옴",
+      "status": "pass",
+      "finding": "insp-layout change 핸들러가 state.blocks[state.selectedIdx].layout = e.target.value 로 state를 직접 변경. 다른 블록 선택 후 돌아와도 state에서 layout 값이 유지됨. 정상 동작.",
+      "fixed": false
+    },
+    {
+      "id": 7,
+      "title": "제품명 없이 저장 — 유효성 검사",
+      "status": "pass",
+      "finding": "saveIntake() 첫 줄에서 !state.product_name.trim() 체크 후 showSaveStatus('제품명을 입력해주세요', 'var(--ui-danger, #e06c6c)') 호출 및 inp-product focus. 저장 진행 없이 return. 정상 동작.",
+      "fixed": false
+    },
+    {
+      "id": 8,
+      "title": "웹 브라우저 환경 저장 — fallback JSON 다운로드",
+      "status": "pass",
+      "finding": "window.electronAPI 없을 때 IIFE fallback: Blob 생성 → URL.createObjectURL → a.click → setTimeout(1000, revokeObjectURL)으로 메모리 누수 방지. 파일명에 날짜 suffix도 포함. 정상 동작.",
+      "fixed": false
+    },
+    {
+      "id": 9,
+      "title": "블록 on/off 토글 후 저장 — enabled JSON 반영",
+      "status": "pass",
+      "finding": "saveIntake()의 outline_blocks: state.blocks.map(({ section, role, layout, enabled }) => ...) 에서 enabled 필드가 명시적으로 포함됨. 토글 후 저장 시 JSON에 정확히 반영. 정상 동작.",
+      "fixed": false
+    },
+    {
+      "id": 10,
+      "title": "볼륨 변경 중 선택 상태 블록 — 유지 또는 null 처리",
+      "status": "pass",
+      "finding": "applyVolume()에서 prevSelected를 section+role로 저장 후 새 블록 목록에서 findIndex로 재검색. 볼륨 축소로 블록이 제거되면 selectedIdx=null, 포함되면 새 인덱스 유지. renderInspector()에서 null 시 empty message. vol-select change 핸들러가 applyVolume 후 renderInspector 호출. 정상 동작.",
+      "fixed": false
+    }
+  ],
+  "bugs_found": 1,
+  "bugs_fixed": 1,
+  "summary": "드래그 drop 핸들러의 fromIdx < toIdx 케이스에서 toIdx-1 보정이 잘못되어 첫 번째→마지막 드래그 시 off-by-one 발생 (BUG). toIdx 보정 없이 그대로 사용하도록 수정 완료. 나머지 9개 시나리오는 정상 동작 확인."
+}
