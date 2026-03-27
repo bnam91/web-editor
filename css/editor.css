@@ -781,7 +781,7 @@ body {
 }
 .file-panel-section-header {
   display: flex; align-items: center; gap: 6px;
-  height: 28px; padding: 0 10px; flex-shrink: 0;
+  height: 28px; padding: 0 8px; flex-shrink: 0; /* C10: 섹션 바디(8px)와 통일 */
   font-size: 10px; font-weight: 700; color: var(--ui-text-dim);
   text-transform: uppercase; letter-spacing: 0.06em;
   cursor: pointer; user-select: none;
@@ -1340,15 +1340,11 @@ body {
 
 /* ── Publish Dropdown (topbar) ── */
 #publish-dropdown-wrap { position: relative; }
+/* C11/C12: publish-btn → tb-btn 기반으로 통일 (height:28px, border-radius:5px, font-size:11px) */
 #publish-btn {
-  display: flex; align-items: center; gap: 5px;
-  padding: 0 10px; height: 24px;
-  background: var(--ui-accent-primary); border: 1px solid var(--ui-accent-primary);
-  border-radius: 5px; cursor: pointer;
-  font-size: 11px; font-weight: 600; color: #fff;
-  transition: all 0.15s;
+  gap: 5px;
+  font-weight: 500;
 }
-#publish-btn:hover { background: #3a7ff0; border-color: #3a7ff0; }
 .publish-dd-chevron { transition: transform 0.15s; }
 #publish-dropdown-wrap.open .publish-dd-chevron { transform: rotate(180deg); }
 #publish-dropdown-menu {

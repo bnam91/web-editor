@@ -1,6 +1,9 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
+
+// C4: 앱 이름 브랜딩 (macOS 상단 메뉴바 표시)
+app.name = 'Goya Design Editor';
 const fs = require('fs');
 const os = require('os');
 
