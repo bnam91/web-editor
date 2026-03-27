@@ -62,12 +62,18 @@ function blocksForVolume(vol) {
 }
 
 function applyVolume(vol) {
+  const prevSelected = state.selectedIdx !== null ? state.blocks[state.selectedIdx] : null;
   const newBlocks = blocksForVolume(vol);
   // 기존 블록의 enabled/layout override 유지
   state.blocks = newBlocks.map(nb => {
     const old = state.blocks.find(ob => ob.section === nb.section && ob.role === nb.role);
     return old ? { ...nb, enabled: old.enabled, layout: old.layout } : nb;
   });
+  // 이전 선택 블록이 새 목록에 있으면 선택 유지
+  if (prevSelected) {
+    const newIdx = state.blocks.findIndex(b => b.section === prevSelected.section && b.role === prevSelected.role);
+    state.selectedIdx = newIdx >= 0 ? newIdx : null;
+  }
 }
 
 // ── DOM helpers ───────────────────────────────────────────────────────
@@ -106,10 +112,16 @@ function renderOutline() {
       const row = el('div', 'outline-block' + (b._idx === state.selectedIdx ? ' selected' : '') + (!b.enabled ? ' disabled' : ''));
       row.dataset.idx = b._idx;
       row.draggable = true;
+      row.tabIndex = 0;
+      row.setAttribute('role', 'button');
+      row.setAttribute('aria-label', `${b.section} ${b.role} 블록${b.enabled ? '' : ' (비활성)'}`);
 
       const grip = el('span', 'grip', '⠿');
+      grip.setAttribute('aria-hidden', 'true');
+      grip.title = '드래그하여 순서 변경';
       const toggle = el('button', 'block-toggle', b.enabled ? '●' : '○');
       toggle.title = b.enabled ? '비활성화' : '활성화';
+      toggle.setAttribute('aria-label', b.enabled ? `${b.role} 비활성화` : `${b.role} 활성화`);
       toggle.style.color = b.enabled ? SECTION_COLORS[sec] : '#555';
       const roleEl = el('span', 'block-role', b.role);
       const layoutEl = el('span', 'block-layout', b.layout);
@@ -133,6 +145,9 @@ function renderOutline() {
         state.selectedIdx = b._idx;
         renderOutline();
         renderInspector();
+      });
+      row.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
       });
 
       row.addEventListener('dragstart', e => {
@@ -195,13 +210,28 @@ function renderInspector() {
 }
 
 // ── 저장 ──────────────────────────────────────────────────────────────
+let saveStatusTimer = null;
+function showSaveStatus(msg, color, autoClear = true) {
+  const el = $('save-status');
+  el.textContent = msg;
+  el.style.color = color;
+  if (saveStatusTimer) clearTimeout(saveStatusTimer);
+  if (autoClear) saveStatusTimer = setTimeout(() => { el.textContent = ''; }, 4000);
+}
+
 async function saveIntake() {
+  if (!state.product_name.trim()) {
+    showSaveStatus('제품명을 입력해주세요', '#e06c6c', true);
+    $('inp-product').focus();
+    return;
+  }
+
   const btn = $('btn-save');
   btn.textContent = '저장 중...';
   btn.disabled = true;
 
   const data = {
-    product_name: state.product_name,
+    product_name: state.product_name.trim(),
     brand_name: state.brand_name,
     volume: state.volume,
     positioning: state.positioning,
@@ -220,11 +250,9 @@ async function saveIntake() {
           a.click();
           return { ok: true, filename: a.download };
         })();
-    $('save-status').textContent = `저장됨: ${result.filename}`;
-    $('save-status').style.color = '#3ab87a';
+    showSaveStatus(`저장됨: ${result.filename}`, '#3ab87a');
   } catch (e) {
-    $('save-status').textContent = '저장 실패';
-    $('save-status').style.color = '#e06c6c';
+    showSaveStatus(`저장 실패: ${e.message || '알 수 없는 오류'}`, '#e06c6c', false);
   }
 
   btn.textContent = '저장';
@@ -236,6 +264,9 @@ function init() {
   applyVolume(state.volume);
   renderOutline();
   renderInspector();
+
+  // 첫 포커스
+  setTimeout(() => $('inp-product').focus(), 50);
 
   // 볼륨 셀렉터
   $('vol-select').value = state.volume;

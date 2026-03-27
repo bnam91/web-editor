@@ -111,7 +111,7 @@
       margin-bottom: 14px;
     }
     .outline-panel-title { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.6px; }
-    .outline-hint { font-size: 10px; color: #555; }
+    .outline-hint { font-size: 10px; color: #888; }
 
     .outline-section { margin-bottom: 12px; }
     .outline-section-header { margin-bottom: 4px; }
@@ -134,7 +134,8 @@
     .outline-block.dragging { opacity: 0.5; }
     .outline-block.drag-over { border-color: #4a9ede; background: #1a2535; }
 
-    .grip { font-size: 13px; color: #444; cursor: grab; flex-shrink: 0; }
+    .grip { font-size: 13px; color: #555; cursor: grab; flex-shrink: 0; transition: color 0.15s; }
+    .grip:hover { color: #aaa; }
     .grip:active { cursor: grabbing; }
 
     .block-toggle {
@@ -215,11 +216,11 @@
       <div class="intake-section">
         <div class="intake-label">제품 정보</div>
         <div class="intake-row">
-          <label>제품명</label>
-          <input id="inp-product" type="text" placeholder="예: 로도프 보풀제거기">
+          <label for="inp-product">제품명 <span style="color:#e06c6c">*</span></label>
+          <input id="inp-product" type="text" placeholder="예: 로도프 보풀제거기" required>
         </div>
         <div class="intake-row">
-          <label>브랜드명</label>
+          <label for="inp-brand">브랜드명</label>
           <input id="inp-brand" type="text" placeholder="예: 로도프">
         </div>
       </div>
@@ -227,6 +228,7 @@
       <div class="intake-section">
         <div class="intake-label">포지셔닝 전략</div>
         <div class="intake-row">
+          <label for="inp-positioning">시장 포지션 / 타겟 / 차별화</label>
           <textarea id="inp-positioning" placeholder="시장에서 이 제품이 점하는 위치, 핵심 차별화 전략, 타겟 고객 정의 등을 자유롭게 입력하세요."></textarea>
         </div>
       </div>
@@ -235,19 +237,19 @@
         <div class="intake-label">SWOT 분석</div>
         <div class="swot-grid">
           <div class="swot-item">
-            <label>강점 S</label>
+            <label for="inp-strengths">강점 S</label>
             <textarea id="inp-strengths" placeholder="우리의 강점"></textarea>
           </div>
           <div class="swot-item">
-            <label>약점 W</label>
+            <label for="inp-weaknesses">약점 W</label>
             <textarea id="inp-weaknesses" placeholder="개선이 필요한 점"></textarea>
           </div>
           <div class="swot-item">
-            <label>기회 O</label>
+            <label for="inp-opportunities">기회 O</label>
             <textarea id="inp-opportunities" placeholder="시장 기회"></textarea>
           </div>
           <div class="swot-item">
-            <label>위협 T</label>
+            <label for="inp-threats">위협 T</label>
             <textarea id="inp-threats" placeholder="경쟁/환경 위협"></textarea>
           </div>
         </div>
