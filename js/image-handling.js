@@ -578,6 +578,7 @@ function enterCircleImageEditMode(icb) {
   const frameW = circle.offsetWidth;
   const frameH = circle.offsetHeight;
   circle.style.position = 'relative';
+  circle.style.overflow = 'visible'; // 편집 모드: 이미지 전체 표시 (asset-block과 동일)
 
   if (icb.dataset.imgW) {
     applyCircleImageTransform(icb);
@@ -823,6 +824,8 @@ function exitCircleImageEditMode(icb) {
     icb.dataset.imgX = parseFloat(img.style.left) || 0;
     icb.dataset.imgY = parseFloat(img.style.top)  || 0;
   }
+  const circle = icb.querySelector('.icb-circle');
+  if (circle) circle.style.overflow = ''; // 편집 모드 종료: 원형 마스크 복원
   if (icb._imgEditCleanup) { icb._imgEditCleanup(); icb._imgEditCleanup = null; }
   document.removeEventListener('click',   icb._exitImgEdit);
   document.removeEventListener('keydown', icb._exitImgEsc);
