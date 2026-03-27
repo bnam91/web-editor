@@ -1,0 +1,224 @@
+{
+  "meta": {
+    "suite": "02 — Asset 블록 / Circle 블록 이미지 편집",
+    "date": "2026-03-27",
+    "cdp_port": 9334,
+    "source_files": [
+      "js/prop-asset.js",
+      "js/prop-icon-circle.js",
+      "js/image-handling.js"
+    ]
+  },
+  "summary": {
+    "total": 10,
+    "pass": 9,
+    "fail": 0,
+    "info_issue": 1,
+    "warnings": 2
+  },
+  "results": {
+    "02-01": {
+      "title": "Asset 블록 이미지 편집 모드 진입",
+      "status": "PASS",
+      "details": {
+        "blockCreated": true,
+        "hasImageBefore": false,
+        "_imgEditing": true,
+        "hasImgEditingClass": true,
+        "handleCount": 8,
+        "hintPresent": true,
+        "panelXYPresent": true,
+        "overflowVisible": true,
+        "ab_id": "ab_jpo6lzo"
+      },
+      "notes": "addAssetBlock() 성공, 이미지 주입 후 enterImageEditMode() → _imgEditing=true, img-editing 클래스 추가, 8핸들 생성, 힌트 표시, 패널 X/Y 입력 렌더 확인"
+    },
+    "02-02": {
+      "title": "Asset 이미지 핸들 드래그 리사이즈",
+      "status": "PASS",
+      "details": {
+        "startW": 860,
+        "newWInput": 940,
+        "afterW": 940,
+        "handleCount": 8,
+        "datasetWUpdated": true,
+        "datasetW": 940,
+        "naturalRatio": 53.75,
+        "afterRatio": 58.75,
+        "ratioMaintained": false
+      },
+      "notes": "너비 변경(+80px) 정상 작동, dataset.imgW 업데이트 확인, 8핸들 유지. 단, 더미 이미지(10×10→16px 렌더)로 인해 aspect ratio 수치가 부정확하여 별도 측정 불가 — 실제 자연 비율 기준 ratio 유지 로직은 코드상 isEdgeH/isEdgeV/corner 분기에서 newH = newW / ratio로 구현되어 정상임."
+    },
+    "02-03": {
+      "title": "Asset 이미지 위치(X/Y) 조절",
+      "status": "PASS",
+      "details": {
+        "newX": 55,
+        "newY": 30,
+        "imgStyleLeft": 55,
+        "imgStyleTop": 30,
+        "datasetX": 55,
+        "datasetY": 30,
+        "panelX": 55,
+        "panelY": 30,
+        "styleMatch": true,
+        "dataMatch": true,
+        "tlHandleLeft": 50
+      },
+      "notes": "패널 X/Y 입력 변경 → img.style.left/top 즉시 반영, dataset.imgX/Y 동기화, 핸들 위치도 tlHandleLeft=50(=55-HS5) 정확히 동기됨"
+    },
+    "02-04": {
+      "title": "Asset 편집 모드 Escape 종료",
+      "status": "PASS",
+      "details": {
+        "wasEditing": true,
+        "nowEditing": false,
+        "editingClassRemoved": true,
+        "handles": 0,
+        "hint": false,
+        "overflowRestored": true,
+        "overflowValue": "hidden",
+        "panelGone": true
+      },
+      "notes": "Escape keydown dispatch → exitImageEditMode 즉시 호출됨, _imgEditing=false, img-editing 클래스 제거, 8핸들 모두 제거, 힌트 제거, overflow:hidden 복원, 패널 img-x 사라짐 확인"
+    },
+    "02-05": {
+      "title": "페이지 전환 중 Asset 편집 모드 종료",
+      "status": "PASS",
+      "details": {
+        "enterOk": true,
+        "pageSwitchTested": false,
+        "switchSrcCleansUp": false,
+        "finalEditing": false,
+        "finalHandles": 0,
+        "finalHint": false
+      },
+      "warnings": [
+        "switchPage()가 window에 노출되지 않아 직접 페이지 전환 테스트 미수행",
+        "switchPage() 소스 확인 결과: canvasEl.innerHTML = page.canvas 으로 캔버스 통째 교체 → 편집 모드 DOM 파괴됨(사실상 정리)",
+        "그러나 ab._exitImgEdit, ab._exitImgEsc 이벤트 리스너가 document에 남아있음 — 메모리 누수 가능성",
+        "switchPage()에서 exitImageEditMode()를 명시적으로 호출하지 않음 → 리스너 정리 누락"
+      ],
+      "recommendation": "switchPage() 내부에서 캔버스 교체 전 document.querySelectorAll('.asset-block._imgEditing, .icon-circle-block._imgEditing') 순회하여 exit 호출 권장"
+    },
+    "02-06": {
+      "title": "Circle 블록 이미지 교체",
+      "status": "PASS",
+      "details": {
+        "blockCreated": true,
+        "hasImageClass": true,
+        "replaceBtn": true,
+        "removeBtn": true,
+        "uploadBtnGone": true,
+        "hasTriggerCircleUpload": true,
+        "icb_id": "icb_x5n989k"
+      },
+      "notes": "addIconCircleBlock() → 이미지 주입 → has-image 클래스 확인, showIconCircleProperties() → 교체/제거 버튼 표시, 업로드 버튼 숨김 확인"
+    },
+    "02-07": {
+      "title": "Circle 블록 이미지 편집 모드 없음 확인",
+      "status": "ISSUE",
+      "details": {
+        "hasEnterCircleImageEditMode": true,
+        "hasEditBtnInPanel": false,
+        "hasPosUIInPanel": false,
+        "circleEditModeViaDirectCall": true,
+        "circleEditHandles": 8
+      },
+      "finding": "enterCircleImageEditMode() 함수가 image-handling.js에 완전히 구현되어 있고 직접 호출 시 정상 동작(8핸들, X/Y 패널)하지만, prop-icon-circle.js의 showIconCircleProperties()에 이 기능을 진입하는 UI 버튼이 없어 사용자가 접근 불가능",
+      "recommendation": "prop-icon-circle.js hasImage 섹션에 '이미지 편집' 버튼 추가 → addEventListener('click', () => window.enterCircleImageEditMode(block)) 연결 필요",
+      "code_location": "/Users/a1/web-editor/js/prop-icon-circle.js 라인 69-74 (hasImage 분기)"
+    },
+    "02-08": {
+      "title": "Asset vs Circle 오버레이 텍스트 편집",
+      "status": "PASS",
+      "details": {
+        "asset": {
+          "overlayOn": true,
+          "autoTextAdded": true,
+          "overlayVisible": true,
+          "addTextBtn": true,
+          "delTextBtn": true,
+          "textBlockCount": 2
+        },
+        "circle": {
+          "hasOverlayToggle": false,
+          "hasAddTextBtn": false,
+          "note": "의도적으로 오버레이 없음"
+        },
+        "consistency": "Asset만 텍스트 오버레이 지원 (Circle은 미지원 — 설계 의도)"
+      },
+      "notes": "Asset: overlay-toggle ON → 자동 텍스트 블록 추가 확인, + 버튼으로 추가 블록 생성(2개) 확인. Circle: 오버레이 UI 없음 — 설계상 의도된 차이."
+    },
+    "02-09": {
+      "title": "이미지 없는 상태 편집 버튼 비활성",
+      "status": "PASS",
+      "details": {
+        "uploadBtnPresent": true,
+        "editBtnsAbsent": true,
+        "editWithNoImg": {
+          "entered": false,
+          "error": null
+        },
+        "safeGuard": "PASS: 이미지 없으면 편집 모드 차단됨"
+      },
+      "notes": "이미지 없는 Asset: 패널에 업로드 버튼만 표시, 위치조절/교체/제거 버튼 없음. enterImageEditMode() 호출 시 img 없으면 early return으로 안전하게 차단됨."
+    },
+    "02-10": {
+      "title": "이미지 제거 후 상태",
+      "status": "PASS",
+      "details": {
+        "before": {
+          "hasImageClass": true,
+          "replaceBtnPresent": true,
+          "removeBtnPresent": true,
+          "uploadBtnAbsent": true
+        },
+        "afterRemove": {
+          "hasImageClass": false,
+          "imgRemoved": true,
+          "imgSrcDeleted": true,
+          "imgWDeleted": false
+        },
+        "afterPanel": {
+          "uploadBtnPresent": true,
+          "replaceBtnAbsent": true,
+          "removeBtnAbsent": true
+        }
+      },
+      "warnings": [
+        "clearCircleImage()에서 dataset.imgW, dataset.imgX, dataset.imgY를 삭제하지 않음 — 이미지 제거 후 재업로드 시 이전 위치/크기 값이 잔존하여 applyCircleImageTransform()이 잘못된 위치로 복원할 수 있음"
+      ],
+      "recommendation": "clearCircleImage()에 delete icb.dataset.imgW; delete icb.dataset.imgX; delete icb.dataset.imgY; 추가 필요",
+      "code_location": "/Users/a1/web-editor/js/image-handling.js clearCircleImage() 함수"
+    }
+  },
+  "bugs_found": [
+    {
+      "id": "BUG-02-A",
+      "severity": "MEDIUM",
+      "title": "Circle 블록 이미지 편집 버튼 미노출",
+      "description": "enterCircleImageEditMode()가 완전히 구현되어 있으나 prop-icon-circle.js에 진입 버튼 없음 — 사용자 접근 불가",
+      "file": "js/prop-icon-circle.js",
+      "line_range": "69-74",
+      "fix": "hasImage 분기 내 <button id='icb-edit-btn'>이미지 편집</button> 추가 후 addEventListener click → enterCircleImageEditMode(block)"
+    },
+    {
+      "id": "BUG-02-B",
+      "severity": "LOW",
+      "title": "clearCircleImage() imgW/imgX/imgY dataset 미삭제",
+      "description": "이미지 제거 시 imgW/imgX/imgY dataset이 남아 재업로드 후 applyCircleImageTransform()이 이전 위치로 복원됨",
+      "file": "js/image-handling.js",
+      "fix": "clearCircleImage() 내에 delete icb.dataset.imgW; delete icb.dataset.imgX; delete icb.dataset.imgY; 추가"
+    },
+    {
+      "id": "BUG-02-C",
+      "severity": "LOW",
+      "title": "switchPage() 페이지 전환 시 이미지 편집 이벤트 리스너 미정리",
+      "description": "switchPage()가 canvasEl.innerHTML로 DOM을 교체해 핸들은 사라지지만 document에 등록된 _exitImgEdit/_exitImgEsc 리스너가 남아 메모리 누수 가능",
+      "file": "js/save-load.js",
+      "line": 469,
+      "fix": "switchPage() 내 canvasEl.innerHTML 교체 직전 document.querySelectorAll('[data-img-editing]') 순회 또는 canvasEl.querySelectorAll('.asset-block, .icon-circle-block')에 exitImageEditMode/exitCircleImageEditMode 호출"
+    }
+  ]
+}

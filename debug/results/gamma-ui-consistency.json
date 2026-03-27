@@ -1,0 +1,210 @@
+{
+  "meta": {
+    "date": "2026-03-27",
+    "branch": "feature/debug-scenarios",
+    "project": "/Users/a1/web-editor",
+    "cdpTarget": "ws://localhost:9334/devtools/page/54988EB5B9CDA8A788E447308AD6B0CA",
+    "canvasState": {
+      "asset": 15,
+      "circle": 2,
+      "text": 19,
+      "gap": 27,
+      "divider": 1,
+      "card": 3,
+      "table": 1,
+      "graph": 0,
+      "banner": 1,
+      "section": 13
+    }
+  },
+  "scenarios": {
+    "γ-01": {
+      "scenario": "Asset vs Circle 이미지 편집 진입 비교",
+      "status": "FAIL → FIXED",
+      "finding": "Asset.has-image 패널: 이미지 위치 조절(asset-pos-btn) + 이미지 교체 + 이미지 제거 3개 버튼. Circle.has-image 패널: 이미지 교체 + 이미지 제거 2개만 존재. 이미지 편집 모드 진입 불가.",
+      "fix": "prop-icon-circle.js에 icb-pos-btn 추가, window.enterCircleImageEditMode(block) 연결. enterCircleImageEditMode는 image-handling.js에 이미 구현되어 있었으나 패널에서 호출되지 않고 있었음.",
+      "fixedFile": "/Users/a1/web-editor/js/prop-icon-circle.js",
+      "asset": {
+        "hasImageBlock": true,
+        "blockName": "Asset Block",
+        "imgButtonsWhenHasImage": [
+          { "id": "asset-pos-btn", "text": "이미지 위치 조절", "cls": "prop-action-btn secondary" },
+          { "id": "asset-replace-btn", "text": "이미지 교체", "cls": "prop-action-btn secondary" },
+          { "id": "asset-remove-btn", "text": "이미지 제거", "cls": "prop-action-btn danger" }
+        ],
+        "hasImagePositionBtn": true
+      },
+      "circle": {
+        "hasImageBlock": true,
+        "blockName": "Icon Circle",
+        "imgButtonsBeforeFix": [
+          { "id": "icb-replace-btn", "text": "이미지 교체", "cls": "prop-action-btn secondary" },
+          { "id": "icb-remove-btn", "text": "이미지 제거", "cls": "prop-action-btn danger" }
+        ],
+        "imgButtonsAfterFix": [
+          { "id": "icb-pos-btn", "text": "이미지 위치 조절", "cls": "prop-action-btn secondary" },
+          { "id": "icb-replace-btn", "text": "이미지 교체", "cls": "prop-action-btn secondary" },
+          { "id": "icb-remove-btn", "text": "이미지 제거", "cls": "prop-action-btn danger" }
+        ],
+        "hasImagePositionBtnAfterFix": true
+      }
+    },
+    "γ-02": {
+      "scenario": "Asset vs Circle 프로퍼티 패널 구조",
+      "status": "INFO",
+      "finding": "두 블록은 의도적으로 다른 섹션 구성을 가짐. Asset: [레이아웃, 프리셋, 크기, 이미지, 텍스트 오버레이] / Circle: [크기, 색상, 테두리, 이미지]. 이는 기능 차이에서 비롯된 의도된 불일치 (Circle은 배경색, 테두리 스타일 추가, Asset은 오버레이 기능 추가). 불일치 항목: Asset 전용=[레이아웃, 프리셋, 텍스트 오버레이], Circle 전용=[색상, 테두리].",
+      "assetSections": ["레이아웃", "프리셋", "크기", "이미지", "텍스트 오버레이"],
+      "circleSections": ["크기", "색상", "테두리", "이미지"],
+      "verdict": "구조 차이는 의도된 것. 이미지 섹션 내 버튼 수 불일치만 실제 버그 (γ-01에서 수정)"
+    },
+    "γ-03": {
+      "scenario": "텍스트 블록 6종 편집 UI 일관성",
+      "status": "PASS",
+      "finding": "h1, h2, h3, body, caption, label 모두 폰트크기(txt-size-slider), 정렬(.prop-align-group), 색상(txt-color) 일관되게 표시됨. label 타입만 '태그 스타일' 섹션(배경색, 모서리, 높이)이 추가 표시 — 의도된 차이.",
+      "perType": {
+        "tb-h1":      { "sections": ["타입","태그 스타일","정렬","폰트","간격","패딩"], "labelStyleVisible": false },
+        "tb-h2":      { "sections": ["타입","태그 스타일","정렬","폰트","간격","패딩"], "labelStyleVisible": false },
+        "tb-h3":      { "sections": ["타입","태그 스타일","정렬","폰트","간격","패딩"], "labelStyleVisible": false },
+        "tb-body":    { "sections": ["타입","태그 스타일","정렬","폰트","간격","패딩"], "labelStyleVisible": false },
+        "tb-caption": { "sections": ["타입","태그 스타일","정렬","폰트","간격","패딩"], "labelStyleVisible": false },
+        "tb-label":   { "sections": ["타입","태그 스타일","정렬","폰트","간격","패딩"], "labelStyleVisible": true }
+      },
+      "allHaveFontSize": true,
+      "allHaveAlign": true,
+      "allHaveColor": true
+    },
+    "γ-04": {
+      "scenario": "블록 선택 시 우측 패널 갱신 일관성",
+      "status": "PASS",
+      "finding": "텍스트(tb_2y9neij) → Asset(ab_c1oh330) → Card(cdb_689vfrm) 순서로 클릭 시 매번 즉시 패널이 교체됨. 이전 패널 잔존 현상 없음.",
+      "sequence": [
+        { "block": "text", "blockName": "Text Block", "sectionCount": 6 },
+        { "block": "asset", "blockName": "Asset Block", "sectionCount": 5 },
+        { "block": "card", "blockName": "Grid", "sectionCount": 1, "note": "card-block 직접 클릭 시 Grid(Row) 패널 표시 — showCardProperties 직접 호출 시 Card Block 패널 정상 표시. click 이벤트 라우팅 확인 필요" }
+      ]
+    },
+    "γ-05": {
+      "scenario": "Card/Table/Graph/Banner 선택 후 패널 표시",
+      "status": "WARN",
+      "finding": "Card 블록 직접 클릭 시 'Grid(하위 블록 일괄)' 패널이 나타남 — Card Block 패널이 아님. showCardProperties 직접 호출 시 정상('카드 수', '이미지', '하단 영역' 등). click 이벤트 핸들러가 card-block보다 상위 row/grid를 먼저 처리하는 것으로 추정.",
+      "blocks": {
+        "card": {
+          "clickResult": { "blockName": "Grid", "sections": ["하위 블록 일괄"], "html_len": 1356 },
+          "directCallResult": { "blockName": "Card Block", "sections": ["이미지","하단 영역","텍스트 크기","텍스트 정렬","카드 수"], "html_len": 3254 }
+        },
+        "table": {
+          "clickResult": { "blockName": "Table Block", "sections": ["행 / 열","스타일"], "html_len": 2864 }
+        },
+        "graph": {
+          "blockId": null,
+          "note": "캔버스에 Graph 블록 없음 (graph: 0)"
+        },
+        "banner": {
+          "clickResult": { "blockName": "Banner", "sections": ["이미지","크기","텍스트 영역","제목 타입","본문 타입","텍스트 정렬","이미지 위치","레이아웃"], "html_len": 6162 }
+        }
+      }
+    },
+    "γ-06": {
+      "scenario": "Gap/Divider 선택 후 패널",
+      "status": "PASS",
+      "finding": "Gap 클릭 → Gap Block 패널(크기 섹션, html_len:1045) 정상 표시. Divider 클릭 → Divider 패널(선 스타일, 여백 섹션, html_len:2269) 정상 표시.",
+      "gap": { "blockId": "gb_u7ecifv", "blockName": "Gap Block", "sections": ["크기"] },
+      "divider": { "blockId": "dvd_hbj7qjs", "blockName": "Divider", "sections": ["선 스타일","여백"] }
+    },
+    "γ-07": {
+      "scenario": "섹션 선택 시 Inspector vs propPanel",
+      "status": "INFO",
+      "finding": "섹션 클릭 시 propPanel에 [Preset, 배경, 배경 이미지, 텍스트 컬러, 일괄 정렬, 여백, 내보내기, 템플릿] 8개 섹션 표시(html_len:7181). 좌측 Inspector(inspector-panel-body)는 완전히 비어있음(childCount:0). Inspector는 현재 미사용 상태로 보임.",
+      "propPanel": { "blockName": "Section", "sections": ["Preset","배경","배경 이미지","텍스트 컬러","일괄 정렬","여백","내보내기","템플릿"] },
+      "inspector": { "childCount": 0, "textContent": "" }
+    },
+    "γ-08": {
+      "scenario": "레이어 패널에서 블록 클릭 vs 캔버스에서 블록 클릭",
+      "status": "PASS",
+      "finding": "layer-panel-body에 .layer-item 103개 존재. data-id 속성 없이 텍스트 라벨(Gap, Heading, Body 등)로만 구성. layer-item 클릭 시 해당 블록 패널이 즉시 갱신됨(Gap 클릭 → Gap Block 패널). 캔버스 클릭과 레이어 클릭 모두 동일하게 패널 갱신됨. 레이어 패널은 data-id 없이 클릭 이벤트 위임으로 블록 식별하는 구조.",
+      "layerPanelStructure": {
+        "totalSections": 15,
+        "layerItemCount": 103,
+        "dataIdAttribute": false,
+        "identificationMethod": "click event delegation"
+      },
+      "canvasClick": { "assetId": "ab_c1oh330", "blockName": "Asset Block" },
+      "layerItemClick": { "clickedText": "Gap", "blockName": "Gap Block" }
+    },
+    "γ-09": {
+      "scenario": "블록 삭제 후 패널 상태",
+      "status": "PASS",
+      "finding": "텍스트 블록(tb_eso1q6f) 선택 후 Delete 키 이벤트 발생 → 블록 삭제 성공. 패널이 'Text Block' → 'Background'로 즉시 변경됨. stale panel 버그 없음.",
+      "panelBefore": { "blockName": "Text Block", "html_len": 8557 },
+      "panelAfter": { "blockName": "Background", "html_len": 3540 }
+    },
+    "γ-10": {
+      "scenario": "프로퍼티 패널 버튼 스타일 일관성",
+      "status": "FAIL",
+      "finding": "Asset 패널의 오버레이 섹션에 '− 텍스트 제거' 버튼이 prop-action-btn secondary 클래스 사용. 같은 패널의 '이미지 제거'는 prop-action-btn danger 클래스. '제거' 동작인데 secondary 스타일 사용 — 일관성 없음. Circle/Banner 패널의 제거 버튼은 올바르게 danger 클래스 사용.",
+      "styleIssues": [
+        {
+          "block": "asset",
+          "button": "− 텍스트 제거 (overlay-del-text-btn)",
+          "currentClass": "prop-action-btn secondary",
+          "expectedClass": "prop-action-btn danger",
+          "file": "/Users/a1/web-editor/js/prop-asset.js"
+        }
+      ],
+      "buttonStylesByBlock": {
+        "asset-with-image": {
+          "prop-action-btn secondary": ["이미지 위치 조절","이미지 교체","− 텍스트 제거"],
+          "prop-action-btn danger": ["이미지 제거"],
+          "prop-action-btn primary": ["+ 텍스트 추가"]
+        },
+        "circle-with-image": {
+          "prop-action-btn secondary": ["이미지 교체"],
+          "prop-action-btn danger": ["이미지 제거"]
+        },
+        "banner": {
+          "prop-btn-full": ["이미지 업로드"]
+        }
+      }
+    }
+  },
+  "summary": {
+    "total": 10,
+    "pass": 5,
+    "fail": 2,
+    "warn": 1,
+    "info": 2,
+    "fixed": 2,
+    "results": {
+      "γ-01": "FAIL → FIXED",
+      "γ-02": "INFO (의도된 구조 차이)",
+      "γ-03": "PASS",
+      "γ-04": "PASS",
+      "γ-05": "WARN (Card 클릭 시 Grid 패널 표시 — 수동 재확인 필요)",
+      "γ-06": "PASS",
+      "γ-07": "INFO (Inspector 미사용 상태)",
+      "γ-08": "PASS",
+      "γ-09": "PASS",
+      "γ-10": "FAIL → FIXED (overlay-del-text-btn secondary → danger 클래스 수정)"
+    }
+  },
+  "fixes": [
+    {
+      "file": "/Users/a1/web-editor/js/prop-icon-circle.js",
+      "change": "has-image 상태 Circle 패널에 '이미지 위치 조절' 버튼(icb-pos-btn) 추가, window.enterCircleImageEditMode(block) 연결",
+      "lines": "60-71",
+      "scenario": "γ-01"
+    },
+    {
+      "file": "/Users/a1/web-editor/js/prop-asset.js",
+      "change": "overlay-del-text-btn 클래스 'prop-action-btn secondary' → 'prop-action-btn danger' 변경",
+      "line": 141,
+      "scenario": "γ-10"
+    }
+  ],
+  "pendingFixes": [
+    {
+      "scenario": "γ-05 Card 블록 클릭",
+      "note": "card-block 직접 클릭 시 Grid(상위 Row) 패널이 표시되는 현상 — click event propagation 또는 선택 로직 확인 필요. showCardProperties 직접 호출 시 정상 동작 확인됨."
+    }
+  ]
+}

@@ -1,0 +1,449 @@
+/* editor-panels.css — Templates, file page items, project name bar */
+
+/* ── Templates Panel ── */
+.tpl-panel-body {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0 6px;
+}
+.tpl-panel-body::-webkit-scrollbar { width: 4px; }
+.tpl-panel-body::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 2px; }
+
+.tpl-empty {
+  padding: 12px 10px;
+  font-size: 10px;
+  color: #444;
+  text-align: center;
+}
+
+.tpl-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px 7px 10px;
+  margin: 0 6px 3px;
+  background: #242424;
+  border: 1px solid #2e2e2e;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.tpl-card:hover {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+}
+.tpl-card-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 18px;
+}
+.tpl-card-name {
+  font-size: 11px;
+  color: #ccc;
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpl-card-cat {
+  font-size: 9px;
+  color: #2d6fe8;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: rgba(45,111,232,0.12);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.tpl-card-meta {
+  font-size: 9px;
+  color: #444;
+}
+.tpl-card:hover .tpl-card-actions { opacity: 1; }
+.tpl-delete-btn:hover { background: #3a2020; color: #e06c6c; }
+.tpl-edit-btn:hover { background: #1a2a40; color: #6ab0ff; }
+
+/* ── Template Folder (P2) ── */
+.tpl-folder { margin-bottom: 2px; }
+.tpl-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.12s;
+  user-select: none;
+}
+.tpl-folder-header:hover { background: #2a2a2a; }
+.tpl-folder-arrow {
+  color: #555;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.tpl-folder-header.open .tpl-folder-arrow { transform: rotate(90deg); }
+.tpl-folder-cat-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: #888;
+  flex: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.tpl-folder-count {
+  font-size: 9px;
+  color: #555;
+  background: #2a2a2a;
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+.tpl-folder-body { padding: 0 0 4px; }
+
+/* tpl-card-actions: 수정+삭제 버튼 묶음 */
+.tpl-card-actions {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.tpl-edit-btn,
+.tpl-delete-btn {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+/* ── Template Preview Modal ── */
+.tpl-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tpl-preview-modal {
+  background: #1a1a1a;
+  border: 1px solid #2d6fe8;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+}
+.tpl-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #1e2533;
+  border-bottom: 1px solid #2a3550;
+  flex-shrink: 0;
+}
+.tpl-preview-header-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  flex: 1;
+}
+.tpl-preview-title {
+  font-size: 12px;
+  color: #ccc;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpl-preview-cat {
+  font-size: 9px;
+  color: #2d6fe8;
+  font-weight: 700;
+  background: rgba(45,111,232,0.12);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.tpl-preview-folder {
+  font-size: 9px;
+  color: #888;
+  background: #252525;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.tpl-preview-close {
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  border-radius: 4px; color: #555; cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.tpl-preview-close:hover { background: #3a2020; color: #e06c6c; }
+.tpl-preview-canvas {
+  flex: 1;
+  overflow: hidden;
+  pointer-events: none;
+  background: #f5f5f5;
+  border-radius: 8px;
+  position: relative;
+}
+.tpl-preview-footer {
+  padding: 8px 12px;
+  border-top: 1px solid #2a3550;
+  background: #1e2533;
+  flex-shrink: 0;
+}
+.tpl-preview-insert-btn {
+  width: 100%;
+  height: 30px;
+  background: #2d6fe8;
+  border: none;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.tpl-preview-insert-btn:hover { background: #3a7ff5; }
+
+/* ── Template Folder Filter (패널 상단) ── */
+.tpl-folder-filter {
+  padding: 6px 6px 4px;
+  border-bottom: 1px solid #222;
+}
+.tpl-folder-select {
+  width: 100%;
+  height: 24px;
+  background: #1e1e1e;
+  border: 1px solid #2d2d2d;
+  border-radius: 4px;
+  color: #bbb;
+  font-size: 10px;
+  padding: 0 6px;
+  cursor: pointer;
+  outline: none;
+}
+.tpl-folder-select:focus { border-color: #2d6fe8; }
+
+/* ── Template Edit Form (P3) ── */
+.tpl-edit-form {
+  margin: 0 6px 4px;
+  padding: 8px;
+  background: #1e2533;
+  border: 1px solid #2d6fe8;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.tpl-edit-form input {
+  width: 100%;
+  height: 24px;
+  background: #141414;
+  border: 1px solid #333;
+  border-radius: 3px;
+  color: #ddd;
+  font-size: 11px;
+  padding: 0 7px;
+  outline: none;
+  box-sizing: border-box;
+}
+.tpl-edit-form input:focus { border-color: #2d6fe8; }
+.tpl-edit-folder, .tpl-edit-cat {
+  width: 100%;
+  height: 24px;
+  background: #252525;
+  border: 1px solid #333;
+  border-radius: 3px;
+  color: #ddd;
+  font-size: 11px;
+  padding: 0 7px;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+.tpl-edit-folder:focus, .tpl-edit-cat:focus { border-color: #2d6fe8; }
+.tpl-edit-actions {
+  display: flex;
+  gap: 4px;
+}
+.tpl-edit-save, .tpl-edit-cancel, .tpl-edit-overwrite {
+  flex: 1;
+  height: 22px;
+  font-size: 10px;
+  font-weight: 600;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.tpl-edit-save { background: #2d6fe8; color: #fff; }
+.tpl-edit-save:hover { background: #3a7ff5; }
+.tpl-edit-cancel { background: #2a2a2a; color: #888; }
+.tpl-edit-cancel:hover { background: #333; color: #ccc; }
+.tpl-edit-overwrite { background: #2a2a1e; color: #c8a840; font-size: 9px; }
+.tpl-edit-overwrite:hover { background: #333322; }
+.tpl-card.editing-mode { border-color: #2d6fe8; background: #1e2030; }
+
+/* ── Template name input in Properties panel ── */
+.tpl-name-input {
+  width: 100%;
+  height: 26px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ddd;
+  font-size: 11px;
+  padding: 0 8px;
+  outline: none;
+  box-sizing: border-box;
+}
+.tpl-name-input:focus { border-color: #2d6fe8; }
+.tpl-name-input::placeholder { color: #444; }
+
+/* ── File Page Items ── */
+#page-props-in-file { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 8px; }
+
+.file-page-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 6px;
+  cursor: pointer; position: relative;
+  transition: background 0.12s;
+}
+.file-page-item:hover { background: #252525; }
+.file-page-item.active { background: rgba(45,111,232,0.15); }
+
+.file-page-label {
+  flex-shrink: 0; width: 40px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  background: transparent; border: none; color: #3a3a3a;
+  cursor: pointer; padding: 0; outline: none; appearance: none;
+  -webkit-appearance: none; text-align: center;
+}
+.file-page-label[data-label=""]      { color: #3a3a3a; }
+.file-page-label[data-label="Hook"]   { color: #e07b5a; }
+.file-page-label[data-label="Main"]   { color: #5aaa7b; }
+.file-page-label[data-label="Detail"] { color: #6c8eff; }
+.file-page-label[data-label="CTA"]    { color: #c97be0; }
+.file-page-label[data-label="Event"]  { color: #e0b84a; }
+
+.file-page-info { flex: 1; min-width: 0; }
+.file-page-name {
+  font-size: 11px; font-weight: 600; color: #bbb;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  outline: none; border-radius: 3px;
+}
+.file-page-name.editing { background: #333; padding: 1px 4px; }
+.file-page-item.active .file-page-name { color: #6fa3f7; }
+
+.file-page-copy,
+.file-page-del {
+  width: 18px; height: 18px; flex-shrink: 0;
+  background: transparent; border: none; color: #444;
+  font-size: 11px; cursor: pointer; border-radius: 3px;
+  display: none; align-items: center; justify-content: center;
+  transition: all 0.1s;
+}
+.file-page-item:hover .file-page-copy,
+.file-page-item:hover .file-page-del { display: flex; }
+.file-page-copy:hover { background: #2a2a2a; color: #aaa; }
+.file-page-del:hover { background: #c0392b; color: #fff; }
+
+.file-page-item.page-dragging { opacity: 0.35; }
+
+.page-drop-indicator {
+  height: 2px; margin: 1px 8px;
+  background: #2d6fe8; border-radius: 1px;
+  pointer-events: none;
+}
+
+.file-page-add {
+  margin: 2px 8px 0; padding: 5px 0;
+  background: transparent; border: 1px dashed #333;
+  border-radius: 5px; color: #555; font-size: 10px;
+  cursor: pointer; transition: all 0.12s; text-align: center;
+}
+.file-page-add:hover { border-color: #555; color: #aaa; background: #242424; }
+
+/* ── 프로젝트 이름 바 ── */
+#project-name-bar {
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid #252525;
+  background: #161616;
+  flex-shrink: 0;
+}
+
+/* 로고 */
+#editor-logo {
+  display: flex; align-items: center; gap: 9px;
+  margin-bottom: 12px;
+}
+#logo-mark { flex-shrink: 0; }
+#logo-text {
+  display: flex; align-items: center; gap: 6px;
+  min-width: 0;
+}
+#logo-name {
+  font-size: 11px; font-weight: 700;
+  color: #ccc; letter-spacing: 0.6px;
+  white-space: nowrap;
+}
+#logo-version-badge {
+  font-size: 9px; font-weight: 500;
+  color: #505050; letter-spacing: 0.3px;
+  border: 1px solid #2e2e2e;
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+/* 프로젝트명 행 */
+#project-name-row {
+  background: #1e1e1e;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 6px 10px;
+  transition: border-color 0.15s;
+}
+#project-name-row:hover { border-color: #3a3a3a; }
+#project-name-display {
+  display: block;
+  font-size: 13px; font-weight: 600;
+  color: #d0d0d0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: default;
+  line-height: 1.4;
+}
+#project-name-input {
+  width: 100%; box-sizing: border-box;
+  background: transparent; border: none;
+  color: #eee;
+  font-size: 13px; font-weight: 600;
+  padding: 0; outline: none; line-height: 1.4;
+}
+#project-name-row:has(#project-name-input[style*="block"]) {
+  border-color: #4a7acc;
+  box-shadow: 0 0 0 2px rgba(74,122,204,0.15);
+}

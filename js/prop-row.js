@@ -173,8 +173,8 @@ function showRowProperties(rowEl) {
     if (n) n.value = v || '';
   };
   document.getElementById('row-height-slider')?.addEventListener('input',  e => applyRowHeight(parseInt(e.target.value)));
-  document.getElementById('row-height-number')?.addEventListener('change', e => { applyRowHeight(parseInt(e.target.value)); pushHistory(); });
-  document.getElementById('row-height-slider')?.addEventListener('change', () => pushHistory());
+  document.getElementById('row-height-number')?.addEventListener('change', e => { applyRowHeight(parseInt(e.target.value)); window.pushHistory(); });
+  document.getElementById('row-height-slider')?.addEventListener('change', () => window.pushHistory());
 
   /* ── 좌우 패딩 ── */
   const applyPadX = v => {
@@ -189,8 +189,8 @@ function showRowProperties(rowEl) {
     if (n) n.value = v;
   };
   document.getElementById('row-padx-slider')?.addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
-  document.getElementById('row-padx-number')?.addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory(); });
-  document.getElementById('row-padx-slider')?.addEventListener('change', () => pushHistory());
+  document.getElementById('row-padx-number')?.addEventListener('change', e => { applyPadX(parseInt(e.target.value)); window.pushHistory(); });
+  document.getElementById('row-padx-slider')?.addEventListener('change', () => window.pushHistory());
 
   /* ── 자식 블록 일괄: 높이 ── */
   if (hasChildren) {
@@ -203,8 +203,8 @@ function showRowProperties(rowEl) {
       if (n) n.value = v || '';
     };
     document.getElementById('row-child-h-slider').addEventListener('input',  e => applyChildHeight(parseInt(e.target.value)));
-    document.getElementById('row-child-h-number').addEventListener('change', e => { applyChildHeight(parseInt(e.target.value)); pushHistory(); });
-    document.getElementById('row-child-h-slider').addEventListener('change', () => pushHistory());
+    document.getElementById('row-child-h-number').addEventListener('change', e => { applyChildHeight(parseInt(e.target.value)); window.pushHistory(); });
+    document.getElementById('row-child-h-slider').addEventListener('change', () => window.pushHistory());
 
     /* ── 자식 블록 일괄: radius (card 전용) ── */
     if (allCards) {
@@ -220,8 +220,8 @@ function showRowProperties(rowEl) {
         if (n) n.value = v;
       };
       document.getElementById('row-child-r-slider').addEventListener('input',  e => applyChildRadius(parseInt(e.target.value)));
-      document.getElementById('row-child-r-number').addEventListener('change', e => { applyChildRadius(parseInt(e.target.value)); pushHistory(); });
-      document.getElementById('row-child-r-slider').addEventListener('change', () => pushHistory());
+      document.getElementById('row-child-r-number').addEventListener('change', e => { applyChildRadius(parseInt(e.target.value)); window.pushHistory(); });
+      document.getElementById('row-child-r-slider').addEventListener('change', () => window.pushHistory());
     }
   }
 
@@ -239,8 +239,8 @@ function showRowProperties(rowEl) {
     if (n) n.value = v;
   };
   document.getElementById('row-gap-slider').addEventListener('input',  e => applyGap(parseInt(e.target.value)));
-  document.getElementById('row-gap-number').addEventListener('change', e => { applyGap(parseInt(e.target.value)); pushHistory(); });
-  document.getElementById('row-gap-slider').addEventListener('change', () => pushHistory());
+  document.getElementById('row-gap-number').addEventListener('change', e => { applyGap(parseInt(e.target.value)); window.pushHistory(); });
+  document.getElementById('row-gap-slider').addEventListener('change', () => window.pushHistory());
 
   /* ── Flex / Grid: 컬럼 비율 입력 (2:8 형식) ── */
   if (layout === 'flex' || layout === 'grid') {
@@ -267,7 +267,7 @@ function showRowProperties(rowEl) {
         if (parts.length !== gridColCount) return;
         rowEl.style.gridTemplateColumns = parts.map(p => p + 'fr').join(' ');
       }
-      pushHistory();
+      window.pushHistory();
     };
     ratioInput.addEventListener('keydown', e => { if (e.key === 'Enter') { applyRatio(); e.target.blur(); } });
     ratioInput.addEventListener('blur', applyRatio);
@@ -354,7 +354,7 @@ function showRowProperties(rowEl) {
 
       buildLayerPanel();
       showRowProperties(rowEl);
-      pushHistory();
+      window.pushHistory();
     });
   }
 }

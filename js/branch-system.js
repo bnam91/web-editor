@@ -157,6 +157,8 @@ function switchBranch(name) {
   // 대상 브랜치 로드
   store.current = name;
   saveBranchStore(store);
+  // 브랜치 전환 시 히스토리 스택 초기화 (다른 브랜치 상태로 Undo 역점프 방지)
+  if (window.clearHistory) window.clearHistory();
   const data = JSON.parse(store.branches[name].snapshot);
   applyProjectData(data);
   updateBranchIndicator(name);

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --enable-logging --remote-debugging-port=9334 --remote-allow-origins=* admin",
+    "dev:step2": "electron . --enable-logging --remote-debugging-port=9335 --remote-allow-origins=* admin",
     "build:mac": "electron-builder --mac --dir",
     "release:mac": "electron-builder --mac --publish always",
     "release:win": "electron-builder --win --publish always"

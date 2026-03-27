@@ -75,6 +75,8 @@ function createWindow() {
   // 라이선스 체크 후 페이지 결정
   checkLicenseAndLoad();
 
+  ipcMain.handle('app:git-branch', () => getGitBranch());
+
   // HTML <title>이 덮어씌우지 않도록 로드 완료 후 타이틀 강제 설정
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.setTitle(windowTitle);

@@ -207,6 +207,9 @@ async function switchTab(id) {
   state._suppressAutoSave = true;
   const canvasEl = document.getElementById('canvas');
   if (canvasEl) canvasEl.innerHTML = '';
+  // propPanel 클리어 — 이전 탭의 속성 패널 내용이 잔존하지 않도록
+  const propPanel = document.querySelector('#panel-right .panel-body');
+  if (propPanel) propPanel.innerHTML = '';
   if (window.buildLayerPanel) window.buildLayerPanel();
 
   renderTabBar();
@@ -472,6 +475,9 @@ function switchPage(pageId) {
   if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
   canvasEl.innerHTML = page.canvas || '';
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+  // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
+  const propPanel = document.querySelector('#panel-right .panel-body');
+  if (propPanel) propPanel.innerHTML = '';
   rebindAll();
   applyPageSettings();
   window.deselectAll();
@@ -520,6 +526,9 @@ function getSerializedCanvas() {
   // 핸들/힌트 등 상태 요소는 직렬화에서 제외
   const clone = canvasEl.cloneNode(true);
   clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
+  // 편집 상태 속성 제거 — contenteditable/editing 상태가 저장되지 않도록
+  clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+  clone.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
   return clone.innerHTML;
 }
 

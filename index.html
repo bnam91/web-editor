@@ -162,6 +162,7 @@
         <div id="logo-text">
           <span id="logo-name">GOYA DESIGN EDITOR</span>
           <span id="logo-version-badge">v0.5.0</span>
+          <span id="logo-branch-badge" style="display:none"></span>
         </div>
       </div>
       <div id="project-name-row">
@@ -822,6 +823,17 @@
 <script type="module" src="js/ai-prompt.js"></script>
 <script type="module" src="js/component-shelf.js"></script>
 <script src="js/design-system.js"></script>
+<script>
+  // git 브랜치 배지 표시 (dev 브랜치는 숨김)
+  (async () => {
+    if (!window.electronAPI?.getGitBranch) return;
+    const branch = await window.electronAPI.getGitBranch();
+    if (branch && branch !== 'dev' && branch !== 'main') {
+      const badge = document.getElementById('logo-branch-badge');
+      if (badge) { badge.textContent = branch; badge.style.display = ''; }
+    }
+  })();
+</script>
 <script type="module" src="js/component-shelf.js"></script>
 
 <!-- ══════════════════════════

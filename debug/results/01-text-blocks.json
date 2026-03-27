@@ -1,0 +1,128 @@
+{
+  "agent": "Agent-01",
+  "part": "텍스트/Gap/Divider",
+  "ts": "2026-03-27T18:47:00.000000",
+  "scenarios": [
+    {
+      "id": "01-01",
+      "title": "텍스트 6종 모두 생성",
+      "status": "fail",
+      "notes": "h1/h2/h3/body/caption 5종은 정상 생성. label 타입만 생성 실패. 원인: addTextBlock() 내부에서 window.getSelectedSection()이 null 반환 → showNoSelectionHint() 호출 후 return. 섹션이 .section-block.selected CSS 클래스 없이는 선택으로 인식 안됨. window.selectSection(sec)을 먼저 호출하면 label도 정상 생성 확인됨.",
+      "bugs": [
+        "BUG-01: addTextBlock('label') — CDP 테스트 환경에서 section.click()으로는 getSelectedSection()이 null 반환. window.selectSection(sec) 직접 호출 필요. 사용자 UI에서는 정상 동작 가능성 있으나 CDP 자동화 테스트 시 주의"
+      ],
+      "analysis": "addTextBlock, addGapBlock, addDividerBlock 모두 getSelectedSection() = document.querySelector('.section-block.selected') 의존. section.click()이 selectSectionWithModifier를 트리거해야 하나 CDP에서 click() 이벤트가 해당 리스너를 거치지 않아 .selected 클래스 미부여"
+    },
+    {
+      "id": "01-02",
+      "title": "텍스트 입력 후 스타일 변경",
+      "status": "pass",
+      "notes": "H1 블록 선택 → txt-size-number input에 60 입력 → contentEl.style.fontSize=60px DOM 반영 확인. before=104px → after=60px. 빈 텍스트 상태에서 스타일 변경 시 오류 없음.",
+      "bugs": []
+    },
+    {
+      "id": "01-03",
+      "title": "텍스트 정렬 (left/center/right)",
+      "status": "pass",
+      "notes": "center/right/left 순으로 정렬 버튼 클릭. 각 정렬 후 contentEl.style.textAlign 값 일치 확인. active 버튼 상태도 올바르게 전환됨.",
+      "bugs": []
+    },
+    {
+      "id": "01-04",
+      "title": "텍스트 색상 변경",
+      "status": "pass",
+      "notes": "txt-color-hex에 #ff0000 입력 → getComputedStyle(ce).color=rgb(255,0,0) → #ff0000 변환 일치. colorPicker.value도 #ff0000으로 동기화됨.",
+      "bugs": []
+    },
+    {
+      "id": "01-05",
+      "title": "극단값 입력 (빈/긴 텍스트)",
+      "status": "warn",
+      "notes": "빈 텍스트 저장: savePageData() 오류 없음. 1000자 입력: scrollWidth=63774 vs clientWidth=796, overflowX=visible. wordBreak=normal, whiteSpace=normal 상태로 연속 문자(A*1000)는 줄바꿈 없이 가로로 확장됨. 실제 텍스트(단어+공백)는 문제없으나 연속문자열은 레이아웃 이탈 가능.",
+      "bugs": [
+        "WARN-05: contenteditable 요소의 overflow-x=visible, word-break=normal 상태에서 공백 없는 1000자 연속 문자 입력 시 scrollWidth(63774px) >> clientWidth(796px). 실사용(한글/영문 단어)에서는 whitespace wrapping으로 완화되나 URL 등 연속 문자열에선 가로 이탈 가능. overflow-wrap:break-word 또는 word-break:break-all 적용 권장"
+      ]
+    },
+    {
+      "id": "01-06",
+      "title": "텍스트 더블클릭 편집 모드",
+      "status": "warn",
+      "notes": "더블클릭 후 contentEditable=true 정상. 바깥클릭(canvas) 후 contentEditable=false 정상 종료. ESC 키 이벤트 후에도 contentEditable=true로 편집 모드 미종료 확인 (document keydown Escape 발생했으나 편집 모드 해제 안됨).",
+      "bugs": [
+        "BUG-06: ESC 키로 텍스트 편집 모드 종료 안됨. document.dispatchEvent(keydown Escape) 후 contentEditable='true' 유지. 편집 취소(ESC) 기능 미구현 또는 리스너 미등록 가능성. canvas 클릭은 정상 동작"
+      ]
+    },
+    {
+      "id": "01-07",
+      "title": "Gap 블록 크기 조절",
+      "status": "pass",
+      "notes": "window.selectSection(sec) 호출 후 addGapBlock() 정상 생성 확인. gap-block 클릭 → gap-slider 패널 렌더링 → slider value=80 input → gb.style.height=80px 반영 확인.",
+      "bugs": [],
+      "note_on_initial_fail": "초기 테스트 FAIL은 selectSection() 미호출로 getSelectedSection()=null 반환 때문. window.selectSection() 호출 후 정상"
+    },
+    {
+      "id": "01-08",
+      "title": "Divider 블록 스타일",
+      "status": "pass",
+      "notes": "window.selectSection(sec) 호출 후 addDividerBlock() 정상 생성. dvd-hex에 #ff0000 입력 → dataset.lineColor=#ff0000 반영. dvd-weight-slider=4 → dataset.lineWeight=4 반영. dvd-style=dashed → dataset.lineStyle=dashed 반영. applyDividerStyle() 정상 호출 확인.",
+      "bugs": [],
+      "note_on_initial_fail": "초기 테스트 FAIL은 selectSection() 미호출 때문"
+    },
+    {
+      "id": "01-09",
+      "title": "텍스트 블록 복사 붙여넣기",
+      "status": "fail",
+      "notes": "document.dispatchEvent(keydown metaKey+c/v)로는 복사 안됨 (CDP 환경 제약). window.copySelected() + window.pasteClipboard() API는 정상 동작 (블록 수 증가 확인). 단, pasteClipboard() 후 생성된 블록의 텍스트가 원본(origText='Headline goes here', class=tb-h1)과 다름: newText='새 섹션 제목', newClass=tb-h2.",
+      "bugs": [
+        "BUG-09a: document keydown(metaKey+c/v) 이벤트는 에디터 복사 기능 미작동. window.copySelected()/pasteClipboard() API 직접 호출 필요 (키보드 이벤트 기반 복사는 CDP 환경 제약)",
+        "BUG-09b: window.copySelected() + window.pasteClipboard() 실행 시 붙여넣기 블록의 텍스트 내용이 원본과 다름. origText='Headline goes here'(tb-h1) → newText='새 섹션 제목'(tb-h2). 클립보드에 다른 섹션 데이터가 있거나 pasteClipboard가 마지막 복사된 섹션 단위로 붙여넣기 수행하는 것으로 추정"
+      ]
+    },
+    {
+      "id": "01-10",
+      "title": "리스너 중복 등록 테스트",
+      "status": "pass",
+      "notes": "H1 블록을 10회 클릭/해제 반복 후 패널 정상 렌더링. txt-size-number에 30 입력 → fontSize=30px 정상 적용. showTextProperties()는 propPanel.innerHTML을 완전 재생성(innerHTML 교체) 후 새 DOM 요소에 addEventListener 등록하는 구조로 리스너 중복 위험 없음. 기존 요소 참조 유지로 인한 메모리 누수 가능성도 낮음.",
+      "bugs": []
+    }
+  ],
+  "bugs_found": 7,
+  "fixes_applied": 0,
+  "bug_summary": [
+    {
+      "id": "BUG-01",
+      "severity": "medium",
+      "title": "addTextBlock/addGapBlock/addDividerBlock — selectSection() 미호출 시 블록 생성 불가",
+      "detail": "모든 블록 추가 함수가 window.getSelectedSection() = document.querySelector('.section-block.selected')에 의존. CDP에서 section.click()이 selectSectionWithModifier 리스너를 통하지 않아 .selected 클래스 미부여. window.selectSection(sec) 직접 호출 필요",
+      "affected": ["01-01 label", "01-07 gap", "01-08 divider"]
+    },
+    {
+      "id": "BUG-06",
+      "severity": "low",
+      "title": "ESC 키로 텍스트 편집 모드 종료 안됨",
+      "detail": "document keydown Escape 이후 contentEditable='true' 유지. canvas 클릭은 정상 종료됨. ESC 편집 취소 기능 미구현 또는 이벤트 핸들러 미등록",
+      "affected": ["01-06"]
+    },
+    {
+      "id": "WARN-05",
+      "severity": "low",
+      "title": "contenteditable 가로 오버플로우 (공백없는 연속 문자)",
+      "detail": "overflow-x=visible, word-break=normal 상태에서 공백 없는 1000자 연속 입력 시 레이아웃 이탈. overflow-wrap:break-word 적용 권장",
+      "affected": ["01-05"]
+    },
+    {
+      "id": "BUG-09a",
+      "severity": "info",
+      "title": "CDP 환경에서 키보드 이벤트 기반 복사/붙여넣기 미작동",
+      "detail": "document.dispatchEvent(keydown metaKey+c/v)는 에디터 내부 keydown 리스너를 트리거하지 않음. window.copySelected()/pasteClipboard() API는 정상 작동",
+      "affected": ["01-09"]
+    },
+    {
+      "id": "BUG-09b",
+      "severity": "medium",
+      "title": "pasteClipboard() 블록 텍스트 불일치",
+      "detail": "window.copySelected()(h1 선택) → window.pasteClipboard() 실행 시 붙여넣기된 블록 텍스트='새 섹션 제목'(tb-h2)으로 원본 '헤드라인 goes here'(tb-h1)와 다름. 클립보드가 섹션 단위 복사 또는 이전 복사 데이터 사용 가능성",
+      "affected": ["01-09"]
+    }
+  ]
+}
