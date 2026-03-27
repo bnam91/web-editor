@@ -690,7 +690,40 @@ export function buildLayerPanel() {
       }
     });
 
-    header.addEventListener('click', () => { selectSection(sec, true); });
+    header.addEventListener('click', (e) => {
+      if (e.shiftKey) {
+        const panel = document.getElementById('layer-panel-body');
+        const allSectionEls = [...document.querySelectorAll('#canvas .section-block')];
+        const targetIdx = allSectionEls.indexOf(sec);
+
+        const activeHeader = panel.querySelector('.layer-section-header.active');
+        const anchorLayerSection = activeHeader ? activeHeader.closest('.layer-section') : null;
+        const anchorIdx = anchorLayerSection
+          ? parseInt(anchorLayerSection.dataset.section, 10) - 1
+          : -1;
+
+        if (anchorIdx === -1 || targetIdx === -1) {
+          selectSection(sec, true);
+          return;
+        }
+
+        const [from, to] = anchorIdx < targetIdx ? [anchorIdx, targetIdx] : [targetIdx, anchorIdx];
+
+        // 범위 내 모든 섹션 선택
+        allSectionEls.forEach(s => s.classList.remove('selected'));
+        panel.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
+
+        const allLayerSections = [...panel.querySelectorAll('.layer-section')];
+        for (let i = from; i <= to; i++) {
+          if (allSectionEls[i]) allSectionEls[i].classList.add('selected');
+          if (allLayerSections[i]) {
+            allLayerSections[i].querySelector('.layer-section-header')?.classList.add('active');
+          }
+        }
+      } else {
+        selectSection(sec, true);
+      }
+    });
     chevron.addEventListener('click', e => {
       e.stopPropagation();
       sectionEl.classList.toggle('collapsed');

@@ -107,7 +107,15 @@ async function insertTemplate(tpl) {
   const newIdx  = secList.length + 1;
   sec.dataset.section = newIdx;
   const labelEl = sec.querySelector('.section-label');
-  if (labelEl) labelEl.textContent = `Section ${String(newIdx).padStart(2,'0')}`;
+  if (labelEl) {
+    labelEl.textContent = `Section ${String(newIdx).padStart(2,'0')}`;
+    if (!labelEl.closest('.section-hitzone')) {
+      const hz = document.createElement('div');
+      hz.className = 'section-hitzone';
+      labelEl.parentElement.insertBefore(hz, labelEl);
+      hz.appendChild(labelEl);
+    }
+  }
 
   // 선택 상태 초기화
   sec.classList.remove('selected');
@@ -124,6 +132,7 @@ async function insertTemplate(tpl) {
   sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
   bindSectionDelete(sec);
   bindSectionOrder(sec);
+  if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
   bindSectionDropZone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
