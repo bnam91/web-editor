@@ -2,7 +2,16 @@ import { propPanel, state } from './globals.js';
 
 export function showTextProperties(tb) {
   const isOverlayTb = tb.classList.contains('overlay-tb');
-  const contentEl = tb.querySelector('[contenteditable]');
+  // contenteditable 속성이 없는 경우(저장 후 복원 시 속성 누락) fallback으로 내부 첫 자식 div를 사용
+  let contentEl = tb.querySelector('[contenteditable]');
+  if (!contentEl) {
+    contentEl = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
+    if (contentEl) contentEl.setAttribute('contenteditable', 'false');
+  }
+  if (!contentEl) {
+    console.warn('[prop-text] showTextProperties: contentEl not found in', tb.id);
+    return;
+  }
   const computed   = window.getComputedStyle(contentEl);
 
   const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || 'tb-body';
