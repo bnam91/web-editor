@@ -9,7 +9,8 @@
 'use strict';
 
 const DesignSystem = (() => {
-  const STORAGE_KEY = 'we_design_system_v1';
+  const STORAGE_KEY      = 'we_design_system_v1';
+  const STORAGE_BASE_KEY = 'we_design_system_base_v1';
 
   // 토큰 기본값 (default 프리셋 기준)
   const DEFAULT_TOKENS = {
@@ -57,12 +58,16 @@ const DesignSystem = (() => {
     let presets = window.PRESETS;
     if (!presets?.length && window.electronAPI?.readPresets) {
       presets = await window.electronAPI.readPresets();
+      // 캐시: 이후 _currentBase() 에서도 사용 가능하도록 저장
+      if (presets?.length) window.PRESETS = presets;
     }
     const preset = (presets || []).find(p => p.id === presetId);
     if (!preset) return;
     const tokens = { ...DEFAULT_TOKENS, ...preset.variables };
     applyTokens(tokens);
     _save(tokens);
+    // 활성 프리셋 ID를 별도 저장 → _currentBase() 가 즉시 읽을 수 있음
+    localStorage.setItem(STORAGE_BASE_KEY, presetId);
     syncPanelUI(tokens);
   }
 
@@ -113,6 +118,10 @@ const DesignSystem = (() => {
   }
 
   function _currentBase() {
+    // 1순위: applyBase() 호출 시 저장한 명시적 presetId
+    const saved = localStorage.getItem(STORAGE_BASE_KEY);
+    if (saved) return saved;
+    // 2순위: window.PRESETS 캐시가 있으면 토큰 비교
     const tokens = _load();
     const presets = window.PRESETS || [];
     for (const p of presets) {
@@ -155,6 +164,10 @@ const DesignSystem = (() => {
 
     applyTokens(tokens);
     _save(tokens);
+    // 커스텀 편집 시 저장된 베이스 ID 초기화 (어떤 preset과도 일치하지 않음)
+    localStorage.removeItem(STORAGE_BASE_KEY);
+    // 버튼 active 상태도 즉시 갱신
+    document.querySelectorAll('.ds-base-btn').forEach(btn => btn.classList.remove('active'));
   }
 
   /** hex 색상을 amount(0~1) 만큼 밝게 */
@@ -169,6 +182,7 @@ const DesignSystem = (() => {
 
   function resetTokens() {
     _save({ ...DEFAULT_TOKENS });
+    localStorage.setItem(STORAGE_BASE_KEY, 'default');
     applyTokens(DEFAULT_TOKENS);
     syncPanelUI(DEFAULT_TOKENS);
   }
