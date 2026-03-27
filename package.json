@@ -7,6 +7,10 @@
     "start": "electron .",
     "dev": "electron . --enable-logging --remote-debugging-port=9334 --remote-allow-origins=* admin",
     "dev:step2": "electron . --enable-logging --remote-debugging-port=9335 --remote-allow-origins=* admin",
+    "dev:planning": "electron . --enable-logging --remote-debugging-port=9336 --remote-allow-origins=* admin",
+    "dev:ui-polish": "electron . --enable-logging --remote-debugging-port=9337 --remote-allow-origins=* admin",
+    "dev:design-token": "electron . --enable-logging --remote-debugging-port=9338 --remote-allow-origins=* admin",
+    "dev:template-tag": "electron . --enable-logging --remote-debugging-port=9339 --remote-allow-origins=* admin",
     "build:mac": "electron-builder --mac --dir",
     "release:mac": "electron-builder --mac --publish always",
     "release:win": "electron-builder --win --publish always"
