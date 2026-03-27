@@ -717,13 +717,27 @@ function rebindAll() {
 const LAST_COMMIT_KEY = 'goya-last-commit';
 
 
+let _autoSaveHideTimer = null;
+function _setAutosaveIndicator(state) {
+  const el = document.getElementById('autosave-indicator');
+  if (!el) return;
+  clearTimeout(_autoSaveHideTimer);
+  el.className = state;
+  el.textContent = state === 'saving' ? '저장 중...' : '저장됨';
+  if (state === 'saved') {
+    _autoSaveHideTimer = setTimeout(() => { el.className = ''; el.textContent = ''; }, 2500);
+  }
+}
+
 function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
   clearTimeout(autoSaveTimer);
+  _setAutosaveIndicator('saving');
   autoSaveTimer = setTimeout(() => {
     const snap = serializeProject();
     localStorage.setItem(SAVE_KEY, snap);
     saveProjectToFile(snap, { skipThumbnail: true }); // 자동저장은 썸네일 캡처 생략
+    _setAutosaveIndicator('saved');
   }, 1500);
 }
 
@@ -821,7 +835,7 @@ function initApp() {
           if (tab) tab.name = name;
           renderTabBar();
           if (proj.version === 2 && proj.pages) { applyAndFinish(proj); return; }
-          if (proj.snapshot) { applyAndFinish(proj.snapshot); return; }
+          if (proj.snapshot) { try { applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot); } catch {} return; }
         }
       } else {
         const proj = loadProjectsList().find(p => p.id === activeProjectId);
@@ -831,7 +845,7 @@ function initApp() {
           if (tab) tab.name = name;
         }
         renderTabBar();
-        if (proj?.snapshot) { applyAndFinish(proj.snapshot); return; }
+        if (proj?.snapshot) { try { applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot); } catch {} return; }
       }
     } else {
       openTabs = [];

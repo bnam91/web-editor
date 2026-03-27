@@ -285,7 +285,7 @@ async function renderGrid() {
       <div class="card-thumb">${thumbContent}</div>
       <div class="card-body">
         ${badgeHtml}
-        <div class="card-name" data-id="${proj.id}" ondblclick="startRename(event, '${proj.id}')">${proj.name}</div>
+        <div class="card-name" data-id="${proj.id}" ondblclick="startRename(event, '${proj.id}')" title="더블클릭하여 이름 변경">${proj.name || '이름 없음'}</div>
         <div class="card-date">${formatDate(proj.updatedAt)}</div>
       </div>
       <button class="card-delete" onclick="deleteProject(event, '${proj.id}')">✕</button>
@@ -381,7 +381,7 @@ async function initSampleProject() {
   const sampleCanvas = `
 <div class="section-block" data-section="1">
   <span class="section-label">Section 01</span>
-  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:#e06c6c;">✕</button></div>
+  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:var(--ui-danger);">✕</button></div>
   <div class="section-inner">
     <div class="gap-block" data-type="gap" style="height:100px"></div>
     <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="heading"><div class="tb-h1" contenteditable="false">Headline goes here</div></div></div></div>
@@ -392,7 +392,7 @@ async function initSampleProject() {
 </div>
 <div class="section-block" data-section="2">
   <span class="section-label">Section 02</span>
-  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:#e06c6c;">✕</button></div>
+  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:var(--ui-danger);">✕</button></div>
   <div class="section-inner">
     <div class="gap-block" data-type="gap" style="height:100px"></div>
     <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="heading"><div class="tb-h2" contenteditable="false">섹션 제목을 입력하세요</div></div></div></div>
@@ -403,7 +403,7 @@ async function initSampleProject() {
 </div>
 <div class="section-block" data-section="3">
   <span class="section-label">Section 03</span>
-  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:#e06c6c;">✕</button></div>
+  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:var(--ui-danger);">✕</button></div>
   <div class="section-inner">
     <div class="gap-block" data-type="gap" style="height:100px"></div>
     <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="heading"><div class="tb-h2" contenteditable="false">마지막 섹션 제목</div></div></div></div>
