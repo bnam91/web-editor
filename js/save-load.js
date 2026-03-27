@@ -201,6 +201,12 @@ async function switchTab(id) {
 
   activeProjectId = id;
   history.replaceState(null, '', '?project=' + id);
+
+  // 즉시 캔버스 클리어 (이전 탭 내용이 잠깐 보이지 않도록)
+  const canvasEl = document.getElementById('canvas');
+  if (canvasEl) canvasEl.innerHTML = '';
+  if (window.buildLayerPanel) window.buildLayerPanel();
+
   renderTabBar();
   saveTabState();
 
@@ -210,6 +216,7 @@ async function switchTab(id) {
   if (targetTab?._cache) {
     applyProjectData(JSON.parse(targetTab._cache));
     initBranchStore();
+    requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
     return;
   }
 
@@ -227,6 +234,10 @@ async function switchTab(id) {
     const data = proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj;
     if (targetTab) targetTab._cache = JSON.stringify(data);
     applyProjectData(data);
+  } else {
+    // 프로젝트 없으면 캔버스 초기화
+    if (canvasEl) canvasEl.innerHTML = '';
+    if (window.buildLayerPanel) window.buildLayerPanel();
   }
   initBranchStore();
 }
