@@ -170,7 +170,7 @@ ipcMain.handle('projects:list', () => {
     .map(f => {
       try {
         const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
-        return { id: data.id, name: data.name, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail: data.thumbnail || null };
+        return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail: data.thumbnail || null };
       } catch { return null; }
     })
     .filter(Boolean)

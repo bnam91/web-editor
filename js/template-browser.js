@@ -143,13 +143,14 @@ function _renderBrowserCards() {
     templates = templates.filter(t => (t.category || '기타') === _browserFilter.category);
   }
 
-  // 검색 필터
+  // 검색 필터 (이름·폴더·카테고리·태그)
   if (_browserSearchQ.trim()) {
     const q = _browserSearchQ.toLowerCase();
     templates = templates.filter(t =>
       t.name.toLowerCase().includes(q) ||
       (t.folder || '').toLowerCase().includes(q) ||
-      (t.category || '').toLowerCase().includes(q)
+      (t.category || '').toLowerCase().includes(q) ||
+      (t.tags || []).some(tag => tag.toLowerCase().includes(q))
     );
   }
 

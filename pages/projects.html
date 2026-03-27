@@ -322,13 +322,7 @@ async function createPlanningProject() {
   const id = 'plan_' + Date.now();
   const now = new Date().toISOString();
   const proj = { id, name: '기획 Untitled', type: 'planning', createdAt: now, updatedAt: now };
-  const list = await loadProjects();
-  list.push(proj);
-  if (window.electronAPI?.saveProjectList) {
-    await window.electronAPI.saveProjectList(list);
-  } else {
-    localStorage.setItem('projects', JSON.stringify(list));
-  }
+  await saveNewProject(proj);
   window.location.href = 'planning.html?project=' + id;
 }
 
