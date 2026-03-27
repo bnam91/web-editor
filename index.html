@@ -3,13 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Web Design Editor</title>
+<title>Goya Web Design Editor</title>
 <link rel="stylesheet" href="css/editor.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&family=Noto+Serif+KR:wght@400;600;700&family=Inter:wght@400;600;700&family=Playfair+Display:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+
+<!--
+  C5~C9 위치 검토 (Figma 기준 비교)
+  ─────────────────────────────────────────────────────
+  C5. 인스펙터 (Inspector)
+      Figma 기준: 우측 패널
+      현재 위치:  좌측 패널(panel-left) 내 Inspector 탭 — ❌ 불일치
+      개선 제안:  Inspector 탭을 panel-right로 이동하거나,
+                  현재 좌측 panel-right에 Inspector 콘텐츠를 배치 권장
+                  (현재 inspector-panel-body는 panel-left에 있음)
+
+  C6. 레이어 패널 (Layers)
+      Figma 기준: 좌측 패널
+      현재 위치:  좌측 패널(panel-left) File 탭 내 Layers 섹션 — ✅ 일치
+
+  C7. 툴바 (Top Bar)
+      Figma 기준: 상단
+      현재 위치:  #topbar (상단 flex 바) — ✅ 일치
+
+  C8. 배율(Zoom)
+      Figma 기준: 우하단
+      현재 위치:  탑바 중앙 (#zoom-ctrl) — ❌ 불일치
+      개선 제안:  canvas-area 우하단 overlay에 #zoom-ctrl 이동 고려
+
+  C9. Shelf (템플릿/에셋 브라우저)
+      Figma 기준: 하단 또는 별도 패널
+      현재 위치:  좌측 패널 File 탭 하단 Templates 섹션 — 허용 범위 내 ✅
+                  (별도 tpl-browser 팝오버로 확장됨 — 적절)
+  ─────────────────────────────────────────────────────
+-->
 
 <!-- Top Bar -->
 <div id="topbar">
@@ -20,24 +50,22 @@
       <rect x="6" y="10" width="4" height="4"/>
     </svg>
   </button>
-  <!-- 프로젝트 탭 -->
-  <div id="project-tab">
-    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6">
-      <rect x="1" y="1" width="10" height="10" rx="1.5"/>
-      <line x1="3.5" y1="4" x2="8.5" y2="4"/><line x1="3.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="3.5" y1="9" x2="6.5" y2="9"/>
-    </svg>
-    <span id="project-tab-name">Untitled</span>
-    <button id="project-tab-close" title="닫기">
-      <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5">
-        <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+  <!-- 탭바 -->
+  <div id="tab-bar"></div>
+  <!-- + 새 탭 -->
+  <div id="tab-add-wrap">
+    <button id="tab-add-btn" title="다른 프로젝트 열기" onclick="toggleTabAddMenu(event)">
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
       </svg>
     </button>
+    <div id="tab-add-menu"></div>
   </div>
-  <div class="divider"></div>
-  <button class="tb-btn active" id="mode-design-btn" onclick="exitPreview()">Design</button>
-  <button class="tb-btn" id="mode-preview-btn" onclick="enterPreview()">Preview</button>
+  <button class="tb-btn active" id="mode-design-btn" onclick="exitPreview()" style="display:none">Design</button>
+  <button class="tb-btn" id="mode-preview-btn" onclick="enterPreview()" style="display:none">Preview</button>
   <div class="spacer"></div>
   <span id="canvas-size-label">860px</span>
+  <span id="autosave-indicator" title="자동저장 상태"></span>
   <div class="divider"></div>
   <div id="zoom-ctrl">
     <button class="zoom-btn" onclick="zoomStep(-10)">−</button>
@@ -49,22 +77,38 @@
     <button class="zoom-btn" onclick="zoomFit()" style="font-size:11px;width:auto;padding:0 6px;">Fit</button>
   </div>
   <div class="divider"></div>
-  <button class="tb-btn" onclick="saveProject()" title="저장 (JSON)">저장</button>
-  <label class="tb-btn" title="불러오기 (JSON)" style="cursor:pointer;">
-    불러오기<input type="file" id="load-file-input" accept=".json" style="display:none" onchange="loadProjectFile(event)">
-  </label>
+  <button class="tb-btn tb-btn--icon" id="undo-btn" onclick="undo()" title="실행 취소 (⌘Z)" disabled>
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <path d="M3 7a4 4 0 1 0 1-2.8"/><polyline points="1,4 3,7 6,5"/>
+    </svg>
+  </button>
+  <button class="tb-btn tb-btn--icon" id="redo-btn" onclick="redo()" title="다시 실행 (⌘⇧Z)" disabled>
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" style="transform:scaleX(-1)">
+      <path d="M3 7a4 4 0 1 0 1-2.8"/><polyline points="1,4 3,7 6,5"/>
+    </svg>
+  </button>
+  <div class="divider"></div>
+  <button class="tb-btn" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
+  <div class="divider"></div>
+  <button class="tb-btn tb-btn-ai" id="ai-btn" onclick="openAiPrompt()" title="AI 섹션 생성 (⌘K)">✨ AI</button>
+  <button class="tb-btn" id="ref-modal-btn" onclick="window._refModalToggle()" title="Reference Image (⌘⇧R)">Reference</button>
   <div class="divider"></div>
   <div id="publish-dropdown-wrap">
-    <button id="publish-btn" onclick="togglePublishDropdown(event)">
-      Publish
+    <!-- C12: "Figma" → "Export" 명칭 변경 + 아이콘 추가 / C11: tb-btn 클래스로 통일 -->
+    <button id="publish-btn" class="tb-btn" onclick="togglePublishDropdown(event)">
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1v7M3 5l3 3 3-3"/><path d="M2 10h8"/></svg>
+      Export
       <svg class="publish-dd-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div id="publish-dropdown-menu">
-      <div class="pub-dd-item pub-dd-primary" onclick="doPublish()">
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1v7M3 5l3-4 3 4"/><path d="M1 10h10"/></svg>
-        Publish
+      <label class="pub-dd-item" onclick="closePublishDropdown()" style="cursor:pointer;" title="불러오기 (JSON)">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><path d="M4 6h4M6 4v4"/></svg>
+        불러오기<input type="file" id="load-file-input" accept=".json" style="display:none" onchange="loadProjectFile(event)">
+      </label>
+      <div class="pub-dd-item" onclick="saveProjectAs(); closePublishDropdown()">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><path d="M7 1v3H3"/><path d="M3 7h6M3 9h4"/></svg>
+        다른 이름으로 저장
       </div>
-      <div class="pub-dd-divider"></div>
       <div class="pub-dd-item" onclick="exportDesignJSON(); closePublishDropdown()">
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><rect x="4" y="7" width="4" height="4"/><rect x="3" y="1" width="6" height="3"/></svg>
         JSON 내보내기
@@ -84,12 +128,29 @@
 
 <!-- Figma Upload Modal -->
 <div id="figma-upload-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
-  <div style="background:#1e1e1e; border:1px solid #333; border-radius:10px; padding:24px; width:360px; display:flex; flex-direction:column; gap:14px;">
+  <div style="background:#1e1e1e; border:1px solid #333; border-radius:10px; padding:24px; width:400px; display:flex; flex-direction:column; gap:14px;">
     <div style="font-size:13px; font-weight:600; color:#e0e0e0;">Figma 업로드</div>
     <div style="font-size:11px; color:#888;">Figma 플러그인에 표시된 채널 ID를 입력하세요.<br><span style="color:#555;">예: Connected to server in channel: <b style="color:#aaa;">7gjma3o6</b></span></div>
     <input id="figma-channel-input" type="text" placeholder="채널 ID (예: 7gjma3o6)"
       style="background:#2a2a2a; border:1px solid #444; border-radius:6px; color:#e0e0e0; padding:8px 10px; font-size:12px; outline:none;"
       onkeydown="if(event.key==='Enter') doFigmaUpload(); if(event.key==='Escape') closeFigmaUploadModal();" />
+
+    <!-- 섹션 선택 -->
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-size:11px; color:#888;">업로드할 섹션 선택</span>
+        <label style="display:flex; align-items:center; gap:5px; font-size:11px; color:#aaa; cursor:pointer;">
+          <input type="checkbox" id="figma-select-all" checked onchange="toggleFigmaSelectAll(this.checked)"
+            style="accent-color:#2563eb; cursor:pointer;" />
+          전체
+        </label>
+      </div>
+      <div id="figma-section-list"
+        style="background:#141414; border:1px solid #2a2a2a; border-radius:6px; padding:6px 8px; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+        <!-- openFigmaUploadModal() 에서 동적 생성 -->
+      </div>
+    </div>
+
     <div id="figma-upload-spinner" style="display:none; align-items:center; gap:10px; color:#aaa; font-size:11px;">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="animation:figma-spin 0.8s linear infinite; flex-shrink:0;">
         <circle cx="8" cy="8" r="6" stroke="#444" stroke-width="2"/>
@@ -97,13 +158,35 @@
       </svg>
       Figma에 업로드 중...
     </div>
-    <pre id="figma-upload-log" style="display:none; background:#111; border-radius:6px; padding:10px; font-size:10px; color:#aaa; max-height:200px; overflow-y:auto; white-space:pre-wrap; margin:0;"></pre>
+    <pre id="figma-upload-log" style="display:none; background:#111; border-radius:6px; padding:10px; font-size:10px; color:#aaa; max-height:180px; overflow-y:auto; white-space:pre-wrap; margin:0;"></pre>
     <div id="figma-modal-actions" style="display:flex; gap:8px; justify-content:flex-end;">
       <button id="figma-cancel-btn" onclick="closeFigmaUploadModal()" style="background:#2a2a2a; border:1px solid #444; border-radius:6px; color:#aaa; padding:6px 14px; font-size:11px; cursor:pointer;">취소</button>
       <button id="figma-upload-btn" onclick="doFigmaUpload()" style="background:#2563eb; border:none; border-radius:6px; color:#fff; padding:6px 14px; font-size:11px; cursor:pointer; font-weight:600;">업로드</button>
     </div>
-    <style>@keyframes figma-spin { to { transform: rotate(360deg); } }</style>
+    <style>
+      @keyframes figma-spin { to { transform: rotate(360deg); } }
+      #figma-section-list::-webkit-scrollbar { width: 4px; }
+      #figma-section-list::-webkit-scrollbar-track { background: transparent; }
+      #figma-section-list::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+      .figma-sec-row { display:flex; align-items:center; gap:7px; padding:3px 2px; border-radius:4px; }
+      .figma-sec-row:hover { background:#1f1f1f; }
+      .figma-sec-badge { font-size:9px; padding:1px 5px; border-radius:3px; font-weight:600; white-space:nowrap; }
+      .figma-sec-badge.synced { background:#1a3a1a; color:#4ade80; border:1px solid #2d5a2d; }
+      .figma-sec-badge.new    { background:#1a2a3a; color:#60a5fa; border:1px solid #1e3a5f; }
+    </style>
   </div>
+</div>
+
+<!-- Focus Mode Bar (feature 브랜치 집중 모드) -->
+<div id="focus-mode-bar" style="display:none;">
+  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+    <circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="5" r="1.5"/>
+    <path d="M3 4v4M3 4C3 6 9 4 9 5"/>
+  </svg>
+  <span id="focus-mode-branch-name"></span>
+  <span class="focus-mode-sep">·</span>
+  <span id="focus-mode-sections"></span>
+  <button id="focus-show-all-btn" onclick="toggleFocusAll()">전체 보기</button>
 </div>
 
 <!-- Main -->
@@ -111,6 +194,26 @@
 
   <!-- Left: File / Branch / Inspector -->
   <div class="panel" id="panel-left">
+    <div id="project-name-bar">
+      <div id="editor-logo">
+        <svg id="logo-mark" width="11" height="11" viewBox="0 0 16 16" fill="none">
+          <!-- 살짝 오목한 카드 다이아 (흰색 라인) -->
+          <path d="M8 1 Q10 6 15 8 Q10 10 8 15 Q6 10 1 8 Q6 6 8 1Z" stroke="white" stroke-width="1.4" stroke-linejoin="round" opacity="0.9"/>
+          <!-- 반짝 하이라이트 -->
+          <path d="M5.5 5 Q7 3.8 9.5 5.2" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <circle cx="5.2" cy="5.2" r="0.75" fill="white" opacity="0.7"/>
+        </svg>
+        <div id="logo-text">
+          <span id="logo-name">GOYA DESIGN EDITOR</span>
+          <span id="logo-version-badge">v0.5.0</span>
+          <span id="logo-branch-badge" style="display:none"></span>
+        </div>
+      </div>
+      <div id="project-name-row">
+        <span id="project-name-display" ondblclick="startRenameProject()" title="더블클릭하여 이름 변경"></span>
+        <input id="project-name-input" type="text" onblur="finishRenameProject()" onkeydown="if(event.key==='Enter')finishRenameProject();if(event.key==='Escape')cancelRenameProject();" style="display:none">
+      </div>
+    </div>
     <div class="panel-tabs">
       <button class="panel-tab active" data-tab="file" onclick="switchToTab('file')">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
@@ -167,15 +270,18 @@
         </div>
       </div>
       <div class="file-panel-section" id="templates-file-section">
-        <div class="file-panel-section-header" id="templates-section-header">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" class="file-section-chevron">
-            <path d="M2 3l3 3 3-3"/>
+        <div class="file-panel-section-header tpl-browser-trigger" id="templates-section-header" title="템플릿 브라우저 열기">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" class="file-section-chevron">
+            <rect x="1" y="1" width="8" height="8" rx="1"/>
+            <line x1="1" y1="4" x2="9" y2="4"/>
+            <line x1="3.5" y1="1" x2="3.5" y2="4"/>
           </svg>
           <span>Templates</span>
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-left:auto;opacity:0.4">
+            <polyline points="3,1 7,4 3,7"/>
+          </svg>
         </div>
-        <div class="file-panel-section-body tpl-panel-body" id="templates-section-body">
-          <div id="template-panel-body"></div>
-        </div>
+        <div id="template-panel-body" style="display:none"></div>
       </div>
     </div>
     <div class="panel-body" id="branch-panel-body" style="display:none"></div>
@@ -183,6 +289,11 @@
   </div>
 
   <!-- Canvas -->
+  <div id="canvas-area">
+  <!-- Notch Bar -->
+  <div id="canvas-notch-bar" title="클릭하면 캔버스 중앙으로 이동">
+    <div id="canvas-notch"></div>
+  </div>
   <div id="canvas-wrap">
     <div id="canvas-scaler">
       <div id="canvas">
@@ -196,6 +307,7 @@
             <button class="st-btn">↑</button>
             <button class="st-btn">↓</button>
             <button class="st-btn" style="color:#e06c6c;">✕</button>
+            <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
           </div>
           <div class="section-inner">
             <div class="gap-block" data-type="gap" style="height:100px"></div>
@@ -238,6 +350,7 @@
             <button class="st-btn">↑</button>
             <button class="st-btn">↓</button>
             <button class="st-btn" style="color:#e06c6c;">✕</button>
+            <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
           </div>
           <div class="section-inner">
             <div class="gap-block" data-type="gap" style="height:100px"></div>
@@ -280,6 +393,7 @@
             <button class="st-btn">↑</button>
             <button class="st-btn">↓</button>
             <button class="st-btn" style="color:#e06c6c;">✕</button>
+            <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
           </div>
           <div class="section-inner">
             <div class="gap-block" data-type="gap" style="height:100px"></div>
@@ -323,9 +437,16 @@
       </div><!-- /canvas -->
     </div><!-- /scaler -->
   </div><!-- /canvas-wrap -->
+  </div><!-- /canvas-area -->
 
   <!-- Right: Properties -->
   <div class="panel" id="panel-right">
+    <button id="rp-preview-btn" onclick="enterPreview()">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
+        <polygon points="2,1 9,5 2,9" fill="currentColor" stroke="none"/>
+      </svg>
+      Preview
+    </button>
     <div class="panel-header">
       <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
         <circle cx="8" cy="8" r="2"/>
@@ -334,6 +455,94 @@
       Properties
     </div>
     <div class="panel-body"></div>
+
+    <!-- Design System Panel (step2-design-system) -->
+    <div id="design-system-panel">
+      <div id="ds-panel-header" onclick="DesignSystem.togglePanel()">
+        <span class="ds-panel-title">Design System</span>
+        <span class="ds-panel-chevron">▼</span>
+      </div>
+      <div id="ds-panel-body">
+
+        <!-- Base Preset Selection -->
+        <div class="ds-section-label">Base</div>
+        <div class="ds-base-row">
+          <select id="ds-base-select" class="ds-base-select">
+            <option value="default">Default</option>
+            <option value="dark">Dark</option>
+            <option value="brand">Brand</option>
+            <option value="minimal">Minimal</option>
+          </select>
+        </div>
+        <div class="ds-base-row">
+          <button class="ds-new-preset-btn" onclick="DesignSystem.saveNewPreset()">＋ New Design System</button>
+        </div>
+
+        <!-- Color Tokens -->
+        <div class="ds-section-label">Color</div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Heading</span>
+          <input type="color" class="ds-token-picker" id="ds-h1-color" value="#111111">
+          <input type="text"  class="ds-token-hex"    id="ds-h1-color-hex" value="#111111" maxlength="7">
+        </div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Body</span>
+          <input type="color" class="ds-token-picker" id="ds-body-color" value="#555555">
+          <input type="text"  class="ds-token-hex"    id="ds-body-color-hex" value="#555555" maxlength="7">
+        </div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Caption</span>
+          <input type="color" class="ds-token-picker" id="ds-caption-color" value="#999999">
+          <input type="text"  class="ds-token-hex"    id="ds-caption-color-hex" value="#999999" maxlength="7">
+        </div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Label BG</span>
+          <input type="color" class="ds-token-picker" id="ds-label-bg" value="#111111">
+          <input type="text"  class="ds-token-hex"    id="ds-label-bg-hex" value="#111111" maxlength="7">
+        </div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Label FG</span>
+          <input type="color" class="ds-token-picker" id="ds-label-color" value="#ffffff">
+          <input type="text"  class="ds-token-hex"    id="ds-label-color-hex" value="#ffffff" maxlength="7">
+        </div>
+
+        <!-- Font -->
+        <div class="ds-section-label">Font</div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Heading</span>
+          <select class="ds-font-select" id="ds-heading-font">
+            <option value="Noto Sans KR">Noto Sans KR</option>
+            <option value="Noto Serif KR">Noto Serif KR</option>
+            <option value="Space Grotesk">Space Grotesk</option>
+            <option value="Montserrat">Montserrat</option>
+            <option value="Pretendard">Pretendard</option>
+          </select>
+        </div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Body</span>
+          <select class="ds-font-select" id="ds-body-font">
+            <option value="Noto Sans KR">Noto Sans KR</option>
+            <option value="Noto Serif KR">Noto Serif KR</option>
+            <option value="Space Grotesk">Space Grotesk</option>
+            <option value="Pretendard">Pretendard</option>
+          </select>
+        </div>
+
+        <!-- Label Radius -->
+        <div class="ds-section-label">Label Radius</div>
+        <div class="ds-token-row ds-slider-row">
+          <input type="range" id="ds-label-radius" min="0" max="40" value="8">
+          <span id="ds-label-radius-val">8px</span>
+        </div>
+
+        <!-- Buttons -->
+        <div class="ds-btn-row">
+          <button class="ds-apply-btn" onclick="DesignSystem.applyFromPanel()">Apply</button>
+          <button class="ds-reset-btn" onclick="DesignSystem.resetTokens()">Reset</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
 </div>
@@ -341,7 +550,7 @@
 <!-- Floating Panel -->
 <div id="floating-panel">
   <div id="branch-dropdown-wrap">
-    <button id="branch-indicator" onclick="toggleBranchDropdown(event)">
+    <button id="branch-indicator" onclick="toggleBranchDropdown(event)" title="현재 브랜치 — 클릭하여 브랜치 전환">
       <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
         <circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="5" r="1.5"/>
         <path d="M3 4v4M3 4C3 6 9 4 9 5"/>
@@ -352,15 +561,34 @@
     <div id="branch-dropdown-menu"></div>
   </div>
   <div class="fp-divider"></div>
-  <button class="fp-btn primary" onclick="addSection()">
+  <button class="fp-btn primary" onclick="addSection()" title="새 섹션 추가">
     <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
       <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
     </svg>
     Section
   </button>
+  <div class="fp-dropdown" id="fp-row-dropdown">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-row-dropdown')" title="2열 그리드 레이아웃 추가">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="1" y="2" width="3.5" height="7" rx="0.5"/><rect x="6.5" y="2" width="3.5" height="7" rx="0.5"/>
+      </svg>
+      Grid
+      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+    </button>
+    <div class="fp-dropdown-menu" id="fp-row-menu">
+      <button class="fp-menu-item" onclick="addRowBlock(2,1);toggleFpDropdown('fp-row-dropdown')">2 × 1</button>
+      <button class="fp-menu-item" onclick="addRowBlock(2,2);toggleFpDropdown('fp-row-dropdown')">2 × 2</button>
+    </div>
+  </div>
+  <button class="fp-btn" onclick="addGapBlock()" title="여백(Gap) 블록 추가">
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+      <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="8" x2="10" y2="8"/><line x1="5.5" y1="3" x2="5.5" y2="8" stroke-dasharray="1.5 1.5"/>
+    </svg>
+    Gap
+  </button>
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-text-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown()">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-text-dropdown')" title="텍스트 블록 추가 (Heading / Body / Caption / Label)">
       <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
         <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="6" x2="8" y2="6"/><line x1="1" y1="9" x2="6" y2="9"/>
       </svg>
@@ -368,90 +596,187 @@
       <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-text-menu">
-      <button class="fp-menu-item" onclick="addTextBlock('h2');toggleFpDropdown()">Heading</button>
-      <button class="fp-menu-item" onclick="addTextBlock('body');toggleFpDropdown()">Body</button>
-      <button class="fp-menu-item" onclick="addTextBlock('caption');toggleFpDropdown()">Caption</button>
-      <button class="fp-menu-item" onclick="addTextBlock('label');toggleFpDropdown()">Label</button>
+      <button class="fp-menu-item" onclick="addTextBlock('h2');toggleFpDropdown('fp-text-dropdown')">Heading</button>
+      <button class="fp-menu-item" onclick="addTextBlock('body');toggleFpDropdown('fp-text-dropdown')">Body</button>
+      <button class="fp-menu-item" onclick="addTextBlock('caption');toggleFpDropdown('fp-text-dropdown')">Caption</button>
+      <button class="fp-menu-item" onclick="addTextBlock('label');toggleFpDropdown('fp-text-dropdown')">Label</button>
+      <button class="fp-menu-item" onclick="addLabelGroupBlock();toggleFpDropdown('fp-text-dropdown')">Tags</button>
+    </div>
+  </div>
+  <div class="fp-dropdown" id="fp-asset-dropdown">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-asset-dropdown')" title="이미지(Asset) 블록 추가">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="1" y="1" width="9" height="9" rx="1"/><circle cx="3.5" cy="3.5" r="1"/><polyline points="10 7 7 4.5 3 8"/>
+      </svg>
+      Asset
+      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+    </button>
+    <div class="fp-dropdown-menu" id="fp-asset-menu">
+      <button class="fp-menu-item" onclick="addAssetBlock('standard');toggleFpDropdown('fp-asset-dropdown')">Standard (780px)</button>
+      <button class="fp-menu-item" onclick="addAssetBlock('square');toggleFpDropdown('fp-asset-dropdown')">Square (860px)</button>
+      <button class="fp-menu-item" onclick="addAssetBlock('tall');toggleFpDropdown('fp-asset-dropdown')">Tall (1032px)</button>
+      <button class="fp-menu-item" onclick="addAssetBlock('wide');toggleFpDropdown('fp-asset-dropdown')">Wide (575px)</button>
     </div>
   </div>
   <div class="fp-divider"></div>
-  <button class="fp-btn" onclick="addRowBlock()">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <rect x="1" y="2" width="3.5" height="7" rx="0.5"/><rect x="6.5" y="2" width="3.5" height="7" rx="0.5"/>
-    </svg>
-    Row
-  </button>
-  <button class="fp-btn" onclick="addAssetBlock()">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
-    </svg>
-    Asset
-  </button>
-  <button class="fp-btn" onclick="addGapBlock()">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
-    </svg>
-    Gap
-  </button>
+  <div class="fp-dropdown" id="fp-component-dropdown">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Circle / Table / Card / Banner / Graph / Divider)">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="1" y="1" width="4" height="4" rx="0.5"/>
+        <rect x="6" y="1" width="4" height="4" rx="0.5"/>
+        <rect x="1" y="6" width="4" height="4" rx="0.5"/>
+        <rect x="6" y="6" width="4" height="4" rx="0.5"/>
+      </svg>
+      Component
+      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+    </button>
+    <div class="fp-dropdown-menu" id="fp-component-menu">
+      <button class="fp-menu-item" onclick="addIconCircleBlock();toggleFpDropdown('fp-component-dropdown')">Circle</button>
+      <button class="fp-menu-item" onclick="addTableBlock();toggleFpDropdown('fp-component-dropdown')">Table</button>
+      <button class="fp-menu-item" onclick="addCardBlock();toggleFpDropdown('fp-component-dropdown')">Card</button>
+      <button class="fp-menu-item" onclick="addStripBannerBlock();toggleFpDropdown('fp-component-dropdown')">Banner</button>
+      <button class="fp-menu-item" onclick="addGraphBlock();toggleFpDropdown('fp-component-dropdown')">Graph</button>
+      <button class="fp-menu-item" onclick="addDividerBlock();toggleFpDropdown('fp-component-dropdown')">Divider</button>
+    </div>
+  </div>
   <div class="fp-divider"></div>
-  <button class="fp-btn" onclick="addIconCircleBlock()">
+  <button class="fp-btn" id="fp-comp-shelf-btn" onclick="window.CompShelf && window.CompShelf.toggle()" title="컴포넌트 선반 — 저장/재사용 (시안 B)">
     <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <circle cx="5.5" cy="5.5" r="4.5"/>
+      <rect x="1" y="1" width="4" height="4" rx="0.5"/>
+      <rect x="6" y="1" width="4" height="4" rx="0.5"/>
+      <rect x="1" y="6" width="4" height="4" rx="0.5"/>
+      <path d="M6 8.5h4M8 6.5v4"/>
     </svg>
-    Circle
+    Shelf
   </button>
-  <button class="fp-btn" onclick="addTableBlock()">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <rect x="1" y="1" width="9" height="9" rx="1"/>
-      <line x1="1" y1="4" x2="10" y2="4"/>
-      <line x1="5" y1="4" x2="5" y2="10"/>
+</div>
+
+<!-- Template Browser Panel -->
+<div id="tpl-browser" class="tpl-browser" style="display:none" role="dialog" aria-label="템플릿 브라우저">
+  <!-- 헤더: 닫기 버튼 -->
+  <div class="tpl-browser-header">
+    <span class="tpl-browser-title">Templates</span>
+    <button class="tpl-browser-close" id="tpl-browser-close" title="닫기">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+        <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+      </svg>
+    </button>
+  </div>
+  <!-- 미리보기 영역 (상단) -->
+  <div class="tpl-browser-preview-area" id="tpl-browser-preview-area">
+    <div class="tpl-browser-preview-empty" id="tpl-browser-preview-empty">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="#444" stroke-width="1.4">
+        <rect x="3" y="3" width="26" height="26" rx="3"/>
+        <line x1="3" y1="12" x2="29" y2="12"/>
+        <line x1="10" y1="3" x2="10" y2="12"/>
+      </svg>
+      <span>템플릿을 선택하면<br>미리보기가 표시됩니다</span>
+    </div>
+    <div class="tpl-browser-preview-canvas" id="tpl-browser-preview-canvas" style="display:none"></div>
+    <div class="tpl-browser-preview-footer" id="tpl-browser-preview-footer" style="display:none">
+      <span class="tpl-browser-preview-name" id="tpl-browser-preview-name"></span>
+      <span class="tpl-browser-preview-sep">·</span>
+      <span class="tpl-browser-preview-cat" id="tpl-browser-preview-cat"></span>
+    </div>
+    <div class="tpl-preview-resize-handle" id="tpl-preview-resize-handle"></div>
+  </div>
+  <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
+  <div class="tpl-browser-search-wrap">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#777" stroke-width="1.6">
+      <circle cx="5" cy="5" r="3.5"/><line x1="7.7" y1="7.7" x2="11" y2="11"/>
     </svg>
-    Table
-  </button>
-  <div class="fp-divider"></div>
-  <button class="fp-btn fp-preview-btn" onclick="enterPreview()">
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
-      <polygon points="2,1 9,5 2,9" fill="currentColor" stroke="none"/>
-    </svg>
-    Preview
-  </button>
+    <input class="tpl-browser-search" id="tpl-browser-search" type="text" placeholder="템플릿 검색...">
+    <button class="tpl-browser-insert-btn" id="tpl-browser-insert-btn">+ 섹션 추가</button>
+  </div>
+  <!-- 하단 body: 카테고리 트리 + 카드 리스트 -->
+  <div class="tpl-browser-body">
+    <div class="tpl-browser-tree" id="tpl-browser-tree"></div>
+    <div class="tpl-browser-cards" id="tpl-browser-cards"></div>
+  </div>
 </div>
 
 <!-- Preview Overlay -->
 <div id="preview-overlay">
   <div id="preview-content"></div>
-</div>
-<button id="preview-close-btn" onclick="exitPreview()">
-  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-    <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
-  </svg>
-  편집으로 돌아가기
-</button>
-<div id="preview-navigator"></div>
-<div id="preview-zoom-ctrl">
-  <button onclick="previewZoomStep(-10)">−</button>
-  <span id="preview-zoom-display">100%</span>
-  <button onclick="previewZoomStep(10)">+</button>
+  <div id="preview-sbs-container">
+    <div class="sbs-panel" id="sbs-panel-left">
+      <div class="sbs-panel-header">
+        <select class="sbs-page-select" id="sbs-select-left"></select>
+      </div>
+      <div class="sbs-panel-body" id="sbs-body-left"></div>
+    </div>
+    <div class="sbs-panel" id="sbs-panel-right">
+      <div class="sbs-panel-header">
+        <select class="sbs-page-select" id="sbs-select-right"></select>
+      </div>
+      <div class="sbs-panel-body" id="sbs-body-right"></div>
+    </div>
+  </div>
 </div>
 
-<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-<script src="js/gif.js"></script>
-<script src="js/globals.js"></script>
-<script src="js/template-system.js"></script>
-<script src="js/branch-system.js"></script>
-<script src="js/layer-panel.js"></script>
-<script src="js/prop-page.js"></script>
-<script src="js/prop-layout.js"></script>
-<script src="js/prop-asset.js"></script>
-<script src="js/prop-text.js"></script>
-<script src="js/prop-components.js"></script>
-<script src="js/drag-drop.js"></script>
-<script src="js/save-load.js"></script>
-<script src="js/image-handling.js"></script>
-<script src="js/export.js"></script>
-<script src="js/preview.js"></script>
-<script src="js/animation-engine.js"></script>
-<script src="js/editor.js"></script>
+<!-- Preview Top Bar (클릭으로 토글) -->
+<div id="preview-topbar">
+  <div class="preview-tb-left">
+    <button id="preview-sbs-btn" onclick="togglePreviewSideBySide()">⊞ Side by Side</button>
+  </div>
+  <div class="preview-tb-center">
+    <div id="preview-zoom-ctrl">
+      <button onclick="previewZoomStep(-10)">−</button>
+      <span id="preview-zoom-display">100%</span>
+      <button onclick="previewZoomStep(10)">+</button>
+    </div>
+  </div>
+  <div class="preview-tb-right">
+    <button id="preview-close-btn" onclick="exitPreview()">
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+        <polyline points="3,7 1,5 3,3"/><line x1="1" y1="5" x2="9" y2="5"/>
+      </svg>
+      편집으로 돌아가기
+    </button>
+  </div>
+</div>
+
+<div id="preview-navigator"></div>
+
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js" defer></script>
+<script defer src="js/gif.js"></script>
+<script type="module" src="js/globals.js"></script>
+<script type="module" src="js/template-system.js"></script>
+<script type="module" src="js/template-browser.js"></script>
+<script type="module" src="js/branch-system.js"></script>
+<script type="module" src="js/layer-panel.js"></script>
+<script type="module" src="js/prop-page.js"></script>
+<script type="module" src="js/prop-layout.js"></script>
+<script type="module" src="js/prop-asset.js"></script>
+<script type="module" src="js/prop-text.js"></script>
+<script type="module" src="js/prop-icon-circle.js"></script>
+<script type="module" src="js/prop-table.js"></script>
+<script type="module" src="js/prop-gap.js"></script>
+<script type="module" src="js/prop-card.js"></script>
+<script type="module" src="js/prop-strip-banner.js"></script>
+<script type="module" src="js/prop-graph.js"></script>
+<script type="module" src="js/prop-divider.js"></script>
+<script type="module" src="js/prop-label-group.js"></script>
+<script type="module" src="js/prop-row.js"></script>
+<script type="module" src="js/drag-utils.js"></script>
+<script type="module" src="js/drag-drop.js"></script>
+<script type="module" src="js/block-factory.js"></script>
+<script type="module" src="js/file-page-section.js"></script>
+<script type="module" src="js/commit-system.js"></script>
+<script type="module" src="js/save-load.js"></script>
+<script type="module" src="js/image-handling.js"></script>
+<script type="module" src="js/export-figma-json.js"></script>
+<script type="module" src="js/export-image.js"></script>
+<script type="module" src="js/export-design-json.js"></script>
+<script type="module" src="js/export-html.js"></script>
+<script type="module" src="js/figma-publish.js"></script>
+<script type="module" src="js/preview.js"></script>
+<script type="module" src="js/animation-engine.js"></script>
+<script type="module" src="js/inspector.js"></script>
+<script type="module" src="js/prop-section.js"></script>
+<script type="module" src="js/section-variation.js"></script>
+<script type="module" src="js/editor.js"></script>
+<script type="module" src="js/reference-modal.js"></script>
 
 <!-- ══════════════════════════
      ANIMATION GIF MODAL
@@ -515,6 +840,56 @@
     </div>
   </div>
 </div>
+
+
+<!-- ══════════════════════════
+     AI PROMPT MODAL
+══════════════════════════ -->
+<div id="ai-prompt-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center;">
+  <div id="ai-prompt-panel">
+    <div class="ai-panel-header">
+      <span class="ai-panel-title">✨ AI 섹션 생성</span>
+      <button class="ai-close-btn" onclick="closeAiPrompt()" title="닫기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
+    </div>
+    <textarea
+      id="ai-prompt-textarea"
+      class="ai-textarea"
+      placeholder="어떤 섹션이 필요한가요? 예: 제품 장점 3가지를 카드로 보여주는 섹션"
+      rows="4"
+    ></textarea>
+    <div id="ai-quick-prompts" class="ai-quick-prompts"></div>
+    <div class="ai-panel-footer">
+      <button class="ai-cancel-btn" onclick="closeAiPrompt()">취소</button>
+      <button class="ai-submit-btn" id="ai-prompt-submit-btn" onclick="submitAiPrompt()">✨ 생성하기</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/ai-prompt.js"></script>
+<script src="js/theme-system.js"></script>
+<script type="module" src="js/component-shelf.js"></script>
+<script src="js/design-system.js"></script>
+<script>
+  // git 브랜치 배지 표시 (dev 브랜치는 숨김)
+  (async () => {
+    if (!window.electronAPI?.getGitBranch) return;
+    const branch = await window.electronAPI.getGitBranch();
+    if (branch && branch !== 'dev' && branch !== 'main') {
+      const badge = document.getElementById('logo-branch-badge');
+      if (badge) { badge.textContent = branch; badge.style.display = ''; }
+    }
+  })();
+</script>
+<script type="module" src="js/component-shelf.js"></script>
+
+<!-- ══════════════════════════
+     VARIABLE BINDING (step2)
+══════════════════════════ -->
+<script src="js/variable-binding.js"></script>
 
 </body>
 </html>

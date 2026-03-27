@@ -1,1 +1,1 @@
-export const lastChannel = "test123";
+export const lastChannel = "g0dx2yxs";

@@ -458,3 +458,5 @@ async function exportAnimGif() {
     btn.textContent = 'GIF 저장';
   }
 }
+
+window.openAnimModal = openAnimModal;

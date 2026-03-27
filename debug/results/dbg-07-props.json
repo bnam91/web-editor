@@ -1,0 +1,91 @@
+{
+  "agent": "DBG-07",
+  "part": "Property Panels",
+  "files": [
+    "js/prop-text.js",
+    "js/prop-asset.js",
+    "js/prop-components.js",
+    "js/prop-icon-circle.js",
+    "js/prop-label-group.js",
+    "js/prop-layout.js",
+    "js/prop-row.js",
+    "js/prop-page.js",
+    "js/inspector.js"
+  ],
+  "ts": "2026-03-27T00:00:00.000Z",
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "텍스트 블록 → prop-text 폰트 크기 변경 즉시 반영",
+      "status": "pass",
+      "finding": "sizeSlider의 'input' 이벤트로 contentEl.style.fontSize를 즉시 적용. sizeNumber도 동기화. 정상 동작.",
+      "fixed": false
+    },
+    {
+      "id": 2,
+      "title": "에셋 블록 → prop-asset width/height 수동 입력 후 blur",
+      "status": "warn",
+      "finding": "hNumber는 'change' 이벤트만 사용 — blur/Enter 시 반영됨. 타이핑 중 실시간 반영 없음. 의도된 설계로 보이나 UX상 아쉬움. hSlider는 'input' 이벤트로 즉시 반영 대비 일관성 부재.",
+      "fixed": false
+    },
+    {
+      "id": 3,
+      "title": "아무것도 선택 안 된 상태에서 inspector",
+      "status": "warn",
+      "finding": "renderInspectorPanel()은 항상 섹션/블록 통계를 렌더링함. 캔버스가 비어있으면 통계값 0, 색상 팔레트는 '색상 없음' 텍스트 표시. 동작은 하지만 '아무것도 없음' 전용 빈 상태 메시지 없음.",
+      "fixed": false
+    },
+    {
+      "id": 4,
+      "title": "블록 선택 후 다른 타입 블록 선택 — 패널 전환",
+      "status": "pass",
+      "finding": "각 show*Properties 함수가 propPanel.innerHTML을 전체 교체한 뒤 이벤트를 새로 바인딩하는 구조. 이전 패널 DOM이 완전히 제거되어 리스너 중복 없음. 정상 전환.",
+      "fixed": false
+    },
+    {
+      "id": 5,
+      "title": "Col(레이아웃) 선택 후 prop-layout — 좌우 패딩 슬라이더 범위",
+      "status": "pass",
+      "finding": "showColProperties에 패딩 슬라이더 없음 — Col 패널은 배경색/세로정렬만 제어. Row 패딩은 prop-row의 row-padx-slider (0~80px, step 4)로 처리. 범위 설정 정상.",
+      "fixed": false
+    },
+    {
+      "id": 6,
+      "title": "Row 선택 후 prop-row — gap 설정 반영",
+      "status": "pass",
+      "finding": "applyGap()이 rowEl.style.gap과 rowEl.dataset.gap을 동시 갱신. stack 레이아웃은 'if (layout === stack) return'으로 early exit하여 gap UI 자체가 렌더되지 않음 — 정상 설계.",
+      "fixed": false
+    },
+    {
+      "id": 7,
+      "title": "페이지 설정 패널 — bg/gap/padX/padY 변경 후 저장",
+      "status": "fail",
+      "finding": "BUG: applyPadX()가 '.text-block:not(.overlay-tb)'에 패딩을 일괄 적용할 때 data-customPadL/R 플래그를 체크하지 않음. prop-text.js에서 개별 설정한 좌/우 패딩이 페이지 padX 변경 시 덮어써짐. save-load.js는 customPadL/R를 체크하지만 prop-page.js는 누락.",
+      "fixed": true
+    },
+    {
+      "id": 8,
+      "title": "IconCircle 블록 prop-components — 아이콘 변경 후 재선택 시 상태",
+      "status": "warn",
+      "finding": "prop-icon-circle.js에는 아이콘 선택/변경 UI가 없음. block.dataset.size/bgColor/border 상태는 재선택 시 dataset에서 정상 복원. 이미지 업로드/제거 기능은 has-image 클래스로 분기. 아이콘 SVG 변경 기능 자체가 prop 패널에 없어 시나리오 구현 불가.",
+      "fixed": false
+    },
+    {
+      "id": 9,
+      "title": "LabelGroup prop-label-group — 항목 추가/삭제 후 순서 정합성",
+      "status": "pass",
+      "finding": "추가: drag-drop.js에서 makeLabelItem()으로 새 item을 '.label-group-add-btn' 앞에 insertBefore — DOM 순서 유지. 삭제: e.target.closest('.label-item').remove() 직접 DOM 제거. 최소 1개 유지 가드 있음. 순서 정합성 이슈 없음.",
+      "fixed": false
+    },
+    {
+      "id": 10,
+      "title": "다중 패널 빠른 전환 (click×10) — 이벤트 리스너 누적",
+      "status": "pass",
+      "finding": "모든 show*Properties 함수가 propPanel.innerHTML = 로 DOM 전체 교체 → 이전 리스너 자동 소멸. 리스너 누적 위험 없음. prop-row.js의 grid picker click 핸들러 내 L357에서 outer scope의 stale gridRowCount를 사용하는 로직 버그 발견 및 수정.",
+      "fixed": true
+    }
+  ],
+  "bugs_found": 2,
+  "bugs_fixed": 2,
+  "summary": "prop-page.js의 applyPadX가 개별 패딩(customPadL/R)을 덮어쓰는 버그 수정, prop-row.js grid picker에서 stale gridRowCount 참조 버그 수정. 나머지 시나리오 대부분 정상 동작."
+}

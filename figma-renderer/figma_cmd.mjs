@@ -64,7 +64,16 @@ async function main() {
   if (args.channel) await writeCachedChannel(args.channel);
 
   let params = {};
-  if (args.params) {
+  if (args['params-file']) {
+    // 대용량 params는 임시 파일로 전달 (CLI 인수 크기 한계 우회)
+    try {
+      const fileContent = await fs.readFile(args['params-file'], 'utf-8');
+      params = JSON.parse(fileContent);
+    } catch {
+      console.error("--params-file 읽기 실패");
+      process.exit(1);
+    }
+  } else if (args.params) {
     try {
       params = JSON.parse(args.params);
     } catch {

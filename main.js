@@ -1,8 +1,22 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
+
+// C4: 앱 이름 브랜딩 (macOS 상단 메뉴바 표시)
+app.name = 'Goya Design Editor';
 const fs = require('fs');
 const os = require('os');
-const { spawnSync } = require('child_process');
+
+// .env 로드 (크리덴셜 환경변수)
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+  fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+    const [k, ...v] = line.split('=');
+    if (k && v.length) process.env[k.trim()] = v.join('=').trim();
+  });
+}
+const { spawn } = require('child_process');
+const { getPublicIp, findUserByIp, registerLicense, removeIp, updateIpAlias, updateUserName, createLicenseKey, listLicenseKeys } = require('./services/licenseService');
 
 let mainWindow;
 
@@ -35,21 +49,41 @@ function watchFiles() {
   });
 }
 
+function getGitBranch() {
+  try {
+    const { execSync } = require('child_process');
+    return execSync('git rev-parse --abbrev-ref HEAD', { cwd: __dirname }).toString().trim();
+  } catch { return null; }
+}
+
 function createWindow() {
+  const isMac = process.platform === 'darwin';
+  const gitBranch = getGitBranch();
+  const windowTitle = gitBranch ? `상페마법사 [${gitBranch}]` : '상페마법사';
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    titleBarStyle: 'hiddenInset',
+    title: windowTitle,
+    ...(isMac ? { titleBarStyle: 'hiddenInset' } : { titleBarStyle: 'default' }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
   });
 
-  mainWindow.loadFile('pages/projects.html');
+  // 라이선스 체크 후 페이지 결정
+  checkLicenseAndLoad();
+
+  ipcMain.handle('app:git-branch', () => getGitBranch());
+
+  // HTML <title>이 덮어씌우지 않도록 로드 완료 후 타이틀 강제 설정
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.setTitle(windowTitle);
+  });
 
   mainWindow.on('enter-full-screen', () => {
     mainWindow.webContents.send('fullscreen-change', true);
@@ -71,6 +105,134 @@ function createWindow() {
     });
   }
 }
+
+/* ── 라이선스 체크 + 초기 페이지 로드 ── */
+async function checkLicenseAndLoad() {
+  if (process.argv.includes('admin')) {
+    mainWindow.loadFile('pages/projects.html');
+    return;
+  }
+  try {
+    const ip = await getPublicIp();
+    if (ip) {
+      const result = await findUserByIp(ip);
+      if (result.found) {
+        mainWindow.loadFile('pages/projects.html');
+        return;
+      }
+    }
+  } catch {}
+  mainWindow.loadFile('pages/license.html');
+}
+
+/* ── IPC: License ── */
+ipcMain.handle('license:get-ip', () => getPublicIp());
+
+ipcMain.handle('license:find-by-ip', async () => {
+  const ip = await getPublicIp();
+  if (!ip) return { found: false };
+  return findUserByIp(ip);
+});
+
+ipcMain.handle('license:register', (event, licenseKey, ip, userId) =>
+  registerLicense(licenseKey, ip, userId)
+);
+
+ipcMain.handle('license:remove-ip', (event, licenseKey, ip) =>
+  removeIp(licenseKey, ip)
+);
+
+ipcMain.handle('license:update-alias', (event, licenseKey, ip, alias) =>
+  updateIpAlias(licenseKey, ip, alias)
+);
+
+ipcMain.handle('license:update-name', (event, licenseKey, userName) =>
+  updateUserName(licenseKey, userName)
+);
+
+ipcMain.handle('license:create-key', (event, plan, memo) =>
+  createLicenseKey(plan, memo)
+);
+
+ipcMain.handle('license:list-keys', () => listLicenseKeys());
+
+ipcMain.handle('license:navigate-projects', () => {
+  mainWindow.loadFile('pages/projects.html');
+});
+
+/* ── IPC: Projects (파일 기반 저장소) ── */
+const PROJECTS_DIR = path.join(__dirname, 'projects');
+if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+
+ipcMain.handle('projects:list', () => {
+  return fs.readdirSync(PROJECTS_DIR)
+    .filter(f => f.endsWith('.json'))
+    .map(f => {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
+        return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail: data.thumbnail || null };
+      } catch { return null; }
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+});
+
+ipcMain.handle('projects:load', (event, id) => {
+  const filePath = path.join(PROJECTS_DIR, `${id}.json`);
+  if (!fs.existsSync(filePath)) return null;
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
+});
+
+ipcMain.handle('projects:save', (event, project) => {
+  const filePath = path.join(PROJECTS_DIR, `${project.id}.json`);
+  fs.writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf8');
+  return true;
+});
+
+ipcMain.handle('projects:delete', (event, id) => {
+  const filePath = path.join(PROJECTS_DIR, `${id}.json`);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  return true;
+});
+
+/* ── IPC: Intake (design-bot pipeline) ── */
+const INTAKE_DIR = path.join(os.homedir(), 'Documents', 'design-bot-builder');
+if (!fs.existsSync(INTAKE_DIR)) fs.mkdirSync(INTAKE_DIR, { recursive: true });
+
+ipcMain.handle('intake:save', (event, data) => {
+  if (!data || typeof data !== 'object') throw new Error('invalid data');
+  const safeProduct = (data.product_name || 'unknown').replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const filename = `intake_${safeProduct}_${dateStr}.json`;
+  const filePath = path.join(INTAKE_DIR, filename);
+  const payload = { ...data, ts: new Date().toISOString(), saved_to: filePath };
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
+  return { ok: true, filename, filePath };
+});
+
+ipcMain.handle('intake:load', (event, filename) => {
+  try {
+    const filePath = path.join(INTAKE_DIR, filename);
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch { return null; }
+});
+
+ipcMain.handle('intake:list', () => {
+  try {
+    if (!fs.existsSync(INTAKE_DIR)) return [];
+    return fs.readdirSync(INTAKE_DIR)
+      .filter(f => f.startsWith('intake_') && f.endsWith('.json'))
+      .map(f => {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(INTAKE_DIR, f), 'utf8'));
+          return { filename: f, product_name: data.product_name, volume: data.volume, ts: data.ts };
+        } catch { return null; }
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  } catch { return []; }
+});
 
 /* ── IPC: Presets ── */
 ipcMain.handle('fullscreen:get', () => mainWindow?.isFullScreen() ?? false);
@@ -95,24 +257,126 @@ ipcMain.handle('presets:delete', (event, presetId) => {
 });
 
 /* ── IPC: Figma Upload ── */
+let _figmaUploadProc = null;
+
 ipcMain.handle('figma:upload', (event, { channel, designJSON }) => {
-  const tmpPath = path.join(os.tmpdir(), `sangpe_export_${Date.now()}.json`);
-  try {
-    fs.writeFileSync(tmpPath, JSON.stringify(designJSON, null, 2), 'utf8');
+  return new Promise((resolve) => {
+    const tmpPath = path.join(os.tmpdir(), `sangpe_export_${Date.now()}.json`);
+    try {
+      fs.writeFileSync(tmpPath, JSON.stringify(designJSON, null, 2), 'utf8');
+    } catch (err) {
+      return resolve({ success: false, logs: '파일 쓰기 실패: ' + err.message });
+    }
+
     const scriptPath = path.join(__dirname, 'figma-renderer', 'sangpe_to_figma.mjs');
-    const result = spawnSync('node', [scriptPath, channel, tmpPath], {
-      encoding: 'utf-8',
-      timeout: 120000,
+    const child = spawn('node', [scriptPath, channel, tmpPath], { encoding: 'utf-8' });
+    _figmaUploadProc = child;
+
+    let stdout = '', stderr = '';
+    child.stdout?.on('data', d => { stdout += d; });
+    child.stderr?.on('data', d => { stderr += d; });
+
+    const cleanup = () => {
+      _figmaUploadProc = null;
+      try { fs.unlinkSync(tmpPath); } catch {}
+    };
+
+    const timer = setTimeout(() => {
+      child.kill();
+      cleanup();
+      resolve({ success: false, logs: '❌ 타임아웃 (120초 초과)' });
+    }, 120000);
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      cleanup();
+      const logs = stdout + stderr;
+      resolve({ success: code === 0, logs });
     });
-    fs.unlinkSync(tmpPath);
-    if (result.error) throw result.error;
-    const logs = (result.stdout || '') + (result.stderr || '');
-    const success = result.status === 0;
-    return { success, logs };
-  } catch (err) {
-    try { fs.unlinkSync(tmpPath); } catch {}
-    return { success: false, logs: err.message };
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      cleanup();
+      resolve({ success: false, logs: '❌ 실행 오류: ' + err.message });
+    });
+  });
+});
+
+ipcMain.handle('figma:cancel-upload', () => {
+  if (_figmaUploadProc) {
+    _figmaUploadProc.kill();
+    _figmaUploadProc = null;
+    return true;
   }
+  return false;
+});
+
+/* ── IPC: Node Map (섹션 ↔ Figma 노드 ID 매핑) ── */
+const NODE_MAP_PATH = path.join(__dirname, 'figma-renderer', 'node_map.json');
+
+ipcMain.handle('figma:read-node-map', () => {
+  try {
+    if (!fs.existsSync(NODE_MAP_PATH)) return {};
+    return JSON.parse(fs.readFileSync(NODE_MAP_PATH, 'utf8'));
+  } catch {
+    return {};
+  }
+});
+
+ipcMain.handle('figma:write-node-map', (event, nodeMap) => {
+  try {
+    fs.writeFileSync(NODE_MAP_PATH, JSON.stringify(nodeMap, null, 2), 'utf8');
+    return true;
+  } catch (err) {
+    return false;
+  }
+});
+
+/* ── IPC: Templates ── */
+const TEMPLATES_DIR        = path.join(__dirname, 'templates');
+const TEMPLATES_CANVAS_DIR = path.join(TEMPLATES_DIR, 'canvas');
+const TEMPLATES_INDEX_FILE = path.join(TEMPLATES_DIR, 'index.json');
+if (!fs.existsSync(TEMPLATES_CANVAS_DIR)) fs.mkdirSync(TEMPLATES_CANVAS_DIR, { recursive: true });
+
+ipcMain.handle('templates:load-index', () => {
+  // 구버전 templates.json → 분리 구조로 자동 마이그레이션
+  const oldFile = path.join(TEMPLATES_DIR, 'templates.json');
+  if (fs.existsSync(oldFile)) {
+    try {
+      const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
+      const index = old.map(({ canvas, ...meta }) => {
+        if (canvas) fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${meta.id}.html`), canvas, 'utf8');
+        return meta;
+      });
+      fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
+      fs.unlinkSync(oldFile);
+      return index;
+    } catch { return []; }
+  }
+  if (!fs.existsSync(TEMPLATES_INDEX_FILE)) return [];
+  try { return JSON.parse(fs.readFileSync(TEMPLATES_INDEX_FILE, 'utf8')); } catch { return []; }
+});
+
+ipcMain.handle('templates:save-index', (event, index) => {
+  fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
+  return true;
+});
+
+ipcMain.handle('templates:load-canvas', (event, id) => {
+  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${id}.html`);
+  if (!fs.existsSync(filePath)) return null;
+  try { return fs.readFileSync(filePath, 'utf8'); } catch { return null; }
+});
+
+ipcMain.handle('templates:save-canvas', (event, id, html) => {
+  fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${id}.html`), html, 'utf8');
+  return true;
+});
+
+ipcMain.handle('templates:delete-canvas', (event, id) => {
+  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${id}.html`);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  return true;
 });
 
 /* ── IPC: Navigation (추후 구현) ── */
@@ -125,10 +389,42 @@ ipcMain.handle('figma:upload', (event, { channel, designJSON }) => {
 //   if (pages[page]) mainWindow.loadFile(pages[page]);
 // });
 
+/* ── 자동업데이트 ── */
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[updater] 새 버전 발견:', info.version);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '업데이트 준비 완료',
+      message: `새 버전 (v${info.version})이 다운로드됐습니다.\n지금 재시작해서 적용할까요?`,
+      buttons: ['재시작', '나중에'],
+      defaultId: 0,
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall();
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[updater] 오류:', err.message);
+  });
+
+  autoUpdater.checkForUpdatesAndNotify();
+}
+
 /* ── App lifecycle ── */
 app.whenReady().then(() => {
   createWindow();
   watchFiles();
+  // 개발 모드에서는 자동업데이트 스킵
+  if (!process.argv.includes('--enable-logging')) {
+    setupAutoUpdater();
+  }
 });
 
 app.on('window-all-closed', () => {

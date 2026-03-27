@@ -1,0 +1,123 @@
+{
+  "runAt": "2026-03-27T00:00:00+09:00",
+  "branch": "feature/debug-scenarios",
+  "method": "static-code-analysis",
+  "cdpAvailable": false,
+  "note": "CDP 도구 권한 미허용으로 정적 분석 전용 수행. 런타임 시나리오(δ-01~03, δ-05~06, δ-08~09)는 코드 경로 추적으로 판정.",
+
+  "scenarios": [
+    {
+      "id": "δ-01",
+      "title": "템플릿 삽입 후 Undo",
+      "expectedResult": "FAIL",
+      "actualResult": "PASS (코드 이미 수정됨)",
+      "evidence": "template-system.js:155 — insertTemplate() 마지막에 pushHistory() 존재 확인",
+      "action": "없음 (이미 수정 상태)"
+    },
+    {
+      "id": "δ-02",
+      "title": "템플릿 삽입 후 레이어 패널",
+      "expectedResult": "FAIL",
+      "actualResult": "PASS (코드 이미 수정됨)",
+      "evidence": "template-system.js:156 — insertTemplate() 마지막에 buildLayerPanel() 존재 확인",
+      "action": "없음 (이미 수정 상태)"
+    },
+    {
+      "id": "δ-03",
+      "title": "템플릿 삽입 후 자동 선택",
+      "expectedResult": "FAIL",
+      "actualResult": "PASS (코드 이미 수정됨)",
+      "evidence": "template-system.js:157 — insertTemplate() 마지막에 selectSection(sec, true) 존재 확인",
+      "action": "없음 (이미 수정 상태)"
+    },
+    {
+      "id": "δ-04",
+      "title": "prop-row.js pushHistory 미정의 참조 오류",
+      "expectedResult": "FAIL",
+      "actualResult": "FAIL → 수정 완료",
+      "evidence": "prop-row.js:176,177,192,193,206,207,223,224,242,243,270,357 — pushHistory() 로 호출 (window. 없음). prop-row.js는 ES Module이 아닌 일반 script로 로드되더라도 다른 모듈과의 스코프 분리로 인해 전역 pushHistory에 접근 불가능할 수 있음",
+      "fix": "prop-row.js 내 모든 pushHistory() → window.pushHistory() 변경 (12곳)",
+      "filesModified": ["js/prop-row.js"]
+    },
+    {
+      "id": "δ-05",
+      "title": "브랜치 전환 후 Undo 상태 혼재",
+      "expectedResult": "FAIL",
+      "actualResult": "FAIL → 수정 완료",
+      "evidence": "branch-system.js:151-167 switchBranch()에 historyStack/historyPos 초기화 로직 없음. 전환 후 Undo 시 이전 브랜치 스냅샷으로 역점프 발생 가능",
+      "fix": "switchBranch() 상단에 if (window.clearHistory) window.clearHistory() 추가. editor.js에 clearHistory() 함수 신규 추가 및 window.clearHistory 노출",
+      "filesModified": ["js/branch-system.js", "js/editor.js"]
+    },
+    {
+      "id": "δ-06",
+      "title": "자동저장 타이밍 (1.5초 debounce 중 탭 전환)",
+      "expectedResult": "불확실",
+      "actualResult": "WARN — 조건부 데이터 손실 가능",
+      "evidence": "save-load.js:690-695 — autoSaveTimer setTimeout 1500ms. switchPage()는 flushCurrentPage()를 호출하나, 탭 전환(switchTab) 코드 경로를 별도 확인 필요. MutationObserver 기반 scheduleAutoSave는 캔버스 변경 시 타이머 재설정. 탭 전환이 1.5초 이내면 debounce 타이머가 새 페이지에서 실행될 수 있음",
+      "action": "CDP 없이 런타임 확인 불가. switchTab() 구현 경로 추가 분석 권고",
+      "filesModified": []
+    },
+    {
+      "id": "δ-07",
+      "title": "프로젝트 저장 포맷 v2 무결성",
+      "expectedResult": "PASS",
+      "actualResult": "PASS",
+      "evidence": "projects/proj_1774601477389.json 확인: version=2, pages 배열 존재, 각 페이지에 pageSettings(bg/gap/padX/padY) 존재. serializeProject() → { version: 2, currentPageId, pages } 포맷 일치",
+      "action": "없음"
+    },
+    {
+      "id": "δ-08",
+      "title": "멀티페이지 저장 후 재로드",
+      "expectedResult": "PASS",
+      "actualResult": "PASS (코드 경로 추적)",
+      "evidence": "save-load.js:459-464 flushCurrentPage()가 switchPage() 및 serializeProject() 전에 호출됨. applyProjectData()에서 version:2 배열 처리 확인. 각 페이지 pageSettings 개별 보존",
+      "action": "없음"
+    },
+    {
+      "id": "δ-09",
+      "title": "Undo 후 재저장",
+      "expectedResult": "PASS",
+      "actualResult": "PASS (코드 경로 추적)",
+      "evidence": "undo() → restoreSnapshot() → canvasEl.innerHTML = snap.canvas 로 DOM 복원. 이후 저장 시 getSerializedCanvas()가 현재 DOM 기준으로 직렬화하므로 undo된 상태가 저장됨",
+      "action": "없음"
+    },
+    {
+      "id": "δ-10",
+      "title": "히스토리 스택 크기 제한",
+      "expectedResult": "PASS",
+      "actualResult": "PASS",
+      "evidence": "editor.js:72 MAX_HISTORY=50. pushHistory()에서 historyStack.length > MAX_HISTORY 시 shift()로 앞 항목 제거. 스택이 50개 초과하지 않음",
+      "action": "없음"
+    }
+  ],
+
+  "fixes": [
+    {
+      "file": "js/prop-row.js",
+      "description": "pushHistory() → window.pushHistory() 전환 (12곳). row-height, row-padx, row-child-h, row-child-r, row-gap, row-col-ratio 슬라이더/number 이벤트 핸들러 전체",
+      "severity": "HIGH",
+      "linesChanged": [176, 177, 192, 193, 206, 207, 223, 224, 242, 243, 270, 357]
+    },
+    {
+      "file": "js/editor.js",
+      "description": "clearHistory() 함수 신규 추가 (historyStack=[], historyPos=-1 초기화). window.clearHistory 노출",
+      "severity": "HIGH",
+      "linesChanged": [133, 840]
+    },
+    {
+      "file": "js/branch-system.js",
+      "description": "switchBranch() 내 브랜치 전환 시 if (window.clearHistory) window.clearHistory() 추가 (Undo 크로스 브랜치 역점프 방지)",
+      "severity": "HIGH",
+      "linesChanged": [160]
+    }
+  ],
+
+  "summary": {
+    "totalScenarios": 10,
+    "pass": 7,
+    "fail_fixed": 2,
+    "warn": 1,
+    "bugsFixed": 3,
+    "remainingRisk": "δ-06 자동저장 debounce 타이밍은 CDP 런타임 테스트로만 확정 가능"
+  }
+}

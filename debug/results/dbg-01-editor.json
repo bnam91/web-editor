@@ -1,0 +1,81 @@
+{
+  "agent": "DBG-01",
+  "part": "Core Editor",
+  "file": "js/editor.js",
+  "ts": "2026-03-27T00:00:00.000Z",
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "섹션 클릭 선택 후 다른 섹션 클릭 — 이전 선택 해제 및 새 선택",
+      "status": "pass",
+      "finding": "selectSection() (line 481)이 내부에서 deselectAll()을 먼저 호출 후 새 섹션에 selected 추가. selectSectionWithModifier()의 일반 클릭 경로(else, line 223)도 clearMultiSel() → selectSection() 순서. 이전 선택 해제 및 새 선택 정상 동작.",
+      "fixed": false
+    },
+    {
+      "id": 2,
+      "title": "블록 선택 후 Delete/Backspace 키 — 블록 삭제 동작 및 히스토리 기록",
+      "status": "warn",
+      "finding": "isDelete 조건(line 393): `e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey))` — Backspace 단독 키는 블록 삭제 트리거 안 됨. 삭제 전 pushHistory() 호출 확인됨(line 410, 424, 439, 456, 463). 히스토리 기록은 정상. Backspace 단독 미작동은 의도된 설계일 수 있으나 UX 기대와 불일치 가능.",
+      "fixed": false
+    },
+    {
+      "id": 3,
+      "title": "Cmd+Z 연속 10회 — history 스택 경계 초과 시 오류",
+      "status": "pass",
+      "finding": "undo() (line 123): `if (historyPos <= 0) return;` — 경계 초과 시 early return. historyPos가 0이 되면 더 이상 감소하지 않음. historyStack[historyPos] 접근은 항상 유효. 오류 없음.",
+      "fixed": false
+    },
+    {
+      "id": 4,
+      "title": "Cmd+Shift+Z (Redo) — undo 없이 redo 시 오류",
+      "status": "pass",
+      "finding": "redo() (line 128): `if (historyPos >= historyStack.length - 1) return;` — redo 스택이 없으면 early return. historyStack이 비어 있을 때 length-1 = -1이고 historyPos = -1이므로 조건 성립, 안전하게 return. 오류 없음.",
+      "fixed": false
+    },
+    {
+      "id": 5,
+      "title": "섹션 내 텍스트 블록 contenteditable 편집 중 Cmd+Z — 에디터 undo vs 브라우저 undo 충돌",
+      "status": "fail",
+      "finding": "line 324: `if (document.activeElement?.isContentEditable && !e.metaKey && !e.ctrlKey) return;` — Cmd+Z는 e.metaKey=true이므로 이 가드를 통과. line 336에서 에디터 undo()가 호출되어 전체 캔버스가 이전 스냅샷으로 복원됨. 텍스트 편집 중 Cmd+Z가 브라우저 텍스트 undo 대신 에디터 전체 undo를 발동시키는 버그.",
+      "fixed": true
+    },
+    {
+      "id": 6,
+      "title": "빠르게 여러 블록 연속 클릭 — selectedBlock 상태 race condition",
+      "status": "pass",
+      "finding": "클릭 핸들러는 모두 동기(synchronous) 실행. JS 싱글스레드 특성상 race condition 없음. 각 클릭은 deselectAll() → select 순서로 순차 처리. selectedBlock 전용 변수 없이 DOM 클래스(selected)로 상태 관리 — 동기적으로 안전.",
+      "fixed": false
+    },
+    {
+      "id": 7,
+      "title": "섹션 선택 상태에서 툴바 버튼(삭제) 클릭 — 이벤트 버블링 문제",
+      "status": "pass",
+      "finding": "bindSectionDelete()(line 612-614): 실제로 구현 없음('삭제 버튼 제거됨' 주석). 레이어 패널/컨텍스트 메뉴에서 처리. 툴바에서 section 클릭 이벤트가 버블링될 여지가 없음. 섹션 클릭은 hitzone의 e.stopPropagation()(line 636)으로 제어.",
+      "fixed": false
+    },
+    {
+      "id": 8,
+      "title": "전체선택 Cmd+A — 의도치 않은 전체 선택 방지 처리",
+      "status": "warn",
+      "finding": "Cmd+A 처리 코드 없음. keydown 핸들러(line 321)에 'a' 키 처리 없음. contenteditable 편집 중 Cmd+A는 line 324 가드 통과 실패(metaKey=true이므로 가드 통과됨) — 명시적 Cmd+A 처리 없으므로 브라우저 기본 동작(전체 텍스트 선택)이 발동. 캔버스 외 영역에서 Cmd+A 누르면 전체 DOM 텍스트가 선택될 수 있음.",
+      "fixed": false
+    },
+    {
+      "id": 9,
+      "title": "섹션 추가 후 즉시 삭제 — history에 양쪽 기록 정상",
+      "status": "pass",
+      "finding": "섹션 추가 시 pushHistory() 호출, 섹션 삭제 시 pushHistory() 호출(line 463). 각 동작이 독립적으로 히스토리에 기록되어 undo 2회로 원상 복구 가능. historyStack.slice(0, historyPos+1) 로직으로 redo 분기 올바르게 처리됨.",
+      "fixed": false
+    },
+    {
+      "id": 10,
+      "title": "창 포커스 잃었다 돌아왔을 때 — 단축키 이벤트 리스너 중복 등록",
+      "status": "pass",
+      "finding": "keydown 리스너 2개(line 321: 전역 단축키, line 719: 스페이스 팬 모드)가 모두 모듈 최상위 레벨에서 1회만 등록됨. visibilitychange/focus 이벤트 기반 재등록 코드 없음. 창 포커스 복귀 시 중복 등록 없음.",
+      "fixed": false
+    }
+  ],
+  "bugs_found": 2,
+  "bugs_fixed": 1,
+  "summary": "contenteditable 편집 중 Cmd+Z가 브라우저 텍스트 undo 대신 에디터 전체 undo를 발동시키는 버그 1개 수정. Backspace 단독 키 블록 삭제 미지원 UX 불일치 1건 warn 기록."
+}

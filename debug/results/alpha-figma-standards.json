@@ -1,0 +1,106 @@
+{
+  "agent": "Agent-α",
+  "part": "피그마 표준 기능",
+  "ts": "2026-03-27T09:52:15.377Z",
+  "cdp_port": 9334,
+  "scenarios": [
+    {
+      "id": "α-01",
+      "name": "Cmd+D 섹션 복제",
+      "status": "PASS",
+      "detail": "섹션 수 19 → 20: 복제 성공",
+      "file": "js/editor.js",
+      "line": 349,
+      "fix_applied": "keydown 핸들러에 e.key===\"d\" + metaKey 처리 추가: copySelected() + pasteClipboard() 연속 호출로 복제 구현"
+    },
+    {
+      "id": "α-02",
+      "name": "Cmd+D 블록 복제",
+      "status": "PASS",
+      "detail": "row 수 59 → 60: 블록(row) 복제 성공",
+      "file": "js/editor.js",
+      "line": 349,
+      "fix_applied": "α-01과 동일한 Cmd+D 핸들러로 처리됨"
+    },
+    {
+      "id": "α-03",
+      "name": "Alt+드래그 복사",
+      "status": "FAIL",
+      "detail": "drag-drop.js에 dragstart/drag 이벤트 내 altKey 처리 로직 없음. Alt+드래그 시 복사 아닌 이동만 동작",
+      "file": "js/drag-drop.js",
+      "line": null,
+      "fix_applied": null
+    },
+    {
+      "id": "α-04",
+      "name": "Arrow Key 단독 nudge",
+      "status": "FAIL",
+      "detail": "editor.js 347번줄: (ArrowUp/Down) && (metaKey||ctrlKey) 조건만 처리. 단독 Arrow 시 픽셀 이동(nudge) 미구현. Cmd+Arrow는 순서 이동으로 동작",
+      "file": "js/editor.js",
+      "line": 347,
+      "fix_applied": null
+    },
+    {
+      "id": "α-05",
+      "name": "Shift+클릭 다중선택 일관성",
+      "status": "PASS",
+      "detail": "섹션: multiSel.size=2 (OK). Col: cols_size=2 (OK)",
+      "file": "js/editor.js",
+      "line": 823,
+      "fix_applied": "일반 col 클릭 시 clearMultiSel() 이후에 lastCol 설정하도록 위치 수정 (849번줄)"
+    },
+    {
+      "id": "α-06",
+      "name": "Cmd+클릭 토글 선택",
+      "status": "PASS",
+      "detail": "선택 상태(1개) → Cmd+클릭 → 선택 해제(0개)",
+      "file": "js/editor.js",
+      "line": 184,
+      "fix_applied": "selectSectionWithModifier에 이미 단일선택된 섹션 Cmd+클릭 시 해제 분기 추가"
+    },
+    {
+      "id": "α-07",
+      "name": "이미지 리사이즈 핸들 동작",
+      "status": "PASS",
+      "detail": "편집모드 진입=true, 핸들 수=8/8. 핸들 mousedown 이벤트 정상 동작",
+      "file": "js/image-handling.js",
+      "line": 161,
+      "fix_applied": null
+    },
+    {
+      "id": "α-08",
+      "name": "Escape 키 선택 해제",
+      "status": "PASS",
+      "detail": "섹션 선택 해제: 1→0(OK). 이미지 편집모드 종료: true→false(OK)",
+      "file": "js/editor.js",
+      "line": 344,
+      "fix_applied": null
+    },
+    {
+      "id": "α-09",
+      "name": "Cmd+Z / Cmd+Shift+Z (Undo/Redo)",
+      "status": "PASS",
+      "detail": "addSection(21) → Undo(20) → Redo(21)",
+      "file": "js/editor.js",
+      "line": 71,
+      "fix_applied": null
+    },
+    {
+      "id": "α-10",
+      "name": "Space 패닝 모드",
+      "status": "PASS",
+      "detail": "Space 누름→pan-mode=true, Space 뗌→pan-mode=false",
+      "file": "js/editor.js",
+      "line": 703,
+      "fix_applied": null
+    }
+  ],
+  "bugs_found": 2,
+  "fixes_applied": 4,
+  "summary": {
+    "total": 10,
+    "pass": 8,
+    "fail": 2,
+    "partial": 0
+  }
+}

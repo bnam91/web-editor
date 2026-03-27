@@ -1,23 +1,35 @@
-function showTextProperties(tb) {
+import { propPanel, state } from './globals.js';
+
+export function showTextProperties(tb) {
+  const isOverlayTb = tb.classList.contains('overlay-tb');
   const contentEl = tb.querySelector('[contenteditable]');
   const computed   = window.getComputedStyle(contentEl);
 
-  const currentClass = ['tb-h1','tb-h2','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || 'tb-body';
+  const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || 'tb-body';
   const rawBg = window.getComputedStyle(contentEl).backgroundColor;
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
   const isLabel = currentClass === 'tb-label';
+  const labelPillPadT = parseInt(contentEl.style.paddingTop)    || 4;
+  const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
+  const labelPillH    = labelPillPadT + labelPillPadB;
   const currentAlign = isLabel ? (tb.style.textAlign || 'left') : (contentEl.style.textAlign || 'left');
   const currentSize  = parseInt(computed.fontSize) || 15;
   const currentColor = rgbToHex(computed.color) || '#111111';
   const currentLH    = (parseFloat(computed.lineHeight) / parseFloat(computed.fontSize) || 1.5).toFixed(2);
   const currentLS    = parseFloat(contentEl.style.letterSpacing) || 0;
-  const defaultPad   = isLabel ? 0 : pageSettings.padY;
+  const defaultPad   = isLabel ? 0 : state.pageSettings.padY;
   const currentPadT  = tb.style.paddingTop    ? (parseInt(tb.style.paddingTop)    || 0) : defaultPad;
   const currentPadB  = tb.style.paddingBottom ? (parseInt(tb.style.paddingBottom) || 0) : defaultPad;
-  const currentFont  = contentEl.style.fontFamily || '';
+  const currentPadL  = parseInt(tb.style.paddingLeft)  || 0;
+  const currentPadR  = parseInt(tb.style.paddingRight) || 0;
+  let   phLinked     = currentPadL === currentPadR;
+  const currentFont   = contentEl.style.fontFamily || '';
+  const isBold        = contentEl.style.fontWeight === 'bold';
+  const isItalic      = contentEl.style.fontStyle  === 'italic';
+  const currentHighlight      = tb.dataset.highlight || 'none';
+  const currentHighlightColor = tb.dataset.highlightColor || '#ffeb3b';
 
-  const ratioStr = getCurrentRatioStr(tb);
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -26,12 +38,11 @@ function showTextProperties(tb) {
             <line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9" x2="7" y2="9"/>
           </svg>
         </div>
-        <span class="prop-block-name">Text Block</span>
-      </div>
-      <div class="prop-section-title">레이아웃</div>
-      <div class="prop-row">
-        <span class="prop-label">비율</span>
-        <input type="text" class="prop-layout-input" id="layout-ratio" value="${ratioStr}" placeholder="1*2*1">
+        <div class="prop-block-info">
+          <span class="prop-block-name">${isOverlayTb ? 'Overlay Text' : 'Text Block'}</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb(tb)}</span>
+        </div>
+        ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${tb.id}')">${tb.id}</span>` : ''}
       </div>
     </div>
     <div class="prop-section">
@@ -39,6 +50,7 @@ function showTextProperties(tb) {
       <div class="prop-type-group">
         <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
         <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
+        <button class="prop-type-btn ${currentClass==='tb-h3'?'active':''}"      data-cls="tb-h3">H3</button>
         <button class="prop-type-btn ${currentClass==='tb-body'?'active':''}"    data-cls="tb-body">Body</button>
         <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Cap</button>
         <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
@@ -59,6 +71,11 @@ function showTextProperties(tb) {
           <span class="prop-label">모서리</span>
           <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
           <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">높이</span>
+          <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="${labelPillH}">
+          <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="${labelPillH}">
         </div>
       </div>
     </div>
@@ -110,6 +127,13 @@ function showTextProperties(tb) {
         </select>
       </div>
       <div class="prop-row">
+        <span class="prop-label">스타일</span>
+        <div class="prop-style-group">
+          <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (Bold)"><b>B</b></button>
+          <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic)"><i>I</i></button>
+        </div>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="txt-size-slider" min="8" max="400" step="1" value="${currentSize}">
         <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}">
@@ -135,19 +159,35 @@ function showTextProperties(tb) {
         <input type="range" class="prop-slider" id="txt-ls-slider" min="-10" max="40" step="0.5" value="${currentLS}">
         <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">상단</span>
-        <input type="range" class="prop-slider" id="txt-pt-slider" min="0" max="120" step="4" value="${currentPadT}">
-        <input type="number" class="prop-number" id="txt-pt-number" min="0" max="120" value="${currentPadT}">
+      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+        <span class="prop-label">상하</span>
+        <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}">
+        <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">하단</span>
-        <input type="range" class="prop-slider" id="txt-pb-slider" min="0" max="120" step="4" value="${currentPadB}">
-        <input type="number" class="prop-number" id="txt-pb-number" min="0" max="120" value="${currentPadB}">
+      <div class="prop-ph-header" style="${isOverlayTb ? 'display:none' : ''}">
+        <span class="prop-section-title" style="margin-bottom:0">패딩</span>
+        <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+            <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
+            <rect x="7.5" y="3.5" width="4" height="5" rx="2"/>
+            <line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+        <span class="prop-label" style="width:60px">왼쪽 패딩</span>
+        <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="${currentPadL}">
+        <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
+      </div>
+      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+        <span class="prop-label" style="width:60px">오른쪽 패딩</span>
+        <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="${currentPadR}">
+        <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
       </div>
     </div>
 
-    <div class="prop-section prop-section--anim">
+
+    <div class="prop-section prop-section--anim" style="${isOverlayTb ? 'display:none' : ''}">
       <button class="prop-anim-btn" id="open-anim-btn">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="1" y="3" width="12" height="8" rx="1.5"/>
@@ -157,14 +197,15 @@ function showTextProperties(tb) {
       </button>
     </div>`;
 
+  if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
+
   /* 폰트 종류 */
   document.getElementById('txt-font-family').addEventListener('change', e => {
     contentEl.style.fontFamily = e.target.value;
   });
 
   /* 타입 전환 */
-  const labelMap = { 'tb-h1':'Heading','tb-h2':'Heading','tb-body':'Body','tb-caption':'Caption','tb-label':'Label' };
-  const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
+  const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
   propPanel.querySelectorAll('.prop-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const cls = btn.dataset.cls;
@@ -177,8 +218,8 @@ function showTextProperties(tb) {
 
       // label로 전환 시 기본 스타일 적용, 다른 타입으로 전환 시 초기화
       if (cls === 'tb-label') {
-        if (!contentEl.style.backgroundColor) contentEl.style.backgroundColor = '#111111';
-        if (!contentEl.style.color) contentEl.style.color = '#ffffff';
+        if (!contentEl.style.backgroundColor) contentEl.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-bg').trim() || '#111111';
+        if (!contentEl.style.color) contentEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-color').trim() || '#ffffff';
         if (!contentEl.style.borderRadius) contentEl.style.borderRadius = '4px';
       } else {
         contentEl.style.backgroundColor = '';
@@ -230,6 +271,18 @@ function showTextProperties(tb) {
     });
   }
 
+  /* 태그 pill 높이 (상하 패딩으로 조절) */
+  const pillHSlider = document.getElementById('label-pill-height-slider');
+  const pillHNumber = document.getElementById('label-pill-height-number');
+  if (pillHSlider) {
+    const setPillH = v => { const half = Math.round(v/2); contentEl.style.paddingTop = half+'px'; contentEl.style.paddingBottom = half+'px'; };
+    pillHSlider.addEventListener('input', () => { setPillH(parseInt(pillHSlider.value)); pillHNumber.value = pillHSlider.value; });
+    pillHNumber.addEventListener('input', () => {
+      const v = Math.min(120, Math.max(0, parseInt(pillHNumber.value)||0));
+      setPillH(v); pillHSlider.value = v;
+    });
+  }
+
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -243,6 +296,62 @@ function showTextProperties(tb) {
     });
   });
 
+  /* Bold / Italic — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
+  let _savedBoldSel = null;
+  let _savedItalicSel = null;
+  let _savedColorSel = null;
+  let _colorSpan = null; // 색상 적용 시 생성한 span (input 반복 호출에 재사용)
+
+  const hasSel = () => {
+    const sel = window.getSelection();
+    return sel && !sel.isCollapsed && (contentEl.contains(sel.anchorNode) || contentEl.contains(sel.focusNode));
+  };
+  const applyExecCmd = (savedSel, cmd, val = null) => {
+    if (!savedSel) return false;
+    const wasEditable = contentEl.contentEditable;
+    contentEl.contentEditable = 'true';
+    contentEl.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedSel);
+    if (val) document.execCommand(cmd, false, val);
+    else document.execCommand(cmd, false, null);
+    contentEl.contentEditable = wasEditable;
+    return true;
+  };
+
+  document.getElementById('txt-bold-btn').addEventListener('mousedown', () => {
+    if (hasSel()) _savedBoldSel = window.getSelection().getRangeAt(0).cloneRange();
+    else _savedBoldSel = null;
+  });
+  document.getElementById('txt-bold-btn').addEventListener('click', () => {
+    if (_savedBoldSel) {
+      applyExecCmd(_savedBoldSel, 'bold');
+      _savedBoldSel = null;
+    } else {
+      const isNowBold = contentEl.style.fontWeight === 'bold';
+      contentEl.style.fontWeight = isNowBold ? '' : 'bold';
+      document.getElementById('txt-bold-btn').classList.toggle('active', !isNowBold);
+    }
+    window.pushHistory();
+  });
+
+  document.getElementById('txt-italic-btn').addEventListener('mousedown', () => {
+    if (hasSel()) _savedItalicSel = window.getSelection().getRangeAt(0).cloneRange();
+    else _savedItalicSel = null;
+  });
+  document.getElementById('txt-italic-btn').addEventListener('click', () => {
+    if (_savedItalicSel) {
+      applyExecCmd(_savedItalicSel, 'italic');
+      _savedItalicSel = null;
+    } else {
+      const isNowItalic = contentEl.style.fontStyle === 'italic';
+      contentEl.style.fontStyle = isNowItalic ? '' : 'italic';
+      document.getElementById('txt-italic-btn').classList.toggle('active', !isNowItalic);
+    }
+    window.pushHistory();
+  });
+
   /* 폰트 크기 */
   const sizeSlider = document.getElementById('txt-size-slider');
   const sizeNumber = document.getElementById('txt-size-number');
@@ -252,19 +361,41 @@ function showTextProperties(tb) {
     contentEl.style.fontSize = v+'px'; sizeSlider.value = v;
   });
 
-  /* 색상 */
+  /* 색상 — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   const colorPicker = document.getElementById('txt-color');
   const colorHex    = document.getElementById('txt-color-hex');
   const colorSwatch = colorPicker.closest('.prop-color-swatch');
+  colorSwatch.addEventListener('mousedown', () => {
+    if (hasSel()) { _savedColorSel = window.getSelection().getRangeAt(0).cloneRange(); _colorSpan = null; }
+    else { _savedColorSel = null; _colorSpan = null; }
+  });
+
+  const applyColorToSel = (color) => {
+    if (!_savedColorSel) { contentEl.style.color = color; return; }
+    if (_colorSpan) {
+      // 이미 span 생성됨 → color만 업데이트 (DOM 재조작 없음)
+      _colorSpan.style.color = color;
+    } else {
+      // 처음 적용: range에서 내용 추출 → span으로 감싸 재삽입
+      const r = _savedColorSel.cloneRange();
+      const frag = r.extractContents();
+      _colorSpan = document.createElement('span');
+      _colorSpan.style.color = color;
+      _colorSpan.appendChild(frag);
+      r.insertNode(_colorSpan);
+    }
+  };
+
   colorPicker.addEventListener('input', () => {
-    contentEl.style.color = colorPicker.value;
+    applyColorToSel(colorPicker.value);
     colorHex.value = colorPicker.value;
     colorSwatch.style.background = colorPicker.value;
   });
+  colorPicker.addEventListener('change', () => { _savedColorSel = null; _colorSpan = null; window.pushHistory(); });
   colorHex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(colorHex.value)) {
       colorPicker.value = colorHex.value;
-      contentEl.style.color = colorHex.value;
+      applyColorToSel(colorHex.value);
       colorSwatch.style.background = colorHex.value;
     }
   });
@@ -287,24 +418,70 @@ function showTextProperties(tb) {
     contentEl.style.letterSpacing = v + 'px'; lsSlider.value = v;
   });
 
-  /* 패딩 */
-  const ptSlider = document.getElementById('txt-pt-slider');
-  const ptNumber = document.getElementById('txt-pt-number');
-  const pbSlider = document.getElementById('txt-pb-slider');
-  const pbNumber = document.getElementById('txt-pb-number');
-  ptSlider.addEventListener('input', () => { tb.style.paddingTop    = ptSlider.value+'px'; ptNumber.value = ptSlider.value; });
-  ptNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(ptNumber.value)||0)); tb.style.paddingTop=v+'px'; ptSlider.value=v; });
-  pbSlider.addEventListener('input', () => { tb.style.paddingBottom = pbSlider.value+'px'; pbNumber.value = pbSlider.value; });
-  pbNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pbNumber.value)||0)); tb.style.paddingBottom=v+'px'; pbSlider.value=v; });
+  /* 패딩 (overlay-tb는 해당 없음) */
+  if (!isOverlayTb) {
+    const pvSlider = document.getElementById('txt-pv-slider');
+    const pvNumber = document.getElementById('txt-pv-number');
+    if (pvSlider) {
+      pvSlider.addEventListener('input', () => { tb.style.paddingTop = pvSlider.value+'px'; tb.style.paddingBottom = pvSlider.value+'px'; pvNumber.value = pvSlider.value; });
+      pvNumber.addEventListener('input', () => { const v=Math.min(120,Math.max(0,parseInt(pvNumber.value)||0)); tb.style.paddingTop=v+'px'; tb.style.paddingBottom=v+'px'; pvSlider.value=v; });
+    }
+
+    /* 좌우 패딩 */
+    const plSlider = document.getElementById('txt-pl-slider');
+    const plNumber = document.getElementById('txt-pl-number');
+    const prSlider = document.getElementById('txt-pr-slider');
+    const prNumber = document.getElementById('txt-pr-number');
+    const chainBtn = document.getElementById('txt-ph-chain');
+
+    const CHAIN_SVG_LINKED = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>`;
+    const CHAIN_SVG_BROKEN = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="5.2" y1="4.8" x2="6.8" y2="7.2" stroke-linecap="round"/></svg>`;
+
+    if (plSlider) {
+      chainBtn.addEventListener('click', () => {
+        phLinked = !phLinked;
+        chainBtn.classList.toggle('active', phLinked);
+        chainBtn.innerHTML = phLinked ? CHAIN_SVG_LINKED : CHAIN_SVG_BROKEN;
+        if (phLinked) {
+          const v = parseInt(plSlider.value);
+          tb.style.paddingRight = v + 'px';
+          prSlider.value = v; prNumber.value = v;
+        }
+      });
+
+      const setL = v => {
+        tb.style.paddingLeft = v + 'px';
+        tb.dataset.customPadL = '1';
+        plSlider.value = v; plNumber.value = v;
+        if (phLinked) { tb.style.paddingRight = v + 'px'; tb.dataset.customPadR = '1'; prSlider.value = v; prNumber.value = v; }
+      };
+      const setR = v => {
+        tb.style.paddingRight = v + 'px';
+        tb.dataset.customPadR = '1';
+        prSlider.value = v; prNumber.value = v;
+        if (phLinked) { tb.style.paddingLeft = v + 'px'; tb.dataset.customPadL = '1'; plSlider.value = v; plNumber.value = v; }
+      };
+
+      plSlider.addEventListener('input', () => setL(parseInt(plSlider.value)));
+      plNumber.addEventListener('input', () => setL(Math.min(120, Math.max(0, parseInt(plNumber.value) || 0))));
+      prSlider.addEventListener('input', () => setR(parseInt(prSlider.value)));
+      prNumber.addEventListener('input', () => setR(Math.min(120, Math.max(0, parseInt(prNumber.value) || 0))));
+    }
+  }
 
   /* 애니메이션 GIF 버튼 */
-  document.getElementById('open-anim-btn').addEventListener('click', () => openAnimModal(tb));
+  const animBtn = document.getElementById('open-anim-btn');
+  if (animBtn) animBtn.addEventListener('click', () => window.openAnimModal(tb));
 
-  bindLayoutInput(tb);
+  window.bindLayoutInput(tb);
 }
 
-function rgbToHex(rgb) {
+export function rgbToHex(rgb) {
   const m = rgb.match(/\d+/g);
   if (!m) return '#111111';
   return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
 }
+
+// Backward compat: classic scripts call these via window.*
+window.showTextProperties = showTextProperties;
+window.rgbToHex           = rgbToHex;

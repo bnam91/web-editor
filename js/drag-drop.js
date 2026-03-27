@@ -1,14 +1,43 @@
+import { state } from './globals.js';
+import {
+  clearDropIndicators,
+  clearLayerIndicators,
+  clearSectionIndicators,
+  clearLayerSectionIndicators,
+  showToast,
+  makeLabelItem,
+  applyDividerStyle,
+} from './drag-utils.js';
+
 /* ═══════════════════════════════════
-   DRAG AND DROP
+   DRAG AND DROP — state & event binding
 ═══════════════════════════════════ */
-function genId(prefix) {
-  return (prefix || 'b') + '_' + Math.random().toString(36).slice(2, 9);
-}
 
 let dragSrc = null;
 let layerDragSrc = null;
 let sectionDragSrc = null;
 let layerSectionDragSrc = null;
+
+Object.defineProperty(window, 'dragSrc', {
+  get() { return dragSrc; },
+  set(v) { dragSrc = v; },
+  configurable: true,
+});
+Object.defineProperty(window, 'layerDragSrc', {
+  get() { return layerDragSrc; },
+  set(v) { layerDragSrc = v; },
+  configurable: true,
+});
+Object.defineProperty(window, 'sectionDragSrc', {
+  get() { return sectionDragSrc; },
+  set(v) { sectionDragSrc = v; },
+  configurable: true,
+});
+Object.defineProperty(window, 'layerSectionDragSrc', {
+  get() { return layerSectionDragSrc; },
+  set(v) { layerSectionDragSrc = v; },
+  configurable: true,
+});
 
 function getDragAfterElement(container, y) {
   const children = [...container.children].filter(el =>
@@ -20,22 +49,6 @@ function getDragAfterElement(container, y) {
     if (offset < 0 && offset > closest.offset) return { offset, element: child };
     return closest;
   }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
-
-function clearDropIndicators() {
-  document.querySelectorAll('.drop-indicator').forEach(d => d.remove());
-}
-
-function clearLayerIndicators() {
-  document.querySelectorAll('.layer-drop-indicator').forEach(d => d.remove());
-}
-
-function clearSectionIndicators() {
-  document.querySelectorAll('.section-drop-indicator').forEach(d => d.remove());
-}
-
-function clearLayerSectionIndicators() {
-  document.querySelectorAll('.layer-section-drop-indicator').forEach(d => d.remove());
 }
 
 function getSectionDragAfterEl(container, y) {
@@ -77,11 +90,11 @@ function getLayerDragAfterItem(container, y) {
 function ungroupBlock(groupEl) {
   const inner = groupEl.querySelector('.group-inner');
   if (!inner) { groupEl.remove(); return; }
-  pushHistory();
+  window.pushHistory();
   // group-inner의 자식들을 group-block 위치로 이동
   [...inner.children].forEach(child => groupEl.before(child));
   groupEl.remove();
-  buildLayerPanel();
+  window.buildLayerPanel();
 }
 
 function bindGroupDrag(groupEl) {
@@ -155,11 +168,12 @@ function bindSectionDropZone(sec) {
   inner.addEventListener('drop', e => {
     e.preventDefault();
     if (!dragSrc) return;
+    window.pushHistory();
     const indicator = inner.querySelector('.drop-indicator');
     if (indicator) inner.insertBefore(dragSrc, indicator);
     else inner.appendChild(dragSrc);
     clearDropIndicators();
-    buildLayerPanel();
+    window.buildLayerPanel();
     dragSrc = null;
   });
 }
@@ -167,16 +181,23 @@ function bindSectionDropZone(sec) {
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
-  const isText   = block.classList.contains('text-block');
-  const isGap    = block.classList.contains('gap-block');
-  const isAsset  = block.classList.contains('asset-block');
-  const isIconCb = block.classList.contains('icon-circle-block');
-  const isTableB = block.classList.contains('table-block');
+  const isText       = block.classList.contains('text-block');
+  const isGap        = block.classList.contains('gap-block');
+  const isAsset      = block.classList.contains('asset-block');
+  const isIconCb     = block.classList.contains('icon-circle-block');
+  const isTableB     = block.classList.contains('table-block');
+  const isLabelGroup = block.classList.contains('label-group-block');
+  const isCard        = block.classList.contains('card-block');
+  const isStripBanner = block.classList.contains('strip-banner-block');
+  const isGraph       = block.classList.contains('graph-block');
+  const isDivider     = block.classList.contains('divider-block');
 
 
   if (isText) {
     block.addEventListener('click', e => {
       e.stopPropagation();
+      // 편집 모드 중 클릭은 무시 (커서 이동/텍스트 선택 기본 동작 유지)
+      if (block.classList.contains('editing')) return;
       if (e.shiftKey) {
         if (block.classList.contains('selected')) {
           block.classList.remove('selected');
@@ -185,23 +206,52 @@ function bindBlock(block) {
           block.classList.add('selected');
           if (block._layerItem) block._layerItem.classList.add('active');
         }
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showTextProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showTextProperties(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
       block.classList.add('editing');
-      block.querySelectorAll('[contenteditable]').forEach(el => {
-        el.setAttribute('contenteditable', 'true');
-        el.focus();
-      });
+      const editEls = block.querySelectorAll('[contenteditable]');
+      editEls.forEach(el => el.setAttribute('contenteditable', 'true'));
+
+      // 클릭 위치에 해당하는 편집 요소 찾기 (보통 1개)
+      const clicked = [...editEls].find(el => el.contains(document.elementFromPoint(e.clientX, e.clientY))) || editEls[0];
+      if (clicked) {
+        clicked.focus();
+        // 클릭 위치에 정확히 커서 지정
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (range) {
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        // 편집 이벤트 바인딩 (최초 1회)
+        if (!clicked._editBound) {
+          clicked._editBound = true;
+          // blur → 편집 종료 (외부 클릭, 포커스 이탈 시)
+          clicked.addEventListener('blur', () => {
+            block.classList.remove('editing');
+            clicked.setAttribute('contenteditable', 'false');
+          });
+          // Escape → 편집 종료, 블록 선택 상태 유지
+          clicked.addEventListener('keydown', ev => {
+            if (ev.key === 'Escape') {
+              ev.preventDefault();
+              ev.stopPropagation(); // 전역 window.deselectAll() 차단
+              clicked.blur();       // blur 핸들러가 editing 정리
+            }
+          });
+        }
+      }
     });
+
   }
 
   if (isAsset) {
@@ -215,21 +265,21 @@ function bindBlock(block) {
           block.classList.add('selected');
           if (block._layerItem) block._layerItem.classList.add('active');
         }
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showAssetProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showAssetProperties(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
       if (block.classList.contains('has-image')) {
-        enterImageEditMode(block);
+        window.enterImageEditMode(block);
       } else {
-        triggerAssetUpload(block);
+        window.triggerAssetUpload(block);
       }
     });
     // 파일 드래그 드롭
@@ -248,17 +298,17 @@ function bindBlock(block) {
       e.stopPropagation();
       block.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) loadImageToAsset(block, file);
+      if (file && file.type.startsWith('image/')) window.loadImageToAsset(block, file);
     });
     // 로드/undo 후 has-image 상태 복원
     if (block.classList.contains('has-image')) {
       const overlayBtn = block.querySelector('.asset-overlay-clear');
       if (overlayBtn) overlayBtn.addEventListener('click', e => {
         e.stopPropagation();
-        clearAssetImage(block);
+        window.clearAssetImage(block);
       });
       // 수동 편집된 위치/크기 복원 (imgW가 있으면 절대 위치 모드)
-      applyImageTransform(block);
+      window.applyImageTransform(block);
       // 수동 편집 없으면 object-fit 적용
       if (!block.dataset.imgW) {
         const img = block.querySelector('.asset-img');
@@ -270,11 +320,11 @@ function bindBlock(block) {
   if (isGap) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showGapProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showGapProperties(block);
     });
   }
 
@@ -284,15 +334,43 @@ function bindBlock(block) {
       if (e.shiftKey) {
         block.classList.toggle('selected');
         if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showIconCircleProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showIconCircleProperties(block);
     });
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      if (block.classList.contains('has-image')) {
+        window.enterCircleImageEditMode(block);
+      } else {
+        window.triggerCircleUpload(block);
+      }
+    });
+    block.addEventListener('dragover', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.add('drag-over');
+    });
+    block.addEventListener('dragleave', e => {
+      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
+    });
+    block.addEventListener('drop', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) window.loadImageToCircle(block, file);
+    });
+    // 로드/undo 후 has-image 복원
+    if (block.classList.contains('has-image')) {
+      const clearBtn = block.querySelector('.icb-clear-btn');
+      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); window.clearCircleImage(block); });
+    }
   }
 
   if (isTableB) {
@@ -301,14 +379,14 @@ function bindBlock(block) {
       if (e.shiftKey) {
         block.classList.toggle('selected');
         if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        syncSection(block.closest('.section-block'));
+        window.syncSection(block.closest('.section-block'));
         return;
       }
-      deselectAll();
+      window.deselectAll();
       block.classList.add('selected');
-      syncSection(block.closest('.section-block'));
-      highlightBlock(block, block._layerItem);
-      showTableProperties(block);
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showTableProperties(block);
     });
     // 셀 더블클릭 → contenteditable 활성화
     block.addEventListener('dblclick', e => {
@@ -331,11 +409,244 @@ function bindBlock(block) {
     });
   }
 
+  if (isLabelGroup) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      // + 버튼: 새 라벨 추가
+      if (e.target.classList.contains('label-group-add-btn')) {
+        window.pushHistory();
+        const items  = block.querySelectorAll('.label-item');
+        const first  = items[0];
+        const lastBg     = first?.dataset.bg     || '#e8e8e8';
+        const lastColor  = first?.dataset.color  || '#333333';
+        const lastRadius = parseInt(first?.dataset.radius) || 40;
+        const newItem = makeLabelItem('Tag', lastBg, lastColor, lastRadius);
+        block.querySelector('.label-group-add-btn').before(newItem);
+        block.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
+        newItem.classList.add('item-selected');
+        window.showLabelGroupProperties(block, newItem);
+        return;
+      }
+      // × 버튼: 라벨 삭제
+      if (e.target.classList.contains('label-item-delete-btn')) {
+        const items = block.querySelectorAll('.label-item');
+        if (items.length <= 1) { showToast('⚠️ 마지막 라벨은 삭제할 수 없어요.'); return; }
+        window.pushHistory();
+        e.target.closest('.label-item').remove();
+        window.showLabelGroupProperties(block, null);
+        return;
+      }
+      // 라벨 아이템 클릭: 아이템 선택
+      const item = e.target.closest('.label-item');
+      if (item) {
+        if (!block.classList.contains('selected')) {
+          window.deselectAll();
+          block.classList.add('selected');
+          window.syncSection(block.closest('.section-block'));
+          window.highlightBlock(block, block._layerItem);
+        }
+        block.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
+        item.classList.add('item-selected');
+        window.showLabelGroupProperties(block, item);
+        return;
+      }
+      // 블록 배경 클릭: 블록만 선택
+      window.deselectAll();
+      block.classList.add('selected');
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showLabelGroupProperties(block, null);
+    });
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const item = e.target.closest('.label-item');
+      if (!item) return;
+      const span = item.querySelector('.label-item-text');
+      if (!span) return;
+      span.contentEditable = 'true';
+      span.focus();
+      const range = document.createRange();
+      range.selectNodeContents(span);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      block.classList.add('editing');
+      span.addEventListener('blur', () => {
+        span.contentEditable = 'false';
+        block.classList.remove('editing');
+      }, { once: true });
+      span.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') { ev.preventDefault(); span.blur(); }
+        if (ev.key === 'Escape') { span.blur(); }
+      }, { once: true });
+    });
+  }
+
+  if (isCard) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        window.syncSection(block.closest('.section-block'));
+        return;
+      }
+      const rowEl = block.closest('.row');
+      const isRowActive = rowEl && rowEl.classList.contains('row-active');
+      window.deselectAll();
+      if (rowEl && !isRowActive) {
+        // 첫 번째 클릭: Row 전체 선택 → Row Properties 표시
+        rowEl.classList.add('row-active');
+        window.showRowProperties(rowEl);
+        return;
+      }
+      // 두 번째 클릭 (또는 단독 카드): 카드 선택 → Card Properties 표시
+      block.classList.add('selected');
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showCardProperties(block);
+    });
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      // 이미지 영역 더블클릭 → 이미지 업로드
+      if (e.target.closest('.cdb-image')) {
+        window.triggerCardImageUpload(block);
+        return;
+      }
+      // 텍스트 영역 더블클릭 → contenteditable 활성화
+      const textEl = e.target.closest('.cdb-title, .cdb-desc');
+      if (textEl) {
+        textEl.contentEditable = 'true';
+        textEl.focus();
+        block.classList.add('editing');
+        textEl.addEventListener('blur', () => {
+          textEl.contentEditable = 'false';
+          block.classList.remove('editing');
+        }, { once: true });
+        textEl.addEventListener('keydown', ev => {
+          if (ev.key === 'Escape') { textEl.blur(); }
+        }, { once: true });
+      }
+    });
+    block.addEventListener('dragover', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.add('drag-over');
+    });
+    block.addEventListener('dragleave', e => {
+      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
+    });
+    block.addEventListener('drop', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) window.loadImageToCard(block, file);
+    });
+    // 로드/undo 후 has-image 복원
+    if (block.classList.contains('has-image')) {
+      const clearBtn = block.querySelector('.cdb-clear-btn');
+      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); window.clearCardImage(block); });
+    }
+  }
+
+  if (isStripBanner) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        window.syncSection(block.closest('.section-block'));
+        return;
+      }
+      window.deselectAll();
+      block.classList.add('selected');
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showStripBannerProperties(block);
+    });
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      if (e.target.closest('.sbb-image')) {
+        window.triggerStripBannerImageUpload(block);
+        return;
+      }
+      const textEl = e.target.closest('.sbb-heading, .sbb-body');
+      if (textEl) {
+        textEl.contentEditable = 'true';
+        textEl.focus();
+        block.classList.add('editing');
+        textEl.addEventListener('blur', () => {
+          textEl.contentEditable = 'false';
+          block.classList.remove('editing');
+        }, { once: true });
+        textEl.addEventListener('keydown', ev => {
+          if (ev.key === 'Escape') { textEl.blur(); }
+        }, { once: true });
+      }
+    });
+    block.addEventListener('dragover', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.add('drag-over');
+    });
+    block.addEventListener('dragleave', e => {
+      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
+    });
+    block.addEventListener('drop', e => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault(); e.stopPropagation();
+      block.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) window.loadImageToStripBanner(block, file);
+    });
+    if (block.classList.contains('has-image')) {
+      const clearBtn = block.querySelector('.sbb-clear-btn');
+      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); window.clearStripBannerImage(block); });
+    }
+  }
+
+  if (isGraph) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        window.syncSection(block.closest('.section-block'));
+        return;
+      }
+      window.deselectAll();
+      block.classList.add('selected');
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showGraphProperties(block);
+    });
+  }
+
+  if (isDivider) {
+    applyDividerStyle(block);
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        window.syncSection(block.closest('.section-block'));
+        return;
+      }
+      window.deselectAll();
+      block.classList.add('selected');
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showDividerProperties(block);
+    });
+  }
+
   // hover ↔ layer item
-  block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = '#252525'; });
+  block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = 'var(--ui-bg-card)'; });
   block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
 
-  // 드래그 이벤트
+  // 드래그 이벤트 (overlay-tb는 마우스 드래그 사용, HTML5 drag 제외)
+  if (block.classList.contains('overlay-tb')) return;
   const dragTarget = isGap ? block : (block.closest('.row') || block);
   if (dragTarget && !dragTarget._dragBound) {
     dragTarget._dragBound = true;
@@ -343,6 +654,7 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
+      if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
       dragSrc = dragTarget;
       e.dataTransfer.effectAllowed = 'move';
@@ -363,344 +675,25 @@ function bindBlock(block) {
   }
 }
 
-function makeTextBlock(type) {
-  const classMap  = { h1:'tb-h1', h2:'tb-h2', body:'tb-body', caption:'tb-caption', label:'tb-label' };
-  const labelMap  = { h1:'Heading', h2:'Heading', body:'Body', caption:'Caption', label:'Label' };
-  const dataType  = (type==='h1'||type==='h2') ? 'heading' : type;
-  const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', body:'본문을 입력하세요', caption:'캡션을 입력하세요', label:'Label' };
+export {
+  getDragAfterElement,
+  getSectionDragAfterEl,
+  getLayerSectionDragAfterEl,
+  getLayerDragAfterItem,
+  ungroupBlock,
+  bindGroupDrag,
+  bindSectionDrag,
+  bindSectionDropZone,
+  bindBlock,
+};
 
-  const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
-  const tb = document.createElement('div');
-  tb.className = 'text-block'; tb.dataset.type = dataType;
-  tb.id = genId('tb');
-  tb.innerHTML = `
-    <div class="${classMap[type]}" contenteditable="false">${placeholder[type]}</div>`;
-
-  if (pageSettings.padX > 0) { tb.style.paddingLeft = pageSettings.padX + 'px'; tb.style.paddingRight = pageSettings.padX + 'px'; }
-  if (type !== 'label') {
-    tb.style.paddingTop = pageSettings.padY + 'px';
-    tb.style.paddingBottom = pageSettings.padY + 'px';
-  }
-  col.appendChild(tb);
-  row.appendChild(col);
-  return { row, block: tb };
-}
-
-function makeAssetBlock() {
-  const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
-  const ab = document.createElement('div');
-  ab.className = 'asset-block';
-  ab.id = genId('ab');
-  ab.dataset.align = 'center';
-  ab.style.alignSelf = 'center';
-  ab.innerHTML = `
-    ${ASSET_SVG}
-    <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
-
-  col.appendChild(ab);
-  row.appendChild(col);
-  return { row, block: ab };
-}
-
-function makeGapBlock() {
-  const gb = document.createElement('div');
-  gb.className = 'gap-block'; gb.dataset.type = 'gap';
-  gb.id = genId('gb');
-  return gb;
-}
-
-function makeIconCircleBlock() {
-  const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
-  const icb = document.createElement('div');
-  icb.className = 'icon-circle-block'; icb.dataset.type = 'icon-circle';
-  icb.id = genId('icb');
-  icb.dataset.size = '80';
-  icb.dataset.bgColor = '#e8e8e8';
-  icb.dataset.border = 'none';
-  icb.innerHTML = `
-    <div class="icb-circle" style="width:80px;height:80px;background:#e8e8e8;">
-      <span class="icb-content">⭐</span>
-    </div>
-    <div class="icb-label" contenteditable="false"></div>`;
-
-  col.appendChild(icb);
-  row.appendChild(col);
-  return { row, block: icb };
-}
-
-function makeTableBlock() {
-  const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
-  const tb = document.createElement('div');
-  tb.className = 'table-block'; tb.dataset.type = 'table';
-  tb.id = genId('tbl');
-  tb.dataset.style = 'default';
-  tb.dataset.showHeader = 'true';
-  tb.innerHTML = `
-    <table class="tb-table">
-      <thead>
-        <tr><th>항목</th><th>내용</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>소재</td><td>100% 면</td></tr>
-        <tr><td>사이즈</td><td>Free</td></tr>
-      </tbody>
-    </table>`;
-
-  col.appendChild(tb);
-  row.appendChild(col);
-  return { row, block: tb };
-}
-
-/* 섹션 안 삽입 — 하단 Gap Block 바로 앞에 */
-function insertBeforeBottomGap(section, el) {
-  const inner = section.querySelector('.section-inner');
-  const bottomGap = [...inner.querySelectorAll(':scope > .gap-block')].at(-1);
-  if (bottomGap) inner.insertBefore(el, bottomGap);
-  else inner.appendChild(el);
-}
-
-/* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
-function insertAfterSelected(section, el) {
-  const inner = section.querySelector('.section-inner');
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected');
-
-  if (sel && sel.closest('.section-block') === section) {
-    const isGap = sel.classList.contains('gap-block');
-    const ref = isGap ? sel : (sel.closest('.row') || sel);
-    ref.after(el);
-  } else {
-    insertBeforeBottomGap(section, el);
-  }
-}
-
-function showNoSelectionHint() {
-  const fp = document.getElementById('floating-panel');
-  fp.classList.add('fp-shake');
-  setTimeout(() => fp.classList.remove('fp-shake'), 400);
-  showToast('⚠️ 섹션 또는 블록을 먼저 선택하세요');
-}
-
-function showToast(msg) {
-  let t = document.getElementById('editor-toast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'editor-toast';
-    document.body.appendChild(t);
-  }
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), 2000);
-}
-
-function getSectionAlign(sec) {
-  const first = sec.querySelector('.text-block .tb-h1, .text-block .tb-h2, .text-block .tb-body');
-  if (!first) return null;
-  return first.style.textAlign || null;
-}
-
-function addTextBlock(type) {
-  const sec = getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
-  const { row, block } = makeTextBlock(type);
-
-  // 섹션의 기존 텍스트 정렬 상속
-  const align = getSectionAlign(sec);
-  if (align) {
-    const contentEl = block.querySelector('[class^="tb-"]');
-    if (type === 'label') {
-      block.style.textAlign = align;
-    } else if (contentEl) {
-      contentEl.style.textAlign = align;
-    }
-  }
-
-  insertAfterSelected(sec, row);
-  bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
-}
-
-function groupSelectedBlocks() {
-  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected')];
-  if (selected.length < 2) return;
-
-  // 같은 섹션의 블록만 그룹
-  const sec = selected[0].closest('.section-block');
-  if (!selected.every(b => b.closest('.section-block') === sec)) return;
-
-  pushHistory();
-
-  // DOM 순서대로 부모 row/gap 수집 (중복 제거)
-  const sectionInner = sec.querySelector('.section-inner');
-  const childrenInOrder = [...sectionInner.children];
-  const rows = [];
-  selected.forEach(b => {
-    const row = b.classList.contains('gap-block') ? b : b.closest('.row');
-    if (row && !rows.includes(row)) rows.push(row);
-  });
-  rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
-
-  // group-block 생성
-  const groupCount = sectionInner.querySelectorAll('.group-block').length + 1;
-  const groupEl = document.createElement('div');
-  groupEl.className = 'group-block';
-  groupEl.dataset.name = `Group ${groupCount}`;
-  const labelEl = document.createElement('span');
-  labelEl.className = 'group-block-label';
-  labelEl.textContent = groupEl.dataset.name;
-  const groupInner = document.createElement('div');
-  groupInner.className = 'group-inner';
-  groupEl.appendChild(labelEl);
-  groupEl.appendChild(groupInner);
-
-  // 첫 번째 row 자리에 group-block 삽입 후 rows 이동
-  rows[0].before(groupEl);
-  rows.forEach(row => groupInner.appendChild(row));
-
-  bindGroupDrag(groupEl);
-  deselectAll();
-  buildLayerPanel();
-  selectSection(sec);
-}
-
-function addRowBlock() {
-  const sec = getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
-  const row = document.createElement('div');
-  row.className = 'row';
-  row.dataset.layout = 'flex';
-  row.dataset.ratioStr = '2*1';
-
-  [0, 1].forEach(() => {
-    const col = document.createElement('div');
-    col.className = 'col';
-    col.style.flex = '1';
-    col.dataset.flex = '1';
-    col.appendChild(makeColPlaceholder(col));
-    row.appendChild(col);
-  });
-
-  insertAfterSelected(sec, row);
-  buildLayerPanel();
-  selectSection(sec);
-}
-
-function addAssetBlock() {
-  const sec = getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
-  const { row, block } = makeAssetBlock();
-  insertAfterSelected(sec, row);
-  bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
-}
-
-function addGapBlock() {
-  const sec = getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
-  const gb = makeGapBlock();
-  insertAfterSelected(sec, gb);
-  bindBlock(gb);
-  buildLayerPanel();
-  selectSection(sec);
-}
-
-function addIconCircleBlock() {
-  const sec = getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
-  const { row, block } = makeIconCircleBlock();
-  insertAfterSelected(sec, row);
-  bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
-}
-
-function addTableBlock() {
-  const sec = getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  pushHistory();
-  const { row, block } = makeTableBlock();
-  insertAfterSelected(sec, row);
-  bindBlock(block);
-  buildLayerPanel();
-  selectSection(sec);
-}
-
-function addSection() {
-  const canvas  = document.getElementById('canvas');
-  const secList = canvas.querySelectorAll('.section-block');
-  const newIdx  = secList.length + 1;
-
-  const sec = document.createElement('div');
-  sec.className = 'section-block'; sec.dataset.section = newIdx;
-  sec.id = genId('sec');
-  sec.innerHTML = `
-    <span class="section-label">Section ${String(newIdx).padStart(2,'0')}</span>
-    <div class="section-toolbar">
-      <button class="st-btn">↑</button>
-      <button class="st-btn">↓</button>
-      <button class="st-btn" style="color:#e06c6c;">✕</button>
-    </div>
-    <div class="section-inner">
-      <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
-      <div class="row" data-layout="stack">
-        <div class="col" data-width="100">
-          <div class="text-block" data-type="heading" id="${genId('tb')}">
-            <div class="tb-h2" contenteditable="false">새 섹션 제목</div>
-          </div>
-        </div>
-      </div>
-      <div class="row" data-layout="stack">
-        <div class="col" data-width="100">
-          <div class="asset-block" id="${genId('ab')}">
-            ${ASSET_SVG}
-            <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-          </div>
-        </div>
-      </div>
-      <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
-    </div>`;
-
-  const selectedSec = document.querySelector('.section-block.selected');
-  if (selectedSec) selectedSec.after(sec);
-  else canvas.appendChild(sec);
-
-  // 이벤트 바인딩
-  pushHistory();
-  sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
-  bindSectionDelete(sec);
-  bindSectionOrder(sec);
-  bindSectionDropZone(sec);
-  bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
-
-  buildLayerPanel();
-  selectSection(sec);
-  sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+// Backward compat
+window.getDragAfterElement         = getDragAfterElement;
+window.getSectionDragAfterEl       = getSectionDragAfterEl;
+window.getLayerSectionDragAfterEl  = getLayerSectionDragAfterEl;
+window.getLayerDragAfterItem       = getLayerDragAfterItem;
+window.ungroupBlock                = ungroupBlock;
+window.bindGroupDrag               = bindGroupDrag;
+window.bindSectionDrag             = bindSectionDrag;
+window.bindSectionDropZone         = bindSectionDropZone;
+window.bindBlock                   = bindBlock;

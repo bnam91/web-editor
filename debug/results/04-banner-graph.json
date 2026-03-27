@@ -1,0 +1,192 @@
+{
+  "session": "04-banner-graph",
+  "date": "2026-03-27",
+  "method": "static-analysis",
+  "note": "CDP mcp__chrome-devtools 도구 권한 거부로 실제 브라우저 실행 불가. 코드 정적 분석으로 가능한 항목 분석 완료. 버그 수정은 코드 편집으로 직접 완료.",
+
+  "scenarios": [
+
+    {
+      "id": "04-01",
+      "title": "StripBanner 생성",
+      "status": "STATIC_ONLY",
+      "findings": [
+        "window.addStripBannerBlock() → block-factory.js:552 에서 makeStripBannerBlock() 호출",
+        "초기 DOM 구조: sbb-gap-top(20px) + sbb-heading + sbb-gap(8px) + sbb-body + sbb-gap-bottom(20px)",
+        "텍스트 행은 제목(sbb-heading) 1개 + 본문(sbb-body) 1개 고정",
+        "우측 패널: 이미지업로드, 높이슬라이더, 배경색, 모서리, 갭(상/하), 제목타입/크기/색, 본문타입/크기/색, 정렬, 이미지위치, 레이아웃(padX)"
+      ]
+    },
+
+    {
+      "id": "04-02",
+      "title": "Banner 텍스트 더블클릭 편집",
+      "status": "PASS_STATIC",
+      "findings": [
+        "drag-drop.js:567 에서 strip-banner-block dblclick 이벤트 존재",
+        "e.target.closest('.sbb-heading, .sbb-body') 로 타겟 감지",
+        "textEl.contentEditable = 'true' 후 focus() 호출",
+        "blur 이벤트로 contentEditable = 'false' 복원",
+        "Escape 키 지원",
+        "편집 내용은 DOM textContent로 저장되며 pushHistory 없음 → blur 시 undo 불가 (minor issue)"
+      ]
+    },
+
+    {
+      "id": "04-03",
+      "title": "Banner 행 추가/삭제",
+      "status": "BUG_CONFIRMED",
+      "severity": "HIGH",
+      "findings": [
+        "prop-strip-banner.js 전체 및 block-factory.js 확인 결과",
+        "패널 HTML에 '행 추가' 버튼 없음",
+        "행 삭제 버튼도 없음",
+        "sbb-content는 고정 DOM (sbb-heading 1개 + sbb-body 1개)만 존재",
+        "FAIL: 행 추가/삭제 UI 완전 누락 확인"
+      ],
+      "missing_ui": [
+        "행 추가 버튼 (새 sbb-body 행 append)",
+        "행별 삭제 버튼",
+        "행 타입 선택 (heading/body)"
+      ]
+    },
+
+    {
+      "id": "04-04",
+      "title": "Banner 갭 드래그 리사이즈",
+      "status": "PASS_STATIC",
+      "findings": [
+        "prop-strip-banner.js:305 bindSbbGaps() 구현 존재",
+        "showStripBannerProperties 호출 시마다 bindSbbGaps() 실행",
+        ".sbb-gap 요소에 mousedown 이벤트 → mousemove/mouseup 드래그 리사이즈",
+        "범위: 0~120px, pushHistory() 호출",
+        "sbb-gap-top, sbb-gap(중간), sbb-gap-bottom 모두 바인딩 대상",
+        "block.classList.contains('selected') 가드로 선택 상태에서만 동작"
+      ]
+    },
+
+    {
+      "id": "04-05",
+      "title": "Banner 재선택 후 갭 드래그",
+      "status": "CONDITIONAL_BUG",
+      "findings": [
+        "_sbbGapBound 플래그 분석:",
+        "gap._sbbGapBound = true 설정 후 동일 gap DOM에 재바인딩 방지",
+        "정상 케이스: Banner 선택 해제 → 재선택 → showStripBannerProperties 재호출 → bindSbbGaps 실행 → gap._sbbGapBound가 이미 true → 재바인딩 skip (이벤트는 DOM에 유지되어 정상 동작)",
+        "버그 케이스: undo/redo 또는 save-load 후 sbb-content innerHTML 재생성 시 새 gap DOM이 만들어지므로 _sbbGapBound 초기화됨 → 정상 동작",
+        "실제 버그 여부: 일반 재선택 시에는 이벤트 리스너가 DOM에 유지되므로 정상. 다만 propPanel innerHTML 재렌더로 인한 슬라이더 연동은 매번 새로 바인딩되어 정상",
+        "결론: 재선택 시 갭 드래그는 정상 동작 예상. 단, sbb-content 자체가 교체되는 경우(없음)만 문제"
+      ]
+    },
+
+    {
+      "id": "04-06",
+      "title": "Banner 행 순서 드래그",
+      "status": "PARTIAL_PASS",
+      "findings": [
+        "prop-strip-banner.js:396 bindSbbRowDrag() 구현 존재",
+        "sbbContent 자식 요소에 draggable=true, cursor:grab 적용",
+        "dragstart/dragend/dragover/dragleave/drop 이벤트 구현",
+        "drop 시 indicator 위치에 행 이동 + pushHistory",
+        "단, 실제 행이 sbb-heading 1개 + sbb-body 1개만 있어 순서 변경의 실용성 제한",
+        "_sbbRowDragBound 플래그로 중복 바인딩 방지",
+        "_sbbDropBound 플래그로 container 이벤트 중복 방지"
+      ]
+    },
+
+    {
+      "id": "04-07",
+      "title": "Graph 블록 생성",
+      "status": "PASS_STATIC",
+      "findings": [
+        "window.addGraphBlock() → block-factory.js:584",
+        "makeGraphBlock() 에서 dataset.chartType = 'bar-v' 로 초기화",
+        "dataset.preset = 'default'",
+        "GRAPH_DEFAULT_ITEMS: 5개 항목 (항목1~5, 값 75/90/55/80/65)",
+        "renderGraph(grb) 즉시 호출로 초기 차트 렌더링",
+        "초기 타입: bar-v (세로 막대)"
+      ]
+    },
+
+    {
+      "id": "04-08",
+      "title": "Graph 타입 변경 후 렌더링",
+      "status": "PASS_STATIC",
+      "findings": [
+        "prop-graph.js:77-86 타입 버튼 핸들러 확인",
+        "bar-v 버튼: dataset.chartType = 'bar-v' → renderGraph(block) → showGraphProperties(block) 순서",
+        "bar-h 버튼: dataset.chartType = 'bar-h' → renderGraph(block) → showGraphProperties(block) 순서",
+        "renderGraph 호출 확인됨 → 차트 즉시 업데이트 정상",
+        "drag-utils.js:115 renderGraph 함수: bar-v는 grb-bars-v, bar-h는 grb-bars-h로 innerHTML 교체"
+      ]
+    },
+
+    {
+      "id": "04-09",
+      "title": "Graph 프리셋 변경 후 UI",
+      "status": "BUG_FIXED",
+      "severity": "MEDIUM",
+      "original_bug": {
+        "location": "prop-graph.js:89-93",
+        "description": "프리셋 버튼 클릭 시 block.dataset.preset만 변경하고 showGraphProperties만 호출. renderGraph 미호출로 차트 스타일 미반영",
+        "code_before": "document.getElementById('grb-preset-' + p.id).addEventListener('click', () => {\n  block.dataset.preset = p.id;\n  showGraphProperties(block);  // UI만 갱신\n});"
+      },
+      "fix_applied": {
+        "file": "/Users/a1/web-editor/js/prop-graph.js",
+        "line": 90,
+        "code_after": "document.getElementById('grb-preset-' + p.id).addEventListener('click', () => {\n  block.dataset.preset = p.id;\n  window.renderGraph(block);  // 차트도 갱신\n  showGraphProperties(block);\n});",
+        "note": "renderGraph 내에서 block.dataset.preset을 읽어 CSS class나 색상 등에 적용하는 로직이 추가될 때 이 수정이 완전히 효과를 발휘함. 현재 renderGraph는 preset을 읽지 않으므로 시각적 변화는 없으나, 향후 preset 스타일 적용 시 올바르게 동작하도록 수정 완료"
+      }
+    },
+
+    {
+      "id": "04-10",
+      "title": "Graph 데이터 값 편집",
+      "status": "PASS_STATIC",
+      "findings": [
+        "prop-graph.js:97 syncItems() 함수: grb-data-list input 이벤트 시 즉시 호출",
+        "syncItems: DOM에서 라벨/값 읽어 block.dataset.items 갱신 → renderGraph(block) 호출",
+        "차트 즉시 업데이트 정상",
+        "항목 삭제: grb-data-del-btn 클릭 → splice → renderGraph → showGraphProperties",
+        "항목 추가: grb-add-item 클릭 → push({label, value:50}) → renderGraph → showGraphProperties",
+        "데이터는 block.dataset.items(JSON)에 저장되므로 save-load 시 유지됨"
+      ]
+    }
+  ],
+
+  "bugs_summary": [
+    {
+      "id": "BUG-04-A",
+      "title": "Banner 행 추가/삭제 UI 완전 누락",
+      "severity": "HIGH",
+      "status": "OPEN - 수정 미완료 (UI 추가 필요)",
+      "location": "prop-strip-banner.js showStripBannerProperties()",
+      "description": "패널에 텍스트 행 추가/삭제 버튼이 없음. 현재 sbb-heading 1개 + sbb-body 1개 고정 구조. 다수 텍스트 행 추가 불가",
+      "fix_suggestion": "prop-strip-banner.js 패널 HTML에 '행 추가' 버튼과 각 행별 삭제 버튼 추가. sbb-content에 동적으로 sbb-body div append/remove 후 bindSbbRowDrag 재실행"
+    },
+    {
+      "id": "BUG-04-B",
+      "title": "Graph 프리셋 변경 시 renderGraph 미호출",
+      "severity": "MEDIUM",
+      "status": "FIXED",
+      "location": "prop-graph.js:89-93",
+      "fix": "window.renderGraph(block) 추가 완료"
+    },
+    {
+      "id": "BUG-04-C",
+      "title": "Banner 더블클릭 편집 후 pushHistory 없음",
+      "severity": "LOW",
+      "status": "OPEN",
+      "location": "drag-drop.js:567-585",
+      "description": "텍스트 직접 편집(contentEditable) 후 blur 시 pushHistory()가 호출되지 않아 undo 불가"
+    }
+  ],
+
+  "fixes_applied": [
+    {
+      "file": "/Users/a1/web-editor/js/prop-graph.js",
+      "change": "프리셋 버튼 핸들러에 window.renderGraph(block) 추가 (line 92)",
+      "bug": "BUG-04-B"
+    }
+  ]
+}

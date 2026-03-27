@@ -1,0 +1,85 @@
+{
+  "agent": "DBG-10",
+  "part": "Projects Page + Preview + Branch",
+  "files": [
+    "pages/projects.html",
+    "js/preview.js",
+    "js/branch-system.js"
+  ],
+  "ts": "2026-03-27T00:00:00.000Z",
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "프로젝트 목록 진입 — 저장된 프로젝트 썸네일 표시 정상?",
+      "status": "fail",
+      "finding": "renderGrid()에서 proj.thumbnail 필드를 무시하고 항상 고정 SVG 아이콘만 표시. save-load.js의 saveProjectToFile()은 thumbnail(base64 JPEG)을 저장하지만, projects.html은 이를 활용하지 않아 썸네일이 전혀 표시되지 않음.",
+      "fixed": true
+    },
+    {
+      "id": 2,
+      "title": "프로젝트 이름 변경 중 빈 문자열 입력 후 확인 — 방어 처리?",
+      "status": "pass",
+      "finding": "startRename()의 commit() 함수에서 `input.value.trim() || current` 로직으로 빈 문자열 입력 시 기존 이름을 유지. Escape 키도 기존 이름 복원 처리됨. 방어 처리 정상.",
+      "fixed": false
+    },
+    {
+      "id": 3,
+      "title": "프로젝트 삭제 확인 dialog — 취소 시 삭제 안 됨?",
+      "status": "pass",
+      "finding": "deleteProject()에서 confirm() 반환값이 false면 즉시 return. 취소 시 removeProject() 호출 없음. 정상 처리.",
+      "fixed": false
+    },
+    {
+      "id": 4,
+      "title": "프로젝트 없을 때 목록 — 빈 상태 UI 표시?",
+      "status": "pass",
+      "finding": "renderGrid()에서 list.length === 0이면 empty.style.display = 'block'으로 빈 상태 UI 표시. SVG 아이콘과 안내 문구 포함. 정상 처리.",
+      "fixed": false
+    },
+    {
+      "id": 5,
+      "title": "프로젝트 50개 목록 — 스크롤 및 렌더 성능?",
+      "status": "warn",
+      "finding": "renderGrid()는 forEach로 DOM을 직접 생성하며 DocumentFragment를 사용하지 않음. 프로젝트 50개 시 grid.innerHTML='' 후 50개 appendChild로 리플로우가 반복 발생. 기능상 동작하나 성능상 warn. 최소 수정 범위 초과로 수정 미진행.",
+      "fixed": false
+    },
+    {
+      "id": 6,
+      "title": "Preview 모드 진입 — 에디터 UI 숨김 및 readonly 처리?",
+      "status": "pass",
+      "finding": "body.preview-mode 진입 시 CSS로 #topbar, #main, #floating-panel이 display:none. preview-overlay가 display:block으로 전환. contenteditable 요소에 pointer-events:none, user-select:none 적용. 에디터 UI 숨김 및 readonly 처리 정상.",
+      "fixed": false
+    },
+    {
+      "id": 7,
+      "title": "Preview 모드에서 편집 시도 — 차단 처리?",
+      "status": "pass",
+      "finding": "#preview-overlay [contenteditable] { pointer-events:none; user-select:none } CSS 규칙으로 캔버스 복사본 내 contenteditable 요소의 클릭/텍스트 선택 차단. preview-content는 원본 캔버스가 아닌 복사본이므로 원본 데이터 훼손 불가. 차단 처리 정상.",
+      "fixed": false
+    },
+    {
+      "id": 8,
+      "title": "Preview 종료 후 선택 상태 복원 — 이전 선택 블록 유지?",
+      "status": "warn",
+      "finding": "exitPreview()는 선택 상태를 저장/복원하지 않음. enterPreview()도 선택 상태를 별도 저장하지 않음. Preview 진입 전 선택했던 블록은 종료 후 비선택 상태가 됨. 'fail'이 아닌 'warn'으로 분류: 선택 복원 미구현이지만 UX상 허용 가능한 수준. 수정 없음.",
+      "fixed": false
+    },
+    {
+      "id": 9,
+      "title": "브랜치 생성 — 이름 중복 시 처리?",
+      "status": "pass",
+      "finding": "createBranch()에서 store.branches[name] 존재 시 alert()로 중복 안내 후 즉시 return. createBranchFromInput()에서도 동일하게 처리됨. openSectionBranchMenu()의 자동 생성 시에는 suffix(숫자)를 붙여 중복 방지. 모든 경로 방어 처리 정상.",
+      "fixed": false
+    },
+    {
+      "id": 10,
+      "title": "브랜치 전환 중 미저장 변경 — 저장 여부 확인 프롬프트?",
+      "status": "fail",
+      "finding": "switchBranch()는 미저장 변경 여부를 확인하는 confirm/prompt 없이 즉시 현재 브랜치 스냅샷을 저장 후 전환. 사용자가 실수로 작업 중 브랜치를 전환해도 경고 없음. 단, 전환 전 자동으로 현재 스냅샷을 저장(serializeProject())하므로 데이터 손실은 없음. 데이터 손실 없는 warn 수준으로 재분류 가능하나 확인 프롬프트 미구현은 명백한 UX 부재. 대규모 리팩토링 범위로 수정 미진행.",
+      "fixed": false
+    }
+  ],
+  "bugs_found": 3,
+  "bugs_fixed": 2,
+  "summary": "projects.html에서 저장된 썸네일을 무시하고 SVG만 표시하는 버그 수정 + card-thumb overflow:hidden 추가. applyProjectData()에서 브랜치 전환 시 선택 상태 미클리어 버그(deselectAll 누락) 수정. 브랜치 전환 확인 프롬프트 미구현은 리팩토링 범위로 미수정."
+}

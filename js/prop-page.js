@@ -1,10 +1,13 @@
 /* ═══════════════════════════════════
    PROPERTIES PANEL
 ═══════════════════════════════════ */
+import { propPanel, canvasEl, canvasWrap, state } from './globals.js';
 
-function showPageProperties() {
-  const { bg, gap, padX, padY } = pageSettings;
+export function showPageProperties() {
+  if (window.setRpIdBadge) window.setRpIdBadge(null);
+  const { bg, gap, padX, padY } = state.pageSettings;
   propPanel.innerHTML = `
+    <p class="prop-hint">블록을 선택하면 속성이 표시됩니다</p>
     <div class="prop-section">
       <div class="prop-block-label">
         <div class="prop-block-icon">
@@ -12,7 +15,7 @@ function showPageProperties() {
             <rect x="1" y="1" width="10" height="10" rx="1.5"/>
           </svg>
         </div>
-        <span class="prop-block-name">Page</span>
+        <span class="prop-block-name">Background</span>
       </div>
       <div class="prop-section-title">배경</div>
       <div class="prop-color-row">
@@ -77,44 +80,55 @@ function showPageProperties() {
   const bgHex    = document.getElementById('page-bg-hex');
   const bgSwatch = bgPicker.closest('.prop-color-swatch');
   bgPicker.addEventListener('input', () => {
-    pageSettings.bg = bgPicker.value;
-    canvasWrap.style.background = pageSettings.bg;
-    bgHex.value = pageSettings.bg;
-    bgSwatch.style.background = pageSettings.bg;
+    state.pageSettings.bg = bgPicker.value;
+    canvasWrap.style.background = state.pageSettings.bg;
+    bgHex.value = state.pageSettings.bg;
+    bgSwatch.style.background = state.pageSettings.bg;
   });
   bgHex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
-      pageSettings.bg = bgHex.value;
-      bgPicker.value = pageSettings.bg;
-      canvasWrap.style.background = pageSettings.bg;
-      bgSwatch.style.background = pageSettings.bg;
+      state.pageSettings.bg = bgHex.value;
+      bgPicker.value = state.pageSettings.bg;
+      canvasWrap.style.background = state.pageSettings.bg;
+      bgSwatch.style.background = state.pageSettings.bg;
     }
   });
 
   const gapSlider = document.getElementById('section-gap-slider');
   const gapNumber = document.getElementById('section-gap-number');
   gapSlider.addEventListener('input', () => {
-    pageSettings.gap = parseInt(gapSlider.value);
-    canvasEl.style.gap = pageSettings.gap + 'px';
-    gapNumber.value = pageSettings.gap;
+    state.pageSettings.gap = parseInt(gapSlider.value);
+    canvasEl.style.gap = state.pageSettings.gap + 'px';
+    gapNumber.value = state.pageSettings.gap;
   });
   gapNumber.addEventListener('input', () => {
     const v = Math.min(200, Math.max(0, parseInt(gapNumber.value) || 0));
-    pageSettings.gap = v;
+    state.pageSettings.gap = v;
     canvasEl.style.gap = v + 'px';
     gapSlider.value = v;
   });
 
   const applyPadX = (v) => {
-    pageSettings.padX = v;
-    document.querySelectorAll('.text-block').forEach(tb => {
-      tb.style.paddingLeft = v + 'px';
-      tb.style.paddingRight = v + 'px';
+    state.pageSettings.padX = v;
+    document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
+      if (!tb.dataset.customPadL) tb.style.paddingLeft = v + 'px';
+      if (!tb.dataset.customPadR) tb.style.paddingRight = v + 'px';
+    });
+    document.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
+      window.applyAssetPadX(ab, v);
+    });
+    document.querySelectorAll('.card-block, .graph-block').forEach(b => {
+      b.style.paddingLeft = v + 'px';
+      b.style.paddingRight = v + 'px';
+    });
+    document.querySelectorAll('.strip-banner-block:not([data-use-padx="false"])').forEach(b => {
+      const content = b.querySelector('.sbb-content');
+      if (content) { content.style.paddingLeft = v + 'px'; content.style.paddingRight = v + 'px'; }
     });
   };
   const applyPadY = (v) => {
-    pageSettings.padY = v;
-    document.querySelectorAll('.text-block').forEach(tb => {
+    state.pageSettings.padY = v;
+    document.querySelectorAll('.text-block:not(.overlay-tb)').forEach(tb => {
       if (tb.dataset.type === 'label') return;
       tb.style.paddingTop = v + 'px';
       tb.style.paddingBottom = v + 'px';
@@ -141,6 +155,9 @@ function showPageProperties() {
           if (contentEl) contentEl.style.textAlign = align;
         }
       });
+      document.querySelectorAll('.label-group-block').forEach(block => {
+        block.style.justifyContent = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
+      });
       propPanel.querySelectorAll('#page-align-left,#page-align-center,#page-align-right')
         .forEach(b => b.classList.toggle('active', b === btn));
     });
@@ -156,7 +173,7 @@ function showPageProperties() {
       pageExportBtn.disabled = true;
       pageExportBtn.textContent = '내보내는 중...';
       try {
-        await exportAllSections(fmt);
+        await window.exportAllSections(fmt);
       } finally {
         pageExportBtn.disabled = false;
         pageExportBtn.textContent = '전체 섹션 내보내기';
@@ -164,3 +181,6 @@ function showPageProperties() {
     });
   }
 }
+
+// Backward compat: classic scripts call this via window.*
+window.showPageProperties = showPageProperties;

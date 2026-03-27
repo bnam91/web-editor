@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>상페마법사</title>
+<title>Goya Web Design Editor</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 
@@ -23,9 +23,9 @@ body {
 .electron-app.fullscreen #titlebar { padding-left: 16px; }
 #app-logo {
   display: flex; align-items: center; gap: 7px;
-  font-size: 13px; font-weight: 700; color: #ddd;
+  font-size: 11px; font-weight: 700; color: #ccc;
+  letter-spacing: 0.6px;
 }
-#app-logo svg { opacity: 0.8; }
 
 /* ── Main ── */
 #main {
@@ -50,6 +50,32 @@ body {
 }
 #btn-new:hover { background: #3a7df0; }
 
+#btn-new-planning {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 14px; height: 32px;
+  background: #1a7a5e; border: none; border-radius: 7px;
+  color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s;
+}
+#btn-new-planning:hover { background: #22976f; }
+
+/* ── Planning card styles ── */
+.project-card.planning-card {
+  border-left: 3px solid #22c48a;
+}
+.project-card.planning-card .card-thumb {
+  background: #0f2420;
+}
+.planning-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700; color: #22c48a;
+  background: rgba(34,196,138,0.12); border: 1px solid rgba(34,196,138,0.3);
+  border-radius: 4px; padding: 1px 6px; margin-bottom: 4px;
+}
+.header-actions {
+  display: flex; align-items: center; gap: 8px;
+}
+
 /* ── Grid ── */
 #project-grid {
   display: grid;
@@ -70,6 +96,7 @@ body {
   height: 130px; background: #1e1e1e;
   display: flex; align-items: center; justify-content: center;
   border-bottom: 1px solid #2e2e2e;
+  overflow: hidden; /* DBG-10: 썸네일 이미지 잘림 처리 */
 }
 .card-body { padding: 12px; }
 .card-name {
@@ -99,6 +126,35 @@ body {
 #empty-state svg { opacity: 0.2; margin-bottom: 16px; }
 #empty-state p { font-size: 13px; line-height: 1.7; }
 
+/* ── 홈 탭바 ── */
+#home-tab-bar {
+  display: flex; align-items: center; gap: 3px;
+  margin-left: 12px; flex-shrink: 1; min-width: 0; overflow: hidden;
+  -webkit-app-region: no-drag;
+}
+.home-proj-tab {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 8px; height: 26px;
+  width: 148px; flex-shrink: 0;
+  background: rgba(255,255,255,0.05); border: 1px solid #333;
+  border-radius: 6px; cursor: pointer;
+  font-size: 12px; font-weight: 500; color: #777;
+  transition: background 0.12s, color 0.12s;
+  overflow: hidden;
+}
+.home-proj-tab:hover { background: rgba(255,255,255,0.1); color: #bbb; }
+.home-proj-tab-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.home-proj-tab-close {
+  width: 14px; height: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 3px;
+  color: #555; cursor: pointer; transition: all 0.1s;
+}
+.home-proj-tab-close:hover { background: #555; color: #ccc; }
+
 /* ── Rename input ── */
 .card-name-input {
   font-size: 12px; font-weight: 600; color: #e0e0e0;
@@ -112,25 +168,37 @@ body {
 
 <div id="titlebar">
   <div id="app-logo">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-      <rect x="1" y="2" width="14" height="12" rx="2"/>
-      <line x1="4" y1="6" x2="12" y2="6"/>
-      <line x1="4" y1="9" x2="12" y2="9"/>
-      <line x1="4" y1="12" x2="8" y2="12"/>
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+      <path d="M8 1 Q10 6 15 8 Q10 10 8 15 Q6 10 1 8 Q6 6 8 1Z" stroke="white" stroke-width="1.4" stroke-linejoin="round" opacity="0.9"/>
+      <path d="M5.5 5 Q7 3.8 9.5 5.2" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+      <circle cx="5.2" cy="5.2" r="0.75" fill="white" opacity="0.7"/>
     </svg>
-    상페마법사
+    GOYA DESIGN EDITOR
   </div>
+  <!-- 탭바 (홈에서도 유지) -->
+  <div id="home-tab-bar"></div>
 </div>
 
 <div id="main">
   <div id="header">
     <h1>프로젝트</h1>
-    <button id="btn-new" onclick="createProject()">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
-      </svg>
-      새 프로젝트
-    </button>
+    <div class="header-actions">
+      <button id="btn-new-planning" onclick="createPlanningProject()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="9" y1="8" x2="15" y2="8"/>
+          <line x1="9" y1="12" x2="15" y2="12"/>
+          <line x1="9" y1="16" x2="12" y2="16"/>
+        </svg>
+        기획 프로젝트 만들기
+      </button>
+      <button id="btn-new" onclick="createProject()">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
+        </svg>
+        디자인 프로젝트 만들기
+      </button>
+    </div>
   </div>
   <div id="project-grid"></div>
   <div id="empty-state">
@@ -145,21 +213,55 @@ body {
 </div>
 
 <script>
+const IS_ELECTRON = !!window.electronAPI?.isElectron;
+
+/* ── 스토리지 추상화 (Electron: 파일, 브라우저: localStorage) ── */
 const PROJECTS_KEY = 'sangpe-projects';
 
-function loadProjects() {
+async function loadProjects() {
+  if (IS_ELECTRON) {
+    return await window.electronAPI.listProjects();
+  }
   try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || []; } catch { return []; }
 }
-function saveProjectsList(list) {
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+
+async function saveNewProject(proj) {
+  if (IS_ELECTRON) {
+    await window.electronAPI.saveProject(proj);
+  } else {
+    const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+    list.push(proj);
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+  }
 }
+
+async function renameProject(id, newName) {
+  if (IS_ELECTRON) {
+    const proj = await window.electronAPI.loadProject(id);
+    if (proj) { proj.name = newName; proj.updatedAt = new Date().toISOString(); await window.electronAPI.saveProject(proj); }
+  } else {
+    const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+    const proj = list.find(p => p.id === id);
+    if (proj) { proj.name = newName; localStorage.setItem(PROJECTS_KEY, JSON.stringify(list)); }
+  }
+}
+
+async function removeProject(id) {
+  if (IS_ELECTRON) {
+    await window.electronAPI.deleteProject(id);
+  } else {
+    const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list.filter(p => p.id !== id)));
+  }
+}
+
 function formatDate(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function renderGrid() {
-  const list = loadProjects();
+async function renderGrid() {
+  const list = await loadProjects();
   const grid = document.getElementById('project-grid');
   const empty = document.getElementById('empty-state');
   grid.innerHTML = '';
@@ -167,21 +269,23 @@ function renderGrid() {
   if (!list.length) { empty.style.display = 'block'; return; }
   empty.style.display = 'none';
 
-  list.slice().reverse().forEach(proj => {
+  list.forEach(proj => {
+    const isPlanning = proj.type === 'planning';
     const card = document.createElement('div');
-    card.className = 'project-card';
+    card.className = 'project-card' + (isPlanning ? ' planning-card' : '');
     card.dataset.id = proj.id;
+    // DBG-10: thumbnail 필드가 있으면 실제 이미지 표시, 없으면 기본 SVG
+    const thumbContent = proj.thumbnail
+      ? `<img src="${proj.thumbnail}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.style.display='none'">`
+      : (isPlanning
+        ? `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c48a" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>`
+        : `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#555" stroke-width="1.2"><rect x="5" y="5" width="30" height="30" rx="2"/><line x1="11" y1="15" x2="29" y2="15"/><line x1="11" y1="21" x2="29" y2="21"/><line x1="11" y1="27" x2="22" y2="27"/></svg>`);
+    const badgeHtml = isPlanning ? `<div class="planning-badge">📋 기획</div>` : '';
     card.innerHTML = `
-      <div class="card-thumb">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#555" stroke-width="1.2">
-          <rect x="5" y="5" width="30" height="30" rx="2"/>
-          <line x1="11" y1="15" x2="29" y2="15"/>
-          <line x1="11" y1="21" x2="29" y2="21"/>
-          <line x1="11" y1="27" x2="22" y2="27"/>
-        </svg>
-      </div>
+      <div class="card-thumb">${thumbContent}</div>
       <div class="card-body">
-        <div class="card-name" data-id="${proj.id}" ondblclick="startRename(event, '${proj.id}')">${proj.name}</div>
+        ${badgeHtml}
+        <div class="card-name" data-id="${proj.id}" ondblclick="startRename(event, '${proj.id}')" title="더블클릭하여 이름 변경">${proj.name || '이름 없음'}</div>
         <div class="card-date">${formatDate(proj.updatedAt)}</div>
       </div>
       <button class="card-delete" onclick="deleteProject(event, '${proj.id}')">✕</button>
@@ -189,32 +293,58 @@ function renderGrid() {
     card.addEventListener('click', (e) => {
       if (e.target.classList.contains('card-delete')) return;
       if (e.target.classList.contains('card-name-input')) return;
-      openProject(proj.id);
+      openProject(proj.id, proj.type);
     });
     grid.appendChild(card);
   });
 }
 
-function createProject() {
-  const list = loadProjects();
+async function createProject() {
   const id = 'proj_' + Date.now();
   const now = new Date().toISOString();
-  list.push({ id, name: 'Untitled', createdAt: now, updatedAt: now, snapshot: null });
-  saveProjectsList(list);
+  const emptySnap = JSON.stringify({
+    version: 2, currentPageId: 'page_1',
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 32, padY: 32 }, canvas: '' }]
+  });
+  const proj = {
+    id, name: 'Untitled',
+    createdAt: now, updatedAt: now,
+    version: 2,
+    currentPageId: 'page_1',
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 32, padY: 32 }, canvas: '' }],
+    currentBranch: 'dev',
+    branches: {
+      main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
+      dev:  { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() }
+    }
+  };
+  await saveNewProject(proj);
   openProject(id);
 }
 
-function openProject(id) {
-  window.location.href = '../index.html?project=' + id;
+async function createPlanningProject() {
+  const id = 'plan_' + Date.now();
+  const now = new Date().toISOString();
+  const proj = { id, name: '기획 Untitled', type: 'planning', createdAt: now, updatedAt: now };
+  await saveNewProject(proj);
+  window.location.href = 'planning.html?project=' + id;
 }
 
-function deleteProject(e, id) {
+function openProject(id, type) {
+  if (type === 'planning') {
+    window.location.href = 'planning.html?project=' + id;
+  } else {
+    window.location.href = '../index.html?project=' + id;
+  }
+}
+
+async function deleteProject(e, id) {
   e.stopPropagation();
-  const list = loadProjects();
+  const list = await loadProjects();
   const proj = list.find(p => p.id === id);
   if (!proj) return;
   if (!confirm(`"${proj.name}" 프로젝트를 삭제할까요?`)) return;
-  saveProjectsList(list.filter(p => p.id !== id));
+  await removeProject(id);
   renderGrid();
 }
 
@@ -228,11 +358,9 @@ function startRename(e, id) {
   nameEl.replaceWith(input);
   input.focus(); input.select();
 
-  function commit() {
+  async function commit() {
     const newName = input.value.trim() || current;
-    const list = loadProjects();
-    const proj = list.find(p => p.id === id);
-    if (proj) { proj.name = newName; saveProjectsList(list); }
+    await renameProject(id, newName);
     renderGrid();
   }
   input.addEventListener('blur', commit);
@@ -243,18 +371,17 @@ function startRename(e, id) {
 }
 
 // 샘플 프로젝트 (최초 실행 시 한 번만)
-function initSampleProject() {
-  const list = loadProjects();
-  // 샘플이 이미 있으면 덮어쓰기, 없고 비어있으면 새로 생성
-  const existing = list.find(p => p.id === 'proj_sample');
-  if (existing && existing.snapshot?.canvas?.includes('Section 03')) return;
-  if (list.length > 0 && !existing) return;
+async function initSampleProject() {
+  const list = await loadProjects();
+  // 샘플이 이미 있으면 스킵
+  if (list.find(p => p.id === 'proj_sample')) return;
+  if (list.length > 0) return;
   const id = 'proj_sample';
   const now = new Date().toISOString();
   const sampleCanvas = `
 <div class="section-block" data-section="1">
   <span class="section-label">Section 01</span>
-  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:#e06c6c;">✕</button></div>
+  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:var(--ui-danger);">✕</button></div>
   <div class="section-inner">
     <div class="gap-block" data-type="gap" style="height:100px"></div>
     <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="heading"><div class="tb-h1" contenteditable="false">Headline goes here</div></div></div></div>
@@ -265,7 +392,7 @@ function initSampleProject() {
 </div>
 <div class="section-block" data-section="2">
   <span class="section-label">Section 02</span>
-  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:#e06c6c;">✕</button></div>
+  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:var(--ui-danger);">✕</button></div>
   <div class="section-inner">
     <div class="gap-block" data-type="gap" style="height:100px"></div>
     <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="heading"><div class="tb-h2" contenteditable="false">섹션 제목을 입력하세요</div></div></div></div>
@@ -276,7 +403,7 @@ function initSampleProject() {
 </div>
 <div class="section-block" data-section="3">
   <span class="section-label">Section 03</span>
-  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:#e06c6c;">✕</button></div>
+  <div class="section-toolbar"><button class="st-btn">↑</button><button class="st-btn">↓</button><button class="st-btn" style="color:var(--ui-danger);">✕</button></div>
   <div class="section-inner">
     <div class="gap-block" data-type="gap" style="height:100px"></div>
     <div class="row" data-layout="stack"><div class="col" data-width="100"><div class="text-block" data-type="heading"><div class="tb-h2" contenteditable="false">마지막 섹션 제목</div></div></div></div>
@@ -285,14 +412,18 @@ function initSampleProject() {
     <div class="gap-block" data-type="gap" style="height:100px"></div>
   </div>
 </div>`;
-  const snapshot = {
-    version: 1,
-    pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 },
-    canvas: sampleCanvas
+  const proj = {
+    id, name: '샘플 프로젝트',
+    createdAt: now, updatedAt: now,
+    version: 2,
+    currentPageId: 'page_1',
+    pages: [{
+      id: 'page_1', name: 'Page 1', label: '',
+      pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 },
+      canvas: sampleCanvas
+    }]
   };
-  const updated = list.filter(p => p.id !== 'proj_sample');
-  updated.unshift({ id, name: '샘플 프로젝트', createdAt: now, updatedAt: now, snapshot });
-  saveProjectsList(updated);
+  await saveNewProject(proj);
 }
 
 // Electron fullscreen 감지
@@ -306,8 +437,43 @@ if (window.electronAPI?.isElectron) {
   });
 }
 
-initSampleProject();
-renderGrid();
+initSampleProject().then(() => renderGrid());
+
+// 홈 탭바 초기 렌더
+renderHomeTabs();
+
+function removeHomeTab(id) {
+  try {
+    const saved = JSON.parse(localStorage.getItem('web-editor-open-tabs'));
+    if (!saved) return;
+    saved.tabs = saved.tabs.filter(t => t.id !== id);
+    if (saved.activeId === id) saved.activeId = saved.tabs[0]?.id || null;
+    localStorage.setItem('web-editor-open-tabs', JSON.stringify(saved));
+    renderHomeTabs();
+  } catch {}
+}
+
+function renderHomeTabs() {
+  const bar = document.getElementById('home-tab-bar');
+  if (!bar) return;
+  try {
+    const saved = JSON.parse(localStorage.getItem('web-editor-open-tabs'));
+    if (!saved?.tabs?.length) { bar.innerHTML = ''; return; }
+    bar.innerHTML = saved.tabs.map(tab => `
+      <div class="home-proj-tab" onclick="location.href='../index.html?project=${tab.id}'" title="${tab.name}">
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6" style="flex-shrink:0">
+          <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+          <line x1="3.5" y1="4" x2="8.5" y2="4"/><line x1="3.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="3.5" y1="9" x2="6.5" y2="9"/>
+        </svg>
+        <span class="home-proj-tab-name">${tab.name}</span>
+        <button class="home-proj-tab-close" onclick="event.stopPropagation();removeHomeTab('${tab.id}')" title="닫기">
+          <svg width="7" height="7" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5">
+            <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+          </svg>
+        </button>
+      </div>`).join('');
+  } catch {}
+}
 </script>
 </body>
 </html>

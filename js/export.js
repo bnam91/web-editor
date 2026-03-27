@@ -1,3 +1,7 @@
+import { canvasEl, state } from './globals.js';
+
+const CANVAS_W = 860;
+
 /* ══════════════════════════════════════
    내보내기 (Export)
 ══════════════════════════════════════ */
@@ -16,7 +20,7 @@ async function exportSection(sec, format) {
   document.body.appendChild(clone);
 
   const secBg   = sec.style.background || sec.style.backgroundColor || '';
-  const bgColor = (secBg && secBg !== 'transparent') ? secBg : (pageSettings.bg || '#ffffff');
+  const bgColor = (secBg && secBg !== 'transparent') ? secBg : (state.pageSettings.bg || '#ffffff');
 
   try {
     const canvas = await html2canvas(clone, {
@@ -119,7 +123,7 @@ function exportDesignJSON() {
         id:      uid('txt'),
         type:    'text',
         variant,
-        content: inner ? inner.textContent.trim() : '',
+        content: inner ? getTextWithLineBreaks(inner) : '',
         style:   extractTextStyle(inner),
         padding: {
           top:    parseFloat(el.style.paddingTop)    || 0,
@@ -169,7 +173,7 @@ function exportDesignJSON() {
 
   function serializeSection(secEl, idx) {
     const rawBg = secEl.style.background || secEl.style.backgroundColor || '';
-    const bg    = rgbToHex(rawBg) || pageSettings.bg || '#ffffff';
+    const bg    = rgbToHex(rawBg) || state.pageSettings.bg || '#ffffff';
     const inner = secEl.querySelector('.section-inner');
     const blocks = [];
 
@@ -213,11 +217,11 @@ function exportDesignJSON() {
       exportedAt:  new Date().toISOString().split('T')[0],
       canvasWidth: CANVAS_W,
       theme: {
-        background:  pageSettings.bg  || '#ffffff',
+        background:  state.pageSettings.bg  || '#ffffff',
         fontFamily:  'Noto Sans KR',
-        sectionGap:  pageSettings.gap  ?? 0,
-        paddingX:    pageSettings.padX ?? 0,
-        paddingY:    pageSettings.padY ?? 0,
+        sectionGap:  state.pageSettings.gap  ?? 0,
+        paddingX:    state.pageSettings.padX ?? 0,
+        paddingY:    state.pageSettings.padY ?? 0,
       },
     },
     sections,
@@ -236,7 +240,7 @@ function exportDesignJSON() {
 ══════════════════════════════════════ */
 function exportFigmaJSON() {
   // 현재 페이지를 pages 배열에 반영
-  flushCurrentPage();
+  window.flushCurrentPage();
 
   const parser = new DOMParser();
 
@@ -370,7 +374,7 @@ function exportFigmaJSON() {
     };
   }
 
-  const exportPages = pages.map(p => parsePage(p));
+  const exportPages = state.pages.map(p => parsePage(p));
 
   const output = {
     source:  'sangpe-wizard',
@@ -398,7 +402,7 @@ function exportHTMLFile() {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&family=Noto+Serif+KR:wght@400;600;700&family=Inter:wght@400;600;700&family=Playfair+Display:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">`;
 
-  const bg = pageSettings.bg || '#ffffff';
+  const bg = state.pageSettings.bg || '#ffffff';
   const css = `
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
@@ -481,8 +485,8 @@ const layerPanelBody = document.getElementById('layer-panel-body');
 layerPanelBody.addEventListener('dragover', e => {
   if (!layerSectionDragSrc) return;
   e.preventDefault();
-  clearLayerSectionIndicators();
-  const after = getLayerSectionDragAfterEl(layerPanelBody, e.clientY);
+  window.clearLayerSectionIndicators();
+  const after = window.getLayerSectionDragAfterEl(layerPanelBody, e.clientY);
   const indicator = document.createElement('div');
   indicator.className = 'layer-section-drop-indicator';
   if (after) layerPanelBody.insertBefore(indicator, after);
@@ -490,7 +494,7 @@ layerPanelBody.addEventListener('dragover', e => {
 });
 layerPanelBody.addEventListener('dragleave', e => {
   if (!layerSectionDragSrc) return;
-  if (!layerPanelBody.contains(e.relatedTarget)) clearLayerSectionIndicators();
+  if (!layerPanelBody.contains(e.relatedTarget)) window.clearLayerSectionIndicators();
 });
 layerPanelBody.addEventListener('drop', e => {
   if (!layerSectionDragSrc) return;
@@ -505,23 +509,91 @@ layerPanelBody.addEventListener('drop', e => {
       canvasEl.appendChild(sec);
     }
   }
-  clearLayerSectionIndicators();
-  buildLayerPanel();
+  window.clearLayerSectionIndicators();
+  window.buildLayerPanel();
   layerSectionDragSrc = null;
 });
 
 /* ── Figma 업로드 ── */
-function openFigmaUploadModal() {
+
+/**
+ * 모달 열기 — 섹션 목록 체크박스 렌더링 + node_map 로드
+ */
+async function openFigmaUploadModal() {
   closePublishDropdown();
   document.getElementById('figma-upload-modal').style.display = 'flex';
   const input = document.getElementById('figma-channel-input');
-  input.value = localStorage.getItem('figma-last-channel') || '';
+  input.value = localStorage.getItem('figma-last-channel') || 'hyfppeyj';
+
+  // 섹션 목록 빌드
+  await _buildFigmaSectionList();
   input.focus();
+}
+
+/**
+ * 모든 페이지의 섹션 목록을 구해서 체크박스 리스트 렌더링
+ * node_map 로드 후 이미 업로드된 섹션엔 "업데이트" 배지 표시
+ */
+async function _buildFigmaSectionList() {
+  window.flushCurrentPage();
+
+  const nodeMap = (window.electronAPI?.readNodeMap)
+    ? (await window.electronAPI.readNodeMap() || {})
+    : {};
+
+  const listEl = document.getElementById('figma-section-list');
+  listEl.innerHTML = '';
+
+  const parser = new DOMParser();
+  state.pages.forEach((pg, pgIdx) => {
+    const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
+    doc.querySelectorAll('#c > .section-block').forEach((sec, secIdx) => {
+      const id   = sec.id || '';
+      const name = sec.dataset.name
+        || sec.querySelector('.section-label')?.textContent?.trim()
+        || `Section ${secIdx + 1}`;
+      const isSynced = !!nodeMap[id]?.figmaId;
+      const pageLabel = state.pages.length > 1 ? ` <span style="color:#555;">[${pg.name || `P${pgIdx + 1}`}]</span>` : '';
+
+      const row = document.createElement('label');
+      row.className = 'figma-sec-row';
+      row.innerHTML = `
+        <input type="checkbox" class="figma-sec-cb" data-sec-id="${id}" checked
+          style="accent-color:#2563eb; cursor:pointer; flex-shrink:0;" />
+        <span style="font-size:11px; color:#ccc; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+          title="${name}">${name}${pageLabel}</span>
+        <span class="figma-sec-badge ${isSynced ? 'synced' : 'new'}">${isSynced ? '✓ 업데이트' : '새 업로드'}</span>
+      `;
+      listEl.appendChild(row);
+    });
+  });
+
+  // 전체 선택 체크박스 상태 동기화
+  document.getElementById('figma-select-all').checked = true;
+
+  // 개별 체크박스 변경 시 전체 선택 상태 업데이트
+  listEl.querySelectorAll('.figma-sec-cb').forEach(cb => {
+    cb.addEventListener('change', _syncFigmaSelectAll);
+  });
+}
+
+function _syncFigmaSelectAll() {
+  const all  = [...document.querySelectorAll('.figma-sec-cb')];
+  const checked = all.filter(c => c.checked);
+  const selectAll = document.getElementById('figma-select-all');
+  selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+  selectAll.checked = checked.length === all.length;
+}
+
+function toggleFigmaSelectAll(checked) {
+  document.querySelectorAll('.figma-sec-cb').forEach(cb => { cb.checked = checked; });
+  const selectAll = document.getElementById('figma-select-all');
+  selectAll.indeterminate = false;
+  selectAll.checked = checked;
 }
 
 function closeFigmaUploadModal() {
   document.getElementById('figma-upload-modal').style.display = 'none';
-  // 상태 초기화
   document.getElementById('figma-upload-log').style.display     = 'none';
   document.getElementById('figma-upload-spinner').style.display = 'none';
   const btn       = document.getElementById('figma-upload-btn');
@@ -534,9 +606,16 @@ function closeFigmaUploadModal() {
 }
 
 async function doFigmaUpload() {
-  const channel = document.getElementById('figma-channel-input').value.trim();
-  if (!channel) { alert('채널 ID를 입력해주세요.'); return; }
+  const raw = document.getElementById('figma-channel-input').value.trim();
+  if (!raw) { alert('채널 ID를 입력해주세요.'); return; }
+  // "Connect to Figma, channel abc123" 형태도 허용 — 마지막 단어만 추출
+  const channelMatch = raw.match(/channel\s+(\S+)/i);
+  const channel = channelMatch ? channelMatch[1] : raw;
   localStorage.setItem('figma-last-channel', channel);
+
+  // 선택된 섹션 ID 수집
+  const selectedIds = [...document.querySelectorAll('.figma-sec-cb:checked')].map(cb => cb.dataset.secId);
+  if (selectedIds.length === 0) { alert('업로드할 섹션을 선택해주세요.'); return; }
 
   const logEl     = document.getElementById('figma-upload-log');
   const spinnerEl = document.getElementById('figma-upload-spinner');
@@ -545,33 +624,107 @@ async function doFigmaUpload() {
 
   logEl.style.display     = 'none';
   spinnerEl.style.display = 'flex';
-  btn.disabled = true;
-  cancelBtn.disabled = true;
+  btn.disabled    = true;
+  cancelBtn.disabled = false;
+  cancelBtn.textContent = '취소';
+  cancelBtn.onclick = async () => {
+    await window.electronAPI?.figmaCancelUpload?.();
+    showDone(false, '⛔ 업로드가 취소됐습니다.');
+  };
 
-  flushCurrentPage();
-  const designJSON = buildFigmaExportJSON();
+  // node_map 로드 → 선택 섹션에 figmaId / figmaY 주입
+  const nodeMap = (window.electronAPI?.readNodeMap)
+    ? (await window.electronAPI.readNodeMap() || {})
+    : {};
+
+  window.flushCurrentPage();
+  const designJSON = buildFigmaExportJSON(selectedIds, nodeMap);
 
   function showDone(success, text) {
     spinnerEl.style.display = 'none';
     logEl.style.display     = 'block';
     logEl.textContent = text;
     logEl.style.color = success ? '#4ade80' : '#f87171';
-    // 버튼 → 닫기 하나만
     btn.style.display    = 'none';
     cancelBtn.disabled   = false;
     cancelBtn.textContent = '닫기';
     cancelBtn.style.color = '#e0e0e0';
+    cancelBtn.onclick = () => window.closeFigmaUploadModal();
+
+    // 실패 시 재시도 버튼 표시
+    let retryBtn = document.getElementById('figma-retry-btn');
+    if (!success) {
+      if (!retryBtn) {
+        retryBtn = document.createElement('button');
+        retryBtn.id = 'figma-retry-btn';
+        retryBtn.className = 'figma-upload-btn-primary';
+        retryBtn.style.cssText = 'margin-top:8px;width:100%;background:#2563eb;border:none;border-radius:6px;color:#fff;padding:6px 14px;font-size:11px;cursor:pointer;font-weight:600;';
+        cancelBtn.parentElement.insertBefore(retryBtn, cancelBtn);
+      }
+      retryBtn.textContent = '↺ 재시도';
+      retryBtn.style.display = '';
+      retryBtn.onclick = () => {
+        retryBtn.style.display = 'none';
+        logEl.style.display = 'none';
+        btn.style.display = '';
+        doFigmaUpload();
+      };
+    } else if (retryBtn) {
+      retryBtn.style.display = 'none';
+    }
+  }
+
+  if (!window.electronAPI?.figmaUpload) {
+    showDone(false, '❌ Figma 업로드는 데스크탑 앱에서만 사용할 수 있습니다.');
+    return;
   }
 
   try {
     const result = await window.electronAPI.figmaUpload(channel, designJSON);
+
+    // SECTION_MAP 라인 파싱 → node_map 갱신
+    if (result.success && result.logs) {
+      const updatedMap = { ...nodeMap };
+      for (const line of result.logs.split('\n')) {
+        if (!line.startsWith('SECTION_MAP:')) continue;
+        try {
+          const entry = JSON.parse(line.slice('SECTION_MAP:'.length));
+          if (entry.id) {
+            updatedMap[entry.id] = { figmaId: entry.figmaId, y: entry.y, height: entry.height, name: entry.name, updatedAt: new Date().toISOString().split('T')[0] };
+          }
+        } catch {}
+      }
+      if (window.electronAPI?.writeNodeMap) {
+        await window.electronAPI.writeNodeMap(updatedMap);
+      }
+    }
+
     showDone(result.success, result.logs || (result.success ? '✅ 완료!' : '❌ 실패'));
   } catch (e) {
     showDone(false, '❌ 오류: ' + e.message);
   }
 }
 
-function buildFigmaExportJSON() {
+/**
+ * @param {string[]|null} selectedIds  업로드할 섹션 DOM ID 배열. null 이면 전체
+ * @param {Object}        nodeMap      섹션ID → { figmaId, y } 매핑 (업데이트 모드용)
+ */
+// contenteditable 줄바꿈 보존 — DOM 트리 직접 순회
+// <br> → \n, 블록요소(<div>/<p>)는 이전 형제가 있을 때만 앞에 \n 삽입
+function getTextWithLineBreaks(el) {
+  if (!el) return '';
+  function extract(node) {
+    if (node.nodeType === 3) return node.textContent;   // 텍스트 노드
+    if (node.nodeName === 'BR') return '\n';
+    const isBlock = node.nodeName === 'DIV' || node.nodeName === 'P';
+    const inner = Array.from(node.childNodes).map(extract).join('');
+    if (isBlock && node.previousSibling) return '\n' + inner;
+    return inner;
+  }
+  return extract(el).trim();
+}
+
+function buildFigmaExportJSON(selectedIds, nodeMap) {
   // sangpe_to_figma.mjs 가 기대하는 포맷으로 빌드
   // sections[].blocks[] — gap / text / image / { columns:[{width,blocks}] }
 
@@ -579,6 +732,7 @@ function buildFigmaExportJSON() {
   const TEXT_DEFAULTS = {
     'tb-h1':      { fontSize: 104, fontWeight: 700, color: '#111111', lineHeight: 1.1,  letterSpacing: -2.08 },
     'tb-h2':      { fontSize: 72,  fontWeight: 600, color: '#111111', lineHeight: 1.15, letterSpacing: 0 },
+    'tb-h3':      { fontSize: 52,  fontWeight: 600, color: '#111111', lineHeight: 1.2,  letterSpacing: 0 },
     'tb-body':    { fontSize: 36,  fontWeight: 400, color: '#111111', lineHeight: 1.6,  letterSpacing: 0 },
     'tb-caption': { fontSize: 26,  fontWeight: 400, color: '#111111', lineHeight: 1.6,  letterSpacing: 0.26 },
     'tb-label':   { fontSize: 26,  fontWeight: 700, color: '#111111', lineHeight: 1.4,  letterSpacing: 1.56 },
@@ -625,11 +779,12 @@ function buildFigmaExportJSON() {
       return { type: 'gap', height: parseFloat(el.style.height) || 50 };
     }
     if (el.classList.contains('text-block')) {
-      const inner = el.querySelector('.tb-h1,.tb-h2,.tb-body,.tb-caption,.tb-label');
+      const inner = el.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
       if (!inner) return null;
       const padX = ps?.padX || 0;
       const variant = inner.classList.contains('tb-h1') ? 'heading'
         : inner.classList.contains('tb-h2') ? 'subheading'
+        : inner.classList.contains('tb-h3') ? 'subheading3'
         : inner.classList.contains('tb-body') ? 'body'
         : inner.classList.contains('tb-caption') ? 'caption' : 'label';
       const style = _getTextStyle(inner, el);
@@ -643,7 +798,8 @@ function buildFigmaExportJSON() {
         type: 'text',
         variant,
         id: el.id || ('tb_' + Math.random().toString(36).slice(2,8)),
-        content: inner.textContent.trim(),
+        content: getTextWithLineBreaks(inner),
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),  // 라이브 DOM 실측 높이
         style: {
           fontSize:      style.fontSize,
           fontWeight:    style.fontWeight,
@@ -663,9 +819,11 @@ function buildFigmaExportJSON() {
 
       // label: 배경 박스 정보 추가
       if (variant === 'label') {
+        // 개별 라벨의 inline borderRadius 우선, 없으면 프리셋 fallback
+        const inlineRadius = parseFloat(inner.style.borderRadius);
         block.labelBox = {
           bg:       ps?.labelBg     || '#111111',
-          radius:   ps?.labelRadius || 8,
+          radius:   !isNaN(inlineRadius) ? inlineRadius : (ps?.labelRadius || 8),
           paddingH: 36,
           paddingV: 11,
         };
@@ -673,12 +831,76 @@ function buildFigmaExportJSON() {
 
       return block;
     }
+    if (el.classList.contains('label-group-block')) {
+      const items = [];
+      el.querySelectorAll('.label-item').forEach(item => {
+        const span = item.querySelector('.label-item-text');
+        items.push({
+          text:   span?.textContent.trim() || 'Label',
+          bg:     item.dataset.bg    || '#111111',
+          color:  item.dataset.color || '#ffffff',
+          radius: parseInt(item.dataset.radius) || 40,
+        });
+      });
+      const gap   = parseInt(el.style.gap) || 10;
+      const jc    = el.style.justifyContent || 'flex-start';
+      const align = jc === 'center' ? 'center' : jc === 'flex-end' ? 'right' : 'left';
+      const rowGap = parseInt(el.style.rowGap) || gap;
+      return {
+        type:   'label-group',
+        id:     el.id || ('lg_' + Math.random().toString(36).slice(2, 8)),
+        items,
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),
+        style:  { gap, rowGap, align, paddingX: parseInt(el.style.paddingLeft) || 20 },
+      };
+    }
     if (el.classList.contains('asset-block')) {
+      const sizePct   = parseInt(el.dataset.size) || 100;
+      const usePadx   = el.dataset.usePadx === 'true';
+      const padX      = usePadx ? (ps?.padX || 0) : 0;
+      const overlayOn = el.dataset.overlay === 'true';
+      const ovEl      = el.querySelector('.asset-overlay');
+      const overlayText    = overlayOn ? (ovEl?.innerText || '') : '';
+      const overlayColor   = overlayOn ? (ovEl?.style.color || '#ffffff') : '';
+      const overlayBg      = overlayOn ? parseFloat(ovEl?.dataset.ovOpacity ?? '0.35') : 0;
       return {
         type: 'image',
         id: el.id || ('ab_' + Math.random().toString(36).slice(2, 8)),
         height: parseFloat(el.style.height) || 780,
+        sizePct,
+        padX,
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
+        src: el.dataset.imgSrc || null,
+        overlayOn,
+        overlayText,
+        overlayColor,
+        overlayBg,
+      };
+    }
+    if (el.classList.contains('icon-circle-block')) {
+      const size    = parseInt(el.dataset.size) || 240;
+      const bgColor = el.dataset.bgColor || '#e8e8e8';
+      const imgSrc  = el.dataset.imgSrc  || null;
+      return {
+        type:    'circle',
+        id:      el.id || ('icb_' + Math.random().toString(36).slice(2, 8)),
+        size,
+        bgColor,
+        src:     imgSrc,
+      };
+    }
+    if (el.classList.contains('table-block')) {
+      const table    = el.querySelector('.tb-table');
+      const rowCount = (table?.querySelectorAll('tbody tr').length || 2) + 1; // +1 for header
+      const fontSize = parseInt(table?.style.fontSize) || 28;
+      const cellPad  = parseInt(el.dataset.cellPad) || 10;
+      const approxH  = rowCount * (fontSize + cellPad * 2 + 4) + 24;
+      return {
+        type:    'table',
+        id:      el.id || ('tbl_' + Math.random().toString(36).slice(2, 8)),
+        height:  approxH,
+        colCount: table?.querySelector('tr')?.querySelectorAll('th,td').length || 2,
+        rowCount,
       };
     }
     return null;
@@ -689,7 +911,7 @@ function buildFigmaExportJSON() {
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block').forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });
@@ -726,21 +948,37 @@ function buildFigmaExportJSON() {
     const name = secEl.dataset.name
       || secEl.querySelector('.section-label')?.textContent?.trim()
       || 'Section';
-    return { name, background: bg || '#ffffff', blocks };
+    // 섹션 DOM id (sec_xxx) 포함
+    return { id: secEl.id || '', name, background: bg || '#ffffff', blocks };
   }
 
   const parser = new DOMParser();
   const allSections = [];
-  pages.forEach(pg => {
+  const nm = nodeMap || {};
+
+  state.pages.forEach(pg => {
     const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
-    const ps  = pg.pageSettings || pageSettings;
+    const ps  = pg.pageSettings || state.pageSettings;
     doc.querySelectorAll('#c > .section-block').forEach(sec => {
+      const secId = sec.id || '';
+      // selectedIds 필터링 (null 이면 전체 포함)
+      if (selectedIds && !selectedIds.includes(secId)) return;
+
       const s = _section(sec, ps);
-      if (s) allSections.push(s);
+      if (!s) return;
+
+      // node_map 에 등록된 섹션이면 figmaId / figmaY 주입 (업데이트 모드)
+      const mapped = nm[secId];
+      if (mapped?.figmaId) {
+        s.figmaId = mapped.figmaId;
+        if (mapped.y !== undefined) s.figmaY = mapped.y;
+      }
+
+      allSections.push(s);
     });
   });
 
-  const ps = pageSettings;
+  const ps = state.pageSettings;
   return {
     version: 'sangpe-design-v1',
     meta: {
@@ -752,3 +990,40 @@ function buildFigmaExportJSON() {
     sections: allSections,
   };
 }
+
+export {
+  exportSection,
+  exportAllSections,
+  exportDesignJSON,
+  exportFigmaJSON,
+  exportHTMLFile,
+  togglePublishDropdown,
+  closePublishDropdown,
+  doPublish,
+  openFigmaUploadModal,
+  _buildFigmaSectionList,
+  _syncFigmaSelectAll,
+  toggleFigmaSelectAll,
+  closeFigmaUploadModal,
+  doFigmaUpload,
+  getTextWithLineBreaks,
+  buildFigmaExportJSON,
+};
+
+// Backward compat
+window.exportSection = exportSection;
+window.exportAllSections = exportAllSections;
+window.exportDesignJSON = exportDesignJSON;
+window.exportFigmaJSON = exportFigmaJSON;
+window.exportHTMLFile = exportHTMLFile;
+window.togglePublishDropdown = togglePublishDropdown;
+window.closePublishDropdown = closePublishDropdown;
+window.doPublish = doPublish;
+window.openFigmaUploadModal = openFigmaUploadModal;
+window._buildFigmaSectionList = _buildFigmaSectionList;
+window._syncFigmaSelectAll = _syncFigmaSelectAll;
+window.toggleFigmaSelectAll = toggleFigmaSelectAll;
+window.closeFigmaUploadModal = closeFigmaUploadModal;
+window.doFigmaUpload = doFigmaUpload;
+window.getTextWithLineBreaks = getTextWithLineBreaks;
+window.buildFigmaExportJSON = buildFigmaExportJSON;

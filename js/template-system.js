@@ -1,44 +1,113 @@
 /* ═══════════════════════════════════
    TEMPLATE SYSTEM
 ═══════════════════════════════════ */
-const TEMPLATE_KEY = 'sangpe-templates';
+import { canvasEl } from './globals.js';
+
+const TEMPLATE_KEY = 'sangpe-templates'; // localStorage fallback key
+
+let _templatesCache = null;  // 메타데이터 전용 (canvas 없음)
+let _lsFullCache    = [];    // 비-Electron 전용: canvas 포함 전체 데이터
+
+// 앱 시작 시 1회 호출
+async function initTemplates() {
+  if (window.electronAPI?.loadTemplateIndex) {
+    _templatesCache = await window.electronAPI.loadTemplateIndex();
+    // localStorage 기존 데이터 → 파일로 마이그레이션
+    const lsRaw = localStorage.getItem(TEMPLATE_KEY);
+    if (lsRaw && _templatesCache.length === 0) {
+      try {
+        const old = JSON.parse(lsRaw) || [];
+        const index = [];
+        for (const tpl of old) {
+          const { canvas, ...meta } = tpl;
+          if (canvas) {
+            try {
+              await window.electronAPI.saveTemplateCanvas(tpl.id, canvas);
+              index.push(meta); // canvas 저장 성공한 항목만 index에 추가
+            } catch {
+              // canvas 저장 실패 시 해당 템플릿은 index에서 제외
+            }
+          } else {
+            index.push(meta); // canvas 없는 메타 전용 항목은 그대로 추가
+          }
+        }
+        _templatesCache = index;
+        await window.electronAPI.saveTemplateIndex(index);
+        localStorage.removeItem(TEMPLATE_KEY);
+      } catch {}
+    }
+  } else {
+    // 비-Electron fallback — localStorage에서 canvas 포함 전체 로드
+    try { _lsFullCache = JSON.parse(localStorage.getItem(TEMPLATE_KEY)) || []; } catch {}
+    _templatesCache = _lsFullCache.map(({ canvas, ...meta }) => meta);
+  }
+}
 
 function loadTemplates() {
-  try { return JSON.parse(localStorage.getItem(TEMPLATE_KEY)) || []; } catch { return []; }
+  return _templatesCache || [];
 }
 
 function saveTemplates(arr) {
-  localStorage.setItem(TEMPLATE_KEY, JSON.stringify(arr));
+  _templatesCache = arr;
+  if (window.electronAPI?.saveTemplateIndex) {
+    window.electronAPI.saveTemplateIndex(arr);
+  } else {
+    // localStorage: 메타 업데이트하되 canvas 데이터 유지
+    _lsFullCache = arr.map(meta => {
+      const existing = _lsFullCache.find(t => t.id === meta.id);
+      return existing ? { ...meta, canvas: existing.canvas } : meta;
+    });
+    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(_lsFullCache));
+  }
 }
 
-function saveAsTemplate(sec, name, category) {
+// canvas HTML 로드 (파일 or localStorage fallback)
+async function _loadCanvas(id) {
+  if (window.electronAPI?.loadTemplateCanvas) {
+    return await window.electronAPI.loadTemplateCanvas(id);
+  }
+  const full = _lsFullCache.find(t => t.id === id);
+  return full ? full.canvas : null;
+}
+
+async function saveAsTemplate(sec, name, folder, category, tags) {
   const clone = sec.cloneNode(true);
   clone.classList.remove('selected');
   clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
   clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
   clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
+
+  const id  = 'tpl_' + Date.now();
+  const html = clone.outerHTML;
+  const tagsArr = Array.isArray(tags) ? tags : [];
+
+  if (window.electronAPI?.saveTemplateCanvas) {
+    await window.electronAPI.saveTemplateCanvas(id, html);
+  } else {
+    _lsFullCache.unshift({ id, name, folder: folder || '기타', category, tags: tagsArr, createdAt: new Date().toISOString(), thumbnail: null, canvas: html });
+  }
+
   const templates = loadTemplates();
-  templates.unshift({
-    id: 'tpl_' + Date.now(),
-    name,
-    category,
-    createdAt: new Date().toISOString(),
-    thumbnail: null,
-    canvas: clone.outerHTML
-  });
+  templates.unshift({ id, name, folder: folder || '기타', category, tags: tagsArr, createdAt: new Date().toISOString(), thumbnail: null });
   saveTemplates(templates);
   renderTemplatePanel();
 }
 
-function deleteTemplate(id) {
-  const templates = loadTemplates().filter(t => t.id !== id);
-  saveTemplates(templates);
+async function deleteTemplate(id) {
+  if (window.electronAPI?.deleteTemplateCanvas) {
+    await window.electronAPI.deleteTemplateCanvas(id);
+  } else {
+    _lsFullCache = _lsFullCache.filter(t => t.id !== id);
+  }
+  saveTemplates(loadTemplates().filter(t => t.id !== id));
   renderTemplatePanel();
 }
 
-function insertTemplate(tpl) {
+async function insertTemplate(tpl) {
+  const canvas = await _loadCanvas(tpl.id);
+  if (!canvas) return;
   const tmp = document.createElement('div');
-  tmp.innerHTML = tpl.canvas;
+  tmp.innerHTML = canvas;
   const sec = tmp.firstElementChild;
   if (!sec || !sec.classList.contains('section-block')) return;
 
@@ -47,7 +116,15 @@ function insertTemplate(tpl) {
   const newIdx  = secList.length + 1;
   sec.dataset.section = newIdx;
   const labelEl = sec.querySelector('.section-label');
-  if (labelEl) labelEl.textContent = `Section ${String(newIdx).padStart(2,'0')}`;
+  if (labelEl) {
+    labelEl.textContent = `Section ${String(newIdx).padStart(2,'0')}`;
+    if (!labelEl.closest('.section-hitzone')) {
+      const hz = document.createElement('div');
+      hz.className = 'section-hitzone';
+      labelEl.parentElement.insertBefore(hz, labelEl);
+      hz.appendChild(labelEl);
+    }
+  }
 
   // 선택 상태 초기화
   sec.classList.remove('selected');
@@ -64,6 +141,7 @@ function insertTemplate(tpl) {
   sec.addEventListener('click', e => { e.stopPropagation(); selectSection(sec); });
   bindSectionDelete(sec);
   bindSectionOrder(sec);
+  if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
   bindSectionDropZone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block').forEach(b => bindBlock(b));
@@ -93,6 +171,8 @@ function escHtml(str) {
 }
 
 const TPL_FOLDER_KEY = 'tpl-folder-state';
+let _activeFolderFilter = '전체';
+let _activeSearchQuery  = '';
 
 function loadFolderState() {
   try { return JSON.parse(localStorage.getItem(TPL_FOLDER_KEY)) || {}; } catch { return {}; }
@@ -101,42 +181,68 @@ function saveFolderState(state) {
   localStorage.setItem(TPL_FOLDER_KEY, JSON.stringify(state));
 }
 
-function showTemplatePreview(id) {
+async function showTemplatePreview(id) {
   const tpl = loadTemplates().find(t => t.id === id);
   if (!tpl) return;
+  const canvas = await _loadCanvas(id);
+  if (!canvas) return;
 
   // 기존 미리보기 제거
-  document.querySelectorAll('.tpl-preview-overlay').forEach(el => el.remove());
+  document.querySelectorAll('.tpl-preview-backdrop').forEach(el => el.remove());
 
-  const overlay = document.createElement('div');
-  overlay.className = 'tpl-preview-overlay';
-  overlay.innerHTML = `
-    <div class="tpl-preview-header">
-      <span class="tpl-preview-title">${escHtml(tpl.name)}</span>
-      <span class="tpl-preview-cat">${escHtml(tpl.category || '')}</span>
-      <button class="tpl-preview-close" title="닫기">
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
-          <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
-        </svg>
-      </button>
-    </div>
-    <div class="tpl-preview-canvas">${tpl.canvas}</div>
-    <div class="tpl-preview-footer">
-      <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">+ 섹션 추가</button>
+  const backdrop = document.createElement('div');
+  backdrop.className = 'tpl-preview-backdrop';
+  backdrop.innerHTML = `
+    <div class="tpl-preview-modal" role="dialog">
+      <div class="tpl-preview-header">
+        <div class="tpl-preview-header-info">
+          <span class="tpl-preview-title">${escHtml(tpl.name)}</span>
+          <span class="tpl-preview-cat">${escHtml(tpl.category || '')}</span>
+          ${tpl.folder ? `<span class="tpl-preview-folder">${escHtml(tpl.folder)}</span>` : ''}
+        </div>
+        <button class="tpl-preview-close" title="닫기">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8">
+            <line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/>
+          </svg>
+        </button>
+      </div>
+      <div class="tpl-preview-canvas">${canvas}</div>
+      <div class="tpl-preview-footer">
+        <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">+ 섹션 추가</button>
+      </div>
     </div>`;
 
-  const body = document.getElementById('template-panel-body');
-  body.appendChild(overlay);
+  document.body.appendChild(backdrop);
 
-  overlay.querySelector('.tpl-preview-close').addEventListener('click', e => {
-    e.stopPropagation();
-    overlay.remove();
+  // Scale section to fit preview viewport
+  const previewCanvas = backdrop.querySelector('.tpl-preview-canvas');
+  const section = previewCanvas.querySelector('.section-block');
+  if (section) {
+    const CANVAS_WIDTH = 860;
+    section.style.width = CANVAS_WIDTH + 'px';
+    const sectionH = section.scrollHeight;
+    const viewportW = previewCanvas.clientWidth;
+    const viewportH = previewCanvas.clientHeight;
+    const scaleX = viewportW / CANVAS_WIDTH;
+    const scaleY = viewportH / sectionH;
+    const scale = Math.min(scaleX, scaleY);
+    section.style.transform = `scale(${scale})`;
+    section.style.transformOrigin = 'top left';
+  }
+
+  backdrop.addEventListener('click', e => {
+    if (e.target === backdrop) backdrop.remove();
   });
 
-  overlay.querySelector('.tpl-preview-insert-btn').addEventListener('click', e => {
+  backdrop.querySelector('.tpl-preview-close').addEventListener('click', e => {
+    e.stopPropagation();
+    backdrop.remove();
+  });
+
+  backdrop.querySelector('.tpl-preview-insert-btn').addEventListener('click', async e => {
     e.stopPropagation();
     const t = loadTemplates().find(x => x.id === e.currentTarget.dataset.tplId);
-    if (t) { insertTemplate(t); overlay.remove(); }
+    if (t) { backdrop.remove(); await insertTemplate(t); }
   });
 }
 
@@ -152,11 +258,26 @@ function startEditTemplate(id) {
   if (!card) return;
   card.classList.add('editing-mode');
 
+  const allTemplates = loadTemplates();
+  const existingFolders = [...new Set(allTemplates.map(t => t.folder || '기타'))];
+  const currentFolder = tpl.folder || '기타';
+  const folderOptions = existingFolders.map(f =>
+    `<option value="${escHtml(f)}" ${f === currentFolder ? 'selected' : ''}>${escHtml(f)}</option>`
+  ).join('');
+  const catOptions = ['Hero','Main','Feature','Detail','CTA','Event','기타'].map(c =>
+    `<option value="${escHtml(c)}" ${c === (tpl.category || '기타') ? 'selected' : ''}>${escHtml(c)}</option>`
+  ).join('');
+
+  const currentTags = (tpl.tags || []).join(', ');
+
   const form = document.createElement('div');
   form.className = 'tpl-edit-form';
   form.innerHTML = `
     <input class="tpl-edit-name" type="text" value="${escHtml(tpl.name)}" placeholder="템플릿 이름" />
-    <input class="tpl-edit-cat" type="text" value="${escHtml(tpl.category || '')}" placeholder="카테고리" />
+    <select class="tpl-edit-folder">${folderOptions}<option value="__new__">새 폴더...</option></select>
+    <input class="tpl-edit-folder-new" type="text" placeholder="새 폴더 이름" style="display:none;" />
+    <select class="tpl-edit-cat">${catOptions}</select>
+    <input class="tpl-edit-tags" type="text" value="${escHtml(currentTags)}" placeholder="태그 (쉼표 구분)" />
     <div class="tpl-edit-actions">
       <button class="tpl-edit-save">저장</button>
       <button class="tpl-edit-cancel">취소</button>
@@ -165,26 +286,39 @@ function startEditTemplate(id) {
 
   card.insertAdjacentElement('afterend', form);
 
+  const folderSel = form.querySelector('.tpl-edit-folder');
+  const folderNewInput = form.querySelector('.tpl-edit-folder-new');
+  folderSel.addEventListener('change', () => {
+    folderNewInput.style.display = folderSel.value === '__new__' ? 'block' : 'none';
+  });
+
   form.querySelector('.tpl-edit-cancel').addEventListener('click', () => {
     form.remove(); card.classList.remove('editing-mode');
   });
 
   form.querySelector('.tpl-edit-save').addEventListener('click', () => {
     const newName = form.querySelector('.tpl-edit-name').value.trim();
-    const newCat  = form.querySelector('.tpl-edit-cat').value.trim();
+    const newCat  = form.querySelector('.tpl-edit-cat').value;
+    let newFolder = folderSel.value === '__new__'
+      ? (folderNewInput.value.trim() || '기타')
+      : folderSel.value;
+    const newTagsRaw = form.querySelector('.tpl-edit-tags')?.value || '';
+    const newTags = newTagsRaw.split(',').map(t => t.trim()).filter(Boolean);
     if (!newName) return;
     const templates = loadTemplates();
     const idx = templates.findIndex(t => t.id === id);
     if (idx !== -1) {
       templates[idx].name = newName;
+      templates[idx].folder = newFolder;
       templates[idx].category = newCat;
+      templates[idx].tags = newTags;
       saveTemplates(templates);
     }
     form.remove();
     renderTemplatePanel();
   });
 
-  form.querySelector('.tpl-edit-overwrite').addEventListener('click', () => {
+  form.querySelector('.tpl-edit-overwrite').addEventListener('click', async () => {
     const sec = canvasEl.querySelector('.section-block.selected');
     if (!sec) { alert('덮어쓸 섹션을 먼저 선택하세요.'); return; }
     const clone = sec.cloneNode(true);
@@ -192,9 +326,12 @@ function startEditTemplate(id) {
     clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
     clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
     clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
-    const templates = loadTemplates();
-    const idx = templates.findIndex(t => t.id === id);
-    if (idx !== -1) { templates[idx].canvas = clone.outerHTML; saveTemplates(templates); }
+    if (window.electronAPI?.saveTemplateCanvas) {
+      await window.electronAPI.saveTemplateCanvas(id, clone.outerHTML);
+    } else {
+      const fi = _lsFullCache.findIndex(t => t.id === id);
+      if (fi !== -1) { _lsFullCache[fi].canvas = clone.outerHTML; localStorage.setItem(TEMPLATE_KEY, JSON.stringify(_lsFullCache)); }
+    }
     form.remove();
     renderTemplatePanel();
   });
@@ -206,14 +343,52 @@ function renderTemplatePanel() {
   const body = document.getElementById('template-panel-body');
   if (!body) return;
   const templates = loadTemplates();
+
+  // 전체 폴더 목록 (기존 데이터 호환: folder 없으면 "기타")
+  const allFolders = [...new Set(templates.map(t => t.folder || '기타'))];
+
+  // 폴더 필터가 더 이상 유효하지 않으면 "전체"로 리셋
+  if (_activeFolderFilter !== '전체' && !allFolders.includes(_activeFolderFilter)) {
+    _activeFolderFilter = '전체';
+  }
+
+  // 검색 + 폴더 필터 HTML
+  const folderDropdown = `
+    <div class="tpl-search-bar">
+      <input class="tpl-search-input" type="text" placeholder="이름·태그 검색..." value="${escHtml(_activeSearchQuery)}" />
+    </div>
+    <div class="tpl-folder-filter">
+      <select class="tpl-folder-select">
+        <option value="전체" ${_activeFolderFilter === '전체' ? 'selected' : ''}>전체 보기</option>
+        ${allFolders.map(f => `<option value="${escHtml(f)}" ${f === _activeFolderFilter ? 'selected' : ''}>${escHtml(f)}</option>`).join('')}
+      </select>
+    </div>`;
+
   if (!templates.length) {
-    body.innerHTML = '<div class="tpl-empty">저장된 템플릿이 없습니다</div>';
+    body.innerHTML = folderDropdown + '<div class="tpl-empty">저장된 템플릿이 없습니다</div>';
+    _bindFolderDropdown(body);
+    _bindSearchInput(body);
     return;
+  }
+
+  // 폴더 필터 적용
+  let filtered = _activeFolderFilter === '전체'
+    ? templates
+    : templates.filter(t => (t.folder || '기타') === _activeFolderFilter);
+
+  // 검색 필터 적용 (이름 OR 태그)
+  if (_activeSearchQuery.trim()) {
+    const q = _activeSearchQuery.trim().toLowerCase();
+    filtered = filtered.filter(t => {
+      const nameMatch = t.name.toLowerCase().includes(q);
+      const tagMatch  = (t.tags || []).some(tag => tag.toLowerCase().includes(q));
+      return nameMatch || tagMatch;
+    });
   }
 
   // 카테고리별 그룹핑
   const groups = {};
-  templates.forEach(tpl => {
+  filtered.forEach(tpl => {
     const cat = tpl.category || '기타';
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push(tpl);
@@ -221,8 +396,8 @@ function renderTemplatePanel() {
 
   const folderState = loadFolderState();
 
-  body.innerHTML = Object.entries(groups).map(([cat, tpls]) => {
-    const isOpen = folderState[cat] !== false; // 기본 접힘 → true = 펼침
+  const listHtml = Object.entries(groups).map(([cat, tpls]) => {
+    const isOpen = folderState[cat] !== false;
     return `
       <div class="tpl-folder" data-folder-cat="${escHtml(cat)}">
         <div class="tpl-folder-header ${isOpen ? 'open' : ''}">
@@ -235,11 +410,15 @@ function renderTemplatePanel() {
         <div class="tpl-folder-body" style="display:${isOpen ? 'block' : 'none'}">
           ${tpls.map(tpl => {
             const date = tpl.createdAt ? tpl.createdAt.slice(0, 10) : '';
+            const tagBadges = (tpl.tags || []).length
+              ? `<div class="tpl-card-tags">${(tpl.tags).map(tag => `<span class="tpl-tag-badge" data-tag="${escHtml(tag)}">${escHtml(tag)}</span>`).join('')}</div>`
+              : '';
             return `
               <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
                 <div class="tpl-card-main">
                   <span class="tpl-card-name">${escHtml(tpl.name)}</span>
                 </div>
+                ${tagBadges}
                 <div class="tpl-card-meta">${escHtml(date)}</div>
                 <div class="tpl-card-actions">
                   <button class="tpl-edit-btn" data-tpl-id="${escHtml(tpl.id)}" title="수정">
@@ -259,7 +438,16 @@ function renderTemplatePanel() {
       </div>`;
   }).join('');
 
-  // 폴더 토글
+  const emptyMsg = _activeSearchQuery.trim()
+    ? '<div class="tpl-empty">검색 결과가 없습니다</div>'
+    : '<div class="tpl-empty">이 폴더에 템플릿이 없습니다</div>';
+
+  body.innerHTML = folderDropdown + (listHtml || emptyMsg);
+
+  _bindFolderDropdown(body);
+  _bindSearchInput(body);
+
+  // 카테고리 토글
   body.querySelectorAll('.tpl-folder-header').forEach(header => {
     header.addEventListener('click', () => {
       const folder = header.closest('.tpl-folder');
@@ -273,15 +461,24 @@ function renderTemplatePanel() {
     });
   });
 
-  // 카드 클릭 → 미리보기 (P1)
+  // 태그 뱃지 클릭 → 태그 검색 필터
+  body.querySelectorAll('.tpl-tag-badge').forEach(badge => {
+    badge.addEventListener('click', e => {
+      e.stopPropagation();
+      _activeSearchQuery = badge.dataset.tag || '';
+      renderTemplatePanel();
+    });
+  });
+
+  // 카드 클릭 → 미리보기
   body.querySelectorAll('.tpl-card').forEach(card => {
     card.addEventListener('click', e => {
-      if (e.target.closest('.tpl-delete-btn') || e.target.closest('.tpl-edit-btn')) return;
+      if (e.target.closest('.tpl-delete-btn') || e.target.closest('.tpl-edit-btn') || e.target.closest('.tpl-tag-badge')) return;
       showTemplatePreview(card.dataset.tplId);
     });
   });
 
-  // 수정 버튼 (P3)
+  // 수정 버튼
   body.querySelectorAll('.tpl-edit-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -297,3 +494,37 @@ function renderTemplatePanel() {
     });
   });
 }
+
+function _bindFolderDropdown(body) {
+  const sel = body.querySelector('.tpl-folder-select');
+  if (!sel) return;
+  sel.addEventListener('change', () => {
+    _activeFolderFilter = sel.value;
+    renderTemplatePanel();
+  });
+}
+
+function _bindSearchInput(body) {
+  const input = body.querySelector('.tpl-search-input');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    _activeSearchQuery = input.value;
+    renderTemplatePanel();
+  });
+  // 포커스 유지 (리렌더 후 커서 유지)
+  if (_activeSearchQuery) {
+    input.focus();
+    const len = input.value.length;
+    input.setSelectionRange(len, len);
+  }
+}
+
+// 크로스 모듈 접근용 window 노출
+window.loadTemplates        = loadTemplates;
+window.saveAsTemplate       = saveAsTemplate;
+window.deleteTemplate       = deleteTemplate;
+window.insertTemplate       = insertTemplate;
+window.renderTemplatePanel  = renderTemplatePanel;
+window.initTemplates        = initTemplates;
+window._loadCanvas          = _loadCanvas;
+window.showTemplatePreview  = showTemplatePreview;

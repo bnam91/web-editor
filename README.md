@@ -34,11 +34,12 @@ Canvas (860px 고정)
 
 | 블록 | 클래스 | ID 접두사 | 설명 |
 |------|--------|----------|------|
-| Text | `.text-block` | `tb_` | Heading / Subheading / Body / Caption / Label |
+| Text | `.text-block` | `tb_` | Heading / Subheading / Body / Caption / Label(Tag) |
 | Asset | `.asset-block` | `ab_` | 이미지 (placeholder or uploaded) |
 | Gap | `.gap-block` | `gb_` | 섹션/블록 간 여백 |
 | Icon Circle | `.icon-circle-block` | `icb_` | 아이콘+레이블 원형 블록 |
 | Table | `.table-block` | `tbl_` | 스펙 테이블 |
+| Tags | `.label-group-block` | `lg_` | 태그 pill 그룹 (개별 색상/크기 설정 가능) |
 
 ---
 
@@ -132,6 +133,7 @@ ab_8n2j5rc    ← 에셋(이미지) 블록
 gb_k1w7z4e    ← 갭 블록
 icb_m3p9x2n   ← 아이콘 서클 블록
 tbl_q5r8y1c   ← 테이블 블록
+lg_b2d4f6h    ← 태그 그룹 블록
 ```
 
 ---
@@ -148,3 +150,24 @@ tbl_q5r8y1c   ← 테이블 블록
 | `--preset-label-radius` | Label border-radius |
 
 CSS 변수는 섹션 element의 인라인 style로 저장됨 (직렬화 시 보존).
+
+---
+
+## 저장 / 버전 관리
+
+### 현재 방식
+- **Commit 버튼** — localStorage 스냅샷 + JSON 파일 다운로드. 이전 커밋을 `LAST_COMMIT_KEY`로 백업.
+- **↩ 되돌리기 버튼** — 직전 커밋 스냅샷으로 복원.
+- **다른 이름으로 저장** — 파일명 변경 후 JSON 다운로드.
+
+### TODO: Figma 섹션 오토레이아웃 (예정)
+- 각 섹션 프레임(Section 01, 02 ...)에 오토레이아웃 적용
+- 블록 추가/삭제/크기 변경 시 섹션 높이 자동 조정
+- 블록 간 간격도 gap 방식으로 관리
+
+### TODO: GitHub 연동 (예정)
+- GitHub OAuth 로그인
+- 프로젝트 = GitHub repo 1개 (히스토리/버전 레포 단위 관리)
+- Commit 버튼 → GitHub API로 실제 commit + push
+- 되돌리기 → git 히스토리 기반 전체 버전 탐색
+- 서버 저장 비용 0 (유저 본인 repo에 저장)
