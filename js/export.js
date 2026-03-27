@@ -153,12 +153,84 @@ function exportDesignJSON() {
       }
       return block;
     }
+
+    if (el.classList.contains('card-block')) {
+      return {
+        id:     uid('cdb'),
+        type:   'card',
+        bgColor: el.dataset.bgColor || '#f5f5f5',
+        radius:  parseInt(el.dataset.radius) || 12,
+        height:  parseFloat(el.style.height) || 400,
+        src:     el.dataset.imgSrc || null,
+      };
+    }
+
+    if (el.classList.contains('graph-block')) {
+      let items = [];
+      try { items = JSON.parse(el.dataset.items || '[]'); } catch {}
+      return {
+        id:        uid('grb'),
+        type:      'graph',
+        chartType: el.dataset.chartType || 'bar-v',
+        preset:    el.dataset.preset   || 'default',
+        items,
+        height:    parseFloat(el.style.height) || 300,
+      };
+    }
+
+    if (el.classList.contains('strip-banner-block')) {
+      return {
+        id:      uid('sbb'),
+        type:    'strip-banner',
+        bgColor: el.dataset.bgColor || '#f5f5f5',
+        radius:  parseInt(el.dataset.radius) || 0,
+        imgPos:  el.dataset.imgPos  || 'left',
+        src:     el.dataset.imgSrc  || null,
+        height:  parseFloat(el.style.height) || 300,
+      };
+    }
+
+    if (el.classList.contains('label-group-block')) {
+      const items = [];
+      el.querySelectorAll('.label-item').forEach(item => {
+        const span = item.querySelector('.label-item-text');
+        items.push({
+          text:   span?.textContent.trim() || 'Label',
+          bg:     item.dataset.bg    || '#e8e8e8',
+          color:  item.dataset.color || '#333333',
+          radius: parseInt(item.dataset.radius) || 40,
+        });
+      });
+      return {
+        id:    uid('lg'),
+        type:  'label-group',
+        items,
+        style: { gap: parseInt(el.style.gap) || 10 },
+      };
+    }
+
+    if (el.classList.contains('table-block')) {
+      const table = el.querySelector('.tb-table');
+      const rows = [];
+      table?.querySelectorAll('tr').forEach(tr => {
+        const cells = [];
+        tr.querySelectorAll('th, td').forEach(cell => cells.push(cell.textContent.trim()));
+        rows.push(cells);
+      });
+      return {
+        id:       uid('tbl'),
+        type:     'table',
+        rows,
+        fontSize: parseInt(table?.style.fontSize) || 28,
+      };
+    }
+
     return null;
   }
 
   function serializeCol(colEl) {
     const blocks = [];
-    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block, :scope > .label-group-block, :scope > .table-block').forEach(b => {
       const s = serializeBlock(b);
       if (s) blocks.push(s);
     });
@@ -438,6 +510,37 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 /* group */
 .group-block{width:100%;}
 .group-inner{display:flex;flex-direction:column;}
+/* card */
+.card-block{width:100%;overflow:hidden;display:flex;flex-direction:column;}
+.cdb-image{width:100%;overflow:hidden;flex:1;}
+.cdb-image img{display:block;width:100%;height:100%;object-fit:cover;}
+.cdb-body{padding:16px;}
+.cdb-title{font-size:32px;font-weight:600;color:#111;}
+.cdb-desc{font-size:24px;color:#555;margin-top:6px;}
+/* graph */
+.graph-block{width:100%;overflow:hidden;}
+.grb-inner{display:flex;flex-direction:column;height:100%;}
+.grb-bars{display:flex;align-items:flex-end;gap:8px;flex:1;padding:16px;}
+.grb-bar-col{display:flex;flex-direction:column;align-items:center;flex:1;}
+.grb-bar-wrap{flex:1;display:flex;align-items:flex-end;width:100%;}
+.grb-bar-fill{width:100%;background:#2d6fe8;}
+.grb-bar-label{font-size:20px;color:#555;margin-top:4px;text-align:center;}
+.grb-bar-val-label{font-size:18px;font-weight:600;color:#2d6fe8;margin-bottom:2px;}
+/* strip-banner */
+.strip-banner-block{width:100%;display:flex;overflow:hidden;}
+.sbb-image{flex:0 0 40%;overflow:hidden;}
+.sbb-image img{display:block;width:100%;height:100%;object-fit:cover;}
+.sbb-content{flex:1;padding:24px;display:flex;flex-direction:column;justify-content:center;}
+.sbb-heading{font-size:40px;font-weight:700;color:#111;}
+.sbb-body{font-size:28px;color:#555;margin-top:8px;}
+/* label-group */
+.label-group-block{width:100%;display:flex;flex-wrap:wrap;gap:10px;padding:16px;}
+.label-item{display:inline-flex;align-items:center;padding:8px 20px;border-radius:40px;font-size:24px;}
+/* table */
+.table-block{width:100%;overflow:hidden;}
+.tb-table{width:100%;border-collapse:collapse;font-size:28px;}
+.tb-table th,.tb-table td{padding:10px 16px;border:1px solid #e0e0e0;text-align:center;}
+.tb-table thead th{background:#f5f5f5;font-weight:600;}
 `;
 
   const html = `<!DOCTYPE html>
@@ -482,15 +585,22 @@ document.addEventListener('click', e => {
 
 /* 레이어 패널 — 섹션 순서 변경 */
 const layerPanelBody = document.getElementById('layer-panel-body');
+// rAF throttle: getLayerSectionDragAfterEl 내 getBoundingClientRect 호출 최적화 (DBG-11)
+let _layerSecDragRafId = null;
 layerPanelBody.addEventListener('dragover', e => {
   if (!layerSectionDragSrc) return;
   e.preventDefault();
-  window.clearLayerSectionIndicators();
-  const after = window.getLayerSectionDragAfterEl(layerPanelBody, e.clientY);
-  const indicator = document.createElement('div');
-  indicator.className = 'layer-section-drop-indicator';
-  if (after) layerPanelBody.insertBefore(indicator, after);
-  else layerPanelBody.appendChild(indicator);
+  if (_layerSecDragRafId) return;
+  const clientY = e.clientY;
+  _layerSecDragRafId = requestAnimationFrame(() => {
+    _layerSecDragRafId = null;
+    window.clearLayerSectionIndicators();
+    const after = window.getLayerSectionDragAfterEl(layerPanelBody, clientY);
+    const indicator = document.createElement('div');
+    indicator.className = 'layer-section-drop-indicator';
+    if (after) layerPanelBody.insertBefore(indicator, after);
+    else layerPanelBody.appendChild(indicator);
+  });
 });
 layerPanelBody.addEventListener('dragleave', e => {
   if (!layerSectionDragSrc) return;
@@ -903,6 +1013,39 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         rowCount,
       };
     }
+    if (el.classList.contains('card-block')) {
+      return {
+        type:    'card',
+        id:      el.id || ('cdb_' + Math.random().toString(36).slice(2, 8)),
+        bgColor: el.dataset.bgColor || '#f5f5f5',
+        radius:  parseInt(el.dataset.radius) || 12,
+        height:  parseFloat(el.style.height) || 400,
+        src:     el.dataset.imgSrc || null,
+      };
+    }
+    if (el.classList.contains('graph-block')) {
+      let items = [];
+      try { items = JSON.parse(el.dataset.items || '[]'); } catch {}
+      return {
+        type:      'graph',
+        id:        el.id || ('grb_' + Math.random().toString(36).slice(2, 8)),
+        chartType: el.dataset.chartType || 'bar-v',
+        preset:    el.dataset.preset   || 'default',
+        items,
+        height:    parseFloat(el.style.height) || 300,
+      };
+    }
+    if (el.classList.contains('strip-banner-block')) {
+      return {
+        type:    'strip-banner',
+        id:      el.id || ('sbb_' + Math.random().toString(36).slice(2, 8)),
+        bgColor: el.dataset.bgColor || '#f5f5f5',
+        radius:  parseInt(el.dataset.radius) || 0,
+        imgPos:  el.dataset.imgPos  || 'left',
+        src:     el.dataset.imgSrc  || null,
+        height:  parseFloat(el.style.height) || 300,
+      };
+    }
     return null;
   }
 
@@ -911,7 +1054,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block').forEach(b => {
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block').forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });

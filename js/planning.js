@@ -194,6 +194,7 @@ function renderOutline() {
       row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
       row.addEventListener('drop', e => {
         e.preventDefault();
+        e.stopPropagation(); // DBG-11: 부모로 버블링 차단 (복제 버그 방지)
         row.classList.remove('drag-over');
         const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
         const toIdx = b._idx;
