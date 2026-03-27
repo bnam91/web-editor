@@ -221,7 +221,7 @@ function showSaveStatus(msg, color, autoClear = true) {
 
 async function saveIntake() {
   if (!state.product_name.trim()) {
-    showSaveStatus('제품명을 입력해주세요', '#e06c6c', true);
+    showSaveStatus('제품명을 입력해주세요', 'var(--ui-danger, #e06c6c)', true);
     $('inp-product').focus();
     return;
   }
@@ -250,9 +250,9 @@ async function saveIntake() {
           a.click();
           return { ok: true, filename: a.download };
         })();
-    showSaveStatus(`저장됨: ${result.filename}`, '#3ab87a');
+    showSaveStatus(`저장됨: ${result.filename}`, 'var(--ui-success, #7fc87f)');
   } catch (e) {
-    showSaveStatus(`저장 실패: ${e.message || '알 수 없는 오류'}`, '#e06c6c', false);
+    showSaveStatus(`저장 실패: ${e.message || '알 수 없는 오류'}`, 'var(--ui-danger, #e06c6c)', false);
   }
 
   btn.textContent = '저장';
