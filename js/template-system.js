@@ -62,7 +62,7 @@ async function _loadCanvas(id) {
   return full ? full.canvas : null;
 }
 
-async function saveAsTemplate(sec, name, folder, category) {
+async function saveAsTemplate(sec, name, folder, category, tags) {
   const clone = sec.cloneNode(true);
   clone.classList.remove('selected');
   clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
@@ -71,15 +71,16 @@ async function saveAsTemplate(sec, name, folder, category) {
 
   const id  = 'tpl_' + Date.now();
   const html = clone.outerHTML;
+  const tagsArr = Array.isArray(tags) ? tags : [];
 
   if (window.electronAPI?.saveTemplateCanvas) {
     await window.electronAPI.saveTemplateCanvas(id, html);
   } else {
-    _lsFullCache.unshift({ id, name, folder: folder || '기타', category, createdAt: new Date().toISOString(), thumbnail: null, canvas: html });
+    _lsFullCache.unshift({ id, name, folder: folder || '기타', category, tags: tagsArr, createdAt: new Date().toISOString(), thumbnail: null, canvas: html });
   }
 
   const templates = loadTemplates();
-  templates.unshift({ id, name, folder: folder || '기타', category, createdAt: new Date().toISOString(), thumbnail: null });
+  templates.unshift({ id, name, folder: folder || '기타', category, tags: tagsArr, createdAt: new Date().toISOString(), thumbnail: null });
   saveTemplates(templates);
   renderTemplatePanel();
 }
@@ -163,6 +164,7 @@ function escHtml(str) {
 
 const TPL_FOLDER_KEY = 'tpl-folder-state';
 let _activeFolderFilter = '전체';
+let _activeSearchQuery  = '';
 
 function loadFolderState() {
   try { return JSON.parse(localStorage.getItem(TPL_FOLDER_KEY)) || {}; } catch { return {}; }
@@ -258,6 +260,8 @@ function startEditTemplate(id) {
     `<option value="${escHtml(c)}" ${c === (tpl.category || '기타') ? 'selected' : ''}>${escHtml(c)}</option>`
   ).join('');
 
+  const currentTags = (tpl.tags || []).join(', ');
+
   const form = document.createElement('div');
   form.className = 'tpl-edit-form';
   form.innerHTML = `
@@ -265,6 +269,7 @@ function startEditTemplate(id) {
     <select class="tpl-edit-folder">${folderOptions}<option value="__new__">새 폴더...</option></select>
     <input class="tpl-edit-folder-new" type="text" placeholder="새 폴더 이름" style="display:none;" />
     <select class="tpl-edit-cat">${catOptions}</select>
+    <input class="tpl-edit-tags" type="text" value="${escHtml(currentTags)}" placeholder="태그 (쉼표 구분)" />
     <div class="tpl-edit-actions">
       <button class="tpl-edit-save">저장</button>
       <button class="tpl-edit-cancel">취소</button>
@@ -289,6 +294,8 @@ function startEditTemplate(id) {
     let newFolder = folderSel.value === '__new__'
       ? (folderNewInput.value.trim() || '기타')
       : folderSel.value;
+    const newTagsRaw = form.querySelector('.tpl-edit-tags')?.value || '';
+    const newTags = newTagsRaw.split(',').map(t => t.trim()).filter(Boolean);
     if (!newName) return;
     const templates = loadTemplates();
     const idx = templates.findIndex(t => t.id === id);
@@ -296,6 +303,7 @@ function startEditTemplate(id) {
       templates[idx].name = newName;
       templates[idx].folder = newFolder;
       templates[idx].category = newCat;
+      templates[idx].tags = newTags;
       saveTemplates(templates);
     }
     form.remove();
@@ -336,8 +344,11 @@ function renderTemplatePanel() {
     _activeFolderFilter = '전체';
   }
 
-  // 폴더 드롭다운 HTML
+  // 검색 + 폴더 필터 HTML
   const folderDropdown = `
+    <div class="tpl-search-bar">
+      <input class="tpl-search-input" type="text" placeholder="이름·태그 검색..." value="${escHtml(_activeSearchQuery)}" />
+    </div>
     <div class="tpl-folder-filter">
       <select class="tpl-folder-select">
         <option value="전체" ${_activeFolderFilter === '전체' ? 'selected' : ''}>전체 보기</option>
@@ -348,13 +359,24 @@ function renderTemplatePanel() {
   if (!templates.length) {
     body.innerHTML = folderDropdown + '<div class="tpl-empty">저장된 템플릿이 없습니다</div>';
     _bindFolderDropdown(body);
+    _bindSearchInput(body);
     return;
   }
 
   // 폴더 필터 적용
-  const filtered = _activeFolderFilter === '전체'
+  let filtered = _activeFolderFilter === '전체'
     ? templates
     : templates.filter(t => (t.folder || '기타') === _activeFolderFilter);
+
+  // 검색 필터 적용 (이름 OR 태그)
+  if (_activeSearchQuery.trim()) {
+    const q = _activeSearchQuery.trim().toLowerCase();
+    filtered = filtered.filter(t => {
+      const nameMatch = t.name.toLowerCase().includes(q);
+      const tagMatch  = (t.tags || []).some(tag => tag.toLowerCase().includes(q));
+      return nameMatch || tagMatch;
+    });
+  }
 
   // 카테고리별 그룹핑
   const groups = {};
@@ -380,11 +402,15 @@ function renderTemplatePanel() {
         <div class="tpl-folder-body" style="display:${isOpen ? 'block' : 'none'}">
           ${tpls.map(tpl => {
             const date = tpl.createdAt ? tpl.createdAt.slice(0, 10) : '';
+            const tagBadges = (tpl.tags || []).length
+              ? `<div class="tpl-card-tags">${(tpl.tags).map(tag => `<span class="tpl-tag-badge" data-tag="${escHtml(tag)}">${escHtml(tag)}</span>`).join('')}</div>`
+              : '';
             return `
               <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
                 <div class="tpl-card-main">
                   <span class="tpl-card-name">${escHtml(tpl.name)}</span>
                 </div>
+                ${tagBadges}
                 <div class="tpl-card-meta">${escHtml(date)}</div>
                 <div class="tpl-card-actions">
                   <button class="tpl-edit-btn" data-tpl-id="${escHtml(tpl.id)}" title="수정">
@@ -404,9 +430,14 @@ function renderTemplatePanel() {
       </div>`;
   }).join('');
 
-  body.innerHTML = folderDropdown + (listHtml || '<div class="tpl-empty">이 폴더에 템플릿이 없습니다</div>');
+  const emptyMsg = _activeSearchQuery.trim()
+    ? '<div class="tpl-empty">검색 결과가 없습니다</div>'
+    : '<div class="tpl-empty">이 폴더에 템플릿이 없습니다</div>';
+
+  body.innerHTML = folderDropdown + (listHtml || emptyMsg);
 
   _bindFolderDropdown(body);
+  _bindSearchInput(body);
 
   // 카테고리 토글
   body.querySelectorAll('.tpl-folder-header').forEach(header => {
@@ -422,10 +453,19 @@ function renderTemplatePanel() {
     });
   });
 
+  // 태그 뱃지 클릭 → 태그 검색 필터
+  body.querySelectorAll('.tpl-tag-badge').forEach(badge => {
+    badge.addEventListener('click', e => {
+      e.stopPropagation();
+      _activeSearchQuery = badge.dataset.tag || '';
+      renderTemplatePanel();
+    });
+  });
+
   // 카드 클릭 → 미리보기
   body.querySelectorAll('.tpl-card').forEach(card => {
     card.addEventListener('click', e => {
-      if (e.target.closest('.tpl-delete-btn') || e.target.closest('.tpl-edit-btn')) return;
+      if (e.target.closest('.tpl-delete-btn') || e.target.closest('.tpl-edit-btn') || e.target.closest('.tpl-tag-badge')) return;
       showTemplatePreview(card.dataset.tplId);
     });
   });
@@ -454,6 +494,21 @@ function _bindFolderDropdown(body) {
     _activeFolderFilter = sel.value;
     renderTemplatePanel();
   });
+}
+
+function _bindSearchInput(body) {
+  const input = body.querySelector('.tpl-search-input');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    _activeSearchQuery = input.value;
+    renderTemplatePanel();
+  });
+  // 포커스 유지 (리렌더 후 커서 유지)
+  if (_activeSearchQuery) {
+    input.focus();
+    const len = input.value.length;
+    input.setSelectionRange(len, len);
+  }
 }
 
 // 크로스 모듈 접근용 window 노출

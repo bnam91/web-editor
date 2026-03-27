@@ -185,6 +185,7 @@ function showSectionProperties(sec) {
         <option value="기타">기타</option>
       </select>
       <input type="text" id="sec-tpl-name" class="tpl-name-input" placeholder="템플릿 이름 입력">
+      <input type="text" id="sec-tpl-tags" class="tpl-name-input" placeholder="태그 입력 (쉼표 구분, 예: 헤더, 배너)" style="margin-top:4px;">
       <button class="prop-action-btn primary" id="sec-tpl-save-btn" style="margin-top:6px;">템플릿으로 저장</button>
     </div>`;
 
@@ -348,8 +349,12 @@ function showSectionProperties(sec) {
       if (folder === '__new__') {
         folder = (tplFolderNew ? tplFolderNew.value.trim() : '') || '기타';
       }
-      window.saveAsTemplate?.(sec, name, folder, category);
+      const tagsRaw = document.getElementById('sec-tpl-tags')?.value || '';
+      const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+      window.saveAsTemplate?.(sec, name, folder, category, tags);
       document.getElementById('sec-tpl-name').value = '';
+      const tagsEl = document.getElementById('sec-tpl-tags');
+      if (tagsEl) tagsEl.value = '';
       tplSaveBtn.textContent = '저장됨 ✓';
       tplSaveBtn.disabled = true;
       setTimeout(() => {

@@ -323,6 +323,64 @@
 .tpl-name-input:focus { border-color: #2d6fe8; }
 .tpl-name-input::placeholder { color: #444; }
 
+/* ── Template Search ── */
+.tpl-search-bar {
+  padding: 6px 8px 2px;
+}
+.tpl-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #1e1e1e;
+  border: 1px solid #2e2e2e;
+  border-radius: 5px;
+  color: #ccc;
+  font-size: 11px;
+  padding: 5px 8px;
+  outline: none;
+}
+.tpl-search-input:focus { border-color: #2d6fe8; }
+.tpl-search-input::placeholder { color: #444; }
+
+/* ── Template Tag Badges ── */
+.tpl-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 2px 0 1px;
+}
+.tpl-tag-badge {
+  display: inline-block;
+  background: #1a2a3a;
+  color: #6ab0ff;
+  border: 1px solid #2a3a50;
+  border-radius: 3px;
+  font-size: 9px;
+  padding: 1px 5px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  line-height: 1.5;
+}
+.tpl-tag-badge:hover {
+  background: #2d6fe8;
+  color: #fff;
+  border-color: #2d6fe8;
+}
+
+/* ── Template Edit Tags Input ── */
+.tpl-edit-tags {
+  width: 100%;
+  box-sizing: border-box;
+  background: #1e1e1e;
+  border: 1px solid #2e2e2e;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 11px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  outline: none;
+}
+.tpl-edit-tags:focus { border-color: #2d6fe8; }
+
 /* ── File Page Items ── */
 #page-props-in-file { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 8px; }
 
