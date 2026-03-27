@@ -1,9 +1,34 @@
 [
   {
+    "id": "tpl_1774611675830",
+    "name": "F4검수-태그테스트",
+    "folder": "와이어프레임",
+    "category": "Hero",
+    "tags": [
+      "qa-검수",
+      "리뷰"
+    ],
+    "createdAt": "2026-03-27T11:41:15.832Z",
+    "thumbnail": null
+  },
+  {
+    "id": "tpl_1774611180296",
+    "name": "F4-Test-Template",
+    "folder": "와이어프레임",
+    "category": "Hero",
+    "tags": [
+      "test-tag",
+      "검수태그"
+    ],
+    "createdAt": "2026-03-27T11:33:00.297Z",
+    "thumbnail": null
+  },
+  {
     "id": "tpl_1774209242726",
     "name": "아이콘/소제목/본문/이미지",
     "folder": "와이어프레임",
     "category": "Main",
+    "tags": [],
     "createdAt": "2026-03-22T19:54:02.732Z",
     "thumbnail": null
   },
@@ -12,6 +37,10 @@
     "name": "리뷰카드",
     "folder": "와이어프레임",
     "category": "Main",
+    "tags": [
+      "리뷰",
+      "카드"
+    ],
     "createdAt": "2026-03-23T00:00:00.000Z",
     "thumbnail": null
   },
@@ -20,6 +49,10 @@
     "name": "카드그리드",
     "folder": "와이어프레임",
     "category": "Main",
+    "tags": [
+      "카드",
+      "그리드"
+    ],
     "createdAt": "2026-03-23T00:00:00.000Z",
     "thumbnail": null
   },
@@ -28,6 +61,11 @@
     "name": "배너 풀와이드",
     "folder": "와이어프레임",
     "category": "Hook",
+    "tags": [
+      "배너",
+      "풀와이드",
+      "헤더"
+    ],
     "createdAt": "2026-03-23T00:00:00.000Z",
     "thumbnail": null
   },
@@ -36,6 +74,10 @@
     "name": "비교표",
     "folder": "와이어프레임",
     "category": "Detail",
+    "tags": [
+      "비교표",
+      "테이블"
+    ],
     "createdAt": "2026-03-23T00:00:00.000Z",
     "thumbnail": null
   },
@@ -44,6 +86,11 @@
     "name": "수치강조",
     "folder": "와이어프레임",
     "category": "Main",
+    "tags": [
+      "수치",
+      "강조",
+      "통계"
+    ],
     "createdAt": "2026-03-23T00:00:00.000Z",
     "thumbnail": null
   }

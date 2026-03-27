@@ -11,6 +11,36 @@
 </head>
 <body>
 
+<!--
+  C5~C9 위치 검토 (Figma 기준 비교)
+  ─────────────────────────────────────────────────────
+  C5. 인스펙터 (Inspector)
+      Figma 기준: 우측 패널
+      현재 위치:  좌측 패널(panel-left) 내 Inspector 탭 — ❌ 불일치
+      개선 제안:  Inspector 탭을 panel-right로 이동하거나,
+                  현재 좌측 panel-right에 Inspector 콘텐츠를 배치 권장
+                  (현재 inspector-panel-body는 panel-left에 있음)
+
+  C6. 레이어 패널 (Layers)
+      Figma 기준: 좌측 패널
+      현재 위치:  좌측 패널(panel-left) File 탭 내 Layers 섹션 — ✅ 일치
+
+  C7. 툴바 (Top Bar)
+      Figma 기준: 상단
+      현재 위치:  #topbar (상단 flex 바) — ✅ 일치
+
+  C8. 배율(Zoom)
+      Figma 기준: 우하단
+      현재 위치:  탑바 중앙 (#zoom-ctrl) — ❌ 불일치
+      개선 제안:  canvas-area 우하단 overlay에 #zoom-ctrl 이동 고려
+
+  C9. Shelf (템플릿/에셋 브라우저)
+      Figma 기준: 하단 또는 별도 패널
+      현재 위치:  좌측 패널 File 탭 하단 Templates 섹션 — 허용 범위 내 ✅
+                  (별도 tpl-browser 팝오버로 확장됨 — 적절)
+  ─────────────────────────────────────────────────────
+-->
+
 <!-- Top Bar -->
 <div id="topbar">
   <!-- 홈 버튼 -->
@@ -52,8 +82,10 @@
   <button class="tb-btn" id="ref-modal-btn" onclick="window._refModalToggle()" title="Reference Image (⌘⇧R)">Reference</button>
   <div class="divider"></div>
   <div id="publish-dropdown-wrap">
-    <button id="publish-btn" onclick="togglePublishDropdown(event)">
-      Figma
+    <!-- C12: "Figma" → "Export" 명칭 변경 + 아이콘 추가 / C11: tb-btn 클래스로 통일 -->
+    <button id="publish-btn" class="tb-btn" onclick="togglePublishDropdown(event)">
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1v7M3 5l3 3 3-3"/><path d="M2 10h8"/></svg>
+      Export
       <svg class="publish-dd-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div id="publish-dropdown-menu">
@@ -415,22 +447,27 @@
     <!-- Design System Panel (step2-design-system) -->
     <div id="design-system-panel">
       <div id="ds-panel-header" onclick="DesignSystem.togglePanel()">
-        <span class="ds-panel-title">디자인 시스템</span>
+        <span class="ds-panel-title">Design System</span>
         <span class="ds-panel-chevron">▼</span>
       </div>
       <div id="ds-panel-body">
 
-        <!-- 베이스 프리셋 선택 -->
-        <div class="ds-section-label">베이스</div>
+        <!-- Base Preset Selection -->
+        <div class="ds-section-label">Base</div>
         <div class="ds-base-row">
-          <button class="ds-base-btn" data-preset-id="default" onclick="DesignSystem.applyBase('default')">Default</button>
-          <button class="ds-base-btn" data-preset-id="dark"    onclick="DesignSystem.applyBase('dark')">Dark</button>
-          <button class="ds-base-btn" data-preset-id="brand"   onclick="DesignSystem.applyBase('brand')">Brand</button>
-          <button class="ds-base-btn" data-preset-id="minimal" onclick="DesignSystem.applyBase('minimal')">Minimal</button>
+          <select id="ds-base-select" class="ds-base-select">
+            <option value="default">Default</option>
+            <option value="dark">Dark</option>
+            <option value="brand">Brand</option>
+            <option value="minimal">Minimal</option>
+          </select>
+        </div>
+        <div class="ds-base-row">
+          <button class="ds-new-preset-btn" onclick="DesignSystem.saveNewPreset()">＋ New Design System</button>
         </div>
 
-        <!-- 색상 토큰 -->
-        <div class="ds-section-label">색상</div>
+        <!-- Color Tokens -->
+        <div class="ds-section-label">Color</div>
         <div class="ds-token-row">
           <span class="ds-token-label">Heading</span>
           <input type="color" class="ds-token-picker" id="ds-h1-color" value="#111111">
@@ -457,8 +494,8 @@
           <input type="text"  class="ds-token-hex"    id="ds-label-color-hex" value="#ffffff" maxlength="7">
         </div>
 
-        <!-- 폰트 -->
-        <div class="ds-section-label">폰트</div>
+        <!-- Font -->
+        <div class="ds-section-label">Font</div>
         <div class="ds-token-row">
           <span class="ds-token-label">Heading</span>
           <select class="ds-font-select" id="ds-heading-font">
@@ -486,10 +523,10 @@
           <span id="ds-label-radius-val">8px</span>
         </div>
 
-        <!-- 버튼 -->
+        <!-- Buttons -->
         <div class="ds-btn-row">
-          <button class="ds-apply-btn" onclick="DesignSystem.applyFromPanel()">적용</button>
-          <button class="ds-reset-btn" onclick="DesignSystem.resetTokens()">초기화</button>
+          <button class="ds-apply-btn" onclick="DesignSystem.applyFromPanel()">Apply</button>
+          <button class="ds-reset-btn" onclick="DesignSystem.resetTokens()">Reset</button>
         </div>
       </div>
     </div>
