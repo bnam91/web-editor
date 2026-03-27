@@ -338,8 +338,8 @@ function showRowProperties(rowEl) {
       if (targetRows === 1) {
         [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
       }
-      /* 2행 이하 그리드: 실제 너비로 정사각형 초기 높이 픽셀 적용 */
-      if (targetRows >= 2 && targetRows <= 2 && rowEl.offsetWidth > 0) {
+      /* 2행 이상 그리드: 실제 너비로 정사각형 초기 높이 픽셀 적용 */
+      if (targetRows >= 2 && rowEl.offsetWidth > 0) {
         const gap = parseInt(rowEl.dataset.gap) || 0;
         const colPx = Math.round((rowEl.offsetWidth - (targetCols - 1) * gap) / targetCols);
         if (colPx > 0) {

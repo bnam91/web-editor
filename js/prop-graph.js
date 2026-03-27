@@ -76,12 +76,12 @@ export function showGraphProperties(block) {
   // 타입 토글
   document.getElementById('grb-type-v').addEventListener('click', () => {
     block.dataset.chartType = 'bar-v';
-    renderGraph(block);
+    window.renderGraph(block);
     showGraphProperties(block);
   });
   document.getElementById('grb-type-h').addEventListener('click', () => {
     block.dataset.chartType = 'bar-h';
-    renderGraph(block);
+    window.renderGraph(block);
     showGraphProperties(block);
   });
 
@@ -103,7 +103,7 @@ export function showGraphProperties(block) {
       value: parseFloat(row.querySelector('.grb-data-val-input').value) || 0,
     }));
     block.dataset.items = JSON.stringify(newItems);
-    renderGraph(block);
+    window.renderGraph(block);
   }
 
   const dataList = document.getElementById('grb-data-list');
@@ -115,7 +115,7 @@ export function showGraphProperties(block) {
     if (curItems.length <= 1) return;
     curItems.splice(parseInt(btn.dataset.index), 1);
     block.dataset.items = JSON.stringify(curItems);
-    renderGraph(block);
+    window.renderGraph(block);
     showGraphProperties(block);
   });
 
@@ -123,7 +123,7 @@ export function showGraphProperties(block) {
     const curItems = JSON.parse(block.dataset.items || '[]');
     curItems.push({ label: '항목 ' + (curItems.length + 1), value: 50 });
     block.dataset.items = JSON.stringify(curItems);
-    renderGraph(block);
+    window.renderGraph(block);
     showGraphProperties(block);
   });
 
@@ -133,7 +133,7 @@ export function showGraphProperties(block) {
   const applyChartH = v => {
     v = Math.min(600, Math.max(80, v));
     block.dataset.chartHeight = v;
-    renderGraph(block);
+    window.renderGraph(block);
     hSlider.value = v; hNumber.value = v;
   };
   hSlider.addEventListener('input',  () => applyChartH(parseInt(hSlider.value)));
@@ -146,7 +146,7 @@ export function showGraphProperties(block) {
   const applyLabelSize = v => {
     v = Math.min(28, Math.max(8, v));
     block.dataset.labelSize = v;
-    renderGraph(block);
+    window.renderGraph(block);
     lSlider.value = v; lNumber.value = v;
   };
   lSlider.addEventListener('input',  () => applyLabelSize(parseInt(lSlider.value)));

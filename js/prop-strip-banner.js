@@ -1,5 +1,9 @@
 import { propPanel, state } from './globals.js';
 
+/* 타입별 프리셋 폰트 사이즈 */
+const SBB_TITLE_TYPES = { h1: { size: 48, weight: 700 }, h2: { size: 36, weight: 700 }, h3: { size: 28, weight: 600 }, body: { size: 22, weight: 400 } };
+const SBB_BODY_TYPES  = { body: { size: 18, weight: 400 }, caption: { size: 14, weight: 400 } };
+
 export function showStripBannerProperties(block) {
   const bgColor    = block.dataset.bgColor    || '#f5f5f5';
   const radius     = block.dataset.radius !== undefined ? parseInt(block.dataset.radius) : 0;
