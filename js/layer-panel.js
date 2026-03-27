@@ -521,7 +521,7 @@ function makeLayerColItem(colEl, colIdx, sec) {
 
     const item = document.createElement('div');
     item.className = 'layer-item layer-item-nested';
-    item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
+    item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${block.dataset.layerName || labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
     item.addEventListener('click', e => {
       e.stopPropagation();
       window.deselectAll();
