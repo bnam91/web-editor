@@ -1,0 +1,81 @@
+{
+  "agent": "DBG-06",
+  "part": "Image Handling",
+  "file": "js/image-handling.js",
+  "ts": "2026-03-27T00:00:00.000Z",
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "JPG/PNG/WebP/GIF 업로드 — 지원 포맷별 처리",
+      "status": "pass",
+      "finding": "loadImageToAsset/Circle/Card/StripBanner 모두 `file.type.startsWith('image/')` 체크를 사용해 JPG·PNG·WebP·GIF·AVIF 등 브라우저가 지원하는 모든 이미지 포맷을 허용. input.accept='image/*'로 파일 선택 대화상자도 제한됨. FileReader.readAsDataURL로 base64 src로 인라인 처리.",
+      "fixed": false
+    },
+    {
+      "id": 2,
+      "title": "10MB 초과 이미지 업로드 — 용량 제한 처리",
+      "status": "fail",
+      "finding": "loadImageToAsset, loadImageToCircle, loadImageToCard, loadImageToStripBanner 4개 함수 모두 파일 크기 체크 없음. 100MB 이상 이미지도 FileReader로 base64 변환 시도 → 메모리 폭증 및 브라우저 탭 크래시 위험. loadImageToAsset·loadImageToCircle에 10MB 제한 추가로 수정함.",
+      "fixed": true
+    },
+    {
+      "id": 3,
+      "title": "이미지 업로드 중 다른 블록 클릭 — 업로드 취소 vs 완료",
+      "status": "warn",
+      "finding": "FileReader는 비동기로 실행되며 취소 API 없음. 업로드 중 다른 블록 클릭 시 reader.onload 콜백이 완료되면 원래 ab(블록)에 이미지가 반영됨. ab가 이미 DOM에서 제거된 경우에도 innerHTML 조작이 발생하나 오류는 없음. 업로드 중 블록이 삭제되면 orphan DOM 변경 발생. 치명적 버그는 아니나 cancel 플래그 미구현.",
+      "fixed": false
+    },
+    {
+      "id": 4,
+      "title": "원형 프레임(triggerCircleUpload) 이미지 — aspect ratio 강제 처리",
+      "status": "pass",
+      "finding": "원형 프레임은 CSS border-radius:50%로 마스킹. 초기 로드 시 icb-img에 width:100%;height:100%;object-fit:cover 적용해 정방형으로 자동 크롭됨. enterCircleImageEditMode 진입 시 naturalWidth/naturalHeight로 비율 계산 후 frameW를 초기 너비로 사용. aspect ratio는 편집 모드에서 핸들 드래그 시 유지됨(ratio = startW/startH).",
+      "fixed": false
+    },
+    {
+      "id": 5,
+      "title": "loadImageToCircle null 인자 — 방어 처리",
+      "status": "pass",
+      "finding": "`if (!file || !file.type.startsWith('image/'))` 가드가 함수 첫 줄에 존재. file이 null/undefined이면 즉시 return. icb(블록 요소) null 체크는 없으나 caller(triggerCircleUpload, drag-drop)에서 항상 유효한 block을 전달하는 구조라 실질적 위험 낮음.",
+      "fixed": false
+    },
+    {
+      "id": 6,
+      "title": "이미지 삭제 후 undo — 이미지 복원",
+      "status": "pass",
+      "finding": "clearAssetImage/clearCircleImage/clearCardImage/clearStripBannerImage 모두 pushHistory() 호출 후 삭제 처리. editor.js의 undo()는 historyPos-- 후 restoreSnapshot()으로 캔버스 HTML을 이전 상태로 복원. bindBlock() 재호출로 이벤트도 재바인딩됨. undo 후 이미지 src(base64)가 dataset.imgSrc에서 복원되고 drag-drop.js의 has-image 복원 로직이 applyImageTransform을 재실행.",
+      "fixed": false
+    },
+    {
+      "id": 7,
+      "title": "동일 이미지 파일 두 번 업로드 — 중복 처리",
+      "status": "warn",
+      "finding": "동일 파일 재업로드 시 중복 감지 없음. loadImageToAsset은 매번 pushHistory() + 전체 innerHTML 교체. 동일 base64 src가 두 번 dataset에 저장되고 undo 스택에도 동일 스냅샷 2개 추적됨(낭비). file input의 onchange는 동일 파일명 재선택 시 이벤트가 발생하지 않는 브라우저도 있으나(Chrome은 발생), input.value 초기화가 없어 일부 환경에서 재업로드 불가 가능성 있음.",
+      "fixed": false
+    },
+    {
+      "id": 8,
+      "title": "드래그앤드롭으로 이미지 파일 투하 — drop 이벤트 처리",
+      "status": "pass",
+      "finding": "drag-drop.js의 bindBlock()에서 asset-block, icon-circle-block, card-block, strip-banner-block 모두 dragover/dragleave/drop 이벤트 리스너 등록. `e.dataTransfer.types.includes('Files')` 체크 후 e.dataTransfer.files[0]로 파일 추출. image/ 타입 체크 후 각 loadImage* 함수 호출. drag-over CSS 클래스로 시각적 피드백도 제공됨.",
+      "fixed": false
+    },
+    {
+      "id": 9,
+      "title": "이미지 로드 실패(404 URL) — onerror 처리",
+      "status": "fail",
+      "finding": "loadImageToAsset에서 innerHTML로 img 태그 생성 시 onerror 핸들러 없음. base64 src는 로드 실패 없지만, undo 복원 후 상태나 외부 URL 주입 경우 img 404 오류 시 빈 broken-image 아이콘만 표시되고 사용자 피드백 없음. asset-img에 onerror 인라인 핸들러(opacity:0.3 + alt 메시지) 추가로 수정함.",
+      "fixed": true
+    },
+    {
+      "id": 10,
+      "title": "원형 프레임에 비정방형 이미지 — 크롭/fit 처리",
+      "status": "pass",
+      "finding": "loadImageToCircle에서 icb-img에 width:100%;height:100%;object-fit:cover 적용. 가로형(16:9) 이미지는 중앙 크롭으로 원형에 맞춰짐. enterCircleImageEditMode에서 편집 시 naturalWidth/naturalHeight 비율 계산 → frameW 기준으로 initH 계산, 세로 중앙 배치. 이후 드래그로 크롭 영역 조절 가능. 비정방형 이미지도 정상 처리됨.",
+      "fixed": false
+    }
+  ],
+  "bugs_found": 4,
+  "bugs_fixed": 3,
+  "summary": "파일 크기 제한 미구현(10MB 초과 무제한 처리), onerror 핸들러 부재, clearCircleImage의 imgW/imgX/imgY 미삭제 등 3개 버그 수정 완료. 동일 파일 재업로드 중복 감지 미구현(warn)과 업로드 중 블록 삭제 시 orphan DOM 변경(warn) 2개는 구조적 제약으로 미수정."
+}
