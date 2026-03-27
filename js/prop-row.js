@@ -338,12 +338,21 @@ function showRowProperties(rowEl) {
       if (targetRows === 1) {
         [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
       }
+      /* 2행 이하 그리드: 실제 너비로 정사각형 초기 높이 픽셀 적용 */
+      if (targetRows >= 2 && targetRows <= 2 && rowEl.offsetWidth > 0) {
+        const gap = parseInt(rowEl.dataset.gap) || 0;
+        const colPx = Math.round((rowEl.offsetWidth - (targetCols - 1) * gap) / targetCols);
+        if (colPx > 0) {
+          rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${colPx}px)`;
+          rowEl.dataset.rowHeight = String(colPx * targetRows + (targetRows - 1) * gap);
+        }
+      }
       rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
 
-      /* 높이 반응형 조정 */
+      /* 높이 반응형 조정 — dataset.rowHeight 명시값이 있을 때만 재계산 */
       const gap = parseInt(rowEl.dataset.gap) || 0;
       const newMin = targetRows * 80 + (targetRows - 1) * gap;
-      const curH = parseInt(rowEl.dataset.rowHeight) || rowEl.offsetHeight || 0;
+      const curH = parseInt(rowEl.dataset.rowHeight) || 0;
       if (curH) {
         const perRow = Math.max(80, Math.round((curH - (gridRowCount - 1) * gap) / gridRowCount));
         const newH = Math.max(newMin, perRow * targetRows + (targetRows - 1) * gap);
