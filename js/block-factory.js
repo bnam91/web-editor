@@ -269,7 +269,12 @@ function addRowBlock(cols = 2, rows = 1) {
   for (let i = 0; i < totalCols; i++) {
     const col = document.createElement('div');
     col.className = 'col';
-    if (rows === 1) { col.style.flex = '1'; col.dataset.flex = '1'; }
+    if (rows === 1) {
+      col.style.flex = '1';
+      col.dataset.flex = '1';
+      // 2열 1행: 1:1 비율 (각 셀이 정사각형)
+      col.style.aspectRatio = '1 / 1';
+    }
     const ph = window.makeColPlaceholder(col);
     col.appendChild(ph);
     row.appendChild(col);
@@ -485,9 +490,29 @@ function addCardBlock() {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
-  const { row, block } = makeCardBlock();
+
+  // 2열 grid row 생성
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.id = genId('row');
+  row.dataset.layout = 'grid';
+  row.dataset.ratioStr = '2*1';
+  row.style.display = 'grid';
+  row.style.gridTemplateColumns = 'repeat(2, 1fr)';
+  row.style.gap = '16px';
+  row.dataset.gap = '16';
+
+  // 카드 2개 생성
+  for (let i = 0; i < 2; i++) {
+    const col = document.createElement('div');
+    col.className = 'col';
+    const { block } = makeCardBlock();
+    col.appendChild(block);
+    row.appendChild(col);
+    bindBlock(block);
+  }
+
   insertAfterSelected(sec, row);
-  bindBlock(block);
   window.buildLayerPanel();
   window.selectSection(sec);
 }

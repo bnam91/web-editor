@@ -2670,7 +2670,7 @@ body {
 
 .cdb-image {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 3;
   background: #e8e8e8;
   display: flex;
   align-items: center;
@@ -2708,21 +2708,21 @@ body {
 .card-block.selected .cdb-clear-btn { display: block; }
 
 .cdb-body {
-  padding: 12px 14px 16px;
+  padding: 10px 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   background: #f5f5f5;
 }
 .cdb-title {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 600;
   color: #111;
   outline: none;
   line-height: 1.4;
 }
 .cdb-desc {
-  font-size: 18px;
+  font-size: 14px;
   color: var(--ui-text-dim);
   outline: none;
   line-height: 1.5;
