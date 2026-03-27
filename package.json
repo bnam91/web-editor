@@ -13,7 +13,9 @@
     "dev:template-tag": "electron . --enable-logging --remote-debugging-port=9339 --remote-allow-origins=* admin",
     "build:mac": "electron-builder --mac --dir",
     "release:mac": "electron-builder --mac --publish always",
-    "release:win": "electron-builder --win --publish always"
+    "release:win": "electron-builder --win --publish always",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "build": {
     "appId": "com.goyamkt.sangpe-editor",
@@ -26,13 +28,24 @@
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ]
     },
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "files": [
@@ -55,6 +68,7 @@
   },
   "homepage": "https://github.com/bnam91/web-editor#readme",
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "electron": "^41.0.3",
     "electron-builder": "^26.8.1"
   },
