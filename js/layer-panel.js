@@ -98,7 +98,7 @@ function makeLayerBlockItem(block, dragTarget, sec) {
       else window.showAssetProperties(block);
     }
   });
-  block.addEventListener('mouseenter', () => item.style.background = '#252525');
+  block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');
   block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
 
   item.setAttribute('draggable', 'true');

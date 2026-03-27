@@ -629,6 +629,11 @@ function rebindAll() {
     }
   });
 
+  // row ID 복원: 저장/불러오기 시 row에도 고유 ID 부여
+  canvasEl.querySelectorAll('.row').forEach(row => {
+    if (!row.id) row.id = 'row_' + Math.random().toString(36).slice(2, 9);
+  });
+
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'

@@ -28,7 +28,7 @@ function makeTextBlock(type) {
   const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', h3:'소항목을 입력하세요', body:'본문 내용을 입력하세요.', caption:'캡션을 입력하세요', label:'Label' };
 
   const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
   const col = document.createElement('div');
   col.className = 'col'; col.dataset.width = '100';
@@ -51,7 +51,7 @@ function makeTextBlock(type) {
 
 function makeAssetBlock() {
   const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
   const col = document.createElement('div');
   col.className = 'col'; col.dataset.width = '100';
@@ -81,7 +81,7 @@ function makeGapBlock() {
 
 function makeIconCircleBlock() {
   const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
   const col = document.createElement('div');
   col.className = 'col'; col.dataset.width = '100';
@@ -104,7 +104,7 @@ function makeIconCircleBlock() {
 
 function makeLabelGroupBlock() {
   const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
   const col = document.createElement('div');
   col.className = 'col'; col.dataset.width = '100';
@@ -144,7 +144,7 @@ function addLabelGroupBlock() {
 
 function makeTableBlock() {
   const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
   const col = document.createElement('div');
   col.className = 'col'; col.dataset.width = '100';
@@ -309,7 +309,7 @@ function addRowBlock(cols = 2, rows = 1) {
 // ── Row 프리셋 생성 ──────────────────────────────────────────
 function makePresetRow(type) {
   const row = document.createElement('div');
-  row.className = 'row';
+  row.className = 'row'; row.id = genId('row');
 
   const makeAb = () => {
     const ab = document.createElement('div');
@@ -457,7 +457,7 @@ function addTableBlock() {
 
 function makeCardBlock() {
   const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
   const col = document.createElement('div');
   col.className = 'col'; col.dataset.width = '100';
@@ -494,7 +494,7 @@ function addCardBlock() {
 
 function makeStripBannerBlock() {
   const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
   const col = document.createElement('div');
   col.className = 'col'; col.dataset.width = '100';
@@ -537,7 +537,7 @@ function addStripBannerBlock() {
 
 function makeGraphBlock() {
   const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
   const col = document.createElement('div');
   col.className = 'col'; col.dataset.width = '100';
@@ -569,7 +569,7 @@ function addGraphBlock() {
 
 function makeDividerBlock() {
   const row = document.createElement('div');
-  row.className = 'row'; row.dataset.layout = 'stack';
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
   const col = document.createElement('div');
   col.className = 'col'; col.dataset.width = '100';
@@ -615,14 +615,14 @@ function addSection() {
     </div>
     <div class="section-inner">
       <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
-      <div class="row" data-layout="stack">
+      <div class="row" id="${genId('row')}" data-layout="stack">
         <div class="col" data-width="100">
           <div class="text-block" data-type="heading" id="${genId('tb')}">
             <div class="tb-h2" contenteditable="false">새 섹션 제목</div>
           </div>
         </div>
       </div>
-      <div class="row" data-layout="stack">
+      <div class="row" id="${genId('row')}" data-layout="stack">
         <div class="col" data-width="100">
           <div class="asset-block" id="${genId('ab')}" data-align="center" data-overlay="false">
             ${ASSET_SVG}

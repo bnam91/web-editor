@@ -641,7 +641,7 @@ function bindBlock(block) {
   }
 
   // hover ↔ layer item
-  block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = '#252525'; });
+  block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = 'var(--ui-bg-card)'; });
   block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
 
   // 드래그 이벤트 (overlay-tb는 마우스 드래그 사용, HTML5 drag 제외)

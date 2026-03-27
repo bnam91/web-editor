@@ -1319,7 +1319,7 @@ body {
   transition: outline 0.1s;
 }
 .section-block:has(.section-hitzone:hover)::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.section-block.selected { outline: 2px solid #2d6fe8; outline-offset: 0; }
+.section-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
 
 .section-label {
   font-size: 11px; font-weight: 500;
@@ -1424,7 +1424,7 @@ body {
 }
 .text-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .text-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
-.text-block.editing  { outline: 1.5px dashed #2d6fe8; background: rgba(45,111,232,0.05); }
+.text-block.editing  { outline: 1.5px dashed var(--sel-color); background: var(--sel-color-fill); }
 
 
 .text-block [contenteditable] { outline: none; cursor: inherit; caret-color: var(--ui-text-dim); }
@@ -1526,7 +1526,7 @@ body {
   position: relative;
   transition: outline 0.1s;
 }
-.label-item.item-selected { outline: 2px solid #2d6fe8; outline-offset: 0; }
+.label-item.item-selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
 .label-item-text { outline: none; min-width: 20px; white-space: nowrap; }
 
 .label-group-add-btn {
@@ -2024,14 +2024,14 @@ body {
 
 /* 이미지 편집 모드 */
 .asset-block.img-editing {
-  outline: 2px solid #2d6fe8 !important;
+  outline: 2px solid var(--sel-color) !important;
   outline-offset: 2px;
   cursor: default;
 }
 .asset-block.img-editing .asset-img {
   cursor: move;
   user-select: none;
-  outline: 2px solid #2d6fe8;
+  outline: 2px solid var(--sel-color);
   outline-offset: -1px;
 }
 .img-corner-handle {
@@ -2059,7 +2059,7 @@ body {
   transform-origin: center center;
 }
 .icon-circle-block.img-editing {
-  outline: 2px solid #2d6fe8 !important;
+  outline: 2px solid var(--sel-color) !important;
   outline-offset: 2px;
   cursor: default;
 }
@@ -2105,11 +2105,11 @@ body {
 }
 .asset-block.has-image:hover .asset-overlay-clear,
 .asset-block.has-image.selected .asset-overlay-clear { opacity: 1; }
-.asset-block.drag-over { outline: 2px dashed #2d6fe8 !important; outline-offset: -3px; }
+.asset-block.drag-over { outline: 2px dashed var(--sel-color) !important; outline-offset: -3px; }
 
 /* 이미지 포지션 드래그 모드 */
 .asset-block.pos-dragging {
-  outline: 2px solid #2d6fe8 !important;
+  outline: 2px solid var(--sel-color) !important;
   outline-offset: 2px;
   cursor: default;
 }
@@ -2358,17 +2358,8 @@ body {
 }
 .icon-circle-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-circle-block { position: relative; }
-.icon-circle-block.selected { outline: none; }
-.icon-circle-block.selected::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  box-shadow: 0 0 0 2px var(--sel-color);
-  border-radius: 8px;
-  pointer-events: none;
-  z-index: 2;
-}
-.icon-circle-block.drag-over .icb-circle { outline: 2px dashed #2d6fe8; }
+.icon-circle-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.icon-circle-block.drag-over .icb-circle { outline: 2px dashed var(--sel-color); }
 
 .icb-circle {
   width: 80px; height: 80px;
@@ -2475,9 +2466,9 @@ body {
 /* 셀 편집 모드 */
 .tb-table td[contenteditable="true"],
 .tb-table th[contenteditable="true"] {
-  outline: 2px solid #2d6fe8;
+  outline: 2px solid var(--sel-color);
   outline-offset: 2px;
-  background: rgba(45,111,232,0.05) !important;
+  background: var(--sel-color-fill) !important;
   cursor: text;
 }
 
@@ -2660,7 +2651,7 @@ body {
 .card-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .card-block { position: relative; }
 .card-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
-.card-block.drag-over .cdb-image { outline: 2px dashed #2d6fe8; }
+.card-block.drag-over .cdb-image { outline: 2px dashed var(--sel-color); }
 
 .cdb-image {
   width: 100%;
@@ -2738,7 +2729,7 @@ body {
 }
 .strip-banner-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .strip-banner-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
-.strip-banner-block.drag-over .sbb-image { outline: 2px dashed #2d6fe8; }
+.strip-banner-block.drag-over .sbb-image { outline: 2px dashed var(--sel-color); }
 
 .sbb-image {
   flex: 3;

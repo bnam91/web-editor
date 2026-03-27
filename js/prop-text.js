@@ -218,8 +218,8 @@ export function showTextProperties(tb) {
 
       // label로 전환 시 기본 스타일 적용, 다른 타입으로 전환 시 초기화
       if (cls === 'tb-label') {
-        if (!contentEl.style.backgroundColor) contentEl.style.backgroundColor = '#111111';
-        if (!contentEl.style.color) contentEl.style.color = '#ffffff';
+        if (!contentEl.style.backgroundColor) contentEl.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-bg').trim() || '#111111';
+        if (!contentEl.style.color) contentEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--preset-label-color').trim() || '#ffffff';
         if (!contentEl.style.borderRadius) contentEl.style.borderRadius = '4px';
       } else {
         contentEl.style.backgroundColor = '';
