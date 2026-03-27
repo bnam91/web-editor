@@ -203,6 +203,8 @@ async function switchTab(id) {
   history.replaceState(null, '', '?project=' + id);
 
   // 즉시 캔버스 클리어 (이전 탭 내용이 잠깐 보이지 않도록)
+  // autoSaveObserver가 빈 캔버스를 파일에 덮어쓰지 않도록 억제
+  state._suppressAutoSave = true;
   const canvasEl = document.getElementById('canvas');
   if (canvasEl) canvasEl.innerHTML = '';
   if (window.buildLayerPanel) window.buildLayerPanel();
@@ -215,6 +217,7 @@ async function switchTab(id) {
   // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
   if (targetTab?._cache) {
     applyProjectData(JSON.parse(targetTab._cache));
+    state._suppressAutoSave = false;
     initBranchStore();
     requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
     return;
@@ -239,6 +242,7 @@ async function switchTab(id) {
     if (canvasEl) canvasEl.innerHTML = '';
     if (window.buildLayerPanel) window.buildLayerPanel();
   }
+  state._suppressAutoSave = false;
   initBranchStore();
 }
 

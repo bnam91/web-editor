@@ -43,6 +43,14 @@ async function initBranchStore() {
       if (proj?.branches) {
         const store = { current: proj.currentBranch || 'main', branches: proj.branches };
         localStorage.setItem(getBranchKey(), JSON.stringify(store)); // 로컬 캐시
+        // 현재 브랜치 스냅샷을 캔버스에 적용
+        const activeBranch = store.branches[store.current];
+        if (activeBranch?.snapshot) {
+          try {
+            const data = JSON.parse(activeBranch.snapshot);
+            applyProjectData(data);
+          } catch {}
+        }
         updateBranchIndicator(store.current);
         applyFocusMode(store.current);
         renderBranchPanel();
