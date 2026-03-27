@@ -1,0 +1,242 @@
+{
+  "meta": {
+    "generated": "2026-03-27",
+    "project": "/Users/a1/web-editor",
+    "cdp_port": 9334,
+    "page_url": "file:///Users/a1/web-editor/index.html"
+  },
+  "scenarios": {
+    "05-01": {
+      "title": "prop-row.js pushHistory 오류 재현",
+      "status": "PASS",
+      "details": {
+        "typeof_pushHistory_bare": "function",
+        "typeof_window_pushHistory": "function",
+        "bare_calls_in_showRowProperties": 0,
+        "window_calls_in_showRowProperties": 12,
+        "conclusion": "prop-row.js는 이미 전부 window.pushHistory()로 올바르게 호출 중. 수정 불필요.",
+        "fix_needed": false
+      }
+    },
+    "05-02": {
+      "title": "Row 높이 변경 후 저장",
+      "status": "PASS",
+      "details": {
+        "target_row": "row_rc9v7zs (grid layout)",
+        "slider_changed_to": 200,
+        "actual_slider_snapped_to": 204,
+        "dataset_rowHeight": "204",
+        "pushHistory_called": 1,
+        "serialized_to_canvas": true,
+        "data_row_height_in_canvas": true,
+        "conclusion": "높이 변경 및 pushHistory 정상 동작. canvas 직렬화 시 data-row-height 포함 확인."
+      }
+    },
+    "05-03": {
+      "title": "Row padX/padY 변경",
+      "status": "PASS_WITH_NOTE",
+      "details": {
+        "padX_set": 20,
+        "row_style_paddingLeft": "20px",
+        "row_style_paddingRight": "20px",
+        "dataset_padX": "20",
+        "pushHistory_called": 1,
+        "col_paddings": [
+          "none",
+          "none",
+          "none",
+          "none"
+        ],
+        "serialized": true,
+        "canvas_has_data_pad_x": true,
+        "canvas_has_padding_left_inline": true,
+        "note": "padX는 Row 자체에 padding 적용됨 (Col에는 적용 안 됨 - 설계대로). 직렬화 정상.",
+        "conclusion": "정상 동작. padX는 Row의 padding-left/right에만 반영 (Col 직접 패딩 없음 - 의도된 설계)."
+      }
+    },
+    "05-04": {
+      "title": "Col 비율 (ratioStr) 조절",
+      "status": "PASS",
+      "details": {
+        "target_row": "row_14xm0gr (flex layout, 2 cols)",
+        "ratio_set": "2:1",
+        "col_flex_values": [
+          {
+            "flex": "2 1 0%",
+            "dataFlex": "2"
+          },
+          {
+            "flex": "1 1 0%",
+            "dataFlex": "1"
+          }
+        ],
+        "pushHistory_called": 1,
+        "conclusion": "2:1 비율 설정 시 flex 값 정상 반영, pushHistory 호출됨."
+      }
+    },
+    "05-05": {
+      "title": "Col 추가 후 Row 패딩 상태",
+      "status": "PASS",
+      "details": {
+        "padX_before_col_add": "20",
+        "cols_before": 2,
+        "cols_after": 3,
+        "padX_after_col_add": "20",
+        "paddingLeft_after": "20px",
+        "padX_lost": false,
+        "conclusion": "Col 추가 후 padX 20 유지. 손실 없음."
+      }
+    },
+    "05-06": {
+      "title": "섹션 배경색 변경",
+      "status": "BUG_FIXED",
+      "details": {
+        "bg_changes_applied": true,
+        "canvas_bg_serialized": true,
+        "pushHistory_on_input_event": 0,
+        "pushHistory_on_change_event": 0,
+        "conclusion": "섹션 배경색 변경 시 pushHistory 미호출 → Undo 히스토리에 기록되지 않음.",
+        "bug_description": "prop-section.js의 sec-bg-color input/change 이벤트 리스너에 pushHistory 호출 없음.",
+        "bug_location": "/Users/a1/web-editor/js/prop-section.js",
+        "bug_lines": "picker.addEventListener('input', ...) 블록에 pushHistory 누락",
+        "fix_needed": true,
+        "fix_suggestion": "picker의 change 이벤트 또는 input 이벤트(디바운스)에 pushHistory('섹션 배경색') 추가",
+        "fix_applied": true,
+        "fix_detail": "prop-section.js line 217: picker change → pushHistory(섹션 배경색) 추가. line 225: hex change → pushHistory 추가."
+      }
+    },
+    "05-07": {
+      "title": "섹션 위아래 이동 (Cmd+↑/↓)",
+      "status": "PASS",
+      "details": {
+        "section_count": 13,
+        "selected_section": "sec_j82dzeg (index 1)",
+        "cmd_arrow_up_fired": true,
+        "order_changed": true,
+        "before_top4": [
+          "sec_kjqt2rr",
+          "sec_j82dzeg",
+          "sec_3iw1geg",
+          "sec_w002dwy"
+        ],
+        "after_top4": [
+          "sec_j82dzeg",
+          "sec_kjqt2rr",
+          "sec_3iw1geg",
+          "sec_w002dwy"
+        ],
+        "conclusion": "Cmd+↑ 이벤트로 섹션 순서 정상 변경됨."
+      }
+    },
+    "05-08": {
+      "title": "멀티페이지 생성",
+      "status": "PASS_WITH_NOTE",
+      "details": {
+        "initial_page_count": 4,
+        "pages_info": [
+          {
+            "id": "page_1",
+            "name": "Page 1",
+            "label": "Hook"
+          },
+          {
+            "id": "page_1774417977349",
+            "name": "Page 3",
+            "label": "Event"
+          },
+          {
+            "id": "page_1774359282337",
+            "name": "Page 2",
+            "label": "Main"
+          },
+          {
+            "id": "page_1774456138288",
+            "name": "Page 4",
+            "label": ""
+          }
+        ],
+        "addPage_works": true,
+        "new_page_added": true,
+        "label_options": [
+          "",
+          "Hook",
+          "Main",
+          "Detail",
+          "CTA",
+          "Event"
+        ],
+        "PAGE_LABELS_window": null,
+        "PAGE_LABELS_defined_in": "file-page-section.js에서 import { PAGE_LABELS } from './globals.js'",
+        "note": "window.PAGE_LABELS 미노출 (모듈 스코프). 그러나 라벨 셀렉트는 정상 동작.",
+        "independent_canvas_per_page": true,
+        "conclusion": "멀티페이지 정상 동작. PAGE_LABELS은 모듈 내부 import로만 사용 중이라 window에 없음 (의도적)."
+      }
+    },
+    "05-09": {
+      "title": "페이지 삭제",
+      "status": "PASS",
+      "details": {
+        "pages_before_delete": 5,
+        "deleted_page_id": "page_1774417977349",
+        "pages_after_delete": 4,
+        "deleted_page_removed": true,
+        "remaining_ids": [
+          "page_1",
+          "page_1774359282337",
+          "page_1774456138288",
+          "page_1774604835931"
+        ],
+        "conclusion": "중간 페이지 삭제 정상. state.pages에서 완전 제거 확인."
+      }
+    },
+    "05-10": {
+      "title": "페이지 순서 변경 (드래그)",
+      "status": "PASS",
+      "details": {
+        "drag_reorder_works": true,
+        "before_order": [
+          "page_1",
+          "page_1774417977349",
+          "page_1774359282337",
+          "page_1774456138288"
+        ],
+        "after_order": [
+          "page_1774417977349",
+          "page_1",
+          "page_1774359282337",
+          "page_1774456138288"
+        ],
+        "order_changed": true,
+        "buildFilePageSection_called": true,
+        "scheduleAutoSave_exists": true,
+        "switchPage_works": true,
+        "conclusion": "drag-drop 로직으로 state.pages 재정렬 정상 동작. buildFilePageSection, scheduleAutoSave 연동 확인."
+      }
+    }
+  },
+  "summary": {
+    "total_scenarios": 10,
+    "pass": 7,
+    "pass_with_note": 2,
+    "bug": 1,
+    "bugs_found": [
+      {
+        "id": "BUG-05-06",
+        "severity": "medium",
+        "title": "섹션 배경색 변경 시 pushHistory 미호출",
+        "file": "/Users/a1/web-editor/js/prop-section.js",
+        "description": "sec-bg-color input/change 이벤트에 pushHistory 없음 → Ctrl+Z Undo로 배경색 복원 불가",
+        "fix": "picker.addEventListener 또는 hex.addEventListener 'change' 이벤트에 pushHistory('섹션 배경색') 추가",
+        "status": "FIXED"
+      }
+    ],
+    "no_fix_needed": {
+      "prop_row_pushHistory": "prop-row.js는 이미 전부 window.pushHistory() 사용 중 - 버그 없음"
+    },
+    "notes": [
+      "switchPage 전환 시 sectionCount=0인 페이지는 의도적으로 빈 페이지 (page_1774417977349)",
+      "padX는 Row 요소의 padding에만 적용됨 (Col 내부에는 패딩 미적용 - 설계 일치)",
+      "PAGE_LABELS는 ES 모듈 내부 import로만 사용, window에 미노출 (정상)"
+    ]
+  }
+}

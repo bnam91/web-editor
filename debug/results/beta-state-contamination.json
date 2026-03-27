@@ -1,0 +1,137 @@
+{
+  "agent": "Agent-β",
+  "part": "상태 오염",
+  "ts": "2026-03-27T09:51:09.540Z",
+  "cdp_port": 9334,
+  "scenarios": [
+    {
+      "id": "β-01",
+      "name": "탭 전환 후 propPanel 잔존",
+      "status": "FIXED",
+      "initial_status": "FAIL",
+      "post_fix_status": "PASS",
+      "detail": "switchTab() 에서 propPanel 클리어 코드 없어 이전 탭 패널(6835 chars) 잔존. fix: switchTab()에 propPanel.innerHTML='' 추가",
+      "fix_location": "save-load.js:switchTab()",
+      "propPanelBeforeSwitch": 6835,
+      "propPanelAfterSwitchBeforeFix": 6835,
+      "propPanelAfterSwitchAfterFix": 0
+    },
+    {
+      "id": "β-02",
+      "name": "페이지 전환 후 propPanel 잔존",
+      "status": "PASS",
+      "detail": "switchPage()가 window.showPageProperties()를 호출하여 패널 내용이 교체됨. 섹션 패널(6835 chars) → 페이지 패널(3540 chars)로 교체 확인. 추가로 명시적 propPanel 클리어 코드 삽입(방어적)",
+      "propPanelBeforeSwitch": 6835,
+      "propPanelAfterSwitch": 3540,
+      "contentChanged": true
+    },
+    {
+      "id": "β-03",
+      "name": "multiSel 고아 참조 (페이지 전환)",
+      "status": "PASS",
+      "detail": "switchPage()가 window.deselectAll()을 호출하여 multiSel 정상 초기화됨. sections: 2→0, orphanedSections: 0",
+      "multiSelBefore": {
+        "sections": 2,
+        "cols": 0
+      },
+      "multiSelAfter": {
+        "sections": 0,
+        "cols": 0
+      },
+      "orphanCheck": {
+        "orphanedSections": 0,
+        "orphanedCols": 0
+      }
+    },
+    {
+      "id": "β-04",
+      "name": "탭 전환 후 레이어 패널 동기화",
+      "status": "PASS",
+      "detail": "탭 B로 전환 시 buildLayerPanel() 호출되어 레이어 패널 교체됨. tabA=13 sections/layers → tabB=1 section/layer",
+      "sectionsInTabA": 13,
+      "layerItemsInTabA": 13,
+      "sectionsInTabB": 1,
+      "layerItemsInTabB": 1
+    },
+    {
+      "id": "β-05",
+      "name": "페이지 전환 후 히스토리 스택 공유 버그",
+      "status": "FAIL",
+      "detail": "historyStack이 모듈 스코프 글로벌 변수로 페이지 전환 시에도 유지됨. pushHistory()가 pageId를 함께 저장하고 restoreSnapshot()에서 페이지 이동 처리하나, 다른 페이지 Undo 시 involuntary 페이지 전환 발생. 설계 수준 버그로 현재 미수정.",
+      "note": "historyStack이 window에 미노출되어 테스트 변수 직접 확인 불가, 코드 정적 분석으로 확인"
+    },
+    {
+      "id": "β-06",
+      "name": "빠른 탭 전환 중 저장 race condition",
+      "status": "PASS",
+      "detail": "switchTab()에서 curTab._cache = serializeProject() 후 즉시 파일 저장(비동기)하고 메모리 캐시 우선 복원하므로 섹션 보존됨. before=13, after=13",
+      "sectionsBefore": 13,
+      "sectionsAfterRace": 13
+    },
+    {
+      "id": "β-07",
+      "name": "이미지 편집 모드 중 탭 전환 - 좀비 오버레이",
+      "status": "PASS",
+      "detail": "탭 전환 후 img-edit-overlay, resize-handle 등 좀비 오버레이 없음. canvasEl.innerHTML='' 로 클리어되어 오버레이도 제거됨",
+      "overlaysAfter": {
+        "imgOverlay": 0,
+        "handles": 0
+      }
+    },
+    {
+      "id": "β-08",
+      "name": "텍스트 편집 중 페이지 전환 복귀 - contentEditable 잔존",
+      "status": "FIXED",
+      "initial_status": "FAIL",
+      "post_fix_status": "PASS",
+      "detail": "flushCurrentPage() → getSerializedCanvas()가 contenteditable 속성을 그대로 직렬화하여 복귀 시에도 편집 상태 잔존. fix: getSerializedCanvas()에 contenteditable 속성 및 editing 클래스 제거 코드 추가",
+      "fix_location": "save-load.js:getSerializedCanvas()",
+      "editableCountBeforeFix": 1,
+      "editableCountAfterFix": 0
+    },
+    {
+      "id": "β-09",
+      "name": "프로젝트 닫기 후 상태 초기화",
+      "status": "SKIP",
+      "detail": "CDP evaluate 특성상 async switchTab()의 완료를 await할 수 없어 정확한 검증 불가(Electron IPC 비동기 로드). 코드 분석 상 proj=null 케이스에서 canvasEl.innerHTML='' 처리되어 있음. 실제 Electron 환경에서는 정상 동작 예상",
+      "note": "테스트 메커니즘 한계로 인한 FALSE FAIL 가능성"
+    },
+    {
+      "id": "β-10",
+      "name": "switchPage() 전환 시 .selected 상태 초기화",
+      "status": "PASS",
+      "detail": "switchPage()가 window.deselectAll() 호출 및 canvasEl.innerHTML 교체로 선택 상태 완전 초기화. selected=1 → 0, multiSelected=0",
+      "selectedBefore": 1,
+      "selectedAfter": 0,
+      "multiSelectedAfter": 0
+    }
+  ],
+  "bugs_found": 3,
+  "fixes_applied": 2,
+  "bugs_detail": {
+    "fixed": [
+      {
+        "id": "BUG-β-01",
+        "desc": "switchTab() propPanel 미클리어",
+        "file": "js/save-load.js",
+        "line": "~210",
+        "fix": "propPanel.innerHTML = '' 추가"
+      },
+      {
+        "id": "BUG-β-08",
+        "desc": "getSerializedCanvas() contenteditable 속성 직렬화로 인한 편집 상태 복원",
+        "file": "js/save-load.js",
+        "line": "getSerializedCanvas()",
+        "fix": "clone에서 contenteditable 속성 및 .editing 클래스 제거 후 직렬화"
+      }
+    ],
+    "unfixed": [
+      {
+        "id": "BUG-β-05",
+        "desc": "historyStack 글로벌 공유 — 페이지 전환 후 undo가 다른 페이지 작업을 되돌림",
+        "file": "js/editor.js",
+        "note": "설계 수준 버그, 수정 요청 범위 외"
+      }
+    ]
+  }
+}

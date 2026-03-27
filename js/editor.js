@@ -131,6 +131,12 @@ function redo() {
   restoreSnapshot(historyStack[historyPos]);
 }
 
+function clearHistory() {
+  historyStack = [];
+  historyPos   = -1;
+  _updateUndoRedoBtns();
+}
+
 /* ══ 브레드크럼 헬퍼 ══ */
 function getBlockBreadcrumb(el) {
   const sec = el.closest('.section-block');
@@ -181,6 +187,9 @@ function selectSectionWithModifier(sec, e) {
     if (multiSel.sections.has(sec)) {
       sec.classList.remove('selected', 'multi-selected');
       multiSel.sections.delete(sec);
+    } else if (sec.classList.contains('selected') && multiSel.sections.size === 0) {
+      // 이미 단일 선택된 항목을 Cmd+클릭 → 선택 해제 (토글)
+      sec.classList.remove('selected', 'multi-selected');
     } else {
       // 기존 단일 선택도 multiSel에 합류
       const prev = document.querySelector('.section-block.selected:not(.multi-selected)');
@@ -337,6 +346,14 @@ document.addEventListener('keydown', e => {
     if (e.key === 'v') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
+      pasteClipboard();
+      return;
+    }
+    if (e.key === 'd') {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      copySelected();
       pasteClipboard();
       return;
     }
@@ -827,10 +844,13 @@ canvasEl.addEventListener('click', e => {
     if (window.showColProperties) window.showColProperties(col);
     else if (window.showRowProperties) window.showRowProperties(row);
   }
+  // 일반 클릭 후 lastCol 설정 (clearMultiSel 이후이므로 selectSection 호출 다음에 설정)
+  multiSel.lastCol = col;
 }, true);
 // window 할당을 initApp() 보다 먼저 — save-load.js의 initApp 내부에서 참조하기 때문
 window.ASSET_SVG = ASSET_SVG;
 window.pushHistory = pushHistory;
+window.clearHistory = clearHistory;
 window.undo = undo;
 window.redo = redo;
 window.deselectAll = deselectAll;

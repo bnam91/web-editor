@@ -45,4 +45,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App info
   isElectron: true,
+  getGitBranch: () => ipcRenderer.invoke('app:git-branch'),
 });

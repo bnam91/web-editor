@@ -46,13 +46,23 @@ function watchFiles() {
   });
 }
 
+function getGitBranch() {
+  try {
+    const { execSync } = require('child_process');
+    return execSync('git rev-parse --abbrev-ref HEAD', { cwd: __dirname }).toString().trim();
+  } catch { return null; }
+}
+
 function createWindow() {
   const isMac = process.platform === 'darwin';
+  const gitBranch = getGitBranch();
+  const windowTitle = gitBranch ? `상페마법사 [${gitBranch}]` : '상페마법사';
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
+    title: windowTitle,
     ...(isMac ? { titleBarStyle: 'hiddenInset' } : { titleBarStyle: 'default' }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -64,6 +74,13 @@ function createWindow() {
 
   // 라이선스 체크 후 페이지 결정
   checkLicenseAndLoad();
+
+  ipcMain.handle('app:git-branch', () => getGitBranch());
+
+  // HTML <title>이 덮어씌우지 않도록 로드 완료 후 타이틀 강제 설정
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.setTitle(windowTitle);
+  });
 
   mainWindow.on('enter-full-screen', () => {
     mainWindow.webContents.send('fullscreen-change', true);

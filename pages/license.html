@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>상페마법사 — 라이선스 인증</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #111;
+      color: #e8e8e8;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-app-region: drag;
+    }
+
+    .card {
+      background: #1c1c1e;
+      border: 1px solid #2a2a2c;
+      border-radius: 16px;
+      padding: 48px 44px 40px;
+      width: 420px;
+      -webkit-app-region: no-drag;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #5b6cff, #9b59b6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-text {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .logo-sub {
+      font-size: 12px;
+      color: #666;
+      margin-top: 1px;
+    }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .desc {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #aaa;
+      margin-bottom: 6px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: #252527;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #e8e8e8;
+      font-size: 14px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+
+    input[type="text"]:focus {
+      border-color: #5b6cff;
+    }
+
+    input[type="text"]::placeholder {
+      color: #555;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .btn {
+      width: 100%;
+      background: #5b6cff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 12px;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn:hover { background: #4a5be0; }
+    .btn:active { background: #3d4ec0; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      min-height: 18px;
+      text-align: center;
+    }
+
+    .status.error { color: #ff6b6b; }
+    .status.success { color: #6bcf7f; }
+    .status.info { color: #888; }
+
+    /* IP 한도 초과 화면 */
+    .ip-list-section {
+      display: none;
+    }
+
+    .ip-list-section.visible {
+      display: block;
+    }
+
+    .ip-list {
+      list-style: none;
+      margin: 12px 0 16px;
+    }
+
+    .ip-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #252527;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .ip-list .ip-addr { color: #e8e8e8; font-family: monospace; }
+    .ip-list .ip-alias { color: #888; font-size: 12px; margin-left: 8px; }
+    .ip-list .ip-date { color: #555; font-size: 11px; }
+
+    .btn-delete {
+      background: none;
+      border: 1px solid #444;
+      border-radius: 6px;
+      color: #ff6b6b;
+      font-size: 12px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .btn-delete:hover { background: rgba(255,107,107,0.1); }
+
+    .btn-back {
+      background: #252527;
+      color: #aaa;
+      margin-top: 8px;
+    }
+
+    .btn-back:hover { background: #2f2f31; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">✦</div>
+    <div>
+      <div class="logo-text">상페마법사</div>
+      <div class="logo-sub">Web Editor</div>
+    </div>
+  </div>
+
+  <!-- 기본 라이선스 입력 화면 -->
+  <div id="mainSection">
+    <h2>라이선스 인증</h2>
+    <p class="desc">이 기기에서 처음 실행 중입니다.<br>발급받은 라이선스 키를 입력해 주세요.</p>
+
+    <div class="field">
+      <label>라이선스 키</label>
+      <input type="text" id="licenseKey" placeholder="WE-XXXXXX" maxlength="9" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="field">
+      <label>사용자명 <span style="color:#555;font-size:11px;text-transform:none;">(선택)</span></label>
+      <input type="text" id="userId" placeholder="홍길동" maxlength="20" autocomplete="off">
+    </div>
+
+    <button class="btn" id="registerBtn" onclick="handleRegister()">인증하기</button>
+    <div class="status info" id="statusMsg">
+      현재 공인 IP를 확인하는 중...
+    </div>
+  </div>
+
+  <!-- IP 한도 초과 화면 -->
+  <div id="ipLimitSection" class="ip-list-section">
+    <h2>기기 한도 초과</h2>
+    <p class="desc">이 라이선스에 최대 5개의 기기가 등록되어 있습니다.<br>기존 기기를 삭제하고 현재 기기를 등록하세요.</p>
+
+    <ul class="ip-list" id="ipList"></ul>
+
+    <button class="btn" id="retryBtn" onclick="retryAfterDelete()">등록 재시도</button>
+    <button class="btn btn-back" onclick="showMain()">← 돌아가기</button>
+    <div class="status error" id="ipLimitStatus"></div>
+  </div>
+</div>
+
+<script>
+  let currentIp = null;
+  let currentLicenseKey = null;
+
+  async function init() {
+    try {
+      currentIp = await window.electronAPI.getPublicIp();
+      if (currentIp) {
+        document.getElementById('statusMsg').textContent = `현재 IP: ${currentIp}`;
+      } else {
+        document.getElementById('statusMsg').textContent = '네트워크 연결을 확인해 주세요.';
+        document.getElementById('statusMsg').className = 'status error';
+      }
+    } catch (e) {
+      document.getElementById('statusMsg').textContent = '오류: ' + e.message;
+      document.getElementById('statusMsg').className = 'status error';
+    }
+  }
+
+  async function handleRegister() {
+    const key = document.getElementById('licenseKey').value.trim().toUpperCase();
+    const userId = document.getElementById('userId').value.trim();
+    const btn = document.getElementById('registerBtn');
+    const statusEl = document.getElementById('statusMsg');
+
+    if (!key) {
+      statusEl.textContent = '라이선스 키를 입력해 주세요.';
+      statusEl.className = 'status error';
+      return;
+    }
+
+    if (!currentIp) {
+      statusEl.textContent = '공인 IP를 확인할 수 없습니다. 네트워크를 확인해 주세요.';
+      statusEl.className = 'status error';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>인증 중...';
+    statusEl.textContent = '';
+    statusEl.className = 'status';
+
+    try {
+      const result = await window.electronAPI.registerLicense(key, currentIp, userId);
+
+      if (result.success) {
+        statusEl.textContent = '인증 완료! 잠시 후 이동합니다...';
+        statusEl.className = 'status success';
+        setTimeout(() => {
+          window.electronAPI.navigateToProjects();
+        }, 800);
+        return;
+      }
+
+      switch (result.reason) {
+        case 'invalid_key':
+          statusEl.textContent = '유효하지 않은 라이선스 키입니다.';
+          break;
+        case 'inactive':
+          statusEl.textContent = '비활성화된 라이선스입니다. 관리자에게 문의하세요.';
+          break;
+        case 'expired':
+          statusEl.textContent = '만료된 라이선스입니다.';
+          break;
+        case 'userId_reserved':
+          statusEl.textContent = '사용할 수 없는 사용자명입니다.';
+          break;
+        case 'userId_taken':
+          statusEl.textContent = '이미 사용 중인 사용자명입니다.';
+          break;
+        case 'ip_limit':
+          currentLicenseKey = key;
+          showIpLimitScreen(result.allowedIps);
+          return;
+        default:
+          statusEl.textContent = '오류가 발생했습니다. 다시 시도해 주세요.';
+      }
+      statusEl.className = 'status error';
+    } catch (e) {
+      statusEl.textContent = '연결 오류: ' + e.message;
+      statusEl.className = 'status error';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '인증하기';
+    }
+  }
+
+  function showIpLimitScreen(ips) {
+    document.getElementById('mainSection').style.display = 'none';
+    const section = document.getElementById('ipLimitSection');
+    section.classList.add('visible');
+
+    const ul = document.getElementById('ipList');
+    ul.innerHTML = '';
+    ips.forEach(entry => {
+      const date = new Date(entry.registeredAt).toLocaleDateString('ko-KR');
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <div>
+          <span class="ip-addr">${entry.ip}</span>
+          ${entry.alias ? `<span class="ip-alias">${entry.alias}</span>` : ''}
+          <br><span class="ip-date">${date} 등록</span>
+        </div>
+        <button class="btn-delete" onclick="deleteIp('${entry.ip}')">삭제</button>
+      `;
+      ul.appendChild(li);
+    });
+  }
+
+  async function deleteIp(ip) {
+    const statusEl = document.getElementById('ipLimitStatus');
+    statusEl.textContent = '삭제 중...';
+    statusEl.className = 'status info';
+
+    try {
+      const result = await window.electronAPI.removeLicenseIp(currentLicenseKey, ip);
+      if (result.success) {
+        // 해당 li 제거
+        const btns = document.querySelectorAll('.btn-delete');
+        btns.forEach(btn => {
+          if (btn.getAttribute('onclick').includes(ip)) {
+            btn.closest('li').remove();
+          }
+        });
+        statusEl.textContent = `${ip} 삭제 완료. 이제 등록 재시도를 클릭하세요.`;
+        statusEl.className = 'status success';
+      } else {
+        statusEl.textContent = '삭제 실패: ' + (result.error || result.reason);
+        statusEl.className = 'status error';
+      }
+    } catch (e) {
+      statusEl.textContent = '오류: ' + e.message;
+      statusEl.className = 'status error';
+    }
+  }
+
+  async function retryAfterDelete() {
+    showMain();
+    // 잠깐 후 자동 재시도
+    setTimeout(() => handleRegister(), 100);
+  }
+
+  function showMain() {
+    document.getElementById('mainSection').style.display = 'block';
+    document.getElementById('ipLimitSection').classList.remove('visible');
+    document.getElementById('licenseKey').value = currentLicenseKey || '';
+  }
+
+  // Enter 키 바인딩
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const section = document.getElementById('ipLimitSection');
+      if (section.classList.contains('visible')) return;
+      handleRegister();
+    }
+  });
+
+  // 라이선스 키 자동 대문자 + 하이픈 포맷팅
+  document.getElementById('licenseKey').addEventListener('input', (e) => {
+    let v = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    e.target.value = v;
+  });
+
+  init();
+</script>
+</body>
+</html>

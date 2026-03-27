@@ -138,7 +138,7 @@ export function showAssetProperties(ab) {
         </div>
         <div class="prop-row">
           <button class="prop-action-btn primary" id="overlay-add-text-btn">+ 텍스트 추가</button>
-          <button class="prop-action-btn secondary" id="overlay-del-text-btn">− 텍스트 제거</button>
+          <button class="prop-action-btn danger" id="overlay-del-text-btn">− 텍스트 제거</button>
         </div>
         <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭으로 편집</div>
       </div>
