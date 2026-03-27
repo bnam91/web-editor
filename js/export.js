@@ -674,6 +674,11 @@ async function doFigmaUpload() {
     }
   }
 
+  if (!window.electronAPI?.figmaUpload) {
+    showDone(false, '❌ Figma 업로드는 데스크탑 앱에서만 사용할 수 있습니다.');
+    return;
+  }
+
   try {
     const result = await window.electronAPI.figmaUpload(channel, designJSON);
 

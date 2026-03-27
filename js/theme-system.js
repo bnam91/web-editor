@@ -43,9 +43,13 @@ const ThemeSystem = (() => {
   /** Primary 색상 기반으로 hover/fill rgba 파생값 계산 */
   function deriveAccentVariants(primaryHex) {
     const { r, g, b } = hexToRgb(primaryHex);
+    // --ui-accent: primary보다 밝은 라이트 변형 (브랜치/포커스 UI용)
+    const lighten = (v) => Math.min(255, Math.round(v + (255 - v) * 0.35));
+    const accentLight = `#${lighten(r).toString(16).padStart(2,'0')}${lighten(g).toString(16).padStart(2,'0')}${lighten(b).toString(16).padStart(2,'0')}`;
     return {
       hover: `rgba(${r},${g},${b},0.4)`,
       fill:  `rgba(${r},${g},${b},0.08)`,
+      light: accentLight,
     };
   }
 
@@ -98,7 +102,7 @@ const ThemeSystem = (() => {
     root.style.setProperty('--sel-color',            primary);
     root.style.setProperty('--sel-color-hover',      accent.hover);
     root.style.setProperty('--sel-color-fill',       accent.fill);
-    root.style.setProperty('--ui-accent',            primary);
+    root.style.setProperty('--ui-accent',            accent.light);  /* 브랜치/focus UI 밝은 파생색 */
 
     // Text 관련 변수
     root.style.setProperty('--ui-text',              text);

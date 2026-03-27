@@ -46,4 +46,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // App info
   isElectron: true,
   getGitBranch: () => ipcRenderer.invoke('app:git-branch'),
+
+  // Intake (design-bot pipeline)
+  saveIntakeFile:  (data)     => ipcRenderer.invoke('intake:save', data),
+  loadIntakeFile:  (filename) => ipcRenderer.invoke('intake:load', filename),
+  listIntakeFiles: ()         => ipcRenderer.invoke('intake:list'),
 });

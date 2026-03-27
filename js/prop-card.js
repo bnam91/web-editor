@@ -143,7 +143,7 @@ export function showCardProperties(block) {
     newCol.className = 'col'; newCol.style.flex = '1'; newCol.dataset.flex = '1';
     const cdb = document.createElement('div');
     cdb.className = 'card-block'; cdb.dataset.type = 'card';
-    cdb.id = genId('cdb');
+    cdb.id = window.genId('cdb');
     cdb.dataset.bgColor = block.dataset.bgColor || '#f5f5f5';
     cdb.dataset.radius  = block.dataset.radius  || '12';
     const r = cdb.dataset.radius;

@@ -195,6 +195,45 @@ ipcMain.handle('projects:delete', (event, id) => {
   return true;
 });
 
+/* ── IPC: Intake (design-bot pipeline) ── */
+const INTAKE_DIR = path.join(os.homedir(), 'Documents', 'design-bot-builder');
+if (!fs.existsSync(INTAKE_DIR)) fs.mkdirSync(INTAKE_DIR, { recursive: true });
+
+ipcMain.handle('intake:save', (event, data) => {
+  if (!data || typeof data !== 'object') throw new Error('invalid data');
+  const safeProduct = (data.product_name || 'unknown').replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const filename = `intake_${safeProduct}_${dateStr}.json`;
+  const filePath = path.join(INTAKE_DIR, filename);
+  const payload = { ...data, ts: new Date().toISOString(), saved_to: filePath };
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
+  return { ok: true, filename, filePath };
+});
+
+ipcMain.handle('intake:load', (event, filename) => {
+  try {
+    const filePath = path.join(INTAKE_DIR, filename);
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch { return null; }
+});
+
+ipcMain.handle('intake:list', () => {
+  try {
+    if (!fs.existsSync(INTAKE_DIR)) return [];
+    return fs.readdirSync(INTAKE_DIR)
+      .filter(f => f.startsWith('intake_') && f.endsWith('.json'))
+      .map(f => {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(INTAKE_DIR, f), 'utf8'));
+          return { filename: f, product_name: data.product_name, volume: data.volume, ts: data.ts };
+        } catch { return null; }
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  } catch { return []; }
+});
+
 /* ── IPC: Presets ── */
 ipcMain.handle('fullscreen:get', () => mainWindow?.isFullScreen() ?? false);
 

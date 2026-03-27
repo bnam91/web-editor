@@ -20,8 +20,16 @@ async function initTemplates() {
         const index = [];
         for (const tpl of old) {
           const { canvas, ...meta } = tpl;
-          index.push(meta);
-          if (canvas) await window.electronAPI.saveTemplateCanvas(tpl.id, canvas);
+          if (canvas) {
+            try {
+              await window.electronAPI.saveTemplateCanvas(tpl.id, canvas);
+              index.push(meta); // canvas 저장 성공한 항목만 index에 추가
+            } catch {
+              // canvas 저장 실패 시 해당 템플릿은 index에서 제외
+            }
+          } else {
+            index.push(meta); // canvas 없는 메타 전용 항목은 그대로 추가
+          }
         }
         _templatesCache = index;
         await window.electronAPI.saveTemplateIndex(index);
