@@ -410,6 +410,34 @@
       Properties
     </div>
     <div class="panel-body"></div>
+
+    <!-- Theme Token Panel (step2-ds-tokens) -->
+    <div id="theme-panel">
+      <div id="theme-panel-header" onclick="ThemeSystem.togglePanel()">
+        <span class="theme-panel-title">테마</span>
+        <span class="theme-panel-chevron">▼</span>
+      </div>
+      <div id="theme-panel-body">
+        <div class="theme-token-row">
+          <span class="theme-token-label">Primary</span>
+          <input type="color" class="theme-token-input" id="token-primary" value="#2d6fe8">
+          <input type="text" class="theme-token-hex" id="token-primary-hex" value="#2d6fe8" maxlength="9">
+        </div>
+        <div class="theme-token-row">
+          <span class="theme-token-label">Text</span>
+          <input type="color" class="theme-token-input" id="token-text" value="#e0e0e0">
+          <input type="text" class="theme-token-hex" id="token-text-hex" value="#e0e0e0" maxlength="9">
+        </div>
+        <div class="theme-token-row">
+          <span class="theme-token-label">Background</span>
+          <input type="color" class="theme-token-input" id="token-bg" value="#1a1a1a">
+          <input type="text" class="theme-token-hex" id="token-bg-hex" value="#1a1a1a" maxlength="9">
+        </div>
+        <button id="theme-apply-btn" onclick="ThemeSystem.applyFromPanel()">테마 적용</button>
+        <button id="theme-reset-btn" onclick="ThemeSystem.resetTheme()">초기화</button>
+      </div>
+    </div>
+
   </div>
 
 </div>
@@ -737,7 +765,13 @@
 </div>
 
 <script type="module" src="js/ai-prompt.js"></script>
+<script src="js/theme-system.js"></script>
 <script type="module" src="js/component-shelf.js"></script>
+
+<!-- ══════════════════════════
+     VARIABLE BINDING (step2)
+══════════════════════════ -->
+<script src="js/variable-binding.js"></script>
 
 </body>
 </html>
