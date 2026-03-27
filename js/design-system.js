@@ -52,8 +52,13 @@ const DesignSystem = (() => {
   // ── 프리셋 베이스 선택 ──────────────────────────────
 
   /** 기존 PRESETS 배열에서 베이스를 골라 :root에 적용 */
-  function applyBase(presetId) {
-    const preset = (window.PRESETS || []).find(p => p.id === presetId);
+  async function applyBase(presetId) {
+    // window.PRESETS(editor.js module) 또는 electronAPI로 직접 로드
+    let presets = window.PRESETS;
+    if (!presets?.length && window.electronAPI?.readPresets) {
+      presets = await window.electronAPI.readPresets();
+    }
+    const preset = (presets || []).find(p => p.id === presetId);
     if (!preset) return;
     const tokens = { ...DEFAULT_TOKENS, ...preset.variables };
     applyTokens(tokens);
