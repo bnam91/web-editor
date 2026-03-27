@@ -506,6 +506,16 @@
       <button class="fp-menu-item" onclick="addDividerBlock();toggleFpDropdown('fp-component-dropdown')">Divider</button>
     </div>
   </div>
+  <div class="fp-divider"></div>
+  <button class="fp-btn" id="fp-comp-shelf-btn" onclick="window.CompShelf && window.CompShelf.toggle()" title="컴포넌트 선반 — 저장/재사용 (시안 B)">
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="1" y="1" width="4" height="4" rx="0.5"/>
+      <rect x="6" y="1" width="4" height="4" rx="0.5"/>
+      <rect x="1" y="6" width="4" height="4" rx="0.5"/>
+      <path d="M6 8.5h4M8 6.5v4"/>
+    </svg>
+    Shelf
+  </button>
 </div>
 
 <!-- Template Browser Panel -->
@@ -727,6 +737,7 @@
 </div>
 
 <script type="module" src="js/ai-prompt.js"></script>
+<script type="module" src="js/component-shelf.js"></script>
 
 </body>
 </html>
