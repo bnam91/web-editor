@@ -111,10 +111,53 @@ const DesignSystem = (() => {
     const radVal = document.getElementById('ds-label-radius-val');
     if (radVal) radVal.textContent = (parseInt(tokens['--preset-label-radius']) || 8) + 'px';
 
-    // 활성 베이스 표시
-    document.querySelectorAll('.ds-base-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.presetId === _currentBase());
-    });
+    // C14: 드롭다운 active 표시
+    const baseSelect = document.getElementById('ds-base-select');
+    if (baseSelect) baseSelect.value = _currentBase();
+  }
+
+  // ── C15: 신규 디자인시스템 저장 ──────────────────────
+
+  async function saveNewPreset() {
+    const name = prompt('새 디자인시스템 이름을 입력하세요:');
+    if (!name || !name.trim()) return;
+    const trimmedName = name.trim();
+    const id = trimmedName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+    // 현재 토큰값 수집
+    const tokens = _load();
+    const preset = { id, name: trimmedName, variables: { ...tokens } };
+
+    // electronAPI로 저장 (있을 경우)
+    if (window.electronAPI?.savePreset) {
+      try {
+        await window.electronAPI.savePreset(preset);
+      } catch (e) {
+        console.warn('[DesignSystem] savePreset failed:', e);
+      }
+    }
+
+    // 드롭다운에 즉시 반영
+    const baseSelect = document.getElementById('ds-base-select');
+    if (baseSelect) {
+      const exists = baseSelect.querySelector(`option[value="${id}"]`);
+      if (!exists) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = trimmedName;
+        baseSelect.appendChild(opt);
+      }
+      baseSelect.value = id;
+    }
+
+    // window.PRESETS 캐시도 업데이트
+    if (!window.PRESETS) window.PRESETS = [];
+    const existsPreset = window.PRESETS.find(p => p.id === id);
+    if (!existsPreset) window.PRESETS.push(preset);
+
+    // 저장된 베이스 ID 업데이트
+    localStorage.setItem(STORAGE_BASE_KEY, id);
+    alert(`"${trimmedName}" 디자인시스템이 저장되었습니다.`);
   }
 
   function _currentBase() {
@@ -218,12 +261,20 @@ const DesignSystem = (() => {
       radSlider.addEventListener('input', () => { radVal.textContent = radSlider.value + 'px'; });
     }
 
+    // C14: 드롭다운 선택 시 즉시 applyBase() 호출
+    const baseSelect = document.getElementById('ds-base-select');
+    if (baseSelect) {
+      baseSelect.addEventListener('change', () => {
+        applyBase(baseSelect.value);
+      });
+    }
+
     syncPanelUI(tokens);
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI };
+  return { applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI, saveNewPreset };
 })();
 
 window.DesignSystem = DesignSystem;

@@ -86,27 +86,40 @@
   margin: 10px 0 5px;
 }
 .ds-section-label:first-child { margin-top: 0; }
-/* 베이스 프리셋 버튼 */
+/* Base Preset 드롭다운 + 신규 등록 */
 .ds-base-row {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
-.ds-base-btn {
+.ds-base-select {
   flex: 1;
-  min-width: 48px;
-  padding: 4px 0;
-  font-size: 10px;
-  background: var(--ui-bg-elevated);
+  height: 24px;
+  background: var(--ui-bg-input);
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
+  font-size: 11px;
+  padding: 0 6px;
+  outline: none;
   cursor: pointer;
+  transition: border-color 0.15s;
+}
+.ds-base-select:focus { border-color: var(--ui-accent-primary); }
+.ds-new-preset-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 10px;
+  background: var(--ui-bg-elevated);
+  border: 1px dashed var(--ui-border);
+  border-radius: 4px;
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  text-align: center;
   transition: border-color 0.15s, color 0.15s;
 }
-.ds-base-btn:hover { border-color: var(--ui-border-mid); color: var(--ui-text); }
-.ds-base-btn.active { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+.ds-new-preset-btn:hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 /* 토큰 행 */
 .ds-token-row {
   display: flex;
