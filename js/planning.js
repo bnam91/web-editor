@@ -165,10 +165,10 @@ function renderOutline() {
         const toIdx = b._idx;
         if (fromIdx !== toIdx) {
           const moved = state.blocks.splice(fromIdx, 1)[0];
-          // fromIdx < toIdx면 splice로 배열이 당겨지므로 1 보정
-          const insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
-          state.blocks.splice(insertIdx, 0, moved);
-          state.selectedIdx = insertIdx;
+          // splice(fromIdx,1) 후 인덱스 보정 불필요: toIdx 위치에 그대로 삽입
+          // (이전 toIdx-1 보정은 fromIdx→last 드래그 시 off-by-one 유발 — DBG-09 수정)
+          state.blocks.splice(toIdx, 0, moved);
+          state.selectedIdx = toIdx;
           renderOutline();
           renderInspector();
         }

@@ -346,6 +346,7 @@ function triggerAssetUpload(ab) {
 
 function loadImageToAsset(ab, file) {
   if (!file || !file.type.startsWith('image/')) return;
+  if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
   exitImageEditMode(ab);
   pushHistory();
   const reader = new FileReader();
@@ -364,7 +365,7 @@ function loadImageToAsset(ab, file) {
     const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
     const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
     ab.innerHTML = `
-      <img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}">
+      <img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'">
       <button class="asset-overlay-clear" title="이미지 제거">✕</button>
       <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
     ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
@@ -523,6 +524,7 @@ function triggerCircleUpload(icb) {
 
 function loadImageToCircle(icb, file) {
   if (!file || !file.type.startsWith('image/')) return;
+  if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
   exitCircleImageEditMode(icb);
   pushHistory();
   const reader = new FileReader();
@@ -834,9 +836,13 @@ function exitCircleImageEditMode(icb) {
 }
 
 function clearCircleImage(icb) {
+  exitCircleImageEditMode(icb);
   pushHistory();
   icb.classList.remove('has-image');
   delete icb.dataset.imgSrc;
+  delete icb.dataset.imgW;
+  delete icb.dataset.imgX;
+  delete icb.dataset.imgY;
   const circle = icb.querySelector('.icb-circle');
   circle.innerHTML = `<span class="icb-placeholder">+</span>`;
   showIconCircleProperties(icb);

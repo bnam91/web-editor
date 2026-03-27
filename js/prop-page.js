@@ -111,8 +111,8 @@ export function showPageProperties() {
   const applyPadX = (v) => {
     state.pageSettings.padX = v;
     document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-      tb.style.paddingLeft = v + 'px';
-      tb.style.paddingRight = v + 'px';
+      if (!tb.dataset.customPadL) tb.style.paddingLeft = v + 'px';
+      if (!tb.dataset.customPadR) tb.style.paddingRight = v + 'px';
     });
     document.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
       window.applyAssetPadX(ab, v);

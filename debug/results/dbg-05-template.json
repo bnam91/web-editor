@@ -1,0 +1,81 @@
+{
+  "agent": "DBG-05",
+  "part": "Template System",
+  "file": "js/template-system.js",
+  "ts": "2026-03-27T00:00:00.000Z",
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "템플릿 저장 후 즉시 목록 조회 — in-memory cache 업데이트?",
+      "status": "pass",
+      "finding": "saveAsTemplate() → saveTemplates() → _templatesCache = arr 로 즉시 갱신. loadTemplates()는 _templatesCache를 직접 반환하므로 저장 직후 조회 시 최신 목록 반환 정상.",
+      "fixed": false
+    },
+    {
+      "id": 2,
+      "title": "같은 id로 템플릿 두 번 저장 — 덮어쓰기 vs 중복 생성?",
+      "status": "warn",
+      "finding": "id = 'tpl_' + Date.now() 방식이므로 동일 밀리초 내 연속 저장 시 같은 id 생성 가능(충돌). 충돌 시 두 개의 메타가 _templatesCache에 push()로 중복 추가되며 덮어쓰기 없음. 확률 낮지만 이론상 재현 가능. 수정은 최소 수정 범위 초과로 보류.",
+      "fixed": false
+    },
+    {
+      "id": 3,
+      "title": "캔버스 없는 템플릿 저장 — canvas 빈 문자열 처리?",
+      "status": "warn",
+      "finding": "saveAsTemplate()은 sec.cloneNode(true).outerHTML을 그대로 저장하므로 canvas가 빈 문자열이 될 수 없음(sec이 null이면 TypeError 발생). insertTemplate()에서는 if (!canvas) return으로 빈 문자열도 falsy 처리하여 삽입 차단. 단, saveAsTemplate()에 sec 유효성 검사(null 가드) 없어서 sec=null 전달 시 uncaught TypeError 발생 가능.",
+      "fixed": false
+    },
+    {
+      "id": 4,
+      "title": "템플릿 삽입 후 undo — 히스토리 기록?",
+      "status": "pass",
+      "finding": "insertTemplate() 마지막에 pushHistory() 호출 확인(line 156). pushHistory는 historyStack에 캔버스 직렬화 스냅샷을 push하므로 undo 가능. 정상 동작.",
+      "fixed": false
+    },
+    {
+      "id": 5,
+      "title": "존재하지 않는 id로 canvas 로드 — null 반환 처리?",
+      "status": "pass",
+      "finding": "_loadCanvas()는 비-Electron 환경에서 _lsFullCache.find() 실패 시 null 반환. Electron 환경에서는 electronAPI.loadTemplateCanvas()의 반환값에 의존. insertTemplate()에서 if (!canvas) return으로 null 처리 정상.",
+      "fixed": false
+    },
+    {
+      "id": 6,
+      "title": "템플릿 삭제 후 삽입 시도 — 삭제된 템플릿 참조?",
+      "status": "pass",
+      "finding": "deleteTemplate()이 _lsFullCache(비-Electron) 및 _templatesCache 양쪽에서 해당 id 제거. 이후 _loadCanvas(id)는 null 반환하고 insertTemplate()은 조기 리턴. 삭제된 템플릿 삽입 방어 정상.",
+      "fixed": false
+    },
+    {
+      "id": 7,
+      "title": "템플릿 index.json 손상 시 — 로드 실패 graceful 처리?",
+      "status": "warn",
+      "finding": "Electron 환경: initTemplates()에서 loadTemplateIndex() 호출 시 JSON 파싱 오류 또는 IPC 오류는 try-catch 없이 노출됨. 오류 발생 시 _templatesCache가 null로 유지되고 loadTemplates()는 [] 반환하므로 UI 크래시는 없으나 unhandled rejection 발생. 비-Electron 환경의 localStorage 파싱에는 try-catch 있음.",
+      "fixed": false
+    },
+    {
+      "id": 8,
+      "title": "구버전 templates.json → 분리 구조 마이그레이션 — 중간 실패 시?",
+      "status": "fail",
+      "finding": "마이그레이션 루프에서 saveTemplateCanvas() 실패 시 해당 tpl의 meta가 index에 이미 push()된 상태에서 canvas만 유실됨. 결과적으로 메타는 index.json에 저장되지만 canvas 파일이 없어서 insertTemplate() 시 _loadCanvas()가 null 반환, 삽입 불가 좀비 템플릿 생성. 외부 catch{}가 전체 에러를 무음으로 삼켜 사용자에게 알림도 없음. 수정 완료: canvas 저장 성공한 항목만 index에 추가하도록 수정.",
+      "fixed": true
+    },
+    {
+      "id": 9,
+      "title": "대용량 canvas HTML 템플릿 — 저장/로드 성능?",
+      "status": "warn",
+      "finding": "비-Electron 환경: localStorage는 도메인당 5MB 제한. saveTemplates() 호출 시 _lsFullCache 전체를 JSON.stringify()하여 저장하므로 대용량 canvas 여러 개 시 QuotaExceededError 발생 가능. 에러 catch 없음. Electron 환경은 파일 시스템 사용으로 제한 없음. 개발 환경(비-Electron)에서만 해당.",
+      "fixed": false
+    },
+    {
+      "id": 10,
+      "title": "템플릿 폴더/카테고리 3계층 정렬 — 빈 카테고리 표시?",
+      "status": "warn",
+      "finding": "폴더 드롭다운은 전체 템플릿 기준 allFolders로 생성되므로, 검색 필터 적용 시 일치 템플릿 없는 폴더도 드롭다운에 노출됨(선택 시 빈 목록 표시). 빈 폴더 자체가 렌더링되지는 않지만(groups 객체에 해당 cat 없음) 드롭다운 옵션과 실제 렌더링 간 불일치 존재. 또한 폴더 필터와 검색 필터가 동시에 '결과 없음' 상태일 때 emptyMsg 한 가지만 표시, 어느 조건 때문인지 구분 불가.",
+      "fixed": false
+    }
+  ],
+  "bugs_found": 2,
+  "bugs_fixed": 1,
+  "summary": "마이그레이션 루프에서 canvas 저장 실패 시 좀비 메타가 생성되는 버그(시나리오 8) 수정 완료. id 충돌(시나리오 2), localStorage 용량 초과(시나리오 9), 빈 폴더 드롭다운 불일치(시나리오 10), initTemplates unhandled rejection(시나리오 7) 등 4건 warn 처리."
+}

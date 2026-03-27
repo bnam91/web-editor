@@ -354,7 +354,8 @@ function showRowProperties(rowEl) {
       const newMin = targetRows * 80 + (targetRows - 1) * gap;
       const curH = parseInt(rowEl.dataset.rowHeight) || 0;
       if (curH) {
-        const perRow = Math.max(80, Math.round((curH - (gridRowCount - 1) * gap) / gridRowCount));
+        const prevGridRowCount = gridRowCount; // outer scope의 현재(이전) 행 수
+        const perRow = Math.max(80, Math.round((curH - (prevGridRowCount - 1) * gap) / prevGridRowCount));
         const newH = Math.max(newMin, perRow * targetRows + (targetRows - 1) * gap);
         const perRowNew = Math.round((newH - (targetRows - 1) * gap) / targetRows);
         rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRowNew}px)`;

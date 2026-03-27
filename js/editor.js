@@ -112,9 +112,8 @@ function restoreSnapshot(snap) {
   canvasEl.innerHTML = snap.canvas;
   rebindAll();
   deselectAll();
-  if (window.buildLayerPanel) window.buildLayerPanel();
   applyPageSettings();
-  window.buildLayerPanel();
+  if (window.buildLayerPanel) window.buildLayerPanel();
   deselectAll();
   _historyPaused = false;
   _updateUndoRedoBtns();
@@ -333,8 +332,8 @@ document.addEventListener('keydown', e => {
       document.body.classList.contains('preview-mode') ? window.previewZoomStep?.(-10) : zoomStep(-10);
     }
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100); }
-    if (e.key === 'z' && !e.shiftKey)   { e.preventDefault(); undo(); return; }
-    if (e.key === 'z' && e.shiftKey)    { e.preventDefault(); redo(); return; }
+    if (e.key === 'z' && !e.shiftKey)   { if (document.activeElement?.isContentEditable) return; e.preventDefault(); undo(); return; }
+    if (e.key === 'z' && e.shiftKey)    { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
     if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
     if (e.key === 'c') {

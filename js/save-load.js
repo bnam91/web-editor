@@ -194,9 +194,10 @@ async function switchTab(id) {
 
   // 현재 탭 메모리 캐시 저장 + 파일 비동기 저장
   const curTab = openTabs.find(t => t.id === activeProjectId);
+  const prevProjectId = activeProjectId; // activeProjectId 변경 전 캡처 (S10 race condition 방지)
   if (curTab) {
     curTab._cache = serializeProject();
-    saveProjectToFile(curTab._cache); // 파일 저장은 await 안 함 (비동기)
+    saveProjectToFile(curTab._cache, { skipThumbnail: true, projectId: prevProjectId }); // 파일 저장은 await 안 함 (비동기)
   }
 
   activeProjectId = id;
@@ -391,30 +392,46 @@ async function captureThumbnail() {
 
 /* ── 프로젝트 파일 저장 (Electron: projects/{id}.json, 브라우저: localStorage) ── */
 async function saveProjectToFile(snapshot, opts = {}) {
-  if (!activeProjectId) return;
-  const data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+  // opts.projectId: 탭 전환 시 이전 탭 ID로 저장하기 위한 명시적 ID (S10 race condition 방지)
+  const targetId = opts.projectId || activeProjectId;
+  if (!targetId) return;
+  // S4: 손상된 JSON 안전 처리
+  let data;
+  try {
+    data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+  } catch {
+    console.warn('[save-load] saveProjectToFile: 손상된 snapshot, 저장 취소');
+    return;
+  }
   const thumbnail = opts.skipThumbnail ? null : await captureThumbnail();
 
   if (IS_ELECTRON) {
-    const existing = await window.electronAPI.loadProject(activeProjectId);
+    const existing = await window.electronAPI.loadProject(targetId);
     const proj = {
       ...(existing || {}),
       ...data,
-      id: activeProjectId,
+      id: targetId,
       name: existing?.name || data.name || 'Untitled',
       updatedAt: new Date().toISOString(),
       ...(thumbnail ? { thumbnail } : {}),
     };
     await window.electronAPI.saveProject(proj);
   } else {
-    const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
-    const proj = list.find(p => p.id === activeProjectId);
-    if (proj) {
-      proj.snapshot = data;
-      proj.updatedAt = new Date().toISOString();
-      if (thumbnail) proj.thumbnail = thumbnail;
+    try {
+      const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+      const proj = list.find(p => p.id === targetId);
+      if (proj) {
+        proj.snapshot = data;
+        proj.updatedAt = new Date().toISOString();
+        if (thumbnail) proj.thumbnail = thumbnail;
+      }
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(list)); // S9: QuotaExceededError 가능
+    } catch (e) {
+      if (e.name === 'QuotaExceededError') {
+        console.warn('[save-load] localStorage 용량 초과, 저장 실패');
+        if (window.showToast) window.showToast('⚠️ 저장 공간 부족: 프로젝트가 너무 큽니다.');
+      }
     }
-    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
   }
 }
 
@@ -539,6 +556,10 @@ function serializeProject() {
 
 function applyProjectData(data) {
   if (data.version === 2 && Array.isArray(data.pages)) {
+    // S8: pages 빈 배열 방어 — 최소 1페이지 보장
+    if (data.pages.length === 0) {
+      data.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
+    }
     state.pages = data.pages;
     state.currentPageId = data.currentPageId || data.pages[0]?.id;
   } else {
@@ -548,11 +569,13 @@ function applyProjectData(data) {
     state.currentPageId = id;
   }
   const page = getCurrentPage();
+  if (!page) return; // S8: 여전히 undefined면 안전하게 종료
   if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
   canvasEl.innerHTML = page.canvas || '';
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
   rebindAll();
   applyPageSettings();
+  window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
   window.buildLayerPanel(); // also calls buildFilePageSection
   window.showPageProperties();
 }
@@ -864,6 +887,7 @@ function initApp() {
   canvasEl.addEventListener('drop', e => {
     if (!sectionDragSrc) return;
     e.preventDefault();
+    window.pushHistory();
     const indicator = canvasEl.querySelector('.section-drop-indicator');
     if (indicator) canvasEl.insertBefore(sectionDragSrc, indicator);
     else canvasEl.appendChild(sectionDragSrc);
