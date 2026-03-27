@@ -57,6 +57,12 @@
     }
     #vol-select:focus { outline: none; border-color: var(--ui-accent); }
 
+    #btn-load-dummy {
+      background: var(--ui-bg-input); border: 1px solid var(--ui-border-hi); border-radius: 5px;
+      color: var(--ui-text-muted); font-size: 11px; padding: 4px 10px; cursor: pointer;
+    }
+    #btn-load-dummy:hover { color: var(--ui-text-sub); border-color: var(--ui-text-muted); }
+
     #btn-save {
       background: var(--ui-accent); color: #0f1a15; border: none; border-radius: 5px;
       padding: 4px 14px; font-size: 11px; font-weight: 700; cursor: pointer;
@@ -244,6 +250,7 @@
       <option value="develop3">develop3 — 풀버전</option>
     </select>
     <div class="tool-sep"></div>
+    <button id="btn-load-dummy">더미</button>
     <button id="btn-save">저장</button>
     <span id="save-status"></span>
     <a class="back-btn" href="projects.html">

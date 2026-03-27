@@ -302,6 +302,61 @@ async function saveIntake() {
   }
 }
 
+// ── 더미 데이터 로드 (dev용) ───────────────────────────────────────────
+async function loadDummyData() {
+  try {
+    let data = null;
+
+    if (window.electronAPI?.listIntakeFiles) {
+      const files = await window.electronAPI.listIntakeFiles();
+      if (files.length > 0) {
+        data = await window.electronAPI.loadIntakeFile(files[0].filename);
+      }
+    }
+
+    if (!data) {
+      showSaveStatus('불러올 intake 파일이 없습니다', 'var(--ui-danger)', true);
+      return;
+    }
+
+    // state 채우기
+    state.product_name = data.product_name || '';
+    state.brand_name   = data.brand_name   || '';
+    state.positioning  = data.positioning  || '';
+    state.volume       = data.volume       || 'develop2';
+    state.swot = { ...state.swot, ...(data.swot || {}) };
+
+    // intake 폼 UI 반영
+    $('inp-product').value     = state.product_name;
+    $('inp-brand').value       = state.brand_name;
+    $('inp-positioning').value = state.positioning;
+    $('inp-strengths').value   = state.swot.strengths    || '';
+    $('inp-weaknesses').value  = state.swot.weaknesses   || '';
+    $('inp-opportunities').value = state.swot.opportunities || '';
+    $('inp-threats').value     = state.swot.threats      || '';
+    $('vol-select').value      = state.volume;
+
+    // 블록 복원 (head_copy 포함)
+    applyVolume(state.volume);
+    if (Array.isArray(data.outline_blocks)) {
+      data.outline_blocks.forEach(saved => {
+        const b = state.blocks.find(b => b.section === saved.section && b.role === saved.role);
+        if (b) {
+          b.enabled   = saved.enabled ?? true;
+          b.layout    = saved.layout  || b.layout;
+          b.head_copy = saved.head_copy || '';
+        }
+      });
+    }
+
+    renderOutline();
+    renderInspector();
+    showSaveStatus(`불러옴: ${data.product_name}`, 'var(--ui-success)', true);
+  } catch (e) {
+    showSaveStatus(`불러오기 실패: ${e.message}`, 'var(--ui-danger)', false);
+  }
+}
+
 // ── 초기화 ────────────────────────────────────────────────────────────
 function init() {
   applyVolume(state.volume);
@@ -328,6 +383,9 @@ function init() {
   $('inp-weaknesses').addEventListener('input', e => state.swot.weaknesses = e.target.value);
   $('inp-opportunities').addEventListener('input', e => state.swot.opportunities = e.target.value);
   $('inp-threats').addEventListener('input', e => state.swot.threats = e.target.value);
+
+  // 더미 데이터 버튼
+  $('btn-load-dummy').addEventListener('click', loadDummyData);
 
   // 저장 버튼
   $('btn-save').addEventListener('click', saveIntake);

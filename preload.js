@@ -49,5 +49,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Intake (design-bot pipeline)
   saveIntakeFile:  (data)     => ipcRenderer.invoke('intake:save', data),
+  loadIntakeFile:  (filename) => ipcRenderer.invoke('intake:load', filename),
   listIntakeFiles: ()         => ipcRenderer.invoke('intake:list'),
 });

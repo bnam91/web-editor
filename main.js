@@ -210,6 +210,14 @@ ipcMain.handle('intake:save', (event, data) => {
   return { ok: true, filename, filePath };
 });
 
+ipcMain.handle('intake:load', (event, filename) => {
+  try {
+    const filePath = path.join(INTAKE_DIR, filename);
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch { return null; }
+});
+
 ipcMain.handle('intake:list', () => {
   try {
     if (!fs.existsSync(INTAKE_DIR)) return [];
