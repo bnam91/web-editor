@@ -368,7 +368,7 @@ function showSectionProperties(sec) {
 function syncSection(sec) {
   document.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
   sec.classList.add('selected');
-  syncLayerActive(sec);
+  window.syncLayerActive(sec);
 }
 
 export { applyPreset, setRpIdBadge, showSectionProperties, syncSection };

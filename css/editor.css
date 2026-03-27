@@ -31,8 +31,9 @@
   --ui-text-dim:      #555555;   /* 딤 텍스트 */
   --ui-danger:        #e06c6c;   /* 위험/삭제 */
   --ui-success:       #7fc87f;   /* 성공/병합 */
-  --ui-accent:        #6ab0ff;   /* 강조/편집 */
+  --ui-accent:        #7cb8ff;   /* 강조/편집 (브랜치, focus, edit 계열) */
   --ui-accent-primary: #2d6fe8; /* 주요 액션/활성 색상 */
+  --ui-accent-primary-hover: #3a7df0; /* 주요 액션 hover */
 }
 
 /* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)
@@ -632,6 +633,19 @@ body {
 .zoom-sep { width: 1px; height: 14px; background: var(--ui-border-mid); margin: 0 2px; }
 #canvas-size-label { font-size: 11px; color: var(--ui-text-dim); }
 
+/* ── Autosave Indicator ── */
+#autosave-indicator {
+  font-size: 10px; color: var(--ui-text-dim);
+  display: inline-flex; align-items: center; gap: 4px;
+  opacity: 0; transition: opacity 0.3s;
+  white-space: nowrap; padding: 0 4px;
+}
+#autosave-indicator.saving { opacity: 1; color: var(--ui-text-muted); }
+#autosave-indicator.saved  { opacity: 1; color: #4ecb7a; }
+#autosave-indicator.saved::before  { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #4ecb7a; }
+#autosave-indicator.saving::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ui-text-muted); animation: blink 0.8s ease infinite; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
 /* ── Main Layout ── */
 #main { flex: 1; display: flex; overflow: hidden; }
 
@@ -801,8 +815,8 @@ body {
   transition: color 0.15s;
 }
 .file-panel-section-header:hover { color: #888; }
-.tpl-browser-trigger:hover { color: #7cb8ff !important; background: rgba(45,111,232,0.06); }
-.tpl-browser-trigger.browser-open { color: #7cb8ff; background: rgba(45,111,232,0.1); }
+.tpl-browser-trigger:hover { color: var(--ui-accent) !important; background: rgba(45,111,232,0.06); }
+.tpl-browser-trigger.browser-open { color: var(--ui-accent); background: rgba(45,111,232,0.1); }
 .file-section-chevron {
   transition: transform 0.15s; flex-shrink: 0; opacity: 0.6;
 }
@@ -1315,7 +1329,7 @@ body {
 }
 #branch-indicator:hover { background: var(--ui-border); color: #fff; border-color: var(--ui-text-dim); }
 #branch-indicator svg { opacity: 0.7; flex-shrink: 0; }
-#branch-name { font-weight: 600; color: #7cb8ff; }
+#branch-name { font-weight: 600; color: var(--ui-accent); }
 .branch-dd-chevron { transition: transform 0.15s; }
 #branch-dropdown-wrap.open .branch-dd-chevron { transform: rotate(180deg); }
 
@@ -1336,7 +1350,7 @@ body {
   transition: background 0.1s;
 }
 .branch-dd-item:hover { background: var(--ui-border); color: #fff; }
-.branch-dd-item.current { color: #7cb8ff; }
+.branch-dd-item.current { color: var(--ui-accent); }
 .branch-dd-item-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--ui-border-strong); flex-shrink: 0;
@@ -1378,7 +1392,7 @@ body {
 }
 .pub-dd-item:hover { background: var(--ui-border); color: #fff; }
 .pub-dd-primary {
-  color: #7cb8ff; font-weight: 600;
+  color: var(--ui-accent); font-weight: 600;
 }
 .pub-dd-primary:hover { background: #1a2a3a; color: #9dd0ff; }
 .pub-dd-divider { height: 1px; background: var(--ui-border); margin: 4px 0; }
@@ -1394,9 +1408,9 @@ body {
 .branch-item:hover { background: var(--ui-bg-card); }
 .branch-item.current { background: #1a2a3a; border-color: var(--ui-accent-primary); }
 .branch-item-icon { opacity: 0.5; flex-shrink: 0; }
-.branch-item.current .branch-item-icon { opacity: 1; color: #7cb8ff; }
+.branch-item.current .branch-item-icon { opacity: 1; color: var(--ui-accent); }
 .branch-item-name { flex: 1; font-size: 12px; font-weight: 600; color: #ccc; }
-.branch-item.current .branch-item-name { color: #7cb8ff; }
+.branch-item.current .branch-item-name { color: var(--ui-accent); }
 .branch-item-badge {
   font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
   padding: 2px 5px; border-radius: 3px;
@@ -1449,10 +1463,10 @@ body {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 2px 6px; border-radius: 3px;
   background: #1a2840; border: 1px solid #2d4a70;
-  color: #7cb8ff; font-size: 10px; font-weight: 600;
+  color: var(--ui-accent); font-size: 10px; font-weight: 600;
 }
 .branch-scope-remove {
-  background: none; border: none; color: #7cb8ff;
+  background: none; border: none; color: var(--ui-accent);
   font-size: 9px; cursor: pointer; padding: 0 1px;
   opacity: 0.6; line-height: 1;
 }
@@ -1462,24 +1476,24 @@ body {
   background: transparent; border: 1px dashed #2d4a70;
   color: #4a7ab8; font-size: 10px; cursor: pointer;
 }
-.branch-scope-add:hover { border-color: #7cb8ff; color: #7cb8ff; }
+.branch-scope-add:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
 
 /* ── Focus Mode Bar ── */
 #focus-mode-bar {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   height: 28px; padding: 0 14px;
   background: #0d1f35; border-bottom: 1px solid #1e3a5a;
-  font-size: 11px; color: #7cb8ff;
+  font-size: 11px; color: var(--ui-accent);
   flex-shrink: 0;
 }
 #focus-mode-bar svg { opacity: 0.8; flex-shrink: 0; }
-#focus-mode-branch-name { font-weight: 700; color: #7cb8ff; }
+#focus-mode-branch-name { font-weight: 700; color: var(--ui-accent); }
 .focus-mode-sep { color: #2d4a70; font-size: 13px; }
 #focus-mode-sections { color: #5a8ab8; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #focus-show-all-btn {
   padding: 2px 8px; border-radius: 3px;
   background: #1a3055; border: 1px solid #2d5080;
-  color: #7cb8ff; font-size: 10px; cursor: pointer; white-space: nowrap;
+  color: var(--ui-accent); font-size: 10px; cursor: pointer; white-space: nowrap;
 }
 #focus-show-all-btn:hover { background: #2a4070; }
 
@@ -1492,11 +1506,11 @@ body {
 
 /* ── Section Toolbar: Branch Button ── */
 .st-branch-btn { color: #5a8ab8 !important; }
-.st-branch-btn:hover { color: #7cb8ff !important; background: #1a2840 !important; }
+.st-branch-btn:hover { color: var(--ui-accent) !important; background: #1a2840 !important; }
 
 /* ── Section Toolbar: A/B Variation Button ── */
 .st-ab-btn { color: var(--ui-accent-primary) !important; }
-.st-ab-btn:hover { color: #7cb8ff !important; background: #1a2840 !important; }
+.st-ab-btn:hover { color: var(--ui-accent) !important; background: #1a2840 !important; }
 
 /* ── A/B Variation Badge (섹션 좌상단) ── */
 .variation-badge {
@@ -1556,7 +1570,7 @@ body {
   cursor: pointer;
   white-space: nowrap;
 }
-.layer-variation-toggle:hover { background: #1f3a60; color: #7cb8ff; border-color: #7cb8ff; }
+.layer-variation-toggle:hover { background: #1f3a60; color: var(--ui-accent); border-color: var(--ui-accent); }
 .layer-variation-add {
   background: none;
   border: 1px solid #3a5a3a;
@@ -1769,7 +1783,7 @@ body {
 
 .section-label {
   font-size: 11px; font-weight: 500;
-  color: #888; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ui-text-muted); letter-spacing: 0.06em; text-transform: uppercase;
   background: var(--ui-bg-input);
   padding: 3px 10px; border-radius: 4px 4px 0 0;
   pointer-events: none;
@@ -2161,10 +2175,10 @@ body {
 }
 .prop-section {
   padding: 12px 12px 8px;
-  border-bottom: 1px solid #272727;
+  border-bottom: 1px solid var(--ui-bg-elevated);
 }
 .prop-section-title {
-  font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--ui-text-dim); margin-bottom: 10px;
 }
 .prop-row {
@@ -2428,7 +2442,7 @@ body {
   font-size: 10px; font-weight: 600; color: var(--ui-text-muted);
   letter-spacing: 0.04em; text-transform: uppercase;
 }
-.prop-preset-btn.active .prop-preset-name { color: #7cb8ff; }
+.prop-preset-btn.active .prop-preset-name { color: var(--ui-accent); }
 
 /* 내보내기 버튼 */
 .prop-export-btn {
@@ -2754,7 +2768,7 @@ body {
   background: var(--ui-border); margin: 0 4px;
 }
 .fp-group-label {
-  font-size: 9px; font-weight: 600; letter-spacing: 0.08em;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.06em;
   color: var(--ui-text-dim); text-transform: uppercase;
   padding: 0 2px; pointer-events: none;
   white-space: nowrap;
@@ -2763,18 +2777,18 @@ body {
 .fp-btn {
   height: 30px; padding: 0 10px;
   background: transparent; border: 1px solid transparent;
-  border-radius: 7px; color: #888;
+  border-radius: 7px; color: var(--ui-text-muted);
   font-size: 11px; font-weight: 500;
   cursor: pointer; white-space: nowrap;
   display: flex; align-items: center; gap: 5px;
   transition: all 0.15s;
 }
-.fp-btn:hover { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: #ddd; }
+.fp-btn:hover { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }
 
 .fp-btn.primary {
   background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff;
 }
-.fp-btn.primary:hover { background: #3a7df0; border-color: #3a7df0; }
+.fp-btn.primary:hover { background: var(--ui-accent-primary-hover); border-color: var(--ui-accent-primary-hover); }
 
 .fp-btn svg { flex-shrink: 0; }
 
@@ -3383,7 +3397,7 @@ body.preview-mode #preview-navigator { display: flex; }
   letter-spacing: 0.03em;
 }
 .preview-nav-btn:hover { background: rgba(255,255,255,0.08); color: #ddd; }
-.preview-nav-btn.active { background: rgba(45,111,232,0.22); color: #7cb8ff; }
+.preview-nav-btn.active { background: rgba(45,111,232,0.22); color: var(--ui-accent); }
 
 /* Preview page block */
 .preview-page-block { width: 100%; }
@@ -3681,7 +3695,7 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 .insp-section-title {
   display: flex; align-items: center; gap: 6px;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--ui-text-dim); margin-bottom: 10px;
 }
 .insp-badge {
@@ -3739,7 +3753,7 @@ body.preview-mode #preview-navigator { display: flex; }
 #preview-sbs-btn.active {
   background: rgba(45,111,232,0.25);
   border-color: rgba(45,111,232,0.5);
-  color: #7cb8ff;
+  color: var(--ui-accent);
 }
 
 /* SBS 컨테이너: 오버레이 위에 fullscreen flex */
@@ -4057,7 +4071,7 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 .tb-tree-all.active, .tb-tree-folder-header.active, .tb-tree-cat.active {
   background: rgba(45,111,232,0.18);
-  color: #7cb8ff;
+  color: var(--ui-accent);
 }
 .tb-tree-label { flex: 1; }
 .tb-tree-count {
@@ -4073,7 +4087,7 @@ body.preview-mode #preview-navigator { display: flex; }
 .tb-tree-folder-header.active .tb-tree-count,
 .tb-tree-cat.active .tb-tree-count {
   background: rgba(45,111,232,0.25);
-  color: #7cb8ff;
+  color: var(--ui-accent);
 }
 
 /* 폴더 chevron */
@@ -4094,7 +4108,7 @@ body.preview-mode #preview-navigator { display: flex; }
   background: var(--ui-border-strong);
   flex-shrink: 0;
 }
-.tb-tree-cat.active .tb-tree-dot { background: #7cb8ff; }
+.tb-tree-cat.active .tb-tree-dot { background: var(--ui-accent); }
 
 /* 미리보기 영역 (상단 고정) */
 .tpl-browser-preview-area {
@@ -4513,7 +4527,7 @@ body.preview-mode #preview-navigator { display: flex; }
   flex-shrink: 1;
   min-width: 0;
 }
-.tb-card.selected .tb-card-name { color: #7cb8ff; }
+.tb-card.selected .tb-card-name { color: var(--ui-accent); }
 .tb-card-meta {
   font-size: 10px;
   color: var(--ui-text-dim);

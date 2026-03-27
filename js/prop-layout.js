@@ -48,16 +48,16 @@ function makeColPlaceholder(col) {
         const rowLayout = col.closest('.row')?.dataset.layout;
         if (rowLayout !== 'grid' && rowLayout !== 'flex') ab.style.height = '460px';
         ab.innerHTML = `
-          ${ASSET_SVG}
+          ${window.ASSET_SVG || ''}
           <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
         block = ab;
       } else {
-        const { block: tb } = makeTextBlock(type);
+        const { block: tb } = window.makeTextBlock(type);
         block = tb;
       }
       col.replaceChild(block, ph);
-      bindBlock(block);
-      buildLayerPanel();
+      window.bindBlock(block);
+      window.buildLayerPanel();
     });
   });
 
@@ -119,7 +119,7 @@ function applyRowLayout(block, ratioStr) {
     for (let i = existingCols.length; i < total; i++) row.appendChild(makeEmptyCol(null));
   }
 
-  buildLayerPanel();
+  window.buildLayerPanel();
 }
 
 function bindLayoutInput(block) {

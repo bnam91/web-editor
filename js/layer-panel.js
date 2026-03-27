@@ -751,7 +751,7 @@ export function buildLayerPanel() {
       nameEl.addEventListener('keydown', ev => {
         if (ev.key === 'Enter')  { ev.preventDefault(); nameEl.blur(); }
         if (ev.key === 'Escape') { nameEl.textContent = sec._name || 'Section'; nameEl.blur(); }
-      });
+      }, { once: true });
     });
 
     const children = document.createElement('div');
