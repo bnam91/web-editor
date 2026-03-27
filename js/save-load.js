@@ -856,7 +856,9 @@ function initApp() {
     initEmpty();
   })();
 
-  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, attributes: true, characterData: true });
+  // perf(qa-perf): attributes:true 제거 → 드래그 중 style/class 변경이 autoSave를 반복 트리거하던 문제 수정
+  // characterData는 텍스트 편집 감지에 필요하므로 유지
+  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true });
 
   // 브랜치 시스템 초기화
   initBranchStore();
