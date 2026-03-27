@@ -59,16 +59,16 @@ function blocksForVolume(vol) {
   if (idx < 0) return []; // 알 수 없는 볼륨값 방어
   return BLOCK_DEFS
     .filter(d => d.vol <= idx)
-    .map(d => ({ ...d, enabled: true, layout: d.layout }));
+    .map(d => ({ ...d, enabled: true, layout: d.layout, head_copy: '' }));
 }
 
 function applyVolume(vol) {
   const prevSelected = state.selectedIdx !== null ? state.blocks[state.selectedIdx] : null;
   const newBlocks = blocksForVolume(vol);
-  // 기존 블록의 enabled/layout override 유지
+  // 기존 블록의 enabled/layout/head_copy override 유지
   state.blocks = newBlocks.map(nb => {
     const old = state.blocks.find(ob => ob.section === nb.section && ob.role === nb.role);
-    return old ? { ...nb, enabled: old.enabled, layout: old.layout } : nb;
+    return old ? { ...nb, enabled: old.enabled, layout: old.layout, head_copy: old.head_copy || '' } : nb;
   });
   // 이전 선택 블록이 새 목록에 있으면 선택 유지
   if (prevSelected) {
@@ -113,9 +113,10 @@ function renderOutline() {
       const row = el('div', 'outline-block' + (b._idx === state.selectedIdx ? ' selected' : '') + (!b.enabled ? ' disabled' : ''));
       row.dataset.idx = b._idx;
       row.draggable = true;
-      row.tabIndex = 0;
-      row.setAttribute('role', 'button');
       row.setAttribute('aria-label', `${b.section} ${b.role} 블록${b.enabled ? '' : ' (비활성)'}`);
+
+      // ── 헤더 행 (라벨) ──
+      const headerRow = el('div', 'block-header');
 
       const grip = el('span', 'grip', '⠿');
       grip.setAttribute('aria-hidden', 'true');
@@ -128,13 +129,26 @@ function renderOutline() {
       const layoutEl = el('span', 'block-layout', b.layout);
       const hintEl = el('span', 'block-hint', b.hint);
 
-      row.appendChild(grip);
-      row.appendChild(toggle);
-      row.appendChild(roleEl);
-      row.appendChild(layoutEl);
-      row.appendChild(hintEl);
+      headerRow.appendChild(grip);
+      headerRow.appendChild(toggle);
+      headerRow.appendChild(roleEl);
+      headerRow.appendChild(layoutEl);
+      headerRow.appendChild(hintEl);
+
+      // ── 헤드카피 영역 ──
+      const copyEl = document.createElement('div');
+      copyEl.className = 'block-copy';
+      copyEl.contentEditable = 'true';
+      copyEl.dataset.placeholder = '헤드카피를 입력하세요...';
+      copyEl.setAttribute('aria-label', `${b.role} 헤드카피`);
+      copyEl.draggable = false;
+      if (b.head_copy) copyEl.textContent = b.head_copy;
+
+      row.appendChild(headerRow);
+      row.appendChild(copyEl);
       secEl.appendChild(row);
 
+      // ── Events ──
       toggle.addEventListener('click', e => {
         e.stopPropagation();
         state.blocks[b._idx].enabled = !state.blocks[b._idx].enabled;
@@ -142,16 +156,36 @@ function renderOutline() {
         if (state.selectedIdx === b._idx) renderInspector();
       });
 
-      row.addEventListener('click', () => {
+      // 헤더 클릭 → 선택 (전체 re-render)
+      headerRow.addEventListener('click', e => {
+        if (e.target === toggle) return;
         state.selectedIdx = b._idx;
         renderOutline();
         renderInspector();
       });
-      row.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+
+      // 카피 영역 클릭 → 선택만 업데이트 (DOM 재빌드 없이 커서 유지)
+      copyEl.addEventListener('mousedown', e => {
+        e.stopPropagation();
+        if (state.selectedIdx !== b._idx) {
+          state.selectedIdx = b._idx;
+          document.querySelectorAll('.outline-block').forEach(bl => bl.classList.remove('selected'));
+          row.classList.add('selected');
+          renderInspector();
+        }
       });
 
+      // 카피 입력 → state 업데이트 (re-render 없이)
+      copyEl.addEventListener('input', e => {
+        e.stopPropagation();
+        state.blocks[b._idx].head_copy = copyEl.innerText.trim();
+      });
+
+      // 카피 영역에서 drag 방지
+      copyEl.addEventListener('dragstart', e => e.stopPropagation());
+
       row.addEventListener('dragstart', e => {
+        if (copyEl.contains(e.target)) { e.preventDefault(); return; }
         e.dataTransfer.setData('text/plain', b._idx);
         row.classList.add('dragging');
       });
@@ -165,8 +199,6 @@ function renderOutline() {
         const toIdx = b._idx;
         if (fromIdx !== toIdx) {
           const moved = state.blocks.splice(fromIdx, 1)[0];
-          // splice(fromIdx,1) 후 인덱스 보정 불필요: toIdx 위치에 그대로 삽입
-          // (이전 toIdx-1 보정은 fromIdx→last 드래그 시 off-by-one 유발 — DBG-09 수정)
           state.blocks.splice(toIdx, 0, moved);
           state.selectedIdx = toIdx;
           renderOutline();
@@ -244,7 +276,7 @@ async function saveIntake() {
     volume: state.volume,
     positioning: state.positioning,
     swot: { ...state.swot },
-    outline_blocks: state.blocks.map(({ section, role, layout, enabled }) => ({ section, role, layout, enabled })),
+    outline_blocks: state.blocks.map(({ section, role, layout, enabled, head_copy }) => ({ section, role, layout, enabled, head_copy })),
   };
 
   try {

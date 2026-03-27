@@ -140,11 +140,10 @@
     }
 
     .outline-block {
-      display: flex; align-items: center; gap: 8px;
       background: var(--ui-bg-elevated); border: 1px solid var(--ui-border);
-      border-radius: 5px; padding: 6px 10px; margin-bottom: 3px;
-      cursor: pointer; transition: border-color 0.15s;
-      user-select: none;
+      border-radius: 6px; margin-bottom: 6px;
+      transition: border-color 0.15s;
+      user-select: none; overflow: hidden;
     }
     .outline-block:hover { border-color: var(--ui-border-hi); }
     /* CLAUDE.md: selected는 outline만, background 금지 */
@@ -153,6 +152,14 @@
     .outline-block.dragging { opacity: 0.5; }
     /* drag-over: background 금지, outline 방식 */
     .outline-block.drag-over { outline: 2px solid #4a9ede; outline-offset: 0; }
+
+    /* ── 블록 헤더 (라벨 행) ── */
+    .block-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--ui-border);
+      cursor: pointer;
+    }
 
     .grip { font-size: 13px; color: var(--ui-text-muted); cursor: grab; flex-shrink: 0; transition: color 0.15s; }
     .grip:hover { color: var(--ui-text-sub); }
@@ -165,7 +172,7 @@
 
     .block-role {
       font-size: 11px; font-weight: 600; color: var(--ui-text);
-      font-family: monospace; min-width: 140px; flex-shrink: 0;
+      font-family: monospace; min-width: 120px; flex-shrink: 0;
     }
 
     .block-layout {
@@ -175,6 +182,24 @@
     }
 
     .block-hint { font-size: 10px; color: var(--ui-text-muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── 헤드카피 영역 ── */
+    .block-copy {
+      padding: 12px 14px;
+      font-size: 15px; font-weight: 500; line-height: 1.6;
+      color: var(--ui-text);
+      min-height: 52px;
+      outline: none;
+      cursor: text;
+      user-select: text;
+      word-break: keep-all;
+    }
+    .block-copy:empty::before {
+      content: attr(data-placeholder);
+      color: var(--ui-text-muted);
+      font-size: 13px; font-weight: 400; font-style: italic;
+      pointer-events: none;
+    }
 
     /* ── Right: Inspector ── */
     #inspector-panel {
