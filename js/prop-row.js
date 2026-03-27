@@ -2,7 +2,7 @@
    ROW PROPERTIES PANEL
 ═══════════════════════════════════ */
 
-const propPanel = document.querySelector('#panel-right .panel-body');
+import { propPanel } from './globals.js';
 
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';
@@ -275,98 +275,102 @@ function showRowProperties(rowEl) {
 
   /* ── Grid 크기 피커 ── */
   if (layout !== 'stack') {
-    const picker = document.getElementById('row-grid-picker');
-    const pickerLabel = document.getElementById('row-grid-picker-label');
-    const MAX = 4;
+    _bindGridPicker(rowEl, gridRowCount);
+  }
+}
 
-    for (let r = 1; r <= MAX; r++) {
-      for (let c = 1; c <= MAX; c++) {
-        const cell = document.createElement('div');
-        cell.className = 'grid-picker-cell';
-        cell.dataset.r = r;
-        cell.dataset.c = c;
-        picker.appendChild(cell);
+/* Grid 크기 피커 이벤트 바인딩 — showRowProperties에서 분리 */
+function _bindGridPicker(rowEl, prevGridRowCount) {
+  const picker = document.getElementById('row-grid-picker');
+  const pickerLabel = document.getElementById('row-grid-picker-label');
+  const MAX = 4;
+
+  for (let r = 1; r <= MAX; r++) {
+    for (let c = 1; c <= MAX; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-picker-cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      picker.appendChild(cell);
+    }
+  }
+
+  const highlight = (maxR, maxC) => {
+    picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
+      cl.classList.toggle('active', parseInt(cl.dataset.r) <= maxR && parseInt(cl.dataset.c) <= maxC);
+    });
+  };
+
+  picker.addEventListener('mouseover', e => {
+    const cell = e.target.closest('.grid-picker-cell');
+    if (!cell) return;
+    const r = parseInt(cell.dataset.r), c = parseInt(cell.dataset.c);
+    highlight(r, c);
+    pickerLabel.textContent = `${c} × ${r}`;
+  });
+  picker.addEventListener('mouseleave', () => {
+    picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
+    pickerLabel.textContent = '—';
+  });
+
+  picker.addEventListener('click', e => {
+    const cell = e.target.closest('.grid-picker-cell');
+    if (!cell) return;
+    const targetCols = parseInt(cell.dataset.c);
+    const targetRows = parseInt(cell.dataset.r);
+    const totalNeeded = targetCols * targetRows;
+    const curCols = [...rowEl.querySelectorAll(':scope > .col')];
+    if (curCols.length < totalNeeded) {
+      for (let i = curCols.length; i < totalNeeded; i++) {
+        const col = document.createElement('div');
+        col.className = 'col';
+        col.appendChild(window.makeColPlaceholder(col));
+        rowEl.appendChild(col);
+      }
+    } else {
+      for (let i = curCols.length - 1; i >= totalNeeded; i--) curCols[i].remove();
+    }
+    /* layout/display 동기화 */
+    if (targetRows > 1) {
+      rowEl.dataset.layout = 'grid';
+      rowEl.style.display = 'grid';
+    } else {
+      rowEl.dataset.layout = 'flex';
+      rowEl.style.display = '';
+      rowEl.style.gridTemplateRows = '';
+    }
+    rowEl.style.gridTemplateColumns = `repeat(${targetCols}, 1fr)`;
+    /* flex 단일행은 col flex 값 초기화 */
+    if (targetRows === 1) {
+      [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
+    }
+    /* 2행 이상 그리드: 실제 너비로 정사각형 초기 높이 픽셀 적용 */
+    if (targetRows >= 2 && rowEl.offsetWidth > 0) {
+      const gap = parseInt(rowEl.dataset.gap) || 0;
+      const colPx = Math.round((rowEl.offsetWidth - (targetCols - 1) * gap) / targetCols);
+      if (colPx > 0) {
+        rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${colPx}px)`;
+        rowEl.dataset.rowHeight = String(colPx * targetRows + (targetRows - 1) * gap);
       }
     }
+    rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
 
-    const highlight = (maxR, maxC) => {
-      picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
-        cl.classList.toggle('active', parseInt(cl.dataset.r) <= maxR && parseInt(cl.dataset.c) <= maxC);
-      });
-    };
+    /* 높이 반응형 조정 — dataset.rowHeight 명시값이 있을 때만 재계산 */
+    const gap = parseInt(rowEl.dataset.gap) || 0;
+    const newMin = targetRows * 80 + (targetRows - 1) * gap;
+    const curH = parseInt(rowEl.dataset.rowHeight) || 0;
+    if (curH) {
+      const perRow = Math.max(80, Math.round((curH - (prevGridRowCount - 1) * gap) / prevGridRowCount));
+      const newH = Math.max(newMin, perRow * targetRows + (targetRows - 1) * gap);
+      const perRowNew = Math.round((newH - (targetRows - 1) * gap) / targetRows);
+      rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRowNew}px)`;
+      rowEl.dataset.rowHeight = newH;
+    }
 
-    picker.addEventListener('mouseover', e => {
-      const cell = e.target.closest('.grid-picker-cell');
-      if (!cell) return;
-      const r = parseInt(cell.dataset.r), c = parseInt(cell.dataset.c);
-      highlight(r, c);
-      pickerLabel.textContent = `${c} × ${r}`;
-    });
-    picker.addEventListener('mouseleave', () => {
-      picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
-      pickerLabel.textContent = '—';
-    });
-
-    picker.addEventListener('click', e => {
-      const cell = e.target.closest('.grid-picker-cell');
-      if (!cell) return;
-      const targetCols = parseInt(cell.dataset.c);
-      const targetRows = parseInt(cell.dataset.r);
-      const totalNeeded = targetCols * targetRows;
-      const curCols = [...rowEl.querySelectorAll(':scope > .col')];
-      if (curCols.length < totalNeeded) {
-        for (let i = curCols.length; i < totalNeeded; i++) {
-          const col = document.createElement('div');
-          col.className = 'col';
-          col.appendChild(window.makeColPlaceholder(col));
-          rowEl.appendChild(col);
-        }
-      } else {
-        for (let i = curCols.length - 1; i >= totalNeeded; i--) curCols[i].remove();
-      }
-      /* layout/display 동기화 */
-      if (targetRows > 1) {
-        rowEl.dataset.layout = 'grid';
-        rowEl.style.display = 'grid';
-      } else {
-        rowEl.dataset.layout = 'flex';
-        rowEl.style.display = '';
-        rowEl.style.gridTemplateRows = '';
-      }
-      rowEl.style.gridTemplateColumns = `repeat(${targetCols}, 1fr)`;
-      /* flex 단일행은 col flex 값 초기화 */
-      if (targetRows === 1) {
-        [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
-      }
-      /* 2행 이상 그리드: 실제 너비로 정사각형 초기 높이 픽셀 적용 */
-      if (targetRows >= 2 && rowEl.offsetWidth > 0) {
-        const gap = parseInt(rowEl.dataset.gap) || 0;
-        const colPx = Math.round((rowEl.offsetWidth - (targetCols - 1) * gap) / targetCols);
-        if (colPx > 0) {
-          rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${colPx}px)`;
-          rowEl.dataset.rowHeight = String(colPx * targetRows + (targetRows - 1) * gap);
-        }
-      }
-      rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
-
-      /* 높이 반응형 조정 — dataset.rowHeight 명시값이 있을 때만 재계산 */
-      const gap = parseInt(rowEl.dataset.gap) || 0;
-      const newMin = targetRows * 80 + (targetRows - 1) * gap;
-      const curH = parseInt(rowEl.dataset.rowHeight) || 0;
-      if (curH) {
-        const prevGridRowCount = gridRowCount; // outer scope의 현재(이전) 행 수
-        const perRow = Math.max(80, Math.round((curH - (prevGridRowCount - 1) * gap) / prevGridRowCount));
-        const newH = Math.max(newMin, perRow * targetRows + (targetRows - 1) * gap);
-        const perRowNew = Math.round((newH - (targetRows - 1) * gap) / targetRows);
-        rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRowNew}px)`;
-        rowEl.dataset.rowHeight = newH;
-      }
-
-      buildLayerPanel();
-      showRowProperties(rowEl);
-      window.pushHistory();
-    });
-  }
+    window.buildLayerPanel();
+    showRowProperties(rowEl);
+    window.pushHistory();
+  });
 }
 
 /* Row 레이아웃 직접 전환 (rowEl 기준) */
@@ -389,7 +393,7 @@ function applyRowLayoutDirect(rowEl, newLayout) {
     rowEl.style.display = '';
     rowEl.style.gridTemplateColumns = '';
     // 최소 2컬럼
-    if (existingCols.length < 2) rowEl.appendChild(makeEmptyCol('1'));
+    if (existingCols.length < 2) rowEl.appendChild(window.makeEmptyCol('1'));
     [...rowEl.querySelectorAll(':scope > .col')].forEach(col => {
       const v = col.dataset.flex || '1';
       col.style.flex = v;
@@ -402,7 +406,7 @@ function applyRowLayoutDirect(rowEl, newLayout) {
     rowEl.dataset.layout = 'grid';
     rowEl.style.display = 'grid';
     // 최소 2컬럼
-    if (existingCols.length < 2) rowEl.appendChild(makeEmptyCol(null));
+    if (existingCols.length < 2) rowEl.appendChild(window.makeEmptyCol(null));
     [...rowEl.querySelectorAll(':scope > .col')].forEach(col => { col.style.flex = ''; });
     const count = rowEl.querySelectorAll(':scope > .col').length;
     rowEl.style.gridTemplateColumns = `repeat(${count}, 1fr)`;
