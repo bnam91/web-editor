@@ -7,6 +7,58 @@
 
 ## 1. 색상 토큰 (CSS Variables)
 
+### 1-A. UI Shell 토큰 (에디터 UI 패널·버튼·사이드바)
+
+> `editor.css :root`에 정의. 새 UI 색상은 반드시 여기서 꺼내 쓸 것.
+
+```css
+/* 배경 계층 (어두운 순) */
+--ui-bg-app:        #1a1a1a;   /* 앱 최하위 배경 (body) */
+--ui-bg-base:       #1e1e1e;   /* 사이드 패널 배경 */
+--ui-bg-elevated:   #242424;   /* topbar, elevated 요소 */
+--ui-bg-card:       #252525;   /* 드롭다운, 팝업, 카드 */
+--ui-bg-input:      #2a2a2a;   /* input, sunken/active 요소 */
+--ui-bg-hover:      #2e2e2e;   /* hover 상태, 패널 border-soft */
+
+/* 보더 */
+--ui-border:        #333333;   /* 기본 보더 */
+--ui-border-mid:    #3a3a3a;   /* 구분선, 스크롤바 thumb */
+--ui-border-strong: #444444;   /* 강조 보더, active 상태 */
+
+/* 텍스트 */
+--ui-text:          #e0e0e0;   /* 기본 텍스트 */
+--ui-text-sub:      #aaaaaa;   /* 서브 텍스트 */
+--ui-text-muted:    #777777;   /* 뮤트 텍스트 */
+--ui-text-dim:      #555555;   /* 딤 텍스트 (비활성, 힌트) */
+
+/* 시맨틱 액션 */
+--ui-danger:        #e06c6c;   /* 위험/삭제 버튼 */
+--ui-success:       #7fc87f;   /* 성공/병합 버튼 */
+--ui-accent:        #6ab0ff;   /* 강조/편집 버튼 */
+```
+
+**배경 계층 시각화:**
+```
+body (#1a1a1a) → 패널 (#1e1e1e) → topbar (#242424) → 팝업 (#252525) → input (#2a2a2a) → hover (#2e2e2e)
+```
+
+**버튼 3종 패턴:**
+```css
+/* Ghost (기본) */
+.tb-btn { background: transparent; border-color: transparent; color: var(--ui-text-sub); }
+.tb-btn:hover { background: var(--ui-border); border-color: var(--ui-border-strong); }
+
+/* Danger */
+.btn--danger:hover { background: #3a2020; color: var(--ui-danger); }
+
+/* Accent */
+.btn--accent:hover { background: #1a2a40; color: var(--ui-accent); }
+```
+
+---
+
+### 1-B. 캔버스 콘텐츠 토큰 (사용자 변경 가능)
+
 ```css
 :root {
   /* 선택 색상 */
