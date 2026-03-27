@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>기획 아웃라인 편집기</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f1117;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 20px;
+    }
+    .icon {
+      font-size: 56px;
+      line-height: 1;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #22c48a;
+    }
+    p {
+      font-size: 14px;
+      color: #718096;
+      text-align: center;
+      max-width: 320px;
+      line-height: 1.6;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #22c48a;
+      background: rgba(34, 196, 138, 0.12);
+      border: 1px solid rgba(34, 196, 138, 0.3);
+      border-radius: 20px;
+      padding: 4px 12px;
+      letter-spacing: 0.04em;
+    }
+    a.back-btn {
+      margin-top: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      background: #1e2330;
+      border: 1px solid #2d3448;
+      border-radius: 8px;
+      color: #a0aec0;
+      font-size: 13px;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    a.back-btn:hover {
+      background: #2d3448;
+      color: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon">📋</div>
+  <div class="badge">기획 프로젝트</div>
+  <h1>기획 아웃라인 편집기</h1>
+  <p>FigJam 개념의 기획 아웃라인 편집 화면입니다.<br>Hook → Main → Detail → CTA 구조로<br>상세페이지 기획을 도와줄 예정입니다.</p>
+  <p style="color:#4a5568; font-size:12px; margin-top:-8px;">— Coming Soon —</p>
+  <a class="back-btn" href="projects.html">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8">
+      <polyline points="7,2 3,6 7,10"/>
+    </svg>
+    홈으로 돌아가기
+  </a>
+</body>
+</html>
