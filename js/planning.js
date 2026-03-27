@@ -170,6 +170,7 @@ function renderOutline() {
           state.blocks.splice(insertIdx, 0, moved);
           state.selectedIdx = insertIdx;
           renderOutline();
+          renderInspector();
         }
       });
     });
@@ -254,7 +255,8 @@ async function saveIntake() {
           const a = document.createElement('a');
           const url = URL.createObjectURL(blob);
           a.href = url;
-          a.download = `intake_${data.product_name || 'unknown'}.json`;
+          const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+          a.download = `intake_${data.product_name || 'unknown'}_${dateStr}.json`;
           a.click();
           setTimeout(() => URL.revokeObjectURL(url), 1000); // 메모리 누수 방지
           return { ok: true, filename: a.download };
@@ -281,8 +283,7 @@ function init() {
   $('vol-select').value = state.volume;
   $('vol-select').addEventListener('change', e => {
     state.volume = e.target.value;
-    applyVolume(state.volume);
-    state.selectedIdx = null;
+    applyVolume(state.volume); // 내부에서 선택 블록 유지 처리
     renderOutline();
     renderInspector();
   });
