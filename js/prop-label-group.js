@@ -1,5 +1,13 @@
 import { propPanel } from './globals.js';
 
+// 라벨 스타일 프리셋 정의
+const LABEL_STYLE_PRESETS = {
+  Default: { bg: '#111111', color: '#ffffff', border: 'none' },
+  Filled:  { bg: '#333333', color: '#ffffff', border: 'none' },
+  Outline: { bg: 'transparent', color: '#111111', border: '1.5px solid #111111' },
+  Ghost:   { bg: 'rgba(0,0,0,0.06)', color: '#333333', border: 'none' },
+};
+
 function showLabelGroupProperties(block, selectedItem) {
   const gap        = parseInt(block.style.gap) || 10;
   const jc         = block.style.justifyContent || 'flex-start';
@@ -26,6 +34,19 @@ function showLabelGroupProperties(block, selectedItem) {
         </div>
         <span class="prop-block-name">Tags</span>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
+      </div>
+      <div class="prop-section-title">Style</div>
+      <div class="prop-row">
+        <span class="prop-label">Preset</span>
+        <select class="prop-select" id="lg-style-select">
+          <option value="Default">Default</option>
+          <option value="Filled">Filled</option>
+          <option value="Outline">Outline</option>
+          <option value="Ghost">Ghost</option>
+        </select>
+      </div>
+      <div class="prop-row">
+        <button class="prop-full-btn" id="lg-apply-all-btn">전체 적용</button>
       </div>
       <div class="prop-section-title">정렬</div>
       <div class="prop-align-group">
@@ -136,6 +157,59 @@ function showLabelGroupProperties(block, selectedItem) {
   allHNumber?.addEventListener('input', () => {
     const v = Math.min(120, Math.max(0, parseInt(allHNumber.value) || 0));
     setAllItemH(v); allHSlider.value = v;
+  });
+
+  // ── 스타일 프리셋 드롭다운 (C17) ───────────────────────────────────
+  const styleSelect = document.getElementById('lg-style-select');
+  const applyAllBtn = document.getElementById('lg-apply-all-btn');
+
+  /** 단일 label-item에 스타일 프리셋 적용 */
+  function _applyPresetToItem(item, presetName) {
+    const p = LABEL_STYLE_PRESETS[presetName];
+    if (!p) return;
+    item.style.backgroundColor = p.bg;
+    item.style.color = p.color;
+    item.style.border = p.border;
+    item.dataset.bg    = p.bg;
+    item.dataset.color = p.color;
+  }
+
+  // 드롭다운 변경 시 선택된 태그에만 즉시 적용
+  styleSelect?.addEventListener('change', () => {
+    if (!selectedItem) return;
+    _applyPresetToItem(selectedItem, styleSelect.value);
+    // 컬러 픽커 동기화
+    const bgPicker2 = document.getElementById('lg-item-bg');
+    const bgHex2    = document.getElementById('lg-item-bg-hex');
+    const colorPicker2 = document.getElementById('lg-item-color');
+    const colorHex2    = document.getElementById('lg-item-color-hex');
+    const p = LABEL_STYLE_PRESETS[styleSelect.value];
+    if (p) {
+      const bgVal = p.bg.startsWith('rgba') || p.bg === 'transparent' ? '#ffffff' : p.bg;
+      if (bgPicker2) bgPicker2.value = bgVal;
+      if (bgHex2)    bgHex2.value    = bgVal;
+      if (colorPicker2) colorPicker2.value = p.color;
+      if (colorHex2)    colorHex2.value    = p.color;
+    }
+  });
+
+  // C18: 전체 적용 버튼 — 캔버스 전체 label-group-block의 모든 label-item에 적용
+  applyAllBtn?.addEventListener('click', () => {
+    const presetName = styleSelect?.value || 'Default';
+    const canvas = document.getElementById('canvas') || document.querySelector('.canvas-area') || document.body;
+    canvas.querySelectorAll('.label-group-block .label-item').forEach(item => {
+      _applyPresetToItem(item, presetName);
+    });
+    // CSS 변수도 업데이트 (design-system 연동)
+    const p = LABEL_STYLE_PRESETS[presetName];
+    if (p && window.DesignSystem) {
+      const tokens = {
+        '--preset-label-bg':    p.bg === 'transparent' ? 'transparent' : p.bg,
+        '--preset-label-color': p.color,
+      };
+      document.documentElement.style.setProperty('--preset-label-bg', tokens['--preset-label-bg']);
+      document.documentElement.style.setProperty('--preset-label-color', tokens['--preset-label-color']);
+    }
   });
 
   if (!selectedItem) return;
