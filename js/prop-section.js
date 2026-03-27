@@ -313,23 +313,30 @@ function showSectionProperties(sec) {
     });
   });
 
-  // 내보내기
-  const secExportBtn = document.getElementById('sec-export-btn');
-  if (secExportBtn) {
-    secExportBtn.addEventListener('click', async () => {
-      const fmt = document.getElementById('sec-export-format').value;
-      secExportBtn.disabled = true;
-      secExportBtn.textContent = '내보내는 중...';
-      try {
-        await window.exportSection(sec, fmt);
-      } finally {
-        secExportBtn.disabled = false;
-        secExportBtn.textContent = '이 섹션 내보내기';
-      }
-    });
-  }
+  // 내보내기 / 템플릿 저장
+  _bindSectionExport(sec);
+  _bindSectionTemplate(sec);
+}
 
-  // 폴더 드롭다운 → 새 폴더 입력 토글
+/* 섹션 내보내기 이벤트 바인딩 — showSectionProperties에서 분리 */
+function _bindSectionExport(sec) {
+  const secExportBtn = document.getElementById('sec-export-btn');
+  if (!secExportBtn) return;
+  secExportBtn.addEventListener('click', async () => {
+    const fmt = document.getElementById('sec-export-format').value;
+    secExportBtn.disabled = true;
+    secExportBtn.textContent = '내보내는 중...';
+    try {
+      await window.exportSection(sec, fmt);
+    } finally {
+      secExportBtn.disabled = false;
+      secExportBtn.textContent = '이 섹션 내보내기';
+    }
+  });
+}
+
+/* 섹션 템플릿 저장 이벤트 바인딩 — showSectionProperties에서 분리 */
+function _bindSectionTemplate(sec) {
   const tplFolderSel = document.getElementById('sec-tpl-folder');
   const tplFolderNew = document.getElementById('sec-tpl-folder-new');
   if (tplFolderSel && tplFolderNew) {
@@ -338,30 +345,28 @@ function showSectionProperties(sec) {
     });
   }
 
-  // 템플릿 저장
   const tplSaveBtn = document.getElementById('sec-tpl-save-btn');
-  if (tplSaveBtn) {
-    tplSaveBtn.addEventListener('click', () => {
-      const name = document.getElementById('sec-tpl-name').value.trim();
-      if (!name) { document.getElementById('sec-tpl-name').focus(); return; }
-      const category = document.getElementById('sec-tpl-cat').value;
-      let folder = tplFolderSel ? tplFolderSel.value : '기타';
-      if (folder === '__new__') {
-        folder = (tplFolderNew ? tplFolderNew.value.trim() : '') || '기타';
-      }
-      const tagsRaw = document.getElementById('sec-tpl-tags')?.value || '';
-      const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
-      window.saveAsTemplate?.(sec, name, folder, category, tags);
-      document.getElementById('sec-tpl-name').value = '';
-      const tagsEl = document.getElementById('sec-tpl-tags');
-      if (tagsEl) tagsEl.value = '';
-      tplSaveBtn.textContent = '저장됨 ✓';
-      tplSaveBtn.disabled = true;
-      setTimeout(() => {
-        if (tplSaveBtn) { tplSaveBtn.textContent = '템플릿으로 저장'; tplSaveBtn.disabled = false; }
-      }, 1500);
-    });
-  }
+  if (!tplSaveBtn) return;
+  tplSaveBtn.addEventListener('click', () => {
+    const name = document.getElementById('sec-tpl-name').value.trim();
+    if (!name) { document.getElementById('sec-tpl-name').focus(); return; }
+    const category = document.getElementById('sec-tpl-cat').value;
+    let folder = tplFolderSel ? tplFolderSel.value : '기타';
+    if (folder === '__new__') {
+      folder = (tplFolderNew ? tplFolderNew.value.trim() : '') || '기타';
+    }
+    const tagsRaw = document.getElementById('sec-tpl-tags')?.value || '';
+    const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+    window.saveAsTemplate?.(sec, name, folder, category, tags);
+    document.getElementById('sec-tpl-name').value = '';
+    const tagsEl = document.getElementById('sec-tpl-tags');
+    if (tagsEl) tagsEl.value = '';
+    tplSaveBtn.textContent = '저장됨 ✓';
+    tplSaveBtn.disabled = true;
+    setTimeout(() => {
+      if (tplSaveBtn) { tplSaveBtn.textContent = '템플릿으로 저장'; tplSaveBtn.disabled = false; }
+    }, 1500);
+  });
 }
 
 /* 블록이 선택된 상태에서 소속 섹션만 하이라이트 (deselectAll 없이) */
