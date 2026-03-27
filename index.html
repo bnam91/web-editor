@@ -411,30 +411,85 @@
     </div>
     <div class="panel-body"></div>
 
-    <!-- Theme Token Panel (step2-ds-tokens) -->
-    <div id="theme-panel">
-      <div id="theme-panel-header" onclick="ThemeSystem.togglePanel()">
-        <span class="theme-panel-title">테마</span>
-        <span class="theme-panel-chevron">▼</span>
+    <!-- Design System Panel (step2-design-system) -->
+    <div id="design-system-panel">
+      <div id="ds-panel-header" onclick="DesignSystem.togglePanel()">
+        <span class="ds-panel-title">디자인 시스템</span>
+        <span class="ds-panel-chevron">▼</span>
       </div>
-      <div id="theme-panel-body">
-        <div class="theme-token-row">
-          <span class="theme-token-label">Primary</span>
-          <input type="color" class="theme-token-input" id="token-primary" value="#2d6fe8">
-          <input type="text" class="theme-token-hex" id="token-primary-hex" value="#2d6fe8" maxlength="9">
+      <div id="ds-panel-body">
+
+        <!-- 베이스 프리셋 선택 -->
+        <div class="ds-section-label">베이스</div>
+        <div class="ds-base-row">
+          <button class="ds-base-btn" data-preset-id="default" onclick="DesignSystem.applyBase('default')">Default</button>
+          <button class="ds-base-btn" data-preset-id="dark"    onclick="DesignSystem.applyBase('dark')">Dark</button>
+          <button class="ds-base-btn" data-preset-id="brand"   onclick="DesignSystem.applyBase('brand')">Brand</button>
+          <button class="ds-base-btn" data-preset-id="minimal" onclick="DesignSystem.applyBase('minimal')">Minimal</button>
         </div>
-        <div class="theme-token-row">
-          <span class="theme-token-label">Text</span>
-          <input type="color" class="theme-token-input" id="token-text" value="#e0e0e0">
-          <input type="text" class="theme-token-hex" id="token-text-hex" value="#e0e0e0" maxlength="9">
+
+        <!-- 색상 토큰 -->
+        <div class="ds-section-label">색상</div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Heading</span>
+          <input type="color" class="ds-token-picker" id="ds-h1-color" value="#111111">
+          <input type="text"  class="ds-token-hex"    id="ds-h1-color-hex" value="#111111" maxlength="7">
         </div>
-        <div class="theme-token-row">
-          <span class="theme-token-label">Background</span>
-          <input type="color" class="theme-token-input" id="token-bg" value="#1a1a1a">
-          <input type="text" class="theme-token-hex" id="token-bg-hex" value="#1a1a1a" maxlength="9">
+        <div class="ds-token-row">
+          <span class="ds-token-label">Body</span>
+          <input type="color" class="ds-token-picker" id="ds-body-color" value="#555555">
+          <input type="text"  class="ds-token-hex"    id="ds-body-color-hex" value="#555555" maxlength="7">
         </div>
-        <button id="theme-apply-btn" onclick="ThemeSystem.applyFromPanel()">테마 적용</button>
-        <button id="theme-reset-btn" onclick="ThemeSystem.resetTheme()">초기화</button>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Caption</span>
+          <input type="color" class="ds-token-picker" id="ds-caption-color" value="#999999">
+          <input type="text"  class="ds-token-hex"    id="ds-caption-color-hex" value="#999999" maxlength="7">
+        </div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Label BG</span>
+          <input type="color" class="ds-token-picker" id="ds-label-bg" value="#111111">
+          <input type="text"  class="ds-token-hex"    id="ds-label-bg-hex" value="#111111" maxlength="7">
+        </div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Label FG</span>
+          <input type="color" class="ds-token-picker" id="ds-label-color" value="#ffffff">
+          <input type="text"  class="ds-token-hex"    id="ds-label-color-hex" value="#ffffff" maxlength="7">
+        </div>
+
+        <!-- 폰트 -->
+        <div class="ds-section-label">폰트</div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Heading</span>
+          <select class="ds-font-select" id="ds-heading-font">
+            <option value="Noto Sans KR">Noto Sans KR</option>
+            <option value="Noto Serif KR">Noto Serif KR</option>
+            <option value="Space Grotesk">Space Grotesk</option>
+            <option value="Montserrat">Montserrat</option>
+            <option value="Pretendard">Pretendard</option>
+          </select>
+        </div>
+        <div class="ds-token-row">
+          <span class="ds-token-label">Body</span>
+          <select class="ds-font-select" id="ds-body-font">
+            <option value="Noto Sans KR">Noto Sans KR</option>
+            <option value="Noto Serif KR">Noto Serif KR</option>
+            <option value="Space Grotesk">Space Grotesk</option>
+            <option value="Pretendard">Pretendard</option>
+          </select>
+        </div>
+
+        <!-- Label Radius -->
+        <div class="ds-section-label">Label Radius</div>
+        <div class="ds-token-row ds-slider-row">
+          <input type="range" id="ds-label-radius" min="0" max="40" value="8">
+          <span id="ds-label-radius-val">8px</span>
+        </div>
+
+        <!-- 버튼 -->
+        <div class="ds-btn-row">
+          <button class="ds-apply-btn" onclick="DesignSystem.applyFromPanel()">적용</button>
+          <button class="ds-reset-btn" onclick="DesignSystem.resetTokens()">초기화</button>
+        </div>
       </div>
     </div>
 
@@ -766,7 +821,7 @@
 
 <script type="module" src="js/ai-prompt.js"></script>
 <script type="module" src="js/component-shelf.js"></script>
-<script src="js/theme-system.js"></script>
+<script src="js/design-system.js"></script>
 <script type="module" src="js/component-shelf.js"></script>
 
 <!-- ══════════════════════════

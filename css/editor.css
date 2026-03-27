@@ -39,11 +39,15 @@
    → applyPreset() 참고 */
 
 /* ── Theme Panel (step2-ds-tokens) ── */
-#theme-panel {
+/* ══════════════════════════════════════════════════
+   Design System Panel (step2-design-system)
+   캔버스 블록 --preset-* 토큰 편집기
+══════════════════════════════════════════════════ */
+#design-system-panel {
   border-top: 1px solid var(--ui-border);
   padding: 10px 12px 12px;
 }
-#theme-panel-header {
+#ds-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -51,44 +55,74 @@
   user-select: none;
   margin-bottom: 0;
 }
-#theme-panel-header .theme-panel-title {
+#ds-panel-header .ds-panel-title {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ui-text-dim);
 }
-#theme-panel-header .theme-panel-chevron {
+#ds-panel-header .ds-panel-chevron {
   color: var(--ui-text-dim);
   transition: transform 0.18s;
   font-size: 10px;
-  line-height: 1;
 }
-#theme-panel.open #theme-panel-header .theme-panel-chevron {
+#design-system-panel.open #ds-panel-header .ds-panel-chevron {
   transform: rotate(180deg);
 }
-#theme-panel-body {
+#ds-panel-body {
   display: none;
   margin-top: 10px;
 }
-#theme-panel.open #theme-panel-body {
+#design-system-panel.open #ds-panel-body {
   display: block;
 }
-.theme-token-row {
+.ds-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-dim);
+  margin: 10px 0 5px;
+}
+.ds-section-label:first-child { margin-top: 0; }
+/* 베이스 프리셋 버튼 */
+.ds-base-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+.ds-base-btn {
+  flex: 1;
+  min-width: 48px;
+  padding: 4px 0;
+  font-size: 10px;
+  background: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  color: var(--ui-text-sub);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.ds-base-btn:hover { border-color: var(--ui-border-mid); color: var(--ui-text); }
+.ds-base-btn.active { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+/* 토큰 행 */
+.ds-token-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 7px;
+  gap: 6px;
+  margin-bottom: 5px;
 }
-.theme-token-label {
-  font-size: 11px;
+.ds-token-label {
+  font-size: 10px;
   color: var(--ui-text-sub);
-  width: 80px;
+  width: 62px;
   flex-shrink: 0;
 }
-.theme-token-input {
-  width: 28px;
-  height: 22px;
+.ds-token-picker {
+  width: 24px;
+  height: 20px;
   padding: 0;
   border: 1px solid var(--ui-border);
   border-radius: 3px;
@@ -96,24 +130,53 @@
   background: transparent;
   flex-shrink: 0;
 }
-.theme-token-hex {
+.ds-token-hex {
+  flex: 1;
+  height: 20px;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  color: var(--ui-text-sub);
+  font-size: 10px;
+  font-family: monospace;
+  padding: 0 5px;
+  outline: none;
+}
+.ds-token-hex:focus { border-color: var(--ui-accent-primary); }
+/* 폰트 셀렉트 */
+.ds-font-select {
   flex: 1;
   height: 22px;
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
-  font-size: 11px;
-  font-family: monospace;
-  padding: 0 6px;
+  font-size: 10px;
+  padding: 0 4px;
   outline: none;
+  cursor: pointer;
 }
-.theme-token-hex:focus {
-  border-color: var(--ui-accent-primary);
+/* 슬라이더 행 */
+.ds-slider-row { gap: 8px; }
+.ds-slider-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--ui-accent-primary);
 }
-#theme-apply-btn {
-  width: 100%;
-  margin-top: 8px;
+.ds-slider-row span {
+  font-size: 10px;
+  color: var(--ui-text-sub);
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+/* 버튼 */
+.ds-btn-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ds-apply-btn {
+  flex: 1;
   padding: 6px 0;
   background: var(--ui-accent-primary);
   border: none;
@@ -124,12 +187,9 @@
   cursor: pointer;
   transition: opacity 0.15s;
 }
-#theme-apply-btn:hover {
-  opacity: 0.85;
-}
-#theme-reset-btn {
-  width: 100%;
-  margin-top: 4px;
+.ds-apply-btn:hover { opacity: 0.85; }
+.ds-reset-btn {
+  flex: 1;
   padding: 5px 0;
   background: transparent;
   border: 1px solid var(--ui-border);
@@ -139,10 +199,7 @@
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
 }
-#theme-reset-btn:hover {
-  border-color: var(--ui-border-mid);
-  color: var(--ui-text-sub);
-}
+.ds-reset-btn:hover { border-color: var(--ui-border-mid); color: var(--ui-text-sub); }
 
 /* ══════════════════════════════════════════════════
    .var-panel — 변수 바인딩 드로어 (step2-variable-binding)
