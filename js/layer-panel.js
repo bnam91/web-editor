@@ -104,12 +104,14 @@ function makeLayerBlockItem(block, dragTarget, sec) {
   item.setAttribute('draggable', 'true');
   item.addEventListener('dragstart', e => {
     e.stopPropagation();
+    if (window.state) window.state._suppressAutoSave = true;
     window.layerDragSrc = item;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
     requestAnimationFrame(() => item.classList.add('layer-dragging'));
   });
   item.addEventListener('dragend', () => {
+    if (window.state) window.state._suppressAutoSave = false;
     item.classList.remove('layer-dragging');
     clearLayerIndicators();
     window.layerDragSrc = null;
