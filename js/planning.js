@@ -56,6 +56,7 @@ let state = {
 
 function blocksForVolume(vol) {
   const idx = VOLUME_LEVELS.indexOf(vol);
+  if (idx < 0) return []; // 알 수 없는 볼륨값 방어
   return BLOCK_DEFS
     .filter(d => d.vol <= idx)
     .map(d => ({ ...d, enabled: true, layout: d.layout }));
@@ -164,8 +165,10 @@ function renderOutline() {
         const toIdx = b._idx;
         if (fromIdx !== toIdx) {
           const moved = state.blocks.splice(fromIdx, 1)[0];
-          state.blocks.splice(toIdx, 0, moved);
-          state.selectedIdx = toIdx;
+          // fromIdx < toIdx면 splice로 배열이 당겨지므로 1 보정
+          const insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+          state.blocks.splice(insertIdx, 0, moved);
+          state.selectedIdx = insertIdx;
           renderOutline();
         }
       });
@@ -198,13 +201,17 @@ function renderInspector() {
   `;
 
   $('insp-toggle').addEventListener('click', () => {
-    state.blocks[state.selectedIdx].enabled = !state.blocks[state.selectedIdx].enabled;
+    const b = state.blocks[state.selectedIdx];
+    if (!b) return;
+    b.enabled = !b.enabled;
     renderOutline();
     renderInspector();
   });
 
   $('insp-layout').addEventListener('change', e => {
-    state.blocks[state.selectedIdx].layout = e.target.value;
+    const b = state.blocks[state.selectedIdx];
+    if (!b) return;
+    b.layout = e.target.value;
     renderOutline();
   });
 }
@@ -245,18 +252,20 @@ async function saveIntake() {
       : (() => { // 브라우저 fallback (개발용)
           const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
           const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
+          const url = URL.createObjectURL(blob);
+          a.href = url;
           a.download = `intake_${data.product_name || 'unknown'}.json`;
           a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000); // 메모리 누수 방지
           return { ok: true, filename: a.download };
         })();
     showSaveStatus(`저장됨: ${result.filename}`, 'var(--ui-success, #7fc87f)');
   } catch (e) {
     showSaveStatus(`저장 실패: ${e.message || '알 수 없는 오류'}`, 'var(--ui-danger, #e06c6c)', false);
+  } finally {
+    btn.textContent = '저장';
+    btn.disabled = false;
   }
-
-  btn.textContent = '저장';
-  btn.disabled = false;
 }
 
 // ── 초기화 ────────────────────────────────────────────────────────────
