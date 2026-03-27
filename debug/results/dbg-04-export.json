@@ -1,0 +1,81 @@
+{
+  "agent": "DBG-04",
+  "part": "Export / Figma 업로드",
+  "file": "js/export.js",
+  "ts": "2026-03-27T00:00:00.000Z",
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "빈 캔버스 JSON 내보내기",
+      "status": "pass",
+      "finding": "exportDesignJSON()은 canvasEl.querySelectorAll(':scope > .section-block')로 섹션을 수집하며, 섹션이 없으면 sections:[] 빈 배열로 직렬화됨. schema/meta/sections 구조 완전히 유지되어 정상 출력.",
+      "fixed": false
+    },
+    {
+      "id": 2,
+      "title": "이미지 포함 섹션 JSON 내보내기",
+      "status": "warn",
+      "finding": "serializeBlock(asset-block)에서 src는 el.dataset.imgSrc를 직접 참조. blob URL(blob:http://...)이 imgSrc에 저장된 경우 JSON에 그대로 포함되어 재import 시 복원 불가. base64 변환 없음. 단, 현 앱은 imgSrc에 원본 URL/경로를 보관하는 것으로 보여 운영 시 큰 문제 없지만 blob URL 저장 시 위험 존재.",
+      "fixed": false
+    },
+    {
+      "id": 3,
+      "title": "JSON 가져오기 후 즉시 저장",
+      "status": "pass",
+      "finding": "loadProjectFile(commit-system.js:264)에서 JSON.parse 후 applyProjectData(data) 호출. state 동기화는 applyProjectData 내부에서 처리되므로 export.js 범위 내 문제 없음.",
+      "fixed": false
+    },
+    {
+      "id": 4,
+      "title": "잘못된 JSON 형식 가져오기",
+      "status": "pass",
+      "finding": "loadProjectFile에서 try-catch로 JSON.parse 실패 시 alert('올바른 프로젝트 파일이 아닙니다.') 표시. 사용자에게 명확한 안내 존재.",
+      "fixed": false
+    },
+    {
+      "id": 5,
+      "title": "Figma 업로드 버튼 — electronAPI 없을 때(웹 환경) 처리",
+      "status": "fail",
+      "finding": "doFigmaUpload()의 try 블록에서 window.electronAPI.figmaUpload(channel, designJSON) 직접 호출. window.electronAPI가 undefined인 웹 환경에서 TypeError: Cannot read properties of undefined 발생. showDone 함수 정의 전에 electronAPI 체크가 없어 UI가 스피너 상태로 잠김. → 수정: electronAPI.figmaUpload 존재 확인 후 없으면 showDone(false, ...) 호출로 사용자 안내.",
+      "fixed": true
+    },
+    {
+      "id": 6,
+      "title": "업로드 중 취소 버튼 — process kill + UI 상태 복귀",
+      "status": "pass",
+      "finding": "cancelBtn.onclick에서 electronAPI?.figmaCancelUpload?.() 호출(optional chaining으로 웹 환경 안전) 후 showDone(false, '⛔ 업로드가 취소됐습니다.') 호출. main.js에서 _figmaUploadProc.kill() 처리. UI는 showDone 통해 스피너 숨김/로그 표시/닫기 버튼으로 전환됨. 정상.",
+      "fixed": false
+    },
+    {
+      "id": 7,
+      "title": "업로드 타임아웃(120초) — UI에 타임아웃 안내 표시",
+      "status": "pass",
+      "finding": "main.js:245-249에서 setTimeout 120000ms 후 child.kill() 및 resolve({ success: false, logs: '❌ 타임아웃 (120초 초과)' }) 처리. doFigmaUpload에서 result.success===false 경로로 showDone(false, logs)가 호출되어 UI에 타임아웃 메시지 표시됨.",
+      "fixed": false
+    },
+    {
+      "id": 8,
+      "title": "designJSON이 null인 채 upload 호출 — 방어 처리",
+      "status": "warn",
+      "finding": "buildFigmaExportJSON()은 항상 객체를 반환하므로 null이 되지 않음. 그러나 5번 시나리오와 동일하게 window.electronAPI 자체가 없을 때 TypeError 발생 가능성 있었음. 수정(시나리오 5)으로 함께 해결됨. 추가적으로 selectedIds가 빈 배열이면 allSections=[]로 업로드 시도 방지는 618번째 줄 alert('업로드할 섹션을 선택해주세요.')로 처리됨.",
+      "fixed": false
+    },
+    {
+      "id": 9,
+      "title": "node_map.json 읽기 실패 — 빈 객체 fallback",
+      "status": "pass",
+      "finding": "main.js:278-284에서 readNodeMap IPC 핸들러가 try-catch로 예외 시 {} 반환. export.js:540에서 await result || {} 패턴으로 추가 방어. electronAPI 없을 때도 {} 사용. 완전한 fallback 처리.",
+      "fixed": false
+    },
+    {
+      "id": 10,
+      "title": "대용량 JSON 가져오기(100섹션) — 성능 및 메모리",
+      "status": "warn",
+      "finding": "buildFigmaExportJSON은 state.pages를 순회하며 DOMParser로 각 페이지 HTML을 파싱. 100섹션이 여러 페이지에 걸쳐 있을 경우 각 페이지마다 DOMParser + querySelectorAll 수행. 동기 JS로 처리되므로 메인 스레드 블로킹 가능. 그러나 실제 운영 규모(수십 섹션)에서는 문제 없을 것으로 판단. exportAllSections(이미지 내보내기)는 await + 300ms delay로 throttle 처리되어 안전.",
+      "fixed": false
+    }
+  ],
+  "bugs_found": 2,
+  "bugs_fixed": 1,
+  "summary": "핵심 버그: doFigmaUpload()에서 window.electronAPI 존재 확인 없이 직접 호출해 웹 환경에서 TypeError + 스피너 잠김 발생 → 수정 완료. blob URL 이미지 직렬화 미지원과 대용량 동기 파싱은 warn 수준으로 기록."
+}
