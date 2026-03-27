@@ -459,4 +459,6 @@ async function exportAnimGif() {
   }
 }
 
-window.openAnimModal = openAnimModal;
+window.openAnimModal  = openAnimModal;
+window.closeAnimModal = closeAnimModal;
+window.exportAnimGif  = exportAnimGif;

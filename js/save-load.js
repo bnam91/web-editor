@@ -704,6 +704,14 @@ function rebindAll() {
     if (!row.id) row.id = 'row_' + Math.random().toString(36).slice(2, 9);
   });
 
+  // 저장 시 제거된 contenteditable 속성 복원 (텍스트 블록 내부 편집 가능 요소)
+  canvasEl.querySelectorAll('.text-block').forEach(tb => {
+    const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
+    if (inner && !inner.hasAttribute('contenteditable')) {
+      inner.setAttribute('contenteditable', 'false');
+    }
+  });
+
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
