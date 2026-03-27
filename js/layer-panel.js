@@ -261,16 +261,23 @@ function makeLayerAssetItem(block, dragTarget, sec) {
   buildOverlayChildren();
 
   // overlay-tb 순서 변경 드롭존
+  // rAF throttle: getLayerDragAfterItem 내 getBoundingClientRect 호출 최적화 (DBG-11)
+  let _overlayDragRafId = null;
   children.addEventListener('dragover', e => {
     e.preventDefault();
     e.stopPropagation();
     if (!window.layerDragSrc?._dragTarget?.classList.contains('overlay-tb')) return;
-    clearLayerIndicators();
-    const after = getLayerDragAfterItem(children, e.clientY);
-    const indicator = document.createElement('div');
-    indicator.className = 'layer-drop-indicator';
-    if (after) children.insertBefore(indicator, after);
-    else children.appendChild(indicator);
+    if (_overlayDragRafId) return;
+    const clientY = e.clientY;
+    _overlayDragRafId = requestAnimationFrame(() => {
+      _overlayDragRafId = null;
+      clearLayerIndicators();
+      const after = getLayerDragAfterItem(children, clientY);
+      const indicator = document.createElement('div');
+      indicator.className = 'layer-drop-indicator';
+      if (after) children.insertBefore(indicator, after);
+      else children.appendChild(indicator);
+    });
   });
   children.addEventListener('dragleave', e => {
     if (!children.contains(e.relatedTarget)) clearLayerIndicators();
@@ -800,16 +807,23 @@ export function buildLayerPanel() {
     });
 
     // 레이어 패널 드롭존 (Row/Gap 단위 재배치)
+    // rAF throttle: getLayerDragAfterItem 내 getBoundingClientRect 호출 최적화 (DBG-11)
+    let _layerDragRafId = null;
     children.addEventListener('dragover', e => {
       e.preventDefault();
       e.stopPropagation();
       if (!window.layerDragSrc) return;
-      clearLayerIndicators();
-      const after = getLayerDragAfterItem(children, e.clientY);
-      const indicator = document.createElement('div');
-      indicator.className = 'layer-drop-indicator';
-      if (after) children.insertBefore(indicator, after);
-      else children.appendChild(indicator);
+      if (_layerDragRafId) return;
+      const clientY = e.clientY;
+      _layerDragRafId = requestAnimationFrame(() => {
+        _layerDragRafId = null;
+        clearLayerIndicators();
+        const after = getLayerDragAfterItem(children, clientY);
+        const indicator = document.createElement('div');
+        indicator.className = 'layer-drop-indicator';
+        if (after) children.insertBefore(indicator, after);
+        else children.appendChild(indicator);
+      });
     });
     children.addEventListener('dragleave', e => {
       if (!children.contains(e.relatedTarget)) clearLayerIndicators();

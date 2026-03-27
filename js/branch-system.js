@@ -588,3 +588,4 @@ window.selectBranchFromDropdown   = selectBranchFromDropdown;
 window.closeBranchDropdown        = closeBranchDropdown;
 window.createBranchFromInput      = createBranchFromInput;
 window.switchBranch               = switchBranch;
+window.saveCurrentBranchSnapshot  = saveCurrentBranchSnapshot; // DBG-11: restoreCommit 후 동기화용

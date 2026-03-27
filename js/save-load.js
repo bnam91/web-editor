@@ -391,7 +391,30 @@ async function captureThumbnail() {
 }
 
 /* ── 프로젝트 파일 저장 (Electron: projects/{id}.json, 브라우저: localStorage) ── */
+// DBG-11: 저장 중 대기열 패턴 — 동시 저장 race condition 방지
+let _isSavingToFile = false;
+let _pendingSaveData = null; // { snapshot, opts }
+
 async function saveProjectToFile(snapshot, opts = {}) {
+  // 저장 중이면 최신 데이터를 pendingData로 대기
+  if (_isSavingToFile) {
+    _pendingSaveData = { snapshot, opts };
+    return;
+  }
+  _isSavingToFile = true;
+  try {
+    await _doSaveProjectToFile(snapshot, opts);
+  } finally {
+    _isSavingToFile = false;
+    if (_pendingSaveData) {
+      const { snapshot: ps, opts: po } = _pendingSaveData;
+      _pendingSaveData = null;
+      await saveProjectToFile(ps, po);
+    }
+  }
+}
+
+async function _doSaveProjectToFile(snapshot, opts = {}) {
   // opts.projectId: 탭 전환 시 이전 탭 ID로 저장하기 위한 명시적 ID (S10 race condition 방지)
   const targetId = opts.projectId || activeProjectId;
   if (!targetId) return;
@@ -856,7 +879,8 @@ function initApp() {
     initEmpty();
   })();
 
-  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, attributes: true, characterData: true });
+  // attributes:true 제거 — 드래그 클래스 토글마다 autoSave 폭주 방지 (DBG-11)
+  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true });
 
   // 브랜치 시스템 초기화
   initBranchStore();
@@ -884,15 +908,22 @@ function initApp() {
   pushHistory();
 
   /* 캔버스 — 섹션 드래그 드롭 */
+  // rAF throttle: getBoundingClientRect()를 매 픽셀마다 호출하지 않도록 (DBG-11)
+  let _sectionDragRafId = null;
   canvasEl.addEventListener('dragover', e => {
     if (!sectionDragSrc) return;
     e.preventDefault();
-    clearSectionIndicators();
-    const after = getSectionDragAfterEl(canvasEl, e.clientY);
-    const indicator = document.createElement('div');
-    indicator.className = 'section-drop-indicator';
-    if (after) canvasEl.insertBefore(indicator, after);
-    else canvasEl.appendChild(indicator);
+    if (_sectionDragRafId) return;
+    const clientY = e.clientY;
+    _sectionDragRafId = requestAnimationFrame(() => {
+      _sectionDragRafId = null;
+      clearSectionIndicators();
+      const after = getSectionDragAfterEl(canvasEl, clientY);
+      const indicator = document.createElement('div');
+      indicator.className = 'section-drop-indicator';
+      if (after) canvasEl.insertBefore(indicator, after);
+      else canvasEl.appendChild(indicator);
+    });
   });
   canvasEl.addEventListener('dragleave', e => {
     if (!sectionDragSrc) return;

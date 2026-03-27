@@ -246,6 +246,13 @@ async function restoreCommit(id) {
 
   document.getElementById('commit-modal-overlay')?.remove();
   window.applyProjectData(commit.snapshot);
+
+  // DBG-11: 커밋 복원 후 현재 브랜치 스토어에도 snapshot 동기화
+  // (브랜치 전환 시 복원 전 상태로 덮어쓰여지는 버그 방지)
+  if (typeof window.saveCurrentBranchSnapshot === 'function') {
+    window.saveCurrentBranchSnapshot();
+  }
+
   window.showToast(`↩ 복원됨 — ${commit.message}`);
 }
 

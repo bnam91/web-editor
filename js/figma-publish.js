@@ -17,15 +17,22 @@ document.addEventListener('click', e => {
 
 /* 레이어 패널 — 섹션 순서 변경 */
 const layerPanelBody = document.getElementById('layer-panel-body');
+// rAF throttle: getLayerSectionDragAfterEl 내 getBoundingClientRect 호출 최적화 (DBG-11)
+let _layerSecDragRafId = null;
 layerPanelBody.addEventListener('dragover', e => {
   if (!layerSectionDragSrc) return;
   e.preventDefault();
-  window.clearLayerSectionIndicators();
-  const after = window.getLayerSectionDragAfterEl(layerPanelBody, e.clientY);
-  const indicator = document.createElement('div');
-  indicator.className = 'layer-section-drop-indicator';
-  if (after) layerPanelBody.insertBefore(indicator, after);
-  else layerPanelBody.appendChild(indicator);
+  if (_layerSecDragRafId) return;
+  const clientY = e.clientY;
+  _layerSecDragRafId = requestAnimationFrame(() => {
+    _layerSecDragRafId = null;
+    window.clearLayerSectionIndicators();
+    const after = window.getLayerSectionDragAfterEl(layerPanelBody, clientY);
+    const indicator = document.createElement('div');
+    indicator.className = 'layer-section-drop-indicator';
+    if (after) layerPanelBody.insertBefore(indicator, after);
+    else layerPanelBody.appendChild(indicator);
+  });
 });
 layerPanelBody.addEventListener('dragleave', e => {
   if (!layerSectionDragSrc) return;
