@@ -568,9 +568,11 @@ function unlockMainBranch() {
 window.maybeAddNewSectionToScope  = maybeAddNewSectionToScope;
 window.openSectionBranchMenu      = openSectionBranchMenu;
 window.getCurrentBranch           = getCurrentBranch;
+window.getBranchColor             = getBranchColor;
 window.renderBranchPanel          = renderBranchPanel;
 window.initBranchStore            = initBranchStore;
 window.unlockMainBranch           = unlockMainBranch;
+window.applyMainLock              = applyMainLock;
 window.toggleBranchDropdown       = toggleBranchDropdown;
 window.selectBranchFromDropdown   = selectBranchFromDropdown;
 window.closeBranchDropdown        = closeBranchDropdown;

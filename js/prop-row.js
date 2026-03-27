@@ -2,13 +2,32 @@
    ROW PROPERTIES PANEL
 ═══════════════════════════════════ */
 
+const propPanel = document.querySelector('#panel-right .panel-body');
+
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';
   const cols = [...rowEl.querySelectorAll(':scope > .col')];
   const currentGap = rowEl.hasAttribute('data-gap')
     ? (parseInt(rowEl.dataset.gap) || 0)
-    : (layout !== 'stack' ? 8 : 0);
+    : 0;
   const padX = parseInt(rowEl.dataset.padX) || 0;
+  if (!rowEl.id) rowEl.id = 'row_' + Math.random().toString(36).slice(2, 9);
+  let rowHeight = parseInt(rowEl.dataset.rowHeight) || 0;
+  /* data-row-height 없으면 실제 렌더링 높이 사용 */
+  if (!rowHeight) rowHeight = rowEl.offsetHeight || 0;
+
+  /* grid row count & 최소 높이: 행당 80px + 행 사이 gap */
+  let gridRowCount = 1;
+  if (layout === 'grid') {
+    const gtc = rowEl.style.gridTemplateColumns || '';
+    let gridColCount = 1;
+    if (gtc.startsWith('repeat(')) gridColCount = parseInt(gtc.match(/repeat\((\d+)/)?.[1]) || 1;
+    else if (gtc) gridColCount = gtc.trim().split(/\s+/).filter(Boolean).length;
+    gridRowCount = Math.ceil(cols.length / gridColCount);
+  }
+  const minRowHeight = layout === 'grid'
+    ? gridRowCount * 80 + (gridRowCount - 1) * currentGap
+    : 0;
 
   /* 자식 블록 일괄 조절용 데이터 */
   const childBlocks = [...rowEl.querySelectorAll(':scope > .col > *')].filter(el =>
@@ -51,25 +70,30 @@ function showRowProperties(rowEl) {
     </div>` : '';
 
 
-  /* 컬럼 비율 HTML (flex 전용) */
+  /* 컬럼 비율 HTML */
   let colRatioHTML = '';
   if (layout === 'flex') {
-    cols.forEach((col, i) => {
-      const flexVal = parseInt(col.dataset.flex) || 1;
-      colRatioHTML += `
-        <div class="prop-row">
-          <span class="prop-label">Col ${i + 1}</span>
-          <input type="range" class="prop-slider" id="row-col-slider-${i}" min="1" max="10" step="1" value="${flexVal}">
-          <input type="number" class="prop-number" id="row-col-number-${i}" min="1" max="10" value="${flexVal}">
-        </div>`;
-    });
-  } else if (layout === 'grid') {
+    const ratioVal = cols.map(c => parseInt(c.dataset.flex) || 1).join(':');
     colRatioHTML = `
       <div class="prop-row">
-        <span class="prop-label">열 수</span>
-        <button class="prop-count-btn" id="row-grid-col-minus">−</button>
-        <span class="prop-count-val" id="row-grid-col-count">${cols.length}</span>
-        <button class="prop-count-btn" id="row-grid-col-plus">+</button>
+        <span class="prop-label">비율</span>
+        <input type="text" class="prop-text-input" id="row-col-ratio" value="${ratioVal}" placeholder="1:1" style="flex:1;background:#1a1a1a;border:1px solid #333;border-radius:4px;color:#ccc;font-size:12px;padding:3px 8px;min-width:0;">
+      </div>`;
+  } else if (layout === 'grid') {
+    const gtc = rowEl.style.gridTemplateColumns || '';
+    let ratioVal;
+    if (gtc.startsWith('repeat(')) {
+      const count = parseInt(gtc.match(/repeat\((\d+)/)?.[1]) || cols.length;
+      ratioVal = Array(count).fill('1').join(':');
+    } else if (gtc) {
+      ratioVal = gtc.split(/\s+/).map(v => v.replace('fr', '') || '1').join(':');
+    } else {
+      ratioVal = Array(cols.length).fill('1').join(':');
+    }
+    colRatioHTML = `
+      <div class="prop-row">
+        <span class="prop-label">비율</span>
+        <input type="text" class="prop-text-input" id="row-col-ratio" value="${ratioVal}" placeholder="1:1" style="flex:1;background:#1a1a1a;border:1px solid #333;border-radius:4px;color:#ccc;font-size:12px;padding:3px 8px;min-width:0;">
       </div>`;
   }
 
@@ -81,55 +105,76 @@ function showRowProperties(rowEl) {
             <rect x="1" y="1" width="4" height="10" rx="0.5"/><rect x="7" y="1" width="4" height="10" rx="0.5"/>
           </svg>
         </div>
-        <span class="prop-block-name">Row</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">Grid</span>
+        </div>
+        ${rowEl.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${rowEl.id}')">${rowEl.id}</span>` : ''}
       </div>
-      <div class="prop-section-title">여백</div>
+    </div>
+    ${childBatchHTML}
+    ${layout !== 'stack' ? `
+    <div class="prop-section">
+      <div class="prop-section-title">컬럼 비율</div>
+      ${colRatioHTML}
+    </div>
+    ${layout !== 'stack' ? `
+    <div class="prop-section">
+      <div class="prop-section-title">그리드 크기</div>
+      <div class="grid-picker" id="row-grid-picker"></div>
+      <div class="grid-picker-label" id="row-grid-picker-label">—</div>
+    </div>` : ''}
+    <div class="prop-section">
+      <div class="prop-section-title">크기 / 간격</div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="row-height-slider" min="${minRowHeight}" max="1200" step="8" value="${rowHeight}">
+        <input type="number" class="prop-number" id="row-height-number" min="${minRowHeight}" max="1200" value="${rowHeight || ''}" placeholder="auto">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">gap</span>
+        <input type="range" class="prop-slider" id="row-gap-slider" min="0" max="80" step="4" value="${currentGap}">
+        <input type="number" class="prop-number" id="row-gap-number" min="0" max="80" value="${currentGap}">
+      </div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="row-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
       </div>
     </div>
-    <div class="prop-section">
-      <div class="prop-section-title">레이아웃</div>
-      <div class="prop-row">
-        <div class="prop-align-group" id="row-layout-group">
-          <button class="prop-align-btn${layout === 'stack' ? ' active' : ''}" data-layout="stack">Stack</button>
-          <button class="prop-align-btn${layout === 'flex'  ? ' active' : ''}" data-layout="flex">Flex</button>
-          <button class="prop-align-btn${layout === 'grid'  ? ' active' : ''}" data-layout="grid">Grid</button>
-        </div>
-      </div>
-    </div>
-    ${childBatchHTML}
-    ${layout !== 'stack' ? `
-    <div class="prop-section">
-      <div class="prop-section-title">${layout === 'flex' ? '컬럼 비율' : '컬럼 수'}</div>
-      ${colRatioHTML}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">간격</div>
-      <div class="prop-row">
-        <span class="prop-label">gap</span>
-        <input type="range" class="prop-slider" id="row-gap-slider" min="0" max="80" step="4" value="${currentGap}">
-        <input type="number" class="prop-number" id="row-gap-number" min="0" max="80" value="${currentGap}">
-      </div>
-    </div>
-    ${layout === 'flex' ? `
-    <div class="prop-section">
-      <div class="prop-section-title">컬럼 추가 / 삭제</div>
-      <div class="prop-row">
-        <button class="prop-count-btn" id="row-col-add" style="width:auto;padding:0 10px;font-size:13px;">+ 추가</button>
-        <button class="prop-count-btn" id="row-col-remove" style="width:auto;padding:0 10px;font-size:13px;">− 삭제</button>
-      </div>
-    </div>
     ` : ''}
-    ` : ''}
-    <div class="prop-section">
-      <div class="prop-section-title">Col 안 갭</div>
-      <div class="prop-row">
-        <button class="prop-count-btn" id="row-col-gap-add" style="width:auto;padding:0 10px;font-size:13px;">+ 갭 추가</button>
-      </div>
-    </div>`;
+    `;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(rowEl.id);
+
+  /* ── 높이 ── */
+  const applyRowHeight = v => {
+    if (isNaN(v) || v < minRowHeight) v = minRowHeight;
+    v = Math.min(1200, v);
+    if (layout === 'grid') {
+      const gtc = rowEl.style.gridTemplateColumns || '';
+      let gridColCount = 1;
+      if (gtc.startsWith('repeat(')) gridColCount = parseInt(gtc.match(/repeat\((\d+)/)?.[1]) || 1;
+      else if (gtc) gridColCount = gtc.split(/\s+/).filter(Boolean).length;
+      const gridRowCount = Math.ceil(cols.length / gridColCount);
+      const gap = parseInt(rowEl.dataset.gap) || 0;
+      if (v) {
+        const perRow = Math.max(1, Math.round((v - (gridRowCount - 1) * gap) / gridRowCount));
+        rowEl.style.gridTemplateRows = `repeat(${gridRowCount}, ${perRow}px)`;
+      } else {
+        rowEl.style.gridTemplateRows = '';
+      }
+    } else {
+      rowEl.style.minHeight = v ? v + 'px' : '';
+    }
+    rowEl.dataset.rowHeight = v || '';
+    const s = document.getElementById('row-height-slider');
+    const n = document.getElementById('row-height-number');
+    if (s) s.value = v;
+    if (n) n.value = v || '';
+  };
+  document.getElementById('row-height-slider')?.addEventListener('input',  e => applyRowHeight(parseInt(e.target.value)));
+  document.getElementById('row-height-number')?.addEventListener('change', e => { applyRowHeight(parseInt(e.target.value)); pushHistory(); });
+  document.getElementById('row-height-slider')?.addEventListener('change', () => pushHistory());
 
   /* ── 좌우 패딩 ── */
   const applyPadX = v => {
@@ -143,19 +188,9 @@ function showRowProperties(rowEl) {
     if (s) s.value = v;
     if (n) n.value = v;
   };
-  document.getElementById('row-padx-slider').addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
-  document.getElementById('row-padx-number').addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory(); });
-  document.getElementById('row-padx-slider').addEventListener('change', () => pushHistory());
-
-  /* ── 레이아웃 토글 ── */
-  document.querySelectorAll('#row-layout-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      applyRowLayoutDirect(rowEl, btn.dataset.layout);
-      showRowProperties(rowEl);
-      buildLayerPanel();
-      pushHistory();
-    });
-  });
+  document.getElementById('row-padx-slider')?.addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
+  document.getElementById('row-padx-number')?.addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory(); });
+  document.getElementById('row-padx-slider')?.addEventListener('change', () => pushHistory());
 
   /* ── 자식 블록 일괄: 높이 ── */
   if (hasChildren) {
@@ -190,18 +225,6 @@ function showRowProperties(rowEl) {
     }
   }
 
-  /* ── Col 안 갭 추가 ── */
-  document.getElementById('row-col-gap-add').addEventListener('click', () => {
-    pushHistory();
-    cols.forEach(col => {
-      const gb = window.makeGapBlock();
-      gb.style.height = '40px';
-      col.appendChild(gb);
-      window.bindBlock(gb);
-    });
-    buildLayerPanel();
-  });
-
   if (layout === 'stack') return;
 
   /* ── Gap ── */
@@ -219,68 +242,118 @@ function showRowProperties(rowEl) {
   document.getElementById('row-gap-number').addEventListener('change', e => { applyGap(parseInt(e.target.value)); pushHistory(); });
   document.getElementById('row-gap-slider').addEventListener('change', () => pushHistory());
 
-  /* ── Flex: 컬럼 비율 슬라이더 ── */
-  if (layout === 'flex') {
-    cols.forEach((col, i) => {
-      const applyFlex = v => {
-        v = Math.min(10, Math.max(1, v));
-        col.style.flex = v;
-        col.dataset.flex = v;
-        const s = document.getElementById(`row-col-slider-${i}`);
-        const n = document.getElementById(`row-col-number-${i}`);
-        if (s) s.value = v;
-        if (n) n.value = v;
-      };
-      document.getElementById(`row-col-slider-${i}`).addEventListener('input',  e => applyFlex(parseInt(e.target.value)));
-      document.getElementById(`row-col-number-${i}`).addEventListener('change', e => { applyFlex(parseInt(e.target.value)); pushHistory(); });
-      document.getElementById(`row-col-slider-${i}`).addEventListener('change', () => pushHistory());
-    });
-
-    /* 컬럼 추가 */
-    document.getElementById('row-col-add').addEventListener('click', () => {
-      rowEl.appendChild(makeEmptyCol('1'));
-      const newCount = rowEl.querySelectorAll(':scope > .col').length;
-      rowEl.dataset.ratioStr = `${newCount}*1`;
-      buildLayerPanel();
-      showRowProperties(rowEl);
-      pushHistory();
-    });
-
-    /* 컬럼 삭제 */
-    document.getElementById('row-col-remove').addEventListener('click', () => {
-      const curCols = [...rowEl.querySelectorAll(':scope > .col')];
-      if (curCols.length > 1) {
-        curCols[curCols.length - 1].remove();
-        const newCount = curCols.length - 1;
-        rowEl.dataset.ratioStr = `${newCount}*1`;
-        buildLayerPanel();
-        showRowProperties(rowEl);
-        pushHistory();
+  /* ── Flex / Grid: 컬럼 비율 입력 (2:8 형식) ── */
+  if (layout === 'flex' || layout === 'grid') {
+    const ratioInput = document.getElementById('row-col-ratio');
+    const applyRatio = () => {
+      const parts = ratioInput.value.split(':').map(s => parseInt(s.trim())).filter(n => n > 0 && !isNaN(n));
+      if (layout === 'flex') {
+        if (parts.length !== cols.length) return;
+        cols.forEach((col, i) => {
+          col.style.flex = parts[i];
+          col.dataset.flex = parts[i];
+        });
+      } else {
+        // grid: gridTemplateColumns의 열 수로 검증 (col 엘리먼트 수 ≠ 그리드 열 수)
+        const gtc = rowEl.style.gridTemplateColumns || '';
+        let gridColCount;
+        if (gtc.startsWith('repeat(')) {
+          gridColCount = parseInt(gtc.match(/repeat\((\d+)/)?.[1]) || cols.length;
+        } else if (gtc) {
+          gridColCount = gtc.split(/\s+/).filter(Boolean).length;
+        } else {
+          gridColCount = cols.length;
+        }
+        if (parts.length !== gridColCount) return;
+        rowEl.style.gridTemplateColumns = parts.map(p => p + 'fr').join(' ');
       }
-    });
+      pushHistory();
+    };
+    ratioInput.addEventListener('keydown', e => { if (e.key === 'Enter') { applyRatio(); e.target.blur(); } });
+    ratioInput.addEventListener('blur', applyRatio);
   }
 
-  /* ── Grid: 열 수 +/- ── */
-  if (layout === 'grid') {
-    document.getElementById('row-grid-col-minus').addEventListener('click', () => {
-      const curCols = [...rowEl.querySelectorAll(':scope > .col')];
-      if (curCols.length > 1) {
-        curCols[curCols.length - 1].remove();
-        const newCount = curCols.length - 1;
-        rowEl.style.gridTemplateColumns = `repeat(${newCount}, 1fr)`;
-        rowEl.dataset.ratioStr = `${newCount}*1`;
-        document.getElementById('row-grid-col-count').textContent = newCount;
-        buildLayerPanel();
-        pushHistory();
+  /* ── Grid 크기 피커 ── */
+  if (layout !== 'stack') {
+    const picker = document.getElementById('row-grid-picker');
+    const pickerLabel = document.getElementById('row-grid-picker-label');
+    const MAX = 4;
+
+    for (let r = 1; r <= MAX; r++) {
+      for (let c = 1; c <= MAX; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'grid-picker-cell';
+        cell.dataset.r = r;
+        cell.dataset.c = c;
+        picker.appendChild(cell);
       }
+    }
+
+    const highlight = (maxR, maxC) => {
+      picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
+        cl.classList.toggle('active', parseInt(cl.dataset.r) <= maxR && parseInt(cl.dataset.c) <= maxC);
+      });
+    };
+
+    picker.addEventListener('mouseover', e => {
+      const cell = e.target.closest('.grid-picker-cell');
+      if (!cell) return;
+      const r = parseInt(cell.dataset.r), c = parseInt(cell.dataset.c);
+      highlight(r, c);
+      pickerLabel.textContent = `${c} × ${r}`;
     });
-    document.getElementById('row-grid-col-plus').addEventListener('click', () => {
-      rowEl.appendChild(makeEmptyCol(null));
-      const newCount = rowEl.querySelectorAll(':scope > .col').length;
-      rowEl.style.gridTemplateColumns = `repeat(${newCount}, 1fr)`;
-      rowEl.dataset.ratioStr = `${newCount}*1`;
-      document.getElementById('row-grid-col-count').textContent = newCount;
+    picker.addEventListener('mouseleave', () => {
+      picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
+      pickerLabel.textContent = '—';
+    });
+
+    picker.addEventListener('click', e => {
+      const cell = e.target.closest('.grid-picker-cell');
+      if (!cell) return;
+      const targetCols = parseInt(cell.dataset.c);
+      const targetRows = parseInt(cell.dataset.r);
+      const totalNeeded = targetCols * targetRows;
+      const curCols = [...rowEl.querySelectorAll(':scope > .col')];
+      if (curCols.length < totalNeeded) {
+        for (let i = curCols.length; i < totalNeeded; i++) {
+          const col = document.createElement('div');
+          col.className = 'col';
+          col.appendChild(window.makeColPlaceholder(col));
+          rowEl.appendChild(col);
+        }
+      } else {
+        for (let i = curCols.length - 1; i >= totalNeeded; i--) curCols[i].remove();
+      }
+      /* layout/display 동기화 */
+      if (targetRows > 1) {
+        rowEl.dataset.layout = 'grid';
+        rowEl.style.display = 'grid';
+      } else {
+        rowEl.dataset.layout = 'flex';
+        rowEl.style.display = '';
+        rowEl.style.gridTemplateRows = '';
+      }
+      rowEl.style.gridTemplateColumns = `repeat(${targetCols}, 1fr)`;
+      /* flex 단일행은 col flex 값 초기화 */
+      if (targetRows === 1) {
+        [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
+      }
+      rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
+
+      /* 높이 반응형 조정 */
+      const gap = parseInt(rowEl.dataset.gap) || 0;
+      const newMin = targetRows * 80 + (targetRows - 1) * gap;
+      const curH = parseInt(rowEl.dataset.rowHeight) || rowEl.offsetHeight || 0;
+      if (curH) {
+        const perRow = Math.max(80, Math.round((curH - (gridRowCount - 1) * gap) / gridRowCount));
+        const newH = Math.max(newMin, perRow * targetRows + (targetRows - 1) * gap);
+        const perRowNew = Math.round((newH - (targetRows - 1) * gap) / targetRows);
+        rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRowNew}px)`;
+        rowEl.dataset.rowHeight = newH;
+      }
+
       buildLayerPanel();
+      showRowProperties(rowEl);
       pushHistory();
     });
   }

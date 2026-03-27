@@ -50,6 +50,8 @@ export function showIconCircleProperties(block) {
       </div>
     </div>`;
 
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
+
   // 이미지 섹션 추가
   const hasImage = block.classList.contains('has-image');
   propPanel.innerHTML += hasImage ? `
@@ -218,6 +220,8 @@ export function showTableProperties(block) {
       <div style="font-size:11px;color:#888;">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>
     </div>`;
 
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
+
   /* 행 추가/삭제 */
   document.getElementById('tbl-row-plus').addEventListener('click', () => {
     const cols = table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
@@ -329,6 +333,8 @@ export function showGapProperties(gb) {
       </div>
     </div>`;
 
+  if (window.setRpIdBadge) window.setRpIdBadge(gb.id || null);
+
   const slider = document.getElementById('gap-slider');
   const number = document.getElementById('gap-number');
 
@@ -418,6 +424,8 @@ export function showCardProperties(block) {
         <button class="prop-action-btn secondary" id="card-remove-btn">− 제거</button>
       </div>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   // 배경색
   const bgInput = document.getElementById('card-bg-color');
@@ -523,7 +531,7 @@ export function showCardProperties(block) {
     }
     window.buildLayerPanel();
     window.deselectAll();
-    showPageProperties();
+    window.showPageProperties();
   });
 
   // 제목 크기
@@ -705,6 +713,8 @@ export function showStripBannerProperties(block) {
     <div class="prop-section">
       <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭 편집 · 드래그로 순서 변경</div>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   // 높이
   const hSlider = document.getElementById('sbb-h-slider');
@@ -1072,6 +1082,8 @@ export function showGraphProperties(block) {
       <button class="prop-btn-full" id="grb-add-item">+ 항목 추가</button>
     </div>`;
 
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
+
   // 타입 토글
   document.getElementById('grb-type-v').addEventListener('click', () => {
     block.dataset.chartType = 'bar-v';
@@ -1208,6 +1220,8 @@ export function showDividerProperties(block) {
         <input type="number" class="prop-number" id="dvd-padx-number" min="0" max="200" value="${padH}">
       </div>
     </div>`;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   const colorPicker = document.getElementById('dvd-color');
   const colorHex    = document.getElementById('dvd-hex');

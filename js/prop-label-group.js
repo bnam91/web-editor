@@ -1,3 +1,5 @@
+import { propPanel } from './globals.js';
+
 function showLabelGroupProperties(block, selectedItem) {
   const gap        = parseInt(block.style.gap) || 10;
   const jc         = block.style.justifyContent || 'flex-start';
@@ -94,6 +96,8 @@ function showLabelGroupProperties(block, selectedItem) {
     </div>
     `}
   `;
+
+  if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   // 정렬
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
@@ -197,3 +201,5 @@ function showLabelGroupProperties(block, selectedItem) {
     setItemH(v); iHSlider.value = v;
   });
 }
+
+window.showLabelGroupProperties = showLabelGroupProperties;

@@ -90,15 +90,15 @@ function makeLayerBlockItem(block, dragTarget, sec) {
       syncSection(sec);
       highlightBlock(block, item);
       if (isText) window.showTextProperties(block);
-      else if (isGap) showGapProperties(block);
-      else if (isIconCb) showIconCircleProperties(block);
-      else if (isTable) showTableProperties(block);
-      else if (isCard) showCardProperties(block);
-      else if (isBanner) showStripBannerProperties(block);
+      else if (isGap) window.showGapProperties(block);
+      else if (isIconCb) window.showIconCircleProperties(block);
+      else if (isTable) window.showTableProperties(block);
+      else if (isCard) window.showCardProperties(block);
+      else if (isBanner) window.showStripBannerProperties(block);
       else window.showAssetProperties(block);
     }
   });
-  block.addEventListener('mouseenter', () => item.style.background = '#252525');
+  block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');
   block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
 
   item.setAttribute('draggable', 'true');
@@ -319,7 +319,7 @@ function makeLayerCardItem(block, dragTarget, sec) {
     block.classList.add('selected');
     syncSection(sec);
     highlightBlock(block, header);
-    showCardProperties(block);
+    window.showCardProperties(block);
   });
   block._layerItem = header;
 
@@ -346,7 +346,7 @@ function makeLayerCardItem(block, dragTarget, sec) {
     block.classList.add('selected');
     syncSection(sec);
     highlightBlock(block, header);
-    showCardProperties(block);
+    window.showCardProperties(block);
   };
 
   const imgEl = block.querySelector('.cdb-image');
@@ -400,7 +400,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
     block.classList.add('selected');
     syncSection(sec);
     highlightBlock(block, header);
-    showStripBannerProperties(block);
+    window.showStripBannerProperties(block);
   });
   block._layerItem = header;
 
@@ -436,7 +436,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
         block.classList.add('selected');
         syncSection(sec);
         highlightBlock(block, header);
-        showStripBannerProperties(block);
+        window.showStripBannerProperties(block);
       });
       children.appendChild(imgItem);
     }
@@ -466,7 +466,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
           block.querySelectorAll('.sbb-focused').forEach(el => el.classList.remove('sbb-focused'));
           child.classList.add('sbb-focused');
           child.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          showStripBannerProperties(block);
+          window.showStripBannerProperties(block);
         });
         children.appendChild(childItem);
       });
@@ -480,6 +480,93 @@ function makeLayerBannerItem(block, dragTarget, sec) {
 }
 
 /* 레이어 Row 그룹 생성 (멀티컬럼용) */
+function makeLayerColItem(colEl, colIdx, sec) {
+  const colWrapper = document.createElement('div');
+  colWrapper.className = 'layer-row-group layer-col-group';
+  colWrapper._dragTarget = colEl;
+
+  const colHeader = document.createElement('div');
+  colHeader.className = 'layer-row-header layer-col-header';
+  colHeader.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+      <rect x="1" y="1" width="10" height="10" rx="0.5"/>
+    </svg>
+    <span class="layer-item-name">Col ${colIdx + 1}</span>
+    <span class="layer-item-type">Frame</span>`;
+
+  const colChildren = document.createElement('div');
+  colChildren.className = 'layer-row-children';
+
+  const blocks = [...colEl.querySelectorAll(':scope > *')]
+    .filter(el => !el.classList.contains('col-placeholder'));
+
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph' };
+  const typeLbls  = { heading:'Text', body:'Text', caption:'Text', label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component' };
+
+  blocks.forEach(block => {
+    const isText = block.classList.contains('text-block');
+    const isGap  = block.classList.contains('gap-block');
+    const isIconCb = block.classList.contains('icon-circle-block');
+    const isTable  = block.classList.contains('table-block');
+    const isLabelGroup = block.classList.contains('label-group-block');
+    const isDivider = block.classList.contains('divider-block');
+    const isCard  = block.classList.contains('card-block');
+    const isBanner = block.classList.contains('strip-banner-block');
+    const isGraph  = block.classList.contains('graph-block');
+    const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : 'asset';
+
+    if (isBanner) { colChildren.appendChild(makeLayerBannerItem(block, block.closest('.row') || block, sec)); return; }
+    if (isCard)   { colChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec)); return; }
+
+    const item = document.createElement('div');
+    item.className = 'layer-item layer-item-nested';
+    item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      window.deselectAll();
+      block.classList.add('selected');
+      // Col/Row도 함께 활성화
+      const row = colEl.closest('.row');
+      if (row) { row.classList.add('row-active'); }
+      colEl.classList.add('col-active');
+      // 레이어 패널 row 헤더 하이라이트
+      const rowLayerHeader = colWrapper.parentElement?.parentElement?.querySelector(':scope > .layer-row-header');
+      if (rowLayerHeader) rowLayerHeader.classList.add('active');
+      colHeader.classList.add('active');
+      syncSection(sec);
+      highlightBlock(block, item);
+      if (isText) window.showTextProperties(block);
+      else if (isGap) window.showGapProperties(block);
+      else if (isIconCb) window.showIconCircleProperties(block);
+      else if (isTable) window.showTableProperties(block);
+      else window.showAssetProperties(block);
+    });
+    block._layerItem = item;
+    colChildren.appendChild(item);
+  });
+
+  colHeader.addEventListener('click', e => {
+    if (e.target.closest('.layer-chevron')) { colWrapper.classList.toggle('collapsed'); return; }
+    e.stopPropagation();
+    window.deselectAll();
+    const row = colEl.closest('.row');
+    if (row) { row.classList.add('row-active'); }
+    colEl.classList.add('col-active');
+    // 레이어 패널 row 헤더 하이라이트
+    const rowLayerHeader = colWrapper.parentElement?.parentElement?.querySelector(':scope > .layer-row-header');
+    if (rowLayerHeader) rowLayerHeader.classList.add('active');
+    syncSection(sec);
+    colHeader.classList.add('active');
+    if (window.showColProperties) window.showColProperties(colEl);
+    else if (window.showRowProperties && row) window.showRowProperties(row);
+  });
+
+  colWrapper.appendChild(colHeader);
+  colWrapper.appendChild(colChildren);
+  return colWrapper;
+}
+
 function makeLayerRowGroup(rowEl, blocks, sec) {
   const ratioStr = rowEl.dataset.ratioStr || `${blocks.length}*1`;
   const group = document.createElement('div');
@@ -493,79 +580,24 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
     <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
       <rect x="1" y="1" width="4" height="10" rx="0.5"/><rect x="7" y="1" width="4" height="10" rx="0.5"/>
     </svg>
-    <span class="layer-item-name">Row</span>
+    <span class="layer-item-name">Grid</span>
     <span class="layer-item-type">${ratioStr}</span>`;
 
   const groupChildren = document.createElement('div');
   groupChildren.className = 'layer-row-children';
 
-  blocks.forEach(block => {
-    const isText       = block.classList.contains('text-block');
-    const isGap        = block.classList.contains('gap-block');
-    const isIconCb     = block.classList.contains('icon-circle-block');
-    const isTable      = block.classList.contains('table-block');
-    const isLabelGroup = block.classList.contains('label-group-block');
-    const isDivider    = block.classList.contains('divider-block');
-    const isCard       = block.classList.contains('card-block');
-    const isBanner     = block.classList.contains('strip-banner-block');
-    const isGraph      = block.classList.contains('graph-block');
-    const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : 'asset';
-    const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph' };
-    const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component' };
-
-    if (isBanner) {
-      groupChildren.appendChild(makeLayerBannerItem(block, block.closest('.row') || block, sec));
-      return;
-    }
-    if (isCard) {
-      groupChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec));
-      return;
-    }
-
-    const item = document.createElement('div');
-    item.className = 'layer-item layer-item-nested';
-    item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
-
-    item.addEventListener('click', e => {
-      e.stopPropagation();
-      if (e.shiftKey) {
-        if (block.classList.contains('selected')) {
-          block.classList.remove('selected');
-          item.classList.remove('active');
-        } else {
-          block.classList.add('selected');
-          item.classList.add('active');
-        }
-        syncSection(sec);
-      } else {
-        window.deselectAll();
-        block.classList.add('selected');
-        syncSection(sec);
-        highlightBlock(block, item);
-        if (isText) window.showTextProperties(block);
-        else if (isGap) showGapProperties(block);
-        else if (isIconCb) showIconCircleProperties(block);
-        else if (isTable) showTableProperties(block);
-        else if (isCard) showCardProperties(block);
-        else window.showAssetProperties(block);
-      }
-    });
-    block.addEventListener('mouseenter', () => item.style.background = '#252525');
-    block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
-
-    block._layerItem = item;
-    groupChildren.appendChild(item);
+  // Col Frame을 자식으로 표시
+  const cols = [...rowEl.querySelectorAll(':scope > .col')];
+  cols.forEach((col, i) => {
+    groupChildren.appendChild(makeLayerColItem(col, i, sec));
   });
 
   header.addEventListener('click', e => {
-    // chevron 클릭이면 토글만
     if (e.target.closest('.layer-chevron')) { group.classList.toggle('collapsed'); return; }
-    // Row 헤더 클릭 → 하위 블록 전체 선택 + Properties 표시
     window.deselectAll();
     blocks.forEach(block => block.classList.add('selected'));
     rowEl.classList.add('row-active');
     syncSection(sec);
-    // 레이어 하위 아이템 모두 하이라이트
     groupChildren.querySelectorAll('.layer-item').forEach(it => it.classList.add('active'));
     header.classList.add('active');
     window.showRowProperties(rowEl);
@@ -658,7 +690,40 @@ export function buildLayerPanel() {
       }
     });
 
-    header.addEventListener('click', () => { selectSection(sec, true); });
+    header.addEventListener('click', (e) => {
+      if (e.shiftKey) {
+        const panel = document.getElementById('layer-panel-body');
+        const allSectionEls = [...document.querySelectorAll('#canvas .section-block')];
+        const targetIdx = allSectionEls.indexOf(sec);
+
+        const activeHeader = panel.querySelector('.layer-section-header.active');
+        const anchorLayerSection = activeHeader ? activeHeader.closest('.layer-section') : null;
+        const anchorIdx = anchorLayerSection
+          ? parseInt(anchorLayerSection.dataset.section, 10) - 1
+          : -1;
+
+        if (anchorIdx === -1 || targetIdx === -1) {
+          selectSection(sec, true);
+          return;
+        }
+
+        const [from, to] = anchorIdx < targetIdx ? [anchorIdx, targetIdx] : [targetIdx, anchorIdx];
+
+        // 범위 내 모든 섹션 선택
+        allSectionEls.forEach(s => s.classList.remove('selected'));
+        panel.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
+
+        const allLayerSections = [...panel.querySelectorAll('.layer-section')];
+        for (let i = from; i <= to; i++) {
+          if (allSectionEls[i]) allSectionEls[i].classList.add('selected');
+          if (allLayerSections[i]) {
+            allLayerSections[i].querySelector('.layer-section-header')?.classList.add('active');
+          }
+        }
+      } else {
+        selectSection(sec, true);
+      }
+    });
     chevron.addEventListener('click', e => {
       e.stopPropagation();
       sectionEl.classList.toggle('collapsed');
@@ -699,21 +764,25 @@ export function buildLayerPanel() {
       const colBlocks = [...child.querySelectorAll(':scope > .col > *')]
         .filter(el => !el.classList.contains('col-placeholder'));
       const allCols = [...child.querySelectorAll(':scope > .col')];
-      const hasPlaceholderOnly = colBlocks.length === 0 && allCols.length > 0;
-      if (hasPlaceholderOnly) {
+      const isMultiCol = allCols.length > 1;
+      // flex/grid는 col이 여러 개 → 항상 row group으로 표시
+      if (isMultiCol) {
+        container.appendChild(makeLayerRowGroup(child, colBlocks, sec));
+        return;
+      }
+      // stack (단일 col): 블록이 없으면 row group, 1개면 블록 직접 표시
+      if (colBlocks.length === 0) {
         container.appendChild(makeLayerRowGroup(child, [], sec));
-      } else if (colBlocks.length <= 1) {
+      } else if (colBlocks.length === 1) {
         const block = colBlocks[0];
-        if (block) {
-          if (block.classList.contains('asset-block')) {
-            container.appendChild(makeLayerAssetItem(block, child, sec));
-          } else if (block.classList.contains('strip-banner-block')) {
-            container.appendChild(makeLayerBannerItem(block, child, sec));
-          } else if (block.classList.contains('card-block')) {
-            container.appendChild(makeLayerCardItem(block, child, sec));
-          } else {
-            container.appendChild(makeLayerBlockItem(block, child, sec));
-          }
+        if (block.classList.contains('asset-block')) {
+          container.appendChild(makeLayerAssetItem(block, child, sec));
+        } else if (block.classList.contains('strip-banner-block')) {
+          container.appendChild(makeLayerBannerItem(block, child, sec));
+        } else if (block.classList.contains('card-block')) {
+          container.appendChild(makeLayerCardItem(block, child, sec));
+        } else {
+          container.appendChild(makeLayerBlockItem(block, child, sec));
         }
       } else {
         container.appendChild(makeLayerRowGroup(child, colBlocks, sec));
@@ -815,13 +884,24 @@ export function buildLayerPanel() {
     if (!firstLayerEl) return;
     const wrapper = document.createElement('div');
     wrapper.className = 'layer-variation-group';
+    wrapper._gid = gid;
+    wrapper._secs = secs;
     const groupHeader = document.createElement('div');
     groupHeader.className = 'layer-variation-header';
     const VLABELS = ['A', 'B', 'C', 'D', 'E'];
     const activeV = secs.find(s => s.dataset.variationActive === '1')?.dataset.variation || 'A';
     const activeIdx = VLABELS.indexOf(activeV);
     const nextV = VLABELS[(activeIdx + 1) % secs.length];
-    groupHeader.innerHTML = `<span>Variant (${secs.map(s => s.dataset.variation).join('/')})</span>`;
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = `Variant (${secs.map(s => s.dataset.variation).join('/')})`;
+    labelSpan.style.cursor = 'pointer';
+    labelSpan.title = '활성 베리에이션 선택';
+    labelSpan.addEventListener('click', e => {
+      e.stopPropagation();
+      const active = secs.find(s => s.dataset.variationActive === '1') || secs[0];
+      if (active && window.selectSection) window.selectSection(active, true);
+    });
+    groupHeader.appendChild(labelSpan);
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'layer-variation-toggle';
     toggleBtn.textContent = `▷ ${nextV}`;
@@ -835,6 +915,18 @@ export function buildLayerPanel() {
     addBtn.disabled = secs.length >= 5;
     addBtn.onclick = () => { if (window.addVariation) window.addVariation(secs[0]); };
     groupHeader.appendChild(addBtn);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'layer-variation-del';
+    delBtn.textContent = '×';
+    delBtn.title = 'Variant 그룹 전체 삭제';
+    delBtn.onclick = e => {
+      e.stopPropagation();
+      if (window.pushHistory) window.pushHistory();
+      secs.forEach(s => s.remove());
+      if (window.deselectAll) window.deselectAll();
+      if (window.buildLayerPanel) window.buildLayerPanel();
+    };
+    groupHeader.appendChild(delBtn);
     panel.insertBefore(wrapper, firstLayerEl);
     secs.forEach(s => { if (s._layerEl) wrapper.appendChild(s._layerEl); });
     wrapper.insertBefore(groupHeader, wrapper.firstChild);
@@ -851,7 +943,14 @@ export function buildLayerPanel() {
 
 export function syncLayerActive(sec) {
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
+  document.querySelectorAll('.layer-variation-group').forEach(g => g.classList.remove('active'));
   if (sec && sec._layerHeader) sec._layerHeader.classList.add('active');
+  if (sec && sec.dataset.variationGroup) {
+    const gid = sec.dataset.variationGroup;
+    document.querySelectorAll('.layer-variation-group').forEach(g => {
+      if (g._gid === gid) g.classList.add('active');
+    });
+  }
 }
 
 export function highlightBlock(block, layerItem) {
@@ -859,7 +958,25 @@ export function highlightBlock(block, layerItem) {
   if (layerItem) layerItem.classList.add('active');
 }
 
+/* 캔버스에서 row 선택 시 레이어 패널 row 헤더 하이라이트 */
+export function syncLayerRow(rowEl) {
+  document.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
+  if (!rowEl) return;
+  /* wrapper._dragTarget === rowEl 인 wrapper의 첫번째 .layer-row-header */
+  const panel = document.getElementById('layer-panel-body');
+  if (!panel) return;
+  panel.querySelectorAll('.layer-section').forEach(sec => {
+    sec.querySelectorAll('.layer-row-wrapper, .layer-row-group').forEach(wrapper => {
+      if (wrapper._dragTarget === rowEl) {
+        const h = wrapper.querySelector(':scope > .layer-row-header');
+        if (h) h.classList.add('active');
+      }
+    });
+  });
+}
+
 // Backward compat
 window.buildLayerPanel = buildLayerPanel;
 window.syncLayerActive = syncLayerActive;
+window.syncLayerRow    = syncLayerRow;
 window.highlightBlock  = highlightBlock;

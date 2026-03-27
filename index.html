@@ -46,9 +46,6 @@
     <button class="zoom-btn" onclick="zoomFit()" style="font-size:11px;width:auto;padding:0 6px;">Fit</button>
   </div>
   <div class="divider"></div>
-  <button class="tb-btn tb-btn-undo" id="undo-btn" onclick="undo()" title="실행 취소" disabled>↩</button>
-  <button class="tb-btn tb-btn-undo" id="redo-btn" onclick="redo()" title="다시 실행" disabled>↪</button>
-  <div class="divider"></div>
   <button class="tb-btn" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
   <div class="divider"></div>
   <button class="tb-btn tb-btn-ai" id="ai-btn" onclick="openAiPrompt()" title="AI 섹션 생성 (⌘K)">✨ AI</button>
@@ -56,7 +53,7 @@
   <div class="divider"></div>
   <div id="publish-dropdown-wrap">
     <button id="publish-btn" onclick="togglePublishDropdown(event)">
-      Publish
+      Figma
       <svg class="publish-dd-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div id="publish-dropdown-menu">
@@ -442,13 +439,20 @@
       <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
         <rect x="1" y="2" width="3.5" height="7" rx="0.5"/><rect x="6.5" y="2" width="3.5" height="7" rx="0.5"/>
       </svg>
-      Row
+      Grid
       <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-row-menu">
-      <button class="fp-menu-item" onclick="addRowBlock();toggleFpDropdown('fp-row-dropdown')">2 × 1</button>
+      <button class="fp-menu-item" onclick="addRowBlock(2,1);toggleFpDropdown('fp-row-dropdown')">2 × 1</button>
+      <button class="fp-menu-item" onclick="addRowBlock(2,2);toggleFpDropdown('fp-row-dropdown')">2 × 2</button>
     </div>
   </div>
+  <button class="fp-btn" onclick="addGapBlock()">
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+      <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="8" x2="10" y2="8"/><line x1="5.5" y1="3" x2="5.5" y2="8" stroke-dasharray="1.5 1.5"/>
+    </svg>
+    Gap
+  </button>
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-text-dropdown">
     <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-text-dropdown')">
@@ -502,12 +506,6 @@
       <button class="fp-menu-item" onclick="addDividerBlock();toggleFpDropdown('fp-component-dropdown')">Divider</button>
     </div>
   </div>
-  <button class="fp-btn" onclick="addGapBlock()">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="8" x2="10" y2="8"/><line x1="5.5" y1="3" x2="5.5" y2="8" stroke-dasharray="1.5 1.5"/>
-    </svg>
-    Gap
-  </button>
 </div>
 
 <!-- Template Browser Panel -->
@@ -608,16 +606,32 @@
 <script type="module" src="js/prop-layout.js"></script>
 <script type="module" src="js/prop-asset.js"></script>
 <script type="module" src="js/prop-text.js"></script>
-<script type="module" src="js/prop-components.js"></script>
+<script type="module" src="js/prop-icon-circle.js"></script>
+<script type="module" src="js/prop-table.js"></script>
+<script type="module" src="js/prop-gap.js"></script>
+<script type="module" src="js/prop-card.js"></script>
+<script type="module" src="js/prop-strip-banner.js"></script>
+<script type="module" src="js/prop-graph.js"></script>
+<script type="module" src="js/prop-divider.js"></script>
 <script type="module" src="js/prop-label-group.js"></script>
 <script type="module" src="js/prop-row.js"></script>
+<script type="module" src="js/drag-utils.js"></script>
 <script type="module" src="js/drag-drop.js"></script>
+<script type="module" src="js/block-factory.js"></script>
+<script type="module" src="js/file-page-section.js"></script>
+<script type="module" src="js/commit-system.js"></script>
 <script type="module" src="js/save-load.js"></script>
 <script type="module" src="js/image-handling.js"></script>
-<script type="module" src="js/export.js"></script>
+<script type="module" src="js/export-figma-json.js"></script>
+<script type="module" src="js/export-image.js"></script>
+<script type="module" src="js/export-design-json.js"></script>
+<script type="module" src="js/export-html.js"></script>
+<script type="module" src="js/figma-publish.js"></script>
 <script type="module" src="js/preview.js"></script>
 <script type="module" src="js/animation-engine.js"></script>
 <script type="module" src="js/inspector.js"></script>
+<script type="module" src="js/prop-section.js"></script>
+<script type="module" src="js/section-variation.js"></script>
 <script type="module" src="js/editor.js"></script>
 <script type="module" src="js/reference-modal.js"></script>
 

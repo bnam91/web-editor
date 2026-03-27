@@ -144,6 +144,8 @@ export function showAssetProperties(ab) {
       </div>
     </div>`;
 
+  if (window.setRpIdBadge) window.setRpIdBadge(ab.id || null);
+
   window.bindLayoutInput(ab);
 
   const hSlider = document.getElementById('asset-h-slider');
