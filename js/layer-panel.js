@@ -106,6 +106,16 @@ function makeLayerBlockItem(block, dragTarget, sec) {
     e.stopPropagation();
     if (window.state) window.state._suppressAutoSave = true;
     window.layerDragSrc = item;
+    // 다중선택 드래그: 이 아이템이 active 상태이고 다른 active 아이템도 있으면 함께 이동
+    if (item.classList.contains('active')) {
+      const panel = document.getElementById('layer-panel-body');
+      const allActive = panel ? [...panel.querySelectorAll('.layer-item.active')] : [];
+      window.layerMultiDragTargets = allActive.length > 1
+        ? allActive.map(el => el._dragTarget).filter(Boolean)
+        : null;
+    } else {
+      window.layerMultiDragTargets = null;
+    }
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
     requestAnimationFrame(() => item.classList.add('layer-dragging'));
@@ -115,6 +125,7 @@ function makeLayerBlockItem(block, dragTarget, sec) {
     item.classList.remove('layer-dragging');
     clearLayerIndicators();
     window.layerDragSrc = null;
+    window.layerMultiDragTargets = null;
   });
 
   block._layerItem = item;
@@ -918,11 +929,41 @@ export function buildLayerPanel() {
         return;
       }
 
+      // 다중선택 이동: shift+클릭으로 선택된 여러 블록 한번에 이동
+      if (window.layerMultiDragTargets?.length > 1) {
+        const targets = window.layerMultiDragTargets;
+        // 삽입 기준점 확정 (이동 대상 중 하나면 skip)
+        let refNode = null;
+        if (indicator) {
+          const nextEl = indicator.nextElementSibling;
+          refNode = nextEl?._dragTarget || null;
+          if (refNode && targets.includes(refNode)) refNode = null;
+        }
+        // 현재 DOM 순서 유지하며 정렬
+        const sorted = [...targets].sort((a, b) => {
+          const pos = a.compareDocumentPosition(b);
+          if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+          if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+          return 0;
+        });
+        sorted.forEach(target => {
+          if (refNode && sectionInner.contains(refNode)) sectionInner.insertBefore(target, refNode);
+          else sectionInner.appendChild(target);
+        });
+        clearLayerIndicators();
+        buildLayerPanel();
+        window.pushHistory();
+        window.layerDragSrc = null;
+        window.layerMultiDragTargets = null;
+        return;
+      }
+
       // Normal: reorder within section
       insertIntoSec(dragTarget);
       clearLayerIndicators();
       buildLayerPanel();
       window.layerDragSrc = null;
+      window.layerMultiDragTargets = null;
     });
 
     sectionEl.appendChild(header);
