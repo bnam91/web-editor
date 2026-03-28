@@ -96,12 +96,84 @@ function exportDesignJSON() {
       }
       return block;
     }
+
+    if (el.classList.contains('card-block')) {
+      return {
+        id:      uid('cdb'),
+        type:    'card',
+        bgColor: el.dataset.bgColor || '#f5f5f5',
+        radius:  parseInt(el.dataset.radius) || 12,
+        height:  parseFloat(el.style.height) || 400,
+        src:     el.dataset.imgSrc || null,
+      };
+    }
+
+    if (el.classList.contains('graph-block')) {
+      let items = [];
+      try { items = JSON.parse(el.dataset.items || '[]'); } catch {}
+      return {
+        id:        uid('grb'),
+        type:      'graph',
+        chartType: el.dataset.chartType || 'bar-v',
+        preset:    el.dataset.preset   || 'default',
+        items,
+        height:    parseFloat(el.style.height) || 300,
+      };
+    }
+
+    if (el.classList.contains('strip-banner-block')) {
+      return {
+        id:      uid('sbb'),
+        type:    'strip-banner',
+        bgColor: el.dataset.bgColor || '#f5f5f5',
+        radius:  parseInt(el.dataset.radius) || 0,
+        imgPos:  el.dataset.imgPos  || 'left',
+        src:     el.dataset.imgSrc  || null,
+        height:  parseFloat(el.style.height) || 300,
+      };
+    }
+
+    if (el.classList.contains('label-group-block')) {
+      const items = [];
+      el.querySelectorAll('.label-item').forEach(item => {
+        const span = item.querySelector('.label-item-text');
+        items.push({
+          text:   span?.textContent.trim() || 'Label',
+          bg:     item.dataset.bg    || '#e8e8e8',
+          color:  item.dataset.color || '#333333',
+          radius: parseInt(item.dataset.radius) || 40,
+        });
+      });
+      return {
+        id:    uid('lg'),
+        type:  'label-group',
+        items,
+        style: { gap: parseInt(el.style.gap) || 10 },
+      };
+    }
+
+    if (el.classList.contains('table-block')) {
+      const table = el.querySelector('.tb-table');
+      const rows = [];
+      table?.querySelectorAll('tr').forEach(tr => {
+        const cells = [];
+        tr.querySelectorAll('th, td').forEach(cell => cells.push(cell.textContent.trim()));
+        rows.push(cells);
+      });
+      return {
+        id:       uid('tbl'),
+        type:     'table',
+        rows,
+        fontSize: parseInt(table?.style.fontSize) || 28,
+      };
+    }
+
     return null;
   }
 
   function serializeCol(colEl) {
     const blocks = [];
-    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block, :scope > .label-group-block, :scope > .table-block').forEach(b => {
       const s = serializeBlock(b);
       if (s) blocks.push(s);
     });

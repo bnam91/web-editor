@@ -90,7 +90,8 @@ function _extractText(el) {
 }
 
 function _getTextStyle(tb) {
-  const el  = tb.querySelector('[contenteditable]');
+  const el  = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb.querySelector('div');
+  if (!el) return { text: '', fontSize: 24, color: '#111111', fontFamily: 'sans-serif', fontWeight: '400', letterSpacing: 0, textAlign: 'left', lineHeight: 1.4, sectionBg: '#ffffff' };
   const cs  = window.getComputedStyle(el);
   const sec = tb.closest('.section-block');
   const bg  = sec ? (sec.style.backgroundColor || sec.style.background || '#ffffff') : '#ffffff';
@@ -459,4 +460,6 @@ async function exportAnimGif() {
   }
 }
 
-window.openAnimModal = openAnimModal;
+window.openAnimModal  = openAnimModal;
+window.closeAnimModal = closeAnimModal;
+window.exportAnimGif  = exportAnimGif;

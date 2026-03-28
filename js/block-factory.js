@@ -39,11 +39,6 @@ function makeTextBlock(type) {
   tb.innerHTML = `
     <div class="${classMap[type]}" contenteditable="false">${placeholder[type]}</div>`;
 
-  if (state.pageSettings.padX > 0) { tb.style.paddingLeft = state.pageSettings.padX + 'px'; tb.style.paddingRight = state.pageSettings.padX + 'px'; }
-  if (type !== 'label') {
-    tb.style.paddingTop = state.pageSettings.padY + 'px';
-    tb.style.paddingBottom = state.pageSettings.padY + 'px';
-  }
   col.appendChild(tb);
   row.appendChild(col);
   return { row, block: tb };
@@ -120,11 +115,6 @@ function makeLabelGroupBlock() {
   addBtn.textContent = '+';
   addBtn.title = '라벨 추가';
   block.appendChild(addBtn);
-
-  if (state.pageSettings.padX > 0) {
-    block.style.paddingLeft  = state.pageSettings.padX + 'px';
-    block.style.paddingRight = state.pageSettings.padX + 'px';
-  }
 
   col.appendChild(block);
   row.appendChild(col);
@@ -254,14 +244,18 @@ function addRowBlock(cols = 2, rows = 1) {
   row.id = genId('row');
   row.dataset.ratioStr = `${cols}*${rows}`;
 
+  const INIT_COL_PX = Math.round(860 / cols);
   if (rows > 1) {
     row.dataset.layout = 'grid';
     row.style.display = 'grid';
     row.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    row.style.gridTemplateRows = `repeat(${rows}, ${INIT_COL_PX}px)`;
+    row.dataset.rowHeight = String(INIT_COL_PX * rows + (rows - 1) * 12);
     row.style.gap = '12px';
     row.dataset.gap = '12';
   } else {
     row.dataset.layout = 'flex';
+    row.style.minHeight = INIT_COL_PX + 'px';
     row.style.gap = '12px';
     row.dataset.gap = '12';
   }
@@ -303,24 +297,10 @@ function addRowBlock(cols = 2, rows = 1) {
 
   insertAfterSelected(sec, row);
 
-  // 2행 이하 그리드: DOM 삽입 후 실제 너비로 초기 정사각형 크기 픽셀 적용
-  if (rows >= 2 && rows <= 2) {
-    requestAnimationFrame(() => {
-      const gap = parseInt(row.dataset.gap) || 0;
-      const colWidth = Math.round((row.offsetWidth - (cols - 1) * gap) / cols);
-      if (colWidth > 0) {
-        row.style.gridTemplateRows = `repeat(${rows}, ${colWidth}px)`;
-        row.dataset.rowHeight = String(colWidth * rows + (rows - 1) * gap);
-        if (window.showRowProperties) window.showRowProperties(row);
-      }
-    });
-  }
-
   window.buildLayerPanel();
   document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
   row.classList.add('row-active');
   if (window.syncLayerRow) window.syncLayerRow(row);
-  if (!( rows >= 2 && rows <= 2)) window.showRowProperties?.(row);
 }
 
 // ── Row 프리셋 생성 ──────────────────────────────────────────
@@ -393,9 +373,6 @@ function makePresetRow(type) {
     tb.className = 'text-block'; tb.dataset.type = 'body';
     tb.id = genId('tb');
     tb.innerHTML = `<div class="tb-body" contenteditable="false">본문을 입력하세요</div>`;
-    if (state.pageSettings.padX > 0) { tb.style.paddingLeft = state.pageSettings.padX + 'px'; tb.style.paddingRight = state.pageSettings.padX + 'px'; }
-    tb.style.paddingTop = state.pageSettings.padY + 'px';
-    tb.style.paddingBottom = state.pageSettings.padY + 'px';
     colText.appendChild(tb);
     // 이미지 col
     const colImg = makeCol(1);
@@ -511,6 +488,7 @@ function addCardBlock() {
   row.dataset.ratioStr = '2*1';
   row.style.display = 'grid';
   row.style.gridTemplateColumns = 'repeat(2, 1fr)';
+  row.style.minHeight = '430px';
   row.style.gap = '16px';
   row.dataset.gap = '16';
 

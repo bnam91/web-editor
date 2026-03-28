@@ -159,22 +159,34 @@ function bindSectionDrag(sec) {
 
 function bindSectionDropZone(sec) {
   const inner = sec.querySelector('.section-inner');
+  // rAF throttle: getBoundingClientRect()를 dragover 매 이벤트마다 호출하지 않도록 (DBG-11)
+  let _innerDragRafId = null;
   inner.addEventListener('dragover', e => {
     if (!dragSrc) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    clearDropIndicators();
-    const after = getDragAfterElement(inner, e.clientY);
-    const indicator = document.createElement('div');
-    indicator.className = 'drop-indicator';
-    if (after) inner.insertBefore(indicator, after);
-    else inner.appendChild(indicator);
+    if (_innerDragRafId) return;
+    const clientY = e.clientY;
+    _innerDragRafId = requestAnimationFrame(() => {
+      _innerDragRafId = null;
+      if (!dragSrc) return;
+      clearDropIndicators();
+      const after = getDragAfterElement(inner, clientY);
+      const indicator = document.createElement('div');
+      indicator.className = 'drop-indicator';
+      if (after) inner.insertBefore(indicator, after);
+      else inner.appendChild(indicator);
+    });
   });
   inner.addEventListener('dragleave', e => {
-    if (!inner.contains(e.relatedTarget)) clearDropIndicators();
+    if (!inner.contains(e.relatedTarget)) {
+      if (_innerDragRafId) { cancelAnimationFrame(_innerDragRafId); _innerDragRafId = null; }
+      clearDropIndicators();
+    }
   });
   inner.addEventListener('drop', e => {
     e.preventDefault();
+    if (_innerDragRafId) { cancelAnimationFrame(_innerDragRafId); _innerDragRafId = null; }
     if (!dragSrc) return;
     window.pushHistory();
     const indicator = inner.querySelector('.drop-indicator');

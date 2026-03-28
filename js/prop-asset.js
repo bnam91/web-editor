@@ -14,7 +14,6 @@ export function applyAssetPadX(ab, padX) {
 }
 
 export function showAssetProperties(ab) {
-  const ratioStr   = window.getCurrentRatioStr(ab);
   const currentH   = parseInt(ab.style.height) || ab.offsetHeight || 780;
   const hasImage   = ab.classList.contains('has-image');
   const currentR   = parseInt(ab.style.borderRadius) || 0;
@@ -68,11 +67,6 @@ export function showAssetProperties(ab) {
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(ab)}</span>
         </div>
         ${ab.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${ab.id}')">${ab.id}</span>` : ''}
-      </div>
-      <div class="prop-section-title">레이아웃</div>
-      <div class="prop-row">
-        <span class="prop-label">비율</span>
-        <input type="text" class="prop-layout-input" id="layout-ratio" value="${ratioStr}" placeholder="2*2">
       </div>
     </div>
     <div class="prop-section">
@@ -146,7 +140,6 @@ export function showAssetProperties(ab) {
 
   if (window.setRpIdBadge) window.setRpIdBadge(ab.id || null);
 
-  window.bindLayoutInput(ab);
 
   const hSlider = document.getElementById('asset-h-slider');
   const hNumber = document.getElementById('asset-h-number');

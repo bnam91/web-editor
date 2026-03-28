@@ -391,7 +391,30 @@ async function captureThumbnail() {
 }
 
 /* ── 프로젝트 파일 저장 (Electron: projects/{id}.json, 브라우저: localStorage) ── */
+// DBG-11: 저장 중 대기열 패턴 — 동시 저장 race condition 방지
+let _isSavingToFile = false;
+let _pendingSaveData = null; // { snapshot, opts }
+
 async function saveProjectToFile(snapshot, opts = {}) {
+  // 저장 중이면 최신 데이터를 pendingData로 대기
+  if (_isSavingToFile) {
+    _pendingSaveData = { snapshot, opts };
+    return;
+  }
+  _isSavingToFile = true;
+  try {
+    await _doSaveProjectToFile(snapshot, opts);
+  } finally {
+    _isSavingToFile = false;
+    if (_pendingSaveData) {
+      const { snapshot: ps, opts: po } = _pendingSaveData;
+      _pendingSaveData = null;
+      await saveProjectToFile(ps, po);
+    }
+  }
+}
+
+async function _doSaveProjectToFile(snapshot, opts = {}) {
   // opts.projectId: 탭 전환 시 이전 탭 ID로 저장하기 위한 명시적 ID (S10 race condition 방지)
   const targetId = opts.projectId || activeProjectId;
   if (!targetId) return;
@@ -583,29 +606,12 @@ function applyProjectData(data) {
 function applyPageSettings() {
   canvasWrap.style.background = state.pageSettings.bg;
   canvasEl.style.gap = state.pageSettings.gap + 'px';
-  canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-    if (!tb.dataset.customPadL) tb.style.paddingLeft  = state.pageSettings.padX + 'px';
-    if (!tb.dataset.customPadR) tb.style.paddingRight = state.pageSettings.padX + 'px';
+  canvasEl.style.setProperty('--page-padx', state.pageSettings.padX + 'px');
+  canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
+  // asset-block: 너비% 재계산 방식 유지
+  canvasEl.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
+    window.applyAssetPadX(ab, state.pageSettings.padX);
   });
-  canvasEl.querySelectorAll('.text-block:not(.overlay-tb)').forEach(tb => {
-    if (tb.dataset.type !== 'label') {
-      tb.style.paddingTop    = state.pageSettings.padY + 'px';
-      tb.style.paddingBottom = state.pageSettings.padY + 'px';
-    }
-  });
-  if (state.pageSettings.padX > 0) {
-    canvasEl.querySelectorAll('.card-block, .graph-block').forEach(b => {
-      b.style.paddingLeft  = state.pageSettings.padX + 'px';
-      b.style.paddingRight = state.pageSettings.padX + 'px';
-    });
-    canvasEl.querySelectorAll('.strip-banner-block:not([data-use-padx="false"])').forEach(b => {
-      const sbbContent = b.querySelector('.sbb-content');
-      if (sbbContent) {
-        sbbContent.style.paddingLeft  = state.pageSettings.padX + 'px';
-        sbbContent.style.paddingRight = state.pageSettings.padX + 'px';
-      }
-    });
-  }
 }
 
 function rebindAll() {
@@ -681,6 +687,14 @@ function rebindAll() {
     if (!row.id) row.id = 'row_' + Math.random().toString(36).slice(2, 9);
   });
 
+  // 저장 시 제거된 contenteditable 속성 복원 (텍스트 블록 내부 편집 가능 요소)
+  canvasEl.querySelectorAll('.text-block').forEach(tb => {
+    const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
+    if (inner && !inner.hasAttribute('contenteditable')) {
+      inner.setAttribute('contenteditable', 'false');
+    }
+  });
+
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
@@ -753,26 +767,19 @@ function initApp() {
   }
   canvasWrap.style.background = state.pageSettings.bg;
   canvasEl.style.gap = state.pageSettings.gap + 'px';
-  document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-    if (state.pageSettings.padX > 0) { if (!tb.dataset.customPadL) tb.style.paddingLeft = state.pageSettings.padX + 'px'; if (!tb.dataset.customPadR) tb.style.paddingRight = state.pageSettings.padX + 'px'; }
-    if (tb.dataset.type !== 'label') {
-      tb.style.paddingTop = state.pageSettings.padY + 'px';
-      tb.style.paddingBottom = state.pageSettings.padY + 'px';
-    }
+  canvasEl.style.setProperty('--page-padx', state.pageSettings.padX + 'px');
+  canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
+  // 구버전 저장 파일: 블록에 박힌 inline padding 제거 (CSS Variable로 대체)
+  canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(el => {
+    el.style.paddingLeft = ''; el.style.paddingRight = '';
+    el.style.paddingTop  = ''; el.style.paddingBottom = '';
   });
-  if (state.pageSettings.padX > 0) {
-    document.querySelectorAll('.graph-block').forEach(b => {
-      b.style.paddingLeft  = state.pageSettings.padX + 'px';
-      b.style.paddingRight = state.pageSettings.padX + 'px';
-    });
-    document.querySelectorAll('.strip-banner-block:not([data-use-padx="false"])').forEach(b => {
-      const sbbC = b.querySelector('.sbb-content');
-      if (sbbC) {
-        sbbC.style.paddingLeft  = state.pageSettings.padX + 'px';
-        sbbC.style.paddingRight = state.pageSettings.padX + 'px';
-      }
-    });
-  }
+  canvasEl.querySelectorAll('.card-block, .graph-block').forEach(el => {
+    el.style.paddingLeft = ''; el.style.paddingRight = '';
+  });
+  canvasEl.querySelectorAll('.sbb-content').forEach(el => {
+    el.style.paddingLeft = ''; el.style.paddingRight = '';
+  });
 
   // 탭 이름 더블클릭 변경 — 탭바 이벤트 위임
   document.getElementById('tab-bar')?.addEventListener('dblclick', e => {
@@ -856,8 +863,7 @@ function initApp() {
     initEmpty();
   })();
 
-  // perf(qa-perf): attributes:true 제거 → 드래그 중 style/class 변경이 autoSave를 반복 트리거하던 문제 수정
-  // characterData는 텍스트 편집 감지에 필요하므로 유지
+  // attributes:true 제거 — 드래그 클래스 토글마다 autoSave 폭주 방지 (DBG-11)
   autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true });
 
   // 브랜치 시스템 초기화
@@ -886,15 +892,22 @@ function initApp() {
   pushHistory();
 
   /* 캔버스 — 섹션 드래그 드롭 */
+  // rAF throttle: getBoundingClientRect()를 매 픽셀마다 호출하지 않도록 (DBG-11)
+  let _sectionDragRafId = null;
   canvasEl.addEventListener('dragover', e => {
     if (!sectionDragSrc) return;
     e.preventDefault();
-    clearSectionIndicators();
-    const after = getSectionDragAfterEl(canvasEl, e.clientY);
-    const indicator = document.createElement('div');
-    indicator.className = 'section-drop-indicator';
-    if (after) canvasEl.insertBefore(indicator, after);
-    else canvasEl.appendChild(indicator);
+    if (_sectionDragRafId) return;
+    const clientY = e.clientY;
+    _sectionDragRafId = requestAnimationFrame(() => {
+      _sectionDragRafId = null;
+      clearSectionIndicators();
+      const after = getSectionDragAfterEl(canvasEl, clientY);
+      const indicator = document.createElement('div');
+      indicator.className = 'section-drop-indicator';
+      if (after) canvasEl.insertBefore(indicator, after);
+      else canvasEl.appendChild(indicator);
+    });
   });
   canvasEl.addEventListener('dragleave', e => {
     if (!sectionDragSrc) return;
