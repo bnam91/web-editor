@@ -34,7 +34,9 @@ export function showTextProperties(tb) {
   const currentPadR  = parseInt(tb.style.paddingRight) || 0;
   let   phLinked     = currentPadL === currentPadR;
   const currentFont   = contentEl.style.fontFamily || '';
-  const isBold        = contentEl.style.fontWeight === 'bold';
+  const rawWeight     = contentEl.style.fontWeight || '';
+  const currentWeight = rawWeight === 'bold' ? '700' : rawWeight === 'normal' ? '400' : rawWeight;
+  const isBold        = currentWeight === '700' || rawWeight === 'bold';
   const isItalic      = contentEl.style.fontStyle  === 'italic';
   const currentHighlight      = tb.dataset.highlight || 'none';
   const currentHighlightColor = tb.dataset.highlightColor || '#ffeb3b';
@@ -137,9 +139,22 @@ export function showTextProperties(tb) {
         </select>
       </div>
       <div class="prop-row">
+        <span class="prop-label">굵기</span>
+        <select class="prop-select" id="txt-font-weight">
+          <option value="100" ${currentWeight==='100'?'selected':''}>Thin 100</option>
+          <option value="200" ${currentWeight==='200'?'selected':''}>ExtraLight 200</option>
+          <option value="300" ${currentWeight==='300'?'selected':''}>Light 300</option>
+          <option value="400" ${(!currentWeight||currentWeight==='400')?'selected':''}>Regular 400</option>
+          <option value="500" ${currentWeight==='500'?'selected':''}>Medium 500</option>
+          <option value="600" ${currentWeight==='600'?'selected':''}>SemiBold 600</option>
+          <option value="700" ${currentWeight==='700'?'selected':''}>Bold 700</option>
+          <option value="800" ${currentWeight==='800'?'selected':''}>ExtraBold 800</option>
+          <option value="900" ${currentWeight==='900'?'selected':''}>Black 900</option>
+        </select>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">스타일</span>
         <div class="prop-style-group">
-          <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (Bold)"><b>B</b></button>
           <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic)"><i>I</i></button>
         </div>
       </div>
@@ -212,6 +227,12 @@ export function showTextProperties(tb) {
   /* 폰트 종류 */
   document.getElementById('txt-font-family').addEventListener('change', e => {
     contentEl.style.fontFamily = e.target.value;
+  });
+
+  /* 폰트 굵기 */
+  document.getElementById('txt-font-weight').addEventListener('change', e => {
+    contentEl.style.fontWeight = e.target.value;
+    window.pushHistory();
   });
 
   /* 타입 전환 */
@@ -306,8 +327,7 @@ export function showTextProperties(tb) {
     });
   });
 
-  /* Bold / Italic — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
-  let _savedBoldSel = null;
+  /* Italic — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   let _savedItalicSel = null;
   let _savedColorSel = null;
   let _colorSpan = null; // 색상 적용 시 생성한 span (input 반복 호출에 재사용)
@@ -329,22 +349,6 @@ export function showTextProperties(tb) {
     contentEl.contentEditable = wasEditable;
     return true;
   };
-
-  document.getElementById('txt-bold-btn').addEventListener('mousedown', () => {
-    if (hasSel()) _savedBoldSel = window.getSelection().getRangeAt(0).cloneRange();
-    else _savedBoldSel = null;
-  });
-  document.getElementById('txt-bold-btn').addEventListener('click', () => {
-    if (_savedBoldSel) {
-      applyExecCmd(_savedBoldSel, 'bold');
-      _savedBoldSel = null;
-    } else {
-      const isNowBold = contentEl.style.fontWeight === 'bold';
-      contentEl.style.fontWeight = isNowBold ? '' : 'bold';
-      document.getElementById('txt-bold-btn').classList.toggle('active', !isNowBold);
-    }
-    window.pushHistory();
-  });
 
   document.getElementById('txt-italic-btn').addEventListener('mousedown', () => {
     if (hasSel()) _savedItalicSel = window.getSelection().getRangeAt(0).cloneRange();

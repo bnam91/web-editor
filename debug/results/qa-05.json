@@ -1,0 +1,41 @@
+{
+  "agent": "QA-05",
+  "version": "1.0",
+  "part": "내보내기/템플릿/레이어패널",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "static",
+  "checks": [
+    {
+      "id": "QA-05-001",
+      "name": "JSON 내보내기",
+      "status": "PASS",
+      "detail": "js/ 폴더에 export-design-json.js, export-figma-json.js, export.js 파일 존재. export.js 및 export-design-json.js에서 JSON 직렬화 내보내기 로직 구현 확인됨."
+    },
+    {
+      "id": "QA-05-002",
+      "name": "레이어패널 동기화",
+      "status": "PASS",
+      "detail": "layer-panel.js L53-184: makeLayerBlockItem() 함수가 text-block, asset-block, gap-block, overlay-tb 등 모든 블록 타입을 처리. L509: isGap 체크로 gap-block 표시. L778-829: section/row/col 계층 구조 동기화 렌더링."
+    },
+    {
+      "id": "QA-05-003",
+      "name": "사이드 패널 리사이즈 (드래그 180~480px, localStorage 저장)",
+      "status": "PASS",
+      "detail": "editor.js L883-909: MIN_W=180, MAX_W=480 설정. panel-left-resize-handle 요소 존재(index.html L277). mousedown 이벤트로 드래그 리사이즈 구현. L893: localStorage에서 저장값 복원, L909: localStorage.setItem(LS_KEY, panel.offsetWidth)로 저장."
+    },
+    {
+      "id": "QA-05-004",
+      "name": "디자인 시스템 패널 토글 (Inspector 탭 최상단)",
+      "status": "FAIL",
+      "detail": "design-system.js L233-236: togglePanel() 함수 정의 및 ds-panel-header 클릭으로 'open' 클래스 토글. 토글 기능 자체는 구현됨. 그러나 index.html 구조상 design-system-panel(L449)은 panel-right 내에 위치하며, Inspector 탭(L276: inspector-panel-body)은 panel-left에 있어 서로 다른 패널에 위치. 'Inspector 탭 최상단'이라는 검수 요건과 구조적 불일치. index.html 주석에도 '현재 위치 불일치 ❌' 명시됨."
+    },
+    {
+      "id": "QA-05-005",
+      "name": "macOS 앱 이름 'Goya Design Editor'",
+      "status": "PASS",
+      "detail": "main.js L6: app.name = 'Goya Design Editor'; 명시적 설정 확인됨."
+    }
+  ],
+  "failed": 1,
+  "passed": 4
+}

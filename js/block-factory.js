@@ -39,6 +39,15 @@ function insertIntoOverlay(overlay, el) {
   }
 }
 
+function getOverlayAlign(overlay) {
+  const firstContent = overlay.querySelector('.overlay-tb [class^="tb-"]');
+  if (firstContent?.style.textAlign) return firstContent.style.textAlign;
+  const firstLabel = overlay.querySelector('.overlay-tb');
+  if (firstLabel?.style.textAlign) return firstLabel.style.textAlign;
+  return null;
+}
+
+
 function makeTextBlock(type) {
   const classMap  = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label' };
   const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
@@ -190,11 +199,19 @@ function addTextBlock(type) {
     window.pushHistory();
     const { row, block } = makeTextBlock(type);
     block.classList.add('overlay-tb');
+    // 오버레이 내 기존 정렬 상속
+    const overlayAlign = getOverlayAlign(overlay);
+    if (overlayAlign) {
+      const contentEl = block.querySelector('[class^="tb-"]');
+      if (type === 'label') block.style.textAlign = overlayAlign;
+      else if (contentEl) contentEl.style.textAlign = overlayAlign;
+    }
     insertIntoOverlay(overlay, row);
     bindBlock(block);
     window.buildLayerPanel();
     return;
   }
+
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
@@ -204,11 +221,8 @@ function addTextBlock(type) {
   const align = getSectionAlign(sec);
   if (align) {
     const contentEl = block.querySelector('[class^="tb-"]');
-    if (type === 'label') {
-      block.style.textAlign = align;
-    } else if (contentEl) {
-      contentEl.style.textAlign = align;
-    }
+    if (type === 'label') block.style.textAlign = align;
+    else if (contentEl) contentEl.style.textAlign = align;
   }
 
   insertAfterSelected(sec, row);

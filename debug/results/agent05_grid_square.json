@@ -1,0 +1,202 @@
+{
+  "agent": "Agent-05-grid",
+  "version": "2.0",
+  "part": "grid-square-ratio",
+  "ts": "2026-03-27T00:00:00Z",
+  "method": "cdp",
+  "cdp_port": 9335,
+  "scenarios": [
+    {
+      "id": "GS-01",
+      "name": "2×2 그리드(2열 2행) 셀 aspectRatio 확인",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": {
+        "colCount": 4,
+        "ratios": [
+          {
+            "idx": 0,
+            "ar": "1 / 1"
+          },
+          {
+            "idx": 1,
+            "ar": "1 / 1"
+          },
+          {
+            "idx": 2,
+            "ar": "1 / 1"
+          },
+          {
+            "idx": 3,
+            "ar": "1 / 1"
+          }
+        ],
+        "allSquare": true,
+        "gtc": "repeat(2, 1fr)",
+        "layout": "grid",
+        "ratioStr": "2*2"
+      },
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "GS-02",
+      "name": "1×2 그리드(1열 2행) 셀 정사각형 비율 확인",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": {
+        "colCount": 2,
+        "ratios": [
+          {
+            "idx": 0,
+            "ar": "1 / 1"
+          },
+          {
+            "idx": 1,
+            "ar": "1 / 1"
+          }
+        ],
+        "allSquare": true,
+        "gtc": "repeat(1, 1fr)",
+        "layout": "grid",
+        "ratioStr": "1*2"
+      },
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "GS-03",
+      "name": "2×1 그리드(2열 1행) 셀 정사각형 비율 확인",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": {
+        "colCount": 2,
+        "ratios": [
+          {
+            "idx": 0,
+            "ar": "1 / 1"
+          },
+          {
+            "idx": 1,
+            "ar": "1 / 1"
+          }
+        ],
+        "allSquare": true,
+        "layout": "flex",
+        "ratioStr": "2*1"
+      },
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "GS-04",
+      "name": "applyRowHeight 호출 시 gridTemplateColumns 픽셀값 변경, gridTemplateRows 미변경",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": {
+        "gtcBefore": "repeat(2, 1fr)",
+        "gtrBefore": "",
+        "gtcAfter": "repeat(2, 244px)",
+        "gtrAfter": "",
+        "isSquareGrid": true,
+        "mode": "square_gtc_changed",
+        "gridColCount": 2,
+        "gridRowCount": 2,
+        "gap": 12,
+        "gtcIsPixel": true,
+        "gtrIsEmpty": true,
+        "pass": true
+      },
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "GS-05",
+      "name": "그리드 피커 2×2→3×3 변경 시 aspectRatio 제거 확인",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": {
+        "colCount": 9,
+        "ratios": [
+          {
+            "idx": 0,
+            "ar": ""
+          },
+          {
+            "idx": 1,
+            "ar": ""
+          },
+          {
+            "idx": 2,
+            "ar": ""
+          },
+          {
+            "idx": 3,
+            "ar": ""
+          },
+          {
+            "idx": 4,
+            "ar": ""
+          },
+          {
+            "idx": 5,
+            "ar": ""
+          },
+          {
+            "idx": 6,
+            "ar": ""
+          },
+          {
+            "idx": 7,
+            "ar": ""
+          },
+          {
+            "idx": 8,
+            "ar": ""
+          }
+        ],
+        "anyHasAR": false,
+        "allARRemoved": true,
+        "ratioStr": "3*3",
+        "pass": true
+      },
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "GS-06",
+      "name": "그리드 피커 3×3→2×2 재선택 시 aspectRatio 재적용 확인",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": {
+        "colCount": 4,
+        "ratios": [
+          {
+            "idx": 0,
+            "ar": "1 / 1"
+          },
+          {
+            "idx": 1,
+            "ar": "1 / 1"
+          },
+          {
+            "idx": 2,
+            "ar": "1 / 1"
+          },
+          {
+            "idx": 3,
+            "ar": "1 / 1"
+          }
+        ],
+        "allSquare": true,
+        "ratioStr": "2*2",
+        "pass": true
+      },
+      "fix_applied": null,
+      "verified": true
+    }
+  ],
+  "bugs_found": 0,
+  "fixes_applied": 0,
+  "unverified_fixes": 0
+}

@@ -182,8 +182,14 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
 /* 에셋 블록 + overlay-tb 자식 포함 레이어 아이템 */
 function makeLayerAssetItem(block, dragTarget, sec) {
   const overlayEl = block.querySelector('.asset-overlay');
-  const overlayTbs = overlayEl ? [...overlayEl.querySelectorAll('.overlay-tb')] : [];
-  if (overlayTbs.length === 0) return makeLayerBlockItem(block, dragTarget, sec);
+  const overlayChildren = overlayEl
+    ? [...overlayEl.children].filter(c =>
+        c.classList.contains('overlay-tb') ||
+        c.classList.contains('gap-block') ||
+        (c.classList.contains('row') && c.querySelector('.overlay-tb'))
+      )
+    : [];
+  if (overlayChildren.length === 0) return makeLayerBlockItem(block, dragTarget, sec);
 
   const wrapper = document.createElement('div');
   wrapper.className = 'layer-row-group';
@@ -227,48 +233,39 @@ function makeLayerAssetItem(block, dragTarget, sec) {
 
   const buildOverlayChildren = () => {
     children.innerHTML = '';
-    [...overlayEl.querySelectorAll('.overlay-tb')].forEach(tb => {
-      const tbType = tb.dataset.type || 'body';
-      const item = document.createElement('div');
-      item.className = 'layer-item layer-item-nested';
-      item.innerHTML = `${layerIcons[tbType] || layerIcons.body}<span class="layer-item-name">${tbType === 'heading' ? 'Overlay H' : 'Overlay Text'}</span><span class="layer-item-type">Overlay</span>`;
-      item._dragTarget = tb;
-
-      item.addEventListener('click', e => {
-        e.stopPropagation();
-        window.deselectAll();
-        tb.classList.add('selected');
-        syncSection(sec);
-        highlightBlock(tb, item);
-        window.showTextProperties(tb);
-      });
-      tb._layerItem = item;
-
-      item.setAttribute('draggable', 'true');
-      item.addEventListener('dragstart', e => {
-        e.stopPropagation();
-        window.layerDragSrc = item;
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', '');
-        requestAnimationFrame(() => item.classList.add('layer-dragging'));
-      });
-      item.addEventListener('dragend', () => {
-        item.classList.remove('layer-dragging');
-        clearLayerIndicators();
-        window.layerDragSrc = null;
-      });
-      children.appendChild(item);
+    [...overlayEl.children].forEach(child => {
+      if (child.classList.contains('gap-block')) {
+        // gap-block: use makeLayerBlockItem for consistent rendering
+        const gapItem = makeLayerBlockItem(child, child, sec);
+        gapItem.classList.add('layer-item-nested');
+        children.appendChild(gapItem);
+        return;
+      }
+      // row로 감싸진 overlay-tb 처리
+      if (child.classList.contains('row')) {
+        const tb = child.querySelector('.overlay-tb');
+        if (!tb) return;
+        const tbItem = makeLayerBlockItem(tb, tb, sec);
+        tbItem.classList.add('layer-item-nested');
+        children.appendChild(tbItem);
+        return;
+      }
+      if (!child.classList.contains('overlay-tb')) return;
+      const tbItem = makeLayerBlockItem(child, child, sec);
+      tbItem.classList.add('layer-item-nested');
+      children.appendChild(tbItem);
     });
   };
   buildOverlayChildren();
 
-  // overlay-tb 순서 변경 드롭존
-  // rAF throttle: getLayerDragAfterItem 내 getBoundingClientRect 호출 최적화 (DBG-11)
+  // overlay-tb / gap-block 순서 변경 드롭존
+  // rAF throttle: getBoundingClientRect 호출 최적화
   let _overlayDragRafId = null;
   children.addEventListener('dragover', e => {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.layerDragSrc?._dragTarget?.classList.contains('overlay-tb')) return;
+    const dragTarget = window.layerDragSrc?._dragTarget;
+    if (!dragTarget?.classList.contains('overlay-tb') && !dragTarget?.classList.contains('gap-block')) return;
     if (_overlayDragRafId) return;
     const clientY = e.clientY;
     _overlayDragRafId = requestAnimationFrame(() => {
@@ -287,8 +284,9 @@ function makeLayerAssetItem(block, dragTarget, sec) {
   children.addEventListener('drop', e => {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.layerDragSrc?._dragTarget?.classList.contains('overlay-tb')) return;
-    const tbEl = window.layerDragSrc._dragTarget;
+    const dragEl = window.layerDragSrc?._dragTarget;
+    if (!dragEl?.classList.contains('overlay-tb') && !dragEl?.classList.contains('gap-block')) return;
+    const tbEl = dragEl;
     const indicator = children.querySelector('.layer-drop-indicator');
     if (indicator) {
       const nextItem = indicator.nextElementSibling;

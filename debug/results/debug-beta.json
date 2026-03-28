@@ -1,0 +1,60 @@
+{
+  "agent": "Agent-β",
+  "version": "2.0",
+  "part": "상태 오염",
+  "ts": "2026-03-28T09:05:23.209Z",
+  "method": "cdp",
+  "cdp_port": 9334,
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "탭 전환 후 Inspector 상태 유지",
+      "desc": "File→Inspector→Branch 탭 전환 시 propPanel 잔존 여부",
+      "result": "PASS",
+      "detail": "switchToTab('file')→('inspector')→('branch') 순 전환 후 panel-right .panel-body 내용 6622자 유지. propPanel은 panel-right에 별도 위치하며 패널 탭 전환에 영향 받지 않음."
+    },
+    {
+      "id": 2,
+      "name": "멀티 선택 해제 후 단일 블록 선택",
+      "desc": "이전 선택 상태가 남아있는지 확인",
+      "result": "PASS",
+      "detail": "멀티 선택(2개) → clearMultiSel() → selectSection(sections[0]) 후 multiSel.sections.size=0, .multi-selected DOM=0, .selected DOM=1. 상태 오염 없음."
+    },
+    {
+      "id": 3,
+      "name": "페이지 전환 시 블록 선택 초기화",
+      "desc": "A 페이지에서 블록 선택 후 B 페이지로 전환 시 선택 해제되는지",
+      "result": "PASS (정적 분석)",
+      "detail": "현재 프로젝트 페이지 1개라 런타임 전환 불가. save-load.js:500 의 switchPage() 내 window.deselectAll() 호출 코드 확인. deselectAll()은 모든 .selected, .multi-selected 클래스를 제거함."
+    },
+    {
+      "id": 4,
+      "name": "inspector-panel-body 표시 확인",
+      "desc": "Inspector 탭 클릭 시 DS 패널 + stats-body 모두 보이는지 (display:flex)",
+      "result": "FAIL → FIXED",
+      "detail": "editor.js 18번 줄: inspector-panel-body display 값이 '' (빈 문자열)로 설정되어 CSS flex 레이아웃이 적용되지 않음. 'flex'로 수정 완료. 수정 후 CDP 재검증: displayNow='flex' 확인. inspector-stats-body ID는 현재 코드베이스에 미존재 — insp-section 3개 구조로 구성됨.",
+      "file": "js/editor.js",
+      "line": 18,
+      "before": "document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? '' : 'none';",
+      "after": "document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? 'flex' : 'none';"
+    },
+    {
+      "id": 5,
+      "name": "자동저장 억제 플래그",
+      "desc": "switchTab 시 _suppressAutoSave 설정 여부 (코드 레벨 확인)",
+      "result": "PASS",
+      "detail": "save-load.js:208 state._suppressAutoSave = true (canvasEl 클리어 직전). save-load.js:224 캐시 복원 완료 후 false 복원. save-load.js:249 파일 로드 완료 후 false 복원. race condition 방지 정상 구현 확인."
+    }
+  ],
+  "bugs_found": 1,
+  "fixes_applied": 1,
+  "unverified_fixes": 0,
+  "fix_summary": [
+    {
+      "file": "js/editor.js",
+      "line": 18,
+      "type": "display value",
+      "desc": "switchToTab('inspector') 시 inspector-panel-body display를 '' → 'flex'로 수정"
+    }
+  ]
+}

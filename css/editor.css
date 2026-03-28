@@ -657,6 +657,18 @@ body {
 }
 #panel-right { border-right: none; border-left: 1px solid var(--ui-bg-hover); }
 
+#panel-left { position: relative; }
+#panel-left-resize-handle {
+  position: absolute; right: -3px; top: 0; bottom: 0; width: 6px;
+  cursor: col-resize; z-index: 100;
+}
+#panel-left-resize-handle::after {
+  content: ''; position: absolute; left: 2px; top: 0; bottom: 0; width: 2px;
+  background: transparent; transition: background 0.15s;
+}
+#panel-left-resize-handle:hover::after { background: var(--ui-accent-primary); }
+body.resizing-panel { cursor: col-resize; user-select: none; }
+
 #rp-preview-btn {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   margin: 10px 12px 0;
@@ -2152,7 +2164,8 @@ body {
 .asset-block[data-overlay="true"] .asset-label {
   display: none;
 }
-.overlay-tb {
+.overlay-tb,
+.asset-overlay .gap-block {
   width: 100%;
   pointer-events: auto;
   padding: 0 !important;

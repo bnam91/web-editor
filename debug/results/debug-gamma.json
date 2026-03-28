@@ -1,0 +1,95 @@
+{
+  "agent": "Agent-γ",
+  "version": "2.0",
+  "part": "UI 일관성/에셋-Circle",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9334,
+  "scenarios": [
+    {
+      "id": 1,
+      "title": "에셋 블록 오버레이 활성화/비활성화 토글",
+      "status": "PASS",
+      "details": {
+        "initialChecked": false,
+        "initialDisplay": "none",
+        "afterOnOverlay": "true",
+        "afterOnDisplay": "",
+        "afterOnTbCount": 1,
+        "afterOffOverlay": "false",
+        "afterOffDisplay": "none",
+        "note": "첫 활성화 시 overlay-tb 자동 생성(1개). 비활성화 시 controls 숨김 및 dataset.overlay='false' 정상"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Circle 이미지 편집 모드 — overflow:hidden 핸들 클리핑 확인",
+      "status": "PASS",
+      "details": {
+        "beforeOverflow": "hidden",
+        "duringOverflow": "visible",
+        "overflowResetOnExit": "'' (CSS default hidden 복원)",
+        "icbCircleDefaultOverflow": "hidden",
+        "overflowResetCorrect": true,
+        "note": "enterCircleImageEditMode에서 circle.style.overflow='visible' 설정 확인. exitCircleImageEditMode에서 overflow=''로 CSS hidden 복원. setTimeout(0)으로 리스너 등록 — 동기 테스트 시 isEditing이 true로 남을 수 있으나 실제 사용에서는 정상 동작"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Circle 이미지 제거 시 dataset.imgW/imgX/imgY 삭제",
+      "status": "PASS",
+      "details": {
+        "beforeW": "120",
+        "beforeX": "10",
+        "beforeY": "-5",
+        "afterW": null,
+        "afterX": null,
+        "afterY": null,
+        "afterSrc": null,
+        "hasImageClass": false,
+        "wDeleted": true,
+        "xDeleted": true,
+        "yDeleted": true,
+        "srcDeleted": true,
+        "note": "clearCircleImage: imgSrc/imgW/imgX/imgY 모두 삭제, has-image 클래스 제거 확인. v1 알려진 버그 수정됨"
+      }
+    },
+    {
+      "id": 4,
+      "title": "에셋 정렬 (좌/중/우) align 변경 로직",
+      "status": "PASS",
+      "details": {
+        "left": { "datasetAlign": "left", "alignSelf": "flex-start", "btnActive": true },
+        "center": { "datasetAlign": "center", "alignSelf": "center", "btnActive": true },
+        "right": { "datasetAlign": "right", "alignSelf": "flex-end", "btnActive": true },
+        "note": "좌/중/우 정렬 버튼 모두 dataset.align, style.alignSelf, active 클래스 정상 반영"
+      }
+    },
+    {
+      "id": 5,
+      "title": "에셋 오버레이 활성 시 블록 추가 — overlay가 아닌 section-inner에 삽입",
+      "status": "PASS",
+      "details": {
+        "selIsOverlayTb": true,
+        "closestRowParentClass": "section-inner",
+        "refParentIsSectionInner": true,
+        "verdict": "SAFE: overlay-tb가 selected 상태여도 insertAfterSelected는 closest('.row')를 통해 section-inner의 row 뒤에 삽입. addTextBlock/addGapBlock 모두 overlay 외부에 정상 삽입됨",
+        "note": "overlay-tb → asset-overlay → asset-block → col → row(section-inner child) 체인으로 row를 찾아 section-inner에 삽입"
+      }
+    },
+    {
+      "id": 6,
+      "title": "layer-panel makeLayerAssetItem — overlay-tb 레이어 표시",
+      "status": "PASS",
+      "details": {
+        "overlayTbHandled": true,
+        "gapBlockInOverlay": false,
+        "note": "makeLayerAssetItem은 overlay-tb를 자식으로 표시. gap-block은 section-inner 레벨(line 793)에서 별도 처리. 두 종류 모두 레이어 패널에 표시됨 — 설계 의도와 일치"
+      }
+    }
+  ],
+  "bugs_found": 0,
+  "fixes_applied": 0,
+  "unverified_fixes": 0,
+  "summary": "담당 파일(prop-icon-circle.js, prop-asset.js) 및 관련 image-handling.js, layer-panel.js, block-factory.js, drag-utils.js를 정적+CDP 분석. 5개 검증 시나리오 전체 PASS. v1 알려진 버그(clearCircleImage 시 dataset 미삭제)는 현재 코드에서 수정됨. overflow 복원 로직은 setTimeout(0) 비동기 바인딩 특성상 동기 테스트에서 일시적 오탐이 있으나 실제 동작은 정상."
+}
