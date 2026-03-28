@@ -161,6 +161,7 @@ function bindSectionDropZone(sec) {
     const clientY = e.clientY;
     _innerDragRafId = requestAnimationFrame(() => {
       _innerDragRafId = null;
+      if (!dragSrc) return;
       clearDropIndicators();
       const after = getDragAfterElement(inner, clientY);
       const indicator = document.createElement('div');
@@ -170,10 +171,14 @@ function bindSectionDropZone(sec) {
     });
   });
   inner.addEventListener('dragleave', e => {
-    if (!inner.contains(e.relatedTarget)) clearDropIndicators();
+    if (!inner.contains(e.relatedTarget)) {
+      if (_innerDragRafId) { cancelAnimationFrame(_innerDragRafId); _innerDragRafId = null; }
+      clearDropIndicators();
+    }
   });
   inner.addEventListener('drop', e => {
     e.preventDefault();
+    if (_innerDragRafId) { cancelAnimationFrame(_innerDragRafId); _innerDragRafId = null; }
     if (!dragSrc) return;
     window.pushHistory();
     const indicator = inner.querySelector('.drop-indicator');

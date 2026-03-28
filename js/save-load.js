@@ -606,29 +606,12 @@ function applyProjectData(data) {
 function applyPageSettings() {
   canvasWrap.style.background = state.pageSettings.bg;
   canvasEl.style.gap = state.pageSettings.gap + 'px';
-  canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-    if (!tb.dataset.customPadL) tb.style.paddingLeft  = state.pageSettings.padX + 'px';
-    if (!tb.dataset.customPadR) tb.style.paddingRight = state.pageSettings.padX + 'px';
+  canvasEl.style.setProperty('--page-padx', state.pageSettings.padX + 'px');
+  canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
+  // asset-block: 너비% 재계산 방식 유지
+  canvasEl.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
+    window.applyAssetPadX(ab, state.pageSettings.padX);
   });
-  canvasEl.querySelectorAll('.text-block:not(.overlay-tb)').forEach(tb => {
-    if (tb.dataset.type !== 'label') {
-      tb.style.paddingTop    = state.pageSettings.padY + 'px';
-      tb.style.paddingBottom = state.pageSettings.padY + 'px';
-    }
-  });
-  if (state.pageSettings.padX > 0) {
-    canvasEl.querySelectorAll('.card-block, .graph-block').forEach(b => {
-      b.style.paddingLeft  = state.pageSettings.padX + 'px';
-      b.style.paddingRight = state.pageSettings.padX + 'px';
-    });
-    canvasEl.querySelectorAll('.strip-banner-block:not([data-use-padx="false"])').forEach(b => {
-      const sbbContent = b.querySelector('.sbb-content');
-      if (sbbContent) {
-        sbbContent.style.paddingLeft  = state.pageSettings.padX + 'px';
-        sbbContent.style.paddingRight = state.pageSettings.padX + 'px';
-      }
-    });
-  }
 }
 
 function rebindAll() {
@@ -784,26 +767,19 @@ function initApp() {
   }
   canvasWrap.style.background = state.pageSettings.bg;
   canvasEl.style.gap = state.pageSettings.gap + 'px';
-  document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-    if (state.pageSettings.padX > 0) { if (!tb.dataset.customPadL) tb.style.paddingLeft = state.pageSettings.padX + 'px'; if (!tb.dataset.customPadR) tb.style.paddingRight = state.pageSettings.padX + 'px'; }
-    if (tb.dataset.type !== 'label') {
-      tb.style.paddingTop = state.pageSettings.padY + 'px';
-      tb.style.paddingBottom = state.pageSettings.padY + 'px';
-    }
+  canvasEl.style.setProperty('--page-padx', state.pageSettings.padX + 'px');
+  canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
+  // 구버전 저장 파일: 블록에 박힌 inline padding 제거 (CSS Variable로 대체)
+  canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(el => {
+    el.style.paddingLeft = ''; el.style.paddingRight = '';
+    el.style.paddingTop  = ''; el.style.paddingBottom = '';
   });
-  if (state.pageSettings.padX > 0) {
-    document.querySelectorAll('.graph-block').forEach(b => {
-      b.style.paddingLeft  = state.pageSettings.padX + 'px';
-      b.style.paddingRight = state.pageSettings.padX + 'px';
-    });
-    document.querySelectorAll('.strip-banner-block:not([data-use-padx="false"])').forEach(b => {
-      const sbbC = b.querySelector('.sbb-content');
-      if (sbbC) {
-        sbbC.style.paddingLeft  = state.pageSettings.padX + 'px';
-        sbbC.style.paddingRight = state.pageSettings.padX + 'px';
-      }
-    });
-  }
+  canvasEl.querySelectorAll('.card-block, .graph-block').forEach(el => {
+    el.style.paddingLeft = ''; el.style.paddingRight = '';
+  });
+  canvasEl.querySelectorAll('.sbb-content').forEach(el => {
+    el.style.paddingLeft = ''; el.style.paddingRight = '';
+  });
 
   // 탭 이름 더블클릭 변경 — 탭바 이벤트 위임
   document.getElementById('tab-bar')?.addEventListener('dblclick', e => {

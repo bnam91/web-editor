@@ -338,29 +338,26 @@ function showRowProperties(rowEl) {
       if (targetRows === 1) {
         [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
       }
-      /* 그리드: 실제 너비로 정사각형 초기 높이 픽셀 적용 (1행 포함) */
-      if (rowEl.offsetWidth > 0) {
-        const gap = parseInt(rowEl.dataset.gap) || 0;
-        const colPx = Math.round((rowEl.offsetWidth - (targetCols - 1) * gap) / targetCols);
-        if (colPx > 0) {
-          rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${colPx}px)`;
-          rowEl.dataset.rowHeight = String(colPx * targetRows + (targetRows - 1) * gap);
-        }
-      }
-      rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
-
-      /* 높이 반응형 조정 — dataset.rowHeight 명시값이 있을 때만 재계산 */
+      /* 부모 높이 고정, 새 행 수에 맞게 분배 */
       const gap = parseInt(rowEl.dataset.gap) || 0;
-      const newMin = targetRows * 80 + (targetRows - 1) * gap;
-      const curH = parseInt(rowEl.dataset.rowHeight) || 0;
-      if (curH) {
-        const prevGridRowCount = gridRowCount; // outer scope의 현재(이전) 행 수
-        const perRow = Math.max(80, Math.round((curH - (prevGridRowCount - 1) * gap) / prevGridRowCount));
-        const newH = Math.max(newMin, perRow * targetRows + (targetRows - 1) * gap);
-        const perRowNew = Math.round((newH - (targetRows - 1) * gap) / targetRows);
-        rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRowNew}px)`;
-        rowEl.dataset.rowHeight = newH;
+      /* 현재 총 높이: dataset.rowHeight → offsetHeight → minHeight → 기본값(430) */
+      const fixedH = parseInt(rowEl.dataset.rowHeight)
+        || rowEl.offsetHeight
+        || parseInt(rowEl.style.minHeight)
+        || Math.round(860 / targetCols);
+      const minH = targetRows * 80 + (targetRows - 1) * gap;
+      const totalH = Math.max(minH, fixedH);
+      const perRow = Math.round((totalH - (targetRows - 1) * gap) / targetRows);
+
+      if (targetRows > 1) {
+        rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRow}px)`;
+        rowEl.style.minHeight = '';
+      } else {
+        rowEl.style.gridTemplateRows = '';
+        rowEl.style.minHeight = totalH + 'px';
       }
+      rowEl.dataset.rowHeight = String(totalH);
+      rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
 
       buildLayerPanel();
       showRowProperties(rowEl);

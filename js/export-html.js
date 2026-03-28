@@ -1,5 +1,7 @@
 import { canvasEl, state } from './globals.js';
 
+const CANVAS_W = 860;
+
 function exportHTMLFile() {
   // canvas clone — 에디터 UI 요소 제거
   const clone = canvasEl.cloneNode(true);
@@ -48,6 +50,37 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 /* group */
 .group-block{width:100%;}
 .group-inner{display:flex;flex-direction:column;}
+/* card */
+.card-block{width:100%;overflow:hidden;display:flex;flex-direction:column;}
+.cdb-image{width:100%;overflow:hidden;flex:1;}
+.cdb-image img{display:block;width:100%;height:100%;object-fit:cover;}
+.cdb-body{padding:16px;}
+.cdb-title{font-size:32px;font-weight:600;color:#111;}
+.cdb-desc{font-size:24px;color:#555;margin-top:6px;}
+/* graph */
+.graph-block{width:100%;overflow:hidden;}
+.grb-inner{display:flex;flex-direction:column;height:100%;}
+.grb-bars{display:flex;align-items:flex-end;gap:8px;flex:1;padding:16px;}
+.grb-bar-col{display:flex;flex-direction:column;align-items:center;flex:1;}
+.grb-bar-wrap{flex:1;display:flex;align-items:flex-end;width:100%;}
+.grb-bar-fill{width:100%;background:#2d6fe8;}
+.grb-bar-label{font-size:20px;color:#555;margin-top:4px;text-align:center;}
+.grb-bar-val-label{font-size:18px;font-weight:600;color:#2d6fe8;margin-bottom:2px;}
+/* strip-banner */
+.strip-banner-block{width:100%;display:flex;overflow:hidden;}
+.sbb-image{flex:0 0 40%;overflow:hidden;}
+.sbb-image img{display:block;width:100%;height:100%;object-fit:cover;}
+.sbb-content{flex:1;padding:24px;display:flex;flex-direction:column;justify-content:center;}
+.sbb-heading{font-size:40px;font-weight:700;color:#111;}
+.sbb-body{font-size:28px;color:#555;margin-top:8px;}
+/* label-group */
+.label-group-block{width:100%;display:flex;flex-wrap:wrap;gap:10px;padding:16px;}
+.label-item{display:inline-flex;align-items:center;padding:8px 20px;border-radius:40px;font-size:24px;}
+/* table */
+.table-block{width:100%;overflow:hidden;}
+.tb-table{width:100%;border-collapse:collapse;font-size:28px;}
+.tb-table th,.tb-table td{padding:10px 16px;border:1px solid #e0e0e0;text-align:center;}
+.tb-table thead th{background:#f5f5f5;font-weight:600;}
 `;
 
   const html = `<!DOCTYPE html>

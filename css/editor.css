@@ -1879,7 +1879,7 @@ body {
   cursor: text;
   outline: 2px solid transparent;
   transition: outline 0.1s;
-  padding: 32px 20px;
+  padding: var(--page-pady, 32px) var(--page-padx, 32px);
   width: 100%;
 }
 .text-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
@@ -1902,7 +1902,7 @@ body {
 .text-block .tb-h3     { font-size: 52px;  font-weight: 600; color: var(--preset-h3-color); font-family: var(--preset-h3-family); line-height: 1.2; }
 .text-block .tb-body   { font-size: 36px;  color: var(--preset-body-color);    font-family: var(--preset-body-family);   line-height: 1.6; }
 .text-block .tb-caption { font-size: 26px; color: var(--preset-caption-color); font-family: var(--preset-body-family);   line-height: 1.6; letter-spacing: 0.01em; }
-.text-block[data-type="label"] { padding: 0 20px; }
+.text-block[data-type="label"] { padding-top: 0; padding-bottom: 0; padding-left: var(--page-padx, 32px); padding-right: var(--page-padx, 32px); }
 .text-block .tb-label {
   display: inline-block;
   background: var(--preset-label-bg); color: var(--preset-label-color);
@@ -1960,7 +1960,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 8px 20px;
+  padding: 8px var(--page-padx, 20px);
   min-height: 60px;
   width: 100%;
   cursor: default;
@@ -2953,7 +2953,7 @@ body {
   width: 100%;
   cursor: pointer;
   border-radius: 8px;
-  padding: 24px 20px 16px;
+  padding: 24px var(--page-padx, 20px) 16px;
   box-sizing: border-box;
   outline: 2px solid transparent;
   transition: outline 0.1s;
@@ -3121,6 +3121,8 @@ body {
   outline: 2px solid transparent;
   transition: outline 0.1s;
   width: 100%;
+  padding-left: var(--page-padx, 0px);
+  padding-right: var(--page-padx, 0px);
 }
 .card-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .card-block { position: relative; }
@@ -3245,7 +3247,7 @@ body {
 
 .sbb-content {
   flex: 7;
-  padding: 20px 24px;
+  padding: 20px var(--page-padx, 24px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -3269,6 +3271,7 @@ body {
 /* 이미지 우측 배치 */
 .strip-banner-block[data-img-pos="right"] .sbb-image { order: 2; }
 .strip-banner-block[data-img-pos="right"] .sbb-content { order: 1; }
+.strip-banner-block[data-use-padx="false"] .sbb-content { padding-left: 24px; padding-right: 24px; }
 
 /* ═══════════════════════════════════
    DIVIDER BLOCK

@@ -110,29 +110,26 @@ export function showPageProperties() {
 
   const applyPadX = (v) => {
     state.pageSettings.padX = v;
-    document.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(tb => {
-      if (!tb.dataset.customPadL) tb.style.paddingLeft = v + 'px';
-      if (!tb.dataset.customPadR) tb.style.paddingRight = v + 'px';
+    canvasEl.style.setProperty('--page-padx', v + 'px');
+    // inline style 제거: CSS Variable이 적용되도록 (개별 override된 블록 제외)
+    canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(el => {
+      if (!el.dataset.customPadL) el.style.paddingLeft = '';
+      if (!el.dataset.customPadR) el.style.paddingRight = '';
     });
-    document.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
+    canvasEl.querySelectorAll('.card-block, .graph-block').forEach(el => {
+      el.style.paddingLeft = ''; el.style.paddingRight = '';
+    });
+    canvasEl.querySelectorAll('.sbb-content').forEach(el => {
+      el.style.paddingLeft = ''; el.style.paddingRight = '';
+    });
+    // asset-block: 너비% 재계산 방식 유지
+    canvasEl.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
       window.applyAssetPadX(ab, v);
-    });
-    document.querySelectorAll('.card-block, .graph-block').forEach(b => {
-      b.style.paddingLeft = v + 'px';
-      b.style.paddingRight = v + 'px';
-    });
-    document.querySelectorAll('.strip-banner-block:not([data-use-padx="false"])').forEach(b => {
-      const content = b.querySelector('.sbb-content');
-      if (content) { content.style.paddingLeft = v + 'px'; content.style.paddingRight = v + 'px'; }
     });
   };
   const applyPadY = (v) => {
     state.pageSettings.padY = v;
-    document.querySelectorAll('.text-block:not(.overlay-tb)').forEach(tb => {
-      if (tb.dataset.type === 'label') return;
-      tb.style.paddingTop = v + 'px';
-      tb.style.paddingBottom = v + 'px';
-    });
+    canvasEl.style.setProperty('--page-pady', v + 'px');
   };
   const padxSlider = document.getElementById('page-padx-slider');
   const padxNumber = document.getElementById('page-padx-number');
