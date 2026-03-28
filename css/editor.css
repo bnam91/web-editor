@@ -2184,12 +2184,19 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   color: rgba(255,255,255,0.3);
   pointer-events: none;
 }
-.overlay-tb.selected {
+.overlay-tb.selected,
+.asset-overlay .label-group-block.selected {
   outline: 1.5px dashed rgba(255,255,255,0.7) !important;
   outline-offset: 0;
 }
+.asset-overlay .label-group-block {
+  width: 100%;
+  pointer-events: auto;
+  padding: 0 16px !important;
+  background: none !important;
+}
 .overlay-tb .tb-h1, .overlay-tb .tb-h2, .overlay-tb .tb-h3,
-.overlay-tb .tb-body, .overlay-tb .tb-caption {
+.overlay-tb .tb-body, .overlay-tb .tb-caption, .overlay-tb .tb-label {
   color: #fff;
 }
 

@@ -25,12 +25,19 @@ import {
 /* ── 오버레이 삽입 헬퍼 ── */
 function getSelectedOverlay() {
   const ab = document.querySelector('.asset-block.selected[data-overlay="true"]');
-  return ab ? ab.querySelector('.asset-overlay') : null;
+  if (ab) return ab.querySelector('.asset-overlay');
+  // overlay-tb 클릭 시 asset-block 선택이 해제되므로 selected overlay-tb 부모도 확인
+  const overlayTb = document.querySelector('.overlay-tb.selected');
+  if (overlayTb) {
+    const parentAb = overlayTb.closest('.asset-block[data-overlay="true"]');
+    return parentAb ? parentAb.querySelector('.asset-overlay') : null;
+  }
+  return null;
 }
 
 function insertIntoOverlay(overlay, el) {
   const sel = overlay.querySelector('.row.row-active')
-    || overlay.querySelector('.text-block.selected, .gap-block.selected');
+    || overlay.querySelector('.text-block.selected, .gap-block.selected, .overlay-tb.selected, .label-group-block.selected');
   if (sel) {
     const ref = sel.classList.contains('row') ? sel : (sel.closest('.row') || sel);
     ref.after(el);
@@ -148,6 +155,15 @@ function makeLabelGroupBlock() {
 }
 
 function addLabelGroupBlock() {
+  const overlay = getSelectedOverlay();
+  if (overlay) {
+    window.pushHistory();
+    const { row, block } = makeLabelGroupBlock();
+    insertIntoOverlay(overlay, row);
+    bindBlock(block);
+    window.buildLayerPanel();
+    return;
+  }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
