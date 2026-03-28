@@ -303,24 +303,21 @@ function addRowBlock(cols = 2, rows = 1) {
 
   insertAfterSelected(sec, row);
 
-  // 2행 이하 그리드: DOM 삽입 후 실제 너비로 초기 정사각형 크기 픽셀 적용
-  if (rows >= 2 && rows <= 2) {
-    requestAnimationFrame(() => {
-      const gap = parseInt(row.dataset.gap) || 0;
-      const colWidth = Math.round((row.offsetWidth - (cols - 1) * gap) / cols);
-      if (colWidth > 0) {
-        row.style.gridTemplateRows = `repeat(${rows}, ${colWidth}px)`;
-        row.dataset.rowHeight = String(colWidth * rows + (rows - 1) * gap);
-        if (window.showRowProperties) window.showRowProperties(row);
-      }
-    });
-  }
+  // 그리드: DOM 삽입 후 실제 너비로 초기 정사각형 크기 픽셀 적용 (1행 포함)
+  requestAnimationFrame(() => {
+    const gap = parseInt(row.dataset.gap) || 0;
+    const colWidth = Math.round((row.offsetWidth - (cols - 1) * gap) / cols);
+    if (colWidth > 0) {
+      row.style.gridTemplateRows = `repeat(${rows}, ${colWidth}px)`;
+      row.dataset.rowHeight = String(colWidth * rows + (rows - 1) * gap);
+      if (window.showRowProperties) window.showRowProperties(row);
+    }
+  });
 
   window.buildLayerPanel();
   document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
   row.classList.add('row-active');
   if (window.syncLayerRow) window.syncLayerRow(row);
-  if (!( rows >= 2 && rows <= 2)) window.showRowProperties?.(row);
 }
 
 // ── Row 프리셋 생성 ──────────────────────────────────────────
