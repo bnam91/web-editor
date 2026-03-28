@@ -142,6 +142,8 @@ function makeLabelGroupBlock() {
   block.id = genId('lg');
 
   block.appendChild(makeLabelItem('Tag', '#e8e8e8', '#333333', 40));
+  block.appendChild(makeLabelItem('Tag', '#e8e8e8', '#333333', 40));
+  block.appendChild(makeLabelItem('Tag', '#e8e8e8', '#333333', 40));
 
   const addBtn = document.createElement('button');
   addBtn.className = 'label-group-add-btn';
