@@ -54,7 +54,7 @@ function makeTextBlock(type) {
   tb.className = 'text-block'; tb.dataset.type = dataType;
   tb.id = genId('tb');
   tb.innerHTML = `
-    <div class="${classMap[type]}" contenteditable="false">${placeholder[type]}</div>`;
+    <div class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif">${placeholder[type]}</div>`;
 
   col.appendChild(tb);
   row.appendChild(col);

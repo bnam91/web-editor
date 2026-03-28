@@ -120,6 +120,7 @@ export function showTextProperties(tb) {
         <select class="prop-select" id="txt-font-family">
           <option value="" style="font-family:inherit"           ${currentFont===''?'selected':''}>기본 (시스템)</option>
           <optgroup label="── 한글 ──">
+            <option value="'Pretendard', sans-serif"            ${currentFont.includes('Pretendard')?'selected':''}>Pretendard</option>
             <option value="'Noto Sans KR', sans-serif"          ${currentFont.includes('Noto Sans KR')?'selected':''}>Noto Sans KR</option>
             <option value="'Noto Serif KR', serif"              ${currentFont.includes('Noto Serif KR')?'selected':''}>Noto Serif KR</option>
           </optgroup>
