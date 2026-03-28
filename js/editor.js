@@ -883,6 +883,48 @@ window.clearMultiSel = clearMultiSel;
 window.selectSectionWithModifier = selectSectionWithModifier;
 window.selectColWithModifier = selectColWithModifier;
 window.showMultiSelPanel = showMultiSelPanel;
+
+/* ── 오버레이 편집 모드 ── */
+function enterOverlayEditMode(assetBlock) {
+  const overlay = assetBlock.querySelector('.asset-overlay');
+  if (!overlay) return;
+  exitOverlayEditMode();  // 이전 모드 종료
+  state.activeOverlay = overlay;
+  assetBlock.dataset.overlayEditing = 'true';
+  deselectAll();
+
+  // 상단 알림 바 표시
+  let bar = document.getElementById('overlay-edit-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'overlay-edit-bar';
+    bar.innerHTML = `
+      <span>오버레이 편집 중 — 중앙 패널로 블록 추가</span>
+      <button onclick="window.exitOverlayEditMode()">편집 종료</button>`;
+    document.getElementById('canvas-area')?.prepend(bar);
+  }
+  bar.style.display = 'flex';
+}
+
+function exitOverlayEditMode() {
+  if (!state.activeOverlay) return;
+  const ab = state.activeOverlay.closest('.asset-block');
+  if (ab) delete ab.dataset.overlayEditing;
+  state.activeOverlay = null;
+  const bar = document.getElementById('overlay-edit-bar');
+  if (bar) bar.style.display = 'none';
+}
+
+// Escape 키로 오버레이 편집 모드 종료
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && state.activeOverlay) {
+    exitOverlayEditMode();
+  }
+});
+
+window.enterOverlayEditMode = enterOverlayEditMode;
+window.exitOverlayEditMode  = exitOverlayEditMode;
+
 // 모든 모듈 로드 후 앱 초기화
 initApp();
 

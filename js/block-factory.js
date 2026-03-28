@@ -22,6 +22,20 @@ import {
    BLOCK FACTORY — make* / add* / addSection
 ═══════════════════════════════════ */
 
+/* ── 오버레이 편집 모드: 삽입 헬퍼 ── */
+function insertIntoOverlay(el) {
+  const overlay = state.activeOverlay;
+  // 오버레이 내부에서 선택된 row 또는 gap 뒤에 삽입
+  const sel = overlay.querySelector('.row.row-active')
+    || overlay.querySelector('.text-block.selected, .gap-block.selected');
+  if (sel) {
+    const ref = sel.classList.contains('row') ? sel : (sel.closest('.row') || sel);
+    ref.after(el);
+  } else {
+    overlay.appendChild(el);
+  }
+}
+
 function makeTextBlock(type) {
   const classMap  = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label' };
   const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
@@ -167,6 +181,16 @@ function makeTableBlock() {
 }
 
 function addTextBlock(type) {
+  // 오버레이 편집 모드
+  if (state.activeOverlay) {
+    window.pushHistory();
+    const { row, block } = makeTextBlock(type);
+    block.classList.add('overlay-tb');
+    insertIntoOverlay(row);
+    bindBlock(block);
+    window.buildLayerPanel();
+    return;
+  }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
@@ -233,6 +257,44 @@ function groupSelectedBlocks() {
 }
 
 function addRowBlock(cols = 2, rows = 1) {
+  // 오버레이 편집 모드
+  if (state.activeOverlay) {
+    window.pushHistory();
+    const ab = state.activeOverlay.closest('.asset-block');
+    const containerW = ab ? ab.offsetWidth : 860;
+    const totalCols = cols * rows;
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.id = genId('row');
+    row.dataset.ratioStr = `${cols}*${rows}`;
+    const INIT_PX = Math.round(containerW / cols);
+    if (rows > 1) {
+      row.dataset.layout = 'grid';
+      row.style.display = 'grid';
+      row.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      row.style.gridTemplateRows = `repeat(${rows}, ${INIT_PX}px)`;
+      row.dataset.rowHeight = String(INIT_PX * rows + (rows - 1) * 12);
+      row.style.gap = '12px';
+      row.dataset.gap = '12';
+    } else {
+      row.dataset.layout = 'flex';
+      row.style.minHeight = INIT_PX + 'px';
+      row.style.gap = '12px';
+      row.dataset.gap = '12';
+    }
+    for (let i = 0; i < totalCols; i++) {
+      const col = document.createElement('div');
+      col.className = 'col';
+      if (rows === 1) { col.style.flex = '1'; col.dataset.flex = '1'; }
+      col.appendChild(window.makeColPlaceholder(col));
+      row.appendChild(col);
+    }
+    insertIntoOverlay(row);
+    window.buildLayerPanel();
+    document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+    row.classList.add('row-active');
+    return;
+  }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
@@ -417,6 +479,15 @@ function addAssetBlock(preset) {
 }
 
 function addGapBlock() {
+  // 오버레이 편집 모드
+  if (state.activeOverlay) {
+    window.pushHistory();
+    const gb = makeGapBlock();
+    insertIntoOverlay(gb);
+    bindBlock(gb);
+    window.buildLayerPanel();
+    return;
+  }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();

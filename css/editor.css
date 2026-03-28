@@ -2122,16 +2122,62 @@ body {
   display: none;
   position: absolute;
   inset: 0;
-  padding: 32px 24px;
+  padding: 24px 0;
   background: rgba(0,0,0,0.35);
   z-index: 2;
   pointer-events: none;
   flex-direction: column;
   justify-content: center;
   gap: 8px;
+  overflow: hidden;
 }
 .asset-block[data-overlay="true"] .asset-overlay {
   display: flex;
+}
+/* 오버레이 편집 모드 */
+.asset-block[data-overlay-editing="true"] .asset-overlay {
+  pointer-events: auto;
+  outline: 2px dashed rgba(99, 179, 255, 0.9);
+  outline-offset: -2px;
+}
+/* 오버레이 내 블록은 페이지 padX/padY 무시 */
+.asset-overlay .text-block {
+  padding: 4px 16px !important;
+}
+.asset-overlay .text-block[data-type="label"] {
+  padding: 0 16px !important;
+}
+.asset-overlay .gap-block {
+  min-height: 8px;
+}
+/* 오버레이 내 row는 page padX 없이 전폭 */
+.asset-overlay .row {
+  width: 100%;
+}
+/* 오버레이 편집 바 */
+#overlay-edit-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  background: rgba(30, 80, 160, 0.92);
+  color: #fff;
+  font-size: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+#overlay-edit-bar button {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.4);
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 10px;
+  cursor: pointer;
+  font-size: 11px;
+}
+#overlay-edit-bar button:hover {
+  background: rgba(255,255,255,0.35);
 }
 .asset-block[data-overlay="true"] .asset-icon,
 .asset-block[data-overlay="true"] .asset-label {

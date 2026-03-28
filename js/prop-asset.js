@@ -131,10 +131,13 @@ export function showAssetProperties(ab) {
           </div>
         </div>
         <div class="prop-row">
-          <button class="prop-action-btn primary" id="overlay-add-text-btn">+ 텍스트 추가</button>
-          <button class="prop-action-btn danger" id="overlay-del-text-btn">− 텍스트 제거</button>
+          <button class="prop-action-btn primary" id="overlay-edit-mode-btn" style="width:100%">✎ 오버레이 편집 모드</button>
         </div>
-        <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭으로 편집</div>
+        <div class="prop-row">
+          <button class="prop-action-btn secondary" id="overlay-add-text-btn">+ 텍스트</button>
+          <button class="prop-action-btn danger" id="overlay-del-text-btn">− 텍스트</button>
+        </div>
+        <div style="font-size:11px;color:#555;margin-top:2px;">편집 모드에서 중앙 패널로 블록 추가</div>
       </div>
     </div>`;
 
@@ -301,6 +304,10 @@ export function showAssetProperties(ab) {
   document.getElementById('overlay-del-text-btn').addEventListener('click', () => {
     const tbs = [...overlayEl.querySelectorAll('.overlay-tb')];
     if (tbs.length > 0) { tbs[tbs.length - 1].remove(); window.buildLayerPanel(); window.pushHistory(); }
+  });
+
+  document.getElementById('overlay-edit-mode-btn').addEventListener('click', () => {
+    window.enterOverlayEditMode(ab);
   });
 }
 
