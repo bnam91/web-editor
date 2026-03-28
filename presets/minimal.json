@@ -10,7 +10,7 @@
     "--preset-h3-color": "#444444",
     "--preset-h3-family": "'Space Grotesk', sans-serif",
     "--preset-body-color": "#666666",
-    "--preset-body-family": "'Noto Sans KR', sans-serif",
+    "--preset-body-family": "'Pretendard', 'Noto Sans KR', sans-serif",
     "--preset-caption-color": "#aaaaaa",
     "--preset-label-bg": "#000000",
     "--preset-label-color": "#ffffff",

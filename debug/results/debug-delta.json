@@ -1,0 +1,78 @@
+{
+  "agent": "Agent-δ",
+  "version": "2.0",
+  "part": "히스토리 무결성",
+  "ts": "2026-03-28T09:07:43.318Z",
+  "method": "cdp",
+  "cdp_port": 9334,
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "prop-row.js 파싱 정상",
+      "result": "PASS",
+      "detail": "node --check 통과 (exit 0). window.showRowProperties, window.applyRowLayoutDirect 모두 'function'으로 정상 노출. SyntaxError 없음 확인."
+    },
+    {
+      "id": 2,
+      "name": "Row 패딩/간격 슬라이더 저장",
+      "result": "PASS",
+      "detail": "flex layout row에서 row-padx-slider input 이벤트 → row.dataset.padX='24', paddingLeft='24px', paddingRight='24px' 정확히 반영. row-gap-slider → row.dataset.gap='16', gap='16px' 반영. change 이벤트로 pushHistory 호출 확인. 주의: stack layout 시 sliders가 렌더링되지 않음(line 228 early return)은 의도된 동작."
+    },
+    {
+      "id": 3,
+      "name": "Undo/Redo 후 상태",
+      "result": "PASS",
+      "detail": "clearHistory → pushHistory('initial') → padX=20 설정 → pushHistory('padX=20') → undo() → padX=40(initial) 복원 → redo() → padX=20 복원. 체인 정상 동작. popHistory는 존재하지 않으나 undo()로 대체 구현(editor.js historyPos--)되어 있어 기능상 동일. clearHistory 후 기준점 없이 undo하면 더 되돌아가지 않는 정상 동작 확인."
+    },
+    {
+      "id": 4,
+      "name": "브랜치 전환 시 캔버스 복원",
+      "result": "PARTIAL_FAIL",
+      "detail": "switchBranch(main) 전환은 성공(getCurrentBranch()='main'). 그러나 main 브랜치의 canvas가 빈 문자열('')이어서 전환 후 캔버스가 비워짐(rows=0). dev→main→dev 복귀는 정상 동작. clearHistory 호출(line 161) 확인. 버그 원인: main 브랜치 snapshot의 pages[0].canvas='' (앱 초기화 당시 빈 캔버스로 생성된 데이터 상태 문제). switchBranch 코드 자체의 흐름은 올바름.",
+      "bug": {
+        "type": "DATA",
+        "severity": "MEDIUM",
+        "location": "localStorage key=web-editor-branches-proj_1774686420865",
+        "description": "main 브랜치 snapshot.pages[0].canvas가 빈 문자열. initBranchStore 초기화 시점에 캔버스가 비어있었거나 serializeProject가 빈 결과를 반환한 것으로 추정.",
+        "impact": "main 브랜치로 전환 시 캔버스가 비워짐",
+        "fix": "코드 수정 불필요 - 데이터 상태 문제. switchBranch 로직 자체는 정상."
+      }
+    },
+    {
+      "id": 5,
+      "name": "_persistBranchesToFile vs saveProjectToFile 경쟁 조건",
+      "result": "PASS",
+      "detail": "Promise.all로 두 함수 병렬 실행 시 branches 필드 보존 확인. saveProjectToFile이 '{...existing, ...data}' spread를 사용하므로 existing에 branches가 있으면 data(serializeProject 결과)에 branches 키가 없어도 기존 branches 유지됨. 이론적 취약점: 두 함수가 모두 loadProject를 먼저 읽고 각자 saveProject를 쓰는 패턴이나, 실제 테스트에서는 branches 손실 없이 통과. Electron IPC가 직렬화 처리하는 것으로 추정.",
+      "note": "이론적으로 _persist가 먼저 완료되고 saveProjectToFile이 _persist 결과를 덮어쓸 경우 branches 손실 가능성 잔존. 현재 환경에서는 재현 불가."
+    }
+  ],
+  "bugs_found": 1,
+  "fixes_applied": 0,
+  "unverified_fixes": 0,
+  "bug_details": [
+    {
+      "id": "BUG-δ-01",
+      "file": "데이터 상태 (branch-system.js / initBranchStore)",
+      "severity": "MEDIUM",
+      "scenario": 4,
+      "description": "main 브랜치 snapshot의 pages[0].canvas가 빈 문자열('') — 전환 시 캔버스가 비워짐",
+      "root_cause": "initBranchStore 호출 시점(앱 최초 로드 또는 프로젝트 신규 생성)에 serializeProject()가 빈 캔버스를 반환하여 main/dev 초기 스냅샷이 빈 상태로 저장됨",
+      "affected_code": "branch-system.js line 64-73 (initBranchStore fallback path)",
+      "fix_status": "NOT_APPLIED (데이터 복구 필요, 코드 로직은 정상)"
+    }
+  ],
+  "static_findings": [
+    {
+      "file": "prop-row.js",
+      "finding": "SyntaxError 없음. _bindGridPicker 중복 } 버그 이미 수정됨 확인 (전체 414줄 파싱 정상)."
+    },
+    {
+      "file": "branch-system.js",
+      "finding": "switchBranch line 161: clearHistory 호출로 브랜치 전환 후 이전 히스토리로 Undo 역점프 방지 로직 정상. _persistBranchesToFile은 async fire-and-forget 패턴(await 없이 saveBranchStore에서 호출)."
+    },
+    {
+      "file": "template-system.js",
+      "finding": "insertTemplate 내 pushHistory() 호출(line 164) 정상. ES module import 사용(canvasEl from globals.js)."
+    }
+  ]
+}

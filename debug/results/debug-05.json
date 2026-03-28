@@ -1,0 +1,97 @@
+{
+  "agent": "Agent-05",
+  "version": "2.0",
+  "part": "row/col/section/page",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9334,
+  "scenarios": [
+    {
+      "id": "S1",
+      "name": "페이지 추가 버튼(+) — index.html 헤더",
+      "result": "FAIL",
+      "detail": "index.html의 #page-section-header에 #page-add-btn이 존재하지 않음. window.addPage()는 함수로 등록되어 있으나 헤더에서 호출할 UI 없음.",
+      "fix": "NOT_APPLIED",
+      "note": "index.html은 담당 파일 외이므로 수정 불가. 버그로 기록."
+    },
+    {
+      "id": "S2",
+      "name": "페이지 추가/삭제 — prop-page.js 로직",
+      "result": "PASS",
+      "detail": "window.addPage() 호출 시 pages 배열 1→2 증가 확인. window.deletePage(id) 호출 시 2→1 감소 확인. 로직 정상.",
+      "fix": "NONE_NEEDED"
+    },
+    {
+      "id": "S3",
+      "name": "섹션 추가/삭제/순서변경 — prop-section.js",
+      "result": "PARTIAL",
+      "detail": "addSection() 정상 동작. 삭제는 Delete 키(keydown 이벤트)로 가능 — 테스트 통과(3→2). bindSectionDelete()는 stub('삭제 버튼 제거됨' 주석). bindSectionOrder()도 stub('순서 버튼 제거됨' 주석). 레이어 패널에 삭제/이동 버튼 없음. 드래그(layer-section-header draggable=true) 및 section label drag로 순서 변경 가능.",
+      "fix": "NONE_NEEDED",
+      "note": "삭제: Delete 키 동작 확인. 순서변경: 드래그 방식으로 설계됨."
+    },
+    {
+      "id": "S4",
+      "name": "Row 패딩/간격 슬라이더 — prop-row.js 값 저장/복원",
+      "result": "FAIL_FIXED",
+      "detail": "stack 레이아웃 row에서 높이/gap/padX 슬라이더가 모두 숨겨지는 버그 발견. data-padX=20이 저장된 stack row가 실제 존재했으나 UI에서 수정 불가 상태였음. gap은 stack에서 불필요하므로 정상이지만, 높이와 좌우패딩은 stack에서도 필요.",
+      "fix": "APPLIED",
+      "files_modified": ["js/prop-row.js"],
+      "fix_description": "prop-row.js: layout==='stack'일 때도 높이/좌우패딩 슬라이더를 표시하도록 수정. gap 슬라이더만 layout !== 'stack' 조건으로 유지."
+    },
+    {
+      "id": "S5",
+      "name": "file-page-section.js — 하단 '+ 페이지 추가' 버튼 존재 여부",
+      "result": "INFO",
+      "detail": "file-page-section.js에 .file-page-add 버튼('+ 페이지 추가')이 buildFilePageSection() 내에 여전히 존재함. 현재 index.html 헤더에 #page-add-btn이 없으므로 현재 상태에서는 중복 아님. 헤더 버튼 추가 시 중복 버그 발생 가능.",
+      "fix": "NONE_NEEDED",
+      "note": "의뢰 내용 2번(하단 버튼 제거 미완료)과 일치. 중복 상태가 되기 전에 제거 필요."
+    },
+    {
+      "id": "S6",
+      "name": "prop-page.js — 블록 선택 힌트 텍스트",
+      "result": "FAIL_FIXED",
+      "detail": "showPageProperties()에서 <p class='prop-hint'>블록을 선택하면 속성이 표시됩니다</p>가 여전히 렌더링되고 있었음. 의뢰 내용 3번('힌트 텍스트 제거됨')과 불일치.",
+      "fix": "APPLIED",
+      "files_modified": ["js/prop-page.js"],
+      "fix_description": "prop-page.js 10번째 줄: <p class='prop-hint'> 라인 제거."
+    },
+    {
+      "id": "S7",
+      "name": "사이드 패널 리사이즈 — initPanelResize()",
+      "result": "INFO",
+      "detail": "window.initPanelResize 함수 없음. panel-right 리사이즈 핸들 없음. panel-left만 panel-left-resize-handle로 리사이즈 가능하며 localStorage('panelLeftWidth')에 480이 저장되어 있음. panel-right 리사이즈는 미구현 상태.",
+      "fix": "NONE_NEEDED",
+      "note": "담당 파일(prop-*.js) 범위 외이며, editor.js 수정 필요."
+    }
+  ],
+  "bugs_found": 3,
+  "fixes_applied": 2,
+  "unverified_fixes": 0,
+  "bugs_detail": [
+    {
+      "id": "BUG-01",
+      "severity": "HIGH",
+      "file": "index.html (담당 파일 외)",
+      "desc": "#page-section-header에 #page-add-btn 없음 — window.addPage() 헤더 호출 불가",
+      "fixed": false
+    },
+    {
+      "id": "BUG-02",
+      "severity": "LOW",
+      "file": "js/prop-page.js",
+      "desc": "showPageProperties()에서 prop-hint 텍스트 미제거",
+      "fixed": true
+    },
+    {
+      "id": "BUG-03",
+      "severity": "MEDIUM",
+      "file": "js/prop-row.js",
+      "desc": "stack 레이아웃 row에서 높이/padX 슬라이더 UI 없음 (data-padX 저장값 수정 불가)",
+      "fixed": true
+    }
+  ],
+  "info": [
+    "file-page-section.js 하단 '+ 페이지 추가' 버튼 미제거 (의뢰 내용 2번 미완료)",
+    "panel-right initPanelResize() 미구현 (editor.js 작업 필요)"
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "agent": "Agent-02",
+  "version": "2.0",
+  "part": "에셋/이미지/서클",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9334,
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "에셋 블록 오버레이 활성화 토글 (data-overlay=true/false)",
+      "status": "PASS",
+      "detail": "asset-overlay-toggle change 이벤트 시 ab.dataset.overlay='true'로 설정, asset-overlay-controls 표시, 첫 활성화 시 .overlay-tb 자동 생성 확인"
+    },
+    {
+      "id": 2,
+      "name": "오버레이 활성화 후 텍스트 블록 추가 → layer-panel 표시",
+      "status": "PASS",
+      "detail": "overlay-add-text-btn 클릭 시 overlayEl에 .overlay-tb 추가됨. buildLayerPanel 호출 후 layer-row-group > layer-item-nested로 올바르게 표시. overlayTbCount 3→4 증가, layerOverlayItems=4 정상"
+    },
+    {
+      "id": 3,
+      "name": "Circle 이미지 제거 시 dataset 정리 여부",
+      "status": "PASS",
+      "detail": "clearCircleImage 호출 후 dataset.imgW/imgX/imgY/imgSrc 모두 삭제 확인. has-image 클래스도 제거됨. 단, loadImageToCircle에서 imgPosition 미삭제 버그 발견 및 수정 완료"
+    },
+    {
+      "id": 4,
+      "name": "이미지 리사이즈/드래그 동작",
+      "status": "PASS_WITH_KNOWN_LEAK",
+      "detail": "enterImageEditMode: overflow:visible 설정, 8핸들 생성, 드래그/리사이즈 정상. exitImageEditMode: overflow:hidden 복원, 리스너 제거 정상. 단, switchPage/flushCurrentPage에서 exitImageEditMode 미호출로 페이지 전환 시 document 리스너 누수 잠재 위험 (save-load.js 담당범위 외)"
+    },
+    {
+      "id": 5,
+      "name": "에셋 오버레이 내 블록들이 layer-panel에 올바르게 트리 구조로 표시",
+      "status": "PASS",
+      "detail": "layer-panel.js makeLayerAssetItem의 buildOverlayChildren이 overlayEl.children 순서대로 이터레이션. gap-block은 makeLayerBlockItem+layer-item-nested 클래스로, overlay-tb는 layer-item layer-item-nested로 표시. 실제 DOM 검증: overlayChildren 4개(tb, tb, gap, tb) → layerChildren 4개 정확히 매핑됨"
+    }
+  ],
+  "bugs_found": 2,
+  "bugs": [
+    {
+      "id": "BUG-02-01",
+      "severity": "LOW",
+      "file": "js/image-handling.js",
+      "function": "loadImageToCircle",
+      "description": "이미지 교체 시 icb.dataset.imgPosition 미삭제. loadImageToAsset은 delete imgPosition 포함하지만 loadImageToCircle은 누락. 이전 이미지의 포지션이 새 이미지에 잘못 적용될 수 있음",
+      "fix_applied": true,
+      "fix_detail": "delete icb.dataset.imgPosition 추가 (line 540)"
+    },
+    {
+      "id": "BUG-02-02",
+      "severity": "MEDIUM",
+      "file": "js/save-load.js",
+      "function": "switchPage / flushCurrentPage",
+      "description": "페이지 전환 시 이미지 편집 모드(img-editing) 또는 포지션 드래그 모드(pos-dragging) 중인 블록의 exitImageEditMode/exitPosDragMode를 호출하지 않음. document에 등록된 click/keydown 리스너가 남아 메모리 누수 발생",
+      "fix_applied": false,
+      "fix_detail": "save-load.js는 담당 파일 범위 외. switchPage() 진입 시 document.querySelectorAll('.img-editing').forEach(el => window.exitImageEditMode(el)) 및 .pos-dragging도 동일하게 처리 필요"
+    }
+  ],
+  "fixes_applied": 1,
+  "unverified_fixes": 1,
+  "files_modified": [
+    "js/image-handling.js"
+  ],
+  "notes": {
+    "layer_panel_fix_verified": "layer-panel.js makeLayerAssetItem: overlayChildren 필터가 .overlay-tb || .gap-block 모두 포함 (이미 수정됨). buildOverlayChildren이 overlayEl.children 순서 이터레이션으로 올바르게 동작 확인",
+    "circle_overflow": "enterCircleImageEditMode에서 circle.style.overflow='visible' 설정, exitCircleImageEditMode에서 circle.style.overflow='' 복원 - 핸들 클리핑 문제 해소 확인",
+    "asset_overlay_toggle": "prop-asset.js 오버레이 토글 동작 정상. 첫 활성화 시 .overlay-tb 자동 생성 후 bindBlock+buildLayerPanel 호출 확인"
+  }
+}

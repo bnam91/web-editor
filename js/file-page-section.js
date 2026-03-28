@@ -145,29 +145,6 @@ function buildFilePageSection() {
     container.appendChild(item);
   });
 
-  const addBtn = document.createElement('button');
-  addBtn.className = 'file-page-add';
-  addBtn.textContent = '+ 페이지 추가';
-  addBtn.addEventListener('click', window.addPage);
-  addBtn.addEventListener('dragover', e => {
-    e.preventDefault();
-    container.querySelectorAll('.page-drop-indicator').forEach(el => el.remove());
-    const indicator = document.createElement('div');
-    indicator.className = 'page-drop-indicator';
-    addBtn.before(indicator);
-  });
-  addBtn.addEventListener('drop', e => {
-    e.preventDefault();
-    container.querySelectorAll('.page-drop-indicator').forEach(el => el.remove());
-    const srcId = e.dataTransfer.getData('text/plain');
-    const srcIdx = state.pages.findIndex(p => p.id === srcId);
-    if (srcIdx === -1) return;
-    const [moved] = state.pages.splice(srcIdx, 1);
-    state.pages.push(moved);
-    buildFilePageSection();
-    window.scheduleAutoSave();
-  });
-  container.appendChild(addBtn);
 }
 
 export { buildFilePageSection };

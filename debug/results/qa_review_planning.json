@@ -1,0 +1,133 @@
+{
+  "agent": "QA Squad",
+  "target": "feature/outline",
+  "reviewed_at": "2026-03-27",
+  "files_inspected": [
+    "pages/planning.html",
+    "js/planning.js",
+    "main.js (intake:save, intake:list)",
+    "preload.js (saveIntakeFile, listIntakeFiles)"
+  ],
+  "checks": [
+    {
+      "id": "QA-01",
+      "name": "볼륨 레벨 변경 → 블록 목록 갱신",
+      "status": "WARN",
+      "detail": "applyVolume()이 blocksForVolume()을 호출해 필터링하고 renderOutline()을 트리거하는 흐름은 정상. 단, init() 내 vol-select change 핸들러에서 applyVolume() 후 state.selectedIdx = null로 강제 초기화하고 있어 QA-09(선택 유지)와 충돌. blocksForVolume() 자체 필터는 d.vol <= idx 로직으로 BLOCK_DEFS 35개 기준 outline(vol0) 14개, develop2(vol2) 27개 등 올바르게 서브셋 반환됨."
+    },
+    {
+      "id": "QA-02",
+      "name": "블록 클릭 → 인스펙터 패널 상세 표시",
+      "status": "PASS",
+      "detail": "row.addEventListener('click') → state.selectedIdx = b._idx → renderOutline() + renderInspector() 호출 체인이 정상. renderInspector()에서 state.blocks[state.selectedIdx]의 section/role/hint/layout/enabled를 모두 렌더링."
+    },
+    {
+      "id": "QA-03",
+      "name": "toggle 버튼 클릭 → enabled 토글 + 시각 업데이트",
+      "status": "PASS",
+      "detail": "outline 블록의 toggle 버튼(e.stopPropagation 포함)과 inspector 패널의 insp-toggle 버튼 모두 state.blocks[idx].enabled를 반전 후 renderOutline() + renderInspector() 재렌더. CSS .disabled { opacity: 0.4 } 적용 확인. aria-label도 활성/비활성 상태에 따라 갱신됨."
+    },
+    {
+      "id": "QA-04",
+      "name": "드래그앤드롭 → 블록 순서 변경 후 인덱스 저장",
+      "status": "WARN",
+      "detail": "drop 핸들러에서 splice(fromIdx,1)[0] 후 splice(toIdx,0,moved) 방식으로 state.blocks 배열을 직접 재정렬하고 state.selectedIdx = toIdx로 업데이트. 문제: drop 후 renderInspector()를 호출하지 않아 인스펙터가 이전 상태를 유지할 수 있음. 또한 cross-section 드래그(예: HOOK 블록을 BODY로 이동) 시 섹션 구조가 틀어져도 시각적으로는 잘못된 섹션 배지 아래 표시될 수 있음 — renderOutline은 grouped[sec] 기준으로 재정렬하므로 실제 배열 순서가 바뀌어도 섹션 묶음은 유지됨. 저장 시 outline_blocks는 재정렬된 state.blocks 순서대로 직렬화됨(PASS). 단, renderInspector 누락은 WARN."
+    },
+    {
+      "id": "QA-05",
+      "name": "인스펙터 레이아웃 드롭다운 변경 → state.blocks 반영",
+      "status": "PASS",
+      "detail": "insp-layout change → state.blocks[state.selectedIdx].layout = e.target.value → renderOutline() 호출. 아웃라인 블록의 .block-layout span이 즉시 갱신됨. LAYOUT_OPTIONS 6종(gif, text_image, image_text, text_table, text_grid, video_overlay) 모두 select option으로 제공되어 있음."
+    },
+    {
+      "id": "QA-06",
+      "name": "저장 버튼 → product_name 빈값 시 검증",
+      "status": "PASS",
+      "detail": "saveIntake() 진입 시 state.product_name.trim() 검사 → 비어있으면 showSaveStatus('제품명을 입력해주세요') + inp-product.focus() 호출 후 return. CSS var(--ui-danger) 색상으로 표시. 저장 버튼 비활성화(disabled) 처리도 저장 중에만 적용되어 재시도 가능."
+    },
+    {
+      "id": "QA-07",
+      "name": "저장 성공 → 파일명 형식 intake_{제품명}_{날짜}.json",
+      "status": "PASS",
+      "detail": "main.js intake:save 핸들러: `intake_${safeProduct}_${dateStr}.json` 형식. dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'') → YYYYMMDD 8자리. 예: intake_로도프보풀제거기_20260327.json. 브라우저 fallback(saveIntake 내 Blob)에서는 날짜 없이 intake_{product_name}.json으로만 저장되어 파일명 형식 불일치 존재 — 개발 환경 전용이므로 WARN 수준."
+    },
+    {
+      "id": "QA-08",
+      "name": "Electron IPC intake:save → 파일 경로 및 payload 구조",
+      "status": "PASS",
+      "detail": "저장 경로: ~/Documents/design-bot-builder/intake_{safeProduct}_{YYYYMMDD}.json. payload: {...data, ts: ISO8601, saved_to: filePath}. data 구조: product_name, brand_name, volume, positioning, swot(4항목), outline_blocks([{section,role,layout,enabled}]). fs.writeFileSync 사용으로 동기 쓰기. INTAKE_DIR 없으면 앱 시작 시 mkdirSync로 자동 생성."
+    },
+    {
+      "id": "QA-09",
+      "name": "볼륨 변경 시 이전 선택 블록 유지",
+      "status": "FAIL",
+      "detail": "버그 발견. applyVolume()은 prevSelected를 기반으로 newIdx를 계산해 state.selectedIdx를 유지하는 로직이 있음. 그러나 init()의 vol-select change 핸들러에서 applyVolume() 호출 직후 state.selectedIdx = null을 강제로 덮어쓰고 있어(planning.js line 276), applyVolume 내부에서 계산한 선택 유지 결과가 항상 null로 리셋됨. applyVolume의 선택 유지 로직이 사실상 무효화된 상태임."
+    },
+    {
+      "id": "QA-10",
+      "name": "키보드 Enter/Space로 블록 선택",
+      "status": "PASS",
+      "detail": "row.addEventListener('keydown') → e.key === 'Enter' || e.key === ' ' 시 e.preventDefault() + row.click() 호출. tabIndex=0 및 role='button' 설정으로 키보드 포커스 이동도 가능. Space 키 기본 동작(페이지 스크롤)도 preventDefault로 차단됨."
+    },
+    {
+      "id": "QA-EC-01",
+      "name": "제품명 특수문자 → 파일명 안전 처리 (safeProduct)",
+      "status": "PASS",
+      "detail": "main.js line 203: /[^a-zA-Z0-9가-힣_-]/g → '_' 치환. 공백·슬래시·괄호·점 등 파일명 불안전 문자 모두 처리. 한글(가-힣) 허용. 단, 제품명이 모두 특수문자인 경우 safeProduct='_____...' 형태가 되지만 파일명 자체는 유효함. 빈 product_name은 'unknown'으로 fallback 처리."
+    },
+    {
+      "id": "QA-EC-02",
+      "name": "outline 볼륨 저장 → outline_blocks subset 검증",
+      "status": "PASS",
+      "detail": "blocksForVolume('outline') → BLOCK_DEFS 중 vol===0인 항목만 필터링: hook, delivery, banner, hero, problem, psychology, effort, solution, reason01, closing_criteria, closing_comparison = 총 11개(HOOK 1 + HEAD 2 + HERO 1 + BODY 7). outline_blocks에 이 subset만 직렬화됨. 볼륨 메타값도 state.volume('outline')으로 함께 저장됨."
+    },
+    {
+      "id": "QA-EC-03",
+      "name": "intake:list IPC → design-bot-builder 폴더 미존재 처리",
+      "status": "WARN",
+      "detail": "main.js line 199-200: INTAKE_DIR이 없으면 앱 시작 시 mkdirSync로 생성하므로 intake:list 호출 시 폴더는 항상 존재함. 단, intake:list 핸들러 자체(line 212)는 fs.readdirSync를 try/catch 없이 호출하고 있어, 예외적으로 폴더가 삭제된 상태에서 IPC가 호출되면 unhandled 예외가 발생할 수 있음. intake:save는 try/catch가 없으며 ipcMain.handle 레벨에서 에러가 자동으로 renderer에 throw되므로 saveIntake()의 catch(e) 블록에서 잡히긴 함. intake:list는 호출자(planning.js)에 listIntakeFiles 호출 코드가 현재 없어 실제 노출 위험은 낮음."
+    }
+  ],
+  "bugs": [
+    {
+      "id": "BUG-01",
+      "severity": "MEDIUM",
+      "file": "js/planning.js",
+      "line": 276,
+      "title": "볼륨 변경 시 selectedIdx 강제 null 리셋으로 선택 유지 로직 무효화",
+      "description": "init() 내 vol-select change 핸들러에서 applyVolume() 호출 직후 state.selectedIdx = null이 항상 실행됨. applyVolume() 내부에는 prevSelected를 찾아 newIdx를 계산해 selectedIdx를 유지하는 로직이 구현되어 있으나, 이 null 대입으로 인해 완전히 무효화됨.",
+      "code_snippet": "applyVolume(state.volume);\nstate.selectedIdx = null;  // ← 이 줄이 applyVolume의 선택 유지 결과를 덮어씀",
+      "fix_suggestion": "state.selectedIdx = null 라인을 제거하거나 applyVolume() 내부로 이동시킬 것. applyVolume()이 이미 selectedIdx를 정확히 처리하므로 외부에서의 null 대입은 불필요."
+    },
+    {
+      "id": "BUG-02",
+      "severity": "LOW",
+      "file": "js/planning.js",
+      "line": 160,
+      "title": "드래그앤드롭 drop 후 renderInspector() 미호출",
+      "description": "drop 핸들러에서 블록 재정렬 후 renderOutline()만 호출하고 renderInspector()를 호출하지 않음. 블록 이동 후 state.selectedIdx가 toIdx로 변경되지만 인스펙터는 이전 블록 정보를 그대로 표시함.",
+      "code_snippet": "state.selectedIdx = toIdx;\nrenderOutline();\n// renderInspector() 누락",
+      "fix_suggestion": "renderOutline() 다음 줄에 renderInspector() 추가."
+    },
+    {
+      "id": "BUG-03",
+      "severity": "LOW",
+      "file": "main.js",
+      "line": 212,
+      "title": "intake:list 핸들러 fs.readdirSync try/catch 미적용",
+      "description": "INTAKE_DIR이 앱 기동 시 생성되므로 정상 케이스에서는 문제없으나, 런타임 중 폴더 삭제/권한 변경 시 unhandled exception 발생 가능.",
+      "fix_suggestion": "readdirSync 호출을 try/catch로 감싸고 빈 배열 반환."
+    },
+    {
+      "id": "BUG-04",
+      "severity": "LOW",
+      "file": "js/planning.js (browser fallback)",
+      "line": 249,
+      "title": "브라우저 fallback 파일명에 날짜 없음",
+      "description": "Electron 환경에서는 intake_{safeProduct}_{YYYYMMDD}.json이지만, 브라우저 fallback은 intake_{product_name}.json으로 날짜 없이 저장됨. 개발 환경 전용이나 파일명 명세 불일치.",
+      "fix_suggestion": "개발 전용 fallback이므로 severity LOW. 필요 시 동일한 dateStr 로직 적용 가능."
+    }
+  ],
+  "approved": false,
+  "summary": "BUG-01 (볼륨 변경 시 선택 유지 로직 무효화) 1건 FAIL, BUG-02~04 LOW 3건 WARN 확인 — 핵심 저장/토글/키보드 흐름은 PASS이나 QA-09 선택 유지가 코드 오류로 동작하지 않아 미승인(approved: false). BUG-01 수정 후 재검수 권장."
+}

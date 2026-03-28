@@ -130,11 +130,7 @@ export function showAssetProperties(ab) {
             <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-end'?' active':''}" data-pos="flex-end" style="flex:1;font-size:11px">↓ 하단</button>
           </div>
         </div>
-        <div class="prop-row">
-          <button class="prop-action-btn primary" id="overlay-add-text-btn">+ 텍스트 추가</button>
-          <button class="prop-action-btn danger" id="overlay-del-text-btn">− 텍스트 제거</button>
-        </div>
-        <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭으로 편집</div>
+        <div style="font-size:11px;color:#555;margin-top:2px;">이 블록 선택 후 중앙 패널로 블록 추가</div>
       </div>
     </div>`;
 
@@ -244,18 +240,6 @@ export function showAssetProperties(ab) {
     const on = e.target.checked;
     ab.dataset.overlay = on ? 'true' : 'false';
     document.getElementById('asset-overlay-controls').style.display = on ? '' : 'none';
-    // 첫 활성화 시 기본 텍스트 블록 자동 추가
-    if (on && !overlayEl.querySelector('.overlay-tb')) {
-      const tb = document.createElement('div');
-      tb.className = 'text-block overlay-tb';
-      tb.dataset.type = 'heading';
-      tb.id = 'tb_' + Math.random().toString(36).slice(2, 9);
-      tb.innerHTML = `<div class="tb-h2" contenteditable="false" style="font-size:32px;text-align:center"></div>`;
-      overlayEl.appendChild(tb);
-      tb._blockBound = false;
-      window.bindBlock(tb);
-      window.buildLayerPanel();
-    }
     window.pushHistory();
   });
 
@@ -281,27 +265,6 @@ export function showAssetProperties(ab) {
     });
   });
 
-  // 텍스트 추가/제거
-  document.getElementById('overlay-add-text-btn').addEventListener('click', () => {
-    const tb = document.createElement('div');
-    tb.className = 'text-block overlay-tb';
-    tb.dataset.type = 'body';
-    tb.id = 'tb_' + Math.random().toString(36).slice(2, 9);
-    tb.innerHTML = `<div class="tb-body" contenteditable="false" style="text-align:center"></div>`;
-    overlayEl.appendChild(tb);
-    tb._blockBound = false;
-    window.bindBlock(tb);
-    window.buildLayerPanel();
-    // 추가 후 즉시 선택 & 우측 패널 표시
-    window.deselectAll();
-    tb.classList.add('selected');
-    window.showTextProperties(tb);
-    window.pushHistory();
-  });
-  document.getElementById('overlay-del-text-btn').addEventListener('click', () => {
-    const tbs = [...overlayEl.querySelectorAll('.overlay-tb')];
-    if (tbs.length > 0) { tbs[tbs.length - 1].remove(); window.buildLayerPanel(); window.pushHistory(); }
-  });
 }
 
 // Backward compat: classic scripts call these via window.*

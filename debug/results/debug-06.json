@@ -1,0 +1,142 @@
+{
+  "agent": "Agent-06",
+  "version": "2.0",
+  "part": "레이어/템플릿/브랜치/내보내기",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9334,
+  "scenarios": [
+    {
+      "id": "S1",
+      "name": "에셋 오버레이 레이어패널 표시",
+      "status": "FIXED",
+      "description": "오버레이 내 .overlay-tb와 .gap-block 모두 layer-panel에 표시되는지 검증",
+      "bugs": [
+        {
+          "id": "BUG-06-01",
+          "file": "js/layer-panel.js",
+          "function": "makeLayerAssetItem",
+          "line_range": "183-260",
+          "severity": "HIGH",
+          "description": "overlayTbs 가드조건이 .overlay-tb만 체크, .gap-block이 있어도 오버레이 자식으로 인식 안 됨. buildOverlayChildren이 querySelectorAll('.overlay-tb')로 이터레이션하여 gap-block을 완전히 누락",
+          "fix": "overlayChildren 필터를 .overlay-tb OR .gap-block으로 변경. buildOverlayChildren을 overlayEl.children DOM 순서 이터레이션으로 수정, gap-block은 makeLayerBlockItem으로 렌더"
+        }
+      ],
+      "verification": {
+        "before": "overlayDomChildren: 3개 (overlay-tb×2, gap-block×1), layerChildCount: 3개 (Overlay×3) — gap-block 누락",
+        "after": "overlayDomChildren: 3개, layerChildCount: 3개 (Overlay H, Gap, Overlay Text) — DOM 순서대로, gap-block 포함",
+        "gapBlockVisible": true
+      }
+    },
+    {
+      "id": "S2",
+      "name": "레이어패널 드래그 순서변경",
+      "status": "PASS",
+      "description": "레이어 아이템 드래그 후 캔버스 DOM 순서 변경 반영",
+      "verification": {
+        "draggableItems": 16,
+        "sectionHeadersDraggable": 2,
+        "rowHeadersDraggable": 1,
+        "layerItemsDraggable": 13,
+        "dropZoneExists": true,
+        "dragReorderTest": {
+          "before": ["gap-block", "row", "row", "row", "gap-block"],
+          "after": ["row", "gap-block", "row", "row", "gap-block"],
+          "orderChanged": true
+        }
+      }
+    },
+    {
+      "id": "S3",
+      "name": "레이어패널 블록 선택 동기화",
+      "status": "PASS",
+      "description": "레이어 클릭 → 캔버스 블록 선택, 캔버스 클릭 → 레이어 하이라이트",
+      "verification": {
+        "layerClickSelectsCanvas": true,
+        "layerItemActivated": true,
+        "canvasClickHighlightsLayer": true,
+        "hasLayerRefOnBlock": true,
+        "bothDirectionsWork": true
+      }
+    },
+    {
+      "id": "S4",
+      "name": "브랜치 전환",
+      "status": "PASS",
+      "description": "branch-system.js switchBranch 흐름 검증",
+      "verification": {
+        "currentBranch": "dev",
+        "branches": ["main", "dev"],
+        "switchBranchChecks": {
+          "savesCurrentSnapshot": true,
+          "updatesStoreCurrentName": true,
+          "savesStore": true,
+          "clearsHistory": true,
+          "appliesProjectData": true,
+          "updatesIndicator": true,
+          "applyFocusMode": true,
+          "resetsMainUnlocked": true,
+          "appliesMainLock": true,
+          "rendersBranchPanel": true,
+          "guardsSameBranch": true
+        },
+        "allChecksPass": true
+      }
+    },
+    {
+      "id": "S5",
+      "name": "내보내기 JSON",
+      "status": "PASS",
+      "description": "export.js exportDesignJSON / exportFigmaJSON 동작 검증",
+      "verification": {
+        "allExportFunctionsPresent": true,
+        "designJsonChecks": {
+          "hasSchemaField": true,
+          "hasExportedAt": true,
+          "hasCanvasWidth": true,
+          "serializesGapBlock": true,
+          "serializesTextBlock": true,
+          "serializesAssetBlock": true,
+          "serializesRows": true,
+          "serializesSections": true,
+          "createsBlob": true,
+          "triggersDownload": true
+        },
+        "figmaJsonChecks": {
+          "callsFlushCurrentPage": true,
+          "parsesBlock": true,
+          "parsesRow": true,
+          "parsesSection": true,
+          "createsBlob": true,
+          "triggersDownload": true
+        }
+      }
+    },
+    {
+      "id": "S6",
+      "name": "템플릿 시스템",
+      "status": "PASS",
+      "description": "template-system.js 모든 함수 존재 및 동작 확인",
+      "verification": {
+        "allFunctionsPresent": true,
+        "savedTemplateCount": 8,
+        "loadTemplatesReturnsArray": true
+      }
+    }
+  ],
+  "bugs_found": 2,
+  "fixes_applied": 2,
+  "unverified_fixes": 0,
+  "fix_summary": [
+    {
+      "file": "js/layer-panel.js",
+      "function": "makeLayerAssetItem / buildOverlayChildren",
+      "changes": [
+        "overlayChildren 필터: .overlay-tb만 → .overlay-tb OR .gap-block으로 확장",
+        "buildOverlayChildren: querySelectorAll('.overlay-tb') → overlayEl.children DOM 순서 이터레이션",
+        "gap-block: makeLayerBlockItem으로 렌더 후 layer-item-nested 클래스 추가",
+        "dragover/drop 핸들러: overlay-tb 전용 → overlay-tb OR gap-block으로 확장"
+      ]
+    }
+  ]
+}

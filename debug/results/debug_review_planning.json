@@ -1,0 +1,97 @@
+{
+  "agent": "Debug Squad",
+  "target": "feature/outline",
+  "method": "static",
+  "analyzed_at": "2026-03-27",
+  "bugs": [
+    {
+      "id": "BUG-01",
+      "severity": "critical",
+      "location": "js/planning.js:58-62",
+      "desc": "blocksForVolume()에서 VOLUME_LEVELS.indexOf(vol)이 -1을 반환하면 d.vol <= -1 조건이 모든 블록에서 false가 되어 빈 배열을 반환한다. 예: vol-select 값이 오염되거나 예기치 않은 문자열이 전달될 경우 전체 outline이 사라진다.",
+      "fix": "const idx = VOLUME_LEVELS.indexOf(vol); if (idx === -1) return []; 또는 idx를 0으로 fallback: const idx = Math.max(0, VOLUME_LEVELS.indexOf(vol));",
+      "code_ref": "const idx = VOLUME_LEVELS.indexOf(vol);\nreturn BLOCK_DEFS\n  .filter(d => d.vol <= idx)"
+    },
+    {
+      "id": "BUG-02",
+      "severity": "high",
+      "location": "js/planning.js:160-171",
+      "desc": "드래그앤드롭 drop 핸들러: fromIdx < toIdx 케이스에서 splice(fromIdx, 1)로 요소를 제거하면 toIdx 이후 인덱스가 1씩 당겨진다. 그 상태에서 splice(toIdx, 0, moved)를 호출하면 실제 원하는 위치의 한 칸 뒤에 삽입된다. 예: [A,B,C,D], fromIdx=0(A), toIdx=2(C) → splice 후 [B,C,D] → splice(2,0,A) → [B,C,A,D] (기대: [B,C,A,D]는 맞으나 toIdx=3(D)로 드롭 시 [B,C,D,A]가 되어야 하는데 올바르게 동작하지 않음). 정확히는 fromIdx < toIdx일 때 toIdx를 보정(toIdx - 1)해야 한다.",
+      "fix": "const correctedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;\nconst moved = state.blocks.splice(fromIdx, 1)[0];\nstate.blocks.splice(correctedToIdx, 0, moved);\nstate.selectedIdx = correctedToIdx;",
+      "code_ref": "const moved = state.blocks.splice(fromIdx, 1)[0];\nstate.blocks.splice(toIdx, 0, moved);\nstate.selectedIdx = toIdx;"
+    },
+    {
+      "id": "BUG-03",
+      "severity": "high",
+      "location": "js/planning.js:253",
+      "desc": "saveIntake() 브라우저 fallback IIFE: a.click() 이후 return { ok: true, filename: a.download }를 반환하지만 IIFE 자체가 동기적이어서 result.filename 접근은 안전하다. 그러나 URL.createObjectURL() 호출 후 URL.revokeObjectURL()을 호출하지 않아 메모리 누수가 발생한다. 저장 버튼 반복 클릭 시 Blob URL이 계속 누적된다.",
+      "fix": "const url = URL.createObjectURL(blob);\na.href = url;\na.download = `intake_${data.product_name || 'unknown'}.json`;\na.click();\nURL.revokeObjectURL(url);\nreturn { ok: true, filename: a.download };",
+      "code_ref": "const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });\nconst a = document.createElement('a');\na.href = URL.createObjectURL(blob);\na.download = `intake_${data.product_name || 'unknown'}.json`;\na.click();\nreturn { ok: true, filename: a.download };"
+    },
+    {
+      "id": "BUG-04",
+      "severity": "medium",
+      "location": "js/planning.js:229-259",
+      "desc": "saveIntake() 레이스 컨디션: btn.disabled = true 설정 후 try 블록 내에서 exception이 발생해 catch로 이동해도 catch 블록 이후 btn.textContent = '저장'과 btn.disabled = false가 실행되어 복구는 된다. 단, window.electronAPI.saveIntakeFile(data)가 reject되지 않고 result가 undefined인 경우 result.filename에서 TypeError가 발생하며 catch로 이동 — 이 경우도 finally 없이 catch → 복구라 기술적으로 안전하지만, finally 패턴이 더 견고하다.",
+      "fix": "try { ... } catch(e) { showSaveStatus(...) } finally { btn.textContent = '저장'; btn.disabled = false; } — 현재 구조는 정상 동작하나 finally 리팩토링 권장",
+      "code_ref": "try {\n  const result = ...\n  showSaveStatus(...)\n} catch (e) {\n  showSaveStatus(...)\n}\nbtn.textContent = '저장';\nbtn.disabled = false;"
+    },
+    {
+      "id": "BUG-05",
+      "severity": "medium",
+      "location": "js/planning.js:178-210",
+      "desc": "renderInspector(): state.selectedIdx가 null이거나 state.blocks 범위 밖일 때 guard 처리(line 180)가 있으나, insp-toggle / insp-layout 이벤트 핸들러 내부에서 state.blocks[state.selectedIdx]에 다시 접근한다. 이벤트 핸들러 등록 시점과 실행 시점 사이에 state.selectedIdx가 null로 변경되거나 blocks 배열이 리셋되면 state.blocks[null] → undefined → undefined.enabled 참조로 TypeError 발생 가능.",
+      "fix": "이벤트 핸들러 내부에 방어 코드 추가: const idx = state.selectedIdx; if (idx === null || !state.blocks[idx]) return;",
+      "code_ref": "$('insp-toggle').addEventListener('click', () => {\n  state.blocks[state.selectedIdx].enabled = !state.blocks[state.selectedIdx].enabled;\n  ...\n});"
+    },
+    {
+      "id": "BUG-06",
+      "severity": "medium",
+      "location": "main.js:212-223",
+      "desc": "intake:list IPC 핸들러: INTAKE_DIR은 앱 시작 시 line 200에서 mkdirSync({ recursive: true })로 생성되므로 readdirSync throw 위험은 없다. 단, INTAKE_DIR 생성 후 외부에서 디렉토리가 삭제된 경우(런타임 중 수동 삭제 등) readdirSync가 throw되어 IPC 채널이 uncaught exception으로 종료될 수 있다. ipcMain.handle 내부 throw는 renderer에서 reject로 처리되어 앱 크래시는 없지만 오류 메시지 없이 무응답 상태가 된다.",
+      "fix": "try { return fs.readdirSync(INTAKE_DIR)... } catch { return []; } 래핑 권장",
+      "code_ref": "ipcMain.handle('intake:list', () => {\n  return fs.readdirSync(INTAKE_DIR)\n    .filter(f => f.startsWith('intake_') && f.endsWith('.json'))\n    ..."
+    },
+    {
+      "id": "BUG-07",
+      "severity": "medium",
+      "location": "main.js:202-210",
+      "desc": "intake:save: data.product_name이 undefined이면 (data.product_name || 'unknown')이 'unknown'으로 fallback되므로 safeProduct 처리는 안전하다. 단, data 자체가 null/undefined인 경우 data.product_name에서 TypeError 발생. ipcRenderer에서 data가 항상 객체로 전달되나 방어 코드 부재.",
+      "fix": "const safeProduct = ((data && data.product_name) || 'unknown').replace(...)",
+      "code_ref": "const safeProduct = (data.product_name || 'unknown').replace(/[^a-zA-Z0-9가-힣_-]/g, '_');"
+    },
+    {
+      "id": "BUG-08",
+      "severity": "low",
+      "location": "main.js:213-214",
+      "desc": "intake:list JSON.parse 실패 시 catch → null 반환 → .filter(Boolean)으로 null을 걸러내는 로직은 올바르다. 추가 문제 없음 (정상 패턴으로 확인).",
+      "fix": "현재 구현 정상 — 수정 불필요",
+      "code_ref": "try {\n  const data = JSON.parse(fs.readFileSync(...))\n  return {...}\n} catch { return null; }\n.filter(Boolean)"
+    },
+    {
+      "id": "BUG-09",
+      "severity": "low",
+      "location": "js/planning.js:64-77",
+      "desc": "applyVolume(): prevSelected가 null이 아닐 때만 처리하므로 state.blocks 빈 배열 케이스는 안전하다. state.blocks가 빈 배열이면 findIndex → -1 → state.selectedIdx = null으로 처리됨. 정상 동작 확인.",
+      "fix": "현재 구현 안전 — 수정 불필요",
+      "code_ref": "const prevSelected = state.selectedIdx !== null ? state.blocks[state.selectedIdx] : null;"
+    },
+    {
+      "id": "BUG-10",
+      "severity": "low",
+      "location": "js/planning.js:90-176 / pages/planning.html:150-155",
+      "desc": "CLAUDE.md 준수 확인: .outline-block.selected { outline: 2px solid var(--ui-accent); outline-offset: 0; } — background 없음. .outline-block.drag-over { outline: 2px solid #4a9ede; outline-offset: 0; } — background 없음. 두 상태 모두 CLAUDE.md 규칙 준수 완료.",
+      "fix": "준수 확인 — 수정 불필요",
+      "code_ref": ".outline-block.selected { outline: 2px solid var(--ui-accent); outline-offset: 0; }\n.outline-block.drag-over { outline: 2px solid #4a9ede; outline-offset: 0; }"
+    }
+  ],
+  "summary_by_severity": {
+    "critical": 1,
+    "high": 2,
+    "medium": 3,
+    "low": 4,
+    "info": 0
+  },
+  "approved": false,
+  "summary": "드래그앤드롭 인덱스 off-by-one(BUG-02)과 blocksForVolume indexOf -1 방어 부재(BUG-01)가 치명적/높은 위험으로 즉시 수정 필요. saveIntake Blob URL 누수(BUG-03), Inspector 이벤트 핸들러 내 null 접근(BUG-05), intake:list 런타임 디렉토리 삭제 미처리(BUG-06)가 중간 위험. CLAUDE.md selected/drag-over 스타일 규칙은 정상 준수."
+}

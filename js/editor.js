@@ -15,7 +15,7 @@ function switchToTab(tabName) {
   const filePanel = document.getElementById('file-panel-body');
   if (filePanel) filePanel.style.display = tabName === 'file' ? 'flex' : 'none';
   document.getElementById('branch-panel-body').style.display    = tabName === 'branch'    ? '' : 'none';
-  document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? '' : 'none';
+  document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? 'flex' : 'none';
   const collapseBtn = document.getElementById('layer-collapse-all');
   if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
   if (tabName === 'branch') window.renderBranchPanel();
@@ -575,34 +575,42 @@ if (window.electronAPI) {
 
 function deselectAll() {
   clearMultiSel();
-  document.querySelectorAll('.col').forEach(c => c.classList.remove('multi-selected', 'selected'));
-  document.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected'));
-  document.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
-  document.querySelectorAll('.text-block').forEach(t => {
+  // perf(qa-perf): canvas/layerPanel 범위 한정으로 document 전체 탐색 제거
+  const canvas = canvasEl;
+  const layerPanel = document.getElementById('layer-panel-body');
+
+  // canvas 내 블록 선택 해제 (단일 querySelectorAll 순회)
+  canvas.querySelectorAll('.col').forEach(c => c.classList.remove('multi-selected', 'selected'));
+  canvas.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected'));
+  canvas.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
+  canvas.querySelectorAll('.text-block').forEach(t => {
     t.classList.remove('selected', 'editing');
     t.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable','false'));
   });
-  document.querySelectorAll('.asset-block').forEach(a => {
+  canvas.querySelectorAll('.asset-block').forEach(a => {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  document.querySelectorAll('.gap-block').forEach(g => g.classList.remove('selected'));
-  document.querySelectorAll('.icon-circle-block').forEach(b => b.classList.remove('selected'));
-  document.querySelectorAll('.label-group-block').forEach(b => {
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
     b.querySelectorAll('.label-item-text').forEach(el => el.setAttribute('contenteditable','false'));
   });
-  document.querySelectorAll('.table-block').forEach(b => {
+  canvas.querySelectorAll('.table-block').forEach(b => {
     b.classList.remove('selected');
     b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));
   });
-  document.querySelectorAll('.card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => b.classList.remove('selected'));
-  document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
-  document.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
-  document.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
-  document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
-  document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
+  canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+  canvas.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
+
+  // 레이어 패널 선택 해제
+  if (layerPanel) {
+    layerPanel.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
+    layerPanel.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
+    layerPanel.querySelectorAll('.layer-row-header').forEach(h => h.classList.remove('active'));
+  }
+
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   window.showPageProperties();
 }
@@ -875,6 +883,47 @@ window.clearMultiSel = clearMultiSel;
 window.selectSectionWithModifier = selectSectionWithModifier;
 window.selectColWithModifier = selectColWithModifier;
 window.showMultiSelPanel = showMultiSelPanel;
+
+/* ═══════════════════════════════════
+   PANEL RESIZE
+═══════════════════════════════════ */
+(function initPanelResize() {
+  const MIN_W = 180;
+  const MAX_W = 480;
+  const LS_KEY = 'panelLeftWidth';
+
+  const panel = document.getElementById('panel-left');
+  const handle = document.getElementById('panel-left-resize-handle');
+  if (!panel || !handle) return;
+
+  // 저장된 너비 복원
+  const saved = parseInt(localStorage.getItem(LS_KEY));
+  if (saved && saved >= MIN_W && saved <= MAX_W) panel.style.width = saved + 'px';
+
+  let startX, startW;
+
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = panel.offsetWidth;
+    document.body.classList.add('resizing-panel');
+
+    const onMove = e => {
+      const w = Math.min(MAX_W, Math.max(MIN_W, startW + (e.clientX - startX)));
+      panel.style.width = w + 'px';
+    };
+    const onUp = e => {
+      document.body.classList.remove('resizing-panel');
+      localStorage.setItem(LS_KEY, panel.offsetWidth);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+})();
+
+
 // 모든 모듈 로드 후 앱 초기화
 initApp();
 

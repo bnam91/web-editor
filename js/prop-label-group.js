@@ -8,6 +8,17 @@ const LABEL_STYLE_PRESETS = {
   Ghost:   { bg: 'rgba(0,0,0,0.06)', color: '#333333', border: 'none' },
 };
 
+/** 단일 label-item에 스타일 프리셋 적용 */
+function _applyPresetToItem(item, presetName) {
+  const p = LABEL_STYLE_PRESETS[presetName];
+  if (!p) return;
+  item.style.backgroundColor = p.bg;
+  item.style.color = p.color;
+  item.style.border = p.border;
+  item.dataset.bg    = p.bg;
+  item.dataset.color = p.color;
+}
+
 function showLabelGroupProperties(block, selectedItem) {
   const gap        = parseInt(block.style.gap) || 10;
   const jc         = block.style.justifyContent || 'flex-start';
@@ -162,17 +173,6 @@ function showLabelGroupProperties(block, selectedItem) {
   // ── 스타일 프리셋 드롭다운 (C17) ───────────────────────────────────
   const styleSelect = document.getElementById('lg-style-select');
   const applyAllBtn = document.getElementById('lg-apply-all-btn');
-
-  /** 단일 label-item에 스타일 프리셋 적용 */
-  function _applyPresetToItem(item, presetName) {
-    const p = LABEL_STYLE_PRESETS[presetName];
-    if (!p) return;
-    item.style.backgroundColor = p.bg;
-    item.style.color = p.color;
-    item.style.border = p.border;
-    item.dataset.bg    = p.bg;
-    item.dataset.color = p.color;
-  }
 
   // 드롭다운 변경 시 선택된 태그에만 즉시 적용
   styleSelect?.addEventListener('change', () => {

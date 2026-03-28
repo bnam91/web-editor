@@ -1,0 +1,67 @@
+{
+  "agent": "UX Squad",
+  "target": "pages/planning.html",
+  "reviewed_at": "2026-03-27",
+  "issues": [
+    {
+      "id": 1,
+      "category": "진입 흐름",
+      "severity": "medium",
+      "desc": "페이지 최초 진입 시 시각적 온보딩 단서가 없다. 왼쪽 폼(제품명·SWOT)을 먼저 채워야 하는지, 아니면 볼륨을 먼저 설정해야 하는지 우선순위가 불명확하다. intake-panel에 step 번호 또는 가이드 문구가 없고, 포커스가 제품명 인풋으로 자동 이동하지 않는다.",
+      "suggestion": "init() 함수에서 `$('inp-product').focus()` 한 줄 추가. 또는 제품명 섹션 헤더에 '① 먼저 제품 정보를 입력하세요' 같은 인라인 힌트 문구를 추가해 흐름을 명시한다."
+    },
+    {
+      "id": 2,
+      "category": "볼륨 레벨 UX",
+      "severity": "low",
+      "desc": "볼륨 드롭다운 변경 시 applyVolume() → renderOutline() 체인이 즉시 실행되므로 아웃라인은 즉각 업데이트된다(코드상 문제 없음). 단, 볼륨 변경 시 selectedIdx가 null로 리셋되어 인스펙터가 빈 상태로 전환되는데, 사용자가 방금 선택한 블록이 증발하는 느낌을 줄 수 있다.",
+      "suggestion": "볼륨 변경 후 새 블록 목록에서 이전 selectedIdx의 role/section에 해당하는 블록이 여전히 존재하면 선택 상태를 유지하도록 처리. 없을 때만 null로 초기화."
+    },
+    {
+      "id": 3,
+      "category": "저장 피드백",
+      "severity": "medium",
+      "desc": "저장 성공 시 save-status에 파일명만 표시되고 시각적 피드백이 약하다. 색상은 #3ab87a로 바뀌지만 지속 시간 제한이 없어 텍스트가 계속 남아있고, 다음 저장 전까지 상태가 오래된 정보를 보여준다. 저장 실패 메시지('저장 실패')도 원인 없이 단순 텍스트만 표시된다.",
+      "suggestion": "성공 시 3초 후 save-status를 자동으로 비워주는 setTimeout 추가. 실패 시 catch(e)의 e.message를 일부 노출하거나 '다시 시도해주세요' 문구를 추가. 버튼에 ✓ 아이콘 또는 잠깐 배경색 전환 애니메이션을 추가해 성공 피드백을 강화."
+    },
+    {
+      "id": 4,
+      "category": "빈 상태",
+      "severity": "low",
+      "desc": "인스펙터의 빈 상태 메시지('블록을 선택하면 상세 정보가 표시됩니다')는 기능 설명으로는 적절하다. 그러나 볼륨 변경 후 선택 초기화 시에도 동일 메시지가 노출되어, 사용자가 왜 인스펙터가 비었는지 맥락을 파악하기 어렵다.",
+      "suggestion": "볼륨 변경 후 인스펙터 초기화 시에는 '볼륨이 변경되었습니다. 블록을 선택해주세요.' 같이 맥락에 맞는 메시지로 분기 처리."
+    },
+    {
+      "id": 5,
+      "category": "인터랙션 발견성",
+      "severity": "high",
+      "desc": "드래그 핸들(⠿ grip)이 시각적으로 존재하지만 cursor:grab CSS만 있고 hover 시 색상 강조가 없다(기본색 #444로 어둡고 거의 보이지 않음). 토글 버튼(●/○)은 텍스트만으로 표현되어 버튼임을 인지하기 어렵다. 아웃라인 패널 상단 힌트('블록을 드래그해 순서 변경 · ● 클릭으로 켜고 끄기')는 font-size 10px·color #555로 매우 작고 어두워 읽히기 어렵다.",
+      "suggestion": "grip에 hover 시 color:#888 또는 색상 강조 추가. block-toggle에 border 또는 background를 주어 버튼임을 명확히 표현. 아웃라인 힌트 텍스트를 #777 이상의 밝기로 올리거나 font-size를 11px로 상향. 최초 1회 드래그 튜토리얼 토스트를 고려."
+    },
+    {
+      "id": 6,
+      "category": "접근성",
+      "severity": "high",
+      "desc": "여러 접근성 결함이 발견됨: (1) intake-panel의 label 요소들이 for 속성 없이 display:block으로만 사용되어 input과 프로그래밍적으로 연결되지 않음. (2) SWOT swot-item의 label도 동일 문제. (3) grip span(⠿)에 aria-label 없음. (4) block-toggle 버튼에 aria-label 없고 title만 있음(스크린리더 호환 불충분). (5) outline-block에 role='button' 또는 tabindex가 없어 키보드로 선택 불가. (6) insp-toggle / insp-layout에도 aria-label 누락.",
+      "suggestion": "각 label의 for를 대응 input id와 연결. grip에 aria-hidden='true' 추가(순수 시각 요소). block-toggle에 aria-label='${b.role} 블록 ${b.enabled ? 비활성화 : 활성화}' 추가. outline-block에 tabindex='0' 및 role='button' 추가하고 keydown Enter/Space 처리. insp-toggle·insp-layout label에 htmlFor 연결."
+    },
+    {
+      "id": 7,
+      "category": "진입 흐름 — 저장 전제조건",
+      "severity": "medium",
+      "desc": "제품명이 비어있어도 저장 버튼이 활성화되어 있고 파일명이 'intake_unknown.json'으로 저장된다. 저장 전 필수 입력값(최소 제품명) 검증이 없다.",
+      "suggestion": "saveIntake() 시작 시 product_name 미입력 여부를 체크하고, 비어있으면 inp-product에 border-color:#e06c6c 하이라이트와 함께 '제품명을 입력해주세요' 안내 후 저장 중단."
+    }
+  ],
+  "approved": false,
+  "summary": "인터랙션 발견성(grip 비가시성, 힌트 가독성)과 접근성(label-input 비연결, 키보드 접근 불가)에 high severity 이슈가 있어 현재 상태로는 통과 불가; 저장 피드백·진입 흐름·빈 상태 맥락화는 medium 수준으로 보완 권장.",
+  "verdict_detail": {
+    "volume_update_realtime": true,
+    "save_feedback_exists": true,
+    "save_feedback_quality": "weak — 타임아웃 없음, 실패 원인 미노출",
+    "empty_state_message": "기능 설명은 충분, 맥락 분기 없음",
+    "drag_visual_affordance": "grip 색상이 너무 어두워 발견성 낮음",
+    "keyboard_accessible": false,
+    "label_association": false
+  }
+}

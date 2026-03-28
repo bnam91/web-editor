@@ -12,6 +12,6 @@ export const state = {
   pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 },
   pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 }, canvas: '' }],
   currentPageId: 'page_1',
-  _suppressAutoSave: false
+  _suppressAutoSave: false,
 };
 window.state = state;

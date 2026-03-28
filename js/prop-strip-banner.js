@@ -396,56 +396,57 @@ export function showStripBannerProperties(block) {
 
   // 텍스트 행 추가/제거
   const sbbContent = block.querySelector('.sbb-content');
+  if (sbbContent) _bindSbbRowDrag(sbbContent);
 
-  const bindSbbRowDrag = (sbbContent) => {
-    // sbbRowSrc를 element에 저장해 여러 번 호출해도 동일한 상태 공유
-    [...sbbContent.children].forEach(row => {
-      if (row._sbbRowDragBound) return;
-      row._sbbRowDragBound = true;
-      row.setAttribute('draggable', 'true');
-      row.style.cursor = 'grab';
-      row.addEventListener('dragstart', e => {
-        e.stopPropagation();
-        sbbContent._sbbRowSrc = row;
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', '');
-        setTimeout(() => row.style.opacity = '0.4', 0);
-      });
-      row.addEventListener('dragend', () => { row.style.opacity = ''; sbbContent._sbbRowSrc = null; sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove()); });
-    });
-    if (sbbContent._sbbDropBound) return;
-    sbbContent._sbbDropBound = true;
-    sbbContent.addEventListener('dragover', e => {
-      e.preventDefault(); e.stopPropagation();
-      if (!sbbContent._sbbRowSrc) return;
-      sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove());
-      const rows = [...sbbContent.children].filter(el => !el.classList.contains('sbb-row-indicator'));
-      const after = rows.reduce((closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = e.clientY - box.top - box.height / 2;
-        return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
-      }, { offset: Number.NEGATIVE_INFINITY }).element;
-      const ind = document.createElement('div');
-      ind.className = 'sbb-row-indicator';
-      ind.style.cssText = 'height:2px;background:#2d6fe8;margin:2px 0;pointer-events:none';
-      if (after) sbbContent.insertBefore(ind, after);
-      else sbbContent.appendChild(ind);
-    });
-    sbbContent.addEventListener('dragleave', e => {
-      if (!sbbContent.contains(e.relatedTarget)) sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove());
-    });
-    sbbContent.addEventListener('drop', e => {
-      e.preventDefault(); e.stopPropagation();
-      if (!sbbContent._sbbRowSrc) return;
-      const ind = sbbContent.querySelector('.sbb-row-indicator');
-      if (ind) { sbbContent.insertBefore(sbbContent._sbbRowSrc, ind); ind.remove(); }
-      sbbContent._sbbRowSrc.style.opacity = '';
-      sbbContent._sbbRowSrc = null;
-      window.pushHistory();
-    });
-  };
-  if (sbbContent) bindSbbRowDrag(sbbContent);
+}
 
+/* sbb-content 행 드래그 리오더 바인딩 — showStripBannerProperties에서 분리 */
+function _bindSbbRowDrag(sbbContent) {
+  // sbbRowSrc를 element에 저장해 여러 번 호출해도 동일한 상태 공유
+  [...sbbContent.children].forEach(row => {
+    if (row._sbbRowDragBound) return;
+    row._sbbRowDragBound = true;
+    row.setAttribute('draggable', 'true');
+    row.style.cursor = 'grab';
+    row.addEventListener('dragstart', e => {
+      e.stopPropagation();
+      sbbContent._sbbRowSrc = row;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      setTimeout(() => row.style.opacity = '0.4', 0);
+    });
+    row.addEventListener('dragend', () => { row.style.opacity = ''; sbbContent._sbbRowSrc = null; sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove()); });
+  });
+  if (sbbContent._sbbDropBound) return;
+  sbbContent._sbbDropBound = true;
+  sbbContent.addEventListener('dragover', e => {
+    e.preventDefault(); e.stopPropagation();
+    if (!sbbContent._sbbRowSrc) return;
+    sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove());
+    const rows = [...sbbContent.children].filter(el => !el.classList.contains('sbb-row-indicator'));
+    const after = rows.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = e.clientY - box.top - box.height / 2;
+      return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+    const ind = document.createElement('div');
+    ind.className = 'sbb-row-indicator';
+    ind.style.cssText = 'height:2px;background:#2d6fe8;margin:2px 0;pointer-events:none';
+    if (after) sbbContent.insertBefore(ind, after);
+    else sbbContent.appendChild(ind);
+  });
+  sbbContent.addEventListener('dragleave', e => {
+    if (!sbbContent.contains(e.relatedTarget)) sbbContent.querySelectorAll('.sbb-row-indicator').forEach(el => el.remove());
+  });
+  sbbContent.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation();
+    if (!sbbContent._sbbRowSrc) return;
+    const ind = sbbContent.querySelector('.sbb-row-indicator');
+    if (ind) { sbbContent.insertBefore(sbbContent._sbbRowSrc, ind); ind.remove(); }
+    sbbContent._sbbRowSrc.style.opacity = '';
+    sbbContent._sbbRowSrc = null;
+    window.pushHistory();
+  });
 }
 
 

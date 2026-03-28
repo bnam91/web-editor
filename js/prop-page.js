@@ -7,7 +7,6 @@ export function showPageProperties() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   const { bg, gap, padX, padY } = state.pageSettings;
   propPanel.innerHTML = `
-    <p class="prop-hint">블록을 선택하면 속성이 표시됩니다</p>
     <div class="prop-section">
       <div class="prop-block-label">
         <div class="prop-block-icon">

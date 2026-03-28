@@ -1,0 +1,92 @@
+{
+  "agent": "Agent-05-pixel",
+  "version": "2.0",
+  "part": "grid-pixel-init",
+  "ts": "2026-03-27T00:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9335,
+  "scenarios": [
+    {
+      "id": "GP-01",
+      "title": "2×2 그리드 추가 시 gridTemplateRows 픽셀 설정 확인",
+      "status": "PASS",
+      "details": {
+        "gridTemplateRows": "repeat(2, 424px)",
+        "hasPixelValue": true,
+        "allAspectRatioEmpty": true,
+        "layout": "grid",
+        "colCount": 4,
+        "rowWidth": 860
+      },
+      "note": "addRowBlock(2,2) 후 rAF 완료 시 repeat(2, 424px) 정상 설정. aspectRatio 모두 빈값."
+    },
+    {
+      "id": "GP-02",
+      "title": "2×1 그리드(flex)는 gridTemplateRows 없이 동작",
+      "status": "PASS",
+      "details": {
+        "layout": "flex",
+        "gridTemplateRows": "",
+        "gridTemplateRowsEmpty": true,
+        "allAspectRatioEmpty": true,
+        "colCount": 2
+      },
+      "note": "addRowBlock(2,1) → layout=flex, gridTemplateRows 빈값, aspectRatio 빈값 모두 정상."
+    },
+    {
+      "id": "GP-03",
+      "title": "높이 슬라이더로 자유롭게 높이 변경",
+      "status": "PASS",
+      "details": {
+        "gridTemplateRows": "repeat(2, 244px)",
+        "containsPx": true,
+        "dataRowHeight": "500",
+        "allAspectRatioEmpty": true
+      },
+      "note": "applyRowHeight(500) 슬라이더 trigger 후 repeat(2, 244px) 적용. 500px = 2×244 + gap(12). aspectRatio 없음."
+    },
+    {
+      "id": "GP-04",
+      "title": "그리드 피커에서 2×2 선택 시 픽셀 기반 초기 크기",
+      "status": "PASS",
+      "details": {
+        "layout": "grid",
+        "gridTemplateRows": "repeat(2, 860px)",
+        "containsPx": true,
+        "allAspectRatioEmpty": true,
+        "colCount": 4
+      },
+      "note": "flex row에서 피커 2×2 클릭 → repeat(2, 860px) 픽셀 적용. offsetWidth=860 기반 정사각형 계산."
+    },
+    {
+      "id": "GP-05",
+      "title": "그리드 피커에서 3×3 선택 시 gridTemplateRows 초기값 없음",
+      "status": "PASS",
+      "details": {
+        "layout": "grid",
+        "gridTemplateRows": "",
+        "gridTemplateRowsEmpty": true,
+        "allAspectRatioEmpty": true,
+        "colCount": 9,
+        "dataRowHeight": "(없음)"
+      },
+      "note": "수정 후 PASS. 3×3 선택(dataset.rowHeight 없는 새 row) 시 gridTemplateRows 빈값(auto) 정상.",
+      "fix_applied": true
+    }
+  ],
+  "bugs_found": 1,
+  "fixes_applied": 1,
+  "unverified_fixes": 0,
+  "bug_details": [
+    {
+      "id": "BUG-GP05",
+      "file": "js/prop-row.js",
+      "line": 355,
+      "description": "그리드 피커 클릭 핸들러의 '높이 반응형 조정' 블록에서 curH 계산 시 `|| rowEl.offsetHeight` fallback을 사용해 dataset.rowHeight가 없는 새 row(3×3 등)에서도 offsetHeight 기반 픽셀값이 설정됨. 3×3 이상은 초기 gridTemplateRows가 빈값이어야 하는데 repeat(3, 864px) 등이 설정되는 버그.",
+      "fix": "curH 계산에서 `|| rowEl.offsetHeight` fallback 제거. dataset.rowHeight 명시값이 있을 때만 재계산 실행.",
+      "before": "const curH = parseInt(rowEl.dataset.rowHeight) || rowEl.offsetHeight || 0;",
+      "after": "const curH = parseInt(rowEl.dataset.rowHeight) || 0;"
+    }
+  ],
+  "summary": "5개 시나리오 모두 PASS. GP-05에서 버그 1건 발견 및 수정. prop-row.js 355줄 offsetHeight fallback 제거로 3x3 이상 그리드 초기값 빈값 보장."
+}

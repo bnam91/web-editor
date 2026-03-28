@@ -22,6 +22,32 @@ import {
    BLOCK FACTORY — make* / add* / addSection
 ═══════════════════════════════════ */
 
+/* ── 오버레이 삽입 헬퍼 ── */
+function getSelectedOverlay() {
+  const ab = document.querySelector('.asset-block.selected[data-overlay="true"]');
+  return ab ? ab.querySelector('.asset-overlay') : null;
+}
+
+function insertIntoOverlay(overlay, el) {
+  const sel = overlay.querySelector('.row.row-active')
+    || overlay.querySelector('.text-block.selected, .gap-block.selected');
+  if (sel) {
+    const ref = sel.classList.contains('row') ? sel : (sel.closest('.row') || sel);
+    ref.after(el);
+  } else {
+    overlay.appendChild(el);
+  }
+}
+
+function getOverlayAlign(overlay) {
+  const firstContent = overlay.querySelector('.overlay-tb [class^="tb-"]');
+  if (firstContent?.style.textAlign) return firstContent.style.textAlign;
+  const firstLabel = overlay.querySelector('.overlay-tb');
+  if (firstLabel?.style.textAlign) return firstLabel.style.textAlign;
+  return null;
+}
+
+
 function makeTextBlock(type) {
   const classMap  = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label' };
   const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
@@ -37,7 +63,7 @@ function makeTextBlock(type) {
   tb.className = 'text-block'; tb.dataset.type = dataType;
   tb.id = genId('tb');
   tb.innerHTML = `
-    <div class="${classMap[type]}" contenteditable="false">${placeholder[type]}</div>`;
+    <div class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif">${placeholder[type]}</div>`;
 
   col.appendChild(tb);
   row.appendChild(col);
@@ -167,6 +193,25 @@ function makeTableBlock() {
 }
 
 function addTextBlock(type) {
+  // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
+  const overlay = getSelectedOverlay();
+  if (overlay) {
+    window.pushHistory();
+    const { row, block } = makeTextBlock(type);
+    block.classList.add('overlay-tb');
+    // 오버레이 내 기존 정렬 상속
+    const overlayAlign = getOverlayAlign(overlay);
+    if (overlayAlign) {
+      const contentEl = block.querySelector('[class^="tb-"]');
+      if (type === 'label') block.style.textAlign = overlayAlign;
+      else if (contentEl) contentEl.style.textAlign = overlayAlign;
+    }
+    insertIntoOverlay(overlay, row);
+    bindBlock(block);
+    window.buildLayerPanel();
+    return;
+  }
+
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
@@ -176,11 +221,8 @@ function addTextBlock(type) {
   const align = getSectionAlign(sec);
   if (align) {
     const contentEl = block.querySelector('[class^="tb-"]');
-    if (type === 'label') {
-      block.style.textAlign = align;
-    } else if (contentEl) {
-      contentEl.style.textAlign = align;
-    }
+    if (type === 'label') block.style.textAlign = align;
+    else if (contentEl) contentEl.style.textAlign = align;
   }
 
   insertAfterSelected(sec, row);
@@ -233,6 +275,45 @@ function groupSelectedBlocks() {
 }
 
 function addRowBlock(cols = 2, rows = 1) {
+  // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
+  const overlay = getSelectedOverlay();
+  if (overlay) {
+    window.pushHistory();
+    const ab = overlay.closest('.asset-block');
+    const containerW = ab ? ab.offsetWidth : 860;
+    const totalCols = cols * rows;
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.id = genId('row');
+    row.dataset.ratioStr = `${cols}*${rows}`;
+    const INIT_PX = Math.round(containerW / cols);
+    if (rows > 1) {
+      row.dataset.layout = 'grid';
+      row.style.display = 'grid';
+      row.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      row.style.gridTemplateRows = `repeat(${rows}, ${INIT_PX}px)`;
+      row.dataset.rowHeight = String(INIT_PX * rows + (rows - 1) * 12);
+      row.style.gap = '12px';
+      row.dataset.gap = '12';
+    } else {
+      row.dataset.layout = 'flex';
+      row.style.minHeight = INIT_PX + 'px';
+      row.style.gap = '12px';
+      row.dataset.gap = '12';
+    }
+    for (let i = 0; i < totalCols; i++) {
+      const col = document.createElement('div');
+      col.className = 'col';
+      if (rows === 1) { col.style.flex = '1'; col.dataset.flex = '1'; }
+      col.appendChild(window.makeColPlaceholder(col));
+      row.appendChild(col);
+    }
+    insertIntoOverlay(overlay, row);
+    window.buildLayerPanel();
+    document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+    row.classList.add('row-active');
+    return;
+  }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
@@ -417,6 +498,16 @@ function addAssetBlock(preset) {
 }
 
 function addGapBlock() {
+  // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
+  const overlay = getSelectedOverlay();
+  if (overlay) {
+    window.pushHistory();
+    const gb = makeGapBlock();
+    insertIntoOverlay(overlay, gb);
+    bindBlock(gb);
+    window.buildLayerPanel();
+    return;
+  }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();

@@ -1,0 +1,41 @@
+{
+  "agent": "QA-03",
+  "version": "1.0",
+  "part": "카드/테이블/그래프",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "static",
+  "checks": [
+    {
+      "id": "QA-03-001",
+      "name": "카드 블록 생성 및 편집",
+      "status": "PASS",
+      "detail": "block-factory.js L484-494: makeCardBlock() 함수 존재, cdb-title/cdb-desc contenteditable='false' 구조 확인. block-factory.js L696: card-block 선택/바인딩 목록 포함. prop-card.js 별도 파일로 편집 패널 구현."
+    },
+    {
+      "id": "QA-03-002",
+      "name": "테이블 데이터 입력",
+      "status": "PASS",
+      "detail": "block-factory.js L154-173: makeTableBlock() 함수 존재. tb-table 구조에 text-align:center 셀 7행 기본 데이터 생성 확인. prop-table.js 별도 파일로 데이터 편집 패널 구현."
+    },
+    {
+      "id": "QA-03-003",
+      "name": "그래프 프리셋 변경",
+      "status": "PASS",
+      "detail": "prop-graph.js L4-5: chartType(bar-v/bar-h)과 preset 속성 관리. L10: presets 배열 정의. L54-91: 프리셋 버튼 렌더링 및 block.dataset.preset 업데이트 로직 확인."
+    },
+    {
+      "id": "QA-03-004",
+      "name": "Undo 동작",
+      "status": "PASS",
+      "detail": "editor.js L73-82: historyStack/historyPos 기반 Undo/Redo 구현. L122-129: undo() 함수 정의, historyPos 감소 후 restoreSnapshot() 호출. L86-97: 버튼 disabled 상태 업데이트 포함."
+    },
+    {
+      "id": "QA-03-005",
+      "name": "기본 폰트 Pretendard (신규 프로젝트)",
+      "status": "FAIL",
+      "detail": "design-system.js에서 Pretendard 기본 fontFamily 설정 미발견. index.html에서 Pretendard가 ds-base-select의 option으로만 등재(L507, L516). 신규 프로젝트 생성 시 자동으로 Pretendard가 적용되는 코드(save-load.js 기본값 or design-system.js applyBase 기본값)를 정적 분석으로 확인하지 못함. 런타임 검증 필요."
+    }
+  ],
+  "failed": 1,
+  "passed": 4
+}

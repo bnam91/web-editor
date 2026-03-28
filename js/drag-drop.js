@@ -13,6 +13,10 @@ import {
    DRAG AND DROP — state & event binding
 ═══════════════════════════════════ */
 
+// perf(qa-perf): 드래그 중 autoSave MutationObserver 트리거 억제 헬퍼
+function _suppressDragSave() { state._suppressAutoSave = true; }
+function _resumeDragSave()   { state._suppressAutoSave = false; }
+
 let dragSrc = null;
 let layerDragSrc = null;
 let sectionDragSrc = null;
@@ -107,6 +111,7 @@ function bindGroupDrag(groupEl) {
   label.setAttribute('draggable', 'true');
   label.addEventListener('dragstart', e => {
     e.stopPropagation();
+    _suppressDragSave();
     dragSrc = groupEl;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
@@ -118,6 +123,7 @@ function bindGroupDrag(groupEl) {
     requestAnimationFrame(() => groupEl.classList.add('dragging'));
   });
   label.addEventListener('dragend', () => {
+    _resumeDragSave();
     groupEl.classList.remove('dragging');
     clearDropIndicators();
     dragSrc = null;
@@ -132,6 +138,7 @@ function bindSectionDrag(sec) {
 
   label.addEventListener('dragstart', e => {
     e.stopPropagation();
+    _suppressDragSave();
     sectionDragSrc = sec;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
@@ -143,6 +150,7 @@ function bindSectionDrag(sec) {
     requestAnimationFrame(() => sec.classList.add('section-dragging'));
   });
   label.addEventListener('dragend', () => {
+    _resumeDragSave();
     sec.classList.remove('section-dragging');
     clearSectionIndicators();
     sectionDragSrc = null;
@@ -668,6 +676,7 @@ function bindBlock(block) {
     dragTarget.addEventListener('dragstart', e => {
       if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
+      _suppressDragSave();
       dragSrc = dragTarget;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
@@ -680,6 +689,7 @@ function bindBlock(block) {
       requestAnimationFrame(() => dragTarget.classList.add('dragging'));
     });
     dragTarget.addEventListener('dragend', () => {
+      _resumeDragSave();
       dragTarget.classList.remove('dragging');
       clearDropIndicators();
       dragSrc = null;

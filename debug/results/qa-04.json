@@ -1,0 +1,41 @@
+{
+  "agent": "QA-04",
+  "version": "1.0",
+  "part": "저장/로드/브랜치/히스토리",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "static",
+  "checks": [
+    {
+      "id": "QA-04-001",
+      "name": "자동저장 동작",
+      "status": "PASS",
+      "detail": "save-load.js L6: SAVE_KEY 정의. L8: autoSaveTimer 변수. L722-723: clearTimeout(autoSaveTimer) + setTimeout으로 debounce 자동저장 구현. L731: MutationObserver(scheduleAutoSave)로 캔버스 변경 감지. L845: canvasEl에 Observer 연결 확인."
+    },
+    {
+      "id": "QA-04-002",
+      "name": "Undo/Redo 동작",
+      "status": "PASS",
+      "detail": "editor.js: historyStack 기반 undo()/redo() 함수 구현 완료. undo-btn/redo-btn DOM 요소와 연결된 _updateUndoRedoBtns() 호출로 버튼 상태 동기화."
+    },
+    {
+      "id": "QA-04-003",
+      "name": "브랜치 전환",
+      "status": "PASS",
+      "detail": "branch-system.js L13-22: getBranchKey(), loadBranchStore() 구현. L38-74: initBranchStore()에서 proj.branches 로드 후 snapshot 복원. L80-92: updateBranchIndicator()로 branch-name/branch-indicator UI 동기화. L95: toggleBranchDropdown() 구현."
+    },
+    {
+      "id": "QA-04-004",
+      "name": "페이지 헤더 '+' 버튼 (피그마 스타일)",
+      "status": "FAIL",
+      "detail": "file-page-section.js L148-151: addBtn.className='file-page-add', textContent='+ 페이지 추가' 텍스트 버튼 방식. 피그마 스타일(아이콘 전용 '+' 버튼, 페이지 탭 헤더 우측)이 아닌 텍스트 포함 버튼으로 구현됨. 검수 대상 '피그마 스타일 페이지 추가 버튼'과 불일치 가능성 있음. 시각적 확인 필요."
+    },
+    {
+      "id": "QA-04-005",
+      "name": "패딩/간격 슬라이더 저장/복원",
+      "status": "PASS",
+      "detail": "save-load.js L295/302: 신규 프로젝트 기본값 pageSettings: { gap: 100, padX: 32, padY: 32 } 설정. L587-598: loadPage 시 padX/padY 값으로 tb.style.padding 복원 로직 확인."
+    }
+  ],
+  "failed": 1,
+  "passed": 4
+}

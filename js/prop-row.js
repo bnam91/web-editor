@@ -2,7 +2,7 @@
    ROW PROPERTIES PANEL
 ═══════════════════════════════════ */
 
-const propPanel = document.querySelector('#panel-right .panel-body');
+import { propPanel } from './globals.js';
 
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';
@@ -117,7 +117,6 @@ function showRowProperties(rowEl) {
       <div class="prop-section-title">컬럼 비율</div>
       ${colRatioHTML}
     </div>
-    ${layout !== 'stack' ? `
     <div class="prop-section">
       <div class="prop-section-title">그리드 크기</div>
       <div class="grid-picker" id="row-grid-picker"></div>
@@ -130,18 +129,18 @@ function showRowProperties(rowEl) {
         <input type="range" class="prop-slider" id="row-height-slider" min="${minRowHeight}" max="1200" step="8" value="${rowHeight}">
         <input type="number" class="prop-number" id="row-height-number" min="${minRowHeight}" max="1200" value="${rowHeight || ''}" placeholder="auto">
       </div>
+      ${layout !== 'stack' ? `
       <div class="prop-row">
         <span class="prop-label">gap</span>
         <input type="range" class="prop-slider" id="row-gap-slider" min="0" max="80" step="4" value="${currentGap}">
         <input type="number" class="prop-number" id="row-gap-number" min="0" max="80" value="${currentGap}">
-      </div>
+      </div>` : ''}
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="row-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
       </div>
     </div>
-    ` : ''}
     `;
 
   if (window.setRpIdBadge) window.setRpIdBadge(rowEl.id);
@@ -275,94 +274,100 @@ function showRowProperties(rowEl) {
 
   /* ── Grid 크기 피커 ── */
   if (layout !== 'stack') {
-    const picker = document.getElementById('row-grid-picker');
-    const pickerLabel = document.getElementById('row-grid-picker-label');
-    const MAX = 4;
+    _bindGridPicker(rowEl, gridRowCount);
+  }
+}
 
-    for (let r = 1; r <= MAX; r++) {
-      for (let c = 1; c <= MAX; c++) {
-        const cell = document.createElement('div');
-        cell.className = 'grid-picker-cell';
-        cell.dataset.r = r;
-        cell.dataset.c = c;
-        picker.appendChild(cell);
-      }
+/* Grid 크기 피커 이벤트 바인딩 — showRowProperties에서 분리 */
+function _bindGridPicker(rowEl, prevGridRowCount) {
+  const picker = document.getElementById('row-grid-picker');
+  const pickerLabel = document.getElementById('row-grid-picker-label');
+  const MAX = 4;
+
+  for (let r = 1; r <= MAX; r++) {
+    for (let c = 1; c <= MAX; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-picker-cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      picker.appendChild(cell);
     }
+  }
 
-    const highlight = (maxR, maxC) => {
-      picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
-        cl.classList.toggle('active', parseInt(cl.dataset.r) <= maxR && parseInt(cl.dataset.c) <= maxC);
-      });
-    };
-
-    picker.addEventListener('mouseover', e => {
-      const cell = e.target.closest('.grid-picker-cell');
-      if (!cell) return;
-      const r = parseInt(cell.dataset.r), c = parseInt(cell.dataset.c);
-      highlight(r, c);
-      pickerLabel.textContent = `${c} × ${r}`;
+  const highlight = (maxR, maxC) => {
+    picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
+      cl.classList.toggle('active', parseInt(cl.dataset.r) <= maxR && parseInt(cl.dataset.c) <= maxC);
     });
-    picker.addEventListener('mouseleave', () => {
-      picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
-      pickerLabel.textContent = '—';
-    });
+  };
 
-    picker.addEventListener('click', e => {
-      const cell = e.target.closest('.grid-picker-cell');
-      if (!cell) return;
-      const targetCols = parseInt(cell.dataset.c);
-      const targetRows = parseInt(cell.dataset.r);
-      const totalNeeded = targetCols * targetRows;
-      const curCols = [...rowEl.querySelectorAll(':scope > .col')];
-      if (curCols.length < totalNeeded) {
-        for (let i = curCols.length; i < totalNeeded; i++) {
-          const col = document.createElement('div');
-          col.className = 'col';
-          col.appendChild(window.makeColPlaceholder(col));
-          rowEl.appendChild(col);
-        }
-      } else {
-        for (let i = curCols.length - 1; i >= totalNeeded; i--) curCols[i].remove();
-      }
-      /* layout/display 동기화 */
-      if (targetRows > 1) {
-        rowEl.dataset.layout = 'grid';
-        rowEl.style.display = 'grid';
-      } else {
-        rowEl.dataset.layout = 'flex';
-        rowEl.style.display = '';
-        rowEl.style.gridTemplateRows = '';
-      }
-      rowEl.style.gridTemplateColumns = `repeat(${targetCols}, 1fr)`;
-      /* flex 단일행은 col flex 값 초기화 */
-      if (targetRows === 1) {
-        [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
-      }
-      /* 부모 높이 고정, 새 행 수에 맞게 분배 */
-      const gap = parseInt(rowEl.dataset.gap) || 0;
-      /* 현재 총 높이: dataset.rowHeight → offsetHeight → minHeight → 기본값(430) */
-      const fixedH = parseInt(rowEl.dataset.rowHeight)
-        || rowEl.offsetHeight
-        || parseInt(rowEl.style.minHeight)
-        || Math.round(860 / targetCols);
-      const minH = targetRows * 80 + (targetRows - 1) * gap;
-      const totalH = Math.max(minH, fixedH);
-      const perRow = Math.round((totalH - (targetRows - 1) * gap) / targetRows);
+  picker.addEventListener('mouseover', e => {
+    const cell = e.target.closest('.grid-picker-cell');
+    if (!cell) return;
+    const r = parseInt(cell.dataset.r), c = parseInt(cell.dataset.c);
+    highlight(r, c);
+    pickerLabel.textContent = `${c} × ${r}`;
+  });
+  picker.addEventListener('mouseleave', () => {
+    picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
+    pickerLabel.textContent = '—';
+  });
 
-      if (targetRows > 1) {
-        rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRow}px)`;
-        rowEl.style.minHeight = '';
-      } else {
-        rowEl.style.gridTemplateRows = '';
-        rowEl.style.minHeight = totalH + 'px';
+  picker.addEventListener('click', e => {
+    const cell = e.target.closest('.grid-picker-cell');
+    if (!cell) return;
+    const targetCols = parseInt(cell.dataset.c);
+    const targetRows = parseInt(cell.dataset.r);
+    const totalNeeded = targetCols * targetRows;
+    const curCols = [...rowEl.querySelectorAll(':scope > .col')];
+    if (curCols.length < totalNeeded) {
+      for (let i = curCols.length; i < totalNeeded; i++) {
+        const col = document.createElement('div');
+        col.className = 'col';
+        col.appendChild(window.makeColPlaceholder(col));
+        rowEl.appendChild(col);
       }
-      rowEl.dataset.rowHeight = String(totalH);
-      rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
+    } else {
+      for (let i = curCols.length - 1; i >= totalNeeded; i--) curCols[i].remove();
+    }
+    /* layout/display 동기화 */
+    if (targetRows > 1) {
+      rowEl.dataset.layout = 'grid';
+      rowEl.style.display = 'grid';
+    } else {
+      rowEl.dataset.layout = 'flex';
+      rowEl.style.display = '';
+      rowEl.style.gridTemplateRows = '';
+    }
+    rowEl.style.gridTemplateColumns = `repeat(${targetCols}, 1fr)`;
+    /* flex 단일행은 col flex 값 초기화 */
+    if (targetRows === 1) {
+      [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
+    }
+    /* 부모 높이 고정, 새 행 수에 맞게 분배 */
+    const gap = parseInt(rowEl.dataset.gap) || 0;
+    /* 현재 총 높이: dataset.rowHeight → offsetHeight → minHeight → 기본값(430) */
+    const fixedH = parseInt(rowEl.dataset.rowHeight)
+      || rowEl.offsetHeight
+      || parseInt(rowEl.style.minHeight)
+      || Math.round(860 / targetCols);
+    const minH = targetRows * 80 + (targetRows - 1) * gap;
+    const totalH = Math.max(minH, fixedH);
+    const perRow = Math.round((totalH - (targetRows - 1) * gap) / targetRows);
 
-      buildLayerPanel();
-      showRowProperties(rowEl);
-      window.pushHistory();
-    });
+    if (targetRows > 1) {
+      rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRow}px)`;
+      rowEl.style.minHeight = '';
+    } else {
+      rowEl.style.gridTemplateRows = '';
+      rowEl.style.minHeight = totalH + 'px';
+    }
+    rowEl.dataset.rowHeight = String(totalH);
+    rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
+
+    buildLayerPanel();
+    showRowProperties(rowEl);
+    window.pushHistory();
+  });
   }
 }
 
@@ -386,7 +391,7 @@ function applyRowLayoutDirect(rowEl, newLayout) {
     rowEl.style.display = '';
     rowEl.style.gridTemplateColumns = '';
     // 최소 2컬럼
-    if (existingCols.length < 2) rowEl.appendChild(makeEmptyCol('1'));
+    if (existingCols.length < 2) rowEl.appendChild(window.makeEmptyCol('1'));
     [...rowEl.querySelectorAll(':scope > .col')].forEach(col => {
       const v = col.dataset.flex || '1';
       col.style.flex = v;
@@ -399,7 +404,7 @@ function applyRowLayoutDirect(rowEl, newLayout) {
     rowEl.dataset.layout = 'grid';
     rowEl.style.display = 'grid';
     // 최소 2컬럼
-    if (existingCols.length < 2) rowEl.appendChild(makeEmptyCol(null));
+    if (existingCols.length < 2) rowEl.appendChild(window.makeEmptyCol(null));
     [...rowEl.querySelectorAll(':scope > .col')].forEach(col => { col.style.flex = ''; });
     const count = rowEl.querySelectorAll(':scope > .col').length;
     rowEl.style.gridTemplateColumns = `repeat(${count}, 1fr)`;

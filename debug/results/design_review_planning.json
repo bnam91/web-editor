@@ -1,0 +1,149 @@
+{
+  "agent": "Design Squad",
+  "target": "pages/planning.html",
+  "reviewed_at": "2026-03-27",
+  "issues": [
+    {
+      "id": 1,
+      "severity": "high",
+      "category": "CSS Variables",
+      "desc": "CSS 변수 미사용 — 전체 스타일이 인라인 하드코딩 값으로만 작성됨. DESIGN_SYSTEM.md의 --ui-bg-app, --ui-bg-base, --ui-border, --ui-text 등을 전혀 참조하지 않아 토큰 시스템 밖의 고립된 파일이 됨.",
+      "affected": [
+        "body { background: #1a1a1a }",
+        "#toolbar { background: #1e1e1e; border-bottom: 1px solid #2a2a2a }",
+        "#intake-panel { background: #1e1e1e }",
+        ".intake-row input { background: #252525; border: 1px solid #333 }",
+        ".back-btn { background: #252525; border: 1px solid #333 }"
+      ],
+      "suggestion": "editor.css의 :root CSS 변수를 planning.html에서도 import하거나, <link rel='stylesheet'> 로 editor.css를 포함시키고 var(--ui-bg-app) 등으로 교체할 것. 최소한 :root에 로컬 변수 블록이라도 정의해야 토큰 일관성 확보 가능."
+    },
+    {
+      "id": 2,
+      "severity": "high",
+      "category": "Selected State Design Violation",
+      "desc": "CLAUDE.md 및 DESIGN_SYSTEM.md 섹션 2에서 'selected 상태에 background 추가 금지, outline: 2px solid var(--sel-color) 방식 준수'를 명시하고 있으나, .outline-block.selected { border-color: #22c48a; background: #1a2e24; } 로 background를 함께 사용 중. 설계 원칙 직접 위반.",
+      "affected": [".outline-block.selected { border-color: #22c48a; background: #1a2e24; }"],
+      "suggestion": "selected 상태를 outline 방식으로 변경: outline: 2px solid #22c48a; outline-offset: 0; background 제거. 또는 --sel-color 변수로 교체."
+    },
+    {
+      "id": 3,
+      "severity": "high",
+      "category": "Selected State Design Violation",
+      "desc": ".outline-block.drag-over { border-color: #4a9ede; background: #1a2535; } 역시 background를 사용하는 상태 표현으로, 시스템 원칙(background 없이 outline/border만 사용)과 충돌.",
+      "affected": [".outline-block.drag-over { border-color: #4a9ede; background: #1a2535; }"],
+      "suggestion": "drag-over 상태는 border-color 변경과 outline 처리로만 표현하고 background는 제거할 것."
+    },
+    {
+      "id": 4,
+      "severity": "medium",
+      "category": "Color Consistency",
+      "desc": "#outline-panel { background: #191919 } — DESIGN_SYSTEM.md 배경 계층에 없는 값. 정의된 계층은 #1a1a1a(body) → #1e1e1e(패널) → #242424(topbar) → #252525(카드) → #2a2a2a(input)이며 #191919는 body보다 어두운 미정의 값임. 시스템 외 색상 유입.",
+      "affected": ["#outline-panel { background: #191919 }"],
+      "suggestion": "--ui-bg-app(#1a1a1a)로 교체하거나, 중앙 패널 강조를 의도한 경우 토큰에 --ui-bg-sunken: #191919 항목을 DESIGN_SYSTEM.md에 추가하고 변수로 참조."
+    },
+    {
+      "id": 5,
+      "severity": "medium",
+      "category": "Color Consistency",
+      "desc": "accent 컬러로 #22c48a(그린)를 사용하나 DESIGN_SYSTEM.md의 시맨틱 액션 토큰은 --ui-accent: #6ab0ff(블루), --ui-success: #7fc87f(그린), --ui-danger: #e06c6c(레드)로 정의되어 있음. planning.html의 그린 액션 컬러(#22c48a)는 시스템 정의 값과 다른 커스텀 값이며 변수화되지 않음.",
+      "affected": [
+        "#btn-save { background: #22c48a }",
+        ".admin-badge { color: #22c48a }",
+        ".outline-block.selected { border-color: #22c48a }",
+        ".toggle-btn.on { border-color: #22c48a; color: #22c48a }"
+      ],
+      "suggestion": "planning 전용 테마 컬러로 --planning-accent: #22c48a를 :root에 선언하고 일괄 참조하거나, DESIGN_SYSTEM.md에 planning 섹션을 추가해 공식 토큰화."
+    },
+    {
+      "id": 6,
+      "severity": "medium",
+      "category": "Font Size Hierarchy",
+      "desc": ".swot-item label { font-size: 9px } — DESIGN_SYSTEM.md 기준 label 최소값은 10px. 9px는 가독성 한계 이하이며 폰트 계층(label:10px < body:11-12px) 최솟값 위반.",
+      "affected": [".swot-item label { font-size: 9px }"],
+      "suggestion": "10px로 상향 조정. .block-layout { font-size: 9px } 도 동일 이슈로 10px 검토 필요."
+    },
+    {
+      "id": 7,
+      "severity": "medium",
+      "category": "Font Size Hierarchy",
+      "desc": ".block-layout { font-size: 9px } — 레이아웃 태그 배지가 9px로 렌더링됨. 보조 메타정보라도 최소 10px 권장.",
+      "affected": [".block-layout { font-size: 9px }"],
+      "suggestion": "font-size: 10px로 조정."
+    },
+    {
+      "id": 8,
+      "severity": "medium",
+      "category": "Figma 4원칙 — Proximity(근접)",
+      "desc": "Inspector 패널 내 insp-row 간격(margin-bottom: 12px)과 Intake 패널의 intake-row 간격(margin-bottom: 8px)이 다른 기준을 사용. 동일 역할(폼 필드 그룹)인데 간격이 불일치해 시각적 근접성 원칙이 깨짐.",
+      "affected": [".insp-row { margin-bottom: 12px }", ".intake-row { margin-bottom: 8px }"],
+      "suggestion": "폼 행 간격을 8px 또는 10px로 통일. 섹션 간 구분은 margin-bottom: 20px(현행 intake-section 값)을 유지해 그룹 내/그룹 간 근접성 차이를 명확히."
+    },
+    {
+      "id": 9,
+      "severity": "medium",
+      "category": "Figma 4원칙 — Alignment(정렬)",
+      "desc": "Toolbar 높이 42px vs projects.html titlebar 높이 44px. 2px 차이지만 앱 내 일관된 크롬 높이 기준이 없어 페이지 간 전환 시 레이아웃 점프 발생 가능.",
+      "affected": ["#toolbar { height: 42px }", "projects.html #titlebar { height: 44px }"],
+      "suggestion": "툴바/타이틀바 높이를 44px로 통일하거나, DESIGN_SYSTEM.md에 --chrome-height: 44px 토큰으로 명시."
+    },
+    {
+      "id": 10,
+      "severity": "medium",
+      "category": "Figma 4원칙 — Repetition(반복)",
+      "desc": "projects.html은 editor.css CSS 변수 시스템을 기반으로 하는 반면, planning.html은 독립된 <style> 블록으로 모든 값을 재정의. 같은 앱임에도 동일 색상(#1e1e1e 등)이 문자열로 중복 선언되어 반복 원칙(일관된 시각 언어)이 코드 레벨에서 보장되지 않음.",
+      "affected": ["planning.html 전체 <style> 블록 — editor.css 미참조"],
+      "suggestion": "editor.css를 <link>로 포함하고 planning 전용 오버라이드만 <style>에 남길 것."
+    },
+    {
+      "id": 11,
+      "severity": "low",
+      "category": "Figma 4원칙 — Contrast(대비)",
+      "desc": ".outline-hint, .block-hint { color: #555 } — #191919 배경 위의 #555 텍스트는 대비비 약 3.1:1로 WCAG AA 기준(4.5:1) 미달. 힌트 텍스트임을 감안해도 너무 낮음.",
+      "affected": [".outline-hint { color: #555 }", ".block-hint { color: #555 }"],
+      "suggestion": "--ui-text-dim(#555555) 대신 --ui-text-muted(#777777)로 상향하거나 배경을 #1e1e1e로 올려 대비비 확보."
+    },
+    {
+      "id": 12,
+      "severity": "low",
+      "category": "CSS Variables",
+      "desc": "planning.js 내 saveIntake() 함수에서 $('save-status').style.color = '#3ab87a' (성공) 및 '#e06c6c' (오류)를 JS 하드코딩으로 직접 주입. 이 색상들은 DESIGN_SYSTEM.md의 --ui-success, --ui-danger와 유사하지만 변수 참조 없이 리터럴로 작성됨.",
+      "affected": [
+        "planning.js line 224: style.color = '#3ab87a'",
+        "planning.js line 227: style.color = '#e06c6c'"
+      ],
+      "suggestion": "JS에서 색상 적용 시 element.style.color 대신 CSS 클래스(e.g. .status-success, .status-error)를 토글하도록 리팩토링."
+    },
+    {
+      "id": 13,
+      "severity": "low",
+      "category": "Consistency with projects.html",
+      "desc": "projects.html의 .back-btn/버튼은 electron-app 시 padding-left 80px 기준이나 planning.html은 86px 사용. 수치 불일치.",
+      "affected": [
+        "planning.html: .electron-app #toolbar { padding-left: 86px }",
+        "projects.html: .electron-app #titlebar { padding-left: 80px }"
+      ],
+      "suggestion": "macOS traffic light 버튼 영역 기준값을 통일. 80px 또는 86px 중 하나로 맞추고 CSS 변수 또는 공통 클래스로 관리."
+    },
+    {
+      "id": 14,
+      "severity": "low",
+      "category": "Figma 4원칙 — Proximity(근접)",
+      "desc": "#btn-save:disabled { background: #2a4a3a; color: #555 } — disabled 상태의 배경 #2a4a3a는 시스템에 없는 그린 계열 tint. 비활성 상태는 통상 --ui-bg-input(#2a2a2a) + --ui-text-dim(#555)의 뉴트럴 처리가 맞음.",
+      "affected": ["#btn-save:disabled { background: #2a4a3a }"],
+      "suggestion": "background: #2a2a2a로 변경해 비활성 상태를 뉴트럴하게 처리."
+    }
+  ],
+  "summary_by_category": {
+    "css_variables": "CSS 변수 시스템을 전혀 사용하지 않아 토큰 일관성 완전 미달. editor.css import 필요.",
+    "color_consistency": "#191919(미정의 배경), #22c48a(미토큰화 accent), JS 하드코딩 색상 3건 발견.",
+    "font_hierarchy": "9px 사용 2건 — label 최솟값(10px) 위반.",
+    "figma_4principles": "Proximity: 패널 간 폼 간격 불일치 / Alignment: 툴바 높이 2px 불일치 / Repetition: CSS 변수 시스템 미공유 / Contrast: 힌트 텍스트 대비비 부족.",
+    "vs_projects_html": "배경·보더 색상 값은 동일하나, electron padding 수치 불일치, 선택 상태 background 사용 방식 위반이 핵심 차이점."
+  },
+  "critical_violation": {
+    "rule": "CLAUDE.md — 블록 선택 스타일 (변경 금지)",
+    "detail": ".outline-block.selected에 background: #1a2e24 사용 — '절대 하지 말 것: selected 상태에 background 추가하지 말 것' 항목 직접 위반"
+  },
+  "approved": false,
+  "summary": "CSS 변수 시스템 미적용 + selected 상태 background 사용(CLAUDE.md 명시 금지 항목) 2건의 high severity 위반으로 승인 불가; editor.css 연결 및 선택 상태 outline 방식 전환이 선행되어야 함."
+}
