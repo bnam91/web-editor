@@ -44,14 +44,14 @@ export function showDividerProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">여백</div>
+      <div class="prop-section-title">패딩</div>
       <div class="prop-row">
-        <span class="prop-label">상하</span>
+        <span class="prop-label">상하 패딩</span>
         <input type="range" class="prop-slider" id="dvd-pady-slider" min="0" max="120" step="4" value="${padV}">
         <input type="number" class="prop-number" id="dvd-pady-number" min="0" max="120" value="${padV}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">좌우</span>
+        <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="dvd-padx-slider" min="0" max="200" step="4" value="${padH}">
         <input type="number" class="prop-number" id="dvd-padx-number" min="0" max="200" value="${padH}">
       </div>

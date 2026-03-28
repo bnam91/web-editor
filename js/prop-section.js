@@ -148,9 +148,9 @@ function showSectionProperties(sec) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">여백</div>
+      <div class="prop-section-title">패딩</div>
       <div class="prop-row">
-        <span class="prop-label">아래 여백</span>
+        <span class="prop-label">아래 패딩</span>
         <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
         <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
       </div>
