@@ -258,14 +258,20 @@ function makeLayerAssetItem(block, dragTarget, sec) {
   };
   buildOverlayChildren();
 
-  // overlay-tb / gap-block 순서 변경 드롭존
+  // overlay-tb / gap-block 순서 변경 + 섹션 블록 ↔ 오버레이 크로스 드롭존
   // rAF throttle: getBoundingClientRect 호출 최적화
   let _overlayDragRafId = null;
   children.addEventListener('dragover', e => {
     e.preventDefault();
     e.stopPropagation();
     const dragTarget = window.layerDragSrc?._dragTarget;
-    if (!dragTarget?.classList.contains('overlay-tb') && !dragTarget?.classList.contains('gap-block')) return;
+    if (!dragTarget) return;
+    const isOverlayContent = dragTarget.classList.contains('overlay-tb') ||
+      (dragTarget.classList.contains('gap-block') && dragTarget.closest('.asset-overlay'));
+    const isSectionRow = dragTarget.classList.contains('row') &&
+      !dragTarget.closest('.asset-overlay') && dragTarget.querySelector('.text-block');
+    const isSectionGap = dragTarget.classList.contains('gap-block') && !dragTarget.closest('.asset-overlay');
+    if (!isOverlayContent && !isSectionRow && !isSectionGap) return;
     if (_overlayDragRafId) return;
     const clientY = e.clientY;
     _overlayDragRafId = requestAnimationFrame(() => {
@@ -285,15 +291,46 @@ function makeLayerAssetItem(block, dragTarget, sec) {
     e.preventDefault();
     e.stopPropagation();
     const dragEl = window.layerDragSrc?._dragTarget;
-    if (!dragEl?.classList.contains('overlay-tb') && !dragEl?.classList.contains('gap-block')) return;
-    const tbEl = dragEl;
+    if (!dragEl) return;
     const indicator = children.querySelector('.layer-drop-indicator');
-    if (indicator) {
+    const getNextOverlayChild = () => {
+      if (!indicator) return null;
       const nextItem = indicator.nextElementSibling;
-      const nextTb = nextItem?._dragTarget || null;
-      if (nextTb) overlayEl.insertBefore(tbEl, nextTb);
-      else overlayEl.appendChild(tbEl);
+      const nextTb = nextItem?._dragTarget;
+      return nextTb ? (nextTb.closest('.asset-overlay > *') || nextTb) : null;
+    };
+    const insertIntoOverlay = (el) => {
+      const nextChild = getNextOverlayChild();
+      if (nextChild) overlayEl.insertBefore(el, nextChild);
+      else overlayEl.appendChild(el);
+    };
+
+    // Cross-boundary: section row → overlay
+    if (dragEl.classList.contains('row') && !dragEl.closest('.asset-overlay')) {
+      const block = dragEl.querySelector('.text-block');
+      if (!block) { clearLayerIndicators(); return; }
+      block.classList.add('overlay-tb');
+      insertIntoOverlay(dragEl);
+      clearLayerIndicators();
+      buildLayerPanel();
+      window.pushHistory();
+      window.layerDragSrc = null;
+      return;
     }
+
+    // Cross-boundary: section gap-block → overlay
+    if (dragEl.classList.contains('gap-block') && !dragEl.closest('.asset-overlay')) {
+      insertIntoOverlay(dragEl);
+      clearLayerIndicators();
+      buildLayerPanel();
+      window.pushHistory();
+      window.layerDragSrc = null;
+      return;
+    }
+
+    // Within overlay: reorder overlay-tb / gap-block
+    if (!dragEl.classList.contains('overlay-tb') && !dragEl.classList.contains('gap-block')) return;
+    insertIntoOverlay(dragEl);
     clearLayerIndicators();
     buildLayerPanel();
     window.pushHistory();
@@ -834,17 +871,55 @@ export function buildLayerPanel() {
       if (!window.layerDragSrc) return;
       const dragTarget = window.layerDragSrc._dragTarget;
       const indicator = children.querySelector('.layer-drop-indicator');
-      if (indicator) {
+
+      const insertIntoSec = (domEl) => {
+        if (!indicator) { sectionInner.appendChild(domEl); return; }
         const nextEl = indicator.nextElementSibling;
         const nextTarget = nextEl?._dragTarget || null;
         if (nextTarget) {
-          sectionInner.insertBefore(dragTarget, nextTarget);
+          sectionInner.insertBefore(domEl, nextTarget);
         } else {
           const bottomGap = [...sectionInner.querySelectorAll(':scope > .gap-block')].at(-1);
-          if (bottomGap && bottomGap !== dragTarget) sectionInner.insertBefore(dragTarget, bottomGap);
-          else sectionInner.appendChild(dragTarget);
+          if (bottomGap && bottomGap !== domEl) sectionInner.insertBefore(domEl, bottomGap);
+          else sectionInner.appendChild(domEl);
         }
+      };
+
+      // Cross-boundary: overlay-tb → section
+      if (dragTarget?.classList.contains('overlay-tb')) {
+        dragTarget.classList.remove('overlay-tb');
+        const rowInOverlay = dragTarget.closest('.asset-overlay > .row');
+        if (rowInOverlay) {
+          insertIntoSec(rowInOverlay);
+        } else {
+          // direct overlayEl child: wrap in row
+          const newRow = document.createElement('div');
+          newRow.className = 'row'; newRow.dataset.layout = 'stack';
+          const newCol = document.createElement('div');
+          newCol.className = 'col'; newCol.dataset.width = '100';
+          newCol.appendChild(dragTarget);
+          newRow.appendChild(newCol);
+          insertIntoSec(newRow);
+        }
+        clearLayerIndicators();
+        buildLayerPanel();
+        window.pushHistory();
+        window.layerDragSrc = null;
+        return;
       }
+
+      // Cross-boundary: overlay gap-block → section
+      if (dragTarget?.classList.contains('gap-block') && dragTarget?.closest('.asset-overlay')) {
+        insertIntoSec(dragTarget);
+        clearLayerIndicators();
+        buildLayerPanel();
+        window.pushHistory();
+        window.layerDragSrc = null;
+        return;
+      }
+
+      // Normal: reorder within section
+      insertIntoSec(dragTarget);
       clearLayerIndicators();
       buildLayerPanel();
       window.layerDragSrc = null;
