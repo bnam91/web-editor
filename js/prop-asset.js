@@ -130,10 +130,7 @@ export function showAssetProperties(ab) {
             <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-end'?' active':''}" data-pos="flex-end" style="flex:1;font-size:11px">↓ 하단</button>
           </div>
         </div>
-        <div class="prop-row">
-          <button class="prop-action-btn primary" id="overlay-edit-mode-btn" style="width:100%">✎ 오버레이 편집 모드</button>
-        </div>
-        <div style="font-size:11px;color:#555;margin-top:2px;">편집 모드에서 중앙 패널로 블록 추가</div>
+        <div style="font-size:11px;color:#555;margin-top:2px;">이 블록 선택 후 중앙 패널로 블록 추가</div>
       </div>
     </div>`;
 
@@ -268,9 +265,6 @@ export function showAssetProperties(ab) {
     });
   });
 
-  document.getElementById('overlay-edit-mode-btn').addEventListener('click', () => {
-    window.enterOverlayEditMode(ab);
-  });
 }
 
 // Backward compat: classic scripts call these via window.*

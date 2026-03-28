@@ -13,6 +13,5 @@ export const state = {
   pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#969696', gap: 100, padX: 32, padY: 32 }, canvas: '' }],
   currentPageId: 'page_1',
   _suppressAutoSave: false,
-  activeOverlay: null,   // .asset-overlay element currently being edited
 };
 window.state = state;

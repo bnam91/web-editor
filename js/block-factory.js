@@ -22,10 +22,13 @@ import {
    BLOCK FACTORY — make* / add* / addSection
 ═══════════════════════════════════ */
 
-/* ── 오버레이 편집 모드: 삽입 헬퍼 ── */
-function insertIntoOverlay(el) {
-  const overlay = state.activeOverlay;
-  // 오버레이 내부에서 선택된 row 또는 gap 뒤에 삽입
+/* ── 오버레이 삽입 헬퍼 ── */
+function getSelectedOverlay() {
+  const ab = document.querySelector('.asset-block.selected[data-overlay="true"]');
+  return ab ? ab.querySelector('.asset-overlay') : null;
+}
+
+function insertIntoOverlay(overlay, el) {
   const sel = overlay.querySelector('.row.row-active')
     || overlay.querySelector('.text-block.selected, .gap-block.selected');
   if (sel) {
@@ -181,12 +184,13 @@ function makeTableBlock() {
 }
 
 function addTextBlock(type) {
-  // 오버레이 편집 모드
-  if (state.activeOverlay) {
+  // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
+  const overlay = getSelectedOverlay();
+  if (overlay) {
     window.pushHistory();
     const { row, block } = makeTextBlock(type);
     block.classList.add('overlay-tb');
-    insertIntoOverlay(row);
+    insertIntoOverlay(overlay, row);
     bindBlock(block);
     window.buildLayerPanel();
     return;
@@ -257,10 +261,11 @@ function groupSelectedBlocks() {
 }
 
 function addRowBlock(cols = 2, rows = 1) {
-  // 오버레이 편집 모드
-  if (state.activeOverlay) {
+  // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
+  const overlay = getSelectedOverlay();
+  if (overlay) {
     window.pushHistory();
-    const ab = state.activeOverlay.closest('.asset-block');
+    const ab = overlay.closest('.asset-block');
     const containerW = ab ? ab.offsetWidth : 860;
     const totalCols = cols * rows;
     const row = document.createElement('div');
@@ -289,7 +294,7 @@ function addRowBlock(cols = 2, rows = 1) {
       col.appendChild(window.makeColPlaceholder(col));
       row.appendChild(col);
     }
-    insertIntoOverlay(row);
+    insertIntoOverlay(overlay, row);
     window.buildLayerPanel();
     document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
     row.classList.add('row-active');
@@ -479,11 +484,12 @@ function addAssetBlock(preset) {
 }
 
 function addGapBlock() {
-  // 오버레이 편집 모드
-  if (state.activeOverlay) {
+  // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
+  const overlay = getSelectedOverlay();
+  if (overlay) {
     window.pushHistory();
     const gb = makeGapBlock();
-    insertIntoOverlay(gb);
+    insertIntoOverlay(overlay, gb);
     bindBlock(gb);
     window.buildLayerPanel();
     return;
