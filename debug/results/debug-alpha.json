@@ -1,0 +1,58 @@
+{
+  "agent": "Agent-α",
+  "version": "2.0",
+  "part": "피그마 표준 기능",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9334,
+  "scenarios": [
+    {
+      "id": "α-001",
+      "name": "단축키 Cmd+D (복제) 동작 확인",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "editor.js 키다운 핸들러(line 351-358)에 e.key==='d' && metaKey 분기 구현됨. copySelected() → pasteClipboard() 순서로 호출. CDP 테스트: 섹션 선택 후 Cmd+D → 섹션 수 1→2 증가 확인.",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "α-002",
+      "name": "블록 선택 후 Delete/Backspace 키로 삭제",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "editor.js line 392: isDelete = e.key==='Delete' || (e.key==='Backspace' && (e.metaKey||e.ctrlKey)). 주의: 단독 Backspace는 삭제 안 됨(의도적 설계). CDP 테스트: Delete 키로 섹션 삭제(2→1) 확인. Cmd+Backspace로 섹션 삭제(1→0) 확인.",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "α-003",
+      "name": "멀티 선택 (Shift+Click 또는 드래그 선택)",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "editor.js에 selectSectionWithModifier(), selectColWithModifier() 구현됨. Shift+Click으로 범위 선택, Cmd+Click으로 개별 토글. CDP 테스트: 3개 섹션에서 첫 번째 클릭 → 세 번째 Shift+Click → 3개 모두 multi-selected 확인.",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "α-004",
+      "name": "사이드 패널 리사이즈 핸들 — initPanelResize 구현",
+      "status": "FAIL→PASS",
+      "method": "cdp",
+      "detail": "FAIL 원인 2가지: (1) index.html에 #panel-left-resize-handle 요소 없음 → initPanelResize() IIFE가 handle 미발견으로 즉시 return. (2) editor.js에 initPanelResize 함수 자체가 존재하지 않았음. 두 문제 모두 수정 후 CDP 재검증: 드래그 +80px → 296px→376px 확인, MIN(180px)/MAX(480px) 클램프 확인, localStorage 저장 확인.",
+      "fix_applied": "1) index.html line 277에 <div id='panel-left-resize-handle'></div> 추가. 2) css/editor.css에 #panel-left position:relative, #panel-left-resize-handle 스타일, body.resizing-panel 규칙 추가. 3) editor.js에 initPanelResize IIFE 구현(MIN=180, MAX=480, LS_KEY='panelLeftWidth', mousedown/mousemove/mouseup 핸들러).",
+      "verified": true
+    },
+    {
+      "id": "α-005",
+      "name": "Esc 키 텍스트 편집 종료 동작",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "drag-drop.js line 244-250: contenteditable 요소에 keydown 리스너 바인딩, Escape 시 ev.stopPropagation()으로 전역 deselectAll() 차단 후 clicked.blur() 호출. blur 핸들러가 editing 클래스 제거 및 contenteditable=false 처리. CDP 테스트: editing=true,selected=true → Esc → editing=false,selected=true 확인(선택 유지).",
+      "fix_applied": null,
+      "verified": true
+    }
+  ],
+  "bugs_found": 2,
+  "fixes_applied": 3,
+  "unverified_fixes": 0
+}

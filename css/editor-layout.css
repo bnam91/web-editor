@@ -326,7 +326,8 @@
 .asset-block[data-overlay="true"] .asset-label {
   display: none;
 }
-.overlay-tb {
+.overlay-tb,
+.asset-overlay .gap-block {
   width: 100%;
   pointer-events: auto;
   padding: 0 !important;

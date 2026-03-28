@@ -1,0 +1,40 @@
+{
+  "agent": "QA-overlay-fix",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "cdp",
+  "tests": [
+    {
+      "id": "T1",
+      "name": "오버레이 내 갭 블록 캔버스 선택",
+      "status": "PASS",
+      "detail": "pointer-events=auto, selected=true, gapInOverlay=true"
+    },
+    {
+      "id": "T2",
+      "name": "오버레이에 모든 텍스트 타입 추가",
+      "status": "PASS",
+      "detail": "overlay-tb count=6, allHaveOverlayTbClass=true, labelInOverlay=true, types=heading,heading,heading,body,caption,label"
+    },
+    {
+      "id": "T3",
+      "name": "레이어패널 오버레이 블록 이름",
+      "status": "PASS",
+      "detail": "nestedNames=[\"Heading\",\"Body\",\"Label\",\"Gap\"], hasOverlayPrefix=false — 코드 버그 발견 및 수정: layer-panel.js의 overlayChildren 필터와 buildOverlayChildren이 row로 감싸진 overlay-tb를 감지 못하던 문제를 수정함"
+    },
+    {
+      "id": "T4",
+      "name": "라벨 블록 기본 정렬 (center 강제 없음)",
+      "status": "PASS",
+      "detail": "label block textAlign=\"\" (expected: not \"center\"), selectedSec=2"
+    },
+    {
+      "id": "T5",
+      "name": "오버레이 내 Label 정렬 상속",
+      "status": "PASS",
+      "detail": "heading align=\"center\", label inherited textAlign=\"center\" (expected: \"center\")"
+    }
+  ],
+  "passed": 5,
+  "failed": 0,
+  "note": "T3 테스트 중 버그 발견 및 수정: js/layer-panel.js의 makeLayerAssetItem overlayChildren 필터와 buildOverlayChildren 함수가 overlay 직접 자식 row 내부의 overlay-tb를 감지하지 못하는 문제. addTextBlock은 row를 overlay에 삽입하지만 레이어 패널은 직접 overlay-tb 자식만 탐색하여 중첩 항목이 표시되지 않았음. row.querySelector('.overlay-tb') 패스스루 처리 추가로 수정 완료."
+}

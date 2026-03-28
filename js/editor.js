@@ -15,7 +15,7 @@ function switchToTab(tabName) {
   const filePanel = document.getElementById('file-panel-body');
   if (filePanel) filePanel.style.display = tabName === 'file' ? 'flex' : 'none';
   document.getElementById('branch-panel-body').style.display    = tabName === 'branch'    ? '' : 'none';
-  document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? '' : 'none';
+  document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? 'flex' : 'none';
   const collapseBtn = document.getElementById('layer-collapse-all');
   if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
   if (tabName === 'branch') window.renderBranchPanel();
@@ -875,6 +875,46 @@ window.clearMultiSel = clearMultiSel;
 window.selectSectionWithModifier = selectSectionWithModifier;
 window.selectColWithModifier = selectColWithModifier;
 window.showMultiSelPanel = showMultiSelPanel;
+
+/* ═══════════════════════════════════
+   PANEL RESIZE
+═══════════════════════════════════ */
+(function initPanelResize() {
+  const MIN_W = 180;
+  const MAX_W = 480;
+  const LS_KEY = 'panelLeftWidth';
+
+  const panel = document.getElementById('panel-left');
+  const handle = document.getElementById('panel-left-resize-handle');
+  if (!panel || !handle) return;
+
+  // 저장된 너비 복원
+  const saved = parseInt(localStorage.getItem(LS_KEY));
+  if (saved && saved >= MIN_W && saved <= MAX_W) panel.style.width = saved + 'px';
+
+  let startX, startW;
+
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = panel.offsetWidth;
+    document.body.classList.add('resizing-panel');
+
+    const onMove = e => {
+      const w = Math.min(MAX_W, Math.max(MIN_W, startW + (e.clientX - startX)));
+      panel.style.width = w + 'px';
+    };
+    const onUp = e => {
+      document.body.classList.remove('resizing-panel');
+      localStorage.setItem(LS_KEY, panel.offsetWidth);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+})();
+
 // 모든 모듈 로드 후 앱 초기화
 initApp();
 

@@ -3,7 +3,7 @@
 ═══════════════════════════════════ */
 
 function renderInspectorPanel() {
-  const panel = document.getElementById('inspector-panel-body');
+  const panel = document.getElementById('inspector-stats-body');
   if (!panel) return;
 
   // ── 데이터 수집 ──

@@ -117,7 +117,6 @@ function showRowProperties(rowEl) {
       <div class="prop-section-title">컬럼 비율</div>
       ${colRatioHTML}
     </div>
-    ${layout !== 'stack' ? `
     <div class="prop-section">
       <div class="prop-section-title">그리드 크기</div>
       <div class="grid-picker" id="row-grid-picker"></div>
@@ -130,18 +129,18 @@ function showRowProperties(rowEl) {
         <input type="range" class="prop-slider" id="row-height-slider" min="${minRowHeight}" max="1200" step="8" value="${rowHeight}">
         <input type="number" class="prop-number" id="row-height-number" min="${minRowHeight}" max="1200" value="${rowHeight || ''}" placeholder="auto">
       </div>
+      ${layout !== 'stack' ? `
       <div class="prop-row">
         <span class="prop-label">gap</span>
         <input type="range" class="prop-slider" id="row-gap-slider" min="0" max="80" step="4" value="${currentGap}">
         <input type="number" class="prop-number" id="row-gap-number" min="0" max="80" value="${currentGap}">
-      </div>
+      </div>` : ''}
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="row-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
       </div>
     </div>
-    ` : ''}
     `;
 
   if (window.setRpIdBadge) window.setRpIdBadge(rowEl.id);

@@ -1,0 +1,41 @@
+{
+  "agent": "QA-01",
+  "version": "1.0",
+  "part": "텍스트/갭/구분선",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "static",
+  "checks": [
+    {
+      "id": "QA-01-001",
+      "name": "H1/H2/H3/Body/Caption/Label 타입 전환",
+      "status": "PASS",
+      "detail": "block-factory.js L26: classMap = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label' } 정상 정의. L40에서 각 타입별 placeholder 설정 확인됨."
+    },
+    {
+      "id": "QA-01-002",
+      "name": "폰트 굵기 셀렉터 (Thin 100~Black 900) — select 교체",
+      "status": "FAIL",
+      "detail": "prop-text.js L132에 여전히 <button id='txt-bold-btn'> Bold 버튼만 존재. 100~900 weight 옵션이 있는 <select> 요소 미발견. 검수 대상 기능(Bold 버튼 → select 교체)이 미구현 상태."
+    },
+    {
+      "id": "QA-01-003",
+      "name": "정렬 버튼 (좌/중/우) — 원래 stroke SVG로 복구",
+      "status": "PASS",
+      "detail": "prop-text.js L87-99: 정렬 버튼 3개 각각 fill='none' stroke='currentColor' stroke-width='1.3'의 stroke SVG 방식으로 렌더링. 복구 완료."
+    },
+    {
+      "id": "QA-01-004",
+      "name": "패딩 슬라이더 저장/복원",
+      "status": "PASS",
+      "detail": "prop-text.js L22-25: currentPadT/B/L/R 값을 tb.style에서 읽어 슬라이더 초기값으로 세팅. L426-456: 슬라이더 input 이벤트에서 tb.style.padding에 즉시 반영. 블록 상태(style inline)로 저장→복원되는 구조 정상."
+    },
+    {
+      "id": "QA-01-005",
+      "name": "라벨 추가 시 기본 정렬 center 확인",
+      "status": "PASS",
+      "detail": "block-factory.js L42: if (type === 'label') tb.style.textAlign = 'center'; 명시적 center 기본값 설정 확인됨. 알려진 버그 수정 완료."
+    }
+  ],
+  "failed": 1,
+  "passed": 4
+}

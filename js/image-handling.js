@@ -533,10 +533,11 @@ function loadImageToCircle(icb, file) {
     const circle = icb.querySelector('.icb-circle');
     icb.classList.add('has-image');
     icb.dataset.imgSrc = src;
-    // 기존 위치/크기 초기화
+    // 기존 위치/크기/포지션 초기화
     delete icb.dataset.imgW;
     delete icb.dataset.imgX;
     delete icb.dataset.imgY;
+    delete icb.dataset.imgPosition;
     circle.style.position = 'relative';
     circle.innerHTML = `
       <img class="icb-img" src="${src}" style="width:100%;height:100%;object-fit:cover;display:block;" draggable="false">

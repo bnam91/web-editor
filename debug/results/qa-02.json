@@ -1,0 +1,42 @@
+{
+  "agent": "QA-02",
+  "version": "1.0",
+  "part": "에셋/이미지/서클",
+  "ts": "2026-03-28T00:00:00.000Z",
+  "method": "static",
+  "checks": [
+    {
+      "id": "QA-02-001",
+      "name": "에셋 블록 오버레이 활성화/비활성화",
+      "status": "PASS",
+      "detail": "block-factory.js L336-339: asset-block에 data-overlay='false' 초기값 설정 + asset-overlay div 포함. prop-asset.js에 오버레이 토글 로직 존재 확인됨."
+    },
+    {
+      "id": "QA-02-002",
+      "name": "오버레이 내 블록(overlay-tb + gap-block) 레이어패널 표시",
+      "status": "PASS",
+      "detail": "layer-panel.js L180-228: makeAssetLayerItem() 함수 존재, overlay-tb를 querySelectorAll('.overlay-tb')로 수집해 레이어트리에 렌더링. L171: gap-block도 makeLayerBlockItem()으로 레이어 표시. 알려진 버그 수정 완료."
+    },
+    {
+      "id": "QA-02-003",
+      "name": "이미지 업로드",
+      "status": "PASS",
+      "detail": "prop-asset.js L47: '이미지 선택' 버튼(asset-upload-btn) 존재. L229: asset-upload-btn 클릭 시 window.triggerAssetUpload(ab) 호출. image-handling.js에서 업로드 처리 분리 구현 확인됨."
+    },
+    {
+      "id": "QA-02-004",
+      "name": "이미지 리사이즈",
+      "status": "SKIP",
+      "detail": "prop-asset.js에서 width/height 직접 리사이즈 핸들러 코드 확인 불가 (정적 분석 범위 내 리사이즈 드래그 이벤트 미발견). CDP 런타임 검증 필요."
+    },
+    {
+      "id": "QA-02-005",
+      "name": "Circle(icon-circle) 블록 동작",
+      "status": "PASS",
+      "detail": "block-factory.js L83-91: makeIconCircleBlock() 함수 정의, L454-458: addIconCircleBlock() 함수 정의. L204: 선택 가능한 블록 목록에 icon-circle-block 포함. prop-icon-circle.js별도 파일로 프로퍼티 패널 구현."
+    }
+  ],
+  "failed": 0,
+  "passed": 4,
+  "skipped": 1
+}
