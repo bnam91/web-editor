@@ -3332,7 +3332,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .graph-block.selected,
 .card-block.selected,
 .strip-banner-block.selected,
-.divider-block.selected,
+.divider-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }
 
