@@ -338,26 +338,29 @@ document.addEventListener('keydown', e => {
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
     if (e.key === 'c') {
       if (document.querySelector('.text-block.editing')) return;
-      if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       copySelected();
       return;
     }
     if (e.key === 'v') {
       if (document.querySelector('.text-block.editing')) return;
-      if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       pasteClipboard();
       return;
     }
     if (e.key === 'd') {
       if (document.querySelector('.text-block.editing')) return;
-      if (e.target.tagName === 'INPUT' || e.target.isContentEditable) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
       copySelected();
       pasteClipboard();
       return;
     }
   }
-  if (e.key === 'Escape') deselectAll();
+  if (e.key === 'Escape') {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    deselectAll();
+  }
 
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
   if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
