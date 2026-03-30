@@ -203,10 +203,19 @@ async function switchTab(id) {
   activeProjectId = id;
   history.replaceState(null, '', '?project=' + id);
 
+  // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
+  const canvasEl = document.getElementById('canvas');
+  if (canvasEl) {
+    canvasEl.querySelectorAll('.pos-dragging').forEach(ab => {
+      if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
+      if (ab._exitPosDrag)    { document.removeEventListener('click', ab._exitPosDrag); ab._exitPosDrag = null; }
+      if (ab._exitPosDragEsc) { document.removeEventListener('keydown', ab._exitPosDragEsc); ab._exitPosDragEsc = null; }
+      ab._posDragging = false;
+    });
+  }
   // 즉시 캔버스 클리어 (이전 탭 내용이 잠깐 보이지 않도록)
   // autoSaveObserver가 빈 캔버스를 파일에 덮어쓰지 않도록 억제
   state._suppressAutoSave = true;
-  const canvasEl = document.getElementById('canvas');
   if (canvasEl) canvasEl.innerHTML = '';
   // propPanel 클리어 — 이전 탭의 속성 패널 내용이 잔존하지 않도록
   const propPanel = document.querySelector('#panel-right .panel-body');
@@ -509,6 +518,14 @@ function flushCurrentPage() {
 function switchPage(pageId) {
   if (pageId === state.currentPageId) return;
   flushCurrentPage();
+  // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
+  canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging').forEach(ab => {
+    if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
+    if (ab._exitPosDrag)    { document.removeEventListener('click', ab._exitPosDrag); ab._exitPosDrag = null; }
+    if (ab._exitPosDragEsc) { document.removeEventListener('keydown', ab._exitPosDragEsc); ab._exitPosDragEsc = null; }
+    ab._posDragging = false;
+    ab.classList.remove('pos-dragging', 'img-editing');
+  });
   state._suppressAutoSave = true;
   state.currentPageId = pageId;
   const page = getCurrentPage();
@@ -635,7 +652,7 @@ function rebindAll() {
       e.stopPropagation();
       window.selectSectionWithModifier(sec, e);
       const row = e.target.closest('.row');
-      if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block')) {
+      if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
         document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
         row.classList.add('row-active');
         if (window.syncLayerRow) window.syncLayerRow(row);
@@ -695,7 +712,7 @@ function rebindAll() {
     }
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -705,6 +722,7 @@ function rebindAll() {
         : b.classList.contains('card-block') ? 'cdb'
         : b.classList.contains('strip-banner-block') ? 'sbb'
         : b.classList.contains('graph-block') ? 'grb'
+        : b.classList.contains('icon-text-block') ? 'itb'
         : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }

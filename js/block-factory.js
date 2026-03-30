@@ -83,10 +83,7 @@ function makeAssetBlock() {
   ab.dataset.align = 'center';
   ab.dataset.overlay = 'false';
   ab.style.alignSelf = 'center';
-  ab.innerHTML = `
-    ${ASSET_SVG}
-    <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-    <div class="asset-overlay"></div>`;
+  ab.innerHTML = `<div class="asset-overlay"></div>`;
 
   col.appendChild(ab);
   row.appendChild(col);
@@ -115,7 +112,7 @@ function makeIconCircleBlock() {
   icb.dataset.border = 'none';
   icb.innerHTML = `
     <div class="icb-circle" style="width:240px;height:240px;">
-      <span class="icb-placeholder">+</span>
+      <span class="icb-placeholder"></span>
     </div>`;
 
   col.appendChild(icb);
@@ -145,6 +142,45 @@ function makeLabelGroupBlock() {
   col.appendChild(block);
   row.appendChild(col);
   return { row, block };
+}
+
+function makeIconTextBlock() {
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+
+  const itb = document.createElement('div');
+  itb.className = 'icon-text-block';
+  itb.id = genId('itb');
+
+  const iconSlot = document.createElement('div');
+  iconSlot.className = 'itb-icon';
+  iconSlot.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'itb-text';
+  bodyEl.setAttribute('contenteditable', 'false');
+  bodyEl.textContent = '본문 내용을 입력하세요.';
+
+  itb.appendChild(iconSlot);
+  itb.appendChild(bodyEl);
+  col.appendChild(itb);
+  row.appendChild(col);
+  return { row, block: itb };
+}
+
+function addIconTextBlock() {
+  if (_insertToActiveCol(() => makeIconTextBlock(), true)) return;
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+  const { row, block } = makeIconTextBlock();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
+  window.buildLayerPanel();
+  window.selectSection(sec);
 }
 
 function addLabelGroupBlock() {
@@ -396,7 +432,7 @@ function makePresetRow(type) {
     ab.dataset.align = 'center';
     ab.dataset.overlay = 'false';
     ab.style.alignSelf = 'center';
-    ab.innerHTML = `${ASSET_SVG}<span class="asset-label">에셋을 업로드하거나 드래그하세요</span><div class="asset-overlay"></div>`;
+    ab.innerHTML = `<div class="asset-overlay"></div>`;
     return ab;
   };
 
@@ -610,7 +646,7 @@ function makeStripBannerBlock() {
   sbb.id = genId('sbb');
   sbb.dataset.bgColor = '#f5f5f5';
   sbb.dataset.radius = '0';
-  sbb.dataset.imgPos = 'left';
+  sbb.dataset.imgPos = 'right';
   sbb.dataset.usePadx = 'true';
   sbb.style.background = '#f5f5f5';
   sbb.innerHTML = `
@@ -731,8 +767,6 @@ function addSection() {
       <div class="row" id="${genId('row')}" data-layout="stack">
         <div class="col" data-width="100">
           <div class="asset-block" id="${genId('ab')}" data-align="center" data-overlay="false">
-            ${ASSET_SVG}
-            <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
             <div class="asset-overlay"></div>
           </div>
         </div>
@@ -805,6 +839,8 @@ window.makeGapBlock         = makeGapBlock;
 window.makeIconCircleBlock  = makeIconCircleBlock;
 window.makeLabelGroupBlock  = makeLabelGroupBlock;
 window.addLabelGroupBlock   = addLabelGroupBlock;
+window.makeIconTextBlock    = makeIconTextBlock;
+window.addIconTextBlock     = addIconTextBlock;
 window.makeTableBlock       = makeTableBlock;
 window.addTextBlock         = addTextBlock;
 window.groupSelectedBlocks  = groupSelectedBlocks;

@@ -11,11 +11,6 @@ function makeColPlaceholder(col) {
   const ph = document.createElement('div');
   ph.className = 'col-placeholder';
   ph.innerHTML = `
-    <button class="col-add-btn">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
-        <line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/>
-      </svg>
-    </button>
     <div class="col-add-menu" style="display:none">
       <button class="col-add-item" data-add="h2">Heading</button>
       <button class="col-add-item" data-add="body">Body</button>
@@ -25,15 +20,7 @@ function makeColPlaceholder(col) {
       <button class="col-add-item" data-add="asset">Asset</button>
     </div>`;
 
-  const btn  = ph.querySelector('.col-add-btn');
   const menu = ph.querySelector('.col-add-menu');
-
-  btn.addEventListener('click', e => {
-    e.stopPropagation();
-    // 다른 열린 메뉴 닫기
-    document.querySelectorAll('.col-add-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-  });
 
   ph.querySelectorAll('.col-add-item').forEach(item => {
     item.addEventListener('click', e => {
@@ -49,7 +36,7 @@ function makeColPlaceholder(col) {
         if (rowLayout !== 'grid' && rowLayout !== 'flex') ab.style.height = '460px';
         ab.innerHTML = `
           ${window.ASSET_SVG || ''}
-          <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
+          <div class="asset-overlay"></div>`;
         block = ab;
       } else {
         const { block: tb } = window.makeTextBlock(type);
@@ -258,7 +245,7 @@ function showColProperties(colEl) {
         newBlock.className = 'asset-block';
         const rowLayout = row?.dataset.layout;
         if (rowLayout !== 'grid' && rowLayout !== 'flex') newBlock.style.height = '460px';
-        newBlock.innerHTML = `${window.ASSET_SVG || ''}<span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
+        newBlock.innerHTML = `<div class="asset-overlay"></div>`;
       } else if (newType === 'icon-circle') {
         const { block: icb } = window.makeIconCircleBlock();
         newBlock = icb;

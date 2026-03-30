@@ -1907,7 +1907,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .text-block.editing  { outline: 1.5px dashed var(--sel-color); background: var(--sel-color-fill); }
 
 
-.text-block [contenteditable] { outline: none; cursor: inherit; caret-color: var(--ui-text-dim); }
+.text-block [contenteditable] { outline: none; cursor: inherit; caret-color: var(--ui-text-dim); overflow-wrap: break-word; word-break: break-word; }
 
 /* 빈 텍스트 블록 placeholder */
 .text-block .tb-h1:empty::before     { content: '제목을 입력하세요';   color: #ccc; pointer-events: none; }
@@ -2117,7 +2117,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   position: relative;
   width: 100%; height: 780px;
   background:
-    repeating-conic-gradient(#444 0% 25%, #333 0% 50%) 0 0 / 72px 72px;
+    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 12px; cursor: pointer;
@@ -2878,7 +2878,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   width: 80px; height: 80px;
   border-radius: 50%;
   background:
-    repeating-conic-gradient(#444 0% 25%, #333 0% 50%) 0 0 / 72px 72px;
+    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
@@ -3250,7 +3250,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .sbb-image {
   flex: 3;
   background:
-    repeating-conic-gradient(#444 0% 25%, #333 0% 50%) 0 0 / 72px 72px;
+    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
   display: flex;
   align-items: center;
   justify-content: center;

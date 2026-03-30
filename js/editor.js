@@ -400,7 +400,7 @@ document.addEventListener('keydown', e => {
   }
 
   // ── 단축키 g: 갭 블록 추가 (getSelectedSection 테스트) ──
-  if (e.key === 'g' && !e.metaKey && !e.ctrlKey) {
+  if ((e.key === 'g' || e.code === 'KeyG') && !e.metaKey && !e.ctrlKey) {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
     e.preventDefault();

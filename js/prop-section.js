@@ -86,13 +86,9 @@ function showSectionProperties(sec) {
   }).join('');
 
   const currentPreset = sec.dataset.preset || 'default';
-  const presetGridHTML = PRESETS.map(p => `
-    <button class="prop-preset-btn${p.id === currentPreset ? ' active' : ''}" data-preset-id="${p.id}">
-      <div class="prop-preset-swatches">
-        ${p.dots.map(c => `<div class="prop-preset-dot" style="background:${c}"></div>`).join('')}
-      </div>
-      <span class="prop-preset-name">${p.name}</span>
-    </button>`).join('');
+  const presetSelectHTML = PRESETS.map(p =>
+    `<option value="${p.id}"${p.id === currentPreset ? ' selected' : ''}>${p.name}</option>`
+  ).join('');
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -109,7 +105,7 @@ function showSectionProperties(sec) {
         ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${sec.id}')">${sec.id}</span>` : ''}
       </div>
       <div class="prop-section-title">Preset</div>
-      <div class="prop-preset-grid">${presetGridHTML}</div>
+      <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">배경</div>
@@ -268,13 +264,14 @@ function showSectionProperties(sec) {
     });
   }
 
-  // Preset 버튼 이벤트
-  propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      applyPreset(sec, btn.dataset.presetId);
+  // Preset 드롭다운 이벤트
+  const presetSelect = document.getElementById('sec-preset');
+  if (presetSelect) {
+    presetSelect.addEventListener('change', () => {
+      applyPreset(sec, presetSelect.value);
       showSectionProperties(sec);
     });
-  });
+  }
 
   // 텍스트 컬러 이벤트
   typeOrder.filter(t => found[t]).forEach(t => {

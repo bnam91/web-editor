@@ -660,6 +660,44 @@ function bindBlock(block) {
     });
   }
 
+  const isIconText = block.classList.contains('icon-text-block');
+  if (isIconText) {
+    block.querySelectorAll('.asset-overlay, .asset-overlay-clear').forEach(el => el.remove());
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      if (block.classList.contains('editing')) return;
+      window.deselectAll();
+      block.classList.add('selected');
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showTextProperties(block);
+    });
+    block.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const bodyEl = block.querySelector('.itb-text');
+      if (!bodyEl) return;
+      block.classList.add('editing');
+      bodyEl.setAttribute('contenteditable', 'true');
+      bodyEl.focus();
+      const range = document.createRange();
+      range.selectNodeContents(bodyEl);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
+    const onItbBlur = e => {
+      const bodyEl = block.querySelector('.itb-text');
+      if (bodyEl && !block.contains(e.relatedTarget)) {
+        block.classList.remove('editing');
+        bodyEl.setAttribute('contenteditable', 'false');
+        window.triggerAutoSave?.();
+      }
+    };
+    block.addEventListener('focusout', onItbBlur);
+    block.querySelectorAll('[contenteditable], .itb-text, .itb-icon').forEach(el => el.setAttribute('draggable', 'false'));
+  }
+
   if (isDivider) {
     applyDividerStyle(block);
     block.addEventListener('click', e => {
