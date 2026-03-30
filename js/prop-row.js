@@ -111,7 +111,6 @@ function showRowProperties(rowEl) {
         ${rowEl.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${rowEl.id}')">${rowEl.id}</span>` : ''}
       </div>
     </div>
-    ${childBatchHTML}
     ${layout !== 'stack' ? `
     <div class="prop-section">
       <div class="prop-section-title">컬럼 비율</div>
@@ -141,6 +140,7 @@ function showRowProperties(rowEl) {
         <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
       </div>
     </div>
+    ${childBatchHTML}
     `;
 
   if (window.setRpIdBadge) window.setRpIdBadge(rowEl.id);

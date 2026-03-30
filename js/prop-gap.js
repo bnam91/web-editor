@@ -17,6 +17,8 @@ export function showGapProperties(gb) {
         </div>
         ${gb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${gb.id}')">${gb.id}</span>` : ''}
       </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
