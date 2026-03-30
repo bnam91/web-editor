@@ -392,6 +392,15 @@ document.addEventListener('keydown', e => {
     }
   }
 
+  // ── 단축키 g: 갭 블록 추가 (getSelectedSection 테스트) ──
+  if (e.key === 'g' && !e.metaKey && !e.ctrlKey) {
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    e.preventDefault();
+    if (typeof window.addGapBlock === 'function') window.addGapBlock();
+    return;
+  }
+
   const isDelete = e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey));
   if (isDelete) {
     // 텍스트 편집 중이거나 input에 포커스가 있으면 기본 동작 유지

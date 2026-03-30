@@ -1,0 +1,67 @@
+{
+  "agent": "Agent-α",
+  "version": "2.0",
+  "part": "피그마 표준",
+  "ts": "2026-03-31T08:00:00.000Z",
+  "method": "cdp+static",
+  "scenarios": [
+    {
+      "id": "α-static-01",
+      "name": "getSelectedSection 블록→섹션 (정적 분석)",
+      "status": "PASS",
+      "method": "static",
+      "detail": "editor.js line 689-699: function getSelectedSection() 존재 확인. selBlock?.closest('.section-block') 로직 line 698에 정확히 포함됨. window.getSelectedSection으로 export도 확인(line 887).",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "α-01",
+      "name": "window.addSection() 섹션 생성",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "addSection() 호출 전 3개 → 호출 후 4개로 증가. 정상 동작 확인.",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "α-02",
+      "name": "window.addTextBlock('h2') 텍스트 블록 추가",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "addTextBlock('h2') 호출 전 4개 → 호출 후 5개로 증가. 정상 동작 확인.",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "α-03",
+      "name": "g 키 갭 추가 + getSelectedSection 동작 검증",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "초기 FAIL: editor.js에 g 단독 키 핸들러 없음. addGapBlock은 block-factory.js에 존재하나 키보드 단축키 미연결. 수정: editor.js keydown 핸들러에 g 키 → addGapBlock() 연결 추가(line 395 앞). 재검증: gapBefore=2 → gapAfter=3, getSelectedSectionWorked=true. PASS 확인.",
+      "fix_applied": "editor.js keydown 핸들러에 g 키 단축키 추가 (addGapBlock 호출)",
+      "verified": true
+    },
+    {
+      "id": "α-04",
+      "name": "Cmd+D 블록 복제",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "Cmd+D 이벤트 dispatch 후 text-block 5개 → 6개로 증가. copySelected()+pasteClipboard() 로직 정상 동작.",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "α-05",
+      "name": "다중 선택 (Shift+클릭)",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "첫 번째 섹션 클릭 후 두 번째 섹션 Shift+클릭. selectedCount=2. 다중 선택 정상 동작.",
+      "fix_applied": null,
+      "verified": true
+    }
+  ],
+  "bugs_found": 1,
+  "fixes_applied": 1,
+  "unverified_fixes": 0,
+  "summary": "정적 분석: getSelectedSection에 closest('.section-block') 로직 확인 PASS. CDP 시나리오 5개 실행 중 1개 초기 FAIL(α-03 g 키 갭 추가). editor.js에 g 단독 키 단축키 핸들러 추가 후 재검증 PASS. 전체 6개 항목 최종 PASS."
+}

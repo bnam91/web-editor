@@ -286,7 +286,8 @@
 .asset-block {
   position: relative;
   width: 100%; height: 780px;
-  background: rgba(160,160,160,0.7);
+  background:
+    repeating-conic-gradient(#444 0% 25%, #333 0% 50%) 0 0 / 72px 72px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 12px; cursor: pointer;
