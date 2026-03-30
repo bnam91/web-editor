@@ -702,6 +702,7 @@ function rebindAll() {
   // row ID 복원: 저장/불러오기 시 row에도 고유 ID 부여
   canvasEl.querySelectorAll('.row').forEach(row => {
     if (!row.id) row.id = 'row_' + Math.random().toString(36).slice(2, 9);
+    if (window.bindRowColAdd) window.bindRowColAdd(row);
   });
 
   // 저장 시 제거된 contenteditable 속성 복원 (텍스트 블록 내부 편집 가능 요소)

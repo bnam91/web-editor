@@ -1877,6 +1877,9 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   pointer-events: none;
 }
 
+/* Row col-add 버튼 — 캔버스 노출 없음, prop-row 패널에서 관리 */
+.row-col-add-btn { display: none !important; }
+
 /* ═══════════════════════════════════
    COL — 열 단위
    data-width: "100" | "75" | "66" | "50" | "33" | "25"
@@ -2193,12 +2196,19 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   color: rgba(255,255,255,0.3);
   pointer-events: none;
 }
-.overlay-tb.selected {
+.overlay-tb.selected,
+.asset-overlay .label-group-block.selected {
   outline: 1.5px dashed rgba(255,255,255,0.7) !important;
   outline-offset: 0;
 }
+.asset-overlay .label-group-block {
+  width: 100%;
+  pointer-events: auto;
+  padding: 0 16px !important;
+  background: none !important;
+}
 .overlay-tb .tb-h1, .overlay-tb .tb-h2, .overlay-tb .tb-h3,
-.overlay-tb .tb-body, .overlay-tb .tb-caption {
+.overlay-tb .tb-body, .overlay-tb .tb-caption, .overlay-tb .tb-label {
   color: #fff;
 }
 
@@ -2430,6 +2440,16 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .prop-none-check input { cursor: pointer; accent-color: var(--ui-accent-primary); }
 
 /* 공통 버튼 */
+.prop-btn {
+  width: 24px; height: 24px;
+  background: var(--ui-bg-app); border: 1px solid var(--ui-border-strong);
+  border-radius: 4px; color: #ccc;
+  font-size: 14px; cursor: pointer; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.prop-btn:hover { background: var(--ui-bg-2); color: #fff; }
+.prop-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .prop-btn-full {
   width: 100%; height: 26px;
   background: var(--ui-bg-app); border: 1px solid var(--ui-border-strong);
@@ -2919,6 +2939,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
    TABLE BLOCK
 ═══════════════════════════════════ */
 .table-block {
+  position: relative;
   width: 100%;
   padding: 8px;
   cursor: pointer;
@@ -2990,6 +3011,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
    GRAPH BLOCK
 ═══════════════════════════════════ */
 .graph-block {
+  position: relative;
   width: 100%;
   cursor: pointer;
   border-radius: 8px;
@@ -3233,6 +3255,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
    STRIP BANNER BLOCK
 ═══════════════════════════════════ */
 .strip-banner-block {
+  position: relative;
   display: flex;
   flex-direction: row;
   background: #f5f5f5;
@@ -3318,6 +3341,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
    DIVIDER BLOCK
 ═══════════════════════════════════ */
 .divider-block {
+  position: relative;
   width: 100%;
   cursor: pointer;
   box-sizing: border-box;
@@ -3338,7 +3362,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .graph-block.selected,
 .card-block.selected,
 .strip-banner-block.selected,
-.divider-block.selected,
+.divider-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }
 
