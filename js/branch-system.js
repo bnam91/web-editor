@@ -25,6 +25,9 @@ function saveBranchStore(store) {
 
 async function _persistBranchesToFile(store) {
   if (!activeProjectId || !IS_ELECTRON) return;
+  // BUG4: saveProjectToFile과 동시 실행 시 덮어쓰기 방지 — _isSavingToFile 진행 중이면 스킵
+  // (브랜치 메타만 업데이트하므로 saveProjectToFile의 pending 큐를 통한 재실행 불필요)
+  if (window._isSavingToFile) return;
   try {
     const proj = await window.electronAPI.loadProject(activeProjectId);
     if (!proj) return;
@@ -44,12 +47,17 @@ async function initBranchStore() {
         const store = { current: proj.currentBranch || 'main', branches: proj.branches };
         localStorage.setItem(getBranchKey(), JSON.stringify(store)); // 로컬 캐시
         // 현재 브랜치 스냅샷을 캔버스에 적용
+        // BUG6: applyProjectData가 DOM 변경을 일으켜 autoSave 트리거 방지
         const activeBranch = store.branches[store.current];
         if (activeBranch?.snapshot) {
           try {
             const data = JSON.parse(activeBranch.snapshot);
+            window.state._suppressAutoSave = true;
             applyProjectData(data);
-          } catch {}
+            window.state._suppressAutoSave = false;
+          } catch {
+            window.state._suppressAutoSave = false;
+          }
         }
         updateBranchIndicator(store.current);
         applyFocusMode(store.current);

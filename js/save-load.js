@@ -747,6 +747,8 @@ function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
   clearTimeout(autoSaveTimer);
   _setAutosaveIndicator('saving');
+  // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
+  // requestIdleCallback은 브라우저 idle 타이밍 불확실(최대 50ms 지연)하므로 setTimeout 유지.
   autoSaveTimer = setTimeout(() => {
     const snap = serializeProject();
     localStorage.setItem(SAVE_KEY, snap);
@@ -990,6 +992,11 @@ window.initApp = initApp;
 
 // branch-system.js, commit-system.js 등 다른 모듈에서 참조하는 변수들 노출
 window.IS_ELECTRON = IS_ELECTRON;
+// BUG4: _persistBranchesToFile에서 race condition 감지용 — getter로 읽기 전용 노출
+Object.defineProperty(window, '_isSavingToFile', {
+  get: () => _isSavingToFile,
+  configurable: true,
+});
 Object.defineProperty(window, 'activeProjectId', {
   get: () => activeProjectId,
   set: (v) => { activeProjectId = v; },
