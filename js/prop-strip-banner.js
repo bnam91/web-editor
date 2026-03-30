@@ -15,6 +15,7 @@ export function showStripBannerProperties(block) {
   const titleColor = block.dataset.titleColor || '#111111';
   const bodyColor  = block.dataset.bodyColor  || '#555555';
   const usePadX    = block.dataset.usePadx !== 'false'; // 기본값 true (미설정 포함)
+  const padX       = parseInt(block.dataset.padX) || 24;
   const gapTopEl   = block.querySelector('.sbb-gap-top');
   const gapBotEl   = block.querySelector('.sbb-gap-bottom');
   const gapTopH    = parseInt(gapTopEl?.style.height)    || 20;
@@ -35,6 +36,16 @@ export function showStripBannerProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">크기</div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="sbb-h-slider" min="80" max="600" step="8" value="${blockH}">
+        <input type="number" class="prop-number" id="sbb-h-number" min="80" max="600" value="${blockH}">
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">이미지</div>
       <div class="prop-row">
         <button class="prop-btn-full" onclick="window.triggerStripBannerImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
@@ -45,12 +56,21 @@ export function showStripBannerProperties(block) {
       </div>` : ''}
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">크기</div>
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="sbb-h-slider" min="80" max="600" step="8" value="${blockH}">
-        <input type="number" class="prop-number" id="sbb-h-number" min="80" max="600" value="${blockH}">
-      </div>
+      <div class="prop-section-title">이미지 위치</div>
+      <div class="prop-align-group" id="sbb-imgpos-group" style="width:100%">
+          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='left'?' active':''}"  data-pos="left" title="이미지 왼쪽">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <rect x="1" y="3" width="6" height="8" rx="0.5"/>
+              <line x1="9" y1="5" x2="13" y2="5"/><line x1="9" y1="7" x2="12" y2="7"/><line x1="9" y1="9" x2="11" y2="9"/>
+            </svg>
+          </button>
+          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='right'?' active':''}" data-pos="right" title="이미지 오른쪽">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <rect x="7" y="3" width="6" height="8" rx="0.5"/>
+              <line x1="1" y1="5" x2="5" y2="5"/><line x1="1" y1="7" x2="4" y2="7"/><line x1="1" y1="9" x2="3" y2="9"/>
+            </svg>
+          </button>
+        </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">텍스트 영역</div>
@@ -120,21 +140,25 @@ export function showStripBannerProperties(block) {
     </div>
     <div class="prop-section">
       <div class="prop-section-title">텍스트 정렬</div>
-      <div class="prop-row">
-        <div class="prop-align-group" id="sbb-align-group">
-          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='left'?' active':''}"   data-align="left">←</button>
-          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='center'?' active':''}" data-align="center">↔</button>
-          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='right'?' active':''}"  data-align="right">→</button>
-        </div>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">이미지 위치</div>
-      <div class="prop-row">
-        <div class="prop-align-group" id="sbb-imgpos-group" style="width:100%">
-          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='left'?' active':''}"  data-pos="left" style="flex:1;font-size:11px">← 왼쪽</button>
-          <button class="prop-align-btn${(block.dataset.imgPos||'left')==='right'?' active':''}" data-pos="right" style="flex:1;font-size:11px">오른쪽 →</button>
-        </div>
+      <div class="prop-align-group" id="sbb-align-group">
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='left'?' active':''}"   data-align="left" title="왼쪽 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
+              <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
+            </svg>
+          </button>
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='center'?' active':''}" data-align="center" title="가운데 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
+              <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
+            </svg>
+          </button>
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='right'?' active':''}"  data-align="right" title="오른쪽 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
+              <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
+            </svg>
+          </button>
       </div>
     </div>
     <div class="prop-section">
@@ -145,6 +169,11 @@ export function showStripBannerProperties(block) {
           <input type="checkbox" id="sbb-padx-toggle" ${usePadX ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
+      </div>
+      <div class="prop-row" id="sbb-padx-custom-row"${usePadX ? ' style="opacity:0.4;pointer-events:none"' : ''}>
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="sbb-padx-slider" min="0" max="200" step="4" value="${padX}">
+        <input type="number" class="prop-number" id="sbb-padx-number" min="0" max="200" value="${padX}">
       </div>
     </div>
     <div class="prop-section">
@@ -379,13 +408,37 @@ export function showStripBannerProperties(block) {
     btn.addEventListener('click', () => applyImgPos(btn.dataset.pos));
   });
 
-  // padX 토글 — sbb-content 에만 적용 (이미지는 full-bleed 유지)
+  // padX — sbb-content 에만 적용 (이미지는 full-bleed 유지)
   const sbbContentEl2 = block.querySelector('.sbb-content');
+  const padxCustomRow = document.getElementById('sbb-padx-custom-row');
+  const padxSlider    = document.getElementById('sbb-padx-slider');
+  const padxNumber    = document.getElementById('sbb-padx-number');
+
+  const applyCustomPadX = v => {
+    v = Math.min(200, Math.max(0, v || 0));
+    block.dataset.padX = v;
+    if (padxSlider) padxSlider.value = v;
+    if (padxNumber) padxNumber.value = v;
+    if (sbbContentEl2 && !document.getElementById('sbb-padx-toggle').checked) {
+      sbbContentEl2.style.paddingLeft  = v + 'px';
+      sbbContentEl2.style.paddingRight = v + 'px';
+    }
+  };
+  padxSlider?.addEventListener('input',  e => applyCustomPadX(parseInt(e.target.value)));
+  padxNumber?.addEventListener('change', e => { applyCustomPadX(parseInt(e.target.value)); window.pushHistory(); });
+  padxSlider?.addEventListener('change', () => window.pushHistory());
+
   const applyPadX = checked => {
     block.dataset.usePadx = checked ? 'true' : 'false';
+    if (padxCustomRow) {
+      padxCustomRow.style.opacity       = checked ? '0.4' : '1';
+      padxCustomRow.style.pointerEvents = checked ? 'none' : '';
+    }
     if (sbbContentEl2) {
-      sbbContentEl2.style.paddingLeft  = checked ? state.pageSettings.padX + 'px' : '24px';
-      sbbContentEl2.style.paddingRight = checked ? state.pageSettings.padX + 'px' : '24px';
+      // checked=true: inline 제거 → CSS --page-padx 변수에 위임
+      // checked=false: 슬라이더 값 적용
+      sbbContentEl2.style.paddingLeft  = checked ? '' : (block.dataset.padX || 24) + 'px';
+      sbbContentEl2.style.paddingRight = checked ? '' : (block.dataset.padX || 24) + 'px';
     }
   };
   applyPadX(usePadX); // 현재 상태 반영
