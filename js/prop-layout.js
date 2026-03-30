@@ -135,6 +135,42 @@ window.bindLayoutInput    = bindLayoutInput;
 window.makeColPlaceholder  = makeColPlaceholder;
 window.makeEmptyCol        = makeEmptyCol;
 
+/* ── Row col-add 버튼 ── */
+function bindRowColAdd(rowEl) {
+  if (rowEl.querySelector('.row-col-add-btn')) return;
+  const btn = document.createElement('button');
+  btn.className = 'row-col-add-btn';
+  btn.title = '열 추가';
+  btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>`;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    window.pushHistory();
+    const layout = rowEl.dataset.layout || 'stack';
+    if (layout === 'stack' || layout === 'flex') {
+      rowEl.dataset.layout = 'flex';
+      rowEl.style.display = '';
+      rowEl.style.gridTemplateColumns = '';
+      const existingCols = [...rowEl.querySelectorAll(':scope > .col')];
+      existingCols.forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
+      const newCol = window.makeEmptyCol('1');
+      rowEl.insertBefore(newCol, btn);
+      rowEl.dataset.ratioStr = `${rowEl.querySelectorAll(':scope > .col').length}*1`;
+    } else if (layout === 'grid') {
+      const gtc = rowEl.style.gridTemplateColumns || '';
+      let colCount = gtc.startsWith('repeat(') ? (parseInt(gtc.match(/repeat\((\d+)/)?.[1]) || 1) : (gtc ? gtc.split(/\s+/).filter(Boolean).length : 1);
+      colCount++;
+      rowEl.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
+      const newCol = window.makeEmptyCol(null);
+      rowEl.insertBefore(newCol, btn);
+      rowEl.dataset.ratioStr = `${colCount}*${Math.ceil(rowEl.querySelectorAll(':scope > .col').length / colCount)}`;
+    }
+    window.buildLayerPanel();
+    window.triggerAutoSave?.();
+  });
+  rowEl.appendChild(btn);
+}
+window.bindRowColAdd = bindRowColAdd;
+
 /* ── Col 프로퍼티 패널 ── */
 function getColBlockType(block) {
   if (!block) return null;

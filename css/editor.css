@@ -1869,6 +1869,28 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   pointer-events: none;
 }
 
+/* Row col-add 버튼 */
+.row-col-add-btn {
+  position: absolute;
+  right: -22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--ui-bg-2, #1a1a1a);
+  border: 1px solid var(--ui-border, #333);
+  color: var(--ui-text-dim, #888);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  padding: 0;
+}
+.row:hover .row-col-add-btn,
+.row.row-active .row-col-add-btn { display: flex; }
+
 /* ═══════════════════════════════════
    COL — 열 단위
    data-width: "100" | "75" | "66" | "50" | "33" | "25"
