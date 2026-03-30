@@ -172,6 +172,7 @@ function addLabelGroupBlock() {
   const { row, block } = makeLabelGroupBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -245,6 +246,7 @@ function addTextBlock(type) {
 
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -395,6 +397,7 @@ function addRowBlock(cols = 2, rows = 1) {
   }
 
   insertAfterSelected(sec, row);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
 
   window.buildLayerPanel();
   document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
@@ -493,6 +496,7 @@ function addPresetRow(type) {
   insertAfterSelected(sec, row);
   if (allBlocks) allBlocks.forEach(b => bindBlock(b));
   else if (firstBlock) bindBlock(firstBlock);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
   // 첫 번째 asset-block 자동 선택 (이미지 업로드 유도)
@@ -511,6 +515,7 @@ function addAssetBlock(preset) {
   }
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -543,6 +548,7 @@ function addIconCircleBlock() {
   const { row, block } = makeIconCircleBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -554,6 +560,7 @@ function addTableBlock() {
   const { row, block } = makeTableBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -612,6 +619,7 @@ function addCardBlock() {
   }
 
   insertAfterSelected(sec, row);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -655,6 +663,7 @@ function addStripBannerBlock() {
   const { row, block } = makeStripBannerBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -687,6 +696,7 @@ function addGraphBlock() {
   const { row, block } = makeGraphBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -720,6 +730,7 @@ function addDividerBlock() {
   const { row, block } = makeDividerBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -780,6 +791,7 @@ function addSection() {
   bindSectionDrag(sec);
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => bindBlock(b));
+  if (window.bindRowColAdd) sec.querySelectorAll('.row').forEach(row => window.bindRowColAdd(row));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
   window.buildLayerPanel();
