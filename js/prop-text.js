@@ -67,29 +67,6 @@ export function showTextProperties(tb) {
         <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
       </div>
     </div>
-    <div id="label-style-section" style="display:${isLabel?'block':'none'}">
-      <div class="prop-section">
-        <div class="prop-section-title">태그 스타일</div>
-        <div class="prop-color-row">
-          <span class="prop-label">배경색</span>
-          <div class="prop-color-swatch${currentBgColor==='transparent'?' swatch-none':''}" style="background:${currentBgColor==='transparent'?'transparent':currentBgColor}">
-            <input type="color" id="label-bg-color" value="${currentBgColor==='transparent'?'#111111':currentBgColor}">
-          </div>
-          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor}" maxlength="7" placeholder="없음">
-          <label class="prop-none-check"><input type="checkbox" id="label-bg-none" ${currentBgColor==='transparent'?'checked':''}>없음</label>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">모서리</span>
-          <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
-          <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">높이</span>
-          <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="${labelPillH}">
-          <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="${labelPillH}">
-        </div>
-      </div>
-    </div>
 
     <div class="prop-section">
       <div class="prop-section-title">정렬</div>
@@ -163,8 +140,12 @@ export function showTextProperties(tb) {
         <input type="range" class="prop-slider" id="txt-size-slider" min="8" max="400" step="1" value="${currentSize}">
         <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}">
       </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-section-title">색상</div>
       <div class="prop-color-row">
-        <span class="prop-label">색상</span>
+        <span class="prop-label">글자색</span>
         <div class="prop-color-swatch" style="background:${currentColor}">
           <input type="color" id="txt-color" value="${currentColor}">
         </div>
@@ -184,13 +165,17 @@ export function showTextProperties(tb) {
         <input type="range" class="prop-slider" id="txt-ls-slider" min="-10" max="40" step="0.5" value="${currentLS}">
         <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
       </div>
-      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+    </div>
+
+    <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
+      <div class="prop-section-title">패딩</div>
+      <div class="prop-row">
         <span class="prop-label">상하</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}">
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}">
       </div>
-      <div class="prop-ph-header" style="${isOverlayTb ? 'display:none' : ''}">
-        <span class="prop-section-title" style="margin-bottom:0">패딩</span>
+      <div class="prop-ph-header">
+        <span class="prop-section-title" style="margin-bottom:0">좌우</span>
         <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
@@ -199,18 +184,41 @@ export function showTextProperties(tb) {
           </svg>
         </button>
       </div>
-      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+      <div class="prop-row">
         <span class="prop-label" style="width:60px">왼쪽 패딩</span>
         <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="${currentPadL}">
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
       </div>
-      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+      <div class="prop-row">
         <span class="prop-label" style="width:60px">오른쪽 패딩</span>
         <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="${currentPadR}">
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
       </div>
     </div>
 
+    <div id="label-style-section" style="display:${isLabel?'block':'none'}">
+      <div class="prop-section">
+        <div class="prop-section-title">태그 스타일</div>
+        <div class="prop-color-row">
+          <span class="prop-label">배경색</span>
+          <div class="prop-color-swatch${currentBgColor==='transparent'?' swatch-none':''}" style="background:${currentBgColor==='transparent'?'transparent':currentBgColor}">
+            <input type="color" id="label-bg-color" value="${currentBgColor==='transparent'?'#111111':currentBgColor}">
+          </div>
+          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor}" maxlength="7" placeholder="없음">
+          <label class="prop-none-check"><input type="checkbox" id="label-bg-none" ${currentBgColor==='transparent'?'checked':''}>없음</label>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">모서리</span>
+          <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
+          <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">높이</span>
+          <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="${labelPillH}">
+          <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="${labelPillH}">
+        </div>
+      </div>
+    </div>
 
     <div class="prop-section prop-section--anim" style="${isOverlayTb ? 'display:none' : ''}">
       <button class="prop-anim-btn" id="open-anim-btn">

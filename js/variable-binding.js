@@ -172,7 +172,7 @@ const VarPanelUI = (() => {
     toggleBtn.id = 'var-toggle-btn';
     toggleBtn.title = '변수 바인딩 (Figma Variable)';
     toggleBtn.innerHTML = `
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+      <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
         <circle cx="3" cy="3" r="1.5"/>
         <circle cx="9" cy="9" r="1.5"/>
         <path d="M3 4.5v1.5a3 3 0 003 3h.5"/>

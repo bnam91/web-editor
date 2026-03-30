@@ -223,21 +223,24 @@
 #var-toggle-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   width: 100%;
-  padding: 6px 12px;
+  height: 36px;
+  padding: 0 14px;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--ui-border);
-  color: var(--ui-text-muted);
+  border-bottom: 1px solid #2e2e2e;
+  color: #888;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
   text-align: left;
+  flex-shrink: 0;
 }
+#var-toggle-btn svg { width: 14px; height: 14px; opacity: 0.6; flex-shrink: 0; }
 #var-toggle-btn:hover {
   color: var(--ui-text-sub);
   background: var(--ui-bg-hover);
