@@ -73,6 +73,14 @@ export function showStripBannerProperties(block) {
         </div>
     </div>
     <div class="prop-section">
+      <div class="prop-section-title">크기</div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="sbb-h-slider" min="80" max="600" step="4" value="${blockH}">
+        <input type="number" class="prop-number" id="sbb-h-number" min="80" max="600" value="${blockH}">
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">텍스트 영역</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
@@ -191,9 +199,9 @@ export function showStripBannerProperties(block) {
     block.style.minHeight = v + 'px';
     hSlider.value = v; hNumber.value = v;
   };
-  hSlider.addEventListener('input',  () => applyHeight(parseInt(hSlider.value)));
-  hNumber.addEventListener('change', () => { applyHeight(parseInt(hNumber.value)); window.pushHistory(); });
-  hSlider.addEventListener('change', () => window.pushHistory());
+  hSlider?.addEventListener('input',  () => applyHeight(parseInt(hSlider.value)));
+  hNumber?.addEventListener('change', () => { applyHeight(parseInt(hNumber.value)); window.pushHistory(); });
+  hSlider?.addEventListener('change', () => window.pushHistory());
 
   // 배경색
   const bgInput  = document.getElementById('sbb-bg-color');
