@@ -882,6 +882,7 @@ function initApp() {
   // Cmd+G 그룹 — capture phase로 브라우저 Find Next 보다 먼저 처리
   document.addEventListener('keydown', e => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'g') {
+      if (e.target.isContentEditable) return;
       e.preventDefault();
       e.stopImmediatePropagation();
       groupSelectedBlocks();

@@ -73,14 +73,6 @@ export function showStripBannerProperties(block) {
         </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">크기</div>
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="sbb-h-slider" min="80" max="600" step="4" value="${blockH}">
-        <input type="number" class="prop-number" id="sbb-h-number" min="80" max="600" value="${blockH}">
-      </div>
-    </div>
-    <div class="prop-section">
       <div class="prop-section-title">텍스트 영역</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>

@@ -684,7 +684,15 @@ const ASSET_SVG = `
   </svg>`;
 
 function getSelectedSection() {
-  return document.querySelector('.section-block.selected');
+  const secSel = document.querySelector('.section-block.selected');
+  if (secSel) return secSel;
+  const selBlock = document.querySelector(
+    '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+    '.card-block.selected, .strip-banner-block.selected, .graph-block.selected, ' +
+    '.divider-block.selected, .icon-text-block.selected'
+  );
+  return selBlock?.closest('.section-block') || null;
 }
 
 /* ── 플로팅 패널 드롭다운 ── */

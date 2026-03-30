@@ -1068,7 +1068,7 @@ export function buildLayerPanel() {
     });
   });
 
-  buildFilePageSection();
+  if (window.buildFilePageSection) window.buildFilePageSection();
 }
 
 export function syncLayerActive(sec) {
