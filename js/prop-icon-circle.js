@@ -54,8 +54,8 @@ export function showIconCircleProperties(block) {
       <div class="prop-section-title">색상</div>
       <div class="prop-color-row">
         <span class="prop-label">배경</span>
-        <div class="prop-color-swatch" style="background:${bgColor}">
-          <input type="color" id="icb-bg-color" value="${bgColor}">
+        <div class="prop-color-swatch" style="background:${bgColor}" role="button" aria-label="배경색 선택">
+          <input type="color" id="icb-bg-color" value="${bgColor}" aria-label="배경색">
         </div>
         <input type="text" class="prop-color-hex" id="icb-bg-hex" value="${bgColor}" maxlength="7">
       </div>

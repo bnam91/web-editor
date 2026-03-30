@@ -76,8 +76,8 @@ export function showStripBannerProperties(block) {
       <div class="prop-section-title">텍스트 영역</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch${bgColor==='transparent'?' swatch-none':''}" style="background:${bgColor==='transparent'?'transparent':bgColor}">
-          <input type="color" id="sbb-bg-color" value="${bgColor==='transparent'?'#f5f5f5':bgColor}">
+        <div class="prop-color-swatch${bgColor==='transparent'?' swatch-none':''}" style="background:${bgColor==='transparent'?'transparent':bgColor}" role="button" aria-label="배경색 선택">
+          <input type="color" id="sbb-bg-color" value="${bgColor==='transparent'?'#f5f5f5':bgColor}" aria-label="배경색">
         </div>
         <input type="text" class="prop-color-hex" id="sbb-bg-hex" value="${bgColor==='transparent'?'':bgColor}" maxlength="7" placeholder="없음">
         <label class="prop-none-check"><input type="checkbox" id="sbb-bg-none" ${bgColor==='transparent'?'checked':''}>없음</label>
@@ -113,8 +113,8 @@ export function showStripBannerProperties(block) {
       </div>
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
-        <div class="prop-color-swatch" style="background:${titleColor}">
-          <input type="color" id="sbb-title-color" value="${titleColor}">
+        <div class="prop-color-swatch" style="background:${titleColor}" role="button" aria-label="제목 글자색 선택">
+          <input type="color" id="sbb-title-color" value="${titleColor}" aria-label="제목 글자색">
         </div>
         <input type="text" class="prop-color-hex" id="sbb-title-color-hex" value="${titleColor}" maxlength="7">
       </div>
@@ -132,8 +132,8 @@ export function showStripBannerProperties(block) {
       </div>
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
-        <div class="prop-color-swatch" style="background:${bodyColor}">
-          <input type="color" id="sbb-body-color" value="${bodyColor}">
+        <div class="prop-color-swatch" style="background:${bodyColor}" role="button" aria-label="본문 글자색 선택">
+          <input type="color" id="sbb-body-color" value="${bodyColor}" aria-label="본문 글자색">
         </div>
         <input type="text" class="prop-color-hex" id="sbb-body-color-hex" value="${bodyColor}" maxlength="7">
       </div>
