@@ -1,0 +1,31 @@
+{
+  "agent": "Agent-03",
+  "version": "2.0",
+  "part": "card/table (prop-card.js, prop-table.js)",
+  "ts": "2026-03-31T03:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9335,
+  "scenarios": [
+    {
+      "id": "03-01",
+      "name": "card prop 패널 함수",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "showCardProperties 함수 존재",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "03-02",
+      "name": "table prop 패널 함수",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "showTableProperties 함수 존재",
+      "fix_applied": null,
+      "verified": true
+    }
+  ],
+  "bugs_found": 0,
+  "fixes_applied": 0,
+  "unverified_fixes": 0
+}

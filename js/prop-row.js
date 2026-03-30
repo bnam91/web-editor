@@ -368,7 +368,6 @@ function _bindGridPicker(rowEl, prevGridRowCount) {
     showRowProperties(rowEl);
     window.pushHistory();
   });
-  }
 }
 
 /* Row 레이아웃 직접 전환 (rowEl 기준) */
