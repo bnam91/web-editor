@@ -359,6 +359,14 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') deselectAll();
 
+  // 블록 추가 단축키: G=Gap, T=Text, A=Asset (INPUT/TEXTAREA 포커스 시 무시)
+  if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    if (e.key === 'g') { e.preventDefault(); window.addGapBlock?.(); return; }
+    if (e.key === 't') { e.preventDefault(); window.addTextBlock?.('body'); return; }
+    if (e.key === 'a') { e.preventDefault(); window.addAssetBlock?.(); return; }
+  }
+
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
   if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;

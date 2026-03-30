@@ -366,14 +366,44 @@ export function showTextProperties(tb) {
     window.pushHistory();
   });
 
-  /* 폰트 크기 */
+  /* 폰트 크기 — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   const sizeSlider = document.getElementById('txt-size-slider');
   const sizeNumber = document.getElementById('txt-size-number');
-  sizeSlider.addEventListener('input', () => { contentEl.style.fontSize = sizeSlider.value+'px'; sizeNumber.value = sizeSlider.value; });
+  let _savedSizeSel = null;
+  let _sizeSpan = null;
+
+  const saveSizeSel = () => {
+    if (hasSel()) { _savedSizeSel = window.getSelection().getRangeAt(0).cloneRange(); _sizeSpan = null; }
+    else { _savedSizeSel = null; _sizeSpan = null; }
+  };
+  const applySizeToSel = (v) => {
+    if (!_savedSizeSel) { contentEl.style.fontSize = v + 'px'; return; }
+    if (_sizeSpan) {
+      _sizeSpan.style.fontSize = v + 'px';
+    } else {
+      const r = _savedSizeSel.cloneRange();
+      const frag = r.extractContents();
+      _sizeSpan = document.createElement('span');
+      _sizeSpan.style.fontSize = v + 'px';
+      _sizeSpan.appendChild(frag);
+      r.insertNode(_sizeSpan);
+    }
+  };
+
+  sizeSlider.addEventListener('mousedown', saveSizeSel);
+  sizeSlider.addEventListener('input', () => {
+    const v = parseInt(sizeSlider.value);
+    applySizeToSel(v);
+    sizeNumber.value = v;
+  });
+  sizeSlider.addEventListener('change', () => { _savedSizeSel = null; _sizeSpan = null; window.pushHistory(); });
+  sizeNumber.addEventListener('mousedown', saveSizeSel);
   sizeNumber.addEventListener('input', () => {
     const v = Math.min(400, Math.max(8, parseInt(sizeNumber.value)||8));
-    contentEl.style.fontSize = v+'px'; sizeSlider.value = v;
+    applySizeToSel(v);
+    sizeSlider.value = v;
   });
+  sizeNumber.addEventListener('change', () => { _savedSizeSel = null; _sizeSpan = null; window.pushHistory(); });
 
   /* 색상 — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   const colorPicker = document.getElementById('txt-color');

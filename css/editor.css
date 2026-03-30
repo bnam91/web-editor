@@ -2936,6 +2936,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
    TABLE BLOCK
 ═══════════════════════════════════ */
 .table-block {
+  position: relative;
   width: 100%;
   padding: 8px;
   cursor: pointer;
@@ -3007,6 +3008,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
    GRAPH BLOCK
 ═══════════════════════════════════ */
 .graph-block {
+  position: relative;
   width: 100%;
   cursor: pointer;
   border-radius: 8px;
@@ -3250,6 +3252,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
    STRIP BANNER BLOCK
 ═══════════════════════════════════ */
 .strip-banner-block {
+  position: relative;
   display: flex;
   flex-direction: row;
   background: #f5f5f5;
@@ -3334,6 +3337,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
    DIVIDER BLOCK
 ═══════════════════════════════════ */
 .divider-block {
+  position: relative;
   width: 100%;
   cursor: pointer;
   box-sizing: border-box;
