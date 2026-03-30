@@ -160,7 +160,9 @@ function switchBranch(name) {
   // 브랜치 전환 시 히스토리 스택 초기화 (다른 브랜치 상태로 Undo 역점프 방지)
   if (window.clearHistory) window.clearHistory();
   const data = JSON.parse(store.branches[name].snapshot);
+  window.state._suppressAutoSave = true;
   applyProjectData(data);
+  window.state._suppressAutoSave = false;
   updateBranchIndicator(name);
   applyFocusMode(name);
   _mainUnlocked = false; // 브랜치 전환 시 임시 해제 초기화
@@ -246,7 +248,9 @@ function mergeBranch(fromName) {
   store.current = toName;
   saveBranchStore(store);
   const data = JSON.parse(store.branches[toName].snapshot);
+  window.state._suppressAutoSave = true;
   applyProjectData(data);
+  window.state._suppressAutoSave = false;
   updateBranchIndicator(toName);
   applyFocusMode(toName);
   renderBranchPanel();
