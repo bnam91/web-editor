@@ -1604,6 +1604,11 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   color: #c87878; font-size: 11px; padding: 1px 5px; cursor: pointer;
 }
 .layer-variation-del:hover { background: #3a1a1a; color: #ff9090; border-color: #ff9090; }
+.layer-variation-resolve {
+  background: none; border: 1px solid #4a7a5a; border-radius: 2px;
+  color: #7acba0; font-size: 11px; padding: 1px 6px; cursor: pointer; white-space: nowrap;
+}
+.layer-variation-resolve:hover { background: #1a3a2a; color: #9ee8c0; border-color: #9ee8c0; }
 .layer-variation-group.active { border-color: var(--sel-color); }
 .layer-variation-group.active .layer-variation-header { background: rgba(45,111,232,0.08); }
 .layer-variation-group .layer-section { margin: 0; border-radius: 0; }

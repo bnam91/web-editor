@@ -1057,6 +1057,16 @@ export function buildLayerPanel() {
       if (window.buildLayerPanel) window.buildLayerPanel();
     };
     groupHeader.appendChild(delBtn);
+    const resolveBtn = document.createElement('button');
+    resolveBtn.className = 'layer-variation-resolve';
+    resolveBtn.textContent = '✓ 확정';
+    resolveBtn.title = '현재 활성 베리에이션으로 확정 (나머지 삭제)';
+    resolveBtn.onclick = e => {
+      e.stopPropagation();
+      const active = secs.find(s => s.dataset.variationActive === '1') || secs[0];
+      if (active && window.resolveVariation) window.resolveVariation(active);
+    };
+    groupHeader.appendChild(resolveBtn);
     panel.insertBefore(wrapper, firstLayerEl);
     secs.forEach(s => { if (s._layerEl) wrapper.appendChild(s._layerEl); });
     wrapper.insertBefore(groupHeader, wrapper.firstChild);
