@@ -107,7 +107,8 @@
 
 .sbb-image {
   flex: 3;
-  background: #e8e8e8;
+  background:
+    repeating-conic-gradient(#444 0% 25%, #333 0% 50%) 0 0 / 72px 72px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -117,7 +118,7 @@
 }
 .sbb-img-placeholder {
   font-size: 28px;
-  color: #aaa;
+  color: rgba(255,255,255,0.3);
   user-select: none;
   pointer-events: none;
 }

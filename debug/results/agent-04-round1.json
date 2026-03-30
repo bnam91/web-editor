@@ -1,0 +1,31 @@
+{
+  "agent": "Agent-04",
+  "version": "2.0",
+  "part": "banner/graph (prop-strip-banner.js, prop-graph.js)",
+  "ts": "2026-03-31T03:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9335,
+  "scenarios": [
+    {
+      "id": "04-01",
+      "name": "sbb-h-slider 중복 없음 확인",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "패널 열기 후 sbb-h-slider count=1. 중복 없음. prop-strip-banner.js:44 단일 정의 확인",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "04-02",
+      "name": "배너 패딩 toggle / graph prop",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "showStripBannerProperties, showGraphProperties 함수 존재",
+      "fix_applied": null,
+      "verified": true
+    }
+  ],
+  "bugs_found": 0,
+  "fixes_applied": 0,
+  "unverified_fixes": 0
+}

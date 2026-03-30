@@ -1,0 +1,40 @@
+{
+  "agent": "Agent-05",
+  "version": "2.0",
+  "part": "layout/row/section/page (prop-row.js, prop-layout.js, prop-section.js, prop-page.js)",
+  "ts": "2026-03-31T03:00:00.000Z",
+  "method": "cdp+static",
+  "cdp_port": 9335,
+  "scenarios": [
+    {
+      "id": "05-01",
+      "name": "showRowProperties SyntaxError 버그",
+      "status": "PASS (수정됨)",
+      "method": "cdp+static",
+      "detail": "prop-row.js:371 여분 닫기 중괄호로 SyntaxError 발생 → window.showRowProperties 미등록 버그 발견. 371라인 여분 } 제거 후 중괄호 균형 복원. 리로드 후 window.showRowProperties=function 확인",
+      "fix_applied": "prop-row.js:371 여분 } 제거 — SyntaxError 해소, window.showRowProperties 정상 등록",
+      "verified": true
+    },
+    {
+      "id": "05-02",
+      "name": "section prop 패널 열림",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "section hitzone 클릭 → section prop 패널 정상 표시",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "05-03",
+      "name": "showPageProperties 함수",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "showPageProperties 함수 존재",
+      "fix_applied": null,
+      "verified": true
+    }
+  ],
+  "bugs_found": 1,
+  "fixes_applied": 1,
+  "unverified_fixes": 0
+}

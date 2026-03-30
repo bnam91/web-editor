@@ -21,6 +21,8 @@ export function showDividerProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
       </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">선 스타일</div>
       <div class="prop-color-row">
         <span class="prop-label">색상</span>

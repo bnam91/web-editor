@@ -129,7 +129,8 @@
 .icb-circle {
   width: 80px; height: 80px;
   border-radius: 50%;
-  background: #e8e8e8;
+  background:
+    repeating-conic-gradient(#444 0% 25%, #333 0% 50%) 0 0 / 72px 72px;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   flex-shrink: 0;

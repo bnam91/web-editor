@@ -293,6 +293,13 @@ function pasteClipboard() {
   const el = temp.firstElementChild;
 
   if (clipboard.type === 'section') {
+    // ID 충돌 방지: 섹션 및 내부 블록 ID 재생성
+    const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
+    el.id = genIdFn('sec');
+    el.querySelectorAll('[id]').forEach(child => {
+      const prefix = child.id.split('_')[0] || 'el';
+      child.id = genIdFn(prefix);
+    });
     canvasEl.appendChild(el);
     bindSectionDelete(el);
     bindSectionOrder(el);
@@ -390,6 +397,15 @@ document.addEventListener('keydown', e => {
       pushHistory('블록 이동');
       return;
     }
+  }
+
+  // ── 단축키 g: 갭 블록 추가 (getSelectedSection 테스트) ──
+  if (e.key === 'g' && !e.metaKey && !e.ctrlKey) {
+    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    e.preventDefault();
+    if (typeof window.addGapBlock === 'function') window.addGapBlock();
+    return;
   }
 
   const isDelete = e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey));

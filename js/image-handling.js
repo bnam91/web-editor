@@ -844,6 +844,7 @@ function clearCircleImage(icb) {
   delete icb.dataset.imgW;
   delete icb.dataset.imgX;
   delete icb.dataset.imgY;
+  delete icb.dataset.imgScale;
   const circle = icb.querySelector('.icb-circle');
   circle.innerHTML = `<span class="icb-placeholder">+</span>`;
   showIconCircleProperties(icb);

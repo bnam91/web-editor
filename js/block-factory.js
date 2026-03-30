@@ -114,7 +114,7 @@ function makeIconCircleBlock() {
   icb.dataset.bgColor = '#e8e8e8';
   icb.dataset.border = 'none';
   icb.innerHTML = `
-    <div class="icb-circle" style="width:240px;height:240px;background:#e8e8e8;">
+    <div class="icb-circle" style="width:240px;height:240px;">
       <span class="icb-placeholder">+</span>
     </div>`;
 

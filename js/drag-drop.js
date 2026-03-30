@@ -416,6 +416,8 @@ function bindBlock(block) {
         block.querySelectorAll('[contenteditable="true"]').forEach(el => {
           if (el !== cell) el.setAttribute('contenteditable','false');
         });
+        // 편집 시작 전 히스토리 스냅샷 저장 (undo 복원 기준점)
+        window.pushHistory('셀 편집');
         cell.setAttribute('contenteditable','true');
         cell.focus();
         // 커서를 끝으로 이동
@@ -425,6 +427,21 @@ function bindBlock(block) {
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
+        // blur 시 편집 종료 + 변경 내용 히스토리 저장 (최초 1회만 등록)
+        if (!cell._editBound) {
+          cell._editBound = true;
+          cell.addEventListener('blur', () => {
+            cell.setAttribute('contenteditable', 'false');
+            window.pushHistory('셀 텍스트 변경');
+          });
+          cell.addEventListener('keydown', ev => {
+            if (ev.key === 'Escape') {
+              ev.preventDefault();
+              ev.stopPropagation();
+              cell.blur();
+            }
+          });
+        }
       }
     });
   }
