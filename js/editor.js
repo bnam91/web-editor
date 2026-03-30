@@ -293,6 +293,13 @@ function pasteClipboard() {
   const el = temp.firstElementChild;
 
   if (clipboard.type === 'section') {
+    // ID 충돌 방지: 섹션 및 내부 블록 ID 재생성
+    const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
+    el.id = genIdFn('sec');
+    el.querySelectorAll('[id]').forEach(child => {
+      const prefix = child.id.split('_')[0] || 'el';
+      child.id = genIdFn(prefix);
+    });
     canvasEl.appendChild(el);
     bindSectionDelete(el);
     bindSectionOrder(el);
