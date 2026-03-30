@@ -22,6 +22,41 @@ import {
    BLOCK FACTORY — make* / add* / addSection
 ═══════════════════════════════════ */
 
+/* ── col-active 헬퍼: col이 선택된 상태면 해당 col에 직접 추가 (액자식 중첩) ── */
+function _insertToActiveCol(make, isRowBlock = true) {
+  const activeCol = document.querySelector('.col.col-active')
+    || (state._lastActiveCol?.isConnected ? state._lastActiveCol : null);
+  if (!activeCol) return false;
+  // stack 단일 col에 row 중첩 방지: leaf 블록이 이미 있으면 section-level 삽입으로 폴백
+  if (isRowBlock) {
+    const parentRow = activeCol.closest('.row');
+    if (parentRow && (parentRow.dataset.layout || 'stack') === 'stack') {
+      const hasLeaf = [...activeCol.children].some(c =>
+        !c.classList.contains('col-placeholder') && !c.classList.contains('row') &&
+        (c.classList.contains('text-block') || c.classList.contains('icon-text-block') ||
+         c.classList.contains('asset-block') || c.classList.contains('gap-block') ||
+         c.classList.contains('divider-block') || c.classList.contains('label-group-block'))
+      );
+      if (hasLeaf) return false;
+    }
+  }
+  window.pushHistory();
+  activeCol.querySelector('.col-placeholder')?.remove();
+  if (isRowBlock) {
+    const { row, block } = make();
+    activeCol.appendChild(row);
+    bindBlock(block);
+    if (window.bindRowColAdd) window.bindRowColAdd(row);
+    row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
+  } else {
+    const block = make();
+    activeCol.appendChild(block);
+    bindBlock(block);
+  }
+  window.buildLayerPanel();
+  return true;
+}
+
 /* ── 오버레이 삽입 헬퍼 ── */
 function getSelectedOverlay() {
   const ab = document.querySelector('.asset-block.selected[data-overlay="true"]');
