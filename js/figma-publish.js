@@ -1,4 +1,5 @@
 import { canvasEl, state } from './globals.js';
+import './import-figma-json.js';
 
 function togglePublishDropdown(e) {
   e.stopPropagation();
