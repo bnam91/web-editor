@@ -301,72 +301,327 @@
 
 ---
 
-## 6. 저장 / 불러오기
+## 6. 저장 / 불러오기 (save-load.js)
 
-### 자동 저장
+### localStorage 키 구조 (반드시 확인)
 ```
-[ ] 블록 추가 후 자동 저장 트리거
-    동작: 블록 추가 (canvasEl DOM 변경)
-    기대: 1500ms 이내에 localStorage 저장
-    기대: Electron 환경이면 파일에도 저장
+SAVE_KEY_PREFIX  = 'web-editor-autosave'
+→ 프로젝트별 키: 'web-editor-autosave__{activeProjectId}'
+→ 타임스탬프 키: 'web-editor-autosave__{activeProjectId}_ts'
 
-[ ] 드래그 중 자동 저장 억제
+PROJECTS_KEY = 'sangpe-projects'
+→ 브라우저 환경에서 프로젝트 목록 전체 저장
+
+TAB_STATE_KEY = 'web-editor-open-tabs'
+→ { tabs: [{ id, name }], activeId } — _cache 제외하고 저장
+```
+
+### 자동 저장 (scheduleAutoSave)
+```
+[ ] 캔버스 DOM 변경 → 자동 저장 트리거
+    동작: 블록 추가/삭제/텍스트 수정 등 canvasEl 변경
+    기대: MutationObserver(childList+subtree+characterData) 감지
+    기대: scheduleAutoSave() 호출 → 1500ms debounce 시작
+    기대: 탑바 인디케이터 '저장 중...' 표시
+    기대: 1500ms 후 localStorage 저장 + 파일 저장 (skipThumbnail:true)
+    기대: 인디케이터 '저장됨' → 2500ms 후 사라짐
+    주의: attributes 변경은 감지 안 함 (드래그 클래스 토글 폭주 방지)
+
+[ ] _suppressAutoSave = true 일 때 저장 완전 억제
     조건: state._suppressAutoSave = true
     동작: scheduleAutoSave() 호출
-    기대: 저장 실행되지 않음 (억제 상태)
+    기대: clearTimeout 없이 즉시 return — 타이머 시작 안 함
 
-[ ] 브라우저 종료 직전 즉시 저장
-    동작: beforeunload 이벤트 발생
-    기대: debounce 대기 없이 즉시 localStorage 저장
+[ ] 탭 전환 중 억제 → 복원
+    동작: switchTab() 실행
+    기대: canvasEl.innerHTML = '' 직전 state._suppressAutoSave = true
+    기대: 로드 완료 후 state._suppressAutoSave = false
 
-[ ] 저장 충돌 방지 (Race condition)
-    기대: 동시에 저장 요청 시 _pendingSaveData에 최신 것만 저장
-    기대: 현재 저장 완료 후 pendingSave 자동 실행
+[ ] 페이지 전환 중 억제 → 복원
+    동작: switchPage() 실행
+    기대: state._suppressAutoSave = true 설정 후 canvas 교체
+    기대: 교체 완료 후 state._suppressAutoSave = false
+    기대: scheduleAutoSave() 호출 (페이지 전환도 저장 트리거)
+
+[ ] beforeunload — debounce 중 즉시 flush
+    조건: autoSaveTimer가 남아있는 상태에서 창 닫기/새로고침
+    기대: clearTimeout(autoSaveTimer)
+    기대: serializeProject() → localStorage 즉시 저장
+    기대: timestamp 충돌 방지: Math.max(existingTs, Date.now()) 저장
+    주의: Cmd+R 핸들러(main.js)가 미리 lsTs+5000을 설정할 수 있어
+          existingTs가 더 크면 그 값 유지 (레이스 컨디션 방지)
 ```
 
-### v2 저장 포맷 유지
+### 파일 저장 대기열 패턴 (saveProjectToFile)
 ```
-[ ] serializeProject() 출력 포맷
-    기대: JSON.parse 결과에 { version: 2, currentPageId, pages } 포함
-    기대: pages 각 항목에 { id, name, label, pageSettings, canvas } 포함
+[ ] 동시 저장 방지 — 대기열
+    조건: _isSavingToFile = true (저장 진행 중)
+    동작: saveProjectToFile() 재호출
+    기대: _pendingSaveData = { snapshot, opts } 에 최신값 저장 후 return
+    기대: 진행 중 저장 완료 후 _pendingSaveData 자동 소비 (재귀 호출)
+    기대: _pendingSaveData는 마지막 요청만 유지 (중간 요청 버려짐)
 
-[ ] applyProjectData() — v2 포맷 로드
-    동작: v2 데이터 적용
-    기대: state.pages 배열에 모든 페이지 저장
-    기대: state.currentPageId 설정
-    기대: canvasEl.innerHTML = 현재 페이지 canvas
+[ ] opts.projectId — 탭 전환 race condition 방지
+    조건: 탭A에서 탭B로 전환 직전 저장
+    기대: opts.projectId = 탭A의 id (activeProjectId 변경 전 캡처)
+    기대: 저장 대상이 탭B가 아닌 탭A 파일로 정확히 지정됨
 
-[ ] applyProjectData() — v1 호환
-    동작: { canvas: '...' } 형식 v1 데이터 적용
-    기대: pages[0]으로 자동 변환하여 로드
+[ ] 손상된 snapshot 안전 처리
+    조건: JSON.parse 불가능한 snapshot 전달
+    기대: console.warn 후 return (저장 취소)
+    기대: 앱 크래시 없음
 
-[ ] 저장 후 재오픈 시 상태 복원
-    동작: 프로젝트 저장 → 앱 재시작 → 프로젝트 오픈
-    기대: 멀티페이지, 각 페이지 pageSettings, canvas 내용 모두 복원
+[ ] Electron 파일 저장 구조
+    기대: electronAPI.loadProject(targetId) → 기존 데이터 로드
+    기대: 기존 데이터에 새 snapshot 병합 (name 등 메타 유지)
+    기대: proj.updatedAt = new Date().toISOString()
+    기대: thumbnail 있으면 proj.thumbnail 업데이트
+
+[ ] 브라우저 localStorage 저장 구조
+    기대: PROJECTS_KEY 배열에서 id 매칭 → proj.snapshot 업데이트
+    기대: proj.updatedAt 갱신
+    기대: QuotaExceededError → showToast('⚠️ 저장 공간 부족') + 앱 계속 동작
+
+[ ] 자동저장은 썸네일 생략
+    기대: scheduleAutoSave → saveProjectToFile(snap, { skipThumbnail: true })
+    기대: opts.skipThumbnail = true → captureThumbnail() 호출 안 함
+    기대: 홈으로 이동(goHome) 시에만 썸네일 캡처 실행
 ```
 
-### 프로젝트 탭 관리
+### 썸네일 생성 (captureThumbnail)
+```
+[ ] 썸네일 캡처 조건
+    기대: canvasEl의 첫 번째 .section-block 대상
+    기대: .section-label, .section-toolbar 제거한 clone 사용
+    기대: 'selected' 클래스 제거
+    기대: fixed 위치로 DOM에 임시 추가 후 캡처 → 제거
+
+[ ] 썸네일 크기/품질
+    기대: html2canvas scale=1, useCORS=true
+    기대: 배경색 = firstSec.style.background (없으면 '#ffffff')
+    기대: 200px 너비로 축소, 비율 유지 높이
+    기대: JPEG 0.7 품질로 toDataURL
+
+[ ] 섹션 없을 때 안전 처리
+    조건: canvasEl에 .section-block 없음
+    기대: null 반환, 저장 계속 진행
+```
+
+### 직렬화 (serializeProject / getSerializedCanvas)
+```
+[ ] getSerializedCanvas — 상태 요소 제거 검증
+    동작: 편집 중 상태에서 직렬화
+    기대: .block-resize-handle 제거됨
+    기대: .img-corner-handle 제거됨
+    기대: .img-edit-hint 제거됨
+    기대: [contenteditable] 속성 제거됨
+    기대: .editing 클래스 제거됨
+    기대: 원본 DOM 변경 없이 clone에서만 처리됨
+
+[ ] getSerializedCanvas — section data-name 동기화
+    조건: sec._name 이 있는 섹션
+    기대: sec.dataset.name = sec._name 먼저 동기화 후 직렬화
+
+[ ] serializeProject 출력 포맷
+    기대: flushCurrentPage() 먼저 호출 (현재 페이지 canvas 저장)
+    기대: JSON.stringify({ version: 2, currentPageId, pages }) 반환
+    기대: pages 각 항목: { id, name, label, pageSettings, canvas }
+    기대: pageSettings: { bg, gap, padX, padY }
+```
+
+### 복원 (applyProjectData)
+```
+[ ] v2 포맷 정상 복원
+    동작: { version: 2, pages: [...], currentPageId: 'page_1' } 적용
+    기대: state.pages = data.pages
+    기대: state.currentPageId = data.currentPageId
+    기대: 현재 페이지의 pageSettings → state.pageSettings 병합
+    기대: canvasEl.innerHTML = page.canvas
+    기대: .text-block-label, .asset-block-label 제거
+    기대: rebindAll(), applyPageSettings(), deselectAll() 호출
+    기대: buildLayerPanel(), showPageProperties() 호출
+
+[ ] v2 — pages 빈 배열 방어
+    조건: data.pages = []
+    기대: pages = [{ id:'page_1', name:'Page 1', ... canvas:'' }] 자동 생성
+    기대: 앱 크래시 없음
+
+[ ] v1 하위 호환
+    조건: { canvas: '<html>', pageSettings: {...} } v1 포맷
+    기대: pages = [{ id:'page_1', canvas, pageSettings }] 로 변환
+    기대: state.currentPageId = 'page_1'
+
+[ ] currentPageId 없는 경우
+    조건: data.currentPageId = undefined
+    기대: data.pages[0].id 로 대체
+```
+
+### applyPageSettings (CSS 변수 적용)
+```
+[ ] CSS 변수 전체 적용
+    기대: canvasWrap.style.background = state.pageSettings.bg
+    기대: canvasEl.style.gap = state.pageSettings.gap + 'px'
+    기대: canvasEl CSS --page-padx = padX + 'px'
+    기대: canvasEl CSS --page-pady = padY + 'px'
+
+[ ] asset-block usePadx 재계산
+    조건: data-use-padx="true" 인 asset-block 존재
+    기대: applyAssetPadX(ab, state.pageSettings.padX) 재호출
+    기대: padX 변경 시 해당 블록 너비/높이 자동 재계산
+```
+
+### rebindAll — 재바인딩 체크리스트
+```
+[ ] asset-overlay contenteditable 오염 제거
+    기대: .asset-overlay의 contenteditable 속성 제거
+    기대: .asset-overlay 내 직접 text 노드 제거
+
+[ ] 섹션 ID 없는 경우 자동 부여
+    조건: sec.id = '' 인 섹션
+    기대: sec.id = 'sec_' + random(7자리) 자동 생성
+
+[ ] 섹션 배경 이미지 복원
+    조건: sec.dataset.bgImg 있음, sec.style.backgroundImage 없음
+    기대: backgroundImage/Size/Position/Repeat 복원
+
+[ ] 섹션 이벤트 중복 바인딩 방지
+    기대: sec._secClickBound = true 확인 후 바인딩
+    기대: 이미 true면 click 리스너 추가 안 함
+
+[ ] 섹션 툴바 구버전 버튼 정리
+    기대: ↑ ↓ ✕ 버튼(st-btn 중 st-branch-btn/st-ab-btn 아닌 것) 제거
+    기대: ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩
+
+[ ] row ID 없는 경우 자동 부여
+    기대: row.id = 'row_' + random(7자리)
+
+[ ] text-block contenteditable 복원
+    조건: .tb-h1/.tb-h2 등 내부 요소에 contenteditable 없음
+    기대: contenteditable="false" 자동 추가 (편집 가능 상태 유지)
+
+[ ] 블록 타입별 ID 자동 부여 prefix
+    기대: text-block → tb_, asset-block → ab_, gap-block → gb_
+    기대: icon-circle-block → icb_, label-group-block → lg_
+    기대: card-block → cdb_, strip-banner-block → sbb_
+    기대: graph-block → grb_, icon-text-block → itb_, divider-block → dvd_
+
+[ ] group-block 라벨 복원
+    기대: .group-block-label span 없으면 prepend
+    기대: 텍스트 = g.dataset.name || 'Group'
+    기대: bindGroupDrag(g) 재호출
+
+[ ] col-placeholder 이벤트 재연결
+    기대: 기존 .col-placeholder를 makeColPlaceholder() 새것으로 교체
+
+[ ] strip-banner-block 구버전 마이그레이션
+    조건: .sbb-gap-top 없는 strip-banner
+    기대: .sbb-gap-top (height:20px) prepend
+    기대: .sbb-gap-bottom (height:20px) append
+```
+
+### 앱 초기 로드 우선순위 (Electron)
+```
+[ ] Electron — localStorage vs 파일 우선순위
+    조건: lsTs(localStorage timestamp) >= fileTs(파일 updatedAt)
+    기대: localStorage 데이터 우선 적용 (새로고침 데이터 보존)
+    조건: lsTs < fileTs
+    기대: 파일 데이터 적용 (더 최신 파일 우선)
+
+[ ] Electron — 파일 v2 포맷
+    기대: proj.version === 2 && proj.pages → applyProjectData(proj)
+
+[ ] Electron — 파일 v1 snapshot
+    기대: proj.snapshot 있음 → JSON.parse 후 applyProjectData
+
+[ ] 브라우저 — localStorage에서 직접 로드
+    기대: PROJECTS_KEY 목록에서 id 매칭 → proj.snapshot → applyProjectData
+
+[ ] 프로젝트 ID 없음 (직접 index.html 진입)
+    기대: openTabs = [], renderTabBar(), initEmpty() 호출
+    기대: 단일 빈 페이지로 초기화
+```
+
+### 탭 관리 세부
 ```
 [ ] 탭 최대 5개 제한
-    조건: 탭이 이미 5개
-    동작: 6번째 탭 추가 시도
-    기대: 추가 차단 또는 가장 오래된 탭 교체
+    조건: openTabs.length === 5
+    동작: 6번째 프로젝트 열기 시도
+    기대: showToast('탭은 최대 5개까지 열 수 있어요')
+    기대: 탭 추가 안 됨
 
-[ ] 탭 전환 시 현재 탭 캐시 저장
-    조건: 탭A에서 작업 후 탭B 클릭
-    기대: 탭A의 현재 상태가 _cache에 저장됨
-    기대: 탭B의 _cache가 있으면 파일 I/O 없이 즉시 복원
+[ ] 탭 전환 전체 시퀀스 (switchTab)
+    동작: 탭A → 탭B 전환
+    기대 순서:
+      1. curTab._cache = serializeProject() (현재 탭 메모리 캐시)
+      2. saveProjectToFile(cache, { skipThumbnail:true, projectId:tabA.id }) 비동기 호출
+      3. activeProjectId = tabB.id
+      4. URL 업데이트 (history.replaceState)
+      5. 이미지 편집 리스너 정리 (.pos-dragging 요소들)
+      6. state._suppressAutoSave = true
+      7. canvasEl.innerHTML = ''
+      8. propPanel.innerHTML = ''
+      9. buildLayerPanel() 호출
+      10. renderTabBar(), saveTabState()
+      11. tabB._cache 있음 → applyProjectData(cache) 즉시, 파일 I/O 없음
+      11. tabB._cache 없음 → 파일/localStorage에서 로드
+      12. state._suppressAutoSave = false
+      13. initBranchStore()
 
-[ ] 탭 드래그 순서 변경
-    동작: 탭을 6px 이상 드래그 후 다른 위치에 드롭
-    기대: openTabs 배열 순서 변경됨
-    기대: saveTabState() 호출
+[ ] 탭 전환 — 같은 탭 클릭
+    동작: 현재 활성 탭 클릭
+    기대: 즉시 return, 아무 변화 없음 (id === activeProjectId 분기)
 
-[ ] 탭 더블클릭 이름 변경
-    동작: 탭 더블클릭
-    기대: 인라인 input 활성화
-    동작: 입력 후 Enter
-    기대: 탭 이름 업데이트, saveTabState() 호출
+[ ] 탭 닫기 — 마지막 탭
+    조건: openTabs.length === 1
+    동작: × 버튼 클릭
+    기대: openTabs = [], saveTabState(), goHome() 호출
+
+[ ] 탭 닫기 — 현재 활성 탭
+    조건: 탭이 2개 이상, 현재 탭 닫기
+    기대: 인접 탭(다음 또는 이전)으로 switchTab 후 제거
+
+[ ] 탭 드래그 — 6px 미만 이동
+    동작: 탭을 5px 이동 후 마우스업
+    기대: 드래그 시작 안 됨, 클릭 이벤트로 처리
+
+[ ] 탭 드래그 — 6px 이상
+    동작: 탭을 6px 이상 드래그
+    기대: ghost 요소 생성 (tab-ghost 클래스)
+    기대: 삽입 위치 미리보기 (tab-drop-before/after 클래스)
+    동작: 마우스업
+    기대: openTabs.splice(fromIdx, 1) → splice(toIdx, 0, moved)
+    기대: saveTabState(), renderTabBar() 호출
+
+[ ] 탭 이름 더블클릭 변경
+    조건: 현재 활성 탭의 이름 영역 더블클릭
+    기대: .proj-tab-name contentEditable='true', focus, selectAll
+    동작: 새 이름 입력 후 Enter
+    기대: setProjectName(newName) 호출 → 탭 + 파일 동시 업데이트
+    동작: 빈 문자열 입력 후 blur
+    기대: 이전 이름으로 복원 (current 값 유지)
+    동작: Escape
+    기대: 원본 이름으로 복원, blur
+
+[ ] 탭 상태 localStorage 저장 구조
+    기대: { tabs: [{ id, name }], activeId } — _cache 제외
+    기대: 앱 재시작 후 TAB_STATE_KEY 읽어 openTabs 복원
+```
+
+### v2 저장 포맷 / 재오픈 검증
+```
+[ ] 저장 → 재오픈 전체 복원
+    동작: 편집 후 goHome → 재진입
+    기대: version:2 포맷 유지
+    기대: 멀티페이지 모두 복원 (페이지 수, 이름, 라벨)
+    기대: 각 페이지 pageSettings (bg, gap, padX, padY) 복원
+    기대: 각 페이지 canvas (블록 구조, dataset 속성) 복원
+    기대: 현재 페이지(currentPageId) 그대로 진입
+
+[ ] Cmd+R 새로고침 후 복원
+    동작: 편집 중 Cmd+R
+    기대: main.js Cmd+R 핸들러가 lsTs 미리 갱신
+    기대: localStorage가 파일보다 최신으로 판정 → localStorage 우선 복원
+    기대: 새로고침 직전 상태 100% 복원
 ```
 
 ---
