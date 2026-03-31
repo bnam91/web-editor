@@ -400,6 +400,7 @@ function addRowBlock(cols = 2, rows = 1) {
       row.appendChild(col);
     }
     insertIntoOverlay(overlay, row);
+    row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
     window.buildLayerPanel();
     document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
     row.classList.add('row-active');
@@ -469,6 +470,7 @@ function addRowBlock(cols = 2, rows = 1) {
 
   insertAfterSelected(sec, row);
   if (window.bindRowColAdd) window.bindRowColAdd(row);
+  row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
 
   window.buildLayerPanel();
   document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
