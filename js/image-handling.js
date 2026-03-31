@@ -325,7 +325,7 @@ function exitImageEditMode(ab) {
     ab.dataset.imgY = parseFloat(img.style.top)  || 0;
     img.style.objectFit = 'cover';
   }
-  ab.style.overflow = 'hidden'; // 프레임 클리핑 복원
+  ab.style.overflow = ''; // CSS 규칙에 위임 (has-image: hidden, selected: visible)
   if (ab._imgEditCleanup) { ab._imgEditCleanup(); ab._imgEditCleanup = null; }
   document.removeEventListener('click',   ab._exitImgEdit);
   document.removeEventListener('keydown', ab._exitImgEsc);

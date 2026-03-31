@@ -140,6 +140,67 @@ export function showAssetProperties(ab) {
   const hSlider = document.getElementById('asset-h-slider');
   const hNumber = document.getElementById('asset-h-number');
 
+  // ── 프레임 리사이즈 핸들 (has-image + selected) ──
+  window._activeFrameHandles?.cleanup?.();
+  if (hasImage) {
+    const fhEls = [];
+    const CORNERS = [
+      { id: 'tl', top: true,  right: false, cursor: 'nwse-resize' },
+      { id: 'tr', top: true,  right: true,  cursor: 'nesw-resize' },
+      { id: 'bl', top: false, right: false, cursor: 'nesw-resize' },
+      { id: 'br', top: false, right: true,  cursor: 'nwse-resize' },
+    ];
+    CORNERS.forEach(({ id, top, right, cursor }) => {
+      const h = document.createElement('div');
+      h.className = 'asset-frame-handle';
+      h.style.cursor = cursor;
+      h.style.position = 'absolute';
+      h.style[top ? 'top' : 'bottom'] = '-5px';
+      h.style[right ? 'right' : 'left'] = '-5px';
+      h.draggable = false;
+      h.addEventListener('dragstart', e => e.preventDefault());
+      ab.appendChild(h);
+      fhEls.push(h);
+
+      h.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault(); e.stopPropagation();
+        const zs = (window.currentZoom || 100) / 100;
+        const startY = e.clientY;
+        const startH = parseInt(ab.style.height) || ab.offsetHeight;
+        const onMove = ev => {
+          const dy = (ev.clientY - startY) / zs;
+          const newH = Math.max(100, Math.round(startH + (top ? -dy : dy)));
+          ab.style.height = newH + 'px';
+          ab.dataset.baseHeight = newH;
+          if (hSlider) hSlider.value = newH;
+          if (hNumber) hNumber.value = newH;
+        };
+        const onUp = () => {
+          window.pushHistory?.();
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+
+    const cleanup = () => {
+      fhEls.forEach(h => h.remove());
+      window._activeFrameHandles = null;
+    };
+    window._activeFrameHandles = { ab, cleanup };
+
+    // 선택 해제 또는 img-editing 진입 시 자동 제거
+    const obs = new MutationObserver(() => {
+      if (!ab.classList.contains('selected') || ab.classList.contains('img-editing')) {
+        cleanup(); obs.disconnect();
+      }
+    });
+    obs.observe(ab, { attributes: true, attributeFilter: ['class'] });
+  }
+
   document.getElementById('asset-padx-toggle').addEventListener('change', e => {
     if (e.target.checked) {
       ab.dataset.usePadx = 'true';
