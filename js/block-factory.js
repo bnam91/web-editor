@@ -591,6 +591,7 @@ function addAssetBlock(preset) {
   const { row, block } = makeAssetBlock();
   if (preset && ASSET_PRESETS[preset]) {
     block.style.height = ASSET_PRESETS[preset].height + 'px';
+    if (ASSET_PRESETS[preset].width) block.style.width = ASSET_PRESETS[preset].width + 'px';
   }
   insertAfterSelected(sec, row);
   bindBlock(block);

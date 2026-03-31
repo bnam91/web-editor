@@ -423,6 +423,23 @@ document.addEventListener('keydown', e => {
     if (e.code === 'KeyG') { e.preventDefault(); window.addGapBlock?.(); return; }
     if (e.code === 'KeyT') { e.preventDefault(); window.addTextBlock?.('body'); return; }
     if (e.code === 'KeyA') { e.preventDefault(); window.addAssetBlock?.(); return; }
+
+    // 텍스트 타입 단축키: 1=H1, 2=H2, 3=H3, 4=Body (텍스트 편집 중이면 무시)
+    if (['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
+      if (document.querySelector('.text-block.editing')) return; // 편집 중 차단
+      const tb = document.querySelector('.text-block.selected');
+      if (!tb) return;
+      e.preventDefault();
+      const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
+      const [cls, dtype] = typeMap[e.code];
+      const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
+      if (!contentEl) return;
+      window.pushHistory?.();
+      contentEl.className = cls;
+      tb.dataset.type = dtype;
+      window.showTextProperties?.(tb);
+      return;
+    }
   }
 
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
