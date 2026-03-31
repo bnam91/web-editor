@@ -823,8 +823,11 @@ function addSection() {
   const sec = document.createElement('div');
   sec.className = 'section-block'; sec.dataset.section = newIdx;
   sec.id = genId('sec');
+  const secLabel = `Section ${String(newIdx).padStart(2,'0')}`;
+  sec._name = secLabel;
+  sec.dataset.name = secLabel;
   sec.innerHTML = `
-    <div class="section-hitzone"><span class="section-label">Section ${String(newIdx).padStart(2,'0')}</span></div>
+    <div class="section-hitzone"><span class="section-label">${secLabel}</span></div>
     <div class="section-toolbar">
       <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
     </div>
