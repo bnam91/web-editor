@@ -202,6 +202,29 @@ export function showCanvasItemProperties(cb, item) {
       </div>
     </div>` : ''}
     <div class="prop-section">
+      <div class="prop-section-title">정렬 (캔버스 기준)</div>
+      <div class="prop-align-group" style="flex-wrap:wrap;gap:4px">
+        <button class="prop-align-btn ci-pos-btn" data-pos="left"   title="왼쪽 정렬">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="1" y1="1" x2="1" y2="13"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>
+        </button>
+        <button class="prop-align-btn ci-pos-btn" data-pos="hcenter" title="가로 중앙 정렬">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="7" y1="1" x2="7" y2="13"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>
+        </button>
+        <button class="prop-align-btn ci-pos-btn" data-pos="right"  title="오른쪽 정렬">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="13" y1="1" x2="13" y2="13"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>
+        </button>
+        <button class="prop-align-btn ci-pos-btn" data-pos="top"    title="위쪽 정렬">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="1" y1="1" x2="13" y2="1"/><rect x="4" y="3" width="6" height="5" rx="1"/></svg>
+        </button>
+        <button class="prop-align-btn ci-pos-btn" data-pos="vcenter" title="세로 중앙 정렬">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="1" y1="7" x2="13" y2="7"/><rect x="4" y="3" width="6" height="8" rx="1"/></svg>
+        </button>
+        <button class="prop-align-btn ci-pos-btn" data-pos="bottom" title="아래쪽 정렬">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="1" y1="13" x2="13" y2="13"/><rect x="4" y="6" width="6" height="5" rx="1"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">레이어 순서</div>
       <div class="prop-align-group">
         <button class="prop-align-btn" id="ci-bring">↑ 앞으로</button>
@@ -311,6 +334,38 @@ export function showCanvasItemProperties(cb, item) {
       });
     });
   }
+
+  // 정렬 버튼 (캔버스 기준)
+  document.querySelectorAll('.ci-pos-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pos  = btn.dataset.pos;
+      // canvas-block 논리 너비: section.offsetWidth / zoom (section이 width:100%이고 zoom은 section 외부에 적용)
+      const zs   = (window.currentZoom || 100) / 100;
+      const sec  = cb.closest('.section-block');
+      const cbW  = sec ? Math.round(sec.offsetWidth / zs) : Math.round((cb.scrollWidth || 800) / zs);
+      const cbH  = Math.round(parseFloat(cb.style.height) || 500);
+      const iW   = parseFloat(item.dataset.w) || item.offsetWidth;
+      const iH   = parseFloat(item.dataset.h) || item.offsetHeight;
+      let nx = parseFloat(item.dataset.x) || 0;
+      let ny = parseFloat(item.dataset.y) || 0;
+
+      if (pos === 'left')    nx = 0;
+      if (pos === 'hcenter') nx = Math.round((cbW - iW) / 2);
+      if (pos === 'right')   nx = cbW - iW;
+      if (pos === 'top')     ny = 0;
+      if (pos === 'vcenter') ny = Math.round((cbH - iH) / 2);
+      if (pos === 'bottom')  ny = cbH - iH;
+
+      item.dataset.x = nx; item.dataset.y = ny;
+      item.style.left = nx + 'px'; item.style.top = ny + 'px';
+      window.syncCanvasItemHandles?.(item);
+
+      // 패널 입력값 동기화
+      const xEl = document.getElementById('ci-x'); const yEl = document.getElementById('ci-y');
+      if (xEl) xEl.value = nx; if (yEl) yEl.value = ny;
+      window.pushHistory?.();
+    });
+  });
 
   document.getElementById('ci-bring')?.addEventListener('click', () => window.bringForward?.());
   document.getElementById('ci-send')?.addEventListener('click',  () => window.sendBackward?.());
