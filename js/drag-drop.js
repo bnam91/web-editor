@@ -719,6 +719,32 @@ function bindBlock(block) {
     };
     block.addEventListener('focusout', onItbBlur);
     block.querySelectorAll('[contenteditable], .itb-text, .itb-icon').forEach(el => el.setAttribute('draggable', 'false'));
+
+    // itb-icon 클릭 → 이미지 업로드
+    block.querySelector('.itb-icon')?.addEventListener('click', e => {
+      e.stopPropagation();
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          window.pushHistory?.();
+          const iconEl = block.querySelector('.itb-icon');
+          let img = iconEl.querySelector('img');
+          if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
+          img.src = ev.target.result;
+          img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
+          block.dataset.imgSrc = ev.target.result;
+          iconEl.style.border = 'none';
+          window.triggerAutoSave?.();
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+    });
   }
 
   if (isDivider) {
