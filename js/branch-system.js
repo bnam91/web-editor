@@ -55,6 +55,8 @@ async function initBranchStore() {
             window.state._suppressAutoSave = true;
             applyProjectData(data);
             window.state._suppressAutoSave = false;
+            // 초기 로드 후 히스토리 초기화 — 로드된 상태가 초기 스냅샷으로 저장됨
+            if (window.clearHistory) window.clearHistory();
           } catch {
             window.state._suppressAutoSave = false;
           }
@@ -259,6 +261,8 @@ function mergeBranch(fromName) {
   window.state._suppressAutoSave = true;
   applyProjectData(data);
   window.state._suppressAutoSave = false;
+  // 병합 후 히스토리 초기화 — applyProjectData 이후 호출해야 병합된 상태가 초기 스냅샷으로 저장됨
+  if (window.clearHistory) window.clearHistory();
   updateBranchIndicator(toName);
   applyFocusMode(toName);
   renderBranchPanel();

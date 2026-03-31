@@ -859,7 +859,7 @@ function addSection() {
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => bindBlock(b));
   if (window.bindRowColAdd) sec.querySelectorAll('.row').forEach(row => window.bindRowColAdd(row));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
