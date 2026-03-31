@@ -1,0 +1,168 @@
+/* ══════════════════════════════════════
+   DESIGN TOKENS — 2단계 CSS 변수 계층
+   primitive: 값만 정의 (숫자·색상 원형)
+   semantic:  의미만 정의 (primitive 참조)
+══════════════════════════════════════ */
+
+/* ────────────────────────────────────
+   PRIMITIVE TOKENS
+   raw values — no meaning attached
+──────────────────────────────────── */
+:root {
+  /* ── Blue (selection / accent-primary) ── */
+  --p-blue-500:       #1592fe;
+  --p-blue-600:       #2d6fe8;
+  --p-blue-650:       #3a7df0;
+  --p-blue-700:       #3d7ff8;
+  --p-blue-800:       #1a5dd4;
+  --p-blue-900:       #6a9fd8;         /* tab drop indicator */
+
+  --p-blue-alpha-08:  rgba(45,111,232,0.08);
+  --p-blue-alpha-12:  rgba(45,111,232,0.12);
+  --p-blue-alpha-35:  rgba(45,111,232,0.35);
+  --p-blue-alpha-40:  rgba(45,111,232,0.40);
+  --p-blue-alpha-60:  rgba(45,111,232,0.60);
+  --p-blue-alpha-70:  rgba(45,111,232,0.70);
+  --p-blue-alpha-90:  rgba(45,111,232,0.90);
+
+  --p-cornflower-500: #1592fe;         /* image / CI handle blue */
+  --p-cornflower-alpha-15: rgba(21,146,254,0.15);
+  --p-cornflower-alpha-30: rgba(21,146,254,0.30);
+  --p-cornflower-alpha-40: rgba(21,146,254,0.40);
+
+  --p-sky-400:        #7cb8ff;         /* accent / edit badge */
+  --p-sky-alpha-06:   rgba(106,176,255,0.06);
+  --p-sky-alpha-15:   rgba(106,176,255,0.15);
+
+  /* ── Neutral (dark UI shell) ── */
+  --p-gray-950:       #1a1a1a;
+  --p-gray-900:       #1e1e1e;
+  --p-gray-850:       #222222;
+  --p-gray-800:       #242424;
+  --p-gray-775:       #252525;
+  --p-gray-750:       #272727;
+  --p-gray-700:       #2a2a2a;
+  --p-gray-675:       #2e2e2e;
+  --p-gray-650:       #333333;
+  --p-gray-600:       #383838;
+  --p-gray-550:       #3a3a3a;
+  --p-gray-500:       #444444;
+  --p-gray-400:       #555555;
+  --p-gray-350:       #5a5a5a;
+  --p-gray-300:       #6b6b6b;
+  --p-gray-250:       #777777;
+  --p-gray-200:       #888888;
+  --p-gray-150:       #aaaaaa;
+  --p-gray-100:       #cccccc;
+  --p-gray-50:        #e0e0e0;
+  --p-gray-20:        #f0f0f0;
+  --p-white:          #ffffff;
+
+  /* ── Semantic neutrals (dark overlay) ── */
+  --p-overlay-dark-55:  rgba(0,0,0,0.55);
+  --p-overlay-dark-80:  rgba(18,18,18,0.80);
+  --p-overlay-black-06: rgba(0,0,0,0.06);
+
+  /* ── Canvas content (light backgrounds) ── */
+  --p-canvas-white:   #ffffff;
+  --p-canvas-light:   #f8f9fa;
+  --p-canvas-table:   #f7f7f7;
+  --p-canvas-stripe:  #f0f0f0;
+
+  /* ── Status ── */
+  --p-green-400:      #4ecb7a;         /* autosave saved */
+  --p-green-500:      #7fc87f;         /* success / merge */
+  --p-green-alpha-15: rgba(127,200,127,0.15);
+
+  --p-red-400:        #e74c3c;         /* danger hover */
+  --p-red-500:        #e06c6c;         /* danger / delete */
+  --p-red-600:        #c0392b;         /* danger bg */
+  --p-red-alpha-10:   rgba(224,108,108,0.10);
+  --p-red-alpha-12:   rgba(224,108,108,0.12);
+
+  /* ── Graph presets ── */
+  --p-graph-dark-bg:  #1a1a2e;
+  --p-graph-dark-bar: #4f8ef7;
+
+  /* ── Content text ── */
+  --p-content-h1:     #111111;
+  --p-content-h2:     #1a1a1a;
+  --p-content-h3:     #333333;
+  --p-content-body:   #555555;
+  --p-content-caption:#999999;
+}
+
+/* ────────────────────────────────────
+   SEMANTIC TOKENS
+   roles / intent — reference primitives
+──────────────────────────────────── */
+:root {
+  /* ── Accent / Primary Action ── */
+  --color-accent:               var(--p-blue-600);
+  --color-accent-hover:         var(--p-blue-650);
+  --color-accent-active:        var(--p-blue-700);
+  --color-accent-edit:          var(--p-sky-400);    /* branch/edit badges */
+  --color-accent-edit-bg:       var(--p-sky-alpha-06);
+
+  /* ── Selection (canvas block selection) ── */
+  --color-selection:            var(--p-blue-600);
+  --color-selection-hover:      var(--p-blue-alpha-40);
+  --color-selection-fill:       var(--p-blue-alpha-08);
+  --color-selection-outline:    var(--p-blue-alpha-35);
+  --color-selection-glow:       var(--p-blue-alpha-70);
+
+  /* ── Image / CI handles ── */
+  --color-handle:               var(--p-cornflower-500);
+  --color-handle-outline:       var(--p-cornflower-alpha-40);
+  --color-handle-glow:          var(--p-cornflower-alpha-15);
+  --color-handle-swatch:        var(--p-cornflower-alpha-30);
+
+  /* ── App background layers ── */
+  --bg-app:                     var(--p-gray-950);
+  --bg-base:                    var(--p-gray-900);
+  --bg-elevated:                var(--p-gray-800);
+  --bg-card:                    var(--p-gray-775);
+  --bg-input:                   var(--p-gray-700);
+  --bg-hover:                   var(--p-gray-675);
+
+  /* ── Borders ── */
+  --border-default:             var(--p-gray-650);
+  --border-mid:                 var(--p-gray-550);
+  --border-strong:              var(--p-gray-500);
+
+  /* ── Text ── */
+  --text-default:               var(--p-gray-50);
+  --text-sub:                   var(--p-gray-150);
+  --text-muted:                 var(--p-gray-250);
+  --text-dim:                   var(--p-gray-400);
+  --text-hint:                  var(--p-gray-350);  /* prop-hint, section-title */
+
+  /* ── Status ── */
+  --color-success:              var(--p-green-500);
+  --color-success-bg:           var(--p-green-alpha-15);
+  --color-saved:                var(--p-green-400);
+  --color-danger:               var(--p-red-500);
+  --color-danger-hover:         var(--p-red-400);
+  --color-danger-bg:            var(--p-red-600);
+  --color-danger-alpha:         var(--p-red-alpha-10);
+  --color-danger-badge-bg:      var(--p-red-alpha-12);
+
+  /* ── Focus ring (input/select active border) ── */
+  --color-focus:                var(--p-blue-600);
+  --color-focus-fill:           var(--p-blue-alpha-12);
+
+  /* ── Content presets ── */
+  --content-h1-color:           var(--p-content-h1);
+  --content-h2-color:           var(--p-content-h2);
+  --content-h3-color:           var(--p-content-h3);
+  --content-body-color:         var(--p-content-body);
+  --content-caption-color:      var(--p-content-caption);
+
+  /* ── Canvas surface ── */
+  --canvas-bg-white:            var(--p-canvas-white);
+  --canvas-bg-light:            var(--p-canvas-light);
+  --canvas-overlay:             var(--p-overlay-dark-55);
+
+  /* ── Tab drop indicator ── */
+  --color-tab-drop:             var(--p-blue-900);
+}
