@@ -121,18 +121,6 @@ function exportDesignJSON() {
       };
     }
 
-    if (el.classList.contains('strip-banner-block')) {
-      return {
-        id:      uid('sbb'),
-        type:    'strip-banner',
-        bgColor: el.dataset.bgColor || '#f5f5f5',
-        radius:  parseInt(el.dataset.radius) || 0,
-        imgPos:  el.dataset.imgPos  || 'left',
-        src:     el.dataset.imgSrc  || null,
-        height:  parseFloat(el.style.height) || 300,
-      };
-    }
-
     if (el.classList.contains('label-group-block')) {
       const items = [];
       el.querySelectorAll('.label-item').forEach(item => {
@@ -205,7 +193,7 @@ function exportDesignJSON() {
 
   function serializeCol(colEl) {
     const blocks = [];
-    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block, :scope > .label-group-block, :scope > .table-block, :scope > .icon-text-block, :scope > .divider-block, :scope > .icon-circle-block').forEach(b => {
+    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .card-block, :scope > .graph-block, :scope > .label-group-block, :scope > .table-block, :scope > .icon-text-block, :scope > .divider-block, :scope > .icon-circle-block').forEach(b => {
       const s = serializeBlock(b);
       if (s) blocks.push(s);
     });

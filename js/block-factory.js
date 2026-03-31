@@ -324,7 +324,7 @@ function addTextBlock(type) {
 }
 
 function groupSelectedBlocks() {
-  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected')];
+  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected')];
   if (selected.length < 2) return;
 
   // 같은 섹션의 블록만 그룹
@@ -705,49 +705,6 @@ function addCardBlock() {
   window.selectSection(sec);
 }
 
-function makeStripBannerBlock() {
-  const row = document.createElement('div');
-  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
-  const sbb = document.createElement('div');
-  sbb.className = 'strip-banner-block'; sbb.dataset.type = 'strip-banner';
-  sbb.id = genId('sbb');
-  sbb.dataset.bgColor = '#f5f5f5';
-  sbb.dataset.radius = '0';
-  sbb.dataset.imgPos = 'right';
-  sbb.dataset.usePadx = 'true';
-  sbb.innerHTML = `
-    <div class="sbb-image">
-      <span class="sbb-img-placeholder"></span>
-    </div>
-    <div class="sbb-content" style="background:#f5f5f5;">
-      <div class="sbb-gap sbb-gap-top" style="height:20px"></div>
-      <div class="sbb-heading" contenteditable="false">제목을 입력하세요</div>
-      <div class="sbb-gap" style="height:8px"></div>
-      <div class="sbb-body" contenteditable="false">내용을 입력하세요.</div>
-      <div class="sbb-gap sbb-gap-bottom" style="height:20px"></div>
-    </div>`;
-
-  col.appendChild(sbb);
-  row.appendChild(col);
-  return { row, block: sbb };
-}
-
-function addStripBannerBlock() {
-  const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  window.pushHistory();
-  const { row, block } = makeStripBannerBlock();
-  insertAfterSelected(sec, row);
-  bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
-  window.buildLayerPanel();
-  window.selectSection(sec);
-}
-
 function makeGraphBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
@@ -860,7 +817,7 @@ function addSection() {
     e.stopPropagation();
     window.selectSectionWithModifier(sec, e);
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -871,7 +828,7 @@ function addSection() {
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => bindBlock(b));
   if (window.bindRowColAdd) sec.querySelectorAll('.row').forEach(row => window.bindRowColAdd(row));
   sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
@@ -935,8 +892,6 @@ export {
   addTableBlock,
   makeCardBlock,
   addCardBlock,
-  makeStripBannerBlock,
-  addStripBannerBlock,
   makeGraphBlock,
   addGraphBlock,
   makeDividerBlock,
@@ -965,8 +920,6 @@ window.addIconCircleBlock   = addIconCircleBlock;
 window.addTableBlock        = addTableBlock;
 window.makeCardBlock        = makeCardBlock;
 window.addCardBlock         = addCardBlock;
-window.makeStripBannerBlock = makeStripBannerBlock;
-window.addStripBannerBlock  = addStripBannerBlock;
 window.makeGraphBlock       = makeGraphBlock;
 window.addGraphBlock        = addGraphBlock;
 window.makeDividerBlock     = makeDividerBlock;

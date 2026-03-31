@@ -841,95 +841,6 @@
 }
 
 /* ═══════════════════════════════════
-   STRIP BANNER BLOCK
-═══════════════════════════════════ */
-.strip-banner-block {
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  background: transparent;
-  border-radius: 0;
-  overflow: hidden;
-  cursor: pointer;
-
-  width: 100%;
-  min-height: 200px;
-}
-.strip-banner-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.strip-banner-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
-.strip-banner-block.drag-over .sbb-image { outline: 2px dashed var(--sel-color); }
-
-.sbb-image {
-  flex: 3;
-  background:
-    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  position: relative;
-  flex-shrink: 0;
-}
-.sbb-img-placeholder {
-  font-size: 28px;
-  color: var(--ui-text-sub);
-  user-select: none;
-  pointer-events: none;
-}
-.sbb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.sbb-clear-btn {
-  position: absolute;
-  top: 6px; right: 6px;
-  width: 20px; height: 20px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.55);
-  color: #fff;
-  border: none; cursor: pointer;
-  font-size: 10px; line-height: 20px; text-align: center;
-  display: none;
-  padding: 0;
-  z-index: 1;
-}
-.strip-banner-block:hover .sbb-clear-btn,
-.strip-banner-block.selected .sbb-clear-btn { display: block; }
-
-.sbb-content {
-  flex: 7;
-  padding: 20px var(--page-padx, 24px);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  background: transparent;
-}
-.sbb-heading {
-  font-size: 28px;
-  font-weight: 600;
-  color: #111;
-  outline: none;
-  line-height: 1.35;
-}
-.sbb-body {
-  font-size: 20px;
-  color: var(--ui-text-dim);
-  outline: none;
-  line-height: 1.6;
-}
-
-/* 이미지 위치: left(기본) */
-.strip-banner-block[data-img-pos="left"] .sbb-image { order: 1; }
-.strip-banner-block[data-img-pos="left"] .sbb-content { order: 2; }
-/* 이미지 위치: right */
-.strip-banner-block[data-img-pos="right"] .sbb-image { order: 2; }
-.strip-banner-block[data-img-pos="right"] .sbb-content { order: 1; }
-/* padX는 JS에서 outer block에 인라인으로 적용됨 (prop-strip-banner.js applyPadX) */
-
-/* ═══════════════════════════════════
    DIVIDER BLOCK
 ═══════════════════════════════════ */
 .divider-block {
@@ -982,7 +893,6 @@
 .table-block.selected,
 .graph-block.selected,
 .card-block.selected,
-.strip-banner-block.selected,
 .divider-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }

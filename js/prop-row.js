@@ -325,15 +325,13 @@ function showRowProperties(rowEl) {
   }
 }
 
-/* 레이아웃 프리셋 버튼 (1×1, 2×1, 3×1, 2×2) */
+/* 레이아웃 프리셋 버튼 (1×1, 2×2) */
 function _bindLayoutPresets(rowEl) {
   const wrap = document.getElementById('row-layout-presets');
   if (!wrap) return;
 
   const PRESETS = [
     { label: '1×1', cols: 1, rows: 1 },
-    { label: '2×1', cols: 2, rows: 1 },
-    { label: '3×1', cols: 3, rows: 1 },
     { label: '2×2', cols: 2, rows: 2 },
   ];
 

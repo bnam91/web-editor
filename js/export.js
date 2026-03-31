@@ -178,18 +178,6 @@ function exportDesignJSON() {
       };
     }
 
-    if (el.classList.contains('strip-banner-block')) {
-      return {
-        id:      uid('sbb'),
-        type:    'strip-banner',
-        bgColor: el.dataset.bgColor || '#f5f5f5',
-        radius:  parseInt(el.dataset.radius) || 0,
-        imgPos:  el.dataset.imgPos  || 'left',
-        src:     el.dataset.imgSrc  || null,
-        height:  parseFloat(el.style.height) || 300,
-      };
-    }
-
     if (el.classList.contains('label-group-block')) {
       const items = [];
       el.querySelectorAll('.label-item').forEach(item => {
@@ -230,7 +218,7 @@ function exportDesignJSON() {
 
   function serializeCol(colEl) {
     const blocks = [];
-    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block, :scope > .label-group-block, :scope > .table-block').forEach(b => {
+    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .card-block, :scope > .graph-block, :scope > .label-group-block, :scope > .table-block').forEach(b => {
       const s = serializeBlock(b);
       if (s) blocks.push(s);
     });
@@ -526,13 +514,6 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 .grb-bar-fill{width:100%;background:#2d6fe8;}
 .grb-bar-label{font-size:20px;color:#555;margin-top:4px;text-align:center;}
 .grb-bar-val-label{font-size:18px;font-weight:600;color:#2d6fe8;margin-bottom:2px;}
-/* strip-banner */
-.strip-banner-block{width:100%;display:flex;overflow:hidden;}
-.sbb-image{flex:0 0 40%;overflow:hidden;}
-.sbb-image img{display:block;width:100%;height:100%;object-fit:cover;}
-.sbb-content{flex:1;padding:24px;display:flex;flex-direction:column;justify-content:center;}
-.sbb-heading{font-size:40px;font-weight:700;color:#111;}
-.sbb-body{font-size:28px;color:#555;margin-top:8px;}
 /* label-group */
 .label-group-block{width:100%;display:flex;flex-wrap:wrap;gap:10px;padding:16px;}
 .label-item{display:inline-flex;align-items:center;padding:8px 20px;border-radius:40px;font-size:24px;}
@@ -1035,17 +1016,6 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         height:    parseFloat(el.style.height) || 300,
       };
     }
-    if (el.classList.contains('strip-banner-block')) {
-      return {
-        type:    'strip-banner',
-        id:      el.id || ('sbb_' + Math.random().toString(36).slice(2, 8)),
-        bgColor: el.dataset.bgColor || '#f5f5f5',
-        radius:  parseInt(el.dataset.radius) || 0,
-        imgPos:  el.dataset.imgPos  || 'left',
-        src:     el.dataset.imgSrc  || null,
-        height:  parseFloat(el.style.height) || 300,
-      };
-    }
     return null;
   }
 
@@ -1054,7 +1024,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block, :scope > .icon-text-block, :scope > .divider-block').forEach(b => {
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .card-block, :scope > .graph-block, :scope > .icon-text-block, :scope > .divider-block').forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });

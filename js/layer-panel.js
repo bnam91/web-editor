@@ -3,7 +3,7 @@
    makeLayer* 렌더러는 layer-panel-items.js로 분리 (2025-03-31)
 ═══════════════════════════════════ */
 import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem,
-         makeLayerAssetItem, makeLayerCardItem, makeLayerBannerItem, makeLayerColItem,
+         makeLayerAssetItem, makeLayerCardItem, makeLayerColItem,
          makeLayerRowGroup } from './layer-panel-items.js';
 
 export function buildLayerPanel() {
@@ -166,8 +166,6 @@ export function buildLayerPanel() {
         const block = colBlocks[0];
         if (block.classList.contains('asset-block')) {
           container.appendChild(makeLayerAssetItem(block, child, sec));
-        } else if (block.classList.contains('strip-banner-block')) {
-          container.appendChild(makeLayerBannerItem(block, child, sec));
         } else if (block.classList.contains('card-block')) {
           container.appendChild(makeLayerCardItem(block, child, sec));
         } else {

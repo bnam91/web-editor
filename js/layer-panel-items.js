@@ -96,13 +96,12 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isLabelGroup = block.classList.contains('label-group-block');
   const isDivider    = block.classList.contains('divider-block');
   const isCard       = block.classList.contains('card-block');
-  const isBanner     = block.classList.contains('strip-banner-block');
   const isGraph      = block.classList.contains('graph-block');
   const isIconText   = block.classList.contains('icon-text-block');
   const isCanvas     = block.classList.contains('canvas-block');
-  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas' };
+  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -136,7 +135,6 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
       else if (isIconCb) window.showIconCircleProperties(block);
       else if (isTable) window.showTableProperties(block);
       else if (isCard) window.showCardProperties(block);
-      else if (isBanner) window.showStripBannerProperties(block);
       else window.showAssetProperties(block);
     }
   });
@@ -567,108 +565,6 @@ function makeLayerCardItem(block, dragTarget, sec, depth = 1) {
   return wrapper;
 }
 
-/* 배너 블록 + 하위 텍스트/갭 자식 포함 레이어 아이템 */
-function makeLayerBannerItem(block, dragTarget, sec, depth = 1) {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'layer-row-group';
-  wrapper._dragTarget = dragTarget;
-
-  const header = document.createElement('div');
-  header.className = 'layer-row-header';
-  header.innerHTML = `
-    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
-    ${layerIcons.banner}
-    <span class="layer-item-name">${block.dataset.layerName || 'Banner'}</span>
-    <span class="layer-item-type">Component</span>`;
-  header.prepend(makeIndents(depth));
-  addLayerRename(header.querySelector('.layer-item-name'), block, 'Banner');
-
-  header.addEventListener('click', e => {
-    if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
-    window.deselectAll();
-    block.classList.add('selected');
-    window.syncSection(sec);
-    window.highlightBlock(block, header);
-    window.showStripBannerProperties(block);
-  });
-  block._layerItem = header;
-
-  header.setAttribute('draggable', 'true');
-  header.addEventListener('dragstart', e => {
-    e.stopPropagation();
-    window.layerDragSrc = wrapper;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');
-    requestAnimationFrame(() => wrapper.classList.add('layer-dragging'));
-  });
-  header.addEventListener('dragend', () => {
-    wrapper.classList.remove('layer-dragging');
-    window.clearLayerIndicators();
-    window.layerDragSrc = null;
-  });
-
-  const children = document.createElement('div');
-  children.className = 'layer-row-children';
-
-  const buildBannerChildren = () => {
-    children.innerHTML = '';
-
-    // 이미지 영역
-    const imgEl = block.querySelector('.sbb-image');
-    if (imgEl) {
-      const imgItem = document.createElement('div');
-      imgItem.className = 'layer-item layer-item-nested';
-      imgItem.innerHTML = `${layerIcons.asset}<span class="layer-item-name">Image</span><span class="layer-item-type">Image</span>`;
-      imgItem.prepend(makeIndents(depth + 1));
-      imgItem.addEventListener('click', e => {
-        e.stopPropagation();
-        window.deselectAll();
-        block.classList.add('selected');
-        window.syncSection(sec);
-        window.highlightBlock(block, header);
-        window.showStripBannerProperties(block);
-      });
-      children.appendChild(imgItem);
-    }
-
-    // sbb-content 하위 자식 (heading, gap, body)
-    const sbbContent = block.querySelector('.sbb-content');
-    if (sbbContent) {
-      [...sbbContent.children].forEach(child => {
-        if (child.classList.contains('sbb-row-indicator')) return;
-        const isHeading = child.classList.contains('sbb-heading');
-        const isBody    = child.classList.contains('sbb-body');
-        const isGap     = child.classList.contains('sbb-gap');
-        const iconKey   = isHeading ? 'heading' : isBody ? 'body' : 'gap';
-        const label     = isHeading ? 'Heading' : isBody ? 'Body' : 'Gap';
-        const typeLabel = isHeading ? 'Text' : isBody ? 'Text' : 'Gap';
-
-        const childItem = document.createElement('div');
-        childItem.className = 'layer-item layer-item-nested';
-        childItem.innerHTML = `${layerIcons[iconKey] || layerIcons.body}<span class="layer-item-name">${label}</span><span class="layer-item-type">${typeLabel}</span>`;
-        childItem.prepend(makeIndents(depth + 1));
-        childItem.addEventListener('click', e => {
-          e.stopPropagation();
-          window.deselectAll();
-          block.classList.add('selected');
-          window.syncSection(sec);
-          window.highlightBlock(block, header);
-          // 하위 요소 하이라이트
-          block.querySelectorAll('.sbb-focused').forEach(el => el.classList.remove('sbb-focused'));
-          child.classList.add('sbb-focused');
-          child.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          window.showStripBannerProperties(block);
-        });
-        children.appendChild(childItem);
-      });
-    }
-  };
-  buildBannerChildren();
-
-  wrapper.appendChild(header);
-  wrapper.appendChild(children);
-  return wrapper;
-}
 
 /* 레이어 Row 그룹 생성 (멀티컬럼용) */
 function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
@@ -704,13 +600,11 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
     const isLabelGroup = block.classList.contains('label-group-block');
     const isDivider = block.classList.contains('divider-block');
     const isCard  = block.classList.contains('card-block');
-    const isBanner = block.classList.contains('strip-banner-block');
     const isGraph  = block.classList.contains('graph-block');
     const isIconText = block.classList.contains('icon-text-block');
     const isCanvas = block.classList.contains('canvas-block');
-    const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : 'asset';
+    const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : 'asset';
 
-    if (isBanner) { colChildren.appendChild(makeLayerBannerItem(block, block.closest('.row') || block, sec, depth + 1)); return; }
     if (isCard)   { colChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec, depth + 1)); return; }
     if (isCanvas) { colChildren.appendChild(makeLayerBlockItem(block, block.closest('.row') || block, sec, depth + 1)); return; }
 
@@ -830,7 +724,6 @@ export {
   makeLayerGroupItem,
   makeLayerAssetItem,
   makeLayerCardItem,
-  makeLayerBannerItem,
   makeLayerColItem,
   makeLayerRowGroup,
 };

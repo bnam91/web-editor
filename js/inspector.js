@@ -15,7 +15,6 @@ function renderInspectorPanel() {
   const tableBlocks= [...document.querySelectorAll('.table-block')];
   const labelGroupBlocks  = [...document.querySelectorAll('.label-group-block')];
   const cardBlocks        = [...document.querySelectorAll('.card-block')];
-  const bannerBlocks      = [...document.querySelectorAll('.strip-banner-block')];
   const graphBlocks       = [...document.querySelectorAll('.graph-block')];
   const dividerBlocks     = [...document.querySelectorAll('.divider-block')];
   const iconTextBlocks    = [...document.querySelectorAll('.icon-text-block')];
@@ -95,7 +94,6 @@ function renderInspectorPanel() {
     iconBlocks.length       ? `<div class="insp-stat-row"><span class="insp-stat-label">Icon Circle</span><span class="insp-stat-value">${iconBlocks.length}</span></div>` : '',
     tableBlocks.length      ? `<div class="insp-stat-row"><span class="insp-stat-label">Table</span><span class="insp-stat-value">${tableBlocks.length}</span></div>` : '',
     cardBlocks.length       ? `<div class="insp-stat-row"><span class="insp-stat-label">Card</span><span class="insp-stat-value">${cardBlocks.length}</span></div>` : '',
-    bannerBlocks.length     ? `<div class="insp-stat-row"><span class="insp-stat-label">Banner</span><span class="insp-stat-value">${bannerBlocks.length}</span></div>` : '',
     graphBlocks.length      ? `<div class="insp-stat-row"><span class="insp-stat-label">Graph</span><span class="insp-stat-value">${graphBlocks.length}</span></div>` : '',
     dividerBlocks.length    ? `<div class="insp-stat-row"><span class="insp-stat-label">Divider</span><span class="insp-stat-value">${dividerBlocks.length}</span></div>` : '',
     labelGroupBlocks.length ? `<div class="insp-stat-row"><span class="insp-stat-label">Tags</span><span class="insp-stat-value">${labelGroupBlocks.length}</span></div>` : '',
@@ -110,7 +108,7 @@ function renderInspectorPanel() {
         </div>`).join('')
     : '<span class="insp-empty">색상 없음</span>';
 
-  const totalBlocks = textBlocks.length + assetBlocks.length + gapBlocks.length + iconBlocks.length + tableBlocks.length + cardBlocks.length + bannerBlocks.length + graphBlocks.length + dividerBlocks.length + labelGroupBlocks.length + iconTextBlocks.length;
+  const totalBlocks = textBlocks.length + assetBlocks.length + gapBlocks.length + iconBlocks.length + tableBlocks.length + cardBlocks.length + graphBlocks.length + dividerBlocks.length + labelGroupBlocks.length + iconTextBlocks.length;
 
   panel.innerHTML = `
     <div class="insp-section">

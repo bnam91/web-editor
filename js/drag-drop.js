@@ -216,7 +216,6 @@ function bindBlock(block) {
   const isTableB     = block.classList.contains('table-block');
   const isLabelGroup = block.classList.contains('label-group-block');
   const isCard        = block.classList.contains('card-block');
-  const isStripBanner = block.classList.contains('strip-banner-block');
   const isGraph       = block.classList.contains('graph-block');
   const isDivider     = block.classList.contains('divider-block');
   const isCanvas      = block.classList.contains('canvas-block');
@@ -608,63 +607,6 @@ function bindBlock(block) {
     if (block.classList.contains('has-image')) {
       const clearBtn = block.querySelector('.cdb-clear-btn');
       if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); window.clearCardImage(block); });
-    }
-  }
-
-  if (isStripBanner) {
-    block.addEventListener('click', e => {
-      e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
-      window.deselectAll();
-      block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
-      window.highlightBlock(block, block._layerItem);
-      window.showStripBannerProperties(block);
-    });
-    block.addEventListener('dblclick', e => {
-      e.stopPropagation();
-      if (e.target.closest('.sbb-image')) {
-        window.triggerStripBannerImageUpload(block);
-        return;
-      }
-      const textEl = e.target.closest('.sbb-heading, .sbb-body');
-      if (textEl) {
-        window.pushHistory?.();
-        textEl.contentEditable = 'true';
-        textEl.focus();
-        block.classList.add('editing');
-        textEl.addEventListener('blur', () => {
-          textEl.contentEditable = 'false';
-          block.classList.remove('editing');
-        }, { once: true });
-        textEl.addEventListener('keydown', ev => {
-          if (ev.key === 'Escape') { textEl.blur(); }
-        }, { once: true });
-      }
-    });
-    block.addEventListener('dragover', e => {
-      if (!e.dataTransfer.types.includes('Files')) return;
-      e.preventDefault(); e.stopPropagation();
-      block.classList.add('drag-over');
-    });
-    block.addEventListener('dragleave', e => {
-      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
-    });
-    block.addEventListener('drop', e => {
-      if (!e.dataTransfer.types.includes('Files')) return;
-      e.preventDefault(); e.stopPropagation();
-      block.classList.remove('drag-over');
-      const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) window.loadImageToStripBanner(block, file);
-    });
-    if (block.classList.contains('has-image')) {
-      const clearBtn = block.querySelector('.sbb-clear-btn');
-      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); window.clearStripBannerImage(block); });
     }
   }
 

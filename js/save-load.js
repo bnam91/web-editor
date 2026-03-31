@@ -322,7 +322,7 @@ function rebindAll() {
         e.stopPropagation();
         window.selectSectionWithModifier(sec, e);
         const row = e.target.closest('.row');
-        if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+        if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
           document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
           row.classList.add('row-active');
           if (window.syncLayerRow) window.syncLayerRow(row);
@@ -353,40 +353,6 @@ function rebindAll() {
       if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
     }
   });
-  // 배너 블록 마이그레이션: padX를 sbb-content에서 outer block으로 이동
-  canvasEl.querySelectorAll('.strip-banner-block').forEach(sbb => {
-    // 구버전: sbb-content에 paddingLeft/Right가 있으면 outer block으로 이동
-    const oldContent = sbb.querySelector('.sbb-content');
-    if (oldContent && (oldContent.style.paddingLeft || oldContent.style.paddingRight)) {
-      sbb.style.paddingLeft  = oldContent.style.paddingLeft  || '';
-      sbb.style.paddingRight = oldContent.style.paddingRight || '';
-      oldContent.style.paddingLeft  = '';
-      oldContent.style.paddingRight = '';
-    }
-    // outer block의 inline background 제거 (sbb-content이 배경 담당)
-    if (sbb.style.background && !sbb.style.background.includes('rgba')) {
-      sbb.style.background = '';
-    }
-  });
-
-  // 구버전 배너 블록 마이그레이션: sbb-gap-top/bottom 없는 경우 추가
-  canvasEl.querySelectorAll('.strip-banner-block').forEach(sbb => {
-    const content = sbb.querySelector('.sbb-content');
-    if (!content) return;
-    if (!content.querySelector('.sbb-gap-top')) {
-      const topGap = document.createElement('div');
-      topGap.className = 'sbb-gap sbb-gap-top';
-      topGap.style.height = '20px';
-      content.prepend(topGap);
-    }
-    if (!content.querySelector('.sbb-gap-bottom')) {
-      const botGap = document.createElement('div');
-      botGap.className = 'sbb-gap sbb-gap-bottom';
-      botGap.style.height = '20px';
-      content.append(botGap);
-    }
-  });
-
   // row ID 복원: 저장/불러오기 시 row에도 고유 ID 부여
   canvasEl.querySelectorAll('.row').forEach(row => {
     if (!row.id) row.id = 'row_' + Math.random().toString(36).slice(2, 9);
@@ -408,7 +374,7 @@ function rebindAll() {
     window.bindCanvasBlock?.(cb);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -416,7 +382,6 @@ function rebindAll() {
         : b.classList.contains('icon-circle-block') ? 'icb'
         : b.classList.contains('label-group-block') ? 'lg'
         : b.classList.contains('card-block') ? 'cdb'
-        : b.classList.contains('strip-banner-block') ? 'sbb'
         : b.classList.contains('graph-block') ? 'grb'
         : b.classList.contains('icon-text-block') ? 'itb'
         : b.classList.contains('divider-block') ? 'dvd'
@@ -481,22 +446,31 @@ function scheduleAutoSave() {
   }, 1500);
 }
 
-// 새로고침/탭 닫기 시 미완료 debounce 즉시 flush → localStorage 백업
-// DBG-REFRESH: getSaveKey()로 프로젝트별 키 사용 — 다른 프로젝트 데이터 오염 방지
+// 새로고침/탭 닫기 시 항상 localStorage에 flush (autoSaveTimer 여부 무관)
 window.addEventListener('beforeunload', () => {
-  if (autoSaveTimer) {
-    clearTimeout(autoSaveTimer);
-    autoSaveTimer = null;
-    const snap = serializeProject();
-    // S11: 빈 canvas 저장 방지 — 페이지 전환 중 beforeunload 시 빈 상태 덮어쓰기 방지
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+  const snap = serializeProject();
+  // S11: 빈 canvas 저장 방지
+  try {
+    const snapData = JSON.parse(snap);
+    if (snapData?.pages?.length > 0 && snapData.pages.every(p => !p.canvas || p.canvas.trim() === '')) {
+      return;
+    }
+  } catch {}
+  localStorage.setItem(getSaveKey(), snap);
+  localStorage.setItem(getSaveTsKey(), String(Date.now()));
+  // non-Electron: PROJECTS_KEY snapshot 동기 업데이트
+  if (!IS_ELECTRON && activeProjectId) {
     try {
-      const snapData = JSON.parse(snap);
-      if (snapData?.pages?.length > 0 && snapData.pages.every(p => !p.canvas || p.canvas.trim() === '')) {
-        return; // 빈 canvas는 저장하지 않음
+      const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+      const proj = list.find(p => p.id === activeProjectId);
+      if (proj) {
+        proj.snapshot = JSON.parse(snap);
+        proj.updatedAt = new Date().toISOString();
+        localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
       }
     } catch {}
-    localStorage.setItem(getSaveKey(), snap);
-    localStorage.setItem(getSaveTsKey(), String(Date.now()));
   }
 });
 
@@ -522,10 +496,6 @@ function initApp() {
   canvasEl.querySelectorAll('.card-block, .graph-block').forEach(el => {
     el.style.paddingLeft = ''; el.style.paddingRight = '';
   });
-  canvasEl.querySelectorAll('.sbb-content').forEach(el => {
-    el.style.paddingLeft = ''; el.style.paddingRight = '';
-  });
-
   // 탭 이름 더블클릭 변경 — 탭바 이벤트 위임
   document.getElementById('tab-bar')?.addEventListener('dblclick', e => {
     const nameEl = e.target.closest('.proj-tab-name');
@@ -567,10 +537,18 @@ function initApp() {
       window.showPageProperties();
     }
 
-    // localStorage에서 이전 탭 상태 복원
+    // localStorage에서 이전 탭 상태 복원 (삭제된 프로젝트 탭 자동 정리)
     try {
       const saved = JSON.parse(localStorage.getItem(TAB_STATE_KEY));
-      if (saved?.tabs?.length) openTabs = saved.tabs; // 로컬 변수 직접 할당 (defineProperty setter도 동기화)
+      if (saved?.tabs?.length) {
+        if (IS_ELECTRON) {
+          const existingProjects = await window.electronAPI.listProjects();
+          const existingIds = new Set(existingProjects.map(p => p.id));
+          openTabs = saved.tabs.filter(t => existingIds.has(t.id));
+        } else {
+          openTabs = saved.tabs;
+        }
+      }
     } catch {}
 
     if (activeProjectId) {
@@ -588,9 +566,10 @@ function initApp() {
           window.renderTabBar();
           // DBG-REFRESH: 프로젝트별 키로 localStorage 조회 — 다른 프로젝트 데이터 오염 방지
           // localStorage가 파일보다 새로우면 우선 적용 (새로고침 데이터 손실 방지)
+          // lsTs + 500 > fileTs: 파일이 500ms 이상 명확히 더 새롭지 않으면 localStorage 우선
           const lsTs = parseInt(localStorage.getItem(getSaveTsKey()) || '0');
           const fileTs = new Date(proj.updatedAt || 0).getTime();
-          if (lsTs > fileTs + 500) {
+          if (lsTs > 0 && lsTs + 500 > fileTs) {
             const lsSaved = localStorage.getItem(getSaveKey());
             if (lsSaved) { try { applyAndFinish(JSON.parse(lsSaved)); return; } catch {} }
           }

@@ -118,9 +118,6 @@ export function showPageProperties() {
     canvasEl.querySelectorAll('.card-block, .graph-block').forEach(el => {
       el.style.paddingLeft = ''; el.style.paddingRight = '';
     });
-    canvasEl.querySelectorAll('.sbb-content').forEach(el => {
-      el.style.paddingLeft = ''; el.style.paddingRight = '';
-    });
     // asset-block: 너비% 재계산 방식 유지
     canvasEl.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
       window.applyAssetPadX(ab, v);

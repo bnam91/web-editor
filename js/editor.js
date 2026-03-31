@@ -203,7 +203,7 @@ function selectColWithModifier(col, e) {
 }
 
 function copySelected() {
-  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected');
+  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected');
   const selRow     = document.querySelector('.row.row-active');
   const selSection = document.querySelector('.section-block.selected');
   if (selBlock) {
@@ -237,7 +237,7 @@ function pasteClipboard() {
     bindSectionOrder(el);
     bindSectionDrag(el);
     bindSectionDropZone(el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
+    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
     el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
     el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
       const col = ph.parentElement;
@@ -248,7 +248,7 @@ function pasteClipboard() {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
     insertAfterSelected(sec, el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
+    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
     el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
     el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
       const col = ph.parentElement;
@@ -337,7 +337,7 @@ document.addEventListener('keydown', e => {
       if (activeSec) {
         const allBlocks = activeSec.querySelectorAll(
           '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block'
+          '.label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block'
         );
         allBlocks.forEach(b => b.classList.add('selected'));
       }
@@ -381,7 +381,7 @@ document.addEventListener('keydown', e => {
     const selBlock = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
+      '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
     );
     const selSection = document.querySelector('.section-block.selected');
     const moveTarget = selBlock
@@ -447,7 +447,7 @@ document.addEventListener('keydown', e => {
     const selGap     = document.querySelector('.gap-block.selected');
     const selSection = document.querySelector('.section-block.selected');
 
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
     if (allSelBlocks.length > 0) {
       e.preventDefault();
       pushHistory();
@@ -606,7 +606,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => b.classList.remove('selected'));
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
@@ -679,7 +679,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
     selectSectionWithModifier(sec, e);
     // deselectAll() 이후 row-active 복원
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -698,7 +698,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
@@ -710,7 +710,7 @@ function getSelectedSection() {
   const selBlock = document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.card-block.selected, .strip-banner-block.selected, .graph-block.selected, ' +
+    '.card-block.selected, .graph-block.selected, ' +
     '.divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
   );
   return selBlock?.closest('.section-block') || null;
@@ -842,7 +842,7 @@ canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
   // 블록 클릭은 블록 핸들러에게 위임 (canvas-block 포함)
-  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block')) return;
+  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block')) return;
   // col-add 버튼/메뉴는 통과 (메뉴 열기 동작 유지)
   if (e.target.closest('.col-add-btn, .col-add-menu')) return;
 

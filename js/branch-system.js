@@ -46,21 +46,8 @@ async function initBranchStore() {
       if (proj?.branches) {
         const store = { current: proj.currentBranch || 'main', branches: proj.branches };
         localStorage.setItem(getBranchKey(), JSON.stringify(store)); // 로컬 캐시
-        // 현재 브랜치 스냅샷을 캔버스에 적용
-        // BUG6: applyProjectData가 DOM 변경을 일으켜 autoSave 트리거 방지
-        const activeBranch = store.branches[store.current];
-        if (activeBranch?.snapshot) {
-          try {
-            const data = JSON.parse(activeBranch.snapshot);
-            window.state._suppressAutoSave = true;
-            applyProjectData(data);
-            window.state._suppressAutoSave = false;
-            // 초기 로드 후 히스토리 초기화 — 로드된 상태가 초기 스냅샷으로 저장됨
-            if (window.clearHistory) window.clearHistory();
-          } catch {
-            window.state._suppressAutoSave = false;
-          }
-        }
+        // initLoad()가 이미 올바른 캔버스 데이터를 로드하므로 여기서 applyProjectData 호출 금지
+        // (race condition: 두 함수가 동시에 실행되어 initLoad 결과를 덮어쓰는 버그 방지)
         updateBranchIndicator(store.current);
         applyFocusMode(store.current);
         renderBranchPanel();
