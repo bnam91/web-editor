@@ -216,12 +216,14 @@ function enterImageEditMode(ab) {
     const sx = e.clientX, sy = e.clientY;
     const sl = parseFloat(img.style.left) || 0;
     const st = parseFloat(img.style.top)  || 0;
+    let _rafId = null; // OPT: rAF 배치 — mousemove마다 DOM 쓰기 방지 (Konva 패턴)
     function onMove(e) {
       img.style.left = (sl + (e.clientX - sx) / zs) + 'px';
       img.style.top  = (st + (e.clientY - sy) / zs) + 'px';
-      syncHandles(); syncPanel();
+      if (!_rafId) _rafId = requestAnimationFrame(() => { syncHandles(); syncPanel(); _rafId = null; });
     }
     function onUp() {
+      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
       ab.dataset.imgX = parseFloat(img.style.left) || 0;
       ab.dataset.imgY = parseFloat(img.style.top)  || 0;
       document.removeEventListener('mousemove', onMove);
@@ -248,38 +250,36 @@ function enterImageEditMode(ab) {
     const isEdgeH = handle === 'lc' || handle === 'rc';
     const isEdgeV = handle === 'tc' || handle === 'bc';
 
+    let _rafId = null; // OPT: rAF 배치 (Konva 패턴)
     function onMove(e) {
       const rawDx = (e.clientX - startX) / zs;
       const rawDy = (e.clientY - startY) / zs;
-      let newW, newH;
       if (isEdgeH) {
-        // 좌/우 변: 가로 드래그로 너비 변경, 세로 중앙 유지
         const dx = isLeft ? -rawDx : rawDx;
-        newW = Math.max(40, startW + dx);
-        newH = newW / ratio;
+        const newW = Math.max(40, startW + dx);
+        const newH = newW / ratio;
         img.style.width = newW + 'px';
         if (isLeft) img.style.left = (startIX + (startW - newW)) + 'px';
         img.style.top = (startIY + (startH - newH) / 2) + 'px';
       } else if (isEdgeV) {
-        // 상/하 변: 세로 드래그로 높이 변경, 가로 중앙 유지
         const dy = isTop ? -rawDy : rawDy;
-        newH = Math.max(40 / ratio, startH + dy);
-        newW = newH * ratio;
+        const newH = Math.max(40 / ratio, startH + dy);
+        const newW = newH * ratio;
         img.style.width = newW + 'px';
         if (isTop) img.style.top = (startIY + (startH - newH)) + 'px';
         img.style.left = (startIX + (startW - newW) / 2) + 'px';
       } else {
-        // 모서리: 대각선 드래그
         const dx = isLeft ? -rawDx : rawDx;
-        newW = Math.max(40, startW + dx);
-        newH = newW / ratio;
+        const newW = Math.max(40, startW + dx);
+        const newH = newW / ratio;
         img.style.width = newW + 'px';
         if (isLeft) img.style.left = (startIX + (startW - newW)) + 'px';
         if (isTop)  img.style.top  = (startIY + (startH - newH)) + 'px';
       }
-      syncHandles(); syncPanel();
+      if (!_rafId) _rafId = requestAnimationFrame(() => { syncHandles(); syncPanel(); _rafId = null; });
     }
     function onUp() {
+      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
       ab.dataset.imgW = img.offsetWidth;
       ab.dataset.imgX = parseFloat(img.style.left) || 0;
       ab.dataset.imgY = parseFloat(img.style.top)  || 0;

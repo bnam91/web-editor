@@ -76,6 +76,10 @@ let _historyPaused = false;
 
 function pushHistory(action = '작업') {
   if (_historyPaused) return;
+  // OPT: dirty flag — 실제 변경 없으면 스킵 (Excalidraw 패턴)
+  // state._canvasDirty는 MutationObserver(scheduleAutoSave)가 세팅, clearHistory/restoreSnapshot이 리셋
+  if (!state._canvasDirty && historyPos >= 0) return;
+  state._canvasDirty = false;
   historyStack = historyStack.slice(0, historyPos + 1);
   historyStack.push({ canvas: getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId });
   if (historyStack.length > MAX_HISTORY) historyStack.shift();
@@ -115,6 +119,7 @@ function restoreSnapshot(snap) {
   applyPageSettings();
   if (window.buildLayerPanel) window.buildLayerPanel();
   deselectAll();
+  state._canvasDirty = false;
   _historyPaused = false;
   _updateUndoRedoBtns();
 }
@@ -135,6 +140,7 @@ function clearHistory() {
   const init = { canvas: getSerializedCanvas(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId };
   historyStack = [init];
   historyPos   = 0;
+  state._canvasDirty = false;
   _updateUndoRedoBtns();
 }
 
