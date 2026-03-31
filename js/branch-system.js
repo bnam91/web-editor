@@ -165,12 +165,12 @@ function switchBranch(name) {
   // 대상 브랜치 로드
   store.current = name;
   saveBranchStore(store);
-  // 브랜치 전환 시 히스토리 스택 초기화 (다른 브랜치 상태로 Undo 역점프 방지)
-  if (window.clearHistory) window.clearHistory();
   const data = JSON.parse(store.branches[name].snapshot);
   window.state._suppressAutoSave = true;
   applyProjectData(data);
   window.state._suppressAutoSave = false;
+  // 브랜치 전환 시 히스토리 스택 초기화 — applyProjectData 이후 호출해야 새 브랜치 상태가 초기 스냅샷으로 저장됨
+  if (window.clearHistory) window.clearHistory();
   updateBranchIndicator(name);
   applyFocusMode(name);
   _mainUnlocked = false; // 브랜치 전환 시 임시 해제 초기화

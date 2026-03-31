@@ -16,6 +16,7 @@ const layerIcons = {
   card:       `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="1" y1="7" x2="11" y2="7"/></svg>`,
   banner:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="6" rx="0.5"/><line x1="7" y1="5" x2="11" y2="5"/><line x1="7" y1="7" x2="10" y2="7"/></svg>`,
   graph:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polyline points="1,10 4,5 7,7 10,2"/></svg>`,
+  'icon-text': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="4" rx="0.8"/><line x1="7" y1="4" x2="11" y2="4"/><line x1="7" y1="7" x2="10" y2="7"/></svg>`,
 };
 
 /* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */
@@ -60,7 +61,8 @@ function makeLayerBlockItem(block, dragTarget, sec) {
   const isCard       = block.classList.contains('card-block');
   const isBanner     = block.classList.contains('strip-banner-block');
   const isGraph      = block.classList.contains('graph-block');
-  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : 'asset';
+  const isIconText   = block.classList.contains('icon-text-block');
+  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : isIconText ? 'icon-text' : 'asset';
   const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph' };
   const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component' };
 
@@ -89,7 +91,7 @@ function makeLayerBlockItem(block, dragTarget, sec) {
       block.classList.add('selected');
       syncSection(sec);
       highlightBlock(block, item);
-      if (isText) window.showTextProperties(block);
+      if (isText || isIconText) window.showTextProperties(block);
       else if (isGap) window.showGapProperties(block);
       else if (isIconCb) window.showIconCircleProperties(block);
       else if (isTable) window.showTableProperties(block);
@@ -556,8 +558,8 @@ function makeLayerColItem(colEl, colIdx, sec) {
   const blocks = [...colEl.querySelectorAll(':scope > *')]
     .filter(el => !el.classList.contains('col-placeholder'));
 
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph' };
-  const typeLbls  = { heading:'Text', body:'Text', caption:'Text', label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component' };
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph', 'icon-text':'Icon Text' };
+  const typeLbls  = { heading:'Text', body:'Text', caption:'Text', label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component', 'icon-text':'Text' };
 
   blocks.forEach(block => {
     const isText = block.classList.contains('text-block');
@@ -569,7 +571,8 @@ function makeLayerColItem(colEl, colIdx, sec) {
     const isCard  = block.classList.contains('card-block');
     const isBanner = block.classList.contains('strip-banner-block');
     const isGraph  = block.classList.contains('graph-block');
-    const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : 'asset';
+    const isIconText = block.classList.contains('icon-text-block');
+    const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : isIconText ? 'icon-text' : 'asset';
 
     if (isBanner) { colChildren.appendChild(makeLayerBannerItem(block, block.closest('.row') || block, sec)); return; }
     if (isCard)   { colChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec)); return; }
@@ -591,7 +594,7 @@ function makeLayerColItem(colEl, colIdx, sec) {
       colHeader.classList.add('active');
       syncSection(sec);
       highlightBlock(block, item);
-      if (isText) window.showTextProperties(block);
+      if (isText || isIconText) window.showTextProperties(block);
       else if (isGap) window.showGapProperties(block);
       else if (isIconCb) window.showIconCircleProperties(block);
       else if (isTable) window.showTableProperties(block);
