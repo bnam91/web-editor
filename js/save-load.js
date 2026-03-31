@@ -837,7 +837,7 @@ function initApp() {
   // 프로젝트 로드 (Electron: 파일, 브라우저: localStorage)
   (async function initLoad() {
     function applyAndFinish(data) {
-      try { applyProjectData(data); } catch {}
+      try { applyProjectData(data); } catch(e) { console.error('[initApp] applyProjectData 실패:', e); }
     }
     function initEmpty() {
       state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
