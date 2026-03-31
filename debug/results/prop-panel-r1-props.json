@@ -1,0 +1,91 @@
+{
+  "agent": "PropPanelGen1",
+  "round": 1,
+  "file": "css/editor-props.css",
+  "changes": [
+    {
+      "selector": ".prop-hint",
+      "property": "color",
+      "before": "#555",
+      "after": "#5a5a5a"
+    },
+    {
+      "selector": ".prop-section",
+      "property": "padding",
+      "before": "12px 12px 8px",
+      "after": "10px 12px 8px"
+    },
+    {
+      "selector": ".prop-section",
+      "property": "border-bottom",
+      "before": "1px solid var(--ui-bg-elevated)",
+      "after": "1px solid #2e2e2e"
+    },
+    {
+      "selector": ".prop-section-title",
+      "property": "font-size",
+      "before": "9px",
+      "after": "11px"
+    },
+    {
+      "selector": ".prop-section-title",
+      "property": "font-weight",
+      "before": "700",
+      "after": "600"
+    },
+    {
+      "selector": ".prop-section-title",
+      "property": "letter-spacing",
+      "before": "0.08em",
+      "after": "0.05em"
+    },
+    {
+      "selector": ".prop-section-title",
+      "property": "color",
+      "before": "var(--ui-text-dim)",
+      "after": "#6b6b6b"
+    },
+    {
+      "selector": ".prop-section-title",
+      "property": "margin-bottom",
+      "before": "10px",
+      "after": "8px"
+    },
+    {
+      "selector": ".prop-row",
+      "property": "margin-bottom",
+      "before": "8px",
+      "after": "6px"
+    },
+    {
+      "selector": ".prop-label",
+      "property": "color",
+      "before": "var(--ui-text-dim)",
+      "after": "#6b6b6b"
+    },
+    {
+      "selector": ".prop-label",
+      "property": "width",
+      "before": "52px",
+      "after": "48px"
+    },
+    {
+      "selector": ".prop-number",
+      "property": "height",
+      "before": "24px",
+      "after": "26px"
+    },
+    {
+      "selector": ".prop-select (first definition, line ~63)",
+      "property": "height",
+      "before": "24px",
+      "after": "26px"
+    },
+    {
+      "selector": ".prop-color-hex",
+      "property": "height",
+      "before": "24px",
+      "after": "26px"
+    }
+  ]
+}
