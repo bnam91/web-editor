@@ -132,10 +132,14 @@ export function buildLayerPanel() {
         const label = sec.querySelector('.section-label');
         if (label) label.textContent = newName;
       };
-      nameEl.addEventListener('blur', finish, { once: true });
-      nameEl.addEventListener('keydown', ev => {
+      const onKeyDown = ev => {
         if (ev.key === 'Enter')  { ev.preventDefault(); nameEl.blur(); }
         if (ev.key === 'Escape') { nameEl.textContent = sec._name || 'Section'; nameEl.blur(); }
+      };
+      nameEl.addEventListener('keydown', onKeyDown);
+      nameEl.addEventListener('blur', () => {
+        nameEl.removeEventListener('keydown', onKeyDown);
+        finish();
       }, { once: true });
     });
 

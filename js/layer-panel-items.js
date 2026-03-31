@@ -67,11 +67,22 @@ function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerNam
       } else {
         delete targetEl.dataset[datasetKey];
       }
+      // 프로퍼티 패널이 같은 블록을 표시 중이면 이름 동기화
+      const badge = document.getElementById('rp-block-id-badge');
+      if (badge && badge.textContent === (targetEl.id || '')) {
+        const propName = document.querySelector('.prop-block-name');
+        if (propName) propName.textContent = newName !== fallbackName ? newName : fallbackName;
+      }
+      window.pushHistory?.();
     };
-    nameSpan.addEventListener('blur', finish, { once: true });
-    nameSpan.addEventListener('keydown', ev => {
+    const onKeyDown = ev => {
       if (ev.key === 'Enter')  { ev.preventDefault(); nameSpan.blur(); }
       if (ev.key === 'Escape') { nameSpan.textContent = orig; nameSpan.blur(); }
+    };
+    nameSpan.addEventListener('keydown', onKeyDown);
+    nameSpan.addEventListener('blur', () => {
+      nameSpan.removeEventListener('keydown', onKeyDown);
+      finish();
     }, { once: true });
   });
 }
