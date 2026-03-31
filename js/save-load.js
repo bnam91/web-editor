@@ -788,7 +788,6 @@ function _setAutosaveIndicator(state) {
 
 function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
-  state._canvasDirty = true; // OPT: dirty flag — pushHistory가 실제 변경만 캡처하도록
   clearTimeout(autoSaveTimer);
   _setAutosaveIndicator('saving');
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
