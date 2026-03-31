@@ -1517,7 +1517,7 @@ body.preview-mode #preview-navigator { display: flex; }
   padding: 12px var(--page-padx, 32px);
   cursor: pointer;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
+  
   position: relative;
 }
 .icon-text-block:hover::after {

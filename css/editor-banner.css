@@ -9,7 +9,7 @@
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
-  transition: outline 0.1s;
+  
   width: 100%;
   position: relative;
 }
@@ -97,7 +97,7 @@
   border-radius: 0;
   overflow: hidden;
   cursor: pointer;
-  transition: outline 0.1s;
+  
   width: 100%;
   min-height: 200px;
 }

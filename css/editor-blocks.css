@@ -7,17 +7,15 @@
   overflow: hidden;
   cursor: default;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
   box-sizing: border-box;
+  /* transition 제거 — outline transition은 GPU 비가속, 즉시 반응이 더 쾌적 */
 }
 .canvas-block.ci-active { overflow: visible; }
 .canvas-block.selected {
   outline: 1.5px solid var(--sel-color);
-  box-shadow: 0 0 0 4px rgba(45,111,232,0.12);
 }
 .canvas-block:hover:not(.selected) {
   outline: 1px solid rgba(45,111,232,0.35);
-  outline-offset: 0;
 }
 .canvas-block.cb-drag-over {
   outline: 2px dashed var(--sel-color);
@@ -28,45 +26,61 @@
 .canvas-item {
   position: absolute;
   box-sizing: border-box;
-  cursor: move;
+  cursor: grab;
   overflow: hidden;
 }
+.canvas-item:active { cursor: grabbing; }
 .canvas-item.ci-selected {
-  outline: 1.5px solid #1592fe;
-  box-shadow: 0 0 0 3px rgba(21,146,254,0.15);
+  outline: 1.5px solid var(--sel-color);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
   overflow: visible;
 }
 .canvas-item:hover:not(.ci-selected) {
-  outline: 1px solid rgba(21,146,254,0.4);
+  outline: 1px solid rgba(45,111,232,0.45);
   outline-offset: 0;
 }
 
-/* canvas-item handles */
+/* canvas-item handles — Figma/tldraw 벤치마크 */
 .ci-corner-handle {
   position: absolute;
-  width: 9px; height: 9px;
-  background: #fff;
-  border: 1.5px solid #1592fe;
-  border-radius: 2px;
+  width: 8px; height: 8px;
+  background: #ffffff;
+  border: 1.5px solid var(--sel-color);
+  border-radius: 1.5px;
   z-index: 20;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 0 1px rgba(21,146,254,0.15);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.8), 0 1px 3px rgba(0,0,0,0.25);
   transform: scale(var(--inv-zoom, 1));
   transform-origin: center;
   pointer-events: auto;
+  transition: background 0.1s;
 }
-.ci-corner-handle:hover { background: #1592fe; }
+.ci-corner-handle:hover {
+  background: var(--sel-color);
+}
+/* 엣지 핸들 — pill 형태, 방향별 비대칭 크기 */
 .ci-edge-handle {
   position: absolute;
-  width: 7px; height: 7px;
-  background: #1592fe;
-  border: 1.5px solid #fff;
-  border-radius: 50%;
+  background: var(--sel-color);
+  border: 1.5px solid #ffffff;
+  border-radius: 3px;
   z-index: 20;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6), 0 1px 3px rgba(0,0,0,0.2);
   transform: scale(var(--inv-zoom, 1));
   transform-origin: center;
   pointer-events: auto;
+  transition: opacity 0.1s;
 }
+/* 상하(tc/bc): 가로 pill — 넓고 얇음 */
+.ci-edge-handle[data-hid="tc"],
+.ci-edge-handle[data-hid="bc"] {
+  width: 16px; height: 4px;
+}
+/* 좌우(lc/rc): 세로 pill — 좁고 길쭉 */
+.ci-edge-handle[data-hid="lc"],
+.ci-edge-handle[data-hid="rc"] {
+  width: 4px; height: 16px;
+}
+.ci-edge-handle:hover { opacity: 0.8; }
 
 /* canvas-item 텍스트 */
 .ci-text {
@@ -238,7 +252,7 @@
   position: relative;
   width: 100%; height: 50px;
   outline: 2px solid transparent;
-  transition: background 0.1s, outline 0.1s;
+  transition: background 0.1s;
 }
 .gap-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .gap-block::before { display: none; }
@@ -452,7 +466,7 @@
   justify-content: center;
   cursor: pointer;
   border-radius: 8px;
-  transition: outline 0.1s;
+  
 }
 .icon-circle-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-circle-block { position: relative; }
@@ -511,7 +525,7 @@
   border-radius: 6px;
   box-sizing: border-box;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
+  
 }
 .table-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .table-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
@@ -583,7 +597,7 @@
   padding: 24px var(--page-padx, 20px) 16px;
   box-sizing: border-box;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
+  
   background: #ffffff;
 }
 .graph-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
@@ -746,7 +760,7 @@
   overflow: hidden;
   cursor: pointer;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
+  
   width: 100%;
   padding-left: var(--page-padx, 0px);
   padding-right: var(--page-padx, 0px);
@@ -827,7 +841,7 @@
   border-radius: 0;
   overflow: hidden;
   cursor: pointer;
-  transition: outline 0.1s;
+  
   width: 100%;
   min-height: 200px;
 }
@@ -915,7 +929,7 @@
   box-sizing: border-box;
   padding: 12px 0;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
+  
 }
 .divider-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .divider-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }

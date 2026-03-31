@@ -75,7 +75,7 @@
   position: relative;
   cursor: text;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
+  
   padding: var(--page-pady, 32px) var(--page-padx, 32px);
   width: 100%;
 }
@@ -162,7 +162,7 @@
   width: 100%;
   cursor: default;
   outline: 2px solid transparent;
-  transition: outline 0.1s, padding-right 0.15s;
+  transition: padding-right 0.15s;
 }
 .label-group-block.selected { padding-right: 58px; }
 .label-group-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
@@ -181,7 +181,7 @@
   cursor: pointer;
   user-select: none;
   position: relative;
-  transition: outline 0.1s;
+  
 }
 .label-item.item-selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
 .label-item-text { outline: none; min-width: 20px; white-space: nowrap; }
@@ -300,7 +300,7 @@
   gap: 12px; cursor: pointer;
   margin-top: 0; margin-bottom: 0;
   outline: 2px solid transparent;
-  transition: background 0.15s, outline 0.1s;
+  transition: background 0.15s;
 }
 .asset-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .asset-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
