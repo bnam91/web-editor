@@ -331,19 +331,37 @@ export function bindCanvasBlock(cb) {
     const zs = (window.currentZoom || 100) / 100;
     const dropX = Math.round((e.clientX - rect.left) / zs) - 100;
     const dropY = Math.round((e.clientY - rect.top)  / zs) - 75;
-    const item = addItemToCanvas(cb, 'image', Math.max(0, dropX), Math.max(0, dropY));
+    const dropXf = Math.max(0, dropX);
+    const dropYf = Math.max(0, dropY);
     const reader = new FileReader();
     reader.onload = ev => {
-      item.dataset.src = ev.target.result;
-      let img = item.querySelector('.ci-img');
-      if (!img) {
-        img = document.createElement('img');
-        img.className = 'ci-img'; img.draggable = false;
-        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;border-radius:inherit;';
-        item.appendChild(img);
-      }
-      img.src = ev.target.result;
-      window.pushHistory?.();
+      const src = ev.target.result;
+      // 원본 크기 측정 후 item 생성
+      const probe = new Image();
+      probe.onload = () => {
+        const cbW = cb.offsetWidth || 800;
+        const cbH = parseFloat(cb.style.height) || 500;
+        // 원본 크기가 캔버스보다 크면 비율 유지하며 축소
+        let nw = probe.naturalWidth;
+        let nh = probe.naturalHeight;
+        if (nw > cbW * 0.9) { nh = Math.round(nh * (cbW * 0.9) / nw); nw = Math.round(cbW * 0.9); }
+        if (nh > cbH * 0.9) { nw = Math.round(nw * (cbH * 0.9) / nh); nh = Math.round(cbH * 0.9); }
+        const item = addItemToCanvas(cb, 'image', dropXf, dropYf);
+        item.dataset.w = nw; item.dataset.h = nh;
+        item.style.width = nw + 'px'; item.style.height = nh + 'px';
+        item.dataset.src = src;
+        let img = item.querySelector('.ci-img');
+        if (!img) {
+          img = document.createElement('img');
+          img.className = 'ci-img'; img.draggable = false;
+          img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;border-radius:inherit;';
+          item.appendChild(img);
+        }
+        img.src = src;
+        window.syncCanvasItemHandles?.(item);
+        window.pushHistory?.();
+      };
+      probe.src = src;
     };
     reader.readAsDataURL(file);
   });
