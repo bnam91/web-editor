@@ -697,6 +697,7 @@ function deselectAll() {
 
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   state._lastActiveCol = null;
+  window.deselectCanvasItem?.(); // canvas-item _selItem/_selCb dangling ref 클리어
   window.showPageProperties();
 }
 
