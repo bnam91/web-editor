@@ -234,6 +234,7 @@ export function showTextProperties(tb) {
 
   /* 폰트 종류 */
   document.getElementById('txt-font-family').addEventListener('change', e => {
+    window.pushHistory?.();
     contentEl.style.fontFamily = e.target.value;
   });
 
@@ -247,6 +248,7 @@ export function showTextProperties(tb) {
   const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
   propPanel.querySelectorAll('.prop-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      window.pushHistory?.();
       const cls = btn.dataset.cls;
       contentEl.className = cls;
       tb.dataset.type = typeMap2[cls];
@@ -325,6 +327,7 @@ export function showTextProperties(tb) {
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      window.pushHistory?.();
       // label(inline-block)은 부모 tb에 text-align 적용해야 블록 자체가 정렬됨
       if (contentEl.classList.contains('tb-label')) {
         tb.style.textAlign = btn.dataset.align;
@@ -455,7 +458,9 @@ export function showTextProperties(tb) {
   /* 줄간격 */
   const lhSlider = document.getElementById('txt-lh-slider');
   const lhNumber = document.getElementById('txt-lh-number');
+  lhSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   lhSlider.addEventListener('input', () => { contentEl.style.lineHeight = lhSlider.value; lhNumber.value = parseFloat(lhSlider.value).toFixed(2); });
+  lhNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lhNumber.addEventListener('input', () => {
     const v = Math.min(3, Math.max(1, parseFloat(lhNumber.value)||1));
     contentEl.style.lineHeight = v; lhSlider.value = v;
@@ -464,7 +469,9 @@ export function showTextProperties(tb) {
   /* 자간 */
   const lsSlider = document.getElementById('txt-ls-slider');
   const lsNumber = document.getElementById('txt-ls-number');
+  lsSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   lsSlider.addEventListener('input', () => { contentEl.style.letterSpacing = lsSlider.value + 'px'; lsNumber.value = lsSlider.value; });
+  lsNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lsNumber.addEventListener('input', () => {
     const v = Math.min(40, Math.max(-10, parseFloat(lsNumber.value) || 0));
     contentEl.style.letterSpacing = v + 'px'; lsSlider.value = v;

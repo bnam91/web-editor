@@ -197,13 +197,15 @@ export function showAssetProperties(ab) {
     document.querySelectorAll('#asset-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
   };
   document.querySelectorAll('#asset-align-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => applyAlign(btn.dataset.align));
+    btn.addEventListener('click', () => { window.pushHistory?.(); applyAlign(btn.dataset.align); });
   });
 
   const rSlider = document.getElementById('asset-r-slider');
   const rNumber = document.getElementById('asset-r-number');
   const applyR = v => { ab.style.borderRadius = v + 'px'; };
+  rSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   rSlider.addEventListener('input', () => { applyR(parseInt(rSlider.value)); rNumber.value = rSlider.value; });
+  rNumber.addEventListener('change', () => { window.pushHistory?.(); });
   rNumber.addEventListener('input', () => {
     const v = Math.min(120, Math.max(0, parseInt(rNumber.value) || 0));
     applyR(v); rSlider.value = v;
