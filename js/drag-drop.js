@@ -108,6 +108,14 @@ function bindGroupDrag(groupEl) {
   const label = groupEl.querySelector(':scope > .group-block-label');
   if (!label) return;
 
+  // 라벨 클릭 → group-block 선택 (Cmd+Shift+G로 해제 가능)
+  label.addEventListener('click', e => {
+    e.stopPropagation();
+    window.deselectAll?.();
+    groupEl.classList.add('selected');
+    window.syncSection?.(groupEl.closest('.section-block'));
+  });
+
   label.setAttribute('draggable', 'true');
   label.addEventListener('dragstart', e => {
     e.stopPropagation();

@@ -381,11 +381,19 @@ document.addEventListener('keydown', e => {
       pasteClipboard();
       return;
     }
-    if (e.key === 'g') {
+    if (e.key === 'g' && !e.shiftKey) {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
       window.groupSelectedBlocks?.();
+      return;
+    }
+    if (e.key === 'g' && e.shiftKey) {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      const selGroup = document.querySelector('.group-block.selected');
+      if (selGroup) window.ungroupBlock?.(selGroup);
       return;
     }
     if (e.key === 'a') {
