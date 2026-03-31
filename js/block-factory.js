@@ -330,6 +330,12 @@ function groupSelectedBlocks() {
   const sec = selected[0].closest('.section-block');
   if (!selected.every(b => b.closest('.section-block') === sec)) return;
 
+  // 그룹 안의 블록은 중첩 그룹화 불가 (레이어 패널 미지원)
+  if (selected.some(b => b.closest('.group-block'))) {
+    if (window.showToast) window.showToast('그룹 안의 블록은 다시 그룹화할 수 없어요.');
+    return;
+  }
+
   window.pushHistory();
 
   // DOM 순서대로 부모 row/gap 수집 (중복 제거)
