@@ -91,6 +91,7 @@ function getOverlayAlign(overlay) {
 
 
 function makeTextBlock(type) {
+  type = type || 'body';
   const classMap  = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label' };
   const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
   const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', h3:'소항목을 입력하세요', body:'본문 내용을 입력하세요.', caption:'캡션을 입력하세요', label:'Label' };
