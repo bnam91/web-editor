@@ -398,3 +398,57 @@
   display: flex; align-items: center; justify-content: center;
 }
 .grb-data-del-btn:hover { border-color: #e06060; color: #e06060; }
+
+/* ══════════════════════════════════════
+   ICON TEXT BLOCK
+══════════════════════════════════════ */
+.icon-text-block {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px var(--page-padx, 32px);
+  cursor: pointer;
+  outline: 2px solid transparent;
+  transition: outline 0.1s;
+  position: relative;
+}
+.icon-text-block:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+}
+.icon-text-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
+
+.itb-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1.5px dashed var(--ui-border, #555);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  color: var(--ui-text-dim, #888);
+  transition: border-color 0.15s, color 0.15s;
+}
+.itb-icon:hover { border-color: var(--ui-text-sub, #aaa); color: var(--ui-text-sub, #aaa); }
+.itb-icon.has-image { border: none; }
+.itb-icon img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; display: block; }
+
+.itb-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 32px;
+  line-height: 1.6;
+  color: #111;
+  font-family: var(--preset-body-family, 'Pretendard', sans-serif);
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.itb-text:empty::before { content: '본문 내용을 입력하세요.'; color: #ccc; pointer-events: none; }
+.itb-text[contenteditable="true"] { outline: none; }
