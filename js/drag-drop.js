@@ -501,6 +501,7 @@ function bindBlock(block) {
       if (!item) return;
       const span = item.querySelector('.label-item-text');
       if (!span) return;
+      window.pushHistory?.();
       span.contentEditable = 'true';
       span.focus();
       const range = document.createRange();
