@@ -825,6 +825,35 @@
 .divider-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .divider-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
 
+/* ── 블록 hover 아웃라인 (text / asset / label-group / icon-circle / table) ── */
+.text-block:hover:not(.selected):not(.editing) {
+  outline: 1px solid rgba(45, 111, 232, 0.35);
+  outline-offset: 1px;
+}
+.asset-block:hover:not(.selected):not(.img-editing):not(.pos-dragging) {
+  outline: 1px solid rgba(45, 111, 232, 0.35);
+  outline-offset: 0;
+}
+.label-group-block:hover:not(.selected)::after,
+.icon-circle-block:hover:not(.selected)::after,
+.table-block:hover:not(.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── 블록 선택 glow ── */
+.text-block.selected,
+.asset-block.selected,
+.label-group-block.selected,
+.icon-circle-block.selected,
+.table-block.selected {
+  box-shadow: 0 0 0 3px rgba(45, 111, 232, 0.12);
+}
+
 /* 선택된 블록이 인접 블록의 outline을 가리지 않도록 z-index로 위로 올림 */
 .text-block.selected,
 .asset-block.selected,
