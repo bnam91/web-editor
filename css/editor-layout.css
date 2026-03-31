@@ -47,21 +47,8 @@
 }
 .group-block:hover { border-color: rgba(120,120,200,0.7); }
 .group-block.group-selected { border-color: rgba(120,120,200,1); border-style: solid; }
-.group-block.group-selected .group-block-label { color: rgba(140,140,220,1); }
 .group-block.dragging { opacity: 0.25; pointer-events: none; }
-.group-block-label { pointer-events: auto; cursor: grab; }
-.group-block-label:active { cursor: grabbing; }
-.group-block-label {
-  position: absolute;
-  top: -1px; left: 8px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: rgba(120,120,200,0.8);
-  background: var(--bg, #fff);
-  padding: 0 4px;
-  pointer-events: none;
-  transform: scale(var(--inv-zoom, 1));
-  transform-origin: top left;
-}
+.group-block-label { display: none; }
 .group-inner { display: flex; flex-direction: column; }
 
 .section-toolbar {

@@ -301,14 +301,14 @@ async function createNewProjectTab() {
   const now = new Date().toISOString();
   const emptySnap = JSON.stringify({
     version: 2, currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 32, padY: 32 }, canvas: '' }]
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 32, padY: 32 }, canvas: '' }]
   });
   const proj = {
     id, name: 'Untitled',
     createdAt: now, updatedAt: now,
     version: 2,
     currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 32, padY: 32 }, canvas: '' }],
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 32, padY: 32 }, canvas: '' }],
     currentBranch: 'dev',
     branches: {
       main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
@@ -771,14 +771,25 @@ function scheduleAutoSave() {
   clearTimeout(autoSaveTimer);
   _setAutosaveIndicator('saving');
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
-  // requestIdleCallback은 브라우저 idle 타이밍 불확실(최대 50ms 지연)하므로 setTimeout 유지.
   autoSaveTimer = setTimeout(() => {
     const snap = serializeProject();
     localStorage.setItem(SAVE_KEY, snap);
+    localStorage.setItem(SAVE_KEY + '_ts', String(Date.now()));
     saveProjectToFile(snap, { skipThumbnail: true }); // 자동저장은 썸네일 캡처 생략
     _setAutosaveIndicator('saved');
   }, 1500);
 }
+
+// 새로고침/탭 닫기 시 미완료 debounce 즉시 flush → localStorage 백업
+window.addEventListener('beforeunload', () => {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+    const snap = serializeProject();
+    localStorage.setItem(SAVE_KEY, snap);
+    localStorage.setItem(SAVE_KEY + '_ts', String(Date.now()));
+  }
+});
 
 // 변경 감지 — canvas MutationObserver
 const autoSaveObserver = new MutationObserver(scheduleAutoSave);
@@ -866,6 +877,13 @@ function initApp() {
           const tab = openTabs.find(t => t.id === activeProjectId);
           if (tab) tab.name = name;
           renderTabBar();
+          // localStorage가 파일보다 새로우면 우선 적용 (새로고침 데이터 손실 방지)
+          const lsTs = parseInt(localStorage.getItem(SAVE_KEY + '_ts') || '0');
+          const fileTs = new Date(proj.updatedAt || 0).getTime();
+          if (lsTs > fileTs + 500) {
+            const lsSaved = localStorage.getItem(SAVE_KEY);
+            if (lsSaved) { try { applyAndFinish(JSON.parse(lsSaved)); return; } catch {} }
+          }
           if (proj.version === 2 && proj.pages) { applyAndFinish(proj); return; }
           if (proj.snapshot) { try { applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot); } catch {} return; }
         }

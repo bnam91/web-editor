@@ -105,19 +105,19 @@ function bindGroupDrag(groupEl) {
   if (groupEl._groupDragBound) return;
   groupEl._groupDragBound = true;
 
-  const label = groupEl.querySelector(':scope > .group-block-label');
-  if (!label) return;
-
-  // 라벨 클릭 → group-block 선택 (Cmd+Shift+G로 해제 가능)
-  label.addEventListener('click', e => {
+  // group-block 패딩 영역 클릭 → group 선택
+  groupEl.addEventListener('click', e => {
+    if (e.target.closest('.group-inner')) return; // 내부 블록 클릭은 무시
     e.stopPropagation();
     window.deselectAll?.();
     groupEl.classList.add('selected');
     window.syncSection?.(groupEl.closest('.section-block'));
   });
 
-  label.setAttribute('draggable', 'true');
-  label.addEventListener('dragstart', e => {
+  // group-block 자체를 드래그 핸들로 사용 (패딩 영역에서 드래그 시작)
+  groupEl.setAttribute('draggable', 'true');
+  groupEl.addEventListener('dragstart', e => {
+    if (e.target.closest('.group-inner')) return; // 내부 블록 드래그는 무시
     e.stopPropagation();
     _suppressDragSave();
     dragSrc = groupEl;
@@ -130,7 +130,7 @@ function bindGroupDrag(groupEl) {
     setTimeout(() => ghost.remove(), 0);
     requestAnimationFrame(() => groupEl.classList.add('dragging'));
   });
-  label.addEventListener('dragend', () => {
+  groupEl.addEventListener('dragend', () => {
     _resumeDragSave();
     groupEl.classList.remove('dragging');
     clearDropIndicators();
