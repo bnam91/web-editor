@@ -503,8 +503,8 @@ body {
   border-bottom: 1px solid var(--ui-border);
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  gap: 12px;
+  padding: 0 12px;
+  gap: 6px;
   flex-shrink: 0;
   z-index: 100;
   -webkit-app-region: drag; /* Electron: topbar로 창 드래그 가능 */
@@ -516,7 +516,7 @@ body {
 .electron-app #topbar { padding-left: 80px; }
 .electron-app.fullscreen #topbar { padding-left: 12px; }
 #topbar .logo { font-size: 14px; font-weight: 600; color: #fff; margin-right: 8px; }
-#topbar .divider { width: 1px; height: 20px; background: var(--ui-border-mid); flex-shrink: 0; }
+#topbar .divider { width: 1px; height: 20px; background: var(--ui-border-mid); flex-shrink: 0; margin: 0 2px; }
 #topbar .spacer { flex: 1; }
 
 /* 홈 버튼 */
@@ -541,7 +541,7 @@ body {
   display: flex; align-items: center; gap: 5px;
   padding: 0 8px; height: 28px;
   width: 148px; flex-shrink: 0; /* 고정 너비 */
-  background: #272727; border: 1px solid #383838;
+  background: var(--ui-bg-elevated); border: 1px solid var(--ui-border);
   border-radius: 6px; cursor: pointer;
   font-size: 12px; font-weight: 500; color: #888;
   transition: background 0.12s, color 0.12s;
@@ -621,6 +621,15 @@ body {
 .tb-btn--icon:hover { color: #fff; }
 .tb-btn--icon.has-commit { color: var(--ui-text-sub); }
 .tb-btn--icon:not(.has-commit) { opacity: 0.35; pointer-events: none; }
+/* Commit 버튼: 저장 상태 관련 중요 액션 — accent 힌트 */
+#topbar button[onclick="saveProject()"] {
+  color: var(--ui-accent);
+}
+#topbar button[onclick="saveProject()"]:hover {
+  background: rgba(106, 176, 255, 0.12);
+  border-color: rgba(106, 176, 255, 0.35);
+  color: var(--ui-accent);
+}
 
 /* Zoom */
 #zoom-ctrl {
@@ -630,13 +639,13 @@ body {
 }
 .zoom-btn {
   width: 22px; height: 22px; background: transparent; border: none;
-  border-radius: 4px; color: var(--ui-text-sub); font-size: 14px; cursor: pointer;
+  border-radius: 4px; color: var(--ui-text-sub); font-size: 12px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: all 0.15s;
 }
 .zoom-btn:hover { background: var(--ui-border); color: #fff; }
 #zoom-display { font-size: 11px; color: #ccc; width: 36px; text-align: center; user-select: none; }
 .zoom-sep { width: 1px; height: 14px; background: var(--ui-border-mid); margin: 0 2px; }
-#canvas-size-label { font-size: 11px; color: var(--ui-text-dim); }
+#canvas-size-label { font-size: 11px; color: var(--ui-text-muted); letter-spacing: 0.01em; }
 
 /* ── Autosave Indicator ── */
 #autosave-indicator {

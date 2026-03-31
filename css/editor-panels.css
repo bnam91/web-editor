@@ -742,9 +742,9 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   display: none;
   position: absolute; top: calc(100% + 6px); right: 0;
   min-width: 170px;
-  background: var(--ui-bg-elevated); border: 1px solid var(--ui-border-mid);
+  background: var(--ui-bg-card); border: 1px solid var(--ui-border-mid);
   border-radius: 7px; padding: 4px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
   z-index: 999;
 }
 #publish-dropdown-wrap.open #publish-dropdown-menu { display: block; }

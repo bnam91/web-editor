@@ -513,13 +513,13 @@ body.preview-mode #preview-navigator { display: flex; }
 /* 툴바 AI 버튼 */
 .tb-btn-ai {
   color: #c084fc;
-  border-color: rgba(192, 132, 252, 0.3);
+  border-color: transparent;
   letter-spacing: 0.02em;
 }
 .tb-btn-ai:hover {
   background: rgba(192, 132, 252, 0.12);
   color: #d8b4fe;
-  border-color: rgba(192, 132, 252, 0.5);
+  border-color: rgba(192, 132, 252, 0.4);
 }
 
 /* 모달 패널 */
@@ -648,9 +648,9 @@ body.preview-mode #preview-navigator { display: flex; }
 
 /* ── 레퍼런스 이미지 버튼 ── */
 #ref-modal-btn.active {
-  background: #2d4a8a;
-  border-color: #3d5a9a;
-  color: #8ab4f8;
+  background: rgba(106, 176, 255, 0.15);
+  border-color: rgba(106, 176, 255, 0.4);
+  color: var(--ui-accent);
 }
 
 /* ══════════════════════════════════════
