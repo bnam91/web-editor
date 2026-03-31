@@ -1,6 +1,18 @@
 /* ═══════════════════════════════════
    LAYER PANEL
 ═══════════════════════════════════ */
+
+/* depth 들여쓰기 span 생성 헬퍼 (피그마 스타일) */
+function makeIndents(depth) {
+  const wrap = document.createElement('span');
+  wrap.className = 'layer-indents';
+  for (let i = 0; i < depth; i++) {
+    const s = document.createElement('span');
+    s.className = 'layer-indent';
+    wrap.appendChild(s);
+  }
+  return wrap;
+}
 const layerIcons = {
   section: `<svg class="layer-section-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="12" height="12" rx="1.5"/></svg>`,
   heading: `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="currentColor"><text x="0" y="10" font-size="10" font-weight="700" font-family="serif">H</text></svg>`,
@@ -51,7 +63,7 @@ function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerNam
 }
 
 /* 레이어 아이템 생성 (단일 블록용) */
-function makeLayerBlockItem(block, dragTarget, sec) {
+function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isText       = block.classList.contains('text-block');
   const isGap        = block.classList.contains('gap-block');
   const isIconCb     = block.classList.contains('icon-circle-block');
@@ -70,6 +82,7 @@ function makeLayerBlockItem(block, dragTarget, sec) {
   item.className = 'layer-item';
   const displayName = block.dataset.layerName || labels[type] || type;
   item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name">${displayName}</span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
+  item.prepend(makeIndents(depth));
   item._dragTarget = dragTarget;
   addLayerRename(item.querySelector('.layer-item-name'), block, labels[type] || type);
 
@@ -159,6 +172,7 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
         <rect x="5.5" y="5.5" width="3.5" height="3.5" rx="0.5"/>
       </svg>
     </button>`;
+  header.prepend(makeIndents(1));
   addLayerRename(header.querySelector('.layer-item-name'), groupEl, 'Group', 'name');
 
   header.addEventListener('click', e => {
@@ -193,7 +207,7 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
 }
 
 /* 에셋 블록 + overlay-tb 자식 포함 레이어 아이템 */
-function makeLayerAssetItem(block, dragTarget, sec) {
+function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
   const overlayEl = block.querySelector('.asset-overlay');
   const overlayChildren = overlayEl
     ? [...overlayEl.children].filter(c =>
@@ -202,7 +216,7 @@ function makeLayerAssetItem(block, dragTarget, sec) {
         (c.classList.contains('row') && c.querySelector('.overlay-tb'))
       )
     : [];
-  if (overlayChildren.length === 0) return makeLayerBlockItem(block, dragTarget, sec);
+  if (overlayChildren.length === 0) return makeLayerBlockItem(block, dragTarget, sec, depth);
 
   const wrapper = document.createElement('div');
   wrapper.className = 'layer-row-group';
@@ -215,6 +229,7 @@ function makeLayerAssetItem(block, dragTarget, sec) {
     ${layerIcons.asset}
     <span class="layer-item-name">${block.dataset.layerName || 'Asset'}</span>
     <span class="layer-item-type">Image + Overlay</span>`;
+  header.prepend(makeIndents(depth));
   addLayerRename(header.querySelector('.layer-item-name'), block, 'Asset');
 
   header.addEventListener('click', e => {
@@ -249,7 +264,7 @@ function makeLayerAssetItem(block, dragTarget, sec) {
     [...overlayEl.children].forEach(child => {
       if (child.classList.contains('gap-block')) {
         // gap-block: use makeLayerBlockItem for consistent rendering
-        const gapItem = makeLayerBlockItem(child, child, sec);
+        const gapItem = makeLayerBlockItem(child, child, sec, depth + 1);
         gapItem.classList.add('layer-item-nested');
         children.appendChild(gapItem);
         return;
@@ -258,13 +273,13 @@ function makeLayerAssetItem(block, dragTarget, sec) {
       if (child.classList.contains('row')) {
         const tb = child.querySelector('.overlay-tb');
         if (!tb) return;
-        const tbItem = makeLayerBlockItem(tb, tb, sec);
+        const tbItem = makeLayerBlockItem(tb, tb, sec, depth + 1);
         tbItem.classList.add('layer-item-nested');
         children.appendChild(tbItem);
         return;
       }
       if (!child.classList.contains('overlay-tb')) return;
-      const tbItem = makeLayerBlockItem(child, child, sec);
+      const tbItem = makeLayerBlockItem(child, child, sec, depth + 1);
       tbItem.classList.add('layer-item-nested');
       children.appendChild(tbItem);
     });
@@ -356,7 +371,7 @@ function makeLayerAssetItem(block, dragTarget, sec) {
 }
 
 /* 카드 블록 + 하위 이미지/제목/설명 자식 포함 레이어 아이템 */
-function makeLayerCardItem(block, dragTarget, sec) {
+function makeLayerCardItem(block, dragTarget, sec, depth = 1) {
   const wrapper = document.createElement('div');
   wrapper.className = 'layer-row-group';
   wrapper._dragTarget = dragTarget;
@@ -368,6 +383,7 @@ function makeLayerCardItem(block, dragTarget, sec) {
     ${layerIcons.card}
     <span class="layer-item-name">${block.dataset.layerName || 'Card'}</span>
     <span class="layer-item-type">Component</span>`;
+  header.prepend(makeIndents(depth));
   addLayerRename(header.querySelector('.layer-item-name'), block, 'Card');
 
   header.addEventListener('click', e => {
@@ -411,6 +427,7 @@ function makeLayerCardItem(block, dragTarget, sec) {
     const imgItem = document.createElement('div');
     imgItem.className = 'layer-item layer-item-nested';
     imgItem.innerHTML = `${layerIcons.asset}<span class="layer-item-name">Image</span><span class="layer-item-type">Image</span>`;
+    imgItem.prepend(makeIndents(depth + 1));
     imgItem.addEventListener('click', selectCard);
     children.appendChild(imgItem);
   }
@@ -419,6 +436,7 @@ function makeLayerCardItem(block, dragTarget, sec) {
     const item = document.createElement('div');
     item.className = 'layer-item layer-item-nested';
     item.innerHTML = `${layerIcons.heading}<span class="layer-item-name">Title</span><span class="layer-item-type">Text</span>`;
+    item.prepend(makeIndents(depth + 1));
     item.addEventListener('click', selectCard);
     children.appendChild(item);
   }
@@ -427,6 +445,7 @@ function makeLayerCardItem(block, dragTarget, sec) {
     const item = document.createElement('div');
     item.className = 'layer-item layer-item-nested';
     item.innerHTML = `${layerIcons.body}<span class="layer-item-name">Description</span><span class="layer-item-type">Text</span>`;
+    item.prepend(makeIndents(depth + 1));
     item.addEventListener('click', selectCard);
     children.appendChild(item);
   }
@@ -437,7 +456,7 @@ function makeLayerCardItem(block, dragTarget, sec) {
 }
 
 /* 배너 블록 + 하위 텍스트/갭 자식 포함 레이어 아이템 */
-function makeLayerBannerItem(block, dragTarget, sec) {
+function makeLayerBannerItem(block, dragTarget, sec, depth = 1) {
   const wrapper = document.createElement('div');
   wrapper.className = 'layer-row-group';
   wrapper._dragTarget = dragTarget;
@@ -449,6 +468,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
     ${layerIcons.banner}
     <span class="layer-item-name">${block.dataset.layerName || 'Banner'}</span>
     <span class="layer-item-type">Component</span>`;
+  header.prepend(makeIndents(depth));
   addLayerRename(header.querySelector('.layer-item-name'), block, 'Banner');
 
   header.addEventListener('click', e => {
@@ -487,6 +507,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
       const imgItem = document.createElement('div');
       imgItem.className = 'layer-item layer-item-nested';
       imgItem.innerHTML = `${layerIcons.asset}<span class="layer-item-name">Image</span><span class="layer-item-type">Image</span>`;
+      imgItem.prepend(makeIndents(depth + 1));
       imgItem.addEventListener('click', e => {
         e.stopPropagation();
         window.deselectAll();
@@ -513,6 +534,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
         const childItem = document.createElement('div');
         childItem.className = 'layer-item layer-item-nested';
         childItem.innerHTML = `${layerIcons[iconKey] || layerIcons.body}<span class="layer-item-name">${label}</span><span class="layer-item-type">${typeLabel}</span>`;
+        childItem.prepend(makeIndents(depth + 1));
         childItem.addEventListener('click', e => {
           e.stopPropagation();
           window.deselectAll();
@@ -537,7 +559,7 @@ function makeLayerBannerItem(block, dragTarget, sec) {
 }
 
 /* 레이어 Row 그룹 생성 (멀티컬럼용) */
-function makeLayerColItem(colEl, colIdx, sec) {
+function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
   const colWrapper = document.createElement('div');
   colWrapper.className = 'layer-row-group layer-col-group';
   colWrapper._dragTarget = colEl;
@@ -551,6 +573,7 @@ function makeLayerColItem(colEl, colIdx, sec) {
     </svg>
     <span class="layer-item-name">Col ${colIdx + 1}</span>
     <span class="layer-item-type">Frame</span>`;
+  colHeader.prepend(makeIndents(depth));
 
   const colChildren = document.createElement('div');
   colChildren.className = 'layer-row-children';
@@ -574,12 +597,13 @@ function makeLayerColItem(colEl, colIdx, sec) {
     const isIconText = block.classList.contains('icon-text-block');
     const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isBanner ? 'banner' : isGraph ? 'graph' : isIconText ? 'icon-text' : 'asset';
 
-    if (isBanner) { colChildren.appendChild(makeLayerBannerItem(block, block.closest('.row') || block, sec)); return; }
-    if (isCard)   { colChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec)); return; }
+    if (isBanner) { colChildren.appendChild(makeLayerBannerItem(block, block.closest('.row') || block, sec, depth + 1)); return; }
+    if (isCard)   { colChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec, depth + 1)); return; }
 
     const item = document.createElement('div');
     item.className = 'layer-item layer-item-nested';
     item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${block.dataset.layerName || labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
+    item.prepend(makeIndents(depth + 1));
     item.addEventListener('click', e => {
       e.stopPropagation();
       window.deselectAll();
@@ -640,6 +664,7 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
     </svg>
     <span class="layer-item-name">Grid</span>
     <span class="layer-item-type">${ratioStr}</span>`;
+  header.prepend(makeIndents(1));
 
   const groupChildren = document.createElement('div');
   groupChildren.className = 'layer-row-children';
@@ -647,7 +672,7 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
   // Col Frame을 자식으로 표시
   const cols = [...rowEl.querySelectorAll(':scope > .col')];
   cols.forEach((col, i) => {
-    groupChildren.appendChild(makeLayerColItem(col, i, sec));
+    groupChildren.appendChild(makeLayerColItem(col, i, sec, 2));
   });
 
   header.addEventListener('click', e => {
@@ -849,7 +874,7 @@ export function buildLayerPanel() {
 
     [...sectionInner.children].forEach(child => {
       if (child.classList.contains('gap-block')) {
-        children.appendChild(makeLayerBlockItem(child, child, sec));
+        children.appendChild(makeLayerBlockItem(child, child, sec, 1));
       } else if (child.classList.contains('row')) {
         appendRowToLayer(child, children);
       } else if (child.classList.contains('group-block')) {
