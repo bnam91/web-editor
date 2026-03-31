@@ -907,7 +907,8 @@ function addCanvasBlock() {
   if (window.bindRowColAdd) window.bindRowColAdd(row);
   row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
   window.buildLayerPanel();
-  window.selectSection(sec);
+  window.deselectAll?.();
+  cb.classList.add('selected');
   window.showCanvasProperties?.(cb);
 }
 
