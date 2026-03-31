@@ -1,0 +1,40 @@
+{
+  "ts": "2026-03-31T00:00:00.000Z",
+  "mixedColCases": [
+    {
+      "colId": "",
+      "colParentRow": "row_nyfyiwb",
+      "colParentSec": "sec_rqwsh20",
+      "kids": [
+        "text-block#tb_ouof7et",
+        "row.row-active#row_3bxwjje"
+      ]
+    }
+  ],
+  "layerPanelStatus": "FAIL",
+  "layerPanelDump": {
+    "secHeader": "Section",
+    "items": [
+      { "name": "Gap",      "type": "Gap",   "isHeader": false, "padPx": 42 },
+      { "name": "Heading",  "type": "Text",  "isHeader": false, "padPx": 42 },
+      { "name": "Stack",                     "isHeader": true,  "padPx": 40 },
+      { "name": "Icon Text","type": "Text",  "isHeader": false, "padPx": 74 },
+      { "name": "Asset",    "type": "Image", "isHeader": false, "padPx": 42 },
+      { "name": "Gap",      "type": "Gap",   "isHeader": false, "padPx": 42 }
+    ]
+  },
+  "issues": [
+    {
+      "type": "LEAF_LOOKS_LIKE_CHILD",
+      "description": "레이어 패널에서 'Icon Text'(Text 블록)가 'Stack' row 헤더보다 34px 더 들여쓰여져 있어 자식 블록처럼 보임",
+      "header": "Stack",
+      "headerPad": 40,
+      "nextLeafName": "Icon Text",
+      "nextLeafPad": 74,
+      "diff": 34,
+      "severity": "HIGH",
+      "rootCause": "col(row_nyfyiwb) 안에 text-block(tb_ouof7et)과 row(row_3bxwjje)가 형제로 공존 → 레이어 패널 렌더러가 row 헤더 뒤의 leaf item을 해당 row의 자식으로 간주하여 indent를 추가 적용한 것으로 추정"
+    }
+  ],
+  "recommendation": "레이어 패널 렌더러에서 col의 직접 자식을 순회할 때, row 헤더 다음 아이템이 그 row의 자식이 아닌 경우(같은 col 내 형제 관계)에도 indent가 증가하는 버그가 있다. col 직접 자식을 flatten하게 나열하는 경우 row 헤더의 닫힘 여부를 명시적으로 추적하거나, col children을 DOM 순서 기반이 아닌 depth 기반으로 계산하는 로직으로 수정이 필요하다. 또는 col 안에 text-block과 row를 혼재시키는 구조 자체를 금지(검증 단계에서 block) 하는 방향도 고려할 것."
+}

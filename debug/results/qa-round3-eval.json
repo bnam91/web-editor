@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-03-30T10:14:25.171Z",
+  "port": 9335,
+  "tests": {
+    "E3-01": {
+      "status": "PASS",
+      "details": {
+        "before": {
+          "rowCount": 10,
+          "colCount": 14
+        },
+        "colSetup": {
+          "rowCount": 13,
+          "colFound": true,
+          "colActive": true,
+          "stateExists": true,
+          "lastActiveColSet": true,
+          "colId": "col col-active"
+        },
+        "removeResult": {
+          "activeColsAfterDeselect": 0,
+          "lastActiveColStillSet": true,
+          "lastActiveColClass": "col"
+        },
+        "checkResult": {
+          "hasRow": true,
+          "lastActiveColExists": true,
+          "rowCount": 1,
+          "colChildCount": 2,
+          "colInnerHTML": "<div class=\"col-placeholder\">\n    <button class=\"col-add-btn\">\n      <svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\">\n        <line x1=\"8\" y1=\"2\" x"
+        },
+        "addCardBlockSource": "function addCardBlock() {\n  // 2열 grid row 생성\n  const row = document.createElement('div');\n  row.className = 'row';\n  row.id = genId('row');\n  row.dataset.layout = 'grid';\n  row.dataset.ratioStr = '2*1';\n  row.style.display = 'grid';\n  row.style.gridTemplateColumns = 'repeat(2, 1fr)';\n  row.style.minHeight = '430px';\n  row.style.gap = '16px';\n  row.dataset.gap = '16';\n\n  for (let i = 0; i < 2; i++) {\n    const col = document.createElement('div');\n    col.className = 'col';\n    const { block } = "
+      },
+      "note": "col 안에 .row가 생성됨 - _lastActiveCol fallback 정상 동작"
+    },
+    "E3-02": {
+      "status": "PASS",
+      "details": {
+        "pass": true,
+        "dndResult": {
+          "blockClass": "row",
+          "wasInCol1": true,
+          "isNowInCol2": true,
+          "col1BlocksAfter": 0,
+          "col2BlocksAfter": 1
+        },
+        "domCheck": {
+          "col1BlockCount": 1,
+          "col1Blocks": [
+            {
+              "class": "row"
+            }
+          ],
+          "col2BlockCount": 0
+        },
+        "layerGlobals": {
+          "layerDragGlobals": {
+            "layerDragSrc": "object",
+            "dragSrc": "object"
+          },
+          "layerPanelFound": "layers-section-header",
+          "fpItemCount": 0,
+          "fpItemClasses": []
+        },
+        "dropEventResult": {
+          "dropHandlerExists": false,
+          "dropResult": "colChildren count: 0",
+          "layerDragSrcType": "object"
+        }
+      },
+      "note": "textBlock이 col2로 이동됨 (wasInCol1:true) - DOM append 확인"
+    }
+  },
+  "summary": {
+    "total": 2,
+    "pass": 2,
+    "fail": 0,
+    "error": 0
+  }
+}

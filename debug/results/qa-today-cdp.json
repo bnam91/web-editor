@@ -1,0 +1,60 @@
+{
+  "agent": "QA-CDP",
+  "version": "1.0",
+  "part": "Col-Frame 액자식 구조 + 오늘 변경사항",
+  "ts": "2026-03-30T09:32:56.116Z",
+  "method": "cdp",
+  "checks": [
+    {
+      "id": "A1",
+      "name": "핵심 window 함수 존재 (addTextBlock/addGapBlock/addAssetBlock/addRowBlock)",
+      "status": "PASS",
+      "detail": "function,function,function,function"
+    },
+    {
+      "id": "A2",
+      "name": "bindColDropZone 함수 존재",
+      "status": "PASS",
+      "detail": "typeof=function"
+    },
+    {
+      "id": "A3",
+      "name": "_insertToActiveCol 존재 여부 (내부함수, 없어도 됨)",
+      "status": "SKIP",
+      "detail": "typeof=undefined"
+    },
+    {
+      "id": "B1",
+      "name": "addRowBlock(1,1) → .row 생성 (섹션 선택 필수 선행)",
+      "status": "PASS",
+      "detail": "before:2 after:3 new_row=flex cols:1"
+    },
+    {
+      "id": "C1",
+      "name": "col-active 상태에서 addTextBlock → 액자식 중첩 구조",
+      "status": "PASS",
+      "detail": "PASS: nested text-block found"
+    },
+    {
+      "id": "D1",
+      "name": "bindColDropZone 바인딩 상태 확인",
+      "status": "PASS",
+      "detail": "total cols:9 bound:9"
+    },
+    {
+      "id": "E1",
+      "name": "asset-block 선택 시 fill toggle (#asset-fill-toggle) 존재",
+      "status": "PASS",
+      "detail": "PASS: fill toggle found"
+    },
+    {
+      "id": "F1",
+      "name": "localStorage sangpe-refresh-* 키 존재 (새로고침 복원)",
+      "status": "FAIL",
+      "detail": "refresh keys: 0 |  | onbeforeunload=not set | all_keys=[\"web-editor-branches-proj_1774855367770\",\"web-editor-autosave\"]"
+    }
+  ],
+  "failed": 1,
+  "passed": 6,
+  "skipped": 1
+}

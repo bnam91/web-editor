@@ -1,0 +1,95 @@
+{
+  "agent": "S3-Regression",
+  "session": 3,
+  "timestamp": "2026-03-31",
+  "regressions": [
+    {
+      "id": "R-01",
+      "status": "PASS",
+      "evidence": "drag-drop.js:240 — block.addEventListener('dblclick', ...) { window.pushHistory?.(); } (text-block dblclick, 편집 시작 전 상태 저장)"
+    },
+    {
+      "id": "R-02",
+      "status": "PASS",
+      "evidence": "prop-gap.js:35 — slider.addEventListener('mousedown', () => { window.pushHistory?.(); });"
+    },
+    {
+      "id": "R-03",
+      "status": "PASS",
+      "evidence": "section-variation.js:71 (createVariation) and :113 (addVariation) — querySelectorAll 셀렉터에 .icon-text-block 포함 확인"
+    },
+    {
+      "id": "R-04",
+      "status": "PASS",
+      "evidence": "editor.js:685 — !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block') 확인"
+    },
+    {
+      "id": "R-05",
+      "status": "PASS",
+      "evidence": "block-factory.js:851 — !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block') 확인"
+    },
+    {
+      "id": "R-06",
+      "status": "PASS",
+      "evidence": "block-factory.js:862 — sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => bindBlock(b)) 확인"
+    },
+    {
+      "id": "R-07",
+      "status": "PASS",
+      "evidence": "branch-system.js — initBranchStore:59 applyProjectData(data) 이후 clearHistory(), mergeBranch:262-265 applyProjectData(data) 이후 clearHistory() — 순서 정상"
+    },
+    {
+      "id": "R-08",
+      "status": "PASS",
+      "evidence": "index.html:575-579 — addRowBlock(1,1), addRowBlock(1,2), addRowBlock(2,1), addRowBlock(1,3), addRowBlock(3,1) 버튼 모두 존재"
+    },
+    {
+      "id": "R-09",
+      "status": "PASS",
+      "evidence": "css/editor-blocks.css:405 .icon-text-block, :424 .itb-icon, :443 .itb-text 규칙 모두 존재"
+    },
+    {
+      "id": "R-10",
+      "status": "PASS",
+      "evidence": "drag-drop.js:555 cdb-title/.cdb-desc dblclick → pushHistory?.() (:557), drag-drop.js:613 sbb-heading/.sbb-body dblclick → pushHistory?.() (:615) 모두 확인"
+    }
+  ],
+  "new_issues": [
+    {
+      "id": "S-01",
+      "status": "FAIL",
+      "detail": "drag-drop.js:498-521 — label-group-block dblclick 핸들러 존재함. label-item 텍스트 편집(span.contentEditable='true')을 수행하지만 pushHistory?.() 호출이 없음. 텍스트 수정 후 Cmd+Z 복원 불가 위험."
+    },
+    {
+      "id": "S-02",
+      "status": "PASS",
+      "detail": "prop-divider.js 존재. showDividerProperties() 함수 정의 + window.showDividerProperties = showDividerProperties (:130) 로 window에 노출. divider prop 패널 정상."
+    },
+    {
+      "id": "S-03",
+      "status": "PASS",
+      "detail": "prop-graph.js 존재. showGraphProperties() 함수 정의 + window.showGraphProperties = showGraphProperties (:158) 로 window에 노출. graph prop 패널 정상."
+    },
+    {
+      "id": "S-04",
+      "status": "PASS",
+      "detail": "모든 prop-*.js 파일 window.show*Properties 노출 확인: showAssetProperties, showCardProperties, showDividerProperties, showGapProperties, showGraphProperties, showIconCircleProperties, showLabelGroupProperties, showColProperties, showPageProperties, showRowProperties, showSectionProperties, showStripBannerProperties, showTableProperties, showTextProperties — 모두 window에 등록됨. 단 showIconTextProperties는 별도 prop 파일 없이 drag-drop.js 내 bindBlock에서 inline 처리됨 (INFO: icon-text-block 전용 prop 함수 미노출, 별도 패널 없음)."
+    }
+  ],
+  "summary": {
+    "regression_pass": 10,
+    "regression_fail": 0,
+    "new_issue_pass": 3,
+    "new_issue_fail": 1,
+    "overall": "FAIL"
+  },
+  "overall": "FAIL",
+  "action_required": [
+    {
+      "id": "S-01-FIX",
+      "file": "js/drag-drop.js",
+      "line": "~498 (label-group-block dblclick handler)",
+      "fix": "dblclick 핸들러 시작부에 window.pushHistory?.(); 추가 — label-item 텍스트 편집 시작 전 히스토리 저장"
+    }
+  ]
+}

@@ -345,6 +345,22 @@ document.addEventListener('keydown', e => {
     if (e.key === 'z' && e.shiftKey)    { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
     if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
+    if (e.key === 'b' && !e.shiftKey) {
+      // 텍스트 편집 중일 때만 bold 토글
+      if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
+        e.preventDefault();
+        document.getElementById('txt-bold-btn')?.click();
+        return;
+      }
+    }
+    if (e.key === 'i' && !e.shiftKey) {
+      // 텍스트 편집 중일 때만 italic 토글
+      if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
+        e.preventDefault();
+        document.getElementById('txt-italic-btn')?.click();
+        return;
+      }
+    }
     if (e.key === 'c') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
@@ -365,18 +381,65 @@ document.addEventListener('keydown', e => {
       pasteClipboard();
       return;
     }
+    if (e.code === 'KeyG' && !e.shiftKey) {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      window.groupSelectedBlocks?.();
+      return;
+    }
+    if (e.code === 'KeyG' && e.shiftKey) {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      const selGroup = document.querySelector('.group-block.selected');
+      if (selGroup) window.ungroupBlock?.(selGroup);
+      return;
+    }
+    if (e.key === 'a') {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      // 현재 선택된 섹션 내 모든 블록 선택
+      const activeSec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
+      if (activeSec) {
+        const allBlocks = activeSec.querySelectorAll(
+          '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
+          '.label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block'
+        );
+        allBlocks.forEach(b => b.classList.add('selected'));
+      }
+      return;
+    }
   }
   if (e.key === 'Escape') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     deselectAll();
   }
 
-  // 블록 추가 단축키: G=Gap, T=Text, A=Asset (INPUT/TEXTAREA 포커스 시 무시)
+  // 블록 추가 단축키: G=Gap, T=Text, A=Asset (IME 안전: e.code 사용)
   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-    if (e.key === 'g') { e.preventDefault(); window.addGapBlock?.(); return; }
-    if (e.key === 't') { e.preventDefault(); window.addTextBlock?.('body'); return; }
-    if (e.key === 'a') { e.preventDefault(); window.addAssetBlock?.(); return; }
+    if (e.code === 'KeyG') { e.preventDefault(); window.addGapBlock?.(); return; }
+    if (e.code === 'KeyT') { e.preventDefault(); window.addTextBlock?.('body'); return; }
+    if (e.code === 'KeyA') { e.preventDefault(); window.addAssetBlock?.(); return; }
+
+    // 텍스트 타입 단축키: 1=H1, 2=H2, 3=H3, 4=Body (텍스트 편집 중이면 무시)
+    if (['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
+      if (document.querySelector('.text-block.editing')) return; // 편집 중 차단
+      const tb = document.querySelector('.text-block.selected');
+      if (!tb) return;
+      e.preventDefault();
+      const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
+      const [cls, dtype] = typeMap[e.code];
+      const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
+      if (!contentEl) return;
+      window.pushHistory?.();
+      contentEl.className = cls;
+      tb.dataset.type = dtype;
+      window.showTextProperties?.(tb);
+      return;
+    }
   }
 
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
@@ -409,16 +472,7 @@ document.addEventListener('keydown', e => {
     }
   }
 
-  // ── 단축키 g: 갭 블록 추가 (getSelectedSection 테스트) ──
-  if ((e.key === 'g' || e.code === 'KeyG') && !e.metaKey && !e.ctrlKey) {
-    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-    e.preventDefault();
-    if (typeof window.addGapBlock === 'function') window.addGapBlock();
-    return;
-  }
-
-  const isDelete = e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey));
+  const isDelete = e.key === 'Delete' || e.key === 'Backspace';
   if (isDelete) {
     // 텍스트 편집 중이거나 input에 포커스가 있으면 기본 동작 유지
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
@@ -682,7 +736,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
     selectSectionWithModifier(sec, e);
     // deselectAll() 이후 row-active 복원
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block')) {
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -701,7 +755,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가

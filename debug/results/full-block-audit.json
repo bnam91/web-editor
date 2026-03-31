@@ -1,0 +1,271 @@
+{
+  "audit_date": "2026-03-31",
+  "cdp_port": 9335,
+  "project": "proj_1774888751869",
+
+  "task1_heading_bug": {
+    "summary": "헤딩 블록의 data-type이 'h1'/'h2'/'h3'가 아닌 'heading'으로 통일되어 있음",
+    "dom_analysis": {
+      "actual_data_type": "heading",
+      "expected_data_type_by_doc": "h1",
+      "subtype_carrier": "inner div class (tb-h1 / tb-h2 / tb-h3)",
+      "outerHTML_sample": "<div class=\"text-block\" data-type=\"heading\" id=\"tb_kg2qo54\"><div class=\"tb-h1\" contenteditable=\"false\" style=\"font-family:'Pretendard', sans-serif\" draggable=\"false\">제목을 입력하세요</div></div>",
+      "broken_selector": ".text-block[data-type='h1']",
+      "working_selector": ".text-block .tb-h1"
+    },
+    "prop_panel_after_click": {
+      "titles": ["타입", "태그 스타일", "정렬", "폰트", "간격", "패딩", "열 구성"],
+      "type_buttons_active": "H1 버튼이 active 상태 (prop-type-btn active[data-cls='tb-h1'])",
+      "status": "PASS - 클릭 후 prop 패널 정상 응답"
+    },
+    "bugs": [
+      {
+        "severity": "MEDIUM",
+        "title": "data-type 불일치: heading vs h1/h2/h3",
+        "description": "addTextBlock('h1') 호출 시 data-type이 'h1'이 아닌 'heading'으로 설정됨. 실제 h1/h2/h3 구분은 내부 div의 class(tb-h1/tb-h2/tb-h3)로만 이루어짐.",
+        "impact": "document.querySelector('.text-block[data-type=\"h1\"]') 셀렉터가 매칭 안 됨. 외부 스크립트나 저장 JSON에서 h1/h2/h3 구분이 안 될 수 있음."
+      },
+      {
+        "severity": "LOW",
+        "title": "contenteditable=false on text inner div",
+        "description": "tb-h1 div의 contenteditable이 'false'로 설정되어 있음. 클릭 편집 불가 상태일 수 있음."
+      }
+    ]
+  },
+
+  "task2_block_audit": {
+    "test_section_id": "sec_tqmfx3c",
+    "blocks": [
+      {
+        "no": 1,
+        "label": "헤딩1 (h1)",
+        "js": "window.addTextBlock('h1')",
+        "dom_data_type": "heading",
+        "dom_inner_class": "tb-h1",
+        "prop_titles": ["타입", "태그 스타일", "정렬", "폰트", "간격", "패딩", "열 구성"],
+        "status": "PASS"
+      },
+      {
+        "no": 2,
+        "label": "헤딩2 (h2)",
+        "js": "window.addTextBlock('h2')",
+        "dom_data_type": "heading",
+        "dom_inner_class": "tb-h2",
+        "prop_titles": ["타입", "태그 스타일", "정렬", "폰트", "간격", "패딩", "열 구성"],
+        "status": "PASS"
+      },
+      {
+        "no": 3,
+        "label": "헤딩3 (h3)",
+        "js": "window.addTextBlock('h3')",
+        "dom_data_type": "heading",
+        "dom_inner_class": "tb-h3",
+        "prop_titles": ["타입", "태그 스타일", "정렬", "폰트", "간격", "패딩", "열 구성"],
+        "status": "PASS"
+      },
+      {
+        "no": 4,
+        "label": "본문 (body)",
+        "js": "window.addTextBlock('body')",
+        "dom_data_type": "body",
+        "dom_inner_class": "tb-body",
+        "prop_titles": ["타입", "태그 스타일", "정렬", "폰트", "간격", "패딩", "열 구성"],
+        "status": "PASS"
+      },
+      {
+        "no": 5,
+        "label": "캡션 (caption)",
+        "js": "window.addTextBlock('caption')",
+        "dom_data_type": "caption",
+        "dom_inner_class": "tb-caption",
+        "prop_titles": ["타입", "태그 스타일", "정렬", "폰트", "간격", "패딩", "열 구성"],
+        "status": "PASS"
+      },
+      {
+        "no": 6,
+        "label": "갭 (gap)",
+        "js": "window.addGapBlock()",
+        "dom_data_type": "gap",
+        "prop_titles": ["크기"],
+        "status": "PASS"
+      },
+      {
+        "no": 7,
+        "label": "구분선 (divider)",
+        "js": "window.addDividerBlock()",
+        "dom_data_type": "divider",
+        "prop_titles": ["선 스타일", "패딩"],
+        "status": "PASS"
+      },
+      {
+        "no": 8,
+        "label": "에셋 (asset)",
+        "js": "window.addAssetBlock()",
+        "dom_class": "asset-block",
+        "dom_data_type": "MISSING (data-type 없음)",
+        "dom_dataset_keys": ["align", "overlay"],
+        "prop_titles": ["프리셋", "크기", "이미지", "텍스트 오버레이"],
+        "status": "PASS",
+        "note": "asset-block에 data-type 속성 없음 — 잠재적 버그"
+      },
+      {
+        "no": 9,
+        "label": "카드 (card)",
+        "js": "window.addCardBlock()",
+        "dom_data_type": "card",
+        "prop_titles": ["하위 블록 일괄", "열 구성", "컬럼 비율", "그리드 크기", "크기 / 간격"],
+        "status": "PASS"
+      },
+      {
+        "no": 10,
+        "label": "테이블 (table)",
+        "js": "window.addTableBlock()",
+        "dom_class": "table-block",
+        "dom_data_type": "table",
+        "prop_titles": ["행 / 열", "스타일"],
+        "status": "PASS",
+        "note": "Task 2 실행 당시 섹션 재선택 문제로 처음에 다른 섹션에 삽입됨. addTableBlock() 재실행 후 정상 확인."
+      },
+      {
+        "no": 11,
+        "label": "아이콘서클 (icon-circle)",
+        "js": "window.addIconCircleBlock()",
+        "dom_data_type": "icon-circle",
+        "prop_titles": ["크기", "색상", "테두리", "이미지"],
+        "status": "PASS"
+      },
+      {
+        "no": 12,
+        "label": "배너 (strip-banner)",
+        "js": "window.addStripBannerBlock()",
+        "dom_data_type": "strip-banner",
+        "prop_titles": ["이미지", "크기", "텍스트 영역", "제목 타입", "본문 타입", "텍스트 정렬", "이미지 위치", "레이아웃"],
+        "status": "PASS"
+      },
+      {
+        "no": 13,
+        "label": "그래프 (graph)",
+        "js": "window.addGraphBlock()",
+        "dom_data_type": "graph",
+        "prop_titles": ["크기", "차트 타입", "프리셋", "데이터"],
+        "status": "PASS"
+      },
+      {
+        "no": 14,
+        "label": "라벨그룹 (label-group)",
+        "js": "window.addLabelGroupBlock()",
+        "dom_class": "label-group-block",
+        "dom_data_type": "MISSING (data-type 없음)",
+        "dom_dataset_keys": [],
+        "prop_titles": ["Style", "정렬", "간격", "높이 (전체)", "태그를 클릭하면 개별 색상을 변경할 수 있어요"],
+        "status": "PASS",
+        "note": "label-group-block에 data-type 속성 없음 — 잠재적 버그"
+      }
+    ],
+    "summary": "14개 블록 모두 추가 성공, prop 패널 정상 응답 — 전체 PASS"
+  },
+
+  "task3_layer_panel": {
+    "layer_section_count": 3,
+    "test_section": "sec_tqmfx3c (Section 03)",
+    "items": [
+      {"name": "Heading",      "type": "Text",      "paddingLeft": "58px",  "isNested": true},
+      {"name": "Heading",      "type": "Text",      "paddingLeft": "58px",  "isNested": true},
+      {"name": "Heading",      "type": "Text",      "paddingLeft": "58px",  "isNested": true},
+      {"name": "Body",         "type": "Text",      "paddingLeft": "58px",  "isNested": true},
+      {"name": "Caption",      "type": "Text",      "paddingLeft": "58px",  "isNested": true},
+      {"name": "Table",        "type": "Component", "paddingLeft": "58px",  "isNested": true},
+      {"name": "Gap",          "type": "Gap",       "paddingLeft": "42px",  "isNested": false},
+      {"name": "Divider",      "type": "Divider",   "paddingLeft": "58px",  "isNested": true},
+      {"name": "Asset",        "type": "Image",     "paddingLeft": "42px",  "isNested": false},
+      {"name": "Grid",         "type": "2*1",       "paddingLeft": "24px",  "isNested": false},
+      {"name": "Col 1",        "type": "Frame",     "paddingLeft": "40px",  "isNested": false},
+      {"name": "Card",         "type": "Component", "paddingLeft": "56px",  "isNested": false},
+      {"name": "Image",        "type": "Image",     "paddingLeft": "90px",  "isNested": true},
+      {"name": "Title",        "type": "Text",      "paddingLeft": "90px",  "isNested": true},
+      {"name": "Description",  "type": "Text",      "paddingLeft": "90px",  "isNested": true},
+      {"name": "Col 2",        "type": "Frame",     "paddingLeft": "40px",  "isNested": false},
+      {"name": "Card",         "type": "Component", "paddingLeft": "56px",  "isNested": false},
+      {"name": "Image",        "type": "Image",     "paddingLeft": "90px",  "isNested": true},
+      {"name": "Title",        "type": "Text",      "paddingLeft": "90px",  "isNested": true},
+      {"name": "Description",  "type": "Text",      "paddingLeft": "90px",  "isNested": true},
+      {"name": "Icon Circle",  "type": "Component", "paddingLeft": "58px",  "isNested": true},
+      {"name": "Banner",       "type": "Component", "paddingLeft": "24px",  "isNested": false},
+      {"name": "Image",        "type": "Frame",     "paddingLeft": "0px",   "computedPL": "8px", "isNested": false},
+      {"name": "Image",        "type": "Image",     "paddingLeft": "0px",   "computedPL": "8px", "isNested": true},
+      {"name": "Content",      "type": "Frame",     "paddingLeft": "0px",   "computedPL": "8px", "isNested": false},
+      {"name": "Gap",          "type": "Gap",       "paddingLeft": "0px",   "computedPL": "8px", "isNested": true},
+      {"name": "Heading",      "type": "Text",      "paddingLeft": "0px",   "computedPL": "8px", "isNested": true},
+      {"name": "Gap",          "type": "Gap",       "paddingLeft": "0px",   "computedPL": "8px", "isNested": true},
+      {"name": "Body",         "type": "Text",      "paddingLeft": "0px",   "computedPL": "8px", "isNested": true},
+      {"name": "Gap",          "type": "Gap",       "paddingLeft": "0px",   "computedPL": "8px", "isNested": true},
+      {"name": "Graph",        "type": "Component", "paddingLeft": "58px",  "isNested": true},
+      {"name": "Tags",         "type": "Tags",      "paddingLeft": "58px",  "isNested": true}
+    ],
+    "padding_anomalies": [
+      {
+        "block": "Banner (strip-banner) 하위 자식들",
+        "issue": "Banner의 자식 항목들(Image, Content, Gap, Heading, Body)에 style.paddingLeft='0px'이지만 computedPL='8px' — inline style 미설정, CSS 상속으로만 들여쓰기됨",
+        "severity": "LOW"
+      },
+      {
+        "block": "Gap block",
+        "issue": "Gap은 58px가 아닌 42px padding — isNested=false로 표시되어 row 레벨과 동일 취급",
+        "severity": "INFO"
+      },
+      {
+        "block": "Asset block",
+        "issue": "Asset도 42px padding — isNested=false",
+        "severity": "INFO"
+      }
+    ]
+  },
+
+  "bugs_found": [
+    {
+      "id": "BUG-01",
+      "severity": "MEDIUM",
+      "title": "헤딩 블록 data-type 불일치",
+      "description": "addTextBlock('h1'/'h2'/'h3') 호출 시 data-type이 모두 'heading'으로 설정됨. 실제 h1/h2/h3 구분은 내부 div class(tb-h1/tb-h2/tb-h3)로만 이루어짐.",
+      "affected": "text-block (h1, h2, h3)",
+      "broken_selector": ".text-block[data-type='h1']",
+      "working_selector": ".text-block:has(.tb-h1)",
+      "reproduction": "window.addTextBlock('h1'); document.querySelector('.text-block').dataset.type  // → 'heading'"
+    },
+    {
+      "id": "BUG-02",
+      "severity": "LOW",
+      "title": "asset-block에 data-type 속성 없음",
+      "description": "makeAssetBlock() 생성 시 data-type 속성이 설정되지 않음. dataset에 'align', 'overlay'만 존재.",
+      "affected": "asset-block",
+      "expected": "data-type='asset'",
+      "actual": "data-type 속성 자체 없음"
+    },
+    {
+      "id": "BUG-03",
+      "severity": "LOW",
+      "title": "label-group-block에 data-type 속성 없음",
+      "description": "makelagroupBlock() 생성 시 data-type 속성이 설정되지 않음. dataset이 완전히 비어있음.",
+      "affected": "label-group-block",
+      "expected": "data-type='label-group'",
+      "actual": "data-type 속성 자체 없음"
+    },
+    {
+      "id": "BUG-04",
+      "severity": "MEDIUM",
+      "title": "addTableBlock() 섹션 재선택 시 다른 섹션에 삽입",
+      "description": "addCardBlock() 등 다른 블록 추가 후 섹션 선택 상태가 변경될 경우, addTableBlock()이 의도하지 않은 섹션에 삽입될 수 있음. Task 2 테스트 중 table-block이 테스트 섹션(sec_tqmfx3c)이 아닌 다른 위치에 생성됨.",
+      "affected": "addTableBlock()",
+      "note": "getSelectedSection() 반환값이 바뀌는 경우 발생"
+    },
+    {
+      "id": "BUG-05",
+      "severity": "LOW",
+      "title": "Banner 하위 항목 레이어 패널 paddingLeft inline 미설정",
+      "description": "strip-banner-block 하위 자식 항목들(Image, Content, Gap, Heading, Body)의 style.paddingLeft가 '0px'로 inline 설정되지 않고 CSS로만 적용됨. 다른 블록의 중첩 항목들(58px, 90px 등)과 달리 일관성 없음.",
+      "affected": "strip-banner-block 레이어 하위 항목",
+      "layer_pl_style": "0px (inline)",
+      "layer_pl_computed": "8px"
+    }
+  ]
+}

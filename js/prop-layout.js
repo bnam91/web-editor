@@ -141,6 +141,7 @@ function bindRowColAdd(rowEl) {
       existingCols.forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
       const newCol = window.makeEmptyCol('1');
       rowEl.insertBefore(newCol, btn);
+      window.bindColDropZone?.(newCol);
       rowEl.dataset.ratioStr = `${rowEl.querySelectorAll(':scope > .col').length}*1`;
     } else if (layout === 'grid') {
       const gtc = rowEl.style.gridTemplateColumns || '';
@@ -149,6 +150,7 @@ function bindRowColAdd(rowEl) {
       rowEl.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
       const newCol = window.makeEmptyCol(null);
       rowEl.insertBefore(newCol, btn);
+      window.bindColDropZone?.(newCol);
       rowEl.dataset.ratioStr = `${colCount}*${Math.ceil(rowEl.querySelectorAll(':scope > .col').length / colCount)}`;
     }
     window.buildLayerPanel();

@@ -1,0 +1,125 @@
+{
+  "agent": "Evaluator1",
+  "round": "R1 검증",
+  "timestamp": "2026-03-31",
+  "checks": [
+    {
+      "selector": ".prop-section-title",
+      "property": "font-size",
+      "expected": "11px",
+      "actual": "11px",
+      "status": "PASS"
+    },
+    {
+      "selector": ".prop-section-title",
+      "property": "font-weight",
+      "expected": "600",
+      "actual": "600",
+      "status": "PASS"
+    },
+    {
+      "selector": ".prop-section-title",
+      "property": "color",
+      "expected": "#6b6b6b",
+      "actual": "#6b6b6b",
+      "status": "PASS"
+    },
+    {
+      "selector": ".prop-section-title",
+      "property": "letter-spacing",
+      "expected": "0.05em",
+      "actual": "0.05em",
+      "status": "PASS"
+    },
+    {
+      "selector": ".prop-section",
+      "property": "border-bottom",
+      "expected": "#2e2e2e or similar",
+      "actual": "1px solid #2e2e2e",
+      "status": "PASS"
+    },
+    {
+      "selector": ".prop-label",
+      "property": "color",
+      "expected": "#6b6b6b",
+      "actual": "#6b6b6b",
+      "status": "PASS"
+    },
+    {
+      "selector": ".prop-label",
+      "property": "width",
+      "expected": "48px",
+      "actual": "48px",
+      "status": "PASS"
+    },
+    {
+      "selector": ".prop-number",
+      "property": "height",
+      "expected": "26px (R2에서 28px 될 예정)",
+      "actual": "28px",
+      "status": "FAIL",
+      "note": "이미 28px로 적용됨. R1 기대값은 26px이지만 R2 목표값(28px)이 선적용된 상태. 기능상 문제 없음."
+    },
+    {
+      "selector": ".prop-row",
+      "property": "margin-bottom",
+      "expected": "6px",
+      "actual": "6px",
+      "status": "PASS"
+    },
+    {
+      "selector": ".layer-item",
+      "property": "height",
+      "expected": "28px",
+      "actual": "28px",
+      "status": "PASS"
+    },
+    {
+      "selector": ".layer-row-header",
+      "property": "height",
+      "expected": "28px",
+      "actual": "28px",
+      "status": "PASS"
+    },
+    {
+      "selector": ".layer-item-icon",
+      "property": "width",
+      "expected": "14px",
+      "actual": "14px",
+      "status": "PASS"
+    },
+    {
+      "selector": ".layer-item-icon",
+      "property": "height",
+      "expected": "14px",
+      "actual": "14px",
+      "status": "PASS"
+    },
+    {
+      "selector": ".layer-item-icon",
+      "property": "opacity",
+      "expected": "0.5",
+      "actual": "0.5",
+      "status": "PASS"
+    },
+    {
+      "selector": ".layer-item-name",
+      "property": "color",
+      "expected": "#b0b0b0",
+      "actual": "#b0b0b0",
+      "status": "PASS"
+    },
+    {
+      "selector": ".layer-item-type",
+      "property": "color",
+      "expected": "#4a4a4a",
+      "actual": "#4a4a4a",
+      "status": "PASS"
+    }
+  ],
+  "total_pass": 15,
+  "total_fail": 1,
+  "issues": [
+    ".prop-number height: R1 기대값은 26px이나 실제 28px로 적용되어 있음. R2 목표값이 선적용된 상태. 기능상 문제는 없으나 R1 체크리스트 기준으로는 FAIL."
+  ]
+}

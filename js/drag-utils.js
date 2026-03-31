@@ -171,6 +171,7 @@ const ASSET_PRESETS = {
   square:   { height: 860 },
   tall:     { height: 1032 },
   wide:     { height: 575 },
+  logo:     { width: 200, height: 64 },
 };
 
 export {

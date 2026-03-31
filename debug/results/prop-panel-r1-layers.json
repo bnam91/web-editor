@@ -1,0 +1,67 @@
+{
+  "agent": "LayerPanelGen1",
+  "round": 1,
+  "file": "css/editor-panels.css",
+  "changes": [
+    {
+      "selector": ".layer-row-header",
+      "property": "height",
+      "before": "26px",
+      "after": "28px"
+    },
+    {
+      "selector": ".layer-item",
+      "property": "height",
+      "before": "26px",
+      "after": "28px"
+    },
+    {
+      "selector": ".layer-item-icon",
+      "property": "width",
+      "before": "12px",
+      "after": "14px"
+    },
+    {
+      "selector": ".layer-item-icon",
+      "property": "height",
+      "before": "12px",
+      "after": "14px"
+    },
+    {
+      "selector": ".layer-item-icon",
+      "property": "opacity",
+      "before": "0.4",
+      "after": "0.5"
+    },
+    {
+      "selector": ".layer-item-name",
+      "property": "color",
+      "before": "#888",
+      "after": "#b0b0b0"
+    },
+    {
+      "selector": ".layer-item.active .layer-item-name",
+      "property": "color",
+      "before": "#6fa3f7",
+      "after": "#6fa3f7 (유지)"
+    },
+    {
+      "selector": ".layer-row-header .layer-item-name",
+      "property": "font-weight",
+      "before": "(없음 — 상속값)",
+      "after": "600"
+    },
+    {
+      "selector": ".layer-item-type",
+      "property": "color",
+      "before": "var(--ui-border-strong)",
+      "after": "#4a4a4a"
+    },
+    {
+      "selector": ".layer-section-icon",
+      "property": "width/height/opacity",
+      "before": "14px / 14px / 0.5",
+      "after": "14px / 14px / 0.5 (이미 일치 — 변경 없음)"
+    }
+  ]
+}

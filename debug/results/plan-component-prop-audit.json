@@ -1,0 +1,578 @@
+{
+  "planner": "Planner-CompProps",
+  "date": "2026-03-31",
+  "components": {
+    "circle": {
+      "purpose": "브랜드 로고/아이콘을 원형 프레임으로 표시하는 단순 컨테이너",
+      "current_sections": [
+        {
+          "title": "크기",
+          "controls": ["지름 slider+number (40~860px)"],
+          "verdict": "필요",
+          "reason": "원형 크기 조절은 핵심 속성. 적합"
+        },
+        {
+          "title": "색상",
+          "controls": ["배경 color picker + hex input"],
+          "verdict": "필요",
+          "reason": "이미지 미업로드 시 배경색 표시. 필요하지만 이미지 업로드 후에는 숨겨도 무방"
+        },
+        {
+          "title": "테두리",
+          "controls": ["스타일 select (없음/실선/점선)"],
+          "verdict": "불필요",
+          "reason": "Circle은 원형으로 border-radius가 50% 고정이므로 테두리 스타일 옵션이 시각적으로 의미 있으나, 테두리 색상·두께 컨트롤이 없어 불완전하다. 단독으로는 半불필요 — 색상/두께 없이 스타일만 존재하여 기능 반쪽짜리"
+        },
+        {
+          "title": "이미지 (이미지 없을 때)",
+          "controls": ["이미지 선택 primary button", "드래그 안내 문구"],
+          "verdict": "필요",
+          "reason": "원형 프레임의 핵심 기능인 이미지 업로드"
+        },
+        {
+          "title": "이미지 (이미지 있을 때)",
+          "controls": ["이미지 위치 조절 secondary button", "이미지 교체 secondary button", "이미지 제거 danger button"],
+          "verdict": "필요",
+          "reason": "업로드 후 위치·교체·삭제 동선 완비"
+        }
+      ],
+      "missing_features": [
+        "테두리 색상 picker (스타일 select만 있고 색상·두께 없음)",
+        "테두리 두께 slider",
+        "이미지 있을 때 배경색 섹션 숨김 처리 (현재는 이미지가 있어도 배경색 섹션 노출)"
+      ],
+      "inappropriate_items": [
+        "테두리 스타일 select — 색상/두께 컨트롤 없이 단독 존재하여 반쪽짜리 기능. 완성하거나 제거해야 함",
+        "이미지 업로드 후에도 배경색 섹션이 그대로 노출 (실질적 영향 없는 항목이 보임)"
+      ],
+      "audit_score": "3/5 — 핵심 기능(크기, 이미지)은 있으나 테두리가 불완전하고 이미지 유무에 따른 조건부 표시 미흡"
+    },
+    "table": {
+      "purpose": "행·열 데이터를 표 형식으로 표현",
+      "current_sections": [
+        {
+          "title": "행 / 열",
+          "controls": ["행 count −/+ button", "열 count −/+ button"],
+          "verdict": "필요",
+          "reason": "테이블 구조 변경의 핵심 컨트롤"
+        },
+        {
+          "title": "스타일",
+          "controls": ["테마 select (기본/스트라이프/보더리스)", "정렬 align-group (좌/중/우)", "폰트 slider+number (12~60px)", "셀 패딩 slider+number (4~32px)"],
+          "verdict": "필요",
+          "reason": "테이블 스타일·가독성에 직접 영향하는 4가지 컨트롤 모두 적합"
+        },
+        {
+          "title": "안내 텍스트",
+          "controls": ["더블클릭 편집 안내 문구"],
+          "verdict": "필요",
+          "reason": "UX 안내 문구, 패널 공간을 최소 소비"
+        }
+      ],
+      "missing_features": [
+        "헤더 행 표시/숨김 toggle",
+        "테두리 색상 picker",
+        "열 너비 개별 조절",
+        "행 추가 시 기본값(텍스트 내용) 입력 기능"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "4/5 — 구성 적합. 누락 항목은 고급 기능으로 개선 우선순위 중간"
+    },
+    "card": {
+      "purpose": "이미지 + 텍스트(제목+설명)의 카드형 콘텐츠 블록",
+      "current_sections": [
+        {
+          "title": "이미지",
+          "controls": ["이미지 업로드 button", "이미지 제거 danger button (조건부)"],
+          "verdict": "필요",
+          "reason": "카드 이미지 관리 핵심 동선"
+        },
+        {
+          "title": "하단 영역",
+          "controls": ["배경색 color picker + hex", "모서리 slider+number (0~40px)"],
+          "verdict": "필요",
+          "reason": "카드 하단 텍스트 영역의 배경색·radius 조절. 적합"
+        },
+        {
+          "title": "텍스트 크기",
+          "controls": ["제목 slider+number (12~60px)", "설명 slider+number (10~40px)"],
+          "verdict": "필요",
+          "reason": "카드 내 두 텍스트 요소의 크기 독립 제어"
+        },
+        {
+          "title": "텍스트 정렬",
+          "controls": ["align-group (좌/중/우)"],
+          "verdict": "필요",
+          "reason": "제목+설명 일괄 정렬"
+        },
+        {
+          "title": "카드 수",
+          "controls": ["+ 카드 추가 primary button", "− 제거 secondary button"],
+          "verdict": "필요",
+          "reason": "Row 내 카드 수 조절 — 해당 패널에서 제공하는 것이 직관적"
+        }
+      ],
+      "missing_features": [
+        "텍스트 색상 picker (제목/설명 색상 변경 불가)",
+        "이미지 위치 조절 button (asset처럼 위치 드래그 모드 진입 없음)",
+        "이미지 교체 button (제거만 있음)"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "4/5 — 텍스트 색상 누락이 가장 큰 결함"
+    },
+    "banner": {
+      "purpose": "이미지 + 텍스트 영역을 좌우로 배치하는 스트립형 배너",
+      "current_sections": [
+        {
+          "title": "이미지",
+          "controls": ["이미지 업로드 button", "이미지 제거 danger button (조건부)"],
+          "verdict": "필요",
+          "reason": "배너 이미지 관리 핵심 동선"
+        },
+        {
+          "title": "크기",
+          "controls": ["높이 slider+number (80~600px)"],
+          "verdict": "필요",
+          "reason": "배너 전체 높이 조절"
+        },
+        {
+          "title": "텍스트 영역",
+          "controls": ["배경색 color picker + hex + 없음 checkbox", "모서리 slider+number (0~40px)", "상단 갭 slider+number (0~120px)", "하단 갭 slider+number (0~120px)"],
+          "verdict": "필요",
+          "reason": "텍스트 패널 영역의 외관 전반 조절. 갭은 내부 여백 조정용으로 적합"
+        },
+        {
+          "title": "제목 타입",
+          "controls": ["H1/H2/H3/Body type buttons", "크기 slider+number (12~72px)", "글자색 color picker + hex"],
+          "verdict": "필요",
+          "reason": "배너 제목 타입·크기·색상 3종 세트"
+        },
+        {
+          "title": "본문 타입",
+          "controls": ["Body/Caption type buttons", "크기 slider+number (10~48px)", "글자색 color picker + hex"],
+          "verdict": "필요",
+          "reason": "본문 텍스트 타입·크기·색상"
+        },
+        {
+          "title": "텍스트 정렬",
+          "controls": ["align-group (좌/중/우)"],
+          "verdict": "필요",
+          "reason": "제목+본문 텍스트 일괄 정렬"
+        },
+        {
+          "title": "이미지 위치",
+          "controls": ["이미지 좌/우 position buttons"],
+          "verdict": "필요",
+          "reason": "배너에서 이미지가 좌측/우측 중 어느 쪽에 위치할지 지정"
+        },
+        {
+          "title": "레이아웃",
+          "controls": ["페이지 패딩 toggle"],
+          "verdict": "필요",
+          "reason": "텍스트 영역의 좌우 패딩을 페이지 padX와 동기화할지 여부"
+        }
+      ],
+      "missing_features": [
+        "이미지 위치 조절 button (업로드 후 position 드래그 모드 없음)",
+        "이미지 교체 button",
+        "이미지 비율/사이즈 select"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "5/5 — 패널 구성이 가장 풍부하고 적합함. 이미지 위치 조절 누락만 개선 필요"
+    },
+    "graph": {
+      "purpose": "막대 차트로 수치 데이터 시각화",
+      "current_sections": [
+        {
+          "title": "크기",
+          "controls": ["높이 slider+number (80~600px)", "라벨 slider+number (8~28px)"],
+          "verdict": "필요",
+          "reason": "차트 높이·라벨 텍스트 크기 조절"
+        },
+        {
+          "title": "차트 타입",
+          "controls": ["세로 막대 / 가로 막대 type buttons"],
+          "verdict": "필요",
+          "reason": "bar-v / bar-h 전환"
+        },
+        {
+          "title": "프리셋",
+          "controls": ["기본/다크/미니멀/컬러풀 preset buttons"],
+          "verdict": "필요",
+          "reason": "색상 테마 프리셋 선택"
+        },
+        {
+          "title": "데이터",
+          "controls": ["라벨+값 텍스트 input 목록", "항목 삭제 ✕ button", "+ 항목 추가 button"],
+          "verdict": "필요",
+          "reason": "차트 데이터 직접 편집 — 그래프 블록의 핵심 기능"
+        }
+      ],
+      "missing_features": [
+        "라인 차트 타입 (현재 bar-v, bar-h만 지원)",
+        "범례(Legend) 표시 toggle",
+        "Y축 최대값 직접 입력",
+        "배경색 picker",
+        "막대 색상 개별 커스텀"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "4/5 — 기본 기능 완비. 고급 차트 기능 누락"
+    },
+    "divider": {
+      "purpose": "섹션 간 구분선(수평선) 삽입",
+      "current_sections": [
+        {
+          "title": "선 스타일",
+          "controls": ["색상 color picker + hex", "스타일 select (실선/파선/점선)", "두께 slider+number (1~12px)"],
+          "verdict": "필요",
+          "reason": "구분선의 3가지 핵심 속성 완비"
+        },
+        {
+          "title": "패딩",
+          "controls": ["상하 패딩 slider+number (0~120px)", "좌우 패딩 slider+number (0~200px)"],
+          "verdict": "필요",
+          "reason": "구분선 주변 여백 조절"
+        }
+      ],
+      "missing_features": [
+        "불투명도(opacity) slider — 연한 구분선 표현 시 필요"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "5/5 — 구분선 목적에 100% 부합하는 간결한 패널"
+    },
+    "text": {
+      "purpose": "다양한 타입의 텍스트 블록 (H1~Caption, Label, Icon Text, Overlay Text)",
+      "current_sections": [
+        {
+          "title": "타입",
+          "controls": ["H1/H2/H3/Body/Caption/Tag type buttons (Icon Text 제외)"],
+          "verdict": "필요",
+          "reason": "텍스트 위계 타입 전환"
+        },
+        {
+          "title": "아이콘 (Icon Text 전용)",
+          "controls": ["아이콘 이미지 preview", "이미지 선택 button", "제거 button"],
+          "verdict": "필요",
+          "reason": "Icon Text 타입의 아이콘 이미지 관리"
+        },
+        {
+          "title": "태그 스타일 (Label 타입 전용)",
+          "controls": ["배경색 color picker + hex + 없음 checkbox", "모서리 slider+number", "높이 slider+number"],
+          "verdict": "필요",
+          "reason": "태그(label) 타입의 알약형 배지 스타일"
+        },
+        {
+          "title": "정렬",
+          "controls": ["align-group (좌/중/우)"],
+          "verdict": "필요",
+          "reason": "텍스트 정렬"
+        },
+        {
+          "title": "폰트",
+          "controls": ["종류 select (Pretendard/Noto Sans KR 등)", "굵기 select (100~900)", "스타일 button (Italic)", "크기 slider+number (8~400px)", "색상 color picker + hex"],
+          "verdict": "필요",
+          "reason": "폰트 5종 세트 — 텍스트 블록의 핵심"
+        },
+        {
+          "title": "간격",
+          "controls": ["줄간격 slider+number (1~3)", "자간 slider+number (-10~40)", "상하 패딩 slider+number (0~120)", "왼쪽 패딩 slider+number", "오른쪽 패딩 slider+number", "좌우 연동 chain button"],
+          "verdict": "필요",
+          "reason": "텍스트 타이포그래피 + 블록 내부 여백 조절"
+        },
+        {
+          "title": "열 구성 (Row 내 텍스트 전용)",
+          "controls": ["칼럼 수 표시", "+ 열 추가 button", "− 열 제거 button"],
+          "verdict": "필요",
+          "reason": "텍스트에서 행 열 구성 단축 조작 — 편의 기능으로 적합"
+        },
+        {
+          "title": "애니메이션",
+          "controls": ["애니메이션 GIF 만들기 button"],
+          "verdict": "필요",
+          "reason": "텍스트 GIF 출력 기능 진입점"
+        }
+      ],
+      "missing_features": [
+        "밑줄(underline) / 취소선(strikethrough) 스타일 버튼",
+        "하이라이트 컬러 picker (코드상 currentHighlight 변수는 있으나 UI 미표시)",
+        "텍스트 그림자(text-shadow) 기능"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "4.5/5 — 매우 풍부한 패널. highlight 변수는 있으나 UI 미노출이 불일치"
+    },
+    "asset": {
+      "purpose": "이미지/에셋을 특정 크기로 삽입하는 이미지 블록",
+      "current_sections": [
+        {
+          "title": "프리셋",
+          "controls": ["Standard/Square/Tall/Wide preset buttons (크기 프리셋)"],
+          "verdict": "필요",
+          "reason": "빠른 크기 설정용 프리셋"
+        },
+        {
+          "title": "크기",
+          "controls": ["정렬 align-group (좌/중/우)", "모서리 slider+number (0~120px)", "Fill toggle", "높이 slider+number (200~1600px)", "페이지 패딩 toggle"],
+          "verdict": "필요",
+          "reason": "이미지 배치·크기·형태 조절의 핵심 컨트롤 묶음"
+        },
+        {
+          "title": "이미지 (이미지 없을 때)",
+          "controls": ["이미지 선택 button", "배경색 color picker", "배경색 초기화 button"],
+          "verdict": "필요",
+          "reason": "업로드 전 placeholder 배경색 설정"
+        },
+        {
+          "title": "이미지 (이미지 있을 때)",
+          "controls": ["이미지 위치 조절 secondary button", "이미지 교체 secondary button", "이미지 제거 danger button"],
+          "verdict": "필요",
+          "reason": "업로드 후 위치·교체·삭제 완비"
+        },
+        {
+          "title": "텍스트 오버레이",
+          "controls": ["활성화 toggle", "불투명 slider+number (0~100)", "위치 align-group (상/중/하)", "안내 문구"],
+          "verdict": "필요",
+          "reason": "이미지 위에 텍스트 블록을 올릴 수 있는 오버레이 레이어 설정"
+        }
+      ],
+      "missing_features": [
+        "object-fit select (cover/contain/fill) — 이미지 표시 방식 선택",
+        "불투명도(opacity) slider — 이미지 투명도 조절"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "4.5/5 — 이미지 블록으로서 적합한 구성. object-fit 옵션 누락"
+    },
+    "row": {
+      "purpose": "col을 담는 행 컨테이너. flex/grid/stack 레이아웃 전환",
+      "current_sections": [
+        {
+          "title": "하위 블록 일괄 (자식 블록 있을 때만)",
+          "controls": ["높이 slider+number", "radius slider+number (card 자식 전용)"],
+          "verdict": "필요",
+          "reason": "하위 블록 일괄 높이 조절 — 카드 그리드 작업 시 매우 유용"
+        },
+        {
+          "title": "열 구성",
+          "controls": ["열 수 표시", "− 열 제거 button", "+ 열 추가 button"],
+          "verdict": "필요",
+          "reason": "Row의 핵심 기능인 열 수 조작"
+        },
+        {
+          "title": "컬럼 비율 (flex/grid 시)",
+          "controls": ["비율 text input (예: 1:1, 2:8)"],
+          "verdict": "필요",
+          "reason": "열 너비 비율 입력"
+        },
+        {
+          "title": "그리드 크기 (flex/grid 시)",
+          "controls": ["grid-picker (4×4 셀 클릭)"],
+          "verdict": "필요",
+          "reason": "열×행 그리드 구성을 시각적으로 선택"
+        },
+        {
+          "title": "크기 / 간격",
+          "controls": ["높이 slider+number (auto)", "gap slider+number (flex/grid 시)", "좌우 패딩 slider+number"],
+          "verdict": "필요",
+          "reason": "Row 외형 조절 핵심 컨트롤"
+        }
+      ],
+      "missing_features": [
+        "배경색 picker — Row 자체 배경색 지정 불가 (Col 레벨에서만 가능)",
+        "레이아웃 stack/flex/grid 토글 버튼 (현재 피커·열 추가로 암묵적 전환)"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "4.5/5 — 레이아웃 컨테이너로서 기능 충실. 명시적 레이아웃 전환 UI 누락"
+    },
+    "col": {
+      "purpose": "Row 내 단일 열 셀. 배경색·정렬·블록 교체",
+      "current_sections": [
+        {
+          "title": "Contents",
+          "controls": ["현재 블록 타입 label", "블록 교체 select dropdown"],
+          "verdict": "필요",
+          "reason": "col 내 블록을 다른 타입으로 교체하는 기능"
+        },
+        {
+          "title": "배경",
+          "controls": ["배경색 color picker + hex"],
+          "verdict": "필요",
+          "reason": "col 자체 배경색"
+        },
+        {
+          "title": "세로 정렬",
+          "controls": ["align-group (상/중/하) — justifyContent"],
+          "verdict": "필요",
+          "reason": "col 내 블록의 수직 위치 정렬"
+        }
+      ],
+      "missing_features": [
+        "col 너비 개별 조절 (현재 Row 패널의 비율 input으로만 가능)",
+        "패딩 조절 (상하/좌우)"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "4/5 — 간결하고 적합. col 너비 개별 접근 불가가 불편"
+    },
+    "gap": {
+      "purpose": "섹션 간 수직 여백(spacer) 블록",
+      "current_sections": [
+        {
+          "title": "크기",
+          "controls": ["높이 slider+number (0~400px)"],
+          "verdict": "필요",
+          "reason": "Gap 블록의 유일한 속성. 간결하고 적합"
+        }
+      ],
+      "missing_features": [
+        "배경색 picker — 간격 블록에 배경색 적용해 색띠 구분선처럼 사용하는 케이스"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "5/5 — 목적에 완전히 부합하는 단순 패널"
+    },
+    "label-group": {
+      "purpose": "여러 태그(badge) 아이템을 가로로 나열하는 태그 그룹 블록",
+      "current_sections": [
+        {
+          "title": "Style",
+          "controls": ["Preset select (Default/Filled/Outline/Ghost)", "전체 적용 button"],
+          "verdict": "필요",
+          "reason": "태그 스타일 일괄 프리셋 적용"
+        },
+        {
+          "title": "정렬",
+          "controls": ["align-group (좌/중/우)"],
+          "verdict": "필요",
+          "reason": "태그 그룹 가로 정렬"
+        },
+        {
+          "title": "간격",
+          "controls": ["Gap slider+number (0~60px)"],
+          "verdict": "필요",
+          "reason": "태그 아이템 간 간격"
+        },
+        {
+          "title": "높이 (전체)",
+          "controls": ["높이 slider+number (0~120px) — 상하 패딩 조절"],
+          "verdict": "필요",
+          "reason": "모든 태그 아이템 높이 일괄 조절"
+        },
+        {
+          "title": "선택된 태그 (태그 선택 시만 노출)",
+          "controls": ["배경색 color picker + hex", "글자색 color picker + hex", "모서리 slider+number", "높이 slider+number"],
+          "verdict": "필요",
+          "reason": "개별 태그 스타일 세밀 조정"
+        }
+      ],
+      "missing_features": [
+        "태그 추가/제거 button (현재 패널에서 직접 추가 불가 — 어디서 하는지 불명확)",
+        "태그 텍스트 편집 방법 안내 (더블클릭 등)"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "4/5 — 스타일링은 충실. 태그 추가/삭제 UX 누락이 치명적"
+    },
+    "section": {
+      "purpose": "페이지의 최상위 레이아웃 단위. 배경·색상 테마·내보내기·템플릿 저장",
+      "current_sections": [
+        {
+          "title": "Preset",
+          "controls": ["컬러 프리셋 grid (dot 색상 + 이름 표시)"],
+          "verdict": "필요",
+          "reason": "색상 테마 일괄 적용"
+        },
+        {
+          "title": "배경",
+          "controls": ["배경색 color picker + hex", "배경 이미지 선택/크기/제거"],
+          "verdict": "필요",
+          "reason": "섹션 배경 설정의 핵심"
+        },
+        {
+          "title": "텍스트 컬러 (텍스트 블록 있을 때)",
+          "controls": ["Heading/Body/Caption/Label 타입별 color picker + hex"],
+          "verdict": "필요",
+          "reason": "섹션 내 모든 같은 타입 텍스트 일괄 색상 변경"
+        },
+        {
+          "title": "일괄 정렬",
+          "controls": ["align-group (좌/중/우) — 섹션 내 모든 텍스트 일괄 정렬"],
+          "verdict": "필요",
+          "reason": "섹션 단위 텍스트 정렬 일괄 처리"
+        },
+        {
+          "title": "패딩",
+          "controls": ["아래 패딩 slider+number (0~200px)"],
+          "verdict": "필요",
+          "reason": "섹션 하단 여백"
+        },
+        {
+          "title": "내보내기",
+          "controls": ["포맷 select (PNG/JPG)", "이 섹션 내보내기 button"],
+          "verdict": "필요",
+          "reason": "섹션 단위 이미지 내보내기"
+        },
+        {
+          "title": "템플릿",
+          "controls": ["폴더 select + 새 폴더 input", "카테고리 select", "템플릿 이름 input", "태그 input", "템플릿으로 저장 button"],
+          "verdict": "필요",
+          "reason": "섹션 템플릿 저장 — 재사용성 핵심 기능"
+        }
+      ],
+      "missing_features": [
+        "위 패딩 slider (아래만 있고 위는 없음)",
+        "섹션 높이 고정 option",
+        "섹션 복제 button"
+      ],
+      "inappropriate_items": [],
+      "audit_score": "4.5/5 — 섹션 레벨 패널로 적합. 위 패딩 누락이 아쉬움"
+    }
+  },
+  "priority_fixes": [
+    {
+      "component": "circle",
+      "issue": "테두리 섹션이 스타일 select만 있고 색상·두께 컨트롤이 없음. 기능이 불완전한 채로 패널에 노출되어 사용자 혼란 유발",
+      "severity": "high"
+    },
+    {
+      "component": "circle",
+      "issue": "이미지 업로드 후에도 배경색 섹션이 사라지지 않음 — 이미지가 배경을 가리면 배경색 조절이 의미없는 항목으로 보임",
+      "severity": "medium"
+    },
+    {
+      "component": "label-group",
+      "issue": "태그 추가/제거 버튼이 패널에 없어 사용자가 태그 수를 어떻게 조절하는지 알 수 없음",
+      "severity": "high"
+    },
+    {
+      "component": "card",
+      "issue": "텍스트(제목/설명) 색상 picker 없음 — 카드 텍스트 색상을 바꾸는 방법이 패널에서 제공되지 않음",
+      "severity": "high"
+    },
+    {
+      "component": "card",
+      "issue": "이미지 교체 button 없음 — 업로드 후 이미지 변경하려면 제거 후 재업로드해야 함",
+      "severity": "medium"
+    },
+    {
+      "component": "text",
+      "issue": "코드에 highlight 변수(currentHighlight, currentHighlightColor)가 있으나 패널 UI에 미노출 — 데이터-UI 불일치",
+      "severity": "medium"
+    },
+    {
+      "component": "banner",
+      "issue": "이미지 위치 조절 button 없음 — asset처럼 업로드 후 포지션 드래그 모드 진입 불가",
+      "severity": "medium"
+    },
+    {
+      "component": "section",
+      "issue": "위 패딩(paddingTop) 컨트롤 없음. 아래 패딩만 존재하여 섹션 상단 여백 조절 불가",
+      "severity": "low"
+    },
+    {
+      "component": "row",
+      "issue": "레이아웃 모드(stack/flex/grid) 전환 버튼이 없어 그리드 피커·열 추가로 암묵적 전환. 명시적 레이아웃 토글 UI 필요",
+      "severity": "low"
+    },
+    {
+      "component": "asset",
+      "issue": "object-fit 선택 없음 — 이미지가 fill 될 때 cover/contain/fill 선택 불가",
+      "severity": "low"
+    }
+  ]
+}

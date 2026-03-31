@@ -72,7 +72,7 @@ export function showCardProperties(block) {
       <div class="prop-section-title">카드 수</div>
       <div class="prop-row">
         <button class="prop-action-btn primary" id="card-add-btn">+ 카드 추가</button>
-        <button class="prop-action-btn secondary" id="card-remove-btn">− 제거</button>
+        <button class="prop-action-btn danger" id="card-remove-btn">− 마지막 카드 제거</button>
       </div>
     </div>`;
 
@@ -88,8 +88,10 @@ export function showCardProperties(block) {
     body.style.background = val;
     body.style.borderRadius = `0 0 ${block.dataset.radius || 12}px ${block.dataset.radius || 12}px`;
   }
+  bgInput.addEventListener('mousedown', () => { window.pushHistory?.(); });
   bgInput.addEventListener('input', () => { bgHex.value = bgInput.value; applyBg(bgInput.value); });
   bgHex.addEventListener('change', () => {
+    window.pushHistory?.();
     const v = bgHex.value.trim();
     if (/^#[0-9a-fA-F]{6}$/.test(v)) { bgInput.value = v; applyBg(v); }
   });
@@ -103,7 +105,9 @@ export function showCardProperties(block) {
     block.style.borderRadius = val + 'px';
     body.style.borderRadius = `0 0 ${val}px ${val}px`;
   }
+  rSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   rSlider.addEventListener('input', () => { rNumber.value = rSlider.value; applyRadius(rSlider.value); });
+  rNumber.addEventListener('change', () => { window.pushHistory?.(); });
   rNumber.addEventListener('input', () => {
     const v = Math.min(40, Math.max(0, parseInt(rNumber.value) || 0));
     rSlider.value = v; applyRadius(v);

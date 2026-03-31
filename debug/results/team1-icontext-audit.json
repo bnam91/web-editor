@@ -1,0 +1,122 @@
+{
+  "team": "Team-1",
+  "ts": "2026-03-31T00:00:00.000Z",
+  "method": "static",
+  "checks": [
+    {
+      "id": "ICONTEXT-01",
+      "name": "block-factory.js: addIconTextBlock / makeIconTextBlock 정의",
+      "status": "PASS",
+      "detail": "makeIconTextBlock()은 line 191에서 .icon-text-block DOM + .itb-icon + .itb-text 올바르게 생성. addIconTextBlock()은 line 217에서 _insertToActiveCol → getSelectedSection 흐름 완비. window에 노출(line 907-908). bindBlock(block) 및 buildLayerPanel() 호출 정상."
+    },
+    {
+      "id": "ICONTEXT-02",
+      "name": "block-factory.js: _insertToActiveCol icon-text-block 포함 여부",
+      "status": "PASS",
+      "detail": "line 36에서 hasLeaf 검사 시 c.classList.contains('icon-text-block') 포함되어 있어 stack col 중첩 방지 로직 정상 동작."
+    },
+    {
+      "id": "ICONTEXT-03",
+      "name": "drag-drop.js: bindBlock isIconText 처리 완전성",
+      "status": "PASS",
+      "detail": "line 663-699에서 isIconText 분기 완비: click(선택+showTextProperties), dblclick(.itb-text contenteditable 활성화), focusout(blur 시 editing 해제 + triggerAutoSave). draggable=false 설정도 포함."
+    },
+    {
+      "id": "ICONTEXT-04",
+      "name": "save-load.js: rebindAll icon-text-block 선택자 포함",
+      "status": "PASS",
+      "detail": "line 657의 sec click 이벤트 내 closest 선택자에 .icon-text-block 포함. line 719의 querySelectorAll에도 .icon-text-block 포함, itb prefix로 ID 자동 생성(line 729), bindBlock 호출 정상."
+    },
+    {
+      "id": "ICONTEXT-05",
+      "name": "editor.js: copySelected 선택자에 icon-text-block 포함",
+      "status": "PASS",
+      "detail": "line 276에 .icon-text-block.selected 포함."
+    },
+    {
+      "id": "ICONTEXT-06",
+      "name": "editor.js: deselectAll icon-text-block 처리",
+      "status": "PASS",
+      "detail": "line 623에서 .icon-text-block 포함된 querySelectorAll에서 .selected 제거."
+    },
+    {
+      "id": "ICONTEXT-07",
+      "name": "editor.js: arrow(Cmd+방향키) 선택자에 icon-text-block 포함",
+      "status": "PASS",
+      "detail": "line 386-389의 selBlock 쿼리에 .icon-text-block.selected 포함."
+    },
+    {
+      "id": "ICONTEXT-08",
+      "name": "editor.js: delete 키 처리에 icon-text-block 포함",
+      "status": "PASS",
+      "detail": "line 464의 allSelBlocks querySelectorAll에 .icon-text-block.selected 포함."
+    },
+    {
+      "id": "ICONTEXT-09",
+      "name": "editor.js: getSelectedSection 선택자에 icon-text-block 포함",
+      "status": "PASS",
+      "detail": "line 719-723에 .icon-text-block.selected 포함."
+    },
+    {
+      "id": "ICONTEXT-10",
+      "name": "editor.js: pasteClipboard bindBlock 재바인딩에 icon-text-block 포함",
+      "status": "PASS",
+      "detail": "line 310, 320 모두 .icon-text-block 포함."
+    },
+    {
+      "id": "ICONTEXT-11",
+      "name": "drag-utils.js: insertAfterSelected 선택자에 icon-text-block 포함",
+      "status": "PASS",
+      "detail": "line 70에 .icon-text-block.selected 포함."
+    },
+    {
+      "id": "ICONTEXT-12",
+      "name": "layer-panel.js: layerIcons['icon-text'] 존재",
+      "status": "PASS",
+      "detail": "line 19에 SVG 아이콘 정의 완비 (rect+line 구성, 아이콘+텍스트 시각 표현)."
+    },
+    {
+      "id": "ICONTEXT-13",
+      "name": "layer-panel.js: makeLayerBlockItem labels/typeLbls에 icon-text 포함 (상단 함수 line 66-67)",
+      "status": "FAIL → FIXED",
+      "detail": "버그 발견: line 66-67의 labels, typeLbls 모두 'icon-text' 키 누락. row 레벨 블록의 레이어 패널 표시 시 displayName='icon-text'(원시 type값), typeLbl='Text'(fallback)으로 표시되는 오류. fix_applied: 'icon-text':'Icon Text' (labels), 'icon-text':'Text' (typeLbls) 추가."
+    },
+    {
+      "id": "ICONTEXT-14",
+      "name": "layer-panel.js: makeLayerColItem labels/typeLbls에 icon-text 포함 (하단 함수 line 561-562)",
+      "status": "PASS",
+      "detail": "line 561-562에 'icon-text':'Icon Text' / 'icon-text':'Text' 이미 포함."
+    },
+    {
+      "id": "ICONTEXT-15",
+      "name": "layer-panel.js: icon-text-block 선택자에 포함 (buildLayerPanel 내부)",
+      "status": "PASS",
+      "detail": "isIconText 감지(line 64, 574), type='icon-text' 도출 후 레이어 아이템 생성, click 시 showTextProperties 호출(line 94, 597) 정상."
+    },
+    {
+      "id": "ICONTEXT-16",
+      "name": "index.html: 플로팅 패널 텍스트 메뉴에 Icon Text 버튼 존재",
+      "status": "PASS",
+      "detail": "line 601에 <button class=\"fp-menu-item\" onclick=\"addIconTextBlock();toggleFpDropdown('fp-text-dropdown')\">Icon Text</button> 존재."
+    },
+    {
+      "id": "ICONTEXT-17",
+      "name": "CDP 런타임 검증 (addSection → addIconTextBlock → DOM 확인)",
+      "status": "SKIP",
+      "detail": "CDP 포트 9334에 web-editor 페이지 미연결 (claude-commander만 연결됨). 런타임 검증 불가."
+    }
+  ],
+  "issues": [
+    "layer-panel.js line 66-67: makeLayerBlockItem의 labels/typeLbls에 'icon-text' 키 누락 → icon-text-block이 row 단위로 레이어에 표시될 때 이름이 'Icon Text' 대신 'icon-text'(type 원시값)로 표시되고 typeLbl도 'Text'(fallback)로만 표시됨"
+  ],
+  "fixes_needed": [],
+  "fixes_applied": [
+    {
+      "file": "/Users/a1/web-editor/js/layer-panel.js",
+      "line": "66-67",
+      "description": "makeLayerBlockItem 함수의 labels에 'icon-text':'Icon Text', typeLbls에 'icon-text':'Text' 추가",
+      "before": "labels: graph:'Graph' (icon-text 없음), typeLbls: graph:'Component' (icon-text 없음)",
+      "after": "labels: graph:'Graph', 'icon-text':'Icon Text', typeLbls: graph:'Component', 'icon-text':'Text'"
+    }
+  ]
+}

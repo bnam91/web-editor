@@ -1,0 +1,298 @@
+{
+  "agent": "UX-DesignSystem",
+  "date": "2026-03-31",
+  "panel_width": "240px",
+  "panel_padding": "12px (양쪽 합산 24px → 유효 콘텐츠 너비: 216px)",
+
+  "text_wrap_issues": [
+    {
+      "file": "js/prop-text.js",
+      "line": 223,
+      "label": "왼쪽 패딩",
+      "class": "prop-label",
+      "issue": "prop-label 기본 너비 36px에 5글자 한국어(왼쪽 패딩)가 맞지 않아 강제로 style=\"width:60px\" 인라인 재정의. 이 재정의가 없으면 텍스트 잘림 또는 줄바꿈 발생.",
+      "condition": "11px 폰트 × 5글자 한국어 ≈ 55px → 36px 고정폭 초과",
+      "fix": "CSS .prop-label 너비를 36px → 52px로 상향, 또는 white-space:nowrap 추가 후 인라인 style 제거"
+    },
+    {
+      "file": "js/prop-text.js",
+      "line": 228,
+      "label": "오른쪽 패딩",
+      "class": "prop-label",
+      "issue": "동일하게 style=\"width:60px\" 인라인 재정의 사용 중. 6글자 한국어 ≈ 66px > 36px 고정폭.",
+      "condition": "11px 폰트 × 6글자 한국어 ≈ 66px → 36px 고정폭 초과",
+      "fix": "CSS .prop-label 너비를 52px로 상향하면 '오른쪽 패딩'(60px 재정의)은 여전히 부족 → 해당 레이블을 '우패딩'으로 단축하거나 width를 64px로 설정"
+    },
+    {
+      "file": "js/prop-asset.js",
+      "line": 127,
+      "label": "페이지 패딩",
+      "class": "prop-label",
+      "issue": "5글자 한국어 '페이지 패딩' (스페이스 포함 6자) → 36px 고정폭에서 줄바꿈 위험. 인라인 너비 재정의 없이 사용 중.",
+      "condition": "prop-label width:36px, white-space 미설정 → 기본 wrap 동작으로 2줄 가능성",
+      "fix": ".prop-label에 white-space:nowrap 추가 (overflow:hidden + text-overflow:ellipsis 병행 권장)"
+    },
+    {
+      "file": "js/prop-divider.js",
+      "line": 49,
+      "label": "상하 패딩",
+      "class": "prop-label",
+      "issue": "4글자 한국어 '상하 패딩' (스페이스 포함 5자) ≈ 55px > 36px 고정폭. 줄바꿈 위험.",
+      "condition": "11px 폰트, width:36px 고정",
+      "fix": ".prop-label white-space:nowrap 추가 또는 width 확장"
+    },
+    {
+      "file": "js/prop-divider.js",
+      "line": 54,
+      "label": "좌우 패딩",
+      "class": "prop-label",
+      "issue": "동일 패턴. '좌우 패딩' 5자 ≈ 55px > 36px.",
+      "condition": "11px 폰트, width:36px 고정",
+      "fix": ".prop-label white-space:nowrap 추가 또는 width 확장"
+    },
+    {
+      "file": "js/prop-page.js",
+      "line": 54,
+      "label": "섹션 간격",
+      "class": "prop-label",
+      "issue": "'섹션 간격' 4글자+공백 ≈ 55px > 36px 고정폭. 줄바꿈 위험.",
+      "condition": "11px 폰트, width:36px 고정",
+      "fix": ".prop-label white-space:nowrap 추가"
+    },
+    {
+      "file": "js/prop-page.js",
+      "line": 59,
+      "label": "좌우 패딩",
+      "class": "prop-label",
+      "issue": "'좌우 패딩' 5자. 동일 패턴.",
+      "condition": "11px 폰트, width:36px 고정",
+      "fix": ".prop-label white-space:nowrap 추가"
+    },
+    {
+      "file": "js/prop-page.js",
+      "line": 64,
+      "label": "상하 패딩",
+      "class": "prop-label",
+      "issue": "동일 패턴.",
+      "condition": "11px 폰트, width:36px 고정",
+      "fix": ".prop-label white-space:nowrap 추가"
+    },
+    {
+      "file": "js/prop-row.js",
+      "line": 154,
+      "label": "좌우 패딩",
+      "class": "prop-label",
+      "issue": "동일 패턴.",
+      "condition": "11px 폰트, width:36px 고정",
+      "fix": ".prop-label white-space:nowrap 추가"
+    },
+    {
+      "file": "js/prop-section.js",
+      "line": 153,
+      "label": "아래 패딩",
+      "class": "prop-label",
+      "issue": "'아래 패딩' 4글자+공백 ≈ 55px > 36px 고정폭.",
+      "condition": "11px 폰트, width:36px 고정",
+      "fix": ".prop-label white-space:nowrap 추가"
+    },
+    {
+      "file": "js/prop-label-group.js",
+      "line": 127,
+      "label": "태그를 클릭하면 개별 색상을 변경할 수 있어요",
+      "class": "prop-section-title (inline override)",
+      "issue": "prop-section-title은 font-size:9px, uppercase, letter-spacing:0.08em 적용이지만 이 항목은 style=\"color:#666;font-size:10px\"로 재정의되어 있고 긴 한국어 문장 → 패널 216px 유효폭에서 최소 2~3줄 줄바꿈 발생 (의도된 힌트 텍스트이나 레이아웃 흐름 방해 가능).",
+      "condition": "유효 너비 216px, 10px 폰트 × 약 22자 ≈ 220px 필요",
+      "fix": "힌트 전용 클래스 .prop-hint 사용으로 교체 (이미 prop-panel.css에 정의되어 있음: font-size:10px, text-align:center, padding:8px 12px 4px)"
+    }
+  ],
+
+  "svg_sizes": {
+    "current_values_found": ["12", "14", "16", "18"],
+    "usage_by_role": {
+      "block_icon (prop-block-icon 내)": {
+        "size": "12×12",
+        "viewBox": "0 0 12 12 또는 0 0 16 16 (불일치 존재)",
+        "files": [
+          "prop-text.js:55 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-card.js:13 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-divider.js:14 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-gap.js:9 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-graph.js:21 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-icon-circle.js:14 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-label-group.js:41 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-strip-banner.js:27 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-table.js:52 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-asset.js:64 — 12×12 vb 0 0 12 12 (일관)"
+        ],
+        "assessment": "OK"
+      },
+      "align_btn (prop-align-btn 내)": {
+        "size": "14×14",
+        "files": [
+          "prop-text.js:118,124,130 — 14×14 (일관)",
+          "prop-card.js:66,72,78 — 14×14 (일관)",
+          "prop-section.js:131,137,143 — 14×14 (일관)",
+          "prop-page.js:32,38,44 — 14×14 (일관)",
+          "prop-label-group.js:65,71,77 — 14×14 (일관)",
+          "prop-layout.js:219,220,221 — 14×14 (일관)",
+          "prop-strip-banner.js:126,132,138,151,157 — 14×14 (일관)",
+          "prop-table.js:92,98,104 — 14×14 (일관)"
+        ],
+        "assessment": "OK - 전체 일관"
+      },
+      "block_icon_mismatched_viewBox": {
+        "issue": "width/height=12 이지만 viewBox='0 0 16 16' 인 경우",
+        "files": [
+          "prop-layout.js:240 — svg width=12 height=12 viewBox='0 0 16 16'",
+          "prop-page.js:13 — svg width=12 height=12 viewBox='0 0 16 16'",
+          "prop-row.js:110 — svg width=12 height=12 viewBox='0 0 16 16'",
+          "prop-section.js:101 — svg width=12 height=12 viewBox='0 0 16 16'"
+        ],
+        "impact": "렌더 크기는 12px이나 viewBox 미스매치로 아이콘 내부 패스가 12/16=0.75 스케일로 축소되어 시각적으로 작고 흐릿하게 보임",
+        "fix": "viewBox를 '0 0 12 12'로 변경하거나 width/height를 16px로 통일"
+      },
+      "prop-text.js_icon_preview": {
+        "file": "prop-text.js:71",
+        "size": "18×18",
+        "context": "Icon Text 아이콘 미리보기 폴백 SVG — 전용 크기(18px)이므로 별도 취급, 허용 범위"
+      },
+      "prop-layout.js_add_btn": {
+        "file": "prop-layout.js:144",
+        "size": "12×12",
+        "context": "열 추가 버튼(+) 인라인 SVG — OK"
+      },
+      "prop-layout.js_block_icon": {
+        "file": "prop-layout.js:15",
+        "size": "16×16",
+        "context": "Col 블록 아이콘 — 다른 블록들이 12×12를 사용하는데 혼자 16×16. 불일치.",
+        "fix": "12×12로 통일 또는 viewBox='0 0 12 12' 패스 재작성 필요"
+      },
+      "chain_btn (prop-chain-btn 내)": {
+        "files": [
+          "prop-text.js:215 — 12×12 vb 0 0 12 12 (일관)",
+          "prop-text.js:561,562 — 12×12 vb 0 0 12 12 (일관)"
+        ],
+        "assessment": "OK"
+      }
+    },
+    "recommended_standard": {
+      "block_label_icon": 12,
+      "align_btn": 14,
+      "chain_btn": 12,
+      "action_icon_preview": 18
+    },
+    "inconsistencies": [
+      {
+        "file": "js/prop-layout.js",
+        "line": 15,
+        "current_size": "16×16",
+        "should_be": "12×12",
+        "role": "block_label_icon",
+        "fix": "width=\"12\" height=\"12\" viewBox=\"0 0 16 16\" → width=\"12\" height=\"12\" (viewBox 유지 가능하나 16px 표시 희망 시 width/height=16으로 통일)"
+      },
+      {
+        "file": "js/prop-layout.js",
+        "line": 240,
+        "current_size": "12×12 / viewBox 0 0 16 16",
+        "should_be": "16×16 또는 viewBox 0 0 12 12",
+        "fix": "viewBox 미스매치 수정"
+      },
+      {
+        "file": "js/prop-page.js",
+        "line": 13,
+        "current_size": "12×12 / viewBox 0 0 16 16",
+        "should_be": "viewBox 수정",
+        "fix": "width=\"16\" height=\"16\" 또는 별도 패스 스케일링"
+      },
+      {
+        "file": "js/prop-row.js",
+        "line": 110,
+        "current_size": "12×12 / viewBox 0 0 16 16",
+        "should_be": "viewBox 수정",
+        "fix": "동일"
+      },
+      {
+        "file": "js/prop-section.js",
+        "line": 101,
+        "current_size": "12×12 / viewBox 0 0 16 16",
+        "should_be": "viewBox 수정",
+        "fix": "동일"
+      }
+    ]
+  },
+
+  "design_system_gaps": [
+    "1. [중복 CSS 파일] prop-panel.css와 editor-props.css에 동일 클래스(.prop-label, .prop-section, .prop-row 등 38개)가 중복 정의됨. prop-panel.css는 CSS 변수(토큰) 기반, editor-props.css는 하드코딩 색상 사용. 로드 순서에 따라 어느 쪽이 이기는지 불확정적 → 일관성 없는 렌더링 위험.",
+    "2. [prop-style-btn 너비 불일치] prop-panel.css: width:28px / editor-props.css: width:32px — 같은 클래스가 두 파일에 다른 값으로 선언됨. 실제 적용 너비가 CSS 로드 순서에 의존.",
+    "3. [prop-label white-space 누락] .prop-label { width:36px; flex-shrink:0 } 에 white-space:nowrap 미설정. 3글자 이상 한국어('상하 패딩', '좌우 패딩', '페이지 패딩', '왼쪽 패딩', '오른쪽 패딩', '섹션 간격', '아래 패딩') 등이 36px 고정폭을 초과하여 줄바꿈 발생. 일부는 인라인 style로 임시 패치.",
+    "4. [prop-label 너비 36px 부족] 한국어 4~5자 레이블(3자 이상 + 공백 = 4~5글자 11px 폰트)이 이미 36px를 초과. 권장 최소값 52px. 단 현재 .prop-row 레이아웃(gap:8px, prop-number:44px, prop-slider:flex:1)과의 균형 필요.",
+    "5. [하드코딩 색상] editor-props.css가 DESIGN_SYSTEM.md의 CSS 토큰 대신 리터럴 헥스(#2d6fe8, #666, #1a1a1a 등) 사용. 테마 변경 시 두 파일 모두 수정해야 하는 유지보수 부채.",
+    "6. [SVG viewBox 미스매치] 4개 파일(prop-layout.js:240, prop-page.js:13, prop-row.js:110, prop-section.js:101)에서 width/height=12 + viewBox=0 0 16 16 혼용 → 아이콘 패스가 12/16 비율로 의도치 않게 축소 표시.",
+    "7. [prop-hint 클래스 미활용] prop-panel.css에 .prop-hint(font-size:10px, text-align:center, padding)가 정의되어 있으나 prop-label-group.js:127에서 prop-section-title에 inline style로 힌트 텍스트를 넣고 있음. 전용 클래스 미활용.",
+    "8. [prop-section-title letter-spacing 불일치] prop-panel.css: letter-spacing:0.08em / editor-props.css: letter-spacing:0.1em — 동일 클래스가 두 파일에서 다른 값."
+  ],
+
+  "priority_fixes": [
+    {
+      "priority": 1,
+      "type": "text_wrap",
+      "description": ".prop-label에 white-space:nowrap; overflow:hidden; text-overflow:ellipsis 추가. prop-text.js의 인라인 width:60px 재정의 제거. prop-label 너비를 36px → 52px로 확장.",
+      "files": [
+        "css/prop-panel.css (line 22)",
+        "css/editor-props.css (line 18)",
+        "js/prop-text.js (lines 223, 228 — 인라인 style 제거)"
+      ]
+    },
+    {
+      "priority": 2,
+      "type": "svg_size",
+      "description": "SVG viewBox 미스매치 4건 수정: width/height=12 + viewBox 0 0 16 16 → width/height=16 으로 통일 (또는 패스 좌표 재스케일 후 viewBox 0 0 12 12). prop-layout.js block icon 16→12 통일.",
+      "files": [
+        "js/prop-layout.js (lines 15, 240)",
+        "js/prop-page.js (line 13)",
+        "js/prop-row.js (line 110)",
+        "js/prop-section.js (line 101)"
+      ]
+    },
+    {
+      "priority": 3,
+      "type": "design_token",
+      "description": "CSS 중복 파일 통합: editor-props.css를 prop-panel.css로 병합하거나 editor-props.css에서 하드코딩 색상을 CSS 변수로 교체. prop-style-btn 너비(28px vs 32px) 단일값으로 통일.",
+      "files": [
+        "css/editor-props.css",
+        "css/prop-panel.css"
+      ]
+    },
+    {
+      "priority": 4,
+      "type": "design_token",
+      "description": "prop-label-group.js:127의 인라인 스타일 힌트 텍스트를 .prop-hint 클래스로 교체.",
+      "files": [
+        "js/prop-label-group.js (line 127)"
+      ]
+    },
+    {
+      "priority": 5,
+      "type": "design_token",
+      "description": "prop-section-title letter-spacing 두 CSS 파일에서 0.08em으로 통일 (DESIGN_SYSTEM.md 기준 값 0.08em 채택).",
+      "files": [
+        "css/editor-props.css (line 11: letter-spacing:0.1em → 0.08em)"
+      ]
+    }
+  ],
+
+  "css_duplicate_summary": {
+    "duplicate_class_count": 38,
+    "files_with_duplicates": [
+      "css/prop-panel.css",
+      "css/editor-props.css"
+    ],
+    "notable_conflicts": [
+      { "class": ".prop-label", "prop-panel.css": "width:36px", "editor-props.css": "width:36px (동일, 무해)" },
+      { "class": ".prop-style-btn", "prop-panel.css": "width:28px", "editor-props.css": "width:32px (충돌)" },
+      { "class": ".prop-section-title", "prop-panel.css": "letter-spacing:0.08em", "editor-props.css": "letter-spacing:0.1em (충돌)" },
+      { "class": ".prop-select (1st def)", "prop-panel.css": "height:24px", "editor-props.css": "height:24px (동일)" },
+      { "class": ".prop-select (2nd def, redefined in same file)", "both": "height:26px (파일 내 재정의 — 후자 우선)" }
+    ]
+  }
+}

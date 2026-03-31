@@ -1,0 +1,47 @@
+{
+  "agent": "QA-01",
+  "version": "1.0",
+  "part": "Grid/Fill/CSS",
+  "ts": "2026-03-30T00:00:00.000Z",
+  "method": "static",
+  "checks": [
+    {
+      "id": "QA-NEW-001",
+      "name": "Grid 1×1 메뉴 항목 추가",
+      "status": "PASS",
+      "detail": "index.html line 583: fp-row-menu 안에 onclick=\"addRowBlock(1,1);toggleFpDropdown('fp-row-dropdown')\" 버튼 '1 × 1' 존재 확인"
+    },
+    {
+      "id": "QA-NEW-002",
+      "name": "Asset Fill 토글 HTML 렌더",
+      "status": "PASS",
+      "detail": "js/prop-asset.js — fillMode 변수 선언(line 25), id=\"asset-fill-toggle\" 존재(line 100), id=\"asset-size-controls\" wrapper 존재(line 104) 모두 확인"
+    },
+    {
+      "id": "QA-NEW-003",
+      "name": "Asset Fill ON 스타일 적용",
+      "status": "PASS",
+      "detail": "js/prop-asset.js lines 158-160: ab.style.width='100%', ab.style.height='100%', ab.style.alignSelf='stretch' 세 값 모두 fill ON 분기에서 설정 확인"
+    },
+    {
+      "id": "QA-NEW-004",
+      "name": "Asset Fill OFF 복원 로직",
+      "status": "PASS",
+      "detail": "js/prop-asset.js lines 163-165: off 분기에서 ab._fillSavedW, ab._fillSavedH, ab._fillSavedAlign 참조해 복원하는 코드 확인"
+    },
+    {
+      "id": "QA-NEW-005",
+      "name": "col-add-btn 원(circle) 제거",
+      "status": "PASS",
+      "detail": "css/editor.css lines 2079-2080: .col-add-btn 룰에 border-radius:4px (50% 없음) AND border:none 존재 확인"
+    },
+    {
+      "id": "QA-NEW-013",
+      "name": "Asset Fill 토글 시 size-controls dim 처리",
+      "status": "PASS",
+      "detail": "js/prop-asset.js line 161: fill ON 시 sizeControls.style.opacity='0.35' 및 sizeControls.style.pointerEvents='none' 적용 확인. 초기 렌더도 line 104 인라인 스타일로 처리됨"
+    }
+  ],
+  "failed": 0,
+  "passed": 6
+}

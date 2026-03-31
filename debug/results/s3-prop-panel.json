@@ -1,0 +1,258 @@
+{
+  "agent": "S3-PropPanel",
+  "session": 3,
+  "generated_at": "2026-03-31T00:00:00.000Z",
+  "method": "static",
+
+  "block_prop_map": [
+    {
+      "block_type": "text-block",
+      "handler_in_drag_drop": "window.showTextProperties(block)  [line 236]",
+      "prop_function": "showTextProperties",
+      "file": "prop-text.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-text.js line 538"
+    },
+    {
+      "block_type": "asset-block",
+      "handler_in_drag_drop": "window.showAssetProperties(block)  [line 296]",
+      "prop_function": "showAssetProperties",
+      "file": "prop-asset.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-asset.js line 272"
+    },
+    {
+      "block_type": "gap-block",
+      "handler_in_drag_drop": "window.showGapProperties(block)  [line 348]",
+      "prop_function": "showGapProperties",
+      "file": "prop-gap.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-gap.js line 51"
+    },
+    {
+      "block_type": "icon-circle-block",
+      "handler_in_drag_drop": "window.showIconCircleProperties(block)  [line 365]",
+      "prop_function": "showIconCircleProperties",
+      "file": "prop-icon-circle.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-icon-circle.js line 137"
+    },
+    {
+      "block_type": "table-block",
+      "handler_in_drag_drop": "window.showTableProperties(block)  [line 410]",
+      "prop_function": "showTableProperties",
+      "file": "prop-table.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-table.js line 200"
+    },
+    {
+      "block_type": "label-group-block",
+      "handler_in_drag_drop": "window.showLabelGroupProperties(block, item)  [lines 465/474/488/496]",
+      "prop_function": "showLabelGroupProperties",
+      "file": "prop-label-group.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-label-group.js line 279"
+    },
+    {
+      "block_type": "card-block",
+      "handler_in_drag_drop": "window.showCardProperties(block)  [line 545]",
+      "prop_function": "showCardProperties",
+      "file": "prop-card.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-card.js line 222"
+    },
+    {
+      "block_type": "strip-banner-block",
+      "handler_in_drag_drop": "window.showStripBannerProperties(block)  [line 605]",
+      "prop_function": "showStripBannerProperties",
+      "file": "prop-strip-banner.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-strip-banner.js line 506"
+    },
+    {
+      "block_type": "graph-block",
+      "handler_in_drag_drop": "window.showGraphProperties(block)  [line 662]",
+      "prop_function": "showGraphProperties",
+      "file": "prop-graph.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-graph.js line 158"
+    },
+    {
+      "block_type": "divider-block",
+      "handler_in_drag_drop": "window.showDividerProperties(block)  [line 719]",
+      "prop_function": "showDividerProperties",
+      "file": "prop-divider.js",
+      "file_exists": true,
+      "window_registered": true,
+      "window_registered_at": "prop-divider.js line 130"
+    },
+    {
+      "block_type": "icon-text-block",
+      "handler_in_drag_drop": "window.showTextProperties(block)  [line 676] — text-block용 패널 재사용",
+      "prop_function": "showTextProperties",
+      "file": "prop-text.js",
+      "file_exists": true,
+      "window_registered": true,
+      "note": "전용 prop-icon-text.js 없음. showTextProperties가 itb-text([contenteditable]) 노드를 찾아서 폰트/색상 컨트롤은 동작하나, 아이콘 업로드 섹션은 전혀 없음."
+    }
+  ],
+
+  "icon_text_panel": {
+    "function": "showTextProperties (prop-text.js)",
+    "dedicated_file": false,
+    "prop_icon_text_js_exists": false,
+    "contentEl_resolved_to": "itb-text (class=itb-text, contenteditable=false — [contenteditable] querySelector 로 정상 검색됨)",
+    "has_font_size_control": true,
+    "has_font_color_control": true,
+    "has_text_align_control": true,
+    "has_font_family_control": true,
+    "has_icon_upload": false,
+    "itb_icon_click_event": false,
+    "icon_section_in_panel": false,
+    "ux_issue": "MODERATE — icon-text-block 선택 시 prop 패널에 아이콘 이미지 업로드 UI가 전혀 없어, 기본 SVG 자리표시자를 교체할 방법이 UI에서 제공되지 않음. 텍스트 스타일링은 정상 동작."
+  },
+
+  "missing_push_history": [
+    {
+      "file": "prop-text.js",
+      "control": "폰트 종류 (txt-font-family) change 이벤트",
+      "line": 236,
+      "detail": "change 핸들러에 pushHistory 호출 없음. fontFamily 변경이 undo 스택에 쌓이지 않음.",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "prop-text.js",
+      "control": "텍스트 타입 변환 (tb-h1/h2/h3/body/caption/label) 클릭",
+      "line": 249,
+      "detail": "type 전환 클릭 핸들러에 pushHistory 없음. H1→Body 등 전환이 undo 불가.",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "prop-text.js",
+      "control": "텍스트 정렬 (prop-align-btn) 클릭",
+      "line": 326,
+      "detail": "align 버튼 클릭 핸들러에 pushHistory 없음.",
+      "severity": "LOW"
+    },
+    {
+      "file": "prop-text.js",
+      "control": "줄간격 슬라이더/숫자 입력 (txt-lh-slider, txt-lh-number)",
+      "line": 458,
+      "detail": "input 이벤트에 pushHistory 없음. change 이벤트도 미등록. 실시간 변경만 되고 undo 불가.",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "prop-text.js",
+      "control": "자간 슬라이더/숫자 입력 (txt-ls-slider, txt-ls-number)",
+      "line": 465,
+      "detail": "input 이벤트에 pushHistory 없음. change 이벤트도 미등록.",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "prop-text.js",
+      "control": "패딩 상하/좌우 슬라이더+숫자 입력 (txt-pv, txt-pl, txt-pr)",
+      "line": 478,
+      "detail": "모든 패딩 슬라이더/숫자 input 핸들러에 pushHistory 없음. change 이벤트 미등록.",
+      "severity": "LOW"
+    },
+    {
+      "file": "prop-text.js",
+      "control": "태그 배경색 picker/hex/none 체크박스",
+      "line": 285,
+      "detail": "label 배경색 변경 시 pushHistory 없음.",
+      "severity": "LOW"
+    },
+    {
+      "file": "prop-text.js",
+      "control": "태그 모서리(radius) 슬라이더/숫자",
+      "line": 306,
+      "detail": "label-radius-slider/number input 핸들러에 pushHistory 없음.",
+      "severity": "LOW"
+    },
+    {
+      "file": "prop-text.js",
+      "control": "태그 pill 높이 슬라이더/숫자",
+      "line": 318,
+      "detail": "label-pill-height-slider/number input 핸들러에 pushHistory 없음.",
+      "severity": "LOW"
+    },
+    {
+      "file": "prop-asset.js",
+      "control": "모서리(radius) 슬라이더/숫자 (asset-r-slider, asset-r-number)",
+      "line": 206,
+      "detail": "rSlider input, rNumber input 핸들러에 pushHistory 없음. change 이벤트도 미등록.",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "prop-asset.js",
+      "control": "이미지 정렬 버튼 (asset-align-group)",
+      "line": 200,
+      "detail": "applyAlign() 내부에 pushHistory 없음.",
+      "severity": "LOW"
+    },
+    {
+      "file": "prop-card.js",
+      "control": "배경색 picker (bgInput) 및 hex 입력 (bgHex)",
+      "line": 91,
+      "detail": "bgInput input + bgHex change 핸들러에 pushHistory 없음.",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "prop-card.js",
+      "control": "모서리(radius) 슬라이더/숫자 (card-radius-slider, card-radius-number)",
+      "line": 106,
+      "detail": "rSlider input, rNumber input 핸들러에 pushHistory 없음.",
+      "severity": "MEDIUM"
+    }
+  ],
+
+  "push_history_confirmed_ok": [
+    { "file": "prop-text.js",   "control": "폰트 굵기 change",        "line": 243 },
+    { "file": "prop-text.js",   "control": "Italic 클릭",             "line": 374 },
+    { "file": "prop-text.js",   "control": "폰트 크기 slider.change/number.change", "line": "407/414" },
+    { "file": "prop-text.js",   "control": "글자색 picker.change",    "line": 446 },
+    { "file": "prop-asset.js",  "control": "이미지 교체/업로드 (triggerAssetUpload)", "image-handling.js line 351/384 — OK" : true },
+    { "file": "prop-asset.js",  "control": "배경색 picker.change",    "line": 223 },
+    { "file": "prop-asset.js",  "control": "배경색 clear 클릭",       "line": 229 },
+    { "file": "prop-asset.js",  "control": "높이 hSlider.input/hNumber.change", "line": "166/169" },
+    { "file": "prop-card.js",   "control": "카드 추가/제거",           "line": "130/172" },
+    { "file": "prop-card.js",   "control": "타이틀/설명 크기 slider.change/number.change", "line": "200/214" },
+    { "file": "prop-card.js",   "control": "텍스트 정렬",              "line": 120 },
+    { "file": "prop-strip-banner.js", "control": "전반적 컨트롤 pushHistory 충실 (14개 이상 확인)", "note": "가장 완성도 높음" }
+  ],
+
+  "icon_text_block_verdict": {
+    "needs_dedicated_panel": true,
+    "severity": "MODERATE",
+    "reasoning": [
+      "icon-text-block의 핵심 차별점은 itb-icon 이미지 슬롯인데, 현재 UI에서 해당 아이콘을 교체할 방법이 없다.",
+      "itb-icon에 click 이벤트 없음 — prop 패널에도 아이콘 섹션 없음",
+      "기본 SVG 자리표시자가 영구 고정되어 실제 아이콘 업로드가 불가능하므로 기능상 미완성 블록",
+      "텍스트(font/color/align)는 showTextProperties 재사용으로 정상 동작"
+    ],
+    "recommended_fix": "prop-icon-text.js 신규 생성: showTextProperties 컨트롤(font/color/align) + itb-icon 클릭 업로드(triggerAssetUpload 재사용) 섹션 추가"
+  },
+
+  "verdict": "FAIL",
+  "critical_issues": [
+    "icon-text-block: 전용 prop 패널 없어 아이콘 이미지 교체 불가 (prop-icon-text.js 미존재, itb-icon 업로드 이벤트 없음)",
+    "prop-text.js: 폰트 종류·타입 전환·정렬·줄간격·자간·패딩 변경 시 pushHistory 없어 undo 불가",
+    "prop-asset.js: 모서리(radius) 변경 시 pushHistory 없음",
+    "prop-card.js: 배경색·모서리(radius) 변경 시 pushHistory 없음"
+  ],
+  "non_critical_notes": [
+    "모든 prop 패널 파일(10종) 존재 확인 — 파일 누락 없음",
+    "모든 show*Properties 함수가 window에 올바르게 등록됨",
+    "prop-strip-banner.js는 pushHistory 가장 충실 — 14개 이상 커버",
+    "prop-asset.js의 이미지 교체/업로드는 triggerAssetUpload 내부에서 pushHistory 호출해 정상"
+  ]
+}

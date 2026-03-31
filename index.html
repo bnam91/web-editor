@@ -4,7 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Goya Web Design Editor</title>
-<link rel="stylesheet" href="css/editor.css">
+<link rel="stylesheet" href="css/editor-base.css">
+<link rel="stylesheet" href="css/editor-panels.css">
+<link rel="stylesheet" href="css/editor-canvas.css">
+<link rel="stylesheet" href="css/editor-layout.css">
+<link rel="stylesheet" href="css/editor-props.css">
+<link rel="stylesheet" href="css/editor-blocks.css">
+<link rel="stylesheet" href="css/editor-extra.css">
 <link rel="stylesheet" href="assets/fonts/pretendard.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -573,8 +579,10 @@
     </button>
     <div class="fp-dropdown-menu" id="fp-row-menu">
       <button class="fp-menu-item" onclick="addRowBlock(1,1);toggleFpDropdown('fp-row-dropdown')">1 × 1</button>
+      <button class="fp-menu-item" onclick="addRowBlock(1,2);toggleFpDropdown('fp-row-dropdown')">1 × 2</button>
       <button class="fp-menu-item" onclick="addRowBlock(2,1);toggleFpDropdown('fp-row-dropdown')">2 × 1</button>
-      <button class="fp-menu-item" onclick="addRowBlock(2,2);toggleFpDropdown('fp-row-dropdown')">2 × 2</button>
+      <button class="fp-menu-item" onclick="addRowBlock(1,3);toggleFpDropdown('fp-row-dropdown')">1 × 3</button>
+      <button class="fp-menu-item" onclick="addRowBlock(3,1);toggleFpDropdown('fp-row-dropdown')">3 × 1</button>
     </div>
   </div>
   <button class="fp-btn" onclick="addGapBlock()" title="여백(Gap) 블록 추가">
@@ -593,7 +601,9 @@
       <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-text-menu">
+      <button class="fp-menu-item" onclick="addTextBlock('h1');toggleFpDropdown('fp-text-dropdown')">H1</button>
       <button class="fp-menu-item" onclick="addTextBlock('h2');toggleFpDropdown('fp-text-dropdown')">Heading</button>
+      <button class="fp-menu-item" onclick="addTextBlock('h3');toggleFpDropdown('fp-text-dropdown')">H3</button>
       <button class="fp-menu-item" onclick="addTextBlock('body');toggleFpDropdown('fp-text-dropdown')">Body</button>
       <button class="fp-menu-item" onclick="addTextBlock('caption');toggleFpDropdown('fp-text-dropdown')">Caption</button>
       <button class="fp-menu-item" onclick="addTextBlock('label');toggleFpDropdown('fp-text-dropdown')">Label</button>
@@ -614,6 +624,7 @@
       <button class="fp-menu-item" onclick="addAssetBlock('square');toggleFpDropdown('fp-asset-dropdown')">Square (860px)</button>
       <button class="fp-menu-item" onclick="addAssetBlock('tall');toggleFpDropdown('fp-asset-dropdown')">Tall (1032px)</button>
       <button class="fp-menu-item" onclick="addAssetBlock('wide');toggleFpDropdown('fp-asset-dropdown')">Wide (575px)</button>
+      <button class="fp-menu-item" onclick="addAssetBlock('logo');toggleFpDropdown('fp-asset-dropdown')">Logo (200×64px)</button>
       <button class="fp-menu-item" onclick="addIconCircleBlock();toggleFpDropdown('fp-asset-dropdown')">Circle</button>
     </div>
   </div>
@@ -630,11 +641,13 @@
       <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-component-menu">
+      <button class="fp-menu-item" onclick="addIconCircleBlock();toggleFpDropdown('fp-component-dropdown')">Icon Circle</button>
       <button class="fp-menu-item" onclick="addTableBlock();toggleFpDropdown('fp-component-dropdown')">Table</button>
       <button class="fp-menu-item" onclick="addCardBlock();toggleFpDropdown('fp-component-dropdown')">Card</button>
       <button class="fp-menu-item" onclick="addStripBannerBlock();toggleFpDropdown('fp-component-dropdown')">Banner</button>
       <button class="fp-menu-item" onclick="addGraphBlock();toggleFpDropdown('fp-component-dropdown')">Graph</button>
       <button class="fp-menu-item" onclick="addDividerBlock();toggleFpDropdown('fp-component-dropdown')">Divider</button>
+      <button class="fp-menu-item" onclick="addLabelGroupBlock();toggleFpDropdown('fp-component-dropdown')">Label Group</button>
     </div>
   </div>
   <div class="fp-divider"></div>

@@ -132,7 +132,8 @@ export function showTextProperties(tb) {
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <div class="prop-style-group">
-          <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic)"><i>I</i></button>
+          <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (Bold / Cmd+B)"><b>B</b></button>
+          <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic / Cmd+I)"><i>I</i></button>
         </div>
       </div>
       <div class="prop-row">
@@ -199,6 +200,12 @@ export function showTextProperties(tb) {
     <div id="label-style-section" style="display:${isLabel?'block':'none'}">
       <div class="prop-section">
         <div class="prop-section-title">태그 스타일</div>
+        <div class="prop-row" style="gap:6px">
+          <button class="prop-full-btn" id="label-shape-pill">Pill</button>
+          <button class="prop-full-btn" id="label-shape-box">Box</button>
+          <button class="prop-full-btn" id="label-shape-circle">Circle</button>
+          <button class="prop-full-btn" id="label-shape-text">Text</button>
+        </div>
         <div class="prop-color-row">
           <span class="prop-label">배경색</span>
           <div class="prop-color-swatch${currentBgColor==='transparent'?' swatch-none':''}" style="background:${currentBgColor==='transparent'?'transparent':currentBgColor}">
@@ -234,6 +241,7 @@ export function showTextProperties(tb) {
 
   /* 폰트 종류 */
   document.getElementById('txt-font-family').addEventListener('change', e => {
+    window.pushHistory?.();
     contentEl.style.fontFamily = e.target.value;
   });
 
@@ -247,6 +255,7 @@ export function showTextProperties(tb) {
   const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
   propPanel.querySelectorAll('.prop-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      window.pushHistory?.();
       const cls = btn.dataset.cls;
       contentEl.className = cls;
       tb.dataset.type = typeMap2[cls];
@@ -304,10 +313,12 @@ export function showTextProperties(tb) {
   const rNumber = document.getElementById('label-radius-number');
   if (rSlider) {
     rSlider.addEventListener('input', () => { contentEl.style.borderRadius = rSlider.value+'px'; rNumber.value = rSlider.value; });
+    rSlider.addEventListener('change', () => window.pushHistory?.());
     rNumber.addEventListener('input', () => {
       const v = Math.min(40, Math.max(0, parseInt(rNumber.value)||0));
       contentEl.style.borderRadius = v+'px'; rSlider.value = v;
     });
+    rNumber.addEventListener('change', () => window.pushHistory?.());
   }
 
   /* 태그 pill 높이 (상하 패딩으로 조절) */
@@ -316,15 +327,76 @@ export function showTextProperties(tb) {
   if (pillHSlider) {
     const setPillH = v => { const half = Math.round(v/2); contentEl.style.paddingTop = half+'px'; contentEl.style.paddingBottom = half+'px'; };
     pillHSlider.addEventListener('input', () => { setPillH(parseInt(pillHSlider.value)); pillHNumber.value = pillHSlider.value; });
+    pillHSlider.addEventListener('change', () => window.pushHistory?.());
     pillHNumber.addEventListener('input', () => {
       const v = Math.min(120, Math.max(0, parseInt(pillHNumber.value)||0));
       setPillH(v); pillHSlider.value = v;
     });
+    pillHNumber.addEventListener('change', () => window.pushHistory?.());
   }
+
+  /* 태그 형태 프리셋 */
+  document.getElementById('label-shape-pill')?.addEventListener('click', () => {
+    window.pushHistory?.();
+    contentEl.style.borderRadius = '40px';
+    contentEl.style.paddingLeft  = '20px';
+    contentEl.style.paddingRight = '20px';
+    contentEl.style.width  = '';
+    contentEl.style.height = '';
+    contentEl.style.display = '';
+    contentEl.style.alignItems = '';
+    contentEl.style.justifyContent = '';
+    const rSlider2 = document.getElementById('label-radius-slider');
+    const rNumber2 = document.getElementById('label-radius-number');
+    if (rSlider2) { rSlider2.value = 40; rNumber2.value = 40; }
+  });
+  document.getElementById('label-shape-box')?.addEventListener('click', () => {
+    window.pushHistory?.();
+    contentEl.style.borderRadius = '4px';
+    contentEl.style.paddingLeft  = '12px';
+    contentEl.style.paddingRight = '12px';
+    contentEl.style.width  = '';
+    contentEl.style.height = '';
+    contentEl.style.display = '';
+    contentEl.style.alignItems = '';
+    contentEl.style.justifyContent = '';
+    const rSlider2 = document.getElementById('label-radius-slider');
+    const rNumber2 = document.getElementById('label-radius-number');
+    if (rSlider2) { rSlider2.value = 4; rNumber2.value = 4; }
+  });
+  document.getElementById('label-shape-circle')?.addEventListener('click', () => {
+    window.pushHistory?.();
+    contentEl.style.borderRadius = '50%';
+    contentEl.style.padding = '0';
+    contentEl.style.width  = '48px';
+    contentEl.style.height = '48px';
+    contentEl.style.display = 'inline-flex';
+    contentEl.style.alignItems = 'center';
+    contentEl.style.justifyContent = 'center';
+    const rSlider2 = document.getElementById('label-radius-slider');
+    const rNumber2 = document.getElementById('label-radius-number');
+    if (rSlider2) { rSlider2.value = 40; rNumber2.value = 40; }
+  });
+  document.getElementById('label-shape-text')?.addEventListener('click', () => {
+    window.pushHistory?.();
+    contentEl.style.backgroundColor = 'transparent';
+    contentEl.style.color = '#111111';
+    contentEl.style.borderRadius = '0';
+    contentEl.style.padding = '0';
+    contentEl.style.width  = '';
+    contentEl.style.height = '';
+    contentEl.style.display = '';
+    contentEl.style.alignItems = '';
+    contentEl.style.justifyContent = '';
+    const rSlider2 = document.getElementById('label-radius-slider');
+    const rNumber2 = document.getElementById('label-radius-number');
+    if (rSlider2) { rSlider2.value = 0; rNumber2.value = 0; }
+  });
 
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      window.pushHistory?.();
       // label(inline-block)은 부모 tb에 text-align 적용해야 블록 자체가 정렬됨
       if (contentEl.classList.contains('tb-label')) {
         tb.style.textAlign = btn.dataset.align;
@@ -357,6 +429,23 @@ export function showTextProperties(tb) {
     contentEl.contentEditable = wasEditable;
     return true;
   };
+
+  let _savedBoldSel = null;
+  document.getElementById('txt-bold-btn').addEventListener('mousedown', () => {
+    if (hasSel()) _savedBoldSel = window.getSelection().getRangeAt(0).cloneRange();
+    else _savedBoldSel = null;
+  });
+  document.getElementById('txt-bold-btn').addEventListener('click', () => {
+    if (_savedBoldSel) {
+      applyExecCmd(_savedBoldSel, 'bold');
+      _savedBoldSel = null;
+    } else {
+      const isNowBold = contentEl.style.fontWeight === '700' || contentEl.style.fontWeight === 'bold';
+      contentEl.style.fontWeight = isNowBold ? '' : '700';
+      document.getElementById('txt-bold-btn').classList.toggle('active', !isNowBold);
+    }
+    window.pushHistory();
+  });
 
   document.getElementById('txt-italic-btn').addEventListener('mousedown', () => {
     if (hasSel()) _savedItalicSel = window.getSelection().getRangeAt(0).cloneRange();
@@ -455,7 +544,9 @@ export function showTextProperties(tb) {
   /* 줄간격 */
   const lhSlider = document.getElementById('txt-lh-slider');
   const lhNumber = document.getElementById('txt-lh-number');
+  lhSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   lhSlider.addEventListener('input', () => { contentEl.style.lineHeight = lhSlider.value; lhNumber.value = parseFloat(lhSlider.value).toFixed(2); });
+  lhNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lhNumber.addEventListener('input', () => {
     const v = Math.min(3, Math.max(1, parseFloat(lhNumber.value)||1));
     contentEl.style.lineHeight = v; lhSlider.value = v;
@@ -464,7 +555,9 @@ export function showTextProperties(tb) {
   /* 자간 */
   const lsSlider = document.getElementById('txt-ls-slider');
   const lsNumber = document.getElementById('txt-ls-number');
+  lsSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   lsSlider.addEventListener('input', () => { contentEl.style.letterSpacing = lsSlider.value + 'px'; lsNumber.value = lsSlider.value; });
+  lsNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lsNumber.addEventListener('input', () => {
     const v = Math.min(40, Math.max(-10, parseFloat(lsNumber.value) || 0));
     contentEl.style.letterSpacing = v + 'px'; lsSlider.value = v;

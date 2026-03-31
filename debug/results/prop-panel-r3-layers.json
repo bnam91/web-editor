@@ -1,0 +1,48 @@
+{
+  "agent": "LayerPanelGen3",
+  "round": 3,
+  "file": "css/editor-panels.css",
+  "date": "2026-03-31",
+  "changes": [
+    {
+      "id": 1,
+      "title": "layer-row-group 섹션 간격 증가",
+      "selector": ".layer-row-group",
+      "before": "margin-bottom: 1px",
+      "after": "margin-bottom: 2px",
+      "line": 1029
+    },
+    {
+      "id": 2,
+      "title": "active 레이어명 font-weight 추가",
+      "selector": ".layer-item.active .layer-item-name",
+      "before": "color: #6fa3f7",
+      "after": "color: #6fa3f7; font-weight: 500",
+      "line": 1073
+    },
+    {
+      "id": 3,
+      "title": "layer-ungroup-btn 클릭 영역 확보",
+      "selector": ".layer-ungroup-btn",
+      "before": "padding: 2px 4px (no width/height)",
+      "after": "width: 20px; height: 20px 추가",
+      "line": 1077
+    },
+    {
+      "id": 4,
+      "title": "layer-section-icon opacity/color 통일",
+      "selector": ".layer-section-icon",
+      "before": "opacity: 0.5 (no color)",
+      "after": "opacity: 0.6; color: var(--ui-text-sub)",
+      "line": 1006
+    },
+    {
+      "id": 5,
+      "title": "active 항목 왼쪽 border 액센트 + padding 보정",
+      "selector": ".layer-item.active",
+      "before": "background: rgba(45,111,232,0.15)",
+      "after": "border-left: 2px solid rgba(45,111,232,0.4); padding-left: 6px (기존 8px에서 -2px 보정)",
+      "line": 1068
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "agent": "Inspect-Undo-History",
+  "date": "2026-03-31",
+  "push_history_calls": [
+    {
+      "file": "js/block-factory.js",
+      "line": 37,
+      "trigger": "_insertToActiveCol (col-active 경로) — 모든 블록 추가 시",
+      "double_call_risk": true,
+      "reason": "_insertToActiveCol에서 pushHistory 1회 호출. 그런데 addTextBlock(306), addAssetBlock(662), addGapBlock(679/688) 등 각 함수 본체에도 pushHistory가 있음. _insertToActiveCol이 true 반환하면 early return으로 본체 pushHistory는 실행 안 됨 → 현재는 중복 없음. 단, col-active 아닌 경로(일반 섹션 삽입)와 col-active 경로 모두 각 1회로 정상."
+    },
+    {
+      "file": "js/block-factory.js",
+      "line": 948,
+      "trigger": "addSection() 호출",
+      "double_call_risk": false,
+      "reason": "addSection에서 1회만 호출. CDP 실측 확인: 1회."
+    },
+    {
+      "file": "js/block-factory.js",
+      "line": 306,
+      "trigger": "addTextBlock(type) 일반 섹션 삽입 경로",
+      "double_call_risk": false,
+      "reason": "CDP 실측 1회. _insertToActiveCol가 false 반환할 때만 실행."
+    },
+    {
+      "file": "js/drag-drop.js",
+      "line": 259,
+      "trigger": "section-inner drop (블록 DnD 완료)",
+      "double_call_risk": false,
+      "reason": "drop 이벤트 1회 → pushHistory 1회. stopPropagation으로 버블링 차단됨."
+    },
+    {
+      "file": "js/drag-drop.js",
+      "line": 244,
+      "trigger": "section-inner drop (파일 이미지 드롭)",
+      "double_call_risk": false,
+      "reason": "파일 드롭 전용 분기, 블록 DnD와 상호 배타적."
+    },
+    {
+      "file": "js/drag-drop.js",
+      "line": 958,
+      "trigger": "bindColDropZone col drop",
+      "double_call_risk": false,
+      "reason": "stopPropagation으로 section-inner drop 도달 차단. 1회."
+    },
+    {
+      "file": "js/save-load.js",
+      "line": 929,
+      "trigger": "initApp() 초기화 시 초기 스냅샷",
+      "double_call_risk": false,
+      "reason": "앱 시작 시 1회 호출. clearHistory 후에 pushHistory가 한 번 더 불림 → historyStack에 초기 상태가 2개 들어갈 위험. clearHistory 자체가 이미 초기 스냅샷을 [init]으로 만들기 때문에 이 pushHistory(929)는 중복 push임."
+    },
+    {
+      "file": "js/save-load.js",
+      "line": 956,
+      "trigger": "canvasEl drop (섹션 드래그드롭 완료)",
+      "double_call_risk": false,
+      "reason": "1회. bindSectionDrag dragend에서는 pushHistory 없음."
+    },
+    {
+      "file": "js/drag-drop.js",
+      "line": 316,
+      "trigger": "bindAssetOverlayDropZone (오버레이에 블록 드롭)",
+      "double_call_risk": false,
+      "reason": "1회."
+    },
+    {
+      "file": "js/drag-drop.js",
+      "line": 51,
+      "trigger": "loadImageToIconSlot (itb-icon 이미지 로드)",
+      "double_call_risk": false,
+      "reason": "FileReader.onload 콜백 내 1회."
+    }
+  ],
+  "bugs_found": [
+    {
+      "id": "UNDO-01",
+      "severity": "high",
+      "description": "텍스트 블록 더블클릭 편집 후 blur 시 pushHistory 미호출 — 텍스트 내용 변경이 Undo 스택에 기록되지 않음",
+      "root_cause": "drag-drop.js bindBlock의 isText 분기(line 389-391): blur 이벤트 핸들러가 block.classList.remove('editing') + contenteditable=false만 수행하고 pushHistory를 호출하지 않음. 사용자가 텍스트를 수정하고 다른 곳을 클릭해도 해당 편집은 히스토리에 기록되지 않아 Undo가 불가능하거나 이전 액션으로 건너뜀.",
+      "fix": "drag-drop.js line 389-392의 blur 핸들러에 window.pushHistory?.() 추가:\nclicked.addEventListener('blur', () => {\n  block.classList.remove('editing');\n  clicked.setAttribute('contenteditable', 'false');\n  window.pushHistory?.();\n});"
+    },
+    {
+      "id": "UNDO-02",
+      "severity": "medium",
+      "description": "initApp()의 line 929 pushHistory()가 clearHistory 직후 중복 push — historyStack[0]은 clearHistory가 만든 초기 상태, historyStack[1]은 동일 내용의 두 번째 스냅샷",
+      "root_cause": "clearHistory() (line 133-139)가 이미 초기 스냅샷을 historyStack=[init], historyPos=0으로 설정함. 그런데 initApp(line 929)에서 pushHistory()를 한 번 더 호출해 동일 상태가 historyStack[1]에도 push됨. clearHistory 직후 pushHistory를 호출하면 historyPos=1이 되어 첫 번째 Undo 시 historyPos=0(동일 스냅샷)으로 이동하는 '1 스텝을 아무것도 안 하는 Undo'가 발생함. 사용자 입장에서 첫 번째 Undo가 효과 없는 것처럼 보일 수 있음.",
+      "fix": "applyProjectData 또는 initEmpty 완료 후 clearHistory만 호출하고, initApp line 929의 단독 pushHistory() 호출을 제거. clearHistory가 초기 스냅샷을 충분히 처리함."
+    },
+    {
+      "id": "UNDO-03",
+      "severity": "medium",
+      "description": "action 레이블 누락 — 대부분의 pushHistory 호출이 action 파라미터 없이 호출되어 Undo 버튼 title이 항상 '실행 취소: 작업'으로 표시됨",
+      "root_cause": "block-factory.js의 addSection(948), addTextBlock(306), addAssetBlock(662) 등이 window.pushHistory()를 action 없이 호출. 기본값 '작업'이 사용됨. 사용자에게는 어떤 작업이 취소되는지 알 수 없어 UX 혼란 유발.",
+      "fix": "각 함수에서 pushHistory에 의미있는 action 레이블 전달: pushHistory('섹션 추가'), pushHistory('텍스트 블록 추가'), pushHistory('에셋 블록 추가') 등."
+    },
+    {
+      "id": "UNDO-04",
+      "severity": "low",
+      "description": "prop-text.js의 slider change 이벤트에서 pushHistory 중복 가능성 — sizeSlider change(479)와 sizeNumber change(486) 이벤트가 각각 pushHistory를 호출하는데, input[type=range]의 change 이벤트는 정상적으로 1회만 발생하므로 현재는 문제 없음. 단, 빠른 드래그 중 input 이벤트(not change)에 연결되면 과도한 push 발생 가능.",
+      "fix": "현재 'change' 이벤트 사용이라 큰 문제 없음. prop-asset.js line 229의 hSlider.addEventListener('input', ...)는 실시간 드래그 중 pushHistory가 반복 호출될 수 있음 → 'change'로 변경 권장."
+    }
+  ],
+  "cdp_results": {
+    "cdp_port": 9335,
+    "note": "의뢰서의 포트 9334는 claude-commander 앱이었음. 웹에디터 실제 CDP 포트는 9335",
+    "scenario1": "PASS",
+    "scenario1_detail": "addSection 후 undo → 섹션 3개→2개 (-1, 정확히 1스텝만 복원됨)",
+    "scenario2": "PASS",
+    "scenario2_detail": "addTextBlock(h2) 후 undo → rows 8→9→8 (정확히 1스텝, 섹션 수 불변)",
+    "scenario3": "PARTIAL",
+    "scenario3_detail": "ArrowUp 키 이벤트 디스패치로는 row-active가 있어야 이동 가능한데 테스트 환경에서 이동이 발생하지 않음(row 순서 불변). 수동 DnD는 테스트 불가. 코드 분석 상: drag-drop.js line 259 drop 이벤트에서 pushHistory 1회 호출 → 1스텝 복원 예상.",
+    "scenario4": "PASS",
+    "scenario4_detail": "텍스트에 __TEST__ 추가 후 undo → 원래 텍스트 복원. 단 CDP 테스트에서는 contenteditable을 직접 조작했으므로, 실제 더블클릭 편집 후 blur 경로(UNDO-01 버그)는 별도 재현 필요.",
+    "push_history_double_call_test": {
+      "addSection_calls": 1,
+      "addTextBlock_calls": 1,
+      "addTextBlock_via_active_col_calls": 1,
+      "conclusion": "현재 빌드 기준 단일 사용자 액션 당 pushHistory 1회 호출 확인됨 (중복 없음)"
+    },
+    "history_paused_test": {
+      "undo_triggers_pushHistory": false,
+      "redo_triggers_pushHistory": false,
+      "conclusion": "_historyPaused 플래그가 restoreSnapshot 중 pushHistory 재진입을 올바르게 차단함"
+    },
+    "autosave_race_test": {
+      "mutationObserver_calls_pushHistory": false,
+      "conclusion": "MutationObserver → scheduleAutoSave만 호출. pushHistory 미호출. 경쟁 없음."
+    }
+  },
+  "summary": "4개 버그 발견. 가장 심각한 것은 UNDO-01: text-block 더블클릭 편집 blur 시 pushHistory 미호출로 텍스트 변경이 히스토리에 기록되지 않음. 사용자가 보고한 '필요한 단계가 삭제되거나 2스텝 빠꾸' 문제는 UNDO-02(initApp에서 clearHistory 직후 pushHistory 중복 호출로 첫 번째 Undo가 no-op처럼 보임)와 UNDO-01(텍스트 편집이 스택에 기록 안되어 이전 액션이 취소됨)의 조합일 가능성이 높음. 현재 빌드에서 addSection/addTextBlock/DnD 단위 액션 당 pushHistory는 1회로 중복 없음. _historyPaused 플래그 정상 작동. MAX_HISTORY overflow 버그 없음."
+}

@@ -55,6 +55,8 @@ async function initBranchStore() {
             window.state._suppressAutoSave = true;
             applyProjectData(data);
             window.state._suppressAutoSave = false;
+            // 초기 로드 후 히스토리 초기화 — 로드된 상태가 초기 스냅샷으로 저장됨
+            if (window.clearHistory) window.clearHistory();
           } catch {
             window.state._suppressAutoSave = false;
           }
@@ -196,7 +198,7 @@ function createBranch(name) {
 function deleteBranch(name) {
   const store = loadBranchStore();
   if (!store) return;
-  if (name === 'main') { alert('main 브랜치는 삭제할 수 없습니다.'); return; }
+  if (name === 'main' || name === 'dev') { alert(`'${name}' 브랜치는 삭제할 수 없습니다.`); return; }
   if (store.current === name) { alert('현재 작업 중인 브랜치는 삭제할 수 없습니다.'); return; }
   if (!confirm(`'${name}' 브랜치를 삭제할까요?`)) return;
   delete store.branches[name];
@@ -259,6 +261,8 @@ function mergeBranch(fromName) {
   window.state._suppressAutoSave = true;
   applyProjectData(data);
   window.state._suppressAutoSave = false;
+  // 병합 후 히스토리 초기화 — applyProjectData 이후 호출해야 병합된 상태가 초기 스냅샷으로 저장됨
+  if (window.clearHistory) window.clearHistory();
   updateBranchIndicator(toName);
   applyFocusMode(toName);
   renderBranchPanel();

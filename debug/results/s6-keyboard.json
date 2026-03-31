@@ -1,0 +1,304 @@
+{
+  "agent": "S6-KeyboardShortcuts",
+  "session": 6,
+  "analysisType": "static",
+  "analyzedFiles": [
+    "/Users/a1/web-editor/js/editor.js",
+    "/Users/a1/web-editor/js/drag-drop.js"
+  ],
+  "shortcuts": [
+    {
+      "key": "Cmd+Z",
+      "implemented": true,
+      "handler": "line 344: undo()",
+      "guard": "isContentEditable 이중 체크 (최상단 + 핸들러 내부 재확인)",
+      "note": "line 332 전역 가드 통과 후, line 344에서 isContentEditable 재확인 — 이중 안전장치"
+    },
+    {
+      "key": "Cmd+Shift+Z",
+      "implemented": true,
+      "handler": "line 345: redo()",
+      "guard": "isContentEditable 이중 체크",
+      "note": "undo와 동일한 패턴"
+    },
+    {
+      "key": "Cmd+C",
+      "implemented": true,
+      "handler": "line 351: copySelected()",
+      "guard": "text-block.editing 체크 + tagName/isContentEditable 체크",
+      "note": "e.preventDefault() 없음 — 브라우저 기본 복사 동작과 경쟁할 수 있음"
+    },
+    {
+      "key": "Cmd+V",
+      "implemented": true,
+      "handler": "line 357: pasteClipboard()",
+      "guard": "text-block.editing 체크 + tagName/isContentEditable 체크",
+      "note": "e.preventDefault() 없음 — 브라우저 기본 붙여넣기 동작과 경쟁할 수 있음"
+    },
+    {
+      "key": "Cmd+D",
+      "implemented": true,
+      "handler": "line 363-366: copySelected() + pasteClipboard() (복제)",
+      "guard": "text-block.editing 체크 + tagName/isContentEditable 체크",
+      "note": "e.preventDefault() 있음"
+    },
+    {
+      "key": "Delete",
+      "implemented": true,
+      "handler": "line 421: isDelete 분기 → 블록/row/섹션 삭제",
+      "guard": "text-block.editing 또는 label-group-block.editing + tagName/isContentEditable 체크",
+      "note": "다중선택(col/section) 및 단일 선택 모두 처리"
+    },
+    {
+      "key": "Backspace",
+      "implemented": "부분적",
+      "handler": "line 421: Backspace는 Cmd+Backspace(metaKey||ctrlKey) 조합에서만 삭제 트리거",
+      "guard": "동일",
+      "note": "ISSUE: 단독 Backspace 키는 블록 삭제 트리거 안 됨. Cmd+Backspace만 Delete처럼 동작. 스펙 의도가 단독 Backspace 삭제라면 버그."
+    },
+    {
+      "key": "g (Gap 추가)",
+      "implemented": true,
+      "handler": "line 377: window.addGapBlock?.() AND line 413: window.addGapBlock() (중복 핸들러)",
+      "guard": "line 376: tagName INPUT/TEXTAREA/SELECT 체크 / line 414-415: editing + tagName/isContentEditable 체크",
+      "note": "ISSUE: g 키가 두 곳에서 처리됨 (line 377, line 413). line 377이 먼저 return하므로 line 413은 dead code. 단, line 413만 e.code===KeyG IME 안전 체크 포함."
+    },
+    {
+      "key": "t (Text 추가)",
+      "implemented": true,
+      "handler": "line 378: window.addTextBlock?.('body')",
+      "guard": "line 376: tagName INPUT/TEXTAREA/SELECT 체크",
+      "note": "ISSUE: e.key==='t' 방식만 사용. e.code 미사용. 한국어 IME에서 't' 키를 누르면 e.key가 한글 자음으로 바뀌어 단축키 미동작 가능성 있음."
+    },
+    {
+      "key": "a (Asset 추가)",
+      "implemented": true,
+      "handler": "line 379: window.addAssetBlock?.()",
+      "guard": "line 376: tagName INPUT/TEXTAREA/SELECT 체크",
+      "note": "ISSUE: e.key==='a' 방식만 사용. e.code 미사용. 한국어 IME 문제 동일."
+    },
+    {
+      "key": "Cmd+ArrowUp / Cmd+ArrowDown",
+      "implemented": true,
+      "handler": "line 383-410: 블록 또는 섹션 순서 이동 (DOM 재배치)",
+      "guard": "text-block/label-group-block editing 체크 + tagName/isContentEditable 체크",
+      "note": "선택된 블록 없고 섹션도 없으면 아무 동작 안 함 (무해). Shift+방향키 미구현."
+    },
+    {
+      "key": "ArrowLeft / ArrowRight (단독)",
+      "implemented": false,
+      "handler": "없음",
+      "guard": "N/A",
+      "note": "단독 방향키(좌/우) 이동 미구현. Cmd 없는 상하 방향키도 미구현."
+    },
+    {
+      "key": "Escape",
+      "implemented": true,
+      "handler": "line 369-372: deselectAll()",
+      "guard": "tagName INPUT/TEXTAREA/SELECT 체크",
+      "note": "ISSUE: isContentEditable 체크 누락. contenteditable 편집 중 ESC가 전역 deselectAll()을 호출할 수 있음. 단, drag-drop.js에서 editing 요소의 keydown ESC가 ev.stopPropagation()으로 차단(line 268)하므로 실질적으로는 안전함."
+    },
+    {
+      "key": "ESC (텍스트 편집 종료)",
+      "implemented": true,
+      "handler": "drag-drop.js line 265-271: contenteditable blur + stopPropagation",
+      "guard": "stopPropagation으로 전역 ESC 차단",
+      "note": "텍스트블록 내부 ESC → blur → editing 클래스 제거. 전역 deselectAll 호출 차단됨."
+    },
+    {
+      "key": "Enter",
+      "implemented": "부분적",
+      "handler": "drag-drop.js line 518: span blur (label-group span), line 567/625: textEl blur",
+      "guard": "없음 (각 element 레벨에서만 처리)",
+      "note": "섹션 편집 진입용 전역 Enter 핸들러는 editor.js에 없음. 일부 인라인 요소(span, contenteditable)에서만 Enter=blur 처리."
+    },
+    {
+      "key": "Cmd+G (그룹화)",
+      "implemented": false,
+      "handler": "없음",
+      "guard": "N/A",
+      "note": "editor.js keydown 핸들러에 Cmd+G 처리 없음. 스펙에 포함되어 있으나 미구현."
+    },
+    {
+      "key": "Cmd+A (전체 선택)",
+      "implemented": false,
+      "handler": "없음",
+      "guard": "N/A",
+      "note": "editor.js keydown 핸들러에 Cmd+A 처리 없음. 브라우저 기본 텍스트 선택만 동작."
+    },
+    {
+      "key": "Cmd+S (저장)",
+      "implemented": true,
+      "handler": "line 346: saveProject()",
+      "guard": "없음 (전역)",
+      "note": "추가 발견된 단축키"
+    },
+    {
+      "key": "Cmd+Shift+S (다른이름저장)",
+      "implemented": true,
+      "handler": "line 347: saveProjectAs()",
+      "guard": "없음 (전역)",
+      "note": "추가 발견된 단축키"
+    },
+    {
+      "key": "Cmd+= / Cmd++ (줌 인)",
+      "implemented": true,
+      "handler": "line 335-338: zoomStep(10) 또는 previewZoomStep(10)",
+      "guard": "없음",
+      "note": "추가 발견된 단축키"
+    },
+    {
+      "key": "Cmd+- (줌 아웃)",
+      "implemented": true,
+      "handler": "line 339-342: zoomStep(-10) 또는 previewZoomStep(-10)",
+      "guard": "없음",
+      "note": "추가 발견된 단축키"
+    },
+    {
+      "key": "Cmd+0 (줌 리셋)",
+      "implemented": true,
+      "handler": "line 343: applyZoom(100)",
+      "guard": "없음",
+      "note": "추가 발견된 단축키"
+    },
+    {
+      "key": "Space (팬 모드)",
+      "implemented": true,
+      "handler": "line 765: panMode=true + canvas-wrap pan-mode 클래스",
+      "guard": "isTyping() 함수 — INPUT/TEXTAREA/SELECT/isContentEditable 체크",
+      "note": "keyup에서 panMode 해제. 추가 발견된 단축키."
+    }
+  ],
+  "kbd01_summary": {
+    "total_implemented": 16,
+    "total_not_implemented": 3,
+    "partially_implemented": 3,
+    "not_implemented_list": ["Cmd+G (그룹화)", "Cmd+A (전체 선택)", "ArrowLeft/ArrowRight 단독"]
+  },
+  "kbd02_form_focus_guard": {
+    "status": "PASS with caveat",
+    "global_guard_line": 332,
+    "guard_code": "if (document.activeElement?.isContentEditable && !e.metaKey && !e.ctrlKey) return;",
+    "input_guard_coverage": {
+      "g_t_a_keys": "line 376 — INPUT/TEXTAREA/SELECT 체크 있음, isContentEditable 미체크",
+      "delete_backspace": "line 425 — INPUT/TEXTAREA/isContentEditable 체크 있음",
+      "cmd_c_v_d": "line 350/356/362 — INPUT/TEXTAREA/SELECT + isContentEditable 체크 있음",
+      "escape_global": "line 370 — INPUT/TEXTAREA/SELECT 체크 있음, isContentEditable 미체크"
+    },
+    "issues": [
+      "g/t/a 단축키(line 375-380)의 input guard에 isContentEditable 체크 누락. 단, line 332 전역 가드가 isContentEditable을 이미 차단하므로 실질적 위험 낮음.",
+      "ESC 전역(line 370) guard에 isContentEditable 미체크. drag-drop.js stopPropagation으로 보완됨."
+    ]
+  },
+  "kbd03_ime": {
+    "status": "PARTIAL FAIL",
+    "g_key": {
+      "line_377": "e.key === 'g' 방식 — 한국어 IME 시 미동작 위험",
+      "line_413": "e.key === 'g' || e.code === 'KeyG' 혼합 사용 — IME 안전",
+      "note": "line 377이 먼저 실행되어 return하므로 line 413의 e.code 체크는 dead code. 실효적으로 e.key==='g' 방식만 작동."
+    },
+    "t_key": "e.key === 't' 방식만 — 한국어 IME 시 미동작 위험",
+    "a_key": "e.key === 'a' 방식만 — 한국어 IME 시 미동작 위험",
+    "recommendation": "line 377-379를 e.code === 'KeyG', 'KeyT', 'KeyA' 방식으로 변경하거나 line 377-380 블록 전체를 삭제하고 line 413 패턴을 t/a에도 적용"
+  },
+  "kbd04_esc": {
+    "status": "PASS (구조적 안전)",
+    "global_esc_line": 369,
+    "editing_esc": "drag-drop.js line 265-271 — ev.stopPropagation()으로 전역 차단 후 blur",
+    "table_cell_esc": "drag-drop.js line 438-440",
+    "span_esc": "drag-drop.js line 517-519",
+    "label_group_esc": "drag-drop.js line 566-567, 624-625",
+    "note": "편집 중 ESC는 element 레벨에서 먼저 잡아 stopPropagation. 전역 deselectAll()까지 버블링 안 됨. 구조적으로 올바름.",
+    "issue": "전역 ESC(line 370) guard에 isContentEditable 미체크. stopPropagation으로 보완되나, 특수 contenteditable 요소에서 stopPropagation 없는 경우 불시 deselectAll 가능."
+  },
+  "kbd05_arrow_keys": {
+    "status": "PARTIAL PASS",
+    "cmd_arrow_up_down": {
+      "implemented": true,
+      "line": "383-410",
+      "behavior": "선택된 블록 → 블록/row 이동. 선택된 섹션 → 섹션 이동.",
+      "no_selection_behavior": "selBlock=null, selSection=null → moveTarget=null → 아무 동작 안 함 (무해)"
+    },
+    "shift_arrow": {
+      "implemented": false,
+      "note": "Shift+방향키 더 큰 이동 미구현"
+    },
+    "plain_arrow_up_down": {
+      "implemented": false,
+      "note": "Cmd 없는 단독 ArrowUp/Down 미구현"
+    },
+    "arrow_left_right": {
+      "implemented": false,
+      "note": "ArrowLeft/ArrowRight 미구현"
+    }
+  },
+  "kbd06_cmd_a": {
+    "status": "FAIL",
+    "implemented": false,
+    "note": "editor.js keydown 핸들러에 Cmd+A 처리 없음. 현재 섹션 내 전체 블록 선택 기능 미구현. 브라우저 기본 텍스트 선택만 발생."
+  },
+  "issues": [
+    {
+      "id": "KBD-ISSUE-01",
+      "severity": "HIGH",
+      "key": "Backspace",
+      "description": "단독 Backspace는 블록 삭제 트리거 안 됨. Cmd+Backspace만 삭제. 사용자 직관(선택 후 Backspace=삭제)과 불일치.",
+      "location": "editor.js line 421",
+      "fix": "isDelete 조건을 `e.key === 'Delete' || e.key === 'Backspace'`로 변경 (단, guard 충분한지 확인 필요)"
+    },
+    {
+      "id": "KBD-ISSUE-02",
+      "severity": "HIGH",
+      "key": "g / t / a (IME)",
+      "description": "t, a 단축키가 e.key 방식만 사용. 한국어 IME 활성 시 e.key가 한글 자음으로 바뀌어 미동작. g 단축키는 line 413에 e.code 체크 있으나 line 377이 먼저 return해 dead code.",
+      "location": "editor.js line 377-379, 413",
+      "fix": "line 377-379를 e.code 방식으로 교체 또는 통합. line 413 패턴(|| e.code === 'KeyG')을 t, a에도 적용"
+    },
+    {
+      "id": "KBD-ISSUE-03",
+      "severity": "HIGH",
+      "key": "Cmd+G",
+      "description": "그룹화 단축키 미구현. 스펙에 포함되어 있으나 keydown 핸들러에 없음.",
+      "location": "editor.js keydown (없음)",
+      "fix": "Cmd+G 핸들러 추가 및 groupBlocks() 함수 구현 필요"
+    },
+    {
+      "id": "KBD-ISSUE-04",
+      "severity": "MEDIUM",
+      "key": "Cmd+A",
+      "description": "전체 선택 미구현. 브라우저 기본 텍스트 선택만 발생.",
+      "location": "editor.js keydown (없음)",
+      "fix": "Cmd+A 핸들러 추가 및 현재 섹션 내 모든 블록 선택 로직 구현"
+    },
+    {
+      "id": "KBD-ISSUE-05",
+      "severity": "MEDIUM",
+      "key": "g 단축키 중복 핸들러",
+      "description": "g 키가 line 377(e.key==='g')과 line 413(e.key==='g' || e.code==='KeyG') 두 곳에서 처리. line 377이 return하므로 line 413은 dead code. IME 안전한 line 413 로직이 무효화됨.",
+      "location": "editor.js line 377, 413",
+      "fix": "line 377의 g 처리 제거하고 line 413 유지 (e.code 방식 활용)"
+    },
+    {
+      "id": "KBD-ISSUE-06",
+      "severity": "LOW",
+      "key": "ESC",
+      "description": "전역 ESC guard(line 370)에 isContentEditable 미체크. stopPropagation으로 현재는 보완되나 향후 새 contenteditable 요소에서 stopPropagation 누락 시 불시 deselectAll 위험.",
+      "location": "editor.js line 370",
+      "fix": "line 370에 `|| e.target.isContentEditable` 조건 추가"
+    },
+    {
+      "id": "KBD-ISSUE-07",
+      "severity": "LOW",
+      "key": "Cmd+C / Cmd+V",
+      "description": "e.preventDefault() 없음. 브라우저 기본 클립보드 동작과 경쟁 가능. 현재는 큰 문제 없으나 의도적 방지가 명확하지 않음.",
+      "location": "editor.js line 348-358",
+      "fix": "필요 시 copySelected()/pasteClipboard() 앞에 e.preventDefault() 추가"
+    }
+  ],
+  "overall": "FAIL",
+  "overall_reason": "3개 미구현(Cmd+G, Cmd+A, 단독Backspace), 2개 HIGH severity IME 버그, 중복 핸들러 dead code 존재",
+  "pass_count": 14,
+  "fail_count": 3,
+  "partial_count": 3,
+  "timestamp": "2026-03-31"
+}
