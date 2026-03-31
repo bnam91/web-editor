@@ -148,11 +148,13 @@ function showLabelGroupProperties(block, selectedItem) {
     block.style.gap = gapSlider.value + 'px';
     gapNumber.value = gapSlider.value;
   });
+  gapSlider?.addEventListener('change', () => window.pushHistory?.());
   gapNumber?.addEventListener('input', () => {
     const v = Math.min(60, Math.max(0, parseInt(gapNumber.value) || 0));
     block.style.gap = v + 'px';
     gapSlider.value = v;
   });
+  gapNumber?.addEventListener('change', () => window.pushHistory?.());
 
   // 전체 태그 높이 일괄 조절
   const allHSlider = document.getElementById('lg-all-height-slider');
@@ -165,10 +167,12 @@ function showLabelGroupProperties(block, selectedItem) {
     });
   };
   allHSlider?.addEventListener('input', () => { setAllItemH(parseInt(allHSlider.value)); allHNumber.value = allHSlider.value; });
+  allHSlider?.addEventListener('change', () => window.pushHistory?.());
   allHNumber?.addEventListener('input', () => {
     const v = Math.min(120, Math.max(0, parseInt(allHNumber.value) || 0));
     setAllItemH(v); allHSlider.value = v;
   });
+  allHNumber?.addEventListener('change', () => window.pushHistory?.());
 
   // ── 스타일 프리셋 드롭다운 (C17) ───────────────────────────────────
   const styleSelect = document.getElementById('lg-style-select');
@@ -177,6 +181,7 @@ function showLabelGroupProperties(block, selectedItem) {
   // 드롭다운 변경 시 선택된 태그에만 즉시 적용
   styleSelect?.addEventListener('change', () => {
     if (!selectedItem) return;
+    window.pushHistory?.();
     _applyPresetToItem(selectedItem, styleSelect.value);
     // 컬러 픽커 동기화
     const bgPicker2 = document.getElementById('lg-item-bg');
@@ -195,6 +200,7 @@ function showLabelGroupProperties(block, selectedItem) {
 
   // C18: 전체 적용 버튼 — 캔버스 전체 label-group-block의 모든 label-item에 적용
   applyAllBtn?.addEventListener('click', () => {
+    window.pushHistory?.();
     const presetName = styleSelect?.value || 'Default';
     const canvas = document.getElementById('canvas') || document.querySelector('.canvas-area') || document.body;
     canvas.querySelectorAll('.label-group-block .label-item').forEach(item => {
@@ -226,9 +232,11 @@ function showLabelGroupProperties(block, selectedItem) {
     if (bgHex)    bgHex.value = val;
   };
   bgPicker?.addEventListener('input', () => setBg(bgPicker.value));
+  bgPicker?.addEventListener('change', () => window.pushHistory?.());
   bgHex?.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) setBg(bgHex.value);
   });
+  bgHex?.addEventListener('change', () => window.pushHistory?.());
 
   // 아이템 글자색
   const colorPicker = document.getElementById('lg-item-color');
@@ -242,9 +250,11 @@ function showLabelGroupProperties(block, selectedItem) {
     if (colorHex)    colorHex.value = val;
   };
   colorPicker?.addEventListener('input', () => setColor(colorPicker.value));
+  colorPicker?.addEventListener('change', () => window.pushHistory?.());
   colorHex?.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(colorHex.value)) setColor(colorHex.value);
   });
+  colorHex?.addEventListener('change', () => window.pushHistory?.());
 
   // 모서리
   const rSlider = document.getElementById('lg-item-radius-slider');
@@ -254,12 +264,14 @@ function showLabelGroupProperties(block, selectedItem) {
     selectedItem.dataset.radius = rSlider.value;
     rNumber.value = rSlider.value;
   });
+  rSlider?.addEventListener('change', () => window.pushHistory?.());
   rNumber?.addEventListener('input', () => {
     const v = Math.min(50, Math.max(0, parseInt(rNumber.value) || 0));
     selectedItem.style.borderRadius = v + 'px';
     selectedItem.dataset.radius = v;
     rSlider.value = v;
   });
+  rNumber?.addEventListener('change', () => window.pushHistory?.());
 
   // 태그 높이 (상하 패딩으로 조절)
   const iHSlider = document.getElementById('lg-item-height-slider');
@@ -270,10 +282,12 @@ function showLabelGroupProperties(block, selectedItem) {
     selectedItem.style.paddingBottom = half + 'px';
   };
   iHSlider?.addEventListener('input', () => { setItemH(parseInt(iHSlider.value)); iHNumber.value = iHSlider.value; });
+  iHSlider?.addEventListener('change', () => window.pushHistory?.());
   iHNumber?.addEventListener('input', () => {
     const v = Math.min(120, Math.max(0, parseInt(iHNumber.value) || 0));
     setItemH(v); iHSlider.value = v;
   });
+  iHNumber?.addEventListener('change', () => window.pushHistory?.());
 }
 
 window.showLabelGroupProperties = showLabelGroupProperties;
