@@ -1,0 +1,102 @@
+{
+  "evaluator": "Evaluator-1",
+  "session": 1,
+  "generated_at": "2026-03-31T00:00:00.000Z",
+  "checks": [
+    {
+      "id": "AC-01",
+      "description": "editor.js deselectAll 내 querySelectorAll — 11개 블록 타입 완전성",
+      "status": "PASS",
+      "evidence": "line 615: .text-block, line 619: .asset-block, line 623: .gap-block/.icon-circle-block/.card-block/.strip-banner-block/.graph-block/.divider-block/.icon-text-block, line 624: .label-group-block, line 629: .table-block — 11개 전부 커버"
+    },
+    {
+      "id": "AC-02",
+      "description": "editor.js copySelected 내 selBlock querySelector — 11개 블록 타입 완전성",
+      "status": "PASS",
+      "evidence": "line 276: '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected' — 11개 전부 포함"
+    },
+    {
+      "id": "AC-03",
+      "description": "editor.js delete handler 내 allSelBlocks querySelectorAll — 11개 블록 타입 완전성",
+      "status": "PASS",
+      "evidence": "line 464: '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected' — 11개 전부 포함"
+    },
+    {
+      "id": "AC-04",
+      "description": "editor.js 초기 bindBlock querySelectorAll — 11개 블록 타입 완전성",
+      "status": "PASS",
+      "evidence": "line 704: '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block' — 11개 전부 포함. line 310, 320에서도 동일 셀렉터 사용"
+    },
+    {
+      "id": "AC-05",
+      "description": "save-load.js rebindAll 내 querySelector — 11개 블록 타입 완전성",
+      "status": "PASS",
+      "evidence": "line 719: '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block' — 11개 전부 포함"
+    },
+    {
+      "id": "AC-06",
+      "description": "drag-utils.js insertAfterSelected 내 sel querySelector — 11개 블록 타입 완전성",
+      "status": "PASS",
+      "evidence": "line 70: '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected' — 11개 전부 포함"
+    },
+    {
+      "id": "AC-07",
+      "description": "block-factory.js groupSelectedBlocks 내 selected querySelector — 11개 블록 타입 완전성",
+      "status": "PASS",
+      "evidence": "line 326: '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected' — 11개 전부 포함. 단, addSection() 함수(line 862)의 초기화용 querySelectorAll에는 label-group-block, icon-text-block 누락(별도 이슈, AC-07 대상 아님)"
+    },
+    {
+      "id": "AC-08",
+      "description": "layer-panel.js layerIcons 객체에 'icon-text' 키 존재",
+      "status": "PASS",
+      "evidence": "line 19: 'icon-text': `<svg ...>` 키 존재 확인"
+    },
+    {
+      "id": "AC-09",
+      "description": "layer-panel.js labels/typeLbls 맵에 'icon-text' 키 존재",
+      "status": "PASS",
+      "evidence": "line 66: labels에 'icon-text':'Icon Text' 포함, line 67: typeLbls에 'icon-text':'Text' 포함. line 561-562에서도 동일하게 두 번 정의됨"
+    },
+    {
+      "id": "AC-10",
+      "description": "block-factory.js addSection() 내 bindBlock querySelectorAll — 11개 블록 타입 완전성 (부가 확인)",
+      "status": "FAIL",
+      "evidence": "line 862: '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block' — label-group-block, icon-text-block 누락. addSection()으로 새 섹션 추가 시 이 두 블록에 bindBlock이 걸리지 않음"
+    },
+    {
+      "id": "AC-11",
+      "description": "11개 블록 타입 전체 커버 종합 확인",
+      "status": "PASS",
+      "evidence": "AC-01~09 핵심 셀렉터 모두 PASS. AC-10(addSection bindBlock)은 부가 발견된 FAIL"
+    },
+    {
+      "id": "AC-12",
+      "description": "css/editor-blocks.css에 .icon-text-block, .itb-icon, .itb-text 규칙 존재",
+      "status": "PASS",
+      "evidence": "line 405: .icon-text-block 존재, line 424: .itb-icon 존재, line 443: .itb-text 존재"
+    },
+    {
+      "id": "AC-13",
+      "description": "index.html 플로팅 패널 — Icon Text 버튼, 1×1 그리드 버튼, Label Group 버튼 존재",
+      "status": "PASS",
+      "evidence": "line 601: Icon Text 버튼(onclick='addIconTextBlock()') 존재. line 575: '1 × 1' 버튼(onclick='addRowBlock(1,1)') 존재. line 600: Label Group 기능 버튼(onclick='addLabelGroupBlock()') 존재 — 표시명은 'Tags'이며 'Label Group'이 아니나 기능 자체는 정상 등록됨"
+    },
+    {
+      "id": "AC-14",
+      "description": "branch-system.js switchBranch: applyProjectData 이후 clearHistory 호출 순서",
+      "status": "PASS",
+      "evidence": "line 172: applyProjectData(data), line 175: if (window.clearHistory) window.clearHistory() — 순서 올바름. 주석에도 'applyProjectData 이후 호출해야 새 브랜치 상태가 초기 스냅샷으로 저장됨' 명시"
+    },
+    {
+      "id": "AC-15",
+      "description": "block-factory.js에 _insertToActiveCol 함수 정의 존재",
+      "status": "PASS",
+      "evidence": "line 26: function _insertToActiveCol(make, isRowBlock = true) 정의 존재. line 218에서 addIconTextBlock() 내부 호출 확인"
+    }
+  ],
+  "overall": "FAIL",
+  "fail_count": 1,
+  "critical_issues": [
+    "block-factory.js:862 — addSection() 내 bindBlock querySelectorAll에서 label-group-block, icon-text-block 누락. 새 섹션 추가 시 해당 블록에 이벤트 바인딩이 걸리지 않아 상호작용 불가 가능성 있음. 수정: '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block' 으로 확장 필요"
+  ]
+}

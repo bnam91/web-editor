@@ -1,0 +1,369 @@
+{
+  "agent": "UX-ComponentProps",
+  "date": "2026-03-31",
+  "summary": "컴포넌트 탭 6개 블록 우측 프로퍼티 패널 전수 UX 감사. prop-asset.js / prop-text.js를 기준 삼아 용어·구조·멘탈모델 관점에서 평가.",
+  "component_audits": {
+    "circle": {
+      "purpose": "로고/브랜드 아이콘을 원형 프레임에 담는 컴포넌트. 이미지가 핵심이고 원형 형태가 고정 정체성.",
+      "current_items": ["지름 슬라이더", "배경색", "테두리 스타일 select(없음/실선/점선)", "이미지 섹션(상태별 분기)"],
+      "inappropriate": [
+        {
+          "item": "테두리 스타일 select",
+          "reason": "로고·아이콘 원형 프레임의 멘탈모델에서 테두리 '스타일'(실선/점선) 선택은 거의 사용되지 않는다. 로고에 점선 테두리를 쓰는 케이스는 디자인적으로 극히 드물며, 사용자가 '테두리 있음/없음'을 제어하는 것이 1차 니즈다. 스타일 선택이 패널을 무겁게 만든다.",
+          "recommendation": "스타일 select → toggle(테두리 ON/OFF)로 단순화. ON 시 두께·색상 인라인 표시. 스타일 옵션은 '고급' 접힘 영역으로 이동."
+        },
+        {
+          "item": "배경색 (이미지 있을 때)",
+          "reason": "이미지가 꽉 차게 들어가면 배경색이 완전히 가려져 의미 없다. 현재 코드에서 has-image 유무와 무관하게 배경색 섹션이 항상 표시된다.",
+          "recommendation": "이미지가 없을 때만 배경색 컨트롤 표시. 이미지 있을 때는 숨기거나 '이미지 없을 때 보이는 색상'으로 설명 추가."
+        }
+      ],
+      "missing": [
+        {
+          "item": "테두리 두께 슬라이더",
+          "reason": "테두리 스타일은 있으나 두께 조절이 없다. 테두리를 켜도 얼마나 두껍게 할지 제어 불가."
+        },
+        {
+          "item": "테두리 색상",
+          "reason": "테두리 색상 컨트롤 전혀 없음. 원형 프레임 테두리 색상은 브랜드 색과 맞춰야 하는 핵심 설정."
+        },
+        {
+          "item": "내부 패딩 (이미지 여백)",
+          "reason": "원 안에 로고 이미지가 꽉 차거나 너무 작게 보이는 경우가 많다. object-fit 관련 padding 또는 scale 조절이 없어 이미지 배치 정밀도가 낮다."
+        },
+        {
+          "item": "그림자 (box-shadow)",
+          "reason": "브랜드 아이콘 컴포넌트에서 그림자는 높이감 연출에 자주 사용된다. Divider를 제외한 다른 컴포넌트들도 없지만 Circle은 특히 플로팅 느낌이 필요한 케이스가 많다."
+        }
+      ],
+      "ux_issues": [
+        {
+          "issue": "이미지 없을 때 / 있을 때 UI가 별개 섹션으로 완전히 분기 — 사용자는 같은 '이미지' 섹션인데 기능이 다르게 보여 혼란",
+          "severity": "medium",
+          "fix": "단일 '이미지' 섹션을 유지하면서 내부에서 상태별 버튼만 바꿔 표시. 섹션 제목은 동일하게 유지."
+        },
+        {
+          "issue": "'이미지 위치 조절' 버튼이 패널에만 있음 — 사용자는 캔버스를 보면서 위치를 조정하고 싶은데 패널로 이동해야 함",
+          "severity": "medium",
+          "fix": "이미지 위에 인라인 핸들(드래그 커서) 제공 또는 선택 상태에서 바로 드래그 이동 가능하도록 UX 개선. 패널 버튼은 보조 수단으로 유지."
+        },
+        {
+          "issue": "prop-asset.js와 동일한 이미지 섹션 패턴인데 코드·레이아웃이 거의 동일하게 중복. Circle과 Asset의 차별 포인트(원형 고정 vs 자유 크기)가 패널에서 드러나지 않음",
+          "severity": "low",
+          "fix": "Circle 전용 '원형 프레임' 아이덴티티를 패널에 시각적으로 표현. 예: 원형 미리보기 썸네일 표시."
+        },
+        {
+          "issue": "radius 데이터셋 값이 읽히지만 패널에 radius 컨트롤이 없음. dataset.radius가 저장되나 편집 불가.",
+          "severity": "high",
+          "fix": "Circle은 항상 50% radius(원)이므로 radius 슬라이더 불필요. 그러나 dataset.radius가 읽히는데 패널에 없다면 사용되지 않는 데드 데이터. 코드 정리 필요."
+        }
+      ]
+    },
+    "table": {
+      "purpose": "행/열 기반 데이터 표시 컴포넌트. 비교표, 스펙표, 가격표 등에 사용.",
+      "current_items": ["행/열 수(+/- 버튼)", "테마 select(기본/스트라이프/보더리스)", "정렬(좌/중/우)", "폰트 크기", "셀 패딩"],
+      "inappropriate": [],
+      "missing": [
+        {
+          "item": "헤더 표시 토글",
+          "reason": "thead가 항상 표시되는데, 헤더 없는 표(순수 데이터 나열)가 필요한 케이스에 대응 불가."
+        },
+        {
+          "item": "헤더 배경색",
+          "reason": "테마가 있지만 헤더 색상만 별도로 바꾸는 니즈가 많다. 현재 테마 select로만 대응."
+        },
+        {
+          "item": "열 너비 조절",
+          "reason": "열 수만 변경 가능하고 개별 열 너비 비율을 조절할 수 없어 불균형한 표를 만들기 어렵다."
+        },
+        {
+          "item": "테두리 색상/굵기",
+          "reason": "테마로만 테두리 스타일 제어. 커스텀 테두리 색상 없음."
+        }
+      ],
+      "ux_issues": [
+        {
+          "issue": "행/열 카운트 표시가 '행 N / 열 N' 형태로 분리된 두 개의 prop-row인데, 시각적 컨텍스트 없이 숫자만 보임",
+          "severity": "low",
+          "fix": "미니 테이블 프리뷰 또는 아이콘으로 현재 구조 시각화."
+        },
+        {
+          "issue": "셀 더블클릭 편집 안내문이 맨 아래에 작게 있어 발견하기 어려움",
+          "severity": "medium",
+          "fix": "섹션 상단이나 블록 첫 선택 시 툴팁으로 노출."
+        },
+        {
+          "issue": "prop-block-name이 'Table Block'으로 영문 — 다른 컴포넌트들(Banner, Divider)도 영문이나 Circle은 'Icon Circle'이어서 혼용",
+          "severity": "low",
+          "fix": "모든 prop-block-name을 한글 또는 영문으로 통일."
+        }
+      ]
+    },
+    "card": {
+      "purpose": "이미지 + 제목 + 설명 텍스트로 구성된 카드형 컴포넌트. 상품·서비스 소개, 팀 소개 등에 사용.",
+      "current_items": ["이미지 업로드/제거", "하단영역 배경색", "모서리(radius)", "텍스트 크기(제목/설명)", "텍스트 정렬", "카드 수(추가/제거)"],
+      "inappropriate": [
+        {
+          "item": "'하단 영역' 섹션 레이블",
+          "reason": "배경색과 radius가 '하단 영역'이라는 섹션에 묶여있는데, radius는 카드 전체에 적용되는데 레이블이 '하단 영역'으로 오해를 준다. 실제로 applyRadius는 block 전체와 body 하단 모두에 적용됨.",
+          "recommendation": "섹션명을 '카드 스타일' 또는 '외형'으로 변경. 배경색은 '하단 배경색', radius는 '카드 모서리'로 명확히 분리."
+        }
+      ],
+      "missing": [
+        {
+          "item": "이미지 제거 버튼 조건부 표시 개선",
+          "reason": "이미지 없을 때 '이미지 업로드' 버튼만 있고, 있을 때 '이미지 제거'가 추가된다. 그런데 has-image 상태에서도 '이미지 교체' 버튼이 없어 교체하려면 제거 후 재업로드해야 함. prop-icon-circle.js에는 '교체' 버튼이 있어 일관성 부재."
+        },
+        {
+          "item": "카드 간격(gap) 조절",
+          "reason": "카드 수는 조절되는데 카드 사이 간격을 패널에서 조절할 수 없음."
+        },
+        {
+          "item": "이미지 높이 비율",
+          "reason": "카드 이미지 영역의 높이가 고정인 경우 비율 조절이 불가. 세로 카드 vs 가로 카드 스타일 전환 니즈."
+        }
+      ],
+      "ux_issues": [
+        {
+          "issue": "카드 추가/제거 버튼이 '카드 수' 섹션에 가로로 나란히 배치 — '+ 카드 추가'와 '− 제거'가 인접해 실수로 잘못 클릭할 위험",
+          "severity": "medium",
+          "fix": "Table처럼 +/- 카운터 버튼 UI로 변경하거나, 추가/제거를 세로 배치로 분리."
+        },
+        {
+          "issue": "제거 버튼이 'secondary' 스타일로 위험도가 시각적으로 표현되지 않음. 마지막 카드 제거 시 토스트 경고가 뜨지만 예방적 UX가 없음",
+          "severity": "medium",
+          "fix": "제거 버튼에 'danger' 스타일 적용 (prop-icon-circle처럼)."
+        },
+        {
+          "issue": "'카드 수' 섹션의 제거 버튼이 현재 선택된 카드를 제거하는지, 마지막 카드를 제거하는지 레이블만으로 불분명",
+          "severity": "high",
+          "fix": "레이블을 '마지막 카드 제거' 또는 행동 대상을 명확히 표기."
+        }
+      ]
+    },
+    "banner": {
+      "purpose": "이미지 + 텍스트(제목+본문)를 좌우 레이아웃으로 배치하는 배너 컴포넌트. 섹션 구분, 프로모션 배너 등에 사용.",
+      "current_items": ["이미지 업로드/제거", "높이 슬라이더", "텍스트영역 배경색(투명 포함)", "모서리", "상단/하단 갭", "제목 타입(H1/H2/H3/Body)", "제목 크기", "제목 글자색", "본문 타입(Body/Caption)", "본문 크기", "본문 글자색", "텍스트 정렬", "이미지 위치(좌/우)", "페이지 패딩 토글"],
+      "inappropriate": [
+        {
+          "item": "'상단 갭' / '하단 갭' 레이블",
+          "reason": "갭(gap)이라는 단어가 사용자 멘탈모델에서 불명확. CSS gap과 혼동되며, 실제로는 텍스트 영역 내부의 상단/하단 여백(padding)이다.",
+          "recommendation": "'위 여백' / '아래 여백'으로 변경."
+        }
+      ],
+      "missing": [
+        {
+          "item": "이미지 교체 버튼",
+          "reason": "Card와 동일하게 이미지 교체 버튼이 없음. 제거 후 재업로드해야 함."
+        },
+        {
+          "item": "이미지 너비 비율 조절",
+          "reason": "이미지와 텍스트 영역 비율을 변경할 수 없음. 이미지가 60%, 텍스트가 40%인 경우 vs 50:50 등 레이아웃 비율 니즈 있음."
+        },
+        {
+          "item": "이미지 없을 때 배경색",
+          "reason": "이미지 없을 때 배너 전체 배경색(이미지 영역)을 설정하는 컨트롤이 없음. Asset 블록은 이미지 없을 때 배경색 컨트롤을 제공."
+        }
+      ],
+      "ux_issues": [
+        {
+          "issue": "섹션이 10개 이상으로 패널이 매우 길어 스크롤이 많이 필요. 제목 타입/크기/색상이 하나의 섹션이고, 본문도 동일 구조인데 두 섹션이 연달아 있어 시각적 무게감이 큼",
+          "severity": "high",
+          "fix": "제목·본문을 탭(Tab) 또는 아코디언으로 묶어 패널 길이 축소. 또는 제목/본문 섹션을 하나로 합치고 '제목' 레이블과 '본문' 레이블로 그룹화."
+        },
+        {
+          "issue": "'제목 타입' 버튼 그룹(H1/H2/H3/Body)과 아래 '크기' 슬라이더가 독립적으로 작동. 타입 클릭 시 크기가 프리셋으로 바뀌는데, 그 후 슬라이더로 자유 조정하면 타입 버튼 active 상태가 유지되어 혼란",
+          "severity": "medium",
+          "fix": "슬라이더로 크기 변경 시 타입 버튼 active 해제 (커스텀 상태 표시)."
+        },
+        {
+          "issue": "Banner 패널에서 '이미지 위치'가 별도 섹션으로 분리되어 있으나 이미지 업로드 섹션 바로 아래 있어야 직관적",
+          "severity": "low",
+          "fix": "이미지 섹션 내부로 '이미지 위치' 컨트롤 이동."
+        },
+        {
+          "issue": "data-body-type 버튼 selector가 '[data-body-type]'로 전역 querySelectorAll 사용 — 같은 페이지에 배너가 여러 개면 다른 배너의 버튼도 이벤트를 받아 버그 발생 가능",
+          "severity": "high",
+          "fix": "propPanel 범위로 querySelector 제한. 이는 기능 버그이기도 함."
+        }
+      ]
+    },
+    "graph": {
+      "purpose": "막대 차트(세로/가로)로 데이터를 시각화하는 컴포넌트. 수치 비교, 성과 지표 표시에 사용.",
+      "current_items": ["높이 슬라이더", "라벨 크기", "차트 타입(세로막대/가로막대)", "프리셋(기본/다크/미니멀/컬러풀)", "데이터(라벨+값 인라인 편집, 추가/삭제)"],
+      "inappropriate": [],
+      "missing": [
+        {
+          "item": "차트 배경색",
+          "reason": "프리셋으로 일부 스타일은 제어되지만 배경색을 직접 지정할 수 없어 페이지 색상과 통합이 어렵다."
+        },
+        {
+          "item": "막대 색상 직접 지정",
+          "reason": "프리셋에 의존한 색상 제어만 가능. 브랜드 색상으로 막대를 바꾸려면 프리셋을 수정해야 함."
+        },
+        {
+          "item": "축 레이블 / 단위 텍스트",
+          "reason": "데이터 라벨은 있으나 Y축 단위(%, 개, 원 등) 또는 차트 제목을 설정할 수 없음."
+        },
+        {
+          "item": "값 레이블 표시 여부",
+          "reason": "막대 위에 수치 표시 ON/OFF 여부를 패널에서 제어할 수 없음."
+        }
+      ],
+      "ux_issues": [
+        {
+          "issue": "데이터 항목 인라인 편집(텍스트 input + 숫자 input)이 패널 안에 있어 공간이 좁고, 항목이 많아지면 패널이 매우 길어짐",
+          "severity": "medium",
+          "fix": "데이터 편집 전용 모달이나 사이드 드로어로 분리. 패널에는 '데이터 편집' 버튼만 표시."
+        },
+        {
+          "issue": "삭제 버튼이 '✕' 텍스트 문자 — 다른 컴포넌트의 SVG 아이콘 스타일과 불일치",
+          "severity": "low",
+          "fix": "SVG 아이콘으로 교체하거나 최소한 동일 버튼 클래스 사용."
+        },
+        {
+          "issue": "차트 타입 변경 시 showGraphProperties를 재호출해 전체 패널을 리렌더링 — 슬라이더 포커스가 튀고 UX 흐름이 끊김",
+          "severity": "medium",
+          "fix": "타입 버튼 active 상태만 토글하고 패널 전체 리렌더 방지."
+        }
+      ]
+    },
+    "divider": {
+      "purpose": "섹션 간 시각적 구분선을 제공하는 단순 컴포넌트.",
+      "current_items": ["선 색상", "선 스타일(실선/파선/점선)", "선 두께", "상하 패딩", "좌우 패딩"],
+      "inappropriate": [],
+      "missing": [
+        {
+          "item": "선 길이 % 조절 또는 정렬",
+          "reason": "좌우 패딩으로 간접적으로 선 길이를 조절할 수 있지만 정렬 개념이 없어 중앙에 짧은 선을 만들기 어렵다. '선 너비 %' 또는 정렬(좌/중/우) 컨트롤이 있으면 더 직관적."
+        },
+        {
+          "item": "투명도",
+          "reason": "연한 구분선을 만들려면 색상의 투명도를 조절해야 하는데 색상 picker가 hex only라 rgba 조절 불가."
+        }
+      ],
+      "ux_issues": [
+        {
+          "issue": "'선 스타일'이 select인데 다른 컴포넌트(Circle 테두리)와 동일한 select지만 옵션 값이 다름 — Circle은 'none/solid/dashed', Divider는 'solid/dashed/dotted'",
+          "severity": "low",
+          "fix": "Circle 테두리에 'dotted' 옵션 추가하거나 두 컴포넌트 select 옵션을 통일."
+        },
+        {
+          "issue": "Divider는 가장 단순한 컴포넌트인데 패널 구성이 다른 복잡한 컴포넌트들과 동일한 2섹션 구조. 이는 적합하나, prop-block-name이 'Divider'(영문)로 통일성 이슈",
+          "severity": "low",
+          "fix": "prop-block-name 영문/한글 통일 원칙 수립 필요."
+        }
+      ]
+    }
+  },
+  "cross_cutting_issues": [
+    {
+      "issue": "prop-block-name 영문/한글 혼용",
+      "detail": "Icon Circle, Table Block, Card Block은 영문. Banner(영문), Divider(영문), Graph Block(영문). 반면 한글 표기가 전혀 없어 사용자 노출 시 국문 UI 일관성이 깨짐.",
+      "affected": ["circle", "table", "card", "banner", "graph", "divider"],
+      "recommendation": "모두 영문(레거시 유지) 또는 한글(사용자 친화)로 통일. 현재 UI가 한국어 기반이므로 한글 권장."
+    },
+    {
+      "issue": "이미지 교체 버튼 누락 — Circle에만 있고 Card/Banner에는 없음",
+      "detail": "Circle: '이미지 교체' 있음. Card: 없음(제거 후 재업로드). Banner: 없음(제거 후 재업로드). 사용자 멘탈모델에서 이미지 교체는 매우 빈번한 작업.",
+      "affected": ["card", "banner"],
+      "recommendation": "모든 이미지 포함 컴포넌트에 일관되게 '이미지 교체' 버튼 추가."
+    },
+    {
+      "issue": "테두리 컨트롤 불완전 — Circle만 테두리 섹션 있으나 두께/색상 없음",
+      "detail": "Circle에 테두리 스타일 select는 있지만 두께·색상 없음. 다른 컴포넌트(Card, Banner)는 테두리 컨트롤 자체가 없음.",
+      "affected": ["circle"],
+      "recommendation": "테두리 섹션을 '스타일 select + 두께 slider + 색상 picker' 3종 세트로 완성."
+    },
+    {
+      "issue": "전역 querySelectorAll 사용으로 다중 인스턴스 버그 위험",
+      "detail": "prop-strip-banner.js에서 document.querySelectorAll('[data-body-type]'), document.querySelectorAll('[data-title-type]') 등이 propPanel 범위 밖을 포함. 배너가 여러 개일 때 이벤트 충돌 가능.",
+      "affected": ["banner"],
+      "recommendation": "propPanel.querySelectorAll() 또는 이벤트 위임 방식으로 범위 제한."
+    },
+    {
+      "issue": "이미지 없을 때 배경색 컨트롤 일관성 부재",
+      "detail": "Asset 블록: 이미지 없을 때 배경색 picker + clear 버튼 제공. Circle: 배경색 항상 표시(이미지 있어도). Card: 배경색 없음(이미지 없을 때도). Banner: 텍스트영역 배경색만 있고 이미지영역 배경색 없음.",
+      "affected": ["circle", "card", "banner"],
+      "recommendation": "Asset 블록 패턴을 기준으로 이미지 없을 때만 배경색 컨트롤 표시, 있을 때는 숨김."
+    },
+    {
+      "issue": "패널 길이 불균형 — Banner가 압도적으로 길고 Divider가 짧음",
+      "detail": "Banner 패널은 10개 이상 섹션. Divider는 2섹션. Circle은 4섹션. 사용 빈도 대비 패널 복잡도가 맞지 않는 경우가 있음.",
+      "affected": ["banner", "graph"],
+      "recommendation": "Banner: 아코디언/탭 도입. Graph: 데이터 편집 모달 분리."
+    }
+  ],
+  "priority_actions": [
+    {
+      "rank": 1,
+      "component": "banner",
+      "action": "전역 querySelectorAll('[data-body-type]') 버그 수정 — propPanel 범위로 제한",
+      "impact": "high",
+      "type": "bug"
+    },
+    {
+      "rank": 2,
+      "component": "card",
+      "action": "'카드 수 제거' 버튼 레이블을 '마지막 카드 제거'로 명확화 + danger 스타일 적용",
+      "impact": "high",
+      "type": "ux"
+    },
+    {
+      "rank": 3,
+      "component": "circle",
+      "action": "배경색 섹션을 이미지 없을 때만 표시 (has-image 분기 추가)",
+      "impact": "high",
+      "type": "ux"
+    },
+    {
+      "rank": 4,
+      "component": "circle",
+      "action": "테두리 섹션에 두께 슬라이더 + 색상 picker 추가",
+      "impact": "medium",
+      "type": "feature"
+    },
+    {
+      "rank": 5,
+      "component": "card,banner",
+      "action": "이미지 교체 버튼 추가 (Circle과 동일하게)",
+      "impact": "medium",
+      "type": "feature"
+    },
+    {
+      "rank": 6,
+      "component": "banner",
+      "action": "패널 길이 축소 — 제목/본문 섹션 아코디언 처리 또는 탭 UI 도입",
+      "impact": "medium",
+      "type": "ux"
+    },
+    {
+      "rank": 7,
+      "component": "banner",
+      "action": "'이미지 위치' 컨트롤을 이미지 섹션 내부로 이동",
+      "impact": "medium",
+      "type": "ux"
+    },
+    {
+      "rank": 8,
+      "component": "graph",
+      "action": "데이터 편집 패널을 모달로 분리하여 패널 공간 확보",
+      "impact": "medium",
+      "type": "ux"
+    },
+    {
+      "rank": 9,
+      "component": "all",
+      "action": "prop-block-name 표기 통일 (한글 또는 영문 원칙 수립)",
+      "impact": "low",
+      "type": "consistency"
+    },
+    {
+      "rank": 10,
+      "component": "circle",
+      "action": "dataset.radius가 읽히지만 패널에 컨트롤 없음 — 데드 데이터 정리 또는 원형 고정이므로 코드에서 radius 제거",
+      "impact": "low",
+      "type": "cleanup"
+    }
+  ]
+}

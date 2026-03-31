@@ -1,0 +1,33 @@
+{
+  "agent": "S7-Evaluator-KBD",
+  "session": 7,
+  "timestamp": "2026-03-31",
+  "method": "static-analysis",
+  "fixes_verified": [
+    {
+      "id": "FIX-01",
+      "name": "Backspace 삭제",
+      "status": "PASS",
+      "detail": "editor.js line 412: `const isDelete = e.key === 'Delete' || e.key === 'Backspace';` — metaKey 조건 없이 단독 Backspace 처리 확인됨"
+    },
+    {
+      "id": "FIX-02",
+      "name": "g/t/a e.code",
+      "status": "PASS",
+      "detail": "editor.js lines 377-379: e.code === 'KeyG'/'KeyT'/'KeyA' 3개 모두 존재. e.key === 'g'/'t'/'a' 잔존 코드 0개 확인됨"
+    },
+    {
+      "id": "FIX-03",
+      "name": "dead code 제거",
+      "status": "PASS",
+      "detail": "KeyG 출현 횟수 = 1 (중복 없음). 이전 lines 412-419 중복 핸들러 완전 제거됨"
+    },
+    {
+      "id": "FIX-REGRESSION-01",
+      "name": "bindColDropZone 구현 확인",
+      "status": "PASS",
+      "detail": "drag-drop.js: 3줄 (함수 정의 + window 노출 포함). block-factory.js line 50, 864에서 호출 확인. save-load.js line 668에서 호출 확인"
+    }
+  ],
+  "overall": "PASS"
+}

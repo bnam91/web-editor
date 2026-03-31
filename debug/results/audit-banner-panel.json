@@ -1,0 +1,148 @@
+{
+  "agent": "Audit-Banner-Panel",
+  "date": "2026-03-31",
+  "method": "cdp+static",
+  "cdp_port": 9335,
+  "note": "CDP 포트는 9335 (GoFinder가 9335, 의뢰서의 9334는 claude-commander). 웹에디터 타이틀: Goya Web Design Editor",
+  "banner_issues": [
+    {
+      "id": "BANNER-01",
+      "severity": "high",
+      "category": "버그",
+      "description": "배너 높이 슬라이더: dataset.height에 저장하지만 export는 style.height를 읽음",
+      "detail": "prop-strip-banner.js의 applyHeight()는 block.dataset.height와 block.style.minHeight만 업데이트함. 그러나 export.js와 export-design-json.js는 parseFloat(el.style.height) || 300으로 읽기 때문에 style.height가 항상 비어 있어 export 시 높이가 항상 300(기본값)으로 고정됨. CDP 실측: dataset.height='352', style.height='', exportWillGet=300 확인.",
+      "file": "js/prop-strip-banner.js:186-187, js/export.js:189, js/export-design-json.js:132",
+      "fix_suggestion": "applyHeight()에서 block.style.minHeight = v + 'px' 와 함께 block.style.height = v + 'px'도 설정하거나, export 시 parseInt(el.dataset.height) || parseFloat(el.style.height) || 300으로 fallback 추가"
+    },
+    {
+      "id": "BANNER-02",
+      "severity": "high",
+      "category": "기능누락",
+      "description": "export 시 배너 텍스트/스타일 데이터 전혀 직렬화되지 않음",
+      "detail": "export.js와 export-design-json.js의 strip-banner 직렬화 블록은 bgColor/radius/imgPos/src/height만 포함. titleSize, bodySize, titleColor, bodyColor, textAlign, titleType, bodyType, usePadx, headingText, bodyText, gapTopH, gapBotH 등 8+ 개 필드가 누락됨. CDP 실측으로 확인: exportedFields에 5개만 포함, missingInExport에 13개 항목.",
+      "file": "js/export.js:181-191, js/export-design-json.js:124-134",
+      "fix_suggestion": "serializeBlock()의 strip-banner 분기에 titleSize, bodySize, titleColor, bodyColor, textAlign, titleType, bodyType, usePadx, headingText, bodyText, gapTopH, gapBotH 직렬화 추가. 그러나 이 export는 피그마/HTML 렌더용이므로 save/load(innerHTML 방식)와 독립적으로 영향 범위 확인 필요"
+    },
+    {
+      "id": "BANNER-03",
+      "severity": "high",
+      "category": "기능누락",
+      "description": "Figma JSON export(export-figma-json.js)에서 strip-banner 블록 처리 완전 미구현",
+      "detail": "export-figma-json.js(448행) 전체에서 'strip', 'banner', 'sbb' 키워드가 0건. 배너 블록이 Figma export에서 완전히 무시됨. Figma 퍼블리시 시 배너가 누락됨.",
+      "file": "js/export-figma-json.js",
+      "fix_suggestion": "export-figma-json.js의 _block() 함수에 strip-banner-block 분기 추가. 이미지+텍스트 레이아웃에 해당하는 Figma 프레임 구조로 변환 필요"
+    },
+    {
+      "id": "BANNER-04",
+      "severity": "medium",
+      "category": "버그",
+      "description": "applyRadius()가 block.style.borderRadius를 설정하지만 CSS는 border-radius 설정 없음 — 실제로는 인라인 스타일로만 동작",
+      "detail": "prop-strip-banner.js:238 applyRadius(val)은 block.style.borderRadius = val + 'px'를 설정. save/load 시 inline style로 보존되므로 실제 동작은 정상. 그러나 export-html.js/export.js의 CSS 인라인에는 .strip-banner-block border-radius 규칙 없으므로 HTML export 시 borderRadius가 적용 안됨. export할 때 radius 값이 있어도 렌더되지 않음.",
+      "file": "js/export-html.js:70, js/export.js:530, js/prop-strip-banner.js:238",
+      "fix_suggestion": "export 렌더 시 style 속성에 border-radius를 직접 인라인으로 출력하거나, 배너 직렬화 data에 radius를 포함하고 렌더 단계에서 적용"
+    },
+    {
+      "id": "BANNER-05",
+      "severity": "medium",
+      "category": "버그",
+      "description": "배너 생성 시 dataset.height 미설정 — 초기 상태에서 높이 슬라이더 값이 200 기본값으로 표시되나 dataset.height는 undefined",
+      "detail": "makeStripBannerBlock()에서 sbb.dataset.height를 설정하지 않음. 프로퍼티 패널 showStripBannerProperties()에서 parseInt(block.dataset.height) || 200으로 읽어 200 표시. 그러나 applyHeight()는 한 번도 호출되지 않으므로 style.minHeight도 '' 상태. CDP 실측: dataHeight=undefined, styleHeight='', styleMinHeight=''",
+      "file": "js/block-factory.js:802-824",
+      "fix_suggestion": "makeStripBannerBlock()에서 sbb.dataset.height = 200; sbb.style.minHeight = '200px'; 추가"
+    },
+    {
+      "id": "BANNER-06",
+      "severity": "medium",
+      "category": "버그",
+      "description": "sbb-content 행 드래그 시 gap(sbb-gap-top/bottom)도 draggable로 바인딩됨 — 가드 갭이 잘못된 위치로 이동 가능",
+      "detail": "_bindSbbRowDrag()는 sbbContent.children 전체를 draggable로 만듦. .sbb-gap-top과 .sbb-gap-bottom도 포함되어 실수로 드래그하면 구조가 무너짐. CDP 실측: sbb-gap-top도 draggable='true', cursor='grab', _sbbRowDragBound=true 확인.",
+      "file": "js/prop-strip-banner.js:431-434",
+      "fix_suggestion": "_bindSbbRowDrag에서 row.classList.contains('sbb-gap-top') || row.classList.contains('sbb-gap-bottom')인 경우 draggable 바인딩 제외"
+    },
+    {
+      "id": "BANNER-07",
+      "severity": "low",
+      "category": "버그",
+      "description": "bgColor '없음' 체크박스: applyBg('transparent') 시 block.style.background = '' 로 리셋하지 않음",
+      "detail": "applyBg()에서 val === 'transparent'이면 block.style.background = ''로 처리. 그러나 sbb.style.background = '#f5f5f5'로 생성되었으므로 content에는 transparent 적용되지만 block 배경은 '#f5f5f5' 그대로 남을 수 있음. save-load 시 inline style이 보존되므로 복원 후에도 content만 transparent이고 block은 회색 배경 잔존",
+      "file": "js/prop-strip-banner.js:200-206",
+      "fix_suggestion": "applyBg 내에서 val === 'transparent'일 때 block.style.background = 'transparent' 또는 '' 로 명시적 처리"
+    },
+    {
+      "id": "BANNER-08",
+      "severity": "low",
+      "category": "UI이상",
+      "description": "높이 슬라이더 min값 80px으로 설정했으나 실제 strip-banner-block의 CSS min-height는 200px — 80px 설정 시 CSS에 의해 200px 유지됨",
+      "detail": "prop-strip-banner.js 슬라이더 min=80. editor-banner.css: min-height:200px. 슬라이더를 80으로 조절해도 block.style.minHeight='80px'가 설정되지만 CSS min-height:200px가 우선(specificity). 실제 화면에서는 80px로 줄어들지 않고 200px 유지. 사용자 혼란 초래.",
+      "file": "js/prop-strip-banner.js:51, css/editor-banner.css:102",
+      "fix_suggestion": "슬라이더 min을 200으로 변경하거나 CSS min-height를 제거하고 슬라이더가 완전히 제어하도록 변경"
+    },
+    {
+      "id": "BANNER-09",
+      "severity": "low",
+      "category": "UI이상",
+      "description": "이미지 위치 버튼(left/right)은 data-img-pos 변경만 하고 실제 sbb-image DOM order 조정은 CSS에 위임 — CSS 없는 환경(export HTML)에서 동작 불일치",
+      "detail": "applyImgPos()는 block.dataset.imgPos 변경과 버튼 active 토글만 수행. 실제 좌우 배치는 CSS [data-img-pos='right'] 선택자에 의존. CDP 실측: CSS 정상 동작 확인. 단, export-html.js에는 이미지 위치 CSS 규칙(data-img-pos)이 미포함이므로 HTML export 시 이미지가 항상 왼쪽에 고정됨.",
+      "file": "js/export-html.js:70-75",
+      "fix_suggestion": "export-html.js CSS에 .strip-banner-block[data-img-pos='right'] .sbb-image { order:2 } .strip-banner-block[data-img-pos='right'] .sbb-content { order:1 } 추가"
+    }
+  ],
+  "layer_panel_issues": [
+    {
+      "id": "LAYER-01",
+      "severity": "info",
+      "category": "레이어패널",
+      "description": "배너 레이어 패널 표시 정상 동작 확인",
+      "detail": "CDP 실측: 레이어 패널에 'Banner' 항목 정상 표시. 하위에 Image/Content/Gap/Heading/Body 등 구조적 자식 항목도 렌더됨. Banner 아이콘(SVG) 올바르게 표시.",
+      "fix_suggestion": "정상 — 조치 불필요"
+    },
+    {
+      "id": "LAYER-02",
+      "severity": "info",
+      "category": "레이어패널",
+      "description": "레이어 패널에서 배너 클릭 시 캔버스 선택 및 프로퍼티 패널 열림 — 정상",
+      "detail": "CDP 실측: bannerLayerHeader.click() 후 banner.classList.contains('selected')=true, sbb-h-slider 존재 확인. 정상 동작.",
+      "fix_suggestion": "정상 — 조치 불필요"
+    },
+    {
+      "id": "LAYER-03",
+      "severity": "info",
+      "category": "레이어패널",
+      "description": "레이어 패널 드래그 가능 — 31개 draggable 헤더 확인",
+      "detail": "CDP 실측: 레이어 패널 내 draggable=true 요소 31개 확인. 배너 헤더도 draggable 바인딩 정상.",
+      "fix_suggestion": "정상 — 조치 불필요"
+    },
+    {
+      "id": "LAYER-04",
+      "severity": "low",
+      "category": "레이어패널",
+      "description": "레이어 패널 ID가 'layer-tree'가 아닌 'layer-panel-body' — 일부 코드에서 layer-tree 셀렉터 사용 시 null 반환 가능",
+      "detail": "layer-panel.js에서 layerTree = document.getElementById('layer-tree')를 사용하지만 실제 DOM에서 layer-tree ID 없음. 실제 컨테이너는 layer-panel-body. 정적 분석: layer-panel.js 내부에서는 buildLayerPanel()이 올바른 컨테이너를 사용하므로 내부 로직은 정상. 단, 외부에서 document.getElementById('layer-tree')를 직접 호출하는 코드가 있다면 null 반환.",
+      "file": "js/layer-panel.js",
+      "fix_suggestion": "layer-tree ID가 실제로 존재하는지 확인하고, 없다면 관련 선택자를 layer-panel-body로 통일"
+    }
+  ],
+  "unimplemented_features": [
+    "배너 텍스트 행 추가/삭제 UI (prop-strip-banner.js에 _bindSbbRowDrag로 기존 행 드래그 리오더는 구현되어 있으나, 새 행 추가 버튼/삭제 버튼 UI 없음)",
+    "Figma JSON export에서 strip-banner 블록 지원 (export-figma-json.js에 완전 미구현)",
+    "배너 이미지 crop/위치 조절 (asset-block에는 있는 imgPosition 드래그 기능이 sbb-image에는 없음)"
+  ],
+  "cdp_verification": {
+    "banner_creation": "정상 — window.addStripBannerBlock() 호출 성공, sbb_esniyeg 생성 확인",
+    "banner_selection": "정상 — 클릭 시 selected 클래스 추가 및 프로퍼티 패널 열림",
+    "prop_panel_elements": "정상 — sbb-h-slider, sbb-bg-color, sbb-title-slider, sbb-imgpos-group, sbb-padx-toggle 등 22개 요소 정상 렌더",
+    "imgpos_css": "정상 — dataset.imgPos='right' 설정 시 CSS [data-img-pos='right'] 선택자 동작하여 sbb-image order:2, sbb-content order:1 적용 확인",
+    "padx_toggle": "정상 — toggle OFF 시 dataset.usePadx='false' 및 content paddingLeft=24px, ON 시 32px 정상 전환",
+    "layer_panel": "정상 — Banner 항목 표시, 클릭 시 캔버스 선택 및 프로퍼티 패널 연동",
+    "row_drag": "부분 정상 — sbb-content 내 행 드래그 바인딩 동작하나 sbb-gap-top/bottom도 포함(BANNER-06)",
+    "height_export_bug": "버그 확인 — dataset.height='352' 상태에서 export는 style.height=''를 읽어 300 반환 (BANNER-01)"
+  },
+  "summary": {
+    "total_issues": 13,
+    "high": 3,
+    "medium": 3,
+    "low": 3,
+    "info": 4,
+    "unimplemented_features": 3
+  }
+}

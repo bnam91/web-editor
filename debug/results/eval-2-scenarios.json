@@ -1,0 +1,99 @@
+{
+  "evaluator": "Evaluator-2",
+  "session": 1,
+  "method": "cdp",
+  "timestamp": "2026-03-31T00:00:00.000Z",
+  "cdp_target": "ws://localhost:9335",
+  "app_title": "Goya Web Design Editor",
+  "scenarios": [
+    {
+      "id": "SCN-01",
+      "name": "처음부터 끝까지 블록 추가 플로우",
+      "status": "PASS",
+      "cdp_evidence": {
+        "addSection": "DOM sections: 2→3 (PASS)",
+        "addTextBlock_h1": "DOM text-blocks: 7→9 (PASS)",
+        "addIconTextBlock": "DOM icon-text-blocks: 0→1 (PASS)",
+        "layerPanel": "layer-item count: 19 visible (PASS)",
+        "addGapBlock": "DOM gap-blocks: 5→8 (PASS)",
+        "addAssetBlock": "DOM asset-blocks: 2→4 (PASS)",
+        "note": "addSection() requires window.selectSection() to be called first — no auto-selection on fresh page"
+      },
+      "issues": "addSection() without prior selectSection() creates section but canvas HTML sync has a brief delay. Functions require section selection context; without it, addIconTextBlock/addGapBlock/addAssetBlock show NoSelectionHint."
+    },
+    {
+      "id": "SCN-02",
+      "name": "Icon Text 블록 렌더링",
+      "status": "FAIL",
+      "cdp_evidence": {
+        "itb_icon_exists": true,
+        "itb_text_exists": true,
+        "computed_display": "block (expected: flex)",
+        "computed_flexDirection": "row",
+        "icon_computed_width": "860px (expected: 40px)",
+        "icon_computed_height": "22px (expected: 40px)",
+        "text_computed_fontSize": "16px (expected: 32px)",
+        "css_check": "editor-blocks.css NOT loaded in index.html — only editor.css is linked",
+        "icon_w_is_40px": false,
+        "text_fs_is_32px": false
+      },
+      "issues": "CRITICAL: editor-blocks.css는 index.html에 link 태그가 없어 로드되지 않음. .icon-text-block CSS rules(display:flex, .itb-icon 40x40px, .itb-text font-size:32px)가 전혀 적용되지 않음. computed display는 block, itb-icon은 860px로 렌더링됨. editor-blocks.css 내용이 editor.css로 통합되지 않았거나 link 태그 누락."
+    },
+    {
+      "id": "SCN-03",
+      "name": "단축키 작동",
+      "status": "PASS",
+      "cdp_evidence": {
+        "g_key_gap": "KeyG dispatch → gap-blocks: 5→6 (PASS)",
+        "t_key_text": "KeyT dispatch → text-blocks: 3→4 (PASS)",
+        "a_key_asset": "KeyA dispatch → asset-blocks: 3→4 (PASS)"
+      },
+      "issues": "단축키 모두 정상 작동. 단, 섹션이 선택된 상태여야 동작함."
+    },
+    {
+      "id": "SCN-04",
+      "name": "Undo/Redo",
+      "status": "PASS",
+      "cdp_evidence": {
+        "undo_function_exists": true,
+        "redo_function_exists": true,
+        "undo_test": "gap-blocks: 9→8 after undo (PASS)",
+        "redo_btn_enabled_after_undo": true,
+        "redo_test": "gap-blocks: 8→9 after redo (PASS — confirmed in second test session)",
+        "initial_false_negative": "첫 테스트에서 redo FAIL로 보였으나 canvas가 비어있는 상태(0→0)였기 때문. 정상 컨텐츠 로드 후 undo/redo 모두 정상 확인."
+      },
+      "issues": "Minor: historyStack이 window에 직접 노출되지 않아 외부 검증 어려움. 기능 자체는 정상."
+    },
+    {
+      "id": "SCN-05",
+      "name": "저장 → 재로드",
+      "status": "FAIL",
+      "cdp_evidence": {
+        "saveProject_exists": true,
+        "file_saved": "proj_1774686420865.json canvasLen: 5235 (PASS — 파일 저장 정상)",
+        "reload_via_location_reload": "section-block: 18→0 (FAIL — canvas empty after reload)",
+        "reload_via_switchTab_same_id": "FAIL — switchTab(id) returns immediately if id === activeProjectId (line 193: if (id === activeProjectId) return;)",
+        "reload_via_applyProjectData_direct": "PASS — applyProjectData(projData) 직접 호출 시 복원 정상",
+        "root_cause": "location.reload() 후 앱 초기화 시 canvas 로드 미실행. switchTab으로 같은 탭 reload 불가(설계상 early return). 재로드 시 electronAPI.loadProject는 동작하나 applyProjectData가 호출되지 않음."
+      },
+      "issues": "CRITICAL: 브라우저 reload(location.reload() 또는 앱 재시작) 후 마지막 활성 프로젝트가 자동으로 복원되지 않음. electronAPI.loadProject는 정상 동작하지만 앱 초기화 로직에서 URL 파라미터(?project=id)를 읽어 자동 복원하는 부분이 동작하지 않음. 유저가 직접 프로젝트를 다시 열어야 함."
+    }
+  ],
+  "blocking_bugs": [
+    "[SCN-02] editor-blocks.css 미로드: .icon-text-block display:flex 미적용, .itb-icon 40x40px 미적용, .itb-text 32px 미적용 — 아이콘 텍스트 블록 레이아웃 완전 파괴",
+    "[SCN-05] 앱 재시작/reload 후 마지막 프로젝트 자동 복원 실패 — 유저 작업 내용을 직접 다시 열어야만 볼 수 있음"
+  ],
+  "minor_issues": [
+    "[SCN-01] addSection/addTextBlock/addIconTextBlock 등 모든 add 함수는 선택된 섹션이 있어야 동작함. 신규 프로젝트에서 섹션 미선택 시 NoSelectionHint만 표시됨 — UX 안내 필요",
+    "[SCN-04] historyStack이 window에 노출 안 되어 외부 테스트 자동화 어려움 (기능 자체는 정상)",
+    "[SCN-01] addSection 후 canvas HTML(state.pages[0].canvas)이 즉시 동기화되지 않는 타이밍 이슈 — DOM은 반영됨"
+  ],
+  "summary": {
+    "total": 5,
+    "pass": 3,
+    "fail": 2,
+    "likely_pass": 0,
+    "likely_fail": 0,
+    "blocking_count": 2
+  }
+}

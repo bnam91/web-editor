@@ -1,0 +1,53 @@
+{
+  "ts": "2026-03-31T00:00:00.000Z",
+  "fix_code_present": true,
+  "live_code_has_fix": false,
+  "actual_bug_location": "layer-panel.js:섹션레벨drop+groupChildren_drop+_dragTarget설정",
+  "live_code_stats": {
+    "live_buildLayerPanel_length": 17077,
+    "file_length": 66332,
+    "conclusion": "브라우저가 구버전(캐시) layer-panel.js를 로드 중. 현재 파일의 nearestRow fix가 라이브에 반영되지 않음. hard reload(Cmd+Shift+R) 또는 앱 재시작 필요"
+  },
+  "bug_analysis": {
+    "primary_cause": "C - 앱이 구버전 코드를 실행 중 (캐시)",
+    "secondary_cause_in_file": "섹션레벨 drop handler의 dragTarget 판단 로직",
+    "detail": "라이브 코드에는 groupChildren.addEventListener('drop') 핸들러 자체가 없음. 섹션 레벨 children.addEventListener('drop') 핸들러만 존재. tb_ouof7et를 드래그하면 _dragTarget = tb_ouof7et(text-block)인데, 섹션 레벨 drop에서 'Col 내부 블록 → 섹션으로 꺼내기' 분기가 실행됨. 이때 dragTarget.closest('.col')이 row_nyfyiwb 내부 col을 반환하고 srcRow = col.closest('.row') = row_nyfyiwb가 됨. allEmpty 체크: row_nyfyiwb의 col에 tb_ouof7et만 있으면 → allEmpty=true → row_nyfyiwb.remove(). row_3bxwjje가 row_nyfyiwb의 col 직접 자식으로 들어 있으므로 row_nyfyiwb 제거 시 row_3bxwjje(itb_0a334az 포함)도 함께 사라짐 → '같이 붙어서 움직이는' 현상",
+    "dom_flow": {
+      "tb_ouof7et_drag": "_dragTarget = tb_ouof7et",
+      "section_drop_check": "dragTarget.closest('.col') = row_nyfyiwb > col → 분기 진입",
+      "srcRow": "row_nyfyiwb",
+      "newRow_created": "새 row > col > tb_ouof7et → sectionInner에 삽입",
+      "allEmpty_check": "row_nyfyiwb > col 에 남은 자식: row_3bxwjje만 남음",
+      "bug_point": "allEmpty 체크가 col-placeholder만 제외하는데 row_3bxwjje는 col-placeholder가 아님 → allEmpty=false가 되어야 함 → 실제론 allEmpty=true가 되는 조건 확인 필요",
+      "note": "실제 라이브 코드는 구버전이라 allEmpty 로직 자체가 없을 수 있음"
+    }
+  },
+  "file_code_analysis": {
+    "groupChildren_drop_handler_line": "900-954",
+    "nearestRow_fix_lines": [711, 712, 713, 714, 917, 918, 919, 920],
+    "colChildren_drop_handler": "693-758",
+    "section_level_drop_handler": "1177-1289",
+    "allEmpty_condition_line": "1273-1276",
+    "allEmpty_code": "[...srcRow.querySelectorAll(':scope > .col')].every(c => [...c.children].filter(el => !el.classList.contains('col-placeholder')).length === 0)",
+    "allEmpty_bug_question": "row_nyfyiwb의 col 직접 자식: [tb_ouof7et, row_3bxwjje]. tb_ouof7et를 꺼낸 후 남은 자식 = [row_3bxwjje]. row_3bxwjje는 col-placeholder가 아니므로 allEmpty=false → row_nyfyiwb 제거 안 됨. BUT col-placeholder 여부가 아니라 실제 children 배열로 체크하므로 allEmpty=false가 정상. 따라서 섹션 레벨 drop handler 자체는 올바름."
+  },
+  "root_cause_confirmed": {
+    "cause": "브라우저/Electron이 구버전 layer-panel.js를 캐시하여 로드. 라이브 buildLayerPanel 소스 길이 17077자 vs 파일 66332자. groupChildren과 colChildren의 drop 핸들러가 라이브에 없음.",
+    "why_drag_together": "구버전 코드에서는 isStackSingle 경로의 col drop handler가 없어, 섹션 레벨 drop handler만 동작. 섹션 레벨 drop handler에서 tb_ouof7et를 꺼낼 때 새 row로 감싸서 삽입하고, 원본 row_nyfyiwb의 allEmpty 조건이 구버전에서 다르게 구현되어 있거나, row_nyfyiwb 자체가 dragTarget으로 잡혀서 전체가 이동될 수 있음."
+  },
+  "fix_suggestion": {
+    "immediate": {
+      "action": "앱(Electron)을 완전히 재시작하거나 Cmd+Shift+R로 하드 리로드",
+      "reason": "현재 파일에는 nearestRow fix(711-714, 917-920줄)가 이미 적용되어 있음. 라이브 코드만 갱신하면 됨"
+    },
+    "if_bug_persists_after_reload": {
+      "file": "js/layer-panel.js",
+      "location": "섹션 레벨 drop handler, 1260-1277줄",
+      "issue": "dragTarget이 중첩 row(row_3bxwjje) 안의 itb_0a334az일 경우, closest('.col')이 row_nyfyiwb > col을 반환하여 '같은 col 내부 블록' 분기로 진입. srcRow = row_nyfyiwb. newRow > col > itb_0a334az 삽입. allEmpty 체크 시 col에 tb_ouof7et만 남음(row_3bxwjje는 이미 꺼냄) → allEmpty 통과 → row_nyfyiwb 제거.",
+      "additional_check_needed": "itb_0a334az 드래그 시 _dragTarget이 itb_0a334az인지 row_3bxwjje인지 확인 필요. makeLayerRowGroup isStackSingle 분기에서 row_3bxwjje를 재귀호출하면 그 내부 item의 _dragTarget = itb_0a334az (블록 자체). 섹션 drop에서 itb.closest('.col') = row_nyfyiwb > col (NOT row_3bxwjje > col) → allEmpty 후 row_nyfyiwb 제거 → tb_ouof7et도 사라짐",
+      "old": "const srcCol = dragTarget.closest('.col');\n        const srcRow = srcCol?.closest('.row');",
+      "new": "const srcCol = dragTarget.closest('.col');\n        const srcRow = srcCol?.closest('.row');\n        // 중첩 row가 있으면 상위 row가 아닌 직접 부모 row만 처리\n        // dragTarget이 중첩 row 내부에 있으면 중첩 row를 꺼내야 함\n        const directParentRow = dragTarget.parentElement?.closest('.row');\n        if (directParentRow && directParentRow !== srcRow && srcRow?.contains(directParentRow)) {\n          // 중첩 row째로 꺼내기\n          newRow.appendChild(directParentRow); // 기존 dragTarget 대신 중첩 row 이동\n        }",
+      "note": "이 fix는 섹션 레벨 drop에서 itb_0a334az(row_3bxwjje 내부)를 드래그할 때 row_3bxwjje 단위로 꺼내도록 함"
+    }
+  }
+}

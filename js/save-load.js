@@ -665,6 +665,7 @@ function rebindAll() {
     bindSectionOrder(sec);
     bindSectionDrag(sec);
     bindSectionDropZone(sec);
+    sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
     if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
     // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');

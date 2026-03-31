@@ -1,0 +1,182 @@
+{
+  "agent": "QA-ComponentTab",
+  "date": "2026-03-31",
+  "method": "cdp",
+  "cdp_port": 9335,
+  "notes": "propPanel은 에디터 모듈 스코프 변수 → CDP에서 직접 접근 불가. 블록 클릭 이벤트(PointerEvent+MouseEvent 체인) 방식으로 패널 열기 후 panel-right 내 컨트롤 확인. Circle은 정상 동작 확인 완료. Card/LabelGroup은 패널 전환 이슈 확인.",
+  "results": {
+    "circle": {
+      "create": "PASS",
+      "panel_open": "PASS",
+      "controls_present": {
+        "size_slider": true,
+        "color": true,
+        "border": true,
+        "image": true,
+        "controls_found": ["icb-size-slider", "icb-size-number", "icb-bg-color", "icb-bg-hex", "icb-border-select", "icb-upload-btn"]
+      },
+      "controls_functional": {
+        "size_slider": "PASS",
+        "border_select": "PASS",
+        "note": "size slider: 240px→152px 정상 반영 (icb-circle width 변경 확인). border_select: solid 선택 시 icb-circle borderStyle=solid 정상 반영."
+      },
+      "layer_panel": "PASS",
+      "undo": "PASS",
+      "planner_checks": {
+        "border_solid_css": "PASS — solid 선택 시 icb-circle에 borderStyle:solid 적용됨",
+        "bg_color_hide_on_image": "N/A — showIconCircleProperties 소스에 display:none/hide 분기 없음. 이미지 업로드 후 배경색 섹션 숨김 로직 미구현 상태. 현재는 이미지 있어도 배경색 섹션 노출됨.",
+        "image_remove_btn": "NOT FOUND — #icb-remove 버튼 없음. 이미지 제거 방법 미구현."
+      },
+      "bugs": [
+        {
+          "id": "QA-C-01",
+          "desc": "이미지 업로드 후 배경색 섹션 숨김 로직 미구현. showIconCircleProperties 소스(5251자)에 display:none/hide 분기 없음. 이미지 있을 때도 배경색 섹션이 계속 노출됨.",
+          "severity": "medium"
+        },
+        {
+          "id": "QA-C-02",
+          "desc": "이미지 제거 버튼 없음. #icb-remove, #icb-del, #icb-clear 등 삭제 버튼 미구현. 한번 업로드하면 이미지 제거 불가.",
+          "severity": "medium"
+        }
+      ]
+    },
+    "table": {
+      "create": "PASS",
+      "panel_open": "PASS",
+      "controls_present": {
+        "controls_found": ["tbl-row-minus", "tbl-row-count", "tbl-row-plus", "tbl-col-minus", "tbl-col-count", "tbl-col-plus", "tbl-style-select", "tbl-align-group", "tbl-size-slider", "tbl-size-number", "tbl-pad-slider", "tbl-pad-number"]
+      },
+      "controls_functional": {},
+      "layer_panel": "PASS",
+      "undo": "PASS",
+      "bugs": []
+    },
+    "card": {
+      "create": "PASS",
+      "panel_open": "FAIL",
+      "controls_present": {
+        "controls_found": [],
+        "note": "showCardProperties 소스 존재 확인됨 (propPanel.innerHTML 방식). 하지만 Card 블록 클릭 시 Section 패널(row-child-h-slider 등)이 열리고 Card 패널로 전환 안 됨."
+      },
+      "controls_functional": {},
+      "layer_panel": "PASS",
+      "undo": "PASS",
+      "planner_checks": {
+        "text_color_picker": "NOT FOUND — showCardProperties 소스에 text/title/desc color picker 없음. 텍스트 색상 변경 방법 미구현.",
+        "remove_btn_style": "UNVERIFIABLE — 패널이 열리지 않아 card-remove-btn 스타일 확인 불가"
+      },
+      "bugs": [
+        {
+          "id": "QA-CA-01",
+          "desc": "Card 블록 클릭 시 Card 패널 미열림. 클릭 이벤트가 Section(row) 패널로 가로채임. showCardProperties 함수는 정의되어 있으나 블록 클릭 시 호출 안 됨. card- prefix 컨트롤 0개.",
+          "severity": "high"
+        },
+        {
+          "id": "QA-CA-02",
+          "desc": "Card 패널에 텍스트 색상 picker 없음. showCardProperties 소스 분석 결과 card-bg-color(배경색)만 있고 title/desc/text 색상 컨트롤 미구현. 텍스트 색 변경 방법 없음.",
+          "severity": "high"
+        }
+      ]
+    },
+    "banner": {
+      "create": "PASS",
+      "panel_open": "PASS",
+      "controls_present": {
+        "controls_found": ["sbb-h-slider", "sbb-h-number", "sbb-bg-color", "sbb-bg-hex", "sbb-bg-none", "sbb-radius-slider", "sbb-radius-number", "sbb-gap-top-slider", "sbb-gap-top-number", "sbb-gap-bot-slider", "sbb-gap-bot-number", "sbb-title-slider", "sbb-title-number", "sbb-title-color", "sbb-title-color-hex", "sbb-body-slider", "sbb-body-number", "sbb-body-color", "sbb-body-color-hex", "sbb-align-group", "sbb-imgpos-group", "sbb-padx-toggle"],
+        "add_row_btn": false
+      },
+      "controls_functional": {
+        "height_slider": "PASS",
+        "note": "sbb-h-slider 조작 시 배너1 minHeight만 변경(504px). 배너2(200px 유지) — 교차 오염 없음"
+      },
+      "layer_panel": "PASS",
+      "undo": "PASS",
+      "planner_checks": {
+        "image_position_control": "PARTIAL — sbb-imgpos-group 존재. left/right 버튼(data-pos) 있음. 드래그 모드 진입 버튼 없음(#sbb-imgdrag 없음). 이미지 위치는 좌/우 토글만 가능.",
+        "cross_contamination": "PASS — 배너2개 생성 후 배너1의 h-slider 조작 시 배너2 높이 미변경 확인"
+      },
+      "bugs": [
+        {
+          "id": "QA-B-01",
+          "desc": "Banner 행 추가 버튼 없음. banner-add-row, sbb-add, banner-add 등 관련 버튼 미존재. 행 추가/제거 기능 미구현.",
+          "severity": "medium"
+        },
+        {
+          "id": "QA-B-02",
+          "desc": "이미지 드래그 위치 조절 버튼 없음. sbb-imgpos-group은 좌/우 토글만 있고 자유 위치 조절(드래그 모드) 미구현.",
+          "severity": "low"
+        }
+      ]
+    },
+    "graph": {
+      "create": "PASS",
+      "panel_open": "PASS",
+      "controls_present": {
+        "controls_found": ["grb-h-slider", "grb-h-number", "grb-label-slider", "grb-label-number", "grb-type-v", "grb-type-h", "grb-preset-default", "grb-preset-dark", "grb-preset-minimal", "grb-preset-colorful", "grb-data-list", "grb-add-item"]
+      },
+      "controls_functional": {},
+      "layer_panel": "PASS",
+      "undo": "PASS",
+      "bugs": []
+    },
+    "divider": {
+      "create": "PASS",
+      "panel_open": "PASS",
+      "controls_present": {
+        "controls_found": ["dvd-color", "dvd-hex", "dvd-style", "dvd-weight-slider", "dvd-weight-number", "dvd-pady-slider", "dvd-pady-number", "dvd-padx-slider", "dvd-padx-number"]
+      },
+      "controls_functional": {},
+      "layer_panel": "PASS",
+      "undo": "PASS",
+      "bugs": []
+    },
+    "label_group": {
+      "create": "PASS",
+      "panel_open": "PARTIAL",
+      "controls_present": {
+        "controls_found_lg_prefix": ["lg-style-select", "lg-apply-all-btn", "lg-gap-slider", "lg-gap-number", "lg-all-height-slider", "lg-all-height-number"],
+        "controls_found_lgb_prefix": [],
+        "note": "패널이 열리지만 컨트롤 ID prefix가 'lgb-'가 아닌 'lg-'로 구현됨. lgb-add/lgb-remove 등 미존재."
+      },
+      "controls_functional": {},
+      "layer_panel": "PASS",
+      "undo": "FAIL",
+      "planner_checks": {
+        "tag_add_remove_btn": "NOT FOUND — showLabelGroupProperties 소스(11787자)에 add/remove 코드 존재하나, lgb- prefix 컨트롤 없음. lg- prefix로 구현됨. 태그 개별 추가/제거 버튼 미확인."
+      },
+      "bugs": [
+        {
+          "id": "QA-LG-01",
+          "desc": "LabelGroup 패널 컨트롤 ID prefix 불일치. 실제 구현은 'lg-' prefix지만 QA 기준은 'lgb-' prefix. lgb-add-btn, lgb-remove-btn 등 미존재. 태그 개별 추가/제거 버튼 패널에 없음.",
+          "severity": "medium"
+        }
+      ]
+    }
+  },
+  "additional_findings": {
+    "layer_panel_structure": "layer-panel-body ID 확인. .layer-item 요소 45개 존재. 블록별 레이어 표시는 layer-section > layer-section-header 구조로 동작.",
+    "panel_right_id": "panel-right (ID). propPanel은 에디터 내부 클로저 변수로 CDP 직접 접근 불가. 블록 클릭 시 에디터 이벤트 핸들러가 propPanel.innerHTML을 교체하는 방식.",
+    "circle_slider_root_cause": "초기 테스트에서 size slider FAIL로 기록됐으나, 실제 에디터 클릭 이벤트(pointerdown+mousedown+mouseup+click 체인) 사용 시 PASS. CDP에서 단순 click()만 사용 시 에디터 이벤트 미트리거.",
+    "card_panel_failure_root_cause": "Card 블록 위치가 뷰포트 내에 있고 클릭 이벤트도 정상 발송됐으나, panel-right에 row- prefix 컨트롤이 나타남. Card 블록 클릭이 Section의 row 선택으로 버블링되어 Section 패널이 우선 열리는 것으로 추정.",
+    "banner_cross_contamination": "PASS — 2개 배너 생성 후 배너1 h-slider 조작 시 배너1만 504px로 변경됨. 배너2는 200px 유지. 교차 오염 없음."
+  },
+  "summary": {
+    "total_blocks_tested": 7,
+    "blocks_fully_working": ["table", "graph", "divider"],
+    "blocks_mostly_working": ["circle", "banner"],
+    "blocks_with_panel_issues": ["card", "label_group"],
+    "total_bugs": 7,
+    "high": 2,
+    "medium": 4,
+    "low": 1,
+    "bug_list": [
+      {"id": "QA-C-01", "block": "circle", "severity": "medium", "desc": "이미지 업로드 후 배경색 섹션 숨김 로직 미구현"},
+      {"id": "QA-C-02", "block": "circle", "severity": "medium", "desc": "이미지 제거 버튼(#icb-remove) 없음"},
+      {"id": "QA-CA-01", "block": "card", "severity": "high", "desc": "Card 클릭 시 Card 패널 미열림 — Section 패널로 이벤트 가로채임"},
+      {"id": "QA-CA-02", "block": "card", "severity": "high", "desc": "Card 패널에 텍스트(title/desc) 색상 picker 없음"},
+      {"id": "QA-B-01", "block": "banner", "severity": "medium", "desc": "배너 행 추가 버튼 없음"},
+      {"id": "QA-B-02", "block": "banner", "severity": "low", "desc": "이미지 드래그 위치 조절 미구현 (좌/우 토글만 가능)"},
+      {"id": "QA-LG-01", "block": "label_group", "severity": "medium", "desc": "LabelGroup 컨트롤 ID prefix 불일치(lg- vs lgb-), 태그 추가/제거 버튼 없음"}
+    ]
+  }
+}

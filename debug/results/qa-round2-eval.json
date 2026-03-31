@@ -1,0 +1,18 @@
+{
+  "round": 2,
+  "ts": "2026-03-30T09:56:25.447Z",
+  "checks": [
+    {
+      "id": "E2-01",
+      "name": "LayerRowGroup 라벨 Stack/Flex/Grid",
+      "status": "PASS",
+      "detail": "2열 flex row 추가 후 레이어 패널 layer-row-header의 layer-item-name이 'Stack, Col 1, Stack, Col 1, Flex, Col 1, Col 2, Flex, Col 1, Col 2, Flex, Col 1, Col 2, Flex, Col 1, Col 2' 표시 — Grid 아닌 Flex 라벨 정상 표시 확인. makeLayerRowGroup이 layout=flex에 맞게 Flex 라벨 렌더링"
+    },
+    {
+      "id": "E2-02",
+      "name": "_lastActiveCol fallback 삽입",
+      "status": "PASS",
+      "detail": "col-active 제거 후에도 state._lastActiveCol fallback으로 addTextBlock이 해당 col에 삽입 확인. text-block 수: before=2 → after=3. Steps: addSection called | addRowBlock(2,1) called | cols found: 21 | col-active added | state._lastActiveCol = col | col-active removed (deselectAll simulate) | _lastActiveCol still set: true | before: 2 text-blocks | addTextBlock(body) called | after: 3 text-blocks"
+    }
+  ]
+}

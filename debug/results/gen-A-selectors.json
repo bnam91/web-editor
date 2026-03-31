@@ -1,0 +1,75 @@
+{
+  "agent": "Generator-A",
+  "session": 1,
+  "checks": [
+    {
+      "id": "A-01",
+      "file": "editor.js",
+      "function": "copySelected",
+      "status": "PASS",
+      "detail": "line 276: querySelector에 11개 블록 타입 전부 포함 (text-block, asset-block, gap-block, icon-circle-block, table-block, label-group-block, card-block, strip-banner-block, graph-block, divider-block, icon-text-block)"
+    },
+    {
+      "id": "A-02",
+      "file": "editor.js",
+      "function": "deselectAll",
+      "status": "PASS",
+      "detail": "line 605~633: 11개 블록 타입 전부 커버. text-block/asset-block/table-block/label-group-block은 특수 처리(contenteditable 해제 등) 포함. gap-block, icon-circle-block, card-block, strip-banner-block, graph-block, divider-block, icon-text-block은 line 623에서 일괄 처리."
+    },
+    {
+      "id": "A-03",
+      "file": "editor.js",
+      "function": "keyboard Delete handler (allSelBlocks)",
+      "status": "PASS",
+      "detail": "line 464: querySelectorAll에 11개 블록 타입 전부 포함 (.selected 조건 포함)"
+    },
+    {
+      "id": "A-04",
+      "file": "editor.js",
+      "function": "DOMContentLoaded bindBlock loop (line 704)",
+      "status": "PASS",
+      "detail": "line 704: querySelectorAll에 11개 블록 타입 전부 포함. BUG-01(harness-plan 기준 3종만 있었다는 이전 버그)은 이미 수정 완료 상태."
+    },
+    {
+      "id": "A-05",
+      "file": "save-load.js",
+      "function": "rebindAll",
+      "status": "PASS",
+      "detail": "line 719: canvasEl.querySelectorAll에 11개 블록 타입 전부 포함 (text-block, asset-block, gap-block, icon-circle-block, table-block, label-group-block, card-block, strip-banner-block, graph-block, divider-block, icon-text-block)"
+    },
+    {
+      "id": "A-06",
+      "file": "drag-utils.js",
+      "function": "insertAfterSelected",
+      "status": "PASS",
+      "detail": "line 70: document.querySelector에 11개 블록 타입 .selected 셀렉터 전부 포함"
+    },
+    {
+      "id": "A-07",
+      "file": "layer-panel.js",
+      "function": "makeLayerBlockItem — 블록 타입 감지 변수",
+      "status": "PASS",
+      "detail": "line 55~65: isText, isGap, isIconCb, isTable, isLabelGroup, isDivider, isCard, isBanner, isGraph, isIconText 10개 변수 + 기본값 asset으로 11개 블록 타입 전부 감지. type 분기 체인에도 모두 포함."
+    },
+    {
+      "id": "A-08",
+      "file": "layer-panel.js",
+      "function": "layerIcons 객체",
+      "status": "PASS",
+      "detail": "line 4~20: heading, body, caption, label, asset, gap, icon-circle, table, divider, label-group, card, banner, graph, icon-text, section 총 15개 키 존재. AC-12 요구 14개 키 모두 포함."
+    },
+    {
+      "id": "A-09",
+      "file": "block-factory.js",
+      "function": "groupSelectedBlocks",
+      "status": "PASS",
+      "detail": "line 326: querySelectorAll에 11개 블록 타입 전부 포함 (label-group-block, icon-text-block 포함). BUG-02(harness-plan 기준 2종 누락)는 이미 수정 완료 상태."
+    }
+  ],
+  "fixes": [],
+  "summary": {
+    "PASS": 9,
+    "FIXED": 0,
+    "FAIL": 0
+  }
+}

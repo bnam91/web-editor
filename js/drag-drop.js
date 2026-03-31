@@ -341,6 +341,12 @@ function bindBlock(block) {
   if (isGap) {
     block.addEventListener('click', e => {
       e.stopPropagation();
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        window.syncSection(block.closest('.section-block'));
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(block.closest('.section-block'));
@@ -489,6 +495,12 @@ function bindBlock(block) {
         return;
       }
       // 블록 배경 클릭: 블록만 선택
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        window.syncSection(block.closest('.section-block'));
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(block.closest('.section-block'));
@@ -670,6 +682,12 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       if (block.classList.contains('editing')) return;
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
+        window.syncSection(block.closest('.section-block'));
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(block.closest('.section-block'));
@@ -757,6 +775,86 @@ function bindBlock(block) {
   }
 }
 
+// ── Col 드롭존: 블록을 다른 col로 이동 ──
+function bindColDropZone(col) {
+  if (col._colDropBound) return;
+  col._colDropBound = true;
+
+  let _colRafId = null;
+
+  col.addEventListener('dragover', e => {
+    if (!dragSrc) return;
+    // 같은 col 내부의 row는 무시
+    if (dragSrc.closest('.col') === col) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (_colRafId) return;
+    const clientY = e.clientY;
+    _colRafId = requestAnimationFrame(() => {
+      _colRafId = null;
+      if (!dragSrc) return;
+      clearDropIndicators();
+      const after = getDragAfterElement(col, clientY);
+      const indicator = document.createElement('div');
+      indicator.className = 'drop-indicator';
+      if (after) col.insertBefore(indicator, after);
+      else col.appendChild(indicator);
+    });
+  });
+
+  col.addEventListener('dragleave', e => {
+    if (!col.contains(e.relatedTarget)) {
+      if (_colRafId) { cancelAnimationFrame(_colRafId); _colRafId = null; }
+      clearDropIndicators();
+    }
+  });
+
+  col.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (_colRafId) { cancelAnimationFrame(_colRafId); _colRafId = null; }
+    if (!dragSrc) return;
+    if (dragSrc.closest('.col') === col) return;
+
+    window.pushHistory?.();
+
+    // dragSrc가 row인 경우: 단일 col + 단일 블록이면 블록을 추출해서 이동
+    if (dragSrc.classList.contains('row')) {
+      const srcCols = dragSrc.querySelectorAll(':scope > .col');
+      if (srcCols.length === 1) {
+        const srcCol = srcCols[0];
+        const blocks = [...srcCol.querySelectorAll(':scope > *:not(.col-placeholder)')];
+        if (blocks.length > 0) {
+          const indicator = col.querySelector('.drop-indicator');
+          blocks.forEach(b => {
+            if (indicator) col.insertBefore(b, indicator);
+            else col.appendChild(b);
+          });
+          // 소스 row가 비었으면 제거
+          const remainingBlocks = srcCol.querySelectorAll(':scope > *:not(.col-placeholder)');
+          if (!remainingBlocks.length) {
+            const srcRow = dragSrc;
+            srcRow.remove();
+          }
+          clearDropIndicators();
+          window.buildLayerPanel?.();
+          dragSrc = null;
+          return;
+        }
+      }
+    }
+
+    // dragSrc가 gap-block 또는 단일 블록인 경우: 그대로 col에 삽입
+    const indicator = col.querySelector('.drop-indicator');
+    if (indicator) col.insertBefore(dragSrc, indicator);
+    else col.appendChild(dragSrc);
+    clearDropIndicators();
+    window.buildLayerPanel?.();
+    dragSrc = null;
+  });
+}
+
 export {
   getDragAfterElement,
   getSectionDragAfterEl,
@@ -766,6 +864,7 @@ export {
   bindGroupDrag,
   bindSectionDrag,
   bindSectionDropZone,
+  bindColDropZone,
   bindBlock,
 };
 
@@ -778,4 +877,5 @@ window.ungroupBlock                = ungroupBlock;
 window.bindGroupDrag               = bindGroupDrag;
 window.bindSectionDrag             = bindSectionDrag;
 window.bindSectionDropZone         = bindSectionDropZone;
+window.bindColDropZone             = bindColDropZone;
 window.bindBlock                   = bindBlock;

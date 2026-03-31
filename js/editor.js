@@ -371,12 +371,12 @@ document.addEventListener('keydown', e => {
     deselectAll();
   }
 
-  // 블록 추가 단축키: G=Gap, T=Text, A=Asset (INPUT/TEXTAREA 포커스 시 무시)
+  // 블록 추가 단축키: G=Gap, T=Text, A=Asset (IME 안전: e.code 사용)
   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-    if (e.key === 'g') { e.preventDefault(); window.addGapBlock?.(); return; }
-    if (e.key === 't') { e.preventDefault(); window.addTextBlock?.('body'); return; }
-    if (e.key === 'a') { e.preventDefault(); window.addAssetBlock?.(); return; }
+    if (e.code === 'KeyG') { e.preventDefault(); window.addGapBlock?.(); return; }
+    if (e.code === 'KeyT') { e.preventDefault(); window.addTextBlock?.('body'); return; }
+    if (e.code === 'KeyA') { e.preventDefault(); window.addAssetBlock?.(); return; }
   }
 
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──
@@ -409,16 +409,7 @@ document.addEventListener('keydown', e => {
     }
   }
 
-  // ── 단축키 g: 갭 블록 추가 (getSelectedSection 테스트) ──
-  if ((e.key === 'g' || e.code === 'KeyG') && !e.metaKey && !e.ctrlKey) {
-    if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-    e.preventDefault();
-    if (typeof window.addGapBlock === 'function') window.addGapBlock();
-    return;
-  }
-
-  const isDelete = e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey));
+  const isDelete = e.key === 'Delete' || e.key === 'Backspace';
   if (isDelete) {
     // 텍스트 편집 중이거나 input에 포커스가 있으면 기본 동작 유지
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
