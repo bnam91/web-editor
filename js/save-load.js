@@ -201,6 +201,7 @@ function _bindTabDrag(el, bar) {
 
 async function switchTab(id) {
   if (id === activeProjectId) return;
+  window.switchScratch?.(id); // 스크래치패드 — 현재 저장 후 새 프로젝트 로드
 
   // 현재 탭 메모리 캐시 저장 + 파일 비동기 저장
   const curTab = openTabs.find(t => t.id === activeProjectId);
@@ -921,6 +922,9 @@ function initApp() {
 
   // attributes:true 제거 — 드래그 클래스 토글마다 autoSave 폭주 방지 (DBG-11)
   autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true });
+
+  // 스크래치패드 초기화
+  window.initScratchPad?.(activeProjectId);
 
   // 브랜치 시스템 초기화
   initBranchStore();
