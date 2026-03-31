@@ -217,7 +217,10 @@ export function showCanvasItemProperties(cb, item) {
 
   document.getElementById('ci-bring')?.addEventListener('click', () => window.bringForward?.());
   document.getElementById('ci-send')?.addEventListener('click',  () => window.sendBackward?.());
-  document.getElementById('ci-back-cb')?.addEventListener('click', () => showCanvasProperties(cb));
+  document.getElementById('ci-back-cb')?.addEventListener('click', () => {
+    window.deselectCanvasItem?.();
+    showCanvasProperties(cb);
+  });
   document.getElementById('ci-duplicate')?.addEventListener('click', () => window.duplicateSelectedItem?.());
   document.getElementById('ci-delete')?.addEventListener('click', () => window.removeSelectedItem?.());
 }

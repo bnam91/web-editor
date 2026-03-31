@@ -25,6 +25,8 @@ function _onKeyDown(e) {
   if (e.key === 'Escape') {
     // _selCb가 null일 수 있으므로 item의 부모에서 직접 찾기
     const cb = _selCb || _selItem?.closest('.canvas-block');
+    e.preventDefault();
+    e.stopPropagation(); // 에디터의 다른 Escape 핸들러가 선택 해제하는 것을 방지
     _deselectItem();
     if (cb) {
       window.deselectAll?.();
