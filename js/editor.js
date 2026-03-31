@@ -365,6 +365,21 @@ document.addEventListener('keydown', e => {
       pasteClipboard();
       return;
     }
+    if (e.key === 'a') {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      // 현재 선택된 섹션 내 모든 블록 선택
+      const activeSec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
+      if (activeSec) {
+        const allBlocks = activeSec.querySelectorAll(
+          '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
+          '.label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block'
+        );
+        allBlocks.forEach(b => b.classList.add('selected'));
+      }
+      return;
+    }
   }
   if (e.key === 'Escape') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
