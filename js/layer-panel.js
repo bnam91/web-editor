@@ -27,6 +27,8 @@ export function buildLayerPanel() {
     const sectionEl = document.createElement('div');
     sectionEl.className = 'layer-section';
     sectionEl.dataset.section = sIdx;
+    if (sec.id) sectionEl.dataset.secId = sec.id;
+    sec._layerSectionEl = sectionEl;
 
     const header = document.createElement('div');
     header.className = 'layer-section-header';

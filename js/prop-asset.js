@@ -83,9 +83,15 @@ export function showAssetProperties(ab) {
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="asset-align-group">
-          <button class="prop-align-btn${currentAlign==='left'?' active':''}"   data-align="left">←</button>
-          <button class="prop-align-btn${currentAlign==='center'?' active':''}" data-align="center">↔</button>
-          <button class="prop-align-btn${currentAlign==='right'?' active':''}"  data-align="right">→</button>
+          <button class="prop-align-btn${currentAlign==='left'?' active':''}"   data-align="left"   title="왼쪽 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>
+          </button>
+          <button class="prop-align-btn${currentAlign==='center'?' active':''}" data-align="center" title="가운데 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="7" y1="2" x2="7" y2="12"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>
+          </button>
+          <button class="prop-align-btn${currentAlign==='right'?' active':''}"  data-align="right"  title="오른쪽 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="13" y1="2" x2="13" y2="12"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>
+          </button>
         </div>
       </div>
       <div class="prop-row">
@@ -124,10 +130,16 @@ export function showAssetProperties(ab) {
         </div>
         <div class="prop-row">
           <span class="prop-label">위치</span>
-          <div class="prop-align-group" id="overlay-position-group" style="flex:1">
-            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-start'?' active':''}" data-pos="flex-start" style="flex:1;font-size:11px">↑ 상단</button>
-            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='center'?' active':''}" data-pos="center" style="flex:1;font-size:11px">↕ 중앙</button>
-            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-end'?' active':''}" data-pos="flex-end" style="flex:1;font-size:11px">↓ 하단</button>
+          <div class="prop-align-group" id="overlay-position-group">
+            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-start'?' active':''}" data-pos="flex-start" title="상단 정렬">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="1" x2="12" y2="1"/><rect x="4" y="3" width="6" height="5" rx="1"/></svg>
+            </button>
+            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='center'?' active':''}" data-pos="center" title="중앙 정렬">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="7" x2="12" y2="7"/><rect x="4" y="3" width="6" height="8" rx="1"/></svg>
+            </button>
+            <button class="prop-align-btn${(overlayEl.style.justifyContent||'center')==='flex-end'?' active':''}" data-pos="flex-end" title="하단 정렬">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="13" x2="12" y2="13"/><rect x="4" y="6" width="6" height="5" rx="1"/></svg>
+            </button>
           </div>
         </div>
         <div style="font-size:11px;color:#555;margin-top:2px;">이 블록 선택 후 중앙 패널로 블록 추가</div>

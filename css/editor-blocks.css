@@ -12,7 +12,8 @@
 }
 .canvas-block.ci-active { overflow: visible; }
 .canvas-block.selected {
-  outline: 1.5px solid var(--sel-color);
+  outline: 2px solid var(--sel-color);
+  outline-offset: 0;
 }
 .canvas-block:hover:not(.selected) {
   outline: 1px solid rgba(45,111,232,0.35);
@@ -31,12 +32,13 @@
 }
 .canvas-item:active { cursor: grabbing; }
 .canvas-item.ci-selected {
-  outline: 1.5px solid var(--sel-color);
+  outline: 2px solid var(--sel-color);
+  outline-offset: 0;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
   overflow: visible;
 }
 .canvas-item:hover:not(.ci-selected) {
-  outline: 1px solid rgba(45,111,232,0.45);
+  outline: 1px solid rgba(45,111,232,0.35);
   outline-offset: 0;
 }
 
@@ -129,7 +131,7 @@
 
 /* 이미지 편집 모드 */
 .asset-block.img-editing {
-  outline: 2px dashed #1592fe !important;
+  outline: 2px dashed var(--sel-color) !important;
   outline-offset: 3px;
   cursor: default;
 }
@@ -143,19 +145,19 @@
   width: 9px;
   height: 9px;
   background: #fff;
-  border: 1.5px solid #1592fe;
+  border: 1.5px solid var(--sel-color);
   border-radius: 2px;
   z-index: 20;
   box-shadow: 0 2px 6px rgba(0,0,0,0.35), 0 0 0 1px rgba(21,146,254,0.15);
   transform: scale(var(--inv-zoom, 1));
   transform-origin: center center;
 }
-.img-corner-handle:hover { background: #1592fe; }
+.img-corner-handle:hover { background: var(--sel-color); }
 .img-edge-handle {
   position: absolute;
   width: 7px;
   height: 7px;
-  background: #1592fe;
+  background: var(--sel-color);
   border: 1.5px solid #fff;
   border-radius: 50%;
   z-index: 20;
@@ -164,7 +166,7 @@
   transform-origin: center center;
 }
 .icon-circle-block.img-editing {
-  outline: 2px dashed #1592fe !important;
+  outline: 2px dashed var(--sel-color) !important;
   outline-offset: 3px;
   cursor: default;
 }
@@ -484,7 +486,8 @@
 .icb-circle {
   width: 80px; height: 80px;
   border-radius: 50%;
-  background: var(--ui-bg-elevated);
+  background:
+    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
@@ -858,7 +861,8 @@
 
 .sbb-image {
   flex: 3;
-  background: var(--ui-bg-elevated);
+  background:
+    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
   display: flex;
   align-items: center;
   justify-content: center;

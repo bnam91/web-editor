@@ -660,6 +660,16 @@ function bindSectionHitzone(sec) {
     e.stopPropagation();
     selectSectionWithModifier(sec, e);
   });
+  fresh.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    // 레이어 패널에서 해당 섹션 항목으로 스크롤
+    const layerEl = sec._layerSectionEl
+      || document.querySelector(`.layer-section[data-sec-id="${sec.id}"]`);
+    if (layerEl) {
+      layerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      layerEl.querySelector('.layer-section-header')?.classList.add('active');
+    }
+  });
 }
 
 
