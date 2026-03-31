@@ -737,7 +737,7 @@ function rebindAll() {
     window.bindCanvasBlock?.(cb);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -748,7 +748,8 @@ function rebindAll() {
         : b.classList.contains('strip-banner-block') ? 'sbb'
         : b.classList.contains('graph-block') ? 'grb'
         : b.classList.contains('icon-text-block') ? 'itb'
-        : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
+        : b.classList.contains('divider-block') ? 'dvd'
+        : b.classList.contains('canvas-block') ? 'cb' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     window.bindBlock(b);

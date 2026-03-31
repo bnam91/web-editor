@@ -219,6 +219,7 @@ function bindBlock(block) {
   const isStripBanner = block.classList.contains('strip-banner-block');
   const isGraph       = block.classList.contains('graph-block');
   const isDivider     = block.classList.contains('divider-block');
+  const isCanvas      = block.classList.contains('canvas-block');
 
 
   if (isText) {

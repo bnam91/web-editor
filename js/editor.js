@@ -308,7 +308,8 @@ function pasteClipboard() {
     bindSectionOrder(el);
     bindSectionDrag(el);
     bindSectionDropZone(el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock(b));
+    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
+    el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
     el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
       const col = ph.parentElement;
       col.replaceChild(makeColPlaceholder(col), ph);
@@ -318,7 +319,8 @@ function pasteClipboard() {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
     insertAfterSelected(sec, el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock(b));
+    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
+    el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
     el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
       const col = ph.parentElement;
       col.replaceChild(makeColPlaceholder(col), ph);
@@ -516,7 +518,7 @@ document.addEventListener('keydown', e => {
     const selGap     = document.querySelector('.gap-block.selected');
     const selSection = document.querySelector('.section-block.selected');
 
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
     if (allSelBlocks.length > 0) {
       e.preventDefault();
       pushHistory();
