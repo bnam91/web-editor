@@ -7,6 +7,65 @@
 let _selItem = null; // 현재 선택된 canvas-item
 let _selCb   = null; // 해당 아이템의 부모 canvas-block
 
+/* ── Arrow key nudge 핸들러 (전역 1회 등록) ── */
+function _onKeyDown(e) {
+  if (!_selItem) return;
+  // contenteditable 텍스트 편집 중이면 무시
+  const active = document.activeElement;
+  if (active && active.getAttribute('contenteditable') === 'true') return;
+
+  // Cmd+D → canvas-item 복제
+  if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+    e.preventDefault();
+    duplicateSelectedItem();
+    return;
+  }
+
+  // Escape → canvas-item 해제 + canvas-block 선택 유지
+  if (e.key === 'Escape') {
+    // _selCb가 null일 수 있으므로 item의 부모에서 직접 찾기
+    const cb = _selCb || _selItem?.closest('.canvas-block');
+    _deselectItem();
+    if (cb) {
+      window.deselectAll?.();
+      cb.classList.add('selected');
+      window.showCanvasProperties?.(cb);
+    }
+    return;
+  }
+
+  const arrows = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'];
+  if (!arrows.includes(e.key)) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const step = e.shiftKey ? 10 : 1;
+  let nx = parseFloat(_selItem.dataset.x) || 0;
+  let ny = parseFloat(_selItem.dataset.y) || 0;
+
+  if (e.key === 'ArrowLeft')  nx -= step;
+  if (e.key === 'ArrowRight') nx += step;
+  if (e.key === 'ArrowUp')    ny -= step;
+  if (e.key === 'ArrowDown')  ny += step;
+
+  _selItem.dataset.x = nx; _selItem.dataset.y = ny;
+  _selItem.style.left = nx + 'px'; _selItem.style.top = ny + 'px';
+  _syncHandles(_selItem);
+
+  // 패널 입력값 동기화
+  const xEl = document.getElementById('ci-x');
+  const yEl = document.getElementById('ci-y');
+  if (xEl) xEl.value = nx;
+  if (yEl) yEl.value = ny;
+
+  // pushHistory는 keyup 시점에 1회만
+  clearTimeout(_nudgeTimer);
+  _nudgeTimer = setTimeout(() => window.pushHistory?.(), 400);
+}
+let _nudgeTimer = null;
+document.addEventListener('keydown', _onKeyDown, true);
+
 /* ── 위치/크기 CSS 적용 ── */
 function _applyPos(item) {
   item.style.left   = (parseFloat(item.dataset.x) || 0) + 'px';
@@ -17,15 +76,27 @@ function _applyPos(item) {
 }
 
 /* ── 핸들 위치 동기화 ── */
-const HS = 4.5; // handle half-size (9px / 2)
+// 코너: 8x8px → half=4, 엣지 tc/bc: 16x4px → halfW=8,halfH=2, 엣지 lc/rc: 4x16px → halfW=2,halfH=8
+const HS  = 4;   // corner handle half-size (8px / 2)
+const EHH = 8;   // edge horizontal half-width  (tc/bc: 16px / 2)
+const EHV = 8;   // edge vertical half-height   (lc/rc: 16px / 2)
+const EHt = 2;   // edge horizontal half-height (tc/bc: 4px / 2)
+const EVw = 2;   // edge vertical half-width    (lc/rc: 4px / 2)
 function _syncHandles(item) {
   if (!item._ciHandles) return;
   const w = parseFloat(item.dataset.w) || item.offsetWidth;
   const h = parseFloat(item.dataset.h) || item.offsetHeight;
+  // 코너: top-left 기준으로 핸들 중심이 모서리에 오도록
+  // 엣지: tc/bc는 좌우 중앙 + 상단/하단 edge, lc/rc는 좌측/우측 edge + 상하 중앙
   const pos = {
-    tl: [-HS,     -HS    ], tc: [w/2-HS, -HS    ], tr: [w-HS,   -HS    ],
-    rc: [w-HS,  h/2-HS   ], br: [w-HS,   h-HS   ], bc: [w/2-HS, h-HS   ],
-    bl: [-HS,    h-HS    ], lc: [-HS,    h/2-HS  ],
+    tl: [-HS,          -HS         ],
+    tc: [w/2 - EHH,   -EHt        ],
+    tr: [w - HS,       -HS         ],
+    rc: [w - EVw,      h/2 - EHV  ],
+    br: [w - HS,       h - HS      ],
+    bc: [w/2 - EHH,   h - EHt     ],
+    bl: [-HS,          h - HS      ],
+    lc: [-EVw,         h/2 - EHV  ],
   };
   Object.entries(pos).forEach(([id, [lx, ly]]) => {
     if (item._ciHandles[id]) {
@@ -91,6 +162,13 @@ function _selectItem(cb, item) {
 
 function _deselectItem() {
   if (!_selItem) return;
+  // 텍스트 편집 중이면 먼저 blur로 종료
+  const activeTextEl = _selItem.querySelector('.ci-text[contenteditable="true"]');
+  if (activeTextEl) {
+    activeTextEl.contentEditable = 'false';
+    activeTextEl.style.cursor = '';
+    _selItem.dataset.content = activeTextEl.innerHTML;
+  }
   _selItem.classList.remove('ci-selected');
   _removeHandles(_selItem);
   _selCb?.classList.remove('ci-active');
@@ -228,7 +306,7 @@ function _bindTextItem(item) {
   if (!textEl) {
     textEl = document.createElement('div');
     textEl.className = 'ci-text';
-    textEl.textContent = item.dataset.content || '텍스트를 입력하세요';
+    textEl.innerHTML = item.dataset.content || '텍스트를 입력하세요';
     item.appendChild(textEl);
   }
   textEl.setAttribute('contenteditable', 'false');
@@ -313,11 +391,14 @@ export function bindCanvasBlock(cb) {
     }
   });
 
-  // Escape → 아이템 선택 해제
+  // Escape → 아이템 선택 해제 후 canvas-block 선택 유지
   cb.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && _selCb === cb) {
+    if (e.key === 'Escape' && (_selCb === cb || _selItem?.closest('.canvas-block') === cb)) {
       e.stopPropagation();
       _deselectItem();
+      window.deselectAll?.();
+      cb.classList.add('selected');
+      window.showCanvasProperties?.(cb);
     }
   });
 
@@ -397,6 +478,28 @@ export function addItemToCanvas(cb, type, x = 40, y = 40) {
   return item;
 }
 
+export function duplicateSelectedItem() {
+  if (!_selItem || !_selCb) return;
+  window.pushHistory?.();
+  const src = _selItem;
+  const cb  = _selCb;
+
+  const clone = document.createElement('div');
+  clone.className = 'canvas-item';
+  clone.id = 'ci_' + Math.random().toString(36).slice(2, 9);
+  // dataset 복사
+  Object.assign(clone.dataset, src.dataset);
+  // 20px 오프셋
+  clone.dataset.x = (parseFloat(src.dataset.x) || 0) + 20;
+  clone.dataset.y = (parseFloat(src.dataset.y) || 0) + 20;
+
+  cb.appendChild(clone);
+  _bindItem(cb, clone);
+  _selectItem(cb, clone);
+  window.buildLayerPanel?.();
+  return clone;
+}
+
 export function removeSelectedItem() {
   if (!_selItem) return;
   window.pushHistory?.();
@@ -430,11 +533,13 @@ export function getSelectedCb()   { return _selCb; }
 export function deselectCanvasItem() { _deselectItem(); }
 
 // window 노출 (classic scripts / prop-canvas에서 접근)
-window.bindCanvasBlock       = bindCanvasBlock;
-window.addItemToCanvas       = addItemToCanvas;
-window.removeSelectedItem    = removeSelectedItem;
-window.bringForward          = bringForward;
-window.sendBackward          = sendBackward;
-window.syncCanvasItemHandles = syncCanvasItemHandles;
-window.getSelectedItem       = getSelectedItem;
-window.deselectCanvasItem    = deselectCanvasItem;
+window.bindCanvasBlock          = bindCanvasBlock;
+window.addItemToCanvas          = addItemToCanvas;
+window.removeSelectedItem       = removeSelectedItem;
+window.duplicateSelectedItem    = duplicateSelectedItem;
+window.bringForward             = bringForward;
+window.sendBackward             = sendBackward;
+window.syncCanvasItemHandles    = syncCanvasItemHandles;
+window.getSelectedItem          = getSelectedItem;
+window.getSelectedCb            = getSelectedCb;
+window.deselectCanvasItem       = deselectCanvasItem;
