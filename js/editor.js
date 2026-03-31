@@ -1,4 +1,5 @@
 import { canvasEl, propPanel, state } from './globals.js';
+import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
 
 /* ═══════════════════════════════════
    PANEL TABS
@@ -66,78 +67,6 @@ function zoomFit() {
   applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100));
 }
 
-/* ══════════════════════════════════════
-   Undo / Redo
-══════════════════════════════════════ */
-const MAX_HISTORY = 50;
-let historyStack = [];
-let historyPos   = -1;
-let _historyPaused = false;
-
-function pushHistory(action = '작업') {
-  if (_historyPaused) return;
-  historyStack = historyStack.slice(0, historyPos + 1);
-  historyStack.push({ canvas: getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId });
-  if (historyStack.length > MAX_HISTORY) historyStack.shift();
-  else historyPos++;
-  _updateUndoRedoBtns();
-}
-
-function _updateUndoRedoBtns() {
-  const undoBtn = document.getElementById('undo-btn');
-  const redoBtn = document.getElementById('redo-btn');
-  if (undoBtn) {
-    const canUndo = historyPos > 0;
-    undoBtn.disabled = !canUndo;
-    undoBtn.title = canUndo ? `실행 취소: ${historyStack[historyPos].action}` : '실행 취소 없음';
-  }
-  if (redoBtn) {
-    const canRedo = historyPos < historyStack.length - 1;
-    redoBtn.disabled = !canRedo;
-    redoBtn.title = canRedo ? `다시 실행: ${historyStack[historyPos + 1]?.action || ''}` : '다시 실행 없음';
-  }
-}
-
-function restoreSnapshot(snap) {
-  _historyPaused = true;
-  // 페이지가 다르면 현재 페이지 flush 후 대상 페이지로 전환
-  if (snap.pageId && snap.pageId !== state.currentPageId) {
-    if (window.flushCurrentPage) window.flushCurrentPage();
-    state.currentPageId = snap.pageId;
-    const page = state.pages?.find(p => p.id === snap.pageId);
-    if (page?.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-    if (window.buildFilePageSection) window.buildFilePageSection();
-  }
-  Object.assign(state.pageSettings, snap.settings);
-  canvasEl.innerHTML = snap.canvas;
-  rebindAll();
-  deselectAll();
-  applyPageSettings();
-  if (window.buildLayerPanel) window.buildLayerPanel();
-  deselectAll();
-  _historyPaused = false;
-  _updateUndoRedoBtns();
-}
-
-function undo() {
-  if (historyPos <= 0) return;
-  historyPos--;
-  restoreSnapshot(historyStack[historyPos]);
-}
-function redo() {
-  if (historyPos >= historyStack.length - 1) return;
-  historyPos++;
-  restoreSnapshot(historyStack[historyPos]);
-}
-
-function clearHistory() {
-  // 초기 상태를 스냅샷으로 저장해 첫 번째 액션도 Undo 가능하게 함
-  const init = { canvas: getSerializedCanvas(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId };
-  historyStack = [init];
-  historyPos   = 0;
-  state._canvasDirty = false;
-  _updateUndoRedoBtns();
-}
 
 /* ══ 브레드크럼 헬퍼 ══ */
 function getBlockBreadcrumb(el) {
@@ -951,11 +880,8 @@ canvasEl.addEventListener('click', e => {
   multiSel.lastCol = col;
 }, true);
 // window 할당을 initApp() 보다 먼저 — save-load.js의 initApp 내부에서 참조하기 때문
+// pushHistory/undo/redo/clearHistory: history.js에서 window 노출 처리
 window.ASSET_SVG = ASSET_SVG;
-window.pushHistory = pushHistory;
-window.clearHistory = clearHistory;
-window.undo = undo;
-window.redo = redo;
 window.deselectAll = deselectAll;
 window.getBlockBreadcrumb = getBlockBreadcrumb;
 window.selectSection = selectSection;
@@ -1051,5 +977,6 @@ export {
   selectColWithModifier,
   clearMultiSel,
 };
+// 위 export의 pushHistory/undo/redo는 history.js에서 import된 것을 re-export함
 
 // (window 할당은 initApp() 호출 전 블록에서 처리됨)
