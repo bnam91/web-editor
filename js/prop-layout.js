@@ -35,7 +35,6 @@ function makeColPlaceholder(col) {
         const rowLayout = col.closest('.row')?.dataset.layout;
         if (rowLayout !== 'grid' && rowLayout !== 'flex') ab.style.height = '460px';
         ab.innerHTML = `
-          ${window.ASSET_SVG || ''}
           <div class="asset-overlay"></div>`;
         block = ab;
       } else {

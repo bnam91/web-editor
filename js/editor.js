@@ -693,12 +693,6 @@ document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-b
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
 ═══════════════════════════════════ */
-const ASSET_SVG = `
-  <svg class="asset-icon" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1">
-    <rect x="3" y="3" width="18" height="18" rx="2"/>
-    <circle cx="8.5" cy="8.5" r="1.5"/>
-    <polyline points="21 15 16 10 5 21"/>
-  </svg>`;
 
 function getSelectedSection() {
   const secSel = document.querySelector('.section-block.selected');
@@ -881,7 +875,6 @@ canvasEl.addEventListener('click', e => {
 }, true);
 // window 할당을 initApp() 보다 먼저 — save-load.js의 initApp 내부에서 참조하기 때문
 // pushHistory/undo/redo/clearHistory: history.js에서 window 노출 처리
-window.ASSET_SVG = ASSET_SVG;
 window.deselectAll = deselectAll;
 window.getBlockBreadcrumb = getBlockBreadcrumb;
 window.selectSection = selectSection;

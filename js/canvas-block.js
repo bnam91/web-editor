@@ -158,6 +158,12 @@ function _selectItem(cb, item) {
   cb.classList.add('ci-active'); // overflow:visible for handles
   _createHandles(item);
   window.showCanvasItemProperties?.(cb, item);
+  // 레이어 패널 ci-layer-item active 동기화
+  if (cb._layerCanvasWrapper) {
+    cb._layerCanvasWrapper.querySelectorAll('.ci-layer-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.ciId === item.id);
+    });
+  }
   // 바깥 클릭 시 해제
   setTimeout(() => {
     document.addEventListener('mousedown', _onOutsideDown);
@@ -176,6 +182,10 @@ function _deselectItem() {
   _selItem.classList.remove('ci-selected');
   _removeHandles(_selItem);
   _selCb?.classList.remove('ci-active');
+  // 레이어 패널 active 해제
+  if (_selCb?._layerCanvasWrapper) {
+    _selCb._layerCanvasWrapper.querySelectorAll('.ci-layer-item').forEach(el => el.classList.remove('active'));
+  }
   _selItem = null;
   _selCb   = null;
   document.removeEventListener('mousedown', _onOutsideDown);
@@ -319,8 +329,10 @@ function _bindTextItem(item) {
     item.appendChild(textEl);
   }
   textEl.setAttribute('contenteditable', 'false');
-  // 저장된 텍스트 정렬 복원
+  // 저장된 텍스트 스타일 복원
   if (item.dataset.textAlign) textEl.style.textAlign = item.dataset.textAlign;
+  if (item.dataset.bold === 'true')   textEl.style.fontWeight = 'bold';
+  if (item.dataset.italic === 'true') textEl.style.fontStyle = 'italic';
 
   // 더블클릭 → 편집 모드
   if (!item._textEditBound) {

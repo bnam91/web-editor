@@ -107,8 +107,7 @@
 
 .sbb-image {
   flex: 3;
-  background:
-    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+  background: var(--ui-bg-elevated);
   display: flex;
   align-items: center;
   justify-content: center;

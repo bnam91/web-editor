@@ -392,8 +392,6 @@ function clearAssetImage(ab) {
   const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
   const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
   ab.innerHTML = `
-    ${ASSET_SVG}
-    <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
     <div class="asset-overlay" ${prevOverlayStyle2 ? `style="${prevOverlayStyle2}"` : ''}>${prevOverlayHTML2}</div>`;
   ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
   showAssetProperties(ab);

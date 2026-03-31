@@ -293,8 +293,7 @@
 .asset-block {
   position: relative;
   width: 100%; height: 780px;
-  background:
-    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
+  background: var(--ui-bg-elevated);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 12px; cursor: pointer;
@@ -304,9 +303,6 @@
 }
 .asset-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .asset-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
-.asset-block:hover .asset-icon { opacity: 0.5; }
-.asset-icon { width: 120px; height: 120px; opacity: 0.5; filter: brightness(0) invert(1); transition: opacity 0.15s; }
-.asset-block:hover .asset-icon { opacity: 0.75; }
 .asset-block .asset-label { display: none; }
 .asset-block .asset-sub  { font-size: 18px; color: #ccc; }
 
@@ -346,7 +342,6 @@
 .asset-overlay .row {
   width: 100%;
 }
-.asset-block[data-overlay="true"] .asset-icon,
 .asset-block[data-overlay="true"] .asset-label {
   display: none;
 }

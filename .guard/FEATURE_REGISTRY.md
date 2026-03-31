@@ -1443,6 +1443,109 @@ applyImageTransform() 누락 (재로드 후)
 
 ---
 
+## 24-A. Canvas Block (canvas-block.js / prop-canvas.js)
+
+> 자유배치 컨테이너. canvas-item(image/text)을 절대좌표로 배치. 2026-03-31 추가.
+
+### Canvas Block 생성·선택
+```
+[ ] Canvas 버튼 클릭 → canvas-block 생성
+    동작: addCanvasBlock() 호출
+    기대: .canvas-block이 DOM에 추가, .selected 클래스 붙음, 우측 패널에 Canvas Properties 표시
+
+[ ] canvas-block 클릭 → 선택
+    조건: canvas-item 밖 영역 클릭
+    동작: click
+    기대: .selected 추가, 이전 선택 해제, 우측 패널 Canvas Properties 표시
+
+[ ] canvas-block Shift+클릭 → 다중 선택 토글
+    기대: .selected 토글, syncSection 호출
+
+[ ] Escape 키 → 선택 해제
+    조건: canvas-item 선택 상태
+    기대: canvas-item 선택 해제, canvas-block은 .selected 유지
+
+[ ] deselectAll() 호출 → canvas-block/item 모두 해제
+    기대: .canvas-block.selected 제거, _selItem = null
+```
+
+### canvas-item 조작
+```
+[ ] 이미지 추가 버튼 → canvas-item(type=image) 생성
+    동작: 속성 패널 "이미지 추가" 클릭
+    기대: .canvas-item[data-type="image"] 추가, 파일선택 다이얼로그 열림
+
+[ ] 텍스트 추가 버튼 → canvas-item(type=text) 생성
+    동작: 속성 패널 "텍스트 추가" 클릭
+    기대: .canvas-item[data-type="text"] 추가, .ci-text "텍스트를 입력하세요" 표시
+
+[ ] canvas-item 클릭 → 선택 + 8핸들 표시
+    기대: .ci-selected 추가, .ci-handle 8개 DOM에 추가, 우측 패널 item 속성 표시
+
+[ ] canvas-item 드래그 이동
+    동작: mousedown → mousemove → mouseup
+    기대: data-x/data-y 업데이트, style.left/top 반영, pushHistory 호출
+
+[ ] canvas-item 리사이즈 (8방향)
+    동작: ci-handle mousedown → mousemove
+    기대: data-w/h 업데이트, 최소 w=40px h=20px 보장
+
+[ ] 텍스트 canvas-item 더블클릭 → 편집 모드
+    기대: contenteditable='true', 커서 포커스
+
+[ ] 텍스트 편집 blur → 저장
+    기대: data-content = 입력한 HTML, pushHistory 호출
+
+[ ] 이미지 파일 드롭 → canvas-item 생성 (드롭 위치, 원본 크기)
+    동작: 이미지 파일을 canvas-block 영역에 드래그드롭
+    기대: canvas-item 생성, 드롭 좌표에 위치, 원본 크기 (캔버스 90% 초과 시 비율 축소)
+    기대: 생성 후 즉시 8핸들 표시
+
+[ ] canvas-item Escape → 선택 해제
+    기대: .ci-selected 제거, 핸들 제거
+
+[ ] canvas-item 바깥 클릭 → 선택 해제
+    기대: _selItem = null
+```
+
+### Canvas Block 통합 (블록 시스템)
+```
+[ ] canvas-block row 드래그 → 다른 위치 이동
+    기대: bindBlock으로 row draggable=true, dragSrc 설정, col drop 정상
+
+[ ] Delete/Backspace → canvas-block 삭제
+    조건: canvas-block.selected
+    기대: 상위 row 제거, buildLayerPanel 호출
+
+[ ] Cmd+C → canvas-block 복사, Cmd+V → 붙여넣기
+    기대: 새 canvas-block DOM 추가, canvas-item 포함, bindCanvasBlock 재호출
+
+[ ] 레이어 패널 → Canvas 표시
+    기대: layer-item에 "Canvas" 레이블, 클릭 시 showCanvasProperties 호출
+```
+
+### Canvas Block 저장/로드
+```
+[ ] 자동저장 → canvas-block HTML 포함
+    동작: canvas-item 추가 후 1.5초 대기
+    기대: localStorage getSaveKey() 값에 .canvas-block HTML 포함
+    기대: getSerializedCanvas() 결과에 .ci-handle, .ci-selected 없음
+
+[ ] 저장 후 rebindAll → canvas-block 재바인딩
+    동작: applyProjectData() 호출
+    기대: _canvasBound = false 리셋 후 bindCanvasBlock 재호출
+    기대: canvas-item data-x/y/w/h → style.left/top/width/height 복원
+
+[ ] canvas-block height 변경 → 저장/로드 복원
+    동작: 높이 슬라이더로 800px 설정, 저장
+    기대: 재로드 후 style.height = '800px'
+
+[ ] canvas-item data 직렬화 완전성
+    기대: data-type, data-x, data-y, data-w, data-h, data-src(image), data-content(text) 모두 보존
+```
+
+---
+
 ## 24. 머지 전 게이트 체크리스트
 
 feature 브랜치 → dev 머지 요청 시 아래를 반드시 확인:

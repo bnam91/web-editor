@@ -115,9 +115,12 @@ export function showCanvasItemProperties(cb, item) {
   const h = Math.round(parseFloat(item.dataset.h) || 100);
   const type = item.dataset.type;
   const typeLabel = type === 'image' ? '이미지' : '텍스트';
-  const fontSize   = parseInt(item.querySelector('.ci-text')?.style.fontSize) || 24;
-  const textColor  = item.querySelector('.ci-text')?.style.color || '#111111';
-  const textAlign  = item.querySelector('.ci-text')?.style.textAlign || item.dataset.textAlign || 'left';
+  const textEl0    = item.querySelector('.ci-text');
+  const fontSize   = parseInt(textEl0?.style.fontSize) || 24;
+  const textColor  = textEl0?.style.color || '#111111';
+  const textAlign  = textEl0?.style.textAlign || item.dataset.textAlign || 'left';
+  const isBold     = (textEl0?.style.fontWeight === 'bold' || textEl0?.style.fontWeight === '700') || item.dataset.bold === 'true';
+  const isItalic   = textEl0?.style.fontStyle === 'italic' || item.dataset.italic === 'true';
   const fitMode    = item.dataset.fitMode || 'cover';
   const radius     = parseInt(item.dataset.radius) || 0;
   const opacity    = Math.round((parseFloat(item.dataset.opacity) ?? 1) * 100);
@@ -176,6 +179,13 @@ export function showCanvasItemProperties(cb, item) {
           <input type="color" id="ci-color" value="${textColor}">
         </div>
         <input type="text" class="prop-color-hex" id="ci-color-hex" value="${textColor}" maxlength="7">
+      </div>
+      <div class="prop-row" style="margin-top:6px">
+        <span class="prop-label">서식</span>
+        <div class="prop-align-group" style="flex:1">
+          <button class="prop-align-btn ci-bold-btn${isBold?' active':''}" title="굵게 (Bold)" style="font-weight:700">B</button>
+          <button class="prop-align-btn ci-italic-btn${isItalic?' active':''}" title="기울임 (Italic)" style="font-style:italic">I</button>
+        </div>
       </div>
       <div class="prop-row" style="margin-top:6px">
         <span class="prop-label">정렬</span>
@@ -307,6 +317,26 @@ export function showCanvasItemProperties(cb, item) {
     colorHex?.addEventListener('change', e => {
       const v = e.target.value.trim();
       if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyColor(v); window.pushHistory?.(); }
+    });
+
+    // Bold 버튼
+    document.querySelector('.ci-bold-btn')?.addEventListener('click', () => {
+      const textEl = item.querySelector('.ci-text');
+      const nowBold = item.dataset.bold === 'true';
+      item.dataset.bold = nowBold ? 'false' : 'true';
+      if (textEl) textEl.style.fontWeight = nowBold ? '' : 'bold';
+      document.querySelector('.ci-bold-btn')?.classList.toggle('active', !nowBold);
+      window.pushHistory?.();
+    });
+
+    // Italic 버튼
+    document.querySelector('.ci-italic-btn')?.addEventListener('click', () => {
+      const textEl = item.querySelector('.ci-text');
+      const nowItalic = item.dataset.italic === 'true';
+      item.dataset.italic = nowItalic ? 'false' : 'true';
+      if (textEl) textEl.style.fontStyle = nowItalic ? '' : 'italic';
+      document.querySelector('.ci-italic-btn')?.classList.toggle('active', !nowItalic);
+      window.pushHistory?.();
     });
 
     // 텍스트 정렬 버튼
