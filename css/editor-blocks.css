@@ -19,6 +19,10 @@
   outline: 1px solid rgba(45,111,232,0.35);
   outline-offset: 0;
 }
+.canvas-block.cb-drag-over {
+  outline: 2px dashed var(--sel-color);
+  background-color: rgba(45,111,232,0.06) !important;
+}
 
 /* canvas-item */
 .canvas-item {

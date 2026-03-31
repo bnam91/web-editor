@@ -880,10 +880,16 @@ function initApp() {
     }
 
     // localStorage에서 이전 탭 상태 복원
+    let _savedTabState = null;
     try {
-      const saved = JSON.parse(localStorage.getItem(TAB_STATE_KEY));
-      if (saved?.tabs?.length) openTabs = saved.tabs;
+      _savedTabState = JSON.parse(localStorage.getItem(TAB_STATE_KEY));
+      if (_savedTabState?.tabs?.length) openTabs = _savedTabState.tabs;
     } catch {}
+
+    // URL에 project 파라미터가 없으면 마지막 활성 프로젝트 복원
+    if (!activeProjectId && _savedTabState?.activeId) {
+      activeProjectId = _savedTabState.activeId;
+    }
 
     if (activeProjectId) {
       // 현재 프로젝트가 탭 목록에 없으면 추가

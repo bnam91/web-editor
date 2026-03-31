@@ -308,6 +308,45 @@ export function bindCanvasBlock(cb) {
       _deselectItem();
     }
   });
+
+  // 이미지 파일 드래그&드롭 → 드롭 위치에 이미지 canvas-item 생성
+  cb.addEventListener('dragover', e => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cb.classList.add('cb-drag-over');
+  });
+  cb.addEventListener('dragleave', e => {
+    if (!cb.contains(e.relatedTarget)) cb.classList.remove('cb-drag-over');
+  });
+  cb.addEventListener('drop', e => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cb.classList.remove('cb-drag-over');
+    const file = [...(e.dataTransfer.files || [])].find(f => f.type.startsWith('image/'));
+    if (!file) return;
+    // 드롭 위치를 canvas-block 기준 좌표로 변환
+    const rect = cb.getBoundingClientRect();
+    const zs = (window.currentZoom || 100) / 100;
+    const dropX = Math.round((e.clientX - rect.left) / zs) - 100;
+    const dropY = Math.round((e.clientY - rect.top)  / zs) - 75;
+    const item = addItemToCanvas(cb, 'image', Math.max(0, dropX), Math.max(0, dropY));
+    const reader = new FileReader();
+    reader.onload = ev => {
+      item.dataset.src = ev.target.result;
+      let img = item.querySelector('.ci-img');
+      if (!img) {
+        img = document.createElement('img');
+        img.className = 'ci-img'; img.draggable = false;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;border-radius:inherit;';
+        item.appendChild(img);
+      }
+      img.src = ev.target.result;
+      window.pushHistory?.();
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export function addItemToCanvas(cb, type, x = 40, y = 40) {
