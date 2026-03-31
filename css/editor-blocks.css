@@ -101,6 +101,14 @@
   pointer-events: none;
 }
 
+/* prop panel 내 active 버튼 (텍스트 정렬 / 이미지 fit) */
+.ci-align-btn.active,
+.ci-fit-btn.active {
+  background: var(--sel-color, #2d6fe8);
+  color: #fff;
+  border-color: var(--sel-color, #2d6fe8);
+}
+
 /* ═══════════════════════════════════
    ASSET BLOCK — 이미지 업로드 상태
 ═══════════════════════════════════ */

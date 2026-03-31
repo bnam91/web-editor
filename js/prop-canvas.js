@@ -115,8 +115,12 @@ export function showCanvasItemProperties(cb, item) {
   const h = Math.round(parseFloat(item.dataset.h) || 100);
   const type = item.dataset.type;
   const typeLabel = type === 'image' ? '이미지' : '텍스트';
-  const fontSize  = parseInt(item.querySelector('.ci-text')?.style.fontSize) || 24;
-  const textColor = item.querySelector('.ci-text')?.style.color || '#111111';
+  const fontSize   = parseInt(item.querySelector('.ci-text')?.style.fontSize) || 24;
+  const textColor  = item.querySelector('.ci-text')?.style.color || '#111111';
+  const textAlign  = item.querySelector('.ci-text')?.style.textAlign || item.dataset.textAlign || 'left';
+  const fitMode    = item.dataset.fitMode || 'cover';
+  const radius     = parseInt(item.dataset.radius) || 0;
+  const opacity    = Math.round((parseFloat(item.dataset.opacity) ?? 1) * 100);
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -146,6 +150,19 @@ export function showCanvasItemProperties(cb, item) {
         <input type="number" class="prop-number" id="ci-h" value="${h}">
       </div>
     </div>
+    <div class="prop-section">
+      <div class="prop-section-title">스타일</div>
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range"  class="prop-slider" id="ci-radius-slider" min="0" max="200" value="${radius}" style="flex:1">
+        <input type="number" class="prop-number" id="ci-radius" value="${radius}" min="0" max="200" style="width:48px">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">투명도</span>
+        <input type="range"  class="prop-slider" id="ci-opacity-slider" min="0" max="100" value="${opacity}" style="flex:1">
+        <input type="number" class="prop-number" id="ci-opacity" value="${opacity}" min="0" max="100" style="width:48px">
+      </div>
+    </div>
     ${type === 'text' ? `
     <div class="prop-section">
       <div class="prop-section-title">텍스트</div>
@@ -159,6 +176,29 @@ export function showCanvasItemProperties(cb, item) {
           <input type="color" id="ci-color" value="${textColor}">
         </div>
         <input type="text" class="prop-color-hex" id="ci-color-hex" value="${textColor}" maxlength="7">
+      </div>
+      <div class="prop-row" style="margin-top:6px">
+        <span class="prop-label">정렬</span>
+        <div class="prop-align-group" style="flex:1">
+          <button class="prop-align-btn ci-align-btn${textAlign==='left'?' active':''}"   data-align="left"   title="왼쪽 정렬">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="7" y2="6"/><line x1="1" y1="9" x2="9" y2="9"/></svg>
+          </button>
+          <button class="prop-align-btn ci-align-btn${textAlign==='center'?' active':''}" data-align="center" title="가운데 정렬">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="1" y1="3" x2="11" y2="3"/><line x1="2.5" y1="6" x2="9.5" y2="6"/><line x1="1.5" y1="9" x2="10.5" y2="9"/></svg>
+          </button>
+          <button class="prop-align-btn ci-align-btn${textAlign==='right'?' active':''}"  data-align="right"  title="오른쪽 정렬">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="1" y1="3" x2="11" y2="3"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="3" y1="9" x2="11" y2="9"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>` : ''}
+    ${type === 'image' ? `
+    <div class="prop-section">
+      <div class="prop-section-title">이미지 맞춤</div>
+      <div class="prop-align-group">
+        <button class="prop-align-btn ci-fit-btn${fitMode==='cover'?' active':''}"   data-fit="cover"   title="Cover (꽉 채움)">Cover</button>
+        <button class="prop-align-btn ci-fit-btn${fitMode==='contain'?' active':''}" data-fit="contain" title="Contain (전체 표시)">Contain</button>
+        <button class="prop-align-btn ci-fit-btn${fitMode==='fill'?' active':''}"    data-fit="fill"    title="Fill (늘리기)">Fill</button>
       </div>
     </div>` : ''}
     <div class="prop-section">
@@ -190,6 +230,38 @@ export function showCanvasItemProperties(cb, item) {
     document.getElementById(id)?.addEventListener('change', () => { applyGeom(); window.pushHistory?.(); });
   });
 
+  // border-radius
+  const radiusSlider = document.getElementById('ci-radius-slider');
+  const radiusNum    = document.getElementById('ci-radius');
+  const applyRadius  = v => {
+    item.dataset.radius = v;
+    item.style.borderRadius = v + 'px';
+    // img 안에도 적용
+    const img = item.querySelector('.ci-img');
+    if (img) img.style.borderRadius = v + 'px';
+  };
+  radiusSlider?.addEventListener('input', () => { applyRadius(parseInt(radiusSlider.value)); radiusNum.value = radiusSlider.value; });
+  radiusSlider?.addEventListener('change', () => window.pushHistory?.());
+  radiusNum?.addEventListener('change', () => {
+    const v = Math.min(200, Math.max(0, parseInt(radiusNum.value) || 0));
+    applyRadius(v); radiusSlider.value = v; window.pushHistory?.();
+  });
+
+  // opacity
+  const opacitySlider = document.getElementById('ci-opacity-slider');
+  const opacityNum    = document.getElementById('ci-opacity');
+  const applyOpacity  = v => {
+    const pct = Math.min(100, Math.max(0, v));
+    item.dataset.opacity = (pct / 100).toFixed(2);
+    item.style.opacity = pct / 100;
+  };
+  opacitySlider?.addEventListener('input', () => { applyOpacity(parseInt(opacitySlider.value)); opacityNum.value = opacitySlider.value; });
+  opacitySlider?.addEventListener('change', () => window.pushHistory?.());
+  opacityNum?.addEventListener('change', () => {
+    const v = Math.min(100, Math.max(0, parseInt(opacityNum.value) ?? 100));
+    applyOpacity(v); opacitySlider.value = v; window.pushHistory?.();
+  });
+
   // 텍스트 속성
   if (type === 'text') {
     const textEl    = item.querySelector('.ci-text');
@@ -212,6 +284,31 @@ export function showCanvasItemProperties(cb, item) {
     colorHex?.addEventListener('change', e => {
       const v = e.target.value.trim();
       if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyColor(v); window.pushHistory?.(); }
+    });
+
+    // 텍스트 정렬 버튼
+    document.querySelectorAll('.ci-align-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const align = btn.dataset.align;
+        if (textEl) textEl.style.textAlign = align;
+        item.dataset.textAlign = align;
+        document.querySelectorAll('.ci-align-btn').forEach(b => b.classList.toggle('active', b === btn));
+        window.pushHistory?.();
+      });
+    });
+  }
+
+  // 이미지 fit 모드 버튼
+  if (type === 'image') {
+    document.querySelectorAll('.ci-fit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const fit = btn.dataset.fit;
+        item.dataset.fitMode = fit;
+        const img = item.querySelector('.ci-img');
+        if (img) img.style.objectFit = fit;
+        document.querySelectorAll('.ci-fit-btn').forEach(b => b.classList.toggle('active', b === btn));
+        window.pushHistory?.();
+      });
     });
   }
 

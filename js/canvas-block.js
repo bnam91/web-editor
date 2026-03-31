@@ -68,13 +68,15 @@ function _onKeyDown(e) {
 let _nudgeTimer = null;
 document.addEventListener('keydown', _onKeyDown, true);
 
-/* ── 위치/크기 CSS 적용 ── */
+/* ── 위치/크기/스타일 CSS 적용 ── */
 function _applyPos(item) {
   item.style.left   = (parseFloat(item.dataset.x) || 0) + 'px';
   item.style.top    = (parseFloat(item.dataset.y) || 0) + 'px';
   item.style.width  = (parseFloat(item.dataset.w) || 200) + 'px';
   item.style.height = (parseFloat(item.dataset.h) || 150) + 'px';
-  if (item.dataset.zIndex) item.style.zIndex = item.dataset.zIndex;
+  if (item.dataset.zIndex)  item.style.zIndex = item.dataset.zIndex;
+  if (item.dataset.radius)  item.style.borderRadius = item.dataset.radius + 'px';
+  if (item.dataset.opacity) item.style.opacity = item.dataset.opacity;
 }
 
 /* ── 핸들 위치 동기화 ── */
@@ -274,8 +276,13 @@ function _bindImageItem(item) {
     img.className = 'ci-img';
     img.src = item.dataset.src;
     img.draggable = false;
-    img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;border-radius:inherit;';
+    const fit = item.dataset.fitMode || 'cover';
+    img.style.cssText = `width:100%;height:100%;object-fit:${fit};display:block;pointer-events:none;border-radius:inherit;`;
     item.appendChild(img);
+  } else if (item.dataset.fitMode) {
+    // fitMode 변경 시 기존 img에 반영
+    const img = item.querySelector('.ci-img');
+    if (img) img.style.objectFit = item.dataset.fitMode;
   }
   // 이미지 드롭
   if (!item._imgDropBound) {
@@ -312,6 +319,8 @@ function _bindTextItem(item) {
     item.appendChild(textEl);
   }
   textEl.setAttribute('contenteditable', 'false');
+  // 저장된 텍스트 정렬 복원
+  if (item.dataset.textAlign) textEl.style.textAlign = item.dataset.textAlign;
 
   // 더블클릭 → 편집 모드
   if (!item._textEditBound) {
