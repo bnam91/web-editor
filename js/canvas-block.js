@@ -485,7 +485,7 @@ export function addItemToCanvas(cb, type, x = 40, y = 40) {
   cb.appendChild(item);
   _bindItem(cb, item);
   _selectItem(cb, item);
-  window.buildLayerPanel?.();
+  _refreshCanvasLayerItems(cb);
   return item;
 }
 
@@ -507,7 +507,7 @@ export function duplicateSelectedItem() {
   cb.appendChild(clone);
   _bindItem(cb, clone);
   _selectItem(cb, clone);
-  window.buildLayerPanel?.();
+  _refreshCanvasLayerItems(cb);
   return clone;
 }
 
@@ -518,7 +518,7 @@ export function removeSelectedItem() {
   const cb = _selCb;
   _deselectItem();
   item.remove();
-  window.buildLayerPanel?.();
+  _refreshCanvasLayerItems(cb);
   if (cb) window.showCanvasProperties?.(cb);
 }
 
@@ -536,6 +536,16 @@ export function sendBackward() {
   _selItem.dataset.zIndex = z;
   _selItem.style.zIndex = z;
   window.pushHistory?.();
+}
+
+/* ── 레이어 패널 canvas-item 목록 갱신 ── */
+function _refreshCanvasLayerItems(cb) {
+  if (cb?._layerCanvasWrapper?._rebuildChildren) {
+    cb._layerCanvasWrapper._rebuildChildren();
+  } else {
+    // wrapper가 없으면 전체 재빌드
+    window.buildLayerPanel?.();
+  }
 }
 
 export function syncCanvasItemHandles(item) { _syncHandles(item); }

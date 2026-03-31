@@ -147,7 +147,92 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   });
 
   block._layerItem = item;
+
+  // canvas-block이면 자식 canvas-item 목록 표시
+  if (isCanvas) {
+    return _makeLayerCanvasWrapper(block, item, sec, depth);
+  }
+
   return item;
+}
+
+/* canvas-block 전용 레이어 wrapper — 자식 canvas-item 목록 포함 */
+function _makeLayerCanvasWrapper(cb, headerItem, sec, depth) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'layer-row-group ci-layer-group';
+  wrapper._dragTarget = headerItem._dragTarget;
+
+  // 헤더(chevron + 기존 item)를 포함하는 행
+  const header = document.createElement('div');
+  header.className = 'layer-row-header ci-layer-header';
+
+  // chevron
+  const chevron = document.createElement('svg');
+  chevron.setAttribute('viewBox', '0 0 12 12');
+  chevron.setAttribute('fill', 'currentColor');
+  chevron.className = 'layer-chevron';
+  chevron.innerHTML = '<path d="M2 4l4 4 4-4"/>';
+  chevron.style.cssText = 'width:12px;height:12px;flex-shrink:0;cursor:pointer;';
+  chevron.addEventListener('click', e => {
+    e.stopPropagation();
+    wrapper.classList.toggle('collapsed');
+  });
+
+  header.appendChild(chevron);
+  header.appendChild(headerItem);
+  wrapper.appendChild(header);
+
+  // 자식 목록 컨테이너
+  const children = document.createElement('div');
+  children.className = 'layer-row-children';
+
+  const _rebuildChildren = () => {
+    children.innerHTML = '';
+    cb.querySelectorAll(':scope > .canvas-item').forEach(ciEl => {
+      const ciType = ciEl.dataset.type || 'image';
+      const ciIcon = ciType === 'text'
+        ? `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="3" x2="10" y2="3"/><line x1="2" y1="6" x2="8" y2="6"/><line x1="2" y1="9" x2="6" y2="9"/></svg>`
+        : `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><circle cx="4" cy="4" r="1"/><polyline points="11 8 8 5 3 11"/></svg>`;
+      const ciLabel = ciType === 'text' ? '텍스트' : '이미지';
+
+      const ciItem = document.createElement('div');
+      ciItem.className = 'layer-item layer-item-nested ci-layer-item';
+      ciItem.dataset.ciId = ciEl.id;
+      ciItem.innerHTML = `${ciIcon}<span class="layer-item-name">${ciLabel}</span><span class="layer-item-type">${ciType === 'text' ? 'Text' : 'Image'}</span>`;
+      ciItem.prepend(makeIndents(depth + 1));
+
+      // 선택 동기화
+      if (ciEl.classList.contains('ci-selected')) ciItem.classList.add('active');
+      ciEl._layerCiItem = ciItem;
+
+      ciItem.addEventListener('click', e => {
+        e.stopPropagation();
+        // canvas-item 선택
+        window.deselectAll?.();
+        cb.classList.add('selected');
+        // mousedown 없이 직접 selectItem API 호출
+        window.deselectCanvasItem?.();
+        // _selectItem 내부 접근을 위해 mousedown 시뮬레이션
+        ciEl.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 0, clientY: 0 }));
+        // 레이어 패널 active 표시
+        children.querySelectorAll('.ci-layer-item').forEach(el => el.classList.remove('active'));
+        ciItem.classList.add('active');
+      });
+
+      // hover 연동
+      ciEl.addEventListener('mouseenter', () => { if (!ciItem.classList.contains('active')) ciItem.style.background = 'var(--ui-bg-card)'; });
+      ciEl.addEventListener('mouseleave', () => { if (!ciItem.classList.contains('active')) ciItem.style.background = ''; });
+
+      children.appendChild(ciItem);
+    });
+  };
+
+  _rebuildChildren();
+  wrapper.appendChild(children);
+  wrapper._rebuildChildren = _rebuildChildren;
+  cb._layerCanvasWrapper = wrapper;
+
+  return wrapper;
 }
 
 /* 레이어 Group 아이템 생성 (group-block용) */
@@ -878,7 +963,7 @@ export function buildLayerPanel() {
       }
     }
 
-    [...sectionInner.children].forEach(child => {
+    [...(sectionInner ? sectionInner.children : [])].forEach(child => {
       if (child.classList.contains('gap-block')) {
         children.appendChild(makeLayerBlockItem(child, child, sec, 1));
       } else if (child.classList.contains('row')) {
