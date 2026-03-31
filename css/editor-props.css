@@ -48,7 +48,7 @@
   margin-bottom: 8px;
 }
 .prop-chain-btn {
-  width: 28px; height: 28px; flex-shrink: 0;
+  width: 22px; height: 22px; flex-shrink: 0;
   background: transparent;
   border: 1px solid var(--ui-border-strong);
   border-radius: 4px;

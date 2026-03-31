@@ -926,6 +926,6 @@ function clearStripBannerImage(sbb) {
   sbb.classList.remove('has-image');
   delete sbb.dataset.imgSrc;
   const imageArea = sbb.querySelector('.sbb-image');
-  imageArea.innerHTML = `<span class="sbb-img-placeholder">+</span>`;
+  imageArea.innerHTML = `<span class="sbb-img-placeholder"></span>`;
   showStripBannerProperties(sbb);
 }

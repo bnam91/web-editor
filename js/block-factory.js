@@ -719,10 +719,9 @@ function makeStripBannerBlock() {
   sbb.dataset.radius = '0';
   sbb.dataset.imgPos = 'right';
   sbb.dataset.usePadx = 'true';
-  sbb.style.background = '#f5f5f5';
   sbb.innerHTML = `
     <div class="sbb-image">
-      <span class="sbb-img-placeholder">+</span>
+      <span class="sbb-img-placeholder"></span>
     </div>
     <div class="sbb-content" style="background:#f5f5f5;">
       <div class="sbb-gap sbb-gap-top" style="height:20px"></div>

@@ -38,22 +38,19 @@ export function showStripBannerProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">크기</div>
+      <div class="prop-section-title">레이아웃</div>
       <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="sbb-h-slider" min="80" max="600" step="8" value="${blockH}">
-        <input type="number" class="prop-number" id="sbb-h-number" min="80" max="600" value="${blockH}">
+        <span class="prop-label">페이지 패딩</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="sbb-padx-toggle" ${usePadX ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">이미지</div>
-      <div class="prop-row">
-        <button class="prop-btn-full" onclick="window.triggerStripBannerImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
+      <div class="prop-row" id="sbb-padx-custom-row"${usePadX ? ' style="opacity:0.4;pointer-events:none"' : ''}>
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="sbb-padx-slider" min="0" max="200" step="4" value="${padX}">
+        <input type="number" class="prop-number" id="sbb-padx-number" min="0" max="200" value="${padX}">
       </div>
-      ${block.classList.contains('has-image') ? `
-      <div class="prop-row">
-        <button class="prop-btn-full prop-btn-danger" onclick="window.clearStripBannerImage(document.getElementById('${block.id}'))">이미지 제거</button>
-      </div>` : ''}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">이미지 위치</div>
@@ -71,6 +68,24 @@ export function showStripBannerProperties(block) {
             </svg>
           </button>
         </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">이미지</div>
+      <div class="prop-row">
+        <button class="prop-btn-full" onclick="window.triggerStripBannerImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
+      </div>
+      ${block.classList.contains('has-image') ? `
+      <div class="prop-row">
+        <button class="prop-btn-full prop-btn-danger" onclick="window.clearStripBannerImage(document.getElementById('${block.id}'))">이미지 제거</button>
+      </div>` : ''}
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">크기</div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="sbb-h-slider" min="80" max="600" step="8" value="${blockH}">
+        <input type="number" class="prop-number" id="sbb-h-number" min="80" max="600" value="${blockH}">
+      </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">텍스트 영역</div>
@@ -162,21 +177,6 @@ export function showStripBannerProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">레이아웃</div>
-      <div class="prop-row">
-        <span class="prop-label">페이지 패딩</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="sbb-padx-toggle" ${usePadX ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div class="prop-row" id="sbb-padx-custom-row"${usePadX ? ' style="opacity:0.4;pointer-events:none"' : ''}>
-        <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="sbb-padx-slider" min="0" max="200" step="4" value="${padX}">
-        <input type="number" class="prop-number" id="sbb-padx-number" min="0" max="200" value="${padX}">
-      </div>
-    </div>
-    <div class="prop-section">
       <div style="font-size:11px;color:#555;margin-top:2px;">더블클릭 편집 · 드래그로 순서 변경</div>
     </div>`;
 
@@ -203,10 +203,7 @@ export function showStripBannerProperties(block) {
 
   function applyBg(val) {
     block.dataset.bgColor = val;
-    content.style.background = val;
-    if (val === 'transparent') {
-      block.style.background = '';
-    }
+    content.style.background = val === 'transparent' ? '' : val;
   }
   const bgSwatch = bgInput.closest('.prop-color-swatch');
   bgInput.addEventListener('input', () => {
@@ -408,8 +405,7 @@ export function showStripBannerProperties(block) {
     btn.addEventListener('click', () => applyImgPos(btn.dataset.pos));
   });
 
-  // padX — sbb-content 에만 적용 (이미지는 full-bleed 유지)
-  const sbbContentEl2 = block.querySelector('.sbb-content');
+  // padX — 외부 strip-banner-block에 적용 → 섹션 배경이 패딩 영역으로 보임
   const padxCustomRow = document.getElementById('sbb-padx-custom-row');
   const padxSlider    = document.getElementById('sbb-padx-slider');
   const padxNumber    = document.getElementById('sbb-padx-number');
@@ -419,9 +415,9 @@ export function showStripBannerProperties(block) {
     block.dataset.padX = v;
     if (padxSlider) padxSlider.value = v;
     if (padxNumber) padxNumber.value = v;
-    if (sbbContentEl2 && !document.getElementById('sbb-padx-toggle').checked) {
-      sbbContentEl2.style.paddingLeft  = v + 'px';
-      sbbContentEl2.style.paddingRight = v + 'px';
+    if (!document.getElementById('sbb-padx-toggle').checked) {
+      block.style.paddingLeft  = v + 'px';
+      block.style.paddingRight = v + 'px';
     }
   };
   padxSlider?.addEventListener('input',  e => applyCustomPadX(parseInt(e.target.value)));
@@ -434,11 +430,16 @@ export function showStripBannerProperties(block) {
       padxCustomRow.style.opacity       = checked ? '0.4' : '1';
       padxCustomRow.style.pointerEvents = checked ? 'none' : '';
     }
-    if (sbbContentEl2) {
-      // checked=true: inline 제거 → CSS --page-padx 변수에 위임
-      // checked=false: 슬라이더 값 적용
-      sbbContentEl2.style.paddingLeft  = checked ? '' : (block.dataset.padX || 24) + 'px';
-      sbbContentEl2.style.paddingRight = checked ? '' : (block.dataset.padX || 24) + 'px';
+    if (checked) {
+      // 페이지 패딩 사용: 섹션의 --page-padx CSS 변수 값을 읽어 적용
+      const secEl = block.closest('.section-block');
+      const cssVal = secEl ? getComputedStyle(secEl).getPropertyValue('--page-padx').trim() : '';
+      const px = cssVal || '32px';
+      block.style.paddingLeft  = px;
+      block.style.paddingRight = px;
+    } else {
+      block.style.paddingLeft  = (block.dataset.padX || 24) + 'px';
+      block.style.paddingRight = (block.dataset.padX || 24) + 'px';
     }
   };
   applyPadX(usePadX); // 현재 상태 반영

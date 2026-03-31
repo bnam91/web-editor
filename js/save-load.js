@@ -353,6 +353,22 @@ function rebindAll() {
       if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
     }
   });
+  // 배너 블록 마이그레이션: padX를 sbb-content에서 outer block으로 이동
+  canvasEl.querySelectorAll('.strip-banner-block').forEach(sbb => {
+    // 구버전: sbb-content에 paddingLeft/Right가 있으면 outer block으로 이동
+    const oldContent = sbb.querySelector('.sbb-content');
+    if (oldContent && (oldContent.style.paddingLeft || oldContent.style.paddingRight)) {
+      sbb.style.paddingLeft  = oldContent.style.paddingLeft  || '';
+      sbb.style.paddingRight = oldContent.style.paddingRight || '';
+      oldContent.style.paddingLeft  = '';
+      oldContent.style.paddingRight = '';
+    }
+    // outer block의 inline background 제거 (sbb-content이 배경 담당)
+    if (sbb.style.background && !sbb.style.background.includes('rgba')) {
+      sbb.style.background = '';
+    }
+  });
+
   // 구버전 배너 블록 마이그레이션: sbb-gap-top/bottom 없는 경우 추가
   canvasEl.querySelectorAll('.strip-banner-block').forEach(sbb => {
     const content = sbb.querySelector('.sbb-content');
