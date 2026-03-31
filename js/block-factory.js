@@ -879,6 +879,38 @@ function addSection() {
   window.maybeAddNewSectionToScope(sec.id);
 }
 
+/* ── Canvas Block ── */
+function makeCanvasBlock() {
+  const cb = document.createElement('div');
+  cb.className = 'canvas-block';
+  cb.id = genId('cb');
+  cb.style.height = '500px';
+  cb.dataset.type = 'canvas';
+  cb.dataset.bg = '#f8f8f8';
+  cb.style.background = '#f8f8f8';
+  return cb;
+}
+
+function addCanvasBlock() {
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+  const cb = makeCanvasBlock();
+  col.appendChild(cb);
+  row.appendChild(col);
+  insertAfterSelected(sec, row);
+  window.bindCanvasBlock?.(cb);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
+  row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
+  window.buildLayerPanel();
+  window.selectSection(sec);
+  window.showCanvasProperties?.(cb);
+}
+
 export {
   makeTextBlock,
   makeAssetBlock,
@@ -935,3 +967,5 @@ window.addGraphBlock        = addGraphBlock;
 window.makeDividerBlock     = makeDividerBlock;
 window.addDividerBlock      = addDividerBlock;
 window.addSection           = addSection;
+window.makeCanvasBlock      = makeCanvasBlock;
+window.addCanvasBlock       = addCanvasBlock;

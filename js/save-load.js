@@ -593,7 +593,9 @@ function getSerializedCanvas() {
   });
   // 핸들/힌트 등 상태 요소는 직렬화에서 제외
   const clone = canvasEl.cloneNode(true);
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint').forEach(el => el.remove());
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint, .ci-handle').forEach(el => el.remove());
+  clone.querySelectorAll('.ci-selected').forEach(el => el.classList.remove('ci-selected'));
+  clone.querySelectorAll('.ci-active').forEach(el => el.classList.remove('ci-active'));
   // 편집 상태 속성 제거 — contenteditable/editing 상태가 저장되지 않도록
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   clone.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
@@ -726,6 +728,13 @@ function rebindAll() {
     if (inner && !inner.hasAttribute('contenteditable')) {
       inner.setAttribute('contenteditable', 'false');
     }
+  });
+
+  // canvas-block 바인딩 (canvas-item은 bindCanvasBlock 내부에서 처리)
+  canvasEl.querySelectorAll('.canvas-block').forEach(cb => {
+    if (!cb.id) cb.id = 'cb_' + Math.random().toString(36).slice(2, 9);
+    cb._canvasBound = false; // rebind 강제
+    window.bindCanvasBlock?.(cb);
   });
 
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => {

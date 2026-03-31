@@ -1,0 +1,369 @@
+/* ══════════════════════════════════════
+   CANVAS BLOCK — Figma 프레임 유사 자유배치 컨테이너
+   canvas-item은 position:absolute + data-x/y/w/h로 배치
+   Penpot 참고: 타입별 통합 Shape 모델, 상대좌표(부모 기준)
+══════════════════════════════════════ */
+
+let _selItem = null; // 현재 선택된 canvas-item
+let _selCb   = null; // 해당 아이템의 부모 canvas-block
+
+/* ── 위치/크기 CSS 적용 ── */
+function _applyPos(item) {
+  item.style.left   = (parseFloat(item.dataset.x) || 0) + 'px';
+  item.style.top    = (parseFloat(item.dataset.y) || 0) + 'px';
+  item.style.width  = (parseFloat(item.dataset.w) || 200) + 'px';
+  item.style.height = (parseFloat(item.dataset.h) || 150) + 'px';
+  if (item.dataset.zIndex) item.style.zIndex = item.dataset.zIndex;
+}
+
+/* ── 핸들 위치 동기화 ── */
+const HS = 4.5; // handle half-size (9px / 2)
+function _syncHandles(item) {
+  if (!item._ciHandles) return;
+  const w = parseFloat(item.dataset.w) || item.offsetWidth;
+  const h = parseFloat(item.dataset.h) || item.offsetHeight;
+  const pos = {
+    tl: [-HS,     -HS    ], tc: [w/2-HS, -HS    ], tr: [w-HS,   -HS    ],
+    rc: [w-HS,  h/2-HS   ], br: [w-HS,   h-HS   ], bc: [w/2-HS, h-HS   ],
+    bl: [-HS,    h-HS    ], lc: [-HS,    h/2-HS  ],
+  };
+  Object.entries(pos).forEach(([id, [lx, ly]]) => {
+    if (item._ciHandles[id]) {
+      item._ciHandles[id].style.left = lx + 'px';
+      item._ciHandles[id].style.top  = ly + 'px';
+    }
+  });
+}
+
+/* ── 핸들 생성 ── */
+function _createHandles(item) {
+  _removeHandles(item);
+  const defs = [
+    { id: 'tl', cursor: 'nwse-resize', cls: 'ci-corner-handle' },
+    { id: 'tc', cursor: 'ns-resize',   cls: 'ci-edge-handle'   },
+    { id: 'tr', cursor: 'nesw-resize', cls: 'ci-corner-handle' },
+    { id: 'rc', cursor: 'ew-resize',   cls: 'ci-edge-handle'   },
+    { id: 'br', cursor: 'nwse-resize', cls: 'ci-corner-handle' },
+    { id: 'bc', cursor: 'ns-resize',   cls: 'ci-edge-handle'   },
+    { id: 'bl', cursor: 'nesw-resize', cls: 'ci-corner-handle' },
+    { id: 'lc', cursor: 'ew-resize',   cls: 'ci-edge-handle'   },
+  ];
+  const handles = {};
+  defs.forEach(({ id, cursor, cls }) => {
+    const h = document.createElement('div');
+    h.className = `${cls} ci-handle`;
+    h.dataset.hid = id;
+    h.style.cursor = cursor;
+    h.draggable = false;
+    h.addEventListener('dragstart', e => e.preventDefault());
+    h.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault(); e.stopPropagation();
+      _startResize(item, id, e);
+    });
+    item.appendChild(h);
+    handles[id] = h;
+  });
+  item._ciHandles = handles;
+  _syncHandles(item);
+}
+
+function _removeHandles(item) {
+  item.querySelectorAll('.ci-handle').forEach(h => h.remove());
+  item._ciHandles = null;
+}
+
+/* ── 아이템 선택 / 해제 ── */
+function _selectItem(cb, item) {
+  if (_selItem === item) return;
+  _deselectItem();
+  _selItem = item;
+  _selCb   = cb;
+  item.classList.add('ci-selected');
+  cb.classList.add('ci-active'); // overflow:visible for handles
+  _createHandles(item);
+  window.showCanvasItemProperties?.(cb, item);
+  // 바깥 클릭 시 해제
+  setTimeout(() => {
+    document.addEventListener('mousedown', _onOutsideDown);
+  }, 0);
+}
+
+function _deselectItem() {
+  if (!_selItem) return;
+  _selItem.classList.remove('ci-selected');
+  _removeHandles(_selItem);
+  _selCb?.classList.remove('ci-active');
+  _selItem = null;
+  _selCb   = null;
+  document.removeEventListener('mousedown', _onOutsideDown);
+}
+
+function _onOutsideDown(e) {
+  if (_selItem && !_selItem.contains(e.target) && !e.target.closest('#panel-right')) {
+    _deselectItem();
+  }
+}
+
+/* ── 이동 드래그 ── */
+function _startMove(cb, item, e) {
+  if (e.target.classList.contains('ci-handle')) return;
+  if (e.target.getAttribute('contenteditable') === 'true') return;
+  e.preventDefault(); e.stopPropagation();
+  const zs = (window.currentZoom || 100) / 100;
+  const sx = e.clientX, sy = e.clientY;
+  const ox = parseFloat(item.dataset.x) || 0;
+  const oy = parseFloat(item.dataset.y) || 0;
+  let _rafId = null;
+
+  const onMove = mv => {
+    const nx = Math.round(ox + (mv.clientX - sx) / zs);
+    const ny = Math.round(oy + (mv.clientY - sy) / zs);
+    item.style.left = nx + 'px';
+    item.style.top  = ny + 'px';
+    if (!_rafId) _rafId = requestAnimationFrame(() => {
+      _syncHandles(item);
+      _rafId = null;
+    });
+  };
+  const onUp = () => {
+    if (_rafId) cancelAnimationFrame(_rafId);
+    item.dataset.x = Math.round(parseFloat(item.style.left));
+    item.dataset.y = Math.round(parseFloat(item.style.top));
+    _syncHandles(item);
+    window.pushHistory?.();
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/* ── 리사이즈 드래그 ── */
+function _startResize(item, handle, e) {
+  const zs = (window.currentZoom || 100) / 100;
+  const sx = e.clientX, sy = e.clientY;
+  const ox = parseFloat(item.dataset.x) || 0;
+  const oy = parseFloat(item.dataset.y) || 0;
+  const ow = parseFloat(item.dataset.w) || item.offsetWidth;
+  const oh = parseFloat(item.dataset.h) || item.offsetHeight;
+  const isLeft = ['tl','bl','lc'].includes(handle);
+  const isTop  = ['tl','tr','tc'].includes(handle);
+  const isH    = ['lc','rc'].includes(handle);
+  const isV    = ['tc','bc'].includes(handle);
+  let _rafId = null;
+
+  const onMove = mv => {
+    const dx = (mv.clientX - sx) / zs;
+    const dy = (mv.clientY - sy) / zs;
+    let nx = ox, ny = oy, nw = ow, nh = oh;
+    if (!isV) {
+      nw = Math.max(40, isLeft ? ow - dx : ow + dx);
+      if (isLeft) nx = ox + (ow - nw);
+    }
+    if (!isH) {
+      nh = Math.max(20, isTop ? oh - dy : oh + dy);
+      if (isTop) ny = oy + (oh - nh);
+    }
+    item.style.left   = nx + 'px';
+    item.style.top    = ny + 'px';
+    item.style.width  = nw + 'px';
+    item.style.height = nh + 'px';
+    if (!_rafId) _rafId = requestAnimationFrame(() => { _syncHandles(item); _rafId = null; });
+  };
+  const onUp = () => {
+    if (_rafId) cancelAnimationFrame(_rafId);
+    item.dataset.x = Math.round(parseFloat(item.style.left));
+    item.dataset.y = Math.round(parseFloat(item.style.top));
+    item.dataset.w = Math.round(parseFloat(item.style.width));
+    item.dataset.h = Math.round(parseFloat(item.style.height));
+    _syncHandles(item);
+    window.pushHistory?.();
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/* ── 타입별 바인딩 ── */
+function _bindImageItem(item) {
+  // src가 있으면 img 복원
+  if (item.dataset.src && !item.querySelector('.ci-img')) {
+    const img = document.createElement('img');
+    img.className = 'ci-img';
+    img.src = item.dataset.src;
+    img.draggable = false;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;border-radius:inherit;';
+    item.appendChild(img);
+  }
+  // 이미지 드롭
+  if (!item._imgDropBound) {
+    item._imgDropBound = true;
+    item.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+    item.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      const file = [...(e.dataTransfer.files || [])].find(f => f.type.startsWith('image/'));
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        item.dataset.src = ev.target.result;
+        let img = item.querySelector('.ci-img');
+        if (!img) {
+          img = document.createElement('img');
+          img.className = 'ci-img'; img.draggable = false;
+          img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;border-radius:inherit;';
+          item.appendChild(img);
+        }
+        img.src = ev.target.result;
+        window.pushHistory?.();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+}
+
+function _bindTextItem(item) {
+  let textEl = item.querySelector('.ci-text');
+  if (!textEl) {
+    textEl = document.createElement('div');
+    textEl.className = 'ci-text';
+    textEl.textContent = item.dataset.content || '텍스트를 입력하세요';
+    item.appendChild(textEl);
+  }
+  textEl.setAttribute('contenteditable', 'false');
+
+  // 더블클릭 → 편집 모드
+  if (!item._textEditBound) {
+    item._textEditBound = true;
+    item.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      textEl.contentEditable = 'true';
+      textEl.style.cursor = 'text';
+      textEl.focus();
+      const range = document.createRange();
+      range.selectNodeContents(textEl);
+      const sel = window.getSelection();
+      sel?.removeAllRanges(); sel?.addRange(range);
+    });
+    textEl.addEventListener('blur', () => {
+      textEl.contentEditable = 'false';
+      textEl.style.cursor = '';
+      item.dataset.content = textEl.innerHTML;
+      window.pushHistory?.();
+    });
+    textEl.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { textEl.blur(); }
+      e.stopPropagation(); // 에디터 단축키 차단
+    });
+  }
+}
+
+/* ── 아이템 바인딩 ── */
+function _bindItem(cb, item) {
+  if (item._itemBound) return;
+  item._itemBound = true;
+  _applyPos(item);
+  if (item.dataset.type === 'image') _bindImageItem(item);
+  if (item.dataset.type === 'text')  _bindTextItem(item);
+
+  item.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    _selectItem(cb, item);
+    _startMove(cb, item, e);
+  });
+}
+
+/* ══════════════════════════════════════
+   PUBLIC API
+══════════════════════════════════════ */
+
+export function bindCanvasBlock(cb) {
+  if (cb._canvasBound) return;
+  cb._canvasBound = true;
+
+  // 배경색 복원
+  if (cb.dataset.bg) cb.style.background = cb.dataset.bg;
+
+  // 기존 아이템 바인딩 (로드/rebindAll 시)
+  cb.querySelectorAll(':scope > .canvas-item').forEach(item => _bindItem(cb, item));
+
+  // canvas-block 자체 클릭 (아이템 밖) → 아이템 해제 + canvas 속성 표시
+  cb.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!e.target.classList.contains('canvas-item') && !e.target.closest('.canvas-item')) {
+      _deselectItem();
+      window.selectBlock?.(cb);
+      window.showCanvasProperties?.(cb);
+    }
+  });
+
+  // Escape → 아이템 선택 해제
+  cb.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _selCb === cb) {
+      e.stopPropagation();
+      _deselectItem();
+    }
+  });
+}
+
+export function addItemToCanvas(cb, type, x = 40, y = 40) {
+  window.pushHistory?.();
+  const item = document.createElement('div');
+  item.className = 'canvas-item';
+  item.id = 'ci_' + Math.random().toString(36).slice(2, 9);
+  item.dataset.type = type;
+  item.dataset.x = x;
+  item.dataset.y = y;
+  item.dataset.w = type === 'text' ? 220 : 300;
+  item.dataset.h = type === 'text' ?  60 : 200;
+  if (type === 'text') item.dataset.content = '텍스트를 입력하세요';
+  cb.appendChild(item);
+  _bindItem(cb, item);
+  _selectItem(cb, item);
+  window.buildLayerPanel?.();
+  return item;
+}
+
+export function removeSelectedItem() {
+  if (!_selItem) return;
+  window.pushHistory?.();
+  const item = _selItem;
+  const cb = _selCb;
+  _deselectItem();
+  item.remove();
+  window.buildLayerPanel?.();
+  if (cb) window.showCanvasProperties?.(cb);
+}
+
+export function bringForward() {
+  if (!_selItem) return;
+  const z = (parseInt(_selItem.dataset.zIndex) || 0) + 1;
+  _selItem.dataset.zIndex = z;
+  _selItem.style.zIndex = z;
+  window.pushHistory?.();
+}
+
+export function sendBackward() {
+  if (!_selItem) return;
+  const z = Math.max(0, (parseInt(_selItem.dataset.zIndex) || 0) - 1);
+  _selItem.dataset.zIndex = z;
+  _selItem.style.zIndex = z;
+  window.pushHistory?.();
+}
+
+export function syncCanvasItemHandles(item) { _syncHandles(item); }
+export function getSelectedItem() { return _selItem; }
+export function getSelectedCb()   { return _selCb; }
+export function deselectCanvasItem() { _deselectItem(); }
+
+// window 노출 (classic scripts / prop-canvas에서 접근)
+window.bindCanvasBlock       = bindCanvasBlock;
+window.addItemToCanvas       = addItemToCanvas;
+window.removeSelectedItem    = removeSelectedItem;
+window.bringForward          = bringForward;
+window.sendBackward          = sendBackward;
+window.syncCanvasItemHandles = syncCanvasItemHandles;
+window.getSelectedItem       = getSelectedItem;
+window.deselectCanvasItem    = deselectCanvasItem;

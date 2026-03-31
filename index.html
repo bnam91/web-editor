@@ -585,6 +585,15 @@
       <button class="fp-menu-item" onclick="addRowBlock(3,1);toggleFpDropdown('fp-row-dropdown')">3 × 1</button>
     </div>
   </div>
+  <button class="fp-btn" onclick="addCanvasBlock()" title="Canvas 자유배치 블록 추가">
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="1" y="1" width="9" height="9" rx="1.5"/>
+      <line x1="3.5" y1="4" x2="3.5" y2="8" stroke-dasharray="1.5 1.2"/>
+      <line x1="7.5" y1="3" x2="7.5" y2="7" stroke-dasharray="1.5 1.2"/>
+      <line x1="2" y1="6" x2="5" y2="6" stroke-dasharray="1.5 1.2"/>
+    </svg>
+    Canvas
+  </button>
   <button class="fp-btn" onclick="addGapBlock()" title="여백(Gap) 블록 추가">
     <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
       <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="8" x2="10" y2="8"/><line x1="5.5" y1="3" x2="5.5" y2="8" stroke-dasharray="1.5 1.5"/>
@@ -775,6 +784,8 @@
 <script type="module" src="js/file-page-section.js"></script>
 <script type="module" src="js/commit-system.js"></script>
 <script type="module" src="js/scratch-pad.js"></script>
+<script type="module" src="js/canvas-block.js"></script>
+<script type="module" src="js/prop-canvas.js"></script>
 <script type="module" src="js/save-load.js"></script>
 <script type="module" src="js/image-handling.js"></script>
 <script type="module" src="js/export-figma-json.js"></script>

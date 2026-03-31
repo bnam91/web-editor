@@ -1,4 +1,89 @@
 /* ═══════════════════════════════════
+   CANVAS BLOCK — 자유배치 컨테이너
+═══════════════════════════════════ */
+.canvas-block {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  cursor: default;
+  outline: 2px solid transparent;
+  transition: outline 0.1s;
+  box-sizing: border-box;
+}
+.canvas-block.ci-active { overflow: visible; }
+.canvas-block.selected {
+  outline: 1.5px solid var(--sel-color);
+  box-shadow: 0 0 0 4px rgba(45,111,232,0.12);
+}
+.canvas-block:hover:not(.selected) {
+  outline: 1px solid rgba(45,111,232,0.35);
+  outline-offset: 0;
+}
+
+/* canvas-item */
+.canvas-item {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: move;
+  overflow: hidden;
+}
+.canvas-item.ci-selected {
+  outline: 1.5px solid #1592fe;
+  box-shadow: 0 0 0 3px rgba(21,146,254,0.15);
+  overflow: visible;
+}
+.canvas-item:hover:not(.ci-selected) {
+  outline: 1px solid rgba(21,146,254,0.4);
+  outline-offset: 0;
+}
+
+/* canvas-item handles */
+.ci-corner-handle {
+  position: absolute;
+  width: 9px; height: 9px;
+  background: #fff;
+  border: 1.5px solid #1592fe;
+  border-radius: 2px;
+  z-index: 20;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 0 1px rgba(21,146,254,0.15);
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: center;
+  pointer-events: auto;
+}
+.ci-corner-handle:hover { background: #1592fe; }
+.ci-edge-handle {
+  position: absolute;
+  width: 7px; height: 7px;
+  background: #1592fe;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  z-index: 20;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: center;
+  pointer-events: auto;
+}
+
+/* canvas-item 텍스트 */
+.ci-text {
+  width: 100%; height: 100%;
+  outline: none;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: pre-wrap;
+  font-family: 'Pretendard', sans-serif;
+}
+.ci-text[contenteditable="true"] { cursor: text; }
+
+/* canvas-item 이미지 */
+.ci-img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════
    ASSET BLOCK — 이미지 업로드 상태
 ═══════════════════════════════════ */
 .asset-block.has-image {
