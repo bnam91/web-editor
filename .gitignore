@@ -3,3 +3,7 @@ node_modules/
 dist/
 projects/
 test-results/
+
+# Squad 디버그/평가 파일
+debug/
+eval-*.js
