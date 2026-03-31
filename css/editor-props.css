@@ -161,17 +161,17 @@
 
 /* 정렬 버튼 그룹 */
 .prop-align-group {
-  display: flex; gap: 0;
+  display: flex; gap: 4px;
 }
 .prop-align-btn {
-  flex: 1; height: 28px;
+  flex: 1; height: 30px; min-width: 32px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
   border-radius: 4px; color: var(--ui-text-dim);
   font-size: 13px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
-.prop-align-btn:hover { border-color: var(--ui-text-dim); color: var(--ui-text-sub); }
+.prop-align-btn:hover { border-color: var(--ui-text-dim); color: var(--ui-text-sub); background: var(--ui-bg-elevated); }
 .prop-align-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
 /* 스타일 버튼 그룹 (Bold / Italic) */
@@ -187,24 +187,10 @@
 .prop-style-btn:hover { border-color: var(--ui-text-dim); color: var(--ui-text-sub); }
 .prop-style-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
-/* Segment Button 패턴 (Figma 스타일) — 버튼이 서로 붙어있는 pill 형태 */
-.prop-type-btn:first-child,
-.prop-align-btn:first-child,
-.prop-style-btn:first-child {
-  border-radius: 4px 0 0 4px;
-}
-.prop-type-btn:not(:first-child):not(:last-child),
-.prop-align-btn:not(:first-child):not(:last-child),
-.prop-style-btn:not(:first-child):not(:last-child) {
-  border-radius: 0;
-  border-left: none;
-}
-.prop-type-btn:last-child,
-.prop-align-btn:last-child,
-.prop-style-btn:last-child {
-  border-radius: 0 4px 4px 0;
-  border-left: none;
-}
+/* prop-type-btn 세그먼트 pill (정렬 탭 용도) */
+.prop-type-btn:first-child { border-radius: 4px 0 0 4px; }
+.prop-type-btn:not(:first-child):not(:last-child) { border-radius: 0; border-left: none; }
+.prop-type-btn:last-child { border-radius: 0 4px 4px 0; border-left: none; }
 
 /* 1글자 아이콘 prefix 라벨 (W/H/X/Y 등) */
 .prop-icon-label {
