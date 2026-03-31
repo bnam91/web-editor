@@ -119,29 +119,6 @@
 }
 .asset-block.pos-dragging .asset-img:active { cursor: grabbing; }
 
-/* 선택된 has-image: 프레임 핸들이 바깥으로 나올 수 있도록 */
-.asset-block.has-image.selected:not(.img-editing):not(.pos-dragging) {
-  overflow: visible;
-}
-/* 프레임 리사이즈 핸들 (has-image.selected 상태) */
-.asset-frame-handle {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  background: #fff;
-  border: 1.5px solid #1592fe;
-  border-radius: 3px;
-  z-index: 10;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(21,146,254,0.2);
-  transform: scale(var(--inv-zoom, 1));
-  transform-origin: center;
-  pointer-events: auto;
-}
-.asset-frame-handle:hover {
-  background: #1592fe;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 0 3px rgba(21,146,254,0.2);
-}
-
 /* 프로퍼티 패널 내 액션 버튼 (이미지 선택/제거) */
 .prop-action-btn {
   width: 100%;
