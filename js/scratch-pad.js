@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════
    스크래치패드 — 캔버스 여백 재료 보관
-   canvas-wrap 회색 여백에 이미지를 임시 배치.
+   canvas-scaler 안에 배치 → 캔버스와 함께 스크롤/줌
    프로젝트 직렬화에 포함되지 않음 (별도 localStorage 키).
 ══════════════════════════════════════ */
 
@@ -23,9 +23,17 @@ function _removeItem(item) {
   _saveScratch();
 }
 
+function _getScale() {
+  const scalerEl = document.getElementById('canvas-scaler');
+  if (!scalerEl) return 1;
+  const m = scalerEl.style.transform?.match(/scale\(([^)]+)\)/);
+  return m ? parseFloat(m[1]) : 1;
+}
+
 function _createItem(src, x, y, w = 220) {
-  const wrap = document.getElementById('canvas-wrap');
-  if (!wrap) return null;
+  // canvas-scaler 안에 배치 → 캔버스와 함께 스크롤/줌
+  const scaler = document.getElementById('canvas-scaler');
+  if (!scaler) return null;
 
   const el = document.createElement('div');
   el.className = 'scratch-item';
@@ -54,10 +62,11 @@ function _createItem(src, x, y, w = 220) {
   resizeH.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
+    const scale = _getScale();
     const startX = e.clientX;
     const startW = el.offsetWidth;
     const onMove = mv => {
-      const newW = Math.max(60, startW + (mv.clientX - startX));
+      const newW = Math.max(60, startW + (mv.clientX - startX) / scale);
       el.style.width = newW + 'px';
       item.w = newW;
     };
@@ -71,27 +80,32 @@ function _createItem(src, x, y, w = 220) {
   });
   el.appendChild(resizeH);
 
-  // 드래그 이동
+  // 드래그 이동 — delta 방식으로 scale 보정
   el.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (e.target === closeBtn || e.target === resizeH) return;
     e.preventDefault(); e.stopPropagation();
-    const sx = e.clientX - el.offsetLeft;
-    const sy = e.clientY - el.offsetTop;
+    let prevX = e.clientX;
+    let prevY = e.clientY;
     let _rafId = null;
     const onMove = mv => {
-      const nx = mv.clientX - sx;
-      const ny = mv.clientY - sy;
+      const scale = _getScale();
+      const dx = (mv.clientX - prevX) / scale;
+      const dy = (mv.clientY - prevY) / scale;
+      prevX = mv.clientX;
+      prevY = mv.clientY;
+      item.x += dx;
+      item.y += dy;
       if (!_rafId) _rafId = requestAnimationFrame(() => {
-        el.style.left = nx + 'px';
-        el.style.top  = ny + 'px';
+        el.style.left = item.x + 'px';
+        el.style.top  = item.y + 'px';
         _rafId = null;
       });
     };
     const onUp = () => {
       if (_rafId) cancelAnimationFrame(_rafId);
-      item.x = el.offsetLeft;
-      item.y = el.offsetTop;
+      item.x = parseFloat(el.style.left) || item.x;
+      item.y = parseFloat(el.style.top)  || item.y;
       _saveScratch();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
@@ -100,7 +114,7 @@ function _createItem(src, x, y, w = 220) {
     document.addEventListener('mouseup', onUp);
   });
 
-  wrap.appendChild(el);
+  scaler.appendChild(el);
 
   const item = { el, src, x, y, w };
   _scratchItems.push(item);
@@ -144,9 +158,12 @@ function initScratchPad(projectId) {
     if (!files.length) return;
     e.preventDefault(); e.stopPropagation();
 
-    const rect = wrap.getBoundingClientRect();
-    const baseX = e.clientX - rect.left + wrap.scrollLeft;
-    const baseY = e.clientY - rect.top  + wrap.scrollTop;
+    // canvas-scaler 로컬 좌표로 변환 (scale 보정)
+    const scalerEl = document.getElementById('canvas-scaler');
+    const scale = _getScale();
+    const scalerRect = scalerEl.getBoundingClientRect();
+    const baseX = (e.clientX - scalerRect.left) / scale;
+    const baseY = (e.clientY - scalerRect.top)  / scale;
 
     files.forEach((file, i) => {
       if (file.size > 20 * 1024 * 1024) return; // 20MB 제한

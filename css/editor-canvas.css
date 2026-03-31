@@ -111,7 +111,7 @@
 }
 .scratch-item:hover .scratch-resize { opacity: 1; }
 
-#canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; }
+#canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; position: relative; }
 #canvas-wrap.panning #canvas-scaler { transition: none; }
 
 #canvas {
