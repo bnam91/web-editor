@@ -198,7 +198,7 @@ function createBranch(name) {
 function deleteBranch(name) {
   const store = loadBranchStore();
   if (!store) return;
-  if (name === 'main') { alert('main 브랜치는 삭제할 수 없습니다.'); return; }
+  if (name === 'main' || name === 'dev') { alert(`'${name}' 브랜치는 삭제할 수 없습니다.`); return; }
   if (store.current === name) { alert('현재 작업 중인 브랜치는 삭제할 수 없습니다.'); return; }
   if (!confirm(`'${name}' 브랜치를 삭제할까요?`)) return;
   delete store.branches[name];

@@ -111,6 +111,9 @@ async function insertTemplate(tpl) {
   const sec = tmp.firstElementChild;
   if (!sec || !sec.classList.contains('section-block')) return;
 
+  // 섹션 ID 재생성 (동일 템플릿 2회 삽입 시 중복 ID 방지)
+  sec.id = 'sec_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+
   // 섹션 번호 갱신
   const secList = canvasEl.querySelectorAll('.section-block');
   const newIdx  = secList.length + 1;
@@ -145,6 +148,7 @@ async function insertTemplate(tpl) {
   bindSectionDrag(sec);
   bindSectionDropZone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
   sec.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {
       const lbl = document.createElement('span');
