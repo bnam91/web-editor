@@ -708,14 +708,14 @@
   background: #f5f5f5;
 }
 .cdb-title {
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 600;
   color: #111;
   outline: none;
   line-height: 1.4;
 }
 .cdb-desc {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--ui-text-dim);
   outline: none;
   line-height: 1.5;
@@ -802,7 +802,10 @@
   line-height: 1.6;
 }
 
-/* 이미지 우측 배치 */
+/* 이미지 위치: left(기본) */
+.strip-banner-block[data-img-pos="left"] .sbb-image { order: 1; }
+.strip-banner-block[data-img-pos="left"] .sbb-content { order: 2; }
+/* 이미지 위치: right */
 .strip-banner-block[data-img-pos="right"] .sbb-image { order: 2; }
 .strip-banner-block[data-img-pos="right"] .sbb-content { order: 1; }
 .strip-banner-block[data-use-padx="false"] .sbb-content { padding-left: 24px; padding-right: 24px; }

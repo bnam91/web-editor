@@ -72,7 +72,7 @@ export function showCardProperties(block) {
       <div class="prop-section-title">카드 수</div>
       <div class="prop-row">
         <button class="prop-action-btn primary" id="card-add-btn">+ 카드 추가</button>
-        <button class="prop-action-btn secondary" id="card-remove-btn">− 제거</button>
+        <button class="prop-action-btn danger" id="card-remove-btn">− 마지막 카드 제거</button>
       </div>
     </div>`;
 

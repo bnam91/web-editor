@@ -18,7 +18,7 @@
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 8px; overflow: hidden;
 }
-.prop-label { font-size: 11px; color: var(--ui-text-dim); width: 36px; flex-shrink: 0; }
+.prop-label { font-size: 11px; color: var(--ui-text-dim); width: 52px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prop-value-text { font-size: 11px; color: #ccc; }
 .prop-count-btn { background:var(--ui-bg-input); border:1px solid var(--ui-border-mid); color:#ccc; width:20px; height:20px; border-radius:4px; cursor:pointer; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center; }
 .prop-count-btn:hover { background:var(--ui-border); color:#fff; }

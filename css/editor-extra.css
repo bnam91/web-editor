@@ -658,8 +658,6 @@ body.preview-mode #preview-navigator { display: flex; }
 ══════════════════════════════════════ */
 #tpl-browser {
   position: fixed;
-  left: 240px;
-  top: 40px;
   bottom: auto;
   width: 420px;
   max-height: calc(100vh - 60px);
@@ -670,14 +668,11 @@ body.preview-mode #preview-navigator { display: flex; }
   display: flex;
   flex-direction: column;
   z-index: 500;
-  transform: translateX(-16px);
   opacity: 0;
   pointer-events: none;
-  transition: transform 0.2s cubic-bezier(0.25,0.46,0.45,0.94),
-              opacity 0.2s ease;
+  transition: opacity 0.2s ease;
 }
 #tpl-browser.open {
-  transform: translateX(0);
   opacity: 1;
   pointer-events: auto;
 }
@@ -690,6 +685,7 @@ body.preview-mode #preview-navigator { display: flex; }
   padding: 6px 12px;
   border-bottom: 1px solid var(--ui-bg-input);
   flex-shrink: 0;
+  cursor: grab;
 }
 .tpl-browser-title {
   font-size: 11px;
