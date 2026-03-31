@@ -446,6 +446,11 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
     console.warn('[save-load] saveProjectToFile: 손상된 snapshot, 저장 취소');
     return;
   }
+  // S11: 빈 canvas 저장 방지 — 모든 페이지의 canvas가 비어있으면 기존 파일 데이터 보호
+  if (data?.pages && data.pages.length > 0 && data.pages.every(p => !p.canvas || p.canvas.trim() === '')) {
+    console.warn('[save-load] saveProjectToFile: 모든 페이지 canvas가 비어있어 저장 건너뜀 (기존 데이터 보호)');
+    return;
+  }
   const thumbnail = opts.skipThumbnail ? null : await captureThumbnail();
 
   if (IS_ELECTRON) {
@@ -794,6 +799,15 @@ function scheduleAutoSave() {
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
   autoSaveTimer = setTimeout(() => {
     const snap = serializeProject();
+    // S11: 빈 canvas 저장 방지 — _suppressAutoSave 해제 직후 빈 상태 덮어쓰기 방지
+    try {
+      const snapData = JSON.parse(snap);
+      if (snapData?.pages?.length > 0 && snapData.pages.every(p => !p.canvas || p.canvas.trim() === '')) {
+        console.warn('[save-load] scheduleAutoSave: 빈 canvas, localStorage 저장 건너뜀');
+        _setAutosaveIndicator('saved');
+        return;
+      }
+    } catch {}
     localStorage.setItem(getSaveKey(), snap);
     localStorage.setItem(getSaveTsKey(), String(Date.now()));
     saveProjectToFile(snap, { skipThumbnail: true }); // 자동저장은 썸네일 캡처 생략
@@ -808,6 +822,13 @@ window.addEventListener('beforeunload', () => {
     clearTimeout(autoSaveTimer);
     autoSaveTimer = null;
     const snap = serializeProject();
+    // S11: 빈 canvas 저장 방지 — 페이지 전환 중 beforeunload 시 빈 상태 덮어쓰기 방지
+    try {
+      const snapData = JSON.parse(snap);
+      if (snapData?.pages?.length > 0 && snapData.pages.every(p => !p.canvas || p.canvas.trim() === '')) {
+        return; // 빈 canvas는 저장하지 않음
+      }
+    } catch {}
     localStorage.setItem(getSaveKey(), snap);
     localStorage.setItem(getSaveTsKey(), String(Date.now()));
   }
