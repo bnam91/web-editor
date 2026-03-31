@@ -408,7 +408,7 @@ document.addEventListener('keydown', e => {
       if (activeSec) {
         const allBlocks = activeSec.querySelectorAll(
           '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block'
+          '.label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block'
         );
         allBlocks.forEach(b => b.classList.add('selected'));
       }
@@ -452,7 +452,7 @@ document.addEventListener('keydown', e => {
     const selBlock = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
+      '.card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
     );
     const selSection = document.querySelector('.section-block.selected');
     const moveTarget = selBlock
@@ -778,7 +778,7 @@ function getSelectedSection() {
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.card-block.selected, .strip-banner-block.selected, .graph-block.selected, ' +
-    '.divider-block.selected, .icon-text-block.selected'
+    '.divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
   );
   return selBlock?.closest('.section-block') || null;
 }

@@ -904,6 +904,7 @@ function addCanvasBlock() {
   row.appendChild(col);
   insertAfterSelected(sec, row);
   window.bindCanvasBlock?.(cb);
+  window.bindBlock?.(cb); // drag-drop row 바인딩 (드래그앤드롭 지원)
   if (window.bindRowColAdd) window.bindRowColAdd(row);
   row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
   window.buildLayerPanel();

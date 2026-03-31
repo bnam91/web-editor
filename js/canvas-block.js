@@ -294,6 +294,18 @@ export function bindCanvasBlock(cb) {
     e.stopPropagation();
     if (!e.target.classList.contains('canvas-item') && !e.target.closest('.canvas-item')) {
       _deselectItem();
+      if (e.shiftKey) {
+        // Shift+클릭: 다중 선택 토글
+        if (cb.classList.contains('selected')) {
+          cb.classList.remove('selected');
+          if (cb._layerItem) { cb._layerItem.classList.remove('active'); cb._layerItem.style.background = ''; }
+        } else {
+          cb.classList.add('selected');
+          if (cb._layerItem) cb._layerItem.classList.add('active');
+        }
+        window.syncSection?.(cb.closest('.section-block'));
+        return;
+      }
       // canvas-block 선택: deselectAll 후 직접 .selected 추가
       window.deselectAll?.();
       cb.classList.add('selected');
