@@ -32,17 +32,19 @@ export function showCanvasProperties(cb) {
         <input type="range"  class="prop-slider" id="cb-h-slider" min="100" max="2000" step="10" value="${h}">
         <input type="number" class="prop-number" id="cb-h-number" min="100" max="2000" value="${h}">
       </div>
-      <div class="prop-row">
+      <div class="prop-color-row">
         <span class="prop-label">배경색</span>
-        <input type="color" id="cb-bg-color" value="${bg}"
-          style="width:32px;height:22px;border:none;background:none;cursor:pointer;padding:0;border-radius:3px;">
-        <button class="prop-align-btn" id="cb-bg-clear" style="font-size:10px;padding:0 8px;margin-left:4px;">초기화</button>
+        <div class="prop-color-swatch" style="background:${bg}">
+          <input type="color" id="cb-bg-color" value="${bg}">
+        </div>
+        <input type="text" class="prop-color-hex" id="cb-bg-hex" value="${bg}" maxlength="7">
+        <button class="prop-align-btn" id="cb-bg-clear">초기화</button>
       </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">요소 추가</div>
-      <button class="prop-action-btn primary"    id="cb-add-image">이미지 추가</button>
-      <button class="prop-action-btn secondary"  id="cb-add-text"  style="margin-top:5px">텍스트 추가</button>
+      <button class="prop-action-btn primary"   id="cb-add-image">이미지 추가</button>
+      <button class="prop-action-btn secondary" id="cb-add-text">텍스트 추가</button>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(cb.id || null);
@@ -56,11 +58,22 @@ export function showCanvasProperties(cb) {
     cb.style.height = v + 'px'; hSlider.value = v; window.pushHistory?.();
   });
 
-  const bgInput = document.getElementById('cb-bg-color');
-  bgInput.addEventListener('input', e => { cb.style.background = e.target.value; cb.dataset.bg = e.target.value; });
+  const bgInput  = document.getElementById('cb-bg-color');
+  const bgHex    = document.getElementById('cb-bg-hex');
+  const bgSwatch = bgHex?.previousElementSibling;
+  const applyBg  = val => {
+    cb.style.background = val; cb.dataset.bg = val;
+    bgInput.value = val; bgHex.value = val;
+    if (bgSwatch) bgSwatch.style.background = val;
+  };
+  bgInput.addEventListener('input', e => applyBg(e.target.value));
   bgInput.addEventListener('change', () => window.pushHistory?.());
+  bgHex.addEventListener('change', e => {
+    const v = e.target.value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyBg(v); window.pushHistory?.(); }
+  });
   document.getElementById('cb-bg-clear').addEventListener('click', () => {
-    cb.style.background = '#f8f8f8'; cb.dataset.bg = '#f8f8f8'; bgInput.value = '#f8f8f8'; window.pushHistory?.();
+    applyBg('#f8f8f8'); window.pushHistory?.();
   });
 
   // 이미지 추가
@@ -121,16 +134,16 @@ export function showCanvasItemProperties(cb, item) {
     <div class="prop-section">
       <div class="prop-section-title">위치 / 크기</div>
       <div class="prop-row">
-        <span class="prop-label">X</span>
-        <input type="number" class="prop-number" id="ci-x" value="${x}" style="width:60px">
-        <span class="prop-label" style="margin-left:6px">Y</span>
-        <input type="number" class="prop-number" id="ci-y" value="${y}" style="width:60px">
+        <span class="prop-icon-label">X</span>
+        <input type="number" class="prop-number" id="ci-x" value="${x}">
+        <span class="prop-icon-label">Y</span>
+        <input type="number" class="prop-number" id="ci-y" value="${y}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">W</span>
-        <input type="number" class="prop-number" id="ci-w" value="${w}" style="width:60px">
-        <span class="prop-label" style="margin-left:6px">H</span>
-        <input type="number" class="prop-number" id="ci-h" value="${h}" style="width:60px">
+        <span class="prop-icon-label">W</span>
+        <input type="number" class="prop-number" id="ci-w" value="${w}">
+        <span class="prop-icon-label">H</span>
+        <input type="number" class="prop-number" id="ci-h" value="${h}">
       </div>
     </div>
     ${type === 'text' ? `
@@ -138,23 +151,26 @@ export function showCanvasItemProperties(cb, item) {
       <div class="prop-section-title">텍스트</div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
-        <input type="number" class="prop-number" id="ci-fs" value="${fontSize}" style="width:60px" min="8" max="400">
+        <input type="number" class="prop-number" id="ci-fs" value="${fontSize}" min="8" max="400">
       </div>
-      <div class="prop-row">
+      <div class="prop-color-row">
         <span class="prop-label">색상</span>
-        <input type="color" id="ci-color" value="${textColor}"
-          style="width:32px;height:22px;border:none;background:none;cursor:pointer;padding:0;border-radius:3px;">
+        <div class="prop-color-swatch" style="background:${textColor}">
+          <input type="color" id="ci-color" value="${textColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="ci-color-hex" value="${textColor}" maxlength="7">
       </div>
     </div>` : ''}
     <div class="prop-section">
       <div class="prop-section-title">레이어 순서</div>
-      <div class="prop-row" style="gap:6px">
-        <button class="prop-align-btn" id="ci-bring" style="flex:1">↑ 앞으로</button>
-        <button class="prop-align-btn" id="ci-send"  style="flex:1">↓ 뒤로</button>
+      <div class="prop-align-group">
+        <button class="prop-align-btn" id="ci-bring">↑ 앞으로</button>
+        <button class="prop-align-btn" id="ci-send">↓ 뒤로</button>
       </div>
     </div>
     <div class="prop-section">
-      <button class="prop-action-btn secondary" id="ci-back-cb" style="margin-bottom:4px">← 캔버스 속성</button>
+      <button class="prop-action-btn secondary" id="ci-back-cb">← 캔버스 속성</button>
+      <button class="prop-action-btn secondary" id="ci-duplicate">복제 (⌘D)</button>
       <button class="prop-action-btn danger"    id="ci-delete">요소 삭제</button>
     </div>`;
 
@@ -176,21 +192,33 @@ export function showCanvasItemProperties(cb, item) {
 
   // 텍스트 속성
   if (type === 'text') {
-    const textEl = item.querySelector('.ci-text');
+    const textEl    = item.querySelector('.ci-text');
+    const colorIn   = document.getElementById('ci-color');
+    const colorHex  = document.getElementById('ci-color-hex');
+    const colorSwatch = colorHex?.previousElementSibling;
+    const applyColor = val => {
+      if (textEl) textEl.style.color = val;
+      if (colorIn)     colorIn.value  = val;
+      if (colorHex)    colorHex.value = val;
+      if (colorSwatch) colorSwatch.style.background = val;
+    };
     document.getElementById('ci-fs')?.addEventListener('change', e => {
       const v = Math.min(400, Math.max(8, parseInt(e.target.value) || 24));
       if (textEl) textEl.style.fontSize = v + 'px';
       window.pushHistory?.();
     });
-    document.getElementById('ci-color')?.addEventListener('input', e => {
-      if (textEl) textEl.style.color = e.target.value;
+    colorIn?.addEventListener('input',  e => applyColor(e.target.value));
+    colorIn?.addEventListener('change', () => window.pushHistory?.());
+    colorHex?.addEventListener('change', e => {
+      const v = e.target.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyColor(v); window.pushHistory?.(); }
     });
-    document.getElementById('ci-color')?.addEventListener('change', () => window.pushHistory?.());
   }
 
   document.getElementById('ci-bring')?.addEventListener('click', () => window.bringForward?.());
   document.getElementById('ci-send')?.addEventListener('click',  () => window.sendBackward?.());
   document.getElementById('ci-back-cb')?.addEventListener('click', () => showCanvasProperties(cb));
+  document.getElementById('ci-duplicate')?.addEventListener('click', () => window.duplicateSelectedItem?.());
   document.getElementById('ci-delete')?.addEventListener('click', () => window.removeSelectedItem?.());
 }
 
