@@ -345,6 +345,22 @@ document.addEventListener('keydown', e => {
     if (e.key === 'z' && e.shiftKey)    { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
     if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
+    if (e.key === 'b' && !e.shiftKey) {
+      // 텍스트 편집 중일 때만 bold 토글
+      if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
+        e.preventDefault();
+        document.getElementById('txt-bold-btn')?.click();
+        return;
+      }
+    }
+    if (e.key === 'i' && !e.shiftKey) {
+      // 텍스트 편집 중일 때만 italic 토글
+      if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
+        e.preventDefault();
+        document.getElementById('txt-italic-btn')?.click();
+        return;
+      }
+    }
     if (e.key === 'c') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;

@@ -132,7 +132,8 @@ export function showTextProperties(tb) {
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <div class="prop-style-group">
-          <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic)"><i>I</i></button>
+          <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (Bold / Cmd+B)"><b>B</b></button>
+          <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic / Cmd+I)"><i>I</i></button>
         </div>
       </div>
       <div class="prop-row">
@@ -360,6 +361,23 @@ export function showTextProperties(tb) {
     contentEl.contentEditable = wasEditable;
     return true;
   };
+
+  let _savedBoldSel = null;
+  document.getElementById('txt-bold-btn').addEventListener('mousedown', () => {
+    if (hasSel()) _savedBoldSel = window.getSelection().getRangeAt(0).cloneRange();
+    else _savedBoldSel = null;
+  });
+  document.getElementById('txt-bold-btn').addEventListener('click', () => {
+    if (_savedBoldSel) {
+      applyExecCmd(_savedBoldSel, 'bold');
+      _savedBoldSel = null;
+    } else {
+      const isNowBold = contentEl.style.fontWeight === '700' || contentEl.style.fontWeight === 'bold';
+      contentEl.style.fontWeight = isNowBold ? '' : '700';
+      document.getElementById('txt-bold-btn').classList.toggle('active', !isNowBold);
+    }
+    window.pushHistory();
+  });
 
   document.getElementById('txt-italic-btn').addEventListener('mousedown', () => {
     if (hasSel()) _savedItalicSel = window.getSelection().getRangeAt(0).cloneRange();
