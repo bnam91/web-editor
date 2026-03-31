@@ -32,14 +32,18 @@ export function showGapProperties(gb) {
   const slider = document.getElementById('gap-slider');
   const number = document.getElementById('gap-number');
 
+  slider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   slider.addEventListener('input', () => {
     gb.style.height = slider.value + 'px';
     number.value = slider.value;
+    window.scheduleAutoSave?.();
   });
+  number.addEventListener('change', () => { window.pushHistory?.(); });
   number.addEventListener('input', () => {
     const v = Math.min(400, Math.max(0, parseInt(number.value) || 0));
     gb.style.height = v + 'px';
     slider.value = v;
+    window.scheduleAutoSave?.();
   });
 }
 

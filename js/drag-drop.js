@@ -237,6 +237,7 @@ function bindBlock(block) {
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
+      window.pushHistory?.(); // 편집 시작 전 상태 저장 → Cmd+Z로 복원 가능
       block.classList.add('editing');
       const editEls = block.querySelectorAll('[contenteditable]');
       editEls.forEach(el => el.setAttribute('contenteditable', 'true'));
@@ -553,6 +554,7 @@ function bindBlock(block) {
       // 텍스트 영역 더블클릭 → contenteditable 활성화
       const textEl = e.target.closest('.cdb-title, .cdb-desc');
       if (textEl) {
+        window.pushHistory?.();
         textEl.contentEditable = 'true';
         textEl.focus();
         block.classList.add('editing');
@@ -610,6 +612,7 @@ function bindBlock(block) {
       }
       const textEl = e.target.closest('.sbb-heading, .sbb-body');
       if (textEl) {
+        window.pushHistory?.();
         textEl.contentEditable = 'true';
         textEl.focus();
         block.classList.add('editing');
@@ -676,6 +679,7 @@ function bindBlock(block) {
       e.stopPropagation();
       const bodyEl = block.querySelector('.itb-text');
       if (!bodyEl) return;
+      window.pushHistory?.();
       block.classList.add('editing');
       bodyEl.setAttribute('contenteditable', 'true');
       bodyEl.focus();
