@@ -294,7 +294,10 @@ export function bindCanvasBlock(cb) {
     e.stopPropagation();
     if (!e.target.classList.contains('canvas-item') && !e.target.closest('.canvas-item')) {
       _deselectItem();
-      window.selectBlock?.(cb);
+      // canvas-block 선택: deselectAll 후 직접 .selected 추가
+      window.deselectAll?.();
+      cb.classList.add('selected');
+      if (cb._layerItem) cb._layerItem.classList.add('active');
       window.showCanvasProperties?.(cb);
     }
   });

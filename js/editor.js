@@ -274,7 +274,7 @@ function selectColWithModifier(col, e) {
 }
 
 function copySelected() {
-  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected');
+  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected');
   const selRow     = document.querySelector('.row.row-active');
   const selSection = document.querySelector('.section-block.selected');
   if (selBlock) {
@@ -675,7 +675,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => b.classList.remove('selected'));
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
