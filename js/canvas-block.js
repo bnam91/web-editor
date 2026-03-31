@@ -297,7 +297,6 @@ export function bindCanvasBlock(cb) {
       // canvas-block 선택: deselectAll 후 직접 .selected 추가
       window.deselectAll?.();
       cb.classList.add('selected');
-      if (cb._layerItem) cb._layerItem.classList.add('active');
       window.showCanvasProperties?.(cb);
     }
   });

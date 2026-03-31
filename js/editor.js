@@ -906,8 +906,8 @@ document.addEventListener('click', e => {
 canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
-  // 블록 클릭은 블록 핸들러에게 위임
-  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) return;
+  // 블록 클릭은 블록 핸들러에게 위임 (canvas-block 포함)
+  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block')) return;
   // col-add 버튼/메뉴는 통과 (메뉴 열기 동작 유지)
   if (e.target.closest('.col-add-btn, .col-add-menu')) return;
 
