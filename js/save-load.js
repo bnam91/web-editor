@@ -3,8 +3,18 @@ import { canvasEl, canvasWrap, state, PAGE_LABELS } from './globals.js';
 /* ══════════════════════════════════════
    저장 / 불러오기
 ══════════════════════════════════════ */
-const SAVE_KEY = 'web-editor-autosave';
+// DBG-REFRESH: SAVE_KEY는 프로젝트별로 분리 — 탭 전환 시 다른 프로젝트 데이터 오염 방지
+// 전역 키('web-editor-autosave')는 더 이상 사용하지 않음
+const SAVE_KEY_PREFIX = 'web-editor-autosave';
 const PROJECTS_KEY = 'sangpe-projects';
+
+/** 현재 activeProjectId 기준 localStorage 키 반환 */
+function getSaveKey() {
+  return activeProjectId ? `${SAVE_KEY_PREFIX}__${activeProjectId}` : SAVE_KEY_PREFIX;
+}
+function getSaveTsKey() {
+  return getSaveKey() + '_ts';
+}
 let autoSaveTimer = null;
 let currentFileName = null; // 현재 세션의 저장 파일명 (null = 최초 저장 전)
 
@@ -773,21 +783,22 @@ function scheduleAutoSave() {
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
   autoSaveTimer = setTimeout(() => {
     const snap = serializeProject();
-    localStorage.setItem(SAVE_KEY, snap);
-    localStorage.setItem(SAVE_KEY + '_ts', String(Date.now()));
+    localStorage.setItem(getSaveKey(), snap);
+    localStorage.setItem(getSaveTsKey(), String(Date.now()));
     saveProjectToFile(snap, { skipThumbnail: true }); // 자동저장은 썸네일 캡처 생략
     _setAutosaveIndicator('saved');
   }, 1500);
 }
 
 // 새로고침/탭 닫기 시 미완료 debounce 즉시 flush → localStorage 백업
+// DBG-REFRESH: getSaveKey()로 프로젝트별 키 사용 — 다른 프로젝트 데이터 오염 방지
 window.addEventListener('beforeunload', () => {
   if (autoSaveTimer) {
     clearTimeout(autoSaveTimer);
     autoSaveTimer = null;
     const snap = serializeProject();
-    localStorage.setItem(SAVE_KEY, snap);
-    localStorage.setItem(SAVE_KEY + '_ts', String(Date.now()));
+    localStorage.setItem(getSaveKey(), snap);
+    localStorage.setItem(getSaveTsKey(), String(Date.now()));
   }
 });
 
@@ -877,11 +888,12 @@ function initApp() {
           const tab = openTabs.find(t => t.id === activeProjectId);
           if (tab) tab.name = name;
           renderTabBar();
+          // DBG-REFRESH: 프로젝트별 키로 localStorage 조회 — 다른 프로젝트 데이터 오염 방지
           // localStorage가 파일보다 새로우면 우선 적용 (새로고침 데이터 손실 방지)
-          const lsTs = parseInt(localStorage.getItem(SAVE_KEY + '_ts') || '0');
+          const lsTs = parseInt(localStorage.getItem(getSaveTsKey()) || '0');
           const fileTs = new Date(proj.updatedAt || 0).getTime();
           if (lsTs > fileTs + 500) {
-            const lsSaved = localStorage.getItem(SAVE_KEY);
+            const lsSaved = localStorage.getItem(getSaveKey());
             if (lsSaved) { try { applyAndFinish(JSON.parse(lsSaved)); return; } catch {} }
           }
           if (proj.version === 2 && proj.pages) { applyAndFinish(proj); return; }
@@ -901,7 +913,7 @@ function initApp() {
       openTabs = [];
       renderTabBar();
     }
-    const saved = localStorage.getItem(SAVE_KEY);
+    const saved = localStorage.getItem(getSaveKey());
     if (saved) { try { applyAndFinish(JSON.parse(saved)); return; } catch {} }
     initEmpty();
   })();
@@ -1029,6 +1041,7 @@ window.applyProjectData = applyProjectData;
 window.applyPageSettings = applyPageSettings;
 window.rebindAll = rebindAll;
 window.scheduleAutoSave = scheduleAutoSave;
+window.triggerAutoSave = scheduleAutoSave; // alias used by drag-drop.js, prop-layout.js
 window.initApp = initApp;
 
 // branch-system.js, commit-system.js 등 다른 모듈에서 참조하는 변수들 노출
