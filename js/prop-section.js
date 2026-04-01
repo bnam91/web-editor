@@ -51,7 +51,8 @@ function showSectionProperties(sec) {
         <option value="auto"    ${bgSize==='auto'    ?'selected':''}>Auto</option>
       </select>
     </div>
-    <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:6px;">이미지 제거</button>
+    <button class="prop-action-btn secondary" id="sec-bg-pos-btn" style="margin-top:6px;">위치 편집</button>
+    <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:4px;">이미지 제거</button>
   ` : `
     <button class="prop-action-btn secondary" id="sec-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
     <input type="file" id="sec-bg-img-input" accept="image/*" style="display:none">
@@ -226,6 +227,8 @@ function showSectionProperties(sec) {
   const bgImgInput  = document.getElementById('sec-bg-img-input');
   const bgSizeEl    = document.getElementById('sec-bg-size');
   const bgImgRemove = document.getElementById('sec-bg-img-remove');
+  const bgPosBtnEl  = document.getElementById('sec-bg-pos-btn');
+  if (bgPosBtnEl) bgPosBtnEl.addEventListener('click', () => window.enterBgPosDragMode?.(sec));
 
   if (bgImgBtn && bgImgInput) {
     bgImgBtn.addEventListener('click', () => bgImgInput.click());

@@ -317,7 +317,7 @@ function rebindAll() {
     if (sec.dataset.bgImg && !sec.style.backgroundImage) {
       sec.style.backgroundImage = `url(${sec.dataset.bgImg})`;
       sec.style.backgroundSize = sec.dataset.bgSize || 'cover';
-      sec.style.backgroundPosition = 'center';
+      sec.style.backgroundPosition = sec.dataset.bgPos || 'center';
       sec.style.backgroundRepeat = 'no-repeat';
     }
     if (!sec._secClickBound) {
@@ -413,7 +413,14 @@ function rebindAll() {
     if (ss.dataset.bgImg && !ss.style.backgroundImage) {
       ss.style.backgroundImage = `url(${ss.dataset.bgImg})`;
       ss.style.backgroundSize = 'cover';
-      ss.style.backgroundPosition = 'center';
+      ss.style.backgroundPosition = ss.dataset.bgPos || 'center';
+    } else if (ss.dataset.bgPos && ss.style.backgroundImage) {
+      ss.style.backgroundPosition = ss.dataset.bgPos;
+    }
+    // 보더 복원
+    const bw = parseInt(ss.dataset.borderWidth) || 0;
+    if (bw > 0) {
+      ss.style.border = `${bw}px ${ss.dataset.borderStyle || 'solid'} ${ss.dataset.borderColor || '#888888'}`;
     }
   });
 

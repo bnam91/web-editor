@@ -486,6 +486,99 @@ window.enterPosDragMode   = enterPosDragMode;
 window.exitPosDragMode    = exitPosDragMode;
 window.enterImageEditMode = enterImageEditMode;
 window.exitImageEditMode  = exitImageEditMode;
+
+/* ══════════════════════════════════════
+   배경 이미지 위치 드래그 모드 (섹션 / 서브섹션 공용)
+══════════════════════════════════════ */
+function enterBgPosDragMode(el) {
+  if (el._bgPosDragging) return;
+  if (!el.style.backgroundImage || el.style.backgroundImage === 'none') return;
+
+  el._bgPosDragging = true;
+  el.classList.add('bg-pos-dragging');
+  el.draggable = false;
+
+  const stored = el.dataset.bgPos || '50% 50%';
+  const parts  = stored.split(' ');
+  let posX = parseFloat(parts[0]) || 50;
+  let posY = parseFloat(parts[1]) || 50;
+
+  const applyPos = () => {
+    el.style.backgroundPosition = `${posX}% ${posY}%`;
+    el.dataset.bgPos = `${posX}% ${posY}%`;
+  };
+  applyPos();
+
+  const hint = document.createElement('div');
+  hint.className = 'img-edit-hint';
+  hint.textContent = '드래그로 배경 위치 조절 · Esc / 블록 밖: 완료';
+  el.style.position = el.style.position || 'relative';
+  el.appendChild(hint);
+
+  let isDragging = false;
+  let startX, startY, startPosX, startPosY;
+
+  function onMouseDown(e) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    isDragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startPosX = posX;   startPosY = posY;
+  }
+  function onMouseMove(e) {
+    if (!isDragging) return;
+    const zs = (window.currentZoom || 100) / 100;
+    const fw = el.offsetWidth;
+    const fh = el.offsetHeight;
+    const dx = (e.clientX - startX) / zs;
+    const dy = (e.clientY - startY) / zs;
+    posX = Math.max(0, Math.min(100, startPosX - (dx / fw * 100)));
+    posY = Math.max(0, Math.min(100, startPosY - (dy / fh * 100)));
+    applyPos();
+  }
+  function onMouseUp() {
+    if (!isDragging) return;
+    isDragging = false;
+    pushHistory();
+  }
+
+  el.addEventListener('mousedown', onMouseDown);
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup',   onMouseUp);
+
+  el._bgPosDragCleanup = () => {
+    el.removeEventListener('mousedown', onMouseDown);
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup',   onMouseUp);
+    hint.remove();
+  };
+
+  el._exitBgPosDrag    = e => { if (!el.contains(e.target)) exitBgPosDragMode(el); };
+  el._exitBgPosDragEsc = e => { if (e.key === 'Escape') exitBgPosDragMode(el); };
+  setTimeout(() => {
+    document.addEventListener('click',   el._exitBgPosDrag);
+    document.addEventListener('keydown', el._exitBgPosDragEsc);
+  }, 0);
+}
+
+function exitBgPosDragMode(el) {
+  if (!el._bgPosDragging) return;
+  el._bgPosDragging = false;
+  el.classList.remove('bg-pos-dragging');
+  el.draggable = true;
+  if (el._bgPosDragCleanup) { el._bgPosDragCleanup(); el._bgPosDragCleanup = null; }
+  document.removeEventListener('click',   el._exitBgPosDrag);
+  document.removeEventListener('keydown', el._exitBgPosDragEsc);
+  el._exitBgPosDrag    = null;
+  el._exitBgPosDragEsc = null;
+  window.scheduleAutoSave?.();
+  // 프로퍼티 패널 갱신
+  if (el.classList.contains('section-block')) window.showSectionProperties?.(el);
+  else if (el.classList.contains('sub-section-block')) window.showSubSectionProperties?.(el);
+}
+
+window.enterBgPosDragMode = enterBgPosDragMode;
+window.exitBgPosDragMode  = exitBgPosDragMode;
 window.applyImageTransform = applyImageTransform;
 window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;

@@ -13,11 +13,18 @@ function rgbToHexSS(rgb) {
 }
 
 export function showSubSectionProperties(ss) {
-  const rawBg = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
-  const hexBg = rgbToHexSS(rawBg);
-  const padY   = parseInt(ss.dataset.padY)   || 24;
+  const rawBg  = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
+  const hexBg  = rgbToHexSS(rawBg);
+  const padY   = parseInt(ss.dataset.padY)   || 0;
   const width  = parseInt(ss.dataset.width)  || 780;
   const height = parseInt(ss.dataset.height) || 520;
+  const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
+
+  // 보더
+  const borderWidth = parseInt(ss.dataset.borderWidth) || 0;
+  const borderStyle = ss.dataset.borderStyle || 'solid';
+  const rawBorderColor = ss.style.borderColor || ss.dataset.borderColor || '#888888';
+  const hexBorderColor = rgbToHexSS(rawBorderColor);
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -45,7 +52,33 @@ export function showSubSectionProperties(ss) {
       <div class="prop-section-title" style="margin-top:10px;">배경 이미지</div>
       <button class="prop-action-btn secondary" id="ss-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
-      ${ss.style.backgroundImage && ss.style.backgroundImage !== 'none' ? `<button class="prop-action-btn" id="ss-bg-img-clear" style="margin-top:4px;background:#3a2a2a;color:#e06c6c;">이미지 제거</button>` : ''}
+      ${hasBgImg ? `
+        <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">위치 편집</button>
+        <button class="prop-action-btn" id="ss-bg-img-clear" style="margin-top:4px;background:#3a2a2a;color:#e06c6c;">이미지 제거</button>
+      ` : ''}
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">보더</div>
+      <div class="prop-row">
+        <span class="prop-label">두께</span>
+        <input type="range" class="prop-slider" id="ss-border-w-slider" min="0" max="20" step="1" value="${borderWidth}">
+        <input type="number" class="prop-number" id="ss-border-w-num" min="0" max="20" value="${borderWidth}">
+      </div>
+      <div class="prop-row" style="margin-top:6px;">
+        <span class="prop-label">스타일</span>
+        <select class="prop-select" id="ss-border-style" style="flex:1;background:#2a2a2a;color:#ccc;border:1px solid #3a3a3a;border-radius:4px;padding:3px 6px;font-size:12px;">
+          <option value="solid"  ${borderStyle === 'solid'  ? 'selected' : ''}>Solid</option>
+          <option value="dashed" ${borderStyle === 'dashed' ? 'selected' : ''}>Dashed</option>
+          <option value="dotted" ${borderStyle === 'dotted' ? 'selected' : ''}>Dotted</option>
+        </select>
+      </div>
+      <div class="prop-color-row" style="margin-top:6px;">
+        <span class="prop-label">색상</span>
+        <div class="prop-color-swatch" style="background:${hexBorderColor}">
+          <input type="color" id="ss-border-color" value="${hexBorderColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="ss-border-color-hex" value="${hexBorderColor}" maxlength="7">
+      </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">크기</div>
@@ -71,10 +104,12 @@ export function showSubSectionProperties(ss) {
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
 
-  // 배경 이미지
+  // ── 배경 이미지 ──────────────────────────────────────
   const bgImgBtn   = document.getElementById('ss-bg-img-btn');
   const bgImgInput = document.getElementById('ss-bg-img-input');
   const bgImgClear = document.getElementById('ss-bg-img-clear');
+  const bgPosBtn   = document.getElementById('ss-bg-pos-btn');
+
   bgImgBtn.addEventListener('click', () => bgImgInput.click());
   bgImgInput.addEventListener('change', () => {
     const file = bgImgInput.files[0];
@@ -87,7 +122,16 @@ export function showSubSectionProperties(ss) {
       ss.dataset.bgImg = e.target.result;
       window.scheduleAutoSave?.();
       window.pushHistory?.();
-      // 제거 버튼 동적 추가
+      // 위치 편집 / 제거 버튼 동적 추가
+      if (!document.getElementById('ss-bg-pos-btn')) {
+        const posBtn = document.createElement('button');
+        posBtn.id = 'ss-bg-pos-btn';
+        posBtn.className = 'prop-action-btn secondary';
+        posBtn.style.cssText = 'margin-top:4px;';
+        posBtn.textContent = '위치 편집';
+        posBtn.addEventListener('click', () => window.enterBgPosDragMode?.(ss));
+        bgImgBtn.after(posBtn);
+      }
       if (!document.getElementById('ss-bg-img-clear')) {
         const clearBtn = document.createElement('button');
         clearBtn.id = 'ss-bg-img-clear';
@@ -95,23 +139,27 @@ export function showSubSectionProperties(ss) {
         clearBtn.style.cssText = 'margin-top:4px;background:#3a2a2a;color:#e06c6c;';
         clearBtn.textContent = '이미지 제거';
         clearBtn.addEventListener('click', removeBgImg);
-        bgImgBtn.after(clearBtn);
+        document.getElementById('ss-bg-pos-btn').after(clearBtn);
       }
     };
     reader.readAsDataURL(file);
   });
+
   function removeBgImg() {
     ss.style.backgroundImage = '';
     ss.style.backgroundSize = '';
     ss.style.backgroundPosition = '';
     delete ss.dataset.bgImg;
+    delete ss.dataset.bgPos;
+    document.getElementById('ss-bg-pos-btn')?.remove();
     document.getElementById('ss-bg-img-clear')?.remove();
     window.scheduleAutoSave?.();
     window.pushHistory?.();
   }
   if (bgImgClear) bgImgClear.addEventListener('click', removeBgImg);
+  if (bgPosBtn)   bgPosBtn.addEventListener('click', () => window.enterBgPosDragMode?.(ss));
 
-  // 배경색
+  // ── 배경색 ────────────────────────────────────────────
   const bgColor = document.getElementById('ss-bg-color');
   const bgHex   = document.getElementById('ss-bg-hex');
   const applyBg = (hex) => {
@@ -119,19 +167,56 @@ export function showSubSectionProperties(ss) {
     ss.dataset.bg = hex;
     window.scheduleAutoSave?.();
   };
-  bgColor.addEventListener('input', () => {
-    bgHex.value = bgColor.value;
-    applyBg(bgColor.value);
-  });
+  bgColor.addEventListener('input', () => { bgHex.value = bgColor.value; applyBg(bgColor.value); });
   bgColor.addEventListener('change', () => { window.pushHistory?.(); });
   bgHex.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
-      bgColor.value = bgHex.value;
-      applyBg(bgHex.value);
+    if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) { bgColor.value = bgHex.value; applyBg(bgHex.value); }
+  });
+
+  // ── 보더 ──────────────────────────────────────────────
+  const borderWSlider = document.getElementById('ss-border-w-slider');
+  const borderWNum    = document.getElementById('ss-border-w-num');
+  const borderStyleEl = document.getElementById('ss-border-style');
+  const borderColorEl = document.getElementById('ss-border-color');
+  const borderColorHex = document.getElementById('ss-border-color-hex');
+
+  const applyBorder = () => {
+    const w = parseInt(borderWNum.value) || 0;
+    const s = borderStyleEl.value;
+    const c = borderColorHex.value;
+    ss.dataset.borderWidth = w;
+    ss.dataset.borderStyle = s;
+    ss.dataset.borderColor = c;
+    if (w > 0) {
+      ss.style.border = `${w}px ${s} ${c}`;
+    } else {
+      ss.style.border = '';
+    }
+    window.scheduleAutoSave?.();
+  };
+
+  borderWSlider.addEventListener('mousedown', () => window.pushHistory?.());
+  borderWSlider.addEventListener('input', () => { borderWNum.value = borderWSlider.value; applyBorder(); });
+  borderWNum.addEventListener('change', () => window.pushHistory?.());
+  borderWNum.addEventListener('input', () => {
+    const v = Math.min(20, Math.max(0, parseInt(borderWNum.value) || 0));
+    borderWSlider.value = v;
+    applyBorder();
+  });
+  borderStyleEl.addEventListener('change', () => { applyBorder(); window.pushHistory?.(); });
+  borderColorEl.addEventListener('input', () => {
+    borderColorHex.value = borderColorEl.value;
+    applyBorder();
+  });
+  borderColorEl.addEventListener('change', () => { window.pushHistory?.(); });
+  borderColorHex.addEventListener('input', () => {
+    if (/^#[0-9a-f]{6}$/i.test(borderColorHex.value)) {
+      borderColorEl.value = borderColorHex.value;
+      applyBorder();
     }
   });
 
-  // 높이
+  // ── 높이 ──────────────────────────────────────────────
   const heightSlider = document.getElementById('ss-height-slider');
   const heightNum    = document.getElementById('ss-height-num');
   const applyHeight  = (v) => {
@@ -148,7 +233,7 @@ export function showSubSectionProperties(ss) {
     applyHeight(v);
   });
 
-  // 너비
+  // ── 너비 ──────────────────────────────────────────────
   const widthSlider = document.getElementById('ss-width-slider');
   const widthNum    = document.getElementById('ss-width-num');
   const applyWidth  = (v) => {
@@ -166,7 +251,7 @@ export function showSubSectionProperties(ss) {
     applyWidth(v);
   });
 
-  // 상/하 패딩
+  // ── 상/하 패딩 ────────────────────────────────────────
   const padYSlider = document.getElementById('ss-pady-slider');
   const padYNum    = document.getElementById('ss-pady-num');
   const applyPadY  = (v) => {
