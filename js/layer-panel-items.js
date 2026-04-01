@@ -27,11 +27,11 @@ function makeIndents(depth) {
   return wrap;
 }
 const layerIcons = {
-  section: `<svg class="layer-section-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="12" height="12" rx="1.5"/></svg>`,
-  heading: `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="currentColor"><text x="0" y="10" font-size="10" font-weight="700" font-family="serif">H</text></svg>`,
+  section: `<svg class="layer-section-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`,
+  heading: `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="currentColor"><text x="6" y="10" font-size="10" font-weight="700" font-family="serif" text-anchor="middle">H</text></svg>`,
   body:    `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9" x2="7" y2="9"/></svg>`,
   caption: `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4"/><line x1="1" y1="7" x2="8" y2="7"/></svg>`,
-  asset:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><circle cx="4" cy="4" r="1"/><polyline points="11 8 8 5 3 11"/></svg>`,
+  asset:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1"><rect x="2" y="2" width="8" height="8" rx="1"/><circle cx="4.5" cy="4.5" r="0.8"/><polyline points="10 8 7.5 5.5 4 9"/></svg>`,
   gap:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4" stroke-dasharray="2,1"/><line x1="1" y1="8" x2="11" y2="8" stroke-dasharray="2,1"/></svg>`,
   label:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="10" height="6" rx="1.5"/></svg>`,
   'icon-circle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="5"/><text x="3.5" y="9" font-size="6" fill="currentColor" stroke="none">★</text></svg>`,
@@ -735,22 +735,16 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
   const header = document.createElement('div');
   header.className = 'layer-row-header';
   const name = ssEl.dataset.layerName || 'Sub-Section';
-  header.innerHTML = `
-    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
-    <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
-      <rect x="1" y="1" width="10" height="10" rx="1.5"/>
-      <rect x="3" y="3" width="6" height="6" rx="1"/>
-    </svg>
-    <span class="layer-item-name">${name}</span>
-    <span class="layer-item-type">Sub</span>`;
+  header.innerHTML = `<svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg><svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg><span class="layer-item-name">${name}</span><span class="layer-item-type">Sub</span>`;
   header.prepend(makeIndents(1));
   addLayerRename(header.querySelector('.layer-item-name'), ssEl, 'Sub-Section', 'layerName');
 
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+    window.deselectAll?.();
     const parentSec = ssEl.closest('.section-block');
-    if (parentSec) window.selectSection(parentSec);  // 내부 deselectAll 먼저
-    ssEl.classList.add('selected');                   // 이후 재적용
+    if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+    ssEl.classList.add('selected');
     window._activeSubSection = ssEl;
     document.querySelectorAll('.layer-row-group').forEach(g => g.classList.remove('active'));
     wrapper.classList.add('active');

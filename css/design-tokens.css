@@ -165,4 +165,11 @@
 
   /* ── Tab drop indicator ── */
   --color-tab-drop:             var(--p-blue-900);
+
+  /* ── Layer panel icon system ── */
+  --icon-layer-size:            14px;   /* .layer-section-icon, .layer-item-icon */
+  --icon-layer-gap-section:     8px;    /* .layer-section-header icon ↔ name gap */
+  --icon-layer-gap-item:        7px;    /* .layer-item icon ↔ name gap */
+  --icon-layer-gap-row:         6px;    /* .layer-row-header icon ↔ name gap */
+  --icon-prop-size:             16px;   /* prop panel block header icon */
 }

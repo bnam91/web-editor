@@ -986,7 +986,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .layer-section-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   height: 28px;
   padding: 0 8px;
   cursor: pointer;
@@ -1028,7 +1028,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 /* ── Layer Row Group (멀티컬럼 컨테이너) ── */
 .layer-row-group { margin-bottom: 2px; border-radius: 4px; overflow: hidden; }
 .layer-row-header {
-  display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; gap: 6px;
   height: 28px; padding: 0 6px 0 8px;
   cursor: pointer; border-radius: 4px;
   transition: background 0.1s; user-select: none;
@@ -1059,7 +1059,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .layer-indent:last-child::before { border-left: none; }
 
 .layer-item {
-  display: flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 7px;
   height: 28px; padding: 0 8px;
   cursor: pointer; border-radius: 4px;
   transition: background 0.1s; user-select: none;
