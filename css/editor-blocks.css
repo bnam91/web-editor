@@ -7,7 +7,6 @@
   box-sizing: border-box;
   outline: 2px solid transparent;
   cursor: default;
-  border-radius: 4px;
   transition: outline-color 0.12s;
 }
 .sub-section-block.selected {
