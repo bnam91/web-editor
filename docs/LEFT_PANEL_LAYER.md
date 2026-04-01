@@ -172,6 +172,20 @@ Section (섹션)
 - 현재 선택된 섹션(`sec.classList.contains('selected')`)이면 `.prop-block-name` 텍스트도 즉시 업데이트
 - 이름 변경마다 개별 히스토리 항목 생성 → Cmd+Z가 한 단계씩 정상 동작
 
+#### 프로퍼티 패널 섹션명 렌더링 규칙 (⚠️ 하드코딩 금지)
+
+`prop-section.js`의 `showSectionProperties(sec)` 에서 섹션명을 반드시 동적으로 읽어야 함:
+
+```js
+// ❌ 잘못된 예
+<span class="prop-block-name">Section</span>
+
+// ✅ 올바른 예
+<span class="prop-block-name">${sec._name || sec.dataset.name || 'Section'}</span>
+```
+
+> 섹션명 관련 버그 수정 시 **이벤트 핸들러(`finish()`)와 초기 렌더링(`showSectionProperties()`)을 반드시 함께 확인**할 것.
+
 #### data-section 동기화
 
 - `buildLayerPanel()` 재빌드 시 `sec.dataset.section = sIdx` 를 항상 갱신
