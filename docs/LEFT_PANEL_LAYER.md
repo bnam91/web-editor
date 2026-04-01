@@ -164,6 +164,20 @@ Section (섹션)
 - [ ] 더블클릭 이름 → 인라인 편집 (Enter 확정, Esc 취소)
 - [ ] `syncLayerActive(sec)` → 레이어패널 active 상태를 섹션과 동기화
 
+#### 섹션명 인라인 편집 규칙
+
+- 편집 시작 시 `prevName` 저장
+- `finish()` 종료 시 실제 변경(`newName !== prevName`)이 있을 때만 `window.pushHistory?.('섹션명 변경')` 호출
+  - 변경 없이 blur/Esc 시 히스토리 push **금지** (불필요한 undo 스택 오염 방지)
+- 현재 선택된 섹션(`sec.classList.contains('selected')`)이면 `.prop-block-name` 텍스트도 즉시 업데이트
+- 이름 변경마다 개별 히스토리 항목 생성 → Cmd+Z가 한 단계씩 정상 동작
+
+#### data-section 동기화
+
+- `buildLayerPanel()` 재빌드 시 `sec.dataset.section = sIdx` 를 항상 갱신
+- 캔버스 섹션 DOM의 `data-section` 인덱스와 레이어패널 `data-section`이 일치해야 함
+- 섹션 추가/삭제/이동 후 반드시 `buildLayerPanel()` 호출
+
 ### 4-2. 서브섹션
 
 - [ ] 클릭 → `deselectAll()` → 부모 섹션 수동 선택 → `ss.selected` 추가 → `_activeSubSection = ss`
@@ -198,6 +212,21 @@ Section (섹션)
 - [ ] `dragover` 핸들러 → `rAF` 적용 (드래그 중 `buildLayerPanel()` 호출 금지)
 - [ ] 드롭 인디케이터 → `clearLayerIndicators()` / `getLayerDragAfterItem()` 사용
 - [ ] 드래그로 섹션 순서 변경 가능
+
+#### 드롭 인디케이터 cleanup 규칙
+
+`.layer-section-drop-indicator` 는 `dragend` 이벤트에서 **반드시** 제거되어야 함.
+
+```js
+// drag-drop.js 전역 dragend 핸들러 (capture phase)
+document.addEventListener('dragend', () => {
+  clearLayerSectionIndicators(); // ← 반드시 포함
+  clearDropIndicators();
+}, true);
+```
+
+- `dragleave`만으로는 ESC 취소, 패널 밖 드롭, 빠른 동작 등에서 cleanup 누락 가능
+- `dragend`는 드래그 종료를 보장하므로 최종 cleanup은 항상 여기서 처리
 
 ### 4-5. 그룹
 
