@@ -123,18 +123,28 @@ export function buildLayerPanel() {
       range.selectNodeContents(nameEl);
       window.getSelection().removeAllRanges();
       window.getSelection().addRange(range);
+      const prevName = sec._name || 'Section';
+      let _cancelled = false;
       const finish = () => {
         nameEl.contentEditable = 'false';
         nameEl.classList.remove('editing');
         const newName = nameEl.textContent.trim() || 'Section';
         nameEl.textContent = newName;
-        sec._name = newName;
-        const label = sec.querySelector('.section-label');
-        if (label) label.textContent = newName;
+        if (!_cancelled && newName !== prevName) {
+          sec._name = newName;
+          const label = sec.querySelector('.section-label');
+          if (label) label.textContent = newName;
+          window.pushHistory?.('섹션명 변경');
+        } else {
+          sec._name = prevName;
+          nameEl.textContent = prevName;
+          const label = sec.querySelector('.section-label');
+          if (label) label.textContent = prevName;
+        }
       };
       const onKeyDown = ev => {
         if (ev.key === 'Enter')  { ev.preventDefault(); nameEl.blur(); }
-        if (ev.key === 'Escape') { nameEl.textContent = sec._name || 'Section'; nameEl.blur(); }
+        if (ev.key === 'Escape') { _cancelled = true; nameEl.textContent = prevName; nameEl.blur(); }
       };
       nameEl.addEventListener('keydown', onKeyDown);
       nameEl.addEventListener('blur', () => {
