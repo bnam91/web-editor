@@ -208,6 +208,8 @@ function switchPage(pageId) {
   window.showPageProperties();
   window.buildLayerPanel(); // also calls buildFilePageSection
   state._suppressAutoSave = false;
+  // 페이지 전환 시 히스토리 초기화 — 이전 페이지 스냅샷으로 되돌아가는 버그 방지
+  window.clearHistory?.();
   scheduleAutoSave();
 }
 
@@ -258,6 +260,15 @@ function getSerializedCanvas() {
   // 드래그 중단 시 고착된 상태 제거
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
   clone.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+  // 섹션 임시 스타일 제거 — 미리보기/썸네일용 scale transform이 저장에 포함되지 않도록
+  clone.querySelectorAll('.section-block').forEach(sec => {
+    sec.style.transform       = '';
+    sec.style.transformOrigin = '';
+    sec.style.position        = '';
+    sec.style.left            = '';
+    sec.style.pointerEvents   = '';
+    sec.style.userSelect      = '';
+  });
   return clone.innerHTML;
 }
 
@@ -290,6 +301,8 @@ function applyProjectData(data) {
   window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
   window.buildLayerPanel(); // also calls buildFilePageSection
   window.showPageProperties();
+  // 프로젝트 로드/탭 전환 후 히스토리 초기화 — 이전 프로젝트/페이지 스냅샷 잔류 방지
+  window.clearHistory?.();
 }
 
 function applyPageSettings() {
@@ -313,6 +326,13 @@ function rebindAll() {
   canvasEl.querySelectorAll('.section-block').forEach(sec => {
     if (!sec.id) sec.id = 'sec_' + Math.random().toString(36).slice(2, 9);
     if (sec.dataset.name) sec._name = sec.dataset.name;
+    // 템플릿 프리뷰 잔여 인라인 스타일 무조건 초기화 (scale/transform-origin/position/left/pointer-events 등)
+    sec.style.transform       = '';
+    sec.style.transformOrigin = '';
+    sec.style.position        = '';
+    sec.style.left            = '';
+    sec.style.pointerEvents   = '';
+    sec.style.userSelect      = '';
     // 배경 이미지 복원
     if (sec.dataset.bgImg && !sec.style.backgroundImage) {
       sec.style.backgroundImage = `url(${sec.dataset.bgImg})`;

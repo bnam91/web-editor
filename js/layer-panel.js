@@ -24,6 +24,8 @@ export function buildLayerPanel() {
 
   document.querySelectorAll('.section-block').forEach((sec, si) => {
     const sIdx = si + 1;
+    // 캔버스 섹션 data-section을 현재 인덱스로 동기화
+    sec.dataset.section = sIdx;
     const sectionEl = document.createElement('div');
     sectionEl.className = 'layer-section';
     sectionEl.dataset.section = sIdx;
@@ -39,7 +41,7 @@ export function buildLayerPanel() {
 
     const nameEl = document.createElement('span');
     nameEl.className = 'layer-section-name';
-    nameEl.textContent = sec._name || 'Section';
+    nameEl.textContent = sec._name || sec.dataset.name || 'Section';
 
     // 눈 아이콘 (섹션 숨김 토글)
     const eyeBtn = document.createElement('button');
@@ -174,7 +176,9 @@ export function buildLayerPanel() {
         container.appendChild(makeLayerRowGroup(child, [], sec));
       } else if (colBlocks.length === 1) {
         const block = colBlocks[0];
-        if (block.classList.contains('asset-block')) {
+        if (block.classList.contains('sub-section-block')) {
+          container.appendChild(makeLayerSubSectionItem(block, sec, appendRowToLayer));
+        } else if (block.classList.contains('asset-block')) {
           container.appendChild(makeLayerAssetItem(block, child, sec));
         } else if (block.classList.contains('card-block')) {
           container.appendChild(makeLayerCardItem(block, child, sec));
