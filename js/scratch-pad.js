@@ -1,27 +1,82 @@
 /* ══════════════════════════════════════
    스크래치패드 — 캔버스 여백 재료 보관
    canvas-scaler 안에 배치 → 캔버스와 함께 스크롤/줌
-   프로젝트 직렬화에 포함되지 않음 (별도 localStorage 키).
+   프로젝트 직렬화에 포함되지 않음 (IndexedDB 별도 저장).
 ══════════════════════════════════════ */
 
-const SCRATCH_KEY_PREFIX = 'scratch-pad';
+const SCRATCH_DB_NAME = 'ScratchPadDB';
+const SCRATCH_STORE   = 'scratch';
+let _db = null;
 let _currentProjectId = null;
 let _currentPageId = null;
 let _scratchItems = [];   // { el, src, x, y, w }
+let _selectedItems = new Set();  // 다중 선택 집합
+
+function _openDB() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SCRATCH_DB_NAME, 1);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore(SCRATCH_STORE);
+    };
+    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
 
 function _getScratchKey(projectId, pageId) {
-  const base = projectId ? `${SCRATCH_KEY_PREFIX}-${projectId}` : SCRATCH_KEY_PREFIX;
+  const base = projectId ? `scratch-pad-${projectId}` : 'scratch-pad';
   return pageId ? `${base}-${pageId}` : base;
 }
 
-function _saveScratch() {
+async function _saveScratch() {
+  const db   = await _openDB();
   const data = _scratchItems.map(({ src, x, y, w }) => ({ src, x, y, w }));
-  localStorage.setItem(_getScratchKey(_currentProjectId, _currentPageId), JSON.stringify(data));
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SCRATCH_STORE, 'readwrite');
+    tx.objectStore(SCRATCH_STORE).put(data, _getScratchKey(_currentProjectId, _currentPageId));
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+function _selectItem(item, shiftKey) {
+  if (shiftKey) {
+    // Shift+클릭: 토글
+    if (_selectedItems.has(item)) {
+      _selectedItems.delete(item);
+      item.el.classList.remove('scratch-selected');
+    } else {
+      _selectedItems.add(item);
+      item.el.classList.add('scratch-selected');
+    }
+  } else {
+    // 일반 클릭: 단독 선택
+    _selectedItems.forEach(s => s.el.classList.remove('scratch-selected'));
+    _selectedItems.clear();
+    _selectedItems.add(item);
+    item.el.classList.add('scratch-selected');
+  }
+}
+
+function _clearSelection() {
+  _selectedItems.forEach(s => s.el.classList.remove('scratch-selected'));
+  _selectedItems.clear();
 }
 
 function _removeItem(item) {
-  item.el.remove();
-  _scratchItems = _scratchItems.filter(s => s !== item);
+  // 다중 선택 중이고 item이 선택에 포함된 경우 → 선택 전체 삭제
+  if (_selectedItems.size > 0 && _selectedItems.has(item)) {
+    const toRemove = [..._selectedItems];
+    _clearSelection();
+    toRemove.forEach(s => {
+      s.el.remove();
+      _scratchItems = _scratchItems.filter(i => i !== s);
+    });
+  } else {
+    item.el.remove();
+    _scratchItems = _scratchItems.filter(s => s !== item);
+  }
   _saveScratch();
 }
 
@@ -33,7 +88,6 @@ function _getScale() {
 }
 
 function _createItem(src, x, y, w = 220) {
-  // canvas-scaler 안에 배치 → 캔버스와 함께 스크롤/줌
   const scaler = document.getElementById('canvas-scaler');
   if (!scaler) return null;
 
@@ -41,13 +95,11 @@ function _createItem(src, x, y, w = 220) {
   el.className = 'scratch-item';
   el.style.cssText = `left:${x}px; top:${y}px; width:${w}px;`;
 
-  // 이미지
   const img = document.createElement('img');
   img.src = src;
   img.draggable = false;
   el.appendChild(img);
 
-  // 닫기 버튼
   const closeBtn = document.createElement('button');
   closeBtn.className = 'scratch-close';
   closeBtn.innerHTML = '✕';
@@ -58,13 +110,12 @@ function _createItem(src, x, y, w = 220) {
   });
   el.appendChild(closeBtn);
 
-  // 리사이즈 핸들 (우하단)
   const resizeH = document.createElement('div');
   resizeH.className = 'scratch-resize';
   resizeH.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
-    const scale = _getScale();
+    const scale  = _getScale();
     const startX = e.clientX;
     const startW = el.offsetWidth;
     const onMove = mv => {
@@ -82,33 +133,55 @@ function _createItem(src, x, y, w = 220) {
   });
   el.appendChild(resizeH);
 
-  // 드래그 이동 — delta 방식으로 scale 보정
   el.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (e.target === closeBtn || e.target === resizeH) return;
     e.preventDefault(); e.stopPropagation();
+
+    // 선택 처리: 자신이 선택 집합에 없으면 단독 선택 후 드래그
+    if (!_selectedItems.has(item)) {
+      _selectItem(item, e.shiftKey);
+    } else if (e.shiftKey) {
+      // Shift+클릭으로 이미 선택된 아이템 → 토글 해제 (드래그는 하지 않음)
+      _selectItem(item, true);
+      return;
+    }
+
+    // 드래그할 아이템 목록 (선택 집합 기준)
+    const dragTargets = _selectedItems.size > 0 ? [..._selectedItems] : [item];
+
     let prevX = e.clientX;
     let prevY = e.clientY;
+    let hasMoved = false;
     let _rafId = null;
     const onMove = mv => {
+      hasMoved = true;
       const scale = _getScale();
       const dx = (mv.clientX - prevX) / scale;
       const dy = (mv.clientY - prevY) / scale;
       prevX = mv.clientX;
       prevY = mv.clientY;
-      item.x += dx;
-      item.y += dy;
+      dragTargets.forEach(t => {
+        t.x += dx;
+        t.y += dy;
+      });
       if (!_rafId) _rafId = requestAnimationFrame(() => {
-        el.style.left = item.x + 'px';
-        el.style.top  = item.y + 'px';
+        dragTargets.forEach(t => {
+          t.el.style.left = t.x + 'px';
+          t.el.style.top  = t.y + 'px';
+        });
         _rafId = null;
       });
     };
     const onUp = () => {
       if (_rafId) cancelAnimationFrame(_rafId);
-      item.x = parseFloat(el.style.left) || item.x;
-      item.y = parseFloat(el.style.top)  || item.y;
-      _saveScratch();
+      if (hasMoved) {
+        dragTargets.forEach(t => {
+          t.x = parseFloat(t.el.style.left) || t.x;
+          t.y = parseFloat(t.el.style.top)  || t.y;
+        });
+        _saveScratch();
+      }
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -123,25 +196,55 @@ function _createItem(src, x, y, w = 220) {
   return item;
 }
 
-function _loadScratch(projectId, pageId) {
+async function _loadScratch(projectId, pageId) {
   _currentProjectId = projectId;
-  _currentPageId = pageId || null;
+  _currentPageId    = pageId || null;
+  _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
   try {
-    const data = JSON.parse(localStorage.getItem(_getScratchKey(projectId, pageId)) || '[]');
+    const db   = await _openDB();
+    const data = await new Promise((resolve, reject) => {
+      const tx  = db.transaction(SCRATCH_STORE, 'readonly');
+      const req = tx.objectStore(SCRATCH_STORE).get(_getScratchKey(projectId, pageId));
+      req.onsuccess = e => resolve(e.target.result || []);
+      req.onerror   = e => reject(e.target.error);
+    });
     data.forEach(({ src, x, y, w }) => _createItem(src, x, y, w));
-  } catch {}
+  } catch(e) {
+    console.warn('[ScratchPad] load error:', e);
+  }
 }
 
-function initScratchPad(projectId, pageId) {
-  _loadScratch(projectId, pageId);
+async function initScratchPad(projectId, pageId) {
+  await _loadScratch(projectId, pageId);
 
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap || wrap._scratchBound) return;
   wrap._scratchBound = true;
 
-  // 드래그오버 — canvas-scaler 위면 무시 (기존 블록 드롭과 분리)
+  // canvas-wrap 빈 영역 클릭 → 전체 선택 해제
+  wrap.addEventListener('mousedown', e => {
+    if (!e.target.closest('.scratch-item')) {
+      _clearSelection();
+    }
+  });
+
+  // Delete / Backspace 키 → 선택 아이템 일괄 삭제 (contenteditable 포커스 중 제외)
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+    if (_selectedItems.size === 0) return;
+    const active = document.activeElement;
+    if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+    const toRemove = [..._selectedItems];
+    _clearSelection();
+    toRemove.forEach(s => {
+      s.el.remove();
+      _scratchItems = _scratchItems.filter(i => i !== s);
+    });
+    _saveScratch();
+  });
+
   wrap.addEventListener('dragover', e => {
     if (e.target.closest('#canvas-scaler')) return;
     if (!e.dataTransfer.types.includes('Files')) return;
@@ -161,15 +264,14 @@ function initScratchPad(projectId, pageId) {
     if (!files.length) return;
     e.preventDefault(); e.stopPropagation();
 
-    // canvas-scaler 로컬 좌표로 변환 (scale 보정)
     const scalerEl = document.getElementById('canvas-scaler');
-    const scale = _getScale();
+    const scale     = _getScale();
     const scalerRect = scalerEl.getBoundingClientRect();
     const baseX = (e.clientX - scalerRect.left) / scale;
     const baseY = (e.clientY - scalerRect.top)  / scale;
 
     files.forEach((file, i) => {
-      if (file.size > 20 * 1024 * 1024) return; // 20MB 제한
+      if (file.size > 20 * 1024 * 1024) return;
       const reader = new FileReader();
       reader.onload = ev => {
         _createItem(ev.target.result, baseX + i * 24, baseY + i * 24);
@@ -179,9 +281,7 @@ function initScratchPad(projectId, pageId) {
     });
   });
 
-  // Cmd+V 클립보드 이미지 붙여넣기
   document.addEventListener('paste', e => {
-    // 텍스트 편집 중(contenteditable)이면 기본 동작 유지
     const active = document.activeElement;
     if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
 
@@ -189,11 +289,10 @@ function initScratchPad(projectId, pageId) {
     if (!items.length) return;
     e.preventDefault();
 
-    // 뷰포트 중앙을 canvas-scaler 로컬 좌표로 변환
-    const scalerEl = document.getElementById('canvas-scaler');
-    const scale = _getScale();
+    const scalerEl  = document.getElementById('canvas-scaler');
+    const scale     = _getScale();
     const scalerRect = scalerEl.getBoundingClientRect();
-    const wrapRect  = wrap.getBoundingClientRect();
+    const wrapRect   = wrap.getBoundingClientRect();
     const cx = (wrapRect.left + wrapRect.width  / 2 - scalerRect.left) / scale;
     const cy = (wrapRect.top  + wrapRect.height / 2 - scalerRect.top)  / scale;
 
@@ -210,23 +309,34 @@ function initScratchPad(projectId, pageId) {
   });
 }
 
-// 탭 전환 시 호출 — 이전 프로젝트 저장 후 새 프로젝트 로드
-function switchScratch(newProjectId, pageId) {
-  _saveScratch();
-  _loadScratch(newProjectId, pageId);
+async function switchScratch(newProjectId, pageId) {
+  await _saveScratch();
+  await _loadScratch(newProjectId, pageId);
 }
 
-// 페이지 전환 시 호출 — 현재 페이지 저장 후 새 페이지 로드
-function switchScratchPage(newPageId) {
-  _saveScratch();
-  _loadScratch(_currentProjectId, newPageId);
+async function switchScratchPage(newPageId) {
+  await _saveScratch();
+  await _loadScratch(_currentProjectId, newPageId);
 }
 
 window.initScratchPad    = initScratchPad;
 window.switchScratch     = switchScratch;
 window.switchScratchPage = switchScratchPage;
-window.clearScratchPad = () => {
+window.clearScratchPad   = async () => {
+  _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
-  localStorage.removeItem(_getScratchKey(_currentProjectId));
+  const db = await _openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SCRATCH_STORE, 'readwrite');
+    tx.objectStore(SCRATCH_STORE).delete(_getScratchKey(_currentProjectId, _currentPageId));
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+};
+
+// CDP 스킬용 헬퍼 — 이미지를 추가하고 IndexedDB에 즉시 저장
+window._scratchAddAndSave = (src, x, y, w) => {
+  _createItem(src, x, y, w);
+  return _saveScratch();
 };

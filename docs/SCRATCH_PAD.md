@@ -62,6 +62,36 @@ value:          JSON 배열 [{ src, x, y, w }, ...]
 
 ---
 
+## 4-1. 다중 선택
+
+### 선택 방법
+
+| 조작 | 동작 |
+|------|------|
+| **일반 클릭** | 해당 아이템만 단독 선택 (기존 선택 해제) |
+| **Shift+클릭** | 기존 선택 유지하며 해당 아이템 추가/토글 |
+| **canvas-wrap 빈 영역 클릭** | 전체 선택 해제 |
+
+선택된 아이템에는 `.scratch-selected` 클래스가 추가되어 파란 테두리(`outline: 2px solid #2d6fe8`)로 표시.
+
+### 다중 선택 상태에서 일괄 동작
+
+| 동작 | 방법 |
+|------|------|
+| **일괄 이동** | 선택된 아이템 중 하나를 드래그하면 선택 전체가 함께 이동 |
+| **일괄 삭제 (✕ 버튼)** | 선택된 아이템 중 하나의 ✕ 클릭 → 선택 전체 삭제 |
+| **일괄 삭제 (키보드)** | `Delete` 또는 `Backspace` 키 → 선택 전체 삭제 (contenteditable 포커스 중 제외) |
+
+### 구현 세부사항
+
+- `_selectedItems: Set` — 모듈 레벨에서 선택 상태 관리
+- `_selectItem(item, shiftKey)` — 선택 토글 헬퍼
+- `_clearSelection()` — 전체 해제 + 클래스 제거
+- `_loadScratch()` / `switchScratch()` / `switchScratchPage()` / `clearScratchPad()` 호출 시 자동 초기화
+- 선택 상태는 **IndexedDB에 저장하지 않음** (휘발성)
+
+---
+
 ## 5. 아이템 DOM 구조
 
 ```html

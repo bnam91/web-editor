@@ -110,6 +110,10 @@
   z-index: 10;
 }
 .scratch-item:hover .scratch-resize { opacity: 1; }
+.scratch-item.scratch-selected {
+  outline: 2px solid #2d6fe8;
+  outline-offset: 2px;
+}
 
 #canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; position: relative; }
 #canvas-wrap.panning #canvas-scaler { transition: none; }
