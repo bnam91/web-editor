@@ -70,10 +70,13 @@ document.addEventListener('keydown', _onKeyDown, true);
 
 /* ── 위치/크기/스타일 CSS 적용 ── */
 function _applyPos(item) {
-  item.style.left   = (parseFloat(item.dataset.x) || 0) + 'px';
-  item.style.top    = (parseFloat(item.dataset.y) || 0) + 'px';
-  item.style.width  = (parseFloat(item.dataset.w) || 200) + 'px';
-  item.style.height = (parseFloat(item.dataset.h) || 150) + 'px';
+  item.style.left  = (parseFloat(item.dataset.x) || 0) + 'px';
+  item.style.top   = (parseFloat(item.dataset.y) || 0) + 'px';
+  item.style.width = (parseFloat(item.dataset.w) || 200) + 'px';
+  // text-block 타입은 height를 강제하지 않음 (content에 맞춰 자동)
+  if (item.dataset.type !== 'text-block') {
+    item.style.height = (parseFloat(item.dataset.h) || 150) + 'px';
+  }
   if (item.dataset.zIndex)  item.style.zIndex = item.dataset.zIndex;
   if (item.dataset.radius)  item.style.borderRadius = item.dataset.radius + 'px';
   if (item.dataset.opacity) item.style.opacity = item.dataset.opacity;
@@ -279,6 +282,49 @@ function _startResize(item, handle, e) {
 }
 
 /* ── 타입별 바인딩 ── */
+
+function _bindTextBlockItem(item) {
+  let tbEl = item.querySelector('.text-block');
+  if (!tbEl) {
+    const tbType = item.dataset.tbtype || 'body';
+    tbEl = document.createElement('div');
+    tbEl.className = 'text-block';
+    tbEl.dataset.type = tbType === 'h2' ? 'heading' : tbType;
+    const inner = document.createElement('div');
+    inner.className = `tb-${tbType}`;
+    inner.draggable = false;
+    inner.setAttribute('contenteditable', 'false');
+    inner.innerHTML = item.dataset.content || (tbType === 'h2' ? '제목을 입력하세요' : '텍스트를 입력하세요');
+    tbEl.appendChild(inner);
+    item.appendChild(tbEl);
+  }
+  if (!item._tbBound) {
+    item._tbBound = true;
+    const inner = tbEl.querySelector('[class^="tb-"]');
+    if (!inner) return;
+    item.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      inner.contentEditable = 'true';
+      inner.style.cursor = 'text';
+      inner.focus();
+      const range = document.createRange();
+      range.selectNodeContents(inner);
+      const sel = window.getSelection();
+      sel?.removeAllRanges(); sel?.addRange(range);
+    });
+    inner.addEventListener('blur', () => {
+      inner.contentEditable = 'false';
+      inner.style.cursor = '';
+      item.dataset.content = inner.innerHTML;
+      window.pushHistory?.();
+    });
+    inner.addEventListener('keydown', e => {
+      if (e.key === 'Escape') inner.blur();
+      e.stopPropagation();
+    });
+  }
+}
+
 function _bindImageItem(item) {
   // src가 있으면 img 복원
   if (item.dataset.src && !item.querySelector('.ci-img')) {
@@ -365,8 +411,9 @@ function _bindItem(cb, item) {
   if (item._itemBound) return;
   item._itemBound = true;
   _applyPos(item);
-  if (item.dataset.type === 'image') _bindImageItem(item);
-  if (item.dataset.type === 'text')  _bindTextItem(item);
+  if (item.dataset.type === 'image')      _bindImageItem(item);
+  if (item.dataset.type === 'text')       _bindTextItem(item);
+  if (item.dataset.type === 'text-block') _bindTextBlockItem(item);
 
   item.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
@@ -483,6 +530,45 @@ export function bindCanvasBlock(cb) {
   });
 }
 
+export function addTextBlockToCanvas(cb, tbType) {
+  window.pushHistory?.();
+  const item = document.createElement('div');
+  item.className = 'canvas-item';
+  item.id = 'ci_' + Math.random().toString(36).slice(2, 9);
+  item.dataset.type   = 'text-block';
+  item.dataset.tbtype = tbType;
+
+  // 텍스트 블록 구조 생성
+  const tbEl = document.createElement('div');
+  tbEl.className = 'text-block';
+  tbEl.dataset.type = tbType === 'h2' ? 'heading' : tbType;
+  const inner = document.createElement('div');
+  inner.className = `tb-${tbType}`;
+  inner.draggable = false;
+  inner.setAttribute('contenteditable', 'false');
+  inner.textContent = tbType === 'h2' ? '제목을 입력하세요' : '텍스트를 입력하세요';
+  tbEl.appendChild(inner);
+  item.appendChild(tbEl);
+
+  // 오프스크린에서 자연 너비 측정
+  item.style.cssText = 'position:absolute;left:-9999px;top:-9999px;white-space:nowrap;width:max-content;';
+  cb.appendChild(item);
+  const measuredW = Math.max(80, item.offsetWidth);
+
+  // 기존 아이템 수에 따라 y 오프셋
+  const offset = (cb.querySelectorAll(':scope > .canvas-item').length - 1) * 8;
+  item.dataset.x = 40 + offset;
+  item.dataset.y = 40 + offset;
+  item.dataset.w = measuredW;
+  item.style.cssText = '';
+
+  _bindItem(cb, item);
+  _selectItem(cb, item);
+  _refreshCanvasLayerItems(cb);
+  window.triggerAutoSave?.();
+  return item;
+}
+
 export function addItemToCanvas(cb, type, x = 40, y = 40) {
   window.pushHistory?.();
   const item = document.createElement('div');
@@ -565,9 +651,86 @@ export function getSelectedItem() { return _selItem; }
 export function getSelectedCb()   { return _selCb; }
 export function deselectCanvasItem() { _deselectItem(); }
 
+/* ══════════════════════════════════════
+   서브섹션 → 캔버스 블록 단방향 전환
+══════════════════════════════════════ */
+export function convertSubSectionToCanvas(ss) {
+  const ssRect = ss.getBoundingClientRect();
+  const ssW    = ss.offsetWidth;
+  const ssH    = ss.offsetHeight;
+
+  // canvas-block 생성 (서브섹션 크기 / 배경 복사)
+  const cb = document.createElement('div');
+  cb.className  = 'canvas-block';
+  cb.id         = 'cb_' + Math.random().toString(36).slice(2, 9);
+  cb.dataset.type = 'canvas';
+  cb.style.width  = ssW + 'px';
+  cb.style.height = ssH + 'px';
+  cb.style.margin = '0 auto';
+  cb.dataset.h    = ssH;
+
+  const bg = ss.dataset.bg || ss.style.backgroundColor || '#f5f5f5';
+  cb.dataset.bg    = bg;
+  cb.style.background = bg;
+  if (ss.style.backgroundImage && ss.style.backgroundImage !== 'none') {
+    cb.style.backgroundImage    = ss.style.backgroundImage;
+    cb.style.backgroundSize     = ss.style.backgroundSize;
+    cb.style.backgroundPosition = ss.style.backgroundPosition;
+    if (ss.dataset.bgImg) cb.dataset.bgImg = ss.dataset.bgImg;
+    if (ss.dataset.bgPos) cb.dataset.bgPos = ss.dataset.bgPos;
+  }
+  if (ss.style.borderRadius) cb.style.borderRadius = ss.style.borderRadius;
+  if (ss.style.border)       cb.style.border       = ss.style.border;
+
+  // 내부 블록들을 canvas-item으로 변환
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block';
+  [...ss.querySelectorAll(BLOCK_SEL)].forEach(block => {
+    const bRect = block.getBoundingClientRect();
+    const x = Math.round(bRect.left - ssRect.left);
+    const y = Math.round(bRect.top  - ssRect.top);
+    const w = Math.round(bRect.width);
+    const h = Math.round(bRect.height);
+
+    const item = document.createElement('div');
+    item.className  = 'canvas-item';
+    item.id         = 'ci_' + Math.random().toString(36).slice(2, 9);
+    item.dataset.x  = x;
+    item.dataset.y  = y;
+    item.dataset.w  = w;
+    item.dataset.h  = h;
+
+    if (block.classList.contains('text-block'))  item.dataset.type = 'text-block';
+    else if (block.classList.contains('asset-block')) item.dataset.type = 'image';
+    else item.dataset.type = 'block';
+
+    item.appendChild(block);
+    cb.appendChild(item);
+  });
+
+  // 서브섹션 자리(col)에 canvas-block 교체
+  const col = ss.parentElement;
+  if (col) {
+    col.innerHTML = '';
+    col.appendChild(cb);
+  }
+
+  // 이벤트 바인딩
+  bindCanvasBlock(cb);
+  window.bindBlock?.(cb);
+
+  window.pushHistory?.();
+  window.buildLayerPanel?.();
+  window.scheduleAutoSave?.();
+
+  window.deselectAll?.();
+  cb.classList.add('selected');
+  window.showCanvasProperties?.(cb);
+}
+
 // window 노출 (classic scripts / prop-canvas에서 접근)
 window.bindCanvasBlock          = bindCanvasBlock;
 window.addItemToCanvas          = addItemToCanvas;
+window.addTextBlockToCanvas     = addTextBlockToCanvas;
 window.removeSelectedItem       = removeSelectedItem;
 window.duplicateSelectedItem    = duplicateSelectedItem;
 window.bringForward             = bringForward;
@@ -576,3 +739,4 @@ window.syncCanvasItemHandles    = syncCanvasItemHandles;
 window.getSelectedItem          = getSelectedItem;
 window.getSelectedCb            = getSelectedCb;
 window.deselectCanvasItem       = deselectCanvasItem;
+window.convertSubSectionToCanvas = convertSubSectionToCanvas;

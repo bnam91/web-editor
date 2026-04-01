@@ -42,6 +42,7 @@ export function showSubSectionProperties(ss) {
         </div>
         ${ss.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${ss.id}')">${ss.id}</span>` : ''}
       </div>
+      <button class="prop-action-btn secondary" id="ss-to-canvas-btn" style="margin-top:8px;font-size:10px;" title="내부 블록을 절대 좌표로 고정하는 캔버스 모드로 전환합니다 (단방향, 되돌리기 불가)">캔버스 모드로 전환</button>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">배경</div>
@@ -134,6 +135,12 @@ export function showSubSectionProperties(ss) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
+
+  // ── 캔버스 모드 전환 ──────────────────────────────────
+  document.getElementById('ss-to-canvas-btn')?.addEventListener('click', () => {
+    if (!confirm('캔버스 모드로 전환하면 되돌릴 수 없습니다.\n내부 블록들이 현재 위치에 고정됩니다.\n계속할까요?')) return;
+    window.convertSubSectionToCanvas?.(ss);
+  });
 
   // ── 컴포넌트 저장 ─────────────────────────────────────
   const ssTplFolderSel = document.getElementById('ss-tpl-folder');
