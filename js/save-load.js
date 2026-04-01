@@ -422,6 +422,8 @@ function rebindAll() {
     if (bw > 0) {
       ss.style.border = `${bw}px ${ss.dataset.borderStyle || 'solid'} ${ss.dataset.borderColor || '#888888'}`;
     }
+    // 코너 반경 복원
+    if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
   });
 
   // col-placeholder 이벤트 재연결

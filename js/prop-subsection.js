@@ -26,6 +26,9 @@ export function showSubSectionProperties(ss) {
   const rawBorderColor = ss.style.borderColor || ss.dataset.borderColor || '#888888';
   const hexBorderColor = rgbToHexSS(rawBorderColor);
 
+  // 코너 반경
+  const radius = parseInt(ss.dataset.radius) || 0;
+
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -78,6 +81,11 @@ export function showSubSectionProperties(ss) {
           <input type="color" id="ss-border-color" value="${hexBorderColor}">
         </div>
         <input type="text" class="prop-color-hex" id="ss-border-color-hex" value="${hexBorderColor}" maxlength="7">
+      </div>
+      <div class="prop-row" style="margin-top:6px;">
+        <span class="prop-label">코너</span>
+        <input type="range" class="prop-slider" id="ss-radius-slider" min="0" max="80" step="1" value="${radius}">
+        <input type="number" class="prop-number" id="ss-radius-num" min="0" max="80" value="${radius}">
       </div>
     </div>
     <div class="prop-section">
@@ -214,6 +222,23 @@ export function showSubSectionProperties(ss) {
       borderColorEl.value = borderColorHex.value;
       applyBorder();
     }
+  });
+
+  // ── 코너 반경 ─────────────────────────────────────────
+  const radiusSlider = document.getElementById('ss-radius-slider');
+  const radiusNum    = document.getElementById('ss-radius-num');
+  const applyRadius  = (v) => {
+    ss.dataset.radius = v;
+    ss.style.borderRadius = v + 'px';
+    window.scheduleAutoSave?.();
+  };
+  radiusSlider.addEventListener('mousedown', () => window.pushHistory?.());
+  radiusSlider.addEventListener('input', () => { radiusNum.value = radiusSlider.value; applyRadius(radiusSlider.value); });
+  radiusNum.addEventListener('change', () => window.pushHistory?.());
+  radiusNum.addEventListener('input', () => {
+    const v = Math.min(80, Math.max(0, parseInt(radiusNum.value) || 0));
+    radiusSlider.value = v;
+    applyRadius(v);
   });
 
   // ── 높이 ──────────────────────────────────────────────
