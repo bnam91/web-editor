@@ -76,7 +76,7 @@
   cursor: text;
   outline: 2px solid transparent;
   
-  padding: var(--page-pady, 32px) var(--page-padx, 32px);
+  padding: 0 var(--page-padx, 32px);
   width: 100%;
 }
 .text-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
