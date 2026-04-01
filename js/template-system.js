@@ -161,16 +161,23 @@ async function insertTemplate(tpl) {
   const sec = tmp.firstElementChild;
   if (!sec || !sec.classList.contains('section-block')) return;
 
-  // 섹션 ID 재생성 (동일 템플릿 2회 삽입 시 중복 ID 방지)
-  sec.id = 'sec_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  // 모든 ID 재생성 (동일 템플릿 2회 삽입 시 중복 ID 방지)
+  const genId = (prefix) => prefix + '_' + Math.random().toString(36).slice(2, 9);
+  sec.id = genId('sec');
+  sec.querySelectorAll('[id]').forEach(el => {
+    const prefix = el.id.split('_')[0] || 'el';
+    el.id = genId(prefix);
+  });
 
   // 섹션 번호 갱신
   const secList = canvasEl.querySelectorAll('.section-block');
   const newIdx  = secList.length + 1;
   sec.dataset.section = newIdx;
+  // 섹션 이름을 템플릿 이름으로 설정
+  sec.dataset.name = tpl.name;
   const labelEl = sec.querySelector('.section-label');
   if (labelEl) {
-    labelEl.textContent = `Section ${String(newIdx).padStart(2,'0')}`;
+    labelEl.textContent = tpl.name;
     if (!labelEl.closest('.section-hitzone')) {
       const hz = document.createElement('div');
       hz.className = 'section-hitzone';
@@ -181,6 +188,14 @@ async function insertTemplate(tpl) {
 
   // 선택 상태 초기화
   sec.classList.remove('selected');
+
+  // 프리뷰에서 적용된 인라인 스타일 제거 (scale, position, pointer-events 등)
+  sec.style.transform     = '';
+  sec.style.transformOrigin = '';
+  sec.style.position      = '';
+  sec.style.left          = '';
+  sec.style.pointerEvents = '';
+  sec.style.userSelect    = '';
 
   canvasEl.appendChild(sec);
 
