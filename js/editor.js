@@ -204,12 +204,17 @@ function selectColWithModifier(col, e) {
 
 function copySelected() {
   const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected');
+  const selSS      = document.querySelector('.sub-section-block.selected');
   const selRow     = document.querySelector('.row.row-active');
   const selSection = document.querySelector('.section-block.selected');
   if (selBlock) {
     const isGapSel = selBlock.classList.contains('gap-block');
     const target = isGapSel ? selBlock : (selBlock.closest('.row') || selBlock);
     clipboard = { type: 'block', html: target.outerHTML };
+  } else if (selSS) {
+    // 서브섹션은 row > col > sub-section-block 구조이므로 row 단위로 복사
+    const rowEl = selSS.closest('.row') || selSS;
+    clipboard = { type: 'block', html: rowEl.outerHTML };
   } else if (selRow) {
     clipboard = { type: 'block', html: selRow.outerHTML };
   } else if (selSection) {
@@ -250,6 +255,11 @@ function pasteClipboard() {
     insertAfterSelected(sec, el);
     el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
     el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
+    el.querySelectorAll('.sub-section-block').forEach(ss => {
+      ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+      ss._subSecBound = false;
+      window.bindSubSectionDropZone?.(ss);
+    });
     el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
       const col = ph.parentElement;
       col.replaceChild(makeColPlaceholder(col), ph);
