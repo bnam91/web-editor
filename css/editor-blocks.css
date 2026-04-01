@@ -11,10 +11,11 @@
 }
 .sub-section-block.selected {
   outline: 2px solid var(--sel-color);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 .sub-section-block:hover:not(.selected) {
   outline: 1px solid rgba(45,111,232,0.35);
+  outline-offset: -1px;
 }
 .sub-section-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
