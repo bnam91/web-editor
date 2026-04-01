@@ -1,3 +1,37 @@
+# 좌측 패널 (Left Panel)
+
+> 기능 명세 + 디자인 규칙 체크리스트
+> HTML: `index.html` `#project-name-bar`, `#panel-left` / JS: `js/tab-system.js`, `js/layer-panel.js`
+
+---
+
+## 0. 프로젝트 이름 바 `#project-name-bar`
+
+좌측 패널 최상단에 고정 배치. 로고 + 프로젝트명 + 프로젝트 ID로 구성.
+
+```
+[★ GOYA DESIGN EDITOR  v0.5.0]   ← #editor-logo
+[프로젝트명 (더블클릭 편집)]         ← #project-name-row
+proj_1775041043520                ← #project-id-display
+```
+
+### 요소 명세
+
+| 요소 | ID | 동작 |
+|------|----|------|
+| 프로젝트명 | `#project-name-display` | 더블클릭 → `startRenameProject()` 인라인 편집 |
+| 이름 입력 | `#project-name-input` | 편집 중에만 표시. Enter/blur → `finishRenameProject()`, Escape → `cancelRenameProject()` |
+| 프로젝트 ID | `#project-id-display` | 클릭 시 클립보드 복사 + 토스트 표시 |
+
+### 구현 규칙
+
+- 프로젝트명·ID 업데이트는 `updateProjectNameDisplay()` 단일 함수에서 처리 (`tab-system.js`)
+- 탭 전환 시 `renderTabBar()` → `updateProjectNameDisplay()` 자동 호출
+- `#project-id-display`는 `#project-name-row` **밖**에 위치 (분리된 줄로 표시)
+- 클릭 복사: `navigator.clipboard.writeText(this.textContent)` + `showToast()`
+
+---
+
 # 좌측 패널 — 레이어 섹션 (Layer Panel)
 
 > 기능 명세 + 디자인 규칙 체크리스트
@@ -137,6 +171,19 @@ Section (섹션)
 - [ ] `window._activeSubSection` 설정 → 이후 블록 추가 시 서브섹션 안으로 삽입됨
 - [ ] 레이어 클릭 시 `showSubSectionProperties(ss)` 호출
 - [ ] save/load 후 `rebindAll()` → `bindSubSectionDropZone()` 재바인딩 필수
+- [ ] `Cmd+C` / `Cmd+V` 복사·붙여넣기 지원 → `copySelected()`에서 `.sub-section-block.selected` 감지 → row 단위로 복사
+- [ ] 붙여넣기 시 `_activeSubSection` 을 임시 null 처리 → 서브섹션 내부가 아닌 row 뒤에 삽입
+- [ ] `Delete` / `Backspace` → row 단위 삭제 + `_activeSubSection = null` 초기화 (부모 섹션 삭제 방지)
+
+#### 블록 추가 위치 규칙 (`insertAfterSelected`)
+
+| 상황 | 삽입 위치 |
+|------|---------|
+| 서브섹션 자체가 `.selected` (레이어 패널 선택) | 서브섹션 row **바로 뒤** |
+| 서브섹션 내부 블록이 선택된 상태 | 서브섹션 **내부** 선택 블록 뒤 |
+| `_activeSubSection` 설정, 내부 선택 없음 | 서브섹션 내부 **맨 아래** |
+
+> `insertAfterSelected` (`drag-utils.js`) 조건: `activeSS && !activeSS.classList.contains('selected')` 일 때만 내부 삽입 경로 진입.
 
 ### 4-3. 블록 아이템
 
@@ -184,4 +231,40 @@ Section (섹션)
 | `css/design-tokens.css` | 아이콘 크기·gap 토큰 |
 | `js/drag-drop.js` | `bindSubSectionDropZone()` — 서브섹션 클릭/드롭 |
 | `js/save-load.js` | `rebindAll()` — 로드 후 바인딩 복원 |
-| `js/editor.js` | `selectSection()`, `deselectAll()`, `syncLayerActive()` |
+| `js/editor.js` | `selectSection()`, `deselectAll()`, `syncLayerActive()`, `copySelected()`, `pasteClipboard()` |
+| `js/drag-utils.js` | `insertAfterSelected()` — 블록 삽입 위치 결정 (서브섹션 selected 분기 포함) |
+
+---
+
+## 7. 구현 주의사항
+
+### 레이어 트리 렌더링 — `appendRowToLayer` 처리 순서
+
+`layer-panel.js` 의 `appendRowToLayer(row, container, depth)` 에서 단일 col 블록 분기:
+
+```js
+// 반드시 sub-section-block 체크를 asset-block 앞에 두어야 함
+if (block.classList.contains('sub-section-block')) {
+  container.appendChild(makeLayerSubSectionItem(block, sec, appendRowToLayer));
+} else if (block.classList.contains('asset-block')) { ... }
+```
+
+서브섹션은 자체적으로 하위 트리를 가지므로 `makeLayerBlockItem` 이 아닌 `makeLayerSubSectionItem` 으로 렌더링해야 한다. 이 순서가 뒤바뀌면 템플릿에서 컴포넌트를 삽입해도 레이어 패널에 표시되지 않는다.
+
+### 삭제 핸들러 — 서브섹션 우선 처리
+
+`editor.js` Delete/Backspace 핸들러에서 `allSelBlocks` 셀렉터에 `.sub-section-block`이 없으므로, 서브섹션 selected 상태에서 Delete 시 `allSelBlocks.length === 0` → **부모 섹션 삭제** 로 떨어지는 버그가 발생한다.
+
+반드시 `allSelBlocks` 체크 **앞에** 서브섹션 전용 분기를 먼저 처리해야 한다:
+
+```js
+const selSS = document.querySelector('.sub-section-block.selected');
+if (selSS) {
+  // row 단위 삭제 + _activeSubSection 초기화
+  const ssRow = selSS.closest('.row') || selSS;
+  ssRow.remove();
+  window._activeSubSection = null;
+  // ... deselectAll, buildLayerPanel
+  return; // ← 반드시 return으로 부모 섹션 삭제 방지
+}
+```

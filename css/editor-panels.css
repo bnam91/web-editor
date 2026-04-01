@@ -651,6 +651,16 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   font-size: 13px; font-weight: 600;
   padding: 0; outline: none; line-height: 1.4;
 }
+#project-id-display {
+  display: block;
+  font-size: 10px;
+  color: #484848;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 4px;
+  font-family: monospace;
+  line-height: 1.3;
+  padding: 0 2px 0 12px;
+}
 #project-name-row:has(#project-name-input[style*="block"]) {
   border-color: #4a7acc;
   box-shadow: 0 0 0 2px rgba(74,122,204,0.15);

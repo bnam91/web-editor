@@ -58,8 +58,11 @@ function renderTabBar() {
 function updateProjectNameDisplay() {
   const el = document.getElementById('project-name-display');
   if (!el) return;
-  const tab = _getTabs().find(t => t.id === _getActId());
+  const actId = _getActId();
+  const tab = _getTabs().find(t => t.id === actId);
   el.textContent = tab?.name || 'Untitled';
+  const idEl = document.getElementById('project-id-display');
+  if (idEl) idEl.textContent = actId || '';
 }
 
 function startRenameProject() {
