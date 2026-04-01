@@ -70,8 +70,8 @@ async function _loadCanvas(id) {
   return full ? full.canvas : null;
 }
 
-async function saveAsTemplate(sec, name, folder, category, tags) {
-  const clone = sec.cloneNode(true);
+async function saveAsTemplate(el, name, folder, category, tags, type = 'section') {
+  const clone = el.cloneNode(true);
   clone.classList.remove('selected');
   clone.querySelectorAll('.selected, .editing').forEach(el => el.classList.remove('selected', 'editing'));
   clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
@@ -84,11 +84,11 @@ async function saveAsTemplate(sec, name, folder, category, tags) {
   if (window.electronAPI?.saveTemplateCanvas) {
     await window.electronAPI.saveTemplateCanvas(id, html);
   } else {
-    _lsFullCache.unshift({ id, name, folder: folder || '기타', category, tags: tagsArr, createdAt: new Date().toISOString(), thumbnail: null, canvas: html });
+    _lsFullCache.unshift({ id, name, folder: folder || '기타', category, tags: tagsArr, createdAt: new Date().toISOString(), thumbnail: null, type: type || 'section', canvas: html });
   }
 
   const templates = loadTemplates();
-  templates.unshift({ id, name, folder: folder || '기타', category, tags: tagsArr, createdAt: new Date().toISOString(), thumbnail: null });
+  templates.unshift({ id, name, folder: folder || '기타', category, tags: tagsArr, createdAt: new Date().toISOString(), thumbnail: null, type: type || 'section' });
   saveTemplates(templates);
   renderTemplatePanel();
 }
@@ -106,6 +106,56 @@ async function deleteTemplate(id) {
 async function insertTemplate(tpl) {
   const canvas = await _loadCanvas(tpl.id);
   if (!canvas) return;
+
+  // subsection 타입: 선택된 섹션 안에 삽입
+  if (tpl.type === 'subsection') {
+    const targetSec = window.getSelectedSection?.();
+    if (!targetSec) {
+      window.showToast?.('섹션을 먼저 선택하세요') ?? alert('섹션을 먼저 선택하세요');
+      return;
+    }
+    const tmp = document.createElement('div');
+    tmp.innerHTML = canvas;
+    const ss = tmp.firstElementChild;
+    if (!ss || !ss.classList.contains('sub-section-block')) return;
+
+    // ID 재생성 (중복 방지)
+    ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+    ss._subSecBound = false;
+
+    // sub-section-block은 row 안에 있어야 함
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.id = 'row_' + Math.random().toString(36).slice(2, 9);
+    row.dataset.layout = 'stack';
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.dataset.width = '100';
+    col.appendChild(ss);
+    row.appendChild(col);
+
+    // 선택된 섹션의 콘텐츠 영역(section-inner 또는 직접)에 append
+    const inner = targetSec.querySelector('.section-inner') || targetSec;
+    inner.appendChild(row);
+
+    // 이벤트 재바인딩
+    window.bindSubSectionDropZone?.(ss);
+    if (ss.dataset.bgImg && !ss.style.backgroundImage) {
+      ss.style.backgroundImage = `url(${ss.dataset.bgImg})`;
+      ss.style.backgroundSize = 'cover';
+      ss.style.backgroundPosition = ss.dataset.bgPos || 'center';
+    }
+    if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
+    const bw = parseInt(ss.dataset.borderWidth) || 0;
+    if (bw > 0) ss.style.border = `${bw}px ${ss.dataset.borderStyle || 'solid'} ${ss.dataset.borderColor || '#888'}`;
+
+    window.pushHistory?.();
+    window.buildLayerPanel?.();
+    window.scheduleAutoSave?.();
+    return;
+  }
+
+  // 기존 section 타입 삽입 로직
   const tmp = document.createElement('div');
   tmp.innerHTML = canvas;
   const sec = tmp.firstElementChild;
@@ -212,7 +262,7 @@ async function showTemplatePreview(id) {
       </div>
       <div class="tpl-preview-canvas">${canvas}</div>
       <div class="tpl-preview-footer">
-        <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">+ 섹션 추가</button>
+        <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">${tpl.type === 'subsection' ? '+ 컴포넌트 삽입' : '+ 섹션 추가'}</button>
       </div>
     </div>`;
 
@@ -220,7 +270,7 @@ async function showTemplatePreview(id) {
 
   // Scale section to fit preview viewport
   const previewCanvas = backdrop.querySelector('.tpl-preview-canvas');
-  const section = previewCanvas.querySelector('.section-block');
+  const section = previewCanvas.querySelector('.section-block') || previewCanvas.querySelector('.sub-section-block');
   if (section) {
     const CANVAS_WIDTH = 860;
     section.style.width = CANVAS_WIDTH + 'px';
@@ -417,10 +467,13 @@ function renderTemplatePanel() {
             const tagBadges = (tpl.tags || []).length
               ? `<div class="tpl-card-tags">${(tpl.tags).map(tag => `<span class="tpl-tag-badge" data-tag="${escHtml(tag)}">${escHtml(tag)}</span>`).join('')}</div>`
               : '';
+            const typeBadge = tpl.type === 'subsection'
+              ? `<span class="tpl-type-badge" style="font-size:9px;background:#2a3a5a;color:#6a9fdf;padding:1px 5px;border-radius:3px;margin-left:4px;">컴포넌트</span>`
+              : '';
             return `
               <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
                 <div class="tpl-card-main">
-                  <span class="tpl-card-name">${escHtml(tpl.name)}</span>
+                  <span class="tpl-card-name">${escHtml(tpl.name)}</span>${typeBadge}
                 </div>
                 ${tagBadges}
                 <div class="tpl-card-meta">${escHtml(date)}</div>

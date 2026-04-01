@@ -107,10 +107,55 @@ export function showSubSectionProperties(ss) {
       </div>
     </div>
     <div class="prop-section">
+      <div class="prop-section-title">컴포넌트</div>
+      ${(() => {
+        const allTemplates = window.loadTemplates?.() || [];
+        const folders = [...new Set(allTemplates.map(t => t.folder || '기타'))];
+        const folderOptions = folders.map(f => `<option value="${f}">${f}</option>`).join('');
+        const catOptions = ['Hero','Main','Feature','Detail','CTA','Event','기타'].map(c =>
+          `<option value="${c}">${c}</option>`
+        ).join('');
+        return `
+          <select class="prop-select" id="ss-tpl-folder" style="width:100%;margin-bottom:6px;">
+            ${folderOptions}
+            <option value="__new__">새 폴더...</option>
+          </select>
+          <input type="text" id="ss-tpl-folder-new" class="tpl-name-input" placeholder="새 폴더 이름" style="display:none;margin-bottom:6px;">
+          <select class="prop-select" id="ss-tpl-cat" style="width:100%;margin-bottom:6px;">
+            ${catOptions}
+          </select>
+          <input type="text" id="ss-tpl-name" class="tpl-name-input" placeholder="컴포넌트 이름" style="margin-bottom:6px;">
+          <button class="prop-action-btn primary" id="ss-tpl-save-btn" style="margin-top:4px;">컴포넌트로 저장</button>
+        `;
+      })()}
+    </div>
+    <div class="prop-section">
       <div class="prop-hint" style="font-size:11px;color:#999;">서브섹션 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.</div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
+
+  // ── 컴포넌트 저장 ─────────────────────────────────────
+  const ssTplFolderSel = document.getElementById('ss-tpl-folder');
+  const ssTplFolderNew = document.getElementById('ss-tpl-folder-new');
+  ssTplFolderSel?.addEventListener('change', () => {
+    if (ssTplFolderNew) ssTplFolderNew.style.display = ssTplFolderSel.value === '__new__' ? 'block' : 'none';
+  });
+  const ssTplSaveBtn = document.getElementById('ss-tpl-save-btn');
+  ssTplSaveBtn?.addEventListener('click', () => {
+    const name = document.getElementById('ss-tpl-name')?.value.trim();
+    if (!name) { document.getElementById('ss-tpl-name')?.focus(); return; }
+    const category = document.getElementById('ss-tpl-cat')?.value;
+    let folder = ssTplFolderSel?.value || '기타';
+    if (folder === '__new__') folder = (ssTplFolderNew?.value.trim()) || '기타';
+    window.saveAsTemplate?.(ss, name, folder, category, [], 'subsection');
+    document.getElementById('ss-tpl-name').value = '';
+    ssTplSaveBtn.textContent = '저장됨 ✓';
+    ssTplSaveBtn.disabled = true;
+    setTimeout(() => {
+      if (ssTplSaveBtn) { ssTplSaveBtn.textContent = '컴포넌트로 저장'; ssTplSaveBtn.disabled = false; }
+    }, 1500);
+  });
 
   // ── 배경 이미지 ──────────────────────────────────────
   const bgImgBtn   = document.getElementById('ss-bg-img-btn');
