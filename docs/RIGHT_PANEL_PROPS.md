@@ -76,16 +76,19 @@
 
 | 섹션 | 컨트롤 | 설명 |
 |------|--------|------|
-| 헤더 | 섹션 이름 + ID 배지 | 이름 인라인 편집 가능 |
-| 배경 | 배경색 picker + hex | 섹션 배경 |
-| 크기 | 높이 슬라이더+숫자 | `min-height` 조정 |
-| 크기 | 상/하 여백 | `paddingTop/Bottom` |
+| 헤더 | 섹션 이름 + ID 배지 | 이름 인라인 편집 가능, ID 클릭 시 복사 |
+| 배경 | 배경색 picker + hex | `sec.dataset.bg`, `sec.style.backgroundColor` |
+| 배경 | 배경 이미지 선택 버튼 | FileReader → base64 → `sec.style.backgroundImage`, `sec.dataset.bgImg` |
+| 배경 | 위치 편집 버튼 | 배경 이미지 있을 때만 표시. `enterBgPosDragMode(sec)` — 드래그로 `background-position` 조정, `sec.dataset.bgPos` 저장 |
+| 배경 | 이미지 제거 버튼 | 배경 이미지 있을 때만 표시 |
+| 크기 | 높이 슬라이더+숫자 | `min-height` 조정, `sec.dataset.height` |
+| 크기 | 상/하 여백 | `paddingTop/Bottom`, `sec.dataset.padY` |
 | 레이아웃 | 정렬 버튼 (left/center/right) | 섹션 내 블록 정렬 |
 | 레이아웃 | 좌우 패딩 override | 섹션별 개별 패딩 |
 | 라벨 | 섹션 라벨 선택 | Hook / Main / Detail / CTA / Event |
 | 내보내기 | PNG/JPG 내보내기 버튼 | 단일 섹션 내보내기 |
 | 변형 | 섹션 Variation 관리 | A/B 변형 추가/전환 |
-| 템플릿 | 현재 섹션을 템플릿으로 저장 | `saveAsTemplate()` |
+| 템플릿 | 현재 섹션을 템플릿으로 저장 | `saveAsTemplate(sec, name, folder, category, tags, 'section')` |
 
 ---
 
@@ -93,12 +96,36 @@
 
 | 섹션 | 컨트롤 | 설명 |
 |------|--------|------|
-| 헤더 | Sub-Section 이름 + ID 배지 | — |
-| 배경 | 배경색 picker + hex | `ss.dataset.bg` |
-| 크기 | 너비 슬라이더+숫자 | 200~860px, `ss.style.width` |
-| 크기 | 높이 슬라이더+숫자 | 100~1200px, `ss.style.minHeight` |
-| 크기 | 상/하 여백 | 0~200px, `paddingTop/Bottom` |
+| 헤더 | Sub-Section 이름 + ID 배지 | 클릭 시 ID 클립보드 복사 |
+| 헤더 | 캔버스 모드로 전환 버튼 | 단방향 전환 — 내부 블록을 절대좌표 canvas-item으로 변환 (되돌리기 불가, confirm 다이얼로그) |
+| 배경 | 배경색 picker + hex | `ss.dataset.bg`, `ss.style.backgroundColor` |
+| 배경 | 배경 이미지 선택 버튼 | FileReader → base64 → `ss.style.backgroundImage`, `ss.dataset.bgImg` |
+| 배경 | 위치 편집 버튼 | 배경 이미지 있을 때만 표시. 클릭 시 `enterBgPosDragMode(ss)` — 드래그로 `background-position` 조정, `ss.dataset.bgPos` 저장 |
+| 배경 | 이미지 제거 버튼 | 배경 이미지 있을 때만 표시. `bgImg`, `bgPos` dataset 모두 클리어 |
+| 보더 | 두께 슬라이더+숫자 | 0~20px, `ss.style.border`, `ss.dataset.borderWidth` |
+| 보더 | 스타일 선택 | solid / dashed / dotted, `ss.dataset.borderStyle` |
+| 보더 | 색상 picker + hex | `ss.dataset.borderColor` |
+| 보더 | 코너 슬라이더+숫자 | 0~80px, `ss.style.borderRadius`, `ss.dataset.radius` |
+| 크기 | 너비 슬라이더+숫자 | 200~860px, `ss.style.width`, `ss.dataset.width` |
+| 크기 | 높이 슬라이더+숫자 | 100~1200px, `ss.style.minHeight`, `ss.dataset.height` |
+| 크기 | 상/하 여백 | 0~200px, `ss.style.paddingTop/Bottom`, `ss.dataset.padY` |
+| 컴포넌트 | 폴더 선택 + 새 폴더 | 기존 템플릿 폴더 목록 + "새 폴더..." 옵션 |
+| 컴포넌트 | 카테고리 선택 | Hero/Main/Feature/Detail/CTA/Event/기타 |
+| 컴포넌트 | 이름 입력 + 저장 버튼 | `saveAsTemplate(ss, name, folder, category, [], 'subsection')` 호출. 템플릿 패널에 "컴포넌트" 배지로 표시 |
 | 힌트 | 안내 텍스트 | "서브섹션 클릭 후 플로팅 패널에서 블록 추가" |
+
+#### 서브섹션 저장/복원 규칙 (`save-load.js` `rebindAll`)
+| dataset 키 | 복원 대상 |
+|-----------|---------|
+| `bgImg` | `backgroundImage` (없으면 `center`, `bgPos` 있으면 해당 값) |
+| `bgPos` | `backgroundPosition` |
+| `borderWidth` + `borderStyle` + `borderColor` | `border` 단축 속성 |
+| `radius` | `borderRadius` |
+
+#### 복사/붙여넣기
+- **복사**: 서브섹션 선택 후 Cmd+C → 부모 `row` 단위로 클립보드 저장
+- **붙여넣기**: Cmd+V → 현재 선택 섹션에 `insertAfterSelected`, `bindSubSectionDropZone` 재연결 + ID 재생성
+- **레이어 패널 선택 후 복사**: 지원됨 (`.sub-section-block.selected` 감지)
 
 ---
 
