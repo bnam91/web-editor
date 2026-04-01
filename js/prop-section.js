@@ -100,7 +100,7 @@ function showSectionProperties(sec) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Section</span>
+          <span class="prop-block-name">${sec._name || sec.dataset.name || 'Section'}</span>
           <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
         </div>
         ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${sec.id}')">${sec.id}</span>` : ''}
