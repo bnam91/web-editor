@@ -91,8 +91,31 @@ Section (섹션)
 ### 3-6. 들여쓰기 (depth)
 
 - [ ] 피그마 스타일 `.layer-indent` 수직선 가이드 적용
-- [ ] 깊이 1 → `padding-left: 16px`
+- [ ] 깊이 1 → indent 1개 (`width: 16px`), 깊이 2 → indent 2개
 - [ ] `.layer-indent:last-child::before` → border-left 없음 (끝선 제거)
+
+#### 아이콘 수평 정렬 규칙
+
+같은 깊이의 `layer-item`과 `layer-row-header`(서브섹션 등)는 **아이콘/텍스트가 동일 수평선에 정렬**되어야 한다.
+
+| 요소 | 구조 | 아이콘 시작 위치 (depth 1) |
+|------|------|--------------------------|
+| `layer-item` | `padding(8) + indent(16) + gap(7)` | **31px** |
+| `layer-row-header` (보정 전) | `padding(8) + indent(16) + gap(6) + chevron(12) + gap(6)` | **48px** — 17px 초과 |
+| `layer-row-header` (보정 후) | chevron에 `margin-left: -18px` 적용 | **30px** ≈ 정렬 |
+
+**CSS 규칙:**
+```css
+.layer-row-header .layer-chevron {
+  margin-left: -18px;   /* chevron을 flex 레이아웃에서 제거 (12px + gap 6px) */
+  position: relative;   /* 수직선 가이드 위로 올라오도록 */
+  z-index: 1;
+}
+```
+
+- chevron은 시각적으로 마지막 indent 영역과 겹침 (피그마 동일 패턴)
+- 이 규칙은 서브섹션, 그룹, Row 등 `layer-row-header`를 쓰는 모든 요소에 적용됨
+- depth가 달라져도 자동으로 맞춰짐 (indent 단위가 동일하기 때문)
 
 ---
 

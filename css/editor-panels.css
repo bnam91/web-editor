@@ -1038,6 +1038,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .layer-row-children { padding-left: 0; overflow: hidden; }
 .layer-row-group.collapsed .layer-row-children { display: none; }
 .layer-row-group.collapsed .layer-chevron { transform: rotate(-90deg); }
+.layer-row-header .layer-chevron { margin-left: -18px; position: relative; z-index: 1; }
 .layer-row-group.layer-dragging { opacity: 0.3; }
 .layer-item-nested { padding-left: 0; }
 
