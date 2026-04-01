@@ -27,9 +27,8 @@ export function showTextProperties(tb) {
   const currentColor = rgbToHex(computed.color) || '#111111';
   const currentLH    = (parseFloat(computed.lineHeight) / parseFloat(computed.fontSize) || 1.5).toFixed(2);
   const currentLS    = parseFloat(contentEl.style.letterSpacing) || 0;
-  const defaultPad   = isLabel ? 0 : state.pageSettings.padY;
-  const currentPadT  = tb.style.paddingTop    ? (parseInt(tb.style.paddingTop)    || 0) : defaultPad;
-  const currentPadB  = tb.style.paddingBottom ? (parseInt(tb.style.paddingBottom) || 0) : defaultPad;
+  const currentPadT  = parseInt(tb.style.paddingTop)    || 0;
+  const currentPadB  = parseInt(tb.style.paddingBottom) || 0;
   const currentPadL  = parseInt(tb.style.paddingLeft)  || 0;
   const currentPadR  = parseInt(tb.style.paddingRight) || 0;
   let   phLinked     = currentPadL === currentPadR;
