@@ -968,4 +968,5 @@ window.bindSubSectionDropZone      = bindSubSectionDropZone;
 document.addEventListener('dragend', () => {
   document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
   clearDropIndicators();
+  clearLayerSectionIndicators();
 }, true);

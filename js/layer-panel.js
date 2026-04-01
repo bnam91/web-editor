@@ -136,6 +136,11 @@ export function buildLayerPanel() {
           sec._name = newName;
           const label = sec.querySelector('.section-label');
           if (label) label.textContent = newName;
+          // 우측 프로퍼티 패널 즉각 반영
+          const propName = document.querySelector('.prop-block-name');
+          if (propName && sec.classList.contains('selected')) propName.textContent = newName;
+          const propBreadcrumb = document.querySelector('.prop-breadcrumb');
+          if (propBreadcrumb && sec.classList.contains('selected')) propBreadcrumb.textContent = newName;
           window.pushHistory?.('섹션명 변경');
         } else {
           sec._name = prevName;
