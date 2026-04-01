@@ -6,15 +6,17 @@
 
 const SCRATCH_KEY_PREFIX = 'scratch-pad';
 let _currentProjectId = null;
+let _currentPageId = null;
 let _scratchItems = [];   // { el, src, x, y, w }
 
-function _getScratchKey(id) {
-  return id ? `${SCRATCH_KEY_PREFIX}-${id}` : SCRATCH_KEY_PREFIX;
+function _getScratchKey(projectId, pageId) {
+  const base = projectId ? `${SCRATCH_KEY_PREFIX}-${projectId}` : SCRATCH_KEY_PREFIX;
+  return pageId ? `${base}-${pageId}` : base;
 }
 
 function _saveScratch() {
   const data = _scratchItems.map(({ src, x, y, w }) => ({ src, x, y, w }));
-  localStorage.setItem(_getScratchKey(_currentProjectId), JSON.stringify(data));
+  localStorage.setItem(_getScratchKey(_currentProjectId, _currentPageId), JSON.stringify(data));
 }
 
 function _removeItem(item) {
@@ -121,18 +123,19 @@ function _createItem(src, x, y, w = 220) {
   return item;
 }
 
-function _loadScratch(projectId) {
+function _loadScratch(projectId, pageId) {
   _currentProjectId = projectId;
+  _currentPageId = pageId || null;
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
   try {
-    const data = JSON.parse(localStorage.getItem(_getScratchKey(projectId)) || '[]');
+    const data = JSON.parse(localStorage.getItem(_getScratchKey(projectId, pageId)) || '[]');
     data.forEach(({ src, x, y, w }) => _createItem(src, x, y, w));
   } catch {}
 }
 
-function initScratchPad(projectId) {
-  _loadScratch(projectId);
+function initScratchPad(projectId, pageId) {
+  _loadScratch(projectId, pageId);
 
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap || wrap._scratchBound) return;
@@ -175,16 +178,53 @@ function initScratchPad(projectId) {
       reader.readAsDataURL(file);
     });
   });
+
+  // Cmd+V 클립보드 이미지 붙여넣기
+  document.addEventListener('paste', e => {
+    // 텍스트 편집 중(contenteditable)이면 기본 동작 유지
+    const active = document.activeElement;
+    if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+
+    const items = [...(e.clipboardData?.items || [])].filter(it => it.type.startsWith('image/'));
+    if (!items.length) return;
+    e.preventDefault();
+
+    // 뷰포트 중앙을 canvas-scaler 로컬 좌표로 변환
+    const scalerEl = document.getElementById('canvas-scaler');
+    const scale = _getScale();
+    const scalerRect = scalerEl.getBoundingClientRect();
+    const wrapRect  = wrap.getBoundingClientRect();
+    const cx = (wrapRect.left + wrapRect.width  / 2 - scalerRect.left) / scale;
+    const cy = (wrapRect.top  + wrapRect.height / 2 - scalerRect.top)  / scale;
+
+    items.forEach((item, i) => {
+      const file = item.getAsFile();
+      if (!file || file.size > 20 * 1024 * 1024) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        _createItem(ev.target.result, cx - 110 + i * 24, cy - 60 + i * 24);
+        _saveScratch();
+      };
+      reader.readAsDataURL(file);
+    });
+  });
 }
 
 // 탭 전환 시 호출 — 이전 프로젝트 저장 후 새 프로젝트 로드
-function switchScratch(newProjectId) {
+function switchScratch(newProjectId, pageId) {
   _saveScratch();
-  _loadScratch(newProjectId);
+  _loadScratch(newProjectId, pageId);
 }
 
-window.initScratchPad  = initScratchPad;
-window.switchScratch   = switchScratch;
+// 페이지 전환 시 호출 — 현재 페이지 저장 후 새 페이지 로드
+function switchScratchPage(newPageId) {
+  _saveScratch();
+  _loadScratch(_currentProjectId, newPageId);
+}
+
+window.initScratchPad    = initScratchPad;
+window.switchScratch     = switchScratch;
+window.switchScratchPage = switchScratchPage;
 window.clearScratchPad = () => {
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
