@@ -42,6 +42,10 @@ export function showSubSectionProperties(ss) {
         </div>
         <input type="text" class="prop-color-hex" id="ss-bg-hex" value="${hexBg}" maxlength="7">
       </div>
+      <div class="prop-section-title" style="margin-top:10px;">배경 이미지</div>
+      <button class="prop-action-btn secondary" id="ss-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
+      <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
+      ${ss.style.backgroundImage && ss.style.backgroundImage !== 'none' ? `<button class="prop-action-btn" id="ss-bg-img-clear" style="margin-top:4px;background:#3a2a2a;color:#e06c6c;">이미지 제거</button>` : ''}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">크기</div>
@@ -66,6 +70,46 @@ export function showSubSectionProperties(ss) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
+
+  // 배경 이미지
+  const bgImgBtn   = document.getElementById('ss-bg-img-btn');
+  const bgImgInput = document.getElementById('ss-bg-img-input');
+  const bgImgClear = document.getElementById('ss-bg-img-clear');
+  bgImgBtn.addEventListener('click', () => bgImgInput.click());
+  bgImgInput.addEventListener('change', () => {
+    const file = bgImgInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      ss.style.backgroundImage = `url('${e.target.result}')`;
+      ss.style.backgroundSize = 'cover';
+      ss.style.backgroundPosition = 'center';
+      ss.dataset.bgImg = e.target.result;
+      window.scheduleAutoSave?.();
+      window.pushHistory?.();
+      // 제거 버튼 동적 추가
+      if (!document.getElementById('ss-bg-img-clear')) {
+        const clearBtn = document.createElement('button');
+        clearBtn.id = 'ss-bg-img-clear';
+        clearBtn.className = 'prop-action-btn';
+        clearBtn.style.cssText = 'margin-top:4px;background:#3a2a2a;color:#e06c6c;';
+        clearBtn.textContent = '이미지 제거';
+        clearBtn.addEventListener('click', removeBgImg);
+        bgImgBtn.after(clearBtn);
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+  function removeBgImg() {
+    ss.style.backgroundImage = '';
+    ss.style.backgroundSize = '';
+    ss.style.backgroundPosition = '';
+    delete ss.dataset.bgImg;
+    document.getElementById('ss-bg-img-clear')?.remove();
+    window.scheduleAutoSave?.();
+    window.pushHistory?.();
+  }
+  if (bgImgClear) bgImgClear.addEventListener('click', removeBgImg);
 
   // 배경색
   const bgColor = document.getElementById('ss-bg-color');

@@ -409,6 +409,12 @@ function rebindAll() {
     if (!ss.id) ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false; // rebind 강제
     window.bindSubSectionDropZone?.(ss);
+    // 배경 이미지 복원
+    if (ss.dataset.bgImg && !ss.style.backgroundImage) {
+      ss.style.backgroundImage = `url(${ss.dataset.bgImg})`;
+      ss.style.backgroundSize = 'cover';
+      ss.style.backgroundPosition = 'center';
+    }
   });
 
   // col-placeholder 이벤트 재연결

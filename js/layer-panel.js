@@ -149,7 +149,7 @@ export function buildLayerPanel() {
     // section-inner 직접 자식 순회 (Row 단위로 처리)
     const sectionInner = sec.querySelector('.section-inner');
 
-    function appendRowToLayer(child, container) {
+    function appendRowToLayer(child, container, depth = 1) {
       const colBlocks = [...child.querySelectorAll(':scope > .col > *')]
         .filter(el => !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator'));
       const allCols = [...child.querySelectorAll(':scope > .col')];
@@ -169,11 +169,11 @@ export function buildLayerPanel() {
         } else if (block.classList.contains('card-block')) {
           container.appendChild(makeLayerCardItem(block, child, sec));
         } else {
-          container.appendChild(makeLayerBlockItem(block, child, sec));
+          container.appendChild(makeLayerBlockItem(block, child, sec, depth));
         }
       } else {
         // 단일 col에 블록이 여러 개 → Col(Frame)으로 표시 (Grid 아님)
-        container.appendChild(makeLayerColItem(allCols[0], 0, sec, 1));
+        container.appendChild(makeLayerColItem(allCols[0], 0, sec, depth));
       }
     }
 
