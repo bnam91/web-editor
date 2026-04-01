@@ -3,9 +3,18 @@
 ═══════════════════════════════════ */
 
 let _browserOpen      = false;
-let _browserFilter    = { folder: '전체', category: '전체' };
+let _browserFilter    = { folder: '전체', category: '전체', tag: null, starred: false };
 let _browserSelected  = null;   // 현재 선택된 tpl id
 let _browserSearchQ   = '';
+
+/* ── 즐겨찾기 헬퍼 ── */
+function _getStarred() {
+  try { return new Set(JSON.parse(localStorage.getItem('tpl-starred') || '[]')); }
+  catch { return new Set(); }
+}
+function _setStarred(set) {
+  localStorage.setItem('tpl-starred', JSON.stringify([...set]));
+}
 
 function openTemplateBrowser() {
   const panel = document.getElementById('tpl-browser');
@@ -58,8 +67,17 @@ function _renderBrowserTree() {
   });
 
   const totalCount = templates.length;
+  const starredSet = _getStarred();
+  const starredCount = templates.filter(t => starredSet.has(t.id)).length;
+
   let html = `
-    <div class="tb-tree-item tb-tree-all ${_browserFilter.folder === '전체' ? 'active' : ''}"
+    <div class="tb-tree-item tb-tree-starred ${_browserFilter.starred ? 'active' : ''}"
+         data-action="starred">
+      <span class="tb-tree-star-icon">★</span>
+      <span class="tb-tree-label">즐겨찾기</span>
+      <span class="tb-tree-count">${starredCount}</span>
+    </div>
+    <div class="tb-tree-item tb-tree-all ${!_browserFilter.starred && _browserFilter.folder === '전체' ? 'active' : ''}"
          data-folder="전체" data-cat="전체">
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
         <rect x="1" y="2" width="8" height="7" rx="1"/><path d="M3 2V1.5a1 1 0 011-1h2a1 1 0 011 1V2"/>
@@ -105,11 +123,21 @@ function _renderBrowserTree() {
 
   tree.innerHTML = html;
 
+  // 즐겨찾기 항목 클릭
+  tree.querySelector('.tb-tree-starred')?.addEventListener('click', e => {
+    e.stopPropagation();
+    _browserFilter = { folder: '전체', category: '전체', tag: null, starred: true };
+    _browserSelected = null;
+    _hidePreview();
+    _renderBrowserTree();
+    _renderBrowserCards();
+  });
+
   // 전체 / 카테고리 클릭 → 필터 적용
   tree.querySelectorAll('.tb-tree-all, .tb-tree-cat').forEach(el => {
     el.addEventListener('click', e => {
       e.stopPropagation();
-      _browserFilter = { folder: el.dataset.folder, category: el.dataset.cat };
+      _browserFilter = { folder: el.dataset.folder, category: el.dataset.cat, tag: null, starred: false };
       _browserSelected = null;
       _hidePreview();
       _renderBrowserTree();
@@ -124,7 +152,7 @@ function _renderBrowserTree() {
       const folderEl = header.closest('.tb-tree-folder');
       folderEl?.classList.toggle('expanded');
       // 폴더 선택도 적용
-      _browserFilter = { folder: header.dataset.folder, category: '전체' };
+      _browserFilter = { folder: header.dataset.folder, category: '전체', tag: null, starred: false };
       _browserSelected = null;
       _hidePreview();
       _renderBrowserCards();
@@ -140,6 +168,12 @@ function _renderBrowserCards() {
   const container = document.getElementById('tpl-browser-cards');
   if (!container) return;
   let templates = loadTemplates();
+
+  // 즐겨찾기 필터
+  if (_browserFilter.starred) {
+    const starred = _getStarred();
+    templates = templates.filter(t => starred.has(t.id));
+  }
 
   // 폴더/카테고리 필터
   if (_browserFilter.folder !== '전체') {
@@ -160,13 +194,23 @@ function _renderBrowserCards() {
     );
   }
 
+  // 태그 칩 목록 렌더링 (태그 필터 적용 전 — 모든 가용 태그를 보여주기 위함)
+  _renderTagChips(templates);
+
+  // 태그 칩 필터
+  if (_browserFilter.tag) {
+    templates = templates.filter(t => (t.tags || []).includes(_browserFilter.tag));
+  }
+
   if (!templates.length) {
     container.innerHTML = '<div class="tb-cards-empty">템플릿이 없습니다</div>';
     return;
   }
 
+  const starred = _getStarred();
   container.innerHTML = templates.map(tpl => {
     const isSelected = _browserSelected === tpl.id;
+    const isStarred  = starred.has(tpl.id);
     return `
       <div class="tb-card ${isSelected ? 'selected' : ''}" data-tpl-id="${_esc(tpl.id)}" title="${_esc(tpl.name)}">
         <div class="tb-card-thumb">
@@ -181,6 +225,7 @@ function _renderBrowserCards() {
           <span class="tb-card-meta">${_esc(tpl.category || '')}${tpl.folder ? ' · ' + _esc(tpl.folder) : ''}</span>
         </div>
         <div class="tb-card-btns">
+          <button class="tb-card-star-btn ${isStarred ? 'starred' : ''}" data-tpl-id="${_esc(tpl.id)}" title="${isStarred ? '즐겨찾기 해제' : '즐겨찾기 추가'}">★</button>
           <button class="tb-card-edit-btn" data-tpl-id="${_esc(tpl.id)}" title="수정">
             <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
               <path d="M1 9 L2.5 5.5 L7.5 0.5 L9.5 2.5 L4.5 7.5 Z"/><line x1="6" y1="2" x2="8" y2="4"/>
@@ -197,13 +242,13 @@ function _renderBrowserCards() {
 
   container.querySelectorAll('.tb-card').forEach(card => {
     card.addEventListener('click', e => {
-      if (e.target.closest('.tb-card-edit-btn') || e.target.closest('.tb-card-del-btn')) return;
+      if (e.target.closest('.tb-card-edit-btn') || e.target.closest('.tb-card-del-btn') || e.target.closest('.tb-card-star-btn')) return;
       _selectBrowserTemplate(card.dataset.tplId);
     });
 
     // 드래그 앤 드롭으로 섹션 추가
     card.addEventListener('mousedown', e => {
-      if (e.target.closest('.tb-card-edit-btn') || e.target.closest('.tb-card-del-btn')) return;
+      if (e.target.closest('.tb-card-edit-btn') || e.target.closest('.tb-card-del-btn') || e.target.closest('.tb-card-star-btn')) return;
       if (e.button !== 0) return;
       e.preventDefault(); // 네이티브 드래그(SVG 이미지 등) 차단
 
@@ -258,6 +303,32 @@ function _renderBrowserCards() {
     });
   });
 
+  container.querySelectorAll('.tb-card-star-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.dataset.tplId;
+      const set = _getStarred();
+      if (set.has(id)) {
+        set.delete(id);
+        btn.classList.remove('starred');
+        btn.title = '즐겨찾기 추가';
+      } else {
+        set.add(id);
+        btn.classList.add('starred');
+        btn.title = '즐겨찾기 해제';
+      }
+      _setStarred(set);
+      // 즐겨찾기 보기 중이면 카드 목록/트리 갱신
+      if (_browserFilter.starred) {
+        _renderBrowserTree();
+        _renderBrowserCards();
+      } else {
+        // 트리의 즐겨찾기 카운트만 갱신
+        _renderBrowserTree();
+      }
+    });
+  });
+
   container.querySelectorAll('.tb-card-edit-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -275,6 +346,39 @@ function _renderBrowserCards() {
         _hidePreview();
       }
       _renderBrowserTree();
+      _renderBrowserCards();
+    });
+  });
+}
+
+/* ── 태그 칩 렌더 ── */
+function _renderTagChips(filteredTemplates) {
+  const wrap = document.getElementById('tpl-browser-tag-chips');
+  if (!wrap) return;
+
+  // 현재 필터된 템플릿들에서 태그 수집 (태그 필터 적용 전 기준 아님 — 현재 목록 기준)
+  const tagSet = new Set();
+  filteredTemplates.forEach(t => (t.tags || []).forEach(tag => tagSet.add(tag)));
+  const tags = [...tagSet].sort();
+
+  if (!tags.length) {
+    wrap.innerHTML = '';
+    wrap.style.display = 'none';
+    return;
+  }
+
+  wrap.style.display = 'flex';
+  wrap.innerHTML = tags.map(tag => {
+    const isActive = _browserFilter.tag === tag;
+    return `<button class="tb-tag-chip ${isActive ? 'active' : ''}" data-tag="${_esc(tag)}">${_esc(tag)}</button>`;
+  }).join('');
+
+  wrap.querySelectorAll('.tb-tag-chip').forEach(chip => {
+    chip.addEventListener('click', e => {
+      e.stopPropagation();
+      const tag = chip.dataset.tag;
+      // 토글: 이미 활성이면 해제
+      _browserFilter.tag = (_browserFilter.tag === tag) ? null : tag;
       _renderBrowserCards();
     });
   });
@@ -467,3 +571,4 @@ window.toggleTemplateBrowser = toggleTemplateBrowser;
 window.initTemplateBrowser  = initTemplateBrowser;
 window._renderBrowserTree   = _renderBrowserTree;
 window._renderBrowserCards  = _renderBrowserCards;
+window._renderTagChips      = _renderTagChips;

@@ -139,7 +139,51 @@ clone.querySelectorAll('.section-block').forEach(sec => {
 
 ---
 
-## 7. 관련 파일
+## 7. 태그 칩 필터
+
+검색창 아래 현재 필터된 템플릿들의 태그 칩 목록을 표시한다.
+
+- **위치**: `#tpl-browser-tag-chips` (검색창 wrap 아래, body 위)
+- **렌더 함수**: `_renderTagChips(filteredTemplates)` — `_renderBrowserCards()` 내에서 태그 필터 적용 **전** 호출
+- **활성 태그**: `_browserFilter.tag` 로 관리 (토글 — 같은 태그 클릭 시 null로 해제)
+- 태그가 없는 필터 결과에서는 칩 영역이 숨겨진다 (`display:none`)
+
+### 태그 칩 상태 클래스
+
+| 클래스 | 의미 |
+|--------|------|
+| `.tb-tag-chip` | 기본 칩 |
+| `.tb-tag-chip.active` | 현재 선택된 태그 (파란색) |
+
+---
+
+## 8. 즐겨찾기(★) 기능
+
+### 저장소
+- `localStorage` 키: `tpl-starred`
+- 형식: JSON 배열 (template id 문자열)
+- 헬퍼: `_getStarred()` → `Set<string>`, `_setStarred(set)` → 저장
+
+### 카드 ★ 버튼
+- 각 카드의 `.tb-card-btns` 영역에 `.tb-card-star-btn` 버튼 포함
+- 클릭 시 즐겨찾기 토글 → localStorage 즉시 저장 → 버튼 UI 즉시 반영
+- `.starred` 클래스: 노란색(`#f5a623`), 기본: 회색(`#444`)
+- 클릭 이벤트는 카드 선택/드래그와 **독립적** (`.tb-card-star-btn` 체크로 버블링 차단)
+
+### 트리 패널 즐겨찾기 항목
+- `_renderBrowserTree()` 최상단에 `.tb-tree-starred` 항목 렌더
+- 클릭 시 `_browserFilter.starred = true` 설정 → 즐겨찾기 템플릿만 카드에 표시
+- 다른 폴더/카테고리 클릭 시 `starred: false` 로 자동 해제
+- 즐겨찾기 카운트는 `loadTemplates()` 기준 실시간 계산
+
+### `_browserFilter` 확장
+```js
+let _browserFilter = { folder: '전체', category: '전체', tag: null, starred: false };
+```
+
+---
+
+## 9. 관련 파일
 
 | 파일 | 역할 |
 |------|------|
@@ -148,3 +192,5 @@ clone.querySelectorAll('.section-block').forEach(sec => {
 | `js/save-load.js` | `rebindAll()` — 로드 시 잔류 스타일 정리 |
 | `templates/index.json` | 메타데이터 인덱스 |
 | `templates/canvas/` | 섹션 HTML 파일 저장 디렉토리 |
+| `css/editor-extra.css` | 브라우저 패널 CSS (태그칩, 즐겨찾기 버튼 포함) |
+| `index.html` | `#tpl-browser-tag-chips` 태그칩 컨테이너 |

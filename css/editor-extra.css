@@ -1246,6 +1246,73 @@ body.preview-mode #preview-navigator { display: flex; }
 .tb-card-edit-btn:hover { background: var(--ui-bg-input); color: var(--ui-text-sub); }
 .tb-card-del-btn:hover { background: rgba(200,50,50,0.15); color: #f87171; }
 
+/* ★ 즐겨찾기 버튼 */
+.tb-card-star-btn {
+  background: none;
+  border: none;
+  color: #444;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  transition: color 0.12s;
+}
+.tb-card-star-btn:hover { color: #aaa; }
+.tb-card-star-btn.starred { color: #f5a623; }
+.tb-card-star-btn.starred:hover { color: #e0921a; }
+
+/* ★ 즐겨찾기 트리 항목 */
+.tb-tree-starred {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--ui-text-sub);
+  transition: background 0.1s, color 0.1s;
+  margin-bottom: 2px;
+}
+.tb-tree-starred:hover { background: var(--ui-bg-card); color: var(--ui-text); }
+.tb-tree-starred.active { background: rgba(245,166,35,0.12); color: #f5a623; }
+.tb-tree-starred.active .tb-tree-count { background: rgba(245,166,35,0.2); color: #f5a623; }
+.tb-tree-star-icon {
+  font-size: 10px;
+  color: #f5a623;
+  flex-shrink: 0;
+}
+
+/* 태그 칩 영역 */
+.tpl-browser-tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px 8px 4px;
+  border-bottom: 1px solid var(--ui-bg-card);
+  flex-shrink: 0;
+}
+.tb-tag-chip {
+  background: var(--ui-bg-card);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  color: var(--ui-text-dim);
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+.tb-tag-chip:hover { background: var(--ui-bg-input); color: var(--ui-text-sub); border-color: #444; }
+.tb-tag-chip.active {
+  background: rgba(45,111,232,0.15);
+  border-color: rgba(45,111,232,0.4);
+  color: var(--ui-accent);
+}
+
 /* ══════════════════════════════════════
    SECTION HIT ZONE (T40)
 ══════════════════════════════════════ */
