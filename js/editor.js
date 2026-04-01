@@ -628,6 +628,8 @@ function deselectAll() {
 
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   state._lastActiveCol = null;
+  window._activeSubSection = null;
+  canvas.querySelectorAll('.sub-section-block').forEach(s => s.classList.remove('selected'));
   window.deselectCanvasItem?.(); // canvas-item _selItem/_selCb dangling ref 클리어
   window.showPageProperties();
 }
@@ -707,6 +709,9 @@ document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-b
 function getSelectedSection() {
   const secSel = document.querySelector('.section-block.selected');
   if (secSel) return secSel;
+  // sub-section 선택 시 부모 섹션 반환
+  const selSS = document.querySelector('.sub-section-block.selected');
+  if (selSS) return selSS.closest('.section-block') || null;
   const selBlock = document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +

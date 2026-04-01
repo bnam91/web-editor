@@ -200,8 +200,14 @@ function _makeLayerCanvasWrapper(cb, headerItem, sec, depth) {
     wrapper.classList.toggle('collapsed');
   });
 
+  // headerItem은 makeLayerBlockItem에서 이미 makeIndents(depth)가 추가됐으므로 제거
+  // ci-layer-header 구조: [indents][chevron][icon+name] (layer-row-group과 동일 순서)
+  const existingIndents = headerItem.querySelector('.layer-indents');
+  if (existingIndents) existingIndents.remove();
+
   header.appendChild(chevron);
   header.appendChild(headerItem);
+  header.prepend(makeIndents(depth));
   wrapper.appendChild(header);
 
   // 자식 목록 컨테이너
@@ -212,15 +218,19 @@ function _makeLayerCanvasWrapper(cb, headerItem, sec, depth) {
     children.innerHTML = '';
     cb.querySelectorAll(':scope > .canvas-item').forEach(ciEl => {
       const ciType = ciEl.dataset.type || 'image';
-      const ciIcon = ciType === 'text'
+      const isTextType = ciType === 'text' || ciType === 'text-block';
+      const tbType = ciEl.dataset.tbtype;
+      const tbLabels = { h2: 'Heading', body: 'Body', caption: 'Caption', label: 'Label' };
+      const ciLabel = isTextType ? (tbLabels[tbType] || '텍스트') : '이미지';
+      const ciTypeLabel = isTextType ? 'Text' : 'Image';
+      const ciIcon = isTextType
         ? `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="3" x2="10" y2="3"/><line x1="2" y1="6" x2="8" y2="6"/><line x1="2" y1="9" x2="6" y2="9"/></svg>`
         : `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><circle cx="4" cy="4" r="1"/><polyline points="11 8 8 5 3 11"/></svg>`;
-      const ciLabel = ciType === 'text' ? '텍스트' : '이미지';
 
       const ciItem = document.createElement('div');
       ciItem.className = 'layer-item layer-item-nested ci-layer-item';
       ciItem.dataset.ciId = ciEl.id;
-      ciItem.innerHTML = `${ciIcon}<span class="layer-item-name">${ciLabel}</span><span class="layer-item-type">${ciType === 'text' ? 'Text' : 'Image'}</span>`;
+      ciItem.innerHTML = `${ciIcon}<span class="layer-item-name">${ciLabel}</span><span class="layer-item-type">${ciTypeLabel}</span>`;
       ciItem.prepend(makeIndents(depth + 1));
 
       // 선택 동기화
@@ -587,7 +597,7 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
   colChildren.className = 'layer-row-children';
 
   const blocks = [...colEl.querySelectorAll(':scope > *')]
-    .filter(el => !el.classList.contains('col-placeholder'));
+    .filter(el => !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator'));
 
   const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas' };
   const typeLbls  = { heading:'Text', body:'Text', caption:'Text', label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas' };
@@ -716,12 +726,76 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 }
 
 
+/* 레이어 Sub-Section 아이템 생성 */
+function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'layer-row-group';
+  wrapper._dragTarget = ssEl;
+
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  const name = ssEl.dataset.layerName || 'Sub-Section';
+  header.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+      <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+      <rect x="3" y="3" width="6" height="6" rx="1"/>
+    </svg>
+    <span class="layer-item-name">${name}</span>
+    <span class="layer-item-type">Sub</span>`;
+  header.prepend(makeIndents(1));
+  addLayerRename(header.querySelector('.layer-item-name'), ssEl, 'Sub-Section', 'layerName');
+
+  header.addEventListener('click', e => {
+    if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+    const parentSec = ssEl.closest('.section-block');
+    if (parentSec) window.selectSection(parentSec);  // 내부 deselectAll 먼저
+    ssEl.classList.add('selected');                   // 이후 재적용
+    window._activeSubSection = ssEl;
+    document.querySelectorAll('.layer-row-group').forEach(g => g.classList.remove('active'));
+    wrapper.classList.add('active');
+    window.highlightBlock?.(ssEl, header);
+    window.showSubSectionProperties?.(ssEl);
+  });
+  ssEl._layerItem = header;
+
+  header.setAttribute('draggable', 'true');
+  header.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    window.layerDragSrc = wrapper;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => wrapper.classList.add('layer-dragging'));
+  });
+  header.addEventListener('dragend', () => {
+    wrapper.classList.remove('layer-dragging');
+    window.clearLayerIndicators?.();
+    window.layerDragSrc = null;
+  });
+
+  const ssChildren = document.createElement('div');
+  ssChildren.className = 'layer-row-children';
+
+  const ssInner = ssEl.querySelector('.sub-section-inner');
+  if (ssInner) {
+    [...ssInner.children].forEach(child => {
+      if (child.classList.contains('row')) appendRowFn(child, ssChildren);
+      else if (child.classList.contains('gap-block')) ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));
+    });
+  }
+
+  wrapper.appendChild(header);
+  wrapper.appendChild(ssChildren);
+  return wrapper;
+}
+
 export {
   makeIndents,
   layerIcons,
   addLayerRename,
   makeLayerBlockItem,
   makeLayerGroupItem,
+  makeLayerSubSectionItem,
   makeLayerAssetItem,
   makeLayerCardItem,
   makeLayerColItem,

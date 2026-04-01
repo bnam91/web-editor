@@ -58,6 +58,24 @@ function insertBeforeBottomGap(section, el) {
 
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
+  // 활성 서브섹션이 있으면 그 안에 삽입
+  const activeSS = window._activeSubSection;
+  if (activeSS && activeSS.closest('.section-block') === section) {
+    const ssInner = activeSS.querySelector('.sub-section-inner');
+    const sel = ssInner.querySelector(
+      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+      '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
+    );
+    if (sel) {
+      const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.row') || sel);
+      ref.after(el);
+    } else {
+      ssInner.appendChild(el);
+    }
+    return;
+  }
+
   const inner = section.querySelector('.section-inner');
 
   // row-active 우선: 그리드/flex row가 선택된 경우 그 row 뒤에 삽입

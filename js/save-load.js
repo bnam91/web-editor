@@ -183,6 +183,7 @@ function flushCurrentPage() {
 
 function switchPage(pageId) {
   if (pageId === state.currentPageId) return;
+  window.switchScratchPage?.(pageId);
   flushCurrentPage();
   // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
   canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging').forEach(ab => {
@@ -254,6 +255,9 @@ function getSerializedCanvas() {
   // 편집 상태 속성 제거 — contenteditable/editing 상태가 저장되지 않도록
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   clone.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
+  // 드래그 중단 시 고착된 상태 제거
+  clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+  clone.querySelectorAll('.drop-indicator').forEach(el => el.remove());
   return clone.innerHTML;
 }
 
@@ -400,6 +404,13 @@ function rebindAll() {
     }
     bindGroupDrag(g);
   });
+  // sub-section-block 클릭/드롭 핸들러 재연결 (저장/로드 후 누락 방지)
+  canvasEl.querySelectorAll('.sub-section-block').forEach(ss => {
+    if (!ss.id) ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+    ss._subSecBound = false; // rebind 강제
+    window.bindSubSectionDropZone?.(ss);
+  });
+
   // col-placeholder 이벤트 재연결
   canvasEl.querySelectorAll('.col > .col-placeholder').forEach(ph => {
     const col = ph.parentElement;
@@ -599,7 +610,7 @@ function initApp() {
   autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true });
 
   // 스크래치패드 초기화
-  window.initScratchPad?.(activeProjectId);
+  window.initScratchPad?.(activeProjectId, state.currentPageId);
 
   // 브랜치 시스템 초기화
   initBranchStore();

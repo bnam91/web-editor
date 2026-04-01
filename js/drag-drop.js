@@ -763,6 +763,14 @@ function bindColDropZone(col) {
     if (!dragSrc) return;
     // 같은 col 내부의 row는 무시
     if (dragSrc.closest('.col') === col) return;
+    // col에 이미 블록이 있으면 드롭 불가 (단일 블록 per col 규칙)
+    const existing = [...col.querySelectorAll(':scope > *')].filter(el =>
+      !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator')
+    );
+    if (existing.length > 0) return;
+    // multi-col row는 col에 드롭 불가 (col > row > col 중첩 방지)
+    if (dragSrc.classList.contains('row') &&
+        dragSrc.querySelectorAll(':scope > .col').length > 1) return;
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
@@ -793,6 +801,14 @@ function bindColDropZone(col) {
     if (_colRafId) { cancelAnimationFrame(_colRafId); _colRafId = null; }
     if (!dragSrc) return;
     if (dragSrc.closest('.col') === col) return;
+    // col에 이미 블록이 있으면 드롭 차단
+    const existingBlocks = [...col.querySelectorAll(':scope > *')].filter(el =>
+      !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator')
+    );
+    if (existingBlocks.length > 0) { clearDropIndicators(); return; }
+    // multi-col row는 col에 드롭 불가 (col > row > col 중첩 방지)
+    if (dragSrc.classList.contains('row') &&
+        dragSrc.querySelectorAll(':scope > .col').length > 1) { clearDropIndicators(); return; }
 
     window.pushHistory?.();
 
@@ -832,6 +848,95 @@ function bindColDropZone(col) {
   });
 }
 
+function bindSubSectionDropZone(ss) {
+  if (ss._subSecBound) return;
+  ss._subSecBound = true;
+
+  const inner = ss.querySelector('.sub-section-inner');
+  let _rafId = null;
+
+  // 클릭: 서브섹션 선택 + 블록 삽입 타겟으로 설정
+  ss.addEventListener('click', e => {
+    // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
+    // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block')) return;
+    // ss 또는 sub-section-inner 빈 공간 클릭만 처리
+    if (!e.target.closest('.sub-section-block')) return;
+    e.stopPropagation();
+    // deselectAll 직접 호출 (selectSection은 showSectionProperties 부작용 있음)
+    window.deselectAll?.();
+    const parentSec = ss.closest('.section-block');
+    if (parentSec) {
+      parentSec.classList.add('selected');
+      window.syncLayerActive?.(parentSec);
+    }
+    ss.classList.add('selected');
+    window._activeSubSection = ss;
+    window.highlightBlock?.(ss, ss._layerItem);
+    window.showSubSectionProperties?.(ss);
+  });
+
+  // 드래그오버 — 내부 블록 재배치
+  inner.addEventListener('dragover', e => {
+    if (!dragSrc) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (_rafId) return;
+    const clientY = e.clientY;
+    _rafId = requestAnimationFrame(() => {
+      _rafId = null;
+      if (!dragSrc) return;
+      clearDropIndicators();
+      ss.classList.add('ss-drag-over');
+      const after = getDragAfterElement(inner, clientY);
+      const indicator = document.createElement('div');
+      indicator.className = 'drop-indicator';
+      if (after) inner.insertBefore(indicator, after);
+      else inner.appendChild(indicator);
+    });
+  });
+
+  inner.addEventListener('dragleave', e => {
+    if (!inner.contains(e.relatedTarget)) {
+      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+      ss.classList.remove('ss-drag-over');
+      clearDropIndicators();
+    }
+  });
+
+  inner.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+    ss.classList.remove('ss-drag-over');
+    if (!dragSrc) return;
+    window.pushHistory();
+    const indicator = inner.querySelector('.drop-indicator');
+    if (indicator) inner.insertBefore(dragSrc, indicator);
+    else inner.appendChild(dragSrc);
+    clearDropIndicators();
+    window.buildLayerPanel();
+    dragSrc = null;
+  });
+
+  // 서브섹션 자체 드래그 (섹션 내 재배치)
+  ss.setAttribute('draggable', 'true');
+  ss.addEventListener('dragstart', e => {
+    if (e.target !== ss) return;
+    e.stopPropagation();
+    dragSrc = ss;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => ss.classList.add('dragging'));
+  });
+  ss.addEventListener('dragend', () => {
+    ss.classList.remove('dragging');
+    clearDropIndicators();
+    dragSrc = null;
+  });
+}
+
 export {
   getDragAfterElement,
   getSectionDragAfterEl,
@@ -843,6 +948,7 @@ export {
   bindSectionDropZone,
   bindColDropZone,
   bindBlock,
+  bindSubSectionDropZone,
 };
 
 // Backward compat
@@ -856,3 +962,10 @@ window.bindSectionDrag             = bindSectionDrag;
 window.bindSectionDropZone         = bindSectionDropZone;
 window.bindColDropZone             = bindColDropZone;
 window.bindBlock                   = bindBlock;
+window.bindSubSectionDropZone      = bindSubSectionDropZone;
+
+// 드래그 중단(ESC 등)으로 dragging 클래스가 고착되는 현상 방지
+document.addEventListener('dragend', () => {
+  document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+  clearDropIndicators();
+}, true);

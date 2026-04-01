@@ -3,7 +3,7 @@
    makeLayer* 렌더러는 layer-panel-items.js로 분리 (2025-03-31)
 ═══════════════════════════════════ */
 import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem,
-         makeLayerAssetItem, makeLayerCardItem, makeLayerColItem,
+         makeLayerSubSectionItem, makeLayerAssetItem, makeLayerCardItem, makeLayerColItem,
          makeLayerRowGroup } from './layer-panel-items.js';
 
 export function buildLayerPanel() {
@@ -151,7 +151,7 @@ export function buildLayerPanel() {
 
     function appendRowToLayer(child, container) {
       const colBlocks = [...child.querySelectorAll(':scope > .col > *')]
-        .filter(el => !el.classList.contains('col-placeholder'));
+        .filter(el => !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator'));
       const allCols = [...child.querySelectorAll(':scope > .col')];
       const isMultiCol = allCols.length > 1;
       // flex/grid는 col이 여러 개 → 항상 row group으로 표시
@@ -172,7 +172,8 @@ export function buildLayerPanel() {
           container.appendChild(makeLayerBlockItem(block, child, sec));
         }
       } else {
-        container.appendChild(makeLayerRowGroup(child, colBlocks, sec));
+        // 단일 col에 블록이 여러 개 → Col(Frame)으로 표시 (Grid 아님)
+        container.appendChild(makeLayerColItem(allCols[0], 0, sec, 1));
       }
     }
 
@@ -183,6 +184,8 @@ export function buildLayerPanel() {
         appendRowToLayer(child, children);
       } else if (child.classList.contains('group-block')) {
         children.appendChild(makeLayerGroupItem(child, sec, appendRowToLayer));
+      } else if (child.classList.contains('sub-section-block')) {
+        children.appendChild(makeLayerSubSectionItem(child, sec, appendRowToLayer));
       }
     });
 

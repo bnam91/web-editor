@@ -284,6 +284,13 @@ function makeTableBlock() {
 }
 
 function addTextBlock(type) {
+  // 캔버스 블록이 선택된 경우 → canvas-item으로 추가 (row/col 없이)
+  const selectedCb = document.querySelector('.canvas-block.selected');
+  if (selectedCb) {
+    window.addTextBlockToCanvas?.(selectedCb, type);
+    return;
+  }
+
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
   const overlay = getSelectedOverlay();
   if (overlay) {
@@ -829,6 +836,7 @@ function addSection() {
   bindSectionDrag(sec);
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.sub-section-block').forEach(ss => window.bindSubSectionDropZone?.(ss));
   if (window.bindRowColAdd) sec.querySelectorAll('.row').forEach(row => window.bindRowColAdd(row));
   sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
@@ -873,6 +881,41 @@ function addCanvasBlock() {
   window.showCanvasProperties?.(cb);
 }
 
+/* ── Sub-Section Block ── */
+function makeSubSectionBlock() {
+  const ss = document.createElement('div');
+  ss.className = 'sub-section-block';
+  ss.id = genId('ss');
+  ss.dataset.bg = '#f5f5f5';
+  ss.dataset.width = '780';
+  ss.dataset.padY = '24';
+  ss.style.cssText = `background:#f5f5f5;padding:24px 0;width:780px;margin:0 auto;min-height:520px;`;
+  const inner = document.createElement('div');
+  inner.className = 'sub-section-inner';
+  ss.appendChild(inner);
+  return ss;
+}
+
+function addSubSectionBlock() {
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+  const ss = makeSubSectionBlock();
+  insertAfterSelected(sec, ss);
+  window.bindSubSectionDropZone?.(ss);
+  window.buildLayerPanel();
+  // 생성 후 서브섹션 선택 상태 초기화
+  window.deselectAll?.();
+  const parentSec = sec;
+  if (parentSec) {
+    parentSec.classList.add('selected');
+    window.syncLayerActive?.(parentSec);
+  }
+  ss.classList.add('selected');
+  window._activeSubSection = ss;
+  window.showSubSectionProperties?.(ss);
+}
+
 export {
   makeTextBlock,
   makeAssetBlock,
@@ -897,6 +940,8 @@ export {
   makeDividerBlock,
   addDividerBlock,
   addSection,
+  makeSubSectionBlock,
+  addSubSectionBlock,
 };
 
 // Backward compat
@@ -927,3 +972,5 @@ window.addDividerBlock      = addDividerBlock;
 window.addSection           = addSection;
 window.makeCanvasBlock      = makeCanvasBlock;
 window.addCanvasBlock       = addCanvasBlock;
+window.makeSubSectionBlock  = makeSubSectionBlock;
+window.addSubSectionBlock   = addSubSectionBlock;
