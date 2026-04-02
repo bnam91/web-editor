@@ -70,7 +70,7 @@ value:          JSON 배열 [{ src, x, y, w }, ...]
 |------|------|
 | **일반 클릭** | 해당 아이템만 단독 선택 (기존 선택 해제) |
 | **Shift+클릭** | 기존 선택 유지하며 해당 아이템 추가/토글 |
-| **canvas-wrap 빈 영역 클릭** | 전체 선택 해제 |
+| **canvas-wrap 빈 영역 mousedown** | 전체 선택 해제 (`mousedown` 이벤트 — `click`이 아님) |
 
 선택된 아이템에는 `.scratch-selected` 클래스가 추가되어 파란 테두리(`outline: 2px solid #2d6fe8`)로 표시.
 
@@ -103,7 +103,7 @@ value:          JSON 배열 [{ src, x, y, w }, ...]
 ```
 
 - `.scratch-item`: `position: absolute`, canvas-scaler 내 배치
-- 이동/리사이즈 시 `item.x`, `item.y`, `item.w`를 직접 갱신 후 localStorage 저장
+- 이동/리사이즈 시 `item.x`, `item.y`, `item.w`를 직접 갱신 후 IndexedDB 저장
 
 ---
 

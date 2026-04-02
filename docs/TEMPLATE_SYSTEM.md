@@ -166,6 +166,7 @@ clone.querySelectorAll('.section-block').forEach(sec => {
 
 ### 카드 ★ 버튼
 - 각 카드의 `.tb-card-btns` 영역에 `.tb-card-star-btn` 버튼 포함
+- 버튼과 카드 모두 `data-tpl-id` 속성으로 템플릿 ID 보유 (`data-id` 아님)
 - 클릭 시 즐겨찾기 토글 → localStorage 즉시 저장 → 버튼 UI 즉시 반영
 - `.starred` 클래스: 노란색(`#f5a623`), 기본: 회색(`#444`)
 - 클릭 이벤트는 카드 선택/드래그와 **독립적** (`.tb-card-star-btn` 체크로 버블링 차단)
