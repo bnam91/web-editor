@@ -43,6 +43,7 @@ const layerIcons = {
   graph:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polyline points="1,10 4,5 7,7 10,2"/></svg>`,
   'icon-text': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="4" rx="0.8"/><line x1="7" y1="4" x2="11" y2="4"/><line x1="7" y1="7" x2="10" y2="7"/></svg>`,
   canvas:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="1" y1="4.5" x2="11" y2="4.5" stroke-dasharray="2 1.5"/><line x1="4.5" y1="4.5" x2="4.5" y2="11" stroke-dasharray="2 1.5"/></svg>`,
+  joker:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/><text x="6" y="9" font-size="7" text-anchor="middle" fill="currentColor" stroke="none">♠</text></svg>`,
 };
 
 /* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */
@@ -99,9 +100,10 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isGraph      = block.classList.contains('graph-block');
   const isIconText   = block.classList.contains('icon-text-block');
   const isCanvas     = block.classList.contains('canvas-block');
-  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas' };
+  const isJoker      = block.classList.contains('joker-block');
+  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : isJoker ? 'joker' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas', joker:'Joker' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas', joker:'Joker' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -135,6 +137,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
       else if (isIconCb) window.showIconCircleProperties(block);
       else if (isTable) window.showTableProperties(block);
       else if (isCard) window.showCardProperties(block);
+      else if (isJoker) window.showJokerProperties?.(block);
       else window.showAssetProperties(block);
     }
   });
@@ -596,8 +599,18 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
   const colChildren = document.createElement('div');
   colChildren.className = 'layer-row-children';
 
-  const blocks = [...colEl.querySelectorAll(':scope > *')]
+  // col 직접 자식 중 row로 래핑된 블록도 꺼내서 평탄화
+  const rawChildren = [...colEl.querySelectorAll(':scope > *')]
     .filter(el => !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator'));
+  const blocks = rawChildren.flatMap(el => {
+    if (el.classList.contains('row')) {
+      // row > col > block 구조에서 실제 블록만 추출
+      const inner = [...el.querySelectorAll(':scope > .col > *')]
+        .filter(b => !b.classList.contains('col-placeholder') && !b.classList.contains('drop-indicator'));
+      return inner.length > 0 ? inner : [];
+    }
+    return [el];
+  });
 
   const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas' };
   const typeLbls  = { heading:'Text', body:'Text', caption:'Text', label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas' };
@@ -775,6 +788,7 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
     [...ssInner.children].forEach(child => {
       if (child.classList.contains('row')) appendRowFn(child, ssChildren, 2);
       else if (child.classList.contains('gap-block')) ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));
+      else if (child.classList.contains('joker-block')) ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));
     });
   }
 

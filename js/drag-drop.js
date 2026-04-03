@@ -219,7 +219,68 @@ function bindBlock(block) {
   const isGraph       = block.classList.contains('graph-block');
   const isDivider     = block.classList.contains('divider-block');
   const isCanvas      = block.classList.contains('canvas-block');
+  const isJoker      = block.classList.contains('joker-block');
 
+  if (isJoker) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      window.deselectAll();
+      block.classList.add('selected');
+      window.syncSection(block.closest('.section-block'));
+      window.highlightBlock(block, block._layerItem);
+      window.showJokerProperties?.(block);
+    });
+
+    // 서브섹션 내 absolute 조커: 드래그로 left/top 조절
+    block.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      if (block.style.position !== 'absolute') return;
+      e.stopPropagation();
+      // preventDefault 사용 금지 — click 이벤트가 억제됨
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startLeft = parseInt(block.style.left || '0');
+      const startTop  = parseInt(block.style.top  || '0');
+      let moved = false;
+
+      function onMove(ev) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        moved = true;
+        // 캔버스 스케일 보정
+        const scaler = document.getElementById('canvas-scaler');
+        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        const newLeft = Math.round(startLeft + dx / scale);
+        const newTop  = Math.round(startTop  + dy / scale);
+        block.style.left = `${newLeft}px`;
+        block.style.top  = `${newTop}px`;
+        block.dataset.offsetX = String(newLeft);
+        block.dataset.offsetY = String(newTop);
+        window.scheduleAutoSave?.();
+        // 프로퍼티 패널 실시간 업데이트
+        const xNum = document.getElementById('joker-x-number');
+        const yNum = document.getElementById('joker-y-number');
+        const xSl  = document.getElementById('joker-x-slider');
+        const ySl  = document.getElementById('joker-y-slider');
+        if (xNum) xNum.value = newLeft;
+        if (xSl)  xSl.value  = newLeft;
+        if (yNum) yNum.value = newTop;
+        if (ySl)  ySl.value  = newTop;
+      }
+
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (moved) window.pushHistory?.();
+      }
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    return; // 편집 불가 — 이벤트 바인딩 여기서 종료
+  }
 
   if (isText) {
     block.addEventListener('click', e => {
@@ -761,16 +822,17 @@ function bindColDropZone(col) {
 
   col.addEventListener('dragover', e => {
     if (!dragSrc) return;
-    // 같은 col 내부의 row는 무시
-    if (dragSrc.closest('.col') === col) return;
-    // col에 이미 블록이 있으면 드롭 불가 (단일 블록 per col 규칙)
-    const existing = [...col.querySelectorAll(':scope > *')].filter(el =>
-      !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator')
-    );
-    if (existing.length > 0) return;
-    // multi-col row는 col에 드롭 불가 (col > row > col 중첩 방지)
-    if (dragSrc.classList.contains('row') &&
-        dragSrc.querySelectorAll(':scope > .col').length > 1) return;
+    const isSameCol = dragSrc.closest('.col') === col;
+    if (!isSameCol) {
+      // 다른 col → 비어있는 col에만 허용 (단일 블록 per col 규칙)
+      const existing = [...col.querySelectorAll(':scope > *')].filter(el =>
+        !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator')
+      );
+      if (existing.length > 0) return;
+      // multi-col row는 col에 드롭 불가 (col > row > col 중첩 방지)
+      if (dragSrc.classList.contains('row') &&
+          dragSrc.querySelectorAll(':scope > .col').length > 1) return;
+    }
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
@@ -800,8 +862,19 @@ function bindColDropZone(col) {
     e.stopPropagation();
     if (_colRafId) { cancelAnimationFrame(_colRafId); _colRafId = null; }
     if (!dragSrc) return;
-    if (dragSrc.closest('.col') === col) return;
-    // col에 이미 블록이 있으면 드롭 차단
+    const isSameCol = dragSrc.closest('.col') === col;
+    if (isSameCol) {
+      // 같은 col 내 reorder
+      window.pushHistory?.();
+      const indicator = col.querySelector('.drop-indicator');
+      if (indicator) col.insertBefore(dragSrc, indicator);
+      else col.appendChild(dragSrc);
+      clearDropIndicators();
+      window.buildLayerPanel?.();
+      dragSrc = null;
+      return;
+    }
+    // 다른 col → 비어있는 col에만 허용
     const existingBlocks = [...col.querySelectorAll(':scope > *')].filter(el =>
       !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator')
     );
@@ -859,7 +932,7 @@ function bindSubSectionDropZone(ss) {
   ss.addEventListener('click', e => {
     // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
     // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block')) return;
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block')) return;
     // ss 또는 sub-section-inner 빈 공간 클릭만 처리
     if (!e.target.closest('.sub-section-block')) return;
     e.stopPropagation();

@@ -8,6 +8,7 @@
   outline: 2px solid transparent;
   cursor: default;
   transition: outline-color 0.12s;
+  overflow: hidden;
 }
 .sub-section-block.selected {
   outline: 2px solid var(--sel-color);
@@ -26,6 +27,7 @@
   flex-direction: column;
   gap: 0;
   min-height: 60px;
+  height: 100%;
   position: relative;
 }
 
@@ -646,7 +648,7 @@
   width: 100%;
   cursor: pointer;
   border-radius: 8px;
-  padding: 24px var(--page-padx, 20px) 16px;
+  padding: 24px 20px 16px;
   box-sizing: border-box;
   outline: 2px solid transparent;
   
@@ -814,8 +816,8 @@
   outline: 2px solid transparent;
   
   width: 100%;
-  padding-left: var(--page-padx, 0px);
-  padding-right: var(--page-padx, 0px);
+  padding-left: 0;
+  padding-right: 0;
 }
 .card-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .card-block { position: relative; }
@@ -944,5 +946,25 @@
   border: none;
   border-top: 1px solid #ccc;
   margin: 0;
+}
+
+/* ── Joker Block (Figma 패스스루 컴포넌트) ── */
+.joker-block {
+  position: relative;
+  width: fit-content;
+  user-select: none;
+  cursor: default;
+}
+.joker-block.selected {
+  outline: 1.5px solid var(--sel-color);
+  z-index: 2;
+}
+.joker-block-inner {
+  overflow: hidden;
+}
+.joker-block-svg svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 

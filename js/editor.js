@@ -252,7 +252,12 @@ function pasteClipboard() {
   } else {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
+    // 서브섹션 포함 row 붙여넣기 시 _activeSubSection 안으로 들어가지 않도록
+    const pasteHasSS = el.classList.contains('sub-section-block') || !!el.querySelector('.sub-section-block');
+    const savedActiveSS = window._activeSubSection;
+    if (pasteHasSS) window._activeSubSection = null;
     insertAfterSelected(sec, el);
+    if (pasteHasSS) window._activeSubSection = savedActiveSS;
     el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
     el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
     el.querySelectorAll('.sub-section-block').forEach(ss => {
@@ -457,6 +462,19 @@ document.addEventListener('keydown', e => {
     const selGap     = document.querySelector('.gap-block.selected');
     const selSection = document.querySelector('.section-block.selected');
 
+    // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
+    const selSS = document.querySelector('.sub-section-block.selected');
+    if (selSS) {
+      e.preventDefault();
+      pushHistory();
+      const ssRow = selSS.closest('.row') || selSS;
+      ssRow.remove();
+      window._activeSubSection = null;
+      deselectAll();
+      window.buildLayerPanel();
+      return;
+    }
+
     const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
     if (allSelBlocks.length > 0) {
       e.preventDefault();
@@ -616,7 +634,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block').forEach(b => b.classList.remove('selected'));
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
