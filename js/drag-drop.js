@@ -272,17 +272,63 @@ function bindBlock(block) {
       function onUp() {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('dragend', onUp);
         if (moved) window.pushHistory?.();
       }
 
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
+      document.addEventListener('dragend', onUp);
     });
 
     return; // 편집 불가 — 이벤트 바인딩 여기서 종료
   }
 
   if (isText) {
+    // absolute 텍스트 블록 (서브섹션 내부) 드래그 이동
+    block.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      if (block.style.position !== 'absolute') return;
+      if (block.classList.contains('editing')) return;
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startLeft = parseInt(block.style.left || '0');
+      const startTop  = parseInt(block.style.top  || '0');
+      let moved = false;
+
+      function onMove(ev) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        moved = true;
+        const scaler = document.getElementById('canvas-scaler');
+        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        const newLeft = Math.round(startLeft + dx / scale);
+        const newTop  = Math.round(startTop  + dy / scale);
+        block.style.left = `${newLeft}px`;
+        block.style.top  = `${newTop}px`;
+        block.dataset.offsetX = String(newLeft);
+        block.dataset.offsetY = String(newTop);
+        window.scheduleAutoSave?.();
+        const xNum = document.getElementById('txt-x-number');
+        const yNum = document.getElementById('txt-y-number');
+        if (xNum) xNum.value = newLeft;
+        if (yNum) yNum.value = newTop;
+      }
+
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('dragend', onUp); // HTML5 drag 잔존 시 안전망
+        if (moved) window.pushHistory?.();
+      }
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('dragend', onUp); // HTML5 drag가 mouseup 대신 dragend 발생 시 정리
+    });
+
     block.addEventListener('click', e => {
       e.stopPropagation();
       // 편집 모드 중 클릭은 무시 (커서 이동/텍스트 선택 기본 동작 유지)
@@ -523,6 +569,40 @@ function bindBlock(block) {
   }
 
   if (isLabelGroup) {
+    // absolute 위치 드래그 이동 (서브섹션 내부)
+    block.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      if (block.style.position !== 'absolute') return;
+      if (block.classList.contains('editing')) return;
+      if (e.target.closest('.label-item, .label-group-add-btn')) return;
+      e.stopPropagation();
+      const startX = e.clientX, startY = e.clientY;
+      const startLeft = parseInt(block.style.left || '0');
+      const startTop  = parseInt(block.style.top  || '0');
+      let moved = false;
+      function onMove(ev) {
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
+        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        moved = true;
+        const scaler = document.getElementById('canvas-scaler');
+        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        block.style.left = `${Math.round(startLeft + dx / scale)}px`;
+        block.style.top  = `${Math.round(startTop  + dy / scale)}px`;
+        const xNum = document.getElementById('lg-x-number');
+        const yNum = document.getElementById('lg-y-number');
+        if (xNum) xNum.value = parseInt(block.style.left);
+        if (yNum) yNum.value = parseInt(block.style.top);
+        window.scheduleAutoSave?.();
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (moved) window.pushHistory?.();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
     block.addEventListener('click', e => {
       e.stopPropagation();
       // + 버튼: 새 라벨 추가
@@ -790,6 +870,7 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
+      if (block.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용
       if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
       _suppressDragSave();
@@ -985,12 +1066,66 @@ function bindSubSectionDropZone(ss) {
     ss.classList.remove('ss-drag-over');
     if (!dragSrc) return;
     window.pushHistory();
-    const indicator = inner.querySelector('.drop-indicator');
-    if (indicator) inner.insertBefore(dragSrc, indicator);
-    else inner.appendChild(dragSrc);
+
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block';
+    const SS_W = 860; // 캔버스 기준 너비
+
+    // 블록을 absolute로 전환하는 헬퍼
+    const makeAbsolute = (block, left, top) => {
+      const w = block.offsetWidth || Math.round(SS_W * 0.5);
+      block.style.position = 'absolute';
+      block.style.left = left + 'px';
+      block.style.top  = top  + 'px';
+      if (!block.style.width || block.style.width === '100%') {
+        block.style.width = Math.min(w, SS_W) + 'px';
+      }
+      block.setAttribute('draggable', 'false');
+    };
+
+    // row가 드롭된 경우 → 블록 추출 후 absolute 전환, row 제거
+    if (dragSrc.classList.contains('row')) {
+      const blocks = [...dragSrc.querySelectorAll(BLOCK_SEL)];
+      // 기존 absolute 블록들 중 가장 아래 y 값 이후에 배치
+      const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)];
+      let nextY = existingBlocks.reduce((maxY, b) => {
+        const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
+        return Math.max(maxY, by);
+      }, 0);
+      if (nextY > 0) nextY += 16; // 간격
+      blocks.forEach(block => {
+        makeAbsolute(block, 0, nextY);
+        inner.appendChild(block);
+        nextY += (block.offsetHeight || 60) + 16;
+      });
+      dragSrc.remove();
+    } else {
+      const indicator = inner.querySelector('.drop-indicator');
+      if (indicator) inner.insertBefore(dragSrc, indicator);
+      else inner.appendChild(dragSrc);
+      // 직접 블록이 드롭된 경우 absolute 전환
+      if (dragSrc.matches?.(BLOCK_SEL) && dragSrc.style.position !== 'absolute') {
+        const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)].filter(b => b !== dragSrc);
+        const nextY = existingBlocks.reduce((maxY, b) => {
+          const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
+          return Math.max(maxY, by);
+        }, 0);
+        makeAbsolute(dragSrc, 0, nextY > 0 ? nextY + 16 : 0);
+      }
+    }
+
+    // dragging 클래스 고착 방지
+    dragSrc?.classList.remove('dragging', 'section-dragging', 'layer-dragging');
     clearDropIndicators();
     window.buildLayerPanel();
     dragSrc = null;
+  });
+
+  // 내부 블록 pointerdown 시 서브섹션 drag 일시 비활성 — 블록 선택/이동과 충돌 방지
+  ss.addEventListener('pointerdown', e => {
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block');
+    if (!isInnerBlock) return;
+    ss.setAttribute('draggable', 'false');
+    document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });
   });
 
   // 서브섹션 자체 드래그 (섹션 내 재배치)

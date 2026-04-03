@@ -446,14 +446,7 @@
             </div>
             <div class="row" data-layout="stack">
               <div class="col" data-width="100">
-                <div class="asset-block">
-                  <svg class="asset-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <circle cx="8.5" cy="8.5" r="1.5"/>
-                    <polyline points="21 15 16 10 5 21"/>
-                  </svg>
-                  <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-                </div>
+                <div class="asset-block" data-align="center" data-overlay="false"><div class="asset-overlay"></div></div>
               </div>
             </div>
             <div class="gap-block" data-type="gap" style="height:100px"></div>
@@ -489,14 +482,7 @@
             </div>
             <div class="row" data-layout="stack">
               <div class="col" data-width="100">
-                <div class="asset-block">
-                  <svg class="asset-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <circle cx="8.5" cy="8.5" r="1.5"/>
-                    <polyline points="21 15 16 10 5 21"/>
-                  </svg>
-                  <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-                </div>
+                <div class="asset-block" data-align="center" data-overlay="false"><div class="asset-overlay"></div></div>
               </div>
             </div>
             <div class="gap-block" data-type="gap" style="height:100px"></div>
@@ -518,20 +504,6 @@
             <div class="gap-block" data-type="gap" style="height:100px"></div>
             <div class="row" data-layout="stack">
               <div class="col" data-width="100">
-                <div class="text-block" data-type="heading">
-<div class="tb-h2" contenteditable="false">마지막 섹션 제목</div>
-                </div>
-              </div>
-            </div>
-            <div class="row" data-layout="stack">
-              <div class="col" data-width="100">
-                <div class="text-block" data-type="body">
-<div class="tb-body" contenteditable="false">세 번째 섹션의 본문입니다. 텍스트 블록과 에셋 블록을 자유롭게 배치할 수 있어요.</div>
-                </div>
-              </div>
-            </div>
-            <div class="row" data-layout="stack">
-              <div class="col" data-width="100">
                 <div class="text-block" data-type="caption">
 <div class="tb-caption" contenteditable="false">* 주석 혹은 캡션 텍스트를 여기에 입력합니다.</div>
                 </div>
@@ -539,14 +511,7 @@
             </div>
             <div class="row" data-layout="stack">
               <div class="col" data-width="100">
-                <div class="asset-block">
-                  <svg class="asset-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <circle cx="8.5" cy="8.5" r="1.5"/>
-                    <polyline points="21 15 16 10 5 21"/>
-                  </svg>
-                  <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
-                </div>
+                <div class="asset-block" data-align="center" data-overlay="false"><div class="asset-overlay"></div></div>
               </div>
             </div>
             <div class="gap-block" data-type="gap" style="height:100px"></div>
@@ -595,18 +560,16 @@
   </div>
   <div class="fp-divider"></div>
   <button class="fp-btn primary" onclick="addSection()" title="새 섹션 추가">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+    <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
       <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
     </svg>
-    Section
   </button>
   <div class="fp-dropdown" id="fp-row-dropdown">
     <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-row-dropdown')" title="2열 그리드 레이아웃 추가">
-      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+      <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
         <rect x="1" y="2" width="3.5" height="7" rx="0.5"/><rect x="6.5" y="2" width="3.5" height="7" rx="0.5"/>
       </svg>
-      Grid
-      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+      <svg class="fp-chevron" width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-row-menu">
       <button class="fp-menu-item" onclick="addRowBlock(1,1);toggleFpDropdown('fp-row-dropdown')">1 × 1</button>
@@ -617,35 +580,25 @@
     </div>
   </div>
   <button class="fp-btn" onclick="addSubSectionBlock()" title="Sub-Section 추가 (섹션 안의 하위 섹션)">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <rect x="1" y="1" width="9" height="9" rx="1.5"/>
-      <rect x="3" y="3" width="5" height="5" rx="1"/>
+    <svg width="16" height="16" viewBox="1.5 1.5 13 13" fill="none">
+      <path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
     </svg>
-    Sub
   </button>
   <button class="fp-btn" onclick="addCanvasBlock()" title="Canvas 자유배치 블록 추가">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+    <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
       <rect x="1" y="1" width="9" height="9" rx="1.5"/>
       <line x1="3.5" y1="4" x2="3.5" y2="8" stroke-dasharray="1.5 1.2"/>
       <line x1="7.5" y1="3" x2="7.5" y2="7" stroke-dasharray="1.5 1.2"/>
       <line x1="2" y1="6" x2="5" y2="6" stroke-dasharray="1.5 1.2"/>
     </svg>
-    Canvas
-  </button>
-  <button class="fp-btn" onclick="addGapBlock()" title="여백(Gap) 블록 추가">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-      <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="8" x2="10" y2="8"/><line x1="5.5" y1="3" x2="5.5" y2="8" stroke-dasharray="1.5 1.5"/>
-    </svg>
-    Gap
   </button>
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-text-dropdown">
     <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-text-dropdown')" title="텍스트 블록 추가 (Heading / Body / Caption / Label)">
-      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
-        <line x1="1" y1="3" x2="10" y2="3"/><line x1="1" y1="6" x2="8" y2="6"/><line x1="1" y1="9" x2="6" y2="9"/>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M4.5 4 H19.5 V6 H13 V19 H15 V20 H9 V19 H11 V6 H4.5 Z"/>
       </svg>
-      Text
-      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+      <svg class="fp-chevron" width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-text-menu">
       <button class="fp-menu-item" onclick="addTextBlock('h2');toggleFpDropdown('fp-text-dropdown')">Heading</button>
@@ -658,11 +611,10 @@
   </div>
   <div class="fp-dropdown" id="fp-asset-dropdown">
     <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-asset-dropdown')" title="이미지(Asset) 블록 추가">
-      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+      <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
         <rect x="1" y="1" width="9" height="9" rx="1"/><circle cx="3.5" cy="3.5" r="1"/><polyline points="10 7 7 4.5 3 8"/>
       </svg>
-      Asset
-      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+      <svg class="fp-chevron" width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-asset-menu">
       <button class="fp-menu-item" onclick="addAssetBlock('standard');toggleFpDropdown('fp-asset-dropdown')">Standard</button>
@@ -676,14 +628,13 @@
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-component-dropdown">
     <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Circle / Table / Card / Banner / Graph / Divider)">
-      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+      <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
         <rect x="1" y="1" width="4" height="4" rx="0.5"/>
         <rect x="6" y="1" width="4" height="4" rx="0.5"/>
         <rect x="1" y="6" width="4" height="4" rx="0.5"/>
         <rect x="6" y="6" width="4" height="4" rx="0.5"/>
       </svg>
-      Component
-      <svg class="fp-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 2.5l3 3 3-3"/></svg>
+      <svg class="fp-chevron" width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
     <div class="fp-dropdown-menu" id="fp-component-menu">
       <button class="fp-menu-item" onclick="addTableBlock();toggleFpDropdown('fp-component-dropdown')">Table</button>
@@ -694,13 +645,12 @@
   </div>
   <div class="fp-divider"></div>
   <button class="fp-btn" id="fp-comp-shelf-btn" onclick="window.CompShelf && window.CompShelf.toggle()" title="컴포넌트 선반 — 저장/재사용 (시안 B)">
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.8">
+    <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
       <rect x="1" y="1" width="4" height="4" rx="0.5"/>
       <rect x="6" y="1" width="4" height="4" rx="0.5"/>
       <rect x="1" y="6" width="4" height="4" rx="0.5"/>
       <path d="M6 8.5h4M8 6.5v4"/>
     </svg>
-    Shelf
   </button>
 </div>
 
@@ -735,13 +685,18 @@
   </div>
   <!-- 검색 바 + 섹션 추가 버튼 (중간) -->
   <div class="tpl-browser-search-wrap">
+    <select class="tpl-browser-search-mode" id="tpl-browser-search-mode" title="검색 기준">
+      <option value="all">전체</option>
+      <option value="name">파일명</option>
+      <option value="tag">태그</option>
+    </select>
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#777" stroke-width="1.6">
       <circle cx="5" cy="5" r="3.5"/><line x1="7.7" y1="7.7" x2="11" y2="11"/>
     </svg>
-    <input class="tpl-browser-search" id="tpl-browser-search" type="text" placeholder="템플릿 검색...">
+    <input class="tpl-browser-search" id="tpl-browser-search" type="text" placeholder="검색...">
     <button class="tpl-browser-insert-btn" id="tpl-browser-insert-btn">+ 섹션 추가</button>
   </div>
-  <!-- 태그 칩 필터 -->
+  <!-- 태그 칩 필터 (태그 모드일 때만 표시) -->
   <div class="tpl-browser-tag-chips" id="tpl-browser-tag-chips" style="display:none"></div>
   <!-- 하단 body: 카테고리 트리 + 카드 리스트 -->
   <div class="tpl-browser-body">
@@ -808,6 +763,7 @@
 <script type="module" src="js/prop-icon-circle.js"></script>
 <script type="module" src="js/prop-table.js"></script>
 <script type="module" src="js/prop-gap.js"></script>
+<script type="module" src="js/prop-joker.js"></script>
 <script type="module" src="js/prop-card.js"></script>
 <script type="module" src="js/prop-graph.js"></script>
 <script type="module" src="js/prop-divider.js"></script>
@@ -816,6 +772,7 @@
 <script type="module" src="js/drag-utils.js"></script>
 <script type="module" src="js/drag-drop.js"></script>
 <script type="module" src="js/block-factory.js"></script>
+<script type="module" src="js/goditor-api.js"></script>
 <script type="module" src="js/file-page-section.js"></script>
 <script type="module" src="js/commit-system.js"></script>
 <script type="module" src="js/scratch-pad.js"></script>

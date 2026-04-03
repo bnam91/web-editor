@@ -20,6 +20,10 @@ function _applyPresetToItem(item, presetName) {
 }
 
 function showLabelGroupProperties(block, selectedItem) {
+  const isAbsolute = block.style.position === 'absolute';
+  const currentW   = parseInt(block.style.width)  || Math.round(block.offsetWidth);
+  const currentX   = parseInt(block.style.left)   || 0;
+  const currentY   = parseInt(block.style.top)    || 0;
   const gap        = parseInt(block.style.gap) || 10;
   const jc         = block.style.justifyContent || 'flex-start';
   const align      = jc === 'center' ? 'center' : jc === 'flex-end' ? 'right' : 'left';
@@ -127,6 +131,24 @@ function showLabelGroupProperties(block, selectedItem) {
       <div class="prop-section-title" style="color:#666;font-size:10px;">태그를 클릭하면 개별 색상을 변경할 수 있어요</div>
     </div>
     `}
+
+    ${isAbsolute ? `
+    <div class="prop-section">
+      <div class="prop-section-title">너비</div>
+      <div class="prop-row">
+        <span class="prop-label">Width</span>
+        <input type="range"  class="prop-slider" id="lg-width-slider" min="40" max="860" step="4" value="${currentW}">
+        <input type="number" class="prop-number"  id="lg-width-number" min="40" max="860" value="${currentW}">
+      </div>
+      <div class="prop-section-title">위치</div>
+      <div class="prop-row">
+        <span class="prop-label" style="width:16px">X</span>
+        <input type="number" class="prop-number" id="lg-x-number" value="${currentX}" style="width:72px">
+        <span class="prop-label" style="width:16px;margin-left:8px">Y</span>
+        <input type="number" class="prop-number" id="lg-y-number" value="${currentY}" style="width:72px">
+      </div>
+    </div>
+    ` : ''}
   `;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
@@ -288,6 +310,27 @@ function showLabelGroupProperties(block, selectedItem) {
     setItemH(v); iHSlider.value = v;
   });
   iHNumber?.addEventListener('change', () => window.pushHistory?.());
+
+  // 너비 / 위치 (서브섹션 내 absolute 전용)
+  if (isAbsolute) {
+    const wSlider = document.getElementById('lg-width-slider');
+    const wNumber = document.getElementById('lg-width-number');
+    const setW = v => { block.style.width = v + 'px'; };
+    wSlider?.addEventListener('input', () => { setW(+wSlider.value); wNumber.value = wSlider.value; });
+    wSlider?.addEventListener('change', () => window.pushHistory?.());
+    wNumber?.addEventListener('input', () => {
+      const v = Math.min(860, Math.max(40, parseInt(wNumber.value) || 40));
+      setW(v); wSlider.value = v;
+    });
+    wNumber?.addEventListener('change', () => window.pushHistory?.());
+
+    const xNum = document.getElementById('lg-x-number');
+    const yNum = document.getElementById('lg-y-number');
+    xNum?.addEventListener('input', () => { block.style.left = (parseInt(xNum.value) || 0) + 'px'; });
+    xNum?.addEventListener('change', () => window.pushHistory?.());
+    yNum?.addEventListener('input', () => { block.style.top  = (parseInt(yNum.value) || 0) + 'px'; });
+    yNum?.addEventListener('change', () => window.pushHistory?.());
+  }
 }
 
 window.showLabelGroupProperties = showLabelGroupProperties;

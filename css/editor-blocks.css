@@ -467,12 +467,11 @@
 }
 
 .fp-btn {
-  height: 30px; padding: 0 10px;
+  height: 32px; width: 32px; padding: 0;
   background: transparent; border: 1px solid transparent;
   border-radius: 7px; color: var(--ui-text-muted);
-  font-size: 11px; font-weight: 500;
-  cursor: pointer; white-space: nowrap;
-  display: flex; align-items: center; gap: 5px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
   transition: all 0.15s;
 }
 .fp-btn:hover { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }
@@ -486,7 +485,7 @@
 
 /* Text 드롭다운 */
 .fp-dropdown { position: relative; }
-.fp-dropdown-trigger { gap: 4px; }
+.fp-dropdown-trigger { width: auto; padding: 0 6px; gap: 3px; }
 .fp-chevron { opacity: 0.5; transition: transform 0.15s; }
 .fp-dropdown.open .fp-chevron { transform: rotate(180deg); }
 .fp-dropdown-menu {

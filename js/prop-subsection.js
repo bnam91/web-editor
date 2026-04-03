@@ -255,8 +255,8 @@ export function showSubSectionProperties(ss) {
     window.scheduleAutoSave?.();
   };
 
-  borderWSlider.addEventListener('mousedown', () => window.pushHistory?.());
   borderWSlider.addEventListener('input', () => { borderWNum.value = borderWSlider.value; applyBorder(); });
+  borderWSlider.addEventListener('change', () => window.pushHistory?.());
   borderWNum.addEventListener('change', () => window.pushHistory?.());
   borderWNum.addEventListener('input', () => {
     const v = Math.min(20, Math.max(0, parseInt(borderWNum.value) || 0));
@@ -284,8 +284,8 @@ export function showSubSectionProperties(ss) {
     ss.style.borderRadius = v + 'px';
     window.scheduleAutoSave?.();
   };
-  radiusSlider.addEventListener('mousedown', () => window.pushHistory?.());
   radiusSlider.addEventListener('input', () => { radiusNum.value = radiusSlider.value; applyRadius(radiusSlider.value); });
+  radiusSlider.addEventListener('change', () => window.pushHistory?.());
   radiusNum.addEventListener('change', () => window.pushHistory?.());
   radiusNum.addEventListener('input', () => {
     const v = Math.min(80, Math.max(0, parseInt(radiusNum.value) || 0));
@@ -301,8 +301,8 @@ export function showSubSectionProperties(ss) {
     ss.style.minHeight = v + 'px';
     window.scheduleAutoSave?.();
   };
-  heightSlider.addEventListener('mousedown', () => window.pushHistory?.());
   heightSlider.addEventListener('input', () => { heightNum.value = heightSlider.value; applyHeight(heightSlider.value); });
+  heightSlider.addEventListener('change', () => window.pushHistory?.());
   heightNum.addEventListener('change', () => window.pushHistory?.());
   heightNum.addEventListener('input', () => {
     const v = Math.min(1200, Math.max(100, parseInt(heightNum.value) || 520));
@@ -314,13 +314,26 @@ export function showSubSectionProperties(ss) {
   const widthSlider = document.getElementById('ss-width-slider');
   const widthNum    = document.getElementById('ss-width-num');
   const applyWidth  = (v) => {
+    const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || 860;
+    const newW = parseInt(v);
+    const ratio = newW / oldW;
+    // 내부 absolute 블록의 left/width 비례 재계산
+    const inner = ss.querySelector('.sub-section-inner');
+    if (inner && ratio !== 1) {
+      inner.querySelectorAll('[style*="position: absolute"], [style*="position:absolute"]').forEach(block => {
+        const curLeft  = parseInt(block.style.left  || 0);
+        const curWidth = parseInt(block.style.width || block.offsetWidth || 0);
+        block.style.left  = Math.round(curLeft  * ratio) + 'px';
+        if (curWidth) block.style.width = Math.round(curWidth * ratio) + 'px';
+      });
+    }
     ss.dataset.width = v;
-    ss.style.width  = v + 'px';
+    ss.style.width  = newW + 'px';
     ss.style.margin = '0 auto';
     window.scheduleAutoSave?.();
   };
-  widthSlider.addEventListener('mousedown', () => window.pushHistory?.());
   widthSlider.addEventListener('input', () => { widthNum.value = widthSlider.value; applyWidth(widthSlider.value); });
+  widthSlider.addEventListener('change', () => window.pushHistory?.());
   widthNum.addEventListener('change', () => window.pushHistory?.());
   widthNum.addEventListener('input', () => {
     const v = Math.min(860, Math.max(200, parseInt(widthNum.value) || 780));
@@ -337,8 +350,8 @@ export function showSubSectionProperties(ss) {
     ss.style.paddingBottom = v + 'px';
     window.scheduleAutoSave?.();
   };
-  padYSlider.addEventListener('mousedown', () => window.pushHistory?.());
   padYSlider.addEventListener('input', () => { padYNum.value = padYSlider.value; applyPadY(padYSlider.value); });
+  padYSlider.addEventListener('change', () => window.pushHistory?.());
   padYNum.addEventListener('change', () => window.pushHistory?.());
   padYNum.addEventListener('input', () => {
     const v = Math.min(200, Math.max(0, parseInt(padYNum.value) || 0));
