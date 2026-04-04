@@ -45,7 +45,7 @@ const layerIcons = {
   canvas:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="1" y1="4.5" x2="11" y2="4.5" stroke-dasharray="2 1.5"/><line x1="4.5" y1="4.5" x2="4.5" y2="11" stroke-dasharray="2 1.5"/></svg>`,
   joker:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/><text x="6" y="9" font-size="7" text-anchor="middle" fill="currentColor" stroke="none">♠</text></svg>`,
   'shape-rectangle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="2.5" width="10" height="7" rx="0.5"/></svg>`,
-  'shape-ellipse':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><ellipse cx="6" cy="6" rx="5" ry="3.5"/></svg>`,
+  'shape-ellipse':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="5"/></svg>`,
   'shape-line':      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="11" y2="6"/></svg>`,
   'shape-arrow':     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="9" y2="6"/><polyline points="7,3 11,6 7,9"/></svg>`,
   'shape-polygon':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="6,1 11,10 1,10"/></svg>`,
