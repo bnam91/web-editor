@@ -228,7 +228,9 @@ function bindBlock(block) {
       window.deselectAll?.();
       block.classList.add('selected');
       window.syncSection?.(block.closest('.section-block'));
-      window.highlightBlock?.(block, block._layerItem);
+      // shape-block._layerItem은 DOM에 없는 detached 요소 → 부모 ss._layerItem 사용
+      const ss = block.closest('.sub-section-block');
+      window.highlightBlock?.(block, ss?._layerItem || block._layerItem);
       window.showShapeProperties?.(block);
     });
 
