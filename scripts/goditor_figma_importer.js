@@ -48,7 +48,7 @@ function figma(command, params) {
     '--command', command,
     '--params', JSON.stringify(params),
     '--channel', CHANNEL
-  ], { encoding: 'utf-8', timeout: 15000 });
+  ], { encoding: 'utf-8', timeout: 15000, maxBuffer: 50 * 1024 * 1024 });
 
   if (r.error) throw r.error;
   if (!r.stdout?.trim()) return null;
@@ -182,6 +182,35 @@ function nodeToBlock(node, frameBox, containerW = 860) {
     };
   }
 
+  // INSTANCE / COMPONENT / SLOT / GROUP → 자식에서 TEXT 노드 재귀 추출 시도
+  const containerTypes = ['INSTANCE', 'COMPONENT', 'COMPONENT_SET', 'GROUP'];
+  if (containerTypes.includes(node.type) || node.type === 'SLOT') {
+    // 자식이 없으면 get_node_info로 가져옴
+    const detail = node.children ? node : (() => {
+      try { return figma('get_node_info', { nodeId: node.id }); } catch(e) { return node; }
+    })();
+    const children = detail?.children || [];
+
+    // 재귀적으로 TEXT 노드만 추출
+    function collectTexts(nodes) {
+      const result = [];
+      for (const n of nodes) {
+        if (n.type === 'TEXT') result.push(n);
+        else if (n.children) result.push(...collectTexts(n.children));
+      }
+      return result;
+    }
+    const texts = collectTexts(children);
+
+    if (texts.length > 0) {
+      // 텍스트 블록 배열 반환 (호출부에서 배열 처리)
+      return {
+        type: 'text-group',
+        blocks: texts.map(t => nodeToBlock(t, frameBox, containerW)).filter(Boolean),
+      };
+    }
+  }
+
   // 그 외 모든 노드 → 조커 블록 (SVG 추출 시도, 실패 시 빈 조커)
   const bbox = node.absoluteBoundingBox || {};
   const scale = containerW / (frameBox?.width || containerW);
@@ -220,8 +249,28 @@ function buildRows(children, frameBox) {
   const FRAME_W   = frameBox.width;
   const TOLERANCE = frameBox.height * 0.04; // 4% 허용
 
-  // 프레임 기준 상대 좌표로 변환, Y 정렬
+  // INSTANCE/GROUP 노드를 TEXT 자식들로 재귀 펼치기
+  function flattenToTextLeaves(node) {
+    const containerTypes = ['INSTANCE', 'COMPONENT', 'COMPONENT_SET', 'GROUP', 'SLOT'];
+    if (node.type === 'TEXT') return [node];
+    if (containerTypes.includes(node.type)) {
+      // children 없으면 get_node_info로 가져옴
+      let children = node.children;
+      if (!children) {
+        try { children = figma('get_node_info', { nodeId: node.id })?.children || []; }
+        catch(e) { children = []; }
+      }
+      const texts = children.flatMap(c => flattenToTextLeaves(c));
+      // TEXT 자식이 있으면 펼침, 없으면 원본 반환 (joker 처리)
+      if (texts.length > 0) return texts;
+    }
+    return [node];
+  }
+
+  // 프레임 기준 상대 좌표로 변환, Y 정렬 (INSTANCE는 TEXT 자식으로 펼침)
   const nodes = children
+    .filter(c => c.absoluteBoundingBox)
+    .flatMap(c => flattenToTextLeaves(c))
     .filter(c => c.absoluteBoundingBox)
     .map(c => ({
       ...c,
@@ -231,6 +280,12 @@ function buildRows(children, frameBox) {
       _h: c.absoluteBoundingBox.height,
     }))
     .sort((a, b) => a._relY - b._relY);
+
+  function toBlocks(node) {
+    const b = nodeToBlock(node, frameBox);
+    if (!b) return [];
+    return [b];
+  }
 
   // Y 허용 오차 내에서 같은 행으로 그루핑
   const rowGroups = [];
@@ -270,7 +325,7 @@ function buildRows(children, frameBox) {
       // 단열
       rows.push({
         layout: 'stack',
-        cols: [{ flex: 1, blocks: [nodeToBlock(sorted[0], frameBox)] }]
+        cols: [{ flex: 1, blocks: toBlocks(sorted[0]) }]
       });
     } else {
       // 다열 flex
@@ -282,7 +337,7 @@ function buildRows(children, frameBox) {
         layout: 'flex',
         cols: sorted.map((n, i) => ({
           flex: flexes[i] / gcd,
-          blocks: [nodeToBlock(n, frameBox)]
+          blocks: toBlocks(n)
         }))
       });
     }
