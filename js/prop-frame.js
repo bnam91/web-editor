@@ -19,14 +19,12 @@ function _headerHTML(el, mode) {
     <div class="prop-section">
       <div class="prop-block-label">
         <div class="prop-block-icon">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="#888" stroke-width="1.4" fill="none"/>
-            <line x1="2" y1="5.5" x2="14" y2="5.5" stroke="#888" stroke-width="1.1"/>
-            <line x1="5.5" y1="5.5" x2="5.5" y2="14" stroke="#888" stroke-width="1.1"/>
+          <svg width="16" height="16" viewBox="1.5 1.5 13 13" fill="none">
+            <path fill="#888" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Frame</span>
+          <span class="prop-block-name">${el.dataset.layerName || 'Frame'}</span>
         </div>
         ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${id}')">${id}</span>` : ''}
       </div>
