@@ -1439,10 +1439,16 @@ function addShapeBlock(type = 'rectangle') {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
+  const def = SHAPE_DEFS[type] || SHAPE_DEFS.rectangle;
+  const ssH = def.h + 40;
   const ss = makeSubSectionBlock();
+  ss.dataset.width = '860';
+  ss.style.width = '860px';
+  ss.style.minHeight = `${ssH}px`;
+  const inner = ss.querySelector('.sub-section-inner');
+  if (inner) inner.style.height = `${ssH}px`;
   insertAfterSelected(sec, ss);
   window.bindSubSectionDropZone?.(ss);
-  const inner = ss.querySelector('.sub-section-inner');
   if (inner) {
     const { block } = makeShapeBlock(type);
     block.style.position = 'absolute';
