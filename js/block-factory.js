@@ -1393,6 +1393,75 @@ export {
 function addFrameBlock() { addSubSectionBlock(); }
 window.addFrameBlock = addFrameBlock;
 
+// ── Shape Block ──
+const SHAPE_DEFS = {
+  rectangle: { vb: '0 0 200 100', h: 160, fill: true,  inner: `<rect x="8" y="8" width="184" height="84" rx="0"/>` },
+  ellipse:   { vb: '0 0 200 100', h: 160, fill: true,  inner: `<ellipse cx="100" cy="50" rx="90" ry="40"/>` },
+  line:      { vb: '0 0 200 40',  h: 60,  fill: false, inner: `<line x1="10" y1="20" x2="190" y2="20" stroke-linecap="round"/>` },
+  arrow:     { vb: '0 0 200 40',  h: 60,  fill: false, inner: `<line x1="10" y1="20" x2="172" y2="20" stroke-linecap="round"/><polygon points="170,10 194,20 170,30" fill="currentColor" stroke="none"/>` },
+  polygon:   { vb: '0 0 200 180', h: 200, fill: true,  inner: `<polygon points="100,8 194,172 6,172"/>` },
+  star:      { vb: '0 0 200 190', h: 200, fill: true,  inner: `<polygon points="100,8 122,70 188,70 135,110 155,172 100,132 45,172 65,110 12,70 78,70"/>` },
+};
+
+function makeShapeBlock(type = 'rectangle') {
+  const def = SHAPE_DEFS[type] || SHAPE_DEFS.rectangle;
+  const block = document.createElement('div');
+  block.className = 'shape-block';
+  block.dataset.type = 'shape';
+  block.dataset.shapeType = type;
+  block.dataset.shapeColor = '#cccccc';
+  block.dataset.shapeStrokeWidth = '3';
+  block.id = genId('shp');
+  block.innerHTML = `<svg class="shape-svg" viewBox="${def.vb}" xmlns="http://www.w3.org/2000/svg"
+    style="width:100%;height:${def.h}px;color:#cccccc;stroke-width:3;fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
+    ${def.inner}
+  </svg>`;
+  return { block };
+}
+
+function addShapeBlock(type = 'rectangle') {
+  // 활성 서브섹션이 있으면 그 안에 absolute로 삽입
+  if (window._activeSubSection) {
+    const ss = window._activeSubSection;
+    const inner = ss.querySelector('.sub-section-inner');
+    if (inner) {
+      const { block } = makeShapeBlock(type);
+      block.style.position = 'absolute';
+      block.style.left = '20px';
+      block.style.top  = '20px';
+      inner.appendChild(block);
+      bindBlock(block);
+      window.buildLayerPanel();
+      return;
+    }
+  }
+  // 서브섹션 없으면 새 서브섹션 만들어서 그 안에 넣기
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+  const def = SHAPE_DEFS[type] || SHAPE_DEFS.rectangle;
+  const ssH = def.h + 40;
+  const ss = makeSubSectionBlock();
+  ss.dataset.width = '860';
+  ss.style.width = '860px';
+  ss.style.minHeight = `${ssH}px`;
+  const inner = ss.querySelector('.sub-section-inner');
+  if (inner) inner.style.height = `${ssH}px`;
+  insertAfterSelected(sec, ss);
+  window.bindSubSectionDropZone?.(ss);
+  if (inner) {
+    const { block } = makeShapeBlock(type);
+    block.style.position = 'absolute';
+    block.style.left = '20px';
+    block.style.top  = '20px';
+    inner.appendChild(block);
+    bindBlock(block);
+  }
+  window.buildLayerPanel();
+  window._activeSubSection = ss;
+  window.showSubSectionProperties?.(ss);
+}
+
 // ── setSectionBg: 섹션 단위 배경색 설정 ──
 // sectionEl: .section-block 요소 또는 섹션 id(string)
 // color: hex 색상 문자열 (#ffffff 등). null/''이면 배경색 제거
@@ -1460,3 +1529,5 @@ window.activateSubSection   = activateSubSection;
 window.deactivateSubSection = deactivateSubSection;
 window.makeJokerBlock       = makeJokerBlock;
 window.addJokerBlock        = addJokerBlock;
+window.makeShapeBlock       = makeShapeBlock;
+window.addShapeBlock        = addShapeBlock;
