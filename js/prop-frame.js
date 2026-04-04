@@ -51,11 +51,13 @@ function _headerHTML(el, mode) {
    AUTO 모드 (sub-section-block)
 ════════════════════════════════════════ */
 function _renderAutoPanel(ss) {
+  const isShapeFrame = !!ss.querySelector('.shape-block');
   const rawBg  = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
   const hexBg  = rgbToHex(rawBg);
   const padY   = parseInt(ss.dataset.padY)   || 0;
-  const width  = parseInt(ss.dataset.width)  || 780;
-  const height = parseInt(ss.dataset.height) || 520;
+  const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
+  const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
+  const minWidth = isShapeFrame ? Math.min(width, 20) : 200;
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
   const borderWidth = parseInt(ss.dataset.borderWidth) || 0;
   const borderStyle = ss.dataset.borderStyle || 'solid';
@@ -112,8 +114,8 @@ function _renderAutoPanel(ss) {
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="ss-width-slider" min="200" max="860" step="10" value="${width}">
-        <input type="number" class="prop-number" id="ss-width-num" min="200" max="860" value="${width}">
+        <input type="range" class="prop-slider" id="ss-width-slider" min="${minWidth}" max="860" step="10" value="${width}">
+        <input type="number" class="prop-number" id="ss-width-num" min="${minWidth}" max="860" value="${width}">
       </div>
       <div class="prop-row" style="margin-top:6px;">
         <span class="prop-label">높이</span>
@@ -273,24 +275,54 @@ function _renderAutoPanel(ss) {
   const widthSlider = document.getElementById('ss-width-slider');
   const widthNum    = document.getElementById('ss-width-num');
   const applyWidth  = (v) => {
-    const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || 860;
+    const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || (isShapeFrame ? 100 : 860);
     const newW = parseInt(v);
     const ratio = newW / oldW;
     const inner = ss.querySelector('.sub-section-inner');
     if (inner && ratio !== 1) {
       inner.querySelectorAll('[style*="position: absolute"], [style*="position:absolute"]').forEach(block => {
         const curLeft  = parseInt(block.style.left  || 0);
-        const curWidth = parseInt(block.style.width || block.offsetWidth || 0);
-        block.style.left  = Math.round(curLeft  * ratio) + 'px';
-        if (curWidth) block.style.width = Math.round(curWidth * ratio) + 'px';
+        const curW = parseInt(block.style.width || block.offsetWidth || 0);
+        block.style.left = Math.round(curLeft * ratio) + 'px';
+        if (curW) block.style.width = Math.round(curW * ratio) + 'px';
+        if (isShapeFrame) {
+          // shape frame: height도 비례 스케일
+          const curH = parseInt(block.style.height || block.offsetHeight || 0);
+          if (curH) block.style.height = Math.round(curH * ratio) + 'px';
+          // SVG도 비례 스케일
+          const svg = block.querySelector('svg');
+          if (svg) {
+            const svgW = parseInt(svg.style.width || svg.getAttribute('width') || 0);
+            const svgH = parseInt(svg.style.height || svg.getAttribute('height') || 0);
+            if (svgW) svg.style.width = Math.round(svgW * ratio) + 'px';
+            if (svgH) svg.style.height = Math.round(svgH * ratio) + 'px';
+          }
+        }
       });
+      if (isShapeFrame) {
+        // inner height 비례 스케일
+        const innerH = parseInt(inner.style.height || inner.offsetHeight || 0);
+        if (innerH) inner.style.height = Math.round(innerH * ratio) + 'px';
+        // frame min-height 비례 스케일
+        const curFrameH = parseInt(ss.dataset.height || ss.style.minHeight || 0);
+        if (curFrameH) {
+          const newH = Math.round(curFrameH * ratio);
+          ss.style.minHeight = newH + 'px';
+          ss.dataset.height = newH;
+          const hSlider = document.getElementById('ss-height-slider');
+          const hNum    = document.getElementById('ss-height-num');
+          if (hSlider) hSlider.value = newH;
+          if (hNum)    hNum.value    = newH;
+        }
+      }
     }
-    ss.dataset.width = v; ss.style.width = newW + 'px'; ss.style.margin = '0 auto';
+    ss.dataset.width = newW; ss.style.width = newW + 'px';
+    ss.style.margin = '0 auto'; ss.style.alignSelf = 'center';
     window.scheduleAutoSave?.();
   };
   widthSlider.addEventListener('input', () => { widthNum.value = widthSlider.value; applyWidth(widthSlider.value); });
   widthSlider.addEventListener('change', () => window.pushHistory?.());
-  widthNum.addEventListener('input', () => { const v = Math.min(860, Math.max(200, parseInt(widthNum.value) || 780)); widthSlider.value = v; applyWidth(v); });
+  widthNum.addEventListener('input', () => { const v = Math.min(860, Math.max(minWidth, parseInt(widthNum.value) || width)); widthSlider.value = v; applyWidth(v); });
   widthNum.addEventListener('change', () => window.pushHistory?.());
 
   // 패딩

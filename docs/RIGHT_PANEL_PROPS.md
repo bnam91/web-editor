@@ -16,11 +16,12 @@
 |-----------|-----------|-----------|
 | 아무것도 선택 안 됨 | 페이지 설정 | `prop-page.js` |
 | `.section-block` | 섹션 프로퍼티 | `prop-section.js` |
-| `.sub-section-block` | 서브섹션 프로퍼티 | `prop-subsection.js` |
+| `.sub-section-block` | Frame 프로퍼티 | `prop-frame.js` (Auto/Free 모드 통합) |
 | `.text-block` | 텍스트 프로퍼티 | `prop-text.js` |
 | `.asset-block` | 에셋 프로퍼티 | `prop-asset.js` |
 | `.gap-block` | Gap 프로퍼티 | `prop-gap.js` |
-| `.icon-circle-block` | 아이콘서클 프로퍼티 | `prop-icon-circle.js` |
+| `.icon-circle-block` | Asset-Circle 프로퍼티 | `prop-icon-circle.js` |
+| `.shape-block` | Shape 프로퍼티 (Frame prop 패널에 통합) | `prop-frame.js` |
 | `.table-block` | 테이블 프로퍼티 | `prop-table.js` |
 | `.card-block` | 카드 프로퍼티 | `prop-card.js` |
 | `.graph-block` | 그래프 프로퍼티 | `prop-graph.js` |
@@ -93,11 +94,15 @@
 
 ---
 
-### 3-3. 서브섹션 프로퍼티 (`prop-subsection.js`)
+### 3-3. Frame 프로퍼티 (`prop-frame.js`)
+
+> Auto / Free 두 가지 모드를 통합 관리. `window.showSubSectionProperties`는 `prop-frame.js`가 override함.
+> 헤더 이름: `el.dataset.layerName || 'Frame'`으로 표시. Shape Frame의 경우 도형명(star, rectangle 등) 자동 표시.
+> 헤더 아이콘: 일반 Frame → Figma cross-frame 아이콘. Shape Frame → 도형별 아이콘 (star/rectangle/ellipse/line/arrow/polygon)
 
 | 섹션 | 컨트롤 | 설명 |
 |------|--------|------|
-| 헤더 | Sub-Section 이름 + ID 배지 | 클릭 시 ID 클립보드 복사 |
+| 헤더 | Frame 이름 + ID 배지 | `el.dataset.layerName || 'Frame'`으로 표시. 클릭 시 ID 클립보드 복사 |
 | 헤더 | 캔버스 모드로 전환 버튼 | 단방향 전환 — 내부 블록을 절대좌표 canvas-item으로 변환 (되돌리기 불가, confirm 다이얼로그) |
 | 배경 | 배경색 picker + hex | `ss.dataset.bg`, `ss.style.backgroundColor` |
 | 배경 | 배경 이미지 선택 버튼 | FileReader → base64 → `ss.style.backgroundImage`, `ss.dataset.bgImg` |
@@ -169,11 +174,11 @@
 
 ---
 
-### 3-7. 아이콘서클 프로퍼티 (`prop-icon-circle.js`)
+### 3-7. Asset-Circle 프로퍼티 (`prop-icon-circle.js`)
 
 | 섹션 | 컨트롤 | 설명 |
 |------|--------|------|
-| 헤더 | Icon Circle + ID | — |
+| 헤더 | Asset-Circle + ID | — |
 | 이미지 | 원형 이미지 업로드 | `triggerCircleUpload` |
 | 크기 | 원 크기 슬라이더 | 지름 px |
 | 배경 | 원 배경색 | — |
@@ -306,6 +311,7 @@ window.applyPagePadX(padX)
 - [ ] ID 배지 `.prop-block-id` → 클릭 시 클립보드 복사 (`navigator.clipboard.writeText`)
 - [ ] 섹션 제목 `.prop-section-title` → `font-size: 11px`, `color: var(--text-hint)`
 - [ ] 섹션 구분 `.prop-section` → 하단 border 또는 padding으로 구분
+- [ ] `prop-block-name` 텍스트는 반드시 `block.dataset.layerName || 'DefaultName'`으로 읽어야 함 (하드코딩 금지)
 
 ### 4-2. 입력 컴포넌트
 
@@ -341,7 +347,8 @@ window.applyPagePadX(padX)
 |------|------|
 | `js/prop-page.js` | 페이지 설정 패널 |
 | `js/prop-section.js` | 섹션 프로퍼티 |
-| `js/prop-subsection.js` | 서브섹션 프로퍼티 |
+| `js/prop-frame.js` | Frame 프로퍼티 (Auto/Free 통합, window.showSubSectionProperties 담당) |
+| `js/prop-subsection.js` | 서브섹션 프로퍼티 (레거시, prop-frame.js로 대체됨) |
 | `js/prop-text.js` | 텍스트 프로퍼티 |
 | `js/prop-asset.js` | 에셋 프로퍼티 |
 | `js/prop-gap.js` | Gap 프로퍼티 |

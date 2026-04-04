@@ -52,7 +52,7 @@ proj_1775041043520                ← #project-id-display
 
 ```
 Section (섹션)
-├── Sub-Section (서브섹션)  ← 선택적, 섹션 안에 중첩 프레임
+├── Frame (프레임)          ← 선택적, 섹션 안에 중첩 프레임
 ├── Row Group (멀티컬럼)   ← col이 2개 이상일 때 묶음
 │   └── Col (컬럼)
 │       └── Block (블록)
@@ -66,14 +66,17 @@ Section (섹션)
 | 블록 타입 | 클래스 | 레이어 아이콘 설명 | 비고 |
 |-----------|--------|-------------------|------|
 | Section | `.section-block` | `#` (Figma Frame 경로, filled) | `layer-section-icon` |
-| Sub-Section | `.sub-section-block` | `#` (동일) | `layer-item-icon` |
+| Frame | `.sub-section-block` | `#` (동일) | 평면 아이템 (토글/chevron 없음), 일반 Block과 동일 구조 |
+
+> Frame의 `dataset.layerName` 값이 레이어 이름으로 표시됨 (저장/복원 포함). Shape Frame은 도형 타입명이 자동 설정됨.
+
 | Text (h1/h2/h3) | `.text-block` | `H` (serif, bold) | text-anchor:middle |
 | Text (body/caption) | `.text-block` | 가로선 3줄 / 2줄 | — |
 | Asset (이미지) | `.asset-block` | 사각형 + 산 + 태양 | stroke-width:1 |
 | Gap | `.gap-block` | 점선 2줄 | — |
 | Label | `.label-group-block` | 둥근 사각형 1개 | — |
 | Label Group | `.label-group` | 둥근 사각형 2개 | — |
-| Icon Circle | `.icon-circle-block` | 원 + ★ | — |
+| Asset-Circle | `.icon-circle-block` | 원 + ★ | — |
 | Table | `.table-block` | 격자 | — |
 | Divider | `.divider-block` | 가로선 1줄 | — |
 | Card | `.card-block` | 사각형 + 하단선 | — |
@@ -81,6 +84,12 @@ Section (섹션)
 | Icon-Text | `.icon-text-block` | 작은 사각형 + 텍스트선 | — |
 | Canvas | `.canvas-block` | 격자 점선 분할 | — |
 | Row Group | — | 피그마 스타일 Row 아이콘 | `layer-item-icon` |
+| Shape (Rectangle) | `.shape-block[data-shape-type="rectangle"]` | 사각형 outline | Frame 안에 포함됨 |
+| Shape (Ellipse) | `.shape-block[data-shape-type="ellipse"]` | 정원 outline | Frame 안에 포함됨 |
+| Shape (Line) | `.shape-block[data-shape-type="line"]` | 대각선 | Frame 안에 포함됨 |
+| Shape (Arrow) | `.shape-block[data-shape-type="arrow"]` | 화살표 | Frame 안에 포함됨 |
+| Shape (Polygon) | `.shape-block[data-shape-type="polygon"]` | 삼각형 | Frame 안에 포함됨 |
+| Shape (Star) | `.shape-block[data-shape-type="star"]` | 별 polygon | Frame 안에 포함됨 |
 
 ---
 
@@ -113,7 +122,7 @@ Section (섹션)
 - [ ] `.layer-section-header` height → `28px`, padding → `0 8px`
 - [ ] `.layer-item` height → `28px`, padding → `0 8px`
 - [ ] `.layer-row-header` height → `28px`, padding → `0 6px 0 8px`
-- [ ] active 상태 → `border-left: 2px solid rgba(45,111,232,0.4)` + `padding-left: 6px`
+- [ ] active 상태 → `border-left: 2px solid var(--color-selection-hover)` + `padding-left: 6px`
 
 ### 3-5. 텍스트 스타일
 
@@ -260,6 +269,13 @@ document.addEventListener('dragend', () => {
 --icon-layer-gap-item:    7px;
 --icon-layer-gap-row:     6px;
 --icon-prop-size:         16px;
+
+--color-selection:          /* 선택 테두리 (#2d6fe8) */
+--color-selection-hover:    /* 호버 아웃라인 (rgba 0.40) */
+--color-selection-fill:     /* 선택 배경 (rgba 0.08) */
+--color-selection-fill-dim: /* 캔버스 아이템 호버 bg (rgba 0.06) */
+--color-selection-outline:  /* 호버 아웃라인 (rgba 0.35) */
+--color-selection-glow:     /* 드래그 핸들 glow (rgba 0.70) */
 ```
 
 ---
