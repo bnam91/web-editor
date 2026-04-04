@@ -232,37 +232,6 @@ function bindBlock(block) {
       window.showShapeProperties?.(block);
     });
 
-    // 서브섹션 내 absolute 쉐이프: mousedown 드래그로 left/top 조절
-    block.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      if (block.style.position !== 'absolute') return;
-      if (e.target.classList.contains('shape-handle')) return; // 핸들 mousedown은 핸들이 처리
-      e.stopPropagation();
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const startLeft = parseInt(block.style.left || '0');
-      const startTop  = parseInt(block.style.top  || '0');
-      let moved = false;
-
-      function onMove(ev) {
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
-        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
-        moved = true;
-        const scaler = document.getElementById('canvas-scaler');
-        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-        block.style.left = `${Math.round(startLeft + dx / scale)}px`;
-        block.style.top  = `${Math.round(startTop  + dy / scale)}px`;
-      }
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        if (moved) window.pushHistory?.();
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
     // 4코너 리사이즈 핸들 생성 (중복 방지)
     if (!block.querySelector('.shape-handle')) {
       ['nw', 'ne', 'sw', 'se'].forEach(dir => {
@@ -1258,7 +1227,7 @@ function bindSubSectionDropZone(ss) {
 
   // 내부 블록 pointerdown 시 서브섹션 drag 일시 비활성 — 블록 선택/이동과 충돌 방지
   ss.addEventListener('pointerdown', e => {
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block');
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block');
     if (!isInnerBlock) return;
     ss.setAttribute('draggable', 'false');
     document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });
