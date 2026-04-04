@@ -251,11 +251,9 @@ function bindBlock(block) {
         const dir    = handle.dataset.dir;
         const startX = e.clientX;
         const startY = e.clientY;
-        const startW    = parseInt(block.style.width)  || 100;
-        const startH    = parseInt(block.style.height) || 100;
-        const startLeft = parseInt(block.style.left)   || 0;
-        const startTop  = parseInt(block.style.top)    || 0;
-        const ss = block.closest('.sub-section-block');
+        const startW = parseInt(block.style.width)  || 100;
+        const startH = parseInt(block.style.height) || 100;
+        const ss  = block.closest('.sub-section-block');
         const svg = block.querySelector('svg');
 
         function onMove(ev) {
@@ -264,18 +262,18 @@ function bindBlock(block) {
           const dx = (ev.clientX - startX) / scale;
           const dy = (ev.clientY - startY) / scale;
 
-          let newW = startW, newH = startH, newLeft = startLeft, newTop = startTop;
+          // frame(ss)만 리사이즈 — block left/top은 항상 0,0 고정
+          let newW = startW, newH = startH;
           if (dir.includes('e')) newW = Math.max(20, startW + dx);
+          if (dir.includes('w')) newW = Math.max(20, startW - dx);
           if (dir.includes('s')) newH = Math.max(20, startH + dy);
-          if (dir.includes('w')) { newW = Math.max(20, startW - dx); newLeft = startLeft + (startW - newW); }
-          if (dir.includes('n')) { newH = Math.max(20, startH - dy); newTop  = startTop  + (startH - newH); }
+          if (dir.includes('n')) newH = Math.max(20, startH - dy);
           newW = Math.round(newW); newH = Math.round(newH);
-          newLeft = Math.round(newLeft); newTop = Math.round(newTop);
 
           block.style.width  = `${newW}px`;
           block.style.height = `${newH}px`;
-          block.style.left   = `${newLeft}px`;
-          block.style.top    = `${newTop}px`;
+          block.style.left   = '0px';
+          block.style.top    = '0px';
           if (svg) { svg.style.width = `${newW}px`; svg.style.height = `${newH}px`; }
           if (ss) {
             ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
