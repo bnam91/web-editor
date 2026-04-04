@@ -237,10 +237,11 @@ function addLabelGroupBlock(opts = {}) {
       block.querySelectorAll('.label-item').forEach(l => l.remove());
       const addBtn = block.querySelector('.label-group-add-btn');
       opts.labels.forEach(text => {
-        const item = makeLabelItem(text, '#e8e8e8', '#333333', 40);
+        const item = makeLabelItem(text, '#e8e8e8', '#333333', 40, opts.shape || 'pill');
         block.insertBefore(item, addBtn);
       });
     }
+    if (opts.shape) block.dataset.shape = opts.shape;
     insertIntoOverlay(overlay, row);
     bindBlock(block);
     window.buildLayerPanel();
@@ -254,10 +255,11 @@ function addLabelGroupBlock(opts = {}) {
     block.querySelectorAll('.label-item').forEach(l => l.remove());
     const addBtn = block.querySelector('.label-group-add-btn');
     opts.labels.forEach(text => {
-      const item = makeLabelItem(text, '#e8e8e8', '#333333', 40);
+      const item = makeLabelItem(text, '#e8e8e8', '#333333', 40, opts.shape || 'pill');
       block.insertBefore(item, addBtn);
     });
   }
+  if (opts.shape) block.dataset.shape = opts.shape;
   insertAfterSelected(sec, row);
   bindBlock(block);
   if (window.bindRowColAdd) window.bindRowColAdd(row);
@@ -297,6 +299,25 @@ function makeTableBlock() {
   col.appendChild(tb);
   row.appendChild(col);
   return { row, block: tb };
+}
+
+function applyTextOpts(block, row, opts, type) {
+  const contentEl = block.querySelector('[class^="tb-"]');
+  if (opts.content && contentEl) {
+    contentEl.style.whiteSpace = 'pre-wrap';
+    contentEl.textContent = opts.content;
+  }
+  if (opts.align) {
+    if (type === 'label') block.style.textAlign = opts.align;
+    else if (contentEl) contentEl.style.textAlign = opts.align;
+  }
+  if (opts.color && contentEl) contentEl.style.color = opts.color;
+  if (opts.fontSize && contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
+  if (opts.paddingX !== undefined) {
+    row.style.paddingLeft  = opts.paddingX + 'px';
+    row.style.paddingRight = opts.paddingX + 'px';
+    row.dataset.paddingX   = opts.paddingX;
+  }
 }
 
 function addTextBlock(type, opts = {}) {
@@ -342,31 +363,17 @@ function addTextBlock(type, opts = {}) {
     return;
   }
 
+  // fullWidth sub-section 활성화 분기
+  if (_insertToFlowSubSection(() => {
+    const { row, block } = makeTextBlock(type);
+    applyTextOpts(block, row, opts, type);
+    return { row, block };
+  })) return;
+
   // col-active 분기: 특정 col에 직접 삽입 (API 자동화용)
   if (_insertToActiveCol(() => {
     const { row, block } = makeTextBlock(type);
-    if (opts.content) {
-      const contentEl = block.querySelector('[class^="tb-"]');
-      if (contentEl) contentEl.textContent = opts.content;
-    }
-    if (opts.align) {
-      const contentEl = block.querySelector('[class^="tb-"]');
-      if (type === 'label') block.style.textAlign = opts.align;
-      else if (contentEl) contentEl.style.textAlign = opts.align;
-    }
-    if (opts.color) {
-      const contentEl = block.querySelector('[class^="tb-"]');
-      if (contentEl) contentEl.style.color = opts.color;
-    }
-    if (opts.fontSize) {
-      const contentEl = block.querySelector('[class^="tb-"]');
-      if (contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
-    }
-    if (opts.paddingX !== undefined) {
-      row.style.paddingLeft  = opts.paddingX + 'px';
-      row.style.paddingRight = opts.paddingX + 'px';
-      row.dataset.paddingX   = opts.paddingX;
-    }
+    applyTextOpts(block, row, opts, type);
     return { row, block };
   }, true)) return;
 
@@ -375,30 +382,9 @@ function addTextBlock(type, opts = {}) {
   window.pushHistory();
   const { row, block } = makeTextBlock(type);
 
-  if (opts.content) {
-    const contentEl = block.querySelector('[class^="tb-"]');
-    if (contentEl) contentEl.textContent = opts.content;
-  }
-  // opts.align 우선, 없으면 섹션 정렬 상속
-  const align = opts.align || getSectionAlign(sec);
-  if (align) {
-    const contentEl = block.querySelector('[class^="tb-"]');
-    if (type === 'label') block.style.textAlign = align;
-    else if (contentEl) contentEl.style.textAlign = align;
-  }
-  if (opts.color) {
-    const contentEl = block.querySelector('[class^="tb-"]');
-    if (contentEl) contentEl.style.color = opts.color;
-  }
-  if (opts.fontSize) {
-    const contentEl = block.querySelector('[class^="tb-"]');
-    if (contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
-  }
-  if (opts.paddingX !== undefined) {
-    row.style.paddingLeft  = opts.paddingX + 'px';
-    row.style.paddingRight = opts.paddingX + 'px';
-    row.dataset.paddingX   = opts.paddingX;
-  }
+  // opts.align 없으면 섹션 정렬 상속
+  const alignedOpts = { ...opts, align: opts.align || getSectionAlign(sec) };
+  applyTextOpts(block, row, alignedOpts, type);
 
   insertAfterSelected(sec, row);
   bindBlock(block);
@@ -737,6 +723,13 @@ function addAssetBlock(preset, opts = {}) {
     if (opts.width) block.style.width = opts.width + 'px';
     if (opts.height) block.style.height = opts.height + 'px';
   };
+  // row 레벨 paddingX 적용 (섹션 paddingX와 독립적으로 동작)
+  const applyRowPaddingX = (row) => {
+    if (opts.paddingX === undefined) return;
+    row.style.paddingLeft  = opts.paddingX + 'px';
+    row.style.paddingRight = opts.paddingX + 'px';
+    row.dataset.paddingX   = opts.paddingX;
+  };
   // DOM 삽입 후 padXExcludesAsset 적용 (closest가 올바르게 동작하도록 삽입 후 호출)
   const applyExcludePadX = (block) => {
     if (!window.state?.pageSettings?.padXExcludesAsset) return;
@@ -750,12 +743,27 @@ function addAssetBlock(preset, opts = {}) {
       block.style.width = `calc(100% + ${px * 2}px)`;
     }
   };
-  // col-active 분기: 특정 col에 직접 삽입 (API 자동화용) — 삽입 후 block 참조로 처리
+  // fullWidth sub-section 분기
   let insertedBlock = null;
+  if (_insertToFlowSubSection(() => {
+    const { row, block } = makeAssetBlock();
+    applyPreset(block);
+    applyRowPaddingX(row);
+    insertedBlock = block;
+    return { row, block };
+  })) {
+    if (insertedBlock) applyExcludePadX(insertedBlock);
+    return;
+  }
+  // col-active 분기: 특정 col에 직접 삽입 (API 자동화용) — 삽입 후 block 참조로 처리
+  insertedBlock = null;
+  let insertedRow = null;
   if (_insertToActiveCol(() => {
     const { row, block } = makeAssetBlock();
     applyPreset(block);
+    applyRowPaddingX(row);
     insertedBlock = block;
+    insertedRow = row;
     return { row, block };
   }, true)) {
     if (insertedBlock) applyExcludePadX(insertedBlock);
@@ -766,6 +774,7 @@ function addAssetBlock(preset, opts = {}) {
   window.pushHistory();
   const { row, block } = makeAssetBlock();
   applyPreset(block);
+  applyRowPaddingX(row);
   insertAfterSelected(sec, row);
   applyExcludePadX(block);   // DOM 삽입 후 실행
   bindBlock(block);
@@ -786,6 +795,13 @@ function addGapBlock(height) {
     window.buildLayerPanel();
     return;
   }
+  // fullWidth sub-section 분기
+  if (_insertToFlowSubSection(() => {
+    const gb = makeGapBlock();
+    if (height) gb.style.height = height + 'px';
+    gb.dataset.h = height || 40;
+    return gb;
+  })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   if (_insertToActiveCol(() => {
@@ -1269,39 +1285,77 @@ function addJokerBlock(opts = {}) {
 }
 
 /* ── Sub-Section Block ── */
-function makeSubSectionBlock() {
+function makeSubSectionBlock(opts = {}) {
   const ss = document.createElement('div');
   ss.className = 'sub-section-block';
   ss.id = genId('ss');
-  ss.dataset.bg = '#f5f5f5';
-  ss.dataset.width = '780';
-  ss.dataset.padY = '24';
-  ss.style.cssText = `background:#f5f5f5;padding:24px 0;width:780px;margin:0 auto;min-height:520px;`;
-  const inner = document.createElement('div');
-  inner.className = 'sub-section-inner';
-  inner.style.position = 'relative';
-  ss.appendChild(inner);
+
+  if (opts.fullWidth) {
+    // fullWidth 모드: 이중 배경 섹션용. 플로우 레이아웃, height: auto
+    const bg = opts.bg || 'transparent';
+    ss.dataset.bg = bg;
+    ss.dataset.fullWidth = 'true';
+    ss.style.cssText = `background:${bg};width:100%;box-sizing:border-box;`;
+    const inner = document.createElement('div');
+    inner.className = 'sub-section-inner';
+    // 플로우 레이아웃 (absolute 아님)
+    ss.appendChild(inner);
+  } else {
+    // 기존 고정 크기 + absolute 자식 모드
+    ss.dataset.bg = '#f5f5f5';
+    ss.dataset.width = '780';
+    ss.dataset.padY = '24';
+    ss.style.cssText = `background:#f5f5f5;padding:24px 0;width:780px;max-width:100%;margin:0 auto;min-height:520px;`;
+    const inner = document.createElement('div');
+    inner.className = 'sub-section-inner';
+    inner.style.position = 'relative';
+    ss.appendChild(inner);
+  }
   return ss;
 }
 
-function addSubSectionBlock() {
+/* fullWidth sub-section이 활성화된 경우 플로우 블록 삽입 */
+function _insertToFlowSubSection(makeBlockFn) {
+  const ss = window._activeSubSection;
+  if (!ss || ss.dataset.fullWidth !== 'true') return false;
+  const inner = ss.querySelector('.sub-section-inner');
+  if (!inner) return false;
+  window.pushHistory();
+  const result = makeBlockFn();
+  // makeBlockFn이 { row, block } 또는 block(gap) 반환
+  if (result && result.row) {
+    inner.appendChild(result.row);
+    bindBlock(result.block);
+    if (window.bindRowColAdd) window.bindRowColAdd(result.row);
+  } else if (result) {
+    inner.appendChild(result);
+    bindBlock(result);
+  }
+  window.buildLayerPanel();
+  return true;
+}
+
+function addSubSectionBlock(opts = {}) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
-  const ss = makeSubSectionBlock();
+  const ss = makeSubSectionBlock(opts);
   insertAfterSelected(sec, ss);
-  window.bindSubSectionDropZone?.(ss);
+  if (!opts.fullWidth) window.bindSubSectionDropZone?.(ss);
   window.buildLayerPanel();
-  // 생성 후 서브섹션 선택 상태 초기화
   window.deselectAll?.();
-  const parentSec = sec;
-  if (parentSec) {
-    parentSec.classList.add('selected');
-    window.syncLayerActive?.(parentSec);
-  }
+  sec.classList.add('selected');
+  window.syncLayerActive?.(sec);
   ss.classList.add('selected');
   window._activeSubSection = ss;
-  window.showSubSectionProperties?.(ss);
+  if (!opts.fullWidth) window.showSubSectionProperties?.(ss);
+}
+
+function activateSubSection(ss) {
+  window._activeSubSection = ss;
+}
+function deactivateSubSection() {
+  window._activeSubSection = null;
 }
 
 export {
@@ -1331,6 +1385,8 @@ export {
   addSection,
   makeSubSectionBlock,
   addSubSectionBlock,
+  activateSubSection,
+  deactivateSubSection,
 };
 
 /* ── Frame 통합 진입점 (addSubSectionBlock alias) ── */
@@ -1400,5 +1456,7 @@ window.makeCanvasBlock      = makeCanvasBlock;
 window.addCanvasBlock       = addCanvasBlock;
 window.makeSubSectionBlock  = makeSubSectionBlock;
 window.addSubSectionBlock   = addSubSectionBlock;
+window.activateSubSection   = activateSubSection;
+window.deactivateSubSection = deactivateSubSection;
 window.makeJokerBlock       = makeJokerBlock;
 window.addJokerBlock        = addJokerBlock;

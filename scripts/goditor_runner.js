@@ -78,13 +78,20 @@ function getWsUrl() {
           ...(block.color     && { color:    block.color    }),
           ...(block.align     && { align:    block.align    }),
           ...(block.fontSize  && { fontSize: block.fontSize }),
+          ...(block.paddingX  !== undefined && { paddingX: block.paddingX }),
         });
         await ev(`window.addTextBlock('${block.style}', ${opts})`);
         break;
       }
-      case 'image':
-        await ev(`window.addAssetBlock('${block.preset || 'standard'}')`);
+      case 'image': {
+        const assetOpts = {};
+        if (block.paddingX !== undefined) assetOpts.paddingX = block.paddingX;
+        if (block.width    !== undefined) assetOpts.width    = block.width;
+        if (block.height   !== undefined) assetOpts.height   = block.height;
+        const hasOpts = Object.keys(assetOpts).length > 0;
+        await ev(`window.addAssetBlock('${block.preset || 'standard'}'${hasOpts ? `, ${JSON.stringify(assetOpts)}` : ''})`);
         break;
+      }
       case 'joker':
         await ev(`window.addJokerBlock(${JSON.stringify({
           label: block.label,
@@ -223,7 +230,22 @@ function getWsUrl() {
             await buildBlock(block);
           }
         }
-        await ev(`document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'))`);
+        // col-active + row-active 모두 해제해야 다음 stack row의 블록이 section 레벨에 추가됨
+        await ev(`(function() {
+          document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
+          document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+        })()`);
+
+      } else if (row.layout === 'sub-section') {
+        // fullWidth sub-section: 이중 배경 처리용
+        const ssBg = row.bg || 'transparent';
+        await ev(`window.addSubSectionBlock({ fullWidth: true, bg: '${ssBg}' })`);
+        await delay(300);
+        for (const block of (row.cols?.[0]?.blocks || [])) {
+          await buildBlock(block);
+        }
+        await ev(`window.deactivateSubSection()`);
+        await delay(100);
 
       } else {
         // stack: addRowBlock 없이 바로 추가

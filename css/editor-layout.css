@@ -186,6 +186,17 @@
 .label-item.item-selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
 .label-item-text { outline: none; min-width: 20px; white-space: nowrap; }
 
+.label-item.label-circle {
+  padding: 20px;
+  width: 100px;
+  height: 100px;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  flex-shrink: 0;
+}
+.label-item.label-circle .label-item-text { white-space: normal; text-align: center; }
+
 .label-group-add-btn {
   position: absolute;
   right: 8px;

@@ -46,6 +46,7 @@ window.addSection({ skipDefaultBlock: true, paddingX: 80 })
 | `skipDefaultBlock` | boolean | `false` | `true`이면 기본 h2+asset 블록 없이 빈 섹션 생성 |
 | `bg` | hex | `undefined` | 섹션 배경색. 생략 시 투명(캔버스 배경색 노출) |
 | `paddingX` | number (px) | `undefined` | 섹션 콘텐츠 좌우 여백. `.section-inner`에 `padding-left/right` 적용. 생략 시 기본 CSS 값 유지 |
+| `paddingY` | number (px) | `100` | 섹션 상단·하단 gap 높이. `skipDefaultBlock: true` 일 때 자동 생성되는 두 gap 블록의 높이로 사용. `0`이면 gap 없음 (풀블리드 sub-section에 사용) |
 
 **paddingX 저장/로드**: `.section-inner` 요소의 `dataset.paddingX`에 기록 → 재로드 시 자동 복원.
 
@@ -139,7 +140,7 @@ window.addTextBlock('h1', { content: '제목', paddingX: 60 })
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `content` | string | placeholder | 텍스트 초기값. 빈 문자열이면 placeholder 유지 |
+| `content` | string | placeholder | 텍스트 초기값. 빈 문자열이면 placeholder 유지. `\n` 포함 시 줄바꿈 렌더링 (`white-space: pre-wrap` 자동 적용) |
 | `align` | string | 섹션 정렬 상속 | `left` `center` `right` |
 | `color` | hex | — | 텍스트 색상 (예: `'#ffffff'`) |
 | `fontSize` | number (px) | — | 폰트 크기. 2열 col처럼 공간이 좁을 때 h1 기본값(104px)을 줄이는 용도 |
@@ -158,7 +159,7 @@ window.addTextBlock('h1', { content: '제목', paddingX: 60 })
 
 ---
 
-### `window.addAssetBlock(preset?)`
+### `window.addAssetBlock(preset?, opts?)`
 
 이미지 블록을 추가한다.
 
@@ -166,15 +167,26 @@ window.addTextBlock('h1', { content: '제목', paddingX: 60 })
 window.addAssetBlock()
 window.addAssetBlock('square')
 window.addAssetBlock('tall')
+window.addAssetBlock('wide', { paddingX: 215 })  // asset 실질 너비 = 860 - 2×215 = 430px
 ```
 
-| 파라미터 | 값 | 크기 | 용도 |
-|----------|-----|------|------|
+**preset 목록**
+
+| preset | 크기 | 용도 |
+|--------|------|------|
 | `'standard'` (기본) | 780px 높이 | 일반 제품 이미지 |
 | `'square'` | 860×860px | 정사각형 이미지 |
 | `'tall'` | 1032px 높이 | 세로 긴 이미지 (2:3) |
 | `'wide'` | 575px 높이 | 가로 배너 (16:9) |
 | `'logo'` | 200×64px | 브랜드 로고, 인증 마크 |
+
+**opts 옵션**
+
+| 옵션 | 타입 | 기본 | 설명 |
+|------|------|------|------|
+| `paddingX` | number (px) | — | asset 블록 row의 좌우 padding. 섹션 paddingX와 독립적으로 동작. `dataset.paddingX`에 저장 → 재로드 시 자동 복원 |
+| `width` | number (px) | — | asset-block 너비 직접 지정 |
+| `height` | number (px) | — | asset-block 높이 직접 지정 |
 
 ---
 
@@ -234,11 +246,13 @@ window.addIconCircleBlock({ size: 180, bgColor: '#f0f0f0' })
 ```js
 window.addLabelGroupBlock()
 window.addLabelGroupBlock({ labels: ['방수', '충격흡수', 'UV차단'] })
+window.addLabelGroupBlock({ labels: ['태그1', '태그2'], shape: 'circle' })
 ```
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `labels` | string[] | `['Tag', 'Tag', 'Tag']` | 라벨 텍스트 배열 |
+| `shape` | `'pill'` \| `'circle'` | `'pill'` | `'pill'`: 직사각형(기본), `'circle'`: 원형 (100×100px, border-radius 50%) |
 
 ---
 
@@ -467,42 +481,69 @@ document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('co
 
 Figma의 오토레이아웃 없는 FRAME과 동일한 역할. 내부에 조커 블록을 자유 위치(absolute)로 배치하는 컨테이너.
 
-### `window.addSubSectionBlock()`
+### `window.addSubSectionBlock(opts?)`
 
 새 서브섹션을 현재 선택된 섹션에 추가한다. 추가 직후 `window._activeSubSection`에 등록된다.
 
+**모드 1: 고정 크기 (기본)** — Figma 임포트, absolute 자식 배치용
+
 ```js
 window.addSubSectionBlock()
-```
-
-서브섹션 생성 후 크기·배경 적용:
-
-```js
+// 생성 후 크기·배경 적용
 const ss = window._activeSubSection
 ss.style.width    = '453px'
 ss.style.height   = '241px'
-ss.style.minHeight = '241px'
-ss.style.padding  = '0'           // Figma 임포트 시 패딩 제거
 ss.style.background = '#1e1e1e'
 ss.dataset.bg     = '#1e1e1e'
-ss.style.marginLeft  = '204px'   // X 위치 (섹션 기준 상대)
-ss.style.marginRight = 'auto'
+```
+
+**모드 2: fullWidth** — 이중 배경 섹션용. height: auto, text/image/gap 블록 삽입 가능
+
+```js
+window.addSubSectionBlock({ fullWidth: true, bg: '#222222' })
+// 이후 addTextBlock / addAssetBlock / addGapBlock 호출 시 sub-section 내부에 삽입됨
+window.addTextBlock('h1', { content: '제목', color: '#ffffff' })
+window.addAssetBlock('standard')
+window.deactivateSubSection()   // 컨텍스트 해제 후 섹션 레벨로 복귀
+```
+
+| 옵션 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `fullWidth` | boolean | `false` | `true`: width 100%, height auto, 플로우 레이아웃 |
+| `bg` | hex | `'transparent'` | 배경색 |
+
+**Spec v2 사용 예시 (layout: 'sub-section'):**
+
+```json
+{
+  "layout": "sub-section",
+  "bg": "#222222",
+  "cols": [{ "blocks": [
+    { "type": "image", "preset": "standard" },
+    { "type": "text", "style": "h1", "content": "제목" }
+  ]}]
+}
+```
+
+### `window.activateSubSection(ss)` / `window.deactivateSubSection()`
+
+```js
+window.activateSubSection(ssElement)  // _activeSubSection 설정
+window.deactivateSubSection()         // _activeSubSection = null
 ```
 
 ### `window._activeSubSection`
 
-현재 활성화된 서브섹션 참조. `addJokerBlock()` 호출 시 이 값이 있으면 서브섹션 내부에 absolute 위치로 삽입된다.
-
-```js
-window._activeSubSection = null   // 서브섹션 활성화 해제
-```
+현재 활성화된 서브섹션 참조.
+- 고정 크기 모드: `addJokerBlock()` absolute 삽입
+- fullWidth 모드: `addTextBlock/addAssetBlock/addGapBlock` 플로우 삽입
 
 **서브섹션 내부 구조:**
 ```
-.sub-section-block  (overflow: hidden, position: relative)
-  .sub-section-inner  (position: relative, height: 100%)
-    .joker-block  (position: absolute, left: Xpx, top: Ypx)
-    .joker-block  (position: absolute, left: Xpx, top: Ypx)
+.sub-section-block  (고정 모드: overflow hidden; fullWidth: width 100%)
+  .sub-section-inner
+    [고정] .joker-block  (position: absolute)
+    [fullWidth] .row > .col > .text-block / .asset-block / .gap-block  (플로우)
 ```
 
 ---
@@ -564,3 +605,4 @@ window.addJokerBlock({
 | 2026-04-03 | v1.1 | paddingX 옵션 추가 — `addSection`, `addTextBlock` 양쪽 지원 |
 | 2026-04-03 | v1.2 | 패딩 아키텍처 변경 반영 — `applyPagePadX` 신규 API, 페이지/섹션/블록 3단계 우선순위, `padXIncludesAsset` 플래그 추가 |
 | 2026-04-03 | v1.3 | Sub-Section 블록 API, 조커 블록 API 추가 (Figma 임포트 파이프라인 대응) |
+| 2026-04-04 | v1.4 | `addSection paddingY` 옵션 추가. `addTextBlock content` `\n` 줄바꿈 지원(pre-wrap). `addLabelGroupBlock shape: 'circle'` 추가. Sub-Section `fullWidth` 모드 신규 (이중 배경 섹션용). `activateSubSection` / `deactivateSubSection` 공개 API 추가. 다크모드 텍스트 커서 색상 수정 (`caret-color: var(--ui-text-dim)`) |
