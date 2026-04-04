@@ -111,7 +111,7 @@ export function showIconCircleProperties(block) {
   const bgSwatch = bgPicker.closest('.prop-color-swatch');
   bgPicker.addEventListener('input', () => {
     block.dataset.bgColor   = bgPicker.value;
-    circle.style.background = bgPicker.value;
+    circle.style.backgroundColor = bgPicker.value;
     bgHex.value             = bgPicker.value;
     bgSwatch.style.background = bgPicker.value;
   });
@@ -119,7 +119,7 @@ export function showIconCircleProperties(block) {
   bgHex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
       block.dataset.bgColor   = bgHex.value;
-      circle.style.background = bgHex.value;
+      circle.style.backgroundColor = bgHex.value;
       bgPicker.value          = bgHex.value;
       bgSwatch.style.background = bgHex.value;
       window.pushHistory();

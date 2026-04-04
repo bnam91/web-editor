@@ -308,12 +308,9 @@ function applyProjectData(data) {
 function applyPageSettings() {
   canvasWrap.style.background = state.pageSettings.bg;
   canvasEl.style.gap = state.pageSettings.gap + 'px';
-  canvasEl.style.setProperty('--page-padx', state.pageSettings.padX + 'px');
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
-  // asset-block: 너비% 재계산 방식 유지
-  canvasEl.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
-    window.applyAssetPadX(ab, state.pageSettings.padX);
-  });
+  // padX: 섹션 물리적 padding 방식으로 적용 (섹션 개별 override 제외)
+  window.applyPagePadX?.(state.pageSettings.padX);
 }
 
 function rebindAll() {
@@ -333,6 +330,27 @@ function rebindAll() {
     sec.style.left            = '';
     sec.style.pointerEvents   = '';
     sec.style.userSelect      = '';
+    // 섹션 배경색 복원
+    if (sec.dataset.bg && !sec.style.backgroundColor) {
+      sec.style.backgroundColor = sec.dataset.bg;
+    }
+    // section-inner paddingX 복원
+    const secInner = sec.querySelector('.section-inner');
+    if (secInner && secInner.dataset.paddingX !== undefined && secInner.dataset.paddingX !== '') {
+      secInner.style.paddingLeft  = secInner.dataset.paddingX + 'px';
+      secInner.style.paddingRight = secInner.dataset.paddingX + 'px';
+      // usePadx 복원: 개별 asset-block의 패딩 제외 설정
+      const px = parseInt(secInner.dataset.paddingX) || 0;
+      if (px > 0) {
+        secInner.querySelectorAll('.asset-block').forEach(ab => {
+          if (ab.dataset.usePadx === 'true') {
+            ab.style.marginLeft  = -px + 'px';
+            ab.style.marginRight = -px + 'px';
+            ab.style.width = `calc(100% + ${px * 2}px)`;
+          }
+        });
+      }
+    }
     // 배경 이미지 복원
     if (sec.dataset.bgImg && !sec.style.backgroundImage) {
       sec.style.backgroundImage = `url(${sec.dataset.bgImg})`;
@@ -377,9 +395,13 @@ function rebindAll() {
       if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
     }
   });
-  // row ID 복원: 저장/불러오기 시 row에도 고유 ID 부여
+  // row ID 복원 + paddingX 복원
   canvasEl.querySelectorAll('.row').forEach(row => {
     if (!row.id) row.id = 'row_' + Math.random().toString(36).slice(2, 9);
+    if (row.dataset.paddingX !== undefined && row.dataset.paddingX !== '') {
+      row.style.paddingLeft  = row.dataset.paddingX + 'px';
+      row.style.paddingRight = row.dataset.paddingX + 'px';
+    }
     if (window.bindRowColAdd) window.bindRowColAdd(row);
   });
 
@@ -532,16 +554,9 @@ function initApp() {
   }
   canvasWrap.style.background = state.pageSettings.bg;
   canvasEl.style.gap = state.pageSettings.gap + 'px';
-  canvasEl.style.setProperty('--page-padx', state.pageSettings.padX + 'px');
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
-  // 구버전 저장 파일: 블록에 박힌 inline padding 제거 (CSS Variable로 대체)
-  canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(el => {
-    el.style.paddingLeft = ''; el.style.paddingRight = '';
-    el.style.paddingTop  = ''; el.style.paddingBottom = '';
-  });
-  canvasEl.querySelectorAll('.card-block, .graph-block').forEach(el => {
-    el.style.paddingLeft = ''; el.style.paddingRight = '';
-  });
+  // padX: 섹션 물리적 padding 방식으로 적용
+  window.applyPagePadX?.(state.pageSettings.padX);
   // 탭 이름 더블클릭 변경 — 탭바 이벤트 위임
   document.getElementById('tab-bar')?.addEventListener('dblclick', e => {
     const nameEl = e.target.closest('.proj-tab-name');

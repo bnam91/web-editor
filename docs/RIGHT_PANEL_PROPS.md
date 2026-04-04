@@ -65,7 +65,8 @@
 | 배경 | 배경색 picker + hex | `state.pageSettings.bg` |
 | 일괄 정렬 | left / center / right 버튼 | 모든 텍스트 블록 일괄 정렬 |
 | 레이아웃 | 섹션 간격 슬라이더+숫자 | `state.pageSettings.gap` (0~200) |
-| 레이아웃 | 좌우 패딩 슬라이더+숫자 | `state.pageSettings.padX` (0~200) |
+| 레이아웃 | 좌우 패딩 슬라이더+숫자 | `state.pageSettings.padX` (0~200) — override 없는 모든 섹션의 `section-inner` `paddingLeft/Right` 일괄 적용 (`window.applyPagePadX(v)`) |
+| 레이아웃 | 에셋블록 패딩 제외합니다. 체크박스 | `state.pageSettings.padXExcludesAsset` — 체크 시 캔버스 내 **모든** `.asset-block`에 `usePadx='true'` 일괄 설정 + negative margin(`-padX`) + `width: calc(100% + padX*2)` 적용. 신규 섹션/블록 추가 시에도 자동 적용됨 |
 | 레이아웃 | 상하 패딩 슬라이더+숫자 | `state.pageSettings.padY` (0~200, 기본 0) |
 | 내보내기 | 포맷 선택 (PNG/JPG) | `page-export-format` |
 | 내보내기 | 전체 섹션 내보내기 버튼 | `window.exportAllSections(fmt)` |
@@ -84,7 +85,7 @@
 | 크기 | 높이 슬라이더+숫자 | `min-height` 조정, `sec.dataset.height` |
 | 크기 | 상/하 여백 | `paddingTop/Bottom`, `sec.dataset.padY` |
 | 레이아웃 | 정렬 버튼 (left/center/right) | 섹션 내 블록 정렬 |
-| 레이아웃 | 좌우 패딩 override | 섹션별 개별 패딩 |
+| 패딩 | 좌우 패딩 슬라이더+숫자 | `section-inner` `paddingLeft/Right` + `inner.dataset.paddingX` 저장. 값 있으면 페이지 padX 일괄적용에서 제외(override). 0으로 내리면 dataset 초기화 → 페이지 설정 따름. 슬라이더 조절 시 섹션 내 각 asset-block의 `usePadx` 값도 반영 |
 | 라벨 | 섹션 라벨 선택 | Hook / Main / Detail / CTA / Event |
 | 내보내기 | PNG/JPG 내보내기 버튼 | 단일 섹션 내보내기 |
 | 변형 | 섹션 Variation 관리 | A/B 변형 추가/전환 |
@@ -153,7 +154,7 @@
 | 이미지 | 이미지 삭제 | `dataset.imgW/X/Y` 초기화 |
 | 크기 | 비율 선택 | Standard / Square / Tall / Wide / Logo |
 | 크기 | 높이 조정 | px 슬라이더 |
-| 패딩 | padX 적용 여부 | `data-use-padx` 토글 |
+| 패딩 | 패딩 제외 토글 | `ab.dataset.usePadx` — ON 시 `section-inner` padX를 무시하고 full-width 표시. `margin-left/right: -padX`, `width: calc(100% + padX*2)` 적용. 소속 섹션의 override padX 우선, 없으면 `pageSettings.padX` 사용 |
 | 배경 | 배경색 | 이미지 없을 때 배경 |
 | 모서리 | border-radius | 0~40px |
 
@@ -164,7 +165,7 @@
 | 섹션 | 컨트롤 | 설명 |
 |------|--------|------|
 | 헤더 | Gap + ID | — |
-| 크기 | 높이 슬라이더+숫자 | `0~300px` |
+| 크기 | 높이 슬라이더+숫자 | `0~1000px` |
 
 ---
 
@@ -261,7 +262,42 @@
 
 ---
 
-## 4. 디자인 규칙 체크리스트
+## 4. 패딩 아키텍처
+
+### 4-0. 구조 개요
+
+```
+페이지 padX (state.pageSettings.padX)
+  └─ section-inner paddingLeft/Right  ← 모든 섹션 기본값
+       └─ 섹션 override (inner.dataset.paddingX)  ← 섹션 슬라이더로 개별 지정 시 분리
+```
+
+- **CSS 변수 방식 폐기**: 구버전 `--page-padx` CSS 변수 방식 → `section-inner` physical padding으로 교체
+- **2단계 상속**: 페이지 기본값 → 섹션 개별 override
+- **override 조건**: `inner.dataset.paddingX`가 설정된 섹션은 `applyPagePadX()` 대상에서 제외
+
+### 4-0-1. applyPagePadX 동작
+
+```javascript
+window.applyPagePadX(padX)
+// dataset.paddingX 없는 섹션만 section-inner padding 적용
+// 각 asset-block의 usePadx 값 읽어 negative margin 결정
+```
+
+### 4-0-2. 에셋블록 패딩 제외 (usePadx)
+
+| 상태 | dataset | 적용 스타일 |
+|------|---------|------------|
+| 일반 (패딩 받음) | `usePadx` 없음 or `'false'` | margin/width 없음 |
+| 패딩 제외 | `usePadx='true'` | `margin-left/right: -padX; width: calc(100% + padX*2)` |
+
+- **개별 설정**: 에셋 프로퍼티 "패딩 제외" 토글
+- **일괄 설정**: 페이지 프로퍼티 "에셋블록 패딩 제외합니다." 체크박스
+- **신규 블록 자동 적용**: `padXExcludesAsset=true` 상태에서 `addSection()` / `addAssetBlock()` 호출 시 즉시 적용
+
+---
+
+## 5. 디자인 규칙 체크리스트
 
 ### 4-1. 공통 구조
 
@@ -299,7 +335,7 @@
 
 ---
 
-## 5. 관련 파일
+## 6. 관련 파일
 
 | 파일 | 역할 |
 |------|------|

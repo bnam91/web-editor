@@ -42,6 +42,9 @@ function showSectionProperties(sec) {
   const hasBgImg  = !!sec.dataset.bgImg;
   const bgSize    = sec.dataset.bgSize || 'cover';
   const secPadB   = parseInt(sec.style.paddingBottom) || 0;
+  const inner     = sec.querySelector('.section-inner');
+  const secPadX        = parseInt(inner?.dataset.paddingX) || parseInt(inner?.style.paddingLeft) || 0;
+  const secPadXAsset   = inner?.dataset.padXExcludesAsset || '';
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row" style="margin-top:6px;">
       <span class="prop-label">사이즈</span>
@@ -147,6 +150,11 @@ function showSectionProperties(sec) {
     <div class="prop-section">
       <div class="prop-section-title">패딩</div>
       <div class="prop-row">
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="sec-padx-slider" min="0" max="100" step="2" value="${secPadX}">
+        <input type="number" class="prop-number" id="sec-padx-number" min="0" max="100" value="${secPadX}">
+      </div>
+      <div class="prop-row">
         <span class="prop-label">아래 패딩</span>
         <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
         <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
@@ -187,6 +195,36 @@ function showSectionProperties(sec) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(sec.id || null);
+
+  // 좌우 패딩 이벤트
+  const padXSlider = document.getElementById('sec-padx-slider');
+  const padXNumber = document.getElementById('sec-padx-number');
+  if (padXSlider && inner) {
+    const applyPadX = v => {
+      v = Math.min(100, Math.max(0, isNaN(v) ? 0 : v));
+      inner.style.paddingLeft  = v ? v + 'px' : '';
+      inner.style.paddingRight = v ? v + 'px' : '';
+      inner.dataset.paddingX   = v || '';
+      // 각 asset-block의 usePadx 개별 설정에 따라 negative margin 적용
+      inner.querySelectorAll('.asset-block').forEach(ab => {
+        if (ab.dataset.usePadx === 'true' && v > 0) {
+          ab.style.marginLeft  = -v + 'px';
+          ab.style.marginRight = -v + 'px';
+          ab.style.width = `calc(100% + ${v * 2}px)`;
+        } else {
+          ab.style.marginLeft  = '';
+          ab.style.marginRight = '';
+          ab.style.width = '';
+        }
+      });
+      padXSlider.value = v;
+      padXNumber.value = v || '';
+    };
+    padXSlider.addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
+    padXSlider.addEventListener('change', () => pushHistory('섹션 좌우 패딩'));
+    padXNumber.addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory('섹션 좌우 패딩'); });
+
+  }
 
   // 아래 여백 이벤트
   const padBSlider = document.getElementById('sec-padb-slider');
