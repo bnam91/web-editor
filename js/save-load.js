@@ -440,6 +440,17 @@ function rebindAll() {
     window.bindCanvasBlock?.(cb);
   });
 
+  // shape-block 구버전 인라인 width/height 제거 — CSS 100%로 frame 추종
+  canvasEl.querySelectorAll('.shape-block').forEach(b => {
+    b.style.width = '';
+    b.style.height = '';
+    const svg = b.querySelector('svg');
+    if (svg) { svg.style.width = ''; svg.style.height = ''; }
+    // sub-section-inner 인라인 height도 제거 — CSS :has(.shape-block) { height:100% } 가 처리
+    const inner = b.closest('.sub-section-inner');
+    if (inner) inner.style.height = '';
+  });
+
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .shape-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'

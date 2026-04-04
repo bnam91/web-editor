@@ -1389,8 +1389,8 @@ window.addFrameBlock = addFrameBlock;
 
 // ── Shape Block ──
 const SHAPE_DEFS = {
-  rectangle: { vb: '0 0 200 100', h: 160, fill: true,  inner: `<rect x="8" y="8" width="184" height="84" rx="0"/>` },
-  ellipse:   { vb: '0 0 200 100', h: 160, fill: true,  inner: `<ellipse cx="100" cy="50" rx="90" ry="40"/>` },
+  rectangle: { vb: '0 0 100 100', h: 160, fill: true,  inner: `<rect x="4" y="4" width="92" height="92" rx="0"/>` },
+  ellipse:   { vb: '0 0 100 100', h: 160, fill: true,  inner: `<ellipse cx="50" cy="50" rx="46" ry="46"/>` },
   line:      { vb: '0 0 200 40',  h: 60,  fill: false, inner: `<line x1="10" y1="20" x2="190" y2="20" stroke-linecap="round"/>` },
   arrow:     { vb: '0 0 200 40',  h: 60,  fill: false, inner: `<line x1="10" y1="20" x2="172" y2="20" stroke-linecap="round"/><polygon points="170,10 194,20 170,30" fill="currentColor" stroke="none"/>` },
   polygon:   { vb: '0 0 200 180', h: 200, fill: true,  inner: `<polygon points="100,8 194,172 6,172"/>` },
@@ -1407,7 +1407,7 @@ function makeShapeBlock(type = 'rectangle') {
   block.dataset.shapeStrokeWidth = '3';
   block.id = genId('shp');
   block.innerHTML = `<svg class="shape-svg" viewBox="${def.vb}" xmlns="http://www.w3.org/2000/svg"
-    style="width:100%;height:${def.h}px;color:#cccccc;stroke-width:3;fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
+    style="color:#cccccc;stroke-width:3;fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
     ${def.inner}
   </svg>`;
   return { block };
@@ -1419,11 +1419,7 @@ function addShapeBlock(type = 'rectangle') {
   window.pushHistory();
 
   const { block } = makeShapeBlock(type);
-  // 100×100 고정 크기
-  block.style.width  = '100px';
-  block.style.height = '100px';
-  const svg = block.querySelector('svg');
-  if (svg) { svg.style.width = '100px'; svg.style.height = '100px'; }
+  // block/svg 크기는 CSS 100%로 frame에 위임 — 인라인 스타일 불필요
 
   // 별도 Frame(sub-section) 생성 — 100×100에 맞는 크기
   const ss = makeSubSectionBlock();
@@ -1442,7 +1438,8 @@ function addShapeBlock(type = 'rectangle') {
   ss.dataset.bg = '';
   const inner = ss.querySelector('.sub-section-inner');
   if (inner) {
-    inner.style.height = '100px';
+    // inner height는 CSS :has(.shape-block) { height: 100% }로 ss를 따름 — inline 불필요
+    inner.style.height = '';
     block.style.position = 'absolute';
     block.style.left = '0';
     block.style.top  = '0';

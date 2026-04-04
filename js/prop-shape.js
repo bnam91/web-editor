@@ -94,15 +94,10 @@ export function showShapeProperties(block) {
   }
 
   function applySize(newW, newH) {
-    block.style.width  = `${newW}px`;
-    block.style.height = `${newH}px`;
-    if (svg) { svg.style.width = `${newW}px`; svg.style.height = `${newH}px`; }
-    // 부모 프레임도 같이 조정
+    // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
     if (ss) {
-      ss.style.width  = `${newW}px`;
-      ss.dataset.width  = String(newW);
-      ss.style.height = `${newH}px`;
-      ss.dataset.height = String(newH);
+      ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+      ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
     }
     window.scheduleAutoSave?.();
   }

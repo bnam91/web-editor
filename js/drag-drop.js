@@ -262,7 +262,7 @@ function bindBlock(block) {
           const dx = (ev.clientX - startX) / scale;
           const dy = (ev.clientY - startY) / scale;
 
-          // frame(ss)만 리사이즈 — block left/top은 항상 0,0 고정
+          // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
           let newW = startW, newH = startH;
           if (dir.includes('e')) newW = Math.max(20, startW + dx);
           if (dir.includes('w')) newW = Math.max(20, startW - dx);
@@ -270,11 +270,6 @@ function bindBlock(block) {
           if (dir.includes('n')) newH = Math.max(20, startH - dy);
           newW = Math.round(newW); newH = Math.round(newH);
 
-          block.style.width  = `${newW}px`;
-          block.style.height = `${newH}px`;
-          block.style.left   = '0px';
-          block.style.top    = '0px';
-          if (svg) { svg.style.width = `${newW}px`; svg.style.height = `${newH}px`; }
           if (ss) {
             ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
             ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
