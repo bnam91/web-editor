@@ -26,7 +26,9 @@ export function showTextProperties(tb) {
   const currentSize  = parseInt(computed.fontSize) || 15;
   const currentColor = rgbToHex(computed.color) || '#111111';
   const currentLH    = (parseFloat(computed.lineHeight) / parseFloat(computed.fontSize) || 1.5).toFixed(2);
-  const currentLS    = parseFloat(contentEl.style.letterSpacing) || 0;
+  const currentLS    = isNaN(parseFloat(contentEl.style.letterSpacing))
+    ? (parseFloat(computed.letterSpacing) || 0)
+    : parseFloat(contentEl.style.letterSpacing);
   const currentPadT  = parseInt(tb.style.paddingTop)    || 0;
   const currentPadB  = parseInt(tb.style.paddingBottom) || 0;
   const currentPadL  = parseInt(tb.style.paddingLeft)  || 0;
@@ -39,6 +41,12 @@ export function showTextProperties(tb) {
   const isItalic      = contentEl.style.fontStyle  === 'italic';
   const currentHighlight      = tb.dataset.highlight || 'none';
   const currentHighlightColor = tb.dataset.highlightColor || '#ffeb3b';
+
+  // 위치/크기
+  const isAbsolute  = tb.style.position === 'absolute';
+  const currentX    = parseInt(tb.style.left  || tb.dataset.offsetX || '0');
+  const currentY    = parseInt(tb.style.top   || tb.dataset.offsetY || '0');
+  const currentW    = parseInt(tb.style.width) || Math.round(tb.offsetWidth);
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -165,6 +173,22 @@ export function showTextProperties(tb) {
         <input type="range" class="prop-slider" id="txt-ls-slider" min="-10" max="40" step="0.5" value="${currentLS}">
         <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
       </div>
+    </div>
+
+    <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
+      <div class="prop-section-title">위치 / 크기</div>
+      <div class="prop-row">
+        <span class="prop-label">너비</span>
+        <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="4" value="${currentW}">
+        <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="${currentW}">
+      </div>
+      ${isAbsolute ? `
+      <div class="prop-row">
+        <span class="prop-label">X</span>
+        <input type="number" class="prop-number" id="txt-x-number" value="${currentX}" style="width:72px">
+        <span class="prop-label" style="margin-left:8px">Y</span>
+        <input type="number" class="prop-number" id="txt-y-number" value="${currentY}" style="width:72px">
+      </div>` : ''}
     </div>
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
@@ -543,8 +567,8 @@ export function showTextProperties(tb) {
   /* 줄간격 */
   const lhSlider = document.getElementById('txt-lh-slider');
   const lhNumber = document.getElementById('txt-lh-number');
-  lhSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   lhSlider.addEventListener('input', () => { contentEl.style.lineHeight = lhSlider.value; lhNumber.value = parseFloat(lhSlider.value).toFixed(2); });
+  lhSlider.addEventListener('change', () => { window.pushHistory?.(); });
   lhNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lhNumber.addEventListener('input', () => {
     const v = Math.min(3, Math.max(1, parseFloat(lhNumber.value)||1));
@@ -554,13 +578,43 @@ export function showTextProperties(tb) {
   /* 자간 */
   const lsSlider = document.getElementById('txt-ls-slider');
   const lsNumber = document.getElementById('txt-ls-number');
-  lsSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   lsSlider.addEventListener('input', () => { contentEl.style.letterSpacing = lsSlider.value + 'px'; lsNumber.value = lsSlider.value; });
+  lsSlider.addEventListener('change', () => { window.pushHistory?.(); });
   lsNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lsNumber.addEventListener('input', () => {
     const v = Math.min(40, Math.max(-10, parseFloat(lsNumber.value) || 0));
     contentEl.style.letterSpacing = v + 'px'; lsSlider.value = v;
   });
+
+  /* 위치 / 크기 (overlay-tb는 해당 없음) */
+  if (!isOverlayTb) {
+    const wSlider = document.getElementById('txt-width-slider');
+    const wNumber = document.getElementById('txt-width-number');
+    if (wSlider) {
+      const applyW = v => {
+        tb.style.width = v + 'px';
+        wSlider.value = v; wNumber.value = v;
+        window.scheduleAutoSave?.();
+      };
+      wSlider.addEventListener('input', () => applyW(parseInt(wSlider.value)));
+      wNumber.addEventListener('input', () => applyW(Math.min(860, Math.max(80, parseInt(wNumber.value) || 80))));
+      wSlider.addEventListener('change', () => window.pushHistory?.());
+      wNumber.addEventListener('change', () => window.pushHistory?.());
+    }
+
+    if (isAbsolute) {
+      const xNumber = document.getElementById('txt-x-number');
+      const yNumber = document.getElementById('txt-y-number');
+      if (xNumber) {
+        xNumber.addEventListener('input', () => { tb.style.left = (parseInt(xNumber.value) || 0) + 'px'; tb.dataset.offsetX = xNumber.value; window.scheduleAutoSave?.(); });
+        xNumber.addEventListener('change', () => window.pushHistory?.());
+      }
+      if (yNumber) {
+        yNumber.addEventListener('input', () => { tb.style.top = (parseInt(yNumber.value) || 0) + 'px'; tb.dataset.offsetY = yNumber.value; window.scheduleAutoSave?.(); });
+        yNumber.addEventListener('change', () => window.pushHistory?.());
+      }
+    }
+  }
 
   /* 패딩 (overlay-tb는 해당 없음) */
   if (!isOverlayTb) {

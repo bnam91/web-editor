@@ -787,8 +787,11 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
   if (ssInner) {
     [...ssInner.children].forEach(child => {
       if (child.classList.contains('row')) appendRowFn(child, ssChildren, 2);
-      else if (child.classList.contains('gap-block')) ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));
-      else if (child.classList.contains('joker-block')) ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));
+      else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
+                 'table-block','card-block','graph-block','divider-block','label-group-block']
+                .some(c => child.classList.contains(c))) {
+        ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));
+      }
     });
   }
 
