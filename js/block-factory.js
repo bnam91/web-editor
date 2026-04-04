@@ -1406,7 +1406,7 @@ function makeShapeBlock(type = 'rectangle') {
   block.dataset.shapeColor = '#cccccc';
   block.dataset.shapeStrokeWidth = '3';
   block.id = genId('shp');
-  block.innerHTML = `<svg class="shape-svg" viewBox="${def.vb}" xmlns="http://www.w3.org/2000/svg"
+  block.innerHTML = `<svg class="shape-svg" viewBox="${def.vb}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"
     style="color:#cccccc;stroke-width:3;fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
     ${def.inner}
   </svg>`;

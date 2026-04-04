@@ -445,7 +445,11 @@ function rebindAll() {
     b.style.width = '';
     b.style.height = '';
     const svg = b.querySelector('svg');
-    if (svg) { svg.style.width = ''; svg.style.height = ''; }
+    if (svg) {
+      svg.style.width = ''; svg.style.height = '';
+      // preserveAspectRatio="none" — frame 크기에 맞게 SVG 변형
+      svg.setAttribute('preserveAspectRatio', 'none');
+    }
     // sub-section-inner 인라인 height도 제거 — CSS :has(.shape-block) { height:100% } 가 처리
     const inner = b.closest('.sub-section-inner');
     if (inner) inner.style.height = '';
