@@ -3,9 +3,41 @@
 ═══════════════════════════════════ */
 import { propPanel, canvasEl, canvasWrap, state } from './globals.js';
 
+/* ── 헬퍼: section-inner 하나에 padX 적용 ── */
+function applyPadXToSection(inner, padX) {
+  inner.style.paddingLeft  = padX ? padX + 'px' : '';
+  inner.style.paddingRight = padX ? padX + 'px' : '';
+  // 각 asset-block의 usePadx 개별 설정에 따라 negative margin 적용
+  inner.querySelectorAll('.asset-block').forEach(ab => {
+    if (ab.dataset.usePadx === 'true' && padX > 0) {
+      ab.style.marginLeft  = -padX + 'px';
+      ab.style.marginRight = -padX + 'px';
+      ab.style.width = `calc(100% + ${padX * 2}px)`;
+    } else {
+      ab.style.marginLeft  = '';
+      ab.style.marginRight = '';
+      ab.style.width = '';
+    }
+  });
+}
+
+/* ── 페이지 전체 padX 일괄 적용 (섹션 개별 override 제외) ── */
+function applyPagePadX(padX) {
+  document.querySelectorAll('.section-block').forEach(sec => {
+    const inner = sec.querySelector('.section-inner');
+    if (!inner) return;
+    // 섹션 자체 override가 있으면 건너뜀
+    if (inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined) return;
+    applyPadXToSection(inner, padX);
+  });
+}
+
+// save-load.js 등 외부에서 호출 가능하도록 export
+window.applyPagePadX = applyPagePadX;
+
 export function showPageProperties() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
-  const { bg, gap, padX, padY } = state.pageSettings;
+  const { bg, gap, padX, padY, padXExcludesAsset } = state.pageSettings;
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -60,6 +92,10 @@ export function showPageProperties() {
         <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="4" value="${padX}">
         <input type="number" class="prop-number" id="page-padx-number" min="0" max="200" value="${padX}">
       </div>
+      <div class="prop-row" style="align-items:center;gap:6px;">
+        <input type="checkbox" id="page-padx-asset" ${padXExcludesAsset ? 'checked' : ''}>
+        <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">에셋블록 패딩 제외합니다.</span>
+      </div>
       <div class="prop-row">
         <span class="prop-label">상하 패딩</span>
         <input type="range" class="prop-slider" id="page-pady-slider" min="0" max="200" step="4" value="${padY}">
@@ -107,31 +143,37 @@ export function showPageProperties() {
     gapSlider.value = v;
   });
 
+  const padxSlider = document.getElementById('page-padx-slider');
+  const padxNumber = document.getElementById('page-padx-number');
+  const padxAsset  = document.getElementById('page-padx-asset');
+
   const applyPadX = (v) => {
     state.pageSettings.padX = v;
-    canvasEl.style.setProperty('--page-padx', v + 'px');
-    // inline style 제거: CSS Variable이 적용되도록 (개별 override된 블록 제외)
-    canvasEl.querySelectorAll('.text-block:not(.overlay-tb), .label-group-block').forEach(el => {
-      if (!el.dataset.customPadL) el.style.paddingLeft = '';
-      if (!el.dataset.customPadR) el.style.paddingRight = '';
-    });
-    canvasEl.querySelectorAll('.card-block, .graph-block').forEach(el => {
-      el.style.paddingLeft = ''; el.style.paddingRight = '';
-    });
-    // asset-block: 너비% 재계산 방식 유지
-    canvasEl.querySelectorAll('.asset-block[data-use-padx="true"]').forEach(ab => {
-      window.applyAssetPadX(ab, v);
-    });
+    applyPagePadX(v);
   };
+
+  padxSlider.addEventListener('input', () => { applyPadX(parseInt(padxSlider.value)); padxNumber.value = padxSlider.value; });
+  padxNumber.addEventListener('input', () => { const v = Math.min(200, Math.max(0, parseInt(padxNumber.value)||0)); applyPadX(v); padxSlider.value = v; });
+
+  padxAsset.addEventListener('change', e => {
+    state.pageSettings.padXExcludesAsset = e.target.checked;
+    // 모든 에셋블록 usePadx 일괄 설정
+    const val = e.target.checked ? 'true' : 'false';
+    document.querySelectorAll('.asset-block').forEach(ab => { ab.dataset.usePadx = val; });
+    // override 포함 모든 섹션 적용 (각 섹션의 실제 padX 사용)
+    document.querySelectorAll('.section-block').forEach(sec => {
+      const inner = sec.querySelector('.section-inner');
+      if (!inner) return;
+      const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+      const px = hasOverride ? parseInt(inner.dataset.paddingX) : state.pageSettings.padX;
+      applyPadXToSection(inner, px || 0);
+    });
+  });
+
   const applyPadY = (v) => {
     state.pageSettings.padY = v;
     canvasEl.style.setProperty('--page-pady', v + 'px');
   };
-  const padxSlider = document.getElementById('page-padx-slider');
-  const padxNumber = document.getElementById('page-padx-number');
-  padxSlider.addEventListener('input', () => { applyPadX(parseInt(padxSlider.value)); padxNumber.value = padxSlider.value; });
-  padxNumber.addEventListener('input', () => { const v = Math.min(200, Math.max(0, parseInt(padxNumber.value)||0)); applyPadX(v); padxSlider.value = v; });
-
   const padySlider = document.getElementById('page-pady-slider');
   const padyNumber = document.getElementById('page-pady-number');
   padySlider.addEventListener('input', () => { applyPadY(parseInt(padySlider.value)); padyNumber.value = padySlider.value; });
@@ -142,6 +184,8 @@ export function showPageProperties() {
     if (!btn) return;
     btn.addEventListener('click', () => {
       document.querySelectorAll('.text-block').forEach(tb => {
+        // 서브섹션 내부 블록은 일괄정렬 제외
+        if (tb.closest('.sub-section-block')) return;
         if (tb.querySelector('.tb-label')) { tb.style.textAlign = align; }
         else {
           const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
@@ -149,6 +193,8 @@ export function showPageProperties() {
         }
       });
       document.querySelectorAll('.label-group-block').forEach(block => {
+        // 서브섹션 내부 블록은 일괄정렬 제외
+        if (block.closest('.sub-section-block')) return;
         block.style.justifyContent = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
       });
       propPanel.querySelectorAll('#page-align-left,#page-align-center,#page-align-right')

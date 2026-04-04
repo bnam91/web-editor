@@ -17,8 +17,12 @@ export function showAssetProperties(ab) {
   const currentH   = parseInt(ab.style.height) || ab.offsetHeight || 780;
   const hasImage   = ab.classList.contains('has-image');
   const currentR   = parseInt(ab.style.borderRadius) || 0;
-  const currentW   = ab.offsetWidth || 400;
   const currentAlign = ab.dataset.align || 'center';
+  // 너비: inline px → 그대로 / inline % → px 환산 / 없으면 860 (full)
+  const rawW = ab.style.width;
+  const currentW = rawW
+    ? (rawW.endsWith('%') ? Math.round(parseFloat(rawW) * 860 / 100) : parseInt(rawW) || 860)
+    : 860;
   if (!ab.dataset.align) { ab.dataset.align = 'center'; ab.style.alignSelf = 'center'; }
   const currentSize   = ab.dataset.size    || '100';
   const usePadX       = ab.dataset.usePadx === 'true';
@@ -95,6 +99,11 @@ export function showAssetProperties(ab) {
         </div>
       </div>
       <div class="prop-row">
+        <span class="prop-label">너비</span>
+        <input type="range" class="prop-slider" id="asset-w-slider" min="100" max="860" step="10" value="${currentW}">
+        <input type="number" class="prop-number" id="asset-w-number" min="100" max="860" value="${currentW}">
+      </div>
+      <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="asset-h-slider" min="200" max="1600" step="10" value="${currentH}">
         <input type="number" class="prop-number" id="asset-h-number" min="200" max="1600" value="${currentH}">
@@ -105,7 +114,7 @@ export function showAssetProperties(ab) {
         <input type="number" class="prop-number" id="asset-r-number" min="0" max="120" value="${currentR}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">페이지 패딩</span>
+        <span class="prop-label">패딩 제외</span>
         <label class="prop-toggle">
           <input type="checkbox" id="asset-padx-toggle" ${usePadX ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
@@ -148,25 +157,45 @@ export function showAssetProperties(ab) {
 
   if (window.setRpIdBadge) window.setRpIdBadge(ab.id || null);
 
+  const wSlider = document.getElementById('asset-w-slider');
+  const wNumber = document.getElementById('asset-w-number');
+  const applyW = v => {
+    if (v >= 860) {
+      ab.style.width = '';
+    } else {
+      ab.style.width = v + 'px';
+      ab.style.alignSelf = ab.dataset.align === 'left' ? 'flex-start'
+        : ab.dataset.align === 'right' ? 'flex-end' : 'center';
+    }
+    wSlider.value = v;
+    wNumber.value = v;
+  };
+  wSlider.addEventListener('input', () => { applyW(parseInt(wSlider.value)); });
+  wSlider.addEventListener('change', () => { window.pushHistory?.(); });
+  wNumber.addEventListener('change', () => {
+    const v = Math.min(860, Math.max(100, parseInt(wNumber.value) || 860));
+    applyW(v); window.pushHistory?.();
+  });
 
   const hSlider = document.getElementById('asset-h-slider');
   const hNumber = document.getElementById('asset-h-number');
 
   document.getElementById('asset-padx-toggle').addEventListener('change', e => {
-    if (e.target.checked) {
-      ab.dataset.usePadx = 'true';
-      ab.dataset.baseHeight = parseInt(ab.style.height) || 780;
-      applyAssetPadX(ab, state.pageSettings.padX || 0);
+    ab.dataset.usePadx = e.target.checked ? 'true' : 'false';
+    // 이 블록이 속한 section-inner의 padX 값 결정
+    const inner = ab.closest('.section-inner');
+    const padX = inner
+      ? (parseInt(inner.dataset.paddingX) || state.pageSettings.padX || 0)
+      : (state.pageSettings.padX || 0);
+    if (e.target.checked && padX > 0) {
+      ab.style.marginLeft  = -padX + 'px';
+      ab.style.marginRight = -padX + 'px';
+      ab.style.width = `calc(100% + ${padX * 2}px)`;
     } else {
-      ab.dataset.usePadx = 'false';
-      const baseH = parseInt(ab.dataset.baseHeight) || 780;
-      ab.style.paddingLeft  = '';
-      ab.style.paddingRight = '';
-      ab.style.width  = '';
-      ab.style.height = baseH + 'px';
+      ab.style.marginLeft  = '';
+      ab.style.marginRight = '';
+      ab.style.width = '';
     }
-    hSlider.value = parseInt(ab.style.height);
-    hNumber.value = parseInt(ab.style.height);
     window.pushHistory();
   });
 
@@ -215,8 +244,8 @@ export function showAssetProperties(ab) {
   const rSlider = document.getElementById('asset-r-slider');
   const rNumber = document.getElementById('asset-r-number');
   const applyR = v => { ab.style.borderRadius = v + 'px'; };
-  rSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   rSlider.addEventListener('input', () => { applyR(parseInt(rSlider.value)); rNumber.value = rSlider.value; });
+  rSlider.addEventListener('change', () => { window.pushHistory?.(); });
   rNumber.addEventListener('change', () => { window.pushHistory?.(); });
   rNumber.addEventListener('input', () => {
     const v = Math.min(120, Math.max(0, parseInt(rNumber.value) || 0));

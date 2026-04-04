@@ -407,8 +407,67 @@ function addTextBlock(type, opts = {}) {
   window.selectSection(sec);
 }
 
+function promoteToSubSection(block) {
+  const col = block.closest('.col');
+  if (!col) {
+    if (window.showToast) window.showToast('열(col) 안의 블록만 컨테이너로 전환할 수 있어요.');
+    return;
+  }
+
+  window.pushHistory();
+
+  const ssH = Math.max(block.offsetHeight, 120);
+
+  const ss = document.createElement('div');
+  ss.className = 'sub-section-block';
+  ss.id = genId('ss');
+  ss.dataset.bg = 'transparent';
+  ss.dataset.width = '100%';
+  ss.style.cssText = `background:transparent;padding:0;width:100%;height:${ssH}px;min-height:${ssH}px;overflow:hidden;`;
+
+  const inner = document.createElement('div');
+  inner.className = 'sub-section-inner';
+  inner.style.cssText = 'position:relative;height:100%;';
+  ss.appendChild(inner);
+
+  // 원래 자리에 ss 삽입, block을 inner로 이동
+  block.before(ss);
+  block.style.position = 'absolute';
+  block.style.left = '0px';
+  block.style.top = '0px';
+  block.style.width = '100%';
+  block.style.transform = '';
+  block.classList.remove('selected');
+  // HTML5 drag 비활성화 — absolute 블록은 커스텀 mousemove drag 사용
+  block.setAttribute('draggable', 'false');
+  const blockRow = block.closest('.row');
+  if (blockRow) blockRow.setAttribute('draggable', 'false');
+  inner.appendChild(block);
+
+  window.bindSubSectionDropZone?.(ss);
+  window.deselectAll?.();
+
+  const sec = ss.closest('.section-block');
+  if (sec) {
+    sec.classList.add('selected');
+    window.syncLayerActive?.(sec);
+  }
+  ss.classList.add('selected');
+  window._activeSubSection = ss;
+  window.showSubSectionProperties?.(ss);
+  window.buildLayerPanel();
+  window.scheduleAutoSave?.();
+}
+
 function groupSelectedBlocks() {
   const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected')];
+
+  // 단일 블록 → 서브섹션으로 승격
+  if (selected.length === 1) {
+    promoteToSubSection(selected[0]);
+    return;
+  }
+
   if (selected.length < 2) return;
 
   // 같은 섹션의 블록만 그룹
@@ -1255,6 +1314,7 @@ export {
   makeTableBlock,
   addTextBlock,
   groupSelectedBlocks,
+  promoteToSubSection,
   addRowBlock,
   makePresetRow,
   addPresetRow,
@@ -1272,6 +1332,10 @@ export {
   makeSubSectionBlock,
   addSubSectionBlock,
 };
+
+/* ── Frame 통합 진입점 (addSubSectionBlock alias) ── */
+function addFrameBlock() { addSubSectionBlock(); }
+window.addFrameBlock = addFrameBlock;
 
 // ── setSectionBg: 섹션 단위 배경색 설정 ──
 // sectionEl: .section-block 요소 또는 섹션 id(string)
@@ -1317,6 +1381,7 @@ window.addIconTextBlock     = addIconTextBlock;
 window.makeTableBlock       = makeTableBlock;
 window.addTextBlock         = addTextBlock;
 window.groupSelectedBlocks  = groupSelectedBlocks;
+window.promoteToSubSection  = promoteToSubSection;
 window.addRowBlock          = addRowBlock;
 window.makePresetRow        = makePresetRow;
 window.addPresetRow         = addPresetRow;
