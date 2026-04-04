@@ -16,10 +16,11 @@ export function showIconCircleProperties(block) {
         <div class="prop-block-icon">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <circle cx="6" cy="6" r="5"/>
+            <text x="3.5" y="9" font-size="6" fill="#888" stroke="none">★</text>
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Icon Circle</span>
+          <span class="prop-block-name">${block.dataset.layerName || 'Asset-Circle'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}

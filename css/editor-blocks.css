@@ -11,16 +11,16 @@
   overflow: hidden;
 }
 .sub-section-block.selected {
-  outline: 2px solid var(--sel-color);
+  outline: 1px solid var(--sel-color);
   outline-offset: -2px;
 }
 .sub-section-block:hover:not(.selected) {
-  outline: 1px solid rgba(45,111,232,0.35);
+  outline: 1px solid var(--color-selection-outline);
   outline-offset: -1px;
 }
 .sub-section-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
-  background-color: rgba(45,111,232,0.06) !important;
+  background-color: var(--color-selection-fill-dim) !important;
 }
 .sub-section-inner {
   display: flex;
@@ -45,15 +45,15 @@
 }
 .canvas-block.ci-active { overflow: visible; }
 .canvas-block.selected {
-  outline: 2px solid var(--sel-color);
+  outline: 1px solid var(--sel-color);
   outline-offset: 0;
 }
 .canvas-block:hover:not(.selected) {
-  outline: 1px solid rgba(45,111,232,0.35);
+  outline: 1px solid var(--color-selection-outline);
 }
 .canvas-block.cb-drag-over {
   outline: 2px dashed var(--sel-color);
-  background-color: rgba(45,111,232,0.06) !important;
+  background-color: var(--color-selection-fill-dim) !important;
 }
 
 /* canvas-item */
@@ -65,13 +65,13 @@
 }
 .canvas-item:active { cursor: grabbing; }
 .canvas-item.ci-selected {
-  outline: 2px solid var(--sel-color);
+  outline: 1px solid var(--sel-color);
   outline-offset: 0;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
   overflow: visible;
 }
 .canvas-item:hover:not(.ci-selected) {
-  outline: 1px solid rgba(45,111,232,0.35);
+  outline: 1px solid var(--color-selection-outline);
   outline-offset: 0;
 }
 
@@ -255,7 +255,7 @@
 
 /* 이미지 포지션 드래그 모드 */
 .asset-block.pos-dragging {
-  outline: 2px solid var(--sel-color) !important;
+  outline: 1px solid var(--sel-color) !important;
   outline-offset: 2px;
   cursor: default;
 }
@@ -268,7 +268,7 @@
 /* 배경 이미지 위치 드래그 모드 (섹션 / 서브섹션) */
 .section-block.bg-pos-dragging,
 .sub-section-block.bg-pos-dragging {
-  outline: 2px solid var(--sel-color) !important;
+  outline: 1px solid var(--sel-color) !important;
   outline-offset: -2px;
   cursor: grab;
   user-select: none;
@@ -317,7 +317,7 @@
 .section-block.selected .section-inner > :first-child::before { display: none; }
 
 .gap-block.selected {
-  outline: 2px solid var(--sel-color);
+  outline: 1px solid var(--sel-color);
   outline-offset: 0;
 }
 .gap-block.selected::before { display: block; }
@@ -336,7 +336,7 @@
   border-radius: 3px; flex-shrink: 0;
   pointer-events: none; margin: 2px 0;
   position: relative;
-  box-shadow: 0 0 8px rgba(45,111,232,0.7);
+  box-shadow: 0 0 8px var(--color-selection-glow);
 }
 .drop-indicator::before {
   content: '';
@@ -344,7 +344,7 @@
   left: -6px; top: -5px;
   width: 15px; height: 15px;
   border-radius: 50%; background: var(--ui-accent-primary);
-  box-shadow: 0 0 6px rgba(45,111,232,0.6);
+  box-shadow: 0 0 6px var(--color-selection-glow-med);
 }
 
 /* 레이어 패널 드롭 인디케이터 */
@@ -372,7 +372,7 @@
   border-radius: 3px; flex-shrink: 0;
   pointer-events: none;
   position: relative;
-  box-shadow: 0 0 12px rgba(45,111,232,0.9);
+  box-shadow: 0 0 12px var(--color-selection-glow-hi);
 }
 .section-drop-indicator::before {
   content: '';
@@ -380,7 +380,7 @@
   left: -7px; top: -6px;
   width: 18px; height: 18px;
   border-radius: 50%; background: var(--ui-accent-primary);
-  box-shadow: 0 0 8px rgba(45,111,232,0.7);
+  box-shadow: 0 0 8px var(--color-selection-glow);
 }
 
 /* 레이어 패널 섹션 드롭 인디케이터 */
@@ -523,7 +523,7 @@
 }
 .icon-circle-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-circle-block { position: relative; }
-.icon-circle-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.icon-circle-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
 .icon-circle-block.drag-over .icb-circle { outline: 2px dashed var(--sel-color); }
 
 .icb-circle {
@@ -581,7 +581,7 @@
   
 }
 .table-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.table-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.table-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
 
 .tb-table {
   width: 100%;
@@ -633,7 +633,7 @@
 /* 셀 편집 모드 */
 .tb-table td[contenteditable="true"],
 .tb-table th[contenteditable="true"] {
-  outline: 2px solid var(--sel-color);
+  outline: 1px solid var(--sel-color);
   outline-offset: 2px;
   background: var(--sel-color-fill) !important;
   cursor: text;
@@ -654,7 +654,7 @@
   background: #ffffff;
 }
 .graph-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.graph-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.graph-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
 
 /* ── 세로 막대 (bar-v) ── */
 .grb-bars-v {
@@ -820,7 +820,7 @@
 }
 .card-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .card-block { position: relative; }
-.card-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.card-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
 .card-block.drag-over .cdb-image { outline: 2px dashed var(--sel-color); }
 
 .cdb-image {
@@ -896,15 +896,19 @@
   
 }
 .divider-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.divider-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.divider-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
 
-/* ── 블록 hover 아웃라인 (text / asset / label-group / icon-circle / table) ── */
-.text-block:hover:not(.selected):not(.editing) {
-  outline: 1px solid rgba(45, 111, 232, 0.35);
-  outline-offset: 1px;
+/* ── 블록 hover 아웃라인 (text → row 기준 / asset / label-group / icon-circle / table) ── */
+.row:has(.text-block:hover:not(.selected):not(.editing)) {
+  outline: 1px solid var(--color-selection-outline);
+  outline-offset: -1px;
+}
+.row:has(.text-block.selected) {
+  outline: 1px solid var(--sel-color);
+  outline-offset: -2px;
 }
 .asset-block:hover:not(.selected):not(.img-editing):not(.pos-dragging) {
-  outline: 1px solid rgba(45, 111, 232, 0.35);
+  outline: 1px solid var(--color-selection-outline);
   outline-offset: 0;
 }
 .label-group-block:hover:not(.selected)::after,
@@ -919,12 +923,11 @@
 }
 
 /* ── 블록 선택 glow ── */
-.text-block.selected,
 .asset-block.selected,
 .label-group-block.selected,
 .icon-circle-block.selected,
 .table-block.selected {
-  box-shadow: 0 0 0 3px rgba(45, 111, 232, 0.12);
+  box-shadow: 0 0 0 3px var(--color-focus-fill);
 }
 
 /* 선택된 블록이 인접 블록의 outline을 가리지 않도록 z-index로 위로 올림 */

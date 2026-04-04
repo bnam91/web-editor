@@ -34,7 +34,7 @@
 |------|------|------|
 | **Section** | `addSection()` | 새 섹션 추가 (primary 버튼) |
 | **Grid ▾** | `toggleFpDropdown('fp-row-dropdown')` | 멀티컬럼 그리드 드롭다운 |
-| **Sub** | `addSubSectionBlock()` | 서브섹션 추가 (섹션 안 중첩 프레임) |
+| **Frame** | `addFrameBlock()` | 프레임 추가 (Auto/Free 모드 전환 가능) |
 | **Canvas** | `addCanvasBlock()` | 자유배치 캔버스 블록 |
 | **Gap** | `addGapBlock()` | 여백 블록 |
 
@@ -72,7 +72,7 @@
 | Tall | `addAssetBlock('tall')` | 세로 긴 비율 |
 | Wide | `addAssetBlock('wide')` | 가로 긴 비율 |
 | Logo | `addAssetBlock('logo')` | 로고용 소형 |
-| Circle | `addIconCircleBlock()` | 원형 아이콘 프레임 |
+| Asset-Circle | `addIconCircleBlock()` | 원형 에셋 프레임 |
 
 ---
 
@@ -87,7 +87,22 @@
 
 ---
 
-### 2-6. Shelf 버튼 `#fp-comp-shelf-btn`
+### 2-6. Shape 드롭다운 `#fp-shape-dropdown`
+
+| 메뉴 | 함수 | 설명 |
+|------|------|------|
+| Rectangle | `addShapeBlock('rectangle')` | 사각형 도형 |
+| Line | `addShapeBlock('line')` | 직선 |
+| Arrow | `addShapeBlock('arrow')` | 화살표 |
+| Ellipse | `addShapeBlock('ellipse')` | 원 |
+| Polygon | `addShapeBlock('polygon')` | 다각형 |
+| Star | `addShapeBlock('star')` | 별 |
+
+> 각 도형은 독립된 100×100 Frame 안에 생성됨. Frame의 `dataset.layerName`이 도형 타입명으로 자동 설정됨.
+
+---
+
+### 2-7. Shelf 버튼 `#fp-comp-shelf-btn`
 
 | 항목 | 내용 |
 |------|------|
@@ -103,12 +118,13 @@
 ──────────────────────
 [Section]         ← primary (파란 강조)
 [Grid ▾]
-[Sub]
+[Frame]
 [Canvas]
 [Gap]
 ──────────────────────
 [Text ▾]
 [Asset ▾]
+[Shape ▾]
 ──────────────────────
 [Component ▾]
 ──────────────────────
@@ -125,6 +141,7 @@
 - [ ] 드롭다운 트리거 → `.fp-btn.fp-dropdown-trigger`
 - [ ] Section 버튼 → `.fp-btn.primary` (강조 배경색)
 - [ ] 버튼 아이콘 → `11×11px` SVG, `stroke-width: 1.8`
+- [ ] Frame 버튼 아이콘 → Figma 스타일 cross-frame SVG (`viewBox="1.5 1.5 13 13"`, `fill-rule: evenodd` path)
 - [ ] 버튼 라벨 → 영문, 짧은 한 단어
 
 ### 4-2. 드롭다운

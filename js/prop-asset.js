@@ -67,7 +67,7 @@ export function showAssetProperties(ab) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Asset Block</span>
+          <span class="prop-block-name">${ab.dataset.layerName || 'Asset Block'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(ab)}</span>
         </div>
         ${ab.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${ab.id}')">${ab.id}</span>` : ''}

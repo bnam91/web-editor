@@ -12,21 +12,31 @@ function rgbToHex(rgb) {
   return '#' + m.slice(0, 3).map(n => parseInt(n).toString(16).padStart(2, '0')).join('');
 }
 
+/* ── shape 타입별 아이콘 SVG ── */
+const _SHAPE_ICONS = {
+  star:      `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,2 9.8,6.2 14.5,6.2 10.8,8.9 12.2,13.5 8,10.8 3.8,13.5 5.2,8.9 1.5,6.2 6.2,6.2" fill="#888"/></svg>`,
+  rectangle: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="8" rx="1" stroke="#888" stroke-width="1.4" fill="none"/></svg>`,
+  ellipse:   `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#888" stroke-width="1.4" fill="none"/></svg>`,
+  line:      `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="2" y1="14" x2="14" y2="2" stroke="#888" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+  arrow:     `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="2" y1="14" x2="14" y2="2" stroke="#888" stroke-width="1.6" stroke-linecap="round"/><polyline points="8,2 14,2 14,8" stroke="#888" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  polygon:   `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,2 14,12 2,12" stroke="#888" stroke-width="1.4" fill="none" stroke-linejoin="round"/></svg>`,
+};
+const _FRAME_ICON = `<svg width="16" height="16" viewBox="1.5 1.5 13 13" fill="none"><path fill="#888" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`;
+
 /* ── 공통 헤더: Frame 이름 + 모드 토글 ── */
 function _headerHTML(el, mode) {
   const id = el.id || '';
+  const shapeBlock = el.querySelector?.('.shape-block');
+  const shapeType  = shapeBlock?.dataset?.shapeType || null;
+  const iconSvg    = shapeType ? (_SHAPE_ICONS[shapeType] || _FRAME_ICON) : _FRAME_ICON;
   return `
     <div class="prop-section">
       <div class="prop-block-label">
         <div class="prop-block-icon">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="#888" stroke-width="1.4" fill="none"/>
-            <line x1="2" y1="5.5" x2="14" y2="5.5" stroke="#888" stroke-width="1.1"/>
-            <line x1="5.5" y1="5.5" x2="5.5" y2="14" stroke="#888" stroke-width="1.1"/>
-          </svg>
+          ${iconSvg}
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Frame</span>
+          <span class="prop-block-name">${el.dataset.layerName || 'Frame'}</span>
         </div>
         ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${id}')">${id}</span>` : ''}
       </div>
@@ -41,11 +51,13 @@ function _headerHTML(el, mode) {
    AUTO 모드 (sub-section-block)
 ════════════════════════════════════════ */
 function _renderAutoPanel(ss) {
+  const isShapeFrame = !!ss.querySelector('.shape-block');
   const rawBg  = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
   const hexBg  = rgbToHex(rawBg);
   const padY   = parseInt(ss.dataset.padY)   || 0;
-  const width  = parseInt(ss.dataset.width)  || 780;
-  const height = parseInt(ss.dataset.height) || 520;
+  const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
+  const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
+  const minWidth = isShapeFrame ? Math.min(width, 20) : 200;
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
   const borderWidth = parseInt(ss.dataset.borderWidth) || 0;
   const borderStyle = ss.dataset.borderStyle || 'solid';
@@ -102,8 +114,8 @@ function _renderAutoPanel(ss) {
       <div class="prop-section-title">크기</div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="ss-width-slider" min="200" max="860" step="10" value="${width}">
-        <input type="number" class="prop-number" id="ss-width-num" min="200" max="860" value="${width}">
+        <input type="range" class="prop-slider" id="ss-width-slider" min="${minWidth}" max="860" step="10" value="${width}">
+        <input type="number" class="prop-number" id="ss-width-num" min="${minWidth}" max="860" value="${width}">
       </div>
       <div class="prop-row" style="margin-top:6px;">
         <span class="prop-label">높이</span>
@@ -253,34 +265,100 @@ function _renderAutoPanel(ss) {
   // 높이
   const heightSlider = document.getElementById('ss-height-slider');
   const heightNum    = document.getElementById('ss-height-num');
-  const applyHeight  = (v) => { ss.dataset.height = v; ss.style.minHeight = v + 'px'; window.scheduleAutoSave?.(); };
+  const minHeight    = isShapeFrame ? Math.min(height, 20) : 100;
+  heightSlider.min   = minHeight;
+  heightNum.min      = minHeight;
+  const applyHeight  = (v) => {
+    const newH = parseInt(v);
+    if (isShapeFrame) {
+      const oldH = parseInt(ss.dataset.height || ss.style.minHeight || height);
+      const ratio = newH / oldH;
+      const inner = ss.querySelector('.sub-section-inner');
+      if (inner && ratio !== 1) {
+        if (inner.style.height) inner.style.height = Math.round(parseInt(inner.style.height) * ratio) + 'px';
+        inner.querySelectorAll('[style*="position: absolute"], [style*="position:absolute"]').forEach(block => {
+          const curH = parseInt(block.style.height || block.offsetHeight || 0);
+          if (curH) block.style.height = Math.round(curH * ratio) + 'px';
+          const curW = parseInt(block.style.width || block.offsetWidth || 0);
+          if (curW) block.style.width = Math.round(curW * ratio) + 'px';
+          const svg = block.querySelector('svg');
+          if (svg) {
+            const svgH = parseInt(svg.style.height || svg.getAttribute('height') || 0);
+            const svgW = parseInt(svg.style.width  || svg.getAttribute('width')  || 0);
+            if (svgH) svg.style.height = Math.round(svgH * ratio) + 'px';
+            if (svgW) svg.style.width  = Math.round(svgW * ratio) + 'px';
+          }
+        });
+        // 너비도 비례 동기화
+        const curW = parseInt(ss.dataset.width || ss.offsetWidth || width);
+        const newW = Math.round(curW * ratio);
+        ss.style.width = newW + 'px'; ss.dataset.width = newW;
+        const wSlider = document.getElementById('ss-width-slider');
+        const wNum    = document.getElementById('ss-width-num');
+        if (wSlider) wSlider.value = newW;
+        if (wNum)    wNum.value    = newW;
+      }
+    }
+    ss.dataset.height = newH; ss.style.minHeight = newH + 'px';
+    window.scheduleAutoSave?.();
+  };
   heightSlider.addEventListener('input', () => { heightNum.value = heightSlider.value; applyHeight(heightSlider.value); });
   heightSlider.addEventListener('change', () => window.pushHistory?.());
-  heightNum.addEventListener('input', () => { const v = Math.min(1200, Math.max(100, parseInt(heightNum.value) || 520)); heightSlider.value = v; applyHeight(v); });
+  heightNum.addEventListener('input', () => { const v = Math.min(1200, Math.max(minHeight, parseInt(heightNum.value) || height)); heightSlider.value = v; applyHeight(v); });
   heightNum.addEventListener('change', () => window.pushHistory?.());
 
   // 너비
   const widthSlider = document.getElementById('ss-width-slider');
   const widthNum    = document.getElementById('ss-width-num');
   const applyWidth  = (v) => {
-    const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || 860;
+    const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || (isShapeFrame ? 100 : 860);
     const newW = parseInt(v);
     const ratio = newW / oldW;
     const inner = ss.querySelector('.sub-section-inner');
     if (inner && ratio !== 1) {
       inner.querySelectorAll('[style*="position: absolute"], [style*="position:absolute"]').forEach(block => {
         const curLeft  = parseInt(block.style.left  || 0);
-        const curWidth = parseInt(block.style.width || block.offsetWidth || 0);
-        block.style.left  = Math.round(curLeft  * ratio) + 'px';
-        if (curWidth) block.style.width = Math.round(curWidth * ratio) + 'px';
+        const curW = parseInt(block.style.width || block.offsetWidth || 0);
+        block.style.left = Math.round(curLeft * ratio) + 'px';
+        if (curW) block.style.width = Math.round(curW * ratio) + 'px';
+        if (isShapeFrame) {
+          // shape frame: height도 비례 스케일
+          const curH = parseInt(block.style.height || block.offsetHeight || 0);
+          if (curH) block.style.height = Math.round(curH * ratio) + 'px';
+          // SVG도 비례 스케일
+          const svg = block.querySelector('svg');
+          if (svg) {
+            const svgW = parseInt(svg.style.width || svg.getAttribute('width') || 0);
+            const svgH = parseInt(svg.style.height || svg.getAttribute('height') || 0);
+            if (svgW) svg.style.width = Math.round(svgW * ratio) + 'px';
+            if (svgH) svg.style.height = Math.round(svgH * ratio) + 'px';
+          }
+        }
       });
+      if (isShapeFrame) {
+        // inner height 비례 스케일
+        const innerH = parseInt(inner.style.height || inner.offsetHeight || 0);
+        if (innerH) inner.style.height = Math.round(innerH * ratio) + 'px';
+        // frame min-height 비례 스케일
+        const curFrameH = parseInt(ss.dataset.height || ss.style.minHeight || 0);
+        if (curFrameH) {
+          const newH = Math.round(curFrameH * ratio);
+          ss.style.minHeight = newH + 'px';
+          ss.dataset.height = newH;
+          const hSlider = document.getElementById('ss-height-slider');
+          const hNum    = document.getElementById('ss-height-num');
+          if (hSlider) hSlider.value = newH;
+          if (hNum)    hNum.value    = newH;
+        }
+      }
     }
-    ss.dataset.width = v; ss.style.width = newW + 'px'; ss.style.margin = '0 auto';
+    ss.dataset.width = newW; ss.style.width = newW + 'px';
+    ss.style.margin = '0 auto'; ss.style.alignSelf = 'center';
     window.scheduleAutoSave?.();
   };
   widthSlider.addEventListener('input', () => { widthNum.value = widthSlider.value; applyWidth(widthSlider.value); });
   widthSlider.addEventListener('change', () => window.pushHistory?.());
-  widthNum.addEventListener('input', () => { const v = Math.min(860, Math.max(200, parseInt(widthNum.value) || 780)); widthSlider.value = v; applyWidth(v); });
+  widthNum.addEventListener('input', () => { const v = Math.min(860, Math.max(minWidth, parseInt(widthNum.value) || width)); widthSlider.value = v; applyWidth(v); });
   widthNum.addEventListener('change', () => window.pushHistory?.());
 
   // 패딩

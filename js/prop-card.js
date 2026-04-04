@@ -16,7 +16,7 @@ export function showCardProperties(block) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Card Block</span>
+          <span class="prop-block-name">${block.dataset.layerName || 'Card Block'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}

@@ -33,12 +33,12 @@ export function showSubSectionProperties(ss) {
     <div class="prop-section">
       <div class="prop-block-label">
         <div class="prop-block-icon">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <svg width="16" height="16" viewBox="1.5 1.5 13 13" fill="none">
             <path fill="#888" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Sub-Section</span>
+          <span class="prop-block-name">${ss.dataset.layerName || 'Frame'}</span>
         </div>
         ${ss.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${ss.id}')">${ss.id}</span>` : ''}
       </div>
@@ -131,7 +131,7 @@ export function showSubSectionProperties(ss) {
       })()}
     </div>
     <div class="prop-section">
-      <div class="prop-hint" style="font-size:11px;color:#999;">서브섹션 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.</div>
+      <div class="prop-hint" style="font-size:11px;color:#999;">Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.</div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);

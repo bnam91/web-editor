@@ -17,6 +17,7 @@
   --p-blue-800:       #1a5dd4;
   --p-blue-900:       #6a9fd8;         /* tab drop indicator */
 
+  --p-blue-alpha-06:  rgba(45,111,232,0.06);
   --p-blue-alpha-08:  rgba(45,111,232,0.08);
   --p-blue-alpha-12:  rgba(45,111,232,0.12);
   --p-blue-alpha-35:  rgba(45,111,232,0.35);
@@ -108,8 +109,11 @@
   --color-selection:            var(--p-blue-600);
   --color-selection-hover:      var(--p-blue-alpha-40);
   --color-selection-fill:       var(--p-blue-alpha-08);
+  --color-selection-fill-dim:   var(--p-blue-alpha-06);  /* canvas item hover bg */
   --color-selection-outline:    var(--p-blue-alpha-35);
   --color-selection-glow:       var(--p-blue-alpha-70);
+  --color-selection-glow-med:   var(--p-blue-alpha-60);  /* drag handle glow */
+  --color-selection-glow-hi:    var(--p-blue-alpha-90);  /* drag active glow */
 
   /* ── Image / CI handles ── */
   --color-handle:               var(--p-cornflower-500);

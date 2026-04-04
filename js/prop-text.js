@@ -46,7 +46,8 @@ export function showTextProperties(tb) {
   const isAbsolute  = tb.style.position === 'absolute';
   const currentX    = parseInt(tb.style.left  || tb.dataset.offsetX || '0');
   const currentY    = parseInt(tb.style.top   || tb.dataset.offsetY || '0');
-  const currentW    = parseInt(tb.style.width) || Math.round(tb.offsetWidth);
+  const _tbRow      = tb.closest('.row');
+  const currentW    = parseInt(_tbRow?.dataset.width) || Math.round(_tbRow?.offsetWidth || tb.offsetWidth);
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -57,7 +58,7 @@ export function showTextProperties(tb) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">${isOverlayTb ? 'Overlay Text' : 'Text Block'}</span>
+          <span class="prop-block-name">${tb.dataset.layerName || (isOverlayTb ? 'Overlay Text' : 'Text Block')}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(tb)}</span>
         </div>
         ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${tb.id}')">${tb.id}</span>` : ''}
@@ -592,7 +593,14 @@ export function showTextProperties(tb) {
     const wNumber = document.getElementById('txt-width-number');
     if (wSlider) {
       const applyW = v => {
-        tb.style.width = v + 'px';
+        const row = tb.closest('.row');
+        if (row) {
+          row.style.width     = v + 'px';
+          row.style.maxWidth  = '100%';
+          row.style.margin    = '0 auto';
+          row.style.alignSelf = 'center';
+          row.dataset.width   = v;
+        }
         wSlider.value = v; wNumber.value = v;
         window.scheduleAutoSave?.();
       };
