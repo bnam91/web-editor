@@ -967,3 +967,19 @@
   display: block;
 }
 
+
+/* ── Shape Block ── */
+.shape-block {
+  position: absolute;
+  width: 200px;
+  user-select: none;
+  cursor: default;
+}
+.shape-block.selected {
+  outline: 1.5px solid var(--sel-color);
+  z-index: 2;
+}
+.shape-block .shape-svg {
+  display: block;
+  width: 100%;
+}
