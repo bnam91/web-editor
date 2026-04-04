@@ -12,7 +12,7 @@ export function showGapProperties(gb) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Gap Block</span>
+          <span class="prop-block-name">${gb.dataset.layerName || 'Gap Block'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(gb)}</span>
         </div>
         ${gb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${gb.id}')">${gb.id}</span>` : ''}

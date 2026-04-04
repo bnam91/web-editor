@@ -1094,19 +1094,12 @@ function addSection(opts = {}) {
       <div class="section-toolbar">
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
       </div>
-      <div class="section-inner">
+      <div class="section-inner" style="min-height:580px">
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
         <div class="row" id="${genId('row')}" data-layout="stack">
           <div class="col" data-width="100">
             <div class="text-block" data-type="heading" id="${genId('tb')}">
               <div class="tb-h2" contenteditable="false">새 섹션 제목</div>
-            </div>
-          </div>
-        </div>
-        <div class="row" id="${genId('row')}" data-layout="stack">
-          <div class="col" data-width="100">
-            <div class="asset-block" id="${genId('ab')}" data-align="center" data-overlay="false">
-              <div class="asset-overlay"></div>
             </div>
           </div>
         </div>
@@ -1303,9 +1296,9 @@ function makeSubSectionBlock(opts = {}) {
   } else {
     // 기존 고정 크기 + absolute 자식 모드
     ss.dataset.bg = '#f5f5f5';
-    ss.dataset.width = '780';
+    ss.dataset.width = '860';
     ss.dataset.padY = '24';
-    ss.style.cssText = `background:#f5f5f5;padding:24px 0;width:780px;max-width:100%;margin:0 auto;min-height:520px;`;
+    ss.style.cssText = `background:#f5f5f5;padding:24px 0;width:860px;max-width:100%;margin:0 auto;min-height:520px;`;
     const inner = document.createElement('div');
     inner.className = 'sub-section-inner';
     inner.style.position = 'relative';
@@ -1420,43 +1413,44 @@ function makeShapeBlock(type = 'rectangle') {
 }
 
 function addShapeBlock(type = 'rectangle') {
-  // 활성 서브섹션이 있으면 그 안에 absolute로 삽입
-  if (window._activeSubSection) {
-    const ss = window._activeSubSection;
-    const inner = ss.querySelector('.sub-section-inner');
-    if (inner) {
-      const { block } = makeShapeBlock(type);
-      block.style.position = 'absolute';
-      block.style.left = '20px';
-      block.style.top  = '20px';
-      inner.appendChild(block);
-      bindBlock(block);
-      window.buildLayerPanel();
-      return;
-    }
-  }
-  // 서브섹션 없으면 새 서브섹션 만들어서 그 안에 넣기
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
-  const def = SHAPE_DEFS[type] || SHAPE_DEFS.rectangle;
-  const ssH = def.h + 40;
+
+  const { block } = makeShapeBlock(type);
+  // 100×100 고정 크기
+  block.style.width  = '100px';
+  block.style.height = '100px';
+  const svg = block.querySelector('svg');
+  if (svg) { svg.style.width = '100px'; svg.style.height = '100px'; }
+
+  // 별도 Frame(sub-section) 생성 — 100×100에 맞는 크기
   const ss = makeSubSectionBlock();
-  ss.dataset.width = '860';
-  ss.style.width = '860px';
-  ss.style.minHeight = `${ssH}px`;
+  ss.dataset.layerName = type;
+  ss.setAttribute('data-layer-name', type);
+  ss.dataset.width = '100';
+  ss.style.width    = '100px';
+  ss.style.maxWidth = '100%';
+  ss.style.margin   = '0 auto';
+  ss.style.alignSelf = 'center';
+  ss.style.minHeight = '100px';
+  // 배경 제거
+  ss.style.backgroundColor = 'transparent';
+  ss.style.background = '';
+  ss.style.padding = '0';
+  ss.dataset.bg = '';
   const inner = ss.querySelector('.sub-section-inner');
-  if (inner) inner.style.height = `${ssH}px`;
-  insertAfterSelected(sec, ss);
-  window.bindSubSectionDropZone?.(ss);
   if (inner) {
-    const { block } = makeShapeBlock(type);
+    inner.style.height = '100px';
     block.style.position = 'absolute';
-    block.style.left = '20px';
-    block.style.top  = '20px';
+    block.style.left = '0';
+    block.style.top  = '0';
     inner.appendChild(block);
     bindBlock(block);
   }
+
+  insertAfterSelected(sec, ss);
+  window.bindSubSectionDropZone?.(ss);
   window.buildLayerPanel();
   window._activeSubSection = ss;
   window.showSubSectionProperties?.(ss);

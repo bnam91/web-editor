@@ -44,6 +44,12 @@ const layerIcons = {
   'icon-text': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="4" rx="0.8"/><line x1="7" y1="4" x2="11" y2="4"/><line x1="7" y1="7" x2="10" y2="7"/></svg>`,
   canvas:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="1" y1="4.5" x2="11" y2="4.5" stroke-dasharray="2 1.5"/><line x1="4.5" y1="4.5" x2="4.5" y2="11" stroke-dasharray="2 1.5"/></svg>`,
   joker:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/><text x="6" y="9" font-size="7" text-anchor="middle" fill="currentColor" stroke="none">♠</text></svg>`,
+  'shape-rectangle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="2.5" width="10" height="7" rx="0.5"/></svg>`,
+  'shape-ellipse':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><ellipse cx="6" cy="6" rx="5" ry="3.5"/></svg>`,
+  'shape-line':      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="11" y2="6"/></svg>`,
+  'shape-arrow':     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="9" y2="6"/><polyline points="7,3 11,6 7,9"/></svg>`,
+  'shape-polygon':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="6,1 11,10 1,10"/></svg>`,
+  'shape-star':      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="currentColor"><polygon points="6,1 7.3,4.3 11,4.3 8.2,6.5 9.2,10 6,7.8 2.8,10 3.8,6.5 1,4.3 4.7,4.3"/></svg>`,
 };
 
 /* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */
@@ -69,10 +75,15 @@ function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerNam
         delete targetEl.dataset[datasetKey];
       }
       // 프로퍼티 패널이 같은 블록을 표시 중이면 이름 동기화
-      const badge = document.getElementById('rp-block-id-badge');
-      if (badge && badge.textContent === (targetEl.id || '')) {
+      if (targetEl.classList.contains('selected')) {
         const propName = document.querySelector('.prop-block-name');
         if (propName) propName.textContent = newName !== fallbackName ? newName : fallbackName;
+      } else {
+        const badge = document.getElementById('rp-block-id-badge');
+        if (badge && targetEl.id && badge.textContent === targetEl.id) {
+          const propName = document.querySelector('.prop-block-name');
+          if (propName) propName.textContent = newName !== fallbackName ? newName : fallbackName;
+        }
       }
       window.pushHistory?.();
     };
@@ -101,9 +112,11 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isIconText   = block.classList.contains('icon-text-block');
   const isCanvas     = block.classList.contains('canvas-block');
   const isJoker      = block.classList.contains('joker-block');
-  const type     = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : isJoker ? 'joker' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas', joker:'Joker' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas', joker:'Joker' };
+  const isShape      = block.classList.contains('shape-block');
+  const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
+  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : isJoker ? 'joker' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Icon Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas', joker:'Joker', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Component', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas', joker:'Joker', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -132,6 +145,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
       window.syncSection(sec);
       window.highlightBlock(block, item);
       if (isCanvas) window.showCanvasProperties?.(block);
+      else if (isShape) window.showShapeProperties?.(block);
       else if (isText || isIconText) window.showTextProperties(block);
       else if (isGap) window.showGapProperties(block);
       else if (isIconCb) window.showIconCircleProperties(block);
@@ -739,46 +753,55 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 }
 
 
-/* 레이어 Sub-Section 아이템 생성 */
+/* 레이어 Frame 아이템 생성 */
 function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
   const wrapper = document.createElement('div');
-  wrapper.className = 'layer-row-group';
+  wrapper.className = 'layer-item';
   wrapper._dragTarget = ssEl;
 
-  const header = document.createElement('div');
-  header.className = 'layer-row-header';
-  const name = ssEl.dataset.layerName || 'Sub-Section';
-  header.innerHTML = `<svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg><svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg><span class="layer-item-name">${name}</span><span class="layer-item-type">Sub</span>`;
-  header.prepend(makeIndents(1));
-  addLayerRename(header.querySelector('.layer-item-name'), ssEl, 'Sub-Section', 'layerName');
+  const name = ssEl.dataset.layerName || 'Frame';
 
-  header.addEventListener('click', e => {
-    if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+  // 내부에 shape-block이 하나만 있으면 해당 shape의 아이콘/타입으로 표시
+  const innerShapeBlock = ssEl.querySelector('.shape-block');
+  const shapeType = innerShapeBlock ? (innerShapeBlock.dataset.shapeType || 'rectangle') : null;
+  const shapeKey  = shapeType ? `shape-${shapeType}` : null;
+  const shapeTypeLbls = { 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+
+  const iconHtml  = shapeKey && layerIcons[shapeKey]
+    ? layerIcons[shapeKey]
+    : `<svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`;
+  const typeLabel = shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame';
+
+  wrapper.innerHTML = `${iconHtml}<span class="layer-item-name">${name}</span><span class="layer-item-type">${typeLabel}</span>`;
+  wrapper.prepend(makeIndents(1));
+  addLayerRename(wrapper.querySelector('.layer-item-name'), ssEl, 'Frame', 'layerName');
+
+  wrapper.setAttribute('draggable', 'true');
+  wrapper.addEventListener('click', e => {
+    if (e.target.classList.contains('editing')) return;
     window.deselectAll?.();
     const parentSec = ssEl.closest('.section-block');
     if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
     ssEl.classList.add('selected');
     window._activeSubSection = ssEl;
-    document.querySelectorAll('.layer-row-group').forEach(g => g.classList.remove('active'));
+    document.querySelectorAll('.layer-item.active').forEach(g => g.classList.remove('active'));
     wrapper.classList.add('active');
-    window.highlightBlock?.(ssEl, header);
+    window.highlightBlock?.(ssEl, wrapper);
     window.showSubSectionProperties?.(ssEl);
   });
-  ssEl._layerItem = header;
-
-  header.setAttribute('draggable', 'true');
-  header.addEventListener('dragstart', e => {
+  wrapper.addEventListener('dragstart', e => {
     e.stopPropagation();
     window.layerDragSrc = wrapper;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
     requestAnimationFrame(() => wrapper.classList.add('layer-dragging'));
   });
-  header.addEventListener('dragend', () => {
+  wrapper.addEventListener('dragend', () => {
     wrapper.classList.remove('layer-dragging');
     window.clearLayerIndicators?.();
     window.layerDragSrc = null;
   });
+  ssEl._layerItem = wrapper;
 
   const ssChildren = document.createElement('div');
   ssChildren.className = 'layer-row-children';
@@ -788,15 +811,13 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
     [...ssInner.children].forEach(child => {
       if (child.classList.contains('row')) appendRowFn(child, ssChildren, 2);
       else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
-                 'table-block','card-block','graph-block','divider-block','label-group-block']
+                 'table-block','card-block','graph-block','divider-block','label-group-block','shape-block']
                 .some(c => child.classList.contains(c))) {
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));
       }
     });
   }
 
-  wrapper.appendChild(header);
-  wrapper.appendChild(ssChildren);
   return wrapper;
 }
 
