@@ -1109,6 +1109,9 @@ function bindSubSectionDropZone(ss) {
   if (ss._subSecBound) return;
   ss._subSecBound = true;
 
+  // shape frame은 drop 수신 불가 — shape-block 전용 컨테이너
+  const isShapeFrame = !!ss.querySelector('.shape-block');
+
   const inner = ss.querySelector('.sub-section-inner');
   let _rafId = null;
 
@@ -1133,9 +1136,10 @@ function bindSubSectionDropZone(ss) {
     window.showSubSectionProperties?.(ss);
   });
 
-  // 드래그오버 — 내부 블록 재배치
+  // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
   inner.addEventListener('dragover', e => {
     if (!dragSrc) return;
+    if (isShapeFrame) return; // shape frame은 외부 블록 수신 차단
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
@@ -1168,6 +1172,7 @@ function bindSubSectionDropZone(ss) {
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     ss.classList.remove('ss-drag-over');
     if (!dragSrc) return;
+    if (isShapeFrame) return; // shape frame drop 차단
     window.pushHistory();
 
     const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block';
