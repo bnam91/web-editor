@@ -23,15 +23,17 @@ function clearLayerSectionIndicators() {
   document.querySelectorAll('.layer-section-drop-indicator').forEach(d => d.remove());
 }
 
-function makeLabelItem(text = 'Label', bg = '#e8e8e8', color = '#333333', radius = 40) {
+function makeLabelItem(text = 'Label', bg = '#e8e8e8', color = '#333333', radius = 40, shape = 'pill') {
   const item = document.createElement('div');
-  item.className = 'label-item';
+  const isCircle = shape === 'circle';
+  item.className = 'label-item' + (isCircle ? ' label-circle' : '');
   item.dataset.bg     = bg;
   item.dataset.color  = color;
-  item.dataset.radius = radius;
+  item.dataset.radius = isCircle ? '50%' : radius;
+  item.dataset.shape  = shape;
   item.style.backgroundColor = bg;
   item.style.color            = color;
-  item.style.borderRadius     = radius + 'px';
+  item.style.borderRadius     = isCircle ? '50%' : radius + 'px';
 
   const span = document.createElement('span');
   span.className = 'label-item-text';
@@ -59,8 +61,9 @@ function insertBeforeBottomGap(section, el) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입
+  // 단, 서브섹션 자체가 selected 상태면 서브섹션 row 뒤에 삽입 (레이어 패널 선택 케이스)
   const activeSS = window._activeSubSection;
-  if (activeSS && activeSS.closest('.section-block') === section) {
+  if (activeSS && activeSS.closest('.section-block') === section && !activeSS.classList.contains('selected')) {
     const ssInner = activeSS.querySelector('.sub-section-inner');
     const sel = ssInner.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
@@ -77,6 +80,14 @@ function insertAfterSelected(section, el) {
   }
 
   const inner = section.querySelector('.section-inner');
+
+  // 서브섹션 자체가 selected인 경우 → 서브섹션 row 뒤에 삽입
+  const selSS = document.querySelector('.sub-section-block.selected');
+  if (selSS && selSS.closest('.section-block') === section) {
+    const ssRow = selSS.closest('.row') || selSS;
+    ssRow.after(el);
+    return;
+  }
 
   // row-active 우선: 그리드/flex row가 선택된 경우 그 row 뒤에 삽입
   const activeRow = document.querySelector('.row.row-active');

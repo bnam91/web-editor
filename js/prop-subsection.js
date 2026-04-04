@@ -328,8 +328,9 @@ export function showSubSectionProperties(ss) {
       });
     }
     ss.dataset.width = v;
-    ss.style.width  = newW + 'px';
-    ss.style.margin = '0 auto';
+    ss.style.width    = newW + 'px';
+    ss.style.maxWidth = '100%';
+    ss.style.margin   = '0 auto';
     window.scheduleAutoSave?.();
   };
   widthSlider.addEventListener('input', () => { widthNum.value = widthSlider.value; applyWidth(widthSlider.value); });

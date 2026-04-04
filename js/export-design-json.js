@@ -125,16 +125,18 @@ function exportDesignJSON() {
       const items = [];
       el.querySelectorAll('.label-item').forEach(item => {
         const span = item.querySelector('.label-item-text');
+        const r = item.dataset.radius;
         items.push({
           text:   span?.textContent.trim() || 'Label',
           bg:     item.dataset.bg    || '#e8e8e8',
           color:  item.dataset.color || '#333333',
-          radius: parseInt(item.dataset.radius) || 40,
+          radius: r === '50%' ? '50%' : (parseInt(r) || 40),
         });
       });
       return {
         id:    uid('lg'),
         type:  'label-group',
+        shape: el.dataset.shape || 'pill',
         items,
         style: { gap: parseInt(el.style.gap) || 10 },
       };

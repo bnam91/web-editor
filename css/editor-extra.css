@@ -705,6 +705,20 @@ body.preview-mode #preview-navigator { display: flex; }
   padding: 6px 10px;
   flex-shrink: 0;
 }
+.tpl-browser-search-mode {
+  flex-shrink: 0;
+  width: 52px;
+  height: 22px;
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border);
+  border-radius: 3px;
+  color: #aaa;
+  font-size: 10px;
+  padding: 0 3px;
+  cursor: pointer;
+  outline: none;
+}
+.tpl-browser-search-mode:focus { border-color: var(--ui-accent-primary); }
 .tpl-browser-search {
   flex: 1;
   background: none;
@@ -1581,7 +1595,7 @@ body.preview-mode #preview-navigator { display: flex; }
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px var(--page-padx, 32px);
+  padding: 12px 0;
   cursor: pointer;
   outline: 2px solid transparent;
   
