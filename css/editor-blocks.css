@@ -328,7 +328,7 @@
 .row:active { cursor: grabbing; }
 .row [contenteditable="true"] { cursor: text; }
 .row [contenteditable="true"]:active { cursor: text; }
-.row.dragging, .gap-block.dragging { opacity: 0.25; pointer-events: none; cursor: grabbing; }
+.row.dragging, .gap-block.dragging, .sub-section-block.dragging { opacity: 0.25; pointer-events: none; cursor: grabbing; }
 
 /* 캔버스 드롭 인디케이터 — 줌 보정을 위해 두껍게 */
 .drop-indicator {
