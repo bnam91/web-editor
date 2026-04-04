@@ -220,6 +220,48 @@ function bindBlock(block) {
   const isDivider     = block.classList.contains('divider-block');
   const isCanvas      = block.classList.contains('canvas-block');
   const isJoker      = block.classList.contains('joker-block');
+  const isShape      = block.classList.contains('shape-block');
+
+  if (isShape) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      window.deselectAll?.();
+      block.classList.add('selected');
+      window.syncSection?.(block.closest('.section-block'));
+      window.highlightBlock?.(block, block._layerItem);
+      window.showShapeProperties?.(block);
+    });
+
+    // 서브섹션 내 absolute 쉐이프: mousedown 드래그로 left/top 조절
+    block.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      if (block.style.position !== 'absolute') return;
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startLeft = parseInt(block.style.left || '0');
+      const startTop  = parseInt(block.style.top  || '0');
+      let moved = false;
+
+      function onMove(ev) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        moved = true;
+        const scaler = document.getElementById('canvas-scaler');
+        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        block.style.left = `${Math.round(startLeft + dx / scale)}px`;
+        block.style.top  = `${Math.round(startTop  + dy / scale)}px`;
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (moved) window.pushHistory?.();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
 
   if (isJoker) {
     block.addEventListener('click', e => {
@@ -1036,7 +1078,7 @@ function bindSubSectionDropZone(ss) {
   ss.addEventListener('click', e => {
     // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
     // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block')) return;
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block')) return;
     // ss 또는 sub-section-inner 빈 공간 클릭만 처리
     if (!e.target.closest('.sub-section-block')) return;
     e.stopPropagation();
@@ -1090,7 +1132,7 @@ function bindSubSectionDropZone(ss) {
     if (!dragSrc) return;
     window.pushHistory();
 
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block';
     const SS_W = 860; // 캔버스 기준 너비
 
     // 블록을 absolute로 전환하는 헬퍼
@@ -1145,7 +1187,7 @@ function bindSubSectionDropZone(ss) {
 
   // 내부 블록 pointerdown 시 서브섹션 drag 일시 비활성 — 블록 선택/이동과 충돌 방지
   ss.addEventListener('pointerdown', e => {
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block');
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block');
     if (!isInnerBlock) return;
     ss.setAttribute('draggable', 'false');
     document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });

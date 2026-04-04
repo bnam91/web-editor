@@ -925,11 +925,9 @@
 /* ── 텍스트 블록 placeholder 스타일 (PPT 스타일) ── */
 [data-is-placeholder="true"] {
   opacity: 0.45;
-  font-style: italic;
 }
 [data-is-placeholder="true"][contenteditable="true"] {
   opacity: 1;
-  font-style: inherit;
 }
 
 /* ── 블록 선택 glow ── */

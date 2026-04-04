@@ -696,7 +696,7 @@ function bindSectionHitzone(sec) {
     const layerEl = sec._layerSectionEl
       || document.querySelector(`.layer-section[data-sec-id="${sec.id}"]`);
     if (layerEl) {
-      layerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      layerEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
       layerEl.querySelector('.layer-section-header')?.classList.add('active');
     }
   });
