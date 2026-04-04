@@ -579,17 +579,11 @@
       <button class="fp-menu-item" onclick="addRowBlock(3,2);toggleFpDropdown('fp-row-dropdown')">3 × 2</button>
     </div>
   </div>
-  <button class="fp-btn" onclick="addSubSectionBlock()" title="Sub-Section 추가 (섹션 안의 하위 섹션)">
-    <svg width="16" height="16" viewBox="1.5 1.5 13 13" fill="none">
-      <path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
-    </svg>
-  </button>
-  <button class="fp-btn" onclick="addCanvasBlock()" title="Canvas 자유배치 블록 추가">
-    <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
-      <rect x="1" y="1" width="9" height="9" rx="1.5"/>
-      <line x1="3.5" y1="4" x2="3.5" y2="8" stroke-dasharray="1.5 1.2"/>
-      <line x1="7.5" y1="3" x2="7.5" y2="7" stroke-dasharray="1.5 1.2"/>
-      <line x1="2" y1="6" x2="5" y2="6" stroke-dasharray="1.5 1.2"/>
+  <button class="fp-btn" onclick="addFrameBlock()" title="Frame 추가 (Auto/Free 모드 전환 가능)">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+      <line x1="2" y1="5.5" x2="14" y2="5.5" stroke="currentColor" stroke-width="1.1"/>
+      <line x1="5.5" y1="5.5" x2="5.5" y2="14" stroke="currentColor" stroke-width="1.1"/>
     </svg>
   </button>
   <div class="fp-divider"></div>
@@ -777,8 +771,7 @@
 <script type="module" src="js/commit-system.js"></script>
 <script type="module" src="js/scratch-pad.js"></script>
 <script type="module" src="js/canvas-block.js"></script>
-<script type="module" src="js/prop-canvas.js"></script>
-<script type="module" src="js/prop-subsection.js"></script>
+<script type="module" src="js/prop-frame.js"></script>
 <script type="module" src="js/tab-system.js"></script>
 <script type="module" src="js/save-load.js"></script>
 <script type="module" src="js/image-handling.js"></script>
