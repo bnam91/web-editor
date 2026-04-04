@@ -406,10 +406,30 @@ function rebindAll() {
   });
 
   // 저장 시 제거된 contenteditable 속성 복원 (텍스트 블록 내부 편집 가능 요소)
+  // + placeholder 여부 판단 (data-is-placeholder가 없으면 내용과 비교해서 설정)
+  const _phTextMap = {
+    'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요',
+    'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요', 'tb-label':'Label'
+  };
   canvasEl.querySelectorAll('.text-block').forEach(tb => {
     const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
-    if (inner && !inner.hasAttribute('contenteditable')) {
+    if (!inner) return;
+    if (!inner.hasAttribute('contenteditable')) {
       inner.setAttribute('contenteditable', 'false');
+    }
+    // placeholder 속성 보정: data-placeholder 없으면 클래스로 추정
+    if (!inner.dataset.placeholder) {
+      const cls = [...inner.classList].find(c => _phTextMap[c]);
+      if (cls) inner.dataset.placeholder = _phTextMap[cls];
+    }
+    // data-is-placeholder 보정: 저장된 내용이 placeholder 텍스트와 같거나 비어있으면 placeholder 상태로 표시
+    if (inner.dataset.isPlaceholder !== 'true') {
+      const ph = inner.dataset.placeholder;
+      const txt = inner.textContent.trim();
+      if (ph && (txt === '' || txt === ph.trim())) {
+        if (txt === '') inner.innerHTML = ph; // 비어있으면 placeholder 텍스트 복원
+        inner.dataset.isPlaceholder = 'true';
+      }
     }
   });
 

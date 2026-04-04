@@ -606,3 +606,4 @@ window.addJokerBlock({
 | 2026-04-03 | v1.2 | 패딩 아키텍처 변경 반영 — `applyPagePadX` 신규 API, 페이지/섹션/블록 3단계 우선순위, `padXIncludesAsset` 플래그 추가 |
 | 2026-04-03 | v1.3 | Sub-Section 블록 API, 조커 블록 API 추가 (Figma 임포트 파이프라인 대응) |
 | 2026-04-04 | v1.4 | `addSection paddingY` 옵션 추가. `addTextBlock content` `\n` 줄바꿈 지원(pre-wrap). `addLabelGroupBlock shape: 'circle'` 추가. Sub-Section `fullWidth` 모드 신규 (이중 배경 섹션용). `activateSubSection` / `deactivateSubSection` 공개 API 추가. 다크모드 텍스트 커서 색상 수정 (`caret-color: var(--ui-text-dim)`) |
+| 2026-04-04 | v1.5 | **버그 수정**: (1) Frame(sub-section) 내부에 블록 DnD 삽입 가능 — `bindSubSectionDropZone` 정상화. (2) 플로팅 패널에서 Frame 선택 상태에서도 내부 삽입 동작 — `insertAfterSelected` `selected` 조건 제거. (3) Shape 블록(`position:absolute`) HTML5 drag 허용 — `sub-section-inner` 내부는 dragstart 차단 해제. (4) 텍스트 블록 PPT 스타일 플레이스홀더 — `data-is-placeholder="true"` 속성, 더블클릭 시 전체선택, blur 시 복원. (5) 전 블록 아웃라인 통일 — `1px solid, outline-offset: -1px`, 이중 outline(box-shadow) 제거 |

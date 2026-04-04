@@ -361,20 +361,43 @@ function bindBlock(block) {
       const clicked = [...editEls].find(el => el.contains(document.elementFromPoint(e.clientX, e.clientY))) || editEls[0];
       if (clicked) {
         clicked.focus();
-        // 클릭 위치에 정확히 커서 지정
-        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-        if (range) {
+        // placeholder 상태면 전체 선택 (즉시 타이핑으로 교체 가능)
+        if (clicked.dataset.isPlaceholder === 'true') {
+          const range = document.createRange();
+          range.selectNodeContents(clicked);
           const sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(range);
+        } else {
+          // 클릭 위치에 정확히 커서 지정
+          const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+          if (range) {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
         }
         // 편집 이벤트 바인딩 (최초 1회)
         if (!clicked._editBound) {
           clicked._editBound = true;
+          // input → 타이핑 즉시 placeholder 해제
+          clicked.addEventListener('input', () => {
+            if (clicked.dataset.isPlaceholder === 'true' && clicked.textContent.trim() !== '') {
+              delete clicked.dataset.isPlaceholder;
+            }
+          });
           // blur → 편집 종료 (외부 클릭, 포커스 이탈 시)
           clicked.addEventListener('blur', () => {
             block.classList.remove('editing');
             clicked.setAttribute('contenteditable', 'false');
+            // 빈 텍스트면 placeholder 복원
+            const ph = clicked.dataset.placeholder;
+            if (ph && clicked.textContent.trim() === '') {
+              clicked.innerHTML = ph;
+              clicked.dataset.isPlaceholder = 'true';
+            } else if (clicked.textContent.trim() !== '') {
+              delete clicked.dataset.isPlaceholder;
+            }
           });
           // Escape → 편집 종료, 블록 선택 상태 유지
           clicked.addEventListener('keydown', ev => {
@@ -870,7 +893,7 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
-      if (block.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용
+      if (block.style.position === 'absolute' && !block.closest('.sub-section-inner')) { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용 (sub-section-inner 내부는 HTML5 drag 허용)
       if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
       _suppressDragSave();

@@ -287,6 +287,8 @@ function _bindTextBlockItem(item) {
   let tbEl = item.querySelector('.text-block');
   if (!tbEl) {
     const tbType = item.dataset.tbtype || 'body';
+    const phMap = { h1:'제목을 입력하세요', h2:'제목을 입력하세요', h3:'소항목을 입력하세요', body:'텍스트를 입력하세요', caption:'캡션을 입력하세요', label:'Label' };
+    const phText = phMap[tbType] || '텍스트를 입력하세요';
     tbEl = document.createElement('div');
     tbEl.className = 'text-block';
     tbEl.dataset.type = tbType === 'h2' ? 'heading' : tbType;
@@ -294,7 +296,14 @@ function _bindTextBlockItem(item) {
     inner.className = `tb-${tbType}`;
     inner.draggable = false;
     inner.setAttribute('contenteditable', 'false');
-    inner.innerHTML = item.dataset.content || (tbType === 'h2' ? '제목을 입력하세요' : '텍스트를 입력하세요');
+    const savedContent = item.dataset.content;
+    if (savedContent && savedContent.trim() !== '' && savedContent !== phText) {
+      inner.innerHTML = savedContent;
+    } else {
+      inner.innerHTML = phText;
+      inner.dataset.placeholder = phText;
+      inner.dataset.isPlaceholder = 'true';
+    }
     tbEl.appendChild(inner);
     item.appendChild(tbEl);
   }
@@ -302,20 +311,48 @@ function _bindTextBlockItem(item) {
     item._tbBound = true;
     const inner = tbEl.querySelector('[class^="tb-"]');
     if (!inner) return;
+    // 기존 inner에 placeholder 속성이 없으면 설정 (로드된 데이터 처리)
+    if (!inner.dataset.placeholder) {
+      const tbType = item.dataset.tbtype || 'body';
+      const phMap = { h1:'제목을 입력하세요', h2:'제목을 입력하세요', h3:'소항목을 입력하세요', body:'텍스트를 입력하세요', caption:'캡션을 입력하세요', label:'Label' };
+      inner.dataset.placeholder = phMap[tbType] || '텍스트를 입력하세요';
+    }
     item.addEventListener('dblclick', e => {
       e.stopPropagation();
       inner.contentEditable = 'true';
       inner.style.cursor = 'text';
       inner.focus();
-      const range = document.createRange();
-      range.selectNodeContents(inner);
-      const sel = window.getSelection();
-      sel?.removeAllRanges(); sel?.addRange(range);
+      // placeholder 상태면 전체 선택 (즉시 타이핑으로 교체 가능)
+      if (inner.dataset.isPlaceholder === 'true') {
+        const range = document.createRange();
+        range.selectNodeContents(inner);
+        const sel = window.getSelection();
+        sel?.removeAllRanges(); sel?.addRange(range);
+      } else {
+        const range = document.createRange();
+        range.selectNodeContents(inner);
+        const sel = window.getSelection();
+        sel?.removeAllRanges(); sel?.addRange(range);
+      }
+    });
+    inner.addEventListener('input', () => {
+      if (inner.dataset.isPlaceholder === 'true' && inner.textContent.trim() !== '') {
+        delete inner.dataset.isPlaceholder;
+      }
     });
     inner.addEventListener('blur', () => {
       inner.contentEditable = 'false';
       inner.style.cursor = '';
-      item.dataset.content = inner.innerHTML;
+      // 빈 텍스트면 placeholder 복원
+      const ph = inner.dataset.placeholder;
+      if (ph && inner.textContent.trim() === '') {
+        inner.innerHTML = ph;
+        inner.dataset.isPlaceholder = 'true';
+        item.dataset.content = '';
+      } else {
+        delete inner.dataset.isPlaceholder;
+        item.dataset.content = inner.innerHTML;
+      }
       window.pushHistory?.();
     });
     inner.addEventListener('keydown', e => {

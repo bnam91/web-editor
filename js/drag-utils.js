@@ -60,10 +60,9 @@ function insertBeforeBottomGap(section, el) {
 
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
-  // 활성 서브섹션이 있으면 그 안에 삽입
-  // 단, 서브섹션 자체가 selected 상태면 서브섹션 row 뒤에 삽입 (레이어 패널 선택 케이스)
+  // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
   const activeSS = window._activeSubSection;
-  if (activeSS && activeSS.closest('.section-block') === section && !activeSS.classList.contains('selected')) {
+  if (activeSS && activeSS.closest('.section-block') === section) {
     const ssInner = activeSS.querySelector('.sub-section-inner');
     const sel = ssInner.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +

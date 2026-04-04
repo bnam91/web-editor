@@ -140,8 +140,8 @@
 }
 .section-block:has(.section-hitzone:hover)::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .section-block.selected {
-  outline: 1.5px solid var(--sel-color);
-  outline-offset: 0;
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
   box-shadow: 0 0 0 4px rgba(45, 111, 232, 0.12);
 }
 

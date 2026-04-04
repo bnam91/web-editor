@@ -105,8 +105,9 @@ function makeTextBlock(type) {
   const tb = document.createElement('div');
   tb.className = 'text-block'; tb.dataset.type = dataType;
   tb.id = genId('tb');
+  const phText = placeholder[type];
   tb.innerHTML = `
-    <div class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif">${placeholder[type]}</div>`;
+    <div class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>`;
 
   col.appendChild(tb);
   row.appendChild(col);
