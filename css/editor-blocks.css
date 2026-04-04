@@ -996,3 +996,26 @@
   display: block;
   width: 100%;
 }
+
+/* shape 선택 시 부모 overflow 해제 — 핸들이 잘리지 않도록 */
+.sub-section-block:has(.shape-block.selected) {
+  overflow: visible;
+}
+
+/* shape 리사이즈 핸들 */
+.shape-handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border: 1.5px solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 10;
+  display: none;
+  box-sizing: border-box;
+}
+.shape-block.selected .shape-handle { display: block; }
+.shape-handle.nw { top: -4px;    left: -4px;   cursor: nwse-resize; }
+.shape-handle.ne { top: -4px;    right: -4px;  cursor: nesw-resize; }
+.shape-handle.sw { bottom: -4px; left: -4px;   cursor: nesw-resize; }
+.shape-handle.se { bottom: -4px; right: -4px;  cursor: nwse-resize; }

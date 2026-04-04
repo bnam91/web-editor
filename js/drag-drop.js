@@ -236,6 +236,7 @@ function bindBlock(block) {
     block.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       if (block.style.position !== 'absolute') return;
+      if (e.target.classList.contains('shape-handle')) return; // 핸들 mousedown은 핸들이 처리
       e.stopPropagation();
       const startX = e.clientX;
       const startY = e.clientY;
@@ -260,6 +261,74 @@ function bindBlock(block) {
       }
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
+    });
+
+    // 4코너 리사이즈 핸들 생성 (중복 방지)
+    if (!block.querySelector('.shape-handle')) {
+      ['nw', 'ne', 'sw', 'se'].forEach(dir => {
+        const h = document.createElement('div');
+        h.className = `shape-handle ${dir}`;
+        h.dataset.dir = dir;
+        block.appendChild(h);
+      });
+    }
+
+    // 핸들 mousedown → 리사이즈
+    block.querySelectorAll('.shape-handle').forEach(handle => {
+      handle.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const dir    = handle.dataset.dir;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startW    = parseInt(block.style.width)  || 100;
+        const startH    = parseInt(block.style.height) || 100;
+        const startLeft = parseInt(block.style.left)   || 0;
+        const startTop  = parseInt(block.style.top)    || 0;
+        const ss = block.closest('.sub-section-block');
+        const svg = block.querySelector('svg');
+
+        function onMove(ev) {
+          const scaler = document.getElementById('canvas-scaler');
+          const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+          const dx = (ev.clientX - startX) / scale;
+          const dy = (ev.clientY - startY) / scale;
+
+          let newW = startW, newH = startH, newLeft = startLeft, newTop = startTop;
+          if (dir.includes('e')) newW = Math.max(20, startW + dx);
+          if (dir.includes('s')) newH = Math.max(20, startH + dy);
+          if (dir.includes('w')) { newW = Math.max(20, startW - dx); newLeft = startLeft + (startW - newW); }
+          if (dir.includes('n')) { newH = Math.max(20, startH - dy); newTop  = startTop  + (startH - newH); }
+          newW = Math.round(newW); newH = Math.round(newH);
+          newLeft = Math.round(newLeft); newTop = Math.round(newTop);
+
+          block.style.width  = `${newW}px`;
+          block.style.height = `${newH}px`;
+          block.style.left   = `${newLeft}px`;
+          block.style.top    = `${newTop}px`;
+          if (svg) { svg.style.width = `${newW}px`; svg.style.height = `${newH}px`; }
+          if (ss) {
+            ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+            ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+          }
+          // 우측 패널 슬라이더 동기화
+          const wNum = document.getElementById('shape-w-num');
+          const wSl  = document.getElementById('shape-w-slider');
+          const hNum = document.getElementById('shape-h-num');
+          const hSl  = document.getElementById('shape-h-slider');
+          if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
+          if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
+          window.scheduleAutoSave?.();
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          window.pushHistory?.();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
     });
 
     return; // HTML5 drag 셋업 건너뜀 — joker와 동일, mousemove drag만 사용
