@@ -1449,7 +1449,12 @@ function addShapeBlock(type = 'rectangle') {
     bindBlock(block);
   }
 
+  // shape frame은 항상 section-inner 레벨에 삽입 (다른 ss 안에 중첩 금지)
+  const _prevActiveSS = window._activeSubSection;
+  window._activeSubSection = null;
   insertAfterSelected(sec, ss);
+  window._activeSubSection = _prevActiveSS;
+
   window.bindSubSectionDropZone?.(ss);
   window.buildLayerPanel();
   window._activeSubSection = ss;
