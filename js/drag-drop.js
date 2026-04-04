@@ -251,10 +251,9 @@ function bindBlock(block) {
         const dir    = handle.dataset.dir;
         const startX = e.clientX;
         const startY = e.clientY;
-        const startW = parseInt(block.style.width)  || 100;
-        const startH = parseInt(block.style.height) || 100;
         const ss  = block.closest('.sub-section-block');
-        const svg = block.querySelector('svg');
+        const startW = parseInt(ss?.style.width  || ss?.dataset.width)  || 100;
+        const startH = parseInt(ss?.style.height || ss?.dataset.height) || 100;
 
         function onMove(ev) {
           const scaler = document.getElementById('canvas-scaler');
@@ -269,6 +268,15 @@ function bindBlock(block) {
           if (dir.includes('s')) newH = Math.max(20, startH + dy);
           if (dir.includes('n')) newH = Math.max(20, startH - dy);
           newW = Math.round(newW); newH = Math.round(newH);
+
+          // Shift: 비율 고정 (더 많이 변한 축이 기준)
+          if (ev.shiftKey && startW > 0 && startH > 0) {
+            const ratio = startW / startH;
+            const dW = Math.abs(newW - startW);
+            const dH = Math.abs(newH - startH);
+            if (dW >= dH) newH = Math.max(20, Math.round(newW / ratio));
+            else          newW = Math.max(20, Math.round(newH * ratio));
+          }
 
           if (ss) {
             ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
