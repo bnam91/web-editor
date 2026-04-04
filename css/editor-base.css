@@ -1,9 +1,9 @@
 @import './design-tokens.css';
 
 :root {
-  --sel-color:            #2d6fe8;
-  --sel-color-hover:      rgba(45,111,232,0.4);
-  --sel-color-fill:       rgba(45,111,232,0.08);
+  --sel-color:            var(--color-selection);
+  --sel-color-hover:      var(--color-selection-hover);
+  --sel-color-fill:       var(--color-selection-fill);
   --preset-h1-color:      #111111;
   --preset-h1-family:     'Noto Sans KR', sans-serif;
   --preset-h2-color:      #1a1a1a;
