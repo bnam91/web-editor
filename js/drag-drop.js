@@ -261,6 +261,8 @@ function bindBlock(block) {
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     });
+
+    return; // HTML5 drag 셋업 건너뜀 — joker와 동일, mousemove drag만 사용
   }
 
   if (isJoker) {
@@ -1201,6 +1203,12 @@ function bindSubSectionDropZone(ss) {
     dragSrc = ss;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
+    // 기본 drag ghost(큰화면)를 숨김 — section-label drag와 동일하게 처리
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => ghost.remove(), 0);
     requestAnimationFrame(() => ss.classList.add('dragging'));
   });
   ss.addEventListener('dragend', () => {
