@@ -170,6 +170,16 @@ function collectLeavesInContainer(node, containerBox) {
         children = detail?.children || [];
       } catch (e) {}
     }
+    // 자식 없고 접근 불가 → 비주얼 노드이면 vector leaf로 처리
+    if (children.length === 0 && ['INSTANCE', 'COMPONENT', 'VECTOR', 'ELLIPSE'].includes(n.type)) {
+      results.push({
+        kind: 'vector', node: n,
+        relX: bbox.x - containerBox.x,
+        relY: bbox.y - containerBox.y,
+        w: bbox.width, h: bbox.height,
+      });
+      return;
+    }
     children.forEach(c => walk(c, depth + 1));
   }
 
@@ -294,11 +304,25 @@ function buildSubSectionHtml(node) {
         `style="font-family:'Pretendard',sans-serif;font-size:${fontSize}px;${colorStyle}${alignStyle}">${escapeHtml(n.characters || '')}</div>` +
         `</div>`;
     } else if (leaf.kind === 'vector') {
+      // SVG 추출: 직접 → componentId → spec 캐시 순서
       let svgContent = '';
       try {
         const svgResult = figma('get_svg', { nodeId: leaf.node.id });
         svgContent = svgResult?.svgString || svgResult?.svg || (typeof svgResult === 'string' ? svgResult : '');
       } catch (e) {}
+      if (!svgContent && leaf.node.componentId) {
+        try {
+          const svgResult = figma('get_svg', { nodeId: leaf.node.componentId });
+          svgContent = svgResult?.svgString || svgResult?.svg || (typeof svgResult === 'string' ? svgResult : '');
+        } catch (e) {}
+      }
+      if (!svgContent) {
+        // spec 캐시: width로 매칭 (아이콘 크기 기준)
+        const cache = getSpecSvgCache(_currentFrameName);
+        const lw = Math.round(leaf.w);
+        const match = Object.entries(cache).find(([k]) => k.endsWith('_' + lw));
+        if (match) svgContent = match[1];
+      }
       const lw = Math.round(leaf.w);
       const lh = Math.round(leaf.h);
       innerHtml += `<div class="joker-block" id="${genId('sb')}" ` +
@@ -357,11 +381,11 @@ function nodeToColHtml(node) {
 }
 
 // ─── 레이아웃 래퍼 여부 ──────────────────────────────────────
-// 배경 없는 컨테이너 타입 (FRAME/GROUP/SLOT/INSTANCE/COMPONENT 포함) = 레이아웃 묶음 → 전개
-const WRAPPER_TYPES = new Set(['FRAME', 'GROUP', 'COMPONENT_SET', 'SLOT', 'INSTANCE', 'COMPONENT']);
-
+// INSTANCE/COMPONENT는 절대 전개하지 않음 → 카드 등 컴포넌트는 sub-section으로
+// SLOT/FRAME/GROUP 중 배경 없는 것만 전개
 function isLayoutWrapper(node) {
-  if (!WRAPPER_TYPES.has(node.type)) return false;
+  if (node.type === 'INSTANCE' || node.type === 'COMPONENT') return false;
+  if (!['FRAME', 'GROUP', 'COMPONENT_SET', 'SLOT'].includes(node.type)) return false;
   if (getBgColor(node)) return false;  // 배경 있으면 콘텐츠 블록
   return true;
 }
