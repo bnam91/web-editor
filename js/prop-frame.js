@@ -265,10 +265,46 @@ function _renderAutoPanel(ss) {
   // 높이
   const heightSlider = document.getElementById('ss-height-slider');
   const heightNum    = document.getElementById('ss-height-num');
-  const applyHeight  = (v) => { ss.dataset.height = v; ss.style.minHeight = v + 'px'; window.scheduleAutoSave?.(); };
+  const minHeight    = isShapeFrame ? Math.min(height, 20) : 100;
+  heightSlider.min   = minHeight;
+  heightNum.min      = minHeight;
+  const applyHeight  = (v) => {
+    const newH = parseInt(v);
+    if (isShapeFrame) {
+      const oldH = parseInt(ss.dataset.height || ss.style.minHeight || height);
+      const ratio = newH / oldH;
+      const inner = ss.querySelector('.sub-section-inner');
+      if (inner && ratio !== 1) {
+        if (inner.style.height) inner.style.height = Math.round(parseInt(inner.style.height) * ratio) + 'px';
+        inner.querySelectorAll('[style*="position: absolute"], [style*="position:absolute"]').forEach(block => {
+          const curH = parseInt(block.style.height || block.offsetHeight || 0);
+          if (curH) block.style.height = Math.round(curH * ratio) + 'px';
+          const curW = parseInt(block.style.width || block.offsetWidth || 0);
+          if (curW) block.style.width = Math.round(curW * ratio) + 'px';
+          const svg = block.querySelector('svg');
+          if (svg) {
+            const svgH = parseInt(svg.style.height || svg.getAttribute('height') || 0);
+            const svgW = parseInt(svg.style.width  || svg.getAttribute('width')  || 0);
+            if (svgH) svg.style.height = Math.round(svgH * ratio) + 'px';
+            if (svgW) svg.style.width  = Math.round(svgW * ratio) + 'px';
+          }
+        });
+        // 너비도 비례 동기화
+        const curW = parseInt(ss.dataset.width || ss.offsetWidth || width);
+        const newW = Math.round(curW * ratio);
+        ss.style.width = newW + 'px'; ss.dataset.width = newW;
+        const wSlider = document.getElementById('ss-width-slider');
+        const wNum    = document.getElementById('ss-width-num');
+        if (wSlider) wSlider.value = newW;
+        if (wNum)    wNum.value    = newW;
+      }
+    }
+    ss.dataset.height = newH; ss.style.minHeight = newH + 'px';
+    window.scheduleAutoSave?.();
+  };
   heightSlider.addEventListener('input', () => { heightNum.value = heightSlider.value; applyHeight(heightSlider.value); });
   heightSlider.addEventListener('change', () => window.pushHistory?.());
-  heightNum.addEventListener('input', () => { const v = Math.min(1200, Math.max(100, parseInt(heightNum.value) || 520)); heightSlider.value = v; applyHeight(v); });
+  heightNum.addEventListener('input', () => { const v = Math.min(1200, Math.max(minHeight, parseInt(heightNum.value) || height)); heightSlider.value = v; applyHeight(v); });
   heightNum.addEventListener('change', () => window.pushHistory?.());
 
   // 너비
