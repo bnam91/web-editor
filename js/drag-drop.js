@@ -1234,9 +1234,12 @@ function bindSubSectionDropZone(ss) {
   // 서브섹션 자체 드래그 (섹션 내 재배치)
   ss.setAttribute('draggable', 'true');
   ss.addEventListener('dragstart', e => {
-    if (e.target !== ss) return;
+    // shape frame: e.target이 내부 shape-block일 수 있으므로 가드 완화
+    // non-shape frame: 내부 row가 자체 drag하는 경우 ss가 가로채지 않도록 guard 유지
+    if (!isShapeFrame && e.target !== ss) return;
     e.stopPropagation();
-    dragSrc = ss;
+    // ss가 section-inner 직계 자식인 경우 ss 자체가 dragSrc, row 래퍼가 있으면 row
+    dragSrc = ss.closest('.row') || ss;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
     // 기본 drag ghost(큰화면)를 숨김 — section-label drag와 동일하게 처리

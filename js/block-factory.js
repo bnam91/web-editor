@@ -1425,8 +1425,10 @@ function addShapeBlock(type = 'rectangle') {
   const ss = makeSubSectionBlock();
   ss.dataset.layerName = type;
   ss.setAttribute('data-layer-name', type);
-  ss.dataset.width = '100';
+  ss.dataset.width  = '100';
+  ss.dataset.height = '100';
   ss.style.width    = '100px';
+  ss.style.height   = '100px';
   ss.style.maxWidth = '100%';
   ss.style.margin   = '0 auto';
   ss.style.alignSelf = 'center';
