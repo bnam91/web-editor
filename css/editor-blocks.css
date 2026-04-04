@@ -987,6 +987,14 @@
   user-select: none;
   cursor: default;
 }
+.shape-block:hover:not(.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 0;
+}
 .shape-block.selected {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
@@ -995,6 +1003,8 @@
 .shape-block .shape-svg {
   display: block;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 /* shape 선택 시 부모 overflow 해제 — 핸들이 잘리지 않도록 */
