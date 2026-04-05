@@ -206,6 +206,15 @@ function bindSectionDropZone(sec) {
   });
 }
 
+function _getParentFrame(block) {
+  return block.closest('.sub-section-block');
+}
+function _isInsideUnselectedFrame(block) {
+  const ss = _getParentFrame(block);
+  if (!ss) return false;
+  return !(ss.classList.contains('selected') && window._activeSubSection === ss);
+}
+
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
@@ -230,6 +239,17 @@ function bindBlock(block) {
       const layerItem = ss?._layerItem || block._layerItem;
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        const pss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = pss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        pss.classList.add('selected');
+        window._activeSubSection = pss;
+        window.highlightBlock?.(pss, pss._layerItem);
+        window.showSubSectionProperties?.(pss);
+        return;
+      }
       window.deselectAll?.();
       block.classList.add('selected');
       window.syncSection?.(sec);
@@ -380,6 +400,7 @@ function bindBlock(block) {
       if (e.button !== 0) return;
       if (block.style.position !== 'absolute') return;
       if (block.classList.contains('editing')) return;
+      if (_isInsideUnselectedFrame(block)) return;
       e.stopPropagation();
       const startX = e.clientX;
       const startY = e.clientY;
@@ -426,6 +447,18 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(sec);
@@ -502,6 +535,18 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(sec);
@@ -558,6 +603,18 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(sec);
@@ -573,6 +630,18 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(sec);
@@ -616,6 +685,18 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(sec);
@@ -667,6 +748,7 @@ function bindBlock(block) {
       if (e.button !== 0) return;
       if (block.style.position !== 'absolute') return;
       if (block.classList.contains('editing')) return;
+      if (_isInsideUnselectedFrame(block)) return;
       if (e.target.closest('.label-item, .label-group-add-btn')) return;
       e.stopPropagation();
       const startX = e.clientX, startY = e.clientY;
@@ -698,6 +780,17 @@ function bindBlock(block) {
 
     block.addEventListener('click', e => {
       e.stopPropagation();
+      if (_isInsideUnselectedFrame(block)) {
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       // + 버튼: 새 라벨 추가
       if (e.target.classList.contains('label-group-add-btn')) {
         window.pushHistory();
@@ -779,6 +872,18 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       const rowEl = block.closest('.row');
       const isRowActive = rowEl && rowEl.classList.contains('row-active');
       window.deselectAll();
@@ -846,6 +951,18 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(sec);
@@ -864,6 +981,18 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(sec);
@@ -931,6 +1060,18 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        e.stopPropagation();
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showSubSectionProperties?.(ss);
+        return;
+      }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(sec);
@@ -940,9 +1081,27 @@ function bindBlock(block) {
     });
   }
 
-  // hover ↔ layer item
-  block.addEventListener('mouseenter', () => { if (block._layerItem) block._layerItem.style.background = 'var(--ui-bg-card)'; });
-  block.addEventListener('mouseleave', () => { if (block._layerItem && !block._layerItem.classList.contains('active')) block._layerItem.style.background = ''; });
+  // hover ↔ layer item (frame-aware)
+  block.addEventListener('mouseenter', () => {
+    const ss = _getParentFrame(block);
+    if (ss && _isInsideUnselectedFrame(block)) {
+      if (ss._layerItem) ss._layerItem.style.background = 'var(--ui-bg-card)';
+      return;
+    }
+    if (block._layerItem) block._layerItem.style.background = 'var(--ui-bg-card)';
+  });
+  block.addEventListener('mouseleave', e => {
+    const ss = _getParentFrame(block);
+    if (ss && _isInsideUnselectedFrame(block)) {
+      if (!ss.contains(e.relatedTarget)) {
+        if (ss._layerItem && !ss._layerItem.classList.contains('active'))
+          ss._layerItem.style.background = '';
+      }
+      return;
+    }
+    if (block._layerItem && !block._layerItem.classList.contains('active'))
+      block._layerItem.style.background = '';
+  });
 
   // 드래그 이벤트 (overlay-tb는 마우스 드래그 사용, HTML5 drag 제외)
   if (block.classList.contains('overlay-tb')) return;

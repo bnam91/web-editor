@@ -1036,3 +1036,32 @@
 .shape-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .shape-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .shape-handle.se { bottom: calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+
+/* Suppress child block hover outlines & fill overlays inside unselected frames */
+.sub-section-block:not(.selected) .text-block:hover,
+.sub-section-block:not(.selected) .asset-block:hover,
+.sub-section-block:not(.selected) .gap-block:hover,
+.sub-section-block:not(.selected) .icon-circle-block:hover,
+.sub-section-block:not(.selected) .table-block:hover,
+.sub-section-block:not(.selected) .label-group-block:hover,
+.sub-section-block:not(.selected) .card-block:hover,
+.sub-section-block:not(.selected) .graph-block:hover,
+.sub-section-block:not(.selected) .divider-block:hover,
+.sub-section-block:not(.selected) .icon-text-block:hover,
+.sub-section-block:not(.selected) .canvas-block:hover,
+.sub-section-block:not(.selected) .shape-block:hover {
+  outline: none !important;
+}
+.sub-section-block:not(.selected) .gap-block:hover::after,
+.sub-section-block:not(.selected) .icon-circle-block:hover::after,
+.sub-section-block:not(.selected) .table-block:hover::after,
+.sub-section-block:not(.selected) .graph-block:hover::after,
+.sub-section-block:not(.selected) .card-block:hover::after,
+.sub-section-block:not(.selected) .divider-block:hover::after,
+.sub-section-block:not(.selected) .label-group-block:hover::after,
+.sub-section-block:not(.selected) .shape-block:hover::after {
+  display: none !important;
+}
+.sub-section-block:not(.selected) .row:has(.text-block:hover) {
+  outline: none !important;
+}
