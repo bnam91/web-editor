@@ -1394,6 +1394,54 @@ function bindSubSectionDropZone(ss) {
     window.showSubSectionProperties?.(ss);
   });
 
+  // 4코너 리사이즈 핸들 — shape frame 제외
+  if (!isShapeFrame && !ss.querySelector('.ss-resize-handle')) {
+    ['nw', 'ne', 'sw', 'se'].forEach(dir => {
+      const h = document.createElement('div');
+      h.className = `ss-resize-handle ${dir}`;
+      h.dataset.dir = dir;
+      ss.appendChild(h);
+    });
+  }
+  ss.querySelectorAll('.ss-resize-handle').forEach(handle => {
+    handle.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const dir = handle.dataset.dir;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const ssRect = ss.getBoundingClientRect();
+      const scaler0 = document.getElementById('canvas-scaler');
+      const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+      const startW = Math.round(ssRect.width / scale0);
+      const startH = Math.round(ssRect.height / scale0);
+
+      function onMove(ev) {
+        const scaler = document.getElementById('canvas-scaler');
+        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+        const dx = (ev.clientX - startX) / scale;
+        const dy = (ev.clientY - startY) / scale;
+        let newW = startW, newH = startH;
+        if (dir.includes('e')) newW = Math.max(60, startW + dx);
+        if (dir.includes('w')) newW = Math.max(60, startW - dx);
+        if (dir.includes('s')) newH = Math.max(40, startH + dy);
+        if (dir.includes('n')) newH = Math.max(40, startH - dy);
+        newW = Math.round(newW); newH = Math.round(newH);
+        ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+        ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+        window.scheduleAutoSave?.();
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        window.pushHistory?.();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+
   // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
   inner.addEventListener('dragover', e => {
     if (!dragSrc) return;
