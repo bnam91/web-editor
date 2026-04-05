@@ -21,8 +21,8 @@
   pointer-events: none;
   z-index: 100;
 }
-/* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 */
-.sub-section-block:not(.selected) .sub-section-inner * {
+/* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block 제외) */
+.sub-section-block:not(.selected) .sub-section-inner *:not(.shape-block):not(.shape-handle) {
   pointer-events: none;
 }
 /* 선택 상태: 자식 pointer-events 복원 */
