@@ -400,7 +400,8 @@ function bindBlock(block) {
       if (e.button !== 0) return;
       if (block.style.position !== 'absolute') return;
       if (block.classList.contains('editing')) return;
-      if (_isInsideUnselectedFrame(block)) return;
+      // 프레임 내 블록: 자식 블록 자체가 선택된 상태일 때만 drag 허용
+      if (_getParentFrame(block) && !block.classList.contains('selected')) return;
       e.stopPropagation();
       const startX = e.clientX;
       const startY = e.clientY;
@@ -748,7 +749,8 @@ function bindBlock(block) {
       if (e.button !== 0) return;
       if (block.style.position !== 'absolute') return;
       if (block.classList.contains('editing')) return;
-      if (_isInsideUnselectedFrame(block)) return;
+      // 프레임 내 블록: 자식 블록 자체가 선택된 상태일 때만 drag 허용
+      if (_getParentFrame(block) && !block.classList.contains('selected')) return;
       if (e.target.closest('.label-item, .label-group-add-btn')) return;
       e.stopPropagation();
       const startX = e.clientX, startY = e.clientY;
