@@ -74,16 +74,6 @@
   <span id="canvas-size-label" title="캔버스 너비">860px</span>
   <span id="autosave-indicator" title="자동저장 상태"></span>
   <div class="divider"></div>
-  <div id="zoom-ctrl">
-    <button class="zoom-btn" onclick="zoomStep(-10)">−</button>
-    <div class="zoom-sep"></div>
-    <span id="zoom-display">40%</span>
-    <div class="zoom-sep"></div>
-    <button class="zoom-btn" onclick="zoomStep(+10)">+</button>
-    <div class="zoom-sep"></div>
-    <button class="zoom-btn" onclick="zoomFit()" style="font-size:11px;width:auto;padding:0 6px;">Fit</button>
-  </div>
-  <div class="divider"></div>
   <button class="tb-btn" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
   <div class="divider"></div>
   <button class="tb-btn tb-btn-ai" id="ai-btn" onclick="openAiPrompt()" title="AI 섹션 생성 (⌘K)">✨ AI</button>
@@ -514,12 +504,22 @@
 
   <!-- Right: Properties -->
   <div class="panel" id="panel-right">
-    <button id="rp-preview-btn" onclick="enterPreview()">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6">
-        <polygon points="2,1 9,5 2,9" fill="currentColor" stroke="none"/>
-      </svg>
-      Preview
-    </button>
+    <div id="rp-top-row">
+      <button id="rp-preview-btn" onclick="enterPreview()" title="Preview">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <polygon points="2,1 9,5 2,9" fill="currentColor"/>
+        </svg>
+      </button>
+      <div id="zoom-ctrl">
+        <button class="zoom-btn" onclick="zoomStep(-10)">−</button>
+        <div class="zoom-sep"></div>
+        <span id="zoom-display">40%</span>
+        <div class="zoom-sep"></div>
+        <button class="zoom-btn" onclick="zoomStep(+10)">+</button>
+        <div class="zoom-sep"></div>
+        <button class="zoom-btn" onclick="zoomFit()" style="font-size:11px;width:auto;padding:0 6px;">Fit</button>
+      </div>
+    </div>
     <div class="panel-header">
       <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
         <circle cx="8" cy="8" r="2"/>
