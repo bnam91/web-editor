@@ -410,7 +410,7 @@ function promoteToSubSection(block) {
   ss.id = genId('ss');
   ss.dataset.bg = 'transparent';
   ss.dataset.width = '100%';
-  ss.style.cssText = `background:transparent;padding:0;width:100%;height:${ssH}px;min-height:${ssH}px;overflow:hidden;`;
+  ss.style.cssText = `background:transparent;padding:0;width:100%;height:${ssH}px;min-height:${ssH}px;`;
 
   const inner = document.createElement('div');
   inner.className = 'sub-section-inner';
@@ -1235,7 +1235,7 @@ function makeJokerBlock(opts = {}) {
   if (svgContent) sb.dataset.svg = svgContent;
 
   sb.innerHTML = `
-    <div class="joker-block-inner" style="width:100%;overflow:hidden;">
+    <div class="joker-block-inner" style="width:100%;">
       <div class="joker-block-svg" style="width:${origW}px;height:${origH}px;display:block;line-height:0;">
         ${svgContent || `<div style="width:${origW}px;height:${origH}px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:13px;">SVG 없음</div>`}
       </div>
@@ -1352,6 +1352,89 @@ function deactivateSubSection() {
   window._activeSubSection = null;
 }
 
+/* ── Wrap selected blocks into a new free-placement Frame ── */
+function wrapSelectedBlocksInFrame() {
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block';
+  const selected = [...document.querySelectorAll(
+    BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
+  )];
+  if (selected.length < 1) {
+    if (window.showToast) window.showToast('프레임으로 묶을 블록을 먼저 선택하세요.');
+    return;
+  }
+
+  // 같은 섹션 안의 블록만 처리
+  const sec = selected[0].closest('.section-block');
+  if (!sec) return;
+  if (!selected.every(b => b.closest('.section-block') === sec)) {
+    if (window.showToast) window.showToast('같은 섹션 안의 블록만 묶을 수 있어요.');
+    return;
+  }
+
+  window.pushHistory();
+
+  // 섹션 inner 기준으로 DOM 순서대로 부모 row 수집
+  const sectionInner = sec.querySelector('.section-inner');
+  const childrenInOrder = [...sectionInner.children];
+  const rows = [];
+  selected.forEach(b => {
+    const row = b.classList.contains('gap-block') ? b : (b.closest('.row') || b);
+    if (row && !rows.includes(row)) rows.push(row);
+  });
+  rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
+
+  // 선택 블록들의 총 높이 계산 (프레임 높이 결정)
+  const GAP = 0;
+  let totalH = 0;
+  rows.forEach(row => { totalH += (row.offsetHeight || 60) + GAP; });
+  const frameH = Math.max(totalH, 120);
+
+  // 자유배치(absolute) 프레임 생성
+  const ss = makeSubSectionBlock();
+  ss.style.cssText = `background:transparent;padding:0;width:100%;height:${frameH}px;min-height:${frameH}px;`;
+  ss.dataset.bg = 'transparent';
+  ss.dataset.width = '100%';
+  ss.dataset.padY = '0';
+
+  const inner = ss.querySelector('.sub-section-inner');
+
+  // 첫 번째 row 자리에 프레임 삽입
+  rows[0].before(ss);
+
+  // 각 블록을 absolute 배치로 inner에 이동
+  // gap-block은 row 컨테이너가 아니라 블록 자체가 row이므로 직접 처리
+  let stackY = 0;
+  rows.forEach(row => {
+    const rowH = row.offsetHeight || 60;
+    const isGapRow = row.classList.contains('gap-block');
+    const blocks = isGapRow ? [row] : [...row.querySelectorAll(BLOCK_SEL)];
+    blocks.forEach(block => {
+      block.style.position = 'absolute';
+      block.style.left = '0px';
+      block.style.top = stackY + 'px';
+      block.style.width = '100%';
+      block.style.transform = '';
+      block.classList.remove('selected');
+      block.setAttribute('draggable', 'false');
+      inner.appendChild(block);
+    });
+    stackY += rowH + GAP;
+    if (!isGapRow) row.remove();
+  });
+
+  window.bindSubSectionDropZone?.(ss);
+
+  // 프레임 선택 상태로 전환
+  window.deselectAll?.();
+  sec.classList.add('selected');
+  window.syncLayerActive?.(sec);
+  ss.classList.add('selected');
+  window._activeSubSection = ss;
+  window.showSubSectionProperties?.(ss);
+  window.buildLayerPanel();
+  window.scheduleAutoSave?.();
+}
+
 export {
   makeTextBlock,
   makeAssetBlock,
@@ -1379,6 +1462,7 @@ export {
   addSection,
   makeSubSectionBlock,
   addSubSectionBlock,
+  wrapSelectedBlocksInFrame,
   activateSubSection,
   deactivateSubSection,
 };
@@ -1522,9 +1606,10 @@ window.addDividerBlock      = addDividerBlock;
 window.addSection           = addSection;
 window.makeCanvasBlock      = makeCanvasBlock;
 window.addCanvasBlock       = addCanvasBlock;
-window.makeSubSectionBlock  = makeSubSectionBlock;
-window.addSubSectionBlock   = addSubSectionBlock;
-window.activateSubSection   = activateSubSection;
+window.makeSubSectionBlock        = makeSubSectionBlock;
+window.addSubSectionBlock         = addSubSectionBlock;
+window.wrapSelectedBlocksInFrame  = wrapSelectedBlocksInFrame;
+window.activateSubSection         = activateSubSection;
 window.deactivateSubSection = deactivateSubSection;
 window.makeJokerBlock       = makeJokerBlock;
 window.addJokerBlock        = addJokerBlock;

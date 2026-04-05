@@ -710,13 +710,17 @@ function initApp() {
     if (window.initTemplateBrowser) window.initTemplateBrowser();
   });
 
-  // Cmd+G 그룹 — capture phase로 브라우저 Find Next 보다 먼저 처리
+  // Cmd+G 그룹 / Cmd+Option+G 프레임 — capture phase로 브라우저 Find Next 보다 먼저 처리
   document.addEventListener('keydown', e => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'g') {
+    if ((e.metaKey || e.ctrlKey) && e.code === 'KeyG' && !e.shiftKey) {
       if (e.target.isContentEditable) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      groupSelectedBlocks();
+      if (e.altKey || window._optionKeyHeld || e.key === '©') {
+        window.wrapSelectedBlocksInFrame?.();
+      } else {
+        groupSelectedBlocks();
+      }
     }
   }, true);
 

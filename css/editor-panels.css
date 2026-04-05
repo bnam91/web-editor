@@ -21,17 +21,24 @@
 #panel-left-resize-handle:hover::after { background: var(--ui-accent-primary); }
 body.resizing-panel { cursor: col-resize; user-select: none; }
 
-#rp-preview-btn {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
+#rp-top-row {
+  display: flex; align-items: center; gap: 8px;
   margin: 10px 12px 0;
-  width: calc(100% - 24px);
-  height: 30px;
+}
+#rp-preview-btn {
+  display: flex; align-items: center; justify-content: center;
+  flex: 1;
+  height: 28px;
   background: var(--ui-accent-primary); color: #fff;
   border: none; border-radius: 6px;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
   cursor: pointer;
 }
 #rp-preview-btn:hover { background: #2460cc; }
+#rp-top-row #zoom-ctrl {
+  flex-shrink: 0;
+  margin: 0;
+}
 
 /* ── 커밋 모달 ── */
 #commit-modal-overlay {
@@ -1049,6 +1056,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .layer-row-group.collapsed .layer-row-children { display: none; }
 .layer-row-group.collapsed .layer-chevron { transform: rotate(-90deg); }
 .layer-row-header .layer-chevron { margin-left: -18px; position: relative; z-index: 1; }
+/* Frame 그룹(sub-section)의 chevron은 보여야 함 */
 .layer-row-group.layer-dragging { opacity: 0.3; }
 .layer-item-nested { padding-left: 0; }
 

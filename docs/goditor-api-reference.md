@@ -77,6 +77,30 @@ window.setSectionBg(sec, '')
 
 ---
 
+### `window.deleteSection(secIdOrEl)`
+
+섹션을 삭제한다. id 문자열 또는 요소를 받는다.
+
+```js
+// id로 삭제
+window.deleteSection('sec_abc123')
+
+// 요소로 삭제
+const sec = window.getSelectedSection()
+window.deleteSection(sec)
+
+// 여러 섹션 일괄 삭제
+['sec_abc', 'sec_def', 'sec_ghi'].forEach(id => window.deleteSection(id))
+```
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| `secIdOrEl` | HTMLElement \| string | `.section-block` 요소 또는 섹션 id |
+
+**반환값**: 삭제 성공 시 `true`, 유효하지 않은 섹션이면 `false`.
+
+---
+
 ## Row / Col 제어
 
 ### `window.addRowBlock(cols, rows?)`

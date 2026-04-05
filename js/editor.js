@@ -407,6 +407,11 @@ function pasteClipboard() {
   pushHistory('붙여넣기');
 }
 
+// Option 키 독립 추적 (Korean IME가 altKey를 먹어버리는 문제 대응)
+window._optionKeyHeld = false;
+document.addEventListener('keydown', e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = true; }, true);
+document.addEventListener('keyup',   e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = false; }, true);
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -462,7 +467,28 @@ document.addEventListener('keydown', e => {
       pasteClipboard();
       return;
     }
-    if (e.code === 'KeyG' && !e.shiftKey) {
+    if (e.code === 'BracketLeft') {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      moveSelectedBlocks('up');
+      return;
+    }
+    if (e.code === 'BracketRight') {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      moveSelectedBlocks('down');
+      return;
+    }
+    if (e.code === 'KeyG' && !e.shiftKey && (e.altKey || window._optionKeyHeld || e.key === '©')) {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      window.wrapSelectedBlocksInFrame?.();
+      return;
+    }
+    if (e.code === 'KeyG' && !e.shiftKey && !e.altKey && !window._optionKeyHeld && e.key !== '©') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
@@ -547,8 +573,26 @@ document.addEventListener('keydown', e => {
         const next = moveTarget.nextElementSibling;
         if (next && !next.classList.contains('drop-indicator')) parent.insertBefore(next, moveTarget);
       }
+      // 이동 전 선택 상태 수집
+      const moveTargetId = moveTarget.id;
+      const selBlockIds = selBlock ? [selBlock.id].filter(Boolean) : [];
+      const selSectionId = selSection ? selSection.id : null;
       window.buildLayerPanel();
       pushHistory('블록 이동');
+      // buildLayerPanel 후 선택 상태 복원
+      if (selSectionId) {
+        const sec = document.getElementById(selSectionId);
+        if (sec) {
+          sec.classList.add('selected');
+          if (sec._layerItem) { sec._layerItem.classList.add('active'); sec._layerItem.style.background = 'var(--ui-bg-card)'; }
+        }
+      }
+      selBlockIds.forEach(id => {
+        const b = document.getElementById(id);
+        if (!b) return;
+        b.classList.add('selected');
+        if (b._layerItem) { b._layerItem.classList.add('active'); b._layerItem.style.background = 'var(--ui-bg-card)'; }
+      });
       return;
     }
   }
@@ -817,6 +861,108 @@ function deselectAll() {
 }
 
 
+/* ═══════════════════════════════════
+   블록 순서 이동 — Cmd+[ (위) / Cmd+] (아래)
+   이동 단위: section-inner 또는 sub-section-inner 직속 .row / .gap-block
+═══════════════════════════════════ */
+function moveSelectedBlocks(direction) {
+  // 프레임(sub-section-block)이 선택된 경우 별도 처리
+  const selFrame = window._activeSubSection;
+  if (selFrame && selFrame.classList.contains('selected')) {
+    const sectionInner = selFrame.closest('.section-inner');
+    if (!sectionInner) return;
+    const containerItems = [...sectionInner.children].filter(c =>
+      c.classList.contains('row') || c.classList.contains('gap-block') || c.classList.contains('sub-section-block')
+    );
+    const idx = containerItems.indexOf(selFrame);
+    if (direction === 'up') {
+      if (idx <= 0) return;
+      window.ensureHistoryCheckpoint?.('이동 전');
+      containerItems[idx - 1].before(selFrame);
+    } else {
+      if (idx >= containerItems.length - 1) return;
+      window.ensureHistoryCheckpoint?.('이동 전');
+      containerItems[idx + 1].after(selFrame);
+    }
+    pushHistory(direction === 'up' ? '프레임 위로 이동' : '프레임 아래로 이동');
+    window.buildLayerPanel?.();
+    // 선택 상태 복원
+    selFrame.classList.add('selected');
+    window._activeSubSection = selFrame;
+    if (selFrame._layerItem) {
+      selFrame._layerItem.classList.add('active');
+      selFrame._layerItem.style.background = 'var(--ui-bg-card)';
+    }
+    return;
+  }
+
+  const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+    '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
+    '.icon-text-block.selected, .canvas-block.selected, .shape-block.selected';
+
+  const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
+  if (selBlocks.length === 0) return;
+
+  // 각 블록의 이동 단위(row or gap-block)를 DOM 순서대로 수집
+  const getUnit = b => b.classList.contains('gap-block')
+    ? (b.parentElement?.classList.contains('section-inner') || b.parentElement?.classList.contains('sub-section-inner') ? b : b.closest('.row'))
+    : b.closest('.row');
+
+  const unitSet = new Set();
+  selBlocks.forEach(b => { const u = getUnit(b); if (u) unitSet.add(u); });
+  if (unitSet.size === 0) return;
+
+  // 공통 컨테이너(section-inner / sub-section-inner)가 동일한 unit들만 처리
+  const units = [...unitSet];
+  const container = units[0].parentElement;
+  if (!units.every(u => u.parentElement === container)) return; // 다른 컨테이너 혼합 → 무시
+
+  // 컨테이너의 직속 자식(row/gap-block)만 포함하는 목록
+  const containerItems = [...container.children].filter(c =>
+    c.classList.contains('row') || c.classList.contains('gap-block')
+  );
+
+  // DOM 순서대로 정렬
+  units.sort((a, b) => containerItems.indexOf(a) - containerItems.indexOf(b));
+
+  if (direction === 'up') {
+    const firstIdx = containerItems.indexOf(units[0]);
+    if (firstIdx <= 0) return; // 이미 맨 위
+    window.ensureHistoryCheckpoint?.('이동 전');
+    const pivot = containerItems[firstIdx - 1]; // 선택 그룹 바로 위 아이템
+    pivot.before(...units); // pivot 앞에 units 통째로 삽입 (순서 유지)
+  } else {
+    const lastIdx = containerItems.indexOf(units[units.length - 1]);
+    if (lastIdx >= containerItems.length - 1) return; // 이미 맨 아래
+    window.ensureHistoryCheckpoint?.('이동 전');
+    const pivot = containerItems[lastIdx + 1]; // 선택 그룹 바로 아래 아이템
+    // pivot 뒤에 units 순서 유지하며 삽입: 마커로 삽입 위치 고정
+    const marker = document.createComment('mv');
+    pivot.after(marker);
+    units.forEach(u => marker.before(u));
+    marker.remove();
+  }
+
+  // 이동 전 선택된 블록 ID 저장
+  const selIds = selBlocks.map(b => b.id).filter(Boolean);
+
+  pushHistory(direction === 'up' ? '블록 위로 이동' : '블록 아래로 이동');
+  window.buildLayerPanel?.();
+
+  // buildLayerPanel 후 선택 상태 복원 (layer panel active 포함)
+  selIds.forEach(id => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.classList.add('selected');
+    if (b._layerItem) {
+      b._layerItem.classList.add('active');
+      b._layerItem.style.background = 'var(--ui-bg-card)';
+    }
+  });
+}
+window.moveSelectedBlocks = moveSelectedBlocks;
+
 function bindSectionDelete(sec) {
   // 삭제 버튼 제거됨 — 레이어 패널 또는 컨텍스트 메뉴에서 처리
 }
@@ -902,6 +1048,24 @@ function getSelectedSection() {
   );
   return selBlock?.closest('.section-block') || null;
 }
+
+/* ── 섹션 삭제 API ── */
+function deleteSection(secIdOrEl) {
+  const sec = typeof secIdOrEl === 'string'
+    ? document.getElementById(secIdOrEl)
+    : secIdOrEl;
+  if (!sec || !sec.classList.contains('section-block')) {
+    console.warn('[deleteSection] 유효한 섹션을 찾을 수 없음:', secIdOrEl);
+    return false;
+  }
+  pushHistory('섹션 삭제 전');
+  sec.remove();
+  deselectAll();
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return true;
+}
+window.deleteSection = deleteSection;
 
 /* ── 플로팅 패널 드롭다운 ── */
 function toggleFpDropdown(id) {

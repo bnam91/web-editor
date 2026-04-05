@@ -185,10 +185,10 @@ export function showTextProperties(tb) {
       </div>
       ${isAbsolute ? `
       <div class="prop-row">
-        <span class="prop-label">X</span>
-        <input type="number" class="prop-number" id="txt-x-number" value="${currentX}" style="width:72px">
-        <span class="prop-label" style="margin-left:8px">Y</span>
-        <input type="number" class="prop-number" id="txt-y-number" value="${currentY}" style="width:72px">
+        <span class="prop-label" style="width:auto;min-width:10px">X</span>
+        <input type="number" class="prop-number" id="txt-x-number" value="${currentX}" style="width:72px;flex:1;min-width:0">
+        <span class="prop-label" style="width:auto;min-width:10px;margin-left:8px">Y</span>
+        <input type="number" class="prop-number" id="txt-y-number" value="${currentY}" style="width:72px;flex:1;min-width:0">
       </div>` : ''}
     </div>
 

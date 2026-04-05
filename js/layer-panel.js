@@ -182,7 +182,9 @@ export function buildLayerPanel() {
       } else if (colBlocks.length === 1) {
         const block = colBlocks[0];
         if (block.classList.contains('sub-section-block')) {
-          container.appendChild(makeLayerSubSectionItem(block, sec, appendRowToLayer));
+          const ssItem = makeLayerSubSectionItem(block, sec, appendRowToLayer);
+          ssItem._dragTarget = child;  // _dragTarget을 row로 교정
+          container.appendChild(ssItem);
         } else if (block.classList.contains('asset-block')) {
           container.appendChild(makeLayerAssetItem(block, child, sec));
         } else if (block.classList.contains('card-block')) {
@@ -241,8 +243,10 @@ export function buildLayerPanel() {
         if (!indicator) { sectionInner.appendChild(domEl); return; }
         const nextEl = indicator.nextElementSibling;
         const nextTarget = nextEl?._dragTarget || null;
-        if (nextTarget) {
-          sectionInner.insertBefore(domEl, nextTarget);
+        // sectionInner 직접 자식인 경우에만 insertBefore 사용
+        const nextDirectChild = (nextTarget && nextTarget.parentElement === sectionInner) ? nextTarget : null;
+        if (nextDirectChild) {
+          sectionInner.insertBefore(domEl, nextDirectChild);
         } else {
           const bottomGap = [...sectionInner.querySelectorAll(':scope > .gap-block')].at(-1);
           if (bottomGap && bottomGap !== domEl) sectionInner.insertBefore(domEl, bottomGap);

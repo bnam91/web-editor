@@ -828,33 +828,55 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
   if (!isShapeOnly && ssChildren.children.length > 0) {
     const group = document.createElement('div');
     group.className = 'layer-row-group';
+    group.dataset.type = 'frame';
     group._dragTarget = ssEl;
 
     const header = document.createElement('div');
     header.className = 'layer-row-header';
 
-    const chevron = document.createElement('svg');
-    chevron.setAttribute('viewBox', '0 0 12 12');
-    chevron.setAttribute('fill', 'currentColor');
-    chevron.className = 'layer-chevron';
-    chevron.innerHTML = '<path d="M2 4l4 4 4-4"/>';
-    chevron.style.cssText = 'width:12px;height:12px;flex-shrink:0;cursor:pointer;';
-    chevron.addEventListener('click', e => {
+    // innerHTML로 파싱해야 SVG 네임스페이스가 올바르게 설정됨
+    header.innerHTML = `
+      <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+      ${iconHtml}
+      <span class="layer-item-name">${name}</span>
+      <span class="layer-item-type">${typeLabel}</span>`;
+    header.prepend(makeIndents(1));
+    addLayerRename(header.querySelector('.layer-item-name'), ssEl, 'Frame', 'layerName');
+    header.querySelector('.layer-chevron').addEventListener('click', e => {
       e.stopPropagation();
       group.classList.toggle('collapsed');
     });
+    header.setAttribute('draggable', 'true');
+    header.addEventListener('click', e => {
+      if (e.target.closest('.layer-chevron')) return;
+      if (e.target.classList.contains('editing')) return;
+      window.deselectAll?.();
+      const parentSec = ssEl.closest('.section-block');
+      if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+      ssEl.classList.add('selected');
+      window._activeSubSection = ssEl;
+      document.querySelectorAll('.layer-row-header.active').forEach(h => h.classList.remove('active'));
+      header.classList.add('active');
+      window.highlightBlock?.(ssEl, header);
+      window.showSubSectionProperties?.(ssEl);
+    });
+    header.addEventListener('dragstart', e => {
+      e.stopPropagation();
+      window.layerDragSrc = group;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      requestAnimationFrame(() => group.classList.add('layer-dragging'));
+    });
+    header.addEventListener('dragend', () => {
+      group.classList.remove('layer-dragging');
+      window.clearLayerIndicators?.();
+      window.layerDragSrc = null;
+    });
 
-    // wrapper의 indents 제거 후 header에 재조합
-    const existingIndents = wrapper.querySelector('.layer-indents');
-    if (existingIndents) existingIndents.remove();
-    header.prepend(makeIndents(1));
-    header.appendChild(chevron);
-    header.appendChild(wrapper);
     group.appendChild(header);
     group.appendChild(ssChildren);
 
-    // group도 _layerItem 참조 유지
-    ssEl._layerItem = wrapper;
+    ssEl._layerItem = header;
     return group;
   }
 
