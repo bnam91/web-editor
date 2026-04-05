@@ -1155,62 +1155,83 @@ function bindSubSectionDropZone(ss) {
     if (isShapeFrame) return; // shape frame drop 차단
     window.pushHistory();
 
+    const isFullWidth = ss.dataset.fullWidth === 'true';
     const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block';
     const SS_W = 860; // 캔버스 기준 너비
 
-    // 블록을 absolute로 전환하는 헬퍼
-    const makeAbsolute = (block, left, top) => {
-      const w = block.offsetWidth || Math.round(SS_W * 0.5);
-      block.style.position = 'absolute';
-      block.style.left = left + 'px';
-      block.style.top  = top  + 'px';
-      if (!block.style.width || block.style.width === '100%') {
-        block.style.width = Math.min(w, SS_W) + 'px';
-      }
-      block.setAttribute('draggable', 'false');
-    };
-
-    // row가 드롭된 경우 → 블록 추출 후 absolute 전환, row 제거
-    if (dragSrc.classList.contains('row')) {
-      const blocks = [...dragSrc.querySelectorAll(BLOCK_SEL)];
-      // 기존 absolute 블록들 중 가장 아래 y 값 이후에 배치
-      const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)];
-      let nextY = existingBlocks.reduce((maxY, b) => {
-        const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
-        return Math.max(maxY, by);
-      }, 0);
-      if (nextY > 0) nextY += 16; // 간격
-      blocks.forEach(block => {
-        makeAbsolute(block, 0, nextY);
-        inner.appendChild(block);
-        nextY += (block.offsetHeight || 60) + 16;
-      });
-      dragSrc.remove();
-    } else {
+    if (isFullWidth) {
+      // ── fullWidth 프레임: row/블록을 flow 레이아웃 그대로 유지 (absolute 변환 금지) ──
       const indicator = inner.querySelector('.drop-indicator');
-      if (indicator) inner.insertBefore(dragSrc, indicator);
-      else inner.appendChild(dragSrc);
-      // 직접 블록이 드롭된 경우 absolute 전환
-      if (dragSrc.matches?.(BLOCK_SEL) && dragSrc.style.position !== 'absolute') {
-        const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)].filter(b => b !== dragSrc);
-        const nextY = existingBlocks.reduce((maxY, b) => {
+      if (dragSrc.classList.contains('row')) {
+        // row 통째로 재배치
+        if (indicator) inner.insertBefore(dragSrc, indicator);
+        else inner.appendChild(dragSrc);
+      } else if (dragSrc.matches?.(BLOCK_SEL)) {
+        // 단일 블록: row로 감싸서 삽입
+        const existingRow = dragSrc.closest('.row');
+        if (existingRow && existingRow.parentElement === inner) {
+          // 이미 inner 안의 row → row째로 재배치
+          if (indicator) inner.insertBefore(existingRow, indicator);
+          else inner.appendChild(existingRow);
+        } else {
+          if (indicator) inner.insertBefore(dragSrc, indicator);
+          else inner.appendChild(dragSrc);
+        }
+      }
+    } else {
+      // ── 고정 크기 프레임(shape frame 아닌 것): 기존 absolute 방식 ──
+      // 블록을 absolute로 전환하는 헬퍼
+      const makeAbsolute = (block, left, top) => {
+        const w = block.offsetWidth || Math.round(SS_W * 0.5);
+        block.style.position = 'absolute';
+        block.style.left = left + 'px';
+        block.style.top  = top  + 'px';
+        if (!block.style.width || block.style.width === '100%') {
+          block.style.width = Math.min(w, SS_W) + 'px';
+        }
+        block.setAttribute('draggable', 'false');
+      };
+
+      // row가 드롭된 경우 → 블록 추출 후 absolute 전환, row 제거
+      if (dragSrc.classList.contains('row')) {
+        const blocks = [...dragSrc.querySelectorAll(BLOCK_SEL)];
+        const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)];
+        let nextY = existingBlocks.reduce((maxY, b) => {
           const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
           return Math.max(maxY, by);
         }, 0);
-        makeAbsolute(dragSrc, 0, nextY > 0 ? nextY + 16 : 0);
+        if (nextY > 0) nextY += 16;
+        blocks.forEach(block => {
+          makeAbsolute(block, 0, nextY);
+          inner.appendChild(block);
+          nextY += (block.offsetHeight || 60) + 16;
+        });
+        dragSrc.remove();
+      } else {
+        const indicator = inner.querySelector('.drop-indicator');
+        if (indicator) inner.insertBefore(dragSrc, indicator);
+        else inner.appendChild(dragSrc);
+        if (dragSrc.matches?.(BLOCK_SEL) && dragSrc.style.position !== 'absolute') {
+          const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)].filter(b => b !== dragSrc);
+          const nextY = existingBlocks.reduce((maxY, b) => {
+            const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
+            return Math.max(maxY, by);
+          }, 0);
+          makeAbsolute(dragSrc, 0, nextY > 0 ? nextY + 16 : 0);
+        }
       }
-    }
 
-    // DOM 순서 변경 후 absolute 블록의 top 재계산 (시각적 순서 반영)
-    let _stackY = 0;
-    [...inner.children].forEach(b => {
-      if (b.classList.contains('drop-indicator')) return;
-      if (b.style.position === 'absolute') {
-        b.style.top  = _stackY + 'px';
-        b.style.left = '0px';
-      }
-      _stackY += (b.offsetHeight || 60) + 16;
-    });
+      // DOM 순서 변경 후 absolute 블록의 top 재계산
+      let _stackY = 0;
+      [...inner.children].forEach(b => {
+        if (b.classList.contains('drop-indicator')) return;
+        if (b.style.position === 'absolute') {
+          b.style.top  = _stackY + 'px';
+          b.style.left = '0px';
+        }
+        _stackY += (b.offsetHeight || 60) + 16;
+      });
+    }
 
     // dragging 클래스 고착 방지
     dragSrc?.classList.remove('dragging', 'section-dragging', 'layer-dragging');
