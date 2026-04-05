@@ -838,7 +838,7 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
     chevron.setAttribute('fill', 'currentColor');
     chevron.className = 'layer-chevron';
     chevron.innerHTML = '<path d="M2 4l4 4 4-4"/>';
-    chevron.style.cssText = 'width:12px;height:12px;flex-shrink:0;cursor:pointer;';
+    chevron.style.cssText = 'width:12px;height:12px;flex-shrink:0;cursor:pointer;margin-left:-18px;position:relative;z-index:1;';
     chevron.addEventListener('click', e => {
       e.stopPropagation();
       group.classList.toggle('collapsed');
