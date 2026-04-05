@@ -462,7 +462,14 @@ document.addEventListener('keydown', e => {
       pasteClipboard();
       return;
     }
-    if (e.code === 'KeyG' && !e.shiftKey) {
+    if (e.code === 'KeyG' && !e.shiftKey && e.altKey) {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      window.wrapSelectedBlocksInFrame?.();
+      return;
+    }
+    if (e.code === 'KeyG' && !e.shiftKey && !e.altKey) {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();

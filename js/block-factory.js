@@ -1352,6 +1352,61 @@ function deactivateSubSection() {
   window._activeSubSection = null;
 }
 
+/* ── Wrap selected blocks into a new fullWidth Frame ── */
+function wrapSelectedBlocksInFrame() {
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block';
+  const selected = [...document.querySelectorAll(
+    BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
+  )];
+  if (selected.length < 1) {
+    if (window.showToast) window.showToast('프레임으로 묶을 블록을 먼저 선택하세요.');
+    return;
+  }
+
+  // 같은 섹션 안의 블록만 처리
+  const sec = selected[0].closest('.section-block');
+  if (!sec) return;
+  if (!selected.every(b => b.closest('.section-block') === sec)) {
+    if (window.showToast) window.showToast('같은 섹션 안의 블록만 묶을 수 있어요.');
+    return;
+  }
+
+  window.pushHistory();
+
+  // 섹션 inner 기준으로 DOM 순서대로 부모 row 수집
+  const sectionInner = sec.querySelector('.section-inner');
+  const childrenInOrder = [...sectionInner.children];
+  const rows = [];
+  selected.forEach(b => {
+    const row = b.classList.contains('gap-block') ? b : (b.closest('.row') || b);
+    if (row && !rows.includes(row)) rows.push(row);
+  });
+  rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
+
+  // fullWidth 프레임 생성
+  const ss = makeSubSectionBlock({ fullWidth: true });
+  ss.dataset.bg = 'transparent';
+  ss.style.background = 'transparent';
+
+  const inner = ss.querySelector('.sub-section-inner');
+
+  // 첫 번째 row 자리에 프레임 삽입 후 rows 이동
+  rows[0].before(ss);
+  rows.forEach(row => inner.appendChild(row));
+
+  window.bindSubSectionDropZone?.(ss);
+
+  // 프레임 선택 상태로 전환
+  window.deselectAll?.();
+  sec.classList.add('selected');
+  window.syncLayerActive?.(sec);
+  ss.classList.add('selected');
+  window._activeSubSection = ss;
+  window.showSubSectionProperties?.(ss);
+  window.buildLayerPanel();
+  window.scheduleAutoSave?.();
+}
+
 export {
   makeTextBlock,
   makeAssetBlock,
@@ -1379,6 +1434,7 @@ export {
   addSection,
   makeSubSectionBlock,
   addSubSectionBlock,
+  wrapSelectedBlocksInFrame,
   activateSubSection,
   deactivateSubSection,
 };
@@ -1522,9 +1578,10 @@ window.addDividerBlock      = addDividerBlock;
 window.addSection           = addSection;
 window.makeCanvasBlock      = makeCanvasBlock;
 window.addCanvasBlock       = addCanvasBlock;
-window.makeSubSectionBlock  = makeSubSectionBlock;
-window.addSubSectionBlock   = addSubSectionBlock;
-window.activateSubSection   = activateSubSection;
+window.makeSubSectionBlock        = makeSubSectionBlock;
+window.addSubSectionBlock         = addSubSectionBlock;
+window.wrapSelectedBlocksInFrame  = wrapSelectedBlocksInFrame;
+window.activateSubSection         = activateSubSection;
 window.deactivateSubSection = deactivateSubSection;
 window.makeJokerBlock       = makeJokerBlock;
 window.addJokerBlock        = addJokerBlock;
