@@ -756,7 +756,7 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
 
 /* 레이어 Frame 아이템 생성 */
-function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
+function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
   const wrapper = document.createElement('div');
   wrapper.className = 'layer-item';
   wrapper._dragTarget = ssEl;
@@ -775,7 +775,7 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
   const typeLabel = shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame';
 
   wrapper.innerHTML = `${iconHtml}<span class="layer-item-name">${name}</span><span class="layer-item-type">${typeLabel}</span>`;
-  wrapper.prepend(makeIndents(1));
+  wrapper.prepend(makeIndents(depth));
   addLayerRename(wrapper.querySelector('.layer-item-name'), ssEl, 'Frame', 'layerName');
 
   wrapper.setAttribute('draggable', 'true');
@@ -812,14 +812,14 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
   if (ssInner) {
     [...ssInner.children].forEach(child => {
       if (child.classList.contains('sub-section-block')) {
-        // 중첩 프레임 — 재귀 렌더링
-        ssChildren.appendChild(makeLayerSubSectionItem(child, sec, appendRowFn));
+        // 중첩 프레임 — 재귀 렌더링 (depth +1)
+        ssChildren.appendChild(makeLayerSubSectionItem(child, sec, appendRowFn, depth + 1));
       } else if (child.classList.contains('row')) {
-        appendRowFn(child, ssChildren, 2);
+        appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
                  'table-block','card-block','graph-block','divider-block','label-group-block','shape-block']
                 .some(c => child.classList.contains(c))) {
-        ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));
+        ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
       }
     });
   }
@@ -844,7 +844,7 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
       ${iconHtml}
       <span class="layer-item-name">${name}</span>
       <span class="layer-item-type">${typeLabel}</span>`;
-    header.prepend(makeIndents(1));
+    header.prepend(makeIndents(depth));
     addLayerRename(header.querySelector('.layer-item-name'), ssEl, 'Frame', 'layerName');
     header.querySelector('.layer-chevron').addEventListener('click', e => {
       e.stopPropagation();
