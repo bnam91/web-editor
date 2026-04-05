@@ -659,16 +659,25 @@ document.addEventListener('keydown', e => {
     }
 
     // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
+    // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
     const selSS = document.querySelector('.sub-section-block.selected');
     if (selSS) {
-      e.preventDefault();
-      const ssRow = selSS.closest('.row') || selSS;
-      ssRow.remove();
-      window._activeSubSection = null;
-      deselectAll();
-      window.buildLayerPanel();
-      pushHistory('서브섹션 삭제');
-      return;
+      const ssHasSelectedChild = selSS.querySelector(
+        '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+        '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+        '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
+      );
+      if (!ssHasSelectedChild) {
+        e.preventDefault();
+        const ssRow = selSS.closest('.row') || selSS;
+        ssRow.remove();
+        window._activeSubSection = null;
+        deselectAll();
+        window.buildLayerPanel();
+        pushHistory('서브섹션 삭제');
+        return;
+      }
+      // 자식 블록이 선택된 경우 → 아래 allSelBlocks 삭제 로직으로 fall-through
     }
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
@@ -1086,6 +1095,18 @@ function deleteSection(secIdOrEl) {
 window.deleteSection = deleteSection;
 
 /* ── 플로팅 패널 드롭다운 ── */
+function toggleFpPluginPanel() {
+  const panel = document.getElementById('fp-plugin-panel');
+  const btn   = document.getElementById('fp-plugin-btn');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  btn?.classList.toggle('active', !isOpen);
+}
+window.toggleFpPluginPanel = toggleFpPluginPanel;
+
+// 외부 클릭 시 plugin panel 닫기는 아래 document.addEventListener('click') 에서 처리
+
 function toggleFpDropdown(id) {
   const targetId = id || 'fp-text-dropdown';
   const target = document.getElementById(targetId);
@@ -1097,6 +1118,13 @@ function toggleFpDropdown(id) {
 document.addEventListener('click', e => {
   if (!e.target.closest('.fp-dropdown')) {
     document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
+  }
+  // plugin panel 외부 클릭 시 닫기
+  const fpPlugin = document.getElementById('fp-plugin-panel');
+  if (fpPlugin && fpPlugin.style.display !== 'none' &&
+      !e.target.closest('#fp-plugin-panel') && !e.target.closest('#fp-plugin-btn')) {
+    fpPlugin.style.display = 'none';
+    document.getElementById('fp-plugin-btn')?.classList.remove('active');
   }
   const bdw = document.getElementById('branch-dropdown-wrap');
   if (bdw && !bdw.contains(e.target)) bdw.classList.remove('open');

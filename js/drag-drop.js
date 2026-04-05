@@ -278,6 +278,17 @@ function _resizeFrameToFitChildren(block) {
   }
 }
 
+// 프레임 내부 블록 선택 시 프레임 selected 복원 헬퍼
+// deselectAll()이 sub-section-block.selected를 제거해 CSS pointer-events가 다시 차단되는 문제 방지
+function _restoreParentFrameSelected(block) {
+  const pf = _getParentFrame(block);
+  if (!pf) return;
+  pf.classList.add('selected');
+  window._activeSubSection = pf;
+  const parentSec = pf.closest('.section-block');
+  if (parentSec) parentSec.classList.add('selected');
+}
+
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
@@ -396,6 +407,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(block.closest('.section-block'));
       window.highlightBlock(block, block._layerItem);
@@ -522,6 +534,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -610,6 +623,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -707,6 +721,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -734,6 +749,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -789,6 +805,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -912,6 +929,7 @@ function bindBlock(block) {
       if (item) {
         if (!block.classList.contains('selected')) {
           window.deselectAll();
+          _restoreParentFrameSelected(block);
           block.classList.add('selected');
           window.syncSection(block.closest('.section-block'));
           window.highlightBlock(block, block._layerItem);
@@ -926,6 +944,7 @@ function bindBlock(block) {
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -979,6 +998,7 @@ function bindBlock(block) {
       const rowEl = block.closest('.row');
       const isRowActive = rowEl && rowEl.classList.contains('row-active');
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       if (rowEl && !isRowActive) {
         // 첫 번째 클릭: Row 전체 선택 → Row Properties 표시
         rowEl.classList.add('row-active');
@@ -1056,6 +1076,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -1086,6 +1107,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -1165,6 +1187,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -1395,7 +1418,8 @@ function bindSubSectionDropZone(ss) {
   });
 
   // 4코너 리사이즈 핸들 — shape frame 제외
-  if (!isShapeFrame && !ss.querySelector('.ss-resize-handle')) {
+  // :scope > 로 직계 자식만 선택 — 중첩 프레임 핸들에 부모 클로저 리스너가 중복으로 달리는 버그 방지
+  if (!isShapeFrame && !ss.querySelector(':scope > .ss-resize-handle')) {
     ['nw', 'ne', 'sw', 'se'].forEach(dir => {
       const h = document.createElement('div');
       h.className = `ss-resize-handle ${dir}`;
@@ -1403,7 +1427,7 @@ function bindSubSectionDropZone(ss) {
       ss.appendChild(h);
     });
   }
-  ss.querySelectorAll('.ss-resize-handle').forEach(handle => {
+  ss.querySelectorAll(':scope > .ss-resize-handle').forEach(handle => {
     handle.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -1434,7 +1458,7 @@ function bindSubSectionDropZone(ss) {
         if (dir.includes('n')) newH = Math.max(40, startH - dy);
         newW = Math.round(newW); newH = Math.round(newH);
         ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-        ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+        ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
         window.scheduleAutoSave?.();
       }
       function onUp() {

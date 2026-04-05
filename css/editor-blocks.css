@@ -26,6 +26,10 @@
 .sub-section-block:not(.selected) .sub-section-inner *:not(.shape-block):not(.shape-handle) {
   pointer-events: none;
 }
+/* 선택된 프레임의 핸들은 부모 pointer-events:none 규칙보다 우선 적용 */
+.sub-section-block.selected > .ss-resize-handle {
+  pointer-events: auto !important;
+}
 /* 선택 상태: 자식 pointer-events 복원 */
 .sub-section-block.selected .sub-section-inner * {
   pointer-events: auto;
@@ -46,7 +50,7 @@
   display: none;
   box-sizing: border-box;
 }
-.sub-section-block.selected .ss-resize-handle { display: block; }
+.sub-section-block.selected > .ss-resize-handle { display: block; }
 .ss-resize-handle.nw { top:    calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
 .ss-resize-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .ss-resize-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
@@ -514,6 +518,52 @@
 .fp-btn svg { flex-shrink: 0; }
 .fp-btn-ai { color: #c084fc; font-size: 14px; }
 .fp-btn-ai:hover { background: rgba(192,132,252,0.12) !important; border-color: rgba(192,132,252,0.4) !important; color: #d8b4fe !important; }
+.fp-btn#fp-plugin-btn.active { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }
+
+/* Plugin Panel */
+#fp-plugin-panel {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 499;
+  width: 240px;
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+.fp-plugin-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px 8px;
+  border-bottom: 1px solid var(--ui-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.fp-plugin-panel-close {
+  background: none;
+  border: none;
+  color: var(--ui-text-dim);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+.fp-plugin-panel-close:hover { color: var(--ui-text); background: var(--ui-bg-input); }
+.fp-plugin-panel-body { padding: 8px 0; min-height: 60px; }
+.fp-plugin-empty {
+  padding: 20px 16px;
+  font-size: 12px;
+  color: var(--ui-text-dim);
+  text-align: center;
+}
 
 /* Text 드롭다운 */
 .fp-dropdown { position: relative; }

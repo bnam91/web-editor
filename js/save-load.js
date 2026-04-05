@@ -259,6 +259,7 @@ function getSerializedCanvas() {
   clone.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
   // 드래그 중단 시 고착된 상태 제거
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+  clone.querySelectorAll('.ss-drag-over').forEach(el => el.classList.remove('ss-drag-over'));
   // group-block 선택/편집 상태 제거 — 저장 후 리로드 시 초기 상태로 복원되도록
   clone.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected', 'group-editing'));
   clone.querySelectorAll('.drop-indicator').forEach(el => el.remove());
@@ -503,6 +504,26 @@ function rebindAll() {
     }
     // 코너 반경 복원
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
+    // explicit height 복원 — justify-content 정렬 작동을 위해 필요
+    // dataset.height 없으면 minHeight 폴백 (레거시 요소 대응)
+    const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
+    if (_ssH) ss.style.height = _ssH + 'px';
+    // 자식 정렬 복원
+    const inner = ss.querySelector('.sub-section-inner');
+    if (inner) {
+      if (ss.dataset.alignItems)     inner.style.alignItems     = ss.dataset.alignItems;
+      if (ss.dataset.justifyContent) inner.style.justifyContent = ss.dataset.justifyContent;
+      if (ss.dataset.gap)            inner.style.gap            = ss.dataset.gap + 'px';
+    }
+    // 위치 / 회전 / 반전 복원
+    const _tx = parseInt(ss.dataset.translateX) || 0;
+    const _ty = parseInt(ss.dataset.translateY) || 0;
+    const _rd = parseFloat(ss.dataset.rotateDeg) || 0;
+    const _fx = ss.dataset.flipH === '1' ? -1 : 1;
+    const _fy = ss.dataset.flipV === '1' ? -1 : 1;
+    if (_tx || _ty || _rd || _fx !== 1 || _fy !== 1) {
+      ss.style.transform = `translate(${_tx}px,${_ty}px) rotate(${_rd}deg) scale(${_fx},${_fy})`;
+    }
   });
 
   // col-placeholder 이벤트 재연결
@@ -580,7 +601,12 @@ window.addEventListener('beforeunload', () => {
 });
 
 // 변경 감지 — canvas MutationObserver
-const autoSaveObserver = new MutationObserver(scheduleAutoSave);
+// class 속성 변경만 제외 (드래그 UI 상태 토글 spam 방지, DBG-11)
+// data-* 속성 변경(prop 패널 값)은 감지해야 하므로 attributes:true 포함
+const autoSaveObserver = new MutationObserver(mutations => {
+  if (mutations.every(m => m.type === 'attributes' && m.attributeName === 'class')) return;
+  scheduleAutoSave();
+});
 
 /* ── Init (called from editor.js after all scripts loaded) ── */
 function initApp() {
@@ -693,8 +719,8 @@ function initApp() {
     initEmpty();
   })();
 
-  // attributes:true 제거 — 드래그 클래스 토글마다 autoSave 폭주 방지 (DBG-11)
-  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true });
+  // class 변경은 콜백에서 필터링, data-* 등 실제 속성 변경은 감지 (DBG-11 해소)
+  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true, attributes: true });
 
   // 스크래치패드 초기화
   window.initScratchPad?.(activeProjectId, state.currentPageId);

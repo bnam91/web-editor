@@ -1296,10 +1296,11 @@ function makeSubSectionBlock(opts = {}) {
     ss.appendChild(inner);
   } else {
     // 기존 고정 크기 + absolute 자식 모드
-    ss.dataset.bg = '#f5f5f5';
+    ss.dataset.bg = 'transparent';
     ss.dataset.width = '860';
+    ss.dataset.height = '520';
     ss.dataset.padY = '24';
-    ss.style.cssText = `background:#f5f5f5;padding:24px 0;width:860px;max-width:100%;margin:0 auto;min-height:520px;`;
+    ss.style.cssText = `background:transparent;padding:24px 0;width:860px;max-width:100%;margin:0 auto;min-height:520px;height:520px;`;
     const inner = document.createElement('div');
     inner.className = 'sub-section-inner';
     inner.style.position = 'relative';
@@ -1334,7 +1335,16 @@ function addSubSectionBlock(opts = {}) {
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const ss = makeSubSectionBlock(opts);
-  insertAfterSelected(sec, ss);
+
+  // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 제외
+  const activeFrame = !opts.fullWidth && window._activeSubSection;
+  if (activeFrame && activeFrame.closest('.section-block') === sec) {
+    const inner = activeFrame.querySelector('.sub-section-inner');
+    if (inner) inner.appendChild(ss);
+  } else {
+    insertAfterSelected(sec, ss);
+  }
+
   if (!opts.fullWidth) window.bindSubSectionDropZone?.(ss);
   window.buildLayerPanel();
   window.deselectAll?.();
