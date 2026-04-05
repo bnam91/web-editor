@@ -225,19 +225,17 @@ function bindBlock(block) {
   if (isShape) {
     block.addEventListener('click', e => {
       e.stopPropagation();
+      const sec = block.closest('.section-block');
       const ss = block.closest('.sub-section-block');
       const layerItem = ss?._layerItem || block._layerItem;
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (layerItem) layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection?.(block.closest('.section-block'));
-        return;
-      }
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll?.();
       block.classList.add('selected');
-      window.syncSection?.(block.closest('.section-block'));
+      window.syncSection?.(sec);
       // shape-block._layerItem은 DOM에 없는 detached 요소 → 부모 ss._layerItem 사용
       window.highlightBlock?.(block, layerItem);
+      window.setBlockAnchor?.(block);
       window.showShapeProperties?.(block);
     });
 
@@ -425,21 +423,14 @@ function bindBlock(block) {
       e.stopPropagation();
       // 편집 모드 중 클릭은 무시 (커서 이동/텍스트 선택 기본 동작 유지)
       if (block.classList.contains('editing')) return;
-      if (e.shiftKey) {
-        if (block.classList.contains('selected')) {
-          block.classList.remove('selected');
-          if (block._layerItem) { block._layerItem.classList.remove('active'); block._layerItem.style.background = ''; }
-        } else {
-          block.classList.add('selected');
-          if (block._layerItem) block._layerItem.classList.add('active');
-        }
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showTextProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -508,21 +499,14 @@ function bindBlock(block) {
   if (isAsset) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        if (block.classList.contains('selected')) {
-          block.classList.remove('selected');
-          if (block._layerItem) { block._layerItem.classList.remove('active'); block._layerItem.style.background = ''; }
-        } else {
-          block.classList.add('selected');
-          if (block._layerItem) block._layerItem.classList.add('active');
-        }
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showAssetProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -571,16 +555,14 @@ function bindBlock(block) {
   if (isGap) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showGapProperties(block);
     });
   }
@@ -588,16 +570,14 @@ function bindBlock(block) {
   if (isIconCb) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showIconCircleProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -633,16 +613,14 @@ function bindBlock(block) {
   if (isTableB) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showTableProperties(block);
     });
     // 셀 더블클릭 → contenteditable 활성화
@@ -759,16 +737,14 @@ function bindBlock(block) {
         return;
       }
       // 블록 배경 클릭: 블록만 선택
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showLabelGroupProperties(block, null);
     });
     block.addEventListener('dblclick', e => {
@@ -800,12 +776,9 @@ function bindBlock(block) {
   if (isCard) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       const rowEl = block.closest('.row');
       const isRowActive = rowEl && rowEl.classList.contains('row-active');
       window.deselectAll();
@@ -817,8 +790,9 @@ function bindBlock(block) {
       }
       // 두 번째 클릭 (또는 단독 카드): 카드 선택 → Card Properties 표시
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showCardProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -869,16 +843,14 @@ function bindBlock(block) {
   if (isGraph) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showGraphProperties(block);
     });
   }
@@ -889,16 +861,14 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       if (block.classList.contains('editing')) return;
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showTextProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -958,16 +928,14 @@ function bindBlock(block) {
     applyDividerStyle(block);
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showDividerProperties(block);
     });
   }

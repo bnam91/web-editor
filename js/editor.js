@@ -88,6 +88,72 @@ function getBlockBreadcrumb(el) {
 let clipboard = null;
 
 /* ═══════════════════════════════════
+   BLOCK MULTI-SELECT HELPERS
+   - Cmd+click  : toggle individual block
+   - Shift+click: range select from last clicked
+═══════════════════════════════════ */
+const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
+  '.table-block, .label-group-block, .card-block, .graph-block, .divider-block, ' +
+  '.icon-text-block, .canvas-block, .shape-block';
+
+let _lastClickedBlock = null;
+
+function _getBlockLayerItem(block) {
+  if (block.classList.contains('shape-block')) {
+    const ss = block.closest('.sub-section-block');
+    return ss?._layerItem || block._layerItem;
+  }
+  return block._layerItem;
+}
+
+/* Cmd+클릭: 단일 블록 토글 */
+function toggleBlockSelect(block, sec) {
+  const layerItem = _getBlockLayerItem(block);
+  if (block.classList.contains('selected')) {
+    block.classList.remove('selected');
+    if (layerItem) { layerItem.classList.remove('active'); layerItem.style.background = ''; }
+  } else {
+    block.classList.add('selected');
+    if (layerItem) layerItem.classList.add('active');
+  }
+  if (sec) window.syncSection?.(sec);
+  _lastClickedBlock = block;
+}
+
+/* Shift+클릭: 마지막 클릭 블록 ~ 현재 블록 범위 선택 */
+function rangeSelectBlocks(block, sec) {
+  const allBlocks = [...(canvasEl || document).querySelectorAll(BLOCK_MULTI_SEL)];
+  const anchor = _lastClickedBlock && allBlocks.includes(_lastClickedBlock) ? _lastClickedBlock : null;
+  if (!anchor) {
+    // 앵커 없으면 단일 선택
+    window.deselectAll?.();
+    block.classList.add('selected');
+    const li = _getBlockLayerItem(block);
+    if (li) li.classList.add('active');
+    _lastClickedBlock = block;
+    if (sec) window.syncSection?.(sec);
+    return;
+  }
+  const a = allBlocks.indexOf(anchor);
+  const b = allBlocks.indexOf(block);
+  const [lo, hi] = a < b ? [a, b] : [b, a];
+  window.deselectAll?.();
+  for (let i = lo; i <= hi; i++) {
+    allBlocks[i].classList.add('selected');
+    const li = _getBlockLayerItem(allBlocks[i]);
+    if (li) li.classList.add('active');
+  }
+  if (sec) window.syncSection?.(sec);
+  // _lastClickedBlock은 앵커 유지 (연속 Shift 클릭 시 앵커 기준 재계산)
+}
+
+/* 일반 클릭 시 앵커 업데이트 */
+function setBlockAnchor(block) { _lastClickedBlock = block; }
+window.toggleBlockSelect  = toggleBlockSelect;
+window.rangeSelectBlocks  = rangeSelectBlocks;
+window.setBlockAnchor     = setBlockAnchor;
+
+/* ═══════════════════════════════════
    MULTI-SELECT STATE
 ═══════════════════════════════════ */
 const multiSel = {
@@ -695,6 +761,7 @@ if (window.electronAPI) {
 
 function deselectAll() {
   clearMultiSel();
+  _lastClickedBlock = null;
   // perf(qa-perf): canvas/layerPanel 범위 한정으로 document 전체 탐색 제거
   const canvas = canvasEl;
   const layerPanel = document.getElementById('layer-panel-body');
