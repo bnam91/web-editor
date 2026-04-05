@@ -521,6 +521,12 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    // group-editing 중이면 editing만 해제, 선택은 유지
+    const editingGroup = document.querySelector('.group-block.group-editing');
+    if (editingGroup) {
+      editingGroup.classList.remove('group-editing');
+      return;
+    }
     deselectAll();
   }
 
@@ -822,7 +828,7 @@ function deselectAll() {
 
   // canvas 내 블록 선택 해제 (단일 querySelectorAll 순회)
   canvas.querySelectorAll('.col').forEach(c => c.classList.remove('multi-selected', 'selected'));
-  canvas.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected'));
+  canvas.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected', 'group-editing'));
   canvas.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
   canvas.querySelectorAll('.text-block').forEach(t => {
     t.classList.remove('selected', 'editing');

@@ -105,18 +105,54 @@ function bindGroupDrag(groupEl) {
   if (groupEl._groupDragBound) return;
   groupEl._groupDragBound = true;
 
-  // group-block 패딩 영역 클릭 → group 선택
+  // group-block 클릭 핸들러:
+  //   - group-editing 모드면 내부 블록 이벤트를 허용하고 리턴
+  //   - 비선택 상태 클릭 → group-selected (1번 클릭)
+  //   - group-selected 상태에서 재클릭 → group-editing 모드 진입 (2번 클릭)
   groupEl.addEventListener('click', e => {
-    if (e.target.closest('.group-inner')) return; // 내부 블록 클릭은 무시
+    // group-editing 모드: 내부 블록 클릭을 bindBlock에 위임
+    if (groupEl.classList.contains('group-editing')) return;
+    // group-inner 내 클릭이지만 editing 모드가 아닌 경우: 전체 그룹 선택 처리
+    if (e.target.closest('.group-inner')) {
+      e.stopPropagation();
+      if (groupEl.classList.contains('group-selected')) {
+        // 2번 클릭 → group-editing 모드 진입
+        groupEl.classList.add('group-editing');
+        window.syncSection?.(groupEl.closest('.section-block'));
+      } else {
+        // 1번 클릭 → group-selected
+        window.deselectAll?.();
+        groupEl.classList.add('group-selected');
+        window.syncSection?.(groupEl.closest('.section-block'));
+      }
+      return;
+    }
+    // 패딩 영역 클릭
     e.stopPropagation();
+    if (groupEl.classList.contains('group-selected')) {
+      // 이미 선택된 상태의 패딩 클릭은 group-editing 진입 없이 유지
+      return;
+    }
     window.deselectAll?.();
-    groupEl.classList.add('selected');
+    groupEl.classList.add('group-selected');
     window.syncSection?.(groupEl.closest('.section-block'));
   });
+
+  // 외부 클릭으로 group-editing 해제 (document-level, capture)
+  if (!groupEl._groupEditOutsideBound) {
+    groupEl._groupEditOutsideBound = true;
+    document.addEventListener('click', e => {
+      if (!groupEl.classList.contains('group-editing')) return;
+      if (!groupEl.contains(e.target)) {
+        groupEl.classList.remove('group-editing');
+      }
+    }, true);
+  }
 
   // group-block 자체를 드래그 핸들로 사용 (패딩 영역에서 드래그 시작)
   groupEl.setAttribute('draggable', 'true');
   groupEl.addEventListener('dragstart', e => {
+    if (groupEl.classList.contains('group-editing')) return; // group-editing 중 그룹 드래그 차단
     if (e.target.closest('.group-inner')) return; // 내부 블록 드래그는 무시
     e.stopPropagation();
     _suppressDragSave();
