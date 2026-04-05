@@ -503,6 +503,13 @@ function rebindAll() {
     }
     // 코너 반경 복원
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
+    // 자식 정렬 복원
+    const inner = ss.querySelector('.sub-section-inner');
+    if (inner) {
+      if (ss.dataset.alignItems)     inner.style.alignItems     = ss.dataset.alignItems;
+      if (ss.dataset.justifyContent) inner.style.justifyContent = ss.dataset.justifyContent;
+      if (ss.dataset.gap)            inner.style.gap            = ss.dataset.gap + 'px';
+    }
   });
 
   // col-placeholder 이벤트 재연결
