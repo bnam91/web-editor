@@ -99,6 +99,19 @@
 
 > 아이콘: 반시계/시계 화살표 (`12×12`)
 
+#### 히스토리 저장 규칙 (`js/history.js`)
+
+| 상황 | 처리 방식 |
+|------|---------|
+| 블록 추가 | `block-factory.js` — push-before (삽입 **전** 현재 상태 저장) |
+| 블록 삭제 | `editor.js` — `ensureHistoryCheckpoint('삭제 전')` + push-after (삭제 **후** 상태 저장) |
+| 붙여넣기 | `editor.js` — `ensureHistoryCheckpoint('붙여넣기 전')` + push-after |
+| 텍스트 편집 종료 | `deselectAll()` — `.editing` 블록 있으면 `pushHistory('텍스트 편집')` |
+
+**`ensureHistoryCheckpoint(action)`** — 현재 DOM이 마지막 히스토리 항목과 다를 때만 체크포인트 저장. 삭제/붙여넣기 직전에 호출해 편집 중이던 미저장 텍스트가 히스토리에 캡처되도록 보장. `window.ensureHistoryCheckpoint`로 외부 노출됨.
+
+> **주의**: block-factory.js는 push-before 방식이므로 paste/delete 직전에 `ensureHistoryCheckpoint`를 호출하지 않으면 편집 중인 텍스트가 히스토리에 없는 상태로 삭제되어 Undo 시 유실된다.
+
 ---
 
 ### 2-9. Commit 버튼
