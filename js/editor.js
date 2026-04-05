@@ -659,16 +659,25 @@ document.addEventListener('keydown', e => {
     }
 
     // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
+    // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
     const selSS = document.querySelector('.sub-section-block.selected');
     if (selSS) {
-      e.preventDefault();
-      const ssRow = selSS.closest('.row') || selSS;
-      ssRow.remove();
-      window._activeSubSection = null;
-      deselectAll();
-      window.buildLayerPanel();
-      pushHistory('서브섹션 삭제');
-      return;
+      const ssHasSelectedChild = selSS.querySelector(
+        '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+        '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+        '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
+      );
+      if (!ssHasSelectedChild) {
+        e.preventDefault();
+        const ssRow = selSS.closest('.row') || selSS;
+        ssRow.remove();
+        window._activeSubSection = null;
+        deselectAll();
+        window.buildLayerPanel();
+        pushHistory('서브섹션 삭제');
+        return;
+      }
+      // 자식 블록이 선택된 경우 → 아래 allSelBlocks 삭제 로직으로 fall-through
     }
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
