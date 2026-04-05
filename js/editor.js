@@ -764,6 +764,12 @@ if (window.electronAPI) {
 function deselectAll() {
   clearMultiSel();
   _lastClickedBlock = null;
+  // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
+  // (입력한 텍스트가 undo 복원 대상이 되도록)
+  if (!window._historyPaused) {
+    const editingBlock = canvasEl?.querySelector('.text-block.editing, .icon-text-block.editing, .label-group-block.editing');
+    if (editingBlock) pushHistory('텍스트 편집');
+  }
   // perf(qa-perf): canvas/layerPanel 범위 한정으로 document 전체 탐색 제거
   const canvas = canvasEl;
   const layerPanel = document.getElementById('layer-panel-body');
