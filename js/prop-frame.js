@@ -419,7 +419,7 @@ function _renderAutoPanel(ss) {
         if (wNum)    wNum.value    = newW;
       }
     }
-    ss.dataset.height = newH; ss.style.minHeight = newH + 'px';
+    ss.dataset.height = newH; ss.style.minHeight = newH + 'px'; ss.style.height = newH + 'px';
     window.scheduleAutoSave?.();
   };
   heightSlider.addEventListener('input', () => { heightNum.value = heightSlider.value; applyHeight(heightSlider.value); });
@@ -461,7 +461,7 @@ function _renderAutoPanel(ss) {
         const curFrameH = parseInt(ss.dataset.height || ss.style.minHeight || 0);
         if (curFrameH) {
           const newH = Math.round(curFrameH * ratio);
-          ss.style.minHeight = newH + 'px';
+          ss.style.minHeight = newH + 'px'; ss.style.height = newH + 'px';
           ss.dataset.height = newH;
           const hSlider = document.getElementById('ss-height-slider');
           const hNum    = document.getElementById('ss-height-num');

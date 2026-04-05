@@ -50,7 +50,7 @@
   display: none;
   box-sizing: border-box;
 }
-.sub-section-block.selected .ss-resize-handle { display: block; }
+.sub-section-block.selected > .ss-resize-handle { display: block; }
 .ss-resize-handle.nw { top:    calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
 .ss-resize-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .ss-resize-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }

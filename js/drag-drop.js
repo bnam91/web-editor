@@ -1435,7 +1435,7 @@ function bindSubSectionDropZone(ss) {
         if (dir.includes('n')) newH = Math.max(40, startH - dy);
         newW = Math.round(newW); newH = Math.round(newH);
         ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-        ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+        ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
         window.scheduleAutoSave?.();
       }
       function onUp() {
