@@ -389,7 +389,7 @@ function bindBlock(block) {
       });
     });
 
-    return; // HTML5 drag 셋업 건너뜀 — joker와 동일, mousemove drag만 사용
+    // HTML5 drag fall-through → 일반 블록과 동일한 DnD 파이프라인 사용
   }
 
   if (isJoker) {
