@@ -5,10 +5,7 @@
   position: relative;
   width: 100%;
   box-sizing: border-box;
-  outline: 1px dashed var(--color-border-subtle, rgba(0,0,0,0.18));
-  outline-offset: -1px;
   cursor: default;
-  transition: outline-color 0.12s;
   overflow: visible;
 }
 .sub-section-block.selected {
