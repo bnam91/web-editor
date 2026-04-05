@@ -569,7 +569,6 @@ document.addEventListener('keydown', e => {
     // 다중 선택 삭제: col 다중
     if (multiSel.cols.size > 1) {
       e.preventDefault();
-      pushHistory();
       multiSel.cols.forEach(col => {
         const row = col.closest('.row');
         col.remove();
@@ -578,16 +577,17 @@ document.addEventListener('keydown', e => {
       clearMultiSel();
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('열 삭제');
       return;
     }
     // 다중 선택 삭제: section 다중
     if (multiSel.sections.size > 1) {
       e.preventDefault();
-      pushHistory();
       multiSel.sections.forEach(s => s.remove());
       clearMultiSel();
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('섹션 삭제');
       return;
     }
     const selText    = document.querySelector('.text-block.selected');
@@ -599,12 +599,12 @@ document.addEventListener('keydown', e => {
     const selSS = document.querySelector('.sub-section-block.selected');
     if (selSS) {
       e.preventDefault();
-      pushHistory();
       const ssRow = selSS.closest('.row') || selSS;
       ssRow.remove();
       window._activeSubSection = null;
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('서브섹션 삭제');
       return;
     }
 
@@ -613,7 +613,6 @@ document.addEventListener('keydown', e => {
     const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
-      pushHistory();
       // shape: 부모 ss/row 단위로 삭제
       const ssRowsToRemove = new Set();
       allSelShapes.forEach(shape => {
@@ -636,17 +635,17 @@ document.addEventListener('keydown', e => {
       window._activeSubSection = null;
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('블록 삭제');
     } else {
       const selRow = document.querySelector('.row.row-active');
       if (selRow) {
         e.preventDefault();
-        pushHistory();
         selRow.remove();
         deselectAll();
         window.buildLayerPanel();
+        pushHistory('행 삭제');
       } else if (selSection) {
         e.preventDefault();
-        pushHistory();
         if (selSection.dataset.variationGroup) {
           const gid = selSection.dataset.variationGroup;
           document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`).forEach(s => s.remove());
@@ -655,6 +654,7 @@ document.addEventListener('keydown', e => {
         }
         deselectAll();
         window.buildLayerPanel();
+        pushHistory('섹션 삭제');
       }
     }
   }
