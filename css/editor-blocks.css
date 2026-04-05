@@ -62,9 +62,7 @@
   min-height: 60px;
   height: 100%;
   position: relative;
-  /* overflow: visible — 중첩 프레임의 핸들이 부모 프레임 밖으로 보여야 하므로
-     클리핑 제거. flex-column 레이아웃이므로 콘텐츠는 자연스럽게 프레임 너비 안에 배치됨 */
-  overflow: visible;
+  overflow: hidden;
 }
 
 /* ═══════════════════════════════════
