@@ -475,24 +475,21 @@ document.addEventListener('keydown', e => {
       return;
     }
 
-    // shape 블록 selected → 부모 sub-section-block(frame) 삭제
-    const selShape = document.querySelector('.shape-block.selected');
-    if (selShape) {
-      e.preventDefault();
-      pushHistory();
-      const ss = selShape.closest('.sub-section-block');
-      const ssRow = ss?.closest('.row') || ss;
-      if (ssRow) ssRow.remove(); else selShape.remove();
-      window._activeSubSection = null;
-      deselectAll();
-      window.buildLayerPanel();
-      return;
-    }
-
+    // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
+    const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
     const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
-    if (allSelBlocks.length > 0) {
+    if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
       pushHistory();
+      // shape: 부모 ss/row 단위로 삭제
+      const ssRowsToRemove = new Set();
+      allSelShapes.forEach(shape => {
+        const ss = shape.closest('.sub-section-block');
+        const ssRow = ss?.closest('.row') || ss;
+        if (ssRow) ssRowsToRemove.add(ssRow); else shape.remove();
+      });
+      ssRowsToRemove.forEach(r => r.remove());
+      // 일반 블록 삭제
       const rowsToRemove = new Set();
       allSelBlocks.forEach(block => {
         if (block.classList.contains('gap-block')) {
@@ -503,6 +500,7 @@ document.addEventListener('keydown', e => {
         }
       });
       rowsToRemove.forEach(r => r.remove());
+      window._activeSubSection = null;
       deselectAll();
       window.buildLayerPanel();
     } else {

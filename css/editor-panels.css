@@ -1083,6 +1083,9 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .layer-item-name { font-size: 11px; color: #b0b0b0; flex: 1; border-radius: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .layer-item.active .layer-item-name { color: #6fa3f7; font-weight: 500; }
 .layer-row-header .layer-item-name { font-weight: 600; }
+/* frame group 헤더 안의 layer-item이 헤더를 꽉 채우도록 */
+.layer-row-header .layer-item { flex: 1; padding: 0; height: 100%; border-radius: 0; }
+.layer-row-header .layer-item:hover { background: transparent; }
 .layer-item-name.editing { background: #2a3a55; color: #aecbff; outline: none; cursor: text; padding: 0 2px; }
 .layer-item-type { font-size: 9px; color: #4a4a4a; letter-spacing: 0.06em; text-transform: uppercase; }
 .layer-ungroup-btn {

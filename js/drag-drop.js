@@ -225,12 +225,19 @@ function bindBlock(block) {
   if (isShape) {
     block.addEventListener('click', e => {
       e.stopPropagation();
+      const ss = block.closest('.sub-section-block');
+      const layerItem = ss?._layerItem || block._layerItem;
+      if (e.shiftKey) {
+        block.classList.toggle('selected');
+        if (layerItem) layerItem.classList.toggle('active', block.classList.contains('selected'));
+        window.syncSection?.(block.closest('.section-block'));
+        return;
+      }
       window.deselectAll?.();
       block.classList.add('selected');
       window.syncSection?.(block.closest('.section-block'));
       // shape-block._layerItem은 DOM에 없는 detached 요소 → 부모 ss._layerItem 사용
-      const ss = block.closest('.sub-section-block');
-      window.highlightBlock?.(block, ss?._layerItem || block._layerItem);
+      window.highlightBlock?.(block, layerItem);
       window.showShapeProperties?.(block);
     });
 
