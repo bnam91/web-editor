@@ -45,7 +45,7 @@ let panOffsetX = 0;
 let panOffsetY = 0;
 
 function applyZoom(z) {
-  currentZoom = Math.min(150, Math.max(25, z));
+  currentZoom = Math.min(400, Math.max(10, z));
   window.currentZoom = currentZoom;
   _applyScalerTransform();
   zoomDisplay.textContent = currentZoom + '%';
