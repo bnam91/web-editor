@@ -212,7 +212,18 @@ function _renderAutoPanel(ss) {
   const ssInner = ss.querySelector('.sub-section-inner');
   const _setAlign = (alignItems, justifyContent) => {
     if (!ssInner) return;
-    if (alignItems    !== null) { ssInner.style.alignItems    = alignItems;    ss.dataset.alignItems    = alignItems; }
+    if (alignItems !== null) {
+      ssInner.style.alignItems = alignItems;
+      ss.dataset.alignItems = alignItems;
+      // 자식 row의 align-self / margin이 align-items를 덮어쓰는 문제 수정
+      // margin: 0 auto 와 align-self: center 가 부모 align-items를 무시하므로 함께 리셋
+      const alignSelfMap = { 'flex-start': 'flex-start', 'center': 'center', 'flex-end': 'flex-end' };
+      const marginMap    = { 'flex-start': '0',          'center': '0 auto',  'flex-end': '0' };
+      ssInner.querySelectorAll(':scope > .row').forEach(row => {
+        row.style.alignSelf = alignSelfMap[alignItems] || '';
+        row.style.margin    = marginMap[alignItems]    || '0';
+      });
+    }
     if (justifyContent !== null) { ssInner.style.justifyContent = justifyContent; ss.dataset.justifyContent = justifyContent; }
     window.scheduleAutoSave?.();
   };
