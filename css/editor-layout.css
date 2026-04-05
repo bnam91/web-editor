@@ -14,7 +14,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(45,111,232,0.12);
+  background: var(--sel-color-fill);
   pointer-events: none;
   z-index: 100;
 }
@@ -26,7 +26,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(45,111,232,0.12);
+  background: var(--sel-color-fill);
   pointer-events: none;
   z-index: 100;
 }
