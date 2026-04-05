@@ -1395,7 +1395,8 @@ function bindSubSectionDropZone(ss) {
   });
 
   // 4코너 리사이즈 핸들 — shape frame 제외
-  if (!isShapeFrame && !ss.querySelector('.ss-resize-handle')) {
+  // :scope > 로 직계 자식만 선택 — 중첩 프레임 핸들에 부모 클로저 리스너가 중복으로 달리는 버그 방지
+  if (!isShapeFrame && !ss.querySelector(':scope > .ss-resize-handle')) {
     ['nw', 'ne', 'sw', 'se'].forEach(dir => {
       const h = document.createElement('div');
       h.className = `ss-resize-handle ${dir}`;
@@ -1403,7 +1404,7 @@ function bindSubSectionDropZone(ss) {
       ss.appendChild(h);
     });
   }
-  ss.querySelectorAll('.ss-resize-handle').forEach(handle => {
+  ss.querySelectorAll(':scope > .ss-resize-handle').forEach(handle => {
     handle.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       e.stopPropagation();
