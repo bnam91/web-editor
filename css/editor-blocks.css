@@ -13,9 +13,13 @@
   outline-offset: -1px;
   cursor: grab;
 }
-.sub-section-block:hover:not(.selected) {
-  outline: 1px solid var(--color-selection-outline);
-  outline-offset: -1px;
+.sub-section-block:hover:not(.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(45,111,232,0.12);
+  pointer-events: none;
+  z-index: 100;
 }
 .sub-section-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
