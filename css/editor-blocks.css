@@ -911,17 +911,9 @@
 .divider-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .divider-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 
-/* ── 블록 hover 아웃라인 (text → row 기준 / asset / label-group / icon-circle / table) ── */
-.row:has(.text-block:hover:not(.selected):not(.editing)) {
-  outline: 1px solid var(--color-selection-outline);
-  outline-offset: -1px;
-}
+/* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected) {
   outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
-}
-.asset-block:hover:not(.selected):not(.img-editing):not(.pos-dragging) {
-  outline: 1px solid var(--color-selection-outline);
   outline-offset: -1px;
 }
 .label-group-block:hover:not(.selected)::after,
