@@ -1416,6 +1416,9 @@ function bindSubSectionDropZone(ss) {
       const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
       const startW = Math.round(ssRect.width / scale0);
       const startH = Math.round(ssRect.height / scale0);
+      // 부모 컨테이너 너비를 최대 폭으로 제한
+      const parentRect = ss.parentElement?.getBoundingClientRect();
+      const maxW = parentRect ? Math.round(parentRect.width / scale0) : 860;
 
       function onMove(ev) {
         const scaler = document.getElementById('canvas-scaler');
@@ -1423,8 +1426,8 @@ function bindSubSectionDropZone(ss) {
         const dx = (ev.clientX - startX) / scale;
         const dy = (ev.clientY - startY) / scale;
         let newW = startW, newH = startH;
-        if (dir.includes('e')) newW = Math.max(60, startW + dx);
-        if (dir.includes('w')) newW = Math.max(60, startW - dx);
+        if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
+        if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
         if (dir.includes('s')) newH = Math.max(40, startH + dy);
         if (dir.includes('n')) newH = Math.max(40, startH - dy);
         newW = Math.round(newW); newH = Math.round(newH);
