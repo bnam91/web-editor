@@ -13,6 +13,7 @@
 .sub-section-block.selected {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
+  cursor: grab;
 }
 .sub-section-block:hover:not(.selected) {
   outline: 1px solid var(--color-selection-outline);

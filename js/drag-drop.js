@@ -1436,30 +1436,6 @@ function bindSubSectionDropZone(ss) {
     document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });
   });
 
-  // 서브섹션 자체 드래그 (섹션 내 재배치)
-  ss.setAttribute('draggable', 'true');
-  ss.addEventListener('dragstart', e => {
-    // shape frame: e.target이 내부 shape-block일 수 있으므로 가드 완화
-    // non-shape frame: 내부 row가 자체 drag하는 경우 ss가 가로채지 않도록 guard 유지
-    if (!isShapeFrame && e.target !== ss) return;
-    e.stopPropagation();
-    // ss가 section-inner 직계 자식인 경우 ss 자체가 dragSrc, row 래퍼가 있으면 row
-    dragSrc = ss.closest('.row') || ss;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');
-    // 기본 drag ghost(큰화면)를 숨김 — section-label drag와 동일하게 처리
-    const ghost = document.createElement('div');
-    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => ghost.remove(), 0);
-    requestAnimationFrame(() => ss.classList.add('dragging'));
-  });
-  ss.addEventListener('dragend', () => {
-    ss.classList.remove('dragging');
-    clearDropIndicators();
-    dragSrc = null;
-  });
 }
 
 export {
