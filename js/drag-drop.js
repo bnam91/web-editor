@@ -215,6 +215,22 @@ function _isInsideUnselectedFrame(block) {
   return !(ss.classList.contains('selected') && window._activeSubSection === ss);
 }
 
+// 프레임(sub-section-block) 내 자식 블록 드래그 후 프레임 높이를 자동 확장
+function _resizeFrameToFitChildren(block) {
+  const ss = block.closest('.sub-section-block');
+  if (!ss) return;
+  const inner = ss.querySelector('.sub-section-inner');
+  if (!inner) return;
+  const childrenBottom = Math.max(...[...inner.children].map(c => {
+    const top = parseInt(c.style.top || 0);
+    return top + (c.offsetHeight || 0);
+  }));
+  if (childrenBottom > ss.offsetHeight) {
+    ss.style.height = childrenBottom + 'px';
+    ss.style.minHeight = childrenBottom + 'px';
+  }
+}
+
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
@@ -383,7 +399,7 @@ function bindBlock(block) {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         document.removeEventListener('dragend', onUp);
-        if (moved) window.pushHistory?.();
+        if (moved) { _resizeFrameToFitChildren(block); window.pushHistory?.(); }
       }
 
       document.addEventListener('mousemove', onMove);
@@ -433,7 +449,7 @@ function bindBlock(block) {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         document.removeEventListener('dragend', onUp); // HTML5 drag 잔존 시 안전망
-        if (moved) window.pushHistory?.();
+        if (moved) { _resizeFrameToFitChildren(block); window.pushHistory?.(); }
       }
 
       document.addEventListener('mousemove', onMove);
@@ -599,6 +615,35 @@ function bindBlock(block) {
   }
 
   if (isGap) {
+    // 프레임(sub-section-inner) 내 absolute gap-block: 드래그로 top 조절
+    block.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      if (block.style.position !== 'absolute') return;
+      if (_getParentFrame(block) && !block.classList.contains('selected')) return;
+      e.stopPropagation();
+      const startX = e.clientX, startY = e.clientY;
+      const startLeft = parseInt(block.style.left || '0');
+      const startTop  = parseInt(block.style.top  || '0');
+      let moved = false;
+      function onMove(ev) {
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
+        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        moved = true;
+        const scaler = document.getElementById('canvas-scaler');
+        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        block.style.left = `${Math.round(startLeft + dx / scale)}px`;
+        block.style.top  = `${Math.round(startTop  + dy / scale)}px`;
+        window.scheduleAutoSave?.();
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (moved) { _resizeFrameToFitChildren(block); window.pushHistory?.(); }
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -774,7 +819,7 @@ function bindBlock(block) {
       function onUp() {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        if (moved) window.pushHistory?.();
+        if (moved) { _resizeFrameToFitChildren(block); window.pushHistory?.(); }
       }
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);

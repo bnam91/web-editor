@@ -1402,10 +1402,12 @@ function wrapSelectedBlocksInFrame() {
   rows[0].before(ss);
 
   // 각 블록을 absolute 배치로 inner에 이동
+  // gap-block은 row 컨테이너가 아니라 블록 자체가 row이므로 직접 처리
   let stackY = 0;
   rows.forEach(row => {
     const rowH = row.offsetHeight || 60;
-    const blocks = [...row.querySelectorAll(BLOCK_SEL)];
+    const isGapRow = row.classList.contains('gap-block');
+    const blocks = isGapRow ? [row] : [...row.querySelectorAll(BLOCK_SEL)];
     blocks.forEach(block => {
       block.style.position = 'absolute';
       block.style.left = '0px';
@@ -1417,7 +1419,7 @@ function wrapSelectedBlocksInFrame() {
       inner.appendChild(block);
     });
     stackY += rowH + GAP;
-    row.remove();
+    if (!isGapRow) row.remove();
   });
 
   window.bindSubSectionDropZone?.(ss);
