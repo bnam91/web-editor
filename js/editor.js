@@ -138,6 +138,8 @@ function rangeSelectBlocks(block, sec) {
   const b = allBlocks.indexOf(block);
   const [lo, hi] = a < b ? [a, b] : [b, a];
   window.deselectAll?.();
+  // deselectAll이 _lastClickedBlock을 null로 초기화하므로 앵커 복원
+  _lastClickedBlock = anchor;
   for (let i = lo; i <= hi; i++) {
     allBlocks[i].classList.add('selected');
     const li = _getBlockLayerItem(allBlocks[i]);
