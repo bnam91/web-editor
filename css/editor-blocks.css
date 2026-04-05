@@ -22,8 +22,9 @@
   pointer-events: none;
   z-index: 100;
 }
-/* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block 제외) */
-.sub-section-block:not(.selected) .sub-section-inner *:not(.shape-block):not(.shape-handle) {
+/* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제
+   예외: shape-block, shape-handle, ss-resize-handle(중첩 핸들), sub-section-block(중첩 프레임 직접 선택) */
+.sub-section-block:not(.selected) .sub-section-inner *:not(.shape-block):not(.shape-handle):not(.ss-resize-handle):not(.sub-section-block) {
   pointer-events: none;
 }
 /* 선택 상태: 자식 pointer-events 복원 */
