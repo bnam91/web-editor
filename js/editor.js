@@ -845,6 +845,36 @@ function deselectAll() {
    이동 단위: section-inner 또는 sub-section-inner 직속 .row / .gap-block
 ═══════════════════════════════════ */
 function moveSelectedBlocks(direction) {
+  // 프레임(sub-section-block)이 선택된 경우 별도 처리
+  const selFrame = window._activeSubSection;
+  if (selFrame && selFrame.classList.contains('selected')) {
+    const sectionInner = selFrame.closest('.section-inner');
+    if (!sectionInner) return;
+    const containerItems = [...sectionInner.children].filter(c =>
+      c.classList.contains('row') || c.classList.contains('gap-block') || c.classList.contains('sub-section-block')
+    );
+    const idx = containerItems.indexOf(selFrame);
+    if (direction === 'up') {
+      if (idx <= 0) return;
+      window.ensureHistoryCheckpoint?.('이동 전');
+      containerItems[idx - 1].before(selFrame);
+    } else {
+      if (idx >= containerItems.length - 1) return;
+      window.ensureHistoryCheckpoint?.('이동 전');
+      containerItems[idx + 1].after(selFrame);
+    }
+    pushHistory(direction === 'up' ? '프레임 위로 이동' : '프레임 아래로 이동');
+    window.buildLayerPanel?.();
+    // 선택 상태 복원
+    selFrame.classList.add('selected');
+    window._activeSubSection = selFrame;
+    if (selFrame._layerItem) {
+      selFrame._layerItem.classList.add('active');
+      selFrame._layerItem.style.background = 'var(--ui-bg-card)';
+    }
+    return;
+  }
+
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +

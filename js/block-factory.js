@@ -410,7 +410,7 @@ function promoteToSubSection(block) {
   ss.id = genId('ss');
   ss.dataset.bg = 'transparent';
   ss.dataset.width = '100%';
-  ss.style.cssText = `background:transparent;padding:0;width:100%;height:${ssH}px;min-height:${ssH}px;overflow:hidden;`;
+  ss.style.cssText = `background:transparent;padding:0;width:100%;height:${ssH}px;min-height:${ssH}px;`;
 
   const inner = document.createElement('div');
   inner.className = 'sub-section-inner';
@@ -1235,7 +1235,7 @@ function makeJokerBlock(opts = {}) {
   if (svgContent) sb.dataset.svg = svgContent;
 
   sb.innerHTML = `
-    <div class="joker-block-inner" style="width:100%;overflow:hidden;">
+    <div class="joker-block-inner" style="width:100%;">
       <div class="joker-block-svg" style="width:${origW}px;height:${origH}px;display:block;line-height:0;">
         ${svgContent || `<div style="width:${origW}px;height:${origH}px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:13px;">SVG 없음</div>`}
       </div>
@@ -1391,7 +1391,7 @@ function wrapSelectedBlocksInFrame() {
 
   // 자유배치(absolute) 프레임 생성
   const ss = makeSubSectionBlock();
-  ss.style.cssText = `background:transparent;padding:0;width:100%;height:${frameH}px;min-height:${frameH}px;overflow:hidden;`;
+  ss.style.cssText = `background:transparent;padding:0;width:100%;height:${frameH}px;min-height:${frameH}px;`;
   ss.dataset.bg = 'transparent';
   ss.dataset.width = '100%';
   ss.dataset.padY = '0';
