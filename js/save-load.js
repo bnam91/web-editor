@@ -251,7 +251,7 @@ function getSerializedCanvas() {
   });
   // 핸들/힌트 등 상태 요소는 직렬화에서 제외
   const clone = canvasEl.cloneNode(true);
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint, .ci-handle').forEach(el => el.remove());
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint, .ci-handle, .shape-handle').forEach(el => el.remove());
   clone.querySelectorAll('.ci-selected').forEach(el => el.classList.remove('ci-selected'));
   clone.querySelectorAll('.ci-active').forEach(el => el.classList.remove('ci-active'));
   // 편집 상태 속성 제거 — contenteditable/editing 상태가 저장되지 않도록
@@ -406,10 +406,30 @@ function rebindAll() {
   });
 
   // 저장 시 제거된 contenteditable 속성 복원 (텍스트 블록 내부 편집 가능 요소)
+  // + placeholder 여부 판단 (data-is-placeholder가 없으면 내용과 비교해서 설정)
+  const _phTextMap = {
+    'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요',
+    'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요', 'tb-label':'Label'
+  };
   canvasEl.querySelectorAll('.text-block').forEach(tb => {
     const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
-    if (inner && !inner.hasAttribute('contenteditable')) {
+    if (!inner) return;
+    if (!inner.hasAttribute('contenteditable')) {
       inner.setAttribute('contenteditable', 'false');
+    }
+    // placeholder 속성 보정: data-placeholder 없으면 클래스로 추정
+    if (!inner.dataset.placeholder) {
+      const cls = [...inner.classList].find(c => _phTextMap[c]);
+      if (cls) inner.dataset.placeholder = _phTextMap[cls];
+    }
+    // data-is-placeholder 보정: 저장된 내용이 placeholder 텍스트와 같거나 비어있으면 placeholder 상태로 표시
+    if (inner.dataset.isPlaceholder !== 'true') {
+      const ph = inner.dataset.placeholder;
+      const txt = inner.textContent.trim();
+      if (ph && (txt === '' || txt === ph.trim())) {
+        if (txt === '') inner.innerHTML = ph; // 비어있으면 placeholder 텍스트 복원
+        inner.dataset.isPlaceholder = 'true';
+      }
     }
   });
 
@@ -420,7 +440,22 @@ function rebindAll() {
     window.bindCanvasBlock?.(cb);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => {
+  // shape-block 구버전 인라인 width/height 제거 — CSS 100%로 frame 추종
+  canvasEl.querySelectorAll('.shape-block').forEach(b => {
+    b.style.width = '';
+    b.style.height = '';
+    const svg = b.querySelector('svg');
+    if (svg) {
+      svg.style.width = ''; svg.style.height = '';
+      // preserveAspectRatio="none" — frame 크기에 맞게 SVG 변형
+      svg.setAttribute('preserveAspectRatio', 'none');
+    }
+    // sub-section-inner 인라인 height도 제거 — CSS :has(.shape-block) { height:100% } 가 처리
+    const inner = b.closest('.sub-section-inner');
+    if (inner) inner.style.height = '';
+  });
+
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .shape-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'

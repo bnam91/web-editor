@@ -40,7 +40,7 @@
    data-layout: "stack" | "flex" | "grid"
 ═══════════════════════════════════ */
 .row { position: relative; display: flex; width: 100%; }
-.row.row-active { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.row.row-active { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 .row[data-layout="stack"] { flex-direction: column; }
 .row[data-layout="flex"]  { flex-direction: row; gap: 12px; align-items: stretch; }
 .row[data-layout="grid"]  { display: grid; gap: 12px; } /* grid-template-columns은 JS에서 inline으로 설정 */
@@ -59,7 +59,7 @@
    data-width: "100" | "75" | "66" | "50" | "33" | "25"
 ═══════════════════════════════════ */
 .col { position: relative; min-width: 0; display: flex; flex-direction: column; }
-.col.col-active { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.col.col-active { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 .col.col-active .col-placeholder { background: rgba(45, 111, 232, 0.08); }
 .col[data-width="100"] { flex: 100; }
 .col[data-width="75"]  { flex: 75; }
@@ -80,7 +80,7 @@
   width: 100%;
 }
 .text-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.text-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.text-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 .text-block.editing  { outline: 1.5px dashed var(--sel-color); background: var(--sel-color-fill); }
 
 
@@ -166,7 +166,7 @@
 }
 .label-group-block.selected { padding-right: 58px; }
 .label-group-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.label-group-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.label-group-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 
 .label-item {
   display: inline-flex;
@@ -183,7 +183,7 @@
   position: relative;
   
 }
-.label-item.item-selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.label-item.item-selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 .label-item-text { outline: none; min-width: 20px; white-space: nowrap; }
 
 .label-item.label-circle {
@@ -314,7 +314,7 @@
   transition: background 0.15s;
 }
 .asset-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.asset-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.asset-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 .asset-block .asset-label { display: none; }
 .asset-block .asset-icon  { display: none; }
 .asset-block .asset-sub  { font-size: 18px; color: #ccc; }

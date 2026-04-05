@@ -129,31 +129,30 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   item.addEventListener('click', e => {
     e.stopPropagation();
     if (e.target.classList.contains('editing')) return;
-    if (e.shiftKey) {
-      // Shift+클릭: 다중선택 토글
-      if (block.classList.contains('selected')) {
-        block.classList.remove('selected');
-        item.classList.remove('active');
-      } else {
-        block.classList.add('selected');
-        item.classList.add('active');
-      }
-      window.syncSection(sec);
-    } else {
-      window.deselectAll();
-      block.classList.add('selected');
-      window.syncSection(sec);
-      window.highlightBlock(block, item);
-      if (isCanvas) window.showCanvasProperties?.(block);
-      else if (isShape) window.showShapeProperties?.(block);
-      else if (isText || isIconText) window.showTextProperties(block);
-      else if (isGap) window.showGapProperties(block);
-      else if (isIconCb) window.showIconCircleProperties(block);
-      else if (isTable) window.showTableProperties(block);
-      else if (isCard) window.showCardProperties(block);
-      else if (isJoker) window.showJokerProperties?.(block);
-      else window.showAssetProperties(block);
+    if (e.metaKey || e.ctrlKey) {
+      // Cmd+클릭: 개별 토글
+      window.toggleBlockSelect?.(block, sec);
+      return;
     }
+    if (e.shiftKey) {
+      // Shift+클릭: 범위 선택
+      window.rangeSelectBlocks?.(block, sec);
+      return;
+    }
+    window.deselectAll();
+    block.classList.add('selected');
+    window.syncSection(sec);
+    window.highlightBlock(block, item);
+    window.setBlockAnchor?.(block);
+    if (isCanvas) window.showCanvasProperties?.(block);
+    else if (isShape) window.showShapeProperties?.(block);
+    else if (isText || isIconText) window.showTextProperties(block);
+    else if (isGap) window.showGapProperties(block);
+    else if (isIconCb) window.showIconCircleProperties(block);
+    else if (isTable) window.showTableProperties(block);
+    else if (isCard) window.showCardProperties(block);
+    else if (isJoker) window.showJokerProperties?.(block);
+    else window.showAssetProperties(block);
   });
   block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');
   block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
@@ -651,6 +650,8 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
     item.prepend(makeIndents(depth + 1));
     item.addEventListener('click', e => {
       e.stopPropagation();
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
       // Col/Row도 함께 활성화
@@ -663,6 +664,7 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
       colHeader.classList.add('active');
       window.syncSection(sec);
       window.highlightBlock(block, item);
+      window.setBlockAnchor?.(block);
       if (isCanvas) window.showCanvasProperties?.(block);
       else if (isText || isIconText) window.showTextProperties(block);
       else if (isGap) window.showGapProperties(block);
@@ -816,6 +818,44 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));
       }
     });
+  }
+
+  // shape-only frame이 아니고 자식이 있으면 chevron + group 구조로 반환
+  const isShapeOnly = !!ssEl.querySelector('.shape-block') &&
+                      ssInner?.children.length === 1 &&
+                      ssInner?.firstElementChild?.classList.contains('shape-block');
+
+  if (!isShapeOnly && ssChildren.children.length > 0) {
+    const group = document.createElement('div');
+    group.className = 'layer-row-group';
+    group._dragTarget = ssEl;
+
+    const header = document.createElement('div');
+    header.className = 'layer-row-header';
+
+    const chevron = document.createElement('svg');
+    chevron.setAttribute('viewBox', '0 0 12 12');
+    chevron.setAttribute('fill', 'currentColor');
+    chevron.className = 'layer-chevron';
+    chevron.innerHTML = '<path d="M2 4l4 4 4-4"/>';
+    chevron.style.cssText = 'width:12px;height:12px;flex-shrink:0;cursor:pointer;';
+    chevron.addEventListener('click', e => {
+      e.stopPropagation();
+      group.classList.toggle('collapsed');
+    });
+
+    // wrapper의 indents 제거 후 header에 재조합
+    const existingIndents = wrapper.querySelector('.layer-indents');
+    if (existingIndents) existingIndents.remove();
+    header.prepend(makeIndents(1));
+    header.appendChild(chevron);
+    header.appendChild(wrapper);
+    group.appendChild(header);
+    group.appendChild(ssChildren);
+
+    // group도 _layerItem 참조 유지
+    ssEl._layerItem = wrapper;
+    return group;
   }
 
   return wrapper;

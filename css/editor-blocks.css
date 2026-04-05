@@ -12,7 +12,7 @@
 }
 .sub-section-block.selected {
   outline: 1px solid var(--sel-color);
-  outline-offset: -2px;
+  outline-offset: -1px;
 }
 .sub-section-block:hover:not(.selected) {
   outline: 1px solid var(--color-selection-outline);
@@ -46,10 +46,11 @@
 .canvas-block.ci-active { overflow: visible; }
 .canvas-block.selected {
   outline: 1px solid var(--sel-color);
-  outline-offset: 0;
+  outline-offset: -1px;
 }
 .canvas-block:hover:not(.selected) {
   outline: 1px solid var(--color-selection-outline);
+  outline-offset: -1px;
 }
 .canvas-block.cb-drag-over {
   outline: 2px dashed var(--sel-color);
@@ -66,13 +67,12 @@
 .canvas-item:active { cursor: grabbing; }
 .canvas-item.ci-selected {
   outline: 1px solid var(--sel-color);
-  outline-offset: 0;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+  outline-offset: -1px;
   overflow: visible;
 }
 .canvas-item:hover:not(.ci-selected) {
   outline: 1px solid var(--color-selection-outline);
-  outline-offset: 0;
+  outline-offset: -1px;
 }
 
 /* canvas-item handles — Figma/tldraw 벤치마크 */
@@ -318,7 +318,7 @@
 
 .gap-block.selected {
   outline: 1px solid var(--sel-color);
-  outline-offset: 0;
+  outline-offset: -1px;
 }
 .gap-block.selected::before { display: block; }
 
@@ -328,7 +328,7 @@
 .row:active { cursor: grabbing; }
 .row [contenteditable="true"] { cursor: text; }
 .row [contenteditable="true"]:active { cursor: text; }
-.row.dragging, .gap-block.dragging { opacity: 0.25; pointer-events: none; cursor: grabbing; }
+.row.dragging, .gap-block.dragging, .sub-section-block.dragging { opacity: 0.25; pointer-events: none; cursor: grabbing; }
 
 /* 캔버스 드롭 인디케이터 — 줌 보정을 위해 두껍게 */
 .drop-indicator {
@@ -523,7 +523,7 @@
 }
 .icon-circle-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-circle-block { position: relative; }
-.icon-circle-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
+.icon-circle-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 .icon-circle-block.drag-over .icb-circle { outline: 2px dashed var(--sel-color); }
 
 .icb-circle {
@@ -581,7 +581,7 @@
   
 }
 .table-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.table-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
+.table-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 
 .tb-table {
   width: 100%;
@@ -654,7 +654,7 @@
   background: #ffffff;
 }
 .graph-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.graph-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
+.graph-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 
 /* ── 세로 막대 (bar-v) ── */
 .grb-bars-v {
@@ -820,7 +820,7 @@
 }
 .card-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .card-block { position: relative; }
-.card-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
+.card-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 .card-block.drag-over .cdb-image { outline: 2px dashed var(--sel-color); }
 
 .cdb-image {
@@ -896,7 +896,7 @@
   
 }
 .divider-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.divider-block.selected { outline: 1px solid var(--sel-color); outline-offset: -2px; }
+.divider-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 
 /* ── 블록 hover 아웃라인 (text → row 기준 / asset / label-group / icon-circle / table) ── */
 .row:has(.text-block:hover:not(.selected):not(.editing)) {
@@ -905,11 +905,11 @@
 }
 .row:has(.text-block.selected) {
   outline: 1px solid var(--sel-color);
-  outline-offset: -2px;
+  outline-offset: -1px;
 }
 .asset-block:hover:not(.selected):not(.img-editing):not(.pos-dragging) {
   outline: 1px solid var(--color-selection-outline);
-  outline-offset: 0;
+  outline-offset: -1px;
 }
 .label-group-block:hover:not(.selected)::after,
 .icon-circle-block:hover:not(.selected)::after,
@@ -920,6 +920,14 @@
   background: var(--sel-color-fill);
   pointer-events: none;
   z-index: 0;
+}
+
+/* ── 텍스트 블록 placeholder 스타일 (PPT 스타일) ── */
+[data-is-placeholder="true"] {
+  opacity: 0.45;
+}
+[data-is-placeholder="true"][contenteditable="true"] {
+  opacity: 1;
 }
 
 /* ── 블록 선택 glow ── */
@@ -958,7 +966,8 @@
   cursor: default;
 }
 .joker-block.selected {
-  outline: 1.5px solid var(--sel-color);
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
   z-index: 2;
 }
 .joker-block-inner {
@@ -974,15 +983,56 @@
 /* ── Shape Block ── */
 .shape-block {
   position: absolute;
-  width: 200px;
+  width: 100%;
+  height: 100%;
   user-select: none;
   cursor: default;
 }
+.shape-block:hover:not(.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 0;
+}
 .shape-block.selected {
-  outline: 1.5px solid var(--sel-color);
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
   z-index: 2;
 }
 .shape-block .shape-svg {
   display: block;
   width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
 }
+
+/* shape 선택 시 부모 overflow 해제 — 핸들이 잘리지 않도록 */
+.sub-section-block:has(.shape-block.selected) {
+  overflow: visible;
+}
+
+/* shape frame: sub-section-inner가 frame 높이를 100% 채우도록 */
+.sub-section-block:has(.shape-block) .sub-section-inner {
+  height: 100%;
+}
+
+/* shape 리사이즈 핸들 — --inv-zoom calc()로 캔버스 배율 무관하게 고정 크기 유지 */
+.shape-handle {
+  position: absolute;
+  width:  calc(7px * var(--inv-zoom, 1));
+  height: calc(7px * var(--inv-zoom, 1));
+  background: #fff;
+  border: 1px solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 10;
+  display: none;
+  box-sizing: border-box;
+}
+.shape-block.selected .shape-handle { display: block; }
+.shape-handle.nw { top:    calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+.shape-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.shape-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.shape-handle.se { bottom: calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }

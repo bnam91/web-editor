@@ -548,6 +548,56 @@ window.deactivateSubSection()         // _activeSubSection = null
 
 ---
 
+## 쉐이프(Shape) 블록
+
+에디터 내 기본 도형(별, 다각형, 직사각형, 타원, 선, 화살표)을 삽입하는 블록. 항상 Frame(sub-section-block) 내부에 `position: absolute`로 삽입된다.
+
+### `window.addShapeBlock(type)`
+
+```js
+window.addShapeBlock('star')       // 별
+window.addShapeBlock('polygon')    // 삼각형
+window.addShapeBlock('rectangle')  // 직사각형
+window.addShapeBlock('ellipse')    // 타원
+window.addShapeBlock('line')       // 선
+window.addShapeBlock('arrow')      // 화살표
+```
+
+- 항상 현재 선택된 섹션에 100×100px Frame + shape-block 세트로 삽입
+- shape-block은 Frame(sub-section-block) 내부 `left:0, top:0`에 고정
+
+**dataset 저장 필드 (shape-block):**
+- `dataset.shapeType` — 도형 타입 (`star` / `polygon` / `rectangle` / `ellipse` / `line` / `arrow`)
+- `dataset.shapeColor` — 색상 hex (`#cccccc` 기본)
+- `dataset.shapeStrokeWidth` — 선 두께 (`3` 기본)
+
+**DOM 구조:**
+```
+section-inner
+  └─ sub-section-block  (Frame, position: relative, 흐름 레이아웃)
+       └─ sub-section-inner
+            └─ shape-block  (position: absolute, left:0, top:0)
+                 └─ svg.shape-svg
+```
+
+**리사이즈 핸들 (UI):**
+- 선택 시 4코너에 핸들 자동 표시 (`.shape-handle.nw/ne/sw/se`)
+- 드래그로 Frame + shape-block 동시 리사이즈 (좌·상·우·하 모두 가능)
+- `left:0, top:0` 고정 — shape-block 내부 위치는 절대 변경되지 않음
+- 핸들 크기: `calc(7px * var(--inv-zoom))` — 캔버스 배율 무관하게 시각적 7px 고정
+- 저장 시 핸들 DOM 자동 제거 (`getSerializedCanvas` 내 `.shape-handle` 제거)
+
+**프로퍼티 패널 (`window.showShapeProperties(block)`):**
+- 색상 picker + hex 입력
+- 선 두께 슬라이더
+- W/H 크기 슬라이더 (Frame과 동기 리사이즈)
+
+**DnD (섹션 내 재배치):**
+- shape-block 클릭/드래그 시 Frame(sub-section-block) 전체가 HTML5 DnD로 이동
+- shape-block 자체의 mousemove 드래그 없음 — joker 블록과 달리 내부 위치 고정
+
+---
+
 ## 조커(Joker) 블록
 
 Figma에서 에디터 블록으로 직접 표현이 불가능한 요소(VECTOR, STAR, POLYGON, CONNECTOR 등)를 SVG로 그대로 보존하는 패스스루 컨테이너. 서브섹션 내부에서 자유 위치로 배치된다.
@@ -606,3 +656,5 @@ window.addJokerBlock({
 | 2026-04-03 | v1.2 | 패딩 아키텍처 변경 반영 — `applyPagePadX` 신규 API, 페이지/섹션/블록 3단계 우선순위, `padXIncludesAsset` 플래그 추가 |
 | 2026-04-03 | v1.3 | Sub-Section 블록 API, 조커 블록 API 추가 (Figma 임포트 파이프라인 대응) |
 | 2026-04-04 | v1.4 | `addSection paddingY` 옵션 추가. `addTextBlock content` `\n` 줄바꿈 지원(pre-wrap). `addLabelGroupBlock shape: 'circle'` 추가. Sub-Section `fullWidth` 모드 신규 (이중 배경 섹션용). `activateSubSection` / `deactivateSubSection` 공개 API 추가. 다크모드 텍스트 커서 색상 수정 (`caret-color: var(--ui-text-dim)`) |
+| 2026-04-04 | v1.5 | **버그 수정**: (1) Frame(sub-section) 내부에 블록 DnD 삽입 가능 — `bindSubSectionDropZone` 정상화. (2) 플로팅 패널에서 Frame 선택 상태에서도 내부 삽입 동작 — `insertAfterSelected` `selected` 조건 제거. (3) Shape 블록(`position:absolute`) HTML5 drag 허용 — `sub-section-inner` 내부는 dragstart 차단 해제. (4) 텍스트 블록 PPT 스타일 플레이스홀더 — `data-is-placeholder="true"` 속성, 더블클릭 시 전체선택, blur 시 복원. (5) 전 블록 아웃라인 통일 — `1px solid, outline-offset: -1px`, 이중 outline(box-shadow) 제거 |
+| 2026-04-05 | v1.6 | **Shape 블록 완성**: (1) `deselectAll()`에 `.shape-block` 누락 추가 — 선택/해제 정상화. (2) `prop-shape.js` 신규 — `showShapeProperties(block)` 구현 (색상/두께/W·H). (3) 4코너 리사이즈 핸들 추가 — `calc(7px * var(--inv-zoom))` 배율 독립 크기, 저장 시 자동 제거. (4) 핸들 리사이즈 시 `block.left/top` 고정(0,0) — Frame(ss)만 리사이즈하도록 수정. (5) shape DnD: mousedown 드래그 제거, `isInnerBlock`에서 제외 → Frame 전체 HTML5 DnD로 이동. (6) 호버 `::after { background: var(--sel-color-fill) }` 추가 — 다른 블록과 일관성. |

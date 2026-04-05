@@ -1608,7 +1608,7 @@ body.preview-mode #preview-navigator { display: flex; }
   background: var(--sel-color-fill);
   pointer-events: none;
 }
-.icon-text-block.selected { outline: 2px solid var(--sel-color); outline-offset: -1px; }
+.icon-text-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 
 .itb-icon {
   width: 40px;

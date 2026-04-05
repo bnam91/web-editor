@@ -88,6 +88,74 @@ function getBlockBreadcrumb(el) {
 let clipboard = null;
 
 /* ═══════════════════════════════════
+   BLOCK MULTI-SELECT HELPERS
+   - Cmd+click  : toggle individual block
+   - Shift+click: range select from last clicked
+═══════════════════════════════════ */
+const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
+  '.table-block, .label-group-block, .card-block, .graph-block, .divider-block, ' +
+  '.icon-text-block, .canvas-block, .shape-block';
+
+let _lastClickedBlock = null;
+
+function _getBlockLayerItem(block) {
+  if (block.classList.contains('shape-block')) {
+    const ss = block.closest('.sub-section-block');
+    return ss?._layerItem || block._layerItem;
+  }
+  return block._layerItem;
+}
+
+/* Cmd+클릭: 단일 블록 토글 */
+function toggleBlockSelect(block, sec) {
+  const layerItem = _getBlockLayerItem(block);
+  if (block.classList.contains('selected')) {
+    block.classList.remove('selected');
+    if (layerItem) { layerItem.classList.remove('active'); layerItem.style.background = ''; }
+  } else {
+    block.classList.add('selected');
+    if (layerItem) layerItem.classList.add('active');
+  }
+  if (sec) window.syncSection?.(sec);
+  _lastClickedBlock = block;
+}
+
+/* Shift+클릭: 마지막 클릭 블록 ~ 현재 블록 범위 선택 */
+function rangeSelectBlocks(block, sec) {
+  const allBlocks = [...(canvasEl || document).querySelectorAll(BLOCK_MULTI_SEL)];
+  const anchor = _lastClickedBlock && allBlocks.includes(_lastClickedBlock) ? _lastClickedBlock : null;
+  if (!anchor) {
+    // 앵커 없으면 단일 선택
+    window.deselectAll?.();
+    block.classList.add('selected');
+    const li = _getBlockLayerItem(block);
+    if (li) li.classList.add('active');
+    _lastClickedBlock = block;
+    if (sec) window.syncSection?.(sec);
+    return;
+  }
+  const a = allBlocks.indexOf(anchor);
+  const b = allBlocks.indexOf(block);
+  const [lo, hi] = a < b ? [a, b] : [b, a];
+  window.deselectAll?.();
+  // deselectAll이 _lastClickedBlock을 null로 초기화하므로 앵커 복원
+  _lastClickedBlock = anchor;
+  for (let i = lo; i <= hi; i++) {
+    allBlocks[i].classList.add('selected');
+    const li = _getBlockLayerItem(allBlocks[i]);
+    if (li) li.classList.add('active');
+  }
+  if (sec) window.syncSection?.(sec);
+  // _lastClickedBlock은 앵커 유지 (연속 Shift 클릭 시 앵커 기준 재계산)
+}
+
+/* 일반 클릭 시 앵커 업데이트 */
+function setBlockAnchor(block) { _lastClickedBlock = block; }
+window.toggleBlockSelect  = toggleBlockSelect;
+window.rangeSelectBlocks  = rangeSelectBlocks;
+window.setBlockAnchor     = setBlockAnchor;
+
+/* ═══════════════════════════════════
    MULTI-SELECT STATE
 ═══════════════════════════════════ */
 const multiSel = {
@@ -203,13 +271,51 @@ function selectColWithModifier(col, e) {
 }
 
 function copySelected() {
-  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected');
+  const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+    '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
+    '.icon-text-block.selected, .canvas-block.selected, .shape-block.selected';
+
+  const allSel = [...document.querySelectorAll(MULTI_SEL)];
+
+  if (allSel.length > 1) {
+    // 멀티셀렉트: DOM 순서대로 고유 행 수집 (같은 row 중복 방지)
+    const seen = new Set();
+    const items = [];
+    allSel.forEach(block => {
+      let ref;
+      if (block.classList.contains('shape-block')) {
+        const ss = block.closest('.sub-section-block');
+        ref = ss?.closest('.row') || ss || block;
+      } else if (block.classList.contains('gap-block')) {
+        ref = block;
+      } else {
+        ref = block.closest('.row') || block;
+      }
+      if (!seen.has(ref)) {
+        seen.add(ref);
+        items.push({ html: ref.outerHTML });
+      }
+    });
+    clipboard = { type: 'multi-block', items };
+    return;
+  }
+
+  // 단건 copy
+  const selBlock   = allSel[0] || null;
+  const selShape   = selBlock?.classList.contains('shape-block') ? selBlock : null;
+  const selNormal  = selShape ? null : selBlock;
   const selSS      = document.querySelector('.sub-section-block.selected');
   const selRow     = document.querySelector('.row.row-active');
   const selSection = document.querySelector('.section-block.selected');
-  if (selBlock) {
-    const isGapSel = selBlock.classList.contains('gap-block');
-    const target = isGapSel ? selBlock : (selBlock.closest('.row') || selBlock);
+
+  if (selShape) {
+    const ss = selShape.closest('.sub-section-block');
+    const rowEl = ss?.closest('.row') || ss || selShape;
+    clipboard = { type: 'block', html: rowEl.outerHTML };
+  } else if (selNormal) {
+    const isGapSel = selNormal.classList.contains('gap-block');
+    const target = isGapSel ? selNormal : (selNormal.closest('.row') || selNormal);
     clipboard = { type: 'block', html: target.outerHTML };
   } else if (selSS) {
     // 서브섹션은 row > col > sub-section-block 구조이므로 row 단위로 복사
@@ -222,15 +328,58 @@ function copySelected() {
   }
 }
 
+/* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
+function _bindPastedEl(el) {
+  el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .shape-block').forEach(b => window.bindBlock(b));
+  el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
+  el.querySelectorAll('.sub-section-block').forEach(ss => {
+    ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+    ss._subSecBound = false;
+    window.bindSubSectionDropZone?.(ss);
+  });
+  el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
+    const col = ph.parentElement;
+    col.replaceChild(makeColPlaceholder(col), ph);
+  });
+}
+
 function pasteClipboard() {
   if (!clipboard) return;
-  pushHistory();
+  // 현재 DOM 상태가 마지막 히스토리와 다르면 체크포인트 저장
+  // (block-factory.js가 push-before라서 최신 N개 블록 상태가 히스토리에 없는 경우 대비)
+  window.ensureHistoryCheckpoint?.('붙여넣기 전');
+
+  if (clipboard.type === 'multi-block') {
+    const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+    if (!sec) return;
+    let lastEl = null;
+    clipboard.items.forEach(item => {
+      const temp = document.createElement('div');
+      temp.innerHTML = item.html;
+      const el = temp.firstElementChild;
+      if (!el) return;
+      if (lastEl) {
+        lastEl.after(el);
+      } else {
+        const pasteHasSS = el.classList.contains('sub-section-block') || !!el.querySelector('.sub-section-block');
+        const savedActiveSS = window._activeSubSection;
+        if (pasteHasSS) window._activeSubSection = null;
+        insertAfterSelected(sec, el);
+        if (pasteHasSS) window._activeSubSection = savedActiveSS;
+      }
+      _bindPastedEl(el);
+      lastEl = el;
+    });
+    window.buildLayerPanel();
+    pushHistory('붙여넣기');
+    return;
+  }
+
   const temp = document.createElement('div');
   temp.innerHTML = clipboard.html;
   const el = temp.firstElementChild;
 
   if (clipboard.type === 'section') {
-    // ID 충돌 방지: 섹션 및 내부 블록 ID 재생성
     const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
     el.id = genIdFn('sec');
     el.querySelectorAll('[id]').forEach(child => {
@@ -242,35 +391,20 @@ function pasteClipboard() {
     bindSectionOrder(el);
     bindSectionDrag(el);
     bindSectionDropZone(el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
-    el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
-    el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
-      const col = ph.parentElement;
-      col.replaceChild(makeColPlaceholder(col), ph);
-    });
+    _bindPastedEl(el);
     el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
   } else {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
-    // 서브섹션 포함 row 붙여넣기 시 _activeSubSection 안으로 들어가지 않도록
     const pasteHasSS = el.classList.contains('sub-section-block') || !!el.querySelector('.sub-section-block');
     const savedActiveSS = window._activeSubSection;
     if (pasteHasSS) window._activeSubSection = null;
     insertAfterSelected(sec, el);
     if (pasteHasSS) window._activeSubSection = savedActiveSS;
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
-    el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
-    el.querySelectorAll('.sub-section-block').forEach(ss => {
-      ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
-      ss._subSecBound = false;
-      window.bindSubSectionDropZone?.(ss);
-    });
-    el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
-      const col = ph.parentElement;
-      col.replaceChild(makeColPlaceholder(col), ph);
-    });
+    _bindPastedEl(el);
   }
   window.buildLayerPanel();
+  pushHistory('붙여넣기');
 }
 
 document.addEventListener('keydown', e => {
@@ -436,7 +570,6 @@ document.addEventListener('keydown', e => {
     // 다중 선택 삭제: col 다중
     if (multiSel.cols.size > 1) {
       e.preventDefault();
-      pushHistory();
       multiSel.cols.forEach(col => {
         const row = col.closest('.row');
         col.remove();
@@ -445,16 +578,17 @@ document.addEventListener('keydown', e => {
       clearMultiSel();
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('열 삭제');
       return;
     }
     // 다중 선택 삭제: section 다중
     if (multiSel.sections.size > 1) {
       e.preventDefault();
-      pushHistory();
       multiSel.sections.forEach(s => s.remove());
       clearMultiSel();
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('섹션 삭제');
       return;
     }
     const selText    = document.querySelector('.text-block.selected');
@@ -466,19 +600,30 @@ document.addEventListener('keydown', e => {
     const selSS = document.querySelector('.sub-section-block.selected');
     if (selSS) {
       e.preventDefault();
-      pushHistory();
       const ssRow = selSS.closest('.row') || selSS;
       ssRow.remove();
       window._activeSubSection = null;
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('서브섹션 삭제');
       return;
     }
 
+    // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
+    const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
     const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
-    if (allSelBlocks.length > 0) {
+    if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
-      pushHistory();
+      window.ensureHistoryCheckpoint?.('삭제 전');
+      // shape: 부모 ss/row 단위로 삭제
+      const ssRowsToRemove = new Set();
+      allSelShapes.forEach(shape => {
+        const ss = shape.closest('.sub-section-block');
+        const ssRow = ss?.closest('.row') || ss;
+        if (ssRow) ssRowsToRemove.add(ssRow); else shape.remove();
+      });
+      ssRowsToRemove.forEach(r => r.remove());
+      // 일반 블록 삭제
       const rowsToRemove = new Set();
       allSelBlocks.forEach(block => {
         if (block.classList.contains('gap-block')) {
@@ -489,19 +634,20 @@ document.addEventListener('keydown', e => {
         }
       });
       rowsToRemove.forEach(r => r.remove());
+      window._activeSubSection = null;
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('블록 삭제');
     } else {
       const selRow = document.querySelector('.row.row-active');
       if (selRow) {
         e.preventDefault();
-        pushHistory();
         selRow.remove();
         deselectAll();
         window.buildLayerPanel();
+        pushHistory('행 삭제');
       } else if (selSection) {
         e.preventDefault();
-        pushHistory();
         if (selSection.dataset.variationGroup) {
           const gid = selSection.dataset.variationGroup;
           document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`).forEach(s => s.remove());
@@ -510,6 +656,7 @@ document.addEventListener('keydown', e => {
         }
         deselectAll();
         window.buildLayerPanel();
+        pushHistory('섹션 삭제');
       }
     }
   }
@@ -618,6 +765,13 @@ if (window.electronAPI) {
 
 function deselectAll() {
   clearMultiSel();
+  _lastClickedBlock = null;
+  // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
+  // (입력한 텍스트가 undo 복원 대상이 되도록)
+  if (!window._historyPaused) {
+    const editingBlock = canvasEl?.querySelector('.text-block.editing, .icon-text-block.editing, .label-group-block.editing');
+    if (editingBlock) pushHistory('텍스트 편집');
+  }
   // perf(qa-perf): canvas/layerPanel 범위 한정으로 document 전체 탐색 제거
   const canvas = canvasEl;
   const layerPanel = document.getElementById('layer-panel-body');
@@ -634,7 +788,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block').forEach(b => b.classList.remove('selected'));
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
@@ -696,7 +850,7 @@ function bindSectionHitzone(sec) {
     const layerEl = sec._layerSectionEl
       || document.querySelector(`.layer-section[data-sec-id="${sec.id}"]`);
     if (layerEl) {
-      layerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      layerEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
       layerEl.querySelector('.layer-section-header')?.classList.add('active');
     }
   });

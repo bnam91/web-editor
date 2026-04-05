@@ -336,9 +336,7 @@ function _renderAutoPanel(ss) {
         }
       });
       if (isShapeFrame) {
-        // inner height 비례 스케일
-        const innerH = parseInt(inner.style.height || inner.offsetHeight || 0);
-        if (innerH) inner.style.height = Math.round(innerH * ratio) + 'px';
+        // inner/block/svg는 CSS height:100%로 ss를 따름 — inline 스케일 불필요
         // frame min-height 비례 스케일
         const curFrameH = parseInt(ss.dataset.height || ss.style.minHeight || 0);
         if (curFrameH) {

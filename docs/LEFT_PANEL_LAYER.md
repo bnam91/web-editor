@@ -160,6 +160,25 @@ Section (섹션)
 - 이 규칙은 서브섹션, 그룹, Row 등 `layer-row-header`를 쓰는 모든 요소에 적용됨
 - depth가 달라져도 자동으로 맞춰짐 (indent 단위가 동일하기 때문)
 
+#### Frame 그룹 헤더 내부 `.layer-item` 레이아웃
+
+`layer-row-header` 안에 있는 `.layer-item` (Frame 타입 표시 라벨 등)은 별도 CSS 보정이 필요하다.
+
+```css
+/* editor-panels.css */
+.layer-row-header .layer-item {
+  flex: 1;              /* row-header 전체 너비를 채워야 type 라벨이 우측으로 밀림 */
+  padding: 0;           /* 외부 header의 padding과 중복 방지 */
+  height: 100%;
+  border-radius: 0;
+}
+.layer-row-header .layer-item:hover {
+  background: transparent;   /* header hover 색상과 충돌 방지 */
+}
+```
+
+> `flex: 1` 없으면 `.layer-item`이 내용 크기만큼만 차지해 "Frame" 타입 라벨이 이름 바로 옆에 붙는 시각적 오정렬 발생.
+
 ---
 
 ## 4. 상호작용 기능 체크리스트
@@ -228,6 +247,23 @@ Section (섹션)
 - [ ] `active` 클래스 → 파란 왼쪽 테두리 + 배경 강조
 - [ ] 더블클릭 이름 → 인라인 편집
 - [ ] 삭제 시 레이어패널 자동 갱신 (`buildLayerPanel()` 재호출)
+
+#### 멀티셀렉트 (캔버스 블록 + 레이어 패널 동일 동작)
+
+| 입력 | 동작 |
+|------|------|
+| 단순 클릭 | 단일 선택 (기존 선택 해제) |
+| `Cmd+click` | 개별 토글 선택 (anchor 유지) |
+| `Shift+click` | 범위 선택 — anchor 블록 ~ 클릭 블록 사이 전체 선택 |
+| `Backspace` | 선택된 모든 블록 일괄 삭제 |
+| `Cmd+C` | 선택된 모든 블록 복사 (`clipboard.type = 'multi-block'`) |
+| `Cmd+V` | 복사된 블록들 순서 유지하며 붙여넣기 |
+
+**구현 파일**: `js/editor.js` (`toggleBlockSelect`, `rangeSelectBlocks`, `setBlockAnchor`), `js/drag-drop.js` (각 블록 click 핸들러), `js/layer-panel-items.js` (`makeLayerBlockItem`, `makeLayerColItem` click 핸들러)
+
+**anchor 규칙**: `setBlockAnchor(block)` — 단순 클릭 시 anchor 설정. `rangeSelectBlocks`는 anchor~target 구간을 `deselectAll()` 후 재선택. `deselectAll()` 내부에서 `_lastClickedBlock = null` 초기화되므로 anchor를 로컬 변수에 저장 후 복원.
+
+**BLOCK_MULTI_SEL 셀렉터**: `.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .shape-block` (sub-section-block 제외 — 서브섹션은 별도 선택 흐름)
 
 ### 4-4. 드래그앤드롭 (레이어 내)
 

@@ -220,6 +220,96 @@ function bindBlock(block) {
   const isDivider     = block.classList.contains('divider-block');
   const isCanvas      = block.classList.contains('canvas-block');
   const isJoker      = block.classList.contains('joker-block');
+  const isShape      = block.classList.contains('shape-block');
+
+  if (isShape) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      const sec = block.closest('.section-block');
+      const ss = block.closest('.sub-section-block');
+      const layerItem = ss?._layerItem || block._layerItem;
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      window.deselectAll?.();
+      block.classList.add('selected');
+      window.syncSection?.(sec);
+      // shape-block._layerItem은 DOM에 없는 detached 요소 → 부모 ss._layerItem 사용
+      window.highlightBlock?.(block, layerItem);
+      window.setBlockAnchor?.(block);
+      window.showShapeProperties?.(block);
+    });
+
+    // 4코너 리사이즈 핸들 생성 (중복 방지)
+    if (!block.querySelector('.shape-handle')) {
+      ['nw', 'ne', 'sw', 'se'].forEach(dir => {
+        const h = document.createElement('div');
+        h.className = `shape-handle ${dir}`;
+        h.dataset.dir = dir;
+        block.appendChild(h);
+      });
+    }
+
+    // 핸들 mousedown → 리사이즈
+    block.querySelectorAll('.shape-handle').forEach(handle => {
+      handle.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const dir    = handle.dataset.dir;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const ss  = block.closest('.sub-section-block');
+        const startW = parseInt(ss?.style.width  || ss?.dataset.width)  || 100;
+        const startH = parseInt(ss?.style.height || ss?.dataset.height) || 100;
+
+        function onMove(ev) {
+          const scaler = document.getElementById('canvas-scaler');
+          const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+          const dx = (ev.clientX - startX) / scale;
+          const dy = (ev.clientY - startY) / scale;
+
+          // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
+          let newW = startW, newH = startH;
+          if (dir.includes('e')) newW = Math.max(20, startW + dx);
+          if (dir.includes('w')) newW = Math.max(20, startW - dx);
+          if (dir.includes('s')) newH = Math.max(20, startH + dy);
+          if (dir.includes('n')) newH = Math.max(20, startH - dy);
+          newW = Math.round(newW); newH = Math.round(newH);
+
+          // Shift: 비율 고정 (더 많이 변한 축이 기준)
+          if (ev.shiftKey && startW > 0 && startH > 0) {
+            const ratio = startW / startH;
+            const dW = Math.abs(newW - startW);
+            const dH = Math.abs(newH - startH);
+            if (dW >= dH) newH = Math.max(20, Math.round(newW / ratio));
+            else          newW = Math.max(20, Math.round(newH * ratio));
+          }
+
+          if (ss) {
+            ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+            ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+          }
+          // 우측 패널 슬라이더 동기화
+          const wNum = document.getElementById('shape-w-num');
+          const wSl  = document.getElementById('shape-w-slider');
+          const hNum = document.getElementById('shape-h-num');
+          const hSl  = document.getElementById('shape-h-slider');
+          if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
+          if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
+          window.scheduleAutoSave?.();
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          window.pushHistory?.();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+
+    return; // HTML5 drag 셋업 건너뜀 — joker와 동일, mousemove drag만 사용
+  }
 
   if (isJoker) {
     block.addEventListener('click', e => {
@@ -333,21 +423,14 @@ function bindBlock(block) {
       e.stopPropagation();
       // 편집 모드 중 클릭은 무시 (커서 이동/텍스트 선택 기본 동작 유지)
       if (block.classList.contains('editing')) return;
-      if (e.shiftKey) {
-        if (block.classList.contains('selected')) {
-          block.classList.remove('selected');
-          if (block._layerItem) { block._layerItem.classList.remove('active'); block._layerItem.style.background = ''; }
-        } else {
-          block.classList.add('selected');
-          if (block._layerItem) block._layerItem.classList.add('active');
-        }
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showTextProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -361,20 +444,43 @@ function bindBlock(block) {
       const clicked = [...editEls].find(el => el.contains(document.elementFromPoint(e.clientX, e.clientY))) || editEls[0];
       if (clicked) {
         clicked.focus();
-        // 클릭 위치에 정확히 커서 지정
-        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-        if (range) {
+        // placeholder 상태면 전체 선택 (즉시 타이핑으로 교체 가능)
+        if (clicked.dataset.isPlaceholder === 'true') {
+          const range = document.createRange();
+          range.selectNodeContents(clicked);
           const sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(range);
+        } else {
+          // 클릭 위치에 정확히 커서 지정
+          const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+          if (range) {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
         }
         // 편집 이벤트 바인딩 (최초 1회)
         if (!clicked._editBound) {
           clicked._editBound = true;
+          // input → 타이핑 즉시 placeholder 해제
+          clicked.addEventListener('input', () => {
+            if (clicked.dataset.isPlaceholder === 'true' && clicked.textContent.trim() !== '') {
+              delete clicked.dataset.isPlaceholder;
+            }
+          });
           // blur → 편집 종료 (외부 클릭, 포커스 이탈 시)
           clicked.addEventListener('blur', () => {
             block.classList.remove('editing');
             clicked.setAttribute('contenteditable', 'false');
+            // 빈 텍스트면 placeholder 복원
+            const ph = clicked.dataset.placeholder;
+            if (ph && clicked.textContent.trim() === '') {
+              clicked.innerHTML = ph;
+              clicked.dataset.isPlaceholder = 'true';
+            } else if (clicked.textContent.trim() !== '') {
+              delete clicked.dataset.isPlaceholder;
+            }
           });
           // Escape → 편집 종료, 블록 선택 상태 유지
           clicked.addEventListener('keydown', ev => {
@@ -393,21 +499,14 @@ function bindBlock(block) {
   if (isAsset) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        if (block.classList.contains('selected')) {
-          block.classList.remove('selected');
-          if (block._layerItem) { block._layerItem.classList.remove('active'); block._layerItem.style.background = ''; }
-        } else {
-          block.classList.add('selected');
-          if (block._layerItem) block._layerItem.classList.add('active');
-        }
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showAssetProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -456,16 +555,14 @@ function bindBlock(block) {
   if (isGap) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showGapProperties(block);
     });
   }
@@ -473,16 +570,14 @@ function bindBlock(block) {
   if (isIconCb) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showIconCircleProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -518,16 +613,14 @@ function bindBlock(block) {
   if (isTableB) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showTableProperties(block);
     });
     // 셀 더블클릭 → contenteditable 활성화
@@ -644,16 +737,14 @@ function bindBlock(block) {
         return;
       }
       // 블록 배경 클릭: 블록만 선택
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showLabelGroupProperties(block, null);
     });
     block.addEventListener('dblclick', e => {
@@ -685,12 +776,9 @@ function bindBlock(block) {
   if (isCard) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       const rowEl = block.closest('.row');
       const isRowActive = rowEl && rowEl.classList.contains('row-active');
       window.deselectAll();
@@ -702,8 +790,9 @@ function bindBlock(block) {
       }
       // 두 번째 클릭 (또는 단독 카드): 카드 선택 → Card Properties 표시
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showCardProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -754,16 +843,14 @@ function bindBlock(block) {
   if (isGraph) {
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showGraphProperties(block);
     });
   }
@@ -774,16 +861,14 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       if (block.classList.contains('editing')) return;
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showTextProperties(block);
     });
     block.addEventListener('dblclick', e => {
@@ -843,16 +928,14 @@ function bindBlock(block) {
     applyDividerStyle(block);
     block.addEventListener('click', e => {
       e.stopPropagation();
-      if (e.shiftKey) {
-        block.classList.toggle('selected');
-        if (block._layerItem) block._layerItem.classList.toggle('active', block.classList.contains('selected'));
-        window.syncSection(block.closest('.section-block'));
-        return;
-      }
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
-      window.syncSection(block.closest('.section-block'));
+      window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
       window.showDividerProperties(block);
     });
   }
@@ -870,7 +953,7 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
-      if (block.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용
+      if (block.style.position === 'absolute' && !block.closest('.sub-section-inner')) { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용 (sub-section-inner 내부는 HTML5 drag 허용)
       if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
       _suppressDragSave();
@@ -1006,6 +1089,9 @@ function bindSubSectionDropZone(ss) {
   if (ss._subSecBound) return;
   ss._subSecBound = true;
 
+  // shape frame은 drop 수신 불가 — shape-block 전용 컨테이너
+  const isShapeFrame = !!ss.querySelector('.shape-block');
+
   const inner = ss.querySelector('.sub-section-inner');
   let _rafId = null;
 
@@ -1013,7 +1099,7 @@ function bindSubSectionDropZone(ss) {
   ss.addEventListener('click', e => {
     // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
     // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block')) return;
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block')) return;
     // ss 또는 sub-section-inner 빈 공간 클릭만 처리
     if (!e.target.closest('.sub-section-block')) return;
     e.stopPropagation();
@@ -1030,9 +1116,10 @@ function bindSubSectionDropZone(ss) {
     window.showSubSectionProperties?.(ss);
   });
 
-  // 드래그오버 — 내부 블록 재배치
+  // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
   inner.addEventListener('dragover', e => {
     if (!dragSrc) return;
+    if (isShapeFrame) return; // shape frame은 외부 블록 수신 차단
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
@@ -1065,9 +1152,10 @@ function bindSubSectionDropZone(ss) {
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     ss.classList.remove('ss-drag-over');
     if (!dragSrc) return;
+    if (isShapeFrame) return; // shape frame drop 차단
     window.pushHistory();
 
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block';
     const SS_W = 860; // 캔버스 기준 너비
 
     // 블록을 absolute로 전환하는 헬퍼
@@ -1113,6 +1201,17 @@ function bindSubSectionDropZone(ss) {
       }
     }
 
+    // DOM 순서 변경 후 absolute 블록의 top 재계산 (시각적 순서 반영)
+    let _stackY = 0;
+    [...inner.children].forEach(b => {
+      if (b.classList.contains('drop-indicator')) return;
+      if (b.style.position === 'absolute') {
+        b.style.top  = _stackY + 'px';
+        b.style.left = '0px';
+      }
+      _stackY += (b.offsetHeight || 60) + 16;
+    });
+
     // dragging 클래스 고착 방지
     dragSrc?.classList.remove('dragging', 'section-dragging', 'layer-dragging');
     clearDropIndicators();
@@ -1131,11 +1230,20 @@ function bindSubSectionDropZone(ss) {
   // 서브섹션 자체 드래그 (섹션 내 재배치)
   ss.setAttribute('draggable', 'true');
   ss.addEventListener('dragstart', e => {
-    if (e.target !== ss) return;
+    // shape frame: e.target이 내부 shape-block일 수 있으므로 가드 완화
+    // non-shape frame: 내부 row가 자체 drag하는 경우 ss가 가로채지 않도록 guard 유지
+    if (!isShapeFrame && e.target !== ss) return;
     e.stopPropagation();
-    dragSrc = ss;
+    // ss가 section-inner 직계 자식인 경우 ss 자체가 dragSrc, row 래퍼가 있으면 row
+    dragSrc = ss.closest('.row') || ss;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
+    // 기본 drag ghost(큰화면)를 숨김 — section-label drag와 동일하게 처리
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => ghost.remove(), 0);
     requestAnimationFrame(() => ss.classList.add('dragging'));
   });
   ss.addEventListener('dragend', () => {

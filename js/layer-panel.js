@@ -438,7 +438,24 @@ export function buildLayerPanel() {
 export function syncLayerActive(sec) {
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
   document.querySelectorAll('.layer-variation-group').forEach(g => g.classList.remove('active'));
-  if (sec && sec._layerHeader) sec._layerHeader.classList.add('active');
+  if (sec && sec._layerHeader) {
+    sec._layerHeader.classList.add('active');
+    // 섹션 선택 시 좌측 레이어 패널에서 해당 섹션으로 즉시 스크롤
+    const layerEl = sec._layerSectionEl || sec._layerHeader.closest('.layer-section');
+    if (layerEl) {
+      // layer-panel-body는 overflow:visible이라 scrollBody(layers-section-body)가 실제 스크롤 컨테이너
+      // scrollIntoView 전에 layerBody의 min-height를 실제 콘텐츠 높이로 갱신해야 scrollBody가 스크롤 가능해짐
+      const layerBody = document.getElementById('layer-panel-body');
+      if (layerBody) {
+        const lastSec = layerBody.querySelector('.layer-section:last-child');
+        const contentH = lastSec ? (lastSec.offsetTop + lastSec.offsetHeight) : 0;
+        if (contentH > layerBody.clientHeight) {
+          layerBody.style.minHeight = contentH + 'px';
+        }
+      }
+      layerEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+    }
+  }
   if (sec && sec.dataset.variationGroup) {
     const gid = sec.dataset.variationGroup;
     document.querySelectorAll('.layer-variation-group').forEach(g => {
