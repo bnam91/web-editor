@@ -570,8 +570,26 @@ document.addEventListener('keydown', e => {
         const next = moveTarget.nextElementSibling;
         if (next && !next.classList.contains('drop-indicator')) parent.insertBefore(next, moveTarget);
       }
+      // 이동 전 선택 상태 수집
+      const moveTargetId = moveTarget.id;
+      const selBlockIds = selBlock ? [selBlock.id].filter(Boolean) : [];
+      const selSectionId = selSection ? selSection.id : null;
       window.buildLayerPanel();
       pushHistory('블록 이동');
+      // buildLayerPanel 후 선택 상태 복원
+      if (selSectionId) {
+        const sec = document.getElementById(selSectionId);
+        if (sec) {
+          sec.classList.add('selected');
+          if (sec._layerItem) { sec._layerItem.classList.add('active'); sec._layerItem.style.background = 'var(--ui-bg-card)'; }
+        }
+      }
+      selBlockIds.forEach(id => {
+        const b = document.getElementById(id);
+        if (!b) return;
+        b.classList.add('selected');
+        if (b._layerItem) { b._layerItem.classList.add('active'); b._layerItem.style.background = 'var(--ui-bg-card)'; }
+      });
       return;
     }
   }
