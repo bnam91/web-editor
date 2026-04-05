@@ -1475,10 +1475,34 @@ function bindSubSectionDropZone(ss) {
 
   // 내부 블록 pointerdown 시 서브섹션 drag 일시 비활성 — 블록 선택/이동과 충돌 방지
   ss.addEventListener('pointerdown', e => {
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block');
-    if (!isInnerBlock) return;
-    ss.setAttribute('draggable', 'false');
-    document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block');
+    if (isInnerBlock) {
+      // 자식 블록 드래그 중엔 프레임 drag 비활성
+      ss.setAttribute('draggable', 'false');
+      document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });
+      return;
+    }
+    // 빈 영역 pointerdown → dragstart 전에 selected 상태 즉시 적용
+    if (!ss.classList.contains('selected')) {
+      window.deselectAll?.();
+      const parentSec = ss.closest('.section-block');
+      if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+      ss.classList.add('selected');
+      window._activeSubSection = ss;
+      window.highlightBlock?.(ss, ss._layerItem);
+      window.showSubSectionProperties?.(ss);
+    }
+  });
+
+  // 프레임 자체 hover → 레이어 패널 하이라이트
+  ss.addEventListener('mouseenter', () => {
+    if (ss._layerItem && !ss._layerItem.classList.contains('active'))
+      ss._layerItem.style.background = 'var(--ui-bg-card)';
+  });
+  ss.addEventListener('mouseleave', e => {
+    if (ss.contains(e.relatedTarget)) return; // ss 내부로 이동 시 유지
+    if (ss._layerItem && !ss._layerItem.classList.contains('active'))
+      ss._layerItem.style.background = '';
   });
 
 }
