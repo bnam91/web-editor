@@ -476,20 +476,11 @@ document.addEventListener('keydown', e => {
       moveSelectedBlocks('down');
       return;
     }
-    if (e.code === 'KeyG' && !e.shiftKey && e.altKey) {
+    if (e.code === 'KeyG' && !e.shiftKey) {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
-      console.log('[KeyG] altKey=true → wrapSelectedBlocksInFrame');
       window.wrapSelectedBlocksInFrame?.();
-      return;
-    }
-    if (e.code === 'KeyG' && !e.shiftKey && !e.altKey) {
-      if (document.querySelector('.text-block.editing')) return;
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      console.log('[KeyG] altKey=false → groupSelectedBlocks (metaKey:', e.metaKey, 'altKey:', e.altKey, ')');
-      e.preventDefault();
-      window.groupSelectedBlocks?.();
       return;
     }
     if (e.code === 'KeyG' && e.shiftKey) {
