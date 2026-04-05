@@ -278,6 +278,17 @@ function _resizeFrameToFitChildren(block) {
   }
 }
 
+// 프레임 내부 블록 선택 시 프레임 selected 복원 헬퍼
+// deselectAll()이 sub-section-block.selected를 제거해 CSS pointer-events가 다시 차단되는 문제 방지
+function _restoreParentFrameSelected(block) {
+  const pf = _getParentFrame(block);
+  if (!pf) return;
+  pf.classList.add('selected');
+  window._activeSubSection = pf;
+  const parentSec = pf.closest('.section-block');
+  if (parentSec) parentSec.classList.add('selected');
+}
+
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
@@ -396,6 +407,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(block.closest('.section-block'));
       window.highlightBlock(block, block._layerItem);
@@ -522,6 +534,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -610,6 +623,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -707,6 +721,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -734,6 +749,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -789,6 +805,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -912,6 +929,7 @@ function bindBlock(block) {
       if (item) {
         if (!block.classList.contains('selected')) {
           window.deselectAll();
+          _restoreParentFrameSelected(block);
           block.classList.add('selected');
           window.syncSection(block.closest('.section-block'));
           window.highlightBlock(block, block._layerItem);
@@ -926,6 +944,7 @@ function bindBlock(block) {
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -979,6 +998,7 @@ function bindBlock(block) {
       const rowEl = block.closest('.row');
       const isRowActive = rowEl && rowEl.classList.contains('row-active');
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       if (rowEl && !isRowActive) {
         // 첫 번째 클릭: Row 전체 선택 → Row Properties 표시
         rowEl.classList.add('row-active');
@@ -1056,6 +1076,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -1086,6 +1107,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -1165,6 +1187,7 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
+      _restoreParentFrameSelected(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
