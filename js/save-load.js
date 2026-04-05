@@ -503,8 +503,10 @@ function rebindAll() {
     }
     // 코너 반경 복원
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
-    // height 복원 (justify-content 정렬 작동을 위해 explicit height 필요)
-    if (ss.dataset.height) ss.style.height = ss.dataset.height + 'px';
+    // explicit height 복원 — justify-content 정렬 작동을 위해 필요
+    // dataset.height 없으면 minHeight 폴백 (레거시 요소 대응)
+    const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
+    if (_ssH) ss.style.height = _ssH + 'px';
     // 자식 정렬 복원
     const inner = ss.querySelector('.sub-section-inner');
     if (inner) {

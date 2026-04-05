@@ -9,6 +9,7 @@ function genId(prefix) {
 
 function clearDropIndicators() {
   document.querySelectorAll('.drop-indicator').forEach(d => d.remove());
+  document.querySelectorAll('.ss-drag-over').forEach(el => el.classList.remove('ss-drag-over'));
 }
 
 function clearLayerIndicators() {
