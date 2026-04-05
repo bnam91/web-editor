@@ -345,7 +345,9 @@ function _bindPastedEl(el) {
 
 function pasteClipboard() {
   if (!clipboard) return;
-  pushHistory();
+  // 현재 DOM 상태가 마지막 히스토리와 다르면 체크포인트 저장
+  // (block-factory.js가 push-before라서 최신 N개 블록 상태가 히스토리에 없는 경우 대비)
+  window.ensureHistoryCheckpoint?.('붙여넣기 전');
 
   if (clipboard.type === 'multi-block') {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
@@ -357,7 +359,6 @@ function pasteClipboard() {
       const el = temp.firstElementChild;
       if (!el) return;
       if (lastEl) {
-        // 두 번째부터는 직전에 삽입된 요소 바로 뒤에 순서대로 삽입
         lastEl.after(el);
       } else {
         const pasteHasSS = el.classList.contains('sub-section-block') || !!el.querySelector('.sub-section-block');
@@ -370,6 +371,7 @@ function pasteClipboard() {
       lastEl = el;
     });
     window.buildLayerPanel();
+    pushHistory('붙여넣기');
     return;
   }
 
@@ -378,7 +380,6 @@ function pasteClipboard() {
   const el = temp.firstElementChild;
 
   if (clipboard.type === 'section') {
-    // ID 충돌 방지: 섹션 및 내부 블록 ID 재생성
     const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
     el.id = genIdFn('sec');
     el.querySelectorAll('[id]').forEach(child => {
@@ -395,7 +396,6 @@ function pasteClipboard() {
   } else {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
-    // 서브섹션 포함 row 붙여넣기 시 _activeSubSection 안으로 들어가지 않도록
     const pasteHasSS = el.classList.contains('sub-section-block') || !!el.querySelector('.sub-section-block');
     const savedActiveSS = window._activeSubSection;
     if (pasteHasSS) window._activeSubSection = null;
@@ -404,6 +404,7 @@ function pasteClipboard() {
     _bindPastedEl(el);
   }
   window.buildLayerPanel();
+  pushHistory('붙여넣기');
 }
 
 document.addEventListener('keydown', e => {

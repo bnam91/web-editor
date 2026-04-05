@@ -77,8 +77,27 @@ function clearHistory() {
   _updateUndoRedoBtns();
 }
 
+/**
+ * 현재 DOM 상태가 마지막 히스토리 항목과 다를 때만 체크포인트 저장.
+ * block-factory.js가 push-before 방식이라 paste/copy 전에 현재 상태가
+ * 히스토리에 없는 문제를 해결하기 위한 보조 함수.
+ */
+function ensureHistoryCheckpoint(action = 'checkpoint') {
+  if (_historyPaused) return;
+  const current = window.getSerializedCanvas?.();
+  if (!current) return;
+  if (historyStack[historyPos]?.canvas !== current) {
+    historyStack = historyStack.slice(0, historyPos + 1);
+    historyStack.push({ canvas: current, settings: { ...state.pageSettings }, action, pageId: state.currentPageId });
+    if (historyStack.length > MAX_HISTORY) historyStack.shift();
+    else historyPos++;
+    _updateUndoRedoBtns();
+  }
+}
+
 /* ── window 노출 ── */
 window.pushHistory  = pushHistory;
+window.ensureHistoryCheckpoint = ensureHistoryCheckpoint;
 window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
