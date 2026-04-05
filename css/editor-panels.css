@@ -27,15 +27,15 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 }
 #rp-preview-btn {
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  width: 30px; height: 30px;
+  flex: 1;
+  height: 28px;
   background: var(--ui-accent-primary); color: #fff;
   border: none; border-radius: 6px;
   cursor: pointer;
 }
 #rp-preview-btn:hover { background: #2460cc; }
 #rp-top-row #zoom-ctrl {
-  flex: 1;
+  flex-shrink: 0;
   margin: 0;
 }
 
