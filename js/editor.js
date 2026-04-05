@@ -1086,6 +1086,18 @@ function deleteSection(secIdOrEl) {
 window.deleteSection = deleteSection;
 
 /* ── 플로팅 패널 드롭다운 ── */
+function toggleFpPluginPanel() {
+  const panel = document.getElementById('fp-plugin-panel');
+  const btn   = document.getElementById('fp-plugin-btn');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  btn?.classList.toggle('active', !isOpen);
+}
+window.toggleFpPluginPanel = toggleFpPluginPanel;
+
+// 외부 클릭 시 plugin panel 닫기는 아래 document.addEventListener('click') 에서 처리
+
 function toggleFpDropdown(id) {
   const targetId = id || 'fp-text-dropdown';
   const target = document.getElementById(targetId);
@@ -1097,6 +1109,13 @@ function toggleFpDropdown(id) {
 document.addEventListener('click', e => {
   if (!e.target.closest('.fp-dropdown')) {
     document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
+  }
+  // plugin panel 외부 클릭 시 닫기
+  const fpPlugin = document.getElementById('fp-plugin-panel');
+  if (fpPlugin && fpPlugin.style.display !== 'none' &&
+      !e.target.closest('#fp-plugin-panel') && !e.target.closest('#fp-plugin-btn')) {
+    fpPlugin.style.display = 'none';
+    document.getElementById('fp-plugin-btn')?.classList.remove('active');
   }
   const bdw = document.getElementById('branch-dropdown-wrap');
   if (bdw && !bdw.contains(e.target)) bdw.classList.remove('open');

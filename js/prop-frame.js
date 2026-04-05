@@ -129,29 +129,41 @@ function _renderAutoPanel(ss) {
       </div>
     </div>
     <div class="prop-section">
+      <div class="prop-section-title">위치</div>
+      <div class="prop-row" style="margin-top:6px;gap:6px;">
+        <span class="prop-label" style="width:16px;flex-shrink:0;">X</span>
+        <input type="number" class="prop-number" id="ss-pos-x" style="flex:1;" value="${parseInt(ss.dataset.translateX) || 0}">
+        <span class="prop-label" style="width:16px;flex-shrink:0;margin-left:4px;">Y</span>
+        <input type="number" class="prop-number" id="ss-pos-y" style="flex:1;" value="${parseInt(ss.dataset.translateY) || 0}">
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">자식 정렬</div>
-      <div class="prop-row" style="margin-top:6px;">
-        <span class="prop-label" style="width:40px;">가로</span>
-        <div style="display:flex;gap:3px;flex:1;">
-          <button class="prop-align-btn" id="ss-align-left"   title="왼쪽 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="6" height="2" rx="1" fill="currentColor"/><rect x="2" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="2" y="11" width="7" height="2" rx="1" fill="currentColor"/><line x1="2" y1="1" x2="2" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-          <button class="prop-align-btn" id="ss-align-hcenter" title="가운데 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="3" width="6" height="2" rx="1" fill="currentColor"/><rect x="3" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="4.5" y="11" width="7" height="2" rx="1" fill="currentColor"/><line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-          <button class="prop-align-btn" id="ss-align-right"  title="오른쪽 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="8" y="3" width="6" height="2" rx="1" fill="currentColor"/><rect x="4" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="7" y="11" width="7" height="2" rx="1" fill="currentColor"/><line x1="14" y1="1" x2="14" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-          <button class="prop-align-btn" id="ss-align-hstretch" title="늘리기(stretch)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="2" rx="1" fill="currentColor"/><rect x="2" y="7" width="12" height="2" rx="1" fill="currentColor"/><rect x="2" y="11" width="12" height="2" rx="1" fill="currentColor"/></svg></button>
-        </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:6px;">
+        <button class="prop-align-btn" id="ss-align-left"    title="왼쪽 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M3 2h1.5v12H3zM6.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm0 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg></button>
+        <button class="prop-align-btn" id="ss-align-hcenter" title="가운데 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M7.25 2h1.5v2.5H13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75v1H12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75V14h-1.5v-2.5H4a.5.5 0 0 1-.5-.5V9a.5.5 0 0 1 .5-.5h3.25v-1H4a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5h3.25z"/></svg></button>
+        <button class="prop-align-btn" id="ss-align-right"   title="오른쪽 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M11.5 2H13v12h-1.5zM3.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm2 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg></button>
+        <button class="prop-align-btn" id="ss-align-top"     title="위 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 3v1.5h12V3zM4.5 6.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 0v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg></button>
+        <button class="prop-align-btn" id="ss-align-vcenter" title="세로 가운데"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 7.25h2.5V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25h1V4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v3.25H14v1.5h-2.5V12a.5.5 0 0 1-.5.5H9a.5.5 0 0 1-.5-.5V8.75h-1V12a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V8.75H2z"/></svg></button>
+        <button class="prop-align-btn" id="ss-align-bottom"  title="아래 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M2 11.5v1.5h12v-1.5zM4.5 3.5v6a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-6zm4 2v4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-4z"/></svg></button>
       </div>
-      <div class="prop-row" style="margin-top:6px;">
-        <span class="prop-label" style="width:40px;">세로</span>
-        <div style="display:flex;gap:3px;flex:1;">
-          <button class="prop-align-btn" id="ss-align-top"     title="위 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="4" width="2" height="8" rx="1" fill="currentColor"/><rect x="7" y="4" width="2" height="5" rx="1" fill="currentColor"/><rect x="11" y="4" width="2" height="7" rx="1" fill="currentColor"/><line x1="1" y1="2" x2="15" y2="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-          <button class="prop-align-btn" id="ss-align-vcenter" title="세로 가운데"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="4" width="2" height="8" rx="1" fill="currentColor"/><rect x="7" y="5.5" width="2" height="5" rx="1" fill="currentColor"/><rect x="11" y="4.5" width="2" height="7" rx="1" fill="currentColor"/><line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-          <button class="prop-align-btn" id="ss-align-bottom"  title="아래 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="4" width="2" height="8" rx="1" fill="currentColor"/><rect x="7" y="7" width="2" height="5" rx="1" fill="currentColor"/><rect x="11" y="5" width="2" height="7" rx="1" fill="currentColor"/><line x1="1" y1="14" x2="15" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-          <button class="prop-align-btn" id="ss-align-vspread" title="균등 배분"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="2" rx="1" fill="currentColor"/><rect x="2" y="7" width="12" height="2" rx="1" fill="currentColor"/><rect x="2" y="12" width="12" height="2" rx="1" fill="currentColor"/></svg></button>
-        </div>
-      </div>
-      <div class="prop-row" style="margin-top:6px;">
+      <div class="prop-row" style="margin-top:8px;">
         <span class="prop-label" style="width:40px;">간격</span>
         <input type="range" class="prop-slider" id="ss-gap-slider" min="0" max="80" step="2" value="${parseInt(ss.querySelector('.sub-section-inner')?.style.gap) || 0}">
         <input type="number" class="prop-number" id="ss-gap-num" min="0" max="80" value="${parseInt(ss.querySelector('.sub-section-inner')?.style.gap) || 0}">
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">회전 / 반전</div>
+      <div class="prop-row" style="margin-top:6px;gap:6px;">
+        <span class="prop-label" style="flex-shrink:0;">각도</span>
+        <input type="number" class="prop-number" id="ss-rotate-deg" style="width:56px;" min="-360" max="360" value="${parseInt(ss.dataset.rotateDeg) || 0}">
+        <span class="prop-label" style="flex-shrink:0;margin-left:2px;">°</span>
+        <div style="display:flex;gap:3px;margin-left:auto;">
+          <button class="prop-align-btn" id="ss-rotate-90" title="90° 시계 방향 회전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M11.5 4.5A5 5 0 1 0 13 8"/><path fill="currentColor" d="M11.5 2v4h-4l2-2a3.5 3.5 0 0 1 2 1.5z" style="display:none"/><polyline stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="9,2 12,4.5 9.5,7.5"/></svg></button>
+          <button class="prop-align-btn" id="ss-flip-h" title="좌우 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M8 2v12M4 4l-2 4 2 4M12 4l2 4-2 4"/><path fill="currentColor" opacity=".35" d="M8 5v6l-4-3z"/></svg></button>
+          <button class="prop-align-btn" id="ss-flip-v" title="상하 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2"/><path fill="currentColor" opacity=".35" d="M5 8h6l-3 4z"/></svg></button>
+        </div>
       </div>
     </div>
     <div class="prop-section">
@@ -183,6 +195,19 @@ function _renderAutoPanel(ss) {
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
 
+  // ── 위치(X/Y) 핸들러 ──
+  const _applyTransform = () => {
+    const tx = parseInt(ss.dataset.translateX) || 0;
+    const ty = parseInt(ss.dataset.translateY) || 0;
+    const rd = parseFloat(ss.dataset.rotateDeg) || 0;
+    const fx = ss.dataset.flipH === '1' ? -1 : 1;
+    const fy = ss.dataset.flipV === '1' ? -1 : 1;
+    ss.style.transform = `translate(${tx}px,${ty}px) rotate(${rd}deg) scale(${fx},${fy})`;
+    window.scheduleAutoSave?.();
+  };
+  document.getElementById('ss-pos-x')?.addEventListener('input', e => { ss.dataset.translateX = parseInt(e.target.value) || 0; _applyTransform(); });
+  document.getElementById('ss-pos-y')?.addEventListener('input', e => { ss.dataset.translateY = parseInt(e.target.value) || 0; _applyTransform(); });
+
   // ── 자식 정렬 핸들러 ──
   const ssInner = ss.querySelector('.sub-section-inner');
   const _setAlign = (alignItems, justifyContent) => {
@@ -199,35 +224,58 @@ function _renderAutoPanel(ss) {
   };
 
   // 현재 상태 반영
-  const curAlignItems    = ssInner?.style.alignItems    || ss.dataset.alignItems    || 'stretch';
+  const curAlignItems    = ssInner?.style.alignItems    || ss.dataset.alignItems    || 'flex-start';
   const curJustifyContent= ssInner?.style.justifyContent|| ss.dataset.justifyContent|| 'flex-start';
-  const _markHActive = id => {
-    ['ss-align-left','ss-align-hcenter','ss-align-right','ss-align-hstretch'].forEach(i => document.getElementById(i)?.classList.remove('active'));
+  const _markAlignActive = (id, group) => {
+    group.forEach(i => document.getElementById(i)?.classList.remove('active'));
     document.getElementById(id)?.classList.add('active');
   };
-  const _markVActive = id => {
-    ['ss-align-top','ss-align-vcenter','ss-align-bottom','ss-align-vspread'].forEach(i => document.getElementById(i)?.classList.remove('active'));
-    document.getElementById(id)?.classList.add('active');
-  };
-  const hMap = { 'flex-start':'ss-align-left', 'center':'ss-align-hcenter', 'flex-end':'ss-align-right', 'stretch':'ss-align-hstretch' };
-  const vMap = { 'flex-start':'ss-align-top',  'center':'ss-align-vcenter',  'flex-end':'ss-align-bottom', 'space-between':'ss-align-vspread' };
-  _markHActive(hMap[curAlignItems]    || 'ss-align-hstretch');
-  _markVActive(vMap[curJustifyContent] || 'ss-align-top');
+  const hGroup = ['ss-align-left','ss-align-hcenter','ss-align-right'];
+  const vGroup = ['ss-align-top','ss-align-vcenter','ss-align-bottom'];
+  const hMap = { 'flex-start':'ss-align-left', 'center':'ss-align-hcenter', 'flex-end':'ss-align-right' };
+  const vMap = { 'flex-start':'ss-align-top',  'center':'ss-align-vcenter',  'flex-end':'ss-align-bottom' };
+  _markAlignActive(hMap[curAlignItems]    || 'ss-align-left', hGroup);
+  _markAlignActive(vMap[curJustifyContent] || 'ss-align-top',  vGroup);
 
-  document.getElementById('ss-align-left')?.addEventListener('click',     () => { _setAlign('flex-start', null); _markHActive('ss-align-left'); });
-  document.getElementById('ss-align-hcenter')?.addEventListener('click',  () => { _setAlign('center',     null); _markHActive('ss-align-hcenter'); });
-  document.getElementById('ss-align-right')?.addEventListener('click',    () => { _setAlign('flex-end',   null); _markHActive('ss-align-right'); });
-  document.getElementById('ss-align-hstretch')?.addEventListener('click', () => { _setAlign('stretch',    null); _markHActive('ss-align-hstretch'); });
+  document.getElementById('ss-align-left')?.addEventListener('click',    () => { _setAlign('flex-start', null); _markAlignActive('ss-align-left',    hGroup); });
+  document.getElementById('ss-align-hcenter')?.addEventListener('click', () => { _setAlign('center',     null); _markAlignActive('ss-align-hcenter', hGroup); });
+  document.getElementById('ss-align-right')?.addEventListener('click',   () => { _setAlign('flex-end',   null); _markAlignActive('ss-align-right',   hGroup); });
 
-  document.getElementById('ss-align-top')?.addEventListener('click',     () => { _setAlign(null, 'flex-start');   _markVActive('ss-align-top'); });
-  document.getElementById('ss-align-vcenter')?.addEventListener('click', () => { _setAlign(null, 'center');        _markVActive('ss-align-vcenter'); });
-  document.getElementById('ss-align-bottom')?.addEventListener('click',  () => { _setAlign(null, 'flex-end');      _markVActive('ss-align-bottom'); });
-  document.getElementById('ss-align-vspread')?.addEventListener('click', () => { _setAlign(null, 'space-between'); _markVActive('ss-align-vspread'); });
+  document.getElementById('ss-align-top')?.addEventListener('click',     () => { _setAlign(null, 'flex-start'); _markAlignActive('ss-align-top',    vGroup); });
+  document.getElementById('ss-align-vcenter')?.addEventListener('click', () => { _setAlign(null, 'center');     _markAlignActive('ss-align-vcenter', vGroup); });
+  document.getElementById('ss-align-bottom')?.addEventListener('click',  () => { _setAlign(null, 'flex-end');   _markAlignActive('ss-align-bottom',  vGroup); });
 
   const gapSlider = document.getElementById('ss-gap-slider');
   const gapNum    = document.getElementById('ss-gap-num');
   gapSlider?.addEventListener('input', () => { gapNum.value = gapSlider.value; _setGap(parseInt(gapSlider.value)); });
   gapNum?.addEventListener('input',    () => { gapSlider.value = gapNum.value; _setGap(parseInt(gapNum.value) || 0); });
+
+  // ── 회전 / 반전 핸들러 ──
+  document.getElementById('ss-rotate-deg')?.addEventListener('input', e => {
+    ss.dataset.rotateDeg = parseFloat(e.target.value) || 0;
+    _applyTransform();
+  });
+  document.getElementById('ss-rotate-90')?.addEventListener('click', () => {
+    const cur = parseFloat(ss.dataset.rotateDeg) || 0;
+    const next = (cur + 90) % 360;
+    ss.dataset.rotateDeg = next;
+    const inp = document.getElementById('ss-rotate-deg');
+    if (inp) inp.value = next;
+    _applyTransform();
+  });
+  document.getElementById('ss-flip-h')?.addEventListener('click', () => {
+    ss.dataset.flipH = ss.dataset.flipH === '1' ? '0' : '1';
+    document.getElementById('ss-flip-h')?.classList.toggle('active', ss.dataset.flipH === '1');
+    _applyTransform();
+  });
+  document.getElementById('ss-flip-v')?.addEventListener('click', () => {
+    ss.dataset.flipV = ss.dataset.flipV === '1' ? '0' : '1';
+    document.getElementById('ss-flip-v')?.classList.toggle('active', ss.dataset.flipV === '1');
+    _applyTransform();
+  });
+  // 초기 flip 상태 반영
+  if (ss.dataset.flipH === '1') document.getElementById('ss-flip-h')?.classList.add('active');
+  if (ss.dataset.flipV === '1') document.getElementById('ss-flip-v')?.classList.add('active');
 
   // 모드 토글
   document.getElementById('frame-mode-auto')?.addEventListener('click', () => {});

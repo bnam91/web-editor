@@ -510,6 +510,15 @@ function rebindAll() {
       if (ss.dataset.justifyContent) inner.style.justifyContent = ss.dataset.justifyContent;
       if (ss.dataset.gap)            inner.style.gap            = ss.dataset.gap + 'px';
     }
+    // 위치 / 회전 / 반전 복원
+    const _tx = parseInt(ss.dataset.translateX) || 0;
+    const _ty = parseInt(ss.dataset.translateY) || 0;
+    const _rd = parseFloat(ss.dataset.rotateDeg) || 0;
+    const _fx = ss.dataset.flipH === '1' ? -1 : 1;
+    const _fy = ss.dataset.flipV === '1' ? -1 : 1;
+    if (_tx || _ty || _rd || _fx !== 1 || _fy !== 1) {
+      ss.style.transform = `translate(${_tx}px,${_ty}px) rotate(${_rd}deg) scale(${_fx},${_fy})`;
+    }
   });
 
   // col-placeholder 이벤트 재연결
@@ -587,7 +596,12 @@ window.addEventListener('beforeunload', () => {
 });
 
 // 변경 감지 — canvas MutationObserver
-const autoSaveObserver = new MutationObserver(scheduleAutoSave);
+// class 속성 변경만 제외 (드래그 UI 상태 토글 spam 방지, DBG-11)
+// data-* 속성 변경(prop 패널 값)은 감지해야 하므로 attributes:true 포함
+const autoSaveObserver = new MutationObserver(mutations => {
+  if (mutations.every(m => m.type === 'attributes' && m.attributeName === 'class')) return;
+  scheduleAutoSave();
+});
 
 /* ── Init (called from editor.js after all scripts loaded) ── */
 function initApp() {
@@ -700,8 +714,8 @@ function initApp() {
     initEmpty();
   })();
 
-  // attributes:true 제거 — 드래그 클래스 토글마다 autoSave 폭주 방지 (DBG-11)
-  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true });
+  // class 변경은 콜백에서 필터링, data-* 등 실제 속성 변경은 감지 (DBG-11 해소)
+  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true, attributes: true });
 
   // 스크래치패드 초기화
   window.initScratchPad?.(activeProjectId, state.currentPageId);
