@@ -407,6 +407,11 @@ function pasteClipboard() {
   pushHistory('붙여넣기');
 }
 
+// Option 키 독립 추적 (Korean IME가 altKey를 먹어버리는 문제 대응)
+let _optionKeyHeld = false;
+document.addEventListener('keydown', e => { if (e.code === 'AltLeft' || e.code === 'AltRight') _optionKeyHeld = true; }, true);
+document.addEventListener('keyup',   e => { if (e.code === 'AltLeft' || e.code === 'AltRight') _optionKeyHeld = false; }, true);
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -476,14 +481,14 @@ document.addEventListener('keydown', e => {
       moveSelectedBlocks('down');
       return;
     }
-    if (e.code === 'KeyG' && !e.shiftKey && (e.altKey || e.key === '©')) {
+    if (e.code === 'KeyG' && !e.shiftKey && (e.altKey || _optionKeyHeld || e.key === '©')) {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
       window.wrapSelectedBlocksInFrame?.();
       return;
     }
-    if (e.code === 'KeyG' && !e.shiftKey && !e.altKey && e.key !== '©') {
+    if (e.code === 'KeyG' && !e.shiftKey && !e.altKey && !_optionKeyHeld && e.key !== '©') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
