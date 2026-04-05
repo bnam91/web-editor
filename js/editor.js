@@ -982,6 +982,24 @@ function getSelectedSection() {
   return selBlock?.closest('.section-block') || null;
 }
 
+/* ── 섹션 삭제 API ── */
+function deleteSection(secIdOrEl) {
+  const sec = typeof secIdOrEl === 'string'
+    ? document.getElementById(secIdOrEl)
+    : secIdOrEl;
+  if (!sec || !sec.classList.contains('section-block')) {
+    console.warn('[deleteSection] 유효한 섹션을 찾을 수 없음:', secIdOrEl);
+    return false;
+  }
+  pushHistory('섹션 삭제 전');
+  sec.remove();
+  deselectAll();
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return true;
+}
+window.deleteSection = deleteSection;
+
 /* ── 플로팅 패널 드롭다운 ── */
 function toggleFpDropdown(id) {
   const targetId = id || 'fp-text-dropdown';
