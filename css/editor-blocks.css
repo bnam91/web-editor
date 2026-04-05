@@ -481,6 +481,8 @@
 .fp-btn.primary:hover { background: var(--ui-accent-primary-hover); border-color: var(--ui-accent-primary-hover); }
 
 .fp-btn svg { flex-shrink: 0; }
+.fp-btn-ai { color: #c084fc; font-size: 14px; }
+.fp-btn-ai:hover { background: rgba(192,132,252,0.12) !important; border-color: rgba(192,132,252,0.4) !important; color: #d8b4fe !important; }
 
 /* Text 드롭다운 */
 .fp-dropdown { position: relative; }
