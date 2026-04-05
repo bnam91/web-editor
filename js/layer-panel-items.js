@@ -828,6 +828,7 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
   if (!isShapeOnly && ssChildren.children.length > 0) {
     const group = document.createElement('div');
     group.className = 'layer-row-group';
+    group.dataset.type = 'frame';
     group._dragTarget = ssEl;
 
     const header = document.createElement('div');
@@ -838,7 +839,7 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
     chevron.setAttribute('fill', 'currentColor');
     chevron.className = 'layer-chevron';
     chevron.innerHTML = '<path d="M2 4l4 4 4-4"/>';
-    chevron.style.cssText = 'width:12px;height:12px;flex-shrink:0;cursor:pointer;margin-left:-18px;position:relative;z-index:1;';
+    chevron.style.cssText = 'width:12px;height:12px;flex-shrink:0;cursor:pointer;';
     chevron.addEventListener('click', e => {
       e.stopPropagation();
       group.classList.toggle('collapsed');
