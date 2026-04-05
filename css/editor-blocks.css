@@ -21,6 +21,14 @@
   pointer-events: none;
   z-index: 100;
 }
+/* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 */
+.sub-section-block:not(.selected) .sub-section-inner * {
+  pointer-events: none;
+}
+/* 선택 상태: 자식 pointer-events 복원 */
+.sub-section-block.selected .sub-section-inner * {
+  pointer-events: auto;
+}
 .sub-section-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
   background-color: var(--color-selection-fill-dim) !important;
