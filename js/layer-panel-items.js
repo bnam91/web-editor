@@ -811,8 +811,12 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
   const ssInner = ssEl.querySelector('.sub-section-inner');
   if (ssInner) {
     [...ssInner.children].forEach(child => {
-      if (child.classList.contains('row')) appendRowFn(child, ssChildren, 2);
-      else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
+      if (child.classList.contains('sub-section-block')) {
+        // 중첩 프레임 — 재귀 렌더링
+        ssChildren.appendChild(makeLayerSubSectionItem(child, sec, appendRowFn));
+      } else if (child.classList.contains('row')) {
+        appendRowFn(child, ssChildren, 2);
+      } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
                  'table-block','card-block','graph-block','divider-block','label-group-block','shape-block']
                 .some(c => child.classList.contains(c))) {
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, 2));

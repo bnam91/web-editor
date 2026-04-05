@@ -1334,7 +1334,16 @@ function addSubSectionBlock(opts = {}) {
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const ss = makeSubSectionBlock(opts);
-  insertAfterSelected(sec, ss);
+
+  // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 제외
+  const activeFrame = !opts.fullWidth && window._activeSubSection;
+  if (activeFrame && activeFrame.closest('.section-block') === sec) {
+    const inner = activeFrame.querySelector('.sub-section-inner');
+    if (inner) inner.appendChild(ss);
+  } else {
+    insertAfterSelected(sec, ss);
+  }
+
   if (!opts.fullWidth) window.bindSubSectionDropZone?.(ss);
   window.buildLayerPanel();
   window.deselectAll?.();
