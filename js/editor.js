@@ -893,8 +893,22 @@ function moveSelectedBlocks(direction) {
     marker.remove();
   }
 
+  // 이동 전 선택된 블록 ID 저장
+  const selIds = selBlocks.map(b => b.id).filter(Boolean);
+
   pushHistory(direction === 'up' ? '블록 위로 이동' : '블록 아래로 이동');
   window.buildLayerPanel?.();
+
+  // buildLayerPanel 후 선택 상태 복원 (layer panel active 포함)
+  selIds.forEach(id => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.classList.add('selected');
+    if (b._layerItem) {
+      b._layerItem.classList.add('active');
+      b._layerItem.style.background = 'var(--ui-bg-card)';
+    }
+  });
 }
 window.moveSelectedBlocks = moveSelectedBlocks;
 

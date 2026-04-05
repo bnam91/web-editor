@@ -1256,6 +1256,33 @@ function bindSubSectionDropZone(ss) {
   const inner = ss.querySelector('.sub-section-inner');
   let _rafId = null;
 
+  // 프레임 자체 드래그 — 프레임이 selected 상태에서 드래그 시 section-inner 내 순서 변경
+  ss.setAttribute('draggable', 'true');
+  ss.addEventListener('dragstart', e => {
+    // 선택된 프레임이 아니면 드래그 취소
+    if (!ss.classList.contains('selected')) { e.preventDefault(); return; }
+    // 내부 자식 블록이 selected면 자식 drag 우선 (자식 drag는 mousedown 기반이므로 여기선 프레임 drag로 처리)
+    e.stopPropagation();
+    _suppressDragSave();
+    dragSrc = ss;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => ghost.remove(), 0);
+    requestAnimationFrame(() => ss.classList.add('dragging'));
+  });
+  ss.addEventListener('dragend', () => {
+    _resumeDragSave();
+    ss.classList.remove('dragging');
+    clearDropIndicators();
+    if (dragSrc === ss) dragSrc = null;
+    window.buildLayerPanel();
+    window.triggerAutoSave?.();
+  });
+
   // 클릭: 서브섹션 선택 + 블록 삽입 타겟으로 설정
   ss.addEventListener('click', e => {
     // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
