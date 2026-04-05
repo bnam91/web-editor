@@ -462,6 +462,20 @@ document.addEventListener('keydown', e => {
       pasteClipboard();
       return;
     }
+    if (e.code === 'BracketLeft') {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      moveSelectedBlocks('up');
+      return;
+    }
+    if (e.code === 'BracketRight') {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      moveSelectedBlocks('down');
+      return;
+    }
     if (e.code === 'KeyG' && !e.shiftKey && e.altKey) {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
@@ -823,6 +837,64 @@ function deselectAll() {
   window.showPageProperties();
 }
 
+
+/* ═══════════════════════════════════
+   블록 순서 이동 — Cmd+[ (위) / Cmd+] (아래)
+   이동 단위: section-inner 또는 sub-section-inner 직속 .row / .gap-block
+═══════════════════════════════════ */
+function moveSelectedBlocks(direction) {
+  const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+    '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
+    '.icon-text-block.selected, .canvas-block.selected, .shape-block.selected';
+
+  const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
+  if (selBlocks.length === 0) return;
+
+  // 각 블록의 이동 단위(row or gap-block)를 DOM 순서대로 수집
+  const getUnit = b => b.classList.contains('gap-block')
+    ? (b.parentElement?.classList.contains('section-inner') || b.parentElement?.classList.contains('sub-section-inner') ? b : b.closest('.row'))
+    : b.closest('.row');
+
+  const unitSet = new Set();
+  selBlocks.forEach(b => { const u = getUnit(b); if (u) unitSet.add(u); });
+  if (unitSet.size === 0) return;
+
+  // 공통 컨테이너(section-inner / sub-section-inner)가 동일한 unit들만 처리
+  const units = [...unitSet];
+  const container = units[0].parentElement;
+  if (!units.every(u => u.parentElement === container)) return; // 다른 컨테이너 혼합 → 무시
+
+  // 컨테이너의 직속 자식(row/gap-block)만 포함하는 목록
+  const containerItems = [...container.children].filter(c =>
+    c.classList.contains('row') || c.classList.contains('gap-block')
+  );
+
+  // DOM 순서대로 정렬
+  units.sort((a, b) => containerItems.indexOf(a) - containerItems.indexOf(b));
+
+  if (direction === 'up') {
+    const firstIdx = containerItems.indexOf(units[0]);
+    if (firstIdx <= 0) return; // 이미 맨 위
+    window.ensureHistoryCheckpoint?.('이동 전');
+    const pivot = containerItems[firstIdx - 1]; // 선택 그룹 바로 위 아이템
+    pivot.before(...units); // pivot 앞에 units 통째로 삽입 (순서 유지)
+  } else {
+    const lastIdx = containerItems.indexOf(units[units.length - 1]);
+    if (lastIdx >= containerItems.length - 1) return; // 이미 맨 아래
+    window.ensureHistoryCheckpoint?.('이동 전');
+    const pivot = containerItems[lastIdx + 1]; // 선택 그룹 바로 아래 아이템
+    // pivot 뒤에 units 순서 유지하며 삽입: 마커로 삽입 위치 고정
+    const marker = document.createComment('mv');
+    pivot.after(marker);
+    units.forEach(u => marker.before(u));
+    marker.remove();
+  }
+
+  pushHistory(direction === 'up' ? '블록 위로 이동' : '블록 아래로 이동');
+  window.buildLayerPanel?.();
+}
+window.moveSelectedBlocks = moveSelectedBlocks;
 
 function bindSectionDelete(sec) {
   // 삭제 버튼 제거됨 — 레이어 패널 또는 컨텍스트 메뉴에서 처리
