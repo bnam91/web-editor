@@ -935,13 +935,6 @@
   opacity: 1;
 }
 
-/* ── 블록 선택 glow ── */
-.asset-block.selected,
-.label-group-block.selected,
-.icon-circle-block.selected,
-.table-block.selected {
-  box-shadow: 0 0 0 3px var(--color-focus-fill);
-}
 
 /* 선택된 블록이 인접 블록의 outline을 가리지 않도록 z-index로 위로 올림 */
 .text-block.selected,

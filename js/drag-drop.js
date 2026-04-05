@@ -302,21 +302,16 @@ function bindBlock(block) {
       const layerItem = ss?._layerItem || block._layerItem;
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
-      if (_isInsideUnselectedFrame(block)) {
-        const pss = _getParentFrame(block);
-        window.deselectAll?.();
-        const parentSec = pss.closest('.section-block');
-        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-        pss.classList.add('selected');
-        window._activeSubSection = pss;
-        window.highlightBlock?.(pss, pss._layerItem);
-        window.showSubSectionProperties?.(pss);
-        return;
-      }
+      // shape-block은 프레임 선택 단계를 건너뛰고 직접 선택 (핸들 즉시 표시)
       window.deselectAll?.();
+      if (ss) {
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeSubSection = ss;
+      }
       block.classList.add('selected');
       window.syncSection?.(sec);
-      // shape-block._layerItem은 DOM에 없는 detached 요소 → 부모 ss._layerItem 사용
       window.highlightBlock?.(block, layerItem);
       window.setBlockAnchor?.(block);
       window.showShapeProperties?.(block);
@@ -342,8 +337,11 @@ function bindBlock(block) {
         const startX = e.clientX;
         const startY = e.clientY;
         const ss  = block.closest('.sub-section-block');
-        const startW = parseInt(ss?.style.width  || ss?.dataset.width)  || 100;
-        const startH = parseInt(ss?.style.height || ss?.dataset.height) || 100;
+        const ssRect = ss?.getBoundingClientRect();
+        const scaler0 = document.getElementById('canvas-scaler');
+        const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        const startW = ssRect ? Math.round(ssRect.width / scale0) : (parseInt(ss?.style.width || ss?.dataset.width) || 100);
+        const startH = ssRect ? Math.round(ssRect.height / scale0) : (parseInt(ss?.style.height || ss?.dataset.height) || 100);
 
         function onMove(ev) {
           const scaler = document.getElementById('canvas-scaler');

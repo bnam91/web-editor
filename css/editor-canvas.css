@@ -82,10 +82,10 @@
 .scratch-close {
   position: absolute;
   top: 0; right: 0;
-  transform: translate(50%, -50%);
-  width: clamp(20px, 6%, 36px);
-  height: auto;
-  aspect-ratio: 1;
+  transform: translate(50%, -50%) scale(var(--inv-zoom, 1));
+  transform-origin: center center;
+  width: 24px;
+  height: 24px;
   background: rgba(28,28,28,0.88);
   color: #fff;
   border: 1.5px solid rgba(255,255,255,0.18);
@@ -103,10 +103,10 @@
 .scratch-resize {
   position: absolute;
   bottom: 0; right: 0;
-  transform: translate(50%, 50%);
-  width: clamp(12px, 4%, 22px);
-  height: auto;
-  aspect-ratio: 1;
+  transform: translate(50%, 50%) scale(var(--inv-zoom, 1));
+  transform-origin: center center;
+  width: 14px;
+  height: 14px;
   background: rgba(255,255,255,0.88);
   border: 1.5px solid rgba(0,0,0,0.25);
   border-radius: 3px;
