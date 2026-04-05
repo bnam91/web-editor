@@ -138,6 +138,17 @@ function bindGroupDrag(groupEl) {
     window.syncSection?.(groupEl.closest('.section-block'));
   });
 
+  // group-editing 중 자식 클릭 시 deselectAll이 group 상태를 날린 뒤 setTimeout으로 복원
+  groupEl.addEventListener('mousedown', e => {
+    if (groupEl.classList.contains('group-editing') && groupEl.contains(e.target)) {
+      setTimeout(() => {
+        if (document.contains(groupEl)) {
+          groupEl.classList.add('group-selected', 'group-editing');
+        }
+      }, 0);
+    }
+  }, true);
+
   // 외부 클릭으로 group-editing 해제 (document-level, capture)
   if (!groupEl._groupEditOutsideBound) {
     groupEl._groupEditOutsideBound = true;

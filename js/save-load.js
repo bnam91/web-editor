@@ -259,6 +259,8 @@ function getSerializedCanvas() {
   clone.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
   // 드래그 중단 시 고착된 상태 제거
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+  // group-block 선택/편집 상태 제거 — 저장 후 리로드 시 초기 상태로 복원되도록
+  clone.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected', 'group-editing'));
   clone.querySelectorAll('.drop-indicator').forEach(el => el.remove());
   // 섹션 임시 스타일 제거 — 미리보기/썸네일용 scale transform이 저장에 포함되지 않도록
   clone.querySelectorAll('.section-block').forEach(sec => {

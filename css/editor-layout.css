@@ -6,26 +6,26 @@
   margin: 4px 0;
   padding: 18px 0 6px;
 }
-/* group-block hover: 파란 배경 ::after, border-color 변경 없음, 자식 hover 완전 차단 */
-.group-block:hover::after {
+/* group-block hover: 파란 배경 ::after (z-index 높여서 자식 위에 표시) */
+.group-block:not(.group-editing):hover::after {
   content: '';
   position: absolute;
   inset: 0;
   background: var(--sel-color-fill);
   pointer-events: none;
-  z-index: 0;
+  z-index: 100;
 }
 /* group-editing 모드가 아닐 때 자식 블록 hover/pointer 차단 */
 .group-block:not(.group-editing) .group-inner * {
   pointer-events: none;
 }
-.group-block.group-selected::after {
+.group-block.group-selected:not(.group-editing)::after {
   content: '';
   position: absolute;
   inset: 0;
   background: var(--sel-color-fill);
   pointer-events: none;
-  z-index: 0;
+  z-index: 100;
 }
 .group-block.group-selected { border-color: rgba(120,120,200,1); border-style: solid; outline: 1.5px solid var(--sel-color); outline-offset: -1px; }
 .group-block.group-selected .group-block-label { color: rgba(140,140,220,1); }

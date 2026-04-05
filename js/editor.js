@@ -499,7 +499,7 @@ document.addEventListener('keydown', e => {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
-      const selGroup = document.querySelector('.group-block.selected');
+      const selGroup = document.querySelector('.group-block.group-selected');
       if (selGroup) window.ungroupBlock?.(selGroup);
       return;
     }
@@ -645,6 +645,18 @@ document.addEventListener('keydown', e => {
     const selAsset   = document.querySelector('.asset-block.selected');
     const selGap     = document.querySelector('.gap-block.selected');
     const selSection = document.querySelector('.section-block.selected');
+
+    // group-block(프레임) selected → group-block 전체 삭제
+    const selGroup = document.querySelector('.group-block.group-selected:not(.group-editing)');
+    if (selGroup) {
+      e.preventDefault();
+      window.ensureHistoryCheckpoint?.('삭제 전');
+      selGroup.remove();
+      deselectAll();
+      window.buildLayerPanel();
+      pushHistory('프레임 삭제');
+      return;
+    }
 
     // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
     const selSS = document.querySelector('.sub-section-block.selected');
