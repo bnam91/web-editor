@@ -1352,7 +1352,7 @@ function deactivateSubSection() {
   window._activeSubSection = null;
 }
 
-/* ── Wrap selected blocks into a new fullWidth Frame ── */
+/* ── Wrap selected blocks into a new free-placement Frame ── */
 function wrapSelectedBlocksInFrame() {
   const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block';
   const selected = [...document.querySelectorAll(
@@ -1383,16 +1383,42 @@ function wrapSelectedBlocksInFrame() {
   });
   rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
 
-  // fullWidth 프레임 생성
-  const ss = makeSubSectionBlock({ fullWidth: true });
+  // 선택 블록들의 총 높이 계산 (프레임 높이 결정)
+  const GAP = 0;
+  let totalH = 0;
+  rows.forEach(row => { totalH += (row.offsetHeight || 60) + GAP; });
+  const frameH = Math.max(totalH, 120);
+
+  // 자유배치(absolute) 프레임 생성
+  const ss = makeSubSectionBlock();
+  ss.style.cssText = `background:transparent;padding:0;width:100%;height:${frameH}px;min-height:${frameH}px;overflow:hidden;`;
   ss.dataset.bg = 'transparent';
-  ss.style.background = 'transparent';
+  ss.dataset.width = '100%';
+  ss.dataset.padY = '0';
 
   const inner = ss.querySelector('.sub-section-inner');
 
-  // 첫 번째 row 자리에 프레임 삽입 후 rows 이동
+  // 첫 번째 row 자리에 프레임 삽입
   rows[0].before(ss);
-  rows.forEach(row => inner.appendChild(row));
+
+  // 각 블록을 absolute 배치로 inner에 이동
+  let stackY = 0;
+  rows.forEach(row => {
+    const rowH = row.offsetHeight || 60;
+    const blocks = [...row.querySelectorAll(BLOCK_SEL)];
+    blocks.forEach(block => {
+      block.style.position = 'absolute';
+      block.style.left = '0px';
+      block.style.top = stackY + 'px';
+      block.style.width = '100%';
+      block.style.transform = '';
+      block.classList.remove('selected');
+      block.setAttribute('draggable', 'false');
+      inner.appendChild(block);
+    });
+    stackY += rowH + GAP;
+    row.remove();
+  });
 
   window.bindSubSectionDropZone?.(ss);
 
