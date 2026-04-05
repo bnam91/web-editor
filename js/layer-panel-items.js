@@ -848,9 +848,9 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
     // wrapper의 indents 제거 후 header에 재조합
     const existingIndents = wrapper.querySelector('.layer-indents');
     if (existingIndents) existingIndents.remove();
-    header.prepend(makeIndents(1));
     header.appendChild(chevron);
     header.appendChild(wrapper);
+    header.prepend(makeIndents(1));
     group.appendChild(header);
     group.appendChild(ssChildren);
 

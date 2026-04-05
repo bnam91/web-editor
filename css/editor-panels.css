@@ -1057,7 +1057,6 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .layer-row-group.collapsed .layer-chevron { transform: rotate(-90deg); }
 .layer-row-header .layer-chevron { margin-left: -18px; position: relative; z-index: 1; }
 /* Frame 그룹(sub-section)의 chevron은 보여야 함 */
-.layer-row-group[data-type="frame"] > .layer-row-header .layer-chevron { margin-left: 0; }
 .layer-row-group.layer-dragging { opacity: 0.3; }
 .layer-item-nested { padding-left: 0; }
 
