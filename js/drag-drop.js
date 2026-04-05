@@ -1226,6 +1226,17 @@ function bindSubSectionDropZone(ss) {
       }
     }
 
+    // DOM 순서 변경 후 absolute 블록의 top 재계산 (시각적 순서 반영)
+    let _stackY = 0;
+    [...inner.children].forEach(b => {
+      if (b.classList.contains('drop-indicator')) return;
+      if (b.style.position === 'absolute') {
+        b.style.top  = _stackY + 'px';
+        b.style.left = '0px';
+      }
+      _stackY += (b.offsetHeight || 60) + 16;
+    });
+
     // dragging 클래스 고착 방지
     dragSrc?.classList.remove('dragging', 'section-dragging', 'layer-dragging');
     clearDropIndicators();

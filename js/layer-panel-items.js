@@ -818,6 +818,44 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn) {
     });
   }
 
+  // shape-only frame이 아니고 자식이 있으면 chevron + group 구조로 반환
+  const isShapeOnly = !!ssEl.querySelector('.shape-block') &&
+                      ssInner?.children.length === 1 &&
+                      ssInner?.firstElementChild?.classList.contains('shape-block');
+
+  if (!isShapeOnly && ssChildren.children.length > 0) {
+    const group = document.createElement('div');
+    group.className = 'layer-row-group';
+    group._dragTarget = ssEl;
+
+    const header = document.createElement('div');
+    header.className = 'layer-row-header';
+
+    const chevron = document.createElement('svg');
+    chevron.setAttribute('viewBox', '0 0 12 12');
+    chevron.setAttribute('fill', 'currentColor');
+    chevron.className = 'layer-chevron';
+    chevron.innerHTML = '<path d="M2 4l4 4 4-4"/>';
+    chevron.style.cssText = 'width:12px;height:12px;flex-shrink:0;cursor:pointer;';
+    chevron.addEventListener('click', e => {
+      e.stopPropagation();
+      group.classList.toggle('collapsed');
+    });
+
+    // wrapper의 indents 제거 후 header에 재조합
+    const existingIndents = wrapper.querySelector('.layer-indents');
+    if (existingIndents) existingIndents.remove();
+    header.prepend(makeIndents(1));
+    header.appendChild(chevron);
+    header.appendChild(wrapper);
+    group.appendChild(header);
+    group.appendChild(ssChildren);
+
+    // group도 _layerItem 참조 유지
+    ssEl._layerItem = wrapper;
+    return group;
+  }
+
   return wrapper;
 }
 
