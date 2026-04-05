@@ -1416,9 +1416,9 @@ function bindSubSectionDropZone(ss) {
       const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
       const startW = Math.round(ssRect.width / scale0);
       const startH = Math.round(ssRect.height / scale0);
-      // 부모 컨테이너 너비를 최대 폭으로 제한
-      const parentRect = ss.parentElement?.getBoundingClientRect();
-      const maxW = parentRect ? Math.round(parentRect.width / scale0) : 860;
+      // 섹션 너비를 최대 폭으로 제한 (860px 캔버스 기준)
+      const secEl = ss.closest('.section-block');
+      const maxW = secEl ? Math.round(secEl.getBoundingClientRect().width / scale0) : 860;
 
       function onMove(ev) {
         const scaler = document.getElementById('canvas-scaler');
