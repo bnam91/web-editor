@@ -81,13 +81,16 @@
 }
 .scratch-close {
   position: absolute;
-  top: -9px; right: -9px;
-  width: 20px; height: 20px;
+  top: 0; right: 0;
+  transform: translate(50%, -50%);
+  width: clamp(20px, 6%, 36px);
+  height: auto;
+  aspect-ratio: 1;
   background: rgba(28,28,28,0.88);
   color: #fff;
   border: 1.5px solid rgba(255,255,255,0.18);
   border-radius: 50%;
-  font-size: 9px;
+  font-size: 13px;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0;
@@ -99,8 +102,11 @@
 .scratch-close:hover { background: #e74c3c; border-color: #e74c3c; }
 .scratch-resize {
   position: absolute;
-  bottom: -5px; right: -5px;
-  width: 12px; height: 12px;
+  bottom: 0; right: 0;
+  transform: translate(50%, 50%);
+  width: clamp(12px, 4%, 22px);
+  height: auto;
+  aspect-ratio: 1;
   background: rgba(255,255,255,0.88);
   border: 1.5px solid rgba(0,0,0,0.25);
   border-radius: 3px;
