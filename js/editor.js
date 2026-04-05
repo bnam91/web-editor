@@ -614,6 +614,7 @@ document.addEventListener('keydown', e => {
     const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
+      window.ensureHistoryCheckpoint?.('삭제 전');
       // shape: 부모 ss/row 단위로 삭제
       const ssRowsToRemove = new Set();
       allSelShapes.forEach(shape => {
