@@ -129,31 +129,30 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   item.addEventListener('click', e => {
     e.stopPropagation();
     if (e.target.classList.contains('editing')) return;
-    if (e.shiftKey) {
-      // Shift+클릭: 다중선택 토글
-      if (block.classList.contains('selected')) {
-        block.classList.remove('selected');
-        item.classList.remove('active');
-      } else {
-        block.classList.add('selected');
-        item.classList.add('active');
-      }
-      window.syncSection(sec);
-    } else {
-      window.deselectAll();
-      block.classList.add('selected');
-      window.syncSection(sec);
-      window.highlightBlock(block, item);
-      if (isCanvas) window.showCanvasProperties?.(block);
-      else if (isShape) window.showShapeProperties?.(block);
-      else if (isText || isIconText) window.showTextProperties(block);
-      else if (isGap) window.showGapProperties(block);
-      else if (isIconCb) window.showIconCircleProperties(block);
-      else if (isTable) window.showTableProperties(block);
-      else if (isCard) window.showCardProperties(block);
-      else if (isJoker) window.showJokerProperties?.(block);
-      else window.showAssetProperties(block);
+    if (e.metaKey || e.ctrlKey) {
+      // Cmd+클릭: 개별 토글
+      window.toggleBlockSelect?.(block, sec);
+      return;
     }
+    if (e.shiftKey) {
+      // Shift+클릭: 범위 선택
+      window.rangeSelectBlocks?.(block, sec);
+      return;
+    }
+    window.deselectAll();
+    block.classList.add('selected');
+    window.syncSection(sec);
+    window.highlightBlock(block, item);
+    window.setBlockAnchor?.(block);
+    if (isCanvas) window.showCanvasProperties?.(block);
+    else if (isShape) window.showShapeProperties?.(block);
+    else if (isText || isIconText) window.showTextProperties(block);
+    else if (isGap) window.showGapProperties(block);
+    else if (isIconCb) window.showIconCircleProperties(block);
+    else if (isTable) window.showTableProperties(block);
+    else if (isCard) window.showCardProperties(block);
+    else if (isJoker) window.showJokerProperties?.(block);
+    else window.showAssetProperties(block);
   });
   block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');
   block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
@@ -651,6 +650,8 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
     item.prepend(makeIndents(depth + 1));
     item.addEventListener('click', e => {
       e.stopPropagation();
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
       // Col/Row도 함께 활성화
@@ -663,6 +664,7 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
       colHeader.classList.add('active');
       window.syncSection(sec);
       window.highlightBlock(block, item);
+      window.setBlockAnchor?.(block);
       if (isCanvas) window.showCanvasProperties?.(block);
       else if (isText || isIconText) window.showTextProperties(block);
       else if (isGap) window.showGapProperties(block);
