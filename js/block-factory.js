@@ -1296,10 +1296,10 @@ function makeSubSectionBlock(opts = {}) {
     ss.appendChild(inner);
   } else {
     // 기존 고정 크기 + absolute 자식 모드
-    ss.dataset.bg = '#f5f5f5';
+    ss.dataset.bg = 'transparent';
     ss.dataset.width = '860';
     ss.dataset.padY = '24';
-    ss.style.cssText = `background:#f5f5f5;padding:24px 0;width:860px;max-width:100%;margin:0 auto;min-height:520px;`;
+    ss.style.cssText = `background:transparent;padding:24px 0;width:860px;max-width:100%;margin:0 auto;min-height:520px;`;
     const inner = document.createElement('div');
     inner.className = 'sub-section-inner';
     inner.style.position = 'relative';
