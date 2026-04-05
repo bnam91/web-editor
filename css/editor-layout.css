@@ -1,17 +1,20 @@
 /* ── Group Block ── */
 .group-block {
   position: relative;
-  border: 1.5px dashed rgba(120,120,200,0.4);
+  border: 1.5px dashed transparent; /* 기본: border 숨김 */
   border-radius: 4px;
   margin: 4px 0;
   padding: 18px 0 6px;
 }
-/* group-block hover: 파란 배경 ::after (z-index 높여서 자식 위에 표시) */
+/* hover: border 표시 + 파란 배경 (자식 위에 z-index:100으로 덮음) */
+.group-block:not(.group-editing):hover {
+  border-color: rgba(120,120,200,0.5);
+}
 .group-block:not(.group-editing):hover::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--sel-color-fill);
+  background: rgba(45,111,232,0.12);
   pointer-events: none;
   z-index: 100;
 }
@@ -23,7 +26,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--sel-color-fill);
+  background: rgba(45,111,232,0.12);
   pointer-events: none;
   z-index: 100;
 }
