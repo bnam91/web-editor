@@ -537,6 +537,16 @@ document.addEventListener('keydown', e => {
     if (e.code === 'KeyT') { e.preventDefault(); window.addTextBlock?.('body'); return; }
     if (e.code === 'KeyA') { e.preventDefault(); window.addAssetBlock?.(); return; }
 
+    // Enter → 선택된 텍스트 블록 편집 모드 진입
+    if (e.code === 'Enter') {
+      const tb = document.querySelector('.text-block.selected');
+      if (tb && typeof tb._enterTextEditMode === 'function') {
+        e.preventDefault();
+        tb._enterTextEditMode();
+        return;
+      }
+    }
+
     // 텍스트 타입 단축키: 1=H1, 2=H2, 3=H3, 4=Body (텍스트 편집 중이면 무시)
     if (['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
       if (document.querySelector('.text-block.editing')) return; // 편집 중 차단

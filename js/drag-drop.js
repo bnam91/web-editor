@@ -467,6 +467,39 @@ function bindBlock(block) {
     return; // 편집 불가 — 이벤트 바인딩 여기서 종료
   }
 
+  // ── 텍스트 편집 이벤트 바인딩 헬퍼 (최초 1회) ──
+  function _bindTextEditEl(el, block) {
+    if (el._editBound) return;
+    el._editBound = true;
+    // input → 타이핑 즉시 placeholder 해제
+    el.addEventListener('input', () => {
+      if (el.dataset.isPlaceholder === 'true' && el.textContent.trim() !== '') {
+        delete el.dataset.isPlaceholder;
+      }
+    });
+    // blur → 편집 종료 (외부 클릭, 포커스 이탈 시)
+    el.addEventListener('blur', () => {
+      block.classList.remove('editing');
+      el.setAttribute('contenteditable', 'false');
+      // 빈 텍스트면 placeholder 복원
+      const ph = el.dataset.placeholder;
+      if (ph && el.textContent.trim() === '') {
+        el.innerHTML = ph;
+        el.dataset.isPlaceholder = 'true';
+      } else if (el.textContent.trim() !== '') {
+        delete el.dataset.isPlaceholder;
+      }
+    });
+    // Escape → 편집 종료, 블록 선택 상태 유지
+    el.addEventListener('keydown', ev => {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation(); // 전역 window.deselectAll() 차단
+        el.blur();            // blur 핸들러가 editing 정리
+      }
+    });
+  }
+
   if (isText) {
     // absolute 텍스트 블록 (서브섹션 내부) 드래그 이동
     block.addEventListener('mousedown', e => {
@@ -568,39 +601,33 @@ function bindBlock(block) {
             sel.addRange(range);
           }
         }
-        // 편집 이벤트 바인딩 (최초 1회)
-        if (!clicked._editBound) {
-          clicked._editBound = true;
-          // input → 타이핑 즉시 placeholder 해제
-          clicked.addEventListener('input', () => {
-            if (clicked.dataset.isPlaceholder === 'true' && clicked.textContent.trim() !== '') {
-              delete clicked.dataset.isPlaceholder;
-            }
-          });
-          // blur → 편집 종료 (외부 클릭, 포커스 이탈 시)
-          clicked.addEventListener('blur', () => {
-            block.classList.remove('editing');
-            clicked.setAttribute('contenteditable', 'false');
-            // 빈 텍스트면 placeholder 복원
-            const ph = clicked.dataset.placeholder;
-            if (ph && clicked.textContent.trim() === '') {
-              clicked.innerHTML = ph;
-              clicked.dataset.isPlaceholder = 'true';
-            } else if (clicked.textContent.trim() !== '') {
-              delete clicked.dataset.isPlaceholder;
-            }
-          });
-          // Escape → 편집 종료, 블록 선택 상태 유지
-          clicked.addEventListener('keydown', ev => {
-            if (ev.key === 'Escape') {
-              ev.preventDefault();
-              ev.stopPropagation(); // 전역 window.deselectAll() 차단
-              clicked.blur();       // blur 핸들러가 editing 정리
-            }
-          });
-        }
+        _bindTextEditEl(clicked, block);
       }
     });
+
+    // ── Enter 키로 편집 모드 진입 (선택 상태에서) ──
+    block._enterTextEditMode = function() {
+      if (block.classList.contains('editing')) return;
+      window.pushHistory?.();
+      block.classList.add('editing');
+      const editEls = block.querySelectorAll('[contenteditable]');
+      editEls.forEach(el => el.setAttribute('contenteditable', 'true'));
+      const target = editEls[0];
+      if (!target) return;
+      _bindTextEditEl(target, block);
+      target.focus();
+      // 커서를 끝으로 이동
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      if (target.dataset.isPlaceholder === 'true') {
+        // placeholder면 전체 선택 (다음 타이핑으로 즉시 교체)
+      } else {
+        range.collapse(false);
+      }
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    };
 
   }
 
