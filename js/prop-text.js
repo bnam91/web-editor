@@ -263,6 +263,9 @@ export function showTextProperties(tb) {
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
 
+  /* 시스템 설치 폰트 동적 로드 */
+  _loadSystemFonts(document.getElementById('txt-font-family'));
+
   /* 폰트 종류 */
   document.getElementById('txt-font-family').addEventListener('change', e => {
     window.pushHistory?.();
@@ -686,6 +689,30 @@ export function rgbToHex(rgb) {
   const m = rgb.match(/\d+/g);
   if (!m) return '#111111';
   return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+
+/* ── 시스템 설치 폰트 동적 로드 ── */
+async function _loadSystemFonts(selectEl) {
+  if (!window.queryLocalFonts) return;
+  try {
+    const fonts = await window.queryLocalFonts();
+    const families = [...new Set(fonts.map(f => f.family))].sort((a, b) => a.localeCompare(b, 'ko'));
+    // 이미 추가된 경우 skip (showTextProperties 재호출 대비)
+    if (selectEl.querySelector('optgroup[data-system]')) return;
+    const og = document.createElement('optgroup');
+    og.label = '── 시스템 설치 ──';
+    og.dataset.system = '1';
+    families.forEach(fam => {
+      const opt = document.createElement('option');
+      opt.value = `'${fam}', sans-serif`;
+      opt.textContent = fam;
+      opt.style.fontFamily = fam;
+      og.appendChild(opt);
+    });
+    selectEl.appendChild(og);
+  } catch (e) {
+    // 퍼미션 거부 또는 미지원 환경 — 하드코딩 폴백 유지
+  }
 }
 
 // Backward compat: classic scripts call these via window.*

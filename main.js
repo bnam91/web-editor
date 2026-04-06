@@ -75,6 +75,15 @@ function createWindow() {
     },
   });
 
+  // local-fonts 퍼미션 허용 (queryLocalFonts API)
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'local-fonts') {
+      callback(true);
+      return;
+    }
+    callback(false);
+  });
+
   // 라이선스 체크 후 페이지 결정
   checkLicenseAndLoad();
 
