@@ -64,6 +64,7 @@ export function showTextProperties(tb) {
         ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${tb.id}')">${tb.id}</span>` : ''}
       </div>
     </div>
+
     <div class="prop-section">
       <div class="prop-section-title">타입</div>
       <div class="prop-type-group">
@@ -77,33 +78,51 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">정렬</div>
-      <div class="prop-align-group">
-        <button class="prop-align-btn ${currentAlign==='left'||currentAlign===''?'active':''}" data-align="left">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
-            <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
-          </svg>
-        </button>
-        <button class="prop-align-btn ${currentAlign==='center'?'active':''}" data-align="center">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
-            <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
-          </svg>
-        </button>
-        <button class="prop-align-btn ${currentAlign==='right'?'active':''}" data-align="right">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
-            <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
-          </svg>
-        </button>
+      <div class="prop-section-title">위치 및 크기</div>
+      <div class="prop-row">
+        <span class="prop-label">정렬</span>
+        <div class="prop-align-group">
+          <button class="prop-align-btn ${currentAlign==='left'||currentAlign===''?'active':''}" data-align="left">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
+              <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
+            </svg>
+          </button>
+          <button class="prop-align-btn ${currentAlign==='center'?'active':''}" data-align="center">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
+              <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
+            </svg>
+          </button>
+          <button class="prop-align-btn ${currentAlign==='right'?'active':''}" data-align="right">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
+              <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" id="txt-size-slider" min="8" max="400" step="1" value="${currentSize}">
+        <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">줄간격</span>
+        <input type="range" class="prop-slider" id="txt-lh-slider" min="1" max="3" step="0.05" value="${currentLH}">
+        <input type="number" class="prop-number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">자간</span>
+        <input type="range" class="prop-slider" id="txt-ls-slider" min="-10" max="40" step="0.5" value="${currentLS}">
+        <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
       </div>
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">폰트</div>
+      <div class="prop-section-title">Typography</div>
       <div class="prop-row">
-        <span class="prop-label">종류</span>
+        <span class="prop-label">폰트</span>
         <select class="prop-select" id="txt-font-family">
           <option value="" style="font-family:inherit"           ${currentFont===''?'selected':''}>기본 (시스템)</option>
           <optgroup label="── 한글 ──">
@@ -144,35 +163,16 @@ export function showTextProperties(tb) {
           <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic / Cmd+I)"><i>I</i></button>
         </div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="txt-size-slider" min="8" max="400" step="1" value="${currentSize}">
-        <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}">
-      </div>
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">색상</div>
+      <div class="prop-section-title">Fill</div>
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
         <div class="prop-color-swatch" style="background:${currentColor}">
           <input type="color" id="txt-color" value="${currentColor}">
         </div>
         <input type="text" class="prop-color-hex" id="txt-color-hex" value="${currentColor}" maxlength="7">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">간격</div>
-      <div class="prop-row">
-        <span class="prop-label">줄간격</span>
-        <input type="range" class="prop-slider" id="txt-lh-slider" min="1" max="3" step="0.05" value="${currentLH}">
-        <input type="number" class="prop-number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">자간</span>
-        <input type="range" class="prop-slider" id="txt-ls-slider" min="-10" max="40" step="0.5" value="${currentLS}">
-        <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
       </div>
     </div>
 

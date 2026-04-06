@@ -7,16 +7,16 @@
   padding: 8px 12px 4px; letter-spacing: 0.02em;
 }
 .prop-section {
-  padding: 8px 12px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--ui-border);
 }
 .prop-section-title {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
-  color: #6b6b6b; margin-bottom: 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ui-text-muted, #6b6b6b); padding: 6px 0 4px; margin-bottom: 0;
 }
 .prop-row {
-  display: flex; align-items: center; gap: 6px;
-  margin-bottom: 6px; overflow: hidden;
+  display: flex; align-items: center; gap: 4px;
+  min-height: 26px; margin-bottom: 2px; overflow: hidden;
 }
 .prop-label { font-size: 11px; color: #6b6b6b; width: 48px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prop-value-text { font-size: 11px; color: var(--ui-text-sub); }
@@ -42,6 +42,14 @@
   font-size: 11px; text-align: center; outline: none;
 }
 .prop-number:focus { border-color: var(--ui-accent-primary); }
+
+/* prop-section input/select compact — 피그마 스타일 */
+.prop-section input[type="text"],
+.prop-section input[type="number"],
+.prop-section select {
+  height: 24px;
+  font-size: 11px;
+}
 
 .prop-ph-header {
   display: flex; align-items: center; justify-content: space-between;
