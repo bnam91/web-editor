@@ -88,10 +88,11 @@
 .prop-chain-btn.active { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); background: rgba(45,111,232,0.12); }
 
 .prop-select {
-  flex: 1; height: 28px;
+  flex: 1; min-width: 0; width: 0; height: 28px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
   border-radius: 4px; color: var(--ui-text);
   font-size: 11px; padding: 0 6px; outline: none; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .prop-select:focus { border-color: var(--ui-accent-primary); }
 
@@ -304,7 +305,7 @@
 
 /* 폰트 셀렉터 */
 .prop-select {
-  flex: 1; height: 28px;
+  flex: 1; min-width: 0; width: 0; height: 28px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
   border-radius: 4px; color: var(--ui-text);
   font-size: 11px; padding: 0 6px;
@@ -314,6 +315,7 @@
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 24px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .prop-select:focus { border-color: var(--ui-accent-primary); }
 
