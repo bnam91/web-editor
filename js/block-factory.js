@@ -217,6 +217,7 @@ function makeIconTextBlock() {
 }
 
 function addIconTextBlock() {
+  if (_insertToFlowSubSection(() => makeIconTextBlock())) return;
   if (_insertToActiveCol(() => makeIconTextBlock(), true)) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
@@ -248,6 +249,16 @@ function addLabelGroupBlock(opts = {}) {
     window.buildLayerPanel();
     return;
   }
+  if (_insertToFlowSubSection(() => {
+    const { row, block } = makeLabelGroupBlock();
+    if (opts.labels && opts.labels.length > 0) {
+      block.querySelectorAll('.label-item').forEach(l => l.remove());
+      const addBtn = block.querySelector('.label-group-add-btn');
+      opts.labels.forEach(text => { block.insertBefore(makeLabelItem(text, '#e8e8e8', '#333333', 40, opts.shape || 'pill'), addBtn); });
+    }
+    if (opts.shape) block.dataset.shape = opts.shape;
+    return { row, block };
+  })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
@@ -813,6 +824,12 @@ function addGapBlock(height) {
 }
 
 function addIconCircleBlock(opts = {}) {
+  if (_insertToFlowSubSection(() => {
+    const { row, block } = makeIconCircleBlock();
+    if (opts.size) { block.dataset.size = String(opts.size); const c = block.querySelector('.icb-circle'); if (c) { c.style.width = opts.size + 'px'; c.style.height = opts.size + 'px'; } }
+    if (opts.bgColor) { block.dataset.bgColor = opts.bgColor; const c = block.querySelector('.icb-circle'); if (c) c.style.backgroundColor = opts.bgColor; }
+    return { row, block };
+  })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   if (_insertToActiveCol(() => {
@@ -849,6 +866,12 @@ function addIconCircleBlock(opts = {}) {
 }
 
 function addTableBlock(opts = {}) {
+  if (_insertToFlowSubSection(() => {
+    const { row, block } = makeTableBlock();
+    if (opts.showHeader === false) { block.dataset.showHeader = 'false'; const th = block.querySelector('thead'); if (th) th.style.display = 'none'; }
+    if (opts.cellAlign) { block.dataset.cellAlign = opts.cellAlign; block.querySelectorAll('td, th').forEach(c => { c.style.textAlign = opts.cellAlign; }); }
+    return { row, block };
+  })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   if (_insertToActiveCol(() => {
@@ -909,6 +932,12 @@ function makeCardBlock() {
 }
 
 function addCardBlock(count = 2, opts = {}) {
+  if (_insertToFlowSubSection(() => {
+    const { row, block } = makeCardBlock();
+    if (opts.bgColor) { block.dataset.bgColor = opts.bgColor; const body = block.querySelector('.cdb-body'); if (body) body.style.background = opts.bgColor; }
+    if (opts.radius !== undefined) { block.dataset.radius = String(opts.radius); const body = block.querySelector('.cdb-body'); if (body) body.style.borderRadius = `0 0 ${opts.radius}px ${opts.radius}px`; }
+    return { row, block };
+  })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
 
@@ -981,6 +1010,12 @@ function makeGraphBlock() {
 }
 
 function addGraphBlock(opts = {}) {
+  if (_insertToFlowSubSection(() => {
+    const { row, block } = makeGraphBlock();
+    if (opts.chartType) block.dataset.chartType = opts.chartType;
+    if (opts.items && opts.items.length > 0) { block.dataset.items = JSON.stringify(opts.items); renderGraph(block); }
+    return { row, block };
+  })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   if (_insertToActiveCol(() => {
@@ -1029,6 +1064,14 @@ function makeDividerBlock() {
 }
 
 function addDividerBlock(opts = {}) {
+  if (_insertToFlowSubSection(() => {
+    const { row, block } = makeDividerBlock();
+    if (opts.color) block.dataset.lineColor = opts.color;
+    if (opts.lineStyle) block.dataset.lineStyle = opts.lineStyle;
+    if (opts.weight !== undefined) block.dataset.lineWeight = String(opts.weight);
+    if (opts.color || opts.lineStyle || opts.weight !== undefined) applyDividerStyle(block);
+    return { row, block };
+  })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   if (_insertToActiveCol(() => {
@@ -1254,24 +1297,56 @@ function makeSubSectionBlock(opts = {}) {
     // 플로우 레이아웃 (absolute 아님)
     ss.appendChild(inner);
   } else {
-    // 기존 고정 크기 + absolute 자식 모드
+    // B 모드: 자유배치 프레임 (기본값)
     ss.dataset.bg = 'transparent';
+    ss.dataset.freeLayout = 'true';
     ss.dataset.width = '860';
     ss.dataset.height = '520';
-    ss.dataset.padY = '24';
-    ss.style.cssText = `background:transparent;padding:24px 0;width:860px;max-width:100%;margin:0 auto;min-height:520px;height:520px;`;
+    ss.dataset.padY = '0';
+    ss.style.cssText = `background:transparent;padding:0;width:860px;max-width:100%;margin:0 auto;min-height:520px;height:520px;`;
     const inner = document.createElement('div');
     inner.className = 'sub-section-inner';
-    inner.style.position = 'relative';
+    inner.style.cssText = 'position:relative;width:100%;height:100%;';
     ss.appendChild(inner);
   }
   return ss;
 }
 
-/* fullWidth sub-section이 활성화된 경우 플로우 블록 삽입 */
+/* sub-section이 활성화된 경우 블록 삽입 — freeLayout(B모드) / fullWidth(플로우) 분기 */
 function _insertToFlowSubSection(makeBlockFn) {
   const ss = window._activeSubSection;
-  if (!ss || ss.dataset.fullWidth !== 'true') return false;
+  if (!ss) return false;
+
+  /* ── B 모드: 자유배치 프레임 ── */
+  if (ss.dataset.freeLayout === 'true') {
+    const inner = ss.querySelector('.sub-section-inner');
+    if (!inner) return false;
+    window.pushHistory();
+    const result = makeBlockFn();
+    if (!result) return true;
+    const isRowBlock = !!(result.row && result.block);
+    const block = isRowBlock ? result.block : result;
+    // 기존 absolute 자식 아래에 쌓기
+    const absEls = [...inner.querySelectorAll(':scope > *')].filter(el => el.style.position === 'absolute');
+    let stackY = 20;
+    if (absEls.length > 0) {
+      const last = absEls[absEls.length - 1];
+      stackY = Math.round(parseInt(last.style.top || '0') + (last.offsetHeight || 60) + 16);
+    }
+    block.style.position = 'absolute';
+    block.style.left     = '0px';
+    block.style.top      = stackY + 'px';
+    block.style.width    = '100%';
+    block.style.transform = '';
+    inner.appendChild(block);
+    bindBlock(block);
+    block.setAttribute('draggable', 'false');
+    window.buildLayerPanel();
+    return true;
+  }
+
+  /* ── A 모드: fullWidth 플로우 레이아웃 ── */
+  if (ss.dataset.fullWidth !== 'true') return false;
   const inner = ss.querySelector('.sub-section-inner');
   if (!inner) return false;
   window.pushHistory();
