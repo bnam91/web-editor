@@ -304,6 +304,48 @@ function bindBlock(block) {
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
 
+  // ── 공통: 절대좌표 드래그 (프레임 자유배치 — 모든 블록 타입) ──
+  block.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (block.style.position !== 'absolute') return;
+    if (block.classList.contains('editing')) return;
+    if (_getParentFrame(block) && !block.classList.contains('selected')) return;
+    if (isLabelGroup && e.target.closest('.label-item, .label-group-add-btn')) return;
+    e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    const startLeft = parseInt(block.style.left || '0');
+    const startTop  = parseInt(block.style.top  || '0');
+    let moved = false;
+    function onMove(ev) {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+      moved = true;
+      const scaler = document.getElementById('canvas-scaler');
+      const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+      const newLeft = Math.round(startLeft + dx / scale);
+      const newTop  = Math.round(startTop  + dy / scale);
+      block.style.left = `${newLeft}px`;
+      block.style.top  = `${newTop}px`;
+      block.dataset.offsetX = String(newLeft);
+      block.dataset.offsetY = String(newTop);
+      window.scheduleAutoSave?.();
+      // prop 패널 X/Y 실시간 갱신 (패널이 열려있을 때)
+      const xNum = document.getElementById('txt-x-number') || document.getElementById('lg-x-number');
+      const yNum = document.getElementById('txt-y-number') || document.getElementById('lg-y-number');
+      if (xNum) xNum.value = newLeft;
+      if (yNum) yNum.value = newTop;
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('dragend', onUp);
+      if (moved) { _resizeFrameToFitChildren(block); window.pushHistory?.(); }
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('dragend', onUp);
+  });
+
   if (isShape) {
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -511,52 +553,6 @@ function bindBlock(block) {
   }
 
   if (isText) {
-    // absolute 텍스트 블록 (서브섹션 내부) 드래그 이동
-    block.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      if (block.style.position !== 'absolute') return;
-      if (block.classList.contains('editing')) return;
-      // 프레임 내 블록: 자식 블록 자체가 선택된 상태일 때만 drag 허용
-      if (_getParentFrame(block) && !block.classList.contains('selected')) return;
-      e.stopPropagation();
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const startLeft = parseInt(block.style.left || '0');
-      const startTop  = parseInt(block.style.top  || '0');
-      let moved = false;
-
-      function onMove(ev) {
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
-        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
-        moved = true;
-        const scaler = document.getElementById('canvas-scaler');
-        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-        const newLeft = Math.round(startLeft + dx / scale);
-        const newTop  = Math.round(startTop  + dy / scale);
-        block.style.left = `${newLeft}px`;
-        block.style.top  = `${newTop}px`;
-        block.dataset.offsetX = String(newLeft);
-        block.dataset.offsetY = String(newTop);
-        window.scheduleAutoSave?.();
-        const xNum = document.getElementById('txt-x-number');
-        const yNum = document.getElementById('txt-y-number');
-        if (xNum) xNum.value = newLeft;
-        if (yNum) yNum.value = newTop;
-      }
-
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        document.removeEventListener('dragend', onUp); // HTML5 drag 잔존 시 안전망
-        if (moved) { _resizeFrameToFitChildren(block); window.pushHistory?.(); }
-      }
-
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-      document.addEventListener('dragend', onUp); // HTML5 drag가 mouseup 대신 dragend 발생 시 정리
-    });
-
     block.addEventListener('click', e => {
       e.stopPropagation();
       // 편집 모드 중 클릭은 무시 (커서 이동/텍스트 선택 기본 동작 유지)
@@ -711,35 +707,6 @@ function bindBlock(block) {
   }
 
   if (isGap) {
-    // 프레임(sub-section-inner) 내 absolute gap-block: 드래그로 top 조절
-    block.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      if (block.style.position !== 'absolute') return;
-      if (_getParentFrame(block) && !block.classList.contains('selected')) return;
-      e.stopPropagation();
-      const startX = e.clientX, startY = e.clientY;
-      const startLeft = parseInt(block.style.left || '0');
-      const startTop  = parseInt(block.style.top  || '0');
-      let moved = false;
-      function onMove(ev) {
-        const dx = ev.clientX - startX, dy = ev.clientY - startY;
-        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
-        moved = true;
-        const scaler = document.getElementById('canvas-scaler');
-        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-        block.style.left = `${Math.round(startLeft + dx / scale)}px`;
-        block.style.top  = `${Math.round(startTop  + dy / scale)}px`;
-        window.scheduleAutoSave?.();
-      }
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        if (moved) { _resizeFrameToFitChildren(block); window.pushHistory?.(); }
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -888,42 +855,6 @@ function bindBlock(block) {
   }
 
   if (isLabelGroup) {
-    // absolute 위치 드래그 이동 (서브섹션 내부)
-    block.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      if (block.style.position !== 'absolute') return;
-      if (block.classList.contains('editing')) return;
-      // 프레임 내 블록: 자식 블록 자체가 선택된 상태일 때만 drag 허용
-      if (_getParentFrame(block) && !block.classList.contains('selected')) return;
-      if (e.target.closest('.label-item, .label-group-add-btn')) return;
-      e.stopPropagation();
-      const startX = e.clientX, startY = e.clientY;
-      const startLeft = parseInt(block.style.left || '0');
-      const startTop  = parseInt(block.style.top  || '0');
-      let moved = false;
-      function onMove(ev) {
-        const dx = ev.clientX - startX, dy = ev.clientY - startY;
-        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
-        moved = true;
-        const scaler = document.getElementById('canvas-scaler');
-        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-        block.style.left = `${Math.round(startLeft + dx / scale)}px`;
-        block.style.top  = `${Math.round(startTop  + dy / scale)}px`;
-        const xNum = document.getElementById('lg-x-number');
-        const yNum = document.getElementById('lg-y-number');
-        if (xNum) xNum.value = parseInt(block.style.left);
-        if (yNum) yNum.value = parseInt(block.style.top);
-        window.scheduleAutoSave?.();
-      }
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        if (moved) { _resizeFrameToFitChildren(block); window.pushHistory?.(); }
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
     block.addEventListener('click', e => {
       e.stopPropagation();
       if (_isInsideUnselectedFrame(block)) {
