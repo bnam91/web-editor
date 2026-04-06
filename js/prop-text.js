@@ -34,7 +34,8 @@ export function showTextProperties(tb) {
   const currentPadL  = parseInt(tb.style.paddingLeft)  || 0;
   const currentPadR  = parseInt(tb.style.paddingRight) || 0;
   let   phLinked     = currentPadL === currentPadR;
-  const currentFont   = contentEl.style.fontFamily || '';
+  // rawFont: CSS가 fontFamily를 정규화(따옴표 변환 등)하므로 raw option값을 별도 저장해서 우선 사용
+  const currentFont   = contentEl.dataset.rawFont || contentEl.style.fontFamily || '';
   const rawWeight     = contentEl.style.fontWeight || '';
   const currentWeight = rawWeight === 'bold' ? '700' : rawWeight === 'normal' ? '400' : rawWeight;
   const isBold        = currentWeight === '700' || rawWeight === 'bold';
@@ -261,12 +262,17 @@ export function showTextProperties(tb) {
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
 
-  /* 시스템 설치 폰트 동적 로드 */
-  _loadSystemFonts(document.getElementById('txt-font-family'));
+  const fontSel = document.getElementById('txt-font-family');
 
-  /* 핀/최근 그룹 초기 갱신 */
-  _rebuildFontPinnedGroups(document.getElementById('txt-font-family'));
+  /* 핀/최근 그룹 초기 갱신 → 동기 sync */
+  _rebuildFontPinnedGroups(fontSel);
+  _syncFontSelectValue(fontSel, currentFont);
   _updatePinButton(currentFont);
+
+  /* 시스템 설치 폰트 비동기 로드 → 완료 후 다시 sync */
+  _loadSystemFonts(fontSel).then(() => {
+    _syncFontSelectValue(fontSel, currentFont);
+  });
 
   /* 핀 버튼 */
   document.getElementById('txt-font-pin')?.addEventListener('click', () => {
@@ -285,10 +291,13 @@ export function showTextProperties(tb) {
   /* 폰트 종류 */
   document.getElementById('txt-font-family').addEventListener('change', e => {
     window.pushHistory?.();
-    contentEl.style.fontFamily = e.target.value;
-    _pushRecentFont(e.target.value);
+    const rawVal = e.target.value;
+    contentEl.style.fontFamily = rawVal;
+    contentEl.dataset.rawFont = rawVal;   // CSS 정규화 우회용 raw 저장
+    _pushRecentFont(rawVal);
     _rebuildFontPinnedGroups(e.target);
-    _updatePinButton(e.target.value);
+    _syncFontSelectValue(e.target, rawVal);  // rebuild 후 올바른 옵션 재선택
+    _updatePinButton(rawVal);
   });
 
   /* 폰트 굵기 */
@@ -742,6 +751,25 @@ function _rebuildFontPinnedGroups(selectEl) {
     });
     selectEl.insertBefore(og, selectEl.firstChild);
   }
+}
+
+/* 정규화된 폰트값으로 select 옵션 매칭 (CSS 따옴표 변환 우회) */
+function _syncFontSelectValue(selectEl, fontValue) {
+  if (!selectEl || !selectEl.isConnected) return;
+  // rawFont가 exact match이면 바로 사용
+  if (fontValue) {
+    selectEl.value = fontValue;
+    if (selectEl.value === fontValue) return;
+  }
+  if (!fontValue) { selectEl.value = ''; return; }
+  // 정규화 매칭: 따옴표 제거 + 첫 family 이름만 비교
+  const norm = v => v.replace(/['"]/g, '').split(',')[0].trim().toLowerCase();
+  const target = norm(fontValue);
+  if (!target) { selectEl.value = ''; return; }
+  for (const opt of selectEl.options) {
+    if (norm(opt.value) === target) { selectEl.value = opt.value; return; }
+  }
+  selectEl.value = '';  // 매칭 없으면 기본
 }
 
 function _updatePinButton(fontValue) {
