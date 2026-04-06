@@ -20,6 +20,24 @@
 }
 .prop-label { font-size: 11px; color: #6b6b6b; width: 48px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prop-field-label { font-size: 10px; color: var(--ui-text-muted, #6b6b6b); margin-bottom: 2px; display: block; }
+
+/* 아이콘 prefix 인풋 (피그마 스타일 — LH/LS 등) */
+.prop-icon-input {
+  display: flex; align-items: center;
+  background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
+  border-radius: 4px; height: 24px; flex: 1; min-width: 0; overflow: hidden;
+}
+.prop-icon-input:focus-within { border-color: var(--ui-accent-primary); }
+.prop-icon-input svg { flex-shrink: 0; opacity: 0.45; margin-left: 4px; }
+.prop-icon-input input {
+  flex: 1; min-width: 0; width: 100%;
+  background: transparent; border: none; outline: none;
+  color: var(--ui-text); font-size: 11px; text-align: center; height: 100%;
+  padding: 0 4px;
+  -moz-appearance: textfield;
+}
+.prop-icon-input input::-webkit-outer-spin-button,
+.prop-icon-input input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .prop-value-text { font-size: 11px; color: var(--ui-text-sub); }
 .prop-count-btn { background:var(--ui-bg-input); border:1px solid var(--ui-border-mid); color:var(--ui-text-sub); width:20px; height:20px; border-radius:4px; cursor:pointer; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center; }
 .prop-count-btn:hover { background:var(--ui-border); color:#fff; }

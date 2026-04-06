@@ -136,35 +136,29 @@ export function showTextProperties(tb) {
         <button id="txt-font-pin" title="즐겨찾기" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;color:#888;flex-shrink:0;">⭐</button>
       </div>
 
-      <div style="display:flex; gap:6px; align-items:flex-end; margin-bottom:6px;">
-        <div style="flex:2; display:flex; flex-direction:column; gap:2px;">
-          <span class="prop-field-label">Weight</span>
-          <select class="prop-select" id="txt-font-weight" style="width:100%">
-            <option value="100" ${currentWeight==='100'?'selected':''}>Thin 100</option>
-            <option value="200" ${currentWeight==='200'?'selected':''}>ExtraLight 200</option>
-            <option value="300" ${currentWeight==='300'?'selected':''}>Light 300</option>
-            <option value="400" ${(!currentWeight||currentWeight==='400')?'selected':''}>Regular 400</option>
-            <option value="500" ${currentWeight==='500'?'selected':''}>Medium 500</option>
-            <option value="600" ${currentWeight==='600'?'selected':''}>SemiBold 600</option>
-            <option value="700" ${currentWeight==='700'?'selected':''}>Bold 700</option>
-            <option value="800" ${currentWeight==='800'?'selected':''}>ExtraBold 800</option>
-            <option value="900" ${currentWeight==='900'?'selected':''}>Black 900</option>
-          </select>
-        </div>
-        <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
-          <span class="prop-field-label">Size</span>
-          <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}" style="width:100%">
-        </div>
+      <div style="display:flex; gap:4px; margin-bottom:6px;">
+        <select class="prop-select" id="txt-font-weight" style="flex:2">
+          <option value="100" ${currentWeight==='100'?'selected':''}>Thin 100</option>
+          <option value="200" ${currentWeight==='200'?'selected':''}>ExtraLight 200</option>
+          <option value="300" ${currentWeight==='300'?'selected':''}>Light 300</option>
+          <option value="400" ${(!currentWeight||currentWeight==='400')?'selected':''}>Regular 400</option>
+          <option value="500" ${currentWeight==='500'?'selected':''}>Medium 500</option>
+          <option value="600" ${currentWeight==='600'?'selected':''}>SemiBold 600</option>
+          <option value="700" ${currentWeight==='700'?'selected':''}>Bold 700</option>
+          <option value="800" ${currentWeight==='800'?'selected':''}>ExtraBold 800</option>
+          <option value="900" ${currentWeight==='900'?'selected':''}>Black 900</option>
+        </select>
+        <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}" style="flex:1;min-width:0">
       </div>
 
-      <div style="display:flex; gap:6px; align-items:flex-end; margin-bottom:6px;">
-        <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
-          <span class="prop-field-label">LH</span>
-          <input type="number" class="prop-number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}" style="width:100%">
+      <div style="display:flex; gap:4px; margin-bottom:6px;">
+        <div class="prop-icon-input">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M17.5 17a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1zm-5.25-9a.5.5 0 0 1 .476.347l2.25 7a.5.5 0 0 1-.952.306L13.494 14h-2.987l-.531 1.653a.5.5 0 0 1-.952-.306l2.25-7 .03-.075A.5.5 0 0 1 11.75 8zm-1.422 5h2.344L12 9.354zM17.5 6a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1z"/></svg>
+          <input type="number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}" aria-label="줄간격">
         </div>
-        <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
-          <span class="prop-field-label">LS</span>
-          <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}" style="width:100%">
+        <div class="prop-icon-input">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M6.5 6a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m11 0a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m-5.25 3a.5.5 0 0 1 .472.335l1.75 5a.5.5 0 1 1-.944.33l-.407-1.165H10.88l-.407 1.165a.5.5 0 1 1-.944-.33l1.75-5 .032-.072A.5.5 0 0 1 11.75 9zm-1.02 3.5h1.54L12 10.298z"/></svg>
+          <input type="number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}" aria-label="자간">
         </div>
       </div>
 
