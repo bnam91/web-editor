@@ -1295,9 +1295,10 @@ function addSubSectionBlock(opts = {}) {
   window.pushHistory();
   const ss = makeSubSectionBlock(opts);
 
-  // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 제외
+  // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 및 shape frame 제외
   const activeFrame = !opts.fullWidth && window._activeSubSection;
-  if (activeFrame && activeFrame.closest('.section-block') === sec) {
+  const isShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .sub-section-inner > .shape-block');
+  if (activeFrame && !isShapeFrame && activeFrame.closest('.section-block') === sec) {
     const inner = activeFrame.querySelector('.sub-section-inner');
     if (inner) inner.appendChild(ss);
   } else {
