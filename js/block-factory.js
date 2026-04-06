@@ -1312,6 +1312,14 @@ function makeSubSectionBlock(opts = {}) {
   return ss;
 }
 
+/* freeLayout inner 안에서 absolute 블록들을 아래로 쌓을 Y 좌표 계산 */
+function _calcFreeLayoutStackY(inner) {
+  const absEls = [...inner.querySelectorAll(':scope > *')].filter(el => el.style.position === 'absolute');
+  if (!absEls.length) return 20;
+  const last = absEls[absEls.length - 1];
+  return Math.round(parseInt(last.style.top || '0') + (last.offsetHeight || 60) + 16);
+}
+
 /* sub-section이 활성화된 경우 블록 삽입 — freeLayout(B모드) / fullWidth(플로우) 분기 */
 function _insertToFlowSubSection(makeBlockFn) {
   const ss = window._activeSubSection;
@@ -1327,12 +1335,7 @@ function _insertToFlowSubSection(makeBlockFn) {
     const isRowBlock = !!(result.row && result.block);
     const block = isRowBlock ? result.block : result;
     // 기존 absolute 자식 아래에 쌓기
-    const absEls = [...inner.querySelectorAll(':scope > *')].filter(el => el.style.position === 'absolute');
-    let stackY = 20;
-    if (absEls.length > 0) {
-      const last = absEls[absEls.length - 1];
-      stackY = Math.round(parseInt(last.style.top || '0') + (last.offsetHeight || 60) + 16);
-    }
+    const stackY = _calcFreeLayoutStackY(inner);
     block.style.position = 'absolute';
     block.style.left     = '0px';
     block.style.top      = stackY + 'px';
@@ -1578,11 +1581,45 @@ function addShapeBlock(type = 'rectangle') {
     bindBlock(block);
   }
 
-  // shape frame은 항상 section-inner 레벨에 삽입 (다른 ss 안에 중첩 금지)
-  const _prevActiveSS = window._activeSubSection;
-  window._activeSubSection = null;
-  insertAfterSelected(sec, ss);
-  window._activeSubSection = _prevActiveSS;
+  // 삽입 대상 결정: 활성 프레임 → 선택된 프레임 → 섹션 레벨
+  const activeFrame = window._activeSubSection;
+  const isActiveShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .sub-section-inner > .shape-block');
+
+  if (activeFrame && !isActiveShapeFrame && activeFrame.closest('.section-block') === sec) {
+    // 활성 프레임 안에 삽입
+    const targetInner = activeFrame.querySelector('.sub-section-inner');
+    if (targetInner) {
+      if (activeFrame.dataset.freeLayout === 'true') {
+        const stackY = _calcFreeLayoutStackY(targetInner);
+        ss.style.position = 'absolute';
+        ss.style.left = '20px';
+        ss.style.top  = stackY + 'px';
+      }
+      targetInner.appendChild(ss);
+    }
+  } else {
+    const selSS = document.querySelector('.sub-section-block.selected');
+    const isSelShapeFrame = selSS && !!selSS.querySelector(':scope > .sub-section-inner > .shape-block');
+    if (selSS && !isSelShapeFrame && selSS.closest('.section-block') === sec) {
+      // 선택된 프레임 안에 삽입
+      const targetInner = selSS.querySelector('.sub-section-inner');
+      if (targetInner) {
+        if (selSS.dataset.freeLayout === 'true') {
+          const stackY = _calcFreeLayoutStackY(targetInner);
+          ss.style.position = 'absolute';
+          ss.style.left = '20px';
+          ss.style.top  = stackY + 'px';
+        }
+        targetInner.appendChild(ss);
+      }
+    } else {
+      // 섹션 레벨에 삽입 (shape frame은 다른 ss 중첩 금지)
+      const prevActiveSS = window._activeSubSection;
+      window._activeSubSection = null;
+      insertAfterSelected(sec, ss);
+      window._activeSubSection = prevActiveSS;
+    }
+  }
 
   window.bindSubSectionDropZone?.(ss);
   window.buildLayerPanel();
