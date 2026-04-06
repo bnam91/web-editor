@@ -1477,8 +1477,8 @@ export {
   deactivateSubSection,
 };
 
-/* ── Frame 통합 진입점 (addSubSectionBlock alias) ── */
-function addFrameBlock() { addSubSectionBlock(); }
+/* ── Frame 통합 진입점 — 기본 자유배치(Free) 모드 ── */
+function addFrameBlock() { addCanvasBlock(); }
 window.addFrameBlock = addFrameBlock;
 
 // ── Shape Block ──

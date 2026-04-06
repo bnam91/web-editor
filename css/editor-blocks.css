@@ -1080,6 +1080,9 @@
 .sub-section-block:has(.shape-block.selected) {
   overflow: visible;
 }
+.sub-section-inner:has(.shape-block.selected) {
+  overflow: visible;
+}
 
 /* shape frame: sub-section-inner가 frame 높이를 100% 채우도록 */
 .sub-section-block:has(.shape-block) .sub-section-inner {
