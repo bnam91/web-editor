@@ -19,6 +19,7 @@
   min-height: 26px; margin-bottom: 2px; overflow: hidden;
 }
 .prop-label { font-size: 11px; color: #6b6b6b; width: 48px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prop-field-label { font-size: 10px; color: var(--ui-text-muted, #6b6b6b); margin-bottom: 2px; display: block; }
 .prop-value-text { font-size: 11px; color: var(--ui-text-sub); }
 .prop-count-btn { background:var(--ui-bg-input); border:1px solid var(--ui-border-mid); color:var(--ui-text-sub); width:20px; height:20px; border-radius:4px; cursor:pointer; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center; }
 .prop-count-btn:hover { background:var(--ui-border); color:#fff; }

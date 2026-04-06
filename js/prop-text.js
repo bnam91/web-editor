@@ -112,8 +112,9 @@ export function showTextProperties(tb) {
 
     <div class="prop-section">
       <div class="prop-section-title">Typography</div>
-      <div class="prop-row" style="align-items:center; gap:4px;">
-        <span class="prop-label">폰트</span>
+
+      <span class="prop-field-label">Font</span>
+      <div class="prop-row" style="gap:4px; margin-bottom:6px;">
         <select class="prop-select" id="txt-font-family" style="flex:1">
           <option value="" style="font-family:inherit"           ${currentFont===''?'selected':''}>기본 (시스템)</option>
           <optgroup label="── 한글 ──">
@@ -134,30 +135,40 @@ export function showTextProperties(tb) {
         </select>
         <button id="txt-font-pin" title="즐겨찾기" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;color:#888;flex-shrink:0;">⭐</button>
       </div>
-      <div class="prop-row" style="gap:4px">
-        <select class="prop-select" id="txt-font-weight" style="flex:2">
-          <option value="100" ${currentWeight==='100'?'selected':''}>Thin 100</option>
-          <option value="200" ${currentWeight==='200'?'selected':''}>ExtraLight 200</option>
-          <option value="300" ${currentWeight==='300'?'selected':''}>Light 300</option>
-          <option value="400" ${(!currentWeight||currentWeight==='400')?'selected':''}>Regular 400</option>
-          <option value="500" ${currentWeight==='500'?'selected':''}>Medium 500</option>
-          <option value="600" ${currentWeight==='600'?'selected':''}>SemiBold 600</option>
-          <option value="700" ${currentWeight==='700'?'selected':''}>Bold 700</option>
-          <option value="800" ${currentWeight==='800'?'selected':''}>ExtraBold 800</option>
-          <option value="900" ${currentWeight==='900'?'selected':''}>Black 900</option>
-        </select>
-        <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}" style="flex:1;min-width:0">
+
+      <div style="display:flex; gap:6px; align-items:flex-end; margin-bottom:6px;">
+        <div style="flex:2; display:flex; flex-direction:column; gap:2px;">
+          <span class="prop-field-label">Weight</span>
+          <select class="prop-select" id="txt-font-weight" style="width:100%">
+            <option value="100" ${currentWeight==='100'?'selected':''}>Thin 100</option>
+            <option value="200" ${currentWeight==='200'?'selected':''}>ExtraLight 200</option>
+            <option value="300" ${currentWeight==='300'?'selected':''}>Light 300</option>
+            <option value="400" ${(!currentWeight||currentWeight==='400')?'selected':''}>Regular 400</option>
+            <option value="500" ${currentWeight==='500'?'selected':''}>Medium 500</option>
+            <option value="600" ${currentWeight==='600'?'selected':''}>SemiBold 600</option>
+            <option value="700" ${currentWeight==='700'?'selected':''}>Bold 700</option>
+            <option value="800" ${currentWeight==='800'?'selected':''}>ExtraBold 800</option>
+            <option value="900" ${currentWeight==='900'?'selected':''}>Black 900</option>
+          </select>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+          <span class="prop-field-label">Size</span>
+          <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}" style="width:100%">
+        </div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">줄간격</span>
-        <input type="number" class="prop-number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}">
+
+      <div style="display:flex; gap:6px; align-items:flex-end; margin-bottom:6px;">
+        <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+          <span class="prop-field-label">LH</span>
+          <input type="number" class="prop-number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}" style="width:100%">
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+          <span class="prop-field-label">LS</span>
+          <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}" style="width:100%">
+        </div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">자간</span>
-        <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">스타일</span>
+
+      <div class="prop-row" style="gap:4px;">
         <div class="prop-style-group">
           <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (Bold / Cmd+B)"><b>B</b></button>
           <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic / Cmd+I)"><i>I</i></button>
