@@ -78,7 +78,7 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">위치 및 크기</div>
+      <div class="prop-section-title">Position</div>
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group">
@@ -103,19 +103,10 @@ export function showTextProperties(tb) {
         </div>
       </div>
       <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="txt-size-slider" min="8" max="400" step="1" value="${currentSize}">
-        <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">줄간격</span>
-        <input type="range" class="prop-slider" id="txt-lh-slider" min="1" max="3" step="0.05" value="${currentLH}">
-        <input type="number" class="prop-number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">자간</span>
-        <input type="range" class="prop-slider" id="txt-ls-slider" min="-10" max="40" step="0.5" value="${currentLS}">
-        <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
+        <span class="prop-label" style="width:auto;min-width:10px">X</span>
+        <input type="number" class="prop-number" id="txt-x-number" value="${currentX}" style="flex:1;min-width:0">
+        <span class="prop-label" style="width:auto;min-width:10px;margin-left:8px">Y</span>
+        <input type="number" class="prop-number" id="txt-y-number" value="${currentY}" style="flex:1;min-width:0">
       </div>
     </div>
 
@@ -143,9 +134,8 @@ export function showTextProperties(tb) {
         </select>
         <button id="txt-font-pin" title="즐겨찾기" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;color:#888;flex-shrink:0;">⭐</button>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">굵기</span>
-        <select class="prop-select" id="txt-font-weight">
+      <div class="prop-row" style="gap:4px">
+        <select class="prop-select" id="txt-font-weight" style="flex:2">
           <option value="100" ${currentWeight==='100'?'selected':''}>Thin 100</option>
           <option value="200" ${currentWeight==='200'?'selected':''}>ExtraLight 200</option>
           <option value="300" ${currentWeight==='300'?'selected':''}>Light 300</option>
@@ -156,6 +146,15 @@ export function showTextProperties(tb) {
           <option value="800" ${currentWeight==='800'?'selected':''}>ExtraBold 800</option>
           <option value="900" ${currentWeight==='900'?'selected':''}>Black 900</option>
         </select>
+        <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}" style="flex:1;min-width:0">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">줄간격</span>
+        <input type="number" class="prop-number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">자간</span>
+        <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
       </div>
       <div class="prop-row">
         <span class="prop-label">스타일</span>
@@ -178,19 +177,12 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
-      <div class="prop-section-title">위치 / 크기</div>
+      <div class="prop-section-title">크기</div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="4" value="${currentW}">
         <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="${currentW}">
       </div>
-      ${isAbsolute ? `
-      <div class="prop-row">
-        <span class="prop-label" style="width:auto;min-width:10px">X</span>
-        <input type="number" class="prop-number" id="txt-x-number" value="${currentX}" style="width:72px;flex:1;min-width:0">
-        <span class="prop-label" style="width:auto;min-width:10px;margin-left:8px">Y</span>
-        <input type="number" class="prop-number" id="txt-y-number" value="${currentY}" style="width:72px;flex:1;min-width:0">
-      </div>` : ''}
     </div>
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
@@ -513,7 +505,6 @@ export function showTextProperties(tb) {
   });
 
   /* 폰트 크기 — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
-  const sizeSlider = document.getElementById('txt-size-slider');
   const sizeNumber = document.getElementById('txt-size-number');
   let _savedSizeSel = null;
   let _sizeSpan = null;
@@ -536,18 +527,10 @@ export function showTextProperties(tb) {
     }
   };
 
-  sizeSlider.addEventListener('mousedown', saveSizeSel);
-  sizeSlider.addEventListener('input', () => {
-    const v = parseInt(sizeSlider.value);
-    applySizeToSel(v);
-    sizeNumber.value = v;
-  });
-  sizeSlider.addEventListener('change', () => { _savedSizeSel = null; _sizeSpan = null; window.pushHistory(); });
   sizeNumber.addEventListener('mousedown', saveSizeSel);
   sizeNumber.addEventListener('input', () => {
     const v = Math.min(400, Math.max(8, parseInt(sizeNumber.value)||8));
     applySizeToSel(v);
-    sizeSlider.value = v;
   });
   sizeNumber.addEventListener('change', () => { _savedSizeSel = null; _sizeSpan = null; window.pushHistory(); });
 
@@ -591,25 +574,19 @@ export function showTextProperties(tb) {
   });
 
   /* 줄간격 */
-  const lhSlider = document.getElementById('txt-lh-slider');
   const lhNumber = document.getElementById('txt-lh-number');
-  lhSlider.addEventListener('input', () => { contentEl.style.lineHeight = lhSlider.value; lhNumber.value = parseFloat(lhSlider.value).toFixed(2); });
-  lhSlider.addEventListener('change', () => { window.pushHistory?.(); });
   lhNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lhNumber.addEventListener('input', () => {
     const v = Math.min(3, Math.max(1, parseFloat(lhNumber.value)||1));
-    contentEl.style.lineHeight = v; lhSlider.value = v;
+    contentEl.style.lineHeight = v;
   });
 
   /* 자간 */
-  const lsSlider = document.getElementById('txt-ls-slider');
   const lsNumber = document.getElementById('txt-ls-number');
-  lsSlider.addEventListener('input', () => { contentEl.style.letterSpacing = lsSlider.value + 'px'; lsNumber.value = lsSlider.value; });
-  lsSlider.addEventListener('change', () => { window.pushHistory?.(); });
   lsNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lsNumber.addEventListener('input', () => {
     const v = Math.min(40, Math.max(-10, parseFloat(lsNumber.value) || 0));
-    contentEl.style.letterSpacing = v + 'px'; lsSlider.value = v;
+    contentEl.style.letterSpacing = v + 'px';
   });
 
   /* 위치 / 크기 (overlay-tb는 해당 없음) */
@@ -635,17 +612,15 @@ export function showTextProperties(tb) {
       wNumber.addEventListener('change', () => window.pushHistory?.());
     }
 
-    if (isAbsolute) {
-      const xNumber = document.getElementById('txt-x-number');
-      const yNumber = document.getElementById('txt-y-number');
-      if (xNumber) {
-        xNumber.addEventListener('input', () => { tb.style.left = (parseInt(xNumber.value) || 0) + 'px'; tb.dataset.offsetX = xNumber.value; window.scheduleAutoSave?.(); });
-        xNumber.addEventListener('change', () => window.pushHistory?.());
-      }
-      if (yNumber) {
-        yNumber.addEventListener('input', () => { tb.style.top = (parseInt(yNumber.value) || 0) + 'px'; tb.dataset.offsetY = yNumber.value; window.scheduleAutoSave?.(); });
-        yNumber.addEventListener('change', () => window.pushHistory?.());
-      }
+    const xNumber = document.getElementById('txt-x-number');
+    const yNumber = document.getElementById('txt-y-number');
+    if (xNumber) {
+      xNumber.addEventListener('input', () => { tb.style.left = (parseInt(xNumber.value) || 0) + 'px'; tb.dataset.offsetX = xNumber.value; window.scheduleAutoSave?.(); });
+      xNumber.addEventListener('change', () => window.pushHistory?.());
+    }
+    if (yNumber) {
+      yNumber.addEventListener('input', () => { tb.style.top = (parseInt(yNumber.value) || 0) + 'px'; tb.dataset.offsetY = yNumber.value; window.scheduleAutoSave?.(); });
+      yNumber.addEventListener('change', () => window.pushHistory?.());
     }
   }
 
