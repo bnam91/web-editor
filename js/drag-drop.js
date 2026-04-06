@@ -497,6 +497,17 @@ function bindBlock(block) {
         el.blur();            // blur 핸들러가 editing 정리
       }
     });
+    // paste → 서식 제거, 순수 텍스트만 삽입 (목적지 블록 스타일 유지)
+    el.addEventListener('paste', ev => {
+      ev.preventDefault();
+      const text = ev.clipboardData.getData('text/plain');
+      if (!text) return;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      sel.deleteFromDocument();
+      sel.getRangeAt(0).insertNode(document.createTextNode(text));
+      sel.collapseToEnd();
+    });
   }
 
   if (isText) {
