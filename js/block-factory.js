@@ -1380,7 +1380,12 @@ function addSubSectionBlock(opts = {}) {
     const inner = activeFrame.querySelector('.sub-section-inner');
     if (inner) inner.appendChild(ss);
   } else {
+    // shape frame이 활성화된 상태면 _activeSubSection을 임시 해제
+    // insertAfterSelected가 내부적으로 _activeSubSection을 참조해 shape wrapper 안에 삽입하는 것을 방지
+    const _prev = window._activeSubSection;
+    if (isShapeFrame) window._activeSubSection = null;
     insertAfterSelected(sec, ss);
+    if (isShapeFrame) window._activeSubSection = _prev;
   }
 
   if (!opts.fullWidth) window.bindSubSectionDropZone?.(ss);
