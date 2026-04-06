@@ -1477,8 +1477,28 @@ export {
   deactivateSubSection,
 };
 
-/* ── Frame 통합 진입점 — 기본 자유배치(Free) 모드 ── */
-function addFrameBlock() { addCanvasBlock(); }
+/* ── Frame 통합 진입점 — sub-section 생성 후 Free 모드로 즉시 전환 ── */
+function addFrameBlock() {
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+
+  // row > col > sub-section 구조로 삽입
+  // (convertSubSectionToCanvas가 ss.parentElement = col을 전제하므로 col 안에 넣어야 함)
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
+  const col = document.createElement('div');
+  col.className = 'col'; col.dataset.width = '100';
+  const ss = makeSubSectionBlock();
+  col.appendChild(ss);
+  row.appendChild(col);
+  insertAfterSelected(sec, row);
+  if (window.bindRowColAdd) window.bindRowColAdd(row);
+  row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
+
+  // Free 모드로 즉시 전환 (confirm 없이)
+  window.convertSubSectionToCanvas?.(ss);
+}
 window.addFrameBlock = addFrameBlock;
 
 // ── Shape Block ──
