@@ -121,9 +121,9 @@ export function showTextProperties(tb) {
 
     <div class="prop-section">
       <div class="prop-section-title">Typography</div>
-      <div class="prop-row">
+      <div class="prop-row" style="align-items:center; gap:4px;">
         <span class="prop-label">폰트</span>
-        <select class="prop-select" id="txt-font-family">
+        <select class="prop-select" id="txt-font-family" style="flex:1">
           <option value="" style="font-family:inherit"           ${currentFont===''?'selected':''}>기본 (시스템)</option>
           <optgroup label="── 한글 ──">
             <option value="'Pretendard', sans-serif"            ${currentFont.includes('Pretendard')?'selected':''}>Pretendard</option>
@@ -141,6 +141,7 @@ export function showTextProperties(tb) {
             <option value="monospace"                           ${currentFont==='monospace'?'selected':''}>Monospace</option>
           </optgroup>
         </select>
+        <button id="txt-font-pin" title="즐겨찾기" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;color:#888;flex-shrink:0;">⭐</button>
       </div>
       <div class="prop-row">
         <span class="prop-label">굵기</span>
@@ -266,10 +267,31 @@ export function showTextProperties(tb) {
   /* 시스템 설치 폰트 동적 로드 */
   _loadSystemFonts(document.getElementById('txt-font-family'));
 
+  /* 핀/최근 그룹 초기 갱신 */
+  _rebuildFontPinnedGroups(document.getElementById('txt-font-family'));
+  _updatePinButton(currentFont);
+
+  /* 핀 버튼 */
+  document.getElementById('txt-font-pin')?.addEventListener('click', () => {
+    const sel = document.getElementById('txt-font-family');
+    if (!sel) return;
+    const val = sel.value;
+    const key = 'goditor_font_pins';
+    let pins = JSON.parse(localStorage.getItem(key) || '[]');
+    if (pins.includes(val)) pins = pins.filter(p => p !== val);
+    else pins.unshift(val);
+    localStorage.setItem(key, JSON.stringify(pins));
+    _rebuildFontPinnedGroups(sel);
+    _updatePinButton(val);
+  });
+
   /* 폰트 종류 */
   document.getElementById('txt-font-family').addEventListener('change', e => {
     window.pushHistory?.();
     contentEl.style.fontFamily = e.target.value;
+    _pushRecentFont(e.target.value);
+    _rebuildFontPinnedGroups(e.target);
+    _updatePinButton(e.target.value);
   });
 
   /* 폰트 굵기 */
@@ -689,6 +711,64 @@ export function rgbToHex(rgb) {
   const m = rgb.match(/\d+/g);
   if (!m) return '#111111';
   return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+
+/* ── 폰트 최근 사용 / 핀 고정 ── */
+function _pushRecentFont(fontValue) {
+  if (!fontValue) return;
+  const key = 'goditor_font_recent';
+  let recent = JSON.parse(localStorage.getItem(key) || '[]');
+  recent = [fontValue, ...recent.filter(f => f !== fontValue)].slice(0, 5);
+  localStorage.setItem(key, JSON.stringify(recent));
+}
+
+function _fontDisplayName(fontValue) {
+  // "'Pretendard', sans-serif" → "Pretendard"
+  return fontValue.replace(/['"]/g, '').split(',')[0].trim();
+}
+
+function _rebuildFontPinnedGroups(selectEl) {
+  if (!selectEl) return;
+  // 기존 핀/최근 optgroup 제거 후 재생성
+  selectEl.querySelectorAll('optgroup[data-recent], optgroup[data-pins]').forEach(g => g.remove());
+
+  const pins   = JSON.parse(localStorage.getItem('goditor_font_pins')   || '[]');
+  const recent = JSON.parse(localStorage.getItem('goditor_font_recent') || '[]');
+
+  // 최근 사용 그룹 (있을 때만) — 먼저 삽입해서 핀 그룹이 그 위로 오게 함
+  if (recent.length > 0) {
+    const og = document.createElement('optgroup');
+    og.label = '── 최근 사용 ──';
+    og.dataset.recent = '1';
+    recent.forEach(fam => {
+      const opt = document.createElement('option');
+      opt.value = fam;
+      opt.textContent = '🕐 ' + _fontDisplayName(fam);
+      og.appendChild(opt);
+    });
+    selectEl.insertBefore(og, selectEl.firstChild);
+  }
+
+  // 핀 그룹 (있을 때만) — 최상단
+  if (pins.length > 0) {
+    const og = document.createElement('optgroup');
+    og.label = '── 핀 고정 ──';
+    og.dataset.pins = '1';
+    pins.forEach(fam => {
+      const opt = document.createElement('option');
+      opt.value = fam;
+      opt.textContent = '⭐ ' + _fontDisplayName(fam);
+      og.appendChild(opt);
+    });
+    selectEl.insertBefore(og, selectEl.firstChild);
+  }
+}
+
+function _updatePinButton(fontValue) {
+  const btn = document.getElementById('txt-font-pin');
+  if (!btn) return;
+  const pins = JSON.parse(localStorage.getItem('goditor_font_pins') || '[]');
+  btn.style.color = pins.includes(fontValue) ? '#f5c518' : '#888';
 }
 
 /* ── 시스템 설치 폰트 동적 로드 ── */
