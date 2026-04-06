@@ -322,13 +322,6 @@ function applyTextOpts(block, row, opts, type) {
 }
 
 function addTextBlock(type, opts = {}) {
-  // 캔버스 블록이 선택된 경우 → canvas-item으로 추가 (row/col 없이)
-  const selectedCb = document.querySelector('.canvas-block.selected');
-  if (selectedCb) {
-    window.addTextBlockToCanvas?.(selectedCb, type);
-    return;
-  }
-
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
   const overlay = getSelectedOverlay();
   if (overlay) {
@@ -1160,7 +1153,7 @@ function addSection(opts = {}) {
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .shape-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.sub-section-block').forEach(ss => window.bindSubSectionDropZone?.(ss));
   if (window.bindRowColAdd) sec.querySelectorAll('.row').forEach(row => window.bindRowColAdd(row));
   sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
@@ -1170,40 +1163,6 @@ function addSection(opts = {}) {
   window.selectSection(sec);
   sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
   window.maybeAddNewSectionToScope(sec.id);
-}
-
-/* ── Canvas Block ── */
-function makeCanvasBlock() {
-  const cb = document.createElement('div');
-  cb.className = 'canvas-block';
-  cb.id = genId('cb');
-  cb.style.height = '500px';
-  cb.dataset.type = 'canvas';
-  cb.dataset.bg = '#f8f8f8';
-  cb.style.background = '#f8f8f8';
-  return cb;
-}
-
-function addCanvasBlock() {
-  const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  window.pushHistory();
-  const row = document.createElement('div');
-  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-  const cb = makeCanvasBlock();
-  col.appendChild(cb);
-  row.appendChild(col);
-  insertAfterSelected(sec, row);
-  window.bindCanvasBlock?.(cb);
-  window.bindBlock?.(cb); // drag-drop row 바인딩 (드래그앤드롭 지원)
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
-  row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
-  window.buildLayerPanel();
-  window.deselectAll?.();
-  cb.classList.add('selected');
-  window.showCanvasProperties?.(cb);
 }
 
 /* ── Secret Block (Figma 패스스루 컴포넌트) ── */
@@ -1364,7 +1323,7 @@ function deactivateSubSection() {
 
 /* ── Wrap selected blocks into a new free-placement Frame ── */
 function wrapSelectedBlocksInFrame() {
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block';
   const selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -1477,28 +1436,8 @@ export {
   deactivateSubSection,
 };
 
-/* ── Frame 통합 진입점 — sub-section 생성 후 Free 모드로 즉시 전환 ── */
-function addFrameBlock() {
-  const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  window.pushHistory();
-
-  // row > col > sub-section 구조로 삽입
-  // (convertSubSectionToCanvas가 ss.parentElement = col을 전제하므로 col 안에 넣어야 함)
-  const row = document.createElement('div');
-  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-  const ss = makeSubSectionBlock();
-  col.appendChild(ss);
-  row.appendChild(col);
-  insertAfterSelected(sec, row);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
-  row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
-
-  // Free 모드로 즉시 전환 (confirm 없이)
-  window.convertSubSectionToCanvas?.(ss);
-}
+/* ── Frame 진입점 — sub-section 추가 ── */
+function addFrameBlock() { addSubSectionBlock(); }
 window.addFrameBlock = addFrameBlock;
 
 // ── Shape Block ──
@@ -1634,8 +1573,6 @@ window.addGraphBlock        = addGraphBlock;
 window.makeDividerBlock     = makeDividerBlock;
 window.addDividerBlock      = addDividerBlock;
 window.addSection           = addSection;
-window.makeCanvasBlock      = makeCanvasBlock;
-window.addCanvasBlock       = addCanvasBlock;
 window.makeSubSectionBlock        = makeSubSectionBlock;
 window.addSubSectionBlock         = addSubSectionBlock;
 window.wrapSelectedBlocksInFrame  = wrapSelectedBlocksInFrame;

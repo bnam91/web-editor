@@ -301,7 +301,6 @@ function bindBlock(block) {
   const isCard        = block.classList.contains('card-block');
   const isGraph       = block.classList.contains('graph-block');
   const isDivider     = block.classList.contains('divider-block');
-  const isCanvas      = block.classList.contains('canvas-block');
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
 
@@ -1427,7 +1426,7 @@ function bindSubSectionDropZone(ss) {
   ss.addEventListener('click', e => {
     // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
     // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block')) return;
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block')) return;
     // ss 또는 sub-section-inner 빈 공간 클릭만 처리
     if (!e.target.closest('.sub-section-block')) return;
     e.stopPropagation();
@@ -1538,7 +1537,7 @@ function bindSubSectionDropZone(ss) {
     window.pushHistory();
 
     const isFullWidth = ss.dataset.fullWidth === 'true';
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block';
     const SS_W = 860; // 캔버스 기준 너비
 
     if (isFullWidth) {
@@ -1624,7 +1623,7 @@ function bindSubSectionDropZone(ss) {
 
   // 내부 블록 pointerdown 시 서브섹션 drag 일시 비활성 — 블록 선택/이동과 충돌 방지
   ss.addEventListener('pointerdown', e => {
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block');
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block');
     if (isInnerBlock) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');

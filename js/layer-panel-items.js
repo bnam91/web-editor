@@ -110,13 +110,12 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isCard       = block.classList.contains('card-block');
   const isGraph      = block.classList.contains('graph-block');
   const isIconText   = block.classList.contains('icon-text-block');
-  const isCanvas     = block.classList.contains('canvas-block');
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : isJoker ? 'joker' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas', joker:'Joker', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas', joker:'Joker', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -144,8 +143,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     window.syncSection(sec);
     window.highlightBlock(block, item);
     window.setBlockAnchor?.(block);
-    if (isCanvas) window.showCanvasProperties?.(block);
-    else if (isShape) window.showShapeProperties?.(block);
+    if (isShape) window.showShapeProperties?.(block);
     else if (isText || isIconText) window.showTextProperties(block);
     else if (isGap) window.showGapProperties(block);
     else if (isIconCb) window.showIconCircleProperties(block);
@@ -186,101 +184,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
 
   block._layerItem = item;
 
-  // canvas-block이면 자식 canvas-item 목록 표시
-  if (isCanvas) {
-    return _makeLayerCanvasWrapper(block, item, sec, depth);
-  }
-
   return item;
-}
-
-/* canvas-block 전용 레이어 wrapper — 자식 canvas-item 목록 포함 */
-function _makeLayerCanvasWrapper(cb, headerItem, sec, depth) {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'layer-row-group ci-layer-group';
-  wrapper._dragTarget = headerItem._dragTarget;
-
-  // 헤더(chevron + 기존 item)를 포함하는 행
-  const header = document.createElement('div');
-  header.className = 'layer-row-header ci-layer-header';
-
-  // chevron
-  const chevron = document.createElement('svg');
-  chevron.setAttribute('viewBox', '0 0 12 12');
-  chevron.setAttribute('fill', 'currentColor');
-  chevron.className = 'layer-chevron';
-  chevron.innerHTML = '<path d="M2 4l4 4 4-4"/>';
-  chevron.style.cssText = 'width:12px;height:12px;flex-shrink:0;cursor:pointer;';
-  chevron.addEventListener('click', e => {
-    e.stopPropagation();
-    wrapper.classList.toggle('collapsed');
-  });
-
-  // headerItem은 makeLayerBlockItem에서 이미 makeIndents(depth)가 추가됐으므로 제거
-  // ci-layer-header 구조: [indents][chevron][icon+name] (layer-row-group과 동일 순서)
-  const existingIndents = headerItem.querySelector('.layer-indents');
-  if (existingIndents) existingIndents.remove();
-
-  header.appendChild(chevron);
-  header.appendChild(headerItem);
-  header.prepend(makeIndents(depth));
-  wrapper.appendChild(header);
-
-  // 자식 목록 컨테이너
-  const children = document.createElement('div');
-  children.className = 'layer-row-children';
-
-  const _rebuildChildren = () => {
-    children.innerHTML = '';
-    cb.querySelectorAll(':scope > .canvas-item').forEach(ciEl => {
-      const ciType = ciEl.dataset.type || 'image';
-      const isTextType = ciType === 'text' || ciType === 'text-block';
-      const tbType = ciEl.dataset.tbtype;
-      const tbLabels = { h2: 'Heading', body: 'Body', caption: 'Caption', label: 'Label' };
-      const ciLabel = isTextType ? (tbLabels[tbType] || '텍스트') : '이미지';
-      const ciTypeLabel = isTextType ? 'Text' : 'Image';
-      const ciIcon = isTextType
-        ? `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="2" y1="3" x2="10" y2="3"/><line x1="2" y1="6" x2="8" y2="6"/><line x1="2" y1="9" x2="6" y2="9"/></svg>`
-        : `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><circle cx="4" cy="4" r="1"/><polyline points="11 8 8 5 3 11"/></svg>`;
-
-      const ciItem = document.createElement('div');
-      ciItem.className = 'layer-item layer-item-nested ci-layer-item';
-      ciItem.dataset.ciId = ciEl.id;
-      ciItem.innerHTML = `${ciIcon}<span class="layer-item-name">${ciLabel}</span><span class="layer-item-type">${ciTypeLabel}</span>`;
-      ciItem.prepend(makeIndents(depth + 1));
-
-      // 선택 동기화
-      if (ciEl.classList.contains('ci-selected')) ciItem.classList.add('active');
-      ciEl._layerCiItem = ciItem;
-
-      ciItem.addEventListener('click', e => {
-        e.stopPropagation();
-        // canvas-item 선택
-        window.deselectAll?.();
-        cb.classList.add('selected');
-        // mousedown 없이 직접 selectItem API 호출
-        window.deselectCanvasItem?.();
-        // _selectItem 내부 접근을 위해 mousedown 시뮬레이션
-        ciEl.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 0, clientY: 0 }));
-        // 레이어 패널 active 표시
-        children.querySelectorAll('.ci-layer-item').forEach(el => el.classList.remove('active'));
-        ciItem.classList.add('active');
-      });
-
-      // hover 연동
-      ciEl.addEventListener('mouseenter', () => { if (!ciItem.classList.contains('active')) ciItem.style.background = 'var(--ui-bg-card)'; });
-      ciEl.addEventListener('mouseleave', () => { if (!ciItem.classList.contains('active')) ciItem.style.background = ''; });
-
-      children.appendChild(ciItem);
-    });
-  };
-
-  _rebuildChildren();
-  wrapper.appendChild(children);
-  wrapper._rebuildChildren = _rebuildChildren;
-  cb._layerCanvasWrapper = wrapper;
-
-  return wrapper;
 }
 
 /* 레이어 Group 아이템 생성 (group-block용) */
@@ -625,8 +529,8 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
     return [el];
   });
 
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph', 'icon-text':'Icon Text', canvas:'Canvas' };
-  const typeLbls  = { heading:'Text', body:'Text', caption:'Text', label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component', 'icon-text':'Text', canvas:'Canvas' };
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph', 'icon-text':'Icon Text' };
+  const typeLbls  = { heading:'Text', body:'Text', caption:'Text', label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component', 'icon-text':'Text' };
 
   blocks.forEach(block => {
     const isText = block.classList.contains('text-block');
@@ -638,11 +542,9 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
     const isCard  = block.classList.contains('card-block');
     const isGraph  = block.classList.contains('graph-block');
     const isIconText = block.classList.contains('icon-text-block');
-    const isCanvas = block.classList.contains('canvas-block');
-    const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isCanvas ? 'canvas' : 'asset';
+    const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : 'asset';
 
     if (isCard)   { colChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec, depth + 1)); return; }
-    if (isCanvas) { colChildren.appendChild(makeLayerBlockItem(block, block.closest('.row') || block, sec, depth + 1)); return; }
 
     const item = document.createElement('div');
     item.className = 'layer-item layer-item-nested';
@@ -665,8 +567,7 @@ function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
       window.syncSection(sec);
       window.highlightBlock(block, item);
       window.setBlockAnchor?.(block);
-      if (isCanvas) window.showCanvasProperties?.(block);
-      else if (isText || isIconText) window.showTextProperties(block);
+      if (isText || isIconText) window.showTextProperties(block);
       else if (isGap) window.showGapProperties(block);
       else if (isIconCb) window.showIconCircleProperties(block);
       else if (isTable) window.showTableProperties(block);

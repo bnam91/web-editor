@@ -94,7 +94,7 @@ let clipboard = null;
 ═══════════════════════════════════ */
 const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
   '.table-block, .label-group-block, .card-block, .graph-block, .divider-block, ' +
-  '.icon-text-block, .canvas-block, .shape-block';
+  '.icon-text-block, .shape-block';
 
 let _lastClickedBlock = null;
 
@@ -274,7 +274,7 @@ function copySelected() {
   const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
-    '.icon-text-block.selected, .canvas-block.selected, .shape-block.selected';
+    '.icon-text-block.selected, .shape-block.selected';
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -330,8 +330,7 @@ function copySelected() {
 
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
-  el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .shape-block').forEach(b => window.bindBlock(b));
-  el.querySelectorAll('.canvas-block').forEach(cb => { cb._canvasBound = false; window.bindCanvasBlock?.(cb); });
+  el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => window.bindBlock(b));
   el.querySelectorAll('.sub-section-block').forEach(ss => {
     ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false;
@@ -512,7 +511,7 @@ document.addEventListener('keydown', e => {
       if (activeSec) {
         const allBlocks = activeSec.querySelectorAll(
           '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block'
+          '.label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block'
         );
         allBlocks.forEach(b => b.classList.add('selected'));
       }
@@ -572,7 +571,7 @@ document.addEventListener('keydown', e => {
     const selBlock = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
+      '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
     );
     const selSection = document.querySelector('.section-block.selected');
     const moveTarget = selBlock
@@ -692,7 +691,7 @@ document.addEventListener('keydown', e => {
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected')];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
       window.ensureHistoryCheckpoint?.('삭제 전');
@@ -869,7 +868,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .joker-block, .shape-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block').forEach(b => b.classList.remove('selected'));
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
@@ -893,7 +892,6 @@ function deselectAll() {
   state._lastActiveCol = null;
   window._activeSubSection = null;
   canvas.querySelectorAll('.sub-section-block').forEach(s => s.classList.remove('selected'));
-  window.deselectCanvasItem?.(); // canvas-item _selItem/_selCb dangling ref 클리어
   window.showPageProperties();
 }
 
@@ -936,7 +934,7 @@ function moveSelectedBlocks(direction) {
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
-    '.icon-text-block.selected, .canvas-block.selected, .shape-block.selected';
+    '.icon-text-block.selected, .shape-block.selected';
 
   const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
   if (selBlocks.length === 0) return;
@@ -1081,7 +1079,7 @@ function getSelectedSection() {
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.card-block.selected, .graph-block.selected, ' +
-    '.divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
+    '.divider-block.selected, .icon-text-block.selected'
   );
   return selBlock?.closest('.section-block') || null;
 }
@@ -1248,8 +1246,8 @@ document.addEventListener('click', e => {
 canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
-  // 블록 클릭은 블록 핸들러에게 위임 (canvas-block 포함)
-  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block')) return;
+  // 블록 클릭은 블록 핸들러에게 위임
+  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) return;
   // col-add 버튼/메뉴는 통과 (메뉴 열기 동작 유지)
   if (e.target.closest('.col-add-btn, .col-add-menu')) return;
 

@@ -436,13 +436,6 @@ function rebindAll() {
     }
   });
 
-  // canvas-block 바인딩 (canvas-item은 bindCanvasBlock 내부에서 처리)
-  canvasEl.querySelectorAll('.canvas-block').forEach(cb => {
-    if (!cb.id) cb.id = 'cb_' + Math.random().toString(36).slice(2, 9);
-    cb._canvasBound = false; // rebind 강제
-    window.bindCanvasBlock?.(cb);
-  });
-
   // shape-block 구버전 인라인 width/height 제거 — CSS 100%로 frame 추종
   canvasEl.querySelectorAll('.shape-block').forEach(b => {
     b.style.width = '';
@@ -458,7 +451,7 @@ function rebindAll() {
     if (inner) inner.style.height = '';
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .shape-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -468,8 +461,7 @@ function rebindAll() {
         : b.classList.contains('card-block') ? 'cdb'
         : b.classList.contains('graph-block') ? 'grb'
         : b.classList.contains('icon-text-block') ? 'itb'
-        : b.classList.contains('divider-block') ? 'dvd'
-        : b.classList.contains('canvas-block') ? 'cb' : 'tbl';
+        : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     window.bindBlock(b);
