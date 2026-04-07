@@ -1229,114 +1229,6 @@ function bindBlock(block) {
   }
 }
 
-// ── Col 드롭존: 블록을 다른 col로 이동 ──
-function bindColDropZone(col) {
-  if (col._colDropBound) return;
-  col._colDropBound = true;
-
-  let _colRafId = null;
-
-  col.addEventListener('dragover', e => {
-    if (!dragSrc) return;
-    const isSameCol = dragSrc.closest('.col') === col;
-    if (!isSameCol) {
-      // 다른 col → 비어있는 col에만 허용 (단일 블록 per col 규칙)
-      const existing = [...col.querySelectorAll(':scope > *')].filter(el =>
-        !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator')
-      );
-      if (existing.length > 0) return;
-      // multi-col row는 col에 드롭 불가 (col > row > col 중첩 방지)
-      if (dragSrc.classList.contains('row') &&
-          dragSrc.querySelectorAll(':scope > .col').length > 1) return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
-    if (_colRafId) return;
-    const clientY = e.clientY;
-    _colRafId = requestAnimationFrame(() => {
-      _colRafId = null;
-      if (!dragSrc) return;
-      clearDropIndicators();
-      const after = getDragAfterElement(col, clientY);
-      const indicator = document.createElement('div');
-      indicator.className = 'drop-indicator';
-      if (after) col.insertBefore(indicator, after);
-      else col.appendChild(indicator);
-    });
-  });
-
-  col.addEventListener('dragleave', e => {
-    if (!col.contains(e.relatedTarget)) {
-      if (_colRafId) { cancelAnimationFrame(_colRafId); _colRafId = null; }
-      clearDropIndicators();
-    }
-  });
-
-  col.addEventListener('drop', e => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (_colRafId) { cancelAnimationFrame(_colRafId); _colRafId = null; }
-    if (!dragSrc) return;
-    const isSameCol = dragSrc.closest('.col') === col;
-    if (isSameCol) {
-      // 같은 col 내 reorder
-      window.pushHistory?.();
-      const indicator = col.querySelector('.drop-indicator');
-      if (indicator) col.insertBefore(dragSrc, indicator);
-      else col.appendChild(dragSrc);
-      clearDropIndicators();
-      window.buildLayerPanel?.();
-      dragSrc = null;
-      return;
-    }
-    // 다른 col → 비어있는 col에만 허용
-    const existingBlocks = [...col.querySelectorAll(':scope > *')].filter(el =>
-      !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator')
-    );
-    if (existingBlocks.length > 0) { clearDropIndicators(); return; }
-    // multi-col row는 col에 드롭 불가 (col > row > col 중첩 방지)
-    if (dragSrc.classList.contains('row') &&
-        dragSrc.querySelectorAll(':scope > .col').length > 1) { clearDropIndicators(); return; }
-
-    window.pushHistory?.();
-
-    // dragSrc가 row인 경우: 단일 col + 단일 블록이면 블록을 추출해서 이동
-    if (dragSrc.classList.contains('row')) {
-      const srcCols = dragSrc.querySelectorAll(':scope > .col');
-      if (srcCols.length === 1) {
-        const srcCol = srcCols[0];
-        const blocks = [...srcCol.querySelectorAll(':scope > *:not(.col-placeholder)')];
-        if (blocks.length > 0) {
-          const indicator = col.querySelector('.drop-indicator');
-          blocks.forEach(b => {
-            if (indicator) col.insertBefore(b, indicator);
-            else col.appendChild(b);
-          });
-          // 소스 row가 비었으면 제거
-          const remainingBlocks = srcCol.querySelectorAll(':scope > *:not(.col-placeholder)');
-          if (!remainingBlocks.length) {
-            const srcRow = dragSrc;
-            srcRow.remove();
-          }
-          clearDropIndicators();
-          window.buildLayerPanel?.();
-          dragSrc = null;
-          return;
-        }
-      }
-    }
-
-    // dragSrc가 gap-block 또는 단일 블록인 경우: 그대로 col에 삽입
-    const indicator = col.querySelector('.drop-indicator');
-    if (indicator) col.insertBefore(dragSrc, indicator);
-    else col.appendChild(dragSrc);
-    clearDropIndicators();
-    window.buildLayerPanel?.();
-    dragSrc = null;
-  });
-}
-
 function bindSubSectionDropZone(ss) {
   if (ss._subSecBound) return;
   ss._subSecBound = true;
@@ -1668,7 +1560,6 @@ export {
   bindGroupDrag,
   bindSectionDrag,
   bindSectionDropZone,
-  bindColDropZone,
   bindBlock,
   bindSubSectionDropZone,
 };
@@ -1682,7 +1573,6 @@ window.ungroupBlock                = ungroupBlock;
 window.bindGroupDrag               = bindGroupDrag;
 window.bindSectionDrag             = bindSectionDrag;
 window.bindSectionDropZone         = bindSectionDropZone;
-window.bindColDropZone             = bindColDropZone;
 window.bindBlock                   = bindBlock;
 window.bindSubSectionDropZone      = bindSubSectionDropZone;
 

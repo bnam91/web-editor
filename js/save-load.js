@@ -316,7 +316,28 @@ function applyPageSettings() {
   window.applyPagePadX?.(state.pageSettings.padX);
 }
 
+function migrateColsFromDOM(canvasEl) {
+  // Stack row: col wrapper 제거, 자식 블록을 row 직속으로 이동
+  canvasEl.querySelectorAll('.row[data-layout="stack"] > .col').forEach(col => {
+    const row = col.parentElement;
+    // col의 배경색이 있으면 row로 승계
+    if (col.style.backgroundColor) row.style.backgroundColor = col.style.backgroundColor;
+    [...col.childNodes].forEach(child => {
+      if (child.classList?.contains('col-placeholder')) return; // placeholder 제거
+      row.appendChild(child);
+    });
+    col.remove();
+  });
+  // Flex/Grid row: col-placeholder만 제거 (col 본체는 Phase 4까지 유지)
+  canvasEl.querySelectorAll(
+    '.row[data-layout="flex"] > .col > .col-placeholder, ' +
+    '.row[data-layout="grid"] > .col > .col-placeholder'
+  ).forEach(ph => ph.remove());
+}
+
 function rebindAll() {
+  migrateColsFromDOM(canvasEl);
+  window.clearHistory?.();
   // asset-overlay 오염 정리: contenteditable 제거 + 직접 텍스트 노드 제거
   canvasEl.querySelectorAll('.asset-overlay').forEach(overlay => {
     overlay.removeAttribute('contenteditable');
@@ -378,7 +399,6 @@ function rebindAll() {
     bindSectionOrder(sec);
     bindSectionDrag(sec);
     bindSectionDropZone(sec);
-    sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
     if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
     // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');
@@ -518,12 +538,6 @@ function rebindAll() {
     }
   });
 
-  // col-placeholder 이벤트 재연결
-  canvasEl.querySelectorAll('.col > .col-placeholder').forEach(ph => {
-    const col = ph.parentElement;
-    const fresh = makeColPlaceholder(col);
-    col.replaceChild(fresh, ph);
-  });
 }
 
 const LAST_COMMIT_KEY = 'goya-last-commit';

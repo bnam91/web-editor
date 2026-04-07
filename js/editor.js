@@ -879,7 +879,6 @@ function deselectAll() {
     b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));
   });
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
-  canvas.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
 
   // 레이어 패널 선택 해제
   if (layerPanel) {
@@ -889,7 +888,6 @@ function deselectAll() {
   }
 
   if (window.setRpIdBadge) window.setRpIdBadge(null);
-  state._lastActiveCol = null;
   window._activeSubSection = null;
   canvas.querySelectorAll('.sub-section-block').forEach(s => s.classList.remove('selected'));
   window.showPageProperties();
@@ -1268,22 +1266,9 @@ canvasEl.addEventListener('click', e => {
     const sec = row.closest('.section-block');
     if (sec) selectSection(sec);
     document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
-    document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
     row.classList.add('row-active');
     if (window.syncLayerRow) window.syncLayerRow(row);
     if (window.showRowProperties) window.showRowProperties(row);
-  } else {
-    // 2번 클릭: Col 활성화
-    document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
-    col.classList.add('col-active');
-    // Col 레이어 헤더 하이라이트
-    document.getElementById('layer-panel-body')?.querySelectorAll('.layer-col-group').forEach(wrapper => {
-      if (wrapper._dragTarget === col) {
-        wrapper.querySelector(':scope > .layer-col-header')?.classList.add('active');
-      }
-    });
-    if (window.showColProperties) window.showColProperties(col);
-    else if (window.showRowProperties) window.showRowProperties(row);
   }
   // 일반 클릭 후 lastCol 설정 (clearMultiSel 이후이므로 selectSection 호출 다음에 설정)
   multiSel.lastCol = col;

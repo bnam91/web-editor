@@ -99,9 +99,6 @@ function makeTextBlock(type) {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
   const tb = document.createElement('div');
   tb.className = 'text-block'; tb.dataset.type = dataType;
   tb.id = genId('tb');
@@ -109,17 +106,13 @@ function makeTextBlock(type) {
   tb.innerHTML = `
     <div class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>`;
 
-  col.appendChild(tb);
-  row.appendChild(col);
+  row.appendChild(tb);
   return { row, block: tb };
 }
 
 function makeAssetBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const ab = document.createElement('div');
   ab.className = 'asset-block';
@@ -129,8 +122,7 @@ function makeAssetBlock() {
   ab.style.alignSelf = 'center';
   ab.innerHTML = `<div class="asset-overlay"></div>`;
 
-  col.appendChild(ab);
-  row.appendChild(col);
+  row.appendChild(ab);
   return { row, block: ab };
 }
 
@@ -145,9 +137,6 @@ function makeIconCircleBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
   const icb = document.createElement('div');
   icb.className = 'icon-circle-block'; icb.dataset.type = 'icon-circle';
   icb.id = genId('icb');
@@ -159,17 +148,13 @@ function makeIconCircleBlock() {
       <span class="icb-placeholder"></span>
     </div>`;
 
-  col.appendChild(icb);
-  row.appendChild(col);
+  row.appendChild(icb);
   return { row, block: icb };
 }
 
 function makeLabelGroupBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const block = document.createElement('div');
   block.className = 'label-group-block';
@@ -185,16 +170,13 @@ function makeLabelGroupBlock() {
   addBtn.title = '라벨 추가';
   block.appendChild(addBtn);
 
-  col.appendChild(block);
-  row.appendChild(col);
+  row.appendChild(block);
   return { row, block };
 }
 
 function makeIconTextBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const itb = document.createElement('div');
   itb.className = 'icon-text-block';
@@ -211,8 +193,7 @@ function makeIconTextBlock() {
 
   itb.appendChild(iconSlot);
   itb.appendChild(bodyEl);
-  col.appendChild(itb);
-  row.appendChild(col);
+  row.appendChild(itb);
   return { row, block: itb };
 }
 
@@ -283,9 +264,6 @@ function makeTableBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
   const tb = document.createElement('div');
   tb.className = 'table-block'; tb.dataset.type = 'table';
   tb.id = genId('tbl');
@@ -308,8 +286,7 @@ function makeTableBlock() {
       </tbody>
     </table>`;
 
-  col.appendChild(tb);
-  row.appendChild(col);
+  row.appendChild(tb);
   return { row, block: tb };
 }
 
@@ -909,9 +886,6 @@ function makeCardBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
   const cdb = document.createElement('div');
   cdb.className = 'card-block'; cdb.dataset.type = 'card';
   cdb.id = genId('cdb');
@@ -926,8 +900,7 @@ function makeCardBlock() {
       <div class="cdb-desc" contenteditable="false">설명 텍스트를 입력하세요</div>
     </div>`;
 
-  col.appendChild(cdb);
-  row.appendChild(col);
+  row.appendChild(cdb);
   return { row, block: cdb };
 }
 
@@ -992,9 +965,6 @@ function makeGraphBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
   const grb = document.createElement('div');
   grb.className = 'graph-block'; grb.dataset.type = 'graph';
   grb.id = genId('grb');
@@ -1004,8 +974,7 @@ function makeGraphBlock() {
 
   renderGraph(grb);
 
-  col.appendChild(grb);
-  row.appendChild(col);
+  row.appendChild(grb);
   return { row, block: grb };
 }
 
@@ -1045,9 +1014,6 @@ function makeDividerBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
   const dvd = document.createElement('div');
   dvd.className = 'divider-block'; dvd.dataset.type = 'divider';
   dvd.id = genId('dvd');
@@ -1058,8 +1024,7 @@ function makeDividerBlock() {
   dvd.dataset.padH        = '0';
   dvd.innerHTML = `<hr class="dvd-line" style="border-top:1px solid #cccccc;">`;
 
-  col.appendChild(dvd);
-  row.appendChild(col);
+  row.appendChild(dvd);
   return { row, block: dvd };
 }
 
@@ -1213,9 +1178,6 @@ function makeJokerBlock(opts = {}) {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
   const sb = document.createElement('div');
   sb.className = 'joker-block';
   sb.id = genId('sb');
@@ -1243,8 +1205,7 @@ function makeJokerBlock(opts = {}) {
       </div>
     </div>`;
 
-  col.appendChild(sb);
-  row.appendChild(col);
+  row.appendChild(sb);
   return { row, block: sb };
 }
 
