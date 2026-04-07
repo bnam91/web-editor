@@ -1296,6 +1296,8 @@ window.selectSection = selectSection;
 window.zoomStep = zoomStep;
 window.zoomFit = zoomFit;
 window.applyZoom = applyZoom;
+window.getPanOffset = () => ({ x: panOffsetX, y: panOffsetY });
+window.setPanOffset = (x, y) => { panOffsetX = x; panOffsetY = y; _applyScalerTransform(); };
 window.toggleAllSections = toggleAllSections;
 window.switchToTab = switchToTab;
 window.initFileTabToggle = initFileTabToggle;

@@ -198,6 +198,13 @@ function _bindTabDrag(el, bar) {
   });
 }
 
+function _restoreViewState(tab) {
+  if (!tab?._viewState) return;
+  const { zoom, panX, panY } = tab._viewState;
+  if (window.applyZoom) window.applyZoom(zoom);
+  if (window.setPanOffset) window.setPanOffset(panX, panY);
+}
+
 async function switchTab(id) {
   if (id === _getActId()) return;
   window.switchScratch?.(id); // 스크래치패드 — 현재 저장 후 새 프로젝트 로드
@@ -209,6 +216,9 @@ async function switchTab(id) {
   if (curTab) {
     curTab._cache = window.serializeProject();
     window.saveProjectToFile(curTab._cache, { skipThumbnail: true, projectId: prevProjectId }); // 파일 저장은 await 안 함 (비동기)
+    // 캔버스 뷰 상태 저장 (줌 + 팬 오프셋)
+    const pan = window.getPanOffset?.() || { x: 0, y: 0 };
+    curTab._viewState = { zoom: window.currentZoom || 40, panX: pan.x, panY: pan.y };
   }
 
   _setActId(id);
@@ -243,6 +253,7 @@ async function switchTab(id) {
     window.applyProjectData(JSON.parse(targetTab._cache));
     window.state._suppressAutoSave = false;
     window.initBranchStore();
+    _restoreViewState(targetTab);
     requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
     return;
   }
@@ -261,6 +272,7 @@ async function switchTab(id) {
     const data = proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj;
     if (targetTab) targetTab._cache = JSON.stringify(data);
     window.applyProjectData(data);
+    _restoreViewState(targetTab);
   } else {
     // 프로젝트 없으면 캔버스 초기화
     if (canvasEl) canvasEl.innerHTML = '';
