@@ -393,10 +393,17 @@ function _resizeFrameToFitChildren(block) {
 function _restoreParentFrameSelected(block) {
   const pf = _getParentFrame(block);
   if (!pf) return;
-  pf.classList.add('selected');
-  window._activeFrame = pf;
-  const parentSec = pf.closest('.section-block');
-  if (parentSec) parentSec.classList.add('selected');
+  // text-frame은 선택 투명 wrapper — _activeFrame으로 설정하지 않고 실제 layout 프레임을 찾음
+  const realFrame = pf.dataset.textFrame === 'true'
+    ? pf.closest('.frame-block:not([data-text-frame])') // 상위 real frame (없으면 null)
+    : pf;
+  if (realFrame) {
+    realFrame.classList.add('selected');
+    window._activeFrame = realFrame;
+    const parentSec = realFrame.closest('.section-block');
+    if (parentSec) parentSec.classList.add('selected');
+  }
+  // realFrame이 null이면 (section 직속 text-frame): _activeFrame 설정 안 함 → 섹션에 추가됨
 }
 
 function bindBlock(block) {

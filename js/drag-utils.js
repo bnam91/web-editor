@@ -63,7 +63,8 @@ function insertBeforeBottomGap(section, el) {
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
   const activeSS = window._activeFrame;
-  if (activeSS && activeSS.closest('.section-block') === section) {
+  // text-frame은 단순 wrapper — 삽입 대상이 아님 (_restoreParentFrameSelected 안전망)
+  if (activeSS && !activeSS.dataset?.textFrame && activeSS.closest('.section-block') === section) {
     const ssInner = activeSS;
     const sel = ssInner.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
