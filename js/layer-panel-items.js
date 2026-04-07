@@ -664,8 +664,8 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
 
   const name = ssEl.dataset.layerName || 'Frame';
 
-  // 내부에 shape-block이 하나만 있으면 해당 shape의 아이콘/타입으로 표시
-  const innerShapeBlock = ssEl.querySelector('.shape-block');
+  // 직접 자식(sub-section-inner)에 shape-block이 있으면 Shape 타입으로 표시 (하위 트리 전체 탐색 금지)
+  const innerShapeBlock = ssEl.querySelector(':scope > .sub-section-inner > .shape-block');
   const shapeType = innerShapeBlock ? (innerShapeBlock.dataset.shapeType || 'rectangle') : null;
   const shapeKey  = shapeType ? `shape-${shapeType}` : null;
   const shapeTypeLbls = { 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };

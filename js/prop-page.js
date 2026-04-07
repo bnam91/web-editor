@@ -108,6 +108,10 @@ export function showPageProperties() {
         <option value="png">PNG</option>
         <option value="jpg">JPG</option>
       </select>
+      <select class="prop-select" id="page-export-width" style="width:100%;margin-bottom:6px;">
+        <option value="860">860px (기본)</option>
+        <option value="780">780px (쿠팡)</option>
+      </select>
       <button class="prop-export-btn" id="page-export-all-btn">전체 섹션 내보내기</button>
     </div>`;
 
@@ -207,12 +211,13 @@ export function showPageProperties() {
   if (pageExportBtn) {
     pageExportBtn.addEventListener('click', async () => {
       const fmt = document.getElementById('page-export-format').value;
+      const w   = parseInt(document.getElementById('page-export-width').value) || 860;
       const secCount = canvasEl.querySelectorAll('.section-block').length;
       if (!confirm(`전체 ${secCount}개 섹션을 내보냅니다. 계속할까요?`)) return;
       pageExportBtn.disabled = true;
       pageExportBtn.textContent = '내보내는 중...';
       try {
-        await window.exportAllSections(fmt);
+        await window.exportAllSections(fmt, w);
       } finally {
         pageExportBtn.disabled = false;
         pageExportBtn.textContent = '전체 섹션 내보내기';

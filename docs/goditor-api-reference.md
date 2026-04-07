@@ -588,7 +588,13 @@ window.addShapeBlock('arrow')      // 화살표
 ```
 
 - 항상 현재 선택된 섹션에 100×100px Frame + shape-block 세트로 삽입
+- `window._activeSubSection`이 freeLayout Frame이면 그 안에 absolute로 삽입
 - shape-block은 Frame(sub-section-block) 내부 `left:0, top:0`에 고정
+
+**삽입 우선순위:**
+1. `_activeSubSection`이 freeLayout Frame(shape Frame 아님) → 해당 Frame 내부에 absolute 삽입
+2. 선택된 sub-section이 shape Frame 아님 → 해당 Frame 내부에 삽입
+3. 그 외 → 섹션 레벨(흐름 레이아웃)에 삽입
 
 **dataset 저장 필드 (shape-block):**
 - `dataset.shapeType` — 도형 타입 (`star` / `polygon` / `rectangle` / `ellipse` / `line` / `arrow`)
@@ -602,6 +608,17 @@ section-inner
        └─ sub-section-inner
             └─ shape-block  (position: absolute, left:0, top:0)
                  └─ svg.shape-svg
+```
+
+**freeLayout Frame 안에 삽입된 경우 DOM 구조:**
+```
+section-inner
+  └─ sub-section-block  (외부 Frame, freeLayout=true)
+       └─ sub-section-inner
+            └─ sub-section-block  (shape Frame, position: absolute)
+                 └─ sub-section-inner
+                      └─ shape-block  (position: absolute, left:0, top:0)
+                           └─ svg.shape-svg
 ```
 
 **리사이즈 핸들 (UI):**
@@ -619,6 +636,120 @@ section-inner
 **DnD (섹션 내 재배치):**
 - shape-block 클릭/드래그 시 Frame(sub-section-block) 전체가 HTML5 DnD로 이동
 - shape-block 자체의 mousemove 드래그 없음 — joker 블록과 달리 내부 위치 고정
+
+---
+
+## Frame(Sub-Section) 크기 및 위치 지정
+
+### Frame 크기 설정
+
+`addSubSectionBlock()` 또는 `addShapeBlock()` 호출 후 직접 스타일·dataset을 설정한다.
+
+```js
+const ss = window._activeSubSection  // 방금 생성된 Frame
+
+// 크기
+ss.style.width     = '422px'   // 또는 '100%'
+ss.style.height    = '276px'
+ss.style.minHeight = '276px'
+ss.style.maxWidth  = '100%'
+ss.dataset.width   = '422'     // 숫자 문자열 (저장·복원용)
+ss.dataset.height  = '276'
+
+// 배경 (Frame 배경색)
+ss.style.background    = '#1e1e1e'
+ss.dataset.bg          = '#1e1e1e'
+```
+
+### freeLayout — Frame 내부 자유 배치 모드
+
+`dataset.freeLayout = 'true'`로 설정하면 자식 블록을 `position: absolute`로 자유 배치할 수 있다.
+
+```js
+ss.dataset.freeLayout = 'true'
+
+const ssInner = ss.querySelector('.sub-section-inner')
+ssInner.style.position = 'relative'
+ssInner.style.width    = '100%'
+ssInner.style.height   = '100%'
+ssInner.style.overflow = 'hidden'
+```
+
+> **활용 패턴**: 캔버스 860px 기준 2×1 그리드를 그리드 블록 없이 구현할 때 — 외부 Frame(freeLayout) 하나를 만들고 내부에 shape Frame 2개를 x/y로 배치.
+
+### 자식 블록 x/y 위치 지정 (freeLayout Frame 내부)
+
+freeLayout Frame 안에 삽입된 블록(shape Frame, text-block 등)의 위치를 절대좌표로 지정한다.
+
+```js
+// addShapeBlock() 후 frameInner에서 방금 생성된 shape Frame 꺼내기
+const shapeFrame = [...frameInner.children]
+  .find(el => el.classList.contains('sub-section-block'))
+
+// 위치 설정
+shapeFrame.style.position  = 'absolute'
+shapeFrame.style.left      = '0px'       // x 좌표
+shapeFrame.style.top       = '0px'       // y 좌표
+shapeFrame.dataset.offsetX = '0'         // 저장·복원용
+shapeFrame.dataset.offsetY = '0'
+
+// 크기 설정
+shapeFrame.style.width     = '422px'
+shapeFrame.style.height    = '276px'
+shapeFrame.style.minHeight = '276px'
+shapeFrame.style.margin    = '0'
+shapeFrame.dataset.width   = '422'
+shapeFrame.dataset.height  = '276'
+```
+
+### 2×1 레이아웃 예시 (Canvas 860px, gap 16px)
+
+```js
+// 치수 계산
+const CANVAS_W = 860
+const GAP      = 16
+const shapeW   = Math.floor((CANVAS_W - GAP) / 2)   // 422
+const shapeH   = Math.round(shapeW * 0.65 / 4) * 4  // 276
+
+// 1. 외부 Frame 생성 (freeLayout)
+window._activeSubSection = null
+window.addSubSectionBlock({})
+const frame = window._activeSubSection
+frame.style.width     = CANVAS_W + 'px'
+frame.style.height    = shapeH + 'px'
+frame.style.minHeight = shapeH + 'px'
+frame.style.margin    = '0 auto'
+frame.dataset.freeLayout = 'true'
+const frameInner = frame.querySelector('.sub-section-inner')
+frameInner.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;'
+
+// 2. Shape 1 (left)
+window._activeSubSection = frame
+window.addShapeBlock('rectangle')
+const ss0 = [...frameInner.children].find(el => el.classList.contains('sub-section-block'))
+ss0.style.cssText = `position:absolute;left:0;top:0;width:${shapeW}px;height:${shapeH}px;min-height:${shapeH}px;margin:0;`
+ss0.dataset.offsetX = '0'; ss0.dataset.offsetY = '0'
+ss0.dataset.width = String(shapeW); ss0.dataset.height = String(shapeH)
+
+// 3. Shape 2 (right)
+window._activeSubSection = frame
+window.addShapeBlock('rectangle')
+const ss1 = [...frameInner.children].find(el => el.classList.contains('sub-section-block') && el !== ss0)
+const x1 = shapeW + GAP  // 438
+ss1.style.cssText = `position:absolute;left:${x1}px;top:0;width:${shapeW}px;height:${shapeH}px;min-height:${shapeH}px;margin:0;`
+ss1.dataset.offsetX = String(x1); ss1.dataset.offsetY = '0'
+ss1.dataset.width = String(shapeW); ss1.dataset.height = String(shapeH)
+
+window.buildLayerPanel?.()
+window.triggerAutoSave?.()
+```
+
+**레이어 패널 표시:**
+```
+Frame  [Frame]          ← 외부 frame (addSubSectionBlock)
+  rectangle  [Shape]   ← shape 1 (addShapeBlock)
+  rectangle  [Shape]   ← shape 2 (addShapeBlock)
+```
 
 ---
 

@@ -311,10 +311,20 @@ function bindBlock(block) {
     if (block.classList.contains('editing')) return;
     if (_getParentFrame(block) && !block.classList.contains('selected')) return;
     if (isLabelGroup && e.target.closest('.label-item, .label-group-add-btn')) return;
+
+    // shape-block: left:0/top:0 고정이므로 직접 이동하지 않고 부모 ss Frame을 이동 대상으로
+    // ss가 absolute가 아니면 (섹션 흐름 배치) HTML5 DnD에 위임
+    let dragEl = block;
+    if (isShape) {
+      const ss = block.closest('.sub-section-block');
+      if (!ss || ss.style.position !== 'absolute') return;
+      dragEl = ss;
+    }
+
     e.stopPropagation();
     const startX = e.clientX, startY = e.clientY;
-    const startLeft = parseInt(block.style.left || '0');
-    const startTop  = parseInt(block.style.top  || '0');
+    const startLeft = parseInt(dragEl.style.left || '0');
+    const startTop  = parseInt(dragEl.style.top  || '0');
     let moved = false;
     function onMove(ev) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
@@ -324,10 +334,10 @@ function bindBlock(block) {
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
       const newLeft = Math.round(startLeft + dx / scale);
       const newTop  = Math.round(startTop  + dy / scale);
-      block.style.left = `${newLeft}px`;
-      block.style.top  = `${newTop}px`;
-      block.dataset.offsetX = String(newLeft);
-      block.dataset.offsetY = String(newTop);
+      dragEl.style.left = `${newLeft}px`;
+      dragEl.style.top  = `${newTop}px`;
+      dragEl.dataset.offsetX = String(newLeft);
+      dragEl.dataset.offsetY = String(newTop);
       window.scheduleAutoSave?.();
       // prop 패널 X/Y 실시간 갱신 (패널이 열려있을 때)
       const xNum = document.getElementById('txt-x-number') || document.getElementById('lg-x-number');
@@ -339,7 +349,7 @@ function bindBlock(block) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('dragend', onUp);
-      if (moved) { _resizeFrameToFitChildren(block); window.pushHistory?.(); }
+      if (moved) { _resizeFrameToFitChildren(dragEl); window.pushHistory?.(); }
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -1195,7 +1205,7 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
-      if (block.style.position === 'absolute' && !block.closest('.sub-section-inner')) { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용 (sub-section-inner 내부는 HTML5 drag 허용)
+      if (block.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용
       if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
       _suppressDragSave();
@@ -1336,6 +1346,56 @@ function bindSubSectionDropZone(ss) {
 
   const inner = ss.querySelector('.sub-section-inner');
   let _rafId = null;
+
+  // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
+  if (ss.style.position === 'absolute') {
+    ss.setAttribute('draggable', 'false');
+    ss.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      if (e.target.closest('.resize-handle, [contenteditable]')) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const parent = ss.parentElement; // sub-section-inner of grid
+      const parentRect = parent.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const origLeft = parseFloat(ss.style.left) || 0;
+      const origTop  = parseFloat(ss.style.top)  || 0;
+      let moved = false;
+
+      // 클릭 시 셀 선택
+      window.deselectAll?.();
+      const parentSec = ss.closest('.section-block');
+      if (parentSec) { parentSec.classList.add('selected'); }
+      ss.classList.add('selected');
+      window._activeSubSection = ss;
+      window.showSubSectionProperties?.(ss);
+
+      const onMove = ev => {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        moved = true;
+        const newLeft = Math.round(origLeft + dx);
+        const newTop  = Math.round(origTop  + dy);
+        ss.style.left = newLeft + 'px';
+        ss.style.top  = newTop  + 'px';
+        ss.dataset.offsetX = String(newLeft);
+        ss.dataset.offsetY = String(newTop);
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (moved) { window.pushHistory?.(); window.triggerAutoSave?.(); }
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    return; // absolute 셀은 drop zone 바인딩 불필요
+  }
 
   // 프레임 자체 드래그 — 프레임이 selected 상태에서 드래그 시 section-inner 내 순서 변경
   ss.setAttribute('draggable', 'true');
@@ -1531,6 +1591,8 @@ function bindSubSectionDropZone(ss) {
         });
         dragSrc.remove();
       } else {
+        // dragSrc가 inner의 조상인 경우 삽입 금지 (HierarchyRequestError 방지)
+        if (dragSrc.contains(inner)) { clearDropIndicators(); return; }
         const indicator = inner.querySelector('.drop-indicator');
         if (indicator) inner.insertBefore(dragSrc, indicator);
         else inner.appendChild(dragSrc);

@@ -2,8 +2,9 @@ import { canvasEl, state } from './globals.js';
 
 const CANVAS_W = 860;
 
-async function exportSection(sec, format) {
+async function exportSection(sec, format, width) {
   const fmt = format || 'png';
+  const w   = width  || CANVAS_W;
 
   // 클론을 transform 밖(body)에 배치해서 html2canvas가 부모 scale 영향 안 받게 함
   const clone = sec.cloneNode(true);
@@ -12,7 +13,7 @@ async function exportSection(sec, format) {
   if (cloneLabel)   cloneLabel.remove();
   if (cloneToolbar) cloneToolbar.remove();
   clone.classList.remove('selected');
-  clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + CANVAS_W + 'px;margin:0;outline:none;';
+  clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
 
   document.body.appendChild(clone);
 
@@ -45,10 +46,10 @@ async function exportSection(sec, format) {
   }
 }
 
-async function exportAllSections(format) {
+async function exportAllSections(format, width) {
   const sections = [...canvasEl.querySelectorAll('.section-block')];
   for (const sec of sections) {
-    await exportSection(sec, format);
+    await exportSection(sec, format, width);
     await new Promise(r => setTimeout(r, 300));
   }
 }

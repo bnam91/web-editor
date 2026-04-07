@@ -616,6 +616,10 @@ export function showTextProperties(tb) {
           row.style.margin    = '0 auto';
           row.style.alignSelf = 'center';
           row.dataset.width   = v;
+        } else {
+          // 프레임 내 절대배치 블록 — tb에 직접 width 적용
+          tb.style.width = v + 'px';
+          tb.dataset.width = v;
         }
         wSlider.value = v; wNumber.value = v;
         window.scheduleAutoSave?.();

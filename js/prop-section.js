@@ -166,6 +166,10 @@ function showSectionProperties(sec) {
         <option value="png">PNG</option>
         <option value="jpg">JPG</option>
       </select>
+      <select class="prop-select" id="sec-export-width" style="width:100%;margin-bottom:6px;">
+        <option value="860">860px (기본)</option>
+        <option value="780">780px (쿠팡)</option>
+      </select>
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
     </div>
     <div class="prop-section">
@@ -362,10 +366,11 @@ function _bindSectionExport(sec) {
   if (!secExportBtn) return;
   secExportBtn.addEventListener('click', async () => {
     const fmt = document.getElementById('sec-export-format').value;
+    const w   = parseInt(document.getElementById('sec-export-width').value) || 860;
     secExportBtn.disabled = true;
     secExportBtn.textContent = '내보내는 중...';
     try {
-      await window.exportSection(sec, fmt);
+      await window.exportSection(sec, fmt, w);
     } finally {
       secExportBtn.disabled = false;
       secExportBtn.textContent = '이 섹션 내보내기';

@@ -1632,6 +1632,98 @@ function addShapeBlock(type = 'rectangle') {
   window.showSubSectionProperties?.(ss);
 }
 
+// ── New Grid Block ──
+// col 개념 없이 freeLayout Frame 안에 셀 Frame을 x,y 절대좌표로 배치하는 그리드
+// addNewGridBlock(cols, rows, opts)
+//   cols: 열 수 (기본 2)
+//   rows: 행 수 (기본 1)
+//   opts: { gap: 16, cellHeight: auto, ratios: [1,1,...], bg: '' }
+function addNewGridBlock(cols = 2, rows = 1, opts = {}) {
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+
+  const CANVAS_W   = 860;
+  const gap        = opts.gap        ?? 16;
+  const ratios     = opts.ratios     || Array(cols).fill(1);
+  const bg         = opts.bg         || '';
+
+  // 너비 계산
+  const totalRatio = ratios.reduce((a, b) => a + b, 0);
+  const usableW    = CANVAS_W - gap * (cols - 1);
+  const colWidths  = ratios.map(r => Math.floor(usableW * r / totalRatio));
+  // 반올림 오차 → 마지막 컬에 보정
+  const widthSum   = colWidths.reduce((a, b) => a + b, 0);
+  colWidths[colWidths.length - 1] += (usableW - widthSum);
+
+  // 높이 계산 (cellHeight 미지정 시 첫 번째 컬 너비 × 0.65, 4px 배수)
+  const cellH  = opts.cellHeight ?? Math.round(colWidths[0] * 0.65 / 4) * 4;
+  const frameH = rows * cellH + gap * (rows - 1);
+
+  window.pushHistory();
+
+  // ── 1. 부모 GridFrame (freeLayout) ──
+  const parentSS = makeSubSectionBlock();
+  parentSS.dataset.layerName   = 'Grid';
+  parentSS.setAttribute('data-layer-name', 'Grid');
+  parentSS.style.width     = CANVAS_W + 'px';
+  parentSS.style.maxWidth  = '100%';
+  parentSS.style.height    = frameH + 'px';
+  parentSS.style.minHeight = frameH + 'px';
+  parentSS.style.margin    = '0 auto';
+  parentSS.dataset.width      = String(CANVAS_W);
+  parentSS.dataset.height     = String(frameH);
+  parentSS.dataset.freeLayout = 'true';
+  parentSS.dataset.newGrid    = 'true';
+  parentSS.dataset.gridCols   = String(cols);
+  parentSS.dataset.gridRows   = String(rows);
+  parentSS.dataset.gridGap    = String(gap);
+  if (bg) { parentSS.style.background = bg; parentSS.dataset.bg = bg; }
+
+  const parentInner = parentSS.querySelector('.sub-section-inner');
+  parentInner.style.cssText = 'position:relative;width:100%;height:100%;overflow:visible;';
+
+  // ── 2. 셀 Frame 생성 (rows × cols) ──
+  for (let r = 0; r < rows; r++) {
+    const y = r * (cellH + gap);
+    let x = 0;
+    for (let c = 0; c < cols; c++) {
+      const w = colWidths[c];
+      const cellSS = makeSubSectionBlock();
+      const cellIdx = r * cols + c + 1;
+      cellSS.dataset.layerName = `Cell ${cellIdx}`;
+      cellSS.setAttribute('data-layer-name', `Cell ${cellIdx}`);
+      cellSS.style.cssText = `position:absolute;left:${x}px;top:${y}px;` +
+        `width:${w}px;height:${cellH}px;min-height:${cellH}px;margin:0;box-sizing:border-box;`;
+      cellSS.dataset.offsetX  = String(x);
+      cellSS.dataset.offsetY  = String(y);
+      cellSS.dataset.width    = String(w);
+      cellSS.dataset.height   = String(cellH);
+      cellSS.dataset.gridCell = `${r}-${c}`;
+
+      const cellInner = cellSS.querySelector('.sub-section-inner');
+      cellInner.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;';
+
+      parentInner.appendChild(cellSS);
+      window.bindSubSectionDropZone?.(cellSS);
+      x += w + gap;
+    }
+  }
+
+  // ── 3. 섹션에 삽입 ──
+  const _prev = window._activeSubSection;
+  window._activeSubSection = null;
+  insertAfterSelected(sec, parentSS);
+  window._activeSubSection = _prev;
+
+  window.bindSubSectionDropZone?.(parentSS);
+  window.buildLayerPanel();
+  window._activeSubSection = parentSS;
+  window.showSubSectionProperties?.(parentSS);
+
+  return parentSS;
+}
+window.addNewGridBlock = addNewGridBlock;
+
 // ── setSectionBg: 섹션 단위 배경색 설정 ──
 // sectionEl: .section-block 요소 또는 섹션 id(string)
 // color: hex 색상 문자열 (#ffffff 등). null/''이면 배경색 제거
