@@ -317,13 +317,19 @@ function applyPageSettings() {
 }
 
 function migrateColsFromDOM(canvasEl) {
-  // sub-section-block → frame-block, sub-section-inner → frame-inner 리네임
+  // sub-section-block → frame-block 리네임 (구버전 저장 호환)
   canvasEl.querySelectorAll('.sub-section-block').forEach(el => {
     el.classList.replace('sub-section-block', 'frame-block');
   });
-  canvasEl.querySelectorAll('.sub-section-inner').forEach(el => {
-    el.classList.replace('sub-section-inner', 'frame-inner');
+  // sub-section-inner / frame-inner → 제거 (래퍼 제거, 자식을 frame-block 직속으로)
+  canvasEl.querySelectorAll('.sub-section-inner, .frame-inner').forEach(inner => {
+    const parent = inner.parentElement;
+    if (!parent) return;
+    [...inner.childNodes].forEach(child => parent.appendChild(child));
+    inner.remove();
   });
+  // 인라인 핸들 제거 — 핸들은 이제 #ss-handles-overlay에서 렌더링
+  canvasEl.querySelectorAll('.frame-block > .ss-resize-handle').forEach(h => h.remove());
 
   // Stack row: col wrapper 제거, 자식 블록을 row 직속으로 이동
   canvasEl.querySelectorAll('.row[data-layout="stack"] > .col').forEach(col => {
@@ -387,10 +393,9 @@ function migrateColsFromDOM(canvasEl) {
     cols.forEach((col, i) => {
       const cell = cellFrames[i];
       if (!cell) return;
-      const inner = cell.querySelector('.frame-inner');
       [...col.childNodes].forEach(child => {
         if (child.classList?.contains('col-placeholder')) return;
-        inner?.appendChild(child);
+        cell.appendChild(child);
       });
     });
     row.replaceWith(gridFrame);
@@ -527,9 +532,9 @@ function rebindAll() {
       // preserveAspectRatio="none" — frame 크기에 맞게 SVG 변형
       svg.setAttribute('preserveAspectRatio', 'none');
     }
-    // frame-inner 인라인 height도 제거 — CSS :has(.shape-block) { height:100% } 가 처리
-    const inner = b.closest('.frame-inner');
-    if (inner) inner.style.height = '';
+    // shape frame inline height 제거 — frame-block 직속 shape-block, height는 frame-block이 관리
+    const parentFrame = b.closest('.frame-block');
+    if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
 
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => {
@@ -581,13 +586,10 @@ function rebindAll() {
     // dataset.height 없으면 minHeight 폴백 (레거시 요소 대응)
     const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
     if (_ssH) ss.style.height = _ssH + 'px';
-    // 자식 정렬 복원
-    const inner = ss.querySelector('.frame-inner');
-    if (inner) {
-      if (ss.dataset.alignItems)     inner.style.alignItems     = ss.dataset.alignItems;
-      if (ss.dataset.justifyContent) inner.style.justifyContent = ss.dataset.justifyContent;
-      if (ss.dataset.gap)            inner.style.gap            = ss.dataset.gap + 'px';
-    }
+    // 자식 정렬 복원 (frame-block 직속)
+    if (ss.dataset.alignItems)     ss.style.alignItems     = ss.dataset.alignItems;
+    if (ss.dataset.justifyContent) ss.style.justifyContent = ss.dataset.justifyContent;
+    if (ss.dataset.gap)            ss.style.gap            = ss.dataset.gap + 'px';
     // 위치 / 회전 / 반전 복원
     const _tx = parseInt(ss.dataset.translateX) || 0;
     const _ty = parseInt(ss.dataset.translateY) || 0;

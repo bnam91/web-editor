@@ -7,7 +7,10 @@
   max-width: 100%;
   box-sizing: border-box;
   cursor: default;
-  overflow: visible;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 60px;
 }
 .frame-block.selected {
   outline: 1px solid var(--sel-color);
@@ -23,47 +26,39 @@
   z-index: 100;
 }
 /* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block 제외) */
-.frame-block:not(.selected) .frame-inner *:not(.shape-block):not(.shape-handle) {
+.frame-block:not(.selected) *:not(.shape-block):not(.shape-handle) {
   pointer-events: none;
 }
-/* 선택된 프레임의 핸들은 부모 pointer-events:none 규칙보다 우선 적용 */
-.frame-block.selected > .ss-resize-handle {
-  pointer-events: auto !important;
-}
 /* 선택 상태: 자식 pointer-events 복원 */
-.frame-block.selected .frame-inner * {
+.frame-block.selected * {
   pointer-events: auto;
 }
 .frame-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
   background-color: var(--color-selection-fill-dim) !important;
 }
-/* ── 프레임(sub-section) 리사이즈 핸들 — shape-handle과 동일 스타일 ── */
+
+/* ── 프레임 오버레이 핸들 (Figma 방식 — #ss-handles-overlay 에 렌더링) ── */
+#ss-handles-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9990;
+}
 .ss-resize-handle {
   position: absolute;
-  width:  calc(7px * var(--inv-zoom, 1));
-  height: calc(7px * var(--inv-zoom, 1));
+  width:  7px;
+  height: 7px;
   background: #fff;
   border: 1px solid var(--sel-color);
   border-radius: 1px;
-  z-index: 10;
-  display: none;
+  z-index: 1;
+  pointer-events: auto;
   box-sizing: border-box;
+  cursor: nwse-resize;
 }
-.frame-block.selected > .ss-resize-handle { display: block; }
-.ss-resize-handle.nw { top:    calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
-.ss-resize-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
-.ss-resize-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
-.ss-resize-handle.se { bottom: calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
-.frame-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-height: 60px;
-  height: 100%;
-  position: relative;
-  overflow: hidden;
-}
+.ss-resize-handle.ne,
+.ss-resize-handle.sw { cursor: nesw-resize; }
 
 /* ═══════════════════════════════════
    ASSET BLOCK — 이미지 업로드 상태
@@ -963,17 +958,9 @@
   z-index: 1;
 }
 
-/* shape 선택 시 부모 overflow 해제 — 핸들이 잘리지 않도록 */
+/* shape 선택 시 부모 overflow 해제 — shape-handle이 잘리지 않도록 */
 .frame-block:has(.shape-block.selected) {
   overflow: visible;
-}
-.frame-inner:has(.shape-block.selected) {
-  overflow: visible;
-}
-
-/* shape frame: frame-inner가 frame 높이를 100% 채우도록 */
-.frame-block:has(.shape-block) .frame-inner {
-  height: 100%;
 }
 
 /* shape 리사이즈 핸들 — --inv-zoom calc()로 캔버스 배율 무관하게 고정 크기 유지 */

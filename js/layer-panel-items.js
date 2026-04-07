@@ -557,8 +557,8 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
 
   const name = ssEl.dataset.layerName || 'Frame';
 
-  // 직접 자식(frame-inner)에 shape-block이 있으면 Shape 타입으로 표시 (하위 트리 전체 탐색 금지)
-  const innerShapeBlock = ssEl.querySelector(':scope > .frame-inner > .shape-block');
+  // 직접 자식에 shape-block이 있으면 Shape 타입으로 표시 (하위 트리 전체 탐색 금지)
+  const innerShapeBlock = ssEl.querySelector(':scope > .shape-block');
   const shapeType = innerShapeBlock ? (innerShapeBlock.dataset.shapeType || 'rectangle') : null;
   const shapeKey  = shapeType ? `shape-${shapeType}` : null;
   const shapeTypeLbls = { 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
@@ -584,6 +584,8 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
     wrapper.classList.add('active');
     window.highlightBlock?.(ssEl, wrapper);
     window.showFrameProperties?.(ssEl);
+    const isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+    if (!isShapeFrame) window.showFrameHandles?.(ssEl);
   });
   wrapper.addEventListener('dragstart', e => {
     e.stopPropagation();
@@ -602,8 +604,8 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const ssChildren = document.createElement('div');
   ssChildren.className = 'layer-row-children';
 
-  const ssInner = ssEl.querySelector('.frame-inner');
-  if (ssInner) {
+  const ssInner = ssEl;
+  {
     [...ssInner.children].forEach(child => {
       if (child.classList.contains('frame-block')) {
         // 중첩 프레임 — 재귀 렌더링 (depth +1)
@@ -657,6 +659,8 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       header.classList.add('active');
       window.highlightBlock?.(ssEl, header);
       window.showFrameProperties?.(ssEl);
+      const _isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+      if (!_isShapeFrame) window.showFrameHandles?.(ssEl);
     });
     header.addEventListener('dragstart', e => {
       e.stopPropagation();

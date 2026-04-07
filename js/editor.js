@@ -885,6 +885,7 @@ function deselectAll() {
 
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   window._activeFrame = null;
+  window.hideFrameHandles?.();
   canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
   window.showPageProperties();
 }
@@ -892,7 +893,7 @@ function deselectAll() {
 
 /* ═══════════════════════════════════
    블록 순서 이동 — Cmd+[ (위) / Cmd+] (아래)
-   이동 단위: section-inner 또는 frame-inner 직속 .row / .gap-block
+   이동 단위: section-inner 또는 frame-block 직속 .row / .gap-block
 ═══════════════════════════════════ */
 function moveSelectedBlocks(direction) {
   // 프레임(frame-block)이 선택된 경우 별도 처리
@@ -935,14 +936,14 @@ function moveSelectedBlocks(direction) {
 
   // 각 블록의 이동 단위(row or gap-block)를 DOM 순서대로 수집
   const getUnit = b => b.classList.contains('gap-block')
-    ? (b.parentElement?.classList.contains('section-inner') || b.parentElement?.classList.contains('frame-inner') ? b : b.closest('.row'))
+    ? (b.parentElement?.classList.contains('section-inner') || b.parentElement?.classList.contains('frame-block') ? b : b.closest('.row'))
     : b.closest('.row');
 
   const unitSet = new Set();
   selBlocks.forEach(b => { const u = getUnit(b); if (u) unitSet.add(u); });
   if (unitSet.size === 0) return;
 
-  // 공통 컨테이너(section-inner / frame-inner)가 동일한 unit들만 처리
+  // 공통 컨테이너(section-inner / frame-block)가 동일한 unit들만 처리
   const units = [...unitSet];
   const container = units[0].parentElement;
   if (!units.every(u => u.parentElement === container)) return; // 다른 컨테이너 혼합 → 무시

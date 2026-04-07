@@ -64,7 +64,7 @@ function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
   const activeSS = window._activeFrame;
   if (activeSS && activeSS.closest('.section-block') === section) {
-    const ssInner = activeSS.querySelector('.frame-inner');
+    const ssInner = activeSS;
     const sel = ssInner.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +

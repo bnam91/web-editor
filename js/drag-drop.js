@@ -22,6 +22,116 @@ let layerDragSrc = null;
 let sectionDragSrc = null;
 let layerSectionDragSrc = null;
 
+/* ═══════════════════════════════════
+   FRAME RESIZE HANDLE OVERLAY
+   Figma 방식: 핸들을 #ss-handles-overlay에 렌더링하여
+   frame-block이 overflow:hidden을 직접 가질 수 있게 함
+═══════════════════════════════════ */
+let _overlayFrame = null;  // 현재 핸들이 표시된 frame-block
+let _overlayRafId = null;
+
+function _getOverlay() {
+  return document.getElementById('ss-handles-overlay');
+}
+
+function showFrameHandles(ss) {
+  if (_overlayFrame === ss) return; // already showing
+  hideFrameHandles();
+  _overlayFrame = ss;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  const dirs = ['nw', 'ne', 'sw', 'se'];
+  dirs.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `ss-resize-handle ${dir}`;
+    h.dataset.dir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onHandleMouseDown(e, ss, dir));
+  });
+  _updateHandlePositions();
+  _startHandleRaf();
+}
+
+function hideFrameHandles() {
+  if (_overlayRafId) { cancelAnimationFrame(_overlayRafId); _overlayRafId = null; }
+  _overlayFrame = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.innerHTML = '';
+}
+
+function _startHandleRaf() {
+  function loop() {
+    if (!_overlayFrame) return;
+    // 프레임이 DOM에서 제거됐거나 선택 해제되면 핸들 제거
+    if (!_overlayFrame.isConnected || !_overlayFrame.classList.contains('selected')) {
+      hideFrameHandles();
+      return;
+    }
+    _updateHandlePositions();
+    _overlayRafId = requestAnimationFrame(loop);
+  }
+  _overlayRafId = requestAnimationFrame(loop);
+}
+
+function _updateHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_overlayFrame) return;
+  const rect = _overlayFrame.getBoundingClientRect();
+  const HALF = 3.5;
+  const handles = overlay.querySelectorAll('.ss-resize-handle');
+  handles.forEach(h => {
+    const dir = h.dataset.dir;
+    const top  = dir.includes('n') ? rect.top  - HALF : rect.bottom - HALF;
+    const left = dir.includes('w') ? rect.left - HALF : rect.right  - HALF;
+    h.style.top  = top  + 'px';
+    h.style.left = left + 'px';
+  });
+}
+
+function _onHandleMouseDown(e, ss, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const ssRect = ss.getBoundingClientRect();
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+  const startW = Math.round(ssRect.width / scale0);
+  const startH = Math.round(ssRect.height / scale0);
+  const secInner = ss.closest('.section-inner') || ss.closest('.section-block');
+  const secInnerCS = secInner ? getComputedStyle(secInner) : null;
+  const paddingH = secInnerCS ? parseFloat(secInnerCS.paddingLeft) + parseFloat(secInnerCS.paddingRight) : 0;
+  const maxW = secInner ? Math.round(secInner.clientWidth - paddingH) : 860;
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    let newW = startW, newH = startH;
+    if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
+    if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
+    if (dir.includes('s')) newH = Math.max(40, startH + dy);
+    if (dir.includes('n')) newH = Math.max(40, startH - dy);
+    newW = Math.round(newW); newH = Math.round(newH);
+    ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+    ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showFrameHandles = showFrameHandles;
+window.hideFrameHandles = hideFrameHandles;
+
 Object.defineProperty(window, 'dragSrc', {
   get() { return dragSrc; },
   set(v) { dragSrc = v; },
@@ -266,9 +376,7 @@ function _isInsideUnselectedFrame(block) {
 function _resizeFrameToFitChildren(block) {
   const ss = block.closest('.frame-block');
   if (!ss) return;
-  const inner = ss.querySelector('.frame-inner');
-  if (!inner) return;
-  const childrenBottom = Math.max(...[...inner.children].map(c => {
+  const childrenBottom = Math.max(...[...ss.children].map(c => {
     const top = parseInt(c.style.top || 0);
     return top + (c.offsetHeight || 0);
   }));
@@ -1236,7 +1344,7 @@ function bindFrameDropZone(ss) {
   // shape frame은 drop 수신 불가 — shape-block 전용 컨테이너
   const isShapeFrame = !!ss.querySelector('.shape-block');
 
-  const inner = ss.querySelector('.frame-inner');
+  const inner = ss;  // frame-inner 제거 — frame-block 자체가 content container
   let _rafId = null;
 
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
@@ -1248,7 +1356,7 @@ function bindFrameDropZone(ss) {
       e.preventDefault();
       e.stopPropagation();
 
-      const parent = ss.parentElement; // frame-inner of grid
+      const parent = ss.parentElement; // parent frame-block (NewGrid)
       const parentRect = parent.getBoundingClientRect();
       const startX = e.clientX;
       const startY = e.clientY;
@@ -1335,60 +1443,7 @@ function bindFrameDropZone(ss) {
     window._activeFrame = ss;
     window.highlightBlock?.(ss, ss._layerItem);
     window.showFrameProperties?.(ss);
-  });
-
-  // 4코너 리사이즈 핸들 — shape frame 제외
-  // :scope > 로 직계 자식만 선택 — 중첩 프레임 핸들에 부모 클로저 리스너가 중복으로 달리는 버그 방지
-  if (!isShapeFrame && !ss.querySelector(':scope > .ss-resize-handle')) {
-    ['nw', 'ne', 'sw', 'se'].forEach(dir => {
-      const h = document.createElement('div');
-      h.className = `ss-resize-handle ${dir}`;
-      h.dataset.dir = dir;
-      ss.appendChild(h);
-    });
-  }
-  ss.querySelectorAll(':scope > .ss-resize-handle').forEach(handle => {
-    handle.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      e.stopPropagation();
-      e.preventDefault();
-      const dir = handle.dataset.dir;
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const ssRect = ss.getBoundingClientRect();
-      const scaler0 = document.getElementById('canvas-scaler');
-      const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-      const startW = Math.round(ssRect.width / scale0);
-      const startH = Math.round(ssRect.height / scale0);
-      // section-inner 콘텐츠 폭(패딩 제외)을 최대 너비로 제한
-      const secInner = ss.closest('.section-inner') || ss.closest('.section-block');
-      const secInnerCS = secInner ? getComputedStyle(secInner) : null;
-      const paddingH = secInnerCS ? parseFloat(secInnerCS.paddingLeft) + parseFloat(secInnerCS.paddingRight) : 0;
-      const maxW = secInner ? Math.round(secInner.clientWidth - paddingH) : 860;
-
-      function onMove(ev) {
-        const scaler = document.getElementById('canvas-scaler');
-        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-        const dx = (ev.clientX - startX) / scale;
-        const dy = (ev.clientY - startY) / scale;
-        let newW = startW, newH = startH;
-        if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
-        if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
-        if (dir.includes('s')) newH = Math.max(40, startH + dy);
-        if (dir.includes('n')) newH = Math.max(40, startH - dy);
-        newW = Math.round(newW); newH = Math.round(newH);
-        ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-        ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
-        window.scheduleAutoSave?.();
-      }
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        window.pushHistory?.();
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
+    if (!isShapeFrame) showFrameHandles(ss);
   });
 
   // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
