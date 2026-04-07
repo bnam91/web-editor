@@ -112,15 +112,6 @@ function showRowProperties(rowEl) {
       </div>
     </div>
     ${childBatchHTML}
-    <div class="prop-section">
-      <div class="prop-section-title">열 구성</div>
-      <div class="prop-row">
-        <span class="prop-label">열 수</span>
-        <span style="color:#ccc;font-size:12px;margin-right:auto">${layout === 'grid' ? (() => { const gtc = rowEl.style.gridTemplateColumns||''; return gtc.startsWith('repeat(') ? parseInt(gtc.match(/repeat\((\d+)/)?.[1])||cols.length : cols.length; })() : cols.length}</span>
-        <button class="prop-btn" id="row-col-remove" title="열 제거" ${cols.length <= 1 ? 'disabled' : ''}>−</button>
-        <button class="prop-btn" id="row-col-add" title="열 추가">+</button>
-      </div>
-    </div>
     ${layout !== 'stack' ? `
     <div class="prop-section">
       <div class="prop-section-title">컬럼 비율</div>
@@ -153,44 +144,6 @@ function showRowProperties(rowEl) {
     `;
 
   if (window.setRpIdBadge) window.setRpIdBadge(rowEl.id);
-
-  /* ── 열 추가 / 제거 ── */
-  document.getElementById('row-col-add')?.addEventListener('click', () => {
-    window.pushHistory();
-    if (layout === 'stack') {
-      rowEl.dataset.layout = 'flex';
-      rowEl.style.display = '';
-      rowEl.style.gridTemplateColumns = '';
-      [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
-    }
-    if (rowEl.dataset.layout === 'grid') {
-      const gtc = rowEl.style.gridTemplateColumns || '';
-      const n = gtc.startsWith('repeat(') ? (parseInt(gtc.match(/repeat\((\d+)/)?.[1]) || 1) + 1 : ([...rowEl.querySelectorAll(':scope > .col')].length + 1);
-      rowEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
-    }
-    const newCol = window.makeEmptyCol('1');
-    rowEl.appendChild(newCol);
-    rowEl.dataset.ratioStr = `${rowEl.querySelectorAll(':scope > .col').length}*1`;
-    window.buildLayerPanel();
-    showRowProperties(rowEl);
-  });
-  document.getElementById('row-col-remove')?.addEventListener('click', () => {
-    const currentCols = [...rowEl.querySelectorAll(':scope > .col')];
-    if (currentCols.length <= 1) return;
-    window.pushHistory();
-    currentCols[currentCols.length - 1].remove();
-    const remaining = [...rowEl.querySelectorAll(':scope > .col')];
-    if (remaining.length === 1) {
-      rowEl.dataset.layout = 'stack';
-      rowEl.style.display = '';
-      rowEl.style.gridTemplateColumns = '';
-      remaining[0].style.flex = '';
-      delete remaining[0].dataset.flex;
-    }
-    rowEl.dataset.ratioStr = `${remaining.length}*1`;
-    window.buildLayerPanel();
-    showRowProperties(rowEl);
-  });
 
   /* ── 높이 ── */
   const applyRowHeight = v => {
@@ -431,8 +384,6 @@ function applyRowLayoutDirect(rowEl, newLayout) {
     rowEl.dataset.layout = 'flex';
     rowEl.style.display = '';
     rowEl.style.gridTemplateColumns = '';
-    // 최소 2컬럼
-    if (existingCols.length < 2) rowEl.appendChild(window.makeEmptyCol('1'));
     [...rowEl.querySelectorAll(':scope > .col')].forEach(col => {
       const v = col.dataset.flex || '1';
       col.style.flex = v;
@@ -444,8 +395,6 @@ function applyRowLayoutDirect(rowEl, newLayout) {
   } else if (newLayout === 'grid') {
     rowEl.dataset.layout = 'grid';
     rowEl.style.display = 'grid';
-    // 최소 2컬럼
-    if (existingCols.length < 2) rowEl.appendChild(window.makeEmptyCol(null));
     [...rowEl.querySelectorAll(':scope > .col')].forEach(col => { col.style.flex = ''; });
     const count = rowEl.querySelectorAll(':scope > .col').length;
     rowEl.style.gridTemplateColumns = `repeat(${count}, 1fr)`;

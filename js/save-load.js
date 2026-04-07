@@ -328,11 +328,52 @@ function migrateColsFromDOM(canvasEl) {
     });
     col.remove();
   });
-  // Flex/Grid row: col-placeholder만 제거 (col 본체는 Phase 4까지 유지)
-  canvasEl.querySelectorAll(
-    '.row[data-layout="flex"] > .col > .col-placeholder, ' +
-    '.row[data-layout="grid"] > .col > .col-placeholder'
-  ).forEach(ph => ph.remove());
+  // Flex/Grid row: col → NewGrid 변환
+  canvasEl.querySelectorAll('.row[data-layout="flex"], .row[data-layout="grid"]').forEach(row => {
+    const cols = [...row.querySelectorAll(':scope > .col')];
+    if (cols.length < 2) {
+      // 단일 col이면 stack처럼 처리
+      if (cols.length === 1) {
+        if (cols[0].style.backgroundColor) row.style.backgroundColor = cols[0].style.backgroundColor;
+        [...cols[0].childNodes].forEach(child => {
+          if (child.classList?.contains('col-placeholder')) return;
+          row.appendChild(child);
+        });
+        cols[0].remove();
+        row.dataset.layout = 'stack';
+      }
+      return;
+    }
+    // 멀티 col → NewGrid 변환
+    const gap = 16;
+    const colCount = cols.length;
+    const ratios = cols.map(c => parseFloat(c.style.flex) || parseFloat(c.dataset.flex) || 1);
+    // 변환 전 해당 row의 섹션을 활성화
+    const sec = row.closest('.section-block');
+    if (sec) {
+      document.querySelectorAll('.section-block.selected').forEach(s => s.classList.remove('selected'));
+      sec.classList.add('selected');
+      window._activeSubSection = null;
+    }
+    const gridFrame = window.addNewGridBlock?.(colCount, 1, { gap, ratios });
+    if (!gridFrame) {
+      // addNewGridBlock 없으면 col-placeholder만 제거
+      cols.forEach(col => col.querySelector('.col-placeholder')?.remove());
+      return;
+    }
+    // 각 col 내용을 cell frame에 이식
+    const cellFrames = [...gridFrame.querySelectorAll('[data-grid-cell]')];
+    cols.forEach((col, i) => {
+      const cell = cellFrames[i];
+      if (!cell) return;
+      const inner = cell.querySelector('.sub-section-inner');
+      [...col.childNodes].forEach(child => {
+        if (child.classList?.contains('col-placeholder')) return;
+        inner?.appendChild(child);
+      });
+    });
+    row.replaceWith(gridFrame);
+  });
 }
 
 function rebindAll() {
