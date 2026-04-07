@@ -3,8 +3,7 @@
    makeLayer* 렌더러는 layer-panel-items.js로 분리 (2025-03-31)
 ═══════════════════════════════════ */
 import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem,
-         makeLayerSubSectionItem, makeLayerAssetItem, makeLayerCardItem, makeLayerColItem,
-         makeLayerRowGroup } from './layer-panel-items.js';
+         makeLayerSubSectionItem, makeLayerAssetItem, makeLayerCardItem } from './layer-panel-items.js';
 
 export function buildLayerPanel() {
   const panel = document.getElementById('layer-panel-body');
@@ -167,23 +166,14 @@ export function buildLayerPanel() {
     const sectionInner = sec.querySelector('.section-inner');
 
     function appendRowToLayer(child, container, depth = 1) {
-      const colBlocks = [...child.querySelectorAll(':scope > .col > *')]
-        .filter(el => !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator'));
-      const allCols = [...child.querySelectorAll(':scope > .col')];
-      const isMultiCol = allCols.length > 1;
-      // flex/grid는 col이 여러 개 → 항상 row group으로 표시
-      if (isMultiCol) {
-        container.appendChild(makeLayerRowGroup(child, colBlocks, sec));
-        return;
-      }
-      // stack (단일 col): 블록이 없으면 row group, 1개면 블록 직접 표시
-      if (colBlocks.length === 0) {
-        container.appendChild(makeLayerRowGroup(child, [], sec));
-      } else if (colBlocks.length === 1) {
-        const block = colBlocks[0];
+      // col 제거 후: 블록이 row 직속 자식
+      const directBlocks = [...child.querySelectorAll(':scope > *')]
+        .filter(el => !el.classList.contains('drop-indicator'));
+
+      const renderBlock = (block) => {
         if (block.classList.contains('sub-section-block')) {
           const ssItem = makeLayerSubSectionItem(block, sec, appendRowToLayer);
-          ssItem._dragTarget = child;  // _dragTarget을 row로 교정
+          ssItem._dragTarget = child;
           container.appendChild(ssItem);
         } else if (block.classList.contains('asset-block')) {
           container.appendChild(makeLayerAssetItem(block, child, sec));
@@ -192,10 +182,9 @@ export function buildLayerPanel() {
         } else {
           container.appendChild(makeLayerBlockItem(block, child, sec, depth));
         }
-      } else {
-        // 단일 col에 블록이 여러 개 → Col(Frame)으로 표시 (Grid 아님)
-        container.appendChild(makeLayerColItem(allCols[0], 0, sec, depth));
-      }
+      };
+
+      directBlocks.forEach(renderBlock);
     }
 
     [...(sectionInner ? sectionInner.children : [])].forEach(child => {
@@ -261,13 +250,10 @@ export function buildLayerPanel() {
         if (rowInOverlay) {
           insertIntoSec(rowInOverlay);
         } else {
-          // direct overlayEl child: wrap in row
+          // direct overlayEl child: wrap in row (col 제거 후 row 직속)
           const newRow = document.createElement('div');
           newRow.className = 'row'; newRow.dataset.layout = 'stack';
-          const newCol = document.createElement('div');
-          newCol.className = 'col'; newCol.dataset.width = '100';
-          newCol.appendChild(dragTarget);
-          newRow.appendChild(newCol);
+          newRow.appendChild(dragTarget);
           insertIntoSec(newRow);
         }
         clearLayerIndicators();

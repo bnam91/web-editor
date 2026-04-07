@@ -496,107 +496,6 @@ function makeLayerCardItem(block, dragTarget, sec, depth = 1) {
 }
 
 
-/* 레이어 Row 그룹 생성 (멀티컬럼용) */
-function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
-  const colWrapper = document.createElement('div');
-  colWrapper.className = 'layer-row-group layer-col-group';
-  colWrapper._dragTarget = colEl;
-
-  const colHeader = document.createElement('div');
-  colHeader.className = 'layer-row-header layer-col-header';
-  colHeader.innerHTML = `
-    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
-    <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
-      <rect x="1" y="1" width="10" height="10" rx="0.5"/>
-    </svg>
-    <span class="layer-item-name">Col ${colIdx + 1}</span>
-    <span class="layer-item-type">Frame</span>`;
-  colHeader.prepend(makeIndents(depth));
-
-  const colChildren = document.createElement('div');
-  colChildren.className = 'layer-row-children';
-
-  // col 직접 자식 중 row로 래핑된 블록도 꺼내서 평탄화
-  const rawChildren = [...colEl.querySelectorAll(':scope > *')]
-    .filter(el => !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator'));
-  const blocks = rawChildren.flatMap(el => {
-    if (el.classList.contains('row')) {
-      // row > col > block 구조에서 실제 블록만 추출
-      const inner = [...el.querySelectorAll(':scope > .col > *')]
-        .filter(b => !b.classList.contains('col-placeholder') && !b.classList.contains('drop-indicator'));
-      return inner.length > 0 ? inner : [];
-    }
-    return [el];
-  });
-
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph', 'icon-text':'Icon Text' };
-  const typeLbls  = { heading:'Text', body:'Text', caption:'Text', label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component', 'icon-text':'Text' };
-
-  blocks.forEach(block => {
-    const isText = block.classList.contains('text-block');
-    const isGap  = block.classList.contains('gap-block');
-    const isIconCb = block.classList.contains('icon-circle-block');
-    const isTable  = block.classList.contains('table-block');
-    const isLabelGroup = block.classList.contains('label-group-block');
-    const isDivider = block.classList.contains('divider-block');
-    const isCard  = block.classList.contains('card-block');
-    const isGraph  = block.classList.contains('graph-block');
-    const isIconText = block.classList.contains('icon-text-block');
-    const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : 'asset';
-
-    if (isCard)   { colChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec, depth + 1)); return; }
-
-    const item = document.createElement('div');
-    item.className = 'layer-item layer-item-nested';
-    item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${block.dataset.layerName || labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
-    item.prepend(makeIndents(depth + 1));
-    item.addEventListener('click', e => {
-      e.stopPropagation();
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
-      window.deselectAll();
-      block.classList.add('selected');
-      // Col/Row도 함께 활성화
-      const row = colEl.closest('.row');
-      if (row) { row.classList.add('row-active'); }
-      colEl.classList.add('col-active');
-      // 레이어 패널 row 헤더 하이라이트
-      const rowLayerHeader = colWrapper.parentElement?.parentElement?.querySelector(':scope > .layer-row-header');
-      if (rowLayerHeader) rowLayerHeader.classList.add('active');
-      colHeader.classList.add('active');
-      window.syncSection(sec);
-      window.highlightBlock(block, item);
-      window.setBlockAnchor?.(block);
-      if (isText || isIconText) window.showTextProperties(block);
-      else if (isGap) window.showGapProperties(block);
-      else if (isIconCb) window.showIconCircleProperties(block);
-      else if (isTable) window.showTableProperties(block);
-      else window.showAssetProperties(block);
-    });
-    block._layerItem = item;
-    colChildren.appendChild(item);
-  });
-
-  colHeader.addEventListener('click', e => {
-    if (e.target.closest('.layer-chevron')) { colWrapper.classList.toggle('collapsed'); return; }
-    e.stopPropagation();
-    window.deselectAll();
-    const row = colEl.closest('.row');
-    if (row) { row.classList.add('row-active'); }
-    colEl.classList.add('col-active');
-    // 레이어 패널 row 헤더 하이라이트
-    const rowLayerHeader = colWrapper.parentElement?.parentElement?.querySelector(':scope > .layer-row-header');
-    if (rowLayerHeader) rowLayerHeader.classList.add('active');
-    window.syncSection(sec);
-    colHeader.classList.add('active');
-    if (window.showColProperties) window.showColProperties(colEl);
-    else if (window.showRowProperties && row) window.showRowProperties(row);
-  });
-
-  colWrapper.appendChild(colHeader);
-  colWrapper.appendChild(colChildren);
-  return colWrapper;
-}
 
 function makeLayerRowGroup(rowEl, blocks, sec) {
   const ratioStr = rowEl.dataset.ratioStr || `${blocks.length}*1`;
@@ -617,12 +516,6 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
   const groupChildren = document.createElement('div');
   groupChildren.className = 'layer-row-children';
-
-  // Col Frame을 자식으로 표시
-  const cols = [...rowEl.querySelectorAll(':scope > .col')];
-  cols.forEach((col, i) => {
-    groupChildren.appendChild(makeLayerColItem(col, i, sec, 2));
-  });
 
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { group.classList.toggle('collapsed'); return; }
@@ -797,6 +690,4 @@ export {
   makeLayerSubSectionItem,
   makeLayerAssetItem,
   makeLayerCardItem,
-  makeLayerColItem,
-  makeLayerRowGroup,
 };
