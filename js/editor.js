@@ -270,6 +270,78 @@ function selectColWithModifier(col, e) {
   return false;
 }
 
+/* Cmd+D: 선택 블록 복제 (freeLayout = offset +20px, 섹션 = insertAfter) */
+function duplicateSelected() {
+  // freeLayout 프레임 내 블록 복제 (absolute 배치)
+  const selBlock = document.querySelector(
+    '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, ' +
+    '.card-block.selected, .graph-block.selected, .table-block.selected, ' +
+    '.label-group-block.selected, .icon-text-block.selected'
+  );
+  const selSS = document.querySelector('.frame-block.selected:not([data-text-frame])');
+  const selSection = document.querySelector('.section-block.selected');
+
+  // freeLayout 내 절대 배치 블록: text-frame 또는 shape-frame 래퍼 복제
+  if (selBlock) {
+    const absWrapper = selBlock.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+                       (selBlock.style.position === 'absolute' ? selBlock : null);
+    const parentFrame = absWrapper?.closest('.frame-block[data-free-layout]');
+    if (absWrapper && parentFrame) {
+      window.pushHistory('복제');
+      const clone = absWrapper.cloneNode(true);
+      // 새 id 생성
+      clone.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+      clone.querySelectorAll('[id]').forEach(el => {
+        const prefix = el.id.split('_')[0] || 'el';
+        el.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
+      });
+      // 오프셋 +20px
+      const origLeft = parseInt(absWrapper.style.left || '0');
+      const origTop  = parseInt(absWrapper.style.top  || '0');
+      clone.style.left = (origLeft + 20) + 'px';
+      clone.style.top  = (origTop  + 20) + 'px';
+      clone.dataset.offsetX = String(origLeft + 20);
+      clone.dataset.offsetY = String(origTop  + 20);
+      parentFrame.appendChild(clone);
+      // 이벤트 재바인딩
+      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block').forEach(b => {
+        delete b._blockBound;
+        window.bindBlock?.(b);
+      });
+      clone._dragBound = false;
+      clone._subSecBound = false;
+      window.bindFrameDropZone?.(clone);
+      // 기존 선택 해제 후 복제본 선택
+      deselectAll();
+      const cloneBlock = clone.querySelector('.text-block, .shape-block, .asset-block') || clone;
+      cloneBlock.classList.add('selected');
+      parentFrame.closest('.section-block')?.classList.add('selected');
+      window.buildLayerPanel?.();
+      window.pushHistory('복제 완료');
+      return;
+    }
+  }
+
+  // freeLayout 프레임 자체 복제 (frame-block.selected)
+  if (selSS && !selSS.dataset.freeLayout) {
+    copySelected();
+    pasteClipboard();
+    return;
+  }
+
+  // 섹션 복제
+  if (selSection) {
+    copySelected();
+    pasteClipboard();
+    return;
+  }
+
+  // 일반 flow 블록 복제
+  copySelected();
+  pasteClipboard();
+}
+
 function copySelected() {
   const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
@@ -458,8 +530,7 @@ document.addEventListener('keydown', e => {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
-      copySelected();
-      pasteClipboard();
+      duplicateSelected();
       return;
     }
     if (e.code === 'BracketLeft') {

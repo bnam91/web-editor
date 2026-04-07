@@ -8,6 +8,7 @@ import {
   makeLabelItem,
   applyDividerStyle,
 } from './drag-utils.js';
+import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 
 /* ═══════════════════════════════════
    DRAG AND DROP — state & event binding
@@ -376,8 +377,13 @@ function _isInsideUnselectedFrame(block) {
 
 // 프레임(frame-block) 내 자식 블록 드래그 후 프레임 높이를 자동 확장
 function _resizeFrameToFitChildren(block) {
-  const ss = block.closest('.frame-block');
+  let ss = block.closest('.frame-block');
   if (!ss) return;
+  // text-frame 자체가 넘어온 경우 → freeLayout 부모 프레임 대상으로
+  if (ss.dataset.textFrame === 'true') {
+    ss = ss.parentElement?.closest('.frame-block');
+    if (!ss) return;
+  }
   const childrenBottom = Math.max(...[...ss.children].map(c => {
     const top = parseInt(c.style.top || 0);
     return top + (c.offsetHeight || 0);
@@ -424,37 +430,136 @@ function bindBlock(block) {
   // ── 공통: 절대좌표 드래그 (프레임 자유배치 — 모든 블록 타입) ──
   block.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    if (block.style.position !== 'absolute') return;
     if (block.classList.contains('editing')) return;
-    if (_getParentFrame(block) && !block.classList.contains('selected')) return;
+    if (_getParentFrame(block) && !block.classList.contains('selected')) {
+      // text-block 특례: text-frame 부모가 있고 실제 freeLayout frame이 selected면 드래그 허용
+      if (isText) {
+        const _tf = block.closest('.frame-block[data-text-frame="true"]');
+        const _realFrame = _tf?.closest('.frame-block:not([data-text-frame])');
+        if (!_realFrame?.classList.contains('selected')) return;
+        // 드래그 허용 — 진행
+      } else {
+        return;
+      }
+    }
     if (isLabelGroup && e.target.closest('.label-item, .label-group-add-btn')) return;
 
-    // shape-block: left:0/top:0 고정이므로 직접 이동하지 않고 부모 ss Frame을 이동 대상으로
-    // ss가 absolute가 아니면 (섹션 흐름 배치) HTML5 DnD에 위임
+    // shape-block: 부모 frame-block을 이동 대상으로
+    // text-block: text-frame(래퍼)이 absolute인 경우 text-frame을 이동 대상으로
+    // shape/text가 아닌 블록: block 자체가 absolute여야 함
     let dragEl = block;
     if (isShape) {
       const ss = block.closest('.frame-block');
       if (!ss || ss.style.position !== 'absolute') return;
       dragEl = ss;
+    } else if (isText) {
+      const tf = block.closest('.frame-block[data-text-frame="true"]');
+      if (tf && tf.style.position === 'absolute') {
+        dragEl = tf;
+      } else if (block.style.position !== 'absolute') {
+        return; // flow 배치 text-block은 HTML5 DnD에 위임
+      }
+    } else {
+      if (block.style.position !== 'absolute') return;
     }
 
     e.stopPropagation();
     const startX = e.clientX, startY = e.clientY;
     const startLeft = parseInt(dragEl.style.left || '0');
     const startTop  = parseInt(dragEl.style.top  || '0');
+
+    // freeLayout 다중선택 피어 수집 — shift+클릭으로 선택된 형제 absolute 요소들
+    const _parentFrameForMulti = dragEl.closest('.frame-block[data-free-layout]');
+    const multiPeers = [];
+    if (_parentFrameForMulti) {
+      [..._parentFrameForMulti.children].forEach(ch => {
+        if (ch === dragEl || ch.style.position !== 'absolute') return;
+        const hasSelected = ch.querySelector(
+          '.text-block.selected,.asset-block.selected,.shape-block.selected,' +
+          '.gap-block.selected,.icon-circle-block.selected,.table-block.selected,' +
+          '.label-group-block.selected,.card-block.selected,.graph-block.selected,' +
+          '.divider-block.selected'
+        );
+        if (hasSelected) {
+          multiPeers.push({
+            el: ch,
+            startLeft: parseInt(ch.style.left || '0'),
+            startTop:  parseInt(ch.style.top  || '0'),
+          });
+        }
+      });
+    }
+
+    // 드래그아웃 감지용 — freeLayout 프레임 밖으로 이동 시 섹션 레벨로 추출
+    const _dragOutParentFrame   = dragEl.closest('.frame-block[data-free-layout]');
+    const _dragOutParentSection = dragEl.closest('.section-block');
+
     let moved = false;
+    let draggedOutside = false;    // 프레임 밖 드래그 상태 플래그
+    let _dropInsertBefore = null;  // 삽입 기준 element (null=끝에 추가)
     function onMove(ev) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
       moved = true;
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-      const newLeft = Math.round(startLeft + dx / scale);
-      const newTop  = Math.round(startTop  + dy / scale);
+
+      // 드래그아웃 감지 (단일 선택 + 다중선택 없을 때만)
+      if (_dragOutParentFrame && _dragOutParentSection && multiPeers.length === 0) {
+        const frameRect = _dragOutParentFrame.getBoundingClientRect();
+        const outside = ev.clientX < frameRect.left || ev.clientX > frameRect.right ||
+                        ev.clientY < frameRect.top  || ev.clientY > frameRect.bottom;
+        if (outside) {
+          draggedOutside = true;
+          hideGuides();
+          // 삽입 기준 element를 closure 변수에 저장 (indicator 消失에 무관하게 유지)
+          const inner = _dragOutParentSection.querySelector('.section-inner');
+          _dropInsertBefore = getDragAfterElement(inner, ev.clientY) || null;
+          // 섹션 inner에 드롭 인디케이터 표시
+          clearDropIndicators();
+          const indicator = document.createElement('div');
+          indicator.className = 'drop-indicator';
+          if (_dropInsertBefore) inner.insertBefore(indicator, _dropInsertBefore);
+          else inner.appendChild(indicator);
+          return;
+        } else if (draggedOutside) {
+          draggedOutside = false;
+          _dropInsertBefore = null;
+          clearDropIndicators();
+        }
+      }
+
+      const rawLeft = Math.round(startLeft + dx / scale);
+      const rawTop  = Math.round(startTop  + dy / scale);
+
+      // 스마트 가이드 스냅 (단일 선택일 때만 — 다중선택 시 스냅 생략)
+      const parentFrame = dragEl.closest('.frame-block[data-free-layout]');
+      let newLeft = rawLeft, newTop = rawTop;
+      if (parentFrame && multiPeers.length === 0) {
+        const snapped = snapPosition(rawLeft, rawTop, dragEl, parentFrame, scale);
+        newLeft = snapped.left;
+        newTop  = snapped.top;
+      }
+
       dragEl.style.left = `${newLeft}px`;
       dragEl.style.top  = `${newTop}px`;
+
+      if (parentFrame && multiPeers.length === 0) showGuides(dragEl, parentFrame, scale);
       dragEl.dataset.offsetX = String(newLeft);
       dragEl.dataset.offsetY = String(newTop);
+
+      // 다중선택 피어 동시 이동
+      const scaledDx = Math.round(dx / scale);
+      const scaledDy = Math.round(dy / scale);
+      multiPeers.forEach(peer => {
+        const pLeft = peer.startLeft + scaledDx;
+        const pTop  = peer.startTop  + scaledDy;
+        peer.el.style.left = `${pLeft}px`;
+        peer.el.style.top  = `${pTop}px`;
+        peer.el.dataset.offsetX = String(pLeft);
+        peer.el.dataset.offsetY = String(pTop);
+      });
+
       window.scheduleAutoSave?.();
       // prop 패널 X/Y 실시간 갱신 (패널이 열려있을 때)
       const xNum = document.getElementById('txt-x-number') || document.getElementById('lg-x-number');
@@ -466,7 +571,41 @@ function bindBlock(block) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('dragend', onUp);
-      if (moved) { _resizeFrameToFitChildren(dragEl); window.pushHistory?.(); }
+      hideGuides();
+
+      // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
+      if (moved && draggedOutside && _dragOutParentFrame && _dragOutParentSection) {
+        window.pushHistory?.();
+        const inner = _dragOutParentSection.querySelector('.section-inner');
+        clearDropIndicators();
+
+        // 절대 위치 스타일 초기화
+        dragEl.style.position = '';
+        dragEl.style.left = '';
+        dragEl.style.top = '';
+        delete dragEl.dataset.offsetX;
+        delete dragEl.dataset.offsetY;
+
+        // _dropInsertBefore: onMove에서 저장한 삽입 기준 element (null=끝에 추가)
+        const ref = _dropInsertBefore && _dropInsertBefore.parentNode === inner
+          ? _dropInsertBefore : null;
+        if (ref) inner.insertBefore(dragEl, ref);
+        else inner.appendChild(dragEl);
+
+        // flow 요소로 재바인딩
+        dragEl._dragBound = false;
+        const _tb = dragEl.querySelector('.text-block');
+        if (_tb) { _tb._blockBound = false; bindBlock(_tb); }
+
+        window.buildLayerPanel?.();
+        return;
+      }
+
+      if (moved) {
+        _resizeFrameToFitChildren(dragEl);
+        multiPeers.forEach(p => _resizeFrameToFitChildren(p.el));
+        window.pushHistory?.();
+      }
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -798,6 +937,62 @@ function bindBlock(block) {
         window.triggerAssetUpload(block);
       }
     });
+
+    // ── 4코너 리사이즈 핸들 (선택 시 표시) ──
+    if (!block.querySelector('.asset-handle')) {
+      ['nw', 'ne', 'sw', 'se'].forEach(dir => {
+        const h = document.createElement('div');
+        h.className = `asset-handle ${dir}`;
+        h.dataset.dir = dir;
+        block.appendChild(h);
+      });
+    }
+    block.querySelectorAll('.asset-handle').forEach(handle => {
+      handle.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const dir = handle.dataset.dir;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const rect = block.getBoundingClientRect();
+        const scaler0 = document.getElementById('canvas-scaler');
+        const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        const startW = Math.round(rect.width / scale0);
+        const startH = Math.round(rect.height / scale0);
+
+        function onMove(ev) {
+          const scaler = document.getElementById('canvas-scaler');
+          const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+          const dx = (ev.clientX - startX) / scale;
+          const dy = (ev.clientY - startY) / scale;
+          let newW = startW, newH = startH;
+          if (dir.includes('e')) newW = Math.min(860, Math.max(100, startW + dx));
+          if (dir.includes('w')) newW = Math.min(860, Math.max(100, startW - dx));
+          if (dir.includes('s')) newH = Math.max(40, startH + dy);
+          if (dir.includes('n')) newH = Math.max(40, startH - dy);
+          newW = Math.round(newW); newH = Math.round(newH);
+          block.style.width  = newW >= 860 ? '' : newW + 'px';
+          block.style.height = newH + 'px';
+          // 우측 패널 슬라이더 동기화
+          const wNum = document.getElementById('asset-w-number');
+          const wSl  = document.getElementById('asset-w-slider');
+          const hNum = document.getElementById('asset-h-number');
+          const hSl  = document.getElementById('asset-h-slider');
+          if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
+          if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
+          window.scheduleAutoSave?.();
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          window.pushHistory?.();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+
     // 파일 드래그 드롭
     block.addEventListener('dragover', e => {
       if (!e.dataTransfer.types.includes('Files')) return;
@@ -1318,11 +1513,20 @@ function bindBlock(block) {
   const dragTarget = isGap ? block : (block.closest('.frame-block[data-text-frame]') || block.closest('.row') || block);
   if (dragTarget && !dragTarget._dragBound) {
     dragTarget._dragBound = true;
-    dragTarget.setAttribute('draggable', 'true');
+    // absolute 위치 요소는 HTML5 drag 완전 비활성화 — 커스텀 mousemove drag만 사용
+    // (draggable 속성 자체를 제거 → dragstart 이벤트 미발생 → opacity 깜빡임 없음)
+    // 적용 대상: absolute text-frame, absolute shape-block, absolute block 전반
+    // 기존 저장된 HTML에 draggable="true"가 남아있을 수 있으므로 명시적 removeAttribute 처리
+    const needsHtml5Drag = dragTarget.style.position !== 'absolute' && block.style.position !== 'absolute';
+    if (needsHtml5Drag) {
+      dragTarget.setAttribute('draggable', 'true');
+    } else {
+      dragTarget.removeAttribute('draggable');
+    }
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
-      if (block.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용
+      if (block.style.position === 'absolute' || dragTarget.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용 (flow→absolute 전환 후 예외 처리)
       if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
       _suppressDragSave();
@@ -1550,8 +1754,14 @@ function bindFrameDropZone(ss) {
           if (!dragSrc.style.width || dragSrc.style.width === '') {
             dragSrc.style.width = '100%';
           }
-          // draggable은 그대로 유지 (text-frame이 drag-target이므로 변경 금지)
+          // absolute 전환 후 HTML5 drag 비활성화 — 이후 커스텀 mousemove drag 사용
+          // (섹션에서 드롭 시 draggable="true"가 잔류하면 다음 드래그에서 회색이 됨)
+          dragSrc.removeAttribute('draggable');
+          dragSrc._dragBound = false; // 재바인딩 허용 플래그
           inner.appendChild(dragSrc);
+          // text-block rebind — bindBlock이 absolute 상태를 다시 평가하도록
+          const _tb = dragSrc.querySelector('.text-block');
+          if (_tb) { _tb._blockBound = false; bindBlock(_tb); }
         } else {
         // row: 블록 추출 후 absolute 전환, wrapper 제거
         const blocks = [...dragSrc.querySelectorAll(BLOCK_SEL)];
