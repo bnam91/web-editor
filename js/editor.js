@@ -100,7 +100,7 @@ let _lastClickedBlock = null;
 
 function _getBlockLayerItem(block) {
   if (block.classList.contains('shape-block')) {
-    const ss = block.closest('.sub-section-block');
+    const ss = block.closest('.frame-block');
     return ss?._layerItem || block._layerItem;
   }
   return block._layerItem;
@@ -285,7 +285,7 @@ function copySelected() {
     allSel.forEach(block => {
       let ref;
       if (block.classList.contains('shape-block')) {
-        const ss = block.closest('.sub-section-block');
+        const ss = block.closest('.frame-block');
         ref = ss?.closest('.row') || ss || block;
       } else if (block.classList.contains('gap-block')) {
         ref = block;
@@ -305,12 +305,12 @@ function copySelected() {
   const selBlock   = allSel[0] || null;
   const selShape   = selBlock?.classList.contains('shape-block') ? selBlock : null;
   const selNormal  = selShape ? null : selBlock;
-  const selSS      = document.querySelector('.sub-section-block.selected');
+  const selSS      = document.querySelector('.frame-block.selected');
   const selRow     = document.querySelector('.row.row-active');
   const selSection = document.querySelector('.section-block.selected');
 
   if (selShape) {
-    const ss = selShape.closest('.sub-section-block');
+    const ss = selShape.closest('.frame-block');
     const rowEl = ss?.closest('.row') || ss || selShape;
     clipboard = { type: 'block', html: rowEl.outerHTML };
   } else if (selNormal) {
@@ -318,7 +318,7 @@ function copySelected() {
     const target = isGapSel ? selNormal : (selNormal.closest('.row') || selNormal);
     clipboard = { type: 'block', html: target.outerHTML };
   } else if (selSS) {
-    // 서브섹션은 row > col > sub-section-block 구조이므로 row 단위로 복사
+    // 서브섹션은 row > col > frame-block 구조이므로 row 단위로 복사
     const rowEl = selSS.closest('.row') || selSS;
     clipboard = { type: 'block', html: rowEl.outerHTML };
   } else if (selRow) {
@@ -331,10 +331,10 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => window.bindBlock(b));
-  el.querySelectorAll('.sub-section-block').forEach(ss => {
+  el.querySelectorAll('.frame-block').forEach(ss => {
     ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false;
-    window.bindSubSectionDropZone?.(ss);
+    window.bindFrameDropZone?.(ss);
   });
 }
 
@@ -356,11 +356,11 @@ function pasteClipboard() {
       if (lastEl) {
         lastEl.after(el);
       } else {
-        const pasteHasSS = el.classList.contains('sub-section-block') || !!el.querySelector('.sub-section-block');
-        const savedActiveSS = window._activeSubSection;
-        if (pasteHasSS) window._activeSubSection = null;
+        const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
+        const savedActiveSS = window._activeFrame;
+        if (pasteHasSS) window._activeFrame = null;
         insertAfterSelected(sec, el);
-        if (pasteHasSS) window._activeSubSection = savedActiveSS;
+        if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
       _bindPastedEl(el);
       lastEl = el;
@@ -391,11 +391,11 @@ function pasteClipboard() {
   } else {
     const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
     if (!sec) return;
-    const pasteHasSS = el.classList.contains('sub-section-block') || !!el.querySelector('.sub-section-block');
-    const savedActiveSS = window._activeSubSection;
-    if (pasteHasSS) window._activeSubSection = null;
+    const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
+    const savedActiveSS = window._activeFrame;
+    if (pasteHasSS) window._activeFrame = null;
     insertAfterSelected(sec, el);
-    if (pasteHasSS) window._activeSubSection = savedActiveSS;
+    if (pasteHasSS) window._activeFrame = savedActiveSS;
     _bindPastedEl(el);
   }
   window.buildLayerPanel();
@@ -665,7 +665,7 @@ document.addEventListener('keydown', e => {
 
     // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
     // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
-    const selSS = document.querySelector('.sub-section-block.selected');
+    const selSS = document.querySelector('.frame-block.selected');
     if (selSS) {
       const ssHasSelectedChild = selSS.querySelector(
         '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
@@ -676,7 +676,7 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         const ssRow = selSS.closest('.row') || selSS;
         ssRow.remove();
-        window._activeSubSection = null;
+        window._activeFrame = null;
         deselectAll();
         window.buildLayerPanel();
         pushHistory('서브섹션 삭제');
@@ -694,7 +694,7 @@ document.addEventListener('keydown', e => {
       // shape: 부모 ss/row 단위로 삭제
       const ssRowsToRemove = new Set();
       allSelShapes.forEach(shape => {
-        const ss = shape.closest('.sub-section-block');
+        const ss = shape.closest('.frame-block');
         const ssRow = ss?.closest('.row') || ss;
         if (ssRow) ssRowsToRemove.add(ssRow); else shape.remove();
       });
@@ -710,7 +710,7 @@ document.addEventListener('keydown', e => {
         }
       });
       rowsToRemove.forEach(r => r.remove());
-      window._activeSubSection = null;
+      window._activeFrame = null;
       deselectAll();
       window.buildLayerPanel();
       pushHistory('블록 삭제');
@@ -884,24 +884,24 @@ function deselectAll() {
   }
 
   if (window.setRpIdBadge) window.setRpIdBadge(null);
-  window._activeSubSection = null;
-  canvas.querySelectorAll('.sub-section-block').forEach(s => s.classList.remove('selected'));
+  window._activeFrame = null;
+  canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
   window.showPageProperties();
 }
 
 
 /* ═══════════════════════════════════
    블록 순서 이동 — Cmd+[ (위) / Cmd+] (아래)
-   이동 단위: section-inner 또는 sub-section-inner 직속 .row / .gap-block
+   이동 단위: section-inner 또는 frame-inner 직속 .row / .gap-block
 ═══════════════════════════════════ */
 function moveSelectedBlocks(direction) {
-  // 프레임(sub-section-block)이 선택된 경우 별도 처리
-  const selFrame = window._activeSubSection;
+  // 프레임(frame-block)이 선택된 경우 별도 처리
+  const selFrame = window._activeFrame;
   if (selFrame && selFrame.classList.contains('selected')) {
     const sectionInner = selFrame.closest('.section-inner');
     if (!sectionInner) return;
     const containerItems = [...sectionInner.children].filter(c =>
-      c.classList.contains('row') || c.classList.contains('gap-block') || c.classList.contains('sub-section-block')
+      c.classList.contains('row') || c.classList.contains('gap-block') || c.classList.contains('frame-block')
     );
     const idx = containerItems.indexOf(selFrame);
     if (direction === 'up') {
@@ -917,7 +917,7 @@ function moveSelectedBlocks(direction) {
     window.buildLayerPanel?.();
     // 선택 상태 복원
     selFrame.classList.add('selected');
-    window._activeSubSection = selFrame;
+    window._activeFrame = selFrame;
     if (selFrame._layerItem) {
       selFrame._layerItem.classList.add('active');
       selFrame._layerItem.style.background = 'var(--ui-bg-card)';
@@ -935,14 +935,14 @@ function moveSelectedBlocks(direction) {
 
   // 각 블록의 이동 단위(row or gap-block)를 DOM 순서대로 수집
   const getUnit = b => b.classList.contains('gap-block')
-    ? (b.parentElement?.classList.contains('section-inner') || b.parentElement?.classList.contains('sub-section-inner') ? b : b.closest('.row'))
+    ? (b.parentElement?.classList.contains('section-inner') || b.parentElement?.classList.contains('frame-inner') ? b : b.closest('.row'))
     : b.closest('.row');
 
   const unitSet = new Set();
   selBlocks.forEach(b => { const u = getUnit(b); if (u) unitSet.add(u); });
   if (unitSet.size === 0) return;
 
-  // 공통 컨테이너(section-inner / sub-section-inner)가 동일한 unit들만 처리
+  // 공통 컨테이너(section-inner / frame-inner)가 동일한 unit들만 처리
   const units = [...unitSet];
   const container = units[0].parentElement;
   if (!units.every(u => u.parentElement === container)) return; // 다른 컨테이너 혼합 → 무시
@@ -1067,7 +1067,7 @@ function getSelectedSection() {
   const secSel = document.querySelector('.section-block.selected');
   if (secSel) return secSel;
   // sub-section 선택 시 부모 섹션 반환
-  const selSS = document.querySelector('.sub-section-block.selected');
+  const selSS = document.querySelector('.frame-block.selected');
   if (selSS) return selSS.closest('.section-block') || null;
   const selBlock = document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +

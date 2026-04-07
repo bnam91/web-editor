@@ -117,13 +117,13 @@ async function insertTemplate(tpl) {
     const tmp = document.createElement('div');
     tmp.innerHTML = canvas;
     const ss = tmp.firstElementChild;
-    if (!ss || !ss.classList.contains('sub-section-block')) return;
+    if (!ss || !ss.classList.contains('frame-block')) return;
 
     // ID 재생성 (중복 방지)
     ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false;
 
-    // sub-section-block은 row 안에 있어야 함
+    // frame-block은 row 안에 있어야 함
     const row = document.createElement('div');
     row.className = 'row';
     row.id = 'row_' + Math.random().toString(36).slice(2, 9);
@@ -139,7 +139,7 @@ async function insertTemplate(tpl) {
     inner.appendChild(row);
 
     // 이벤트 재바인딩
-    window.bindSubSectionDropZone?.(ss);
+    window.bindFrameDropZone?.(ss);
     if (ss.dataset.bgImg && !ss.style.backgroundImage) {
       ss.style.backgroundImage = `url(${ss.dataset.bgImg})`;
       ss.style.backgroundSize = 'cover';
@@ -278,7 +278,7 @@ async function showTemplatePreview(id) {
 
   // Scale section to fit preview viewport
   const previewCanvas = backdrop.querySelector('.tpl-preview-canvas');
-  const section = previewCanvas.querySelector('.section-block') || previewCanvas.querySelector('.sub-section-block');
+  const section = previewCanvas.querySelector('.section-block') || previewCanvas.querySelector('.frame-block');
   if (section) {
     const CANVAS_WIDTH = 860;
     section.style.width = CANVAS_WIDTH + 'px';

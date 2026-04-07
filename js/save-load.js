@@ -317,6 +317,14 @@ function applyPageSettings() {
 }
 
 function migrateColsFromDOM(canvasEl) {
+  // sub-section-block → frame-block, sub-section-inner → frame-inner 리네임
+  canvasEl.querySelectorAll('.sub-section-block').forEach(el => {
+    el.classList.replace('sub-section-block', 'frame-block');
+  });
+  canvasEl.querySelectorAll('.sub-section-inner').forEach(el => {
+    el.classList.replace('sub-section-inner', 'frame-inner');
+  });
+
   // Stack row: col wrapper 제거, 자식 블록을 row 직속으로 이동
   canvasEl.querySelectorAll('.row[data-layout="stack"] > .col').forEach(col => {
     const row = col.parentElement;
@@ -366,7 +374,7 @@ function migrateColsFromDOM(canvasEl) {
     if (sec) {
       document.querySelectorAll('.section-block.selected').forEach(s => s.classList.remove('selected'));
       sec.classList.add('selected');
-      window._activeSubSection = null;
+      window._activeFrame = null;
     }
     const gridFrame = window.addNewGridBlock?.(colCount, 1, { gap, ratios });
     if (!gridFrame) {
@@ -379,7 +387,7 @@ function migrateColsFromDOM(canvasEl) {
     cols.forEach((col, i) => {
       const cell = cellFrames[i];
       if (!cell) return;
-      const inner = cell.querySelector('.sub-section-inner');
+      const inner = cell.querySelector('.frame-inner');
       [...col.childNodes].forEach(child => {
         if (child.classList?.contains('col-placeholder')) return;
         inner?.appendChild(child);
@@ -519,8 +527,8 @@ function rebindAll() {
       // preserveAspectRatio="none" — frame 크기에 맞게 SVG 변형
       svg.setAttribute('preserveAspectRatio', 'none');
     }
-    // sub-section-inner 인라인 height도 제거 — CSS :has(.shape-block) { height:100% } 가 처리
-    const inner = b.closest('.sub-section-inner');
+    // frame-inner 인라인 height도 제거 — CSS :has(.shape-block) { height:100% } 가 처리
+    const inner = b.closest('.frame-inner');
     if (inner) inner.style.height = '';
   });
 
@@ -549,11 +557,11 @@ function rebindAll() {
     }
     bindGroupDrag(g);
   });
-  // sub-section-block 클릭/드롭 핸들러 재연결 (저장/로드 후 누락 방지)
-  canvasEl.querySelectorAll('.sub-section-block').forEach(ss => {
+  // frame-block 클릭/드롭 핸들러 재연결 (저장/로드 후 누락 방지)
+  canvasEl.querySelectorAll('.frame-block').forEach(ss => {
     if (!ss.id) ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false; // rebind 강제
-    window.bindSubSectionDropZone?.(ss);
+    window.bindFrameDropZone?.(ss);
     // 배경 이미지 복원
     if (ss.dataset.bgImg && !ss.style.backgroundImage) {
       ss.style.backgroundImage = `url(${ss.dataset.bgImg})`;
@@ -574,7 +582,7 @@ function rebindAll() {
     const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
     if (_ssH) ss.style.height = _ssH + 'px';
     // 자식 정렬 복원
-    const inner = ss.querySelector('.sub-section-inner');
+    const inner = ss.querySelector('.frame-inner');
     if (inner) {
       if (ss.dataset.alignItems)     inner.style.alignItems     = ss.dataset.alignItems;
       if (ss.dataset.justifyContent) inner.style.justifyContent = ss.dataset.justifyContent;

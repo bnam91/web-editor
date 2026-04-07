@@ -86,12 +86,12 @@ window.goditor = {
       const cell = cellFrames[i];
       if (!cell) continue;
       // cell frame 선택 후 블록 추가
-      window._activeSubSection = cell;
+      window._activeFrame = cell;
       for (const block of (cols[i].blocks || [])) {
         this._addBlock(block);
       }
     }
-    window._activeSubSection = null;
+    window._activeFrame = null;
   },
 
   /**

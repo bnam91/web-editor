@@ -254,19 +254,19 @@ function bindSectionDropZone(sec) {
 }
 
 function _getParentFrame(block) {
-  return block.closest('.sub-section-block');
+  return block.closest('.frame-block');
 }
 function _isInsideUnselectedFrame(block) {
   const ss = _getParentFrame(block);
   if (!ss) return false;
-  return !(ss.classList.contains('selected') && window._activeSubSection === ss);
+  return !(ss.classList.contains('selected') && window._activeFrame === ss);
 }
 
-// 프레임(sub-section-block) 내 자식 블록 드래그 후 프레임 높이를 자동 확장
+// 프레임(frame-block) 내 자식 블록 드래그 후 프레임 높이를 자동 확장
 function _resizeFrameToFitChildren(block) {
-  const ss = block.closest('.sub-section-block');
+  const ss = block.closest('.frame-block');
   if (!ss) return;
-  const inner = ss.querySelector('.sub-section-inner');
+  const inner = ss.querySelector('.frame-inner');
   if (!inner) return;
   const childrenBottom = Math.max(...[...inner.children].map(c => {
     const top = parseInt(c.style.top || 0);
@@ -279,12 +279,12 @@ function _resizeFrameToFitChildren(block) {
 }
 
 // 프레임 내부 블록 선택 시 프레임 selected 복원 헬퍼
-// deselectAll()이 sub-section-block.selected를 제거해 CSS pointer-events가 다시 차단되는 문제 방지
+// deselectAll()이 frame-block.selected를 제거해 CSS pointer-events가 다시 차단되는 문제 방지
 function _restoreParentFrameSelected(block) {
   const pf = _getParentFrame(block);
   if (!pf) return;
   pf.classList.add('selected');
-  window._activeSubSection = pf;
+  window._activeFrame = pf;
   const parentSec = pf.closest('.section-block');
   if (parentSec) parentSec.classList.add('selected');
 }
@@ -316,7 +316,7 @@ function bindBlock(block) {
     // ss가 absolute가 아니면 (섹션 흐름 배치) HTML5 DnD에 위임
     let dragEl = block;
     if (isShape) {
-      const ss = block.closest('.sub-section-block');
+      const ss = block.closest('.frame-block');
       if (!ss || ss.style.position !== 'absolute') return;
       dragEl = ss;
     }
@@ -360,7 +360,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      const ss = block.closest('.sub-section-block');
+      const ss = block.closest('.frame-block');
       const layerItem = ss?._layerItem || block._layerItem;
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -370,7 +370,7 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
       }
       block.classList.add('selected');
       window.syncSection?.(sec);
@@ -398,7 +398,7 @@ function bindBlock(block) {
         const dir    = handle.dataset.dir;
         const startX = e.clientX;
         const startY = e.clientY;
-        const ss  = block.closest('.sub-section-block');
+        const ss  = block.closest('.frame-block');
         const ssRect = ss?.getBoundingClientRect();
         const scaler0 = document.getElementById('canvas-scaler');
         const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
@@ -577,9 +577,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -660,9 +660,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -729,9 +729,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -757,9 +757,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -813,9 +813,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -873,9 +873,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       // + 버튼: 새 라벨 추가
@@ -968,9 +968,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       const rowEl = block.closest('.row');
@@ -1048,9 +1048,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -1079,9 +1079,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -1159,9 +1159,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -1229,14 +1229,14 @@ function bindBlock(block) {
   }
 }
 
-function bindSubSectionDropZone(ss) {
+function bindFrameDropZone(ss) {
   if (ss._subSecBound) return;
   ss._subSecBound = true;
 
   // shape frame은 drop 수신 불가 — shape-block 전용 컨테이너
   const isShapeFrame = !!ss.querySelector('.shape-block');
 
-  const inner = ss.querySelector('.sub-section-inner');
+  const inner = ss.querySelector('.frame-inner');
   let _rafId = null;
 
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
@@ -1248,7 +1248,7 @@ function bindSubSectionDropZone(ss) {
       e.preventDefault();
       e.stopPropagation();
 
-      const parent = ss.parentElement; // sub-section-inner of grid
+      const parent = ss.parentElement; // frame-inner of grid
       const parentRect = parent.getBoundingClientRect();
       const startX = e.clientX;
       const startY = e.clientY;
@@ -1261,8 +1261,8 @@ function bindSubSectionDropZone(ss) {
       const parentSec = ss.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); }
       ss.classList.add('selected');
-      window._activeSubSection = ss;
-      window.showSubSectionProperties?.(ss);
+      window._activeFrame = ss;
+      window.showFrameProperties?.(ss);
 
       const onMove = ev => {
         const dx = ev.clientX - startX;
@@ -1321,8 +1321,8 @@ function bindSubSectionDropZone(ss) {
     // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
     // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
     if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block')) return;
-    // ss 또는 sub-section-inner 빈 공간 클릭만 처리
-    if (!e.target.closest('.sub-section-block')) return;
+    // ss 또는 frame-inner 빈 공간 클릭만 처리
+    if (!e.target.closest('.frame-block')) return;
     e.stopPropagation();
     // deselectAll 직접 호출 (selectSection은 showSectionProperties 부작용 있음)
     window.deselectAll?.();
@@ -1332,9 +1332,9 @@ function bindSubSectionDropZone(ss) {
       window.syncLayerActive?.(parentSec);
     }
     ss.classList.add('selected');
-    window._activeSubSection = ss;
+    window._activeFrame = ss;
     window.highlightBlock?.(ss, ss._layerItem);
-    window.showSubSectionProperties?.(ss);
+    window.showFrameProperties?.(ss);
   });
 
   // 4코너 리사이즈 핸들 — shape frame 제외
@@ -1532,9 +1532,9 @@ function bindSubSectionDropZone(ss) {
       const parentSec = ss.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
       ss.classList.add('selected');
-      window._activeSubSection = ss;
+      window._activeFrame = ss;
       window.highlightBlock?.(ss, ss._layerItem);
-      window.showSubSectionProperties?.(ss);
+      window.showFrameProperties?.(ss);
     }
   });
 
@@ -1561,7 +1561,7 @@ export {
   bindSectionDrag,
   bindSectionDropZone,
   bindBlock,
-  bindSubSectionDropZone,
+  bindFrameDropZone,
 };
 
 // Backward compat
@@ -1574,7 +1574,7 @@ window.bindGroupDrag               = bindGroupDrag;
 window.bindSectionDrag             = bindSectionDrag;
 window.bindSectionDropZone         = bindSectionDropZone;
 window.bindBlock                   = bindBlock;
-window.bindSubSectionDropZone      = bindSubSectionDropZone;
+window.bindFrameDropZone      = bindFrameDropZone;
 
 // 드래그 중단(ESC 등)으로 dragging 클래스가 고착되는 현상 방지
 document.addEventListener('dragend', () => {

@@ -3,7 +3,7 @@
    makeLayer* 렌더러는 layer-panel-items.js로 분리 (2025-03-31)
 ═══════════════════════════════════ */
 import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem,
-         makeLayerSubSectionItem, makeLayerAssetItem, makeLayerCardItem } from './layer-panel-items.js';
+         makeLayerFrameItem, makeLayerAssetItem, makeLayerCardItem } from './layer-panel-items.js';
 
 export function buildLayerPanel() {
   const panel = document.getElementById('layer-panel-body');
@@ -171,8 +171,8 @@ export function buildLayerPanel() {
         .filter(el => !el.classList.contains('drop-indicator'));
 
       const renderBlock = (block) => {
-        if (block.classList.contains('sub-section-block')) {
-          const ssItem = makeLayerSubSectionItem(block, sec, appendRowToLayer);
+        if (block.classList.contains('frame-block')) {
+          const ssItem = makeLayerFrameItem(block, sec, appendRowToLayer);
           ssItem._dragTarget = child;
           container.appendChild(ssItem);
         } else if (block.classList.contains('asset-block')) {
@@ -194,8 +194,8 @@ export function buildLayerPanel() {
         appendRowToLayer(child, children);
       } else if (child.classList.contains('group-block')) {
         children.appendChild(makeLayerGroupItem(child, sec, appendRowToLayer));
-      } else if (child.classList.contains('sub-section-block')) {
-        children.appendChild(makeLayerSubSectionItem(child, sec, appendRowToLayer));
+      } else if (child.classList.contains('frame-block')) {
+        children.appendChild(makeLayerFrameItem(child, sec, appendRowToLayer));
       }
     });
 

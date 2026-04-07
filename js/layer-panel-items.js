@@ -550,15 +550,15 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
 
 /* 레이어 Frame 아이템 생성 */
-function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
+function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const wrapper = document.createElement('div');
   wrapper.className = 'layer-item';
   wrapper._dragTarget = ssEl;
 
   const name = ssEl.dataset.layerName || 'Frame';
 
-  // 직접 자식(sub-section-inner)에 shape-block이 있으면 Shape 타입으로 표시 (하위 트리 전체 탐색 금지)
-  const innerShapeBlock = ssEl.querySelector(':scope > .sub-section-inner > .shape-block');
+  // 직접 자식(frame-inner)에 shape-block이 있으면 Shape 타입으로 표시 (하위 트리 전체 탐색 금지)
+  const innerShapeBlock = ssEl.querySelector(':scope > .frame-inner > .shape-block');
   const shapeType = innerShapeBlock ? (innerShapeBlock.dataset.shapeType || 'rectangle') : null;
   const shapeKey  = shapeType ? `shape-${shapeType}` : null;
   const shapeTypeLbls = { 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
@@ -579,11 +579,11 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
     const parentSec = ssEl.closest('.section-block');
     if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
     ssEl.classList.add('selected');
-    window._activeSubSection = ssEl;
+    window._activeFrame = ssEl;
     document.querySelectorAll('.layer-item.active').forEach(g => g.classList.remove('active'));
     wrapper.classList.add('active');
     window.highlightBlock?.(ssEl, wrapper);
-    window.showSubSectionProperties?.(ssEl);
+    window.showFrameProperties?.(ssEl);
   });
   wrapper.addEventListener('dragstart', e => {
     e.stopPropagation();
@@ -602,12 +602,12 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
   const ssChildren = document.createElement('div');
   ssChildren.className = 'layer-row-children';
 
-  const ssInner = ssEl.querySelector('.sub-section-inner');
+  const ssInner = ssEl.querySelector('.frame-inner');
   if (ssInner) {
     [...ssInner.children].forEach(child => {
-      if (child.classList.contains('sub-section-block')) {
+      if (child.classList.contains('frame-block')) {
         // 중첩 프레임 — 재귀 렌더링 (depth +1)
-        ssChildren.appendChild(makeLayerSubSectionItem(child, sec, appendRowFn, depth + 1));
+        ssChildren.appendChild(makeLayerFrameItem(child, sec, appendRowFn, depth + 1));
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
@@ -652,11 +652,11 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
       const parentSec = ssEl.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
       ssEl.classList.add('selected');
-      window._activeSubSection = ssEl;
+      window._activeFrame = ssEl;
       document.querySelectorAll('.layer-row-header.active').forEach(h => h.classList.remove('active'));
       header.classList.add('active');
       window.highlightBlock?.(ssEl, header);
-      window.showSubSectionProperties?.(ssEl);
+      window.showFrameProperties?.(ssEl);
     });
     header.addEventListener('dragstart', e => {
       e.stopPropagation();
@@ -687,7 +687,7 @@ export {
   addLayerRename,
   makeLayerBlockItem,
   makeLayerGroupItem,
-  makeLayerSubSectionItem,
+  makeLayerFrameItem,
   makeLayerAssetItem,
   makeLayerCardItem,
 };

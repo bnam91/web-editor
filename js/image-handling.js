@@ -574,7 +574,7 @@ function exitBgPosDragMode(el) {
   window.scheduleAutoSave?.();
   // 프로퍼티 패널 갱신
   if (el.classList.contains('section-block')) window.showSectionProperties?.(el);
-  else if (el.classList.contains('sub-section-block')) window.showSubSectionProperties?.(el);
+  else if (el.classList.contains('frame-block')) window.showFrameProperties?.(el);
 }
 
 window.enterBgPosDragMode = enterBgPosDragMode;

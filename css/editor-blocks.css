@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════
    SUB-SECTION BLOCK — 섹션 안 하위 섹션
 ═══════════════════════════════════ */
-.sub-section-block {
+.frame-block {
   position: relative;
   width: 100%;
   max-width: 100%;
@@ -9,12 +9,12 @@
   cursor: default;
   overflow: visible;
 }
-.sub-section-block.selected {
+.frame-block.selected {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
   cursor: grab;
 }
-.sub-section-block:hover:not(.selected)::after {
+.frame-block:hover:not(.selected)::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -23,18 +23,18 @@
   z-index: 100;
 }
 /* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block 제외) */
-.sub-section-block:not(.selected) .sub-section-inner *:not(.shape-block):not(.shape-handle) {
+.frame-block:not(.selected) .frame-inner *:not(.shape-block):not(.shape-handle) {
   pointer-events: none;
 }
 /* 선택된 프레임의 핸들은 부모 pointer-events:none 규칙보다 우선 적용 */
-.sub-section-block.selected > .ss-resize-handle {
+.frame-block.selected > .ss-resize-handle {
   pointer-events: auto !important;
 }
 /* 선택 상태: 자식 pointer-events 복원 */
-.sub-section-block.selected .sub-section-inner * {
+.frame-block.selected .frame-inner * {
   pointer-events: auto;
 }
-.sub-section-block.ss-drag-over {
+.frame-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
   background-color: var(--color-selection-fill-dim) !important;
 }
@@ -50,12 +50,12 @@
   display: none;
   box-sizing: border-box;
 }
-.sub-section-block.selected > .ss-resize-handle { display: block; }
+.frame-block.selected > .ss-resize-handle { display: block; }
 .ss-resize-handle.nw { top:    calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
 .ss-resize-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .ss-resize-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
 .ss-resize-handle.se { bottom: calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
-.sub-section-inner {
+.frame-inner {
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -188,14 +188,14 @@
 
 /* 배경 이미지 위치 드래그 모드 (섹션 / 서브섹션) */
 .section-block.bg-pos-dragging,
-.sub-section-block.bg-pos-dragging {
+.frame-block.bg-pos-dragging {
   outline: 1px solid var(--sel-color) !important;
   outline-offset: -2px;
   cursor: grab;
   user-select: none;
 }
 .section-block.bg-pos-dragging:active,
-.sub-section-block.bg-pos-dragging:active { cursor: grabbing; }
+.frame-block.bg-pos-dragging:active { cursor: grabbing; }
 
 /* 프로퍼티 패널 내 액션 버튼 (이미지 선택/제거) */
 .prop-action-btn {
@@ -249,7 +249,7 @@
 .row:active { cursor: grabbing; }
 .row [contenteditable="true"] { cursor: text; }
 .row [contenteditable="true"]:active { cursor: text; }
-.row.dragging, .gap-block.dragging, .sub-section-block.dragging { opacity: 0.25; pointer-events: none; cursor: grabbing; }
+.row.dragging, .gap-block.dragging, .frame-block.dragging { opacity: 0.25; pointer-events: none; cursor: grabbing; }
 
 /* 캔버스 드롭 인디케이터 — 줌 보정을 위해 두껍게 */
 .drop-indicator {
@@ -964,15 +964,15 @@
 }
 
 /* shape 선택 시 부모 overflow 해제 — 핸들이 잘리지 않도록 */
-.sub-section-block:has(.shape-block.selected) {
+.frame-block:has(.shape-block.selected) {
   overflow: visible;
 }
-.sub-section-inner:has(.shape-block.selected) {
+.frame-inner:has(.shape-block.selected) {
   overflow: visible;
 }
 
-/* shape frame: sub-section-inner가 frame 높이를 100% 채우도록 */
-.sub-section-block:has(.shape-block) .sub-section-inner {
+/* shape frame: frame-inner가 frame 높이를 100% 채우도록 */
+.frame-block:has(.shape-block) .frame-inner {
   height: 100%;
 }
 
@@ -995,29 +995,29 @@
 .shape-handle.se { bottom: calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
 
 /* Suppress child block hover outlines & fill overlays inside unselected frames */
-.sub-section-block:not(.selected) .text-block:hover,
-.sub-section-block:not(.selected) .asset-block:hover,
-.sub-section-block:not(.selected) .gap-block:hover,
-.sub-section-block:not(.selected) .icon-circle-block:hover,
-.sub-section-block:not(.selected) .table-block:hover,
-.sub-section-block:not(.selected) .label-group-block:hover,
-.sub-section-block:not(.selected) .card-block:hover,
-.sub-section-block:not(.selected) .graph-block:hover,
-.sub-section-block:not(.selected) .divider-block:hover,
-.sub-section-block:not(.selected) .icon-text-block:hover,
-.sub-section-block:not(.selected) .shape-block:hover {
+.frame-block:not(.selected) .text-block:hover,
+.frame-block:not(.selected) .asset-block:hover,
+.frame-block:not(.selected) .gap-block:hover,
+.frame-block:not(.selected) .icon-circle-block:hover,
+.frame-block:not(.selected) .table-block:hover,
+.frame-block:not(.selected) .label-group-block:hover,
+.frame-block:not(.selected) .card-block:hover,
+.frame-block:not(.selected) .graph-block:hover,
+.frame-block:not(.selected) .divider-block:hover,
+.frame-block:not(.selected) .icon-text-block:hover,
+.frame-block:not(.selected) .shape-block:hover {
   outline: none !important;
 }
-.sub-section-block:not(.selected) .gap-block:hover::after,
-.sub-section-block:not(.selected) .icon-circle-block:hover::after,
-.sub-section-block:not(.selected) .table-block:hover::after,
-.sub-section-block:not(.selected) .graph-block:hover::after,
-.sub-section-block:not(.selected) .card-block:hover::after,
-.sub-section-block:not(.selected) .divider-block:hover::after,
-.sub-section-block:not(.selected) .label-group-block:hover::after,
-.sub-section-block:not(.selected) .shape-block:hover::after {
+.frame-block:not(.selected) .gap-block:hover::after,
+.frame-block:not(.selected) .icon-circle-block:hover::after,
+.frame-block:not(.selected) .table-block:hover::after,
+.frame-block:not(.selected) .graph-block:hover::after,
+.frame-block:not(.selected) .card-block:hover::after,
+.frame-block:not(.selected) .divider-block:hover::after,
+.frame-block:not(.selected) .label-group-block:hover::after,
+.frame-block:not(.selected) .shape-block:hover::after {
   display: none !important;
 }
-.sub-section-block:not(.selected) .row:has(.text-block:hover) {
+.frame-block:not(.selected) .row:has(.text-block:hover) {
   outline: none !important;
 }
