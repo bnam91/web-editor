@@ -1534,8 +1534,26 @@ function bindFrameDropZone(ss) {
         block.setAttribute('draggable', 'false');
       };
 
-      // row 또는 text-frame이 드롭된 경우 → 블록 추출 후 absolute 전환, wrapper 제거
+      // row 또는 text-frame이 드롭된 경우
       if (dragSrc.classList.contains('row') || (dragSrc.classList.contains('frame-block') && dragSrc.dataset.textFrame === 'true')) {
+        if (dragSrc.dataset.textFrame === 'true') {
+          // text-frame: wrapper를 유지하고 text-frame 자체를 absolute로 전환
+          // (text-block을 꺼내면 orphan이 되므로 금지)
+          const existingAbsEls = [...inner.children].filter(b => b.style.position === 'absolute');
+          const nextY = existingAbsEls.reduce((maxY, b) => {
+            const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
+            return Math.max(maxY, by);
+          }, 0);
+          dragSrc.style.position = 'absolute';
+          dragSrc.style.left     = '0px';
+          dragSrc.style.top      = (nextY > 0 ? nextY + 16 : 0) + 'px';
+          if (!dragSrc.style.width || dragSrc.style.width === '') {
+            dragSrc.style.width = '100%';
+          }
+          // draggable은 그대로 유지 (text-frame이 drag-target이므로 변경 금지)
+          inner.appendChild(dragSrc);
+        } else {
+        // row: 블록 추출 후 absolute 전환, wrapper 제거
         const blocks = [...dragSrc.querySelectorAll(BLOCK_SEL)];
         const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)];
         let nextY = existingBlocks.reduce((maxY, b) => {
@@ -1549,6 +1567,7 @@ function bindFrameDropZone(ss) {
           nextY += (block.offsetHeight || 60) + 16;
         });
         dragSrc.remove();
+        }
       } else {
         // dragSrc가 inner의 조상인 경우 삽입 금지 (HierarchyRequestError 방지)
         if (dragSrc.contains(inner)) { clearDropIndicators(); return; }
