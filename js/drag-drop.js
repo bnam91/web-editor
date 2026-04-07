@@ -504,11 +504,19 @@ function bindBlock(block) {
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
 
+      const rawLeft = Math.round(startLeft + dx / scale);
+      const rawTop  = Math.round(startTop  + dy / scale);
+
       // 드래그아웃 감지 (단일 선택 + 다중선택 없을 때만)
+      // 커서 화면 좌표 대신 요소 중심의 캔버스 좌표로 판단 — scale 오탐 방지
       if (_dragOutParentFrame && _dragOutParentSection && multiPeers.length === 0) {
-        const frameRect = _dragOutParentFrame.getBoundingClientRect();
-        const outside = ev.clientX < frameRect.left || ev.clientX > frameRect.right ||
-                        ev.clientY < frameRect.top  || ev.clientY > frameRect.bottom;
+        const DRAGOUT_MARGIN = 60; // 캔버스 px — 의도치 않은 drag-out 방지
+        const elCX = rawLeft + dragEl.offsetWidth  / 2;
+        const elCY = rawTop  + dragEl.offsetHeight / 2;
+        const fw   = _dragOutParentFrame.offsetWidth;
+        const fh   = _dragOutParentFrame.offsetHeight;
+        const outside = elCX < -DRAGOUT_MARGIN || elCX > fw + DRAGOUT_MARGIN ||
+                        elCY < -DRAGOUT_MARGIN || elCY > fh + DRAGOUT_MARGIN;
         if (outside) {
           draggedOutside = true;
           hideGuides();
@@ -528,9 +536,6 @@ function bindBlock(block) {
           clearDropIndicators();
         }
       }
-
-      const rawLeft = Math.round(startLeft + dx / scale);
-      const rawTop  = Math.round(startTop  + dy / scale);
 
       // 스마트 가이드 스냅 (단일 선택일 때만 — 다중선택 시 스냅 생략)
       const parentFrame = dragEl.closest('.frame-block[data-free-layout]');

@@ -187,6 +187,24 @@ if (_tb) { _tb._blockBound = false; bindBlock(_tb); }
 
 **절대 하지 말 것**: text-frame을 freeLayout에 추가한 후 `draggable` 속성을 "그대로 유지"하는 주석 복원 금지
 
+#### drag-drop.js — 드롭 인디케이터 위치 저장 규칙
+
+드롭 인디케이터(`.drop-indicator`)를 기준으로 삽입 위치를 결정할 때, `onUp`에서 indicator를 DOM으로 다시 찾으면 이미 제거된 후일 수 있다.
+
+**올바른 패턴**: `onMove`에서 삽입 기준 element를 closure 변수에 직접 저장.
+```js
+// onMove에서 저장
+let _dropInsertBefore = null;
+_dropInsertBefore = getDragAfterElement(inner, ev.clientY) || null;
+
+// onUp에서 사용 (clearDropIndicators() 호출 후에도 유효)
+const ref = _dropInsertBefore && _dropInsertBefore.parentNode === inner ? _dropInsertBefore : null;
+if (ref) inner.insertBefore(dragEl, ref);
+else     inner.appendChild(dragEl);
+```
+
+**절대 하지 말 것**: `indicator.nextSibling`을 onUp에서 저장하거나 `inner.querySelector('.drop-indicator')`를 `clearDropIndicators()` 이후에 호출하는 것.
+
 #### 스마트 가이드 (`js/smart-guides.js`)
 
 - `SNAP_THRESHOLD = 10px` — 이 범위 내 접근 시 정렬 위치로 자석 스냅
