@@ -170,7 +170,6 @@ function addIconTextBlock() {
   const { row, block } = makeIconTextBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -219,7 +218,6 @@ function addLabelGroupBlock(opts = {}) {
   if (opts.shape) block.dataset.shape = opts.shape;
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -327,7 +325,6 @@ function addTextBlock(type, opts = {}) {
 
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -531,7 +528,6 @@ function addPresetRow(type) {
   insertAfterSelected(sec, row);
   if (allBlocks) allBlocks.forEach(b => bindBlock(b));
   else if (firstBlock) bindBlock(firstBlock);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
   // 첫 번째 asset-block 자동 선택 (이미지 업로드 유도)
@@ -590,7 +586,6 @@ function addAssetBlock(preset, opts = {}) {
   insertAfterSelected(sec, row);
   applyExcludePadX(block);   // DOM 삽입 후 실행
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -648,7 +643,6 @@ function addIconCircleBlock(opts = {}) {
   }
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -675,7 +669,6 @@ function addTableBlock(opts = {}) {
   }
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -712,9 +705,6 @@ function addCardBlock(count = 2, opts = {}) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
 
-  const activeCol = document.querySelector('.col.col-active')
-    || (state._lastActiveCol?.isConnected ? state._lastActiveCol : null);
-
   window.pushHistory();
 
   const cardCount = (count >= 2 && count <= 4) ? count : 2;
@@ -723,6 +713,7 @@ function addCardBlock(count = 2, opts = {}) {
   row.id = genId('row');
   row.dataset.layout = 'grid';
   row.dataset.ratioStr = `${cardCount}*1`;
+  row.dataset.cardGrid = '1';
   row.style.display = 'grid';
   row.style.gridTemplateColumns = `repeat(${cardCount}, 1fr)`;
   row.style.minHeight = '430px';
@@ -730,8 +721,6 @@ function addCardBlock(count = 2, opts = {}) {
   row.dataset.gap = '16';
 
   for (let i = 0; i < cardCount; i++) {
-    const col = document.createElement('div');
-    col.className = 'col';
     const { block } = makeCardBlock();
     if (opts.bgColor) {
       block.dataset.bgColor = opts.bgColor;
@@ -743,18 +732,11 @@ function addCardBlock(count = 2, opts = {}) {
       const body = block.querySelector('.cdb-body');
       if (body) body.style.borderRadius = `0 0 ${opts.radius}px ${opts.radius}px`;
     }
-    col.appendChild(block);
-    row.appendChild(col);
+    row.appendChild(block);
     bindBlock(block);
   }
 
-  if (activeCol) {
-    activeCol.querySelector('.col-placeholder')?.remove();
-    activeCol.appendChild(row);
-  } else {
-    insertAfterSelected(sec, row);
-  }
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
+  insertAfterSelected(sec, row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -794,7 +776,6 @@ function addGraphBlock(opts = {}) {
   }
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -836,7 +817,6 @@ function addDividerBlock(opts = {}) {
   if (opts.color || opts.lineStyle || opts.weight !== undefined) applyDividerStyle(block);
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -944,8 +924,6 @@ function addSection(opts = {}) {
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.sub-section-block').forEach(ss => window.bindSubSectionDropZone?.(ss));
-  if (window.bindRowColAdd) sec.querySelectorAll('.row').forEach(row => window.bindRowColAdd(row));
-  sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
   window.buildLayerPanel();
@@ -1013,7 +991,6 @@ function addJokerBlock(opts = {}) {
   const { row, block } = makeJokerBlock(opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -1096,7 +1073,6 @@ function _insertToFlowSubSection(makeBlockFn) {
   if (result && result.row) {
     inner.appendChild(result.row);
     bindBlock(result.block);
-    if (window.bindRowColAdd) window.bindRowColAdd(result.row);
   } else if (result) {
     inner.appendChild(result);
     bindBlock(result);

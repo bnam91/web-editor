@@ -77,22 +77,6 @@
   pointer-events: none;
 }
 
-/* Row col-add 버튼 — 캔버스 노출 없음, prop-row 패널에서 관리 */
-.row-col-add-btn { display: none !important; }
-
-/* ═══════════════════════════════════
-   COL — 열 단위
-   data-width: "100" | "75" | "66" | "50" | "33" | "25"
-═══════════════════════════════════ */
-.col { position: relative; min-width: 0; display: flex; flex-direction: column; }
-.col.col-active { outline: 1px solid var(--sel-color); outline-offset: -1px; }
-.col.col-active .col-placeholder { background: rgba(45, 111, 232, 0.08); }
-.col[data-width="100"] { flex: 100; }
-.col[data-width="75"]  { flex: 75; }
-.col[data-width="66"]  { flex: 66; }
-.col[data-width="50"]  { flex: 50; }
-.col[data-width="33"]  { flex: 33; }
-.col[data-width="25"]  { flex: 25; }
 
 /* ═══════════════════════════════════
    TEXT BLOCK
@@ -268,64 +252,6 @@
 /* ═══════════════════════════════════
    ASSET BLOCK — 860×780 표준 (풀블리드)
 ═══════════════════════════════════ */
-/* Col Placeholder */
-.col-placeholder {
-  position: relative;
-  width: 100%; height: 100%; min-height: 280px;
-  display: flex; align-items: center; justify-content: center;
-  background: #f2f2f2;
-}
-/* grid에 grid-template-rows 지정 시 placeholder 최소높이 억제 */
-.row[data-layout="grid"][style*="grid-template-rows"] .col-placeholder {
-  min-height: 0;
-}
-/* grid/flex col 안의 asset은 부모 col 높이에 맞춤 */
-.row[data-layout="grid"] > .col > .asset-block,
-.row[data-layout="flex"] > .col > .asset-block {
-  height: 100%;
-}
-/* text block은 자연스럽게 늘어나도록 — col이 내용에 맞게 성장 */
-.row[data-layout="grid"] > .col > .text-block,
-.row[data-layout="flex"] > .col > .text-block {
-  height: auto;
-  min-height: 0;
-}
-.col-add-btn {
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  border: 1px solid rgba(0,0,0,0.13);
-  background: rgba(255,255,255,0.6);
-  color: rgba(0,0,0,0.2);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  opacity: 0.5;
-  transition: opacity .15s, border-color .15s, color .15s, background .15s;
-  transform: scale(var(--inv-zoom, 1));
-}
-.col-add-btn:hover {
-  opacity: 1;
-  border-color: rgba(45,111,232,0.35);
-  color: var(--ui-accent-primary);
-  background: #fff;
-}
-.col-add-menu {
-  position: absolute; top: calc(50% + 24px); left: 50%;
-  transform: translateX(-50%) scale(var(--inv-zoom, 1));
-  transform-origin: top center;
-  background: var(--ui-bg-base); border: 1px solid var(--ui-border);
-  border-radius: 8px; padding: 4px;
-  min-width: 110px; z-index: 200;
-  box-shadow: 0 4px 16px rgba(0,0,0,.4);
-}
-.col-add-item {
-  display: block; width: 100%;
-  padding: 7px 12px; text-align: left;
-  background: none; border: none;
-  color: #ddd; font-size: 12px;
-  border-radius: 5px; cursor: pointer;
-}
-.col-add-item:hover { background: var(--ui-accent-primary); color: #fff; }
-.col-add-divider { height: 1px; background: var(--ui-border); margin: 4px 0; }
 
 .asset-block {
   position: relative;

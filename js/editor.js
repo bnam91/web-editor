@@ -336,10 +336,6 @@ function _bindPastedEl(el) {
     ss._subSecBound = false;
     window.bindSubSectionDropZone?.(ss);
   });
-  el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
-    const col = ph.parentElement;
-    col.replaceChild(makeColPlaceholder(col), ph);
-  });
 }
 
 function pasteClipboard() {

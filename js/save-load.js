@@ -328,8 +328,21 @@ function migrateColsFromDOM(canvasEl) {
     });
     col.remove();
   });
+  // Card grid row: col → 직속 card-block (NewGrid 변환 제외)
+  canvasEl.querySelectorAll('.row[data-layout="grid"][data-card-grid], .row[data-layout="grid"]').forEach(row => {
+    const cols = [...row.querySelectorAll(':scope > .col')];
+    if (cols.length === 0) return;
+    const isCardGrid = cols.every(c => c.querySelector(':scope > .card-block'));
+    if (!isCardGrid) return;
+    cols.forEach(col => {
+      [...col.childNodes].forEach(child => row.appendChild(child));
+      col.remove();
+    });
+    row.dataset.cardGrid = '1';
+  });
   // Flex/Grid row: col → NewGrid 변환
   canvasEl.querySelectorAll('.row[data-layout="flex"], .row[data-layout="grid"]').forEach(row => {
+    if (row.dataset.cardGrid) return; // 카드 그리드는 위에서 처리
     const cols = [...row.querySelectorAll(':scope > .col')];
     if (cols.length < 2) {
       // 단일 col이면 stack처럼 처리
@@ -466,7 +479,6 @@ function rebindAll() {
       row.style.paddingLeft  = row.dataset.paddingX + 'px';
       row.style.paddingRight = row.dataset.paddingX + 'px';
     }
-    if (window.bindRowColAdd) window.bindRowColAdd(row);
   });
 
   // 저장 시 제거된 contenteditable 속성 복원 (텍스트 블록 내부 편집 가능 요소)
