@@ -22,41 +22,6 @@ import {
    BLOCK FACTORY — make* / add* / addSection
 ═══════════════════════════════════ */
 
-/* ── col-active 헬퍼: col이 선택된 상태면 해당 col에 직접 추가 (액자식 중첩) ── */
-function _insertToActiveCol(make, isRowBlock = true) {
-  const activeCol = document.querySelector('.col.col-active')
-    || (state._lastActiveCol?.isConnected ? state._lastActiveCol : null);
-  if (!activeCol) return false;
-  // stack 단일 col에 row 중첩 방지: leaf 블록이 이미 있으면 section-level 삽입으로 폴백
-  if (isRowBlock) {
-    const parentRow = activeCol.closest('.row');
-    if (parentRow && (parentRow.dataset.layout || 'stack') === 'stack') {
-      const hasLeaf = [...activeCol.children].some(c =>
-        !c.classList.contains('col-placeholder') && !c.classList.contains('row') &&
-        (c.classList.contains('text-block') || c.classList.contains('icon-text-block') ||
-         c.classList.contains('asset-block') || c.classList.contains('gap-block') ||
-         c.classList.contains('divider-block') || c.classList.contains('label-group-block'))
-      );
-      if (hasLeaf) return false;
-    }
-  }
-  window.pushHistory();
-  activeCol.querySelector('.col-placeholder')?.remove();
-  if (isRowBlock) {
-    const { row, block } = make();
-    activeCol.appendChild(row);
-    bindBlock(block);
-    if (window.bindRowColAdd) window.bindRowColAdd(row);
-    row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
-  } else {
-    const block = make();
-    activeCol.appendChild(block);
-    bindBlock(block);
-  }
-  window.buildLayerPanel();
-  return true;
-}
-
 /* ── 오버레이 삽입 헬퍼 ── */
 function getSelectedOverlay() {
   const ab = document.querySelector('.asset-block.selected[data-overlay="true"]');
@@ -96,12 +61,6 @@ function makeTextBlock(type) {
   const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
   const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', h3:'소항목을 입력하세요', body:'본문 내용을 입력하세요.', caption:'캡션을 입력하세요', label:'Label' };
 
-  const row = document.createElement('div');
-  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
   const tb = document.createElement('div');
   tb.className = 'text-block'; tb.dataset.type = dataType;
   tb.id = genId('tb');
@@ -109,17 +68,23 @@ function makeTextBlock(type) {
   tb.innerHTML = `
     <div class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>`;
 
-  col.appendChild(tb);
-  row.appendChild(col);
-  return { row, block: tb };
+  return { block: tb };
+}
+
+/* 텍스트 블록 전용 frame wrapper — width:100%, 자동 높이, 선택 투명 */
+function _makeTextFrame() {
+  const ss = document.createElement('div');
+  ss.className = 'frame-block';
+  ss.id = genId('ss');
+  ss.dataset.textFrame = 'true';
+  ss.dataset.bg = 'transparent';
+  ss.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
+  return ss;
 }
 
 function makeAssetBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const ab = document.createElement('div');
   ab.className = 'asset-block';
@@ -129,8 +94,7 @@ function makeAssetBlock() {
   ab.style.alignSelf = 'center';
   ab.innerHTML = `<div class="asset-overlay"></div>`;
 
-  col.appendChild(ab);
-  row.appendChild(col);
+  row.appendChild(ab);
   return { row, block: ab };
 }
 
@@ -145,9 +109,6 @@ function makeIconCircleBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
 
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
-
   const icb = document.createElement('div');
   icb.className = 'icon-circle-block'; icb.dataset.type = 'icon-circle';
   icb.id = genId('icb');
@@ -159,17 +120,13 @@ function makeIconCircleBlock() {
       <span class="icb-placeholder"></span>
     </div>`;
 
-  col.appendChild(icb);
-  row.appendChild(col);
+  row.appendChild(icb);
   return { row, block: icb };
 }
 
 function makeLabelGroupBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const block = document.createElement('div');
   block.className = 'label-group-block';
@@ -185,16 +142,13 @@ function makeLabelGroupBlock() {
   addBtn.title = '라벨 추가';
   block.appendChild(addBtn);
 
-  col.appendChild(block);
-  row.appendChild(col);
+  row.appendChild(block);
   return { row, block };
 }
 
 function makeIconTextBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const itb = document.createElement('div');
   itb.className = 'icon-text-block';
@@ -211,21 +165,18 @@ function makeIconTextBlock() {
 
   itb.appendChild(iconSlot);
   itb.appendChild(bodyEl);
-  col.appendChild(itb);
-  row.appendChild(col);
+  row.appendChild(itb);
   return { row, block: itb };
 }
 
 function addIconTextBlock() {
-  if (_insertToFlowSubSection(() => makeIconTextBlock())) return;
-  if (_insertToActiveCol(() => makeIconTextBlock(), true)) return;
+  if (_insertToFlowFrame(() => makeIconTextBlock())) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const { row, block } = makeIconTextBlock();
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -249,7 +200,7 @@ function addLabelGroupBlock(opts = {}) {
     window.buildLayerPanel();
     return;
   }
-  if (_insertToFlowSubSection(() => {
+  if (_insertToFlowFrame(() => {
     const { row, block } = makeLabelGroupBlock();
     if (opts.labels && opts.labels.length > 0) {
       block.querySelectorAll('.label-item').forEach(l => l.remove());
@@ -274,7 +225,6 @@ function addLabelGroupBlock(opts = {}) {
   if (opts.shape) block.dataset.shape = opts.shape;
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -282,9 +232,6 @@ function addLabelGroupBlock(opts = {}) {
 function makeTableBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const tb = document.createElement('div');
   tb.className = 'table-block'; tb.dataset.type = 'table';
@@ -308,12 +255,11 @@ function makeTableBlock() {
       </tbody>
     </table>`;
 
-  col.appendChild(tb);
-  row.appendChild(col);
+  row.appendChild(tb);
   return { row, block: tb };
 }
 
-function applyTextOpts(block, row, opts, type) {
+function applyTextOpts(block, frame, opts, type) {
   const contentEl = block.querySelector('[class^="tb-"]');
   if (opts.content && contentEl) {
     contentEl.style.whiteSpace = 'pre-wrap';
@@ -325,19 +271,20 @@ function applyTextOpts(block, row, opts, type) {
   }
   if (opts.color && contentEl) contentEl.style.color = opts.color;
   if (opts.fontSize && contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
-  if (opts.paddingX !== undefined) {
-    row.style.paddingLeft  = opts.paddingX + 'px';
-    row.style.paddingRight = opts.paddingX + 'px';
-    row.dataset.paddingX   = opts.paddingX;
+  if (opts.paddingX !== undefined && frame) {
+    frame.style.paddingLeft  = opts.paddingX + 'px';
+    frame.style.paddingRight = opts.paddingX + 'px';
+    frame.dataset.paddingX   = opts.paddingX;
   }
 }
 
 function addTextBlock(type, opts = {}) {
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
+  // overlay 내부에서는 row wrapper를 로컬로 생성해 기존 구조 유지
   const overlay = getSelectedOverlay();
   if (overlay) {
     window.pushHistory();
-    const { row, block } = makeTextBlock(type);
+    const { block } = makeTextBlock(type);
     block.classList.add('overlay-tb');
     const overlayAlign = opts.align || getOverlayAlign(overlay);
     if (overlayAlign) {
@@ -357,48 +304,68 @@ function addTextBlock(type, opts = {}) {
       const contentEl = block.querySelector('[class^="tb-"]');
       if (contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
     }
+    // overlay 내 row wrapper (overlay 구조 유지용)
+    const overlayRow = document.createElement('div');
+    overlayRow.className = 'row'; overlayRow.dataset.layout = 'stack';
     if (opts.paddingX !== undefined) {
-      row.style.paddingLeft  = opts.paddingX + 'px';
-      row.style.paddingRight = opts.paddingX + 'px';
-      row.dataset.paddingX   = opts.paddingX;
+      overlayRow.style.paddingLeft  = opts.paddingX + 'px';
+      overlayRow.style.paddingRight = opts.paddingX + 'px';
+      overlayRow.dataset.paddingX   = opts.paddingX;
     }
-    insertIntoOverlay(overlay, row);
+    overlayRow.appendChild(block);
+    insertIntoOverlay(overlay, overlayRow);
     bindBlock(block);
     window.buildLayerPanel();
     return;
   }
 
-  // fullWidth sub-section 활성화 분기
-  if (_insertToFlowSubSection(() => {
-    const { row, block } = makeTextBlock(type);
-    applyTextOpts(block, row, opts, type);
-    return { row, block };
-  })) return;
+  // 활성 프레임(frame-block) 분기 — freeLayout / fullWidth 모두 처리
+  const activeSS = window._activeFrame;
+  if (activeSS) {
+    window.pushHistory();
+    const { block } = makeTextBlock(type);
+    const tf = _makeTextFrame();
+    applyTextOpts(block, tf, opts, type);
+    tf.appendChild(block);
 
-  // col-active 분기: 특정 col에 직접 삽입 (API 자동화용)
-  if (_insertToActiveCol(() => {
-    const { row, block } = makeTextBlock(type);
-    applyTextOpts(block, row, opts, type);
-    return { row, block };
-  }, true)) return;
+    if (activeSS.dataset.freeLayout === 'true') {
+      // B 모드: 자유배치 프레임 — text-frame을 absolute로 추가
+      const stackY = _calcFreeLayoutStackY(activeSS);
+      tf.style.position = 'absolute';
+      tf.style.left     = '0px';
+      tf.style.top      = stackY + 'px';
+      tf.style.width    = '100%';
+      activeSS.appendChild(tf);
+    } else if (activeSS.dataset.fullWidth === 'true') {
+      // A 모드: fullWidth 플로우 — text-frame을 flow child로 추가
+      activeSS.appendChild(tf);
+    } else {
+      return; // 지원하지 않는 프레임 타입
+    }
+    bindBlock(block);
+    window.buildLayerPanel();
+    return;
+  }
 
+  // 섹션에 직접 추가
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
-  const { row, block } = makeTextBlock(type);
+  const { block } = makeTextBlock(type);
+  const tf = _makeTextFrame();
 
   // opts.align 없으면 섹션 정렬 상속
   const alignedOpts = { ...opts, align: opts.align || getSectionAlign(sec) };
-  applyTextOpts(block, row, alignedOpts, type);
+  applyTextOpts(block, tf, alignedOpts, type);
+  tf.appendChild(block);
 
-  insertAfterSelected(sec, row);
+  insertAfterSelected(sec, tf);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
 
-function promoteToSubSection(block) {
+function promoteToFrame(block) {
   const col = block.closest('.col');
   if (!col) {
     if (window.showToast) window.showToast('열(col) 안의 블록만 컨테이너로 전환할 수 있어요.');
@@ -410,18 +377,13 @@ function promoteToSubSection(block) {
   const ssH = Math.max(block.offsetHeight, 120);
 
   const ss = document.createElement('div');
-  ss.className = 'sub-section-block';
+  ss.className = 'frame-block';
   ss.id = genId('ss');
   ss.dataset.bg = 'transparent';
   ss.dataset.width = '100%';
   ss.style.cssText = `background:transparent;padding:0;width:100%;height:${ssH}px;min-height:${ssH}px;`;
 
-  const inner = document.createElement('div');
-  inner.className = 'sub-section-inner';
-  inner.style.cssText = 'position:relative;height:100%;';
-  ss.appendChild(inner);
-
-  // 원래 자리에 ss 삽입, block을 inner로 이동
+  // 원래 자리에 ss 삽입, block을 ss로 이동
   block.before(ss);
   block.style.position = 'absolute';
   block.style.left = '0px';
@@ -433,9 +395,9 @@ function promoteToSubSection(block) {
   block.setAttribute('draggable', 'false');
   const blockRow = block.closest('.row');
   if (blockRow) blockRow.setAttribute('draggable', 'false');
-  inner.appendChild(block);
+  ss.appendChild(block);
 
-  window.bindSubSectionDropZone?.(ss);
+  window.bindFrameDropZone?.(ss);
   window.deselectAll?.();
 
   const sec = ss.closest('.section-block');
@@ -444,8 +406,9 @@ function promoteToSubSection(block) {
     window.syncLayerActive?.(sec);
   }
   ss.classList.add('selected');
-  window._activeSubSection = ss;
-  window.showSubSectionProperties?.(ss);
+  window._activeFrame = ss;
+  window.showFrameProperties?.(ss);
+  window.showFrameHandles?.(ss);
   window.buildLayerPanel();
   window.scheduleAutoSave?.();
 }
@@ -455,7 +418,7 @@ function groupSelectedBlocks() {
 
   // 단일 블록 → 서브섹션으로 승격
   if (selected.length === 1) {
-    promoteToSubSection(selected[0]);
+    promoteToFrame(selected[0]);
     return;
   }
 
@@ -478,7 +441,7 @@ function groupSelectedBlocks() {
   const childrenInOrder = [...sectionInner.children];
   const rows = [];
   selected.forEach(b => {
-    const row = b.classList.contains('gap-block') ? b : b.closest('.row');
+    const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row'));
     if (row && !rows.includes(row)) rows.push(row);
   });
   rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
@@ -504,119 +467,6 @@ function groupSelectedBlocks() {
   window.deselectAll();
   window.buildLayerPanel();
   window.selectSection(sec);
-}
-
-function addRowBlock(cols = 2, rows = 1) {
-  // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
-  const overlay = getSelectedOverlay();
-  if (overlay) {
-    window.pushHistory();
-    const ab = overlay.closest('.asset-block');
-    const containerW = ab ? ab.offsetWidth : 860;
-    const totalCols = cols * rows;
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.id = genId('row');
-    row.dataset.ratioStr = `${cols}*${rows}`;
-    const INIT_PX = Math.round(containerW / cols);
-    if (rows > 1) {
-      row.dataset.layout = 'grid';
-      row.style.display = 'grid';
-      row.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-      row.style.gridTemplateRows = `repeat(${rows}, ${INIT_PX}px)`;
-      row.dataset.rowHeight = String(INIT_PX * rows + (rows - 1) * 12);
-      row.style.gap = '12px';
-      row.dataset.gap = '12';
-    } else {
-      row.dataset.layout = 'flex';
-      row.style.minHeight = INIT_PX + 'px';
-      row.style.gap = '12px';
-      row.dataset.gap = '12';
-    }
-    for (let i = 0; i < totalCols; i++) {
-      const col = document.createElement('div');
-      col.className = 'col';
-      if (rows === 1) { col.style.flex = '1'; col.dataset.flex = '1'; }
-      col.appendChild(window.makeColPlaceholder(col));
-      row.appendChild(col);
-    }
-    insertIntoOverlay(overlay, row);
-    row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
-    window.buildLayerPanel();
-    document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
-    row.classList.add('row-active');
-    return;
-  }
-  const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  window.pushHistory();
-
-  const totalCols = cols * rows;
-
-  const row = document.createElement('div');
-  row.className = 'row';
-  row.id = genId('row');
-  row.dataset.ratioStr = `${cols}*${rows}`;
-
-  const INIT_COL_PX = Math.round(860 / cols);
-  if (rows > 1) {
-    row.dataset.layout = 'grid';
-    row.style.display = 'grid';
-    row.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-    row.style.gridTemplateRows = `repeat(${rows}, ${INIT_COL_PX}px)`;
-    row.dataset.rowHeight = String(INIT_COL_PX * rows + (rows - 1) * 12);
-    row.style.gap = '12px';
-    row.dataset.gap = '12';
-  } else {
-    row.dataset.layout = 'flex';
-    row.style.minHeight = INIT_COL_PX + 'px';
-    row.style.gap = '12px';
-    row.dataset.gap = '12';
-  }
-
-  for (let i = 0; i < totalCols; i++) {
-    const col = document.createElement('div');
-    col.className = 'col';
-    if (rows === 1) {
-      col.style.flex = '1';
-      col.dataset.flex = '1';
-    }
-    const ph = window.makeColPlaceholder(col);
-    col.appendChild(ph);
-    row.appendChild(col);
-  }
-
-  // row 자체에 drag 바인딩 (블록 없이도 드래그 가능하게)
-  if (!row._dragBound) {
-    row._dragBound = true;
-    row.setAttribute('draggable', 'true');
-    row.addEventListener('dragstart', e => {
-      if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
-      window.dragSrc = row;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', '');
-      const ghost = document.createElement('div');
-      ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
-      document.body.appendChild(ghost);
-      e.dataTransfer.setDragImage(ghost, 0, 0);
-      setTimeout(() => ghost.remove(), 0);
-      requestAnimationFrame(() => row.classList.add('dragging'));
-    });
-    row.addEventListener('dragend', () => {
-      row.classList.remove('dragging');
-      window.clearDropIndicators();
-      window.dragSrc = null;
-    });
-  }
-
-  insertAfterSelected(sec, row);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
-  row.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
-
-  window.buildLayerPanel();
-  document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
-  row.classList.add('row-active');
-  if (window.syncLayerRow) window.syncLayerRow(row);
 }
 
 // ── Row 프리셋 생성 ──────────────────────────────────────────
@@ -710,7 +560,6 @@ function addPresetRow(type) {
   insertAfterSelected(sec, row);
   if (allBlocks) allBlocks.forEach(b => bindBlock(b));
   else if (firstBlock) bindBlock(firstBlock);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
   // 첫 번째 asset-block 자동 선택 (이미지 업로드 유도)
@@ -750,27 +599,13 @@ function addAssetBlock(preset, opts = {}) {
   };
   // fullWidth sub-section 분기
   let insertedBlock = null;
-  if (_insertToFlowSubSection(() => {
+  if (_insertToFlowFrame(() => {
     const { row, block } = makeAssetBlock();
     applyPreset(block);
     applyRowPaddingX(row);
     insertedBlock = block;
     return { row, block };
   })) {
-    if (insertedBlock) applyExcludePadX(insertedBlock);
-    return;
-  }
-  // col-active 분기: 특정 col에 직접 삽입 (API 자동화용) — 삽입 후 block 참조로 처리
-  insertedBlock = null;
-  let insertedRow = null;
-  if (_insertToActiveCol(() => {
-    const { row, block } = makeAssetBlock();
-    applyPreset(block);
-    applyRowPaddingX(row);
-    insertedBlock = block;
-    insertedRow = row;
-    return { row, block };
-  }, true)) {
     if (insertedBlock) applyExcludePadX(insertedBlock);
     return;
   }
@@ -783,7 +618,6 @@ function addAssetBlock(preset, opts = {}) {
   insertAfterSelected(sec, row);
   applyExcludePadX(block);   // DOM 삽입 후 실행
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -801,7 +635,7 @@ function addGapBlock(height) {
     return;
   }
   // fullWidth sub-section 분기
-  if (_insertToFlowSubSection(() => {
+  if (_insertToFlowFrame(() => {
     const gb = makeGapBlock();
     if (height) gb.style.height = height + 'px';
     gb.dataset.h = height || 40;
@@ -809,11 +643,6 @@ function addGapBlock(height) {
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  if (_insertToActiveCol(() => {
-    const gb = makeGapBlock();
-    if (height) gb.style.height = height + 'px';
-    return gb;
-  }, false)) return;
   window.pushHistory();
   const gb = makeGapBlock();
   if (height) gb.style.height = height + 'px';
@@ -824,7 +653,7 @@ function addGapBlock(height) {
 }
 
 function addIconCircleBlock(opts = {}) {
-  if (_insertToFlowSubSection(() => {
+  if (_insertToFlowFrame(() => {
     const { row, block } = makeIconCircleBlock();
     if (opts.size) { block.dataset.size = String(opts.size); const c = block.querySelector('.icb-circle'); if (c) { c.style.width = opts.size + 'px'; c.style.height = opts.size + 'px'; } }
     if (opts.bgColor) { block.dataset.bgColor = opts.bgColor; const c = block.querySelector('.icb-circle'); if (c) c.style.backgroundColor = opts.bgColor; }
@@ -832,20 +661,6 @@ function addIconCircleBlock(opts = {}) {
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  if (_insertToActiveCol(() => {
-    const { row, block } = makeIconCircleBlock();
-    if (opts.size) {
-      block.dataset.size = String(opts.size);
-      const circle = block.querySelector('.icb-circle');
-      if (circle) { circle.style.width = opts.size + 'px'; circle.style.height = opts.size + 'px'; }
-    }
-    if (opts.bgColor) {
-      block.dataset.bgColor = opts.bgColor;
-      const circle = block.querySelector('.icb-circle');
-      if (circle) circle.style.backgroundColor = opts.bgColor;
-    }
-    return { row, block };
-  })) return;
   window.pushHistory();
   const { row, block } = makeIconCircleBlock();
   if (opts.size) {
@@ -860,13 +675,12 @@ function addIconCircleBlock(opts = {}) {
   }
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
 
 function addTableBlock(opts = {}) {
-  if (_insertToFlowSubSection(() => {
+  if (_insertToFlowFrame(() => {
     const { row, block } = makeTableBlock();
     if (opts.showHeader === false) { block.dataset.showHeader = 'false'; const th = block.querySelector('thead'); if (th) th.style.display = 'none'; }
     if (opts.cellAlign) { block.dataset.cellAlign = opts.cellAlign; block.querySelectorAll('td, th').forEach(c => { c.style.textAlign = opts.cellAlign; }); }
@@ -874,19 +688,6 @@ function addTableBlock(opts = {}) {
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  if (_insertToActiveCol(() => {
-    const { row, block } = makeTableBlock();
-    if (opts.showHeader === false) {
-      block.dataset.showHeader = 'false';
-      const thead = block.querySelector('thead');
-      if (thead) thead.style.display = 'none';
-    }
-    if (opts.cellAlign) {
-      block.dataset.cellAlign = opts.cellAlign;
-      block.querySelectorAll('td, th').forEach(cell => { cell.style.textAlign = opts.cellAlign; });
-    }
-    return { row, block };
-  })) return;
   window.pushHistory();
   const { row, block } = makeTableBlock();
   if (opts.showHeader === false) {
@@ -900,7 +701,6 @@ function addTableBlock(opts = {}) {
   }
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -908,9 +708,6 @@ function addTableBlock(opts = {}) {
 function makeCardBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const cdb = document.createElement('div');
   cdb.className = 'card-block'; cdb.dataset.type = 'card';
@@ -926,13 +723,12 @@ function makeCardBlock() {
       <div class="cdb-desc" contenteditable="false">설명 텍스트를 입력하세요</div>
     </div>`;
 
-  col.appendChild(cdb);
-  row.appendChild(col);
+  row.appendChild(cdb);
   return { row, block: cdb };
 }
 
 function addCardBlock(count = 2, opts = {}) {
-  if (_insertToFlowSubSection(() => {
+  if (_insertToFlowFrame(() => {
     const { row, block } = makeCardBlock();
     if (opts.bgColor) { block.dataset.bgColor = opts.bgColor; const body = block.querySelector('.cdb-body'); if (body) body.style.background = opts.bgColor; }
     if (opts.radius !== undefined) { block.dataset.radius = String(opts.radius); const body = block.querySelector('.cdb-body'); if (body) body.style.borderRadius = `0 0 ${opts.radius}px ${opts.radius}px`; }
@@ -940,9 +736,6 @@ function addCardBlock(count = 2, opts = {}) {
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-
-  const activeCol = document.querySelector('.col.col-active')
-    || (state._lastActiveCol?.isConnected ? state._lastActiveCol : null);
 
   window.pushHistory();
 
@@ -952,6 +745,7 @@ function addCardBlock(count = 2, opts = {}) {
   row.id = genId('row');
   row.dataset.layout = 'grid';
   row.dataset.ratioStr = `${cardCount}*1`;
+  row.dataset.cardGrid = '1';
   row.style.display = 'grid';
   row.style.gridTemplateColumns = `repeat(${cardCount}, 1fr)`;
   row.style.minHeight = '430px';
@@ -959,8 +753,6 @@ function addCardBlock(count = 2, opts = {}) {
   row.dataset.gap = '16';
 
   for (let i = 0; i < cardCount; i++) {
-    const col = document.createElement('div');
-    col.className = 'col';
     const { block } = makeCardBlock();
     if (opts.bgColor) {
       block.dataset.bgColor = opts.bgColor;
@@ -972,18 +764,11 @@ function addCardBlock(count = 2, opts = {}) {
       const body = block.querySelector('.cdb-body');
       if (body) body.style.borderRadius = `0 0 ${opts.radius}px ${opts.radius}px`;
     }
-    col.appendChild(block);
-    row.appendChild(col);
+    row.appendChild(block);
     bindBlock(block);
   }
 
-  if (activeCol) {
-    activeCol.querySelector('.col-placeholder')?.remove();
-    activeCol.appendChild(row);
-  } else {
-    insertAfterSelected(sec, row);
-  }
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
+  insertAfterSelected(sec, row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -991,9 +776,6 @@ function addCardBlock(count = 2, opts = {}) {
 function makeGraphBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const grb = document.createElement('div');
   grb.className = 'graph-block'; grb.dataset.type = 'graph';
@@ -1004,13 +786,12 @@ function makeGraphBlock() {
 
   renderGraph(grb);
 
-  col.appendChild(grb);
-  row.appendChild(col);
+  row.appendChild(grb);
   return { row, block: grb };
 }
 
 function addGraphBlock(opts = {}) {
-  if (_insertToFlowSubSection(() => {
+  if (_insertToFlowFrame(() => {
     const { row, block } = makeGraphBlock();
     if (opts.chartType) block.dataset.chartType = opts.chartType;
     if (opts.items && opts.items.length > 0) { block.dataset.items = JSON.stringify(opts.items); renderGraph(block); }
@@ -1018,15 +799,6 @@ function addGraphBlock(opts = {}) {
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  if (_insertToActiveCol(() => {
-    const { row, block } = makeGraphBlock();
-    if (opts.chartType) block.dataset.chartType = opts.chartType;
-    if (opts.items && opts.items.length > 0) {
-      block.dataset.items = JSON.stringify(opts.items);
-      renderGraph(block);
-    }
-    return { row, block };
-  })) return;
   window.pushHistory();
   const { row, block } = makeGraphBlock();
   if (opts.chartType) block.dataset.chartType = opts.chartType;
@@ -1036,7 +808,6 @@ function addGraphBlock(opts = {}) {
   }
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -1044,9 +815,6 @@ function addGraphBlock(opts = {}) {
 function makeDividerBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const dvd = document.createElement('div');
   dvd.className = 'divider-block'; dvd.dataset.type = 'divider';
@@ -1058,13 +826,12 @@ function makeDividerBlock() {
   dvd.dataset.padH        = '0';
   dvd.innerHTML = `<hr class="dvd-line" style="border-top:1px solid #cccccc;">`;
 
-  col.appendChild(dvd);
-  row.appendChild(col);
+  row.appendChild(dvd);
   return { row, block: dvd };
 }
 
 function addDividerBlock(opts = {}) {
-  if (_insertToFlowSubSection(() => {
+  if (_insertToFlowFrame(() => {
     const { row, block } = makeDividerBlock();
     if (opts.color) block.dataset.lineColor = opts.color;
     if (opts.lineStyle) block.dataset.lineStyle = opts.lineStyle;
@@ -1074,14 +841,6 @@ function addDividerBlock(opts = {}) {
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  if (_insertToActiveCol(() => {
-    const { row, block } = makeDividerBlock();
-    if (opts.color) block.dataset.lineColor = opts.color;
-    if (opts.lineStyle) block.dataset.lineStyle = opts.lineStyle;
-    if (opts.weight !== undefined) block.dataset.lineWeight = String(opts.weight);
-    if (opts.color || opts.lineStyle || opts.weight !== undefined) applyDividerStyle(block);
-    return { row, block };
-  })) return;
   window.pushHistory();
   const { row, block } = makeDividerBlock();
   if (opts.color) block.dataset.lineColor = opts.color;
@@ -1090,7 +849,6 @@ function addDividerBlock(opts = {}) {
   if (opts.color || opts.lineStyle || opts.weight !== undefined) applyDividerStyle(block);
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -1197,9 +955,7 @@ function addSection(opts = {}) {
   bindSectionDrag(sec);
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => bindBlock(b));
-  sec.querySelectorAll('.sub-section-block').forEach(ss => window.bindSubSectionDropZone?.(ss));
-  if (window.bindRowColAdd) sec.querySelectorAll('.row').forEach(row => window.bindRowColAdd(row));
-  sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
+  sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
   window.buildLayerPanel();
@@ -1212,9 +968,6 @@ function addSection(opts = {}) {
 function makeJokerBlock(opts = {}) {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const col = document.createElement('div');
-  col.className = 'col'; col.dataset.width = '100';
 
   const sb = document.createElement('div');
   sb.className = 'joker-block';
@@ -1243,47 +996,38 @@ function makeJokerBlock(opts = {}) {
       </div>
     </div>`;
 
-  col.appendChild(sb);
-  row.appendChild(col);
+  row.appendChild(sb);
   return { row, block: sb };
 }
 
 function addJokerBlock(opts = {}) {
   // 서브섹션 활성화 상태: absolute 위치로 직접 삽입 (Figma 좌표 재현)
-  if (window._activeSubSection) {
-    const ss = window._activeSubSection;
-    const inner = ss.querySelector('.sub-section-inner');
-    if (inner) {
-      const { block } = makeJokerBlock(opts);
-      block.style.position = 'absolute';
-      block.style.left = `${opts.x || 0}px`;
-      block.style.top  = `${opts.y || 0}px`;
-      block.style.transform = ''; // absolute 모드에서는 transform 사용 안 함
-      inner.appendChild(block);
-      bindBlock(block);
-      window.buildLayerPanel();
-      return;
-    }
+  if (window._activeFrame) {
+    const ss = window._activeFrame;
+    const { block } = makeJokerBlock(opts);
+    block.style.position = 'absolute';
+    block.style.left = `${opts.x || 0}px`;
+    block.style.top  = `${opts.y || 0}px`;
+    block.style.transform = ''; // absolute 모드에서는 transform 사용 안 함
+    ss.appendChild(block);
+    bindBlock(block);
+    window.buildLayerPanel();
+    return;
   }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
-  if (_insertToActiveCol(() => {
-    const { row, block } = makeJokerBlock(opts);
-    return { row, block };
-  })) return;
   window.pushHistory();
   const { row, block } = makeJokerBlock(opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
-  if (window.bindRowColAdd) window.bindRowColAdd(row);
   window.buildLayerPanel();
   window.selectSection(sec);
 }
 
-/* ── Sub-Section Block ── */
-function makeSubSectionBlock(opts = {}) {
+/* ── Frame Block ── */
+function makeFrameBlock(opts = {}) {
   const ss = document.createElement('div');
-  ss.className = 'sub-section-block';
+  ss.className = 'frame-block';
   ss.id = genId('ss');
 
   if (opts.fullWidth) {
@@ -1292,22 +1036,14 @@ function makeSubSectionBlock(opts = {}) {
     ss.dataset.bg = bg;
     ss.dataset.fullWidth = 'true';
     ss.style.cssText = `background:${bg};width:100%;box-sizing:border-box;`;
-    const inner = document.createElement('div');
-    inner.className = 'sub-section-inner';
-    // 플로우 레이아웃 (absolute 아님)
-    ss.appendChild(inner);
   } else {
-    // B 모드: 자유배치 프레임 (기본값)
+    // freeLayout 모드: 자유배치 프레임 (기본값) — absolute 자식
     ss.dataset.bg = 'transparent';
     ss.dataset.freeLayout = 'true';
     ss.dataset.width = '860';
     ss.dataset.height = '520';
     ss.dataset.padY = '0';
     ss.style.cssText = `background:transparent;padding:0;width:860px;max-width:100%;margin:0 auto;min-height:520px;height:520px;`;
-    const inner = document.createElement('div');
-    inner.className = 'sub-section-inner';
-    inner.style.cssText = 'position:relative;width:100%;height:100%;';
-    ss.appendChild(inner);
   }
   return ss;
 }
@@ -1321,27 +1057,25 @@ function _calcFreeLayoutStackY(inner) {
 }
 
 /* sub-section이 활성화된 경우 블록 삽입 — freeLayout(B모드) / fullWidth(플로우) 분기 */
-function _insertToFlowSubSection(makeBlockFn) {
-  const ss = window._activeSubSection;
+function _insertToFlowFrame(makeBlockFn) {
+  const ss = window._activeFrame;
   if (!ss) return false;
 
   /* ── B 모드: 자유배치 프레임 ── */
   if (ss.dataset.freeLayout === 'true') {
-    const inner = ss.querySelector('.sub-section-inner');
-    if (!inner) return false;
     window.pushHistory();
     const result = makeBlockFn();
     if (!result) return true;
     const isRowBlock = !!(result.row && result.block);
     const block = isRowBlock ? result.block : result;
     // 기존 absolute 자식 아래에 쌓기
-    const stackY = _calcFreeLayoutStackY(inner);
+    const stackY = _calcFreeLayoutStackY(ss);
     block.style.position = 'absolute';
     block.style.left     = '0px';
     block.style.top      = stackY + 'px';
     block.style.width    = '100%';
     block.style.transform = '';
-    inner.appendChild(block);
+    ss.appendChild(block);
     bindBlock(block);
     block.setAttribute('draggable', 'false');
     window.buildLayerPanel();
@@ -1350,59 +1084,58 @@ function _insertToFlowSubSection(makeBlockFn) {
 
   /* ── A 모드: fullWidth 플로우 레이아웃 ── */
   if (ss.dataset.fullWidth !== 'true') return false;
-  const inner = ss.querySelector('.sub-section-inner');
-  if (!inner) return false;
   window.pushHistory();
   const result = makeBlockFn();
   // makeBlockFn이 { row, block } 또는 block(gap) 반환
   if (result && result.row) {
-    inner.appendChild(result.row);
+    ss.appendChild(result.row);
     bindBlock(result.block);
-    if (window.bindRowColAdd) window.bindRowColAdd(result.row);
   } else if (result) {
-    inner.appendChild(result);
+    ss.appendChild(result);
     bindBlock(result);
   }
   window.buildLayerPanel();
   return true;
 }
 
-function addSubSectionBlock(opts = {}) {
+function addFrameBlock(opts = {}) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
-  const ss = makeSubSectionBlock(opts);
+  const ss = makeFrameBlock(opts);
 
   // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 및 shape frame 제외
-  const activeFrame = !opts.fullWidth && window._activeSubSection;
-  const isShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .sub-section-inner > .shape-block');
+  const activeFrame = !opts.fullWidth && window._activeFrame;
+  const isShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .shape-block');
   if (activeFrame && !isShapeFrame && activeFrame.closest('.section-block') === sec) {
-    const inner = activeFrame.querySelector('.sub-section-inner');
-    if (inner) inner.appendChild(ss);
+    activeFrame.appendChild(ss);
   } else {
-    // shape frame이 활성화된 상태면 _activeSubSection을 임시 해제
-    // insertAfterSelected가 내부적으로 _activeSubSection을 참조해 shape wrapper 안에 삽입하는 것을 방지
-    const _prev = window._activeSubSection;
-    if (isShapeFrame) window._activeSubSection = null;
+    // shape frame이 활성화된 상태면 _activeFrame을 임시 해제
+    // insertAfterSelected가 내부적으로 _activeFrame을 참조해 shape wrapper 안에 삽입하는 것을 방지
+    const _prev = window._activeFrame;
+    if (isShapeFrame) window._activeFrame = null;
     insertAfterSelected(sec, ss);
-    if (isShapeFrame) window._activeSubSection = _prev;
+    if (isShapeFrame) window._activeFrame = _prev;
   }
 
-  if (!opts.fullWidth) window.bindSubSectionDropZone?.(ss);
+  if (!opts.fullWidth) window.bindFrameDropZone?.(ss);
   window.buildLayerPanel();
   window.deselectAll?.();
   sec.classList.add('selected');
   window.syncLayerActive?.(sec);
   ss.classList.add('selected');
-  window._activeSubSection = ss;
-  if (!opts.fullWidth) window.showSubSectionProperties?.(ss);
+  window._activeFrame = ss;
+  if (!opts.fullWidth) {
+    window.showFrameProperties?.(ss);
+    window.showFrameHandles?.(ss);
+  }
 }
 
-function activateSubSection(ss) {
-  window._activeSubSection = ss;
+function activateFrame(ss) {
+  window._activeFrame = ss;
 }
-function deactivateSubSection() {
-  window._activeSubSection = null;
+function deactivateFrame() {
+  window._activeFrame = null;
 }
 
 /* ── Wrap selected blocks into a new free-placement Frame ── */
@@ -1431,7 +1164,7 @@ function wrapSelectedBlocksInFrame() {
   const childrenInOrder = [...sectionInner.children];
   const rows = [];
   selected.forEach(b => {
-    const row = b.classList.contains('gap-block') ? b : (b.closest('.row') || b);
+    const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row') || b);
     if (row && !rows.includes(row)) rows.push(row);
   });
   rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
@@ -1443,18 +1176,16 @@ function wrapSelectedBlocksInFrame() {
   const frameH = Math.max(totalH, 120);
 
   // 자유배치(absolute) 프레임 생성
-  const ss = makeSubSectionBlock();
+  const ss = makeFrameBlock();
   ss.style.cssText = `background:transparent;padding:0;width:100%;height:${frameH}px;min-height:${frameH}px;`;
   ss.dataset.bg = 'transparent';
   ss.dataset.width = '100%';
   ss.dataset.padY = '0';
 
-  const inner = ss.querySelector('.sub-section-inner');
-
   // 첫 번째 row 자리에 프레임 삽입
   rows[0].before(ss);
 
-  // 각 블록을 absolute 배치로 inner에 이동
+  // 각 블록을 absolute 배치로 ss에 직접 이동
   // gap-block은 row 컨테이너가 아니라 블록 자체가 row이므로 직접 처리
   let stackY = 0;
   rows.forEach(row => {
@@ -1469,21 +1200,22 @@ function wrapSelectedBlocksInFrame() {
       block.style.transform = '';
       block.classList.remove('selected');
       block.setAttribute('draggable', 'false');
-      inner.appendChild(block);
+      ss.appendChild(block);
     });
     stackY += rowH + GAP;
     if (!isGapRow) row.remove();
   });
 
-  window.bindSubSectionDropZone?.(ss);
+  window.bindFrameDropZone?.(ss);
 
   // 프레임 선택 상태로 전환
   window.deselectAll?.();
   sec.classList.add('selected');
   window.syncLayerActive?.(sec);
   ss.classList.add('selected');
-  window._activeSubSection = ss;
-  window.showSubSectionProperties?.(ss);
+  window._activeFrame = ss;
+  window.showFrameProperties?.(ss);
+  window.showFrameHandles?.(ss);
   window.buildLayerPanel();
   window.scheduleAutoSave?.();
 }
@@ -1498,8 +1230,7 @@ export {
   makeTableBlock,
   addTextBlock,
   groupSelectedBlocks,
-  promoteToSubSection,
-  addRowBlock,
+  promoteToFrame,
   makePresetRow,
   addPresetRow,
   addAssetBlock,
@@ -1513,15 +1244,13 @@ export {
   makeDividerBlock,
   addDividerBlock,
   addSection,
-  makeSubSectionBlock,
-  addSubSectionBlock,
+  makeFrameBlock,
+  addFrameBlock,
   wrapSelectedBlocksInFrame,
-  activateSubSection,
-  deactivateSubSection,
+  activateFrame,
+  deactivateFrame,
 };
 
-/* ── Frame 진입점 — sub-section 추가 ── */
-function addFrameBlock() { addSubSectionBlock(); }
 window.addFrameBlock = addFrameBlock;
 
 // ── Shape Block ──
@@ -1559,7 +1288,7 @@ function addShapeBlock(type = 'rectangle') {
   // block/svg 크기는 CSS 100%로 frame에 위임 — 인라인 스타일 불필요
 
   // 별도 Frame(sub-section) 생성 — 100×100에 맞는 크기
-  const ss = makeSubSectionBlock();
+  const ss = makeFrameBlock();
   ss.dataset.layerName = type;
   ss.setAttribute('data-layer-name', type);
   ss.dataset.width  = '100';
@@ -1575,61 +1304,51 @@ function addShapeBlock(type = 'rectangle') {
   ss.style.background = '';
   ss.style.padding = '0';
   ss.dataset.bg = '';
-  const inner = ss.querySelector('.sub-section-inner');
-  if (inner) {
-    // inner height는 CSS :has(.shape-block) { height: 100% }로 ss를 따름 — inline 불필요
-    inner.style.height = '';
-    block.style.position = 'absolute';
-    block.style.left = '0';
-    block.style.top  = '0';
-    inner.appendChild(block);
-    bindBlock(block);
-  }
+  // shape block을 ss 직속으로 배치
+  block.style.position = 'absolute';
+  block.style.left = '0';
+  block.style.top  = '0';
+  ss.appendChild(block);
+  bindBlock(block);
 
   // 삽입 대상 결정: 활성 프레임 → 선택된 프레임 → 섹션 레벨
-  const activeFrame = window._activeSubSection;
-  const isActiveShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .sub-section-inner > .shape-block');
+  const activeFrame = window._activeFrame;
+  const isActiveShapeFrame = activeFrame && !!activeFrame.querySelector(':scope > .shape-block');
 
   if (activeFrame && !isActiveShapeFrame && activeFrame.closest('.section-block') === sec) {
     // 활성 프레임 안에 삽입
-    const targetInner = activeFrame.querySelector('.sub-section-inner');
-    if (targetInner) {
-      if (activeFrame.dataset.freeLayout === 'true') {
-        const stackY = _calcFreeLayoutStackY(targetInner);
+    if (activeFrame.dataset.freeLayout === 'true') {
+      const stackY = _calcFreeLayoutStackY(activeFrame);
+      ss.style.position = 'absolute';
+      ss.style.left = '20px';
+      ss.style.top  = stackY + 'px';
+    }
+    activeFrame.appendChild(ss);
+  } else {
+    const selSS = document.querySelector('.frame-block.selected');
+    const isSelShapeFrame = selSS && !!selSS.querySelector(':scope > .shape-block');
+    if (selSS && !isSelShapeFrame && selSS.closest('.section-block') === sec) {
+      // 선택된 프레임 안에 삽입
+      if (selSS.dataset.freeLayout === 'true') {
+        const stackY = _calcFreeLayoutStackY(selSS);
         ss.style.position = 'absolute';
         ss.style.left = '20px';
         ss.style.top  = stackY + 'px';
       }
-      targetInner.appendChild(ss);
-    }
-  } else {
-    const selSS = document.querySelector('.sub-section-block.selected');
-    const isSelShapeFrame = selSS && !!selSS.querySelector(':scope > .sub-section-inner > .shape-block');
-    if (selSS && !isSelShapeFrame && selSS.closest('.section-block') === sec) {
-      // 선택된 프레임 안에 삽입
-      const targetInner = selSS.querySelector('.sub-section-inner');
-      if (targetInner) {
-        if (selSS.dataset.freeLayout === 'true') {
-          const stackY = _calcFreeLayoutStackY(targetInner);
-          ss.style.position = 'absolute';
-          ss.style.left = '20px';
-          ss.style.top  = stackY + 'px';
-        }
-        targetInner.appendChild(ss);
-      }
+      selSS.appendChild(ss);
     } else {
       // 섹션 레벨에 삽입 (shape frame은 다른 ss 중첩 금지)
-      const prevActiveSS = window._activeSubSection;
-      window._activeSubSection = null;
+      const prevActiveSS = window._activeFrame;
+      window._activeFrame = null;
       insertAfterSelected(sec, ss);
-      window._activeSubSection = prevActiveSS;
+      window._activeFrame = prevActiveSS;
     }
   }
 
-  window.bindSubSectionDropZone?.(ss);
+  window.bindFrameDropZone?.(ss);
   window.buildLayerPanel();
-  window._activeSubSection = ss;
-  window.showSubSectionProperties?.(ss);
+  window._activeFrame = ss;
+  window.showFrameProperties?.(ss);
 }
 
 // ── New Grid Block ──
@@ -1662,7 +1381,7 @@ function addNewGridBlock(cols = 2, rows = 1, opts = {}) {
   window.pushHistory();
 
   // ── 1. 부모 GridFrame (freeLayout) ──
-  const parentSS = makeSubSectionBlock();
+  const parentSS = makeFrameBlock();
   parentSS.dataset.layerName   = 'Grid';
   parentSS.setAttribute('data-layer-name', 'Grid');
   parentSS.style.width     = CANVAS_W + 'px';
@@ -1679,8 +1398,8 @@ function addNewGridBlock(cols = 2, rows = 1, opts = {}) {
   parentSS.dataset.gridGap    = String(gap);
   if (bg) { parentSS.style.background = bg; parentSS.dataset.bg = bg; }
 
-  const parentInner = parentSS.querySelector('.sub-section-inner');
-  parentInner.style.cssText = 'position:relative;width:100%;height:100%;overflow:visible;';
+  // parentSS는 overflow:visible — 셀이 absolute로 배치되므로
+  parentSS.style.overflow = 'visible';
 
   // ── 2. 셀 Frame 생성 (rows × cols) ──
   for (let r = 0; r < rows; r++) {
@@ -1688,37 +1407,34 @@ function addNewGridBlock(cols = 2, rows = 1, opts = {}) {
     let x = 0;
     for (let c = 0; c < cols; c++) {
       const w = colWidths[c];
-      const cellSS = makeSubSectionBlock();
+      const cellSS = makeFrameBlock();
       const cellIdx = r * cols + c + 1;
       cellSS.dataset.layerName = `Cell ${cellIdx}`;
       cellSS.setAttribute('data-layer-name', `Cell ${cellIdx}`);
       cellSS.style.cssText = `position:absolute;left:${x}px;top:${y}px;` +
-        `width:${w}px;height:${cellH}px;min-height:${cellH}px;margin:0;box-sizing:border-box;`;
+        `width:${w}px;height:${cellH}px;min-height:${cellH}px;margin:0;box-sizing:border-box;overflow:hidden;`;
       cellSS.dataset.offsetX  = String(x);
       cellSS.dataset.offsetY  = String(y);
       cellSS.dataset.width    = String(w);
       cellSS.dataset.height   = String(cellH);
       cellSS.dataset.gridCell = `${r}-${c}`;
 
-      const cellInner = cellSS.querySelector('.sub-section-inner');
-      cellInner.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;';
-
-      parentInner.appendChild(cellSS);
-      window.bindSubSectionDropZone?.(cellSS);
+      parentSS.appendChild(cellSS);
+      window.bindFrameDropZone?.(cellSS);
       x += w + gap;
     }
   }
 
   // ── 3. 섹션에 삽입 ──
-  const _prev = window._activeSubSection;
-  window._activeSubSection = null;
+  const _prev = window._activeFrame;
+  window._activeFrame = null;
   insertAfterSelected(sec, parentSS);
-  window._activeSubSection = _prev;
+  window._activeFrame = _prev;
 
-  window.bindSubSectionDropZone?.(parentSS);
+  window.bindFrameDropZone?.(parentSS);
   window.buildLayerPanel();
-  window._activeSubSection = parentSS;
-  window.showSubSectionProperties?.(parentSS);
+  window._activeFrame = parentSS;
+  window.showFrameProperties?.(parentSS);
 
   return parentSS;
 }
@@ -1741,21 +1457,6 @@ window.setSectionBg = function(sectionEl, color) {
   return true;
 };
 
-// ── activateCol: CDP 에이전트가 특정 col을 타깃으로 지정할 때 사용 ──
-// rowIdOrEl: row의 id(string) 또는 DOM 요소
-// colIndex: row 내 col 인덱스 (0부터 시작)
-window.activateCol = function(rowIdOrEl, colIndex = 0) {
-  const row = typeof rowIdOrEl === 'string' ? document.getElementById(rowIdOrEl) : rowIdOrEl;
-  if (!row) return false;
-  const cols = row.querySelectorAll(':scope > .col');
-  const col = cols[colIndex];
-  if (!col) return false;
-  document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
-  col.classList.add('col-active');
-  state._lastActiveCol = col;
-  return true;
-};
-
 // Backward compat
 window.makeTextBlock        = makeTextBlock;
 window.makeAssetBlock       = makeAssetBlock;
@@ -1768,8 +1469,7 @@ window.addIconTextBlock     = addIconTextBlock;
 window.makeTableBlock       = makeTableBlock;
 window.addTextBlock         = addTextBlock;
 window.groupSelectedBlocks  = groupSelectedBlocks;
-window.promoteToSubSection  = promoteToSubSection;
-window.addRowBlock          = addRowBlock;
+window.promoteToFrame  = promoteToFrame;
 window.makePresetRow        = makePresetRow;
 window.addPresetRow         = addPresetRow;
 window.addAssetBlock        = addAssetBlock;
@@ -1783,11 +1483,11 @@ window.addGraphBlock        = addGraphBlock;
 window.makeDividerBlock     = makeDividerBlock;
 window.addDividerBlock      = addDividerBlock;
 window.addSection           = addSection;
-window.makeSubSectionBlock        = makeSubSectionBlock;
-window.addSubSectionBlock         = addSubSectionBlock;
+window.makeFrameBlock        = makeFrameBlock;
+window.addFrameBlock         = addFrameBlock;
 window.wrapSelectedBlocksInFrame  = wrapSelectedBlocksInFrame;
-window.activateSubSection         = activateSubSection;
-window.deactivateSubSection = deactivateSubSection;
+window.activateFrame         = activateFrame;
+window.deactivateFrame = deactivateFrame;
 window.makeJokerBlock       = makeJokerBlock;
 window.addJokerBlock        = addJokerBlock;
 window.makeShapeBlock       = makeShapeBlock;

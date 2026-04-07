@@ -498,6 +498,8 @@
       </div><!-- /canvas -->
     </div><!-- /scaler -->
   </div><!-- /canvas-wrap -->
+  <!-- Frame resize handle overlay — handles rendered here so frame-block can use overflow:hidden -->
+  <div id="ss-handles-overlay"></div>
   </div><!-- /canvas-area -->
 
   <!-- Right: Properties -->
@@ -551,21 +553,6 @@
       <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
     </svg>
   </button>
-  <div class="fp-dropdown" id="fp-row-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-row-dropdown')" title="2열 그리드 레이아웃 추가">
-      <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
-        <rect x="1" y="2" width="3.5" height="7" rx="0.5"/><rect x="6.5" y="2" width="3.5" height="7" rx="0.5"/>
-      </svg>
-      <svg class="fp-chevron" width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1 2.5l3 3 3-3"/></svg>
-    </button>
-    <div class="fp-dropdown-menu" id="fp-row-menu">
-      <button class="fp-menu-item" onclick="addRowBlock(1,1);toggleFpDropdown('fp-row-dropdown')">1 × 1</button>
-      <button class="fp-menu-item" onclick="addRowBlock(2,1);toggleFpDropdown('fp-row-dropdown')">2 × 1</button>
-      <button class="fp-menu-item" onclick="addRowBlock(2,2);toggleFpDropdown('fp-row-dropdown')">2 × 2</button>
-      <button class="fp-menu-item" onclick="addRowBlock(3,1);toggleFpDropdown('fp-row-dropdown')">3 × 1</button>
-      <button class="fp-menu-item" onclick="addRowBlock(3,2);toggleFpDropdown('fp-row-dropdown')">3 × 2</button>
-    </div>
-  </div>
   <!-- 뉴그리드 블록 (Frame-in-Frame, col 개념 없음) -->
   <div class="fp-dropdown" id="fp-newgrid-dropdown">
     <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-newgrid-dropdown')" title="New Grid (Frame-in-Frame)">

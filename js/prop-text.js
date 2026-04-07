@@ -697,7 +697,7 @@ export function showTextProperties(tb) {
   const animBtn = document.getElementById('open-anim-btn');
   if (animBtn) animBtn.addEventListener('click', () => window.openAnimModal(tb));
 
-  window.bindLayoutInput(tb);
+  window.bindLayoutInput?.(tb);
 }
 
 export function rgbToHex(rgb) {

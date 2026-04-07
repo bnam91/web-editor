@@ -61,7 +61,7 @@ window.goditor = {
       return;
     }
 
-    // flex / grid
+    // flex / grid → NewGrid Frame
     const colCount = cols.length;
     if (colCount < 2) {
       console.warn('[goditor] flex/grid row에 cols가 2개 미만 — stack으로 처리');
@@ -74,24 +74,24 @@ window.goditor = {
       return;
     }
 
-    const gridRows = (layout === 'grid') ? (row.gridRows || 2) : 1;
-    window.addRowBlock(colCount, gridRows);
-
-    const rowEl = document.querySelector('.row.row-active');
-    if (!rowEl) {
-      console.error('[goditor] row-active 요소를 찾을 수 없음');
+    const ratios = cols.map(c => c.flex || 1);
+    const gridFrame = window.addNewGridBlock?.(colCount, 1, { gap: 16, ratios });
+    if (!gridFrame) {
+      console.error('[goditor] addNewGridBlock 실패');
       return;
     }
 
+    const cellFrames = [...gridFrame.querySelectorAll('[data-grid-cell]')];
     for (let i = 0; i < cols.length; i++) {
-      window.activateCol(rowEl, i);
+      const cell = cellFrames[i];
+      if (!cell) continue;
+      // cell frame 선택 후 블록 추가
+      window._activeFrame = cell;
       for (const block of (cols[i].blocks || [])) {
         this._addBlock(block);
       }
     }
-
-    // col-active 해제
-    document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
+    window._activeFrame = null;
   },
 
   /**

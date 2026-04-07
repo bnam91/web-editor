@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════
-   PROP-FRAME — Frame 속성 패널 (sub-section-block)
+   PROP-FRAME — Frame 속성 패널 (frame-block)
 ══════════════════════════════════════ */
 import { propPanel } from './globals.js';
 
@@ -43,7 +43,7 @@ function _headerHTML(el, mode) {
 }
 
 /* ════════════════════════════════════════
-   AUTO 모드 (sub-section-block)
+   AUTO 모드 (frame-block)
 ════════════════════════════════════════ */
 function _renderAutoPanel(ss) {
   const isShapeFrame = !!ss.querySelector('.shape-block');
@@ -144,8 +144,8 @@ function _renderAutoPanel(ss) {
       </div>
       <div class="prop-row" style="margin-top:8px;">
         <span class="prop-label" style="width:40px;">간격</span>
-        <input type="range" class="prop-slider" id="ss-gap-slider" min="0" max="80" step="2" value="${parseInt(ss.querySelector('.sub-section-inner')?.style.gap) || 0}">
-        <input type="number" class="prop-number" id="ss-gap-num" min="0" max="80" value="${parseInt(ss.querySelector('.sub-section-inner')?.style.gap) || 0}">
+        <input type="range" class="prop-slider" id="ss-gap-slider" min="0" max="80" step="2" value="${parseInt(ss.style.gap) || 0}">
+        <input type="number" class="prop-number" id="ss-gap-num" min="0" max="80" value="${parseInt(ss.style.gap) || 0}">
       </div>
     </div>
     <div class="prop-section">
@@ -204,27 +204,23 @@ function _renderAutoPanel(ss) {
   document.getElementById('ss-pos-y')?.addEventListener('input', e => { ss.dataset.translateY = parseInt(e.target.value) || 0; _applyTransform(); });
 
   // ── 자식 정렬 핸들러 ──
-  const ssInner = ss.querySelector('.sub-section-inner');
   const _setAlign = (alignItems, justifyContent) => {
-    if (!ssInner) return;
     if (alignItems !== null) {
-      ssInner.style.alignItems = alignItems;
+      ss.style.alignItems = alignItems;
       ss.dataset.alignItems = alignItems;
       // 자식 row의 align-self / margin이 align-items를 덮어쓰는 문제 수정
-      // margin: 0 auto 와 align-self: center 가 부모 align-items를 무시하므로 함께 리셋
       const alignSelfMap = { 'flex-start': 'flex-start', 'center': 'center', 'flex-end': 'flex-end' };
       const marginMap    = { 'flex-start': '0',          'center': '0 auto',  'flex-end': '0' };
-      ssInner.querySelectorAll(':scope > .row').forEach(row => {
+      ss.querySelectorAll(':scope > .row').forEach(row => {
         row.style.alignSelf = alignSelfMap[alignItems] || '';
         row.style.margin    = marginMap[alignItems]    || '0';
       });
     }
-    if (justifyContent !== null) { ssInner.style.justifyContent = justifyContent; ss.dataset.justifyContent = justifyContent; }
+    if (justifyContent !== null) { ss.style.justifyContent = justifyContent; ss.dataset.justifyContent = justifyContent; }
     window.scheduleAutoSave?.();
   };
   const _setGap = v => {
-    if (!ssInner) return;
-    ssInner.style.gap = v + 'px';
+    ss.style.gap = v + 'px';
     ss.dataset.gap = String(v);
     window.scheduleAutoSave?.();
   };
@@ -392,10 +388,8 @@ function _renderAutoPanel(ss) {
     if (isShapeFrame) {
       const oldH = parseInt(ss.dataset.height || ss.style.minHeight || height);
       const ratio = newH / oldH;
-      const inner = ss.querySelector('.sub-section-inner');
-      if (inner && ratio !== 1) {
-        if (inner.style.height) inner.style.height = Math.round(parseInt(inner.style.height) * ratio) + 'px';
-        inner.querySelectorAll('[style*="position: absolute"], [style*="position:absolute"]').forEach(block => {
+      if (ratio !== 1) {
+        ss.querySelectorAll(':scope > [style*="position: absolute"], :scope > [style*="position:absolute"]').forEach(block => {
           const curH = parseInt(block.style.height || block.offsetHeight || 0);
           if (curH) block.style.height = Math.round(curH * ratio) + 'px';
           const curW = parseInt(block.style.width || block.offsetWidth || 0);
@@ -433,9 +427,8 @@ function _renderAutoPanel(ss) {
     const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || (isShapeFrame ? 100 : 860);
     const newW = parseInt(v);
     const ratio = newW / oldW;
-    const inner = ss.querySelector('.sub-section-inner');
-    if (inner && ratio !== 1) {
-      inner.querySelectorAll('[style*="position: absolute"], [style*="position:absolute"]').forEach(block => {
+    if (ratio !== 1) {
+      ss.querySelectorAll(':scope > [style*="position: absolute"], :scope > [style*="position:absolute"]').forEach(block => {
         const curLeft  = parseInt(block.style.left  || 0);
         const curW = parseInt(block.style.width || block.offsetWidth || 0);
         block.style.left = Math.round(curLeft * ratio) + 'px';
@@ -516,4 +509,4 @@ export function showFrameProperties(el) {
 }
 
 window.showFrameProperties      = showFrameProperties;
-window.showSubSectionProperties = el => showFrameProperties(el);
+window.showFrameProperties = el => showFrameProperties(el);

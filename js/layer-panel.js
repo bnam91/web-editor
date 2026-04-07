@@ -3,8 +3,7 @@
    makeLayer* 렌더러는 layer-panel-items.js로 분리 (2025-03-31)
 ═══════════════════════════════════ */
 import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem,
-         makeLayerSubSectionItem, makeLayerAssetItem, makeLayerCardItem, makeLayerColItem,
-         makeLayerRowGroup } from './layer-panel-items.js';
+         makeLayerFrameItem, makeLayerAssetItem, makeLayerCardItem } from './layer-panel-items.js';
 
 export function buildLayerPanel() {
   const panel = document.getElementById('layer-panel-body');
@@ -167,23 +166,14 @@ export function buildLayerPanel() {
     const sectionInner = sec.querySelector('.section-inner');
 
     function appendRowToLayer(child, container, depth = 1) {
-      const colBlocks = [...child.querySelectorAll(':scope > .col > *')]
-        .filter(el => !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator'));
-      const allCols = [...child.querySelectorAll(':scope > .col')];
-      const isMultiCol = allCols.length > 1;
-      // flex/grid는 col이 여러 개 → 항상 row group으로 표시
-      if (isMultiCol) {
-        container.appendChild(makeLayerRowGroup(child, colBlocks, sec));
-        return;
-      }
-      // stack (단일 col): 블록이 없으면 row group, 1개면 블록 직접 표시
-      if (colBlocks.length === 0) {
-        container.appendChild(makeLayerRowGroup(child, [], sec));
-      } else if (colBlocks.length === 1) {
-        const block = colBlocks[0];
-        if (block.classList.contains('sub-section-block')) {
-          const ssItem = makeLayerSubSectionItem(block, sec, appendRowToLayer);
-          ssItem._dragTarget = child;  // _dragTarget을 row로 교정
+      // col 제거 후: 블록이 row 직속 자식
+      const directBlocks = [...child.querySelectorAll(':scope > *')]
+        .filter(el => !el.classList.contains('drop-indicator'));
+
+      const renderBlock = (block) => {
+        if (block.classList.contains('frame-block')) {
+          const ssItem = makeLayerFrameItem(block, sec, appendRowToLayer);
+          ssItem._dragTarget = child;
           container.appendChild(ssItem);
         } else if (block.classList.contains('asset-block')) {
           container.appendChild(makeLayerAssetItem(block, child, sec));
@@ -192,10 +182,9 @@ export function buildLayerPanel() {
         } else {
           container.appendChild(makeLayerBlockItem(block, child, sec, depth));
         }
-      } else {
-        // 단일 col에 블록이 여러 개 → Col(Frame)으로 표시 (Grid 아님)
-        container.appendChild(makeLayerColItem(allCols[0], 0, sec, depth));
-      }
+      };
+
+      directBlocks.forEach(renderBlock);
     }
 
     [...(sectionInner ? sectionInner.children : [])].forEach(child => {
@@ -205,8 +194,14 @@ export function buildLayerPanel() {
         appendRowToLayer(child, children);
       } else if (child.classList.contains('group-block')) {
         children.appendChild(makeLayerGroupItem(child, sec, appendRowToLayer));
-      } else if (child.classList.contains('sub-section-block')) {
-        children.appendChild(makeLayerSubSectionItem(child, sec, appendRowToLayer));
+      } else if (child.classList.contains('frame-block')) {
+        if (child.dataset.textFrame === 'true') {
+          // text-frame 투명: 내부 text-block을 직접 렌더링 (drag target은 text-frame)
+          const tb = child.querySelector(':scope > .text-block');
+          if (tb) children.appendChild(makeLayerBlockItem(tb, child, sec, 1));
+        } else {
+          children.appendChild(makeLayerFrameItem(child, sec, appendRowToLayer));
+        }
       }
     });
 
@@ -259,16 +254,25 @@ export function buildLayerPanel() {
         dragTarget.classList.remove('overlay-tb');
         const rowInOverlay = dragTarget.closest('.asset-overlay > .row');
         if (rowInOverlay) {
-          insertIntoSec(rowInOverlay);
+          // overlay row → text-frame wrapper로 교체해서 삽입
+          const tb = rowInOverlay.querySelector('.text-block');
+          if (tb) {
+            const tf = document.createElement('div');
+            tf.className = 'frame-block'; tf.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+            tf.dataset.textFrame = 'true'; tf.dataset.bg = 'transparent';
+            tf.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
+            tf.appendChild(tb);
+            insertIntoSec(tf);
+            rowInOverlay.remove();
+          }
         } else {
-          // direct overlayEl child: wrap in row
-          const newRow = document.createElement('div');
-          newRow.className = 'row'; newRow.dataset.layout = 'stack';
-          const newCol = document.createElement('div');
-          newCol.className = 'col'; newCol.dataset.width = '100';
-          newCol.appendChild(dragTarget);
-          newRow.appendChild(newCol);
-          insertIntoSec(newRow);
+          // direct overlayEl child: wrap in text-frame
+          const tf = document.createElement('div');
+          tf.className = 'frame-block'; tf.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+          tf.dataset.textFrame = 'true'; tf.dataset.bg = 'transparent';
+          tf.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
+          tf.appendChild(dragTarget);
+          insertIntoSec(tf);
         }
         clearLayerIndicators();
         buildLayerPanel();

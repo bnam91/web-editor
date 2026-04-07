@@ -336,7 +336,7 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
     if (!dragTarget) return;
     const isOverlayContent = dragTarget.classList.contains('overlay-tb') ||
       (dragTarget.classList.contains('gap-block') && dragTarget.closest('.asset-overlay'));
-    const isSectionRow = dragTarget.classList.contains('row') &&
+    const isSectionRow = (dragTarget.classList.contains('row') || (dragTarget.classList.contains('frame-block') && dragTarget.dataset.textFrame === 'true')) &&
       !dragTarget.closest('.asset-overlay') && dragTarget.querySelector('.text-block');
     const isSectionGap = dragTarget.classList.contains('gap-block') && !dragTarget.closest('.asset-overlay');
     if (!isOverlayContent && !isSectionRow && !isSectionGap) return;
@@ -373,12 +373,19 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
       else overlayEl.appendChild(el);
     };
 
-    // Cross-boundary: section row → overlay
-    if (dragEl.classList.contains('row') && !dragEl.closest('.asset-overlay')) {
+    // Cross-boundary: section row / text-frame → overlay
+    if ((dragEl.classList.contains('row') || (dragEl.classList.contains('frame-block') && dragEl.dataset.textFrame === 'true')) && !dragEl.closest('.asset-overlay')) {
       const block = dragEl.querySelector('.text-block');
       if (!block) { window.clearLayerIndicators(); return; }
       block.classList.add('overlay-tb');
-      insertIntoOverlay(dragEl);
+      // text-frame 드래그 시: block을 row wrapper에 넣어 overlay에 삽입
+      const container = dragEl.classList.contains('row') ? dragEl : (() => {
+        const r = document.createElement('div');
+        r.className = 'row'; r.dataset.layout = 'stack';
+        r.appendChild(block);
+        return r;
+      })();
+      insertIntoOverlay(container);
       window.clearLayerIndicators();
       window.buildLayerPanel();
       window.pushHistory();
@@ -496,107 +503,6 @@ function makeLayerCardItem(block, dragTarget, sec, depth = 1) {
 }
 
 
-/* 레이어 Row 그룹 생성 (멀티컬럼용) */
-function makeLayerColItem(colEl, colIdx, sec, depth = 2) {
-  const colWrapper = document.createElement('div');
-  colWrapper.className = 'layer-row-group layer-col-group';
-  colWrapper._dragTarget = colEl;
-
-  const colHeader = document.createElement('div');
-  colHeader.className = 'layer-row-header layer-col-header';
-  colHeader.innerHTML = `
-    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
-    <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
-      <rect x="1" y="1" width="10" height="10" rx="0.5"/>
-    </svg>
-    <span class="layer-item-name">Col ${colIdx + 1}</span>
-    <span class="layer-item-type">Frame</span>`;
-  colHeader.prepend(makeIndents(depth));
-
-  const colChildren = document.createElement('div');
-  colChildren.className = 'layer-row-children';
-
-  // col 직접 자식 중 row로 래핑된 블록도 꺼내서 평탄화
-  const rawChildren = [...colEl.querySelectorAll(':scope > *')]
-    .filter(el => !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator'));
-  const blocks = rawChildren.flatMap(el => {
-    if (el.classList.contains('row')) {
-      // row > col > block 구조에서 실제 블록만 추출
-      const inner = [...el.querySelectorAll(':scope > .col > *')]
-        .filter(b => !b.classList.contains('col-placeholder') && !b.classList.contains('drop-indicator'));
-      return inner.length > 0 ? inner : [];
-    }
-    return [el];
-  });
-
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', banner:'Banner', graph:'Graph', 'icon-text':'Icon Text' };
-  const typeLbls  = { heading:'Text', body:'Text', caption:'Text', label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', banner:'Component', graph:'Component', 'icon-text':'Text' };
-
-  blocks.forEach(block => {
-    const isText = block.classList.contains('text-block');
-    const isGap  = block.classList.contains('gap-block');
-    const isIconCb = block.classList.contains('icon-circle-block');
-    const isTable  = block.classList.contains('table-block');
-    const isLabelGroup = block.classList.contains('label-group-block');
-    const isDivider = block.classList.contains('divider-block');
-    const isCard  = block.classList.contains('card-block');
-    const isGraph  = block.classList.contains('graph-block');
-    const isIconText = block.classList.contains('icon-text-block');
-    const type = isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : 'asset';
-
-    if (isCard)   { colChildren.appendChild(makeLayerCardItem(block, block.closest('.row') || block, sec, depth + 1)); return; }
-
-    const item = document.createElement('div');
-    item.className = 'layer-item layer-item-nested';
-    item.innerHTML = `${layerIcons[type]}<span class="layer-item-name">${block.dataset.layerName || labels[type]}</span><span class="layer-item-type">${typeLbls[type]}</span>`;
-    item.prepend(makeIndents(depth + 1));
-    item.addEventListener('click', e => {
-      e.stopPropagation();
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
-      window.deselectAll();
-      block.classList.add('selected');
-      // Col/Row도 함께 활성화
-      const row = colEl.closest('.row');
-      if (row) { row.classList.add('row-active'); }
-      colEl.classList.add('col-active');
-      // 레이어 패널 row 헤더 하이라이트
-      const rowLayerHeader = colWrapper.parentElement?.parentElement?.querySelector(':scope > .layer-row-header');
-      if (rowLayerHeader) rowLayerHeader.classList.add('active');
-      colHeader.classList.add('active');
-      window.syncSection(sec);
-      window.highlightBlock(block, item);
-      window.setBlockAnchor?.(block);
-      if (isText || isIconText) window.showTextProperties(block);
-      else if (isGap) window.showGapProperties(block);
-      else if (isIconCb) window.showIconCircleProperties(block);
-      else if (isTable) window.showTableProperties(block);
-      else window.showAssetProperties(block);
-    });
-    block._layerItem = item;
-    colChildren.appendChild(item);
-  });
-
-  colHeader.addEventListener('click', e => {
-    if (e.target.closest('.layer-chevron')) { colWrapper.classList.toggle('collapsed'); return; }
-    e.stopPropagation();
-    window.deselectAll();
-    const row = colEl.closest('.row');
-    if (row) { row.classList.add('row-active'); }
-    colEl.classList.add('col-active');
-    // 레이어 패널 row 헤더 하이라이트
-    const rowLayerHeader = colWrapper.parentElement?.parentElement?.querySelector(':scope > .layer-row-header');
-    if (rowLayerHeader) rowLayerHeader.classList.add('active');
-    window.syncSection(sec);
-    colHeader.classList.add('active');
-    if (window.showColProperties) window.showColProperties(colEl);
-    else if (window.showRowProperties && row) window.showRowProperties(row);
-  });
-
-  colWrapper.appendChild(colHeader);
-  colWrapper.appendChild(colChildren);
-  return colWrapper;
-}
 
 function makeLayerRowGroup(rowEl, blocks, sec) {
   const ratioStr = rowEl.dataset.ratioStr || `${blocks.length}*1`;
@@ -617,12 +523,6 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
   const groupChildren = document.createElement('div');
   groupChildren.className = 'layer-row-children';
-
-  // Col Frame을 자식으로 표시
-  const cols = [...rowEl.querySelectorAll(':scope > .col')];
-  cols.forEach((col, i) => {
-    groupChildren.appendChild(makeLayerColItem(col, i, sec, 2));
-  });
 
   header.addEventListener('click', e => {
     if (e.target.closest('.layer-chevron')) { group.classList.toggle('collapsed'); return; }
@@ -657,15 +557,15 @@ function makeLayerRowGroup(rowEl, blocks, sec) {
 
 
 /* 레이어 Frame 아이템 생성 */
-function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
+function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const wrapper = document.createElement('div');
   wrapper.className = 'layer-item';
   wrapper._dragTarget = ssEl;
 
   const name = ssEl.dataset.layerName || 'Frame';
 
-  // 직접 자식(sub-section-inner)에 shape-block이 있으면 Shape 타입으로 표시 (하위 트리 전체 탐색 금지)
-  const innerShapeBlock = ssEl.querySelector(':scope > .sub-section-inner > .shape-block');
+  // 직접 자식에 shape-block이 있으면 Shape 타입으로 표시 (하위 트리 전체 탐색 금지)
+  const innerShapeBlock = ssEl.querySelector(':scope > .shape-block');
   const shapeType = innerShapeBlock ? (innerShapeBlock.dataset.shapeType || 'rectangle') : null;
   const shapeKey  = shapeType ? `shape-${shapeType}` : null;
   const shapeTypeLbls = { 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
@@ -686,11 +586,13 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
     const parentSec = ssEl.closest('.section-block');
     if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
     ssEl.classList.add('selected');
-    window._activeSubSection = ssEl;
+    window._activeFrame = ssEl;
     document.querySelectorAll('.layer-item.active').forEach(g => g.classList.remove('active'));
     wrapper.classList.add('active');
     window.highlightBlock?.(ssEl, wrapper);
-    window.showSubSectionProperties?.(ssEl);
+    window.showFrameProperties?.(ssEl);
+    const isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+    if (!isShapeFrame) window.showFrameHandles?.(ssEl);
   });
   wrapper.addEventListener('dragstart', e => {
     e.stopPropagation();
@@ -709,12 +611,12 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
   const ssChildren = document.createElement('div');
   ssChildren.className = 'layer-row-children';
 
-  const ssInner = ssEl.querySelector('.sub-section-inner');
-  if (ssInner) {
+  const ssInner = ssEl;
+  {
     [...ssInner.children].forEach(child => {
-      if (child.classList.contains('sub-section-block')) {
+      if (child.classList.contains('frame-block')) {
         // 중첩 프레임 — 재귀 렌더링 (depth +1)
-        ssChildren.appendChild(makeLayerSubSectionItem(child, sec, appendRowFn, depth + 1));
+        ssChildren.appendChild(makeLayerFrameItem(child, sec, appendRowFn, depth + 1));
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
@@ -759,11 +661,13 @@ function makeLayerSubSectionItem(ssEl, sec, appendRowFn, depth = 1) {
       const parentSec = ssEl.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
       ssEl.classList.add('selected');
-      window._activeSubSection = ssEl;
+      window._activeFrame = ssEl;
       document.querySelectorAll('.layer-row-header.active').forEach(h => h.classList.remove('active'));
       header.classList.add('active');
       window.highlightBlock?.(ssEl, header);
-      window.showSubSectionProperties?.(ssEl);
+      window.showFrameProperties?.(ssEl);
+      const _isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+      if (!_isShapeFrame) window.showFrameHandles?.(ssEl);
     });
     header.addEventListener('dragstart', e => {
       e.stopPropagation();
@@ -794,9 +698,7 @@ export {
   addLayerRename,
   makeLayerBlockItem,
   makeLayerGroupItem,
-  makeLayerSubSectionItem,
+  makeLayerFrameItem,
   makeLayerAssetItem,
   makeLayerCardItem,
-  makeLayerColItem,
-  makeLayerRowGroup,
 };

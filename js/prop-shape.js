@@ -79,7 +79,7 @@ export function showShapeProperties(block) {
 
   const svg = block.querySelector('svg');
   // 부모 sub-section (shape frame)
-  const ss = block.closest('.sub-section-block');
+  const ss = block.closest('.frame-block');
 
   function applyColor(hex) {
     block.dataset.shapeColor = hex;

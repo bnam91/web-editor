@@ -1,17 +1,5 @@
 [
   {
-    "id": "tpl_1774611675830",
-    "name": "F4검수-태그테스트",
-    "folder": "와이어프레임",
-    "category": "Hero",
-    "tags": [
-      "qa-검수",
-      "리뷰"
-    ],
-    "createdAt": "2026-03-27T11:41:15.832Z",
-    "thumbnail": null
-  },
-  {
     "id": "tpl_1774611180296",
     "name": "F4-Test-Template",
     "folder": "와이어프레임",

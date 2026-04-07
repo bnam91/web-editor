@@ -8,6 +8,7 @@ import {
   makeLabelItem,
   applyDividerStyle,
 } from './drag-utils.js';
+import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 
 /* ═══════════════════════════════════
    DRAG AND DROP — state & event binding
@@ -21,6 +22,116 @@ let dragSrc = null;
 let layerDragSrc = null;
 let sectionDragSrc = null;
 let layerSectionDragSrc = null;
+
+/* ═══════════════════════════════════
+   FRAME RESIZE HANDLE OVERLAY
+   Figma 방식: 핸들을 #ss-handles-overlay에 렌더링하여
+   frame-block이 overflow:hidden을 직접 가질 수 있게 함
+═══════════════════════════════════ */
+let _overlayFrame = null;  // 현재 핸들이 표시된 frame-block
+let _overlayRafId = null;
+
+function _getOverlay() {
+  return document.getElementById('ss-handles-overlay');
+}
+
+function showFrameHandles(ss) {
+  if (_overlayFrame === ss) return; // already showing
+  hideFrameHandles();
+  _overlayFrame = ss;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  const dirs = ['nw', 'ne', 'sw', 'se'];
+  dirs.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `ss-resize-handle ${dir}`;
+    h.dataset.dir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onHandleMouseDown(e, ss, dir));
+  });
+  _updateHandlePositions();
+  _startHandleRaf();
+}
+
+function hideFrameHandles() {
+  if (_overlayRafId) { cancelAnimationFrame(_overlayRafId); _overlayRafId = null; }
+  _overlayFrame = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.innerHTML = '';
+}
+
+function _startHandleRaf() {
+  function loop() {
+    if (!_overlayFrame) return;
+    // 프레임이 DOM에서 제거됐거나 선택 해제되면 핸들 제거
+    if (!_overlayFrame.isConnected || !_overlayFrame.classList.contains('selected')) {
+      hideFrameHandles();
+      return;
+    }
+    _updateHandlePositions();
+    _overlayRafId = requestAnimationFrame(loop);
+  }
+  _overlayRafId = requestAnimationFrame(loop);
+}
+
+function _updateHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_overlayFrame) return;
+  const rect = _overlayFrame.getBoundingClientRect();
+  const HALF = 3.5;
+  const handles = overlay.querySelectorAll('.ss-resize-handle');
+  handles.forEach(h => {
+    const dir = h.dataset.dir;
+    const top  = dir.includes('n') ? rect.top  - HALF : rect.bottom - HALF;
+    const left = dir.includes('w') ? rect.left - HALF : rect.right  - HALF;
+    h.style.top  = top  + 'px';
+    h.style.left = left + 'px';
+  });
+}
+
+function _onHandleMouseDown(e, ss, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const ssRect = ss.getBoundingClientRect();
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+  const startW = Math.round(ssRect.width / scale0);
+  const startH = Math.round(ssRect.height / scale0);
+  const secInner = ss.closest('.section-inner') || ss.closest('.section-block');
+  const secInnerCS = secInner ? getComputedStyle(secInner) : null;
+  const paddingH = secInnerCS ? parseFloat(secInnerCS.paddingLeft) + parseFloat(secInnerCS.paddingRight) : 0;
+  const maxW = secInner ? Math.round(secInner.clientWidth - paddingH) : 860;
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    let newW = startW, newH = startH;
+    if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
+    if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
+    if (dir.includes('s')) newH = Math.max(40, startH + dy);
+    if (dir.includes('n')) newH = Math.max(40, startH - dy);
+    newW = Math.round(newW); newH = Math.round(newH);
+    ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+    ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showFrameHandles = showFrameHandles;
+window.hideFrameHandles = hideFrameHandles;
 
 Object.defineProperty(window, 'dragSrc', {
   get() { return dragSrc; },
@@ -254,21 +365,26 @@ function bindSectionDropZone(sec) {
 }
 
 function _getParentFrame(block) {
-  return block.closest('.sub-section-block');
+  return block.closest('.frame-block');
 }
 function _isInsideUnselectedFrame(block) {
   const ss = _getParentFrame(block);
   if (!ss) return false;
-  return !(ss.classList.contains('selected') && window._activeSubSection === ss);
+  // text-frame은 선택 투명 — 클릭 시 바로 text-block 선택
+  if (ss.dataset.textFrame === 'true') return false;
+  return !(ss.classList.contains('selected') && window._activeFrame === ss);
 }
 
-// 프레임(sub-section-block) 내 자식 블록 드래그 후 프레임 높이를 자동 확장
+// 프레임(frame-block) 내 자식 블록 드래그 후 프레임 높이를 자동 확장
 function _resizeFrameToFitChildren(block) {
-  const ss = block.closest('.sub-section-block');
+  let ss = block.closest('.frame-block');
   if (!ss) return;
-  const inner = ss.querySelector('.sub-section-inner');
-  if (!inner) return;
-  const childrenBottom = Math.max(...[...inner.children].map(c => {
+  // text-frame 자체가 넘어온 경우 → freeLayout 부모 프레임 대상으로
+  if (ss.dataset.textFrame === 'true') {
+    ss = ss.parentElement?.closest('.frame-block');
+    if (!ss) return;
+  }
+  const childrenBottom = Math.max(...[...ss.children].map(c => {
     const top = parseInt(c.style.top || 0);
     return top + (c.offsetHeight || 0);
   }));
@@ -279,14 +395,21 @@ function _resizeFrameToFitChildren(block) {
 }
 
 // 프레임 내부 블록 선택 시 프레임 selected 복원 헬퍼
-// deselectAll()이 sub-section-block.selected를 제거해 CSS pointer-events가 다시 차단되는 문제 방지
+// deselectAll()이 frame-block.selected를 제거해 CSS pointer-events가 다시 차단되는 문제 방지
 function _restoreParentFrameSelected(block) {
   const pf = _getParentFrame(block);
   if (!pf) return;
-  pf.classList.add('selected');
-  window._activeSubSection = pf;
-  const parentSec = pf.closest('.section-block');
-  if (parentSec) parentSec.classList.add('selected');
+  // text-frame은 선택 투명 wrapper — _activeFrame으로 설정하지 않고 실제 layout 프레임을 찾음
+  const realFrame = pf.dataset.textFrame === 'true'
+    ? pf.closest('.frame-block:not([data-text-frame])') // 상위 real frame (없으면 null)
+    : pf;
+  if (realFrame) {
+    realFrame.classList.add('selected');
+    window._activeFrame = realFrame;
+    const parentSec = realFrame.closest('.section-block');
+    if (parentSec) parentSec.classList.add('selected');
+  }
+  // realFrame이 null이면 (section 직속 text-frame): _activeFrame 설정 안 함 → 섹션에 추가됨
 }
 
 function bindBlock(block) {
@@ -307,37 +430,136 @@ function bindBlock(block) {
   // ── 공통: 절대좌표 드래그 (프레임 자유배치 — 모든 블록 타입) ──
   block.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    if (block.style.position !== 'absolute') return;
     if (block.classList.contains('editing')) return;
-    if (_getParentFrame(block) && !block.classList.contains('selected')) return;
+    if (_getParentFrame(block) && !block.classList.contains('selected')) {
+      // text-block 특례: text-frame 부모가 있고 실제 freeLayout frame이 selected면 드래그 허용
+      if (isText) {
+        const _tf = block.closest('.frame-block[data-text-frame="true"]');
+        const _realFrame = _tf?.closest('.frame-block:not([data-text-frame])');
+        if (!_realFrame?.classList.contains('selected')) return;
+        // 드래그 허용 — 진행
+      } else {
+        return;
+      }
+    }
     if (isLabelGroup && e.target.closest('.label-item, .label-group-add-btn')) return;
 
-    // shape-block: left:0/top:0 고정이므로 직접 이동하지 않고 부모 ss Frame을 이동 대상으로
-    // ss가 absolute가 아니면 (섹션 흐름 배치) HTML5 DnD에 위임
+    // shape-block: 부모 frame-block을 이동 대상으로
+    // text-block: text-frame(래퍼)이 absolute인 경우 text-frame을 이동 대상으로
+    // shape/text가 아닌 블록: block 자체가 absolute여야 함
     let dragEl = block;
     if (isShape) {
-      const ss = block.closest('.sub-section-block');
+      const ss = block.closest('.frame-block');
       if (!ss || ss.style.position !== 'absolute') return;
       dragEl = ss;
+    } else if (isText) {
+      const tf = block.closest('.frame-block[data-text-frame="true"]');
+      if (tf && tf.style.position === 'absolute') {
+        dragEl = tf;
+      } else if (block.style.position !== 'absolute') {
+        return; // flow 배치 text-block은 HTML5 DnD에 위임
+      }
+    } else {
+      if (block.style.position !== 'absolute') return;
     }
 
     e.stopPropagation();
     const startX = e.clientX, startY = e.clientY;
     const startLeft = parseInt(dragEl.style.left || '0');
     const startTop  = parseInt(dragEl.style.top  || '0');
+
+    // freeLayout 다중선택 피어 수집 — shift+클릭으로 선택된 형제 absolute 요소들
+    const _parentFrameForMulti = dragEl.closest('.frame-block[data-free-layout]');
+    const multiPeers = [];
+    if (_parentFrameForMulti) {
+      [..._parentFrameForMulti.children].forEach(ch => {
+        if (ch === dragEl || ch.style.position !== 'absolute') return;
+        const hasSelected = ch.querySelector(
+          '.text-block.selected,.asset-block.selected,.shape-block.selected,' +
+          '.gap-block.selected,.icon-circle-block.selected,.table-block.selected,' +
+          '.label-group-block.selected,.card-block.selected,.graph-block.selected,' +
+          '.divider-block.selected'
+        );
+        if (hasSelected) {
+          multiPeers.push({
+            el: ch,
+            startLeft: parseInt(ch.style.left || '0'),
+            startTop:  parseInt(ch.style.top  || '0'),
+          });
+        }
+      });
+    }
+
+    // 드래그아웃 감지용 — freeLayout 프레임 밖으로 이동 시 섹션 레벨로 추출
+    const _dragOutParentFrame   = dragEl.closest('.frame-block[data-free-layout]');
+    const _dragOutParentSection = dragEl.closest('.section-block');
+
     let moved = false;
+    let draggedOutside = false;    // 프레임 밖 드래그 상태 플래그
+    let _dropInsertBefore = null;  // 삽입 기준 element (null=끝에 추가)
     function onMove(ev) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
       moved = true;
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-      const newLeft = Math.round(startLeft + dx / scale);
-      const newTop  = Math.round(startTop  + dy / scale);
+
+      // 드래그아웃 감지 (단일 선택 + 다중선택 없을 때만)
+      if (_dragOutParentFrame && _dragOutParentSection && multiPeers.length === 0) {
+        const frameRect = _dragOutParentFrame.getBoundingClientRect();
+        const outside = ev.clientX < frameRect.left || ev.clientX > frameRect.right ||
+                        ev.clientY < frameRect.top  || ev.clientY > frameRect.bottom;
+        if (outside) {
+          draggedOutside = true;
+          hideGuides();
+          // 삽입 기준 element를 closure 변수에 저장 (indicator 消失에 무관하게 유지)
+          const inner = _dragOutParentSection.querySelector('.section-inner');
+          _dropInsertBefore = getDragAfterElement(inner, ev.clientY) || null;
+          // 섹션 inner에 드롭 인디케이터 표시
+          clearDropIndicators();
+          const indicator = document.createElement('div');
+          indicator.className = 'drop-indicator';
+          if (_dropInsertBefore) inner.insertBefore(indicator, _dropInsertBefore);
+          else inner.appendChild(indicator);
+          return;
+        } else if (draggedOutside) {
+          draggedOutside = false;
+          _dropInsertBefore = null;
+          clearDropIndicators();
+        }
+      }
+
+      const rawLeft = Math.round(startLeft + dx / scale);
+      const rawTop  = Math.round(startTop  + dy / scale);
+
+      // 스마트 가이드 스냅 (단일 선택일 때만 — 다중선택 시 스냅 생략)
+      const parentFrame = dragEl.closest('.frame-block[data-free-layout]');
+      let newLeft = rawLeft, newTop = rawTop;
+      if (parentFrame && multiPeers.length === 0) {
+        const snapped = snapPosition(rawLeft, rawTop, dragEl, parentFrame, scale);
+        newLeft = snapped.left;
+        newTop  = snapped.top;
+      }
+
       dragEl.style.left = `${newLeft}px`;
       dragEl.style.top  = `${newTop}px`;
+
+      if (parentFrame && multiPeers.length === 0) showGuides(dragEl, parentFrame, scale);
       dragEl.dataset.offsetX = String(newLeft);
       dragEl.dataset.offsetY = String(newTop);
+
+      // 다중선택 피어 동시 이동
+      const scaledDx = Math.round(dx / scale);
+      const scaledDy = Math.round(dy / scale);
+      multiPeers.forEach(peer => {
+        const pLeft = peer.startLeft + scaledDx;
+        const pTop  = peer.startTop  + scaledDy;
+        peer.el.style.left = `${pLeft}px`;
+        peer.el.style.top  = `${pTop}px`;
+        peer.el.dataset.offsetX = String(pLeft);
+        peer.el.dataset.offsetY = String(pTop);
+      });
+
       window.scheduleAutoSave?.();
       // prop 패널 X/Y 실시간 갱신 (패널이 열려있을 때)
       const xNum = document.getElementById('txt-x-number') || document.getElementById('lg-x-number');
@@ -349,7 +571,41 @@ function bindBlock(block) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('dragend', onUp);
-      if (moved) { _resizeFrameToFitChildren(dragEl); window.pushHistory?.(); }
+      hideGuides();
+
+      // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
+      if (moved && draggedOutside && _dragOutParentFrame && _dragOutParentSection) {
+        window.pushHistory?.();
+        const inner = _dragOutParentSection.querySelector('.section-inner');
+        clearDropIndicators();
+
+        // 절대 위치 스타일 초기화
+        dragEl.style.position = '';
+        dragEl.style.left = '';
+        dragEl.style.top = '';
+        delete dragEl.dataset.offsetX;
+        delete dragEl.dataset.offsetY;
+
+        // _dropInsertBefore: onMove에서 저장한 삽입 기준 element (null=끝에 추가)
+        const ref = _dropInsertBefore && _dropInsertBefore.parentNode === inner
+          ? _dropInsertBefore : null;
+        if (ref) inner.insertBefore(dragEl, ref);
+        else inner.appendChild(dragEl);
+
+        // flow 요소로 재바인딩
+        dragEl._dragBound = false;
+        const _tb = dragEl.querySelector('.text-block');
+        if (_tb) { _tb._blockBound = false; bindBlock(_tb); }
+
+        window.buildLayerPanel?.();
+        return;
+      }
+
+      if (moved) {
+        _resizeFrameToFitChildren(dragEl);
+        multiPeers.forEach(p => _resizeFrameToFitChildren(p.el));
+        window.pushHistory?.();
+      }
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -360,7 +616,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      const ss = block.closest('.sub-section-block');
+      const ss = block.closest('.frame-block');
       const layerItem = ss?._layerItem || block._layerItem;
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -370,7 +626,7 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
       }
       block.classList.add('selected');
       window.syncSection?.(sec);
@@ -398,7 +654,7 @@ function bindBlock(block) {
         const dir    = handle.dataset.dir;
         const startX = e.clientX;
         const startY = e.clientY;
-        const ss  = block.closest('.sub-section-block');
+        const ss  = block.closest('.frame-block');
         const ssRect = ss?.getBoundingClientRect();
         const scaler0 = document.getElementById('canvas-scaler');
         const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
@@ -577,9 +833,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -660,9 +916,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -681,6 +937,62 @@ function bindBlock(block) {
         window.triggerAssetUpload(block);
       }
     });
+
+    // ── 4코너 리사이즈 핸들 (선택 시 표시) ──
+    if (!block.querySelector('.asset-handle')) {
+      ['nw', 'ne', 'sw', 'se'].forEach(dir => {
+        const h = document.createElement('div');
+        h.className = `asset-handle ${dir}`;
+        h.dataset.dir = dir;
+        block.appendChild(h);
+      });
+    }
+    block.querySelectorAll('.asset-handle').forEach(handle => {
+      handle.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const dir = handle.dataset.dir;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const rect = block.getBoundingClientRect();
+        const scaler0 = document.getElementById('canvas-scaler');
+        const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        const startW = Math.round(rect.width / scale0);
+        const startH = Math.round(rect.height / scale0);
+
+        function onMove(ev) {
+          const scaler = document.getElementById('canvas-scaler');
+          const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+          const dx = (ev.clientX - startX) / scale;
+          const dy = (ev.clientY - startY) / scale;
+          let newW = startW, newH = startH;
+          if (dir.includes('e')) newW = Math.min(860, Math.max(100, startW + dx));
+          if (dir.includes('w')) newW = Math.min(860, Math.max(100, startW - dx));
+          if (dir.includes('s')) newH = Math.max(40, startH + dy);
+          if (dir.includes('n')) newH = Math.max(40, startH - dy);
+          newW = Math.round(newW); newH = Math.round(newH);
+          block.style.width  = newW >= 860 ? '' : newW + 'px';
+          block.style.height = newH + 'px';
+          // 우측 패널 슬라이더 동기화
+          const wNum = document.getElementById('asset-w-number');
+          const wSl  = document.getElementById('asset-w-slider');
+          const hNum = document.getElementById('asset-h-number');
+          const hSl  = document.getElementById('asset-h-slider');
+          if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
+          if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
+          window.scheduleAutoSave?.();
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          window.pushHistory?.();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+
     // 파일 드래그 드롭
     block.addEventListener('dragover', e => {
       if (!e.dataTransfer.types.includes('Files')) return;
@@ -729,9 +1041,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -757,9 +1069,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -813,9 +1125,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -873,9 +1185,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       // + 버튼: 새 라벨 추가
@@ -968,9 +1280,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       const rowEl = block.closest('.row');
@@ -1048,9 +1360,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -1079,9 +1391,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -1159,9 +1471,9 @@ function bindBlock(block) {
         const parentSec = ss.closest('.section-block');
         if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
         ss.classList.add('selected');
-        window._activeSubSection = ss;
+        window._activeFrame = ss;
         window.highlightBlock?.(ss, ss._layerItem);
-        window.showSubSectionProperties?.(ss);
+        window.showFrameProperties?.(ss);
         return;
       }
       window.deselectAll();
@@ -1198,14 +1510,23 @@ function bindBlock(block) {
 
   // 드래그 이벤트 (overlay-tb는 마우스 드래그 사용, HTML5 drag 제외)
   if (block.classList.contains('overlay-tb')) return;
-  const dragTarget = isGap ? block : (block.closest('.row') || block);
+  const dragTarget = isGap ? block : (block.closest('.frame-block[data-text-frame]') || block.closest('.row') || block);
   if (dragTarget && !dragTarget._dragBound) {
     dragTarget._dragBound = true;
-    dragTarget.setAttribute('draggable', 'true');
+    // absolute 위치 요소는 HTML5 drag 완전 비활성화 — 커스텀 mousemove drag만 사용
+    // (draggable 속성 자체를 제거 → dragstart 이벤트 미발생 → opacity 깜빡임 없음)
+    // 적용 대상: absolute text-frame, absolute shape-block, absolute block 전반
+    // 기존 저장된 HTML에 draggable="true"가 남아있을 수 있으므로 명시적 removeAttribute 처리
+    const needsHtml5Drag = dragTarget.style.position !== 'absolute' && block.style.position !== 'absolute';
+    if (needsHtml5Drag) {
+      dragTarget.setAttribute('draggable', 'true');
+    } else {
+      dragTarget.removeAttribute('draggable');
+    }
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
-      if (block.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용
+      if (block.style.position === 'absolute' || dragTarget.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용 (flow→absolute 전환 후 예외 처리)
       if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
       _suppressDragSave();
@@ -1229,122 +1550,17 @@ function bindBlock(block) {
   }
 }
 
-// ── Col 드롭존: 블록을 다른 col로 이동 ──
-function bindColDropZone(col) {
-  if (col._colDropBound) return;
-  col._colDropBound = true;
-
-  let _colRafId = null;
-
-  col.addEventListener('dragover', e => {
-    if (!dragSrc) return;
-    const isSameCol = dragSrc.closest('.col') === col;
-    if (!isSameCol) {
-      // 다른 col → 비어있는 col에만 허용 (단일 블록 per col 규칙)
-      const existing = [...col.querySelectorAll(':scope > *')].filter(el =>
-        !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator')
-      );
-      if (existing.length > 0) return;
-      // multi-col row는 col에 드롭 불가 (col > row > col 중첩 방지)
-      if (dragSrc.classList.contains('row') &&
-          dragSrc.querySelectorAll(':scope > .col').length > 1) return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
-    if (_colRafId) return;
-    const clientY = e.clientY;
-    _colRafId = requestAnimationFrame(() => {
-      _colRafId = null;
-      if (!dragSrc) return;
-      clearDropIndicators();
-      const after = getDragAfterElement(col, clientY);
-      const indicator = document.createElement('div');
-      indicator.className = 'drop-indicator';
-      if (after) col.insertBefore(indicator, after);
-      else col.appendChild(indicator);
-    });
-  });
-
-  col.addEventListener('dragleave', e => {
-    if (!col.contains(e.relatedTarget)) {
-      if (_colRafId) { cancelAnimationFrame(_colRafId); _colRafId = null; }
-      clearDropIndicators();
-    }
-  });
-
-  col.addEventListener('drop', e => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (_colRafId) { cancelAnimationFrame(_colRafId); _colRafId = null; }
-    if (!dragSrc) return;
-    const isSameCol = dragSrc.closest('.col') === col;
-    if (isSameCol) {
-      // 같은 col 내 reorder
-      window.pushHistory?.();
-      const indicator = col.querySelector('.drop-indicator');
-      if (indicator) col.insertBefore(dragSrc, indicator);
-      else col.appendChild(dragSrc);
-      clearDropIndicators();
-      window.buildLayerPanel?.();
-      dragSrc = null;
-      return;
-    }
-    // 다른 col → 비어있는 col에만 허용
-    const existingBlocks = [...col.querySelectorAll(':scope > *')].filter(el =>
-      !el.classList.contains('col-placeholder') && !el.classList.contains('drop-indicator')
-    );
-    if (existingBlocks.length > 0) { clearDropIndicators(); return; }
-    // multi-col row는 col에 드롭 불가 (col > row > col 중첩 방지)
-    if (dragSrc.classList.contains('row') &&
-        dragSrc.querySelectorAll(':scope > .col').length > 1) { clearDropIndicators(); return; }
-
-    window.pushHistory?.();
-
-    // dragSrc가 row인 경우: 단일 col + 단일 블록이면 블록을 추출해서 이동
-    if (dragSrc.classList.contains('row')) {
-      const srcCols = dragSrc.querySelectorAll(':scope > .col');
-      if (srcCols.length === 1) {
-        const srcCol = srcCols[0];
-        const blocks = [...srcCol.querySelectorAll(':scope > *:not(.col-placeholder)')];
-        if (blocks.length > 0) {
-          const indicator = col.querySelector('.drop-indicator');
-          blocks.forEach(b => {
-            if (indicator) col.insertBefore(b, indicator);
-            else col.appendChild(b);
-          });
-          // 소스 row가 비었으면 제거
-          const remainingBlocks = srcCol.querySelectorAll(':scope > *:not(.col-placeholder)');
-          if (!remainingBlocks.length) {
-            const srcRow = dragSrc;
-            srcRow.remove();
-          }
-          clearDropIndicators();
-          window.buildLayerPanel?.();
-          dragSrc = null;
-          return;
-        }
-      }
-    }
-
-    // dragSrc가 gap-block 또는 단일 블록인 경우: 그대로 col에 삽입
-    const indicator = col.querySelector('.drop-indicator');
-    if (indicator) col.insertBefore(dragSrc, indicator);
-    else col.appendChild(dragSrc);
-    clearDropIndicators();
-    window.buildLayerPanel?.();
-    dragSrc = null;
-  });
-}
-
-function bindSubSectionDropZone(ss) {
+function bindFrameDropZone(ss) {
   if (ss._subSecBound) return;
   ss._subSecBound = true;
+
+  // text-frame은 bindFrameDropZone 불필요 — 단순 wrapper이므로 click/drop 핸들러 불필요
+  if (ss.dataset.textFrame === 'true') return;
 
   // shape frame은 drop 수신 불가 — shape-block 전용 컨테이너
   const isShapeFrame = !!ss.querySelector('.shape-block');
 
-  const inner = ss.querySelector('.sub-section-inner');
+  const inner = ss;  // frame-inner 제거 — frame-block 자체가 content container
   let _rafId = null;
 
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
@@ -1356,7 +1572,7 @@ function bindSubSectionDropZone(ss) {
       e.preventDefault();
       e.stopPropagation();
 
-      const parent = ss.parentElement; // sub-section-inner of grid
+      const parent = ss.parentElement; // parent frame-block (NewGrid)
       const parentRect = parent.getBoundingClientRect();
       const startX = e.clientX;
       const startY = e.clientY;
@@ -1369,8 +1585,8 @@ function bindSubSectionDropZone(ss) {
       const parentSec = ss.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); }
       ss.classList.add('selected');
-      window._activeSubSection = ss;
-      window.showSubSectionProperties?.(ss);
+      window._activeFrame = ss;
+      window.showFrameProperties?.(ss);
 
       const onMove = ev => {
         const dx = ev.clientX - startX;
@@ -1429,8 +1645,8 @@ function bindSubSectionDropZone(ss) {
     // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
     // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
     if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block')) return;
-    // ss 또는 sub-section-inner 빈 공간 클릭만 처리
-    if (!e.target.closest('.sub-section-block')) return;
+    // ss 또는 frame-inner 빈 공간 클릭만 처리
+    if (!e.target.closest('.frame-block')) return;
     e.stopPropagation();
     // deselectAll 직접 호출 (selectSection은 showSectionProperties 부작용 있음)
     window.deselectAll?.();
@@ -1440,63 +1656,10 @@ function bindSubSectionDropZone(ss) {
       window.syncLayerActive?.(parentSec);
     }
     ss.classList.add('selected');
-    window._activeSubSection = ss;
+    window._activeFrame = ss;
     window.highlightBlock?.(ss, ss._layerItem);
-    window.showSubSectionProperties?.(ss);
-  });
-
-  // 4코너 리사이즈 핸들 — shape frame 제외
-  // :scope > 로 직계 자식만 선택 — 중첩 프레임 핸들에 부모 클로저 리스너가 중복으로 달리는 버그 방지
-  if (!isShapeFrame && !ss.querySelector(':scope > .ss-resize-handle')) {
-    ['nw', 'ne', 'sw', 'se'].forEach(dir => {
-      const h = document.createElement('div');
-      h.className = `ss-resize-handle ${dir}`;
-      h.dataset.dir = dir;
-      ss.appendChild(h);
-    });
-  }
-  ss.querySelectorAll(':scope > .ss-resize-handle').forEach(handle => {
-    handle.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      e.stopPropagation();
-      e.preventDefault();
-      const dir = handle.dataset.dir;
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const ssRect = ss.getBoundingClientRect();
-      const scaler0 = document.getElementById('canvas-scaler');
-      const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-      const startW = Math.round(ssRect.width / scale0);
-      const startH = Math.round(ssRect.height / scale0);
-      // section-inner 콘텐츠 폭(패딩 제외)을 최대 너비로 제한
-      const secInner = ss.closest('.section-inner') || ss.closest('.section-block');
-      const secInnerCS = secInner ? getComputedStyle(secInner) : null;
-      const paddingH = secInnerCS ? parseFloat(secInnerCS.paddingLeft) + parseFloat(secInnerCS.paddingRight) : 0;
-      const maxW = secInner ? Math.round(secInner.clientWidth - paddingH) : 860;
-
-      function onMove(ev) {
-        const scaler = document.getElementById('canvas-scaler');
-        const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-        const dx = (ev.clientX - startX) / scale;
-        const dy = (ev.clientY - startY) / scale;
-        let newW = startW, newH = startH;
-        if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
-        if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
-        if (dir.includes('s')) newH = Math.max(40, startH + dy);
-        if (dir.includes('n')) newH = Math.max(40, startH - dy);
-        newW = Math.round(newW); newH = Math.round(newH);
-        ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-        ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
-        window.scheduleAutoSave?.();
-      }
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        window.pushHistory?.();
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
+    window.showFrameProperties?.(ss);
+    if (!isShapeFrame) showFrameHandles(ss);
   });
 
   // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
@@ -1575,8 +1738,32 @@ function bindSubSectionDropZone(ss) {
         block.setAttribute('draggable', 'false');
       };
 
-      // row가 드롭된 경우 → 블록 추출 후 absolute 전환, row 제거
-      if (dragSrc.classList.contains('row')) {
+      // row 또는 text-frame이 드롭된 경우
+      if (dragSrc.classList.contains('row') || (dragSrc.classList.contains('frame-block') && dragSrc.dataset.textFrame === 'true')) {
+        if (dragSrc.dataset.textFrame === 'true') {
+          // text-frame: wrapper를 유지하고 text-frame 자체를 absolute로 전환
+          // (text-block을 꺼내면 orphan이 되므로 금지)
+          const existingAbsEls = [...inner.children].filter(b => b.style.position === 'absolute');
+          const nextY = existingAbsEls.reduce((maxY, b) => {
+            const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
+            return Math.max(maxY, by);
+          }, 0);
+          dragSrc.style.position = 'absolute';
+          dragSrc.style.left     = '0px';
+          dragSrc.style.top      = (nextY > 0 ? nextY + 16 : 0) + 'px';
+          if (!dragSrc.style.width || dragSrc.style.width === '') {
+            dragSrc.style.width = '100%';
+          }
+          // absolute 전환 후 HTML5 drag 비활성화 — 이후 커스텀 mousemove drag 사용
+          // (섹션에서 드롭 시 draggable="true"가 잔류하면 다음 드래그에서 회색이 됨)
+          dragSrc.removeAttribute('draggable');
+          dragSrc._dragBound = false; // 재바인딩 허용 플래그
+          inner.appendChild(dragSrc);
+          // text-block rebind — bindBlock이 absolute 상태를 다시 평가하도록
+          const _tb = dragSrc.querySelector('.text-block');
+          if (_tb) { _tb._blockBound = false; bindBlock(_tb); }
+        } else {
+        // row: 블록 추출 후 absolute 전환, wrapper 제거
         const blocks = [...dragSrc.querySelectorAll(BLOCK_SEL)];
         const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)];
         let nextY = existingBlocks.reduce((maxY, b) => {
@@ -1590,6 +1777,7 @@ function bindSubSectionDropZone(ss) {
           nextY += (block.offsetHeight || 60) + 16;
         });
         dragSrc.remove();
+        }
       } else {
         // dragSrc가 inner의 조상인 경우 삽입 금지 (HierarchyRequestError 방지)
         if (dragSrc.contains(inner)) { clearDropIndicators(); return; }
@@ -1640,9 +1828,9 @@ function bindSubSectionDropZone(ss) {
       const parentSec = ss.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
       ss.classList.add('selected');
-      window._activeSubSection = ss;
+      window._activeFrame = ss;
       window.highlightBlock?.(ss, ss._layerItem);
-      window.showSubSectionProperties?.(ss);
+      window.showFrameProperties?.(ss);
     }
   });
 
@@ -1668,9 +1856,8 @@ export {
   bindGroupDrag,
   bindSectionDrag,
   bindSectionDropZone,
-  bindColDropZone,
   bindBlock,
-  bindSubSectionDropZone,
+  bindFrameDropZone,
 };
 
 // Backward compat
@@ -1682,9 +1869,8 @@ window.ungroupBlock                = ungroupBlock;
 window.bindGroupDrag               = bindGroupDrag;
 window.bindSectionDrag             = bindSectionDrag;
 window.bindSectionDropZone         = bindSectionDropZone;
-window.bindColDropZone             = bindColDropZone;
 window.bindBlock                   = bindBlock;
-window.bindSubSectionDropZone      = bindSubSectionDropZone;
+window.bindFrameDropZone      = bindFrameDropZone;
 
 // 드래그 중단(ESC 등)으로 dragging 클래스가 고착되는 현상 방지
 document.addEventListener('dragend', () => {

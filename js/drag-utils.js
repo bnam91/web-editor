@@ -62,16 +62,17 @@ function insertBeforeBottomGap(section, el) {
 /* 선택된 블록 바로 다음에 삽입, 없으면 하단 Gap 앞에 */
 function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
-  const activeSS = window._activeSubSection;
-  if (activeSS && activeSS.closest('.section-block') === section) {
-    const ssInner = activeSS.querySelector('.sub-section-inner');
+  const activeSS = window._activeFrame;
+  // text-frame은 단순 wrapper — 삽입 대상이 아님 (_restoreParentFrameSelected 안전망)
+  if (activeSS && !activeSS.dataset?.textFrame && activeSS.closest('.section-block') === section) {
+    const ssInner = activeSS;
     const sel = ssInner.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
       '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
     );
     if (sel) {
-      const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.row') || sel);
+      const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
     } else {
       ssInner.appendChild(el);
@@ -82,7 +83,7 @@ function insertAfterSelected(section, el) {
   const inner = section.querySelector('.section-inner');
 
   // 서브섹션 자체가 selected인 경우 → 서브섹션 row 뒤에 삽입
-  const selSS = document.querySelector('.sub-section-block.selected');
+  const selSS = document.querySelector('.frame-block.selected');
   if (selSS && selSS.closest('.section-block') === section) {
     const ssRow = selSS.closest('.row') || selSS;
     ssRow.after(el);
@@ -100,7 +101,7 @@ function insertAfterSelected(section, el) {
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
-    const ref = isGap ? sel : (sel.closest('.row') || sel);
+    const ref = isGap ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
     ref.after(el);
   } else {
     insertBeforeBottomGap(section, el);

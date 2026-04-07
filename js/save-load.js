@@ -316,7 +316,139 @@ function applyPageSettings() {
   window.applyPagePadX?.(state.pageSettings.padX);
 }
 
+function migrateColsFromDOM(canvasEl) {
+  // sub-section-block → frame-block 리네임 (구버전 저장 호환)
+  canvasEl.querySelectorAll('.sub-section-block').forEach(el => {
+    el.classList.replace('sub-section-block', 'frame-block');
+  });
+  // sub-section-inner / frame-inner → 제거 (래퍼 제거, 자식을 frame-block 직속으로)
+  canvasEl.querySelectorAll('.sub-section-inner, .frame-inner').forEach(inner => {
+    const parent = inner.parentElement;
+    if (!parent) return;
+    [...inner.childNodes].forEach(child => parent.appendChild(child));
+    inner.remove();
+  });
+  // 인라인 핸들 제거 — 핸들은 이제 #ss-handles-overlay에서 렌더링
+  canvasEl.querySelectorAll('.frame-block > .ss-resize-handle').forEach(h => h.remove());
+
+  // Stack row: col wrapper 제거, 자식 블록을 row 직속으로 이동
+  canvasEl.querySelectorAll('.row[data-layout="stack"] > .col').forEach(col => {
+    const row = col.parentElement;
+    // col의 배경색이 있으면 row로 승계
+    if (col.style.backgroundColor) row.style.backgroundColor = col.style.backgroundColor;
+    [...col.childNodes].forEach(child => {
+      if (child.classList?.contains('col-placeholder')) return; // placeholder 제거
+      row.appendChild(child);
+    });
+    col.remove();
+  });
+  // Card grid row: col → 직속 card-block (NewGrid 변환 제외)
+  canvasEl.querySelectorAll('.row[data-layout="grid"][data-card-grid], .row[data-layout="grid"]').forEach(row => {
+    const cols = [...row.querySelectorAll(':scope > .col')];
+    if (cols.length === 0) return;
+    const isCardGrid = cols.every(c => c.querySelector(':scope > .card-block'));
+    if (!isCardGrid) return;
+    cols.forEach(col => {
+      [...col.childNodes].forEach(child => row.appendChild(child));
+      col.remove();
+    });
+    row.dataset.cardGrid = '1';
+  });
+  // Flex/Grid row: col → NewGrid 변환
+  canvasEl.querySelectorAll('.row[data-layout="flex"], .row[data-layout="grid"]').forEach(row => {
+    if (row.dataset.cardGrid) return; // 카드 그리드는 위에서 처리
+    const cols = [...row.querySelectorAll(':scope > .col')];
+    if (cols.length < 2) {
+      // 단일 col이면 stack처럼 처리
+      if (cols.length === 1) {
+        if (cols[0].style.backgroundColor) row.style.backgroundColor = cols[0].style.backgroundColor;
+        [...cols[0].childNodes].forEach(child => {
+          if (child.classList?.contains('col-placeholder')) return;
+          row.appendChild(child);
+        });
+        cols[0].remove();
+        row.dataset.layout = 'stack';
+      }
+      return;
+    }
+    // 멀티 col → NewGrid 변환
+    const gap = 16;
+    const colCount = cols.length;
+    const ratios = cols.map(c => parseFloat(c.style.flex) || parseFloat(c.dataset.flex) || 1);
+    // 변환 전 해당 row의 섹션을 활성화
+    const sec = row.closest('.section-block');
+    if (sec) {
+      document.querySelectorAll('.section-block.selected').forEach(s => s.classList.remove('selected'));
+      sec.classList.add('selected');
+      window._activeFrame = null;
+    }
+    const gridFrame = window.addNewGridBlock?.(colCount, 1, { gap, ratios });
+    if (!gridFrame) {
+      // addNewGridBlock 없으면 col-placeholder만 제거
+      cols.forEach(col => col.querySelector('.col-placeholder')?.remove());
+      return;
+    }
+    // 각 col 내용을 cell frame에 이식
+    const cellFrames = [...gridFrame.querySelectorAll('[data-grid-cell]')];
+    cols.forEach((col, i) => {
+      const cell = cellFrames[i];
+      if (!cell) return;
+      [...col.childNodes].forEach(child => {
+        if (child.classList?.contains('col-placeholder')) return;
+        cell.appendChild(child);
+      });
+    });
+    row.replaceWith(gridFrame);
+  });
+
+  // row[data-layout="stack"] > text-block → frame-block[data-text-frame] > text-block
+  // col 제거 후 실행해야 row 직속 text-block을 올바르게 감지함
+  canvasEl.querySelectorAll('.row[data-layout="stack"] > .text-block').forEach(tb => {
+    const row = tb.parentElement;
+    if (row.closest('.asset-overlay')) return; // overlay-tb는 제외
+    const tf = document.createElement('div');
+    tf.className = 'frame-block';
+    tf.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+    tf.dataset.textFrame = 'true';
+    tf.dataset.bg = 'transparent';
+    tf.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
+    if (row.dataset.paddingX) {
+      tf.dataset.paddingX   = row.dataset.paddingX;
+      tf.style.paddingLeft  = row.dataset.paddingX + 'px';
+      tf.style.paddingRight = row.dataset.paddingX + 'px';
+    }
+    row.before(tf);
+    tf.appendChild(tb);
+    if ([...row.childNodes].every(n => n.nodeType === Node.TEXT_NODE && !n.textContent.trim())) {
+      row.remove();
+    }
+  });
+
+  // freeLayout frame-block 직속 text-block → frame-block[data-text-frame] > text-block
+  // absolute 위치/크기를 text-frame으로 이전, text-block은 flow 자식으로
+  canvasEl.querySelectorAll('.frame-block[data-free-layout="true"] > .text-block, .frame-block[data-freeLayout="true"] > .text-block').forEach(tb => {
+    const tf = document.createElement('div');
+    tf.className = 'frame-block';
+    tf.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+    tf.dataset.textFrame = 'true';
+    tf.dataset.bg = 'transparent';
+    // 절대 위치/크기를 text-frame으로 이전
+    const pos = tb.style.cssText; // e.g. "position: absolute; left: 0px; top: 20px; width: 100%;"
+    tf.style.cssText = pos + ';box-sizing:border-box;';
+    tb.style.cssText = ''; // text-block에서 절대 위치 제거
+    // dataset.width도 이전
+    if (tb.dataset.width) {
+      tf.dataset.width = tb.dataset.width;
+      delete tb.dataset.width;
+    }
+    tb.before(tf);
+    tf.appendChild(tb);
+  });
+}
+
 function rebindAll() {
+  migrateColsFromDOM(canvasEl);
+  window.clearHistory?.();
   // asset-overlay 오염 정리: contenteditable 제거 + 직접 텍스트 노드 제거
   canvasEl.querySelectorAll('.asset-overlay').forEach(overlay => {
     overlay.removeAttribute('contenteditable');
@@ -378,7 +510,6 @@ function rebindAll() {
     bindSectionOrder(sec);
     bindSectionDrag(sec);
     bindSectionDropZone(sec);
-    sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
     if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
     // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');
@@ -405,7 +536,6 @@ function rebindAll() {
       row.style.paddingLeft  = row.dataset.paddingX + 'px';
       row.style.paddingRight = row.dataset.paddingX + 'px';
     }
-    if (window.bindRowColAdd) window.bindRowColAdd(row);
   });
 
   // 저장 시 제거된 contenteditable 속성 복원 (텍스트 블록 내부 편집 가능 요소)
@@ -446,9 +576,9 @@ function rebindAll() {
       // preserveAspectRatio="none" — frame 크기에 맞게 SVG 변형
       svg.setAttribute('preserveAspectRatio', 'none');
     }
-    // sub-section-inner 인라인 height도 제거 — CSS :has(.shape-block) { height:100% } 가 처리
-    const inner = b.closest('.sub-section-inner');
-    if (inner) inner.style.height = '';
+    // shape frame inline height 제거 — frame-block 직속 shape-block, height는 frame-block이 관리
+    const parentFrame = b.closest('.frame-block');
+    if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
 
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => {
@@ -476,11 +606,11 @@ function rebindAll() {
     }
     bindGroupDrag(g);
   });
-  // sub-section-block 클릭/드롭 핸들러 재연결 (저장/로드 후 누락 방지)
-  canvasEl.querySelectorAll('.sub-section-block').forEach(ss => {
+  // frame-block 클릭/드롭 핸들러 재연결 (저장/로드 후 누락 방지)
+  canvasEl.querySelectorAll('.frame-block').forEach(ss => {
     if (!ss.id) ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false; // rebind 강제
-    window.bindSubSectionDropZone?.(ss);
+    window.bindFrameDropZone?.(ss);
     // 배경 이미지 복원
     if (ss.dataset.bgImg && !ss.style.backgroundImage) {
       ss.style.backgroundImage = `url(${ss.dataset.bgImg})`;
@@ -500,13 +630,10 @@ function rebindAll() {
     // dataset.height 없으면 minHeight 폴백 (레거시 요소 대응)
     const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
     if (_ssH) ss.style.height = _ssH + 'px';
-    // 자식 정렬 복원
-    const inner = ss.querySelector('.sub-section-inner');
-    if (inner) {
-      if (ss.dataset.alignItems)     inner.style.alignItems     = ss.dataset.alignItems;
-      if (ss.dataset.justifyContent) inner.style.justifyContent = ss.dataset.justifyContent;
-      if (ss.dataset.gap)            inner.style.gap            = ss.dataset.gap + 'px';
-    }
+    // 자식 정렬 복원 (frame-block 직속)
+    if (ss.dataset.alignItems)     ss.style.alignItems     = ss.dataset.alignItems;
+    if (ss.dataset.justifyContent) ss.style.justifyContent = ss.dataset.justifyContent;
+    if (ss.dataset.gap)            ss.style.gap            = ss.dataset.gap + 'px';
     // 위치 / 회전 / 반전 복원
     const _tx = parseInt(ss.dataset.translateX) || 0;
     const _ty = parseInt(ss.dataset.translateY) || 0;
@@ -518,12 +645,6 @@ function rebindAll() {
     }
   });
 
-  // col-placeholder 이벤트 재연결
-  canvasEl.querySelectorAll('.col > .col-placeholder').forEach(ph => {
-    const col = ph.parentElement;
-    const fresh = makeColPlaceholder(col);
-    col.replaceChild(fresh, ph);
-  });
 }
 
 const LAST_COMMIT_KEY = 'goya-last-commit';
