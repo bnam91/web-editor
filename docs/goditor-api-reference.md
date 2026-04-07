@@ -661,6 +661,48 @@ window.addJokerBlock({
 
 ---
 
+## 스크래치패드 API
+
+캔버스 여백에 참고 이미지를 배치하는 임시 작업 공간. IndexedDB에 저장되므로 새로고침/재시작 후에도 유지.
+
+> 상세 명세 → `docs/SCRATCH_PAD.md`
+
+### CDP에서 이미지 삽입
+
+```js
+// 이미지 1장 삽입 + IndexedDB 저장
+window._scratchAddAndSave(src, x, y, w)
+// src: base64 DataURL (data:image/png;base64,...)
+// x/y: canvas-scaler 로컬 좌표 px (캔버스 오른쪽 여백 권장: x=960)
+// w:   표시 너비 px (기본 860)
+// 반환: Promise — awaitPromise: true 필수
+// ⚠️ 반드시 한 장씩 순차 호출 (동시 전달 시 timeout 발생)
+```
+
+### 전체 초기화
+
+```js
+await window.clearScratchPad()   // 현재 프로젝트+페이지 스크래치 전체 삭제
+```
+
+### 프로젝트/페이지 전환 시
+
+```js
+window.initScratchPad(projectId, pageId)   // 프로젝트 열기 시 1회 호출 (자동 복원)
+window.switchScratch(projectId, pageId)    // 다른 프로젝트로 전환
+window.switchScratchPage(newPageId)        // 같은 프로젝트 내 페이지 전환
+```
+
+### 저장 구조
+
+```
+IndexedDB: ScratchPadDB / store: scratch
+key:   scratch-pad-{projectId}-{pageId}
+value: [{ src, x, y, w }, ...]
+```
+
+---
+
 ## 주의 사항
 
 1. `addSection()` 호출 직후 섹션이 자동 선택됨 — 별도의 `selectSection()` 불필요
@@ -681,4 +723,5 @@ window.addJokerBlock({
 | 2026-04-03 | v1.3 | Sub-Section 블록 API, 조커 블록 API 추가 (Figma 임포트 파이프라인 대응) |
 | 2026-04-04 | v1.4 | `addSection paddingY` 옵션 추가. `addTextBlock content` `\n` 줄바꿈 지원(pre-wrap). `addLabelGroupBlock shape: 'circle'` 추가. Sub-Section `fullWidth` 모드 신규 (이중 배경 섹션용). `activateSubSection` / `deactivateSubSection` 공개 API 추가. 다크모드 텍스트 커서 색상 수정 (`caret-color: var(--ui-text-dim)`) |
 | 2026-04-04 | v1.5 | **버그 수정**: (1) Frame(sub-section) 내부에 블록 DnD 삽입 가능 — `bindSubSectionDropZone` 정상화. (2) 플로팅 패널에서 Frame 선택 상태에서도 내부 삽입 동작 — `insertAfterSelected` `selected` 조건 제거. (3) Shape 블록(`position:absolute`) HTML5 drag 허용 — `sub-section-inner` 내부는 dragstart 차단 해제. (4) 텍스트 블록 PPT 스타일 플레이스홀더 — `data-is-placeholder="true"` 속성, 더블클릭 시 전체선택, blur 시 복원. (5) 전 블록 아웃라인 통일 — `1px solid, outline-offset: -1px`, 이중 outline(box-shadow) 제거 |
+| 2026-04-07 | v1.7 | 스크래치패드 API 섹션 추가 — `_scratchAddAndSave`, `clearScratchPad`, `initScratchPad`, `switchScratch`, `switchScratchPage` |
 | 2026-04-05 | v1.6 | **Shape 블록 완성**: (1) `deselectAll()`에 `.shape-block` 누락 추가 — 선택/해제 정상화. (2) `prop-shape.js` 신규 — `showShapeProperties(block)` 구현 (색상/두께/W·H). (3) 4코너 리사이즈 핸들 추가 — `calc(7px * var(--inv-zoom))` 배율 독립 크기, 저장 시 자동 제거. (4) 핸들 리사이즈 시 `block.left/top` 고정(0,0) — Frame(ss)만 리사이즈하도록 수정. (5) shape DnD: mousedown 드래그 제거, `isInnerBlock`에서 제외 → Frame 전체 HTML5 DnD로 이동. (6) 호버 `::after { background: var(--sel-color-fill) }` 추가 — 다른 블록과 일관성. |
