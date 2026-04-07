@@ -400,6 +400,29 @@ function migrateColsFromDOM(canvasEl) {
     });
     row.replaceWith(gridFrame);
   });
+
+  // row[data-layout="stack"] > text-block → frame-block[data-text-frame] > text-block
+  // col 제거 후 실행해야 row 직속 text-block을 올바르게 감지함
+  canvasEl.querySelectorAll('.row[data-layout="stack"] > .text-block').forEach(tb => {
+    const row = tb.parentElement;
+    if (row.closest('.asset-overlay')) return; // overlay-tb는 제외
+    const tf = document.createElement('div');
+    tf.className = 'frame-block';
+    tf.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+    tf.dataset.textFrame = 'true';
+    tf.dataset.bg = 'transparent';
+    tf.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
+    if (row.dataset.paddingX) {
+      tf.dataset.paddingX   = row.dataset.paddingX;
+      tf.style.paddingLeft  = row.dataset.paddingX + 'px';
+      tf.style.paddingRight = row.dataset.paddingX + 'px';
+    }
+    row.before(tf);
+    tf.appendChild(tb);
+    if ([...row.childNodes].every(n => n.nodeType === Node.TEXT_NODE && !n.textContent.trim())) {
+      row.remove();
+    }
+  });
 }
 
 function rebindAll() {

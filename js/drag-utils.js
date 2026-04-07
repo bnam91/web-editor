@@ -71,7 +71,7 @@ function insertAfterSelected(section, el) {
       '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
     );
     if (sel) {
-      const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.row') || sel);
+      const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
     } else {
       ssInner.appendChild(el);
@@ -100,7 +100,7 @@ function insertAfterSelected(section, el) {
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
-    const ref = isGap ? sel : (sel.closest('.row') || sel);
+    const ref = isGap ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
     ref.after(el);
   } else {
     insertBeforeBottomGap(section, el);

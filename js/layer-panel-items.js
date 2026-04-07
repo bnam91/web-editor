@@ -336,7 +336,7 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
     if (!dragTarget) return;
     const isOverlayContent = dragTarget.classList.contains('overlay-tb') ||
       (dragTarget.classList.contains('gap-block') && dragTarget.closest('.asset-overlay'));
-    const isSectionRow = dragTarget.classList.contains('row') &&
+    const isSectionRow = (dragTarget.classList.contains('row') || (dragTarget.classList.contains('frame-block') && dragTarget.dataset.textFrame === 'true')) &&
       !dragTarget.closest('.asset-overlay') && dragTarget.querySelector('.text-block');
     const isSectionGap = dragTarget.classList.contains('gap-block') && !dragTarget.closest('.asset-overlay');
     if (!isOverlayContent && !isSectionRow && !isSectionGap) return;
@@ -373,12 +373,19 @@ function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
       else overlayEl.appendChild(el);
     };
 
-    // Cross-boundary: section row → overlay
-    if (dragEl.classList.contains('row') && !dragEl.closest('.asset-overlay')) {
+    // Cross-boundary: section row / text-frame → overlay
+    if ((dragEl.classList.contains('row') || (dragEl.classList.contains('frame-block') && dragEl.dataset.textFrame === 'true')) && !dragEl.closest('.asset-overlay')) {
       const block = dragEl.querySelector('.text-block');
       if (!block) { window.clearLayerIndicators(); return; }
       block.classList.add('overlay-tb');
-      insertIntoOverlay(dragEl);
+      // text-frame 드래그 시: block을 row wrapper에 넣어 overlay에 삽입
+      const container = dragEl.classList.contains('row') ? dragEl : (() => {
+        const r = document.createElement('div');
+        r.className = 'row'; r.dataset.layout = 'stack';
+        r.appendChild(block);
+        return r;
+      })();
+      insertIntoOverlay(container);
       window.clearLayerIndicators();
       window.buildLayerPanel();
       window.pushHistory();

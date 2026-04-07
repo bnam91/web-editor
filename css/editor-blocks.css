@@ -863,7 +863,8 @@
 .divider-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
 
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
-.row:has(.text-block.selected) {
+.row:has(.text-block.selected),
+.frame-block[data-text-frame="true"]:has(.text-block.selected) {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
 }
@@ -1005,6 +1006,7 @@
 .frame-block:not(.selected) .shape-block:hover::after {
   display: none !important;
 }
-.frame-block:not(.selected) .row:has(.text-block:hover) {
+.frame-block:not(.selected) .row:has(.text-block:hover),
+.frame-block:not(.selected) .frame-block[data-text-frame="true"]:has(.text-block:hover) {
   outline: none !important;
 }

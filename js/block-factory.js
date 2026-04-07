@@ -61,9 +61,6 @@ function makeTextBlock(type) {
   const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
   const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', h3:'소항목을 입력하세요', body:'본문 내용을 입력하세요.', caption:'캡션을 입력하세요', label:'Label' };
 
-  const row = document.createElement('div');
-  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
   const tb = document.createElement('div');
   tb.className = 'text-block'; tb.dataset.type = dataType;
   tb.id = genId('tb');
@@ -71,8 +68,18 @@ function makeTextBlock(type) {
   tb.innerHTML = `
     <div class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>`;
 
-  row.appendChild(tb);
-  return { row, block: tb };
+  return { block: tb };
+}
+
+/* 텍스트 블록 전용 frame wrapper — width:100%, 자동 높이, 선택 투명 */
+function _makeTextFrame() {
+  const ss = document.createElement('div');
+  ss.className = 'frame-block';
+  ss.id = genId('ss');
+  ss.dataset.textFrame = 'true';
+  ss.dataset.bg = 'transparent';
+  ss.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
+  return ss;
 }
 
 function makeAssetBlock() {
@@ -252,7 +259,7 @@ function makeTableBlock() {
   return { row, block: tb };
 }
 
-function applyTextOpts(block, row, opts, type) {
+function applyTextOpts(block, frame, opts, type) {
   const contentEl = block.querySelector('[class^="tb-"]');
   if (opts.content && contentEl) {
     contentEl.style.whiteSpace = 'pre-wrap';
@@ -264,19 +271,20 @@ function applyTextOpts(block, row, opts, type) {
   }
   if (opts.color && contentEl) contentEl.style.color = opts.color;
   if (opts.fontSize && contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
-  if (opts.paddingX !== undefined) {
-    row.style.paddingLeft  = opts.paddingX + 'px';
-    row.style.paddingRight = opts.paddingX + 'px';
-    row.dataset.paddingX   = opts.paddingX;
+  if (opts.paddingX !== undefined && frame) {
+    frame.style.paddingLeft  = opts.paddingX + 'px';
+    frame.style.paddingRight = opts.paddingX + 'px';
+    frame.dataset.paddingX   = opts.paddingX;
   }
 }
 
 function addTextBlock(type, opts = {}) {
   // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
+  // overlay 내부에서는 row wrapper를 로컬로 생성해 기존 구조 유지
   const overlay = getSelectedOverlay();
   if (overlay) {
     window.pushHistory();
-    const { row, block } = makeTextBlock(type);
+    const { block } = makeTextBlock(type);
     block.classList.add('overlay-tb');
     const overlayAlign = opts.align || getOverlayAlign(overlay);
     if (overlayAlign) {
@@ -296,34 +304,62 @@ function addTextBlock(type, opts = {}) {
       const contentEl = block.querySelector('[class^="tb-"]');
       if (contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
     }
+    // overlay 내 row wrapper (overlay 구조 유지용)
+    const overlayRow = document.createElement('div');
+    overlayRow.className = 'row'; overlayRow.dataset.layout = 'stack';
     if (opts.paddingX !== undefined) {
-      row.style.paddingLeft  = opts.paddingX + 'px';
-      row.style.paddingRight = opts.paddingX + 'px';
-      row.dataset.paddingX   = opts.paddingX;
+      overlayRow.style.paddingLeft  = opts.paddingX + 'px';
+      overlayRow.style.paddingRight = opts.paddingX + 'px';
+      overlayRow.dataset.paddingX   = opts.paddingX;
     }
-    insertIntoOverlay(overlay, row);
+    overlayRow.appendChild(block);
+    insertIntoOverlay(overlay, overlayRow);
     bindBlock(block);
     window.buildLayerPanel();
     return;
   }
 
-  // fullWidth sub-section 활성화 분기
-  if (_insertToFlowFrame(() => {
-    const { row, block } = makeTextBlock(type);
-    applyTextOpts(block, row, opts, type);
-    return { row, block };
-  })) return;
+  // 활성 프레임(frame-block) 분기 — freeLayout / fullWidth 모두 처리
+  const activeSS = window._activeFrame;
+  if (activeSS) {
+    window.pushHistory();
+    const { block } = makeTextBlock(type);
+    const tf = _makeTextFrame();
+    applyTextOpts(block, tf, opts, type);
+    tf.appendChild(block);
 
+    if (activeSS.dataset.freeLayout === 'true') {
+      // B 모드: 자유배치 프레임 — text-frame을 absolute로 추가
+      const stackY = _calcFreeLayoutStackY(activeSS);
+      tf.style.position = 'absolute';
+      tf.style.left     = '0px';
+      tf.style.top      = stackY + 'px';
+      tf.style.width    = '100%';
+      activeSS.appendChild(tf);
+    } else if (activeSS.dataset.fullWidth === 'true') {
+      // A 모드: fullWidth 플로우 — text-frame을 flow child로 추가
+      activeSS.appendChild(tf);
+    } else {
+      return; // 지원하지 않는 프레임 타입
+    }
+    bindBlock(block);
+    window.buildLayerPanel();
+    return;
+  }
+
+  // 섹션에 직접 추가
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
-  const { row, block } = makeTextBlock(type);
+  const { block } = makeTextBlock(type);
+  const tf = _makeTextFrame();
 
   // opts.align 없으면 섹션 정렬 상속
   const alignedOpts = { ...opts, align: opts.align || getSectionAlign(sec) };
-  applyTextOpts(block, row, alignedOpts, type);
+  applyTextOpts(block, tf, alignedOpts, type);
+  tf.appendChild(block);
 
-  insertAfterSelected(sec, row);
+  insertAfterSelected(sec, tf);
   bindBlock(block);
   window.buildLayerPanel();
   window.selectSection(sec);
@@ -405,7 +441,7 @@ function groupSelectedBlocks() {
   const childrenInOrder = [...sectionInner.children];
   const rows = [];
   selected.forEach(b => {
-    const row = b.classList.contains('gap-block') ? b : b.closest('.row');
+    const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row'));
     if (row && !rows.includes(row)) rows.push(row);
   });
   rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
@@ -1128,7 +1164,7 @@ function wrapSelectedBlocksInFrame() {
   const childrenInOrder = [...sectionInner.children];
   const rows = [];
   selected.forEach(b => {
-    const row = b.classList.contains('gap-block') ? b : (b.closest('.row') || b);
+    const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row') || b);
     if (row && !rows.includes(row)) rows.push(row);
   });
   rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));

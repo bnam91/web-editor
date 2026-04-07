@@ -195,7 +195,13 @@ export function buildLayerPanel() {
       } else if (child.classList.contains('group-block')) {
         children.appendChild(makeLayerGroupItem(child, sec, appendRowToLayer));
       } else if (child.classList.contains('frame-block')) {
-        children.appendChild(makeLayerFrameItem(child, sec, appendRowToLayer));
+        if (child.dataset.textFrame === 'true') {
+          // text-frame 투명: 내부 text-block을 직접 렌더링 (drag target은 text-frame)
+          const tb = child.querySelector(':scope > .text-block');
+          if (tb) children.appendChild(makeLayerBlockItem(tb, child, sec, 1));
+        } else {
+          children.appendChild(makeLayerFrameItem(child, sec, appendRowToLayer));
+        }
       }
     });
 
@@ -248,13 +254,25 @@ export function buildLayerPanel() {
         dragTarget.classList.remove('overlay-tb');
         const rowInOverlay = dragTarget.closest('.asset-overlay > .row');
         if (rowInOverlay) {
-          insertIntoSec(rowInOverlay);
+          // overlay row → text-frame wrapper로 교체해서 삽입
+          const tb = rowInOverlay.querySelector('.text-block');
+          if (tb) {
+            const tf = document.createElement('div');
+            tf.className = 'frame-block'; tf.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+            tf.dataset.textFrame = 'true'; tf.dataset.bg = 'transparent';
+            tf.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
+            tf.appendChild(tb);
+            insertIntoSec(tf);
+            rowInOverlay.remove();
+          }
         } else {
-          // direct overlayEl child: wrap in row (col 제거 후 row 직속)
-          const newRow = document.createElement('div');
-          newRow.className = 'row'; newRow.dataset.layout = 'stack';
-          newRow.appendChild(dragTarget);
-          insertIntoSec(newRow);
+          // direct overlayEl child: wrap in text-frame
+          const tf = document.createElement('div');
+          tf.className = 'frame-block'; tf.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+          tf.dataset.textFrame = 'true'; tf.dataset.bg = 'transparent';
+          tf.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
+          tf.appendChild(dragTarget);
+          insertIntoSec(tf);
         }
         clearLayerIndicators();
         buildLayerPanel();

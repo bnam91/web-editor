@@ -369,6 +369,8 @@ function _getParentFrame(block) {
 function _isInsideUnselectedFrame(block) {
   const ss = _getParentFrame(block);
   if (!ss) return false;
+  // text-frame은 선택 투명 — 클릭 시 바로 text-block 선택
+  if (ss.dataset.textFrame === 'true') return false;
   return !(ss.classList.contains('selected') && window._activeFrame === ss);
 }
 
@@ -1306,7 +1308,7 @@ function bindBlock(block) {
 
   // 드래그 이벤트 (overlay-tb는 마우스 드래그 사용, HTML5 drag 제외)
   if (block.classList.contains('overlay-tb')) return;
-  const dragTarget = isGap ? block : (block.closest('.row') || block);
+  const dragTarget = isGap ? block : (block.closest('.frame-block[data-text-frame]') || block.closest('.row') || block);
   if (dragTarget && !dragTarget._dragBound) {
     dragTarget._dragBound = true;
     dragTarget.setAttribute('draggable', 'true');
@@ -1340,6 +1342,9 @@ function bindBlock(block) {
 function bindFrameDropZone(ss) {
   if (ss._subSecBound) return;
   ss._subSecBound = true;
+
+  // text-frame은 bindFrameDropZone 불필요 — 단순 wrapper이므로 click/drop 핸들러 불필요
+  if (ss.dataset.textFrame === 'true') return;
 
   // shape frame은 drop 수신 불가 — shape-block 전용 컨테이너
   const isShapeFrame = !!ss.querySelector('.shape-block');
@@ -1522,8 +1527,8 @@ function bindFrameDropZone(ss) {
         block.setAttribute('draggable', 'false');
       };
 
-      // row가 드롭된 경우 → 블록 추출 후 absolute 전환, row 제거
-      if (dragSrc.classList.contains('row')) {
+      // row 또는 text-frame이 드롭된 경우 → 블록 추출 후 absolute 전환, wrapper 제거
+      if (dragSrc.classList.contains('row') || (dragSrc.classList.contains('frame-block') && dragSrc.dataset.textFrame === 'true')) {
         const blocks = [...dragSrc.querySelectorAll(BLOCK_SEL)];
         const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)];
         let nextY = existingBlocks.reduce((maxY, b) => {
