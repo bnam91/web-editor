@@ -884,6 +884,7 @@ function addSection(opts = {}) {
         <div class="gap-block" data-type="gap" style="height:${gapH}px" id="${genId('gb')}"></div>
       </div>`;
   } else {
+    const _tfId = genId('ss'), _tbId = genId('tb');
     sec.innerHTML = `
       <div class="section-hitzone"><span class="section-label">${secLabel}</span></div>
       <div class="section-toolbar">
@@ -891,11 +892,9 @@ function addSection(opts = {}) {
       </div>
       <div class="section-inner" style="min-height:580px">
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
-        <div class="row" id="${genId('row')}" data-layout="stack">
-          <div class="col" data-width="100">
-            <div class="text-block" data-type="heading" id="${genId('tb')}">
-              <div class="tb-h2" contenteditable="false">새 섹션 제목</div>
-            </div>
+        <div class="frame-block" data-text-frame="true" id="${_tfId}">
+          <div class="text-block" data-type="heading" id="${_tbId}">
+            <div class="tb-h2" contenteditable="false">새 섹션 제목</div>
           </div>
         </div>
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
@@ -1159,7 +1158,77 @@ function wrapSelectedBlocksInFrame() {
 
   window.pushHistory();
 
-  // 섹션 inner 기준으로 DOM 순서대로 부모 row 수집
+  // ── freeLayout 내부 묶기: X/Y 좌표 유지 ──────────────────────────────────
+  // 선택된 블록들이 동일한 freeLayout 프레임 안에 있으면 절대좌표 기반으로 처리
+  const parentFreeFrame = selected[0].closest('.frame-block[data-free-layout]');
+  const allInSameFreeFrame = parentFreeFrame &&
+    selected.every(b => b.closest('.frame-block[data-free-layout]') === parentFreeFrame);
+
+  if (allInSameFreeFrame) {
+    // 각 블록의 absolute wrapper(text-frame 또는 블록 자체) 수집
+    const wrappers = [];
+    selected.forEach(b => {
+      const w = b.closest('.frame-block[data-text-frame]') ||
+                b.closest('.frame-block[data-shape-frame]') ||
+                (b.style.position === 'absolute' ? b : null);
+      if (w && !wrappers.includes(w)) wrappers.push(w);
+    });
+
+    if (wrappers.length === 0) return;
+
+    // bounding box 계산 (캔버스 좌표)
+    const lefts  = wrappers.map(w => parseInt(w.style.left)  || 0);
+    const tops   = wrappers.map(w => parseInt(w.style.top)   || 0);
+    const rights = wrappers.map((w, i) => lefts[i]  + (w.offsetWidth  || 0));
+    const bots   = wrappers.map((w, i) => tops[i]   + (w.offsetHeight || 0));
+    const minX = Math.min(...lefts);
+    const minY = Math.min(...tops);
+    const maxX = Math.max(...rights);
+    const maxY = Math.max(...bots);
+    const frameW = Math.max(maxX - minX, 60);
+    const frameH = Math.max(maxY - minY, 60);
+
+    // 새 freeLayout 프레임 생성 — 부모 프레임 내 같은 위치에
+    const ss = makeFrameBlock();
+    ss.setAttribute('data-free-layout', 'true');
+    ss.style.cssText =
+      `position:absolute;left:${minX}px;top:${minY}px;` +
+      `width:${frameW}px;height:${frameH}px;` +
+      `background:transparent;padding:0;`;
+    ss.dataset.bg = 'transparent';
+    ss.dataset.offsetX = String(minX);
+    ss.dataset.offsetY = String(minY);
+    parentFreeFrame.appendChild(ss);
+
+    // 각 wrapper를 새 프레임으로 이동 — 상대좌표로 보정
+    wrappers.forEach((w, i) => {
+      const relLeft = lefts[i] - minX;
+      const relTop  = tops[i]  - minY;
+      w.style.left = relLeft + 'px';
+      w.style.top  = relTop  + 'px';
+      w.dataset.offsetX = String(relLeft);
+      w.dataset.offsetY = String(relTop);
+      w.classList.remove('selected');
+      ss.appendChild(w);
+    });
+
+    window.bindFrameDropZone?.(ss);
+
+    // 프레임 선택 상태로 전환
+    window.deselectAll?.();
+    sec.classList.add('selected');
+    window.syncLayerActive?.(sec);
+    parentFreeFrame.classList.add('selected');
+    ss.classList.add('selected');
+    window._activeFrame = ss;
+    window.showFrameProperties?.(ss);
+    window.showFrameHandles?.(ss);
+    window.buildLayerPanel();
+    window.scheduleAutoSave?.();
+    return;
+  }
+
+  // ── 섹션 레벨(flow) 블록 묶기: 기존 stack 방식 ───────────────────────────
   const sectionInner = sec.querySelector('.section-inner');
   const childrenInOrder = [...sectionInner.children];
   const rows = [];
@@ -1186,7 +1255,6 @@ function wrapSelectedBlocksInFrame() {
   rows[0].before(ss);
 
   // 각 블록을 absolute 배치로 ss에 직접 이동
-  // gap-block은 row 컨테이너가 아니라 블록 자체가 row이므로 직접 처리
   let stackY = 0;
   rows.forEach(row => {
     const rowH = row.offsetHeight || 60;
