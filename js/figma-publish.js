@@ -1,20 +1,7 @@
 import { canvasEl, state } from './globals.js';
 import './import-figma-json.js';
 
-function togglePublishDropdown(e) {
-  e.stopPropagation();
-  document.getElementById('publish-dropdown-wrap').classList.toggle('open');
-}
-function closePublishDropdown() {
-  document.getElementById('publish-dropdown-wrap').classList.remove('open');
-}
-function doPublish() {
-  closePublishDropdown();
-  alert('Publish 기능은 준비 중입니다.');
-}
-document.addEventListener('click', e => {
-  if (!e.target.closest('#publish-dropdown-wrap')) closePublishDropdown();
-});
+// togglePublishDropdown / closePublishDropdown은 export.js에서 단일 정의 — 중복 제거
 
 /* 레이어 패널 — 섹션 순서 변경 */
 const layerPanelBody = document.getElementById('layer-panel-body');
@@ -250,8 +237,7 @@ async function doFigmaUpload() {
 // contenteditable 줄바꿈 보존 — DOM 트리 직접 순회
 // <br> → \n, 블록요소(<div>/<p>)는 이전 형제가 있을 때만 앞에 \n 삽입
 
-window.togglePublishDropdown  = togglePublishDropdown;
-window.closePublishDropdown   = closePublishDropdown;
+// togglePublishDropdown / closePublishDropdown은 export.js에서 노출 — 중복 제거
 window.doPublish              = doPublish;
 window.openFigmaUploadModal   = openFigmaUploadModal;
 window._buildFigmaSectionList = _buildFigmaSectionList;
