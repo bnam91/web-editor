@@ -1659,6 +1659,58 @@ function bindFrameDropZone(ss) {
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     });
+
+    // ── 더블클릭 → 텍스트 블록 바로 편집 모드 진입 ──
+    // pointer-events:none 때문에 자식 클릭이 막혀도 dblclick은 frame에서 잡힌다.
+    // hit-test로 텍스트 블록을 찾아 직접 edit mode로 진입.
+    ss.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      // text-frame 래퍼들을 좌표로 hit-test
+      const textFrames = [...ss.querySelectorAll('.frame-block[data-text-frame]')];
+      let targetBlock = null;
+      for (const tf of textFrames) {
+        const r = tf.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right &&
+            e.clientY >= r.top  && e.clientY <= r.bottom) {
+          targetBlock = tf.querySelector('.text-block');
+          break;
+        }
+      }
+      // text-frame 없이 text-block이 직접 있는 경우
+      if (!targetBlock) {
+        const blocks = [...ss.querySelectorAll('.text-block')];
+        for (const tb of blocks) {
+          const r = tb.getBoundingClientRect();
+          if (e.clientX >= r.left && e.clientX <= r.right &&
+              e.clientY >= r.top  && e.clientY <= r.bottom) {
+            targetBlock = tb;
+            break;
+          }
+        }
+      }
+      if (!targetBlock) return;
+
+      // frame + textframe + block 선택
+      window.deselectAll?.();
+      const parentFreeFrame2 = ss.closest('.frame-block[data-free-layout]');
+      const parentSec2 = ss.closest('.section-block');
+      if (parentSec2) parentSec2.classList.add('selected');
+      if (parentFreeFrame2) parentFreeFrame2.classList.add('selected');
+      ss.classList.add('selected');
+      window._activeFrame = ss;
+      const textFrame = targetBlock.closest('.frame-block[data-text-frame]') || targetBlock.parentElement;
+      if (textFrame && textFrame !== ss) textFrame.classList.add('selected');
+      targetBlock.classList.add('selected');
+
+      // 편집 모드 진입
+      if (typeof targetBlock._enterTextEditMode === 'function') {
+        targetBlock._enterTextEditMode();
+      } else {
+        // 폴백: dblclick 이벤트 직접 발화
+        targetBlock.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: e.clientX, clientY: e.clientY }));
+      }
+    });
+
     return; // absolute 셀은 drop zone 바인딩 불필요
   }
 
