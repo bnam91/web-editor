@@ -1846,7 +1846,7 @@ const CARD_DEFAULT_OPTS = {
   layerName: 'Card',
   layers: [],
   gridCols: 1, gridRows: 1, cardGap: 12, padX: 0,
-  cards: [{ title: '일반\n3세대 동전지갑', desc: '', imgSrc: '', cellBg: '' }],
+  cards: [{ title: '카드 제목', desc: '', imgSrc: '', cellBg: '' }],
 };
 
 function addCanvasBlock(opts = {}) {
