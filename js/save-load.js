@@ -680,7 +680,7 @@ function rebindAll() {
       const screen = block.querySelector('.mkp-screen');
       if (screen) {
         screen.style.backgroundImage = `url('${imgSrc}')`;
-        screen.style.backgroundSize  = 'cover';
+        screen.style.backgroundSize  = '100% auto';
         screen.style.backgroundPosition = 'center top';
         screen.innerHTML = '';
       }
