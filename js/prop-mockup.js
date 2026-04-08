@@ -219,7 +219,7 @@ function _applyScreenImage(block, src) {
   const screen = block.querySelector('.mkp-screen');
   if (!screen) return;
   screen.style.backgroundImage = `url('${src}')`;
-  screen.style.backgroundSize  = 'cover';
+  screen.style.backgroundSize  = '100% auto';
   screen.style.backgroundPosition = 'center top';
   screen.innerHTML = '';
 }
