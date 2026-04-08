@@ -437,7 +437,10 @@ function bindBlock(block) {
         const _tf = block.closest('.frame-block[data-text-frame="true"]');
         const _realFrame = _tf?.closest('.frame-block:not([data-text-frame])');
         if (!_realFrame?.classList.contains('selected')) return;
-        // 드래그 허용 — 진행
+        // 중첩 절대배치 프레임(B) 안의 text-block: B의 mousedown drag handler에 위임
+        // stopPropagation 없이 return → 이벤트가 B 요소까지 bubble됨
+        if (_realFrame.style.position === 'absolute') return;
+        // 드래그 허용 — 진행 (B가 절대배치가 아닌 일반 freeLayout인 경우)
       } else {
         return;
       }
@@ -844,7 +847,8 @@ function bindBlock(block) {
         return;
       }
       window.deselectAll();
-      _restoreParentFrameSelected(block);
+      // 중첩 프레임(A > B > TF > C) 구조에서 A와 B 모두 selected 복원
+      (window._restoreFreeLayoutFrameSelected || _restoreParentFrameSelected)(block);
       block.classList.add('selected');
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
@@ -1582,8 +1586,13 @@ function bindFrameDropZone(ss) {
     ss.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       if (e.target.closest('.resize-handle, [contenteditable]')) return;
-      // 자식 블록 클릭은 bindBlock에게 위임 — 여기서 처리하면 child click 이벤트 차단됨
-      if (e.target !== ss && e.target.closest(CHILD_BLOCK_SEL)) return;
+      // 자식 블록 클릭: selected 자식만 bindBlock에 위임, 미선택 자식은 B drag로 처리
+      // (B selected 상태에서 TF/C 영역 mousedown → e.target이 C가 될 수 있음)
+      if (e.target !== ss) {
+        const childBlock = e.target.closest(CHILD_BLOCK_SEL);
+        if (childBlock?.classList.contains('selected')) return; // 선택된 자식 → bindBlock 처리
+        // 미선택 자식 → B drag 진행 (fall through)
+      }
 
       // e.preventDefault() 제거 — 호출 시 이후 자식 click 이벤트가 억제되어 선택 불가
       e.stopPropagation();
