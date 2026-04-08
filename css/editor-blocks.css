@@ -663,7 +663,7 @@
 }
 .icon-circle-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-circle-block { position: relative; }
-.icon-circle-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; border-radius: 0; }
+.icon-circle-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; border-radius: 8px; }
 .icon-circle-block.drag-over .icb-circle { outline: 2px dashed var(--sel-color); }
 
 .icb-circle {
@@ -1069,7 +1069,8 @@
 .table-block.selected,
 .graph-block.selected,
 .card-block.selected,
-.divider-block.selected { z-index: 2; }
+.divider-block.selected,
+.mockup-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }
 
@@ -1339,8 +1340,7 @@
 }
 .mockup-block.selected {
   outline: 1.5px solid #1592fe;
-  outline-offset: 4px;
-  border-radius: 4px;
+  outline-offset: -2px;
 }
 .mkp-screen {
   position: absolute;
