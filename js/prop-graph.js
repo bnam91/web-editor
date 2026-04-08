@@ -1,11 +1,16 @@
 import { propPanel, state } from './globals.js';
 
 export function showGraphProperties(block) {
-  const chartType  = block.dataset.chartType  || 'bar-v';
-  const preset     = block.dataset.preset     || 'default';
-  const items      = JSON.parse(block.dataset.items || '[]');
-  const chartH     = parseInt(block.dataset.chartHeight) || 240;
-  const labelSize  = parseInt(block.dataset.labelSize)   || 13;
+  const chartType    = block.dataset.chartType    || 'bar-v';
+  const preset       = block.dataset.preset       || 'default';
+  const items        = JSON.parse(block.dataset.items || '[]');
+  const chartH       = parseInt(block.dataset.chartHeight)  || 240;
+  const labelSize    = parseInt(block.dataset.labelSize)    || 13;
+  const barThickness = parseInt(block.dataset.barThickness) || 24;
+  const padX         = parseInt(block.dataset.padX)         || 0;
+  const barColor     = block.dataset.barColor || '#222222';
+  const itemGap      = parseInt(block.dataset.itemGap)      || 24;
+  const pctSize      = parseInt(block.dataset.pctSize)      || 60;
 
   const presets = [
     { id: 'default',  label: '기본' },
@@ -42,6 +47,37 @@ export function showGraphProperties(block) {
         <input type="number" class="prop-number" id="grb-label-number" min="8" max="28" value="${labelSize}">
       </div>
     </div>
+    ${chartType === 'bar-h' ? `
+    <div class="prop-section">
+      <div class="prop-section-title">바 설정</div>
+      <div class="prop-row">
+        <span class="prop-label">두께</span>
+        <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="8" max="48" step="2" value="${barThickness}">
+        <input type="number" class="prop-number" id="grb-bar-thickness-number" min="8" max="48" value="${barThickness}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
+        <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">항목 간격</span>
+        <input type="range" class="prop-slider" id="grb-item-gap-slider" min="8" max="80" step="4" value="${itemGap}">
+        <input type="number" class="prop-number" id="grb-item-gap-number" min="8" max="80" value="${itemGap}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">숫자 크기</span>
+        <input type="range" class="prop-slider" id="grb-pct-size-slider" min="20" max="120" step="2" value="${pctSize}">
+        <input type="number" class="prop-number" id="grb-pct-size-number" min="20" max="120" value="${pctSize}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">바 색상</span>
+        <div class="prop-color-swatch" style="background:${barColor}">
+          <input type="color" id="grb-bar-color" value="${barColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="grb-bar-color-hex" value="${barColor}" maxlength="7">
+      </div>
+    </div>` : ''}
     <div class="prop-section">
       <div class="prop-section-title">차트 타입</div>
       <div class="prop-type-group">
@@ -139,6 +175,86 @@ export function showGraphProperties(block) {
   hSlider.addEventListener('input',  () => applyChartH(parseInt(hSlider.value)));
   hNumber.addEventListener('change', () => { applyChartH(parseInt(hNumber.value)); window.pushHistory(); });
   hSlider.addEventListener('change', () => window.pushHistory());
+
+  // 항목 간격 (bar-h 전용)
+  const igSlider = document.getElementById('grb-item-gap-slider');
+  const igNumber = document.getElementById('grb-item-gap-number');
+  if (igSlider) {
+    const applyItemGap = v => {
+      v = Math.min(80, Math.max(8, v));
+      block.dataset.itemGap = v;
+      window.renderGraph(block);
+      igSlider.value = v; igNumber.value = v;
+    };
+    igSlider.addEventListener('input',  () => applyItemGap(parseInt(igSlider.value)));
+    igNumber.addEventListener('change', () => { applyItemGap(parseInt(igNumber.value)); window.pushHistory(); });
+    igSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // 숫자 크기 (bar-h 전용)
+  const psSlider = document.getElementById('grb-pct-size-slider');
+  const psNumber = document.getElementById('grb-pct-size-number');
+  if (psSlider) {
+    const applyPctSize = v => {
+      v = Math.min(120, Math.max(20, v));
+      block.dataset.pctSize = v;
+      window.renderGraph(block);
+      psSlider.value = v; psNumber.value = v;
+    };
+    psSlider.addEventListener('input',  () => applyPctSize(parseInt(psSlider.value)));
+    psNumber.addEventListener('change', () => { applyPctSize(parseInt(psNumber.value)); window.pushHistory(); });
+    psSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // 바 두께 (bar-h 전용)
+  const btSlider = document.getElementById('grb-bar-thickness-slider');
+  const btNumber = document.getElementById('grb-bar-thickness-number');
+  if (btSlider) {
+    const applyBarThickness = v => {
+      v = Math.min(48, Math.max(8, v));
+      block.dataset.barThickness = v;
+      window.renderGraph(block);
+      btSlider.value = v; btNumber.value = v;
+    };
+    btSlider.addEventListener('input',  () => applyBarThickness(parseInt(btSlider.value)));
+    btNumber.addEventListener('change', () => { applyBarThickness(parseInt(btNumber.value)); window.pushHistory(); });
+    btSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // 좌우 패딩 (bar-h 전용)
+  const pxSlider = document.getElementById('grb-padx-slider');
+  const pxNumber = document.getElementById('grb-padx-number');
+  if (pxSlider) {
+    const applyPadX = v => {
+      v = Math.min(80, Math.max(0, v));
+      block.dataset.padX = v;
+      window.renderGraph(block);
+      pxSlider.value = v; pxNumber.value = v;
+    };
+    pxSlider.addEventListener('input',  () => applyPadX(parseInt(pxSlider.value)));
+    pxNumber.addEventListener('change', () => { applyPadX(parseInt(pxNumber.value)); window.pushHistory(); });
+    pxSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // 바 색상 (bar-h 전용)
+  const barColorPicker = document.getElementById('grb-bar-color');
+  const barColorHex    = document.getElementById('grb-bar-color-hex');
+  if (barColorPicker) {
+    const barColorSwatch = barColorPicker.closest('.prop-color-swatch');
+    const applyBarColor = hex => {
+      block.dataset.barColor = hex;
+      window.renderGraph(block);
+      barColorPicker.value = hex;
+      barColorHex.value = hex;
+      if (barColorSwatch) barColorSwatch.style.background = hex;
+    };
+    barColorPicker.addEventListener('input',  () => applyBarColor(barColorPicker.value));
+    barColorPicker.addEventListener('change', () => window.pushHistory());
+    barColorHex.addEventListener('change', () => {
+      const v = barColorHex.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyBarColor(v); window.pushHistory(); }
+    });
+  }
 
   // 라벨 크기
   const lSlider = document.getElementById('grb-label-slider');

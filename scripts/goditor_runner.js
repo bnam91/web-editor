@@ -35,6 +35,22 @@ function getWsUrl() {
   });
 }
 
+// 이미지 preset 고정 높이
+const PRESET_HEIGHTS = { standard: 780, square: 860, tall: 1032, wide: 575, logo: 64 };
+
+// 블록 높이 추정 (frame layout 내 Y 계산용)
+function getBlockHeight(block) {
+  if (block.height !== undefined) return block.height;
+  switch (block.type) {
+    case 'gap':       return block.height || 40;
+    case 'image':     return PRESET_HEIGHTS[block.preset || 'standard'];
+    case 'text':      return Math.ceil((block.fontSize || 28) * (block.lineCount || 1) * 1.10);
+    case 'divider':   return 2;
+    case 'icon-circle': return block.size || 80;
+    default:          return 0;
+  }
+}
+
 (async () => {
   const wsUrl = await getWsUrl();
   const ws = new WebSocket(wsUrl);
@@ -70,15 +86,16 @@ function getWsUrl() {
   await new Promise(r => ws.on('open', r));
   const delay = ms => new Promise(r => setTimeout(r, ms));
 
+  // 일반 블록 추가 (stack / sub-section 내부용)
   async function buildBlock(block) {
     switch (block.type) {
       case 'text': {
         const opts = JSON.stringify({
-          ...(block.content   !== undefined && { content:  block.content  }),
-          ...(block.color     && { color:    block.color    }),
-          ...(block.align     && { align:    block.align    }),
-          ...(block.fontSize  && { fontSize: block.fontSize }),
-          ...(block.paddingX  !== undefined && { paddingX: block.paddingX }),
+          ...(block.content  !== undefined && { content:  block.content  }),
+          ...(block.color    && { color:    block.color    }),
+          ...(block.align    && { align:    block.align    }),
+          ...(block.fontSize && { fontSize: block.fontSize }),
+          ...(block.paddingX !== undefined && { paddingX: block.paddingX }),
         });
         await ev(`window.addTextBlock('${block.style}', ${opts})`);
         break;
@@ -92,53 +109,6 @@ function getWsUrl() {
         await ev(`window.addAssetBlock('${block.preset || 'standard'}'${hasOpts ? `, ${JSON.stringify(assetOpts)}` : ''})`);
         break;
       }
-      case 'joker':
-        await ev(`window.addJokerBlock(${JSON.stringify({
-          label: block.label,
-          svg: block.svg,
-          width: block.width,
-          height: block.height,
-          x: block.x || 0,
-          y: block.y || 0,
-        })})`);
-        break;
-      case 'sub-section': {
-        // 서브섹션 추가
-        await ev(`window.addSubSectionBlock()`);
-        await delay(300);
-        // 크기·위치·배경 적용
-        await ev(`(function(){
-          const ss = document.querySelector('.sub-section-block.selected') || window._activeSubSection;
-          if (!ss) return;
-          ss.style.width = '${block.width}px';
-          ss.dataset.width = '${block.width}';
-          ss.style.height = '${block.height}px';
-          ss.style.minHeight = '${block.height}px';
-          ss.style.padding = '0';
-          ss.style.background = '${block.bg || '#f5f5f5'}';
-          ss.dataset.bg = '${block.bg || '#f5f5f5'}';
-          ss.style.marginLeft = '${block.x || 0}px';
-          ss.style.marginRight = 'auto';
-        })()`);
-        await delay(200);
-        // 자식 조커 블록 추가
-        for (const child of (block.children || [])) {
-          if (child.type === 'joker') {
-            await ev(`window.addJokerBlock(${JSON.stringify({
-              label: child.label,
-              svg: child.svg,
-              width: child.width,
-              height: child.height,
-              x: child.x || 0,
-              y: child.y || 0,
-            })})`);
-            await delay(200);
-          }
-        }
-        // 서브섹션 활성화 해제
-        await ev(`window._activeSubSection = null`);
-        break;
-      }
       case 'gap':
         await ev(`window.addGapBlock(${block.height || 40})`);
         break;
@@ -150,30 +120,28 @@ function getWsUrl() {
         })})`);
         break;
       case 'icon-circle':
-        await ev(`window.addIconCircleBlock(${JSON.stringify({
-          size: block.size,
-          bgColor: block.bgColor
-        })})`);
+        await ev(`window.addIconCircleBlock(${JSON.stringify({ size: block.size, bgColor: block.bgColor })})`);
         break;
       case 'label-group':
         await ev(`window.addLabelGroupBlock(${JSON.stringify({ labels: block.labels })})`);
         break;
       case 'table':
-        await ev(`window.addTableBlock(${JSON.stringify({
-          showHeader: block.showHeader,
-          cellAlign: block.cellAlign
-        })})`);
+        await ev(`window.addTableBlock(${JSON.stringify({ showHeader: block.showHeader, cellAlign: block.cellAlign })})`);
         break;
       case 'card':
-        await ev(`window.addCardBlock(${block.count || 2}, ${JSON.stringify({
-          bgColor: block.bgColor,
-          radius: block.radius
-        })})`);
+        await ev(`window.addCardBlock(${block.count || 2}, ${JSON.stringify({ bgColor: block.bgColor, radius: block.radius })})`);
         break;
       case 'graph':
-        await ev(`window.addGraphBlock(${JSON.stringify({
-          chartType: block.chartType,
-          items: block.items
+        await ev(`window.addGraphBlock(${JSON.stringify({ chartType: block.chartType, items: block.items })})`);
+        break;
+      case 'joker':
+        await ev(`window.addJokerBlock(${JSON.stringify({
+          label: block.label,
+          svg:   block.svg,
+          width: block.width,
+          height: block.height,
+          x: block.x || 0,
+          y: block.y || 0,
         })})`);
         break;
       default:
@@ -182,8 +150,73 @@ function getWsUrl() {
     await delay(200);
   }
 
+  // 방금 추가된 블록의 실제 DOM 높이를 읽어 반환
+  async function getLastBlockHeight(type) {
+    if (type === 'text') {
+      return await ev(`(function(){
+        const f = window._activeFrame;
+        if (!f) return 0;
+        const tfs = f.querySelectorAll(':scope > .frame-block[data-text-frame]');
+        const last = tfs[tfs.length - 1];
+        return last ? last.offsetHeight : 0;
+      })()`);
+    }
+    if (type === 'image') {
+      return await ev(`(function(){
+        const f = window._activeFrame;
+        if (!f) return 0;
+        const abs = f.querySelectorAll(':scope > .asset-block');
+        const last = abs[abs.length - 1];
+        return last ? last.offsetHeight : 0;
+      })()`);
+    }
+    return 0;
+  }
+
+  // frame layout 내 절대좌표 블록 추가 — 실제 높이 반환
+  async function buildBlockInFrame(block, x, y, width) {
+    switch (block.type) {
+      case 'text': {
+        const opts = JSON.stringify({
+          ...(block.content   !== undefined && { content:   block.content   }),
+          ...(block.color     && { color:     block.color     }),
+          ...(block.align     && { align:     block.align     }),
+          ...(block.fontSize  && { fontSize:  block.fontSize  }),
+          ...(block.paddingX  !== undefined && { paddingX:  block.paddingX  }),
+          ...(block.lineCount !== undefined && { lineCount: block.lineCount }),
+          x, y, width,
+        });
+        await ev(`window.addTextBlock('${block.style}', ${opts})`);
+        await delay(200);
+        return await getLastBlockHeight('text');
+      }
+      case 'image': {
+        // logo preset은 width 고정(200px) — opts.width 전달 시 applyPreset이 덮어쓰므로 제외
+        const imgOpts = block.preset === 'logo' ? { x, y } : { x, y, width };
+        if (block.height !== undefined) imgOpts.height = block.height;
+        await ev(`window.addAssetBlock('${block.preset || 'standard'}', ${JSON.stringify(imgOpts)})`);
+        await delay(200);
+        return await getLastBlockHeight('image');
+      }
+      case 'gap':
+        // gap은 y 오프셋만 증가 (DOM 추가 없음)
+        return block.height || 0;
+      case 'divider':
+        await ev(`window.addDividerBlock(${JSON.stringify({ color: block.color, lineStyle: block.lineStyle, weight: block.weight })})`);
+        await delay(200);
+        return getBlockHeight(block);
+      case 'icon-circle':
+        await ev(`window.addIconCircleBlock(${JSON.stringify({ size: block.size, bgColor: block.bgColor })})`);
+        await delay(200);
+        return getBlockHeight(block);
+      default:
+        console.warn(`⚠️ frame 내부 미지원 블록: ${block.type}`);
+        return 0;
+    }
+  }
+
   for (const section of spec.sections) {
-    const bg = section.settings?.bg || '';
+    const bg       = section.settings?.bg || '';
     const paddingY = section.settings?.paddingY;
     const paddingX = section.settings?.paddingX;
     const addSecOpts = `{ skipDefaultBlock: true${bg ? `, bg: '${bg}'` : ''}${paddingY !== undefined ? `, paddingY: ${paddingY}` : ''}${paddingX !== undefined ? `, paddingX: ${paddingX}` : ''} }`;
@@ -191,64 +224,70 @@ function getWsUrl() {
     await delay(300);
 
     for (const row of section.rows) {
-      if (row.layout === 'flex' || row.layout === 'grid') {
-        await ev(`window.addRowBlock(${row.cols.length})`);
+
+      if (row.layout === 'frame') {
+        // --- frame layout: freeLayout Frame + 절대좌표 배치 ---
+        const CANVAS_W  = 860;
+        const totalFlex = row.cols.reduce((s, c) => s + (c.flex || 1), 0);
+        const frameH    = row.frameHeight || 400;
+
+        // 1. 외부 freeLayout frame 생성 (height는 블록 추가 후 최종 설정)
+        await ev(`window._activeFrame = null`);
+        await ev(`window.addFrameBlock({})`);
+        await ev(`(function(){
+          const f = window._activeFrame;
+          if (!f) return;
+          f.style.width    = '${CANVAS_W}px';
+          f.style.margin   = '0 auto';
+          f.dataset.freeLayout = 'true';
+          f.style.position = 'relative';
+          f.style.overflow = 'hidden';
+          ${row.bg ? `f.style.backgroundColor = '${row.bg}'; f.dataset.bg = '${row.bg}';` : ''}
+        })()`);
         await delay(200);
 
-        // UI용 초기 min-height 제거 (자동 빌드에서 콘텐츠 기반 높이 사용)
-        await ev(`(function(){ const r = document.querySelector('.row.row-active'); if(r) r.style.minHeight = ''; })()`);
+        // 2. 각 col을 절대 x 위치에서 블록 추가 (paddingX 반영)
+        const padX     = row.paddingX || 0;
+        const contentW = CANVAS_W - padX * 2;
+        let xOffset = padX;
+        for (const col of row.cols) {
+          const colFlex = col.flex || 1;
+          const colW    = Math.round(contentW * colFlex / totalFlex);
+          const colX    = xOffset;
+          xOffset += colW;
 
-        // flex 비율 + vAlign 설정
-        const hasFlex  = row.cols.some(c => c.flex && c.flex !== 1);
-        const hasVAlign = row.cols.some(c => c.vAlign);
-        if (hasFlex || hasVAlign) {
-          const setters = row.cols.map((c, i) => {
-            const parts = [];
-            if (c.flex && c.flex !== 1) {
-              parts.push(`cols[${i}].style.flex = '${c.flex}'; cols[${i}].dataset.flex = '${c.flex}';`);
-            }
-            if (c.vAlign) {
-              // col은 flex-direction: column → justify-content으로 수직 정렬
-              const jc = c.vAlign === 'center' ? 'center' : c.vAlign === 'end' ? 'flex-end' : 'flex-start';
-              parts.push(`cols[${i}].style.justifyContent = '${jc}';`);
-            }
-            return parts.length ? `if (cols[${i}]) { ${parts.join(' ')} }` : '';
-          }).filter(Boolean).join('\n            ');
-          if (setters) {
-            await ev(`(function() {
-              const row = document.querySelector('.row.row-active');
-              const cols = [...row.querySelectorAll(':scope > .col')];
-              ${setters}
-            })()`);
-            await delay(100);
+          let colY = 0;
+          for (const block of col.blocks) {
+            const actualH = await buildBlockInFrame(block, colX, colY, colW);
+            colY += actualH;
           }
         }
 
-        for (let i = 0; i < row.cols.length; i++) {
-          await ev(`window.activateCol(document.querySelector('.row.row-active'), ${i})`);
-          for (const block of row.cols[i].blocks) {
-            await buildBlock(block);
-          }
-        }
-        // col-active + row-active 모두 해제해야 다음 stack row의 블록이 section 레벨에 추가됨
-        await ev(`(function() {
-          document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
-          document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+        // 3. 블록 추가 완료 후 frameHeight 고정 (addFrameBlock default 520px 덮어쓰기)
+        await ev(`(function(){
+          const f = window._activeFrame;
+          if (!f) return;
+          f.style.height    = '${frameH}px';
+          f.style.minHeight = '${frameH}px';
+          f.dataset.height  = '${frameH}';
         })()`);
 
+        await ev(`window.deactivateFrame()`);
+        await delay(100);
+
       } else if (row.layout === 'sub-section') {
-        // fullWidth sub-section: 이중 배경 처리용
+        // --- sub-section layout: fullWidth frame (이중 배경용) ---
         const ssBg = row.bg || 'transparent';
-        await ev(`window.addSubSectionBlock({ fullWidth: true, bg: '${ssBg}' })`);
+        await ev(`window.addFrameBlock({ fullWidth: true, bg: '${ssBg}' })`);
         await delay(300);
         for (const block of (row.cols?.[0]?.blocks || [])) {
           await buildBlock(block);
         }
-        await ev(`window.deactivateSubSection()`);
+        await ev(`window.deactivateFrame()`);
         await delay(100);
 
       } else {
-        // stack: addRowBlock 없이 바로 추가
+        // --- stack layout: 블록 직접 추가 ---
         for (const block of row.cols[0].blocks) {
           await buildBlock(block);
         }

@@ -752,52 +752,46 @@
 .grb-bars-h {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 24px;
+  padding: 8px 0;
 }
 .grb-bar-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
 }
-.grb-bar-row-label {
-  font-size: 13px;
-  width: 70px;
-  flex-shrink: 0;
-  text-align: right;
+.grb-bar-h-pct {
+  font-weight: 700;
+  line-height: 1.1;
   color: inherit;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.grb-bar-h-wrap {
-  flex: 1;
-  height: 28px;
-  background: rgba(0,0,0,0.06);
-  border-radius: 4px;
+.grb-bar-h-desc {
+  color: inherit;
+  font-weight: 700;
+  opacity: 0.85;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+.grb-bar-h-track {
+  width: 100%;
+  height: 24px;
+  background: #e0e0e0;
+  border-radius: 12px;
   overflow: hidden;
 }
 .grb-bar-h-fill {
   height: 100%;
-  border-radius: 4px;
+  background: #222222;
+  border-radius: 12px;
   transition: width 0.3s ease;
   min-width: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 8px;
-  box-sizing: border-box;
-}
-.grb-bar-h-val {
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.9);
 }
 
 /* ── 프리셋별 색상 ── */
 /* default */
 .graph-block[data-preset="default"] { background: #f8f9fa; color: var(--ui-border); }
-.graph-block[data-preset="default"] .grb-bar-fill,
-.graph-block[data-preset="default"] .grb-bar-h-fill { background: var(--ui-accent-primary); }
+.graph-block[data-preset="default"] .grb-bar-fill { background: var(--ui-accent-primary); }
+.graph-block[data-preset="default"] .grb-bar-h-fill { background: #222222; }
 .graph-block[data-preset="default"] .grb-bar-val-label { color: var(--ui-accent-primary); }
 
 /* dark */
@@ -805,7 +799,7 @@
 .graph-block[data-preset="dark"] .grb-bar-fill,
 .graph-block[data-preset="dark"] .grb-bar-h-fill { background: #4f8ef7; }
 .graph-block[data-preset="dark"] .grb-bar-val-label { color: #4f8ef7; }
-.graph-block[data-preset="dark"] .grb-bar-h-wrap { background: rgba(255,255,255,0.08); }
+.graph-block[data-preset="dark"] .grb-bar-h-track { background: rgba(255,255,255,0.12); }
 
 /* minimal */
 .graph-block[data-preset="minimal"] { background: #fff; color: var(--ui-text-dim); }

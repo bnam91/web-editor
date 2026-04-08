@@ -147,7 +147,7 @@ function renderGraph(block) {
   const chartType  = block.dataset.chartType  || 'bar-v';
   const maxVal     = Math.max(...items.map(i => i.value), 1);
   const chartH     = parseInt(block.dataset.chartHeight) || 240;
-  const labelSize  = parseInt(block.dataset.labelSize)   || 13;
+  const labelSize  = parseInt(block.dataset.labelSize)   || 20;
   const valSize    = Math.round(labelSize * 1.07);
 
   if (chartType === 'bar-v') {
@@ -166,17 +166,32 @@ function renderGraph(block) {
         }).join('')}
       </div>`;
   } else {
+    const barThickness = parseInt(block.dataset.barThickness) || 0;
+    const padX         = parseInt(block.dataset.padX)         || 0;
+    const barColor     = block.dataset.barColor || '';
+    const itemGap      = parseInt(block.dataset.itemGap)      || 24;
+    const pctSize      = parseInt(block.dataset.pctSize)      || Math.round(labelSize * 3);
+    const trackH       = barThickness || 24;
+    const trackR       = Math.round(trackH / 2);
+    const trackStyle   = `height:${trackH}px;border-radius:${trackR}px;`;
+    const fillStyle    = `width:__PCT__;border-radius:${trackR}px;${barColor ? `background:${barColor};` : ''}`;
+
+    // freeLayout 절대 배치가 아닌 경우 height 고정 해제 → 콘텐츠 크기에 따라 자동 증가
+    if (block.style.position !== 'absolute') {
+      block.style.height = 'auto';
+    }
+
     block.innerHTML = `
-      <div class="grb-bars-h">
+      <div class="grb-bars-h" style="padding:0 ${padX}px;gap:${itemGap}px">
         ${items.map(item => {
-          const pct = Math.round((item.value / maxVal) * 100);
+          const pct = Math.min(100, Math.round(item.value));
+          const displayVal = Number.isInteger(item.value) ? item.value + '%' : item.value;
           return `
             <div class="grb-bar-row">
-              <div class="grb-bar-row-label" style="font-size:${labelSize}px">${item.label}</div>
-              <div class="grb-bar-h-wrap" style="height:${Math.round(chartH / 10)}px">
-                <div class="grb-bar-h-fill" style="width:${pct}%">
-                  <span class="grb-bar-h-val" style="font-size:${labelSize}px">${item.value}</span>
-                </div>
+              <div class="grb-bar-h-pct" style="font-size:${pctSize}px">${displayVal}</div>
+              <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px">${item.label}</div>
+              <div class="grb-bar-h-track" style="${trackStyle}">
+                <div class="grb-bar-h-fill" style="${fillStyle.replace('__PCT__', pct + '%')}"></div>
               </div>
             </div>`;
         }).join('')}

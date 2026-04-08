@@ -330,11 +330,19 @@ function addTextBlock(type, opts = {}) {
 
     if (activeSS.dataset.freeLayout === 'true') {
       // B 모드: 자유배치 프레임 — text-frame을 absolute로 추가
-      const stackY = _calcFreeLayoutStackY(activeSS);
+      // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
+      const hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
+      const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(activeSS);
+      const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
+      const widthVal = opts.width ? opts.width + 'px' : '100%';
       tf.style.position = 'absolute';
-      tf.style.left     = '0px';
+      tf.style.left     = leftPx + 'px';
       tf.style.top      = stackY + 'px';
-      tf.style.width    = '100%';
+      tf.style.width    = widthVal;
+      if (hasAbsCoords) {
+        tf.dataset.offsetX = leftPx;
+        tf.dataset.offsetY = stackY;
+      }
       activeSS.appendChild(tf);
     } else if (activeSS.dataset.fullWidth === 'true') {
       // A 모드: fullWidth 플로우 — text-frame을 flow child로 추가
@@ -574,7 +582,8 @@ function addAssetBlock(preset, opts = {}) {
       block.style.height = ASSET_PRESETS[preset].height + 'px';
       if (ASSET_PRESETS[preset].width) block.style.width = ASSET_PRESETS[preset].width + 'px';
     }
-    if (opts.width) block.style.width = opts.width + 'px';
+    // preset 고정 width가 있으면(logo 등) opts.width로 덮어쓰지 않음
+    if (opts.width && !ASSET_PRESETS[preset]?.width) block.style.width = opts.width + 'px';
     if (opts.height) block.style.height = opts.height + 'px';
   };
   // row 레벨 paddingX 적용 (섹션 paddingX와 독립적으로 동작)
@@ -605,7 +614,7 @@ function addAssetBlock(preset, opts = {}) {
     applyRowPaddingX(row);
     insertedBlock = block;
     return { row, block };
-  })) {
+  }, opts)) {
     if (insertedBlock) applyExcludePadX(insertedBlock);
     return;
   }
@@ -1056,7 +1065,7 @@ function _calcFreeLayoutStackY(inner) {
 }
 
 /* sub-section이 활성화된 경우 블록 삽입 — freeLayout(B모드) / fullWidth(플로우) 분기 */
-function _insertToFlowFrame(makeBlockFn) {
+function _insertToFlowFrame(makeBlockFn, opts = {}) {
   const ss = window._activeFrame;
   if (!ss) return false;
 
@@ -1067,13 +1076,21 @@ function _insertToFlowFrame(makeBlockFn) {
     if (!result) return true;
     const isRowBlock = !!(result.row && result.block);
     const block = isRowBlock ? result.block : result;
-    // 기존 absolute 자식 아래에 쌓기
-    const stackY = _calcFreeLayoutStackY(ss);
+    // opts에 x/y/width가 있으면 절대좌표 고정, 없으면 자동 스택
+    const hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
+    const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(ss);
+    const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
+    // opts.width 없으면 preset이 설정한 width 유지 (logo 등 고정 너비 preset 보호)
+    const widthVal = opts.width ? opts.width + 'px' : (block.style.width || '100%');
     block.style.position = 'absolute';
-    block.style.left     = '0px';
+    block.style.left     = leftPx + 'px';
     block.style.top      = stackY + 'px';
-    block.style.width    = '100%';
+    block.style.width    = widthVal;
     block.style.transform = '';
+    if (hasAbsCoords) {
+      block.dataset.offsetX = leftPx;
+      block.dataset.offsetY = stackY;
+    }
     ss.appendChild(block);
     bindBlock(block);
     block.setAttribute('draggable', 'false');
