@@ -66,6 +66,7 @@ async function _saveScratch() {
   const key = _getScratchKey(_currentProjectId, _currentPageId);
   if (!key) return; // projectId 없으면 저장 스킵
   const db   = await _openDB();
+  // 스냅샷을 await 전에 미리 찍어서 비동기 구간 중 배열 변경 영향 차단
   const data = _scratchItems.map(({ src, x, y, w }) => ({ src, x, y, w }));
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
@@ -373,7 +374,8 @@ window.clearScratchPad   = async () => {
 };
 
 // CDP 스킬용 헬퍼 — 이미지를 추가하고 IndexedDB에 즉시 저장
-window._scratchAddAndSave = (src, x, y, w) => {
+// ⚠️ Promise를 반환함 — 호출 시 반드시 await 사용: await window._scratchAddAndSave(...)
+window._scratchAddAndSave = async (src, x, y, w) => {
   _createItem(src, x, y, w);
-  return _saveScratch();
+  await _saveScratch();
 };

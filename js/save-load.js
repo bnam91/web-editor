@@ -600,7 +600,7 @@ function rebindAll() {
     if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -643,6 +643,8 @@ function rebindAll() {
     if (bw > 0) {
       ss.style.border = `${bw}px ${ss.dataset.borderStyle || 'solid'} ${ss.dataset.borderColor || '#888888'}`;
     }
+    // 배경색 복원
+    if (ss.dataset.bg && !ss.style.backgroundColor) ss.style.backgroundColor = ss.dataset.bg;
     // 코너 반경 복원
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
     // explicit height 복원 — justify-content 정렬 작동을 위해 필요
@@ -709,22 +711,20 @@ window.addEventListener('beforeunload', () => {
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
-  // S11: 빈 canvas 저장 방지
-  try {
-    const snapData = JSON.parse(snap);
-    if (snapData?.pages?.length > 0 && snapData.pages.every(p => !p.canvas || p.canvas.trim() === '')) {
-      return;
-    }
-  } catch {}
+  // S11: 빈 canvas 저장 방지 + snap 파싱은 한 번만
+  let snapData;
+  try { snapData = JSON.parse(snap); } catch { return; }
+  if (snapData?.pages?.length > 0 && snapData.pages.every(p => !p.canvas || p.canvas.trim() === '')) return;
+
   localStorage.setItem(getSaveKey(), snap);
   localStorage.setItem(getSaveTsKey(), String(Date.now()));
-  // non-Electron: PROJECTS_KEY snapshot 동기 업데이트
+  // non-Electron: PROJECTS_KEY snapshot 동기 업데이트 (파싱 결과 재사용)
   if (!IS_ELECTRON && activeProjectId) {
     try {
       const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
       const proj = list.find(p => p.id === activeProjectId);
       if (proj) {
-        proj.snapshot = JSON.parse(snap);
+        proj.snapshot = snapData;
         proj.updatedAt = new Date().toISOString();
         localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
       }

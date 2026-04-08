@@ -105,7 +105,10 @@ async function deleteTemplate(id) {
 
 async function insertTemplate(tpl) {
   const canvas = await _loadCanvas(tpl.id);
-  if (!canvas) return;
+  if (!canvas) {
+    window.showToast?.('❌ 템플릿 불러오기 실패: 파일이 없거나 손상됐습니다.');
+    return;
+  }
 
   // subsection 타입: 선택된 섹션 안에 삽입
   if (tpl.type === 'subsection') {
@@ -140,6 +143,10 @@ async function insertTemplate(tpl) {
 
     // 이벤트 재바인딩
     window.bindFrameDropZone?.(ss);
+    // 내부 블록 이벤트 핸들러 재등록 (Section 삽입과 동일 수준)
+    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block').forEach(b => window.bindBlock?.(b));
+    ss.querySelectorAll('.group-block').forEach(g => window.bindGroupDrag?.(g));
+    if (ss.dataset.bg) ss.style.backgroundColor = ss.dataset.bg;
     if (ss.dataset.bgImg && !ss.style.backgroundImage) {
       ss.style.backgroundImage = `url(${ss.dataset.bgImg})`;
       ss.style.backgroundSize = 'cover';

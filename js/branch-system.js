@@ -151,7 +151,8 @@ function switchBranch(name) {
   // 현재 브랜치 스냅샷 저장
   store.branches[store.current].snapshot = serializeProject();
   store.branches[store.current].updatedAt = Date.now();
-  // 대상 브랜치 로드
+  // 대상 브랜치 로드 — autoSave 억제를 파싱 전에 먼저 적용 (경쟁 조건 최소화)
+  window.state._suppressAutoSave = true;
   store.current = name;
   saveBranchStore(store);
   let data;
@@ -161,9 +162,9 @@ function switchBranch(name) {
   } catch (e) {
     console.error('[branch] 스냅샷 파싱 실패:', e);
     window.showToast?.('❌ 브랜치 데이터 손상 — 전환 취소');
+    window.state._suppressAutoSave = false;
     return;
   }
-  window.state._suppressAutoSave = true;
   applyProjectData(data);
   window.state._suppressAutoSave = false;
   // 브랜치 전환 시 히스토리 스택 초기화 — applyProjectData 이후 호출해야 새 브랜치 상태가 초기 스냅샷으로 저장됨
