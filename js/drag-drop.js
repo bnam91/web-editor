@@ -1031,6 +1031,14 @@ function bindBlock(block) {
       } else if (block.style.position !== 'absolute') {
         return; // flow 배치 text-block은 HTML5 DnD에 위임
       }
+    } else if (isMockup) {
+      // 프레임 자유배치 시 .row wrapper가 absolute — row를 drag 대상으로
+      const parentRow = block.closest('.row');
+      if (parentRow && parentRow.style.position === 'absolute') {
+        dragEl = parentRow;
+      } else if (block.style.position !== 'absolute') {
+        return;
+      }
     } else {
       if (block.style.position !== 'absolute') return;
     }
@@ -1049,8 +1057,8 @@ function bindBlock(block) {
         const hasSelected = ch.querySelector(
           '.text-block.selected,.asset-block.selected,.shape-block.selected,' +
           '.gap-block.selected,.icon-circle-block.selected,.table-block.selected,' +
-          '.label-group-block.selected,.graph-block.selected, .canvas-block.selected,' +
-          '.divider-block.selected'
+          '.label-group-block.selected,.graph-block.selected,.canvas-block.selected,' +
+          '.divider-block.selected,.mockup-block.selected'
         );
         if (hasSelected) {
           multiPeers.push({
