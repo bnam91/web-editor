@@ -256,9 +256,19 @@ async function restoreCommit(id) {
   window.showToast(`↩ 복원됨 — ${commit.message}`);
 }
 
-function saveProjectAs() {
-  const json = window.serializeProject();
-  localStorage.setItem(SAVE_KEY, json);
+async function saveProjectAs() {
+  const base = JSON.parse(window.serializeProject());
+
+  // Electron: 커밋/브랜치 정보 병합
+  if (window.IS_ELECTRON && window.activeProjectId) {
+    const proj = await window.electronAPI.loadProject(window.activeProjectId);
+    if (proj?.commits?.length)  base.commits  = proj.commits;
+    if (proj?.branches)         base.branches  = proj.branches;
+    if (proj?.currentBranch)    base.currentBranch = proj.currentBranch;
+  }
+
+  const json = JSON.stringify(base, null, 2);
+  localStorage.setItem(SAVE_KEY, window.serializeProject());
 
   const defaultName = window.currentFileName || window.getProjectName() || `web-editor-${new Date().toISOString().slice(0,10)}`;
   showFilenameModal(defaultName, name => {
@@ -272,10 +282,21 @@ function loadProjectFile(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = ev => {
+  reader.onload = async ev => {
     try {
       const data = JSON.parse(ev.target.result);
       window.applyProjectData(data);
+      // Electron: 커밋/브랜치 정보가 있으면 프로젝트 파일에 복원
+      if (window.IS_ELECTRON && window.activeProjectId) {
+        const proj = await window.electronAPI.loadProject(window.activeProjectId);
+        if (proj) {
+          if (data.commits?.length)  proj.commits       = data.commits;
+          if (data.branches)         proj.branches       = data.branches;
+          if (data.currentBranch)    proj.currentBranch  = data.currentBranch;
+          await window.electronAPI.saveProject(proj);
+          window.showToast?.('✅ 커밋 히스토리 복원됨');
+        }
+      }
     } catch { alert('올바른 프로젝트 파일이 아닙니다.'); }
   };
   reader.readAsText(file);
