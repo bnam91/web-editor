@@ -615,6 +615,7 @@ function rebindAll() {
         
         : b.classList.contains('canvas-block') ? 'cvb' : b.classList.contains('graph-block') ? 'grb'
         : b.classList.contains('icon-text-block') ? 'itb'
+        : b.classList.contains('icon-block') ? 'icn'
         : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }

@@ -897,6 +897,7 @@ function bindBlock(block) {
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
   const isCanvas     = block.classList.contains('canvas-block');
+  const isIconify    = block.classList.contains('icon-block');
 
   // ── 공통: 절대좌표 드래그 (프레임 자유배치 — 모든 블록 타입) ──
   block.addEventListener('mousedown', e => {
@@ -1772,6 +1773,33 @@ function bindBlock(block) {
       window.showCanvasProperties(block);
       showCanvasRadiusHandles(block);
       showCanvasResizeHandles(block);
+    });
+  }
+
+  if (isIconify) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeFrame = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showFrameProperties?.(ss);
+        return;
+      }
+      window.deselectAll();
+      _restoreParentFrameSelected(block);
+      block.classList.add('selected');
+      window.syncSection(sec);
+      window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
+      window.showIconifyProperties?.(block);
     });
   }
 
