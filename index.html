@@ -976,12 +976,14 @@
 <script src="js/variable-binding.js"></script>
 <script>
   // admin 모드일 때 topbar에 CDP 포트 뱃지 표시
-  (function() {
+  (async function() {
     const api = window.electronAPI;
-    if (!api?.isAdmin || !api?.debugPort) return;
+    if (!api?.isAdmin) return;
+    const [isAdmin, debugPort] = await Promise.all([api.isAdmin(), api.debugPort()]);
+    if (!isAdmin || !debugPort) return;
     const badge = document.getElementById('debug-port-badge');
     if (!badge) return;
-    badge.textContent = ':' + api.debugPort;
+    badge.textContent = ':' + debugPort;
     badge.style.display = 'inline-block';
   })();
 </script>

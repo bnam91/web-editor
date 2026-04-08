@@ -88,6 +88,11 @@ function createWindow() {
   checkLicenseAndLoad();
 
   ipcMain.handle('app:git-branch', () => getGitBranch());
+  ipcMain.handle('app:is-admin', () => process.argv.includes('admin'));
+  ipcMain.handle('app:debug-port', () => {
+    const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
+    return a ? a.split('=')[1] : null;
+  });
 
   // HTML <title>이 덮어씌우지 않도록 로드 완료 후 타이틀 강제 설정
   mainWindow.webContents.on('did-finish-load', () => {
