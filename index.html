@@ -219,7 +219,7 @@
         <span id="project-name-display" ondblclick="startRenameProject()" title="더블클릭하여 이름 변경"></span>
         <input id="project-name-input" type="text" onblur="finishRenameProject()" onkeydown="if(event.key==='Enter')finishRenameProject();if(event.key==='Escape')cancelRenameProject();" style="display:none">
       </div>
-      <span id="project-id-display" title="클릭하여 복사" onclick="navigator.clipboard.writeText(this.textContent).then(()=>window.showToast?.('✅ ID 복사됨'))" style="cursor:pointer"></span>
+      <span id="project-id-display" title="클릭하여 복사" onclick="window._copyToClipboard?.(this.textContent);window.showToast?.('✅ ID 복사됨')" style="cursor:pointer"></span>
     </div>
     <div class="panel-tabs">
       <button class="panel-tab active" data-tab="file" onclick="switchToTab('file')">
