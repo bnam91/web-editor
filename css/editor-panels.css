@@ -747,7 +747,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .branch-dd-manage:hover { background: var(--ui-bg-input); color: #888; }
 
 /* ── Publish Dropdown (topbar) ── */
-#publish-dropdown-wrap { position: relative; }
+#publish-dropdown-wrap { position: relative; -webkit-app-region: no-drag; }
 /* C11/C12: publish-btn → tb-btn 기반으로 통일 (height:28px, border-radius:5px, font-size:11px) */
 #publish-btn {
   gap: 5px;
@@ -763,6 +763,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   border-radius: 7px; padding: 4px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
   z-index: 999;
+  -webkit-app-region: no-drag; /* Electron: topbar drag 상속 방지 */
 }
 #publish-dropdown-wrap.open #publish-dropdown-menu { display: block; }
 .pub-dd-item {

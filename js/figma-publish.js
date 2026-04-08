@@ -237,8 +237,7 @@ async function doFigmaUpload() {
 // contenteditable 줄바꿈 보존 — DOM 트리 직접 순회
 // <br> → \n, 블록요소(<div>/<p>)는 이전 형제가 있을 때만 앞에 \n 삽입
 
-// togglePublishDropdown / closePublishDropdown은 export.js에서 노출 — 중복 제거
-window.doPublish              = doPublish;
+// togglePublishDropdown / closePublishDropdown / doPublish는 export.js에서 노출 — 중복 제거
 window.openFigmaUploadModal   = openFigmaUploadModal;
 window._buildFigmaSectionList = _buildFigmaSectionList;
 window._syncFigmaSelectAll    = _syncFigmaSelectAll;
