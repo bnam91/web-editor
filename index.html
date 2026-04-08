@@ -89,6 +89,10 @@
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><path d="M4 6h4M6 4v4"/></svg>
         불러오기<input type="file" id="load-file-input" accept=".json" style="display:none" onchange="loadProjectFile(event)">
       </label>
+      <div class="pub-dd-item" onclick="saveProjectFile(); closePublishDropdown()">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><path d="M7 1v3H3"/><path d="M3 7h6M3 9h4"/></svg>
+        저장
+      </div>
       <div class="pub-dd-item" onclick="saveProjectAs(); closePublishDropdown()">
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1h6l2 2v8H2V1z"/><path d="M7 1v3H3"/><path d="M3 7h6M3 9h4"/></svg>
         다른 이름으로 저장

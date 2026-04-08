@@ -256,6 +256,19 @@ async function restoreCommit(id) {
   window.showToast(`↩ 복원됨 — ${commit.message}`);
 }
 
+async function saveProjectFile() {
+  const base = JSON.parse(window.serializeProject());
+  if (window.IS_ELECTRON && window.activeProjectId) {
+    const proj = await window.electronAPI.loadProject(window.activeProjectId);
+    if (proj?.commits?.length)  base.commits       = proj.commits;
+    if (proj?.branches)         base.branches       = proj.branches;
+    if (proj?.currentBranch)    base.currentBranch  = proj.currentBranch;
+  }
+  const name = window.currentFileName || window.getProjectName?.() || `web-editor-${new Date().toISOString().slice(0,10)}`;
+  _downloadJSON(JSON.stringify(base, null, 2), name);
+  window.showToast?.('✅ 저장됨 — ' + name);
+}
+
 async function saveProjectAs() {
   const base = JSON.parse(window.serializeProject());
 
@@ -303,7 +316,7 @@ function loadProjectFile(e) {
   e.target.value = ''; // 같은 파일 재선택 허용
 }
 
-export { showFilenameModal, saveProject, openCommitModal, filterCommitHistory, doCommit, restoreCommit, saveProjectAs, loadProjectFile, LAST_COMMIT_KEY };
+export { showFilenameModal, saveProject, openCommitModal, filterCommitHistory, doCommit, restoreCommit, saveProjectFile, saveProjectAs, loadProjectFile, LAST_COMMIT_KEY };
 
 window.showFilenameModal    = showFilenameModal;
 window.saveProject          = saveProject;
@@ -311,5 +324,6 @@ window.openCommitModal      = openCommitModal;
 window.filterCommitHistory  = filterCommitHistory;
 window.doCommit             = doCommit;
 window.restoreCommit        = restoreCommit;
+window.saveProjectFile      = saveProjectFile;
 window.saveProjectAs        = saveProjectAs;
 window.loadProjectFile      = loadProjectFile;
