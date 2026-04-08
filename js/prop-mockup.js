@@ -218,9 +218,10 @@ async function _captureAndApply(block, sec) {
 function _applyScreenImage(block, src) {
   const screen = block.querySelector('.mkp-screen');
   if (!screen) return;
-  screen.style.backgroundImage = `url('${src}')`;
-  screen.style.backgroundSize  = '100% auto';
-  screen.style.backgroundPosition = 'center top';
+  screen.style.backgroundImage    = `url('${src}')`;
+  screen.style.backgroundSize     = '100% auto';
+  screen.style.backgroundPosition = 'top center';
+  screen.style.backgroundRepeat   = 'no-repeat';
   screen.innerHTML = '';
 }
 
