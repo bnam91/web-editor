@@ -65,6 +65,14 @@ function insertAfterSelected(section, el) {
   const activeSS = window._activeFrame;
   // text-frame은 단순 wrapper — 삽입 대상이 아님 (_restoreParentFrameSelected 안전망)
   if (activeSS && !activeSS.dataset?.textFrame && activeSS.closest('.section-block') === section) {
+    // shape-block이 선택된 경우: shape frame은 최소 단위 — 내부 삽입 금지, frame 뒤에 삽입
+    const selShape = activeSS.querySelector('.shape-block.selected');
+    if (selShape) {
+      const ref = activeSS.closest('.row') || activeSS;
+      ref.after(el);
+      return;
+    }
+
     const ssInner = activeSS;
     const sel = ssInner.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
@@ -94,6 +102,15 @@ function insertAfterSelected(section, el) {
   const activeRow = document.querySelector('.row.row-active');
   if (activeRow && activeRow.closest('.section-block') === section) {
     activeRow.after(el);
+    return;
+  }
+
+  // shape-block은 최소 단위 — 내부 삽입 금지, 감싼 frame 뒤에 삽입
+  const selShape = document.querySelector('.shape-block.selected');
+  if (selShape && selShape.closest('.section-block') === section) {
+    const frame = selShape.closest('.frame-block');
+    const ref = (frame && (frame.closest('.row') || frame)) || selShape;
+    ref.after(el);
     return;
   }
 
