@@ -60,7 +60,7 @@ export function showMockupProperties(block) {
             value="${sourceSec}"
             style="flex:1;background:#111;border:1px solid #333;border-radius:4px;color:#ddd;font-size:10px;padding:4px 7px;font-family:Pretendard,-apple-system,sans-serif;min-width:0;">
           <button class="prop-btn" id="mkp-capture-btn"
-            style="width:auto;height:auto;padding:3px 8px;font-size:10px;white-space:nowrap;">캡처</button>
+            style="width:auto;height:auto;padding:3px 8px;font-size:10px;white-space:nowrap;">가져오기</button>
         </div>
         ${sourceSec ? `
           <div style="display:flex;align-items:center;gap:6px;">
