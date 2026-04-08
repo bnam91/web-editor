@@ -84,6 +84,10 @@ async function saveProjectToFile(snapshot, opts = {}) {
   }
 }
 
+function _isAllCanvasEmpty(data) {
+  return data?.pages?.length > 0 && data.pages.every(p => !p.canvas || p.canvas.trim() === '');
+}
+
 async function _doSaveProjectToFile(snapshot, opts = {}) {
   // opts.projectId: 탭 전환 시 이전 탭 ID로 저장하기 위한 명시적 ID (S10 race condition 방지)
   const targetId = opts.projectId || activeProjectId;
@@ -97,7 +101,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
     return;
   }
   // S11: 빈 canvas 저장 방지 — 모든 페이지의 canvas가 비어있으면 기존 파일 데이터 보호
-  if (data?.pages && data.pages.length > 0 && data.pages.every(p => !p.canvas || p.canvas.trim() === '')) {
+  if (_isAllCanvasEmpty(data)) {
     console.warn('[save-load] saveProjectToFile: 모든 페이지 canvas가 비어있어 저장 건너뜀 (기존 데이터 보호)');
     return;
   }
@@ -106,6 +110,8 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
   if (IS_ELECTRON) {
     try {
       const existing = await window.electronAPI.loadProject(targetId);
+      // existing 먼저 spread 후 data로 덮어쓰기 — 레거시 필드는 data에 없으면 existing 유지
+      // (레거시 필드 누적 방지: data가 최신 포맷이면 자연스럽게 정리됨)
       const proj = {
         ...(existing || {}),
         ...data,
@@ -201,6 +207,7 @@ function flushCurrentPage() {
 
 async function switchPage(pageId) {
   if (pageId === state.currentPageId) return;
+  state._suppressAutoSave = true; // DOM 조작 전 억제 시작 (MutationObserver 경쟁 조건 방지)
   await window.switchScratchPage?.(pageId);
   flushCurrentPage();
   // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
@@ -211,7 +218,6 @@ async function switchPage(pageId) {
     ab._posDragging = false;
     ab.classList.remove('pos-dragging', 'img-editing');
   });
-  state._suppressAutoSave = true;
   state.currentPageId = pageId;
   const page = getCurrentPage();
   if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
@@ -693,7 +699,7 @@ function scheduleAutoSave() {
     // S11: 빈 canvas 저장 방지 — _suppressAutoSave 해제 직후 빈 상태 덮어쓰기 방지
     try {
       const snapData = JSON.parse(snap);
-      if (snapData?.pages?.length > 0 && snapData.pages.every(p => !p.canvas || p.canvas.trim() === '')) {
+      if (_isAllCanvasEmpty(snapData)) {
         console.warn('[save-load] scheduleAutoSave: 빈 canvas, localStorage 저장 건너뜀');
         _setAutosaveIndicator('saved');
         return;

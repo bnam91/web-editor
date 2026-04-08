@@ -35,7 +35,7 @@ async function _persistBranchesToFile(store) {
     proj.currentBranch = store.current;
     proj.updatedAt = new Date().toISOString();
     await window.electronAPI.saveProject(proj);
-  } catch {}
+  } catch (e) { console.warn('[branch] 브랜치 파일 저장 실패:', e); }
 }
 
 async function initBranchStore() {
@@ -53,7 +53,7 @@ async function initBranchStore() {
         renderBranchPanel();
         return store;
       }
-    } catch {}
+    } catch (e) { console.warn('[branch] Electron 브랜치 로드 실패, localStorage 폴백:', e); }
   }
   // localStorage 폴백 (브라우저 or 파일 없을 때)
   let store = loadBranchStore();
@@ -277,11 +277,19 @@ function mergeBranch(fromName) {
   }
 
   store.branches[toName].updatedAt = Date.now();
-  store.current = toName;
+  // store.current은 이미 toName (mergeBranch 호출 시점에 현재 브랜치가 toName)
   saveBranchStore(store);
-  const data = JSON.parse(store.branches[toName].snapshot);
+  let mergedData;
+  try {
+    const raw = store.branches[toName].snapshot;
+    mergedData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch (e) {
+    console.error('[branch] 병합 결과 파싱 실패:', e);
+    window.showToast?.('❌ 병합 결과 적용 실패');
+    return;
+  }
   window.state._suppressAutoSave = true;
-  applyProjectData(data);
+  applyProjectData(mergedData);
   window.state._suppressAutoSave = false;
   // 병합 후 히스토리 초기화 — applyProjectData 이후 호출해야 병합된 상태가 초기 스냅샷으로 저장됨
   if (window.clearHistory) window.clearHistory();

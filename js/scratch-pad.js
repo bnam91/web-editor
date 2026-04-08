@@ -251,6 +251,7 @@ async function _loadScratch(projectId, pageId) {
     data.forEach(({ src, x, y, w }) => _createItem(src, x, y, w));
   } catch(e) {
     console.warn('[ScratchPad] load error:', e);
+    window.showToast?.('⚠️ 스크래치패드 복원 실패 (세션 중에는 정상 동작)');
   }
 }
 
@@ -309,7 +310,7 @@ async function initScratchPad(projectId, pageId) {
     const baseY = (e.clientY - scalerRect.top)  / scale;
 
     files.forEach((file, i) => {
-      if (file.size > 20 * 1024 * 1024) return;
+      if (file.size > 20 * 1024 * 1024) { window.showToast?.('⚠️ 스크래치패드: 20MB 이하 이미지만 지원합니다.'); return; }
       const reader = new FileReader();
       reader.onload = ev => {
         _createItem(ev.target.result, baseX + i * 24, baseY + i * 24);
@@ -336,7 +337,7 @@ async function initScratchPad(projectId, pageId) {
 
     items.forEach((item, i) => {
       const file = item.getAsFile();
-      if (!file || file.size > 20 * 1024 * 1024) return;
+      if (!file || file.size > 20 * 1024 * 1024) { if (file) window.showToast?.('⚠️ 스크래치패드: 20MB 이하 이미지만 지원합니다.'); return; }
       const reader = new FileReader();
       reader.onload = ev => {
         _createItem(ev.target.result, cx - 110 + i * 24, cy - 60 + i * 24);

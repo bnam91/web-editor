@@ -24,8 +24,8 @@ async function initTemplates() {
             try {
               await window.electronAPI.saveTemplateCanvas(tpl.id, canvas);
               index.push(meta); // canvas 저장 성공한 항목만 index에 추가
-            } catch {
-              // canvas 저장 실패 시 해당 템플릿은 index에서 제외
+            } catch (e) {
+              console.warn('[template] canvas 저장 실패 — index에서 제외:', tpl.id, e);
             }
           } else {
             index.push(meta); // canvas 없는 메타 전용 항목은 그대로 추가
@@ -34,11 +34,11 @@ async function initTemplates() {
         _templatesCache = index;
         await window.electronAPI.saveTemplateIndex(index);
         localStorage.removeItem(TEMPLATE_KEY);
-      } catch {}
+      } catch (e) { console.warn('[template] 마이그레이션 실패:', e); }
     }
   } else {
     // 비-Electron fallback — localStorage에서 canvas 포함 전체 로드
-    try { _lsFullCache = JSON.parse(localStorage.getItem(TEMPLATE_KEY)) || []; } catch {}
+    try { _lsFullCache = JSON.parse(localStorage.getItem(TEMPLATE_KEY)) || []; } catch (e) { console.warn('[template] localStorage 로드 실패:', e); }
     _templatesCache = _lsFullCache.map(({ canvas, ...meta }) => meta);
   }
 }
@@ -64,9 +64,15 @@ function saveTemplates(arr) {
 // canvas HTML 로드 (파일 or localStorage fallback)
 async function _loadCanvas(id) {
   if (window.electronAPI?.loadTemplateCanvas) {
-    return await window.electronAPI.loadTemplateCanvas(id);
+    try {
+      return await window.electronAPI.loadTemplateCanvas(id);
+    } catch (e) {
+      console.warn('[template] canvas 파일 로드 실패:', id, e);
+      return null;
+    }
   }
   const full = _lsFullCache.find(t => t.id === id);
+  if (!full) console.warn('[template] canvas 캐시 미발견:', id);
   return full ? full.canvas : null;
 }
 
