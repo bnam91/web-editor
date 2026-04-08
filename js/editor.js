@@ -477,11 +477,28 @@ function copySelected() {
 
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
-  el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => window.bindBlock(b));
+  const rand = () => Math.random().toString(36).slice(2, 9);
+
+  // 모든 ID 재생성 — 원본과 ID 충돌 방지
+  el.querySelectorAll('[id]').forEach(child => {
+    const prefix = child.id.split('_')[0] || 'el';
+    child.id = `${prefix}_${rand()}`;
+  });
+  if (el.id) {
+    const prefix = el.id.split('_')[0] || 'el';
+    el.id = `${prefix}_${rand()}`;
+  }
+
+  // frame-block 재바인딩 (_subSecBound 리셋 후)
   el.querySelectorAll('.frame-block').forEach(ss => {
-    ss.id = 'ss_' + Math.random().toString(36).slice(2, 9);
     ss._subSecBound = false;
     window.bindFrameDropZone?.(ss);
+  });
+
+  // 일반 블록 재바인딩 (_blockBound 리셋 후)
+  el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block').forEach(b => {
+    b._blockBound = false;
+    window.bindBlock(b);
   });
 }
 
