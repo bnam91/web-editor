@@ -72,6 +72,7 @@
   <button class="tb-btn" id="mode-preview-btn" onclick="enterPreview()" style="display:none">Preview</button>
   <div class="spacer"></div>
 <span id="autosave-indicator" title="자동저장 상태"></span>
+<span id="debug-port-badge" style="display:none; font-size:10px; color:#555; background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:2px 6px; font-family:monospace;"></span>
   <div class="divider"></div>
   <button class="tb-btn" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
   <div class="divider"></div>
@@ -632,7 +633,7 @@
   </div>
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-component-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Circle / Table / Card / Banner / Graph / Divider)">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Table / Card / Graph / Divider)">
       <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
         <rect x="1" y="1" width="4" height="4" rx="0.5"/>
         <rect x="6" y="1" width="4" height="4" rx="0.5"/>
@@ -643,7 +644,7 @@
     </button>
     <div class="fp-dropdown-menu" id="fp-component-menu">
       <button class="fp-menu-item" onclick="addTableBlock();toggleFpDropdown('fp-component-dropdown')">Table</button>
-      <button class="fp-menu-item" onclick="addCardBlock();toggleFpDropdown('fp-component-dropdown')">Card</button>
+      <button class="fp-menu-item" onclick="addCanvasBlock();toggleFpDropdown('fp-component-dropdown')">Card</button>
 <button class="fp-menu-item" onclick="addGraphBlock();toggleFpDropdown('fp-component-dropdown')">Graph</button>
       <button class="fp-menu-item" onclick="addDividerBlock();toggleFpDropdown('fp-component-dropdown')">Divider</button>
     </div>
@@ -831,8 +832,8 @@
 <script type="module" src="js/prop-gap.js"></script>
 <script type="module" src="js/prop-joker.js"></script>
 <script type="module" src="js/prop-shape.js"></script>
-<script type="module" src="js/prop-card.js"></script>
 <script type="module" src="js/prop-graph.js"></script>
+<script type="module" src="js/prop-canvas.js"></script>
 <script type="module" src="js/prop-divider.js"></script>
 <script type="module" src="js/prop-label-group.js"></script>
 <script type="module" src="js/prop-row.js"></script>
@@ -973,6 +974,16 @@
      VARIABLE BINDING (step2)
 ══════════════════════════ -->
 <script src="js/variable-binding.js"></script>
-
+<script>
+  // admin 모드일 때 topbar에 CDP 포트 뱃지 표시
+  (function() {
+    const api = window.electronAPI;
+    if (!api?.isAdmin || !api?.debugPort) return;
+    const badge = document.getElementById('debug-port-badge');
+    if (!badge) return;
+    badge.textContent = ':' + api.debugPort;
+    badge.style.display = 'inline-block';
+  })();
+</script>
 </body>
 </html>

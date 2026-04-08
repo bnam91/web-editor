@@ -45,6 +45,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App info
   isElectron: true,
+  isAdmin: process.argv.includes('admin'),
+  debugPort: (() => {
+    const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
+    return a ? a.split('=')[1] : null;
+  })(),
   getGitBranch: () => ipcRenderer.invoke('app:git-branch'),
 
   // Intake (design-bot pipeline)
