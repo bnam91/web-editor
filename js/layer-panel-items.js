@@ -149,6 +149,9 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isIconCb) window.showIconCircleProperties(block);
     else if (isTable) window.showTableProperties(block);
     else if (isCard) window.showCardProperties(block);
+    else if (isGraph) window.showGraphProperties?.(block);
+    else if (isDivider) window.showDividerProperties?.(block);
+    else if (isLabelGroup) window.showLabelGroupProperties?.(block);
     else if (isJoker) window.showJokerProperties?.(block);
     else window.showAssetProperties(block);
   });
@@ -615,8 +618,14 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   {
     [...ssInner.children].forEach(child => {
       if (child.classList.contains('frame-block')) {
-        // 중첩 프레임 — 재귀 렌더링 (depth +1)
-        ssChildren.appendChild(makeLayerFrameItem(child, sec, appendRowFn, depth + 1));
+        if (child.dataset.textFrame === 'true') {
+          // text-frame 투명: 내부 text-block을 직접 렌더링 (drag target은 text-frame)
+          const tb = child.querySelector(':scope > .text-block');
+          if (tb) ssChildren.appendChild(makeLayerBlockItem(tb, child, sec, depth + 1));
+        } else {
+          // 중첩 프레임 — 재귀 렌더링 (depth +1)
+          ssChildren.appendChild(makeLayerFrameItem(child, sec, appendRowFn, depth + 1));
+        }
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
