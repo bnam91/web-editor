@@ -14,6 +14,37 @@ let _selectedItems = new Set();  // 다중 선택 집합
 
 function _openDB() {
   if (_db) return Promise.resolve(_db);
+  return _tryOpenDB().catch(err => {
+    console.warn('[ScratchPad] IndexedDB open failed, retrying after delete:', err);
+    return new Promise((res, rej) => {
+      const del = indexedDB.deleteDatabase(SCRATCH_DB_NAME);
+      del.onsuccess = () => _tryOpenDB().then(res).catch(rej);
+      del.onerror   = () => _tryOpenDB().then(res).catch(rej);
+    });
+  }).catch(err => {
+    console.warn('[ScratchPad] IndexedDB unavailable, using in-memory fallback:', err);
+    // 메모리 폴백: get/put/delete 메서드만 흉내냄
+    const store = {};
+    _db = {
+      _isFallback: true,
+      transaction() {
+        return {
+          objectStore() {
+            return {
+              get(k)    { const r = { result: store[k] }; setTimeout(() => r.onsuccess?.({ target: r })); return r; },
+              put(v, k) { store[k] = v; const r = {}; setTimeout(() => r.onsuccess?.({ target: r })); return r; },
+              delete(k) { delete store[k]; const r = {}; setTimeout(() => r.onsuccess?.({ target: r })); return r; },
+              getAllKeys() { const r = { result: Object.keys(store) }; setTimeout(() => r.onsuccess?.({ target: r })); return r; },
+            };
+          }
+        };
+      }
+    };
+    return _db;
+  });
+}
+
+function _tryOpenDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(SCRATCH_DB_NAME, 1);
     req.onupgradeneeded = e => {
@@ -21,6 +52,7 @@ function _openDB() {
     };
     req.onsuccess = e => { _db = e.target.result; resolve(_db); };
     req.onerror   = e => reject(e.target.error);
+    req.onblocked = () => reject(new Error('IndexedDB blocked'));
   });
 }
 
