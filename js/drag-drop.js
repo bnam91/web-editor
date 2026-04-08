@@ -1629,13 +1629,18 @@ function bindFrameDropZone(ss) {
 
       const startX = e.clientX;
       const startY = e.clientY;
-      const origLeft = parseFloat(ss.style.left) || 0;
-      const origTop  = parseFloat(ss.style.top)  || 0;
-      let moved = false;
-
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler
         ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+
+      // OSS 패턴 (tldraw/Suika): style.left 대신 getBoundingClientRect으로 실제 위치 캡처
+      // style.left가 비어있거나 0px인 경우의 "마우스에 붙어서 이동" 버그 방지
+      const _parentEl = ss.parentElement;
+      const _parentRect = _parentEl ? _parentEl.getBoundingClientRect() : { left: 0, top: 0 };
+      const _ssRect = ss.getBoundingClientRect();
+      const origLeft = (_ssRect.left - _parentRect.left) / scale;
+      const origTop  = (_ssRect.top  - _parentRect.top)  / scale;
+      let moved = false;
 
       const onMove = ev => {
         const dx = ev.clientX - startX;
