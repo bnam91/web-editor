@@ -1033,6 +1033,7 @@ function deselectAll() {
   window._activeFrame = null;
   window.hideFrameHandles?.();
   window.hideAssetRadiusHandles?.();
+  window.hideAssetResizeHandles?.();
   canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
   window.showPageProperties();
 }

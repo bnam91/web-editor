@@ -127,6 +127,23 @@
   overflow: visible !important;
 }
 
+/* ── Asset Block overlay resize handles (프레임 핸들과 동일 스타일) ── */
+.asset-overlay-handle {
+  position: absolute;
+  width:  7px;
+  height: 7px;
+  background: #fff;
+  border: 1.5px solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 9992;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+.asset-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se { cursor: se-resize; }
+
 /* ═══════════════════════════════════
    ASSET BLOCK — 이미지 업로드 상태
 ═══════════════════════════════════ */

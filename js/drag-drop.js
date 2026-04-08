@@ -303,6 +303,112 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
 window.showAssetRadiusHandles = showAssetRadiusHandles;
 window.hideAssetRadiusHandles = hideAssetRadiusHandles;
 
+/* ═══════════════════════════════════
+   ASSET BLOCK RESIZE HANDLES (overlay)
+   프레임 핸들과 동일한 스타일 / 오버레이 사용
+═══════════════════════════════════ */
+let _assetResizeBlock = null;
+let _assetResizeRafId = null;
+
+function showAssetResizeHandles(ab) {
+  if (_assetResizeBlock === ab) return;
+  hideAssetResizeHandles();
+  _assetResizeBlock = ab;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  const dirs = ['nw', 'ne', 'sw', 'se'];
+  dirs.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `asset-overlay-handle ${dir}`;
+    h.dataset.assetResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onAssetResizeHandleMouseDown(e, ab, dir));
+  });
+  _updateAssetResizeHandlePositions();
+  _startAssetResizeRaf();
+}
+
+function hideAssetResizeHandles() {
+  if (_assetResizeRafId) { cancelAnimationFrame(_assetResizeRafId); _assetResizeRafId = null; }
+  _assetResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.asset-overlay-handle').forEach(h => h.remove());
+}
+
+function _updateAssetResizeHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_assetResizeBlock) return;
+  const rect = _assetResizeBlock.getBoundingClientRect();
+  const HALF = 3.5;
+  overlay.querySelectorAll('.asset-overlay-handle').forEach(h => {
+    const dir = h.dataset.assetResizeDir;
+    const top  = dir.includes('n') ? rect.top  - HALF : rect.bottom - HALF;
+    const left = dir.includes('w') ? rect.left - HALF : rect.right  - HALF;
+    h.style.top  = top  + 'px';
+    h.style.left = left + 'px';
+  });
+}
+
+function _startAssetResizeRaf() {
+  function loop() {
+    if (!_assetResizeBlock) return;
+    if (!_assetResizeBlock.isConnected || !_assetResizeBlock.classList.contains('selected')) {
+      hideAssetResizeHandles();
+      return;
+    }
+    _updateAssetResizeHandlePositions();
+    _assetResizeRafId = requestAnimationFrame(loop);
+  }
+  _assetResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onAssetResizeHandleMouseDown(e, ab, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const rect = ab.getBoundingClientRect();
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+  const startW = Math.round(rect.width  / scale0);
+  const startH = Math.round(rect.height / scale0);
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    let newW = startW, newH = startH;
+    if (dir.includes('e')) newW = Math.min(860, Math.max(100, startW + dx));
+    if (dir.includes('w')) newW = Math.min(860, Math.max(100, startW - dx));
+    if (dir.includes('s')) newH = Math.max(40, startH + dy);
+    if (dir.includes('n')) newH = Math.max(40, startH - dy);
+    newW = Math.round(newW); newH = Math.round(newH);
+    ab.style.width  = newW >= 860 ? '' : newW + 'px';
+    ab.style.height = newH + 'px';
+    // 우측 패널 슬라이더 동기화
+    const wNum = document.getElementById('asset-w-number');
+    const wSl  = document.getElementById('asset-w-slider');
+    const hNum = document.getElementById('asset-h-number');
+    const hSl  = document.getElementById('asset-h-slider');
+    if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
+    if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showAssetResizeHandles = showAssetResizeHandles;
+window.hideAssetResizeHandles = hideAssetResizeHandles;
+
 Object.defineProperty(window, 'dragSrc', {
   get() { return dragSrc; },
   set(v) { dragSrc = v; },
@@ -1131,6 +1237,7 @@ function bindBlock(block) {
       window.setBlockAnchor?.(block);
       window.showAssetProperties(block);
       showAssetRadiusHandles(block);
+      showAssetResizeHandles(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
@@ -1139,61 +1246,6 @@ function bindBlock(block) {
       } else {
         window.triggerAssetUpload(block);
       }
-    });
-
-    // ── 4코너 리사이즈 핸들 (선택 시 표시) ──
-    if (!block.querySelector('.asset-handle')) {
-      ['nw', 'ne', 'sw', 'se'].forEach(dir => {
-        const h = document.createElement('div');
-        h.className = `asset-handle ${dir}`;
-        h.dataset.dir = dir;
-        block.appendChild(h);
-      });
-    }
-    block.querySelectorAll('.asset-handle').forEach(handle => {
-      handle.addEventListener('mousedown', e => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        e.preventDefault();
-        const dir = handle.dataset.dir;
-        const startX = e.clientX;
-        const startY = e.clientY;
-        const rect = block.getBoundingClientRect();
-        const scaler0 = document.getElementById('canvas-scaler');
-        const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-        const startW = Math.round(rect.width / scale0);
-        const startH = Math.round(rect.height / scale0);
-
-        function onMove(ev) {
-          const scaler = document.getElementById('canvas-scaler');
-          const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-          const dx = (ev.clientX - startX) / scale;
-          const dy = (ev.clientY - startY) / scale;
-          let newW = startW, newH = startH;
-          if (dir.includes('e')) newW = Math.min(860, Math.max(100, startW + dx));
-          if (dir.includes('w')) newW = Math.min(860, Math.max(100, startW - dx));
-          if (dir.includes('s')) newH = Math.max(40, startH + dy);
-          if (dir.includes('n')) newH = Math.max(40, startH - dy);
-          newW = Math.round(newW); newH = Math.round(newH);
-          block.style.width  = newW >= 860 ? '' : newW + 'px';
-          block.style.height = newH + 'px';
-          // 우측 패널 슬라이더 동기화
-          const wNum = document.getElementById('asset-w-number');
-          const wSl  = document.getElementById('asset-w-slider');
-          const hNum = document.getElementById('asset-h-number');
-          const hSl  = document.getElementById('asset-h-slider');
-          if (wNum) { wNum.value = newW; if (wSl) wSl.value = newW; }
-          if (hNum) { hNum.value = newH; if (hSl) hSl.value = newH; }
-          window.scheduleAutoSave?.();
-        }
-        function onUp() {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-          window.pushHistory?.();
-        }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
     });
 
     // 파일 드래그 드롭
