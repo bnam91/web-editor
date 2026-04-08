@@ -1530,6 +1530,117 @@ function renderCanvas(block) {
   const gridRows = parseInt(block.dataset.gridRows) || 1;
   const GAP      = parseInt(block.dataset.cardGap ?? '12'); // 카드 사이 간격
 
+  // ── Simple Card Mode ──────────────────────────────────────────────────────
+  if (block.dataset.cardMode === 'simple') {
+    const imgRatio  = Math.min(90, Math.max(10, parseInt(block.dataset.imgRatio) ?? 65));
+    const textBg    = block.dataset.textBg    || '#f5f5f5';
+    const titleSize = parseInt(block.dataset.titleSize) || 20;
+    const descSize  = parseInt(block.dataset.descSize)  || 14;
+    const textAlign = block.dataset.textAlign || 'left';
+    const cards     = JSON.parse(block.dataset.cards    || '[]');
+
+    const totalW = designW * gridCols + GAP * (gridCols - 1);
+    const totalH = designH * gridRows + GAP * (gridRows - 1);
+
+    if (gridCols === 1) {
+      block.style.width    = designW + 'px';
+      block.style.maxWidth = '';
+      block.style.minWidth = '';
+    } else {
+      block.style.width    = '100%';
+      block.style.maxWidth = '';
+      block.style.minWidth = '0';
+    }
+    block.style.height       = '';
+    block.style.minHeight    = '';
+    block.style.aspectRatio  = `${totalW} / ${totalH}`;
+    block.style.background   = 'transparent';
+    block.style.borderRadius = '0';
+    block.style.position     = 'relative';
+    block.style.overflow     = 'hidden';
+    const padX = parseInt(block.dataset.padX ?? '0');
+    block.style.paddingLeft  = padX + 'px';
+    block.style.paddingRight = padX + 'px';
+    block.style.boxSizing    = 'border-box';
+
+    let inner = block.querySelector('.cvb-inner');
+    if (!inner) { inner = document.createElement('div'); inner.className = 'cvb-inner'; block.appendChild(inner); }
+    inner.innerHTML = '';
+    inner.style.cssText = `position:absolute;top:0;left:0;width:${totalW}px;height:${totalH}px;transform-origin:top left;pointer-events:none;`;
+
+    const applyScale = () => {
+      const aw = block.offsetWidth;
+      if (aw > 0) inner.style.transform = `scale(${aw / totalW})`;
+    };
+    applyScale();
+    if (block._cvbRO) block._cvbRO.disconnect();
+    block._cvbRO = new ResizeObserver(applyScale);
+    block._cvbRO.observe(block);
+
+    for (let r = 0; r < gridRows; r++) {
+      for (let c = 0; c < gridCols; c++) {
+        const idx    = r * gridCols + c;
+        const card   = cards[idx] || {};
+        const cellX  = c * (designW + GAP);
+        const cellY  = r * (designH + GAP);
+        const imgH   = Math.round(designH * imgRatio / 100);
+        const textH  = designH - imgH;
+        const cardBg = card.cellBg || textBg;
+
+        const cell = document.createElement('div');
+        cell.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;border-radius:${radius}px;overflow:hidden;`;
+
+        // Image area
+        const imgDiv = document.createElement('div');
+        imgDiv.style.cssText = `width:100%;height:${imgH}px;overflow:hidden;box-sizing:border-box;flex-shrink:0;`;
+        if (card.imgSrc) {
+          imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
+          imgDiv.style.backgroundSize     = 'cover';
+          imgDiv.style.backgroundPosition = 'center';
+          imgDiv.style.backgroundRepeat   = 'no-repeat';
+        } else {
+          imgDiv.style.background = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 48px 48px';
+          imgDiv.style.display         = 'flex';
+          imgDiv.style.alignItems      = 'center';
+          imgDiv.style.justifyContent  = 'center';
+          const ph = document.createElement('span');
+          ph.style.cssText = 'color:#bbb;font-size:22px;font-family:sans-serif;pointer-events:none;';
+          ph.textContent = '+';
+          imgDiv.appendChild(ph);
+        }
+
+        // Text area
+        const textDiv = document.createElement('div');
+        textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
+
+        if (card.title) {
+          const titleEl = document.createElement('div');
+          titleEl.style.cssText = `font-size:${titleSize}px;font-weight:600;color:#fff;text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
+          titleEl.textContent = card.title;
+          textDiv.appendChild(titleEl);
+        }
+        if (card.desc) {
+          const descEl = document.createElement('div');
+          descEl.style.cssText = `font-size:${descSize}px;font-weight:400;color:rgba(255,255,255,0.75);text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
+          descEl.textContent = card.desc;
+          textDiv.appendChild(descEl);
+        }
+        if (!card.title && !card.desc) {
+          const ph2 = document.createElement('div');
+          ph2.style.cssText = 'color:#bbb;font-size:13px;font-family:sans-serif;text-align:center;';
+          ph2.textContent = '텍스트를 입력하세요';
+          textDiv.appendChild(ph2);
+        }
+
+        cell.appendChild(imgDiv);
+        cell.appendChild(textDiv);
+        inner.appendChild(cell);
+      }
+    }
+    return;
+  }
+  // ── End Simple Card Mode ───────────────────────────────────────────────────
+
   const totalW = designW * gridCols + GAP * (gridCols - 1);
   const totalH = designH * gridRows + GAP * (gridRows - 1);
 
@@ -1695,6 +1806,15 @@ function makeCanvasBlock(data = {}) {
   block.dataset.gridRows  = data.gridRows || 1;
   block.dataset.cardGap   = data.cardGap ?? 12;
   block.dataset.padX      = data.padX ?? 0;
+  if (data.cardMode) {
+    block.dataset.cardMode  = data.cardMode;
+    block.dataset.imgRatio  = data.imgRatio  ?? 65;
+    block.dataset.textBg    = data.textBg    || '#f5f5f5';
+    block.dataset.titleSize = data.titleSize || 20;
+    block.dataset.descSize  = data.descSize  || 14;
+    block.dataset.textAlign = data.textAlign || 'left';
+    block.dataset.cards     = JSON.stringify(data.cards || [{ title: '카드 제목', desc: '', imgSrc: '', cellBg: '' }]);
+  }
 
   const gridCols = parseInt(block.dataset.gridCols) || 1;
   const gridRows = parseInt(block.dataset.gridRows) || 1;
@@ -1709,16 +1829,24 @@ function makeCanvasBlock(data = {}) {
   return { row, block };
 }
 
-const CARD_DEFAULT_LAYERS = [
-  { type: 'image',  label: 'Rectangle 6', x: 0,  y: 0,   w: 360, h: 328 },
-  { type: 'shape',  label: 'Rectangle 5', x: 0,  y: 328, w: 360, h: 180, color: '#a2abb8', shapeType: 'rectangle' },
-  { type: 'text',   label: '텍스트',       x: 51, y: 360, w: 258, h: 112, content: '일반\n3세대 동전지갑', color: '#ffffff', fontSize: 40, fontWeight: 400, align: 'center' },
-];
-const CARD_DEFAULT_OPTS = { width: 360, height: 508, bg: '#ffffff', radius: 40, layerName: 'Card', layers: CARD_DEFAULT_LAYERS, gridCols: 1, gridRows: 1, cardGap: 12, padX: 0 };
+const CARD_DEFAULT_OPTS = {
+  width: 360, height: 508,
+  bg: 'transparent', radius: 12,
+  cardMode: 'simple',
+  imgRatio: 65,
+  textBg: '#a2abb8',
+  titleSize: 40,
+  descSize: 22,
+  textAlign: 'center',
+  layerName: 'Card',
+  layers: [],
+  gridCols: 1, gridRows: 1, cardGap: 12, padX: 0,
+  cards: [{ title: '일반\n3세대 동전지갑', desc: '', imgSrc: '', cellBg: '' }],
+};
 
 function addCanvasBlock(opts = {}) {
-  // 옵션 없이 호출 시 (플로팅 패널 Card 버튼) → Frame 1 기본 템플릿 사용
-  if (!opts.layers) {
+  // 옵션 없이 호출 시 (플로팅 패널 Card 버튼) → 기본 심플 카드 템플릿 사용
+  if (!opts.cardMode && !opts.layers?.length) {
     opts = { ...CARD_DEFAULT_OPTS, ...opts };
   }
   if (_insertToFlowFrame(() => {
