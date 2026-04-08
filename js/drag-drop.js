@@ -676,6 +676,7 @@ function bindBlock(block) {
     let moved = false;
     let draggedOutside = false;    // 프레임 밖 드래그 상태 플래그
     let _dropInsertBefore = null;  // 삽입 기준 element (null=끝에 추가)
+    let _shiftAxis = null;         // Shift 수직/수평 잠금 축
     function onMove(ev) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
@@ -683,8 +684,16 @@ function bindBlock(block) {
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
 
-      const rawLeft = Math.round(startLeft + dx / scale);
-      const rawTop  = Math.round(startTop  + dy / scale);
+      // Shift 수직/수평 이동 제한
+      if (!ev.shiftKey) { _shiftAxis = null; }
+      if (ev.shiftKey && !_shiftAxis && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+        _shiftAxis = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
+      }
+      const cdx = (ev.shiftKey && _shiftAxis === 'v') ? 0 : dx;
+      const cdy = (ev.shiftKey && _shiftAxis === 'h') ? 0 : dy;
+
+      const rawLeft = Math.round(startLeft + cdx / scale);
+      const rawTop  = Math.round(startTop  + cdy / scale);
 
       // 드래그아웃 감지 (단일 선택 + 다중선택 없을 때만)
       // 커서 화면 좌표 대신 요소 중심의 캔버스 좌표로 판단 — scale 오탐 방지
@@ -733,8 +742,8 @@ function bindBlock(block) {
       dragEl.dataset.offsetY = String(newTop);
 
       // 다중선택 피어 동시 이동
-      const scaledDx = Math.round(dx / scale);
-      const scaledDy = Math.round(dy / scale);
+      const scaledDx = Math.round(cdx / scale);
+      const scaledDy = Math.round(cdy / scale);
       multiPeers.forEach(peer => {
         const pLeft = peer.startLeft + scaledDx;
         const pTop  = peer.startTop  + scaledDy;
@@ -916,6 +925,7 @@ function bindBlock(block) {
       const startLeft = parseInt(block.style.left || '0');
       const startTop  = parseInt(block.style.top  || '0');
       let moved = false;
+      let _shiftAxis2 = null;
 
       function onMove(ev) {
         const dx = ev.clientX - startX;
@@ -925,8 +935,15 @@ function bindBlock(block) {
         // 캔버스 스케일 보정
         const scaler = document.getElementById('canvas-scaler');
         const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
-        const newLeft = Math.round(startLeft + dx / scale);
-        const newTop  = Math.round(startTop  + dy / scale);
+        // Shift 수직/수평 이동 제한
+        if (!ev.shiftKey) { _shiftAxis2 = null; }
+        if (ev.shiftKey && !_shiftAxis2 && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+          _shiftAxis2 = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
+        }
+        const cdx = (ev.shiftKey && _shiftAxis2 === 'v') ? 0 : dx;
+        const cdy = (ev.shiftKey && _shiftAxis2 === 'h') ? 0 : dy;
+        const newLeft = Math.round(startLeft + cdx / scale);
+        const newTop  = Math.round(startTop  + cdy / scale);
         block.style.left = `${newLeft}px`;
         block.style.top  = `${newTop}px`;
         block.dataset.offsetX = String(newLeft);
@@ -1825,14 +1842,22 @@ function bindFrameDropZone(ss) {
       const origLeft = (_ssRect.left - _parentRect.left) / scale;
       const origTop  = (_ssRect.top  - _parentRect.top)  / scale;
       let moved = false;
+      let _shiftAxisF = null;
 
       const onMove = ev => {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
         moved = true;
-        const newLeft = Math.round(origLeft + dx / scale);
-        const newTop  = Math.round(origTop  + dy / scale);
+        // Shift 수직/수평 이동 제한
+        if (!ev.shiftKey) { _shiftAxisF = null; }
+        if (ev.shiftKey && !_shiftAxisF && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+          _shiftAxisF = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
+        }
+        const cdx = (ev.shiftKey && _shiftAxisF === 'v') ? 0 : dx;
+        const cdy = (ev.shiftKey && _shiftAxisF === 'h') ? 0 : dy;
+        const newLeft = Math.round(origLeft + cdx / scale);
+        const newTop  = Math.round(origTop  + cdy / scale);
         ss.style.left = newLeft + 'px';
         ss.style.top  = newTop  + 'px';
         ss.dataset.offsetX = String(newLeft);
@@ -1840,8 +1865,8 @@ function bindFrameDropZone(ss) {
 
         // multiPeers 동시 이동
         multiPeers.forEach(peer => {
-          peer.el.style.left = Math.round(peer.startLeft + dx / scale) + 'px';
-          peer.el.style.top  = Math.round(peer.startTop  + dy / scale) + 'px';
+          peer.el.style.left = Math.round(peer.startLeft + cdx / scale) + 'px';
+          peer.el.style.top  = Math.round(peer.startTop  + cdy / scale) + 'px';
         });
 
         // 스마트 가이드 (단일 선택일 때만)
