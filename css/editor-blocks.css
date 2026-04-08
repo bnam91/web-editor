@@ -83,6 +83,25 @@
   background: var(--sel-color);
 }
 
+/* ── Asset Block corner radius handles (Figma 스타일) ── */
+.asset-radius-handle {
+  position: absolute;
+  width:  8px;
+  height: 8px;
+  background: #fff;
+  border: 1.5px solid var(--sel-color);
+  border-radius: 50%;
+  z-index: 1001;
+  pointer-events: auto;
+  box-sizing: border-box;
+  cursor: crosshair;
+  transition: transform 0.1s;
+}
+.asset-radius-handle:hover {
+  transform: scale(1.4);
+  background: var(--sel-color);
+}
+
 /* ── Asset Block resize handles ── */
 .asset-handle {
   position: absolute;

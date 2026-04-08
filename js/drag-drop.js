@@ -69,7 +69,9 @@ function hideFrameHandles() {
   if (_overlayRafId) { cancelAnimationFrame(_overlayRafId); _overlayRafId = null; }
   _overlayFrame = null;
   const overlay = _getOverlay();
-  if (overlay) overlay.innerHTML = '';
+  if (overlay) {
+    overlay.querySelectorAll('.ss-resize-handle, .ss-radius-handle').forEach(h => h.remove());
+  }
 }
 
 function _startHandleRaf() {
@@ -197,6 +199,109 @@ function _onRadiusHandleMouseDown(e, ss, dir) {
 
 window.showFrameHandles = showFrameHandles;
 window.hideFrameHandles = hideFrameHandles;
+
+/* ═══════════════════════════════════
+   ASSET BLOCK CORNER RADIUS HANDLES
+   프레임 핸들과 동일한 오버레이에 렌더링
+═══════════════════════════════════ */
+let _assetRadiusBlock = null;
+let _assetRadiusRafId = null;
+
+function showAssetRadiusHandles(ab) {
+  if (_assetRadiusBlock === ab) return;
+  hideAssetRadiusHandles();
+  _assetRadiusBlock = ab;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  const dirs = ['nw', 'ne', 'sw', 'se'];
+  dirs.forEach(dir => {
+    const r = document.createElement('div');
+    r.className = `asset-radius-handle ${dir}`;
+    r.dataset.assetRadiusDir = dir;
+    r.title = '모서리 반경 조절';
+    overlay.appendChild(r);
+    r.addEventListener('mousedown', e => _onAssetRadiusHandleMouseDown(e, ab, dir));
+  });
+
+  _updateAssetRadiusHandlePositions();
+  _startAssetRadiusRaf();
+}
+
+function hideAssetRadiusHandles() {
+  if (_assetRadiusRafId) { cancelAnimationFrame(_assetRadiusRafId); _assetRadiusRafId = null; }
+  _assetRadiusBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.asset-radius-handle').forEach(h => h.remove());
+}
+
+function _updateAssetRadiusHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_assetRadiusBlock) return;
+  const rect = _assetRadiusBlock.getBoundingClientRect();
+  const INSET = 10;
+  const HALF  = 4;
+  overlay.querySelectorAll('.asset-radius-handle').forEach(h => {
+    const dir = h.dataset.assetRadiusDir;
+    const top  = dir.includes('n') ? rect.top  + INSET - HALF : rect.bottom - INSET - HALF;
+    const left = dir.includes('w') ? rect.left + INSET - HALF : rect.right  - INSET - HALF;
+    h.style.top  = top  + 'px';
+    h.style.left = left + 'px';
+  });
+}
+
+function _startAssetRadiusRaf() {
+  function loop() {
+    if (!_assetRadiusBlock) return;
+    if (!_assetRadiusBlock.isConnected || !_assetRadiusBlock.classList.contains('selected')) {
+      hideAssetRadiusHandles();
+      return;
+    }
+    _updateAssetRadiusHandlePositions();
+    _assetRadiusRafId = requestAnimationFrame(loop);
+  }
+  _assetRadiusRafId = requestAnimationFrame(loop);
+}
+
+function _onAssetRadiusHandleMouseDown(e, ab, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+  const startRadius = parseInt(ab.style.borderRadius) || 0;
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    const delta = dir === 'nw' ? (dx + dy) / 2
+                : dir === 'ne' ? (-dx + dy) / 2
+                : dir === 'sw' ? (dx - dy) / 2
+                : (-dx - dy) / 2;
+    const newR = Math.min(120, Math.max(0, Math.round(startRadius + delta)));
+    ab.style.borderRadius = newR + 'px';
+    // 프로퍼티 패널 동기화
+    const slider = document.getElementById('asset-r-slider');
+    const num    = document.getElementById('asset-r-number');
+    if (slider) slider.value = String(newR);
+    if (num)    num.value    = String(newR);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showAssetRadiusHandles = showAssetRadiusHandles;
+window.hideAssetRadiusHandles = hideAssetRadiusHandles;
 
 Object.defineProperty(window, 'dragSrc', {
   get() { return dragSrc; },
@@ -1008,6 +1113,7 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showAssetProperties(block);
+      showAssetRadiusHandles(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();

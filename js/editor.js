@@ -1032,6 +1032,7 @@ function deselectAll() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   window._activeFrame = null;
   window.hideFrameHandles?.();
+  window.hideAssetRadiusHandles?.();
   canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
   window.showPageProperties();
 }

@@ -219,6 +219,7 @@ else     inner.appendChild(dragEl);
 - **싱글 클릭**: 선택 전용. 선택 후 드래그로 이동 가능.
 - **더블 클릭**: 이미지 업로드 파일 피커 열기 (빈 블록) / 이미지 편집 모드 진입 (이미지 있을 때).
 - 프로퍼티 패널에서 너비·높이·모서리 조절 가능. 선택 시 4코너 핸들로 드래그 리사이즈 가능.
+- **코너 반경 핸들**: 선택 시 `#ss-handles-overlay`에 `.asset-radius-handle` 4개 표시 (내부 코너 10px 안쪽). 드래그로 `border-radius` 실시간 조절, `asset-r-slider` 패널 동기화. `showAssetRadiusHandles(ab)` / `hideAssetRadiusHandles()` — `deselectAll`에서 자동 해제.
 
 ---
 
@@ -249,3 +250,28 @@ section-block
 - `data-free-layout="true"` → freeLayout (절대 위치 배치)
 - `data-full-width="true"` → 전체 너비 플로우
 - `data-text-frame="true"` → 텍스트 전용 투명 래퍼
+
+---
+
+## 코너 반경 핸들 시스템
+
+`#ss-handles-overlay` (position:fixed, z-index:9990)를 공유하는 Figma 스타일 캔버스 핸들.
+
+### frame-block 핸들
+- **리사이즈 핸들**: `.ss-resize-handle` × 4 (nw/ne/sw/se), 프레임 외부 코너에 위치
+- **코너 반경 핸들**: `.ss-radius-handle` × 4 (nw/ne/sw/se), 프레임 내부 10px 안쪽
+  - 드래그 → `dataset.radius` + `style.borderRadius` 동기화, `ss-radius-slider` 패널 연동
+  - `showFrameHandles(ss)` 호출 시 두 세트 동시 생성
+  - `hideFrameHandles()` → `.ss-resize-handle`, `.ss-radius-handle` 선택 제거 (asset 핸들 유지)
+
+### asset-block 핸들
+- **코너 반경 핸들**: `.asset-radius-handle` × 4 (nw/ne/sw/se), 블록 내부 10px 안쪽
+  - 드래그 → `style.borderRadius`, `asset-r-slider` / `asset-r-number` 패널 연동
+  - `showAssetRadiusHandles(ab)` — 에셋 클릭 핸들러에서 자동 호출
+  - `hideAssetRadiusHandles()` — `deselectAll`에서 자동 해제
+  - `img-corner-handle` (리사이즈용)과 완전히 독립적으로 동작
+
+### 핸들 독립성 규칙
+- `hideFrameHandles()`는 frame 관련 핸들만 제거, asset 핸들 유지
+- `hideAssetRadiusHandles()`는 asset 관련 핸들만 제거, frame 핸들 유지
+- 두 시스템이 동시에 overlay에 공존 가능 (다른 클래스 사용)
