@@ -222,6 +222,7 @@ function setBlockAnchor(block) { _lastClickedBlock = block; }
 window.toggleBlockSelect  = toggleBlockSelect;
 window.rangeSelectBlocks  = rangeSelectBlocks;
 window.setBlockAnchor     = setBlockAnchor;
+window._restoreFreeLayoutFrameSelected = _restoreFreeLayoutFrameSelected; // QA/디버그용
 
 /* ═══════════════════════════════════
    MULTI-SELECT STATE
