@@ -215,13 +215,21 @@ async function _captureAndApply(block, sec) {
   }
 }
 
+const _CHECKER = [
+  'linear-gradient(45deg, #bbb 25%, transparent 25%)',
+  'linear-gradient(-45deg, #bbb 25%, transparent 25%)',
+  'linear-gradient(45deg, transparent 75%, #bbb 75%)',
+  'linear-gradient(-45deg, transparent 75%, #bbb 75%)',
+].join(',');
+
 function _applyScreenImage(block, src) {
   const screen = block.querySelector('.mkp-screen');
   if (!screen) return;
-  screen.style.backgroundImage    = `url('${src}')`;
-  screen.style.backgroundSize     = '100% auto';
-  screen.style.backgroundPosition = 'top center';
-  screen.style.backgroundRepeat   = 'no-repeat';
+  screen.style.backgroundImage    = `url('${src}'),${_CHECKER}`;
+  screen.style.backgroundSize     = '100% auto, 12px 12px, 12px 12px, 12px 12px, 12px 12px';
+  screen.style.backgroundPosition = 'top center, 0 0, 0 6px, 6px -6px, -6px 0px';
+  screen.style.backgroundRepeat   = 'no-repeat, repeat, repeat, repeat, repeat';
+  screen.style.backgroundColor    = '#e8e8e8';
   screen.innerHTML = '';
 }
 

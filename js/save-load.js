@@ -679,10 +679,12 @@ function rebindAll() {
     if (imgSrc) {
       const screen = block.querySelector('.mkp-screen');
       if (screen) {
-        screen.style.backgroundImage    = `url('${imgSrc}')`;
-        screen.style.backgroundSize     = '100% auto';
-        screen.style.backgroundPosition = 'top center';
-        screen.style.backgroundRepeat   = 'no-repeat';
+        const _ck = 'linear-gradient(45deg,#bbb 25%,transparent 25%),linear-gradient(-45deg,#bbb 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#bbb 75%),linear-gradient(-45deg,transparent 75%,#bbb 75%)';
+        screen.style.backgroundImage    = `url('${imgSrc}'),${_ck}`;
+        screen.style.backgroundSize     = '100% auto, 12px 12px, 12px 12px, 12px 12px, 12px 12px';
+        screen.style.backgroundPosition = 'top center, 0 0, 0 6px, 6px -6px, -6px 0px';
+        screen.style.backgroundRepeat   = 'no-repeat, repeat, repeat, repeat, repeat';
+        screen.style.backgroundColor    = '#e8e8e8';
         screen.innerHTML = '';
       }
     }
