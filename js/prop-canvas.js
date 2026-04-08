@@ -310,8 +310,8 @@ function showSimpleCardProperties(block) {
         <div class="prop-color-swatch cvb-card-bg-swatch" style="width:16px;height:16px;border-radius:3px;flex-shrink:0;background:${card.cellBg || textBg};" title="개별 배경색">
           <input type="color" class="cvb-card-cell-bg" data-card-index="${i}" value="${card.cellBg || textBg}">
         </div>
-        <button class="prop-btn cvb-card-img-btn" data-card-index="${i}" style="font-size:10px;padding:2px 6px;">${card.imgSrc ? '이미지 교체' : '이미지 추가'}</button>
-        ${card.imgSrc ? `<button class="prop-btn cvb-card-img-clear" data-card-index="${i}" style="font-size:10px;padding:2px 4px;color:#e55;" title="이미지 제거">✕</button>` : ''}
+        <button class="prop-btn cvb-card-img-btn" data-card-index="${i}" style="width:auto;height:auto;font-size:10px;padding:2px 6px;">${card.imgSrc ? '이미지 교체' : '이미지 추가'}</button>
+        ${card.imgSrc ? `<button class="prop-btn cvb-card-img-clear" data-card-index="${i}" style="width:auto;height:auto;font-size:10px;padding:2px 4px;color:#e55;" title="이미지 제거">✕</button>` : ''}
       </div>
       <textarea class="cvb-card-title-input" data-card-index="${i}" placeholder="제목 입력..." rows="2" style="width:100%;resize:none;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:4px;padding:4px 6px;font-size:11px;box-sizing:border-box;font-family:Pretendard,sans-serif;margin-bottom:4px;">${_escHtml(card.title || '')}</textarea>
       <input type="text" class="cvb-card-desc-input" data-card-index="${i}" placeholder="설명 입력..." value="${_escHtml(card.desc || '')}" style="width:100%;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:4px;padding:4px 6px;font-size:11px;box-sizing:border-box;">

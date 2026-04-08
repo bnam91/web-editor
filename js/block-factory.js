@@ -1551,26 +1551,31 @@ function renderCanvas(block) {
       block.style.maxWidth = '';
       block.style.minWidth = '0';
     }
-    block.style.height       = '';
-    block.style.minHeight    = '';
-    block.style.aspectRatio  = `${totalW} / ${totalH}`;
-    block.style.background   = 'transparent';
-    block.style.borderRadius = '0';
-    block.style.position     = 'relative';
-    block.style.overflow     = 'hidden';
     const padX = parseInt(block.dataset.padX ?? '0');
-    block.style.paddingLeft  = padX + 'px';
-    block.style.paddingRight = padX + 'px';
-    block.style.boxSizing    = 'border-box';
+
+    block.style.minHeight     = '';
+    block.style.aspectRatio   = '';
+    block.style.background    = 'transparent';
+    block.style.borderRadius  = '0';
+    block.style.position      = 'relative';
+    block.style.overflow      = 'hidden';
+    block.style.paddingLeft   = '';
+    block.style.paddingRight  = '';
+    block.style.boxSizing     = '';
 
     let inner = block.querySelector('.cvb-inner');
     if (!inner) { inner = document.createElement('div'); inner.className = 'cvb-inner'; block.appendChild(inner); }
     inner.innerHTML = '';
-    inner.style.cssText = `position:absolute;top:0;left:0;width:${totalW}px;height:${totalH}px;transform-origin:top left;pointer-events:none;`;
+    // right/bottom:auto to override CSS class inset:0
+    inner.style.cssText = `position:absolute;top:0;left:${padX}px;right:auto;bottom:auto;width:${totalW}px;height:${totalH}px;transform-origin:top left;pointer-events:none;overflow:visible;`;
 
     const applyScale = () => {
       const aw = block.offsetWidth;
-      if (aw > 0) inner.style.transform = `scale(${aw / totalW})`;
+      if (aw <= 0) return;
+      const availW = Math.max(1, aw - 2 * padX);
+      const scale = availW / totalW;
+      inner.style.transform = `scale(${scale})`;
+      block.style.height = (totalH * scale) + 'px';
     };
     applyScale();
     if (block._cvbRO) block._cvbRO.disconnect();
