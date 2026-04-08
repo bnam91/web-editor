@@ -214,7 +214,7 @@ function showMockupHandles(block) {
   const overlay = _getOverlay();
   if (!overlay) return;
 
-  ['w', 'e'].forEach(dir => {
+  ['nw', 'ne', 'sw', 'se'].forEach(dir => {
     const h = document.createElement('div');
     h.className = `ss-resize-handle mockup-handle ${dir}`;
     h.dataset.dir = dir;
@@ -248,8 +248,8 @@ function _updateMockupHandlePositions() {
   const HALF = 3.5;
   overlay.querySelectorAll('.ss-resize-handle.mockup-handle').forEach(h => {
     const dir = h.dataset.dir;
-    h.style.top  = (rect.top + rect.height / 2 - HALF) + 'px';
-    h.style.left = (dir === 'w' ? rect.left - HALF : rect.right - HALF) + 'px';
+    h.style.top  = (dir.includes('n') ? rect.top - HALF : rect.bottom - HALF) + 'px';
+    h.style.left = (dir.includes('w') ? rect.left - HALF : rect.right - HALF) + 'px';
   });
 }
 
@@ -266,7 +266,7 @@ function _onMockupHandleMouseDown(e, block, dir) {
     const scaler = document.getElementById('canvas-scaler');
     const scale  = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
-    let newW = dir === 'e' ? startW + dx : startW - dx;
+    let newW = dir.includes('e') ? startW + dx : startW - dx;
     newW = Math.round(Math.min(860, Math.max(100, newW)));
     block.dataset.width = String(newW);
     block.style.width   = newW + 'px';
