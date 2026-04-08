@@ -714,73 +714,6 @@ function addTableBlock(opts = {}) {
   window.selectSection(sec);
 }
 
-function makeCardBlock() {
-  const row = document.createElement('div');
-  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-
-  const cdb = document.createElement('div');
-  cdb.className = 'card-block'; cdb.dataset.type = 'card';
-  cdb.id = genId('cdb');
-  cdb.dataset.bgColor = '#f5f5f5';
-  cdb.dataset.radius = '12';
-  cdb.innerHTML = `
-    <div class="cdb-image">
-      <span class="cdb-img-placeholder">+</span>
-    </div>
-    <div class="cdb-body" style="background:#f5f5f5; border-radius:0 0 12px 12px;">
-      <div class="cdb-title" contenteditable="false">카드 제목</div>
-      <div class="cdb-desc" contenteditable="false">설명 텍스트를 입력하세요</div>
-    </div>`;
-
-  row.appendChild(cdb);
-  return { row, block: cdb };
-}
-
-function addCardBlock(count = 2, opts = {}) {
-  if (_insertToFlowFrame(() => {
-    const { row, block } = makeCardBlock();
-    if (opts.bgColor) { block.dataset.bgColor = opts.bgColor; const body = block.querySelector('.cdb-body'); if (body) body.style.background = opts.bgColor; }
-    if (opts.radius !== undefined) { block.dataset.radius = String(opts.radius); const body = block.querySelector('.cdb-body'); if (body) body.style.borderRadius = `0 0 ${opts.radius}px ${opts.radius}px`; }
-    return { row, block };
-  })) return;
-  const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-
-  window.pushHistory();
-
-  const cardCount = (count >= 2 && count <= 4) ? count : 2;
-  const row = document.createElement('div');
-  row.className = 'row';
-  row.id = genId('row');
-  row.dataset.layout = 'grid';
-  row.dataset.ratioStr = `${cardCount}*1`;
-  row.dataset.cardGrid = '1';
-  row.style.display = 'grid';
-  row.style.gridTemplateColumns = `repeat(${cardCount}, 1fr)`;
-  row.style.minHeight = '430px';
-  row.style.gap = '16px';
-  row.dataset.gap = '16';
-
-  for (let i = 0; i < cardCount; i++) {
-    const { block } = makeCardBlock();
-    if (opts.bgColor) {
-      block.dataset.bgColor = opts.bgColor;
-      const body = block.querySelector('.cdb-body');
-      if (body) body.style.background = opts.bgColor;
-    }
-    if (opts.radius !== undefined) {
-      block.dataset.radius = String(opts.radius);
-      const body = block.querySelector('.cdb-body');
-      if (body) body.style.borderRadius = `0 0 ${opts.radius}px ${opts.radius}px`;
-    }
-    row.appendChild(block);
-    bindBlock(block);
-  }
-
-  insertAfterSelected(sec, row);
-  window.buildLayerPanel();
-  window.selectSection(sec);
-}
 
 function makeGraphBlock() {
   const row = document.createElement('div');
@@ -899,7 +832,7 @@ function addSection(opts = {}) {
       <div class="section-toolbar">
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
       </div>
-      <div class="section-inner" style="min-height:580px">
+      <div class="section-inner">
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
         <div class="frame-block" data-text-frame="true" id="${_tfId}">
           <div class="text-block" data-type="heading" id="${_tbId}">
@@ -1332,8 +1265,6 @@ export {
   addGapBlock,
   addIconCircleBlock,
   addTableBlock,
-  makeCardBlock,
-  addCardBlock,
   makeGraphBlock,
   addGraphBlock,
   makeDividerBlock,
@@ -1571,8 +1502,6 @@ window.addAssetBlock        = addAssetBlock;
 window.addGapBlock          = addGapBlock;
 window.addIconCircleBlock   = addIconCircleBlock;
 window.addTableBlock        = addTableBlock;
-window.makeCardBlock        = makeCardBlock;
-window.addCardBlock         = addCardBlock;
 window.makeGraphBlock       = makeGraphBlock;
 window.addGraphBlock        = addGraphBlock;
 window.makeDividerBlock     = makeDividerBlock;
@@ -1587,3 +1516,176 @@ window.makeJokerBlock       = makeJokerBlock;
 window.addJokerBlock        = addJokerBlock;
 window.makeShapeBlock       = makeShapeBlock;
 window.addShapeBlock        = addShapeBlock;
+
+// ── Canvas Block ─────────────────────────────────────────────────────────────
+// Figma에서 임포트한 레이어 합성 블록 (shape + image + text 절대배치 단일 컴포넌트)
+
+function renderCanvas(block) {
+  const layers = JSON.parse(block.dataset.layers || '[]');
+  const w = parseInt(block.dataset.canvasW) || 360;
+  const h = parseInt(block.dataset.canvasH) || 400;
+  const bg = block.dataset.bg || 'transparent';
+  const radius = parseInt(block.dataset.radius) || 0;
+
+  block.style.width        = w + 'px';
+  block.style.height       = h + 'px';
+  block.style.minHeight    = h + 'px';
+  block.style.background   = bg;
+  block.style.borderRadius = radius + 'px';
+  block.style.position     = 'relative';
+
+  // 레이어 렌더 영역 초기화
+  let inner = block.querySelector('.cvb-inner');
+  if (!inner) { inner = document.createElement('div'); inner.className = 'cvb-inner'; block.appendChild(inner); }
+  inner.innerHTML = '';
+  inner.style.cssText = 'position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;';
+
+  // 빈 레이어 — 플레이스홀더
+  if (layers.length === 0) {
+    const ph = document.createElement('div');
+    ph.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
+      'border:2px dashed #ccc;border-radius:inherit;color:#bbb;font-size:13px;font-family:sans-serif;pointer-events:none;';
+    ph.textContent = 'Card Block';
+    inner.appendChild(ph);
+    return;
+  }
+
+  layers.forEach((layer, layerIndex) => {
+    const el = document.createElement('div');
+    el.style.cssText = `position:absolute;left:${layer.x}px;top:${layer.y}px;width:${layer.w}px;height:${layer.h}px;`;
+
+    if (layer.type === 'shape') {
+      el.style.background    = layer.color || '#cccccc';
+      el.style.borderRadius  = (layer.radius || 0) + 'px';
+
+    } else if (layer.type === 'image') {
+      el.style.background = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+      el.style.borderRadius = (layer.radius || 0) + 'px';
+      // 실제 이미지 src가 있으면 표시
+      if (layer.src) {
+        el.style.backgroundImage    = `url("${layer.src}")`;
+        el.style.backgroundSize     = 'cover';
+        el.style.backgroundPosition = 'center';
+        el.style.backgroundRepeat   = 'no-repeat';
+      }
+
+    } else if (layer.type === 'text') {
+      el.style.color       = layer.color || '#000000';
+      el.style.fontSize    = (layer.fontSize || 16) + 'px';
+      el.style.fontFamily  = 'Pretendard, -apple-system, sans-serif';
+      el.style.fontWeight  = layer.fontWeight || '400';
+      el.style.textAlign   = layer.align || 'left';
+      el.style.whiteSpace  = 'pre-wrap';
+      el.style.lineHeight  = '1.35';
+      el.style.wordBreak   = 'break-word';
+      el.style.pointerEvents = 'auto';
+      el.style.overflow    = 'visible';
+      el.style.cursor      = 'default';
+      el.textContent       = layer.content || '';
+
+      // ── 더블클릭으로 인라인 편집 진입 ──────────────────────────────
+      el.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        el.contentEditable = 'true';
+        el.focus();
+        // 커서를 텍스트 끝으로 이동
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        // 편집 중 시각 표시
+        el.style.outline    = '1.5px dashed #1592fe';
+        el.style.background = 'rgba(255,255,255,0.15)';
+        el.style.cursor     = 'text';
+        // 부모 drag 차단
+        block.dataset.editing = 'true';
+      });
+
+      // ── 편집 완료 (blur) ────────────────────────────────────────────
+      el.addEventListener('blur', () => {
+        el.contentEditable = 'false';
+        el.style.outline    = '';
+        el.style.background = '';
+        el.style.cursor     = 'default';
+        delete block.dataset.editing;
+        // 변경 내용 저장
+        const curLayers = JSON.parse(block.dataset.layers || '[]');
+        curLayers[layerIndex].content = el.innerText;
+        block.dataset.layers = JSON.stringify(curLayers);
+        window.pushHistory?.();
+        window.scheduleAutoSave?.();
+        // 프로퍼티 패널 갱신 (현재 이 블록이 선택된 경우에만)
+        if (block.classList.contains('selected')) {
+          window.showCanvasProperties?.(block);
+        }
+      });
+
+      // ── Escape 키로 편집 취소 ──────────────────────────────────────
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          // 원래 내용 복원
+          el.innerText = layer.content || '';
+          el.blur();
+        }
+      });
+
+      // ── 편집 중 이벤트 버블링 차단 ────────────────────────────────
+      el.addEventListener('mousedown', e => e.stopPropagation());
+      el.addEventListener('click',     e => e.stopPropagation());
+    }
+
+    inner.appendChild(el);
+  });
+}
+
+function makeCanvasBlock(data = {}) {
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
+
+  const block = document.createElement('div');
+  block.className = 'canvas-block'; block.dataset.type = 'canvas';
+  block.id = genId('cvb');
+  block.dataset.canvasW  = data.width  || 360;
+  block.dataset.canvasH  = data.height || 400;
+  block.dataset.bg       = data.bg     || 'transparent';
+  block.dataset.radius   = data.radius || 0;
+  block.dataset.layers   = JSON.stringify(data.layers || []);
+  block.dataset.layerName = data.layerName || 'Card';
+
+  renderCanvas(block);
+
+  row.appendChild(block);
+  return { row, block };
+}
+
+const CARD_DEFAULT_LAYERS = [
+  { type: 'image',  label: 'Rectangle 6', x: 0,  y: 0,   w: 360, h: 328 },
+  { type: 'shape',  label: 'Rectangle 5', x: 0,  y: 328, w: 360, h: 180, color: '#a2abb8', shapeType: 'rectangle' },
+  { type: 'text',   label: '텍스트',       x: 51, y: 360, w: 258, h: 112, content: '일반\n3세대 동전지갑', color: '#ffffff', fontSize: 40, fontWeight: 400, align: 'center' },
+];
+const CARD_DEFAULT_OPTS = { width: 360, height: 508, bg: '#ffffff', radius: 40, layerName: 'Card', layers: CARD_DEFAULT_LAYERS };
+
+function addCanvasBlock(opts = {}) {
+  // 옵션 없이 호출 시 (플로팅 패널 Card 버튼) → Frame 1 기본 템플릿 사용
+  if (!opts.layers) {
+    opts = { ...CARD_DEFAULT_OPTS, ...opts };
+  }
+  if (_insertToFlowFrame(() => {
+    const { row, block } = makeCanvasBlock(opts);
+    return { row, block };
+  })) return;
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+  const { row, block } = makeCanvasBlock(opts);
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  window.buildLayerPanel();
+  window.selectSection(sec);
+}
+
+window.makeCanvasBlock  = makeCanvasBlock;
+window.addCanvasBlock   = addCanvasBlock;
+window.renderCanvas     = renderCanvas;
