@@ -1593,13 +1593,17 @@ function bindFrameDropZone(ss) {
       window._activeFrame = ss;
       window.showFrameProperties?.(ss);
 
+      const scaler = document.getElementById('canvas-scaler');
+      const scale = scaler
+        ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+
       const onMove = ev => {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
         moved = true;
-        const newLeft = Math.round(origLeft + dx);
-        const newTop  = Math.round(origTop  + dy);
+        const newLeft = Math.round(origLeft + dx / scale);
+        const newTop  = Math.round(origTop  + dy / scale);
         ss.style.left = newLeft + 'px';
         ss.style.top  = newTop  + 'px';
         ss.dataset.offsetX = String(newLeft);
