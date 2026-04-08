@@ -234,178 +234,80 @@ function classifyNode(node) {
   await delay(200);
   console.log(`✅ 섹션 초기화`);
 
-  // ─── 카드 프레임 생성 ─────────────────────────────────────────────────────
-  await ev(`window._activeFrame = null`);
-  await ev(`window.addFrameBlock({})`);
-  await delay(300);
-
-  const cardId = await ev(`(function(){
-    var f = window._activeFrame;
-    if (!f) return null;
-    f.style.width        = '${frameW}px';
-    f.style.height       = '${frameH}px';
-    f.style.minHeight    = '${frameH}px';
-    f.style.margin       = '0 auto';
-    f.style.position     = 'relative';
-    // overflow:hidden 금지 — 선택 핸들이 클리핑됨 (CLAUDE.md 참고)
-    f.style.borderRadius = '${frameR}px';
-    f.style.background   = '${frameBgColor}';
-    f.dataset.freeLayout = 'true';
-    f.dataset.bg         = '${frameBgColor}';
-    return f.id;
-  })()`);
-
-  if (!cardId) {
-    console.error('❌ 카드 프레임 생성 실패');
-    process.exit(1);
-  }
-  console.log(`\n🃏 카드 프레임: ${cardId} (${frameW}×${frameH}px, radius:${frameR}px)`);
-
-  // ─── 자식 노드 처리 ───────────────────────────────────────────────────────
+  // ─── 자식 노드 → layers 배열 변환 ──────────────────────────────────────────
   const rawChildren = frame.children || [];
-  const children    = flattenChildren(rawChildren); // GROUP/INSTANCE 전개
-  console.log(`\n📦 블록 처리 (원본 ${rawChildren.length}개 → 전개 후 ${children.length}개):`);
+  const children    = flattenChildren(rawChildren);
+  console.log(`\n📦 레이어 변환 (원본 ${rawChildren.length}개 → 전개 후 ${children.length}개):`);
 
+  const layers = [];
   for (const child of children) {
     const bbox = child.absoluteBoundingBox;
     if (!bbox) { console.log(`  ⚠️ "${child.name}": boundingBox 없음, 스킵`); continue; }
 
-    // 프레임 기준 상대좌표
     const x = Math.round(bbox.x - frameX);
     const y = Math.round(bbox.y - frameY);
     const w = Math.round(bbox.width);
     const h = Math.round(bbox.height);
 
     const kind = classifyNode(child);
-    if (!kind) {
-      console.log(`  ⏭️  "${child.name}" (${child.type}) fill 없음, 스킵`);
-      continue;
-    }
+    if (!kind) { console.log(`  ⏭️  "${child.name}" (${child.type}) fill 없음, 스킵`); continue; }
+
     console.log(`  [${kind}] "${child.name}"  x=${x} y=${y} w=${w} h=${h}`);
 
-    // _activeFrame을 카드 ID로 복원
-    await ev(`window._activeFrame = document.querySelector('#${cardId}')`);
+    if (kind === 'image') {
+      const ratio  = h / w;
+      const preset = ratio < 0.75 ? 'wide' : ratio < 0.95 ? 'standard' : ratio < 1.1 ? 'square' : 'tall';
+      layers.push({ type: 'image', label: child.name, x, y, w, h, preset });
 
-    switch (kind) {
+    } else if (kind === 'shape' || kind === 'shape-ellipse' || kind === 'shape-line') {
+      const solidFill = child.fills?.find(f => f.type === 'SOLID');
+      const color     = solidFill ? toHex(solidFill.color) : '#cccccc';
+      const shapeType = kind === 'shape-ellipse' ? 'ellipse' : kind === 'shape-line' ? 'line' : 'rectangle';
+      layers.push({ type: 'shape', label: child.name, x, y, w, h, color, shapeType });
 
-      // ── 이미지 ──────────────────────────────────────────────────────────────
-      case 'image': {
-        const ratio  = h / w;
-        const preset = ratio < 0.75 ? 'wide' : ratio < 0.95 ? 'standard' : ratio < 1.1 ? 'square' : 'tall';
-        await ev(`window.addAssetBlock('${preset}', { x: ${x}, y: ${y}, width: ${w}, height: ${h} })`);
-        await delay(300);
-        // width가 inline style에 저장되지 않을 수 있으므로 명시적으로 고정
-        await ev(`(function(){
-          var card = document.querySelector('#${cardId}');
-          var abs = card.querySelectorAll(':scope > .asset-block');
-          var ab = abs[abs.length - 1];
-          if (ab) { ab.style.width = '${w}px'; ab.dataset.offsetW = '${w}'; }
-        })()`);
-        console.log(`    → addAssetBlock('${preset}')`);
-        break;
-      }
-
-      // ── Shape (rectangle / ellipse / line) ──────────────────────────────────
-      case 'shape':
-      case 'shape-ellipse':
-      case 'shape-line': {
-        const solidFill = child.fills?.find(f => f.type === 'SOLID');
-        const color     = solidFill ? toHex(solidFill.color) : '#cccccc';
-        const shapeType = kind === 'shape-ellipse' ? 'ellipse'
-                        : kind === 'shape-line'    ? 'line'
-                        : 'rectangle';
-
-        await ev(`window.addShapeBlock('${shapeType}')`);
-        await delay(300);
-
-        // addShapeBlock 후 _activeFrame = shape wrapper → ID 직접 캡처
-        const shapeId = await ev(`window._activeFrame?.id`);
-        if (shapeId) {
-          await ev(`(function(){
-            var sf = document.querySelector('#${shapeId}');
-            if (!sf) return;
-            sf.style.position  = 'absolute';
-            sf.style.width     = '${w}px';
-            sf.style.height    = '${h}px';
-            sf.style.minHeight = '${h}px';
-            sf.style.left      = '${x}px';
-            sf.style.top       = '${y}px';
-            sf.style.zIndex    = '1';
-            sf.style.background = '${color}';
-            sf.dataset.bg       = '${color}';
-            sf.dataset.offsetX  = '${x}';
-            sf.dataset.offsetY  = '${y}';
-            sf.dataset.width    = '${w}';
-            sf.dataset.height   = '${h}';
-            var sb = sf.querySelector('.shape-block');
-            if (sb) {
-              sb.dataset.shapeColor = '${color}';
-              sb.dataset.shapeStrokeWidth = '0';
-              var target = sb.querySelector('rect, ellipse, line') || sb.querySelector('svg');
-              if (target) {
-                target.setAttribute('fill', '${color}');
-                target.setAttribute('stroke', 'none');
-                target.setAttribute('stroke-width', '0');
-              }
-            }
-          })()`);
-        }
-        console.log(`    → addShapeBlock('${shapeType}') ${color} [id:${shapeId}]`);
-        break;
-      }
-
-      // ── 텍스트 ──────────────────────────────────────────────────────────────
-      case 'text': {
-        const styleObj    = child.style || {};
-        const fontSize    = styleObj.fontSize    || 28;
-        const fontWeight  = styleObj.fontWeight  || 400;
-        const textStyle   = getTextStyle(fontSize, fontWeight);
-        const align       = getTextAlign(styleObj.textAlignHorizontal);
-        const content     = child.characters || '';
-        const solidFill   = child.fills?.find(f => f.type === 'SOLID');
-        const color       = solidFill ? toHex(solidFill.color) : '#000000';
-
-        await ev(`window.addTextBlock('${textStyle}', ${JSON.stringify({
-          content, color, align, fontSize, x, y, width: w
-        })})`);
-        await delay(300);
-
-        // text-frame 후처리: placeholder 제거 + height 보정 + z-index 보장
-        await ev(`(function(){
-          var card = document.querySelector('#${cardId}');
-          var tfs = card.querySelectorAll(':scope > .frame-block[data-text-frame]');
-          var tf  = tfs[tfs.length - 1];
-          if (!tf) return;
-          // data-is-placeholder="true" → opacity:0.45 적용됨. 실제 텍스트이므로 제거
-          var contentEl = tf.querySelector('[data-is-placeholder]');
-          if (contentEl) contentEl.removeAttribute('data-is-placeholder');
-          if (tf.offsetHeight < 10) {
-            tf.style.height    = '${h}px';
-            tf.style.minHeight = '${h}px';
-          }
-          tf.style.overflow = 'visible';
-          // shape/image보다 위에 표시되도록 z-index 보장
-          tf.style.zIndex = '10';
-          tf.style.position = 'absolute';
-        })()`);
-        console.log(`    → addTextBlock('${textStyle}') "${content.slice(0, 20).replace(/\n/g, '\\n')}" ${color} ${fontSize}px`);
-        break;
-      }
+    } else if (kind === 'text') {
+      const styleObj   = child.style || {};
+      const fontSize   = styleObj.fontSize   || 28;
+      const fontWeight = styleObj.fontWeight || 400;
+      const align      = getTextAlign(styleObj.textAlignHorizontal);
+      const content    = child.characters || '';
+      const solidFill  = child.fills?.find(f => f.type === 'SOLID');
+      const color      = solidFill ? toHex(solidFill.color) : '#000000';
+      layers.push({ type: 'text', label: child.name, x, y, w, h, content, color, fontSize, fontWeight, align });
     }
-
-    await delay(100);
   }
 
+  // ─── addCanvasBlock 호출 ──────────────────────────────────────────────────
+  const canvasOpts = JSON.stringify({
+    width:     frameW,
+    height:    frameH,
+    bg:        frameBgColor,
+    radius:    frameR,
+    layerName: frame.name,
+    layers,
+  });
+  await ev(`window.addCanvasBlock(${canvasOpts})`);
+  await delay(300);
+
+  const blockId = await ev(`(function(){
+    var secs = document.querySelectorAll('.section-block');
+    var sec  = Array.from(secs).find(s => s.id === '${SECTION_ID}');
+    if (!sec) return null;
+    var cvb = [...sec.querySelectorAll('.canvas-block')].pop();
+    return cvb ? cvb.id : null;
+  })()`);
+  console.log(`\n🃏 Canvas Block: ${blockId} (${frameW}×${frameH}px, ${layers.length} layers)`);
+
   // ─── 마무리 ───────────────────────────────────────────────────────────────
-  await ev(`window.deactivateFrame()`);
   await delay(200);
-  await ev(`window.triggerAutoSave()`);
+  await delay(300);
+  await ev(`(typeof window.triggerAutoSave === 'function' ? window.triggerAutoSave() : (typeof window.scheduleAutoSave === 'function' ? window.scheduleAutoSave() : null))`);
   await delay(600);
 
   console.log(`\n✅ 완료`);
   console.log(`   섹션  : ${SECTION_ID}`);
   console.log(`   프레임: ${frame.name} (${frameW}×${frameH}px)`);
-  console.log(`   블록  : ${children.length}개`);
+  console.log(`   레이어: ${layers.length}개`);
 
   if (figmaWs) figmaWs.close();
   cdpWs.close();

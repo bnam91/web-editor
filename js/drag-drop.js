@@ -409,6 +409,201 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
 window.showAssetResizeHandles = showAssetResizeHandles;
 window.hideAssetResizeHandles = hideAssetResizeHandles;
 
+/* ═══════════════════════════════════
+   CANVAS BLOCK RADIUS HANDLES (overlay)
+═══════════════════════════════════ */
+let _canvasRadiusBlock = null;
+let _canvasRadiusRafId = null;
+
+function showCanvasRadiusHandles(cb) {
+  if (_canvasRadiusBlock === cb) return;
+  hideCanvasRadiusHandles();
+  _canvasRadiusBlock = cb;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  const r = document.createElement('div');
+  r.className = 'canvas-radius-handle nw';
+  r.dataset.canvasRadiusDir = 'nw';
+  r.title = '모서리 반경 조절';
+  overlay.appendChild(r);
+  r.addEventListener('mousedown', e => _onCanvasRadiusHandleMouseDown(e, cb));
+
+  _updateCanvasRadiusHandlePositions();
+  _startCanvasRadiusRaf();
+}
+
+function hideCanvasRadiusHandles() {
+  if (_canvasRadiusRafId) { cancelAnimationFrame(_canvasRadiusRafId); _canvasRadiusRafId = null; }
+  _canvasRadiusBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.canvas-radius-handle').forEach(h => h.remove());
+}
+
+function _updateCanvasRadiusHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_canvasRadiusBlock) return;
+  const rect = _canvasRadiusBlock.getBoundingClientRect();
+  const INSET = 10;
+  const HALF  = 4;
+  overlay.querySelectorAll('.canvas-radius-handle').forEach(h => {
+    h.style.top  = (rect.top  + INSET - HALF) + 'px';
+    h.style.left = (rect.left + INSET - HALF) + 'px';
+  });
+}
+
+function _startCanvasRadiusRaf() {
+  function loop() {
+    if (!_canvasRadiusBlock) return;
+    if (!_canvasRadiusBlock.isConnected || !_canvasRadiusBlock.classList.contains('selected')) {
+      hideCanvasRadiusHandles();
+      return;
+    }
+    _updateCanvasRadiusHandlePositions();
+    _canvasRadiusRafId = requestAnimationFrame(loop);
+  }
+  _canvasRadiusRafId = requestAnimationFrame(loop);
+}
+
+function _onCanvasRadiusHandleMouseDown(e, cb) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+  const startRadius = parseInt(cb.dataset.radius) || 0;
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    const delta = (dx + dy) / 2;
+    const newR = Math.min(60, Math.max(0, Math.round(startRadius - delta)));
+    cb.dataset.radius = String(newR);
+    window.renderCanvas(cb);
+    const rSlider = document.getElementById('cvb-radius-slider');
+    const rNumber = document.getElementById('cvb-radius-number');
+    if (rSlider) rSlider.value = String(newR);
+    if (rNumber) rNumber.value = String(newR);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showCanvasRadiusHandles = showCanvasRadiusHandles;
+window.hideCanvasRadiusHandles = hideCanvasRadiusHandles;
+
+/* ═══════════════════════════════════
+   CANVAS BLOCK RESIZE HANDLES (overlay)
+═══════════════════════════════════ */
+let _canvasResizeBlock = null;
+let _canvasResizeRafId = null;
+
+function showCanvasResizeHandles(cb) {
+  if (_canvasResizeBlock === cb) return;
+  hideCanvasResizeHandles();
+  _canvasResizeBlock = cb;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  const dirs = ['nw', 'ne', 'sw', 'se'];
+  dirs.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `canvas-overlay-handle ${dir}`;
+    h.dataset.canvasResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onCanvasResizeHandleMouseDown(e, cb, dir));
+  });
+  _updateCanvasResizeHandlePositions();
+  _startCanvasResizeRaf();
+}
+
+function hideCanvasResizeHandles() {
+  if (_canvasResizeRafId) { cancelAnimationFrame(_canvasResizeRafId); _canvasResizeRafId = null; }
+  _canvasResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.canvas-overlay-handle').forEach(h => h.remove());
+}
+
+function _updateCanvasResizeHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_canvasResizeBlock) return;
+  const rect = _canvasResizeBlock.getBoundingClientRect();
+  const HALF = 3.5;
+  overlay.querySelectorAll('.canvas-overlay-handle').forEach(h => {
+    const dir = h.dataset.canvasResizeDir;
+    const top  = dir.includes('n') ? rect.top    - HALF : rect.bottom - HALF;
+    const left = dir.includes('w') ? rect.left   - HALF : rect.right  - HALF;
+    h.style.top  = top  + 'px';
+    h.style.left = left + 'px';
+  });
+}
+
+function _startCanvasResizeRaf() {
+  function loop() {
+    if (!_canvasResizeBlock) return;
+    if (!_canvasResizeBlock.isConnected || !_canvasResizeBlock.classList.contains('selected')) {
+      hideCanvasResizeHandles();
+      return;
+    }
+    _updateCanvasResizeHandlePositions();
+    _canvasResizeRafId = requestAnimationFrame(loop);
+  }
+  _canvasResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onCanvasResizeHandleMouseDown(e, cb, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+  const startW = parseInt(cb.dataset.canvasW) || 360;
+  const startH = parseInt(cb.dataset.canvasH) || 400;
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    let newW = startW, newH = startH;
+    if (dir.includes('e')) newW = Math.min(860, Math.max(100, startW + dx));
+    if (dir.includes('w')) newW = Math.min(860, Math.max(100, startW - dx));
+    if (dir.includes('s')) newH = Math.max(40, startH + dy);
+    if (dir.includes('n')) newH = Math.max(40, startH - dy);
+    newW = Math.round(newW); newH = Math.round(newH);
+    cb.dataset.canvasW = String(newW);
+    cb.dataset.canvasH = String(newH);
+    window.renderCanvas(cb);
+    const wInput = document.getElementById('cvb-w');
+    const hInput = document.getElementById('cvb-h');
+    if (wInput) wInput.value = String(newW);
+    if (hInput) hInput.value = String(newH);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showCanvasResizeHandles = showCanvasResizeHandles;
+window.hideCanvasResizeHandles = hideCanvasResizeHandles;
+
 Object.defineProperty(window, 'dragSrc', {
   get() { return dragSrc; },
   set(v) { dragSrc = v; },
@@ -697,11 +892,11 @@ function bindBlock(block) {
   const isIconCb     = block.classList.contains('icon-circle-block');
   const isTableB     = block.classList.contains('table-block');
   const isLabelGroup = block.classList.contains('label-group-block');
-  const isCard        = block.classList.contains('card-block');
   const isGraph       = block.classList.contains('graph-block');
   const isDivider     = block.classList.contains('divider-block');
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
+  const isCanvas     = block.classList.contains('canvas-block');
 
   // ── 공통: 절대좌표 드래그 (프레임 자유배치 — 모든 블록 타입) ──
   block.addEventListener('mousedown', e => {
@@ -762,7 +957,7 @@ function bindBlock(block) {
         const hasSelected = ch.querySelector(
           '.text-block.selected,.asset-block.selected,.shape-block.selected,' +
           '.gap-block.selected,.icon-circle-block.selected,.table-block.selected,' +
-          '.label-group-block.selected,.card-block.selected,.graph-block.selected,' +
+          '.label-group-block.selected,.graph-block.selected, .canvas-block.selected,' +
           '.divider-block.selected'
         );
         if (hasSelected) {
@@ -1522,85 +1717,6 @@ function bindBlock(block) {
     });
   }
 
-  if (isCard) {
-    block.addEventListener('click', e => {
-      e.stopPropagation();
-      const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
-      if (_isInsideUnselectedFrame(block)) {
-        e.stopPropagation();
-        const ss = _getParentFrame(block);
-        window.deselectAll?.();
-        const parentSec = ss.closest('.section-block');
-        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-        ss.classList.add('selected');
-        window._activeFrame = ss;
-        window.highlightBlock?.(ss, ss._layerItem);
-        window.showFrameProperties?.(ss);
-        return;
-      }
-      const rowEl = block.closest('.row');
-      const isRowActive = rowEl && rowEl.classList.contains('row-active');
-      window.deselectAll();
-      _restoreParentFrameSelected(block);
-      if (rowEl && !isRowActive) {
-        // 첫 번째 클릭: Row 전체 선택 → Row Properties 표시
-        rowEl.classList.add('row-active');
-        window.showRowProperties(rowEl);
-        return;
-      }
-      // 두 번째 클릭 (또는 단독 카드): 카드 선택 → Card Properties 표시
-      block.classList.add('selected');
-      window.syncSection(sec);
-      window.highlightBlock(block, block._layerItem);
-      window.setBlockAnchor?.(block);
-      window.showCardProperties(block);
-    });
-    block.addEventListener('dblclick', e => {
-      e.stopPropagation();
-      // 이미지 영역 더블클릭 → 이미지 업로드
-      if (e.target.closest('.cdb-image')) {
-        window.triggerCardImageUpload(block);
-        return;
-      }
-      // 텍스트 영역 더블클릭 → contenteditable 활성화
-      const textEl = e.target.closest('.cdb-title, .cdb-desc');
-      if (textEl) {
-        window.pushHistory?.();
-        textEl.contentEditable = 'true';
-        textEl.focus();
-        block.classList.add('editing');
-        textEl.addEventListener('blur', () => {
-          textEl.contentEditable = 'false';
-          block.classList.remove('editing');
-        }, { once: true });
-        textEl.addEventListener('keydown', ev => {
-          if (ev.key === 'Escape') { textEl.blur(); }
-        }, { once: true });
-      }
-    });
-    block.addEventListener('dragover', e => {
-      if (!e.dataTransfer.types.includes('Files')) return;
-      e.preventDefault(); e.stopPropagation();
-      block.classList.add('drag-over');
-    });
-    block.addEventListener('dragleave', e => {
-      if (!block.contains(e.relatedTarget)) block.classList.remove('drag-over');
-    });
-    block.addEventListener('drop', e => {
-      if (!e.dataTransfer.types.includes('Files')) return;
-      e.preventDefault(); e.stopPropagation();
-      block.classList.remove('drag-over');
-      const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) window.loadImageToCard(block, file);
-    });
-    // 로드/undo 후 has-image 복원
-    if (block.classList.contains('has-image')) {
-      const clearBtn = block.querySelector('.cdb-clear-btn');
-      if (clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); window.clearCardImage(block); });
-    }
-  }
 
   if (isGraph) {
     block.addEventListener('click', e => {
@@ -1627,6 +1743,35 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showGraphProperties(block);
+    });
+  }
+
+  if (isCanvas) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeFrame = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showFrameProperties?.(ss);
+        return;
+      }
+      window.deselectAll();
+      _restoreParentFrameSelected(block);
+      block.classList.add('selected');
+      window.syncSection(sec);
+      window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
+      window.showCanvasProperties(block);
+      showCanvasRadiusHandles(block);
+      showCanvasResizeHandles(block);
     });
   }
 
@@ -1826,7 +1971,7 @@ function bindFrameDropZone(ss) {
     // text-frame 제거: B가 selected 상태에서 TF에 pointer-events:auto가 생겨도
     // B의 mousedown이 drag를 시작할 수 있도록 (text-frame은 투명 래퍼라 드래그 시작점으로 써도 됨)
     const CHILD_BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-      '.table-block, .label-group-block, .card-block, .graph-block, .divider-block, ' +
+      '.table-block, .label-group-block, .graph-block, .divider-block, ' +
       '.icon-text-block, .shape-block';
 
     ss.addEventListener('mousedown', e => {
@@ -1972,7 +2117,7 @@ function bindFrameDropZone(ss) {
   ss.addEventListener('click', e => {
     // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
     // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block')) return;
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block')) return;
     // 내부 nested frame-block 클릭: mousedown에서 이미 처리됨.
     // stopPropagation 필수 — 없으면 click이 section 핸들러까지 버블되어 deselectAll() 호출됨
     const innerFrame = e.target.closest('.frame-block:not([data-text-frame])');
@@ -2034,7 +2179,7 @@ function bindFrameDropZone(ss) {
     window.pushHistory();
 
     const isFullWidth = ss.dataset.fullWidth === 'true';
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block';
     const SS_W = 860; // 캔버스 기준 너비
 
     if (isFullWidth) {
@@ -2147,7 +2292,7 @@ function bindFrameDropZone(ss) {
 
   // 내부 블록 pointerdown 시 서브섹션 drag 일시 비활성 — 블록 선택/이동과 충돌 방지
   ss.addEventListener('pointerdown', e => {
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block');
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block');
     if (isInnerBlock) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');

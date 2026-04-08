@@ -366,12 +366,11 @@ function migrateColsFromDOM(canvasEl) {
     });
     col.remove();
   });
-  // Card grid row: col → 직속 card-block (NewGrid 변환 제외)
   canvasEl.querySelectorAll('.row[data-layout="grid"][data-card-grid], .row[data-layout="grid"]').forEach(row => {
     const cols = [...row.querySelectorAll(':scope > .col')];
     if (cols.length === 0) return;
-    const isCardGrid = cols.every(c => c.querySelector(':scope > .card-block'));
-    if (!isCardGrid) return;
+    // card-grid 마이그레이션 — card-block 제거 이후 불필요하므로 스킵
+    return;
     cols.forEach(col => {
       [...col.childNodes].forEach(child => row.appendChild(child));
       col.remove();
@@ -524,7 +523,7 @@ function rebindAll() {
         e.stopPropagation();
         window.selectSectionWithModifier(sec, e);
         const row = e.target.closest('.row');
-        if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+        if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block')) {
           document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
           row.classList.add('row-active');
           if (window.syncLayerRow) window.syncLayerRow(row);
@@ -606,15 +605,15 @@ function rebindAll() {
     if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
         : b.classList.contains('gap-block') ? 'gb'
         : b.classList.contains('icon-circle-block') ? 'icb'
         : b.classList.contains('label-group-block') ? 'lg'
-        : b.classList.contains('card-block') ? 'cdb'
-        : b.classList.contains('graph-block') ? 'grb'
+        
+        : b.classList.contains('canvas-block') ? 'cvb' : b.classList.contains('graph-block') ? 'grb'
         : b.classList.contains('icon-text-block') ? 'itb'
         : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);

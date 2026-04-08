@@ -42,7 +42,7 @@ const layerIcons = {
   banner:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="6" rx="0.5"/><line x1="7" y1="5" x2="11" y2="5"/><line x1="7" y1="7" x2="10" y2="7"/></svg>`,
   graph:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polyline points="1,10 4,5 7,7 10,2"/></svg>`,
   'icon-text': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="4" rx="0.8"/><line x1="7" y1="4" x2="11" y2="4"/><line x1="7" y1="7" x2="10" y2="7"/></svg>`,
-  canvas:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="1" y1="4.5" x2="11" y2="4.5" stroke-dasharray="2 1.5"/><line x1="4.5" y1="4.5" x2="4.5" y2="11" stroke-dasharray="2 1.5"/></svg>`,
+  canvas:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="2"/><rect x="3" y="3" width="3" height="6" rx="0.5" fill="currentColor" stroke="none"/><rect x="7" y="3" width="2" height="3" rx="0.5" fill="currentColor" stroke="none"/></svg>`,
   joker:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/><text x="6" y="9" font-size="7" text-anchor="middle" fill="currentColor" stroke="none">♠</text></svg>`,
   'shape-rectangle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="2.5" width="10" height="7" rx="0.5"/></svg>`,
   'shape-ellipse':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="5"/></svg>`,
@@ -107,15 +107,15 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isTable      = block.classList.contains('table-block');
   const isLabelGroup = block.classList.contains('label-group-block');
   const isDivider    = block.classList.contains('divider-block');
-  const isCard       = block.classList.contains('card-block');
   const isGraph      = block.classList.contains('graph-block');
   const isIconText   = block.classList.contains('icon-text-block');
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
+  const isCanvas     = block.classList.contains('canvas-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isCard ? 'card' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', card:'Card', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', card:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -148,8 +148,9 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isGap) window.showGapProperties(block);
     else if (isIconCb) window.showIconCircleProperties(block);
     else if (isTable) window.showTableProperties(block);
-    else if (isCard) window.showCardProperties(block);
+    
     else if (isGraph) window.showGraphProperties?.(block);
+    else if (isCanvas) window.showCanvasProperties?.(block);
     else if (isDivider) window.showDividerProperties?.(block);
     else if (isLabelGroup) window.showLabelGroupProperties?.(block);
     else if (isJoker) window.showJokerProperties?.(block);
@@ -629,7 +630,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
-                 'table-block','card-block','graph-block','divider-block','label-group-block','shape-block']
+                'table-block','graph-block','divider-block','label-group-block','shape-block','canvas-block']
                 .some(c => child.classList.contains(c))) {
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
       }

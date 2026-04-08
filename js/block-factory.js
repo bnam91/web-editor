@@ -1521,123 +1521,161 @@ window.addShapeBlock        = addShapeBlock;
 // Figma에서 임포트한 레이어 합성 블록 (shape + image + text 절대배치 단일 컴포넌트)
 
 function renderCanvas(block) {
-  const layers = JSON.parse(block.dataset.layers || '[]');
-  const w = parseInt(block.dataset.canvasW) || 360;
-  const h = parseInt(block.dataset.canvasH) || 400;
-  const bg = block.dataset.bg || 'transparent';
-  const radius = parseInt(block.dataset.radius) || 0;
+  const layers   = JSON.parse(block.dataset.layers || '[]');
+  const designW  = parseInt(block.dataset.canvasW) || 360;
+  const designH  = parseInt(block.dataset.canvasH) || 400;
+  const bg       = block.dataset.bg || 'transparent';
+  const radius   = parseInt(block.dataset.radius) || 0;
+  const gridCols = parseInt(block.dataset.gridCols) || 1;
+  const gridRows = parseInt(block.dataset.gridRows) || 1;
+  const GAP      = parseInt(block.dataset.cardGap ?? '12'); // 카드 사이 간격
 
-  block.style.width        = w + 'px';
-  block.style.height       = h + 'px';
-  block.style.minHeight    = h + 'px';
-  block.style.background   = bg;
-  block.style.borderRadius = radius + 'px';
+  const totalW = designW * gridCols + GAP * (gridCols - 1);
+  const totalH = designH * gridRows + GAP * (gridRows - 1);
+
+  // block: gridCols===1이면 고정 너비, 2+이면 섹션 너비에 맞춤
+  if (gridCols === 1) {
+    block.style.width    = designW + 'px';
+    block.style.maxWidth = '';
+    block.style.minWidth = '';
+  } else {
+    block.style.width    = '100%';
+    block.style.maxWidth = '';
+    block.style.minWidth = '0';
+  }
+  block.style.height       = '';
+  block.style.minHeight    = '';
+  block.style.aspectRatio  = `${totalW} / ${totalH}`;
+  block.style.background   = 'transparent'; // 개별 셀이 배경 가짐
+  block.style.borderRadius = '0';
   block.style.position     = 'relative';
+  block.style.overflow     = 'hidden';
+  const padX = parseInt(block.dataset.padX ?? '0');
+  block.style.paddingLeft  = padX + 'px';
+  block.style.paddingRight = padX + 'px';
+  block.style.boxSizing    = 'border-box';
 
-  // 레이어 렌더 영역 초기화
+  // cvb-inner: 디자인 좌표계 전체 크기
   let inner = block.querySelector('.cvb-inner');
   if (!inner) { inner = document.createElement('div'); inner.className = 'cvb-inner'; block.appendChild(inner); }
   inner.innerHTML = '';
-  inner.style.cssText = 'position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;';
+  inner.style.cssText = `position:absolute;top:0;left:0;width:${totalW}px;height:${totalH}px;transform-origin:top left;pointer-events:none;`;
 
-  // 빈 레이어 — 플레이스홀더
+  // scale 갱신 함수
+  const applyScale = () => {
+    const aw = block.offsetWidth;
+    if (aw > 0) inner.style.transform = `scale(${aw / totalW})`;
+  };
+  applyScale();
+
+  // ResizeObserver 로 동적 갱신
+  if (block._cvbRO) block._cvbRO.disconnect();
+  block._cvbRO = new ResizeObserver(applyScale);
+  block._cvbRO.observe(block);
+
+  // 빈 레이어 — 플레이스홀더 (그리드 셀 단위로)
   if (layers.length === 0) {
-    const ph = document.createElement('div');
-    ph.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
-      'border:2px dashed #ccc;border-radius:inherit;color:#bbb;font-size:13px;font-family:sans-serif;pointer-events:none;';
-    ph.textContent = 'Card Block';
-    inner.appendChild(ph);
+    for (let r = 0; r < gridRows; r++) {
+      for (let c = 0; c < gridCols; c++) {
+        const cellX = c * (designW + GAP);
+        const cellY = r * (designH + GAP);
+        const ph = document.createElement('div');
+        ph.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;display:flex;align-items:center;justify-content:center;border:2px dashed #ccc;border-radius:${radius}px;color:#bbb;font-size:13px;font-family:sans-serif;`;
+        ph.textContent = 'Card Block';
+        inner.appendChild(ph);
+      }
+    }
     return;
   }
 
-  layers.forEach((layer, layerIndex) => {
-    const el = document.createElement('div');
-    el.style.cssText = `position:absolute;left:${layer.x}px;top:${layer.y}px;width:${layer.w}px;height:${layer.h}px;`;
+  // 각 그리드 셀에 레이어 렌더링
+  for (let r = 0; r < gridRows; r++) {
+    for (let c = 0; c < gridCols; c++) {
+      const cellX = c * (designW + GAP);
+      const cellY = r * (designH + GAP);
 
-    if (layer.type === 'shape') {
-      el.style.background    = layer.color || '#cccccc';
-      el.style.borderRadius  = (layer.radius || 0) + 'px';
+      // 셀 컨테이너 (배경, 반경)
+      const cell = document.createElement('div');
+      cell.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;background:${bg};border-radius:${radius}px;overflow:hidden;`;
+      inner.appendChild(cell);
 
-    } else if (layer.type === 'image') {
-      el.style.background = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
-      el.style.borderRadius = (layer.radius || 0) + 'px';
-      // 실제 이미지 src가 있으면 표시
-      if (layer.src) {
-        el.style.backgroundImage    = `url("${layer.src}")`;
-        el.style.backgroundSize     = 'cover';
-        el.style.backgroundPosition = 'center';
-        el.style.backgroundRepeat   = 'no-repeat';
-      }
+      // 레이어 렌더링
+      layers.forEach((layer, layerIndex) => {
+        const el = document.createElement('div');
+        el.style.cssText = `position:absolute;left:${layer.x}px;top:${layer.y}px;width:${layer.w}px;height:${layer.h}px;`;
 
-    } else if (layer.type === 'text') {
-      el.style.color       = layer.color || '#000000';
-      el.style.fontSize    = (layer.fontSize || 16) + 'px';
-      el.style.fontFamily  = 'Pretendard, -apple-system, sans-serif';
-      el.style.fontWeight  = layer.fontWeight || '400';
-      el.style.textAlign   = layer.align || 'left';
-      el.style.whiteSpace  = 'pre-wrap';
-      el.style.lineHeight  = '1.35';
-      el.style.wordBreak   = 'break-word';
-      el.style.pointerEvents = 'auto';
-      el.style.overflow    = 'visible';
-      el.style.cursor      = 'default';
-      el.textContent       = layer.content || '';
+        if (layer.type === 'shape') {
+          el.style.background   = layer.color || '#cccccc';
+          el.style.borderRadius = (layer.radius || 0) + 'px';
 
-      // ── 더블클릭으로 인라인 편집 진입 ──────────────────────────────
-      el.addEventListener('dblclick', e => {
-        e.stopPropagation();
-        el.contentEditable = 'true';
-        el.focus();
-        // 커서를 텍스트 끝으로 이동
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-        // 편집 중 시각 표시
-        el.style.outline    = '1.5px dashed #1592fe';
-        el.style.background = 'rgba(255,255,255,0.15)';
-        el.style.cursor     = 'text';
-        // 부모 drag 차단
-        block.dataset.editing = 'true';
-      });
+        } else if (layer.type === 'image') {
+          el.style.background   = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+          el.style.borderRadius = (layer.radius || 0) + 'px';
+          if (layer.src) {
+            el.style.backgroundImage    = `url("${layer.src}")`;
+            el.style.backgroundSize     = 'cover';
+            el.style.backgroundPosition = 'center';
+            el.style.backgroundRepeat   = 'no-repeat';
+          }
 
-      // ── 편집 완료 (blur) ────────────────────────────────────────────
-      el.addEventListener('blur', () => {
-        el.contentEditable = 'false';
-        el.style.outline    = '';
-        el.style.background = '';
-        el.style.cursor     = 'default';
-        delete block.dataset.editing;
-        // 변경 내용 저장
-        const curLayers = JSON.parse(block.dataset.layers || '[]');
-        curLayers[layerIndex].content = el.innerText;
-        block.dataset.layers = JSON.stringify(curLayers);
-        window.pushHistory?.();
-        window.scheduleAutoSave?.();
-        // 프로퍼티 패널 갱신 (현재 이 블록이 선택된 경우에만)
-        if (block.classList.contains('selected')) {
-          window.showCanvasProperties?.(block);
+        } else if (layer.type === 'text') {
+          el.style.color         = layer.color || '#000000';
+          el.style.fontSize      = (layer.fontSize || 16) + 'px';
+          el.style.fontFamily    = 'Pretendard, -apple-system, sans-serif';
+          el.style.fontWeight    = layer.fontWeight || '400';
+          el.style.textAlign     = layer.align || 'left';
+          el.style.whiteSpace    = 'pre-wrap';
+          el.style.lineHeight    = '1.35';
+          el.style.wordBreak     = 'break-word';
+          el.style.pointerEvents = 'auto';
+          el.style.overflow      = 'visible';
+          el.style.cursor        = 'default';
+          el.textContent         = layer.content || '';
+
+          // 더블클릭 텍스트 편집 (첫 번째 셀만 편집 가능, 나머지는 동기화)
+          if (r === 0 && c === 0) {
+            el.addEventListener('dblclick', e => {
+              e.stopPropagation();
+              el.contentEditable = 'true';
+              el.focus();
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              range.collapse(false);
+              const sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+              el.style.outline    = '1.5px dashed #1592fe';
+              el.style.background = 'rgba(255,255,255,0.15)';
+              el.style.cursor     = 'text';
+              block.dataset.editing = 'true';
+            });
+            el.addEventListener('blur', () => {
+              el.contentEditable = 'false';
+              el.style.outline    = '';
+              el.style.background = '';
+              el.style.cursor     = 'default';
+              delete block.dataset.editing;
+              const curLayers = JSON.parse(block.dataset.layers || '[]');
+              if (curLayers[layerIndex]) {
+                curLayers[layerIndex].content = el.innerText;
+                block.dataset.layers = JSON.stringify(curLayers);
+                window.pushHistory?.();
+                window.scheduleAutoSave?.();
+                if (block.classList.contains('selected')) window.showCanvasProperties?.(block);
+              }
+            });
+            el.addEventListener('keydown', e => {
+              if (e.key === 'Escape') { el.innerText = layer.content || ''; el.blur(); }
+            });
+          }
+          el.addEventListener('mousedown', e => e.stopPropagation());
+          el.addEventListener('click',     e => e.stopPropagation());
         }
-      });
 
-      // ── Escape 키로 편집 취소 ──────────────────────────────────────
-      el.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-          // 원래 내용 복원
-          el.innerText = layer.content || '';
-          el.blur();
-        }
+        cell.appendChild(el);
       });
-
-      // ── 편집 중 이벤트 버블링 차단 ────────────────────────────────
-      el.addEventListener('mousedown', e => e.stopPropagation());
-      el.addEventListener('click',     e => e.stopPropagation());
     }
-
-    inner.appendChild(el);
-  });
+  }
 }
 
 function makeCanvasBlock(data = {}) {
@@ -1647,12 +1685,23 @@ function makeCanvasBlock(data = {}) {
   const block = document.createElement('div');
   block.className = 'canvas-block'; block.dataset.type = 'canvas';
   block.id = genId('cvb');
-  block.dataset.canvasW  = data.width  || 360;
-  block.dataset.canvasH  = data.height || 400;
-  block.dataset.bg       = data.bg     || 'transparent';
-  block.dataset.radius   = data.radius || 0;
-  block.dataset.layers   = JSON.stringify(data.layers || []);
+  block.dataset.canvasW   = data.width    || 360;
+  block.dataset.canvasH   = data.height   || 400;
+  block.dataset.bg        = data.bg       || 'transparent';
+  block.dataset.radius    = data.radius   || 0;
+  block.dataset.layers    = JSON.stringify(data.layers || []);
   block.dataset.layerName = data.layerName || 'Card';
+  block.dataset.gridCols  = data.gridCols || 1;
+  block.dataset.gridRows  = data.gridRows || 1;
+  block.dataset.cardGap   = data.cardGap ?? 12;
+  block.dataset.padX      = data.padX ?? 0;
+
+  const gridCols = parseInt(block.dataset.gridCols) || 1;
+  const gridRows = parseInt(block.dataset.gridRows) || 1;
+  const GAP      = parseInt(block.dataset.cardGap ?? '12');
+  const totalW   = (data.width || 360) * gridCols + GAP * (gridCols - 1);
+  // 단독(stack) row일 때 너비를 전체 그리드 너비로 고정 (flex:1 환경에선 무시됨)
+  block.style.width = totalW + 'px';
 
   renderCanvas(block);
 
@@ -1665,7 +1714,7 @@ const CARD_DEFAULT_LAYERS = [
   { type: 'shape',  label: 'Rectangle 5', x: 0,  y: 328, w: 360, h: 180, color: '#a2abb8', shapeType: 'rectangle' },
   { type: 'text',   label: '텍스트',       x: 51, y: 360, w: 258, h: 112, content: '일반\n3세대 동전지갑', color: '#ffffff', fontSize: 40, fontWeight: 400, align: 'center' },
 ];
-const CARD_DEFAULT_OPTS = { width: 360, height: 508, bg: '#ffffff', radius: 40, layerName: 'Card', layers: CARD_DEFAULT_LAYERS };
+const CARD_DEFAULT_OPTS = { width: 360, height: 508, bg: '#ffffff', radius: 40, layerName: 'Card', layers: CARD_DEFAULT_LAYERS, gridCols: 1, gridRows: 1, cardGap: 12, padX: 0 };
 
 function addCanvasBlock(opts = {}) {
   // 옵션 없이 호출 시 (플로팅 패널 Card 버튼) → Frame 1 기본 템플릿 사용
