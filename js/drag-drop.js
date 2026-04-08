@@ -201,6 +201,96 @@ window.showFrameHandles = showFrameHandles;
 window.hideFrameHandles = hideFrameHandles;
 
 /* ═══════════════════════════════════
+   MOCKUP BLOCK RESIZE HANDLES
+   좌/우 중앙 핸들 — 가로 크기 조절, 세로는 비율 유지
+═══════════════════════════════════ */
+let _overlayMockup = null;
+let _mockupRafId   = null;
+
+function showMockupHandles(block) {
+  if (_overlayMockup === block) return;
+  hideMockupHandles();
+  _overlayMockup = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  ['w', 'e'].forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `ss-resize-handle mockup-handle ${dir}`;
+    h.dataset.dir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onMockupHandleMouseDown(e, block, dir));
+  });
+
+  _updateMockupHandlePositions();
+  function loop() {
+    if (!_overlayMockup) return;
+    if (!_overlayMockup.isConnected || !_overlayMockup.classList.contains('selected')) {
+      hideMockupHandles(); return;
+    }
+    _updateMockupHandlePositions();
+    _mockupRafId = requestAnimationFrame(loop);
+  }
+  _mockupRafId = requestAnimationFrame(loop);
+}
+
+function hideMockupHandles() {
+  if (_mockupRafId) { cancelAnimationFrame(_mockupRafId); _mockupRafId = null; }
+  _overlayMockup = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.ss-resize-handle.mockup-handle').forEach(h => h.remove());
+}
+
+function _updateMockupHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_overlayMockup) return;
+  const rect = _overlayMockup.getBoundingClientRect();
+  const HALF = 3.5;
+  overlay.querySelectorAll('.ss-resize-handle.mockup-handle').forEach(h => {
+    const dir = h.dataset.dir;
+    h.style.top  = (rect.top + rect.height / 2 - HALF) + 'px';
+    h.style.left = (dir === 'w' ? rect.left - HALF : rect.right - HALF) + 'px';
+  });
+}
+
+function _onMockupHandleMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX  = e.clientX;
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0  = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+  const startW  = parseInt(block.dataset.width) || parseInt(block.style.width) || 280;
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale  = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const dx = (ev.clientX - startX) / scale;
+    let newW = dir === 'e' ? startW + dx : startW - dx;
+    newW = Math.round(Math.min(860, Math.max(100, newW)));
+    block.dataset.width = String(newW);
+    block.style.width   = newW + 'px';
+    window.renderMockupBlock?.(block);
+    // 프로퍼티 패널 슬라이더 동기화
+    const slider = document.getElementById('mkp-width-slider');
+    const num    = document.getElementById('mkp-width-number');
+    if (slider) slider.value = String(newW);
+    if (num)    num.value    = String(newW);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showMockupHandles = showMockupHandles;
+window.hideMockupHandles = hideMockupHandles;
+
+/* ═══════════════════════════════════
    ASSET BLOCK CORNER RADIUS HANDLES
    프레임 핸들과 동일한 오버레이에 렌더링
 ═══════════════════════════════════ */
@@ -1927,6 +2017,7 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showMockupProperties?.(block);
+      showMockupHandles(block);
     });
   }
 

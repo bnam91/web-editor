@@ -1054,6 +1054,7 @@ function deselectAll() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   window._activeFrame = null;
   window.hideFrameHandles?.();
+  window.hideMockupHandles?.();
   window.hideAssetRadiusHandles?.();
   window.hideAssetResizeHandles?.();
   window.hideCanvasRadiusHandles?.();

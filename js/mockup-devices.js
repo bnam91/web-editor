@@ -7,7 +7,7 @@ export const MOCKUP_DEVICES = {
     // iPhone 14 Blue PNG (860×1738, RGBA) — PNG 오버레이 방식
     viewW: 860, viewH: 1738,
     defaultWidth: 240,
-    screen: { l: 3.5, t: 2.5, w: 93.0, h: 94.9 },
+    screen: { l: 5.5, t: 2.5, w: 89.0, h: 94.9 },
     screenRadius: '8%',
     getSvg(_uid) {
       return `<img src="assets/iphone-14-blue.png" style="width:100%;height:100%;display:block;pointer-events:none;" draggable="false">`;
