@@ -134,16 +134,27 @@ function _isInFreeLayout(block) {
   return !!(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
 }
 
-/* freeLayout 내 블록의 부모 프레임(frame-block[data-free-layout])에 .selected 복원
- * deselectAll() 후 멀티셀렉 시 pointer-events:none 차단 방지 */
+/* freeLayout 내 블록의 모든 상위 freeLayout frame에 .selected 복원
+ * 중첩 프레임(B inside A) 구조에서 deselectAll() 후 A까지 복원하지 않으면
+ * A의 CSS pointer-events:none이 하위 전체에 적용되어 더블클릭이 막힘 */
 function _restoreFreeLayoutFrameSelected(block) {
-  const wrapper = block.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') || block;
-  const frame = wrapper.closest('.frame-block[data-free-layout]');
-  if (!frame) return;
-  frame.classList.add('selected');
-  window._activeFrame = frame;
-  const sec = frame.closest('.section-block');
-  if (sec) sec.classList.add('selected');
+  let el = block;
+  let deepestFrame = null;
+  while (el) {
+    const textOrShape = el.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]');
+    const searchFrom = textOrShape || el;
+    const frame = searchFrom.closest('.frame-block[data-free-layout]');
+    if (!frame) break;
+    frame.classList.add('selected');
+    if (!deepestFrame) {
+      deepestFrame = frame;
+      window._activeFrame = frame;
+    }
+    const sec = frame.closest('.section-block');
+    if (sec) sec.classList.add('selected');
+    // 이 frame의 바깥에서 다시 탐색 (상위 frame 복원)
+    el = frame.parentElement;
+  }
 }
 
 /* freeLayout 멀티셀렉 패널 업데이트 트리거 */
