@@ -1327,3 +1327,29 @@
   color: var(--ui-text-dim, #666);
   height: 14px;
 }
+
+/* ── Device Mockup Block ─────────────────────────────────────────────────── */
+.mockup-block {
+  display: block;
+  position: relative;
+  margin: 0 auto;
+  cursor: pointer;
+  box-sizing: border-box;
+  user-select: none;
+}
+.mockup-block.selected {
+  outline: 1.5px solid #1592fe;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.mkp-screen {
+  position: absolute;
+  overflow: hidden;
+}
+.mkp-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  line-height: 0;
+}

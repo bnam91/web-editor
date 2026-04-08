@@ -898,6 +898,7 @@ function bindBlock(block) {
   const isShape      = block.classList.contains('shape-block');
   const isCanvas     = block.classList.contains('canvas-block');
   const isIconify    = block.classList.contains('icon-block');
+  const isMockup     = block.classList.contains('mockup-block');
 
   // ── 공통: 절대좌표 드래그 (프레임 자유배치 — 모든 블록 타입) ──
   block.addEventListener('mousedown', e => {
@@ -1911,6 +1912,21 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showDividerProperties(block);
+    });
+  }
+
+  if (isMockup) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      window.deselectAll();
+      block.classList.add('selected');
+      window.syncSection(sec);
+      window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
+      window.showMockupProperties?.(block);
     });
   }
 

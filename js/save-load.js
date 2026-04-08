@@ -605,17 +605,18 @@ function rebindAll() {
     if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .icon-block, .mockup-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
         : b.classList.contains('gap-block') ? 'gb'
         : b.classList.contains('icon-circle-block') ? 'icb'
         : b.classList.contains('label-group-block') ? 'lg'
-        
-        : b.classList.contains('canvas-block') ? 'cvb' : b.classList.contains('graph-block') ? 'grb'
+        : b.classList.contains('canvas-block') ? 'cvb'
+        : b.classList.contains('graph-block') ? 'grb'
         : b.classList.contains('icon-text-block') ? 'itb'
         : b.classList.contains('icon-block') ? 'icn'
+        : b.classList.contains('mockup-block') ? 'mkp'
         : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
@@ -669,6 +670,30 @@ function rebindAll() {
     const _fy = ss.dataset.flipV === '1' ? -1 : 1;
     if (_tx || _ty || _rd || _fx !== 1 || _fy !== 1) {
       ss.style.transform = `translate(${_tx}px,${_ty}px) rotate(${_rd}deg) scale(${_fx},${_fy})`;
+    }
+  });
+
+  // mockup-block 로드 후 화면 이미지 복원
+  canvasEl.querySelectorAll('.mockup-block').forEach(block => {
+    const imgSrc = block.dataset.imgSrc;
+    if (imgSrc) {
+      const screen = block.querySelector('.mkp-screen');
+      if (screen) {
+        screen.style.backgroundImage = `url('${imgSrc}')`;
+        screen.style.backgroundSize  = 'cover';
+        screen.style.backgroundPosition = 'center top';
+        screen.innerHTML = '';
+      }
+    }
+    // 그림자 복원
+    const shadow = block.dataset.shadow || 'soft';
+    const shadows = { none:'none', soft:'0 20px 60px rgba(0,0,0,0.25)', strong:'0 30px 80px rgba(0,0,0,0.55)' };
+    block.style.filter = shadow === 'none' ? '' : `drop-shadow(${shadows[shadow]})`;
+    // 숨겨진 소스 섹션 복원
+    const secId = block.dataset.sourceSec;
+    if (secId) {
+      const sec = document.getElementById(secId);
+      if (sec && sec.dataset.mockupHidden === 'true') sec.style.display = 'none';
     }
   });
 
