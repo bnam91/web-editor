@@ -401,3 +401,23 @@
 .prop-section:last-child {
   border-bottom: none;
 }
+
+/* ── Multi-Select Panel (freeLayout) ── */
+.msp-align-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex-shrink: 0;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 4px;
+  color: var(--ui-text-sub);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.msp-align-btn:hover {
+  background: var(--ui-bg-hover);
+  border-color: var(--ui-accent-primary);
+  color: var(--ui-accent-primary);
+}
+.msp-align-btn:active {
+  background: rgba(45,111,232,0.15);
+}

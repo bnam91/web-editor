@@ -106,6 +106,20 @@ function _getBlockLayerItem(block) {
   return block._layerItem;
 }
 
+/* freeLayout 내 블록인지 확인 */
+function _isInFreeLayout(block) {
+  const wrapper = block.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+    (block.style.position === 'absolute' ? block : null);
+  return !!(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
+}
+
+/* freeLayout 멀티셀렉 패널 업데이트 트리거 */
+function _updateFreeLayoutMultiSelPanel() {
+  if (window.hasFreeLayoutMultiSel?.()) {
+    window.showFreeLayoutMultiSelPanel?.();
+  }
+}
+
 /* Cmd+클릭: 단일 블록 토글 */
 function toggleBlockSelect(block, sec) {
   const layerItem = _getBlockLayerItem(block);
@@ -118,6 +132,10 @@ function toggleBlockSelect(block, sec) {
   }
   if (sec) window.syncSection?.(sec);
   _lastClickedBlock = block;
+  // freeLayout 내 블록이면 멀티셀렉 패널 업데이트
+  if (_isInFreeLayout(block)) {
+    setTimeout(_updateFreeLayoutMultiSelPanel, 0);
+  }
 }
 
 /* Shift+클릭: 마지막 클릭 블록 ~ 현재 블록 범위 선택 */
@@ -147,6 +165,10 @@ function rangeSelectBlocks(block, sec) {
   }
   if (sec) window.syncSection?.(sec);
   // _lastClickedBlock은 앵커 유지 (연속 Shift 클릭 시 앵커 기준 재계산)
+  // freeLayout 내 블록이면 멀티셀렉 패널 업데이트
+  if (_isInFreeLayout(block)) {
+    setTimeout(_updateFreeLayoutMultiSelPanel, 0);
+  }
 }
 
 /* 일반 클릭 시 앵커 업데이트 */
@@ -175,8 +197,14 @@ function clearMultiSel() {
 }
 
 function showMultiSelPanel() {
-  const n = multiSel.sections.size || multiSel.cols.size;
   if (!propPanel) return;
+  // freeLayout 블록 멀티셀렉이면 전용 패널으로 위임
+  if (window.hasFreeLayoutMultiSel?.()) {
+    window.showFreeLayoutMultiSelPanel?.();
+    return;
+  }
+  // 기존 section/col 멀티셀렉 패널 (기존 동작 유지)
+  const n = multiSel.sections.size || multiSel.cols.size;
   propPanel.innerHTML = `<div style="padding:20px;color:#888;font-size:13px;">${n}개 선택됨</div>`;
 }
 
