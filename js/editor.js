@@ -87,7 +87,7 @@ function getBlockBreadcrumb(el) {
 ══════════════════════════════════════ */
 function _copyToClipboard(text) {
   if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-    _copyToClipboard(text).catch(() => _clipboardFallback(text));
+    navigator.clipboard.writeText(text).catch(() => _clipboardFallback(text));
   } else {
     _clipboardFallback(text);
   }
