@@ -4,6 +4,7 @@ export function showIconifyProperties(block) {
   const iconName = block.dataset.iconName || '';
   const size     = parseInt(block.dataset.size)     || 64;
   const rotation = parseInt(block.dataset.rotation) || 0;
+  const color    = block.dataset.iconColor || '#000000';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -36,6 +37,17 @@ export function showIconifyProperties(block) {
         <span class="prop-label">Size</span>
         <input type="range"  class="prop-slider" id="icn-size-slider" min="16" max="512" step="8"  value="${size}">
         <input type="number" class="prop-number" id="icn-size-number" min="16" max="512" value="${size}">
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-section-title">색상</div>
+      <div class="prop-color-row">
+        <span class="prop-label">Color</span>
+        <div class="prop-color-swatch" style="background:${color};">
+          <input type="color" id="icn-color-pick" value="${color}">
+        </div>
+        <input type="text" class="prop-color-hex" id="icn-color-hex" value="${color}" maxlength="7">
       </div>
     </div>
 
@@ -73,6 +85,25 @@ export function showIconifyProperties(block) {
   sNumber.addEventListener('change', () => { window.pushHistory?.(); applySize(parseInt(sNumber.value)); });
   sSlider.addEventListener('change', () => window.pushHistory?.());
 
+  // 색상 (SVG currentColor 활용)
+  const colorPick  = propPanel.querySelector('#icn-color-pick');
+  const colorHex   = propPanel.querySelector('#icn-color-hex');
+  const colorSwatch = colorPick.closest('.prop-color-swatch');
+  const applyColor = v => {
+    block.dataset.iconColor = v;
+    block.style.color = v;
+    colorPick.value  = v;
+    colorHex.value   = v;
+    if (colorSwatch) colorSwatch.style.background = v;
+  };
+  colorPick.addEventListener('mousedown', () => window.pushHistory?.());
+  colorPick.addEventListener('input',  () => applyColor(colorPick.value));
+  colorPick.addEventListener('change', () => window.pushHistory?.());
+  colorHex.addEventListener('change', () => {
+    const v = colorHex.value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) { window.pushHistory?.(); applyColor(v); }
+  });
+
   // 회전
   const applyRotation = deg => {
     block.dataset.rotation = deg;
@@ -90,6 +121,9 @@ export function showIconifyProperties(block) {
   const openModal = () => window.openIconifyModal?.();
   propPanel.querySelector('#icn-replace-btn').addEventListener('click', openModal);
   propPanel.querySelector('#icn-open-modal-btn').addEventListener('click', openModal);
+
+  // 초기 색상 적용
+  if (block.dataset.iconColor) block.style.color = block.dataset.iconColor;
 }
 
 window.showIconifyProperties = showIconifyProperties;
