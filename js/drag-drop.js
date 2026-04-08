@@ -1573,9 +1573,11 @@ function bindFrameDropZone(ss) {
     ss.setAttribute('draggable', 'false');
 
     // 자식 블록 셀렉터 — 이 영역 클릭은 bindBlock에게 위임
+    // text-frame 제거: B가 selected 상태에서 TF에 pointer-events:auto가 생겨도
+    // B의 mousedown이 drag를 시작할 수 있도록 (text-frame은 투명 래퍼라 드래그 시작점으로 써도 됨)
     const CHILD_BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
       '.table-block, .label-group-block, .card-block, .graph-block, .divider-block, ' +
-      '.icon-text-block, .shape-block, .frame-block[data-text-frame]';
+      '.icon-text-block, .shape-block';
 
     ss.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
