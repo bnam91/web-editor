@@ -870,6 +870,14 @@ document.addEventListener('keydown', e => {
       // 일반 블록 삭제
       const rowsToRemove = new Set();
       allSelBlocks.forEach(block => {
+        // mockup 블록: 연결된 숨김 섹션 복원
+        if (block.classList.contains('mockup-block')) {
+          const secId = block.dataset.sourceSec;
+          if (secId) {
+            const sec = document.getElementById(secId);
+            if (sec) { sec.style.display = ''; sec.dataset.mockupHidden = ''; }
+          }
+        }
         if (block.classList.contains('gap-block')) {
           block.remove();
         } else {
