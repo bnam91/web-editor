@@ -1226,6 +1226,23 @@
 }
 
 /* ── Canvas Block ─────────────────────────────────────────────────────────── */
+/* ── Iconify Icon Block ──────────────────────────────────────────────────── */
+.icon-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+.icon-block.selected {
+  outline: 1.5px solid var(--sel-color, #1592fe);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.icon-block svg { display: block; }
+.icon-block img { display: block; }
+
 .canvas-block {
   display: block;
   position: relative;
