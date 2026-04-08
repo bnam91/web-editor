@@ -4,15 +4,13 @@
 export const MOCKUP_DEVICES = {
   iphone: {
     label: 'iPhone',
-    // iPhone X Space Grey PNG (2224×4419) — PNG 오버레이 방식
-    viewW: 2224, viewH: 4419,
+    // iPhone 14 Blue PNG (860×1738, RGBA) — PNG 오버레이 방식
+    viewW: 860, viewH: 1738,
     defaultWidth: 240,
-    // PNG에서 투명한 화면 영역 좌표 (% 단위)
-    screen: { l: 4.8, t: 4.2, w: 90.4, h: 91.3 },
-    screenRadius: '7%',
+    screen: { l: 2.4, t: 2.5, w: 95.2, h: 94.9 },
+    screenRadius: '8%',
     getSvg(_uid) {
-      // PNG 프레임 오버레이 — alpha 투명도로 화면 영역이 뚫려 있음
-      return `<img src="assets/iphone-x-grey.png" style="width:100%;height:100%;display:block;pointer-events:none;" draggable="false">`;
+      return `<img src="assets/iphone-14-blue.png" style="width:100%;height:100%;display:block;pointer-events:none;" draggable="false">`;
     }
   },
 
