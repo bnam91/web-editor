@@ -1586,7 +1586,8 @@ function bindFrameDropZone(ss) {
       // e.preventDefault() 제거 — 호출 시 이후 자식 click 이벤트가 억제되어 선택 불가
       e.stopPropagation();
 
-      const parentFreeFrame = ss.closest('.frame-block[data-free-layout]');
+      // ss 자신이 freeLayout frame일 수 있으므로 parentElement부터 탐색
+      const parentFreeFrame = ss.parentElement?.closest('.frame-block[data-free-layout]');
 
       // multiPeers 수집 — deselectAll 전에 현재 selected 형제 절대배치 프레임 수집
       const multiPeers = [];
@@ -1696,9 +1697,9 @@ function bindFrameDropZone(ss) {
     // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
     if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block')) return;
     // 내부 nested frame-block 클릭: mousedown에서 이미 처리됨.
-    // click이 버블되면 A가 다시 선택되므로 early return
+    // stopPropagation 필수 — 없으면 click이 section 핸들러까지 버블되어 deselectAll() 호출됨
     const innerFrame = e.target.closest('.frame-block:not([data-text-frame])');
-    if (innerFrame && innerFrame !== ss) return;
+    if (innerFrame && innerFrame !== ss) { e.stopPropagation(); return; }
     // ss 또는 frame-inner 빈 공간 클릭만 처리
     if (!e.target.closest('.frame-block')) return;
     e.stopPropagation();
