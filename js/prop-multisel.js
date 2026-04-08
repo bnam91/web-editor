@@ -53,6 +53,10 @@ function _mixedOrValue(arr) {
 function _calcSpacing(gA, gB) {
   const overlapX = Math.min(gA.x + gA.w, gB.x + gB.w) - Math.max(gA.x, gB.x);
   const overlapY = Math.min(gA.y + gA.h, gB.y + gB.h) - Math.max(gA.y, gB.y);
+  // 두 축 모두 겹치면 실제 겹침 → 음수로 표시 (더 깊이 겹친 축 기준)
+  if (overlapX > 0 && overlapY > 0) {
+    return -Math.min(overlapX, overlapY);
+  }
   const gapX = overlapX >= 0 ? 0 : -overlapX;
   const gapY = overlapY >= 0 ? 0 : -overlapY;
   return Math.round(gapX + gapY);

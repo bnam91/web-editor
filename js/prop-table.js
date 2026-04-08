@@ -59,7 +59,7 @@ export function showTableProperties(block) {
           <span class="prop-block-name">Table Block</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">행 / 열</div>
       <div class="prop-row">

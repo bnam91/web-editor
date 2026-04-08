@@ -23,7 +23,7 @@ export function showJokerProperties(jb) {
           <span class="prop-block-name">${label}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(jb) || ''}</span>
         </div>
-        ${jb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${jb.id}')">${jb.id}</span>` : ''}
+        ${jb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${jb.id}')">${jb.id}</span>` : ''}
       </div>
     </div>
     <div class="prop-section">

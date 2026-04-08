@@ -15,7 +15,7 @@ export function showGapProperties(gb) {
           <span class="prop-block-name">${gb.dataset.layerName || 'Gap Block'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(gb)}</span>
         </div>
-        ${gb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${gb.id}')">${gb.id}</span>` : ''}
+        ${gb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${gb.id}')">${gb.id}</span>` : ''}
       </div>
     </div>
     <div class="prop-section">

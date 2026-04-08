@@ -83,6 +83,27 @@ function getBlockBreadcrumb(el) {
 }
 
 /* ══════════════════════════════════════
+   클립보드 유틸 — Electron 권한 우회
+══════════════════════════════════════ */
+function _copyToClipboard(text) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    _copyToClipboard(text).catch(() => _clipboardFallback(text));
+  } else {
+    _clipboardFallback(text);
+  }
+}
+function _clipboardFallback(text) {
+  const el = document.createElement('textarea');
+  el.value = text;
+  el.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+  document.body.appendChild(el);
+  el.focus(); el.select();
+  try { document.execCommand('copy'); } catch (_) {}
+  document.body.removeChild(el);
+}
+window._copyToClipboard = _copyToClipboard;
+
+/* ══════════════════════════════════════
    복사 / 붙여넣기
 ══════════════════════════════════════ */
 let clipboard = null;
@@ -113,6 +134,18 @@ function _isInFreeLayout(block) {
   return !!(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
 }
 
+/* freeLayout 내 블록의 부모 프레임(frame-block[data-free-layout])에 .selected 복원
+ * deselectAll() 후 멀티셀렉 시 pointer-events:none 차단 방지 */
+function _restoreFreeLayoutFrameSelected(block) {
+  const wrapper = block.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') || block;
+  const frame = wrapper.closest('.frame-block[data-free-layout]');
+  if (!frame) return;
+  frame.classList.add('selected');
+  window._activeFrame = frame;
+  const sec = frame.closest('.section-block');
+  if (sec) sec.classList.add('selected');
+}
+
 /* freeLayout 멀티셀렉 패널 업데이트 트리거 */
 function _updateFreeLayoutMultiSelPanel() {
   if (window.hasFreeLayoutMultiSel?.()) {
@@ -132,8 +165,9 @@ function toggleBlockSelect(block, sec) {
   }
   if (sec) window.syncSection?.(sec);
   _lastClickedBlock = block;
-  // freeLayout 내 블록이면 멀티셀렉 패널 업데이트
+  // freeLayout 내 블록이면 부모 프레임 selected 복원 + 멀티셀렉 패널 업데이트
   if (_isInFreeLayout(block)) {
+    _restoreFreeLayoutFrameSelected(block);
     setTimeout(_updateFreeLayoutMultiSelPanel, 0);
   }
 }
@@ -164,9 +198,10 @@ function rangeSelectBlocks(block, sec) {
     if (li) li.classList.add('active');
   }
   if (sec) window.syncSection?.(sec);
-  // _lastClickedBlock은 앵커 유지 (연속 Shift 클릭 시 앵커 기준 재계산)
-  // freeLayout 내 블록이면 멀티셀렉 패널 업데이트
+  // freeLayout 내 블록이면 부모 프레임 selected 복원 + 멀티셀렉 패널 업데이트
+  // deselectAll이 frame.selected를 제거 → pointer-events:none 차단 방지
   if (_isInFreeLayout(block)) {
+    _restoreFreeLayoutFrameSelected(block);
     setTimeout(_updateFreeLayoutMultiSelPanel, 0);
   }
 }

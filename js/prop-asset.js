@@ -47,8 +47,9 @@ export function showAssetProperties(ab) {
     </div>` : `
     <div class="prop-section">
       <div class="prop-section-title">이미지</div>
-      <button class="prop-action-btn primary" id="asset-upload-btn">이미지 선택</button>
-      <div style="text-align:center;font-size:11px;color:#555;margin-top:6px;">또는 블록에 파일을 드래그</div>
+      <div class="prop-hint" style="text-align:center;padding:8px 0 4px;">더블클릭하여 이미지 추가</div>
+      <button class="prop-action-btn secondary" id="asset-upload-btn" style="margin-top:4px;">이미지 선택...</button>
+      <div class="prop-hint" style="text-align:center;margin-top:4px;">또는 파일을 블록에 드래그</div>
       <div class="prop-row" style="margin-top:10px;">
         <span class="prop-label">배경색</span>
         <input type="color" id="asset-bg-color" value="${currentBgColor}" style="width:32px;height:22px;border:none;background:none;cursor:pointer;padding:0;border-radius:3px;">
@@ -70,7 +71,7 @@ export function showAssetProperties(ab) {
           <span class="prop-block-name">${ab.dataset.layerName || 'Asset Block'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(ab)}</span>
         </div>
-        ${ab.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${ab.id}')">${ab.id}</span>` : ''}
+        ${ab.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${ab.id}')">${ab.id}</span>` : ''}
       </div>
     </div>
     <div class="prop-section">

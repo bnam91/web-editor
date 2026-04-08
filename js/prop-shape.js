@@ -41,7 +41,7 @@ export function showShapeProperties(block) {
           <span class="prop-block-name">${shapeName}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
         </div>
-        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${id}')">${id}</span>` : ''}
+        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${id}')">${id}</span>` : ''}
       </div>
     </div>
 

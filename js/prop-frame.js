@@ -25,19 +25,18 @@ const _FRAME_ICON = `<svg width="16" height="16" viewBox="1.5 1.5 13 13" fill="n
 /* ── 공통 헤더: Frame 이름 + 모드 토글 ── */
 function _headerHTML(el, mode) {
   const id = el.id || '';
-  const shapeBlock = el.querySelector?.('.shape-block');
-  const shapeType  = shapeBlock?.dataset?.shapeType || null;
-  const iconSvg    = shapeType ? (_SHAPE_ICONS[shapeType] || _FRAME_ICON) : _FRAME_ICON;
+  // showFrameProperties는 frame-block 전용 패널 → 항상 Frame 아이콘 사용
+  // shape 아이콘은 showShapeProperties(shape-block) 패널에서만 표시
   return `
     <div class="prop-section">
       <div class="prop-block-label">
         <div class="prop-block-icon">
-          ${iconSvg}
+          ${_FRAME_ICON}
         </div>
         <div class="prop-block-info">
           <span class="prop-block-name">${el.dataset.layerName || 'Frame'}</span>
         </div>
-        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${id}')">${id}</span>` : ''}
+        ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${id}')">${id}</span>` : ''}
       </div>
     </div>`;
 }
@@ -226,8 +225,8 @@ function _renderAutoPanel(ss) {
   };
 
   // 현재 상태 반영
-  const curAlignItems    = ssInner?.style.alignItems    || ss.dataset.alignItems    || 'flex-start';
-  const curJustifyContent= ssInner?.style.justifyContent|| ss.dataset.justifyContent|| 'flex-start';
+  const curAlignItems    = ss?.style.alignItems    || ss.dataset.alignItems    || 'flex-start';
+  const curJustifyContent= ss?.style.justifyContent|| ss.dataset.justifyContent|| 'flex-start';
   const _markAlignActive = (id, group) => {
     group.forEach(i => document.getElementById(i)?.classList.remove('active'));
     document.getElementById(id)?.classList.add('active');

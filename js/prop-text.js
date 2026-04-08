@@ -43,12 +43,14 @@ export function showTextProperties(tb) {
   const currentHighlight      = tb.dataset.highlight || 'none';
   const currentHighlightColor = tb.dataset.highlightColor || '#ffeb3b';
 
-  // 위치/크기
-  const isAbsolute  = tb.style.position === 'absolute';
-  const currentX    = parseInt(tb.style.left  || tb.dataset.offsetX || '0');
-  const currentY    = parseInt(tb.style.top   || tb.dataset.offsetY || '0');
+  // 위치/크기 — text-frame(래퍼)이 position/size를 보유
+  const _tf         = tb.closest('.frame-block[data-text-frame="true"]');
+  const _posEl      = _tf || tb;  // freeLayout 안: text-frame, 그 외: tb
+  const isAbsolute  = _posEl.style.position === 'absolute';
+  const currentX    = parseInt(_posEl.style.left  || _posEl.dataset.offsetX || '0');
+  const currentY    = parseInt(_posEl.style.top   || _posEl.dataset.offsetY || '0');
   const _tbRow      = tb.closest('.row');
-  const currentW    = parseInt(_tbRow?.dataset.width) || Math.round(_tbRow?.offsetWidth || tb.offsetWidth);
+  const currentW    = parseInt(_tf?.dataset.width || _tbRow?.dataset.width) || Math.round(_tf?.offsetWidth || _tbRow?.offsetWidth || tb.offsetWidth);
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -62,7 +64,7 @@ export function showTextProperties(tb) {
           <span class="prop-block-name">${tb.dataset.layerName || (isOverlayTb ? 'Overlay Text' : 'Text Block')}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(tb)}</span>
         </div>
-        ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${tb.id}')">${tb.id}</span>` : ''}
+        ${tb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${tb.id}')">${tb.id}</span>` : ''}
       </div>
     </div>
 
@@ -610,14 +612,19 @@ export function showTextProperties(tb) {
     if (wSlider) {
       const applyW = v => {
         const row = tb.closest('.row');
+        const tf  = tb.closest('.frame-block[data-text-frame="true"]');
         if (row) {
           row.style.width     = v + 'px';
           row.style.maxWidth  = '100%';
           row.style.margin    = '0 auto';
           row.style.alignSelf = 'center';
           row.dataset.width   = v;
+        } else if (tf) {
+          // text-frame이 래퍼인 경우 — text-frame에 width 적용
+          tf.style.width    = v + 'px';
+          tf.style.maxWidth = '100%';
+          tf.dataset.width  = v;
         } else {
-          // 프레임 내 절대배치 블록 — tb에 직접 width 적용
           tb.style.width = v + 'px';
           tb.dataset.width = v;
         }
@@ -633,11 +640,21 @@ export function showTextProperties(tb) {
     const xNumber = document.getElementById('txt-x-number');
     const yNumber = document.getElementById('txt-y-number');
     if (xNumber) {
-      xNumber.addEventListener('input', () => { tb.style.left = (parseInt(xNumber.value) || 0) + 'px'; tb.dataset.offsetX = xNumber.value; window.scheduleAutoSave?.(); });
+      xNumber.addEventListener('input', () => {
+        const el = tb.closest('.frame-block[data-text-frame="true"]') || tb;
+        el.style.left = (parseInt(xNumber.value) || 0) + 'px';
+        el.dataset.offsetX = xNumber.value;
+        window.scheduleAutoSave?.();
+      });
       xNumber.addEventListener('change', () => window.pushHistory?.());
     }
     if (yNumber) {
-      yNumber.addEventListener('input', () => { tb.style.top = (parseInt(yNumber.value) || 0) + 'px'; tb.dataset.offsetY = yNumber.value; window.scheduleAutoSave?.(); });
+      yNumber.addEventListener('input', () => {
+        const el = tb.closest('.frame-block[data-text-frame="true"]') || tb;
+        el.style.top = (parseInt(yNumber.value) || 0) + 'px';
+        el.dataset.offsetY = yNumber.value;
+        window.scheduleAutoSave?.();
+      });
       yNumber.addEventListener('change', () => window.pushHistory?.());
     }
   }

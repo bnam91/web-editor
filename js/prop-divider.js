@@ -19,7 +19,7 @@ export function showDividerProperties(block) {
           <span class="prop-block-name">${block.dataset.layerName || 'Divider'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
     </div>
     <div class="prop-section">

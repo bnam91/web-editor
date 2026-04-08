@@ -48,7 +48,7 @@ function showLabelGroupProperties(block, selectedItem) {
           </svg>
         </div>
         <span class="prop-block-name">${block.dataset.layerName || 'Tags'}</span>
-        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="navigator.clipboard.writeText('${block.id}')">${block.id}</span>` : ''}
+        ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">Style</div>
       <div class="prop-row">
