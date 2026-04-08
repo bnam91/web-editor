@@ -458,6 +458,12 @@ function bindBlock(block) {
     } else if (isText) {
       const tf = block.closest('.frame-block[data-text-frame="true"]');
       if (tf && tf.style.position === 'absolute') {
+        // TF가 절대배치 B 안에 있는 경우: B가 selected이면 B drag handler에 위임
+        // (Fix3로 C가 selected된 상태에서 드래그 → TF가 아닌 B가 움직여야 함)
+        const _parentAbsFrame = tf.closest('.frame-block[data-free-layout]');
+        if (_parentAbsFrame?.style.position === 'absolute') {
+          return; // stopProp 없이 return → 이벤트가 B(bindFrameDropZone)까지 bubble됨
+        }
         dragEl = tf;
       } else if (block.style.position !== 'absolute') {
         return; // flow 배치 text-block은 HTML5 DnD에 위임
@@ -1590,7 +1596,14 @@ function bindFrameDropZone(ss) {
       // (B selected 상태에서 TF/C 영역 mousedown → e.target이 C가 될 수 있음)
       if (e.target !== ss) {
         const childBlock = e.target.closest(CHILD_BLOCK_SEL);
-        if (childBlock?.classList.contains('selected')) return; // 선택된 자식 → bindBlock 처리
+        if (childBlock?.classList.contains('selected')) {
+          // text-block이 절대배치 text-frame 안에 있으면 B drag로 처리
+          // (bindBlock의 TF drag가 아닌 B frame 자체 이동이 의도)
+          const _inAbsTF = childBlock.classList.contains('text-block') &&
+            childBlock.closest('.frame-block[data-text-frame]')?.style.position === 'absolute';
+          if (!_inAbsTF) return; // 다른 선택된 자식 → bindBlock 처리
+          // _inAbsTF → fall through to B drag
+        }
         // 미선택 자식 → B drag 진행 (fall through)
       }
 
