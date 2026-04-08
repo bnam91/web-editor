@@ -54,8 +54,7 @@ proj_1775041043520                ← #project-id-display
 Section (섹션)
 ├── Frame (프레임)          ← 선택적, 섹션 안에 중첩 프레임
 ├── Row Group (멀티컬럼)   ← col이 2개 이상일 때 묶음
-│   └── Col (컬럼)
-│       └── Block (블록)
+│   └── Block (블록)       ← Col 계층 제거됨, Row Group 아래 직접 배치
 └── Block (단일컬럼 바로 배치)
 ```
 
@@ -66,7 +65,7 @@ Section (섹션)
 | 블록 타입 | 클래스 | 레이어 아이콘 설명 | 비고 |
 |-----------|--------|-------------------|------|
 | Section | `.section-block` | `#` (Figma Frame 경로, filled) | `layer-section-icon` |
-| Frame | `.sub-section-block` | `#` (동일) | 평면 아이템 (토글/chevron 없음), 일반 Block과 동일 구조 |
+| Frame | `.frame-block` | `#` (동일) | 평면 아이템 (토글/chevron 없음), 일반 Block과 동일 구조 |
 
 > Frame의 `dataset.layerName` 값이 레이어 이름으로 표시됨 (저장/복원 포함). Shape Frame은 도형 타입명이 자동 설정됨.
 
@@ -105,7 +104,7 @@ Section (섹션)
 
 ### 3-2. 아이콘 스타일 일관성
 
-- [ ] 섹션/서브섹션 아이콘: Figma Frame(`#`) filled path, `fill="currentColor"`
+- [ ] 섹션/프레임 아이콘: Figma Frame(`#`) filled path, `fill="currentColor"`
 - [ ] 텍스트 계열 아이콘: `stroke="currentColor"`, `stroke-width="1.3"`, `fill="none"`
 - [ ] Asset 아이콘: `stroke-width="1"` (다른 블록보다 얇게 → 시각 균형)
 - [ ] H 아이콘: `fill="currentColor"`, `text-anchor="middle"`, `x="6"` 중앙 정렬
@@ -139,7 +138,7 @@ Section (섹션)
 
 #### 아이콘 수평 정렬 규칙
 
-같은 깊이의 `layer-item`과 `layer-row-header`(서브섹션 등)는 **아이콘/텍스트가 동일 수평선에 정렬**되어야 한다.
+같은 깊이의 `layer-item`과 `layer-row-header`(프레임 등)는 **아이콘/텍스트가 동일 수평선에 정렬**되어야 한다.
 
 | 요소 | 구조 | 아이콘 시작 위치 (depth 1) |
 |------|------|--------------------------|
@@ -157,7 +156,7 @@ Section (섹션)
 ```
 
 - chevron은 시각적으로 마지막 indent 영역과 겹침 (피그마 동일 패턴)
-- 이 규칙은 서브섹션, 그룹, Row 등 `layer-row-header`를 쓰는 모든 요소에 적용됨
+- 이 규칙은 프레임, 그룹, Row 등 `layer-row-header`를 쓰는 모든 요소에 적용됨
 - depth가 달라져도 자동으로 맞춰짐 (indent 단위가 동일하기 때문)
 
 #### Frame 그룹 헤더 내부 `.layer-item` 레이아웃
@@ -220,26 +219,26 @@ Section (섹션)
 - 캔버스 섹션 DOM의 `data-section` 인덱스와 레이어패널 `data-section`이 일치해야 함
 - 섹션 추가/삭제/이동 후 반드시 `buildLayerPanel()` 호출
 
-### 4-2. 서브섹션
+### 4-2. 프레임 (Frame)
 
-- [ ] 클릭 → `deselectAll()` → 부모 섹션 수동 선택 → `ss.selected` 추가 → `_activeSubSection = ss`
-- [ ] `selectSection()` **금지** (내부 `deselectAll()`이 서브섹션 selected를 날림)
-- [ ] `window._activeSubSection` 설정 → 이후 블록 추가 시 서브섹션 안으로 삽입됨
-- [ ] 레이어 클릭 시 `showSubSectionProperties(ss)` 호출
-- [ ] save/load 후 `rebindAll()` → `bindSubSectionDropZone()` 재바인딩 필수
-- [ ] `Cmd+C` / `Cmd+V` 복사·붙여넣기 지원 → `copySelected()`에서 `.sub-section-block.selected` 감지 → row 단위로 복사
-- [ ] 붙여넣기 시 `_activeSubSection` 을 임시 null 처리 → 서브섹션 내부가 아닌 row 뒤에 삽입
-- [ ] `Delete` / `Backspace` → row 단위 삭제 + `_activeSubSection = null` 초기화 (부모 섹션 삭제 방지)
+- [ ] 클릭 → `deselectAll()` → 부모 섹션 수동 선택 → `frame.selected` 추가 → `_activeFrame = frame`
+- [ ] `selectSection()` **금지** (내부 `deselectAll()`이 프레임 selected를 날림)
+- [ ] `window._activeFrame` 설정 → 이후 블록 추가 시 프레임 안으로 삽입됨
+- [ ] 레이어 클릭 시 `showFrameProperties(frame)` 호출
+- [ ] save/load 후 `rebindAll()` → `bindFrameDropZone()` 재바인딩 필수
+- [ ] `Cmd+C` / `Cmd+V` 복사·붙여넣기 지원 → `copySelected()`에서 `.frame-block.selected` 감지 → row 단위로 복사
+- [ ] 붙여넣기 시 `_activeFrame` 을 임시 null 처리 → 프레임 내부가 아닌 row 뒤에 삽입
+- [ ] `Delete` / `Backspace` → row 단위 삭제 + `_activeFrame = null` 초기화 (부모 섹션 삭제 방지)
 
 #### 블록 추가 위치 규칙 (`insertAfterSelected`)
 
 | 상황 | 삽입 위치 |
 |------|---------|
-| 서브섹션 자체가 `.selected` (레이어 패널 선택) | 서브섹션 row **바로 뒤** |
-| 서브섹션 내부 블록이 선택된 상태 | 서브섹션 **내부** 선택 블록 뒤 |
-| `_activeSubSection` 설정, 내부 선택 없음 | 서브섹션 내부 **맨 아래** |
+| 프레임 자체가 `.selected` (레이어 패널 선택) | 프레임 row **바로 뒤** |
+| 프레임 내부 블록이 선택된 상태 | 프레임 **내부** 선택 블록 뒤 |
+| `_activeFrame` 설정, 내부 선택 없음 | 프레임 내부 **맨 아래** |
 
-> `insertAfterSelected` (`drag-utils.js`) 조건: `activeSS && !activeSS.classList.contains('selected')` 일 때만 내부 삽입 경로 진입.
+> `insertAfterSelected` (`drag-utils.js`) 조건: `activeFrame && !activeFrame.classList.contains('selected')` 일 때만 내부 삽입 경로 진입.
 
 ### 4-3. 블록 아이템
 
@@ -259,11 +258,11 @@ Section (섹션)
 | `Cmd+C` | 선택된 모든 블록 복사 (`clipboard.type = 'multi-block'`) |
 | `Cmd+V` | 복사된 블록들 순서 유지하며 붙여넣기 |
 
-**구현 파일**: `js/editor.js` (`toggleBlockSelect`, `rangeSelectBlocks`, `setBlockAnchor`), `js/drag-drop.js` (각 블록 click 핸들러), `js/layer-panel-items.js` (`makeLayerBlockItem`, `makeLayerColItem` click 핸들러)
+**구현 파일**: `js/editor.js` (`toggleBlockSelect`, `rangeSelectBlocks`, `setBlockAnchor`), `js/drag-drop.js` (각 블록 click 핸들러), `js/layer-panel-items.js` (`makeLayerBlockItem` click 핸들러)
 
 **anchor 규칙**: `setBlockAnchor(block)` — 단순 클릭 시 anchor 설정. `rangeSelectBlocks`는 anchor~target 구간을 `deselectAll()` 후 재선택. `deselectAll()` 내부에서 `_lastClickedBlock = null` 초기화되므로 anchor를 로컬 변수에 저장 후 복원.
 
-**BLOCK_MULTI_SEL 셀렉터**: `.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .shape-block` (sub-section-block 제외 — 서브섹션은 별도 선택 흐름)
+**BLOCK_MULTI_SEL 셀렉터**: `.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .shape-block` (frame-block 제외 — 프레임은 별도 선택 흐름)
 
 ### 4-4. 드래그앤드롭 (레이어 내)
 
@@ -324,10 +323,10 @@ document.addEventListener('dragend', () => {
 | `js/layer-panel-items.js` | `makeLayer*()` 렌더러, `layerIcons` 아이콘 맵 |
 | `css/editor-panels.css` | `.layer-*` 스타일 (line ~980~1085) |
 | `css/design-tokens.css` | 아이콘 크기·gap 토큰 |
-| `js/drag-drop.js` | `bindSubSectionDropZone()` — 서브섹션 클릭/드롭 |
+| `js/drag-drop.js` | `bindFrameDropZone()` — 프레임 클릭/드롭 |
 | `js/save-load.js` | `rebindAll()` — 로드 후 바인딩 복원 |
 | `js/editor.js` | `selectSection()`, `deselectAll()`, `syncLayerActive()`, `copySelected()`, `pasteClipboard()` |
-| `js/drag-utils.js` | `insertAfterSelected()` — 블록 삽입 위치 결정 (서브섹션 selected 분기 포함) |
+| `js/drag-utils.js` | `insertAfterSelected()` — 블록 삽입 위치 결정 (프레임 selected 분기 포함) |
 
 ---
 
@@ -338,27 +337,27 @@ document.addEventListener('dragend', () => {
 `layer-panel.js` 의 `appendRowToLayer(row, container, depth)` 에서 단일 col 블록 분기:
 
 ```js
-// 반드시 sub-section-block 체크를 asset-block 앞에 두어야 함
-if (block.classList.contains('sub-section-block')) {
-  container.appendChild(makeLayerSubSectionItem(block, sec, appendRowToLayer));
+// 반드시 frame-block 체크를 asset-block 앞에 두어야 함
+if (block.classList.contains('frame-block')) {
+  container.appendChild(makeLayerFrameItem(block, sec, appendRowToLayer));
 } else if (block.classList.contains('asset-block')) { ... }
 ```
 
-서브섹션은 자체적으로 하위 트리를 가지므로 `makeLayerBlockItem` 이 아닌 `makeLayerSubSectionItem` 으로 렌더링해야 한다. 이 순서가 뒤바뀌면 템플릿에서 컴포넌트를 삽입해도 레이어 패널에 표시되지 않는다.
+프레임은 자체적으로 하위 트리를 가지므로 `makeLayerBlockItem` 이 아닌 `makeLayerFrameItem` 으로 렌더링해야 한다. 이 순서가 뒤바뀌면 템플릿에서 컴포넌트를 삽입해도 레이어 패널에 표시되지 않는다.
 
-### 삭제 핸들러 — 서브섹션 우선 처리
+### 삭제 핸들러 — 프레임 우선 처리
 
-`editor.js` Delete/Backspace 핸들러에서 `allSelBlocks` 셀렉터에 `.sub-section-block`이 없으므로, 서브섹션 selected 상태에서 Delete 시 `allSelBlocks.length === 0` → **부모 섹션 삭제** 로 떨어지는 버그가 발생한다.
+`editor.js` Delete/Backspace 핸들러에서 `allSelBlocks` 셀렉터에 `.frame-block`이 없으므로, 프레임 selected 상태에서 Delete 시 `allSelBlocks.length === 0` → **부모 섹션 삭제** 로 떨어지는 버그가 발생한다.
 
-반드시 `allSelBlocks` 체크 **앞에** 서브섹션 전용 분기를 먼저 처리해야 한다:
+반드시 `allSelBlocks` 체크 **앞에** 프레임 전용 분기를 먼저 처리해야 한다:
 
 ```js
-const selSS = document.querySelector('.sub-section-block.selected');
-if (selSS) {
-  // row 단위 삭제 + _activeSubSection 초기화
-  const ssRow = selSS.closest('.row') || selSS;
-  ssRow.remove();
-  window._activeSubSection = null;
+const selFrame = document.querySelector('.frame-block.selected');
+if (selFrame) {
+  // row 단위 삭제 + _activeFrame 초기화
+  const frameRow = selFrame.closest('.row') || selFrame;
+  frameRow.remove();
+  window._activeFrame = null;
   // ... deselectAll, buildLayerPanel
   return; // ← 반드시 return으로 부모 섹션 삭제 방지
 }

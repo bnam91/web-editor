@@ -7,7 +7,7 @@
 
 ## 1. 개요
 
-섹션 또는 서브섹션 컴포넌트를 저장하고 재삽입하는 시스템.
+섹션 또는 프레임 컴포넌트를 저장하고 재삽입하는 시스템.
 - **Electron**: 파일 기반 저장 (`templates/index.json` + `templates/canvas/{id}.html`)
 - **비-Electron**: `localStorage` fallback
 
@@ -18,7 +18,7 @@
 | 타입 | 대상 | 삽입 위치 |
 |------|------|---------|
 | `section` | `.section-block` | 캔버스 맨 아래 (또는 선택 섹션 뒤) |
-| `subsection` | `.sub-section-block` | 선택된 섹션의 `section-inner` 안 |
+| `frame` | `.frame-block` | 선택된 섹션의 `section-inner` 안 |
 
 ---
 
@@ -35,14 +35,14 @@
     "tags": [],
     "createdAt": "ISO 날짜",
     "thumbnail": null,
-    "type": "subsection"
+    "type": "frame"
   }
 ]
 ```
 
 ### 캔버스 HTML (`templates/canvas/{id}.html`)
 - `section` 타입: `.section-block` outerHTML
-- `subsection` 타입: `.sub-section-block` outerHTML
+- `frame` 타입: `.frame-block` outerHTML
 
 ---
 
@@ -75,14 +75,13 @@
 6. 이벤트 바인딩 (click, bindSectionDelete, bindSectionDrag 등)
 7. `buildLayerPanel()` → `selectSection()`
 
-### subsection 타입
-1. canvas HTML 로드 → `.sub-section-block` 파싱
+### frame 타입
+1. canvas HTML 로드 → `.frame-block` 파싱
 2. ID 재생성 (`ss_xxxxx`)
-3. `row > col > sub-section-block` 구조로 감싸기
-4. 선택된 섹션의 `section-inner`에 append
-5. `bindSubSectionDropZone()` 재바인딩
-6. `dataset.*` 기반 스타일 복원 (bgImg, radius, border)
-7. `buildLayerPanel()`
+3. 선택된 섹션의 `section-inner`에 직접 append (Col 계층 없음)
+4. `bindFrameDropZone()` 재바인딩
+5. `dataset.*` 기반 스타일 복원 (bgImg, radius, border)
+6. `buildLayerPanel()`
 
 ---
 

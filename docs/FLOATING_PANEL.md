@@ -11,7 +11,7 @@
 선택된 섹션을 기준으로 블록을 삽입한다.
 
 > **삽입 규칙**: 섹션이 선택된 상태에서 버튼 클릭 → 해당 섹션에 추가
-> `window._activeSubSection`이 설정된 경우 → 서브섹션 안에 추가
+> `window._activeFrame`이 설정된 경우 → 프레임 안에 추가
 
 ---
 
@@ -33,7 +33,7 @@
 | 버튼 | 함수 | 설명 |
 |------|------|------|
 | **Section** | `addSection()` | 새 섹션 추가 (primary 버튼) |
-| **Grid ▾** | `toggleFpDropdown('fp-row-dropdown')` | 멀티컬럼 그리드 드롭다운 |
+| **New Grid** | `toggleFpDropdown('fp-row-dropdown')` | 멀티컬럼 그리드 드롭다운 |
 | **Frame** | `addFrameBlock()` | 프레임 추가 (Auto/Free 모드 전환 가능) |
 | **Canvas** | `addCanvasBlock()` | 자유배치 캔버스 블록 |
 | **Gap** | `addGapBlock()` | 여백 블록 |
@@ -42,11 +42,11 @@
 
 | 메뉴 | 함수 | 설명 |
 |------|------|------|
-| 1 × 1 | `addRowBlock(1,1)` | 단일 컬럼 행 |
-| 2 × 1 | `addRowBlock(2,1)` | 2열 1행 |
-| 2 × 2 | `addRowBlock(2,2)` | 2열 2행 |
-| 3 × 1 | `addRowBlock(3,1)` | 3열 1행 |
-| 3 × 2 | `addRowBlock(3,2)` | 3열 2행 |
+| 1 × 1 | `addNewGridBlock(1,1)` | 단일 컬럼 행 |
+| 2 × 1 | `addNewGridBlock(2,1)` | 2열 1행 |
+| 2 × 2 | `addNewGridBlock(2,2)` | 2열 2행 |
+| 3 × 1 | `addNewGridBlock(3,1)` | 3열 1행 |
+| 3 × 2 | `addNewGridBlock(3,2)` | 3열 2행 |
 
 ---
 
@@ -117,7 +117,7 @@
 [브랜치 인디케이터 ▾]
 ──────────────────────
 [Section]         ← primary (파란 강조)
-[Grid ▾]
+[New Grid]
 [Frame]
 [Canvas]
 [Gap]
@@ -168,9 +168,11 @@
 ## 5. 삽입 로직 규칙
 
 - [ ] 섹션 미선택 시 버튼 클릭 → 동작 없음 or 첫 섹션에 추가
-- [ ] `window._activeSubSection` 있으면 → 서브섹션 안에 삽입
-- [ ] `window._activeSubSection` 없으면 → 선택된 섹션 마지막에 삽입
+- [ ] `window._activeFrame` 있으면 → 프레임 안에 삽입
+- [ ] `window._activeFrame` 없으면 → 선택된 섹션 마지막에 삽입
 - [ ] 섹션 추가(`addSection`) 는 캔버스 맨 아래 추가
+
+> **Text Frame 자동 래핑**: 모든 텍스트 블록(`.text-block`)은 투명한 `frame-block[data-text-frame="true"]` 컨테이너 안에 자동으로 래핑된다. 이 래퍼는 레이어 패널에서는 투명하게 처리되어 텍스트 블록이 직접 노출된다. 특정 프레임 안에 있지 않은 텍스트 블록도 예외 없이 동일하게 래핑된다.
 
 ---
 
@@ -181,6 +183,6 @@
 | `index.html` (`#floating-panel`) | 구조 정의 |
 | `css/editor-panels.css` | `.fp-btn`, `.fp-dropdown*` 스타일 |
 | `js/drag-drop.js` | `addTextBlock`, `addAssetBlock`, `addSection` 등 |
-| `js/block-factory.js` | `addSubSectionBlock`, `addCanvasBlock`, `addRowBlock` 등 |
+| `js/block-factory.js` | `addFrameBlock`, `addCanvasBlock`, `addNewGridBlock` 등 |
 | `js/branch-system.js` | `toggleBranchDropdown`, 브랜치 전환 |
-| `js/editor.js` | `window._activeSubSection` 관리 |
+| `js/editor.js` | `window._activeFrame` 관리 |

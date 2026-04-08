@@ -120,9 +120,8 @@ window.goditor.buildFromSpec(<STEP1에서 만든 JSON>)
 ### buildFromSpec 동작
 - sections 배열을 순서대로 순회하며 각 섹션 자동 조립
 - 섹션마다: addSection → rows 처리 → triggerAutoSave
-- flex/grid row: addRowBlock → activateCol 순서로 각 col에 블록 추가
-- stack row: col-active 없이 바로 블록 추가
-- col 작업 후 col-active 자동 해제
+- flex/grid row: addNewGridBlock(cols, rows) 호출 후 각 frame-block에 블록 추가
+- stack row: frame-block 없이 section-inner에 직접 블록 추가
 
 ### 직접 API 호출이 필요한 경우 (보조)
 
@@ -141,7 +140,7 @@ window.setSectionBg(window.getSelectedSection(), '#1a1a1a')
 
 ### 금지 사항
 - innerHTML로 블록 구조 직접 작성 ❌
-- window.* 함수 외 DOM 직접 조작 ❌ (activateCol, col-active 해제 제외)
+- window.* 함수 외 DOM 직접 조작 ❌
 - 블록 추가 전 섹션 선택 상태 확인 필수
 
 ---

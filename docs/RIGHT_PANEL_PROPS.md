@@ -16,7 +16,7 @@
 |-----------|-----------|-----------|
 | 아무것도 선택 안 됨 | 페이지 설정 | `prop-page.js` |
 | `.section-block` | 섹션 프로퍼티 | `prop-section.js` |
-| `.sub-section-block` | Frame 프로퍼티 | `prop-frame.js` (Auto/Free 모드 통합) |
+| `.frame-block` | Frame 프로퍼티 | `prop-frame.js` (Auto/Free 모드 통합) |
 | `.text-block` | 텍스트 프로퍼티 | `prop-text.js` |
 | `.asset-block` | 에셋 프로퍼티 | `prop-asset.js` |
 | `.gap-block` | Gap 프로퍼티 | `prop-gap.js` |
@@ -27,7 +27,7 @@
 | `.graph-block` | 그래프 프로퍼티 | `prop-graph.js` |
 | `.divider-block` | 구분선 프로퍼티 | `prop-divider.js` |
 | `.label-group-block` | 라벨그룹 프로퍼티 | `prop-label-group.js` |
-| Row / Col | 레이아웃 프로퍼티 | `prop-row.js` / `prop-layout.js` |
+| Row | 행 레이아웃 프로퍼티 | `prop-row.js` |
 | `.canvas-block` | 캔버스 프로퍼티 | `prop-canvas.js` |
 
 ---
@@ -120,6 +120,10 @@
 | 컴포넌트 | 이름 입력 + 저장 버튼 | `saveAsTemplate(ss, name, folder, category, [], 'subsection')` 호출. 템플릿 패널에 "컴포넌트" 배지로 표시 |
 | 힌트 | 안내 텍스트 | "서브섹션 클릭 후 플로팅 패널에서 블록 추가" |
 
+#### frame-block[data-text-frame] 특이사항
+
+텍스트 블록은 내부적으로 투명한 frame으로 감싸질 수 있다 (`data-text-frame="true"`). 이 경우 프로퍼티 패널은 frame 자체의 속성이 아닌 **내부 텍스트 블록의 속성**을 표시한다. 즉, `.frame-block[data-text-frame="true"]`를 선택해도 `prop-text.js`가 활성화된다.
+
 #### 서브섹션 저장/복원 규칙 (`save-load.js` `rebindAll`)
 | dataset 키 | 복원 대상 |
 |-----------|---------|
@@ -130,8 +134,8 @@
 
 #### 복사/붙여넣기
 - **복사**: 서브섹션 선택 후 Cmd+C → 부모 `row` 단위로 클립보드 저장
-- **붙여넣기**: Cmd+V → 현재 선택 섹션에 `insertAfterSelected`, `bindSubSectionDropZone` 재연결 + ID 재생성
-- **레이어 패널 선택 후 복사**: 지원됨 (`.sub-section-block.selected` 감지)
+- **붙여넣기**: Cmd+V → 현재 선택 섹션에 `insertAfterSelected`, `bindFrameDropZone` 재연결 + ID 재생성
+- **레이어 패널 선택 후 복사**: 지원됨 (`.frame-block.selected` 감지)
 
 ---
 
@@ -246,14 +250,14 @@
 
 ---
 
-### 3-13. Row / 레이아웃 (`prop-row.js`, `prop-layout.js`)
+### 3-13. Row 레이아웃 (`prop-row.js`)
+
+> **Col 개념 제거됨**: Row > Col > Block 계층 구조에서 Col이 삭제되어 Section → Block 직접 구조로 변경. `prop-layout.js`의 Col 컨트롤은 삭제됨.
 
 | 섹션 | 컨트롤 | 설명 |
 |------|--------|------|
 | Row | 행 간격 | `gap` |
 | Row | 정렬 | 수직 align-items |
-| Col | 컬럼 너비 비율 | flex 비율 조정 |
-| Col | 패딩 | 컬럼 내부 여백 |
 
 ---
 
@@ -348,7 +352,7 @@ window.applyPagePadX(padX)
 | `js/prop-page.js` | 페이지 설정 패널 |
 | `js/prop-section.js` | 섹션 프로퍼티 |
 | `js/prop-frame.js` | Frame 프로퍼티 (Auto/Free 통합, window.showSubSectionProperties 담당) |
-| `js/prop-subsection.js` | 서브섹션 프로퍼티 (레거시, prop-frame.js로 대체됨) |
+| `js/prop-subsection.js` | 서브섹션 프로퍼티 — **레거시 파일, prop-frame.js에 완전히 대체됨. 신규 개발 시 사용 금지** |
 | `js/prop-text.js` | 텍스트 프로퍼티 |
 | `js/prop-asset.js` | 에셋 프로퍼티 |
 | `js/prop-gap.js` | Gap 프로퍼티 |
@@ -359,7 +363,7 @@ window.applyPagePadX(padX)
 | `js/prop-divider.js` | 구분선 프로퍼티 |
 | `js/prop-label-group.js` | 라벨그룹 프로퍼티 |
 | `js/prop-row.js` | Row 프로퍼티 |
-| `js/prop-layout.js` | Col/레이아웃 프로퍼티 |
+| `js/prop-layout.js` | Col/레이아웃 프로퍼티 — **Col 컨트롤 삭제됨 (Col 개념 제거)** |
 | `js/prop-canvas.js` | 캔버스 프로퍼티 |
 | `js/globals.js` | `propPanel` DOM 참조 |
 | `css/editor-props.css` | 프로퍼티 패널 스타일 전체 |
