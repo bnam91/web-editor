@@ -1571,27 +1571,55 @@ function bindFrameDropZone(ss) {
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
   if (ss.style.position === 'absolute') {
     ss.setAttribute('draggable', 'false');
+
+    // 자식 블록 셀렉터 — 이 영역 클릭은 bindBlock에게 위임
+    const CHILD_BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
+      '.table-block, .label-group-block, .card-block, .graph-block, .divider-block, ' +
+      '.icon-text-block, .shape-block, .frame-block[data-text-frame]';
+
     ss.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       if (e.target.closest('.resize-handle, [contenteditable]')) return;
-      e.preventDefault();
+      // 자식 블록 클릭은 bindBlock에게 위임 — 여기서 처리하면 child click 이벤트 차단됨
+      if (e.target !== ss && e.target.closest(CHILD_BLOCK_SEL)) return;
+
+      // e.preventDefault() 제거 — 호출 시 이후 자식 click 이벤트가 억제되어 선택 불가
       e.stopPropagation();
 
-      const parent = ss.parentElement; // parent frame-block (NewGrid)
-      const parentRect = parent.getBoundingClientRect();
+      const parentFreeFrame = ss.closest('.frame-block[data-free-layout]');
+
+      // multiPeers 수집 — deselectAll 전에 현재 selected 형제 절대배치 프레임 수집
+      const multiPeers = [];
+      if (parentFreeFrame) {
+        [...parentFreeFrame.children].forEach(ch => {
+          if (ch === ss || ch.style.position !== 'absolute') return;
+          if (ch.classList.contains('selected')) {
+            multiPeers.push({
+              el: ch,
+              startLeft: parseInt(ch.style.left) || 0,
+              startTop:  parseInt(ch.style.top)  || 0,
+            });
+          }
+        });
+      }
+
+      // 프레임 선택
+      window.deselectAll?.();
+      const parentSec = ss.closest('.section-block');
+      if (parentSec) parentSec.classList.add('selected');
+      if (parentFreeFrame) {
+        parentFreeFrame.classList.add('selected');
+      }
+      ss.classList.add('selected');
+      window._activeFrame = ss;
+      window.showFrameProperties?.(ss);
+      window.showFrameHandles?.(ss);
+
       const startX = e.clientX;
       const startY = e.clientY;
       const origLeft = parseFloat(ss.style.left) || 0;
       const origTop  = parseFloat(ss.style.top)  || 0;
       let moved = false;
-
-      // 클릭 시 셀 선택
-      window.deselectAll?.();
-      const parentSec = ss.closest('.section-block');
-      if (parentSec) { parentSec.classList.add('selected'); }
-      ss.classList.add('selected');
-      window._activeFrame = ss;
-      window.showFrameProperties?.(ss);
 
       const scaler = document.getElementById('canvas-scaler');
       const scale = scaler
@@ -1608,11 +1636,23 @@ function bindFrameDropZone(ss) {
         ss.style.top  = newTop  + 'px';
         ss.dataset.offsetX = String(newLeft);
         ss.dataset.offsetY = String(newTop);
+
+        // multiPeers 동시 이동
+        multiPeers.forEach(peer => {
+          peer.el.style.left = Math.round(peer.startLeft + dx / scale) + 'px';
+          peer.el.style.top  = Math.round(peer.startTop  + dy / scale) + 'px';
+        });
+
+        // 스마트 가이드 (단일 선택일 때만)
+        if (parentFreeFrame && multiPeers.length === 0) {
+          showGuides(ss, parentFreeFrame, scale);
+        }
       };
 
       const onUp = () => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        hideGuides();
         if (moved) { window.pushHistory?.(); window.triggerAutoSave?.(); }
       };
 
