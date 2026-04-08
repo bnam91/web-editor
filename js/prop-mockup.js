@@ -176,18 +176,29 @@ function _isSecHidden(secId) {
 
 async function _captureAndApply(block, sec) {
   if (typeof html2canvas === 'undefined') { window.showToast?.('html2canvas 없음'); return; }
+  let clone = null;
   try {
     window.showToast?.('캡처 중...');
-    // 섹션의 시각적 너비/높이 계산
+
+    // 클론 후 오프스크린에 배치 (ignoreElements 없이 깔끔하게 찍기)
+    clone = sec.cloneNode(true);
+    clone.querySelector?.('.section-hitzone')?.remove();
+    clone.querySelector?.('.section-toolbar')?.remove();
+    clone.classList.remove('selected');
+    // 선택 아웃라인 제거
+    clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+    clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:860px;margin:0;outline:none;box-shadow:none;';
+    document.body.appendChild(clone);
+
     const bgColor = sec.style.backgroundColor || sec.style.background || '#ffffff';
-    const canvas = await html2canvas(sec, {
+    const canvas = await html2canvas(clone, {
       scale: 2,
       useCORS: true,
-      backgroundColor: bgColor,
+      backgroundColor: bgColor || '#ffffff',
       logging: false,
-      ignoreElements: el => el.classList?.contains('section-hitzone') || el.classList?.contains('section-toolbar'),
     });
     const dataUrl = canvas.toDataURL('image/png');
+
     window.pushHistory?.();
     block.dataset.imgSrc = dataUrl;
     block.dataset.sourceSec = sec.id;
@@ -196,10 +207,11 @@ async function _captureAndApply(block, sec) {
     sec.style.display = 'none';
     sec.dataset.mockupHidden = 'true';
     window.showToast?.('캡처 완료! 섹션이 숨겨졌습니다.');
-    // 프로퍼티 패널 갱신
     window.showMockupProperties?.(block);
   } catch(err) {
     window.showToast?.('캡처 실패: ' + err.message);
+  } finally {
+    clone?.remove();
   }
 }
 

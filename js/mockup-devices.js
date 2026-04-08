@@ -4,36 +4,15 @@
 export const MOCKUP_DEVICES = {
   iphone: {
     label: 'iPhone',
-    viewW: 390, viewH: 844,
+    // iPhone X Space Grey PNG (2224×4419) — PNG 오버레이 방식
+    viewW: 2224, viewH: 4419,
     defaultWidth: 240,
-    // 화면영역 (viewBox px → %)
-    screen: { l: 5.13, t: 11.26, w: 89.74, h: 78.20 },
-    screenRadius: '5px',
-    getSvg(uid) {
-      return `<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block;">
-        <defs>
-          <mask id="mkp-m-${uid}">
-            <rect x="0" y="0" width="390" height="844" rx="50" fill="white"/>
-            <rect x="20" y="95" width="350" height="660" rx="8" fill="black"/>
-          </mask>
-        </defs>
-        <!-- Body with screen hole -->
-        <rect x="0" y="0" width="390" height="844" rx="50" fill="#1c1c1e" mask="url(#mkp-m-${uid})"/>
-        <!-- Frame border -->
-        <rect x="0" y="0" width="390" height="844" rx="50" fill="none" stroke="#3a3a3c" stroke-width="2"/>
-        <!-- Dynamic Island -->
-        <rect x="148" y="25" width="94" height="34" rx="17" fill="#000"/>
-        <!-- Front camera dot -->
-        <circle cx="220" cy="42" r="5.5" fill="#111"/>
-        <!-- Volume buttons -->
-        <rect x="-3" y="160" width="5" height="36" rx="2.5" fill="#2c2c2e"/>
-        <rect x="-3" y="206" width="5" height="58" rx="2.5" fill="#2c2c2e"/>
-        <rect x="-3" y="272" width="5" height="58" rx="2.5" fill="#2c2c2e"/>
-        <!-- Power button -->
-        <rect x="388" y="200" width="5" height="70" rx="2.5" fill="#2c2c2e"/>
-        <!-- Home indicator -->
-        <rect x="155" y="800" width="80" height="5" rx="2.5" fill="#3a3a3c"/>
-      </svg>`;
+    // PNG에서 투명한 화면 영역 좌표 (% 단위)
+    screen: { l: 4.8, t: 4.2, w: 90.4, h: 91.3 },
+    screenRadius: '7%',
+    getSvg(_uid) {
+      // PNG 프레임 오버레이 — alpha 투명도로 화면 영역이 뚫려 있음
+      return `<img src="assets/iphone-x-grey.png" style="width:100%;height:100%;display:block;pointer-events:none;" draggable="false">`;
     }
   },
 
