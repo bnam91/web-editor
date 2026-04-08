@@ -57,16 +57,19 @@ function _tryOpenDB() {
 }
 
 function _getScratchKey(projectId, pageId) {
-  const base = projectId ? `scratch-pad-${projectId}` : 'scratch-pad';
+  if (!projectId) return null; // projectId 없으면 key 생성 불가 — 저장 스킵
+  const base = `scratch-pad-${projectId}`;
   return pageId ? `${base}-${pageId}` : base;
 }
 
 async function _saveScratch() {
+  const key = _getScratchKey(_currentProjectId, _currentPageId);
+  if (!key) return; // projectId 없으면 저장 스킵
   const db   = await _openDB();
   const data = _scratchItems.map(({ src, x, y, w }) => ({ src, x, y, w }));
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
-    tx.objectStore(SCRATCH_STORE).put(data, _getScratchKey(_currentProjectId, _currentPageId));
+    tx.objectStore(SCRATCH_STORE).put(data, key);
     tx.oncomplete = resolve;
     tx.onerror    = e => reject(e.target.error);
   });
@@ -234,11 +237,13 @@ async function _loadScratch(projectId, pageId) {
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
+  const key = _getScratchKey(projectId, pageId);
+  if (!key) return; // projectId 없으면 로드 스킵
   try {
     const db   = await _openDB();
     const data = await new Promise((resolve, reject) => {
       const tx  = db.transaction(SCRATCH_STORE, 'readonly');
-      const req = tx.objectStore(SCRATCH_STORE).get(_getScratchKey(projectId, pageId));
+      const req = tx.objectStore(SCRATCH_STORE).get(key);
       req.onsuccess = e => resolve(e.target.result || []);
       req.onerror   = e => reject(e.target.error);
     });

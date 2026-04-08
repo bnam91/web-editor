@@ -154,7 +154,15 @@ function switchBranch(name) {
   // 대상 브랜치 로드
   store.current = name;
   saveBranchStore(store);
-  const data = JSON.parse(store.branches[name].snapshot);
+  let data;
+  try {
+    const raw = store.branches[name].snapshot;
+    data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch (e) {
+    console.error('[branch] 스냅샷 파싱 실패:', e);
+    window.showToast?.('❌ 브랜치 데이터 손상 — 전환 취소');
+    return;
+  }
   window.state._suppressAutoSave = true;
   applyProjectData(data);
   window.state._suppressAutoSave = false;
@@ -200,7 +208,12 @@ function mergeBranch(fromName) {
   if (fromName === toName) return;
 
   const fromBranch = store.branches[fromName];
-  const scope = fromBranch?.scope;
+  if (!fromBranch) {
+    console.error('[branch] 병합 소스 브랜치 없음:', fromName);
+    window.showToast?.('❌ 병합 실패: 브랜치를 찾을 수 없습니다.');
+    return;
+  }
+  const scope = fromBranch.scope;
   const confirmMsg = scope && scope.length > 0
     ? `'${fromName}' → '${toName}' 병합\n스코프 섹션(${scope.length}개)만 교체됩니다.`
     : `'${fromName}' → '${toName}' 으로 병합할까요?\n현재 브랜치의 내용이 대체됩니다.`;
@@ -212,30 +225,51 @@ function mergeBranch(fromName) {
     store.branches[toName].snapshot = fromBranch.snapshot;
   } else {
     // 섹션 단위 병합
-    const fromData = JSON.parse(fromBranch.snapshot);
-    const toData = JSON.parse(store.branches[toName].snapshot);
+    let fromData, toData;
+    try {
+      const fromRaw = fromBranch.snapshot;
+      const toRaw = store.branches[toName].snapshot;
+      fromData = typeof fromRaw === 'string' ? JSON.parse(fromRaw) : fromRaw;
+      toData   = typeof toRaw   === 'string' ? JSON.parse(toRaw)   : toRaw;
+    } catch (e) {
+      console.error('[branch] 병합 스냅샷 파싱 실패:', e);
+      window.showToast?.('❌ 병합 실패: 브랜치 데이터 손상');
+      return;
+    }
+
+    // v2 포맷 보장
+    if (!toData.version) { toData.version = 2; }
+    if (!toData.pages) { toData.pages = []; }
 
     toData.pages = toData.pages.map(toPage => {
-      const fromPage = fromData.pages.find(p => p.id === toPage.id) || fromData.pages[0];
+      // 같은 ID 우선, 없으면 인덱스 기준 대응 (첫 페이지 폴백 제거 — 데이터 오염 방지)
+      const fromPage = fromData.pages?.find(p => p.id === toPage.id);
       if (!fromPage) return toPage;
 
-      const parser = new DOMParser();
-      const toDoc = parser.parseFromString(`<div id="c">${toPage.canvas}</div>`, 'text/html');
-      const fromDoc = parser.parseFromString(`<div id="c">${fromPage.canvas}</div>`, 'text/html');
-      const toCanvas = toDoc.getElementById('c');
-      const fromCanvas = fromDoc.getElementById('c');
+      try {
+        const parser = new DOMParser();
+        const toDoc = parser.parseFromString(`<div id="c">${toPage.canvas}</div>`, 'text/html');
+        const fromDoc = parser.parseFromString(`<div id="c">${fromPage.canvas}</div>`, 'text/html');
+        const toCanvas = toDoc.getElementById('c');
+        const fromCanvas = fromDoc.getElementById('c');
+        if (!toCanvas || !fromCanvas) return toPage;
 
-      scope.forEach(sectionId => {
-        const fromSec = fromCanvas.querySelector(`#${sectionId}`);
-        const toSec = toCanvas.querySelector(`#${sectionId}`);
-        if (fromSec && toSec) {
-          toSec.replaceWith(fromSec.cloneNode(true));
-        } else if (fromSec) {
-          toCanvas.appendChild(fromSec.cloneNode(true));
-        }
-      });
+        scope.forEach(sectionId => {
+          const safeSel = CSS.escape(sectionId);
+          const fromSec = fromCanvas.querySelector(`#${safeSel}`);
+          const toSec = toCanvas.querySelector(`#${safeSel}`);
+          if (fromSec && toSec) {
+            toSec.replaceWith(fromSec.cloneNode(true));
+          } else if (fromSec) {
+            toCanvas.appendChild(fromSec.cloneNode(true));
+          }
+        });
 
-      return { ...toPage, canvas: toCanvas.innerHTML };
+        return { ...toPage, canvas: toCanvas.innerHTML };
+      } catch (e) {
+        console.error('[branch] 섹션 병합 파싱 오류:', e);
+        return toPage; // 실패 시 기존 페이지 유지
+      }
     });
 
     store.branches[toName].snapshot = JSON.stringify(toData);

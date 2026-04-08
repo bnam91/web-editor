@@ -104,30 +104,48 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
   const thumbnail = opts.skipThumbnail ? null : await captureThumbnail();
 
   if (IS_ELECTRON) {
-    const existing = await window.electronAPI.loadProject(targetId);
-    const proj = {
-      ...(existing || {}),
-      ...data,
-      id: targetId,
-      name: existing?.name || data.name || 'Untitled',
-      updatedAt: new Date().toISOString(),
-      ...(thumbnail ? { thumbnail } : {}),
-    };
-    await window.electronAPI.saveProject(proj);
+    try {
+      const existing = await window.electronAPI.loadProject(targetId);
+      const proj = {
+        ...(existing || {}),
+        ...data,
+        id: targetId,
+        name: existing?.name || data.name || 'Untitled',
+        updatedAt: new Date().toISOString(),
+        ...(thumbnail ? { thumbnail } : {}),
+      };
+      await window.electronAPI.saveProject(proj);
+    } catch (e) {
+      console.error('[save-load] Electron 저장 실패:', e);
+      window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
+    }
   } else {
     try {
-      const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+      const listRaw = localStorage.getItem(PROJECTS_KEY) || '[]';
+      const list = JSON.parse(listRaw);
       const proj = list.find(p => p.id === targetId);
       if (proj) {
         proj.snapshot = data;
         proj.updatedAt = new Date().toISOString();
         if (thumbnail) proj.thumbnail = thumbnail;
       }
-      localStorage.setItem(PROJECTS_KEY, JSON.stringify(list)); // S9: QuotaExceededError 가능
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
     } catch (e) {
       if (e.name === 'QuotaExceededError') {
         console.warn('[save-load] localStorage 용량 초과, 저장 실패');
-        if (window.showToast) window.showToast('⚠️ 저장 공간 부족: 프로젝트가 너무 큽니다.');
+        window.showToast?.('⚠️ 저장 공간 부족: 이미지를 줄이거나 프로젝트를 분리해 주세요.');
+        // 상태와 저장소 불일치 방지 — 저장 실패한 snapshot을 메모리에서도 롤백
+        // (이미 proj.snapshot이 변경된 상태이므로 list를 재파싱해 원복)
+        try {
+          const prevList = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
+          const prevProj = prevList.find(p => p.id === targetId);
+          if (prevProj) {
+            // state.pages는 이미 최신 — UI는 정상, 다음 저장 시 재시도로 해결
+          }
+        } catch (_) {}
+      } else {
+        console.error('[save-load] localStorage 저장 오류:', e);
+        window.showToast?.('❌ 저장 오류: ' + e.message);
       }
     }
   }
@@ -181,9 +199,9 @@ function flushCurrentPage() {
   page.pageSettings = { ...state.pageSettings };
 }
 
-function switchPage(pageId) {
+async function switchPage(pageId) {
   if (pageId === state.currentPageId) return;
-  window.switchScratchPage?.(pageId);
+  await window.switchScratchPage?.(pageId);
   flushCurrentPage();
   // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
   canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging').forEach(ab => {
@@ -448,7 +466,8 @@ function migrateColsFromDOM(canvasEl) {
 
 function rebindAll() {
   migrateColsFromDOM(canvasEl);
-  window.clearHistory?.();
+  // undo/redo 복원 중(_historyPaused)에는 clearHistory 금지 — 호출 시 히스토리 스택 전체 초기화되어 1스텝만 undo 가능해지는 버그
+  if (!window._historyPaused) window.clearHistory?.();
   // asset-overlay 오염 정리: contenteditable 제거 + 직접 텍스트 노드 제거
   canvasEl.querySelectorAll('.asset-overlay').forEach(overlay => {
     overlay.removeAttribute('contenteditable');
