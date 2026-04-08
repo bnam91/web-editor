@@ -12,6 +12,9 @@
   flex-direction: column;
   min-height: 60px;
 }
+.frame-block[data-text-frame] {
+  min-height: unset;
+}
 .frame-block.selected {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
@@ -25,8 +28,9 @@
   pointer-events: none;
   z-index: 100;
 }
-/* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block 제외) */
-.frame-block:not(.selected) *:not(.shape-block):not(.shape-handle) {
+/* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block, text-frame 제외) */
+/* text-frame은 항상 .selected 없음 (투명 래퍼) → 별도 규칙으로 제외 */
+.frame-block:not(.selected):not([data-text-frame]) *:not(.shape-block):not(.shape-handle) {
   pointer-events: none;
 }
 /* 선택 상태: 자식 pointer-events 복원 */
@@ -59,6 +63,50 @@
 }
 .ss-resize-handle.ne,
 .ss-resize-handle.sw { cursor: nesw-resize; }
+
+/* ── Frame corner radius handles (Figma 스타일) ── */
+.ss-radius-handle {
+  position: absolute;
+  width:  8px;
+  height: 8px;
+  background: #fff;
+  border: 1.5px solid var(--sel-color);
+  border-radius: 50%;
+  z-index: 1001;
+  pointer-events: auto;
+  box-sizing: border-box;
+  cursor: crosshair;
+  transition: transform 0.1s;
+}
+.ss-radius-handle:hover {
+  transform: scale(1.4);
+  background: var(--sel-color);
+}
+
+/* ── Asset Block resize handles ── */
+.asset-handle {
+  position: absolute;
+  width:  7px;
+  height: 7px;
+  background: #fff;
+  border: 1px solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 100;
+  pointer-events: auto;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.asset-block.selected .asset-handle { opacity: 1; }
+.asset-handle.nw { top:    -3.5px; left:  -3.5px; cursor: nw-resize; }
+.asset-handle.ne { top:    -3.5px; right: -3.5px; cursor: ne-resize; }
+.asset-handle.sw { bottom: -3.5px; left:  -3.5px; cursor: sw-resize; }
+.asset-handle.se { bottom: -3.5px; right: -3.5px; cursor: se-resize; }
+
+/* asset-block 선택 시 overflow 해제 — 핸들이 잘리지 않도록 */
+.asset-block.selected {
+  overflow: visible !important;
+}
 
 /* ═══════════════════════════════════
    ASSET BLOCK — 이미지 업로드 상태
@@ -1009,4 +1057,46 @@
 .frame-block:not(.selected) .row:has(.text-block:hover),
 .frame-block:not(.selected) .frame-block[data-text-frame="true"]:has(.text-block:hover) {
   outline: none !important;
+}
+
+/* ═══════════════════════════════════
+   SMART GUIDES — 피그마 스타일 스냅/가이드선
+═══════════════════════════════════ */
+.smart-guide {
+  position: absolute;
+  pointer-events: none;
+  z-index: 9999;
+}
+.smart-guide.vertical {
+  width: 1px;
+  background: rgba(233, 60, 60, 0.85);
+}
+.smart-guide.horizontal {
+  height: 1px;
+  background: rgba(233, 60, 60, 0.85);
+}
+.smart-guide.spacing.vertical {
+  width: 1px;
+  background: rgba(233, 60, 180, 0.75);
+  border-left: 1px dashed rgba(233, 60, 180, 0.85);
+  background: none;
+}
+.smart-guide.spacing.horizontal {
+  height: 1px;
+  background: rgba(233, 60, 180, 0.75);
+  border-top: 1px dashed rgba(233, 60, 180, 0.85);
+  background: none;
+}
+.smart-guide-label {
+  position: absolute;
+  font-size: 9px;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  color: rgb(233, 60, 180);
+  background: rgba(255, 255, 255, 0.88);
+  padding: 1px 3px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+  line-height: 1.4;
 }

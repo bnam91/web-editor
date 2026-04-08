@@ -50,6 +50,17 @@ function showFrameHandles(ss) {
     overlay.appendChild(h);
     h.addEventListener('mousedown', e => _onHandleMouseDown(e, ss, dir));
   });
+
+  // Figma 스타일 코너 반경 핸들 (프레임 내부 코너에 표시)
+  dirs.forEach(dir => {
+    const r = document.createElement('div');
+    r.className = `ss-radius-handle ${dir}`;
+    r.dataset.radiusDir = dir;
+    r.title = '코너 반경 조절';
+    overlay.appendChild(r);
+    r.addEventListener('mousedown', e => _onRadiusHandleMouseDown(e, ss, dir));
+  });
+
   _updateHandlePositions();
   _startHandleRaf();
 }
@@ -88,6 +99,18 @@ function _updateHandlePositions() {
     h.style.top  = top  + 'px';
     h.style.left = left + 'px';
   });
+
+  // 코너 반경 핸들 위치 (프레임 안쪽 코너에서 INSET만큼 안쪽)
+  const INSET = 10; // 코너에서 안쪽으로 떨어진 거리
+  const RADIUS_HALF = 4;
+  const rHandles = overlay.querySelectorAll('.ss-radius-handle');
+  rHandles.forEach(h => {
+    const dir = h.dataset.radiusDir;
+    const top  = dir.includes('n') ? rect.top  + INSET - RADIUS_HALF : rect.bottom - INSET - RADIUS_HALF;
+    const left = dir.includes('w') ? rect.left + INSET - RADIUS_HALF : rect.right  - INSET - RADIUS_HALF;
+    h.style.top  = top  + 'px';
+    h.style.left = left + 'px';
+  });
 }
 
 function _onHandleMouseDown(e, ss, dir) {
@@ -119,6 +142,48 @@ function _onHandleMouseDown(e, ss, dir) {
     newW = Math.round(newW); newH = Math.round(newH);
     ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
     ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/* 코너 반경 핸들 드래그 — Figma 스타일 */
+function _onRadiusHandleMouseDown(e, ss, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+  const startRadius = parseInt(ss.dataset.radius) || 0;
+
+  // 코너 방향에 따른 드래그 방향 (안쪽으로 드래그 = 반경 증가)
+  // nw: +x+y → 증가 / ne: -x+y → 증가 / sw: +x-y → 증가 / se: -x-y → 증가
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    // 드래그 거리 → 반경 변화 (대각선 방향 평균)
+    const delta = dir === 'nw' ? (dx + dy) / 2
+                : dir === 'ne' ? (-dx + dy) / 2
+                : dir === 'sw' ? (dx - dy) / 2
+                : (-dx - dy) / 2; // se
+    const newR = Math.min(200, Math.max(0, Math.round(startRadius + delta)));
+    ss.dataset.radius = String(newR);
+    ss.style.borderRadius = newR + 'px';
+    // 프로퍼티 패널 동기화
+    const slider = document.getElementById('ss-radius-slider');
+    const num    = document.getElementById('ss-radius-num');
+    if (slider) slider.value = String(newR);
+    if (num)    num.value    = String(newR);
     window.scheduleAutoSave?.();
   }
   function onUp() {
