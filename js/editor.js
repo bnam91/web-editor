@@ -114,7 +114,7 @@ let clipboard = null;
    - Shift+click: range select from last clicked
 ═══════════════════════════════════ */
 const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .card-block, .graph-block, .divider-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, ' +
   '.icon-text-block, .shape-block';
 
 let _lastClickedBlock = null;
@@ -351,7 +351,7 @@ function duplicateSelected() {
   const selBlock = document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, ' +
-    '.card-block.selected, .graph-block.selected, .table-block.selected, ' +
+    '.graph-block.selected, .table-block.selected, ' +
     '.label-group-block.selected, .icon-text-block.selected'
   );
   const selSS = document.querySelector('.frame-block.selected:not([data-text-frame])');
@@ -380,7 +380,7 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block').forEach(b => {
+      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
       });
@@ -420,7 +420,7 @@ function duplicateSelected() {
 function copySelected() {
   const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected';
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
@@ -478,6 +478,7 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   const rand = () => Math.random().toString(36).slice(2, 9);
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -489,14 +490,18 @@ function _bindPastedEl(el) {
     el.id = `${prefix}_${rand()}`;
   }
 
-  // frame-block 재바인딩 (_subSecBound 리셋 후)
-  el.querySelectorAll('.frame-block').forEach(ss => {
+  // frame-block 재바인딩 — el 자체 포함
+  const frames = [...el.querySelectorAll('.frame-block')];
+  if (el.classList.contains('frame-block')) frames.unshift(el);
+  frames.forEach(ss => {
     ss._subSecBound = false;
     window.bindFrameDropZone?.(ss);
   });
 
-  // 일반 블록 재바인딩 (_blockBound 리셋 후)
-  el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block').forEach(b => {
+  // 일반 블록 재바인딩 — el 자체 포함 (_blockBound 리셋 후)
+  const blocks = [...el.querySelectorAll(BLOCK_SEL)];
+  if (el.matches?.(BLOCK_SEL)) blocks.unshift(el);
+  blocks.forEach(b => {
     b._blockBound = false;
     window.bindBlock(b);
   });
@@ -670,7 +675,7 @@ document.addEventListener('keydown', e => {
       if (activeSec) {
         const allBlocks = activeSec.querySelectorAll(
           '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block'
+          '.label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block'
         );
         allBlocks.forEach(b => b.classList.add('selected'));
       }
@@ -730,7 +735,7 @@ document.addEventListener('keydown', e => {
     const selBlock = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
+      '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
     );
     const selSection = document.querySelector('.section-block.selected');
     const moveTarget = selBlock
@@ -833,7 +838,7 @@ document.addEventListener('keydown', e => {
       const ssHasSelectedChild = selSS.querySelector(
         '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
         '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-        '.card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
+        '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
       );
       if (!ssHasSelectedChild) {
         e.preventDefault();
@@ -850,7 +855,7 @@ document.addEventListener('keydown', e => {
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
       window.ensureHistoryCheckpoint?.('삭제 전');
@@ -1027,7 +1032,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block').forEach(b => b.classList.remove('selected'));
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
@@ -1051,6 +1056,8 @@ function deselectAll() {
   window.hideFrameHandles?.();
   window.hideAssetRadiusHandles?.();
   window.hideAssetResizeHandles?.();
+  window.hideCanvasRadiusHandles?.();
+  window.hideCanvasResizeHandles?.();
   canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
   window.showPageProperties();
 }
@@ -1093,7 +1100,7 @@ function moveSelectedBlocks(direction) {
 
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected';
 
   const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
@@ -1204,7 +1211,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
     selectSectionWithModifier(sec, e);
     // deselectAll() 이후 row-active 복원
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -1223,7 +1230,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
@@ -1238,7 +1245,7 @@ function getSelectedSection() {
   const selBlock = document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.card-block.selected, .graph-block.selected, ' +
+    '.graph-block.selected, ' +
     '.divider-block.selected, .icon-text-block.selected'
   );
   return selBlock?.closest('.section-block') || null;
@@ -1407,7 +1414,7 @@ canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
   // 블록 클릭은 블록 핸들러에게 위임
-  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) return;
+  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block')) return;
   // col-add 버튼/메뉴는 통과 (메뉴 열기 동작 유지)
   if (e.target.closest('.col-add-btn, .col-add-menu')) return;
 
