@@ -1043,7 +1043,12 @@ function makeFrameBlock(opts = {}) {
     const bg = opts.bg || 'transparent';
     ss.dataset.bg = bg;
     ss.dataset.fullWidth = 'true';
-    ss.style.cssText = `background:${bg};width:100%;box-sizing:border-box;`;
+    let css = `background:${bg};width:100%;box-sizing:border-box;`;
+    if (opts.radius !== undefined) {
+      ss.dataset.radius = String(opts.radius);
+      css += `border-radius:${opts.radius}px;overflow:hidden;`;
+    }
+    ss.style.cssText = css;
   } else {
     // freeLayout 모드: 자유배치 프레임 (기본값) — absolute 자식
     ss.dataset.bg = 'transparent';
@@ -1051,7 +1056,12 @@ function makeFrameBlock(opts = {}) {
     ss.dataset.width = '860';
     ss.dataset.height = '520';
     ss.dataset.padY = '0';
-    ss.style.cssText = `background:transparent;padding:0;width:860px;max-width:100%;margin:0 auto;min-height:520px;height:520px;`;
+    let css = `background:transparent;padding:0;width:860px;max-width:100%;margin:0 auto;min-height:520px;height:520px;`;
+    if (opts.radius !== undefined) {
+      ss.dataset.radius = String(opts.radius);
+      css += `border-radius:${opts.radius}px;overflow:hidden;`;
+    }
+    ss.style.cssText = css;
   }
   return ss;
 }

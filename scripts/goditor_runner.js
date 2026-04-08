@@ -243,6 +243,7 @@ function getBlockHeight(block) {
           f.style.position = 'relative';
           f.style.overflow = 'hidden';
           ${row.bg ? `f.style.backgroundColor = '${row.bg}'; f.dataset.bg = '${row.bg}';` : ''}
+          ${row.radius !== undefined ? `f.style.borderRadius = '${row.radius}px'; f.dataset.radius = '${row.radius}';` : ''}
         })()`);
         await delay(200);
 
@@ -278,7 +279,8 @@ function getBlockHeight(block) {
       } else if (row.layout === 'sub-section') {
         // --- sub-section layout: fullWidth frame (이중 배경용) ---
         const ssBg = row.bg || 'transparent';
-        await ev(`window.addFrameBlock({ fullWidth: true, bg: '${ssBg}' })`);
+        const ssRadius = row.radius !== undefined ? row.radius : undefined;
+        await ev(`window.addFrameBlock({ fullWidth: true, bg: '${ssBg}'${ssRadius !== undefined ? `, radius: ${ssRadius}` : ''} })`);
         await delay(300);
         for (const block of (row.cols?.[0]?.blocks || [])) {
           await buildBlock(block);
