@@ -421,24 +421,32 @@ async function _selectBrowserTemplate(id) {
 
   previewCanvas.innerHTML = canvas;
 
-  // 860px → fit
-  const section = previewCanvas.querySelector('.section-block');
-  if (section) {
-    const CANVAS_W = 860;
-    section.style.width = CANVAS_W + 'px';
-    section.style.pointerEvents = 'none';
-    section.style.userSelect    = 'none';
+  // 콘텐츠를 previewCanvas 안에 맞춰 중앙 배치 (scale + absolute centering)
+  const content = previewCanvas.querySelector('.section-block') || previewCanvas.firstElementChild;
+  if (content) {
+    const CANVAS_W = content.classList.contains('section-block') ? 860 : null;
+    if (CANVAS_W) content.style.width = CANVAS_W + 'px';
+    content.style.pointerEvents = 'none';
+    content.style.userSelect    = 'none';
+    content.style.position      = 'absolute';
+    content.style.transformOrigin = 'top left';
+
+    // previewCanvas는 position:relative + overflow:hidden 필요
+    previewCanvas.style.position = 'relative';
+    previewCanvas.style.overflow = 'hidden';
+    previewCanvas.style.height   = ''; // JS 강제 높이 제거 — CSS flex가 결정
+
     requestAnimationFrame(() => {
-      const vw = previewCanvas.getBoundingClientRect().width;
-      const vh = previewCanvas.getBoundingClientRect().height || 300;
-      const sh = section.scrollHeight || 400;
-      const scale = Math.min(vw / CANVAS_W, vh / sh, 1);
-      const leftOffset = (vw - CANVAS_W * scale) / 2;
-      section.style.transform       = `scale(${scale})`;
-      section.style.transformOrigin = 'top left';
-      section.style.position        = 'relative';
-      section.style.left            = Math.max(0, leftOffset) + 'px';
-      previewCanvas.style.height    = Math.round(sh * scale) + 'px';
+      const vw = previewCanvas.clientWidth  || 280;
+      const vh = previewCanvas.clientHeight || 200;
+      const cw = CANVAS_W || content.scrollWidth  || vw;
+      const ch = content.scrollHeight || 400;
+      const scale = Math.min(vw / cw, vh / ch);
+      const scaledW = cw * scale;
+      const scaledH = ch * scale;
+      content.style.transform = `scale(${scale})`;
+      content.style.left = Math.round((vw - scaledW) / 2) + 'px';
+      content.style.top  = Math.round((vh - scaledH) / 2) + 'px';
     });
   }
 
@@ -586,17 +594,16 @@ function initTemplateBrowser() {
         // 스케일 재계산
         const canvas = document.getElementById('tpl-browser-preview-canvas');
         if (canvas && canvas.style.display !== 'none') {
-          const section = canvas.querySelector('.section-block');
+          const section = canvas.querySelector('.section-block') || canvas.firstElementChild;
           if (section) {
-            const CANVAS_W = 860;
-            const vw = canvas.getBoundingClientRect().width;
-            const vh = canvas.getBoundingClientRect().height || 300;
+            const CANVAS_W = section.classList.contains('section-block') ? 860 : (section.scrollWidth || 860);
+            const vw = canvas.clientWidth  || 280;
+            const vh = canvas.clientHeight || 200;
             const sh = section.scrollHeight || 400;
-            const scale = Math.min(vw / CANVAS_W, vh / sh, 1);
-            const leftOffset = (vw - CANVAS_W * scale) / 2;
+            const scale = Math.min(vw / CANVAS_W, vh / sh);
             section.style.transform  = `scale(${scale})`;
-            section.style.left       = Math.max(0, leftOffset) + 'px';
-            canvas.style.height      = Math.round(sh * scale) + 'px';
+            section.style.left       = Math.round((vw - CANVAS_W * scale) / 2) + 'px';
+            section.style.top        = Math.round((vh - sh * scale) / 2) + 'px';
           }
         }
       };
