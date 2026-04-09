@@ -939,8 +939,12 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     const cls = [...inner.classList].find(c => TEXT_DEFAULTS[c]) || 'tb-body';
     const def = TEXT_DEFAULTS[cls] || TEXT_DEFAULTS['tb-body'];
 
-    // 인라인 스타일 우선, 없으면 CSS 기본값
-    const fontSize   = parseFloat(inner.style.fontSize)   || def.fontSize;
+    // 인라인 스타일 우선, 없으면 첫 번째 자식 div의 font-size, 없으면 CSS 기본값
+    const firstChildFs = (() => {
+      const fc = inner.querySelector('div[style*="font-size"]');
+      return fc ? parseFloat(fc.style.fontSize) : NaN;
+    })();
+    const fontSize   = parseFloat(inner.style.fontSize)   || firstChildFs || def.fontSize;
     const fontWeight = parseInt(inner.style.fontWeight)   || def.fontWeight;
     const lsRaw      = parseFloat(inner.style.letterSpacing);
     const letterSpacing = isNaN(lsRaw) ? def.letterSpacing : lsRaw;
@@ -1152,6 +1156,13 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     const psEx = { ...ps, labelBg, labelColor, labelRadius };
 
     const blocks = [];
+    function _processFrameBlock(fb) {
+      fb.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .card-block, :scope > .graph-block').forEach(b => {
+        const parsed = _block(b, psEx);
+        if (parsed) blocks.push(parsed);
+      });
+      fb.querySelectorAll(':scope > .frame-block').forEach(nested => _processFrameBlock(nested));
+    }
     [...inner.children].forEach(child => {
       if (child.classList.contains('row')) {
         _row(child, psEx).forEach(b => blocks.push(b));
@@ -1161,6 +1172,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         });
       } else if (child.classList.contains('gap-block')) {
         blocks.push({ type: 'gap', height: parseFloat(child.style.height) || 50 });
+      } else if (child.classList.contains('frame-block')) {
+        _processFrameBlock(child);
       }
     });
     const bg = secEl.style.backgroundColor || secEl.style.background || '';

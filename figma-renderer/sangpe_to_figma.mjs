@@ -94,6 +94,43 @@ function toFigmaAlign(align) {
   return ALIGN_MAP[(align || 'left').toLowerCase()] || 'LEFT';
 }
 
+// ─── fontWeight → Figma fontStyle 변환 ───────────────────────────
+// Pretendard / Noto Sans KR 모두 동일한 스타일명 사용
+function toFigmaFontStyle(fontWeight) {
+  const w = parseInt(fontWeight) || 400;
+  if (w <= 100) return 'Thin';
+  if (w <= 200) return 'ExtraLight';
+  if (w <= 300) return 'Light';
+  if (w <= 400) return 'Regular';
+  if (w <= 500) return 'Medium';
+  if (w <= 600) return 'SemiBold';
+  if (w <= 700) return 'Bold';
+  if (w <= 800) return 'ExtraBold';
+  return 'Black';
+}
+
+// ─── 폰트 로딩 (실패 시 Noto Sans KR 폴백) ───────────────────────
+const _fontCache = {};
+function loadFontSafe(family, style) {
+  const key = `${family}__${style}`;
+  if (_fontCache[key] !== undefined) return _fontCache[key];
+  const result = run('load_font_async', { family, style });
+  if (result?.success) {
+    _fontCache[key] = { family, style };
+    return _fontCache[key];
+  }
+  // 폴백: Noto Sans KR (Figma에서 항상 사용 가능)
+  const fallbackStyle = (style === 'Regular' || style === 'Light' || style === 'Thin' || style === 'ExtraLight') ? 'Regular' : 'Bold';
+  const fallbackKey = `Noto Sans KR__${fallbackStyle}`;
+  if (!_fontCache[fallbackKey]) {
+    run('load_font_async', { family: 'Noto Sans KR', style: fallbackStyle });
+    _fontCache[fallbackKey] = { family: 'Noto Sans KR', style: fallbackStyle };
+  }
+  console.log(`  ⚠️  폰트 없음: ${family} ${style} → Noto Sans KR ${fallbackStyle} 사용`);
+  _fontCache[key] = _fontCache[fallbackKey];
+  return _fontCache[key];
+}
+
 // ─── 블록 렌더링 ─────────────────────────────────────────────────
 // 반환값: 실제 점유 높이(px)
 function renderBlock(block, parentId, x, y, availableWidth) {
@@ -143,7 +180,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
 
     const family    = 'Noto Sans KR';
     const fontStyle = 'Bold';
-    run('load_font_async', { family, style: fontStyle });
+    loadFontSafe(family, fontStyle);
 
     // 1단계: 모든 아이템 텍스트 너비 사전 측정 (임시 생성 → 측정 → 삭제)
     const measured = [];
@@ -253,8 +290,8 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const lb = block.labelBox;
 
     const rawFamily = (s.fontFamily || 'Noto Sans KR').replace(/[\"']/g, '').split(',')[0].trim();
-    const fontStyle = s.fontWeight >= 700 ? 'Bold' : 'Regular';
-    run('load_font_async', { family: rawFamily, style: fontStyle });
+    const fontStyle = toFigmaFontStyle(s.fontWeight);
+    const resolvedFont = loadFontSafe(rawFamily, fontStyle);
 
     // 1. 텍스트 측정용 임시 노드 생성 → 크기 조회 → 삭제
     const tmpNode = run('create_text', {
@@ -269,7 +306,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       parentId,
     });
     if (!tmpNode) return (s.fontSize || 26) * 1.4 + (p.top || 0) + (p.bottom || 0);
-    run('set_font_name', { nodeId: tmpNode.id, family: rawFamily, style: fontStyle });
+    run('set_font_name', { nodeId: tmpNode.id, family: resolvedFont.family, style: resolvedFont.style });
     const textInfo = run('get_node_info', { nodeId: tmpNode.id });
     const textW = textInfo?.absoluteBoundingBox?.width  || 100;
     const textH = textInfo?.absoluteBoundingBox?.height || (s.fontSize || 26) * 1.4;
@@ -338,7 +375,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         parentId: labelFrame.id,
       });
       if (textNode) {
-        run('set_font_name', { nodeId: textNode.id, family: rawFamily, style: fontStyle });
+        run('set_font_name', { nodeId: textNode.id, family: resolvedFont.family, style: resolvedFont.style });
       }
     }
 
@@ -356,8 +393,8 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       : Math.ceil((s.fontSize || 16) * (s.lineHeight || 1.4)) + (p.top || 0) + (p.bottom || 0);
 
     const rawFamily = (s.fontFamily || 'Noto Sans KR').replace(/["']/g, '').split(',')[0].trim();
-    const fontStyle = s.fontWeight >= 700 ? 'Bold' : 'Regular';
-    run('load_font_async', { family: rawFamily, style: fontStyle });
+    const fontStyle = toFigmaFontStyle(s.fontWeight);
+    const resolvedFont = loadFontSafe(rawFamily, fontStyle);
 
     // 1. 텍스트 블록 래퍼 프레임 생성
     const frame = run('create_frame', {
@@ -386,7 +423,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     });
 
     if (node) {
-      run('set_font_name', { nodeId: node.id, family: rawFamily, style: fontStyle });
+      run('set_font_name', { nodeId: node.id, family: resolvedFont.family, style: resolvedFont.style });
       if (s.letterSpacing !== undefined && s.letterSpacing !== 0) {
         run('set_letter_spacing', { nodeId: node.id, letterSpacing: s.letterSpacing, unit: 'PIXELS' });
       }
