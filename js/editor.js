@@ -838,7 +838,7 @@ document.addEventListener('keydown', e => {
       const ssHasSelectedChild = selSS.querySelector(
         '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
         '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-        '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected'
+        '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected, .icon-block.selected'
       );
       if (!ssHasSelectedChild) {
         e.preventDefault();
@@ -855,7 +855,7 @@ document.addEventListener('keydown', e => {
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected, .icon-block.selected')];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
       window.ensureHistoryCheckpoint?.('삭제 전');
