@@ -50,6 +50,7 @@ const layerIcons = {
   'shape-arrow':     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="9" y2="6"/><polyline points="7,3 11,6 7,9"/></svg>`,
   'shape-polygon':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="6,1 11,10 1,10"/></svg>`,
   'shape-star':      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="currentColor"><polygon points="6,1 7.3,4.3 11,4.3 8.2,6.5 9.2,10 6,7.8 2.8,10 3.8,6.5 1,4.3 4.7,4.3"/></svg>`,
+  mockup:            `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="1" width="7" height="10" rx="1.5"/><rect x="4" y="3" width="4" height="5" rx="0.5" fill="currentColor" stroke="none" opacity="0.4"/></svg>`,
 };
 
 /* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */
@@ -113,10 +114,11 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isShape      = block.classList.contains('shape-block');
   const isCanvas     = block.classList.contains('canvas-block');
   const isIconify    = block.classList.contains('icon-block');
+  const isMockup     = block.classList.contains('mockup-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isIconify ? 'iconify' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', iconify:'Icon', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', iconify:'Icon', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isIconify ? 'iconify' : isMockup ? 'mockup' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -153,6 +155,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isGraph) window.showGraphProperties?.(block);
     else if (isCanvas) window.showCanvasProperties?.(block);
     else if (isIconify) window.showIconifyProperties?.(block);
+    else if (isMockup) window.showMockupProperties?.(block);
     else if (isDivider) window.showDividerProperties?.(block);
     else if (isLabelGroup) window.showLabelGroupProperties?.(block);
     else if (isJoker) window.showJokerProperties?.(block);

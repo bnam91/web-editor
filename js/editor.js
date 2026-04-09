@@ -838,7 +838,7 @@ document.addEventListener('keydown', e => {
       const ssHasSelectedChild = selSS.querySelector(
         '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
         '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-        '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
+        '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected'
       );
       if (!ssHasSelectedChild) {
         e.preventDefault();
@@ -855,7 +855,7 @@ document.addEventListener('keydown', e => {
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected')];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
       window.ensureHistoryCheckpoint?.('삭제 전');
@@ -870,6 +870,14 @@ document.addEventListener('keydown', e => {
       // 일반 블록 삭제
       const rowsToRemove = new Set();
       allSelBlocks.forEach(block => {
+        // mockup 블록: 연결된 숨김 섹션 복원
+        if (block.classList.contains('mockup-block')) {
+          const secId = block.dataset.sourceSec;
+          if (secId) {
+            const sec = document.getElementById(secId);
+            if (sec) { sec.style.display = ''; sec.dataset.mockupHidden = ''; }
+          }
+        }
         if (block.classList.contains('gap-block')) {
           block.remove();
         } else {
@@ -1032,7 +1040,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .mockup-block').forEach(b => b.classList.remove('selected'));
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
@@ -1054,6 +1062,8 @@ function deselectAll() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   window._activeFrame = null;
   window.hideFrameHandles?.();
+  window.hideMockupHandles?.();
+  window.hideIconHandles?.();
   window.hideAssetRadiusHandles?.();
   window.hideAssetResizeHandles?.();
   window.hideCanvasRadiusHandles?.();
@@ -1230,7 +1240,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .icon-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .icon-block, .mockup-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
