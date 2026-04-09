@@ -958,7 +958,10 @@ function initApp() {
   // 프로젝트 로드 (Electron: 파일, 브라우저: localStorage)
   (async function initLoad() {
     function applyAndFinish(data) {
-      try { applyProjectData(data); } catch(e) { console.error('[initApp] applyProjectData 실패:', e); }
+      try { applyProjectData(data); } catch(e) {
+        console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
+        initEmpty();
+      }
     }
     function initEmpty() {
       state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
@@ -994,7 +997,10 @@ function initApp() {
           cleanStaleAutosaveKeys(allProjects.map(p => p.id));
         } catch (_) {}
         // proj + meta 병렬 로드 — meta 실패해도 proj는 사용해야 하므로 독립 처리
-        const proj = await window.electronAPI.loadProject(activeProjectId);
+        let proj = null;
+        try { proj = await window.electronAPI.loadProject(activeProjectId); } catch(e) {
+          console.error('[initLoad] loadProject 실패:', e);
+        }
         const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);
         if (proj) {
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
@@ -1013,9 +1019,12 @@ function initApp() {
             window.electronAPI.saveProject(cleanProj).catch(() => {});
           }
           name = proj.name || 'Untitled';
-          const tab = openTabs.find(t => t.id === activeProjectId);
-          if (tab) tab.name = name;
-          window.renderTabBar();
+        }
+        // proj null이어도 탭바는 반드시 렌더 (이름은 Untitled로 유지)
+        const tab = openTabs.find(t => t.id === activeProjectId);
+        if (tab) tab.name = name;
+        window.renderTabBar();
+        if (proj) {
           // DBG-REFRESH: 프로젝트별 키로 localStorage 조회 — 다른 프로젝트 데이터 오염 방지
           // localStorage가 파일보다 새로우면 우선 적용 (새로고침 데이터 손실 방지)
           // 단, 파일 페이지 수가 더 많으면 파일 우선 (meta 오류 등으로 인한 1페이지 오염 방지)
@@ -1028,13 +1037,21 @@ function initApp() {
               try {
                 const lsData = JSON.parse(lsSaved);
                 const lsPagesCount = lsData.pages?.length || 0;
-                // localStorage 페이지 수가 파일보다 적으면 파일이 더 완전한 데이터 → 파일 우선
-                if (lsPagesCount >= filePagesCount) { applyAndFinish(lsData); return; }
+                // localStorage 페이지 수가 파일보다 적거나 0이면 파일이 더 완전한 데이터 → 파일 우선
+                if (lsPagesCount > 0 && lsPagesCount >= filePagesCount) { applyAndFinish(lsData); return; }
               } catch {}
             }
           }
           if (proj.version === 2 && proj.pages) { applyAndFinish(proj); return; }
-          if (proj.snapshot) { try { applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot); } catch {} return; }
+          // v1 snapshot: 파싱 실패 시 return하지 않고 아래 localStorage fallback으로 진행
+          if (proj.snapshot) {
+            try {
+              applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot);
+              return;
+            } catch (e) {
+              console.error('[initLoad] v1 snapshot 파싱 실패, localStorage fallback:', e);
+            }
+          }
         }
       } else {
         // 브라우저: localStorage 프로젝트 목록으로 고아 autosave 키 정리
@@ -1047,7 +1064,14 @@ function initApp() {
           if (tab) tab.name = name;
         }
         window.renderTabBar();
-        if (proj?.snapshot) { try { applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot); } catch {} return; }
+        if (proj?.snapshot) {
+          try {
+            applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot);
+            return;
+          } catch (e) {
+            console.error('[initLoad] 브라우저 snapshot 파싱 실패, localStorage fallback:', e);
+          }
+        }
       }
     } else {
       // URL에 project 없이 열림 (admin mode): 탭 유지하고 렌더만
