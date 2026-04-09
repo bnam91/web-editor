@@ -2043,14 +2043,16 @@ const STEP_DEFAULT_DATA = [
 ];
 
 function renderStepBlock(block) {
-  const steps    = JSON.parse(block.dataset.steps || '[]');
-  const numBg    = block.dataset.numBg    || '#222222';
-  const numColor = block.dataset.numColor || '#ffffff';
-  const numSize  = parseInt(block.dataset.numSize)   || 36;
-  const titleSz  = parseInt(block.dataset.titleSize) || 18;
-  const descSz   = parseInt(block.dataset.descSize)  || 14;
-  const gap      = parseInt(block.dataset.gap)       || 24;
-  const connector = block.dataset.connector !== 'false';
+  const steps      = JSON.parse(block.dataset.steps || '[]');
+  const numBg      = block.dataset.numBg      || '#222222';
+  const numColor   = block.dataset.numColor   || '#ffffff';
+  const numSize    = parseInt(block.dataset.numSize)    || 36;
+  const titleSz    = parseInt(block.dataset.titleSize)  || 36;
+  const descSz     = parseInt(block.dataset.descSize)   || 14;
+  const gap        = parseInt(block.dataset.gap)        || 24;
+  const connector  = block.dataset.connector !== 'false';
+  const titleColor = block.dataset.titleColor || '#222222';
+  const descColor  = block.dataset.descColor  || '#555555';
 
   block.innerHTML = steps.map((s, i) => {
     const isLast = i === steps.length - 1;
@@ -2061,8 +2063,8 @@ function renderStepBlock(block) {
           ${connector && !isLast ? `<div class="stb-line" style="background:${numBg};opacity:0.25"></div>` : ''}
         </div>
         <div class="stb-content" style="padding-bottom:${isLast ? 0 : gap}px">
-          <div class="stb-title" style="font-size:${titleSz}px">${s.title || ''}</div>
-          ${s.desc ? `<div class="stb-desc" style="font-size:${descSz}px">${s.desc}</div>` : ''}
+          <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor}">${s.title || ''}</div>
+          ${s.desc ? `<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>` : ''}
         </div>
       </div>`;
   }).join('');
@@ -2072,15 +2074,17 @@ function makeStepBlock(opts = {}) {
   const block = document.createElement('div');
   block.className = 'step-block';
   block.id = 'stb_' + Math.random().toString(36).slice(2, 8);
-  block.dataset.type      = 'step';
-  block.dataset.steps     = JSON.stringify(opts.steps     || STEP_DEFAULT_DATA);
-  block.dataset.numBg     = opts.numBg     || '#222222';
-  block.dataset.numColor  = opts.numColor  || '#ffffff';
-  block.dataset.numSize   = opts.numSize   || 36;
-  block.dataset.titleSize = opts.titleSize || 18;
-  block.dataset.descSize  = opts.descSize  || 14;
-  block.dataset.gap       = opts.gap       || 24;
-  block.dataset.connector = opts.connector !== undefined ? String(opts.connector) : 'true';
+  block.dataset.type       = 'step';
+  block.dataset.steps      = JSON.stringify(opts.steps      || STEP_DEFAULT_DATA);
+  block.dataset.numBg      = opts.numBg      || '#222222';
+  block.dataset.numColor   = opts.numColor   || '#ffffff';
+  block.dataset.numSize    = opts.numSize    || 36;
+  block.dataset.titleSize  = opts.titleSize  || 36;
+  block.dataset.descSize   = opts.descSize   || 14;
+  block.dataset.gap        = opts.gap        || 24;
+  block.dataset.connector  = opts.connector  !== undefined ? String(opts.connector) : 'true';
+  block.dataset.titleColor = opts.titleColor || '#222222';
+  block.dataset.descColor  = opts.descColor  || '#555555';
   renderStepBlock(block);
 
   const row = document.createElement('div');

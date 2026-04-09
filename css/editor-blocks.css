@@ -161,6 +161,23 @@
 .canvas-overlay-handle.sw { cursor: sw-resize; }
 .canvas-overlay-handle.se { cursor: se-resize; }
 
+/* ── Vector Block overlay resize handles ── */
+.vector-overlay-handle {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: #fff;
+  border: 1.5px solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 9992;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+.vector-overlay-handle.nw { cursor: nw-resize; }
+.vector-overlay-handle.ne { cursor: ne-resize; }
+.vector-overlay-handle.sw { cursor: sw-resize; }
+.vector-overlay-handle.se { cursor: se-resize; }
+
 /* ── Canvas Block corner radius handle ── */
 .canvas-radius-handle {
   position: absolute;
@@ -1394,7 +1411,7 @@
 }
 .stb-item {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
 }
 .stb-left {
   display: flex;

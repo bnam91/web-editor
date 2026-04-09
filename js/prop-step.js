@@ -21,13 +21,15 @@ export function showStepProperties(block) {
       </div>`).join('');
   }
 
-  const numBg     = block.dataset.numBg    || '#222222';
-  const numColor  = block.dataset.numColor || '#ffffff';
-  const numSize   = parseInt(block.dataset.numSize)   || 36;
-  const titleSize = parseInt(block.dataset.titleSize) || 18;
-  const descSize  = parseInt(block.dataset.descSize)  || 14;
-  const gap       = parseInt(block.dataset.gap)       || 24;
-  const connector = block.dataset.connector !== 'false';
+  const numBg      = block.dataset.numBg      || '#222222';
+  const numColor   = block.dataset.numColor   || '#ffffff';
+  const numSize    = parseInt(block.dataset.numSize)   || 36;
+  const titleSize  = parseInt(block.dataset.titleSize) || 36;
+  const descSize   = parseInt(block.dataset.descSize)  || 14;
+  const gap        = parseInt(block.dataset.gap)       || 24;
+  const connector  = block.dataset.connector  !== 'false';
+  const titleColor = block.dataset.titleColor || '#222222';
+  const descColor  = block.dataset.descColor  || '#555555';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -74,9 +76,23 @@ export function showStepProperties(block) {
     <div class="prop-section">
       <div class="prop-section-title">텍스트</div>
       <div class="prop-row">
+        <span class="prop-label">제목 색</span>
+        <div class="prop-color-swatch" style="background:${titleColor}">
+          <input type="color" id="stb-title-color" value="${titleColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="stb-title-color-hex" value="${titleColor}" maxlength="7">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">설명 색</span>
+        <div class="prop-color-swatch" style="background:${descColor}">
+          <input type="color" id="stb-desc-color" value="${descColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="stb-desc-color-hex" value="${descColor}" maxlength="7">
+      </div>
+      <div class="prop-row">
         <span class="prop-label">제목 크기</span>
-        <input type="range" class="prop-slider" id="stb-title-size-slider" min="12" max="40" step="1" value="${titleSize}">
-        <input type="number" class="prop-number" id="stb-title-size-number" min="12" max="40" value="${titleSize}">
+        <input type="range" class="prop-slider" id="stb-title-size-slider" min="12" max="80" step="1" value="${titleSize}">
+        <input type="number" class="prop-number" id="stb-title-size-number" min="12" max="80" value="${titleSize}">
       </div>
       <div class="prop-row">
         <span class="prop-label">설명 크기</span>
@@ -128,8 +144,10 @@ export function showStepProperties(block) {
     });
   }
 
-  bindColor('stb-num-bg',    'stb-num-bg-hex',    'numBg');
-  bindColor('stb-num-color', 'stb-num-color-hex', 'numColor');
+  bindColor('stb-num-bg',      'stb-num-bg-hex',      'numBg');
+  bindColor('stb-num-color',   'stb-num-color-hex',   'numColor');
+  bindColor('stb-title-color', 'stb-title-color-hex', 'titleColor');
+  bindColor('stb-desc-color',  'stb-desc-color-hex',  'descColor');
 
   // ── 슬라이더 ──
   function bindSlider(sliderId, numberId, min, max, datasetKey) {
@@ -149,7 +167,7 @@ export function showStepProperties(block) {
   }
 
   bindSlider('stb-num-size-slider',   'stb-num-size-number',   20, 80, 'numSize');
-  bindSlider('stb-title-size-slider', 'stb-title-size-number', 12, 40, 'titleSize');
+  bindSlider('stb-title-size-slider', 'stb-title-size-number', 12, 80, 'titleSize');
   bindSlider('stb-desc-size-slider',  'stb-desc-size-number',  10, 28, 'descSize');
   bindSlider('stb-gap-slider',        'stb-gap-number',         8, 64, 'gap');
 
