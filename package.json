@@ -15,7 +15,8 @@
     "release:mac": "electron-builder --mac --publish always",
     "release:win": "electron-builder --win --publish always",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "figma": "bun run figma-plugin/socket.js"
   },
   "build": {
     "appId": "com.goyamkt.sangpe-editor",
