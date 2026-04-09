@@ -335,8 +335,7 @@ function _renderBrowserCards() {
   container.querySelectorAll('.tb-card-edit-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      closeTemplateBrowser();
-      startEditTemplate(btn.dataset.tplId);
+      _startInlineEdit(btn.dataset.tplId);
     });
   });
 
@@ -430,6 +429,7 @@ async function _selectBrowserTemplate(id) {
     content.style.userSelect    = 'none';
     content.style.position      = 'absolute';
     content.style.transformOrigin = 'top left';
+    content.style.boxShadow     = '0 2px 12px rgba(0,0,0,0.15)';
 
     // previewCanvas는 position:relative + overflow:hidden 필요
     previewCanvas.style.position = 'relative';
@@ -452,6 +452,72 @@ async function _selectBrowserTemplate(id) {
 
   document.getElementById('tpl-browser-preview-name').textContent = tpl.name;
   document.getElementById('tpl-browser-preview-cat').textContent  = tpl.category || '';
+}
+
+/* ── 인라인 편집 (이름/폴더/태그) ── */
+function _startInlineEdit(id) {
+  const templates = window.loadTemplates?.() || [];
+  const tpl = templates.find(t => t.id === id);
+  if (!tpl) return;
+
+  // 기존 편집 폼 제거
+  document.querySelectorAll('.tb-edit-form').forEach(el => el.remove());
+
+  const card = document.querySelector(`.tb-card[data-tpl-id="${CSS.escape(id)}"]`);
+  if (!card) return;
+
+  const folders = [...new Set(templates.map(t => t.folder || '기타').filter(Boolean))];
+  const currentTags = (tpl.tags || []).join(', ');
+
+  const form = document.createElement('div');
+  form.className = 'tb-edit-form';
+  form.style.cssText = 'padding:8px;display:flex;flex-direction:column;gap:4px;background:#1e1e1e;border-top:1px solid #333;border-bottom:1px solid #333;';
+  form.innerHTML = `
+    <input class="tbe-name" type="text" value="${_esc(tpl.name)}" placeholder="이름" style="background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:4px 6px;outline:none;width:100%;box-sizing:border-box;">
+    <select class="tbe-folder" style="background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:4px 6px;outline:none;width:100%;box-sizing:border-box;">
+      ${folders.map(f => `<option value="${_esc(f)}" ${f === (tpl.folder||'기타') ? 'selected' : ''}>${_esc(f)}</option>`).join('')}
+      <option value="__new__">새 폴더...</option>
+    </select>
+    <input class="tbe-folder-new" type="text" placeholder="새 폴더 이름" style="display:none;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:4px 6px;outline:none;width:100%;box-sizing:border-box;">
+    <input class="tbe-tags" type="text" value="${_esc(currentTags)}" placeholder="태그 (쉼표 구분)" style="background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:4px 6px;outline:none;width:100%;box-sizing:border-box;">
+    <div style="display:flex;gap:4px;">
+      <button class="tbe-save" style="flex:1;background:#2d6fe8;border:none;border-radius:4px;color:#fff;font-size:11px;padding:4px 0;cursor:pointer;">저장</button>
+      <button class="tbe-cancel" style="flex:1;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:4px 0;cursor:pointer;">취소</button>
+    </div>`;
+
+  card.insertAdjacentElement('afterend', form);
+
+  const folderSel = form.querySelector('.tbe-folder');
+  const folderNew = form.querySelector('.tbe-folder-new');
+  folderSel.addEventListener('change', () => {
+    folderNew.style.display = folderSel.value === '__new__' ? 'block' : 'none';
+  });
+
+  form.querySelector('.tbe-cancel').addEventListener('click', () => form.remove());
+
+  form.querySelector('.tbe-save').addEventListener('click', () => {
+    const newName = form.querySelector('.tbe-name').value.trim();
+    if (!newName) return;
+    const newFolder = folderSel.value === '__new__'
+      ? (folderNew.value.trim() || '기타')
+      : folderSel.value;
+    const newTags = form.querySelector('.tbe-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+
+    const all = window.loadTemplates?.() || [];
+    const idx = all.findIndex(t => t.id === id);
+    if (idx !== -1) {
+      all[idx].name   = newName;
+      all[idx].folder = newFolder;
+      all[idx].tags   = newTags;
+      window.saveTemplatesPublic?.(all);
+    }
+    form.remove();
+    _renderBrowserTree();
+    _renderBrowserCards();
+  });
+
+  // 클릭 전파 차단
+  form.addEventListener('click', e => e.stopPropagation());
 }
 
 function _hidePreview() {

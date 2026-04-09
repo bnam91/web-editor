@@ -874,7 +874,7 @@ body.preview-mode #preview-navigator { display: flex; }
   padding: 12px;
   box-sizing: border-box;
   width: 100%;
-  background: #ffffff;
+  background: #f0f0f0;
 }
 .tpl-browser-preview-footer {
   flex-shrink: 0;

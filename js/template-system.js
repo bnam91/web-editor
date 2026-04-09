@@ -667,6 +667,7 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
 // 크로스 모듈 접근용 window 노출
 window.loadTemplates        = loadTemplates;
 window.loadTemplatesPublic  = loadTemplates;
+window.saveTemplatesPublic  = saveTemplates;
 window.saveAsTemplate       = saveAsTemplate;
 window.saveBlockAsTemplate  = saveBlockAsTemplate;
 window.deleteTemplate       = deleteTemplate;
