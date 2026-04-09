@@ -1881,11 +1881,13 @@ function makeIconifyBlock(iconName = '', svgContent = '', size = 64) {
   block.className     = 'icon-block';
   block.dataset.type  = 'icon';
   block.id            = genId('icn');
-  block.dataset.iconName = iconName;
-  block.dataset.size     = String(size);
-  block.dataset.rotation = '0';
+  block.dataset.iconName  = iconName;
+  block.dataset.size      = String(size);
+  block.dataset.rotation  = '0';
+  block.dataset.iconColor = '#000000';
 
   _applyIconifyBlockStyle(block, svgContent, size, 0);
+  block.style.color = '#000000';
 
   row.appendChild(block);
   return { row, block };

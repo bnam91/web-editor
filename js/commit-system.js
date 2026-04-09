@@ -6,6 +6,9 @@
 const LAST_COMMIT_KEY = 'goya-last-commit';
 const SAVE_KEY = 'web-editor-autosave';
 
+// 커밋 모달 전용 — snapshot을 DOM에 넣지 않고 메모리에서 관리
+let _cmCommits = [];
+
 function _downloadJSON(json, filename) {
   const blob = new Blob([json], { type: 'application/json' });
   const a = document.createElement('a');
@@ -124,6 +127,7 @@ async function openCommitModal() {
         </div>`;
       }).join('');
 
+  _cmCommits = commits; // snapshot 포함 전체 커밋 — DOM 속성에는 넣지 않음
   const historyHTML = renderItems(commits);
 
   const overlay = document.createElement('div');
@@ -151,7 +155,7 @@ async function openCommitModal() {
           <span>히스토리</span>
         </div>
         <div class="cm-filter-tabs">${filterTabsHTML}</div>
-        <div class="cm-history" data-commits='${JSON.stringify(commits)}'>${historyHTML}</div>
+        <div class="cm-history" data-commits='${JSON.stringify(commits.map(c => ({ id: c.id, message: c.message, branch: c.branch, timestamp: c.timestamp })))}'>${historyHTML}</div>
       </div>
     </div>`;
 
@@ -237,8 +241,9 @@ async function doCommit() {
 async function restoreCommit(id) {
   if (!confirm('이 커밋으로 복원할까요? 현재 변경사항은 자동저장으로 보존돼요.')) return;
 
-  let commit = null;
-  if (window.IS_ELECTRON && window.activeProjectId) {
+  // 모달이 열려있는 동안 메모리의 _cmCommits에서 먼저 조회 (snapshot 포함)
+  let commit = _cmCommits.find(c => c.id === id) || null;
+  if (!commit && window.IS_ELECTRON && window.activeProjectId) {
     const proj = await window.electronAPI.loadProject(window.activeProjectId);
     commit = proj?.commits?.find(c => c.id === id);
   }
@@ -257,13 +262,14 @@ async function restoreCommit(id) {
 }
 
 async function saveProjectFile() {
-  const base = JSON.parse(window.serializeProject());
+  // Electron: 자동저장을 즉시 플러시 — 네이티브 다이얼로그 불필요
   if (window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    if (proj?.commits?.length)  base.commits       = proj.commits;
-    if (proj?.branches)         base.branches       = proj.branches;
-    if (proj?.currentBranch)    base.currentBranch  = proj.currentBranch;
+    await window.triggerAutoSave?.();
+    window.showToast?.('✅ 저장됨');
+    return;
   }
+  // 웹: JSON 파일 다운로드
+  const base = JSON.parse(window.serializeProject());
   const name = window.currentFileName || window.getProjectName?.() || `web-editor-${new Date().toISOString().slice(0,10)}`;
   _downloadJSON(JSON.stringify(base, null, 2), name);
   window.showToast?.('✅ 저장됨 — ' + name);

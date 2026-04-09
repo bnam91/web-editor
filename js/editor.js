@@ -838,7 +838,7 @@ document.addEventListener('keydown', e => {
       const ssHasSelectedChild = selSS.querySelector(
         '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
         '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-        '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected'
+        '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected'
       );
       if (!ssHasSelectedChild) {
         e.preventDefault();
@@ -1063,6 +1063,7 @@ function deselectAll() {
   window._activeFrame = null;
   window.hideFrameHandles?.();
   window.hideMockupHandles?.();
+  window.hideIconHandles?.();
   window.hideAssetRadiusHandles?.();
   window.hideAssetResizeHandles?.();
   window.hideCanvasRadiusHandles?.();

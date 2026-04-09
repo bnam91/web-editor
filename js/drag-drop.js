@@ -291,6 +291,106 @@ window.showMockupHandles = showMockupHandles;
 window.hideMockupHandles = hideMockupHandles;
 
 /* ═══════════════════════════════════
+   ICON BLOCK RESIZE HANDLES
+   아이콘 블록 선택 시 4코너 핸들로 크기 조절
+   아이콘은 정사각형 — size(width=height) 동시 변경
+═══════════════════════════════════ */
+let _overlayIcon    = null;
+let _iconRafId      = null;
+
+function showIconHandles(block) {
+  if (_overlayIcon === block) return;
+  hideIconHandles();
+  _overlayIcon = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  ['nw', 'ne', 'sw', 'se'].forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `ss-resize-handle icon-handle ${dir}`;
+    h.dataset.dir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onIconHandleMouseDown(e, block, dir));
+  });
+
+  _updateIconHandlePositions();
+  function loop() {
+    if (!_overlayIcon) return;
+    if (!_overlayIcon.isConnected || !_overlayIcon.classList.contains('selected')) {
+      hideIconHandles(); return;
+    }
+    _updateIconHandlePositions();
+    _iconRafId = requestAnimationFrame(loop);
+  }
+  _iconRafId = requestAnimationFrame(loop);
+}
+
+function hideIconHandles() {
+  if (_iconRafId) { cancelAnimationFrame(_iconRafId); _iconRafId = null; }
+  _overlayIcon = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.ss-resize-handle.icon-handle').forEach(h => h.remove());
+}
+
+function _updateIconHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_overlayIcon) return;
+  const rect = _overlayIcon.getBoundingClientRect();
+  const HALF = 3.5;
+  overlay.querySelectorAll('.ss-resize-handle.icon-handle').forEach(h => {
+    const dir = h.dataset.dir;
+    h.style.top  = (dir.includes('n') ? rect.top - HALF : rect.bottom - HALF) + 'px';
+    h.style.left = (dir.includes('w') ? rect.left - HALF : rect.right - HALF) + 'px';
+  });
+}
+
+function _onIconHandleMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX  = e.clientX;
+  const startY  = e.clientY;
+  const scaler0 = document.getElementById('canvas-scaler');
+  const scale0  = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+  const startSize = parseInt(block.dataset.size) || parseInt(block.style.width) || 64;
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale  = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    // 대각선 핸들 — dx/dy 중 큰 쪽으로 크기 결정
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    const delta = (Math.abs(dx) > Math.abs(dy) ? dx : dy);
+    let newSize = Math.round(Math.min(512, Math.max(16,
+      dir === 'nw' || dir === 'sw' ? startSize - delta : startSize + delta
+    )));
+    block.dataset.size = String(newSize);
+    block.style.width  = newSize + 'px';
+    block.style.height = newSize + 'px';
+    const svg = block.querySelector('svg');
+    if (svg) { svg.setAttribute('width', newSize); svg.setAttribute('height', newSize); }
+    const img = block.querySelector('img');
+    if (img) { img.width = newSize; img.height = newSize; }
+    // 프로퍼티 패널 동기화
+    const slider = document.getElementById('icn-size-slider');
+    const num    = document.getElementById('icn-size-number');
+    if (slider) slider.value = String(newSize);
+    if (num)    num.value    = String(newSize);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showIconHandles = showIconHandles;
+window.hideIconHandles = hideIconHandles;
+
+/* ═══════════════════════════════════
    ASSET BLOCK CORNER RADIUS HANDLES
    프레임 핸들과 동일한 오버레이에 렌더링
 ═══════════════════════════════════ */
@@ -1899,6 +1999,7 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showIconifyProperties?.(block);
+      showIconHandles(block);
     });
   }
 
@@ -2115,7 +2216,7 @@ function bindFrameDropZone(ss) {
     // B의 mousedown이 drag를 시작할 수 있도록 (text-frame은 투명 래퍼라 드래그 시작점으로 써도 됨)
     const CHILD_BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
       '.table-block, .label-group-block, .graph-block, .divider-block, ' +
-      '.icon-text-block, .shape-block';
+      '.icon-text-block, .shape-block, .mockup-block';
 
     ss.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
@@ -2196,8 +2297,16 @@ function bindFrameDropZone(ss) {
         }
         const cdx = (ev.shiftKey && _shiftAxisF === 'v') ? 0 : dx;
         const cdy = (ev.shiftKey && _shiftAxisF === 'h') ? 0 : dy;
-        const newLeft = Math.round(origLeft + cdx / scale);
-        const newTop  = Math.round(origTop  + cdy / scale);
+        let newLeft = Math.round(origLeft + cdx / scale);
+        let newTop  = Math.round(origTop  + cdy / scale);
+        // 섹션/부모 프레임 경계 클램핑
+        const _clampParent = parentFreeFrame || ss.parentElement;
+        if (_clampParent) {
+          const _maxL = _clampParent.offsetWidth  - ss.offsetWidth;
+          const _maxT = _clampParent.offsetHeight - ss.offsetHeight;
+          newLeft = Math.max(0, Math.min(_maxL, newLeft));
+          newTop  = Math.max(0, Math.min(_maxT,  newTop));
+        }
         ss.style.left = newLeft + 'px';
         ss.style.top  = newTop  + 'px';
         ss.dataset.offsetX = String(newLeft);
@@ -2322,7 +2431,7 @@ function bindFrameDropZone(ss) {
     window.pushHistory();
 
     const isFullWidth = ss.dataset.fullWidth === 'true';
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .mockup-block';
     const SS_W = 860; // 캔버스 기준 너비
 
     if (isFullWidth) {

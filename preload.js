@@ -45,9 +45,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App info
   isElectron: true,
-  isAdmin: () => ipcRenderer.invoke('app:is-admin'),
-  debugPort: () => ipcRenderer.invoke('app:debug-port'),
-  getGitBranch: () => ipcRenderer.invoke('app:git-branch'),
+  isAdmin: () => ipcRenderer.invoke('app:is-admin').catch(() => false),
+  debugPort: () => ipcRenderer.invoke('app:debug-port').catch(() => null),
+  getGitBranch: () => ipcRenderer.invoke('app:git-branch').catch(() => null),
 
   // Intake (design-bot pipeline)
   saveIntakeFile:  (data)     => ipcRenderer.invoke('intake:save', data),

@@ -1237,9 +1237,8 @@
   flex-shrink: 0;
 }
 .icon-block.selected {
-  outline: 1.5px solid var(--sel-color, #1592fe);
-  outline-offset: 3px;
-  border-radius: 4px;
+  outline: 2px solid var(--sel-color, #1592fe);
+  outline-offset: 0;
 }
 .icon-block svg { display: block; }
 .icon-block img { display: block; }

@@ -28,16 +28,19 @@ function _openDB() {
     _db = {
       _isFallback: true,
       transaction() {
-        return {
+        const tx = {
+          oncomplete: null,
+          onerror: null,
           objectStore() {
             return {
-              get(k)    { const r = { result: store[k] }; setTimeout(() => r.onsuccess?.({ target: r })); return r; },
-              put(v, k) { store[k] = v; const r = {}; setTimeout(() => r.onsuccess?.({ target: r })); return r; },
-              delete(k) { delete store[k]; const r = {}; setTimeout(() => r.onsuccess?.({ target: r })); return r; },
-              getAllKeys() { const r = { result: Object.keys(store) }; setTimeout(() => r.onsuccess?.({ target: r })); return r; },
+              get(k)    { const r = { result: store[k] }; setTimeout(() => { r.onsuccess?.({ target: r }); tx.oncomplete?.(); }); return r; },
+              put(v, k) { store[k] = v; const r = {}; setTimeout(() => { r.onsuccess?.({ target: r }); tx.oncomplete?.(); }); return r; },
+              delete(k) { delete store[k]; const r = {}; setTimeout(() => { r.onsuccess?.({ target: r }); tx.oncomplete?.(); }); return r; },
+              getAllKeys() { const r = { result: Object.keys(store) }; setTimeout(() => { r.onsuccess?.({ target: r }); tx.oncomplete?.(); }); return r; },
             };
           }
         };
+        return tx;
       }
     };
     return _db;
