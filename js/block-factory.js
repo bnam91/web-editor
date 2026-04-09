@@ -2031,3 +2031,151 @@ function addDeviceMockupBlock(deviceKey, width) {
 
 window.makeDeviceMockupBlock = makeDeviceMockupBlock;
 window.addDeviceMockupBlock  = addDeviceMockupBlock;
+
+/* ═══════════════════════════════════
+   STEP BLOCK
+═══════════════════════════════════ */
+
+const STEP_DEFAULT_DATA = [
+  { title: '1단계', desc: '첫 번째 단계 설명' },
+  { title: '2단계', desc: '두 번째 단계 설명' },
+  { title: '3단계', desc: '세 번째 단계 설명' },
+];
+
+function renderStepBlock(block) {
+  const steps    = JSON.parse(block.dataset.steps || '[]');
+  const numBg    = block.dataset.numBg    || '#222222';
+  const numColor = block.dataset.numColor || '#ffffff';
+  const numSize  = parseInt(block.dataset.numSize)   || 36;
+  const titleSz  = parseInt(block.dataset.titleSize) || 18;
+  const descSz   = parseInt(block.dataset.descSize)  || 14;
+  const gap      = parseInt(block.dataset.gap)       || 24;
+  const connector = block.dataset.connector !== 'false';
+
+  block.innerHTML = steps.map((s, i) => {
+    const isLast = i === steps.length - 1;
+    return `
+      <div class="stb-item" style="gap:${Math.round(numSize * 0.5)}px">
+        <div class="stb-left">
+          <div class="stb-badge" style="width:${numSize}px;height:${numSize}px;background:${numBg};color:${numColor};font-size:${Math.round(numSize * 0.45)}px">${i + 1}</div>
+          ${connector && !isLast ? `<div class="stb-line" style="background:${numBg};opacity:0.25"></div>` : ''}
+        </div>
+        <div class="stb-content" style="padding-bottom:${isLast ? 0 : gap}px">
+          <div class="stb-title" style="font-size:${titleSz}px">${s.title || ''}</div>
+          ${s.desc ? `<div class="stb-desc" style="font-size:${descSz}px">${s.desc}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function makeStepBlock(opts = {}) {
+  const block = document.createElement('div');
+  block.className = 'step-block';
+  block.id = 'stb_' + Math.random().toString(36).slice(2, 8);
+  block.dataset.type      = 'step';
+  block.dataset.steps     = JSON.stringify(opts.steps     || STEP_DEFAULT_DATA);
+  block.dataset.numBg     = opts.numBg     || '#222222';
+  block.dataset.numColor  = opts.numColor  || '#ffffff';
+  block.dataset.numSize   = opts.numSize   || 36;
+  block.dataset.titleSize = opts.titleSize || 18;
+  block.dataset.descSize  = opts.descSize  || 14;
+  block.dataset.gap       = opts.gap       || 24;
+  block.dataset.connector = opts.connector !== undefined ? String(opts.connector) : 'true';
+  renderStepBlock(block);
+
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.dataset.layout = 'stack';
+  row.appendChild(block);
+  return { row, block };
+}
+
+function addStepBlock(opts = {}) {
+  const sec = window.getSelectedSection?.();
+  if (!sec) { window.showNoSelectionHint?.(); return; }
+  window.pushHistory();
+  const { row, block } = makeStepBlock(opts);
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  window.buildLayerPanel();
+  window.triggerAutoSave?.();
+}
+
+window.makeStepBlock   = makeStepBlock;
+window.addStepBlock    = addStepBlock;
+window.renderStepBlock = renderStepBlock;
+
+// ── Vector Block ───────────────────────────────────────────────────────────────
+function renderVector(block) {
+  const svgStr = block.dataset.svg  || '';
+  const color  = block.dataset.color || '#000000';
+  const w      = parseInt(block.dataset.w) || 120;
+  const h      = parseInt(block.dataset.h) || 120;
+
+  block.style.width  = w + 'px';
+  block.style.height = h + 'px';
+
+  const inner = block.querySelector('.vb-inner');
+  if (!inner) return;
+
+  // fill 색상 치환: fill="black", fill="#000000", fill="currentColor" 등 → 지정 색상
+  let processed = svgStr
+    .replace(/fill="black"/gi,        `fill="${color}"`)
+    .replace(/fill="#000000"/gi,      `fill="${color}"`)
+    .replace(/fill="#000"/gi,         `fill="${color}"`)
+    .replace(/fill="currentColor"/gi, `fill="${color}"`);
+
+  // SVG 자체에 width/height 100% 강제 적용
+  processed = processed.replace(/<svg([^>]*)>/i, (match, attrs) => {
+    let a = attrs
+      .replace(/\s*width="[^"]*"/gi, '')
+      .replace(/\s*height="[^"]*"/gi, '');
+    return `<svg${a} width="100%" height="100%">`;
+  });
+
+  inner.innerHTML = processed;
+}
+
+function makeVectorBlock(data = {}) {
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
+
+  const block = document.createElement('div');
+  block.className      = 'vector-block';
+  block.dataset.type   = 'vector';
+  block.id             = genId('vb');
+  block.setAttribute('draggable', 'true');
+  block.dataset.svg    = data.svg   || '';
+  block.dataset.color  = data.color || '#000000';
+  block.dataset.w      = String(data.w || 120);
+  block.dataset.h      = String(data.h || 120);
+  block.dataset.layerName = data.label || 'Vector';
+
+  const inner = document.createElement('div');
+  inner.className = 'vb-inner';
+  block.appendChild(inner);
+
+  renderVector(block);
+
+  row.appendChild(block);
+  return { row, block };
+}
+
+function addVectorBlock(svgString = '', opts = {}) {
+  if (_insertToFlowFrame(() => {
+    const { row, block } = makeVectorBlock({ svg: svgString, ...opts });
+    return { row, block };
+  })) return;
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+  const { row, block } = makeVectorBlock({ svg: svgString, ...opts });
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  window.buildLayerPanel();
+  window.selectSection(sec);
+}
+
+window.makeVectorBlock = makeVectorBlock;
+window.addVectorBlock  = addVectorBlock;
+window.renderVector    = renderVector;

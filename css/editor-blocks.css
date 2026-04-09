@@ -1262,6 +1262,32 @@
   pointer-events: none;
 }
 
+/* ── Vector Block ────────────────────────────────────────────────────────── */
+.vector-block {
+  display: inline-block;
+  cursor: pointer;
+  position: relative;
+  box-sizing: border-box;
+  user-select: none;
+  margin: 0 auto;
+}
+.vector-block.selected {
+  outline: 1.5px solid #1592fe;
+  outline-offset: 1px;
+}
+.vector-block .vb-inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.vector-block svg {
+  width: 100%;
+  height: 100%;
+}
+
 /* ── Canvas Block — 프로퍼티 레이어 목록 ─────────────────────────────────── */
 .cvb-layer-row {
   display: flex;
@@ -1351,4 +1377,57 @@
   z-index: 2;
   pointer-events: none;
   line-height: 0;
+}
+
+/* ── Step Block ── */
+.step-block {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 0;
+}
+.step-block.selected {
+  outline: 2px solid var(--sel-color, #1592fe);
+  outline-offset: 0;
+}
+.stb-item {
+  display: flex;
+  align-items: flex-start;
+}
+.stb-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+.stb-badge {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.stb-line {
+  flex: 1;
+  width: 2px;
+  min-height: 16px;
+}
+.stb-content {
+  flex: 1;
+  min-width: 0;
+}
+.stb-title {
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+.stb-desc {
+  margin-top: 4px;
+  line-height: 1.6;
+  opacity: 0.65;
+  word-break: keep-all;
 }
