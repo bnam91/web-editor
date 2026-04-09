@@ -1,14 +1,7 @@
 import { propPanel } from './globals.js';
 
 export function showStepProperties(block) {
-  const steps     = JSON.parse(block.dataset.steps || '[]');
-  const numBg     = block.dataset.numBg    || '#222222';
-  const numColor  = block.dataset.numColor || '#ffffff';
-  const numSize   = parseInt(block.dataset.numSize)   || 36;
-  const titleSize = parseInt(block.dataset.titleSize) || 18;
-  const descSize  = parseInt(block.dataset.descSize)  || 14;
-  const gap       = parseInt(block.dataset.gap)       || 24;
-  const connector = block.dataset.connector !== 'false';
+  const steps = JSON.parse(block.dataset.steps || '[]');
 
   function stepsHtml() {
     return steps.map((s, i) => `
@@ -27,6 +20,14 @@ export function showStepProperties(block) {
         </div>
       </div>`).join('');
   }
+
+  const numBg     = block.dataset.numBg    || '#222222';
+  const numColor  = block.dataset.numColor || '#ffffff';
+  const numSize   = parseInt(block.dataset.numSize)   || 36;
+  const titleSize = parseInt(block.dataset.titleSize) || 18;
+  const descSize  = parseInt(block.dataset.descSize)  || 14;
+  const gap       = parseInt(block.dataset.gap)       || 24;
+  const connector = block.dataset.connector !== 'false';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -103,88 +104,62 @@ export function showStepProperties(block) {
     </div>
   `;
 
-  function commit() {
-    block.dataset.steps     = JSON.stringify(steps);
-    block.dataset.numBg     = numBg;
-    block.dataset.numColor  = numColor;
-    block.dataset.numSize   = numSize;
-    block.dataset.titleSize = titleSize;
-    block.dataset.descSize  = descSize;
-    block.dataset.gap       = gap;
-    block.dataset.connector = String(connector);
+  function rerender() {
     window.renderStepBlock?.(block);
     window.scheduleAutoSave?.();
   }
 
-  // ── 색상 피커 헬퍼 ──
-  function bindColor(pickerId, hexId, getVal, setVal) {
+  // ── 색상 피커 ──
+  function bindColor(pickerId, hexId, datasetKey) {
     const picker = propPanel.querySelector('#' + pickerId);
     const hexEl  = propPanel.querySelector('#' + hexId);
     if (!picker || !hexEl) return;
-    picker.addEventListener('input', () => {
-      setVal(picker.value);
-      hexEl.value = picker.value;
-      picker.closest('.prop-color-swatch').style.background = picker.value;
-      commit();
-    });
-    hexEl.addEventListener('change', () => {
+    const apply = v => {
+      block.dataset[datasetKey] = v;
+      picker.value = v;
+      hexEl.value  = v;
+      picker.closest('.prop-color-swatch').style.background = v;
+      rerender();
+    };
+    picker.addEventListener('input',  () => apply(picker.value));
+    hexEl.addEventListener('change',  () => {
       const v = hexEl.value.trim();
-      if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-        setVal(v);
-        picker.value = v;
-        picker.closest('.prop-color-swatch').style.background = v;
-        commit();
-      }
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) apply(v);
     });
   }
 
-  let _numBg    = numBg;
-  let _numColor = numColor;
-  let _numSize  = numSize;
-  let _titleSize = titleSize;
-  let _descSize  = descSize;
-  let _gap       = gap;
-  let _connector = connector;
+  bindColor('stb-num-bg',    'stb-num-bg-hex',    'numBg');
+  bindColor('stb-num-color', 'stb-num-color-hex', 'numColor');
 
-  bindColor('stb-num-bg', 'stb-num-bg-hex',
-    () => _numBg, v => { _numBg = v; block.dataset.numBg = v; });
-  bindColor('stb-num-color', 'stb-num-color-hex',
-    () => _numColor, v => { _numColor = v; block.dataset.numColor = v; });
-
-  // ── 슬라이더 헬퍼 ──
-  function bindSlider(sliderId, numberId, min, max, getVal, setVal) {
+  // ── 슬라이더 ──
+  function bindSlider(sliderId, numberId, min, max, datasetKey) {
     const slider = propPanel.querySelector('#' + sliderId);
     const number = propPanel.querySelector('#' + numberId);
     if (!slider || !number) return;
-    const update = val => {
-      const v = Math.max(min, Math.min(max, parseInt(val) || min));
+    const apply = raw => {
+      const v = Math.max(min, Math.min(max, parseInt(raw) || min));
       slider.value = v;
       number.value = v;
-      setVal(v);
-      commit();
+      block.dataset[datasetKey] = v;
+      rerender();
     };
-    slider.addEventListener('input', () => update(slider.value));
-    number.addEventListener('change', () => update(number.value));
+    slider.addEventListener('input',  () => apply(slider.value));
+    number.addEventListener('change', () => { apply(number.value); window.pushHistory?.(); });
+    slider.addEventListener('change', () => window.pushHistory?.());
   }
 
-  bindSlider('stb-num-size-slider',   'stb-num-size-number',   20, 80,
-    () => _numSize,   v => { _numSize   = v; block.dataset.numSize   = v; });
-  bindSlider('stb-title-size-slider', 'stb-title-size-number', 12, 40,
-    () => _titleSize, v => { _titleSize = v; block.dataset.titleSize = v; });
-  bindSlider('stb-desc-size-slider',  'stb-desc-size-number',  10, 28,
-    () => _descSize,  v => { _descSize  = v; block.dataset.descSize  = v; });
-  bindSlider('stb-gap-slider',        'stb-gap-number',         8, 64,
-    () => _gap,       v => { _gap       = v; block.dataset.gap       = v; });
+  bindSlider('stb-num-size-slider',   'stb-num-size-number',   20, 80, 'numSize');
+  bindSlider('stb-title-size-slider', 'stb-title-size-number', 12, 40, 'titleSize');
+  bindSlider('stb-desc-size-slider',  'stb-desc-size-number',  10, 28, 'descSize');
+  bindSlider('stb-gap-slider',        'stb-gap-number',         8, 64, 'gap');
 
   // ── 연결선 토글 ──
   propPanel.querySelector('#stb-connector').addEventListener('change', e => {
-    _connector = e.target.checked;
-    block.dataset.connector = String(_connector);
-    window.renderStepBlock?.(block);
-    window.scheduleAutoSave?.();
+    block.dataset.connector = String(e.target.checked);
+    rerender();
   });
 
-  // ── 스텝 목록 이벤트 위임 ──
+  // ── 스텝 목록 ──
   function rebindStepsList() {
     const list = propPanel.querySelector('#stb-steps-list');
     if (!list) return;
@@ -195,8 +170,7 @@ export function showStepProperties(block) {
         const i = parseInt(el.dataset.idx);
         steps[i].title = el.value;
         block.dataset.steps = JSON.stringify(steps);
-        window.renderStepBlock?.(block);
-        window.scheduleAutoSave?.();
+        rerender();
       });
     });
 
@@ -205,8 +179,7 @@ export function showStepProperties(block) {
         const i = parseInt(el.dataset.idx);
         steps[i].desc = el.value;
         block.dataset.steps = JSON.stringify(steps);
-        window.renderStepBlock?.(block);
-        window.scheduleAutoSave?.();
+        rerender();
       });
     });
 
@@ -217,8 +190,7 @@ export function showStepProperties(block) {
         window.pushHistory?.();
         steps.splice(i, 1);
         block.dataset.steps = JSON.stringify(steps);
-        window.renderStepBlock?.(block);
-        window.scheduleAutoSave?.();
+        rerender();
         rebindStepsList();
       });
     });
@@ -230,8 +202,7 @@ export function showStepProperties(block) {
     window.pushHistory?.();
     steps.push({ title: `${steps.length + 1}단계`, desc: '' });
     block.dataset.steps = JSON.stringify(steps);
-    window.renderStepBlock?.(block);
-    window.scheduleAutoSave?.();
+    rerender();
     rebindStepsList();
   });
 }

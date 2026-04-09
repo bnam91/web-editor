@@ -600,6 +600,89 @@ window.showAssetResizeHandles = showAssetResizeHandles;
 window.hideAssetResizeHandles = hideAssetResizeHandles;
 
 /* ═══════════════════════════════════
+   ICON-CIRCLE BLOCK RESIZE HANDLE (overlay, east-only, square-constrained)
+═══════════════════════════════════ */
+let _icbResizeBlock = null;
+let _icbResizeRafId = null;
+
+function showIconCircleResizeHandle(block) {
+  if (_icbResizeBlock === block) return;
+  hideIconCircleResizeHandle();
+  _icbResizeBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  const h = document.createElement('div');
+  h.className = 'asset-overlay-handle se';
+  h.dataset.icbResize = '1';
+  overlay.appendChild(h);
+
+  h.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const scaler0 = document.getElementById('canvas-scaler');
+    const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const startSize = parseInt(block.dataset.size) || 240;
+
+    function onMove(ev) {
+      const scaler = document.getElementById('canvas-scaler');
+      const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+      const dx = (ev.clientX - startX) / scale;
+      const dy = (ev.clientY - startY) / scale;
+      const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
+      const newSize = Math.min(860, Math.max(40, Math.round(startSize + delta)));
+      const circle = block.querySelector('.icb-circle');
+      if (circle) { circle.style.width = newSize + 'px'; circle.style.height = newSize + 'px'; }
+      block.dataset.size = newSize;
+      // prop panel sync
+      const sl = document.getElementById('icb-size-slider');
+      const nb = document.getElementById('icb-size-number');
+      if (sl) sl.value = newSize;
+      if (nb) nb.value = newSize;
+      window.scheduleAutoSave?.();
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      window.pushHistory?.();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  function _updatePos() {
+    if (!_icbResizeBlock) return;
+    const circle = block.querySelector('.icb-circle');
+    if (!circle) return;
+    const rect = circle.getBoundingClientRect();
+    h.style.top  = (rect.bottom - 3.5) + 'px';
+    h.style.left = (rect.right  - 3.5) + 'px';
+  }
+  function _loop() {
+    if (!_icbResizeBlock) return;
+    if (!_icbResizeBlock.isConnected || !_icbResizeBlock.classList.contains('selected')) {
+      hideIconCircleResizeHandle(); return;
+    }
+    _updatePos();
+    _icbResizeRafId = requestAnimationFrame(_loop);
+  }
+  _updatePos();
+  _icbResizeRafId = requestAnimationFrame(_loop);
+}
+
+function hideIconCircleResizeHandle() {
+  if (_icbResizeRafId) { cancelAnimationFrame(_icbResizeRafId); _icbResizeRafId = null; }
+  _icbResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-icb-resize]').forEach(h => h.remove());
+}
+
+window.showIconCircleResizeHandle = showIconCircleResizeHandle;
+window.hideIconCircleResizeHandle = hideIconCircleResizeHandle;
+
+/* ═══════════════════════════════════
    CANVAS BLOCK RADIUS HANDLES (overlay)
 ═══════════════════════════════════ */
 let _canvasRadiusBlock = null;
@@ -793,6 +876,100 @@ function _onCanvasResizeHandleMouseDown(e, cb, dir) {
 
 window.showCanvasResizeHandles = showCanvasResizeHandles;
 window.hideCanvasResizeHandles = hideCanvasResizeHandles;
+
+// ── Vector Block overlay resize handles ──────────────────────────────────────
+let _vectorResizeBlock = null;
+let _vectorResizeRafId = null;
+
+function showVectorResizeHandles(vb) {
+  if (_vectorResizeBlock === vb) return;
+  hideVectorResizeHandles();
+  _vectorResizeBlock = vb;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+
+  const dirs = ['nw', 'ne', 'sw', 'se'];
+  dirs.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `vector-overlay-handle ${dir}`;
+    h.dataset.vectorResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onVectorResizeHandleMouseDown(e, vb, dir));
+  });
+  _updateVectorResizeHandlePositions();
+  _startVectorResizeRaf();
+}
+
+function hideVectorResizeHandles() {
+  if (_vectorResizeRafId) { cancelAnimationFrame(_vectorResizeRafId); _vectorResizeRafId = null; }
+  _vectorResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.vector-overlay-handle').forEach(h => h.remove());
+}
+
+function _updateVectorResizeHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_vectorResizeBlock) return;
+  const rect = _vectorResizeBlock.getBoundingClientRect();
+  const HALF = 3.5;
+  overlay.querySelectorAll('.vector-overlay-handle').forEach(h => {
+    const dir = h.dataset.vectorResizeDir;
+    const top  = dir.includes('n') ? rect.top    - HALF : rect.bottom - HALF;
+    const left = dir.includes('w') ? rect.left   - HALF : rect.right  - HALF;
+    h.style.top  = top  + 'px';
+    h.style.left = left + 'px';
+  });
+}
+
+function _startVectorResizeRaf() {
+  function loop() {
+    if (!_vectorResizeBlock) return;
+    if (!_vectorResizeBlock.isConnected || !_vectorResizeBlock.classList.contains('selected')) {
+      hideVectorResizeHandles();
+      return;
+    }
+    _updateVectorResizeHandlePositions();
+    _vectorResizeRafId = requestAnimationFrame(loop);
+  }
+  _vectorResizeRafId = requestAnimationFrame(loop);
+}
+
+function _onVectorResizeHandleMouseDown(e, vb, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const startW = parseInt(vb.dataset.w) || 120;
+  const startH = parseInt(vb.dataset.h) || 120;
+
+  function onMove(ev) {
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    let newW = startW, newH = startH;
+    if (dir.includes('e')) newW = Math.max(20, startW + dx);
+    if (dir.includes('w')) newW = Math.max(20, startW - dx);
+    if (dir.includes('s')) newH = Math.max(20, startH + dy);
+    if (dir.includes('n')) newH = Math.max(20, startH - dy);
+    newW = Math.round(newW); newH = Math.round(newH);
+    vb.dataset.w = String(newW);
+    vb.dataset.h = String(newH);
+    window.renderVector(vb);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showVectorResizeHandles = showVectorResizeHandles;
+window.hideVectorResizeHandles = hideVectorResizeHandles;
 
 Object.defineProperty(window, 'dragSrc', {
   get() { return dragSrc; },
@@ -1733,6 +1910,7 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showIconCircleProperties(block);
+      showIconCircleResizeHandle(block);
     });
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
@@ -2029,6 +2207,7 @@ function bindBlock(block) {
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
       window.showVectorProperties(block);
+      showVectorResizeHandles(block);
     });
   }
 
