@@ -251,6 +251,37 @@ async function doFigmaUpload() {
 // contenteditable 줄바꿈 보존 — DOM 트리 직접 순회
 // <br> → \n, 블록요소(<div>/<p>)는 이전 형제가 있을 때만 앞에 \n 삽입
 
+/* ── Figma Bridge (WebSocket 서버 ON/OFF) ── */
+async function initFigmaBridge() {
+  if (!window.electronAPI?.figmaBridgeStatus) return;
+  const on = await window.electronAPI.figmaBridgeStatus();
+  const badge = document.getElementById('figma-bridge-badge');
+  if (badge) {
+    badge.textContent = on ? '● ON' : '● OFF';
+    badge.style.background = on ? '#1a3a1a' : '#333';
+    badge.style.color = on ? '#4ade80' : '#666';
+  }
+}
+
+async function toggleFigmaBridge(e) {
+  e.stopPropagation();
+  if (!window.electronAPI) return;
+  const on = await window.electronAPI.figmaBridgeStatus();
+  if (on) {
+    await window.electronAPI.figmaBridgeStop();
+  } else {
+    await window.electronAPI.figmaBridgeStart();
+  }
+  await initFigmaBridge();
+}
+
+// 드롭다운 열릴 때마다 상태 갱신
+const _origTogglePublishDropdown = togglePublishDropdown;
+togglePublishDropdown = function(e) {
+  _origTogglePublishDropdown(e);
+  initFigmaBridge();
+};
+
 window.togglePublishDropdown  = togglePublishDropdown;
 window.closePublishDropdown   = closePublishDropdown;
 window.doPublish              = doPublish;
@@ -260,3 +291,5 @@ window._syncFigmaSelectAll    = _syncFigmaSelectAll;
 window.toggleFigmaSelectAll   = toggleFigmaSelectAll;
 window.closeFigmaUploadModal  = closeFigmaUploadModal;
 window.doFigmaUpload          = doFigmaUpload;
+window.initFigmaBridge        = initFigmaBridge;
+window.toggleFigmaBridge      = toggleFigmaBridge;

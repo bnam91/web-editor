@@ -53,4 +53,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveIntakeFile:  (data)     => ipcRenderer.invoke('intake:save', data),
   loadIntakeFile:  (filename) => ipcRenderer.invoke('intake:load', filename),
   listIntakeFiles: ()         => ipcRenderer.invoke('intake:list'),
+
+  // Figma Bridge (WebSocket 서버 ON/OFF)
+  figmaBridgeStatus: () => ipcRenderer.invoke('figma-bridge-status'),
+  figmaBridgeStart:  () => ipcRenderer.invoke('figma-bridge-start'),
+  figmaBridgeStop:   () => ipcRenderer.invoke('figma-bridge-stop'),
 });

@@ -349,6 +349,39 @@ ipcMain.handle('figma:cancel-upload', () => {
   return false;
 });
 
+/* ── IPC: Figma Bridge (socket.js WebSocket 서버) ── */
+const net = require('net');
+let figmaBridgeProc = null;
+
+async function checkPort3055() {
+  return new Promise(resolve => {
+    const s = net.createServer();
+    s.once('error', () => resolve(true));   // 포트 사용 중 = 서버 켜짐
+    s.once('listening', () => { s.close(); resolve(false); });
+    s.listen(3055, '127.0.0.1');
+  });
+}
+
+ipcMain.handle('figma-bridge-status', async () => checkPort3055());
+
+ipcMain.handle('figma-bridge-start', async () => {
+  if (figmaBridgeProc) return { ok: true, msg: '이미 실행 중' };
+  const bunPath = os.homedir() + '/.bun/bin/bun';
+  figmaBridgeProc = spawn(bunPath, ['figma-plugin/socket.js'], {
+    cwd: path.join(__dirname),
+    detached: false,
+    stdio: 'ignore'
+  });
+  figmaBridgeProc.on('exit', () => { figmaBridgeProc = null; });
+  await new Promise(r => setTimeout(r, 1500));
+  return { ok: true };
+});
+
+ipcMain.handle('figma-bridge-stop', async () => {
+  if (figmaBridgeProc) { figmaBridgeProc.kill(); figmaBridgeProc = null; }
+  return { ok: true };
+});
+
 /* ── IPC: Node Map (섹션 ↔ Figma 노드 ID 매핑) ── */
 const NODE_MAP_PATH = path.join(__dirname, 'figma-renderer', 'node_map.json');
 
