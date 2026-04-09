@@ -991,6 +991,21 @@ window.applyPageSettings = applyPageSettings;
 window.rebindAll = rebindAll;
 window.scheduleAutoSave = scheduleAutoSave;
 window.triggerAutoSave = scheduleAutoSave; // alias used by drag-drop.js, prop-layout.js
+
+// 즉시 저장 (디바운스 없이 flush) — commit-system.js 저장하기 버튼 전용
+window.flushSave = async function() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+  const snap = serializeProject();
+  try {
+    const snapData = JSON.parse(snap);
+    if (_isAllCanvasEmpty(snapData)) return;
+  } catch {}
+  localStorage.setItem(getSaveKey(), snap);
+  localStorage.setItem(getSaveTsKey(), String(Date.now()));
+  await saveProjectToFile(snap, { skipThumbnail: false });
+  _setAutosaveIndicator('saved');
+};
 window.initApp = initApp;
 
 // branch-system.js, commit-system.js 등 다른 모듈에서 참조하는 변수들 노출

@@ -262,9 +262,9 @@ async function restoreCommit(id) {
 }
 
 async function saveProjectFile() {
-  // Electron: 자동저장을 즉시 플러시 — 네이티브 다이얼로그 불필요
+  // Electron: 즉시 flush 저장 — 디바운스 없이 바로 파일에 기록
   if (window.IS_ELECTRON && window.activeProjectId) {
-    await window.triggerAutoSave?.();
+    await window.flushSave?.();
     window.showToast?.('✅ 저장됨');
     return;
   }

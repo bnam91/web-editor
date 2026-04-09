@@ -1040,7 +1040,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .mockup-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .mockup-block, .icon-block').forEach(b => b.classList.remove('selected'));
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
