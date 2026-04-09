@@ -293,6 +293,19 @@ async function saveProjectFile() {
   window.showToast?.('✅ 저장됨 — ' + name);
 }
 
+async function exportProjectJSON() {
+  const base = JSON.parse(window.serializeProject());
+  if (window.IS_ELECTRON && window.activeProjectId) {
+    const proj = await window.electronAPI.loadProject(window.activeProjectId);
+    if (proj?.commits?.length)  base.commits       = proj.commits;
+    if (proj?.branches)         base.branches       = proj.branches;
+    if (proj?.currentBranch)    base.currentBranch  = proj.currentBranch;
+  }
+  const name = window.getProjectName?.() || `web-editor-${new Date().toISOString().slice(0,10)}`;
+  _downloadJSON(JSON.stringify(base, null, 2), name);
+  window.showToast?.('✅ JSON 내보내기 완료 — ' + name + '.json');
+}
+
 async function saveProjectAs() {
   const base = JSON.parse(window.serializeProject());
 
@@ -349,5 +362,6 @@ window.filterCommitHistory  = filterCommitHistory;
 window.doCommit             = doCommit;
 window.restoreCommit        = restoreCommit;
 window.saveProjectFile      = saveProjectFile;
+window.exportProjectJSON    = exportProjectJSON;
 window.saveProjectAs        = saveProjectAs;
 window.loadProjectFile      = loadProjectFile;
