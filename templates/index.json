@@ -1,24 +1,25 @@
 [
   {
-    "id": "tpl_1774611180296",
-    "name": "F4-Test-Template",
-    "folder": "와이어프레임",
-    "category": "Hero",
-    "tags": [
-      "test-tag",
-      "검수태그"
-    ],
-    "createdAt": "2026-03-27T11:33:00.297Z",
-    "thumbnail": null
+    "id": "btpl_1775714835688_phbh",
+    "name": "1",
+    "folder": "블록",
+    "category": "graph",
+    "tags": [],
+    "createdAt": "2026-04-09T06:07:15.689Z",
+    "thumbnail": null,
+    "type": "block",
+    "blockType": "graph"
   },
   {
-    "id": "tpl_1774209242726",
-    "name": "아이콘/소제목/본문/이미지",
-    "folder": "와이어프레임",
-    "category": "Main",
+    "id": "btpl_1775714784779_1gbc",
+    "name": "arrow",
+    "folder": "블록",
+    "category": "vector",
     "tags": [],
-    "createdAt": "2026-03-22T19:54:02.732Z",
-    "thumbnail": null
+    "createdAt": "2026-04-09T06:06:24.780Z",
+    "thumbnail": null,
+    "type": "block",
+    "blockType": "vector"
   },
   {
     "id": "tpl_1742688001001",
