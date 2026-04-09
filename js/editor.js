@@ -717,12 +717,20 @@ document.addEventListener('keydown', e => {
       if (!tb) return;
       e.preventDefault();
       const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
+      const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.' };
       const [cls, dtype] = typeMap[e.code];
       const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
       if (!contentEl) return;
       window.pushHistory?.();
       contentEl.className = cls;
       tb.dataset.type = dtype;
+      // TODO-QA: 타입 변환 시 data-placeholder 텍스트도 새 타입에 맞게 갱신
+      if (contentEl.dataset.isPlaceholder === 'true' && phMap[cls]) {
+        contentEl.dataset.placeholder = phMap[cls];
+        contentEl.innerHTML = phMap[cls];
+      } else if (phMap[cls]) {
+        contentEl.dataset.placeholder = phMap[cls];
+      }
       window.showTextProperties?.(tb);
       return;
     }
@@ -807,7 +815,16 @@ document.addEventListener('keydown', e => {
     // 다중 선택 삭제: section 다중
     if (multiSel.sections.size > 1) {
       e.preventDefault();
-      multiSel.sections.forEach(s => s.remove());
+      const allSecs = canvasEl.querySelectorAll('.section-block');
+      const toDelete = [...multiSel.sections];
+      // 전체 삭제 방지: 최소 1개 남겨야 함
+      if (allSecs.length <= toDelete.length) {
+        console.warn('[Delete] 모든 섹션을 삭제할 수 없습니다. 최소 1개 유지.');
+        clearMultiSel();
+        return;
+      }
+      ensureHistoryCheckpoint('섹션 다중 삭제 전');
+      toDelete.forEach(s => s.remove());
       clearMultiSel();
       deselectAll();
       window.buildLayerPanel();
@@ -902,13 +919,27 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         if (selSection.dataset.variationGroup) {
           const gid = selSection.dataset.variationGroup;
-          document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`).forEach(s => s.remove());
+          const grouped = [...document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`)];
+          const allSecs = canvasEl.querySelectorAll('.section-block');
+          if (allSecs.length <= grouped.length) {
+            console.warn('[Delete] 마지막 섹션 그룹은 삭제할 수 없습니다.');
+          } else {
+            grouped.forEach(s => s.remove());
+            deselectAll();
+            window.buildLayerPanel();
+            pushHistory('섹션 삭제');
+          }
         } else {
-          selSection.remove();
+          const allSecs = canvasEl.querySelectorAll('.section-block');
+          if (allSecs.length <= 1) {
+            console.warn('[Delete] 마지막 섹션은 삭제할 수 없습니다.');
+          } else {
+            selSection.remove();
+            deselectAll();
+            window.buildLayerPanel();
+            pushHistory('섹션 삭제');
+          }
         }
-        deselectAll();
-        window.buildLayerPanel();
-        pushHistory('섹션 삭제');
       }
     }
   }
@@ -941,26 +972,29 @@ function rgbToHex(rgb) {
 
 /* ── Design Presets ── */
 // Electron에서는 preload를 통해 JSON 파일 로드, 브라우저 fallback은 하드코딩
+// FIX-PR-01: PRESET_FALLBACK을 presets/*.json 내용과 동기화 (폰트·dots 불일치 수정)
+// Electron은 readPresets() 성공 시 덮어쓰므로 fallback은 브라우저/race condition 시만 사용됨
 const PRESET_FALLBACK = [
   {
     id: 'default', name: 'Default',
     dots: ['#111111', '#555555', '#111111'],
     variables: {
-      '--preset-h1-color': '#111111', '--preset-h1-family': "'Noto Sans KR', sans-serif",
-      '--preset-h2-color': '#1a1a1a', '--preset-h2-family': "'Noto Sans KR', sans-serif",
-      '--preset-body-color': '#555555', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-h1-color': '#111111', '--preset-h1-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-h2-color': '#1a1a1a', '--preset-h2-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-h3-color': '#333333', '--preset-h3-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-body-color': '#555555', '--preset-body-family': "'Pretendard', 'Noto Sans KR', sans-serif",
       '--preset-caption-color': '#999999',
       '--preset-label-bg': '#111111', '--preset-label-color': '#ffffff', '--preset-label-radius': '8px',
     },
   },
   {
     id: 'dark', name: 'Dark',
-    dots: ['#1a1a1a', '#ffffff', '#2d6fe8'],
-    backgroundColor: '#1a1a1a',
+    dots: ['#ffffff', '#aaaaaa', '#2d6fe8'], // FIX-PR-01: dots를 dark.json과 동기화
     variables: {
-      '--preset-h1-color': '#ffffff', '--preset-h1-family': "'Noto Sans KR', sans-serif",
-      '--preset-h2-color': '#eeeeee', '--preset-h2-family': "'Noto Sans KR', sans-serif",
-      '--preset-body-color': '#aaaaaa', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-h1-color': '#ffffff', '--preset-h1-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-h2-color': '#eeeeee', '--preset-h2-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-h3-color': '#cccccc', '--preset-h3-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-body-color': '#aaaaaa', '--preset-body-family': "'Pretendard', 'Noto Sans KR', sans-serif",
       '--preset-caption-color': '#666666',
       '--preset-label-bg': '#2d6fe8', '--preset-label-color': '#ffffff', '--preset-label-radius': '8px',
     },
@@ -971,7 +1005,8 @@ const PRESET_FALLBACK = [
     variables: {
       '--preset-h1-color': '#1a3a6b', '--preset-h1-family': "'Noto Serif KR', serif",
       '--preset-h2-color': '#2d4a7a', '--preset-h2-family': "'Noto Serif KR', serif",
-      '--preset-body-color': '#444444', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-h3-color': '#3d5a8a', '--preset-h3-family': "'Noto Serif KR', serif",
+      '--preset-body-color': '#444444', '--preset-body-family': "'Pretendard', 'Noto Sans KR', sans-serif",
       '--preset-caption-color': '#888888',
       '--preset-label-bg': '#2d6fe8', '--preset-label-color': '#ffffff', '--preset-label-radius': '8px',
     },
@@ -982,7 +1017,8 @@ const PRESET_FALLBACK = [
     variables: {
       '--preset-h1-color': '#000000', '--preset-h1-family': "'Space Grotesk', sans-serif",
       '--preset-h2-color': '#222222', '--preset-h2-family': "'Space Grotesk', sans-serif",
-      '--preset-body-color': '#666666', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-h3-color': '#444444', '--preset-h3-family': "'Space Grotesk', sans-serif",
+      '--preset-body-color': '#666666', '--preset-body-family': "'Pretendard', 'Noto Sans KR', sans-serif",
       '--preset-caption-color': '#aaaaaa',
       '--preset-label-bg': '#000000', '--preset-label-color': '#ffffff', '--preset-label-radius': '0px',
     },
@@ -1003,6 +1039,11 @@ if (window.electronAPI) {
 }
 
 // Electron 환경이면 JSON 파일에서 프리셋 로드
+// TODO-QA: race condition — readPresets()가 async IPC이므로 showSectionProperties()가 먼저 호출되면
+// PRESET_FALLBACK(하드코딩, 폰트가 'Noto Sans KR')이 섹션 프리셋 드롭다운에 표시됨.
+// presets/*.json의 default는 'Pretendard' 포함 — 첫 렌더 직후 선택 패널 열면 폰트 불일치.
+// 해결: showSectionProperties 내에서 window.electronAPI.readPresets() await 후 UI 렌더 또는
+//       DOMContentLoaded 이전에 preload로 동기 주입 고려.
 if (window.electronAPI) {
   window.electronAPI.readPresets().then(loaded => {
     if (loaded && loaded.length) {
@@ -1269,6 +1310,12 @@ function deleteSection(secIdOrEl) {
     : secIdOrEl;
   if (!sec || !sec.classList.contains('section-block')) {
     console.warn('[deleteSection] 유효한 섹션을 찾을 수 없음:', secIdOrEl);
+    return false;
+  }
+  // 마지막 섹션 삭제 방지
+  const allSecs = canvasEl.querySelectorAll('.section-block');
+  if (allSecs.length <= 1) {
+    console.warn('[deleteSection] 마지막 섹션은 삭제할 수 없습니다.');
     return false;
   }
   pushHistory('섹션 삭제 전');

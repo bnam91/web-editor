@@ -43,6 +43,7 @@ layerPanelBody.addEventListener('dragleave', e => {
 layerPanelBody.addEventListener('drop', e => {
   if (!layerSectionDragSrc) return;
   e.preventDefault();
+  window.pushHistory(); // FIX-SD-03: 레이어 패널 섹션 드롭에서 undo 지원
   const { sec } = layerSectionDragSrc;
   const indicator = layerPanelBody.querySelector('.layer-section-drop-indicator');
   if (indicator) {
@@ -56,6 +57,7 @@ layerPanelBody.addEventListener('drop', e => {
   window.clearLayerSectionIndicators();
   window.buildLayerPanel();
   layerSectionDragSrc = null;
+  window.scheduleAutoSave?.(); // FIX-SD-03: 레이어 패널 드롭 후 저장 보장
 });
 
 /* ── Figma 업로드 ── */

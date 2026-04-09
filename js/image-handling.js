@@ -349,6 +349,8 @@ function loadImageToAsset(ab, file) {
   if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
   exitImageEditMode(ab);
   pushHistory();
+  // TODO-QA: 대용량 이미지(5~10MB) FileReader 로딩 중 블록에 로딩 스피너 없음
+  // ab.classList.add('loading') 후 reader.onload 완료 시 remove하는 방식 검토
   const reader = new FileReader();
   reader.onload = ev => {
     const src = ev.target.result;

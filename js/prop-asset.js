@@ -205,13 +205,14 @@ export function showAssetProperties(ab) {
     hSlider.value = v;
     hNumber.value = v;
   };
-  hSlider.addEventListener('input', () => { applyH(parseInt(hSlider.value)); window.pushHistory(); });
+  hSlider.addEventListener('input', () => { applyH(parseInt(hSlider.value)); });
+  hSlider.addEventListener('change', () => { window.pushHistory?.(); }); // wSlider 패턴 통일: change에서만 pushHistory
   hNumber.addEventListener('change', () => {
     const v = Math.min(1600, Math.max(200, parseInt(hNumber.value) || 780));
     applyH(v); window.pushHistory();
   });
 
-  document.querySelectorAll('.prop-preset-btn').forEach(btn => {
+  propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const h = parseInt(btn.dataset.h);
       ab.dataset.size       = '100';
@@ -236,9 +237,9 @@ export function showAssetProperties(ab) {
     if (a === 'left')   ab.style.alignSelf = 'flex-start';
     if (a === 'center') ab.style.alignSelf = 'center';
     if (a === 'right')  ab.style.alignSelf = 'flex-end';
-    document.querySelectorAll('#asset-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
+    propPanel.querySelectorAll('#asset-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
   };
-  document.querySelectorAll('#asset-align-group .prop-align-btn').forEach(btn => {
+  propPanel.querySelectorAll('#asset-align-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => { window.pushHistory?.(); applyAlign(btn.dataset.align); });
   });
 
@@ -301,10 +302,10 @@ export function showAssetProperties(ab) {
   });
 
   // 오버레이 위치
-  document.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(btn => {
+  propPanel.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       overlayEl.style.justifyContent = btn.dataset.pos;
-      document.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
+      propPanel.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
       window.pushHistory();
     });
   });

@@ -6,10 +6,11 @@ export function showTableProperties(block) {
   const tbody    = table.querySelector('tbody');
   const colCount = table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
   const rowCount = tbody?.querySelectorAll('tr').length || 0;
-  const curStyle = block.dataset.style || 'default';
-  const curAlign = block.dataset.cellAlign || 'left';
-  const curPad   = parseInt(block.dataset.cellPad) || 10;
-  const curSize  = parseInt(table.style.fontSize) || 28;
+  const curStyle      = block.dataset.style || 'default';
+  const curAlign      = block.dataset.cellAlign || 'left';
+  const curPad        = parseInt(block.dataset.cellPad) || 10;
+  const curSize       = parseInt(table.style.fontSize) || 28;
+  const curShowHeader = block.dataset.showHeader !== 'false';
 
   const rebuildTable = () => {
     const cols = table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
@@ -76,6 +77,16 @@ export function showTableProperties(block) {
       </div>
     </div>
     <div class="prop-section">
+      <div class="prop-section-title">헤더</div>
+      <div class="prop-row">
+        <span class="prop-label">헤더 표시</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="tbl-show-header" ${curShowHeader ? 'checked' : ''}>
+          <span class="prop-toggle-label">${curShowHeader ? '표시' : '숨김'}</span>
+        </label>
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">스타일</div>
       <div class="prop-row">
         <span class="prop-label">테마</span>
@@ -109,6 +120,15 @@ export function showTableProperties(block) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
+
+  /* 헤더 표시/숨기기 */
+  document.getElementById('tbl-show-header').addEventListener('change', e => {
+    const show = e.target.checked;
+    block.dataset.showHeader = show ? 'true' : 'false';
+    if (thead) thead.style.display = show ? '' : 'none';
+    e.target.nextElementSibling.textContent = show ? '표시' : '숨김';
+    window.pushHistory();
+  });
 
   /* 행 추가/삭제 */
   document.getElementById('tbl-row-plus').addEventListener('click', () => {

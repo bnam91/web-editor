@@ -532,9 +532,11 @@ function rebindAll() {
     }
     bindSectionDelete(sec);
     bindSectionOrder(sec);
-    bindSectionDrag(sec);
     bindSectionDropZone(sec);
+    // bindSectionHitzone은 hz.cloneNode(true)로 label을 교체하므로
+    // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
     if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
+    bindSectionDrag(sec);
     // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');
     if (toolbar) {
@@ -605,13 +607,14 @@ function rebindAll() {
     if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .icon-block, .mockup-block, .step-block, .vector-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .icon-block, .mockup-block, .step-block, .vector-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
         : b.classList.contains('gap-block') ? 'gb'
         : b.classList.contains('icon-circle-block') ? 'icb'
         : b.classList.contains('label-group-block') ? 'lg'
+        : b.classList.contains('card-block') ? 'cdb'
         : b.classList.contains('canvas-block') ? 'cvb'
         : b.classList.contains('graph-block') ? 'grb'
         : b.classList.contains('icon-text-block') ? 'itb'
@@ -624,6 +627,31 @@ function rebindAll() {
     }
     window.bindBlock(b);
   });
+  // card-block 스타일 복원 (bgColor, radius, textAlign은 dataset에 저장되나 inline style은 재적용 필요)
+  canvasEl.querySelectorAll('.card-block').forEach(cdb => {
+    const bg = cdb.dataset.bgColor;
+    const r  = parseInt(cdb.dataset.radius) || 12;
+    const align = cdb.dataset.textAlign;
+    const body = cdb.querySelector('.cdb-body');
+    if (body) {
+      if (bg) body.style.background = bg;
+      body.style.borderRadius = `0 0 ${r}px ${r}px`;
+    }
+    cdb.style.borderRadius = r + 'px';
+    if (align) {
+      const title = cdb.querySelector('.cdb-title');
+      const desc  = cdb.querySelector('.cdb-desc');
+      if (title) title.style.textAlign = align;
+      if (desc)  desc.style.textAlign  = align;
+    }
+    const titleSize = parseInt(cdb.dataset.titleSize);
+    const descSize  = parseInt(cdb.dataset.descSize);
+    const titleEl2 = cdb.querySelector('.cdb-title');
+    const descEl2  = cdb.querySelector('.cdb-desc');
+    if (titleEl2 && titleSize) titleEl2.style.fontSize = titleSize + 'px';
+    if (descEl2  && descSize)  descEl2.style.fontSize  = descSize  + 'px';
+  });
+
   // group-block 라벨 복원
   canvasEl.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {
@@ -675,6 +703,27 @@ function rebindAll() {
     }
   });
 
+  // table-block 로드 후 dataset 복원 (showHeader, cellAlign, fontSize, cellPad)
+  canvasEl.querySelectorAll('.table-block').forEach(block => {
+    const thead = block.querySelector('thead');
+    if (block.dataset.showHeader === 'false' && thead) {
+      thead.style.display = 'none';
+    }
+    const cellAlign = block.dataset.cellAlign;
+    if (cellAlign) {
+      block.querySelectorAll('th, td').forEach(cell => { cell.style.textAlign = cellAlign; });
+    }
+    const fontSize = parseInt(block.dataset.fontSize);
+    if (fontSize) {
+      const table = block.querySelector('.tb-table');
+      if (table) table.style.fontSize = fontSize + 'px';
+    }
+    const cellPad = parseInt(block.dataset.cellPad);
+    if (cellPad) {
+      block.querySelectorAll('th, td').forEach(cell => { cell.style.padding = cellPad + 'px 16px'; });
+    }
+  });
+
   // mockup-block 로드 후 화면 이미지 복원
   canvasEl.querySelectorAll('.mockup-block').forEach(block => {
     const imgSrc = block.dataset.imgSrc;
@@ -721,6 +770,8 @@ function _setAutosaveIndicator(state) {
 
 function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
+  // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
+  if (!activeProjectId) { console.warn('[save-load] scheduleAutoSave: activeProjectId 없음, 저장 건너뜀'); return; }
   clearTimeout(autoSaveTimer);
   _setAutosaveIndicator('saving');
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
@@ -744,6 +795,8 @@ function scheduleAutoSave() {
 
 // 새로고침/탭 닫기 시 항상 localStorage에 flush (autoSaveTimer 여부 무관)
 window.addEventListener('beforeunload', () => {
+  // BUG-12: activeProjectId 없으면 undefined 키 오염 방지
+  if (!activeProjectId) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
@@ -955,6 +1008,10 @@ function initApp() {
     clearSectionIndicators();
     window.buildLayerPanel();
     sectionDragSrc = null;
+    // FIX-SD-02: drop 시점에 _suppressAutoSave=true (dragend 아직 미발화)
+    // MutationObserver가 scheduleAutoSave를 억제하므로 drop 직후 명시적으로 저장 트리거
+    state._suppressAutoSave = false;
+    scheduleAutoSave();
   });
 }
 

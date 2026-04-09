@@ -2,6 +2,13 @@
    INSPECTOR PANEL
 ═══════════════════════════════════ */
 
+// TODO-QA: Inspector는 탭 전환 시에만 renderInspectorPanel() 호출 (editor.js switchToTab)
+// 블록 추가/삭제/편집 시 실시간 갱신 안 됨. buildLayerPanel 호출 시 함께 갱신하거나
+// MutationObserver로 canvas 변경 감지 후 debounce 갱신 고려.
+
+// TODO-QA: step-block, mockup-block, vector-block, canvas-block, joker-block, shape-block은
+// 카운트에서 누락됨. 전체 블록 수(totalBlocks)가 실제보다 적게 표시될 수 있음.
+
 function renderInspectorPanel() {
   const panel = document.getElementById('inspector-stats-body');
   if (!panel) return;

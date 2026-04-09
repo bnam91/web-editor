@@ -251,6 +251,7 @@ function showSectionProperties(sec) {
   const swatch = picker.closest('.prop-color-swatch');
   picker.addEventListener('input', () => {
     sec.style.background = picker.value;
+    sec.dataset.bg = picker.value;
     hex.value = picker.value;
     swatch.style.background = picker.value;
   });
@@ -258,6 +259,7 @@ function showSectionProperties(sec) {
   hex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(hex.value)) {
       sec.style.background = hex.value;
+      sec.dataset.bg = hex.value;
       picker.value = hex.value;
       swatch.style.background = hex.value;
     }

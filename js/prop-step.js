@@ -293,6 +293,7 @@ export function showStepProperties(block) {
     const styleRow = propPanel.querySelector('#stb-connector-style-row');
     if (styleRow) styleRow.style.display = e.target.checked ? 'flex' : 'none';
     rerender();
+    window.pushHistory?.();
   });
 
   // ── 연결선 스타일 ──

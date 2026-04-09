@@ -50,6 +50,7 @@ async function initBranchStore() {
         // (race condition: 두 함수가 동시에 실행되어 initLoad 결과를 덮어쓰는 버그 방지)
         updateBranchIndicator(store.current);
         applyFocusMode(store.current);
+        applyMainLock(store.current); // Electron 경로에서도 main 잠금 배너 적용
         renderBranchPanel();
         return store;
       }

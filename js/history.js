@@ -14,8 +14,12 @@ function pushHistory(action = '작업') {
   if (_historyPaused) return;
   historyStack = historyStack.slice(0, historyPos + 1);
   historyStack.push({ canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId });
-  if (historyStack.length > MAX_HISTORY) historyStack.shift();
-  else historyPos++;
+  if (historyStack.length > MAX_HISTORY) {
+    historyStack.shift(); // 가장 오래된 항목 제거
+    historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
+  } else {
+    historyPos++;
+  }
   _updateUndoRedoBtns();
 }
 
@@ -89,8 +93,12 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
   if (historyStack[historyPos]?.canvas !== current) {
     historyStack = historyStack.slice(0, historyPos + 1);
     historyStack.push({ canvas: current, settings: { ...state.pageSettings }, action, pageId: state.currentPageId });
-    if (historyStack.length > MAX_HISTORY) historyStack.shift();
-    else historyPos++;
+    if (historyStack.length > MAX_HISTORY) {
+      historyStack.shift(); // 가장 오래된 항목 제거
+      historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
+    } else {
+      historyPos++;
+    }
     _updateUndoRedoBtns();
   }
 }

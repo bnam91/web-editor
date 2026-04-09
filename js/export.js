@@ -253,6 +253,9 @@ function exportDesignJSON() {
             rows: groupRows,
           });
         }
+        // TODO-QA: frame-block(sub-section) 직렬화 미구현 — section-inner 직속 frame-block은
+        // 현재 silently 무시됨. buildFigmaExportJSON은 지원하나 exportDesignJSON은 누락.
+        // frame-block 내 row/text-block을 재귀 serializeRow로 직렬화 후 type:'frame' 블록으로 push 필요.
       });
     }
 
@@ -590,6 +593,7 @@ layerPanelBody.addEventListener('dragleave', e => {
 layerPanelBody.addEventListener('drop', e => {
   if (!layerSectionDragSrc) return;
   e.preventDefault();
+  window.pushHistory(); // FIX-SD-03: 레이어 패널 섹션 드롭에서 undo 지원
   const { sec } = layerSectionDragSrc;
   const indicator = layerPanelBody.querySelector('.layer-section-drop-indicator');
   if (indicator) {
@@ -603,6 +607,7 @@ layerPanelBody.addEventListener('drop', e => {
   window.clearLayerSectionIndicators();
   window.buildLayerPanel();
   layerSectionDragSrc = null;
+  window.scheduleAutoSave?.(); // FIX-SD-03: 레이어 패널 드롭 후 저장 보장
 });
 
 /* ── Figma 업로드 ── */

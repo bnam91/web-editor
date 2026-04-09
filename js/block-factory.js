@@ -264,6 +264,8 @@ function applyTextOpts(block, frame, opts, type) {
   if (opts.content && contentEl) {
     contentEl.style.whiteSpace = 'pre-wrap';
     contentEl.textContent = opts.content;
+    // content가 실제 텍스트이므로 placeholder 상태 해제
+    delete contentEl.dataset.isPlaceholder;
   }
   if (opts.align) {
     if (type === 'label') block.style.textAlign = opts.align;
@@ -294,7 +296,12 @@ function addTextBlock(type, opts = {}) {
     }
     if (opts.content) {
       const contentEl = block.querySelector('[class^="tb-"]');
-      if (contentEl) contentEl.textContent = opts.content;
+      if (contentEl) {
+        contentEl.style.whiteSpace = 'pre-wrap';
+        contentEl.textContent = opts.content;
+        // content가 실제 텍스트이므로 placeholder 상태 해제
+        delete contentEl.dataset.isPlaceholder;
+      }
     }
     if (opts.color) {
       const contentEl = block.querySelector('[class^="tb-"]');
@@ -836,7 +843,7 @@ function addSection(opts = {}) {
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
         <div class="frame-block" data-text-frame="true" id="${_tfId}">
           <div class="text-block" data-type="heading" id="${_tbId}">
-            <div class="tb-h2" contenteditable="false">새 섹션 제목</div>
+            <div class="tb-h2" contenteditable="false" data-placeholder="소제목을 입력하세요" style="font-family:'Pretendard', sans-serif">새 섹션 제목</div>
           </div>
         </div>
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
@@ -893,8 +900,10 @@ function addSection(opts = {}) {
   window.bindSectionDelete(sec);
   window.bindSectionOrder(sec);
   bindSectionDropZone(sec);
-  bindSectionDrag(sec);
+  // bindSectionHitzone은 hz.cloneNode(true)로 label을 교체하므로
+  // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
+  bindSectionDrag(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .vector-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
@@ -2077,7 +2086,7 @@ function renderStepBlock(block) {
   const numColor   = block.dataset.numColor   || '#ffffff';
   const numSize    = parseInt(block.dataset.numSize)    || 36;
   const titleSz    = parseInt(block.dataset.titleSize)  || 36;
-  const descSz     = parseInt(block.dataset.descSize)   || 14;
+  const descSz     = parseInt(block.dataset.descSize)   || 24;
   const gap        = parseInt(block.dataset.gap)        || 24;
   const connector  = block.dataset.connector !== 'false';
   const titleColor = block.dataset.titleColor || '#222222';
@@ -2306,6 +2315,10 @@ function makeStepBlock(opts = {}) {
   block.dataset.connector  = opts.connector  !== undefined ? String(opts.connector) : 'true';
   block.dataset.titleColor  = opts.titleColor  || '#222222';
   block.dataset.descColor   = opts.descColor   || '#555555';
+  block.dataset.stepStyle      = opts.stepStyle      || 'default';
+  block.dataset.stepOrient     = opts.stepOrient     || 'vertical';
+  block.dataset.stepAlign      = opts.stepAlign      || 'left';
+  block.dataset.stepCardBg     = opts.stepCardBg     || '#f5f5f5';
   block.dataset.stepPadX       = opts.stepPadX       || 0;
   block.dataset.badgeFormat    = opts.badgeFormat    || 'number';
   block.dataset.badgeGap       = opts.badgeGap       || 16;

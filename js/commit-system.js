@@ -5,6 +5,7 @@
 
 const LAST_COMMIT_KEY = 'goya-last-commit';
 const SAVE_KEY = 'web-editor-autosave';
+const MAX_COMMITS = 20; // 커밋 보존 최대 개수 — 초과 시 오래된 것부터 제거 (파일 비대화 방지)
 
 // 커밋 모달 전용 — snapshot을 DOM에 넣지 않고 메모리에서 관리
 let _cmCommits = [];
@@ -145,7 +146,7 @@ async function openCommitModal() {
       </div>
       <div class="cm-body">
         <div class="cm-input-wrap">
-          <textarea id="cm-msg-input" placeholder="변경사항을 설명해주세요..." rows="2"></textarea>
+          <textarea id="cm-msg-input" placeholder="변경사항을 설명해주세요..." rows="2" maxlength="200"></textarea>
           <div class="cm-input-footer">
             <span class="cm-branch-badge" style="color:${branchColor(branch).text}">⎇ ${branch}</span>
             <button id="cm-commit-btn" onclick="doCommit()" style="background:${branchColor(branch).dot}">✔ Commit</button>
@@ -228,7 +229,7 @@ async function doCommit() {
   if (window.IS_ELECTRON && window.activeProjectId) {
     const proj = await window.electronAPI.loadProject(window.activeProjectId);
     if (proj) {
-      proj.commits = [...(proj.commits || []), commit];
+      proj.commits = [...(proj.commits || []), commit].slice(-MAX_COMMITS); // 최대 20개 유지
       proj.updatedAt = new Date().toISOString();
       await window.electronAPI.saveProject(proj);
     }
@@ -250,7 +251,10 @@ async function restoreCommit(id) {
   if (!commit) { window.showToast('❌ 커밋을 찾을 수 없어요'); return; }
 
   document.getElementById('commit-modal-overlay')?.remove();
+  // autoSave 억제 — applyProjectData 직후 MutationObserver가 트리거되어 복원 내용을 덮어쓰는 버그 방지
+  if (window.state) window.state._suppressAutoSave = true;
   window.applyProjectData(commit.snapshot);
+  if (window.state) window.state._suppressAutoSave = false;
 
   // DBG-11: 커밋 복원 후 현재 브랜치 스토어에도 snapshot 동기화
   // (브랜치 전환 시 복원 전 상태로 덮어쓰여지는 버그 방지)

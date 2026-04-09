@@ -111,7 +111,6 @@ function showRowProperties(rowEl) {
         ${rowEl.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${rowEl.id}')">${rowEl.id}</span>` : ''}
       </div>
     </div>
-    ${childBatchHTML}
     ${layout !== 'stack' ? `
     <div class="prop-section">
       <div class="prop-section-title">컬럼 비율</div>
@@ -252,6 +251,8 @@ function showRowProperties(rowEl) {
           col.style.flex = parts[i];
           col.dataset.flex = parts[i];
         });
+        // ratioStr 동기화 — 레이어 패널 표시 갱신
+        rowEl.dataset.ratioStr = parts.join('*');
       } else {
         // grid: gridTemplateColumns의 열 수로 검증 (col 엘리먼트 수 ≠ 그리드 열 수)
         const gtc = rowEl.style.gridTemplateColumns || '';
@@ -265,6 +266,8 @@ function showRowProperties(rowEl) {
         }
         if (parts.length !== gridColCount) return;
         rowEl.style.gridTemplateColumns = parts.map(p => p + 'fr').join(' ');
+        // ratioStr 동기화 — 레이어 패널 표시 갱신
+        rowEl.dataset.ratioStr = parts.join('*');
       }
       window.pushHistory();
     };
@@ -300,13 +303,22 @@ function applyRowLayoutDirect(rowEl, newLayout) {
     rowEl.dataset.layout = 'flex';
     rowEl.style.display = '';
     rowEl.style.gridTemplateColumns = '';
-    [...rowEl.querySelectorAll(':scope > .col')].forEach(col => {
+    const flexCols = [...rowEl.querySelectorAll(':scope > .col')];
+    // TODO-QA(S-02): stack→flex 전환 시 col이 1개인 경우 2번째 col이 추가되지 않음.
+    // makePresetRow('img2')는 col 2개를 미리 만들어 주지만,
+    // addRowBlock 계열 함수로 만든 stack row(col 1개)를 flex로 전환하면
+    // col이 1개인 채로 flex가 되어 2열 레이아웃이 실제로 구성되지 않음.
+    // 수정 방향: col이 1개면 동일한 빈 col을 1개 추가한 뒤 flex 적용.
+    // 단, 현재 호출처(UI)에서 이 함수는 이미 col이 2개 이상인 row에만 쓰이므로
+    // 즉시 수정보다 방어 코드(최소 2열 보장) 우선 검토 필요.
+    flexCols.forEach(col => {
       const v = col.dataset.flex || '1';
       col.style.flex = v;
       col.dataset.flex = v;
     });
-    const count = rowEl.querySelectorAll(':scope > .col').length;
-    rowEl.dataset.ratioStr = `${count}*1`;
+    // 기존 flex 비율 보존 — 균등값(1)이 아닌 경우 ratioStr 재계산
+    const flexParts = flexCols.map(c => parseInt(c.dataset.flex) || 1);
+    rowEl.dataset.ratioStr = flexParts.join('*');
 
   } else if (newLayout === 'grid') {
     rowEl.dataset.layout = 'grid';

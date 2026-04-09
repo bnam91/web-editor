@@ -74,6 +74,7 @@ export function buildLayerPanel() {
         sectionEl.classList.add('layer-section-hidden');
         sectionEl.classList.add('collapsed');
       }
+      window.scheduleAutoSave?.(); // FIX-LP-03: 섹션 숨김 상태 변경 후 저장 보장
     });
 
     header.addEventListener('click', (e) => {
@@ -133,6 +134,7 @@ export function buildLayerPanel() {
         nameEl.textContent = newName;
         if (!_cancelled && newName !== prevName) {
           sec._name = newName;
+          sec.dataset.name = newName; // FIX-LP-01: autoSave가 innerHTML 직렬화 → dataset.name으로 복원되므로 동기 필수
           const label = sec.querySelector('.section-label');
           if (label) label.textContent = newName;
           // 우측 프로퍼티 패널 즉각 반영
@@ -141,6 +143,7 @@ export function buildLayerPanel() {
           const propBreadcrumb = document.querySelector('.prop-breadcrumb');
           if (propBreadcrumb && sec.classList.contains('selected')) propBreadcrumb.textContent = newName;
           window.pushHistory?.('섹션명 변경');
+          window.scheduleAutoSave?.(); // FIX-LP-01: 이름 변경 후 저장 보장
         } else {
           sec._name = prevName;
           nameEl.textContent = prevName;
@@ -324,6 +327,7 @@ export function buildLayerPanel() {
       insertIntoSec(dragTarget);
       clearLayerIndicators();
       buildLayerPanel();
+      window.pushHistory?.('블록 순서 변경'); // FIX-LP-02: normal drop 시 undo 지원
       window.layerDragSrc = null;
       window.layerMultiDragTargets = null;
     });

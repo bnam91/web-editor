@@ -993,6 +993,8 @@ Object.defineProperty(window, 'layerSectionDragSrc', {
 });
 
 function getDragAfterElement(container, y) {
+  // y = dragover event.clientY (화면 좌표)
+  // getBoundingClientRect도 화면 좌표 반환 → scale 보정 불필요, 두 값 단위 일치
   const children = [...container.children].filter(el =>
     !el.classList.contains('drop-indicator') && el !== dragSrc
   );
@@ -1131,6 +1133,8 @@ function bindGroupDrag(groupEl) {
     groupEl.classList.remove('dragging');
     clearDropIndicators();
     dragSrc = null;
+    // fix(qa-s02): group drag 종료 후 row-active 잔류 방지
+    document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
   });
 }
 
@@ -1158,10 +1162,16 @@ function bindSectionDrag(sec) {
     sec.classList.remove('section-dragging');
     clearSectionIndicators();
     sectionDragSrc = null;
+    // fix(qa-s02): 섹션 드래그 후 row-active 잔류 방지
+    document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
   });
 }
 
 function bindSectionDropZone(sec) {
+  // TODO-QA(S-02): 빈 row(블록 없음, col 없음)는 bindBlock이 호출되지 않아
+  // draggable 속성이 설정되지 않음 → dragstart 이벤트 미발생 → 드래그 불가.
+  // 빈 row를 다른 섹션으로 이동하려면 row에 직접 draggable+dragstart 바인딩 필요.
+  // 현재는 실용적 빈도 낮으므로 미수정; 빈 row 생성 시 row.setAttribute('draggable','true') 추가 필요.
   const inner = sec.querySelector('.section-inner');
   // rAF throttle: getBoundingClientRect()를 dragover 매 이벤트마다 호출하지 않도록 (DBG-11)
   let _innerDragRafId = null;
@@ -1838,7 +1848,9 @@ function bindBlock(block) {
       e.stopPropagation();
       block.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) window.loadImageToAsset(block, file);
+      // TODO-QA: 비이미지 파일 드롭 시 사용자 피드백 없음 (무시됨). 토스트 안내 추가 검토
+      if (file && !file.type.startsWith('image/')) { window.showToast?.('이미지 파일만 업로드할 수 있습니다.'); return; }
+      if (file) window.loadImageToAsset(block, file);
     });
     // 로드/undo 후 has-image 상태 복원
     if (block.classList.contains('has-image')) {
@@ -1933,7 +1945,9 @@ function bindBlock(block) {
       e.preventDefault(); e.stopPropagation();
       block.classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) window.loadImageToCircle(block, file);
+      // TODO-QA: 비이미지 파일 드롭 시 사용자 피드백 없음 (무시됨). 토스트 안내 추가 검토
+      if (file && !file.type.startsWith('image/')) { window.showToast?.('이미지 파일만 업로드할 수 있습니다.'); return; }
+      if (file) window.loadImageToCircle(block, file);
     });
     // 로드/undo 후 has-image 복원
     if (block.classList.contains('has-image')) {
@@ -2390,6 +2404,11 @@ function bindBlock(block) {
 
   // 드래그 이벤트 (overlay-tb는 마우스 드래그 사용, HTML5 drag 제외)
   if (block.classList.contains('overlay-tb')) return;
+  // TODO-QA(S-02): dragTarget이 .row로 설정되므로 flex/grid row 내 col 간 블록 개별 이동이 불가능.
+  // section-inner.drop은 dragSrc(row 전체)를 이동시키며, .col에는 dragover/drop handler가 없음.
+  // col 간 이동을 지원하려면 각 .col에 별도 drop zone 바인딩이 필요하며 (bindColDropZone),
+  // dragSrc를 block 단위로 분리하고 drop 시 target col에 appendChild하는 로직이 요구됨.
+  // 현재는 row 단위 이동만 가능 (사용자에게 col 간 이동 불가 안내 필요 or 기능 추가 필요).
   const dragTarget = isGap ? block : (block.closest('.frame-block[data-text-frame]') || block.closest('.row') || block);
   if (dragTarget && !dragTarget._dragBound) {
     dragTarget._dragBound = true;
@@ -2426,6 +2445,9 @@ function bindBlock(block) {
       dragTarget.classList.remove('dragging');
       clearDropIndicators();
       dragSrc = null;
+      // fix(qa-s02): dragend 후 row-active 잔류 방지 — 드래그로 row가 이동하면
+      // 이전 위치의 row-active 상태가 남아 레이아웃 선택 표시가 오염됨
+      document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
     });
   }
 
@@ -2843,8 +2865,11 @@ window.bindBlock                   = bindBlock;
 window.bindFrameDropZone      = bindFrameDropZone;
 
 // 드래그 중단(ESC 등)으로 dragging 클래스가 고착되는 현상 방지
+// FIX-SD-04: ESC 취소 시 section-drop-indicator 정리 및 _suppressAutoSave 복원
 document.addEventListener('dragend', () => {
   document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
   clearDropIndicators();
+  clearSectionIndicators();      // ESC 취소 시 section-drop-indicator 잔류 방지
   clearLayerSectionIndicators();
+  _resumeDragSave();             // ESC 취소 시 _suppressAutoSave 고착 방지
 }, true);

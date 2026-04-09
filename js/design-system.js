@@ -69,6 +69,11 @@ const DesignSystem = (() => {
     // 활성 프리셋 ID를 별도 저장 → _currentBase() 가 즉시 읽을 수 있음
     localStorage.setItem(STORAGE_BASE_KEY, presetId);
     syncPanelUI(tokens);
+    // TODO-QA: applyBase()는 :root CSS 변수만 덮어씀.
+    // 개별 섹션에 dataset.preset이 있어 인라인 CSS 변수가 지정된 경우
+    // (prop-section.js applyPreset 적용) :root 변경이 섹션 레벨에 의해 가려짐.
+    // 의도적 동작이면 주석으로 명시 필요. 전체 리셋 원할 경우
+    // 모든 섹션의 인라인 preset 변수를 함께 제거해야 함.
   }
 
   // ── 패널 UI ─────────────────────────────────────────
