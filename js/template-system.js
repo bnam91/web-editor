@@ -118,18 +118,24 @@ async function insertTemplate(tpl) {
 
   // block 타입: 선택된 섹션의 col에 삽입
   if (tpl.type === 'block') {
-    const sec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
+    const sec = window.getSelectedSection?.() || document.querySelector('.section-block');
     if (!sec) { window.showToast?.('섹션을 먼저 선택하세요'); return; }
-
-    const targetCol = sec.querySelector('.col.col-active') || sec.querySelector('.col') || sec;
 
     const wrapper = document.createElement('div');
     wrapper.innerHTML = canvas;
     const blockEl = wrapper.firstElementChild;
     if (!blockEl) return;
 
-    targetCol.appendChild(blockEl);
+    // row로 감싸서 insertAfterSelected로 삽입 (섹션 패딩/레이아웃 정상 적용)
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.id = 'row_' + Math.random().toString(36).slice(2, 8);
+    row.dataset.layout = 'stack';
+    row.appendChild(blockEl);
+
+    window.insertAfterSelected?.(sec, row);
     window.bindBlock?.(blockEl);
+    window.buildLayerPanel?.();
     window.pushHistory?.();
     window.scheduleAutoSave?.();
     window.showToast?.('블록 템플릿 삽입됨');
