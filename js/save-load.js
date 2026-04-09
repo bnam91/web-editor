@@ -993,11 +993,9 @@ function initApp() {
           const allProjects = await window.electronAPI.listProjects();
           cleanStaleAutosaveKeys(allProjects.map(p => p.id));
         } catch (_) {}
-        // proj + meta 병렬 로드
-        const [proj, meta] = await Promise.all([
-          window.electronAPI.loadProject(activeProjectId),
-          window.electronAPI.loadProjectMeta(activeProjectId),
-        ]);
+        // proj + meta 병렬 로드 — meta 실패해도 proj는 사용해야 하므로 독립 처리
+        const proj = await window.electronAPI.loadProject(activeProjectId);
+        const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);
         if (proj) {
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
           if (!meta && (proj.branches || proj.commits)) {
@@ -1020,12 +1018,20 @@ function initApp() {
           window.renderTabBar();
           // DBG-REFRESH: 프로젝트별 키로 localStorage 조회 — 다른 프로젝트 데이터 오염 방지
           // localStorage가 파일보다 새로우면 우선 적용 (새로고침 데이터 손실 방지)
-          // lsTs + 500 > fileTs: 파일이 500ms 이상 명확히 더 새롭지 않으면 localStorage 우선
+          // 단, 파일 페이지 수가 더 많으면 파일 우선 (meta 오류 등으로 인한 1페이지 오염 방지)
           const lsTs = parseInt(localStorage.getItem(getSaveTsKey()) || '0');
           const fileTs = new Date(proj.updatedAt || 0).getTime();
+          const filePagesCount = proj.version === 2 ? (proj.pages?.length || 0) : (proj.snapshot?.pages?.length || 1);
           if (lsTs > 0 && lsTs + 500 > fileTs) {
             const lsSaved = localStorage.getItem(getSaveKey());
-            if (lsSaved) { try { applyAndFinish(JSON.parse(lsSaved)); return; } catch {} }
+            if (lsSaved) {
+              try {
+                const lsData = JSON.parse(lsSaved);
+                const lsPagesCount = lsData.pages?.length || 0;
+                // localStorage 페이지 수가 파일보다 적으면 파일이 더 완전한 데이터 → 파일 우선
+                if (lsPagesCount >= filePagesCount) { applyAndFinish(lsData); return; }
+              } catch {}
+            }
           }
           if (proj.version === 2 && proj.pages) { applyAndFinish(proj); return; }
           if (proj.snapshot) { try { applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot); } catch {} return; }
