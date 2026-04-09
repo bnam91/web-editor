@@ -711,8 +711,10 @@ export function showTextProperties(tb) {
   }
 
   /* 애니메이션 GIF 버튼 */
+  // BUG-FIX: 텍스트블록 선택마다 이 함수가 실행되므로 리스너 중복 방지
+  // onclick을 직접 교체하는 방식으로 단일 핸들러 보장
   const animBtn = document.getElementById('open-anim-btn');
-  if (animBtn) animBtn.addEventListener('click', () => window.openAnimModal(tb));
+  if (animBtn) animBtn.onclick = () => window.openAnimModal(tb);
 
   window.bindLayoutInput?.(tb);
 }
