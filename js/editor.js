@@ -1068,6 +1068,7 @@ function deselectAll() {
   window.hideAssetResizeHandles?.();
   window.hideCanvasRadiusHandles?.();
   window.hideCanvasResizeHandles?.();
+  window.hideVectorResizeHandles?.();
   canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
   window.showPageProperties();
 }

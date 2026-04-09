@@ -1406,8 +1406,8 @@
   padding: 8px 0;
 }
 .step-block.selected {
-  outline: 2px solid var(--sel-color, #1592fe);
-  outline-offset: 0;
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
 }
 .stb-item {
   display: flex;

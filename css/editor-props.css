@@ -291,6 +291,14 @@
   transition: background 0.15s, border-color 0.15s;
 }
 .prop-btn-full:hover { background: var(--ui-bg-card); border-color: var(--ui-text-dim); }
+.prop-btn-sm {
+  height: 24px; padding: 0 8px;
+  background: var(--ui-bg-app); border: 1px solid var(--ui-border-strong);
+  border-radius: 4px; color: #ccc;
+  font-size: 11px; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.prop-btn-sm:hover { background: var(--ui-bg-card); border-color: var(--ui-text-dim); }
 .prop-btn-danger { border-color: #6b2e2e; color: #e06060; }
 .prop-btn-danger:hover { background: #2a1818; border-color: #e06060; }
 /* deprecated: use .prop-btn-full */

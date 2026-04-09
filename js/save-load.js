@@ -605,7 +605,7 @@ function rebindAll() {
     if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .icon-block, .mockup-block, .step-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .icon-block, .mockup-block, .step-block, .vector-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -618,6 +618,7 @@ function rebindAll() {
         : b.classList.contains('icon-block') ? 'icn'
         : b.classList.contains('mockup-block') ? 'mkp'
         : b.classList.contains('step-block') ? 'stb'
+        : b.classList.contains('vector-block') ? 'vb'
         : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }

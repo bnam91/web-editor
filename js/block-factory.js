@@ -895,7 +895,7 @@ function addSection(opts = {}) {
   bindSectionDropZone(sec);
   bindSectionDrag(sec);
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .vector-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
@@ -1520,6 +1520,27 @@ window.addShapeBlock        = addShapeBlock;
 // ── Canvas Block ─────────────────────────────────────────────────────────────
 // Figma에서 임포트한 레이어 합성 블록 (shape + image + text 절대배치 단일 컴포넌트)
 
+function _appendCardTexts(container, card, titleSize, descSize, textAlign) {
+  if (card.title) {
+    const el = document.createElement('div');
+    el.style.cssText = `font-size:${titleSize}px;font-weight:600;color:#fff;text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
+    el.textContent = card.title;
+    container.appendChild(el);
+  }
+  if (card.desc) {
+    const el = document.createElement('div');
+    el.style.cssText = `font-size:${descSize}px;font-weight:400;color:rgba(255,255,255,0.75);text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
+    el.textContent = card.desc;
+    container.appendChild(el);
+  }
+  if (!card.title && !card.desc) {
+    const ph = document.createElement('div');
+    ph.style.cssText = 'color:#bbb;font-size:13px;font-family:sans-serif;text-align:center;';
+    ph.textContent = '텍스트를 입력하세요';
+    container.appendChild(ph);
+  }
+}
+
 function renderCanvas(block) {
   const layers   = JSON.parse(block.dataset.layers || '[]');
   const designW  = parseInt(block.dataset.canvasW) || 360;
@@ -1582,63 +1603,69 @@ function renderCanvas(block) {
     block._cvbRO = new ResizeObserver(applyScale);
     block._cvbRO.observe(block);
 
+    const orient = block.dataset.cardOrient || 'portrait'; // 'portrait' | 'landscape'
+
     for (let r = 0; r < gridRows; r++) {
       for (let c = 0; c < gridCols; c++) {
         const idx    = r * gridCols + c;
         const card   = cards[idx] || {};
         const cellX  = c * (designW + GAP);
         const cellY  = r * (designH + GAP);
-        const imgH   = Math.round(designH * imgRatio / 100);
-        const textH  = designH - imgH;
         const cardBg = card.cellBg || textBg;
 
         const cell = document.createElement('div');
         cell.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;border-radius:${radius}px;overflow:hidden;`;
 
-        // Image area
-        const imgDiv = document.createElement('div');
-        imgDiv.style.cssText = `width:100%;height:${imgH}px;overflow:hidden;box-sizing:border-box;flex-shrink:0;`;
-        if (card.imgSrc) {
-          imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
-          imgDiv.style.backgroundSize     = 'cover';
-          imgDiv.style.backgroundPosition = 'center';
-          imgDiv.style.backgroundRepeat   = 'no-repeat';
+        if (orient === 'landscape') {
+          // ── 가로 모드: 이미지 좌 / 텍스트 우 ────────────────────────────
+          const imgW  = Math.round(designW * imgRatio / 100);
+          const textW = designW - imgW;
+
+          const imgDiv = document.createElement('div');
+          imgDiv.style.cssText = `position:absolute;left:0;top:0;width:${imgW}px;height:${designH}px;overflow:hidden;flex-shrink:0;`;
+          if (card.imgSrc) {
+            imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
+            imgDiv.style.backgroundSize     = 'cover';
+            imgDiv.style.backgroundPosition = 'center';
+          } else {
+            imgDiv.style.background = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 48px 48px';
+            imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
+            const ph = document.createElement('span');
+            ph.style.cssText = 'color:#bbb;font-size:22px;font-family:sans-serif;pointer-events:none;';
+            ph.textContent = '+'; imgDiv.appendChild(ph);
+          }
+
+          const textDiv = document.createElement('div');
+          textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;gap:6px;`;
+          _appendCardTexts(textDiv, card, titleSize, descSize, textAlign);
+          cell.appendChild(imgDiv); cell.appendChild(textDiv);
+
         } else {
-          imgDiv.style.background = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 48px 48px';
-          imgDiv.style.display         = 'flex';
-          imgDiv.style.alignItems      = 'center';
-          imgDiv.style.justifyContent  = 'center';
-          const ph = document.createElement('span');
-          ph.style.cssText = 'color:#bbb;font-size:22px;font-family:sans-serif;pointer-events:none;';
-          ph.textContent = '+';
-          imgDiv.appendChild(ph);
+          // ── 세로 모드(기본): 이미지 상 / 텍스트 하 ──────────────────────
+          const imgH  = Math.round(designH * imgRatio / 100);
+          const textH = designH - imgH;
+
+          const imgDiv = document.createElement('div');
+          imgDiv.style.cssText = `width:100%;height:${imgH}px;overflow:hidden;box-sizing:border-box;flex-shrink:0;`;
+          if (card.imgSrc) {
+            imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
+            imgDiv.style.backgroundSize     = 'cover';
+            imgDiv.style.backgroundPosition = 'center';
+            imgDiv.style.backgroundRepeat   = 'no-repeat';
+          } else {
+            imgDiv.style.background = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 48px 48px';
+            imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
+            const ph = document.createElement('span');
+            ph.style.cssText = 'color:#bbb;font-size:22px;font-family:sans-serif;pointer-events:none;';
+            ph.textContent = '+'; imgDiv.appendChild(ph);
+          }
+
+          const textDiv = document.createElement('div');
+          textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
+          _appendCardTexts(textDiv, card, titleSize, descSize, textAlign);
+          cell.appendChild(imgDiv); cell.appendChild(textDiv);
         }
 
-        // Text area
-        const textDiv = document.createElement('div');
-        textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
-
-        if (card.title) {
-          const titleEl = document.createElement('div');
-          titleEl.style.cssText = `font-size:${titleSize}px;font-weight:600;color:#fff;text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
-          titleEl.textContent = card.title;
-          textDiv.appendChild(titleEl);
-        }
-        if (card.desc) {
-          const descEl = document.createElement('div');
-          descEl.style.cssText = `font-size:${descSize}px;font-weight:400;color:rgba(255,255,255,0.75);text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
-          descEl.textContent = card.desc;
-          textDiv.appendChild(descEl);
-        }
-        if (!card.title && !card.desc) {
-          const ph2 = document.createElement('div');
-          ph2.style.cssText = 'color:#bbb;font-size:13px;font-family:sans-serif;text-align:center;';
-          ph2.textContent = '텍스트를 입력하세요';
-          textDiv.appendChild(ph2);
-        }
-
-        cell.appendChild(imgDiv);
-        cell.appendChild(textDiv);
         inner.appendChild(cell);
       }
     }
@@ -1667,20 +1694,22 @@ function renderCanvas(block) {
   block.style.position     = 'relative';
   block.style.overflow     = 'hidden';
   const padX = parseInt(block.dataset.padX ?? '0');
-  block.style.paddingLeft  = padX + 'px';
-  block.style.paddingRight = padX + 'px';
-  block.style.boxSizing    = 'border-box';
+  block.style.paddingLeft  = '';
+  block.style.paddingRight = '';
+  block.style.boxSizing    = '';
 
   // cvb-inner: 디자인 좌표계 전체 크기
   let inner = block.querySelector('.cvb-inner');
   if (!inner) { inner = document.createElement('div'); inner.className = 'cvb-inner'; block.appendChild(inner); }
   inner.innerHTML = '';
-  inner.style.cssText = `position:absolute;top:0;left:0;width:${totalW}px;height:${totalH}px;transform-origin:top left;pointer-events:none;`;
+  inner.style.cssText = `position:absolute;top:0;left:${padX}px;right:auto;bottom:auto;width:${totalW}px;height:${totalH}px;transform-origin:top left;pointer-events:none;overflow:visible;`;
 
   // scale 갱신 함수
   const applyScale = () => {
     const aw = block.offsetWidth;
-    if (aw > 0) inner.style.transform = `scale(${aw / totalW})`;
+    if (aw <= 0) return;
+    const availW = Math.max(1, aw - 2 * padX);
+    inner.style.transform = `scale(${availW / totalW})`;
   };
   applyScale();
 
@@ -2053,27 +2082,213 @@ function renderStepBlock(block) {
   const connector  = block.dataset.connector !== 'false';
   const titleColor = block.dataset.titleColor || '#222222';
   const descColor  = block.dataset.descColor  || '#555555';
+  const orient     = block.dataset.stepOrient || 'vertical';
+  const style      = block.dataset.stepStyle  || 'default';
+  const cardBg     = block.dataset.stepCardBg || '#f5f5f5';
+  const align          = block.dataset.stepAlign       || 'left';
+  const padX           = parseInt(block.dataset.stepPadX)  || 0;
+  const badgeFmt       = block.dataset.badgeFormat     || 'number';
+  const badgeGap       = parseInt(block.dataset.badgeGap)  || 16;
+  const connectorStyle = block.dataset.connectorStyle   || 'line'; // 'line' | 'arrow'
 
-  // 배지(numSize) vs 제목 첫 줄 높이(titleSz * 1.4) 수직 중심 맞추기
+  // 'step'/'point'는 텍스트가 길어 원형 유지 불가 → pill(직사각형) 박스로 렌더
+  const badgeIsPill = badgeFmt === 'step' || badgeFmt === 'point';
+
+  function badgeLabel(i) {
+    const n = i + 1;
+    const pad = String(n).padStart(2, '0');
+    if (badgeFmt === 'padded') return pad;
+    if (badgeFmt === 'alpha')  return String.fromCharCode(64 + n); // A, B, C...
+    if (badgeFmt === 'step')   return `STEP ${pad}`;
+    if (badgeFmt === 'point')  return `POINT ${pad}`;
+    return String(n);
+  }
+
+  // 배지 인라인 스타일 생성 (원형 or pill)
+  function badgeStyle(extra = '') {
+    const base = `background:${numBg};color:${numColor};font-size:${Math.round(numSize*0.38)}px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;${extra}`;
+    if (badgeIsPill) {
+      return `${base}height:${numSize}px;padding:0 ${Math.round(numSize*0.4)}px;border-radius:${Math.round(numSize*0.3)}px;white-space:nowrap;`;
+    }
+    return `${base}width:${numSize}px;height:${numSize}px;border-radius:50%;`;
+  }
+
+  const pxStyle = padX > 0 ? `padding-left:${padX}px;padding-right:${padX}px;box-sizing:border-box;` : '';
+
+  // 연결선 헬퍼 — 세로용 (배지 아래 → 다음 배지 위)
+  function connectorV() {
+    if (connectorStyle === 'arrow') {
+      const sz = Math.max(14, Math.round(numSize * 0.45));
+      return `<div style="flex:1;display:flex;align-items:center;justify-content:center;min-height:${Math.round(numSize*0.5)}px">
+        <svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="${numBg}" style="opacity:0.5">
+          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg></div>`;
+    }
+    if (connectorStyle === 'divider') {
+      return `<div style="width:100%;height:1px;background:${numBg};opacity:0.2;margin:${Math.round(gap*0.3)}px 0"></div>`;
+    }
+    return `<div class="stb-line" style="background:${numBg};opacity:0.25"></div>`;
+  }
+
+  // 연결선 헬퍼 — 가로용 (side: 'left'|'right', hidden: 끝에서 숨김)
+  function connectorH(hidden, side = 'left') {
+    if (hidden) return `<div style="flex:1;visibility:hidden"></div>`;
+    if (connectorStyle === 'arrow') {
+      // 화살표는 오른쪽(right)에만 — 왼쪽은 빈 공간만
+      if (side === 'left') return `<div style="flex:1"></div>`;
+      const sz = Math.max(12, Math.round(numSize * 0.4));
+      return `<div style="flex:1;display:flex;align-items:center;justify-content:center">
+        <svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="${numBg}" style="opacity:0.5">
+          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+        </svg></div>`;
+    }
+    return `<div style="flex:1;height:2px;background:${numBg};opacity:0.25"></div>`;
+  }
+
+  // ── 카드형 ────────────────────────────────────────────────────────────────
+  if (style === 'card') {
+    if (orient === 'horizontal') {
+      block.innerHTML = `<div style="display:flex;flex-direction:row;align-items:stretch;gap:${gap}px;width:100%;${pxStyle}">${
+        steps.map((s, i) => `
+          <div style="flex:1;min-width:0;background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;">
+            <div style="${badgeStyle()}">${badgeLabel(i)}</div>
+            <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
+            ${s.desc?`<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>`:''}</div>`).join('')
+      }</div>`;
+    } else {
+      // 배지 중심을 제목 첫 줄 중심에 맞추는 오프셋
+      const cardTitleLineH = Math.round(titleSz * 1.4);
+      const cardBadgeTop   = Math.max(0, Math.round((cardTitleLineH - numSize) / 2));
+      block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => `
+        <div style="background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;display:flex;align-items:flex-start;gap:${Math.round(numSize*0.5)}px;${i>0?`margin-top:${gap}px`:''}">
+          <div style="${badgeStyle()}margin-top:${cardBadgeTop}px;">${badgeLabel(i)}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
+            ${s.desc?`<div class="stb-desc" style="font-size:${descSz}px;color:${descColor};margin-top:4px">${s.desc}</div>`:''}</div></div>`).join('')}</div>`;
+    }
+    return;
+  }
+
+  // 가로 화살표 연결선 — step 컬럼 사이에 독립 요소로 렌더 (중앙 정렬)
+  const useHArrow = connector && connectorStyle === 'arrow';
+  function hArrowEl(centerPx) {
+    const sz = Math.max(12, Math.round(numSize * 0.4));
+    return `<div style="display:flex;align-items:flex-start;padding-top:${Math.max(0, centerPx - Math.round(sz/2))}px;flex-shrink:0;">
+      <svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="${numBg}" style="opacity:0.5">
+        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+      </svg></div>`;
+  }
+
+  // ── 원형 (항상 가로) ──────────────────────────────────────────────────────
+  if (style === 'circle') {
+    const circleSize   = Math.max(80, Math.round(numSize * 2.8));
+    const innerTitleSz = Math.min(titleSz, Math.round(circleSize * 0.18));
+    block.innerHTML = `<div style="display:flex;flex-direction:row;align-items:flex-start;width:100%;${pxStyle}">${
+      steps.map((s, i) => {
+        const isLast = i === steps.length - 1;
+        const lineL = connector && !useHArrow ? `<div style="flex:1;height:2px;${i===0?'visibility:hidden;':`background:${numBg};opacity:0.25;`}"></div>` : `<div style="flex:1;visibility:hidden"></div>`;
+        const lineR = connector && !useHArrow ? `<div style="flex:1;height:2px;${isLast?'visibility:hidden;':`background:${numBg};opacity:0.25;`}"></div>` : `<div style="flex:1;visibility:hidden"></div>`;
+        return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;">
+            <div style="display:flex;align-items:center;width:100%;">
+              ${lineL}
+              <div style="width:${circleSize}px;height:${circleSize}px;border-radius:50%;background:${numBg};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;gap:2px;padding:8px;box-sizing:border-box;">
+                <div style="color:${numColor};font-size:${Math.round(numSize*0.45)}px;font-weight:700;line-height:1;text-align:center">${badgeLabel(i)}</div>
+                <div style="color:${numColor};font-size:${innerTitleSz}px;font-weight:600;line-height:1.3;text-align:center;word-break:keep-all;overflow:hidden;">${s.title||''}</div>
+              </div>
+              ${lineR}
+            </div>
+            ${s.desc?`<div class="stb-desc" style="font-size:${descSz}px;color:${descColor};margin-top:${badgeGap}px;text-align:center;padding:0 4px">${s.desc}</div>`:''}</div>
+          ${useHArrow && !isLast ? hArrowEl(Math.round(circleSize/2)) : ''}`;
+      }).join('')
+    }</div>`;
+    return;
+  }
+
+  // ── 번호형 (항상 가로) ────────────────────────────────────────────────────
+  if (style === 'number') {
+    const bigNum = Math.round(numSize * 1.8);
+    block.innerHTML = `<div style="display:flex;flex-direction:row;align-items:flex-start;width:100%;gap:${gap}px;${pxStyle}">${
+      steps.map((s, i) => `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;text-align:center;">
+          <div style="font-size:${bigNum}px;font-weight:800;color:${numBg};line-height:1;margin-bottom:${Math.round(gap*0.4)}px">${badgeLabel(i)}</div>
+          <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4;font-weight:600">${s.title||''}</div>
+          ${s.desc?`<div class="stb-desc" style="font-size:${descSz}px;color:${descColor};margin-top:4px">${s.desc}</div>`:''}</div>`).join('')
+    }</div>`;
+    return;
+  }
+
+  // ── default: 가로 모드 ────────────────────────────────────────────────────
+  if (orient === 'horizontal') {
+    block.innerHTML = `<div style="display:flex;flex-direction:row;align-items:flex-start;width:100%;${pxStyle}">${
+      steps.map((s, i) => {
+        const isLast = i === steps.length - 1;
+        const lineL = connector && !useHArrow ? connectorH(i === 0, 'left') : `<div style="flex:1;visibility:hidden"></div>`;
+        const lineR = connector && !useHArrow ? connectorH(isLast, 'right') : `<div style="flex:1;visibility:hidden"></div>`;
+        return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;">
+            <div style="display:flex;align-items:center;width:100%;">
+              ${lineL}
+              <div style="${badgeStyle()}">${badgeLabel(i)}</div>
+              ${lineR}
+            </div>
+            <div style="text-align:center;padding-top:${Math.round(gap*0.5)}px;padding-left:4px;padding-right:4px;width:100%;box-sizing:border-box;">
+              <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
+              ${s.desc?`<div class="stb-desc" style="font-size:${descSz}px;color:${descColor};margin-top:4px">${s.desc}</div>`:''}</div></div>
+          ${useHArrow && !isLast ? hArrowEl(Math.round(numSize/2)) : ''}`;
+      }).join('')
+    }</div>`;
+    return;
+  }
+
+  // ── default: 세로 모드 ────────────────────────────────────────────────────
   const titleLineH  = Math.round(titleSz * 1.4);
   const diff        = (titleLineH - numSize) / 2;
-  const leftPadTop  = diff > 0 ? Math.round(diff) : 0;   // 배지가 작으면 stb-left를 내림
-  const contPadTop  = diff < 0 ? Math.round(-diff) : 0;  // 배지가 크면 stb-content를 내림
+  const leftPadTop  = diff > 0 ? Math.round(diff) : 0;
+  const contPadTop  = diff < 0 ? Math.round(-diff) : 0;
 
-  block.innerHTML = steps.map((s, i) => {
+  const isCenterAlign = align === 'center';
+  const isRightAlign  = align === 'right';
+
+  if (isCenterAlign || isRightAlign) {
+    const flexDir   = isCenterAlign ? 'column' : 'row-reverse';
+    const textAlign = isCenterAlign ? 'center' : 'right';
+    const isDividerCA = connector && connectorStyle === 'divider';
+    block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => {
+      const isLast = i === steps.length - 1;
+      return `
+        <div class="stb-item" style="flex-direction:${flexDir};gap:${badgeGap}px;${isCenterAlign ? 'align-items:center;' : 'align-items:flex-start;'}">
+          <div class="stb-left" style="padding-top:${isCenterAlign ? 0 : leftPadTop}px;align-items:center;">
+            <div style="${badgeStyle()}">${badgeLabel(i)}</div>
+            ${connector && !isLast && isCenterAlign && !isDividerCA ? connectorV() : ''}
+          </div>
+          <div class="stb-content" style="padding-top:${isCenterAlign ? 0 : contPadTop}px;padding-bottom:${isLast ? 0 : (isDividerCA ? 0 : gap)}px;text-align:${textAlign};">
+            <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
+            ${s.desc ? `<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>` : ''}
+          </div>
+        </div>
+        ${isDividerCA && !isLast ? `<div style="width:100%;height:1px;background:${numBg};opacity:0.2;margin:${Math.round(gap*0.5)}px 0"></div>` : ''}`;
+    }).join('')}</div>`;
+    return;
+  }
+
+  // left (기본)
+  const isDivider = connector && connectorStyle === 'divider';
+  block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => {
     const isLast = i === steps.length - 1;
     return `
-      <div class="stb-item" style="gap:${Math.round(numSize * 0.5)}px">
+      <div class="stb-item" style="gap:${badgeGap}px">
         <div class="stb-left" style="padding-top:${leftPadTop}px">
-          <div class="stb-badge" style="width:${numSize}px;height:${numSize}px;background:${numBg};color:${numColor};font-size:${Math.round(numSize * 0.45)}px">${i + 1}</div>
-          ${connector && !isLast ? `<div class="stb-line" style="background:${numBg};opacity:0.25"></div>` : ''}
+          <div style="${badgeStyle()}">${badgeLabel(i)}</div>
+          ${connector && !isLast && !isDivider ? connectorV() : ''}
         </div>
-        <div class="stb-content" style="padding-top:${contPadTop}px;padding-bottom:${isLast ? 0 : gap}px">
-          <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title || ''}</div>
+        <div class="stb-content" style="padding-top:${contPadTop}px;padding-bottom:${isLast ? 0 : (isDivider ? 0 : gap)}px">
+          <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
           ${s.desc ? `<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>` : ''}
         </div>
-      </div>`;
-  }).join('');
+      </div>
+      ${isDivider && !isLast ? `<div style="width:100%;height:1px;background:${numBg};opacity:0.2;margin:${Math.round(gap*0.5)}px 0"></div>` : ''}`;
+  }).join('')}</div>`;
 }
 
 function makeStepBlock(opts = {}) {
@@ -2086,11 +2301,15 @@ function makeStepBlock(opts = {}) {
   block.dataset.numColor   = opts.numColor   || '#ffffff';
   block.dataset.numSize    = opts.numSize    || 36;
   block.dataset.titleSize  = opts.titleSize  || 36;
-  block.dataset.descSize   = opts.descSize   || 14;
+  block.dataset.descSize   = opts.descSize   || 24;
   block.dataset.gap        = opts.gap        || 24;
   block.dataset.connector  = opts.connector  !== undefined ? String(opts.connector) : 'true';
-  block.dataset.titleColor = opts.titleColor || '#222222';
-  block.dataset.descColor  = opts.descColor  || '#555555';
+  block.dataset.titleColor  = opts.titleColor  || '#222222';
+  block.dataset.descColor   = opts.descColor   || '#555555';
+  block.dataset.stepPadX       = opts.stepPadX       || 0;
+  block.dataset.badgeFormat    = opts.badgeFormat    || 'number';
+  block.dataset.badgeGap       = opts.badgeGap       || 16;
+  block.dataset.connectorStyle = opts.connectorStyle || 'line';
   renderStepBlock(block);
 
   const row = document.createElement('div');
@@ -2117,7 +2336,7 @@ window.renderStepBlock = renderStepBlock;
 
 // ── Vector Block ───────────────────────────────────────────────────────────────
 function renderVector(block) {
-  const svgStr = block.dataset.svg  || '';
+  const svgStr = block.dataset.svg   || '';
   const color  = block.dataset.color || '#000000';
   const w      = parseInt(block.dataset.w) || 120;
   const h      = parseInt(block.dataset.h) || 120;
@@ -2144,6 +2363,7 @@ function renderVector(block) {
   });
 
   inner.innerHTML = processed;
+
 }
 
 function makeVectorBlock(data = {}) {
