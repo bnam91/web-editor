@@ -2054,16 +2054,22 @@ function renderStepBlock(block) {
   const titleColor = block.dataset.titleColor || '#222222';
   const descColor  = block.dataset.descColor  || '#555555';
 
+  // 배지(numSize) vs 제목 첫 줄 높이(titleSz * 1.4) 수직 중심 맞추기
+  const titleLineH  = Math.round(titleSz * 1.4);
+  const diff        = (titleLineH - numSize) / 2;
+  const leftPadTop  = diff > 0 ? Math.round(diff) : 0;   // 배지가 작으면 stb-left를 내림
+  const contPadTop  = diff < 0 ? Math.round(-diff) : 0;  // 배지가 크면 stb-content를 내림
+
   block.innerHTML = steps.map((s, i) => {
     const isLast = i === steps.length - 1;
     return `
       <div class="stb-item" style="gap:${Math.round(numSize * 0.5)}px">
-        <div class="stb-left">
+        <div class="stb-left" style="padding-top:${leftPadTop}px">
           <div class="stb-badge" style="width:${numSize}px;height:${numSize}px;background:${numBg};color:${numColor};font-size:${Math.round(numSize * 0.45)}px">${i + 1}</div>
           ${connector && !isLast ? `<div class="stb-line" style="background:${numBg};opacity:0.25"></div>` : ''}
         </div>
-        <div class="stb-content" style="padding-bottom:${isLast ? 0 : gap}px">
-          <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor}">${s.title || ''}</div>
+        <div class="stb-content" style="padding-top:${contPadTop}px;padding-bottom:${isLast ? 0 : gap}px">
+          <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title || ''}</div>
           ${s.desc ? `<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>` : ''}
         </div>
       </div>`;
