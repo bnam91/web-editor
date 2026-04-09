@@ -200,11 +200,20 @@ if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true }
 
 ipcMain.handle('projects:list', () => {
   return fs.readdirSync(PROJECTS_DIR)
-    .filter(f => f.endsWith('.json'))
+    .filter(f => f.endsWith('.json') && !f.endsWith('_meta.json'))
     .map(f => {
       try {
         const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
-        return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail: data.thumbnail || null };
+        // thumbnail은 _meta.json에서 우선 조회, 없으면 proj.json 폴백 (마이그레이션 전 하위 호환)
+        let thumbnail = data.thumbnail || null;
+        const metaPath = path.join(PROJECTS_DIR, `${data.id}_meta.json`);
+        if (fs.existsSync(metaPath)) {
+          try {
+            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+            if (meta.thumbnail) thumbnail = meta.thumbnail;
+          } catch {}
+        }
+        return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail };
       } catch { return null; }
     })
     .filter(Boolean)
@@ -226,7 +235,23 @@ ipcMain.handle('projects:save', (event, project) => {
 ipcMain.handle('projects:delete', (event, id) => {
   const filePath = path.join(PROJECTS_DIR, `${id}.json`);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  // _meta.json도 함께 삭제
+  const metaPath = path.join(PROJECTS_DIR, `${id}_meta.json`);
+  if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
   return true;
+});
+
+/* ── IPC: Projects Meta (branches/commits/thumbnail 분리 저장) ── */
+ipcMain.handle('projects:save-meta', (event, projectId, metaData) => {
+  const filePath = path.join(PROJECTS_DIR, `${projectId}_meta.json`);
+  fs.writeFileSync(filePath, JSON.stringify(metaData, null, 2), 'utf8');
+  return { ok: true };
+});
+
+ipcMain.handle('projects:load-meta', (event, projectId) => {
+  const filePath = path.join(PROJECTS_DIR, `${projectId}_meta.json`);
+  if (!fs.existsSync(filePath)) return null;
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 });
 
 /* ── IPC: Intake (design-bot pipeline) ── */

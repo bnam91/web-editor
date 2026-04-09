@@ -1661,3 +1661,25 @@ body.preview-mode #preview-navigator { display: flex; }
   user-select: none;
 }
 .bcm-item:hover { background: #2a2a2a; color: #fff; }
+
+/* ── 이미지 업로드 로딩 오버레이 ── */
+.asset-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.asset-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: asset-spin 0.7s linear infinite;
+}
+@keyframes asset-spin { to { transform: rotate(360deg); } }

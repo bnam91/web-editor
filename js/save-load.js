@@ -110,17 +110,23 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
   if (IS_ELECTRON) {
     try {
       const existing = await window.electronAPI.loadProject(targetId);
+      // pages + pageSettings만 저장 — branches/commits/thumbnail은 _meta.json에서 관리
       // existing 먼저 spread 후 data로 덮어쓰기 — 레거시 필드는 data에 없으면 existing 유지
-      // (레거시 필드 누적 방지: data가 최신 포맷이면 자연스럽게 정리됨)
+      const { branches: _b, commits: _c, currentBranch: _cb, thumbnail: _t, ...dataWithoutMeta } = data;
+      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, ...existingWithoutMeta } = (existing || {});
       const proj = {
-        ...(existing || {}),
-        ...data,
+        ...existingWithoutMeta,
+        ...dataWithoutMeta,
         id: targetId,
         name: existing?.name || data.name || 'Untitled',
         updatedAt: new Date().toISOString(),
-        ...(thumbnail ? { thumbnail } : {}),
       };
       await window.electronAPI.saveProject(proj);
+      // thumbnail은 _meta.json에 저장
+      if (thumbnail) {
+        const existingMeta = await window.electronAPI.loadProjectMeta(targetId);
+        await window.electronAPI.saveProjectMeta(targetId, { ...(existingMeta || {}), thumbnail, updatedAt: new Date().toISOString() });
+      }
     } catch (e) {
       console.error('[save-load] Electron 저장 실패:', e);
       window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
@@ -755,6 +761,66 @@ function rebindAll() {
 
 const LAST_COMMIT_KEY = 'goya-last-commit';
 
+/* ── localStorage 용량 관리 ── */
+
+/**
+ * 활성 프로젝트 ID 목록에 없는 고아 autosave 키 정리.
+ * 삭제된 프로젝트 또는 파일이 더 최신인 프로젝트의 autosave 키를 제거한다.
+ * @param {string[]} activeProjectIds - 현재 존재하는 프로젝트 ID 배열
+ */
+function cleanStaleAutosaveKeys(activeProjectIds) {
+  const prefix = SAVE_KEY_PREFIX + '__';
+  const activeSet = new Set(activeProjectIds);
+  Object.keys(localStorage)
+    .filter(k => k.startsWith(prefix) && !k.endsWith('_ts'))
+    .forEach(k => {
+      const pid = k.slice(prefix.length);
+      if (!activeSet.has(pid)) {
+        localStorage.removeItem(k);
+        localStorage.removeItem(k + '_ts');
+        console.log('[save-load] 고아 autosave 키 정리:', k);
+      }
+    });
+}
+
+/**
+ * localStorage.setItem 래퍼 — QuotaExceededError 발생 시 오래된 autosave 키를
+ * 하나씩 제거하며 최대 5회 재시도한다.
+ * @param {string} key
+ * @param {string} value
+ * @returns {boolean} 저장 성공 여부
+ */
+function safeLocalStorageSet(key, value) {
+  const prefix = SAVE_KEY_PREFIX + '__';
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (e) {
+      if (e.name !== 'QuotaExceededError' && e.name !== 'NS_ERROR_DOM_QUOTA_REACHED') throw e;
+      // 현재 저장하려는 키를 제외한 autosave 키 중 가장 오래된 것 삭제
+      const candidates = Object.keys(localStorage)
+        .filter(k => k.startsWith(prefix) && !k.endsWith('_ts') && k !== key);
+      if (candidates.length === 0) {
+        // 삭제 가능한 키 없음 — 실패 반환
+        console.warn('[save-load] QuotaExceededError: 삭제 가능한 autosave 키 없음, 저장 실패');
+        window.showToast?.('⚠️ 저장 공간이 부족합니다. 오래된 프로젝트를 삭제해 주세요.');
+        return false;
+      }
+      // _ts 키로 타임스탬프 비교해 가장 오래된 키 선택
+      const oldest = candidates.sort((a, b) => {
+        const ta = parseInt(localStorage.getItem(a + '_ts') || '0');
+        const tb = parseInt(localStorage.getItem(b + '_ts') || '0');
+        return ta - tb;
+      })[0];
+      localStorage.removeItem(oldest);
+      localStorage.removeItem(oldest + '_ts');
+      console.warn('[save-load] QuotaExceededError: 오래된 autosave 키 삭제 후 재시도 -', oldest);
+      window.showToast?.('⚠️ 저장 공간이 부족해 오래된 자동저장을 정리했습니다.');
+    }
+  }
+  return false;
+}
 
 let _autoSaveHideTimer = null;
 function _setAutosaveIndicator(state) {
@@ -786,8 +852,8 @@ function scheduleAutoSave() {
         return;
       }
     } catch {}
-    localStorage.setItem(getSaveKey(), snap);
-    localStorage.setItem(getSaveTsKey(), String(Date.now()));
+    const saveOk = safeLocalStorageSet(getSaveKey(), snap);
+    if (saveOk) localStorage.setItem(getSaveTsKey(), String(Date.now()));
     saveProjectToFile(snap, { skipThumbnail: true }); // 자동저장은 썸네일 캡처 생략
     _setAutosaveIndicator('saved');
   }, 1500);
@@ -805,8 +871,8 @@ window.addEventListener('beforeunload', () => {
   try { snapData = JSON.parse(snap); } catch { return; }
   if (snapData?.pages?.length > 0 && snapData.pages.every(p => !p.canvas || p.canvas.trim() === '')) return;
 
-  localStorage.setItem(getSaveKey(), snap);
-  localStorage.setItem(getSaveTsKey(), String(Date.now()));
+  const _unloadSaveOk = safeLocalStorageSet(getSaveKey(), snap);
+  if (_unloadSaveOk) localStorage.setItem(getSaveTsKey(), String(Date.now()));
   // non-Electron: PROJECTS_KEY snapshot 동기 업데이트 (파싱 결과 재사용)
   if (!IS_ELECTRON && activeProjectId) {
     try {
@@ -903,8 +969,32 @@ function initApp() {
       }
       let name = 'Untitled';
       if (IS_ELECTRON) {
-        const proj = await window.electronAPI.loadProject(activeProjectId);
+        // Electron: 파일 기반 활성 프로젝트 목록으로 고아 autosave 키 정리
+        try {
+          const allProjects = await window.electronAPI.listProjects();
+          cleanStaleAutosaveKeys(allProjects.map(p => p.id));
+        } catch (_) {}
+        // proj + meta 병렬 로드
+        const [proj, meta] = await Promise.all([
+          window.electronAPI.loadProject(activeProjectId),
+          window.electronAPI.loadProjectMeta(activeProjectId),
+        ]);
         if (proj) {
+          // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
+          if (!meta && (proj.branches || proj.commits)) {
+            const migratedMeta = {
+              ...(proj.branches    ? { branches: proj.branches, currentBranch: proj.currentBranch } : {}),
+              ...(proj.commits     ? { commits: proj.commits }     : {}),
+              ...(proj.thumbnail   ? { thumbnail: proj.thumbnail } : {}),
+              updatedAt: new Date().toISOString(),
+            };
+            window.electronAPI.saveProjectMeta(activeProjectId, migratedMeta).catch(() => {});
+            // proj.json에서 meta 필드 제거하여 경량화
+            const cleanProj = { ...proj };
+            delete cleanProj.branches; delete cleanProj.currentBranch;
+            delete cleanProj.commits; delete cleanProj.thumbnail;
+            window.electronAPI.saveProject(cleanProj).catch(() => {});
+          }
           name = proj.name || 'Untitled';
           const tab = openTabs.find(t => t.id === activeProjectId);
           if (tab) tab.name = name;
@@ -922,7 +1012,10 @@ function initApp() {
           if (proj.snapshot) { try { applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot); } catch {} return; }
         }
       } else {
-        const proj = loadProjectsList().find(p => p.id === activeProjectId);
+        // 브라우저: localStorage 프로젝트 목록으로 고아 autosave 키 정리
+        const allList = loadProjectsList();
+        cleanStaleAutosaveKeys(allList.map(p => p.id));
+        const proj = allList.find(p => p.id === activeProjectId);
         if (proj?.name) {
           name = proj.name;
           const tab = openTabs.find(t => t.id === activeProjectId);
@@ -1017,6 +1110,8 @@ function initApp() {
 
 export {
   // 탭 함수: tab-system.js에서 window 노출 처리 (여기서는 저장/불러오기 핵심만)
+  cleanStaleAutosaveKeys,
+  safeLocalStorageSet,
   saveProjectToFile,
   loadProjectsList,
   getProjectName,

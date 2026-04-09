@@ -25,26 +25,32 @@ function saveBranchStore(store) {
 
 async function _persistBranchesToFile(store) {
   if (!activeProjectId || !IS_ELECTRON) return;
-  // BUG4: saveProjectToFile과 동시 실행 시 덮어쓰기 방지 — _isSavingToFile 진행 중이면 스킵
-  // (브랜치 메타만 업데이트하므로 saveProjectToFile의 pending 큐를 통한 재실행 불필요)
-  if (window._isSavingToFile) return;
   try {
-    const proj = await window.electronAPI.loadProject(activeProjectId);
-    if (!proj) return;
-    proj.branches = store.branches;
-    proj.currentBranch = store.current;
-    proj.updatedAt = new Date().toISOString();
-    await window.electronAPI.saveProject(proj);
-  } catch (e) { console.warn('[branch] 브랜치 파일 저장 실패:', e); }
+    // branches/currentBranch는 _meta.json에만 저장 (proj.json 경량화)
+    const existingMeta = await window.electronAPI.loadProjectMeta(activeProjectId);
+    const meta = {
+      ...(existingMeta || {}),
+      branches: store.branches,
+      currentBranch: store.current,
+      updatedAt: new Date().toISOString(),
+    };
+    await window.electronAPI.saveProjectMeta(activeProjectId, meta);
+  } catch (e) { console.warn('[branch] 브랜치 meta 저장 실패:', e); }
 }
 
 async function initBranchStore() {
-  // Electron: 프로젝트 파일에서 브랜치 로드
+  // Electron: _meta.json에서 브랜치 로드 (분리 저장 구조)
   if (activeProjectId && IS_ELECTRON) {
     try {
-      const proj = await window.electronAPI.loadProject(activeProjectId);
-      if (proj?.branches) {
-        const store = { current: proj.currentBranch || 'main', branches: proj.branches };
+      // meta 우선, 없으면 proj.json 폴백 (마이그레이션 전 하위 호환)
+      const [meta, proj] = await Promise.all([
+        window.electronAPI.loadProjectMeta(activeProjectId),
+        window.electronAPI.loadProject(activeProjectId),
+      ]);
+      const branches = meta?.branches || proj?.branches || null;
+      const currentBranch = meta?.currentBranch || proj?.currentBranch || null;
+      if (branches) {
+        const store = { current: currentBranch || 'main', branches };
         localStorage.setItem(getBranchKey(), JSON.stringify(store)); // 로컬 캐시
         // initLoad()가 이미 올바른 캔버스 데이터를 로드하므로 여기서 applyProjectData 호출 금지
         // (race condition: 두 함수가 동시에 실행되어 initLoad 결과를 덮어쓰는 버그 방지)

@@ -231,6 +231,108 @@ function exportDesignJSON() {
     return { id: uid('row'), type: 'row', layout: rowEl.dataset.layout || 'stack', columns: cols };
   }
 
+  function serializeFrame(frameEl) {
+    const isFreeLayout = frameEl.dataset.freeLayout === 'true';
+    const isFullWidth  = frameEl.dataset.fullWidth  === 'true';
+    const isTextFrame  = frameEl.dataset.textFrame  === 'true';
+
+    const frame = {
+      id:     uid('frm'),
+      type:   'frame',
+      mode:   isFreeLayout ? 'freeLayout' : isFullWidth ? 'fullWidth' : isTextFrame ? 'textFrame' : 'auto',
+      bg:     rgbToHex(frameEl.style.background || frameEl.style.backgroundColor || '') || 'transparent',
+      width:  parseInt(frameEl.dataset.width)  || parseInt(frameEl.style.width)  || 860,
+      height: parseFloat(frameEl.dataset.height) || parseFloat(frameEl.style.height) || null,
+    };
+
+    // 위치 정보 (freeLayout 내 절대배치 frame-block 혹은 text-frame 래퍼)
+    if (frameEl.style.position === 'absolute') {
+      frame.x = parseInt(frameEl.style.left || frameEl.dataset.offsetX || '0');
+      frame.y = parseInt(frameEl.style.top  || frameEl.dataset.offsetY || '0');
+    }
+    if (frameEl.dataset.offsetX) frame.x = parseInt(frameEl.dataset.offsetX);
+    if (frameEl.dataset.offsetY) frame.y = parseInt(frameEl.dataset.offsetY);
+
+    // 회전
+    const rot = parseFloat(frameEl.dataset.rotateDeg);
+    if (!isNaN(rot) && rot !== 0) frame.rotateDeg = rot;
+
+    // borderRadius
+    const radius = parseFloat(frameEl.style.borderRadius);
+    if (!isNaN(radius) && radius > 0) frame.borderRadius = radius;
+
+    const children = [];
+
+    if (isFreeLayout) {
+      // freeLayout: 직속 자식을 순회 — text-frame(래퍼)는 unwrap해서 내부 블록 추출
+      [...frameEl.children].forEach(ch => {
+        if (ch.classList.contains('frame-block') && ch.dataset.textFrame === 'true') {
+          // text-frame 래퍼 — 내부 text-block을 꺼내되 래퍼의 위치/크기 주입
+          const tfX = parseInt(ch.style.left || ch.dataset.offsetX || '0');
+          const tfY = parseInt(ch.style.top  || ch.dataset.offsetY || '0');
+          const tfW = parseInt(ch.style.width || '0') || null;
+          const tfH = parseInt(ch.style.height || '0') || null;
+          const tfRot = parseFloat(ch.dataset.rotateDeg);
+          ch.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block').forEach(b => {
+            const s = serializeBlock(b);
+            if (s) {
+              s.x = tfX;
+              s.y = tfY;
+              if (tfW) s.frameWidth  = tfW;
+              if (tfH) s.frameHeight = tfH;
+              if (!isNaN(tfRot) && tfRot !== 0) s.rotateDeg = tfRot;
+              children.push(s);
+            }
+          });
+        } else if (ch.classList.contains('frame-block')) {
+          // 중첩 frame-block (절대배치 B 모드 프레임)
+          children.push(serializeFrame(ch));
+        } else if (ch.classList.contains('row')) {
+          children.push(serializeRow(ch));
+        } else if (ch.classList.contains('gap-block')) {
+          const s = serializeBlock(ch);
+          if (s) {
+            s.x = parseInt(ch.style.left || ch.dataset.offsetX || '0');
+            s.y = parseInt(ch.style.top  || ch.dataset.offsetY || '0');
+            children.push(s);
+          }
+        } else {
+          // asset-block, card-block 등 직접 절대배치된 블록
+          const s = serializeBlock(ch);
+          if (s) {
+            if (ch.style.position === 'absolute') {
+              s.x = parseInt(ch.style.left || ch.dataset.offsetX || '0');
+              s.y = parseInt(ch.style.top  || ch.dataset.offsetY || '0');
+            }
+            if (ch.dataset.offsetX) s.x = parseInt(ch.dataset.offsetX);
+            if (ch.dataset.offsetY) s.y = parseInt(ch.dataset.offsetY);
+            children.push(s);
+          }
+        }
+      });
+    } else {
+      // fullWidth / textFrame / auto: 플로우 레이아웃 — row/gap/block 순회
+      [...frameEl.children].forEach(ch => {
+        if (ch.classList.contains('row')) {
+          children.push(serializeRow(ch));
+        } else if (ch.classList.contains('gap-block')) {
+          const s = serializeBlock(ch);
+          if (s) children.push(s);
+        } else if (ch.classList.contains('group-block')) {
+          const groupRows = [];
+          ch.querySelectorAll(':scope > .group-inner > .row').forEach(r => groupRows.push(serializeRow(r)));
+          children.push({ id: uid('grp'), type: 'group', name: ch.dataset.name || 'Group', rows: groupRows });
+        } else {
+          const s = serializeBlock(ch);
+          if (s) children.push(s);
+        }
+      });
+    }
+
+    frame.children = children;
+    return frame;
+  }
+
   function serializeSection(secEl, idx) {
     const rawBg = secEl.style.background || secEl.style.backgroundColor || '';
     const bg    = rgbToHex(rawBg) || state.pageSettings.bg || '#ffffff';
@@ -252,10 +354,9 @@ function exportDesignJSON() {
             name: child.dataset.name || 'Group',
             rows: groupRows,
           });
+        } else if (child.classList.contains('frame-block')) {
+          blocks.push(serializeFrame(child));
         }
-        // TODO-QA: frame-block(sub-section) 직렬화 미구현 — section-inner 직속 frame-block은
-        // 현재 silently 무시됨. buildFigmaExportJSON은 지원하나 exportDesignJSON은 누락.
-        // frame-block 내 row/text-block을 재귀 serializeRow로 직렬화 후 type:'frame' 블록으로 push 필요.
       });
     }
 

@@ -80,8 +80,12 @@ async function openCommitModal() {
 
   let commits = [];
   if (window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    commits = proj?.commits || [];
+    // commits는 _meta.json에서 로드 (proj.json 폴백: 마이그레이션 전 하위 호환)
+    const [meta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    commits = meta?.commits || proj?.commits || [];
   }
 
   const branch = (typeof window.getCurrentBranch === 'function') ? window.getCurrentBranch() : 'main';
@@ -227,12 +231,15 @@ async function doCommit() {
   };
 
   if (window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    if (proj) {
-      proj.commits = [...(proj.commits || []), commit].slice(-MAX_COMMITS); // 최대 20개 유지
-      proj.updatedAt = new Date().toISOString();
-      await window.electronAPI.saveProject(proj);
-    }
+    // commits는 _meta.json에 저장 (proj.json 폴백: 마이그레이션 전 하위 호환)
+    const [existingMeta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    const prevCommits = existingMeta?.commits || proj?.commits || [];
+    const newCommits = [...prevCommits, commit].slice(-MAX_COMMITS);
+    const meta = { ...(existingMeta || {}), commits: newCommits, updatedAt: new Date().toISOString() };
+    await window.electronAPI.saveProjectMeta(window.activeProjectId, meta);
   }
 
   document.getElementById('commit-modal-overlay')?.remove();
@@ -245,8 +252,13 @@ async function restoreCommit(id) {
   // 모달이 열려있는 동안 메모리의 _cmCommits에서 먼저 조회 (snapshot 포함)
   let commit = _cmCommits.find(c => c.id === id) || null;
   if (!commit && window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    commit = proj?.commits?.find(c => c.id === id);
+    // _meta.json 우선, proj.json 폴백 (마이그레이션 전 하위 호환)
+    const [meta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    const commits = meta?.commits || proj?.commits || [];
+    commit = commits.find(c => c.id === id);
   }
   if (!commit) { window.showToast('❌ 커밋을 찾을 수 없어요'); return; }
 
@@ -273,9 +285,12 @@ async function saveProjectFile() {
       const data = JSON.parse(snap);
       const targetId = window.activeProjectId;
       const existing = await window.electronAPI.loadProject(targetId);
+      // branches/commits/thumbnail은 meta로 분리 — proj.json에서 제외
+      const { branches: _b, commits: _c, currentBranch: _cb, thumbnail: _t, ...dataWithoutMeta } = data;
+      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, ...existingWithoutMeta } = (existing || {});
       const proj = {
-        ...(existing || {}),
-        ...data,
+        ...existingWithoutMeta,
+        ...dataWithoutMeta,
         id: targetId,
         name: existing?.name || data.name || 'Untitled',
         updatedAt: new Date().toISOString(),
@@ -300,10 +315,17 @@ async function saveProjectFile() {
 async function exportProjectJSON() {
   const base = JSON.parse(window.serializeProject());
   if (window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    if (proj?.commits?.length)  base.commits       = proj.commits;
-    if (proj?.branches)         base.branches       = proj.branches;
-    if (proj?.currentBranch)    base.currentBranch  = proj.currentBranch;
+    // _meta.json 우선 (proj.json 폴백: 하위 호환)
+    const [meta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    const commits       = meta?.commits       || proj?.commits       || null;
+    const branches      = meta?.branches      || proj?.branches      || null;
+    const currentBranch = meta?.currentBranch || proj?.currentBranch || null;
+    if (commits?.length)  base.commits       = commits;
+    if (branches)         base.branches       = branches;
+    if (currentBranch)    base.currentBranch  = currentBranch;
   }
   const name = window.getProjectName?.() || `web-editor-${new Date().toISOString().slice(0,10)}`;
   _downloadJSON(JSON.stringify(base, null, 2), name);
@@ -313,12 +335,18 @@ async function exportProjectJSON() {
 async function saveProjectAs() {
   const base = JSON.parse(window.serializeProject());
 
-  // Electron: 커밋/브랜치 정보 병합 후 JSON 다운로드
+  // Electron: 커밋/브랜치 정보 병합 후 JSON 다운로드 (_meta.json 우선, proj.json 폴백)
   if (window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    if (proj?.commits?.length)  base.commits  = proj.commits;
-    if (proj?.branches)         base.branches  = proj.branches;
-    if (proj?.currentBranch)    base.currentBranch = proj.currentBranch;
+    const [meta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    const commits       = meta?.commits       || proj?.commits       || null;
+    const branches      = meta?.branches      || proj?.branches      || null;
+    const currentBranch = meta?.currentBranch || proj?.currentBranch || null;
+    if (commits?.length)  base.commits       = commits;
+    if (branches)         base.branches       = branches;
+    if (currentBranch)    base.currentBranch  = currentBranch;
   }
 
   const json = JSON.stringify(base, null, 2);
@@ -340,14 +368,18 @@ function loadProjectFile(e) {
     try {
       const data = JSON.parse(ev.target.result);
       window.applyProjectData(data);
-      // Electron: 커밋/브랜치 정보가 있으면 프로젝트 파일에 복원
+      // Electron: 커밋/브랜치 정보가 있으면 _meta.json에 복원
       if (window.IS_ELECTRON && window.activeProjectId) {
-        const proj = await window.electronAPI.loadProject(window.activeProjectId);
-        if (proj) {
-          if (data.commits?.length)  proj.commits       = data.commits;
-          if (data.branches)         proj.branches       = data.branches;
-          if (data.currentBranch)    proj.currentBranch  = data.currentBranch;
-          await window.electronAPI.saveProject(proj);
+        if (data.commits?.length || data.branches || data.currentBranch) {
+          const existingMeta = await window.electronAPI.loadProjectMeta(window.activeProjectId);
+          const meta = {
+            ...(existingMeta || {}),
+            ...(data.commits?.length ? { commits: data.commits }           : {}),
+            ...(data.branches        ? { branches: data.branches }          : {}),
+            ...(data.currentBranch   ? { currentBranch: data.currentBranch }: {}),
+            updatedAt: new Date().toISOString(),
+          };
+          await window.electronAPI.saveProjectMeta(window.activeProjectId, meta);
           window.showToast?.('✅ 커밋 히스토리 복원됨');
         }
       }

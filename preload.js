@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveProject:    (project) => ipcRenderer.invoke('projects:save', project),
   deleteProject:  (id)      => ipcRenderer.invoke('projects:delete', id),
 
+  // Projects Meta — branches/commits/thumbnail 분리 저장
+  saveProjectMeta: (projectId, metaData) => ipcRenderer.invoke('projects:save-meta', projectId, metaData),
+  loadProjectMeta: (projectId)           => ipcRenderer.invoke('projects:load-meta', projectId),
+
   // Presets
   readPresets:  ()         => ipcRenderer.invoke('presets:read-all'),
   savePreset:   (preset)   => ipcRenderer.invoke('presets:save', preset),

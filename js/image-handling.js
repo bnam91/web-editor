@@ -2,6 +2,18 @@
    이미지 업로드 (Asset)
 ══════════════════════════════════════ */
 import { propPanel } from './globals.js';
+
+/* ── 이미지 업로드 로딩 오버레이 헬퍼 ── */
+function showAssetLoading(block) {
+  const overlay = document.createElement('div');
+  overlay.className = 'asset-loading-overlay';
+  overlay.innerHTML = '<div class="asset-loading-spinner"></div>';
+  block.appendChild(overlay);
+}
+function hideAssetLoading(block) {
+  block.querySelector('.asset-loading-overlay')?.remove();
+}
+
 /* ── 이미지 위치/스케일 복원 (로드·undo 후) ── */
 function applyImageTransform(ab) {
   const img = ab.querySelector('.asset-img');
@@ -349,10 +361,10 @@ function loadImageToAsset(ab, file) {
   if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
   exitImageEditMode(ab);
   pushHistory();
-  // TODO-QA: 대용량 이미지(5~10MB) FileReader 로딩 중 블록에 로딩 스피너 없음
-  // ab.classList.add('loading') 후 reader.onload 완료 시 remove하는 방식 검토
+  showAssetLoading(ab);
   const reader = new FileReader();
   reader.onload = ev => {
+    hideAssetLoading(ab);
     const src = ev.target.result;
     ab.classList.add('has-image');
     ab.dataset.imgSrc = src;
@@ -378,6 +390,7 @@ function loadImageToAsset(ab, file) {
     ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
     showAssetProperties(ab);
   };
+  reader.onerror = () => hideAssetLoading(ab);
   reader.readAsDataURL(file);
 }
 
@@ -617,8 +630,10 @@ function loadImageToCircle(icb, file) {
   if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
   exitCircleImageEditMode(icb);
   pushHistory();
+  showAssetLoading(icb);
   const reader = new FileReader();
   reader.onload = ev => {
+    hideAssetLoading(icb);
     const src = ev.target.result;
     const circle = icb.querySelector('.icb-circle');
     icb.classList.add('has-image');
@@ -638,6 +653,7 @@ function loadImageToCircle(icb, file) {
     });
     showIconCircleProperties(icb);
   };
+  reader.onerror = () => hideAssetLoading(icb);
   reader.readAsDataURL(file);
 }
 
@@ -954,8 +970,10 @@ function triggerCardImageUpload(cdb) {
 function loadImageToCard(cdb, file) {
   if (!file || !file.type.startsWith('image/')) return;
   pushHistory();
+  showAssetLoading(cdb);
   const reader = new FileReader();
   reader.onload = ev => {
+    hideAssetLoading(cdb);
     const src = ev.target.result;
     const imageArea = cdb.querySelector('.cdb-image');
     cdb.classList.add('has-image');
@@ -969,6 +987,7 @@ function loadImageToCard(cdb, file) {
     });
     showCardProperties(cdb);
   };
+  reader.onerror = () => hideAssetLoading(cdb);
   reader.readAsDataURL(file);
 }
 

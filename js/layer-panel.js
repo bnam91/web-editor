@@ -445,6 +445,11 @@ export function buildLayerPanel() {
   });
 
   if (window.buildFilePageSection) window.buildFilePageSection();
+
+  // Inspector 탭이 활성화 상태이면 실시간 갱신
+  if (document.querySelector('.tab-btn[data-tab="inspector"]')?.classList.contains('active')) {
+    window.renderInspectorPanel?.();
+  }
 }
 
 export function syncLayerActive(sec) {

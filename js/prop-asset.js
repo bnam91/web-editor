@@ -81,6 +81,7 @@ export function showAssetProperties(ab) {
         <button class="prop-preset-btn" data-w="860" data-h="860">Square</button>
         <button class="prop-preset-btn" data-w="860" data-h="1032">Tall</button>
         <button class="prop-preset-btn" data-w="860" data-h="575">Wide</button>
+        <button class="prop-preset-btn" data-preset="logo" data-w="200" data-h="64">Logo</button>
       </div>
     </div>
     <div class="prop-section">
@@ -212,20 +213,49 @@ export function showAssetProperties(ab) {
     applyH(v); window.pushHistory();
   });
 
+  const setWSliderDisabled = disabled => {
+    wSlider.disabled = disabled;
+    wNumber.disabled = disabled;
+    wSlider.style.opacity = disabled ? '0.4' : '';
+    wNumber.style.opacity = disabled ? '0.4' : '';
+  };
+
+  // 초기 상태: Logo 프리셋이면 width 슬라이더 비활성화
+  if (ab.dataset.preset === 'logo') setWSliderDisabled(true);
+
   propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      const isLogo = btn.dataset.preset === 'logo';
+      const w = parseInt(btn.dataset.w);
       const h = parseInt(btn.dataset.h);
       ab.dataset.size       = '100';
       ab.dataset.baseHeight = h;  // 항상 baseHeight 갱신
 
-      if (ab.dataset.usePadx === 'true') {
-        // 패딩 ON 상태 → 패딩 적용한 너비/높이로 계산
-        applyAssetPadX(ab, state.pageSettings.padX || 0);
-        applyH(parseInt(ab.style.height));
+      if (isLogo) {
+        // Logo 프리셋: 200x64 고정, usePadx 무시
+        ab.dataset.preset = 'logo';
+        ab.style.width    = '200px';
+        ab.style.height   = '64px';
+        ab.style.alignSelf = ab.dataset.align === 'left' ? 'flex-start'
+          : ab.dataset.align === 'right' ? 'flex-end' : 'center';
+        applyH(64);
+        applyW(200);
+        setWSliderDisabled(true);
       } else {
-        ab.style.width  = '';
-        ab.style.height = h + 'px';
-        applyH(h);
+        // 일반 프리셋: Logo 해제
+        delete ab.dataset.preset;
+        setWSliderDisabled(false);
+
+        if (ab.dataset.usePadx === 'true') {
+          // 패딩 ON 상태 → 패딩 적용한 너비/높이로 계산
+          applyAssetPadX(ab, state.pageSettings.padX || 0);
+          applyH(parseInt(ab.style.height));
+        } else {
+          ab.style.width  = '';
+          ab.style.height = h + 'px';
+          applyH(h);
+          applyW(860);
+        }
       }
       window.pushHistory();
     });
