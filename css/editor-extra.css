@@ -744,10 +744,11 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 .tpl-browser-close:hover { background: var(--ui-bg-input); color: #ccc; }
 
-/* 바디: 트리 + 카드 (고정 높이 + 스크롤) */
+/* 바디: 트리 + 카드 — 패널 남은 높이 채움 */
 .tpl-browser-body {
   display: flex;
-  flex: 0 0 220px;
+  flex: 1 1 0;
+  min-height: 80px;
   overflow: hidden;
 }
 

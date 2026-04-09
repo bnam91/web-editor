@@ -2436,14 +2436,33 @@ window.renderVector    = renderVector;
     menu.style.display = 'block';
   }
 
-  // 저장 버튼
-  document.getElementById('bcm-save-template')?.addEventListener('click', () => {
+  // 저장 버튼 → 인라인 이름 입력 표시
+  const nameRow    = document.getElementById('bcm-name-row');
+  const nameInput  = document.getElementById('bcm-name-input');
+  const nameConfirm = document.getElementById('bcm-name-confirm');
+
+  document.getElementById('bcm-save-template')?.addEventListener('click', e => {
+    e.stopPropagation();
     if (!_targetBlock) return closeMenu();
-    const name = prompt('블록 템플릿 이름을 입력하세요:');
-    if (!name?.trim()) return closeMenu();
-    window.saveBlockAsTemplate?.(_targetBlock, name.trim());
+    if (nameRow) { nameRow.style.display = 'flex'; nameInput?.focus(); }
+  });
+
+  nameConfirm?.addEventListener('click', e => {
+    e.stopPropagation();
+    const name = nameInput?.value?.trim();
+    if (name) window.saveBlockAsTemplate?.(_targetBlock, name);
+    if (nameInput) nameInput.value = '';
+    if (nameRow) nameRow.style.display = 'none';
     closeMenu();
   });
+
+  nameInput?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') nameConfirm?.click();
+    if (e.key === 'Escape') closeMenu();
+    e.stopPropagation();
+  });
+
+  nameInput?.addEventListener('click', e => e.stopPropagation());
 
   // 외부 클릭 시 닫기 (click만 — contextmenu는 stopPropagation으로 차단되므로 제거)
   document.addEventListener('click', closeMenu);
