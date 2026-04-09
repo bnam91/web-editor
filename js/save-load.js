@@ -993,17 +993,36 @@ window.scheduleAutoSave = scheduleAutoSave;
 window.triggerAutoSave = scheduleAutoSave; // alias used by drag-drop.js, prop-layout.js
 
 // 즉시 저장 (디바운스 없이 flush) — commit-system.js 저장하기 버튼 전용
+// saveProjectToFile 경로를 우회하고 IPC를 직접 호출해 _isSavingToFile 락 문제 방지
 window.flushSave = async function() {
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
+  let data;
   try {
-    const snapData = JSON.parse(snap);
-    if (_isAllCanvasEmpty(snapData)) return;
-  } catch {}
+    data = JSON.parse(snap);
+    if (_isAllCanvasEmpty(data)) return;
+  } catch { return; }
   localStorage.setItem(getSaveKey(), snap);
   localStorage.setItem(getSaveTsKey(), String(Date.now()));
-  await saveProjectToFile(snap, { skipThumbnail: false });
+  const _targetId = window.activeProjectId;
+  if (window.IS_ELECTRON && _targetId) {
+    try {
+      const existing = await window.electronAPI.loadProject(_targetId);
+      const proj = {
+        ...(existing || {}),
+        ...data,
+        id: _targetId,
+        name: existing?.name || data.name || 'Untitled',
+        updatedAt: new Date().toISOString(),
+      };
+      await window.electronAPI.saveProject(proj);
+    } catch (e) {
+      console.error('[flushSave] 저장 실패:', e);
+      window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
+      return;
+    }
+  }
   _setAutosaveIndicator('saved');
 };
 window.initApp = initApp;

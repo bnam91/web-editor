@@ -262,10 +262,28 @@ async function restoreCommit(id) {
 }
 
 async function saveProjectFile() {
-  // Electron: 즉시 flush 저장 — 디바운스 없이 바로 파일에 기록
+  // Electron: IPC 직접 호출로 즉시 파일 저장 (flushSave 모듈 클로저 우회)
   if (window.IS_ELECTRON && window.activeProjectId) {
-    await window.flushSave?.();
-    window.showToast?.('✅ 저장됨');
+    try {
+      const snap = window.serializeProject();
+      const data = JSON.parse(snap);
+      const targetId = window.activeProjectId;
+      const existing = await window.electronAPI.loadProject(targetId);
+      const proj = {
+        ...(existing || {}),
+        ...data,
+        id: targetId,
+        name: existing?.name || data.name || 'Untitled',
+        updatedAt: new Date().toISOString(),
+      };
+      await window.electronAPI.saveProject(proj);
+      // localStorage도 sync
+      localStorage.setItem('project_' + targetId, snap);
+      window.showToast?.('✅ 저장됨');
+    } catch (e) {
+      console.error('[saveProjectFile] 저장 실패:', e);
+      window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
+    }
     return;
   }
   // 웹: JSON 파일 다운로드
@@ -276,20 +294,40 @@ async function saveProjectFile() {
 }
 
 async function saveProjectAs() {
-  const base = JSON.parse(window.serializeProject());
-
-  // Electron: 커밋/브랜치 정보 병합
+  // Electron: 현재 프로젝트를 새 이름으로 저장 (activeProjectId 유지, name만 변경)
+  // → 이후 "저장하기"가 동일 파일에 저장되도록 보장
   if (window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    if (proj?.commits?.length)  base.commits  = proj.commits;
-    if (proj?.branches)         base.branches  = proj.branches;
-    if (proj?.currentBranch)    base.currentBranch = proj.currentBranch;
+    const defaultName = window.getProjectName?.() || `web-editor-${new Date().toISOString().slice(0,10)}`;
+    showFilenameModal(defaultName, async newName => {
+      try {
+        const snap = window.serializeProject();
+        const data = JSON.parse(snap);
+        const targetId = window.activeProjectId;
+        const existing = await window.electronAPI.loadProject(targetId);
+        const proj = {
+          ...(existing || {}),
+          ...data,
+          id: targetId,
+          name: newName,
+          updatedAt: new Date().toISOString(),
+        };
+        await window.electronAPI.saveProject(proj);
+        // 탭/레이어 패널 이름 갱신
+        window.setProjectName?.(newName);
+        window.showToast?.('✅ 저장됨 — ' + newName);
+      } catch (e) {
+        console.error('[saveProjectAs] 저장 실패:', e);
+        window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
+      }
+    });
+    return;
   }
 
+  // 웹: JSON 파일 다운로드
+  const base = JSON.parse(window.serializeProject());
   const json = JSON.stringify(base, null, 2);
   localStorage.setItem(SAVE_KEY, window.serializeProject());
-
-  const defaultName = window.currentFileName || window.getProjectName() || `web-editor-${new Date().toISOString().slice(0,10)}`;
+  const defaultName = window.currentFileName || window.getProjectName?.() || `web-editor-${new Date().toISOString().slice(0,10)}`;
   showFilenameModal(defaultName, name => {
     window.currentFileName = name;
     _downloadJSON(json, window.currentFileName);
