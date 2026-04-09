@@ -498,7 +498,7 @@ function renderTemplatePanel() {
   const folderState = loadFolderState();
 
   const listHtml = Object.entries(groups).map(([cat, tpls]) => {
-    const isOpen = folderState[cat] !== false;
+    const isOpen = folderState[cat] === true;
     return `
       <div class="tpl-folder" data-folder-cat="${escHtml(cat)}">
         <div class="tpl-folder-header ${isOpen ? 'open' : ''}">

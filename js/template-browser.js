@@ -423,8 +423,9 @@ async function _selectBrowserTemplate(id) {
   // 콘텐츠를 previewCanvas 안에 맞춰 중앙 배치 (scale + absolute centering)
   const content = previewCanvas.querySelector('.section-block') || previewCanvas.firstElementChild;
   if (content) {
-    const CANVAS_W = content.classList.contains('section-block') ? 860 : null;
-    if (CANVAS_W) content.style.width = CANVAS_W + 'px';
+    // section-block이든 block 타입이든 모두 860px 기준으로 제작되므로 동일하게 처리
+    const CANVAS_W = 860;
+    content.style.width = CANVAS_W + 'px';
     content.style.pointerEvents = 'none';
     content.style.userSelect    = 'none';
     content.style.position      = 'absolute';

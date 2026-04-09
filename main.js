@@ -354,11 +354,13 @@ const net = require('net');
 let figmaBridgeProc = null;
 
 async function checkPort3055() {
+  // net.createServer 방식은 IPv6 wildcard와 충돌 시 오탐 발생
+  // TCP connect 방식으로 실제 포트 활성화 여부 확인
   return new Promise(resolve => {
-    const s = net.createServer();
-    s.once('error', () => resolve(true));   // 포트 사용 중 = 서버 켜짐
-    s.once('listening', () => { s.close(); resolve(false); });
-    s.listen(3055, '127.0.0.1');
+    const s = net.createConnection(3055, '127.0.0.1');
+    s.once('connect', () => { s.destroy(); resolve(true); });
+    s.once('error', () => resolve(false));
+    s.setTimeout(500, () => { s.destroy(); resolve(false); });
   });
 }
 
