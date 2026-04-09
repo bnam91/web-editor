@@ -69,11 +69,14 @@ const DesignSystem = (() => {
     // 활성 프리셋 ID를 별도 저장 → _currentBase() 가 즉시 읽을 수 있음
     localStorage.setItem(STORAGE_BASE_KEY, presetId);
     syncPanelUI(tokens);
-    // TODO-QA: applyBase()는 :root CSS 변수만 덮어씀.
-    // 개별 섹션에 dataset.preset이 있어 인라인 CSS 변수가 지정된 경우
-    // (prop-section.js applyPreset 적용) :root 변경이 섹션 레벨에 의해 가려짐.
-    // 의도적 동작이면 주석으로 명시 필요. 전체 리셋 원할 경우
-    // 모든 섹션의 인라인 preset 변수를 함께 제거해야 함.
+    // 전체 테마 전환 시 개별 섹션에 인라인으로 적용된 --preset-* 변수를 제거.
+    // :root 변경이 섹션 인라인 변수에 가려지는 것을 방지.
+    // (사용자가 섹션별로 설정한 preset 커스터마이징도 함께 초기화됨 — 전체 테마 전환의 의도된 동작)
+    document.querySelectorAll('.section-block').forEach(sec => {
+      const style = sec.style;
+      [...style].filter(p => p.startsWith('--preset-')).forEach(p => style.removeProperty(p));
+      delete sec.dataset.preset;
+    });
   }
 
   // ── 패널 UI ─────────────────────────────────────────

@@ -62,4 +62,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   figmaBridgeStatus: () => ipcRenderer.invoke('figma-bridge-status'),
   figmaBridgeStart:  () => ipcRenderer.invoke('figma-bridge-start'),
   figmaBridgeStop:   () => ipcRenderer.invoke('figma-bridge-stop'),
+
+  // 종료 전 강제 저장
+  onForceSaveBeforeQuit: (cb) => ipcRenderer.on('force-save-before-quit', () => cb()),
+  quitReady: () => ipcRenderer.send('quit-ready'),
 });

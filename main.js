@@ -526,6 +526,18 @@ app.whenReady().then(() => {
   }
 });
 
+/* ── 종료 전 강제 저장 ── */
+app.on('before-quit', (event) => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win || win.isDestroyed()) return; // 창 없으면 바로 종료
+  event.preventDefault();
+  win.webContents.send('force-save-before-quit');
+  // 렌더러가 'quit-ready'를 보내면 실제 종료
+  ipcMain.once('quit-ready', () => app.exit(0));
+  // 3초 안에 응답 없으면 강제 종료 (데이터 손실 방어보다 행 방지 우선)
+  setTimeout(() => app.exit(0), 3000);
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

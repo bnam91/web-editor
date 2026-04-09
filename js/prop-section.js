@@ -1,5 +1,5 @@
 import { propPanel } from './globals.js';
-import { pushHistory, PRESETS, rgbToHex, getBlockBreadcrumb } from './editor.js';
+import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from './editor.js';
 
 /* ═══════════════════════════════════
    SECTION PROPERTIES PANEL
@@ -34,7 +34,9 @@ function setRpIdBadge(id) {
   }
 }
 
-function showSectionProperties(sec) {
+async function showSectionProperties(sec) {
+  // race condition 방지: Electron readPresets() IPC가 완료될 때까지 대기 후 PRESETS 사용
+  await _presetsReady;
   const rawBg = sec.style.backgroundColor || sec.style.background || '';
   const hexBg = rawBg
     ? (/^#[0-9a-f]{6}$/i.test(rawBg) ? rawBg : rgbToHex(rawBg))

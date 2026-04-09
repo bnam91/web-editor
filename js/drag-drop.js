@@ -1212,6 +1212,33 @@ function bindSectionDropZone(sec) {
   });
 }
 
+/* 빈 row(블록 없음, col 없음)에 드래그 바인딩 — bindBlock이 호출되지 않는 경우를 대비 */
+function bindEmptyRow(row) {
+  if (row._dragBound) return;
+  row._dragBound = true;
+  row.setAttribute('draggable', 'true');
+  row.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    _suppressDragSave();
+    dragSrc = row;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:fixed;top:-9999px;width:1px;height:1px;';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => ghost.remove(), 0);
+    requestAnimationFrame(() => row.classList.add('dragging'));
+  });
+  row.addEventListener('dragend', () => {
+    _resumeDragSave();
+    row.classList.remove('dragging');
+    clearDropIndicators();
+    dragSrc = null;
+    document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+  });
+}
+
 function _getParentFrame(block) {
   return block.closest('.frame-block');
 }
@@ -2013,6 +2040,38 @@ function bindBlock(block) {
               ev.preventDefault();
               ev.stopPropagation();
               cell.blur();
+            }
+            if (ev.key === 'Tab') {
+              ev.preventDefault();
+              ev.stopPropagation();
+              const allCells = [...block.querySelectorAll('th, td')];
+              const idx = allCells.indexOf(cell);
+              if (idx === -1) return;
+              cell.setAttribute('contenteditable', 'false');
+              let nextIdx;
+              if (ev.shiftKey) {
+                nextIdx = idx === 0 ? allCells.length - 1 : idx - 1;
+              } else {
+                nextIdx = idx === allCells.length - 1 ? 0 : idx + 1;
+              }
+              const nextCell = allCells[nextIdx];
+              if (nextCell) {
+                nextCell.setAttribute('contenteditable', 'true');
+                nextCell.focus();
+                const range = document.createRange();
+                range.selectNodeContents(nextCell);
+                range.collapse(false);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+                if (!nextCell._editBound) {
+                  nextCell._editBound = true;
+                  nextCell.addEventListener('blur', () => {
+                    nextCell.setAttribute('contenteditable', 'false');
+                    window.pushHistory('셀 텍스트 변경');
+                  });
+                }
+              }
             }
           });
         }
@@ -2849,6 +2908,7 @@ export {
   bindSectionDrag,
   bindSectionDropZone,
   bindBlock,
+  bindEmptyRow,
   bindFrameDropZone,
 };
 
@@ -2862,6 +2922,7 @@ window.bindGroupDrag               = bindGroupDrag;
 window.bindSectionDrag             = bindSectionDrag;
 window.bindSectionDropZone         = bindSectionDropZone;
 window.bindBlock                   = bindBlock;
+window.bindEmptyRow                = bindEmptyRow;
 window.bindFrameDropZone      = bindFrameDropZone;
 
 // 드래그 중단(ESC 등)으로 dragging 클래스가 고착되는 현상 방지

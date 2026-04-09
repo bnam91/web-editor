@@ -13,6 +13,7 @@ import {
 } from './drag-utils.js';
 import {
   bindBlock,
+  bindEmptyRow,
   bindGroupDrag,
   bindSectionDrag,
   bindSectionDropZone,
@@ -575,6 +576,7 @@ function addPresetRow(type) {
   insertAfterSelected(sec, row);
   if (allBlocks) allBlocks.forEach(b => bindBlock(b));
   else if (firstBlock) bindBlock(firstBlock);
+  else bindEmptyRow(row);
   window.buildLayerPanel();
   window.selectSection(sec);
   // 첫 번째 asset-block 자동 선택 (이미지 업로드 유도)

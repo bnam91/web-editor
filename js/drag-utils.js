@@ -171,12 +171,13 @@ function renderGraph(block) {
     block.innerHTML = `
       <div class="grb-bars-v" style="height:${chartH}px">
         ${items.map(item => {
-          const pct = Math.round((item.value / maxVal) * 100);
+          const pct = item.value === 0 ? 0 : Math.max(1, Math.round((item.value / maxVal) * 100));
+          const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
           return `
             <div class="grb-bar-col">
               <div class="grb-bar-val-label" style="font-size:${valSize}px">${item.value}</div>
               <div class="grb-bar-fill-wrap">
-                <div class="grb-bar-fill" style="height:${pct}%"></div>
+                <div class="grb-bar-fill" style="${fillStyle}"></div>
               </div>
               <div class="grb-bar-label" style="font-size:${labelSize}px">${item.label}</div>
             </div>`;
@@ -201,14 +202,15 @@ function renderGraph(block) {
     block.innerHTML = `
       <div class="grb-bars-h" style="padding:0 ${padX}px;gap:${itemGap}px">
         ${items.map(item => {
-          const pct = Math.min(100, Math.round(item.value));
+          const pct = item.value === 0 ? 0 : Math.max(1, Math.min(100, Math.round(item.value)));
           const displayVal = Number.isInteger(item.value) ? item.value + '%' : item.value;
+          const hFillExtra = pct === 0 ? 'width:4px;opacity:0.25;border-style:dashed;' : '';
           return `
             <div class="grb-bar-row">
               <div class="grb-bar-h-pct" style="font-size:${pctSize}px">${displayVal}</div>
               <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px">${item.label}</div>
               <div class="grb-bar-h-track" style="${trackStyle}">
-                <div class="grb-bar-h-fill" style="${fillStyle.replace('__PCT__', pct + '%')}"></div>
+                <div class="grb-bar-h-fill" style="${fillStyle.replace('__PCT__', pct + '%')}${hFillExtra}"></div>
               </div>
             </div>`;
         }).join('')}

@@ -76,11 +76,11 @@ export function showIconCircleProperties(block) {
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   if (hasImage) {
-    document.getElementById('icb-pos-btn').addEventListener('click', () => window.enterCircleImageEditMode(block));
-    document.getElementById('icb-replace-btn').addEventListener('click', () => window.triggerCircleUpload(block));
-    document.getElementById('icb-remove-btn').addEventListener('click', () => window.clearCircleImage(block));
+    propPanel.querySelector('#icb-pos-btn').addEventListener('click', () => window.enterCircleImageEditMode(block));
+    propPanel.querySelector('#icb-replace-btn').addEventListener('click', () => window.triggerCircleUpload(block));
+    propPanel.querySelector('#icb-remove-btn').addEventListener('click', () => window.clearCircleImage(block));
   } else {
-    document.getElementById('icb-upload-btn').addEventListener('click', () => window.triggerCircleUpload(block));
+    propPanel.querySelector('#icb-upload-btn').addEventListener('click', () => window.triggerCircleUpload(block));
   }
 
   const applySize = v => {
@@ -88,27 +88,27 @@ export function showIconCircleProperties(block) {
     block.dataset.size     = v;
     circle.style.width     = v + 'px';
     circle.style.height    = v + 'px';
-    document.getElementById('icb-size-slider').value = v;
-    document.getElementById('icb-size-number').value = v;
+    propPanel.querySelector('#icb-size-slider').value = v;
+    propPanel.querySelector('#icb-size-number').value = v;
   };
-  document.getElementById('icb-size-slider').addEventListener('input',  e => applySize(parseInt(e.target.value)));
-  document.getElementById('icb-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); window.pushHistory(); });
-  document.getElementById('icb-size-slider').addEventListener('change', () => window.pushHistory());
+  propPanel.querySelector('#icb-size-slider').addEventListener('input',  e => applySize(parseInt(e.target.value)));
+  propPanel.querySelector('#icb-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); window.pushHistory(); });
+  propPanel.querySelector('#icb-size-slider').addEventListener('change', () => window.pushHistory());
 
   const applyPadX = v => {
     v = Math.min(200, Math.max(0, v));
     block.dataset.padX         = v;
     block.style.paddingLeft    = v + 'px';
     block.style.paddingRight   = v + 'px';
-    document.getElementById('icb-padx-slider').value = v;
-    document.getElementById('icb-padx-number').value = v;
+    propPanel.querySelector('#icb-padx-slider').value = v;
+    propPanel.querySelector('#icb-padx-number').value = v;
   };
-  document.getElementById('icb-padx-slider').addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
-  document.getElementById('icb-padx-number').addEventListener('change', e => { applyPadX(parseInt(e.target.value)); window.pushHistory(); });
-  document.getElementById('icb-padx-slider').addEventListener('change', () => window.pushHistory());
+  propPanel.querySelector('#icb-padx-slider').addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
+  propPanel.querySelector('#icb-padx-number').addEventListener('change', e => { applyPadX(parseInt(e.target.value)); window.pushHistory(); });
+  propPanel.querySelector('#icb-padx-slider').addEventListener('change', () => window.pushHistory());
 
-  const bgPicker = document.getElementById('icb-bg-color');
-  const bgHex    = document.getElementById('icb-bg-hex');
+  const bgPicker = propPanel.querySelector('#icb-bg-color');
+  const bgHex    = propPanel.querySelector('#icb-bg-hex');
   const bgSwatch = bgPicker.closest('.prop-color-swatch');
   bgPicker.addEventListener('input', () => {
     block.dataset.bgColor   = bgPicker.value;
@@ -127,7 +127,7 @@ export function showIconCircleProperties(block) {
     }
   });
 
-  document.getElementById('icb-border-select').addEventListener('change', e => {
+  propPanel.querySelector('#icb-border-select').addEventListener('change', e => {
     block.dataset.border   = e.target.value;
     circle.dataset.border  = e.target.value;
     window.pushHistory();

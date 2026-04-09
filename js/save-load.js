@@ -887,6 +887,25 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
+// 앱 종료 전 강제 저장 (Electron before-quit IPC)
+if (IS_ELECTRON) {
+  window.electronAPI.onForceSaveBeforeQuit(async () => {
+    if (!activeProjectId) { window.electronAPI.quitReady(); return; }
+    // debounce 타이머 즉시 취소
+    if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+    const snap = serializeProject();
+    let snapData;
+    try { snapData = JSON.parse(snap); } catch { window.electronAPI.quitReady(); return; }
+    if (_isAllCanvasEmpty(snapData)) { window.electronAPI.quitReady(); return; }
+    try {
+      await saveProjectToFile(snapData, { skipThumbnail: true });
+    } catch (e) {
+      console.error('[save-load] force-save-before-quit 저장 실패:', e);
+    }
+    window.electronAPI.quitReady();
+  });
+}
+
 // 변경 감지 — canvas MutationObserver
 // class 속성 변경만 제외 (드래그 UI 상태 토글 spam 방지, DBG-11)
 // data-* 속성 변경(prop 패널 값)은 감지해야 하므로 attributes:true 포함

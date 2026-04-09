@@ -1038,14 +1038,12 @@ if (window.electronAPI) {
   });
 }
 
-// Electron 환경이면 JSON 파일에서 프리셋 로드
-// TODO-QA: race condition — readPresets()가 async IPC이므로 showSectionProperties()가 먼저 호출되면
-// PRESET_FALLBACK(하드코딩, 폰트가 'Noto Sans KR')이 섹션 프리셋 드롭다운에 표시됨.
-// presets/*.json의 default는 'Pretendard' 포함 — 첫 렌더 직후 선택 패널 열면 폰트 불일치.
-// 해결: showSectionProperties 내에서 window.electronAPI.readPresets() await 후 UI 렌더 또는
-//       DOMContentLoaded 이전에 preload로 동기 주입 고려.
+// Electron 환경이면 JSON 파일에서 프리셋 로드.
+// _presetsReady: race condition 방지용 Promise — showSectionProperties 등에서 await 후 UI 렌더.
+// Electron 비환경(브라우저)에서는 즉시 resolve하여 PRESET_FALLBACK 사용.
+let _presetsReady;
 if (window.electronAPI) {
-  window.electronAPI.readPresets().then(loaded => {
+  _presetsReady = window.electronAPI.readPresets().then(loaded => {
     if (loaded && loaded.length) {
       PRESETS = loaded.sort((a, b) => {
         const order = ['default', 'dark', 'brand', 'minimal'];
@@ -1053,6 +1051,8 @@ if (window.electronAPI) {
       });
     }
   });
+} else {
+  _presetsReady = Promise.resolve();
 }
 
 
@@ -1589,6 +1589,7 @@ export {
   initFileTabToggle,
   rgbToHex,
   PRESETS,
+  _presetsReady,
   bindSectionDelete,
   bindSectionOrder,
   getSelectedSection,
