@@ -619,8 +619,12 @@ function _bindSearchInput(body) {
   }
 }
 
-export async function saveBlockAsTemplate(block, name) {
+export async function saveBlockAsTemplate(block, name, folder = '블록', tagsStr = '') {
   if (!block || !name) return;
+
+  // tags 파싱
+  const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
+  const resolvedFolder = folder || '블록';
 
   // 저장용 클론 (핸들/편집모드 제거)
   const clone = block.cloneNode(true);
@@ -637,7 +641,7 @@ export async function saveBlockAsTemplate(block, name) {
     await window.electronAPI.saveTemplateCanvas(id, html);
   } else {
     // localStorage fallback
-    _lsFullCache.unshift({ id, name, folder: '블록', category: blockType, tags: [], createdAt: new Date().toISOString(), thumbnail: null, type: 'block', blockType, canvas: html });
+    _lsFullCache.unshift({ id, name, folder: resolvedFolder, category: blockType, tags, createdAt: new Date().toISOString(), thumbnail: null, type: 'block', blockType, canvas: html });
   }
 
   // 메타 저장
@@ -645,9 +649,9 @@ export async function saveBlockAsTemplate(block, name) {
   templates.unshift({
     id,
     name,
-    folder: '블록',
+    folder: resolvedFolder,
     category: blockType,
-    tags: [],
+    tags,
     createdAt: new Date().toISOString(),
     thumbnail: null,
     type: 'block',
@@ -662,6 +666,7 @@ export async function saveBlockAsTemplate(block, name) {
 
 // 크로스 모듈 접근용 window 노출
 window.loadTemplates        = loadTemplates;
+window.loadTemplatesPublic  = loadTemplates;
 window.saveAsTemplate       = saveAsTemplate;
 window.saveBlockAsTemplate  = saveBlockAsTemplate;
 window.deleteTemplate       = deleteTemplate;

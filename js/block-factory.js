@@ -2429,6 +2429,15 @@ window.renderVector    = renderVector;
     e.stopPropagation();
     _targetBlock = block;
 
+    // 폴더 목록 채우기
+    const folderSel = document.getElementById('bcm-folder-select');
+    if (folderSel) {
+      const templates = window.loadTemplatesPublic?.() || [];
+      const folders = [...new Set(templates.map(t => t.folder || '블록').filter(Boolean))];
+      if (!folders.includes('블록')) folders.unshift('블록');
+      folderSel.innerHTML = folders.map(f => `<option value="${f}">${f}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
+    }
+
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
     const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
     menu.style.left    = x + 'px';
@@ -2437,9 +2446,17 @@ window.renderVector    = renderVector;
   }
 
   // 저장 버튼 → 인라인 이름 입력 표시
-  const nameRow    = document.getElementById('bcm-name-row');
-  const nameInput  = document.getElementById('bcm-name-input');
+  const nameRow     = document.getElementById('bcm-name-row');
+  const nameInput   = document.getElementById('bcm-name-input');
   const nameConfirm = document.getElementById('bcm-name-confirm');
+  const folderSel   = document.getElementById('bcm-folder-select');
+  const bcmFolderNew = document.getElementById('bcm-folder-new');
+  const bcmTagsInput = document.getElementById('bcm-tags-input');
+
+  folderSel?.addEventListener('change', e => {
+    e.stopPropagation();
+    if (bcmFolderNew) bcmFolderNew.style.display = folderSel.value === '__new__' ? 'block' : 'none';
+  });
 
   document.getElementById('bcm-save-template')?.addEventListener('click', e => {
     e.stopPropagation();
@@ -2450,8 +2467,14 @@ window.renderVector    = renderVector;
   nameConfirm?.addEventListener('click', e => {
     e.stopPropagation();
     const name = nameInput?.value?.trim();
-    if (name) window.saveBlockAsTemplate?.(_targetBlock, name);
+    const folder = folderSel?.value === '__new__'
+      ? (bcmFolderNew?.value?.trim() || '블록')
+      : (folderSel?.value || '블록');
+    const tags = bcmTagsInput?.value?.trim() || '';
+    if (name) window.saveBlockAsTemplate?.(_targetBlock, name, folder, tags);
     if (nameInput) nameInput.value = '';
+    if (bcmFolderNew) { bcmFolderNew.value = ''; bcmFolderNew.style.display = 'none'; }
+    if (bcmTagsInput) bcmTagsInput.value = '';
     if (nameRow) nameRow.style.display = 'none';
     closeMenu();
   });
@@ -2463,6 +2486,9 @@ window.renderVector    = renderVector;
   });
 
   nameInput?.addEventListener('click', e => e.stopPropagation());
+  folderSel?.addEventListener('click', e => e.stopPropagation());
+  bcmFolderNew?.addEventListener('click', e => e.stopPropagation());
+  bcmTagsInput?.addEventListener('click', e => e.stopPropagation());
 
   // 외부 클릭 시 닫기 (click만 — contextmenu는 stopPropagation으로 차단되므로 제거)
   document.addEventListener('click', closeMenu);

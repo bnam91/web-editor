@@ -211,10 +211,13 @@ function _renderBrowserCards() {
   container.innerHTML = templates.map(tpl => {
     const isSelected = _browserSelected === tpl.id;
     const isStarred  = starred.has(tpl.id);
+    const thumbColor = (tpl.type === 'section' || tpl.type === 'subsection') ? '#8B5CF6'
+                     : tpl.type === 'block' ? '#F59E0B'
+                     : '#555';
     return `
       <div class="tb-card ${isSelected ? 'selected' : ''}" data-tpl-id="${_esc(tpl.id)}" title="${_esc(tpl.name)}">
         <div class="tb-card-thumb">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#555" stroke-width="1.2">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="${thumbColor}" stroke-width="1.2">
             <rect x="1" y="1" width="12" height="12" rx="1.5"/>
             <line x1="1" y1="5" x2="13" y2="5"/>
             <line x1="4" y1="1" x2="4" y2="5"/>

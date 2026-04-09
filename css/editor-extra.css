@@ -660,6 +660,7 @@ body.preview-mode #preview-navigator { display: flex; }
   position: fixed;
   bottom: auto;
   width: 420px;
+  min-height: 300px;
   max-height: calc(100vh - 60px);
   background: var(--ui-bg-app);
   border: 1px solid var(--ui-bg-hover);
@@ -873,6 +874,7 @@ body.preview-mode #preview-navigator { display: flex; }
   padding: 12px;
   box-sizing: border-box;
   width: 100%;
+  background: #ffffff;
 }
 .tpl-browser-preview-footer {
   flex-shrink: 0;
