@@ -2428,6 +2428,11 @@ function bindBlock(block) {
       dragSrc = null;
     });
   }
+
+  // 블록 우클릭 → 컨텍스트 메뉴
+  block.addEventListener('contextmenu', e => {
+    if (window._openBlockContextMenu) window._openBlockContextMenu(e, block);
+  });
 }
 
 function bindFrameDropZone(ss) {

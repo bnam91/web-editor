@@ -676,6 +676,10 @@ body.preview-mode #preview-navigator { display: flex; }
   opacity: 1;
   pointer-events: auto;
 }
+/* 리사이즈 후 JS가 height를 직접 설정하면 max-height가 clamp하지 않도록 해제 */
+#tpl-browser[style*="height"] {
+  max-height: none;
+}
 
 /* 헤더 */
 .tpl-browser-header {
@@ -1641,3 +1645,16 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 .itb-text:empty::before { content: '본문 내용을 입력하세요.'; color: #ccc; pointer-events: none; }
 .itb-text[contenteditable="true"] { outline: none; }
+
+/* ── 블록 컨텍스트 메뉴 ── */
+.bcm-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #ccc;
+  cursor: pointer;
+  user-select: none;
+}
+.bcm-item:hover { background: #2a2a2a; color: #fff; }

@@ -116,6 +116,26 @@ async function insertTemplate(tpl) {
     return;
   }
 
+  // block 타입: 선택된 섹션의 col에 삽입
+  if (tpl.type === 'block') {
+    const sec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
+    if (!sec) { window.showToast?.('섹션을 먼저 선택하세요'); return; }
+
+    const targetCol = sec.querySelector('.col.col-active') || sec.querySelector('.col') || sec;
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = canvas;
+    const blockEl = wrapper.firstElementChild;
+    if (!blockEl) return;
+
+    targetCol.appendChild(blockEl);
+    window.bindBlock?.(blockEl);
+    window.pushHistory?.();
+    window.scheduleAutoSave?.();
+    window.showToast?.('블록 템플릿 삽입됨');
+    return;
+  }
+
   // subsection 타입: 선택된 섹션 안에 삽입
   if (tpl.type === 'subsection') {
     const targetSec = window.getSelectedSection?.();
@@ -283,7 +303,7 @@ async function showTemplatePreview(id) {
       </div>
       <div class="tpl-preview-canvas">${canvas}</div>
       <div class="tpl-preview-footer">
-        <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">${tpl.type === 'subsection' ? '+ 컴포넌트 삽입' : '+ 섹션 추가'}</button>
+        <button class="tpl-preview-insert-btn" data-tpl-id="${escHtml(tpl.id)}">${tpl.type === 'subsection' ? '+ 컴포넌트 삽입' : tpl.type === 'block' ? '+ 블록 삽입' : '+ 섹션 추가'}</button>
       </div>
     </div>`;
 
@@ -490,6 +510,8 @@ function renderTemplatePanel() {
               : '';
             const typeBadge = tpl.type === 'subsection'
               ? `<span class="tpl-type-badge" style="font-size:9px;background:#2a3a5a;color:#6a9fdf;padding:1px 5px;border-radius:3px;margin-left:4px;">컴포넌트</span>`
+              : tpl.type === 'block'
+              ? `<span class="tpl-type-badge" style="font-size:9px;background:#2a4a2a;color:#6abf6a;padding:1px 5px;border-radius:3px;margin-left:4px;">블록</span>`
               : '';
             return `
               <div class="tpl-card" data-tpl-id="${escHtml(tpl.id)}">
@@ -597,9 +619,51 @@ function _bindSearchInput(body) {
   }
 }
 
+export async function saveBlockAsTemplate(block, name) {
+  if (!block || !name) return;
+
+  // 저장용 클론 (핸들/편집모드 제거)
+  const clone = block.cloneNode(true);
+  clone.classList.remove('selected', 'hovered');
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint, .block-toolbar').forEach(el => el.remove());
+  clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
+  const html = clone.outerHTML;
+
+  const id = 'btpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const blockType = block.dataset.type || block.className.split(' ')[0];
+
+  // canvas 저장
+  if (window.electronAPI?.saveTemplateCanvas) {
+    await window.electronAPI.saveTemplateCanvas(id, html);
+  } else {
+    // localStorage fallback
+    _lsFullCache.unshift({ id, name, folder: '블록', category: blockType, tags: [], createdAt: new Date().toISOString(), thumbnail: null, type: 'block', blockType, canvas: html });
+  }
+
+  // 메타 저장
+  const templates = loadTemplates();
+  templates.unshift({
+    id,
+    name,
+    folder: '블록',
+    category: blockType,
+    tags: [],
+    createdAt: new Date().toISOString(),
+    thumbnail: null,
+    type: 'block',
+    blockType
+  });
+  saveTemplates(templates);
+  renderTemplatePanel();
+
+  // 토스트
+  window.showToast?.('블록 템플릿 저장됨: ' + name);
+}
+
 // 크로스 모듈 접근용 window 노출
 window.loadTemplates        = loadTemplates;
 window.saveAsTemplate       = saveAsTemplate;
+window.saveBlockAsTemplate  = saveBlockAsTemplate;
 window.deleteTemplate       = deleteTemplate;
 window.insertTemplate       = insertTemplate;
 window.renderTemplatePanel  = renderTemplatePanel;

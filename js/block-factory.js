@@ -2409,3 +2409,45 @@ function addVectorBlock(svgString = '', opts = {}) {
 window.makeVectorBlock = makeVectorBlock;
 window.addVectorBlock  = addVectorBlock;
 window.renderVector    = renderVector;
+
+/* ── 블록 컨텍스트 메뉴 ── */
+(function initBlockContextMenu() {
+  const menu = document.getElementById('block-context-menu');
+  if (!menu) return;
+
+  let _targetBlock = null;
+
+  // 메뉴 닫기
+  function closeMenu() {
+    menu.style.display = 'none';
+    _targetBlock = null;
+  }
+
+  // 메뉴 열기
+  function openMenu(e, block) {
+    e.preventDefault();
+    e.stopPropagation();
+    _targetBlock = block;
+
+    const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
+    const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
+    menu.style.left    = x + 'px';
+    menu.style.top     = y + 'px';
+    menu.style.display = 'block';
+  }
+
+  // 저장 버튼
+  document.getElementById('bcm-save-template')?.addEventListener('click', () => {
+    if (!_targetBlock) return closeMenu();
+    const name = prompt('블록 템플릿 이름을 입력하세요:');
+    if (!name?.trim()) return closeMenu();
+    window.saveBlockAsTemplate?.(_targetBlock, name.trim());
+    closeMenu();
+  });
+
+  // 외부 클릭 시 닫기 (click만 — contextmenu는 stopPropagation으로 차단되므로 제거)
+  document.addEventListener('click', closeMenu);
+
+  // window에 등록 (bindBlock에서 사용)
+  window._openBlockContextMenu = openMenu;
+})();

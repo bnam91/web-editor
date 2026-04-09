@@ -89,7 +89,7 @@ function _renderBrowserTree() {
   Object.entries(folderMap).forEach(([folder, cats]) => {
     const folderTotal = Object.values(cats).reduce((a, b) => a + b, 0);
     const folderActive = _browserFilter.folder === folder;
-    const isExpanded = folderActive || Object.keys(folderMap).length <= 3;
+    const isExpanded = folderActive;
 
     html += `
     <div class="tb-tree-folder ${isExpanded ? 'expanded' : ''}" data-folder="${_esc(folder)}">
@@ -458,6 +458,46 @@ function _esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+/* ── 패널 리사이즈 ── */
+function initTplResize() {
+  const panel = document.getElementById('tpl-browser');
+  const handle = document.getElementById('tpl-resize-handle');
+  if (!panel || !handle) return;
+
+  const MIN_W = 280, MAX_W = 700;
+  const MIN_H = 300, MAX_H = window.innerHeight * 0.9;
+
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = panel.offsetWidth;
+    const startH = panel.offsetHeight;
+
+    function onMove(e) {
+      const newW = Math.min(MAX_W, Math.max(MIN_W, startW + (e.clientX - startX)));
+      const newH = Math.min(window.innerHeight * 0.9, Math.max(MIN_H, startH + (e.clientY - startY)));
+      panel.style.width  = newW + 'px';
+      panel.style.height = newH + 'px';
+      localStorage.setItem('tpl-browser-size', JSON.stringify({ w: newW, h: newH }));
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // 저장된 크기 복원
+  try {
+    const saved = JSON.parse(localStorage.getItem('tpl-browser-size') || '{}');
+    if (saved.w) panel.style.width  = saved.w + 'px';
+    if (saved.h) panel.style.height = saved.h + 'px';
+  } catch {}
+}
+
 /* ── 초기화: 이벤트 바인딩 ── */
 function initTemplateBrowser() {
   document.getElementById('tpl-browser-close')?.addEventListener('click', closeTemplateBrowser);
@@ -563,6 +603,9 @@ function initTemplateBrowser() {
       document.addEventListener('mouseup', onUp);
     });
   }
+
+  // 패널 우하단 리사이즈 핸들 초기화
+  initTplResize();
 }
 
 window.openTemplateBrowser  = openTemplateBrowser;

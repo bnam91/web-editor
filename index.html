@@ -795,6 +795,12 @@
     <div class="tpl-browser-tree" id="tpl-browser-tree"></div>
     <div class="tpl-browser-cards" id="tpl-browser-cards"></div>
   </div>
+  <!-- 우하단 리사이즈 핸들 -->
+  <div id="tpl-resize-handle" style="position:absolute;bottom:0;right:0;width:20px;height:20px;cursor:se-resize;z-index:3;display:flex;align-items:flex-end;justify-content:flex-end;padding:4px;">
+    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style="pointer-events:none;">
+      <path d="M1 7L7 1M4 7L7 4" stroke="rgba(255,255,255,0.25)" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </div>
 </div>
 
 <!-- Preview Overlay -->
@@ -1020,5 +1026,15 @@
     badge.style.display = 'inline-block';
   })();
 </script>
+<div id="block-context-menu" style="display:none;position:fixed;z-index:9999;min-width:160px;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:4px 0;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+  <div class="bcm-item" id="bcm-save-template">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+      <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+      <line x1="3" y1="4" x2="9" y2="4"/>
+      <line x1="3" y1="6.5" x2="7" y2="6.5"/>
+    </svg>
+    블록 템플릿으로 저장
+  </div>
+</div>
 </body>
 </html>
