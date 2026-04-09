@@ -174,8 +174,28 @@ ipcMain.handle('license:navigate-projects', () => {
   mainWindow.loadFile('pages/projects.html');
 });
 
+/* ── 사용자 데이터 경로 (자동업데이트 후에도 유지) ── */
+const USER_DATA_DIR = app.getPath('userData');
+
+// 구 경로 → 신 경로 파일 마이그레이션 (없는 파일만 복사)
+function migrateFiles(oldDir, newDir) {
+  if (!fs.existsSync(oldDir)) return;
+  if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
+  fs.readdirSync(oldDir).forEach(file => {
+    const src = path.join(oldDir, file);
+    const dst = path.join(newDir, file);
+    if (fs.existsSync(dst)) return; // 이미 있으면 스킵
+    if (fs.statSync(src).isDirectory()) {
+      migrateFiles(src, dst);
+    } else {
+      fs.copyFileSync(src, dst);
+    }
+  });
+}
+
 /* ── IPC: Projects (파일 기반 저장소) ── */
-const PROJECTS_DIR = path.join(__dirname, 'projects');
+const PROJECTS_DIR = path.join(USER_DATA_DIR, 'projects');
+migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR); // 구 경로 마이그레이션
 if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
 
 ipcMain.handle('projects:list', () => {
@@ -251,21 +271,25 @@ ipcMain.handle('intake:list', () => {
 /* ── IPC: Presets ── */
 ipcMain.handle('fullscreen:get', () => mainWindow?.isFullScreen() ?? false);
 
+// presets: 기본값은 앱 번들에서 userData로 초기 복사, 이후 userData만 사용
+const PRESETS_DIR = path.join(USER_DATA_DIR, 'presets');
+migrateFiles(path.join(__dirname, 'presets'), PRESETS_DIR); // 번들 기본값 + 구 경로 마이그레이션
+if (!fs.existsSync(PRESETS_DIR)) fs.mkdirSync(PRESETS_DIR, { recursive: true });
+
 ipcMain.handle('presets:read-all', () => {
-  const dir = path.join(__dirname, 'presets');
-  return fs.readdirSync(dir)
+  return fs.readdirSync(PRESETS_DIR)
     .filter(f => f.endsWith('.json'))
-    .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
+    .map(f => JSON.parse(fs.readFileSync(path.join(PRESETS_DIR, f), 'utf8')));
 });
 
 ipcMain.handle('presets:save', (event, preset) => {
-  const filePath = path.join(__dirname, 'presets', `${preset.id}.json`);
+  const filePath = path.join(PRESETS_DIR, `${preset.id}.json`);
   fs.writeFileSync(filePath, JSON.stringify(preset, null, 2));
   return true;
 });
 
 ipcMain.handle('presets:delete', (event, presetId) => {
-  const filePath = path.join(__dirname, 'presets', `${presetId}.json`);
+  const filePath = path.join(PRESETS_DIR, `${presetId}.json`);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   return true;
 });
@@ -347,9 +371,10 @@ ipcMain.handle('figma:write-node-map', (event, nodeMap) => {
 });
 
 /* ── IPC: Templates ── */
-const TEMPLATES_DIR        = path.join(__dirname, 'templates');
+const TEMPLATES_DIR        = path.join(USER_DATA_DIR, 'templates');
 const TEMPLATES_CANVAS_DIR = path.join(TEMPLATES_DIR, 'canvas');
 const TEMPLATES_INDEX_FILE = path.join(TEMPLATES_DIR, 'index.json');
+migrateFiles(path.join(__dirname, 'templates'), TEMPLATES_DIR); // 구 경로 마이그레이션
 if (!fs.existsSync(TEMPLATES_CANVAS_DIR)) fs.mkdirSync(TEMPLATES_CANVAS_DIR, { recursive: true });
 
 ipcMain.handle('templates:load-index', () => {
