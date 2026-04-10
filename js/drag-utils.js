@@ -226,8 +226,19 @@ function applyDividerStyle(block) {
   const color   = block.dataset.lineColor   || '#cccccc';
   const padV    = block.dataset.padV        || '30';
   const padH    = block.dataset.padH        || '0';
-  hr.style.borderTop = `${weight}px ${style} ${color}`;
-  block.style.padding = `${padV}px ${padH}px`;
+  const dir     = block.dataset.lineDir     || 'horizontal';
+  const lineLen = parseInt(block.dataset.lineLength) || 80;
+
+  if (dir === 'vertical') {
+    hr.style.cssText = `border-left:${weight}px ${style} ${color}; border-top:none; width:0; height:${lineLen}px;`;
+    block.style.padding = `${padV}px ${padH}px`;
+    block.style.display = 'flex';
+    block.style.justifyContent = 'center';
+  } else {
+    hr.style.cssText = `border-top:${weight}px ${style} ${color};`;
+    block.style.padding = `${padV}px ${padH}px`;
+    block.style.display = '';
+  }
 }
 
 const ASSET_PRESETS = {

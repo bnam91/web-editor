@@ -775,6 +775,8 @@ function makeDividerBlock() {
   dvd.dataset.lineWeight  = '1';
   dvd.dataset.padV        = '30';
   dvd.dataset.padH        = '0';
+  dvd.dataset.lineDir     = 'horizontal';
+  dvd.dataset.lineLength  = '80';
   dvd.innerHTML = `<hr class="dvd-line" style="border-top:1px solid #cccccc;">`;
 
   row.appendChild(dvd);

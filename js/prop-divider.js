@@ -6,6 +6,9 @@ export function showDividerProperties(block) {
   const lineWeight = parseInt(block.dataset.lineWeight) || 1;
   const padV       = parseInt(block.dataset.padV)       || 12;
   const padH       = parseInt(block.dataset.padH)       || 0;
+  const lineDir    = block.dataset.lineDir    || 'horizontal';
+  const lineLength = parseInt(block.dataset.lineLength) || 80;
+  const isVertical = lineDir === 'vertical';
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -20,6 +23,19 @@ export function showDividerProperties(block) {
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">방향</div>
+      <div class="prop-align-group" id="dvd-dir-group">
+        <button class="prop-align-btn${!isVertical?' active':''}" data-dir="horizontal">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="7" x2="13" y2="7"/></svg>
+          가로
+        </button>
+        <button class="prop-align-btn${isVertical?' active':''}" data-dir="vertical">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="7" y1="1" x2="7" y2="13"/></svg>
+          세로
+        </button>
       </div>
     </div>
     <div class="prop-section">
@@ -44,6 +60,11 @@ export function showDividerProperties(block) {
         <input type="range" class="prop-slider" id="dvd-weight-slider" min="1" max="12" step="1" value="${lineWeight}">
         <input type="number" class="prop-number" id="dvd-weight-number" min="1" max="12" value="${lineWeight}">
       </div>
+      <div class="prop-row" id="dvd-length-row" style="display:${isVertical?'flex':'none'}">
+        <span class="prop-label">길이</span>
+        <input type="range" class="prop-slider" id="dvd-length-slider" min="20" max="400" step="4" value="${lineLength}">
+        <input type="number" class="prop-number" id="dvd-length-number" min="20" max="400" value="${lineLength}">
+      </div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">패딩</div>
@@ -60,6 +81,32 @@ export function showDividerProperties(block) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
+
+  // 방향 토글
+  propPanel.querySelector('#dvd-dir-group').addEventListener('click', e => {
+    const btn = e.target.closest('[data-dir]');
+    if (!btn) return;
+    block.dataset.lineDir = btn.dataset.dir;
+    const isVert = btn.dataset.dir === 'vertical';
+    propPanel.querySelectorAll('#dvd-dir-group .prop-align-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.dir === btn.dataset.dir));
+    propPanel.querySelector('#dvd-length-row').style.display = isVert ? 'flex' : 'none';
+    window.applyDividerStyle(block);
+    window.pushHistory();
+  });
+
+  // 길이 슬라이더 (세로 전용)
+  const lenSlider = propPanel.querySelector('#dvd-length-slider');
+  const lenNumber = propPanel.querySelector('#dvd-length-number');
+  const applyLength = v => {
+    v = Math.min(400, Math.max(20, v));
+    block.dataset.lineLength = v;
+    window.applyDividerStyle(block);
+    lenSlider.value = v; lenNumber.value = v;
+  };
+  lenSlider.addEventListener('input',  () => applyLength(parseInt(lenSlider.value)));
+  lenNumber.addEventListener('change', () => { applyLength(parseInt(lenNumber.value)); window.pushHistory(); });
+  lenSlider.addEventListener('change', () => window.pushHistory());
 
   const colorPicker = document.getElementById('dvd-color');
   const colorHex    = document.getElementById('dvd-hex');
