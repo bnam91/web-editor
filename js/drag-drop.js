@@ -565,16 +565,32 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
   const startW = Math.round(rect.width  / scale0);
   const startH = Math.round(rect.height / scale0);
 
+  const aspectRatio = startW / startH;
+
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
     const dx = (ev.clientX - startX) / scale;
     const dy = (ev.clientY - startY) / scale;
     let newW = startW, newH = startH;
-    if (dir.includes('e')) newW = Math.min(860, Math.max(100, startW + dx));
-    if (dir.includes('w')) newW = Math.min(860, Math.max(100, startW - dx));
-    if (dir.includes('s')) newH = Math.max(40, startH + dy);
-    if (dir.includes('n')) newH = Math.max(40, startH - dy);
+
+    if (ev.shiftKey) {
+      // 비례 유지: 더 큰 델타 기준으로 종횡비 고정
+      const dw = dir.includes('e') ? dx : dir.includes('w') ? -dx : 0;
+      const dh = dir.includes('s') ? dy : dir.includes('n') ? -dy : 0;
+      if (Math.abs(dw) >= Math.abs(dh)) {
+        newW = Math.min(860, Math.max(100, startW + dw));
+        newH = Math.max(40, Math.round(newW / aspectRatio));
+      } else {
+        newH = Math.max(40, startH + dh);
+        newW = Math.min(860, Math.max(100, Math.round(newH * aspectRatio)));
+      }
+    } else {
+      if (dir.includes('e')) newW = Math.min(860, Math.max(100, startW + dx));
+      if (dir.includes('w')) newW = Math.min(860, Math.max(100, startW - dx));
+      if (dir.includes('s')) newH = Math.max(40, startH + dy);
+      if (dir.includes('n')) newH = Math.max(40, startH - dy);
+    }
     newW = Math.round(newW); newH = Math.round(newH);
     ab.style.width  = newW >= 860 ? '' : newW + 'px';
     ab.style.height = newH + 'px';
