@@ -293,7 +293,11 @@ function showSimpleCardProperties(block) {
   const h         = parseInt(block.dataset.canvasH)  || 508;
   const radius    = parseInt(block.dataset.radius)   || 12;
   const imgRatio  = parseInt(block.dataset.imgRatio) ?? 65;
-  const textBg    = block.dataset.textBg    || '#f5f5f5';
+  const isTextBgTransparent = block.dataset.textBg === 'transparent';
+  const textBgLast = block.dataset.textBgLast || '#f5f5f5';
+  const textBg    = isTextBgTransparent ? textBgLast : (block.dataset.textBg || '#f5f5f5');
+  const titleColor = block.dataset.titleColor || '#ffffff';
+  const descColor  = block.dataset.descColor  || '#ffffffbf';
   const titleSize = parseInt(block.dataset.titleSize) || 20;
   const descSize  = parseInt(block.dataset.descSize)  || 14;
   const textAlign = block.dataset.textAlign || 'left';
@@ -360,10 +364,25 @@ function showSimpleCardProperties(block) {
       <div class="prop-section-title">텍스트 영역</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색 (일괄)</span>
-        <div class="prop-color-swatch" style="background:${textBg}">
-          <input type="color" id="cvb-textbg-pick" value="${textBg}">
+        <div class="prop-color-swatch" style="background:${isTextBgTransparent ? 'transparent' : textBg}; ${isTextBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
+          <input type="color" id="cvb-textbg-pick" value="${textBg}" ${isTextBgTransparent ? 'disabled' : ''}>
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-textbg-hex" value="${textBg}" maxlength="7">
+        <input type="text" class="prop-color-hex" id="cvb-textbg-hex" value="${isTextBgTransparent ? 'transparent' : textBg}" maxlength="11" ${isTextBgTransparent ? 'disabled' : ''}>
+        <button class="prop-align-btn${isTextBgTransparent ? ' active' : ''}" id="cvb-textbg-transparent-btn" style="width:36px;flex-shrink:0;">투명</button>
+      </div>
+      <div class="prop-color-row">
+        <span class="prop-label">제목 색</span>
+        <div class="prop-color-swatch" style="background:${titleColor}">
+          <input type="color" id="cvb-title-color-pick" value="${titleColor.startsWith('rgba') ? '#ffffff' : titleColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="cvb-title-color-hex" value="${titleColor}" maxlength="7">
+      </div>
+      <div class="prop-color-row">
+        <span class="prop-label">설명 색</span>
+        <div class="prop-color-swatch" style="background:${descColor}">
+          <input type="color" id="cvb-desc-color-pick" value="${descColor.startsWith('rgba') ? '#ffffff' : descColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="cvb-desc-color-hex" value="${descColor}" maxlength="7">
       </div>
       <div class="prop-row">
         <span class="prop-label">제목 크기</span>
@@ -498,19 +517,76 @@ function showSimpleCardProperties(block) {
   const textBgPick  = document.getElementById('cvb-textbg-pick');
   const textBgHex   = document.getElementById('cvb-textbg-hex');
   const textBgSwatch = textBgPick.closest('.prop-color-swatch');
+  const textBgTransBtn = document.getElementById('cvb-textbg-transparent-btn');
+
+  const setTextBgTransparentUI = on => {
+    textBgTransBtn.classList.toggle('active', on);
+    textBgPick.disabled = on;
+    textBgHex.disabled  = on;
+    if (on) {
+      textBgHex.value = 'transparent';
+      textBgSwatch.style.background = '';
+      textBgSwatch.style.backgroundImage = 'repeating-conic-gradient(#888 0% 25%,#555 0% 50%)';
+      textBgSwatch.style.backgroundSize = '8px 8px';
+    } else {
+      const v = block.dataset.textBgLast || '#f5f5f5';
+      textBgHex.value = v;
+      textBgPick.value = v;
+      textBgSwatch.style.backgroundImage = '';
+      textBgSwatch.style.background = v;
+    }
+  };
+
   const applyTextBg = v => {
+    block.dataset.textBgLast = v;
     block.dataset.textBg = v;
     window.renderCanvas(block);
     textBgPick.value = v;
     textBgHex.value  = v;
     if (textBgSwatch) textBgSwatch.style.background = v;
   };
+
+  textBgTransBtn.addEventListener('click', () => {
+    const on = !textBgTransBtn.classList.contains('active');
+    if (on) {
+      block.dataset.textBgLast = block.dataset.textBg || '#f5f5f5';
+      block.dataset.textBg = 'transparent';
+    } else {
+      block.dataset.textBg = block.dataset.textBgLast || '#f5f5f5';
+    }
+    window.renderCanvas(block);
+    window.pushHistory?.();
+    setTextBgTransparentUI(on);
+  });
+
   textBgPick.addEventListener('input',  () => applyTextBg(textBgPick.value));
   textBgPick.addEventListener('change', () => window.pushHistory?.());
   textBgHex.addEventListener('change',  () => {
     const v = textBgHex.value.trim();
     if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyTextBg(v); window.pushHistory?.(); }
   });
+
+  // ── 제목/설명 텍스트 색상 ─────────────────────────────────────────────────────
+  const bindTextColor = (pickId, hexId, datasetKey) => {
+    const pick  = document.getElementById(pickId);
+    const hex   = document.getElementById(hexId);
+    const swatch = pick.closest('.prop-color-swatch');
+    const apply = v => {
+      block.dataset[datasetKey] = v;
+      window.renderCanvas(block);
+      pick.value = v;
+      hex.value  = v;
+      if (swatch) swatch.style.background = v;
+    };
+    pick.addEventListener('input',  () => apply(pick.value));
+    pick.addEventListener('change', () => window.pushHistory?.());
+    hex.addEventListener('change',  () => {
+      const v = hex.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) { apply(v); window.pushHistory?.(); }
+    });
+  };
+  bindTextColor('cvb-title-color-pick', 'cvb-title-color-hex', 'titleColor');
+  bindTextColor('cvb-desc-color-pick',  'cvb-desc-color-hex',  'descColor');
 
   // ── 제목 크기 ────────────────────────────────────────────────────────────────
   const titleSlider = document.getElementById('cvb-title-slider');

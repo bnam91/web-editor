@@ -1533,16 +1533,18 @@ window.addShapeBlock        = addShapeBlock;
 // ── Canvas Block ─────────────────────────────────────────────────────────────
 // Figma에서 임포트한 레이어 합성 블록 (shape + image + text 절대배치 단일 컴포넌트)
 
-function _appendCardTexts(container, card, titleSize, descSize, textAlign) {
+function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor) {
+  const _tc = titleColor || '#ffffff';
+  const _dc = descColor  || 'rgba(255,255,255,0.75)';
   if (card.title) {
     const el = document.createElement('div');
-    el.style.cssText = `font-size:${titleSize}px;font-weight:600;color:#fff;text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
+    el.style.cssText = `font-size:${titleSize}px;font-weight:600;color:${_tc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
     el.textContent = card.title;
     container.appendChild(el);
   }
   if (card.desc) {
     const el = document.createElement('div');
-    el.style.cssText = `font-size:${descSize}px;font-weight:400;color:rgba(255,255,255,0.75);text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
+    el.style.cssText = `font-size:${descSize}px;font-weight:400;color:${_dc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
     el.textContent = card.desc;
     container.appendChild(el);
   }
@@ -1571,6 +1573,8 @@ function renderCanvas(block) {
     const titleSize = parseInt(block.dataset.titleSize) || 20;
     const descSize  = parseInt(block.dataset.descSize)  || 14;
     const textAlign = block.dataset.textAlign || 'left';
+    const titleColor = block.dataset.titleColor || '#ffffff';
+    const descColor  = block.dataset.descColor  || 'rgba(255,255,255,0.75)';
     const cards     = JSON.parse(block.dataset.cards    || '[]');
 
     const totalW = designW * gridCols + GAP * (gridCols - 1);
@@ -1650,7 +1654,7 @@ function renderCanvas(block) {
 
           const textDiv = document.createElement('div');
           textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;gap:6px;`;
-          _appendCardTexts(textDiv, card, titleSize, descSize, textAlign);
+          _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
           cell.appendChild(imgDiv); cell.appendChild(textDiv);
 
         } else {
@@ -1675,7 +1679,7 @@ function renderCanvas(block) {
 
           const textDiv = document.createElement('div');
           textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
-          _appendCardTexts(textDiv, card, titleSize, descSize, textAlign);
+          _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
           cell.appendChild(imgDiv); cell.appendChild(textDiv);
         }
 
