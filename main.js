@@ -228,8 +228,25 @@ ipcMain.handle('projects:load', (event, id) => {
 
 ipcMain.handle('projects:save', (event, project) => {
   const filePath = path.join(PROJECTS_DIR, `${project.id}.json`);
+
+  // 기존 파일보다 페이지 수가 줄어들면 저장 거부 (오염된 상태가 덮어쓰는 것 방지)
+  if (fs.existsSync(filePath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const existingPages = existing.version === 2 ? (existing.pages?.length || 0) : 1;
+      const newPages = project.version === 2 ? (project.pages?.length || 0) : 1;
+      if (newPages < existingPages) {
+        console.warn(`[projects:save] 페이지 수 감소 감지 (${existingPages} → ${newPages}), 저장 거부: ${project.id}`);
+        return { ok: false, reason: 'page_count_reduced', existing: existingPages, incoming: newPages };
+      }
+      // 롤링 백업: 정상 저장 전 직전 버전 보존
+      const backupPath = path.join(PROJECTS_DIR, `${project.id}_backup.json`);
+      fs.copyFileSync(filePath, backupPath);
+    } catch {}
+  }
+
   fs.writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf8');
-  return true;
+  return { ok: true };
 });
 
 ipcMain.handle('projects:delete', (event, id) => {

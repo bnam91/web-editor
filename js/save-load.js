@@ -121,7 +121,13 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         name: existing?.name || data.name || 'Untitled',
         updatedAt: new Date().toISOString(),
       };
-      await window.electronAPI.saveProject(proj);
+      const saveResult = await window.electronAPI.saveProject(proj);
+      // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
+      if (saveResult && saveResult.ok === false) {
+        console.warn('[save-load] 저장 거부됨:', saveResult.reason, saveResult);
+        window.showToast?.('⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨');
+        return;
+      }
       // thumbnail은 _meta.json에 저장
       if (thumbnail) {
         const existingMeta = await window.electronAPI.loadProjectMeta(targetId);
