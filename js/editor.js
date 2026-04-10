@@ -550,7 +550,12 @@ function pasteClipboard() {
       const prefix = child.id.split('_')[0] || 'el';
       child.id = genIdFn(prefix);
     });
-    canvasEl.appendChild(el);
+    const refSection = getSelectedSection();
+    if (refSection) {
+      refSection.after(el);
+    } else {
+      canvasEl.appendChild(el);
+    }
     bindSectionDelete(el);
     bindSectionOrder(el);
     bindSectionDrag(el);
