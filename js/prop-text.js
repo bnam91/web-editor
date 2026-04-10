@@ -23,7 +23,11 @@ export function showTextProperties(tb) {
   const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
   const labelPillH    = labelPillPadT + labelPillPadB;
   const currentAlign = isLabel ? (tb.style.textAlign || 'left') : (contentEl.style.textAlign || 'left');
-  const currentSize  = parseInt(computed.fontSize) || 15;
+  // 자식 span/div에 inline font-size가 있으면 그 값을 우선 사용 (복사 블록 대응)
+  const _firstSizedChild = contentEl.querySelector('[style*="font-size"]');
+  const currentSize  = _firstSizedChild
+    ? (parseInt(window.getComputedStyle(_firstSizedChild).fontSize) || parseInt(computed.fontSize) || 15)
+    : (parseInt(computed.fontSize) || 15);
   const currentColor = rgbToHex(computed.color) || '#111111';
   const currentLH    = (parseFloat(computed.lineHeight) / parseFloat(computed.fontSize) || 1.5).toFixed(2);
   const currentLS    = isNaN(parseFloat(contentEl.style.letterSpacing))
@@ -530,7 +534,12 @@ export function showTextProperties(tb) {
     else { _savedSizeSel = null; _sizeSpan = null; }
   };
   const applySizeToSel = (v) => {
-    if (!_savedSizeSel) { contentEl.style.fontSize = v + 'px'; return; }
+    if (!_savedSizeSel) {
+      // 자식 요소의 inline font-size 모두 제거 후 컨테이너에 설정 (복사된 블록 대응)
+      contentEl.querySelectorAll('[style]').forEach(el => el.style.removeProperty('font-size'));
+      contentEl.style.fontSize = v + 'px';
+      return;
+    }
     if (_sizeSpan) {
       _sizeSpan.style.fontSize = v + 'px';
     } else {
