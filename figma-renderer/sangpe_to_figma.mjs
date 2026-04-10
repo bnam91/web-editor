@@ -563,6 +563,109 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     return imgH;
   }
 
+  // ── CARD-GRID ─────────────────────────────────────────────────────
+  if (block.type === 'card-grid') {
+    const { cards = [], gridCols = 2, cardGap = 10, canvasH = 400,
+            radius = 16, textBg = '#cccccc', titleSize = 32, descSize = 20,
+            textAlign = 'center', imgRatio = 75, cardMode = 'simple' } = block;
+
+    const padX      = block.padX || 0;
+    const effectiveW = availableWidth - padX * 2;
+    const totalGap  = cardGap * (gridCols - 1);
+    const cardW     = Math.floor((effectiveW - totalGap) / gridCols);
+    const cardH     = block.height || canvasH;
+    const imgH      = (cardMode !== 'text-only' && imgRatio > 0) ? Math.round(cardH * imgRatio / 100) : 0;
+    const labelH    = cardH - imgH;
+
+    // 래퍼 프레임 (투명)
+    const wrapper = run('create_frame', { x: x + padX, y, width: effectiveW, height: cardH, name: `card-grid_${block.id}`, parentId });
+    if (!wrapper) return cardH;
+    run('set_fill_color', { nodeId: wrapper.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+
+    const gridRows = Math.ceil(cards.length / gridCols);
+    const rowH = Math.floor(cardH / gridRows);
+
+    cards.forEach((card, i) => {
+      const col  = i % gridCols;
+      const row  = Math.floor(i / gridCols);
+      const cardX = col * (cardW + cardGap);
+      const cardY = row * rowH;
+      const thisH = (row === gridRows - 1) ? cardH - cardY : rowH;
+      const thisImgH   = Math.round(thisH * imgRatio / 100);
+      const thisLabelH = thisH - thisImgH;
+
+      // 카드 outer 프레임 (투명 배경, 전체 radius)
+      const cardFrame = run('create_frame', { x: cardX, y: cardY, width: cardW, height: thisH, name: `card_${i}`, parentId: wrapper.id });
+      if (!cardFrame) return;
+      run('set_fill_color', { nodeId: cardFrame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+      if (radius > 0) run('set_corner_radius', { nodeId: cardFrame.id, radius });
+
+      // 이미지 프레임 (회색 플레이스홀더)
+      if (thisImgH > 0) {
+        const imgFrame = run('create_frame', { x: 0, y: 0, width: cardW, height: thisImgH, name: `card_img_${i}`, parentId: cardFrame.id });
+        if (imgFrame) {
+          run('set_fill_color', { nodeId: imgFrame.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
+          if (card.imgSrc) {
+            const st = card.imgSrc.startsWith('data:') ? 'base64' : 'url';
+            const src = card.imgSrc.startsWith('data:') ? card.imgSrc.split(',')[1] : card.imgSrc;
+            run('set_image_fill', { nodeId: imgFrame.id, imageSource: src, sourceType: st, scaleMode: 'FILL' }, { timeout: 15000 });
+          }
+        }
+      }
+
+      // 라벨 프레임: cellBg || textBg, 하단만 radius
+      const labelBg = card.cellBg || textBg;
+      const labelFrame = run('create_frame', { x: 0, y: thisImgH, width: cardW, height: thisLabelH, name: `card_label_${i}`, parentId: cardFrame.id });
+      if (!labelFrame) return;
+      run('set_fill_color', { nodeId: labelFrame.id, color: hex(labelBg) });
+
+      // 텍스트 세로 중앙 정렬 (padding 10px 상하, 14px 좌우)
+      const padH = 14;
+      const padV = 10;
+      const textW = cardW - padH * 2;
+      const hasDesc = !!card.desc;
+      const totalTextH = titleSize * 1.45 + (hasDesc ? 4 + descSize * 1.45 : 0);
+      const textStartY = Math.max(padV, Math.round((thisLabelH - totalTextH) / 2));
+
+      if (card.title) {
+        const titleFont = loadFontSafe('Noto Sans KR', 'Bold');
+        const titleNode = run('create_text', {
+          x: padH, y: textStartY,
+          width: textW,
+          text: card.title,
+          fontSize: titleSize,
+          fontWeight: 600,
+          fontColor: hex('#ffffff'),
+          textAlignHorizontal: toFigmaAlign(textAlign),
+          textAutoResize: 'HEIGHT',
+          name: `card_title_${i}`,
+          parentId: labelFrame.id,
+        });
+        if (titleNode) run('set_font_name', { nodeId: titleNode.id, family: titleFont.family, style: titleFont.style });
+      }
+
+      if (hasDesc) {
+        const descFont = loadFontSafe('Noto Sans KR', 'Regular');
+        const descNode = run('create_text', {
+          x: padH, y: textStartY + Math.round(titleSize * 1.3) + 4,
+          width: textW,
+          text: card.desc,
+          fontSize: descSize,
+          fontWeight: 400,
+          fontColor: hex('#ffffff'),
+          textAlignHorizontal: toFigmaAlign(textAlign),
+          textAutoResize: 'HEIGHT',
+          name: `card_desc_${i}`,
+          parentId: labelFrame.id,
+        });
+        if (descNode) run('set_font_name', { nodeId: descNode.id, family: descFont.family, style: descFont.style });
+      }
+    });
+
+    console.log(`      · card-grid ${gridCols}열 ${cards.length}장 (${cardW}×${cardH}px/card) → ${wrapper.id}`);
+    return cardH;
+  }
+
   return 0;
 }
 

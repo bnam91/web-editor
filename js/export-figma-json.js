@@ -351,15 +351,44 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         rowCount,
       };
     }
+    if (el.classList.contains('canvas-block')) {
+      let cards = [];
+      try { cards = JSON.parse(el.dataset.cards || '[]'); } catch {}
+      return {
+        type:      'card-grid',
+        id:        el.id || ('cvb_' + Math.random().toString(36).slice(2, 8)),
+        cards,
+        gridCols:  parseInt(el.dataset.gridCols)  || 2,
+        gridRows:  parseInt(el.dataset.gridRows)  || 1,
+        cardGap:   parseInt(el.dataset.cardGap)   || 10,
+        canvasW:   parseInt(el.dataset.canvasW)   || 440,
+        canvasH:   parseInt(el.dataset.canvasH)   || 400,
+        radius:    parseInt(el.dataset.radius)    || 16,
+        imgRatio:  parseInt(el.dataset.imgRatio)  || 75,
+        cardMode:  el.dataset.cardMode || 'simple',
+        textBg:    el.dataset.textBg   || '#cccccc',
+        titleSize: parseInt(el.dataset.titleSize) || 32,
+        descSize:  parseInt(el.dataset.descSize)  || 20,
+        textAlign: el.dataset.textAlign || 'center',
+        padX:      ps?.padX || 0,
+        height:    Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 400),
+      };
+    }
     return null;
   }
 
   function _row(rowEl, ps) {
+    // canvas-block이 row 직속 자식인 경우 (col 래퍼 없음)
+    const directCanvas = rowEl.querySelector(':scope > .canvas-block');
+    if (directCanvas) {
+      const parsed = _block(directCanvas, ps);
+      return parsed ? [parsed] : [];
+    }
     const cols = [];
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block').forEach(b => {
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block').forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });
@@ -382,7 +411,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
     const blocks = [];
     function _processFrameBlock(fb) {
-      fb.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .card-block, :scope > .graph-block').forEach(b => {
+      fb.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .graph-block').forEach(b => {
         const parsed = _block(b, psEx);
         if (parsed) blocks.push(parsed);
       });
