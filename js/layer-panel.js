@@ -421,6 +421,7 @@ export function buildLayerPanel() {
       secs.forEach(s => s.remove());
       if (window.deselectAll) window.deselectAll();
       if (window.buildLayerPanel) window.buildLayerPanel();
+      window.scheduleAutoSave?.();
     };
     groupHeader.appendChild(delBtn);
     const resolveBtn = document.createElement('button');
@@ -436,10 +437,34 @@ export function buildLayerPanel() {
     panel.insertBefore(wrapper, firstLayerEl);
     secs.forEach(s => { if (s._layerEl) wrapper.appendChild(s._layerEl); });
     wrapper.insertBefore(groupHeader, wrapper.firstChild);
-    secs.forEach(s => {
+    secs.forEach((s, idx) => {
       if (s._layerEl && s.dataset.variationActive === '0') {
         s._layerEl.classList.add('layer-section-inactive-var');
         s._layerEl.classList.add('collapsed');
+      }
+      // 개별 variant 삭제 버튼 (그룹에 2개 이상 남아있을 때만 표시)
+      if (s._layerEl) {
+        const existingDelBtn = s._layerEl.querySelector('.layer-variant-del');
+        if (existingDelBtn) existingDelBtn.remove();
+        const varDelBtn = document.createElement('button');
+        varDelBtn.className = 'layer-variant-del';
+        varDelBtn.textContent = '×';
+        varDelBtn.title = `${['A','B','C','D','E'][idx] || idx+1}안 삭제`;
+        varDelBtn.onclick = e => {
+          e.stopPropagation();
+          if (secs.length <= 1) return; // 마지막 하나는 삭제 불가
+          if (window.pushHistory) window.pushHistory();
+          // 삭제 대상이 active이면 다른 variant를 active로 전환
+          if (s.dataset.variationActive === '1') {
+            const next = secs.find(other => other !== s);
+            if (next) { next.dataset.variationActive = '1'; next.style.display = ''; }
+          }
+          s.remove();
+          if (window.deselectAll) window.deselectAll();
+          if (window.buildLayerPanel) window.buildLayerPanel();
+          window.scheduleAutoSave?.();
+        };
+        s._layerEl.appendChild(varDelBtn);
       }
     });
   });

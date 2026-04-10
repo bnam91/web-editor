@@ -971,6 +971,14 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   color: #c87878; font-size: 11px; padding: 1px 5px; cursor: pointer;
 }
 .layer-variation-del:hover { background: #3a1a1a; color: #ff9090; border-color: #ff9090; }
+.layer-variant-del {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: 1px solid #5a3a3a; border-radius: 2px;
+  color: #c87878; font-size: 10px; padding: 0 4px; cursor: pointer;
+  opacity: 0; transition: opacity 0.15s; line-height: 16px;
+}
+.layer-section-header:hover .layer-variant-del { opacity: 1; }
+.layer-variant-del:hover { background: #3a1a1a; color: #ff9090; border-color: #ff9090; }
 .layer-variation-resolve {
   background: none; border: 1px solid #4a7a5a; border-radius: 2px;
   color: #7acba0; font-size: 11px; padding: 1px 6px; cursor: pointer; white-space: nowrap;
