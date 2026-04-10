@@ -293,6 +293,7 @@ function showSimpleCardProperties(block) {
   const h         = parseInt(block.dataset.canvasH)  || 508;
   const radius    = parseInt(block.dataset.radius)   || 12;
   const imgRatio  = parseInt(block.dataset.imgRatio) ?? 65;
+  const textHide   = block.dataset.textHide === 'true';
   const isTextBgTransparent = block.dataset.textBg === 'transparent';
   const textBgLast = block.dataset.textBgLast || '#f5f5f5';
   const textBg    = isTextBgTransparent ? textBgLast : (block.dataset.textBg || '#f5f5f5');
@@ -361,7 +362,11 @@ function showSimpleCardProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">텍스트 영역</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div class="prop-section-title" style="margin-bottom:0;">텍스트 영역</div>
+        <button class="prop-align-btn${textHide ? ' active' : ''}" id="cvb-text-hide-btn" style="width:auto;padding:0 8px;font-size:10px;">숨김</button>
+      </div>
+      <div id="cvb-text-area-controls" style="${textHide ? 'opacity:0.35;pointer-events:none;' : ''}">
       <div class="prop-color-row">
         <span class="prop-label">배경색 (일괄)</span>
         <div class="prop-color-swatch" style="background:${isTextBgTransparent ? 'transparent' : textBg}; ${isTextBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
@@ -400,6 +405,7 @@ function showSimpleCardProperties(block) {
         <button class="prop-align-btn${textAlign==='center'?' active':''}" data-align="center">↔</button>
         <button class="prop-align-btn${textAlign==='right'?' active':''}"  data-align="right">→</button>
       </div>
+      </div><!-- /cvb-text-area-controls -->
     </div>
 
     <div class="prop-section">
@@ -512,6 +518,19 @@ function showSimpleCardProperties(block) {
   rSlider.addEventListener('input',  () => applyRadius(parseInt(rSlider.value)));
   rNumber.addEventListener('change', () => { applyRadius(parseInt(rNumber.value)); window.pushHistory?.(); });
   rSlider.addEventListener('change', () => window.pushHistory?.());
+
+  // ── 텍스트 영역 숨김 토글 ────────────────────────────────────────────────────
+  const textHideBtn     = document.getElementById('cvb-text-hide-btn');
+  const textAreaControls = document.getElementById('cvb-text-area-controls');
+  textHideBtn.addEventListener('click', () => {
+    const on = !textHideBtn.classList.contains('active');
+    block.dataset.textHide = String(on);
+    window.renderCanvas(block);
+    window.pushHistory?.();
+    textHideBtn.classList.toggle('active', on);
+    textAreaControls.style.opacity = on ? '0.35' : '';
+    textAreaControls.style.pointerEvents = on ? 'none' : '';
+  });
 
   // ── 텍스트 배경색 (일괄) ─────────────────────────────────────────────────────
   const textBgPick  = document.getElementById('cvb-textbg-pick');

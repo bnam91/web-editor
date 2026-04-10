@@ -1568,11 +1568,12 @@ function renderCanvas(block) {
 
   // ── Simple Card Mode ──────────────────────────────────────────────────────
   if (block.dataset.cardMode === 'simple') {
-    const imgRatio  = Math.min(90, Math.max(10, parseInt(block.dataset.imgRatio) ?? 65));
-    const textBg    = block.dataset.textBg    || '#f5f5f5';
-    const titleSize = parseInt(block.dataset.titleSize) || 20;
-    const descSize  = parseInt(block.dataset.descSize)  || 14;
-    const textAlign = block.dataset.textAlign || 'left';
+    const imgRatio   = Math.min(90, Math.max(10, parseInt(block.dataset.imgRatio) ?? 65));
+    const textHide   = block.dataset.textHide === 'true';
+    const textBg     = block.dataset.textBg    || '#f5f5f5';
+    const titleSize  = parseInt(block.dataset.titleSize) || 20;
+    const descSize   = parseInt(block.dataset.descSize)  || 14;
+    const textAlign  = block.dataset.textAlign || 'left';
     const titleColor = block.dataset.titleColor || '#ffffff';
     const descColor  = block.dataset.descColor  || 'rgba(255,255,255,0.75)';
     const cards     = JSON.parse(block.dataset.cards    || '[]');
@@ -1635,7 +1636,7 @@ function renderCanvas(block) {
 
         if (orient === 'landscape') {
           // ── 가로 모드: 이미지 좌 / 텍스트 우 ────────────────────────────
-          const imgW  = Math.round(designW * imgRatio / 100);
+          const imgW  = textHide ? designW : Math.round(designW * imgRatio / 100);
           const textW = designW - imgW;
 
           const imgDiv = document.createElement('div');
@@ -1651,15 +1652,18 @@ function renderCanvas(block) {
             ph.style.cssText = 'color:#bbb;font-size:22px;font-family:sans-serif;pointer-events:none;';
             ph.textContent = '+'; imgDiv.appendChild(ph);
           }
+          cell.appendChild(imgDiv);
 
-          const textDiv = document.createElement('div');
-          textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;gap:6px;`;
-          _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
-          cell.appendChild(imgDiv); cell.appendChild(textDiv);
+          if (!textHide) {
+            const textDiv = document.createElement('div');
+            textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;gap:6px;`;
+            _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
+            cell.appendChild(textDiv);
+          }
 
         } else {
           // ── 세로 모드(기본): 이미지 상 / 텍스트 하 ──────────────────────
-          const imgH  = Math.round(designH * imgRatio / 100);
+          const imgH  = textHide ? designH : Math.round(designH * imgRatio / 100);
           const textH = designH - imgH;
 
           const imgDiv = document.createElement('div');
@@ -1676,11 +1680,14 @@ function renderCanvas(block) {
             ph.style.cssText = 'color:#bbb;font-size:22px;font-family:sans-serif;pointer-events:none;';
             ph.textContent = '+'; imgDiv.appendChild(ph);
           }
+          cell.appendChild(imgDiv);
 
-          const textDiv = document.createElement('div');
-          textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
-          _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
-          cell.appendChild(imgDiv); cell.appendChild(textDiv);
+          if (!textHide) {
+            const textDiv = document.createElement('div');
+            textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
+            _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
+            cell.appendChild(textDiv);
+          }
         }
 
         inner.appendChild(cell);
