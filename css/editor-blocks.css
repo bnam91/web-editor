@@ -1456,12 +1456,15 @@
   position: relative;
   display: block;
   max-width: 80%;
+  padding-bottom: 14px; /* 말꼬리 공간 */
+  overflow: visible;
 }
 .speech-bubble-block[data-tail="right"] {
   margin-left: auto;
 }
 .tb-bubble {
-  background: #e5e5ea;
+  --bubble-bg: #e5e5ea;
+  background: var(--bubble-bg);
   color: #1c1c1e;
   border-radius: 20px;
   padding: 10px 16px;
@@ -1472,30 +1475,27 @@
   display: inline-block;
   min-width: 60px;
   word-break: break-word;
+  overflow: visible; /* 말꼬리가 버블 밖으로 나올 수 있게 */
 }
-/* 말꼬리 — 공통 */
+/* 말꼬리 — 공통: 버블 아래로 빠져나옴 */
 .speech-bubble-block .tb-bubble::before {
   content: '';
   position: absolute;
-  bottom: 0;
-  width: 20px;
-  height: 16px;
+  bottom: -12px; /* 버블 하단 바깥으로 */
+  width: 22px;
+  height: 14px;
 }
-/* 말꼬리 left */
+/* 말꼬리 left — 좌하단에서 아래로 */
 .speech-bubble-block[data-tail="left"] .tb-bubble::before {
-  left: -8px;
+  left: 16px;
   background: var(--bubble-bg, #e5e5ea);
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
 }
-/* 말꼬리 right */
+/* 말꼬리 right — 우하단에서 아래로 */
 .speech-bubble-block[data-tail="right"] .tb-bubble::before {
-  right: -8px;
+  right: 16px;
   background: var(--bubble-bg, #e5e5ea);
-  clip-path: polygon(0 0, 0 100%, 100% 100%);
-}
-/* CSS 변수 기본값 */
-.speech-bubble-block .tb-bubble {
-  --bubble-bg: #e5e5ea;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
 }
 /* 선택 상태 */
 .speech-bubble-block.selected {
