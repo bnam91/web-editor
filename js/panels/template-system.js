@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════
    TEMPLATE SYSTEM
 ═══════════════════════════════════ */
-import { canvasEl } from './globals.js';
+import { canvasEl } from '../globals.js';
 
 const TEMPLATE_KEY = 'sangpe-templates'; // localStorage fallback key
 
