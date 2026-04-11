@@ -1536,6 +1536,11 @@ function addSpeechBubbleBlock(tail) {
   const tf = _makeTextFrame();
   tf.appendChild(block);
 
+  // 텍스트프레임 빈 영역 클릭 시 내부 버블 블록 선택 위임
+  tf.addEventListener('click', e => {
+    if (e.target === tf) block.click();
+  });
+
   insertAfterSelected(sec, tf);
   bindBlock(block);
   window.buildLayerPanel();

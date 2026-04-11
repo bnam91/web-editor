@@ -71,26 +71,33 @@ function zoomStep(delta) {
   const newZoom = Math.min(400, Math.max(10, currentZoom + delta));
   const s_new = newZoom / 100;
 
-  // 줌인(delta>0) + 선택 블록 있음: 블록을 화면 중앙으로 이동하며 확대
-  // 줌아웃 또는 선택 없음: 현재 뷰포트 중앙 기준으로 확대/축소 (중심점 유지)
-  const selected = document.querySelector('.selected');
-  if (selected && delta > 0) {
-    const rect = selected.getBoundingClientRect();
+  // 줌인 + 선택 블록 있음: 해당 섹션을 화면 중앙으로
+  // 줌아웃 또는 선택 없음: 캔버스 중심을 뷰포트 중심에 유지
+  const selectedBlock = delta > 0 && document.querySelector(
+    '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+    '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
+    '.icon-text-block.selected, .shape-block.selected, .speech-bubble-block.selected'
+  );
+  const targetEl = selectedBlock ? (selectedBlock.closest('.section-block') || selectedBlock) : null;
+  if (targetEl) {
+    const rect = targetEl.getBoundingClientRect();
     const wrapRect = wrap.getBoundingClientRect();
-    // 블록 중심의 캔버스 좌표
-    const blockScreenX = rect.left + rect.width  / 2 - wrapRect.left;
-    const blockScreenY = rect.top  + rect.height / 2 - wrapRect.top;
-    const blockCanvasX = (blockScreenX - panOffsetX) / s_old;
-    const blockCanvasY = (blockScreenY - panOffsetY) / s_old;
-    // 새 줌에서 블록이 뷰포트 중앙에 오도록 pan 계산
-    panOffsetX = wrap.clientWidth  / 2 - blockCanvasX * s_new;
-    panOffsetY = wrap.clientHeight / 2 - blockCanvasY * s_new;
+    const elScreenX = rect.left + rect.width  / 2 - wrapRect.left;
+    const elScreenY = rect.top  + rect.height / 2 - wrapRect.top;
+    // 캔버스 좌표계 변환 공식 (transform-origin:top center + flexbox centering 고려):
+    //   screenX_wrap = wrapWidth/2 + panOffsetX + s*(cx - 430)  → 역산: cx = (screenX - wrapWidth/2 - panOffsetX)/s + 430
+    //   screenY_wrap = 40          + panOffsetY + s*cy           → 역산: cy = (screenY - 40 - panOffsetY)/s
+    const CANVAS_HALF = 430; // canvas 860px 절반
+    const WRAP_PAD    = 40;  // canvas-wrap 상단 패딩
+    const elCanvasX = (elScreenX - wrap.clientWidth / 2 - panOffsetX) / s_old + CANVAS_HALF;
+    const elCanvasY = (elScreenY - WRAP_PAD - panOffsetY) / s_old;
+    panOffsetX = -(elCanvasX - CANVAS_HALF) * s_new;
+    panOffsetY = wrap.clientHeight / 2 - WRAP_PAD - elCanvasY * s_new;
   } else {
-    // 줌아웃(또는 선택 없음): 현재 화면 중앙점 유지
-    const vpCX = wrap.clientWidth  / 2;
-    const vpCY = wrap.clientHeight / 2;
-    panOffsetX = vpCX - (vpCX - panOffsetX) * (s_new / s_old);
-    panOffsetY = vpCY - (vpCY - panOffsetY) * (s_new / s_old);
+    const ratio = s_new / s_old;
+    panOffsetX = panOffsetX * ratio;
+    panOffsetY = panOffsetY * ratio;
   }
 
   applyZoom(newZoom);
