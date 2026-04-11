@@ -584,7 +584,7 @@ function rebindAll() {
     'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요', 'tb-label':'Label'
   };
   // 말풍선 SVG 말꼬리 마이그레이션 (구버전 저장 파일 대응)
-  const _BUBBLE_TAIL_SVG = `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16"><path d="M18 0 C14 4 7 8 0 16 C5 9 10 4 18 0Z"/></svg>`;
+  const _BUBBLE_TAIL_SVG = `<svg class="tb-bubble-tail" viewBox="0 0 18 15" xmlns="http://www.w3.org/2000/svg" width="18" height="15"><path d="M18 10.78 C14.04 12.89 7.68 14.91 0 13.78 C2.12 13.06 10.27 8.70 9.97 0 Z"/></svg>`;
   canvasEl.querySelectorAll('.speech-bubble-block').forEach(sb => {
     if (!sb.querySelector('.tb-bubble-tail')) {
       sb.insertAdjacentHTML('beforeend', _BUBBLE_TAIL_SVG);

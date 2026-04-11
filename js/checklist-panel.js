@@ -168,9 +168,11 @@ function showPinPopup(item, pinEl) {
 let _pinMode = false;
 let _pendingPinEl = null;
 let _pendingInputPopup = null;
+let _pinModeForItemId = null; // 기존 아이템에 핀 위치 등록 시 사용
 
-function enterPinMode() {
+function enterPinMode(forItemId) {
   _pinMode = true;
+  _pinModeForItemId = forItemId || null;
   const wrap = document.getElementById('canvas-wrap');
   if (wrap) wrap.classList.add('pin-mode-active');
   document.addEventListener('keydown', _onPinModeKeydown);
@@ -178,6 +180,7 @@ function enterPinMode() {
 
 function exitPinMode() {
   _pinMode = false;
+  _pinModeForItemId = null;
   const wrap = document.getElementById('canvas-wrap');
   if (wrap) wrap.classList.remove('pin-mode-active');
   document.removeEventListener('keydown', _onPinModeKeydown);
@@ -218,12 +221,25 @@ function _onCanvasClickForPin(e) {
   popup.style.position = 'fixed';
   popup.style.left = (e.clientX + 16) + 'px';
   popup.style.top  = (e.clientY - 12) + 'px';
-  popup.innerHTML = `
-    <input class="todo-pin-input" type="text" placeholder="할 일을 입력하세요..." maxlength="100">
-    <div class="todo-pin-popup-actions">
-      <button class="todo-pin-popup-btn todo-pin-save-btn">저장</button>
-      <button class="todo-pin-popup-btn danger">취소</button>
-    </div>`;
+
+  // 기존 아이템에 핀 위치 등록 시: 텍스트 표시만, 입력 불필요
+  const existingItem = _pinModeForItemId ? loadItems().find(it => it.id === _pinModeForItemId) : null;
+  if (existingItem) {
+    popup.innerHTML = `
+      <div class="todo-pin-popup-text">${_escHtml(existingItem.text || '(빈 항목)')}</div>
+      <div style="font-size:10px;color:#888;margin-bottom:6px;">이 위치에 핀을 등록합니다</div>
+      <div class="todo-pin-popup-actions">
+        <button class="todo-pin-popup-btn todo-pin-save-btn">핀 등록</button>
+        <button class="todo-pin-popup-btn danger">취소</button>
+      </div>`;
+  } else {
+    popup.innerHTML = `
+      <input class="todo-pin-input" type="text" placeholder="할 일을 입력하세요..." maxlength="100">
+      <div class="todo-pin-popup-actions">
+        <button class="todo-pin-popup-btn todo-pin-save-btn">저장</button>
+        <button class="todo-pin-popup-btn danger">취소</button>
+      </div>`;
+  }
   document.body.appendChild(popup);
   _pendingInputPopup = popup;
 
@@ -234,9 +250,16 @@ function _onCanvasClickForPin(e) {
   });
 
   const input = popup.querySelector('.todo-pin-input');
-  input.focus();
+  if (input) input.focus();
 
   const save = () => {
+    if (_pinModeForItemId) {
+      // 기존 아이템에 핀 위치 등록
+      const all = loadItems().map(it => it.id === _pinModeForItemId ? { ...it, x, y } : it);
+      saveItems(all);
+      exitPinMode(); renderPins(); renderChecklistPanel();
+      return;
+    }
     const text = input.value.trim();
     if (!text) { exitPinMode(); return; }
     const items = loadItems();
@@ -245,10 +268,12 @@ function _onCanvasClickForPin(e) {
     exitPinMode(); renderPins(); renderChecklistPanel();
   };
 
-  input.addEventListener('keydown', ev => {
-    if (ev.key === 'Enter')  { ev.preventDefault(); save(); }
-    if (ev.key === 'Escape') { ev.stopPropagation(); exitPinMode(); }
-  });
+  if (input) {
+    input.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter')  { ev.preventDefault(); save(); }
+      if (ev.key === 'Escape') { ev.stopPropagation(); exitPinMode(); }
+    });
+  }
   popup.querySelector('.todo-pin-save-btn').addEventListener('click', ev => { ev.stopPropagation(); save(); });
   popup.querySelectorAll('.danger').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); exitPinMode(); }));
   popup.addEventListener('click', ev => ev.stopPropagation());
@@ -404,11 +429,20 @@ function _buildItemEl(item, sectionId) {
         : '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="9" height="9" rx="2"/></svg>'}
     </button>
     <span class="ck-item-text${!item.text ? ' ck-item-text--empty' : ''}">${item.text ? _escHtml(item.text) : '<span style="color:var(--ui-border-mid);font-style:italic;">할 일 입력...</span>'}</span>
-    ${hasPin ? `<button class="ck-goto-pin" title="핀 위치로 이동">
-      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="6" cy="5" r="2.5"/><path d="M6 7.5V11"/>
-      </svg>
-    </button>` : ''}
+    ${hasPin
+      ? `<button class="ck-goto-pin" title="핀 위치로 이동">
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="6" cy="5" r="2.5"/><path d="M6 7.5V11"/>
+          </svg>
+        </button>`
+      : `<button class="ck-add-pin-for-item" title="캔버스에 핀 등록">
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="6" cy="5" r="2.5"/><path d="M6 7.5V11"/>
+            <line x1="9" y1="1" x2="11" y2="3" stroke-width="1.5"/>
+            <line x1="10" y1="1" x2="10" y2="3" stroke-width="1.5"/>
+            <line x1="9" y1="2" x2="11" y2="2" stroke-width="1.5"/>
+          </svg>
+        </button>`}
     <button class="ck-delete" title="삭제">×</button>`;
 
   // 드래그 핸들 mousedown → item draggable
@@ -438,6 +472,15 @@ function _buildItemEl(item, sectionId) {
   // 핀 이동
   const gotoBtn = el.querySelector('.ck-goto-pin');
   if (gotoBtn) gotoBtn.addEventListener('click', e => { e.stopPropagation(); _scrollToPin(item.id); });
+
+  // 핀 없는 항목에 캔버스 핀 등록
+  const addPinBtn = el.querySelector('.ck-add-pin-for-item');
+  if (addPinBtn) addPinBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    enterPinMode(item.id);
+    // 체크리스트 탭을 열어두고 캔버스로 이동 안내
+    addPinBtn.style.opacity = '0.4';
+  });
 
   // 삭제
   el.querySelector('.ck-delete').addEventListener('click', e => {

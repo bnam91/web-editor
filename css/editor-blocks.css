@@ -1498,7 +1498,7 @@
   position: absolute;
   bottom: 0;
   width: 18px;
-  height: 16px;
+  height: 15px;
   fill: var(--bubble-bg, #e5e5ea);
 }
 .speech-bubble-block[data-tail="left"] .tb-bubble-tail {
