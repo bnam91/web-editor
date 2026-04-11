@@ -1533,10 +1533,10 @@
 }
 .speech-bubble-block[data-tail="left"] .tb-bubble-tail {
   left: 10px;
+  transform: scaleX(-1); /* Figma 원본이 우측 꼬리형 → 좌우 반전으로 좌측 꼬리 */
 }
 .speech-bubble-block[data-tail="right"] .tb-bubble-tail {
   right: 10px;
-  transform: scaleX(-1); /* 좌우 반전 */
 }
 /* 선택 상태 — frame-block ::after로 outline 표시 (z-index:10, bubble 위에 렌더) */
 .speech-bubble-block.selected {
