@@ -119,10 +119,11 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isMockup     = block.classList.contains('mockup-block');
   const isVector     = block.classList.contains('vector-block');
   const isStep       = block.classList.contains('step-block');
+  const isChat       = block.classList.contains('chat-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -163,6 +164,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isDivider) window.showDividerProperties?.(block);
     else if (isLabelGroup) window.showLabelGroupProperties?.(block);
     else if (isJoker) window.showJokerProperties?.(block);
+    else if (isChat) window.showChatProperties?.(block);
     else window.showAssetProperties(block);
   });
   block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');
@@ -639,7 +641,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
-                'table-block','graph-block','divider-block','label-group-block','shape-block','canvas-block','step-block']
+                'table-block','graph-block','divider-block','label-group-block','shape-block','canvas-block','step-block','chat-block']
                 .some(c => child.classList.contains(c))) {
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
       }

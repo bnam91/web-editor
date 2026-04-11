@@ -118,6 +118,21 @@ npm run figma        # Figma WebSocket 서버 (포트 3055)
 
 ---
 
+## 신규 블록 컴포넌트 추가 시 필수 체크리스트
+
+새 블록 타입(예: `chat-block`)을 추가할 때 아래 4곳을 **반드시 동시에** 수정한다. 하나라도 빠지면 버그 발생.
+
+| 파일 | 추가 내용 | 빠졌을 때 증상 |
+|------|----------|--------------|
+| `js/editor.js` → `deselectAll()` | 새 블록 클래스를 `.selected` 해제 셀렉터에 추가 | 블록 선택 아웃라인이 해제되지 않음 |
+| `js/panels/layer-panel-items.js` | `isXxx` 감지, `type` 분기, `labels`/`typeLbls` 등록, block 목록 배열, click 핸들러에 `showXxxProperties` 추가 | 레이어 패널에서 "Asset"으로 표시되거나 아예 미등록 |
+| `js/props/prop-xxx.js` | `propPanel.innerHTML`의 헤더를 `prop-block-label > prop-block-icon + prop-block-info + prop-block-id` 풀 구조로 작성 | 프로퍼티 패널 헤더가 단순 텍스트로 표시 (블록명·위치·ID 정보 없음) |
+| `js/block-drag.js` | `isXxx` 감지, click 핸들러에 `showXxxProperties` 연결 | 블록 클릭 시 프로퍼티 패널 열리지 않음 |
+
+> **실수 예방**: 신규 블록 구현 후 QA 전에 위 4곳을 grep으로 교차 확인할 것.
+
+---
+
 ## 경로별 자동 로드 규칙
 
 `css/**` 또는 `js/**` 편집 시 해당 규칙 파일이 자동 로드된다.
