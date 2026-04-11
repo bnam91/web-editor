@@ -1053,9 +1053,20 @@
 
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
-.frame-block[data-text-frame="true"]:has(.text-block.selected) {
+.frame-block[data-text-frame="true"]:has(.text-block:not(.speech-bubble-block).selected) {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
+}
+/* 버블 선택 시 frame-block outline: speech-bubble-block(z-index:2)이 outline을 덮으므로
+   ::after pseudo-element를 z-index:10으로 올려서 위에 그림 */
+.frame-block[data-text-frame="true"]:has(.speech-bubble-block.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--sel-color);
+  z-index: 10;
+  pointer-events: none;
+  box-sizing: border-box;
 }
 .label-group-block:hover:not(.selected)::after,
 .icon-circle-block:hover:not(.selected)::after,
@@ -1466,15 +1477,15 @@
   --bubble-bg: #e5e5ea;  /* 버블 배경색 — JS에서 이 변수를 변경 */
   position: relative;
   display: block;
-  width: fit-content;
-  max-width: 80%;
+  width: 100%; /* 클릭 영역을 frame-block 전체로 확장 — 정렬은 tb-bubble에서 처리 */
   padding-bottom: 16px; /* SVG 말꼬리 공간 — 아웃라인/row 높이에 포함 */
   overflow: visible;
 }
-.speech-bubble-block[data-tail="right"] {
+/* 정렬: tb-bubble에서 margin으로 처리 */
+.speech-bubble-block[data-tail="right"] .tb-bubble {
   margin-left: auto;
 }
-.speech-bubble-block[data-tail="center"] {
+.speech-bubble-block[data-tail="center"] .tb-bubble {
   margin-left: auto;
   margin-right: auto;
 }
@@ -1506,7 +1517,9 @@
   line-height: 1.5;
   font-family: 'Pretendard', sans-serif;
   position: relative;
-  display: inline-block;
+  display: block;
+  width: fit-content;
+  max-width: 80%;
   min-width: 60px;
   word-break: break-word;
 }
@@ -1525,11 +1538,8 @@
   right: 10px;
   transform: scaleX(-1); /* 좌우 반전 */
 }
-/* 선택 상태 — frame-block이 아웃라인 처리 (라벨블록과 동일)
-   editor-layout.css의 .text-block.selected { outline } 규칙을 억제해야 함
-   (bubble은 fit-content 폭이라 text-block outline이 frame-block outline과 달리 좁게 보여 2겹 발생) */
+/* 선택 상태 — frame-block ::after로 outline 표시 (z-index:10, bubble 위에 렌더) */
 .speech-bubble-block.selected {
-  z-index: 2;
   outline: none !important;
 }
 /* placeholder 상태에서 opacity:0.45가 tb-bubble 배경까지 투명하게 만들어 말꼬리 색과 불일치 발생.
