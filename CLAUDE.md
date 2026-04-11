@@ -94,6 +94,52 @@
 
 ---
 
+## speech-bubble-block 선택 outline 패턴 (2026-04-12 확정)
+
+일반 text-block과 구조가 달라 별도 패턴을 사용한다. **절대 되돌리지 말 것.**
+
+### 왜 일반 outline이 안 되나
+- `.text-block.selected { z-index: 2 }` 규칙이 speech-bubble-block에도 적용됨
+- z-index:2인 자식이 부모(frame-block)의 outline을 덮어버림 → outline 불가시
+- speech-bubble-block에 직접 outline을 주면 `width: 100%`이므로 인접 블록 침범 발생
+
+### 확정된 해결책: `frame-block::after` z-index:10
+```css
+/* 선택 시 frame-block에 ::after로 outline 오버레이 */
+.frame-block[data-text-frame="true"]:has(.speech-bubble-block.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--sel-color);
+  z-index: 10;          /* speech-bubble-block(z-index:2) 위에 렌더 */
+  pointer-events: none;
+  box-sizing: border-box;
+}
+/* speech-bubble-block 자체 outline 억제 */
+.speech-bubble-block.selected {
+  outline: none !important;
+}
+```
+
+### 클릭 영역 확장: `width: 100%` + 정렬은 `tb-bubble`에서 처리
+- `speech-bubble-block { width: fit-content }`이면 버블 박스 바깥 클릭이 무시됨
+- `width: 100%`로 frame-block 전체를 채우고, 정렬(좌/우/중앙)은 `tb-bubble`의 `margin`으로 처리
+```css
+.speech-bubble-block { width: 100%; }
+.speech-bubble-block[data-tail="right"]  .tb-bubble { margin-left: auto; }
+.speech-bubble-block[data-tail="center"] .tb-bubble { margin-left: auto; margin-right: auto; }
+.tb-bubble { display: block; width: fit-content; max-width: 80%; }
+```
+
+### outline 디버깅 시 비교 체크리스트
+outline이 안 보일 때 반드시 확인:
+1. `z-index` — 자식이 부모 outline을 덮고 있진 않은가? (`getComputedStyle(el).zIndex`)
+2. **비교 대상 블록** — 라벨 등 정상 동작하는 블록과 DOM/CSS 차이를 비교
+3. `outline-offset` — 음수면 자식 배경에 묻힘, 양수면 인접 블록 침범
+4. 픽셀 검증 — 파란색 `rgb(45,111,232)` 픽셀이 실제로 존재하는지 스크린샷에서 확인
+
+---
+
 ## 블록 구조 원칙 (변경 금지)
 
 ### 프레임 블록 = Figma Frame
