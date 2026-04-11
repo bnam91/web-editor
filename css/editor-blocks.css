@@ -1455,6 +1455,7 @@
 .speech-bubble-block {
   position: relative;
   display: block;
+  width: fit-content;   /* 버블 내용 너비에 맞춤 */
   max-width: 80%;
   padding-bottom: 14px; /* 말꼬리 공간 */
   overflow: visible;
