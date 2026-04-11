@@ -23,20 +23,46 @@ function saveSections(arr) { localStorage.setItem(_secKey(), JSON.stringify(arr)
 
 function genCkId() { return 'ck_' + Math.random().toString(36).slice(2, 9); }
 
+// ── 핀 번호 계산 (_renderList와 동일한 순서) ─────────────────────────────────
+// 체크리스트 표시 순서(섹션 없는 것 → 섹션별)로 핀 있는 미완료 항목을 반환,
+// 각 항목에 pinNum(1-based)을 추가. renderPins + _buildItemEl 두 곳에서 사용.
+function _getPinnedItemsInOrder() {
+  const items    = loadItems();
+  const sections = loadSections();
+
+  const ordered = [];
+  items.filter(it => !it.sectionId).forEach(it => ordered.push(it));
+  sections.forEach(sec => {
+    items.filter(it => it.sectionId === sec.id).forEach(it => ordered.push(it));
+  });
+
+  let num = 0;
+  const result = new Map(); // id → pinNum
+  ordered.forEach(it => {
+    if (!it.done && it.x != null && it.y != null) {
+      num++;
+      result.set(it.id, num);
+    }
+  });
+  return result; // Map<id, pinNum>
+}
+
 // ── 핀 오버레이 렌더 ──────────────────────────────────────────────────────────
 function renderPins() {
   const overlay = document.getElementById('todo-pin-overlay');
   if (!overlay) return;
   overlay.innerHTML = '';
 
+  const pinNumMap = _getPinnedItemsInOrder();
   const items = loadItems().filter(it => !it.done && it.x != null && it.y != null);
-  items.forEach((item, idx) => {
+  items.forEach((item) => {
+    const pinNum = pinNumMap.get(item.id) ?? '?';
     const pin = document.createElement('div');
     pin.className = 'todo-pin';
     pin.dataset.id = item.id;
     pin.style.left = item.x + 'px';
     pin.style.top  = item.y + 'px';
-    pin.innerHTML = `<span class="todo-pin-num">${idx + 1}</span>`;
+    pin.innerHTML = `<span class="todo-pin-num">${pinNum}</span>`;
 
     // ── 캔버스 핀 드래그 이동 (mousedown/move/up) ──────────────────────────
     let _pinDragStartX = 0, _pinDragStartY = 0;
@@ -383,11 +409,12 @@ function _renderList() {
 
   const items    = loadItems();
   const sections = loadSections();
+  const pinNumMap = _getPinnedItemsInOrder();
 
   // 섹션 없는 items (sectionId === null / undefined)
   const unsectionedItems = items.filter(it => !it.sectionId);
   unsectionedItems.forEach(item => {
-    list.appendChild(_buildItemEl(item));
+    list.appendChild(_buildItemEl(item, null, pinNumMap.get(item.id)));
   });
 
   // 각 섹션 헤더 + 소속 items
@@ -398,7 +425,7 @@ function _renderList() {
     if (!sec.collapsed) {
       const secItems = items.filter(it => it.sectionId === sec.id);
       secItems.forEach(item => {
-        list.appendChild(_buildItemEl(item, sec.id));
+        list.appendChild(_buildItemEl(item, sec.id, pinNumMap.get(item.id)));
       });
     }
   });
@@ -413,13 +440,18 @@ function _renderList() {
 }
 
 // ── 아이템 DOM 요소 생성 ──────────────────────────────────────────────────────
-function _buildItemEl(item, sectionId) {
+function _buildItemEl(item, sectionId, pinNum) {
   const hasPin = item.x != null && item.y != null;
   const el = document.createElement('div');
   el.className = 'ck-item' + (item.done ? ' ck-item--done' : '');
   el.dataset.id = item.id;
   el.dataset.type = 'item';
   if (sectionId) el.dataset.sectionId = sectionId;
+
+  // 핀이 있고 미완료인 경우 번호 배지 표시
+  const pinBadge = (hasPin && !item.done && pinNum != null)
+    ? `<span class="ck-pin-badge">${pinNum}</span>`
+    : '';
 
   el.innerHTML = `
     <div class="ck-drag-handle" title="드래그하여 순서 변경">⠿</div>
@@ -428,6 +460,7 @@ function _buildItemEl(item, sectionId) {
         ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,6 5,9 10,3"/></svg>'
         : '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="9" height="9" rx="2"/></svg>'}
     </button>
+    ${pinBadge}
     <span class="ck-item-text${!item.text ? ' ck-item-text--empty' : ''}">${item.text ? _escHtml(item.text) : '<span style="color:var(--ui-border-mid);font-style:italic;">할 일 입력...</span>'}</span>
     ${hasPin
       ? `<button class="ck-goto-pin" title="핀 위치로 이동">

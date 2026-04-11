@@ -63,7 +63,22 @@ function resetPanOffset() {
   panOffsetY = 0;
   _applyScalerTransform();
 }
-function zoomStep(delta) { applyZoom(currentZoom + delta); }
+function zoomStep(delta) {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) { applyZoom(currentZoom + delta); return; }
+
+  const s_old = currentZoom / 100;
+  const newZoom = Math.min(400, Math.max(10, currentZoom + delta));
+  const s_new = newZoom / 100;
+
+  // 뷰포트 중앙점이 줌 전후로 같은 캔버스 좌표를 가리키도록 panOffset 보정
+  const vpCX = wrap.clientWidth  / 2;
+  const vpCY = wrap.clientHeight / 2;
+  panOffsetX = vpCX - (vpCX - panOffsetX) * (s_new / s_old);
+  panOffsetY = vpCY - (vpCY - panOffsetY) * (s_new / s_old);
+
+  applyZoom(newZoom);
+}
 function zoomFit() {
   const wrap = document.getElementById('canvas-wrap');
   applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100));

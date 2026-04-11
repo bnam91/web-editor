@@ -1195,6 +1195,18 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
+.ck-pin-badge {
+  flex-shrink: 0;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--ui-accent-primary, #4f8ef7);
+  color: #fff;
+  font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+
 .ck-goto-pin,
 .ck-add-pin-for-item {
   flex-shrink: 0;
