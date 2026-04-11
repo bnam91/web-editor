@@ -101,6 +101,9 @@ function enterPinMode() {
   _pinMode = true;
   const wrap = document.getElementById('canvas-wrap');
   if (wrap) wrap.classList.add('pin-mode-active');
+  // 오버레이가 클릭 이벤트를 받을 수 있도록 pointer-events 활성화
+  const overlay = document.getElementById('todo-pin-overlay');
+  if (overlay) overlay.style.pointerEvents = 'auto';
   document.addEventListener('keydown', _onPinModeKeydown);
 }
 
@@ -108,6 +111,9 @@ function exitPinMode() {
   _pinMode = false;
   const wrap = document.getElementById('canvas-wrap');
   if (wrap) wrap.classList.remove('pin-mode-active');
+  // 오버레이 pointer-events 원복 (핀 자체는 .todo-pin에서 auto 유지)
+  const overlay = document.getElementById('todo-pin-overlay');
+  if (overlay) overlay.style.pointerEvents = 'none';
   document.removeEventListener('keydown', _onPinModeKeydown);
   if (_pendingPinEl) { _pendingPinEl.remove(); _pendingPinEl = null; }
   if (_pendingInputPopup) { _pendingInputPopup.remove(); _pendingInputPopup = null; }
