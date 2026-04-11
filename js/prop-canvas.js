@@ -298,7 +298,7 @@ function showSimpleCardProperties(block) {
   const textBgLast = block.dataset.textBgLast || '#f5f5f5';
   const textBg    = isTextBgTransparent ? textBgLast : (block.dataset.textBg || '#f5f5f5');
   const titleColor = block.dataset.titleColor || '#ffffff';
-  const descColor  = block.dataset.descColor  || '#ffffffbf';
+  const descColor  = block.dataset.descColor  || '#aaaaaa';
   const titleSize = parseInt(block.dataset.titleSize) || 20;
   const descSize  = parseInt(block.dataset.descSize)  || 14;
   const textAlign = block.dataset.textAlign || 'left';
@@ -385,7 +385,7 @@ function showSimpleCardProperties(block) {
       <div class="prop-color-row">
         <span class="prop-label">설명 색</span>
         <div class="prop-color-swatch" style="background:${descColor}">
-          <input type="color" id="cvb-desc-color-pick" value="${descColor.startsWith('rgba') ? '#ffffff' : descColor}">
+          <input type="color" id="cvb-desc-color-pick" value="${descColor}">
         </div>
         <input type="text" class="prop-color-hex" id="cvb-desc-color-hex" value="${descColor}" maxlength="7">
       </div>
