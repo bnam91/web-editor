@@ -42,7 +42,7 @@ function renderPins() {
   });
 }
 
-// ── 핀 팝업 ──────────────────────────────────────────────────────────────────
+// ── 핀 팝업 (document.body에 fixed 배치 — canvas 배율 무관) ───────────────────
 let _activePinPopup = null;
 
 function closePinPopup() {
@@ -54,16 +54,19 @@ function showPinPopup(item, pinEl) {
 
   const popup = document.createElement('div');
   popup.className = 'todo-pin-popup';
+
+  // 핀 DOM 위치(viewport 기준)로 팝업 배치
+  const pinRect = pinEl.getBoundingClientRect();
+  popup.style.position = 'fixed';
+  popup.style.left = (pinRect.right + 8) + 'px';
+  popup.style.top  = (pinRect.top  - 8) + 'px';
+
   popup.innerHTML = `
     <div class="todo-pin-popup-text">${_escHtml(item.text)}</div>
     <div class="todo-pin-popup-actions">
       <button class="todo-pin-popup-btn todo-pin-complete-btn">✓ 완료</button>
       <button class="todo-pin-popup-btn todo-pin-delete-btn danger">✕ 삭제</button>
     </div>`;
-
-  // 핀 위치 기준으로 팝업 배치 (핀 오른쪽 위)
-  popup.style.left = (parseFloat(pinEl.style.left) + 28) + 'px';
-  popup.style.top  = (parseFloat(pinEl.style.top)  - 12) + 'px';
 
   popup.querySelector('.todo-pin-complete-btn').addEventListener('click', e => {
     e.stopPropagation();
@@ -83,8 +86,20 @@ function showPinPopup(item, pinEl) {
     renderChecklistPanel();
   });
 
-  document.getElementById('todo-pin-overlay').appendChild(popup);
+  popup.addEventListener('click', e => e.stopPropagation());
+  document.body.appendChild(popup);
   _activePinPopup = popup;
+
+  // 팝업이 화면 오른쪽 밖으로 나가면 왼쪽으로
+  requestAnimationFrame(() => {
+    const r = popup.getBoundingClientRect();
+    if (r.right > window.innerWidth - 8) {
+      popup.style.left = (pinRect.left - r.width - 8) + 'px';
+    }
+    if (r.bottom > window.innerHeight - 8) {
+      popup.style.top = (window.innerHeight - r.height - 8) + 'px';
+    }
+  });
 
   // 팝업 외부 클릭 시 닫기
   setTimeout(() => {
@@ -101,9 +116,7 @@ function enterPinMode() {
   _pinMode = true;
   const wrap = document.getElementById('canvas-wrap');
   if (wrap) wrap.classList.add('pin-mode-active');
-  // 오버레이가 클릭 이벤트를 받을 수 있도록 pointer-events 활성화
-  const overlay = document.getElementById('todo-pin-overlay');
-  if (overlay) overlay.style.pointerEvents = 'auto';
+  // overlay는 pointer-events:none 유지 — canvas-wrap에서 클릭 수신
   document.addEventListener('keydown', _onPinModeKeydown);
 }
 
@@ -111,9 +124,6 @@ function exitPinMode() {
   _pinMode = false;
   const wrap = document.getElementById('canvas-wrap');
   if (wrap) wrap.classList.remove('pin-mode-active');
-  // 오버레이 pointer-events 원복 (핀 자체는 .todo-pin에서 auto 유지)
-  const overlay = document.getElementById('todo-pin-overlay');
-  if (overlay) overlay.style.pointerEvents = 'none';
   document.removeEventListener('keydown', _onPinModeKeydown);
   if (_pendingPinEl) { _pendingPinEl.remove(); _pendingPinEl = null; }
   if (_pendingInputPopup) { _pendingInputPopup.remove(); _pendingInputPopup = null; }
@@ -128,17 +138,21 @@ function _onPinModeKeydown(e) {
 
 function _onCanvasClickForPin(e) {
   if (!_pinMode) return;
+  // 핀 마커나 팝업 클릭은 무시
+  if (e.target.closest('.todo-pin') || e.target.closest('.todo-pin-popup')) return;
   e.stopPropagation();
 
+  // canvas-scaler 기준 좌표 계산 (섹션 안/밖 어디든 가능)
+  const scaler = document.getElementById('canvas-scaler');
   const overlay = document.getElementById('todo-pin-overlay');
-  if (!overlay) return;
+  if (!scaler || !overlay) return;
 
-  const rect = overlay.getBoundingClientRect();
+  const scalerRect = scaler.getBoundingClientRect();
   const scale = (window.currentZoom || 40) / 100;
-  const x = (e.clientX - rect.left) / scale;
-  const y = (e.clientY - rect.top)  / scale;
+  const x = (e.clientX - scalerRect.left) / scale;
+  const y = (e.clientY - scalerRect.top)  / scale;
 
-  // 임시 핀 마커
+  // 임시 핀 마커 (overlay 내부, 캔버스 좌표)
   if (_pendingPinEl) _pendingPinEl.remove();
   const tempPin = document.createElement('div');
   tempPin.className = 'todo-pin todo-pin--pending';
@@ -148,20 +162,28 @@ function _onCanvasClickForPin(e) {
   overlay.appendChild(tempPin);
   _pendingPinEl = tempPin;
 
-  // 입력 팝업
+  // 입력 팝업 (document.body에 fixed — canvas 배율 무관)
   if (_pendingInputPopup) _pendingInputPopup.remove();
   const popup = document.createElement('div');
   popup.className = 'todo-pin-popup todo-pin-input-popup';
-  popup.style.left = (x + 28) + 'px';
-  popup.style.top  = (y - 12) + 'px';
+  popup.style.position = 'fixed';
+  popup.style.left = (e.clientX + 16) + 'px';
+  popup.style.top  = (e.clientY - 12) + 'px';
   popup.innerHTML = `
-    <input class="todo-pin-input" type="text" placeholder="할 일을 입력하세요..." maxlength="100" autofocus>
+    <input class="todo-pin-input" type="text" placeholder="할 일을 입력하세요..." maxlength="100">
     <div class="todo-pin-popup-actions">
       <button class="todo-pin-popup-btn todo-pin-save-btn">저장</button>
       <button class="todo-pin-popup-btn danger">취소</button>
     </div>`;
-  overlay.appendChild(popup);
+  document.body.appendChild(popup);
   _pendingInputPopup = popup;
+
+  // 화면 밖으로 나가면 위치 조정
+  requestAnimationFrame(() => {
+    const r = popup.getBoundingClientRect();
+    if (r.right > window.innerWidth - 8)  popup.style.left = (e.clientX - r.width - 8) + 'px';
+    if (r.bottom > window.innerHeight - 8) popup.style.top  = (e.clientY - r.height)    + 'px';
+  });
 
   const input = popup.querySelector('.todo-pin-input');
   input.focus();
@@ -177,21 +199,22 @@ function _onCanvasClickForPin(e) {
     renderChecklistPanel();
   };
 
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { e.stopPropagation(); exitPinMode(); }
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter')  { ev.preventDefault(); save(); }
+    if (ev.key === 'Escape') { ev.stopPropagation(); exitPinMode(); }
   });
-  popup.querySelector('.todo-pin-save-btn').addEventListener('click', e => { e.stopPropagation(); save(); });
-  popup.querySelectorAll('.danger').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); exitPinMode(); }));
-  popup.addEventListener('click', e => e.stopPropagation());
+  popup.querySelector('.todo-pin-save-btn').addEventListener('click', ev => { ev.stopPropagation(); save(); });
+  popup.querySelectorAll('.danger').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); exitPinMode(); }));
+  popup.addEventListener('click', ev => ev.stopPropagation());
 }
 
 // canvas-wrap 클릭 이벤트 등록 (초기화 시 1회)
+// — overlay가 아닌 canvas-wrap에 달아야 섹션 밖 빈 영역도 클릭 가능
 function _initCanvasClickListener() {
-  const overlay = document.getElementById('todo-pin-overlay');
-  if (!overlay || overlay._ckBound) return;
-  overlay._ckBound = true;
-  overlay.addEventListener('click', _onCanvasClickForPin);
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap || wrap._ckBound) return;
+  wrap._ckBound = true;
+  wrap.addEventListener('click', _onCanvasClickForPin);
 }
 
 // ── 체크리스트 패널 렌더 ─────────────────────────────────────────────────────
@@ -250,8 +273,8 @@ function renderChecklistPanel() {
     else { enterPinMode(); panel.querySelector('#ck-add-pin-btn').classList.add('active'); }
   });
 
-  const textBtn = panel.querySelector('#ck-add-text-btn');
-  const textRow = panel.querySelector('#ck-add-text-row');
+  const textBtn   = panel.querySelector('#ck-add-text-btn');
+  const textRow   = panel.querySelector('#ck-add-text-row');
   const textInput = panel.querySelector('#ck-text-input');
   textBtn.addEventListener('click', () => {
     const open = textRow.style.display !== 'none';

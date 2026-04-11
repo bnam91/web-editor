@@ -1218,7 +1218,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 /* ── Canvas Pin Markers ───────────────────────────────────────────────────── */
 .todo-pin {
   position: absolute;
-  width: 28px; height: 34px;
+  width: 40px; height: 50px;
   transform: translate(-50%, -100%);
   cursor: pointer;
   pointer-events: auto;
@@ -1229,20 +1229,20 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   position: absolute; bottom: 0; left: 50%;
   transform: translateX(-50%);
   width: 0; height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 6px solid #f59e0b;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 10px solid #f59e0b;
 }
 .todo-pin-num {
   display: flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px;
+  width: 40px; height: 40px;
   background: #f59e0b; color: #000;
   border-radius: 50%;
-  font-size: 11px; font-weight: 700;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  font-size: 15px; font-weight: 700;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
   transition: transform 0.1s;
 }
-.todo-pin:hover .todo-pin-num { transform: scale(1.1); }
+.todo-pin:hover .todo-pin-num { transform: scale(1.12); }
 .todo-pin--pending .todo-pin-num { background: #888; }
 
 .todo-pin--highlight .todo-pin-num {
