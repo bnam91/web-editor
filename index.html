@@ -261,6 +261,13 @@
         </svg>
         Inspector
       </button>
+      <button class="panel-tab" data-tab="checklist" onclick="switchToTab('checklist')">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="1.5" y="1.5" width="9" height="9" rx="1.5"/>
+          <polyline points="3.5,6 5,7.5 8.5,4.5"/>
+        </svg>
+        Check
+      </button>
     </div>
     <!-- File tab -->
     <div id="file-panel-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
@@ -396,6 +403,7 @@
       </div>
       <div id="inspector-stats-body" style="flex:1; overflow-y:auto; padding:10px 12px;"></div>
     </div>
+    <div class="panel-body" id="checklist-panel-body" style="display:none; flex-direction:column; flex:1; overflow:hidden; padding:0;"></div>
     <div id="panel-left-resize-handle"></div>
   </div>
 
@@ -407,6 +415,7 @@
   </div>
   <div id="canvas-wrap">
     <div id="canvas-scaler">
+      <div id="todo-pin-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50;"></div>
       <div id="canvas">
 
         <!-- ══════════════════════════
@@ -1026,6 +1035,7 @@
     badge.style.display = 'inline-block';
   })();
 </script>
+<script src="js/checklist-panel.js"></script>
 <div id="block-context-menu" style="display:none;position:fixed;z-index:9999;min-width:180px;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:4px 0;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
   <div class="bcm-item" id="bcm-save-template">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">

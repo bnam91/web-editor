@@ -1114,3 +1114,178 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .layer-ungroup-btn:hover { background: var(--ui-border-mid); color: #ccc; }
 .layer-item.active .layer-item-type { color: #3a5fa0; }
 
+/* ── Checklist Panel ─────────────────────────────────────────────────────── */
+#checklist-panel-body {
+  padding: 10px 10px 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.ck-progress-wrap { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; }
+.ck-progress-label {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--ui-text-dim);
+}
+.ck-progress-bar {
+  height: 4px; background: var(--ui-bg-hover); border-radius: 2px; overflow: hidden;
+}
+.ck-progress-fill {
+  height: 100%; background: var(--ui-accent-primary); border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.ck-progress-fill--complete { background: #4ade80; }
+
+.ck-toolbar {
+  display: flex; gap: 6px;
+}
+.ck-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border-radius: 5px;
+  background: var(--ui-bg-hover); border: 1px solid var(--ui-border-mid);
+  color: var(--ui-text-dim); font-size: 10px; cursor: pointer;
+  flex: 1; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.ck-btn:hover { background: var(--ui-border-mid); color: var(--ui-text-base); }
+.ck-btn.active, .ck-btn--pin.active {
+  background: rgba(37,99,235,0.2); border-color: var(--ui-accent-primary);
+  color: var(--ui-accent-primary);
+}
+
+.ck-add-text-row {
+  display: flex; align-items: center;
+}
+.ck-text-input {
+  width: 100%; background: var(--ui-bg-hover); border: 1px solid var(--ui-border-mid);
+  border-radius: 5px; color: var(--ui-text-base); font-size: 11px;
+  padding: 5px 8px; outline: none;
+}
+.ck-text-input:focus { border-color: var(--ui-accent-primary); }
+
+.ck-list {
+  display: flex; flex-direction: column; gap: 2px;
+  padding-bottom: 10px;
+}
+
+.ck-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 4px; border-radius: 5px;
+  transition: background 0.1s;
+}
+.ck-item:hover { background: var(--ui-bg-hover); }
+.ck-item--done .ck-item-text {
+  text-decoration: line-through; color: var(--ui-text-dim);
+}
+
+.ck-check {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer;
+  color: var(--ui-text-dim);
+  border-radius: 3px;
+  padding: 0;
+}
+.ck-check:hover { color: var(--ui-accent-primary); }
+.ck-item--done .ck-check { color: #4ade80; }
+
+.ck-item-text {
+  flex: 1; font-size: 11px; color: var(--ui-text-base);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.ck-goto-pin {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  background: none; border: none; cursor: pointer;
+  color: var(--ui-text-dim); border-radius: 3px; padding: 0;
+}
+.ck-goto-pin:hover { color: #f59e0b; }
+
+.ck-delete {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  background: none; border: none; cursor: pointer;
+  color: transparent; font-size: 13px; line-height: 1;
+  border-radius: 3px; padding: 0;
+}
+.ck-item:hover .ck-delete { color: var(--ui-text-dim); }
+.ck-delete:hover { color: #e06c6c !important; }
+
+/* ── Canvas Pin Markers ───────────────────────────────────────────────────── */
+.todo-pin {
+  position: absolute;
+  width: 28px; height: 34px;
+  transform: translate(-50%, -100%);
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 51;
+}
+.todo-pin::before {
+  content: '';
+  position: absolute; bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #f59e0b;
+}
+.todo-pin-num {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  background: #f59e0b; color: #000;
+  border-radius: 50%;
+  font-size: 11px; font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  transition: transform 0.1s;
+}
+.todo-pin:hover .todo-pin-num { transform: scale(1.1); }
+.todo-pin--pending .todo-pin-num { background: #888; }
+
+.todo-pin--highlight .todo-pin-num {
+  animation: pin-pulse 0.4s ease 3;
+}
+@keyframes pin-pulse {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.3); }
+}
+
+/* Pin mode cursor */
+#canvas-wrap.pin-mode-active { cursor: crosshair; }
+
+/* ── Pin Popup ───────────────────────────────────────────────────────────── */
+.todo-pin-popup {
+  position: absolute;
+  background: #1e1e1e; border: 1px solid #444;
+  border-radius: 8px; padding: 10px 12px;
+  min-width: 180px; max-width: 260px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  z-index: 52;
+  pointer-events: auto;
+}
+.todo-pin-popup-text {
+  font-size: 12px; color: #ddd; margin-bottom: 8px;
+  word-break: break-word; line-height: 1.5;
+}
+.todo-pin-popup-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.todo-pin-popup-btn {
+  padding: 3px 10px; border-radius: 5px;
+  border: 1px solid #444; background: #2a2a2a;
+  color: #bbb; font-size: 11px; cursor: pointer;
+}
+.todo-pin-popup-btn:hover { background: #333; color: #fff; }
+.todo-pin-popup-btn.danger { border-color: #7a2020; color: #e06c6c; }
+.todo-pin-popup-btn.danger:hover { background: #3a1010; }
+
+/* Pin input popup */
+.todo-pin-input-popup { min-width: 220px; }
+.todo-pin-input {
+  width: 100%; box-sizing: border-box;
+  background: #2a2a2a; border: 1px solid #555;
+  border-radius: 5px; color: #eee; font-size: 12px;
+  padding: 5px 8px; outline: none; margin-bottom: 8px;
+}
+.todo-pin-input:focus { border-color: var(--ui-accent-primary); }

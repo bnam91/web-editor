@@ -15,12 +15,14 @@ function switchToTab(tabName) {
     t.classList.toggle('active', t.dataset.tab === tabName));
   const filePanel = document.getElementById('file-panel-body');
   if (filePanel) filePanel.style.display = tabName === 'file' ? 'flex' : 'none';
-  document.getElementById('branch-panel-body').style.display    = tabName === 'branch'    ? '' : 'none';
-  document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? 'flex' : 'none';
+  document.getElementById('branch-panel-body').style.display     = tabName === 'branch'    ? '' : 'none';
+  document.getElementById('inspector-panel-body').style.display  = tabName === 'inspector' ? 'flex' : 'none';
+  document.getElementById('checklist-panel-body').style.display  = tabName === 'checklist' ? 'flex' : 'none';
   const collapseBtn = document.getElementById('layer-collapse-all');
   if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
   if (tabName === 'branch') window.renderBranchPanel();
   if (tabName === 'inspector') window.renderInspectorPanel();
+  if (tabName === 'checklist') window.renderChecklistPanel?.();
 }
 
 function initFileTabToggle() {

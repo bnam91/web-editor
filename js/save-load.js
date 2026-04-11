@@ -340,6 +340,7 @@ function applyProjectData(data) {
   window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
   window.buildLayerPanel(); // also calls buildFilePageSection
   window.showPageProperties();
+  window.renderChecklistPanel?.();
   // 프로젝트 로드/탭 전환 후 히스토리 초기화 — 이전 프로젝트/페이지 스냅샷 잔류 방지
   window.clearHistory?.();
 }
