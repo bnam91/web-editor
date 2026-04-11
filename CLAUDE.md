@@ -39,15 +39,17 @@ npm run figma        # Figma WebSocket 서버 (포트 3055)
 - 스킬 라우팅: `_context/SKILLS_GUIDE.md`
 - 기능 명세·스펙: `docs/` 폴더
 
-| 문서 | 주요 내용 |
-|------|---------|
-| `docs/DRAG_SPEC.md` | 드래그앤드롭 동작 명세 |
-| `docs/TEMPLATE_SYSTEM.md` | 템플릿 저장·삽입·버그 패턴 |
-| `docs/branch-system.md` | 브랜치 구조·충돌 시나리오 |
-| `docs/project-storage.md` | 프로젝트 저장 구조 (v1 현재 / v2 설계) |
-| `docs/goditor-api-reference.md` | CDP `window.*` 함수 전체 레퍼런스 |
-| `docs/LEFT_PANEL_LAYER.md` | 레이어 패널 명세 |
-| `docs/RIGHT_PANEL_PROPS.md` | 프로퍼티 패널 명세 |
+> 필요한 작업이 생겼을 때만 열 것. 매 작업마다 전부 읽지 말 것.
+
+| 문서 | 읽어야 할 때 |
+|------|------------|
+| `docs/DRAG_SPEC.md` | 드래그앤드롭 버그 수정·기능 변경 시 |
+| `docs/TEMPLATE_SYSTEM.md` | 템플릿 저장·삽입·브라우저 작업 시 |
+| `docs/branch-system.md` | 브랜치 전환·병합·커밋 관련 작업 시 |
+| `docs/project-storage.md` | 프로젝트 저장 구조 변경·디버깅 시 |
+| `docs/goditor-api-reference.md` | CDP로 블록 생성·자동화 스크립트 작성 시 (32KB — 필요한 함수만 검색) |
+| `docs/LEFT_PANEL_LAYER.md` | 레이어 패널 수정 시 |
+| `docs/RIGHT_PANEL_PROPS.md` | 프로퍼티 패널 수정 시 |
 
 ---
 
@@ -72,6 +74,11 @@ npm run figma        # Figma WebSocket 서버 (포트 3055)
 | `npm run dev:ui-polish` | 9337 |
 | `npm run dev:design-token` | 9338 |
 | `npm run dev:template-tag` | 9339 |
+
+**접속 판단 기준:**
+1. `chrome-devtools` MCP는 **9334 고정** — 별도 지시 없으면 항상 이쪽 사용
+2. 사용자가 특정 포트/브랜치를 언급한 경우 해당 포트 사용
+3. 어느 포트가 실행 중인지 모를 때 → `chrome-devtools` MCP `list_pages`로 먼저 확인
 
 ### QA 루프
 
