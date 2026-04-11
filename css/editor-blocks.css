@@ -1464,6 +1464,14 @@
 .speech-bubble-block[data-tail="right"] {
   margin-left: auto;
 }
+.speech-bubble-block[data-tail="center"] {
+  margin-left: auto;
+  margin-right: auto;
+  padding-bottom: 0; /* 말꼬리 없음 */
+}
+.speech-bubble-block[data-tail="center"] .tb-bubble-tail {
+  display: none;
+}
 /* 발신자 이름 레이블 — 버블 텍스트 좌우 패딩(22px)에 맞춰 정렬 */
 .tb-sender-name {
   font-size: 16px;
@@ -1498,7 +1506,7 @@
   position: absolute;
   bottom: 0;
   width: 18px;
-  height: 15px;
+  height: 16px;
   fill: var(--bubble-bg, #e5e5ea);
 }
 .speech-bubble-block[data-tail="left"] .tb-bubble-tail {

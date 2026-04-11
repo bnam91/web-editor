@@ -21,6 +21,7 @@ export function showTextProperties(tb) {
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
   const isLabel = currentClass === 'tb-label';
   const currentTail = tb.dataset.tail || 'left';
+  const currentBubbleStyle = tb.dataset.bubbleStyle || 'imessage';
   const _blockBubbleVar = isSpeechBubble ? tb.style.getPropertyValue('--bubble-bg').trim() : '';
   const bubbleBg = isSpeechBubble ? (_blockBubbleVar || contentEl.style.backgroundColor || '#e5e5ea') : '#e5e5ea';
   const bubbleBgHex = isSpeechBubble ? (_blockBubbleVar || rgbToHex(window.getComputedStyle(contentEl).backgroundColor) || '#e5e5ea') : '#e5e5ea';
@@ -267,9 +268,17 @@ export function showTextProperties(tb) {
       <div class="prop-section">
         <div class="prop-section-title">말풍선 스타일</div>
         <div class="prop-row">
+          <span class="prop-label">스타일</span>
+          <select class="prop-select" id="bubble-style-select">
+            <option value="imessage" ${currentBubbleStyle==='imessage'?'selected':''}>iMessage</option>
+            <option value="apple" ${currentBubbleStyle==='apple'?'selected':''}>Apple</option>
+          </select>
+        </div>
+        <div class="prop-row">
           <span class="prop-label">말꼬리</span>
           <div class="prop-align-group">
             <button class="prop-align-btn ${currentTail==='left'?'active':''}" id="bubble-tail-left" title="왼쪽 말꼬리">←</button>
+            <button class="prop-align-btn ${currentTail==='center'?'active':''}" id="bubble-tail-center" title="말꼬리 없음 / 중앙">—</button>
             <button class="prop-align-btn ${currentTail==='right'?'active':''}" id="bubble-tail-right" title="오른쪽 말꼬리">→</button>
           </div>
         </div>
@@ -315,22 +324,41 @@ export function showTextProperties(tb) {
       window.triggerAutoSave?.();
     };
 
-    document.getElementById('bubble-tail-left')?.addEventListener('click', () => {
+    // 말풍선 스타일 드롭다운
+    document.getElementById('bubble-style-select')?.addEventListener('change', e => {
       window.pushHistory?.();
-      tb.dataset.tail = 'left';
-      tb.style.marginLeft = '';
-      document.getElementById('bubble-tail-left')?.classList.add('active');
-      document.getElementById('bubble-tail-right')?.classList.remove('active');
+      const style = e.target.value;
+      tb.dataset.bubbleStyle = style;
+      _applyBubbleStyle(style);
       window.triggerAutoSave?.();
     });
-    document.getElementById('bubble-tail-right')?.addEventListener('click', () => {
+
+    const _applyBubbleStyle = (style) => {
+      const bubbleEl = tb.querySelector('.tb-bubble');
+      if (!bubbleEl) return;
+      if (style === 'apple') {
+        bubbleEl.dataset.bubbleStyle = 'apple';
+      } else {
+        delete bubbleEl.dataset.bubbleStyle;
+      }
+    };
+    _applyBubbleStyle(currentBubbleStyle);
+
+    // 말꼬리 방향
+    const _setTail = (dir) => {
       window.pushHistory?.();
-      tb.dataset.tail = 'right';
-      tb.style.marginLeft = 'auto';
-      document.getElementById('bubble-tail-left')?.classList.remove('active');
-      document.getElementById('bubble-tail-right')?.classList.add('active');
+      tb.dataset.tail = dir;
+      tb.style.marginLeft = dir === 'right' ? 'auto' : dir === 'center' ? 'auto' : '';
+      tb.style.marginRight = dir === 'center' ? 'auto' : '';
+      ['left','center','right'].forEach(d => {
+        document.getElementById('bubble-tail-' + d)?.classList.toggle('active', d === dir);
+      });
       window.triggerAutoSave?.();
-    });
+    };
+
+    document.getElementById('bubble-tail-left')?.addEventListener('click', () => _setTail('left'));
+    document.getElementById('bubble-tail-center')?.addEventListener('click', () => _setTail('center'));
+    document.getElementById('bubble-tail-right')?.addEventListener('click', () => _setTail('right'));
 
     const bubbleBgPicker = document.getElementById('bubble-bg-color');
     const bubbleBgHexInput = document.getElementById('bubble-bg-hex');
