@@ -14,11 +14,15 @@ export function showTextProperties(tb) {
   }
   const computed   = window.getComputedStyle(contentEl);
 
-  const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || 'tb-body';
+  const isSpeechBubble = tb.classList.contains('speech-bubble-block');
+  const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || (isSpeechBubble ? 'tb-bubble' : 'tb-body');
   const rawBg = window.getComputedStyle(contentEl).backgroundColor;
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
   const isLabel = currentClass === 'tb-label';
+  const currentTail = tb.dataset.tail || 'left';
+  const bubbleBg = isSpeechBubble ? (contentEl.style.backgroundColor || '#e5e5ea') : '#e5e5ea';
+  const bubbleBgHex = isSpeechBubble ? (rgbToHex(window.getComputedStyle(contentEl).backgroundColor) || '#e5e5ea') : '#e5e5ea';
   const labelPillPadT = parseInt(contentEl.style.paddingTop)    || 4;
   const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
   const labelPillH    = labelPillPadT + labelPillPadB;
@@ -256,6 +260,26 @@ export function showTextProperties(tb) {
       </div>
     </div>
 
+    <div id="bubble-style-section" style="display:${isSpeechBubble?'block':'none'}">
+      <div class="prop-section">
+        <div class="prop-section-title">말풍선 스타일</div>
+        <div class="prop-row">
+          <span class="prop-label">말꼬리</span>
+          <div class="prop-align-group">
+            <button class="prop-align-btn ${currentTail==='left'?'active':''}" id="bubble-tail-left" title="왼쪽 말꼬리">←</button>
+            <button class="prop-align-btn ${currentTail==='right'?'active':''}" id="bubble-tail-right" title="오른쪽 말꼬리">→</button>
+          </div>
+        </div>
+        <div class="prop-color-row">
+          <span class="prop-label">배경색</span>
+          <div class="prop-color-swatch" style="background:${bubbleBgHex}">
+            <input type="color" id="bubble-bg-color" value="${bubbleBgHex}">
+          </div>
+          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex}" maxlength="7">
+        </div>
+      </div>
+    </div>
+
     <div class="prop-section prop-section--anim" style="${isOverlayTb ? 'display:none' : ''}">
       <button class="prop-anim-btn" id="open-anim-btn">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -267,6 +291,56 @@ export function showTextProperties(tb) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
+
+  /* ── 말풍선 블록 전용 이벤트 ── */
+  if (isSpeechBubble) {
+    // 말꼬리 방향
+    const _applyBubbleBg = (hex) => {
+      contentEl.style.backgroundColor = hex;
+      // ::before 말꼬리 색상 동기화: 인라인 style로 CSS override
+      // clip-path를 쓰기 때문에 background 속성으로 색상을 맞춰야 함
+      // data-tail-color를 이용해 ::before 대신 JS로 직접 관리
+      tb.dataset.bubbleBg = hex;
+      // ::before은 CSS에서 배경색을 parent의 .tb-bubble 배경색과 맞춤
+      // 즉, --bubble-bg CSS 변수를 세팅해 ::before도 동시에 변경
+      contentEl.style.setProperty('--bubble-bg', hex);
+      window.triggerAutoSave?.();
+    };
+
+    document.getElementById('bubble-tail-left')?.addEventListener('click', () => {
+      window.pushHistory?.();
+      tb.dataset.tail = 'left';
+      tb.style.marginLeft = '';
+      document.getElementById('bubble-tail-left')?.classList.add('active');
+      document.getElementById('bubble-tail-right')?.classList.remove('active');
+      window.triggerAutoSave?.();
+    });
+    document.getElementById('bubble-tail-right')?.addEventListener('click', () => {
+      window.pushHistory?.();
+      tb.dataset.tail = 'right';
+      tb.style.marginLeft = 'auto';
+      document.getElementById('bubble-tail-left')?.classList.remove('active');
+      document.getElementById('bubble-tail-right')?.classList.add('active');
+      window.triggerAutoSave?.();
+    });
+
+    const bubbleBgPicker = document.getElementById('bubble-bg-color');
+    const bubbleBgHexInput = document.getElementById('bubble-bg-hex');
+    bubbleBgPicker?.addEventListener('input', e => {
+      const hex = e.target.value;
+      bubbleBgHexInput.value = hex;
+      _applyBubbleBg(hex);
+    });
+    bubbleBgPicker?.addEventListener('change', () => window.pushHistory?.());
+    bubbleBgHexInput?.addEventListener('input', e => {
+      const hex = e.target.value;
+      if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+        bubbleBgPicker.value = hex;
+        _applyBubbleBg(hex);
+      }
+    });
+    bubbleBgHexInput?.addEventListener('change', () => window.pushHistory?.());
+  }
 
   const fontSel = document.getElementById('txt-font-family');
 

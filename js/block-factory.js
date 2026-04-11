@@ -1496,6 +1496,36 @@ window.setSectionBg = function(sectionEl, color) {
   return true;
 };
 
+// ── Speech Bubble Block ───────────────────────────────────────────────────────
+function makeSpeechBubbleBlock(tail) {
+  tail = tail || 'left';
+  const block = document.createElement('div');
+  block.className = 'text-block speech-bubble-block';
+  block.dataset.type = 'speech-bubble';
+  block.dataset.tail = tail;
+  block.id = genId('sb');
+  const phText = '말풍선 텍스트를 입력하세요';
+  block.innerHTML = `<div class="tb-bubble" contenteditable="false" style="font-family:'Pretendard',sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>`;
+  return { block };
+}
+
+function addSpeechBubbleBlock(tail) {
+  tail = tail || 'left';
+
+  const sec = window.getSelectedSection();
+  if (!sec) { window.showNoSelectionHint?.(); return; }
+  window.pushHistory();
+
+  const { block } = makeSpeechBubbleBlock(tail);
+  const tf = _makeTextFrame();
+  tf.appendChild(block);
+
+  insertAfterSelected(sec, tf);
+  bindBlock(block);
+  window.buildLayerPanel();
+  window.selectSection(sec);
+}
+
 // Backward compat
 window.makeTextBlock        = makeTextBlock;
 window.makeAssetBlock       = makeAssetBlock;
@@ -1529,6 +1559,8 @@ window.makeJokerBlock       = makeJokerBlock;
 window.addJokerBlock        = addJokerBlock;
 window.makeShapeBlock       = makeShapeBlock;
 window.addShapeBlock        = addShapeBlock;
+window.makeSpeechBubbleBlock = makeSpeechBubbleBlock;
+window.addSpeechBubbleBlock  = addSpeechBubbleBlock;
 
 // ── Canvas Block ─────────────────────────────────────────────────────────────
 // Figma에서 임포트한 레이어 합성 블록 (shape + image + text 절대배치 단일 컴포넌트)

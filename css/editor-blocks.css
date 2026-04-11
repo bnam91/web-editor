@@ -1448,3 +1448,58 @@
   opacity: 0.65;
   word-break: keep-all;
 }
+
+/* ═══════════════════════════════════
+   SPEECH BUBBLE BLOCK — iMessage 스타일 말풍선
+═══════════════════════════════════ */
+.speech-bubble-block {
+  position: relative;
+  display: block;
+  max-width: 80%;
+}
+.speech-bubble-block[data-tail="right"] {
+  margin-left: auto;
+}
+.tb-bubble {
+  background: #e5e5ea;
+  color: #1c1c1e;
+  border-radius: 20px;
+  padding: 10px 16px;
+  font-size: 16px;
+  line-height: 1.5;
+  font-family: 'Pretendard', sans-serif;
+  position: relative;
+  display: inline-block;
+  min-width: 60px;
+  word-break: break-word;
+}
+/* 말꼬리 — 공통 */
+.speech-bubble-block .tb-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 20px;
+  height: 16px;
+}
+/* 말꼬리 left */
+.speech-bubble-block[data-tail="left"] .tb-bubble::before {
+  left: -8px;
+  background: var(--bubble-bg, #e5e5ea);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+/* 말꼬리 right */
+.speech-bubble-block[data-tail="right"] .tb-bubble::before {
+  right: -8px;
+  background: var(--bubble-bg, #e5e5ea);
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+/* CSS 변수 기본값 */
+.speech-bubble-block .tb-bubble {
+  --bubble-bg: #e5e5ea;
+}
+/* 선택 상태 */
+.speech-bubble-block.selected {
+  outline: 1px solid var(--sel-color);
+  outline-offset: 2px;
+  z-index: 2;
+}

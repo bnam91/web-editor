@@ -584,7 +584,7 @@ function rebindAll() {
     'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요', 'tb-label':'Label'
   };
   canvasEl.querySelectorAll('.text-block').forEach(tb => {
-    const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
+    const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bubble');
     if (!inner) return;
     if (!inner.hasAttribute('contenteditable')) {
       inner.setAttribute('contenteditable', 'false');
