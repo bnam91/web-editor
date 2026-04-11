@@ -2,7 +2,7 @@
    ROW PROPERTIES PANEL
 ═══════════════════════════════════ */
 
-import { propPanel } from './globals.js';
+import { propPanel } from '../globals.js';
 
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';

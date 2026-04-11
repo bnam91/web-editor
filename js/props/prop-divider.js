@@ -1,4 +1,4 @@
-import { propPanel, state } from './globals.js';
+import { propPanel, state } from '../globals.js';
 
 export function showDividerProperties(block) {
   const lineColor  = block.dataset.lineColor  || '#cccccc';

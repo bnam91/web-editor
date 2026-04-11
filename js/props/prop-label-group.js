@@ -1,4 +1,4 @@
-import { propPanel } from './globals.js';
+import { propPanel } from '../globals.js';
 
 // 라벨 스타일 프리셋 정의
 const LABEL_STYLE_PRESETS = {

@@ -1,4 +1,4 @@
-import { propPanel } from './globals.js';
+import { propPanel } from '../globals.js';
 
 export function showStepProperties(block) {
   const steps = JSON.parse(block.dataset.steps || '[]');

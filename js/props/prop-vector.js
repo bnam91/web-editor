@@ -1,4 +1,4 @@
-import { propPanel } from './globals.js';
+import { propPanel } from '../globals.js';
 
 export function showVectorProperties(block) {
   const w       = parseInt(block.dataset.w)        || 120;

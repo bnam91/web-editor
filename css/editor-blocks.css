@@ -1201,6 +1201,11 @@
 .frame-block:not(.selected) .shape-block:hover::after {
   display: none !important;
 }
+/* speech-bubble-block은 fit-content 폭 → text-block:hover::after (editor-layout.css)와
+   부모 frame-block:hover::after가 겹쳐 2겹 overlay 발생. 직접 ::after 억제. */
+.frame-block[data-text-frame="true"]:not(.selected) .speech-bubble-block:hover::after {
+  display: none !important;
+}
 .frame-block:not(.selected) .row:has(.text-block:hover),
 .frame-block:not(.selected) .frame-block[data-text-frame="true"]:has(.text-block:hover) {
   outline: none !important;
@@ -1463,7 +1468,7 @@
   display: block;
   width: fit-content;
   max-width: 80%;
-  padding-bottom: 16px; /* SVG 말꼬리 공간 */
+  padding-bottom: 16px; /* SVG 말꼬리 공간 — 아웃라인/row 높이에 포함 */
   overflow: visible;
 }
 .speech-bubble-block[data-tail="right"] {
@@ -1472,7 +1477,6 @@
 .speech-bubble-block[data-tail="center"] {
   margin-left: auto;
   margin-right: auto;
-  padding-bottom: 16px; /* 중앙 말꼬리 공간 유지 */
 }
 .speech-bubble-block[data-tail="center"] .tb-bubble-tail {
   left: 50%;
@@ -1506,8 +1510,7 @@
   min-width: 60px;
   word-break: break-word;
 }
-/* SVG 말꼬리 — Figma 스타일 (clip-path 대신 실제 SVG 곡선) */
-/* bottom:0 → frame-block overflow:hidden 클리핑 방지 (padding 영역 내부에 위치) */
+/* SVG 말꼬리 — padding-bottom 16px 영역 안에 위치, 아웃라인에 포함됨 */
 .tb-bubble-tail {
   position: absolute;
   bottom: 0;
@@ -1522,9 +1525,20 @@
   right: 10px;
   transform: scaleX(-1); /* 좌우 반전 */
 }
-/* 선택 상태 */
+/* 선택 상태 — frame-block이 아웃라인 처리 (라벨블록과 동일)
+   editor-layout.css의 .text-block.selected { outline } 규칙을 억제해야 함
+   (bubble은 fit-content 폭이라 text-block outline이 frame-block outline과 달리 좁게 보여 2겹 발생) */
 .speech-bubble-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: 2px;
   z-index: 2;
+  outline: none !important;
+}
+/* placeholder 상태에서 opacity:0.45가 tb-bubble 배경까지 투명하게 만들어 말꼬리 색과 불일치 발생.
+   배경 opacity는 1로 유지하고, 텍스트 color만 dim 처리. */
+.speech-bubble-block .tb-bubble[data-is-placeholder="true"] {
+  opacity: 1 !important;
+  color: rgba(28, 28, 30, 0.4);
+}
+/* 편집 중에는 원래 텍스트 색상 복원 */
+.speech-bubble-block .tb-bubble[data-is-placeholder="true"][contenteditable="true"] {
+  color: #1c1c1e;
 }

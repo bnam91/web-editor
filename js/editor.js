@@ -71,11 +71,27 @@ function zoomStep(delta) {
   const newZoom = Math.min(400, Math.max(10, currentZoom + delta));
   const s_new = newZoom / 100;
 
-  // 뷰포트 중앙점이 줌 전후로 같은 캔버스 좌표를 가리키도록 panOffset 보정
-  const vpCX = wrap.clientWidth  / 2;
-  const vpCY = wrap.clientHeight / 2;
-  panOffsetX = vpCX - (vpCX - panOffsetX) * (s_new / s_old);
-  panOffsetY = vpCY - (vpCY - panOffsetY) * (s_new / s_old);
+  // 줌인(delta>0) + 선택 블록 있음: 블록을 화면 중앙으로 이동하며 확대
+  // 줌아웃 또는 선택 없음: 현재 뷰포트 중앙 기준으로 확대/축소 (중심점 유지)
+  const selected = document.querySelector('.selected');
+  if (selected && delta > 0) {
+    const rect = selected.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    // 블록 중심의 캔버스 좌표
+    const blockScreenX = rect.left + rect.width  / 2 - wrapRect.left;
+    const blockScreenY = rect.top  + rect.height / 2 - wrapRect.top;
+    const blockCanvasX = (blockScreenX - panOffsetX) / s_old;
+    const blockCanvasY = (blockScreenY - panOffsetY) / s_old;
+    // 새 줌에서 블록이 뷰포트 중앙에 오도록 pan 계산
+    panOffsetX = wrap.clientWidth  / 2 - blockCanvasX * s_new;
+    panOffsetY = wrap.clientHeight / 2 - blockCanvasY * s_new;
+  } else {
+    // 줌아웃(또는 선택 없음): 현재 화면 중앙점 유지
+    const vpCX = wrap.clientWidth  / 2;
+    const vpCY = wrap.clientHeight / 2;
+    panOffsetX = vpCX - (vpCX - panOffsetX) * (s_new / s_old);
+    panOffsetY = vpCY - (vpCY - panOffsetY) * (s_new / s_old);
+  }
 
   applyZoom(newZoom);
 }

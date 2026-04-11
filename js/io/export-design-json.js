@@ -1,4 +1,4 @@
-import { canvasEl, state } from './globals.js';
+import { canvasEl, state } from '../globals.js';
 
 const CANVAS_W = 860;
 

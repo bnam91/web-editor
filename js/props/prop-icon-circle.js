@@ -1,4 +1,4 @@
-import { propPanel, state } from './globals.js';
+import { propPanel, state } from '../globals.js';
 
 export function showIconCircleProperties(block) {
   const circle   = block.querySelector('.icb-circle');

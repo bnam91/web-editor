@@ -1497,10 +1497,18 @@ window.setSectionBg = function(sectionEl, color) {
 };
 
 // ── Speech Bubble Block ───────────────────────────────────────────────────────
-// iMessage 스타일 SVG 말꼬리 (좌측 기준, 우측은 CSS scaleX(-1) 반전)
-const _BUBBLE_TAIL_SVG = `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16">
-  <path d="M18 0 C14 4 7 8 0 16 C5 9 10 4 18 0Z"/>
-</svg>`;
+// iMessage 스타일 SVG 말꼬리
+// left/right: 비대칭 (right는 CSS scaleX(-1) 반전), center: 대칭 하향
+function getBubbleTailSVG(tail) {
+  if (tail === 'center') {
+    // 대칭형 — 팁이 정가운데 아래를 향함
+    return `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16"><path d="M0 0 C5 3 8 12 9 16 C10 12 13 3 18 0 Z"/></svg>`;
+  }
+  // left / right 공용 (right는 CSS scaleX(-1) 처리)
+  // M0 0: 상단-좌, L18 0: 상단 전체 커버(버블 하단과 이음새 없이 연결), outer curve → tip(0,16), inner curve → (18,0), Z
+  return `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16"><path d="M0 0 L18 0 C15 2 4 8 0 16 C4 12 12 5 18 0 Z"/></svg>`;
+}
+window.getBubbleTailSVG = getBubbleTailSVG;
 
 function makeSpeechBubbleBlock(tail) {
   tail = tail || 'left';
@@ -1513,7 +1521,7 @@ function makeSpeechBubbleBlock(tail) {
   block.dataset.senderName = 'Your name';
   block.id = genId('sb');
   const phText = '말풍선 텍스트를 입력하세요';
-  block.innerHTML = `<div class="tb-sender-name" style="display:none">Your name</div><div class="tb-bubble" contenteditable="false" style="font-family:'Pretendard',sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>${_BUBBLE_TAIL_SVG}`;
+  block.innerHTML = `<div class="tb-sender-name" style="display:none">Your name</div><div class="tb-bubble" contenteditable="false" style="font-family:'Pretendard',sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>${getBubbleTailSVG(tail)}`;
   return { block };
 }
 

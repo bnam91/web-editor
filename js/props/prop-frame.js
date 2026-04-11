@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════
    PROP-FRAME — Frame 속성 패널 (frame-block)
 ══════════════════════════════════════ */
-import { propPanel } from './globals.js';
+import { propPanel } from '../globals.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';

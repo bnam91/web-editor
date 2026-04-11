@@ -3,7 +3,7 @@
    Figma 플러그인이 내보낸 JSON을 에디터 섹션으로 변환해 삽입한다.
    섹션 단위로 임포트하며, rebindAll() 이후 완전히 활성화된다.
 ═══════════════════════════════════════════════════════════════ */
-import { canvasEl, state } from './globals.js';
+import { canvasEl, state } from '../globals.js';
 
 /* ── ID 생성 (drag-utils.genId와 동일 형식) ── */
 function _genId(prefix) {

@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════
    PROPERTIES PANEL
 ═══════════════════════════════════ */
-import { propPanel, canvasEl, canvasWrap, state } from './globals.js';
+import { propPanel, canvasEl, canvasWrap, state } from '../globals.js';
 
 /* ── 헬퍼: section-inner 하나에 padX 적용 ── */
 function applyPadXToSection(inner, padX) {

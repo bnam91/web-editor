@@ -1,5 +1,5 @@
-import { propPanel } from './globals.js';
-import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from './editor.js';
+import { propPanel } from '../globals.js';
+import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
 
 /* ═══════════════════════════════════
    SECTION PROPERTIES PANEL

@@ -1,6 +1,6 @@
 // prop-mockup.js — 디바이스 목업 블록 프로퍼티 패널
 
-import { propPanel } from './globals.js';
+import { propPanel } from '../globals.js';
 
 export function showMockupProperties(block) {
   const deviceKey = block.dataset.device || 'iphone';

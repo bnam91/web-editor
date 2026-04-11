@@ -1,4 +1,4 @@
-import { propPanel, state } from './globals.js';
+import { propPanel, state } from '../globals.js';
 
 export function showTextProperties(tb) {
   const isOverlayTb = tb.classList.contains('overlay-tb');
@@ -15,6 +15,7 @@ export function showTextProperties(tb) {
   const computed   = window.getComputedStyle(contentEl);
 
   const isSpeechBubble = tb.classList.contains('speech-bubble-block');
+  const isIconText     = tb.classList.contains('icon-text-block');
   const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || (isSpeechBubble ? 'tb-bubble' : 'tb-body');
   const rawBg = window.getComputedStyle(contentEl).backgroundColor;
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
@@ -30,7 +31,13 @@ export function showTextProperties(tb) {
   const labelPillPadT = parseInt(contentEl.style.paddingTop)    || 4;
   const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
   const labelPillH    = labelPillPadT + labelPillPadB;
-  const currentAlign = isLabel ? (tb.style.textAlign || 'left') : (contentEl.style.textAlign || 'left');
+  const _jcToAlign   = { 'flex-start': 'left', 'center': 'center', 'flex-end': 'right' };
+  const currentAlign = isLabel
+    ? (tb.style.textAlign || 'left')
+    : isIconText
+      ? (_jcToAlign[tb.style.justifyContent] || 'left')
+      : (contentEl.style.textAlign || 'left');
+  const currentItbGap = isIconText ? (parseInt(tb.style.gap) || 16) : 16;
   // 자식 span/div에 inline font-size가 있으면 그 값을 우선 사용 (복사 블록 대응)
   const _firstSizedChild = contentEl.querySelector('[style*="font-size"]');
   const currentSize  = _firstSizedChild
@@ -303,6 +310,17 @@ export function showTextProperties(tb) {
       </div>
     </div>
 
+    <div id="icon-text-style-section" style="display:${isIconText?'block':'none'}">
+      <div class="prop-section">
+        <div class="prop-section-title">아이콘 텍스트</div>
+        <div class="prop-row">
+          <span class="prop-label">아이콘-텍스트 간격</span>
+          <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="${currentItbGap}">
+          <input type="number" class="prop-number" id="itb-gap-number" min="0" max="80" value="${currentItbGap}">
+        </div>
+      </div>
+    </div>
+
     <div class="prop-section prop-section--anim" style="${isOverlayTb ? 'display:none' : ''}">
       <button class="prop-anim-btn" id="open-anim-btn">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -351,6 +369,13 @@ export function showTextProperties(tb) {
       tb.dataset.tail = dir;
       tb.style.marginLeft = dir === 'right' ? 'auto' : dir === 'center' ? 'auto' : '';
       tb.style.marginRight = dir === 'center' ? 'auto' : '';
+      // 말꼬리 SVG 교체 (center는 대칭형, left/right는 비대칭형)
+      const oldTail = tb.querySelector('.tb-bubble-tail');
+      if (oldTail && window.getBubbleTailSVG) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = window.getBubbleTailSVG(dir);
+        oldTail.replaceWith(tmp.firstElementChild);
+      }
       ['left','center','right'].forEach(d => {
         document.getElementById('bubble-tail-' + d)?.classList.toggle('active', d === dir);
       });
@@ -590,16 +615,34 @@ export function showTextProperties(tb) {
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (!btn.dataset.align) return; // 말꼬리 방향 버튼은 data-align 없으므로 무시
       window.pushHistory?.();
       // label(inline-block)은 부모 tb에 text-align 적용해야 블록 자체가 정렬됨
       if (contentEl.classList.contains('tb-label')) {
         tb.style.textAlign = btn.dataset.align;
+      } else if (isIconText) {
+        // 아이콘+텍스트 전체를 함께 정렬 — justifyContent로 icon-text-block 내부 정렬
+        const jcMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+        tb.style.justifyContent = jcMap[btn.dataset.align] || 'flex-start';
+        const itbText = tb.querySelector('.itb-text');
+        if (itbText) itbText.style.flex = btn.dataset.align === 'left' ? '1' : '0 1 auto';
       } else {
         contentEl.style.textAlign = btn.dataset.align;
       }
-      propPanel.querySelectorAll('.prop-align-btn').forEach(b => b.classList.toggle('active', b===btn));
+      propPanel.querySelectorAll('.prop-align-btn[data-align]').forEach(b => b.classList.toggle('active', b===btn));
     });
   });
+
+  /* 아이콘-텍스트 간격 */
+  if (isIconText) {
+    const itbGapSlider = propPanel.querySelector('#itb-gap-slider');
+    const itbGapNumber = propPanel.querySelector('#itb-gap-number');
+    if (itbGapSlider && itbGapNumber) {
+      const applyItbGap = v => { tb.style.gap = v + 'px'; window.triggerAutoSave?.(); };
+      itbGapSlider.addEventListener('input', () => { itbGapNumber.value = itbGapSlider.value; applyItbGap(itbGapSlider.value); });
+      itbGapNumber.addEventListener('input', () => { itbGapSlider.value = itbGapNumber.value; applyItbGap(itbGapNumber.value); });
+    }
+  }
 
   /* Italic — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   let _savedItalicSel = null;

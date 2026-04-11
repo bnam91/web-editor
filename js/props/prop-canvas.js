@@ -1,4 +1,4 @@
-import { propPanel } from './globals.js';
+import { propPanel } from '../globals.js';
 
 export function showCanvasProperties(block) {
   if (block.dataset.cardMode === 'simple') {

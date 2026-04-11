@@ -1,4 +1,4 @@
-import { propPanel, state } from './globals.js';
+import { propPanel, state } from '../globals.js';
 
 export function showCardProperties(block) {
   const bgColor    = block.dataset.bgColor    || '#f5f5f5';

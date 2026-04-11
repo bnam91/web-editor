@@ -1,4 +1,4 @@
-import { propPanel } from './globals.js';
+import { propPanel } from '../globals.js';
 
 /* ═══════════════════════════════════
    FREELAYOUT MULTI-SELECT PANEL

@@ -1,4 +1,4 @@
-import { canvasEl, canvasWrap, state, PAGE_LABELS } from './globals.js';
+import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -584,19 +584,22 @@ function rebindAll() {
     'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요', 'tb-label':'Label'
   };
   // 말풍선 SVG 말꼬리 마이그레이션 (구버전 저장 파일 대응)
-  const _BUBBLE_TAIL_SVG = `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16"><path d="M18 0 C14 4 7 8 0 16 C5 9 10 4 18 0Z"/></svg>`;
   canvasEl.querySelectorAll('.speech-bubble-block').forEach(sb => {
+    const tail = sb.dataset.tail || 'left';
+    const correctSVG = window.getBubbleTailSVG ? window.getBubbleTailSVG(tail)
+      : `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16"><path d="M18 0 C14 4 7 8 0 16 C5 9 10 4 18 0Z"/></svg>`;
     const existingTail = sb.querySelector('.tb-bubble-tail');
     if (!existingTail) {
-      sb.insertAdjacentHTML('beforeend', _BUBBLE_TAIL_SVG);
+      sb.insertAdjacentHTML('beforeend', correctSVG);
     } else {
-      // 이전 Figma-derived path(10.78 포함)가 있으면 현재 path로 교체
+      // 이전 Figma-derived path(10.78 포함) 또는 center용 대칭 path가 필요한 경우 교체
       const p = existingTail.querySelector('path');
-      if (p && p.getAttribute('d')?.includes('10.78')) {
-        existingTail.setAttribute('viewBox', '0 0 18 16');
-        existingTail.setAttribute('width', '18');
-        existingTail.setAttribute('height', '16');
-        p.setAttribute('d', 'M18 0 C14 4 7 8 0 16 C5 9 10 4 18 0Z');
+      const needsUpdate = (p && p.getAttribute('d')?.includes('10.78'))
+        || (tail === 'center' && !p?.getAttribute('d')?.startsWith('M0 0'));
+      if (needsUpdate) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = correctSVG;
+        existingTail.replaceWith(tmp.firstElementChild);
       }
     }
     // 구버전: --bubble-bg가 contentEl에 설정된 경우 → speech-bubble-block으로 이전

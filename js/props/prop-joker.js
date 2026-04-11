@@ -1,4 +1,4 @@
-import { propPanel } from './globals.js';
+import { propPanel } from '../globals.js';
 
 export function showJokerProperties(jb) {
   const isAbsolute = jb.style.position === 'absolute';
