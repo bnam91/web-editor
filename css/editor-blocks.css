@@ -1430,6 +1430,54 @@
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
 }
+
+/* ── Chat Block ─────────────────────────────────────────────────────────────── */
+.chat-block {
+  position: relative;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+}
+.chat-block:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 0;
+}
+.chat-block.selected {
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
+}
+.chb-msg {
+  display: flex;
+  width: 100%;
+}
+.chb-msg.chb-left  { justify-content: flex-start; }
+.chb-msg.chb-right { justify-content: flex-end; }
+.chb-wrap {
+  position: relative;
+  padding-bottom: 16px;
+  max-width: 70%;
+}
+.chb-bubble {
+  display: block;
+  padding: 10px 14px;
+  word-break: break-word;
+  font-family: 'Pretendard', sans-serif;
+  line-height: 1.5;
+}
+.chb-tail {
+  position: absolute;
+  bottom: 10px;
+  width: 19px;
+  height: 16px;
+}
+.chb-msg.chb-left  .chb-tail { left: 2px; }
+.chb-msg.chb-right .chb-tail { right: 2px; }
 .stb-item {
   display: flex;
   align-items: stretch;

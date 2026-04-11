@@ -908,7 +908,7 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .vector-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
@@ -2413,6 +2413,84 @@ function addStepBlock(opts = {}) {
 window.makeStepBlock   = makeStepBlock;
 window.addStepBlock    = addStepBlock;
 window.renderStepBlock = renderStepBlock;
+
+// ── Chat Block ─────────────────────────────────────────────────────────────────
+const CHAT_DEFAULT_MESSAGES = [
+  { text: '안녕하세요! 반갑습니다 😊', align: 'left' },
+  { text: '네, 반갑습니다~', align: 'right' },
+  { text: '무엇을 도와드릴까요?', align: 'left' },
+];
+
+const CHAT_TAIL_PATH = 'M18.3597 14.7395C9.25742 16.3944 2.32729 11.6364 0 9.05055L0.258587 1.29294C2.75826 1.81011 8.17136 2.27557 9.82631 0C9.56773 9.30914 16.5496 13.9637 18.3597 14.7395Z';
+
+function renderChatBlock(block) {
+  const messages    = JSON.parse(block.dataset.messages || '[]');
+  const gap         = parseInt(block.dataset.gap)      || 8;
+  const fontSize    = parseInt(block.dataset.fontSize) || 16;
+  const bgLeft      = block.dataset.bgLeft   || '#e5e5ea';
+  const bgRight     = block.dataset.bgRight  || '#1888fe';
+  const colorLeft   = block.dataset.colorLeft  || '#111111';
+  const colorRight  = block.dataset.colorRight || '#ffffff';
+  const radius      = parseInt(block.dataset.radius)  || 16;
+  const padding     = parseInt(block.dataset.padding) || 16;
+  block.style.padding = `${padding}px`;
+
+  block.innerHTML = messages.map(msg => {
+    const isLeft = msg.align !== 'right';
+    const bg     = isLeft ? bgLeft  : bgRight;
+    const color  = isLeft ? colorLeft : colorRight;
+    const dir    = isLeft ? 'left' : 'right';
+    // left: scaleX(-1) 반전, right: 원본 (Figma 벡터가 우측 꼬리형)
+    const tailTransform = isLeft ? 'transform="scale(-1,1) translate(-19,0)"' : '';
+    const tail = `<svg class="chb-tail" viewBox="0 0 19 16" xmlns="http://www.w3.org/2000/svg" width="19" height="16" style="fill:${bg}"><path d="${CHAT_TAIL_PATH}" ${tailTransform}/></svg>`;
+
+    return `<div class="chb-msg chb-${dir}" style="margin-bottom:${gap}px">
+  <div class="chb-wrap">
+    <div class="chb-bubble" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px">${msg.text}</div>
+    ${tail}
+  </div>
+</div>`;
+  }).join('');
+}
+
+function makeChatBlock(opts = {}) {
+  const block = document.createElement('div');
+  block.className    = 'chat-block';
+  block.id           = genId('chb');
+  block.dataset.type = 'chat';
+  block.dataset.messages  = JSON.stringify(opts.messages || CHAT_DEFAULT_MESSAGES);
+  block.dataset.gap        = opts.gap       || 8;
+  block.dataset.fontSize   = opts.fontSize  || 16;
+  block.dataset.bgLeft     = opts.bgLeft    || '#e5e5ea';
+  block.dataset.bgRight    = opts.bgRight   || '#1888fe';
+  block.dataset.colorLeft  = opts.colorLeft  || '#111111';
+  block.dataset.colorRight = opts.colorRight || '#ffffff';
+  block.dataset.radius     = opts.radius    || 16;
+  block.dataset.padding    = opts.padding   || 16;
+  renderChatBlock(block);
+
+  const row = document.createElement('div');
+  row.className      = 'row';
+  row.id             = genId('row');
+  row.dataset.layout = 'stack';
+  row.appendChild(block);
+  return { row, block };
+}
+
+function addChatBlock(opts = {}) {
+  const sec = window.getSelectedSection?.();
+  if (!sec) { window.showNoSelectionHint?.(); return; }
+  window.pushHistory();
+  const { row, block } = makeChatBlock(opts);
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  window.buildLayerPanel();
+  window.triggerAutoSave?.();
+}
+
+window.makeChatBlock   = makeChatBlock;
+window.addChatBlock    = addChatBlock;
+window.renderChatBlock = renderChatBlock;
 
 // ── Vector Block ───────────────────────────────────────────────────────────────
 function renderVector(block) {
