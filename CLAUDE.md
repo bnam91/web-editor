@@ -4,7 +4,7 @@
 > 특정 파일/모듈 전용 규칙은 해당 폴더의 CLAUDE.md에 작성한다.
 
 ## 참고 문서
-- 디자인 시스템 규칙: `DESIGN_SYSTEM.md` 참고
+- 디자인 시스템 규칙: `_context/DESIGN_SYSTEM.md` 참고
 
 ---
 
