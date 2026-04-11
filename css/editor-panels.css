@@ -1214,6 +1214,79 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 }
 .ck-item:hover .ck-delete { color: var(--ui-text-dim); }
 .ck-delete:hover { color: #e06c6c !important; }
+.ck-section-header:hover .ck-section-delete { color: var(--ui-text-dim); }
+
+/* ── 드래그 핸들 ──────────────────────────────────────────────────────────── */
+.ck-drag-handle {
+  flex-shrink: 0;
+  width: 14px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  color: transparent; cursor: grab; font-size: 12px; line-height: 1;
+  user-select: none;
+}
+.ck-item:hover .ck-drag-handle,
+.ck-section-header:hover .ck-drag-handle { color: var(--ui-text-dim); }
+.ck-drag-handle:active { cursor: grabbing; }
+.ck-dragging { opacity: 0.4; }
+
+/* ── 드랍 인디케이터 ──────────────────────────────────────────────────────── */
+.ck-drop-indicator {
+  height: 2px; margin: 1px 0;
+  background: var(--ui-accent-primary);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* ── 인라인 입력 ──────────────────────────────────────────────────────────── */
+.ck-inline-input {
+  flex: 1; min-width: 0;
+  background: var(--ui-bg-hover); border: 1px solid var(--ui-accent-primary);
+  border-radius: 4px; color: var(--ui-text-base); font-size: 11px;
+  padding: 3px 6px; outline: none;
+}
+.ck-inline-input--section {
+  font-size: 11px; font-weight: 600;
+  background: transparent; border-color: var(--ui-accent-primary);
+  width: 100%;
+}
+.ck-item--editing {
+  padding: 3px 4px;
+}
+
+/* ── 섹션 헤더 ────────────────────────────────────────────────────────────── */
+.ck-section-header {
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 4px 3px;
+  margin-top: 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+.ck-section-header:hover { background: var(--ui-bg-hover); }
+.ck-section-header--editing {
+  padding: 4px;
+}
+
+.ck-section-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s;
+  color: var(--ui-text-dim);
+}
+.ck-section-chevron.collapsed { transform: rotate(-90deg); }
+
+.ck-section-name {
+  flex: 1; font-size: 11px; font-weight: 600;
+  color: var(--ui-text-base);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── 캔버스 핀 드래그 중 ─────────────────────────────────────────────────── */
+.todo-pin--dragging {
+  opacity: 0.75;
+  transform: translate(-50%, -100%) scale(1.15);
+  cursor: grabbing;
+  z-index: 100;
+}
 
 /* ── Canvas Pin Markers ───────────────────────────────────────────────────── */
 .todo-pin {

@@ -446,11 +446,17 @@ function _buildItemEl(item, sectionId) {
     renderChecklistPanel();
   });
 
-  // 텍스트 클릭 → 인라인 편집
-  el.querySelector('.ck-item-text').addEventListener('click', e => {
-    e.stopPropagation();
-    _startItemInlineEdit(el, item);
-  });
+  // 텍스트 클릭:
+  //   핀 있음 → 클릭: 핀 위치 스크롤 / 더블클릭: 인라인 편집
+  //   핀 없음 → 클릭: 인라인 편집
+  const textSpan = el.querySelector('.ck-item-text');
+  if (hasPin) {
+    textSpan.title = '클릭: 핀 위치로 이동 / 더블클릭: 편집';
+    textSpan.addEventListener('click', e => { e.stopPropagation(); _scrollToPin(item.id); });
+    textSpan.addEventListener('dblclick', e => { e.stopPropagation(); _startItemInlineEdit(el, item); });
+  } else {
+    textSpan.addEventListener('click', e => { e.stopPropagation(); _startItemInlineEdit(el, item); });
+  }
 
   return el;
 }
@@ -624,33 +630,27 @@ function _appendInlineItemInput(sectionId) {
 
   input.focus();
 
-  const save = () => {
-    const text = input.value.trim();
-    if (!text) { row.remove(); return; }
-    const items = loadItems();
-    items.push({ id: genCkId(), text, done: false, x: null, y: null,
-                 sectionId: sectionId || null, createdAt: Date.now() });
-    saveItems(items);
-    _renderList();
-    // 저장 후 새 행 자동 추가
-    _appendInlineItemInput(sectionId);
-  };
+  let _itemSaved = false;
 
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { row.remove(); }
-  });
-  input.addEventListener('blur', () => {
-    // 포커스 잃으면 저장 또는 제거
+  const save = (continueAdding) => {
+    if (_itemSaved) return;
     const text = input.value.trim();
-    if (!text) { row.remove(); return; }
+    if (!text) { _itemSaved = true; row.remove(); return; }
+    _itemSaved = true;
     const items = loadItems();
     items.push({ id: genCkId(), text, done: false, x: null, y: null,
                  sectionId: sectionId || null, createdAt: Date.now() });
     saveItems(items);
     row.remove();
     _renderList();
+    if (continueAdding) _appendInlineItemInput(sectionId);
+  };
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); save(true); }
+    if (e.key === 'Escape') { _itemSaved = true; row.remove(); }
   });
+  input.addEventListener('blur', () => save(false));
 }
 
 // ── 인라인 섹션 입력 ─────────────────────────────────────────────────────────
@@ -670,7 +670,11 @@ function _appendInlineSectionInput() {
   list.appendChild(row);
   input.focus();
 
+  let _secSaved = false;
+
   const save = () => {
+    if (_secSaved) return;
+    _secSaved = true;
     const name = input.value.trim();
     row.remove();
     if (!name) return;
@@ -682,7 +686,7 @@ function _appendInlineSectionInput() {
 
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { row.remove(); }
+    if (e.key === 'Escape') { _secSaved = true; row.remove(); }
   });
   input.addEventListener('blur', save);
 }
@@ -701,18 +705,20 @@ function _startItemInlineEdit(el, item) {
   input.focus();
   input.select();
 
+  let _editSaved = false;
   const save = () => {
+    if (_editSaved) return;
+    _editSaved = true;
     const text = input.value.trim();
     if (text && text !== item.text) {
-      const items = loadItems().map(it => it.id === item.id ? { ...it, text } : it);
-      saveItems(items);
+      saveItems(loadItems().map(it => it.id === item.id ? { ...it, text } : it));
     }
     _renderList();
   };
 
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter')  { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { _renderList(); }
+    if (e.key === 'Escape') { _editSaved = true; _renderList(); }
   });
   input.addEventListener('blur', save);
 }
@@ -731,18 +737,20 @@ function _startSectionInlineEdit(el, sec) {
   input.focus();
   input.select();
 
+  let _secEditSaved = false;
   const save = () => {
+    if (_secEditSaved) return;
+    _secEditSaved = true;
     const name = input.value.trim();
     if (name && name !== sec.name) {
-      const sections = loadSections().map(s => s.id === sec.id ? { ...s, name } : s);
-      saveSections(sections);
+      saveSections(loadSections().map(s => s.id === sec.id ? { ...s, name } : s));
     }
     _renderList();
   };
 
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter')  { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { _renderList(); }
+    if (e.key === 'Escape') { _secEditSaved = true; _renderList(); }
   });
   input.addEventListener('blur', save);
 }
