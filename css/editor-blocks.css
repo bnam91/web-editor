@@ -1527,7 +1527,7 @@
 .tb-bubble-tail {
   position: absolute;
   bottom: 0;
-  width: 18px;
+  width: 19px;
   height: 16px;
   fill: var(--bubble-bg, #e5e5ea);
 }

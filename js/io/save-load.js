@@ -592,10 +592,12 @@ function rebindAll() {
     if (!existingTail) {
       sb.insertAdjacentHTML('beforeend', correctSVG);
     } else {
-      // 이전 Figma-derived path(10.78 포함) 또는 center용 대칭 path가 필요한 경우 교체
+      // 이전 path 또는 center용 대칭 path가 필요한 경우 교체
       const p = existingTail.querySelector('path');
-      const needsUpdate = (p && p.getAttribute('d')?.includes('10.78'))
-        || (tail === 'center' && !p?.getAttribute('d')?.startsWith('M0 0'));
+      const d = p?.getAttribute('d') || '';
+      const needsUpdate = d.includes('10.78')
+        || (tail === 'center' && !d.startsWith('M0 0'))
+        || ((tail === 'left' || tail === 'right') && d.startsWith('M0 0 L18 0'));
       if (needsUpdate) {
         const tmp = document.createElement('div');
         tmp.innerHTML = correctSVG;

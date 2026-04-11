@@ -403,6 +403,95 @@ function frameToSection(frame) {
   const frame = figma('get_node_info', { nodeId: targetId });
   if (!frame) { console.error('❌ 노드 정보 읽기 실패'); process.exit(1); }
 
+  // ─── VECTOR 타입 자동 감지 → SVG 추출 경로 ──────────────────────
+  const VECTOR_TYPES = ['VECTOR', 'ELLIPSE', 'STAR', 'POLYGON', 'BOOLEAN_OPERATION', 'LINE'];
+  if (VECTOR_TYPES.includes(frame.type)) {
+    console.log(`⚡ VECTOR 타입 감지 (${frame.type}) → SVG 추출 경로로 전환`);
+
+    const exportResult = figma('export_node_as_image', { nodeId: targetId, format: 'SVG', scale: 1 });
+    if (!exportResult?.imageData) {
+      console.error('❌ SVG 추출 실패');
+      process.exit(1);
+    }
+
+    const svgContent = Buffer.from(exportResult.imageData, 'base64').toString('utf-8');
+    const bbox = frame.absoluteBoundingBox || {};
+    const svgDims = getSvgNaturalSize(svgContent);
+    const w = svgDims?.w || Math.round(bbox.width || 100);
+    const h = svgDims?.h || Math.round(bbox.height || 100);
+
+    console.log(`   SVG 크기: ${w}×${h}px`);
+
+    const safeName = targetMeta.name.replace(/[^a-zA-Z0-9가-힣]/g, '_').slice(0, 24);
+    const svgPath = `/tmp/goditor_vector_figma_${safeName}.svg`;
+    fs.writeFileSync(svgPath, svgContent);
+    console.log(`✅ SVG 저장: ${svgPath}`);
+
+    if (BUILD) {
+      // CDP로 직접 벡터 블록 추가
+      const http = require('http');
+      const WebSocket = require('/Users/a1/web-editor/node_modules/ws');
+
+      function getWsUrl() {
+        return new Promise((resolve, reject) => {
+          http.get(`http://127.0.0.1:${PORT}/json`, res => {
+            let data = '';
+            res.on('data', d => data += d);
+            res.on('end', () => {
+              const pages = JSON.parse(data);
+              const page = pages.find(p => p.type === 'page' && (p.url.includes('web-editor') || p.url.includes('index.html')));
+              if (page) resolve(page.webSocketDebuggerUrl);
+              else reject(new Error('웹에디터 페이지 없음'));
+            });
+          }).on('error', reject);
+        });
+      }
+
+      const wsUrl = await getWsUrl();
+      const ws = new WebSocket(wsUrl);
+      await new Promise(r => ws.on('open', r));
+
+      let msgId = 1;
+      function ev(expr) {
+        return new Promise((resolve, reject) => {
+          const id = msgId++;
+          ws.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression: expr, returnByValue: true, awaitPromise: true } }));
+          const handler = raw => {
+            const msg = JSON.parse(raw);
+            if (msg.id !== id) return;
+            ws.off('message', handler);
+            const val = msg.result?.result;
+            if (val?.subtype === 'error') reject(new Error(val.description));
+            else resolve(val?.value);
+          };
+          ws.on('message', handler);
+        });
+      }
+
+      console.log('\n🏗️  에디터에 벡터 블록 추가 중...');
+      // 새 섹션 추가
+      await ev('window.addSection()');
+      await new Promise(r => setTimeout(r, 300));
+
+      const svgEscaped = JSON.stringify(svgContent);
+      const result = await ev(`
+        (async () => {
+          window.addVectorBlock(${svgEscaped}, { w: ${w}, h: ${h}, label: ${JSON.stringify(targetMeta.name)} });
+          await new Promise(r => setTimeout(r, 300));
+          window.triggerAutoSave && window.triggerAutoSave();
+          return 'ok';
+        })()
+      `);
+      console.log(`✅ 벡터 블록 추가 완료 (${w}×${h}px)`);
+      ws.close();
+    } else {
+      console.log(`\n벡터 블록 추가하려면 --build 옵션을 사용하세요:`);
+      console.log(`  node ${path.basename(process.argv[1])} --channel ${CHANNEL} --frame ${targetId} --build --port ${PORT}`);
+    }
+    process.exit(0);
+  }
+  // ─────────────────────────────────────────────────────────────────
+
   // Spec 생성
   const safeName = targetMeta.name.replace(/[^a-zA-Z0-9가-힣]/g, '_').slice(0, 24);
   const specPath = `/tmp/goditor_spec_figma_${safeName}.json`;

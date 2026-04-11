@@ -1504,9 +1504,8 @@ function getBubbleTailSVG(tail) {
     // 대칭형 — 팁이 정가운데 아래를 향함
     return `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16"><path d="M0 0 C5 3 8 12 9 16 C10 12 13 3 18 0 Z"/></svg>`;
   }
-  // left / right 공용 (right는 CSS scaleX(-1) 처리)
-  // M0 0: 상단-좌, L18 0: 상단 전체 커버(버블 하단과 이음새 없이 연결), outer curve → tip(0,16), inner curve → (18,0), Z
-  return `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16"><path d="M0 0 L18 0 C15 2 4 8 0 16 C4 12 12 5 18 0 Z"/></svg>`;
+  // left / right 공용 (right는 CSS scaleX(-1) 처리) — Figma bubble-tail 벡터
+  return `<svg class="tb-bubble-tail" viewBox="0 0 19 16" xmlns="http://www.w3.org/2000/svg" width="19" height="16"><path d="M18.3597 14.7395C9.25742 16.3944 2.32729 11.6364 0 9.05055L0.258587 1.29294C2.75826 1.81011 8.17136 2.27557 9.82631 0C9.56773 9.30914 16.5496 13.9637 18.3597 14.7395Z"/></svg>`;
 }
 window.getBubbleTailSVG = getBubbleTailSVG;
 
