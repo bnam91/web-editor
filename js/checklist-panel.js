@@ -37,10 +37,66 @@ function renderPins() {
     pin.style.left = item.x + 'px';
     pin.style.top  = item.y + 'px';
     pin.innerHTML = `<span class="todo-pin-num">${idx + 1}</span>`;
-    pin.addEventListener('click', e => {
+
+    // ── 캔버스 핀 드래그 이동 (mousedown/move/up) ──────────────────────────
+    let _pinDragStartX = 0, _pinDragStartY = 0;
+    let _pinDragging = false;
+
+    pin.addEventListener('mousedown', e => {
+      if (_pinMode) return; // 핀 추가 모드 중엔 무시
       e.stopPropagation();
-      showPinPopup(item, pin);
+      e.preventDefault();
+      _pinDragStartX = e.clientX;
+      _pinDragStartY = e.clientY;
+      _pinDragging = false;
+      closePinPopup();
+
+      const scaler = document.getElementById('canvas-scaler');
+
+      const onMove = mv => {
+        const dx = mv.clientX - _pinDragStartX;
+        const dy = mv.clientY - _pinDragStartY;
+        if (!_pinDragging && Math.hypot(dx, dy) < 5) return;
+        _pinDragging = true;
+        pin.classList.add('todo-pin--dragging');
+
+        // 이동량을 canvas 좌표로 변환
+        const scale = (window.currentZoom || 40) / 100;
+        const newX = item.x + dx / scale;
+        const newY = item.y + dy / scale;
+        pin.style.left = newX + 'px';
+        pin.style.top  = newY + 'px';
+      };
+
+      const onUp = up => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup',   onUp);
+        pin.classList.remove('todo-pin--dragging');
+
+        const dx = up.clientX - _pinDragStartX;
+        const dy = up.clientY - _pinDragStartY;
+
+        if (!_pinDragging || Math.hypot(dx, dy) < 5) {
+          // 클릭으로 처리
+          showPinPopup(item, pin);
+          return;
+        }
+
+        // 새 좌표 저장
+        const scale = (window.currentZoom || 40) / 100;
+        const newX = item.x + dx / scale;
+        const newY = item.y + dy / scale;
+        const all = loadItems().map(it =>
+          it.id === item.id ? { ...it, x: newX, y: newY } : it
+        );
+        saveItems(all);
+        renderPins();
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup',   onUp);
     });
+
     overlay.appendChild(pin);
   });
 }

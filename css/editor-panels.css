@@ -1244,6 +1244,8 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 }
 .todo-pin:hover .todo-pin-num { transform: scale(1.12); }
 .todo-pin--pending .todo-pin-num { background: #888; }
+.todo-pin--dragging { cursor: grabbing; z-index: 60; }
+.todo-pin--dragging .todo-pin-num { transform: scale(1.2); box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
 
 .todo-pin--highlight .todo-pin-num {
   animation: pin-pulse 0.4s ease 3;
