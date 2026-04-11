@@ -1508,6 +1508,7 @@ function makeSpeechBubbleBlock(tail) {
   block.className = 'text-block speech-bubble-block';
   block.dataset.type = 'speech-bubble';
   block.dataset.tail = tail;
+  block.dataset.bubbleStyle = 'default';
   block.dataset.showSender = 'false';
   block.dataset.senderName = 'Your name';
   block.id = genId('sb');

@@ -270,6 +270,7 @@ export function showTextProperties(tb) {
         <div class="prop-row">
           <span class="prop-label">스타일</span>
           <select class="prop-select" id="bubble-style-select">
+            <option value="default" ${currentBubbleStyle==='default'||!currentBubbleStyle?'selected':''}>기본</option>
             <option value="imessage" ${currentBubbleStyle==='imessage'?'selected':''}>iMessage</option>
             <option value="apple" ${currentBubbleStyle==='apple'?'selected':''}>Apple</option>
           </select>
