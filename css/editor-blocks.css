@@ -1154,6 +1154,11 @@
   overflow: visible;
 }
 
+/* speech-bubble 포함 시 overflow 해제 — 말꼬리 SVG 클리핑 방지 */
+.frame-block:has(.speech-bubble-block) {
+  overflow: visible;
+}
+
 /* shape 리사이즈 핸들 — --inv-zoom calc()로 캔버스 배율 무관하게 고정 크기 유지 */
 .shape-handle {
   position: absolute;
@@ -1467,10 +1472,11 @@
 .speech-bubble-block[data-tail="center"] {
   margin-left: auto;
   margin-right: auto;
-  padding-bottom: 0; /* 말꼬리 없음 */
+  padding-bottom: 16px; /* 중앙 말꼬리 공간 유지 */
 }
 .speech-bubble-block[data-tail="center"] .tb-bubble-tail {
-  display: none;
+  left: 50%;
+  transform: translateX(-50%);
 }
 /* 발신자 이름 레이블 — 버블 텍스트 좌우 패딩(22px)에 맞춰 정렬 */
 .tb-sender-name {
