@@ -37,6 +37,17 @@ npm run figma        # Figma WebSocket 서버 (포트 3055)
 
 - 디자인 시스템: `_context/DESIGN_SYSTEM.md`
 - 스킬 라우팅: `_context/SKILLS_GUIDE.md`
+- 기능 명세·스펙: `docs/` 폴더
+
+| 문서 | 주요 내용 |
+|------|---------|
+| `docs/DRAG_SPEC.md` | 드래그앤드롭 동작 명세 |
+| `docs/TEMPLATE_SYSTEM.md` | 템플릿 저장·삽입·버그 패턴 |
+| `docs/branch-system.md` | 브랜치 구조·충돌 시나리오 |
+| `docs/project-storage.md` | 프로젝트 저장 구조 (v1 현재 / v2 설계) |
+| `docs/goditor-api-reference.md` | CDP `window.*` 함수 전체 레퍼런스 |
+| `docs/LEFT_PANEL_LAYER.md` | 레이어 패널 명세 |
+| `docs/RIGHT_PANEL_PROPS.md` | 프로퍼티 패널 명세 |
 
 ---
 
