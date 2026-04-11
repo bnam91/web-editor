@@ -583,6 +583,23 @@ function rebindAll() {
     'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요',
     'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요', 'tb-label':'Label'
   };
+  // 말풍선 SVG 말꼬리 마이그레이션 (구버전 저장 파일 대응)
+  const _BUBBLE_TAIL_SVG = `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16"><path d="M18 0 C14 4 7 8 0 16 C5 9 10 4 18 0Z"/></svg>`;
+  canvasEl.querySelectorAll('.speech-bubble-block').forEach(sb => {
+    if (!sb.querySelector('.tb-bubble-tail')) {
+      sb.insertAdjacentHTML('beforeend', _BUBBLE_TAIL_SVG);
+    }
+    // 구버전: --bubble-bg가 contentEl에 설정된 경우 → speech-bubble-block으로 이전
+    const bubbleEl = sb.querySelector('.tb-bubble');
+    if (bubbleEl) {
+      const oldVar = bubbleEl.style.getPropertyValue('--bubble-bg');
+      if (oldVar) {
+        sb.style.setProperty('--bubble-bg', oldVar);
+        bubbleEl.style.removeProperty('--bubble-bg');
+      }
+    }
+  });
+
   canvasEl.querySelectorAll('.text-block').forEach(tb => {
     const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bubble');
     if (!inner) return;

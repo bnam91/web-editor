@@ -403,7 +403,7 @@ function _buildItemEl(item, sectionId) {
         ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="2,6 5,9 10,3"/></svg>'
         : '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="9" height="9" rx="2"/></svg>'}
     </button>
-    <span class="ck-item-text">${_escHtml(item.text)}</span>
+    <span class="ck-item-text${!item.text ? ' ck-item-text--empty' : ''}">${item.text ? _escHtml(item.text) : '<span style="color:var(--ui-border-mid);font-style:italic;">할 일 입력...</span>'}</span>
     ${hasPin ? `<button class="ck-goto-pin" title="핀 위치로 이동">
       <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
         <circle cx="6" cy="5" r="2.5"/><path d="M6 7.5V11"/>
@@ -612,12 +612,21 @@ function _dropSection(targetEl, before) {
 }
 
 // ── 인라인 아이템 입력 행 추가 ───────────────────────────────────────────────
+// Apple Reminders 스타일: 버튼 클릭 시 즉시 빈 행 추가 (여러 번 클릭 → 여러 빈 행)
 function _appendInlineItemInput(sectionId) {
   const list = document.getElementById('ck-list');
   if (!list) return;
 
+  // 빈 아이템을 즉시 storage에 저장 (빈 text도 OK)
+  const newItem = { id: genCkId(), text: '', done: false, x: null, y: null,
+                    sectionId: sectionId || null, createdAt: Date.now() };
+  const items = loadItems();
+  items.push(newItem);
+  saveItems(items);
+
   const row = document.createElement('div');
   row.className = 'ck-item ck-item--editing';
+  row.dataset.editId = newItem.id;
   if (sectionId) row.dataset.sectionId = sectionId;
 
   const input = document.createElement('input');
@@ -627,30 +636,27 @@ function _appendInlineItemInput(sectionId) {
   input.maxLength   = 100;
   row.appendChild(input);
   list.appendChild(row);
-
   input.focus();
 
-  let _itemSaved = false;
+  let _done = false;
 
-  const save = (continueAdding) => {
-    if (_itemSaved) return;
+  const commit = (continueAdding) => {
+    if (_done) return;
+    _done = true;
     const text = input.value.trim();
-    if (!text) { _itemSaved = true; row.remove(); return; }
-    _itemSaved = true;
-    const items = loadItems();
-    items.push({ id: genCkId(), text, done: false, x: null, y: null,
-                 sectionId: sectionId || null, createdAt: Date.now() });
-    saveItems(items);
-    row.remove();
+    // 텍스트 업데이트 (빈 값이면 빈 텍스트로 저장)
+    const all = loadItems();
+    const idx = all.findIndex(it => it.id === newItem.id);
+    if (idx !== -1) { all[idx].text = text; saveItems(all); }
     _renderList();
     if (continueAdding) _appendInlineItemInput(sectionId);
   };
 
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); save(true); }
-    if (e.key === 'Escape') { _itemSaved = true; row.remove(); }
+    if (e.key === 'Enter') { e.preventDefault(); commit(true); }
+    if (e.key === 'Escape') { commit(false); }
   });
-  input.addEventListener('blur', () => save(false));
+  input.addEventListener('blur', () => commit(false));
 }
 
 // ── 인라인 섹션 입력 ─────────────────────────────────────────────────────────

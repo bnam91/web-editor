@@ -1116,7 +1116,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 
 /* ── Checklist Panel ─────────────────────────────────────────────────────── */
 #checklist-panel-body {
-  padding: 10px 10px 0;
+  padding: 10px 14px 0;
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;

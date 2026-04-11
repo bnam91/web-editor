@@ -21,8 +21,11 @@ export function showTextProperties(tb) {
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
   const isLabel = currentClass === 'tb-label';
   const currentTail = tb.dataset.tail || 'left';
-  const bubbleBg = isSpeechBubble ? (contentEl.style.backgroundColor || '#e5e5ea') : '#e5e5ea';
-  const bubbleBgHex = isSpeechBubble ? (rgbToHex(window.getComputedStyle(contentEl).backgroundColor) || '#e5e5ea') : '#e5e5ea';
+  const _blockBubbleVar = isSpeechBubble ? tb.style.getPropertyValue('--bubble-bg').trim() : '';
+  const bubbleBg = isSpeechBubble ? (_blockBubbleVar || contentEl.style.backgroundColor || '#e5e5ea') : '#e5e5ea';
+  const bubbleBgHex = isSpeechBubble ? (_blockBubbleVar || rgbToHex(window.getComputedStyle(contentEl).backgroundColor) || '#e5e5ea') : '#e5e5ea';
+  const showSender = isSpeechBubble && tb.dataset.showSender === 'true';
+  const senderName = isSpeechBubble ? (tb.dataset.senderName || 'Your name') : 'Your name';
   const labelPillPadT = parseInt(contentEl.style.paddingTop)    || 4;
   const labelPillPadB = parseInt(contentEl.style.paddingBottom) || 4;
   const labelPillH    = labelPillPadT + labelPillPadB;
@@ -277,6 +280,16 @@ export function showTextProperties(tb) {
           </div>
           <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex}" maxlength="7">
         </div>
+        <div class="prop-row">
+          <span class="prop-label">발신자 이름</span>
+          <label class="prop-toggle" title="발신자 이름 표시">
+            <input type="checkbox" id="bubble-show-sender" ${showSender ? 'checked' : ''}>
+            <span class="prop-toggle-track"></span>
+          </label>
+        </div>
+        <div class="prop-row" id="bubble-sender-name-row" style="display:${showSender?'flex':'none'}">
+          <input type="text" class="prop-color-hex" id="bubble-sender-name-input" value="${senderName.replace(/"/g,'&quot;')}" placeholder="Your name" style="flex:1;max-width:none">
+        </div>
       </div>
     </div>
 
@@ -297,13 +310,8 @@ export function showTextProperties(tb) {
     // 말꼬리 방향
     const _applyBubbleBg = (hex) => {
       contentEl.style.backgroundColor = hex;
-      // ::before 말꼬리 색상 동기화: 인라인 style로 CSS override
-      // clip-path를 쓰기 때문에 background 속성으로 색상을 맞춰야 함
-      // data-tail-color를 이용해 ::before 대신 JS로 직접 관리
-      tb.dataset.bubbleBg = hex;
-      // ::before은 CSS에서 배경색을 parent의 .tb-bubble 배경색과 맞춤
-      // 즉, --bubble-bg CSS 변수를 세팅해 ::before도 동시에 변경
-      contentEl.style.setProperty('--bubble-bg', hex);
+      // --bubble-bg 변수를 .speech-bubble-block(tb)에 설정해 SVG 말꼬리 색상도 동기화
+      tb.style.setProperty('--bubble-bg', hex);
       window.triggerAutoSave?.();
     };
 
@@ -340,6 +348,28 @@ export function showTextProperties(tb) {
       }
     });
     bubbleBgHexInput?.addEventListener('change', () => window.pushHistory?.());
+
+    // 발신자 이름 토글
+    document.getElementById('bubble-show-sender')?.addEventListener('change', e => {
+      window.pushHistory?.();
+      const show = e.target.checked;
+      tb.dataset.showSender = show ? 'true' : 'false';
+      const senderEl = tb.querySelector('.tb-sender-name');
+      if (senderEl) senderEl.style.display = show ? '' : 'none';
+      const nameRow = document.getElementById('bubble-sender-name-row');
+      if (nameRow) nameRow.style.display = show ? 'flex' : 'none';
+      window.triggerAutoSave?.();
+    });
+
+    // 발신자 이름 텍스트 입력
+    document.getElementById('bubble-sender-name-input')?.addEventListener('input', e => {
+      const name = e.target.value;
+      tb.dataset.senderName = name;
+      const senderEl = tb.querySelector('.tb-sender-name');
+      if (senderEl) senderEl.textContent = name || 'Your name';
+      window.triggerAutoSave?.();
+    });
+    document.getElementById('bubble-sender-name-input')?.addEventListener('change', () => window.pushHistory?.());
   }
 
   const fontSel = document.getElementById('txt-font-family');

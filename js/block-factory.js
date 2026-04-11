@@ -1497,15 +1497,22 @@ window.setSectionBg = function(sectionEl, color) {
 };
 
 // ── Speech Bubble Block ───────────────────────────────────────────────────────
+// iMessage 스타일 SVG 말꼬리 (좌측 기준, 우측은 CSS scaleX(-1) 반전)
+const _BUBBLE_TAIL_SVG = `<svg class="tb-bubble-tail" viewBox="0 0 18 16" xmlns="http://www.w3.org/2000/svg" width="18" height="16">
+  <path d="M18 0 C14 4 7 8 0 16 C5 9 10 4 18 0Z"/>
+</svg>`;
+
 function makeSpeechBubbleBlock(tail) {
   tail = tail || 'left';
   const block = document.createElement('div');
   block.className = 'text-block speech-bubble-block';
   block.dataset.type = 'speech-bubble';
   block.dataset.tail = tail;
+  block.dataset.showSender = 'false';
+  block.dataset.senderName = 'Your name';
   block.id = genId('sb');
   const phText = '말풍선 텍스트를 입력하세요';
-  block.innerHTML = `<div class="tb-bubble" contenteditable="false" style="font-family:'Pretendard',sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>`;
+  block.innerHTML = `<div class="tb-sender-name" style="display:none">Your name</div><div class="tb-bubble" contenteditable="false" style="font-family:'Pretendard',sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>${_BUBBLE_TAIL_SVG}`;
   return { block };
 }
 
@@ -1678,10 +1685,10 @@ function renderCanvas(block) {
             imgDiv.style.backgroundSize     = 'cover';
             imgDiv.style.backgroundPosition = 'center';
           } else {
-            imgDiv.style.background = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 48px 48px';
+            imgDiv.style.background = 'rgba(0,0,0,0.06)';
             imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
             const ph = document.createElement('span');
-            ph.style.cssText = 'color:#bbb;font-size:22px;font-family:sans-serif;pointer-events:none;';
+            ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
             ph.textContent = '+'; imgDiv.appendChild(ph);
           }
           cell.appendChild(imgDiv);
@@ -1706,10 +1713,10 @@ function renderCanvas(block) {
             imgDiv.style.backgroundPosition = 'center';
             imgDiv.style.backgroundRepeat   = 'no-repeat';
           } else {
-            imgDiv.style.background = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 48px 48px';
+            imgDiv.style.background = 'rgba(0,0,0,0.06)';
             imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
             const ph = document.createElement('span');
-            ph.style.cssText = 'color:#bbb;font-size:22px;font-family:sans-serif;pointer-events:none;';
+            ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
             ph.textContent = '+'; imgDiv.appendChild(ph);
           }
           cell.appendChild(imgDiv);
