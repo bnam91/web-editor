@@ -199,11 +199,12 @@ migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR); // 구 경로 마�
 if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
 
 ipcMain.handle('projects:list', () => {
-  return fs.readdirSync(PROJECTS_DIR)
-    .filter(f => f.endsWith('.json') && !f.endsWith('_meta.json'))
+  const items = fs.readdirSync(PROJECTS_DIR)
+    .filter(f => /^proj_\d+\.json$/.test(f))
     .map(f => {
       try {
         const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
+        if (!data.id || data.id === 'undefined') return null;
         // thumbnail은 _meta.json에서 우선 조회, 없으면 proj.json 폴백 (마이그레이션 전 하위 호환)
         let thumbnail = data.thumbnail || null;
         const metaPath = path.join(PROJECTS_DIR, `${data.id}_meta.json`);
@@ -218,6 +219,14 @@ ipcMain.handle('projects:list', () => {
     })
     .filter(Boolean)
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+  // 같은 ID 중복 제거 — updatedAt 최신 것만 유지 (정렬 후 첫 번째)
+  const seen = new Set();
+  return items.filter(p => {
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
+  });
 });
 
 ipcMain.handle('projects:load', (event, id) => {
