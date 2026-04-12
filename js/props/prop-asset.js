@@ -261,11 +261,26 @@ export function showAssetProperties(ab) {
         setWSliderDisabled(false);
 
         if (ab.dataset.usePadx !== 'false') {
-          // 패딩 제외 ON 상태 → baseHeight를 프리셋 h로 갱신 후 패딩 적용
+          // 패딩 제외 ON: 토글 핸들러와 동일하게 음수 마진 방식 적용
+          const inner = ab.closest('.section-inner');
+          const padX = inner
+            ? (parseInt(inner.dataset.paddingX) || state.pageSettings.padX || 0)
+            : (state.pageSettings.padX || 0);
           ab.dataset.baseHeight = h;
-          applyAssetPadX(ab, state.pageSettings.padX || 0);
-          applyH(parseInt(ab.style.height));
+          if (padX > 0) {
+            ab.style.marginLeft  = -padX + 'px';
+            ab.style.marginRight = -padX + 'px';
+            ab.style.width = `calc(100% + ${padX * 2}px)`;
+          } else {
+            ab.style.marginLeft  = '';
+            ab.style.marginRight = '';
+            ab.style.width = '';
+          }
+          ab.style.height = h + 'px';
+          applyH(h);
         } else {
+          ab.style.marginLeft  = '';
+          ab.style.marginRight = '';
           ab.style.width  = '';
           ab.style.height = h + 'px';
           applyH(h);

@@ -59,7 +59,7 @@
 }
 .st-btn:hover { background: var(--ui-border); color: #fff; }
 
-.section-inner { display: flex; flex-direction: column; }
+.section-inner { display: flex; flex-direction: column; overflow-x: hidden; }
 
 /* ═══════════════════════════════════
    ROW — 레이아웃 컨테이너
