@@ -188,8 +188,9 @@ export function showPageProperties() {
     if (!btn) return;
     btn.addEventListener('click', () => {
       document.querySelectorAll('.text-block').forEach(tb => {
-        // 서브섹션 내부 블록은 일괄정렬 제외
-        if (tb.closest('.frame-block')) return;
+        // 실제 중첩 서브섹션 내부 블록만 제외 (투명 text-frame은 허용)
+        const parentFrame = tb.closest('.frame-block');
+        if (parentFrame && parentFrame.dataset.textFrame !== 'true') return;
         if (tb.querySelector('.tb-label')) { tb.style.textAlign = align; }
         else {
           const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('div');
@@ -197,8 +198,9 @@ export function showPageProperties() {
         }
       });
       document.querySelectorAll('.label-group-block').forEach(block => {
-        // 서브섹션 내부 블록은 일괄정렬 제외
-        if (block.closest('.frame-block')) return;
+        // 실제 중첩 서브섹션 내부 블록만 제외
+        const parentFrame = block.closest('.frame-block');
+        if (parentFrame && parentFrame.dataset.textFrame !== 'true') return;
         block.style.justifyContent = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
       });
       propPanel.querySelectorAll('#page-align-left,#page-align-center,#page-align-right')
