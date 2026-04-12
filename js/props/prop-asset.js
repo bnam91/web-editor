@@ -279,11 +279,20 @@ export function showAssetProperties(ab) {
           ab.style.height = h + 'px';
           applyH(h);
         } else {
+          // 패딩 포함: 컨텐츠 너비(756px)에 맞게 높이 비례 축소
+          const inner = ab.closest('.section-inner');
+          const padX = inner
+            ? (parseInt(inner.dataset.paddingX) || state.pageSettings.padX || 0)
+            : (state.pageSettings.padX || 0);
+          const canvasW = 860;
+          const contentW = canvasW - padX * 2;
+          const scaledH = padX > 0 ? Math.round(h * contentW / canvasW) : h;
           ab.style.marginLeft  = '';
           ab.style.marginRight = '';
           ab.style.width  = '';
-          ab.style.height = h + 'px';
-          applyH(h);
+          ab.style.height = scaledH + 'px';
+          ab.dataset.baseHeight = scaledH;
+          applyH(scaledH);
           applyW(860);
         }
       }
