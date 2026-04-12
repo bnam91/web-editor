@@ -93,7 +93,7 @@ async function _buildFigmaSectionList() {
   const parser = new DOMParser();
   state.pages.forEach((pg, pgIdx) => {
     const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
-    doc.querySelectorAll('#c > .section-block').forEach((sec, secIdx) => {
+    doc.querySelectorAll('#c > .section-block:not([data-ghost])').forEach((sec, secIdx) => {
       const id   = sec.id || '';
       const name = sec.dataset.name
         || sec.querySelector('.section-label')?.textContent?.trim()

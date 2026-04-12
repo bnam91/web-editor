@@ -127,7 +127,7 @@ function exportFigmaJSON() {
     const canvasDiv = doc.getElementById('canvas');
     const ps = page.pageSettings || {};
     const sections = [];
-    canvasDiv.querySelectorAll(':scope > .section-block').forEach((sec, i) => {
+    canvasDiv.querySelectorAll(':scope > .section-block:not([data-ghost])').forEach((sec, i) => {
       sections.push(parseSection(sec, i, ps));
     });
     return {
@@ -445,7 +445,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
   state.pages.forEach(pg => {
     const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
     const ps  = pg.pageSettings || state.pageSettings;
-    doc.querySelectorAll('#c > .section-block').forEach(sec => {
+    doc.querySelectorAll('#c > .section-block:not([data-ghost])').forEach(sec => {
       const secId = sec.id || '';
       // selectedIds 필터링 (null 이면 전체 포함)
       if (selectedIds && !selectedIds.includes(secId)) return;

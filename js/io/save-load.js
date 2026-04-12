@@ -287,6 +287,8 @@ function getSerializedCanvas() {
   });
   // 핸들/힌트 등 상태 요소는 직렬화에서 제외
   const clone = canvasEl.cloneNode(true);
+  // ghost 섹션은 저장에서 제외
+  clone.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
   clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint, .ci-handle, .shape-handle').forEach(el => el.remove());
   clone.querySelectorAll('.ci-selected').forEach(el => el.classList.remove('ci-selected'));
   clone.querySelectorAll('.ci-active').forEach(el => el.classList.remove('ci-active'));

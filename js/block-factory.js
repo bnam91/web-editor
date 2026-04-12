@@ -806,8 +806,23 @@ function addDividerBlock(opts = {}) {
   window.selectSection(sec);
 }
 
+function addGhostSection() {
+  const canvas = document.getElementById('canvas');
+  // 이미 ghost가 있으면 중복 추가 방지
+  if (canvas.querySelector('.section-block[data-ghost]')) return;
+  const ghost = document.createElement('div');
+  ghost.className = 'section-block';
+  ghost.dataset.ghost = 'true';
+  ghost.id = genId('sec');
+  ghost.style.display = 'none';
+  ghost.innerHTML = `<div class="section-inner"></div>`;
+  canvas.appendChild(ghost);
+}
+
 function addSection(opts = {}) {
   const canvas  = document.getElementById('canvas');
+  // ghost 섹션이 있으면 먼저 제거
+  canvas.querySelector('.section-block[data-ghost]')?.remove();
   const secList = canvas.querySelectorAll('.section-block');
   const newIdx  = secList.length + 1;
 
@@ -1570,6 +1585,7 @@ window.addGraphBlock        = addGraphBlock;
 window.makeDividerBlock     = makeDividerBlock;
 window.addDividerBlock      = addDividerBlock;
 window.addSection           = addSection;
+window.addGhostSection      = addGhostSection;
 window.makeFrameBlock        = makeFrameBlock;
 window.addFrameBlock         = addFrameBlock;
 window.wrapSelectedBlocksInFrame  = wrapSelectedBlocksInFrame;

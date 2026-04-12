@@ -21,7 +21,7 @@ export function buildLayerPanel() {
 
   panel.innerHTML = '';
 
-  document.querySelectorAll('.section-block').forEach((sec, si) => {
+  document.querySelectorAll('.section-block:not([data-ghost])').forEach((sec, si) => {
     const sIdx = si + 1;
     // 캔버스 섹션 data-section을 현재 인덱스로 동기화
     sec.dataset.section = sIdx;

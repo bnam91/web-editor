@@ -866,8 +866,7 @@ document.addEventListener('keydown', e => {
       toDelete.forEach(s => s.remove());
       clearMultiSel();
       deselectAll();
-      // 전체 삭제 시 빈 섹션 자동 추가
-      if (!canvasEl.querySelector('.section-block')) window.addSection?.();
+      if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
       window.buildLayerPanel();
       pushHistory('섹션 삭제');
       return;
@@ -963,14 +962,13 @@ document.addEventListener('keydown', e => {
           const grouped = [...document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`)];
           grouped.forEach(s => s.remove());
           deselectAll();
-          if (!canvasEl.querySelector('.section-block')) window.addSection?.();
+          if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
           window.buildLayerPanel();
           pushHistory('섹션 삭제');
         } else {
           selSection.remove();
           deselectAll();
-          // 마지막 섹션 삭제 시 빈 섹션 자동 추가
-          if (!canvasEl.querySelector('.section-block')) window.addSection?.();
+          if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
           window.buildLayerPanel();
           pushHistory('섹션 삭제');
         }

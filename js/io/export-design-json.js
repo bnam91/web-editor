@@ -244,7 +244,7 @@ function exportDesignJSON() {
   }
 
   const sections = [];
-  canvasEl.querySelectorAll(':scope > .section-block').forEach((sec, i) => {
+  canvasEl.querySelectorAll(':scope > .section-block:not([data-ghost])').forEach((sec, i) => {
     sections.push(serializeSection(sec, i));
   });
 

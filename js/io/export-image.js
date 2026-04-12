@@ -28,7 +28,7 @@ async function exportSection(sec, format, width) {
       logging: false,
     });
 
-    const secList = [...canvasEl.querySelectorAll('.section-block')];
+    const secList = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
     const idx     = secList.indexOf(sec) + 1;
     const name    = (sec._name || `section-${String(idx).padStart(2,'0')}`).replace(/\s+/g, '-');
 
@@ -47,7 +47,7 @@ async function exportSection(sec, format, width) {
 }
 
 async function exportAllSections(format, width) {
-  const sections = [...canvasEl.querySelectorAll('.section-block')];
+  const sections = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
   for (const sec of sections) {
     await exportSection(sec, format, width);
     await new Promise(r => setTimeout(r, 300));
