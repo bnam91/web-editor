@@ -384,6 +384,17 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const parsed = _block(directCanvas, ps);
       return parsed ? [parsed] : [];
     }
+    // col 래퍼 없이 블록이 row 직속 자식인 경우 (stack layout full-width 블록 등)
+    const DIRECT_BLOCK_SEL = ':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block';
+    const hasDirectBlocks = rowEl.querySelector(DIRECT_BLOCK_SEL);
+    if (hasDirectBlocks && !rowEl.querySelector(':scope > .col')) {
+      const blocks = [];
+      rowEl.querySelectorAll(DIRECT_BLOCK_SEL).forEach(b => {
+        const parsed = _block(b, ps);
+        if (parsed) blocks.push(parsed);
+      });
+      return blocks;
+    }
     const cols = [];
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
