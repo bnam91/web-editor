@@ -260,8 +260,9 @@ export function showAssetProperties(ab) {
         delete ab.dataset.preset;
         setWSliderDisabled(false);
 
-        if (ab.dataset.usePadx === 'true') {
-          // 패딩 ON 상태 → 패딩 적용한 너비/높이로 계산
+        if (ab.dataset.usePadx !== 'false') {
+          // 패딩 제외 ON 상태 → baseHeight를 프리셋 h로 갱신 후 패딩 적용
+          ab.dataset.baseHeight = h;
           applyAssetPadX(ab, state.pageSettings.padX || 0);
           applyH(parseInt(ab.style.height));
         } else {
