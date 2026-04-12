@@ -357,27 +357,24 @@ function renderChecklistPanel() {
     </div>
 
     <div class="ck-toolbar">
-      <button class="ck-btn ck-btn--pin${_pinMode ? ' active' : ''}" id="ck-add-pin-btn">
+      <button class="ck-btn ck-btn--pin${_pinMode ? ' active' : ''}" id="ck-add-pin-btn" title="핀 추가">
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="6" cy="5" r="2.5"/>
           <path d="M6 7.5V11" stroke-width="1.5"/>
           <path d="M3.5 5a2.5 2.5 0 0 1 5 0" stroke-width="1.5"/>
         </svg>
-        핀 추가
       </button>
-      <button class="ck-btn" id="ck-add-text-btn">
+      <button class="ck-btn" id="ck-add-text-btn" title="텍스트 항목">
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
           <line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/>
         </svg>
-        텍스트 항목
       </button>
-      <button class="ck-btn" id="ck-add-section-btn">
+      <button class="ck-btn" id="ck-add-section-btn" title="섹션 추가">
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="1" y="1" width="10" height="3" rx="1"/>
           <line x1="1" y1="7" x2="11" y2="7"/>
           <line x1="1" y1="10" x2="8" y2="10"/>
         </svg>
-        섹션 추가
       </button>
     </div>
 
