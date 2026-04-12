@@ -25,7 +25,7 @@ export function showAssetProperties(ab) {
     : 860;
   if (!ab.dataset.align) { ab.dataset.align = 'center'; ab.style.alignSelf = 'center'; }
   const currentSize   = ab.dataset.size    || '100';
-  const usePadX       = ab.dataset.usePadx === 'true';
+  const usePadX       = ab.dataset.usePadx !== 'false'; // 미설정 시 기본 ON
   const overlayOn     = ab.dataset.overlay === 'true';
   // 기존 overlay 요소 가져오기 (없으면 생성)
   let overlayEl = ab.querySelector('.asset-overlay');
