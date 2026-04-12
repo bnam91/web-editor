@@ -304,8 +304,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     if (el.classList.contains('asset-block')) {
       const sizePct   = parseInt(el.dataset.size) || 100;
-      const usePadx   = el.dataset.usePadx === 'true';
-      const padX      = usePadx ? (ps?.padX || 0) : 0;
+      const usePadx   = el.dataset.usePadx !== 'false'; // 미설정 시 기본 ON (패딩 제외)
+      const padX      = usePadx ? 0 : (ps?.padX || 0); // 패딩 제외 ON → full width (padX=0)
       const overlayOn = el.dataset.overlay === 'true';
       const ovEl      = el.querySelector('.asset-overlay');
       const overlayText    = overlayOn ? (ovEl?.innerText || '') : '';
