@@ -189,6 +189,7 @@ export function showAssetProperties(ab) {
     const padX = inner
       ? (parseInt(inner.dataset.paddingX) || state.pageSettings.padX || 0)
       : (state.pageSettings.padX || 0);
+    const prevWidth = ab.offsetWidth;
     if (e.target.checked && padX > 0) {
       ab.style.marginLeft  = -padX + 'px';
       ab.style.marginRight = -padX + 'px';
@@ -197,6 +198,19 @@ export function showAssetProperties(ab) {
       ab.style.marginLeft  = '';
       ab.style.marginRight = '';
       ab.style.width = '';
+    }
+    // 너비 변화 비율에 따라 높이 비례 조정
+    const newWidth = ab.offsetWidth;
+    if (prevWidth > 0 && newWidth > 0 && newWidth !== prevWidth) {
+      const prevH = parseInt(ab.style.height) || ab.offsetHeight;
+      if (prevH > 0) {
+        const newH = Math.round(prevH * newWidth / prevWidth);
+        ab.style.height = newH + 'px';
+        const hSliderEl = document.getElementById('asset-h-slider');
+        const hNumberEl = document.getElementById('asset-h-number');
+        if (hSliderEl) hSliderEl.value = newH;
+        if (hNumberEl) hNumberEl.value = newH;
+      }
     }
     window.pushHistory();
   });
