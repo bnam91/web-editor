@@ -2426,7 +2426,7 @@ const CHAT_TAIL_PATH = 'M18.3597 14.7395C9.25742 16.3944 2.32729 11.6364 0 9.050
 function renderChatBlock(block) {
   const messages    = JSON.parse(block.dataset.messages || '[]');
   const gap         = parseInt(block.dataset.gap)      || 8;
-  const fontSize    = parseInt(block.dataset.fontSize) || 16;
+  const fontSize    = parseInt(block.dataset.fontSize) || 32;
   const bgLeft      = block.dataset.bgLeft   || '#e5e5ea';
   const bgRight     = block.dataset.bgRight  || '#1888fe';
   const colorLeft   = block.dataset.colorLeft  || '#111111';
@@ -2460,7 +2460,7 @@ function makeChatBlock(opts = {}) {
   block.dataset.type = 'chat';
   block.dataset.messages  = JSON.stringify(opts.messages || CHAT_DEFAULT_MESSAGES);
   block.dataset.gap        = opts.gap       || 8;
-  block.dataset.fontSize   = opts.fontSize  || 16;
+  block.dataset.fontSize   = opts.fontSize  || 32;
   block.dataset.bgLeft     = opts.bgLeft    || '#e5e5ea';
   block.dataset.bgRight    = opts.bgRight   || '#1888fe';
   block.dataset.colorLeft  = opts.colorLeft  || '#111111';

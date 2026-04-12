@@ -3,7 +3,7 @@ import { propPanel } from '../globals.js';
 export function showChatProperties(block) {
   const messages   = JSON.parse(block.dataset.messages  || '[]');
   const gap        = parseInt(block.dataset.gap)        || 8;
-  const fontSize   = parseInt(block.dataset.fontSize)   || 16;
+  const fontSize   = parseInt(block.dataset.fontSize)   || 32;
   const bgLeft     = block.dataset.bgLeft               || '#e5e5ea';
   const bgRight    = block.dataset.bgRight              || '#1888fe';
   const colorLeft  = block.dataset.colorLeft            || '#111111';
