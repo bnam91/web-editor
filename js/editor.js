@@ -862,16 +862,12 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       const allSecs = canvasEl.querySelectorAll('.section-block');
       const toDelete = [...multiSel.sections];
-      // 전체 삭제 방지: 최소 1개 남겨야 함
-      if (allSecs.length <= toDelete.length) {
-        console.warn('[Delete] 모든 섹션을 삭제할 수 없습니다. 최소 1개 유지.');
-        clearMultiSel();
-        return;
-      }
       ensureHistoryCheckpoint('섹션 다중 삭제 전');
       toDelete.forEach(s => s.remove());
       clearMultiSel();
       deselectAll();
+      // 전체 삭제 시 빈 섹션 자동 추가
+      if (!canvasEl.querySelector('.section-block')) window.addSection?.();
       window.buildLayerPanel();
       pushHistory('섹션 삭제');
       return;
@@ -965,25 +961,18 @@ document.addEventListener('keydown', e => {
         if (selSection.dataset.variationGroup) {
           const gid = selSection.dataset.variationGroup;
           const grouped = [...document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`)];
-          const allSecs = canvasEl.querySelectorAll('.section-block');
-          if (allSecs.length <= grouped.length) {
-            console.warn('[Delete] 마지막 섹션 그룹은 삭제할 수 없습니다.');
-          } else {
-            grouped.forEach(s => s.remove());
-            deselectAll();
-            window.buildLayerPanel();
-            pushHistory('섹션 삭제');
-          }
+          grouped.forEach(s => s.remove());
+          deselectAll();
+          if (!canvasEl.querySelector('.section-block')) window.addSection?.();
+          window.buildLayerPanel();
+          pushHistory('섹션 삭제');
         } else {
-          const allSecs = canvasEl.querySelectorAll('.section-block');
-          if (allSecs.length <= 1) {
-            console.warn('[Delete] 마지막 섹션은 삭제할 수 없습니다.');
-          } else {
-            selSection.remove();
-            deselectAll();
-            window.buildLayerPanel();
-            pushHistory('섹션 삭제');
-          }
+          selSection.remove();
+          deselectAll();
+          // 마지막 섹션 삭제 시 빈 섹션 자동 추가
+          if (!canvasEl.querySelector('.section-block')) window.addSection?.();
+          window.buildLayerPanel();
+          pushHistory('섹션 삭제');
         }
       }
     }
