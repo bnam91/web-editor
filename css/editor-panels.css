@@ -1381,21 +1381,43 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .todo-pin-popup-text {
   font-size: 12px; color: #ddd; margin-bottom: 8px;
   word-break: break-word; line-height: 1.5;
+  outline: none;
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin-left: -4px;
+  margin-right: -4px;
+  cursor: text;
+  min-height: 1.2em;
+  word-break: break-all;
 }
-.todo-pin-popup-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.todo-pin-popup-text:focus {
+  background: var(--bg-input, #2a2a2a);
+  outline: 1px solid var(--color-focus, #2d6fe8);
+}
+.todo-pin-popup-actions { display: flex; gap: 4px; justify-content: flex-end; }
 .todo-pin-popup-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; padding: 0; border-radius: 5px;
-  border: 1px solid #444; background: #2a2a2a;
-  color: #bbb; font-size: 11px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border-default, #333);
+  background: var(--bg-input, #2a2a2a);
+  color: var(--text-sub, #aaa);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
 }
-.todo-pin-popup-btn:hover { background: #333; color: #fff; }
-.todo-pin-popup-btn.danger { border-color: #7a2020; color: #e06c6c; }
-.todo-pin-popup-btn.danger:hover { background: #3a1010; }
+.todo-pin-popup-btn:hover {
+  background: var(--bg-hover, #2e2e2e);
+  color: var(--text-default, #e0e0e0);
+}
+.todo-pin-popup-btn.danger:hover {
+  color: var(--ui-danger, #e06c6c);
+  border-color: var(--ui-danger, #e06c6c);
+}
 .todo-pin-urgent-btn.urgent-active {
   color: #e11d48;
-  background: rgba(225, 29, 72, 0.15);
   border-color: #e11d48;
+  background: rgba(225,29,72,0.12);
 }
 
 /* Pin input popup */

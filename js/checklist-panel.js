@@ -158,11 +158,11 @@ function showPinPopup(item, pinEl) {
   popup.style.top  = (pinRect.top   - 8) + 'px';
   const urgent = item.urgent ?? false;
   popup.innerHTML = `
-    <div class="todo-pin-popup-text">${_escHtml(item.text)}</div>
+    <div class="todo-pin-popup-text" contenteditable="true" spellcheck="false">${_escHtml(item.text)}</div>
     <div class="todo-pin-popup-actions">
       <button class="todo-pin-popup-btn todo-pin-urgent-btn${urgent ? ' urgent-active' : ''}" title="${urgent ? '긴급 해제' : '긴급 설정'}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" stroke="none">
+          <path d="M3 1v14M3 2h8l-2.5 4H11l-3 5H3"/>
         </svg>
       </button>
       <button class="todo-pin-popup-btn todo-pin-complete-btn" title="완료">
@@ -176,6 +176,22 @@ function showPinPopup(item, pinEl) {
         </svg>
       </button>
     </div>`;
+  const textEl = popup.querySelector('.todo-pin-popup-text');
+  textEl.addEventListener('blur', () => {
+    const newText = textEl.textContent.trim();
+    if (newText && newText !== item.text) {
+      item.text = newText;
+      const items = loadItems().map(it => it.id === item.id ? { ...it, text: newText } : it);
+      saveItems(items);
+      renderChecklistPanel();
+    }
+  });
+  textEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
+    e.stopPropagation();
+  });
+  textEl.addEventListener('click', e => e.stopPropagation());
+
   popup.querySelector('.todo-pin-urgent-btn').addEventListener('click', e => {
     e.stopPropagation();
     const items = loadItems().map(it => it.id === item.id ? { ...it, urgent: !(it.urgent ?? false) } : it);
