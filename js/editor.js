@@ -766,7 +766,7 @@ document.addEventListener('keydown', e => {
         if (!secId) return;
         const target = document.getElementById(secId)
           || [...document.querySelectorAll('.section-block')].find(s => s.dataset.name === secId);
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (target) target.scrollIntoView({ behavior: 'instant', block: 'start' });
         return;
       }
     }
