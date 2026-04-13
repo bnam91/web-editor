@@ -1243,9 +1243,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .ck-urgent-btn:hover { opacity: 0.8; }
 .ck-urgent-btn.active { color: #e11d48; opacity: 1; }
 
-.todo-pin-popup-btn.urgent-active {
-  border-color: #e11d48; color: #e11d48;
-}
+
 
 /* ── 드래그 핸들 ──────────────────────────────────────────────────────────── */
 .ck-drag-handle {
@@ -1386,13 +1384,19 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 }
 .todo-pin-popup-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .todo-pin-popup-btn {
-  padding: 3px 10px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border-radius: 5px;
   border: 1px solid #444; background: #2a2a2a;
   color: #bbb; font-size: 11px; cursor: pointer;
 }
 .todo-pin-popup-btn:hover { background: #333; color: #fff; }
 .todo-pin-popup-btn.danger { border-color: #7a2020; color: #e06c6c; }
 .todo-pin-popup-btn.danger:hover { background: #3a1010; }
+.todo-pin-urgent-btn.urgent-active {
+  color: #e11d48;
+  background: rgba(225, 29, 72, 0.15);
+  border-color: #e11d48;
+}
 
 /* Pin input popup */
 .todo-pin-input-popup { min-width: 220px; }

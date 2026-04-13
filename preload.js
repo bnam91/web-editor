@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App info
   isElectron: true,
+  getVersion: () => ipcRenderer.invoke('get-version'),
   isAdmin: () => ipcRenderer.invoke('app:is-admin').catch(() => false),
   debugPort: () => ipcRenderer.invoke('app:debug-port').catch(() => null),
   getGitBranch: () => ipcRenderer.invoke('app:git-branch').catch(() => null),

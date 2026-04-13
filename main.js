@@ -87,6 +87,7 @@ function createWindow() {
   // 라이선스 체크 후 페이지 결정
   checkLicenseAndLoad();
 
+  ipcMain.handle('get-version', () => app.getVersion());
   ipcMain.handle('app:git-branch', () => getGitBranch());
   ipcMain.handle('app:is-admin', () => process.argv.includes('admin'));
   ipcMain.handle('app:debug-port', () => {

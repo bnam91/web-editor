@@ -156,12 +156,25 @@ function showPinPopup(item, pinEl) {
   popup.style.position = 'fixed';
   popup.style.left = (pinRect.right + 8) + 'px';
   popup.style.top  = (pinRect.top   - 8) + 'px';
+  const urgent = item.urgent ?? false;
   popup.innerHTML = `
     <div class="todo-pin-popup-text">${_escHtml(item.text)}</div>
     <div class="todo-pin-popup-actions">
-      <button class="todo-pin-popup-btn todo-pin-urgent-btn${(item.urgent ?? false) ? ' urgent-active' : ''}">${(item.urgent ?? false) ? '🔴 긴급 해제' : '🔴 긴급 설정'}</button>
-      <button class="todo-pin-popup-btn todo-pin-complete-btn">✓ 완료</button>
-      <button class="todo-pin-popup-btn todo-pin-delete-btn danger">✕ 삭제</button>
+      <button class="todo-pin-popup-btn todo-pin-urgent-btn${urgent ? ' urgent-active' : ''}" title="${urgent ? '긴급 해제' : '긴급 설정'}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      </button>
+      <button class="todo-pin-popup-btn todo-pin-complete-btn" title="완료">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </button>
+      <button class="todo-pin-popup-btn todo-pin-delete-btn danger" title="삭제">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
     </div>`;
   popup.querySelector('.todo-pin-urgent-btn').addEventListener('click', e => {
     e.stopPropagation();
@@ -169,7 +182,7 @@ function showPinPopup(item, pinEl) {
     saveItems(items);
     item.urgent = !(item.urgent ?? false);
     const btn = popup.querySelector('.todo-pin-urgent-btn');
-    btn.textContent = item.urgent ? '🔴 긴급 해제' : '🔴 긴급 설정';
+    btn.title = item.urgent ? '긴급 해제' : '긴급 설정';
     btn.classList.toggle('urgent-active', item.urgent);
     // renderPins() 대신 pinEl 클래스 직접 업데이트 (renderPins 호출 시 pinEl stale → popup 강제 종료 버그 방지)
     pinEl.classList.toggle('todo-pin--urgent', item.urgent);

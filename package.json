@@ -1,6 +1,6 @@
 {
   "name": "sangpe-editor",
-  "version": "1.0.0",
+  "version": "0.5.0",
   "description": "상페마법사 — 상세페이지 제작용 에디터",
   "main": "main.js",
   "scripts": {

@@ -1078,6 +1078,12 @@ if (window.electronAPI) {
   });
 }
 
+// 버전 배지 동적 주입
+window.electronAPI?.getVersion?.().then(v => {
+  const badge = document.getElementById('logo-version-badge');
+  if (badge && v) badge.textContent = 'v' + v;
+});
+
 // Electron 환경이면 JSON 파일에서 프리셋 로드.
 // _presetsReady: race condition 방지용 Promise — showSectionProperties 등에서 await 후 UI 렌더.
 // Electron 비환경(브라우저)에서는 즉시 resolve하여 PRESET_FALLBACK 사용.
