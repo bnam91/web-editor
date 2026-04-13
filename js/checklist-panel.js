@@ -161,8 +161,9 @@ function showPinPopup(item, pinEl) {
     <div class="todo-pin-popup-text" contenteditable="true" spellcheck="false">${_escHtml(item.text)}</div>
     <div class="todo-pin-popup-actions">
       <button class="todo-pin-popup-btn todo-pin-urgent-btn${urgent ? ' urgent-active' : ''}" title="${urgent ? '긴급 해제' : '긴급 설정'}">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" stroke="none">
-          <path d="M3 1v14M3 2h8l-2.5 4H11l-3 5H3"/>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+          <line x1="4" y1="22" x2="4" y2="15"/>
         </svg>
       </button>
       <button class="todo-pin-popup-btn todo-pin-complete-btn" title="완료">
@@ -183,7 +184,8 @@ function showPinPopup(item, pinEl) {
       item.text = newText;
       const items = loadItems().map(it => it.id === item.id ? { ...it, text: newText } : it);
       saveItems(items);
-      renderChecklistPanel();
+      // rAF으로 격리 — blur 직후 document click { once } 리스너와 순서 충돌 방지
+      requestAnimationFrame(() => renderChecklistPanel());
     }
   });
   textEl.addEventListener('keydown', e => {

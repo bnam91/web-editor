@@ -1419,6 +1419,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   border-color: #e11d48;
   background: rgba(225,29,72,0.12);
 }
+.todo-pin-urgent-btn.urgent-active svg { fill: rgba(225,29,72,0.25); }
 
 /* Pin input popup */
 .todo-pin-input-popup { min-width: 220px; }
