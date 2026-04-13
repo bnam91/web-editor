@@ -746,7 +746,12 @@ export function showTextProperties(tb) {
   });
 
   const applyColorToSel = (color) => {
-    if (!_savedColorSel) { contentEl.style.color = color; return; }
+    if (!_savedColorSel) {
+      contentEl.style.color = color;
+      // Enter 줄바꿈으로 생성된 자식 div들의 인라인 color 제거 (부모 color가 cascade되도록)
+      contentEl.querySelectorAll('div').forEach(child => { child.style.color = ''; });
+      return;
+    }
     if (_colorSpan) {
       // 이미 span 생성됨 → color만 업데이트 (DOM 재조작 없음)
       _colorSpan.style.color = color;
