@@ -1019,6 +1019,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   border-radius: 5px;
   transition: background 0.1s;
   user-select: none;
+  position: relative;
 }
 .layer-section-header:hover { background: var(--ui-bg-input); }
 .layer-section-header.active { background: rgba(45,111,232,0.15); }

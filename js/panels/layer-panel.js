@@ -108,14 +108,43 @@ export function buildLayerPanel() {
           }
         }
       } else {
-        selectSection(sec, true);
+        // 비활성 variant 클릭 시 해당 variant를 활성화한 뒤 이동 (nameEl 외 header 영역 클릭 포함)
+        if (sec.dataset.variationActive === '0' && sec.dataset.variationGroup) {
+          const gid = sec.dataset.variationGroup;
+          [...document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`)]
+            .forEach(s => {
+              s.dataset.variationActive = (s === sec ? '1' : '0');
+              window.bindVariationToolbarBtn?.(s);
+            });
+          window.scheduleAutoSave?.();
+          window.buildLayerPanel?.();
+          selectSection(sec, true);
+        } else {
+          selectSection(sec, true);
+        }
       }
     });
     chevron.addEventListener('click', e => {
       e.stopPropagation();
       sectionEl.classList.toggle('collapsed');
     });
-    nameEl.addEventListener('click', e => { e.stopPropagation(); selectSection(sec, true); });
+    nameEl.addEventListener('click', e => {
+      e.stopPropagation();
+      // 비활성 variant 클릭 시 해당 variant를 활성화한 뒤 이동
+      if (sec.dataset.variationActive === '0' && sec.dataset.variationGroup) {
+        const gid = sec.dataset.variationGroup;
+        [...document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`)]
+          .forEach(s => {
+            s.dataset.variationActive = (s === sec ? '1' : '0');
+            window.bindVariationToolbarBtn?.(s);
+          });
+        window.scheduleAutoSave?.();
+        window.buildLayerPanel?.();
+        selectSection(sec, true);
+        return;
+      }
+      selectSection(sec, true);
+    });
     nameEl.addEventListener('dblclick', e => {
       e.stopPropagation();
       nameEl.contentEditable = 'true';
@@ -378,13 +407,35 @@ export function buildLayerPanel() {
   varGroups.forEach((secs, gid) => {
     const firstLayerEl = secs[0]?._layerEl;
     if (!firstLayerEl) return;
+
+    // Normalize variation labels — fix A/A/B style duplicates
+    const VLABELS = ['A', 'B', 'C', 'D', 'E'];
+    secs.sort((a, b) => {
+      const ai = VLABELS.indexOf(a.dataset.variation);
+      const bi = VLABELS.indexOf(b.dataset.variation);
+      if (ai !== bi) return ai - bi;
+      const pos = a.compareDocumentPosition(b);
+      return pos & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
+    secs.forEach((s, i) => {
+      const expected = VLABELS[i] || String.fromCharCode(65 + i);
+      if (s.dataset.variation !== expected) {
+        s.dataset.variation = expected;
+        const badge = s.querySelector('.variation-badge');
+        if (badge) {
+          badge.className = `variation-badge variation-badge-${expected.toLowerCase()}`;
+          badge.textContent = expected;
+          badge.title = `${expected}안 — 클릭하여 다음 안으로 전환`;
+        }
+      }
+    });
+
     const wrapper = document.createElement('div');
     wrapper.className = 'layer-variation-group';
     wrapper._gid = gid;
     wrapper._secs = secs;
     const groupHeader = document.createElement('div');
     groupHeader.className = 'layer-variation-header';
-    const VLABELS = ['A', 'B', 'C', 'D', 'E'];
     const activeV = secs.find(s => s.dataset.variationActive === '1')?.dataset.variation || 'A';
     const activeIdx = VLABELS.indexOf(activeV);
     const nextV = VLABELS[(activeIdx + 1) % secs.length];
@@ -443,8 +494,8 @@ export function buildLayerPanel() {
         s._layerEl.classList.add('collapsed');
       }
       // 개별 variant 삭제 버튼 (그룹에 2개 이상 남아있을 때만 표시)
-      if (s._layerEl) {
-        const existingDelBtn = s._layerEl.querySelector('.layer-variant-del');
+      if (s._layerHeader) {
+        const existingDelBtn = s._layerHeader.querySelector('.layer-variant-del');
         if (existingDelBtn) existingDelBtn.remove();
         const varDelBtn = document.createElement('button');
         varDelBtn.className = 'layer-variant-del';
@@ -464,7 +515,7 @@ export function buildLayerPanel() {
           if (window.buildLayerPanel) window.buildLayerPanel();
           window.scheduleAutoSave?.();
         };
-        s._layerEl.appendChild(varDelBtn);
+        s._layerHeader.appendChild(varDelBtn);
       }
     });
   });

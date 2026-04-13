@@ -461,7 +461,7 @@ function copySelected() {
   const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.graph-block.selected, .divider-block.selected, ' +
-    '.icon-text-block.selected, .shape-block.selected';
+    '.icon-text-block.selected, .shape-block.selected, .canvas-block.selected';
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -518,7 +518,7 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -544,6 +544,8 @@ function _bindPastedEl(el) {
   blocks.forEach(b => {
     b._blockBound = false;
     window.bindBlock(b);
+    // canvas-block: renderCanvas로 ResizeObserver 재연결
+    if (b.classList.contains('canvas-block')) window.renderCanvas?.(b);
   });
 }
 

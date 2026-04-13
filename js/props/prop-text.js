@@ -433,9 +433,10 @@ export function showTextProperties(tb) {
   _syncFontSelectValue(fontSel, currentFont);
   _updatePinButton(currentFont);
 
-  /* 시스템 설치 폰트 비동기 로드 → 완료 후 다시 sync */
+  /* 시스템 설치 폰트 비동기 로드 → 완료 후 최신값으로 sync (stale closure 방지) */
   _loadSystemFonts(fontSel).then(() => {
-    _syncFontSelectValue(fontSel, currentFont);
+    const latestFont = contentEl.dataset.rawFont || contentEl.style.fontFamily || '';
+    _syncFontSelectValue(fontSel, latestFont);
   });
 
   /* 핀 버튼 */

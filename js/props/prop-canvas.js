@@ -318,6 +318,20 @@ function showSimpleCardProperties(block) {
         <button class="prop-btn cvb-card-img-btn" data-card-index="${i}" style="width:auto;height:auto;font-size:10px;padding:2px 6px;">${card.imgSrc ? '이미지 교체' : '이미지 추가'}</button>
         ${card.imgSrc ? `<button class="prop-btn cvb-card-img-clear" data-card-index="${i}" style="width:auto;height:auto;font-size:10px;padding:2px 4px;color:#e55;" title="이미지 제거">✕</button>` : ''}
       </div>
+      ${card.imgSrc ? `
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px;">
+        <span style="font-size:10px;color:#666;flex:1;">Fit</span>
+        <button class="prop-align-btn cvb-card-fit-btn${(card.imgFit||'cover')==='cover'?' active':''}" data-card-index="${i}" data-fit="cover" style="font-size:10px;padding:2px 8px;width:auto;">꽉 채우기</button>
+        <button class="prop-align-btn cvb-card-fit-btn${(card.imgFit||'cover')==='contain'?' active':''}" data-card-index="${i}" data-fit="contain" style="font-size:10px;padding:2px 8px;width:auto;">원본 비율</button>
+      </div>` : ''}
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px;">
+        <span style="font-size:10px;color:#666;flex:1;">테두리</span>
+        <div class="prop-color-swatch cvb-card-border-swatch" style="width:16px;height:16px;border-radius:3px;flex-shrink:0;background:${card.borderColor || '#ffffff'};" title="테두리 색상">
+          <input type="color" class="cvb-card-border-color" data-card-index="${i}" value="${card.borderColor || '#ffffff'}">
+        </div>
+        <input type="number" class="cvb-card-border-width" data-card-index="${i}" value="${card.borderWidth || 0}" min="0" max="20" style="width:40px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:4px;padding:2px 4px;font-size:11px;text-align:center;box-sizing:border-box;">
+        <span style="font-size:10px;color:#666;">px</span>
+      </div>
       <textarea class="cvb-card-title-input" data-card-index="${i}" placeholder="제목 입력..." rows="2" style="width:100%;resize:none;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:4px;padding:4px 6px;font-size:11px;box-sizing:border-box;font-family:Pretendard,sans-serif;margin-bottom:4px;">${_escHtml(card.title || '')}</textarea>
       <input type="text" class="cvb-card-desc-input" data-card-index="${i}" placeholder="설명 입력..." value="${_escHtml(card.desc || '')}" style="width:100%;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:4px;padding:4px 6px;font-size:11px;box-sizing:border-box;">
     </div>
@@ -698,11 +712,33 @@ function showSimpleCardProperties(block) {
         setCards(arr, true);
       }
     }
+
+    const borderColor = e.target.closest('.cvb-card-border-color');
+    if (borderColor) {
+      const idx = parseInt(borderColor.dataset.cardIndex);
+      const arr = getCards();
+      if (arr[idx] !== undefined) {
+        arr[idx].borderColor = borderColor.value;
+        const swatch = borderColor.closest('.cvb-card-border-swatch');
+        if (swatch) swatch.style.background = borderColor.value;
+        setCards(arr, true);
+      }
+    }
+
+    const borderWidth = e.target.closest('.cvb-card-border-width');
+    if (borderWidth) {
+      const idx = parseInt(borderWidth.dataset.cardIndex);
+      const arr = getCards();
+      if (arr[idx] !== undefined) {
+        arr[idx].borderWidth = parseInt(borderWidth.value) || 0;
+        setCards(arr, true);
+      }
+    }
   });
 
   // change → pushHistory
   cardItemsEl.addEventListener('change', e => {
-    if (e.target.closest('.cvb-card-title-input, .cvb-card-desc-input, .cvb-card-cell-bg')) {
+    if (e.target.closest('.cvb-card-title-input, .cvb-card-desc-input, .cvb-card-cell-bg, .cvb-card-border-color, .cvb-card-border-width')) {
       window.pushHistory?.();
     }
   });
@@ -741,6 +777,23 @@ function showSimpleCardProperties(block) {
         arr[idx].imgSrc = '';
         setCards(arr);
         showSimpleCardProperties(block);
+      }
+    }
+
+    const fitBtn = e.target.closest('.cvb-card-fit-btn');
+    if (fitBtn) {
+      const idx = parseInt(fitBtn.dataset.cardIndex);
+      const fit = fitBtn.dataset.fit;
+      const arr = getCards();
+      if (arr[idx] !== undefined) {
+        arr[idx].imgFit = fit;
+        setCards(arr);
+        window.renderCanvas(block);
+        window.pushHistory?.();
+        // 버튼 active 상태 즉시 갱신
+        cardItemsEl.querySelectorAll(`.cvb-card-fit-btn[data-card-index="${idx}"]`).forEach(b => {
+          b.classList.toggle('active', b.dataset.fit === fit);
+        });
       }
     }
   });

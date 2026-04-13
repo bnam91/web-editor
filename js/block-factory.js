@@ -1624,6 +1624,94 @@ function _appendCardTexts(container, card, titleSize, descSize, textAlign, title
   }
 }
 
+function _bindCvbImgDrag(imgDiv, block, idx) {
+  if (!imgDiv.style.position) imgDiv.style.position = 'relative';
+  imgDiv.style.pointerEvents = 'auto';
+  imgDiv.style.cursor = 'default';
+
+  // 블록 선택된 상태에서 단일 클릭 → 편집 모드 진입 (블록 선택 안된 경우 버블 허용)
+  imgDiv.addEventListener('click', function(e) {
+    if (!block.classList.contains('selected')) return;
+    e.stopPropagation();
+    _enterCvbImgEditMode(imgDiv, block, idx);
+  });
+
+  // 더블클릭 → 편집 모드 진입 (블록 선택 여부 무관)
+  imgDiv.addEventListener('dblclick', function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    _enterCvbImgEditMode(imgDiv, block, idx);
+  });
+}
+
+function _enterCvbImgEditMode(imgDiv, block, idx) {
+  if (imgDiv._cvbEditing) return;
+  imgDiv._cvbEditing = true;
+
+  imgDiv.style.cursor = 'grab';
+  imgDiv.style.outline = '2px solid var(--color-handle, #1592fe)';
+  imgDiv.style.outlineOffset = '-2px';
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'position:absolute;bottom:6px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;font-size:10px;padding:3px 10px;border-radius:4px;pointer-events:none;white-space:nowrap;z-index:10;';
+  hint.textContent = '드래그로 이미지 이동 · ESC 종료';
+  imgDiv.appendChild(hint);
+
+  const exitMode = () => {
+    if (!imgDiv._cvbEditing) return;
+    imgDiv._cvbEditing = false;
+    imgDiv.style.cursor = 'default';
+    imgDiv.style.outline = '';
+    hint.remove();
+    document.removeEventListener('keydown', onKey);
+    imgDiv.removeEventListener('mousedown', onDragStart);
+  };
+
+  const onKey = (e) => { if (e.key === 'Escape') exitMode(); };
+  document.addEventListener('keydown', onKey);
+
+  const onDragStart = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const cards = JSON.parse(block.dataset.cards || '[]');
+    const c = cards[idx] || {};
+    const startMouseX = e.clientX;
+    const startMouseY = e.clientY;
+    const startImgX = c.imgX ?? 50;
+    const startImgY = c.imgY ?? 50;
+    let curX = startImgX;
+    let curY = startImgY;
+
+    imgDiv.style.cursor = 'grabbing';
+
+    const onMove = (me) => {
+      const scale = block._cvbScale || 1;
+      curX = Math.max(0, Math.min(100, startImgX - (me.clientX - startMouseX) / scale * 0.1));
+      curY = Math.max(0, Math.min(100, startImgY - (me.clientY - startMouseY) / scale * 0.1));
+      imgDiv.style.backgroundPosition = `${curX}% ${curY}%`;
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      imgDiv.style.cursor = 'grab';
+      const arr = JSON.parse(block.dataset.cards || '[]');
+      if (arr[idx]) {
+        arr[idx].imgX = Math.round(curX * 10) / 10;
+        arr[idx].imgY = Math.round(curY * 10) / 10;
+        block.dataset.cards = JSON.stringify(arr);
+        window.pushHistory?.();
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  imgDiv.addEventListener('mousedown', onDragStart);
+}
+
 function renderCanvas(block) {
   const layers   = JSON.parse(block.dataset.layers || '[]');
   const designW  = parseInt(block.dataset.canvasW) || 360;
@@ -1683,6 +1771,7 @@ function renderCanvas(block) {
       const scale = availW / totalW;
       inner.style.transform = `scale(${scale})`;
       block.style.height = (totalH * scale) + 'px';
+      block._cvbScale = scale;
     };
     applyScale();
     if (block._cvbRO) block._cvbRO.disconnect();
@@ -1700,7 +1789,9 @@ function renderCanvas(block) {
         const cardBg = card.cellBg || textBg;
 
         const cell = document.createElement('div');
-        cell.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;border-radius:${radius}px;overflow:hidden;`;
+        const borderW = card.borderWidth > 0 ? card.borderWidth : 0;
+        const borderShadow = borderW > 0 && card.borderColor ? `;box-shadow:inset 0 0 0 ${borderW}px ${card.borderColor}` : '';
+        cell.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;border-radius:${radius}px;overflow:hidden${borderShadow};`;
 
         if (orient === 'landscape') {
           // ── 가로 모드: 이미지 좌 / 텍스트 우 ────────────────────────────
@@ -1711,8 +1802,10 @@ function renderCanvas(block) {
           imgDiv.style.cssText = `position:absolute;left:0;top:0;width:${imgW}px;height:${designH}px;overflow:hidden;flex-shrink:0;`;
           if (card.imgSrc) {
             imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
-            imgDiv.style.backgroundSize     = 'cover';
-            imgDiv.style.backgroundPosition = 'center';
+            imgDiv.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';
+            imgDiv.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
+            imgDiv.style.backgroundRepeat   = 'no-repeat';
+            _bindCvbImgDrag(imgDiv, block, idx);
           } else {
             imgDiv.style.background = 'rgba(0,0,0,0.06)';
             imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
@@ -1738,9 +1831,10 @@ function renderCanvas(block) {
           imgDiv.style.cssText = `width:100%;height:${imgH}px;overflow:hidden;box-sizing:border-box;flex-shrink:0;`;
           if (card.imgSrc) {
             imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
-            imgDiv.style.backgroundSize     = 'cover';
-            imgDiv.style.backgroundPosition = 'center';
+            imgDiv.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';
+            imgDiv.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
             imgDiv.style.backgroundRepeat   = 'no-repeat';
+            _bindCvbImgDrag(imgDiv, block, idx);
           } else {
             imgDiv.style.background = 'rgba(0,0,0,0.06)';
             imgDiv.style.display = 'flex'; imgDiv.style.alignItems = 'center'; imgDiv.style.justifyContent = 'center';
