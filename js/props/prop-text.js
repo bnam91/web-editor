@@ -459,6 +459,8 @@ export function showTextProperties(tb) {
     const rawVal = e.target.value;
     contentEl.style.fontFamily = rawVal;
     contentEl.dataset.rawFont = rawVal;   // CSS 정규화 우회용 raw 저장
+    // Enter 줄바꿈으로 생성된 자식 div의 인라인 font-family 제거 (부모 font-family가 cascade되도록)
+    contentEl.querySelectorAll('div').forEach(child => { child.style.removeProperty('font-family'); });
     _pushRecentFont(rawVal);
     _rebuildFontPinnedGroups(e.target);
     _syncFontSelectValue(e.target, rawVal);  // rebuild 후 올바른 옵션 재선택
