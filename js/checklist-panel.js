@@ -132,6 +132,9 @@ let _activePinPopup   = null;
 let _activePinCleanup = null;
 
 function closePinPopup() {
+  // stale { once: true } 리스너 제거 — mousedown으로 수동 닫을 때 남은 리스너가
+  // 이후 click 이벤트에서 새 팝업을 즉시 닫는 버그 방지
+  document.removeEventListener('click', closePinPopup);
   if (_activePinPopup)   { _activePinPopup.remove();   _activePinPopup = null; }
   if (_activePinCleanup) { _activePinCleanup();         _activePinCleanup = null; }
 }
@@ -302,17 +305,25 @@ function _onCanvasClickForPin(e) {
   if (existingItem) {
     popup.innerHTML = `
       <div class="todo-pin-popup-text">${_escHtml(existingItem.text || '(빈 항목)')}</div>
-      <div style="font-size:10px;color:#888;margin-bottom:6px;">이 위치에 핀을 등록합니다</div>
+      <div style="font-size:10px;color:var(--text-muted,#777);margin-bottom:6px;">이 위치에 핀을 등록합니다</div>
       <div class="todo-pin-popup-actions">
-        <button class="todo-pin-popup-btn todo-pin-save-btn">핀 등록</button>
-        <button class="todo-pin-popup-btn danger">취소</button>
+        <button class="todo-pin-popup-btn todo-pin-save-btn" title="등록">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+        <button class="todo-pin-popup-btn danger" title="취소">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>`;
   } else {
     popup.innerHTML = `
       <input class="todo-pin-input" type="text" placeholder="할 일을 입력하세요..." maxlength="100">
       <div class="todo-pin-popup-actions">
-        <button class="todo-pin-popup-btn todo-pin-save-btn">저장</button>
-        <button class="todo-pin-popup-btn danger">취소</button>
+        <button class="todo-pin-popup-btn todo-pin-save-btn" title="저장">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+        <button class="todo-pin-popup-btn danger" title="취소">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>`;
   }
   document.body.appendChild(popup);
