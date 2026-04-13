@@ -1789,9 +1789,8 @@ function renderCanvas(block) {
         const cardBg = card.cellBg || textBg;
 
         const cell = document.createElement('div');
-        const borderW = card.borderWidth > 0 ? card.borderWidth : 0;
-        const borderShadow = borderW > 0 && card.borderColor ? `;box-shadow:inset 0 0 0 ${borderW}px ${card.borderColor}` : '';
-        cell.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;border-radius:${radius}px;overflow:hidden${borderShadow};`;
+        const borderW = card.borderWidth > 0 ? parseInt(card.borderWidth) : 0;
+        cell.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;border-radius:${radius}px;overflow:hidden;`;
 
         if (orient === 'landscape') {
           // ── 가로 모드: 이미지 좌 / 텍스트 우 ────────────────────────────
@@ -1850,6 +1849,13 @@ function renderCanvas(block) {
             _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
             cell.appendChild(textDiv);
           }
+        }
+
+        // 테두리 오버레이: 자식 위에 inset box-shadow 표시 (자식들이 cell 전체를 덮으므로 overlay 필요)
+        if (borderW > 0 && card.borderColor) {
+          const borderOverlay = document.createElement('div');
+          borderOverlay.style.cssText = `position:absolute;inset:0;box-shadow:inset 0 0 0 ${borderW}px ${card.borderColor};border-radius:${radius}px;pointer-events:none;z-index:10;`;
+          cell.appendChild(borderOverlay);
         }
 
         inner.appendChild(cell);
