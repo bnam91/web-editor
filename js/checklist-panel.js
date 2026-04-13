@@ -699,7 +699,10 @@ function _onListDrop(e) {
 
   _dragSrcId = null;
   _dragType  = null;
+  const list = document.getElementById('ck-list');
+  const scrollTop = list ? list.scrollTop : 0;
   renderChecklistPanel();
+  if (list) list.scrollTop = scrollTop;
 }
 
 function _dropItem(targetEl, before) {

@@ -735,6 +735,15 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  // S: 섹션 추가
+  if (e.code === 'KeyS' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+    e.preventDefault();
+    window.addSection?.();
+    return;
+  }
+
   // Shift+F1~F9: 섹션 단축키 등록 / F1~F9: 해당 섹션으로 이동 (스타크래프트식)
   // Mac 매직키보드: Fn+F1(이동), Shift+Fn+F1(등록) / Windows: F1(이동), Shift+F1(등록)
   {

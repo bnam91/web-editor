@@ -1119,7 +1119,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   padding: 10px 14px 0;
   flex-direction: column;
   gap: 8px;
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 
 .ck-progress-wrap { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; }
@@ -1166,7 +1166,13 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .ck-list {
   display: flex; flex-direction: column; gap: 2px;
   padding-bottom: 10px;
+  overflow-y: auto;
+  flex: 1 1 0;
+  margin-right: -14px;
+  padding-right: 14px;
 }
+.ck-list::-webkit-scrollbar { width: 4px; }
+.ck-list::-webkit-scrollbar-thumb { background: var(--ui-border-mid); border-radius: 2px; }
 
 .ck-item {
   display: flex; align-items: center; gap: 5px;
