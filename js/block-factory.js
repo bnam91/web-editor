@@ -652,8 +652,8 @@ function addGapBlock(height) {
     window.buildLayerPanel();
     return;
   }
-  // fullWidth sub-section 분기
-  if (_insertToFlowFrame(() => {
+  // fullWidth 플로우 프레임에만 추가 — 자유배치(freeLayout) 프레임은 스킵 후 섹션 레벨로
+  if (window._activeFrame?.dataset.freeLayout !== 'true' && _insertToFlowFrame(() => {
     const gb = makeGapBlock();
     if (height) gb.style.height = height + 'px';
     gb.dataset.h = height || 40;
