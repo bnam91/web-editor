@@ -735,6 +735,43 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  // Shift+F1~F9: 섹션 단축키 등록 / F1~F9: 해당 섹션으로 이동 (스타크래프트식)
+  // Mac 매직키보드: Fn+F1(이동), Shift+Fn+F1(등록) / Windows: F1(이동), Shift+F1(등록)
+  {
+    const fMatch = e.code.match(/^F([1-9])$/);
+    if (fMatch && !e.metaKey && !e.ctrlKey) {
+      const slot = parseInt(fMatch[1]); // 1~9
+      if (e.shiftKey) {
+        // 등록: 현재 선택된(또는 첫 번째) 섹션을 slot에 저장
+        if (document.activeElement?.isContentEditable) return;
+        e.preventDefault();
+        const sec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
+        if (!sec) return;
+        const map = JSON.parse(localStorage.getItem('section-fkey-map') || '{}');
+        map[slot] = sec.id || sec.dataset.name || '';
+        localStorage.setItem('section-fkey-map', JSON.stringify(map));
+        // 등록 피드백: 섹션 레이블 잠깐 강조
+        const label = sec.querySelector('.section-label');
+        if (label) {
+          label.style.transition = 'background 0.15s';
+          label.style.background = 'rgba(45,111,232,0.35)';
+          setTimeout(() => { label.style.background = ''; }, 600);
+        }
+        return;
+      } else {
+        // 이동: slot에 등록된 섹션으로 스크롤
+        e.preventDefault();
+        const map = JSON.parse(localStorage.getItem('section-fkey-map') || '{}');
+        const secId = map[slot];
+        if (!secId) return;
+        const target = document.getElementById(secId)
+          || [...document.querySelectorAll('.section-block')].find(s => s.dataset.name === secId);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+    }
+  }
+
   if (e.key === 'Escape') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     // group-editing 중이면 editing만 해제, 선택은 유지
