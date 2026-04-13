@@ -235,6 +235,8 @@ async function switchPage(pageId) {
   if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
   canvasEl.innerHTML = page.canvas || '';
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+  canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
+  canvasEl.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint').forEach(el => el.remove());
   // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
   const propPanel = document.querySelector('#panel-right .panel-body');
   if (propPanel) propPanel.innerHTML = '';
@@ -289,7 +291,8 @@ function getSerializedCanvas() {
   const clone = canvasEl.cloneNode(true);
   // ghost 섹션은 저장에서 제외
   clone.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edit-hint, .ci-handle, .shape-handle').forEach(el => el.remove());
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .ci-handle, .shape-handle').forEach(el => el.remove());
+  clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   clone.querySelectorAll('.ci-selected').forEach(el => el.classList.remove('ci-selected'));
   clone.querySelectorAll('.ci-active').forEach(el => el.classList.remove('ci-active'));
   // 편집 상태 속성 제거 — contenteditable/editing 상태가 저장되지 않도록
@@ -315,7 +318,13 @@ function getSerializedCanvas() {
 
 function serializeProject() {
   flushCurrentPage();
-  return JSON.stringify({ version: 2, currentPageId: state.currentPageId, pages: state.pages });
+  return JSON.stringify({
+    version: 2,
+    currentPageId: state.currentPageId,
+    pages: state.pages,
+    checklistItems: window._ckItems || [],
+    checklistSections: window._ckSections || [],
+  });
 }
 
 function applyProjectData(data) {
@@ -340,6 +349,8 @@ function applyProjectData(data) {
   rebindAll();
   applyPageSettings();
   window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
+  window._ckItems    = Array.isArray(data.checklistItems)    ? data.checklistItems    : [];
+  window._ckSections = Array.isArray(data.checklistSections) ? data.checklistSections : [];
   window.buildLayerPanel(); // also calls buildFilePageSection
   window.showPageProperties();
   window.renderChecklistPanel?.();

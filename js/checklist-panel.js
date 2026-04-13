@@ -1,25 +1,25 @@
 // ── Checklist Panel + Canvas Pin System ──────────────────────────────────────
 // 프로젝트별 todo 체크리스트 + 캔버스 위에 핀 마킹 기능
 
-const CHECKLIST_PREFIX = 'sangpe-checklist__';
-const SECTIONS_PREFIX  = 'sangpe-checklist-sections__';
-
-function _ckKey()  { return CHECKLIST_PREFIX + (window.activeProjectId || 'default'); }
-function _secKey() { return SECTIONS_PREFIX  + (window.activeProjectId || 'default'); }
-
 // ── Items CRUD ────────────────────────────────────────────────────────────────
+// 데이터는 프로젝트 JSON에 저장 (save-load.js serializeProject/applyProjectData와 연동)
+// window._ckItems / window._ckSections 는 save-load.js의 applyProjectData가 설정함
 function loadItems() {
-  try { return JSON.parse(localStorage.getItem(_ckKey()) || '[]'); }
-  catch { return []; }
+  return window._ckItems || [];
 }
-function saveItems(arr) { localStorage.setItem(_ckKey(), JSON.stringify(arr)); }
+function saveItems(arr) {
+  window._ckItems = arr;
+  window.triggerAutoSave?.();
+}
 
 // ── Sections CRUD ─────────────────────────────────────────────────────────────
 function loadSections() {
-  try { return JSON.parse(localStorage.getItem(_secKey()) || '[]'); }
-  catch { return []; }
+  return window._ckSections || [];
 }
-function saveSections(arr) { localStorage.setItem(_secKey(), JSON.stringify(arr)); }
+function saveSections(arr) {
+  window._ckSections = arr;
+  window.triggerAutoSave?.();
+}
 
 function genCkId() { return 'ck_' + Math.random().toString(36).slice(2, 9); }
 
