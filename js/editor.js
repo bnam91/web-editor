@@ -766,7 +766,23 @@ document.addEventListener('keydown', e => {
         if (!secId) return;
         const target = document.getElementById(secId)
           || [...document.querySelectorAll('.section-block')].find(s => s.dataset.name === secId);
-        if (target) target.scrollIntoView({ behavior: 'instant', block: 'start' });
+        if (target) {
+          // 빠른 smooth 스크롤 (브라우저 기본 smooth보다 3배 빠름, 200ms)
+          const wrap = document.getElementById('canvas-wrap');
+          if (!wrap) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+          const targetTop = target.getBoundingClientRect().top - wrap.getBoundingClientRect().top + wrap.scrollTop - 40;
+          const startTop = wrap.scrollTop;
+          const dist = targetTop - startTop;
+          const duration = 200;
+          const startTime = performance.now();
+          const ease = t => t < 0.5 ? 2*t*t : -1+(4-2*t)*t; // easeInOut
+          const step = now => {
+            const t = Math.min((now - startTime) / duration, 1);
+            wrap.scrollTop = startTop + dist * ease(t);
+            if (t < 1) requestAnimationFrame(step);
+          };
+          requestAnimationFrame(step);
+        }
         return;
       }
     }
