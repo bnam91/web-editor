@@ -58,7 +58,7 @@ function renderPins() {
   items.forEach((item) => {
     const pinNum = pinNumMap.get(item.id) ?? '?';
     const pin = document.createElement('div');
-    pin.className = 'todo-pin';
+    pin.className = 'todo-pin' + (item.urgent ? ' todo-pin--urgent' : '');
     pin.dataset.id = item.id;
     pin.style.left = item.x + 'px';
     pin.style.top  = item.y + 'px';
@@ -159,9 +159,22 @@ function showPinPopup(item, pinEl) {
   popup.innerHTML = `
     <div class="todo-pin-popup-text">${_escHtml(item.text)}</div>
     <div class="todo-pin-popup-actions">
+      <button class="todo-pin-popup-btn todo-pin-urgent-btn${(item.urgent ?? false) ? ' urgent-active' : ''}">${(item.urgent ?? false) ? '🔴 긴급 해제' : '🔴 긴급 설정'}</button>
       <button class="todo-pin-popup-btn todo-pin-complete-btn">✓ 완료</button>
       <button class="todo-pin-popup-btn todo-pin-delete-btn danger">✕ 삭제</button>
     </div>`;
+  popup.querySelector('.todo-pin-urgent-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    const items = loadItems().map(it => it.id === item.id ? { ...it, urgent: !(it.urgent ?? false) } : it);
+    saveItems(items);
+    item.urgent = !(item.urgent ?? false);
+    const btn = popup.querySelector('.todo-pin-urgent-btn');
+    btn.textContent = item.urgent ? '🔴 긴급 해제' : '🔴 긴급 설정';
+    btn.classList.toggle('urgent-active', item.urgent);
+    renderPins();
+    renderChecklistPanel();
+    requestAnimationFrame(() => _positionPopupNearPin(popup, pinEl));
+  });
   popup.querySelector('.todo-pin-complete-btn').addEventListener('click', e => {
     e.stopPropagation();
     const items = loadItems().map(it => it.id === item.id ? { ...it, done: true } : it);
@@ -290,7 +303,7 @@ function _onCanvasClickForPin(e) {
     const text = input.value.trim();
     if (!text) { exitPinMode(); return; }
     const items = loadItems();
-    items.push({ id: genCkId(), text, done: false, x, y, createdAt: Date.now() });
+    items.push({ id: genCkId(), text, done: false, urgent: false, x, y, createdAt: Date.now() });
     saveItems(items);
     exitPinMode(); renderPins(); renderChecklistPanel();
   };
@@ -474,6 +487,11 @@ function _buildItemEl(item, sectionId, pinNum) {
             <line x1="9" y1="2" x2="11" y2="2" stroke-width="1.5"/>
           </svg>
         </button>`}
+    <button class="ck-urgent-btn${(item.urgent ?? false) ? ' active' : ''}" title="${(item.urgent ?? false) ? '긴급 해제' : '긴급 설정'}">
+      <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor">
+        <path d="M6 1L7.5 5H11L8 7.5L9 11L6 8.5L3 11L4 7.5L1 5H4.5Z"/>
+      </svg>
+    </button>
     <button class="ck-delete" title="삭제">×</button>`;
 
   // 드래그 핸들 mousedown → item draggable
@@ -511,6 +529,15 @@ function _buildItemEl(item, sectionId, pinNum) {
     enterPinMode(item.id);
     // 체크리스트 탭을 열어두고 캔버스로 이동 안내
     addPinBtn.style.opacity = '0.4';
+  });
+
+  // 긴급 토글
+  el.querySelector('.ck-urgent-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    const items = loadItems().map(it => it.id === item.id ? { ...it, urgent: !(it.urgent ?? false) } : it);
+    saveItems(items);
+    renderPins();
+    renderChecklistPanel();
   });
 
   // 삭제
