@@ -727,6 +727,14 @@ document.addEventListener('keydown', e => {
       return;
     }
   }
+  // Shift+P: 핀 추가 모드 토글
+  if (e.key === 'P' && e.shiftKey && !e.metaKey && !e.ctrlKey) {
+    if (document.activeElement?.isContentEditable) return;
+    e.preventDefault();
+    window.togglePinMode?.();
+    return;
+  }
+
   if (e.key === 'Escape') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     // group-editing 중이면 editing만 해제, 선택은 유지

@@ -46,12 +46,18 @@ layerPanelBody.addEventListener('drop', e => {
   window.pushHistory(); // FIX-SD-03: 레이어 패널 섹션 드롭에서 undo 지원
   const { sec } = layerSectionDragSrc;
   const indicator = layerPanelBody.querySelector('.layer-section-drop-indicator');
+  // variation group이면 같은 그룹의 variant 전체를 묶음 이동 (DRAG-VAR-01)
+  const groupId = sec.dataset.variationGroup;
+  const toMove = groupId
+    ? [...canvasEl.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)]
+        .sort((a, b) => ['A','B','C','D','E'].indexOf(a.dataset.variation) - ['A','B','C','D','E'].indexOf(b.dataset.variation))
+    : [sec];
   if (indicator) {
     const nextLayerSec = indicator.nextElementSibling;
     if (nextLayerSec && nextLayerSec._canvasSec) {
-      canvasEl.insertBefore(sec, nextLayerSec._canvasSec);
+      toMove.forEach(s => canvasEl.insertBefore(s, nextLayerSec._canvasSec));
     } else {
-      canvasEl.appendChild(sec);
+      toMove.forEach(s => canvasEl.appendChild(s));
     }
   }
   window.clearLayerSectionIndicators();

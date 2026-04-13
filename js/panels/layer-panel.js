@@ -23,8 +23,8 @@ export function buildLayerPanel() {
 
   document.querySelectorAll('.section-block:not([data-ghost])').forEach((sec, si) => {
     const sIdx = si + 1;
-    // 캔버스 섹션 data-section을 현재 인덱스로 동기화
-    sec.dataset.section = sIdx;
+    // 캔버스 섹션 data-section을 현재 인덱스로 동기화 — 값이 같으면 쓰기 생략 (MUT-01: MutationObserver 재귀 트리거 방지)
+    if (sec.dataset.section !== String(sIdx)) sec.dataset.section = sIdx;
     const sectionEl = document.createElement('div');
     sectionEl.className = 'layer-section';
     sectionEl.dataset.section = sIdx;

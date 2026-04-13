@@ -859,3 +859,4 @@ function _escHtml(str) {
 
 window.renderChecklistPanel = renderChecklistPanel;
 window.renderTodoPins = renderPins;
+window.togglePinMode = () => { if (_pinMode) exitPinMode(); else enterPinMode(); };

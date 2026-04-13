@@ -62,9 +62,14 @@ function getDragAfterElement(container, y) {
 }
 
 function getSectionDragAfterEl(container, y) {
-  const sections = [...container.children].filter(el =>
-    el.classList.contains('section-block') && el !== dragState.sectionDragSrc
-  );
+  // DRAG-VAR-01: variation group의 다른 variant도 드래그 소스에서 제외 (display:none이라 height=0 → 위치 계산 오염 방지)
+  const dragGroupId = dragState.sectionDragSrc?.dataset.variationGroup;
+  const sections = [...container.children].filter(el => {
+    if (!el.classList.contains('section-block')) return false;
+    if (el === dragState.sectionDragSrc) return false;
+    if (dragGroupId && el.dataset.variationGroup === dragGroupId) return false;
+    return true;
+  });
   return sections.reduce((closest, sec) => {
     const box = sec.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;

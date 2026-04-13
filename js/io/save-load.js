@@ -281,9 +281,9 @@ function deletePage(pageId) {
 }
 
 function getSerializedCanvas() {
-  // section data-name 속성 동기화
+  // section data-name 속성 동기화 — 값이 이미 같으면 쓰기 생략 (MUT-01: 동일 값 쓰기도 MutationObserver를 트리거해 scheduleAutoSave 재귀 루프 발생)
   canvasEl.querySelectorAll('.section-block').forEach(sec => {
-    if (sec._name) sec.dataset.name = sec._name;
+    if (sec._name && sec.dataset.name !== sec._name) sec.dataset.name = sec._name;
   });
   // 핸들/힌트 등 상태 요소는 직렬화에서 제외
   const clone = canvasEl.cloneNode(true);
@@ -1186,8 +1186,17 @@ function initApp() {
     e.preventDefault();
     window.pushHistory();
     const indicator = canvasEl.querySelector('.section-drop-indicator');
-    if (indicator) canvasEl.insertBefore(sectionDragSrc, indicator);
-    else canvasEl.appendChild(sectionDragSrc);
+    // variation group이면 같은 그룹의 variant 전체를 묶음 이동 (DRAG-VAR-01)
+    const groupId = sectionDragSrc.dataset.variationGroup;
+    const toMove = groupId
+      ? [...canvasEl.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)]
+          .sort((a, b) => ['A','B','C','D','E'].indexOf(a.dataset.variation) - ['A','B','C','D','E'].indexOf(b.dataset.variation))
+      : [sectionDragSrc];
+    if (indicator) {
+      toMove.forEach(sec => canvasEl.insertBefore(sec, indicator));
+    } else {
+      toMove.forEach(sec => canvasEl.appendChild(sec));
+    }
     clearSectionIndicators();
     window.buildLayerPanel();
     sectionDragSrc = null;
