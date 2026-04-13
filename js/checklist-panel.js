@@ -197,6 +197,7 @@ let _pendingInputPopup = null;
 let _pinModeForItemId = null; // 기존 아이템에 핀 위치 등록 시 사용
 
 function enterPinMode(forItemId) {
+  _initCanvasClickListener();
   _pinMode = true;
   _pinModeForItemId = forItemId || null;
   const wrap = document.getElementById('canvas-wrap');
@@ -859,4 +860,7 @@ function _escHtml(str) {
 
 window.renderChecklistPanel = renderChecklistPanel;
 window.renderTodoPins = renderPins;
-window.togglePinMode = () => { if (_pinMode) exitPinMode(); else enterPinMode(); };
+window.togglePinMode = () => {
+  _initCanvasClickListener(); // 패널 미오픈 상태에서도 클릭 리스너 보장
+  if (_pinMode) exitPinMode(); else enterPinMode();
+};

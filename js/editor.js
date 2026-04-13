@@ -727,8 +727,8 @@ document.addEventListener('keydown', e => {
       return;
     }
   }
-  // Shift+P: 핀 추가 모드 토글
-  if (e.key === 'P' && e.shiftKey && !e.metaKey && !e.ctrlKey) {
+  // `: 핀 추가 모드 토글 (왼손 단독 조작)
+  if (e.key === '`' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
     if (document.activeElement?.isContentEditable) return;
     e.preventDefault();
     window.togglePinMode?.();
