@@ -728,7 +728,7 @@ document.addEventListener('keydown', e => {
     }
   }
   // `: 핀 추가 모드 토글 (왼손 단독 조작)
-  if (e.key === '`' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+  if (e.code === 'Backquote' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
     if (document.activeElement?.isContentEditable) return;
     e.preventDefault();
     window.togglePinMode?.();
