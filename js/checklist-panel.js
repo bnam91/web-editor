@@ -171,7 +171,8 @@ function showPinPopup(item, pinEl) {
     const btn = popup.querySelector('.todo-pin-urgent-btn');
     btn.textContent = item.urgent ? '🔴 긴급 해제' : '🔴 긴급 설정';
     btn.classList.toggle('urgent-active', item.urgent);
-    renderPins();
+    // renderPins() 대신 pinEl 클래스 직접 업데이트 (renderPins 호출 시 pinEl stale → popup 강제 종료 버그 방지)
+    pinEl.classList.toggle('todo-pin--urgent', item.urgent);
     renderChecklistPanel();
     requestAnimationFrame(() => _positionPopupNearPin(popup, pinEl));
   });
