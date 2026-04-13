@@ -38,9 +38,17 @@ export function showAssetProperties(ab) {
   const overlayOpacity = parseFloat(overlayEl.dataset.ovOpacity ?? '0.35');
 
   const currentBgColor = ab.dataset.bgColor || '#a0a0a0';
+  const currentFit = ab.dataset.fit || 'cover';
   const imageSection = hasImage ? `
     <div class="prop-section">
       <div class="prop-section-title">이미지</div>
+      <div class="prop-row">
+        <span class="prop-label">Fit</span>
+        <div class="prop-align-group" id="asset-fit-group">
+          <button class="prop-align-btn${currentFit==='cover'?' active':''}" data-fit="cover" title="꽉 채우기">꽉 채우기</button>
+          <button class="prop-align-btn${currentFit==='contain'?' active':''}" data-fit="contain" title="원본 비율">원본 비율</button>
+        </div>
+      </div>
       <button class="prop-action-btn secondary" id="asset-pos-btn">이미지 위치 조절</button>
       <button class="prop-action-btn secondary" id="asset-replace-btn">이미지 교체</button>
       <button class="prop-action-btn danger"    id="asset-remove-btn">이미지 제거</button>
@@ -325,6 +333,16 @@ export function showAssetProperties(ab) {
 
 
   if (hasImage) {
+    document.getElementById('asset-fit-group').addEventListener('click', e => {
+      const btn = e.target.closest('[data-fit]');
+      if (!btn) return;
+      const fit = btn.dataset.fit;
+      ab.dataset.fit = fit;
+      const img = ab.querySelector('.asset-img');
+      if (img) img.style.objectFit = fit;
+      document.querySelectorAll('#asset-fit-group [data-fit]').forEach(b => b.classList.toggle('active', b === btn));
+      window.pushHistory?.();
+    });
     document.getElementById('asset-pos-btn').addEventListener('click', () => window.enterPosDragMode(ab));
     document.getElementById('asset-replace-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
     document.getElementById('asset-remove-btn').addEventListener('click', () => window.clearAssetImage(ab));

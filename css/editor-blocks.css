@@ -122,10 +122,6 @@
 .asset-handle.sw { bottom: -3.5px; left:  -3.5px; cursor: sw-resize; }
 .asset-handle.se { bottom: -3.5px; right: -3.5px; cursor: se-resize; }
 
-/* asset-block 선택 시 overflow 해제 — 핸들이 잘리지 않도록 */
-.asset-block.selected {
-  overflow: visible !important;
-}
 
 /* ── Asset Block overlay resize handles (프레임 핸들과 동일 스타일) ── */
 .asset-overlay-handle {
@@ -204,9 +200,16 @@
   padding: 0;
   margin-top: 0;
   margin-bottom: 0;
-  overflow: hidden;
+  overflow: visible; /* 핸들이 프레임 밖에 위치할 수 있도록 — 클리핑은 .asset-img-clip이 담당 */
   position: relative;
   background: transparent;
+}
+/* 이미지 클리핑 전용 래퍼 — asset-block 범위로 img를 항상 클리핑 */
+.asset-img-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
 }
 .asset-img {
   width: 100%;
@@ -217,26 +220,31 @@
 
 /* 이미지 편집 모드 */
 .asset-block.img-editing {
-  outline: 2px dashed var(--sel-color) !important;
-  outline-offset: 3px;
   cursor: default;
 }
 .asset-block.img-editing .asset-img {
   cursor: move;
   user-select: none;
-  /* outline 제거 — 이중 아웃라인 방지 */
+}
+/* 피그마 크롭 모드: 이미지 전체 경계선 (클리핑 밖으로 표시) */
+.img-boundary {
+  position: absolute;
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
+  pointer-events: none;
+  z-index: 15;
+  box-sizing: border-box;
 }
 .img-corner-handle {
   position: absolute;
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
   background: #fff;
-  border: 1.5px solid var(--sel-color);
-  border-radius: 2px;
-  z-index: 20;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.35), 0 0 0 1px rgba(21,146,254,0.15);
-  transform: scale(var(--inv-zoom, 1));
-  transform-origin: center center;
+  border: 1px solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 9992;
+  box-sizing: border-box;
+  pointer-events: auto;
 }
 .img-corner-handle:hover { background: var(--sel-color); }
 .img-edge-handle {
@@ -244,12 +252,39 @@
   width: 7px;
   height: 7px;
   background: var(--sel-color);
-  border: 1.5px solid #fff;
+  border: 1px solid #fff;
   border-radius: 50%;
-  z-index: 20;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4), 0 0 0 1px rgba(21,146,254,0.3);
-  transform: scale(var(--inv-zoom, 1));
-  transform-origin: center center;
+  z-index: 9992;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+/* 스냅 가이드 라인 */
+.img-snap-guide-h {
+  position: absolute;
+  height: 1px;
+  background: var(--sel-color);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 9993;
+  transform: translateY(-0.5px);
+}
+.img-snap-guide-v {
+  position: absolute;
+  width: 1px;
+  background: var(--sel-color);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 9993;
+  transform: translateX(-0.5px);
+}
+/* 회전 존 — 모서리 핸들 바깥 영역, 핸들보다 낮은 z-index */
+.img-rotate-zone {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  z-index: 9991;
+  pointer-events: auto;
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'><path d='M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z' fill='%231592fe'/></svg>") 8 8, crosshair;
 }
 .icon-circle-block.img-editing {
   outline: 2px dashed var(--sel-color) !important;

@@ -236,7 +236,14 @@ async function switchPage(pageId) {
   canvasEl.innerHTML = page.canvas || '';
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
   canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
-  canvasEl.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint').forEach(el => el.remove());
+  canvasEl.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone').forEach(el => el.remove());
+  // 구버전 마이그레이션: .asset-img-clip 래퍼 없는 경우 추가
+  canvasEl.querySelectorAll('.asset-block.has-image > .asset-img').forEach(img => {
+    const clip = document.createElement('div');
+    clip.className = 'asset-img-clip';
+    img.parentNode.insertBefore(clip, img);
+    clip.appendChild(img);
+  });
   // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
   const propPanel = document.querySelector('#panel-right .panel-body');
   if (propPanel) propPanel.innerHTML = '';
@@ -291,7 +298,7 @@ function getSerializedCanvas() {
   const clone = canvasEl.cloneNode(true);
   // ghost 섹션은 저장에서 제외
   clone.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .ci-handle, .shape-handle').forEach(el => el.remove());
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle').forEach(el => el.remove());
   clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   clone.querySelectorAll('.ci-selected').forEach(el => el.classList.remove('ci-selected'));
   clone.querySelectorAll('.ci-active').forEach(el => el.classList.remove('ci-active'));
