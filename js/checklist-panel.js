@@ -179,18 +179,21 @@ function showPinPopup(item, pinEl) {
     </div>`;
   const textEl = popup.querySelector('.todo-pin-popup-text');
   textEl.addEventListener('blur', () => {
-    const newText = textEl.textContent.trim();
+    const newText = textEl.innerText.trim(); // innerText로 줄바꿈 보존
     if (newText && newText !== item.text) {
       item.text = newText;
       const items = loadItems().map(it => it.id === item.id ? { ...it, text: newText } : it);
       saveItems(items);
-      // rAF으로 격리 — blur 직후 document click { once } 리스너와 순서 충돌 방지
       requestAnimationFrame(() => renderChecklistPanel());
     }
   });
   textEl.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
+    // Enter / Shift+Enter 모두 줄바꿈 허용 (blur 저장 제거)
     e.stopPropagation();
+  });
+  // 텍스트 입력 시 팝업 높이 변화 → 위치 재보정
+  textEl.addEventListener('input', () => {
+    requestAnimationFrame(() => _positionPopupNearPin(popup, pinEl));
   });
   textEl.addEventListener('click', e => e.stopPropagation());
 
