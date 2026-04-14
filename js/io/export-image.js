@@ -2,6 +2,39 @@ import { canvasEl, state } from '../globals.js';
 
 const CANVAS_W = 860;
 
+// cvb(canvas-block)의 CSS transform:scale()을 실제 px 값으로 평탄화
+// html2canvas는 transform:scale() 안쪽 background-image를 잘못 렌더링함
+function flattenCvbTransform(cvbEl) {
+  const inner = cvbEl.querySelector('.cvb-inner');
+  if (!inner) return;
+  const match = (inner.style.transform || '').match(/scale\(([^)]+)\)/);
+  if (!match) return;
+  const s = parseFloat(match[1]);
+  if (!s || s === 1) return;
+
+  const scalePx = (style, props) => props.forEach(p => {
+    const v = parseFloat(style[p]);
+    if (!isNaN(v) && style[p]) style[p] = (v * s) + 'px';
+  });
+
+  Array.from(inner.children).forEach(cell => {
+    scalePx(cell.style, ['left', 'top', 'width', 'height', 'borderRadius']);
+    Array.from(cell.children).forEach(child => {
+      scalePx(child.style, ['left', 'top', 'width', 'height',
+        'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+        'gap', 'borderRadius', 'fontSize']);
+      child.querySelectorAll('[style]').forEach(el =>
+        scalePx(el.style, ['fontSize', 'left', 'top', 'width', 'height', 'lineHeight', 'gap', 'borderRadius'])
+      );
+    });
+  });
+
+  inner.style.width     = (parseFloat(inner.style.width)  * s) + 'px';
+  inner.style.height    = (parseFloat(inner.style.height) * s) + 'px';
+  inner.style.transform = 'none';
+  cvbEl.style.height    = inner.style.height;
+}
+
 async function exportSection(sec, format, width) {
   const fmt = format || 'png';
   const w   = width  || CANVAS_W;
@@ -18,16 +51,16 @@ async function exportSection(sec, format, width) {
 
   document.body.appendChild(clone);
 
-  // cvb(canvas-block) 재렌더링 — clone이 860px 컨테이너에 붙은 후
-  // applyScale()이 block.offsetWidth 기준으로 재계산되어야 올바른 scale 적용
+  // cvb(canvas-block): renderCanvas로 scale 재계산 후 transform 평탄화
+  // html2canvas가 transform:scale() 내부 background-image를 잘못 렌더링하므로
+  // 실제 px 값으로 변환하여 transform 제거
   clone.querySelectorAll('.canvas-block[data-card-mode]').forEach(cb => {
     if (window.renderCanvas) {
       window.renderCanvas(cb);
-      // 정적 export용 clone이므로 ResizeObserver는 즉시 해제
       if (cb._cvbRO) { cb._cvbRO.disconnect(); cb._cvbRO = null; }
     }
+    flattenCvbTransform(cb);
   });
-  // scale 스타일 적용을 위해 레이아웃 플러시
   clone.getBoundingClientRect();
 
   const secBg   = sec.style.background || sec.style.backgroundColor || '';
