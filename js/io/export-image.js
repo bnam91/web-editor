@@ -12,11 +12,11 @@ function flattenCvbTransform(cvbEl) {
   const s = parseFloat(match[1]);
   if (!s || s === 1) return;
 
-  // % 값은 건드리지 않음 (parseFloat("100%") = 100으로 잘못 변환되는 버그 방지)
+  // 순수 px 단위 값만 스케일 (%, 단위없는 값, 복합 shorthand 제외)
+  // 예: "48px" → 스케일, "1.3"(line-height) → 건드리지 않음, "100%" → 건드리지 않음
   const scalePx = (style, props) => props.forEach(p => {
-    if (!style[p] || style[p].includes('%')) return;
-    const v = parseFloat(style[p]);
-    if (!isNaN(v)) style[p] = (v * s) + 'px';
+    if (!style[p] || !/^[\d.]+px$/.test(style[p].trim())) return;
+    style[p] = (parseFloat(style[p]) * s) + 'px';
   });
 
   Array.from(inner.children).forEach(cell => {
@@ -53,6 +53,25 @@ async function exportSection(sec, format, width) {
 
   document.body.appendChild(clone);
 
+  // html2canvas는 CSS `inset` shorthand를 지원하지 않음
+  // clone 전체에서 inset → top/right/bottom/left 명시적 변환
+  clone.querySelectorAll('[style]').forEach(el => {
+    if (!el.style.inset) return;
+    const parts = el.style.inset.trim().split(/\s+/);
+    const [t, r, b, l] = parts.length === 1 ? [parts[0], parts[0], parts[0], parts[0]]
+                       : parts.length === 2 ? [parts[0], parts[1], parts[0], parts[1]]
+                       : parts.length === 3 ? [parts[0], parts[1], parts[2], parts[1]]
+                       : parts;
+    el.style.inset = '';
+    if (t !== 'auto') el.style.top    = t;
+    if (r !== 'auto') el.style.right  = r;
+    if (b !== 'auto') el.style.bottom = b;
+    if (l !== 'auto') el.style.left   = l;
+  });
+
+  // 레이아웃 강제 확정 (offsetWidth/Height 정확도)
+  clone.getBoundingClientRect();
+
   // cvb(canvas-block): renderCanvas로 scale 재계산 후 transform 평탄화
   // html2canvas가 transform:scale() 내부 background-image를 잘못 렌더링하므로
   // 실제 px 값으로 변환하여 transform 제거
@@ -62,15 +81,43 @@ async function exportSection(sec, format, width) {
       window.renderCanvas(cb);
       if (cb._cvbRO) { cb._cvbRO.disconnect(); cb._cvbRO = null; }
     }
+
+    // renderCanvas가 cssText에 right:auto;bottom:auto를 포함시켜 브라우저가
+    // inset 단축 속성으로 재직렬화함 → html2canvas 파싱 오류 방지를 위해 재변환
+    cb.querySelectorAll('[style]').forEach(el => {
+      if (!el.style.inset) return;
+      const parts = el.style.inset.trim().split(/\s+/);
+      const [t, r, b, l] = parts.length === 1 ? [parts[0], parts[0], parts[0], parts[0]]
+                         : parts.length === 2 ? [parts[0], parts[1], parts[0], parts[1]]
+                         : parts.length === 3 ? [parts[0], parts[1], parts[2], parts[1]]
+                         : parts;
+      el.style.inset = '';
+      if (t !== 'auto') el.style.top    = t;
+      if (r !== 'auto') el.style.right  = r;
+      if (b !== 'auto') el.style.bottom = b;
+      if (l !== 'auto') el.style.left   = l;
+    });
+
     flattenCvbTransform(cb);
+    cb.getBoundingClientRect(); // flattenCvbTransform 후 레이아웃 재확정
 
     // html2canvas는 transform:scale() 내부의 background-image를 렌더링 못 함
     // background-image div → <canvas>로 직접 drawImage (html2canvas가 canvas 태그는 완벽 지원)
     const inner = cb.querySelector('.cvb-inner');
     if (inner) {
-      // 에디터 UI 오버레이 제거 (선택 표시 등 pointer-events:none + z-index 요소)
-      // html2canvas가 inset:0 CSS shorthand를 잘못 처리하여 오버레이가 이미지를 가림
-      inner.querySelectorAll('[style*="pointer-events: none"]').forEach(el => el.remove());
+      // html2canvas가 box-shadow:inset을 solid fill로 잘못 렌더링
+      // → border로 교체 (border는 html2canvas 완벽 지원)
+      inner.querySelectorAll('[style*="box-shadow"]').forEach(el => {
+        const bs = el.style.boxShadow;
+        // "rgb(240,70,70) 0px 0px 0px 16px inset" 패턴 파싱
+        const m = bs.match(/^(rgba?\([^)]+\)|#\w+|\w+)\s+0px\s+0px\s+0px\s+([\d.]+)px\s+inset/);
+        if (!m) return;
+        const color = m[1], spread = parseFloat(m[2]);
+        el.style.boxShadow = '';
+        el.style.border = `${spread}px solid ${color}`;
+        el.style.boxSizing = 'border-box';
+        el.style.background = el.style.background || 'transparent';
+      });
 
       const bgDivs = [...inner.querySelectorAll('[style*="background-image"]')];
       for (const div of bgDivs) {
@@ -110,8 +157,6 @@ async function exportSection(sec, format, width) {
       }
     }
   }
-
-  clone.getBoundingClientRect();
 
   const secBg   = sec.style.background || sec.style.backgroundColor || '';
   const bgColor = (secBg && secBg !== 'transparent') ? secBg : (state.pageSettings.bg || '#ffffff');
