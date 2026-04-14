@@ -237,13 +237,7 @@ async function switchPage(pageId) {
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
   canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   canvasEl.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone').forEach(el => el.remove());
-  // 구버전 마이그레이션: .asset-img-clip 래퍼 없는 경우 추가
-  canvasEl.querySelectorAll('.asset-block.has-image > .asset-img').forEach(img => {
-    const clip = document.createElement('div');
-    clip.className = 'asset-img-clip';
-    img.parentNode.insertBefore(clip, img);
-    clip.appendChild(img);
-  });
+  // (마이그레이션은 rebindAll 내부에서 처리)
   // propPanel 클리어 — 이전 페이지의 속성 패널 내용이 잔존하지 않도록
   const propPanel = document.querySelector('#panel-right .panel-body');
   if (propPanel) propPanel.innerHTML = '';
@@ -504,6 +498,13 @@ function migrateColsFromDOM(canvasEl) {
 
 function rebindAll() {
   migrateColsFromDOM(canvasEl);
+  // 구버전 마이그레이션: .asset-img-clip 래퍼 없는 경우 추가 (undo/redo 복원 후에도 항상 실행)
+  canvasEl.querySelectorAll('.asset-block.has-image > .asset-img').forEach(img => {
+    const clip = document.createElement('div');
+    clip.className = 'asset-img-clip';
+    img.parentNode.insertBefore(clip, img);
+    clip.appendChild(img);
+  });
   // undo/redo 복원 중(_historyPaused)에는 clearHistory 금지 — 호출 시 히스토리 스택 전체 초기화되어 1스텝만 undo 가능해지는 버그
   if (!window._historyPaused) window.clearHistory?.();
   // asset-overlay 오염 정리: contenteditable 제거 + 직접 텍스트 노드 제거
