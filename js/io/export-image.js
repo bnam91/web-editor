@@ -98,6 +98,11 @@ async function exportSection(sec, format, width) {
       if (l !== 'auto') el.style.left   = l;
     });
 
+    // flattenCvbTransform 전에 scale 값 캡처 (transform 제거 전)
+    const cvbInnerEl = cb.querySelector('.cvb-inner');
+    const cvbScaleMatch = (cvbInnerEl?.style.transform || '').match(/scale\(([^)]+)\)/);
+    const cvbScale = cvbScaleMatch ? parseFloat(cvbScaleMatch[1]) : 1;
+
     flattenCvbTransform(cb);
     cb.getBoundingClientRect(); // flattenCvbTransform 후 레이아웃 재확정
 
@@ -106,13 +111,13 @@ async function exportSection(sec, format, width) {
     const inner = cb.querySelector('.cvb-inner');
     if (inner) {
       // html2canvas가 box-shadow:inset을 solid fill로 잘못 렌더링
-      // → border로 교체 (border는 html2canvas 완벽 지원)
+      // → border로 교체. spread는 디자인 좌표계 값이므로 cvbScale 곱해서 실제 px 맞춤
       inner.querySelectorAll('[style*="box-shadow"]').forEach(el => {
         const bs = el.style.boxShadow;
         // "rgb(240,70,70) 0px 0px 0px 16px inset" 패턴 파싱
         const m = bs.match(/^(rgba?\([^)]+\)|#\w+|\w+)\s+0px\s+0px\s+0px\s+([\d.]+)px\s+inset/);
         if (!m) return;
-        const color = m[1], spread = parseFloat(m[2]);
+        const color = m[1], spread = parseFloat(m[2]) * cvbScale;
         el.style.boxShadow = '';
         el.style.border = `${spread}px solid ${color}`;
         el.style.boxSizing = 'border-box';
