@@ -378,6 +378,9 @@ function showColorAdjustPanel(ab) {
   const img = ab.querySelector('.asset-img');
   if (!img) return;
 
+  // 편집 시작 전 스냅샷 저장 → Cmd+Z로 색상 조정 전체 취소 가능
+  window.pushHistory?.('색상 조정');
+
   const adj = _readAdj(img);
   body.innerHTML = _buildPanelHTML(adj);
 

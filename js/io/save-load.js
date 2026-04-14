@@ -507,6 +507,12 @@ function rebindAll() {
   });
   // undo/redo 복원 중(_historyPaused)에는 clearHistory 금지 — 호출 시 히스토리 스택 전체 초기화되어 1스텝만 undo 가능해지는 버그
   if (!window._historyPaused) window.clearHistory?.();
+  // undo/redo 복원 후 색상 조정 SVG 필터 재적용
+  // (data-adj-* 속성은 HTML에 포함되어 복원되지만 SVG 필터 매트릭스는 별도 DOM이므로 재동기화 필요)
+  if (window.restoreImgColorAdjust) {
+    canvasEl.querySelectorAll('.asset-img[data-adj-exposure], .asset-img[data-adj-contrast], .asset-img[data-adj-saturation], .asset-img[data-adj-temperature], .asset-img[data-adj-tint], .asset-img[data-adj-highlights], .asset-img[data-adj-shadows]')
+      .forEach(img => window.restoreImgColorAdjust(img));
+  }
   // asset-overlay 오염 정리: contenteditable 제거 + 직접 텍스트 노드 제거
   canvasEl.querySelectorAll('.asset-overlay').forEach(overlay => {
     overlay.removeAttribute('contenteditable');
