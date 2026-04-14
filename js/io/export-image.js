@@ -56,7 +56,8 @@ async function exportSection(sec, format, width) {
   // cvb(canvas-block): renderCanvas로 scale 재계산 후 transform 평탄화
   // html2canvas가 transform:scale() 내부 background-image를 잘못 렌더링하므로
   // 실제 px 값으로 변환하여 transform 제거
-  clone.querySelectorAll('.canvas-block[data-card-mode]').forEach(cb => {
+  // forEach 대신 for...of 사용 (내부에서 await 필요)
+  for (const cb of clone.querySelectorAll('.canvas-block[data-card-mode]')) {
     if (window.renderCanvas) {
       window.renderCanvas(cb);
       if (cb._cvbRO) { cb._cvbRO.disconnect(); cb._cvbRO = null; }
@@ -64,39 +65,51 @@ async function exportSection(sec, format, width) {
     flattenCvbTransform(cb);
 
     // html2canvas는 transform:scale() 내부의 background-image를 렌더링 못 함
-    // background-image div → <img> 태그로 변환하여 정상 렌더링
+    // background-image div → <canvas>로 직접 drawImage (html2canvas가 canvas 태그는 완벽 지원)
     const inner = cb.querySelector('.cvb-inner');
     if (inner) {
       // 에디터 UI 오버레이 제거 (선택 표시 등 pointer-events:none + z-index 요소)
       // html2canvas가 inset:0 CSS shorthand를 잘못 처리하여 오버레이가 이미지를 가림
       inner.querySelectorAll('[style*="pointer-events: none"]').forEach(el => el.remove());
 
-      inner.querySelectorAll('[style*="background-image"]').forEach(div => {
+      const bgDivs = [...inner.querySelectorAll('[style*="background-image"]')];
+      for (const div of bgDivs) {
         const bg = div.style.backgroundImage;
         const match = bg.match(/url\(["']?([^"')]+)["']?\)/);
-        if (!match) return;
-        const posX = div.style.backgroundPositionX || '50%';
-        const posY = div.style.backgroundPositionY || '50%';
-        div.style.backgroundImage = '';
-        div.style.position = div.style.position || 'relative';
-        div.style.overflow = 'hidden';
-        // html2canvas는 position:absolute + % 크기를 부정확하게 처리함
-        // offsetWidth/offsetHeight로 실제 렌더 크기 사용 (% 값 parseFloat 오작동 방지)
-        const divW = div.offsetWidth  || (div.style.width  && !div.style.width.includes('%')  ? parseFloat(div.style.width)  : 0) || 400;
-        const divH = div.offsetHeight || (div.style.height && !div.style.height.includes('%') ? parseFloat(div.style.height) : 0) || 300;
-        const imgEl = document.createElement('img');
-        imgEl.src = match[1];
-        imgEl.style.cssText = `position:absolute;top:0;left:0;width:${divW}px;height:${divH}px;object-fit:cover;object-position:${posX} ${posY};display:block;`;
-        div.appendChild(imgEl);
-      });
-    }
-  });
+        if (!match) continue;
 
-  // 추가된 img 태그가 모두 로드될 때까지 대기
-  const addedImgs = [...clone.querySelectorAll('img[style*="object-fit"]')];
-  await Promise.all(addedImgs.map(img =>
-    img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
-  ));
+        const divW = div.offsetWidth  || 400;
+        const divH = div.offsetHeight || 300;
+
+        // <canvas>로 직접 drawImage → html2canvas가 canvas 태그는 완벽 지원
+        const cvs = document.createElement('canvas');
+        cvs.width  = divW;
+        cvs.height = divH;
+        const ctx2 = cvs.getContext('2d');
+
+        const imgObj = new Image();
+        imgObj.src = match[1];
+        await new Promise(res => { imgObj.onload = imgObj.onerror = res; });
+
+        // background-size:cover 수동 계산
+        const scale = Math.max(divW / imgObj.naturalWidth, divH / imgObj.naturalHeight);
+        const sw = imgObj.naturalWidth  * scale;
+        const sh = imgObj.naturalHeight * scale;
+        // background-position을 % → px offset으로 변환
+        const px = parseFloat(div.style.backgroundPositionX) || 50;
+        const py = parseFloat(div.style.backgroundPositionY) || 50;
+        const ox = -((sw - divW) * px / 100);
+        const oy = -((sh - divH) * py / 100);
+        ctx2.drawImage(imgObj, ox, oy, sw, sh);
+
+        cvs.style.cssText = 'display:block;';
+        div.style.backgroundImage = '';
+        // div 내용을 canvas로 교체
+        div.innerHTML = '';
+        div.appendChild(cvs);
+      }
+    }
+  }
 
   clone.getBoundingClientRect();
 
