@@ -463,7 +463,8 @@ function enterImageEditMode(ab) {
                             e.target.classList.contains('img-edge-handle')   ||
                             e.target.classList.contains('img-boundary')      ||
                             e.target.classList.contains('img-rotate-zone');
-    if (!ab.contains(e.target) && !isOverlayHandle) exitImageEditMode(ab);
+    const isColorPanel = !!e.target.closest('#color-adjust-panel'); // 색상 조정 패널 클릭은 편집 모드 유지
+    if (!ab.contains(e.target) && !isOverlayHandle && !isColorPanel) exitImageEditMode(ab);
   };
   ab._exitImgEsc  = e => { if (e.key === 'Escape') exitImageEditMode(ab); };
   setTimeout(() => {
