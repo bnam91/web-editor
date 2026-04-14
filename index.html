@@ -522,6 +522,19 @@
   <div id="ss-handles-overlay"></div>
   </div><!-- /canvas-area -->
 
+  <!-- 색상 조정 패널 — 이미지 편집 모드 진입 시 Properties 패널 왼쪽에 표시 -->
+  <div class="panel" id="color-adjust-panel" style="display:none">
+    <div class="panel-header">
+      <svg class="icon" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M8 3v1.5M8 11.5V13M3 8h1.5M11.5 8H13M4.4 4.4l1.06 1.06M10.54 10.54l1.06 1.06M4.4 11.6l1.06-1.06M10.54 5.46l1.06-1.06"
+          stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      색상 조정
+    </div>
+    <div class="panel-body" id="color-adjust-body"></div>
+  </div>
+
   <!-- Right: Properties -->
   <div class="panel" id="panel-right">
     <div id="rp-top-row">
@@ -552,18 +565,6 @@
 
   </div>
 
-  <!-- 색상 조정 패널 — 이미지 편집 모드 진입 시 표시 -->
-  <div id="color-adjust-panel" style="display:none">
-    <div class="panel-header">
-      <svg class="icon" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/>
-        <path d="M8 3v1.5M8 11.5V13M3 8h1.5M11.5 8H13M4.4 4.4l1.06 1.06M10.54 10.54l1.06 1.06M4.4 11.6l1.06-1.06M10.54 5.46l1.06-1.06"
-          stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-      </svg>
-      색상 조정
-    </div>
-    <div class="panel-body" id="color-adjust-body"></div>
-  </div>
 
 </div>
 

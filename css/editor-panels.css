@@ -2,12 +2,6 @@
 #main { flex: 1; display: flex; overflow: hidden; }
 
 /* ── 색상 조정 패널 (이미지 편집 모드 전용) ── */
-#color-adjust-panel {
-  width: 220px; flex-shrink: 0;
-  background: var(--ui-bg-base);
-  border-left: 1px solid var(--ui-bg-hover);
-  flex-direction: column; overflow: hidden;
-}
 #color-adjust-panel .ca-label {
   width: 56px; font-size: 10px;
 }
