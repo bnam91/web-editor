@@ -12,10 +12,23 @@ async function exportSection(sec, format, width) {
   const cloneToolbar = clone.querySelector('.section-toolbar');
   if (cloneLabel)   cloneLabel.remove();
   if (cloneToolbar) cloneToolbar.remove();
+  clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
   clone.classList.remove('selected');
   clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
 
   document.body.appendChild(clone);
+
+  // cvb(canvas-block) 재렌더링 — clone이 860px 컨테이너에 붙은 후
+  // applyScale()이 block.offsetWidth 기준으로 재계산되어야 올바른 scale 적용
+  clone.querySelectorAll('.canvas-block[data-card-mode]').forEach(cb => {
+    if (window.renderCanvas) {
+      window.renderCanvas(cb);
+      // 정적 export용 clone이므로 ResizeObserver는 즉시 해제
+      if (cb._cvbRO) { cb._cvbRO.disconnect(); cb._cvbRO = null; }
+    }
+  });
+  // scale 스타일 적용을 위해 레이아웃 플러시
+  clone.getBoundingClientRect();
 
   const secBg   = sec.style.background || sec.style.backgroundColor || '';
   const bgColor = (secBg && secBg !== 'transparent') ? secBg : (state.pageSettings.bg || '#ffffff');
