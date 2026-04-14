@@ -12,9 +12,11 @@ function flattenCvbTransform(cvbEl) {
   const s = parseFloat(match[1]);
   if (!s || s === 1) return;
 
+  // % 값은 건드리지 않음 (parseFloat("100%") = 100으로 잘못 변환되는 버그 방지)
   const scalePx = (style, props) => props.forEach(p => {
+    if (!style[p] || style[p].includes('%')) return;
     const v = parseFloat(style[p]);
-    if (!isNaN(v) && style[p]) style[p] = (v * s) + 'px';
+    if (!isNaN(v)) style[p] = (v * s) + 'px';
   });
 
   Array.from(inner.children).forEach(cell => {
@@ -65,6 +67,10 @@ async function exportSection(sec, format, width) {
     // background-image div → <img> 태그로 변환하여 정상 렌더링
     const inner = cb.querySelector('.cvb-inner');
     if (inner) {
+      // 에디터 UI 오버레이 제거 (선택 표시 등 pointer-events:none + z-index 요소)
+      // html2canvas가 inset:0 CSS shorthand를 잘못 처리하여 오버레이가 이미지를 가림
+      inner.querySelectorAll('[style*="pointer-events: none"]').forEach(el => el.remove());
+
       inner.querySelectorAll('[style*="background-image"]').forEach(div => {
         const bg = div.style.backgroundImage;
         const match = bg.match(/url\(["']?([^"')]+)["']?\)/);
@@ -74,13 +80,24 @@ async function exportSection(sec, format, width) {
         div.style.backgroundImage = '';
         div.style.position = div.style.position || 'relative';
         div.style.overflow = 'hidden';
+        // html2canvas는 position:absolute + % 크기를 부정확하게 처리함
+        // offsetWidth/offsetHeight로 실제 렌더 크기 사용 (% 값 parseFloat 오작동 방지)
+        const divW = div.offsetWidth  || (div.style.width  && !div.style.width.includes('%')  ? parseFloat(div.style.width)  : 0) || 400;
+        const divH = div.offsetHeight || (div.style.height && !div.style.height.includes('%') ? parseFloat(div.style.height) : 0) || 300;
         const imgEl = document.createElement('img');
         imgEl.src = match[1];
-        imgEl.style.cssText = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${posX} ${posY};display:block;`;
+        imgEl.style.cssText = `position:absolute;top:0;left:0;width:${divW}px;height:${divH}px;object-fit:cover;object-position:${posX} ${posY};display:block;`;
         div.appendChild(imgEl);
       });
     }
   });
+
+  // 추가된 img 태그가 모두 로드될 때까지 대기
+  const addedImgs = [...clone.querySelectorAll('img[style*="object-fit"]')];
+  await Promise.all(addedImgs.map(img =>
+    img.complete ? Promise.resolve() : new Promise(res => { img.onload = res; img.onerror = res; })
+  ));
+
   clone.getBoundingClientRect();
 
   const secBg   = sec.style.background || sec.style.backgroundColor || '';
