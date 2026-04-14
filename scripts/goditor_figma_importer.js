@@ -224,6 +224,22 @@ function nodeToBlock(node, frameBox, containerW = 860) {
     svgContent = svgResult?.svgString || svgResult?.svg || (typeof svgResult === 'string' ? svgResult : '');
   } catch (e) {}
 
+  // 이미지 fill 감지: SVG 안에 <image xlink:href="data:image/..." 패턴이 있으면 image 타입으로 변환
+  if (typeof svgContent === 'string' && svgContent.includes('xlink:href="data:image/')) {
+    const base64Match = svgContent.match(/xlink:href="(data:image\/[^"]+)"/);
+    const scaledW = Math.round(bboxW * scale);
+    const scaledH = Math.round(bboxH * scale);
+    return {
+      type: 'image',
+      label: node.name || node.type,
+      preset: bboxH / bboxW > 1.1 ? 'tall' : bboxH / bboxW < 0.75 ? 'wide' : 'standard',
+      src: base64Match ? base64Match[1] : '',
+      width: scaledW,
+      height: scaledH,
+      x: relX,
+    };
+  }
+
   // SVG 자연 크기가 bbox보다 훨씬 작으면 SVG 크기 우선 (CONNECTOR/LINE 등)
   const svgDims = getSvgNaturalSize(svgContent);
   const useW = (svgDims && bboxH / svgDims.h > 3) ? svgDims.w : bboxW;

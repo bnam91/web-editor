@@ -13,9 +13,11 @@ const fs = require('fs');
 const args = process.argv.slice(2);
 const portIdx = args.indexOf('--port');
 const PORT = portIdx !== -1 ? parseInt(args[portIdx + 1]) : 9336;
-const specPath = args.find(a => !a.startsWith('--') && a !== String(PORT));
+const targetSecIdx = args.indexOf('--target-section');
+const TARGET_SECTION = targetSecIdx !== -1 ? args[targetSecIdx + 1] : null;
+const specPath = args.find(a => !a.startsWith('--') && a !== String(PORT) && a !== TARGET_SECTION);
 if (!specPath) {
-  console.error('usage: node goditor_runner.js <spec.json> [--port 9337]');
+  console.error('usage: node goditor_runner.js <spec.json> [--port 9337] [--target-section sec_xxx]');
   process.exit(1);
 }
 const spec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
@@ -107,6 +109,28 @@ function getBlockHeight(block) {
         if (block.height   !== undefined) assetOpts.height   = block.height;
         const hasOpts = Object.keys(assetOpts).length > 0;
         await ev(`window.addAssetBlock('${block.preset || 'standard'}'${hasOpts ? `, ${JSON.stringify(assetOpts)}` : ''})`);
+        // src가 있으면 마지막 추가된 asset-block에 이미지 주입 (loadImageToAsset 방식)
+        if (block.src) {
+          await ev(`(function(){
+            const sec = document.querySelector('.section-block.selected');
+            if (!sec) return;
+            const abs = sec.querySelectorAll('.asset-block');
+            const ab = abs[abs.length - 1];
+            if (!ab) return;
+            const src = ${JSON.stringify(block.src)};
+            ab.classList.add('has-image');
+            ab.dataset.imgSrc = src;
+            ab.dataset.fit = 'cover';
+            const prevOverlay = ab.querySelector('.asset-overlay');
+            const prevHTML = prevOverlay ? prevOverlay.innerHTML : '';
+            const prevStyle = prevOverlay ? (prevOverlay.getAttribute('style') || '') : '';
+            ab.innerHTML = '<img class="asset-img" src="' + src + '" draggable="false" style="object-fit:cover"><button class="asset-overlay-clear" title="이미지 제거">✕</button><div class="asset-overlay"' + (prevStyle ? ' style="' + prevStyle + '"' : '') + '>' + prevHTML + '</div>';
+            ab.querySelector('.asset-overlay-clear').addEventListener('click', function(e){
+              e.stopPropagation();
+              if (window.clearAssetImage) window.clearAssetImage(ab);
+            });
+          })()`);
+        }
         break;
       }
       case 'gap':
@@ -144,6 +168,32 @@ function getBlockHeight(block) {
           y: block.y || 0,
         })})`);
         break;
+      case 'sub-section': {
+        // sub-section → addFrameBlock (freeLayout) + 자식 블록 절대좌표 배치
+        const ssBg = block.bg || 'transparent';
+        const ssH  = block.height || 100;
+        const ssW  = block.width  || 860;
+        await ev(`window._activeFrame = null`);
+        await ev(`window.addFrameBlock({ bg: '${ssBg}' })`);
+        await ev(`(function(){
+          const f = window._activeFrame;
+          if (!f) return;
+          f.style.width    = '${ssW}px';
+          f.style.height   = '${ssH}px';
+          f.style.minHeight= '${ssH}px';
+          f.dataset.height = '${ssH}';
+          f.dataset.freeLayout = 'true';
+          f.style.position = 'relative';
+          f.style.overflow = 'hidden';
+        })()`);
+        await delay(200);
+        for (const child of (block.children || [])) {
+          await buildBlockInFrame(child, child.x || 0, child.y || 0, child.width || ssW);
+        }
+        await ev(`window.deactivateFrame()`);
+        await delay(100);
+        break;
+      }
       default:
         console.warn(`⚠️ 알 수 없는 블록 타입: ${block.type}`);
     }
@@ -195,6 +245,27 @@ function getBlockHeight(block) {
         const imgOpts = block.preset === 'logo' ? { x, y } : { x, y, width };
         if (block.height !== undefined) imgOpts.height = block.height;
         await ev(`window.addAssetBlock('${block.preset || 'standard'}', ${JSON.stringify(imgOpts)})`);
+        if (block.src) {
+          await ev(`(function(){
+            const f = window._activeFrame;
+            if (!f) return;
+            const abs = f.querySelectorAll('.asset-block');
+            const ab = abs[abs.length - 1];
+            if (!ab) return;
+            const src = ${JSON.stringify(block.src)};
+            ab.classList.add('has-image');
+            ab.dataset.imgSrc = src;
+            ab.dataset.fit = 'cover';
+            const prevOverlay = ab.querySelector('.asset-overlay');
+            const prevHTML = prevOverlay ? prevOverlay.innerHTML : '';
+            const prevStyle = prevOverlay ? (prevOverlay.getAttribute('style') || '') : '';
+            ab.innerHTML = '<img class="asset-img" src="' + src + '" draggable="false" style="object-fit:cover"><button class="asset-overlay-clear" title="이미지 제거">✕</button><div class="asset-overlay"' + (prevStyle ? ' style="' + prevStyle + '"' : '') + '>' + prevHTML + '</div>';
+            ab.querySelector('.asset-overlay-clear').addEventListener('click', function(e){
+              e.stopPropagation();
+              if (window.clearAssetImage) window.clearAssetImage(ab);
+            });
+          })()`);
+        }
         await delay(200);
         return await getLastBlockHeight('image');
       }
@@ -209,6 +280,17 @@ function getBlockHeight(block) {
         await ev(`window.addIconCircleBlock(${JSON.stringify({ size: block.size, bgColor: block.bgColor })})`);
         await delay(200);
         return getBlockHeight(block);
+      case 'joker':
+        await ev(`window.addJokerBlock(${JSON.stringify({
+          label:  block.label,
+          svg:    block.svg,
+          width:  block.width,
+          height: block.height,
+          x:      block.x !== undefined ? block.x : x,
+          y:      block.y !== undefined ? block.y : y,
+        })})`);
+        await delay(200);
+        return block.height || 0;
       default:
         console.warn(`⚠️ frame 내부 미지원 블록: ${block.type}`);
         return 0;
@@ -220,7 +302,25 @@ function getBlockHeight(block) {
     const paddingY = section.settings?.paddingY;
     const paddingX = section.settings?.paddingX;
     const addSecOpts = `{ skipDefaultBlock: true${bg ? `, bg: '${bg}'` : ''}${paddingY !== undefined ? `, paddingY: ${paddingY}` : ''}${paddingX !== undefined ? `, paddingX: ${paddingX}` : ''} }`;
-    await ev(`window.addSection(${addSecOpts})`);
+    if (TARGET_SECTION) {
+      // 기존 섹션 선택 (새 섹션 생성 없이 해당 섹션에 추가) — 고스트 섹션 차단
+      const isGhost = await ev(`(function(){
+        const sec = document.getElementById('${TARGET_SECTION}');
+        if (!sec) return 'not_found';
+        if (sec.dataset.ghost) return 'ghost';
+        return 'ok';
+      })()`);
+      if (isGhost === 'not_found') { console.error(`❌ 섹션 없음: ${TARGET_SECTION}`); process.exit(1); }
+      if (isGhost === 'ghost')     { console.error(`❌ 고스트 섹션은 타겟으로 지정할 수 없습니다: ${TARGET_SECTION}`); process.exit(1); }
+      await ev(`(function(){
+        const sec = document.getElementById('${TARGET_SECTION}');
+        window.deselectAll?.();
+        sec.classList.add('selected');
+        window.syncSection?.(sec);
+      })()`);
+    } else {
+      await ev(`window.addSection(${addSecOpts})`);
+    }
     await delay(300);
 
     for (const row of section.rows) {
@@ -288,6 +388,13 @@ function getBlockHeight(block) {
         await ev(`window.deactivateFrame()`);
         await delay(100);
 
+      } else if (row.layout === 'flex' && row.cols.length > 1) {
+        // --- flex layout: 각 col을 순서대로 블록 추가 ---
+        for (const col of row.cols) {
+          for (const block of (col.blocks || [])) {
+            await buildBlock(block);
+          }
+        }
       } else {
         // --- stack layout: 블록 직접 추가 ---
         for (const block of row.cols[0].blocks) {

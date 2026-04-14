@@ -83,8 +83,8 @@ function toggleVariation(sec) {
   const nextIdx = (activeIdx + 1) % all.length;
   all.forEach((s, i) => { s.dataset.variationActive = i === nextIdx ? '1' : '0'; });
   all.forEach(s => bindVariationToolbarBtn(s));
-  window.selectSection(all[nextIdx]);
   if (window.buildLayerPanel) window.buildLayerPanel();
+  window.selectSection(all[nextIdx]);
   window.pushHistory('베리에이션 전환');
 }
 
