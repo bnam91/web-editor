@@ -329,6 +329,9 @@ function enterImageEditMode(ab) {
       ab.dataset.imgY = parseFloat(img.style.top)  || 0;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      // 드래그 직후 spurious click으로 편집 모드가 종료되는 것을 방지
+      ab._justDragged = true;
+      setTimeout(() => { ab._justDragged = false; }, 50);
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -384,6 +387,9 @@ function enterImageEditMode(ab) {
       ab.dataset.imgY = parseFloat(img.style.top)  || 0;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      // 드래그 직후 spurious click으로 편집 모드가 종료되는 것을 방지
+      ab._justDragged = true;
+      setTimeout(() => { ab._justDragged = false; }, 50);
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -415,6 +421,9 @@ function enterImageEditMode(ab) {
       window.triggerAutoSave?.();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      // 드래그 직후 spurious click으로 편집 모드가 종료되는 것을 방지
+      ab._justDragged = true;
+      setTimeout(() => { ab._justDragged = false; }, 50);
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -448,6 +457,7 @@ function enterImageEditMode(ab) {
   };
 
   ab._exitImgEdit = e => {
+    if (ab._justDragged) return; // 드래그/리사이즈 직후 spurious click 무시
     const isOverlayHandle = e.target.classList.contains('img-corner-handle') ||
                             e.target.classList.contains('img-edge-handle')   ||
                             e.target.classList.contains('img-boundary')      ||

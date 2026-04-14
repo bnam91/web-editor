@@ -630,6 +630,8 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      // 이미지 편집 모드 진행 중 클릭 무시 — 드래그/리사이즈 후 click 버블링으로 편집 모드가 종료되는 버그 방지
+      if (block._imgEditing) return;
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
