@@ -163,6 +163,14 @@ async function exportSection(sec, format, width) {
     }
   }
 
+  // 색상 조정 필터가 적용된 img → Canvas로 bake
+  // html2canvas는 SVG filter url()을 지원하지 않으므로 사전 변환 필요
+  if (window.bakeImgFilterToCanvas) {
+    for (const img of clone.querySelectorAll('.asset-img[data-adj-exposure], .asset-img[data-adj-contrast], .asset-img[data-adj-saturation], .asset-img[data-adj-temperature], .asset-img[data-adj-tint], .asset-img[data-adj-highlights], .asset-img[data-adj-shadows]')) {
+      await window.bakeImgFilterToCanvas(img);
+    }
+  }
+
   const secBg   = sec.style.background || sec.style.backgroundColor || '';
   const bgColor = (secBg && secBg !== 'transparent') ? secBg : (state.pageSettings.bg || '#ffffff');
 

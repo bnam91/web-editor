@@ -438,6 +438,7 @@ function enterImageEditMode(ab) {
   });
 
   renderImgPanel();
+  window.showColorAdjustPanel?.(ab);
 
   // RAF 루프 — 캔버스 패닝/줌 시에도 핸들·경계선 위치 계속 동기화
   let _syncRafId = null;
@@ -475,6 +476,7 @@ function exitImageEditMode(ab) {
   if (!ab._imgEditing) return;
   ab._imgEditing = false;
   ab.classList.remove('img-editing');
+  window.hideColorAdjustPanel?.();
   const img = ab.querySelector('.asset-img');
   if (img) {
     ab.dataset.imgW = img.offsetWidth;
