@@ -5,7 +5,7 @@
 #color-adjust-panel {
   position: fixed;
   right: 252px; /* panel-right(240px) + 12px gap */
-  top: 48px;
+  bottom: 28px;
   width: 236px;
   z-index: 420;
   background: var(--ui-bg-base);

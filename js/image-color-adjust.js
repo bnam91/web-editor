@@ -337,11 +337,12 @@ function _initPanelDrag() {
     e.preventDefault();
     dragging = true;
 
-    // fixed 좌표로 전환 (right → left 방식으로 드래그 처리)
+    // fixed 좌표로 전환 (right/bottom → left/top 방식으로 드래그 처리)
     const rect = panel.getBoundingClientRect();
-    panel.style.left  = rect.left + 'px';
-    panel.style.top   = rect.top  + 'px';
-    panel.style.right = 'auto';
+    panel.style.left   = rect.left + 'px';
+    panel.style.top    = rect.top  + 'px';
+    panel.style.right  = 'auto';
+    panel.style.bottom = 'auto';
     startX    = e.clientX;
     startY    = e.clientY;
     startLeft = rect.left;
@@ -386,13 +387,15 @@ function showColorAdjustPanel(ab) {
 
   // 드래그로 이동한 위치가 있으면 복원, 없으면 기본 CSS 위치
   if (_panelPos) {
-    panel.style.left  = _panelPos.left + 'px';
-    panel.style.top   = _panelPos.top  + 'px';
-    panel.style.right = 'auto';
+    panel.style.left   = _panelPos.left + 'px';
+    panel.style.top    = _panelPos.top  + 'px';
+    panel.style.right  = 'auto';
+    panel.style.bottom = 'auto';
   } else {
-    panel.style.left  = '';
-    panel.style.top   = '';
-    panel.style.right = '';
+    panel.style.left   = '';
+    panel.style.top    = '';
+    panel.style.right  = '';
+    panel.style.bottom = '';
   }
 
   panel.style.display = 'flex';
