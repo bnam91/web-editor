@@ -1,10 +1,53 @@
 /* ── Main Layout ── */
 #main { flex: 1; display: flex; overflow: hidden; }
 
-/* ── 색상 조정 패널 (이미지 편집 모드 전용) ── */
-#color-adjust-panel .ca-label {
-  width: 56px; font-size: 10px;
+/* ── 색상 조정 플로팅 패널 (이미지 편집 모드 전용) ── */
+#color-adjust-panel {
+  position: fixed;
+  right: 252px; /* panel-right(240px) + 12px gap */
+  top: 48px;
+  width: 236px;
+  z-index: 420;
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
 }
+#color-adjust-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--ui-bg-elevated, #1e1e1e);
+  border-bottom: 1px solid var(--ui-border);
+  cursor: grab;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-main);
+  border-radius: 10px 10px 0 0;
+}
+#color-adjust-header:active { cursor: grabbing; }
+#color-adjust-header span { flex: 1; }
+#color-adjust-close {
+  background: none;
+  border: none;
+  color: var(--ui-text-sub);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.6;
+}
+#color-adjust-close:hover { opacity: 1; }
+#color-adjust-body {
+  overflow-y: auto;
+  padding: 6px 0;
+}
+#color-adjust-panel .ca-label { width: 56px; font-size: 10px; }
 
 /* ── Side Panels ── */
 .panel {

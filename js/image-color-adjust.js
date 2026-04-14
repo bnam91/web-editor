@@ -310,6 +310,65 @@ function _bindSliders(img) {
   }
 }
 
+// ─────────────────────────────────────────────
+// 플로팅 패널 드래그
+// ─────────────────────────────────────────────
+
+let _panelPos = null; // { right, top } — null = 기본 CSS 위치 사용
+
+function _initPanelDrag() {
+  const panel  = document.getElementById('color-adjust-panel');
+  const header = document.getElementById('color-adjust-header');
+  const closeBtn = document.getElementById('color-adjust-close');
+  if (!panel || !header) return;
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      hideColorAdjustPanel();
+    });
+  }
+
+  let dragging = false;
+  let startX, startY, startLeft, startTop;
+
+  header.addEventListener('mousedown', e => {
+    if (e.target === closeBtn) return;
+    e.preventDefault();
+    dragging = true;
+
+    // fixed 좌표로 전환 (right → left 방식으로 드래그 처리)
+    const rect = panel.getBoundingClientRect();
+    panel.style.left  = rect.left + 'px';
+    panel.style.top   = rect.top  + 'px';
+    panel.style.right = 'auto';
+    startX    = e.clientX;
+    startY    = e.clientY;
+    startLeft = rect.left;
+    startTop  = rect.top;
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  function onMove(e) {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const newLeft = startLeft + dx;
+    const newTop  = Math.max(0, startTop  + dy);
+    panel.style.left = newLeft + 'px';
+    panel.style.top  = newTop  + 'px';
+    _panelPos = { left: newLeft, top: newTop };
+  }
+
+  function onUp() {
+    dragging = false;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+}
+
 function showColorAdjustPanel(ab) {
   const panel = document.getElementById('color-adjust-panel');
   const body  = document.getElementById('color-adjust-body');
@@ -321,6 +380,18 @@ function showColorAdjustPanel(ab) {
 
   const adj = _readAdj(img);
   body.innerHTML = _buildPanelHTML(adj);
+
+  // 드래그로 이동한 위치가 있으면 복원, 없으면 기본 CSS 위치
+  if (_panelPos) {
+    panel.style.left  = _panelPos.left + 'px';
+    panel.style.top   = _panelPos.top  + 'px';
+    panel.style.right = 'auto';
+  } else {
+    panel.style.left  = '';
+    panel.style.top   = '';
+    panel.style.right = '';
+  }
+
   panel.style.display = 'flex';
 
   // 이미 적용된 필터가 있으면 SVG 필터 상태도 동기화
@@ -333,6 +404,13 @@ function hideColorAdjustPanel() {
   const panel = document.getElementById('color-adjust-panel');
   if (panel) panel.style.display = 'none';
   _currentAb = null;
+}
+
+// DOM 준비 후 드래그 초기화
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initPanelDrag);
+} else {
+  _initPanelDrag();
 }
 
 // 외부에서 이미지 로드 시 저장된 adj 복원 (loadImageToAsset 후 호출)
