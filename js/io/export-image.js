@@ -60,6 +60,26 @@ async function exportSection(sec, format, width) {
       if (cb._cvbRO) { cb._cvbRO.disconnect(); cb._cvbRO = null; }
     }
     flattenCvbTransform(cb);
+
+    // html2canvas는 transform:scale() 내부의 background-image를 렌더링 못 함
+    // background-image div → <img> 태그로 변환하여 정상 렌더링
+    const inner = cb.querySelector('.cvb-inner');
+    if (inner) {
+      inner.querySelectorAll('[style*="background-image"]').forEach(div => {
+        const bg = div.style.backgroundImage;
+        const match = bg.match(/url\(["']?([^"')]+)["']?\)/);
+        if (!match) return;
+        const posX = div.style.backgroundPositionX || '50%';
+        const posY = div.style.backgroundPositionY || '50%';
+        div.style.backgroundImage = '';
+        div.style.position = div.style.position || 'relative';
+        div.style.overflow = 'hidden';
+        const imgEl = document.createElement('img');
+        imgEl.src = match[1];
+        imgEl.style.cssText = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${posX} ${posY};display:block;`;
+        div.appendChild(imgEl);
+      });
+    }
   });
   clone.getBoundingClientRect();
 
