@@ -37,12 +37,14 @@
 ## 개발 명령어
 
 ```bash
-npm run dev          # 개발 서버 (핫리로드 + DevTools, 포트 9334)
+npm run dev          # 개발 서버 (핫리로드 + DevTools, 포트 9334) — admin 모드 포함
 npm start            # 프로덕션 실행
 npm run build:mac    # macOS 빌드
 npm run release:mac  # macOS 배포 (auto-update)
 npm run figma        # Figma WebSocket 서버 (포트 3055)
 ```
+
+> **YOU MUST**: 개발 서버 실행 시 반드시 `npm run dev`를 사용한다 (`admin` 인자 포함). 직접 `electron .`으로 실행하는 경우에도 `admin` 인자를 반드시 붙인다.
 
 ---
 
@@ -112,9 +114,11 @@ npm run figma        # Figma WebSocket 서버 (포트 3055)
 ### QA 루프
 
 1. 작업 완료
-2. **CDP로 해당 포트에 접속해 직접 QA** (스크린샷, JS 실행, 콘솔 오류 확인 등)
+2. **CDP로 해당 포트에 접속해 직접 QA** (JS 실행, 콘솔 오류 확인 등)
 3. 이상 발견 시 → 코드 수정 → 재QA
 4. 통과하면 결과 보고 (무엇을 확인했는지 반드시 포함)
+
+> CDP 디버깅 상세 규칙 (확인 방법, 허용 예외 등) → `debug/CLAUDE.md` 참조
 
 ---
 
