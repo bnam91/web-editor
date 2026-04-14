@@ -16,7 +16,9 @@ function applyPadXToSection(inner, padX) {
     } else {
       ab.style.marginLeft  = '';
       ab.style.marginRight = '';
-      ab.style.width = '';
+      // calc()는 full-bleed 모드가 설정한 값 → 제거
+      // px 값은 사용자가 직접 지정한 너비 → 보존
+      if (!ab.style.width || ab.style.width.includes('calc')) ab.style.width = '';
     }
   });
 }
