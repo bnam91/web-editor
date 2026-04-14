@@ -851,6 +851,12 @@ function cleanStaleAutosaveKeys(activeProjectIds) {
  * @returns {boolean} 저장 성공 여부
  */
 function safeLocalStorageSet(key, value) {
+  // Electron에서 대용량 스냅샷(2MB↑)은 파일로 이미 저장되므로 localStorage 생략
+  // (base64 이미지 포함 시 수십MB까지 커져 QuotaExceededError 반복 유발)
+  if (IS_ELECTRON && value && value.length > 2 * 1024 * 1024) {
+    console.log('[save-load] 스냅샷 크기 초과, localStorage 건너뜀:', Math.round(value.length / 1024) + 'KB');
+    return true; // 파일 저장이 별도로 이루어지므로 성공으로 처리
+  }
   const prefix = SAVE_KEY_PREFIX + '__';
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
