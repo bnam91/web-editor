@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   figmaBridgeStart:  () => ipcRenderer.invoke('figma-bridge-start'),
   figmaBridgeStop:   () => ipcRenderer.invoke('figma-bridge-stop'),
 
+  // 섹션 이미지 캡처 (CDP 기반 — html2canvas flex 버그 우회)
+  captureSection: (opts) => ipcRenderer.invoke('capture-section', opts),
+
   // 종료 전 강제 저장
   onForceSaveBeforeQuit: (cb) => ipcRenderer.on('force-save-before-quit', () => cb()),
   quitReady: () => ipcRenderer.send('quit-ready'),

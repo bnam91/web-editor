@@ -54,6 +54,7 @@ const layerIcons = {
   vector:            `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="6,1 11,5 9,11 3,11 1,5"/></svg>`,
   'speech-bubble':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1.5" width="10" height="7" rx="2"/><path d="M3 8.5 L2 11" stroke-linecap="round"/></svg>`,
   chat:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 2a1 1 0 011-1h8a1 1 0 011 1v6a1 1 0 01-1 1H7l-2 2V9H2a1 1 0 01-1-1V2z"/></svg>`,
+  step:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="2.5" cy="2.5" r="1.5"/><line x1="4.5" y1="2.5" x2="11" y2="2.5"/><circle cx="2.5" cy="6" r="1.5"/><line x1="4.5" y1="6" x2="11" y2="6"/><circle cx="2.5" cy="9.5" r="1.5"/><line x1="4.5" y1="9.5" x2="11" y2="9.5"/></svg>`,
 };
 
 /* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */

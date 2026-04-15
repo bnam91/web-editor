@@ -49,7 +49,18 @@ async function exportSection(sec, format, width) {
   if (cloneToolbar) cloneToolbar.remove();
   clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
   clone.classList.remove('selected');
-  clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
+  // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
+  clone.querySelectorAll(
+    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over'
+  ).forEach(el => {
+    el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
+      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over');
+  });
+  // Electron CDP 캡처 시 clone을 viewport 상단에 배치, html2canvas는 off-screen
+  const useNative = !!window.electronAPI?.captureSection;
+  clone.style.cssText += ';position:fixed;top:' + (useNative ? '0' : '-99999px')
+    + ';left:0;width:' + w + 'px;margin:0;outline:none;'
+    + (useNative ? ';z-index:9999999;' : '');
 
   document.body.appendChild(clone);
 
@@ -68,6 +79,11 @@ async function exportSection(sec, format, width) {
     if (b !== 'auto') el.style.bottom = b;
     if (l !== 'auto') el.style.left   = l;
   });
+
+  // 버그 2 fix: 폰트 완전 로드 대기
+  // html2canvas가 폰트 로드 전에 렌더링하면 fallback 폰트 메트릭스로
+  // 줄바꿈 위치가 달라짐 → document.fonts.ready로 모든 폰트 로드 완료 보장
+  await document.fonts.ready;
 
   // 레이아웃 강제 확정 (offsetWidth/Height 정확도)
   clone.getBoundingClientRect();
@@ -174,26 +190,74 @@ async function exportSection(sec, format, width) {
   const secBg   = sec.style.background || sec.style.backgroundColor || '';
   const bgColor = (secBg && secBg !== 'transparent') ? secBg : (state.pageSettings.bg || '#ffffff');
 
+  const secList = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
+  const idx     = secList.indexOf(sec) + 1;
+  const name    = (sec._name || `section-${String(idx).padStart(2,'0')}`).replace(/\s+/g, '-');
+
   try {
-    const canvas = await html2canvas(clone, {
-      scale: 1,
-      useCORS: true,
-      backgroundColor: bgColor,
-      logging: false,
-    });
+    if (useNative) {
+      // ── Electron 청크 캡처 ─────────────────────────────────────────
+      // setContentSize 없이 clone.style.top을 이동하며 청크 단위 캡처
+      // → 창 크기 변경으로 인한 layout reflow / X좌표 24px 오프셋 버그 완전 해소
+      clone.style.background = clone.style.background || bgColor;
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const secH  = clone.offsetHeight;
+      const viewH = window.innerHeight;
+      const dpr   = window.devicePixelRatio || 2;
 
-    const secList = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
-    const idx     = secList.indexOf(sec) + 1;
-    const name    = (sec._name || `section-${String(idx).padStart(2,'0')}`).replace(/\s+/g, '-');
+      // 전체 섹션을 담을 캔버스 (DPR 반영)
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width  = Math.round(w    * dpr);
+      outCanvas.height = Math.round(secH * dpr);
+      const ctx = outCanvas.getContext('2d');
 
-    canvas.toBlob(blob => {
-      const url = URL.createObjectURL(blob);
-      const a   = document.createElement('a');
-      a.href = url;
-      a.download = `${name}.${fmt}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }, fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95);
+      // 청크 루프: clone 위치를 위로 올리며 viewH씩 캡처
+      let y = 0;
+      while (y < secH) {
+        const chunkH = Math.min(viewH, secH - y);
+        clone.style.top = (-y) + 'px';
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const pngBase64 = await window.electronAPI.captureSection({ width: w, height: chunkH });
+        await new Promise((res, rej) => {
+          const ci = new Image();
+          ci.onload = () => { ctx.drawImage(ci, 0, Math.round(y * dpr)); res(); };
+          ci.onerror = rej;
+          ci.src = 'data:image/png;base64,' + pngBase64;
+        });
+        y += chunkH;
+      }
+
+      await new Promise((res, rej) => {
+        outCanvas.toBlob(blob => {
+          if (!blob) { rej(new Error('toBlob failed')); return; }
+          const url = URL.createObjectURL(blob);
+          const a   = document.createElement('a');
+          a.href = url;
+          a.download = `${name}.${fmt === 'jpg' ? 'jpg' : 'png'}`;
+          a.click();
+          URL.revokeObjectURL(url);
+          res();
+        }, fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95);
+      });
+
+    } else {
+      // ── html2canvas 폴백 (비-Electron 환경) ────────────────────────
+      const canvas = await html2canvas(clone, {
+        scale: 1,
+        useCORS: true,
+        backgroundColor: bgColor,
+        logging: false,
+      });
+
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href = url;
+        a.download = `${name}.${fmt}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }, fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95);
+    }
 
   } finally {
     document.body.removeChild(clone);

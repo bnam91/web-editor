@@ -505,6 +505,17 @@ ipcMain.handle('templates:delete-canvas', (event, id) => {
   return true;
 });
 
+/* ── IPC: Section Screenshot (html2canvas flex 버그 우회) ── */
+// webContents.capturePage + 윈도우 임시 리사이즈로 섹션 전체 캡처
+ipcMain.handle('capture-section', async (event, { width, height }) => {
+  // setContentSize 호출 없음 — 창 크기 변경이 layout reflow를 유발해 좌표가 어긋남
+  // 렌더러가 청크 단위로 clone.style.top을 이동시켜 전체 섹션을 캡처함
+  const cw = Math.ceil(width);
+  const ch = Math.ceil(height);
+  const img = await mainWindow.webContents.capturePage({ x: 0, y: 0, width: cw, height: ch });
+  return img.toPNG().toString('base64');
+});
+
 /* ── IPC: Navigation (추후 구현) ── */
 // ipcMain.handle('navigate', (event, page) => {
 //   const pages = {

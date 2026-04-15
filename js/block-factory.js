@@ -2278,7 +2278,8 @@ function renderStepBlock(block) {
   const style      = block.dataset.stepStyle  || 'default';
   const cardBg     = block.dataset.stepCardBg || '#f5f5f5';
   const align          = block.dataset.stepAlign       || 'left';
-  const padX           = parseInt(block.dataset.stepPadX)  || 0;
+  const padL = parseInt(block.dataset.stepPadL ?? block.dataset.stepPadX) || 0;
+  const padR = parseInt(block.dataset.stepPadR ?? block.dataset.stepPadX) || 0;
   const badgeFmt       = block.dataset.badgeFormat     || 'number';
   const badgeGap       = parseInt(block.dataset.badgeGap)  || 16;
   const connectorStyle = block.dataset.connectorStyle   || 'line'; // 'line' | 'arrow'
@@ -2305,7 +2306,7 @@ function renderStepBlock(block) {
     return `${base}width:${numSize}px;height:${numSize}px;border-radius:50%;`;
   }
 
-  const pxStyle = padX > 0 ? `padding-left:${padX}px;padding-right:${padX}px;box-sizing:border-box;` : '';
+  const pxStyle = (padL > 0 || padR > 0) ? `padding-left:${padL}px;padding-right:${padR}px;box-sizing:border-box;` : '';
 
   // 연결선 헬퍼 — 세로용 (배지 아래 → 다음 배지 위)
   function connectorV() {
@@ -2347,14 +2348,41 @@ function renderStepBlock(block) {
             <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
             ${s.desc?`<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>`:''}</div>`).join('')
       }</div>`;
+    } else if (align === 'center') {
+      // card/center = full-width 카드 (left/right와 동일 너비) + 내부 콘텐츠 중앙 정렬
+      const _titleLineH = Math.round(titleSz * 1.4);
+      const _diff       = (_titleLineH - numSize) / 2;
+      const _leftPadTop = _diff > 0 ? Math.round(_diff) : 0;
+      const _contPadTop = _diff < 0 ? Math.round(-_diff) : 0;
+      block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => {
+        return `
+          <div style="background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;${i>0?`margin-top:${gap}px`:''}">
+            <div style="width:fit-content;margin:0 auto;display:flex;align-items:flex-start;gap:${badgeGap}px">
+              <div style="${badgeStyle()}margin-top:${_leftPadTop}px;">${badgeLabel(i)}</div>
+              <div style="margin-top:${_contPadTop}px">
+                <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
+                ${s.desc ? `<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>` : ''}
+              </div>
+            </div>
+          </div>`;
+      }).join('')}</div>`;
     } else {
-      // 배지 중심을 제목 첫 줄 중심에 맞추는 오프셋
+      // card left / right / stack
       const cardTitleLineH = Math.round(titleSz * 1.4);
       const cardBadgeTop   = Math.max(0, Math.round((cardTitleLineH - numSize) / 2));
+      const isCardRight  = align === 'right';
+      const isCardStack  = align === 'stack';
+      const itemFlex = isCardStack
+        ? `flex-direction:column;align-items:center;gap:${badgeGap}px`
+        : isCardRight
+        ? `flex-direction:row-reverse;align-items:flex-start;gap:${badgeGap}px`
+        : `align-items:flex-start;gap:${badgeGap}px`;
+      const contentAlign = isCardStack ? 'center' : isCardRight ? 'right' : 'left';
+      const badgeTop     = isCardStack ? 0 : cardBadgeTop;
       block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => `
-        <div style="background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;display:flex;align-items:flex-start;gap:${Math.round(numSize*0.5)}px;${i>0?`margin-top:${gap}px`:''}">
-          <div style="${badgeStyle()}margin-top:${cardBadgeTop}px;">${badgeLabel(i)}</div>
-          <div style="flex:1;min-width:0;">
+        <div style="background:${cardBg};border-radius:12px;padding:16px 20px;box-sizing:border-box;display:flex;${itemFlex};${i>0?`margin-top:${gap}px`:''}">
+          <div style="${badgeStyle()}margin-top:${badgeTop}px;">${badgeLabel(i)}</div>
+          <div style="${isCardStack?'':`flex:1;min-width:0;`}text-align:${contentAlign}">
             <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
             ${s.desc?`<div class="stb-desc" style="font-size:${descSz}px;color:${descColor};margin-top:4px">${s.desc}</div>`:''}</div></div>`).join('')}</div>`;
     }
@@ -2439,27 +2467,50 @@ function renderStepBlock(block) {
   const leftPadTop  = diff > 0 ? Math.round(diff) : 0;
   const contPadTop  = diff < 0 ? Math.round(-diff) : 0;
 
-  const isCenterAlign = align === 'center';
+  const isStackAlign  = align === 'stack';
   const isRightAlign  = align === 'right';
+  const isCenterAlign = align === 'center';
 
-  if (isCenterAlign || isRightAlign) {
-    const flexDir   = isCenterAlign ? 'column' : 'row-reverse';
-    const textAlign = isCenterAlign ? 'center' : 'right';
+  // stack (1×3 세로 쌓기) 또는 right (배지 우측)
+  if (isStackAlign || isRightAlign) {
+    const flexDir   = isStackAlign ? 'column' : 'row-reverse';
+    const textAlign = isStackAlign ? 'center' : 'right';
     const isDividerCA = connector && connectorStyle === 'divider';
     block.innerHTML = `<div style="${pxStyle}">${steps.map((s, i) => {
       const isLast = i === steps.length - 1;
       return `
-        <div class="stb-item" style="flex-direction:${flexDir};gap:${badgeGap}px;${isCenterAlign ? 'align-items:center;' : 'align-items:flex-start;'}">
-          <div class="stb-left" style="padding-top:${isCenterAlign ? 0 : leftPadTop}px;align-items:center;">
+        <div class="stb-item" style="flex-direction:${flexDir};gap:${badgeGap}px;${isStackAlign ? 'align-items:center;' : 'align-items:flex-start;'}">
+          <div class="stb-left" style="padding-top:${isStackAlign ? 0 : leftPadTop}px;align-items:center;">
             <div style="${badgeStyle()}">${badgeLabel(i)}</div>
-            ${connector && !isLast && isCenterAlign && !isDividerCA ? connectorV() : ''}
+            ${connector && !isLast && isStackAlign && !isDividerCA ? connectorV() : ''}
           </div>
-          <div class="stb-content" style="padding-top:${isCenterAlign ? 0 : contPadTop}px;padding-bottom:${isLast ? 0 : (isDividerCA ? 0 : gap)}px;text-align:${textAlign};">
+          <div class="stb-content" style="padding-top:${isStackAlign ? 0 : contPadTop}px;padding-bottom:${isLast ? 0 : (isDividerCA ? 0 : gap)}px;text-align:${textAlign};">
             <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
             ${s.desc ? `<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>` : ''}
           </div>
         </div>
         ${isDividerCA && !isLast ? `<div style="width:100%;height:1px;background:${numBg};opacity:0.2;margin:${Math.round(gap*0.5)}px 0"></div>` : ''}`;
+    }).join('')}</div>`;
+    return;
+  }
+
+  // center: left와 동일한 2컬럼 구조, 전체를 가운데 정렬
+  if (isCenterAlign) {
+    const isDivider = connector && connectorStyle === 'divider';
+    block.innerHTML = `<div style="width:fit-content;margin:0 auto;${pxStyle}">${steps.map((s, i) => {
+      const isLast = i === steps.length - 1;
+      return `
+        <div class="stb-item" style="gap:${badgeGap}px">
+          <div class="stb-left" style="padding-top:${leftPadTop}px">
+            <div style="${badgeStyle()}">${badgeLabel(i)}</div>
+            ${connector && !isLast && !isDivider ? connectorV() : ''}
+          </div>
+          <div class="stb-content" style="padding-top:${contPadTop}px;padding-bottom:${isLast ? 0 : (isDivider ? 0 : gap)}px">
+            <div class="stb-title" style="font-size:${titleSz}px;color:${titleColor};line-height:1.4">${s.title||''}</div>
+            ${s.desc ? `<div class="stb-desc" style="font-size:${descSz}px;color:${descColor}">${s.desc}</div>` : ''}
+          </div>
+        </div>
+        ${isDivider && !isLast ? `<div style="width:100%;height:1px;background:${numBg};opacity:0.2;margin:${Math.round(gap*0.5)}px 0"></div>` : ''}`;
     }).join('')}</div>`;
     return;
   }
@@ -2503,6 +2554,8 @@ function makeStepBlock(opts = {}) {
   block.dataset.stepAlign      = opts.stepAlign      || 'left';
   block.dataset.stepCardBg     = opts.stepCardBg     || '#f5f5f5';
   block.dataset.stepPadX       = opts.stepPadX       || 0;
+  block.dataset.stepPadL       = opts.stepPadL ?? opts.stepPadX ?? 0;
+  block.dataset.stepPadR       = opts.stepPadR ?? opts.stepPadX ?? 0;
   block.dataset.badgeFormat    = opts.badgeFormat    || 'number';
   block.dataset.badgeGap       = opts.badgeGap       || 16;
   block.dataset.connectorStyle = opts.connectorStyle || 'line';

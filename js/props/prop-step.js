@@ -8,7 +8,7 @@ export function showStepProperties(block) {
       <div class="stb-prop-item" data-idx="${i}">
         <div class="prop-row" style="align-items:center">
           <span class="prop-label" style="font-weight:600">스텝 ${i + 1}</span>
-          <button class="prop-btn prop-btn-danger stb-del-btn" data-idx="${i}" style="margin-left:auto;padding:2px 8px;font-size:11px">삭제</button>
+          <button class="prop-btn prop-btn-danger stb-del-btn" data-idx="${i}" style="margin-left:auto;padding:3px 6px;line-height:0" title="삭제"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><polyline points="1,3 10,3"/><path d="M2.5,3V9.5h6V3"/><line x1="4" y1="3" x2="4" y2="1.5"/><line x1="7" y1="3" x2="7" y2="1.5"/><line x1="4" y1="1.5" x2="7" y2="1.5"/></svg></button>
         </div>
         <div class="prop-row">
           <span class="prop-label">제목</span>
@@ -36,7 +36,8 @@ export function showStepProperties(block) {
   const stepStyle   = block.dataset.stepStyle   || 'default';
   const stepCardBg  = block.dataset.stepCardBg  || '#f5f5f5';
   const stepAlign   = block.dataset.stepAlign   || 'left';
-  const stepPadX    = parseInt(block.dataset.stepPadX) || 0;
+  const stepPadL    = parseInt(block.dataset.stepPadL ?? block.dataset.stepPadX) || 0;
+  const stepPadR    = parseInt(block.dataset.stepPadR ?? block.dataset.stepPadX) || 0;
   const badgeFormat = block.dataset.badgeFormat || 'number';
 
   propPanel.innerHTML = `
@@ -78,6 +79,7 @@ export function showStepProperties(block) {
         <button class="prop-align-btn${stepAlign === 'left'   ? ' active' : ''}" data-align="left"   style="flex:1">←</button>
         <button class="prop-align-btn${stepAlign === 'center' ? ' active' : ''}" data-align="center" style="flex:1">↔</button>
         <button class="prop-align-btn${stepAlign === 'right'  ? ' active' : ''}" data-align="right"  style="flex:1">→</button>
+        <button class="prop-align-btn${stepAlign === 'stack'  ? ' active' : ''}" data-align="stack"  style="flex:1">☰</button>
       </div>
 
       <div class="prop-row" id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'flex' : 'none'}">
@@ -162,10 +164,21 @@ export function showStepProperties(block) {
         <input type="range" class="prop-slider" id="stb-gap-slider" min="8" max="200" step="4" value="${gap}">
         <input type="number" class="prop-number" id="stb-gap-number" min="8" max="200" value="${gap}">
       </div>
+      <div class="prop-ph-header">
+        <span class="prop-section-title" style="margin-bottom:0">좌우 패딩</span>
+        <button class="prop-chain-btn${stepPadL === stepPadR ? ' active' : ''}" id="stb-ph-chain" title="좌우 연동">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
       <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="stb-padx-slider" min="0" max="120" step="4" value="${stepPadX}">
-        <input type="number" class="prop-number" id="stb-padx-number" min="0" max="120" value="${stepPadX}">
+        <span class="prop-label" style="width:60px">왼쪽</span>
+        <input type="range" class="prop-slider" id="stb-padl-slider" min="0" max="300" step="4" value="${stepPadL}">
+        <input type="number" class="prop-number" id="stb-padl-number" min="0" max="300" value="${stepPadL}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label" style="width:60px">오른쪽</span>
+        <input type="range" class="prop-slider" id="stb-padr-slider" min="0" max="300" step="4" value="${stepPadR}">
+        <input type="number" class="prop-number" id="stb-padr-number" min="0" max="300" value="${stepPadR}">
       </div>
       <div class="prop-row">
         <span class="prop-label">연결선</span>
@@ -185,9 +198,11 @@ export function showStepProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">스텝 목록</div>
+      <div style="display:flex;align-items:center;margin-bottom:4px">
+        <span class="prop-section-title" style="margin-bottom:0;flex:1">스텝 목록</span>
+        <button class="prop-btn" id="stb-add-step" style="padding:3px 6px;line-height:0" title="스텝 추가"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg></button>
+      </div>
       <div id="stb-steps-list">${stepsHtml()}</div>
-      <button class="prop-btn" id="stb-add-step" style="width:100%;margin-top:8px">+ 스텝 추가</button>
     </div>
   `;
 
@@ -276,7 +291,43 @@ export function showStepProperties(block) {
   bindSlider('stb-title-size-slider', 'stb-title-size-number', 12, 80, 'titleSize');
   bindSlider('stb-desc-size-slider',  'stb-desc-size-number',  10, 64, 'descSize');
   bindSlider('stb-gap-slider',        'stb-gap-number',         8, 200, 'gap');
-  bindSlider('stb-padx-slider',       'stb-padx-number',        0, 120, 'stepPadX');
+  // ── 좌우 패딩 체인 ──
+  {
+    const CHAIN_LINKED = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>`;
+    const CHAIN_BROKEN = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="5.2" y1="4.8" x2="6.8" y2="7.2" stroke-linecap="round"/></svg>`;
+    let padLinked = stepPadL === stepPadR;
+    const chainBtn = propPanel.querySelector('#stb-ph-chain');
+    const plSlider = propPanel.querySelector('#stb-padl-slider');
+    const plNum    = propPanel.querySelector('#stb-padl-number');
+    const prSlider = propPanel.querySelector('#stb-padr-slider');
+    const prNum    = propPanel.querySelector('#stb-padr-number');
+    chainBtn.addEventListener('click', () => {
+      padLinked = !padLinked;
+      chainBtn.classList.toggle('active', padLinked);
+      chainBtn.innerHTML = padLinked ? CHAIN_LINKED : CHAIN_BROKEN;
+      if (padLinked) {
+        const v = parseInt(plSlider.value);
+        block.dataset.stepPadR = v; prSlider.value = v; prNum.value = v;
+        rerender();
+      }
+    });
+    const setL = v => {
+      block.dataset.stepPadL = v; plSlider.value = v; plNum.value = v;
+      if (padLinked) { block.dataset.stepPadR = v; prSlider.value = v; prNum.value = v; }
+      rerender();
+    };
+    const setR = v => {
+      block.dataset.stepPadR = v; prSlider.value = v; prNum.value = v;
+      if (padLinked) { block.dataset.stepPadL = v; plSlider.value = v; plNum.value = v; }
+      rerender();
+    };
+    plSlider.addEventListener('input',  () => setL(parseInt(plSlider.value)));
+    plNum.addEventListener('change',    () => { setL(Math.min(300, Math.max(0, parseInt(plNum.value) || 0))); window.pushHistory?.(); });
+    plSlider.addEventListener('change', () => window.pushHistory?.());
+    prSlider.addEventListener('input',  () => setR(parseInt(prSlider.value)));
+    prNum.addEventListener('change',    () => { setR(Math.min(300, Math.max(0, parseInt(prNum.value) || 0))); window.pushHistory?.(); });
+    prSlider.addEventListener('change', () => window.pushHistory?.());
+  }
 
   // ── 배지 형식 ──
   propPanel.querySelector('#stb-badge-fmt-select').addEventListener('change', e => {

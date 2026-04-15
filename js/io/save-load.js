@@ -85,6 +85,8 @@ async function saveProjectToFile(snapshot, opts = {}) {
 }
 
 function _isAllCanvasEmpty(data) {
+  // checklistItems가 있으면 canvas가 비어있어도 저장 허용
+  if (Array.isArray(data?.checklistItems) && data.checklistItems.length > 0) return false;
   return data?.pages?.length > 0 && data.pages.every(p => !p.canvas || p.canvas.trim() === '');
 }
 
@@ -941,7 +943,7 @@ window.addEventListener('beforeunload', () => {
   // S11: 빈 canvas 저장 방지 + snap 파싱은 한 번만
   let snapData;
   try { snapData = JSON.parse(snap); } catch { return; }
-  if (snapData?.pages?.length > 0 && snapData.pages.every(p => !p.canvas || p.canvas.trim() === '')) return;
+  if (_isAllCanvasEmpty(snapData)) return;
 
   const _unloadSaveOk = safeLocalStorageSet(getSaveKey(), snap);
   if (_unloadSaveOk) localStorage.setItem(getSaveTsKey(), String(Date.now()));
