@@ -623,6 +623,13 @@ window._optionKeyHeld = false;
 document.addEventListener('keydown', e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = true; }, true);
 document.addEventListener('keyup',   e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = false; }, true);
 
+// 갭 블록 높이 키 조정 후 keyup 시 undo 기록
+document.addEventListener('keyup', e => {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (document.querySelector('.gap-block.selected')) pushHistory();
+});
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -827,6 +834,26 @@ document.addEventListener('keydown', e => {
       }
     }
 
+    // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=200 (텍스트 편집 중이면 무시)
+    if (['Digit1','Digit2','Digit3','Digit4','Digit5'].includes(e.code)) {
+      if (!document.querySelector('.text-block.editing')) {
+        const gb = document.querySelector('.gap-block.selected');
+        if (gb) {
+          e.preventDefault();
+          const presets = { Digit1: 20, Digit2: 40, Digit3: 80, Digit4: 120, Digit5: 200 };
+          const h = presets[e.code];
+          gb.style.height = h + 'px';
+          const sl = document.getElementById('gap-slider');
+          const nb = document.getElementById('gap-number');
+          if (sl) sl.value = h;
+          if (nb) nb.value = h;
+          window.scheduleAutoSave?.();
+          pushHistory();
+          return;
+        }
+      }
+    }
+
     // 텍스트 타입 단축키: 1=H1, 2=H2, 3=H3, 4=Body (텍스트 편집 중이면 무시)
     if (['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
       if (document.querySelector('.text-block.editing')) return; // 편집 중 차단
@@ -849,6 +876,27 @@ document.addEventListener('keydown', e => {
         contentEl.dataset.placeholder = phMap[cls];
       }
       window.showTextProperties?.(tb);
+      return;
+    }
+  }
+
+  // ── 갭 블록 높이 조정: 방향키 (수정키 없음 or Shift) ──
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+    const selGap = document.querySelector('.gap-block.selected');
+    if (selGap) {
+      e.preventDefault();
+      const step = e.shiftKey ? 20 : 4;
+      const delta = e.key === 'ArrowUp' ? step : -step;
+      const cur = selGap.offsetHeight;
+      const next = Math.min(400, Math.max(0, cur + delta));
+      selGap.style.height = next + 'px';
+      // 패널 슬라이더/숫자 동기화
+      const sl = document.getElementById('gap-slider');
+      const nb = document.getElementById('gap-number');
+      if (sl) sl.value = next;
+      if (nb) nb.value = next;
+      window.scheduleAutoSave?.();
       return;
     }
   }
@@ -1678,8 +1726,8 @@ window.showMultiSelPanel = showMultiSelPanel;
 })();
 
 
-// 모든 모듈 로드 후 앱 초기화
-initApp();
+// 모든 모듈 로드 후 앱 초기화 — save-load.js보다 먼저 평가될 수 있으므로 지연 호출
+setTimeout(() => window.initApp?.(), 0);
 
 /* ═══════════════════════════════════
    EXPORTS

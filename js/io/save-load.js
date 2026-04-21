@@ -1044,31 +1044,35 @@ function initApp() {
       window.showPageProperties();
     }
 
-    // localStorage에서 이전 탭 상태 복원 (삭제된 프로젝트 탭 자동 정리)
+    // localStorage에서 이전 탭 상태 즉시 복원 (await 전에 탭바 표시)
     try {
       const saved = JSON.parse(localStorage.getItem(TAB_STATE_KEY));
-      if (saved?.tabs?.length) {
-        if (IS_ELECTRON) {
-          const existingProjects = await window.electronAPI.listProjects();
-          const existingIds = new Set(existingProjects.map(p => p.id));
-          openTabs = saved.tabs.filter(t => existingIds.has(t.id));
-        } else {
-          openTabs = saved.tabs;
-        }
-      }
+      if (saved?.tabs?.length) openTabs = saved.tabs.slice();
     } catch {}
 
     if (activeProjectId) {
-      // 현재 프로젝트가 탭 목록에 없으면 추가
+      // 현재 프로젝트가 탭 목록에 없으면 즉시 추가
       if (!openTabs.find(t => t.id === activeProjectId)) {
         openTabs.push({ id: activeProjectId, name: 'Untitled' });
       }
+      // 탭바 즉시 렌더 (async 완료 전에 탭이 보이도록)
+      window.renderTabBar();
+      window.saveTabState?.();
+
       let name = 'Untitled';
       if (IS_ELECTRON) {
-        // Electron: 파일 기반 활성 프로젝트 목록으로 고아 autosave 키 정리
+        // Electron: 프로젝트 목록 1회 로드 — 탭 정리 + autosave 키 정리 병행
+        let allProjects = [];
         try {
-          const allProjects = await window.electronAPI.listProjects();
+          allProjects = await window.electronAPI.listProjects();
           cleanStaleAutosaveKeys(allProjects.map(p => p.id));
+          // 삭제된 프로젝트 탭 정리 (현재 프로젝트는 항상 유지)
+          const existingIds = new Set(allProjects.map(p => p.id));
+          existingIds.add(activeProjectId);
+          openTabs = openTabs.filter(t => existingIds.has(t.id));
+          if (!openTabs.find(t => t.id === activeProjectId)) {
+            openTabs.push({ id: activeProjectId, name: 'Untitled' });
+          }
         } catch (_) {}
         // proj + meta 병렬 로드 — meta 실패해도 proj는 사용해야 하므로 독립 처리
         let proj = null;
@@ -1098,6 +1102,7 @@ function initApp() {
         const tab = openTabs.find(t => t.id === activeProjectId);
         if (tab) tab.name = name;
         window.renderTabBar();
+        window.saveTabState?.();
         if (proj) {
           // DBG-REFRESH: 프로젝트별 키로 localStorage 조회 — 다른 프로젝트 데이터 오염 방지
           // localStorage가 파일보다 새로우면 우선 적용 (새로고침 데이터 손실 방지)
@@ -1138,6 +1143,7 @@ function initApp() {
           if (tab) tab.name = name;
         }
         window.renderTabBar();
+        window.saveTabState?.();
         if (proj?.snapshot) {
           try {
             applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot);
@@ -1150,6 +1156,7 @@ function initApp() {
     } else {
       // URL에 project 없이 열림 (admin mode): 탭 유지하고 렌더만
       window.renderTabBar();
+      window.saveTabState?.();
     }
     const saved = localStorage.getItem(getSaveKey());
     if (saved) { try { applyAndFinish(JSON.parse(saved)); return; } catch {} }
