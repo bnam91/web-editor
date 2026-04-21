@@ -32,7 +32,7 @@ export function showIconifyProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">크기</div>
+      <div class="prop-section-title">SIZE</div>
       <div class="prop-row">
         <span class="prop-label">Size</span>
         <input type="range"  class="prop-slider" id="icn-size-slider" min="16" max="512" step="8"  value="${size}">
@@ -41,7 +41,7 @@ export function showIconifyProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">색상</div>
+      <div class="prop-section-title">COLOR</div>
       <div class="prop-color-row">
         <span class="prop-label">Color</span>
         <div class="prop-color-swatch" style="background:${color};">
@@ -52,7 +52,7 @@ export function showIconifyProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">회전</div>
+      <div class="prop-section-title">ROTATION</div>
       <div class="prop-align-group" id="icn-rotation-group">
         <button class="prop-align-btn${rotation ===   0 ? ' active' : ''}" data-deg="0">0°</button>
         <button class="prop-align-btn${rotation ===  90 ? ' active' : ''}" data-deg="90">90°</button>

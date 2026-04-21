@@ -110,11 +110,13 @@ async function showSectionProperties(sec) {
         </div>
         ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${sec.id}')">${sec.id}</span>` : ''}
       </div>
-      <div class="prop-section-title">Preset</div>
-      <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>
+      <div class="prop-row">
+        <span class="prop-label">Preset</span>
+        <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>
+      </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">배경</div>
+      <div class="prop-section-title">BACKGROUND</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         <div class="prop-color-swatch" style="background:${hexBg}">
@@ -122,12 +124,12 @@ async function showSectionProperties(sec) {
         </div>
         <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg}" maxlength="7">
       </div>
-      <div class="prop-section-title" style="margin-top:10px;">배경 이미지</div>
+      <div class="prop-section-title" style="margin-top:10px;">BG IMAGE</div>
       ${bgImgHTML}
     </div>
-    ${colorRows ? `<div class="prop-section"><div class="prop-section-title">텍스트 컬러</div>${colorRows}</div>` : ''}
+    ${colorRows ? `<div class="prop-section"><div class="prop-section-title">TEXT COLOR</div>${colorRows}</div>` : ''}
     <div class="prop-section">
-      <div class="prop-section-title">일괄 정렬</div>
+      <div class="prop-section-title">BULK ALIGN</div>
       <div class="prop-align-group">
         <button class="prop-align-btn" id="sec-align-left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -150,7 +152,7 @@ async function showSectionProperties(sec) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">패딩</div>
+      <div class="prop-section-title">PADDING</div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="sec-padx-slider" min="0" max="100" step="2" value="${secPadX}">
@@ -163,41 +165,45 @@ async function showSectionProperties(sec) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">내보내기</div>
-      <select class="prop-select" id="sec-export-format" style="width:100%;margin-bottom:6px;">
-        <option value="png">PNG</option>
-        <option value="jpg">JPG</option>
-      </select>
-      <select class="prop-select" id="sec-export-width" style="width:100%;margin-bottom:6px;">
-        <option value="860">860px (기본)</option>
-        <option value="780">780px (쿠팡)</option>
-      </select>
+      <div class="prop-section-title">EXPORT</div>
+      <div class="prop-row" style="margin-bottom:4px;">
+        <select class="prop-select" id="sec-export-format" style="flex:1;min-width:0;">
+          <option value="png">PNG</option>
+          <option value="jpg">JPG</option>
+        </select>
+        <select class="prop-select" id="sec-export-width" style="flex:2;min-width:0;">
+          <option value="860">860px (기본)</option>
+          <option value="780">780px (쿠팡)</option>
+        </select>
+      </div>
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">템플릿</div>
-      <select class="prop-select" id="sec-tpl-folder" style="width:100%;margin-bottom:6px;">
-        ${(()=>{
-          const tpls = window.loadTemplates ? window.loadTemplates() : [];
-          const folders = [...new Set(tpls.map(t => t.folder || '기타'))];
-          if (!folders.length) folders.push('내 템플릿');
-          return folders.map(f => `<option value="${f.replace(/"/g,'&quot;')}">${f.replace(/</g,'&lt;')}</option>`).join('') +
-            '<option value="__new__">새 폴더...</option>';
-        })()}
-      </select>
-      <input type="text" id="sec-tpl-folder-new" class="tpl-name-input" placeholder="새 폴더 이름" style="display:none;margin-bottom:6px;">
-      <select class="prop-select" id="sec-tpl-cat" style="width:100%;margin-bottom:6px;">
-        <option value="Hero">Hero</option>
-        <option value="Main">Main</option>
-        <option value="Feature">Feature</option>
-        <option value="Detail">Detail</option>
-        <option value="CTA">CTA</option>
-        <option value="Event">Event</option>
-        <option value="기타">기타</option>
-      </select>
-      <input type="text" id="sec-tpl-name" class="tpl-name-input" placeholder="템플릿 이름 입력">
-      <input type="text" id="sec-tpl-tags" class="tpl-name-input" placeholder="태그 입력 (쉼표 구분, 예: 헤더, 배너)" style="margin-top:4px;">
-      <button class="prop-action-btn primary" id="sec-tpl-save-btn" style="margin-top:6px;">템플릿으로 저장</button>
+      <div class="prop-section-title">TEMPLATE</div>
+      <div class="prop-row" style="margin-bottom:4px;">
+        <select class="prop-select" id="sec-tpl-folder" style="flex:1;min-width:0;">
+          ${(()=>{
+            const tpls = window.loadTemplates ? window.loadTemplates() : [];
+            const folders = [...new Set(tpls.map(t => t.folder || '기타'))];
+            if (!folders.length) folders.push('내 템플릿');
+            return folders.map(f => `<option value="${f.replace(/"/g,'&quot;')}">${f.replace(/</g,'&lt;')}</option>`).join('') +
+              '<option value="__new__">새 폴더...</option>';
+          })()}
+        </select>
+        <select class="prop-select" id="sec-tpl-cat" style="flex:1;min-width:0;">
+          <option value="Hero">Hero</option>
+          <option value="Main">Main</option>
+          <option value="Feature">Feature</option>
+          <option value="Detail">Detail</option>
+          <option value="CTA">CTA</option>
+          <option value="Event">Event</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+      <input type="text" id="sec-tpl-folder-new" class="tpl-name-input" placeholder="새 폴더 이름" style="display:none;margin-bottom:4px;">
+      <input type="text" id="sec-tpl-name" class="tpl-name-input" placeholder="템플릿 이름" style="margin-bottom:4px;">
+      <input type="text" id="sec-tpl-tags" class="tpl-name-input" placeholder="태그 (쉼표 구분)" style="margin-bottom:4px;">
+      <button class="prop-action-btn primary" id="sec-tpl-save-btn">저장</button>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(sec.id || null);
@@ -227,8 +233,8 @@ async function showSectionProperties(sec) {
       padXNumber.value = v || '';
     };
     padXSlider.addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
-    padXSlider.addEventListener('change', () => pushHistory('섹션 좌우 패딩'));
-    padXNumber.addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory('섹션 좌우 패딩'); });
+    padXSlider.addEventListener('change', () => pushHistory());
+    padXNumber.addEventListener('change', e => { applyPadX(parseInt(e.target.value)); pushHistory(); });
 
   }
 
@@ -243,8 +249,8 @@ async function showSectionProperties(sec) {
       padBNumber.value = v || '';
     };
     padBSlider.addEventListener('input',  e => applyPadB(parseInt(e.target.value)));
-    padBSlider.addEventListener('change', () => pushHistory('섹션 여백'));
-    padBNumber.addEventListener('change', e => { applyPadB(parseInt(e.target.value)); pushHistory('섹션 여백'); });
+    padBSlider.addEventListener('change', () => pushHistory());
+    padBNumber.addEventListener('change', e => { applyPadB(parseInt(e.target.value)); pushHistory(); });
   }
 
   // 배경색 이벤트
@@ -257,7 +263,7 @@ async function showSectionProperties(sec) {
     hex.value = picker.value;
     swatch.style.background = picker.value;
   });
-  picker.addEventListener('change', () => pushHistory('섹션 배경색'));
+  picker.addEventListener('change', () => pushHistory());
   hex.addEventListener('input', () => {
     if (/^#[0-9a-f]{6}$/i.test(hex.value)) {
       sec.style.background = hex.value;
@@ -266,7 +272,7 @@ async function showSectionProperties(sec) {
       swatch.style.background = hex.value;
     }
   });
-  hex.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(hex.value)) pushHistory('섹션 배경색'); });
+  hex.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(hex.value)) pushHistory(); });
 
   // 배경 이미지 이벤트
   const bgImgBtn    = document.getElementById('sec-bg-img-btn');

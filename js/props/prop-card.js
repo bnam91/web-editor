@@ -21,7 +21,7 @@ export function showCardProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
-      <div class="prop-section-title">이미지</div>
+      <div class="prop-section-title">IMAGE</div>
       <div class="prop-row">
         <button class="prop-btn-full" onclick="window.triggerCardImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
       </div>
@@ -31,7 +31,7 @@ export function showCardProperties(block) {
       </div>` : ''}
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">하단 영역</div>
+      <div class="prop-section-title">BOTTOM AREA</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         <div class="prop-color-swatch" style="background:${bgColor}">
@@ -46,7 +46,7 @@ export function showCardProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">텍스트 크기</div>
+      <div class="prop-section-title">TEXT SIZE</div>
       <div class="prop-row">
         <span class="prop-label">제목</span>
         <input type="range" class="prop-slider" id="card-title-slider" min="12" max="60" step="1" value="${titleSize}">
@@ -59,17 +59,32 @@ export function showCardProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">텍스트 정렬</div>
+      <div class="prop-section-title">TEXT ALIGN</div>
       <div class="prop-row">
         <div class="prop-align-group" id="card-align-group">
-          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='left'?' active':''}"   data-align="left">←</button>
-          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='center'?' active':''}" data-align="center">↔</button>
-          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='right'?' active':''}"  data-align="right">→</button>
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='left'?' active':''}"   data-align="left">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
+              <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
+            </svg>
+          </button>
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='center'?' active':''}" data-align="center">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
+              <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
+            </svg>
+          </button>
+          <button class="prop-align-btn${(block.dataset.textAlign||'left')==='right'?' active':''}"  data-align="right">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
+              <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">카드 수</div>
+      <div class="prop-section-title">CARDS</div>
       <div class="prop-row">
         <button class="prop-action-btn primary" id="card-add-btn">+ 카드 추가</button>
         <button class="prop-action-btn danger" id="card-remove-btn">− 마지막 카드 제거</button>

@@ -19,8 +19,8 @@ export function showChatProperties(block) {
   function msgListHtml() {
     return messages.map((m, i) => `
       <div class="chb-prop-item" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <button class="prop-align-btn chb-align-btn ${m.align !== 'right' ? 'active' : ''}" data-idx="${i}" data-dir="left" title="좌측">←</button>
-        <button class="prop-align-btn chb-align-btn ${m.align === 'right' ? 'active' : ''}" data-idx="${i}" data-dir="right" title="우측">→</button>
+        <button class="prop-align-btn chb-align-btn ${m.align !== 'right' ? 'active' : ''}" data-idx="${i}" data-dir="left" title="좌측"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/><line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/></svg></button>
+        <button class="prop-align-btn chb-align-btn ${m.align === 'right' ? 'active' : ''}" data-idx="${i}" data-dir="right" title="우측"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/><line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/></svg></button>
         <input type="text" class="prop-color-hex chb-text-input" data-idx="${i}"
           value="${(m.text || '').replace(/"/g, '&quot;')}"
           style="flex:1;width:auto;max-width:none">
@@ -45,7 +45,7 @@ export function showChatProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">스타일</div>
+      <div class="prop-section-title">STYLE</div>
       <div class="prop-row">
         <span class="prop-label">폰트 크기</span>
         <input type="number" id="chb-fontsize" class="prop-color-hex" value="${fontSize}" min="10" max="60" style="width:60px">
@@ -66,7 +66,7 @@ export function showChatProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">색상</div>
+      <div class="prop-section-title">COLOR</div>
       <div class="prop-row">
         <span class="prop-label">좌측 배경</span>
         <div class="prop-color-swatch" id="chb-bg-left-swatch" style="background:${bgLeft};width:24px;height:24px;border-radius:4px;border:1px solid #ccc;cursor:pointer;flex-shrink:0"></div>
@@ -80,7 +80,7 @@ export function showChatProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">대화 목록</div>
+      <div class="prop-section-title">MESSAGES</div>
       <div id="chb-msg-list">${msgListHtml()}</div>
       <button class="prop-btn-full" id="chb-add-msg" style="margin-top:6px">+ 대화 추가하기</button>
     </div>
@@ -96,17 +96,26 @@ export function showChatProperties(block) {
     window.triggerAutoSave?.();
   });
 
-  propPanel.querySelector('#chb-fontsize').addEventListener('change', e => {
+  propPanel.querySelector('#chb-fontsize').addEventListener('input', e => {
     block.dataset.fontSize = e.target.value;
     rerender();
   });
-  propPanel.querySelector('#chb-radius').addEventListener('change', e => {
+  propPanel.querySelector('#chb-fontsize').addEventListener('change', () => {
+    window.pushHistory?.();
+  });
+  propPanel.querySelector('#chb-radius').addEventListener('input', e => {
     block.dataset.radius = e.target.value;
     rerender();
   });
-  propPanel.querySelector('#chb-gap').addEventListener('change', e => {
+  propPanel.querySelector('#chb-radius').addEventListener('change', () => {
+    window.pushHistory?.();
+  });
+  propPanel.querySelector('#chb-gap').addEventListener('input', e => {
     block.dataset.gap = e.target.value;
     rerender();
+  });
+  propPanel.querySelector('#chb-gap').addEventListener('change', () => {
+    window.pushHistory?.();
   });
 
   // ─── 색상 이벤트 ─────────────────────────────────────────────

@@ -19,11 +19,14 @@ export function showGapProperties(gb) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">크기</div>
+      <div class="prop-section-title">SIZE</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="gap-slider" min="0" max="400" step="4" value="${currentH}">
         <input type="number" class="prop-number" id="gap-number" min="0" max="400" value="${currentH}">
+      </div>
+      <div class="prop-row gap-preset-row">
+        ${[20,40,80,120,200].map(h => `<button class="gap-preset-btn${currentH===h?' active':''}" data-h="${h}">${h}</button>`).join('')}
       </div>
     </div>`;
 
@@ -43,7 +46,24 @@ export function showGapProperties(gb) {
     const v = Math.min(400, Math.max(0, parseInt(number.value) || 0));
     gb.style.height = v + 'px';
     slider.value = v;
+    updatePresetActive(v);
     window.scheduleAutoSave?.();
+  });
+
+  const presetBtns = propPanel.querySelectorAll('.gap-preset-btn');
+  function updatePresetActive(v) {
+    presetBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.h) === v));
+  }
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const h = parseInt(btn.dataset.h);
+      window.pushHistory?.();
+      gb.style.height = h + 'px';
+      slider.value = h;
+      number.value = h;
+      updatePresetActive(h);
+      window.scheduleAutoSave?.();
+    });
   });
 }
 

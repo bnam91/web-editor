@@ -55,7 +55,7 @@ function showRowProperties(rowEl) {
 
   const childBatchHTML = hasChildren ? `
     <div class="prop-section">
-      <div class="prop-section-title">하위 블록 일괄</div>
+      <div class="prop-section-title">CHILD BLOCKS</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="row-child-h-slider" min="0" max="600" step="4" value="${childHeightVal || 0}">
@@ -113,15 +113,15 @@ function showRowProperties(rowEl) {
     </div>
     ${layout !== 'stack' ? `
     <div class="prop-section">
-      <div class="prop-section-title">컬럼 비율</div>
+      <div class="prop-section-title">COLUMN RATIO</div>
       ${colRatioHTML}
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">레이아웃 프리셋</div>
+      <div class="prop-section-title">LAYOUT PRESET</div>
       <div class="layout-preset-btns" id="row-layout-presets"></div>
     </div>` : ''}
     <div class="prop-section">
-      <div class="prop-section-title">크기 / 간격</div>
+      <div class="prop-section-title">SIZE / SPACING</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="row-height-slider" min="${minRowHeight}" max="1200" step="8" value="${rowHeight}">

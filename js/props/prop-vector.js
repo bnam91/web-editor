@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { pushHistory } from '../editor.js';
 
 export function showVectorProperties(block) {
   const w       = parseInt(block.dataset.w)        || 120;
@@ -24,7 +25,7 @@ export function showVectorProperties(block) {
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
 
-      <div class="prop-section-title">크기</div>
+      <div class="prop-section-title">SIZE</div>
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="vb-w" value="${w}" min="10" max="1200">
@@ -34,7 +35,7 @@ export function showVectorProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">색상</div>
+      <div class="prop-section-title">COLOR</div>
       <div class="prop-row">
         <span class="prop-label">Fill</span>
         <div class="prop-color-swatch" style="background:${color}">
@@ -45,7 +46,7 @@ export function showVectorProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">회전 / 반전</div>
+      <div class="prop-section-title">ROTATE / FLIP</div>
       <div class="prop-row" style="gap:6px;">
         <span class="prop-label" style="flex-shrink:0;">각도</span>
         <input type="number" class="prop-number" id="vb-rotate-deg" style="width:56px;" min="-360" max="360" value="${rotateDeg}">
@@ -88,11 +89,13 @@ export function showVectorProperties(block) {
     block.dataset.w = parseInt(document.getElementById('vb-w').value) || w;
     window.renderVector(block);
     window.scheduleAutoSave?.();
+    pushHistory();
   });
   document.getElementById('vb-h')?.addEventListener('change', () => {
     block.dataset.h = parseInt(document.getElementById('vb-h').value) || h;
     window.renderVector(block);
     window.scheduleAutoSave?.();
+    pushHistory();
   });
 
   // ── 색상 ──────────────────────────────────────────────────────────────────────

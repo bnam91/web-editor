@@ -564,7 +564,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 /* ── Template name input in Properties panel ── */
 .tpl-name-input {
   width: 100%;
-  height: 26px;
+  height: 24px;
   background: var(--ui-bg-app);
   border: 1px solid var(--ui-border);
   border-radius: 4px;

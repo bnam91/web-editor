@@ -50,7 +50,7 @@ export function showPageProperties() {
         </div>
         <span class="prop-block-name">Background</span>
       </div>
-      <div class="prop-section-title">배경</div>
+      <div class="prop-section-title">BACKGROUND</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         <div class="prop-color-swatch" style="background:${bg}">
@@ -60,7 +60,7 @@ export function showPageProperties() {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">일괄 정렬</div>
+      <div class="prop-section-title">BULK ALIGN</div>
       <div class="prop-align-group">
         <button class="prop-align-btn" id="page-align-left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -83,7 +83,7 @@ export function showPageProperties() {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">레이아웃</div>
+      <div class="prop-section-title">LAYOUT</div>
       <div class="prop-row">
         <span class="prop-label">섹션 간격</span>
         <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="200" step="4" value="${gap}">
@@ -105,7 +105,7 @@ export function showPageProperties() {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">내보내기</div>
+      <div class="prop-section-title">EXPORT</div>
       <select class="prop-select" id="page-export-format" style="width:100%;margin-bottom:6px;">
         <option value="png">PNG</option>
         <option value="jpg">JPG</option>

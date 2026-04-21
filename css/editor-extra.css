@@ -144,13 +144,13 @@ body.preview-mode #preview-navigator { display: flex; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 9px 12px;
+  gap: 5px;
+  padding: 5px 10px;
   background: #1e2a3e;
   border: 1px solid #2d4a72;
-  border-radius: 7px;
+  border-radius: 5px;
   color: #6aabf7;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;

@@ -367,14 +367,14 @@
 /* 프로퍼티 패널 내 액션 버튼 (이미지 선택/제거) */
 .prop-action-btn {
   width: 100%;
-  height: 26px;
+  height: 24px;
   padding: 0;
   border: 1px solid var(--ui-border);
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  margin-top: 5px;
+  margin-top: 4px;
   letter-spacing: 0.02em;
   display: flex; align-items: center; justify-content: center;
 }
@@ -1425,6 +1425,62 @@
   font-size: 10px;
   color: var(--ui-text-dim, #666);
   height: 14px;
+}
+
+/* ── Canvas Block — 카드 항목 입력 ─────────────────────────────────────────── */
+.cvb-card-input {
+  background: #1e1e1e;
+  color: #ddd;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  box-sizing: border-box;
+  width: 100%;
+}
+.cvb-card-input::placeholder { color: #555; }
+textarea.cvb-card-input {
+  resize: none;
+  font-family: Pretendard, sans-serif;
+  margin-bottom: 4px;
+}
+.cvb-card-border-width {
+  width: 40px;
+  background: #1e1e1e;
+  color: #ddd;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.cvb-card-meta {
+  font-size: 10px;
+  color: #666;
+}
+.cvb-card-meta-label {
+  font-size: 10px;
+  color: #666;
+  font-weight: 600;
+  flex: 1;
+}
+.cvb-card-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+.cvb-card-btn-sm {
+  width: auto;
+  height: auto;
+  font-size: 10px;
+  padding: 2px 6px;
+}
+.cvb-card-btn-sm-del {
+  width: auto;
+  height: auto;
+  font-size: 10px;
+  padding: 2px 4px;
+  color: #e55;
 }
 
 /* ── Device Mockup Block ─────────────────────────────────────────────────── */

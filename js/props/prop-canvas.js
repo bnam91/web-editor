@@ -65,7 +65,7 @@ export function showCanvasProperties(block) {
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
 
-      <div class="prop-section-title">크기</div>
+      <div class="prop-section-title">SIZE</div>
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
@@ -75,7 +75,7 @@ export function showCanvasProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">배경</div>
+      <div class="prop-section-title">BACKGROUND</div>
       <div class="prop-row">
         <span class="prop-label">색상</span>
         <div class="prop-color-swatch" style="background:${bg === 'transparent' ? '#fff' : bg}">
@@ -91,7 +91,7 @@ export function showCanvasProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">카드 간격</div>
+      <div class="prop-section-title">CARD SPACING</div>
       <div class="prop-row">
         <span class="prop-label">Gap</span>
         <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${parseInt(block.dataset.cardGap ?? 12)}">
@@ -105,13 +105,13 @@ export function showCanvasProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">삽입 그리드</div>
+      <div class="prop-section-title">INSERT GRID</div>
       <div class="grid-picker" id="cvb-grid-picker"></div>
       <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">레이어 (${layers.length})</div>
+      <div class="prop-section-title">LAYERS (${layers.length})</div>
       <div id="cvb-layer-list">${layerRows || '<div style="color:var(--ui-text-muted);font-size:11px;padding:6px 0">레이어 없음</div>'}</div>
     </div>`;
 
@@ -309,31 +309,31 @@ function showSimpleCardProperties(block) {
   const padX      = parseInt(block.dataset.padX ?? 0);
 
   const cardItemsHtml = cards.map((card, i) => `
-    <div class="cvb-card-item" data-card-index="${i}" style="padding:8px 0;border-bottom:1px solid #2a2a2a;">
+    <div class="cvb-card-item" data-card-index="${i}">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
-        <span style="font-size:10px;color:#666;font-weight:600;flex:1;">카드 ${i + 1}</span>
+        <span class="cvb-card-meta-label">카드 ${i + 1}</span>
         <div class="prop-color-swatch cvb-card-bg-swatch" style="width:16px;height:16px;border-radius:3px;flex-shrink:0;background:${card.cellBg || textBg};" title="개별 배경색">
           <input type="color" class="cvb-card-cell-bg" data-card-index="${i}" value="${card.cellBg || textBg}">
         </div>
-        <button class="prop-btn cvb-card-img-btn" data-card-index="${i}" style="width:auto;height:auto;font-size:10px;padding:2px 6px;">${card.imgSrc ? '이미지 교체' : '이미지 추가'}</button>
-        ${card.imgSrc ? `<button class="prop-btn cvb-card-img-clear" data-card-index="${i}" style="width:auto;height:auto;font-size:10px;padding:2px 4px;color:#e55;" title="이미지 제거">✕</button>` : ''}
+        <button class="prop-btn cvb-card-img-btn cvb-card-btn-sm" data-card-index="${i}">${card.imgSrc ? '이미지 교체' : '이미지 추가'}</button>
+        ${card.imgSrc ? `<button class="prop-btn cvb-card-img-clear cvb-card-btn-sm-del" data-card-index="${i}" title="이미지 제거">✕</button>` : ''}
       </div>
       ${card.imgSrc ? `
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px;">
-        <span style="font-size:10px;color:#666;flex:1;">Fit</span>
-        <button class="prop-align-btn cvb-card-fit-btn${(card.imgFit||'cover')==='cover'?' active':''}" data-card-index="${i}" data-fit="cover" style="font-size:10px;padding:2px 8px;width:auto;">꽉 채우기</button>
-        <button class="prop-align-btn cvb-card-fit-btn${(card.imgFit||'cover')==='contain'?' active':''}" data-card-index="${i}" data-fit="contain" style="font-size:10px;padding:2px 8px;width:auto;">원본 비율</button>
+        <span class="cvb-card-meta" style="flex:1;">Fit</span>
+        <button class="prop-align-btn cvb-card-fit-btn cvb-card-btn-sm${(card.imgFit||'cover')==='cover'?' active':''}" data-card-index="${i}" data-fit="cover" style="padding:2px 8px;">꽉 채우기</button>
+        <button class="prop-align-btn cvb-card-fit-btn cvb-card-btn-sm${(card.imgFit||'cover')==='contain'?' active':''}" data-card-index="${i}" data-fit="contain" style="padding:2px 8px;">원본 비율</button>
       </div>` : ''}
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px;">
-        <span style="font-size:10px;color:#666;flex:1;">테두리</span>
+        <span class="cvb-card-meta" style="flex:1;">테두리</span>
         <div class="prop-color-swatch cvb-card-border-swatch" style="width:16px;height:16px;border-radius:3px;flex-shrink:0;background:${card.borderColor || '#ffffff'};" title="테두리 색상">
           <input type="color" class="cvb-card-border-color" data-card-index="${i}" value="${card.borderColor || '#ffffff'}">
         </div>
-        <input type="number" class="cvb-card-border-width" data-card-index="${i}" value="${card.borderWidth || 0}" min="0" max="20" style="width:40px;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:4px;padding:2px 4px;font-size:11px;text-align:center;box-sizing:border-box;">
-        <span style="font-size:10px;color:#666;">px</span>
+        <input type="number" class="cvb-card-border-width" data-card-index="${i}" value="${card.borderWidth || 0}" min="0" max="20">
+        <span class="cvb-card-meta">px</span>
       </div>
-      <textarea class="cvb-card-title-input" data-card-index="${i}" placeholder="제목 입력..." rows="2" style="width:100%;resize:none;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:4px;padding:4px 6px;font-size:11px;box-sizing:border-box;font-family:Pretendard,sans-serif;margin-bottom:4px;">${_escHtml(card.title || '')}</textarea>
-      <input type="text" class="cvb-card-desc-input" data-card-index="${i}" placeholder="설명 입력..." value="${_escHtml(card.desc || '')}" style="width:100%;background:#1e1e1e;color:#ddd;border:1px solid #333;border-radius:4px;padding:4px 6px;font-size:11px;box-sizing:border-box;">
+      <textarea class="cvb-card-title-input cvb-card-input" data-card-index="${i}" placeholder="제목 입력..." rows="2">${_escHtml(card.title || '')}</textarea>
+      <input type="text" class="cvb-card-desc-input cvb-card-input" data-card-index="${i}" placeholder="설명 입력..." value="${_escHtml(card.desc || '')}">
     </div>
   `).join('');
 
@@ -356,7 +356,7 @@ function showSimpleCardProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">카드 크기</div>
+      <div class="prop-section-title">CARD SIZE</div>
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
@@ -377,7 +377,7 @@ function showSimpleCardProperties(block) {
 
     <div class="prop-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div class="prop-section-title" style="margin-bottom:0;">텍스트 영역</div>
+        <div class="prop-section-title" style="margin-bottom:0;">TEXT AREA</div>
         <button class="prop-align-btn${textHide ? ' active' : ''}" id="cvb-text-hide-btn" style="width:auto;padding:0 8px;font-size:10px;">숨김</button>
       </div>
       <div id="cvb-text-area-controls" style="${textHide ? 'opacity:0.35;pointer-events:none;' : ''}">
@@ -413,17 +413,32 @@ function showSimpleCardProperties(block) {
         <input type="range" class="prop-slider" id="cvb-desc-slider" min="10" max="40" step="1" value="${descSize}">
         <input type="number" class="prop-number" id="cvb-desc-number" min="10" max="40" value="${descSize}">
       </div>
-      <div class="prop-section-title" style="margin-top:6px;">텍스트 정렬</div>
+      <div class="prop-section-title" style="margin-top:6px;">TEXT ALIGN</div>
       <div class="prop-align-group" id="cvb-align-group">
-        <button class="prop-align-btn${textAlign==='left'?' active':''}"   data-align="left">←</button>
-        <button class="prop-align-btn${textAlign==='center'?' active':''}" data-align="center">↔</button>
-        <button class="prop-align-btn${textAlign==='right'?' active':''}"  data-align="right">→</button>
+        <button class="prop-align-btn${textAlign==='left'?' active':''}"   data-align="left">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
+            <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
+          </svg>
+        </button>
+        <button class="prop-align-btn${textAlign==='center'?' active':''}" data-align="center">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
+            <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
+          </svg>
+        </button>
+        <button class="prop-align-btn${textAlign==='right'?' active':''}"  data-align="right">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
+            <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
+          </svg>
+        </button>
       </div>
       </div><!-- /cvb-text-area-controls -->
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">카드 간격</div>
+      <div class="prop-section-title">CARD SPACING</div>
       <div class="prop-row">
         <span class="prop-label">Gap</span>
         <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${cardGap}">
@@ -437,13 +452,13 @@ function showSimpleCardProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">카드 그리드 (${gridCols}×${gridRows})</div>
+      <div class="prop-section-title">CARD GRID (${gridCols}×${gridRows})</div>
       <div class="grid-picker" id="cvb-grid-picker"></div>
       <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">카드 항목 (${cards.length}개)</div>
+      <div class="prop-section-title">CARDS (${cards.length})</div>
       <div id="cvb-card-items">${cardItemsHtml}</div>
     </div>`;
 

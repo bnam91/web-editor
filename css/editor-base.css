@@ -223,7 +223,7 @@
 
 /* 토글 버튼 */
 #var-toggle-btn {
-  display: flex;
+  display: none; /* VARIABLES 섹션 숨김 — 다른 패널과 단일 레벨 구조로 통일 */
   align-items: center;
   gap: 8px;
   width: 100%;

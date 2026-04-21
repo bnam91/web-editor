@@ -30,7 +30,7 @@ export function showMockupProperties(block) {
 
     <!-- 디바이스 선택 -->
     <div class="prop-section">
-      <div class="prop-section-title">디바이스</div>
+      <div class="prop-section-title">DEVICE</div>
       <div class="prop-row" style="gap:6px;">
         <span class="prop-label" style="flex:1;font-size:10px;color:#888;">${deviceLabel}</span>
         <button class="prop-btn" id="mkp-change-device-btn"
@@ -40,7 +40,7 @@ export function showMockupProperties(block) {
 
     <!-- 너비 -->
     <div class="prop-section">
-      <div class="prop-section-title">너비</div>
+      <div class="prop-section-title">WIDTH</div>
       <div class="prop-row">
         <span class="prop-label">Width</span>
         <input type="range"  class="prop-slider" id="mkp-width-slider" min="100" max="860" step="10"
@@ -52,7 +52,7 @@ export function showMockupProperties(block) {
 
     <!-- 화면 이미지 -->
     <div class="prop-section">
-      <div class="prop-section-title">화면 이미지</div>
+      <div class="prop-section-title">SCREEN IMAGE</div>
       <div class="prop-row" style="flex-direction:column;gap:6px;">
         <!-- 섹션 ID로 캡처 -->
         <div style="display:flex;gap:6px;align-items:center;">
@@ -79,7 +79,7 @@ export function showMockupProperties(block) {
 
     <!-- 그림자 -->
     <div class="prop-section">
-      <div class="prop-section-title">그림자</div>
+      <div class="prop-section-title">SHADOW</div>
       <div class="prop-align-group" id="mkp-shadow-group">
         <button class="prop-align-btn${shadow === 'none'  ? ' active' : ''}" data-val="none">없음</button>
         <button class="prop-align-btn${shadow === 'soft'  ? ' active' : ''}" data-val="soft">부드럽게</button>

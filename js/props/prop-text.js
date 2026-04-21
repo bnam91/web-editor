@@ -1,5 +1,7 @@
 import { propPanel, state } from '../globals.js';
 
+let _systemFontsList = [];
+
 export function showTextProperties(tb) {
   const isOverlayTb = tb.classList.contains('overlay-tb');
   // contenteditable 속성이 없는 경우(저장 후 복원 시 속성 누락) fallback으로 내부 첫 자식 div를 사용
@@ -88,7 +90,7 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">타입</div>
+      <div class="prop-section-title">TYPE</div>
       <div class="prop-type-group">
         <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
         <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
@@ -101,9 +103,8 @@ export function showTextProperties(tb) {
 
     <div class="prop-section">
       <div class="prop-section-title">Position</div>
-      <div class="prop-row">
-        <span class="prop-label">정렬</span>
-        <div class="prop-align-group">
+      <span class="prop-field-label">Alignment</span>
+      <div class="prop-align-group" style="margin-bottom:6px">
           <button class="prop-align-btn ${currentAlign==='left'||currentAlign===''?'active':''}" data-align="left">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
               <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
@@ -122,44 +123,41 @@ export function showTextProperties(tb) {
               <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
             </svg>
           </button>
-        </div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label" style="width:auto;min-width:10px">X</span>
-        <input type="number" class="prop-number" id="txt-x-number" value="${currentX}" style="flex:1;min-width:0">
-        <span class="prop-label" style="width:auto;min-width:10px;margin-left:8px">Y</span>
-        <input type="number" class="prop-number" id="txt-y-number" value="${currentY}" style="flex:1;min-width:0">
+      <span class="prop-field-label">Position</span>
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">X</span>
+            <input type="number" id="txt-x-number" value="${currentX}" aria-label="X position">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">Y</span>
+            <input type="number" id="txt-y-number" value="${currentY}" aria-label="Y position">
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Typography</div>
+      <div class="prop-section-title">TYPOGRAPHY</div>
 
       <span class="prop-field-label">Font</span>
-      <div class="prop-row" style="gap:4px; margin-bottom:6px;">
-        <select class="prop-select" id="txt-font-family" style="flex:1">
-          <option value="" style="font-family:inherit"           ${currentFont===''?'selected':''}>기본 (시스템)</option>
-          <optgroup label="── 한글 ──">
-            <option value="'Pretendard', sans-serif"            ${currentFont.includes('Pretendard')?'selected':''}>Pretendard</option>
-            <option value="'Noto Sans KR', sans-serif"          ${currentFont.includes('Noto Sans KR')?'selected':''}>Noto Sans KR</option>
-            <option value="'Noto Serif KR', serif"              ${currentFont.includes('Noto Serif KR')?'selected':''}>Noto Serif KR</option>
-          </optgroup>
-          <optgroup label="── 영문 ──">
-            <option value="'Inter', sans-serif"                 ${currentFont.includes('Inter')?'selected':''}>Inter</option>
-            <option value="'Space Grotesk', sans-serif"         ${currentFont.includes('Space Grotesk')?'selected':''}>Space Grotesk</option>
-            <option value="'Playfair Display', serif"           ${currentFont.includes('Playfair Display')?'selected':''}>Playfair Display</option>
-          </optgroup>
-          <optgroup label="── 시스템 ──">
-            <option value="sans-serif"                          ${currentFont==='sans-serif'?'selected':''}>Sans-serif</option>
-            <option value="serif"                               ${currentFont==='serif'?'selected':''}>Serif</option>
-            <option value="monospace"                           ${currentFont==='monospace'?'selected':''}>Monospace</option>
-          </optgroup>
-        </select>
-        <button id="txt-font-pin" title="즐겨찾기" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;color:#888;flex-shrink:0;">⭐</button>
+      <div class="font-picker" id="txt-font-picker">
+        <button class="font-picker-trigger" id="txt-font-trigger" type="button">
+          <span class="font-picker-current" id="txt-font-name">${currentFont ? _fontDisplayName(currentFont) : '기본 (시스템)'}</span>
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+        </button>
+        <div class="font-picker-dropdown" id="txt-font-dropdown" style="display:none">
+          <input class="font-picker-search" id="txt-font-search" type="text" placeholder="폰트 검색..." autocomplete="off" spellcheck="false">
+          <div class="font-picker-list" id="txt-font-list"></div>
+        </div>
       </div>
 
-      <div style="display:flex; gap:4px; margin-bottom:6px;">
-        <select class="prop-select" id="txt-font-weight" style="flex:2">
+      <div class="prop-row">
+        <select class="prop-select" id="txt-font-weight" style="flex:1">
           <option value="100" ${currentWeight==='100'?'selected':''}>Thin 100</option>
           <option value="200" ${currentWeight==='200'?'selected':''}>ExtraLight 200</option>
           <option value="300" ${currentWeight==='300'?'selected':''}>Light 300</option>
@@ -170,21 +168,27 @@ export function showTextProperties(tb) {
           <option value="800" ${currentWeight==='800'?'selected':''}>ExtraBold 800</option>
           <option value="900" ${currentWeight==='900'?'selected':''}>Black 900</option>
         </select>
-        <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}" style="flex:1;min-width:0">
+        <input type="number" class="prop-number prop-number-select" id="txt-size-number" min="8" max="400" value="${currentSize}" style="flex:1;min-width:0">
       </div>
 
-      <div style="display:flex; gap:4px; margin-bottom:6px;">
-        <div class="prop-icon-input">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M17.5 17a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1zm-5.25-9a.5.5 0 0 1 .476.347l2.25 7a.5.5 0 0 1-.952.306L13.494 14h-2.987l-.531 1.653a.5.5 0 0 1-.952-.306l2.25-7 .03-.075A.5.5 0 0 1 11.75 8zm-1.422 5h2.344L12 9.354zM17.5 6a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1z"/></svg>
-          <input type="number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}" aria-label="줄간격">
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <span class="prop-field-label">Line Height</span>
+          <div class="prop-icon-input">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M17.5 17a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1zm-5.25-9a.5.5 0 0 1 .476.347l2.25 7a.5.5 0 0 1-.952.306L13.494 14h-2.987l-.531 1.653a.5.5 0 0 1-.952-.306l2.25-7 .03-.075A.5.5 0 0 1 11.75 8zm-1.422 5h2.344L12 9.354zM17.5 6a.5.5 0 0 1 0 1h-11a.5.5 0 0 1 0-1z"/></svg>
+            <input type="number" id="txt-lh-number" min="1" max="3" step="0.05" value="${currentLH}" aria-label="줄간격">
+          </div>
         </div>
-        <div class="prop-icon-input">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M6.5 6a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m11 0a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m-5.25 3a.5.5 0 0 1 .472.335l1.75 5a.5.5 0 1 1-.944.33l-.407-1.165H10.88l-.407 1.165a.5.5 0 1 1-.944-.33l1.75-5 .032-.072A.5.5 0 0 1 11.75 9zm-1.02 3.5h1.54L12 10.298z"/></svg>
-          <input type="number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}" aria-label="자간">
+        <div class="prop-lhls-col">
+          <span class="prop-field-label">Letter Spacing</span>
+          <div class="prop-icon-input">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M6.5 6a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m11 0a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-1 0v-11a.5.5 0 0 1 .5-.5m-5.25 3a.5.5 0 0 1 .472.335l1.75 5a.5.5 0 1 1-.944.33l-.407-1.165H10.88l-.407 1.165a.5.5 0 1 1-.944-.33l1.75-5 .032-.072A.5.5 0 0 1 11.75 9zm-1.02 3.5h1.54L12 10.298z"/></svg>
+            <input type="number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}" aria-label="자간">
+          </div>
         </div>
       </div>
 
-      <div class="prop-row" style="gap:4px;">
+      <div class="prop-row">
         <div class="prop-style-group">
           <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (Bold / Cmd+B)"><b>B</b></button>
           <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic / Cmd+I)"><i>I</i></button>
@@ -204,7 +208,7 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
-      <div class="prop-section-title">크기</div>
+      <div class="prop-section-title">SIZE</div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="4" value="${currentW}">
@@ -213,14 +217,14 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
-      <div class="prop-section-title">패딩</div>
+      <div class="prop-section-title">PADDING</div>
       <div class="prop-row">
         <span class="prop-label">상하</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}">
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}">
       </div>
       <div class="prop-ph-header">
-        <span class="prop-section-title" style="margin-bottom:0">좌우</span>
+        <span class="prop-section-title" style="margin-bottom:0">L/R</span>
         <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
@@ -243,12 +247,12 @@ export function showTextProperties(tb) {
 
     <div id="label-style-section" style="display:${isLabel?'block':'none'}">
       <div class="prop-section">
-        <div class="prop-section-title">태그 스타일</div>
+        <div class="prop-section-title">TAG STYLE</div>
         <div class="prop-row" style="gap:6px">
-          <button class="prop-full-btn" id="label-shape-pill">Pill</button>
-          <button class="prop-full-btn" id="label-shape-box">Box</button>
-          <button class="prop-full-btn" id="label-shape-circle">Circle</button>
-          <button class="prop-full-btn" id="label-shape-text">Text</button>
+          <button class="prop-btn-full" id="label-shape-pill">Pill</button>
+          <button class="prop-btn-full" id="label-shape-box">Box</button>
+          <button class="prop-btn-full" id="label-shape-circle">Circle</button>
+          <button class="prop-btn-full" id="label-shape-text">Text</button>
         </div>
         <div class="prop-color-row">
           <span class="prop-label">배경색</span>
@@ -273,7 +277,7 @@ export function showTextProperties(tb) {
 
     <div id="bubble-style-section" style="display:${isSpeechBubble?'block':'none'}">
       <div class="prop-section">
-        <div class="prop-section-title">말풍선 스타일</div>
+        <div class="prop-section-title">BUBBLE STYLE</div>
         <div class="prop-row">
           <span class="prop-label">스타일</span>
           <select class="prop-select" id="bubble-style-select">
@@ -312,7 +316,7 @@ export function showTextProperties(tb) {
 
     <div id="icon-text-style-section" style="display:${isIconText?'block':'none'}">
       <div class="prop-section">
-        <div class="prop-section-title">아이콘 텍스트</div>
+        <div class="prop-section-title">ICON TEXT</div>
         <div class="prop-row">
           <span class="prop-label">아이콘-텍스트 간격</span>
           <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="${currentItbGap}">
@@ -426,45 +430,142 @@ export function showTextProperties(tb) {
     document.getElementById('bubble-sender-name-input')?.addEventListener('change', () => window.pushHistory?.());
   }
 
-  const fontSel = document.getElementById('txt-font-family');
+  /* ── Custom Font Picker ── */
+  const _fpTrigger  = propPanel.querySelector('#txt-font-trigger');
+  const _fpDropdown = propPanel.querySelector('#txt-font-dropdown');
+  const _fpSearch   = propPanel.querySelector('#txt-font-search');
+  const _fpList     = propPanel.querySelector('#txt-font-list');
+  const _fpNameEl   = propPanel.querySelector('#txt-font-name');
 
-  /* 핀/최근 그룹 초기 갱신 → 동기 sync */
-  _rebuildFontPinnedGroups(fontSel);
-  _syncFontSelectValue(fontSel, currentFont);
-  _updatePinButton(currentFont);
+  const _FP_STATIC = [
+    { value: '', label: '기본 (시스템)', group: 'base' },
+    { value: "'Pretendard', sans-serif",     label: 'Pretendard',      group: 'korean' },
+    { value: "'Noto Sans KR', sans-serif",   label: 'Noto Sans KR',    group: 'korean' },
+    { value: "'Noto Serif KR', serif",       label: 'Noto Serif KR',   group: 'korean' },
+    { value: "'Inter', sans-serif",          label: 'Inter',           group: 'latin'  },
+    { value: "'Space Grotesk', sans-serif",  label: 'Space Grotesk',   group: 'latin'  },
+    { value: "'Playfair Display', serif",    label: 'Playfair Display', group: 'latin' },
+    { value: 'sans-serif',   label: 'Sans-serif',  group: 'system' },
+    { value: 'serif',        label: 'Serif',       group: 'system' },
+    { value: 'monospace',    label: 'Monospace',   group: 'system' },
+  ];
 
-  /* 시스템 설치 폰트 비동기 로드 → 완료 후 최신값으로 sync (stale closure 방지) */
-  _loadSystemFonts(fontSel).then(() => {
-    const latestFont = contentEl.dataset.rawFont || contentEl.style.fontFamily || '';
-    _syncFontSelectValue(fontSel, latestFont);
+  function _fpAllFonts() {
+    return [
+      ..._FP_STATIC,
+      ..._systemFontsList.map(fam => ({ value: `'${fam}', sans-serif`, label: fam, group: 'installed' })),
+    ];
+  }
+
+  function _fpItemHtml(f, isPinned, isSel) {
+    const v = f.value.replace(/"/g, '&quot;');
+    return `<div class="font-item${isSel ? ' selected' : ''}" data-value="${v}">
+      <span class="font-item-name">${f.label}</span>
+      <button class="font-item-pin${isPinned ? ' pinned' : ''}" data-pin-value="${v}" title="${isPinned ? '핀 제거' : '핀 고정'}">⭐</button>
+    </div>`;
+  }
+
+  function _fpBuildList(search) {
+    const pins   = JSON.parse(localStorage.getItem('goditor_font_pins')   || '[]');
+    const recent = JSON.parse(localStorage.getItem('goditor_font_recent') || '[]');
+    const curVal = contentEl.dataset.rawFont || contentEl.style.fontFamily || '';
+    const term   = (search || '').trim().toLowerCase();
+    const all    = _fpAllFonts();
+
+    const isSel = (v) => v === curVal || (!v && !curVal);
+
+    let html = '';
+    if (term) {
+      const hits = all.filter(f => f.label.toLowerCase().includes(term));
+      if (!hits.length) { html = '<div class="font-group-label">결과 없음</div>'; }
+      else hits.forEach(f => { html += _fpItemHtml(f, pins.includes(f.value), isSel(f.value)); });
+    } else {
+      // Pinned
+      const pinnedFonts = pins.map(v => all.find(f => f.value === v) || { value: v, label: _fontDisplayName(v), group: 'pinned' });
+      if (pinnedFonts.length) {
+        html += '<div class="font-group-label">핀 고정</div>';
+        pinnedFonts.forEach(f => { html += _fpItemHtml(f, true, isSel(f.value)); });
+      }
+      // Recent (not pinned)
+      const recentFonts = recent.filter(v => !pins.includes(v))
+        .map(v => all.find(f => f.value === v) || { value: v, label: _fontDisplayName(v), group: 'recent' });
+      if (recentFonts.length) {
+        html += '<div class="font-group-label">최근 사용</div>';
+        recentFonts.forEach(f => { html += _fpItemHtml(f, false, isSel(f.value)); });
+      }
+      // Static groups
+      [['base','기본'],['korean','한글'],['latin','영문'],['system','시스템'],['installed','설치 폰트']].forEach(([g, lbl]) => {
+        const items = all.filter(f => f.group === g);
+        if (!items.length) return;
+        html += `<div class="font-group-label">${lbl}</div>`;
+        items.forEach(f => { html += _fpItemHtml(f, pins.includes(f.value), isSel(f.value)); });
+      });
+    }
+    _fpList.innerHTML = html;
+    const selEl = _fpList.querySelector('.font-item.selected');
+    if (selEl) selEl.scrollIntoView({ block: 'nearest' });
+  }
+
+  function _fpClose() {
+    _fpDropdown.style.display = 'none';
+    _fpTrigger.classList.remove('open');
+  }
+
+  _fpTrigger.addEventListener('click', () => {
+    const isOpen = _fpDropdown.style.display !== 'none';
+    if (isOpen) { _fpClose(); return; }
+
+    // Position dropdown with fixed coords to avoid clipping
+    const r = _fpTrigger.getBoundingClientRect();
+    Object.assign(_fpDropdown.style, {
+      display: 'block', position: 'fixed',
+      top: (r.bottom + 2) + 'px', left: r.left + 'px', width: r.width + 'px', zIndex: '9999'
+    });
+    _fpTrigger.classList.add('open');
+    _fpSearch.value = '';
+    _fpBuildList('');
+    setTimeout(() => _fpSearch.focus(), 10);
+
+    const outside = (e) => {
+      if (!propPanel.querySelector('#txt-font-picker')?.contains(e.target) &&
+          !_fpDropdown.contains(e.target)) {
+        _fpClose();
+        document.removeEventListener('mousedown', outside, true);
+      }
+    };
+    document.addEventListener('mousedown', outside, true);
   });
 
-  /* 핀 버튼 */
-  document.getElementById('txt-font-pin')?.addEventListener('click', () => {
-    const sel = document.getElementById('txt-font-family');
-    if (!sel) return;
-    const val = sel.value;
-    const key = 'goditor_font_pins';
-    let pins = JSON.parse(localStorage.getItem(key) || '[]');
-    if (pins.includes(val)) pins = pins.filter(p => p !== val);
-    else pins.unshift(val);
-    localStorage.setItem(key, JSON.stringify(pins));
-    _rebuildFontPinnedGroups(sel);
-    _updatePinButton(val);
+  _fpSearch.addEventListener('input', () => _fpBuildList(_fpSearch.value));
+
+  _fpList.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const pinBtn = e.target.closest('.font-item-pin');
+    if (pinBtn) {
+      const val = pinBtn.dataset.pinValue;
+      let pins = JSON.parse(localStorage.getItem('goditor_font_pins') || '[]');
+      if (pins.includes(val)) pins = pins.filter(p => p !== val);
+      else pins.unshift(val);
+      localStorage.setItem('goditor_font_pins', JSON.stringify(pins));
+      _fpBuildList(_fpSearch.value);
+      return;
+    }
+    const item = e.target.closest('.font-item');
+    if (item) {
+      const rawVal = item.dataset.value;
+      window.pushHistory?.();
+      contentEl.style.fontFamily = rawVal;
+      contentEl.dataset.rawFont  = rawVal;
+      contentEl.querySelectorAll('div').forEach(child => { child.style.removeProperty('font-family'); });
+      _pushRecentFont(rawVal);
+      _fpNameEl.textContent = rawVal ? _fontDisplayName(rawVal) : '기본 (시스템)';
+      _fpClose();
+    }
   });
 
-  /* 폰트 종류 */
-  document.getElementById('txt-font-family').addEventListener('change', e => {
-    window.pushHistory?.();
-    const rawVal = e.target.value;
-    contentEl.style.fontFamily = rawVal;
-    contentEl.dataset.rawFont = rawVal;   // CSS 정규화 우회용 raw 저장
-    // Enter 줄바꿈으로 생성된 자식 div의 인라인 font-family 제거 (부모 font-family가 cascade되도록)
-    contentEl.querySelectorAll('div').forEach(child => { child.style.removeProperty('font-family'); });
-    _pushRecentFont(rawVal);
-    _rebuildFontPinnedGroups(e.target);
-    _syncFontSelectValue(e.target, rawVal);  // rebuild 후 올바른 옵션 재선택
-    _updatePinButton(rawVal);
+  /* 시스템 폰트 비동기 로드 */
+  _loadSystemFonts().then(() => {
+    if (_fpDropdown.style.display !== 'none') _fpBuildList(_fpSearch.value);
   });
 
   /* 폰트 굵기 */
@@ -932,91 +1033,13 @@ function _fontDisplayName(fontValue) {
   return fontValue.replace(/['"]/g, '').split(',')[0].trim();
 }
 
-function _rebuildFontPinnedGroups(selectEl) {
-  if (!selectEl) return;
-  // 기존 핀/최근 optgroup 제거 후 재생성
-  selectEl.querySelectorAll('optgroup[data-recent], optgroup[data-pins]').forEach(g => g.remove());
-
-  const pins   = JSON.parse(localStorage.getItem('goditor_font_pins')   || '[]');
-  const recent = JSON.parse(localStorage.getItem('goditor_font_recent') || '[]');
-
-  // 최근 사용 그룹 (있을 때만) — 먼저 삽입해서 핀 그룹이 그 위로 오게 함
-  if (recent.length > 0) {
-    const og = document.createElement('optgroup');
-    og.label = '── 최근 사용 ──';
-    og.dataset.recent = '1';
-    recent.forEach(fam => {
-      const opt = document.createElement('option');
-      opt.value = fam;
-      opt.textContent = '🕐 ' + _fontDisplayName(fam);
-      og.appendChild(opt);
-    });
-    selectEl.insertBefore(og, selectEl.firstChild);
-  }
-
-  // 핀 그룹 (있을 때만) — 최상단
-  if (pins.length > 0) {
-    const og = document.createElement('optgroup');
-    og.label = '── 핀 고정 ──';
-    og.dataset.pins = '1';
-    pins.forEach(fam => {
-      const opt = document.createElement('option');
-      opt.value = fam;
-      opt.textContent = '⭐ ' + _fontDisplayName(fam);
-      og.appendChild(opt);
-    });
-    selectEl.insertBefore(og, selectEl.firstChild);
-  }
-}
-
-/* 정규화된 폰트값으로 select 옵션 매칭 (CSS 따옴표 변환 우회) */
-function _syncFontSelectValue(selectEl, fontValue) {
-  if (!selectEl || !selectEl.isConnected) return;
-  // rawFont가 exact match이면 바로 사용
-  if (fontValue) {
-    selectEl.value = fontValue;
-    if (selectEl.value === fontValue) return;
-  }
-  if (!fontValue) { selectEl.value = ''; return; }
-  // 정규화 매칭: 따옴표 제거 + 첫 family 이름만 비교
-  const norm = v => v.replace(/['"]/g, '').split(',')[0].trim().toLowerCase();
-  const target = norm(fontValue);
-  if (!target) { selectEl.value = ''; return; }
-  for (const opt of selectEl.options) {
-    if (norm(opt.value) === target) { selectEl.value = opt.value; return; }
-  }
-  selectEl.value = '';  // 매칭 없으면 기본
-}
-
-function _updatePinButton(fontValue) {
-  const btn = document.getElementById('txt-font-pin');
-  if (!btn) return;
-  const pins = JSON.parse(localStorage.getItem('goditor_font_pins') || '[]');
-  btn.style.color = pins.includes(fontValue) ? '#f5c518' : '#888';
-}
-
-/* ── 시스템 설치 폰트 동적 로드 ── */
-async function _loadSystemFonts(selectEl) {
-  if (!window.queryLocalFonts) return;
+/* ── 시스템 설치 폰트 동적 로드 (모듈 수준 캐시) ── */
+async function _loadSystemFonts() {
+  if (_systemFontsList.length > 0 || !window.queryLocalFonts) return;
   try {
     const fonts = await window.queryLocalFonts();
-    const families = [...new Set(fonts.map(f => f.family))].sort((a, b) => a.localeCompare(b, 'ko'));
-    // 이미 추가된 경우 skip (showTextProperties 재호출 대비)
-    if (selectEl.querySelector('optgroup[data-system]')) return;
-    const og = document.createElement('optgroup');
-    og.label = '── 시스템 설치 ──';
-    og.dataset.system = '1';
-    families.forEach(fam => {
-      const opt = document.createElement('option');
-      opt.value = `'${fam}', sans-serif`;
-      opt.textContent = fam;
-      opt.style.fontFamily = fam;
-      og.appendChild(opt);
-    });
-    selectEl.appendChild(og);
-  } catch (e) {
-    // 퍼미션 거부 또는 미지원 환경 — 하드코딩 폴백 유지
-  }
+    _systemFontsList = [...new Set(fonts.map(f => f.family))].sort((a, b) => a.localeCompare(b, 'ko'));
+  } catch (e) { /* 퍼미션 거부 또는 미지원 */ }
 }
 
 // Backward compat: classic scripts call these via window.*

@@ -27,7 +27,7 @@ export function showIconCircleProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">크기</div>
+      <div class="prop-section-title">SIZE</div>
       <div class="prop-row">
         <span class="prop-label">지름</span>
         <input type="range" class="prop-slider" id="icb-size-slider" min="40" max="860" step="4" value="${size}">
@@ -41,18 +41,18 @@ export function showIconCircleProperties(block) {
     </div>
     ${hasImage ? `
     <div class="prop-section">
-      <div class="prop-section-title">이미지</div>
+      <div class="prop-section-title">IMAGE</div>
       <button class="prop-action-btn secondary" id="icb-pos-btn">이미지 위치 조절</button>
       <button class="prop-action-btn secondary" id="icb-replace-btn">이미지 교체</button>
       <button class="prop-action-btn danger"    id="icb-remove-btn">이미지 제거</button>
     </div>` : `
     <div class="prop-section">
-      <div class="prop-section-title">이미지</div>
+      <div class="prop-section-title">IMAGE</div>
       <button class="prop-action-btn primary" id="icb-upload-btn">이미지 선택</button>
       <div style="text-align:center;font-size:11px;color:#555;margin-top:6px;">또는 블록에 파일을 드래그</div>
     </div>`}
     <div class="prop-section">
-      <div class="prop-section-title">색상</div>
+      <div class="prop-section-title">COLOR</div>
       <div class="prop-color-row">
         <span class="prop-label">배경</span>
         <div class="prop-color-swatch" style="background:${bgColor}" role="button" aria-label="배경색 선택">
@@ -62,7 +62,7 @@ export function showIconCircleProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">테두리</div>
+      <div class="prop-section-title">BORDER</div>
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <select class="prop-select" id="icb-border-select">

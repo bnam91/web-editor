@@ -229,7 +229,7 @@ export function showFreeLayoutMultiSelPanel() {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">위치 / 크기</div>
+      <div class="prop-section-title">POSITION / SIZE</div>
       <div class="prop-row">
         ${mkInput('x', xVal, 'x', 'X')}
         ${mkInput('y', yVal, 'y', 'Y')}
@@ -252,7 +252,7 @@ export function showFreeLayoutMultiSelPanel() {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">정렬</div>
+      <div class="prop-section-title">ALIGN</div>
       <div class="prop-row" style="gap:3px;justify-content:space-between;">
         <button class="msp-align-btn" data-align="left"    title="왼쪽 정렬">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">

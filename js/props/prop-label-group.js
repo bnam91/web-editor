@@ -47,7 +47,10 @@ function showLabelGroupProperties(block, selectedItem) {
             <rect x="7" y="3" width="4" height="6" rx="3"/>
           </svg>
         </div>
-        <span class="prop-block-name">${block.dataset.layerName || 'Tags'}</span>
+        <div class="prop-block-info">
+          <span class="prop-block-name">${block.dataset.layerName || 'Tags'}</span>
+          <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
+        </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
       <div class="prop-section-title">Style</div>
@@ -61,9 +64,9 @@ function showLabelGroupProperties(block, selectedItem) {
         </select>
       </div>
       <div class="prop-row">
-        <button class="prop-full-btn" id="lg-apply-all-btn">전체 적용</button>
+        <button class="prop-btn-full" id="lg-apply-all-btn">전체 적용</button>
       </div>
-      <div class="prop-section-title">정렬</div>
+      <div class="prop-section-title">ALIGN</div>
       <div class="prop-align-group">
         <button class="prop-align-btn ${align==='left'?'active':''}" data-align="left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -84,13 +87,13 @@ function showLabelGroupProperties(block, selectedItem) {
           </svg>
         </button>
       </div>
-      <div class="prop-section-title">간격</div>
+      <div class="prop-section-title">SPACING</div>
       <div class="prop-row">
         <span class="prop-label">Gap</span>
         <input type="range"  class="prop-slider" id="lg-gap-slider" min="0" max="60" step="2" value="${gap}">
         <input type="number" class="prop-number"  id="lg-gap-number" min="0" max="60" value="${gap}">
       </div>
-      <div class="prop-section-title">높이 (전체)</div>
+      <div class="prop-section-title">HEIGHT (ALL)</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range"  class="prop-slider" id="lg-all-height-slider" min="0" max="120" step="2" value="${allItemH}">
@@ -100,7 +103,7 @@ function showLabelGroupProperties(block, selectedItem) {
 
     ${selectedItem ? `
     <div class="prop-section">
-      <div class="prop-section-title">선택된 태그</div>
+      <div class="prop-section-title">SELECTED TAG</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         <div class="prop-color-swatch" style="background:${itemBg}">
@@ -128,19 +131,19 @@ function showLabelGroupProperties(block, selectedItem) {
     </div>
     ` : `
     <div class="prop-section">
-      <div class="prop-section-title" style="color:#666;font-size:10px;">태그를 클릭하면 개별 색상을 변경할 수 있어요</div>
+      <div class="prop-section-title" style="color:#666;font-size:10px;">Click a tag to change its color</div>
     </div>
     `}
 
     ${isAbsolute ? `
     <div class="prop-section">
-      <div class="prop-section-title">너비</div>
+      <div class="prop-section-title">WIDTH</div>
       <div class="prop-row">
         <span class="prop-label">Width</span>
         <input type="range"  class="prop-slider" id="lg-width-slider" min="40" max="860" step="4" value="${currentW}">
         <input type="number" class="prop-number"  id="lg-width-number" min="40" max="860" value="${currentW}">
       </div>
-      <div class="prop-section-title">위치</div>
+      <div class="prop-section-title">POSITION</div>
       <div class="prop-row">
         <span class="prop-label" style="width:16px">X</span>
         <input type="number" class="prop-number" id="lg-x-number" value="${currentX}" style="width:72px">

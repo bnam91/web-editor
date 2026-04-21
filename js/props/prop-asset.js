@@ -41,7 +41,7 @@ export function showAssetProperties(ab) {
   const currentFit = ab.dataset.fit || 'cover';
   const imageSection = hasImage ? `
     <div class="prop-section">
-      <div class="prop-section-title">이미지</div>
+      <div class="prop-section-title">IMAGE</div>
       <div class="prop-row">
         <span class="prop-label">Fit</span>
         <div class="prop-align-group" id="asset-fit-group">
@@ -54,14 +54,17 @@ export function showAssetProperties(ab) {
       <button class="prop-action-btn danger"    id="asset-remove-btn">이미지 제거</button>
     </div>` : `
     <div class="prop-section">
-      <div class="prop-section-title">이미지</div>
+      <div class="prop-section-title">IMAGE</div>
       <div class="prop-hint" style="text-align:center;padding:8px 0 4px;">더블클릭하여 이미지 추가</div>
       <button class="prop-action-btn secondary" id="asset-upload-btn" style="margin-top:4px;">이미지 선택...</button>
       <div class="prop-hint" style="text-align:center;margin-top:4px;">또는 파일을 블록에 드래그</div>
-      <div class="prop-row" style="margin-top:10px;">
+      <div class="prop-color-row" style="margin-top:10px;">
         <span class="prop-label">배경색</span>
-        <input type="color" id="asset-bg-color" value="${currentBgColor}" style="width:32px;height:22px;border:none;background:none;cursor:pointer;padding:0;border-radius:3px;">
-        <button class="prop-align-btn" id="asset-bg-clear" style="font-size:10px;padding:0 8px;margin-left:4px;">초기화</button>
+        <div class="prop-color-swatch" style="background:${currentBgColor}">
+          <input type="color" id="asset-bg-color" value="${currentBgColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="asset-bg-hex" value="${currentBgColor}" maxlength="7">
+        <button class="prop-align-btn" id="asset-bg-clear" style="font-size:10px;padding:0 8px;flex-shrink:0;">초기화</button>
       </div>
     </div>`;
 
@@ -83,17 +86,17 @@ export function showAssetProperties(ab) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">프리셋</div>
-      <div class="prop-preset-group">
-        <button class="prop-preset-btn" data-w="860" data-h="780">Standard</button>
-        <button class="prop-preset-btn" data-w="860" data-h="860">Square</button>
-        <button class="prop-preset-btn" data-w="860" data-h="1032">Tall</button>
-        <button class="prop-preset-btn" data-w="860" data-h="575">Wide</button>
-        <button class="prop-preset-btn" data-preset="logo" data-w="200" data-h="64">Logo</button>
+      <div class="prop-section-title">PRESET</div>
+      <div class="prop-type-group">
+        <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="780">Standard</button>
+        <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="860">Square</button>
+        <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="1032">Tall</button>
+        <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="575">Wide</button>
+        <button class="prop-preset-btn prop-type-btn" data-preset="logo" data-w="200" data-h="64">Logo</button>
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">크기</div>
+      <div class="prop-section-title">SIZE</div>
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="asset-align-group">
@@ -133,7 +136,7 @@ export function showAssetProperties(ab) {
     </div>
     ${imageSection}
     <div class="prop-section">
-      <div class="prop-section-title">텍스트 오버레이</div>
+      <div class="prop-section-title">TEXT OVERLAY</div>
       <div class="prop-row">
         <span class="prop-label">활성화</span>
         <label class="prop-toggle">
@@ -349,16 +352,34 @@ export function showAssetProperties(ab) {
   } else {
     document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
     const bgColorInput = document.getElementById('asset-bg-color');
+    const bgHexInput   = document.getElementById('asset-bg-hex');
+    const bgSwatch     = bgColorInput.closest('.prop-color-swatch');
     bgColorInput.addEventListener('input', e => {
-      ab.dataset.bgColor = e.target.value;
-      ab.style.backgroundColor = e.target.value;
-      window.pushHistory();
+      const val = e.target.value;
+      ab.dataset.bgColor = val;
+      ab.style.backgroundColor = val;
+      if (bgHexInput) bgHexInput.value = val;
+      if (bgSwatch) bgSwatch.style.background = val;
     });
+    bgColorInput.addEventListener('change', () => window.pushHistory?.());
+    if (bgHexInput) {
+      bgHexInput.addEventListener('input', () => {
+        if (/^#[0-9a-f]{6}$/i.test(bgHexInput.value)) {
+          ab.dataset.bgColor = bgHexInput.value;
+          ab.style.backgroundColor = bgHexInput.value;
+          bgColorInput.value = bgHexInput.value;
+          if (bgSwatch) bgSwatch.style.background = bgHexInput.value;
+        }
+      });
+      bgHexInput.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(bgHexInput.value)) window.pushHistory?.(); });
+    }
     document.getElementById('asset-bg-clear').addEventListener('click', () => {
       delete ab.dataset.bgColor;
       ab.style.backgroundColor = '';
       bgColorInput.value = '#a0a0a0';
-      window.pushHistory();
+      if (bgHexInput) bgHexInput.value = '#a0a0a0';
+      if (bgSwatch) bgSwatch.style.background = '#a0a0a0';
+      window.pushHistory?.();
     });
   }
 

@@ -62,7 +62,7 @@ export function showTableProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
-      <div class="prop-section-title">행 / 열</div>
+      <div class="prop-section-title">ROWS / COLS</div>
       <div class="prop-row">
         <span class="prop-label">행</span>
         <button class="prop-count-btn" id="tbl-row-minus">−</button>
@@ -77,7 +77,7 @@ export function showTableProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">헤더</div>
+      <div class="prop-section-title">HEADER</div>
       <div class="prop-row">
         <span class="prop-label">헤더 표시</span>
         <label class="prop-toggle">
@@ -87,7 +87,7 @@ export function showTableProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">스타일</div>
+      <div class="prop-section-title">STYLE</div>
       <div class="prop-row">
         <span class="prop-label">테마</span>
         <select class="prop-select" id="tbl-style-select">
@@ -99,9 +99,24 @@ export function showTableProperties(block) {
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="tbl-align-group">
-          <button class="prop-align-btn${curAlign==='left'   ?' active':''}" data-align="left">←</button>
-          <button class="prop-align-btn${curAlign==='center' ?' active':''}" data-align="center">↔</button>
-          <button class="prop-align-btn${curAlign==='right'  ?' active':''}" data-align="right">→</button>
+          <button class="prop-align-btn${curAlign==='left'   ?' active':''}" data-align="left">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
+              <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
+            </svg>
+          </button>
+          <button class="prop-align-btn${curAlign==='center' ?' active':''}" data-align="center">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
+              <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
+            </svg>
+          </button>
+          <button class="prop-align-btn${curAlign==='right'  ?' active':''}" data-align="right">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+              <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
+              <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
+            </svg>
+          </button>
         </div>
       </div>
       <div class="prop-row">
