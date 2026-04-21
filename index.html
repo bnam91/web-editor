@@ -472,23 +472,6 @@
       <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
     </svg>
   </button>
-  <!-- 뉴그리드 블록 (Frame-in-Frame, col 개념 없음) -->
-  <div class="fp-dropdown" id="fp-newgrid-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-newgrid-dropdown')" title="New Grid (Frame-in-Frame)">
-      <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
-        <rect x="1" y="1" width="3.5" height="3.5" rx="0.5"/><rect x="6.5" y="1" width="3.5" height="3.5" rx="0.5"/>
-        <rect x="1" y="6.5" width="3.5" height="3.5" rx="0.5"/><rect x="6.5" y="6.5" width="3.5" height="3.5" rx="0.5"/>
-      </svg>
-      <svg class="fp-chevron" width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1 2.5l3 3 3-3"/></svg>
-    </button>
-    <div class="fp-dropdown-menu" id="fp-newgrid-menu">
-      <button class="fp-menu-item" onclick="addNewGridBlock(1,1);toggleFpDropdown('fp-newgrid-dropdown')">1 × 1</button>
-      <button class="fp-menu-item" onclick="addNewGridBlock(2,1);toggleFpDropdown('fp-newgrid-dropdown')">2 × 1</button>
-      <button class="fp-menu-item" onclick="addNewGridBlock(2,2);toggleFpDropdown('fp-newgrid-dropdown')">2 × 2</button>
-      <button class="fp-menu-item" onclick="addNewGridBlock(3,1);toggleFpDropdown('fp-newgrid-dropdown')">3 × 1</button>
-      <button class="fp-menu-item" onclick="addNewGridBlock(3,2);toggleFpDropdown('fp-newgrid-dropdown')">3 × 2</button>
-    </div>
-  </div>
   <button class="fp-btn" onclick="addFrameBlock()" title="Frame 추가 (Auto/Free 모드 전환 가능)">
     <svg width="16" height="16" viewBox="1.5 1.5 13 13" fill="none">
       <path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
