@@ -8,3 +8,4 @@ test-results/
 debug/*
 !debug/CLAUDE.md
 eval-*.js
+claude-talk-to-figma-mcp/
