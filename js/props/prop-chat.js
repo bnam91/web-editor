@@ -45,7 +45,7 @@ export function showChatProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">STYLE</div>
+      <div class="prop-section-title">Style</div>
       <div class="prop-row">
         <span class="prop-label">폰트 크기</span>
         <input type="number" id="chb-fontsize" class="prop-color-hex" value="${fontSize}" min="10" max="60" style="width:60px">
@@ -66,7 +66,7 @@ export function showChatProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">COLOR</div>
+      <div class="prop-section-title">Color</div>
       <div class="prop-row">
         <span class="prop-label">좌측 배경</span>
         <div class="prop-color-swatch" id="chb-bg-left-swatch" style="background:${bgLeft};width:24px;height:24px;border-radius:4px;border:1px solid #ccc;cursor:pointer;flex-shrink:0"></div>
@@ -80,7 +80,7 @@ export function showChatProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">MESSAGES</div>
+      <div class="prop-section-title">Messages</div>
       <div id="chb-msg-list">${msgListHtml()}</div>
       <button class="prop-btn-full" id="chb-add-msg" style="margin-top:6px">+ 대화 추가하기</button>
     </div>

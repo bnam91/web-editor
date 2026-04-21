@@ -2,6 +2,32 @@ import { canvasEl, propPanel, state } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
 
 /* ═══════════════════════════════════
+   포커스 시 전체 선택 (Figma 스타일)
+   - 숫자/hex/opacity 프로퍼티 인풋 클릭 시 텍스트 전체 선택 → 바로 덮어쓰기
+═══════════════════════════════════ */
+const _AUTO_SELECT_SEL = '.prop-number, .prop-color-hex, .prop-color-alpha-input, .goya-cp-hex, .goya-cp-alpha-input';
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el.matches?.(_AUTO_SELECT_SEL)) return;
+  // mousedown 이후에 select() 호출되도록 한 틱 지연
+  setTimeout(() => { if (document.activeElement === el) el.select(); }, 0);
+});
+document.addEventListener('mouseup', (e) => {
+  const el = e.target;
+  if (!el.matches?.(_AUTO_SELECT_SEL)) return;
+  // 포커스 얻는 첫 클릭에서만 기본 caret 배치 막기
+  if (el.dataset._selJustFocused === '1') {
+    e.preventDefault();
+    delete el.dataset._selJustFocused;
+  }
+}, true);
+document.addEventListener('mousedown', (e) => {
+  const el = e.target;
+  if (!el.matches?.(_AUTO_SELECT_SEL)) return;
+  if (document.activeElement !== el) el.dataset._selJustFocused = '1';
+}, true);
+
+/* ═══════════════════════════════════
    PANEL TABS
 ═══════════════════════════════════ */
 function toggleAllSections() {
@@ -650,18 +676,18 @@ document.addEventListener('keydown', e => {
     if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
     if (e.key === 'b' && !e.shiftKey) {
-      // 텍스트 편집 중일 때만 bold 토글
       if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
         e.preventDefault();
-        document.getElementById('txt-bold-btn')?.click();
+        document.execCommand('bold');
+        window.pushHistory?.();
         return;
       }
     }
     if (e.key === 'i' && !e.shiftKey) {
-      // 텍스트 편집 중일 때만 italic 토글
       if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
         e.preventDefault();
-        document.getElementById('txt-italic-btn')?.click();
+        document.execCommand('italic');
+        window.pushHistory?.();
         return;
       }
     }

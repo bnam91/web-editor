@@ -59,29 +59,24 @@ export function showStepProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
+    </div>
 
-      <div class="prop-section-title">DIRECTION</div>
+    <div class="prop-section">
+      <div class="prop-section-title">Direction</div>
       <div class="prop-align-group" id="stb-orient-group">
         <button class="prop-align-btn${stepOrient === 'vertical'   ? ' active' : ''}" data-orient="vertical"   style="flex:1">세로</button>
         <button class="prop-align-btn${stepOrient === 'horizontal' ? ' active' : ''}" data-orient="horizontal" style="flex:1">가로</button>
       </div>
+    </div>
 
-      <div class="prop-section-title" style="margin-top:10px">STYLE</div>
+    <div class="prop-section">
+      <div class="prop-section-title">Style</div>
       <div class="prop-align-group" id="stb-style-group">
         <button class="prop-align-btn${stepStyle === 'default' ? ' active' : ''}" data-style="default" style="flex:1">기본</button>
         <button class="prop-align-btn${stepStyle === 'card'    ? ' active' : ''}" data-style="card"    style="flex:1">카드</button>
         <button class="prop-align-btn${stepStyle === 'circle'  ? ' active' : ''}" data-style="circle"  style="flex:1">원형</button>
         <button class="prop-align-btn${stepStyle === 'number'  ? ' active' : ''}" data-style="number"  style="flex:1">번호</button>
       </div>
-
-      <div class="prop-section-title" style="margin-top:10px">ALIGN</div>
-      <div class="prop-align-group" id="stb-align-group">
-        <button class="prop-align-btn${stepAlign === 'left'   ? ' active' : ''}" data-align="left"   style="flex:1">←</button>
-        <button class="prop-align-btn${stepAlign === 'center' ? ' active' : ''}" data-align="center" style="flex:1">↔</button>
-        <button class="prop-align-btn${stepAlign === 'right'  ? ' active' : ''}" data-align="right"  style="flex:1">→</button>
-        <button class="prop-align-btn${stepAlign === 'stack'  ? ' active' : ''}" data-align="stack"  style="flex:1">☰</button>
-      </div>
-
       <div class="prop-row" id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'flex' : 'none'}">
         <span class="prop-label">카드 배경</span>
         <div class="prop-color-swatch" style="background:${stepCardBg}">
@@ -92,7 +87,17 @@ export function showStepProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">BADGE</div>
+      <div class="prop-section-title">Align</div>
+      <div class="prop-align-group" id="stb-align-group">
+        <button class="prop-align-btn${stepAlign === 'left'   ? ' active' : ''}" data-align="left"   style="flex:1">←</button>
+        <button class="prop-align-btn${stepAlign === 'center' ? ' active' : ''}" data-align="center" style="flex:1">↔</button>
+        <button class="prop-align-btn${stepAlign === 'right'  ? ' active' : ''}" data-align="right"  style="flex:1">→</button>
+        <button class="prop-align-btn${stepAlign === 'stack'  ? ' active' : ''}" data-align="stack"  style="flex:1">☰</button>
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-section-title">Badge</div>
       <div class="prop-row">
         <span class="prop-label">배경색</span>
         <div class="prop-color-swatch" style="background:${numBg}">
@@ -130,7 +135,7 @@ export function showStepProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">TEXT</div>
+      <div class="prop-section-title">Text</div>
       <div class="prop-row">
         <span class="prop-label">제목 색</span>
         <div class="prop-color-swatch" style="background:${titleColor}">
@@ -158,14 +163,14 @@ export function showStepProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">LAYOUT</div>
+      <div class="prop-section-title">Layout</div>
       <div class="prop-row">
         <span class="prop-label">간격</span>
         <input type="range" class="prop-slider" id="stb-gap-slider" min="8" max="200" step="4" value="${gap}">
         <input type="number" class="prop-number" id="stb-gap-number" min="8" max="200" value="${gap}">
       </div>
       <div class="prop-ph-header">
-        <span class="prop-section-title" style="margin-bottom:0">L/R PADDING</span>
+        <span class="prop-section-title" style="margin-bottom:0">L/R Padding</span>
         <button class="prop-chain-btn${stepPadL === stepPadR ? ' active' : ''}" id="stb-ph-chain" title="좌우 연동">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>
         </button>
@@ -199,7 +204,7 @@ export function showStepProperties(block) {
 
     <div class="prop-section">
       <div style="display:flex;align-items:center;margin-bottom:4px">
-        <span class="prop-section-title" style="margin-bottom:0;flex:1">STEPS</span>
+        <span class="prop-section-title" style="margin-bottom:0;flex:1">Steps</span>
         <button class="prop-btn" id="stb-add-step" style="padding:3px 6px;line-height:0" title="스텝 추가"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg></button>
       </div>
       <div id="stb-steps-list">${stepsHtml()}</div>

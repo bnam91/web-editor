@@ -10,7 +10,7 @@
   padding: 0 8px 4px;
 }
 .prop-section-title {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
   color: var(--ui-text-muted, #6b6b6b); padding: 8px 0 4px; margin-bottom: 0;
 }
 .prop-row {
@@ -292,6 +292,84 @@
                     linear-gradient(45deg, #555 25%, transparent 25%, transparent 75%, #555 75%) !important;
   background-size: 8px 8px !important;
   background-position: 0 0, 4px 4px !important;
+}
+
+/* Figma-style grouped color field: swatch + hex + opacity% */
+.prop-color-field {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 54px;
+  align-items: center;
+  height: 24px;
+  background: var(--ui-bg-input);
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: box-shadow 0.1s;
+  overflow: hidden;
+}
+.prop-color-field:focus-within { box-shadow: inset 0 0 0 1px var(--ui-accent-primary); }
+.prop-color-field .prop-color-swatch {
+  width: 16px; height: 16px;
+  margin: 0 6px 0 4px;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  box-sizing: border-box;
+}
+.prop-color-field .prop-color-hex {
+  flex: none;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  height: 100%;
+  padding: 0;
+  text-transform: uppercase;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.prop-color-field .prop-color-hex:hover,
+.prop-color-field .prop-color-hex:focus { border-color: transparent; }
+.prop-color-alpha {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  height: 100%;
+  padding: 0 8px;
+  cursor: text;
+}
+.prop-color-alpha::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 16px;
+  width: 1px;
+  background: rgba(255,255,255,0.08);
+}
+.prop-color-alpha-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--ui-text);
+  font-size: 11px;
+  line-height: 16px;
+  height: 100%;
+  padding: 0;
+  outline: none;
+  text-align: right;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.prop-color-alpha-suffix {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  user-select: none;
+  flex-shrink: 0;
 }
 .prop-none-check {
   display: flex; align-items: center; gap: 4px;

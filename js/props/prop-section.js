@@ -116,7 +116,7 @@ async function showSectionProperties(sec) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">BACKGROUND</div>
+      <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         <div class="prop-color-swatch" style="background:${hexBg}">
@@ -124,12 +124,12 @@ async function showSectionProperties(sec) {
         </div>
         <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg}" maxlength="7">
       </div>
-      <div class="prop-section-title" style="margin-top:10px;">BG IMAGE</div>
+      <span class="prop-field-label" style="margin-top:8px">Background Image</span>
       ${bgImgHTML}
     </div>
-    ${colorRows ? `<div class="prop-section"><div class="prop-section-title">TEXT COLOR</div>${colorRows}</div>` : ''}
+    ${colorRows ? `<div class="prop-section"><div class="prop-section-title">Text Color</div>${colorRows}</div>` : ''}
     <div class="prop-section">
-      <div class="prop-section-title">BULK ALIGN</div>
+      <div class="prop-section-title">Bulk Align</div>
       <div class="prop-align-group">
         <button class="prop-align-btn" id="sec-align-left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -152,7 +152,7 @@ async function showSectionProperties(sec) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">PADDING</div>
+      <div class="prop-section-title">Padding</div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="sec-padx-slider" min="0" max="100" step="2" value="${secPadX}">
@@ -165,7 +165,7 @@ async function showSectionProperties(sec) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">EXPORT</div>
+      <div class="prop-section-title">Export</div>
       <div class="prop-row" style="margin-bottom:4px;">
         <select class="prop-select" id="sec-export-format" style="flex:1;min-width:0;">
           <option value="png">PNG</option>
@@ -179,7 +179,7 @@ async function showSectionProperties(sec) {
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">TEMPLATE</div>
+      <div class="prop-section-title">Template</div>
       <div class="prop-row" style="margin-bottom:4px;">
         <select class="prop-select" id="sec-tpl-folder" style="flex:1;min-width:0;">
           ${(()=>{

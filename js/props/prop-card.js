@@ -21,7 +21,9 @@ export function showCardProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
-      <div class="prop-section-title">IMAGE</div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Image</div>
       <div class="prop-row">
         <button class="prop-btn-full" onclick="window.triggerCardImageUpload(document.getElementById('${block.id}'))">이미지 업로드</button>
       </div>
@@ -31,7 +33,7 @@ export function showCardProperties(block) {
       </div>` : ''}
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">BOTTOM AREA</div>
+      <div class="prop-section-title">Bottom Area</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         <div class="prop-color-swatch" style="background:${bgColor}">
@@ -46,7 +48,7 @@ export function showCardProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">TEXT SIZE</div>
+      <div class="prop-section-title">Text Size</div>
       <div class="prop-row">
         <span class="prop-label">제목</span>
         <input type="range" class="prop-slider" id="card-title-slider" min="12" max="60" step="1" value="${titleSize}">
@@ -59,7 +61,7 @@ export function showCardProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">TEXT ALIGN</div>
+      <div class="prop-section-title">Text Align</div>
       <div class="prop-row">
         <div class="prop-align-group" id="card-align-group">
           <button class="prop-align-btn${(block.dataset.textAlign||'left')==='left'?' active':''}"   data-align="left">
@@ -84,7 +86,7 @@ export function showCardProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">CARDS</div>
+      <div class="prop-section-title">Cards</div>
       <div class="prop-row">
         <button class="prop-action-btn primary" id="card-add-btn">+ 카드 추가</button>
         <button class="prop-action-btn danger" id="card-remove-btn">− 마지막 카드 제거</button>

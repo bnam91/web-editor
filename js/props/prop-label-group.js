@@ -53,6 +53,8 @@ function showLabelGroupProperties(block, selectedItem) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">Style</div>
       <div class="prop-row">
         <span class="prop-label">Preset</span>
@@ -66,7 +68,9 @@ function showLabelGroupProperties(block, selectedItem) {
       <div class="prop-row">
         <button class="prop-btn-full" id="lg-apply-all-btn">전체 적용</button>
       </div>
-      <div class="prop-section-title">ALIGN</div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Align</div>
       <div class="prop-align-group">
         <button class="prop-align-btn ${align==='left'?'active':''}" data-align="left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -87,13 +91,17 @@ function showLabelGroupProperties(block, selectedItem) {
           </svg>
         </button>
       </div>
-      <div class="prop-section-title">SPACING</div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Spacing</div>
       <div class="prop-row">
         <span class="prop-label">Gap</span>
         <input type="range"  class="prop-slider" id="lg-gap-slider" min="0" max="60" step="2" value="${gap}">
         <input type="number" class="prop-number"  id="lg-gap-number" min="0" max="60" value="${gap}">
       </div>
-      <div class="prop-section-title">HEIGHT (ALL)</div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Height (All)</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range"  class="prop-slider" id="lg-all-height-slider" min="0" max="120" step="2" value="${allItemH}">
@@ -103,7 +111,7 @@ function showLabelGroupProperties(block, selectedItem) {
 
     ${selectedItem ? `
     <div class="prop-section">
-      <div class="prop-section-title">SELECTED TAG</div>
+      <div class="prop-section-title">Selected Tag</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         <div class="prop-color-swatch" style="background:${itemBg}">
@@ -130,20 +138,20 @@ function showLabelGroupProperties(block, selectedItem) {
       </div>
     </div>
     ` : `
-    <div class="prop-section">
-      <div class="prop-section-title" style="color:#666;font-size:10px;">Click a tag to change its color</div>
-    </div>
+    <div class="prop-hint">Click a tag to change its color</div>
     `}
 
     ${isAbsolute ? `
     <div class="prop-section">
-      <div class="prop-section-title">WIDTH</div>
+      <div class="prop-section-title">Width</div>
       <div class="prop-row">
         <span class="prop-label">Width</span>
         <input type="range"  class="prop-slider" id="lg-width-slider" min="40" max="860" step="4" value="${currentW}">
         <input type="number" class="prop-number"  id="lg-width-number" min="40" max="860" value="${currentW}">
       </div>
-      <div class="prop-section-title">POSITION</div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Position</div>
       <div class="prop-row">
         <span class="prop-label" style="width:16px">X</span>
         <input type="number" class="prop-number" id="lg-x-number" value="${currentX}" style="width:72px">

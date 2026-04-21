@@ -35,7 +35,9 @@ export function showGraphProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
-      <div class="prop-section-title">SIZE</div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="grb-h-slider" min="80" max="600" step="8" value="${chartH}">
@@ -49,7 +51,7 @@ export function showGraphProperties(block) {
     </div>
     ${chartType === 'bar-h' ? `
     <div class="prop-section">
-      <div class="prop-section-title">BAR SETTINGS</div>
+      <div class="prop-section-title">Bar Settings</div>
       <div class="prop-row">
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="8" max="48" step="2" value="${barThickness}">
@@ -79,14 +81,14 @@ export function showGraphProperties(block) {
       </div>
     </div>` : ''}
     <div class="prop-section">
-      <div class="prop-section-title">CHART TYPE</div>
+      <div class="prop-section-title">Chart Type</div>
       <div class="prop-type-group">
         <button class="prop-type-btn ${chartType === 'bar-v' ? 'active' : ''}" id="grb-type-v">세로 막대</button>
         <button class="prop-type-btn ${chartType === 'bar-h' ? 'active' : ''}" id="grb-type-h">가로 막대</button>
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">PRESET</div>
+      <div class="prop-section-title">Preset</div>
       <div class="prop-preset-group">
         ${presets.map(p => `
           <button class="prop-preset-btn ${preset === p.id ? 'active' : ''}" data-preset-id="${p.id}" id="grb-preset-${p.id}">
@@ -95,7 +97,7 @@ export function showGraphProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">DATA</div>
+      <div class="prop-section-title">Data</div>
       <div class="grb-data-list" id="grb-data-list">
         ${items.map((item, i) => `
           <div class="grb-data-item" data-index="${i}">

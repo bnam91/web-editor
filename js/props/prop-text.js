@@ -90,7 +90,7 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">TYPE</div>
+      <div class="prop-section-title">Type</div>
       <div class="prop-type-group">
         <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
         <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
@@ -142,7 +142,7 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">TYPOGRAPHY</div>
+      <div class="prop-section-title">Typography</div>
 
       <span class="prop-field-label">Font</span>
       <div class="font-picker" id="txt-font-picker">
@@ -188,12 +188,6 @@ export function showTextProperties(tb) {
         </div>
       </div>
 
-      <div class="prop-row">
-        <div class="prop-style-group">
-          <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (Bold / Cmd+B)"><b>B</b></button>
-          <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic / Cmd+I)"><i>I</i></button>
-        </div>
-      </div>
     </div>
 
     <div class="prop-section">
@@ -208,7 +202,7 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
-      <div class="prop-section-title">SIZE</div>
+      <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="4" value="${currentW}">
@@ -217,7 +211,7 @@ export function showTextProperties(tb) {
     </div>
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
-      <div class="prop-section-title">PADDING</div>
+      <div class="prop-section-title">Padding</div>
       <div class="prop-row">
         <span class="prop-label">상하</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}">
@@ -247,7 +241,7 @@ export function showTextProperties(tb) {
 
     <div id="label-style-section" style="display:${isLabel?'block':'none'}">
       <div class="prop-section">
-        <div class="prop-section-title">TAG STYLE</div>
+        <div class="prop-section-title">Tag Style</div>
         <div class="prop-row" style="gap:6px">
           <button class="prop-btn-full" id="label-shape-pill">Pill</button>
           <button class="prop-btn-full" id="label-shape-box">Box</button>
@@ -277,7 +271,7 @@ export function showTextProperties(tb) {
 
     <div id="bubble-style-section" style="display:${isSpeechBubble?'block':'none'}">
       <div class="prop-section">
-        <div class="prop-section-title">BUBBLE STYLE</div>
+        <div class="prop-section-title">Bubble Style</div>
         <div class="prop-row">
           <span class="prop-label">스타일</span>
           <select class="prop-select" id="bubble-style-select">
@@ -316,7 +310,7 @@ export function showTextProperties(tb) {
 
     <div id="icon-text-style-section" style="display:${isIconText?'block':'none'}">
       <div class="prop-section">
-        <div class="prop-section-title">ICON TEXT</div>
+        <div class="prop-section-title">Icon Text</div>
         <div class="prop-row">
           <span class="prop-label">아이콘-텍스트 간격</span>
           <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="${currentItbGap}">
@@ -748,8 +742,6 @@ export function showTextProperties(tb) {
     }
   }
 
-  /* Italic — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
-  let _savedItalicSel = null;
   let _savedColorSel = null;
   let _colorSpan = null; // 색상 적용 시 생성한 span (input 반복 호출에 재사용)
 
@@ -770,39 +762,6 @@ export function showTextProperties(tb) {
     contentEl.contentEditable = wasEditable;
     return true;
   };
-
-  let _savedBoldSel = null;
-  document.getElementById('txt-bold-btn').addEventListener('mousedown', () => {
-    if (hasSel()) _savedBoldSel = window.getSelection().getRangeAt(0).cloneRange();
-    else _savedBoldSel = null;
-  });
-  document.getElementById('txt-bold-btn').addEventListener('click', () => {
-    if (_savedBoldSel) {
-      applyExecCmd(_savedBoldSel, 'bold');
-      _savedBoldSel = null;
-    } else {
-      const isNowBold = contentEl.style.fontWeight === '700' || contentEl.style.fontWeight === 'bold';
-      contentEl.style.fontWeight = isNowBold ? '' : '700';
-      document.getElementById('txt-bold-btn').classList.toggle('active', !isNowBold);
-    }
-    window.pushHistory();
-  });
-
-  document.getElementById('txt-italic-btn').addEventListener('mousedown', () => {
-    if (hasSel()) _savedItalicSel = window.getSelection().getRangeAt(0).cloneRange();
-    else _savedItalicSel = null;
-  });
-  document.getElementById('txt-italic-btn').addEventListener('click', () => {
-    if (_savedItalicSel) {
-      applyExecCmd(_savedItalicSel, 'italic');
-      _savedItalicSel = null;
-    } else {
-      const isNowItalic = contentEl.style.fontStyle === 'italic';
-      contentEl.style.fontStyle = isNowItalic ? '' : 'italic';
-      document.getElementById('txt-italic-btn').classList.toggle('active', !isNowItalic);
-    }
-    window.pushHistory();
-  });
 
   /* 폰트 크기 — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   const sizeNumber = document.getElementById('txt-size-number');

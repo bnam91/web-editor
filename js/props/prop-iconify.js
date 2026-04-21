@@ -22,8 +22,10 @@ export function showIconifyProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
+    </div>
 
-      <!-- 아이콘 이름 -->
+    <div class="prop-section">
+      <div class="prop-section-title">Icon</div>
       <div class="prop-row" style="gap:6px;">
         <span class="prop-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#888;" title="${iconName}">${iconName || '(없음)'}</span>
         <button class="prop-btn" id="icn-replace-btn" title="Iconify에서 교체"
@@ -32,7 +34,7 @@ export function showIconifyProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">SIZE</div>
+      <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">Size</span>
         <input type="range"  class="prop-slider" id="icn-size-slider" min="16" max="512" step="8"  value="${size}">
@@ -41,7 +43,7 @@ export function showIconifyProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">COLOR</div>
+      <div class="prop-section-title">Color</div>
       <div class="prop-color-row">
         <span class="prop-label">Color</span>
         <div class="prop-color-swatch" style="background:${color};">
@@ -52,7 +54,7 @@ export function showIconifyProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">ROTATION</div>
+      <div class="prop-section-title">Rotation</div>
       <div class="prop-align-group" id="icn-rotation-group">
         <button class="prop-align-btn${rotation ===   0 ? ' active' : ''}" data-deg="0">0°</button>
         <button class="prop-align-btn${rotation ===  90 ? ' active' : ''}" data-deg="90">90°</button>

@@ -60,7 +60,7 @@ function _renderAutoPanel(ss) {
 
   propPanel.innerHTML = _headerHTML(ss, 'auto') + `
     <div class="prop-section">
-      <div class="prop-section-title">BACKGROUND</div>
+      <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         <div class="prop-color-swatch" style="background:${hexBg}">
@@ -68,7 +68,9 @@ function _renderAutoPanel(ss) {
         </div>
         <input type="text" class="prop-color-hex" id="ss-bg-hex" value="${hexBg}" maxlength="7">
       </div>
-      <div class="prop-section-title" style="margin-top:10px;">BG IMAGE</div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Bg Image</div>
       <button class="prop-action-btn secondary" id="ss-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
@@ -77,7 +79,7 @@ function _renderAutoPanel(ss) {
       ` : ''}
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">BORDER</div>
+      <div class="prop-section-title">Border</div>
       <div class="prop-row">
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="ss-border-w-slider" min="0" max="20" step="1" value="${borderWidth}">
@@ -105,7 +107,7 @@ function _renderAutoPanel(ss) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">SIZE</div>
+      <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="ss-width-slider" min="${minWidth}" max="860" step="10" value="${width}">
@@ -123,7 +125,7 @@ function _renderAutoPanel(ss) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">POSITION</div>
+      <div class="prop-section-title">Position</div>
       <div class="prop-row" style="margin-top:6px;gap:6px;">
         <span class="prop-label" style="width:16px;flex-shrink:0;">X</span>
         <input type="number" class="prop-number" id="ss-pos-x" style="flex:1;" value="${parseInt(ss.dataset.translateX) || 0}">
@@ -132,7 +134,7 @@ function _renderAutoPanel(ss) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">CHILD ALIGN</div>
+      <div class="prop-section-title">Child Align</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:6px;">
         <button class="prop-align-btn" id="ss-align-left"    title="왼쪽 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M3 2h1.5v12H3zM6.5 4.5h6a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-6zm0 4h4a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-4z"/></svg></button>
         <button class="prop-align-btn" id="ss-align-hcenter" title="가운데 정렬"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M7.25 2h1.5v2.5H13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75v1H12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5H8.75V14h-1.5v-2.5H4a.5.5 0 0 1-.5-.5V9a.5.5 0 0 1 .5-.5h3.25v-1H4a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5h3.25z"/></svg></button>
@@ -148,7 +150,7 @@ function _renderAutoPanel(ss) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">ROTATE / FLIP</div>
+      <div class="prop-section-title">Rotate / Flip</div>
       <div class="prop-row" style="margin-top:6px;gap:6px;">
         <span class="prop-label" style="flex-shrink:0;">각도</span>
         <input type="number" class="prop-number" id="ss-rotate-deg" style="width:56px;" min="-360" max="360" value="${parseInt(ss.dataset.rotateDeg) || 0}">
@@ -161,7 +163,7 @@ function _renderAutoPanel(ss) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">COMPONENT</div>
+      <div class="prop-section-title">Component</div>
       ${(() => {
         const allTemplates = window.loadTemplates?.() || [];
         const folders = [...new Set(allTemplates.map(t => t.folder || '기타'))];
@@ -184,7 +186,7 @@ function _renderAutoPanel(ss) {
       })()}
     </div>
     <div class="prop-section">
-      <div class="prop-hint" style="font-size:11px;color:#999;">Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.</div>
+      <div class="prop-hint">Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.</div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);

@@ -40,6 +40,8 @@ window.applyPagePadX = applyPagePadX;
 export function showPageProperties() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
   const { bg, gap, padX, padY, padXExcludesAsset } = state.pageSettings;
+  const bgAlpha = state.pageSettings.bgAlpha ?? 100;
+  const bgHexUp = (bg || '#000000').replace('#','').toUpperCase();
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -48,19 +50,27 @@ export function showPageProperties() {
             <path fill="#888" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
           </svg>
         </div>
-        <span class="prop-block-name">Background</span>
-      </div>
-      <div class="prop-section-title">BACKGROUND</div>
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch" style="background:${bg}">
-          <input type="color" id="page-bg-color" value="${bg}">
-        </div>
-        <input type="text" class="prop-color-hex" id="page-bg-hex" value="${bg}" maxlength="7">
+        <span class="prop-block-name">Page</span>
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">BULK ALIGN</div>
+      <div class="prop-section-title">Background</div>
+      <div class="prop-color-row">
+        <span class="prop-label">배경색</span>
+        <div class="prop-color-field">
+          <div class="prop-color-swatch" style="background:${bg}">
+            <input type="color" id="page-bg-color" value="${bg}">
+          </div>
+          <input type="text" class="prop-color-hex" id="page-bg-hex" value="${bgHexUp}" maxlength="6" aria-label="Color">
+          <label class="prop-color-alpha" title="Opacity">
+            <input type="text" class="prop-color-alpha-input" id="page-bg-alpha-input" value="${bgAlpha}" aria-label="Opacity">
+            <span class="prop-color-alpha-suffix">%</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Bulk Align</div>
       <div class="prop-align-group">
         <button class="prop-align-btn" id="page-align-left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -83,7 +93,7 @@ export function showPageProperties() {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">LAYOUT</div>
+      <div class="prop-section-title">Layout</div>
       <div class="prop-row">
         <span class="prop-label">섹션 간격</span>
         <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="200" step="4" value="${gap}">
@@ -105,7 +115,7 @@ export function showPageProperties() {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">EXPORT</div>
+      <div class="prop-section-title">Export</div>
       <select class="prop-select" id="page-export-format" style="width:100%;margin-bottom:6px;">
         <option value="png">PNG</option>
         <option value="jpg">JPG</option>
@@ -117,22 +127,50 @@ export function showPageProperties() {
       <button class="prop-export-btn" id="page-export-all-btn">전체 섹션 내보내기</button>
     </div>`;
 
-  const bgPicker = document.getElementById('page-bg-color');
-  const bgHex    = document.getElementById('page-bg-hex');
-  const bgSwatch = bgPicker.closest('.prop-color-swatch');
+  const bgPicker   = document.getElementById('page-bg-color');
+  const bgHex      = document.getElementById('page-bg-hex');
+  const bgAlphaInp = document.getElementById('page-bg-alpha-input');
+  const bgSwatch   = bgPicker.closest('.prop-color-swatch');
+
+  const _bgToRgba = () => {
+    const h = (state.pageSettings.bg || '#000000').replace('#','');
+    const r = parseInt(h.slice(0,2), 16);
+    const g = parseInt(h.slice(2,4), 16);
+    const b = parseInt(h.slice(4,6), 16);
+    const a = Math.max(0, Math.min(1, (state.pageSettings.bgAlpha ?? 100) / 100));
+    return `rgba(${r},${g},${b},${a})`;
+  };
+  const _applyBg = () => {
+    const rgba = _bgToRgba();
+    canvasWrap.style.background = rgba;
+    bgSwatch.style.background = rgba;
+  };
+
   bgPicker.addEventListener('input', () => {
     state.pageSettings.bg = bgPicker.value;
-    canvasWrap.style.background = state.pageSettings.bg;
-    bgHex.value = state.pageSettings.bg;
-    bgSwatch.style.background = state.pageSettings.bg;
+    bgHex.value = bgPicker.value.replace('#','').toUpperCase();
+    _applyBg();
   });
   bgHex.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
-      state.pageSettings.bg = bgHex.value;
+    const v = bgHex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) {
+      state.pageSettings.bg = '#' + v.toLowerCase();
       bgPicker.value = state.pageSettings.bg;
-      canvasWrap.style.background = state.pageSettings.bg;
-      bgSwatch.style.background = state.pageSettings.bg;
+      _applyBg();
     }
+  });
+  bgHex.addEventListener('blur', () => {
+    bgHex.value = (state.pageSettings.bg || '#000000').replace('#','').toUpperCase();
+  });
+  bgAlphaInp.addEventListener('input', () => {
+    const m = bgAlphaInp.value.match(/(\d+)/);
+    if (!m) return;
+    const p = Math.max(0, Math.min(100, parseInt(m[1])));
+    state.pageSettings.bgAlpha = p;
+    _applyBg();
+  });
+  bgAlphaInp.addEventListener('blur', () => {
+    bgAlphaInp.value = String(state.pageSettings.bgAlpha ?? 100);
   });
 
   const gapSlider = document.getElementById('section-gap-slider');

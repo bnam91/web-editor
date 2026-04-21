@@ -361,8 +361,17 @@ function applyProjectData(data) {
   window.clearHistory?.();
 }
 
+function _bgRgba(ps) {
+  const h = (ps.bg || '#000000').replace('#','');
+  const r = parseInt(h.slice(0,2), 16);
+  const g = parseInt(h.slice(2,4), 16);
+  const b = parseInt(h.slice(4,6), 16);
+  const a = Math.max(0, Math.min(1, (ps.bgAlpha ?? 100) / 100));
+  return `rgba(${r},${g},${b},${a})`;
+}
+
 function applyPageSettings() {
-  canvasWrap.style.background = state.pageSettings.bg;
+  canvasWrap.style.background = _bgRgba(state.pageSettings);
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용 (섹션 개별 override 제외)
@@ -995,7 +1004,7 @@ function initApp() {
     const revertBtn = document.getElementById('revert-btn');
     if (revertBtn) revertBtn.classList.add('has-commit');
   }
-  canvasWrap.style.background = state.pageSettings.bg;
+  canvasWrap.style.background = _bgRgba(state.pageSettings);
   canvasEl.style.gap = state.pageSettings.gap + 'px';
   canvasEl.style.setProperty('--page-pady', state.pageSettings.padY + 'px');
   // padX: 섹션 물리적 padding 방식으로 적용

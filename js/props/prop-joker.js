@@ -27,7 +27,7 @@ export function showJokerProperties(jb) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">POSITION</div>
+      <div class="prop-section-title">Position</div>
       <div class="prop-row">
         <span class="prop-label">X</span>
         <input type="range" class="prop-slider" id="joker-x-slider" min="0" max="860" step="1" value="${currentX}">

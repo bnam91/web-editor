@@ -64,8 +64,10 @@ export function showCanvasProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
+    </div>
 
-      <div class="prop-section-title">SIZE</div>
+    <div class="prop-section">
+      <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
@@ -75,7 +77,7 @@ export function showCanvasProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">BACKGROUND</div>
+      <div class="prop-section-title">Background</div>
       <div class="prop-row">
         <span class="prop-label">색상</span>
         <div class="prop-color-swatch" style="background:${bg === 'transparent' ? '#fff' : bg}">
@@ -91,7 +93,7 @@ export function showCanvasProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">CARD SPACING</div>
+      <div class="prop-section-title">Card Spacing</div>
       <div class="prop-row">
         <span class="prop-label">Gap</span>
         <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${parseInt(block.dataset.cardGap ?? 12)}">
@@ -105,13 +107,13 @@ export function showCanvasProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">INSERT GRID</div>
+      <div class="prop-section-title">Insert Grid</div>
       <div class="grid-picker" id="cvb-grid-picker"></div>
       <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">LAYERS (${layers.length})</div>
+      <div class="prop-section-title">Layers (${layers.length})</div>
       <div id="cvb-layer-list">${layerRows || '<div style="color:var(--ui-text-muted);font-size:11px;padding:6px 0">레이어 없음</div>'}</div>
     </div>`;
 
@@ -315,7 +317,13 @@ function showSimpleCardProperties(block) {
         <div class="prop-color-swatch cvb-card-bg-swatch" style="width:16px;height:16px;border-radius:3px;flex-shrink:0;background:${card.cellBg || textBg};" title="개별 배경색">
           <input type="color" class="cvb-card-cell-bg" data-card-index="${i}" value="${card.cellBg || textBg}">
         </div>
-        <button class="prop-btn cvb-card-img-btn cvb-card-btn-sm" data-card-index="${i}">${card.imgSrc ? '이미지 교체' : '이미지 추가'}</button>
+        <button class="prop-btn cvb-card-img-btn cvb-card-btn-sm" data-card-index="${i}" title="${card.imgSrc ? '이미지 교체' : '이미지 추가'}" style="display:inline-flex;align-items:center;justify-content:center;padding:3px 6px;">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1.5" y="2.5" width="11" height="9" rx="1.3"/>
+            <circle cx="5" cy="5.5" r="1"/>
+            <path d="M12.5 9L9.5 6.5 4 11.5"/>
+          </svg>
+        </button>
         ${card.imgSrc ? `<button class="prop-btn cvb-card-img-clear cvb-card-btn-sm-del" data-card-index="${i}" title="이미지 제거">✕</button>` : ''}
       </div>
       ${card.imgSrc ? `
@@ -356,7 +364,7 @@ function showSimpleCardProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">CARD SIZE</div>
+      <div class="prop-section-title">Card Size</div>
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
@@ -377,7 +385,7 @@ function showSimpleCardProperties(block) {
 
     <div class="prop-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div class="prop-section-title" style="margin-bottom:0;">TEXT AREA</div>
+        <div class="prop-section-title" style="margin-bottom:0;">Text Area</div>
         <button class="prop-align-btn${textHide ? ' active' : ''}" id="cvb-text-hide-btn" style="width:auto;padding:0 8px;font-size:10px;">숨김</button>
       </div>
       <div id="cvb-text-area-controls" style="${textHide ? 'opacity:0.35;pointer-events:none;' : ''}">
@@ -413,7 +421,7 @@ function showSimpleCardProperties(block) {
         <input type="range" class="prop-slider" id="cvb-desc-slider" min="10" max="40" step="1" value="${descSize}">
         <input type="number" class="prop-number" id="cvb-desc-number" min="10" max="40" value="${descSize}">
       </div>
-      <div class="prop-section-title" style="margin-top:6px;">TEXT ALIGN</div>
+      <div class="prop-section-title" style="margin-top:6px;">Text Align</div>
       <div class="prop-align-group" id="cvb-align-group">
         <button class="prop-align-btn${textAlign==='left'?' active':''}"   data-align="left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -438,7 +446,7 @@ function showSimpleCardProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">CARD SPACING</div>
+      <div class="prop-section-title">Card Spacing</div>
       <div class="prop-row">
         <span class="prop-label">Gap</span>
         <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${cardGap}">
@@ -452,13 +460,13 @@ function showSimpleCardProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">CARD GRID (${gridCols}×${gridRows})</div>
+      <div class="prop-section-title">Card Grid (${gridCols}×${gridRows})</div>
       <div class="grid-picker" id="cvb-grid-picker"></div>
       <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">CARDS (${cards.length})</div>
+      <div class="prop-section-title">Cards (${cards.length})</div>
       <div id="cvb-card-items">${cardItemsHtml}</div>
     </div>`;
 

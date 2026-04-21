@@ -19,7 +19,7 @@ export function showGapProperties(gb) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">SIZE</div>
+      <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="gap-slider" min="0" max="400" step="4" value="${currentH}">

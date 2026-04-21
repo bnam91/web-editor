@@ -46,7 +46,7 @@ export function showShapeProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">COLOR</div>
+      <div class="prop-section-title">Color</div>
       <div class="prop-color-row">
         <span class="prop-label">색상</span>
         <div class="prop-color-swatch" style="background:${color}">
@@ -62,7 +62,7 @@ export function showShapeProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">SIZE</div>
+      <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="range" class="prop-slider" id="shape-w-slider" min="10" max="860" step="1" value="${w}">

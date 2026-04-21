@@ -1,0 +1,401 @@
+/* ═══════════════════════════════════
+   FIGMA-STYLE COLOR PICKER
+═══════════════════════════════════ */
+
+.goya-cp-popover {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: content-box;
+  width: 240px;
+  background: var(--ui-bg-panel, #2c2c2c);
+  border: 1px solid var(--ui-border, #3a3a3a);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.35);
+  color: var(--ui-text, #ddd);
+  font-family: Pretendard, -apple-system, 'SF Pro Display', 'Inter', sans-serif;
+  font-size: 11px;
+  line-height: 16px;
+  user-select: none;
+  overflow: hidden;
+  padding-bottom: 12px;
+}
+.goya-cp-popover *, .goya-cp-popover *::before, .goya-cp-popover *::after {
+  box-sizing: border-box;
+}
+
+.goya-cp-popover[hidden] { display: none; }
+
+/* ── 헤더: Paint type tabs + right buttons ── */
+.goya-cp-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px 6px;
+}
+
+.goya-cp-tabs {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  background: rgba(0,0,0,0.25);
+  border-radius: 5px;
+  padding: 2px;
+}
+.goya-cp-tab {
+  flex: 1;
+  height: 22px;
+  background: transparent;
+  border: none;
+  color: var(--ui-text-muted, #888);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.goya-cp-tab svg { display: block; }
+.goya-cp-tab:hover { color: var(--ui-text, #ddd); }
+.goya-cp-tab.active {
+  background: var(--ui-border, #3a3a3a);
+  color: #fff;
+}
+
+.goya-cp-headbtn {
+  width: 22px; height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--ui-text-muted, #888);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s;
+}
+.goya-cp-headbtn:hover { background: var(--ui-bg-input, #1a1a1a); color: #fff; }
+.goya-cp-headbtn.active { background: var(--ui-border, #3a3a3a); color: #fff; }
+
+/* ── Spectrum (208×208) ── */
+.goya-cp-spectrum-wrap {
+  padding: 4px 16px 0;
+  overflow: visible;
+}
+.goya-cp-spectrum {
+  position: relative;
+  box-sizing: border-box;
+  width: 208px;
+  height: 208px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+  background: #f00;
+  cursor: crosshair;
+  overflow: visible;
+}
+.goya-cp-spectrum::before,
+.goya-cp-spectrum::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.goya-cp-spectrum::before {
+  background: linear-gradient(to right, #fff, rgba(255,255,255,0));
+}
+.goya-cp-spectrum::after {
+  background: linear-gradient(to top, #000, rgba(0,0,0,0));
+}
+.goya-cp-reticle {
+  position: absolute;
+  box-sizing: border-box;
+  width: 16px; height: 16px;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: #000;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.25);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Controls row: dropper + slider stack ── */
+.goya-cp-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 0;
+}
+.goya-cp-dropper {
+  width: 24px; height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--ui-text, #ddd);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.1s;
+}
+.goya-cp-dropper:hover { background: var(--ui-bg-input, #1a1a1a); }
+.goya-cp-dropper[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+.goya-cp-slider-stack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.goya-cp-slider {
+  --cp-slider-h: 12px;
+  position: relative;
+  height: var(--cp-slider-h);
+  border-radius: calc(var(--cp-slider-h) / 2);
+  cursor: pointer;
+}
+.goya-cp-slider--hue {
+  background: linear-gradient(90deg,
+    rgba(255, 0, 0, 1) calc(var(--cp-slider-h) / 2),
+    rgba(255, 48, 0, 1), rgba(255, 96, 0, 1), rgba(255, 143, 0, 1),
+    rgba(255, 191, 0, 1), rgba(255, 239, 0, 1), rgba(223, 255, 0, 1),
+    rgba(175, 255, 0, 1), rgba(128, 255, 0, 1), rgba(80, 255, 0, 1),
+    rgba(32, 255, 0, 1), rgba(0, 255, 16, 1), rgba(0, 255, 64, 1),
+    rgba(0, 255, 112, 1), rgba(0, 255, 159, 1), rgba(0, 255, 207, 1),
+    rgba(0, 255, 255, 1), rgba(0, 207, 255, 1), rgba(0, 159, 255, 1),
+    rgba(0, 112, 255, 1), rgba(0, 64, 255, 1), rgba(0, 16, 255, 1),
+    rgba(32, 0, 255, 1), rgba(80, 0, 255, 1), rgba(127, 0, 255, 1),
+    rgba(175, 0, 255, 1), rgba(223, 0, 255, 1), rgba(255, 0, 239, 1),
+    rgba(255, 0, 191, 1), rgba(255, 0, 143, 1), rgba(255, 0, 96, 1),
+    rgba(255, 0, 48, 1) calc(100% - calc(var(--cp-slider-h) / 2)));
+}
+.goya-cp-slider--alpha {
+  --goya-cp-alpha-base: #f00;
+  background-image:
+    linear-gradient(90deg,
+      transparent 0 calc(var(--cp-slider-h) / 2),
+      var(--goya-cp-alpha-base) calc(100% - calc(var(--cp-slider-h) / 2)) 100%),
+    url("data:image/svg+xml;utf8,%3Csvg%20width%3D%222%22%20height%3D%222%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M0%200h1v2h1V1H0%22%20fill-rule%3D%22nonzero%22%20fill%3D%22%23e1e1e1%22/%3E%3C/svg%3E");
+  background-size: 100% 100%, auto 66.67%;
+  background-position: 0 0, 0 0;
+  background-color: #fff;
+}
+.goya-cp-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.25);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-sizing: border-box;
+  color: #fff;
+}
+
+/* ── Format row (Hex ▾ | hex | opacity% 단일 필드로 통합) ── */
+.goya-cp-format-row {
+  padding: 8px 16px 0;
+}
+.goya-cp-value-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 54px;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--ui-bg-input, #1a1a1a);
+  border-radius: 5px;
+  height: 24px;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: box-shadow 0.1s;
+  overflow: hidden;
+}
+.goya-cp-value-grid:focus-within { box-shadow: inset 0 0 0 1px var(--ui-accent-primary, #2d6fe8); }
+
+.goya-cp-format-select {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+.goya-cp-hex-field, .goya-cp-opacity-field { height: 100%; }
+.goya-cp-format-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  color: var(--ui-text, #ddd);
+  font-size: 11px;
+  font-weight: 400;
+  padding: 0 4px 0 8px;
+  height: 100%;
+  cursor: pointer;
+  outline: none;
+  border-right: 1px solid rgba(255,255,255,0.08);
+  transition: background 0.1s;
+  box-sizing: border-box;
+}
+.goya-cp-format-trigger:hover { background: rgba(255,255,255,0.04); }
+.goya-cp-format-trigger svg { opacity: 0.5; width: 10px; height: 10px; }
+
+.goya-cp-hex-field {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 6px 0 8px;
+}
+.goya-cp-hex {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--ui-text, #ddd);
+  font-size: 11px;
+  line-height: 16px;
+  height: 100%;
+  padding: 0;
+  outline: none;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.goya-cp-opacity-field {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  padding: 0 8px 0 8px;
+  position: relative;
+  cursor: text;
+}
+.goya-cp-opacity-field::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 16px;
+  width: 1px;
+  background: rgba(255,255,255,0.08);
+}
+.goya-cp-alpha-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--ui-text, #ddd);
+  font-size: 11px;
+  line-height: 16px;
+  height: 100%;
+  padding: 0;
+  outline: none;
+  text-align: right;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.goya-cp-suffix {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* ── Gradient tab ── */
+.goya-cp-gradient-bar {
+  position: relative;
+  margin: 10px 16px 0;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--ui-border, #3a3a3a);
+  background-image: linear-gradient(45deg, #666 25%, transparent 25%, transparent 75%, #666 75%),
+                    linear-gradient(45deg, #666 25%, transparent 25%, transparent 75%, #666 75%);
+  background-size: 8px 8px; background-position: 0 0, 4px 4px;
+  background-color: #fff;
+  cursor: pointer;
+}
+.goya-cp-gradient-fill {
+  position: absolute; inset: 0;
+  border-radius: 3px;
+  pointer-events: none;
+}
+.goya-cp-gradient-opts {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 0;
+}
+.goya-cp-gradient-opts select {
+  flex: 1;
+  background: var(--ui-bg-input, #1a1a1a);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ui-text, #ddd);
+  font-size: 10px;
+  height: 24px;
+  padding: 0 4px;
+  outline: none;
+  cursor: pointer;
+}
+.goya-cp-gradient-opts select:hover { border-color: var(--ui-border-mid, #555); }
+
+/* Gradient inner solid controls use same spectrum/slider/format styling */
+
+/* ── Image tab ── */
+.goya-cp-image-zone {
+  margin: 10px 16px 0;
+  height: 140px;
+  border: 1px dashed var(--ui-border, #3a3a3a);
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--ui-text-muted, #888);
+  font-size: 10px;
+  background-size: contain; background-position: center; background-repeat: no-repeat;
+  background-color: var(--ui-bg-input, #1a1a1a);
+  transition: border-color 0.15s, color 0.15s;
+  text-align: center;
+  line-height: 1.5;
+}
+.goya-cp-image-zone:hover { border-color: var(--ui-accent-primary, #2d6fe8); color: var(--ui-accent-primary, #2d6fe8); }
+.goya-cp-image-zone.has-image { border-style: solid; }
+
+.goya-cp-image-opts {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 0;
+}
+.goya-cp-image-opts select {
+  flex: 1;
+  background: var(--ui-bg-input, #1a1a1a);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ui-text, #ddd);
+  font-size: 10px;
+  height: 24px;
+  padding: 0 4px;
+  cursor: pointer;
+  outline: none;
+}
+.goya-cp-image-opts select:hover { border-color: var(--ui-border-mid, #555); }
+
+/* ── Placeholder tab body ── */
+.goya-cp-placeholder {
+  padding: 40px 10px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--ui-text-muted, #888);
+  letter-spacing: 0.02em;
+}
+
+/* ── Panels ── */
+.goya-cp-panel { display: none; }
+.goya-cp-panel.active { display: block; }
+
+/* ── Focus-visible ── */
+.goya-cp-tab:focus-visible,
+.goya-cp-headbtn:focus-visible,
+.goya-cp-dropper:focus-visible,
+.goya-cp-format-trigger:focus-visible {
+  outline: 1px solid var(--ui-accent-primary, #2d6fe8);
+  outline-offset: -1px;
+}

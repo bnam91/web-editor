@@ -9,8 +9,8 @@ export const canvasWrap  = document.getElementById('canvas-wrap');
 export const PAGE_LABELS = ['', 'Hook', 'Main', 'Detail', 'CTA', 'Event'];
 
 export const state = {
-  pageSettings: { bg: '#828282', gap: 100, padX: 32, padY: 0, padXExcludesAsset: true },
-  pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#828282', gap: 100, padX: 32, padY: 0, padXExcludesAsset: true }, canvas: '' }],
+  pageSettings: { bg: '#828282', bgAlpha: 100, gap: 100, padX: 32, padY: 0, padXExcludesAsset: true },
+  pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#828282', bgAlpha: 100, gap: 100, padX: 32, padY: 0, padXExcludesAsset: true }, canvas: '' }],
   currentPageId: 'page_1',
   _suppressAutoSave: false,
 };

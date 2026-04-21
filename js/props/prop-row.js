@@ -55,7 +55,7 @@ function showRowProperties(rowEl) {
 
   const childBatchHTML = hasChildren ? `
     <div class="prop-section">
-      <div class="prop-section-title">CHILD BLOCKS</div>
+      <div class="prop-section-title">Child Blocks</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="row-child-h-slider" min="0" max="600" step="4" value="${childHeightVal || 0}">
@@ -77,7 +77,7 @@ function showRowProperties(rowEl) {
     colRatioHTML = `
       <div class="prop-row">
         <span class="prop-label">비율</span>
-        <input type="text" class="prop-text-input" id="row-col-ratio" value="${ratioVal}" placeholder="1:1" style="flex:1;background:#1a1a1a;border:1px solid #333;border-radius:4px;color:#ccc;font-size:12px;padding:3px 8px;min-width:0;">
+        <input type="text" class="prop-layout-input" id="row-col-ratio" value="${ratioVal}" placeholder="1:1">
       </div>`;
   } else if (layout === 'grid') {
     const gtc = rowEl.style.gridTemplateColumns || '';
@@ -93,7 +93,7 @@ function showRowProperties(rowEl) {
     colRatioHTML = `
       <div class="prop-row">
         <span class="prop-label">비율</span>
-        <input type="text" class="prop-text-input" id="row-col-ratio" value="${ratioVal}" placeholder="1:1" style="flex:1;background:#1a1a1a;border:1px solid #333;border-radius:4px;color:#ccc;font-size:12px;padding:3px 8px;min-width:0;">
+        <input type="text" class="prop-layout-input" id="row-col-ratio" value="${ratioVal}" placeholder="1:1">
       </div>`;
   }
 
@@ -113,15 +113,11 @@ function showRowProperties(rowEl) {
     </div>
     ${layout !== 'stack' ? `
     <div class="prop-section">
-      <div class="prop-section-title">COLUMN RATIO</div>
+      <div class="prop-section-title">Column Ratio</div>
       ${colRatioHTML}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">LAYOUT PRESET</div>
-      <div class="layout-preset-btns" id="row-layout-presets"></div>
     </div>` : ''}
     <div class="prop-section">
-      <div class="prop-section-title">SIZE / SPACING</div>
+      <div class="prop-section-title">Size / Spacing</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="row-height-slider" min="${minRowHeight}" max="1200" step="8" value="${rowHeight}">
@@ -275,14 +271,7 @@ function showRowProperties(rowEl) {
     ratioInput.addEventListener('blur', applyRatio);
   }
 
-  /* ── Grid 크기 피커 ── */
-  if (layout !== 'stack') {
-    _bindLayoutPresets(rowEl);
-  }
 }
-
-/* 레이아웃 프리셋 버튼 — col 개념 제거로 삭제됨, NewGrid 사용 */
-function _bindLayoutPresets(rowEl) {}
 
 /* Row 레이아웃 직접 전환 (rowEl 기준) */
 function applyRowLayoutDirect(rowEl, newLayout) {

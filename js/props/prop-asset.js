@@ -41,7 +41,7 @@ export function showAssetProperties(ab) {
   const currentFit = ab.dataset.fit || 'cover';
   const imageSection = hasImage ? `
     <div class="prop-section">
-      <div class="prop-section-title">IMAGE</div>
+      <div class="prop-section-title">Image</div>
       <div class="prop-row">
         <span class="prop-label">Fit</span>
         <div class="prop-align-group" id="asset-fit-group">
@@ -54,7 +54,7 @@ export function showAssetProperties(ab) {
       <button class="prop-action-btn danger"    id="asset-remove-btn">이미지 제거</button>
     </div>` : `
     <div class="prop-section">
-      <div class="prop-section-title">IMAGE</div>
+      <div class="prop-section-title">Image</div>
       <div class="prop-hint" style="text-align:center;padding:8px 0 4px;">더블클릭하여 이미지 추가</div>
       <button class="prop-action-btn secondary" id="asset-upload-btn" style="margin-top:4px;">이미지 선택...</button>
       <div class="prop-hint" style="text-align:center;margin-top:4px;">또는 파일을 블록에 드래그</div>
@@ -86,7 +86,7 @@ export function showAssetProperties(ab) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">PRESET</div>
+      <div class="prop-section-title">Preset</div>
       <div class="prop-type-group">
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="780">Standard</button>
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="860">Square</button>
@@ -96,7 +96,7 @@ export function showAssetProperties(ab) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">SIZE</div>
+      <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="asset-align-group">
@@ -136,7 +136,7 @@ export function showAssetProperties(ab) {
     </div>
     ${imageSection}
     <div class="prop-section">
-      <div class="prop-section-title">TEXT OVERLAY</div>
+      <div class="prop-section-title">Text Overlay</div>
       <div class="prop-row">
         <span class="prop-label">활성화</span>
         <label class="prop-toggle">
@@ -164,7 +164,7 @@ export function showAssetProperties(ab) {
             </button>
           </div>
         </div>
-        <div style="font-size:11px;color:#555;margin-top:2px;">이 블록 선택 후 중앙 패널로 블록 추가</div>
+        <div class="prop-hint" style="margin-top:2px;">이 블록 선택 후 중앙 패널로 블록 추가</div>
       </div>
     </div>`;
 

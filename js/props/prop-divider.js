@@ -26,7 +26,7 @@ export function showDividerProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">DIRECTION</div>
+      <div class="prop-section-title">Direction</div>
       <div class="prop-align-group" id="dvd-dir-group">
         <button class="prop-align-btn${!isVertical?' active':''}" data-dir="horizontal">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="7" x2="13" y2="7"/></svg>
@@ -39,7 +39,7 @@ export function showDividerProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">LINE STYLE</div>
+      <div class="prop-section-title">Line Style</div>
       <div class="prop-color-row">
         <span class="prop-label">색상</span>
         <div class="prop-color-swatch" style="background:${lineColor}">
@@ -67,7 +67,7 @@ export function showDividerProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">PADDING</div>
+      <div class="prop-section-title">Padding</div>
       <div class="prop-row">
         <span class="prop-label">상하 패딩</span>
         <input type="range" class="prop-slider" id="dvd-pady-slider" min="0" max="120" step="4" value="${padV}">

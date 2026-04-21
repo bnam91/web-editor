@@ -62,7 +62,9 @@ export function showTableProperties(block) {
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
       </div>
-      <div class="prop-section-title">ROWS / COLS</div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Rows / Cols</div>
       <div class="prop-row">
         <span class="prop-label">행</span>
         <button class="prop-count-btn" id="tbl-row-minus">−</button>
@@ -77,7 +79,7 @@ export function showTableProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">HEADER</div>
+      <div class="prop-section-title">Header</div>
       <div class="prop-row">
         <span class="prop-label">헤더 표시</span>
         <label class="prop-toggle">
@@ -87,7 +89,7 @@ export function showTableProperties(block) {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">STYLE</div>
+      <div class="prop-section-title">Style</div>
       <div class="prop-row">
         <span class="prop-label">테마</span>
         <select class="prop-select" id="tbl-style-select">
@@ -130,9 +132,7 @@ export function showTableProperties(block) {
         <input type="number" class="prop-number"  id="tbl-pad-number" min="4" max="32" value="${curPad}">
       </div>
     </div>
-    <div class="prop-section">
-      <div style="font-size:11px;color:#888;">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>
-    </div>`;
+    <div class="prop-hint">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
