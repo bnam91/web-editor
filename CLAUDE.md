@@ -37,14 +37,12 @@
 ## 개발 명령어
 
 ```bash
-npm run dev          # 개발 서버 (핫리로드 + DevTools, 포트 9334) — admin 모드 포함
+npm run dev          # 개발 서버 (핫리로드 + DevTools, 포트 9334)
 npm start            # 프로덕션 실행
 npm run build:mac    # macOS 빌드
 npm run release:mac  # macOS 배포 (auto-update)
 npm run figma        # Figma WebSocket 서버 (포트 3055)
 ```
-
-> **YOU MUST**: 개발 서버 실행 시 반드시 `npm run dev`를 사용한다 (`admin` 인자 포함). 직접 `electron .`으로 실행하는 경우에도 `admin` 인자를 반드시 붙인다.
 
 ---
 
