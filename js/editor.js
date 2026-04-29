@@ -1752,8 +1752,12 @@ window.showMultiSelPanel = showMultiSelPanel;
 })();
 
 
-// 모든 모듈 로드 후 앱 초기화 — save-load.js보다 먼저 평가될 수 있으므로 지연 호출
-setTimeout(() => window.initApp?.(), 0);
+// 모든 모듈 로드 후 앱 초기화 — save-load.js가 editor.js보다 늦게 평가될 수 있어
+// window.initApp 등록을 폴링으로 대기 (setTimeout 0만으로는 race가 남음)
+(function waitInitApp() {
+  if (window.initApp) window.initApp();
+  else setTimeout(waitInitApp, 10);
+})();
 
 /* ═══════════════════════════════════
    EXPORTS
