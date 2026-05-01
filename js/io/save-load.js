@@ -619,7 +619,8 @@ function rebindAll() {
   // + placeholder 여부 판단 (data-is-placeholder가 없으면 내용과 비교해서 설정)
   const _phTextMap = {
     'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요',
-    'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요', 'tb-label':'Label'
+    'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요', 'tb-label':'Label',
+    'tb-bullet':'항목을 입력하세요'
   };
   // 말풍선 SVG 말꼬리 마이그레이션 (구버전 저장 파일 대응)
   canvasEl.querySelectorAll('.speech-bubble-block').forEach(sb => {
@@ -654,7 +655,7 @@ function rebindAll() {
   });
 
   canvasEl.querySelectorAll('.text-block').forEach(tb => {
-    const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bubble');
+    const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bubble,.tb-bullet');
     if (!inner) return;
     if (!inner.hasAttribute('contenteditable')) {
       inner.setAttribute('contenteditable', 'false');
@@ -663,6 +664,14 @@ function rebindAll() {
     if (!inner.dataset.placeholder) {
       const cls = [...inner.classList].find(c => _phTextMap[c]);
       if (cls) inner.dataset.placeholder = _phTextMap[cls];
+    }
+    // bullet 변형: <ul>이 비어있으면 빈 <li> 하나는 보장
+    if (inner.classList.contains('tb-bullet')) {
+      if (!inner.querySelector('li')) {
+        inner.innerHTML = `<li>${inner.dataset.placeholder || ''}</li>`;
+        inner.dataset.isPlaceholder = 'true';
+      }
+      return;
     }
     // data-is-placeholder 보정: 저장된 내용이 placeholder 텍스트와 같거나 비어있으면 placeholder 상태로 표시
     if (inner.dataset.isPlaceholder !== 'true') {
@@ -786,7 +795,7 @@ function rebindAll() {
     }
   });
 
-  // table-block 로드 후 dataset 복원 (showHeader, cellAlign, fontSize, cellPad)
+  // table-block 로드 후 dataset 복원 (showHeader, cellAlign, fontSize, cellPad, rowH, outerWidth)
   canvasEl.querySelectorAll('.table-block').forEach(block => {
     const thead = block.querySelector('thead');
     if (block.dataset.showHeader === 'false' && thead) {
@@ -802,9 +811,39 @@ function rebindAll() {
       if (table) table.style.fontSize = fontSize + 'px';
     }
     const cellPad = parseInt(block.dataset.cellPad);
-    if (cellPad) {
+    if (!isNaN(cellPad)) {
       block.querySelectorAll('th, td').forEach(cell => { cell.style.padding = cellPad + 'px 16px'; });
     }
+    // 행 높이 복원
+    const rowH = parseInt(block.dataset.rowH);
+    if (rowH > 0) {
+      block.querySelectorAll('tr').forEach(tr => { tr.style.height = rowH + 'px'; });
+    }
+    // 외곽선 두께 복원 (CSS variable)
+    const outerW = parseInt(block.dataset.outerWidth);
+    if (outerW > 0) {
+      block.style.setProperty('--tbl-outer-w', outerW + 'px');
+    }
+    // 테이블 좌우 패딩 복원
+    const tablePadX = parseInt(block.dataset.tablePadX);
+    if (!isNaN(tablePadX) && tablePadX > 0) {
+      block.style.paddingLeft  = tablePadX + 'px';
+      block.style.paddingRight = tablePadX + 'px';
+    }
+    // 선 색 / 헤더 배경색 / 글자색 / 폰트 복원 (CSS variable)
+    if (block.dataset.lineColor) {
+      block.style.setProperty('--tbl-line-color', block.dataset.lineColor);
+    }
+    if (block.dataset.headerBg) {
+      block.style.setProperty('--tbl-header-bg', block.dataset.headerBg);
+    }
+    if (block.dataset.textColor) {
+      block.style.setProperty('--tbl-text-color', block.dataset.textColor);
+    }
+    if (block.dataset.fontFamily) {
+      block.style.setProperty('--tbl-font-family', block.dataset.fontFamily);
+    }
+    // showVLines / showHLines / showOuterX / showOuterY 는 CSS attribute selector로 자동 적용 (별도 처리 불필요)
   });
 
   // mockup-block 로드 후 화면 이미지 복원

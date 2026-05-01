@@ -58,16 +58,24 @@ function getOverlayAlign(overlay) {
 
 function makeTextBlock(type) {
   type = type || 'body';
-  const classMap  = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label' };
+  const classMap  = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label', bullet:'tb-bullet' };
   const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
-  const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', h3:'소항목을 입력하세요', body:'본문 내용을 입력하세요.', caption:'캡션을 입력하세요', label:'Label' };
+  const placeholder = { h1:'제목을 입력하세요', h2:'소제목을 입력하세요', h3:'소항목을 입력하세요', body:'본문 내용을 입력하세요.', caption:'캡션을 입력하세요', label:'Label', bullet:'항목을 입력하세요' };
 
   const tb = document.createElement('div');
   tb.className = 'text-block'; tb.dataset.type = dataType;
   tb.id = genId('tb');
   const phText = placeholder[type];
-  tb.innerHTML = `
+
+  if (type === 'bullet') {
+    // bullet 변형: <ul class="tb-bullet"><li>...</li></ul>
+    // ul 자체에 contenteditable 부여 → 엔터 시 브라우저 기본 동작으로 새 <li> 자동 생성
+    tb.innerHTML = `
+    <ul class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif" data-placeholder="${phText}" data-is-placeholder="true"><li>${phText}</li></ul>`;
+  } else {
+    tb.innerHTML = `
     <div class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div>`;
+  }
 
   return { block: tb };
 }
@@ -240,6 +248,22 @@ function makeTableBlock() {
   tb.dataset.style = 'default';
   tb.dataset.showHeader = 'true';
   tb.dataset.cellAlign = 'center';
+  // 신규 옵션 7개 기본값 (기존 테이블 사이트 호환을 위해 dataset 부재 시 default 동작은 CSS/prop 로직에서 보장)
+  tb.dataset.showVLines = 'true';
+  tb.dataset.showHLines = 'true';
+  tb.dataset.showOuterX = 'true';
+  tb.dataset.showOuterY = 'true';
+  tb.dataset.outerWidth = '1';
+  tb.dataset.rowH = '0';
+  tb.dataset.tablePadX = '0';
+  tb.dataset.lineColor = '#cccccc';
+  tb.dataset.headerBg  = '#f0f0f0';
+  tb.dataset.textColor = '#222222';
+  tb.dataset.fontFamily = '';
+  tb.style.setProperty('--tbl-outer-w', '1px');
+  tb.style.setProperty('--tbl-line-color', '#cccccc');
+  tb.style.setProperty('--tbl-header-bg', '#f0f0f0');
+  tb.style.setProperty('--tbl-text-color', '#222222');
   tb.innerHTML = `
     <table class="tb-table">
       <thead>

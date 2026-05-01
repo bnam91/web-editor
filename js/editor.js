@@ -249,12 +249,46 @@ function toggleBlockSelect(block, sec) {
   }
 }
 
-/* Shift+클릭: 마지막 클릭 블록 ~ 현재 블록 범위 선택 */
+/* Shift+클릭: 마지막 클릭 블록 ~ 현재 블록 범위 선택
+ * — 같은 부모(섹션 또는 프레임)의 직속 자식만 sibling으로 취급
+ * — 텍스트프레임(투명 wrapper)은 자기 안의 text-block을 selected
+ * — 프레임/일반 블록은 자기 자신을 selected
+ */
+const SIBLING_MULTI_SEL =
+  '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, ' +
+  '.icon-text-block, .shape-block, .frame-block';
+
+function _toSibling(el) {
+  if (!el) return null;
+  // 텍스트블록 클릭은 부모 텍스트프레임을 sibling 단위로 사용
+  const tf = el.closest('.frame-block[data-text-frame]');
+  return tf || el;
+}
+
+function _selectSibling(sib) {
+  // 텍스트프레임이면 inner text-block을 selected (기존 패턴 유지)
+  if (sib.dataset.textFrame === 'true') {
+    const tb = sib.querySelector('.text-block');
+    if (tb) {
+      tb.classList.add('selected');
+      const li = _getBlockLayerItem(tb);
+      if (li) li.classList.add('active');
+    }
+    return;
+  }
+  sib.classList.add('selected');
+  const li = _getBlockLayerItem(sib);
+  if (li) li.classList.add('active');
+}
+
 function rangeSelectBlocks(block, sec) {
-  const allBlocks = [...(canvasEl || document).querySelectorAll(BLOCK_MULTI_SEL)];
-  const anchor = _lastClickedBlock && allBlocks.includes(_lastClickedBlock) ? _lastClickedBlock : null;
-  if (!anchor) {
-    // 앵커 없으면 단일 선택
+  const target = _toSibling(block);
+  const anchor = _toSibling(_lastClickedBlock);
+  const parent = target?.parentElement;
+
+  if (!anchor || !parent || anchor.parentElement !== parent) {
+    // 앵커 없거나 부모 다르면 단일 선택만
     window.deselectAll?.();
     block.classList.add('selected');
     const li = _getBlockLayerItem(block);
@@ -263,20 +297,21 @@ function rangeSelectBlocks(block, sec) {
     if (sec) window.syncSection?.(sec);
     return;
   }
-  const a = allBlocks.indexOf(anchor);
-  const b = allBlocks.indexOf(block);
+
+  // 부모의 직속 자식 중 selectable
+  const siblings = Array.from(parent.children).filter(c => c.matches(SIBLING_MULTI_SEL));
+  const a = siblings.indexOf(anchor);
+  const b = siblings.indexOf(target);
+  if (a < 0 || b < 0) {
+    window.deselectAll?.();
+    block.classList.add('selected');
+    return;
+  }
   const [lo, hi] = a < b ? [a, b] : [b, a];
   window.deselectAll?.();
-  // deselectAll이 _lastClickedBlock을 null로 초기화하므로 앵커 복원
   _lastClickedBlock = anchor;
-  for (let i = lo; i <= hi; i++) {
-    allBlocks[i].classList.add('selected');
-    const li = _getBlockLayerItem(allBlocks[i]);
-    if (li) li.classList.add('active');
-  }
+  for (let i = lo; i <= hi; i++) _selectSibling(siblings[i]);
   if (sec) window.syncSection?.(sec);
-  // freeLayout 내 블록이면 부모 프레임 selected 복원 + 멀티셀렉 패널 업데이트
-  // deselectAll이 frame.selected를 제거 → pointer-events:none 차단 방지
   if (_isInFreeLayout(block)) {
     _restoreFreeLayoutFrameSelected(block);
     setTimeout(_updateFreeLayoutMultiSelPanel, 0);
@@ -889,7 +924,7 @@ document.addEventListener('keydown', e => {
       const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
       const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.' };
       const [cls, dtype] = typeMap[e.code];
-      const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
+      const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet');
       if (!contentEl) return;
       window.pushHistory?.();
       contentEl.className = cls;

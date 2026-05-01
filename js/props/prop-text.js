@@ -7,7 +7,7 @@ export function showTextProperties(tb) {
   // contenteditable 속성이 없는 경우(저장 후 복원 시 속성 누락) fallback으로 내부 첫 자식 div를 사용
   let contentEl = tb.querySelector('[contenteditable]');
   if (!contentEl) {
-    contentEl = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
+    contentEl = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet');
     if (contentEl) contentEl.setAttribute('contenteditable', 'false');
   }
   if (!contentEl) {
@@ -18,7 +18,7 @@ export function showTextProperties(tb) {
 
   const isSpeechBubble = tb.classList.contains('speech-bubble-block');
   const isIconText     = tb.classList.contains('icon-text-block');
-  const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label'].find(c => contentEl.classList.contains(c)) || (isSpeechBubble ? 'tb-bubble' : 'tb-body');
+  const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label','tb-bullet'].find(c => contentEl.classList.contains(c)) || (isSpeechBubble ? 'tb-bubble' : 'tb-body');
   const rawBg = window.getComputedStyle(contentEl).backgroundColor;
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
@@ -102,6 +102,7 @@ export function showTextProperties(tb) {
         <button class="prop-type-btn ${currentClass==='tb-body'?'active':''}"    data-cls="tb-body">Body</button>
         <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Cap</button>
         <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
+        <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">List</button>
       </div>
     </div>
 
@@ -579,12 +580,37 @@ export function showTextProperties(tb) {
   });
 
   /* 타입 전환 */
-  const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
+  const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label','tb-bullet':'bullet' };
   propPanel.querySelectorAll('.prop-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       window.pushHistory?.();
       const cls = btn.dataset.cls;
-      contentEl.className = cls;
+
+      // bullet ↔ 일반 변형 전환 시 태그(ul/div) 자체를 교체해야 함
+      const wasBullet = contentEl.tagName === 'UL';
+      const isBullet  = cls === 'tb-bullet';
+      if (wasBullet !== isBullet) {
+        const newTag = isBullet ? 'ul' : 'div';
+        const newEl = document.createElement(newTag);
+        // 속성 복사
+        for (const a of contentEl.attributes) newEl.setAttribute(a.name, a.value);
+        // 내용 마이그레이션
+        if (isBullet) {
+          // div → ul: 기존 텍스트를 단일 li로 감싸기
+          const txt = contentEl.textContent.trim();
+          newEl.innerHTML = `<li>${txt || '항목을 입력하세요'}</li>`;
+        } else {
+          // ul → div: 모든 li 텍스트를 줄바꿈으로 합치기
+          const items = [...contentEl.querySelectorAll('li')].map(li => li.textContent.trim()).filter(Boolean);
+          newEl.textContent = items.join('\n') || (newEl.dataset.placeholder || '');
+          newEl.style.whiteSpace = 'pre-wrap';
+        }
+        newEl.className = cls;
+        contentEl.replaceWith(newEl);
+        contentEl = newEl;
+      } else {
+        contentEl.className = cls;
+      }
       tb.dataset.type = typeMap2[cls];
       propPanel.querySelectorAll('.prop-type-btn').forEach(b => b.classList.toggle('active', b===btn));
 

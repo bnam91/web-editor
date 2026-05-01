@@ -511,7 +511,12 @@ function bindBlock(block) {
       // 빈 텍스트면 placeholder 복원
       const ph = el.dataset.placeholder;
       if (ph && el.textContent.trim() === '') {
-        el.innerHTML = ph;
+        // tb-bullet: ul placeholder는 <li>로 감싸서 복원해야 list-style이 유지됨
+        if (el.classList.contains('tb-bullet')) {
+          el.innerHTML = `<li>${ph}</li>`;
+        } else {
+          el.innerHTML = ph;
+        }
         el.dataset.isPlaceholder = 'true';
       } else if (el.textContent.trim() !== '') {
         delete el.dataset.isPlaceholder;
@@ -581,7 +586,10 @@ function bindBlock(block) {
         // placeholder 상태면 전체 선택 (즉시 타이핑으로 교체 가능)
         if (clicked.dataset.isPlaceholder === 'true') {
           const range = document.createRange();
-          range.selectNodeContents(clicked);
+          // tb-bullet: ul 전체가 아니라 첫 li 내용만 선택해 li 구조 유지
+          const _bulletLi = clicked.classList.contains('tb-bullet') ? clicked.querySelector('li') : null;
+          if (_bulletLi) range.selectNodeContents(_bulletLi);
+          else range.selectNodeContents(clicked);
           const sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(range);
@@ -1361,6 +1369,33 @@ function bindFrameDropZone(ss) {
   const inner = ss;  // frame-inner 제거 — frame-block 자체가 content container
   let _rafId = null;
 
+  // ── 공통 click 핸들러 (modifier 다중선택 지원) ──
+  // absolute 셀로 바인딩됐다가 flow로 변환된 frame도 click이 동작하도록 항상 바인딩
+  ss.addEventListener('click', e => {
+    // 내부 자식 블록 click은 자식 핸들러가 처리
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .vector-block, .step-block')) return;
+    // 내부 nested frame 자체 click 핸들러가 있어서 이미 처리됨 → 여기로 버블된 경우 무시
+    const innerFrame = e.target.closest('.frame-block:not([data-text-frame])');
+    if (innerFrame && innerFrame !== ss) { e.stopPropagation(); return; }
+    if (!e.target.closest('.frame-block')) return;
+    e.stopPropagation();
+    const parentSec = ss.closest('.section-block');
+    if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(ss, parentSec); return; }
+    if (e.shiftKey) { window.rangeSelectBlocks?.(ss, parentSec); return; }
+    // 일반 click — 단일 선택
+    window.deselectAll?.();
+    if (parentSec) {
+      parentSec.classList.add('selected');
+      window.syncLayerActive?.(parentSec);
+    }
+    ss.classList.add('selected');
+    window._activeFrame = ss;
+    window.highlightBlock?.(ss, ss._layerItem);
+    window.setBlockAnchor?.(ss);
+    window.showFrameProperties?.(ss);
+    if (!isShapeFrame) showFrameHandles(ss);
+  });
+
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
   if (ss.style.position === 'absolute') {
     ss.setAttribute('draggable', 'false');
@@ -1375,6 +1410,8 @@ function bindFrameDropZone(ss) {
     ss.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       if (e.target.closest('.resize-handle, [contenteditable]')) return;
+      // shift/cmd 모디파이어는 drag 시작 안 함 — click 핸들러가 다중선택 처리
+      if (e.shiftKey || e.metaKey || e.ctrlKey) return;
       // 자식 블록 클릭: selected 자식만 bindBlock에 위임, 미선택 자식은 B drag로 처리
       // (B selected 상태에서 TF/C 영역 mousedown → e.target이 C가 될 수 있음)
       if (e.target !== ss) {
@@ -1521,31 +1558,7 @@ function bindFrameDropZone(ss) {
     window.triggerAutoSave?.();
   });
 
-  // 클릭: 서브섹션 선택 + 블록 삽입 타겟으로 설정
-  ss.addEventListener('click', e => {
-    // 내부 블록 클릭은 bindBlock 핸들러가 e.stopPropagation으로 처리 — 여기까지 버블되면 빈 영역 클릭
-    // 단, 혹시 버블된 경우에도 실제 블록 요소면 제외
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .vector-block, .step-block')) return;
-    // 내부 nested frame-block 클릭: mousedown에서 이미 처리됨.
-    // stopPropagation 필수 — 없으면 click이 section 핸들러까지 버블되어 deselectAll() 호출됨
-    const innerFrame = e.target.closest('.frame-block:not([data-text-frame])');
-    if (innerFrame && innerFrame !== ss) { e.stopPropagation(); return; }
-    // ss 또는 frame-inner 빈 공간 클릭만 처리
-    if (!e.target.closest('.frame-block')) return;
-    e.stopPropagation();
-    // deselectAll 직접 호출 (selectSection은 showSectionProperties 부작용 있음)
-    window.deselectAll?.();
-    const parentSec = ss.closest('.section-block');
-    if (parentSec) {
-      parentSec.classList.add('selected');
-      window.syncLayerActive?.(parentSec);
-    }
-    ss.classList.add('selected');
-    window._activeFrame = ss;
-    window.highlightBlock?.(ss, ss._layerItem);
-    window.showFrameProperties?.(ss);
-    if (!isShapeFrame) showFrameHandles(ss);
-  });
+  // (click 핸들러는 함수 상단 공통 핸들러로 이동)
 
   // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
   inner.addEventListener('dragover', e => {

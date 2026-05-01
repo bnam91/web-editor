@@ -109,6 +109,19 @@
 .text-block .tb-h3     { font-size: 52px;  font-weight: 600; color: var(--preset-h3-color); font-family: var(--preset-h3-family); line-height: 1.2; }
 .text-block .tb-body   { font-size: 36px;  color: var(--preset-body-color);    font-family: var(--preset-body-family);   line-height: 1.6; }
 .text-block .tb-caption { font-size: 26px; color: var(--preset-caption-color); font-family: var(--preset-body-family);   line-height: 1.6; letter-spacing: 0.01em; }
+
+/* tb-bullet — <ul> 변형. 디스크 글머리 + body와 동일한 폰트 베이스 */
+.text-block ul.tb-bullet {
+  font-size: 36px;
+  color: var(--preset-body-color);
+  font-family: var(--preset-body-family);
+  line-height: 1.6;
+  list-style: disc outside;
+  padding-left: 1.4em;
+  margin: 0;
+}
+.text-block ul.tb-bullet > li { margin: 0; padding: 0; }
+.text-block ul.tb-bullet > li:empty::before { content: '항목을 입력하세요'; color: #ccc; pointer-events: none; }
 .text-block[data-type="label"] { padding-top: 0; padding-bottom: 0; padding-left: 0; padding-right: 0; }
 .text-block .tb-label {
   display: inline-block;
