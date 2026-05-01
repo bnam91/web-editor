@@ -785,6 +785,8 @@ function bindBlock(block) {
   }
 
   if (isTableB) {
+    // hydrate: 기존 :img row(저장된 HTML에서 복원된)에 더블클릭/x 버튼 핸들러 재바인딩
+    block.querySelectorAll('tr[data-row-img="true"]').forEach(tr => window.__bindTableRowImg?.(tr));
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -835,6 +837,14 @@ function bindBlock(block) {
           cell.addEventListener('blur', () => {
             cell.setAttribute('contenteditable', 'false');
             window.pushHistory('셀 텍스트 변경');
+            // :img 이스터에그 — row 전체를 이미지 placeholder row로 변환
+            if (cell.textContent.trim() === ':img') {
+              const tr = cell.closest('tr');
+              if (tr) {
+                window.__convertTableRowToImg?.(tr);
+                window.scheduleAutoSave?.();
+              }
+            }
           });
           cell.addEventListener('keydown', ev => {
             if (ev.key === 'Escape') {
