@@ -16,8 +16,8 @@
   min-height: unset;
 }
 .frame-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: 3px solid var(--sel-color);
+  outline-offset: 0;
   cursor: grab;
 }
 .frame-block:hover:not(.selected)::after {
@@ -39,7 +39,6 @@
 }
 .frame-block.ss-drag-over {
   outline: 2px dashed var(--sel-color);
-  background-color: var(--color-selection-fill-dim) !important;
 }
 
 /* ── 프레임 오버레이 핸들 (Figma 방식 — #ss-handles-overlay 에 렌더링) ── */
@@ -416,7 +415,7 @@
 .row:active { cursor: grabbing; }
 .row [contenteditable="true"] { cursor: text; }
 .row [contenteditable="true"]:active { cursor: text; }
-.row.dragging, .gap-block.dragging, .frame-block.dragging { opacity: 0.25; pointer-events: none; cursor: grabbing; }
+.row.dragging, .gap-block.dragging, .frame-block.dragging { pointer-events: none; cursor: grabbing; }
 
 /* 캔버스 드롭 인디케이터 — 줌 보정을 위해 두껍게 */
 .drop-indicator {
@@ -452,7 +451,7 @@
 .layer-item.layer-dragging { opacity: 0.3; }
 
 /* 섹션 드래그 상태 */
-.section-block.section-dragging { opacity: 0.25; pointer-events: none; }
+.section-block.section-dragging { pointer-events: none; }
 
 /* 섹션 간 드롭 인디케이터 (캔버스) */
 .section-drop-indicator {

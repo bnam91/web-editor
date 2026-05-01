@@ -607,6 +607,8 @@ function addAssetBlock(preset, opts = {}) {
     if (!window.state?.pageSettings?.padXExcludesAsset) return;
     // freeLayout 프레임 내부 asset은 절대좌표 + 명시 width로 동작 — padX 확장 적용하지 않음
     if (block.closest('.frame-block[data-free-layout="true"]')) return;
+    // preset 고정 width(small, logo 등)는 그 자체로 정해진 사이즈를 유지해야 함 — padX 확장 미적용
+    if (ASSET_PRESETS[preset]?.width) return;
     block.dataset.usePadx = 'true';
     const inner = block.closest('.section-inner');
     const hasOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;

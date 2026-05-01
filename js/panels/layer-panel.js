@@ -559,7 +559,19 @@ export function syncLayerActive(sec) {
 
 export function highlightBlock(block, layerItem) {
   document.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
-  if (layerItem) layerItem.classList.add('active');
+  if (layerItem) {
+    layerItem.classList.add('active');
+    // scrollBody(layers-section-body)가 실제 스크롤 컨테이너 — 콘텐츠 높이 보장 후 스크롤
+    const layerBody = document.getElementById('layer-panel-body');
+    if (layerBody) {
+      const lastSec = layerBody.querySelector('.layer-section:last-child');
+      const contentH = lastSec ? (lastSec.offsetTop + lastSec.offsetHeight) : 0;
+      if (contentH > layerBody.clientHeight) {
+        layerBody.style.minHeight = contentH + 'px';
+      }
+    }
+    layerItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+  }
 }
 
 /* 캔버스에서 row 선택 시 레이어 패널 row 헤더 하이라이트 */

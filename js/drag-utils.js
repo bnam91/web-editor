@@ -246,6 +246,7 @@ const ASSET_PRESETS = {
   square:   { height: 860 },
   tall:     { height: 1032 },
   wide:     { height: 575 },
+  small:    { width: 300, height: 300 },
   logo:     { width: 200, height: 64 },
 };
 

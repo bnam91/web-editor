@@ -934,11 +934,14 @@ document.addEventListener('keydown', e => {
     const selBlock = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .vector-block.selected'
+      '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .vector-block.selected, ' +
+      '.frame-block.selected'
     );
     const selSection = document.querySelector('.section-block.selected');
     const moveTarget = selBlock
-      ? (selBlock.classList.contains('gap-block') ? selBlock : (selBlock.closest('.row') || selBlock))
+      ? (selBlock.classList.contains('gap-block') || selBlock.classList.contains('frame-block')
+          ? selBlock
+          : (selBlock.closest('.row') || selBlock))
       : selSection;
     if (moveTarget) {
       e.preventDefault();

@@ -1495,9 +1495,11 @@ function bindFrameDropZone(ss) {
   // 프레임 자체 드래그 — 프레임이 selected 상태에서 드래그 시 section-inner 내 순서 변경
   ss.setAttribute('draggable', 'true');
   ss.addEventListener('dragstart', e => {
+    // 자식 블록이 시작한 드래그가 버블링된 경우 — 이 핸들러는 프레임 자체 드래그만 처리
+    // (preventDefault나 dragSrc 덮어쓰기로 자식 드래그를 깨뜨리면 안 됨)
+    if (e.target !== ss) return;
     // 선택된 프레임이 아니면 드래그 취소
     if (!ss.classList.contains('selected')) { e.preventDefault(); return; }
-    // 내부 자식 블록이 selected면 자식 drag 우선 (자식 drag는 mousedown 기반이므로 여기선 프레임 drag로 처리)
     e.stopPropagation();
     _suppressDragSave();
     dragState.dragSrc = ss;
@@ -1584,12 +1586,13 @@ function bindFrameDropZone(ss) {
     if (isShapeFrame) return; // shape frame drop 차단
     window.pushHistory();
 
-    const isFullWidth = ss.dataset.fullWidth === 'true';
+    // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
+    const isFreeLayout = ss.dataset.freeLayout === 'true';
     const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .mockup-block, .vector-block, .step-block';
     const SS_W = 860; // 캔버스 기준 너비
 
-    if (isFullWidth) {
-      // ── fullWidth 프레임: row/블록을 flow 레이아웃 그대로 유지 (absolute 변환 금지) ──
+    if (!isFreeLayout) {
+      // ── flow 프레임(fullWidth/stack/일반): row/블록을 flow 레이아웃 그대로 유지 (absolute 변환 금지) ──
       const indicator = inner.querySelector('.drop-indicator');
       if (dragState.dragSrc.classList.contains('row')) {
         // row 통째로 재배치
@@ -1603,6 +1606,12 @@ function bindFrameDropZone(ss) {
           if (indicator) inner.insertBefore(existingRow, indicator);
           else inner.appendChild(existingRow);
         } else {
+          if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
+          else inner.appendChild(dragState.dragSrc);
+        }
+      } else if (dragState.dragSrc.classList.contains('frame-block')) {
+        // 프레임 블록(text-frame, 카드 등): flow 위치만 이동, 배치 변환 없음
+        if (!dragState.dragSrc.contains(inner)) {
           if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
           else inner.appendChild(dragState.dragSrc);
         }

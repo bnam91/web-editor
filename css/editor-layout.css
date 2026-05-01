@@ -35,7 +35,7 @@
 /* group-editing: 자식 pointer-events 복원, ::after 제거 */
 .group-block.group-editing::after { display: none; }
 .group-block.group-editing .group-inner * { pointer-events: auto; }
-.group-block.dragging { opacity: 0.25; pointer-events: none; }
+.group-block.dragging { pointer-events: none; }
 .group-block-label { display: none; }
 .group-inner { display: flex; flex-direction: column; }
 

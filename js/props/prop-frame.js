@@ -45,8 +45,126 @@ function _headerHTML(el, mode) {
 /* ════════════════════════════════════════
    AUTO 모드 (frame-block)
 ════════════════════════════════════════ */
+/* ── 자유배치 자식 행 그루핑 (Step 1: 분석만) ── */
+function _analyzeFreeLayoutChildren(ss) {
+  const directChildren = Array.from(ss.children).filter(c =>
+    c.style.position === 'absolute' && c.id
+  );
+  const items = directChildren.map(c => {
+    const left   = parseInt(c.style.left)   || 0;
+    const top    = parseInt(c.style.top)    || 0;
+    const width  = parseInt(c.style.width)  || c.offsetWidth  || 0;
+    const height = parseInt(c.style.height) || c.offsetHeight || 0;
+    return { el: c, id: c.id, left, top, width, height, bottom: top + height, right: left + width };
+  });
+  const rows = [];
+  for (const it of [...items].sort((a, b) => a.top - b.top)) {
+    const row = rows.find(r => it.top < r.maxBottom && it.bottom > r.minTop);
+    if (row) {
+      row.items.push(it);
+      row.maxBottom = Math.max(row.maxBottom, it.bottom);
+      row.minTop    = Math.min(row.minTop, it.top);
+    } else {
+      rows.push({ items: [it], minTop: it.top, maxBottom: it.bottom });
+    }
+  }
+  rows.forEach(r => r.items.sort((a, b) => a.left - b.left));
+  rows.sort((a, b) => a.minTop - b.minTop);
+  const vGaps = [];
+  for (let i = 1; i < rows.length; i++) {
+    vGaps.push(rows[i].minTop - rows[i - 1].maxBottom);
+  }
+  const frameH = parseInt(ss.style.height) || parseInt(ss.dataset.height) || ss.offsetHeight || 0;
+  const frameW = parseInt(ss.style.width)  || ss.offsetWidth  || parseInt(ss.dataset.width)  || 0;
+  const padTop = rows.length ? rows[0].minTop : 0;
+  const padBot = rows.length ? Math.max(0, frameH - rows[rows.length - 1].maxBottom) : 0;
+  return { rows, vGaps, padTop, padBot, frameH, frameW };
+}
+
+function _logAnalysis(ss) {
+  const a = _analyzeFreeLayoutChildren(ss);
+  const lines = [];
+  lines.push(`프레임: ${ss.id} (${a.frameW}×${a.frameH})`);
+  lines.push(`상단 여백: ${a.padTop}px / 하단 여백: ${a.padBot}px`);
+  lines.push(`행 ${a.rows.length}개:`);
+  a.rows.forEach((r, i) => {
+    const desc = r.items.map(it => `${it.id} (X${it.left} W${it.width})`).join(', ');
+    const tag  = r.items.length > 1 ? ` [가로 ${r.items.length}개]` : '';
+    lines.push(`  행${i + 1} [Y${r.minTop}~${r.maxBottom}]${tag}: ${desc}`);
+  });
+  if (a.vGaps.length) lines.push(`세로 갭: ${a.vGaps.join(', ')}px`);
+  console.log('[스택 변환 분석]\n' + lines.join('\n'));
+  return a;
+}
+window.__analyzeFreeLayoutFrame = _logAnalysis;
+
+/* ── 자유배치 → 스택 변환 (Step 2: 단일 자식 행만) ── */
+function _convertFreeLayoutToStack(ss) {
+  const a = _analyzeFreeLayoutChildren(ss);
+  const multiRows = a.rows.filter(r => r.items.length > 1);
+  if (multiRows.length > 0) {
+    alert(`다중 자식 행 ${multiRows.length}개 — 가로 묶기는 Step 3에서 지원 예정.`);
+    return false;
+  }
+  if (a.rows.length === 0) {
+    alert('변환할 자식이 없습니다.');
+    return false;
+  }
+
+  window.pushHistory?.();
+
+  const parentW = a.frameW;
+  const orderedItems = a.rows.map(r => r.items[0]);
+
+  for (const it of orderedItems) {
+    const c = it.el;
+    c.style.position = '';
+    c.style.left = '';
+    c.style.top = '';
+    c.style.flexShrink = '0';
+    if (it.width < parentW) {
+      c.style.width = it.width + 'px';
+      c.style.alignSelf = 'center';
+    } else {
+      c.style.width = '';
+      c.style.alignSelf = '';
+    }
+  }
+
+  orderedItems.forEach(it => it.el.remove());
+
+  const insertGap = (h) => {
+    if (h <= 0) return;
+    const gb = window.makeGapBlock();
+    gb.style.height = h + 'px';
+    gb.dataset.h = h;
+    ss.appendChild(gb);
+    window.bindBlock?.(gb);
+  };
+
+  if (a.padTop > 0) insertGap(a.padTop);
+  for (let i = 0; i < orderedItems.length; i++) {
+    ss.appendChild(orderedItems[i].el);
+    if (i < a.vGaps.length) insertGap(a.vGaps[i]);
+  }
+  if (a.padBot > 0) insertGap(a.padBot);
+
+  delete ss.dataset.freeLayout;
+  delete ss.dataset.height;
+  ss.dataset.fullWidth = 'true';
+  ss.style.height = '';
+  ss.style.minHeight = '';
+
+  window.scheduleAutoSave?.();
+  window.buildLayerPanel?.();
+  window.showFrameProperties?.(ss);
+  return true;
+}
+window.__convertFreeLayoutToStack = _convertFreeLayoutToStack;
+
 function _renderAutoPanel(ss) {
   const isShapeFrame = !!ss.querySelector('.shape-block');
+  const isFreeLayout = ss.dataset.freeLayout === 'true';
   const rawBg  = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
   const hexBg  = rgbToHex(rawBg);
   const bgAlpha = parseAlphaFromColor(rawBg);
@@ -63,6 +181,13 @@ function _renderAutoPanel(ss) {
   const radius = parseInt(ss.dataset.radius) || 0;
 
   propPanel.innerHTML = _headerHTML(ss, 'auto') + `
+    <div class="prop-section">
+      <div class="prop-section-title">Layout</div>
+      <div class="prop-row" style="gap:6px;">
+        <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
+        ${isFreeLayout ? `<button class="prop-action-btn secondary" id="ss-to-stack-btn" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">stack</button>` : ''}
+      </div>
+    </div>
     <div class="prop-section">
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
@@ -188,6 +313,11 @@ function _renderAutoPanel(ss) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
+
+  // ── Layout: 스택 변환 ──
+  document.getElementById('ss-to-stack-btn')?.addEventListener('click', () => {
+    _convertFreeLayoutToStack(ss);
+  });
 
   // ── 위치(X/Y) 핸들러 ──
   const _applyTransform = () => {
