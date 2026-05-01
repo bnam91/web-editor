@@ -151,6 +151,17 @@ function nodeToBlock(node, frameBox, containerW = 860) {
   // FRAME → 서브섹션 (재귀로 자식 탐색)
   if (node.type === 'FRAME') {
     const bbox = node.absoluteBoundingBox || {};
+    const detail = figma('get_node_info', { nodeId: node.id });
+    const childNodes = detail?.children || [];
+
+    // 빈 frame 또는 gap_* 이름의 빈 frame → gap-block
+    const looksLikeGap = childNodes.length === 0 && (
+      (bbox.height || 0) < 50 || /^gap[_\s\-]?\d*$/i.test(node.name || '')
+    );
+    if (looksLikeGap) {
+      return { type: 'gap', height: Math.round(bbox.height || 20) };
+    }
+
     const scale = containerW / (frameBox?.width || containerW);
     const scaledW = Math.round((bbox.width || 200) * scale);
     const scaledH = Math.round((bbox.height || 200) * scale);
@@ -158,18 +169,35 @@ function nodeToBlock(node, frameBox, containerW = 860) {
     const bg = getBgColor(node) || '#f5f5f5';
 
     // 자식은 서브섹션의 실제 렌더 폭(scaledW)을 컨테이너로 사용 → scale=1.0
-    const detail = figma('get_node_info', { nodeId: node.id });
     const children = [];
-    if (detail?.children?.length) {
-      for (const child of detail.children) {
+    if (childNodes.length) {
+      // 부모 autoLayout 정렬이 CENTER이면 자식 텍스트도 중앙 정렬
+      const lm = detail?.layoutMode;
+      const primary = detail?.primaryAxisAlignItems;
+      const counter = detail?.counterAxisAlignItems;
+      const childTextAlign = (
+        (lm === 'HORIZONTAL' && primary === 'CENTER') ||
+        (lm === 'VERTICAL'   && counter === 'CENTER')
+      ) ? 'center' : null;
+
+      for (const child of childNodes) {
         const childBlock = nodeToBlock(child, bbox, scaledW);
         if (childBlock) {
           const childBbox = child.absoluteBoundingBox || {};
           childBlock.y = Math.round((childBbox.y || 0) - (bbox.y || 0));
+          if (childTextAlign && childBlock.type === 'text') {
+            childBlock.align = childTextAlign;
+          }
           children.push(childBlock);
         }
       }
     }
+
+    // cornerRadius 추출 (Figma에서 0이 아니면 적용)
+    const radiusRaw = detail?.cornerRadius ?? node.cornerRadius;
+    const radius = (typeof radiusRaw === 'number' && radiusRaw > 0)
+      ? Math.round(radiusRaw * scale)
+      : undefined;
 
     return {
       type: 'sub-section',
@@ -178,6 +206,16 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       height: scaledH,
       x: relX,
       bg,
+      ...(radius !== undefined ? { radius } : {}),
+      // autoLayout 정보 보존 (runner가 활용 가능하도록)
+      ...(detail?.layoutMode && detail.layoutMode !== 'NONE' ? {
+        layoutMode: detail.layoutMode,
+        itemSpacing: Math.round(detail.itemSpacing || 0),
+        paddingTop: Math.round(detail.paddingTop || 0),
+        paddingBottom: Math.round(detail.paddingBottom || 0),
+        paddingLeft: Math.round(detail.paddingLeft || 0),
+        paddingRight: Math.round(detail.paddingRight || 0),
+      } : {}),
       children,
     };
   }
@@ -257,9 +295,54 @@ function nodeToBlock(node, frameBox, containerW = 860) {
   };
 }
 
-// ─── 자식 노드들 → rows (Y 기준 그루핑) ─────────────────────────
-function buildRows(children, frameBox) {
+// ─── autoLayout VERTICAL → stack rows (children 순서 그대로) ──────
+function buildStackRows(children, frameBox, parentNode) {
+  const rows = [];
+  const padTop      = Math.round(parentNode?.paddingTop || 0);
+  const padBottom   = Math.round(parentNode?.paddingBottom || 0);
+  const itemSpacing = Math.round(parentNode?.itemSpacing || 0);
+
+  const pushGap = (h) => {
+    if (h > 8) rows.push({
+      layout: 'stack',
+      cols: [{ flex: 1, blocks: [{ type: 'gap', height: h }] }]
+    });
+  };
+
+  pushGap(padTop);
+
+  let firstReal = true;
+  for (const child of children) {
+    const block = nodeToBlock(child, frameBox);
+    if (!block) continue;
+
+    if (!firstReal && itemSpacing > 8) pushGap(itemSpacing);
+    firstReal = false;
+
+    if (block.type === 'text-group' && Array.isArray(block.blocks)) {
+      for (const tb of block.blocks) {
+        rows.push({ layout: 'stack', cols: [{ flex: 1, blocks: [tb] }] });
+      }
+    } else {
+      rows.push({ layout: 'stack', cols: [{ flex: 1, blocks: [block] }] });
+    }
+  }
+
+  pushGap(padBottom);
+
+  return rows;
+}
+
+// ─── 자식 노드들 → rows ──────────────────────────────────────────
+// parentNode가 autoLayout VERTICAL이면 children 순서 그대로 stack 변환,
+// 아니면 Y 좌표 기반 그루핑 휴리스틱 사용.
+function buildRows(children, frameBox, parentNode = null) {
   if (!children?.length) return [];
+
+  // autoLayout VERTICAL → 순서 보존 stack 모드
+  if (parentNode?.layoutMode === 'VERTICAL') {
+    return buildStackRows(children, frameBox, parentNode);
+  }
 
   const FRAME_TOP = frameBox.y;
   const FRAME_W   = frameBox.width;
@@ -380,7 +463,7 @@ function frameToSection(frame) {
   const bg = getBgColor(frame);
   const paddingX = 0; // Figma는 패딩 개념이 다름 — 일단 0
 
-  const rows = buildRows(frame.children, frameBox);
+  const rows = buildRows(frame.children, frameBox, frame);
 
   const section = {
     label: '',

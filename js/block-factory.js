@@ -605,6 +605,8 @@ function addAssetBlock(preset, opts = {}) {
   // DOM 삽입 후 padXExcludesAsset 적용 (closest가 올바르게 동작하도록 삽입 후 호출)
   const applyExcludePadX = (block) => {
     if (!window.state?.pageSettings?.padXExcludesAsset) return;
+    // freeLayout 프레임 내부 asset은 절대좌표 + 명시 width로 동작 — padX 확장 적용하지 않음
+    if (block.closest('.frame-block[data-free-layout="true"]')) return;
     block.dataset.usePadx = 'true';
     const inner = block.closest('.section-inner');
     const hasOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;
@@ -1012,12 +1014,13 @@ function makeFrameBlock(opts = {}) {
     ss.style.cssText = css;
   } else {
     // freeLayout 모드: 자유배치 프레임 (기본값) — absolute 자식
-    ss.dataset.bg = 'transparent';
+    const bg = opts.bg || 'transparent';
+    ss.dataset.bg = bg;
     ss.dataset.freeLayout = 'true';
     ss.dataset.width = '860';
     ss.dataset.height = '520';
     ss.dataset.padY = '0';
-    let css = `background:transparent;padding:0;width:860px;max-width:100%;margin:0 auto;min-height:520px;height:520px;`;
+    let css = `background:${bg};padding:0;width:860px;max-width:100%;margin:0 auto;min-height:520px;height:520px;`;
     if (opts.radius !== undefined) {
       ss.dataset.radius = String(opts.radius);
       css += `border-radius:${opts.radius}px;overflow:hidden;`;

@@ -173,8 +173,9 @@ function getBlockHeight(block) {
         const ssBg = block.bg || 'transparent';
         const ssH  = block.height || 100;
         const ssW  = block.width  || 860;
+        const ssRadius = (typeof block.radius === 'number') ? block.radius : undefined;
         await ev(`window._activeFrame = null`);
-        await ev(`window.addFrameBlock({ bg: '${ssBg}' })`);
+        await ev(`window.addFrameBlock({ bg: '${ssBg}'${ssRadius !== undefined ? `, radius: ${ssRadius}` : ''} })`);
         await ev(`(function(){
           const f = window._activeFrame;
           if (!f) return;
@@ -185,12 +186,24 @@ function getBlockHeight(block) {
           f.dataset.freeLayout = 'true';
           f.style.position = 'relative';
           f.style.overflow = 'hidden';
+          ${ssRadius !== undefined ? `f.style.borderRadius = '${ssRadius}px'; f.dataset.radius = '${ssRadius}';` : ''}
         })()`);
         await delay(200);
+        // 카드 frame을 ID로 잡아두고 자식 처리 후 selected를 카드로 복원
+        const cardFrameId = await ev(`window._activeFrame?.id || ''`);
         for (const child of (block.children || [])) {
           await buildBlockInFrame(child, child.x || 0, child.y || 0, child.width || ssW);
         }
         await ev(`window.deactivateFrame()`);
+        // 다음 row의 gap-block이 카드 안 라벨 옆에 삽입되지 않도록 selected를 카드 자체로 복원
+        await ev(`(function(){
+          document.querySelectorAll('.selected').forEach(e => {
+            if (e.classList.contains('section-block')) return;
+            e.classList.remove('selected');
+          });
+          const card = document.getElementById('${cardFrameId}');
+          if (card) card.classList.add('selected');
+        })()`);
         await delay(100);
         break;
       }
@@ -291,6 +304,56 @@ function getBlockHeight(block) {
         })})`);
         await delay(200);
         return block.height || 0;
+      case 'sub-section': {
+        // 중첩 sub-section: 부모 freeLayout 안에 자식 freeLayout frame 추가 (재귀)
+        const subBg = block.bg || 'transparent';
+        const subW  = block.width  || width || 860;
+        const subH  = block.height || 100;
+        const subRadius = (typeof block.radius === 'number') ? block.radius : undefined;
+
+        // 부모 frame 보관 → 자식 빌드 후 복원
+        await ev(`window.__parentFrameStack = (window.__parentFrameStack || []); window.__parentFrameStack.push(window._activeFrame);`);
+        await ev(`window.addFrameBlock({ bg: '${subBg}'${subRadius !== undefined ? `, radius: ${subRadius}` : ''} })`);
+        await ev(`(function(){
+          const f = window._activeFrame;
+          if (!f) return;
+          f.dataset.bg = '${subBg}';
+          f.style.background = '${subBg}';
+          f.style.position = 'absolute';
+          f.style.left     = '${x}px';
+          f.style.top      = '${y}px';
+          f.style.width    = '${subW}px';
+          f.style.height   = '${subH}px';
+          f.style.minHeight= '${subH}px';
+          f.style.maxWidth = 'none';
+          f.style.margin   = '0';
+          f.style.overflow = 'hidden';
+          f.dataset.width  = '${subW}';
+          f.dataset.height = '${subH}';
+          f.dataset.freeLayout = 'true';
+          ${subRadius !== undefined ? `f.style.borderRadius = '${subRadius}px'; f.dataset.radius = '${subRadius}';` : ''}
+        })()`);
+        await delay(150);
+
+        for (const child of (block.children || [])) {
+          await buildBlockInFrame(child, child.x || 0, child.y || 0, child.width || subW);
+        }
+
+        // 부모 frame 복원 + selected를 부모로 복귀 (다음 자식의 gap이 라벨 옆에 끼지 않도록)
+        await ev(`(function(){
+          const stk = window.__parentFrameStack;
+          const parent = (stk && stk.length) ? stk.pop() : null;
+          if (parent) window._activeFrame = parent;
+          else window.deactivateFrame?.();
+          document.querySelectorAll('.selected').forEach(e => {
+            if (e.classList.contains('section-block')) return;
+            e.classList.remove('selected');
+          });
+          if (parent) parent.classList.add('selected');
+        })()`);
+        await delay(100);
+        return subH;
+      }
       default:
         console.warn(`⚠️ frame 내부 미지원 블록: ${block.type}`);
         return 0;
