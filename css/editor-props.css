@@ -203,19 +203,46 @@
 .prop-type-group {
   display: flex; gap: 0; margin-bottom: 4px;
 }
+/* 프리셋 버튼이 섞인 경우 좁은 패널에서 넘치지 않도록 3-col 그리드 + wrap */
+.prop-type-group:has(.prop-preset-btn) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+.prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  height: 24px;
+  border-width: 1px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ui-text-dim);
+  background: var(--ui-bg-input);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  gap: 0;
+}
 .prop-type-btn {
-  flex: 1; height: 24px;
+  flex: 1; min-width: 0; height: 24px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
   border-radius: 4px; color: var(--ui-text-dim);
   font-size: 11px; font-weight: 600; cursor: pointer;
   transition: all 0.15s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
 }
 .prop-type-btn:hover { border-color: var(--ui-text-dim); color: var(--ui-text-sub); }
 .prop-type-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
 /* 정렬 버튼 그룹 */
 .prop-align-group {
-  display: flex; gap: 4px;
+  display: flex; gap: 4px; flex: 1; min-width: 0;
 }
 .prop-align-btn {
   flex: 1; height: 24px; min-width: 28px;

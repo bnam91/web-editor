@@ -46,6 +46,10 @@ export function showTextProperties(tb) {
     ? (parseInt(window.getComputedStyle(_firstSizedChild).fontSize) || parseInt(computed.fontSize) || 15)
     : (parseInt(computed.fontSize) || 15);
   const currentColor = rgbToHex(computed.color) || '#111111';
+  const _colorM = (computed.color || '').match(/rgba?\(([^)]+)\)/i);
+  const currentColorAlpha = _colorM && _colorM[1].split(',').length === 4
+    ? Math.round(parseFloat(_colorM[1].split(',')[3]) * 100)
+    : 100;
   const currentLH    = (parseFloat(computed.lineHeight) / parseFloat(computed.fontSize) || 1.5).toFixed(2);
   const currentLS    = isNaN(parseFloat(contentEl.style.letterSpacing))
     ? (parseFloat(computed.letterSpacing) || 0)
@@ -194,10 +198,16 @@ export function showTextProperties(tb) {
       <div class="prop-section-title">Fill</div>
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
-        <div class="prop-color-swatch" style="background:${currentColor}">
-          <input type="color" id="txt-color" value="${currentColor}">
+        <div class="prop-color-field">
+          <div class="prop-color-swatch" style="background:${currentColor}">
+            <input type="color" id="txt-color" value="${currentColor}">
+          </div>
+          <input type="text" class="prop-color-hex" id="txt-color-hex" value="${currentColor.replace('#','').toUpperCase()}" maxlength="6" aria-label="Color">
+          <label class="prop-color-alpha" title="Opacity">
+            <input type="text" class="prop-color-alpha-input" id="txt-color-alpha" value="${currentColorAlpha}" aria-label="Opacity">
+            <span class="prop-color-alpha-suffix">%</span>
+          </label>
         </div>
-        <input type="text" class="prop-color-hex" id="txt-color-hex" value="${currentColor}" maxlength="7">
       </div>
     </div>
 
@@ -801,11 +811,22 @@ export function showTextProperties(tb) {
   /* 색상 — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   const colorPicker = document.getElementById('txt-color');
   const colorHex    = document.getElementById('txt-color-hex');
+  const colorAlpha  = document.getElementById('txt-color-alpha');
   const colorSwatch = colorPicker.closest('.prop-color-swatch');
+  let _txtAlpha = currentColorAlpha;
   colorSwatch.addEventListener('mousedown', () => {
     if (hasSel()) { _savedColorSel = window.getSelection().getRangeAt(0).cloneRange(); _colorSpan = null; }
     else { _savedColorSel = null; _colorSpan = null; }
   });
+
+  const _buildColor = () => {
+    const h = (colorPicker.value || '#000000').replace('#','');
+    const r = parseInt(h.slice(0,2), 16);
+    const g = parseInt(h.slice(2,4), 16);
+    const b = parseInt(h.slice(4,6), 16);
+    const a = Math.max(0, Math.min(1, _txtAlpha / 100));
+    return a >= 1 ? colorPicker.value : `rgba(${r},${g},${b},${a})`;
+  };
 
   const applyColorToSel = (color) => {
     if (!_savedColorSel) {
@@ -829,18 +850,34 @@ export function showTextProperties(tb) {
   };
 
   colorPicker.addEventListener('input', () => {
-    applyColorToSel(colorPicker.value);
-    colorHex.value = colorPicker.value;
-    colorSwatch.style.background = colorPicker.value;
+    const c = _buildColor();
+    applyColorToSel(c);
+    colorHex.value = colorPicker.value.replace('#','').toUpperCase();
+    colorSwatch.style.background = c;
   });
   colorPicker.addEventListener('change', () => { _savedColorSel = null; _colorSpan = null; window.pushHistory(); });
   colorHex.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(colorHex.value)) {
-      colorPicker.value = colorHex.value;
-      applyColorToSel(colorHex.value);
-      colorSwatch.style.background = colorHex.value;
+    const v = colorHex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) {
+      colorPicker.value = '#' + v.toLowerCase();
+      const c = _buildColor();
+      applyColorToSel(c);
+      colorSwatch.style.background = c;
     }
   });
+  colorHex.addEventListener('blur', () => {
+    colorHex.value = (colorPicker.value || '#000000').replace('#','').toUpperCase();
+  });
+  colorAlpha.addEventListener('input', () => {
+    const m = colorAlpha.value.match(/(\d+)/);
+    if (!m) return;
+    _txtAlpha = Math.max(0, Math.min(100, parseInt(m[1])));
+    const c = _buildColor();
+    applyColorToSel(c);
+    colorSwatch.style.background = c;
+  });
+  colorAlpha.addEventListener('blur', () => { colorAlpha.value = String(_txtAlpha); });
+  colorAlpha.addEventListener('change', () => { window.pushHistory?.(); });
 
   /* 줄간격 */
   const lhNumber = document.getElementById('txt-lh-number');

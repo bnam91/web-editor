@@ -1,9 +1,11 @@
 import { propPanel, state } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showIconCircleProperties(block) {
   const circle   = block.querySelector('.icb-circle');
   const size     = parseInt(block.dataset.size)    || 80;
   const bgColor  = block.dataset.bgColor           || '#e8e8e8';
+  const bgAlpha  = parseAlphaFromColor(bgColor);
   const borderV  = block.dataset.border            || 'none';
   const radius   = parseInt(block.dataset.radius)  || 0;
   const padX     = parseInt(block.dataset.padX)    || 0;
@@ -55,10 +57,7 @@ export function showIconCircleProperties(block) {
       <div class="prop-section-title">Color</div>
       <div class="prop-color-row">
         <span class="prop-label">배경</span>
-        <div class="prop-color-swatch" style="background:${bgColor}" role="button" aria-label="배경색 선택">
-          <input type="color" id="icb-bg-color" value="${bgColor}" aria-label="배경색">
-        </div>
-        <input type="text" class="prop-color-hex" id="icb-bg-hex" value="${bgColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'icb-bg', hex: bgColor, alpha: bgAlpha })}
       </div>
     </div>
     <div class="prop-section">
@@ -107,24 +106,13 @@ export function showIconCircleProperties(block) {
   propPanel.querySelector('#icb-padx-number').addEventListener('change', e => { applyPadX(parseInt(e.target.value)); window.pushHistory(); });
   propPanel.querySelector('#icb-padx-slider').addEventListener('change', () => window.pushHistory());
 
-  const bgPicker = propPanel.querySelector('#icb-bg-color');
-  const bgHex    = propPanel.querySelector('#icb-bg-hex');
-  const bgSwatch = bgPicker.closest('.prop-color-swatch');
-  bgPicker.addEventListener('input', () => {
-    block.dataset.bgColor   = bgPicker.value;
-    circle.style.backgroundColor = bgPicker.value;
-    bgHex.value             = bgPicker.value;
-    bgSwatch.style.background = bgPicker.value;
-  });
-  bgPicker.addEventListener('change', () => window.pushHistory());
-  bgHex.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) {
-      block.dataset.bgColor   = bgHex.value;
-      circle.style.backgroundColor = bgHex.value;
-      bgPicker.value          = bgHex.value;
-      bgSwatch.style.background = bgHex.value;
-      window.pushHistory();
-    }
+  wireColorField('icb-bg', {
+    initialAlpha: bgAlpha,
+    onApply: (c) => {
+      block.dataset.bgColor = c;
+      circle.style.backgroundColor = c;
+    },
+    onCommit: () => window.pushHistory(),
   });
 
   propPanel.querySelector('#icb-border-select').addEventListener('change', e => {

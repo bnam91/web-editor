@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#cccccc';
@@ -26,6 +27,7 @@ export function showShapeProperties(block) {
 
   const shapeType   = block.dataset.shapeType || 'rectangle';
   const color       = block.dataset.shapeColor || '#cccccc';
+  const colorAlpha  = parseAlphaFromColor(color);
   const strokeWidth = parseInt(block.dataset.shapeStrokeWidth || '3');
   const w           = parseInt(block.style.width)  || 100;
   const h           = parseInt(block.style.height) || 100;
@@ -49,10 +51,7 @@ export function showShapeProperties(block) {
       <div class="prop-section-title">Color</div>
       <div class="prop-color-row">
         <span class="prop-label">색상</span>
-        <div class="prop-color-swatch" style="background:${color}">
-          <input type="color" id="shape-color-picker" value="${color}">
-        </div>
-        <input type="text" class="prop-color-hex" id="shape-color-hex" value="${color}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha })}
       </div>
       <div class="prop-row" style="margin-top:8px;">
         <span class="prop-label">두께</span>
@@ -103,15 +102,11 @@ export function showShapeProperties(block) {
   }
 
   // ── 색상 피커 ──
-  const colorPicker = document.getElementById('shape-color-picker');
-  const colorHex    = document.getElementById('shape-color-hex');
-  colorPicker.addEventListener('input',  () => { colorHex.value = colorPicker.value; applyColor(colorPicker.value); });
-  colorPicker.addEventListener('change', () => window.pushHistory?.());
-  colorHex.addEventListener('input', () => {
-    const v = colorHex.value.trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(v)) { colorPicker.value = v; applyColor(v); }
+  wireColorField('shape-color', {
+    initialAlpha: colorAlpha,
+    onApply: (c) => applyColor(c),
+    onCommit: () => window.pushHistory?.(),
   });
-  colorHex.addEventListener('change', () => window.pushHistory?.());
 
   // ── 스트로크 두께 ──
   const strokeSlider = document.getElementById('shape-stroke-slider');

@@ -2,6 +2,7 @@
    PROP-FRAME — Frame 속성 패널 (frame-block)
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -48,6 +49,7 @@ function _renderAutoPanel(ss) {
   const isShapeFrame = !!ss.querySelector('.shape-block');
   const rawBg  = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
   const hexBg  = rgbToHex(rawBg);
+  const bgAlpha = parseAlphaFromColor(rawBg);
   const padY   = parseInt(ss.dataset.padY)   || 0;
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
@@ -55,7 +57,9 @@ function _renderAutoPanel(ss) {
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
   const borderWidth = parseInt(ss.dataset.borderWidth) || 0;
   const borderStyle = ss.dataset.borderStyle || 'solid';
-  const hexBorderColor = rgbToHex(ss.style.borderColor || ss.dataset.borderColor || '#888888');
+  const rawBorderColor = ss.style.borderColor || ss.dataset.borderColor || '#888888';
+  const hexBorderColor = rgbToHex(rawBorderColor);
+  const borderAlpha    = parseAlphaFromColor(rawBorderColor);
   const radius = parseInt(ss.dataset.radius) || 0;
 
   propPanel.innerHTML = _headerHTML(ss, 'auto') + `
@@ -63,10 +67,7 @@ function _renderAutoPanel(ss) {
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch" style="background:${hexBg}">
-          <input type="color" id="ss-bg-color" value="${hexBg}">
-        </div>
-        <input type="text" class="prop-color-hex" id="ss-bg-hex" value="${hexBg}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha })}
       </div>
     </div>
     <div class="prop-section">
@@ -95,10 +96,7 @@ function _renderAutoPanel(ss) {
       </div>
       <div class="prop-color-row" style="margin-top:6px;">
         <span class="prop-label">색상</span>
-        <div class="prop-color-swatch" style="background:${hexBorderColor}">
-          <input type="color" id="ss-border-color" value="${hexBorderColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="ss-border-color-hex" value="${hexBorderColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'ss-border', hex: hexBorderColor, alpha: borderAlpha })}
       </div>
       <div class="prop-row" style="margin-top:6px;">
         <span class="prop-label">코너</span>
@@ -335,25 +333,21 @@ function _renderAutoPanel(ss) {
   if (bgPosBtn)   bgPosBtn.addEventListener('click', () => window.enterBgPosDragMode?.(ss));
 
   // 배경색
-  const bgColor = document.getElementById('ss-bg-color');
-  const bgHex   = document.getElementById('ss-bg-hex');
-  const applyBg = (hex) => { ss.style.backgroundColor = hex; ss.dataset.bg = hex; window.scheduleAutoSave?.(); };
-  bgColor.addEventListener('input', () => { bgHex.value = bgColor.value; applyBg(bgColor.value); });
-  bgColor.addEventListener('change', () => window.pushHistory?.());
-  bgHex.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) { bgColor.value = bgHex.value; applyBg(bgHex.value); }
+  wireColorField('ss-bg', {
+    initialAlpha: bgAlpha,
+    onApply: (c) => { ss.style.backgroundColor = c; ss.dataset.bg = c; window.scheduleAutoSave?.(); },
+    onCommit: () => window.pushHistory?.(),
   });
 
   // 보더
   const borderWSlider  = document.getElementById('ss-border-w-slider');
   const borderWNum     = document.getElementById('ss-border-w-num');
   const borderStyleEl  = document.getElementById('ss-border-style');
-  const borderColorEl  = document.getElementById('ss-border-color');
-  const borderColorHex = document.getElementById('ss-border-color-hex');
+  let _borderColor = hexBorderColor;
   const applyBorder = () => {
     const w = parseInt(borderWNum.value) || 0;
     const s = borderStyleEl.value;
-    const c = borderColorHex.value;
+    const c = _borderColor;
     ss.dataset.borderWidth = w; ss.dataset.borderStyle = s; ss.dataset.borderColor = c;
     ss.style.border = w > 0 ? `${w}px ${s} ${c}` : '';
     window.scheduleAutoSave?.();
@@ -363,10 +357,10 @@ function _renderAutoPanel(ss) {
   borderWNum.addEventListener('change', () => window.pushHistory?.());
   borderWNum.addEventListener('input', () => { borderWSlider.value = Math.min(20, Math.max(0, parseInt(borderWNum.value) || 0)); applyBorder(); });
   borderStyleEl.addEventListener('change', () => { applyBorder(); window.pushHistory?.(); });
-  borderColorEl.addEventListener('input', () => { borderColorHex.value = borderColorEl.value; applyBorder(); });
-  borderColorEl.addEventListener('change', () => window.pushHistory?.());
-  borderColorHex.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(borderColorHex.value)) { borderColorEl.value = borderColorHex.value; applyBorder(); }
+  wireColorField('ss-border', {
+    initialAlpha: borderAlpha,
+    onApply: (c) => { _borderColor = c; applyBorder(); },
+    onCommit: () => window.pushHistory?.(),
   });
 
   // 코너

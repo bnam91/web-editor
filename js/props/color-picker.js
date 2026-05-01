@@ -480,4 +480,105 @@ document.addEventListener('click', (e) => {
 window.openGoyaColorPicker = openPicker;
 window.closeGoyaColorPicker = _closePicker;
 
+/* ═══════════════════════════════════
+   PROP-COLOR-FIELD HELPERS (Figma-style grouped swatch + hex + opacity)
+═══════════════════════════════════ */
+function _hex6(v) {
+  if (!v) return '#000000';
+  const s = String(v).replace('#','').trim();
+  if (/^[0-9a-f]{6}$/i.test(s)) return '#' + s.toLowerCase();
+  // rgb/rgba
+  const m = String(v).match(/rgba?\(([^)]+)\)/i);
+  if (m) {
+    const parts = m[1].split(',').map(x => parseInt(x));
+    const [r,g,b] = parts;
+    const to = n => Math.max(0, Math.min(255, n|0)).toString(16).padStart(2,'0');
+    return '#' + to(r) + to(g) + to(b);
+  }
+  return '#000000';
+}
+
+export function parseAlphaFromColor(cssColor) {
+  const m = (cssColor || '').match(/rgba?\(([^)]+)\)/i);
+  if (!m) return 100;
+  const parts = m[1].split(',');
+  if (parts.length !== 4) return 100;
+  return Math.round(parseFloat(parts[3]) * 100);
+}
+
+export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '' }) {
+  const h = _hex6(hex);
+  const hexUp = h.replace('#','').toUpperCase();
+  return `
+    <div class="prop-color-field">
+      <div class="prop-color-swatch" style="background:${h}">
+        <input type="color" id="${idPrefix}-color" value="${h}">
+      </div>
+      <input type="text" class="prop-color-hex" id="${idPrefix}-hex" value="${hexUp}" maxlength="6" aria-label="Color"${placeholder ? ` placeholder="${placeholder}"` : ''}>
+      <label class="prop-color-alpha" title="Opacity">
+        <input type="text" class="prop-color-alpha-input" id="${idPrefix}-alpha" value="${alpha}" aria-label="Opacity">
+        <span class="prop-color-alpha-suffix">%</span>
+      </label>
+    </div>
+  `;
+}
+
+export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit } = {}) {
+  const picker = document.getElementById(`${idPrefix}-color`);
+  const hex    = document.getElementById(`${idPrefix}-hex`);
+  const alpha  = document.getElementById(`${idPrefix}-alpha`);
+  const swatch = picker?.closest('.prop-color-swatch');
+  if (!picker || !hex || !alpha || !swatch) return null;
+
+  let _a = initialAlpha;
+
+  const build = () => {
+    const h = (picker.value || '#000000').replace('#','');
+    const r = parseInt(h.slice(0,2), 16);
+    const g = parseInt(h.slice(2,4), 16);
+    const b = parseInt(h.slice(4,6), 16);
+    const a = Math.max(0, Math.min(1, _a / 100));
+    return a >= 1 ? picker.value : `rgba(${r},${g},${b},${a})`;
+  };
+  const apply = () => {
+    const c = build();
+    swatch.style.background = c;
+    onApply?.(c);
+  };
+
+  picker.addEventListener('input', () => {
+    hex.value = picker.value.replace('#','').toUpperCase();
+    apply();
+  });
+  picker.addEventListener('change', () => onCommit?.());
+  hex.addEventListener('input', () => {
+    const v = hex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) {
+      picker.value = '#' + v.toLowerCase();
+      apply();
+    }
+  });
+  hex.addEventListener('blur', () => {
+    hex.value = (picker.value || '#000000').replace('#','').toUpperCase();
+  });
+  hex.addEventListener('change', () => {
+    const v = hex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) onCommit?.();
+  });
+  alpha.addEventListener('input', () => {
+    const m = alpha.value.match(/(\d+)/);
+    if (!m) return;
+    _a = Math.max(0, Math.min(100, parseInt(m[1])));
+    apply();
+  });
+  alpha.addEventListener('blur', () => { alpha.value = String(_a); });
+  alpha.addEventListener('change', () => onCommit?.());
+
+  return { getColor: build, getAlpha: () => _a, setHex: v => { picker.value = v; hex.value = v.replace('#','').toUpperCase(); apply(); } };
+}
+
+window.colorFieldHTML = colorFieldHTML;
+window.wireColorField = wireColorField;
+window.parseAlphaFromColor = parseAlphaFromColor;
+
 export { openPicker, _closePicker as closePicker };

@@ -1,4 +1,5 @@
 import { propPanel, state } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showGraphProperties(block) {
   const chartType    = block.dataset.chartType    || 'bar-v';
@@ -9,6 +10,7 @@ export function showGraphProperties(block) {
   const barThickness = parseInt(block.dataset.barThickness) || 24;
   const padX         = parseInt(block.dataset.padX)         || 0;
   const barColor     = block.dataset.barColor || '#222222';
+  const barAlpha     = parseAlphaFromColor(barColor);
   const itemGap      = parseInt(block.dataset.itemGap)      || 24;
   const pctSize      = parseInt(block.dataset.pctSize)      || 60;
 
@@ -74,10 +76,7 @@ export function showGraphProperties(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">바 색상</span>
-        <div class="prop-color-swatch" style="background:${barColor}">
-          <input type="color" id="grb-bar-color" value="${barColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="grb-bar-color-hex" value="${barColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
       </div>
     </div>` : ''}
     <div class="prop-section">
@@ -239,22 +238,11 @@ export function showGraphProperties(block) {
   }
 
   // 바 색상 (bar-h 전용)
-  const barColorPicker = document.getElementById('grb-bar-color');
-  const barColorHex    = document.getElementById('grb-bar-color-hex');
-  if (barColorPicker) {
-    const barColorSwatch = barColorPicker.closest('.prop-color-swatch');
-    const applyBarColor = hex => {
-      block.dataset.barColor = hex;
-      window.renderGraph(block);
-      barColorPicker.value = hex;
-      barColorHex.value = hex;
-      if (barColorSwatch) barColorSwatch.style.background = hex;
-    };
-    barColorPicker.addEventListener('input',  () => applyBarColor(barColorPicker.value));
-    barColorPicker.addEventListener('change', () => window.pushHistory());
-    barColorHex.addEventListener('change', () => {
-      const v = barColorHex.value.trim();
-      if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyBarColor(v); window.pushHistory(); }
+  if (document.getElementById('grb-bar-color')) {
+    wireColorField('grb-bar', {
+      initialAlpha: barAlpha,
+      onApply: (c) => { block.dataset.barColor = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
     });
   }
 

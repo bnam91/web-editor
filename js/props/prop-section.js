@@ -41,6 +41,10 @@ async function showSectionProperties(sec) {
   const hexBg = rawBg
     ? (/^#[0-9a-f]{6}$/i.test(rawBg) ? rawBg : rgbToHex(rawBg))
     : '#ffffff';
+  const _secBgM = rawBg.match(/rgba?\(([^)]+)\)/i);
+  const secBgAlpha = _secBgM && _secBgM[1].split(',').length === 4
+    ? Math.round(parseFloat(_secBgM[1].split(',')[3]) * 100)
+    : 100;
   const hasBgImg  = !!sec.dataset.bgImg;
   const bgSize    = sec.dataset.bgSize || 'cover';
   const secPadB   = parseInt(sec.style.paddingBottom) || 0;
@@ -119,10 +123,16 @@ async function showSectionProperties(sec) {
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch" style="background:${hexBg}">
-          <input type="color" id="sec-bg-color" value="${hexBg}">
+        <div class="prop-color-field">
+          <div class="prop-color-swatch" style="background:${hexBg}">
+            <input type="color" id="sec-bg-color" value="${hexBg}">
+          </div>
+          <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg.replace('#','').toUpperCase()}" maxlength="6" aria-label="Color">
+          <label class="prop-color-alpha" title="Opacity">
+            <input type="text" class="prop-color-alpha-input" id="sec-bg-alpha" value="${secBgAlpha}" aria-label="Opacity">
+            <span class="prop-color-alpha-suffix">%</span>
+          </label>
         </div>
-        <input type="text" class="prop-color-hex" id="sec-bg-hex" value="${hexBg}" maxlength="7">
       </div>
       <span class="prop-field-label" style="margin-top:8px">Background Image</span>
       ${bgImgHTML}
@@ -256,23 +266,52 @@ async function showSectionProperties(sec) {
   // 배경색 이벤트
   const picker = document.getElementById('sec-bg-color');
   const hex    = document.getElementById('sec-bg-hex');
+  const alphaInp = document.getElementById('sec-bg-alpha');
   const swatch = picker.closest('.prop-color-swatch');
+  let _secAlpha = secBgAlpha;
+
+  const _buildSecBg = () => {
+    const h = (picker.value || '#000000').replace('#','');
+    const r = parseInt(h.slice(0,2), 16);
+    const g = parseInt(h.slice(2,4), 16);
+    const b = parseInt(h.slice(4,6), 16);
+    const a = Math.max(0, Math.min(1, _secAlpha / 100));
+    return a >= 1 ? picker.value : `rgba(${r},${g},${b},${a})`;
+  };
+  const _applySecBg = () => {
+    const c = _buildSecBg();
+    sec.style.background = c;
+    sec.dataset.bg = c;
+    swatch.style.background = c;
+  };
+
   picker.addEventListener('input', () => {
-    sec.style.background = picker.value;
-    sec.dataset.bg = picker.value;
-    hex.value = picker.value;
-    swatch.style.background = picker.value;
+    hex.value = picker.value.replace('#','').toUpperCase();
+    _applySecBg();
   });
   picker.addEventListener('change', () => pushHistory());
   hex.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(hex.value)) {
-      sec.style.background = hex.value;
-      sec.dataset.bg = hex.value;
-      picker.value = hex.value;
-      swatch.style.background = hex.value;
+    const v = hex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) {
+      picker.value = '#' + v.toLowerCase();
+      _applySecBg();
     }
   });
-  hex.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(hex.value)) pushHistory(); });
+  hex.addEventListener('blur', () => {
+    hex.value = (picker.value || '#000000').replace('#','').toUpperCase();
+  });
+  hex.addEventListener('change', () => {
+    const v = hex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) pushHistory();
+  });
+  alphaInp.addEventListener('input', () => {
+    const m = alphaInp.value.match(/(\d+)/);
+    if (!m) return;
+    _secAlpha = Math.max(0, Math.min(100, parseInt(m[1])));
+    _applySecBg();
+  });
+  alphaInp.addEventListener('blur', () => { alphaInp.value = String(_secAlpha); });
+  alphaInp.addEventListener('change', () => pushHistory());
 
   // 배경 이미지 이벤트
   const bgImgBtn    = document.getElementById('sec-bg-img-btn');

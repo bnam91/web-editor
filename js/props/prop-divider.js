@@ -1,7 +1,9 @@
 import { propPanel, state } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showDividerProperties(block) {
   const lineColor  = block.dataset.lineColor  || '#cccccc';
+  const lineAlpha  = parseAlphaFromColor(lineColor);
   const lineStyle  = block.dataset.lineStyle  || 'solid';
   const lineWeight = parseInt(block.dataset.lineWeight) || 1;
   const padV       = parseInt(block.dataset.padV)       || 12;
@@ -42,10 +44,7 @@ export function showDividerProperties(block) {
       <div class="prop-section-title">Line Style</div>
       <div class="prop-color-row">
         <span class="prop-label">색상</span>
-        <div class="prop-color-swatch" style="background:${lineColor}">
-          <input type="color" id="dvd-color" value="${lineColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="dvd-hex" value="${lineColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'dvd', hex: lineColor, alpha: lineAlpha })}
       </div>
       <div class="prop-row">
         <span class="prop-label">스타일</span>
@@ -108,26 +107,11 @@ export function showDividerProperties(block) {
   lenNumber.addEventListener('change', () => { applyLength(parseInt(lenNumber.value)); window.pushHistory(); });
   lenSlider.addEventListener('change', () => window.pushHistory());
 
-  const colorPicker = document.getElementById('dvd-color');
-  const colorHex    = document.getElementById('dvd-hex');
-  const colorSwatch = colorPicker.closest('.prop-color-swatch');
-
   const applyAll = () => window.applyDividerStyle(block);
-
-  colorPicker.addEventListener('input', () => {
-    block.dataset.lineColor = colorPicker.value;
-    colorHex.value = colorPicker.value;
-    colorSwatch.style.background = colorPicker.value;
-    applyAll();
-  });
-  colorPicker.addEventListener('change', () => window.pushHistory());
-  colorHex.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(colorHex.value)) {
-      block.dataset.lineColor = colorHex.value;
-      colorPicker.value = colorHex.value;
-      colorSwatch.style.background = colorHex.value;
-      applyAll(); window.pushHistory();
-    }
+  wireColorField('dvd', {
+    initialAlpha: lineAlpha,
+    onApply: (c) => { block.dataset.lineColor = c; applyAll(); },
+    onCommit: () => window.pushHistory(),
   });
 
   document.getElementById('dvd-style').addEventListener('change', e => {

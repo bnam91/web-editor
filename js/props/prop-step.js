@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showStepProperties(block) {
   const steps = JSON.parse(block.dataset.steps || '[]');
@@ -79,10 +80,7 @@ export function showStepProperties(block) {
       </div>
       <div class="prop-row" id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'flex' : 'none'}">
         <span class="prop-label">카드 배경</span>
-        <div class="prop-color-swatch" style="background:${stepCardBg}">
-          <input type="color" id="stb-card-bg-pick" value="${stepCardBg}">
-        </div>
-        <input type="text" class="prop-color-hex" id="stb-card-bg-hex" value="${stepCardBg}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'stb-card-bg', hex: stepCardBg, alpha: parseAlphaFromColor(stepCardBg) })}
       </div>
     </div>
 
@@ -100,17 +98,11 @@ export function showStepProperties(block) {
       <div class="prop-section-title">Badge</div>
       <div class="prop-row">
         <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch" style="background:${numBg}">
-          <input type="color" id="stb-num-bg" value="${numBg}">
-        </div>
-        <input type="text" class="prop-color-hex" id="stb-num-bg-hex" value="${numBg}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'stb-num-bg', hex: numBg, alpha: parseAlphaFromColor(numBg) })}
       </div>
       <div class="prop-row">
         <span class="prop-label">글자색</span>
-        <div class="prop-color-swatch" style="background:${numColor}">
-          <input type="color" id="stb-num-color" value="${numColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="stb-num-color-hex" value="${numColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'stb-num-color', hex: numColor, alpha: parseAlphaFromColor(numColor) })}
       </div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -138,17 +130,11 @@ export function showStepProperties(block) {
       <div class="prop-section-title">Text</div>
       <div class="prop-row">
         <span class="prop-label">제목 색</span>
-        <div class="prop-color-swatch" style="background:${titleColor}">
-          <input type="color" id="stb-title-color" value="${titleColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="stb-title-color-hex" value="${titleColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'stb-title-color', hex: titleColor, alpha: parseAlphaFromColor(titleColor) })}
       </div>
       <div class="prop-row">
         <span class="prop-label">설명 색</span>
-        <div class="prop-color-swatch" style="background:${descColor}">
-          <input type="color" id="stb-desc-color" value="${descColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="stb-desc-color-hex" value="${descColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'stb-desc-color', hex: descColor, alpha: parseAlphaFromColor(descColor) })}
       </div>
       <div class="prop-row">
         <span class="prop-label">제목 크기</span>
@@ -248,32 +234,20 @@ export function showStepProperties(block) {
     window.pushHistory?.();
   });
 
-  // ── 카드 배경색 ──
-  bindColor('stb-card-bg-pick', 'stb-card-bg-hex', 'stepCardBg');
-
   // ── 색상 피커 ──
-  function bindColor(pickerId, hexId, datasetKey) {
-    const picker = propPanel.querySelector('#' + pickerId);
-    const hexEl  = propPanel.querySelector('#' + hexId);
-    if (!picker || !hexEl) return;
-    const apply = v => {
-      block.dataset[datasetKey] = v;
-      picker.value = v;
-      hexEl.value  = v;
-      picker.closest('.prop-color-swatch').style.background = v;
-      rerender();
-    };
-    picker.addEventListener('input',  () => apply(picker.value));
-    hexEl.addEventListener('change',  () => {
-      const v = hexEl.value.trim();
-      if (/^#[0-9a-fA-F]{6}$/.test(v)) apply(v);
+  function bindColor(idPrefix, datasetKey, initialVal) {
+    wireColorField(idPrefix, {
+      initialAlpha: parseAlphaFromColor(initialVal),
+      onApply: (c) => { block.dataset[datasetKey] = c; rerender(); },
+      onCommit: () => window.pushHistory?.(),
     });
   }
 
-  bindColor('stb-num-bg',      'stb-num-bg-hex',      'numBg');
-  bindColor('stb-num-color',   'stb-num-color-hex',   'numColor');
-  bindColor('stb-title-color', 'stb-title-color-hex', 'titleColor');
-  bindColor('stb-desc-color',  'stb-desc-color-hex',  'descColor');
+  bindColor('stb-card-bg',    'stepCardBg', stepCardBg);
+  bindColor('stb-num-bg',     'numBg',      numBg);
+  bindColor('stb-num-color',  'numColor',   numColor);
+  bindColor('stb-title-color','titleColor', titleColor);
+  bindColor('stb-desc-color', 'descColor',  descColor);
 
   // ── 슬라이더 ──
   function bindSlider(sliderId, numberId, min, max, datasetKey) {

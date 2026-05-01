@@ -1,10 +1,12 @@
 import { propPanel } from '../globals.js';
 import { pushHistory } from '../editor.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showVectorProperties(block) {
   const w       = parseInt(block.dataset.w)        || 120;
   const h       = parseInt(block.dataset.h)        || 120;
   const color   = block.dataset.color              || '#000000';
+  const colorAlpha = parseAlphaFromColor(color);
   const rotateDeg = parseFloat(block.dataset.rotateDeg) || 0;
 
   propPanel.innerHTML = `
@@ -40,10 +42,7 @@ export function showVectorProperties(block) {
       <div class="prop-section-title">Color</div>
       <div class="prop-row">
         <span class="prop-label">Fill</span>
-        <div class="prop-color-swatch" style="background:${color}">
-          <input type="color" id="vb-color" value="${color}">
-        </div>
-        <input type="text" class="prop-text" id="vb-color-text" value="${color}" maxlength="9" style="width:72px;margin-left:6px">
+        ${colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha })}
       </div>
     </div>
 
@@ -101,25 +100,14 @@ export function showVectorProperties(block) {
   });
 
   // ── 색상 ──────────────────────────────────────────────────────────────────────
-  const colorPick = document.getElementById('vb-color');
-  const colorText = document.getElementById('vb-color-text');
-
-  colorPick?.addEventListener('input', () => {
-    const v = colorPick.value;
-    if (colorText) colorText.value = v;
-    colorPick.closest('.prop-color-swatch').style.background = v;
-    block.dataset.color = v;
-    window.renderVector(block);
-    window.scheduleAutoSave?.();
-  });
-  colorText?.addEventListener('change', () => {
-    const v = colorText.value.trim();
-    if (!/^#[0-9a-fA-F]{3,8}$/.test(v)) return;
-    if (colorPick) colorPick.value = v;
-    colorPick?.closest('.prop-color-swatch')?.style.setProperty('background', v);
-    block.dataset.color = v;
-    window.renderVector(block);
-    window.scheduleAutoSave?.();
+  wireColorField('vb', {
+    initialAlpha: colorAlpha,
+    onApply: (c) => {
+      block.dataset.color = c;
+      window.renderVector(block);
+      window.scheduleAutoSave?.();
+    },
+    onCommit: () => pushHistory(),
   });
 
   // ── 회전 ──────────────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showChatProperties(block) {
   const messages   = JSON.parse(block.dataset.messages  || '[]');
@@ -6,6 +7,8 @@ export function showChatProperties(block) {
   const fontSize   = parseInt(block.dataset.fontSize)   || 32;
   const bgLeft     = block.dataset.bgLeft               || '#e5e5ea';
   const bgRight    = block.dataset.bgRight              || '#1888fe';
+  const bgLeftAlpha  = parseAlphaFromColor(bgLeft);
+  const bgRightAlpha = parseAlphaFromColor(bgRight);
   const colorLeft  = block.dataset.colorLeft            || '#111111';
   const colorRight = block.dataset.colorRight           || '#ffffff';
   const radius     = parseInt(block.dataset.radius)     || 16;
@@ -69,13 +72,11 @@ export function showChatProperties(block) {
       <div class="prop-section-title">Color</div>
       <div class="prop-row">
         <span class="prop-label">좌측 배경</span>
-        <div class="prop-color-swatch" id="chb-bg-left-swatch" style="background:${bgLeft};width:24px;height:24px;border-radius:4px;border:1px solid #ccc;cursor:pointer;flex-shrink:0"></div>
-        <input type="text" class="prop-color-hex" id="chb-bg-left" value="${bgLeft}" style="width:72px">
+        ${colorFieldHTML({ idPrefix: 'chb-bg-left', hex: bgLeft, alpha: bgLeftAlpha })}
       </div>
       <div class="prop-row">
         <span class="prop-label">우측 배경</span>
-        <div class="prop-color-swatch" id="chb-bg-right-swatch" style="background:${bgRight};width:24px;height:24px;border-radius:4px;border:1px solid #ccc;cursor:pointer;flex-shrink:0"></div>
-        <input type="text" class="prop-color-hex" id="chb-bg-right" value="${bgRight}" style="width:72px">
+        ${colorFieldHTML({ idPrefix: 'chb-bg-right', hex: bgRight, alpha: bgRightAlpha })}
       </div>
     </div>
 
@@ -119,18 +120,16 @@ export function showChatProperties(block) {
   });
 
   // ─── 색상 이벤트 ─────────────────────────────────────────────
-  function bindColor(inputId, swatchId, dataKey) {
-    const input  = propPanel.querySelector('#' + inputId);
-    const swatch = propPanel.querySelector('#' + swatchId);
-    input.addEventListener('change', e => {
-      const v = e.target.value.trim();
-      block.dataset[dataKey] = v;
-      swatch.style.background = v;
-      rerender();
-    });
-  }
-  bindColor('chb-bg-left',  'chb-bg-left-swatch',  'bgLeft');
-  bindColor('chb-bg-right', 'chb-bg-right-swatch', 'bgRight');
+  wireColorField('chb-bg-left', {
+    initialAlpha: bgLeftAlpha,
+    onApply: (c) => { block.dataset.bgLeft = c; rerender(); },
+    onCommit: () => window.pushHistory?.(),
+  });
+  wireColorField('chb-bg-right', {
+    initialAlpha: bgRightAlpha,
+    onApply: (c) => { block.dataset.bgRight = c; rerender(); },
+    onCommit: () => window.pushHistory?.(),
+  });
 
   // ─── 대화 목록 이벤트 ────────────────────────────────────────
   function rebindMsgList() {

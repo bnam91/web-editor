@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 // 라벨 스타일 프리셋 정의
 const LABEL_STYLE_PRESETS = {
@@ -33,6 +34,8 @@ function showLabelGroupProperties(block, selectedItem) {
   const allItemH   = allItemPadT + allItemPadB;
   const itemBg     = selectedItem?.dataset.bg     || '#111111';
   const itemColor  = selectedItem?.dataset.color  || '#ffffff';
+  const itemBgAlpha    = parseAlphaFromColor(itemBg);
+  const itemColorAlpha = parseAlphaFromColor(itemColor);
   const itemRadius = parseInt(selectedItem?.dataset.radius ?? 40);
   const itemPadT   = parseInt(selectedItem?.style.paddingTop)    || 4;
   const itemPadB   = parseInt(selectedItem?.style.paddingBottom) || 4;
@@ -114,17 +117,11 @@ function showLabelGroupProperties(block, selectedItem) {
       <div class="prop-section-title">Selected Tag</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch" style="background:${itemBg}">
-          <input type="color" id="lg-item-bg" value="${itemBg}">
-        </div>
-        <input type="text" class="prop-color-hex" id="lg-item-bg-hex" value="${itemBg}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'lg-item-bg', hex: itemBg, alpha: itemBgAlpha })}
       </div>
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
-        <div class="prop-color-swatch" style="background:${itemColor}">
-          <input type="color" id="lg-item-color" value="${itemColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="lg-item-color-hex" value="${itemColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'lg-item-color', hex: itemColor, alpha: itemColorAlpha })}
       </div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
@@ -217,17 +214,17 @@ function showLabelGroupProperties(block, selectedItem) {
     window.pushHistory?.();
     _applyPresetToItem(selectedItem, styleSelect.value);
     // 컬러 픽커 동기화
-    const bgPicker2 = document.getElementById('lg-item-bg');
+    const bgPicker2 = document.getElementById('lg-item-bg-color');
     const bgHex2    = document.getElementById('lg-item-bg-hex');
-    const colorPicker2 = document.getElementById('lg-item-color');
+    const colorPicker2 = document.getElementById('lg-item-color-color');
     const colorHex2    = document.getElementById('lg-item-color-hex');
     const p = LABEL_STYLE_PRESETS[styleSelect.value];
     if (p) {
       const bgVal = p.bg.startsWith('rgba') || p.bg === 'transparent' ? '#ffffff' : p.bg;
       if (bgPicker2) bgPicker2.value = bgVal;
-      if (bgHex2)    bgHex2.value    = bgVal;
+      if (bgHex2)    bgHex2.value    = bgVal.replace('#','').toUpperCase();
       if (colorPicker2) colorPicker2.value = p.color;
-      if (colorHex2)    colorHex2.value    = p.color;
+      if (colorHex2)    colorHex2.value    = p.color.replace('#','').toUpperCase();
     }
   });
 
@@ -254,40 +251,18 @@ function showLabelGroupProperties(block, selectedItem) {
   if (!selectedItem) return;
 
   // 아이템 배경색
-  const bgPicker = document.getElementById('lg-item-bg');
-  const bgHex    = document.getElementById('lg-item-bg-hex');
-  const bgSwatch = bgPicker?.closest('.prop-color-swatch');
-  const setBg = val => {
-    selectedItem.style.backgroundColor = val;
-    selectedItem.dataset.bg = val;
-    if (bgSwatch) bgSwatch.style.background = val;
-    if (bgPicker) bgPicker.value = val;
-    if (bgHex)    bgHex.value = val;
-  };
-  bgPicker?.addEventListener('input', () => setBg(bgPicker.value));
-  bgPicker?.addEventListener('change', () => window.pushHistory?.());
-  bgHex?.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(bgHex.value)) setBg(bgHex.value);
+  wireColorField('lg-item-bg', {
+    initialAlpha: itemBgAlpha,
+    onApply: (c) => { selectedItem.style.backgroundColor = c; selectedItem.dataset.bg = c; },
+    onCommit: () => window.pushHistory?.(),
   });
-  bgHex?.addEventListener('change', () => window.pushHistory?.());
 
   // 아이템 글자색
-  const colorPicker = document.getElementById('lg-item-color');
-  const colorHex    = document.getElementById('lg-item-color-hex');
-  const colorSwatch = colorPicker?.closest('.prop-color-swatch');
-  const setColor = val => {
-    selectedItem.style.color = val;
-    selectedItem.dataset.color = val;
-    if (colorSwatch) colorSwatch.style.background = val;
-    if (colorPicker) colorPicker.value = val;
-    if (colorHex)    colorHex.value = val;
-  };
-  colorPicker?.addEventListener('input', () => setColor(colorPicker.value));
-  colorPicker?.addEventListener('change', () => window.pushHistory?.());
-  colorHex?.addEventListener('input', () => {
-    if (/^#[0-9a-f]{6}$/i.test(colorHex.value)) setColor(colorHex.value);
+  wireColorField('lg-item-color', {
+    initialAlpha: itemColorAlpha,
+    onApply: (c) => { selectedItem.style.color = c; selectedItem.dataset.color = c; },
+    onCommit: () => window.pushHistory?.(),
   });
-  colorHex?.addEventListener('change', () => window.pushHistory?.());
 
   // 모서리
   const rSlider = document.getElementById('lg-item-radius-slider');

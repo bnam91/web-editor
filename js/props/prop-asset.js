@@ -1,4 +1,5 @@
 import { propPanel, state } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function applyAssetPadX(ab, padX) {
   const canvasW = 860;
@@ -38,6 +39,7 @@ export function showAssetProperties(ab) {
   const overlayOpacity = parseFloat(overlayEl.dataset.ovOpacity ?? '0.35');
 
   const currentBgColor = ab.dataset.bgColor || '#a0a0a0';
+  const currentBgAlpha = parseAlphaFromColor(currentBgColor);
   const currentFit = ab.dataset.fit || 'cover';
   const imageSection = hasImage ? `
     <div class="prop-section">
@@ -60,10 +62,7 @@ export function showAssetProperties(ab) {
       <div class="prop-hint" style="text-align:center;margin-top:4px;">또는 파일을 블록에 드래그</div>
       <div class="prop-color-row" style="margin-top:10px;">
         <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch" style="background:${currentBgColor}">
-          <input type="color" id="asset-bg-color" value="${currentBgColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="asset-bg-hex" value="${currentBgColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'asset-bg', hex: currentBgColor, alpha: currentBgAlpha })}
         <button class="prop-align-btn" id="asset-bg-clear" style="font-size:10px;padding:0 8px;flex-shrink:0;">초기화</button>
       </div>
     </div>`;
@@ -351,34 +350,15 @@ export function showAssetProperties(ab) {
     document.getElementById('asset-remove-btn').addEventListener('click', () => window.clearAssetImage(ab));
   } else {
     document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
-    const bgColorInput = document.getElementById('asset-bg-color');
-    const bgHexInput   = document.getElementById('asset-bg-hex');
-    const bgSwatch     = bgColorInput.closest('.prop-color-swatch');
-    bgColorInput.addEventListener('input', e => {
-      const val = e.target.value;
-      ab.dataset.bgColor = val;
-      ab.style.backgroundColor = val;
-      if (bgHexInput) bgHexInput.value = val;
-      if (bgSwatch) bgSwatch.style.background = val;
+    const bgField = wireColorField('asset-bg', {
+      initialAlpha: currentBgAlpha,
+      onApply: (c) => { ab.dataset.bgColor = c; ab.style.backgroundColor = c; },
+      onCommit: () => window.pushHistory?.(),
     });
-    bgColorInput.addEventListener('change', () => window.pushHistory?.());
-    if (bgHexInput) {
-      bgHexInput.addEventListener('input', () => {
-        if (/^#[0-9a-f]{6}$/i.test(bgHexInput.value)) {
-          ab.dataset.bgColor = bgHexInput.value;
-          ab.style.backgroundColor = bgHexInput.value;
-          bgColorInput.value = bgHexInput.value;
-          if (bgSwatch) bgSwatch.style.background = bgHexInput.value;
-        }
-      });
-      bgHexInput.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(bgHexInput.value)) window.pushHistory?.(); });
-    }
     document.getElementById('asset-bg-clear').addEventListener('click', () => {
       delete ab.dataset.bgColor;
       ab.style.backgroundColor = '';
-      bgColorInput.value = '#a0a0a0';
-      if (bgHexInput) bgHexInput.value = '#a0a0a0';
-      if (bgSwatch) bgSwatch.style.background = '#a0a0a0';
+      bgField?.setHex('#a0a0a0');
       window.pushHistory?.();
     });
   }

@@ -1,10 +1,12 @@
 import { propPanel } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showIconifyProperties(block) {
   const iconName = block.dataset.iconName || '';
   const size     = parseInt(block.dataset.size)     || 64;
   const rotation = parseInt(block.dataset.rotation) || 0;
   const color    = block.dataset.iconColor || '#000000';
+  const colorAlpha = parseAlphaFromColor(color);
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -46,10 +48,7 @@ export function showIconifyProperties(block) {
       <div class="prop-section-title">Color</div>
       <div class="prop-color-row">
         <span class="prop-label">Color</span>
-        <div class="prop-color-swatch" style="background:${color};">
-          <input type="color" id="icn-color-pick" value="${color}">
-        </div>
-        <input type="text" class="prop-color-hex" id="icn-color-hex" value="${color}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'icn-color', hex: color, alpha: colorAlpha })}
       </div>
     </div>
 
@@ -88,22 +87,13 @@ export function showIconifyProperties(block) {
   sSlider.addEventListener('change', () => window.pushHistory?.());
 
   // 색상 (SVG currentColor 활용)
-  const colorPick  = propPanel.querySelector('#icn-color-pick');
-  const colorHex   = propPanel.querySelector('#icn-color-hex');
-  const colorSwatch = colorPick.closest('.prop-color-swatch');
-  const applyColor = v => {
-    block.dataset.iconColor = v;
-    block.style.color = v;
-    colorPick.value  = v;
-    colorHex.value   = v;
-    if (colorSwatch) colorSwatch.style.background = v;
-  };
-  colorPick.addEventListener('mousedown', () => window.pushHistory?.());
-  colorPick.addEventListener('input',  () => applyColor(colorPick.value));
-  colorPick.addEventListener('change', () => window.pushHistory?.());
-  colorHex.addEventListener('change', () => {
-    const v = colorHex.value.trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(v)) { window.pushHistory?.(); applyColor(v); }
+  wireColorField('icn-color', {
+    initialAlpha: colorAlpha,
+    onApply: (c) => {
+      block.dataset.iconColor = c;
+      block.style.color = c;
+    },
+    onCommit: () => window.pushHistory?.(),
   });
 
   // 회전

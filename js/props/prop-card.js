@@ -1,7 +1,9 @@
 import { propPanel, state } from '../globals.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showCardProperties(block) {
   const bgColor    = block.dataset.bgColor    || '#f5f5f5';
+  const bgAlpha    = parseAlphaFromColor(bgColor);
   const radius     = parseInt(block.dataset.radius)     || 12;
   const titleSize  = parseInt(block.dataset.titleSize)  || 24;
   const descSize   = parseInt(block.dataset.descSize)   || 18;
@@ -36,10 +38,7 @@ export function showCardProperties(block) {
       <div class="prop-section-title">Bottom Area</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
-        <div class="prop-color-swatch" style="background:${bgColor}">
-          <input type="color" id="card-bg-color" value="${bgColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="card-bg-hex" value="${bgColor}" maxlength="7">
+        ${colorFieldHTML({ idPrefix: 'card-bg', hex: bgColor, alpha: bgAlpha })}
       </div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
@@ -96,21 +95,16 @@ export function showCardProperties(block) {
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
   // 배경색
-  const bgInput = document.getElementById('card-bg-color');
-  const bgHex   = document.getElementById('card-bg-hex');
-  const body    = block.querySelector('.cdb-body');
-
+  const body = block.querySelector('.cdb-body');
   function applyBg(val) {
     block.dataset.bgColor = val;
     body.style.background = val;
     body.style.borderRadius = `0 0 ${block.dataset.radius || 12}px ${block.dataset.radius || 12}px`;
   }
-  bgInput.addEventListener('mousedown', () => { window.pushHistory?.(); });
-  bgInput.addEventListener('input', () => { bgHex.value = bgInput.value; applyBg(bgInput.value); });
-  bgHex.addEventListener('change', () => {
-    window.pushHistory?.();
-    const v = bgHex.value.trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(v)) { bgInput.value = v; applyBg(v); }
+  wireColorField('card-bg', {
+    initialAlpha: bgAlpha,
+    onApply: (c) => applyBg(c),
+    onCommit: () => window.pushHistory?.(),
   });
 
   // 모서리
