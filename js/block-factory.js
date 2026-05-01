@@ -2107,7 +2107,7 @@ function makeCanvasBlock(data = {}) {
 }
 
 const CARD_DEFAULT_OPTS = {
-  width: 360, height: 508,
+  width: 360, height: 480,
   bg: 'transparent', radius: 12,
   cardMode: 'simple',
   imgRatio: 65,

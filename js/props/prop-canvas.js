@@ -292,7 +292,7 @@ export function showCanvasProperties(block) {
 // ── Simple Card Properties ────────────────────────────────────────────────────
 function showSimpleCardProperties(block) {
   const w         = parseInt(block.dataset.canvasW)  || 360;
-  const h         = parseInt(block.dataset.canvasH)  || 508;
+  const h         = parseInt(block.dataset.canvasH)  || 480;
   const radius    = parseInt(block.dataset.radius)   || 12;
   const imgRatio  = parseInt(block.dataset.imgRatio) ?? 65;
   const textHide   = block.dataset.textHide === 'true';
