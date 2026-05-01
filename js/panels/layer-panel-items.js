@@ -39,7 +39,6 @@ const layerIcons = {
   divider:    `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="11" y2="6"/></svg>`,
   'label-group': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="6" rx="1"/><rect x="7" y="3" width="4" height="6" rx="1"/></svg>`,
   card:       `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="1" y1="7" x2="11" y2="7"/></svg>`,
-  banner:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="6" rx="0.5"/><line x1="7" y1="5" x2="11" y2="5"/><line x1="7" y1="7" x2="10" y2="7"/></svg>`,
   graph:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polyline points="1,10 4,5 7,7 10,2"/></svg>`,
   'icon-text': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="4" rx="0.8"/><line x1="7" y1="4" x2="11" y2="4"/><line x1="7" y1="7" x2="10" y2="7"/></svg>`,
   canvas:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="2"/><rect x="3" y="3" width="3" height="6" rx="0.5" fill="currentColor" stroke="none"/><rect x="7" y="3" width="2" height="3" rx="0.5" fill="currentColor" stroke="none"/></svg>`,
@@ -579,22 +578,28 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   wrapper.className = 'layer-item';
   wrapper._dragTarget = ssEl;
 
-  const name = ssEl.dataset.layerName || 'Frame';
-
   // 직접 자식에 shape-block이 있으면 Shape 타입으로 표시 (하위 트리 전체 탐색 금지)
   const innerShapeBlock = ssEl.querySelector(':scope > .shape-block');
   const shapeType = innerShapeBlock ? (innerShapeBlock.dataset.shapeType || 'rectangle') : null;
   const shapeKey  = shapeType ? `shape-${shapeType}` : null;
   const shapeTypeLbls = { 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
-  const iconHtml  = shapeKey && layerIcons[shapeKey]
-    ? layerIcons[shapeKey]
-    : `<svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`;
-  const typeLabel = shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame';
+  // Banner preset 감지 (frame-block 변형) — shape보다 우선
+  const isBanner = !!ssEl.dataset.bannerPreset;
+  const BANNER_ICON = `<svg class="layer-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="4" width="12" height="8" rx="1.5"/><line x1="2" y1="7.5" x2="9" y2="7.5"/></svg>`;
+
+  const iconHtml  = isBanner
+    ? BANNER_ICON
+    : (shapeKey && layerIcons[shapeKey]
+      ? layerIcons[shapeKey]
+      : `<svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`);
+  const typeLabel = isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame');
+  const defaultName = isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame');
+  const name = ssEl.dataset.layerName || defaultName;
 
   wrapper.innerHTML = `${iconHtml}<span class="layer-item-name">${name}</span><span class="layer-item-type">${typeLabel}</span>`;
   wrapper.prepend(makeIndents(depth));
-  addLayerRename(wrapper.querySelector('.layer-item-name'), ssEl, 'Frame', 'layerName');
+  addLayerRename(wrapper.querySelector('.layer-item-name'), ssEl, defaultName, 'layerName');
 
   wrapper.setAttribute('draggable', 'true');
   wrapper.addEventListener('click', e => {
@@ -671,7 +676,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       <span class="layer-item-name">${name}</span>
       <span class="layer-item-type">${typeLabel}</span>`;
     header.prepend(makeIndents(depth));
-    addLayerRename(header.querySelector('.layer-item-name'), ssEl, 'Frame', 'layerName');
+    addLayerRename(header.querySelector('.layer-item-name'), ssEl, defaultName, 'layerName');
     header.querySelector('.layer-chevron').addEventListener('click', e => {
       e.stopPropagation();
       group.classList.toggle('collapsed');

@@ -52,22 +52,11 @@ function _isInsideUnselectedFrame(block) {
 }
 
 // 프레임(frame-block) 내 자식 블록 드래그 후 프레임 높이를 자동 확장
-function _resizeFrameToFitChildren(block) {
-  let ss = block.closest('.frame-block');
-  if (!ss) return;
-  // text-frame 자체가 넘어온 경우 → freeLayout 부모 프레임 대상으로
-  if (ss.dataset.textFrame === 'true') {
-    ss = ss.parentElement?.closest('.frame-block');
-    if (!ss) return;
-  }
-  const childrenBottom = Math.max(...[...ss.children].map(c => {
-    const top = parseInt(c.style.top || 0);
-    return top + (c.offsetHeight || 0);
-  }));
-  if (childrenBottom > ss.offsetHeight) {
-    ss.style.height = childrenBottom + 'px';
-    ss.style.minHeight = childrenBottom + 'px';
-  }
+function _resizeFrameToFitChildren(_block) {
+  // freeLayout 프레임은 자식 절대좌표 이동에 따라 부모 height를 자동 확장하지 않음.
+  // 부모 사이즈는 사용자가 핸들로 명시적으로 조절해야 함.
+  // stack 모드는 자연 flow로 자동 확장되므로 이 함수와 무관.
+  // (호출부 호환을 위해 함수 본체만 no-op으로 유지)
 }
 
 // 프레임 내부 블록 선택 시 프레임 selected 복원 헬퍼

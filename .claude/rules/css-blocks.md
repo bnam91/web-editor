@@ -7,21 +7,39 @@ paths:
 
 ## 블록 선택 스타일 (변경 금지)
 
-### 원칙
-- **Hover**: `::after` pseudo-element로 배경 tint만 표시 (GitHub row-highlight 스타일)
-- **Selected**: `outline: 2px solid var(--sel-color); outline-offset: 0` — 요소 경계에 딱 붙임 (Figma 스타일)
-- **배경 fill 없음**: selected 상태에서는 배경색 변화 없이 outline만 표시
+### 두 가지 outline 표준 — **컴포넌트 vs 컨테이너**
+
+| 종류 | outline | offset | 적용 블록 |
+|---|---|---|---|
+| **컴포넌트(component)** | `1px solid var(--sel-color)` | `-1px` | `text-block`, `asset-block`, `card-block`, `table-block`, `graph-block`, `step-block`, `icon-circle-block`, `icon-text-block`, `divider-block`, **`frame-block[data-banner-preset]`**, 기타 단일 컴포넌트 블록 |
+| **컨테이너(container)** | `3px solid var(--sel-color)` | `0` | `frame-block` (data-banner-preset 없는 일반 frame) |
+
+- **컨테이너는 두꺼운 outline** — 자식들을 감싸는 영역이라 흰 배경에서 잘 보이도록.
+- **컴포넌트는 얇은 outline** — 콘텐츠 자체가 시각 정보라 outline이 콘텐츠를 가리지 않도록.
+- **색은 모두 동일**: `var(--sel-color)` (파란색).
+- **배경 fill 없음**: selected 상태에서는 배경색 변화 없이 outline만 표시.
+
+### 신규 컴포넌트 블록 추가 시 (frame-block 변형 패턴 포함)
+
+> `step/card/table`처럼 frame-block을 **구조적으로 재사용**(`data-xxx-preset` 속성)하는 컴포넌트는 **반드시 컴포넌트 outline을 별도 적용**해야 함. frame-block의 3px이 자동 상속되지 않도록 더 구체적인 selector로 override.
+
+```css
+.frame-block[data-banner-preset].selected {
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
+}
+```
+
+**왜 자동 안 되는지**: `.frame-block.selected { outline: 3px ...; }` 룰이 이미 있어서 `[data-banner-preset]`만 추가해도 selector 특이도(specificity)가 더 높아 override됨. 이 명시 override 빠뜨리면 모든 컴포넌트가 두꺼운 컨테이너 outline을 받아 다른 컴포넌트 블록과 두께 불일치.
 
 ### 절대 하지 말 것
-- `.selected` 규칙에 `outline-offset` 값을 양수(outer gap)나 음수(inner)로 바꾸지 말 것
 - `.text-block`에 `border-radius` 추가하지 말 것
 - `box-shadow: 0 0 0 2px` 방식으로 돌아가지 말 것 (overflow:hidden 간섭 위험)
 - selected 상태에 `background` 추가하지 말 것
+- 컴포넌트 outline에 3px 두께를 쓰지 말 것 (컨테이너 표준과 혼선)
 
-### 적용된 블록 목록
-`section-block`, `text-block`, `label-group-block`, `label-item`, `asset-block`,
-`overlay-tb`, `gap-block`, `table-block`, `graph-block`, `card-block`,
-`strip-banner-block`, `divider-block`, `frame-block` — 모두 `outline-offset: 0` 통일
+### speech-bubble은 별도 패턴
+구조가 달라 `.frame-block::after`로 처리 — 아래 별도 섹션 참조.
 
 ---
 

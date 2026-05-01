@@ -64,7 +64,8 @@ function insertAfterSelected(section, el) {
   // 활성 서브섹션이 있으면 그 안에 삽입 (selected 여부 관계없이)
   const activeSS = window._activeFrame;
   // text-frame은 단순 wrapper — 삽입 대상이 아님 (_restoreParentFrameSelected 안전망)
-  if (activeSS && !activeSS.dataset?.textFrame && activeSS.closest('.section-block') === section) {
+  // banner-preset 외곽은 컴포넌트 단위 — 안에 직접 자식 추가 받지 않음 (drill-in으로 inner 활성화 시에만)
+  if (activeSS && !activeSS.dataset?.textFrame && !activeSS.dataset?.bannerPreset && activeSS.closest('.section-block') === section) {
     // shape-block이 선택된 경우: shape frame은 최소 단위 — 내부 삽입 금지, frame 뒤에 삽입
     const selShape = activeSS.querySelector('.shape-block.selected');
     if (selShape) {

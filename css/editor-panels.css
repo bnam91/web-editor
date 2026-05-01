@@ -1109,7 +1109,10 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   transition: background 0.1s; user-select: none;
 }
 .layer-row-header:hover { background: var(--ui-bg-input); }
-.layer-row-header.active { background: rgba(45,111,232,0.12); }
+.layer-row-header.active { background: rgba(45,111,232,0.15); border-left: 2px solid rgba(45,111,232,0.4); padding-left: 6px; }
+.layer-row-header.active .layer-item-name { color: #6fa3f7; font-weight: 500; }
+.layer-row-header.active .layer-item-type { color: #3a5fa0; }
+.layer-row-header.active .layer-item-icon { opacity: 0.7; }
 .layer-row-children { padding-left: 0; overflow: hidden; }
 .layer-row-group.collapsed .layer-row-children { display: none; }
 .layer-row-group.collapsed .layer-chevron { transform: rotate(-90deg); }

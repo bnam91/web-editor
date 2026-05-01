@@ -534,7 +534,7 @@
   </div>
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-component-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Table / Card / Graph / Divider)">
+    <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-component-dropdown')" title="컴포넌트 블록 추가 (Table / Card / Graph / Divider / Step / Chat / Banner)">
       <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
         <rect x="1" y="1" width="4" height="4" rx="0.5"/>
         <rect x="6" y="1" width="4" height="4" rx="0.5"/>
@@ -550,6 +550,7 @@
       <button class="fp-menu-item" onclick="addDividerBlock();toggleFpDropdown('fp-component-dropdown')">Divider</button>
       <button class="fp-menu-item" onclick="addStepBlock();toggleFpDropdown('fp-component-dropdown')">Step</button>
       <button class="fp-menu-item" onclick="addChatBlock();toggleFpDropdown('fp-component-dropdown')">Chat</button>
+      <button class="fp-menu-item" onclick="addBannerBlock('frame_8');toggleFpDropdown('fp-component-dropdown')">Banner</button>
     </div>
   </div>
   <!-- Component Shelf 버튼 숨김 처리
@@ -770,6 +771,7 @@
 <script type="module" src="js/props/prop-row.js"></script>
 <script type="module" src="js/drag-utils.js"></script>
 <script type="module" src="js/drag-drop.js"></script>
+<script type="module" src="js/banner-presets.js"></script>
 <script type="module" src="js/block-factory.js"></script>
 <script type="module" src="js/goditor-api.js"></script>
 <script type="module" src="js/file-page-section.js"></script>

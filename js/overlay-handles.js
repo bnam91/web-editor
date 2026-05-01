@@ -112,6 +112,8 @@ function _onHandleMouseDown(e, ss, dir) {
   const paddingH = secInnerCS ? parseFloat(secInnerCS.paddingLeft) + parseFloat(secInnerCS.paddingRight) : 0;
   const maxW = secInner ? Math.round(secInner.clientWidth - paddingH) : 860;
 
+  // fullWidth 프레임(stack 모드, 자동 높이)은 핸들로 높이 조절 안 함 — 자식이 결정.
+  const isFullWidth = ss.dataset.fullWidth === 'true';
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
@@ -120,11 +122,15 @@ function _onHandleMouseDown(e, ss, dir) {
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.min(maxW, Math.max(60, startW + dx));
     if (dir.includes('w')) newW = Math.min(maxW, Math.max(60, startW - dx));
-    if (dir.includes('s')) newH = Math.max(40, startH + dy);
-    if (dir.includes('n')) newH = Math.max(40, startH - dy);
+    if (!isFullWidth) {
+      if (dir.includes('s')) newH = Math.max(40, startH + dy);
+      if (dir.includes('n')) newH = Math.max(40, startH - dy);
+    }
     newW = Math.round(newW); newH = Math.round(newH);
     ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
-    ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+    if (!isFullWidth) {
+      ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+    }
     window.scheduleAutoSave?.();
   }
   function onUp() {

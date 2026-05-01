@@ -130,8 +130,9 @@ npm run figma        # Figma WebSocket 서버 (포트 3055)
 | `js/panels/layer-panel-items.js` | `isXxx` 감지, `type` 분기, `labels`/`typeLbls` 등록, block 목록 배열, click 핸들러에 `showXxxProperties` 추가 | 레이어 패널에서 "Asset"으로 표시되거나 아예 미등록 |
 | `js/props/prop-xxx.js` | `propPanel.innerHTML`의 헤더를 `prop-block-label > prop-block-icon + prop-block-info + prop-block-id` 풀 구조로 작성 | 프로퍼티 패널 헤더가 단순 텍스트로 표시 (블록명·위치·ID 정보 없음) |
 | `js/block-drag.js` | `isXxx` 감지, click 핸들러에 `showXxxProperties` 연결 | 블록 클릭 시 프로퍼티 패널 열리지 않음 |
+| `css/editor-blocks.css` 또는 해당 컴포넌트 CSS | **컴포넌트 outline 명시** — 1px solid var(--sel-color) + offset -1px. **frame-block 변형 패턴(data-xxx-preset)인 경우 반드시 override** | 다른 컴포넌트 블록(card/table/step 등)과 두께 불일치, frame-block 3px이 상속되어 어색함 |
 
-> **실수 예방**: 신규 블록 구현 후 QA 전에 위 4곳을 grep으로 교차 확인할 것.
+> **실수 예방**: 신규 블록 구현 후 QA 전에 위 5곳을 grep으로 교차 확인할 것. 특히 frame-block을 구조적으로 재사용하는 컴포넌트(`data-xxx-preset` 패턴)는 outline override를 잊기 쉬움 — `.claude/rules/css-blocks.md` "컴포넌트 vs 컨테이너 outline" 섹션 필독.
 
 ---
 

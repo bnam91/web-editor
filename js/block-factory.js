@@ -352,8 +352,9 @@ function addTextBlock(type, opts = {}) {
   }
 
   // 활성 프레임(frame-block) 분기 — freeLayout / fullWidth 모두 처리
+  // banner-preset 외곽은 컴포넌트 단위 — 직접 자식 받지 않음. drill-in한 inner만 활성 대상.
   const activeSS = window._activeFrame;
-  if (activeSS) {
+  if (activeSS && !activeSS.dataset.bannerPreset) {
     window.pushHistory();
     const { block } = makeTextBlock(type);
     const tf = _makeTextFrame();
@@ -377,8 +378,16 @@ function addTextBlock(type, opts = {}) {
       }
       activeSS.appendChild(tf);
     } else if (activeSS.dataset.fullWidth === 'true') {
-      // A 모드: fullWidth 플로우 — text-frame을 flow child로 추가
-      activeSS.appendChild(tf);
+      // A 모드: fullWidth 플로우 — 선택된 자손이 있으면 그것을 품은 직계 자식 다음 sibling으로 삽입
+      let refChild = null;
+      const selList = activeSS.querySelectorAll('.selected');
+      if (selList.length) {
+        let cur = selList[selList.length - 1];
+        while (cur && cur.parentElement !== activeSS) cur = cur.parentElement;
+        if (cur && cur.parentElement === activeSS && cur !== tf) refChild = cur;
+      }
+      if (refChild) activeSS.insertBefore(tf, refChild.nextSibling);
+      else activeSS.appendChild(tf);
     } else {
       return; // 지원하지 않는 프레임 타입
     }
@@ -1069,6 +1078,10 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
   const ss = window._activeFrame;
   if (!ss) return false;
 
+  /* banner-preset 외곽은 컴포넌트 단위로 취급 — 직접 자식 추가 받지 않음.
+     사용자가 inner를 drill-in하면 inner가 _activeFrame이 되어 그쪽으로 추가됨. */
+  if (ss.dataset.bannerPreset) return false;
+
   /* ── B 모드: 자유배치 프레임 ── */
   if (ss.dataset.freeLayout === 'true') {
     window.pushHistory();
@@ -1102,14 +1115,23 @@ function _insertToFlowFrame(makeBlockFn, opts = {}) {
   if (ss.dataset.fullWidth !== 'true') return false;
   window.pushHistory();
   const result = makeBlockFn();
+  if (!result) { window.buildLayerPanel(); return true; }
   // makeBlockFn이 { row, block } 또는 block(gap) 반환
-  if (result && result.row) {
-    ss.appendChild(result.row);
-    bindBlock(result.block);
-  } else if (result) {
-    ss.appendChild(result);
-    bindBlock(result);
+  const newEl = result.row || result;
+  const innerBlock = result.block || result;
+
+  // 활성 프레임 안에서 선택된 자손이 있으면 그것을 품은 직계 자식 다음 sibling으로 삽입.
+  // 선택된 자손이 없거나 활성 프레임 자체만 선택된 경우 끝에 append.
+  let refChild = null;
+  const selList = ss.querySelectorAll('.selected');
+  if (selList.length) {
+    let cur = selList[selList.length - 1];
+    while (cur && cur.parentElement !== ss) cur = cur.parentElement;
+    if (cur && cur.parentElement === ss && cur !== newEl) refChild = cur;
   }
+  if (refChild) ss.insertBefore(newEl, refChild.nextSibling);
+  else ss.appendChild(newEl);
+  bindBlock(innerBlock);
   window.buildLayerPanel();
   return true;
 }
@@ -2611,6 +2633,179 @@ function addStepBlock(opts = {}) {
 window.makeStepBlock   = makeStepBlock;
 window.addStepBlock    = addStepBlock;
 window.renderStepBlock = renderStepBlock;
+
+// ── Banner Block ───────────────────────────────────────────────────────────────
+// frame-block의 변형 (data-banner-preset 속성). 신규 클래스 없음.
+// 외곽 frame-block + 자식(text/asset/gap/inner frame) 트리.
+
+function _resetFrameToBannerOuter(ss, frameSpec) {
+  delete ss.dataset.freeLayout;
+  delete ss.dataset.fullWidth;
+  delete ss.dataset.height;
+  ss.style.cssText = '';
+  ss.dataset.bg = frameSpec.bg || 'transparent';
+  if (frameSpec.radius !== undefined) ss.dataset.radius = String(frameSpec.radius);
+
+  if (frameSpec.mode === 'freeLayout') {
+    // 외곽 height는 inner flow content를 따라가도록 auto + min-height만 지정.
+    // asset 등 absolute 자식은 외곽 height에 영향 없음.
+    ss.dataset.freeLayout = 'true';
+    ss.dataset.width  = String(frameSpec.width);
+    ss.dataset.padY   = '0';
+    let css = `background:${frameSpec.bg};padding:0;width:${frameSpec.width}px;max-width:100%;margin:0 auto;min-height:${frameSpec.height}px;`;
+    if (frameSpec.radius) css += `border-radius:${frameSpec.radius}px;overflow:hidden;`;
+    ss.style.cssText = css;
+  } else if (frameSpec.mode === 'fullWidth') {
+    ss.dataset.fullWidth = 'true';
+    let css = `background:${frameSpec.bg};width:100%;box-sizing:border-box;`;
+    if (frameSpec.radius) css += `border-radius:${frameSpec.radius}px;overflow:hidden;`;
+    ss.style.cssText = css;
+  }
+}
+
+function _injectBannerChild(parentFrame, child) {
+  const isFree = parentFrame.dataset.freeLayout === 'true';
+
+  if (child.kind === 'frame') {
+    const isStackInner = child.mode === 'stack';
+    const inner = makeFrameBlock({
+      bg: child.bg,
+      radius: child.radius,
+      fullWidth: isStackInner,
+    });
+    if (isStackInner) {
+      // stack inner: 초기 너비만 지정, 자동 높이. 사용자가 핸들로 너비 조절 가능.
+      inner.style.width    = child.width + 'px';
+      inner.style.minHeight = '';
+      inner.style.height    = '';
+      inner.dataset.width  = String(child.width);
+      delete inner.dataset.height;
+      if (isFree) {
+        // 외곽 freeLayout이지만 inner는 absolute 대신 margin으로 위치잡아 외곽 height 추적.
+        inner.style.marginLeft   = (child.x ?? 0) + 'px';
+        inner.style.marginTop    = (child.y ?? 0) + 'px';
+        inner.style.marginBottom = (child.y ?? 0) + 'px';
+      }
+    } else if (child.mode === 'freeLayout') {
+      inner.dataset.width  = String(child.width);
+      inner.dataset.height = String(child.height);
+      inner.style.width    = child.width  + 'px';
+      inner.style.height   = child.height + 'px';
+      inner.style.minHeight = child.height + 'px';
+      if (isFree) {
+        inner.style.position = 'absolute';
+        inner.style.left  = (child.x ?? 0) + 'px';
+        inner.style.top   = (child.y ?? 0) + 'px';
+        inner.style.margin = '0';
+        inner.dataset.offsetX = String(child.x ?? 0);
+        inner.dataset.offsetY = String(child.y ?? 0);
+      }
+    }
+    parentFrame.appendChild(inner);
+    window.bindFrameDropZone?.(inner);
+    (child.children || []).forEach(gc => _injectBannerChild(inner, gc));
+    return;
+  }
+
+  if (child.kind === 'text') {
+    const { block } = makeTextBlock(child.textType || 'body');
+    const tf = _makeTextFrame();
+    applyTextOpts(block, tf, {
+      content: child.content, color: child.color,
+      fontSize: child.fontSize, align: child.align,
+    }, child.textType);
+    tf.appendChild(block);
+    if (isFree) {
+      tf.style.position = 'absolute';
+      tf.style.left = (child.x ?? 0) + 'px';
+      tf.style.top  = (child.y ?? 0) + 'px';
+      if (child.width) tf.style.width = child.width + 'px';
+      tf.dataset.offsetX = String(child.x ?? 0);
+      tf.dataset.offsetY = String(child.y ?? 0);
+    }
+    parentFrame.appendChild(tf);
+    bindBlock(block);
+    return;
+  }
+
+  if (child.kind === 'asset') {
+    const { row, block } = makeAssetBlock();
+    block.style.width  = child.width  + 'px';
+    block.style.height = child.height + 'px';
+    if (child.src) {
+      block.style.backgroundImage = `url("${child.src}")`;
+      block.style.backgroundSize = 'cover';
+      block.style.backgroundPosition = 'center';
+      block.dataset.bgImg = child.src;
+    }
+    if (isFree) {
+      block.style.position = 'absolute';
+      block.style.left = (child.x ?? 0) + 'px';
+      block.style.top  = (child.y ?? 0) + 'px';
+      block.style.alignSelf = '';
+      block.dataset.offsetX = String(child.x ?? 0);
+      block.dataset.offsetY = String(child.y ?? 0);
+      parentFrame.appendChild(block);
+    } else {
+      parentFrame.appendChild(row);
+    }
+    bindBlock(block);
+    return;
+  }
+
+  if (child.kind === 'gap') {
+    if (!isFree) {
+      const gb = makeGapBlock();
+      gb.style.height = (child.height || 24) + 'px';
+      parentFrame.appendChild(gb);
+      bindBlock(gb);
+    }
+    return;
+  }
+}
+
+function _applyBannerPreset(frameEl, presetKey) {
+  const preset = window.BANNER_PRESETS?.[presetKey];
+  if (!preset) { console.warn('[banner] unknown preset:', presetKey); return; }
+  while (frameEl.firstChild) frameEl.removeChild(frameEl.firstChild);
+  _resetFrameToBannerOuter(frameEl, preset.frame);
+  frameEl.dataset.bannerPreset = presetKey;
+  (preset.children || []).forEach(c => _injectBannerChild(frameEl, c));
+  window.bindFrameDropZone?.(frameEl);
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+}
+
+function addBannerBlock(presetKey = 'frame_8') {
+  const preset = window.BANNER_PRESETS?.[presetKey];
+  if (!preset) { console.warn('[banner] unknown preset:', presetKey); return; }
+  const sec = window.getSelectedSection?.();
+  if (!sec) { window.showNoSelectionHint?.(); return; }
+  window.pushHistory();
+
+  // _resetFrameToBannerOuter가 외곽 dataset/style 일괄 셋업 — single source of truth
+  const ss = makeFrameBlock();
+  _resetFrameToBannerOuter(ss, preset.frame);
+  ss.dataset.bannerPreset = presetKey;
+
+  insertAfterSelected(sec, ss);
+  window.bindFrameDropZone?.(ss);
+
+  (preset.children || []).forEach(c => _injectBannerChild(ss, c));
+
+  window.buildLayerPanel();
+  window.deselectAll?.();
+  sec.classList.add('selected');
+  window.syncLayerActive?.(sec);
+  ss.classList.add('selected');
+  window._activeFrame = ss;
+  window.showFrameProperties?.(ss);
+  window.showFrameHandles?.(ss);
+  window.triggerAutoSave?.();
+}
+
+window.addBannerBlock     = addBannerBlock;
+window._applyBannerPreset = _applyBannerPreset;
 
 // ── Chat Block ─────────────────────────────────────────────────────────────────
 const CHAT_DEFAULT_MESSAGES = [

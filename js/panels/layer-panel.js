@@ -559,6 +559,7 @@ export function syncLayerActive(sec) {
 
 export function highlightBlock(block, layerItem) {
   document.querySelectorAll('.layer-item').forEach(i => { i.classList.remove('active'); i.style.background = ''; });
+  document.querySelectorAll('.layer-row-header.active').forEach(h => h.classList.remove('active'));
   if (layerItem) {
     layerItem.classList.add('active');
     // scrollBody(layers-section-body)가 실제 스크롤 컨테이너 — 콘텐츠 높이 보장 후 스크롤

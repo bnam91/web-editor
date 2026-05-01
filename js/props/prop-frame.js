@@ -22,20 +22,24 @@ const _SHAPE_ICONS = {
   polygon:   `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,2 14,12 2,12" stroke="#888" stroke-width="1.4" fill="none" stroke-linejoin="round"/></svg>`,
 };
 const _FRAME_ICON = `<svg width="16" height="16" viewBox="1.5 1.5 13 13" fill="none"><path fill="#888" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`;
+const _BANNER_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#888" stroke-width="1.4"><rect x="2" y="4" width="12" height="8" rx="1.5"/><line x1="2" y1="7.5" x2="9" y2="7.5"/></svg>`;
 
 /* ── 공통 헤더: Frame 이름 + 모드 토글 ── */
 function _headerHTML(el, mode) {
   const id = el.id || '';
-  // showFrameProperties는 frame-block 전용 패널 → 항상 Frame 아이콘 사용
-  // shape 아이콘은 showShapeProperties(shape-block) 패널에서만 표시
+  // showFrameProperties는 frame-block 전용 패널.
+  // banner-preset 변형은 컴포넌트 단위 — Banner 아이콘 + 'Banner' 라벨 사용.
+  const isBanner = !!el.dataset.bannerPreset;
+  const icon = isBanner ? _BANNER_ICON : _FRAME_ICON;
+  const defaultName = isBanner ? 'Banner' : 'Frame';
   return `
     <div class="prop-section">
       <div class="prop-block-label">
         <div class="prop-block-icon">
-          ${_FRAME_ICON}
+          ${icon}
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">${el.dataset.layerName || 'Frame'}</span>
+          <span class="prop-block-name">${el.dataset.layerName || defaultName}</span>
         </div>
         ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${id}')">${id}</span>` : ''}
       </div>
@@ -97,6 +101,33 @@ function _logAnalysis(ss) {
   return a;
 }
 window.__analyzeFreeLayoutFrame = _logAnalysis;
+
+/* ── Banner 외곽 자식 좌우 미러링 ──
+   absolute 자식: style.left + dataset.offsetX 갱신
+   normal flow 자식: style.marginLeft 갱신 (margin-right로 흡수)
+   공식: newX = bannerWidth − x − childWidth */
+function _swapBannerChildren(ss) {
+  if (!ss?.dataset?.bannerPreset) return;
+  // 줌 영향을 받지 않도록 inline style / dataset 픽셀값을 우선 사용
+  const bannerWidth = parseInt(ss.style.width) || parseInt(ss.dataset.width) || 0;
+  if (!bannerWidth) return;
+  window.pushHistory?.();
+  Array.from(ss.children).forEach(child => {
+    const cw = parseInt(child.style.width) || parseInt(child.dataset.width) || 0;
+    if (!cw) return;
+    if (child.style.position === 'absolute') {
+      const curX = parseFloat(child.style.left) || 0;
+      const newX = bannerWidth - curX - cw;
+      child.style.left = newX + 'px';
+      if (child.dataset.offsetX !== undefined) child.dataset.offsetX = newX;
+    } else {
+      const curML = parseFloat(child.style.marginLeft) || 0;
+      const newML = bannerWidth - curML - cw;
+      child.style.marginLeft = newML + 'px';
+    }
+  });
+  window.scheduleAutoSave?.();
+}
 
 /* ── 자유배치 → 스택 변환 (Step 2: 단일 자식 행만) ── */
 function _convertFreeLayoutToStack(ss) {
@@ -180,7 +211,41 @@ function _renderAutoPanel(ss) {
   const borderAlpha    = parseAlphaFromColor(rawBorderColor);
   const radius = parseInt(ss.dataset.radius) || 0;
 
+  const bannerPreset = ss.dataset.bannerPreset || '';
+  const isBanner = !!bannerPreset;
+  const bannerOptionsHTML = isBanner
+    ? (window.listBannerPresets?.() || [])
+        .map(p => `<option value="${p.key}" ${p.key === bannerPreset ? 'selected' : ''}>${p.label}</option>`)
+        .join('')
+    : '';
+
+  // Banner inner stack frame: 부모가 banner-preset이고 자신은 normal flow(margin 기반).
+  // 사용자가 X 위치를 프로퍼티 패널로 조절할 수 있도록 슬라이더 노출.
+  const isBannerInner = !!(ss.parentElement?.dataset?.bannerPreset) && ss.style.position !== 'absolute';
+  const bannerInnerX = isBannerInner ? (parseInt(ss.style.marginLeft) || 0) : 0;
+  const bannerOuterW = isBannerInner ? (parseInt(ss.parentElement.style.width) || parseInt(ss.parentElement.dataset?.width) || 0) : 0;
+  const bannerInnerXMax = isBannerInner ? Math.max(0, bannerOuterW - (parseInt(ss.style.width) || parseInt(ss.dataset.width) || 0)) : 0;
+
   propPanel.innerHTML = _headerHTML(ss, 'auto') + `
+    ${isBanner ? `
+    <div class="prop-section">
+      <div class="prop-section-title">Banner Preset</div>
+      <select class="prop-select" id="ss-banner-preset" style="width:100%;height:28px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;font-size:11px;">
+        ${bannerOptionsHTML}
+      </select>
+      <button class="prop-action-btn secondary" id="ss-banner-swap-btn" style="margin-top:6px;">좌우 바꾸기</button>
+    </div>
+    ` : ''}
+    ${isBannerInner ? `
+    <div class="prop-section">
+      <div class="prop-section-title">Banner Position</div>
+      <div class="prop-row">
+        <span class="prop-label">X</span>
+        <input type="range" class="prop-slider" id="ss-banner-inner-x-slider" min="0" max="${bannerInnerXMax}" step="1" value="${bannerInnerX}">
+        <input type="number" class="prop-number" id="ss-banner-inner-x-num" min="0" max="${bannerInnerXMax}" value="${bannerInnerX}">
+      </div>
+    </div>
+    ` : ''}
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
       <div class="prop-row" style="gap:6px;">
@@ -313,6 +378,44 @@ function _renderAutoPanel(ss) {
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
+
+  // ── Banner Preset 변경 ──
+  const bannerSel = document.getElementById('ss-banner-preset');
+  if (bannerSel) {
+    bannerSel.addEventListener('change', e => {
+      const newKey = e.target.value;
+      const oldKey = ss.dataset.bannerPreset;
+      if (newKey === oldKey) return;
+      const ok = confirm('프리셋을 바꾸면 현재 배너 안의 내용이 모두 사라집니다. 계속할까요?');
+      if (!ok) {
+        e.target.value = oldKey;
+        return;
+      }
+      window.pushHistory?.();
+      window._applyBannerPreset?.(ss, newKey);
+      window.showFrameProperties?.(ss);
+    });
+  }
+
+  // ── Banner 좌우 바꾸기 ──
+  document.getElementById('ss-banner-swap-btn')?.addEventListener('click', () => {
+    _swapBannerChildren(ss);
+  });
+
+  // ── Banner Inner X(margin-left) 조절 ──
+  if (isBannerInner) {
+    const innerXSlider = document.getElementById('ss-banner-inner-x-slider');
+    const innerXNum    = document.getElementById('ss-banner-inner-x-num');
+    const applyInnerX = (raw) => {
+      const n = Math.max(0, Math.min(bannerInnerXMax, parseInt(raw) || 0));
+      ss.style.marginLeft = n + 'px';
+      if (innerXSlider) innerXSlider.value = n;
+      if (innerXNum)    innerXNum.value = n;
+      window.scheduleAutoSave?.();
+    };
+    innerXSlider?.addEventListener('input', e => applyInnerX(e.target.value));
+    innerXNum?.addEventListener('input',    e => applyInnerX(e.target.value));
+  }
 
   // ── Layout: 스택 변환 ──
   document.getElementById('ss-to-stack-btn')?.addEventListener('click', () => {

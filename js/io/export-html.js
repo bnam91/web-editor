@@ -73,13 +73,6 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 .grb-bar-fill{width:100%;background:#2d6fe8;}
 .grb-bar-label{font-size:20px;color:#555;margin-top:4px;text-align:center;}
 .grb-bar-val-label{font-size:18px;font-weight:600;color:#2d6fe8;margin-bottom:2px;}
-/* strip-banner */
-.strip-banner-block{width:100%;display:flex;overflow:hidden;}
-.sbb-image{flex:0 0 40%;overflow:hidden;}
-.sbb-image img{display:block;width:100%;height:100%;object-fit:cover;}
-.sbb-content{flex:1;padding:24px;display:flex;flex-direction:column;justify-content:center;}
-.sbb-heading{font-size:40px;font-weight:700;color:#111;}
-.sbb-body{font-size:28px;color:#555;margin-top:8px;}
 /* label-group */
 .label-group-block{width:100%;display:flex;flex-wrap:wrap;gap:10px;padding:16px;}
 .label-item{display:inline-flex;align-items:center;padding:8px 20px;border-radius:40px;font-size:24px;}

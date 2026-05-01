@@ -32,7 +32,7 @@ function showRowProperties(rowEl) {
   /* 자식 블록 일괄 조절용 데이터 */
   const childBlocks = [...rowEl.querySelectorAll(':scope > .col > *')].filter(el =>
     el.classList.contains('text-block') || el.classList.contains('asset-block') ||
-    el.classList.contains('card-block') || el.classList.contains('strip-banner-block') ||
+    el.classList.contains('card-block') ||
     el.classList.contains('icon-circle-block') || el.classList.contains('table-block') ||
     el.classList.contains('graph-block') || el.classList.contains('divider-block')
   );

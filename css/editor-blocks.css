@@ -20,6 +20,11 @@
   outline-offset: 0;
   cursor: grab;
 }
+/* banner-preset 외곽은 step/card/table과 동일 컴포넌트 단위 — 1px + offset -1px (다른 component blocks와 일관) */
+.frame-block[data-banner-preset].selected {
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
+}
 .frame-block:hover:not(.selected)::after {
   content: '';
   position: absolute;
@@ -30,7 +35,8 @@
 }
 /* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block, text-frame 제외) */
 /* text-frame은 항상 .selected 없음 (투명 래퍼) → 별도 규칙으로 제외 */
-.frame-block:not(.selected):not([data-text-frame]) *:not(.shape-block):not(.shape-handle) {
+/* :not(:has(.selected)) — 자손 중 selected가 있으면 차단하지 않음 (nested frame drill-in 지원) */
+.frame-block:not(.selected):not([data-text-frame]):not(:has(.selected)) *:not(.shape-block):not(.shape-handle) {
   pointer-events: none;
 }
 /* 선택 상태: 자식 pointer-events 복원 */
