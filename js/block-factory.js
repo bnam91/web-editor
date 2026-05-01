@@ -1775,7 +1775,7 @@ function renderCanvas(block) {
 
   // ── Simple Card Mode ──────────────────────────────────────────────────────
   if (block.dataset.cardMode === 'simple') {
-    const imgRatio   = Math.min(90, Math.max(10, parseInt(block.dataset.imgRatio) ?? 65));
+    const imgRatio   = Math.min(90, Math.max(10, parseInt(block.dataset.imgRatio) ?? 76));
     const textHide   = block.dataset.textHide === 'true';
     const textBg     = block.dataset.textBg    || '#f5f5f5';
     const titleSize  = parseInt(block.dataset.titleSize) || 20;
@@ -2085,7 +2085,7 @@ function makeCanvasBlock(data = {}) {
   block.dataset.padX      = data.padX ?? 0;
   if (data.cardMode) {
     block.dataset.cardMode  = data.cardMode;
-    block.dataset.imgRatio  = data.imgRatio  ?? 65;
+    block.dataset.imgRatio  = data.imgRatio  ?? 76;
     block.dataset.textBg    = data.textBg    || '#f5f5f5';
     block.dataset.titleSize = data.titleSize || 20;
     block.dataset.descSize  = data.descSize  || 14;
@@ -2110,7 +2110,7 @@ const CARD_DEFAULT_OPTS = {
   width: 360, height: 480,
   bg: 'transparent', radius: 12,
   cardMode: 'simple',
-  imgRatio: 65,
+  imgRatio: 76,
   textBg: '#a2abb8',
   titleSize: 40,
   descSize: 22,

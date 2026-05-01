@@ -294,7 +294,7 @@ function showSimpleCardProperties(block) {
   const w         = parseInt(block.dataset.canvasW)  || 360;
   const h         = parseInt(block.dataset.canvasH)  || 480;
   const radius    = parseInt(block.dataset.radius)   || 12;
-  const imgRatio  = parseInt(block.dataset.imgRatio) ?? 65;
+  const imgRatio  = parseInt(block.dataset.imgRatio) ?? 76;
   const textHide   = block.dataset.textHide === 'true';
   const isTextBgTransparent = block.dataset.textBg === 'transparent';
   const textBgLast = block.dataset.textBgLast || '#f5f5f5';
