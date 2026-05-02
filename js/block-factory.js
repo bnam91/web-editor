@@ -1656,7 +1656,7 @@ window.addSpeechBubbleBlock  = addSpeechBubbleBlock;
 
 function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor) {
   const _tc = titleColor || '#ffffff';
-  const _dc = descColor  || '#aaaaaa';
+  const _dc = descColor  || '#ffffff';
   if (card.title) {
     const el = document.createElement('div');
     el.style.cssText = `font-size:${titleSize}px;font-weight:600;color:${_tc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
@@ -1784,7 +1784,7 @@ function renderCanvas(block) {
     const descSize   = parseInt(block.dataset.descSize)  || 14;
     const textAlign  = block.dataset.textAlign || 'left';
     const titleColor = block.dataset.titleColor || '#ffffff';
-    const descColor  = block.dataset.descColor  || '#aaaaaa';
+    const descColor  = block.dataset.descColor  || '#ffffff';
     const cards     = JSON.parse(block.dataset.cards    || '[]');
 
     const totalW = designW * gridCols + GAP * (gridCols - 1);
@@ -1869,7 +1869,7 @@ function renderCanvas(block) {
 
           if (!textHide) {
             const textDiv = document.createElement('div');
-            textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;gap:6px;`;
+            textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:flex-start;gap:6px;`;
             _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
             cell.appendChild(textDiv);
           }
@@ -1898,7 +1898,7 @@ function renderCanvas(block) {
 
           if (!textHide) {
             const textDiv = document.createElement('div');
-            textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
+            textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:flex-start;gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
             _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
             cell.appendChild(textDiv);
           }

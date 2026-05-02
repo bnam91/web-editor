@@ -300,7 +300,7 @@ function showSimpleCardProperties(block) {
   const textBgLast = block.dataset.textBgLast || '#f5f5f5';
   const textBg    = isTextBgTransparent ? textBgLast : (block.dataset.textBg || '#f5f5f5');
   const titleColor = block.dataset.titleColor || '#ffffff';
-  const descColor  = block.dataset.descColor  || '#aaaaaa';
+  const descColor  = block.dataset.descColor  || '#ffffff';
   const titleSize = parseInt(block.dataset.titleSize) || 20;
   const descSize  = parseInt(block.dataset.descSize)  || 14;
   const textAlign = block.dataset.textAlign || 'left';
