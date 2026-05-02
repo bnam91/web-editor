@@ -1515,7 +1515,9 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .ai-fill-panel-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px; border-bottom: 1px solid #2a2a2a;
+  cursor: grab; user-select: none;
 }
+.ai-fill-panel-header:active { cursor: grabbing; }
 .ai-fill-panel-title { font-size: 12px; font-weight: 600; color: #c084fc; }
 .ai-fill-panel-close {
   background: none; border: none; color: #999; font-size: 18px;

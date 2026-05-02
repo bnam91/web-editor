@@ -83,6 +83,49 @@ function _ensureAIFillPanel() {
   document.body.appendChild(panel);
   panel.querySelector('.ai-fill-panel-close').addEventListener('click', () => panel.classList.remove('open'));
 
+  // ── 헤더 드래그 (color-adjust-panel 패턴 동일) ──
+  const header = panel.querySelector('.ai-fill-panel-header');
+  let _dragging = false, _sx = 0, _sy = 0, _sl = 0, _st = 0;
+  header.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('ai-fill-panel-close')) return;
+    e.preventDefault();
+    _dragging = true;
+    const rect = panel.getBoundingClientRect();
+    panel.style.left   = rect.left + 'px';
+    panel.style.top    = rect.top  + 'px';
+    panel.style.right  = 'auto';
+    panel.style.bottom = 'auto';
+    _sx = e.clientX; _sy = e.clientY;
+    _sl = rect.left; _st = rect.top;
+    document.addEventListener('mousemove', _onMove);
+    document.addEventListener('mouseup', _onUp);
+  });
+  function _onMove(e) {
+    if (!_dragging) return;
+    const newLeft = _sl + (e.clientX - _sx);
+    const newTop  = Math.max(0, _st + (e.clientY - _sy));
+    panel.style.left = newLeft + 'px';
+    panel.style.top  = newTop  + 'px';
+    try {
+      localStorage.setItem('aiFillPanelPos', JSON.stringify({ left: newLeft, top: newTop }));
+    } catch (_) {}
+  }
+  function _onUp() {
+    _dragging = false;
+    document.removeEventListener('mousemove', _onMove);
+    document.removeEventListener('mouseup', _onUp);
+  }
+  // 저장된 위치 복원
+  try {
+    const saved = JSON.parse(localStorage.getItem('aiFillPanelPos') || 'null');
+    if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+      panel.style.left  = saved.left + 'px';
+      panel.style.top   = saved.top  + 'px';
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+    }
+  } catch (_) {}
+
   const chipsBox = panel.querySelector('#ai-fill-panel-chips');
   TONE_PRESETS.forEach(t => {
     const chip = document.createElement('button');
