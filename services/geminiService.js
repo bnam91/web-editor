@@ -16,17 +16,24 @@ const TONE_HINTS = {
   simple:   '단순하고 군더더기 없는 톤',
 };
 
-// text-block style별 권장 길이/특성
+// 컴포넌트별 권장 길이/특성
 const STYLE_HINTS = {
-  h1:      '대제목. 매우 짧고 강력하게(8~16자).',
-  h2:      '소제목. 짧고 또렷하게(8~24자).',
-  body:    '본문. 2~3문장.',
-  label:   '라벨/태그. 짧게(4~14자).',
-  caption: '보조 설명. 짧게(8~30자).',
+  h1:           '대제목. 매우 짧고 강력하게(8~16자).',
+  h2:           '소제목. 짧고 또렷하게(8~24자).',
+  body:         '본문. 2~3문장.',
+  label:        '라벨/태그. 짧게(4~14자).',
+  caption:      '보조 설명. 짧게(8~30자).',
+  'card-title': '카드 제목. 짧고 임팩트 있게(8~20자).',
+  'card-desc':  '카드 설명. 1~2문장.',
+  'step-title': '단계 제목. 짧게(6~16자).',
+  'step-desc':  '단계 설명. 1~2문장.',
+  'chat-msg':   '채팅 말풍선. 자연스러운 대화체 1~2문장.',
 };
 
 function _detectStyle(b) {
   const cls = (b.style || '').toLowerCase();
+  // card / step / chat 같은 컴포넌트별 키는 그대로 사용
+  if (STYLE_HINTS[cls]) return cls;
   if (cls.includes('h1')) return 'h1';
   if (cls.includes('h2')) return 'h2';
   if (cls.includes('label')) return 'label';

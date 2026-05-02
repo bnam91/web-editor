@@ -4,36 +4,157 @@
    - UI 구현체는 _openAIFillUI_impl() 한 함수에 모여있어 브랜치별로 교체 가능.
 ══════════════════════════════════════ */
 
-/** 섹션 안 모든 text-block 수집 (DOM 순서 보존) */
+/** 섹션에서 채우기 대상 수집 (DOM 순서)
+   - .text-block — 직접 textContent 교체
+   - .canvas-block[data-card-mode="simple"] — data-cards JSON 배열의 title/desc
+   - .step-block — data-steps 배열의 title/desc
+   - .chat-block — data-messages 배열의 text
+   ID 규칙(가상):
+     text-block:     <tb.id>
+     canvas card:    cv:<cvb.id>:<idx>:title  /  cv:<cvb.id>:<idx>:desc
+     step:           st:<sb.id>:<idx>:title   /  st:<sb.id>:<idx>:desc
+     chat msg:       ch:<chb.id>:<idx>:text
+*/
 function collectSectionTextBlocks(sec) {
   if (!sec) return [];
-  const tbs = Array.from(sec.querySelectorAll('.text-block'));
-  return tbs.map(tb => {
-    // 실제 텍스트 컨테이너(tb-h1/h2/body/caption/label)
-    const tbInner = tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb;
-    const styleClass = tbInner.classList && Array.from(tbInner.classList)
-      .find(c => c.startsWith('tb-')) || 'tb-body';
-    return {
-      id: tb.id,
-      style: styleClass,        // tb-h1 / tb-h2 / tb-body / tb-label / tb-caption
-      current: (tbInner.textContent || '').trim(),
-      _tbInner: tbInner,        // 적용 단계에서 직접 textContent 갈아끼움
-    };
+  const items = [];
+  // DOM 순서 보존을 위해 통합 셀렉터로 한 번에 순회
+  const all = sec.querySelectorAll(
+    '.text-block, .canvas-block, .step-block, .chat-block'
+  );
+  all.forEach(el => {
+    if (el.classList.contains('text-block')) {
+      const tbInner = el.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || el;
+      const styleClass = (tbInner.classList && Array.from(tbInner.classList).find(c => c.startsWith('tb-'))) || 'tb-body';
+      items.push({ id: el.id, style: styleClass, current: (tbInner.textContent || '').trim() });
+      return;
+    }
+    if (el.classList.contains('canvas-block') && el.dataset.cardMode === 'simple') {
+      let cards = [];
+      try { cards = JSON.parse(el.dataset.cards || '[]'); } catch (_) {}
+      const cols = parseInt(el.dataset.gridCols) || 1;
+      const rows = parseInt(el.dataset.gridRows) || 1;
+      const total = cols * rows;
+      for (let i = 0; i < total; i++) {
+        const c = cards[i] || {};
+        items.push({ id: `cv:${el.id}:${i}:title`, style: 'card-title', current: (c.title || '').trim() });
+        items.push({ id: `cv:${el.id}:${i}:desc`,  style: 'card-desc',  current: (c.desc  || '').trim() });
+      }
+      return;
+    }
+    if (el.classList.contains('step-block')) {
+      let steps = [];
+      try { steps = JSON.parse(el.dataset.steps || '[]'); } catch (_) {}
+      steps.forEach((s, i) => {
+        items.push({ id: `st:${el.id}:${i}:title`, style: 'step-title', current: (s.title || '').trim() });
+        items.push({ id: `st:${el.id}:${i}:desc`,  style: 'step-desc',  current: (s.desc  || '').trim() });
+      });
+      return;
+    }
+    if (el.classList.contains('chat-block')) {
+      let msgs = [];
+      try { msgs = JSON.parse(el.dataset.messages || '[]'); } catch (_) {}
+      msgs.forEach((m, i) => {
+        items.push({ id: `ch:${el.id}:${i}:text`, style: 'chat-msg', current: (m.text || '').trim() });
+      });
+      return;
+    }
   });
+  return items;
 }
 
-/** Gemini 결과를 섹션에 적용 — 1:1 ID 매칭 */
+/** Gemini 결과를 섹션에 적용 — ID prefix로 라우팅 */
 function applyAIReplacements(sec, replacements) {
   if (!sec || !Array.isArray(replacements)) return 0;
   let applied = 0;
+  // 동일 컴포넌트(canvas/step/chat) 변경분 묶어서 한 번만 re-render
+  const dirty = new Set();
+  const cardMutations = new Map();   // cvb_id -> { idx -> {title?, desc?} }
+  const stepMutations = new Map();
+  const chatMutations = new Map();
+
   replacements.forEach(rep => {
     if (!rep?.id || typeof rep.text !== 'string') return;
-    const tb = sec.querySelector(`#${CSS.escape(rep.id)}`);
+    const id = rep.id;
+
+    // canvas card
+    let m = id.match(/^cv:([^:]+):(\d+):(title|desc)$/);
+    if (m) {
+      const [, cvbId, idxStr, field] = m;
+      if (!cardMutations.has(cvbId)) cardMutations.set(cvbId, new Map());
+      const slot = cardMutations.get(cvbId);
+      const idx = parseInt(idxStr);
+      if (!slot.has(idx)) slot.set(idx, {});
+      slot.get(idx)[field] = rep.text;
+      applied += 1;
+      return;
+    }
+    // step
+    m = id.match(/^st:([^:]+):(\d+):(title|desc)$/);
+    if (m) {
+      const [, sbId, idxStr, field] = m;
+      if (!stepMutations.has(sbId)) stepMutations.set(sbId, new Map());
+      const slot = stepMutations.get(sbId);
+      const idx = parseInt(idxStr);
+      if (!slot.has(idx)) slot.set(idx, {});
+      slot.get(idx)[field] = rep.text;
+      applied += 1;
+      return;
+    }
+    // chat
+    m = id.match(/^ch:([^:]+):(\d+):text$/);
+    if (m) {
+      const [, chbId, idxStr] = m;
+      if (!chatMutations.has(chbId)) chatMutations.set(chbId, new Map());
+      chatMutations.get(chbId).set(parseInt(idxStr), rep.text);
+      applied += 1;
+      return;
+    }
+    // 일반 text-block
+    const tb = sec.querySelector(`#${CSS.escape(id)}`);
     if (!tb) return;
     const tbInner = tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb;
     tbInner.textContent = rep.text;
     applied += 1;
   });
+
+  // canvas-block 적용
+  cardMutations.forEach((slotMap, cvbId) => {
+    const cvb = sec.querySelector(`#${CSS.escape(cvbId)}`);
+    if (!cvb) return;
+    let cards = [];
+    try { cards = JSON.parse(cvb.dataset.cards || '[]'); } catch (_) { cards = []; }
+    slotMap.forEach((fields, idx) => {
+      cards[idx] = { ...(cards[idx] || {}), ...fields };
+    });
+    cvb.dataset.cards = JSON.stringify(cards);
+    window.renderCanvas?.(cvb);
+  });
+  // step-block 적용
+  stepMutations.forEach((slotMap, sbId) => {
+    const sb = sec.querySelector(`#${CSS.escape(sbId)}`);
+    if (!sb) return;
+    let steps = [];
+    try { steps = JSON.parse(sb.dataset.steps || '[]'); } catch (_) {}
+    slotMap.forEach((fields, idx) => {
+      steps[idx] = { ...(steps[idx] || {}), ...fields };
+    });
+    sb.dataset.steps = JSON.stringify(steps);
+    window.renderStepBlock?.(sb);
+  });
+  // chat-block 적용
+  chatMutations.forEach((idxMap, chbId) => {
+    const chb = sec.querySelector(`#${CSS.escape(chbId)}`);
+    if (!chb) return;
+    let msgs = [];
+    try { msgs = JSON.parse(chb.dataset.messages || '[]'); } catch (_) {}
+    idxMap.forEach((text, idx) => {
+      msgs[idx] = { ...(msgs[idx] || { align: 'left' }), text };
+    });
+    chb.dataset.messages = JSON.stringify(msgs);
+    window.renderChatBlock?.(chb);
+  });
+
   if (applied > 0) window.scheduleAutoSave?.();
   return applied;
 }
