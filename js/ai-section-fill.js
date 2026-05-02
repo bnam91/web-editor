@@ -196,3 +196,41 @@ window.openAIFillUI            = openAIFillUI;
 window.runAIFill               = runAIFill;
 window.collectSectionTextBlocks = collectSectionTextBlocks;
 window.applyAIReplacements     = applyAIReplacements;
+
+/* ── 마이그레이션: 기존 저장 프로젝트의 toolbar에 ✨ 버튼 주입 ──
+   block-factory.js 변경 이전에 저장된 섹션 HTML에는 ✨ 버튼이 없으므로
+   load 후 toolbar를 스캔해서 첫 번째 자식으로 삽입한다. */
+function _ensureAIFillButton(sec) {
+  if (!sec) return;
+  const tb = sec.querySelector(':scope > .section-toolbar');
+  if (!tb) return;
+  if (tb.querySelector('.st-ai-fill-btn')) return;
+  const btn = document.createElement('button');
+  btn.className = 'st-btn st-ai-fill-btn';
+  btn.title = 'AI로 섹션 텍스트 채우기';
+  btn.textContent = '✨';
+  btn.setAttribute('onclick', 'openAIFillUI(this)');
+  tb.insertBefore(btn, tb.firstChild);
+}
+function _hydrateAllSectionsForAIBtn() {
+  document.querySelectorAll('.section-block').forEach(_ensureAIFillButton);
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    _hydrateAllSectionsForAIBtn();
+    setTimeout(_hydrateAllSectionsForAIBtn, 1500);
+  });
+} else {
+  _hydrateAllSectionsForAIBtn();
+  setTimeout(_hydrateAllSectionsForAIBtn, 1500);
+}
+const _aiBtnObserver = new MutationObserver(muts => {
+  for (const m of muts) {
+    m.addedNodes.forEach(n => {
+      if (n.nodeType !== 1) return;
+      if (n.classList?.contains('section-block')) _ensureAIFillButton(n);
+      n.querySelectorAll?.('.section-block').forEach(_ensureAIFillButton);
+    });
+  }
+});
+_aiBtnObserver.observe(document.body, { childList: true, subtree: true });
