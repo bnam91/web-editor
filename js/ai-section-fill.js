@@ -46,22 +46,160 @@ async function callGeminiFill(payload) {
   return window.electronAPI.aiFillSectionTexts(payload);
 }
 
-/* ── UI 구현 (브랜치별 교체 지점) ────────────────────────────
-   기본 구현은 native prompt() — 동작 가능한 baseline.
-   feat/ai-fill-ui-a / feat/ai-fill-ui-b 브랜치에서 이 함수만 교체. */
+/* ── UI 구현 (B안: 우측 사이드 패널, 즉시 적용) ─────────────── */
+const TONE_PRESETS = [
+  { id: 'trust',    label: '신뢰감' },
+  { id: 'friendly', label: '친근함' },
+  { id: 'punchy',   label: '강력셀링' },
+  { id: 'simple',   label: '심플' },
+];
+
+let _aiFillState = { secEl: null, tone: '' };
+
+function _ensureAIFillPanel() {
+  let panel = document.getElementById('ai-fill-panel');
+  if (panel) return panel;
+  panel = document.createElement('div');
+  panel.id = 'ai-fill-panel';
+  panel.className = 'ai-fill-panel';
+  panel.innerHTML = `
+    <div class="ai-fill-panel-header">
+      <span class="ai-fill-panel-title">✨ AI 텍스트 채우기</span>
+      <button class="ai-fill-panel-close" type="button">×</button>
+    </div>
+    <div class="ai-fill-panel-body">
+      <div class="ai-fill-panel-meta" id="ai-fill-panel-meta"></div>
+      <textarea id="ai-fill-panel-prompt" rows="4"
+        placeholder="예: 헬스보충제 주제로 채워줘"></textarea>
+      <div class="ai-fill-panel-chips" id="ai-fill-panel-chips"></div>
+      <input type="text" id="ai-fill-panel-image"
+        placeholder="이미지 파일 경로 (선택)">
+      <label class="ai-fill-panel-mode">
+        <input type="checkbox" id="ai-fill-panel-empty"> 빈 블록만
+      </label>
+      <button class="ai-fill-panel-run" id="ai-fill-panel-run" type="button">생성 → 적용</button>
+      <div class="ai-fill-panel-preview hidden" id="ai-fill-panel-preview"></div>
+    </div>`;
+  document.body.appendChild(panel);
+  panel.querySelector('.ai-fill-panel-close').addEventListener('click', () => panel.classList.remove('open'));
+
+  // ── 헤더 드래그 (color-adjust-panel 패턴 동일) ──
+  const header = panel.querySelector('.ai-fill-panel-header');
+  let _dragging = false, _sx = 0, _sy = 0, _sl = 0, _st = 0;
+  header.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('ai-fill-panel-close')) return;
+    e.preventDefault();
+    _dragging = true;
+    const rect = panel.getBoundingClientRect();
+    panel.style.left   = rect.left + 'px';
+    panel.style.top    = rect.top  + 'px';
+    panel.style.right  = 'auto';
+    panel.style.bottom = 'auto';
+    _sx = e.clientX; _sy = e.clientY;
+    _sl = rect.left; _st = rect.top;
+    document.addEventListener('mousemove', _onMove);
+    document.addEventListener('mouseup', _onUp);
+  });
+  function _onMove(e) {
+    if (!_dragging) return;
+    const newLeft = _sl + (e.clientX - _sx);
+    const newTop  = Math.max(0, _st + (e.clientY - _sy));
+    panel.style.left = newLeft + 'px';
+    panel.style.top  = newTop  + 'px';
+    try {
+      localStorage.setItem('aiFillPanelPos', JSON.stringify({ left: newLeft, top: newTop }));
+    } catch (_) {}
+  }
+  function _onUp() {
+    _dragging = false;
+    document.removeEventListener('mousemove', _onMove);
+    document.removeEventListener('mouseup', _onUp);
+  }
+  // 저장된 위치 복원
+  try {
+    const saved = JSON.parse(localStorage.getItem('aiFillPanelPos') || 'null');
+    if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+      panel.style.left  = saved.left + 'px';
+      panel.style.top   = saved.top  + 'px';
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+    }
+  } catch (_) {}
+
+  const chipsBox = panel.querySelector('#ai-fill-panel-chips');
+  TONE_PRESETS.forEach(t => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'ai-fill-panel-chip';
+    chip.textContent = t.label;
+    chip.dataset.tone = t.id;
+    chip.addEventListener('click', () => {
+      const wasSelected = chip.classList.contains('selected');
+      chipsBox.querySelectorAll('.ai-fill-panel-chip').forEach(c => c.classList.remove('selected'));
+      if (!wasSelected) { chip.classList.add('selected'); _aiFillState.tone = t.id; }
+      else { _aiFillState.tone = ''; }
+    });
+    chipsBox.appendChild(chip);
+  });
+
+  panel.querySelector('#ai-fill-panel-run').addEventListener('click', async () => {
+    const sec = _aiFillState.secEl;
+    if (!sec) return;
+    const promptText = panel.querySelector('#ai-fill-panel-prompt').value.trim();
+    const imagePath = panel.querySelector('#ai-fill-panel-image').value.trim() || null;
+    const mode = panel.querySelector('#ai-fill-panel-empty').checked ? 'fillEmpty' : 'replaceAll';
+    const blocks = collectSectionTextBlocks(sec);
+    if (blocks.length === 0) { window.showToast?.('⚠️ 텍스트 블록 없음'); return; }
+    const runBtn = panel.querySelector('#ai-fill-panel-run');
+    runBtn.disabled = true; runBtn.textContent = '생성 중…';
+    window.showToast?.('✨ AI가 작성 중…');
+    const res = await callGeminiFill({
+      blocks: blocks.map(b => ({ id: b.id, style: b.style, current: b.current })),
+      prompt: promptText, tone: _aiFillState.tone, mode, imagePath,
+    });
+    runBtn.disabled = false; runBtn.textContent = '재생성';
+    if (!res?.ok) { window.showToast?.(`❌ ${res?.error || '오류'}`); return; }
+    window.pushHistory?.();
+    const n = applyAIReplacements(sec, res.replacements || []);
+    const preview = panel.querySelector('#ai-fill-panel-preview');
+    const byId = new Map(blocks.map(b => [b.id, b]));
+    preview.innerHTML = '<div class="ai-fill-panel-preview-title">적용됨 (Cmd+Z 되돌리기)</div>' +
+      (res.replacements || []).map(rep => {
+        const b = byId.get(rep.id);
+        const styleLbl = (b?.style || '').replace('tb-', '');
+        return `<div class="ai-fill-panel-preview-row">
+          <span class="ai-fill-panel-preview-style">${styleLbl}</span>
+          <span class="ai-fill-panel-preview-text">${rep.text}</span>
+        </div>`;
+      }).join('');
+    preview.classList.remove('hidden');
+    window.showToast?.(`✅ ${n}개 블록 적용됨`);
+  });
+
+  return panel;
+}
+
 async function _openAIFillUI_impl(secEl) {
   const blocks = collectSectionTextBlocks(secEl);
   if (blocks.length === 0) {
     window.showToast?.('⚠️ 이 섹션에는 텍스트 블록이 없습니다.');
     return;
   }
-  const userPrompt = window.prompt(
-    `이 섹션의 텍스트 블록 ${blocks.length}개를 어떤 내용으로 채울까요?\n` +
-    `(예: "헬스보충제 주제로 라벨/제목/캡션 채워줘")`,
-    ''
-  );
-  if (userPrompt === null) return; // 취소
-  await runAIFill(secEl, { prompt: userPrompt, tone: '', mode: 'replaceAll' });
+  _aiFillState.secEl = secEl;
+  _aiFillState.tone = '';
+  const panel = _ensureAIFillPanel();
+  panel.classList.add('open');
+  panel.querySelector('#ai-fill-panel-meta').textContent =
+    `${secEl.id} · 텍스트 ${blocks.length}개`;
+  panel.querySelector('#ai-fill-panel-prompt').value = '';
+  panel.querySelector('#ai-fill-panel-image').value = '';
+  panel.querySelector('#ai-fill-panel-empty').checked = false;
+  panel.querySelectorAll('.ai-fill-panel-chip').forEach(c => c.classList.remove('selected'));
+  panel.querySelector('#ai-fill-panel-preview').classList.add('hidden');
+  panel.querySelector('#ai-fill-panel-preview').innerHTML = '';
+  const runBtn = panel.querySelector('#ai-fill-panel-run');
+  runBtn.disabled = false; runBtn.textContent = '생성 → 적용';
+  panel.querySelector('#ai-fill-panel-prompt').focus();
 }
 
 /** UI에서 호출하는 공용 실행기 — payload 받아 호출/적용/토스트 */
@@ -101,3 +239,41 @@ window.openAIFillUI            = openAIFillUI;
 window.runAIFill               = runAIFill;
 window.collectSectionTextBlocks = collectSectionTextBlocks;
 window.applyAIReplacements     = applyAIReplacements;
+
+/* ── 마이그레이션: 기존 저장 프로젝트의 toolbar에 ✨ 버튼 주입 ──
+   block-factory.js 변경 이전에 저장된 섹션 HTML에는 ✨ 버튼이 없으므로
+   load 후 toolbar를 스캔해서 첫 번째 자식으로 삽입한다. */
+function _ensureAIFillButton(sec) {
+  if (!sec) return;
+  const tb = sec.querySelector(':scope > .section-toolbar');
+  if (!tb) return;
+  if (tb.querySelector('.st-ai-fill-btn')) return;
+  const btn = document.createElement('button');
+  btn.className = 'st-btn st-ai-fill-btn';
+  btn.title = 'AI로 섹션 텍스트 채우기';
+  btn.textContent = '✨';
+  btn.setAttribute('onclick', 'openAIFillUI(this)');
+  tb.insertBefore(btn, tb.firstChild);
+}
+function _hydrateAllSectionsForAIBtn() {
+  document.querySelectorAll('.section-block').forEach(_ensureAIFillButton);
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    _hydrateAllSectionsForAIBtn();
+    setTimeout(_hydrateAllSectionsForAIBtn, 1500);
+  });
+} else {
+  _hydrateAllSectionsForAIBtn();
+  setTimeout(_hydrateAllSectionsForAIBtn, 1500);
+}
+const _aiBtnObserver = new MutationObserver(muts => {
+  for (const m of muts) {
+    m.addedNodes.forEach(n => {
+      if (n.nodeType !== 1) return;
+      if (n.classList?.contains('section-block')) _ensureAIFillButton(n);
+      n.querySelectorAll?.('.section-block').forEach(_ensureAIFillButton);
+    });
+  }
+});
+_aiBtnObserver.observe(document.body, { childList: true, subtree: true });
