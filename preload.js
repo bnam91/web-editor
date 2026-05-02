@@ -47,6 +47,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createLicenseKey:   (plan, memo)         => ipcRenderer.invoke('license:create-key', plan, memo),
   listLicenseKeys:    ()                   => ipcRenderer.invoke('license:list-keys'),
 
+  // AI section text fill (Gemini)
+  aiFillSectionTexts: (payload) => ipcRenderer.invoke('ai:fillSectionTexts', payload),
+
   // App info
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('get-version'),

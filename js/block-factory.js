@@ -882,6 +882,7 @@ function addSection(opts = {}) {
     sec.innerHTML = `
       <div class="section-hitzone"><span class="section-label">${secLabel}</span></div>
       <div class="section-toolbar">
+        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
       </div>
       <div class="section-inner">
@@ -893,6 +894,7 @@ function addSection(opts = {}) {
     sec.innerHTML = `
       <div class="section-hitzone"><span class="section-label">${secLabel}</span></div>
       <div class="section-toolbar">
+        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
       </div>
       <div class="section-inner">

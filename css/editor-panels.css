@@ -942,6 +942,11 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 .st-ab-btn { color: var(--ui-accent-primary) !important; }
 .st-ab-btn:hover { color: var(--ui-accent) !important; background: #1a2840 !important; }
 
+/* ── Section Toolbar: AI Fill Button ── */
+.st-ai-fill-btn { color: #c084fc !important; }
+.st-ai-fill-btn:hover { color: #e9d5ff !important; background: #2a1a40 !important; }
+.st-ai-fill-btn.is-busy { opacity: 0.5; pointer-events: none; }
+
 /* ── A/B Variation Badge (섹션 좌상단) ── */
 .variation-badge {
   position: absolute;

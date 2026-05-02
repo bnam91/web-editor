@@ -8,15 +8,21 @@ const fs = require('fs');
 const os = require('os');
 
 // .env 로드 (크리덴셜 환경변수)
-const envPath = path.join(__dirname, '.env');
-if (fs.existsSync(envPath)) {
-  fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
-    const [k, ...v] = line.split('=');
+function _loadEnvFile(p) {
+  if (!fs.existsSync(p)) return;
+  fs.readFileSync(p, 'utf8').split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    const [k, ...v] = trimmed.split('=');
     if (k && v.length) process.env[k.trim()] = v.join('=').trim();
   });
 }
+_loadEnvFile(path.join(__dirname, '.env'));
+// 외부 자격증명 저장소(symlink로 관리되는 공유 시크릿) — GEMINI_API_KEY 등
+_loadEnvFile('/Users/a1/github_cloud/module_api_key/.env');
 const { spawn } = require('child_process');
 const { getPublicIp, findUserByIp, registerLicense, removeIp, updateIpAlias, updateUserName, createLicenseKey, listLicenseKeys } = require('./services/licenseService');
+const { fillSectionTexts: aiFillSectionTexts } = require('./services/geminiService');
 
 let mainWindow;
 
@@ -94,6 +100,9 @@ function createWindow() {
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
   });
+
+  // AI 섹션 텍스트 채우기 (Gemini)
+  ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
 
   // HTML <title>이 덮어씌우지 않도록 로드 완료 후 타이틀 강제 설정
   mainWindow.webContents.on('did-finish-load', () => {
