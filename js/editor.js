@@ -542,7 +542,8 @@ function copySelected() {
       }
       if (!seen.has(ref)) {
         seen.add(ref);
-        items.push({ html: ref.outerHTML });
+        const banner = ref.closest?.('.frame-block[data-banner-preset]');
+        items.push({ html: ref.outerHTML, sourceBannerId: banner?.id || null });
       }
     });
     clipboard = { type: 'multi-block', items };
@@ -560,11 +561,13 @@ function copySelected() {
   if (selShape) {
     const ss = selShape.closest('.frame-block');
     const rowEl = ss?.closest('.row') || ss || selShape;
-    clipboard = { type: 'block', html: rowEl.outerHTML };
+    const banner = rowEl.closest?.('.frame-block[data-banner-preset]');
+    clipboard = { type: 'block', html: rowEl.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selNormal) {
     const isGapSel = selNormal.classList.contains('gap-block');
     const target = isGapSel ? selNormal : (selNormal.closest('.row') || selNormal);
-    clipboard = { type: 'block', html: target.outerHTML };
+    const banner = target.closest?.('.frame-block[data-banner-preset]');
+    clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selSS) {
     // 서브섹션은 row > col > frame-block 구조이므로 row 단위로 복사
     const rowEl = selSS.closest('.row') || selSS;
@@ -610,6 +613,40 @@ function _bindPastedEl(el) {
   });
 }
 
+// 붙여넣은 최상위 요소가 freeLayout이 아닌 부모로 들어가면 absolute 좌표는
+// 무의미해진다(원본 banner-preset 등에서 복사된 경우). normal flow로 떨어뜨린다.
+function _normalizePastedAbsolute(el) {
+  if (!el) return;
+  const parent = el.parentElement;
+  const parentIsFree = parent?.dataset?.freeLayout === 'true';
+  if (parentIsFree) return;
+  if (el.style.position === 'absolute') {
+    el.style.position = '';
+    el.style.left = '';
+    el.style.top = '';
+    el.style.right = '';
+    el.style.bottom = '';
+  }
+}
+
+// banner-preset 안에서 복사한 자식이라면 같은 banner 안에 +20px 오프셋으로 복제.
+// banner가 더 이상 없으면 null 반환 → 호출부에서 일반 paste 경로로 fallback.
+function _pasteIntoSourceBanner(el, sourceBannerId) {
+  if (!sourceBannerId || !el) return null;
+  const banner = document.getElementById(sourceBannerId);
+  if (!banner || !banner.dataset?.bannerPreset) return null;
+  if (banner.dataset?.freeLayout !== 'true') return null;
+  banner.appendChild(el);
+  el.style.position = 'absolute';
+  const lx = parseInt(el.style.left || '0', 10) + 20;
+  const ly = parseInt(el.style.top  || '0', 10) + 20;
+  el.style.left = lx + 'px';
+  el.style.top  = ly + 'px';
+  el.style.marginLeft = '';
+  el.style.marginTop  = '';
+  return banner;
+}
+
 function pasteClipboard() {
   if (!clipboard) return;
   // 현재 DOM 상태가 마지막 히스토리와 다르면 체크포인트 저장
@@ -625,6 +662,13 @@ function pasteClipboard() {
       temp.innerHTML = item.html;
       const el = temp.firstElementChild;
       if (!el) return;
+      // banner 내부 출처면 같은 banner 안에 복제
+      const banner = _pasteIntoSourceBanner(el, item.sourceBannerId);
+      if (banner) {
+        _bindPastedEl(el);
+        lastEl = el;
+        return;
+      }
       if (lastEl) {
         lastEl.after(el);
       } else {
@@ -635,6 +679,7 @@ function pasteClipboard() {
         if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
       _bindPastedEl(el);
+      _normalizePastedAbsolute(el);
       lastEl = el;
     });
     window.buildLayerPanel();
@@ -666,14 +711,21 @@ function pasteClipboard() {
     _bindPastedEl(el);
     el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
   } else {
-    const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-    if (!sec) return;
-    const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
-    const savedActiveSS = window._activeFrame;
-    if (pasteHasSS) window._activeFrame = null;
-    insertAfterSelected(sec, el);
-    if (pasteHasSS) window._activeFrame = savedActiveSS;
-    _bindPastedEl(el);
+    // banner 내부 출처면 같은 banner 안에 복제
+    const banner = _pasteIntoSourceBanner(el, clipboard.sourceBannerId);
+    if (banner) {
+      _bindPastedEl(el);
+    } else {
+      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      if (!sec) return;
+      const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
+      const savedActiveSS = window._activeFrame;
+      if (pasteHasSS) window._activeFrame = null;
+      insertAfterSelected(sec, el);
+      if (pasteHasSS) window._activeFrame = savedActiveSS;
+      _bindPastedEl(el);
+      _normalizePastedAbsolute(el);
+    }
   }
   window.buildLayerPanel();
   pushHistory('붙여넣기');
