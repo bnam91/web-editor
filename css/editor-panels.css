@@ -1583,7 +1583,19 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   cursor: pointer; margin-top: 4px;
 }
 .ai-fill-panel-run:hover { background: #d8b4fe; }
-.ai-fill-panel-run:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-fill-panel-run:disabled { opacity: 0.7; cursor: not-allowed; }
+.ai-fill-panel-run.is-loading {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.ai-fill-spinner {
+  width: 12px; height: 12px;
+  border: 2px solid rgba(26,26,26,0.25);
+  border-top-color: #1a1a1a;
+  border-radius: 50%;
+  animation: ai-fill-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes ai-fill-spin { to { transform: rotate(360deg); } }
 .ai-fill-panel-preview {
   border-top: 1px solid #2a2a2a;
   padding-top: 8px; margin-top: 4px;

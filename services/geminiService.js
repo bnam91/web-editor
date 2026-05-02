@@ -41,7 +41,37 @@ function _detectStyle(b) {
   return 'body';
 }
 
-function _buildPrompt({ blocks, prompt, tone, mode }) {
+function _buildPrompt({ blocks, prompt, tone, mode, fidelity }) {
+  // ── verbatim 모드: 이미지/사용자 입력 텍스트를 그대로 옮기는 모드 ──
+  // 길이힌트/톤/응용 일체 무시. OCR/전사 도구처럼 동작.
+  if (fidelity === 'verbatim') {
+    const blockLines = blocks.map((b, i) => {
+      const cur = (b.current || '').replace(/\s+/g, ' ').trim();
+      return `${i + 1}. id="${b.id}" / style=${_detectStyle(b)} / 현재="${cur}"`;
+    }).join('\n');
+    return `당신은 텍스트 전사(transcription) 도구입니다.
+첨부된 이미지(또는 사용자 요청)에 있는 텍스트를 아래 블록에 **그대로** 옮겨주세요.
+
+[섹션 블록 목록 — DOM 순서]
+${blockLines}
+
+[사용자 요청]
+${prompt || '(이미지의 텍스트를 블록 순서에 맞춰 그대로 옮겨줘)'}
+
+[규칙 — 절대 어기지 말 것]
+- 이미지/사용자 요청에 등장한 텍스트만 사용. 한 글자도 추가/생략/요약/풀어쓰기 금지.
+- 길이힌트·톤·문장수 제한은 모두 무시. 원문 길이 그대로.
+- 응용/창작/문장 보강 금지. 단순 전사만.
+- 해당 블록에 매칭되는 텍스트가 이미지에 없으면 그 블록은 빈 문자열("")로.
+- DOM 블록 순서와 이미지 텍스트 등장 순서를 1:1로 매칭.
+- 이미지의 줄바꿈은 가능한 한 한 블록 내에서 자연스럽게 합쳐도 됨(불필요한 줄바꿈 금지).
+
+[응답 형식]
+- 반드시 JSON: {"replacements":[{"id":"...","text":"..."}, ...]}
+- replacements 길이/순서는 입력 블록과 1:1 동일.`;
+  }
+
+  // ── natural 모드 (기본): 카피라이터로서 자연스럽게 응용 ──
   const toneHint = TONE_HINTS[tone] || '';
   const blockLines = blocks.map((b, i) => {
     const style = _detectStyle(b);

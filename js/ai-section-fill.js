@@ -202,6 +202,9 @@ function _ensureAIFillPanel() {
       <label class="ai-fill-panel-mode">
         <input type="checkbox" id="ai-fill-panel-empty"> 빈 블록만
       </label>
+      <label class="ai-fill-panel-mode" title="이미지/요청 텍스트를 한 글자도 변형 없이 그대로 옮김 (길이힌트·톤 무시)">
+        <input type="checkbox" id="ai-fill-panel-verbatim"> 이미지 텍스트 그대로 옮기기
+      </label>
       <button class="ai-fill-panel-run" id="ai-fill-panel-run" type="button">생성 → 적용</button>
       <div class="ai-fill-panel-preview hidden" id="ai-fill-panel-preview"></div>
     </div>`;
@@ -314,18 +317,23 @@ function _ensureAIFillPanel() {
     const promptText = panel.querySelector('#ai-fill-panel-prompt').value.trim();
     const imagePath = panel.querySelector('#ai-fill-panel-image').value.trim() || null;
     const mode = panel.querySelector('#ai-fill-panel-empty').checked ? 'fillEmpty' : 'replaceAll';
+    const fidelity = panel.querySelector('#ai-fill-panel-verbatim').checked ? 'verbatim' : 'natural';
     const blocks = collectSectionTextBlocks(sec);
     if (blocks.length === 0) { window.showToast?.('⚠️ 텍스트 블록 없음'); return; }
     const runBtn = panel.querySelector('#ai-fill-panel-run');
-    runBtn.disabled = true; runBtn.textContent = '생성 중…';
+    runBtn.disabled = true;
+    runBtn.classList.add('is-loading');
+    runBtn.innerHTML = '<span class="ai-fill-spinner"></span><span>생성 중…</span>';
     window.showToast?.('✨ AI가 작성 중…');
     const res = await callGeminiFill({
       blocks: blocks.map(b => ({ id: b.id, style: b.style, current: b.current })),
-      prompt: promptText, tone: _aiFillState.tone, mode,
+      prompt: promptText, tone: _aiFillState.tone, mode, fidelity,
       imageDataUrl: _aiFillState.imageDataUrl || null,
       imagePath,
     });
-    runBtn.disabled = false; runBtn.textContent = '재생성';
+    runBtn.disabled = false;
+    runBtn.classList.remove('is-loading');
+    runBtn.textContent = '재생성';
     if (!res?.ok) { window.showToast?.(`❌ ${res?.error || '오류'}`); return; }
     window.pushHistory?.();
     const n = applyAIReplacements(sec, res.replacements || []);
@@ -363,6 +371,7 @@ async function _openAIFillUI_impl(secEl) {
   panel.querySelector('#ai-fill-panel-prompt').value = '';
   panel.querySelector('#ai-fill-panel-image').value = '';
   panel.querySelector('#ai-fill-panel-empty').checked = false;
+  panel.querySelector('#ai-fill-panel-verbatim').checked = false;
   panel.querySelector('#ai-fill-panel-thumb').classList.add('hidden');
   panel.querySelector('#ai-fill-panel-thumb-img').src = '';
   panel.querySelectorAll('.ai-fill-panel-chip').forEach(c => c.classList.remove('selected'));
@@ -374,7 +383,7 @@ async function _openAIFillUI_impl(secEl) {
 }
 
 /** UI에서 호출하는 공용 실행기 — payload 받아 호출/적용/토스트 */
-async function runAIFill(secEl, { prompt, tone, mode, imagePath }) {
+async function runAIFill(secEl, { prompt, tone, mode, imagePath, fidelity }) {
   const blocks = collectSectionTextBlocks(secEl);
   if (blocks.length === 0) {
     window.showToast?.('⚠️ 텍스트 블록 없음');
@@ -383,9 +392,10 @@ async function runAIFill(secEl, { prompt, tone, mode, imagePath }) {
   window.showToast?.('✨ AI가 작성 중…');
   const payload = {
     blocks: blocks.map(b => ({ id: b.id, style: b.style, current: b.current })),
-    prompt: prompt || '',
-    tone:   tone   || '',
-    mode:   mode   || 'replaceAll',
+    prompt:   prompt   || '',
+    tone:     tone     || '',
+    mode:     mode     || 'replaceAll',
+    fidelity: fidelity || 'natural',
     imagePath: imagePath || null,
   };
   const res = await callGeminiFill(payload);
