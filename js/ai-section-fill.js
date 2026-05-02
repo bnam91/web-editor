@@ -46,22 +46,117 @@ async function callGeminiFill(payload) {
   return window.electronAPI.aiFillSectionTexts(payload);
 }
 
-/* ── UI 구현 (브랜치별 교체 지점) ────────────────────────────
-   기본 구현은 native prompt() — 동작 가능한 baseline.
-   feat/ai-fill-ui-a / feat/ai-fill-ui-b 브랜치에서 이 함수만 교체. */
+/* ── UI 구현 (B안: 우측 사이드 패널, 즉시 적용) ─────────────── */
+const TONE_PRESETS = [
+  { id: 'trust',    label: '신뢰감' },
+  { id: 'friendly', label: '친근함' },
+  { id: 'punchy',   label: '강력셀링' },
+  { id: 'simple',   label: '심플' },
+];
+
+let _aiFillState = { secEl: null, tone: '' };
+
+function _ensureAIFillPanel() {
+  let panel = document.getElementById('ai-fill-panel');
+  if (panel) return panel;
+  panel = document.createElement('div');
+  panel.id = 'ai-fill-panel';
+  panel.className = 'ai-fill-panel';
+  panel.innerHTML = `
+    <div class="ai-fill-panel-header">
+      <span class="ai-fill-panel-title">✨ AI 텍스트 채우기</span>
+      <button class="ai-fill-panel-close" type="button">×</button>
+    </div>
+    <div class="ai-fill-panel-body">
+      <div class="ai-fill-panel-meta" id="ai-fill-panel-meta"></div>
+      <textarea id="ai-fill-panel-prompt" rows="4"
+        placeholder="예: 헬스보충제 주제로 채워줘"></textarea>
+      <div class="ai-fill-panel-chips" id="ai-fill-panel-chips"></div>
+      <input type="text" id="ai-fill-panel-image"
+        placeholder="이미지 파일 경로 (선택)">
+      <label class="ai-fill-panel-mode">
+        <input type="checkbox" id="ai-fill-panel-empty"> 빈 블록만
+      </label>
+      <button class="ai-fill-panel-run" id="ai-fill-panel-run" type="button">생성 → 적용</button>
+      <div class="ai-fill-panel-preview hidden" id="ai-fill-panel-preview"></div>
+    </div>`;
+  document.body.appendChild(panel);
+  panel.querySelector('.ai-fill-panel-close').addEventListener('click', () => panel.classList.remove('open'));
+
+  const chipsBox = panel.querySelector('#ai-fill-panel-chips');
+  TONE_PRESETS.forEach(t => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'ai-fill-panel-chip';
+    chip.textContent = t.label;
+    chip.dataset.tone = t.id;
+    chip.addEventListener('click', () => {
+      const wasSelected = chip.classList.contains('selected');
+      chipsBox.querySelectorAll('.ai-fill-panel-chip').forEach(c => c.classList.remove('selected'));
+      if (!wasSelected) { chip.classList.add('selected'); _aiFillState.tone = t.id; }
+      else { _aiFillState.tone = ''; }
+    });
+    chipsBox.appendChild(chip);
+  });
+
+  panel.querySelector('#ai-fill-panel-run').addEventListener('click', async () => {
+    const sec = _aiFillState.secEl;
+    if (!sec) return;
+    const promptText = panel.querySelector('#ai-fill-panel-prompt').value.trim();
+    const imagePath = panel.querySelector('#ai-fill-panel-image').value.trim() || null;
+    const mode = panel.querySelector('#ai-fill-panel-empty').checked ? 'fillEmpty' : 'replaceAll';
+    const blocks = collectSectionTextBlocks(sec);
+    if (blocks.length === 0) { window.showToast?.('⚠️ 텍스트 블록 없음'); return; }
+    const runBtn = panel.querySelector('#ai-fill-panel-run');
+    runBtn.disabled = true; runBtn.textContent = '생성 중…';
+    window.showToast?.('✨ AI가 작성 중…');
+    const res = await callGeminiFill({
+      blocks: blocks.map(b => ({ id: b.id, style: b.style, current: b.current })),
+      prompt: promptText, tone: _aiFillState.tone, mode, imagePath,
+    });
+    runBtn.disabled = false; runBtn.textContent = '재생성';
+    if (!res?.ok) { window.showToast?.(`❌ ${res?.error || '오류'}`); return; }
+    window.pushHistory?.();
+    const n = applyAIReplacements(sec, res.replacements || []);
+    const preview = panel.querySelector('#ai-fill-panel-preview');
+    const byId = new Map(blocks.map(b => [b.id, b]));
+    preview.innerHTML = '<div class="ai-fill-panel-preview-title">적용됨 (Cmd+Z 되돌리기)</div>' +
+      (res.replacements || []).map(rep => {
+        const b = byId.get(rep.id);
+        const styleLbl = (b?.style || '').replace('tb-', '');
+        return `<div class="ai-fill-panel-preview-row">
+          <span class="ai-fill-panel-preview-style">${styleLbl}</span>
+          <span class="ai-fill-panel-preview-text">${rep.text}</span>
+        </div>`;
+      }).join('');
+    preview.classList.remove('hidden');
+    window.showToast?.(`✅ ${n}개 블록 적용됨`);
+  });
+
+  return panel;
+}
+
 async function _openAIFillUI_impl(secEl) {
   const blocks = collectSectionTextBlocks(secEl);
   if (blocks.length === 0) {
     window.showToast?.('⚠️ 이 섹션에는 텍스트 블록이 없습니다.');
     return;
   }
-  const userPrompt = window.prompt(
-    `이 섹션의 텍스트 블록 ${blocks.length}개를 어떤 내용으로 채울까요?\n` +
-    `(예: "헬스보충제 주제로 라벨/제목/캡션 채워줘")`,
-    ''
-  );
-  if (userPrompt === null) return; // 취소
-  await runAIFill(secEl, { prompt: userPrompt, tone: '', mode: 'replaceAll' });
+  _aiFillState.secEl = secEl;
+  _aiFillState.tone = '';
+  const panel = _ensureAIFillPanel();
+  panel.classList.add('open');
+  panel.querySelector('#ai-fill-panel-meta').textContent =
+    `${secEl.id} · 텍스트 ${blocks.length}개`;
+  panel.querySelector('#ai-fill-panel-prompt').value = '';
+  panel.querySelector('#ai-fill-panel-image').value = '';
+  panel.querySelector('#ai-fill-panel-empty').checked = false;
+  panel.querySelectorAll('.ai-fill-panel-chip').forEach(c => c.classList.remove('selected'));
+  panel.querySelector('#ai-fill-panel-preview').classList.add('hidden');
+  panel.querySelector('#ai-fill-panel-preview').innerHTML = '';
+  const runBtn = panel.querySelector('#ai-fill-panel-run');
+  runBtn.disabled = false; runBtn.textContent = '생성 → 적용';
+  panel.querySelector('#ai-fill-panel-prompt').focus();
 }
 
 /** UI에서 호출하는 공용 실행기 — payload 받아 호출/적용/토스트 */
