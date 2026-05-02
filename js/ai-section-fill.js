@@ -54,7 +54,7 @@ const TONE_PRESETS = [
   { id: 'simple',   label: '심플' },
 ];
 
-let _aiFillState = { secEl: null, tone: '' };
+let _aiFillState = { secEl: null, tone: '', imageDataUrl: null };
 
 function _ensureAIFillPanel() {
   let panel = document.getElementById('ai-fill-panel');
@@ -70,7 +70,11 @@ function _ensureAIFillPanel() {
     <div class="ai-fill-panel-body">
       <div class="ai-fill-panel-meta" id="ai-fill-panel-meta"></div>
       <textarea id="ai-fill-panel-prompt" rows="4"
-        placeholder="예: 헬스보충제 주제로 채워줘"></textarea>
+        placeholder="예: 헬스보충제 주제로 채워줘&#10;(이미지 paste / drag-drop 가능)"></textarea>
+      <div class="ai-fill-panel-thumb hidden" id="ai-fill-panel-thumb">
+        <img id="ai-fill-panel-thumb-img" alt="첨부 이미지">
+        <button class="ai-fill-panel-thumb-x" id="ai-fill-panel-thumb-x" type="button">×</button>
+      </div>
       <div class="ai-fill-panel-chips" id="ai-fill-panel-chips"></div>
       <input type="text" id="ai-fill-panel-image"
         placeholder="이미지 파일 경로 (선택)">
@@ -142,6 +146,47 @@ function _ensureAIFillPanel() {
     chipsBox.appendChild(chip);
   });
 
+  // ── 클립보드 paste / drag-drop 이미지 → data URL 첨부 ──
+  const thumbBox = panel.querySelector('#ai-fill-panel-thumb');
+  const thumbImg = panel.querySelector('#ai-fill-panel-thumb-img');
+  function _setImageDataUrl(dataUrl) {
+    _aiFillState.imageDataUrl = dataUrl;
+    if (dataUrl) {
+      thumbImg.src = dataUrl;
+      thumbBox.classList.remove('hidden');
+    } else {
+      thumbImg.src = '';
+      thumbBox.classList.add('hidden');
+    }
+  }
+  panel.querySelector('#ai-fill-panel-thumb-x').addEventListener('click', () => _setImageDataUrl(null));
+  function _readBlobToDataUrl(blob) {
+    return new Promise(res => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.readAsDataURL(blob);
+    });
+  }
+  const promptEl = panel.querySelector('#ai-fill-panel-prompt');
+  promptEl.addEventListener('paste', async e => {
+    const items = [...(e.clipboardData?.items || [])].filter(it => it.type.startsWith('image/'));
+    if (items.length === 0) return;
+    e.preventDefault();
+    const blob = items[0].getAsFile();
+    if (!blob) return;
+    const dataUrl = await _readBlobToDataUrl(blob);
+    _setImageDataUrl(dataUrl);
+    window.showToast?.('🖼️ 이미지 첨부됨');
+  });
+  // 패널 전체에 drag-drop
+  ['dragover', 'drop'].forEach(ev => panel.addEventListener(ev, e => {
+    if (ev === 'dragover') { e.preventDefault(); return; }
+    e.preventDefault();
+    const file = [...(e.dataTransfer?.files || [])].find(f => f.type.startsWith('image/'));
+    if (!file) return;
+    _readBlobToDataUrl(file).then(d => { _setImageDataUrl(d); window.showToast?.('🖼️ 이미지 첨부됨'); });
+  }));
+
   panel.querySelector('#ai-fill-panel-run').addEventListener('click', async () => {
     const sec = _aiFillState.secEl;
     if (!sec) return;
@@ -155,7 +200,9 @@ function _ensureAIFillPanel() {
     window.showToast?.('✨ AI가 작성 중…');
     const res = await callGeminiFill({
       blocks: blocks.map(b => ({ id: b.id, style: b.style, current: b.current })),
-      prompt: promptText, tone: _aiFillState.tone, mode, imagePath,
+      prompt: promptText, tone: _aiFillState.tone, mode,
+      imageDataUrl: _aiFillState.imageDataUrl || null,
+      imagePath,
     });
     runBtn.disabled = false; runBtn.textContent = '재생성';
     if (!res?.ok) { window.showToast?.(`❌ ${res?.error || '오류'}`); return; }
@@ -187,6 +234,7 @@ async function _openAIFillUI_impl(secEl) {
   }
   _aiFillState.secEl = secEl;
   _aiFillState.tone = '';
+  _aiFillState.imageDataUrl = null;
   const panel = _ensureAIFillPanel();
   panel.classList.add('open');
   panel.querySelector('#ai-fill-panel-meta').textContent =
@@ -194,6 +242,8 @@ async function _openAIFillUI_impl(secEl) {
   panel.querySelector('#ai-fill-panel-prompt').value = '';
   panel.querySelector('#ai-fill-panel-image').value = '';
   panel.querySelector('#ai-fill-panel-empty').checked = false;
+  panel.querySelector('#ai-fill-panel-thumb').classList.add('hidden');
+  panel.querySelector('#ai-fill-panel-thumb-img').src = '';
   panel.querySelectorAll('.ai-fill-panel-chip').forEach(c => c.classList.remove('selected'));
   panel.querySelector('#ai-fill-panel-preview').classList.add('hidden');
   panel.querySelector('#ai-fill-panel-preview').innerHTML = '';

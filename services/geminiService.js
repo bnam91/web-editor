@@ -79,8 +79,14 @@ async function fillSectionTexts(payload) {
   const promptText = _buildPrompt(payload);
   const parts = [{ text: promptText }];
 
-  // 이미지 파일 경로 → base64 inline_data
-  if (payload.imagePath) {
+  // 이미지 입력 (1) data URL — 클립보드 paste / drag-drop 경로
+  if (payload.imageDataUrl) {
+    const m = /^data:([^;]+);base64,(.+)$/.exec(payload.imageDataUrl);
+    if (!m) return { ok: false, error: '이미지 dataURL 형식 오류' };
+    parts.push({ inline_data: { mime_type: m[1], data: m[2] } });
+  }
+  // 이미지 입력 (2) 파일 경로 → base64 inline_data
+  else if (payload.imagePath) {
     try {
       const abs = path.resolve(payload.imagePath);
       const buf = fs.readFileSync(abs);

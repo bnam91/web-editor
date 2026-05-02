@@ -1553,6 +1553,28 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   font-size: 11px; color: #ccc; cursor: pointer;
 }
 .ai-fill-panel-mode input { margin: 0; }
+.ai-fill-panel-thumb {
+  position: relative;
+  border: 1px solid #444; border-radius: 5px;
+  background: #2a2a2a;
+  padding: 4px;
+  display: flex; align-items: center; justify-content: center;
+  max-height: 120px; overflow: hidden;
+}
+.ai-fill-panel-thumb.hidden { display: none; }
+.ai-fill-panel-thumb img {
+  max-width: 100%; max-height: 110px;
+  display: block; border-radius: 3px;
+}
+.ai-fill-panel-thumb-x {
+  position: absolute; top: 4px; right: 4px;
+  width: 18px; height: 18px;
+  border: none; border-radius: 50%;
+  background: rgba(0,0,0,0.6); color: #fff;
+  font-size: 12px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.ai-fill-panel-thumb-x:hover { background: #c00; }
 .ai-fill-panel-run {
   width: 100%; box-sizing: border-box;
   background: #c084fc; color: #1a1a1a;
