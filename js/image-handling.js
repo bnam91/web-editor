@@ -513,33 +513,39 @@ function loadImageToAsset(ab, file) {
   const reader = new FileReader();
   reader.onload = ev => {
     hideAssetLoading(ab);
-    const src = ev.target.result;
-    ab.classList.add('has-image');
-    ab.dataset.imgSrc = src;
-    if (!ab.dataset.fit) ab.dataset.fit = 'cover';
-    // 기존 위치/크기/포지션 초기화
-    delete ab.dataset.imgW;
-    delete ab.dataset.imgX;
-    delete ab.dataset.imgY;
-    delete ab.dataset.imgPosition;
-    // 기존 overlay 내용 보존
-    const prevOverlayEl = ab.querySelector('.asset-overlay');
-    const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
-    const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
-    ab.innerHTML = `
-      <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
-      <button class="asset-overlay-clear" title="이미지 제거">✕</button>
-      <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
-    ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
-      e.stopPropagation();
-      clearAssetImage(ab);
-    });
-    // overlay-tb 블록 재바인딩
-    ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
-    showAssetProperties(ab);
+    setAssetImageFromSrc(ab, ev.target.result);
   };
   reader.onerror = () => hideAssetLoading(ab);
   reader.readAsDataURL(file);
+}
+
+/* 스크래치 → 에셋 블록 이미지 적용 (loadImageToAsset의 FileReader.onload 본문 재사용)
+   ⚠️ pushHistory / showAssetProperties 호출은 caller에서 결정 (직접 적용용 헬퍼) */
+function setAssetImageFromSrc(ab, src) {
+  if (!ab || !src) return;
+  ab.classList.add('has-image');
+  ab.dataset.imgSrc = src;
+  if (!ab.dataset.fit) ab.dataset.fit = 'cover';
+  // 기존 위치/크기/포지션 초기화
+  delete ab.dataset.imgW;
+  delete ab.dataset.imgX;
+  delete ab.dataset.imgY;
+  delete ab.dataset.imgPosition;
+  // 기존 overlay 내용 보존
+  const prevOverlayEl = ab.querySelector('.asset-overlay');
+  const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
+  const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
+  ab.innerHTML = `
+    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
+    <button class="asset-overlay-clear" title="이미지 제거">✕</button>
+    <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
+  ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
+    e.stopPropagation();
+    clearAssetImage(ab);
+  });
+  // overlay-tb 블록 재바인딩
+  ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
+  showAssetProperties(ab);
 }
 
 function clearAssetImage(ab) {
@@ -746,6 +752,7 @@ window.applyImageTransform = applyImageTransform;
 window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;
 window.loadImageToAsset   = loadImageToAsset;
+window.setAssetImageFromSrc = setAssetImageFromSrc;
 
 window.triggerCircleUpload        = triggerCircleUpload;
 window.loadImageToCircle          = loadImageToCircle;

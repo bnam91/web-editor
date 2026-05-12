@@ -10,10 +10,11 @@ let historyStack = [];
 let historyPos   = -1;
 let _historyPaused = false;
 
-function pushHistory(action = '작업') {
+function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
   historyStack = historyStack.slice(0, historyPos + 1);
-  historyStack.push({ canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId });
+  // sideEffects: { onUndo?: fn, onRedo?: fn } — DOM 외 상태(예: 스크래치패드 IDB) 복원용
+  historyStack.push({ canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects });
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -62,14 +63,19 @@ function restoreSnapshot(snap) {
 
 function undo() {
   if (historyPos <= 0) return;
+  // 떠나는 snap의 onUndo (예: 스크래치 복원) — 캔버스 복원 *후* 실행해서 DOM 안정 상태에서 처리
+  const leavingSnap = historyStack[historyPos];
   historyPos--;
   restoreSnapshot(historyStack[historyPos]);
+  try { leavingSnap?.sideEffects?.onUndo?.(); } catch (e) { console.warn('[history] onUndo err:', e); }
 }
 
 function redo() {
   if (historyPos >= historyStack.length - 1) return;
   historyPos++;
-  restoreSnapshot(historyStack[historyPos]);
+  const newSnap = historyStack[historyPos];
+  restoreSnapshot(newSnap);
+  try { newSnap?.sideEffects?.onRedo?.(); } catch (e) { console.warn('[history] onRedo err:', e); }
 }
 
 function clearHistory() {

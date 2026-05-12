@@ -74,10 +74,10 @@
   <div class="spacer"></div>
 <span id="autosave-indicator" title="자동저장 상태"></span>
 <span id="debug-port-badge" style="display:none; font-size:10px; color:#555; background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:2px 6px; font-family:monospace;"></span>
-  <div class="divider"></div>
-  <button class="tb-btn" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
-  <div class="divider"></div>
-  <button class="tb-btn" id="ref-modal-btn" onclick="window._refModalToggle()" title="Reference Image (⌘⇧R)">Reference</button>
+  <div class="divider tb-hidden-mvp"></div>
+  <button class="tb-btn tb-hidden-mvp" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
+  <div class="divider tb-hidden-mvp"></div>
+  <button class="tb-btn tb-hidden-mvp" id="ref-modal-btn" onclick="window._refModalToggle()" title="Reference Image (⌘⇧R)">Reference</button>
   <div class="divider"></div>
   <div id="publish-dropdown-wrap">
     <!-- C12: "Figma" → "Export" 명칭 변경 + 아이콘 추가 / C11: tb-btn 클래스로 통일 -->
@@ -246,7 +246,7 @@
           <line x1="4" y1="9" x2="6.5" y2="9"/>
         </svg>
       </button>
-      <button class="panel-tab" data-tab="branch" title="Branch" onclick="switchToTab('branch')">
+      <button class="panel-tab tb-hidden-mvp" data-tab="branch" title="Branch" onclick="switchToTab('branch')">
         <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
           <circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="5" r="1.5"/>
           <path d="M3 4v4M3 4C3 6 9 4 9 5"/>
@@ -457,7 +457,7 @@
 <!-- Floating Panel -->
 <div id="floating-panel">
   <div id="branch-dropdown-wrap">
-    <button id="branch-indicator" onclick="toggleBranchDropdown(event)" title="현재 브랜치 — 클릭하여 브랜치 전환">
+    <button id="branch-indicator" class="tb-hidden-mvp" onclick="toggleBranchDropdown(event)" title="현재 브랜치 — 클릭하여 브랜치 전환">
       <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
         <circle cx="3" cy="2.5" r="1.5"/><circle cx="3" cy="9.5" r="1.5"/><circle cx="9" cy="5" r="1.5"/>
         <path d="M3 4v4M3 4C3 6 9 4 9 5"/>
@@ -467,7 +467,7 @@
     </button>
     <div id="branch-dropdown-menu"></div>
   </div>
-  <div class="fp-divider"></div>
+  <div class="fp-divider tb-hidden-mvp"></div>
   <button class="fp-btn primary" onclick="addSection()" title="새 섹션 추가">
     <svg width="14" height="14" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.0">
       <line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/>
@@ -795,6 +795,12 @@
 <script type="module" src="js/inspector.js"></script>
 <script type="module" src="js/props/prop-section.js"></script>
 <script type="module" src="js/section-variation.js"></script>
+<script src="js/ai-ext/graph.js"></script>
+<script src="js/ai-ext/table.js"></script>
+<script src="js/ai-ext/canvas.js"></script>
+<script src="js/ai-ext/step.js"></script>
+<script src="js/ai-ext/chat.js"></script>
+<script src="js/ai-ext/label.js"></script>
 <script type="module" src="js/ai-section-fill.js"></script>
 <script type="module" src="js/history.js"></script>
 <script type="module" src="js/editor.js"></script>

@@ -937,6 +937,9 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 /* ── Section Toolbar: Branch Button ── */
 .st-branch-btn { color: #5a8ab8 !important; }
 .st-branch-btn:hover { color: var(--ui-accent) !important; background: #1a2840 !important; }
+/* ── MVP: 섹션 단위 feature 브랜치 기능 비활성 — 버튼 숨김 ── */
+/* 재활성화 시 이 룰만 제거하면 됨. */
+.st-branch-btn { display: none !important; }
 
 /* ── Section Toolbar: A/B Variation Button ── */
 .st-ab-btn { color: var(--ui-accent-primary) !important; }
@@ -1553,6 +1556,65 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   font-size: 11px; color: #ccc; cursor: pointer;
 }
 .ai-fill-panel-mode input { margin: 0; }
+.ai-fill-panel-model-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.ai-fill-panel-model-label {
+  font-size: 10px; color: #888; flex-shrink: 0;
+  font-weight: 600; letter-spacing: 0.3px;
+}
+.ai-fill-panel-model-select {
+  flex: 1; box-sizing: border-box;
+  background: #2a2a2a; border: 1px solid #444; color: #eee;
+  border-radius: 5px; padding: 5px 8px;
+  font-size: 11px; font-family: inherit;
+  outline: none; cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='%23999'><path d='M2 4l4 4 4-4z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 22px;
+}
+.ai-fill-panel-model-select:focus { border-color: #c084fc; }
+.ai-fill-panel-model-select:hover { border-color: #555; }
+.ai-fill-panel-model-select option { background: #2a2a2a; color: #eee; }
+.ai-fill-panel-model-select optgroup {
+  background: #1f1f1f; color: #c084fc;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.4px;
+}
+.ai-fill-panel-scope {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 6px 8px;
+  background: #232323; border: 1px solid #2e2e2e; border-radius: 5px;
+}
+.ai-fill-panel-scope > .ai-fill-panel-mode { font-size: 11px; color: #ccc; }
+.ai-fill-panel-scope-ids { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.ai-fill-panel-scope-ids.hidden { display: none; }
+.ai-fill-panel-id-row { display: flex; gap: 4px; align-items: center; }
+.ai-fill-panel-id-input {
+  flex: 1; box-sizing: border-box;
+  background: #2a2a2a; border: 1px solid #444; color: #eee;
+  border-radius: 4px; padding: 4px 6px; font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; outline: none;
+}
+.ai-fill-panel-id-input:focus { border-color: #c084fc; }
+.ai-fill-panel-id-remove {
+  width: 20px; height: 20px;
+  border: 1px solid #444; border-radius: 4px;
+  background: #2a2a2a; color: #999;
+  font-size: 13px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ai-fill-panel-id-remove:hover { background: #3a2030; border-color: #c33; color: #ff8c8c; }
+.ai-fill-panel-id-add {
+  align-self: flex-start;
+  background: #2a2a2a; border: 1px dashed #555; color: #aaa;
+  border-radius: 4px; padding: 3px 10px;
+  font-size: 11px; cursor: pointer;
+}
+.ai-fill-panel-id-add:hover { border-color: #c084fc; color: #c084fc; }
+.ai-fill-panel-id-add.hidden { display: none; }
 .ai-fill-panel-thumb {
   position: relative;
   border: 1px solid #444; border-radius: 5px;

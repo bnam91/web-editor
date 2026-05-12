@@ -66,7 +66,7 @@
   box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.12);
   cursor: move;
   user-select: none;
-  z-index: 1;
+  z-index: 100; /* 섹션 위에 떠 있도록 — 일반 이동/⌘드래그 모두 가시성 보장 */
 }
 .scratch-item:hover {
   box-shadow: 0 6px 24px rgba(0,0,0,0.45), 0 0 0 2px rgba(255,255,255,0.22);

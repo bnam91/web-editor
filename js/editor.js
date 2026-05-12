@@ -522,7 +522,7 @@ function copySelected() {
   const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.graph-block.selected, .divider-block.selected, ' +
-    '.icon-text-block.selected, .shape-block.selected, .canvas-block.selected';
+    '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected';
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -582,7 +582,7 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -1306,11 +1306,9 @@ if (window.electronAPI) {
   });
 }
 
-// 버전 배지 동적 주입
-window.electronAPI?.getVersion?.().then(v => {
-  const badge = document.getElementById('logo-version-badge');
-  if (badge && v) badge.textContent = 'v' + v;
-});
+// 버전 배지 — BETA 표기
+const _verBadge = document.getElementById('logo-version-badge');
+if (_verBadge) _verBadge.textContent = 'BETA';
 
 // Electron 환경이면 JSON 파일에서 프리셋 로드.
 // _presetsReady: race condition 방지용 Promise — showSectionProperties 등에서 await 후 UI 렌더.

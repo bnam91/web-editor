@@ -3,13 +3,24 @@
 ═══════════════════════════════════ */
 import { propPanel, canvasEl, canvasWrap, state } from '../globals.js';
 
+/* ── 헬퍼: ab의 effective usePadx 결정 ──
+   'true' / 'false' 명시 → 그 값 (개별 오버라이드)
+   미설정 → 글로벌 디폴트(pageSettings.padXExcludesAsset)
+*/
+function getEffectiveUsePadx(ab) {
+  if (ab.dataset.usePadx === 'true') return true;
+  if (ab.dataset.usePadx === 'false') return false;
+  return !!state.pageSettings.padXExcludesAsset;
+}
+window.getEffectiveUsePadx = getEffectiveUsePadx;
+
 /* ── 헬퍼: section-inner 하나에 padX 적용 ── */
 function applyPadXToSection(inner, padX) {
   inner.style.paddingLeft  = padX ? padX + 'px' : '';
   inner.style.paddingRight = padX ? padX + 'px' : '';
-  // 각 asset-block의 usePadx 개별 설정에 따라 negative margin 적용
+  // 각 asset-block의 effective usePadx에 따라 negative margin 적용
   inner.querySelectorAll('.asset-block').forEach(ab => {
-    if (ab.dataset.usePadx === 'true' && padX > 0) {
+    if (getEffectiveUsePadx(ab) && padX > 0) {
       ab.style.marginLeft  = -padX + 'px';
       ab.style.marginRight = -padX + 'px';
       ab.style.width = `calc(100% + ${padX * 2}px)`;
@@ -36,6 +47,7 @@ function applyPagePadX(padX) {
 
 // save-load.js 등 외부에서 호출 가능하도록 export
 window.applyPagePadX = applyPagePadX;
+window.applyPadXToSection = applyPadXToSection;
 
 export function showPageProperties() {
   if (window.setRpIdBadge) window.setRpIdBadge(null);
@@ -106,7 +118,7 @@ export function showPageProperties() {
       </div>
       <div class="prop-row" style="align-items:center;gap:6px;">
         <input type="checkbox" id="page-padx-asset" ${padXExcludesAsset ? 'checked' : ''}>
-        <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">에셋블록 패딩 제외합니다.</span>
+        <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">에셋블록은 일괄패딩적용에서 제외합니다.</span>
       </div>
       <div class="prop-row">
         <span class="prop-label">상하 패딩</span>
@@ -201,10 +213,9 @@ export function showPageProperties() {
 
   padxAsset.addEventListener('change', e => {
     state.pageSettings.padXExcludesAsset = e.target.checked;
-    // 모든 에셋블록 usePadx 일괄 설정
-    const val = e.target.checked ? 'true' : 'false';
-    document.querySelectorAll('.asset-block').forEach(ab => { ab.dataset.usePadx = val; });
-    // override 포함 모든 섹션 적용 (각 섹션의 실제 padX 사용)
+    // (가) 설계: 글로벌은 디폴트 — 명시적으로 설정된 ab(dataset.usePadx='true'|'false')는 보존,
+    //   미설정 ab만 새 글로벌 값에 따라 시각 재반영.
+    //   applyPadXToSection이 getEffectiveUsePadx로 자동 처리.
     document.querySelectorAll('.section-block').forEach(sec => {
       const inner = sec.querySelector('.section-inner');
       if (!inner) return;

@@ -516,6 +516,18 @@ function rebindAll() {
     img.parentNode.insertBefore(clip, img);
     clip.appendChild(img);
   });
+  // 스크래치→섹션 변환의 인라인 aspect-ratio를 px height로 잠금 — 핸들 resize 시 너비 흔들림 방지
+  canvasEl.querySelectorAll('.asset-block').forEach(ab => {
+    const ar = ab.style.aspectRatio;
+    if (!ar) return;
+    const m = ar.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+    if (m) {
+      const nw = parseFloat(m[1]), nh = parseFloat(m[2]);
+      const w = ab.offsetWidth;
+      if (w > 0 && nw > 0 && nh > 0) ab.style.height = (w * (nh / nw)) + 'px';
+    }
+    ab.style.aspectRatio = '';
+  });
   // undo/redo 복원 중(_historyPaused)에는 clearHistory 금지 — 호출 시 히스토리 스택 전체 초기화되어 1스텝만 undo 가능해지는 버그
   if (!window._historyPaused) window.clearHistory?.();
   // undo/redo 복원 후 색상 조정 SVG 필터 재적용

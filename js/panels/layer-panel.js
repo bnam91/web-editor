@@ -5,19 +5,24 @@
 import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem,
          makeLayerFrameItem, makeLayerAssetItem, makeLayerCardItem } from './layer-panel-items.js';
 
+// LP-COLLAPSE-DEFAULT (2026-05): 신규 row-group은 collapsed로 시작.
+// 사용자가 chevron을 직접 펼쳐야 _expandedRowGroupIds 에 등록되고, 이후 빌드에서도 펼침 유지.
+// 첫 프로젝트 로드 시 모든 row-group이 "신규"로 판정되어 collapsed (사용자 요청: 너무 많이 펼쳐져 보이는 문제 해소).
+const _seenRowGroupIds = new Set();
+const _expandedRowGroupIds = new Set();
+
+function _rowGroupKey(wrapper) {
+  // 안정적인 식별자: _dragTarget.id 우선. 없으면 별도 키 생성 불가 → 매번 신규로 간주(=collapsed)
+  return wrapper && wrapper._dragTarget && wrapper._dragTarget.id ? wrapper._dragTarget.id : null;
+}
+
 export function buildLayerPanel() {
   const panel = document.getElementById('layer-panel-body');
 
-  // 재빌드 전 collapsed 상태 저장
+  // 재빌드 전 collapsed 상태 저장 (섹션 단위는 그대로 유지)
   const collapsedSections = new Set(
     [...panel.querySelectorAll('.layer-section.collapsed')].map(s => s.dataset.section)
   );
-  const collapsedRows = new Set();
-  panel.querySelectorAll('.layer-section').forEach(s => {
-    s.querySelectorAll('.layer-children > .layer-row-group').forEach((g, ri) => {
-      if (g.classList.contains('collapsed')) collapsedRows.add(`${s.dataset.section}:${ri}`);
-    });
-  });
 
   panel.innerHTML = '';
 
@@ -365,11 +370,8 @@ export function buildLayerPanel() {
     sectionEl.appendChild(children);
     panel.appendChild(sectionEl);
 
-    // collapsed 상태 복원
+    // collapsed 상태 복원 (섹션 헤더만)
     if (collapsedSections.has(String(sIdx))) sectionEl.classList.add('collapsed');
-    children.querySelectorAll(':scope > .layer-row-group').forEach((g, ri) => {
-      if (collapsedRows.has(`${sIdx}:${ri}`)) g.classList.add('collapsed');
-    });
 
     sec._layerEl = sectionEl;
     sec._layerHeader = header;
@@ -520,6 +522,28 @@ export function buildLayerPanel() {
     });
   });
 
+  // LP-COLLAPSE-DEFAULT: row-group collapsed 기본값 적용
+  // - 처음 보는 row-group → collapsed (사용자 미접촉 = 닫혀있어야 함)
+  // - 기존 seen + expanded 상태 → 펼친 채로 유지
+  // - variation inactive 처럼 buildLayerPanel 도중 강제로 .collapsed 가 부여된 경우는 그대로 보존
+  panel.querySelectorAll('.layer-row-group').forEach(g => {
+    const id = _rowGroupKey(g);
+    if (!id) {
+      // id 없으면 매번 신규로 간주 → collapsed
+      if (!g.classList.contains('collapsed')) g.classList.add('collapsed');
+      return;
+    }
+    if (_seenRowGroupIds.has(id)) {
+      // 이미 본 row-group: 사용자가 펼친 적이 있으면 펼침 유지, 아니면 닫힌 채 유지
+      if (_expandedRowGroupIds.has(id)) g.classList.remove('collapsed');
+      else if (!g.classList.contains('collapsed')) g.classList.add('collapsed');
+    } else {
+      // 신규 row-group → collapsed
+      if (!g.classList.contains('collapsed')) g.classList.add('collapsed');
+      _seenRowGroupIds.add(id);
+    }
+  });
+
   if (window.buildFilePageSection) window.buildFilePageSection();
 
   // Inspector 탭이 활성화 상태이면 실시간 갱신
@@ -527,6 +551,36 @@ export function buildLayerPanel() {
     window.renderInspectorPanel?.();
   }
 }
+
+// LP-COLLAPSE-DEFAULT: chevron 클릭 후 collapsed 상태를 _expandedRowGroupIds에 동기화
+// 한 번만 panel-body 에 바인딩 (delegated, bubble phase). row-group 내부의 inline 토글이 먼저 실행된 후
+// 이 핸들러가 .collapsed 최종 상태를 읽어 set 을 업데이트한다.
+(function bindRowGroupCollapseSync() {
+  const init = () => {
+    const panel = document.getElementById('layer-panel-body');
+    if (!panel || panel._lpCollapseSyncBound) return;
+    panel._lpCollapseSyncBound = true;
+    // capture phase: row-group 내부 inline 핸들러가 stopPropagation을 부르더라도 capture는 먼저 실행됨.
+    // microtask로 후처리하여 inline 토글이 적용된 최종 .collapsed 상태를 읽고 sync.
+    panel.addEventListener('click', e => {
+      const chev = e.target.closest && e.target.closest('.layer-chevron');
+      if (!chev) return;
+      const group = chev.closest('.layer-row-group');
+      if (!group || !panel.contains(group)) return;
+      Promise.resolve().then(() => {
+        const id = _rowGroupKey(group);
+        if (!id) return;
+        if (group.classList.contains('collapsed')) _expandedRowGroupIds.delete(id);
+        else _expandedRowGroupIds.add(id);
+      });
+    }, true);
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+})();
 
 export function syncLayerActive(sec) {
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));

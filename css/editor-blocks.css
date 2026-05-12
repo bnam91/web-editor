@@ -1762,3 +1762,55 @@ textarea.cvb-card-input {
 .speech-bubble-block .tb-bubble[data-is-placeholder="true"][contenteditable="true"] {
   color: #1c1c1e;
 }
+
+/* ═══════════════════════════════════
+   스크래치 → 캔버스 드롭 가이드 (canvas-scratch-drop.js)
+═══════════════════════════════════ */
+.sp2c-replace-target {
+  outline: 2px solid var(--ui-accent-primary) !important;
+  outline-offset: -3px;
+  box-shadow: 0 0 12px var(--color-selection-glow);
+}
+.sp2c-badge {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ui-accent-primary);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.sp2c-badge-append {
+  top: auto;
+  bottom: 12px;
+}
+.sp2c-insert-indicator {
+  height: 5px;
+  background: var(--ui-accent-primary);
+  border-radius: 3px;
+  flex-shrink: 0;
+  pointer-events: none;
+  margin: 2px 0;
+  position: relative;
+  box-shadow: 0 0 8px var(--color-selection-glow);
+}
+.sp2c-insert-indicator::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: -5px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--ui-accent-primary);
+}
+.sp2c-section-target {
+  outline: 2px dashed var(--ui-accent-primary) !important;
+  outline-offset: -4px;
+}

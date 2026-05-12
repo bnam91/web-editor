@@ -73,4 +73,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 종료 전 강제 저장
   onForceSaveBeforeQuit: (cb) => ipcRenderer.on('force-save-before-quit', () => cb()),
   quitReady: () => ipcRenderer.send('quit-ready'),
+
+  // Clipboard (Electron 메인 프로세스 경유 — navigator.clipboard 권한 거부 우회)
+  clipboardWriteText: (text) => ipcRenderer.invoke('clipboard:writeText', text),
 });

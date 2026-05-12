@@ -636,13 +636,14 @@ function addAssetBlock(preset, opts = {}) {
     row.dataset.paddingX   = opts.paddingX;
   };
   // DOM 삽입 후 padXExcludesAsset 적용 (closest가 올바르게 동작하도록 삽입 후 호출)
+  // (가) 설계: dataset.usePadx는 박지 않음 — 미설정 ab는 글로벌 디폴트 자동 추종.
+  // 글로벌 ON일 때만 시각적 margin/width 즉시 적용 (다음 applyPadXToSection 호출에서 재확인됨).
   const applyExcludePadX = (block) => {
     if (!window.state?.pageSettings?.padXExcludesAsset) return;
     // freeLayout 프레임 내부 asset은 절대좌표 + 명시 width로 동작 — padX 확장 적용하지 않음
     if (block.closest('.frame-block[data-free-layout="true"]')) return;
     // preset 고정 width(small, logo 등)는 그 자체로 정해진 사이즈를 유지해야 함 — padX 확장 미적용
     if (ASSET_PRESETS[preset]?.width) return;
-    block.dataset.usePadx = 'true';
     const inner = block.closest('.section-inner');
     const hasOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;
     const px = inner ? (hasOverride ? parseInt(inner.dataset.paddingX) : window.state.pageSettings.padX) : window.state.pageSettings.padX;
@@ -924,13 +925,13 @@ function addSection(opts = {}) {
         inner.style.paddingRight = pagePadX + 'px';
       }
     }
-    // padXExcludesAsset 플래그가 켜져 있으면 신규 섹션의 asset-block에도 즉시 적용
+    // padXExcludesAsset 플래그가 켜져 있으면 신규 섹션의 asset-block에도 시각적으로 즉시 적용
+    // (가) 설계: dataset.usePadx 박지 않음 — 글로벌 디폴트 추종.
     if (window.state?.pageSettings?.padXExcludesAsset) {
       const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
       const px = hasOverride ? parseInt(inner.dataset.paddingX) : (window.state.pageSettings.padX || 0);
       if (px > 0) {
         inner.querySelectorAll('.asset-block').forEach(ab => {
-          ab.dataset.usePadx = 'true';
           ab.style.marginLeft  = -px + 'px';
           ab.style.marginRight = -px + 'px';
           ab.style.width = `calc(100% + ${px * 2}px)`;

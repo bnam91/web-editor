@@ -304,7 +304,10 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     if (el.classList.contains('asset-block')) {
       const sizePct   = parseInt(el.dataset.size) || 100;
-      const usePadx   = el.dataset.usePadx !== 'false'; // 미설정 시 기본 ON (패딩 제외)
+      // (가) 설계: effective usePadx — dataset 명시값 우선, 미설정이면 글로벌 디폴트
+      const usePadx   = typeof window.getEffectiveUsePadx === 'function'
+        ? window.getEffectiveUsePadx(el)
+        : (el.dataset.usePadx === 'true' ? true : (el.dataset.usePadx === 'false' ? false : true));
       const padX      = usePadx ? 0 : (ps?.padX || 0); // 패딩 제외 ON → full width (padX=0)
       const overlayOn = el.dataset.overlay === 'true';
       const ovEl      = el.querySelector('.asset-overlay');

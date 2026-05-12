@@ -22,7 +22,15 @@ _loadEnvFile(path.join(__dirname, '.env'));
 _loadEnvFile('/Users/a1/github_cloud/module_api_key/.env');
 const { spawn } = require('child_process');
 const { getPublicIp, findUserByIp, registerLicense, removeIp, updateIpAlias, updateUserName, createLicenseKey, listLicenseKeys } = require('./services/licenseService');
-const { fillSectionTexts: aiFillSectionTexts } = require('./services/geminiService');
+const { fillSectionTexts: geminiFill } = require('./services/geminiService');
+const { fillSectionTexts: openaiFill } = require('./services/openaiService');
+const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
+function aiFillSectionTexts(payload) {
+  const model = String(payload?.model || '').toLowerCase();
+  if (model.startsWith('gpt-')) return openaiFill(payload);
+  if (model.startsWith('claude-')) return anthropicFill(payload);
+  return geminiFill(payload);
+}
 
 let mainWindow;
 
@@ -103,6 +111,16 @@ function createWindow() {
 
   // AI 섹션 텍스트 채우기 (Gemini)
   ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
+
+  // Clipboard write — 렌더러의 navigator.clipboard 권한 거부 우회용 IPC 브리지
+  ipcMain.handle('clipboard:writeText', (_e, text) => {
+    try {
+      require('electron').clipboard.writeText(String(text || ''));
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
 
   // HTML <title>이 덮어씌우지 않도록 로드 완료 후 타이틀 강제 설정
   mainWindow.webContents.on('did-finish-load', () => {
@@ -427,16 +445,48 @@ async function checkPort3055() {
 
 ipcMain.handle('figma-bridge-status', async () => checkPort3055());
 
+function resolveBunPath() {
+  const isWin = process.platform === 'win32';
+  const exe = isWin ? 'bun.exe' : 'bun';
+  const candidates = isWin
+    ? [
+        path.join(os.homedir(), '.bun', 'bin', exe),
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'bun', exe),
+      ]
+    : [
+        path.join(os.homedir(), '.bun', 'bin', exe),
+        '/opt/homebrew/bin/bun',
+        '/usr/local/bin/bun',
+      ];
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return exe;
+}
+
 ipcMain.handle('figma-bridge-start', async () => {
   if (figmaBridgeProc) return { ok: true, msg: '이미 실행 중' };
-  const bunPath = os.homedir() + '/.bun/bin/bun';
-  figmaBridgeProc = spawn(bunPath, ['figma-plugin/socket.js'], {
-    cwd: path.join(__dirname),
-    detached: false,
-    stdio: 'ignore'
+  const bunPath = resolveBunPath();
+  const installHint = 'Bun 런타임이 필요합니다. docs/BUN_SETUP.md 가이드를 참고해 설치해주세요.';
+  try {
+    figmaBridgeProc = spawn(bunPath, ['figma-plugin/socket.js'], {
+      cwd: __dirname,
+      detached: false,
+      stdio: 'ignore',
+      shell: process.platform === 'win32',
+    });
+  } catch (err) {
+    return { ok: false, msg: `${installHint}\n(${err.message})`, needsBun: true };
+  }
+  let spawnFailed = false;
+  figmaBridgeProc.on('error', (err) => {
+    console.error('[figma-bridge] spawn error:', err.message);
+    spawnFailed = true;
+    figmaBridgeProc = null;
   });
   figmaBridgeProc.on('exit', () => { figmaBridgeProc = null; });
   await new Promise(r => setTimeout(r, 1500));
+  if (spawnFailed) return { ok: false, msg: installHint, needsBun: true };
   return { ok: true };
 });
 

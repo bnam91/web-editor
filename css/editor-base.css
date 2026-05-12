@@ -621,6 +621,8 @@ body {
 .tb-btn--icon:hover { color: #fff; }
 .tb-btn--icon.has-commit { color: var(--ui-text-sub); }
 .tb-btn--icon:not(.has-commit) { opacity: 0.35; pointer-events: none; }
+/* MVP: commit / reference 버튼 임시 숨김 - 재활성화 시 이 룰 제거 */
+.tb-hidden-mvp { display: none !important; }
 /* Commit 버튼: 저장 상태 관련 중요 액션 — accent 힌트 */
 #topbar button[onclick="saveProject()"] {
   color: var(--ui-accent);
