@@ -13,6 +13,7 @@ let _currentProjectId = null;
 let _currentPageId = null;
 let _scratchItems = [];   // { el, src, x, y, w }
 let _selectedItems = new Set();  // 다중 선택 집합
+let _sliceMode = null;    // 슬라이스 모드 활성 item (또는 null)
 
 function _openDB() {
   if (_db) return Promise.resolve(_db);
@@ -118,6 +119,7 @@ function _genScratchId() {
 }
 
 function _removeItem(item) {
+  if (_sliceMode) _exitSliceMode();
   // 다중 선택 중이고 item이 선택에 포함된 경우 → 선택 전체 삭제
   if (_selectedItems.size > 0 && _selectedItems.has(item)) {
     const toRemove = [..._selectedItems];
@@ -138,6 +140,164 @@ function _getScale() {
   if (!scalerEl) return 1;
   const m = scalerEl.style.transform?.match(/scale\(([^)]+)\)/);
   return m ? parseFloat(m[1]) : 1;
+}
+
+// dataURL → 이미지 자연 크기
+function _loadImg(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload  = () => resolve(img);
+    img.onerror = () => reject(new Error('이미지 로드 실패'));
+    img.src = src;
+  });
+}
+
+// 단일 컷 슬라이스: ratio(0~1) 위치에서 가로로 잘라 위/아래 dataURL 두 개 반환
+async function _sliceImageHorizontal(src, ratio) {
+  const img = await _loadImg(src);
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const cutY = Math.max(1, Math.min(H - 1, Math.round(H * ratio)));
+  const mk = (sy, sh) => {
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = sh;
+    cv.getContext('2d').drawImage(img, 0, sy, W, sh, 0, 0, W, sh);
+    return cv.toDataURL('image/png');
+  };
+  return {
+    top:    mk(0, cutY),
+    bottom: mk(cutY, H - cutY),
+    cutY,
+    naturalH: H,
+  };
+}
+
+// 슬라이스 실행 — item을 두 조각으로 대체. history push 포함.
+async function _sliceItem(item, ratio) {
+  if (!item || ratio <= 0 || ratio >= 1) return;
+  if (_sliceMode === item) _exitSliceMode();
+  let result;
+  try { result = await _sliceImageHorizontal(item.src, ratio); }
+  catch (err) { window.showToast?.('❌ 슬라이스 실패: ' + err.message); return; }
+
+  // 원본 표시 크기 계산 — display height = w * (natH / natW)
+  const imgEl = item.el.querySelector('img');
+  const natW  = imgEl?.naturalWidth || 1;
+  const natH  = imgEl?.naturalHeight || 1;
+  const dispH = item.w * (natH / natW);
+  const topDispH = dispH * (result.cutY / result.naturalH);
+  const GAP = 6; // 분리 간격 (px, 캔버스 좌표계)
+
+  const restoreInfo = { src: item.src, x: item.x, y: item.y, w: item.w, id: item.id };
+
+  // 원본 제거
+  item.el.remove();
+  _scratchItems = _scratchItems.filter(s => s !== item);
+  _selectedItems.delete(item);
+
+  // 두 조각 생성 (같은 위치 + GAP만큼 떨어뜨려)
+  const topItem    = _createItem(result.top,    item.x, item.y, item.w);
+  const bottomItem = _createItem(result.bottom, item.x, item.y + topDispH + GAP, item.w);
+  await _saveScratch();
+
+  // history push
+  try {
+    let newTopId = topItem?.id || null;
+    let newBotId = bottomItem?.id || null;
+    let restoredId = null;
+    window.pushHistory?.('스크래치 슬라이스', {
+      onUndo: async () => {
+        // 두 조각 제거 + 원본 복원
+        if (newTopId) { try { await window._scratchRemoveById?.(newTopId); } catch (_) {} }
+        if (newBotId) { try { await window._scratchRemoveById?.(newBotId); } catch (_) {} }
+        try { await window._scratchAddAndSave?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w); } catch (_) {}
+        const last = document.querySelectorAll('.scratch-item');
+        const chip = last[last.length - 1]?.querySelector('.scratch-id-chip')?.textContent?.trim();
+        if (chip) restoredId = chip.replace(/^#/, '');
+      },
+      onRedo: async () => {
+        // 복원된 원본 제거 + 두 조각 재생성
+        if (restoredId) { try { await window._scratchRemoveById?.(restoredId); } catch (_) {} restoredId = null; }
+        try { await window._scratchAddAndSave?.(result.top,    item.x, item.y, item.w); } catch (_) {}
+        try { await window._scratchAddAndSave?.(result.bottom, item.x, item.y + topDispH + GAP, item.w); } catch (_) {}
+        const all = document.querySelectorAll('.scratch-item');
+        newBotId = all[all.length - 1]?.querySelector('.scratch-id-chip')?.textContent?.trim()?.replace(/^#/, '') || null;
+        newTopId = all[all.length - 2]?.querySelector('.scratch-id-chip')?.textContent?.trim()?.replace(/^#/, '') || null;
+      },
+    });
+  } catch (_) {}
+
+  window.showToast?.('✂️ 슬라이스 완료');
+}
+
+// 슬라이스 모드 진입 — 마우스로 가로 절단선 위치 미리보기 + 클릭 시 확정
+function _enterSliceMode(item) {
+  if (_sliceMode) _exitSliceMode();
+
+  // 단독 선택 강제
+  _clearSelection();
+  _selectItem(item, false);
+
+  _sliceMode = item;
+  item.el.classList.add('scratch-slice-mode');
+
+  // 절단선 DOM 생성
+  const line = document.createElement('div');
+  line.className = 'scratch-slice-line';
+  item.el.appendChild(line);
+  item._sliceLineEl = line;
+  item._sliceRatio = 0.5; // 기본값
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  const onMove = mv => {
+    const rect = item.el.getBoundingClientRect();
+    const y = mv.clientY - rect.top;
+    const ratio = clamp(y / rect.height, 0.02, 0.98);
+    line.style.top = (ratio * 100) + '%';
+    item._sliceRatio = ratio;
+  };
+
+  const onClickConfirm = e => {
+    e.stopPropagation();
+    const r = item._sliceRatio || 0.5;
+    _exitSliceMode();
+    _sliceItem(item, r);
+  };
+
+  const onKeyEsc = e => {
+    if (e.key === 'Escape') _exitSliceMode();
+  };
+
+  const onOutsideMousedown = e => {
+    const target = e.target.closest('.scratch-item');
+    if (!target || target !== item.el) _exitSliceMode();
+  };
+
+  item._sliceHandlers = { onMove, onClickConfirm, onKeyEsc, onOutsideMousedown };
+
+  item.el.addEventListener('mousemove', onMove);
+  item.el.addEventListener('click', onClickConfirm, true);
+  document.addEventListener('keydown', onKeyEsc);
+  // outside mousedown — 다음 tick 등록 (현재 진행 중인 click 이벤트와 충돌 방지)
+  setTimeout(() => document.addEventListener('mousedown', onOutsideMousedown, true), 0);
+}
+
+function _exitSliceMode() {
+  if (!_sliceMode) return;
+  const item = _sliceMode;
+  item.el.classList.remove('scratch-slice-mode');
+  item._sliceLineEl?.remove();
+  item._sliceLineEl = null;
+
+  const h = item._sliceHandlers;
+  if (h) {
+    item.el.removeEventListener('mousemove', h.onMove);
+    item.el.removeEventListener('click', h.onClickConfirm, true);
+    document.removeEventListener('keydown', h.onKeyEsc);
+    document.removeEventListener('mousedown', h.onOutsideMousedown, true);
+  }
+  item._sliceHandlers = null;
+  _sliceMode = null;
 }
 
 // dataURL → PNG Blob (Chromium 클립보드는 image/png만 허용하므로 canvas 거쳐 변환)
@@ -181,6 +341,23 @@ function _createItem(src, x, y, w = 220, idArg) {
   });
   el.appendChild(closeBtn);
 
+  // ✂ 슬라이스 버튼 — 클릭하면 슬라이스 모드 진입
+  const sliceBtn = document.createElement('button');
+  sliceBtn.className = 'scratch-slice-btn';
+  sliceBtn.type = 'button';
+  sliceBtn.innerHTML = '✂';
+  sliceBtn.title = '슬라이스 (가로 1컷)';
+  sliceBtn.addEventListener('mousedown', e => e.stopPropagation());
+  sliceBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (_selectedItems.size > 1) {
+      _clearSelection();
+      _selectItem(item, false);
+    }
+    _enterSliceMode(item);
+  });
+  el.appendChild(sliceBtn);
+
   // ID 칩 — 선택됐을 때만 보임. 클릭하면 #sp_xxx 클립보드 복사
   const idChip = document.createElement('button');
   idChip.type = 'button';
@@ -211,6 +388,7 @@ function _createItem(src, x, y, w = 220, idArg) {
   const resizeH = document.createElement('div');
   resizeH.className = 'scratch-resize';
   resizeH.addEventListener('mousedown', e => {
+    if (_sliceMode) { e.stopPropagation(); return; }
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     const scale  = _getScale();
@@ -233,7 +411,8 @@ function _createItem(src, x, y, w = 220, idArg) {
 
   el.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    if (e.target === closeBtn || e.target === resizeH || e.target === idChip) return;
+    if (e.target === closeBtn || e.target === resizeH || e.target === idChip || e.target === sliceBtn) return;
+    if (_sliceMode === item) { e.preventDefault(); e.stopPropagation(); return; }
 
     e.preventDefault(); e.stopPropagation();
 
@@ -416,6 +595,7 @@ async function initScratchPad(projectId, pageId) {
   // Delete / Backspace 키 → 선택 아이템 일괄 삭제 (contenteditable 포커스 중 제외)
   document.addEventListener('keydown', e => {
     if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+    if (_sliceMode) { _exitSliceMode(); return; }
     if (_selectedItems.size === 0) return;
     const active = document.activeElement;
     if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;

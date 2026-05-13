@@ -100,6 +100,51 @@
 }
 .scratch-item:hover .scratch-close { opacity: 1; }
 .scratch-close:hover { background: #e74c3c; border-color: #e74c3c; }
+
+/* ── 슬라이스 버튼 + 모드 ── */
+.scratch-slice-btn {
+  position: absolute;
+  top: 0; right: 22px;
+  transform: translate(50%, -50%) scale(var(--inv-zoom, 1));
+  transform-origin: center center;
+  width: 18px; height: 18px;
+  background: rgba(28,28,28,0.88);
+  color: #fff;
+  border: 1.5px solid rgba(255,255,255,0.18);
+  border-radius: 50%;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+  line-height: 1;
+  padding: 0;
+}
+.scratch-item:hover .scratch-slice-btn { opacity: 1; }
+.scratch-slice-btn:hover { background: #2d6fe8; border-color: #2d6fe8; }
+
+.scratch-item.scratch-slice-mode { cursor: crosshair; }
+.scratch-item.scratch-slice-mode .scratch-close,
+.scratch-item.scratch-slice-mode .scratch-slice-btn,
+.scratch-item.scratch-slice-mode .scratch-resize,
+.scratch-item.scratch-slice-mode .scratch-id-chip {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.scratch-item.scratch-slice-mode img { cursor: crosshair; }
+
+.scratch-slice-line {
+  position: absolute;
+  left: 0; right: 0;
+  top: 0;
+  height: 0;
+  border-top: 1px dashed rgba(231, 76, 60, 0.95);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+  pointer-events: none;
+  z-index: 11;
+}
+
 .scratch-resize {
   position: absolute;
   bottom: 0; right: 0;
