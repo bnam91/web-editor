@@ -1658,13 +1658,13 @@ window.addSpeechBubbleBlock  = addSpeechBubbleBlock;
 function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor) {
   const _tc = titleColor || '#ffffff';
   const _dc = descColor  || '#ffffff';
-  if (card.title) {
+  if (card.title && card.title.trim() !== '') {
     const el = document.createElement('div');
     el.style.cssText = `font-size:${titleSize}px;font-weight:600;color:${_tc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
     el.textContent = card.title;
     container.appendChild(el);
   }
-  if (card.desc) {
+  if (card.desc && card.desc.trim() !== '') {
     const el = document.createElement('div');
     el.style.cssText = `font-size:${descSize}px;font-weight:400;color:${_dc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
     el.textContent = card.desc;
@@ -1841,6 +1841,9 @@ function renderCanvas(block) {
         const cellX  = c * (designW + GAP);
         const cellY  = r * (designH + GAP);
         const cardBg = card.cellBg || textBg;
+        // desc 비었으면 title 세로 중앙 정렬 (공백만 있어도 비었다고 판단)
+        const descEmpty = !card.desc || card.desc.trim() === '';
+        const justifyMode = descEmpty ? 'center' : 'flex-start';
 
         const cell = document.createElement('div');
         const borderW = card.borderWidth > 0 ? parseInt(card.borderWidth) : 0;
@@ -1870,7 +1873,7 @@ function renderCanvas(block) {
 
           if (!textHide) {
             const textDiv = document.createElement('div');
-            textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:flex-start;gap:6px;`;
+            textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:6px;`;
             _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
             cell.appendChild(textDiv);
           }
@@ -1899,7 +1902,7 @@ function renderCanvas(block) {
 
           if (!textHide) {
             const textDiv = document.createElement('div');
-            textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:flex-start;gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
+            textDiv.style.cssText = `width:100%;height:${textH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;border-radius:0 0 ${radius}px ${radius}px;`;
             _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
             cell.appendChild(textDiv);
           }
