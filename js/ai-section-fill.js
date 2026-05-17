@@ -803,18 +803,21 @@ window.applyAIReplacements     = applyAIReplacements;
 
 /* ── 마이그레이션: 기존 저장 프로젝트의 toolbar에 ✨ 버튼 주입 ──
    block-factory.js 변경 이전에 저장된 섹션 HTML에는 ✨ 버튼이 없으므로
-   load 후 toolbar를 스캔해서 첫 번째 자식으로 삽입한다. */
+   load 후 toolbar를 스캔해서 마지막 자식으로 추가한다 (시각 우측 끝). */
 function _ensureAIFillButton(sec) {
   if (!sec) return;
   const tb = sec.querySelector(':scope > .section-toolbar');
   if (!tb) return;
-  if (tb.querySelector('.st-ai-fill-btn')) return;
-  const btn = document.createElement('button');
-  btn.className = 'st-btn st-ai-fill-btn';
-  btn.title = 'AI로 섹션 텍스트 채우기';
-  btn.textContent = '✨';
-  btn.setAttribute('onclick', 'openAIFillUI(this)');
-  tb.insertBefore(btn, tb.firstChild);
+  let btn = tb.querySelector('.st-ai-fill-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.className = 'st-btn st-ai-fill-btn';
+    btn.title = 'AI로 섹션 텍스트 채우기';
+    btn.textContent = '✨';
+    btn.setAttribute('onclick', 'openAIFillUI(this)');
+  }
+  // 기존 위치에 있든 새로 만들든 항상 마지막으로 이동 → 시각상 우측 끝
+  tb.appendChild(btn);
 }
 function _hydrateAllSectionsForAIBtn() {
   document.querySelectorAll('.section-block').forEach(_ensureAIFillButton);

@@ -81,6 +81,8 @@ function applyZoom(z) {
 }
 
 function _applyScalerTransform() {
+  // panY 음수 금지 — 페이지 메타포(상페 스크롤) 강제. 위 navigation은 native scroll 담당
+  if (panOffsetY < 0) panOffsetY = 0;
   scaler.style.transform = `translate(${panOffsetX}px, ${panOffsetY}px) scale(${currentZoom / 100})`;
 }
 
@@ -935,7 +937,7 @@ document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     if (e.code === 'KeyG') { e.preventDefault(); window.addGapBlock?.(); return; }
     if (e.code === 'KeyT') { e.preventDefault(); window.addTextBlock?.('body'); return; }
-    if (e.code === 'KeyA') { e.preventDefault(); window.addAssetBlock?.(); return; }
+    if (e.code === 'KeyA') { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
 
     // Enter → 선택된 텍스트 블록 편집 모드 진입
     if (e.code === 'Enter') {

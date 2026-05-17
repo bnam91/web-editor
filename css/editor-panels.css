@@ -55,9 +55,9 @@
   border-right: 1px solid var(--ui-bg-hover);
   display: flex; flex-direction: column; overflow: hidden;
 }
-#panel-right { border-right: none; border-left: 1px solid var(--ui-bg-hover); }
+#panel-right { border-right: none; border-left: 1px solid var(--ui-bg-hover); position: relative; z-index: 9999; }
 
-#panel-left { position: relative; }
+#panel-left { position: relative; z-index: 9999; }
 #panel-left-resize-handle {
   position: absolute; right: -3px; top: 0; bottom: 0; width: 6px;
   cursor: col-resize; z-index: 100;

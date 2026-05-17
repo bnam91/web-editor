@@ -256,7 +256,7 @@ function _renderAutoPanel(ss) {
     <div class="prop-section">
       <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
+        <span class="prop-label">${bgAlpha === 0 ? '배경색 (투명)' : '배경색'}</span>
         ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha })}
       </div>
     </div>

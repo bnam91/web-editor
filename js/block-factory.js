@@ -883,8 +883,8 @@ function addSection(opts = {}) {
     sec.innerHTML = `
       <div class="section-hitzone"><span class="section-label">${secLabel}</span></div>
       <div class="section-toolbar">
-        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
+        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
       </div>
       <div class="section-inner">
         <div class="gap-block" data-type="gap" style="height:${gapH}px" id="${genId('gb')}"></div>
@@ -895,8 +895,8 @@ function addSection(opts = {}) {
     sec.innerHTML = `
       <div class="section-hitzone"><span class="section-label">${secLabel}</span></div>
       <div class="section-toolbar">
-        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
+        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
       </div>
       <div class="section-inner">
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
@@ -1041,7 +1041,8 @@ function makeFrameBlock(opts = {}) {
 
   if (opts.fullWidth) {
     // fullWidth 모드: 이중 배경 섹션용. 플로우 레이아웃, height: auto
-    const bg = opts.bg || 'transparent';
+    // 기본 흰색 — frame은 section과 시각 구분되어야 함 (Figma 등 기본 패턴)
+    const bg = opts.bg || '#ffffff';
     ss.dataset.bg = bg;
     ss.dataset.fullWidth = 'true';
     let css = `background:${bg};width:100%;box-sizing:border-box;`;
@@ -1052,7 +1053,7 @@ function makeFrameBlock(opts = {}) {
     ss.style.cssText = css;
   } else {
     // freeLayout 모드: 자유배치 프레임 (기본값) — absolute 자식
-    const bg = opts.bg || 'transparent';
+    const bg = opts.bg || '#ffffff';
     ss.dataset.bg = bg;
     ss.dataset.freeLayout = 'true';
     ss.dataset.width = '860';

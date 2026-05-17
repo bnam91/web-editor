@@ -499,7 +499,10 @@ function _hex6(v) {
 }
 
 export function parseAlphaFromColor(cssColor) {
-  const m = (cssColor || '').match(/rgba?\(([^)]+)\)/i);
+  const v = String(cssColor || '').trim().toLowerCase();
+  // 빈값/transparent는 alpha 0으로 인식 (기존엔 100을 반환해 hex만 보고 적용 불가)
+  if (v === 'transparent' || v === '') return 0;
+  const m = v.match(/rgba?\(([^)]+)\)/i);
   if (!m) return 100;
   const parts = m[1].split(',');
   if (parts.length !== 4) return 100;
@@ -531,6 +534,15 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
   if (!picker || !hex || !alpha || !swatch) return null;
 
   let _a = initialAlpha;
+  // alpha=0(투명)인 상태에서 색만 바꾸면 결과가 여전히 투명이라 적용 안 보임.
+  // 사용자가 alpha 슬라이더를 명시적으로 건드리지 않은 경우에만 자동 복귀.
+  let _userTouchedAlpha = false;
+  const _bumpAlphaIfHidden = () => {
+    if (!_userTouchedAlpha && _a === 0) {
+      _a = 100;
+      if (alpha) alpha.value = '100';
+    }
+  };
 
   const build = () => {
     const h = (picker.value || '#000000').replace('#','');
@@ -548,6 +560,7 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
 
   picker.addEventListener('input', () => {
     hex.value = picker.value.replace('#','').toUpperCase();
+    _bumpAlphaIfHidden();
     apply();
   });
   picker.addEventListener('change', () => onCommit?.());
@@ -555,6 +568,7 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
     const v = hex.value.trim().replace(/^#/, '');
     if (/^[0-9a-f]{6}$/i.test(v)) {
       picker.value = '#' + v.toLowerCase();
+      _bumpAlphaIfHidden();
       apply();
     }
   });
@@ -566,6 +580,7 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
     if (/^[0-9a-f]{6}$/i.test(v)) onCommit?.();
   });
   alpha.addEventListener('input', () => {
+    _userTouchedAlpha = true;
     const m = alpha.value.match(/(\d+)/);
     if (!m) return;
     _a = Math.max(0, Math.min(100, parseInt(m[1])));
