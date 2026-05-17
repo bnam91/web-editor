@@ -207,7 +207,8 @@ function _restoreViewState(tab) {
 
 async function switchTab(id) {
   if (id === _getActId()) return;
-  window.switchScratch?.(id); // 스크래치패드 — 현재 저장 후 새 프로젝트 로드
+  // 스크래치패드 전환은 currentPageId 정해진 후(applyProjectData 다음)로 미룸 —
+  // 여기서 호출하면 pageId=undefined로 키 불일치 발생해 데이터 못 찾음
 
   // 현재 탭 메모리 캐시 저장 + 파일 비동기 저장
   const openTabs = _getTabs();
@@ -255,6 +256,8 @@ async function switchTab(id) {
     window.initBranchStore();
     _restoreViewState(targetTab);
     requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
+    // currentPageId 정해진 시점에 스크래치패드 전환 (await로 race 방지)
+    await window.switchScratch?.(id, window.state?.currentPageId);
     return;
   }
 
@@ -280,6 +283,8 @@ async function switchTab(id) {
   }
   window.state._suppressAutoSave = false;
   window.initBranchStore();
+  // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
+  await window.switchScratch?.(id, window.state?.currentPageId);
 }
 
 async function closeTab(id) {

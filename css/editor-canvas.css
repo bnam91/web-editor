@@ -81,9 +81,9 @@
 }
 .scratch-close {
   position: absolute;
-  top: 0; right: 0;
-  transform: translate(50%, -50%) scale(var(--inv-zoom, 1));
-  transform-origin: center center;
+  top: 4px; right: 4px;
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: top right;
   width: 18px;
   height: 18px;
   background: rgba(28,28,28,0.88);
@@ -104,9 +104,10 @@
 /* ── 슬라이스 버튼 + 모드 ── */
 .scratch-slice-btn {
   position: absolute;
-  top: 0; right: 22px;
-  transform: translate(50%, -50%) scale(var(--inv-zoom, 1));
-  transform-origin: center center;
+  top: 4px;
+  right: calc(4px + 22px * var(--inv-zoom, 1)); /* close 너비(18) + 간격(4) 줌 보정 */
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: top right;
   width: 18px; height: 18px;
   background: rgba(28,28,28,0.88);
   color: #fff;
