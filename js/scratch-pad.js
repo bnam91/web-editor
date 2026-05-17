@@ -706,6 +706,57 @@ async function switchScratchPage(newPageId) {
   await _loadScratch(_currentProjectId, newPageId);
 }
 
+// Port 드롭다운 → 폴더 일괄 불러오기 (goditor-images_to_scratchpad 스킬 UI판)
+// 좌표 정책: x=960(캔버스 우측), width=860, 기존 스크래치 가장 아래에 append (+100px 간격)
+async function loadScratchpadFolder(event) {
+  const files = [...(event.target.files || [])];
+  event.target.value = ''; // 같은 폴더 재선택 가능하도록 즉시 리셋
+  if (!files.length) return;
+
+  const images = files
+    .filter(f => /^image\//.test(f.type) || /\.(png|jpg|jpeg|gif|webp)$/i.test(f.name))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  if (!images.length) { window.showToast?.('⚠️ 이미지 파일을 찾지 못했습니다'); return; }
+
+  const START_X = 960, WIDTH = 860, GAP_Y = 100;
+  let startY = 0;
+  if (_scratchItems.length > 0) {
+    let maxBottom = 0;
+    for (const s of _scratchItems) {
+      const h = s.el?.offsetHeight || s.w;
+      const bottom = (s.y || 0) + h;
+      if (bottom > maxBottom) maxBottom = bottom;
+    }
+    startY = maxBottom + GAP_Y;
+  }
+
+  let curY = startY, added = 0;
+  window.showToast?.(`📥 ${images.length}개 불러오는 중...`);
+
+  for (const file of images) {
+    const dataUrl = await new Promise(res => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result);
+      r.onerror = () => res(null);
+      r.readAsDataURL(file);
+    });
+    if (!dataUrl) continue;
+    const nat = await new Promise(res => {
+      const img = new Image();
+      img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => res({ w: WIDTH, h: WIDTH });
+      img.src = dataUrl;
+    });
+    const displayH = nat.w > 0 ? Math.round((nat.h / nat.w) * WIDTH) : WIDTH;
+    await window._scratchAddAndSave(dataUrl, START_X, curY, WIDTH);
+    curY += displayH + GAP_Y;
+    added++;
+  }
+
+  window.showToast?.(`✅ 스크래치 ${added}개 추가 완료`);
+}
+
+window.loadScratchpadFolder = loadScratchpadFolder;
 window.initScratchPad    = initScratchPad;
 window.switchScratch     = switchScratch;
 window.switchScratchPage = switchScratchPage;

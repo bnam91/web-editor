@@ -118,6 +118,11 @@
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 11V4M3 7l3-3 3 3"/><path d="M2 2h8"/></svg>
         Figma 가져오기<input type="file" id="figma-import-file-input" accept=".json" style="display:none" onchange="openFigmaImportPreview(event)">
       </label>
+      <div class="pub-dd-divider"></div>
+      <label class="pub-dd-item" onclick="closePublishDropdown()" style="cursor:pointer;" title="이미지 폴더를 스크래치패드에 일괄 추가">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3h3l1 1h6v6H1V3z"/><path d="M3.5 7l1.5 1.5L8 6"/></svg>
+        참고 이미지 일괄 추가<input type="file" id="scratchpad-folder-input" webkitdirectory multiple style="display:none" onchange="window.loadScratchpadFolder(event)">
+      </label>
     </div>
   </div>
 </div>
