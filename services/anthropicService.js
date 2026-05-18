@@ -226,8 +226,8 @@ const TOOL_SCHEMA = {
 };
 
 async function fillSectionTexts(payload) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { ok: false, error: 'ANTHROPIC_API_KEY 가 환경변수에 없습니다.' };
+  const apiKey = (payload && payload.apiKey) || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ok: false, error: 'Anthropic API 키가 없습니다. 환경설정에서 등록하거나 ANTHROPIC_API_KEY 환경변수를 설정하세요.' };
 
   const blocks = Array.isArray(payload?.blocks) ? payload.blocks : [];
   if (blocks.length === 0) return { ok: false, error: '대상 텍스트 블록이 없습니다.' };

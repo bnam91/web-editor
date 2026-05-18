@@ -1612,6 +1612,36 @@ textarea.cvb-card-input {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
 }
+
+/* ── Laurel Block ──────────────────────────────────────────────────────────── */
+.laurel-block {
+  position: relative;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 0;
+}
+.laurel-block .laurel-leaf { display: block; }
+.laurel-block .laurel-text { display: inline-block; }
+/* 그리드 셀이 컨테이너 너비 안에서 자동 축소되게 (minmax(0, 1fr)와 함께)
+   + 셀 안 inner를 row height의 수직 중앙에 배치 → 같은 row의 다른 셀과 수평선 일치 */
+.laurel-block .laurel-cell {
+  min-width: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.laurel-block .laurel-inner { min-width: 0; max-width: 100%; }
+.laurel-block .laurel-text-stack { min-width: 0; flex-shrink: 1; }
+.laurel-block .laurel-text-line { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.laurel-block:hover {
+  outline: 1px dashed var(--sel-color);
+  outline-offset: -1px;
+}
+.laurel-block.selected {
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
+}
 .chb-msg {
   display: flex;
   width: 100%;
@@ -1814,3 +1844,96 @@ textarea.cvb-card-input {
   outline: 2px dashed var(--ui-accent-primary) !important;
   outline-offset: -4px;
 }
+
+/* ═══════════════════════════════════
+   ANNOTATION BLOCK (펜툴 Phase 1)
+═══════════════════════════════════ */
+body.pen-mode,
+body.pen-mode #canvas-wrap,
+body.pen-mode #canvas-scaler,
+body.pen-mode .section-block,
+body.pen-mode .section-block * { cursor: crosshair !important; }
+body.pen-mode .annot-label[contenteditable="true"] { cursor: text !important; }
+
+#fp-pen-btn.active {
+  background: var(--ui-accent-primary);
+  border-color: var(--ui-accent-primary);
+  color: #fff;
+}
+
+.annotation-block {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 50;
+}
+.annot-svg {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%; height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.annot-label {
+  position: absolute;
+  /* 끝점이 라벨의 좌측 모서리 중앙에 붙음 — callout 자연스러운 위치 */
+  transform: translate(0, -50%);
+  padding: 4px 8px;
+  background: #fff;
+  border: 1px solid #1a1a1a;
+  border-radius: 4px;
+  color: #1a1a1a;
+  font-size: 16px;
+  font-family: 'Pretendard', sans-serif;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: text;
+  user-select: none;
+}
+.annot-label[contenteditable="true"] {
+  user-select: text;
+  outline: 1px solid #1592fe;
+  outline-offset: 1px;
+}
+
+/* 펜툴 OFF 상태에서만 드래그 가능 표시 */
+body:not(.pen-mode) .annot-label { cursor: move; }
+body:not(.pen-mode) .annot-label:hover {
+  outline: 1px dashed #1592fe;
+  outline-offset: 1px;
+}
+body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
+
+/* 선택 상태 */
+.annotation-block.selected .annot-label {
+  outline: 1.5px solid #1592fe;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px rgba(21, 146, 254, 0.15);
+}
+.annotation-block.selected .annot-line {
+  stroke-width: 2.5;
+}
+
+/* 핸들 (각 점 드래그) */
+.annot-handle {
+  cursor: move;
+  pointer-events: auto;
+  transition: r 0.1s ease;
+}
+.annot-handle:hover { r: 6; }
+
+.annot-anchor-preview {
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #e74c3c;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 51;
+}
+
+/* ── 우측 패널: 어노테이션 속성 ──
+   디자인 시스템 공용 컴포넌트(.prop-preset-grid / .prop-align-group / .prop-textarea)로 통합.
+   기존 .annot-preset-* / .annot-shape-* / .annot-label-textarea 는 제거됨. */

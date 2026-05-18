@@ -745,6 +745,10 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   color: var(--ui-text-dim); cursor: pointer; transition: all 0.15s;
 }
 .panel-tab-action:hover { color: var(--ui-text-sub); background: var(--ui-bg-card); }
+.panel-tab-action.active { color: var(--ui-accent-primary); background: var(--ui-bg-card); }
+
+/* Gap 레이어 숨김 토글 (body.hide-gap-layers ON 시 gap 타입 layer-item 숨김) */
+body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !important; }
 
 /* ── Branch Dropdown (floating-panel 내부) ── */
 #branch-dropdown-wrap { position: relative; }

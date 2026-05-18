@@ -25,11 +25,106 @@ const { getPublicIp, findUserByIp, registerLicense, removeIp, updateIpAlias, upd
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
+
+/* ── 사용자별 Preferences (API 토큰 + 단축키) ──
+   USER_DATA_DIR는 app.getPath('userData') 기반이라 app.whenReady 이후에 안전.
+   하지만 라이선스 체크/IPC 등록은 app.whenReady 이전 동기 구간에서도 일어나므로
+   USER_DATA_DIR는 lazy 평가 — getSettingsPath()로 한 번만 계산. */
+let _SETTINGS_PATH_CACHE = null;
+function getSettingsPath() {
+  if (_SETTINGS_PATH_CACHE) return _SETTINGS_PATH_CACHE;
+  _SETTINGS_PATH_CACHE = path.join(app.getPath('userData'), 'settings.json');
+  return _SETTINGS_PATH_CACHE;
+}
+const DEFAULT_SETTINGS = {
+  version: 1,
+  apiKeys: { openai: '', gemini: '', anthropic: '' },
+  shortcuts: {
+    addGap:       'KeyG',
+    addText:      'KeyT',
+    addAsset:     'KeyA',
+    addSection:   'KeyS',
+    pinToggle:    'Backquote',
+    groupBlocks:  'Meta+KeyG',
+    ungroup:      'Meta+Shift+KeyG',
+    wrapInFrame:  'Meta+Alt+KeyG',
+  },
+};
+function readSettings() {
+  try {
+    const p = getSettingsPath();
+    if (!fs.existsSync(p)) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    return {
+      ...DEFAULT_SETTINGS,
+      ...raw,
+      apiKeys:   { ...DEFAULT_SETTINGS.apiKeys,   ...(raw.apiKeys   || {}) },
+      shortcuts: { ...DEFAULT_SETTINGS.shortcuts, ...(raw.shortcuts || {}) },
+    };
+  } catch (_) {
+    return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  }
+}
+function writeSettings(patch) {
+  const cur = readSettings();
+  const next = {
+    ...cur,
+    ...patch,
+    apiKeys:   { ...cur.apiKeys,   ...(patch?.apiKeys   || {}) },
+    shortcuts: { ...cur.shortcuts, ...(patch?.shortcuts || {}) },
+  };
+  fs.writeFileSync(getSettingsPath(), JSON.stringify(next, null, 2), 'utf8');
+  return next;
+}
+function getApiKey(provider) {
+  const s = readSettings();
+  if (s?.apiKeys?.[provider]) return s.apiKeys[provider];
+  if (provider === 'openai')    return process.env.OPENAI_API_KEY_GODITOR || process.env.OPENAI_API_KEY || '';
+  if (provider === 'gemini')    return process.env.GEMINI_API_KEY || '';
+  if (provider === 'anthropic') return process.env.ANTHROPIC_API_KEY || '';
+  return '';
+}
+async function testApiKey(provider, key) {
+  try {
+    if (!key) return { ok: false, error: 'API 키가 비어있습니다.' };
+    if (provider === 'openai') {
+      const r = await fetch('https://api.openai.com/v1/models', { headers: { Authorization: 'Bearer ' + key } });
+      return { ok: r.status === 200, status: r.status, error: r.status === 200 ? null : `OpenAI key invalid (HTTP ${r.status})` };
+    }
+    if (provider === 'gemini') {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key));
+      return { ok: r.status === 200, status: r.status, error: r.status === 200 ? null : `Gemini key invalid (HTTP ${r.status})` };
+    }
+    if (provider === 'anthropic') {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
+      });
+      return { ok: r.status === 200, status: r.status, error: r.status === 200 ? null : `Anthropic key invalid (HTTP ${r.status})` };
+    }
+    return { ok: false, error: 'unknown provider' };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 function aiFillSectionTexts(payload) {
   const model = String(payload?.model || '').toLowerCase();
-  if (model.startsWith('gpt-')) return openaiFill(payload);
-  if (model.startsWith('claude-')) return anthropicFill(payload);
-  return geminiFill(payload);
+  // 사용자별 키 우선 — 비어 있으면 service 내부에서 process.env로 fallback
+  const apiKeyOverride = (() => {
+    if (model.startsWith('gpt-'))    return getApiKey('openai');
+    if (model.startsWith('claude-')) return getApiKey('anthropic');
+    return getApiKey('gemini');
+  })();
+  const enriched = { ...payload, apiKey: apiKeyOverride };
+  if (model.startsWith('gpt-')) return openaiFill(enriched);
+  if (model.startsWith('claude-')) return anthropicFill(enriched);
+  return geminiFill(enriched);
 }
 
 let mainWindow;
@@ -112,10 +207,28 @@ function createWindow() {
   // AI 섹션 텍스트 채우기 (Gemini)
   ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
 
+  // 사용자별 Preferences (settings.json: API 키 + 단축키)
+  ipcMain.handle('settings:get',      () => readSettings());
+  ipcMain.handle('settings:set',      (_e, patch) => writeSettings(patch || {}));
+  ipcMain.handle('settings:test-key', (_e, provider, key) => testApiKey(provider, key));
+
   // Clipboard write — 렌더러의 navigator.clipboard 권한 거부 우회용 IPC 브리지
   ipcMain.handle('clipboard:writeText', (_e, text) => {
     try {
       require('electron').clipboard.writeText(String(text || ''));
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+
+  // Clipboard image write — PNG dataURL을 nativeImage로 변환해 OS 클립보드에 기록
+  ipcMain.handle('clipboard:writeImage', (_e, dataUrl) => {
+    try {
+      const { clipboard, nativeImage } = require('electron');
+      const img = nativeImage.createFromDataURL(String(dataUrl || ''));
+      if (img.isEmpty()) return { ok: false, error: 'empty image' };
+      clipboard.writeImage(img);
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e.message };
@@ -263,27 +376,77 @@ ipcMain.handle('projects:load', (event, id) => {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 });
 
+// 섹션 수 합산 헬퍼 — 모든 페이지의 canvas HTML에서 section-block 카운트
+function _countSections(proj) {
+  if (!proj) return 0;
+  if (proj.version === 2 && Array.isArray(proj.pages)) {
+    return proj.pages.reduce((sum, p) => sum + ((p.canvas || '').match(/section-block/g)?.length || 0), 0);
+  }
+  // v1 호환
+  const c = proj.canvas || proj.snapshot?.canvas || '';
+  return (c.match(/section-block/g)?.length || 0);
+}
+
 ipcMain.handle('projects:save', (event, project) => {
   const filePath = path.join(PROJECTS_DIR, `${project.id}.json`);
 
-  // 기존 파일보다 페이지 수가 줄어들면 저장 거부 (오염된 상태가 덮어쓰는 것 방지)
+  // 백업만 수행 — 페이지/섹션 감소 차단 가드는 제거 (정당한 삭제도 막혔던 부작용)
+  // 데이터 손실 방지는 동기 IPC(#44) + 다중 백업 슬롯이 담당
   if (fs.existsSync(filePath)) {
     try {
-      const existing = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      const existingPages = existing.version === 2 ? (existing.pages?.length || 0) : 1;
-      const newPages = project.version === 2 ? (project.pages?.length || 0) : 1;
-      if (newPages < existingPages) {
-        console.warn(`[projects:save] 페이지 수 감소 감지 (${existingPages} → ${newPages}), 저장 거부: ${project.id}`);
-        return { ok: false, reason: 'page_count_reduced', existing: existingPages, incoming: newPages };
-      }
-      // 롤링 백업: 정상 저장 전 직전 버전 보존
+      // 롤링 백업: 정상 저장 전 직전 버전 보존 (단일 _backup)
       const backupPath = path.join(PROJECTS_DIR, `${project.id}_backup.json`);
       fs.copyFileSync(filePath, backupPath);
+
+      // 다중 백업: 시간 기반 5개 슬롯 (사용자가 며칠 전 상태로 복원 가능)
+      // 슬롯 키: 가장 오래된 슬롯을 덮어쓰는 라운드로빈 방식 (10분 이상 차이날 때만 새 슬롯 생성)
+      try {
+        const histDir = path.join(PROJECTS_DIR, `${project.id}_history`);
+        if (!fs.existsSync(histDir)) fs.mkdirSync(histDir, { recursive: true });
+        const slots = fs.readdirSync(histDir).filter(f => f.endsWith('.json')).sort();
+        const now = Date.now();
+        const lastSlotTs = slots.length > 0
+          ? parseInt(slots[slots.length - 1].replace('.json','')) || 0
+          : 0;
+        // 직전 슬롯과 10분 이상 차이날 때만 새 스냅샷 추가 (저장 폭주 방지)
+        if (now - lastSlotTs > 10 * 60 * 1000) {
+          const newSlot = path.join(histDir, `${now}.json`);
+          fs.copyFileSync(filePath, newSlot);
+          // 5개 초과 시 가장 오래된 슬롯 제거
+          const refreshed = fs.readdirSync(histDir).filter(f => f.endsWith('.json')).sort();
+          while (refreshed.length > 5) {
+            const oldest = refreshed.shift();
+            try { fs.unlinkSync(path.join(histDir, oldest)); } catch {}
+          }
+        }
+      } catch (e) {
+        console.warn('[projects:save] 다중 백업 슬롯 갱신 실패:', e.message);
+      }
     } catch {}
   }
 
   fs.writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf8');
   return { ok: true };
+});
+
+// BUG-44: 새로고침/탭 닫기 시 동기 저장 — beforeunload는 async를 await할 수 없어
+// 1.5초 debounce가 끝나기 전 새로고침 시 이미지·텍스트 변경분이 파일에 누락되던 문제 해결
+// 페이지/섹션 감소 차단 가드는 제거 (정당한 삭제도 막혔던 부작용) — 백업만 유지
+ipcMain.on('projects:save-sync', (event, project) => {
+  try {
+    if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
+    const filePath = path.join(PROJECTS_DIR, `${project.id}.json`);
+    if (fs.existsSync(filePath)) {
+      // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
+      const backupPath = path.join(PROJECTS_DIR, `${project.id}_backup.json`);
+      try { fs.copyFileSync(filePath, backupPath); } catch {}
+    }
+    fs.writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf8');
+    event.returnValue = { ok: true };
+  } catch (e) {
+    console.error('[projects:save-sync] 저장 실패:', e);
+    event.returnValue = { ok: false, reason: 'exception', message: e.message };
+  }
 });
 
 ipcMain.handle('projects:delete', (event, id) => {

@@ -36,6 +36,24 @@ function toggleAllSections() {
   sections.forEach(s => s.classList.toggle('collapsed', anyOpen));
 }
 
+// Gap 레이어 숨김 토글 — localStorage에 상태 저장 + 즉시 적용
+function _applyHideGapLayers(hide) {
+  document.body.classList.toggle('hide-gap-layers', hide);
+  const btn = document.getElementById('layer-hide-gap');
+  if (btn) btn.classList.toggle('active', hide);
+}
+function toggleHideGapLayers() {
+  const cur = localStorage.getItem('goditor_hide_gap_layers') === '1';
+  const next = !cur;
+  localStorage.setItem('goditor_hide_gap_layers', next ? '1' : '0');
+  _applyHideGapLayers(next);
+}
+window.toggleHideGapLayers = toggleHideGapLayers;
+// 페이지 로드 시 저장된 상태 복원
+document.addEventListener('DOMContentLoaded', () => {
+  _applyHideGapLayers(localStorage.getItem('goditor_hide_gap_layers') === '1');
+});
+
 function switchToTab(tabName) {
   document.querySelectorAll('.panel-tab').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === tabName));
@@ -81,8 +99,6 @@ function applyZoom(z) {
 }
 
 function _applyScalerTransform() {
-  // panY 음수 금지 — 페이지 메타포(상페 스크롤) 강제. 위 navigation은 native scroll 담당
-  if (panOffsetY < 0) panOffsetY = 0;
   scaler.style.transform = `translate(${panOffsetX}px, ${panOffsetY}px) scale(${currentZoom / 100})`;
 }
 
@@ -750,6 +766,13 @@ document.addEventListener('keydown', e => {
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
   if (document.activeElement?.isContentEditable && !e.metaKey && !e.ctrlKey) return;
 
+  // ⌘, (Comma) — 환경설정 모달 열기 (시스템 표준)
+  if ((e.metaKey || e.ctrlKey) && e.code === 'Comma' && !e.shiftKey && !e.altKey) {
+    e.preventDefault();
+    if (typeof window.openSettingsModal === 'function') window.openSettingsModal();
+    return;
+  }
+
   if (e.metaKey || e.ctrlKey) {
     if (e.key === '=' || e.key === '+') {
       e.preventDefault();
@@ -813,21 +836,33 @@ document.addEventListener('keydown', e => {
       moveSelectedBlocks('down');
       return;
     }
-    if (e.code === 'KeyG' && e.metaKey && !e.shiftKey && (e.altKey || window._optionKeyHeld || e.key === '©')) {
+    // wrapInFrame (기본: ⌘⌥G, IME 처리로 e.key === '©' 도 매칭)
+    const _isWrapFrame = window._matchShortcut
+      ? window._matchShortcut(e, 'wrapInFrame')
+      : (e.code === 'KeyG' && e.metaKey && !e.shiftKey && e.altKey);
+    if (_isWrapFrame || (e.code === 'KeyG' && e.metaKey && !e.shiftKey && (e.altKey || window._optionKeyHeld || e.key === '©'))) {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
       window.wrapSelectedBlocksInFrame?.();
       return;
     }
-    if (e.code === 'KeyG' && e.metaKey && !e.shiftKey && !e.altKey && !window._optionKeyHeld && e.key !== '©') {
+    // groupBlocks (기본: ⌘G)
+    const _isGroup = window._matchShortcut
+      ? window._matchShortcut(e, 'groupBlocks')
+      : (e.code === 'KeyG' && e.metaKey && !e.shiftKey && !e.altKey);
+    if (_isGroup && !window._optionKeyHeld && e.key !== '©') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
       window.groupSelectedBlocks?.();
       return;
     }
-    if (e.code === 'KeyG' && e.metaKey && e.shiftKey) {
+    // ungroup (기본: ⌘⇧G)
+    const _isUngroup = window._matchShortcut
+      ? window._matchShortcut(e, 'ungroup')
+      : (e.code === 'KeyG' && e.metaKey && e.shiftKey);
+    if (_isUngroup) {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
@@ -851,16 +886,22 @@ document.addEventListener('keydown', e => {
       return;
     }
   }
-  // `: 핀 추가 모드 토글 (왼손 단독 조작)
-  if (e.code === 'Backquote' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+  // pinToggle (기본: `)
+  const _isPinToggle = window._matchShortcut
+    ? window._matchShortcut(e, 'pinToggle')
+    : (e.code === 'Backquote' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey);
+  if (_isPinToggle) {
     if (document.activeElement?.isContentEditable) return;
     e.preventDefault();
     window.togglePinMode?.();
     return;
   }
 
-  // S: 섹션 추가
-  if (e.code === 'KeyS' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+  // addSection (기본: S)
+  const _isAddSection = window._matchShortcut
+    ? window._matchShortcut(e, 'addSection')
+    : (e.code === 'KeyS' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey);
+  if (_isAddSection) {
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
     e.preventDefault();
@@ -932,12 +973,53 @@ document.addEventListener('keydown', e => {
     deselectAll();
   }
 
-  // 블록 추가 단축키: G=Gap, T=Text, A=Asset (IME 안전: e.code 사용)
+  // Cmd/Ctrl + [ / ] : free 모드 frame 안의 selected 블록 z-order 변경
+  // Shift 조합 시 맨 앞/뒤로. stack(flow) 모드는 영향 X (free 자식만).
+  if ((e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']')) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    const sel = document.querySelector(
+      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+      '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
+      '.icon-text-block.selected, .canvas-block.selected, .mockup-block.selected, ' +
+      '.icon-block.selected, .vector-block.selected, .step-block.selected, .shape-block.selected'
+    );
+    if (!sel) return;
+    // selected의 z-order 단위 = free frame의 직속 자식까지 거슬러 올라간 wrapper
+    const freeFrame = sel.closest('.frame-block[data-free-layout]');
+    if (!freeFrame) return;
+    let wrapper = sel.closest('.row') || sel;
+    while (wrapper && wrapper.parentElement !== freeFrame) wrapper = wrapper.parentElement;
+    if (!wrapper) return;
+
+    e.preventDefault();
+    window.pushHistory?.('레이어 순서');
+    const forward = e.key === ']';
+    const toEnd = e.shiftKey;
+    if (forward && toEnd) {
+      freeFrame.appendChild(wrapper);                      // 맨 위로
+    } else if (!forward && toEnd) {
+      freeFrame.insertBefore(wrapper, freeFrame.firstChild); // 맨 아래로
+    } else if (forward && wrapper.nextElementSibling) {
+      freeFrame.insertBefore(wrapper.nextElementSibling, wrapper); // 한 단계 위
+    } else if (!forward && wrapper.previousElementSibling) {
+      freeFrame.insertBefore(wrapper, wrapper.previousElementSibling); // 한 단계 아래
+    }
+    window.scheduleAutoSave?.();
+    window.buildLayerPanel?.();
+    return;
+  }
+
+  // 블록 추가 단축키: addGap/addText/addAsset (사용자 설정 가능, 기본 G/T/A — IME 안전: e.code 사용)
   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-    if (e.code === 'KeyG') { e.preventDefault(); window.addGapBlock?.(); return; }
-    if (e.code === 'KeyT') { e.preventDefault(); window.addTextBlock?.('body'); return; }
-    if (e.code === 'KeyA') { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
+    const _ms = window._matchShortcut;
+    const _isAddGap   = _ms ? _ms(e, 'addGap')   : (e.code === 'KeyG');
+    const _isAddText  = _ms ? _ms(e, 'addText')  : (e.code === 'KeyT');
+    const _isAddAsset = _ms ? _ms(e, 'addAsset') : (e.code === 'KeyA');
+    if (_isAddGap)   { e.preventDefault(); window.addGapBlock?.(); return; }
+    if (_isAddText)  { e.preventDefault(); window.addTextBlock?.('body'); return; }
+    if (_isAddAsset) { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
 
     // Enter → 선택된 텍스트 블록 편집 모드 진입
     if (e.code === 'Enter') {
@@ -1150,7 +1232,7 @@ document.addEventListener('keydown', e => {
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected')];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
       window.ensureHistoryCheckpoint?.('삭제 전');
@@ -1355,7 +1437,11 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .annotation-block, .sticker-block').forEach(b => {
+    b.classList.remove('selected');
+    // 어노테이션은 핸들도 함께 정리
+    if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
+  });
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
@@ -1556,7 +1642,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .icon-block, .mockup-block, .vector-block, .step-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가

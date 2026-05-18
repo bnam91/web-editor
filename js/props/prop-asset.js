@@ -199,8 +199,9 @@ export function showAssetProperties(ab) {
     ab.dataset.usePadx = e.target.checked ? 'true' : 'false';
     // 이 블록이 속한 section-inner의 padX 값 결정
     const inner = ab.closest('.section-inner');
+    const hasPadXOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;
     const padX = inner
-      ? (parseInt(inner.dataset.paddingX) || state.pageSettings.padX || 0)
+      ? (hasPadXOverride ? parseInt(inner.dataset.paddingX) : (state.pageSettings.padX || 0))
       : (state.pageSettings.padX || 0);
     const prevWidth = ab.offsetWidth;
     if (e.target.checked && padX > 0) {
@@ -276,8 +277,9 @@ export function showAssetProperties(ab) {
         if (ab.dataset.usePadx !== 'false') {
           // 패딩 제외 ON: 토글 핸들러와 동일하게 음수 마진 방식 적용
           const inner = ab.closest('.section-inner');
+          const hasPadXOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;
           const padX = inner
-            ? (parseInt(inner.dataset.paddingX) || state.pageSettings.padX || 0)
+            ? (hasPadXOverride ? parseInt(inner.dataset.paddingX) : (state.pageSettings.padX || 0))
             : (state.pageSettings.padX || 0);
           ab.dataset.baseHeight = h;
           if (padX > 0) {
@@ -294,8 +296,9 @@ export function showAssetProperties(ab) {
         } else {
           // 패딩 포함: 컨텐츠 너비(756px)에 맞게 높이 비례 축소
           const inner = ab.closest('.section-inner');
+          const hasPadXOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;
           const padX = inner
-            ? (parseInt(inner.dataset.paddingX) || state.pageSettings.padX || 0)
+            ? (hasPadXOverride ? parseInt(inner.dataset.paddingX) : (state.pageSettings.padX || 0))
             : (state.pageSettings.padX || 0);
           const canvasW = 860;
           const contentW = canvasW - padX * 2;

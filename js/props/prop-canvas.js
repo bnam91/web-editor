@@ -309,6 +309,8 @@ function showSimpleCardProperties(block) {
   const gridRows  = parseInt(block.dataset.gridRows) || 1;
   const cardGap   = parseInt(block.dataset.cardGap ?? 12);
   const padX      = parseInt(block.dataset.padX ?? 0);
+  const imgShape  = block.dataset.imgShape || 'rect';
+  const labelPos  = block.dataset.labelPos || 'bottom';
 
   const cardItemsHtml = cards.map((card, i) => `
     <div class="cvb-card-item" data-card-index="${i}">
@@ -375,6 +377,31 @@ function showSimpleCardProperties(block) {
         <span class="prop-label">이미지 비율</span>
         <input type="range" class="prop-slider" id="cvb-img-ratio-slider" min="20" max="90" step="1" value="${imgRatio}">
         <input type="number" class="prop-number" id="cvb-img-ratio-number" min="20" max="90" value="${imgRatio}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">이미지 모양</span>
+        <div class="prop-align-group" id="cvb-img-shape-group">
+          <button class="prop-align-btn${imgShape === 'rect' ? ' active' : ''}" data-shape="rect" title="사각">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
+          </button>
+          <button class="prop-align-btn${imgShape === 'circle' ? ' active' : ''}" data-shape="circle" title="원형">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">라벨 위치</span>
+        <div class="prop-align-group" id="cvb-label-pos-group">
+          <button class="prop-align-btn${labelPos === 'top' ? ' active' : ''}" data-pos="top" title="라벨 위">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="3.5" fill="currentColor"/><rect x="2" y="6.5" width="12" height="7.5"/></svg>
+          </button>
+          <button class="prop-align-btn${labelPos === 'bottom' ? ' active' : ''}" data-pos="bottom" title="라벨 아래">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="7.5"/><rect x="2" y="10.5" width="12" height="3.5" fill="currentColor"/></svg>
+          </button>
+          <button class="prop-align-btn${labelPos === 'both' ? ' active' : ''}" data-pos="both" title="라벨 위+아래">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="2.5" fill="currentColor"/><rect x="2" y="5.5" width="12" height="5"/><rect x="2" y="11.5" width="12" height="2.5" fill="currentColor"/></svg>
+          </button>
+        </div>
       </div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
@@ -529,6 +556,32 @@ function showSimpleCardProperties(block) {
   const hInput = document.getElementById('cvb-h');
   wInput.addEventListener('change', () => { block.dataset.canvasW = wInput.value;  window.renderCanvas(block); window.pushHistory?.(); });
   hInput.addEventListener('change', () => { block.dataset.canvasH = hInput.value;  window.renderCanvas(block); window.pushHistory?.(); });
+
+  // ── 이미지 모양 (사각/원형) ──────────────────────────────────────────────────
+  const shapeGroup = document.getElementById('cvb-img-shape-group');
+  shapeGroup?.querySelectorAll('.prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const shape = btn.dataset.shape;
+      shapeGroup.querySelectorAll('.prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
+      block.dataset.imgShape = shape;
+      window.renderCanvas(block);
+      window.pushHistory?.('이미지 모양');
+      window.scheduleAutoSave?.();
+    });
+  });
+
+  // ── 라벨 위치 (위/아래/둘 다) ────────────────────────────────────────────────
+  const posGroup = document.getElementById('cvb-label-pos-group');
+  posGroup?.querySelectorAll('.prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pos = btn.dataset.pos;
+      posGroup.querySelectorAll('.prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
+      block.dataset.labelPos = pos;
+      window.renderCanvas(block);
+      window.pushHistory?.('라벨 위치');
+      window.scheduleAutoSave?.();
+    });
+  });
 
   // ── 이미지 비율 ──────────────────────────────────────────────────────────────
   const ratioSlider = document.getElementById('cvb-img-ratio-slider');

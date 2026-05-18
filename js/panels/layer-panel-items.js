@@ -121,13 +121,15 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isVector     = block.classList.contains('vector-block');
   const isStep       = block.classList.contains('step-block');
   const isChat       = block.classList.contains('chat-block');
+  const isLaurel     = block.classList.contains('laurel-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
+  item.dataset.layerType = type;
   const displayName = block.dataset.layerName || labels[type] || type;
   item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name">${displayName}</span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
   item.prepend(makeIndents(depth));
@@ -166,6 +168,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isLabelGroup) window.showLabelGroupProperties?.(block);
     else if (isJoker) window.showJokerProperties?.(block);
     else if (isChat) window.showChatProperties?.(block);
+    else if (isLaurel) window.showLaurelProperties?.(block);
     else window.showAssetProperties(block);
   });
   block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');

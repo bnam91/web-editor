@@ -130,9 +130,9 @@ ${autoExpand
 }
 
 async function fillSectionTexts(payload) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (payload && payload.apiKey) || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return { ok: false, error: 'GEMINI_API_KEY 가 환경변수에 없습니다.' };
+    return { ok: false, error: 'Gemini API 키가 없습니다. 환경설정에서 등록하거나 GEMINI_API_KEY 환경변수를 설정하세요.' };
   }
   const blocks = Array.isArray(payload?.blocks) ? payload.blocks : [];
   if (blocks.length === 0) {

@@ -619,8 +619,14 @@ async function initScratchPad(projectId, pageId) {
     e.preventDefault();
     const items = [..._selectedItems];
     try {
-      const blob = await _dataUrlToPngBlob(items[0].src);
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      // Electron 환경: 메인 프로세스 nativeImage 경유 (navigator.clipboard 권한 우회)
+      if (window.electronAPI?.clipboardWriteImage) {
+        const res = await window.electronAPI.clipboardWriteImage(items[0].src);
+        if (!res?.ok) throw new Error(res?.error || 'clipboard write failed');
+      } else {
+        const blob = await _dataUrlToPngBlob(items[0].src);
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      }
       if (items.length === 1) {
         window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 Cmd+V');
       } else {

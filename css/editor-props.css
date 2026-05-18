@@ -665,3 +665,108 @@
 .msp-align-btn:active {
   background: rgba(45,111,232,0.15);
 }
+
+/* ── 공용 텍스트 영역 (멀티라인 입력) ────────────────────────────── */
+.prop-textarea {
+  width: 100%;
+  background: var(--ui-bg-input);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ui-text);
+  font-size: 11px; font-family: inherit;
+  padding: 6px 8px; min-height: 52px;
+  resize: vertical; outline: none;
+  transition: border-color 0.1s;
+}
+.prop-textarea:hover  { border-color: var(--ui-border-mid); }
+.prop-textarea:focus  { border-color: var(--ui-accent-primary); }
+
+/* 줄별 카드 (Laurel 멀티라인 등) — 줄 간 시각 구분 */
+.prop-line-card {
+  background: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.prop-line-card .prop-row { margin: 0; }
+.prop-line-card-header { gap: 4px; }
+.prop-line-card .lrl-line-toggle svg { transition: transform 0.15s; }
+.prop-line-card.expanded .lrl-line-toggle svg { transform: rotate(180deg); }
+.prop-line-card.expanded .lrl-line-toggle { color: var(--ui-accent-primary); }
+
+/* 셀별 카드 (Laurel NxM 그리드) */
+.prop-cell-card {
+  background: var(--ui-bg-card);
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+.prop-cell-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 0;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+.prop-cell-card-header:hover { background: var(--ui-bg-hover); }
+.prop-cell-card.expanded .prop-cell-card-header { margin-bottom: 8px; }
+.prop-cell-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.prop-cell-card .lrl-cell-toggle svg { transition: transform 0.15s; }
+.prop-cell-card.expanded .lrl-cell-toggle svg { transform: rotate(180deg); }
+.prop-cell-card.expanded .lrl-cell-toggle { color: var(--ui-accent-primary); }
+.prop-cell-card-body { display: flex; flex-direction: column; gap: 6px; }
+.prop-cell-card-body[hidden] { display: none; }
+
+/* 작은 아이콘 버튼 (× 삭제 등) */
+.prop-icon-btn {
+  width: 22px; height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--ui-text-muted);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.prop-icon-btn:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-danger);
+  border-color: var(--ui-border-mid);
+}
+
+/* 단일 라인 input — textarea와 동일 톤. 우측 패널 일관성. */
+.prop-input {
+  width: 100%;
+  background: var(--ui-bg-input);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ui-text);
+  font-size: 11px; font-family: inherit;
+  padding: 6px 8px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.1s;
+}
+.prop-input:hover  { border-color: var(--ui-border-mid); }
+.prop-input:focus  { border-color: var(--ui-accent-primary); }
+.prop-input::placeholder { color: var(--ui-text-muted); }

@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listProjects:   ()        => ipcRenderer.invoke('projects:list'),
   loadProject:    (id)      => ipcRenderer.invoke('projects:load', id),
   saveProject:    (project) => ipcRenderer.invoke('projects:save', project),
+  // BUG-44: beforeunload용 동기 저장 — async를 await할 수 없는 새로고침/탭닫기 시점에 호출
+  saveProjectSync:(project) => ipcRenderer.sendSync('projects:save-sync', project),
   deleteProject:  (id)      => ipcRenderer.invoke('projects:delete', id),
 
   // Projects Meta — branches/commits/thumbnail 분리 저장
@@ -50,6 +52,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // AI section text fill (Gemini)
   aiFillSectionTexts: (payload) => ipcRenderer.invoke('ai:fillSectionTexts', payload),
 
+  // 사용자별 Preferences (API 키 + 단축키)
+  getSettings:  ()              => ipcRenderer.invoke('settings:get'),
+  setSettings:  (patch)         => ipcRenderer.invoke('settings:set', patch),
+  testApiKey:   (provider, key) => ipcRenderer.invoke('settings:test-key', provider, key),
+
   // App info
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('get-version'),
@@ -75,5 +82,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   quitReady: () => ipcRenderer.send('quit-ready'),
 
   // Clipboard (Electron 메인 프로세스 경유 — navigator.clipboard 권한 거부 우회)
-  clipboardWriteText: (text) => ipcRenderer.invoke('clipboard:writeText', text),
+  clipboardWriteText:  (text)    => ipcRenderer.invoke('clipboard:writeText', text),
+  clipboardWriteImage: (dataUrl) => ipcRenderer.invoke('clipboard:writeImage', dataUrl),
 });

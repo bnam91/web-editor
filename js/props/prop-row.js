@@ -177,6 +177,19 @@ function showRowProperties(rowEl) {
     rowEl.style.paddingLeft  = v + 'px';
     rowEl.style.paddingRight = v + 'px';
     rowEl.dataset.padX = v;
+    // row 직속 asset-block의 패딩 제외 hack 재계산 (글로벌 padXExcludesAsset 고려)
+    const usePadx = window.getEffectiveUsePadx;
+    rowEl.querySelectorAll(':scope > .asset-block').forEach(ab => {
+      if (usePadx && usePadx(ab) && v > 0) {
+        ab.style.marginLeft  = -v + 'px';
+        ab.style.marginRight = -v + 'px';
+        ab.style.width = `calc(100% + ${v * 2}px)`;
+      } else {
+        ab.style.marginLeft  = '';
+        ab.style.marginRight = '';
+        if (!ab.style.width || ab.style.width.includes('calc')) ab.style.width = '';
+      }
+    });
     const s = document.getElementById('row-padx-slider');
     const n = document.getElementById('row-padx-number');
     if (s) s.value = v;

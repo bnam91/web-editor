@@ -20,7 +20,7 @@ function collectSectionTextBlocks(sec) {
   const items = [];
   // DOM 순서 보존을 위해 통합 셀렉터로 한 번에 순회
   const all = sec.querySelectorAll(
-    '.text-block, .canvas-block, .step-block, .chat-block, .table-block, .label-group-block, .graph-block, .icon-text-block'
+    '.text-block, .canvas-block, .step-block, .chat-block, .table-block, .label-group-block, .graph-block, .icon-text-block, .laurel-block'
   );
   all.forEach(el => {
     if (el.classList.contains('text-block')) {
@@ -95,6 +95,20 @@ function collectSectionTextBlocks(sec) {
       });
       return;
     }
+    // laurel-block: cells의 각 line text를 슬롯으로 노출
+    // slot id 형식: lrl:<blockId>:<cellIdx>:<lineIdx>
+    // AI가 lineIdx >= lines.length로 응답하면 push로 자동 추가 (auto-expand)
+    if (el.classList.contains('laurel-block')) {
+      let cells = [];
+      try { cells = JSON.parse(el.dataset.cells || '[]'); } catch (_) {}
+      cells.forEach((cell, ci) => {
+        const lines = Array.isArray(cell.lines) ? cell.lines : [];
+        lines.forEach((ln, li) => {
+          items.push({ id: `lrl:${el.id}:${ci}:${li}`, style: 'laurel-line', current: (ln.text || '').trim() });
+        });
+      });
+      return;
+    }
   });
   return items;
 }
@@ -114,6 +128,7 @@ function applyAIReplacements(sec, replacements, additions) {
   const labelMutations = new Map();  // lg_id  -> Map(idx -> text)
   const graphMutations = new Map();  // grb_id -> Map(idx -> { label?, value? })
   const iconTextMutations = new Map();  // itb_id -> text
+  const laurelMutations = new Map();    // lrb_id -> Map(cellIdx -> Map(lineIdx -> text))
   const pendingTextReps = [];        // 일반 text-block 응답 큐 (2-pass 적용용)
 
   replacements.forEach(rep => {
@@ -188,6 +203,19 @@ function applyAIReplacements(sec, replacements, additions) {
       const idx = parseInt(idxStr);
       if (!slot.has(idx)) slot.set(idx, {});
       slot.get(idx)[field] = rep.text;
+      applied += 1;
+      return;
+    }
+    // laurel-block: 'lrl:<blockId>:<cellIdx>:<lineIdx>'
+    m = id.match(/^lrl:([^:]+):(\d+):(\d+)$/);
+    if (m) {
+      const [, lrbId, ciStr, liStr] = m;
+      const ci = parseInt(ciStr);
+      const li = parseInt(liStr);
+      if (!laurelMutations.has(lrbId)) laurelMutations.set(lrbId, new Map());
+      const cellMap = laurelMutations.get(lrbId);
+      if (!cellMap.has(ci)) cellMap.set(ci, new Map());
+      cellMap.get(ci).set(li, rep.text);
       applied += 1;
       return;
     }
@@ -323,6 +351,41 @@ function applyAIReplacements(sec, replacements, additions) {
     window.renderGraph?.(grb);
   });
 
+  // laurel-block 적용 — cells[ci].lines[li].text 갱신.
+  // li >= lines.length면 push로 자동 추가 (auto-expand)
+  laurelMutations.forEach((cellMap, lrbId) => {
+    const lrb = sec.querySelector(`#${CSS.escape(lrbId)}`);
+    if (!lrb) return;
+    let cells = [];
+    try { cells = JSON.parse(lrb.dataset.cells || '[]'); } catch (_) {}
+    cellMap.forEach((lineMap, ci) => {
+      if (!cells[ci]) return;
+      if (!Array.isArray(cells[ci].lines)) cells[ci].lines = [];
+      const lines = cells[ci].lines;
+      // li 순으로 정렬해서 push 순서 보장
+      const sortedKeys = [...lineMap.keys()].sort((a, b) => a - b);
+      sortedKeys.forEach(li => {
+        const text = lineMap.get(li);
+        // 빈 텍스트 응답은 무시 — 기존 슬롯도 push도 모두. AI가 빈 응답 보내는 garbage 방지.
+        if (typeof text !== 'string' || text.trim() === '') return;
+        if (li < lines.length) {
+          lines[li].text = text;
+        } else {
+          // 새 line 추가 — 마지막 line 스타일 시드로
+          const seed = lines[lines.length - 1] || { fontSize: 28, fontWeight: 500, color: '#1a1a1a' };
+          lines.push({
+            text,
+            fontSize: parseInt(seed.fontSize) || 28,
+            fontWeight: parseInt(seed.fontWeight) || 500,
+            color: seed.color || '#1a1a1a',
+          });
+        }
+      });
+    });
+    lrb.dataset.cells = JSON.stringify(cells);
+    window.renderLaurelBlock?.(lrb);
+  });
+
   // ── additions: 부족한 만큼 새 text-block을 마지막 텍스트 블록 다음에 차례로 추가 ──
   // call-site에서 이미 pushHistory()를 1회 호출했으므로,
   // addTextBlock 내부의 pushHistory를 잠시 noop으로 만들어 한 번의 Cmd+Z로 모두 롤백되게 한다.
@@ -449,7 +512,6 @@ function _ensureAIFillPanel() {
         placeholder="예: 헬스보충제 주제로 채워줘&#10;(이미지 paste / drag-drop 가능)"></textarea>
       <div class="ai-fill-panel-thumbs hidden" id="ai-fill-panel-thumbs"
         style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
-      <div class="ai-fill-panel-chips" id="ai-fill-panel-chips"></div>
       <input type="text" id="ai-fill-panel-image"
         placeholder="이미지 파일 경로 (선택)">
       <label class="ai-fill-panel-mode">
@@ -543,21 +605,7 @@ function _ensureAIFillPanel() {
     }
   } catch (_) {}
 
-  const chipsBox = panel.querySelector('#ai-fill-panel-chips');
-  TONE_PRESETS.forEach(t => {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'ai-fill-panel-chip';
-    chip.textContent = t.label;
-    chip.dataset.tone = t.id;
-    chip.addEventListener('click', () => {
-      const wasSelected = chip.classList.contains('selected');
-      chipsBox.querySelectorAll('.ai-fill-panel-chip').forEach(c => c.classList.remove('selected'));
-      if (!wasSelected) { chip.classList.add('selected'); _aiFillState.tone = t.id; }
-      else { _aiFillState.tone = ''; }
-    });
-    chipsBox.appendChild(chip);
-  });
+  // Tone preset chips 제거됨 (사용자 요청) — _aiFillState.tone은 항상 빈 문자열
 
   // ── 클립보드 paste / drag-drop 이미지 → data URL 다중 첨부 ──
   const thumbsBox = panel.querySelector('#ai-fill-panel-thumbs');
@@ -654,12 +702,24 @@ function _ensureAIFillPanel() {
         window.showToast?.('⚠️ 특정 블록 ID를 1개 이상 입력하세요');
         return;
       }
+      // slot id 직접 매칭 + 컴포넌트 ID(lrb_/cvb_/sb_/chb_/tbl_/lg_/grb_/itb_)로 슬롯 전체 expand 매칭
+      // slot id 형식: 'lrl:lrb_xxx:0:0', 'cv:cvb_xxx:0:title' 등 → split(':')의 index 1이 컴포넌트 block ID
       const known = new Set(allBlocks.map(b => b.id));
-      const valid = inputIds.filter(id => known.has(id));
-      const invalid = inputIds.filter(id => !known.has(id));
+      const expandedValid = new Set();
+      const invalid = [];
+      inputIds.forEach(input => {
+        if (known.has(input)) { expandedValid.add(input); return; }
+        // 컴포넌트 ID로 prefix 매칭 — 그 블록의 모든 슬롯 추가
+        const matched = allBlocks.filter(b => {
+          const parts = b.id.split(':');
+          return parts.length > 1 && parts[1] === input;
+        });
+        if (matched.length > 0) matched.forEach(m => expandedValid.add(m.id));
+        else invalid.push(input);
+      });
       if (invalid.length > 0) window.showToast?.(`⚠️ 섹션에 없는 ID 무시: ${invalid.join(', ')}`);
-      if (valid.length === 0) { window.showToast?.('❌ 유효한 블록 ID 없음'); return; }
-      blocks = allBlocks.filter(b => valid.includes(b.id));
+      if (expandedValid.size === 0) { window.showToast?.('❌ 유효한 블록 ID 없음'); return; }
+      blocks = allBlocks.filter(b => expandedValid.has(b.id));
     }
     if (blocks.length === 0) { window.showToast?.('⚠️ 텍스트 블록 없음'); return; }
     const runBtn = panel.querySelector('#ai-fill-panel-run');

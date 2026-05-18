@@ -5,6 +5,52 @@ import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } fro
    SECTION PROPERTIES PANEL
 ═══════════════════════════════════ */
 
+/**
+ * 섹션 배경 적용 헬퍼 — 이미지와 색을 동시에 합성한다.
+ * 우선순위(위→아래): 색(overlay) > 이미지 > 투명
+ * - 이미지 + 색 둘 다: `background: linear-gradient(<color>,<color>), url(<img>)`
+ *   (첫 layer가 위. 색이 반투명이면 이미지에 tint, 불투명이면 이미지 가림 — 의도된 동작)
+ * - 이미지만: backgroundImage = url(...), backgroundColor = transparent
+ * - 색만: backgroundColor = <color>, backgroundImage = none
+ * - 둘 다 없음: 모두 클리어
+ *
+ * 색은 sec.dataset.bg, 이미지는 sec.dataset.bgImg, 사이즈는 sec.dataset.bgSize에서 읽는다.
+ */
+function _applySectionBg(sec) {
+  const color = sec.dataset.bg || '';
+  const img   = sec.dataset.bgImg || '';
+  const size  = sec.dataset.bgSize || 'cover';
+
+  // 항상 shorthand는 초기화 후 개별 속성으로 재설정 (이전 multi-layer 잔재 제거)
+  sec.style.background = '';
+
+  if (img && color) {
+    // multi-background: gradient(색) 위, url(이미지) 아래
+    sec.style.background = `linear-gradient(${color}, ${color}), url(${img})`;
+    sec.style.backgroundSize = `${size}, ${size}`;
+    sec.style.backgroundPosition = 'center, center';
+    sec.style.backgroundRepeat = 'no-repeat, no-repeat';
+  } else if (img) {
+    sec.style.backgroundImage = `url(${img})`;
+    sec.style.backgroundColor = 'transparent';
+    sec.style.backgroundSize = size;
+    sec.style.backgroundPosition = 'center';
+    sec.style.backgroundRepeat = 'no-repeat';
+  } else if (color) {
+    sec.style.backgroundImage = 'none';
+    sec.style.backgroundColor = color;
+    sec.style.backgroundSize = '';
+    sec.style.backgroundPosition = '';
+    sec.style.backgroundRepeat = '';
+  } else {
+    sec.style.backgroundImage = '';
+    sec.style.backgroundColor = '';
+    sec.style.backgroundSize = '';
+    sec.style.backgroundPosition = '';
+    sec.style.backgroundRepeat = '';
+  }
+}
+
 function applyPreset(sec, presetId) {
   const preset = PRESETS.find(p => p.id === presetId);
   // 기존 preset 변수 초기화
@@ -15,9 +61,10 @@ function applyPreset(sec, presetId) {
     Object.entries(preset.variables).forEach(([k, v]) => sec.style.setProperty(k, v));
     sec.dataset.preset = presetId;
   }
-  // 프리셋 배경색 적용 (정의된 경우에만)
+  // 프리셋 배경색 적용 (정의된 경우에만) — 이미지가 있으면 합성 유지
   if (preset?.backgroundColor) {
-    sec.style.backgroundColor = preset.backgroundColor;
+    sec.dataset.bg = preset.backgroundColor;
+    _applySectionBg(sec);
   }
   pushHistory();
 }
@@ -37,7 +84,8 @@ function setRpIdBadge(id) {
 async function showSectionProperties(sec) {
   // race condition 방지: Electron readPresets() IPC가 완료될 때까지 대기 후 PRESETS 사용
   await _presetsReady;
-  const rawBg = sec.style.backgroundColor || sec.style.background || '';
+  // dataset.bg(헬퍼가 기록한 색)를 우선, 없으면 인라인 스타일에서 추출
+  const rawBg = sec.dataset.bg || sec.style.backgroundColor || sec.style.background || '';
   const hexBg = rawBg
     ? (/^#[0-9a-f]{6}$/i.test(rawBg) ? rawBg : rgbToHex(rawBg))
     : '#ffffff';
@@ -49,7 +97,10 @@ async function showSectionProperties(sec) {
   const bgSize    = sec.dataset.bgSize || 'cover';
   const secPadB   = parseInt(sec.style.paddingBottom) || 0;
   const inner     = sec.querySelector('.section-inner');
-  const secPadX        = parseInt(inner?.dataset.paddingX) || parseInt(inner?.style.paddingLeft) || 0;
+  const hasPadXOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;
+  const secPadX        = hasPadXOverride
+    ? parseInt(inner.dataset.paddingX)
+    : (parseInt(inner?.style.paddingLeft) || 0);
   const secPadXAsset   = inner?.dataset.padXExcludesAsset || '';
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row" style="margin-top:6px;">
@@ -224,23 +275,26 @@ async function showSectionProperties(sec) {
   if (padXSlider && inner) {
     const applyPadX = v => {
       v = Math.min(100, Math.max(0, isNaN(v) ? 0 : v));
-      inner.style.paddingLeft  = v ? v + 'px' : '';
-      inner.style.paddingRight = v ? v + 'px' : '';
-      inner.dataset.paddingX   = v || '';
-      // 각 asset-block의 usePadx 개별 설정에 따라 negative margin 적용
-      inner.querySelectorAll('.asset-block').forEach(ab => {
-        if (ab.dataset.usePadx === 'true' && v > 0) {
+      // 0도 명시 override로 저장 (페이지 padX inherit 방지)
+      inner.style.paddingLeft  = v + 'px';
+      inner.style.paddingRight = v + 'px';
+      inner.dataset.paddingX   = String(v);
+      // 글로벌 padXExcludesAsset도 고려 (prop-page.js의 getEffectiveUsePadx 헬퍼)
+      // section-inner의 '직접' 자식 ab만 처리 — row 안에 있는 ab는 row 핸들러가 관리
+      const usePadx = window.getEffectiveUsePadx;
+      inner.querySelectorAll(':scope > .asset-block').forEach(ab => {
+        if (usePadx && usePadx(ab) && v > 0) {
           ab.style.marginLeft  = -v + 'px';
           ab.style.marginRight = -v + 'px';
           ab.style.width = `calc(100% + ${v * 2}px)`;
         } else {
           ab.style.marginLeft  = '';
           ab.style.marginRight = '';
-          ab.style.width = '';
+          if (!ab.style.width || ab.style.width.includes('calc')) ab.style.width = '';
         }
       });
       padXSlider.value = v;
-      padXNumber.value = v || '';
+      padXNumber.value = v;
     };
     padXSlider.addEventListener('input',  e => applyPadX(parseInt(e.target.value)));
     padXSlider.addEventListener('change', () => pushHistory());
@@ -280,8 +334,8 @@ async function showSectionProperties(sec) {
   };
   const _applySecBg = () => {
     const c = _buildSecBg();
-    sec.style.background = c;
     sec.dataset.bg = c;
+    _applySectionBg(sec);
     swatch.style.background = c;
   };
 
@@ -329,12 +383,11 @@ async function showSectionProperties(sec) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target.result;
+        window.pushHistory?.('섹션 배경 이미지');
         sec.dataset.bgImg = dataUrl;
         sec.dataset.bgSize = 'cover';
-        sec.style.backgroundImage = `url(${dataUrl})`;
-        sec.style.backgroundSize = 'cover';
-        sec.style.backgroundPosition = 'center';
-        sec.style.backgroundRepeat = 'no-repeat';
+        _applySectionBg(sec);
+        window.scheduleAutoSave?.();
         showSectionProperties(sec);
       };
       reader.readAsDataURL(file);
@@ -342,18 +395,19 @@ async function showSectionProperties(sec) {
   }
   if (bgSizeEl) {
     bgSizeEl.addEventListener('change', () => {
+      window.pushHistory?.('섹션 배경 크기');
       sec.dataset.bgSize = bgSizeEl.value;
-      sec.style.backgroundSize = bgSizeEl.value;
+      _applySectionBg(sec);
+      window.scheduleAutoSave?.();
     });
   }
   if (bgImgRemove) {
     bgImgRemove.addEventListener('click', () => {
+      window.pushHistory?.('섹션 배경 이미지 제거');
       delete sec.dataset.bgImg;
       delete sec.dataset.bgSize;
-      sec.style.backgroundImage = '';
-      sec.style.backgroundSize = '';
-      sec.style.backgroundPosition = '';
-      sec.style.backgroundRepeat = '';
+      _applySectionBg(sec);
+      window.scheduleAutoSave?.();
       showSectionProperties(sec);
     });
   }

@@ -18,8 +18,8 @@ window.getEffectiveUsePadx = getEffectiveUsePadx;
 function applyPadXToSection(inner, padX) {
   inner.style.paddingLeft  = padX ? padX + 'px' : '';
   inner.style.paddingRight = padX ? padX + 'px' : '';
-  // 각 asset-block의 effective usePadx에 따라 negative margin 적용
-  inner.querySelectorAll('.asset-block').forEach(ab => {
+  // section-inner의 '직접' 자식 ab만 처리 — row 안의 ab는 row 핸들러가 관리
+  inner.querySelectorAll(':scope > .asset-block').forEach(ab => {
     if (getEffectiveUsePadx(ab) && padX > 0) {
       ab.style.marginLeft  = -padX + 'px';
       ab.style.marginRight = -padX + 'px';

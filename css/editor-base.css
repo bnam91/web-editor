@@ -507,7 +507,11 @@ body {
   gap: 6px;
   flex-shrink: 0;
   position: relative;
-  z-index: 9999;
+  /* Bug fix: panel-right(z-index:9999)와 동률이면 DOM 순서상 panel-right가 위에 그려져서
+     topbar의 Port 드롭다운 메뉴(z-index:999, topbar stacking context 내부)가 가려졌음.
+     topbar는 y=0~44, panel-right는 y=44~ 로 y축 겹침이 없으므로 topbar를 10000으로
+     올려도 일반 레이아웃에 영향 없음. */
+  z-index: 10000;
   -webkit-app-region: drag; /* Electron: topbar로 창 드래그 가능 */
 }
 #topbar button, #topbar label, #topbar input, #topbar select {

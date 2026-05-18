@@ -277,9 +277,13 @@ const RESPONSE_SCHEMA = {
 };
 
 async function fillSectionTexts(payload) {
-  // goditor 전용 키 우선, 없으면 글로벌 키로 fallback
-  const apiKey = process.env.OPENAI_API_KEY_GODITOR || process.env.OPENAI_API_KEY;
-  if (!apiKey) return { ok: false, error: 'OPENAI_API_KEY(_GODITOR) 가 환경변수에 없습니다.' };
+  // 1) payload.apiKey (사용자 Preferences) 우선
+  // 2) goditor 전용 키
+  // 3) 글로벌 환경변수
+  const apiKey = (payload && payload.apiKey)
+    || process.env.OPENAI_API_KEY_GODITOR
+    || process.env.OPENAI_API_KEY;
+  if (!apiKey) return { ok: false, error: 'OpenAI API 키가 없습니다. 환경설정에서 등록하거나 OPENAI_API_KEY 환경변수를 설정하세요.' };
 
   const blocks = Array.isArray(payload?.blocks) ? payload.blocks : [];
   if (blocks.length === 0) return { ok: false, error: '대상 텍스트 블록이 없습니다.' };

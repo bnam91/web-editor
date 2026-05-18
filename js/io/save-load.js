@@ -331,34 +331,42 @@ function serializeProject() {
 }
 
 function applyProjectData(data) {
-  if (data.version === 2 && Array.isArray(data.pages)) {
-    // S8: pages 빈 배열 방어 — 최소 1페이지 보장
-    if (data.pages.length === 0) {
-      data.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
+  // DBG-SEC-LOSS: innerHTML 적용으로 인한 MutationObserver → autoSave 트리거를 봉쇄
+  // 적용 도중 사용자 reload/탭전환이 끼어들어 부분 상태가 파일에 저장되는 race 방지
+  state._suppressAutoSave = true;
+  try {
+    if (data.version === 2 && Array.isArray(data.pages)) {
+      // S8: pages 빈 배열 방어 — 최소 1페이지 보장
+      if (data.pages.length === 0) {
+        data.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
+      }
+      state.pages = data.pages;
+      state.currentPageId = data.currentPageId || data.pages[0]?.id;
+    } else {
+      // v1 backward compat
+      const id = 'page_1';
+      state.pages = [{ id, name: 'Page 1', label: '', pageSettings: data.pageSettings || { ...state.pageSettings }, canvas: data.canvas || '' }];
+      state.currentPageId = id;
     }
-    state.pages = data.pages;
-    state.currentPageId = data.currentPageId || data.pages[0]?.id;
-  } else {
-    // v1 backward compat
-    const id = 'page_1';
-    state.pages = [{ id, name: 'Page 1', label: '', pageSettings: data.pageSettings || { ...state.pageSettings }, canvas: data.canvas || '' }];
-    state.currentPageId = id;
+    const page = getCurrentPage();
+    if (!page) return; // S8: 여전히 undefined면 안전하게 종료
+    if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
+    canvasEl.innerHTML = page.canvas || '';
+    canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
+    rebindAll();
+    applyPageSettings();
+    window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
+    window._ckItems    = Array.isArray(data.checklistItems)    ? data.checklistItems    : [];
+    window._ckSections = Array.isArray(data.checklistSections) ? data.checklistSections : [];
+    window.buildLayerPanel(); // also calls buildFilePageSection
+    window.showPageProperties();
+    window.renderChecklistPanel?.();
+    // 프로젝트 로드/탭 전환 후 히스토리 초기화 — 이전 프로젝트/페이지 스냅샷 잔류 방지
+    window.clearHistory?.();
+  } finally {
+    // MutationObserver는 microtask 후 발화 — rAF로 한 프레임 뒤 해제해 잔여 mutation까지 흡수
+    requestAnimationFrame(() => { state._suppressAutoSave = false; });
   }
-  const page = getCurrentPage();
-  if (!page) return; // S8: 여전히 undefined면 안전하게 종료
-  if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-  canvasEl.innerHTML = page.canvas || '';
-  canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
-  rebindAll();
-  applyPageSettings();
-  window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
-  window._ckItems    = Array.isArray(data.checklistItems)    ? data.checklistItems    : [];
-  window._ckSections = Array.isArray(data.checklistSections) ? data.checklistSections : [];
-  window.buildLayerPanel(); // also calls buildFilePageSection
-  window.showPageProperties();
-  window.renderChecklistPanel?.();
-  // 프로젝트 로드/탭 전환 후 히스토리 초기화 — 이전 프로젝트/페이지 스냅샷 잔류 방지
-  window.clearHistory?.();
 }
 
 function _bgRgba(ps) {
@@ -711,7 +719,80 @@ function rebindAll() {
     if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .icon-block, .mockup-block, .step-block, .vector-block').forEach(b => {
+  // ── annotation-block 복원 (펜툴 Phase 2: 폴리라인 + 스타일 props) ──
+  canvasEl.querySelectorAll('.annotation-block').forEach(block => {
+    if (!block.id) block.id = 'ant_' + Math.random().toString(36).slice(2, 9);
+    const D = window.ANNOT_DEFAULTS || {};
+
+    // points: dataset.points(JSON) 우선, 없으면 anchorX/Y → labelX/Y 마이그
+    let points = null;
+    if (block.dataset.points) {
+      try { points = JSON.parse(block.dataset.points); } catch (_) { points = null; }
+    }
+    if (!Array.isArray(points) || points.length < 2) {
+      const ax = parseFloat(block.dataset.anchorX) || 0;
+      const ay = parseFloat(block.dataset.anchorY) || 0;
+      const lx = parseFloat(block.dataset.labelX)  || 0;
+      const ly = parseFloat(block.dataset.labelY)  || 0;
+      points = [[ax, ay], [lx, ly]];
+    }
+
+    // 텍스트는 기존 라벨 DOM에서도 복구
+    const existingLabel = block.querySelector('.annot-label');
+    const text = block.dataset.text
+      || (existingLabel ? (existingLabel.textContent || '').trim() : '')
+      || D.text || '텍스트';
+
+    const props = {
+      points,
+      text,
+      strokeColor:      block.dataset.strokeColor      || D.strokeColor,
+      strokeWidth:      parseFloat(block.dataset.strokeWidth) || D.strokeWidth,
+      anchorShape:      block.dataset.anchorShape      || D.anchorShape,
+      anchorSize:       parseFloat(block.dataset.anchorSize) || D.anchorSize,
+      labelFontSize:    parseFloat(block.dataset.labelFontSize) || D.labelFontSize,
+      labelColor:       block.dataset.labelColor       || D.labelColor,
+      labelBg:          block.dataset.labelBg          || D.labelBg,
+      labelBorderColor: block.dataset.labelBorderColor || D.labelBorderColor,
+    };
+
+    // 팩토리 결과를 그대로 사용 — innerHTML/dataset 통째 재구성
+    const fresh = window.makeAnnotationBlock(props);
+    block.innerHTML = fresh.innerHTML;
+    // dataset 동기화 (id는 유지)
+    block.dataset.type             = 'annotation';
+    block.dataset.points           = fresh.dataset.points;
+    block.dataset.anchorX          = fresh.dataset.anchorX;
+    block.dataset.anchorY          = fresh.dataset.anchorY;
+    block.dataset.labelX           = fresh.dataset.labelX;
+    block.dataset.labelY           = fresh.dataset.labelY;
+    block.dataset.text             = fresh.dataset.text;
+    block.dataset.strokeColor      = fresh.dataset.strokeColor;
+    block.dataset.strokeWidth      = fresh.dataset.strokeWidth;
+    block.dataset.anchorShape      = fresh.dataset.anchorShape;
+    block.dataset.anchorSize       = fresh.dataset.anchorSize;
+    block.dataset.labelFontSize    = fresh.dataset.labelFontSize;
+    block.dataset.labelColor       = fresh.dataset.labelColor;
+    block.dataset.labelBg          = fresh.dataset.labelBg;
+    block.dataset.labelBorderColor = fresh.dataset.labelBorderColor;
+
+    block.style.position = 'absolute';
+    block.style.left = '0'; block.style.top = '0';
+    block.style.width = '100%'; block.style.height = '100%';
+    // pointerEvents는 자식(label/handle)에서 개별 활성화 — 블록 자체는 통과
+    block.style.pointerEvents = 'none';
+
+    window.bindAnnotationSelect?.(block);
+  });
+
+  // sticker-block 복원 (플로팅 오버레이)
+  canvasEl.querySelectorAll('.sticker-block').forEach(block => {
+    if (!block.id) block.id = 'stk_' + Math.random().toString(36).slice(2, 8);
+    window.renderStickerBlock?.(block);
+    window.bindStickerSelect?.(block);
+  });
+
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -726,9 +807,12 @@ function rebindAll() {
         : b.classList.contains('mockup-block') ? 'mkp'
         : b.classList.contains('step-block') ? 'stb'
         : b.classList.contains('vector-block') ? 'vb'
+        : b.classList.contains('chat-block') ? 'chb'
+        : b.classList.contains('laurel-block') ? 'lrb'
         : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
+    if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
     window.bindBlock(b);
   });
   // card-block 스타일 복원 (bgColor, radius, textAlign은 dataset에 저장되나 inline style은 재적용 필요)
@@ -923,7 +1007,11 @@ function safeLocalStorageSet(key, value) {
   // (base64 이미지 포함 시 수십MB까지 커져 QuotaExceededError 반복 유발)
   if (IS_ELECTRON && value && value.length > 2 * 1024 * 1024) {
     console.log('[save-load] 스냅샷 크기 초과, localStorage 건너뜀:', Math.round(value.length / 1024) + 'KB');
-    return true; // 파일 저장이 별도로 이루어지므로 성공으로 처리
+    // BUG-44: stale localStorage가 새로고침 시 파일을 덮어쓰는 것 방지
+    // 이전 snapshot이 localStorage에 남아있으면 lsTs와 함께 명시적으로 제거하여
+    // initLoad의 localStorage 우선 로직이 옛 데이터를 적용하지 못하도록 함
+    try { localStorage.removeItem(key); localStorage.removeItem(key + '_ts'); } catch {}
+    return false; // localStorage에 새 데이터 없음 → caller가 lsTs 갱신하지 않도록 false 반환
   }
   const prefix = SAVE_KEY_PREFIX + '__';
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -1004,6 +1092,25 @@ window.addEventListener('beforeunload', () => {
   let snapData;
   try { snapData = JSON.parse(snap); } catch { return; }
   if (_isAllCanvasEmpty(snapData)) return;
+
+  // BUG-44: Electron이면 동기 IPC로 파일에 즉시 저장 (autoSave debounce 1.5s 이내 새로고침 시 데이터 손실 방지)
+  // localStorage는 보조 캐시이며, 파일 저장이 진실의 원천. 큰 snapshot도 파일에는 무조건 들어가야 함.
+  if (IS_ELECTRON && window.electronAPI?.saveProjectSync) {
+    try {
+      const proj = {
+        ...snapData,
+        id: activeProjectId,
+        name: openTabs.find(t => t.id === activeProjectId)?.name || 'Untitled',
+        updatedAt: new Date().toISOString(),
+      };
+      const result = window.electronAPI.saveProjectSync(proj);
+      if (result && result.ok === false) {
+        console.warn('[save-load:beforeunload] sync 저장 거부:', result.reason);
+      }
+    } catch (e) {
+      console.error('[save-load:beforeunload] sync 저장 실패:', e);
+    }
+  }
 
   const _unloadSaveOk = safeLocalStorageSet(getSaveKey(), snap);
   if (_unloadSaveOk) localStorage.setItem(getSaveTsKey(), String(Date.now()));
@@ -1170,14 +1277,44 @@ function initApp() {
           const lsTs = parseInt(localStorage.getItem(getSaveTsKey()) || '0');
           const fileTs = new Date(proj.updatedAt || 0).getTime();
           const filePagesCount = proj.version === 2 ? (proj.pages?.length || 0) : (proj.snapshot?.pages?.length || 1);
+          // 파일의 섹션 수 합계 — LS가 더 적으면 LS를 신뢰하지 않음 (DBG-SEC-LOSS)
+          const _countSecs = (d) => {
+            if (!d) return 0;
+            if (d.version === 2 && Array.isArray(d.pages)) {
+              return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/section-block/g)?.length || 0), 0);
+            }
+            return ((d.canvas || '').match(/section-block/g)?.length || 0);
+          };
+          const fileSecCount = _countSecs(proj.version === 2 ? proj : (proj.snapshot || proj));
+          // BUG-44: 이미지(asset/card)에 적용된 dataURL/파일경로 개수 — LS에 누락되면 파일 우선
+          const _countImgs = (d) => {
+            if (!d) return 0;
+            if (d.version === 2 && Array.isArray(d.pages)) {
+              return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/data-img-src/g)?.length || 0), 0);
+            }
+            return ((d.canvas || '').match(/data-img-src/g)?.length || 0);
+          };
+          const fileImgCount = _countImgs(proj.version === 2 ? proj : (proj.snapshot || proj));
           if (lsTs > 0 && lsTs + 500 > fileTs) {
             const lsSaved = localStorage.getItem(getSaveKey());
             if (lsSaved) {
               try {
                 const lsData = JSON.parse(lsSaved);
                 const lsPagesCount = lsData.pages?.length || 0;
-                // localStorage 페이지 수가 파일보다 적거나 0이면 파일이 더 완전한 데이터 → 파일 우선
-                if (lsPagesCount > 0 && lsPagesCount >= filePagesCount) { applyAndFinish(lsData); return; }
+                const lsSecCount   = _countSecs(lsData);
+                const lsImgCount   = _countImgs(lsData);
+                // localStorage 페이지/섹션/이미지 수가 파일보다 적으면 파일이 더 완전한 데이터 → 파일 우선
+                // (이전엔 페이지 수만 비교 — 섹션/이미지 통째 누락된 LS가 파일을 덮어쓰는 버그가 있었음)
+                if (lsPagesCount > 0 && lsPagesCount >= filePagesCount && lsSecCount >= fileSecCount && lsImgCount >= fileImgCount) {
+                  applyAndFinish(lsData);
+                  return;
+                }
+                if (lsSecCount < fileSecCount) {
+                  console.warn(`[initLoad] LS 섹션 수 부족 (LS:${lsSecCount} < FILE:${fileSecCount}) — 파일 우선 적용`);
+                }
+                if (lsImgCount < fileImgCount) {
+                  console.warn(`[initLoad] LS 이미지 수 부족 (LS:${lsImgCount} < FILE:${fileImgCount}) — 파일 우선 적용`);
+                }
               } catch {}
             }
           }
