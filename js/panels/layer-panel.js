@@ -176,6 +176,10 @@ export function buildLayerPanel() {
           if (propName && sec.classList.contains('selected')) propName.textContent = newName;
           const propBreadcrumb = document.querySelector('.prop-breadcrumb');
           if (propBreadcrumb && sec.classList.contains('selected')) propBreadcrumb.textContent = newName;
+          // 이스터에그: '**badge_' prefix → 정품 인증 블록으로 덮어쓰기 (숨은 명령어)
+          if (/^\*\*badge_/i.test(newName)) {
+            window.transformSectionToBadge?.(sec, newName.replace(/^\*\*badge_/i, '').trim() || '정품인증');
+          }
           window.pushHistory?.('섹션명 변경');
           window.scheduleAutoSave?.(); // FIX-LP-01: 이름 변경 후 저장 보장
         } else {

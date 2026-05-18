@@ -461,6 +461,9 @@ async function showSectionProperties(sec) {
   // 내보내기 / 템플릿 저장
   _bindSectionExport(sec);
   _bindSectionTemplate(sec);
+
+  // 이스터에그: badge 섹션이면 전용 컨트롤 추가
+  window.enhanceBadgePropPanel?.(sec);
 }
 
 /* 섹션 내보내기 이벤트 바인딩 — showSectionProperties에서 분리 */

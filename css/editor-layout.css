@@ -94,7 +94,7 @@
 .text-block.editing  { outline: 1.5px dashed var(--sel-color); background: var(--sel-color-fill); }
 
 
-.text-block [contenteditable] { outline: none; cursor: inherit; caret-color: var(--ui-text-dim); overflow-wrap: break-word; word-break: break-word; }
+.text-block [contenteditable] { outline: none; cursor: inherit; caret-color: currentColor; overflow-wrap: break-word; word-break: break-word; }
 
 /* 빈 텍스트 블록 placeholder */
 .text-block .tb-h1:empty::before     { content: '제목을 입력하세요';   color: #ccc; pointer-events: none; }
