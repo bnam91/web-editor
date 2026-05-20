@@ -115,9 +115,33 @@ export function showStickerProperties(block) {
     <div class="prop-section" id="stk-hlb-section" style="display:${shape === 'highlightB' ? 'block' : 'none'};">
       <div class="prop-section-title">Highlight Line</div>
       <div class="prop-row">
+        <span class="prop-label">스타일</span>
+        <div class="prop-align-group" id="stk-hlb-style-group" style="flex:1;">
+          <button class="prop-align-btn${(block.dataset.lineStyle || 'line') === 'line' ? ' active' : ''}" data-style="line" title="직선">
+            <svg width="18" height="14" viewBox="0 0 18 14" fill="none"><line x1="2" y1="7" x2="16" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <button class="prop-align-btn${block.dataset.lineStyle === 'wavy' ? ' active' : ''}" data-style="wavy" title="물결">
+            <svg width="18" height="14" viewBox="0 0 18 14" fill="none"><path d="M2,7 Q5,3 8,7 T14,7 T20,7" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+          </button>
+          <button class="prop-align-btn${block.dataset.lineStyle === 'marker' ? ' active' : ''}" data-style="marker" title="마커">
+            <svg width="18" height="14" viewBox="0 0 18 14" fill="none"><path d="M2,7 C6,5 12,9 16,7" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" fill="none"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="stk-hlb-thick" min="1" max="100" step="1" value="${parseInt(block.dataset.thickness) || 12}">
         <input type="number" class="prop-number" id="stk-hlb-thick-num" min="1" max="200" value="${parseInt(block.dataset.thickness) || 12}">
+      </div>
+      <div class="prop-row stk-hlb-wavy-row" style="display:${block.dataset.lineStyle === 'wavy' ? 'flex' : 'none'};">
+        <span class="prop-label">진폭</span>
+        <input type="range" class="prop-slider" id="stk-hlb-amp" min="1" max="30" step="1" value="${parseFloat(block.dataset.amplitude) || 6}">
+        <input type="number" class="prop-number" id="stk-hlb-amp-num" min="1" max="60" value="${parseFloat(block.dataset.amplitude) || 6}">
+      </div>
+      <div class="prop-row stk-hlb-wavy-row" style="display:${block.dataset.lineStyle === 'wavy' ? 'flex' : 'none'};">
+        <span class="prop-label">주기</span>
+        <input type="range" class="prop-slider" id="stk-hlb-period" min="10" max="100" step="1" value="${parseFloat(block.dataset.period) || 30}">
+        <input type="number" class="prop-number" id="stk-hlb-period-num" min="6" max="200" value="${parseFloat(block.dataset.period) || 30}">
       </div>
       <div class="prop-color-row" style="margin-top:6px;">
         <span class="prop-label">색상</span>
@@ -549,6 +573,44 @@ export function showStickerProperties(block) {
     s.addEventListener('change', () => { window.pushHistory?.('선 형광펜 두께'); window.scheduleAutoSave?.(); });
   };
   bindHlbThick();
+
+  // HighlightB — 스타일 토글 (line/wavy/marker)
+  propPanel.querySelectorAll('#stk-hlb-style-group .prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      propPanel.querySelectorAll('#stk-hlb-style-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const style = btn.dataset.style;
+      block.dataset.lineStyle = style;
+      // wavy 전용 슬라이더 표시
+      propPanel.querySelectorAll('.stk-hlb-wavy-row').forEach(row => {
+        row.style.display = style === 'wavy' ? 'flex' : 'none';
+      });
+      rerender();
+      // 선택 상태면 핸들 위치 재계산 (bbox가 바뀌므로)
+      if (block.classList.contains('selected')) window._addHlbHandles?.(block);
+      window.pushHistory?.('선 형광펜 스타일');
+      window.scheduleAutoSave?.();
+    });
+  });
+
+  // HighlightB — 진폭/주기 슬라이더
+  const bindHlbPair = (sliderId, numId, key, min, max, label) => {
+    const s = propPanel.querySelector('#' + sliderId);
+    const n = propPanel.querySelector('#' + numId);
+    if (!s || !n) return;
+    const apply = v => {
+      v = Math.min(max, Math.max(min, v));
+      block.dataset[key] = v;
+      rerender();
+      if (block.classList.contains('selected')) window._addHlbHandles?.(block);
+      s.value = Math.min(parseInt(s.max), v);
+      n.value = v;
+    };
+    s.addEventListener('input',  () => apply(parseFloat(s.value)));
+    n.addEventListener('change', () => { apply(parseFloat(n.value)); window.pushHistory?.(label); window.scheduleAutoSave?.(); });
+    s.addEventListener('change', () => { window.pushHistory?.(label); window.scheduleAutoSave?.(); });
+  };
+  bindHlbPair('stk-hlb-amp',    'stk-hlb-amp-num',    'amplitude', 1,  60,  '선 형광펜 진폭');
+  bindHlbPair('stk-hlb-period', 'stk-hlb-period-num', 'period',    6,  200, '선 형광펜 주기');
 
   // HighlightB color
   wireColorField('stk-hlb-color', {
