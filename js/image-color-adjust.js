@@ -38,7 +38,7 @@ function _ensureSVGFilter() {
   svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;';
   svg.innerHTML = `
     <defs>
-      <filter id="${FILTER_ID}" color-interpolation-filters="linearRGB" x="0" y="0" width="100%" height="100%">
+      <filter id="${FILTER_ID}" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
         <feColorMatrix id="ca-matrix" type="matrix"
           values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>
         <feComponentTransfer>

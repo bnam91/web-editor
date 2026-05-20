@@ -1269,6 +1269,13 @@
   overflow: visible;
 }
 
+/* 회전된 shape을 가진 frame은 항상 overflow 해제 —
+   사용자 의도: 회전 시 frame 크기는 그대로 두되 시각적 잘림은 피한다.
+   회전된 shape의 visual bounding box가 frame을 넘어가도 잘리지 않게 한다. */
+.frame-block:has(.shape-block[data-shape-rotation]) {
+  overflow: visible;
+}
+
 /* speech-bubble 포함 시 overflow 해제 — 말꼬리 SVG 클리핑 방지 */
 .frame-block:has(.speech-bubble-block) {
   overflow: visible;
@@ -1657,8 +1664,17 @@ textarea.cvb-card-input {
   display: block;
   padding: 10px 14px;
   word-break: break-word;
+  white-space: pre-wrap; /* prop 입력의 Enter(\n)가 렌더 시 줄바꿈으로 보이도록 */
   font-family: 'Pretendard', sans-serif;
   line-height: 1.5;
+}
+/* 인라인 편집 모드: chat-block의 user-select:none 우회 — 캐럿/선택 허용 */
+.chb-bubble[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+  outline: 1px dashed var(--sel-color);
+  outline-offset: 1px;
 }
 .chb-tail {
   position: absolute;
@@ -2254,3 +2270,161 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 .section-inner.badge-align-left   { justify-content: flex-start !important; }
 .section-inner.badge-align-center { justify-content: center !important; }
 .section-inner.badge-align-right  { justify-content: flex-end !important; }
+
+/* ════════════════════════════════════════════════════════════
+   텍스트 효과 이스터에그 (영화 포스터 5종)
+   트리거: 레이어명 '**text_' prefix (badge 이스터에그 패턴 동일)
+   변수: --tfx-color (메인컬러), --tfx-intensity (0~1), --tfx-grain (0~1)
+   ════════════════════════════════════════════════════════════ */
+.text-effect {
+  position: relative;
+  --tfx-color: #ff2d6e;
+  --tfx-intensity: 0.7;
+  --tfx-grain: 0.4;
+}
+
+/* 1. Neon Glow — 80s Stranger Things/Tron 풍 */
+.text-effect.tfx-neon {
+  color: var(--tfx-color) !important;
+  text-shadow:
+    0 0 calc(2px * var(--tfx-intensity)) #fff,
+    0 0 calc(6px * var(--tfx-intensity)) var(--tfx-color),
+    0 0 calc(14px * var(--tfx-intensity)) var(--tfx-color),
+    0 0 calc(28px * var(--tfx-intensity)) var(--tfx-color),
+    calc(1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(0,255,255,0.6),
+    calc(-1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(255,0,128,0.6);
+}
+
+/* 2. Metallic — silver/gold linear-gradient + 입체감 */
+.text-effect.tfx-metallic {
+  background: linear-gradient(180deg,
+    var(--tfx-color) 0%,
+    #ffffff 35%,
+    var(--tfx-color) 50%,
+    #2a2a2a 65%,
+    var(--tfx-color) 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow:
+    0 calc(1px * var(--tfx-intensity)) 0 rgba(255,255,255,0.4),
+    0 calc(2px * var(--tfx-intensity)) calc(4px * var(--tfx-intensity)) rgba(0,0,0,0.6);
+  filter: drop-shadow(0 calc(2px * var(--tfx-intensity)) calc(3px * var(--tfx-intensity)) rgba(0,0,0,0.5));
+}
+
+/* 3. Grunge Ink — 영화 포스터 distress (NEW WORLD / 탈출 / 국제시장 컨셉)
+   단색 글자 + 거친 윤곽 + 글자 표면 균열/스크래치. heavy weight 추천. */
+/* Grunge — 글자 모양 안에 texture 이미지가 색상 대신 표시됨 (background-clip: text)
+   슬라이더 없음. 텍스처 select 1개만으로 단순화.
+   은은한 drop-shadow로 글자가 떠 보이는 영화 포스터 느낌 */
+.text-effect.tfx-grunge {
+  background-image: var(--tfx-texture, url('../assets/textures/grunge-dots.png')) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  -webkit-background-clip: text !important;
+          background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.01em;
+  filter:
+    drop-shadow(0 2px 4px rgba(0,0,0,0.35))
+    drop-shadow(0 6px 14px rgba(0,0,0,0.25))
+    drop-shadow(0 0 18px rgba(0,0,0,0.18));
+}
+.text-effect.tfx-grunge.tfx-tex-dots         { --tfx-texture: url('../assets/textures/grunge-dots.png'); }
+.text-effect.tfx-grunge.tfx-tex-scratches    { --tfx-texture: url('../assets/textures/grunge-scratches.png'); }
+.text-effect.tfx-grunge.tfx-tex-paint        { --tfx-texture: url('../assets/textures/grunge-paint.png'); }
+.text-effect.tfx-grunge.tfx-tex-001          { --tfx-texture: url('../assets/textures/texture-001.png'); }
+.text-effect.tfx-grunge.tfx-tex-001-expand   { --tfx-texture: url('../assets/textures/texture-001-expand.png'); }
+.text-effect.tfx-grunge.tfx-tex-002          { --tfx-texture: url('../assets/textures/texture-002.png'); }
+.text-effect.tfx-grunge.tfx-tex-pamyo        { --tfx-texture: url('../assets/textures/texture-003-pamyo.png'); }
+.text-effect.tfx-grunge.tfx-tex-004          { --tfx-texture: url('../assets/textures/texture-004.png'); }
+.text-effect.tfx-grunge.tfx-tex-005          { --tfx-texture: url('../assets/textures/texture-005.png'); }
+.text-effect.tfx-grunge.tfx-tex-black-inv    { --tfx-texture: url('../assets/textures/texture-black-001-inv.png'); }
+
+/* 4. Vintage — 세피아 그라데이션 + 스크래치 */
+.text-effect.tfx-vintage {
+  background: linear-gradient(180deg,
+    #d4a574 0%,
+    var(--tfx-color) 50%,
+    #5c3a1e 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: sepia(calc(0.4 * var(--tfx-intensity))) contrast(calc(1 + 0.2 * var(--tfx-intensity)));
+  position: relative;
+}
+.text-effect.tfx-vintage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(95deg, transparent 0, transparent 3px, rgba(0,0,0,calc(0.15 * var(--tfx-grain))) 3px, rgba(0,0,0,calc(0.15 * var(--tfx-grain))) 4px),
+    repeating-linear-gradient(85deg, transparent 0, transparent 7px, rgba(255,255,255,calc(0.08 * var(--tfx-grain))) 7px, rgba(255,255,255,calc(0.08 * var(--tfx-grain))) 8px);
+  mix-blend-mode: overlay;
+}
+
+/* 5. Cinematic — 위→아래 그라데이션 + grain noise (모던 영화) */
+.text-effect.tfx-cinematic {
+  background: linear-gradient(180deg,
+    #ffffff 0%,
+    var(--tfx-color) 60%,
+    #1a1a1a 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: 0 calc(2px * var(--tfx-intensity)) calc(8px * var(--tfx-intensity)) rgba(0,0,0,0.5);
+  position: relative;
+}
+.text-effect.tfx-cinematic::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(0,0,0,calc(0.4 * var(--tfx-grain))) 100%),
+    repeating-radial-gradient(circle at 33% 47%, rgba(255,255,255,calc(0.05 * var(--tfx-grain))) 0px, transparent 1px, transparent 3px);
+  mix-blend-mode: overlay;
+}
+
+/* ──────────────────────────────────────────────
+   형광펜 sticker(highlight/highlightB)는 mix-blend-mode multiply로
+   z-index 무관하게 텍스트/콘텐츠 블록 위에 있어도 자연스럽게 깔리는 효과.
+   진짜 형광펜처럼 배경 색이 아래 콘텐츠와 혼합됨.
+────────────────────────────────────────────── */
+.sticker-block[data-shape="highlight"],
+.sticker-block[data-shape="highlightB"] {
+  mix-blend-mode: multiply;
+}
+
+/* ──────────────────────────────────────────────
+   Sticker 선택 표시 — 보라색 아웃라인 (다른 element와 구분)
+   highlightB(선)는 아웃라인 없이 끝점 핸들만 (JS로 동적 inject)
+────────────────────────────────────────────── */
+.sticker-block.selected {
+  outline: 1.5px solid #9966ff;
+  outline-offset: 2px;
+}
+/* highlightB(선)는 bbox outline 없음 — 핸들만 표시 */
+.sticker-block.selected[data-shape="highlightB"] {
+  outline: none;
+}
+/* highlightB 양 끝점 핸들 (JS에서 .hlb-handle 추가) */
+.hlb-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
+  background: #ffffff;
+  border: 1.5px solid #9966ff;
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 100;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.hlb-handle:hover { background: #f0e8ff; }

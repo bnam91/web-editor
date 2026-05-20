@@ -1363,14 +1363,61 @@ export {
 window.addFrameBlock = addFrameBlock;
 
 // ── Shape Block ──
+// rectangle/ellipse inner geometry는 stroke 두께에 맞춰 동적 계산 (stroke=0이면 풀폭, stroke>0이면 절반만 inset)
+// line/arrow/polygon/star는 stroke가 도형의 일부라 inset 의미가 다름 — 그대로 유지
 const SHAPE_DEFS = {
-  rectangle: { vb: '0 0 100 100', h: 160, fill: true,  inner: `<rect x="4" y="4" width="92" height="92" rx="0"/>` },
-  ellipse:   { vb: '0 0 100 100', h: 160, fill: true,  inner: `<ellipse cx="50" cy="50" rx="46" ry="46"/>` },
+  rectangle: { vb: '0 0 100 100', h: 160, fill: true,  dynamic: true },
+  ellipse:   { vb: '0 0 100 100', h: 160, fill: true,  dynamic: true },
   line:      { vb: '0 0 200 40',  h: 60,  fill: false, inner: `<line x1="10" y1="20" x2="190" y2="20" stroke-linecap="round"/>` },
   arrow:     { vb: '0 0 200 40',  h: 60,  fill: false, inner: `<line x1="10" y1="20" x2="172" y2="20" stroke-linecap="round"/><polygon points="170,10 194,20 170,30" fill="currentColor" stroke="none"/>` },
   polygon:   { vb: '0 0 200 180', h: 200, fill: true,  inner: `<polygon points="100,8 194,172 6,172"/>` },
   star:      { vb: '0 0 200 190', h: 200, fill: true,  inner: `<polygon points="100,8 122,70 188,70 135,110 155,172 100,132 45,172 65,110 12,70 78,70"/>` },
 };
+
+// stroke 두께에 맞춘 rectangle/ellipse inner SVG 생성
+// strokeWidth는 user-space(viewBox) 단위로 해석됨. 절반만 inset해서 stroke 잘림 방지.
+function _shapeInnerSVG(type, strokeWidth) {
+  const sw = Math.max(0, Number(strokeWidth) || 0);
+  // stroke=0일 때 미세한 inset도 없음 (풀폭 100%)
+  const half = sw / 2;
+  if (type === 'rectangle') {
+    const w = Math.max(0, 100 - sw);
+    const h = Math.max(0, 100 - sw);
+    return `<rect x="${half}" y="${half}" width="${w}" height="${h}" rx="0"/>`;
+  }
+  if (type === 'ellipse') {
+    const r = Math.max(0, 50 - half);
+    return `<ellipse cx="50" cy="50" rx="${r}" ry="${r}"/>`;
+  }
+  // 다른 타입은 SHAPE_DEFS의 정적 inner 사용
+  return SHAPE_DEFS[type]?.inner || '';
+}
+window._shapeInnerSVG = _shapeInnerSVG;
+
+// 블록의 inner SVG geometry를 현재 strokeWidth에 맞춰 다시 그림 (rectangle/ellipse만 동적)
+function refreshShapeInnerSVG(block) {
+  if (!block) return;
+  const type = block.dataset.shapeType || 'rectangle';
+  const def = SHAPE_DEFS[type];
+  if (!def || !def.dynamic) return;
+  const sw = Number(block.dataset.shapeStrokeWidth ?? 0) || 0;
+  const svg = block.querySelector('svg.shape-svg');
+  if (!svg) return;
+  // gradient 보존: 기존 defs 캐시 + 적용된 fill url 확인
+  const defs = svg.querySelector(':scope > defs');
+  const defsHTML = defs ? defs.outerHTML : '';
+  // shape에 gradient가 적용 중이면 inner에 fill="url(#..)" 다시 부여
+  const gradMeta = block.dataset.shapeGradient;
+  svg.innerHTML = defsHTML + _shapeInnerSVG(type, sw);
+  if (gradMeta) {
+    const id = `grad-${block.id || 'shp_anon'}`;
+    svg.querySelectorAll('rect,ellipse,circle,polygon,path').forEach(el => {
+      if (el.getAttribute('fill') === 'none') return;
+      el.setAttribute('fill', `url(#${id})`);
+    });
+  }
+}
+window.refreshShapeInnerSVG = refreshShapeInnerSVG;
 
 function makeShapeBlock(type = 'rectangle') {
   const def = SHAPE_DEFS[type] || SHAPE_DEFS.rectangle;
@@ -1381,9 +1428,10 @@ function makeShapeBlock(type = 'rectangle') {
   block.dataset.shapeColor = '#cccccc';
   block.dataset.shapeStrokeWidth = '3';
   block.id = genId('shp');
+  const innerSVG = def.dynamic ? _shapeInnerSVG(type, 3) : def.inner;
   block.innerHTML = `<svg class="shape-svg" viewBox="${def.vb}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"
     style="color:#cccccc;stroke-width:3;fill:${def.fill ? 'currentColor' : 'none'};stroke:currentColor;">
-    ${def.inner}
+    ${innerSVG}
   </svg>`;
   return { block };
 }
@@ -3078,7 +3126,7 @@ function renderChatBlock(block) {
   const padding     = parseInt(block.dataset.padding) || 16;
   block.style.padding = `${padding}px`;
 
-  block.innerHTML = messages.map(msg => {
+  block.innerHTML = messages.map((msg, idx) => {
     const isLeft = msg.align !== 'right';
     const bg     = isLeft ? bgLeft  : bgRight;
     const color  = isLeft ? colorLeft : colorRight;
@@ -3089,11 +3137,71 @@ function renderChatBlock(block) {
 
     return `<div class="chb-msg chb-${dir}" style="margin-bottom:${gap}px">
   <div class="chb-wrap">
-    <div class="chb-bubble" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px">${msg.text}</div>
+    <div class="chb-bubble" data-msg-idx="${idx}" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px">${msg.text}</div>
     ${tail}
   </div>
 </div>`;
   }).join('');
+
+  // 더블클릭으로 메시지 인라인 편집 — Enter는 default(줄바꿈), ESC/blur로 종료
+  // innerHTML 재생성으로 bubble 노드가 교체되므로 block에 위임(delegation)으로 1회만 바인딩
+  if (!block._chatEditBound) {
+    block._chatEditBound = true;
+
+    const finishEdit = (bubble) => {
+      if (bubble.getAttribute('contenteditable') !== 'true') return;
+      bubble.removeAttribute('contenteditable');
+      bubble.style.cursor = '';
+      bubble.style.userSelect = '';
+      const idx = parseInt(bubble.dataset.msgIdx);
+      const msgs = JSON.parse(block.dataset.messages || '[]');
+      if (msgs[idx]) {
+        const newText = bubble.innerText;  // \n 보존
+        if (msgs[idx].text !== newText) {
+          msgs[idx].text = newText;
+          block.dataset.messages = JSON.stringify(msgs);
+          window.pushHistory?.('채팅 메시지 편집');
+          window.scheduleAutoSave?.();
+          // 우측 prop-chat 패널이 열려있다면 textarea sync
+          if (block.classList.contains('selected')) {
+            window.showChatProperties?.(block);
+          }
+        }
+      }
+    };
+
+    block.addEventListener('dblclick', (e) => {
+      const bubble = e.target.closest('.chb-bubble');
+      if (!bubble || !block.contains(bubble)) return;
+      e.stopPropagation();
+      if (bubble.getAttribute('contenteditable') === 'true') return;
+      // user-select:none 우회 — 편집 중에는 텍스트 선택/캐럿 허용
+      bubble.setAttribute('contenteditable', 'true');
+      bubble.style.cursor = 'text';
+      bubble.style.userSelect = 'text';
+      bubble.focus();
+      // 캐럿을 끝으로 (전체 선택 후 collapseToEnd로 caret 이동)
+      const sel = window.getSelection();
+      try { sel.selectAllChildren(bubble); sel.collapseToEnd(); } catch(_) {}
+    });
+
+    // blur 위임: focusout 이벤트로 bubble 단위 종료 감지
+    block.addEventListener('focusout', (e) => {
+      const bubble = e.target.closest?.('.chb-bubble');
+      if (bubble && block.contains(bubble)) finishEdit(bubble);
+    });
+
+    block.addEventListener('keydown', (e) => {
+      const bubble = e.target.closest?.('.chb-bubble');
+      if (!bubble || bubble.getAttribute('contenteditable') !== 'true') return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        bubble.blur();
+      }
+      // Enter는 default(줄바꿈) 그대로
+    });
+  }
 }
 
 function makeChatBlock(opts = {}) {
@@ -3399,14 +3507,73 @@ function renderStickerBlock(block) {
   const fontWeight = parseInt(block.dataset.fontWeight) || STICKER_DEFAULTS.fontWeight;
   const x          = parseInt(block.dataset.x) || 0;
   const y          = parseInt(block.dataset.y) || 0;
-  const radius     = shape === 'circle' ? '50%' : '8px';
+  const imgSrc     = block.dataset.imgSrc || '';
+  const mode       = block.dataset.mode || (imgSrc ? 'image' : 'text');
 
-  block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${size}px;height:${size}px;`
-    + `background:${bgColor};color:${textColor};border-radius:${radius};`
-    + `display:flex;align-items:center;justify-content:center;`
-    + `font-size:${fontSize}px;font-weight:${fontWeight};line-height:1;`
-    + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
-  block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;">${text}</span>`;
+  if (shape === 'highlight') {
+    // 형광펜 모드 — 색 사각형 (글자 없음), W/H 별도, z-index 낮음 (텍스트 아래)
+    const hlW = parseInt(block.dataset.hlW) || 160;
+    const hlH = parseInt(block.dataset.hlH) || 28;
+    const hlColor = block.dataset.hlColor || 'rgba(255, 235, 70, 0.7)';
+    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${hlW}px;height:${hlH}px;`
+      + `background:${hlColor};border-radius:4px;`
+      + `user-select:none;cursor:move;z-index:1;pointer-events:auto;`;
+    block.innerHTML = '';
+    return;
+  }
+
+  if (shape === 'highlightB') {
+    // 선 형태 형광펜 — 두 점 (x1,y1)→(x2,y2) 사이를 두께 thickness만큼 칠함
+    const x1 = parseFloat(block.dataset.x1) || 0;
+    const y1 = parseFloat(block.dataset.y1) || 0;
+    const x2 = parseFloat(block.dataset.x2) || 0;
+    const y2 = parseFloat(block.dataset.y2) || 0;
+    const thickness = parseInt(block.dataset.thickness) || 12;
+    const hlColor = block.dataset.hlColor || 'rgba(255, 235, 70, 0.7)';
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
+    // bbox padding (thickness/2 정도) — 회전된 자식이 빠져나오지 않도록
+    const pad = Math.ceil(thickness / 2) + 2;
+    const bboxLeft = Math.min(x1, x2) - pad;
+    const bboxTop  = Math.min(y1, y2) - pad;
+    const bboxW    = Math.abs(dx) + pad * 2;
+    const bboxH    = Math.abs(dy) + pad * 2;
+    block.style.cssText = `position:absolute;left:${bboxLeft}px;top:${bboxTop}px;`
+      + `width:${bboxW}px;height:${bboxH}px;`
+      + `background:transparent;pointer-events:none;user-select:none;z-index:1;`;
+    // 내부 회전 line div — 실제 클릭/드래그 타겟
+    const lineLeft = cx - bboxLeft;
+    const lineTop  = cy - bboxTop;
+    block.innerHTML = `<div class="sticker-hlb-line" style="`
+      + `position:absolute;left:${lineLeft}px;top:${lineTop}px;`
+      + `width:${length}px;height:${thickness}px;`
+      + `background:${hlColor};border-radius:${Math.min(thickness / 2, 4)}px;`
+      + `transform:translate(-50%, -50%) rotate(${angle}deg);transform-origin:center center;`
+      + `cursor:move;pointer-events:auto;"></div>`;
+    return;
+  }
+
+  const radius = shape === 'circle' ? '50%' : '8px';
+  if (mode === 'image' && imgSrc) {
+    // 이미지 모드 — 배경 색 무시, 이미지로 채움
+    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${size}px;height:${size}px;`
+      + `background:transparent;border-radius:${radius};overflow:hidden;`
+      + `display:flex;align-items:center;justify-content:center;`
+      + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
+    block.innerHTML = `<img class="sticker-img" src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;pointer-events:none;" draggable="false">`;
+  } else {
+    // 텍스트 모드 (기본)
+    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${size}px;height:${size}px;`
+      + `background:${bgColor};color:${textColor};border-radius:${radius};`
+      + `display:flex;align-items:center;justify-content:center;`
+      + `font-size:${fontSize}px;font-weight:${fontWeight};line-height:1;`
+      + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
+    block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;">${text}</span>`;
+  }
 }
 
 function makeStickerBlock(opts = {}) {
@@ -3423,6 +3590,15 @@ function makeStickerBlock(opts = {}) {
   block.dataset.fontWeight = opts.fontWeight ?? STICKER_DEFAULTS.fontWeight;
   block.dataset.x          = opts.x          ?? STICKER_DEFAULTS.x;
   block.dataset.y          = opts.y          ?? STICKER_DEFAULTS.y;
+  // highlightB (선 형광펜) 전용 데이터
+  if (opts.shape === 'highlightB') {
+    block.dataset.x1        = opts.x1        ?? 0;
+    block.dataset.y1        = opts.y1        ?? 0;
+    block.dataset.x2        = opts.x2        ?? 100;
+    block.dataset.y2        = opts.y2        ?? 0;
+    block.dataset.thickness = opts.thickness ?? 12;
+    block.dataset.hlColor   = opts.hlColor   ?? 'rgba(255, 235, 70, 0.7)';
+  }
   renderStickerBlock(block);
   return block;
 }

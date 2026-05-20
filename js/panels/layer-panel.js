@@ -243,6 +243,18 @@ export function buildLayerPanel() {
         } else {
           children.appendChild(makeLayerFrameItem(child, sec, appendRowToLayer));
         }
+      } else if (child.classList.contains('text-block')
+              || child.classList.contains('asset-block')
+              || child.classList.contains('card-block')
+              || child.classList.contains('icon-circle-block')
+              || child.classList.contains('table-block')
+              || child.classList.contains('label-group-block')
+              || child.classList.contains('graph-block')
+              || child.classList.contains('divider-block')
+              || child.classList.contains('icon-text-block')
+              || child.classList.contains('shape-block')) {
+        // section-inner 직접 자식 블록 (frame-block으로 감싸지지 않은 케이스) — 안전망
+        children.appendChild(makeLayerBlockItem(child, child, sec, 1));
       }
     });
 

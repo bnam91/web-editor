@@ -30,10 +30,26 @@ export function showStickerProperties(block) {
       </div>
     </div>
     <div class="prop-section">
+      <div class="prop-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#ccc;">
+          <input type="checkbox" id="stk-mode-img" ${block.dataset.mode === 'image' ? 'checked' : ''}>
+          이미지 모드
+        </label>
+      </div>
+    </div>
+    <div class="prop-section" id="stk-text-section" style="display:${(shape === 'highlight' || shape === 'highlightB') ? 'none' : (block.dataset.mode === 'image' ? 'none' : 'block')};">
       <div class="prop-section-title">Text</div>
       <div class="prop-row">
         <input type="text" class="prop-input" id="stk-text" value="${_esc(text)}" placeholder="텍스트">
       </div>
+    </div>
+    <div class="prop-section" id="stk-image-section" style="display:${(shape === 'highlight' || shape === 'highlightB') ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
+      <div class="prop-section-title">Image</div>
+      <div id="stk-img-drop" style="border:2px dashed #444;border-radius:6px;padding:18px 10px;text-align:center;color:#888;font-size:12px;cursor:pointer;background:#1a1a1a;transition:border-color .15s,background .15s;">
+        ${block.dataset.imgSrc ? `<img src="${block.dataset.imgSrc}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
+        <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
+      </div>
+      ${block.dataset.imgSrc ? `<div class="prop-row" style="margin-top:6px;"><button class="prop-action-btn" id="stk-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Shape</div>
@@ -45,10 +61,45 @@ export function showStickerProperties(block) {
           <button class="prop-align-btn${shape === 'square' ? ' active' : ''}" data-shape="square" title="사각">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
           </button>
+          <button class="prop-align-btn${shape === 'highlight' ? ' active' : ''}" data-shape="highlight" title="형광펜">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="6" width="12" height="5" rx="1" fill="rgba(255,235,70,0.85)"/></svg>
+          </button>
+          <button class="prop-align-btn${shape === 'highlightB' ? ' active' : ''}" data-shape="highlightB" title="선 형광펜">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><line x1="2" y1="11" x2="14" y2="5" stroke="rgba(255,235,70,0.95)" stroke-width="3.5" stroke-linecap="round"/></svg>
+          </button>
         </div>
       </div>
     </div>
-    <div class="prop-section">
+    <div class="prop-section" id="stk-hl-section" style="display:${shape === 'highlight' ? 'block' : 'none'};">
+      <div class="prop-section-title">Highlight Size</div>
+      <div class="prop-row">
+        <span class="prop-label">너비</span>
+        <input type="range" class="prop-slider" id="stk-hl-w" min="20" max="800" step="2" value="${parseInt(block.dataset.hlW) || 160}">
+        <input type="number" class="prop-number" id="stk-hl-w-num" min="10" max="1200" value="${parseInt(block.dataset.hlW) || 160}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="stk-hl-h" min="6" max="200" step="1" value="${parseInt(block.dataset.hlH) || 28}">
+        <input type="number" class="prop-number" id="stk-hl-h-num" min="4" max="400" value="${parseInt(block.dataset.hlH) || 28}">
+      </div>
+      <div class="prop-color-row" style="margin-top:6px;">
+        <span class="prop-label">색상</span>
+        ${colorFieldHTML({ idPrefix: 'stk-hl-color', hex: (block.dataset.hlColor || '#ffeb46').replace(/rgba?\(([\d.\s,]+)\).*/, '#ffeb46'), alpha: 70 })}
+      </div>
+    </div>
+    <div class="prop-section" id="stk-hlb-section" style="display:${shape === 'highlightB' ? 'block' : 'none'};">
+      <div class="prop-section-title">Highlight Line</div>
+      <div class="prop-row">
+        <span class="prop-label">두께</span>
+        <input type="range" class="prop-slider" id="stk-hlb-thick" min="1" max="100" step="1" value="${parseInt(block.dataset.thickness) || 12}">
+        <input type="number" class="prop-number" id="stk-hlb-thick-num" min="1" max="200" value="${parseInt(block.dataset.thickness) || 12}">
+      </div>
+      <div class="prop-color-row" style="margin-top:6px;">
+        <span class="prop-label">색상</span>
+        ${colorFieldHTML({ idPrefix: 'stk-hlb-color', hex: (block.dataset.hlColor || '#ffeb46').replace(/rgba?\(([\d.\s,]+)\).*/, '#ffeb46'), alpha: 70 })}
+      </div>
+    </div>
+    <div class="prop-section" id="stk-size-section" style="display:${(shape === 'highlight' || shape === 'highlightB') ? 'none' : 'block'};">
       <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -73,7 +124,7 @@ export function showStickerProperties(block) {
         </select>
       </div>
     </div>
-    <div class="prop-section">
+    <div class="prop-section" id="stk-colors-section" style="display:${(shape === 'highlight' || shape === 'highlightB') ? 'none' : 'block'};">
       <div class="prop-section-title">Colors</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
@@ -98,14 +149,149 @@ export function showStickerProperties(block) {
   });
   txt.addEventListener('change', () => { window.pushHistory?.('스티커 텍스트'); window.scheduleAutoSave?.(); });
 
+  // Mode 체크박스 (이미지 모드 on/off)
+  propPanel.querySelector('#stk-mode-img')?.addEventListener('change', e => {
+    block.dataset.mode = e.target.checked ? 'image' : 'text';
+    propPanel.querySelector('#stk-text-section').style.display  = e.target.checked ? 'none' : 'block';
+    propPanel.querySelector('#stk-image-section').style.display = e.target.checked ? 'block' : 'none';
+    rerender();
+    window.pushHistory?.('스티커 모드'); window.scheduleAutoSave?.();
+  });
+
+  // 이미지 처리 헬퍼 (파일 → dataURL → block 적용)
+  const _applyImageFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    if (file.size > 5 * 1024 * 1024) { window.showToast?.('⚠️ 5MB 이하 이미지만 지원'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      block.dataset.imgSrc = e.target.result;
+      block.dataset.mode = 'image';
+      rerender();
+      window.pushHistory?.('스티커 이미지'); window.scheduleAutoSave?.();
+      showStickerProperties(block); // 패널 재렌더 (썸네일 + 제거 버튼)
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 드롭존: 클릭 → 파일 선택 / 드래그앤드롭
+  const drop = propPanel.querySelector('#stk-img-drop');
+  if (drop) {
+    drop.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'image/*';
+      inp.onchange = () => _applyImageFile(inp.files?.[0]);
+      inp.click();
+    });
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => {
+      e.preventDefault(); e.stopPropagation();
+      drop.style.borderColor = '#5a8aff';
+      drop.style.background  = '#1a2540';
+    }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => {
+      e.preventDefault(); e.stopPropagation();
+      drop.style.borderColor = '#444';
+      drop.style.background  = '#1a1a1a';
+    }));
+    drop.addEventListener('drop', e => {
+      _applyImageFile(e.dataTransfer?.files?.[0]);
+    });
+  }
+
+  propPanel.querySelector('#stk-img-clear')?.addEventListener('click', () => {
+    delete block.dataset.imgSrc;
+    block.dataset.mode = 'text';
+    rerender();
+    window.pushHistory?.('스티커 이미지 제거'); window.scheduleAutoSave?.();
+    showStickerProperties(block);
+  });
+
   // Shape 토글
   propPanel.querySelectorAll('#stk-shape-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       propPanel.querySelectorAll('#stk-shape-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
       block.dataset.shape = btn.dataset.shape;
+      // highlight / highlightB 모드일 때 text/이미지/일반 size 섹션 모두 숨김
+      const isHl  = btn.dataset.shape === 'highlight';
+      const isHlB = btn.dataset.shape === 'highlightB';
+      const isAnyHl = isHl || isHlB;
+      const hlSec   = propPanel.querySelector('#stk-hl-section');
+      const hlbSec  = propPanel.querySelector('#stk-hlb-section');
+      const txtSec  = propPanel.querySelector('#stk-text-section');
+      const imgSec  = propPanel.querySelector('#stk-image-section');
+      if (hlSec)  hlSec.style.display  = isHl  ? 'block' : 'none';
+      if (hlbSec) hlbSec.style.display = isHlB ? 'block' : 'none';
+      if (txtSec) txtSec.style.display = isAnyHl ? 'none' : (block.dataset.mode === 'image' ? 'none' : 'block');
+      if (imgSec) imgSec.style.display = isAnyHl ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none');
+      const sizeSec = propPanel.querySelector('#stk-size-section');
+      const colSec  = propPanel.querySelector('#stk-colors-section');
+      if (sizeSec) sizeSec.style.display = isAnyHl ? 'none' : 'block';
+      if (colSec)  colSec.style.display  = isAnyHl ? 'none' : 'block';
+      // highlightB로 전환 시 dataset 초기화 (없으면)
+      if (isHlB && !block.dataset.x1) {
+        const baseX = parseInt(block.dataset.x) || 40;
+        const baseY = parseInt(block.dataset.y) || 40;
+        block.dataset.x1 = baseX;
+        block.dataset.y1 = baseY + 20;
+        block.dataset.x2 = baseX + 160;
+        block.dataset.y2 = baseY + 20;
+        block.dataset.thickness = block.dataset.thickness || 12;
+        block.dataset.hlColor   = block.dataset.hlColor   || 'rgba(255, 235, 70, 0.7)';
+      }
       rerender();
       window.pushHistory?.('스티커 모양'); window.scheduleAutoSave?.();
     });
+  });
+
+  // Highlight W/H 슬라이더
+  const bindHlPair = (sliderId, numId, key, min, max) => {
+    const s = propPanel.querySelector('#' + sliderId);
+    const n = propPanel.querySelector('#' + numId);
+    if (!s || !n) return;
+    const apply = v => {
+      v = Math.min(max, Math.max(min, v));
+      block.dataset[key] = v;
+      rerender();
+      s.value = Math.min(parseInt(s.max), v);
+      n.value = v;
+    };
+    s.addEventListener('input',  () => apply(parseInt(s.value)));
+    n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    s.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  };
+  bindHlPair('stk-hl-w', 'stk-hl-w-num', 'hlW', 10, 1200);
+  bindHlPair('stk-hl-h', 'stk-hl-h-num', 'hlH', 4,  400);
+
+  // Highlight color (alpha 70% default)
+  wireColorField('stk-hl-color', {
+    initialAlpha: 70,
+    onApply: (c) => { block.dataset.hlColor = c; rerender(); },
+    onCommit: () => { window.pushHistory?.('형광펜 색'); window.scheduleAutoSave?.(); },
+  });
+
+  // HighlightB — 두께 슬라이더
+  const bindHlbThick = () => {
+    const s = propPanel.querySelector('#stk-hlb-thick');
+    const n = propPanel.querySelector('#stk-hlb-thick-num');
+    if (!s || !n) return;
+    const apply = v => {
+      v = Math.min(200, Math.max(1, v));
+      block.dataset.thickness = v;
+      rerender();
+      s.value = Math.min(parseInt(s.max), v);
+      n.value = v;
+    };
+    s.addEventListener('input',  () => apply(parseInt(s.value)));
+    n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.('선 형광펜 두께'); window.scheduleAutoSave?.(); });
+    s.addEventListener('change', () => { window.pushHistory?.('선 형광펜 두께'); window.scheduleAutoSave?.(); });
+  };
+  bindHlbThick();
+
+  // HighlightB color
+  wireColorField('stk-hlb-color', {
+    initialAlpha: 70,
+    onApply: (c) => { block.dataset.hlColor = c; rerender(); },
+    onCommit: () => { window.pushHistory?.('선 형광펜 색'); window.scheduleAutoSave?.(); },
   });
 
   // Size pair

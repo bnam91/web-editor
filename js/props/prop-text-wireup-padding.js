@@ -35,17 +35,37 @@ export function wirePaddingSection({ tb, phLinked: phLinkedArg }) {
       }
     });
 
+    // speech-bubble 말꼬리는 .speech-bubble-block 기준 absolute라 padding 변경 시 분리됨
+    // padding 값에 맞춰 tail.left/right를 동시 갱신
+    const _syncBubbleTail = () => {
+      if (!tb.classList.contains('speech-bubble-block')) return;
+      const tail = tb.querySelector('.tb-bubble-tail');
+      if (!tail) return;
+      const dir = tb.dataset.tail;
+      if (dir === 'left') {
+        const pl = parseInt(tb.style.paddingLeft) || 0;
+        tail.style.left = (pl + 2) + 'px';
+        tail.style.right = '';
+      } else if (dir === 'right') {
+        const pr = parseInt(tb.style.paddingRight) || 0;
+        tail.style.right = (pr + 2) + 'px';
+        tail.style.left = '';
+      }
+    };
+
     const setL = v => {
       tb.style.paddingLeft = v + 'px';
       tb.dataset.customPadL = '1';
       plSlider.value = v; plNumber.value = v;
       if (phLinked) { tb.style.paddingRight = v + 'px'; tb.dataset.customPadR = '1'; prSlider.value = v; prNumber.value = v; }
+      _syncBubbleTail();
     };
     const setR = v => {
       tb.style.paddingRight = v + 'px';
       tb.dataset.customPadR = '1';
       prSlider.value = v; prNumber.value = v;
       if (phLinked) { tb.style.paddingLeft = v + 'px'; tb.dataset.customPadL = '1'; plSlider.value = v; plNumber.value = v; }
+      _syncBubbleTail();
     };
 
     plSlider.addEventListener('input', () => setL(parseInt(plSlider.value)));

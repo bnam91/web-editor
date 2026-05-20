@@ -1,6 +1,136 @@
 import { canvasEl, state } from '../globals.js';
 
 const CANVAS_W = 860;
+const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
+
+/* ─── GIF 유틸 ─────────────────────────────────────────────────────────
+ * GIF (정적/애니메이션) 내보내기 헬퍼들.
+ * - decodeGifFrames: ImageDecoder API로 GIF 모든 frame을 추출
+ *   (Chromium 94+ / Electron 모두 지원). 각 frame을 data URL로 반환.
+ * - findGifElements: 섹션 클론 안에서 GIF가 들어간 <img> 또는
+ *   background-image 요소를 모두 수집.
+ * - canvasToGifBlob: 단일/다중 frame canvas 배열을 gif.js로 GIF blob 생성.
+ * ──────────────────────────────────────────────────────────────────── */
+
+async function _fetchAsArrayBuffer(url) {
+  // data: URL도 fetch가 처리해줌
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('GIF fetch failed: ' + res.status);
+  return await res.arrayBuffer();
+}
+
+async function decodeGifFrames(url, opts = {}) {
+  // ImageDecoder가 없으면 single-frame fallback
+  if (typeof ImageDecoder !== 'function') {
+    return [{ url, delay: 100, single: true }];
+  }
+  try {
+    const buf = await _fetchAsArrayBuffer(url);
+    const decoder = new ImageDecoder({ data: buf, type: 'image/gif' });
+    await decoder.tracks.ready;
+    const track = decoder.tracks.selectedTrack;
+    const frameCount = track?.frameCount || 1;
+    const maxFrames = Math.min(frameCount, opts.maxFrames || GIF_MAX_FRAMES);
+
+    const frames = [];
+    for (let i = 0; i < maxFrames; i++) {
+      const { image } = await decoder.decode({ frameIndex: i });
+      const w = image.displayWidth || image.codedWidth;
+      const h = image.displayHeight || image.codedHeight;
+      const cvs = document.createElement('canvas');
+      cvs.width = w;
+      cvs.height = h;
+      cvs.getContext('2d').drawImage(image, 0, 0);
+      // delay: microseconds → ms. 0 이면 보통 100ms 기본값
+      const dur = image.duration ? Math.round(image.duration / 1000) : 100;
+      frames.push({
+        dataURL: cvs.toDataURL('image/png'),
+        delay: Math.max(20, dur),
+        width: w,
+        height: h,
+      });
+      image.close?.();
+    }
+    decoder.close?.();
+    return frames;
+  } catch (err) {
+    console.warn('[GIF] decodeGifFrames failed, fallback single frame:', err);
+    return [{ url, delay: 100, single: true }];
+  }
+}
+
+// 확장자/MIME으로 빠르게 판정 가능한 경우만 동기 필터링
+function _isLikelyGifByName(url) {
+  return /\.gif(\?|$|#|"|')|data:image\/gif/i.test(url || '');
+}
+
+// blob:/file:/http: 등 확장자 없는 URL은 fetch로 Content-Type 확인 (HEAD)
+async function _isGifByFetch(url) {
+  if (!url) return false;
+  if (_isLikelyGifByName(url)) return true;
+  try {
+    // HEAD가 거부될 수 있으니 GET으로 blob을 받아 type 확인
+    const res = await fetch(url);
+    if (!res.ok) return false;
+    const b = await res.blob();
+    return b.type === 'image/gif';
+  } catch {
+    return false;
+  }
+}
+
+async function findGifElements(root) {
+  // <img>
+  const imgCandidates = [...root.querySelectorAll('img')];
+  const imgs = [];
+  for (const im of imgCandidates) {
+    const src = im.src || im.getAttribute('src') || '';
+    if (!src) continue;
+    if (await _isGifByFetch(src)) imgs.push(im);
+  }
+  // [style*="background-image"]
+  const bgCandidates = [...root.querySelectorAll('[style*="background-image"]')];
+  const bgs = [];
+  for (const el of bgCandidates) {
+    const u = _gifBgUrl(el.style.backgroundImage);
+    if (!u) continue;
+    if (await _isGifByFetch(u)) bgs.push(el);
+  }
+  return { imgs, bgs };
+}
+
+function _gifBgUrl(bgValue) {
+  const m = (bgValue || '').match(/url\(["']?([^"')]+)["']?\)/);
+  return m ? m[1] : null;
+}
+
+async function canvasToGifBlob(canvases, delays, opts = {}) {
+  // canvases: HTMLCanvasElement[] (다중) — 모두 같은 width/height
+  // delays:   number[] (ms) — canvases.length 와 동일
+  if (typeof GIF !== 'function') {
+    throw new Error('GIF library not loaded');
+  }
+  const first = canvases[0];
+  const gif = new GIF({
+    workers:      2,
+    quality:      10,
+    width:        first.width,
+    height:       first.height,
+    workerScript: 'js/gif.worker.js',
+    repeat:       opts.repeat ?? 0, // 0 = 무한루프, -1 = 1회
+    background:   opts.background || '#ffffff',
+  });
+  for (let i = 0; i < canvases.length; i++) {
+    gif.addFrame(canvases[i], { copy: true, delay: delays[i] || 100 });
+  }
+  if (opts.onProgress) gif.on('progress', opts.onProgress);
+  return await new Promise((res, rej) => {
+    gif.on('finished', blob => res(blob));
+    gif.on('error',    err  => rej(err));
+    gif.render();
+  });
+}
+
 
 // cvb(canvas-block)의 CSS transform:scale()을 실제 px 값으로 평탄화
 // html2canvas는 transform:scale() 안쪽 background-image를 잘못 렌더링함
@@ -40,6 +170,8 @@ function flattenCvbTransform(cvbEl) {
 async function exportSection(sec, format, width) {
   const fmt = format || 'png';
   const w   = width  || CANVAS_W;
+  const isGif     = fmt === 'gif' || fmt === 'gif-anim';
+  const isGifAnim = fmt === 'gif-anim';
 
   // 클론을 transform 밖(body)에 배치해서 html2canvas가 부모 scale 영향 안 받게 함
   const clone = sec.cloneNode(true);
@@ -171,6 +303,14 @@ async function exportSection(sec, format, width) {
         ctx2.drawImage(imgObj, ox, oy, sw, sh);
 
         cvs.style.cssText = 'display:block;';
+        // GIF 애니메이션 export 시 frame별 재렌더링용 메타데이터
+        if (/\.gif(\?|$|#|"|')|data:image\/gif/i.test(match[1])) {
+          cvs.dataset.gifSrc = match[1];
+          cvs.dataset.bgCoverW = String(divW);
+          cvs.dataset.bgCoverH = String(divH);
+          cvs.dataset.bgPx = String(px);
+          cvs.dataset.bgPy = String(py);
+        }
         div.style.backgroundImage = '';
         // div 내용을 canvas로 교체
         div.innerHTML = '';
@@ -194,24 +334,19 @@ async function exportSection(sec, format, width) {
   const idx     = secList.indexOf(sec) + 1;
   const name    = (sec._name || `section-${String(idx).padStart(2,'0')}`).replace(/\s+/g, '-');
 
-  try {
+  // 클론을 한 번 fully-render 한 뒤 캔버스로 캡처해 돌려주는 헬퍼.
+  // (animated GIF는 frame별로 여러 번 호출)
+  const captureCloneToCanvas = async () => {
     if (useNative) {
-      // ── Electron 청크 캡처 ─────────────────────────────────────────
-      // setContentSize 없이 clone.style.top을 이동하며 청크 단위 캡처
-      // → 창 크기 변경으로 인한 layout reflow / X좌표 24px 오프셋 버그 완전 해소
       clone.style.background = clone.style.background || bgColor;
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       const secH  = clone.offsetHeight;
       const viewH = window.innerHeight;
       const dpr   = window.devicePixelRatio || 2;
-
-      // 전체 섹션을 담을 캔버스 (DPR 반영)
       const outCanvas = document.createElement('canvas');
       outCanvas.width  = Math.round(w    * dpr);
       outCanvas.height = Math.round(secH * dpr);
       const ctx = outCanvas.getContext('2d');
-
-      // 청크 루프: clone 위치를 위로 올리며 viewH씩 캡처
       let y = 0;
       while (y < secH) {
         const chunkH = Math.min(viewH, secH - y);
@@ -226,38 +361,147 @@ async function exportSection(sec, format, width) {
         });
         y += chunkH;
       }
+      return outCanvas;
+    }
+    // html2canvas 폴백
+    return await html2canvas(clone, {
+      scale: 1,
+      useCORS: true,
+      backgroundColor: bgColor,
+      logging: false,
+    });
+  };
 
+  const triggerDownload = (blob, ext) => {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href = url;
+    a.download = `${name}.${ext}`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Electron 다운로드는 비동기 — 즉시 revoke 시 핸들러가 URL 못 읽는 케이스 방지
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  try {
+    if (!isGif) {
+      // ── 기존 PNG/JPG 경로 ────────────────────────────────────────
+      const outCanvas = await captureCloneToCanvas();
+      const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
+      const ext  = fmt === 'jpg' ? 'jpg' : 'png';
       await new Promise((res, rej) => {
         outCanvas.toBlob(blob => {
           if (!blob) { rej(new Error('toBlob failed')); return; }
-          const url = URL.createObjectURL(blob);
-          const a   = document.createElement('a');
-          a.href = url;
-          a.download = `${name}.${fmt === 'jpg' ? 'jpg' : 'png'}`;
-          a.click();
-          URL.revokeObjectURL(url);
+          triggerDownload(blob, ext);
           res();
-        }, fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95);
+        }, mime, 0.95);
       });
-
-    } else {
-      // ── html2canvas 폴백 (비-Electron 환경) ────────────────────────
-      const canvas = await html2canvas(clone, {
-        scale: 1,
-        useCORS: true,
-        backgroundColor: bgColor,
-        logging: false,
-      });
-
-      canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href = url;
-        a.download = `${name}.${fmt}`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }, fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95);
+      return;
     }
+
+    // ── GIF 경로 (정적 / 애니메이션) ──────────────────────────────
+    // 클론 내 GIF 원본 수집 (cvb 변환으로 canvas가 된 곳 + 일반 img + 일반 bg)
+    // findGifElements는 blob:/file: 등 확장자 없는 URL을 위해 비동기로 type 검사
+    const { imgs: gifImgs, bgs: gifBgs } = isGifAnim
+      ? await findGifElements(clone)
+      : { imgs: [], bgs: [] };
+    const gifCanvases = [...clone.querySelectorAll('canvas[data-gif-src]')];
+
+    // GIF 소스 URL 후보 (중복 제거)
+    const sourceUrls = new Set();
+    gifImgs.forEach(im => sourceUrls.add(im.src));
+    gifBgs.forEach(el => {
+      const u = _gifBgUrl(el.style.backgroundImage);
+      if (u) sourceUrls.add(u);
+    });
+    gifCanvases.forEach(cv => sourceUrls.add(cv.dataset.gifSrc));
+
+    // 애니메이션 모드인데 GIF 원본이 하나도 없으면 정적 GIF로 자동 폴백
+    const effectiveAnim = isGifAnim && sourceUrls.size > 0;
+
+    if (!effectiveAnim) {
+      // ── 정적 GIF (단일 frame) ───────────────────────────────
+      const outCanvas = await captureCloneToCanvas();
+      const blob = await canvasToGifBlob([outCanvas], [100], {
+        repeat:     -1, // 1회 재생 (단일 frame)
+        background: bgColor,
+      });
+      triggerDownload(blob, 'gif');
+      return;
+    }
+
+    // ── 애니메이션 GIF ─────────────────────────────────────────
+    // 1) 첫 번째(주요) GIF의 frame 정보를 결정적으로 사용 (timeline 동기화 단순화)
+    const primaryUrl = [...sourceUrls][0];
+    const primaryFrames = await decodeGifFrames(primaryUrl, { maxFrames: GIF_MAX_FRAMES });
+
+    // 2) 추가 GIF가 있으면 동일 frame 인덱스로 decode (frame수 다르면 modulo)
+    const otherFrameMap = new Map(); // url → frames[]
+    for (const u of sourceUrls) {
+      if (u === primaryUrl) continue;
+      otherFrameMap.set(u, await decodeGifFrames(u, { maxFrames: GIF_MAX_FRAMES }));
+    }
+
+    const frameCanvases = [];
+    const frameDelays   = [];
+
+    for (let fi = 0; fi < primaryFrames.length; fi++) {
+      const pf = primaryFrames[fi];
+
+      // (a) 일반 <img> GIF 교체
+      for (const im of gifImgs) {
+        const fr = (im.src === primaryUrl)
+          ? pf
+          : (otherFrameMap.get(im.src) || [pf])[fi % (otherFrameMap.get(im.src)?.length || 1)];
+        if (fr?.dataURL) im.src = fr.dataURL;
+      }
+
+      // (b) 일반 bg-image GIF 교체
+      for (const el of gifBgs) {
+        const u  = _gifBgUrl(el.style.backgroundImage);
+        const fr = (u === primaryUrl)
+          ? pf
+          : (otherFrameMap.get(u) || [pf])[fi % (otherFrameMap.get(u)?.length || 1)];
+        if (fr?.dataURL) el.style.backgroundImage = `url("${fr.dataURL}")`;
+      }
+
+      // (c) cvb 내부 GIF (이미 canvas로 변환됨) — 재draw
+      for (const cv of gifCanvases) {
+        const u  = cv.dataset.gifSrc;
+        const fr = (u === primaryUrl)
+          ? pf
+          : (otherFrameMap.get(u) || [pf])[fi % (otherFrameMap.get(u)?.length || 1)];
+        if (!fr?.dataURL) continue;
+        const divW = parseFloat(cv.dataset.bgCoverW) || cv.width;
+        const divH = parseFloat(cv.dataset.bgCoverH) || cv.height;
+        const px   = parseFloat(cv.dataset.bgPx) || 50;
+        const py   = parseFloat(cv.dataset.bgPy) || 50;
+        const im   = new Image();
+        im.src = fr.dataURL;
+        await new Promise(r => { im.onload = im.onerror = r; });
+        const sc = Math.max(divW / im.naturalWidth, divH / im.naturalHeight);
+        const sw = im.naturalWidth  * sc;
+        const sh = im.naturalHeight * sc;
+        const ox = -((sw - divW) * px / 100);
+        const oy = -((sh - divH) * py / 100);
+        const c2 = cv.getContext('2d');
+        c2.clearRect(0, 0, cv.width, cv.height);
+        c2.drawImage(im, ox, oy, sw, sh);
+      }
+
+      // (d) 한 frame 캡처
+      const outCanvas = await captureCloneToCanvas();
+      frameCanvases.push(outCanvas);
+      frameDelays.push(pf.delay || 100);
+    }
+
+    const blob = await canvasToGifBlob(frameCanvases, frameDelays, {
+      repeat:     0, // 무한 루프
+      background: bgColor,
+    });
+    triggerDownload(blob, 'gif');
 
   } finally {
     document.body.removeChild(clone);

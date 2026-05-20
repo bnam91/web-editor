@@ -109,42 +109,87 @@ function resetPanOffset() {
 }
 function zoomStep(delta) {
   const wrap = document.getElementById('canvas-wrap');
-  if (!wrap) { applyZoom(currentZoom + delta); return; }
+  const scaler = document.getElementById('canvas-scaler');
+  if (!wrap || !scaler) { applyZoom(currentZoom + delta); return; }
 
   const s_old = currentZoom / 100;
   const newZoom = Math.min(400, Math.max(10, currentZoom + delta));
+  if (newZoom === currentZoom) return;
   const s_new = newZoom / 100;
 
-  // 줌인 + 선택 블록 있음: 해당 섹션을 화면 중앙으로
-  // 줌아웃 또는 선택 없음: 캔버스 중심을 뷰포트 중심에 유지
+  // 줌인 + 선택 블록 있음: 해당 섹션이 화면 밖일 때만 그쪽으로 점프
+  // (이미 화면에 보이는 경우엔 vpCenter 보존 — 사용자가 보던 영역이 갑자기 점프하지 않도록)
   const selectedBlock = delta > 0 && document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, .speech-bubble-block.selected'
   );
-  const targetEl = selectedBlock ? (selectedBlock.closest('.section-block') || selectedBlock) : null;
+  let targetEl = selectedBlock ? (selectedBlock.closest('.section-block') || selectedBlock) : null;
   if (targetEl) {
-    const rect = targetEl.getBoundingClientRect();
-    const wrapRect = wrap.getBoundingClientRect();
-    const elScreenX = rect.left + rect.width  / 2 - wrapRect.left;
-    const elScreenY = rect.top  + rect.height / 2 - wrapRect.top;
-    // 캔버스 좌표계 변환 공식 (transform-origin:top center + flexbox centering 고려):
-    //   screenX_wrap = wrapWidth/2 + panOffsetX + s*(cx - 430)  → 역산: cx = (screenX - wrapWidth/2 - panOffsetX)/s + 430
-    //   screenY_wrap = 40          + panOffsetY + s*cy           → 역산: cy = (screenY - 40 - panOffsetY)/s
-    const CANVAS_HALF = 430; // canvas 860px 절반
-    const WRAP_PAD    = 40;  // canvas-wrap 상단 패딩
-    const elCanvasX = (elScreenX - wrap.clientWidth / 2 - panOffsetX) / s_old + CANVAS_HALF;
-    const elCanvasY = (elScreenY - WRAP_PAD - panOffsetY) / s_old;
-    panOffsetX = -(elCanvasX - CANVAS_HALF) * s_new;
-    panOffsetY = wrap.clientHeight / 2 - WRAP_PAD - elCanvasY * s_new;
-  } else {
-    const ratio = s_new / s_old;
-    panOffsetX = panOffsetX * ratio;
-    panOffsetY = panOffsetY * ratio;
+    // 이미 화면 vp 안에 보이면 점프 안 함 (vpCenter 보존 분기로)
+    const wrapRect0 = wrap.getBoundingClientRect();
+    const tRect = targetEl.getBoundingClientRect();
+    const inView = tRect.bottom > wrapRect0.top && tRect.top < wrapRect0.bottom &&
+                   tRect.right  > wrapRect0.left && tRect.left < wrapRect0.right;
+    if (inView) targetEl = null;
   }
 
+  // ───── 측정 기반 vpCenter(or selected block center) 보존 ─────
+  // 핵심:
+  //  1) wrap.scrollHeight는 untransformed offsetHeight 기준이라 scale 변경 시 즉시 안 바뀜.
+  //  2) #canvas-scaler의 `transition: transform 0.15s`로 인해 applyZoom 직후 동기 측정이
+  //     예전 scale을 반영하지 못함 → transition 일시 off + reflow.
+  //  3) anchor의 untransformed canvas-y를 줌 전 getBoundingClientRect로 측정해서,
+  //     줌 후 scrollTop을 직접 계산. scrollTop으로 흡수 불가 영역은 panOffsetY로 보완.
+  const wrapRectBefore = wrap.getBoundingClientRect();
+  const scalerRectBefore = scaler.getBoundingClientRect();
+  const anchorScreenY = targetEl
+    ? (() => { const r = targetEl.getBoundingClientRect(); return r.top + r.height / 2; })()
+    : (wrapRectBefore.top + wrapRectBefore.height / 2);
+  const anchorCanvasY = (anchorScreenY - scalerRectBefore.top) / s_old;
+  // anchor x (selected block 점프 시 좌우 정렬용)
+  const anchorScreenX = targetEl
+    ? (() => { const r = targetEl.getBoundingClientRect(); return r.left + r.width / 2; })()
+    : (wrapRectBefore.left + wrapRectBefore.width / 2);
+  // x 변환: transform-origin x = scaler.offsetWidth/2 (top center)
+  const scalerCenterX = scalerRectBefore.left + scalerRectBefore.width / 2;
+  // canvas-x (origin 기준 offset) = (screenX - centerX) / s_old
+  const anchorCanvasOffsetX = (anchorScreenX - scalerCenterX) / s_old;
+
+  // 줌 후 anchor가 viewport 내 어디 위치할지: 선택 블록이면 정중앙, 아니면 측정 시점과 같은 비율
+  const anchorVpY = targetEl ? (wrapRectBefore.height / 2) : (anchorScreenY - wrapRectBefore.top);
+  const anchorVpX = targetEl ? (wrapRectBefore.width  / 2) : (anchorScreenX - wrapRectBefore.left);
+
+  // transition 일시 off → 동기 적용
+  const prevTransition = scaler.style.transition;
+  scaler.style.transition = 'none';
+  // pan 초기화 (panning 기능 없음 가정, scrollTop 우선)
+  panOffsetX = 0;
+  panOffsetY = 0;
   applyZoom(newZoom);
+  // force layout flush — wrap.scrollHeight / scaler.offsetTop 최신화
+  void scaler.offsetHeight; void wrap.scrollHeight;
+
+  // y축: 가능한 한 scrollTop으로 흡수, 잔여는 panOffsetY로 보완
+  const padTop = scaler.offsetTop;
+  const idealScrollTop = padTop + anchorCanvasY * s_new - anchorVpY;
+  const maxScroll = wrap.scrollHeight - wrap.clientHeight;
+  const clampedScroll = Math.max(0, Math.min(maxScroll, idealScrollTop));
+  wrap.scrollTop = clampedScroll;
+  panOffsetY = clampedScroll - idealScrollTop;
+
+  // x축: scrollLeft + transform-origin center. 보통 wrap.clientWidth >= scaler 가시폭이면 0.
+  // anchorScreenX 위치 == wrapTop + anchorVpX 만족하도록 panOffsetX 계산
+  //   screenX_after = scalerCenterX_after + anchorCanvasOffsetX * s_new + panOffsetX
+  //   wrapLeft + anchorVpX = (wrapLeft + scaler.offsetLeft + scaler.offsetWidth/2 - wrap.scrollLeft) + anchorCanvasOffsetX*s_new + panOffsetX
+  // → panOffsetX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth/2 + wrap.scrollLeft - anchorCanvasOffsetX*s_new
+  const wantedX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth / 2 + wrap.scrollLeft - anchorCanvasOffsetX * s_new;
+  panOffsetX = wantedX;
+  _applyScalerTransform();
+
+  // transition 복원 (다음 프레임)
+  requestAnimationFrame(() => { scaler.style.transition = prevTransition; });
 }
 function zoomFit() {
   const wrap = document.getElementById('canvas-wrap');
@@ -537,6 +582,9 @@ function duplicateSelected() {
 }
 
 function copySelected() {
+  // 내부 클립보드(섹션/블록) 복사 timestamp — Cmd+V 시 외부 클립보드(스크래치 이미지)와 우선순위 비교용
+  window._internalClipboardTime = Date.now();
+
   const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.graph-block.selected, .divider-block.selected, ' +
@@ -812,7 +860,20 @@ document.addEventListener('keydown', e => {
     if (e.key === 'v') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      pasteClipboard();
+      // 우선순위: 가장 최근 Cmd+C 액션이 내부(섹션) vs 외부(스크래치 이미지) 중 어느 것인지로 분기
+      // 동률(둘 다 0 또는 같은 시각) 시 scratch 우선 — 외부 이미지 paste를 막지 않기 위함
+      const internalT = window._internalClipboardTime || 0;
+      const scratchT  = window._scratchClipboardTime  || 0;
+      if (internalT > scratchT) {
+        // 섹션/블록이 더 최근 → 즉시 섹션 paste, scratch-pad는 양보
+        pasteClipboard();
+      } else {
+        // scratch 이미지가 더 최근 또는 동률 → paste 이벤트 양보, 처리 안 됐을 때만 fallback
+        setTimeout(() => {
+          if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
+          pasteClipboard();
+        }, 30);
+      }
       return;
     }
     if (e.key === 'd') {

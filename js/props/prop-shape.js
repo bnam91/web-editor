@@ -72,6 +72,15 @@ export function showShapeProperties(block) {
         <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
         <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">
       </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-section-title">Rotation</div>
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="shape-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.shapeRotation || '0')}">
+        <input type="number" class="prop-number" id="shape-rot-num" min="-180" max="180" value="${parseInt(block.dataset.shapeRotation || '0')}">
+      </div>
     </div>`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
@@ -82,13 +91,29 @@ export function showShapeProperties(block) {
 
   function applyColor(hex) {
     block.dataset.shapeColor = hex;
-    if (svg) svg.style.color = hex;
+    if (svg) {
+      // 솔리드 적용 시 기존 gradient defs/url 제거하고 currentColor로 복귀
+      _clearShapeGradient(block);
+      svg.style.color = hex;
+    }
+    window.scheduleAutoSave?.();
+  }
+
+  function applyGradient(detail) {
+    if (!svg || !detail) return;
+    _applyShapeGradient(block, svg, detail);
+    block.dataset.shapeColor = detail.css || '';
+    block.dataset.shapeGradient = JSON.stringify({
+      type: detail.type, angle: detail.angle, stops: detail.stops,
+    });
     window.scheduleAutoSave?.();
   }
 
   function applyStroke(v) {
     block.dataset.shapeStrokeWidth = String(v);
     if (svg) svg.style.strokeWidth = String(v);
+    // rectangle/ellipse: inner SVG geometry를 stroke에 맞춰 재계산 (stroke=0이면 풀폭)
+    window.refreshShapeInnerSVG?.(block);
     window.scheduleAutoSave?.();
   }
 
@@ -97,6 +122,11 @@ export function showShapeProperties(block) {
     if (ss) {
       ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
       ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
+    }
+    // 회전 적용 중이면 frame 잔존 보정만 정리 (크기는 사용자가 지정한 값 그대로 유지)
+    const curRot = parseInt(block.dataset.shapeRotation || '0');
+    if (curRot !== 0 && typeof _updateFrameForRotation === 'function') {
+      _updateFrameForRotation(curRot);
     }
     window.scheduleAutoSave?.();
   }
@@ -107,6 +137,16 @@ export function showShapeProperties(block) {
     onApply: (c) => applyColor(c),
     onCommit: () => window.pushHistory?.(),
   });
+
+  // ── 그라데이션 이벤트 수신 (color-picker gradient 탭) ──
+  const shapeColorInput = document.getElementById('shape-color-color');
+  if (shapeColorInput && !shapeColorInput._gradWired) {
+    shapeColorInput._gradWired = true;
+    shapeColorInput.addEventListener('goya-cp:gradient', (e) => {
+      applyGradient(e.detail);
+      window.pushHistory?.();
+    });
+  }
 
   // ── 스트로크 두께 ──
   const strokeSlider = document.getElementById('shape-stroke-slider');
@@ -140,6 +180,121 @@ export function showShapeProperties(block) {
     hSlider.value = v; applySize(parseInt(wSlider.value), v);
   });
   hNum.addEventListener('change', () => window.pushHistory?.());
+
+  // ── 회전 ──
+  // 사용자 의도: 회전해도 frame 자체 크기는 변하지 않아야 함.
+  // 시각적 잘림은 부모 frame이 overflow:visible 되도록 CSS에서 처리 (회전된 shape를 가진 frame).
+  // 이전 시도(boundedW/H minWidth/minHeight 보정)는 사용자가 "크기가 커진다"고 느끼게 했으므로 폐기.
+  // 이 함수는 잔존 inline 보정값을 깨끗이 해제하는 용도로만 남긴다 (구버전 데이터 호환).
+  function _updateFrameForRotation(_deg) {
+    const frame = block.closest('.frame-block');
+    if (!frame) return;
+    // 이전 버전이 남긴 보정값 정리
+    if (frame.style.minHeight) frame.style.removeProperty('min-height');
+    if (frame.style.minWidth)  frame.style.removeProperty('min-width');
+  }
+  function applyRotation(deg) {
+    const d = Math.max(-180, Math.min(180, parseInt(deg) || 0));
+    // 기존 transform에서 rotate만 갱신 (translate, scale 등 다른 transform 보존)
+    const existing = block.style.transform || '';
+    const stripped = existing.replace(/rotate\([^)]*\)\s*/g, '').trim();
+    if (d === 0) {
+      // 회전 해제: transform/transform-origin/dataset 잔존을 깨끗이 정리
+      block.style.transform = stripped;
+      if (!block.style.transform) {
+        block.style.removeProperty('transform');
+        block.style.removeProperty('transform-origin');
+      }
+      delete block.dataset.shapeRotation;
+    } else {
+      block.dataset.shapeRotation = String(d);
+      block.style.transform = stripped ? `${stripped} rotate(${d}deg)` : `rotate(${d}deg)`;
+      block.style.transformOrigin = 'center center';
+    }
+    _updateFrameForRotation(d);
+    window.scheduleAutoSave?.();
+  }
+  const rotSlider = document.getElementById('shape-rot-slider');
+  const rotNum    = document.getElementById('shape-rot-num');
+  if (rotSlider && rotNum) {
+    rotSlider.addEventListener('input',  () => { rotNum.value = rotSlider.value; applyRotation(rotSlider.value); });
+    rotSlider.addEventListener('change', () => window.pushHistory?.());
+    rotNum.addEventListener('input', () => {
+      const v = Math.min(180, Math.max(-180, parseInt(rotNum.value) || 0));
+      rotSlider.value = v; applyRotation(v);
+    });
+    rotNum.addEventListener('change', () => window.pushHistory?.());
+  }
 }
 
 window.showShapeProperties = showShapeProperties;
+
+/* ── SVG 그라데이션 적용 헬퍼 ──
+ * shape SVG 내부에 <defs><linearGradient|radialGradient> 를 동적 inject 하고
+ * fill 을 url(#id) 로 바꾼다. stroke 는 currentColor 유지.
+ * id 는 block.id 기반으로 안정적으로 부여 — outerHTML 직렬화 후 재로드해도 충돌 없음.
+ */
+function _gradIdFor(block) {
+  const base = block.id || 'shp_anon';
+  return `grad-${base}`;
+}
+
+function _clearShapeGradient(block) {
+  if (!block) return;
+  const svg = block.querySelector('svg');
+  if (!svg) return;
+  const id = _gradIdFor(block);
+  const def = svg.querySelector(`#${CSS.escape(id)}`);
+  if (def) {
+    const parentDefs = def.closest('defs');
+    def.remove();
+    if (parentDefs && !parentDefs.children.length) parentDefs.remove();
+  }
+  // fill="url(#..)" 인 요소들을 currentColor 로 복귀
+  svg.querySelectorAll('[fill^="url(#grad-"]').forEach(el => {
+    el.setAttribute('fill', 'currentColor');
+  });
+  delete block.dataset.shapeGradient;
+}
+
+function _applyShapeGradient(block, svg, detail) {
+  const id = _gradIdFor(block);
+  // 기존 defs 제거
+  const existing = svg.querySelector(`#${CSS.escape(id)}`);
+  if (existing) existing.remove();
+
+  const stops = (detail.stops || []).map(s =>
+    `<stop offset="${Math.round((s.offset ?? 0) * 100)}%" stop-color="${s.color}"/>`
+  ).join('');
+
+  let gradEl;
+  if (detail.type === 'radial') {
+    gradEl = `<radialGradient id="${id}" cx="50%" cy="50%" r="50%">${stops}</radialGradient>`;
+  } else {
+    // angle(deg) → x1/y1/x2/y2 (objectBoundingBox 좌표계)
+    const a = ((detail.angle ?? 90) - 90) * Math.PI / 180; // CSS 90deg = 좌→우
+    const cx = 0.5, cy = 0.5;
+    const x1 = cx - Math.cos(a) * 0.5, y1 = cy - Math.sin(a) * 0.5;
+    const x2 = cx + Math.cos(a) * 0.5, y2 = cy + Math.sin(a) * 0.5;
+    gradEl = `<linearGradient id="${id}" x1="${x1.toFixed(4)}" y1="${y1.toFixed(4)}" x2="${x2.toFixed(4)}" y2="${y2.toFixed(4)}">${stops}</linearGradient>`;
+  }
+
+  let defs = svg.querySelector(':scope > defs');
+  if (!defs) {
+    defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    svg.insertBefore(defs, svg.firstChild);
+  }
+  defs.insertAdjacentHTML('beforeend', gradEl);
+
+  // fill 가능한 요소(rect/ellipse/polygon/circle/path)만 gradient 로 변경, line/stroke 전용은 제외
+  const FILLABLE = ['rect','ellipse','circle','polygon','path'];
+  svg.querySelectorAll(FILLABLE.join(',')).forEach(el => {
+    // 명시적으로 fill="none" 인 요소는 건너뜀
+    const f = el.getAttribute('fill');
+    if (f === 'none') return;
+    el.setAttribute('fill', `url(#${id})`);
+  });
+}
+
+window._applyShapeGradient = _applyShapeGradient;
+window._clearShapeGradient = _clearShapeGradient;

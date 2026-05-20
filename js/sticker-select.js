@@ -43,18 +43,90 @@ function _selectSticker(block) {
   if (!block) return;
   // 다른 selected 풀기 (deselectAll이 sticker-block도 처리)
   document.querySelectorAll('.sticker-block.selected').forEach(b => {
-    if (b !== block) b.classList.remove('selected');
+    if (b !== block) { b.classList.remove('selected'); _removeHlbHandles(b); }
   });
   window.deselectAll?.();
   block.classList.add('selected');
+  if (block.dataset.shape === 'highlightB') _addHlbHandles(block);
   window.showStickerProperties?.(block);
 }
 window._selectSticker = _selectSticker;
 
 function _deselectAllStickers() {
-  document.querySelectorAll('.sticker-block.selected').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.sticker-block.selected').forEach(b => {
+    b.classList.remove('selected');
+    _removeHlbHandles(b);
+  });
 }
 window._deselectAllStickers = _deselectAllStickers;
+
+// ── HighlightB 끝점 핸들 ──
+function _removeHlbHandles(block) {
+  block.querySelectorAll('.hlb-handle').forEach(h => h.remove());
+}
+function _addHlbHandles(block) {
+  _removeHlbHandles(block);
+  if (block.dataset.shape !== 'highlightB') return;
+  const x1 = parseFloat(block.dataset.x1) || 0;
+  const y1 = parseFloat(block.dataset.y1) || 0;
+  const x2 = parseFloat(block.dataset.x2) || 0;
+  const y2 = parseFloat(block.dataset.y2) || 0;
+  // bbox top/left 기준으로 핸들 위치 (block은 left/top이 min(x1,x2)/min(y1,y2)에 박힘)
+  const minX = Math.min(x1, x2);
+  const minY = Math.min(y1, y2);
+  const mk = (endpoint, hx, hy) => {
+    const h = document.createElement('div');
+    h.className = 'hlb-handle';
+    h.dataset.endpoint = endpoint;
+    h.style.left = (hx - minX) + 'px';
+    h.style.top  = (hy - minY) + 'px';
+    block.appendChild(h);
+    _bindHlbHandleDrag(h, block, endpoint);
+  };
+  mk('start', x1, y1);
+  mk('end',   x2, y2);
+}
+function _bindHlbHandleDrag(handle, block, endpoint) {
+  handle.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    const sec = block.closest('.section-block');
+    if (!sec) return;
+    const zoom = (window.currentZoom || 40) / 100;
+    const startCX = e.clientX, startCY = e.clientY;
+    const initX = parseFloat(block.dataset['x' + (endpoint === 'start' ? '1' : '2')]) || 0;
+    const initY = parseFloat(block.dataset['y' + (endpoint === 'start' ? '1' : '2')]) || 0;
+    const otherX = parseFloat(block.dataset['x' + (endpoint === 'start' ? '2' : '1')]) || 0;
+    const otherY = parseFloat(block.dataset['y' + (endpoint === 'start' ? '2' : '1')]) || 0;
+    const onMove = (ev) => {
+      let nx = initX + (ev.clientX - startCX) / zoom;
+      let ny = initY + (ev.clientY - startCY) / zoom;
+      // Shift+드래그 — 다른 endpoint 기준 수평/수직 snap
+      if (ev.shiftKey) {
+        const dx = nx - otherX;
+        const dy = ny - otherY;
+        if (Math.abs(dx) >= Math.abs(dy)) ny = otherY;
+        else nx = otherX;
+      }
+      block.dataset['x' + (endpoint === 'start' ? '1' : '2')] = String(Math.round(nx));
+      block.dataset['y' + (endpoint === 'start' ? '1' : '2')] = String(Math.round(ny));
+      window.renderStickerBlock?.(block);
+      _addHlbHandles(block); // 핸들 위치도 갱신
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      window.pushHistory?.('형광펜 선 끝점 이동');
+      window.scheduleAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+window._addHlbHandles = _addHlbHandles;
+window._removeHlbHandles = _removeHlbHandles;
 
 function bindStickerSelect(block) {
   if (!block || block._stickerBound) return;
@@ -80,6 +152,33 @@ function bindStickerSelect(block) {
     const zoom = (window.currentZoom || 40) / 100;
     const startX = e.clientX;
     const startY = e.clientY;
+
+    // ── highlightB 전용 드래그 — 두 점을 함께 평행이동 ────────────────
+    if (block.dataset.shape === 'highlightB') {
+      const ox1 = parseFloat(block.dataset.x1) || 0;
+      const oy1 = parseFloat(block.dataset.y1) || 0;
+      const ox2 = parseFloat(block.dataset.x2) || 0;
+      const oy2 = parseFloat(block.dataset.y2) || 0;
+      const onMoveB = (ev) => {
+        const dx = (ev.clientX - startX) / zoom;
+        const dy = (ev.clientY - startY) / zoom;
+        block.dataset.x1 = String(Math.round(ox1 + dx));
+        block.dataset.y1 = String(Math.round(oy1 + dy));
+        block.dataset.x2 = String(Math.round(ox2 + dx));
+        block.dataset.y2 = String(Math.round(oy2 + dy));
+        window.renderStickerBlock?.(block);
+      };
+      const onUpB = () => {
+        document.removeEventListener('mousemove', onMoveB);
+        document.removeEventListener('mouseup', onUpB);
+        window.pushHistory?.('선 형광펜 이동');
+        window.scheduleAutoSave?.();
+      };
+      document.addEventListener('mousemove', onMoveB);
+      document.addEventListener('mouseup', onUpB);
+      return;
+    }
+
     let origX = parseInt(block.dataset.x) || 0;
     let origY = parseInt(block.dataset.y) || 0;
     // 드래그 시작 시 마우스가 블록 내부 어디를 잡았는지 (offset)
@@ -170,4 +269,19 @@ document.addEventListener('keydown', (e) => {
   if (!sel) return;
   if (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true') return;
   _deselectAllStickers();
+});
+
+// Delete/Backspace로 선택된 스티커 삭제
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+  const sel = document.querySelector('.sticker-block.selected');
+  if (!sel) return;
+  // contenteditable 텍스트 편집 중이면 default 동작 (글자 삭제) 유지
+  if (sel.querySelector('[contenteditable="true"]')) return;
+  e.preventDefault();
+  sel.remove();
+  window.pushHistory?.('스티커 삭제');
+  window.scheduleAutoSave?.();
 });

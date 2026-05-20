@@ -714,6 +714,9 @@ function rebindAll() {
       // preserveAspectRatio="none" — frame 크기에 맞게 SVG 변형
       svg.setAttribute('preserveAspectRatio', 'none');
     }
+    // rectangle/ellipse: 구버전 4% 안전 inset(x=4 y=4 w=92 h=92) → stroke-기반 동적 inset으로 마이그레이션
+    // refreshShapeInnerSVG가 strokeWidth=0이면 풀폭, >0이면 절반만 inset 적용
+    window.refreshShapeInnerSVG?.(b);
     // shape frame inline height 제거 — frame-block 직속 shape-block, height는 frame-block이 관리
     const parentFrame = b.closest('.frame-block');
     if (parentFrame) parentFrame.style.height = parentFrame.dataset.height ? `${parentFrame.dataset.height}px` : '';
@@ -813,6 +816,8 @@ function rebindAll() {
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
+    // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
+    if (b.classList.contains('chat-block')) window.renderChatBlock?.(b);
     window.bindBlock(b);
   });
   // card-block 스타일 복원 (bgColor, radius, textAlign은 dataset에 저장되나 inline style은 재적용 필요)

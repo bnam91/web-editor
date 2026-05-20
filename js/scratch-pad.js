@@ -627,6 +627,8 @@ async function initScratchPad(projectId, pageId) {
         const blob = await _dataUrlToPngBlob(items[0].src);
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       }
+      // 외부 클립보드(이미지) 복사 timestamp — Cmd+V 시 내부 클립보드와 우선순위 비교용
+      window._scratchClipboardTime = Date.now();
       if (items.length === 1) {
         window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 Cmd+V');
       } else {
@@ -680,7 +682,16 @@ async function initScratchPad(projectId, pageId) {
 
     const items = [...(e.clipboardData?.items || [])].filter(it => it.type.startsWith('image/'));
     if (!items.length) return;
+
+    // 내부 클립보드(섹션)가 더 최근에 복사됐다면 paste 양보 — editor가 섹션 paste 처리
+    const internalT = window._internalClipboardTime || 0;
+    const scratchT  = window._scratchClipboardTime  || 0;
+    if (internalT > scratchT) return;
+
     e.preventDefault();
+    // editor.js의 Cmd+V 섹션 paste 핸들러 중복 차단 플래그
+    window._scratchJustHandledPaste = true;
+    setTimeout(() => { window._scratchJustHandledPaste = false; }, 100);
 
     const scalerEl  = document.getElementById('canvas-scaler');
     const scale     = _getScale();
@@ -713,7 +724,7 @@ async function switchScratchPage(newPageId) {
 }
 
 // Port 드롭다운 → 폴더 일괄 불러오기 (goditor-images_to_scratchpad 스킬 UI판)
-// 좌표 정책: x=960(캔버스 우측), width=860, 기존 스크래치 가장 아래에 append (+100px 간격)
+// 좌표 정책: 첫 batch는 x=960부터 세로 컬럼. 이후 batch는 기존 max X 옆 컬럼(+GAP_X)에 새 세로 컬럼으로 추가
 async function loadScratchpadFolder(event) {
   const files = [...(event.target.files || [])];
   event.target.value = ''; // 같은 폴더 재선택 가능하도록 즉시 리셋
@@ -724,16 +735,17 @@ async function loadScratchpadFolder(event) {
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   if (!images.length) { window.showToast?.('⚠️ 이미지 파일을 찾지 못했습니다'); return; }
 
-  const START_X = 960, WIDTH = 860, GAP_Y = 100;
-  let startY = 0;
+  const START_X = 960, WIDTH = 860, GAP_X = 100, GAP_Y = 100;
+  let startX = START_X, startY = 0;
   if (_scratchItems.length > 0) {
-    let maxBottom = 0;
+    // 기존 items 중 가장 오른쪽 끝 → 그 옆 새 컬럼으로
+    let maxRight = 0;
     for (const s of _scratchItems) {
-      const h = s.el?.offsetHeight || s.w;
-      const bottom = (s.y || 0) + h;
-      if (bottom > maxBottom) maxBottom = bottom;
+      const w = s.el?.offsetWidth || s.w;
+      const right = (s.x || 0) + w;
+      if (right > maxRight) maxRight = right;
     }
-    startY = maxBottom + GAP_Y;
+    startX = maxRight + GAP_X;
   }
 
   let curY = startY, added = 0;
@@ -754,7 +766,7 @@ async function loadScratchpadFolder(event) {
       img.src = dataUrl;
     });
     const displayH = nat.w > 0 ? Math.round((nat.h / nat.w) * WIDTH) : WIDTH;
-    await window._scratchAddAndSave(dataUrl, START_X, curY, WIDTH);
+    await window._scratchAddAndSave(dataUrl, startX, curY, WIDTH);
     curY += displayH + GAP_Y;
     added++;
   }

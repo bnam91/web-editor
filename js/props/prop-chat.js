@@ -24,9 +24,8 @@ export function showChatProperties(block) {
       <div class="chb-prop-item" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <button class="prop-align-btn chb-align-btn ${m.align !== 'right' ? 'active' : ''}" data-idx="${i}" data-dir="left" title="좌측"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/><line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/></svg></button>
         <button class="prop-align-btn chb-align-btn ${m.align === 'right' ? 'active' : ''}" data-idx="${i}" data-dir="right" title="우측"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/><line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/></svg></button>
-        <input type="text" class="prop-color-hex chb-text-input" data-idx="${i}"
-          value="${(m.text || '').replace(/"/g, '&quot;')}"
-          style="flex:1;width:auto;max-width:none">
+        <textarea class="prop-color-hex chb-text-input" data-idx="${i}" rows="1"
+          style="flex:1;width:auto;max-width:none;min-height:24px;resize:vertical;font-family:inherit;line-height:1.4">${(m.text || '').replace(/</g, '&lt;')}</textarea>
         <button class="prop-btn prop-btn-danger chb-del-btn" data-idx="${i}" style="padding:2px 7px;font-size:11px">✕</button>
       </div>`).join('');
   }

@@ -167,7 +167,6 @@ function _ensurePopover() {
         <select data-el="gradType">
           <option value="linear">Linear</option>
           <option value="radial">Radial</option>
-          <option value="conic">Conic</option>
         </select>
         <select data-el="gradAngle">
           <option value="0">0°</option>
@@ -180,23 +179,15 @@ function _ensurePopover() {
           <option value="315">315°</option>
         </select>
       </div>
-      <div class="goya-cp-spectrum" data-el="gradSpectrum" style="margin-top:10px;">
-        <div class="goya-cp-reticle" data-el="gradReticle" style="left:50%;top:50%"></div>
+      <div class="goya-cp-grad-stops" style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+        <span style="font-size:11px;color:#888;width:32px;">Start</span>
+        <input type="color" data-el="gradStart" value="#ff5e3a" style="width:32px;height:24px;border:none;background:transparent;cursor:pointer;">
+        <input type="text" class="goya-cp-hex" data-el="gradStartHex" maxlength="6" value="FF5E3A" style="flex:1;" aria-label="Start hex">
       </div>
-      <div class="goya-cp-sliders">
-        <div class="goya-cp-slider goya-cp-slider--hue" data-el="gradHue">
-          <div class="goya-cp-thumb" data-el="gradHueThumb" style="left:0%"></div>
-        </div>
-      </div>
-      <div class="goya-cp-inputs">
-        <button class="goya-cp-chit" data-el="gradChit" aria-label="Gradient stop color" type="button" style="background:#000000;"></button>
-        <div class="goya-cp-hex-field">
-          <input type="text" class="goya-cp-hex" data-el="gradHex" maxlength="6" value="000000" aria-label="Color hex">
-        </div>
-        <label class="goya-cp-opacity-field">
-          <input type="text" class="goya-cp-alpha-input" data-el="gradAlpha" value="100" aria-label="Opacity">
-          <span class="goya-cp-suffix">%</span>
-        </label>
+      <div class="goya-cp-grad-stops" style="display:flex;gap:8px;margin-top:6px;align-items:center;">
+        <span style="font-size:11px;color:#888;width:32px;">End</span>
+        <input type="color" data-el="gradEnd" value="#1aa6ff" style="width:32px;height:24px;border:none;background:transparent;cursor:pointer;">
+        <input type="text" class="goya-cp-hex" data-el="gradEndHex" maxlength="6" value="1AA6FF" style="flex:1;" aria-label="End hex">
       </div>
     </div>
 
@@ -267,17 +258,25 @@ function _applySolidAndEmit() {
   _emitToTarget(hex);
 }
 
-/* ─── 드래그 헬퍼 ─── */
+/* ─── 드래그 헬퍼 (rAF throttle 적용 — 매 mousemove마다 DOM 변경하지 않게) ─── */
 function _drag(el, handler) {
   el.addEventListener('mousedown', e => {
     e.preventDefault();
     const rect = el.getBoundingClientRect();
-    const move = ev => {
-      const x = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
-      const y = Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height));
+    let pendingFrame = false, lastEv = e;
+    const flush = () => {
+      pendingFrame = false;
+      const x = Math.max(0, Math.min(1, (lastEv.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (lastEv.clientY - rect.top) / rect.height));
       handler(x, y);
     };
-    move(e);
+    const move = ev => {
+      lastEv = ev;
+      if (pendingFrame) return;
+      pendingFrame = true;
+      requestAnimationFrame(flush);
+    };
+    flush(); // 클릭 즉시 1회
     const up = () => {
       document.removeEventListener('mousemove', move);
       document.removeEventListener('mouseup', up);
@@ -398,14 +397,59 @@ function _wireEvents(pop) {
     inp.click();
   });
 
-  /* Gradient bar — 간단히 현재 hex + 두 번째 고정 색 */
-  const gradBar = pop.querySelector('[data-el="gradBar"]');
+  /* Gradient — start/end stop, type, angle 입력 → CSS gradient + 메타 emit */
   const gradFill = pop.querySelector('[data-el="gradFill"]');
-  const _updateGradFill = () => {
-    const hex = hexFromHsv(_state?.h ?? 0, _state?.s ?? 1, _state?.v ?? 1);
-    gradFill.style.background = `linear-gradient(to right, ${hex}, transparent)`;
-  };
-  gradBar.addEventListener('click', _updateGradFill);
+  const gradStart = pop.querySelector('[data-el="gradStart"]');
+  const gradEnd = pop.querySelector('[data-el="gradEnd"]');
+  const gradStartHex = pop.querySelector('[data-el="gradStartHex"]');
+  const gradEndHex = pop.querySelector('[data-el="gradEndHex"]');
+  const gradType = pop.querySelector('[data-el="gradType"]');
+  const gradAngle = pop.querySelector('[data-el="gradAngle"]');
+
+  function _buildGradientCSS() {
+    const type = gradType.value;
+    const angle = parseInt(gradAngle.value) || 90;
+    const s = gradStart.value || '#ff5e3a';
+    const e = gradEnd.value || '#1aa6ff';
+    if (type === 'radial') return `radial-gradient(circle, ${s} 0%, ${e} 100%)`;
+    return `linear-gradient(${angle}deg, ${s} 0%, ${e} 100%)`;
+  }
+  function _emitGradient() {
+    const css = _buildGradientCSS();
+    gradFill.style.background = css;
+    if (!_targetInput) return;
+    _targetInput.dispatchEvent(new CustomEvent('goya-cp:gradient', {
+      bubbles: true,
+      detail: {
+        css,
+        type: gradType.value,
+        angle: parseInt(gradAngle.value) || 90,
+        stops: [
+          { color: gradStart.value, offset: 0 },
+          { color: gradEnd.value, offset: 1 },
+        ],
+      }
+    }));
+  }
+  function _syncStartHex() { gradStartHex.value = gradStart.value.replace('#','').toUpperCase(); }
+  function _syncEndHex()   { gradEndHex.value   = gradEnd.value.replace('#','').toUpperCase(); }
+
+  gradStart.addEventListener('input', () => { _syncStartHex(); _emitGradient(); });
+  gradEnd.addEventListener('input',   () => { _syncEndHex();   _emitGradient(); });
+  gradStartHex.addEventListener('input', () => {
+    const v = gradStartHex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) { gradStart.value = '#' + v.toLowerCase(); _emitGradient(); }
+  });
+  gradEndHex.addEventListener('input', () => {
+    const v = gradEndHex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) { gradEnd.value = '#' + v.toLowerCase(); _emitGradient(); }
+  });
+  gradType.addEventListener('change', _emitGradient);
+  gradAngle.addEventListener('change', _emitGradient);
+  // 탭 진입 시 초기 프리뷰
+  pop.querySelector('.goya-cp-tab[data-tab="gradient"]').addEventListener('click', () => {
+    gradFill.style.background = _buildGradientCSS();
+  });
 }
 
 /* ─── 위치 계산 ─── */

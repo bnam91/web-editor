@@ -44,6 +44,31 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
     return s && e && ctx.contentEl.contains(s) && ctx.contentEl.contains(e) && !_lastSelRange.collapsed;
   };
 
+  // 새로 만든 span의 ancestor 중 같은 style prop을 가진 span을 평탄화 (외부 중첩 방지)
+  // 단, ancestor 의 range 가 새 span 외 다른 영역을 덮으면 안 되므로,
+  // ancestor 가 정확히 새 span 한 자식만 갖는 경우에만 평탄화 (안전 case),
+  // 그 외에는 ancestor 의 prop 만 제거 (외부의 다른 텍스트는 영향 X).
+  const _flattenAncestorWithProp = (newSpan, prop) => {
+    let cur = newSpan.parentNode;
+    while (cur && cur !== ctx.contentEl && cur.nodeType === 1) {
+      if (cur.tagName === 'SPAN' && cur.style && cur.style[prop]) {
+        // 같은 prop 가진 부모 span 발견
+        // 부모 span 이 newSpan 외 다른 형제를 갖고 있으면 prop만 제거(상속 차단)하면 안 됨
+        // — 차라리 newSpan을 부모 밖으로 끌어내야 함. 단순화를 위해 prop만 제거.
+        cur.style[prop] = '';
+        const styleStr = cur.getAttribute('style') || '';
+        if (!styleStr.replace(/;|\s/g, '')) {
+          const p = cur.parentNode;
+          while (cur.firstChild) p.insertBefore(cur.firstChild, cur);
+          p.removeChild(cur);
+          cur = p;
+          continue;
+        }
+      }
+      cur = cur.parentNode;
+    }
+  };
+
   const applyExecCmd = (savedSel, cmd, val = null) => {
     if (!savedSel) return false;
     const wasEditable = ctx.contentEl.contentEditable;
@@ -69,21 +94,50 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
   };
   const applySizeToSel = (v) => {
     if (!_savedSizeSel) {
-      // selection 없으면 전체 contentEl에 적용 (사용자 친화적 fallback)
-      if (ctx.contentEl) ctx.contentEl.style.fontSize = v + 'px';
+      // selection 없으면 전체 일괄 적용 — mix 상태 부분 span들 정리
+      if (ctx.contentEl) {
+        ctx.contentEl.querySelectorAll('span[style*="font-size"]').forEach(s => {
+          s.style.fontSize = '';
+          const styleStr = s.getAttribute('style') || '';
+          if (!styleStr.replace(/;|\s/g, '')) {
+            const parent = s.parentNode;
+            while (s.firstChild) parent.insertBefore(s.firstChild, s);
+            parent.removeChild(s);
+          }
+        });
+        ctx.contentEl.style.fontSize = v + 'px';
+      }
       return;
     }
     if (_sizeSpan && _sizeSpan.isConnected) {
       _sizeSpan.style.fontSize = v + 'px';
-    } else {
-      const r = _savedSizeSel.cloneRange();
-      const frag = r.extractContents();
-      _sizeSpan = document.createElement('span');
-      _sizeSpan.style.fontSize = v + 'px';
-      _sizeSpan.appendChild(frag);
-      r.insertNode(_sizeSpan);
-      // span 으로 교체했으니 savedSel 의 range 가 무의미 → 다음 input 은 _sizeSpan 사용
+      return;
     }
+    const r = _savedSizeSel.cloneRange();
+    const frag = r.extractContents();
+    // 기존 font-size 적용 span 정리 (이중 wrap 방지)
+    frag.querySelectorAll('span').forEach(s => {
+      if (s.style && s.style.fontSize) {
+        s.style.fontSize = '';
+        const styleStr = s.getAttribute('style') || '';
+        if (!styleStr.replace(/;|\s/g, '')) {
+          const parent = s.parentNode;
+          while (s.firstChild) parent.insertBefore(s.firstChild, s);
+          parent.removeChild(s);
+        }
+      }
+    });
+    _sizeSpan = document.createElement('span');
+    _sizeSpan.style.fontSize = v + 'px';
+    _sizeSpan.appendChild(frag);
+    r.insertNode(_sizeSpan);
+    _flattenAncestorWithProp(_sizeSpan, 'fontSize');
+    const newRange = document.createRange();
+    newRange.selectNodeContents(_sizeSpan);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+    _savedSizeSel = newRange.cloneRange();
   };
 
   // mousedown / pointerdown / focus 모두에서 selection 저장 시도 (브라우저 별 타이밍 안전망)
@@ -128,20 +182,55 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
 
   const applyColorToSel = (color) => {
     if (!_savedColorSel) {
-      // selection 없으면 전체 contentEl에 적용 (사용자 친화적 fallback)
-      if (ctx.contentEl) ctx.contentEl.style.color = color;
+      // selection 없으면 전체 contentEl에 일괄 적용
+      // mix 상태(내부 span별 부분 색)를 풀어줘야 contentEl.style.color가 우선됨
+      if (ctx.contentEl) {
+        ctx.contentEl.querySelectorAll('span[style*="color"]').forEach(s => {
+          s.style.color = '';
+          const styleStr = s.getAttribute('style') || '';
+          if (!styleStr.replace(/;|\s/g, '')) {
+            const parent = s.parentNode;
+            while (s.firstChild) parent.insertBefore(s.firstChild, s);
+            parent.removeChild(s);
+          }
+        });
+        ctx.contentEl.style.color = color;
+      }
       return;
     }
+    // 같은 input 시퀀스 — 이미 만든 span의 color만 갱신 (중복 wrap 방지)
     if (_colorSpan && _colorSpan.isConnected) {
       _colorSpan.style.color = color;
-    } else {
-      const r = _savedColorSel.cloneRange();
-      const frag = r.extractContents();
-      _colorSpan = document.createElement('span');
-      _colorSpan.style.color = color;
-      _colorSpan.appendChild(frag);
-      r.insertNode(_colorSpan);
+      return;
     }
+    // 새 적용: 기존 selection 영역을 새 span으로 감싸기 + 내부 기존 color span 정리
+    const r = _savedColorSel.cloneRange();
+    const frag = r.extractContents();
+    // frag 내부의 기존 color 적용 span들을 풀어줌 (이중 중첩 방지)
+    frag.querySelectorAll('span').forEach(s => {
+      if (s.style && s.style.color) {
+        s.style.color = '';
+        // style 속성이 비었으면 span을 평탄화 (children만 남기고 span 제거)
+        const styleStr = s.getAttribute('style') || '';
+        if (!styleStr.replace(/;|\s/g, '')) {
+          const parent = s.parentNode;
+          while (s.firstChild) parent.insertBefore(s.firstChild, s);
+          parent.removeChild(s);
+        }
+      }
+    });
+    _colorSpan = document.createElement('span');
+    _colorSpan.style.color = color;
+    _colorSpan.appendChild(frag);
+    r.insertNode(_colorSpan);
+    _flattenAncestorWithProp(_colorSpan, 'color');
+    // selection을 새 span 내부로 복원 → 추가 input 시 같은 영역 유지
+    const newRange = document.createRange();
+    newRange.selectNodeContents(_colorSpan);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+    _savedColorSel = newRange.cloneRange();
   };
 
   colorPicker.addEventListener('input', () => {

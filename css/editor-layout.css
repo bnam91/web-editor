@@ -83,9 +83,10 @@
 ═══════════════════════════════════ */
 .text-block {
   position: relative;
+  z-index: 2; /* highlight sticker(z-index:1)보다 위, 일반 sticker(z-index:55)보다 아래 */
   cursor: text;
   outline: 2px solid transparent;
-  
+
   padding: 0;
   width: 100%;
 }

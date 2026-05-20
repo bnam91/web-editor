@@ -125,6 +125,9 @@ export function showTextProperties(tb) {
   if (animBtn) animBtn.onclick = () => window.openAnimModal(tb);
 
   window.bindLayoutInput?.(tb);
+
+  // 이스터에그: 텍스트 효과가 적용된 블록이면 우측 패널에 컨트롤 증강
+  if (tb.dataset.textEffect) window.enhanceTextEffectPropPanel?.(tb);
 }
 
 // Backward compat: classic scripts call these via window.*

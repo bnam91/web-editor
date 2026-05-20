@@ -113,12 +113,21 @@ function _handlePenClick(e) {
   const sec = e.target.closest('.section-block');
   if (!sec) return;
 
-  const { x, y } = _clientToSectionCoord(e.clientX, e.clientY, sec);
+  let { x, y } = _clientToSectionCoord(e.clientX, e.clientY, sec);
   const now = Date.now();
 
   // 다른 섹션에서 시작 → pending 초기화
   if (_pendingPoints && _pendingPoints.sec !== sec) {
     _cancelPending();
+  }
+
+  // Shift constrain — 이전 점으로부터 수평/수직 snap
+  if (e.shiftKey && _pendingPoints && _pendingPoints.points.length > 0 && _pendingPoints.sec === sec) {
+    const prev = _pendingPoints.points[_pendingPoints.points.length - 1];
+    const dx = x - prev[0];
+    const dy = y - prev[1];
+    if (Math.abs(dx) >= Math.abs(dy)) y = prev[1]; // 수평
+    else x = prev[0];                              // 수직
   }
 
   // 더블클릭 검출: 같은 위치 + 짧은 시간 + 이미 2점 이상이면 finalize

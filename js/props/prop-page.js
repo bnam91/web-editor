@@ -131,6 +131,8 @@ export function showPageProperties() {
       <select class="prop-select" id="page-export-format" style="width:100%;margin-bottom:6px;">
         <option value="png">PNG</option>
         <option value="jpg">JPG</option>
+        <option value="gif">GIF (정적)</option>
+        <option value="gif-anim">GIF (애니메이션)</option>
       </select>
       <select class="prop-select" id="page-export-width" style="width:100%;margin-bottom:6px;">
         <option value="860">860px (기본)</option>

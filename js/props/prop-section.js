@@ -231,6 +231,8 @@ async function showSectionProperties(sec) {
         <select class="prop-select" id="sec-export-format" style="flex:1;min-width:0;">
           <option value="png">PNG</option>
           <option value="jpg">JPG</option>
+          <option value="gif">GIF (정적)</option>
+          <option value="gif-anim">GIF (애니메이션)</option>
         </select>
         <select class="prop-select" id="sec-export-width" style="flex:2;min-width:0;">
           <option value="860">860px (기본)</option>
@@ -474,7 +476,8 @@ function _bindSectionExport(sec) {
     const fmt = document.getElementById('sec-export-format').value;
     const w   = parseInt(document.getElementById('sec-export-width').value) || 860;
     secExportBtn.disabled = true;
-    secExportBtn.textContent = '내보내는 중...';
+    // GIF 애니메이션은 frame 캡처 + 인코딩으로 시간이 오래 걸림 → 안내문 분리
+    secExportBtn.textContent = fmt === 'gif-anim' ? 'GIF 생성 중...' : '내보내는 중...';
     try {
       await window.exportSection(sec, fmt, w);
     } finally {

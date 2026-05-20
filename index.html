@@ -562,6 +562,8 @@
     <div class="fp-dropdown-menu" id="fp-pen-menu">
       <button class="fp-menu-item" onclick="togglePenMode();toggleFpDropdown('fp-pen-dropdown')" title="펜툴 어노테이션 — 클릭으로 점 추가 · 더블클릭/Enter 종료 · ESC 취소">Annotation</button>
       <button class="fp-menu-item" onclick="addStickerBlock();toggleFpDropdown('fp-pen-dropdown')" title="플로팅 스티커 (원형 NEW 뱃지) 추가">Sticker</button>
+      <button class="fp-menu-item" onclick="addStickerBlock({shape:'highlight'});toggleFpDropdown('fp-pen-dropdown')" title="형광펜 — 텍스트 뒤에 깔리는 색 사각형">Highlight</button>
+      <button class="fp-menu-item" onclick="toggleHighlightBMode();toggleFpDropdown('fp-pen-dropdown')" title="선 형광펜 — 두 점 클릭으로 직선 형광펜 추가 · ESC 취소">HighlightB</button>
     </div>
   </div>
   <div class="fp-dropdown" id="fp-component-dropdown">
@@ -973,7 +975,10 @@
 <script type="module" src="js/annotation-tool.js"></script>
 <script src="js/annotation-select.js"></script>
 <script src="js/sticker-select.js"></script>
+<script src="js/alt-click-layer-select.js"></script>
+<script src="js/highlight-line-tool.js"></script>
 <script src="js/badge-transform.js"></script>
+<script src="js/text-effect-transform.js"></script>
 <script type="module" src="js/props/prop-annotation.js"></script>
 <div id="block-context-menu" style="display:none;position:fixed;z-index:9999;min-width:180px;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:4px 0;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
   <div class="bcm-item" id="bcm-save-template">
