@@ -11,6 +11,7 @@ import { wireTextEditSection } from './prop-text-wireup-text-edit.js';
 import { wireSpacingSection }  from './prop-text-wireup-spacing.js';
 import { wirePositionSection } from './prop-text-wireup-position.js';
 import { wirePaddingSection }  from './prop-text-wireup-padding.js';
+import { wireShadowSection, readShadowState } from './prop-text-wireup-shadow.js';
 
 export function showTextProperties(tb) {
   const isOverlayTb = tb.classList.contains('overlay-tb');
@@ -90,6 +91,9 @@ export function showTextProperties(tb) {
   // Mix 감지 (Figma 패턴): contentEl 내부 자식들이 서로 다른 color/fontSize/fontWeight 를 가지면 "Mix" 표시
   const mix = detectMix(contentEl);
 
+  // Shadow 상태 — dataset에서 읽음 (저장본 복원 호환)
+  const shadow = readShadowState(contentEl);
+
   propPanel.innerHTML = buildTextPropsHtml({
     tb, isOverlayTb, currentClass, currentAlign,
     currentX, currentY, currentW, currentFont, currentWeight, currentSize,
@@ -100,6 +104,7 @@ export function showTextProperties(tb) {
     bubbleBgHex, showSender, senderName,
     isIconText, currentItbGap,
     mix,
+    shadow,
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
@@ -115,6 +120,7 @@ export function showTextProperties(tb) {
   wireAlignSection({ tb, ctx, propPanel, isIconText });
   wireTextEditSection({ ctx, currentColorAlpha });
   wireSpacingSection({ ctx });
+  wireShadowSection({ ctx, initial: shadow });
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });
 
