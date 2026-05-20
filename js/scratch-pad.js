@@ -121,18 +121,57 @@ function _genScratchId() {
 function _removeItem(item) {
   if (_sliceMode) _exitSliceMode();
   // 다중 선택 중이고 item이 선택에 포함된 경우 → 선택 전체 삭제
+  let removedItems;
   if (_selectedItems.size > 0 && _selectedItems.has(item)) {
-    const toRemove = [..._selectedItems];
+    removedItems = [..._selectedItems];
     _clearSelection();
-    toRemove.forEach(s => {
-      s.el.remove();
-      _scratchItems = _scratchItems.filter(i => i !== s);
-    });
   } else {
-    item.el.remove();
-    _scratchItems = _scratchItems.filter(s => s !== item);
+    removedItems = [item];
   }
+  _deleteScratchItemsWithHistory(removedItems);
+}
+
+// 스크래치 아이템 일괄 삭제 + 글로벌 history 스택에 sideEffects로 push
+// Cmd+Z 시 캔버스 작업이 아닌 스크래치 삭제가 먼저 되돌려지도록 별도 entry로 등록
+function _deleteScratchItemsWithHistory(items) {
+  if (!items || items.length === 0) return;
+  // 삭제 전 정보 캡쳐 (복원용) — src/x/y/w/id 보존
+  const snapshots = items.map(s => ({ src: s.src, x: s.x, y: s.y, w: s.w, id: s.id }));
+
+  // 실제 삭제
+  items.forEach(s => {
+    s.el.remove();
+    _scratchItems = _scratchItems.filter(i => i !== s);
+    _selectedItems.delete(s);
+  });
   _saveScratch();
+
+  // 글로벌 history에 sideEffects entry 추가 — 캔버스 스냅샷은 동일 상태로 push되어
+  // restoreSnapshot은 캔버스에 영향을 주지 않고 onUndo가 스크래치만 복원
+  // onUndo가 새로 추가한 item들의 id를 기억해야 redo가 그것들을 다시 지울 수 있음
+  const undoNewIds = new Array(snapshots.length).fill(null);
+  try {
+    window.pushHistory?.('스크래치 삭제', {
+      onUndo: async () => {
+        for (let i = 0; i < snapshots.length; i++) {
+          const s = snapshots[i];
+          try { await window._scratchAddAndSave?.(s.src, s.x, s.y, s.w); } catch (_) {}
+          // 방금 추가된 item의 새 id 추출 (브라우저가 새 id 부여)
+          const all = document.querySelectorAll('.scratch-item');
+          const chip = all[all.length - 1]?.querySelector('.scratch-id-chip')?.textContent?.trim();
+          undoNewIds[i] = chip ? chip.replace(/^#/, '') : null;
+        }
+      },
+      onRedo: async () => {
+        // 복원했던 item들을 다시 제거
+        for (let i = 0; i < undoNewIds.length; i++) {
+          const id = undoNewIds[i];
+          if (id) { try { await window._scratchRemoveById?.(id); } catch (_) {} }
+          undoNewIds[i] = null;
+        }
+      },
+    });
+  } catch (_) {}
 }
 
 function _getScale() {
@@ -601,11 +640,7 @@ async function initScratchPad(projectId, pageId) {
     if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
     const toRemove = [..._selectedItems];
     _clearSelection();
-    toRemove.forEach(s => {
-      s.el.remove();
-      _scratchItems = _scratchItems.filter(i => i !== s);
-    });
-    _saveScratch();
+    _deleteScratchItemsWithHistory(toRemove);
   });
 
   // Cmd/Ctrl+C → 선택된 스크래치 이미지 (첫 장)를 OS 클립보드에 복사
