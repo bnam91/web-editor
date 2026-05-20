@@ -12,7 +12,21 @@ export function buildTextPropsHtml(state) {
     bubbleBgHex, showSender, senderName,
     isIconText, currentItbGap,
     mix,
+    shadow,
   } = state;
+
+  // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
+  const _sh = shadow || { enabled:false, x:2, y:2, blur:4, color:'#000000', alpha:50 };
+  const _shHex = (_sh.color || '#000000').replace('#','').toUpperCase();
+  const _shHexLow = '#' + _shHex.toLowerCase();
+  const _shSwatchBg = (() => {
+    const h = _shHex;
+    const r = parseInt(h.slice(0,2), 16);
+    const g = parseInt(h.slice(2,4), 16);
+    const b = parseInt(h.slice(4,6), 16);
+    const a = Math.max(0, Math.min(1, (_sh.alpha ?? 100) / 100));
+    return a >= 1 ? _shHexLow : `rgba(${r},${g},${b},${a})`;
+  })();
 
   // Figma "Mix" 정책: 자식들의 스타일이 섞여있으면 input 을 빈 값 + placeholder="Mix" 로 표시
   const _mix = mix || { color:{mixed:false}, fontSize:{mixed:false}, fontWeight:{mixed:false} };
@@ -156,6 +170,46 @@ export function buildTextPropsHtml(state) {
             <input type="text" class="prop-color-alpha-input" id="txt-color-alpha" value="${currentColorAlpha}" aria-label="Opacity">
             <span class="prop-color-alpha-suffix">%</span>
           </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="prop-section" id="txt-shadow-section">
+      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="prop-section-title" style="margin-bottom:0">Shadow</div>
+        <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
+          <input type="checkbox" id="txt-shadow-on" ${_sh.enabled ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div id="txt-shadow-controls">
+        <div class="prop-row">
+          <span class="prop-label">X</span>
+          <input type="range" class="prop-slider" id="txt-shadow-x-slider" min="-20" max="20" step="1" value="${_sh.x}">
+          <input type="number" class="prop-number" id="txt-shadow-x-number" min="-20" max="20" value="${_sh.x}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Y</span>
+          <input type="range" class="prop-slider" id="txt-shadow-y-slider" min="-20" max="20" step="1" value="${_sh.y}">
+          <input type="number" class="prop-number" id="txt-shadow-y-number" min="-20" max="20" value="${_sh.y}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Blur</span>
+          <input type="range" class="prop-slider" id="txt-shadow-blur-slider" min="0" max="40" step="1" value="${_sh.blur}">
+          <input type="number" class="prop-number" id="txt-shadow-blur-number" min="0" max="40" value="${_sh.blur}">
+        </div>
+        <div class="prop-color-row">
+          <span class="prop-label">색상</span>
+          <div class="prop-color-field">
+            <div class="prop-color-swatch" style="background:${_shSwatchBg}">
+              <input type="color" id="txt-shadow-color" value="${_shHexLow}">
+            </div>
+            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="${_shHex}" maxlength="6" aria-label="Shadow color">
+            <label class="prop-color-alpha" title="Opacity">
+              <input type="text" class="prop-color-alpha-input" id="txt-shadow-color-alpha" value="${_sh.alpha}" aria-label="Shadow opacity">
+              <span class="prop-color-alpha-suffix">%</span>
+            </label>
+          </div>
         </div>
       </div>
     </div>
