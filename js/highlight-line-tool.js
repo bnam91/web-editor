@@ -1,12 +1,12 @@
 // highlight-line-tool.js — HighlightB (선 형광펜) 2점 클릭 입력 모드
 // 모드 진입 → 캔버스 첫 클릭 (start point) + preview SVG → 두 번째 클릭 (end point) → finalize
-// ESC 또는 우클릭으로 취소, 모드 재토글로 종료
+// ESC 또는 V 키로 모드 종료, 우클릭으로 pending 취소, 모드 재토글로 종료
 
 let _hlbMode = false;
 let _pending = null;          // { sec, x1, y1 }
 let _previewEl = null;        // 임시 미리보기 DOM (sec 내부)
 let _boundCanvas = false;
-let _currentMouseSec = null;  // 현재 마우스가 위치한 섹션 (preview용)
+let _entryClickSeenAt = 0;    // 모드 진입 직후 첫 캔버스 click 무시용 타임스탬프 가드
 
 const HLB_DEFAULTS = {
   thickness: 12,
@@ -17,6 +17,8 @@ function enterHighlightBMode() {
   if (_hlbMode) return;
   _hlbMode = true;
   document.body.classList.add('hlb-mode');
+  const btn = document.getElementById('fp-pen-btn');
+  if (btn) btn.classList.add('active');
   // 다른 모드와 충돌 방지
   window.exitPenMode?.();
   window._deselectAllStickers?.();
@@ -24,12 +26,17 @@ function enterHighlightBMode() {
   _initCanvasListeners();
   document.addEventListener('keydown', _onKeydown, true);
   document.addEventListener('mousemove', _onMouseMove, true);
+  // 메뉴 버튼 클릭으로 진입한 직후 (~250ms) 같은 click 사이클이 캔버스로 흘러들어와
+  // 즉시 시작점을 찍어버리는 부작용을 방지
+  _entryClickSeenAt = performance.now();
 }
 
 function exitHighlightBMode() {
   if (!_hlbMode) return;
   _hlbMode = false;
   document.body.classList.remove('hlb-mode');
+  const btn = document.getElementById('fp-pen-btn');
+  if (btn) btn.classList.remove('active');
   _cancelPending();
   document.removeEventListener('keydown', _onKeydown, true);
   document.removeEventListener('mousemove', _onMouseMove, true);
@@ -54,19 +61,47 @@ function _clientToSectionCoord(clientX, clientY, sec) {
   };
 }
 
+// 좌표에서 가장 가까운 .section-block 을 elementsFromPoint 으로 탐색
+// — section-block 위에 pointer-events:none preview 가 떠 있어도 잡힘
+function _findSectionAtClient(clientX, clientY, evTarget) {
+  // 1) target 의 closest 우선
+  if (evTarget && evTarget.closest) {
+    const direct = evTarget.closest('.section-block');
+    if (direct) return direct;
+  }
+  // 2) elementsFromPoint 스택 탐색
+  if (typeof document.elementsFromPoint === 'function') {
+    const stack = document.elementsFromPoint(clientX, clientY);
+    for (const el of stack) {
+      const sec = el.closest && el.closest('.section-block');
+      if (sec) return sec;
+    }
+  }
+  return null;
+}
+
 function _initCanvasListeners() {
   if (_boundCanvas) return;
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap) return;
   wrap.addEventListener('click',       _onCanvasClickCapture,   true);
   wrap.addEventListener('mousedown',   _onMouseDownCapture,     true);
+  wrap.addEventListener('mouseup',     _onMouseUpCapture,       true);
   wrap.addEventListener('contextmenu', _onContextMenuCapture,   true);
   _boundCanvas = true;
 }
 
 function _onCanvasClickCapture(e) {
   if (!_hlbMode) return;
-  if (e.target.closest('#fp-pen-btn')) return;
+  if (e.target.closest?.('#fp-pen-btn')) return;
+  if (e.target.closest?.('.fp-dropdown')) return;
+  // 모드 진입 직후 50ms 내 click 은 진입 click 의 잔여 dispatch 일 수 있음 → 무시
+  if (performance.now() - _entryClickSeenAt < 50) {
+    _entryClickSeenAt = 0;
+    e.stopPropagation();
+    e.preventDefault();
+    return;
+  }
   e.stopPropagation();
   e.preventDefault();
   _handleClick(e);
@@ -74,21 +109,33 @@ function _onCanvasClickCapture(e) {
 
 function _onMouseDownCapture(e) {
   if (!_hlbMode) return;
-  if (e.target.closest('#fp-pen-btn')) return;
-  if (!e.target.closest('.section-block')) return;
+  if (e.target.closest?.('#fp-pen-btn')) return;
+  if (e.target.closest?.('.fp-dropdown')) return;
+  // 캔버스/섹션 위 mousedown 은 모드 동안 전부 차단 (드래그 핸들러 진입 방지)
+  if (!e.target.closest?.('#canvas-wrap')) return;
   e.stopPropagation();
   e.preventDefault();
+}
+
+function _onMouseUpCapture(e) {
+  if (!_hlbMode) return;
+  if (e.target.closest?.('#fp-pen-btn')) return;
+  if (e.target.closest?.('.fp-dropdown')) return;
+  if (!e.target.closest?.('#canvas-wrap')) return;
+  // mouseup 도 차단 — 다른 select 로직이 mouseup 으로 동작하는 경우 대비
+  e.stopPropagation();
 }
 
 function _onContextMenuCapture(e) {
   if (!_hlbMode) return;
   e.stopPropagation();
   e.preventDefault();
-  _cancelPending();
+  if (_pending) _cancelPending();
+  else exitHighlightBMode();
 }
 
 function _handleClick(e) {
-  const sec = e.target.closest('.section-block');
+  const sec = _findSectionAtClient(e.clientX, e.clientY, e.target);
   if (!sec) return;
   let { x, y } = _clientToSectionCoord(e.clientX, e.clientY, sec);
 
@@ -117,9 +164,12 @@ function _handleClick(e) {
 
 function _onMouseMove(e) {
   if (!_hlbMode || !_pending) return;
-  const sec = e.target.closest?.('.section-block') || _pending.sec;
-  if (!sec) return;
-  const { x, y } = _clientToSectionCoord(e.clientX, e.clientY, _pending.sec);
+  const sec = _pending.sec;
+  if (!sec || !sec.isConnected) {
+    _cancelPending();
+    return;
+  }
+  const { x, y } = _clientToSectionCoord(e.clientX, e.clientY, sec);
   _updatePreview(x, y, e.shiftKey);
 }
 
@@ -173,7 +223,7 @@ function _finalize(sec, x1, y1, x2, y2) {
     _cancelPending();
     return;
   }
-  window.pushHistory?.('HighlightB 추가');
+  try { window.pushHistory?.('HighlightB 추가'); } catch (err) { console.warn('[HLB] pushHistory failed', err); }
   const block = window.makeStickerBlock({
     shape: 'highlightB',
     x1, y1, x2, y2,
@@ -181,23 +231,42 @@ function _finalize(sec, x1, y1, x2, y2) {
     hlColor: HLB_DEFAULTS.hlColor,
   });
   sec.appendChild(block);
-  window.bindStickerSelect?.(block);
+  try { window.bindStickerSelect?.(block); } catch (err) { console.warn('[HLB] bindStickerSelect failed', err); }
   _cancelPending();
-  window.scheduleAutoSave?.();
+  try { window.scheduleAutoSave?.(); } catch (err) { console.warn('[HLB] scheduleAutoSave failed', err); }
 }
 
 function _onKeydown(e) {
   if (!_hlbMode) return;
+  // 입력 중인 텍스트 필드/contenteditable 에서는 단축키 무시
+  const ae = document.activeElement;
+  const editing = ae && (
+    ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' ||
+    ae.getAttribute?.('contenteditable') === 'true'
+  );
+  if (editing) return;
+
   if (e.key === 'Escape') {
     e.stopPropagation();
-    if (_pending) {
-      _cancelPending();
-    } else {
-      exitHighlightBMode();
-    }
+    e.preventDefault();
+    if (_pending) _cancelPending();
+    else exitHighlightBMode();
+    return;
+  }
+  // V 키 — 펜딩 여부와 상관없이 모드 종료 (선택 도구로 복귀)
+  if (e.key === 'v' || e.key === 'V') {
+    e.stopPropagation();
+    e.preventDefault();
+    exitHighlightBMode();
   }
 }
 
 window.enterHighlightBMode  = enterHighlightBMode;
 window.exitHighlightBMode   = exitHighlightBMode;
 window.toggleHighlightBMode = toggleHighlightBMode;
+// 디버깅용 상태 노출
+window._hlbState = () => ({
+  mode: _hlbMode,
+  pending: !!_pending,
+  previewMounted: !!_previewEl,
+});
