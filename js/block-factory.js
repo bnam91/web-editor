@@ -3500,6 +3500,9 @@ const STICKER_DEFAULTS = {
 function renderStickerBlock(block) {
   const shape      = block.dataset.shape      || STICKER_DEFAULTS.shape;
   const size       = parseInt(block.dataset.size)       || STICKER_DEFAULTS.size;
+  // 모서리 핸들 리사이즈 시 W/H 독립 (sizeW/sizeH 우선, 없으면 size로 정사각)
+  const sizeW      = parseInt(block.dataset.sizeW) || size;
+  const sizeH      = parseInt(block.dataset.sizeH) || size;
   const text       = block.dataset.text ?? STICKER_DEFAULTS.text;
   const bgColor    = block.dataset.bgColor    || STICKER_DEFAULTS.bgColor;
   const textColor  = block.dataset.textColor  || STICKER_DEFAULTS.textColor;
@@ -3560,14 +3563,14 @@ function renderStickerBlock(block) {
   const radius = shape === 'circle' ? '50%' : '8px';
   if (mode === 'image' && imgSrc) {
     // 이미지 모드 — 배경 색 무시, 이미지로 채움
-    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${size}px;height:${size}px;`
+    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
       + `background:transparent;border-radius:${radius};overflow:hidden;`
       + `display:flex;align-items:center;justify-content:center;`
       + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
     block.innerHTML = `<img class="sticker-img" src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;pointer-events:none;" draggable="false">`;
   } else {
     // 텍스트 모드 (기본)
-    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${size}px;height:${size}px;`
+    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
       + `background:${bgColor};color:${textColor};border-radius:${radius};`
       + `display:flex;align-items:center;justify-content:center;`
       + `font-size:${fontSize}px;font-weight:${fontWeight};line-height:1;`

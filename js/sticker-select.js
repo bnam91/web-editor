@@ -43,11 +43,19 @@ function _selectSticker(block) {
   if (!block) return;
   // 다른 selected 풀기 (deselectAll이 sticker-block도 처리)
   document.querySelectorAll('.sticker-block.selected').forEach(b => {
-    if (b !== block) { b.classList.remove('selected'); _removeHlbHandles(b); }
+    if (b !== block) {
+      b.classList.remove('selected');
+      _removeHlbHandles(b);
+      _removeCornerHandles(b);
+    }
   });
   window.deselectAll?.();
   block.classList.add('selected');
-  if (block.dataset.shape === 'highlightB') _addHlbHandles(block);
+  if (block.dataset.shape === 'highlightB') {
+    _addHlbHandles(block);
+  } else {
+    _addCornerHandles(block);
+  }
   window.showStickerProperties?.(block);
 }
 window._selectSticker = _selectSticker;
@@ -56,6 +64,7 @@ function _deselectAllStickers() {
   document.querySelectorAll('.sticker-block.selected').forEach(b => {
     b.classList.remove('selected');
     _removeHlbHandles(b);
+    _removeCornerHandles(b);
   });
 }
 window._deselectAllStickers = _deselectAllStickers;
@@ -127,6 +136,130 @@ function _bindHlbHandleDrag(handle, block, endpoint) {
 }
 window._addHlbHandles = _addHlbHandles;
 window._removeHlbHandles = _removeHlbHandles;
+
+// ── Sticker 4모서리 리사이즈 핸들 (circle/square/highlight) ──
+// highlightB는 _addHlbHandles로 처리, 여기는 호출되지 않음.
+function _removeCornerHandles(block) {
+  if (!block) return;
+  block.querySelectorAll(':scope > .sticker-corner-handle').forEach(h => h.remove());
+  block.classList.remove('tiny');
+}
+function _addCornerHandles(block) {
+  _removeCornerHandles(block);
+  if (!block || block.dataset.shape === 'highlightB') return;
+  // 도형이 작으면 핸들을 바깥쪽으로 이동 (40px 미만 기준 — Suika 참고)
+  const w = block.offsetWidth  || 0;
+  const h = block.offsetHeight || 0;
+  if (w < 40 || h < 40) block.classList.add('tiny');
+  const corners = [
+    { id: 'tl', left: '0%',   top: '0%'   },
+    { id: 'tr', left: '100%', top: '0%'   },
+    { id: 'bl', left: '0%',   top: '100%' },
+    { id: 'br', left: '100%', top: '100%' },
+  ];
+  corners.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'sticker-corner-handle';
+    el.dataset.corner = c.id;
+    el.style.left = c.left;
+    el.style.top  = c.top;
+    block.appendChild(el);
+    _bindCornerHandleDrag(el, block, c.id);
+  });
+}
+
+// 핸들 드래그 → width/height 변경. Shift = 비율 유지.
+// shape별 데이터 모델:
+//   - 'highlight' (직사각 형광펜): data-hlW / data-hlH
+//   - 그 외 (circle/square 등):  data-sizeW / data-sizeH (W/H 독립, 없으면 data-size 사용)
+function _bindCornerHandleDrag(handle, block, corner) {
+  handle.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    const sec = block.closest('.section-block');
+    if (!sec) return;
+    const zoom = (window.currentZoom || 40) / 100;
+    const shape = block.dataset.shape || 'circle';
+    const isHighlight = shape === 'highlight';
+    // 초기 W/H/위치 캐싱
+    const initW = isHighlight
+      ? (parseInt(block.dataset.hlW) || 160)
+      : (parseInt(block.dataset.sizeW) || parseInt(block.dataset.size) || 60);
+    const initH = isHighlight
+      ? (parseInt(block.dataset.hlH) || 28)
+      : (parseInt(block.dataset.sizeH) || parseInt(block.dataset.size) || 60);
+    const initX = parseInt(block.dataset.x) || 0;
+    const initY = parseInt(block.dataset.y) || 0;
+    const aspect = initH > 0 ? initW / initH : 1;
+    const startCX = e.clientX, startCY = e.clientY;
+    const MIN = 10;
+
+    const onMove = (ev) => {
+      const dx = (ev.clientX - startCX) / zoom;
+      const dy = (ev.clientY - startCY) / zoom;
+      // corner별 W/H 변화 (anchor는 반대편 모서리)
+      // tl: 좌상 → W↓ H↓ + X/Y 이동
+      // tr: 우상 → W↑ H↓ + Y 이동
+      // bl: 좌하 → W↓ H↑ + X 이동
+      // br: 우하 → W↑ H↑ (X/Y 그대로)
+      let newW = initW;
+      let newH = initH;
+      if (corner === 'tl') { newW = initW - dx; newH = initH - dy; }
+      else if (corner === 'tr') { newW = initW + dx; newH = initH - dy; }
+      else if (corner === 'bl') { newW = initW - dx; newH = initH + dy; }
+      else if (corner === 'br') { newW = initW + dx; newH = initH + dy; }
+      // Shift = 비율 유지 (변화량 큰 축 기준)
+      if (ev.shiftKey) {
+        const rW = newW / initW;
+        const rH = newH / initH;
+        if (Math.abs(rW - 1) >= Math.abs(rH - 1)) {
+          newH = newW / aspect;
+        } else {
+          newW = newH * aspect;
+        }
+      }
+      newW = Math.max(MIN, Math.round(newW));
+      newH = Math.max(MIN, Math.round(newH));
+      // anchor 보정 (반대편 모서리 고정)
+      let newX = initX;
+      let newY = initY;
+      if (corner === 'tl') { newX = initX + (initW - newW); newY = initY + (initH - newH); }
+      else if (corner === 'tr') { newY = initY + (initH - newH); }
+      else if (corner === 'bl') { newX = initX + (initW - newW); }
+      block.dataset.x = String(newX);
+      block.dataset.y = String(newY);
+      if (isHighlight) {
+        block.dataset.hlW = String(newW);
+        block.dataset.hlH = String(newH);
+      } else {
+        block.dataset.sizeW = String(newW);
+        block.dataset.sizeH = String(newH);
+        // data-size는 max로 동기화 (기존 단일 슬라이더 호환)
+        block.dataset.size = String(Math.max(newW, newH));
+      }
+      window.renderStickerBlock?.(block);
+      // 핸들은 block 자식이라 left/top % 기준 자동 따라감.
+      // tiny 클래스만 갱신
+      if (newW < 40 || newH < 40) block.classList.add('tiny');
+      else block.classList.remove('tiny');
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      window.pushHistory?.('스티커 크기 조절');
+      window.scheduleAutoSave?.();
+      if (block.classList.contains('selected')) {
+        window.showStickerProperties?.(block);
+      }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+window._addCornerHandles = _addCornerHandles;
+window._removeCornerHandles = _removeCornerHandles;
 
 function bindStickerSelect(block) {
   if (!block || block._stickerBound) return;
