@@ -210,17 +210,17 @@ function _bindCornerHandleDrag(handle, block, corner) {
     const onMove = (ev) => {
       const dx = (ev.clientX - startCX) / zoom;
       const dy = (ev.clientY - startCY) / zoom;
-      // corner별 W/H 변화 (anchor는 반대편 모서리)
-      // tl: 좌상 → W↓ H↓ + X/Y 이동
-      // tr: 우상 → W↑ H↓ + Y 이동
-      // bl: 좌하 → W↓ H↑ + X 이동
-      // br: 우하 → W↑ H↑ (X/Y 그대로)
-      let newW = initW;
-      let newH = initH;
-      if (corner === 'tl') { newW = initW - dx; newH = initH - dy; }
-      else if (corner === 'tr') { newW = initW + dx; newH = initH - dy; }
-      else if (corner === 'bl') { newW = initW - dx; newH = initH + dy; }
-      else if (corner === 'br') { newW = initW + dx; newH = initH + dy; }
+      const altCenter = ev.altKey; // 중심 anchor 모드
+      // corner별 W/H 변화량 (기본 anchor는 반대편 모서리)
+      let dW = 0, dH = 0;
+      if (corner === 'tl') { dW = -dx; dH = -dy; }
+      else if (corner === 'tr') { dW =  dx; dH = -dy; }
+      else if (corner === 'bl') { dW = -dx; dH =  dy; }
+      else if (corner === 'br') { dW =  dx; dH =  dy; }
+      // Alt = 중심 기준 → 양쪽이 동시에 늘어남 (변화량 2배)
+      if (altCenter) { dW *= 2; dH *= 2; }
+      let newW = initW + dW;
+      let newH = initH + dH;
       // Shift = 비율 유지 (변화량 큰 축 기준)
       if (ev.shiftKey) {
         const rW = newW / initW;
@@ -233,10 +233,14 @@ function _bindCornerHandleDrag(handle, block, corner) {
       }
       newW = Math.max(MIN, Math.round(newW));
       newH = Math.max(MIN, Math.round(newH));
-      // anchor 보정 (반대편 모서리 고정)
+      // anchor 보정
       let newX = initX;
       let newY = initY;
-      if (corner === 'tl') { newX = initX + (initW - newW); newY = initY + (initH - newH); }
+      if (altCenter) {
+        // 중심 유지 — 좌우 위아래 절반씩 보정
+        newX = initX + Math.round((initW - newW) / 2);
+        newY = initY + Math.round((initH - newH) / 2);
+      } else if (corner === 'tl') { newX = initX + (initW - newW); newY = initY + (initH - newH); }
       else if (corner === 'tr') { newY = initY + (initH - newH); }
       else if (corner === 'bl') { newX = initX + (initW - newW); }
       block.dataset.x = String(newX);
