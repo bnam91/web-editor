@@ -3544,6 +3544,10 @@ function renderStickerBlock(block) {
     const tRotation      = parseFloat(block.dataset.rotation) || 0;
     const tText          = block.dataset.text ?? 'Text';
 
+    const tPadX = parseInt(block.dataset.padX);
+    const tPadY = parseInt(block.dataset.padY);
+    const padX = Number.isFinite(tPadX) ? tPadX : 10;
+    const padY = Number.isFinite(tPadY) ? tPadY : 6;
     const lsStr     = Number.isFinite(tLetterSpacing) ? `${tLetterSpacing}px` : 'normal';
     const shadowStr = tShadowOn ? `${tShadowX}px ${tShadowY}px ${tShadowBlur}px ${tShadowColor}` : 'none';
     const strokeCss = tStrokeWidth > 0
@@ -3554,14 +3558,16 @@ function renderStickerBlock(block) {
 
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;`
       + `background:${tBgColor};border-radius:4px;`
-      + `padding:6px 10px;`
+      + `padding:${padY}px ${padX}px;`
       + `display:inline-block;white-space:pre-wrap;word-break:break-word;`
       + `font-family:${tFontFamily};font-size:${tFontSize}px;font-weight:${tFontWeight};`
       + `color:${tTextColor};letter-spacing:${lsStr};text-align:${tTextAlign};`
-      + `text-shadow:${shadowStr};${strokeCss}${rotCss}`
+      + `text-shadow:${shadowStr};${rotCss}`
       + `user-select:none;cursor:move;z-index:55;pointer-events:auto;line-height:1.25;`;
-    // sticker-text 클래스 유지(기존 dblclick 편집 로직 호환)
-    block.innerHTML = `<span class="sticker-text" style="display:inline-block;outline:none;">${safeText}</span>`;
+    // -webkit-text-stroke + paint-order는 span에 직접 적용해야 외곽선이 안정적으로 보임
+    // (block 인라인-블럭에 상속만 의존하면 일부 환경에서 paint-order가 무시됨)
+    const spanStyle = `display:inline-block;outline:none;${strokeCss}`;
+    block.innerHTML = `<span class="sticker-text" style="${spanStyle}">${safeText}</span>`;
     return;
   }
 

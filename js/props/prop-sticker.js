@@ -37,6 +37,8 @@ export function showStickerProperties(block) {
   const tShadowColor   = block.dataset.shadowColor   || 'rgba(0,0,0,0.4)';
   const tShadowAlpha   = parseAlphaFromColor(tShadowColor);
   const tRotation      = parseFloat(block.dataset.rotation) || 0;
+  const tPadX = Number.isFinite(parseInt(block.dataset.padX)) ? parseInt(block.dataset.padX) : 10;
+  const tPadY = Number.isFinite(parseInt(block.dataset.padY)) ? parseInt(block.dataset.padY) : 6;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -289,6 +291,19 @@ export function showStickerProperties(block) {
         </div>
       </div>
     </div>
+    <div class="prop-section" id="stk-text-pad-section" style="display:${isText ? 'block' : 'none'};">
+      <div class="prop-section-title">Padding (박스 크기)</div>
+      <div class="prop-row">
+        <span class="prop-label">좌우</span>
+        <input type="range" class="prop-slider" id="stk-t-pad-x" min="0" max="200" step="1" value="${tPadX}">
+        <input type="number" class="prop-number" id="stk-t-pad-x-num" min="0" max="400" step="1" value="${tPadX}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">상하</span>
+        <input type="range" class="prop-slider" id="stk-t-pad-y" min="0" max="200" step="1" value="${tPadY}">
+        <input type="number" class="prop-number" id="stk-t-pad-y-num" min="0" max="400" step="1" value="${tPadY}">
+      </div>
+    </div>
     <div class="prop-section" id="stk-text-rot-section" style="display:${isText ? 'block' : 'none'};">
       <div class="prop-section-title">Rotation</div>
       <div class="prop-row">
@@ -350,6 +365,8 @@ export function showStickerProperties(block) {
   _bindTPair('stk-t-sh-y',  'stk-t-sh-y-num',  'shadowY',       -20,  20,  1);
   _bindTPair('stk-t-sh-b',  'stk-t-sh-b-num',  'shadowBlur',    0,    40,  1);
   _bindTPair('stk-t-rot',   'stk-t-rot-num',   'rotation',      -180, 180, 1);
+  _bindTPair('stk-t-pad-x', 'stk-t-pad-x-num', 'padX',          0,    400, 1);
+  _bindTPair('stk-t-pad-y', 'stk-t-pad-y-num', 'padY',          0,    400, 1);
 
   // 텍스트 스티커 — 정렬
   propPanel.querySelectorAll('#stk-t-align-group .prop-align-btn').forEach(btn => {

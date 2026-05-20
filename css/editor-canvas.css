@@ -205,10 +205,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* 줌 카운터-스케일 (최대 2배까지) + 우측 툴바와 안전거리 확보 */
+  /* 줌 카운터-스케일 + 우측 툴바와 안전거리 확보 */
   max-width: calc((100% - 110px) / var(--ui-scale, 1));
   display: inline-block;
   transform: scale(var(--ui-scale, 1));
-  transform-origin: left center;
+  /* 라벨이 섹션 경계 바로 위에 붙도록 하단 기준 — 스케일 커져도 섹션과 분리되지 않음 */
+  transform-origin: left bottom;
 }
 

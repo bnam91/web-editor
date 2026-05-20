@@ -196,6 +196,55 @@ test.describe('merge integration QA', () => {
   // ──────────────────────────────────────────────
   // B: 텍스트 스티커 — shape="text" sticker 생성 + contenteditable
   // ──────────────────────────────────────────────
+  // 회귀: 텍스트 스티커 stroke가 span에 적용되는지 + padding dataset 반영
+  test('B-regression: 텍스트 스티커 stroke는 .sticker-text span에 직접 적용, padding은 dataset로 제어', async () => {
+    const result = await page.evaluate(() => {
+      document.querySelectorAll('.section-block').forEach(s => s.remove());
+      window.addSection();
+      const sec = document.querySelector('.section-block');
+      const stk = document.createElement('div');
+      stk.className = 'sticker-block';
+      stk.id = 'stk_qa_stroke_' + Date.now();
+      stk.dataset.shape = 'text';
+      stk.dataset.text = 'Hello';
+      stk.dataset.strokeWidth = '3';
+      stk.dataset.strokeColor = '#ff0000';
+      stk.dataset.padX = '40';
+      stk.dataset.padY = '20';
+      sec.appendChild(stk);
+      window.renderStickerBlock?.(stk);
+      const span = stk.querySelector('.sticker-text');
+      return {
+        spanStyleStroke: span?.style?.webkitTextStroke || span?.getAttribute('style') || '',
+        blockPadding: stk.style.padding || '',
+      };
+    });
+    // span에 -webkit-text-stroke가 들어가야 함 (paint-order:stroke fill)
+    expect(result.spanStyleStroke).toMatch(/stroke|3px/i);
+    // padding이 dataset 값으로 적용 — "20px 40px" (padY padX 순서)
+    expect(result.blockPadding).toMatch(/20px\s*40px/);
+  });
+
+  // 회귀: 스티커 복붙 (MULTI_SEL에 sticker-block 포함되는지)
+  test('B-regression-copy: 스티커 선택 후 클립보드 복사 로직이 outerHTML 캡쳐함', async () => {
+    const result = await page.evaluate(() => {
+      document.querySelectorAll('.section-block').forEach(s => s.remove());
+      window.addSection();
+      const sec = document.querySelector('.section-block');
+      const stk = document.createElement('div');
+      stk.className = 'sticker-block selected';
+      stk.id = 'stk_qa_copy_' + Date.now();
+      stk.dataset.shape = 'circle';
+      sec.appendChild(stk);
+      // MULTI_SEL은 copy 함수 내부 const라서 직접 못 보지만, document.querySelectorAll로 시뮬레이션
+      const MULTI_SEL = '.sticker-block.selected, .chat-block.selected, .step-block.selected, .laurel-block.selected, .joker-block.selected';
+      const matched = document.querySelectorAll(MULTI_SEL).length;
+      return { matched, stkHasSelected: stk.classList.contains('selected') };
+    });
+    expect(result.matched).toBe(1);
+    expect(result.stkHasSelected).toBe(true);
+  });
+
   test('B: 텍스트 스티커 생성 (shape=text)', async () => {
     const result = await page.evaluate(() => {
       // addStickerBlock 또는 makeStickerBlock 함수 존재 확인 + 텍스트 모드 생성

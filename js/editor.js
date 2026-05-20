@@ -593,7 +593,9 @@ function copySelected() {
   const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.graph-block.selected, .divider-block.selected, ' +
-    '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected';
+    '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, ' +
+    '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
+    '.laurel-block.selected, .joker-block.selected';
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -636,7 +638,12 @@ function copySelected() {
     clipboard = { type: 'block', html: rowEl.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selNormal) {
     const isGapSel = selNormal.classList.contains('gap-block');
-    const target = isGapSel ? selNormal : (selNormal.closest('.row') || selNormal);
+    // 스티커/플로팅 블럭은 row 밖에 absolute로 있으므로 자체 outerHTML만 복사 (closest('.row')로 잘못 wrapping 안 함)
+    const isFloating = selNormal.classList.contains('sticker-block')
+      || selNormal.classList.contains('chat-block')
+      || selNormal.classList.contains('laurel-block')
+      || selNormal.classList.contains('joker-block');
+    const target = (isGapSel || isFloating) ? selNormal : (selNormal.closest('.row') || selNormal);
     const banner = target.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selSS) {
@@ -786,6 +793,20 @@ function pasteClipboard() {
     const banner = _pasteIntoSourceBanner(el, clipboard.sourceBannerId);
     if (banner) {
       _bindPastedEl(el);
+    } else if (el.classList.contains('sticker-block')) {
+      // 스티커: section 안에 absolute로 +20px 오프셋해 추가
+      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      if (!sec) return;
+      sec.appendChild(el);
+      // ID 재생성 (기존 _bindPastedEl이 처리)
+      _bindPastedEl(el);
+      // 위치 오프셋
+      const curX = parseInt(el.dataset.x) || parseInt(el.style.left) || 0;
+      const curY = parseInt(el.dataset.y) || parseInt(el.style.top) || 0;
+      el.dataset.x = String(curX + 20);
+      el.dataset.y = String(curY + 20);
+      window.renderStickerBlock?.(el);
+      window.bindStickerSelect?.(el);
     } else {
       const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
       if (!sec) return;
