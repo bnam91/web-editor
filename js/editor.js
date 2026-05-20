@@ -49,6 +49,8 @@ function applyZoom(z) {
   _applyScalerTransform();
   zoomDisplay.textContent = currentZoom + '%';
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
+  // 섹션 라벨/툴바용 카운터-스케일 (최대 2배까지만 — 줌이 극단적으로 작아도 겹침 방지)
+  document.documentElement.style.setProperty('--ui-scale', Math.min(2, 100 / currentZoom).toFixed(4));
 }
 
 function _applyScalerTransform() {

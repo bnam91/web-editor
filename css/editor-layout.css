@@ -21,7 +21,8 @@
   background: var(--ui-bg-elevated); border: 1px solid var(--ui-border-mid);
   border-radius: 3px 3px 0 0;
   align-items: center; padding: 0 4px; gap: 2px; z-index: 200;
-  transform: scale(var(--inv-zoom, 1));
+  /* 줌 카운터-스케일 (최대 2배까지) — 극단적 줌아웃 시 라벨과 겹침 방지 */
+  transform: scale(var(--ui-scale, 1));
   transform-origin: bottom right;
 }
 .section-block.selected .section-toolbar { display: flex; }
