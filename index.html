@@ -553,9 +553,13 @@
   </div>
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-pen-dropdown">
-    <button class="fp-btn fp-dropdown-trigger" id="fp-pen-btn" onclick="toggleFpDropdown('fp-pen-dropdown')" title="그리기 도구 — 드롭다운에서 도구 선택">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>
+    <button class="fp-btn fp-dropdown-trigger" id="fp-pen-btn" aria-label="스티커 패널" onclick="toggleFpDropdown('fp-pen-dropdown')" title="스티커 패널 — 스티커 / 하이라이트 / 어노테이션">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Sticker: rounded square with peeled corner fold -->
+        <path d="M16 3H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h9l6-6V6a3 3 0 0 0-3-3Z"/>
+        <path d="M21 15h-3a3 3 0 0 0-3 3v3"/>
+        <!-- Star accent inside sticker for label feel -->
+        <path d="M12 8.5l1.1 2.3 2.4.3-1.8 1.7.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.7 2.4-.3z"/>
       </svg>
       <svg class="fp-chevron" width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1 2.5l3 3 3-3"/></svg>
     </button>
