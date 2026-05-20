@@ -1242,10 +1242,24 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
   display: flex; align-items: center; gap: 5px;
   padding: 4px 4px; border-radius: 5px;
   transition: background 0.1s;
+  position: relative;
 }
 .ck-item:hover { background: var(--ui-bg-hover); }
 .ck-item--done .ck-item-text {
   text-decoration: line-through; color: var(--ui-text-dim);
+}
+
+/* ── 선택 상태 — 캔버스 핀과 양방향 매핑 ─────────────────────────────── */
+.ck-item--selected {
+  background: rgba(153,102,255,0.12);
+}
+.ck-item--selected::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 4px; bottom: 4px;
+  width: 3px;
+  background: #9966ff;
+  border-radius: 2px;
 }
 
 .ck-check {
@@ -1425,6 +1439,36 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 @keyframes pin-pulse {
   0%,100% { transform: scale(1); }
   50%      { transform: scale(1.3); }
+}
+
+/* ── 선택 상태 — ck-item 클릭 시 캔버스 핀 식별용 ─────────────────────── */
+.todo-pin--selected .todo-pin-num {
+  /* 보라색 외곽 링 (선택 색상) */
+  box-shadow: 0 0 0 3px #9966ff, 0 4px 12px rgba(153,102,255,0.4);
+}
+.todo-pin--selected::after {
+  /* 핀 위쪽에 항목명 라벨 풍선 표시 */
+  content: attr(data-label);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #9966ff;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 70;
+}
+.todo-pin--selected {
+  z-index: 65;
 }
 
 /* 긴급 핀 */

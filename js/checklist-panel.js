@@ -125,6 +125,11 @@ function renderPins() {
 
     overlay.appendChild(pin);
   });
+  // 다시 그린 직후 — 기존 선택 상태가 있으면 복원
+  if (_selectedPinId) {
+    if (loadItems().some(it => it.id === _selectedPinId)) _selectPin(_selectedPinId);
+    else _selectedPinId = null;
+  }
 }
 
 // ── 핀 팝업 ───────────────────────────────────────────────────────────────────
@@ -494,6 +499,12 @@ function _renderList() {
   });
   list.addEventListener('drop', _onListDrop);
   list.addEventListener('dragend', () => { _removeDropIndicator(); _dragSrcId = null; _dragType = null; });
+
+  // 패널 다시 그린 직후 — 기존 선택 상태 복원 (renderPins와 동일 패턴)
+  if (_selectedPinId) {
+    if (loadItems().some(it => it.id === _selectedPinId)) _selectPin(_selectedPinId);
+    else _selectedPinId = null;
+  }
 }
 
 // ── 아이템 DOM 요소 생성 ──────────────────────────────────────────────────────
@@ -912,6 +923,39 @@ function _startSectionInlineEdit(el, sec) {
 }
 
 // ── 핀 이동 ──────────────────────────────────────────────────────────────────
+/** ck-item ↔ 캔버스 핀 양방향 선택 — 다른 항목/캔버스 빈 곳/ESC로 해제 */
+let _selectedPinId = null;
+
+function _clearPinSelection() {
+  _selectedPinId = null;
+  document.querySelectorAll('.todo-pin--selected').forEach(el => {
+    el.classList.remove('todo-pin--selected');
+    el.removeAttribute('data-label');
+  });
+  document.querySelectorAll('.ck-item--selected').forEach(el => el.classList.remove('ck-item--selected'));
+}
+
+function _selectPin(id) {
+  // 다른 선택 해제
+  _clearPinSelection();
+  _selectedPinId = id;
+  const items = loadItems();
+  const item = items.find(it => it.id === id);
+  if (!item) return;
+  // 핀 번호 계산 (urgent 제외 핀들 사이 순서)
+  const pinned = items.filter(it => it.x != null && !it.done);
+  const pinNum = pinned.findIndex(it => it.id === id) + 1;
+  // 핀 강조 + 라벨
+  const pinEl = document.querySelector(`.todo-pin[data-id="${id}"]`);
+  if (pinEl) {
+    pinEl.classList.add('todo-pin--selected');
+    pinEl.setAttribute('data-label', `${pinNum}. ${item.text || '(이름 없음)'}`);
+  }
+  // ck-item 강조
+  const ckEl = document.querySelector(`.ck-item[data-id="${id}"]`);
+  if (ckEl) ckEl.classList.add('ck-item--selected');
+}
+
 function _scrollToPin(id) {
   const item = loadItems().find(it => it.id === id);
   if (!item || item.x == null) return;
@@ -923,12 +967,28 @@ function _scrollToPin(id) {
     top:  item.y * scale - wrap.clientHeight / 2,
     behavior: 'smooth'
   });
-  const pinEl = document.querySelector(`.todo-pin[data-id="${id}"]`);
-  if (pinEl) {
-    pinEl.classList.add('todo-pin--highlight');
-    setTimeout(() => pinEl.classList.remove('todo-pin--highlight'), 1500);
-  }
+  // 선택 상태 적용 (지속) — 짧은 highlight 깜빡임은 제거
+  _selectPin(id);
 }
+
+// 캔버스 빈 곳 / 다른 블록 클릭 시 해제 — todo-pin / ck-item / popup 외부 클릭만 트리거
+document.addEventListener('click', e => {
+  if (!_selectedPinId) return;
+  if (e.target.closest('.todo-pin')) return;
+  if (e.target.closest('.ck-item')) return;
+  if (e.target.closest('.todo-pin-popup')) return;
+  _clearPinSelection();
+}, true);
+
+// ESC로 해제
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _selectedPinId) {
+    // input/editable 안이면 무시 (다른 핸들러가 처리)
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+    _clearPinSelection();
+  }
+});
 
 function _escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
