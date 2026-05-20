@@ -2481,23 +2481,17 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   border-radius: 1px;
   pointer-events: auto;
   z-index: 100;
-  /* 기본: 모서리 좌표(0/100%)에서 핸들을 center 정렬 */
-  transform: translate(-50%, -50%);
   box-sizing: border-box;
   /* mix-blend-mode 영향 차단 */
   mix-blend-mode: normal;
   isolation: isolate;
 }
-.sticker-corner-handle[data-corner="tl"] { cursor: nwse-resize; }
-.sticker-corner-handle[data-corner="br"] { cursor: nwse-resize; }
-.sticker-corner-handle[data-corner="tr"] { cursor: nesw-resize; }
-.sticker-corner-handle[data-corner="bl"] { cursor: nesw-resize; }
+/* asset-handle과 동일한 절대 px 패턴 — 핸들이 모서리에서 3.5px씩 바깥쪽으로 (정사각형 7px의 절반) */
+.sticker-corner-handle[data-corner="tl"] { top: -3.5px; left:  -3.5px; cursor: nwse-resize; }
+.sticker-corner-handle[data-corner="tr"] { top: -3.5px; right: -3.5px; cursor: nesw-resize; }
+.sticker-corner-handle[data-corner="bl"] { bottom: -3.5px; left:  -3.5px; cursor: nesw-resize; }
+.sticker-corner-handle[data-corner="br"] { bottom: -3.5px; right: -3.5px; cursor: nwse-resize; }
 .sticker-corner-handle:hover { background: #f0e8ff; }
-/* 작은 요소(<40px) — 핸들이 도형과 겹치지 않도록 바깥쪽으로 살짝 밀어줌 */
-.sticker-block.tiny .sticker-corner-handle[data-corner="tl"] { transform: translate(-100%, -100%); }
-.sticker-block.tiny .sticker-corner-handle[data-corner="tr"] { transform: translate(0%, -100%); }
-.sticker-block.tiny .sticker-corner-handle[data-corner="bl"] { transform: translate(-100%, 0%); }
-.sticker-block.tiny .sticker-corner-handle[data-corner="br"] { transform: translate(0%, 0%); }
 
 /* HighlightB SVG 라인 — 회전 svg 컨테이너 (line/wavy/marker 공통) */
 .sticker-hlb-svg {

@@ -158,24 +158,13 @@ function _removeCornerHandles(block) {
 function _addCornerHandles(block) {
   _removeCornerHandles(block);
   if (!block || block.dataset.shape === 'highlightB') return;
-  // 도형이 작으면 핸들을 바깥쪽으로 이동 (40px 미만 기준 — Suika 참고)
-  const w = block.offsetWidth  || 0;
-  const h = block.offsetHeight || 0;
-  if (w < 40 || h < 40) block.classList.add('tiny');
-  const corners = [
-    { id: 'tl', left: '0%',   top: '0%'   },
-    { id: 'tr', left: '100%', top: '0%'   },
-    { id: 'bl', left: '0%',   top: '100%' },
-    { id: 'br', left: '100%', top: '100%' },
-  ];
-  corners.forEach(c => {
+  // 위치는 CSS의 .sticker-corner-handle[data-corner="..."]가 절대 px로 처리 (asset-handle과 동일 패턴)
+  ['tl', 'tr', 'bl', 'br'].forEach(id => {
     const el = document.createElement('div');
     el.className = 'sticker-corner-handle';
-    el.dataset.corner = c.id;
-    el.style.left = c.left;
-    el.style.top  = c.top;
+    el.dataset.corner = id;
     block.appendChild(el);
-    _bindCornerHandleDrag(el, block, c.id);
+    _bindCornerHandleDrag(el, block, id);
   });
 }
 

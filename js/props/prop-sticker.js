@@ -260,28 +260,28 @@ export function showStickerProperties(block) {
       </div>
     </div>
     <div class="prop-section" id="stk-text-shadow-section" style="display:${isText ? 'block' : 'none'};">
-      <div class="prop-section-title">Shadow (그림자)</div>
-      <div class="prop-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#ccc;">
+      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="prop-section-title" style="margin-bottom:0">Shadow</div>
+        <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
           <input type="checkbox" id="stk-t-shadow-on" ${tShadowOn ? 'checked' : ''}>
-          그림자 사용
+          <span class="prop-toggle-track"></span>
         </label>
       </div>
-      <div id="stk-t-shadow-detail" style="display:${tShadowOn ? 'block' : 'none'};">
+      <div id="stk-t-shadow-detail">
         <div class="prop-row">
           <span class="prop-label">X</span>
-          <input type="range" class="prop-slider" id="stk-t-sh-x" min="-30" max="30" step="0.5" value="${tShadowX}">
-          <input type="number" class="prop-number" id="stk-t-sh-x-num" min="-100" max="100" step="0.5" value="${tShadowX}">
+          <input type="range" class="prop-slider" id="stk-t-sh-x" min="-20" max="20" step="1" value="${tShadowX}">
+          <input type="number" class="prop-number" id="stk-t-sh-x-num" min="-20" max="20" step="1" value="${tShadowX}">
         </div>
         <div class="prop-row">
           <span class="prop-label">Y</span>
-          <input type="range" class="prop-slider" id="stk-t-sh-y" min="-30" max="30" step="0.5" value="${tShadowY}">
-          <input type="number" class="prop-number" id="stk-t-sh-y-num" min="-100" max="100" step="0.5" value="${tShadowY}">
+          <input type="range" class="prop-slider" id="stk-t-sh-y" min="-20" max="20" step="1" value="${tShadowY}">
+          <input type="number" class="prop-number" id="stk-t-sh-y-num" min="-20" max="20" step="1" value="${tShadowY}">
         </div>
         <div class="prop-row">
           <span class="prop-label">Blur</span>
-          <input type="range" class="prop-slider" id="stk-t-sh-b" min="0" max="40" step="0.5" value="${tShadowBlur}">
-          <input type="number" class="prop-number" id="stk-t-sh-b-num" min="0" max="100" step="0.5" value="${tShadowBlur}">
+          <input type="range" class="prop-slider" id="stk-t-sh-b" min="0" max="40" step="1" value="${tShadowBlur}">
+          <input type="number" class="prop-number" id="stk-t-sh-b-num" min="0" max="40" step="1" value="${tShadowBlur}">
         </div>
         <div class="prop-color-row">
           <span class="prop-label">색상</span>
@@ -346,9 +346,9 @@ export function showStickerProperties(block) {
   _bindTPair('stk-t-fs',    'stk-t-fs-num',    'fontSize',      8,    400, 1);
   _bindTPair('stk-t-ls',    'stk-t-ls-num',    'letterSpacing', -10,  40,  0.1);
   _bindTPair('stk-t-stk-w', 'stk-t-stk-w-num', 'strokeWidth',   0,    50,  0.5);
-  _bindTPair('stk-t-sh-x',  'stk-t-sh-x-num',  'shadowX',       -100, 100, 0.5);
-  _bindTPair('stk-t-sh-y',  'stk-t-sh-y-num',  'shadowY',       -100, 100, 0.5);
-  _bindTPair('stk-t-sh-b',  'stk-t-sh-b-num',  'shadowBlur',    0,    100, 0.5);
+  _bindTPair('stk-t-sh-x',  'stk-t-sh-x-num',  'shadowX',       -20,  20,  1);
+  _bindTPair('stk-t-sh-y',  'stk-t-sh-y-num',  'shadowY',       -20,  20,  1);
+  _bindTPair('stk-t-sh-b',  'stk-t-sh-b-num',  'shadowBlur',    0,    40,  1);
   _bindTPair('stk-t-rot',   'stk-t-rot-num',   'rotation',      -180, 180, 1);
 
   // 텍스트 스티커 — 정렬
@@ -387,8 +387,6 @@ export function showStickerProperties(block) {
   // 텍스트 스티커 — 그림자 on/off + 그림자 색
   propPanel.querySelector('#stk-t-shadow-on')?.addEventListener('change', e => {
     block.dataset.shadowOn = e.target.checked ? '1' : '0';
-    const det = propPanel.querySelector('#stk-t-shadow-detail');
-    if (det) det.style.display = e.target.checked ? 'block' : 'none';
     rerender();
     window.pushHistory?.('텍스트 스티커 그림자'); window.scheduleAutoSave?.();
   });
