@@ -53,6 +53,8 @@ let _pop      = null;  // popover element
 let _state    = null;  // active picker state
 let _targetInput = null;  // native <input type="color"> being proxied
 let _outsideHandler = null;
+let _els      = null;  // cached [data-el="*"] refs (rebuilt once with popover)
+let _isDragging = false;  // true while user is mid-drag on solid spectrum/hue/alpha
 
 function _closePicker() {
   if (!_pop) return;
@@ -208,67 +210,100 @@ function _ensurePopover() {
 
   `;
   document.body.appendChild(_pop);
+  // perf: 자주 쓰는 [data-el] 노드를 한 번만 querySelector 해서 캐시
+  // _syncSolidUI / _drag / gradient emit이 mousemove마다 querySelector를 14+회 호출하던 비용을 제거.
+  _els = {};
+  _pop.querySelectorAll('[data-el]').forEach(n => { _els[n.dataset.el] = n; });
   _wireEvents(_pop);
   return _pop;
 }
 
 /* ─── UI 업데이트 헬퍼 ─── */
+// perf: querySelector 14+회 → 캐시된 _els 룩업으로 교체. transform/translate는
+// 같은 값일 때 cssText 재할당을 건너뛰어 layout 재계산을 줄임.
 function _syncSolidUI() {
   const s = _state;
-  if (!s) return;
-  const q = sel => _pop.querySelector(`[data-el="${sel}"]`);
-  const spec = q('spectrum');
+  if (!s || !_els) return;
   const pureHex = hexFromHsv(s.h, 1, 1);
-  spec.style.background = pureHex;
-  const ret = q('reticle');
+  const currentHex = hexFromHsv(s.h, s.s, s.v);
+  // 스펙트럼 배경은 hue만 바뀌므로 캐시된 값과 다를 때만 갱신
+  if (_els.spectrum._goyaBg !== pureHex) {
+    _els.spectrum.style.background = pureHex;
+    _els.spectrum._goyaBg = pureHex;
+  }
+  // reticle 위치/배경 (left,top % + bg color)
+  const ret = _els.reticle;
   ret.style.left = (s.s * 100) + '%';
   ret.style.top  = ((1 - s.v) * 100) + '%';
-  const currentHex = hexFromHsv(s.h, s.s, s.v);
   ret.style.background = currentHex;
+  // hue thumb: 단일 transform으로 합치고 색은 hue만 영향
   const huePct = (s.h / 360) * 100;
-  q('hueThumb').style.left = huePct + '%';
-  q('hueThumb').style.transform = `translate(${-huePct}%, -50%)`;
-  q('hueThumb').style.color = hexFromHsv(s.h, 1, 1);
+  const ht = _els.hueThumb;
+  ht.style.left = huePct + '%';
+  ht.style.transform = `translate(${-huePct}%, -50%)`;
+  const huePure = hexFromHsv(s.h, 1, 1);
+  if (ht._goyaColor !== huePure) {
+    ht.style.color = huePure;
+    ht._goyaColor = huePure;
+  }
+  // alpha thumb
   const aPct = s.a * 100;
-  q('alphaThumb').style.left = aPct + '%';
-  q('alphaThumb').style.transform = `translate(${-aPct}%, -50%)`;
-  q('alphaThumb').style.color = currentHex;
-  q('hue').setAttribute('aria-valuenow', Math.round(s.h));
-  q('alpha').setAttribute('aria-valuenow', Math.round(s.a * 100));
-  const slider = q('alpha');
-  slider.style.setProperty('--goya-cp-alpha-base', currentHex);
-  const hexInput = q('hex');
+  const at = _els.alphaThumb;
+  at.style.left = aPct + '%';
+  at.style.transform = `translate(${-aPct}%, -50%)`;
+  at.style.color = currentHex;
+  // alpha 슬라이더 배경 CSS 변수
+  const al = _els.alpha;
+  if (al._goyaBase !== currentHex) {
+    al.style.setProperty('--goya-cp-alpha-base', currentHex);
+    al._goyaBase = currentHex;
+  }
+  // aria 속성: 드래그 중에는 마지막에 한 번만 업데이트하면 충분 — 매 프레임 setAttribute는 스킵
+  if (!_isDragging) {
+    _els.hue.setAttribute('aria-valuenow', Math.round(s.h));
+    _els.alpha.setAttribute('aria-valuenow', Math.round(s.a * 100));
+  }
+  // 입력 필드 값: 포커스 시 사용자 입력 보존, 동일 값이면 스킵
   const hexUp = currentHex.slice(1).toUpperCase();
-  if (document.activeElement !== hexInput) hexInput.value = hexUp;
-  const aInput = q('alphaVal');
+  const hexInput = _els.hex;
+  if (document.activeElement !== hexInput && hexInput.value !== hexUp) hexInput.value = hexUp;
+  const aInput = _els.alphaVal;
   const aStr = String(Math.round(s.a * 100));
-  if (document.activeElement !== aInput) aInput.value = aStr;
+  if (document.activeElement !== aInput && aInput.value !== aStr) aInput.value = aStr;
 }
 
-function _emitToTarget(hex) {
+// perf: 드래그 중에는 'input' 이벤트만 발행해서 라이브 미리보기만 갱신,
+// 'change' 이벤트(pushHistory를 트리거하는 commit 이벤트)는 mouseup에서 단 1회.
+function _emitToTarget(hex, opts) {
   if (!_targetInput) return;
   _targetInput.value = hex;
   _targetInput.dispatchEvent(new Event('input', { bubbles: true }));
-  _targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+  // commit 이벤트는 명시적 요청 시(마우스업·키보드 confirm)만 발행
+  if (opts && opts.commit) {
+    _targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
 }
 
-function _applySolidAndEmit() {
+function _applySolidAndEmit(opts) {
   _syncSolidUI();
   const hex = hexFromHsv(_state.h, _state.s, _state.v);
-  _emitToTarget(hex);
+  _emitToTarget(hex, opts);
 }
 
-/* ─── 드래그 헬퍼 (rAF throttle 적용 — 매 mousemove마다 DOM 변경하지 않게) ─── */
+/* ─── 드래그 헬퍼 (rAF throttle + commit on mouseup) ─── */
+// perf: 드래그 중에는 'input' 만 발행하고 mouseup 에서 'change'를 1회 발행.
+// 무거운 commit 작업(pushHistory, autoSave 등)이 매 프레임 트리거되는 것을 막는다.
 function _drag(el, handler) {
   el.addEventListener('mousedown', e => {
     e.preventDefault();
     const rect = el.getBoundingClientRect();
     let pendingFrame = false, lastEv = e;
+    _isDragging = true;
     const flush = () => {
       pendingFrame = false;
       const x = Math.max(0, Math.min(1, (lastEv.clientX - rect.left) / rect.width));
       const y = Math.max(0, Math.min(1, (lastEv.clientY - rect.top) / rect.height));
-      handler(x, y);
+      handler(x, y, /*commit*/ false);
     };
     const move = ev => {
       lastEv = ev;
@@ -280,6 +315,11 @@ function _drag(el, handler) {
     const up = () => {
       document.removeEventListener('mousemove', move);
       document.removeEventListener('mouseup', up);
+      _isDragging = false;
+      // mouseup 시 최종 좌표로 한 번 더 + commit 이벤트
+      const x = Math.max(0, Math.min(1, (lastEv.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (lastEv.clientY - rect.top) / rect.height));
+      handler(x, y, /*commit*/ true);
     };
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', up);
@@ -309,27 +349,26 @@ function _wireEvents(pop) {
   });
 
   /* Spectrum (Solid) */
-  const spec = pop.querySelector('[data-el="spectrum"]');
-  _drag(spec, (x, y) => {
+  _drag(_els.spectrum, (x, y, commit) => {
     _state.s = x;
     _state.v = 1 - y;
-    _applySolidAndEmit();
+    _applySolidAndEmit(commit ? { commit: true } : undefined);
   });
 
   /* Hue (Solid) */
-  _drag(pop.querySelector('[data-el="hue"]'), (x) => {
+  _drag(_els.hue, (x, _y, commit) => {
     _state.h = x * 360;
-    _applySolidAndEmit();
+    _applySolidAndEmit(commit ? { commit: true } : undefined);
   });
 
   /* Alpha (Solid) */
-  _drag(pop.querySelector('[data-el="alpha"]'), (x) => {
+  _drag(_els.alpha, (x, _y, commit) => {
     _state.a = x;
-    _applySolidAndEmit();
+    _applySolidAndEmit(commit ? { commit: true } : undefined);
   });
 
   /* Hex input (# 있어도 없어도 허용) */
-  const hexInp = pop.querySelector('[data-el="hex"]');
+  const hexInp = _els.hex;
   const _normalizeHex = v => {
     v = v.trim().replace(/^#/, '');
     return /^[0-9a-fA-F]{6}$/.test(v) ? ('#' + v) : null;
@@ -342,18 +381,25 @@ function _wireEvents(pop) {
     _state.h = h; _state.s = s; _state.v = val;
     _applySolidAndEmit();
   });
+  // perf: blur/change 시 commit 이벤트 발행 — 타이핑 도중에는 input 만, 확정 시 1회 commit
+  hexInp.addEventListener('change', () => {
+    if (_state) _applySolidAndEmit({ commit: true });
+  });
   hexInp.addEventListener('blur', () => {
     hexInp.value = hexFromHsv(_state.h, _state.s, _state.v).slice(1).toUpperCase();
   });
 
   /* Alpha input (숫자만, %는 suffix label) */
-  const alphaInp = pop.querySelector('[data-el="alphaVal"]');
+  const alphaInp = _els.alphaVal;
   alphaInp.addEventListener('input', () => {
     const m = alphaInp.value.match(/(\d+)/);
     if (!m) return;
     const p = Math.max(0, Math.min(100, parseInt(m[1])));
     _state.a = p / 100;
     _syncSolidUI();
+  });
+  alphaInp.addEventListener('change', () => {
+    if (_state) _applySolidAndEmit({ commit: true });
   });
   alphaInp.addEventListener('blur', () => {
     alphaInp.value = String(Math.round(_state.a * 100));
@@ -398,13 +444,13 @@ function _wireEvents(pop) {
   });
 
   /* Gradient — start/end stop, type, angle 입력 → CSS gradient + 메타 emit */
-  const gradFill = pop.querySelector('[data-el="gradFill"]');
-  const gradStart = pop.querySelector('[data-el="gradStart"]');
-  const gradEnd = pop.querySelector('[data-el="gradEnd"]');
-  const gradStartHex = pop.querySelector('[data-el="gradStartHex"]');
-  const gradEndHex = pop.querySelector('[data-el="gradEndHex"]');
-  const gradType = pop.querySelector('[data-el="gradType"]');
-  const gradAngle = pop.querySelector('[data-el="gradAngle"]');
+  const gradFill     = _els.gradFill;
+  const gradStart    = _els.gradStart;
+  const gradEnd      = _els.gradEnd;
+  const gradStartHex = _els.gradStartHex;
+  const gradEndHex   = _els.gradEndHex;
+  const gradType     = _els.gradType;
+  const gradAngle    = _els.gradAngle;
 
   function _buildGradientCSS() {
     const type = gradType.value;
@@ -414,38 +460,64 @@ function _wireEvents(pop) {
     if (type === 'radial') return `radial-gradient(circle, ${s} 0%, ${e} 100%)`;
     return `linear-gradient(${angle}deg, ${s} 0%, ${e} 100%)`;
   }
-  function _emitGradient() {
+
+  // perf: 그라데이션 input은 rAF로 합쳐서 한 프레임에 1회만 emit.
+  // 그리고 commit 이벤트(goya-cp:gradient-commit)는 'change'(네이티브 컬러피커 닫힘) 또는
+  // 셀렉트(type/angle) 변경 시에만 발행 — pushHistory가 매 input마다 트리거되지 않도록.
+  let _gradPending = false;
+  let _gradPendingCommit = false;
+  function _scheduleEmitGradient(commit) {
+    if (commit) _gradPendingCommit = true;
+    if (_gradPending) return;
+    _gradPending = true;
+    requestAnimationFrame(() => {
+      _gradPending = false;
+      const commitNow = _gradPendingCommit;
+      _gradPendingCommit = false;
+      _emitGradientNow(commitNow);
+    });
+  }
+  function _emitGradientNow(commit) {
     const css = _buildGradientCSS();
     gradFill.style.background = css;
     if (!_targetInput) return;
-    _targetInput.dispatchEvent(new CustomEvent('goya-cp:gradient', {
-      bubbles: true,
-      detail: {
-        css,
-        type: gradType.value,
-        angle: parseInt(gradAngle.value) || 90,
-        stops: [
-          { color: gradStart.value, offset: 0 },
-          { color: gradEnd.value, offset: 1 },
-        ],
-      }
-    }));
+    const detail = {
+      css,
+      type: gradType.value,
+      angle: parseInt(gradAngle.value) || 90,
+      stops: [
+        { color: gradStart.value, offset: 0 },
+        { color: gradEnd.value, offset: 1 },
+      ],
+      commit: !!commit,
+    };
+    _targetInput.dispatchEvent(new CustomEvent('goya-cp:gradient', { bubbles: true, detail }));
+    if (commit) {
+      _targetInput.dispatchEvent(new CustomEvent('goya-cp:gradient-commit', { bubbles: true, detail }));
+    }
   }
   function _syncStartHex() { gradStartHex.value = gradStart.value.replace('#','').toUpperCase(); }
   function _syncEndHex()   { gradEndHex.value   = gradEnd.value.replace('#','').toUpperCase(); }
 
-  gradStart.addEventListener('input', () => { _syncStartHex(); _emitGradient(); });
-  gradEnd.addEventListener('input',   () => { _syncEndHex();   _emitGradient(); });
+  // 네이티브 <input type="color"> 는 OS 피커에서 드래그 시 'input' 연속 발사,
+  // 닫을 때 'change' 1회 발사 — 이 패턴을 활용해 commit 분리.
+  gradStart.addEventListener('input',  () => { _syncStartHex(); _scheduleEmitGradient(false); });
+  gradStart.addEventListener('change', () => { _scheduleEmitGradient(true); });
+  gradEnd.addEventListener('input',    () => { _syncEndHex();   _scheduleEmitGradient(false); });
+  gradEnd.addEventListener('change',   () => { _scheduleEmitGradient(true); });
   gradStartHex.addEventListener('input', () => {
     const v = gradStartHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) { gradStart.value = '#' + v.toLowerCase(); _emitGradient(); }
+    if (/^[0-9a-f]{6}$/i.test(v)) { gradStart.value = '#' + v.toLowerCase(); _scheduleEmitGradient(false); }
   });
+  gradStartHex.addEventListener('change', () => { _scheduleEmitGradient(true); });
   gradEndHex.addEventListener('input', () => {
     const v = gradEndHex.value.trim().replace(/^#/, '');
-    if (/^[0-9a-f]{6}$/i.test(v)) { gradEnd.value = '#' + v.toLowerCase(); _emitGradient(); }
+    if (/^[0-9a-f]{6}$/i.test(v)) { gradEnd.value = '#' + v.toLowerCase(); _scheduleEmitGradient(false); }
   });
-  gradType.addEventListener('change', _emitGradient);
-  gradAngle.addEventListener('change', _emitGradient);
+  gradEndHex.addEventListener('change', () => { _scheduleEmitGradient(true); });
+  // type/angle 은 selectbox 'change'만 발생 — 항상 commit
+  gradType.addEventListener('change',  () => _scheduleEmitGradient(true));
+  gradAngle.addEventListener('change', () => _scheduleEmitGradient(true));
   // 탭 진입 시 초기 프리뷰
   pop.querySelector('.goya-cp-tab[data-tab="gradient"]').addEventListener('click', () => {
     gradFill.style.background = _buildGradientCSS();

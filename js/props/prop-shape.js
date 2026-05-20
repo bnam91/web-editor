@@ -90,11 +90,14 @@ export function showShapeProperties(block) {
   const ss = block.closest('.frame-block');
 
   function applyColor(hex) {
+    // perf: 동일 색이면 데이터·DOM 변경 자체를 스킵 → MutationObserver autosave 트리거 회피
+    if (block.dataset.shapeColor === hex && !block.dataset.shapeGradient) return;
     block.dataset.shapeColor = hex;
     if (svg) {
-      // 솔리드 적용 시 기존 gradient defs/url 제거하고 currentColor로 복귀
-      _clearShapeGradient(block);
-      svg.style.color = hex;
+      // 그라데이션이 적용돼 있을 때만 clear 수행 (대부분의 솔리드 드래그에선 no-op이라 skip)
+      if (block.dataset.shapeGradient) _clearShapeGradient(block);
+      // svg.style.color 도 값이 같으면 스킵 (실제로 같을 일은 드물지만 안전망)
+      if (svg.style.color !== hex) svg.style.color = hex;
     }
     window.scheduleAutoSave?.();
   }
@@ -139,11 +142,18 @@ export function showShapeProperties(block) {
   });
 
   // ── 그라데이션 이벤트 수신 (color-picker gradient 탭) ──
+  // perf: 매 input마다 pushHistory 발생하던 것을 commit 이벤트로 분리.
+  // goya-cp:gradient — 라이브 미리보기(매 프레임), pushHistory 호출 안 함.
+  // goya-cp:gradient-commit — 사용자 확정(마우스업·select 변경), pushHistory 호출.
   const shapeColorInput = document.getElementById('shape-color-color');
   if (shapeColorInput && !shapeColorInput._gradWired) {
     shapeColorInput._gradWired = true;
     shapeColorInput.addEventListener('goya-cp:gradient', (e) => {
       applyGradient(e.detail);
+      // detail.commit 플래그가 있을 때만 history 발행 — 평소엔 라이브 미리보기.
+      if (e.detail && e.detail.commit) window.pushHistory?.();
+    });
+    shapeColorInput.addEventListener('goya-cp:gradient-commit', () => {
       window.pushHistory?.();
     });
   }
@@ -257,43 +267,77 @@ function _clearShapeGradient(block) {
   delete block.dataset.shapeGradient;
 }
 
+// perf: 그라데이션 라이브 업데이트는 매 프레임 일어남. 기존 코드는 매번
+// <linearGradient> 노드를 통째로 제거→재생성하고 모든 fillable에 setAttribute 호출.
+// 같은 타입(linear/radial) + 같은 stop 개수가 유지될 때는 stop 요소만 재활용해서
+// stop-color/offset 만 갱신하고, fill="url(#...)" 적용은 처음 한 번만 수행.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const FILLABLE_SEL = 'rect,ellipse,circle,polygon,path';
+
 function _applyShapeGradient(block, svg, detail) {
   const id = _gradIdFor(block);
-  // 기존 defs 제거
-  const existing = svg.querySelector(`#${CSS.escape(id)}`);
-  if (existing) existing.remove();
-
-  const stops = (detail.stops || []).map(s =>
-    `<stop offset="${Math.round((s.offset ?? 0) * 100)}%" stop-color="${s.color}"/>`
-  ).join('');
-
-  let gradEl;
-  if (detail.type === 'radial') {
-    gradEl = `<radialGradient id="${id}" cx="50%" cy="50%" r="50%">${stops}</radialGradient>`;
-  } else {
-    // angle(deg) → x1/y1/x2/y2 (objectBoundingBox 좌표계)
-    const a = ((detail.angle ?? 90) - 90) * Math.PI / 180; // CSS 90deg = 좌→우
-    const cx = 0.5, cy = 0.5;
-    const x1 = cx - Math.cos(a) * 0.5, y1 = cy - Math.sin(a) * 0.5;
-    const x2 = cx + Math.cos(a) * 0.5, y2 = cy + Math.sin(a) * 0.5;
-    gradEl = `<linearGradient id="${id}" x1="${x1.toFixed(4)}" y1="${y1.toFixed(4)}" x2="${x2.toFixed(4)}" y2="${y2.toFixed(4)}">${stops}</linearGradient>`;
-  }
+  const targetType = detail.type === 'radial' ? 'radialGradient' : 'linearGradient';
+  const stops = detail.stops || [];
 
   let defs = svg.querySelector(':scope > defs');
   if (!defs) {
-    defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    defs = document.createElementNS(SVG_NS, 'defs');
     svg.insertBefore(defs, svg.firstChild);
   }
-  defs.insertAdjacentHTML('beforeend', gradEl);
+  let gradNode = svg.querySelector(`#${CSS.escape(id)}`);
 
-  // fill 가능한 요소(rect/ellipse/polygon/circle/path)만 gradient 로 변경, line/stroke 전용은 제외
-  const FILLABLE = ['rect','ellipse','circle','polygon','path'];
-  svg.querySelectorAll(FILLABLE.join(',')).forEach(el => {
-    // 명시적으로 fill="none" 인 요소는 건너뜀
+  // 재사용 조건: 같은 element 이름 + 같은 stop 개수 → 속성·자식 stop 갱신만
+  const reuse = gradNode && gradNode.tagName === targetType && gradNode.children.length === stops.length;
+
+  if (!reuse) {
+    if (gradNode) gradNode.remove();
+    gradNode = document.createElementNS(SVG_NS, targetType);
+    gradNode.setAttribute('id', id);
+    for (let i = 0; i < stops.length; i++) {
+      gradNode.appendChild(document.createElementNS(SVG_NS, 'stop'));
+    }
+    defs.appendChild(gradNode);
+  }
+
+  // 좌표/축 갱신
+  if (targetType === 'radialGradient') {
+    gradNode.setAttribute('cx', '50%');
+    gradNode.setAttribute('cy', '50%');
+    gradNode.setAttribute('r', '50%');
+  } else {
+    const a = ((detail.angle ?? 90) - 90) * Math.PI / 180;
+    const x1 = 0.5 - Math.cos(a) * 0.5;
+    const y1 = 0.5 - Math.sin(a) * 0.5;
+    const x2 = 0.5 + Math.cos(a) * 0.5;
+    const y2 = 0.5 + Math.sin(a) * 0.5;
+    gradNode.setAttribute('x1', x1.toFixed(4));
+    gradNode.setAttribute('y1', y1.toFixed(4));
+    gradNode.setAttribute('x2', x2.toFixed(4));
+    gradNode.setAttribute('y2', y2.toFixed(4));
+  }
+
+  // stop 갱신 (같은 값이면 setAttribute 스킵해 mutation 폭주 방지)
+  const stopNodes = gradNode.children;
+  for (let i = 0; i < stops.length; i++) {
+    const s = stops[i];
+    const off = Math.round((s.offset ?? 0) * 100) + '%';
+    const col = s.color;
+    const n = stopNodes[i];
+    if (n.getAttribute('offset') !== off) n.setAttribute('offset', off);
+    if (n.getAttribute('stop-color') !== col) n.setAttribute('stop-color', col);
+  }
+
+  // fill="url(#id)" 는 한 번만 적용 — 같은 url이면 setAttribute 자체를 스킵.
+  // querySelectorAll 결과는 라이브가 아니라 매번 새로 만들지만, fillable 셰이프 한 개당
+  // 보통 element 수가 적어 cost는 미미. 다만 같은 url이면 노드 mutation 자체 회피.
+  const urlVal = `url(#${id})`;
+  const nodes = svg.querySelectorAll(FILLABLE_SEL);
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i];
     const f = el.getAttribute('fill');
-    if (f === 'none') return;
-    el.setAttribute('fill', `url(#${id})`);
-  });
+    if (f === 'none') continue;
+    if (f !== urlVal) el.setAttribute('fill', urlVal);
+  }
 }
 
 window._applyShapeGradient = _applyShapeGradient;
