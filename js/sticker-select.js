@@ -368,6 +368,8 @@ function bindStickerSelect(block) {
     const textEl = block.querySelector('.sticker-text');
     if (!textEl) return;
     textEl.setAttribute('contenteditable', 'true');
+    textEl.style.userSelect = 'text';
+    textEl.style.cursor = 'text';
     textEl.focus();
     const range = document.createRange();
     range.selectNodeContents(textEl);
@@ -378,8 +380,14 @@ function bindStickerSelect(block) {
     const finish = () => {
       textEl.removeAttribute('contenteditable');
       const t = (textEl.textContent || '').trim();
-      block.dataset.text = t || 'NEW';
-      if (!t) textEl.textContent = 'NEW';
+      const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
+      block.dataset.text = t || fallback;
+      if (!t) textEl.textContent = fallback;
+      // 우측 prop 패널의 #stk-text input도 sync
+      const propInp = document.querySelector('#stk-text');
+      if (propInp && document.querySelector('.sticker-block.selected') === block) {
+        propInp.value = block.dataset.text;
+      }
       window.pushHistory?.('스티커 텍스트');
       window.scheduleAutoSave?.();
       textEl.removeEventListener('blur', finish);
