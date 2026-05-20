@@ -3524,20 +3524,26 @@ function renderStickerBlock(block) {
 
   if (shape === 'highlightB') {
     // 선 형태 형광펜 — 두 점 (x1,y1)→(x2,y2) 사이를 두께 thickness만큼 칠함
+    // lineStyle: 'line' | 'wavy' | 'marker'
     const x1 = parseFloat(block.dataset.x1) || 0;
     const y1 = parseFloat(block.dataset.y1) || 0;
     const x2 = parseFloat(block.dataset.x2) || 0;
     const y2 = parseFloat(block.dataset.y2) || 0;
     const thickness = parseInt(block.dataset.thickness) || 12;
-    const hlColor = block.dataset.hlColor || 'rgba(255, 235, 70, 0.7)';
+    const hlColor   = block.dataset.hlColor || 'rgba(255, 235, 70, 0.7)';
+    const lineStyle = block.dataset.lineStyle || 'line';
+    const amplitude = parseFloat(block.dataset.amplitude) || 6;   // wavy 진폭(px)
+    const period    = parseFloat(block.dataset.period)    || 30;  // wavy 주기(px)
     const dx = x2 - x1;
     const dy = y2 - y1;
     const length = Math.sqrt(dx * dx + dy * dy);
     const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-    const cx = (x1 + x2) / 2;
-    const cy = (y1 + y2) / 2;
-    // bbox padding (thickness/2 정도) — 회전된 자식이 빠져나오지 않도록
-    const pad = Math.ceil(thickness / 2) + 2;
+    // 회전 후 그리는 좌표계: 길이방향 = x축, 두께방향 = y축
+    // amplitude를 thickness 위/아래로 펼치므로 bbox 패딩 = thickness/2 + amplitude
+    const padThick = Math.ceil(thickness / 2) + 2;
+    const padAmp   = lineStyle === 'wavy' ? Math.ceil(amplitude) + 2 : 0;
+    const padMarker = lineStyle === 'marker' ? 4 : 0; // 끝부분 roughness 여유
+    const pad = padThick + padAmp + padMarker;
     const bboxLeft = Math.min(x1, x2) - pad;
     const bboxTop  = Math.min(y1, y2) - pad;
     const bboxW    = Math.abs(dx) + pad * 2;
@@ -3545,15 +3551,66 @@ function renderStickerBlock(block) {
     block.style.cssText = `position:absolute;left:${bboxLeft}px;top:${bboxTop}px;`
       + `width:${bboxW}px;height:${bboxH}px;`
       + `background:transparent;pointer-events:none;user-select:none;z-index:1;`;
-    // 내부 회전 line div — 실제 클릭/드래그 타겟
+    // 내부 SVG — 회전된 좌표계에서 그림. 중심점 = (cx-bboxLeft, cy-bboxTop)
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
     const lineLeft = cx - bboxLeft;
     const lineTop  = cy - bboxTop;
-    block.innerHTML = `<div class="sticker-hlb-line" style="`
-      + `position:absolute;left:${lineLeft}px;top:${lineTop}px;`
-      + `width:${length}px;height:${thickness}px;`
-      + `background:${hlColor};border-radius:${Math.min(thickness / 2, 4)}px;`
+    // SVG 내부 좌표: viewBox 0 0 length (svgH); y 중심 = svgH/2
+    const svgH = thickness + (padAmp + padMarker) * 2;
+    const yMid = svgH / 2;
+
+    // path 생성 ──────────────────────────────
+    let pathD = '';
+    if (lineStyle === 'line') {
+      pathD = `M0,${yMid} L${length},${yMid}`;
+    } else if (lineStyle === 'wavy') {
+      // 사인파 근사 — 한 주기당 2개 cubic Bezier 사용 (왕복 1회)
+      // 시작 high → low → high … 형태가 자연스러움
+      const halfPeriod = Math.max(2, period / 2);
+      pathD = `M0,${yMid}`;
+      let dir = 1;
+      for (let x = 0; x < length; x += halfPeriod) {
+        const x2p = Math.min(x + halfPeriod, length);
+        const xMid = (x + x2p) / 2;
+        // quadratic — 컨트롤 포인트를 위/아래로 amplitude 만큼
+        pathD += ` Q${xMid},${yMid + amplitude * dir} ${x2p},${yMid}`;
+        dir *= -1;
+      }
+    } else if (lineStyle === 'marker') {
+      // 형광펜 마커 — 끝점이 약간 거친 라인 (살짝 일그러진 곡선)
+      // 살짝 비뚤어진 효과: 컨트롤 포인트를 미세하게 어긋나게
+      const wobble = Math.min(2, thickness * 0.1);
+      const c1x = length * 0.33;
+      const c1y = yMid - wobble;
+      const c2x = length * 0.66;
+      const c2y = yMid + wobble * 0.6;
+      pathD = `M0,${yMid} C${c1x},${c1y} ${c2x},${c2y} ${length},${yMid}`;
+    }
+
+    // 마커 전용 filter (feTurbulence + displacement) — block id 기반 고유 id
+    const filterId = `hlb-rough-${block.id || 'tmp'}`;
+    const filterDef = (lineStyle === 'marker') ? `
+      <defs>
+        <filter id="${filterId}" x="-10%" y="-30%" width="120%" height="160%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3"/>
+          <feDisplacementMap in="SourceGraphic" scale="${Math.min(2.5, thickness * 0.18)}"/>
+        </filter>
+      </defs>` : '';
+    const filterAttr = (lineStyle === 'marker') ? ` filter="url(#${filterId})"` : '';
+
+    const svgNS = 'http://www.w3.org/2000/svg';
+    block.innerHTML = `<svg class="sticker-hlb-svg" xmlns="${svgNS}" width="${length}" height="${svgH}" `
+      + `viewBox="0 0 ${length} ${svgH}" preserveAspectRatio="none" `
+      + `style="position:absolute;left:${lineLeft}px;top:${lineTop}px;`
+      + `width:${length}px;height:${svgH}px;`
       + `transform:translate(-50%, -50%) rotate(${angle}deg);transform-origin:center center;`
-      + `cursor:move;pointer-events:auto;"></div>`;
+      + `overflow:visible;cursor:move;pointer-events:auto;">`
+      + filterDef
+      + `<path class="sticker-hlb-line" d="${pathD}" `
+      + `fill="none" stroke="${hlColor}" stroke-width="${thickness}" `
+      + `stroke-linecap="round" stroke-linejoin="round"${filterAttr}/>`
+      + `</svg>`;
     return;
   }
 
@@ -3598,6 +3655,9 @@ function makeStickerBlock(opts = {}) {
     block.dataset.y2        = opts.y2        ?? 0;
     block.dataset.thickness = opts.thickness ?? 12;
     block.dataset.hlColor   = opts.hlColor   ?? 'rgba(255, 235, 70, 0.7)';
+    block.dataset.lineStyle = opts.lineStyle ?? 'line';   // 'line' | 'wavy' | 'marker'
+    block.dataset.amplitude = opts.amplitude ?? 6;
+    block.dataset.period    = opts.period    ?? 30;
   }
   renderStickerBlock(block);
   return block;

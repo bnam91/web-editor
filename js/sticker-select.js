@@ -71,15 +71,26 @@ function _addHlbHandles(block) {
   const y1 = parseFloat(block.dataset.y1) || 0;
   const x2 = parseFloat(block.dataset.x2) || 0;
   const y2 = parseFloat(block.dataset.y2) || 0;
-  // bbox top/left 기준으로 핸들 위치 (block은 left/top이 min(x1,x2)/min(y1,y2)에 박힘)
-  const minX = Math.min(x1, x2);
-  const minY = Math.min(y1, y2);
+  // block의 실제 left/top은 (min - pad). 따라서 핸들 left = x - blockLeftInSection
+  const rect = block.getBoundingClientRect();
+  const sec  = block.closest('.section-block');
+  let baseLeft = 0, baseTop = 0;
+  if (sec) {
+    const sRect = sec.getBoundingClientRect();
+    const zoom = (window.currentZoom || 40) / 100;
+    baseLeft = (rect.left - sRect.left) / zoom;
+    baseTop  = (rect.top  - sRect.top)  / zoom;
+  } else {
+    // fallback — block.style.left/top 파싱
+    baseLeft = parseFloat(block.style.left) || 0;
+    baseTop  = parseFloat(block.style.top)  || 0;
+  }
   const mk = (endpoint, hx, hy) => {
     const h = document.createElement('div');
     h.className = 'hlb-handle';
     h.dataset.endpoint = endpoint;
-    h.style.left = (hx - minX) + 'px';
-    h.style.top  = (hy - minY) + 'px';
+    h.style.left = (hx - baseLeft) + 'px';
+    h.style.top  = (hy - baseTop) + 'px';
     block.appendChild(h);
     _bindHlbHandleDrag(h, block, endpoint);
   };

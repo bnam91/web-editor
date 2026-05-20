@@ -2428,3 +2428,13 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 .hlb-handle:hover { background: #f0e8ff; }
+
+/* HighlightB SVG 라인 — 회전 svg 컨테이너 (line/wavy/marker 공통) */
+.sticker-hlb-svg {
+  display: block;
+  /* mix-blend-mode은 부모 .sticker-block[data-shape="highlightB"]에 이미 적용됨 */
+}
+.sticker-hlb-line {
+  /* path 자체 */
+  vector-effect: non-scaling-stroke;
+}
