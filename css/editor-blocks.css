@@ -1871,6 +1871,14 @@ body.pen-mode .section-block,
 body.pen-mode .section-block * { cursor: crosshair !important; }
 body.pen-mode .annot-label[contenteditable="true"] { cursor: text !important; }
 
+/* HighlightB (선 형광펜) 모드 — pen-mode 와 동일하게 crosshair */
+body.hlb-mode,
+body.hlb-mode #canvas-wrap,
+body.hlb-mode #canvas-scaler,
+body.hlb-mode .section-block,
+body.hlb-mode .section-block * { cursor: crosshair !important; }
+body.hlb-mode .hlb-preview { cursor: crosshair !important; pointer-events: none; }
+
 #fp-pen-btn.active {
   background: var(--ui-accent-primary);
   border-color: var(--ui-accent-primary);
