@@ -2401,6 +2401,19 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 }
 
 /* ──────────────────────────────────────────────
+   텍스트 스티커 — 캔버스에 자유 배치하는 텍스트
+   block 자체에 폰트/사이즈/컬러/그림자 inline style 적용.
+   .sticker-text 는 편집 시 contenteditable 진입점 (user-select 활성화).
+────────────────────────────────────────────── */
+.sticker-block[data-shape="text"] .sticker-text[contenteditable="true"] {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+  outline: 1px dashed #9966ff;
+  outline-offset: 1px;
+}
+
+/* ──────────────────────────────────────────────
    Sticker 선택 표시 — 보라색 아웃라인 (다른 element와 구분)
    highlightB(선)는 아웃라인 없이 끝점 핸들만 (JS로 동적 inject)
 ────────────────────────────────────────────── */

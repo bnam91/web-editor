@@ -3522,6 +3522,46 @@ function renderStickerBlock(block) {
     return;
   }
 
+  if (shape === 'text') {
+    // 텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (auto-size, 풀 옵션)
+    const tFontFamily    = block.dataset.fontFamily    || "'Pretendard', sans-serif";
+    const tFontSize      = parseInt(block.dataset.fontSize) || 32;
+    const tFontWeight    = parseInt(block.dataset.fontWeight) || 700;
+    const tTextColor     = block.dataset.textColor     || '#222222';
+    const tStrokeWidth   = parseFloat(block.dataset.strokeWidth) || 0;
+    const tStrokeColor   = block.dataset.strokeColor   || '#ffffff';
+    const tLetterSpacing = parseFloat(block.dataset.letterSpacing);
+    const tTextAlign     = block.dataset.textAlign     || 'left';
+    const tShadowOn      = block.dataset.shadowOn === '1';
+    const tShadowX       = parseFloat(block.dataset.shadowX) || 0;
+    const tShadowY       = parseFloat(block.dataset.shadowY) || 2;
+    const tShadowBlur    = parseFloat(block.dataset.shadowBlur) || 4;
+    const tShadowColor   = block.dataset.shadowColor   || 'rgba(0,0,0,0.4)';
+    const tBgColor       = block.dataset.bgColor       || 'transparent';
+    const tRotation      = parseFloat(block.dataset.rotation) || 0;
+    const tText          = block.dataset.text ?? 'Text';
+
+    const lsStr     = Number.isFinite(tLetterSpacing) ? `${tLetterSpacing}px` : 'normal';
+    const shadowStr = tShadowOn ? `${tShadowX}px ${tShadowY}px ${tShadowBlur}px ${tShadowColor}` : 'none';
+    const strokeCss = tStrokeWidth > 0
+      ? `-webkit-text-stroke:${tStrokeWidth}px ${tStrokeColor};paint-order:stroke fill;`
+      : '';
+    const rotCss = tRotation !== 0 ? `transform:rotate(${tRotation}deg);transform-origin:center center;` : '';
+    const safeText = String(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;`
+      + `background:${tBgColor};border-radius:4px;`
+      + `padding:6px 10px;`
+      + `display:inline-block;white-space:pre-wrap;word-break:break-word;`
+      + `font-family:${tFontFamily};font-size:${tFontSize}px;font-weight:${tFontWeight};`
+      + `color:${tTextColor};letter-spacing:${lsStr};text-align:${tTextAlign};`
+      + `text-shadow:${shadowStr};${strokeCss}${rotCss}`
+      + `user-select:none;cursor:move;z-index:55;pointer-events:auto;line-height:1.25;`;
+    // sticker-text 클래스 유지(기존 dblclick 편집 로직 호환)
+    block.innerHTML = `<span class="sticker-text" style="display:inline-block;outline:none;">${safeText}</span>`;
+    return;
+  }
+
   if (shape === 'highlightB') {
     // 선 형태 형광펜 — 두 점 (x1,y1)→(x2,y2) 사이를 두께 thickness만큼 칠함
     const x1 = parseFloat(block.dataset.x1) || 0;
@@ -3598,6 +3638,25 @@ function makeStickerBlock(opts = {}) {
     block.dataset.y2        = opts.y2        ?? 0;
     block.dataset.thickness = opts.thickness ?? 12;
     block.dataset.hlColor   = opts.hlColor   ?? 'rgba(255, 235, 70, 0.7)';
+  }
+  // 텍스트 스티커 — 풀 옵션 (폰트/사이즈/컬러/외곽선/자간/정렬/그림자/배경/회전)
+  if (opts.shape === 'text') {
+    block.dataset.text          = opts.text          ?? 'Text';
+    block.dataset.fontFamily    = opts.fontFamily    ?? "'Pretendard', sans-serif";
+    block.dataset.fontSize      = opts.fontSize      ?? 32;
+    block.dataset.fontWeight    = opts.fontWeight    ?? 700;
+    block.dataset.textColor     = opts.textColor     ?? '#222222';
+    block.dataset.strokeWidth   = opts.strokeWidth   ?? 0;
+    block.dataset.strokeColor   = opts.strokeColor   ?? '#ffffff';
+    block.dataset.letterSpacing = opts.letterSpacing ?? 0;
+    block.dataset.textAlign     = opts.textAlign     ?? 'left';
+    block.dataset.shadowOn      = opts.shadowOn      ?? '0';
+    block.dataset.shadowX       = opts.shadowX       ?? 0;
+    block.dataset.shadowY       = opts.shadowY       ?? 2;
+    block.dataset.shadowBlur    = opts.shadowBlur    ?? 4;
+    block.dataset.shadowColor   = opts.shadowColor   ?? 'rgba(0,0,0,0.4)';
+    block.dataset.bgColor       = opts.bgColor       ?? 'transparent';
+    block.dataset.rotation      = opts.rotation      ?? 0;
   }
   renderStickerBlock(block);
   return block;
