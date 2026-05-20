@@ -902,7 +902,7 @@ function addSection(opts = {}) {
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
         <div class="frame-block" data-text-frame="true" id="${_tfId}">
           <div class="text-block" data-type="heading" id="${_tbId}">
-            <div class="tb-h2" contenteditable="false" data-placeholder="소제목을 입력하세요" style="font-family:'Pretendard', sans-serif">새 섹션 제목</div>
+            <div class="tb-h2" contenteditable="false" data-placeholder="소제목을 입력하세요" data-is-placeholder="true" style="font-family:'Pretendard', sans-serif">소제목을 입력하세요</div>
           </div>
         </div>
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
