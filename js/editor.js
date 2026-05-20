@@ -96,8 +96,11 @@ function applyZoom(z) {
   _applyScalerTransform();
   zoomDisplay.textContent = currentZoom + '%';
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
-  // 섹션 라벨/툴바용 카운터-스케일 (최대 2배까지만 — 줌이 극단적으로 작아도 겹침 방지)
-  document.documentElement.style.setProperty('--ui-scale', Math.min(2, 100 / currentZoom).toFixed(4));
+  // 섹션 라벨/툴바 카운터-스케일
+  // - zoom ≥ 80%: 자연 스케일 (1.0) — 라벨이 섹션과 분리돼 보이지 않게
+  // - zoom < 80%: 점진적으로 키워서 가독성 유지, 최대 1.6 cap (겹침 방지는 max-width+ellipsis가 담당)
+  const uiScale = currentZoom >= 80 ? 1 : Math.min(1.6, 100 / currentZoom * 0.8);
+  document.documentElement.style.setProperty('--ui-scale', uiScale.toFixed(4));
 }
 
 function _applyScalerTransform() {

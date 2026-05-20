@@ -2422,12 +2422,29 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 }
 
 /* ──────────────────────────────────────────────
-   Sticker 선택 표시 — 보라색 아웃라인 (다른 element와 구분)
+   Sticker 선택 표시 — 일반 블록과 동일 규칙, 색만 보라색
+   (icon-circle/table/graph/card/divider와 일관성)
    highlightB(선)는 아웃라인 없이 끝점 핸들만 (JS로 동적 inject)
 ────────────────────────────────────────────── */
 .sticker-block.selected {
-  outline: 1.5px solid #9966ff;
-  outline-offset: 2px;
+  outline: 1px solid #9966ff;
+  outline-offset: -1px;
+  /* mix-blend-mode 적용된 highlight/highlightB는 outline이 blend되어 안 보일 수 있음 → isolate */
+  isolation: isolate;
+}
+/* highlight(사각형)에서도 outline이 multiply blend로 안 보이지 않도록 :after로 별도 그림 */
+.sticker-block.selected[data-shape="highlight"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  outline: 1px solid #9966ff;
+  outline-offset: -1px;
+  mix-blend-mode: normal;
+  z-index: 99;
+}
+.sticker-block.selected[data-shape="highlight"] {
+  outline: none;
 }
 /* highlightB(선)는 bbox outline 없음 — 핸들만 표시 */
 .sticker-block.selected[data-shape="highlightB"] {
@@ -2452,22 +2469,24 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 
 /* ──────────────────────────────────────────────
    Sticker 4모서리 리사이즈 핸들 (JS에서 .sticker-corner-handle 추가)
-   Suika 스타일: 7px 정사각, fill #fcfcfc, border 2px solid #9966ff
+   일반 블록의 .ss-resize-handle / .asset-handle와 동일 규칙, 색만 보라색
    highlightB(선)는 이 핸들 대신 .hlb-handle 사용
 ────────────────────────────────────────────── */
 .sticker-corner-handle {
   position: absolute;
   width: 7px;
   height: 7px;
-  background: #fcfcfc;
-  border: 2px solid #9966ff;
+  background: #fff;
+  border: 1px solid #9966ff;
   border-radius: 1px;
   pointer-events: auto;
   z-index: 100;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   /* 기본: 모서리 좌표(0/100%)에서 핸들을 center 정렬 */
   transform: translate(-50%, -50%);
   box-sizing: border-box;
+  /* mix-blend-mode 영향 차단 */
+  mix-blend-mode: normal;
+  isolation: isolate;
 }
 .sticker-corner-handle[data-corner="tl"] { cursor: nwse-resize; }
 .sticker-corner-handle[data-corner="br"] { cursor: nwse-resize; }
