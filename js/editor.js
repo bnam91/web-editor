@@ -1507,6 +1507,10 @@ function deselectAll() {
     b.classList.remove('selected');
     // 어노테이션은 핸들도 함께 정리
     if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
+    // 스티커도 4모서리 핸들 / highlightB 끝점 핸들 함께 제거
+    if (b.classList.contains('sticker-block')) {
+      b.querySelectorAll(':scope > .sticker-corner-handle, :scope > .hlb-handle').forEach(h => h.remove());
+    }
   });
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');

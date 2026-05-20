@@ -42,18 +42,24 @@ test.describe('merge integration QA', () => {
     const meta = await page.evaluate(() => {
       const btn = document.getElementById('fp-pen-btn');
       if (!btn) return null;
+      // 메인 SVG (chevron 제외): 첫 번째 SVG
+      const mainSvg = btn.querySelector('svg:not(.fp-chevron)');
       return {
         aria: btn.getAttribute('aria-label'),
         title: btn.getAttribute('title'),
-        hasSvg: !!btn.querySelector('svg'),
-        pathCount: btn.querySelectorAll('svg path').length,
+        hasSvg: !!mainSvg,
+        // 그림 요소 (path/polygon/circle/rect) 총합
+        shapeCount: mainSvg ? mainSvg.querySelectorAll('path, polygon, circle, rect, polyline').length : 0,
+        viewBox: mainSvg?.getAttribute('viewBox') || '',
       };
     });
     expect(meta).not.toBeNull();
     expect(meta.aria).toBe('스티커 패널');
     expect(meta.title).toContain('스티커');
     expect(meta.hasSvg).toBe(true);
-    expect(meta.pathCount).toBeGreaterThanOrEqual(2);
+    expect(meta.shapeCount).toBeGreaterThanOrEqual(1);
+    // 다른 fp 아이콘과 동일 viewBox 시스템 (11x11)
+    expect(meta.viewBox).toBe('0 0 11 11');
   });
 
   // ──────────────────────────────────────────────
@@ -223,6 +229,35 @@ test.describe('merge integration QA', () => {
   // ──────────────────────────────────────────────
   // E: 스티커 4모서리 핸들 (CSS 클래스 정의 확인)
   // ──────────────────────────────────────────────
+  // 회귀: deselectAll 시 sticker 핸들도 제거되어야 함
+  test('E-regression: deselectAll() 호출 후 sticker corner-handle 잔존하지 않음', async () => {
+    const result = await page.evaluate(() => {
+      // 클린 + 섹션 + 스티커 생성
+      document.querySelectorAll('.section-block').forEach(s => s.remove());
+      window.addSection();
+      const sec = document.querySelector('.section-block');
+      const stk = document.createElement('div');
+      stk.className = 'sticker-block';
+      stk.dataset.shape = 'circle';
+      stk.dataset.sizeW = '100';
+      stk.dataset.sizeH = '100';
+      stk.style.left = '20px'; stk.style.top = '20px';
+      sec.appendChild(stk);
+      if (typeof window.renderStickerBlock === 'function') window.renderStickerBlock(stk);
+      // 선택 → 핸들 생성
+      if (typeof window._selectSticker === 'function') window._selectSticker(stk);
+      const before = stk.querySelectorAll(':scope > .sticker-corner-handle').length;
+      // deselectAll
+      window.deselectAll?.();
+      const after = stk.querySelectorAll(':scope > .sticker-corner-handle, :scope > .hlb-handle').length;
+      const stillSelected = stk.classList.contains('selected');
+      return { before, after, stillSelected };
+    });
+    expect(result.before).toBeGreaterThan(0); // 선택 시 핸들 생성 확인
+    expect(result.after).toBe(0); // deselectAll 후 핸들 0개
+    expect(result.stillSelected).toBe(false);
+  });
+
   test('E: .sticker-corner-handle 스타일 정의 + 핸들 생성 함수', async () => {
     const result = await page.evaluate(() => {
       // 임의 sticker 생성 후 선택 → 핸들 생성 시도
