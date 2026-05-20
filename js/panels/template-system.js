@@ -236,7 +236,18 @@ async function insertTemplate(tpl) {
   sec.style.pointerEvents = '';
   sec.style.userSelect    = '';
 
-  canvasEl.appendChild(sec);
+  // 삽입 위치 결정: 선택된 섹션/프레임/블럭이 있으면 해당 섹션 바로 아래에 삽입, 없으면 맨 밑
+  const anchorSec = window.getSelectedSection?.();
+  if (anchorSec && anchorSec.parentElement === canvasEl) {
+    anchorSec.after(sec);
+  } else {
+    canvasEl.appendChild(sec);
+  }
+
+  // 중간 삽입 시 섹션 번호 재정렬 (data-section만 갱신, 라벨은 템플릿명 유지)
+  canvasEl.querySelectorAll('.section-block').forEach((s, i) => {
+    s.dataset.section = i + 1;
+  });
 
   // 이벤트 바인딩
   if (sec.dataset.bgImg && !sec.style.backgroundImage) {
