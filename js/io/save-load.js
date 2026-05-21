@@ -298,6 +298,8 @@ function getSerializedCanvas() {
   // sticker 선택 상태 제거 — selected 클래스가 저장에 포함되면 outline 잔존 가능
   clone.querySelectorAll('.sticker-block.selected').forEach(s => s.classList.remove('selected'));
   clone.querySelectorAll('.sticker-block.tiny').forEach(s => s.classList.remove('tiny'));
+  // gradient 선택 상태 제거
+  clone.querySelectorAll('.gradient-block.selected').forEach(g => g.classList.remove('selected'));
   clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   clone.querySelectorAll('.ci-selected').forEach(el => el.classList.remove('ci-selected'));
   clone.querySelectorAll('.ci-active').forEach(el => el.classList.remove('ci-active'));
@@ -812,6 +814,15 @@ function rebindAll() {
     if (!block.id) block.id = 'stk_' + Math.random().toString(36).slice(2, 8);
     window.renderStickerBlock?.(block);
     window.bindStickerSelect?.(block);
+  });
+
+  // gradient-block 복원 (플로팅 오버레이, sticker 패턴)
+  // legacy row > .gradient-block 구조는 migrateLegacyGradientBlocks가 섹션 직속으로 끌어올림
+  window.migrateLegacyGradientBlocks?.(canvasEl);
+  canvasEl.querySelectorAll('.gradient-block').forEach(block => {
+    if (!block.id) block.id = 'grad_' + Math.random().toString(36).slice(2, 8);
+    window.renderGradientBlock?.(block);
+    window.bindGradientSelect?.(block);
   });
 
   canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {

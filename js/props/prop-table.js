@@ -1,6 +1,12 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
+function _tblTok(name, fallback) {
+  if (typeof getComputedStyle !== 'function') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
 function _rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#cccccc';
   if (/^#/.test(rgb)) return rgb;
@@ -55,8 +61,8 @@ function _applyColColors(block, bgList, fgList) {
   }
   let bgs = (bgList ?? (block.dataset.colBgs || '').split(',')).map(s => (s || '').trim());
   let fgs = (fgList ?? (block.dataset.colFgs || '').split(',')).map(s => (s || '').trim());
-  while (bgs.length < colCount) bgs.push('#f5f5f5');
-  while (fgs.length < colCount) fgs.push('#222222');
+  while (bgs.length < colCount) bgs.push(_tblTok('--preset-table-col-bg', '#f5f5f5'));
+  while (fgs.length < colCount) fgs.push(_tblTok('--preset-table-text', '#222222'));
   bgs = bgs.slice(0, colCount);
   fgs = fgs.slice(0, colCount);
   table.querySelectorAll('tr').forEach(tr => {
@@ -189,11 +195,11 @@ export function showTableProperties(block) {
   const curRowH        = parseInt(block.dataset.rowH) || 0;       // 행 높이 (0 = auto)
   const curTablePadX   = parseInt(block.dataset.tablePadX) || 0;  // 테이블 좌우 패딩 (0~120)
   // 색상 옵션
-  const curLineColor   = block.dataset.lineColor   || '#cccccc';
+  const curLineColor   = block.dataset.lineColor   || _tblTok('--preset-table-line', '#cccccc');
   const curLineAlpha   = parseAlphaFromColor(curLineColor);
-  const curHeaderBg    = block.dataset.headerBg    || '#f0f0f0';
+  const curHeaderBg    = block.dataset.headerBg    || _tblTok('--preset-table-header-bg', '#f0f0f0');
   const curHeaderAlpha = parseAlphaFromColor(curHeaderBg);
-  const curTextColor   = block.dataset.textColor   || '#222222';
+  const curTextColor   = block.dataset.textColor   || _tblTok('--preset-table-text', '#222222');
   const curTextAlpha   = parseAlphaFromColor(curTextColor);
   const curFontFamily  = block.dataset.fontFamily  || '';
   const curColRatio    = block.dataset.colWidths   || '';
@@ -244,7 +250,7 @@ export function showTableProperties(block) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Table Block</span>
+          <span class="prop-block-name">${block.dataset.layerName || 'Table'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb(block)}</span>
         </div>
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${block.id}')">${block.id}</span>` : ''}
@@ -281,11 +287,11 @@ export function showTableProperties(block) {
         <div class="prop-row" style="gap:6px;">
           <span class="prop-label" style="width:48px;">컬럼 ${i + 1}</span>
           <input type="color" class="prop-color-input" id="tbl-col-bg-${i}"
-                 value="${curColBgs[i] || '#f5f5f5'}"
+                 value="${curColBgs[i] || _tblTok('--preset-table-col-bg', '#f5f5f5')}"
                  title="배경"
                  style="width:32px;height:24px;padding:0;border:1px solid #333;background:transparent;cursor:pointer;">
           <input type="color" class="prop-color-input" id="tbl-col-fg-${i}"
-                 value="${curColFgs[i] || '#222222'}"
+                 value="${curColFgs[i] || _tblTok('--preset-table-text', '#222222')}"
                  title="글자색"
                  style="width:32px;height:24px;padding:0;border:1px solid #333;background:transparent;cursor:pointer;">
         </div>
@@ -538,8 +544,8 @@ export function showTableProperties(block) {
       const cols = table.querySelector('tr')?.querySelectorAll('th,td').length || 0;
       const bgs = [], fgs = [];
       for (let i = 0; i < cols; i++) {
-        bgs.push(document.getElementById(`tbl-col-bg-${i}`)?.value || '#f5f5f5');
-        fgs.push(document.getElementById(`tbl-col-fg-${i}`)?.value || '#222222');
+        bgs.push(document.getElementById(`tbl-col-bg-${i}`)?.value || _tblTok('--preset-table-col-bg', '#f5f5f5'));
+        fgs.push(document.getElementById(`tbl-col-fg-${i}`)?.value || _tblTok('--preset-table-text', '#222222'));
       }
       _applyColColors(block, bgs, fgs);
       window.scheduleAutoSave?.();

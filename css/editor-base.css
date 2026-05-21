@@ -16,6 +16,22 @@
   --preset-label-bg:      #111111;
   --preset-label-color:   #ffffff;
   --preset-label-radius:  8px;
+  /* Chat 말풍선 기본색 — 2026-05-21 토큰화 (iOS Messages 톤) */
+  --preset-chat-bg-left:    #e5e5ea;
+  --preset-chat-bg-right:   #1888fe;
+  --preset-chat-text-left:  #111111;
+  --preset-chat-text-right: #ffffff;
+  /* Step 카드 기본색 — 2026-05-21 토큰화 */
+  --preset-step-num-bg:     #222222;
+  --preset-step-num-color:  #ffffff;
+  --preset-step-title:      #222222;
+  --preset-step-desc:       #555555;
+  --preset-step-card-bg:    #f5f5f5;
+  /* Table 기본색 — 2026-05-21 토큰화 */
+  --preset-table-header-bg: #f0f0f0;
+  --preset-table-text:      #222222;
+  --preset-table-line:      #cccccc;
+  --preset-table-col-bg:    #f5f5f5;
 
   /* ── UI Shell 토큰 ── */
   --ui-bg-app:        #1a1a1a;   /* 앱 최하위 배경 (body) */

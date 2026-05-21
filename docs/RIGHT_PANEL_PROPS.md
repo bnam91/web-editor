@@ -53,6 +53,21 @@
 </div>
 ```
 
+### 2-1. 헤더 명명 규칙 (2026-05-21 명문화)
+
+블록 패널은 모두 `block.dataset.layerName || 'DefaultName'` 패턴으로 헤더 이름을 표시한다.
+단, 다음 3개 패널은 일반 블록이 아니므로 **예외 규칙**을 따른다:
+
+| 패널 | 헤더 이름 | ID 배지 | 비고 |
+|------|----------|---------|------|
+| `prop-page.js` | 고정 `Page` | 없음 | 페이지 자체는 블록이 아니므로 layerName 적용 안 함 |
+| `prop-section.js` | `sec._name \|\| sec.dataset.name \|\| 'Section'` | 섹션 ID 배지 표시 | 섹션은 자체 name 필드 사용 (layerName과 별개) |
+| `prop-multisel.js` | `'{N}개 선택됨'` 동적 | 없음 | N개 블록을 묶은 상태 — 단일 layerName 의미 없음 |
+
+신규 패널을 작성할 때:
+- 일반 블록 (캔버스에 추가되는 블록)이면 **반드시** `dataset.layerName \|\| 'DefaultName'` 패턴 사용
+- 위 3개처럼 일반 블록이 아닌 패널이면 별도 헤더 명세를 이 표에 추가
+
 ---
 
 ## 3. 프로퍼티 패널별 상세 명세

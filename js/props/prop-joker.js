@@ -20,7 +20,7 @@ export function showJokerProperties(jb) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">${label}</span>
+          <span class="prop-block-name">${jb.dataset.layerName || label}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(jb) || ''}</span>
         </div>
         ${jb.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${jb.id}')">${jb.id}</span>` : ''}

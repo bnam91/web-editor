@@ -1,16 +1,22 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
+function _chatToken(name, fallback) {
+  if (typeof getComputedStyle !== 'function') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
 export function showChatProperties(block) {
   const messages   = JSON.parse(block.dataset.messages  || '[]');
   const gap        = parseInt(block.dataset.gap)        || 8;
   const fontSize   = parseInt(block.dataset.fontSize)   || 32;
-  const bgLeft     = block.dataset.bgLeft               || '#e5e5ea';
-  const bgRight    = block.dataset.bgRight              || '#1888fe';
+  const bgLeft     = block.dataset.bgLeft               || _chatToken('--preset-chat-bg-left', '#e5e5ea');
+  const bgRight    = block.dataset.bgRight              || _chatToken('--preset-chat-bg-right', '#1888fe');
   const bgLeftAlpha  = parseAlphaFromColor(bgLeft);
   const bgRightAlpha = parseAlphaFromColor(bgRight);
-  const colorLeft  = block.dataset.colorLeft            || '#111111';
-  const colorRight = block.dataset.colorRight           || '#ffffff';
+  const colorLeft  = block.dataset.colorLeft            || _chatToken('--preset-chat-text-left', '#111111');
+  const colorRight = block.dataset.colorRight           || _chatToken('--preset-chat-text-right', '#ffffff');
   const radius     = parseInt(block.dataset.radius)     || 16;
   const padding    = parseInt(block.dataset.padding)    || 16;
   // 카톡식 프로필 (default OFF — 호환성)

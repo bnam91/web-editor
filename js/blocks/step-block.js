@@ -17,20 +17,26 @@ const STEP_DEFAULT_DATA = [
   { title: '3단계', desc: '세 번째 단계 설명' },
 ];
 
+function _stepToken(name, fallback) {
+  if (typeof getComputedStyle !== 'function') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
 function renderStepBlock(block) {
   const steps      = JSON.parse(block.dataset.steps || '[]');
-  const numBg      = block.dataset.numBg      || '#222222';
-  const numColor   = block.dataset.numColor   || '#ffffff';
+  const numBg      = block.dataset.numBg      || _stepToken('--preset-step-num-bg', '#222222');
+  const numColor   = block.dataset.numColor   || _stepToken('--preset-step-num-color', '#ffffff');
   const numSize    = parseInt(block.dataset.numSize)    || 36;
   const titleSz    = parseInt(block.dataset.titleSize)  || 36;
   const descSz     = parseInt(block.dataset.descSize)   || 24;
   const gap        = parseInt(block.dataset.gap)        || 24;
   const connector  = block.dataset.connector !== 'false';
-  const titleColor = block.dataset.titleColor || '#222222';
-  const descColor  = block.dataset.descColor  || '#555555';
+  const titleColor = block.dataset.titleColor || _stepToken('--preset-step-title', '#222222');
+  const descColor  = block.dataset.descColor  || _stepToken('--preset-step-desc', '#555555');
   const orient     = block.dataset.stepOrient || 'vertical';
   const style      = block.dataset.stepStyle  || 'default';
-  const cardBg     = block.dataset.stepCardBg || '#f5f5f5';
+  const cardBg     = block.dataset.stepCardBg || _stepToken('--preset-step-card-bg', '#f5f5f5');
   const align          = block.dataset.stepAlign       || 'left';
   const padL = parseInt(block.dataset.stepPadL ?? block.dataset.stepPadX) || 0;
   const padR = parseInt(block.dataset.stepPadR ?? block.dataset.stepPadX) || 0;

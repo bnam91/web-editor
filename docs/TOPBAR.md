@@ -120,6 +120,7 @@
 |------|------|
 | 동작 | `saveProject()` → 커밋 모달 열기 |
 | 역할 | 현재 상태를 히스토리에 저장 (브랜치 커밋) |
+| **MVP 상태** | `.tb-hidden-mvp` 클래스로 **숨김 처리됨**. MVP 종료 후 클래스 제거 예정 |
 
 ---
 
@@ -140,6 +141,15 @@
 |------|------|
 | 단축키 | `⌘⇧R` |
 | 동작 | `window._refModalToggle()` → 레퍼런스 이미지 모달 |
+| **MVP 상태** | `.tb-hidden-mvp` 클래스로 **숨김 처리됨**. MVP 종료 후 클래스 제거 예정 |
+
+---
+
+### MVP 숨김 규칙 (`.tb-hidden-mvp`)
+
+MVP 단계에서 아직 노출하지 않는 기능은 `.tb-hidden-mvp` 클래스로 일괄 숨김 처리한다. CSS에서 `display: none` 적용. MVP 종료 후 해당 클래스를 코드에서 제거하면 자동 노출됨.
+
+현재 적용 대상: Commit 버튼, Reference 버튼, `#branch-indicator`(플로팅 패널), `.fp-divider.tb-hidden-mvp`.
 
 ---
 

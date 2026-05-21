@@ -51,7 +51,7 @@ export function showShapeProperties(block) {
       <div class="prop-block-label">
         <div class="prop-block-icon">${iconSvg}</div>
         <div class="prop-block-info">
-          <span class="prop-block-name">${shapeName}</span>
+          <span class="prop-block-name">${block.dataset.layerName || shapeName}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
         </div>
         ${id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${id}')">${id}</span>` : ''}

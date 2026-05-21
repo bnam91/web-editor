@@ -256,14 +256,19 @@ function makeTableBlock() {
   tb.dataset.outerWidth = '1';
   tb.dataset.rowH = '0';
   tb.dataset.tablePadX = '0';
-  tb.dataset.lineColor = '#cccccc';
-  tb.dataset.headerBg  = '#f0f0f0';
-  tb.dataset.textColor = '#222222';
+  const _tblTok = (name, fallback) => {
+    if (typeof getComputedStyle !== 'function') return fallback;
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  };
+  tb.dataset.lineColor = _tblTok('--preset-table-line', '#cccccc');
+  tb.dataset.headerBg  = _tblTok('--preset-table-header-bg', '#f0f0f0');
+  tb.dataset.textColor = _tblTok('--preset-table-text', '#222222');
   tb.dataset.fontFamily = '';
   tb.style.setProperty('--tbl-outer-w', '1px');
-  tb.style.setProperty('--tbl-line-color', '#cccccc');
-  tb.style.setProperty('--tbl-header-bg', '#f0f0f0');
-  tb.style.setProperty('--tbl-text-color', '#222222');
+  tb.style.setProperty('--tbl-line-color', tb.dataset.lineColor);
+  tb.style.setProperty('--tbl-header-bg', tb.dataset.headerBg);
+  tb.style.setProperty('--tbl-text-color', tb.dataset.textColor);
   tb.innerHTML = `
     <table class="tb-table">
       <thead>

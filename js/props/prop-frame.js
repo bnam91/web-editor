@@ -3,6 +3,7 @@
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { bindSlider } from './_helpers.js';
 
 function rgbToHex(rgb) {
   if (!rgb || rgb === 'transparent') return '#ffffff';
@@ -406,15 +407,8 @@ function _renderAutoPanel(ss) {
   if (isBannerInner) {
     const innerXSlider = document.getElementById('ss-banner-inner-x-slider');
     const innerXNum    = document.getElementById('ss-banner-inner-x-num');
-    const applyInnerX = (raw) => {
-      const n = Math.max(0, Math.min(bannerInnerXMax, parseInt(raw) || 0));
-      ss.style.marginLeft = n + 'px';
-      if (innerXSlider) innerXSlider.value = n;
-      if (innerXNum)    innerXNum.value = n;
-      window.scheduleAutoSave?.();
-    };
-    innerXSlider?.addEventListener('input', e => applyInnerX(e.target.value));
-    innerXNum?.addEventListener('input',    e => applyInnerX(e.target.value));
+    const applyInnerX = (v) => { ss.style.marginLeft = v + 'px'; };
+    if (innerXSlider && innerXNum) bindSlider(innerXSlider, innerXNum, applyInnerX, { min: 0, max: bannerInnerXMax });
   }
 
   // ── Layout: 스택 변환 ──
@@ -454,7 +448,6 @@ function _renderAutoPanel(ss) {
   const _setGap = v => {
     ss.style.gap = v + 'px';
     ss.dataset.gap = String(v);
-    window.scheduleAutoSave?.();
   };
 
   // 현재 상태 반영
@@ -481,8 +474,7 @@ function _renderAutoPanel(ss) {
 
   const gapSlider = document.getElementById('ss-gap-slider');
   const gapNum    = document.getElementById('ss-gap-num');
-  gapSlider?.addEventListener('input', () => { gapNum.value = gapSlider.value; _setGap(parseInt(gapSlider.value)); });
-  gapNum?.addEventListener('input',    () => { gapSlider.value = gapNum.value; _setGap(parseInt(gapNum.value) || 0); });
+  if (gapSlider && gapNum) bindSlider(gapSlider, gapNum, _setGap, { min: 0, max: 80 });
 
   // ── 회전 / 반전 핸들러 ──
   document.getElementById('ss-rotate-deg')?.addEventListener('input', e => {
@@ -583,13 +575,9 @@ function _renderAutoPanel(ss) {
     const c = _borderColor;
     ss.dataset.borderWidth = w; ss.dataset.borderStyle = s; ss.dataset.borderColor = c;
     ss.style.border = w > 0 ? `${w}px ${s} ${c}` : '';
-    window.scheduleAutoSave?.();
   };
-  borderWSlider.addEventListener('input', () => { borderWNum.value = borderWSlider.value; applyBorder(); });
-  borderWSlider.addEventListener('change', () => window.pushHistory?.());
-  borderWNum.addEventListener('change', () => window.pushHistory?.());
-  borderWNum.addEventListener('input', () => { borderWSlider.value = Math.min(20, Math.max(0, parseInt(borderWNum.value) || 0)); applyBorder(); });
-  borderStyleEl.addEventListener('change', () => { applyBorder(); window.pushHistory?.(); });
+  bindSlider(borderWSlider, borderWNum, () => applyBorder(), { min: 0, max: 20 });
+  borderStyleEl.addEventListener('change', () => { applyBorder(); window.pushHistory?.(); window.scheduleAutoSave?.(); });
   wireColorField('ss-border', {
     initialAlpha: borderAlpha,
     onApply: (c) => { _borderColor = c; applyBorder(); },
@@ -599,11 +587,8 @@ function _renderAutoPanel(ss) {
   // 코너
   const radiusSlider = document.getElementById('ss-radius-slider');
   const radiusNum    = document.getElementById('ss-radius-num');
-  const applyRadius  = (v) => { ss.dataset.radius = v; ss.style.borderRadius = v + 'px'; window.scheduleAutoSave?.(); };
-  radiusSlider.addEventListener('input', () => { radiusNum.value = radiusSlider.value; applyRadius(radiusSlider.value); });
-  radiusSlider.addEventListener('change', () => window.pushHistory?.());
-  radiusNum.addEventListener('input', () => { const v = Math.min(80, Math.max(0, parseInt(radiusNum.value) || 0)); radiusSlider.value = v; applyRadius(v); });
-  radiusNum.addEventListener('change', () => window.pushHistory?.());
+  const applyRadius  = (v) => { ss.dataset.radius = v; ss.style.borderRadius = v + 'px'; };
+  bindSlider(radiusSlider, radiusNum, applyRadius, { min: 0, max: 80 });
 
   // 높이
   const heightSlider = document.getElementById('ss-height-slider');
@@ -641,12 +626,8 @@ function _renderAutoPanel(ss) {
       }
     }
     ss.dataset.height = newH; ss.style.minHeight = newH + 'px'; ss.style.height = newH + 'px';
-    window.scheduleAutoSave?.();
   };
-  heightSlider.addEventListener('input', () => { heightNum.value = heightSlider.value; applyHeight(heightSlider.value); });
-  heightSlider.addEventListener('change', () => window.pushHistory?.());
-  heightNum.addEventListener('input', () => { const v = Math.min(1200, Math.max(minHeight, parseInt(heightNum.value) || height)); heightSlider.value = v; applyHeight(v); });
-  heightNum.addEventListener('change', () => window.pushHistory?.());
+  bindSlider(heightSlider, heightNum, applyHeight, { min: minHeight, max: 1200 });
 
   // 너비
   const widthSlider = document.getElementById('ss-width-slider');
@@ -692,21 +673,14 @@ function _renderAutoPanel(ss) {
     }
     ss.dataset.width = newW; ss.style.width = newW + 'px';
     ss.style.margin = '0 auto'; ss.style.alignSelf = 'center';
-    window.scheduleAutoSave?.();
   };
-  widthSlider.addEventListener('input', () => { widthNum.value = widthSlider.value; applyWidth(widthSlider.value); });
-  widthSlider.addEventListener('change', () => window.pushHistory?.());
-  widthNum.addEventListener('input', () => { const v = Math.min(860, Math.max(minWidth, parseInt(widthNum.value) || width)); widthSlider.value = v; applyWidth(v); });
-  widthNum.addEventListener('change', () => window.pushHistory?.());
+  bindSlider(widthSlider, widthNum, applyWidth, { min: minWidth, max: 860 });
 
   // 패딩
   const padYSlider = document.getElementById('ss-pady-slider');
   const padYNum    = document.getElementById('ss-pady-num');
-  const applyPadY  = (v) => { ss.dataset.padY = v; ss.style.paddingTop = v + 'px'; ss.style.paddingBottom = v + 'px'; window.scheduleAutoSave?.(); };
-  padYSlider.addEventListener('input', () => { padYNum.value = padYSlider.value; applyPadY(padYSlider.value); });
-  padYSlider.addEventListener('change', () => window.pushHistory?.());
-  padYNum.addEventListener('input', () => { const v = Math.min(200, Math.max(0, parseInt(padYNum.value) || 0)); padYSlider.value = v; applyPadY(v); });
-  padYNum.addEventListener('change', () => window.pushHistory?.());
+  const applyPadY  = (v) => { ss.dataset.padY = v; ss.style.paddingTop = v + 'px'; ss.style.paddingBottom = v + 'px'; };
+  bindSlider(padYSlider, padYNum, applyPadY, { min: 0, max: 200 });
 
   // 컴포넌트 저장
   const ssTplFolderSel = document.getElementById('ss-tpl-folder');

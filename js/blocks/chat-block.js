@@ -16,14 +16,20 @@ const CHAT_DEFAULT_MESSAGES = [
 
 const CHAT_TAIL_PATH = 'M18.3597 14.7395C9.25742 16.3944 2.32729 11.6364 0 9.05055L0.258587 1.29294C2.75826 1.81011 8.17136 2.27557 9.82631 0C9.56773 9.30914 16.5496 13.9637 18.3597 14.7395Z';
 
+function _chatToken(name, fallback) {
+  if (typeof getComputedStyle !== 'function') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
 function renderChatBlock(block) {
   const messages    = JSON.parse(block.dataset.messages || '[]');
   const gap         = parseInt(block.dataset.gap)      || 8;
   const fontSize    = parseInt(block.dataset.fontSize) || 32;
-  const bgLeft      = block.dataset.bgLeft   || '#e5e5ea';
-  const bgRight     = block.dataset.bgRight  || '#1888fe';
-  const colorLeft   = block.dataset.colorLeft  || '#111111';
-  const colorRight  = block.dataset.colorRight || '#ffffff';
+  const bgLeft      = block.dataset.bgLeft   || _chatToken('--preset-chat-bg-left', '#e5e5ea');
+  const bgRight     = block.dataset.bgRight  || _chatToken('--preset-chat-bg-right', '#1888fe');
+  const colorLeft   = block.dataset.colorLeft  || _chatToken('--preset-chat-text-left', '#111111');
+  const colorRight  = block.dataset.colorRight || _chatToken('--preset-chat-text-right', '#ffffff');
   const radius      = parseInt(block.dataset.radius)  || 16;
   const padding     = parseInt(block.dataset.padding) || 16;
   // 카톡식 프로필 — 토글 별도 (default off). 크기는 fontSize에 비례.

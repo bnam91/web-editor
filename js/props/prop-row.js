@@ -106,7 +106,7 @@ function showRowProperties(rowEl) {
           </svg>
         </div>
         <div class="prop-block-info">
-          <span class="prop-block-name">Grid</span>
+          <span class="prop-block-name">${rowEl.dataset.layerName || 'Grid'}</span>
         </div>
         ${rowEl.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${rowEl.id}')">${rowEl.id}</span>` : ''}
       </div>
