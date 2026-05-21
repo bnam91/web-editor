@@ -24,14 +24,14 @@ window._deselectAllGradients = _deselectAllGradients;
 // ── 4모서리 리사이즈 핸들 (sticker-corner-handle 패턴 재사용) ───────────────
 function _removeGradientCornerHandles(block) {
   if (!block) return;
-  block.querySelectorAll(':scope > .sticker-corner-handle').forEach(h => h.remove());
+  block.querySelectorAll(':scope > .gradient-corner-handle').forEach(h => h.remove());
 }
 function _addGradientCornerHandles(block) {
   _removeGradientCornerHandles(block);
   if (!block) return;
   ['tl', 'tr', 'bl', 'br'].forEach(id => {
     const el = document.createElement('div');
-    el.className = 'sticker-corner-handle';
+    el.className = 'gradient-corner-handle';
     el.dataset.corner = id;
     block.appendChild(el);
     _bindGradientCornerDrag(el, block, id);
