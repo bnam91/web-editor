@@ -108,4 +108,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   spawnClaudeTerminal:  (folderPath)             => ipcRenderer.invoke('claudePM:spawnClaudeTerminal', { folderPath }),
   pingClaudePM:         ()                       => ipcRenderer.invoke('claudePM:pingMcp'),
   setClaudePMActiveProject: (projectId)          => ipcRenderer.invoke('claudePM:setActiveProject', { projectId }),
+
+  // Claude PM Phase 3 (F8) — 내부 터미널 패널
+  claudePMTerminalStart:  ({ folderPath, cols, rows } = {}) =>
+                          ipcRenderer.invoke('claudePM:terminal:start',  { folderPath, cols, rows }),
+  claudePMTerminalWrite:  (sessionId, data)      =>
+                          ipcRenderer.invoke('claudePM:terminal:write',  { sessionId, data }),
+  claudePMTerminalResize: (sessionId, cols, rows) =>
+                          ipcRenderer.invoke('claudePM:terminal:resize', { sessionId, cols, rows }),
+  claudePMTerminalKill:   (sessionId)            =>
+                          ipcRenderer.invoke('claudePM:terminal:kill',   { sessionId }),
+  // 데이터/exit 이벤트 구독 — cb({sessionId, data}) / cb({sessionId, code, signal})
+  // unsubscribe 함수를 반환
+  onClaudePMTerminalData: (cb) => {
+    const h = (_e, p) => { try { cb(p); } catch (_) {} };
+    ipcRenderer.on('claudePM:terminal:data', h);
+    return () => ipcRenderer.removeListener('claudePM:terminal:data', h);
+  },
+  onClaudePMTerminalExit: (cb) => {
+    const h = (_e, p) => { try { cb(p); } catch (_) {} };
+    ipcRenderer.on('claudePM:terminal:exit', h);
+    return () => ipcRenderer.removeListener('claudePM:terminal:exit', h);
+  },
 });

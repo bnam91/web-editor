@@ -27,6 +27,7 @@ const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort } = require('./main/claude-pm/ipc');
+const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
 const { startMcpServer, stopMcpServer } = require('./main/claude-pm/mcp-server');
 
 /* ── 사용자별 Preferences (API 토큰 + 단축키) ──
@@ -217,6 +218,9 @@ function createWindow() {
 
   // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
   registerClaudePMIPC(ipcMain);
+
+  // Claude PM (Phase 3 F8) — 내부 터미널 패널 PTY 백엔드
+  registerTerminalIPC(ipcMain);
 
   // Clipboard write — 렌더러의 navigator.clipboard 권한 거부 우회용 IPC 브리지
   ipcMain.handle('clipboard:writeText', (_e, text) => {
@@ -1038,6 +1042,8 @@ app.whenReady().then(async () => {
 app.on('before-quit', (event) => {
   // Claude PM MCP 서버 정리 (sync close, 폴백)
   try { stopMcpServer(); } catch (_) {}
+  // Claude PM 내부 터미널 세션 모두 종료
+  try { killAllTerminalSessions(); } catch (_) {}
 
   const win = BrowserWindow.getAllWindows()[0];
   if (!win || win.isDestroyed()) return; // 창 없으면 바로 종료

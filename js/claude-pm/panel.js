@@ -155,7 +155,15 @@
       _toast('💻 먼저 폴더를 생성해주세요');
       return;
     }
+    // Phase 3 (F8) — 내부 터미널 패널 사용. 외부 Terminal.app 옵션은 Shift+Click으로 별도 호출.
     try {
+      if (typeof window.openClaudePMTerminalPanel === 'function') {
+        // PM 패널 닫고 터미널 패널 열기 (mutex)
+        try { closeClaudePMPanel(); } catch (_) {}
+        await window.openClaudePMTerminalPanel({ folderPath });
+        return;
+      }
+      // fallback — 외부 Terminal.app
       const res = await window.electronAPI?.spawnClaudeTerminal?.(folderPath);
       if (!res || !res.ok) {
         _toast('💻 터미널 실행 실패: ' + (res?.error || 'electronAPI 없음'));

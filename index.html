@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="css/ai-image.css">
 <link rel="stylesheet" href="css/assets-panel.css">
 <link rel="stylesheet" href="css/claude-pm.css">
+<link rel="stylesheet" href="vendor/xterm/xterm.css">
 <link rel="stylesheet" href="assets/fonts/pretendard.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1100,10 +1101,14 @@
 <!-- ══════════════════════════
      CLAUDE PM (feature/claude-pm — Phase 1)
 ══════════════════════════ -->
+<!-- xterm.js (vendor) — 내부 터미널 패널용. 반드시 terminal-panel.js 이전에 로드 -->
+<script src="vendor/xterm/xterm.js"></script>
+<script src="vendor/xterm/xterm-addon-fit.js"></script>
 <script src="js/claude-pm/panel.js"></script>
 <script src="js/claude-pm/folder-create-modal.js"></script>
 <script src="js/claude-pm/floating-button.js"></script>
 <script src="js/claude-pm/active-project-sync.js"></script>
+<script src="js/claude-pm/terminal-panel.js"></script>
 <script type="module" src="js/annotation-tool.js"></script>
 <script src="js/annotation-select.js"></script>
 <script src="js/sticker-select.js"></script>

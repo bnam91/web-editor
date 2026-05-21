@@ -344,3 +344,123 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ══════════════════════════════════════
+   Phase 3 (F8) — 내부 터미널 패널
+   right slide-in, width 320~900px, full height
+══════════════════════════════════════ */
+#claude-pm-terminal-panel {
+  position: fixed;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  width: 480px;
+  z-index: 9998; /* AI 패널보다 한 단계 아래 */
+  background: #0f0f10;
+  border-left: 1px solid var(--ui-border-mid, #2a2a2e);
+  display: none;
+  flex-direction: column;
+  box-shadow: -8px 0 24px rgba(0,0,0,0.45);
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform 0.18s ease-out, opacity 0.18s ease-out;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+  color: #e6e6e6;
+}
+#claude-pm-terminal-panel.cpmt-open {
+  display: flex;
+  transform: translateX(0);
+  opacity: 1;
+}
+body.preview-mode #claude-pm-terminal-panel { display: none !important; }
+
+.cpmt-resizer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: ew-resize;
+  background: transparent;
+}
+.cpmt-resizer:hover { background: rgba(107,158,255,0.35); }
+
+.cpmt-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 8px 14px;
+  background: #18181b;
+  border-bottom: 1px solid #2a2a2e;
+  user-select: none;
+}
+.cpmt-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cpmt-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #6b9eff;
+  box-shadow: 0 0 6px rgba(107,158,255,0.6);
+}
+.cpmt-title-text { color: #e6e6e6; }
+.cpmt-folder {
+  font-size: 11px;
+  font-weight: 400;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cpmt-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+.cpmt-btn {
+  width: 24px; height: 24px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #aaa;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cpmt-btn:hover {
+  background: #26262a;
+  color: #fff;
+  border-color: #333;
+}
+.cpmt-btn.cpmt-close:hover { color: #ff8a8a; }
+
+.cpmt-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 4px 0 4px;
+  background: #0f0f10;
+  overflow: hidden;
+}
+.cpmt-body .xterm {
+  height: 100%;
+  width: 100%;
+}
+.cpmt-body .xterm-viewport { background: transparent !important; }
+
+.cpmt-footer {
+  flex: 0 0 auto;
+  padding: 4px 12px;
+  background: #18181b;
+  border-top: 1px solid #2a2a2e;
+  font-size: 11px;
+  color: #777;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
