@@ -266,8 +266,7 @@ async function initFigmaBridge() {
   const badge = document.getElementById('figma-bridge-badge');
   if (badge) {
     badge.textContent = on ? '● ON' : '● OFF';
-    badge.style.background = on ? '#1a3a1a' : '#333';
-    badge.style.color = on ? '#4ade80' : '#666';
+    badge.classList.toggle('tb-badge--accent', !!on);
   }
 }
 

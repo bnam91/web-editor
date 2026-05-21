@@ -644,6 +644,32 @@ body {
 .tb-btn--icon:not(.has-commit) { opacity: 0.35; pointer-events: none; }
 /* MVP: commit / reference 버튼 임시 숨김 - 재활성화 시 이 룰 제거 */
 .tb-hidden-mvp { display: none !important; }
+
+/* Topbar/Dropdown 안의 작은 status 배지 (debug-port, figma-bridge 등) — 토큰 통일 */
+.tb-badge {
+  display: inline-flex; align-items: center;
+  font-size: 10px;
+  color: var(--ui-text-dim);
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: monospace;
+}
+.tb-badge--pill {
+  border-radius: 10px;
+  padding: 1px 6px;
+  border-color: transparent;
+  background: var(--ui-border-mid);
+  font-family: inherit;
+}
+.tb-badge--accent {
+  color: #fff;
+  background: var(--ui-accent-primary);
+  border-color: var(--ui-accent-primary);
+}
+/* publish dropdown 내부에서 label/badge 양끝 정렬용 */
+.pub-dd-item--row { justify-content: space-between; }
 /* Commit 버튼: 저장 상태 관련 중요 액션 — accent 힌트 */
 #topbar button[onclick="saveProject()"] {
   color: var(--ui-accent);

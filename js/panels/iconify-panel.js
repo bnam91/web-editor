@@ -39,8 +39,8 @@ function _createModal() {
       <!-- Collection filter -->
       <div style="padding:10px 16px 0;display:flex;gap:6px;flex-wrap:wrap;" id="iconify-collection-filter">
         ${COLLECTIONS.map(c => `
-          <button class="iconify-col-btn${c.id === '' ? ' active' : ''}" data-prefix="${c.id}"
-            style="background:${c.id===''?'#2563eb':'#222'};border:1px solid ${c.id===''?'#2563eb':'#333'};color:${c.id===''?'#fff':'#aaa'};border-radius:4px;font-size:10px;padding:3px 8px;cursor:pointer;font-family:Pretendard,-apple-system,sans-serif;white-space:nowrap;">
+          <button class="panel-tile iconify-col-btn${c.id === '' ? ' active' : ''}" data-prefix="${c.id}"
+            style="font-size:10px;padding:3px 8px;white-space:nowrap;">
             ${c.label}
           </button>`).join('')}
       </div>
@@ -112,10 +112,7 @@ function _bindModalEvents() {
     if (!btn) return;
     _currentPrefix = btn.dataset.prefix;
     document.querySelectorAll('.iconify-col-btn').forEach(b => {
-      const active = b === btn;
-      b.style.background   = active ? '#2563eb' : '#222';
-      b.style.borderColor  = active ? '#2563eb' : '#333';
-      b.style.color        = active ? '#fff'    : '#aaa';
+      b.classList.toggle('active', b === btn);
     });
     if (_currentQuery) _doSearch(_currentQuery, _currentPrefix);
   });

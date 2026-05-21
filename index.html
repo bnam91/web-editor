@@ -78,7 +78,7 @@
   <button class="tb-btn" id="mode-preview-btn" onclick="enterPreview()" style="display:none">Preview</button>
   <div class="spacer"></div>
 <span id="autosave-indicator" title="자동저장 상태"></span>
-<span id="debug-port-badge" style="display:none; font-size:10px; color:#555; background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:2px 6px; font-family:monospace;"></span>
+<span id="debug-port-badge" class="tb-badge" style="display:none;"></span>
   <div class="divider tb-hidden-mvp"></div>
   <button class="tb-btn tb-hidden-mvp" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
   <div class="divider tb-hidden-mvp"></div>
@@ -105,14 +105,14 @@
         JSON 내보내기
       </div>
       <div class="pub-dd-divider"></div>
-      <div class="pub-dd-item" id="figma-bridge-item" onclick="toggleFigmaBridge(event)" style="display:flex;align-items:center;justify-content:space-between;">
+      <div class="pub-dd-item pub-dd-item--row" id="figma-bridge-item" onclick="toggleFigmaBridge(event)">
         <span style="display:flex;align-items:center;gap:6px;">
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
             <circle cx="6" cy="6" r="4"/><path d="M6 2v2M6 8v2M2 6h2M8 6h2"/>
           </svg>
           Figma Bridge
         </span>
-        <span id="figma-bridge-badge" style="font-size:10px;padding:1px 6px;border-radius:10px;background:#333;color:#666;">●</span>
+        <span id="figma-bridge-badge" class="tb-badge tb-badge--pill">●</span>
       </div>
       <div class="pub-dd-divider"></div>
       <div class="pub-dd-item" onclick="openFigmaUploadModal()">

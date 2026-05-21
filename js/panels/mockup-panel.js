@@ -20,8 +20,8 @@ function _createMockupModal() {
       <!-- Device grid -->
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:16px 18px;">
         ${Object.entries(devices).map(([key, dev]) => `
-          <div class="mkp-device-card" data-device="${key}"
-            style="background:#111;border:1.5px solid #2a2a2a;border-radius:8px;padding:12px 4px 8px;cursor:pointer;text-align:center;transition:border-color 0.1s,background 0.1s;display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <div class="panel-tile mkp-device-card" data-device="${key}"
+            style="border-width:1.5px;border-radius:8px;padding:12px 4px 8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;">
             <div style="width:36px;height:36px;display:flex;align-items:flex-end;justify-content:center;">
               ${_getDeviceThumb(key)}
             </div>
@@ -67,8 +67,7 @@ function openMockupModal() {
   }
   // Reset selection
   _mockupModal.querySelectorAll('.mkp-device-card').forEach(c => {
-    c.style.borderColor = '#2a2a2a';
-    c.style.background  = '#111';
+    c.classList.remove('active');
   });
   _mockupModal.querySelector('#mkp-insert-btn').disabled = true;
   _mockupModal.querySelector('#mkp-insert-btn').style.opacity = '0.4';
@@ -90,11 +89,9 @@ function _bindMockupModalEvents() {
   _mockupModal.querySelectorAll('.mkp-device-card').forEach(card => {
     card.addEventListener('click', () => {
       _mockupModal.querySelectorAll('.mkp-device-card').forEach(c => {
-        c.style.borderColor = '#2a2a2a';
-        c.style.background  = '#111';
+        c.classList.remove('active');
       });
-      card.style.borderColor = '#2563eb';
-      card.style.background  = '#1a2a4a';
+      card.classList.add('active');
       _mockupModal.dataset.selectedDevice = card.dataset.device;
 
       // Update default width
@@ -130,9 +127,4 @@ function _doMockupInsert() {
   window.addDeviceMockupBlock?.(deviceKey, width);
 }
 
-// Hover CSS
-const _mkpStyle = document.createElement('style');
-_mkpStyle.textContent = `
-  .mkp-device-card:hover { background:#1a1a1a !important; border-color:#444 !important; }
-`;
-document.head.appendChild(_mkpStyle);
+// hover/active 스타일은 .panel-tile (editor-panels.css)에서 토큰으로 처리

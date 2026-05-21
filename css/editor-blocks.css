@@ -1384,11 +1384,13 @@
   cursor: pointer;
   margin: 0 auto;
   flex-shrink: 0;
+  position: relative;
 }
 .icon-block.selected {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
 }
+.icon-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-block svg { display: block; }
 .icon-block img { display: block; }
 
@@ -1404,6 +1406,7 @@
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
 }
+.canvas-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .canvas-block .cvb-inner {
   position: absolute;
   inset: 0;
@@ -1424,6 +1427,7 @@
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
 }
+.vector-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .vector-block .vb-inner {
   width: 100%;
   height: 100%;
@@ -1572,6 +1576,7 @@ textarea.cvb-card-input {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
 }
+.mockup-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .mkp-screen {
   position: absolute;
   overflow: hidden;
@@ -1592,11 +1597,13 @@ textarea.cvb-card-input {
   cursor: pointer;
   user-select: none;
   padding: 8px 0;
+  position: relative;
 }
 .step-block.selected {
   outline: 1px solid var(--sel-color);
   outline-offset: -1px;
 }
+.step-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 
 /* ── Chat Block ─────────────────────────────────────────────────────────────── */
 .chat-block {
@@ -2549,6 +2556,29 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 .sticker-corner-handle[data-corner="bl"] { bottom: -3.5px; left:  -3.5px; cursor: nesw-resize; }
 .sticker-corner-handle[data-corner="br"] { bottom: -3.5px; right: -3.5px; cursor: nwse-resize; }
 .sticker-corner-handle:hover { background: #f0e8ff; }
+
+/* ──────────────────────────────────────────────
+   Gradient 4모서리 리사이즈 핸들 (JS에서 .gradient-corner-handle 추가)
+   sticker와 색·규칙 동일, 크기만 키움 (gradient 블록이 860×300으로 큼)
+────────────────────────────────────────────── */
+.gradient-corner-handle {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  background: #fff;
+  border: 1.5px solid #9966ff;
+  border-radius: 2px;
+  pointer-events: auto;
+  z-index: 100;
+  box-sizing: border-box;
+  mix-blend-mode: normal;
+  isolation: isolate;
+}
+.gradient-corner-handle[data-corner="tl"] { top: -5.5px; left:  -5.5px; cursor: nwse-resize; }
+.gradient-corner-handle[data-corner="tr"] { top: -5.5px; right: -5.5px; cursor: nesw-resize; }
+.gradient-corner-handle[data-corner="bl"] { bottom: -5.5px; left:  -5.5px; cursor: nesw-resize; }
+.gradient-corner-handle[data-corner="br"] { bottom: -5.5px; right: -5.5px; cursor: nwse-resize; }
+.gradient-corner-handle:hover { background: #f0e8ff; }
 
 /* HighlightB SVG 라인 — 회전 svg 컨테이너 (line/wavy/marker 공통) */
 .sticker-hlb-svg {

@@ -831,6 +831,27 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .pub-dd-primary:hover { background: #1a2a3a; color: #9dd0ff; }
 .pub-dd-divider { height: 1px; background: var(--ui-border); margin: 4px 0; }
 
+/* ── Panel Tile (iconify collection btn / mockup device card 등 토큰 통일) ── */
+.panel-tile {
+  background: var(--ui-bg-card);
+  border: 1px solid var(--ui-border-mid);
+  color: var(--ui-text-sub);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s, color 0.1s;
+  font-family: inherit;
+}
+.panel-tile:hover {
+  background: var(--ui-bg-input);
+  border-color: var(--ui-border-strong);
+}
+.panel-tile--active,
+.panel-tile.active {
+  background: var(--ui-accent-primary);
+  border-color: var(--ui-accent-primary);
+  color: #fff;
+}
+
 /* ── Branch Panel ── */
 .branch-list { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
 .branch-item {
@@ -1072,8 +1093,8 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .layer-section-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 24px;
+  gap: 8px;
+  height: 28px;
   padding: 0 8px;
   cursor: pointer;
   border-radius: 5px;
@@ -1082,7 +1103,11 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
   position: relative;
 }
 .layer-section-header:hover { background: var(--ui-bg-input); }
-.layer-section-header.active { background: rgba(45,111,232,0.15); }
+.layer-section-header.active {
+  background: rgba(45,111,232,0.15);
+  border-left: 2px solid rgba(45,111,232,0.4);
+  padding-left: 6px;
+}
 
 .layer-chevron {
   width: 12px; height: 12px;
@@ -1090,7 +1115,7 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 }
 .layer-section.collapsed .layer-chevron { transform: rotate(-90deg); }
 
-.layer-section-icon { width: 12px; height: 12px; opacity: 0.6; color: var(--ui-text-sub); flex-shrink: 0; }
+.layer-section-icon { width: 14px; height: 14px; opacity: 0.6; color: var(--ui-text-sub); flex-shrink: 0; }
 .layer-section-name { font-size: 11px; font-weight: 600; color: #ccc; flex: 1; letter-spacing: 0.02em; cursor: default; border-radius: 3px; padding: 0 2px; }
 .layer-section-header.active .layer-section-name { color: #6fa3f7; }
 .layer-section-name.editing { background: #2a3a55; color: #aecbff; outline: none; cursor: text; }
@@ -1109,14 +1134,14 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .layer-section-hidden .layer-eye-btn { display: flex; color: var(--ui-border-strong); }
 .layer-section-hidden .layer-section-name { color: var(--ui-text-dim); text-decoration: line-through; }
 
-.layer-children { padding-left: 12px; overflow: hidden; }
+.layer-children { padding-left: 16px; overflow: hidden; }
 .layer-section.collapsed .layer-children { display: none; }
 
 /* ── Layer Row Group (멀티컬럼 컨테이너) ── */
 .layer-row-group { margin-bottom: 2px; border-radius: 4px; overflow: hidden; }
 .layer-row-header {
-  display: flex; align-items: center; gap: 6px;
-  height: 24px; padding: 0 6px 0 8px;
+  display: flex; align-items: center; gap: 8px;
+  height: 28px; padding: 0 6px 0 8px;
   cursor: pointer; border-radius: 4px;
   transition: background 0.1s; user-select: none;
 }
@@ -1136,7 +1161,7 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 /* ── 피그마 스타일 depth 들여쓰기 ── */
 .layer-indents { display: flex; flex-shrink: 0; align-items: stretch; align-self: stretch; }
 .layer-indent {
-  width: 12px;
+  width: 16px;
   flex-shrink: 0;
   position: relative;
 }
@@ -1151,15 +1176,15 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .layer-indent:last-child::before { border-left: none; }
 
 .layer-item {
-  display: flex; align-items: center; gap: 5px;
-  height: 24px; padding: 0 8px;
+  display: flex; align-items: center; gap: 7px;
+  height: 28px; padding: 0 8px;
   cursor: pointer; border-radius: 4px;
   transition: background 0.1s; user-select: none;
 }
 .layer-item:hover { background: var(--ui-bg-hover, #252525); }
 .layer-item.active { background: rgba(45,111,232,0.15); border-left: 2px solid rgba(45,111,232,0.4); padding-left: 6px; }
 
-.layer-item-icon { width: 12px; height: 12px; opacity: 0.5; flex-shrink: 0; }
+.layer-item-icon { width: 14px; height: 14px; opacity: 0.5; flex-shrink: 0; }
 .layer-item.active .layer-item-icon { opacity: 0.7; }
 .layer-item-name { font-size: 11px; color: #b0b0b0; flex: 1; border-radius: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .layer-item.active .layer-item-name { color: #6fa3f7; font-weight: 500; }
