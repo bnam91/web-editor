@@ -1,0 +1,343 @@
+/* ══════════════════════════════════════
+   Claude PM — Floating button · Panel · Folder-create modal
+   feature/claude-pm — Phase 1 (UI only, backend stubs)
+   다크 토큰만 사용 (--ui-bg-base, --ui-border, --ui-text 등)
+══════════════════════════════════════ */
+
+/* ──────────────────────────────────────
+   1. Floating Button (#claude-pm-btn)
+   #floating-panel 내부, ✨ AI 옆 (fp-btn 32×32)
+   Claude 톤 블루 #6b9eff (AI 보라와 구분)
+────────────────────────────────────── */
+.fp-btn#claude-pm-btn {
+  color: #6b9eff;
+}
+.fp-btn#claude-pm-btn:hover {
+  background: rgba(107, 158, 255, 0.12) !important;
+  border-color: rgba(107, 158, 255, 0.4) !important;
+  color: #8fb6ff !important;
+}
+.fp-btn#claude-pm-btn.active {
+  background: rgba(107, 158, 255, 0.18);
+  border-color: rgba(107, 158, 255, 0.5);
+  color: #8fb6ff;
+}
+
+/* ──────────────────────────────────────
+   2. Panel (#claude-pm-panel)
+   right:24px; top:80px (AI 패널과 동일 위치)
+   width:360px, slide-in 150ms
+────────────────────────────────────── */
+#claude-pm-panel {
+  position: fixed;
+  right: 24px;
+  top: 80px;
+  z-index: 9999;
+  width: 360px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 12px;
+  padding: 0;
+  display: none;
+  flex-direction: column;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+  color: var(--ui-text);
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+#claude-pm-panel.cpm-open {
+  display: flex;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* preview 모드일 때 숨김 */
+body.preview-mode #claude-pm-panel { display: none !important; }
+
+/* Header */
+.cpm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--ui-border);
+}
+.cpm-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.cpm-title svg { color: #6b9eff; }
+.cpm-close {
+  background: none;
+  border: none;
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cpm-close:hover { background: var(--ui-bg-hover); color: var(--ui-text); }
+
+/* MCP status */
+.cpm-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ui-border);
+}
+.cpm-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ui-text);
+}
+.cpm-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-text-muted);
+  flex-shrink: 0;
+}
+.cpm-status-dot.connected { background: var(--ui-success); box-shadow: 0 0 6px rgba(127, 200, 127, 0.5); }
+.cpm-status-dot.disconnected { background: #888; }
+.cpm-status-hint {
+  font-size: 11px;
+  color: var(--ui-text-muted);
+  padding-left: 16px;
+}
+
+/* Action list */
+.cpm-actions {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+}
+.cpm-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  color: var(--ui-text);
+  text-align: left;
+  font-size: 12px;
+  padding: 11px 16px;
+  cursor: pointer;
+  transition: background 0.12s;
+  font-family: inherit;
+}
+.cpm-action:hover { background: var(--ui-bg-hover); }
+.cpm-action-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.cpm-action-label {
+  flex: 1;
+  font-weight: 500;
+}
+.cpm-action-arrow {
+  color: var(--ui-text-dim);
+  font-size: 14px;
+}
+
+/* Footer */
+.cpm-footer {
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--ui-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cpm-footer-desc {
+  font-size: 11px;
+  color: var(--ui-text-sub);
+  line-height: 1.5;
+}
+.cpm-footer-link {
+  font-size: 11px;
+  color: #6b9eff;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cpm-footer-link:hover { color: #8fb6ff; text-decoration: underline; }
+
+/* ──────────────────────────────────────
+   3. Folder Create Modal
+   풀스크린 dimmer + 중앙 정렬, width 520px, z-index 10000
+────────────────────────────────────── */
+#claude-pm-folder-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+}
+#claude-pm-folder-modal.cpm-open { display: flex; }
+body.preview-mode #claude-pm-folder-modal { display: none !important; }
+
+.cpm-modal-shell {
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  width: 520px;
+  max-width: calc(100vw - 40px);
+  color: var(--ui-text);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cpm-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--ui-border);
+}
+.cpm-modal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.cpm-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--ui-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.cpm-modal-close:hover { background: var(--ui-bg-hover); color: var(--ui-text); }
+
+.cpm-modal-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cpm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cpm-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-sub);
+  letter-spacing: 0.02em;
+}
+.cpm-field-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cpm-input {
+  flex: 1;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 6px;
+  color: var(--ui-text);
+  font-size: 12px;
+  padding: 8px 10px;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.cpm-input:focus { border-color: #6b9eff; box-shadow: 0 0 0 2px rgba(107, 158, 255, 0.18); }
+.cpm-input::placeholder { color: var(--ui-text-dim); }
+.cpm-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cpm-pick-btn {
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 6px;
+  color: var(--ui-text-sub);
+  font-size: 11px;
+  padding: 7px 12px;
+  cursor: not-allowed;
+  opacity: 0.55;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.cpm-preview-box {
+  background: var(--ui-bg-input);
+  border: 1px dashed var(--ui-border-mid);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--ui-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+
+.cpm-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ui-text-sub);
+  background: rgba(107, 158, 255, 0.06);
+  border: 1px solid rgba(107, 158, 255, 0.18);
+  border-radius: 6px;
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+.cpm-info-icon { color: #6b9eff; flex-shrink: 0; }
+
+.cpm-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--ui-border);
+}
+.cpm-btn {
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 6px;
+  color: var(--ui-text-sub);
+  font-size: 12px;
+  padding: 7px 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cpm-btn:hover { background: var(--ui-border); color: var(--ui-text); }
+.cpm-btn.primary {
+  background: #2d6fe8;
+  border-color: #2d6fe8;
+  color: #fff;
+  font-weight: 600;
+}
+.cpm-btn.primary:hover { background: #3a7df0; border-color: #3a7df0; }
+.cpm-btn.primary:disabled {
+  background: #1f3a6e;
+  border-color: #1f3a6e;
+  color: #aaa;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
