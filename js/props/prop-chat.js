@@ -13,6 +13,13 @@ export function showChatProperties(block) {
   const colorRight = block.dataset.colorRight           || '#ffffff';
   const radius     = parseInt(block.dataset.radius)     || 16;
   const padding    = parseInt(block.dataset.padding)    || 16;
+  // 카톡식 프로필 (default OFF — 호환성)
+  const showProfile = block.dataset.showProfile === '1';
+  const showName    = block.dataset.showName === '1';
+  const defaultProfileSize = Math.max(48, Math.round(fontSize * 1.6));
+  const profileSize    = parseInt(block.dataset.profileSize) || defaultProfileSize;
+  const profileOffsetY = parseInt(block.dataset.profileOffsetY) || 0;
+  const profileGap     = (block.dataset.profileGap != null) ? parseInt(block.dataset.profileGap) : 8;
 
   function rerender() {
     window.renderChatBlock(block);
@@ -20,14 +27,40 @@ export function showChatProperties(block) {
   }
 
   function msgListHtml() {
-    return messages.map((m, i) => `
-      <div class="chb-prop-item" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <button class="prop-align-btn chb-align-btn ${m.align !== 'right' ? 'active' : ''}" data-idx="${i}" data-dir="left" title="좌측"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/><line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/></svg></button>
-        <button class="prop-align-btn chb-align-btn ${m.align === 'right' ? 'active' : ''}" data-idx="${i}" data-dir="right" title="우측"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/><line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/></svg></button>
-        <textarea class="prop-color-hex chb-text-input" data-idx="${i}" rows="1"
-          style="flex:1;width:auto;max-width:none;min-height:24px;resize:vertical;font-family:inherit;line-height:1.4">${(m.text || '').replace(/</g, '&lt;')}</textarea>
-        <button class="prop-btn prop-btn-danger chb-del-btn" data-idx="${i}" style="padding:2px 7px;font-size:11px">✕</button>
-      </div>`).join('');
+    return messages.map((m, i) => {
+      const isLeft = m.align !== 'right';
+      const showProfileFields = (block.dataset.showProfile === '1');
+      const hideThisProfile = m.hideProfile === true;
+      const pName = (m.profileName || '').replace(/"/g, '&quot;');
+      const pImg  = m.profileImg || '';
+      const profileFieldsHtml = showProfileFields ? `
+        <div class="chb-prop-profile-row" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px dashed #333;font-size:11px;white-space:nowrap">
+          <div class="chb-profile-thumb" data-idx="${i}" title="클릭하여 프로필 이미지 업로드"
+            style="width:28px;height:28px;border-radius:50%;background:${pImg ? `url('${pImg}') center/cover` : 'linear-gradient(135deg,#666,#888)'};border:1px solid #444;cursor:pointer;flex-shrink:0"></div>
+          <input type="text" class="chb-profile-name-input" data-idx="${i}" value="${pName}" placeholder="프로필 이름"
+            style="flex:1;min-width:0;width:auto;max-width:none;min-height:24px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:3px;color:#ccc;font-size:11px;padding:2px 6px">
+          <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0;white-space:nowrap" title="이 메시지만 프로필 숨김(공간 유지 → 들여쓰기 효과)">
+            <input type="checkbox" class="chb-hide-profile" data-idx="${i}" ${hideThisProfile ? 'checked' : ''}>
+            <span>숨김</span>
+          </label>
+          <input type="file" class="chb-profile-file" data-idx="${i}" accept="image/*" style="display:none">
+        </div>` : '';
+      return `
+      <div class="chb-prop-item" data-idx="${i}"
+        style="margin-bottom:8px;padding:8px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="display:flex;gap:2px">
+            <button class="prop-align-btn chb-align-btn ${isLeft ? 'active' : ''}" data-idx="${i}" data-dir="left" title="좌측 정렬"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/><line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/></svg></button>
+            <button class="prop-align-btn chb-align-btn ${!isLeft ? 'active' : ''}" data-idx="${i}" data-dir="right" title="우측 정렬"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/><line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/></svg></button>
+          </div>
+          <span style="flex:1;font-size:10px;color:#666">메시지 ${i + 1}</span>
+          <button class="prop-btn prop-btn-danger chb-del-btn" data-idx="${i}" title="삭제" style="padding:4px 8px;font-size:11px">✕</button>
+        </div>
+        ${profileFieldsHtml}
+        <textarea class="prop-color-hex chb-text-input" data-idx="${i}" rows="2"
+          style="width:100%;box-sizing:border-box;min-height:42px;resize:vertical;font-family:inherit;line-height:1.4;padding:6px 8px;margin-top:6px">${(m.text || '').replace(/</g, '&lt;')}</textarea>
+      </div>`;
+    }).join('');
   }
 
   propPanel.innerHTML = `
@@ -80,11 +113,95 @@ export function showChatProperties(block) {
     </div>
 
     <div class="prop-section">
+      <div class="prop-section-title">Profile</div>
+      <div class="prop-row" style="gap:12px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
+          <input type="checkbox" id="chb-show-profile" ${showProfile ? 'checked' : ''}>
+          <span>프로필 이미지</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
+          <input type="checkbox" id="chb-show-name" ${showName ? 'checked' : ''}>
+          <span>이름 표시</span>
+        </label>
+      </div>
+      <div class="prop-row" style="margin-top:6px">
+        <span class="prop-label">크기</span>
+        <input type="range" id="chb-profile-size-range" min="24" max="120" value="${profileSize}" style="flex:1">
+        <input type="number" id="chb-profile-size-num" class="prop-color-hex" value="${profileSize}" min="24" max="120" style="width:54px">
+      </div>
+      <div class="prop-row" style="margin-top:6px">
+        <span class="prop-label">Y 위치</span>
+        <input type="range" id="chb-profile-y-range" min="-40" max="40" value="${profileOffsetY}" style="flex:1">
+        <input type="number" id="chb-profile-y-num" class="prop-color-hex" value="${profileOffsetY}" min="-40" max="40" style="width:54px">
+      </div>
+      <div class="prop-row" style="margin-top:6px">
+        <span class="prop-label">간격</span>
+        <input type="range" id="chb-profile-gap-range" min="0" max="40" value="${profileGap}" style="flex:1">
+        <input type="number" id="chb-profile-gap-num" class="prop-color-hex" value="${profileGap}" min="0" max="40" style="width:54px">
+      </div>
+    </div>
+
+    <div class="prop-section">
       <div class="prop-section-title">Messages</div>
       <div id="chb-msg-list">${msgListHtml()}</div>
       <button class="prop-btn-full" id="chb-add-msg" style="margin-top:6px">+ 대화 추가하기</button>
     </div>
   `;
+
+  // ─── 프로필 토글 ───────────────────────────────────────────
+  propPanel.querySelector('#chb-show-profile')?.addEventListener('change', e => {
+    block.dataset.showProfile = e.target.checked ? '1' : '0';
+    window.pushHistory?.('프로필 토글');
+    rerender();
+    rebindMsgList();
+  });
+  propPanel.querySelector('#chb-show-name')?.addEventListener('change', e => {
+    block.dataset.showName = e.target.checked ? '1' : '0';
+    window.pushHistory?.('이름 토글');
+    rerender();
+  });
+  // 프로필 크기 — range/number 동기화
+  const sizeRange = propPanel.querySelector('#chb-profile-size-range');
+  const sizeNum   = propPanel.querySelector('#chb-profile-size-num');
+  const setSize = (v) => {
+    const n = Math.max(24, Math.min(120, parseInt(v) || 48));
+    block.dataset.profileSize = String(n);
+    if (sizeRange) sizeRange.value = String(n);
+    if (sizeNum)   sizeNum.value   = String(n);
+    rerender();
+  };
+  sizeRange?.addEventListener('input',  e => setSize(e.target.value));
+  sizeRange?.addEventListener('change', () => window.pushHistory?.());
+  sizeNum?.addEventListener('input',    e => setSize(e.target.value));
+  sizeNum?.addEventListener('change',   () => window.pushHistory?.());
+  // 프로필 Y 위치 — range/number 동기화
+  const yRange = propPanel.querySelector('#chb-profile-y-range');
+  const yNum   = propPanel.querySelector('#chb-profile-y-num');
+  const setY = (v) => {
+    const n = Math.max(-40, Math.min(40, parseInt(v) || 0));
+    block.dataset.profileOffsetY = String(n);
+    if (yRange) yRange.value = String(n);
+    if (yNum)   yNum.value   = String(n);
+    rerender();
+  };
+  yRange?.addEventListener('input',  e => setY(e.target.value));
+  yRange?.addEventListener('change', () => window.pushHistory?.());
+  yNum?.addEventListener('input',    e => setY(e.target.value));
+  yNum?.addEventListener('change',   () => window.pushHistory?.());
+  // 프로필 ↔ 말풍선 간격
+  const gapRange = propPanel.querySelector('#chb-profile-gap-range');
+  const gapNum   = propPanel.querySelector('#chb-profile-gap-num');
+  const setGap = (v) => {
+    const n = Math.max(0, Math.min(40, parseInt(v) || 0));
+    block.dataset.profileGap = String(n);
+    if (gapRange) gapRange.value = String(n);
+    if (gapNum)   gapNum.value   = String(n);
+    rerender();
+  };
+  gapRange?.addEventListener('input',  e => setGap(e.target.value));
+  gapRange?.addEventListener('change', () => window.pushHistory?.());
+  gapNum?.addEventListener('input',    e => setGap(e.target.value));
+  gapNum?.addEventListener('change',   () => window.pushHistory?.());
 
   // ─── 스타일 이벤트 ────────────────────────────────────────────
   const paddingRange = propPanel.querySelector('#chb-padding-range');
@@ -167,6 +284,50 @@ export function showChatProperties(block) {
         block.dataset.messages = JSON.stringify(messages);
         rerender();
         rebindMsgList();
+      });
+    });
+    // 메시지별 hideProfile 체크박스
+    propPanel.querySelectorAll('.chb-hide-profile').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const i = parseInt(cb.dataset.idx);
+        messages[i].hideProfile = e.target.checked;
+        block.dataset.messages = JSON.stringify(messages);
+        window.pushHistory?.('프로필 숨김 토글');
+        rerender();
+      });
+    });
+    // 프로필 이름 input
+    propPanel.querySelectorAll('.chb-profile-name-input').forEach(inp => {
+      inp.addEventListener('input', e => {
+        const i = parseInt(inp.dataset.idx);
+        messages[i].profileName = e.target.value;
+        block.dataset.messages = JSON.stringify(messages);
+        rerender();
+      });
+      inp.addEventListener('change', () => window.pushHistory?.());
+    });
+    // 프로필 이미지 — thumb 클릭 시 file input 트리거
+    propPanel.querySelectorAll('.chb-profile-thumb').forEach(th => {
+      th.addEventListener('click', () => {
+        const i = parseInt(th.dataset.idx);
+        const fileInput = propPanel.querySelector(`.chb-profile-file[data-idx="${i}"]`);
+        fileInput?.click();
+      });
+    });
+    propPanel.querySelectorAll('.chb-profile-file').forEach(fi => {
+      fi.addEventListener('change', e => {
+        const i = parseInt(fi.dataset.idx);
+        const file = e.target.files?.[0];
+        if (!file || !file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          messages[i].profileImg = ev.target.result;
+          block.dataset.messages = JSON.stringify(messages);
+          window.pushHistory?.('프로필 이미지');
+          rerender();
+          rebindMsgList();
+        };
+        reader.readAsDataURL(file);
       });
     });
   }

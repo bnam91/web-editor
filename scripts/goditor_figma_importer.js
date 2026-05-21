@@ -74,6 +74,66 @@ function getSvgNaturalSize(svgStr) {
   return null;
 }
 
+// ─── SVG 인라인 추출 헬퍼 (get_svg → export_node_as_image 폴백) ──
+// 1차: get_svg, 2차: export_node_as_image(format:SVG) base64 디코드
+const __svgCache = new Map();
+function exportSvgInline(nodeId) {
+  if (!nodeId) return '';
+  if (__svgCache.has(nodeId)) return __svgCache.get(nodeId);
+
+  let svg = '';
+  // 1차: get_svg
+  try {
+    const r = figma('get_svg', { nodeId });
+    svg = r?.svgString || r?.svg || (typeof r === 'string' ? r : '');
+  } catch (e) {
+    svg = '';
+  }
+
+  // 2차 폴백: export_node_as_image (format SVG)
+  if (!svg || (typeof svg === 'string' && !svg.includes('<svg'))) {
+    try {
+      const exp = figma('export_node_as_image', { nodeId, format: 'SVG', scale: 1 });
+      if (exp?.imageData) {
+        const decoded = Buffer.from(exp.imageData, 'base64').toString('utf-8');
+        if (decoded && decoded.includes('<svg')) {
+          svg = decoded;
+          console.log(`   [svg-fallback] export OK: ${nodeId} (len=${decoded.length})`);
+        }
+      }
+    } catch (e) {
+      // 무시 — 최종 빈 문자열 반환
+    }
+  }
+
+  if (!svg) {
+    console.warn(`   [svg-empty] ${nodeId} — get_svg & export 모두 실패`);
+    svg = '';
+  }
+  __svgCache.set(nodeId, svg);
+  return svg;
+}
+
+// ─── rotation 추출 (Figma rad → CSS deg, 부호 반전) ──────────────
+function getRotationDeg(node) {
+  // 1순위: 명시적 rotation 필드 (라디안)
+  if (typeof node?.rotation === 'number' && Math.abs(node.rotation) > 1e-6) {
+    return Math.round((-node.rotation * 180 / Math.PI) * 100) / 100;
+  }
+  // 2순위: relativeTransform 2x3 행렬에서 atan2 추출
+  const rt = node?.relativeTransform;
+  if (Array.isArray(rt) && rt.length >= 2 && Array.isArray(rt[0]) && Array.isArray(rt[1])) {
+    const a = rt[0][0];
+    const b = rt[1][0];
+    const rad = Math.atan2(b, a);
+    if (Math.abs(rad) > 1e-6) {
+      // relativeTransform은 CSS와 동일한 시계방향 회전(양수) — 부호 그대로
+      return Math.round((rad * 180 / Math.PI) * 100) / 100;
+    }
+  }
+  return 0;
+}
+
 // ─── 노드 배경색 추출 ────────────────────────────────────────────
 function getBgColor(node) {
   const fill = node.background?.[0] || node.fills?.[0];
@@ -112,6 +172,7 @@ function nodeToBlock(node, frameBox, containerW = 860) {
     const align = constraints.horizontal === 'CENTER' && style.textAlignHorizontal !== 'RIGHT'
       ? 'center'
       : mapAlign(style.textAlignHorizontal);
+    const rot = getRotationDeg(node);
     return {
       type: 'text',
       style: mapStyle(fontSize, fontWeight),
@@ -119,15 +180,15 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       color,
       fontSize: Math.round(fontSize),
       align,
+      ...(rot ? { rotation: rot } : {}),
     };
   }
 
-  // ELLIPSE / VECTOR / STAR / POLYGON → joker 블록 (SVG 추출)
-  const jokerTypes = ['ELLIPSE', 'VECTOR', 'STAR', 'POLYGON', 'BOOLEAN_OPERATION'];
+  // ELLIPSE / VECTOR / STAR / POLYGON / LINE / BOOLEAN_OPERATION → joker 블록 (SVG 추출)
+  const jokerTypes = ['ELLIPSE', 'VECTOR', 'STAR', 'POLYGON', 'BOOLEAN_OPERATION', 'LINE'];
   if (jokerTypes.includes(node.type)) {
     const bbox = node.absoluteBoundingBox || {};
-    const svgResult = figma('get_svg', { nodeId: node.id });
-    const svgContent = svgResult?.svgString || svgResult?.svg || (typeof svgResult === 'string' ? svgResult : '');
+    const svgContent = exportSvgInline(node.id);
     const scale = containerW / (frameBox?.width || containerW);
     const bboxW = bbox.width || 200;
     const bboxH = bbox.height || 200;
@@ -138,6 +199,7 @@ function nodeToBlock(node, frameBox, containerW = 860) {
     const scaledW = Math.round(useW * scale);
     const scaledH = Math.round(useH * scale);
     const relX = Math.round((bbox.x - (frameBox?.x || 0)) * scale);
+    const rot = getRotationDeg(node);
     return {
       type: 'joker',
       label: node.name || node.type,
@@ -145,6 +207,7 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       width: scaledW,
       height: scaledH,
       x: relX,
+      ...(rot ? { rotation: rot } : {}),
     };
   }
 
@@ -181,10 +244,17 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       ) ? 'center' : null;
 
       for (const child of childNodes) {
+        // 자식 nodeToBlock 호출 — frameBox=bbox(현재 sub-section), containerW=scaledW
+        // 이로써 자식은 직속 부모(sub-section)의 (0,0) 기준 좌표가 됨
         const childBlock = nodeToBlock(child, bbox, scaledW);
         if (childBlock) {
           const childBbox = child.absoluteBoundingBox || {};
+          // y는 항상 직속 부모(=현재 frame=bbox) 기준
           childBlock.y = Math.round((childBbox.y || 0) - (bbox.y || 0));
+          // x도 일관되게 직속 부모 기준으로 평탄화 (nodeToBlock 내 분기에서 이미 계산했더라도 덮어씀)
+          if (childBlock.x !== undefined) {
+            childBlock.x = Math.round((childBbox.x || 0) - (bbox.x || 0));
+          }
           if (childTextAlign && childBlock.type === 'text') {
             childBlock.align = childTextAlign;
           }
@@ -199,6 +269,9 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       ? Math.round(radiusRaw * scale)
       : undefined;
 
+    const rot = getRotationDeg(detail || node);
+    const clip = !!(detail?.clipsContent ?? node.clipsContent);
+
     return {
       type: 'sub-section',
       label: node.name || 'Frame',
@@ -207,6 +280,8 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       x: relX,
       bg,
       ...(radius !== undefined ? { radius } : {}),
+      clip,
+      ...(rot ? { rotation: rot } : {}),
       // autoLayout 정보 보존 (runner가 활용 가능하도록)
       ...(detail?.layoutMode && detail.layoutMode !== 'NONE' ? {
         layoutMode: detail.layoutMode,
@@ -255,12 +330,9 @@ function nodeToBlock(node, frameBox, containerW = 860) {
   const bboxW = bbox.width || 200;
   const bboxH = bbox.height || 200;
   const relX = Math.round(((bbox.x || 0) - (frameBox?.x || 0)) * scale);
+  const rotFallback = getRotationDeg(node);
 
-  let svgContent = '';
-  try {
-    const svgResult = figma('get_svg', { nodeId: node.id });
-    svgContent = svgResult?.svgString || svgResult?.svg || (typeof svgResult === 'string' ? svgResult : '');
-  } catch (e) {}
+  const svgContent = exportSvgInline(node.id);
 
   // 이미지 fill 감지: SVG 안에 <image xlink:href="data:image/..." 패턴이 있으면 image 타입으로 변환
   if (typeof svgContent === 'string' && svgContent.includes('xlink:href="data:image/')) {
@@ -275,6 +347,7 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       width: scaledW,
       height: scaledH,
       x: relX,
+      ...(rotFallback ? { rotation: rotFallback } : {}),
     };
   }
 
@@ -292,6 +365,7 @@ function nodeToBlock(node, frameBox, containerW = 860) {
     width: scaledW,
     height: scaledH,
     x: relX,
+    ...(rotFallback ? { rotation: rotFallback } : {}),
   };
 }
 

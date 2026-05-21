@@ -330,6 +330,8 @@ function serializeProject() {
     pages: state.pages,
     checklistItems: window._ckItems || [],
     checklistSections: window._ckSections || [],
+    imageGallery: Array.isArray(state.imageGallery) ? state.imageGallery : [],
+    assetsTree:   Array.isArray(state.assetsTree)   ? state.assetsTree   : [],
   });
 }
 
@@ -361,9 +363,23 @@ function applyProjectData(data) {
     window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
     window._ckItems    = Array.isArray(data.checklistItems)    ? data.checklistItems    : [];
     window._ckSections = Array.isArray(data.checklistSections) ? data.checklistSections : [];
+    // AI 이미지 갤러리 복원 — 누락된 프로젝트는 [] 폴백 (마이그레이션 코드 불필요)
+    state.imageGallery = Array.isArray(data.imageGallery) ? data.imageGallery : [];
+    // Assets 트리 복원 — 빈 트리면 기본 "제품사진" 폴더 1개 자동 생성
+    state.assetsTree   = Array.isArray(data.assetsTree)   ? data.assetsTree   : [];
+    if (state.assetsTree.length === 0) {
+      state.assetsTree.push({
+        id: 'ast_' + Math.random().toString(36).slice(2, 8),
+        type: 'folder',
+        name: '제품사진',
+        children: [],
+      });
+    }
     window.buildLayerPanel(); // also calls buildFilePageSection
     window.showPageProperties();
     window.renderChecklistPanel?.();
+    window.buildAIImageGallery?.();
+    window.buildAssetsPanel?.();
     // 프로젝트 로드/탭 전환 후 히스토리 초기화 — 이전 프로젝트/페이지 스냅샷 잔류 방지
     window.clearHistory?.();
   } finally {

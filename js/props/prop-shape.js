@@ -26,9 +26,20 @@ export function showShapeProperties(block) {
   if (!block) return;
 
   const shapeType   = block.dataset.shapeType || 'rectangle';
-  const color       = block.dataset.shapeColor || '#cccccc';
+  const rawColor    = block.dataset.shapeColor || '#cccccc';
+  // 그라데이션 적용 상태: shapeGradient JSON 존재 또는 shapeColor가 linear-gradient(... CSS
+  let gradientMeta = null;
+  try { gradientMeta = block.dataset.shapeGradient ? JSON.parse(block.dataset.shapeGradient) : null; } catch (_) {}
+  const isGradient  = !!gradientMeta || /gradient/.test(rawColor);
+  const gradientCss = isGradient ? rawColor : '';
+  // picker/hex 표시용 hex — 그라데이션이면 첫 stop, 아니면 그대로
+  const color       = isGradient
+    ? (gradientMeta?.stops?.[0]?.color || '#cccccc')
+    : rawColor;
   const colorAlpha  = parseAlphaFromColor(color);
   const strokeWidth = parseInt(block.dataset.shapeStrokeWidth || '3');
+  const strokeColor = block.dataset.shapeStrokeColor || color;
+  const strokeColorAlpha = parseAlphaFromColor(strokeColor);
   const w           = parseInt(block.style.width)  || 100;
   const h           = parseInt(block.style.height) || 100;
   const iconSvg     = SHAPE_ICONS[shapeType] || SHAPE_ICONS.rectangle;
@@ -51,7 +62,11 @@ export function showShapeProperties(block) {
       <div class="prop-section-title">Color</div>
       <div class="prop-color-row">
         <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha })}
+        ${colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss })}
+      </div>
+      <div class="prop-color-row" style="margin-top:8px;">
+        <span class="prop-label">외곽선</span>
+        ${colorFieldHTML({ idPrefix: 'shape-stroke-color', hex: strokeColor, alpha: strokeColorAlpha })}
       </div>
       <div class="prop-row" style="margin-top:8px;">
         <span class="prop-label">두께</span>
@@ -89,6 +104,33 @@ export function showShapeProperties(block) {
   // 부모 sub-section (shape frame)
   const ss = block.closest('.frame-block');
 
+  // shape는 section padding을 무시하고 section 전체 폭(최대 860)까지 확장 가능 ───
+  // wrap frame의 max-width 제한을 풀고, width가 inner를 넘으면 좌우 균등 음수 margin으로 padding 침범
+  function _extendShapeFrameToSection() {
+    if (!ss) return;
+    const sec = block.closest('.section-block');
+    if (!sec) return;
+    const inner = sec.querySelector('.section-inner');
+    if (!inner) return;
+    // max-width / flex shrink 제한 풀기 — 한 번만 적용해도 OK
+    if (ss.style.maxWidth !== 'none')   ss.style.maxWidth   = 'none';
+    if (ss.style.flexShrink !== '0')    ss.style.flexShrink = '0';
+    const innerW = inner.clientWidth;
+    const secW = sec.offsetWidth || 860;
+    const wrapW = parseFloat(ss.style.width) || parseInt(ss.dataset.width) || ss.offsetWidth || 0;
+    if (wrapW > innerW) {
+      // wrap이 inner content area를 넘으면 padding 침범 — section 좌/우 끝을 넘지 않게 clamp
+      const maxOverflow = (secW - innerW) / 2;
+      const half = Math.min((wrapW - innerW) / 2, maxOverflow);
+      ss.style.marginLeft  = `-${half}px`;
+      ss.style.marginRight = `-${half}px`;
+    } else {
+      if (ss.style.marginLeft)  ss.style.marginLeft  = '';
+      if (ss.style.marginRight) ss.style.marginRight = '';
+    }
+  }
+  _extendShapeFrameToSection();
+
   function applyColor(hex) {
     // perf: 동일 색이면 데이터·DOM 변경 자체를 스킵 → MutationObserver autosave 트리거 회피
     if (block.dataset.shapeColor === hex && !block.dataset.shapeGradient) return;
@@ -120,12 +162,20 @@ export function showShapeProperties(block) {
     window.scheduleAutoSave?.();
   }
 
+  function applyStrokeColor(c) {
+    block.dataset.shapeStrokeColor = c;
+    if (svg) svg.style.stroke = c;
+    window.scheduleAutoSave?.();
+  }
+
   function applySize(newW, newH) {
     // frame(ss)만 리사이즈 — block/svg는 CSS 100%로 자동 추종
     if (ss) {
       ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
       ss.style.height = `${newH}px`; ss.dataset.height = String(newH);
     }
+    // 폭이 inner를 넘으면 padding 침범 자동 적용
+    _extendShapeFrameToSection();
     // 회전 적용 중이면 frame 잔존 보정만 정리 (크기는 사용자가 지정한 값 그대로 유지)
     const curRot = parseInt(block.dataset.shapeRotation || '0');
     if (curRot !== 0 && typeof _updateFrameForRotation === 'function') {
@@ -140,6 +190,18 @@ export function showShapeProperties(block) {
     onApply: (c) => applyColor(c),
     onCommit: () => window.pushHistory?.(),
   });
+
+  // ── 외곽선 색상 피커 ──
+  wireColorField('shape-stroke-color', {
+    initialAlpha: strokeColorAlpha,
+    onApply: (c) => applyStrokeColor(c),
+    onCommit: () => window.pushHistory?.(),
+  });
+
+  // 초기 svg.stroke 동기화 — 첫 mount 시 dataset.shapeStrokeColor가 있으면 즉시 적용
+  if (svg && block.dataset.shapeStrokeColor) {
+    svg.style.stroke = block.dataset.shapeStrokeColor;
+  }
 
   // ── 그라데이션 이벤트 수신 (color-picker gradient 탭) ──
   // perf: 매 input마다 pushHistory 발생하던 것을 commit 이벤트로 분리.
@@ -322,9 +384,11 @@ function _applyShapeGradient(block, svg, detail) {
     const s = stops[i];
     const off = Math.round((s.offset ?? 0) * 100) + '%';
     const col = s.color;
+    const op = (s.opacity == null) ? '1' : String(Math.max(0, Math.min(1, +s.opacity)));
     const n = stopNodes[i];
     if (n.getAttribute('offset') !== off) n.setAttribute('offset', off);
     if (n.getAttribute('stop-color') !== col) n.setAttribute('stop-color', col);
+    if (n.getAttribute('stop-opacity') !== op) n.setAttribute('stop-opacity', op);
   }
 
   // fill="url(#id)" 는 한 번만 적용 — 같은 url이면 setAttribute 자체를 스킵.

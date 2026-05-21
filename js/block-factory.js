@@ -3124,6 +3124,12 @@ function renderChatBlock(block) {
   const colorRight  = block.dataset.colorRight || '#ffffff';
   const radius      = parseInt(block.dataset.radius)  || 16;
   const padding     = parseInt(block.dataset.padding) || 16;
+  // 카톡식 프로필 — 토글 별도 (default off). 크기는 fontSize에 비례.
+  const showProfile = block.dataset.showProfile === '1';
+  const showName    = block.dataset.showName === '1';
+  const profileSize    = parseInt(block.dataset.profileSize)    || Math.max(48, Math.round(fontSize * 1.6));
+  const profileOffsetY = parseInt(block.dataset.profileOffsetY) || 0;
+  const profileGap     = (block.dataset.profileGap != null) ? parseInt(block.dataset.profileGap) : 8;
   block.style.padding = `${padding}px`;
 
   block.innerHTML = messages.map((msg, idx) => {
@@ -3131,16 +3137,36 @@ function renderChatBlock(block) {
     const bg     = isLeft ? bgLeft  : bgRight;
     const color  = isLeft ? colorLeft : colorRight;
     const dir    = isLeft ? 'left' : 'right';
-    // left: scaleX(-1) 반전, right: 원본 (Figma 벡터가 우측 꼬리형)
     const tailTransform = isLeft ? 'transform="scale(-1,1) translate(-19,0)"' : '';
     const tail = `<svg class="chb-tail" viewBox="0 0 19 16" xmlns="http://www.w3.org/2000/svg" width="19" height="16" style="fill:${bg}"><path d="${CHAT_TAIL_PATH}" ${tailTransform}/></svg>`;
 
-    return `<div class="chb-msg chb-${dir}" style="margin-bottom:${gap}px">
-  <div class="chb-wrap">
-    <div class="chb-bubble" data-msg-idx="${idx}" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px">${msg.text}</div>
-    ${tail}
-  </div>
-</div>`;
+    // 프로필 영역(이미지만) + 이름은 말풍선 위에 별도 위치
+    let profileHtml = '';
+    let nameHtml = '';
+    if (showProfile) {
+      const hidden = msg.hideProfile === true;
+      const img    = msg.profileImg || '';
+      const placeholderSvg = `<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="50" fill="#c0c0c0"/>
+        <circle cx="50" cy="40" r="15" fill="#f0f0f0"/>
+        <path d="M 18 92 Q 18 62 50 62 Q 82 62 82 92 Z" fill="#f0f0f0"/>
+      </svg>`;
+      const imgHtml = img
+        ? `<img class="chb-profile-img" src="${img}" alt="" draggable="false">`
+        : `<div class="chb-profile-img chb-profile-placeholder">${placeholderSvg}</div>`;
+      profileHtml = `<div class="chb-profile chb-profile-${dir}" data-msg-idx="${idx}" style="width:${profileSize}px;flex-shrink:0;margin-top:${profileOffsetY}px;${hidden ? 'visibility:hidden;' : ''}">${imgHtml}</div>`;
+    }
+    // 이름은 말풍선 위에 별도 (showName + name 있을 때)
+    if (showName && (msg.profileName || '').trim()) {
+      const hidden = msg.hideProfile === true;
+      const nameColor = isLeft ? colorLeft : colorRight;
+      nameHtml = `<div class="chb-profile-name" style="font-size:${Math.max(11, Math.round(fontSize * 0.55))}px;color:${nameColor};text-align:${isLeft ? 'left' : 'right'};${hidden ? 'visibility:hidden;' : ''}">${msg.profileName}</div>`;
+    }
+
+    // 좌측: profile + wrap(name+bubble+tail), 우측: wrap + profile
+    const wrapHtml = `<div class="chb-wrap">${nameHtml}<div class="chb-bubble" data-msg-idx="${idx}" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px">${msg.text}</div>${tail}</div>`;
+    const inner = isLeft ? `${profileHtml}${wrapHtml}` : `${wrapHtml}${profileHtml}`;
+    return `<div class="chb-msg chb-${dir}" style="margin-bottom:${gap}px;gap:${profileGap}px">${inner}</div>`;
   }).join('');
 
   // 더블클릭으로 메시지 인라인 편집 — Enter는 default(줄바꿈), ESC/blur로 종료
@@ -3599,7 +3625,7 @@ function renderStickerBlock(block) {
     const bboxH    = Math.abs(dy) + pad * 2;
     block.style.cssText = `position:absolute;left:${bboxLeft}px;top:${bboxTop}px;`
       + `width:${bboxW}px;height:${bboxH}px;`
-      + `background:transparent;pointer-events:none;user-select:none;z-index:1;`;
+      + `background:transparent;pointer-events:auto;user-select:none;z-index:1;`;
     // 내부 SVG — 회전된 좌표계에서 그림. 중심점 = (cx-bboxLeft, cy-bboxTop)
     const cx = (x1 + x2) / 2;
     const cy = (y1 + y2) / 2;
@@ -3849,6 +3875,14 @@ window.renderVector    = renderVector;
       folderSel.innerHTML = folders.map(f => `<option value="${f}">${f}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
     }
 
+    // 에셋 블록일 때만 "스크래치로 보내기" 노출
+    const sendItem = document.getElementById('bcm-send-to-scratch');
+    if (sendItem) {
+      const isAsset = block.classList.contains('asset-block');
+      const hasImg = !!(block.querySelector('.asset-img')?.src || block.dataset?.imgSrc);
+      sendItem.style.display = (isAsset && hasImg) ? 'flex' : 'none';
+    }
+
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
     const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
     menu.style.left    = x + 'px';
@@ -3873,6 +3907,21 @@ window.renderVector    = renderVector;
     e.stopPropagation();
     if (!_targetBlock) return closeMenu();
     if (nameRow) { nameRow.style.display = 'flex'; nameInput?.focus(); }
+  });
+
+  document.getElementById('bcm-send-to-scratch')?.addEventListener('click', async e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    closeMenu();
+    if (!block) return;
+    const src = block.querySelector('.asset-img')?.src || block.dataset?.imgSrc;
+    if (!src) { window.showToast?.('⚠️ 이미지 없음'); return; }
+    try {
+      await window._scratchAddAndSave?.(src, 40, 40, 400);
+      window.showToast?.('📋 스크래치로 보냄');
+    } catch (err) {
+      window.showToast?.('❌ 실패: ' + (err?.message || err));
+    }
   });
 
   nameConfirm?.addEventListener('click', e => {

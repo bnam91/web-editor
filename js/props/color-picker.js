@@ -162,8 +162,14 @@ function _ensurePopover() {
 
     <!-- Gradient panel -->
     <div class="goya-cp-panel" data-panel="gradient">
-      <div class="goya-cp-gradient-bar" data-el="gradBar">
+      <div class="goya-cp-gradient-bar" data-el="gradBar" style="position:relative;">
         <div class="goya-cp-gradient-fill" data-el="gradFill"></div>
+        <div class="goya-cp-grad-thumb is-active" data-el="gradThumbStart" data-stop-idx="0" title="Start stop" style="left:0%;"></div>
+        <div class="goya-cp-grad-thumb" data-el="gradThumbEnd" data-stop-idx="1" title="End stop" style="left:100%;"></div>
+      </div>
+      <div class="goya-cp-grad-offset-row" style="display:flex;gap:8px;margin-top:4px;align-items:center;justify-content:space-between;font-size:10px;color:#888;">
+        <span data-el="gradStartOffsetLabel">0%</span>
+        <span data-el="gradEndOffsetLabel">100%</span>
       </div>
       <div class="goya-cp-gradient-opts">
         <select data-el="gradType">
@@ -185,11 +191,15 @@ function _ensurePopover() {
         <span style="font-size:11px;color:#888;width:32px;">Start</span>
         <input type="color" data-el="gradStart" value="#ff5e3a" style="width:32px;height:24px;border:none;background:transparent;cursor:pointer;">
         <input type="text" class="goya-cp-hex" data-el="gradStartHex" maxlength="6" value="FF5E3A" style="flex:1;" aria-label="Start hex">
+        <input type="text" data-el="gradStartAlpha" value="100" maxlength="3" title="Start opacity %" style="width:36px;font-size:11px;text-align:right;background:#1c1c1c;border:1px solid #2a2a2a;color:#ccc;padding:3px 4px;border-radius:3px;" aria-label="Start opacity">
+        <span style="font-size:10px;color:#666;">%</span>
       </div>
       <div class="goya-cp-grad-stops" style="display:flex;gap:8px;margin-top:6px;align-items:center;">
         <span style="font-size:11px;color:#888;width:32px;">End</span>
         <input type="color" data-el="gradEnd" value="#1aa6ff" style="width:32px;height:24px;border:none;background:transparent;cursor:pointer;">
         <input type="text" class="goya-cp-hex" data-el="gradEndHex" maxlength="6" value="1AA6FF" style="flex:1;" aria-label="End hex">
+        <input type="text" data-el="gradEndAlpha" value="100" maxlength="3" title="End opacity %" style="width:36px;font-size:11px;text-align:right;background:#1c1c1c;border:1px solid #2a2a2a;color:#ccc;padding:3px 4px;border-radius:3px;" aria-label="End opacity">
+        <span style="font-size:10px;color:#666;">%</span>
       </div>
     </div>
 
@@ -449,16 +459,76 @@ function _wireEvents(pop) {
   const gradEnd      = _els.gradEnd;
   const gradStartHex = _els.gradStartHex;
   const gradEndHex   = _els.gradEndHex;
+  const gradStartAlpha = _els.gradStartAlpha;
+  const gradEndAlpha   = _els.gradEndAlpha;
   const gradType     = _els.gradType;
   const gradAngle    = _els.gradAngle;
+  const gradBar      = _els.gradBar;
+  const gradThumbStart = _els.gradThumbStart;
+  const gradThumbEnd   = _els.gradThumbEnd;
+  const gradStartOffsetLabel = _els.gradStartOffsetLabel;
+  const gradEndOffsetLabel   = _els.gradEndOffsetLabel;
+  // stop offset 상태 (0~1)
+  let _gradStartOffset = 0;
+  let _gradEndOffset   = 1;
+  function _updateThumbPositions() {
+    if (gradThumbStart) gradThumbStart.style.left = (_gradStartOffset * 100) + '%';
+    if (gradThumbEnd)   gradThumbEnd.style.left   = (_gradEndOffset   * 100) + '%';
+    if (gradStartOffsetLabel) gradStartOffsetLabel.textContent = Math.round(_gradStartOffset * 100) + '%';
+    if (gradEndOffsetLabel)   gradEndOffsetLabel.textContent   = Math.round(_gradEndOffset   * 100) + '%';
+  }
+  function _setActiveThumb(idx) {
+    gradThumbStart?.classList.toggle('is-active', idx === 0);
+    gradThumbEnd?.classList.toggle('is-active', idx === 1);
+  }
+  function _bindThumbDrag(thumb, isEnd) {
+    if (!thumb) return;
+    thumb.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      thumb.classList.add('is-dragging');
+      _setActiveThumb(isEnd ? 1 : 0);
+      const onMove = (ev) => {
+        const r = gradBar.getBoundingClientRect();
+        let p = (ev.clientX - r.left) / r.width;
+        p = Math.max(0, Math.min(1, p));
+        if (isEnd) _gradEndOffset   = p;
+        else       _gradStartOffset = p;
+        _updateThumbPositions();
+        _scheduleEmitGradient(false);
+      };
+      const onUp = () => {
+        thumb.classList.remove('is-dragging');
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        _scheduleEmitGradient(true);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
+  }
+  _bindThumbDrag(gradThumbStart, false);
+  _bindThumbDrag(gradThumbEnd,   true);
+  _updateThumbPositions();
+  const _aClamp = (v) => Math.max(0, Math.min(100, parseInt(v) || 0));
+  const _hexToRgba = (hex, a) => {
+    const h = (hex || '#000000').replace('#','');
+    const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+    return `rgba(${r},${g},${b},${(a/100).toFixed(3)})`;
+  };
 
   function _buildGradientCSS() {
     const type = gradType.value;
     const angle = parseInt(gradAngle.value) || 90;
-    const s = gradStart.value || '#ff5e3a';
-    const e = gradEnd.value || '#1aa6ff';
-    if (type === 'radial') return `radial-gradient(circle, ${s} 0%, ${e} 100%)`;
-    return `linear-gradient(${angle}deg, ${s} 0%, ${e} 100%)`;
+    const sHex = gradStart.value || '#ff5e3a';
+    const eHex = gradEnd.value || '#1aa6ff';
+    const sA = _aClamp(gradStartAlpha?.value ?? 100);
+    const eA = _aClamp(gradEndAlpha?.value ?? 100);
+    const s = sA < 100 ? _hexToRgba(sHex, sA) : sHex;
+    const e = eA < 100 ? _hexToRgba(eHex, eA) : eHex;
+    const sOff = Math.round(_gradStartOffset * 100);
+    const eOff = Math.round(_gradEndOffset   * 100);
+    if (type === 'radial') return `radial-gradient(circle, ${s} ${sOff}%, ${e} ${eOff}%)`;
+    return `linear-gradient(${angle}deg, ${s} ${sOff}%, ${e} ${eOff}%)`;
   }
 
   // perf: 그라데이션 input은 rAF로 합쳐서 한 프레임에 1회만 emit.
@@ -481,13 +551,15 @@ function _wireEvents(pop) {
     const css = _buildGradientCSS();
     gradFill.style.background = css;
     if (!_targetInput) return;
+    const sA = _aClamp(gradStartAlpha?.value ?? 100);
+    const eA = _aClamp(gradEndAlpha?.value ?? 100);
     const detail = {
       css,
       type: gradType.value,
       angle: parseInt(gradAngle.value) || 90,
       stops: [
-        { color: gradStart.value, offset: 0 },
-        { color: gradEnd.value, offset: 1 },
+        { color: gradStart.value, offset: _gradStartOffset, opacity: sA / 100 },
+        { color: gradEnd.value,   offset: _gradEndOffset,   opacity: eA / 100 },
       ],
       commit: !!commit,
     };
@@ -515,6 +587,11 @@ function _wireEvents(pop) {
     if (/^[0-9a-f]{6}$/i.test(v)) { gradEnd.value = '#' + v.toLowerCase(); _scheduleEmitGradient(false); }
   });
   gradEndHex.addEventListener('change', () => { _scheduleEmitGradient(true); });
+  // alpha inputs — input은 라이브, change는 commit
+  gradStartAlpha?.addEventListener('input',  () => _scheduleEmitGradient(false));
+  gradStartAlpha?.addEventListener('change', () => _scheduleEmitGradient(true));
+  gradEndAlpha?.addEventListener('input',    () => _scheduleEmitGradient(false));
+  gradEndAlpha?.addEventListener('change',   () => _scheduleEmitGradient(true));
   // type/angle 은 selectbox 'change'만 발생 — 항상 commit
   gradType.addEventListener('change',  () => _scheduleEmitGradient(true));
   gradAngle.addEventListener('change', () => _scheduleEmitGradient(true));
@@ -562,13 +639,14 @@ function openPicker(swatch) {
   _position(swatch);
   _syncSolidUI();
 
-  // outside click close
+  // outside click close — composedPath로 swatch 포함 검사 + 충분한 지연으로 자기 mousedown 회피
   _outsideHandler = (ev) => {
-    if (_pop.contains(ev.target)) return;
-    if (ev.target.closest('.prop-color-swatch') === swatch) return;
+    const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
+    if (_pop.contains(ev.target) || path.includes(_pop)) return;
+    if (path.includes(swatch) || ev.target.closest('.prop-color-swatch') === swatch) return;
     _closePicker();
   };
-  setTimeout(() => document.addEventListener('mousedown', _outsideHandler, true), 0);
+  setTimeout(() => document.addEventListener('mousedown', _outsideHandler, true), 50);
 }
 
 /* ─── 스와치 클릭 델리게이션 ─── */
@@ -625,12 +703,14 @@ export function parseAlphaFromColor(cssColor) {
   return Math.round(parseFloat(parts[3]) * 100);
 }
 
-export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '' }) {
+export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '', gradientCss = '' }) {
+  // gradientCss가 있으면 swatch 배경을 그라데이션으로, picker/hex는 첫 stop 색
   const h = _hex6(hex);
   const hexUp = h.replace('#','').toUpperCase();
+  const swatchBg = gradientCss || h;
   return `
     <div class="prop-color-field">
-      <div class="prop-color-swatch" style="background:${h}">
+      <div class="prop-color-swatch" style="background:${swatchBg}">
         <input type="color" id="${idPrefix}-color" value="${h}">
       </div>
       <input type="text" class="prop-color-hex" id="${idPrefix}-hex" value="${hexUp}" maxlength="6" aria-label="Color"${placeholder ? ` placeholder="${placeholder}"` : ''}>

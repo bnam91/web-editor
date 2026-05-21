@@ -380,6 +380,22 @@ function _createItem(src, x, y, w = 220, idArg) {
   });
   el.appendChild(closeBtn);
 
+  // ✨ AI 버튼 — 이 이미지를 베이스로 AI 모달 오픈
+  const aiBtn = document.createElement('button');
+  aiBtn.className = 'scratch-ai-btn';
+  aiBtn.type = 'button';
+  aiBtn.innerHTML = '✨';
+  aiBtn.title = 'AI 이미지 생성 (이 이미지 기반)';
+  aiBtn.addEventListener('mousedown', e => e.stopPropagation());
+  aiBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (window.openImageGenModal) {
+      window.openImageGenModal({ mode: 'image' });
+      window._aigPrePickScratch?.(id, item.src);
+    }
+  });
+  el.appendChild(aiBtn);
+
   // ✂ 슬라이스 버튼 — 클릭하면 슬라이스 모드 진입
   const sliceBtn = document.createElement('button');
   sliceBtn.className = 'scratch-slice-btn';

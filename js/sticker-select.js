@@ -290,15 +290,25 @@ function bindStickerSelect(block) {
     const startX = e.clientX;
     const startY = e.clientY;
 
-    // ── highlightB 전용 드래그 — 두 점을 함께 평행이동 ────────────────
+    // ── highlightB 전용 드래그 — 두 점을 함께 평행이동 + 섹션 내 clamp ──
     if (block.dataset.shape === 'highlightB') {
       const ox1 = parseFloat(block.dataset.x1) || 0;
       const oy1 = parseFloat(block.dataset.y1) || 0;
       const ox2 = parseFloat(block.dataset.x2) || 0;
       const oy2 = parseFloat(block.dataset.y2) || 0;
+      // 두 점의 bbox로 clamp 범위 미리 계산
+      const minX = Math.min(ox1, ox2);
+      const maxX = Math.max(ox1, ox2);
+      const minY = Math.min(oy1, oy2);
+      const maxY = Math.max(oy1, oy2);
+      const secW = sec.offsetWidth  || 860;
+      const secH = sec.offsetHeight || 0;
       const onMoveB = (ev) => {
-        const dx = (ev.clientX - startX) / zoom;
-        const dy = (ev.clientY - startY) / zoom;
+        let dx = (ev.clientX - startX) / zoom;
+        let dy = (ev.clientY - startY) / zoom;
+        // 두 점 모두 [0, secW] × [0, secH] 안에 머물도록 dx/dy clamp
+        dx = Math.max(-minX, Math.min(secW - maxX, dx));
+        dy = Math.max(-minY, Math.min(secH - maxY, dy));
         block.dataset.x1 = String(Math.round(ox1 + dx));
         block.dataset.y1 = String(Math.round(oy1 + dy));
         block.dataset.x2 = String(Math.round(ox2 + dx));

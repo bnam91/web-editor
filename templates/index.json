@@ -98,5 +98,137 @@
     ],
     "createdAt": "2026-03-23T00:00:00.000Z",
     "thumbnail": null
+  },
+  {
+    "id": "tpl_1775018641878",
+    "name": "최고가되겠습니다.",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.971066Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775018714666",
+    "name": "Section 02",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.971268Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775018735528",
+    "name": "Section 01",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.971761Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775025402518",
+    "name": "디자인특허",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.972010Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775031581782",
+    "name": "급하게 제품이 필요하신가요?",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.972162Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775034641053",
+    "name": "Section 01",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.972342Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775035205799",
+    "name": "Section 03",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.972621Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775036233557",
+    "name": "유사품주의",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.972899Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775036595780",
+    "name": "특허",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.973261Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775037600125",
+    "name": "Section 07",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.973521Z",
+    "thumbnail": null,
+    "type": "section"
+  },
+  {
+    "id": "tpl_1775039509188",
+    "name": "Section 09",
+    "folder": "와이어프레임",
+    "category": "Main",
+    "tags": [
+      "복구"
+    ],
+    "createdAt": "2026-05-20T01:56:05.973709Z",
+    "thumbnail": null,
+    "type": "section"
   }
 ]

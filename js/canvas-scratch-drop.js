@@ -221,3 +221,8 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
 function clearScratchDropGuides() { _clearGuides(); }
 
 export { previewScratchDropAt, commitScratchDropAt, clearScratchDropGuides };
+
+// 비-모듈 패널(예: assets-panel.js)에서도 사용 가능하도록 window에 노출
+window.previewScratchDropAt   = previewScratchDropAt;
+window.commitScratchDropAt    = commitScratchDropAt;
+window.clearScratchDropGuides = clearScratchDropGuides;

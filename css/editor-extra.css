@@ -522,9 +522,11 @@ body.preview-mode #preview-navigator { display: flex; }
   border-color: rgba(192, 132, 252, 0.4);
 }
 
-/* 모달 패널 */
+/* 비모달 플로팅 패널 (뒤쪽 인터랙션 가능) */
 #ai-prompt-panel {
-  width: 560px;
+  width: 480px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
   background: var(--ui-bg-base);
   border: 1px solid #383838;
   border-radius: 12px;
@@ -532,7 +534,7 @@ body.preview-mode #preview-navigator { display: flex; }
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
 }
 
 /* 헤더 */

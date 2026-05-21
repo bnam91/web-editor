@@ -62,11 +62,14 @@ function switchToTab(tabName) {
   document.getElementById('branch-panel-body').style.display     = tabName === 'branch'    ? '' : 'none';
   document.getElementById('inspector-panel-body').style.display  = tabName === 'inspector' ? 'flex' : 'none';
   document.getElementById('checklist-panel-body').style.display  = tabName === 'checklist' ? 'flex' : 'none';
+  const assetsBody = document.getElementById('assets-panel-body');
+  if (assetsBody) assetsBody.style.display = tabName === 'assets' ? 'flex' : 'none';
   const collapseBtn = document.getElementById('layer-collapse-all');
   if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
   if (tabName === 'branch') window.renderBranchPanel();
   if (tabName === 'inspector') window.renderInspectorPanel();
   if (tabName === 'checklist') window.renderChecklistPanel?.();
+  if (tabName === 'assets')    window.buildAssetsPanel?.();
 }
 
 function initFileTabToggle() {
@@ -549,7 +552,7 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .vector-block').forEach(b => {
+      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block').forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
       });
@@ -660,7 +663,7 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {

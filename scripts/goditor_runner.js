@@ -167,6 +167,18 @@ function getBlockHeight(block) {
           x: block.x || 0,
           y: block.y || 0,
         })})`);
+        if (typeof block.rotation === 'number' && block.rotation !== 0) {
+          await ev(`(function(){
+            const sec = document.querySelector('.section-block.selected');
+            if (!sec) return;
+            const jks = sec.querySelectorAll('.joker-block');
+            const el = jks[jks.length - 1];
+            if (!el) return;
+            el.style.transform = (el.style.transform||'') + ' rotate(${block.rotation}deg)';
+            el.style.transformOrigin = 'center center';
+            el.dataset.rotation = '${block.rotation}';
+          })()`);
+        }
         break;
       case 'sub-section': {
         // sub-section → addFrameBlock (freeLayout) + 자식 블록 절대좌표 배치
@@ -174,6 +186,9 @@ function getBlockHeight(block) {
         const ssH  = block.height || 100;
         const ssW  = block.width  || 860;
         const ssRadius = (typeof block.radius === 'number') ? block.radius : undefined;
+        // Figma clipsContent에 따라 overflow 결정 (기본 visible — 카드 그림자/회전 잘림 방지)
+        const ssOverflow = (block.clip === true) ? 'hidden' : 'visible';
+        const ssRot = (typeof block.rotation === 'number' && block.rotation !== 0) ? block.rotation : 0;
         await ev(`window._activeFrame = null`);
         await ev(`window.addFrameBlock({ bg: '${ssBg}'${ssRadius !== undefined ? `, radius: ${ssRadius}` : ''} })`);
         await ev(`(function(){
@@ -185,8 +200,10 @@ function getBlockHeight(block) {
           f.dataset.height = '${ssH}';
           f.dataset.freeLayout = 'true';
           f.style.position = 'relative';
-          f.style.overflow = 'hidden';
+          f.style.overflow = '${ssOverflow}';
+          f.dataset.clip = '${block.clip === true ? 'true' : 'false'}';
           ${ssRadius !== undefined ? `f.style.borderRadius = '${ssRadius}px'; f.dataset.radius = '${ssRadius}';` : ''}
+          ${ssRot ? `f.style.transform = (f.style.transform||'') + ' rotate(${ssRot}deg)'; f.style.transformOrigin='center center'; f.dataset.rotation='${ssRot}';` : ''}
         })()`);
         await delay(200);
         // 카드 frame을 ID로 잡아두고 자식 처리 후 selected를 카드로 복원
@@ -251,6 +268,18 @@ function getBlockHeight(block) {
         });
         await ev(`window.addTextBlock('${block.style}', ${opts})`);
         await delay(200);
+        if (typeof block.rotation === 'number' && block.rotation !== 0) {
+          await ev(`(function(){
+            const f = window._activeFrame;
+            if (!f) return;
+            const tfs = f.querySelectorAll(':scope > .frame-block[data-text-frame]');
+            const el = tfs[tfs.length - 1];
+            if (!el) return;
+            el.style.transform = (el.style.transform||'') + ' rotate(${block.rotation}deg)';
+            el.style.transformOrigin = 'center center';
+            el.dataset.rotation = '${block.rotation}';
+          })()`);
+        }
         return await getLastBlockHeight('text');
       }
       case 'image': {
@@ -258,6 +287,18 @@ function getBlockHeight(block) {
         const imgOpts = block.preset === 'logo' ? { x, y } : { x, y, width };
         if (block.height !== undefined) imgOpts.height = block.height;
         await ev(`window.addAssetBlock('${block.preset || 'standard'}', ${JSON.stringify(imgOpts)})`);
+        if (typeof block.rotation === 'number' && block.rotation !== 0) {
+          await ev(`(function(){
+            const f = window._activeFrame;
+            if (!f) return;
+            const abs = f.querySelectorAll(':scope > .asset-block');
+            const el = abs[abs.length - 1];
+            if (!el) return;
+            el.style.transform = (el.style.transform||'') + ' rotate(${block.rotation}deg)';
+            el.style.transformOrigin = 'center center';
+            el.dataset.rotation = '${block.rotation}';
+          })()`);
+        }
         if (block.src) {
           await ev(`(function(){
             const f = window._activeFrame;
@@ -303,6 +344,18 @@ function getBlockHeight(block) {
           y:      block.y !== undefined ? block.y : y,
         })})`);
         await delay(200);
+        if (typeof block.rotation === 'number' && block.rotation !== 0) {
+          await ev(`(function(){
+            const f = window._activeFrame;
+            if (!f) return;
+            const jks = f.querySelectorAll(':scope > .joker-block');
+            const el = jks[jks.length - 1];
+            if (!el) return;
+            el.style.transform = (el.style.transform||'') + ' rotate(${block.rotation}deg)';
+            el.style.transformOrigin = 'center center';
+            el.dataset.rotation = '${block.rotation}';
+          })()`);
+        }
         return block.height || 0;
       case 'sub-section': {
         // 중첩 sub-section: 부모 freeLayout 안에 자식 freeLayout frame 추가 (재귀)
@@ -310,6 +363,9 @@ function getBlockHeight(block) {
         const subW  = block.width  || width || 860;
         const subH  = block.height || 100;
         const subRadius = (typeof block.radius === 'number') ? block.radius : undefined;
+        // Figma clipsContent에 따라 overflow 결정 (기본 visible)
+        const subOverflow = (block.clip === true) ? 'hidden' : 'visible';
+        const subRot = (typeof block.rotation === 'number' && block.rotation !== 0) ? block.rotation : 0;
 
         // 부모 frame 보관 → 자식 빌드 후 복원
         await ev(`window.__parentFrameStack = (window.__parentFrameStack || []); window.__parentFrameStack.push(window._activeFrame);`);
@@ -327,11 +383,13 @@ function getBlockHeight(block) {
           f.style.minHeight= '${subH}px';
           f.style.maxWidth = 'none';
           f.style.margin   = '0';
-          f.style.overflow = 'hidden';
+          f.style.overflow = '${subOverflow}';
           f.dataset.width  = '${subW}';
           f.dataset.height = '${subH}';
           f.dataset.freeLayout = 'true';
+          f.dataset.clip = '${block.clip === true ? 'true' : 'false'}';
           ${subRadius !== undefined ? `f.style.borderRadius = '${subRadius}px'; f.dataset.radius = '${subRadius}';` : ''}
+          ${subRot ? `f.style.transform = (f.style.transform||'') + ' rotate(${subRot}deg)'; f.style.transformOrigin='center center'; f.dataset.rotation='${subRot}';` : ''}
         })()`);
         await delay(150);
 
@@ -471,6 +529,37 @@ function getBlockHeight(block) {
 
   await ev(`window.triggerAutoSave()`);
   await delay(500);
+
+  // 빌드 종료 후 dataset.rotation/dataset.clip을 가진 모든 frame에 transform/overflow 재적용
+  // (addFrameBlock 내부 또는 syncSection이 inline style을 초기화하는 경우 대비)
+  await ev(`(function(){
+    const frames = document.querySelectorAll('.frame-block[data-rotation], .frame-block[data-clip]');
+    frames.forEach(f => {
+      const rot = parseFloat(f.dataset.rotation) || 0;
+      if (rot) {
+        const cur = f.style.transform || '';
+        if (!cur.includes('rotate(')) {
+          f.style.transform = cur + ' rotate(' + rot + 'deg)';
+          f.style.transformOrigin = 'center center';
+        }
+      }
+      if (f.dataset.clip === 'false') f.style.overflow = 'visible';
+      else if (f.dataset.clip === 'true') f.style.overflow = 'hidden';
+    });
+    // joker/text-frame 회전 재적용
+    const others = document.querySelectorAll('.joker-block[data-rotation], .frame-block[data-text-frame][data-rotation], .asset-block[data-rotation]');
+    others.forEach(el => {
+      const rot = parseFloat(el.dataset.rotation) || 0;
+      if (!rot) return;
+      const cur = el.style.transform || '';
+      if (!cur.includes('rotate(')) {
+        el.style.transform = cur + ' rotate(' + rot + 'deg)';
+        el.style.transformOrigin = 'center center';
+      }
+    });
+  })()`);
+  await delay(300);
+
   console.log('✅ 전체 빌드 완료');
   ws.close();
 })().catch(e => { console.error('❌', e.message); process.exit(1); });

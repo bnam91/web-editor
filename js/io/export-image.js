@@ -188,11 +188,17 @@ async function exportSection(sec, format, width) {
     el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
       'group-selected', 'group-editing', 'ss-drag-over', 'drag-over');
   });
-  // Electron CDP 캡처 시 clone을 viewport 상단에 배치, html2canvas는 off-screen
+  // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
+  // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
   const useNative = !!window.electronAPI?.captureSection;
-  clone.style.cssText += ';position:fixed;top:' + (useNative ? '0' : '-99999px')
-    + ';left:0;width:' + w + 'px;margin:0;outline:none;'
-    + (useNative ? ';z-index:9999999;' : '');
+  clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
+
+  // P1 우회 부수 안정성: clone 자체를 stacking context로 격리 + 부모 transform 영향 차단
+  // (sec_fdm1dzu처럼 자체 stacking context인 섹션 외에도 일관성 보장)
+  if (useNative) {
+    clone.style.isolation = clone.style.isolation || 'isolate';
+    clone.style.transform = 'none';
+  }
 
   document.body.appendChild(clone);
 
@@ -336,31 +342,43 @@ async function exportSection(sec, format, width) {
 
   // 클론을 한 번 fully-render 한 뒤 캔버스로 캡처해 돌려주는 헬퍼.
   // (animated GIF는 frame별로 여러 번 호출)
+  //
+  // P1 fix (2026-05-21): 기존 청크 캡쳐 루프(clone.style.top = -y → capturePage 반복) 폐기.
+  // 청크 사이 compositor commit 미보장으로 직전 frame이 재사용되어 동일 내용이
+  // 두 번 캡쳐되는 동기화 버그가 있었음.
+  // → CDP Page.captureScreenshot + captureBeyondViewport:true 한 번 호출로 교체.
   const captureCloneToCanvas = async () => {
     if (useNative) {
       clone.style.background = clone.style.background || bgColor;
+      await document.fonts.ready;
+      clone.getBoundingClientRect();
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const secH  = clone.offsetHeight;
-      const viewH = window.innerHeight;
-      const dpr   = window.devicePixelRatio || 2;
+      const secH = clone.offsetHeight;
+      const dpr  = window.devicePixelRatio || 2;
+      let pngBase64;
+      if (window.electronAPI.captureSectionCdp) {
+        // clone은 top:-99999px(off-screen)에 위치 — clip.y를 그 좌표로 전달해 캡쳐
+        const cloneRect = clone.getBoundingClientRect();
+        pngBase64 = await window.electronAPI.captureSectionCdp({
+          x: Math.round(cloneRect.left),
+          y: Math.round(cloneRect.top),
+          width: w,
+          height: secH,
+        });
+      } else {
+        // 구버전 Electron(메인 프로세스 미업데이트) 호환을 위한 명시적 실패
+        throw new Error('captureSectionCdp 미지원 — Electron 재빌드 필요');
+      }
       const outCanvas = document.createElement('canvas');
       outCanvas.width  = Math.round(w    * dpr);
       outCanvas.height = Math.round(secH * dpr);
       const ctx = outCanvas.getContext('2d');
-      let y = 0;
-      while (y < secH) {
-        const chunkH = Math.min(viewH, secH - y);
-        clone.style.top = (-y) + 'px';
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-        const pngBase64 = await window.electronAPI.captureSection({ width: w, height: chunkH });
-        await new Promise((res, rej) => {
-          const ci = new Image();
-          ci.onload = () => { ctx.drawImage(ci, 0, Math.round(y * dpr)); res(); };
-          ci.onerror = rej;
-          ci.src = 'data:image/png;base64,' + pngBase64;
-        });
-        y += chunkH;
-      }
+      await new Promise((res, rej) => {
+        const ci = new Image();
+        ci.onload  = () => { ctx.drawImage(ci, 0, 0); res(); };
+        ci.onerror = rej;
+        ci.src = 'data:image/png;base64,' + pngBase64;
+      });
       return outCanvas;
     }
     // html2canvas 폴백

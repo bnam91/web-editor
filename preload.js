@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // BUG-44: beforeunload용 동기 저장 — async를 await할 수 없는 새로고침/탭닫기 시점에 호출
   saveProjectSync:(project) => ipcRenderer.sendSync('projects:save-sync', project),
   deleteProject:  (id)      => ipcRenderer.invoke('projects:delete', id),
+  duplicateProject: ({ sourceProjectId, newName }) =>
+    ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName }),
 
   // Projects Meta — branches/commits/thumbnail 분리 저장
   saveProjectMeta: (projectId, metaData) => ipcRenderer.invoke('projects:save-meta', projectId, metaData),
@@ -52,6 +54,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // AI section text fill (Gemini)
   aiFillSectionTexts: (payload) => ipcRenderer.invoke('ai:fillSectionTexts', payload),
 
+  // AI 이미지 생성 (Nano Banana · gpt-image-1) + 디스크 저장/조회/삭제
+  aiGenerateImage: (payload)                  => ipcRenderer.invoke('ai:generateImage', payload),
+  aiSaveImage:     ({ projectId, b64, mime }) => ipcRenderer.invoke('ai:saveImage',   { projectId, b64, mime }),
+  aiReadImage:     ({ projectId, blobPath })  => ipcRenderer.invoke('ai:readImage',   { projectId, blobPath }),
+  aiDeleteImage:   ({ projectId, blobPath })  => ipcRenderer.invoke('ai:deleteImage', { projectId, blobPath }),
+
+  // Assets 트리 — 디스크 분리 (project/<id>/assets/ast_xxx.<ext>)
+  assetsSaveFile:   ({ projectId, b64, mime, originalName }) => ipcRenderer.invoke('assets:saveFile',   { projectId, b64, mime, originalName }),
+  assetsReadFile:   ({ projectId, blobPath })                => ipcRenderer.invoke('assets:readFile',   { projectId, blobPath }),
+  assetsDeleteFile: ({ projectId, blobPath })                => ipcRenderer.invoke('assets:deleteFile', { projectId, blobPath }),
+
   // 사용자별 Preferences (API 키 + 단축키)
   getSettings:  ()              => ipcRenderer.invoke('settings:get'),
   setSettings:  (patch)         => ipcRenderer.invoke('settings:set', patch),
@@ -76,6 +89,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 섹션 이미지 캡처 (CDP 기반 — html2canvas flex 버그 우회)
   captureSection: (opts) => ipcRenderer.invoke('capture-section', opts),
+  // 섹션 이미지 캡처 (CDP Page.captureScreenshot + captureBeyondViewport)
+  // — 청크 캡쳐 동기화 버그 우회용. clone 전체를 viewport 밖이어도 한 번에 캡쳐.
+  captureSectionCdp: (opts) => ipcRenderer.invoke('capture-section-cdp', opts),
 
   // 종료 전 강제 저장
   onForceSaveBeforeQuit: (cb) => ipcRenderer.on('force-save-before-quit', () => cb()),

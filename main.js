@@ -25,6 +25,7 @@ const { getPublicIp, findUserByIp, registerLicense, removeIp, updateIpAlias, upd
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
+const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 
 /* ── 사용자별 Preferences (API 토큰 + 단축키) ──
    USER_DATA_DIR는 app.getPath('userData') 기반이라 app.whenReady 이후에 안전.
@@ -339,6 +340,120 @@ const PROJECTS_DIR = path.join(USER_DATA_DIR, 'projects');
 migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR); // 구 경로 마이그레이션
 if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
 
+/* ── IPC: AI Image Gen ──
+   이미지는 projects/<id>/images/aig_xxx.png로 디스크 분리 저장 (프로젝트 JSON에 base64 금지).
+   blobPath는 프로젝트 폴더 상대경로. */
+function _getProjectImagesDir(projectId) {
+  return path.join(PROJECTS_DIR, projectId, 'images');
+}
+
+function _getProjectAssetsDir(projectId) {
+  return path.join(PROJECTS_DIR, projectId, 'assets');
+}
+
+/* ── IPC: Assets (사용자 자산 트리 — 이미지 디스크 저장) ──
+   blobPath는 'assets/ast_xxx.png' 형식. path traversal 가드 적용. */
+ipcMain.handle('assets:saveFile', (_e, { projectId, b64, mime, originalName } = {}) => {
+  if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (!b64) return { ok: false, error: 'b64 필수' };
+  try {
+    const id = 'ast_' + Math.random().toString(36).slice(2, 8);
+    let ext = 'png';
+    if (mime === 'image/jpeg' || mime === 'image/jpg') ext = 'jpg';
+    else if (mime === 'image/svg+xml') ext = 'svg';
+    else if (mime === 'image/webp') ext = 'webp';
+    else if (mime === 'image/gif') ext = 'gif';
+    const dir = _getProjectAssetsDir(projectId);
+    fs.mkdirSync(dir, { recursive: true });
+    const filename = `${id}.${ext}`;
+    fs.writeFileSync(path.join(dir, filename), Buffer.from(b64, 'base64'));
+    return { ok: true, id, blobPath: `assets/${filename}`, mime: mime || 'image/png', originalName: originalName || filename };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('assets:readFile', (_e, { projectId, blobPath } = {}) => {
+  if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
+  try {
+    const safeRoot = path.join(PROJECTS_DIR, projectId, 'assets');
+    const full = path.join(PROJECTS_DIR, projectId, blobPath);
+    if (!full.startsWith(safeRoot)) return { ok: false, error: 'path traversal' };
+    if (!fs.existsSync(full)) return { ok: false, error: 'not_found' };
+    const buf = fs.readFileSync(full);
+    let mime = 'image/png';
+    if (full.endsWith('.jpg') || full.endsWith('.jpeg')) mime = 'image/jpeg';
+    else if (full.endsWith('.svg')) mime = 'image/svg+xml';
+    else if (full.endsWith('.webp')) mime = 'image/webp';
+    else if (full.endsWith('.gif')) mime = 'image/gif';
+    return { ok: true, dataUrl: `data:${mime};base64,${buf.toString('base64')}` };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('assets:deleteFile', (_e, { projectId, blobPath } = {}) => {
+  if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
+  try {
+    const safeRoot = path.join(PROJECTS_DIR, projectId, 'assets');
+    const full = path.join(PROJECTS_DIR, projectId, blobPath);
+    if (!full.startsWith(safeRoot)) return { ok: false, error: 'path traversal' };
+    if (fs.existsSync(full)) fs.unlinkSync(full);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('ai:generateImage', (_e, payload) => {
+  const model = String(payload?.model || 'gemini-2.5-flash-image').toLowerCase();
+  const needOpenAI = payload?.outpaint || model.startsWith('gpt-');
+  const apiKeyOverride = needOpenAI ? getApiKey('openai') : getApiKey('gemini');
+  return aiGenerateImage({ ...payload, apiKey: apiKeyOverride });
+});
+
+ipcMain.handle('ai:saveImage', (_e, { projectId, b64, mime } = {}) => {
+  if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (!b64) return { ok: false, error: 'b64 필수' };
+  try {
+    const id = 'aig_' + Math.random().toString(36).slice(2, 8);
+    const ext = (mime === 'image/jpeg' || mime === 'image/jpg') ? 'jpg' : 'png';
+    const dir = _getProjectImagesDir(projectId);
+    fs.mkdirSync(dir, { recursive: true });
+    const filename = `${id}.${ext}`;
+    fs.writeFileSync(path.join(dir, filename), Buffer.from(b64, 'base64'));
+    return { ok: true, id, blobPath: `images/${filename}`, mime: mime || 'image/png' };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('ai:readImage', (_e, { projectId, blobPath } = {}) => {
+  if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
+  try {
+    const full = path.join(PROJECTS_DIR, projectId, blobPath);
+    if (!full.startsWith(path.join(PROJECTS_DIR, projectId))) return { ok: false, error: 'path traversal' };
+    if (!fs.existsSync(full)) return { ok: false, error: 'not_found' };
+    const buf = fs.readFileSync(full);
+    const mime = full.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
+    return { ok: true, dataUrl: `data:${mime};base64,${buf.toString('base64')}` };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('ai:deleteImage', (_e, { projectId, blobPath } = {}) => {
+  if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
+  try {
+    const full = path.join(PROJECTS_DIR, projectId, blobPath);
+    if (!full.startsWith(path.join(PROJECTS_DIR, projectId))) return { ok: false, error: 'path traversal' };
+    if (fs.existsSync(full)) fs.unlinkSync(full);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('projects:list', () => {
   const items = fs.readdirSync(PROJECTS_DIR)
     .filter(f => /^proj_\d+\.json$/.test(f))
@@ -456,6 +571,98 @@ ipcMain.handle('projects:delete', (event, id) => {
   const metaPath = path.join(PROJECTS_DIR, `${id}_meta.json`);
   if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
   return true;
+});
+
+ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {}) => {
+  try {
+    if (!sourceProjectId || typeof sourceProjectId !== 'string')
+      return { ok: false, error: 'sourceProjectId 필수', code: 'invalid' };
+    if (!/^proj_\d+$/.test(sourceProjectId))
+      return { ok: false, error: 'proj_* 만 복제 가능', code: 'not_proj' };
+    const srcJsonPath = path.join(PROJECTS_DIR, `${sourceProjectId}.json`);
+    if (!fs.existsSync(srcJsonPath))
+      return { ok: false, error: '원본 프로젝트 없음', code: 'no_source' };
+
+    // 새 ID — 동일 ms 빠른 연속 호출 방어
+    let newId, t = Date.now();
+    do { newId = `proj_${t}`; t++; }
+    while (fs.existsSync(path.join(PROJECTS_DIR, `${newId}.json`)));
+
+    // JSON 복사 + 메타 갱신
+    const src = JSON.parse(fs.readFileSync(srcJsonPath, 'utf8'));
+    const dup = JSON.parse(JSON.stringify(src));
+    const now = new Date().toISOString();
+    const baseName = (newName && String(newName).trim()) || `${src.name || '이름 없음'} (사본)`;
+    dup.id = newId; dup.name = baseName; dup.createdAt = now; dup.updatedAt = now;
+
+    if (dup.branches && typeof dup.branches === 'object') {
+      Object.values(dup.branches).forEach(b => {
+        if (b && typeof b === 'object') { b.createdAt = Date.now(); b.updatedAt = Date.now(); }
+      });
+    }
+
+    // blobPath 재매핑 — 절대경로/원본 ID 포함 케이스 방어
+    const oldIdRe = new RegExp(`(["/])${sourceProjectId}/`, 'g');
+    function rewriteBlobIfNeeded(s) {
+      if (typeof s !== 'string') return s;
+      if (/^(images|assets)\//.test(s)) return s;
+      if (s.includes(`/${sourceProjectId}/`)) return s.replace(oldIdRe, `$1${newId}/`);
+      return s;
+    }
+    function walkRewrite(obj) {
+      if (!obj || typeof obj !== 'object') return;
+      for (const k of Object.keys(obj)) {
+        const v = obj[k];
+        if (k === 'blobPath') obj[k] = rewriteBlobIfNeeded(v);
+        else if (Array.isArray(v)) v.forEach(walkRewrite);
+        else if (v && typeof v === 'object') walkRewrite(v);
+      }
+    }
+    walkRewrite(dup);
+
+    // 자산 폴더 복사 — tmp → rename으로 원자성
+    const srcDir = path.join(PROJECTS_DIR, sourceProjectId);
+    const dstDir = path.join(PROJECTS_DIR, newId);
+    const tmpDir = path.join(PROJECTS_DIR, `.${newId}.tmp`);
+    if (fs.existsSync(srcDir)) {
+      try {
+        fs.mkdirSync(tmpDir, { recursive: true });
+        for (const sub of ['images', 'assets']) {
+          const s = path.join(srcDir, sub);
+          if (!fs.existsSync(s)) continue;
+          fs.cpSync(s, path.join(tmpDir, sub), { recursive: true });
+        }
+        fs.renameSync(tmpDir, dstDir);
+      } catch (e) {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        const code = (e && e.code === 'ENOSPC') ? 'disk_full' : 'io';
+        return { ok: false, error: `자산 폴더 복사 실패: ${e.message}`, code };
+      }
+    }
+
+    // JSON 쓰기 (실패 시 dstDir 롤백)
+    try {
+      fs.writeFileSync(path.join(PROJECTS_DIR, `${newId}.json`), JSON.stringify(dup, null, 2), 'utf8');
+    } catch (e) {
+      try { fs.rmSync(dstDir, { recursive: true, force: true }); } catch {}
+      return { ok: false, error: `JSON 쓰기 실패: ${e.message}`, code: 'io' };
+    }
+
+    // _meta.json 복사 (thumbnail 보존)
+    const srcMeta = path.join(PROJECTS_DIR, `${sourceProjectId}_meta.json`);
+    if (fs.existsSync(srcMeta)) {
+      try {
+        const meta = JSON.parse(fs.readFileSync(srcMeta, 'utf8'));
+        meta.id = newId; meta.name = baseName; meta.updatedAt = now;
+        fs.writeFileSync(path.join(PROJECTS_DIR, `${newId}_meta.json`), JSON.stringify(meta, null, 2), 'utf8');
+      } catch (e) { console.warn('[projects:duplicate] meta 복사 실패:', e.message); }
+    }
+
+    return { ok: true, newProjectId: newId, newName: baseName };
+  } catch (e) {
+    console.error('[projects:duplicate] 예외:', e);
+    return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
+  }
 });
 
 /* ── IPC: Projects Meta (branches/commits/thumbnail 분리 저장) ── */
@@ -736,6 +943,31 @@ ipcMain.handle('capture-section', async (event, { width, height }) => {
   const ch = Math.ceil(height);
   const img = await mainWindow.webContents.capturePage({ x: 0, y: 0, width: cw, height: ch });
   return img.toPNG().toString('base64');
+});
+
+/* ── IPC: Section Screenshot (CDP — captureBeyondViewport) ──
+   기존 capture-section의 청크 캡쳐 동기화 버그(P1) 우회용.
+   Page.captureScreenshot + captureBeyondViewport:true로 viewport 밖 영역까지
+   한 번에 캡쳐 → clone.style.top 이동/청크 합성 불필요. */
+ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, height } = {}) => {
+  const dbg = mainWindow.webContents.debugger;
+  if (!dbg.isAttached()) dbg.attach('1.3');
+  // CDP clip.scale은 device pixel ratio가 아니라 **page zoom factor**. 항상 1로 고정.
+  // x/y는 페이지 좌표계 — clone이 off-screen(top:-99999px)이어도 그 좌표로 캡쳐 가능
+  // (captureBeyondViewport:true가 viewport 밖 + 음수 좌표 영역 모두 허용).
+  const res = await dbg.sendCommand('Page.captureScreenshot', {
+    format: 'png',
+    clip: {
+      x: Math.round(x),
+      y: Math.round(y),
+      width:  Math.ceil(width),
+      height: Math.ceil(height),
+      scale:  1,
+    },
+    captureBeyondViewport: true,
+    fromSurface: true,
+  });
+  return res.data; // base64 PNG
 });
 
 /* ── IPC: Navigation (추후 구현) ── */
