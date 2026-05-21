@@ -1386,8 +1386,8 @@
   flex-shrink: 0;
 }
 .icon-block.selected {
-  outline: 2px solid var(--sel-color, #1592fe);
-  outline-offset: 0;
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
 }
 .icon-block svg { display: block; }
 .icon-block img { display: block; }
@@ -1401,8 +1401,8 @@
   user-select: none;
 }
 .canvas-block.selected {
-  outline: 1.5px solid #1592fe;
-  outline-offset: 1px;
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
 }
 .canvas-block .cvb-inner {
   position: absolute;
@@ -1421,8 +1421,8 @@
   margin: 0 auto;
 }
 .vector-block.selected {
-  outline: 1.5px solid #1592fe;
-  outline-offset: 1px;
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
 }
 .vector-block .vb-inner {
   width: 100%;
@@ -1569,8 +1569,8 @@ textarea.cvb-card-input {
   user-select: none;
 }
 .mockup-block.selected {
-  outline: 1.5px solid #1592fe;
-  outline-offset: -2px;
+  outline: 1px solid var(--sel-color);
+  outline-offset: -1px;
 }
 .mkp-screen {
   position: absolute;
@@ -2446,6 +2446,23 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 .sticker-block[data-shape="highlight"],
 .sticker-block[data-shape="highlightB"] {
   mix-blend-mode: multiply;
+}
+
+/* ──────────────────────────────────────────────
+   Gradient Block — sticker 패턴 플로팅 오버레이
+   섹션 위에 absolute로 떠있는 그라데이션 페이드.
+   selected 시 보라색 outline (sticker와 일관성).
+────────────────────────────────────────────── */
+.gradient-block {
+  /* inline style이 cssText로 한방에 설정됨 (position/left/top/width/height/background/z-index 등)
+     여기서는 selected/hover만 보강 */
+  box-sizing: border-box;
+}
+.gradient-block.selected {
+  outline: 1px solid #9966ff;
+  outline-offset: -1px;
+  /* mix-blend 이슈는 없지만 일관성 위해 isolation */
+  isolation: isolate;
 }
 
 /* ──────────────────────────────────────────────

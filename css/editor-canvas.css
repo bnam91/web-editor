@@ -188,7 +188,7 @@
 }
 .scratch-item:hover .scratch-resize { opacity: 1; }
 .scratch-item.scratch-selected {
-  outline: 2px solid #2d6fe8;
+  outline: 2px solid var(--sel-color);
   outline-offset: 2px;
 }
 

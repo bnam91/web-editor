@@ -13,18 +13,7 @@
   width: 100%;
   position: relative;
 }
-.card-block:hover    { background: rgba(45,111,232,0.05); }
-.card-block.selected { background: rgba(45,111,232,0.03); }
-.card-block.selected::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 2px solid var(--sel-color);
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 10;
-}
-.card-block.drag-over .cdb-image { outline: 2px dashed #2d6fe8; }
+.card-block.drag-over .cdb-image { outline: 2px dashed var(--sel-color); }
 
 .cdb-image {
   width: 100%;

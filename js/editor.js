@@ -552,7 +552,7 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block').forEach(b => {
+      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block').forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
       });
@@ -663,7 +663,7 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -1322,7 +1322,7 @@ document.addEventListener('keydown', e => {
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected')];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
       window.ensureHistoryCheckpoint?.('삭제 전');

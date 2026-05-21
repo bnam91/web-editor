@@ -97,6 +97,7 @@ function bindBlock(block) {
   const isStep       = block.classList.contains('step-block');
   const isChat       = block.classList.contains('chat-block');
   const isLaurel     = block.classList.contains('laurel-block');
+  const isGradient   = block.classList.contains('gradient-block');
 
   // ── 공통: 절대좌표 드래그 (프레임 자유배치 — 모든 블록 타입) ──
   block.addEventListener('mousedown', e => {
@@ -1094,6 +1095,9 @@ function bindBlock(block) {
       window.showLaurelProperties?.(block);
     });
   }
+
+  // gradient-block은 sticker 패턴 — gradient-select.js의 bindGradientSelect가 담당
+  // (block-drag.js의 bindBlock click 핸들러는 적용하지 않음)
 
   if (isCanvas) {
     block.addEventListener('click', e => {

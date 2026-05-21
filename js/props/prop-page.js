@@ -32,6 +32,18 @@ function applyPadXToSection(inner, padX) {
       if (!ab.style.width || ab.style.width.includes('calc')) ab.style.width = '';
     }
   });
+  // gradient-block은 항상 패딩 제외 (usePadx='true' 고정) — 섹션/row 내부 모두 처리
+  inner.querySelectorAll('.gradient-block').forEach(gb => {
+    if (padX > 0) {
+      gb.style.marginLeft  = -padX + 'px';
+      gb.style.marginRight = -padX + 'px';
+      gb.style.width = `calc(100% + ${padX * 2}px)`;
+    } else {
+      gb.style.marginLeft  = '';
+      gb.style.marginRight = '';
+      if (!gb.style.width || gb.style.width.includes('calc')) gb.style.width = '100%';
+    }
+  });
 }
 
 /* ── 페이지 전체 padX 일괄 적용 (섹션 개별 override 제외) ── */
@@ -165,12 +177,23 @@ export function showPageProperties() {
     bgHex.value = bgPicker.value.replace('#','').toUpperCase();
     _applyBg();
   });
+  bgPicker.addEventListener('change', () => {
+    window.pushHistory?.();
+    window.scheduleAutoSave?.();
+  });
   bgHex.addEventListener('input', () => {
     const v = bgHex.value.trim().replace(/^#/, '');
     if (/^[0-9a-f]{6}$/i.test(v)) {
       state.pageSettings.bg = '#' + v.toLowerCase();
       bgPicker.value = state.pageSettings.bg;
       _applyBg();
+    }
+  });
+  bgHex.addEventListener('change', () => {
+    const v = bgHex.value.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{6}$/i.test(v)) {
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
     }
   });
   bgHex.addEventListener('blur', () => {
@@ -183,22 +206,32 @@ export function showPageProperties() {
     state.pageSettings.bgAlpha = p;
     _applyBg();
   });
+  bgAlphaInp.addEventListener('change', () => {
+    window.pushHistory?.();
+    window.scheduleAutoSave?.();
+  });
   bgAlphaInp.addEventListener('blur', () => {
     bgAlphaInp.value = String(state.pageSettings.bgAlpha ?? 100);
   });
 
   const gapSlider = document.getElementById('section-gap-slider');
   const gapNumber = document.getElementById('section-gap-number');
+  gapSlider.addEventListener('mousedown', () => window.pushHistory?.());
   gapSlider.addEventListener('input', () => {
     state.pageSettings.gap = parseInt(gapSlider.value);
     canvasEl.style.gap = state.pageSettings.gap + 'px';
     gapNumber.value = state.pageSettings.gap;
   });
+  gapSlider.addEventListener('change', () => window.scheduleAutoSave?.());
   gapNumber.addEventListener('input', () => {
     const v = Math.min(200, Math.max(0, parseInt(gapNumber.value) || 0));
     state.pageSettings.gap = v;
     canvasEl.style.gap = v + 'px';
     gapSlider.value = v;
+  });
+  gapNumber.addEventListener('change', () => {
+    window.pushHistory?.();
+    window.scheduleAutoSave?.();
   });
 
   const padxSlider = document.getElementById('page-padx-slider');
@@ -210,14 +243,18 @@ export function showPageProperties() {
     applyPagePadX(v);
   };
 
+  padxSlider.addEventListener('mousedown', () => window.pushHistory?.());
   padxSlider.addEventListener('input', () => { applyPadX(parseInt(padxSlider.value)); padxNumber.value = padxSlider.value; });
+  padxSlider.addEventListener('change', () => window.scheduleAutoSave?.());
   padxNumber.addEventListener('input', () => { const v = Math.min(200, Math.max(0, parseInt(padxNumber.value)||0)); applyPadX(v); padxSlider.value = v; });
+  padxNumber.addEventListener('change', () => {
+    window.pushHistory?.();
+    window.scheduleAutoSave?.();
+  });
 
   padxAsset.addEventListener('change', e => {
+    window.pushHistory?.();
     state.pageSettings.padXExcludesAsset = e.target.checked;
-    // (가) 설계: 글로벌은 디폴트 — 명시적으로 설정된 ab(dataset.usePadx='true'|'false')는 보존,
-    //   미설정 ab만 새 글로벌 값에 따라 시각 재반영.
-    //   applyPadXToSection이 getEffectiveUsePadx로 자동 처리.
     document.querySelectorAll('.section-block').forEach(sec => {
       const inner = sec.querySelector('.section-inner');
       if (!inner) return;
@@ -225,6 +262,7 @@ export function showPageProperties() {
       const px = hasOverride ? parseInt(inner.dataset.paddingX) : state.pageSettings.padX;
       applyPadXToSection(inner, px || 0);
     });
+    window.scheduleAutoSave?.();
   });
 
   const applyPadY = (v) => {
@@ -233,15 +271,21 @@ export function showPageProperties() {
   };
   const padySlider = document.getElementById('page-pady-slider');
   const padyNumber = document.getElementById('page-pady-number');
+  padySlider.addEventListener('mousedown', () => window.pushHistory?.());
   padySlider.addEventListener('input', () => { applyPadY(parseInt(padySlider.value)); padyNumber.value = padySlider.value; });
+  padySlider.addEventListener('change', () => window.scheduleAutoSave?.());
   padyNumber.addEventListener('input', () => { const v = Math.min(200, Math.max(0, parseInt(padyNumber.value)||0)); applyPadY(v); padySlider.value = v; });
+  padyNumber.addEventListener('change', () => {
+    window.pushHistory?.();
+    window.scheduleAutoSave?.();
+  });
 
   ['left','center','right'].forEach(align => {
     const btn = document.getElementById(`page-align-${align}`);
     if (!btn) return;
     btn.addEventListener('click', () => {
+      window.pushHistory?.();
       document.querySelectorAll('.text-block').forEach(tb => {
-        // 실제 중첩 서브섹션 내부 블록만 제외 (투명 text-frame은 허용)
         const parentFrame = tb.closest('.frame-block');
         if (parentFrame && parentFrame.dataset.textFrame !== 'true') return;
         if (tb.querySelector('.tb-label')) { tb.style.textAlign = align; }
@@ -251,13 +295,13 @@ export function showPageProperties() {
         }
       });
       document.querySelectorAll('.label-group-block').forEach(block => {
-        // 실제 중첩 서브섹션 내부 블록만 제외
         const parentFrame = block.closest('.frame-block');
         if (parentFrame && parentFrame.dataset.textFrame !== 'true') return;
         block.style.justifyContent = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
       });
       propPanel.querySelectorAll('#page-align-left,#page-align-center,#page-align-right')
         .forEach(b => b.classList.toggle('active', b === btn));
+      window.scheduleAutoSave?.();
     });
   });
 
