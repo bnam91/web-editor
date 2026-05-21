@@ -214,7 +214,10 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   justify-content: space-between;
   padding: 14px 18px;
   border-bottom: 1px solid var(--ui-border);
+  cursor: move;
+  user-select: none;
 }
+.cpm-modal-header .cpm-modal-close { cursor: pointer; }
 .cpm-modal-title {
   font-size: 13px;
   font-weight: 600;

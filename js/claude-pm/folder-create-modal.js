@@ -29,8 +29,7 @@
             <label class="cpm-field-label" for="cpm-base-path-input">기본 경로</label>
             <div class="cpm-field-input-row">
               <input type="text" class="cpm-input" id="cpm-base-path-input" autocomplete="off" spellcheck="false">
-              <!-- TODO(Phase 2): electronAPI.pickDirectory() — disabled 해제 + onClick 바인딩 -->
-              <button type="button" class="cpm-pick-btn" disabled title="Phase 2 — 경로 선택기">📂 변경…</button>
+              <button type="button" class="cpm-pick-btn" id="cpm-base-path-pick" title="OS 경로 선택기">📂 변경…</button>
             </div>
           </div>
           <div class="cpm-field">
@@ -75,8 +74,43 @@
       });
     });
 
+    // 📂 변경… — OS 경로 선택기
+    const pickBtn = modal.querySelector('#cpm-base-path-pick');
+    if (pickBtn) pickBtn.addEventListener('click', _onClickPickDirectory);
+
+    // 헤더 드래그 이동 — 닫기 버튼 누르면 제외
+    const header = modal.querySelector('.cpm-modal-header');
+    const shell  = modal.querySelector('.cpm-modal-shell');
+    if (header && shell) _bindModalDrag(header, shell);
+
     _modalEl = modal;
     return modal;
+  }
+
+  // ── 드래그 이동 ───────────────────────────
+  // 헤더 영역을 잡고 끌어서 모달 위치 이동.
+  // dx/dy는 모달 인스턴스 단위 누적 — 닫혔다 다시 열어도 마지막 위치 유지.
+  let _dragDx = 0, _dragDy = 0;
+  function _bindModalDrag(header, shell) {
+    header.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      // 닫기 버튼 / 다른 인터랙티브 요소는 드래그 안 함
+      if (e.target.closest('.cpm-modal-close')) return;
+      e.preventDefault();
+      const startX = e.clientX, startY = e.clientY;
+      const startDx = _dragDx, startDy = _dragDy;
+      const onMove = (ev) => {
+        _dragDx = startDx + (ev.clientX - startX);
+        _dragDy = startDy + (ev.clientY - startY);
+        shell.style.transform = `translate(${_dragDx}px, ${_dragDy}px)`;
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
   }
 
   // ── 라이브 미리보기 ───────────────────────
@@ -113,14 +147,60 @@
     else if (kind === 'create') _onClickCreateFolder();
   }
 
-  function _onClickCreateFolder() {
+  async function _onClickPickDirectory() {
+    if (!_modalEl) return;
+    const baseInput = _modalEl.querySelector('#cpm-base-path-input');
+    const cur = (baseInput?.value || '').trim();
+    try {
+      const res = await window.electronAPI?.pickDirectory?.(cur);
+      if (!res || !res.ok) {
+        if (res && res.canceled) return; // 취소는 silent
+        _toast('📂 경로 선택 실패: ' + (res?.error || 'electronAPI 없음'));
+        return;
+      }
+      if (baseInput) {
+        baseInput.value = res.path.endsWith('/') ? res.path : res.path + '/';
+        // 상태 저장
+        try { window._claudePMState.basePath = baseInput.value; } catch (_) {}
+        _updatePreview();
+      }
+    } catch (e) {
+      _toast('📂 경로 선택 에러: ' + e.message);
+    }
+  }
+
+  async function _onClickCreateFolder() {
     if (!_modalEl) return;
     const createBtn = _modalEl.querySelector('#cpm-folder-create-btn');
     if (createBtn && createBtn.disabled) return;
-    // TODO(Phase 2): electronAPI.createClaudePMFolder({ basePath, projectName }) → CLAUDE.md + .mcp.json 자동 생성
-    _toast('📁 폴더 생성 — Phase 2');
-    closeFolderCreateModal();
-    window.closeClaudePMPanel?.();
+
+    const basePath = (_modalEl.querySelector('#cpm-base-path-input')?.value || '').trim();
+    const projectName = (_modalEl.querySelector('#cpm-project-name-input')?.value || '').trim();
+    if (!basePath || !projectName) {
+      _toast('📁 경로 / 프로젝트명 필수');
+      return;
+    }
+
+    if (createBtn) createBtn.disabled = true;
+    try {
+      const res = await window.electronAPI?.createClaudePMFolder?.({ basePath, projectName });
+      if (!res || !res.ok) {
+        _toast('📁 폴더 생성 실패: ' + (res?.error || 'electronAPI 없음'));
+        return;
+      }
+      // 성공 — 경로/마지막 폴더 상태 저장
+      try {
+        window._claudePMState.basePath = basePath;
+        window._claudePMState.lastFolderPath = res.folderPath;
+      } catch (_) {}
+      _toast('📁 생성 완료: ' + res.folderPath);
+      closeFolderCreateModal();
+      window.closeClaudePMPanel?.();
+    } catch (e) {
+      _toast('📁 폴더 생성 에러: ' + e.message);
+    } finally {
+      if (createBtn) createBtn.disabled = false;
+    }
   }
 
   // ── open / close ──────────────────────────
@@ -131,7 +211,7 @@
     const baseInput = modal.querySelector('#cpm-base-path-input');
     const nameInput = modal.querySelector('#cpm-project-name-input');
 
-    const basePath = (window._claudePMState && window._claudePMState.basePath) || '~/Documents/Goditor Projects/';
+    const basePath = (window._claudePMState && window._claudePMState.basePath) || '~/Documents/claude-pm-projects/';
     if (baseInput) baseInput.value = basePath;
 
     // 현재 프로젝트명 자동 채움

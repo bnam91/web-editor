@@ -13,9 +13,8 @@
   'use strict';
 
   // ── 상태 ──────────────────────────────────
-  // Phase 1: mcpConnected 하드코딩 false.
-  // basePath localStorage에 저장 — 기본 ~/Documents/Goditor Projects/
-  const DEFAULT_BASE_PATH = '~/Documents/Goditor Projects/';
+  // basePath / lastFolderPath localStorage에 저장 — 기본 ~/Documents/claude-pm-projects/
+  const DEFAULT_BASE_PATH = '~/Documents/claude-pm-projects/';
   window._claudePMState = window._claudePMState || {
     mcpConnected: false,
     get basePath() {
@@ -28,11 +27,18 @@
     set basePath(v) {
       try { localStorage.setItem('claudePMBasePath', v || DEFAULT_BASE_PATH); } catch (_) {}
     },
+    get lastFolderPath() {
+      try { return localStorage.getItem('claudePMLastFolderPath') || ''; } catch (_) { return ''; }
+    },
+    set lastFolderPath(v) {
+      try { localStorage.setItem('claudePMLastFolderPath', v || ''); } catch (_) {}
+    },
   };
 
   let _panelEl = null;
   let _outsideMouseDownHandler = null;
   let _escHandler = null;
+  let _mcpPingTimer = null;
 
   // ── DOM lazy create ───────────────────────
   function _ensurePanelDOM() {
@@ -118,25 +124,57 @@
     }
   }
 
-  function _onClickOpenFinder() {
-    // TODO(Phase 2): electronAPI.openInFinder(folderPath) — 현재 프로젝트의 Claude PM 폴더 열기
-    _toast('🔍 Finder 열기 — Phase 2');
+  function _resolveFolderPath() {
+    const last = window._claudePMState.lastFolderPath;
+    if (last) return last;
+    // fallback — basePath만 있고 폴더 미생성: basePath 자체를 연다
+    return window._claudePMState.basePath || '';
   }
 
-  function _onClickRunClaudeTerminal() {
-    // TODO(Phase 2): electronAPI.spawnClaudeTerminal(folderPath) + xterm 임베드
-    _toast('💻 터미널 Claude — Phase 2');
+  async function _onClickOpenFinder() {
+    const folderPath = _resolveFolderPath();
+    if (!folderPath) {
+      _toast('🔍 먼저 폴더를 생성해주세요');
+      return;
+    }
+    try {
+      const res = await window.electronAPI?.openInFinder?.(folderPath);
+      if (!res || !res.ok) {
+        _toast('🔍 Finder 열기 실패: ' + (res?.error || 'electronAPI 없음'));
+        return;
+      }
+      _toast('🔍 Finder 열림');
+    } catch (e) {
+      _toast('🔍 Finder 열기 에러: ' + e.message);
+    }
+  }
+
+  async function _onClickRunClaudeTerminal() {
+    const folderPath = _resolveFolderPath();
+    if (!folderPath) {
+      _toast('💻 먼저 폴더를 생성해주세요');
+      return;
+    }
+    try {
+      const res = await window.electronAPI?.spawnClaudeTerminal?.(folderPath);
+      if (!res || !res.ok) {
+        _toast('💻 터미널 실행 실패: ' + (res?.error || 'electronAPI 없음'));
+        return;
+      }
+      _toast('💻 터미널에서 Claude 실행');
+    } catch (e) {
+      _toast('💻 터미널 실행 에러: ' + e.message);
+    }
   }
 
   function _onClickMcpGuide() {
-    // TODO(Phase 2): 가이드 문서 열기 (in-app overlay or external link)
-    _toast('ⓘ .mcp.json 가이드 — Phase 2');
+    // Phase 3 — 가이드 문서 열기 (in-app overlay or external link)
+    _toast('ⓘ .mcp.json 가이드 — Phase 3');
   }
 
   // ── 상태 갱신 ─────────────────────────────
   function _refreshClaudePMStatus() {
     if (!_panelEl) return;
-    // TODO(Phase 2): MCP 서버 HTTP ping → state.mcpConnected
     const connected = !!window._claudePMState.mcpConnected;
     const dot = _panelEl.querySelector('#cpm-status-dot');
     const txt = _panelEl.querySelector('#cpm-status-text');
@@ -149,6 +187,31 @@
     if (hint) hint.textContent = connected
       ? 'Claude Code가 이 프로젝트를 인식 중입니다.'
       : 'Claude Code에서 .mcp.json을 추가하면 연결됩니다.';
+  }
+
+  // ── MCP ping (5s interval) ───────────────
+  async function _pingMcpOnce() {
+    try {
+      const res = await window.electronAPI?.pingClaudePM?.();
+      const connected = !!(res && res.ok && res.connected);
+      if (window._claudePMState.mcpConnected !== connected) {
+        window._claudePMState.mcpConnected = connected;
+        _refreshClaudePMStatus();
+      }
+    } catch (_) {
+      if (window._claudePMState.mcpConnected) {
+        window._claudePMState.mcpConnected = false;
+        _refreshClaudePMStatus();
+      }
+    }
+  }
+  function _startMcpPing() {
+    if (_mcpPingTimer) return;
+    _pingMcpOnce(); // 즉시 한 번
+    _mcpPingTimer = setInterval(_pingMcpOnce, 5000);
+  }
+  function _stopMcpPing() {
+    if (_mcpPingTimer) { clearInterval(_mcpPingTimer); _mcpPingTimer = null; }
   }
 
   // ── open / close ──────────────────────────
@@ -171,6 +234,7 @@
     _bindEsc();
 
     _refreshClaudePMStatus();
+    _startMcpPing();
   }
 
   function closeClaudePMPanel() {
@@ -188,6 +252,7 @@
 
     _unbindOutsideClose();
     _unbindEsc();
+    _stopMcpPing();
   }
 
   // ── 외부 클릭 / ESC ───────────────────────

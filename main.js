@@ -26,6 +26,8 @@ const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
+const { registerClaudePMIPC, setActualMcpPort } = require('./main/claude-pm/ipc');
+const { startMcpServer, stopMcpServer } = require('./main/claude-pm/mcp-server');
 
 /* ── 사용자별 Preferences (API 토큰 + 단축키) ──
    USER_DATA_DIR는 app.getPath('userData') 기반이라 app.whenReady 이후에 안전.
@@ -212,6 +214,9 @@ function createWindow() {
   ipcMain.handle('settings:get',      () => readSettings());
   ipcMain.handle('settings:set',      (_e, patch) => writeSettings(patch || {}));
   ipcMain.handle('settings:test-key', (_e, provider, key) => testApiKey(provider, key));
+
+  // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
+  registerClaudePMIPC(ipcMain);
 
   // Clipboard write — 렌더러의 navigator.clipboard 권한 거부 우회용 IPC 브리지
   ipcMain.handle('clipboard:writeText', (_e, text) => {
@@ -1009,17 +1014,31 @@ function setupAutoUpdater() {
 }
 
 /* ── App lifecycle ── */
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
   watchFiles();
   // 개발 모드에서는 자동업데이트 스킵
   if (!process.argv.includes('--enable-logging')) {
     setupAutoUpdater();
   }
+  // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
+  try {
+    const { port: actualPort } = await startMcpServer({
+      port: 9345,
+      onActiveProject: () => global.currentActiveProjectId || null,
+    });
+    // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
+    setActualMcpPort(actualPort);
+  } catch (e) {
+    console.warn('[claudePM MCP] start failed:', e.message);
+  }
 });
 
 /* ── 종료 전 강제 저장 ── */
 app.on('before-quit', (event) => {
+  // Claude PM MCP 서버 정리 (sync close, 폴백)
+  try { stopMcpServer(); } catch (_) {}
+
   const win = BrowserWindow.getAllWindows()[0];
   if (!win || win.isDestroyed()) return; // 창 없으면 바로 종료
   event.preventDefault();

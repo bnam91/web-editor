@@ -100,4 +100,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Clipboard (Electron 메인 프로세스 경유 — navigator.clipboard 권한 거부 우회)
   clipboardWriteText:  (text)    => ipcRenderer.invoke('clipboard:writeText', text),
   clipboardWriteImage: (dataUrl) => ipcRenderer.invoke('clipboard:writeImage', dataUrl),
+
+  // Claude PM (feature/claude-pm Phase 2)
+  pickDirectory:        (defaultPath)            => ipcRenderer.invoke('claudePM:pickDirectory', { defaultPath }),
+  createClaudePMFolder: ({ basePath, projectName }) => ipcRenderer.invoke('claudePM:createFolder', { basePath, projectName }),
+  openInFinder:         (folderPath)             => ipcRenderer.invoke('claudePM:openInFinder', { folderPath }),
+  spawnClaudeTerminal:  (folderPath)             => ipcRenderer.invoke('claudePM:spawnClaudeTerminal', { folderPath }),
+  pingClaudePM:         ()                       => ipcRenderer.invoke('claudePM:pingMcp'),
+  setClaudePMActiveProject: (projectId)          => ipcRenderer.invoke('claudePM:setActiveProject', { projectId }),
 });

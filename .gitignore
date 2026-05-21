@@ -9,3 +9,7 @@ debug/*
 !debug/CLAUDE.md
 eval-*.js
 claude-talk-to-figma-mcp/
+
+# Local plan/scratch files (each Claude Code session)
+.tasks/
+
