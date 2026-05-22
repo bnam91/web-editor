@@ -44,6 +44,17 @@ function sanitizeFolderName(name) {
   return s;
 }
 
+// projectId 검증 — 폴더 segment로 안전한지 (slash / dot-only / empty reject)
+// Goditor projectId 형식: `proj_1779417058530` — 정상이면 통과
+function sanitizeProjectId(pid) {
+  const s = String(pid || '').trim();
+  if (!s) return null;
+  if (/^\.+$/.test(s)) return null;
+  if (s.includes('/') || s.includes('\\')) return null;
+  if (s.includes('\0')) return null;
+  return s;
+}
+
 // ── PM-B / PM-C 동적 로드 (graceful fail) ──
 // PM-B는 .mjs (ES module) — host가 CommonJS이므로 await import() 사용
 // PM-C는 .js (CommonJS) — require로 OK
@@ -249,11 +260,59 @@ function _findFolderByProjectId(base, projectId) {
   return null;
 }
 
+// _repairFolder: meta/CLAUDE/NOTES/.mcp/archive 누락 보완 (이미 있는 파일 보존)
+function _repairFolder(folder, projectId, safeName) {
+  const repaired = [];
+  const metaPath = path.join(folder, 'project.meta.json');
+  const claudeP = path.join(folder, 'CLAUDE.md');
+  const notesP = path.join(folder, 'NOTES.md');
+  const mcpP = path.join(folder, '.mcp.json');
+  const archP = path.join(folder, 'archive');
+  try {
+    if (!fs.existsSync(archP)) { fs.mkdirSync(archP, { recursive: true }); repaired.push('archive'); }
+    let meta = null;
+    if (fs.existsSync(metaPath)) { try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (_) {} }
+    const now = new Date().toISOString();
+    if (!meta) {
+      meta = { id: projectId, title: safeName, createdAt: now, updatedAt: now };
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+      repaired.push('project.meta.json');
+    } else if (!meta.id) {
+      meta.id = projectId; meta.updatedAt = now;
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+      repaired.push('project.meta.json(id-patch)');
+    }
+    if (!fs.existsSync(claudeP)) {
+      fs.writeFileSync(claudeP, `# ${safeName}\n\n(auto-ensure: regenerated placeholder)\n`, 'utf8');
+      repaired.push('CLAUDE.md');
+    }
+    if (!fs.existsSync(notesP)) {
+      fs.writeFileSync(notesP, '# Notes\n\n## Preferences\n- \n\n## Constraints\n- \n\n## Decisions (원문)\n- \n\n## Feedback\n- \n', 'utf8');
+      repaired.push('NOTES.md');
+    }
+    if (!fs.existsSync(mcpP)) {
+      fs.writeFileSync(mcpP, JSON.stringify({ mcpServers: { 'goditor-pm': { type: 'http', url: `http://localhost:${MCP_PORT}` } } }, null, 2), 'utf8');
+      repaired.push('.mcp.json');
+    }
+  } catch (_) {}
+  return repaired;
+}
+
+// ── ensureFolder (A 패턴: 폴더명 = projectId, Goditor JSON 패턴 일관성) ──
+// 흐름:
+//   [1] <base>/<projectId> 폴더 있으면 reuse (또는 repair)
+//   [2] 옛 이름 폴더 (legacy) → _findFolderByProjectId로 발견 시 reuse
+//   [3] 둘 다 없으면 신규 <base>/<projectId> 생성
+//
+// 프로젝트명 변경되어도 폴더명은 그대로 (projectId 기반).
+// 옛 이름 폴더(예: Untitled, 두장군)는 호환성 유지 — 자연 소멸 또는 수동 마이그레이션.
 async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath } = {}) {
   try {
     if (!projectId || !projectName) {
       return { ok: false, error: 'projectId / projectName 누락' };
     }
+    const safePid = sanitizeProjectId(projectId);
+    if (!safePid) return { ok: false, error: 'projectId 형식이 유효하지 않습니다.' };
     const safeName = sanitizeFolderName(projectName);
     if (!safeName) return { ok: false, error: '프로젝트명이 유효하지 않습니다.' };
 
@@ -265,100 +324,44 @@ async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath
       fs.mkdirSync(base, { recursive: true });
     }
 
-    // ── ID 역방향 lookup: projectId와 일치하는 폴더가 이미 있으면 (이름 무관) reuse ──
-    // 프로젝트명 변경 시 새 이름으로 새 폴더 생성하던 버그 fix.
-    const existingByid = _findFolderByProjectId(base, projectId);
-    if (existingByid) {
-      return { ok: true, folderPath: existingByid, created: false, reused: true, viaIdLookup: true };
-    }
-
-    // 1차 후보: <base>/<safeName>
-    const idShort = String(projectId).replace(/^proj_/, '').slice(0, 8);
-    let folderPath = path.resolve(base, safeName);
-    if (!folderPath.startsWith(base + path.sep) && folderPath !== base) {
+    // [1] <base>/<projectId> 폴더 — sanitized id로 segment 안전
+    const idFolder = path.resolve(base, safePid);
+    if (!idFolder.startsWith(base + path.sep)) {
       return { ok: false, error: '경로가 base 밖으로 벗어납니다.' };
     }
-
-    // 기존 폴더가 있는 경우 — meta.json의 id로 매핑 확인
-    if (fs.existsSync(folderPath)) {
-      const metaPath = path.join(folderPath, 'project.meta.json');
+    if (fs.existsSync(idFolder)) {
+      const metaPath = path.join(idFolder, 'project.meta.json');
       let existingId = null;
       try {
         if (fs.existsSync(metaPath)) {
           existingId = JSON.parse(fs.readFileSync(metaPath, 'utf8'))?.id || null;
         }
-      } catch (_) { existingId = null; }
-
-      if (existingId === projectId) {
-        // 정확히 같은 프로젝트 → 재사용
-        return { ok: true, folderPath, created: false, reused: true };
+      } catch (_) {}
+      if (existingId === safePid) {
+        return { ok: true, folderPath: idFolder, created: false, reused: true };
       }
-      if (!existingId) {
-        // 폴더는 있는데 meta.id가 비어 있음 → 동일 프로젝트로 간주.
-        // 사용자가 수동 편집했을 수 있는 CLAUDE.md / NOTES.md 는 덮어쓰지 않고,
-        // 빠진 파일만 보완(touch)한다. project.meta.json은 id만 주입.
-        try {
-          const claudeP = path.join(folderPath, 'CLAUDE.md');
-          const notesP = path.join(folderPath, 'NOTES.md');
-          const mcpP = path.join(folderPath, '.mcp.json');
-          const archP = path.join(folderPath, 'archive');
-          const repaired = [];
-          if (!fs.existsSync(archP)) { fs.mkdirSync(archP, { recursive: true }); repaired.push('archive'); }
-          // meta: 없으면 새로, 있으면 id만 보충
-          let meta = null;
-          if (fs.existsSync(metaPath)) {
-            try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (_) { meta = null; }
-          }
-          if (!meta) {
-            const now = new Date().toISOString();
-            meta = { title: safeName, id: projectId, createdAt: now, updatedAt: now };
-            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
-            repaired.push('project.meta.json');
-          } else if (!meta.id) {
-            meta.id = projectId;
-            meta.updatedAt = new Date().toISOString();
-            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
-            repaired.push('project.meta.json(id-patch)');
-          }
-          if (!fs.existsSync(claudeP)) {
-            fs.writeFileSync(claudeP, `# ${safeName}\n\n(auto-ensure: regenerated placeholder)\n`, 'utf8');
-            repaired.push('CLAUDE.md');
-          }
-          if (!fs.existsSync(notesP)) {
-            fs.writeFileSync(notesP, '# Notes\n\n## Preferences\n- \n\n## Constraints\n- \n\n## Decisions (원문)\n- \n\n## Feedback\n- \n', 'utf8');
-            repaired.push('NOTES.md');
-          }
-          if (!fs.existsSync(mcpP)) {
-            fs.writeFileSync(
-              mcpP,
-              JSON.stringify({ mcpServers: { 'goditor-pm': { type: 'http', url: `http://localhost:${MCP_PORT}` } } }, null, 2),
-              'utf8'
-            );
-            repaired.push('.mcp.json');
-          }
-          return { ok: true, folderPath, created: false, repaired };
-        } catch (e) {
-          return { ok: false, error: `repair 실패: ${e.message}`, folderPath };
-        }
+      // truthy mismatch — 다른 프로젝트가 이 ID를 차지함. 안전을 위해 reject + 수동 정리 안내.
+      if (existingId && existingId !== safePid) {
+        return {
+          ok: false,
+          error: `폴더 ${safePid}의 meta가 다른 프로젝트(${existingId})에 속합니다. 수동 정리 필요.`,
+          folderPath: idFolder,
+          mismatchId: existingId,
+        };
       }
-      // 다른 프로젝트 — suffix 붙여 회피
-      folderPath = path.resolve(base, `${safeName}__${idShort}`);
-      if (!folderPath.startsWith(base + path.sep)) {
-        return { ok: false, error: '경로가 base 밖으로 벗어납니다.' };
-      }
-      // suffix 폴더도 이미 존재 + 같은 id면 재사용
-      if (fs.existsSync(folderPath)) {
-        try {
-          const sm = path.join(folderPath, 'project.meta.json');
-          if (fs.existsSync(sm)) {
-            const eid = JSON.parse(fs.readFileSync(sm, 'utf8'))?.id || null;
-            if (eid === projectId) return { ok: true, folderPath, created: false, reused: true };
-          }
-        } catch (_) {}
-        // 이름은 같은데 또 충돌 — Date.now 추가
-        folderPath = path.resolve(base, `${safeName}__${idShort}_${Date.now()}`);
-      }
+      // meta 손상 또는 id 없음 → repair (사용자 편집 보존)
+      const repaired = _repairFolder(idFolder, safePid, safeName);
+      return { ok: true, folderPath: idFolder, created: false, repaired };
     }
+
+    // [2] 옛 이름 폴더 (legacy migration) — base 안 projectId 매칭 폴더 찾기
+    const legacy = _findFolderByProjectId(base, safePid);
+    if (legacy) {
+      return { ok: true, folderPath: legacy, created: false, reused: true, viaIdLookup: true, legacyName: true };
+    }
+
+    // [3] 신규 생성 — <base>/<projectId> 폴더 (Goditor JSON 패턴)
+    const folderPath = idFolder;
 
     // 신규 생성
     const tg = await _tryImportTemplateGenerator();
