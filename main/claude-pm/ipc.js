@@ -227,6 +227,28 @@ async function handleSpawnClaudeTerminal(_e, { folderPath } = {}) {
 //   4. 폴더 없으면 generateFolder로 신규 생성 (PM-B 위임, projectId 전달)
 //   5. return {ok, folderPath, created, reused}
 // 호출 측은 결과를 localStorage에 캐싱 가능 (renderer가 책임).
+// base 내 폴더들 scan → project.meta.json.id가 projectId와 일치하는 폴더 반환
+// 사용자가 프로젝트명을 변경해도 같은 폴더를 reuse하기 위함 (이름과 무관하게 ID 기반)
+function _findFolderByProjectId(base, projectId) {
+  if (!fs.existsSync(base)) return null;
+  let entries;
+  try { entries = fs.readdirSync(base); } catch (_) { return null; }
+  for (const name of entries) {
+    if (name.startsWith('.')) continue;
+    const dir = path.join(base, name);
+    try {
+      // lstatSync: symlink 자체로 인식 → isDirectory()=false → skip (symlink escape 방어)
+      const st = fs.lstatSync(dir);
+      if (!st.isDirectory()) continue;
+      const metaP = path.join(dir, 'project.meta.json');
+      if (!fs.existsSync(metaP)) continue;
+      const m = JSON.parse(fs.readFileSync(metaP, 'utf8'));
+      if (m && m.id === projectId) return dir;
+    } catch (_) { /* skip */ }
+  }
+  return null;
+}
+
 async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath } = {}) {
   try {
     if (!projectId || !projectName) {
@@ -241,6 +263,13 @@ async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath
 
     if (!fs.existsSync(base)) {
       fs.mkdirSync(base, { recursive: true });
+    }
+
+    // ── ID 역방향 lookup: projectId와 일치하는 폴더가 이미 있으면 (이름 무관) reuse ──
+    // 프로젝트명 변경 시 새 이름으로 새 폴더 생성하던 버그 fix.
+    const existingByid = _findFolderByProjectId(base, projectId);
+    if (existingByid) {
+      return { ok: true, folderPath: existingByid, created: false, reused: true, viaIdLookup: true };
     }
 
     // 1차 후보: <base>/<safeName>
