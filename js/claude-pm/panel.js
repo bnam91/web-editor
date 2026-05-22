@@ -13,8 +13,25 @@
   'use strict';
 
   // ── 상태 ──────────────────────────────────
-  // basePath / lastFolderPath localStorage에 저장 — 기본 ~/Documents/claude-pm-projects/
-  const DEFAULT_BASE_PATH = '~/Documents/claude-pm-projects/';
+  // basePath / lastFolderPath localStorage에 저장
+  // 2026-05-22: 기본 위치를 Goditor userData 안으로 이동
+  //   구: ~/Documents/claude-pm-projects/
+  //   신: ~/Library/Application Support/Goya Design Editor/projects/<projectId>/claude-pm/
+  // 백엔드(Move-A)가 basePath 인자 생략 시 자동으로 신규 경로 사용.
+  // UI는 표시용으로 신규 경로를 보여주고, 사용자가 직접 입력한 path는 그대로 존중.
+  const DEFAULT_BASE_PATH = '~/Library/Application Support/Goya Design Editor/projects/<projectId>/claude-pm/';
+  const LEGACY_BASE_PATH = '~/Documents/claude-pm-projects/';
+
+  // localStorage에 옛 default가 박혀있으면 → 그건 사용자가 명시 설정한 게 아니라
+  // 이전 버전의 default가 자동 저장된 값이므로 제거(신규 default를 사용하도록).
+  // 사용자가 명시적으로 다른 경로를 골랐다면(예: /Users/foo/work/...) 절대 건드리지 않음.
+  try {
+    const stored = localStorage.getItem('claudePMBasePath');
+    if (stored && stored === LEGACY_BASE_PATH) {
+      localStorage.removeItem('claudePMBasePath');
+    }
+  } catch (_) {}
+
   window._claudePMState = window._claudePMState || {
     mcpConnected: false,
     get basePath() {
@@ -159,8 +176,30 @@
   function _resolveFolderPath() {
     const last = window._claudePMState.lastFolderPath;
     if (last) return last;
-    // fallback — basePath만 있고 폴더 미생성: basePath 자체를 연다
-    return window._claudePMState.basePath || '';
+    // active-project-sync.js가 ensureClaudePMFolder 성공 시 claudePM:folderMap[projectId] = folderPath
+    // 를 저장한다. lastFolderPath가 비어있으면 거기서 현재 active 프로젝트의 폴더를 가져옴.
+    try {
+      const pid = window.activeProjectId;
+      if (pid) {
+        const raw = localStorage.getItem('claudePM:folderMap');
+        if (raw) {
+          const map = JSON.parse(raw);
+          if (map && typeof map === 'object' && map[pid]) return map[pid];
+        }
+      }
+    } catch (_) {}
+    // fallback — basePath만 있고 폴더 미생성: basePath 자체를 연다.
+    // 단, <projectId> placeholder가 박혀 있으면 현재 activeProjectId로 치환 (Finder/Terminal이
+    // 리터럴 "<projectId>" 경로로 열리는 사고 방지). 그래도 존재하지 않을 수 있으니 backend가 알아서.
+    let bp = window._claudePMState.basePath || '';
+    try {
+      if (bp.indexOf('<projectId>') >= 0) {
+        const pid = window.activeProjectId;
+        if (pid) bp = bp.replace('<projectId>', pid);
+        else bp = ''; // projectId 없으면 placeholder 노출 막기 위해 빈 값
+      }
+    } catch (_) {}
+    return bp;
   }
 
   async function _onClickOpenFinder() {
@@ -277,6 +316,17 @@
 
     _refreshClaudePMStatus();
     _startMcpPing();
+
+    // 1회 마이그레이션 안내 — Goditor userData로 default 이동
+    try {
+      const KEY = 'claudePM:migrationNoticeShown';
+      if (!localStorage.getItem(KEY)) {
+        localStorage.setItem(KEY, '1');
+        setTimeout(() => {
+          _toast('📁 PM 폴더 위치가 Goditor 프로젝트 안으로 이동했어요');
+        }, 250);
+      }
+    } catch (_) {}
   }
 
   function closeClaudePMPanel() {

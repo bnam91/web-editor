@@ -204,6 +204,12 @@
   }
 
   // ── open / close ──────────────────────────
+  // 2026-05-22: default basePath가 Goditor userData 안으로 이동.
+  //   신: ~/Library/Application Support/Goya Design Editor/projects/<projectId>/claude-pm/
+  // 사용자가 명시적으로 입력한 path가 있으면 _claudePMState.basePath에 살아있고 그것을 우선 사용.
+  const DEFAULT_BASE_PATH_FALLBACK =
+    '~/Library/Application Support/Goya Design Editor/projects/<projectId>/claude-pm/';
+
   function openFolderCreateModal() {
     const modal = _ensureModalDOM();
 
@@ -211,7 +217,14 @@
     const baseInput = modal.querySelector('#cpm-base-path-input');
     const nameInput = modal.querySelector('#cpm-project-name-input');
 
-    const basePath = (window._claudePMState && window._claudePMState.basePath) || '~/Documents/claude-pm-projects/';
+    let basePath = (window._claudePMState && window._claudePMState.basePath) || DEFAULT_BASE_PATH_FALLBACK;
+    // <projectId> placeholder가 들어있으면 현재 activeProjectId로 치환 — 사용자 친화 표시
+    try {
+      if (basePath.indexOf('<projectId>') >= 0) {
+        const pid = window.activeProjectId || '<projectId>';
+        basePath = basePath.replace('<projectId>', pid);
+      }
+    } catch (_) {}
     if (baseInput) baseInput.value = basePath;
 
     // 현재 프로젝트명 자동 채움
