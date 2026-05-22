@@ -355,7 +355,7 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   right: 0;
   bottom: 0;
   width: 480px;
-  z-index: 9998; /* AI 패널보다 한 단계 아래 */
+  z-index: 10001; /* 좌측 패널(9999)·AI 패널·폴더 모달(10000) 위 */
   background: #0f0f10;
   border-left: 1px solid var(--ui-border-mid, #2a2a2e);
   display: none;

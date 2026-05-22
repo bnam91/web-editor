@@ -98,7 +98,7 @@ function _cmdEscape(s) {
 }
 
 function _baseEnv(cols, rows) {
-  return {
+  const env = {
     ...process.env,
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
@@ -106,6 +106,12 @@ function _baseEnv(cols, rows) {
     COLUMNS: String(cols || 80),
     LINES: String(rows || 24),
   };
+  // claude code가 구독(Claude Max) 사용하도록 API 키 차단.
+  // 본 프로세스의 ANTHROPIC_API_KEY는 Goditor 내부 AI 호출용으로만 쓰고,
+  // 터미널 자식 프로세스(claude code CLI)에는 전달하지 않음.
+  delete env.ANTHROPIC_API_KEY;
+  delete env.ANTHROPIC_AUTH_TOKEN;
+  return env;
 }
 
 // ── node-pty 기반 세션 시작 ──────────────────────────────────────────────────
