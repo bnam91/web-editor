@@ -329,6 +329,25 @@ async function createProject() {
     }
   };
   await saveNewProject(proj);
+  // 자동 PM 폴더 보장 (Goditor 프로젝트만) — 실패해도 프로젝트 진입 막지 않음
+  try {
+    if (IS_ELECTRON && window.electronAPI?.ensureClaudePMFolder) {
+      const res = await window.electronAPI.ensureClaudePMFolder({
+        projectId: id,
+        projectName: proj.name || 'Untitled',
+      });
+      if (res?.ok && res.folderPath) {
+        try {
+          const raw = localStorage.getItem('claudePM:folderMap') || '{}';
+          const map = JSON.parse(raw);
+          map[id] = res.folderPath;
+          localStorage.setItem('claudePM:folderMap', JSON.stringify(map));
+        } catch (_) {}
+      }
+    }
+  } catch (e) {
+    console.warn('[projects] ensureClaudePMFolder failed:', e?.message || e);
+  }
   openProject(id);
 }
 

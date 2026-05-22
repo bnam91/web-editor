@@ -85,7 +85,7 @@ async function handlePickDirectory(_e, { defaultPath } = {}) {
   }
 }
 
-async function handleCreateFolder(_e, { basePath, projectName } = {}) {
+async function handleCreateFolder(_e, { basePath, projectName, projectId } = {}) {
   try {
     if (!basePath || !projectName) {
       return { ok: false, error: 'basePath / projectName 누락' };
@@ -115,7 +115,7 @@ async function handleCreateFolder(_e, { basePath, projectName } = {}) {
 
     if (tg && typeof tg.generateFolder === 'function') {
       try {
-        const result = await tg.generateFolder({ basePath: folderPath, projectName: safeName });
+        const result = await tg.generateFolder({ basePath: folderPath, projectName: safeName, projectId });
         generated.claudeMd = true;
         generated.mcpJson = true;
         generated.viaTemplateGenerator = true;
@@ -218,6 +218,158 @@ async function handleSpawnClaudeTerminal(_e, { folderPath } = {}) {
   }
 }
 
+// ── ensureFolder: 모든 Goditor 프로젝트가 PM 폴더를 항상 보유하도록 보장 ──
+// 입력: {projectId, projectName, basePath?}
+// 동작:
+//   1. basePath 미지정 시 '~/Documents/claude-pm-projects/' 사용
+//   2. sanitize(projectName) → 같은 이름 폴더 있고 그 안 project.meta.json의 id가 일치하면 재사용 (created:false)
+//   3. 같은 이름이지만 id 불일치 → '__<projectId-short>' suffix 붙여 새 폴더
+//   4. 폴더 없으면 generateFolder로 신규 생성 (PM-B 위임, projectId 전달)
+//   5. return {ok, folderPath, created, reused}
+// 호출 측은 결과를 localStorage에 캐싱 가능 (renderer가 책임).
+async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath } = {}) {
+  try {
+    if (!projectId || !projectName) {
+      return { ok: false, error: 'projectId / projectName 누락' };
+    }
+    const safeName = sanitizeFolderName(projectName);
+    if (!safeName) return { ok: false, error: '프로젝트명이 유효하지 않습니다.' };
+
+    const base = basePath
+      ? path.resolve(expandHome(basePath))
+      : path.resolve(expandHome('~/Documents/claude-pm-projects'));
+
+    if (!fs.existsSync(base)) {
+      fs.mkdirSync(base, { recursive: true });
+    }
+
+    // 1차 후보: <base>/<safeName>
+    const idShort = String(projectId).replace(/^proj_/, '').slice(0, 8);
+    let folderPath = path.resolve(base, safeName);
+    if (!folderPath.startsWith(base + path.sep) && folderPath !== base) {
+      return { ok: false, error: '경로가 base 밖으로 벗어납니다.' };
+    }
+
+    // 기존 폴더가 있는 경우 — meta.json의 id로 매핑 확인
+    if (fs.existsSync(folderPath)) {
+      const metaPath = path.join(folderPath, 'project.meta.json');
+      let existingId = null;
+      try {
+        if (fs.existsSync(metaPath)) {
+          existingId = JSON.parse(fs.readFileSync(metaPath, 'utf8'))?.id || null;
+        }
+      } catch (_) { existingId = null; }
+
+      if (existingId === projectId) {
+        // 정확히 같은 프로젝트 → 재사용
+        return { ok: true, folderPath, created: false, reused: true };
+      }
+      if (!existingId) {
+        // 폴더는 있는데 meta.id가 비어 있음 → 동일 프로젝트로 간주.
+        // 사용자가 수동 편집했을 수 있는 CLAUDE.md / NOTES.md 는 덮어쓰지 않고,
+        // 빠진 파일만 보완(touch)한다. project.meta.json은 id만 주입.
+        try {
+          const claudeP = path.join(folderPath, 'CLAUDE.md');
+          const notesP = path.join(folderPath, 'NOTES.md');
+          const mcpP = path.join(folderPath, '.mcp.json');
+          const archP = path.join(folderPath, 'archive');
+          const repaired = [];
+          if (!fs.existsSync(archP)) { fs.mkdirSync(archP, { recursive: true }); repaired.push('archive'); }
+          // meta: 없으면 새로, 있으면 id만 보충
+          let meta = null;
+          if (fs.existsSync(metaPath)) {
+            try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (_) { meta = null; }
+          }
+          if (!meta) {
+            const now = new Date().toISOString();
+            meta = { title: safeName, id: projectId, createdAt: now, updatedAt: now };
+            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+            repaired.push('project.meta.json');
+          } else if (!meta.id) {
+            meta.id = projectId;
+            meta.updatedAt = new Date().toISOString();
+            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+            repaired.push('project.meta.json(id-patch)');
+          }
+          if (!fs.existsSync(claudeP)) {
+            fs.writeFileSync(claudeP, `# ${safeName}\n\n(auto-ensure: regenerated placeholder)\n`, 'utf8');
+            repaired.push('CLAUDE.md');
+          }
+          if (!fs.existsSync(notesP)) {
+            fs.writeFileSync(notesP, '# Notes\n\n## Preferences\n- \n\n## Constraints\n- \n\n## Decisions (원문)\n- \n\n## Feedback\n- \n', 'utf8');
+            repaired.push('NOTES.md');
+          }
+          if (!fs.existsSync(mcpP)) {
+            fs.writeFileSync(
+              mcpP,
+              JSON.stringify({ mcpServers: { 'goditor-pm': { type: 'http', url: `http://localhost:${MCP_PORT}` } } }, null, 2),
+              'utf8'
+            );
+            repaired.push('.mcp.json');
+          }
+          return { ok: true, folderPath, created: false, repaired };
+        } catch (e) {
+          return { ok: false, error: `repair 실패: ${e.message}`, folderPath };
+        }
+      }
+      // 다른 프로젝트 — suffix 붙여 회피
+      folderPath = path.resolve(base, `${safeName}__${idShort}`);
+      if (!folderPath.startsWith(base + path.sep)) {
+        return { ok: false, error: '경로가 base 밖으로 벗어납니다.' };
+      }
+      // suffix 폴더도 이미 존재 + 같은 id면 재사용
+      if (fs.existsSync(folderPath)) {
+        try {
+          const sm = path.join(folderPath, 'project.meta.json');
+          if (fs.existsSync(sm)) {
+            const eid = JSON.parse(fs.readFileSync(sm, 'utf8'))?.id || null;
+            if (eid === projectId) return { ok: true, folderPath, created: false, reused: true };
+          }
+        } catch (_) {}
+        // 이름은 같은데 또 충돌 — Date.now 추가
+        folderPath = path.resolve(base, `${safeName}__${idShort}_${Date.now()}`);
+      }
+    }
+
+    // 신규 생성
+    const tg = await _tryImportTemplateGenerator();
+    if (tg && typeof tg.generateFolder === 'function') {
+      try {
+        const result = await tg.generateFolder({ basePath: folderPath, projectName: safeName, projectId });
+        return { ok: true, folderPath: result?.folderPath || folderPath, created: true };
+      } catch (e) {
+        return { ok: false, error: `template-generator 실패: ${e.message}`, folderPath };
+      }
+    }
+    // Fallback (PM-B 미로드)
+    try {
+      fs.mkdirSync(folderPath, { recursive: true });
+      fs.writeFileSync(
+        path.join(folderPath, 'CLAUDE.md'),
+        `# ${safeName}\n\n(auto-ensure fallback — PM-B 미로드)\n`,
+        'utf8'
+      );
+      fs.writeFileSync(
+        path.join(folderPath, 'project.meta.json'),
+        JSON.stringify({ id: projectId, title: safeName, createdAt: new Date().toISOString() }, null, 2),
+        'utf8'
+      );
+      fs.writeFileSync(
+        path.join(folderPath, '.mcp.json'),
+        JSON.stringify({
+          mcpServers: { 'goditor-pm': { type: 'http', url: `http://localhost:${MCP_PORT}` } },
+        }, null, 2),
+        'utf8'
+      );
+      return { ok: true, folderPath, created: true, viaFallback: true };
+    } catch (e) {
+      return { ok: false, error: `fallback 생성 실패: ${e.message}`, folderPath };
+    }
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 async function handleSetActiveProject(_e, { projectId } = {}) {
   try {
     // main.js의 startMcpServer({onActiveProject: () => global.currentActiveProjectId})가 이걸 읽음
@@ -254,6 +406,7 @@ function registerClaudePMIPC(ipcMain) {
   ipcMain.handle('claudePM:spawnClaudeTerminal', handleSpawnClaudeTerminal);
   ipcMain.handle('claudePM:pingMcp', handlePingMcp);
   ipcMain.handle('claudePM:setActiveProject', handleSetActiveProject);
+  ipcMain.handle('claudePM:ensureFolder', handleEnsureClaudePMFolder);
 }
 
 module.exports = {

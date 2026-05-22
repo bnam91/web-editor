@@ -108,10 +108,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   spawnClaudeTerminal:  (folderPath)             => ipcRenderer.invoke('claudePM:spawnClaudeTerminal', { folderPath }),
   pingClaudePM:         ()                       => ipcRenderer.invoke('claudePM:pingMcp'),
   setClaudePMActiveProject: (projectId)          => ipcRenderer.invoke('claudePM:setActiveProject', { projectId }),
+  // 자동 PM 폴더 보장 — 신규 프로젝트 생성 직후 + 기존 프로젝트 활성화 시 호출
+  ensureClaudePMFolder: ({ projectId, projectName, basePath } = {}) =>
+                        ipcRenderer.invoke('claudePM:ensureFolder', { projectId, projectName, basePath }),
 
   // Claude PM Phase 3 (F8) — 내부 터미널 패널
-  claudePMTerminalStart:  ({ folderPath, cols, rows } = {}) =>
-                          ipcRenderer.invoke('claudePM:terminal:start',  { folderPath, cols, rows }),
+  claudePMTerminalStart:  ({ folderPath, cols, rows, projectId } = {}) =>
+                          ipcRenderer.invoke('claudePM:terminal:start',  { folderPath, cols, rows, projectId }),
   claudePMTerminalWrite:  (sessionId, data)      =>
                           ipcRenderer.invoke('claudePM:terminal:write',  { sessionId, data }),
   claudePMTerminalResize: (sessionId, cols, rows) =>
