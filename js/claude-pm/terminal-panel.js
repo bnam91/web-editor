@@ -24,6 +24,11 @@
   let _currentFolder = null;
   let _dragging = false;
 
+  // 헤더 드래그 이동 — 패널 자체 위치(left/top) 누적.
+  // 닫혔다 다시 open 시 모듈 스코프 변수로 마지막 위치 유지.
+  // null이면 기본 위치(right:0; top:64px; bottom:0) 사용.
+  let _panelLeft = null, _panelTop = null;
+
   function _ensureXtermLoaded() {
     // xterm.js / xterm.css는 index.html에서 정적 link/script로 로드된다.
     // 여기서는 window.Terminal 존재 여부만 확인.
@@ -53,12 +58,54 @@
     document.body.appendChild(panel);
 
     panel.addEventListener('click', _onPanelClick);
-    // 리사이저
+    // 리사이저 (좌측 핸들 → 너비 변경)
     const resizer = panel.querySelector('.cpmt-resizer');
     resizer.addEventListener('mousedown', _startDrag);
 
+    // 헤더 드래그 이동 — 버튼/리사이저는 제외
+    const header = panel.querySelector('.cpmt-header');
+    if (header) _bindTerminalDrag(header, panel);
+
     _panelEl = panel;
     return panel;
+  }
+
+  // ── Header drag (패널 자체 위치 이동) ──
+  // folder-create-modal._bindModalDrag와 동일 패턴.
+  // left/top inline style을 누적 갱신 → CSS의 right:0/bottom:0 무력화.
+  // mousedown 시 panel의 현재 BoundingClientRect를 기준점으로 캐싱.
+  function _bindTerminalDrag(header, panel) {
+    header.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      // 닫기/재시작 버튼, 리사이저 클릭은 드래그 제외
+      if (e.target.closest('.cpmt-btn, .cpmt-resizer')) return;
+      e.preventDefault();
+      // 현재 화면상 위치를 시작점으로 (right/bottom 기반이어도 정확)
+      const rect = panel.getBoundingClientRect();
+      const startX = e.clientX, startY = e.clientY;
+      const startLeft = rect.left, startTop = rect.top;
+      // right/bottom 제약 해제 전에 현재 width/height를 명시 — 레이아웃 보존
+      // (top:64px;bottom:0 → height:836px 같은 식으로 고정)
+      if (!panel.style.width) panel.style.width = rect.width + 'px';
+      if (!panel.style.height) panel.style.height = rect.height + 'px';
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      const onMove = (ev) => {
+        _panelLeft = startLeft + (ev.clientX - startX);
+        _panelTop  = startTop  + (ev.clientY - startY);
+        panel.style.left = _panelLeft + 'px';
+        panel.style.top  = _panelTop  + 'px';
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (_fitAddon) {
+          try { _fitAddon.fit(); _notifyResize(); } catch (_) {}
+        }
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
   }
 
   function _onPanelClick(e) {

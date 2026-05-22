@@ -46,13 +46,11 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
   color: var(--ui-text);
   opacity: 0;
-  transform: translateX(8px);
-  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+  transition: opacity 0.15s ease-out;
 }
 #claude-pm-panel.cpm-open {
   display: flex;
   opacity: 1;
-  transform: translateX(0);
 }
 
 /* preview 모드일 때 숨김 */
@@ -65,7 +63,10 @@ body.preview-mode #claude-pm-panel { display: none !important; }
   justify-content: space-between;
   padding: 14px 16px 12px;
   border-bottom: 1px solid var(--ui-border);
+  cursor: move;
+  user-select: none;
 }
+.cpm-header .cpm-close { cursor: pointer; }
 .cpm-title {
   display: flex;
   align-items: center;
@@ -394,7 +395,9 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   background: #18181b;
   border-bottom: 1px solid #2a2a2e;
   user-select: none;
+  cursor: move;
 }
+.cpmt-header .cpmt-btn { cursor: pointer; }
 .cpmt-title {
   display: flex;
   align-items: center;

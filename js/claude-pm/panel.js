@@ -40,6 +40,9 @@
   let _escHandler = null;
   let _mcpPingTimer = null;
 
+  // 드래그 누적 — 닫혔다 다시 열어도 마지막 위치 유지
+  let _dragDx = 0, _dragDy = 0;
+
   // ── DOM lazy create ───────────────────────
   function _ensurePanelDOM() {
     if (_panelEl) return _panelEl;
@@ -98,9 +101,38 @@
     // 액션 위임
     panel.addEventListener('click', _onPanelClick);
 
+    // 헤더 드래그 이동 — 닫기 버튼 누르면 제외
+    const header = panel.querySelector('.cpm-header');
+    if (header) _bindPanelDrag(header, panel);
+
     _panelEl = panel;
     _refreshClaudePMStatus();
     return panel;
+  }
+
+  // ── 드래그 이동 ───────────────────────────
+  // folder-create-modal._bindModalDrag 패턴 미러
+  // dx/dy 누적 — 닫혔다 다시 열어도 마지막 위치 유지
+  function _bindPanelDrag(header, panel) {
+    header.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      // 닫기 버튼은 드래그 제외
+      if (e.target.closest('.cpm-close')) return;
+      e.preventDefault();
+      const startX = e.clientX, startY = e.clientY;
+      const startDx = _dragDx, startDy = _dragDy;
+      const onMove = (ev) => {
+        _dragDx = startDx + (ev.clientX - startX);
+        _dragDy = startDy + (ev.clientY - startY);
+        panel.style.transform = `translate(${_dragDx}px, ${_dragDy}px)`;
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
   }
 
   // ── 액션 핸들러 ───────────────────────────
@@ -230,6 +262,8 @@
     const panel = _ensurePanelDOM();
     // display:flex + transition trigger
     panel.style.display = 'flex';
+    // 드래그 누적 위치 복원 (없으면 translate(0,0))
+    panel.style.transform = `translate(${_dragDx}px, ${_dragDy}px)`;
     // 다음 프레임에 cpm-open 부착 → transition 발동
     requestAnimationFrame(() => panel.classList.add('cpm-open'));
 
