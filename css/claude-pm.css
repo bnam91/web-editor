@@ -467,3 +467,65 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 프로젝트별 xterm body 컨테이너 — 한 번에 하나만 표시 */
+.cpmt-body-instance {
+  width: 100%;
+  height: 100%;
+}
+
+/* mini 알약 (우하단 floating, 드래그 가능) */
+#claude-pm-terminal-mini {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 10001;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 12px;
+  background: #18181b;
+  border: 1px solid #333;
+  border-radius: 999px;
+  color: #e6e6e6;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: grab;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+#claude-pm-terminal-mini:hover {
+  background: #1f1f24;
+  border-color: #444;
+}
+#claude-pm-terminal-mini.cpmt-mini-dragging {
+  cursor: grabbing;
+  transform: scale(1.02);
+}
+body.preview-mode #claude-pm-terminal-mini { display: none !important; }
+
+.cpmt-mini-icon {
+  font-family: Menlo, Monaco, monospace;
+  color: #6b9eff;
+  font-size: 12px;
+  line-height: 1;
+}
+.cpmt-mini-label {
+  color: #e6e6e6;
+}
+.cpmt-mini-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #444;
+  transition: background 0.15s ease;
+}
+#claude-pm-terminal-mini.cpmt-mini-pulsing .cpmt-mini-dot {
+  background: #6b9eff;
+  box-shadow: 0 0 6px rgba(107,158,255,0.7);
+  animation: cpmt-mini-pulse 1s ease-in-out infinite;
+}
+@keyframes cpmt-mini-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(1.25); }
+}

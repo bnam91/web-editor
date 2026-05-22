@@ -38,8 +38,10 @@ try {
   pty = null;
 }
 
-// sessionId → { proc, backend: 'pty'|'cp', folderPath, createdAt, listeners: [] }
+// sessionId → { proc, backend: 'pty'|'cp', folderPath, projectId, createdAt, listeners: [] }
 const _sessions = new Map();
+// projectId → sessionId (역 lookup, 동일 프로젝트 세션 재사용 위함)
+const _sessionByProject = new Map();
 
 function expandHome(p) {
   if (!p) return p;
@@ -115,7 +117,7 @@ function _baseEnv(cols, rows) {
 }
 
 // ── node-pty 기반 세션 시작 ──────────────────────────────────────────────────
-function _startPtySession({ folderPath, cols, rows, sessionId }) {
+function _startPtySession({ folderPath, cols, rows, sessionId, projectId }) {
   const claudeBin = _resolveClaudeBin();
   const shell = _resolveShell();
   const env = _baseEnv(cols, rows);
@@ -152,6 +154,10 @@ function _startPtySession({ folderPath, cols, rows, sessionId }) {
     // listener 정리
     try { onDataDisposable && onDataDisposable.dispose && onDataDisposable.dispose(); } catch (_) {}
     try { onExitDisposable && onExitDisposable.dispose && onExitDisposable.dispose(); } catch (_) {}
+    const s = _sessions.get(sessionId);
+    if (s && s.projectId && _sessionByProject.get(s.projectId) === sessionId) {
+      _sessionByProject.delete(s.projectId);
+    }
     _sessions.delete(sessionId);
   });
 
@@ -159,15 +165,17 @@ function _startPtySession({ folderPath, cols, rows, sessionId }) {
     proc,
     backend: 'pty',
     folderPath,
+    projectId: projectId || null,
     createdAt: Date.now(),
     listeners: [onDataDisposable, onExitDisposable],
   });
+  if (projectId) _sessionByProject.set(projectId, sessionId);
 
   return { ok: true, sessionId, backend: 'pty', claudeBin };
 }
 
 // ── child_process fallback ───────────────────────────────────────────────────
-function _startCpSession({ folderPath, cols, rows, sessionId }) {
+function _startCpSession({ folderPath, cols, rows, sessionId, projectId }) {
   const claudeBin = _resolveClaudeBin();
   const shell = _resolveShell();
   const env = _baseEnv(cols, rows);
@@ -196,6 +204,10 @@ function _startCpSession({ folderPath, cols, rows, sessionId }) {
     try { child.stdout.off('data', onStdout); } catch (_) {}
     try { child.stderr.off('data', onStderr); } catch (_) {}
     try { child.off('error', onError); } catch (_) {}
+    const s = _sessions.get(sessionId);
+    if (s && s.projectId && _sessionByProject.get(s.projectId) === sessionId) {
+      _sessionByProject.delete(s.projectId);
+    }
     _sessions.delete(sessionId);
   };
 
@@ -208,22 +220,32 @@ function _startCpSession({ folderPath, cols, rows, sessionId }) {
     proc: child,
     backend: 'cp',
     folderPath,
+    projectId: projectId || null,
     createdAt: Date.now(),
     listeners: [],
   });
+  if (projectId) _sessionByProject.set(projectId, sessionId);
 
   return { ok: true, sessionId, backend: 'cp', claudeBin, ptyError: ptyLoadError };
 }
 
 // ── 공개 API ─────────────────────────────────────────────────────────────────
-function startTerminalSession({ folderPath, cols, rows } = {}) {
+function startTerminalSession({ folderPath, cols, rows, projectId } = {}) {
   try {
     const expanded = expandHome(folderPath);
     if (!expanded || !fs.existsSync(expanded)) {
       return { ok: false, error: 'folderPath 미존재' };
     }
+    // 이미 같은 projectId 세션이 살아있으면 재사용
+    if (projectId) {
+      const existing = _sessionByProject.get(projectId);
+      if (existing && _sessions.has(existing)) {
+        const s = _sessions.get(existing);
+        return { ok: true, sessionId: existing, backend: s.backend, reused: true };
+      }
+    }
     const sessionId = _newSessionId();
-    const args = { folderPath: expanded, cols, rows, sessionId };
+    const args = { folderPath: expanded, cols, rows, sessionId, projectId: projectId || null };
 
     if (pty) {
       try {
@@ -313,6 +335,7 @@ function killAllSessions() {
     try { killTerminal({ sessionId: id }); } catch (_) {}
   }
   _sessions.clear();
+  _sessionByProject.clear();
 }
 
 function registerTerminalIPC(ipcMain) {

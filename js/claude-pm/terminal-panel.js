@@ -1,38 +1,59 @@
-// js/claude-pm/terminal-panel.js — Claude PM 내부 터미널 패널
-// feature/claude-pm — Phase 3 (F8)
+// js/claude-pm/terminal-panel.js — Claude PM 내부 터미널 패널 (멀티세션 + 최소화 알약)
+// feature/claude-pm — Phase 5 (멀티세션 + mini pill)
 //
-// xterm.js (vendor/xterm)를 사용해 우측 슬라이드 패널에 터미널을 띄우고,
-// IPC로 main process에 child_process.spawn된 claude 세션과 양방향 통신한다.
+// 변경:
+//   - 프로젝트 ID 별 세션 dict: _projectStates[projectId] = { sessionId, term, fitAddon, folderPath,
+//                                                            panelState:{left,top,width,height},
+//                                                            unsubData, unsubExit, lastDataTs }
+//   - 프로젝트 전환 시 자동 토글 (active-project-sync.js의 setter wrap에 hook)
+//   - 헤더 ▭ 최소화 → mini pill (우하단 알약, 드래그 가능, claude data dot 점멸)
 //
 // 노출:
-//   window.openClaudePMTerminalPanel({folderPath})
+//   window.openClaudePMTerminalPanel({folderPath, projectId})
 //   window.closeClaudePMTerminalPanel()
-//
-// AI 패널 / Claude PM 메인 패널과 mutex (셋 중 하나만)
+//   window.minimizeClaudePMTerminalPanel()
+//   window.restoreClaudePMTerminalPanel()
+//   window._claudePMTerminalOnProjectChange(projectId)   // active-project-sync.js가 호출
 
 (function () {
   'use strict';
 
   let _panelEl = null;
-  let _term = null;
-  let _fitAddon = null;
-  let _sessionId = null;
-  let _unsubData = null;
-  let _unsubExit = null;
+  let _miniEl = null;
   let _escHandler = null;
   let _resizeObs = null;
-  let _currentFolder = null;
   let _dragging = false;
+  let _activeProjectId = null;   // 현재 패널이 보여주고 있는 projectId
+  let _globalDataUnsub = null;   // 모든 세션 data 이벤트 캐치 (mini dot용)
+  let _globalExitUnsub = null;
+  let _miniDotTimer = null;
 
-  // 헤더 드래그 이동 — 패널 자체 위치(left/top) 누적.
-  // 닫혔다 다시 open 시 모듈 스코프 변수로 마지막 위치 유지.
-  // null이면 기본 위치(right:0; top:64px; bottom:0) 사용.
-  let _panelLeft = null, _panelTop = null;
+  // 프로젝트별 상태 (term + sessionId + panelState + unsub들)
+  // { [projectId]: {
+  //     sessionId, term, fitAddon, body, folderPath,
+  //     panelState: {left, top, width, height},
+  //     unsubData, unsubExit, lastDataTs,
+  //   } }
+  const _projectStates = Object.create(null);
+
+  const PANEL_STATE_LS_PREFIX = 'claudePMTerminalPanelState:';
+  const MINI_POS_LS_KEY = 'claudePMTerminalMiniPos';
 
   function _ensureXtermLoaded() {
-    // xterm.js / xterm.css는 index.html에서 정적 link/script로 로드된다.
-    // 여기서는 window.Terminal 존재 여부만 확인.
     return typeof window.Terminal === 'function';
+  }
+
+  function _loadPanelState(projectId) {
+    try {
+      const raw = localStorage.getItem(PANEL_STATE_LS_PREFIX + projectId);
+      if (!raw) return null;
+      const v = JSON.parse(raw);
+      if (v && typeof v === 'object') return v;
+    } catch (_) {}
+    return null;
+  }
+  function _savePanelState(projectId, state) {
+    try { localStorage.setItem(PANEL_STATE_LS_PREFIX + projectId, JSON.stringify(state)); } catch (_) {}
   }
 
   function _ensurePanelDOM() {
@@ -49,6 +70,7 @@
         </span>
         <div class="cpmt-actions">
           <button class="cpmt-btn" type="button" data-cpmt-action="restart" title="재시작">↻</button>
+          <button class="cpmt-btn" type="button" data-cpmt-action="minimize" title="최소화">▭</button>
           <button class="cpmt-btn cpmt-close" type="button" data-cpmt-action="close" title="닫기">✕</button>
         </div>
       </div>
@@ -56,52 +78,137 @@
       <div class="cpmt-footer" id="cpmt-footer">세션 없음</div>
     `;
     document.body.appendChild(panel);
-
     panel.addEventListener('click', _onPanelClick);
-    // 리사이저 (좌측 핸들 → 너비 변경)
     const resizer = panel.querySelector('.cpmt-resizer');
     resizer.addEventListener('mousedown', _startDrag);
-
-    // 헤더 드래그 이동 — 버튼/리사이저는 제외
     const header = panel.querySelector('.cpmt-header');
     if (header) _bindTerminalDrag(header, panel);
+
+    // 패널 크기 변화 → 현재 active 프로젝트의 fit
+    if (typeof ResizeObserver !== 'undefined') {
+      _resizeObs = new ResizeObserver(() => {
+        const st = _activeProjectId && _projectStates[_activeProjectId];
+        if (st && st.fitAddon) {
+          try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {}
+        }
+      });
+      _resizeObs.observe(panel);
+    }
 
     _panelEl = panel;
     return panel;
   }
 
-  // ── Header drag (패널 자체 위치 이동) ──
-  // folder-create-modal._bindModalDrag와 동일 패턴.
-  // left/top inline style을 누적 갱신 → CSS의 right:0/bottom:0 무력화.
-  // mousedown 시 panel의 현재 BoundingClientRect를 기준점으로 캐싱.
+  function _ensureMiniDOM() {
+    if (_miniEl) return _miniEl;
+    const mini = document.createElement('button');
+    mini.id = 'claude-pm-terminal-mini';
+    mini.className = 'cpmt-mini-btn';
+    mini.type = 'button';
+    mini.innerHTML = `
+      <span class="cpmt-mini-icon">›_</span>
+      <span class="cpmt-mini-label">Claude</span>
+      <span class="cpmt-mini-dot" aria-hidden="true"></span>
+    `;
+    mini.style.display = 'none';
+    // 저장된 위치 복원
+    try {
+      const raw = localStorage.getItem(MINI_POS_LS_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) {
+          mini.style.left = p.left + 'px';
+          mini.style.top = p.top + 'px';
+          mini.style.right = 'auto';
+          mini.style.bottom = 'auto';
+        }
+      }
+    } catch (_) {}
+    document.body.appendChild(mini);
+    _bindMiniDrag(mini);
+    _miniEl = mini;
+    return mini;
+  }
+
+  // 헤더 드래그 (folder-create-modal._bindModalDrag 패턴 + panelState 저장)
   function _bindTerminalDrag(header, panel) {
     header.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
-      // 닫기/재시작 버튼, 리사이저 클릭은 드래그 제외
       if (e.target.closest('.cpmt-btn, .cpmt-resizer')) return;
       e.preventDefault();
-      // 현재 화면상 위치를 시작점으로 (right/bottom 기반이어도 정확)
       const rect = panel.getBoundingClientRect();
       const startX = e.clientX, startY = e.clientY;
       const startLeft = rect.left, startTop = rect.top;
-      // right/bottom 제약 해제 전에 현재 width/height를 명시 — 레이아웃 보존
-      // (top:64px;bottom:0 → height:836px 같은 식으로 고정)
       if (!panel.style.width) panel.style.width = rect.width + 'px';
       if (!panel.style.height) panel.style.height = rect.height + 'px';
       panel.style.right = 'auto';
       panel.style.bottom = 'auto';
+      let lastLeft = startLeft, lastTop = startTop;
       const onMove = (ev) => {
-        _panelLeft = startLeft + (ev.clientX - startX);
-        _panelTop  = startTop  + (ev.clientY - startY);
-        panel.style.left = _panelLeft + 'px';
-        panel.style.top  = _panelTop  + 'px';
+        lastLeft = startLeft + (ev.clientX - startX);
+        lastTop  = startTop  + (ev.clientY - startY);
+        panel.style.left = lastLeft + 'px';
+        panel.style.top  = lastTop  + 'px';
       };
       const onUp = () => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        if (_fitAddon) {
-          try { _fitAddon.fit(); _notifyResize(); } catch (_) {}
+        const st = _activeProjectId && _projectStates[_activeProjectId];
+        if (st) {
+          st.panelState = st.panelState || {};
+          st.panelState.left = lastLeft;
+          st.panelState.top = lastTop;
+          st.panelState.width = panel.offsetWidth;
+          st.panelState.height = panel.offsetHeight;
+          _savePanelState(_activeProjectId, st.panelState);
+          if (st.fitAddon) { try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {} }
         }
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  // mini 알약 드래그 (5px threshold로 클릭과 분리)
+  function _bindMiniDrag(mini) {
+    let down = null;  // {x, y, t, left, top}
+    let moved = false;
+    mini.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const rect = mini.getBoundingClientRect();
+      down = { x: e.clientX, y: e.clientY, t: Date.now(), left: rect.left, top: rect.top };
+      moved = false;
+      e.preventDefault();
+      const onMove = (ev) => {
+        if (!down) return;
+        const dx = ev.clientX - down.x;
+        const dy = ev.clientY - down.y;
+        if (!moved && Math.hypot(dx, dy) < 5) return;
+        moved = true;
+        mini.classList.add('cpmt-mini-dragging');
+        const nx = Math.max(4, Math.min(window.innerWidth - mini.offsetWidth - 4, down.left + dx));
+        const ny = Math.max(4, Math.min(window.innerHeight - mini.offsetHeight - 4, down.top + dy));
+        mini.style.left = nx + 'px';
+        mini.style.top = ny + 'px';
+        mini.style.right = 'auto';
+        mini.style.bottom = 'auto';
+      };
+      const onUp = (ev) => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        mini.classList.remove('cpmt-mini-dragging');
+        if (moved) {
+          try {
+            localStorage.setItem(MINI_POS_LS_KEY, JSON.stringify({
+              left: parseFloat(mini.style.left) || 0,
+              top:  parseFloat(mini.style.top)  || 0,
+            }));
+          } catch (_) {}
+        } else {
+          // 클릭으로 처리
+          restoreClaudePMTerminalPanel();
+        }
+        down = null;
       };
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
@@ -113,48 +220,96 @@
     if (!btn) return;
     const action = btn.getAttribute('data-cpmt-action');
     if (action === 'close') closeClaudePMTerminalPanel();
-    else if (action === 'restart') _restartSession();
+    else if (action === 'restart') _restartActiveSession();
+    else if (action === 'minimize') minimizeClaudePMTerminalPanel();
   }
 
-  // ── Resizer (좌측 핸들 드래그 → 패널 너비 변경) ──
+  // Resizer (좌측 핸들 → 너비 변경)
   function _startDrag(e) {
     e.preventDefault();
     _dragging = true;
-    document.addEventListener('mousemove', _onDrag);
-    document.addEventListener('mouseup', _stopDrag);
+    document.addEventListener('mousemove', _onResizerDrag);
+    document.addEventListener('mouseup', _stopResizerDrag);
   }
-  function _onDrag(e) {
+  function _onResizerDrag(e) {
     if (!_dragging || !_panelEl) return;
-    const newW = Math.min(900, Math.max(320, window.innerWidth - e.clientX));
-    _panelEl.style.width = newW + 'px';
-    try { localStorage.setItem('claudePMTerminalWidth', String(newW)); } catch (_) {}
-    if (_fitAddon) {
-      try { _fitAddon.fit(); } catch (_) {}
-      _notifyResize();
+    const rect = _panelEl.getBoundingClientRect();
+    // 우측이 fix면 left+dx 기준, 아니면 width 계산
+    let newW;
+    if (_panelEl.style.right === 'auto') {
+      newW = Math.min(900, Math.max(320, (rect.right) - e.clientX));
+      // 좌측 핸들 드래그: left 이동, width 변경
+      const newLeft = e.clientX;
+      const oldRight = rect.right;
+      _panelEl.style.left = newLeft + 'px';
+      _panelEl.style.width = (oldRight - newLeft) + 'px';
+    } else {
+      newW = Math.min(900, Math.max(320, window.innerWidth - e.clientX));
+      _panelEl.style.width = newW + 'px';
+    }
+    try { localStorage.setItem('claudePMTerminalWidth', String(_panelEl.offsetWidth)); } catch (_) {}
+    const st = _activeProjectId && _projectStates[_activeProjectId];
+    if (st) {
+      st.panelState = st.panelState || {};
+      st.panelState.width = _panelEl.offsetWidth;
+      st.panelState.height = _panelEl.offsetHeight;
+      if (_panelEl.style.left) st.panelState.left = parseFloat(_panelEl.style.left);
+      _savePanelState(_activeProjectId, st.panelState);
+      if (st.fitAddon) {
+        try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {}
+      }
     }
   }
-  function _stopDrag() {
+  function _stopResizerDrag() {
     _dragging = false;
-    document.removeEventListener('mousemove', _onDrag);
-    document.removeEventListener('mouseup', _stopDrag);
+    document.removeEventListener('mousemove', _onResizerDrag);
+    document.removeEventListener('mouseup', _stopResizerDrag);
   }
 
-  function _notifyResize() {
-    if (!_term || !_sessionId) return;
+  function _notifyResize(st) {
+    if (!st || !st.term || !st.sessionId) return;
     try {
-      window.electronAPI?.claudePMTerminalResize?.(_sessionId, _term.cols, _term.rows);
+      window.electronAPI?.claudePMTerminalResize?.(st.sessionId, st.term.cols, st.term.rows);
     } catch (_) {}
   }
 
-  async function _ensureTerm() {
-    if (_term) return _term;
+  function _applyPanelState(panelState) {
+    if (!_panelEl) return;
+    if (!panelState) {
+      // 기본 위치 (CSS의 right:0; top:64px; bottom:0)
+      _panelEl.style.left = '';
+      _panelEl.style.top = '';
+      _panelEl.style.right = '';
+      _panelEl.style.bottom = '';
+      try {
+        const w = parseInt(localStorage.getItem('claudePMTerminalWidth') || '480', 10);
+        if (w > 0) _panelEl.style.width = w + 'px';
+      } catch (_) {}
+      _panelEl.style.height = '';
+      return;
+    }
+    if (Number.isFinite(panelState.left)) _panelEl.style.left = panelState.left + 'px';
+    if (Number.isFinite(panelState.top))  _panelEl.style.top  = panelState.top + 'px';
+    if (Number.isFinite(panelState.width))  _panelEl.style.width  = panelState.width + 'px';
+    if (Number.isFinite(panelState.height)) _panelEl.style.height = panelState.height + 'px';
+    if (Number.isFinite(panelState.left) || Number.isFinite(panelState.top)) {
+      _panelEl.style.right = 'auto';
+      _panelEl.style.bottom = 'auto';
+    }
+  }
+
+  function _ensureTermForProject(projectId) {
+    if (!_panelEl) return null;
+    const st = _projectStates[projectId];
+    if (!st) return null;
+    if (st.term) return st.term;
     if (!_ensureXtermLoaded()) {
       _setFooter('xterm.js 로드 실패 — vendor/xterm/xterm.js 확인 필요');
       return null;
     }
     const Terminal = window.Terminal;
     const FitAddon = window.FitAddon && window.FitAddon.FitAddon;
-    _term = new Terminal({
+    const term = new Terminal({
       cursorBlink: true,
       fontSize: 12,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
@@ -166,77 +321,95 @@
       convertEol: true,
       scrollback: 5000,
     });
+    let fitAddon = null;
     if (FitAddon) {
-      _fitAddon = new FitAddon();
-      _term.loadAddon(_fitAddon);
+      fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
     }
-    const body = _panelEl.querySelector('#cpmt-body');
-    _term.open(body);
-    if (_fitAddon) {
-      try { _fitAddon.fit(); } catch (_) {}
-    }
-    _term.onData((data) => {
-      if (_sessionId) {
-        window.electronAPI?.claudePMTerminalWrite?.(_sessionId, data);
+    // 프로젝트별 dedicated body div
+    const body = document.createElement('div');
+    body.className = 'cpmt-body-instance';
+    body.style.width = '100%';
+    body.style.height = '100%';
+    body.style.display = 'none';
+    const bodyContainer = _panelEl.querySelector('#cpmt-body');
+    bodyContainer.appendChild(body);
+    term.open(body);
+    try { fitAddon && fitAddon.fit(); } catch (_) {}
+    term.onData((data) => {
+      if (st.sessionId) {
+        window.electronAPI?.claudePMTerminalWrite?.(st.sessionId, data);
       }
     });
-    // ResizeObserver — 패널 크기 변하면 fit
-    if (typeof ResizeObserver !== 'undefined') {
-      _resizeObs = new ResizeObserver(() => {
-        if (_fitAddon) {
-          try { _fitAddon.fit(); _notifyResize(); } catch (_) {}
-        }
-      });
-      _resizeObs.observe(body);
-    }
-    return _term;
+    st.term = term;
+    st.fitAddon = fitAddon;
+    st.body = body;
+    return term;
   }
 
-  async function _startSession(folderPath) {
+  async function _startSessionForProject(projectId, folderPath) {
+    const st = _projectStates[projectId];
+    if (!st) return false;
     if (!window.electronAPI?.claudePMTerminalStart) {
       _setFooter('electronAPI 없음');
       return false;
     }
-    _setFooter('세션 시작 중…');
-    const cols = _term?.cols || 80;
-    const rows = _term?.rows || 24;
-    const res = await window.electronAPI.claudePMTerminalStart({ folderPath, cols, rows });
-    if (!res || !res.ok) {
-      _setFooter('세션 실패: ' + (res?.error || 'unknown'));
-      _term?.write(`\r\n\x1b[31m[error] ${res?.error || 'unknown'}\x1b[0m\r\n`);
-      return false;
-    }
-    _sessionId = res.sessionId;
-    _setFooter(`세션 ${_sessionId} · claude=${res.claudeBin || '?'}`);
-    // 리스너
-    _unsubData = window.electronAPI.onClaudePMTerminalData((p) => {
-      if (!_term || p.sessionId !== _sessionId) return;
-      _term.write(p.data);
-    });
-    _unsubExit = window.electronAPI.onClaudePMTerminalExit((p) => {
-      if (p.sessionId !== _sessionId) return;
-      _term?.write(`\r\n\x1b[33m[exit code=${p.code} signal=${p.signal || ''}]\x1b[0m\r\n`);
-      _setFooter(`세션 종료 (code=${p.code})`);
-      _sessionId = null;
-    });
-    return true;
+    // per-project re-entrancy guard — 같은 프로젝트의 두 번째 start는 첫 promise 결과 공유
+    if (st._startingPromise) return st._startingPromise;
+    if (_activeProjectId === projectId) _setFooter('세션 시작 중…');
+    const cols = st.term?.cols || 80;
+    const rows = st.term?.rows || 24;
+    st._startingPromise = (async () => {
+      const res = await window.electronAPI.claudePMTerminalStart({ folderPath, cols, rows, projectId });
+      if (!res || !res.ok) {
+        if (_activeProjectId === projectId) _setFooter('세션 실패: ' + (res?.error || 'unknown'));
+        st.term?.write(`\r\n\x1b[31m[error] ${res?.error || 'unknown'}\x1b[0m\r\n`);
+        return false;
+      }
+      st.sessionId = res.sessionId;
+      st.folderPath = folderPath;
+      // footer는 active일 때만 갱신 (stale 가드)
+      if (_activeProjectId === projectId) {
+        _setFooter(`세션 ${st.sessionId} · claude=${res.claudeBin || (res.reused ? 'reused' : '?')}`);
+      }
+      // 프로젝트별 listener — sessionId 매칭으로 필터
+      st.unsubData = window.electronAPI.onClaudePMTerminalData((p) => {
+        if (p.sessionId !== st.sessionId) return;
+        if (st.term) st.term.write(p.data);
+        st.lastDataTs = Date.now();
+      });
+      st.unsubExit = window.electronAPI.onClaudePMTerminalExit((p) => {
+        if (p.sessionId !== st.sessionId) return;
+        st.term?.write(`\r\n\x1b[33m[exit code=${p.code} signal=${p.signal || ''}]\x1b[0m\r\n`);
+        if (_activeProjectId === projectId) {
+          _setFooter(`세션 종료 (code=${p.code})`);
+        }
+        st.sessionId = null;
+      });
+      return true;
+    })().finally(() => { st._startingPromise = null; });
+    return st._startingPromise;
   }
 
-  async function _stopSession() {
-    if (_unsubData) { try { _unsubData(); } catch (_) {} _unsubData = null; }
-    if (_unsubExit) { try { _unsubExit(); } catch (_) {} _unsubExit = null; }
-    if (_sessionId) {
-      try { await window.electronAPI?.claudePMTerminalKill?.(_sessionId); } catch (_) {}
-      _sessionId = null;
+  async function _stopSessionForProject(projectId) {
+    const st = _projectStates[projectId];
+    if (!st) return;
+    if (st.unsubData) { try { st.unsubData(); } catch (_) {} st.unsubData = null; }
+    if (st.unsubExit) { try { st.unsubExit(); } catch (_) {} st.unsubExit = null; }
+    if (st.sessionId) {
+      try { await window.electronAPI?.claudePMTerminalKill?.(st.sessionId); } catch (_) {}
+      st.sessionId = null;
     }
   }
 
-  async function _restartSession() {
-    if (!_currentFolder) return;
-    await _stopSession();
-    _term?.clear();
-    _term?.write(`\r\n\x1b[36m[restarting…]\x1b[0m\r\n`);
-    await _startSession(_currentFolder);
+  async function _restartActiveSession() {
+    if (!_activeProjectId) return;
+    const st = _projectStates[_activeProjectId];
+    if (!st || !st.folderPath) return;
+    await _stopSessionForProject(_activeProjectId);
+    st.term?.clear();
+    st.term?.write(`\r\n\x1b[36m[restarting…]\x1b[0m\r\n`);
+    await _startSessionForProject(_activeProjectId, st.folderPath);
   }
 
   function _setFooter(msg) {
@@ -245,39 +418,90 @@
     if (f) f.textContent = msg;
   }
 
+  function _showProjectBody(projectId) {
+    if (!_panelEl) return;
+    // 다른 프로젝트 body는 display:none
+    for (const pid of Object.keys(_projectStates)) {
+      const st = _projectStates[pid];
+      if (!st || !st.body) continue;
+      st.body.style.display = (pid === projectId) ? 'block' : 'none';
+    }
+    // active의 fit
+    const st = _projectStates[projectId];
+    if (st && st.fitAddon) {
+      try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {}
+    }
+    // 상단 폴더 라벨 갱신
+    const folderEl = _panelEl.querySelector('#cpmt-folder');
+    if (folderEl) folderEl.textContent = (st && st.folderPath) || '';
+  }
+
+  // mini dot 점멸 (5초 후 stop)
+  function _ensureGlobalDataHook() {
+    if (_globalDataUnsub) return;
+    if (!window.electronAPI?.onClaudePMTerminalData) return;
+    _globalDataUnsub = window.electronAPI.onClaudePMTerminalData(() => {
+      // mini 떠 있을 때만 dot 점멸
+      if (!_miniEl || _miniEl.style.display === 'none') return;
+      _miniEl.classList.add('cpmt-mini-pulsing');
+      if (_miniDotTimer) { clearTimeout(_miniDotTimer); _miniDotTimer = null; }
+      _miniDotTimer = setTimeout(() => {
+        _miniEl && _miniEl.classList.remove('cpmt-mini-pulsing');
+        _miniDotTimer = null;
+      }, 5000);
+    });
+  }
+
   // ── public ──
-  async function openClaudePMTerminalPanel({ folderPath } = {}) {
+  async function openClaudePMTerminalPanel({ folderPath, projectId } = {}) {
     if (!folderPath) {
       if (typeof window.showToast === 'function') window.showToast('💻 폴더 경로 필요');
       return;
     }
+    // projectId 없으면 현재 active 사용
+    if (!projectId) projectId = window.activeProjectId || '_default';
+
     // mutex — 다른 패널 닫기
     try { window.closeAiPrompt?.(); } catch (_) {}
     try { window.closeClaudePMPanel?.(); } catch (_) {}
 
     _ensurePanelDOM();
-    // 저장된 width 복원
-    try {
-      const w = parseInt(localStorage.getItem('claudePMTerminalWidth') || '480', 10);
-      if (w > 0) _panelEl.style.width = w + 'px';
-    } catch (_) {}
+    _ensureGlobalDataHook();
+
+    // 프로젝트 상태 ensure
+    let st = _projectStates[projectId];
+    if (!st) {
+      st = _projectStates[projectId] = {
+        sessionId: null,
+        term: null,
+        fitAddon: null,
+        body: null,
+        folderPath,
+        panelState: _loadPanelState(projectId),
+        unsubData: null,
+        unsubExit: null,
+        lastDataTs: 0,
+      };
+    } else {
+      st.folderPath = folderPath;  // 갱신
+    }
+
+    _activeProjectId = projectId;
+    _applyPanelState(st.panelState);
     _panelEl.style.display = 'flex';
     requestAnimationFrame(() => _panelEl.classList.add('cpmt-open'));
+    // mini 숨김
+    if (_miniEl) _miniEl.style.display = 'none';
 
-    const folderEl = _panelEl.querySelector('#cpmt-folder');
-    if (folderEl) folderEl.textContent = folderPath;
+    _ensureTermForProject(projectId);
+    _showProjectBody(projectId);
 
-    _currentFolder = folderPath;
-
-    await _ensureTerm();
-
-    // 기존 세션이 있고 같은 폴더면 재사용, 아니면 새로 시작
-    if (_sessionId) {
-      // 폴더 바뀌었으면 stop 후 새로
-      await _stopSession();
-      _term?.clear();
+    // 세션 없으면 새로 시작 (reused면 main에서 기존 sessionId 반환)
+    if (!st.sessionId) {
+      await _startSessionForProject(projectId, folderPath);
+    } else {
+      _setFooter(`세션 ${st.sessionId} · 재연결`);
     }
-    await _startSession(folderPath);
 
     _bindEsc();
   }
@@ -291,16 +515,103 @@
       }
     }, 160);
     _unbindEsc();
-    // 세션은 유지하지 말고 종료 — 의도: 닫을 때 claude 프로세스 정리
-    await _stopSession();
+    // 명시적 close는 active 세션 종료
+    if (_activeProjectId) {
+      const pid = _activeProjectId;
+      _activeProjectId = null;
+      await _stopSessionForProject(pid);
+      // term/body는 cleanup (재오픈 시 새로 생성)
+      const st = _projectStates[pid];
+      if (st) {
+        try { st.term && st.term.dispose && st.term.dispose(); } catch (_) {}
+        try { st.body && st.body.remove(); } catch (_) {}
+        st.term = null; st.fitAddon = null; st.body = null;
+      }
+    }
+    // mini 숨김
+    if (_miniEl) _miniEl.style.display = 'none';
+  }
+
+  function minimizeClaudePMTerminalPanel() {
+    if (!_panelEl) return;
+    // panelState 저장 (현재 위치/크기)
+    if (_activeProjectId) {
+      const st = _projectStates[_activeProjectId];
+      if (st) {
+        const rect = _panelEl.getBoundingClientRect();
+        st.panelState = st.panelState || {};
+        if (_panelEl.style.left)  st.panelState.left = parseFloat(_panelEl.style.left);
+        if (_panelEl.style.top)   st.panelState.top  = parseFloat(_panelEl.style.top);
+        st.panelState.width = rect.width;
+        st.panelState.height = rect.height;
+        _savePanelState(_activeProjectId, st.panelState);
+      }
+    }
+    _panelEl.classList.remove('cpmt-open');
+    _panelEl.style.display = 'none';
+    _ensureMiniDOM();
+    _miniEl.style.display = 'inline-flex';
+    _unbindEsc();
+  }
+
+  function restoreClaudePMTerminalPanel() {
+    if (!_panelEl) return;
+    if (_miniEl) _miniEl.style.display = 'none';
+    if (_miniEl) _miniEl.classList.remove('cpmt-mini-pulsing');
+    if (_miniDotTimer) { clearTimeout(_miniDotTimer); _miniDotTimer = null; }
+    // active 프로젝트의 panelState 복원
+    if (_activeProjectId) {
+      const st = _projectStates[_activeProjectId];
+      _applyPanelState(st && st.panelState);
+    }
+    _panelEl.style.display = 'flex';
+    requestAnimationFrame(() => _panelEl.classList.add('cpmt-open'));
+    // fit
+    const st = _activeProjectId && _projectStates[_activeProjectId];
+    if (st && st.fitAddon) {
+      try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {}
+    }
+    _bindEsc();
+  }
+
+  // active-project-sync.js에서 setter wrap 시 호출
+  function onProjectChange(newProjectId) {
+    if (!_panelEl) return;  // 패널 아예 안 열렸으면 무시
+    if (newProjectId === _activeProjectId) return;
+    // 이전 active 세션 hide (DOM 유지)
+    const prev = _activeProjectId;
+    _activeProjectId = newProjectId || null;
+    if (!newProjectId) {
+      // 프로젝트 없으면 패널 hide + mini도 숨김
+      _panelEl.style.display = 'none';
+      _panelEl.classList.remove('cpmt-open');
+      if (_miniEl) _miniEl.style.display = 'none';
+      return;
+    }
+    const st = _projectStates[newProjectId];
+    if (st) {
+      // 자동 표시 — panelState 복원, 패널이 보이고 있었으면 보이고, 미니였으면 미니 유지
+      const wasMini = _miniEl && _miniEl.style.display !== 'none';
+      _applyPanelState(st.panelState);
+      _showProjectBody(newProjectId);
+      if (!wasMini) {
+        _panelEl.style.display = 'flex';
+        requestAnimationFrame(() => _panelEl.classList.add('cpmt-open'));
+      }
+    } else {
+      // 세션 없음 → 패널 hide, 이전이 보이고 있었으면 mini로 (사용자가 다시 열도록)
+      _panelEl.style.display = 'none';
+      _panelEl.classList.remove('cpmt-open');
+      // mini도 끔 (CTA는 ProjectPM 사이드바의 "터미널 실행" 버튼)
+      if (_miniEl) _miniEl.style.display = 'none';
+    }
   }
 
   function _bindEsc() {
     if (_escHandler) return;
     _escHandler = (e) => {
       if (e.key !== 'Escape') return;
-      // xterm focus 중이면 ESC 전달 (claude 내부에서 사용)
-      if (_term && document.activeElement && _panelEl?.contains(document.activeElement)) return;
+      if (_panelEl && _panelEl.contains(document.activeElement)) return;
       e.stopPropagation();
       closeClaudePMTerminalPanel();
     };
@@ -312,6 +623,9 @@
     _escHandler = null;
   }
 
-  window.openClaudePMTerminalPanel  = openClaudePMTerminalPanel;
-  window.closeClaudePMTerminalPanel = closeClaudePMTerminalPanel;
+  window.openClaudePMTerminalPanel     = openClaudePMTerminalPanel;
+  window.closeClaudePMTerminalPanel    = closeClaudePMTerminalPanel;
+  window.minimizeClaudePMTerminalPanel = minimizeClaudePMTerminalPanel;
+  window.restoreClaudePMTerminalPanel  = restoreClaudePMTerminalPanel;
+  window._claudePMTerminalOnProjectChange = onProjectChange;
 })();
