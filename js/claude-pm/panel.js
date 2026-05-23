@@ -241,8 +241,7 @@
     // Phase 3 (F8) — 내부 터미널 패널 사용. 외부 Terminal.app 옵션은 Shift+Click으로 별도 호출.
     try {
       if (typeof window.openClaudePMTerminalPanel === 'function') {
-        // PM 패널 닫고 터미널 패널 열기 (mutex)
-        try { closeClaudePMPanel(); } catch (_) {}
+        // 옵션 C: 매니저 모달 + 터미널 패널 공존 허용. 더 이상 매니저를 강제로 닫지 않음.
         await window.openClaudePMTerminalPanel({ folderPath });
         return;
       }
@@ -333,6 +332,9 @@
     // 드래그 누적 위치 복원 (없으면 translate(0,0)) — shell에 적용
     const shell = panel.querySelector('.cpm-panel-shell');
     if (shell) shell.style.transform = `translate(${_dragDx}px, ${_dragDy}px)`;
+    // close 시 박힌 inline display:none을 먼저 제거 — CSS .cpm-open 의 display:flex 적용 보장.
+    // (이거 없으면 한 번 닫고 두 번째 open 시 display:none이 살아 있어 패널이 안 보이는 회귀)
+    panel.style.removeProperty('display');
     // 다음 프레임에 cpm-open 부착 → transition 발동
     requestAnimationFrame(() => panel.classList.add('cpm-open'));
 

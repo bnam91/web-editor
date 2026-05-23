@@ -525,9 +525,8 @@
     // projectId 없으면 현재 active 사용
     if (!projectId) projectId = window.activeProjectId || '_default';
 
-    // mutex — 다른 패널 닫기
+    // mutex — AI 패널만 닫음. 매니저 모달은 옵션 C로 공존 허용 (z-index 9990 < 10001).
     try { window.closeAiPrompt?.(); } catch (_) {}
-    try { window.closeClaudePMPanel?.(); } catch (_) {}
 
     _ensurePanelDOM();
     _ensureGlobalDataHook();
