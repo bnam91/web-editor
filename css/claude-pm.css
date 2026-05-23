@@ -357,7 +357,8 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   bottom: 0;
   width: 480px;
   z-index: 10001; /* 좌측 패널(9999)·AI 패널·폴더 모달(10000) 위 */
-  background: #0f0f10;
+  /* --cpmt-bg-alpha는 슬라이더가 설정 (기본 1 = 불투명) */
+  background: rgba(15, 15, 16, var(--cpmt-bg-alpha, 1));
   border-left: 1px solid var(--ui-border-mid, #2a2a2e);
   display: none;
   flex-direction: column;
@@ -375,16 +376,19 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
 }
 body.preview-mode #claude-pm-terminal-panel { display: none !important; }
 
-.cpmt-resizer {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  cursor: ew-resize;
-  background: transparent;
-}
+/* 8방향 resize 핸들 (4 측면 + 4 corner). 모두 absolute, panel 가장자리에 배치. */
+.cpmt-resizer { position: absolute; background: transparent; z-index: 2; }
 .cpmt-resizer:hover { background: rgba(107,158,255,0.35); }
+/* 4 측면 — 6px 두께 */
+.cpmt-resizer-l { left: 0;  top: 0; bottom: 0; width: 6px;  cursor: ew-resize; }
+.cpmt-resizer-r { right: 0; top: 0; bottom: 0; width: 6px;  cursor: ew-resize; }
+.cpmt-resizer-t { left: 0; right: 0; top: 0;    height: 6px; cursor: ns-resize; }
+.cpmt-resizer-b { left: 0; right: 0; bottom: 0; height: 6px; cursor: ns-resize; }
+/* 4 corner — 12px, 측면 위로 우선 (z-index 3) */
+.cpmt-resizer-tl { left: 0;  top: 0;    width: 12px; height: 12px; cursor: nwse-resize; z-index: 3; }
+.cpmt-resizer-tr { right: 0; top: 0;    width: 12px; height: 12px; cursor: nesw-resize; z-index: 3; }
+.cpmt-resizer-bl { left: 0;  bottom: 0; width: 12px; height: 12px; cursor: nesw-resize; z-index: 3; }
+.cpmt-resizer-br { right: 0; bottom: 0; width: 12px; height: 12px; cursor: nwse-resize; z-index: 3; }
 
 .cpmt-header {
   flex: 0 0 auto;
@@ -413,6 +417,41 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   border-radius: 50%;
   background: #6b9eff;
   box-shadow: 0 0 6px rgba(107,158,255,0.6);
+}
+/* xterm 기본 user-select:none override — 출력 텍스트 마우스 선택 가능하게 */
+.cpmt-body .xterm,
+.cpmt-body .xterm-screen,
+.cpmt-body .xterm-rows {
+  user-select: text;
+  -webkit-user-select: text;
+}
+/* opacity 슬라이더 — 헤더 cpmt-actions 안 */
+.cpmt-opacity-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 70px;
+  height: 4px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  margin-right: 6px;
+  align-self: center;
+}
+.cpmt-opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  background: #6b9eff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 0;
+}
+.cpmt-opacity-slider::-moz-range-thumb {
+  width: 12px; height: 12px;
+  background: #6b9eff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 0;
 }
 .cpmt-title-text { color: #e6e6e6; }
 .cpmt-folder {

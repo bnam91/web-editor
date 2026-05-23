@@ -61,7 +61,14 @@
     const panel = document.createElement('div');
     panel.id = 'claude-pm-terminal-panel';
     panel.innerHTML = `
-      <div class="cpmt-resizer" title="드래그하여 너비 조절"></div>
+      <div class="cpmt-resizer cpmt-resizer-l"  data-dir="l"  title="너비 조절"></div>
+      <div class="cpmt-resizer cpmt-resizer-r"  data-dir="r"  title="너비 조절"></div>
+      <div class="cpmt-resizer cpmt-resizer-t"  data-dir="t"  title="높이 조절"></div>
+      <div class="cpmt-resizer cpmt-resizer-b"  data-dir="b"  title="높이 조절"></div>
+      <div class="cpmt-resizer cpmt-resizer-tl" data-dir="tl" title="크기 조절"></div>
+      <div class="cpmt-resizer cpmt-resizer-tr" data-dir="tr" title="크기 조절"></div>
+      <div class="cpmt-resizer cpmt-resizer-bl" data-dir="bl" title="크기 조절"></div>
+      <div class="cpmt-resizer cpmt-resizer-br" data-dir="br" title="크기 조절"></div>
       <div class="cpmt-header">
         <span class="cpmt-title">
           <span class="cpmt-dot"></span>
@@ -69,6 +76,7 @@
           <span class="cpmt-folder" id="cpmt-folder"></span>
         </span>
         <div class="cpmt-actions">
+          <input type="range" class="cpmt-opacity-slider" min="30" max="100" value="100" title="투명도 조절">
           <button class="cpmt-btn" type="button" data-cpmt-action="restart" title="재시작">↻</button>
           <button class="cpmt-btn" type="button" data-cpmt-action="minimize" title="최소화">▭</button>
           <button class="cpmt-btn cpmt-close" type="button" data-cpmt-action="close" title="닫기">✕</button>
@@ -79,10 +87,27 @@
     `;
     document.body.appendChild(panel);
     panel.addEventListener('click', _onPanelClick);
-    const resizer = panel.querySelector('.cpmt-resizer');
-    resizer.addEventListener('mousedown', _startDrag);
+    panel.querySelectorAll('.cpmt-resizer').forEach(r => r.addEventListener('mousedown', _startDrag));
     const header = panel.querySelector('.cpmt-header');
     if (header) _bindTerminalDrag(header, panel);
+
+    // 투명도 슬라이더 — localStorage 저장값 복원 + input 이벤트 바인딩
+    const slider = panel.querySelector('.cpmt-opacity-slider');
+    if (slider) {
+      const _OPACITY_LS_KEY = 'cpmt-bg-opacity';
+      let saved = parseInt(localStorage.getItem(_OPACITY_LS_KEY) || '100', 10);
+      if (!(saved >= 30 && saved <= 100)) saved = 100;
+      slider.value = String(saved);
+      panel.style.setProperty('--cpmt-bg-alpha', (saved / 100).toFixed(2));
+      const _onOpacity = (e) => {
+        const v = parseInt(e.target.value, 10);
+        panel.style.setProperty('--cpmt-bg-alpha', (v / 100).toFixed(2));
+        try { localStorage.setItem(_OPACITY_LS_KEY, String(v)); } catch (_) {}
+      };
+      slider.addEventListener('input', _onOpacity);
+      // 슬라이더에서 mousedown → 패널 드래그/리사이즈로 번지지 않게
+      slider.addEventListener('mousedown', (e) => e.stopPropagation());
+    }
 
     // 패널 크기 변화 → 현재 active 프로젝트의 fit
     if (typeof ResizeObserver !== 'undefined') {
@@ -225,35 +250,60 @@
   }
 
   // Resizer (좌측 핸들 → 너비 변경)
+  // 8방향 resize — 측면(l/r/t/b) + 코너(tl/tr/bl/br)
+  let _resizeCtx = null;
+  const _clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   function _startDrag(e) {
+    if (!_panelEl) return;
     e.preventDefault();
+    const dir = e.currentTarget?.dataset?.dir || 'l';
+    const rect = _panelEl.getBoundingClientRect();
+    _resizeCtx = {
+      dir,
+      startX: e.clientX, startY: e.clientY,
+      startLeft: rect.left, startTop: rect.top,
+      startW: rect.width, startH: rect.height,
+    };
     _dragging = true;
     document.addEventListener('mousemove', _onResizerDrag);
     document.addEventListener('mouseup', _stopResizerDrag);
   }
   function _onResizerDrag(e) {
-    if (!_dragging || !_panelEl) return;
-    const rect = _panelEl.getBoundingClientRect();
-    // 우측이 fix면 left+dx 기준, 아니면 width 계산
-    let newW;
-    if (_panelEl.style.right === 'auto') {
-      newW = Math.min(900, Math.max(320, (rect.right) - e.clientX));
-      // 좌측 핸들 드래그: left 이동, width 변경
-      const newLeft = e.clientX;
-      const oldRight = rect.right;
-      _panelEl.style.left = newLeft + 'px';
-      _panelEl.style.width = (oldRight - newLeft) + 'px';
-    } else {
-      newW = Math.min(900, Math.max(320, window.innerWidth - e.clientX));
-      _panelEl.style.width = newW + 'px';
+    if (!_resizeCtx || !_panelEl) return;
+    const { dir, startX, startY, startLeft, startTop, startW, startH } = _resizeCtx;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const MIN_W = 320, MAX_W = Math.max(MIN_W, window.innerWidth  - 20);
+    const MIN_H = 200, MAX_H = Math.max(MIN_H, window.innerHeight - 20);
+    let newL = startLeft, newT = startTop, newW = startW, newH = startH;
+    if (dir.includes('l')) {
+      newW = _clamp(startW - dx, MIN_W, MAX_W);
+      newL = startLeft + (startW - newW);
     }
-    try { localStorage.setItem('claudePMTerminalWidth', String(_panelEl.offsetWidth)); } catch (_) {}
+    if (dir.includes('r')) {
+      newW = _clamp(startW + dx, MIN_W, MAX_W);
+    }
+    if (dir.includes('t')) {
+      newH = _clamp(startH - dy, MIN_H, MAX_H);
+      newT = startTop + (startH - newH);
+    }
+    if (dir.includes('b')) {
+      newH = _clamp(startH + dy, MIN_H, MAX_H);
+    }
+    _panelEl.style.left   = newL + 'px';
+    _panelEl.style.top    = newT + 'px';
+    _panelEl.style.width  = newW + 'px';
+    _panelEl.style.height = newH + 'px';
+    _panelEl.style.right  = 'auto';
+    _panelEl.style.bottom = 'auto';
+    try { localStorage.setItem('claudePMTerminalWidth', String(newW)); } catch (_) {}
     const st = _activeProjectId && _projectStates[_activeProjectId];
     if (st) {
       st.panelState = st.panelState || {};
-      st.panelState.width = _panelEl.offsetWidth;
-      st.panelState.height = _panelEl.offsetHeight;
-      if (_panelEl.style.left) st.panelState.left = parseFloat(_panelEl.style.left);
+      st.panelState.left = newL;
+      st.panelState.top = newT;
+      st.panelState.width = newW;
+      st.panelState.height = newH;
       _savePanelState(_activeProjectId, st.panelState);
       if (st.fitAddon) {
         try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {}
@@ -262,6 +312,7 @@
   }
   function _stopResizerDrag() {
     _dragging = false;
+    _resizeCtx = null;
     document.removeEventListener('mousemove', _onResizerDrag);
     document.removeEventListener('mouseup', _stopResizerDrag);
   }
@@ -565,12 +616,18 @@
       _applyPanelState(st && st.panelState);
     }
     _panelEl.style.display = 'flex';
-    requestAnimationFrame(() => _panelEl.classList.add('cpmt-open'));
-    // fit
-    const st = _activeProjectId && _projectStates[_activeProjectId];
-    if (st && st.fitAddon) {
-      try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {}
-    }
+    // fit() 호출은 display:flex가 layout commit된 후로 미룬다 (double RAF).
+    // 같은 frame에서 즉시 fit() 호출 시 패널 width=0으로 계산되어 cols가 매우 작게 잡혀
+    // 복원 후 텍스트가 5~10자로 쏠려 보이는 버그 회귀 방지.
+    requestAnimationFrame(() => {
+      _panelEl.classList.add('cpmt-open');
+      requestAnimationFrame(() => {
+        const st = _activeProjectId && _projectStates[_activeProjectId];
+        if (st && st.fitAddon) {
+          try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {}
+        }
+      });
+    });
     _bindEsc();
   }
 
