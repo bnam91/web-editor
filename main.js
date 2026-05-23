@@ -349,6 +349,78 @@ const PROJECTS_DIR = path.join(USER_DATA_DIR, 'projects');
 migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR); // 구 경로 마이그레이션
 if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true });
 
+// 번들 레이아웃 마이그레이션 모듈 (팀 1 결과물). 머지 전이라 없을 수 있어 lazy require.
+// (read/write 경로 helper + startup migrateAll 제공)
+function _getMigrator() {
+  try { return require('./main/project-store/migrator'); }
+  catch (_) { return null; }
+}
+
+// Atomic write: temp 파일 → rename으로 partial-write 위험 제거.
+// 동일 파일시스템 가정(userData 안이라 OK).
+function _atomicWriteFileSync(filePath, data) {
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, data, 'utf8');
+  try {
+    fs.renameSync(tmp, filePath);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch (_) {}
+    throw e;
+  }
+}
+
+// proj.json 경로 dual-resolve: 신 우선 → flat fallback.
+// migrator 모듈이 있으면 그쪽 사용, 없으면 동일 로직 인라인.
+function _resolveProjectJsonPath(id) {
+  const m = _getMigrator();
+  if (m && typeof m.resolveProjectJsonPath === 'function') {
+    return m.resolveProjectJsonPath(PROJECTS_DIR, id);
+  }
+  const newP = path.join(PROJECTS_DIR, id, 'proj.json');
+  if (fs.existsSync(newP)) return newP;
+  const flat = path.join(PROJECTS_DIR, `${id}.json`);
+  if (fs.existsSync(flat)) return flat;
+  return null;
+}
+function _resolveMetaJsonPath(id) {
+  const m = _getMigrator();
+  if (m && typeof m.resolveMetaJsonPath === 'function') {
+    return m.resolveMetaJsonPath(PROJECTS_DIR, id);
+  }
+  const newP = path.join(PROJECTS_DIR, id, 'proj_meta.json');
+  if (fs.existsSync(newP)) return newP;
+  const flat = path.join(PROJECTS_DIR, `${id}_meta.json`);
+  if (fs.existsSync(flat)) return flat;
+  return null;
+}
+function _resolveBackupJsonPath(id) {
+  const m = _getMigrator();
+  if (m && typeof m.resolveBackupJsonPath === 'function') {
+    return m.resolveBackupJsonPath(PROJECTS_DIR, id);
+  }
+  const newP = path.join(PROJECTS_DIR, id, 'proj_backup.json');
+  if (fs.existsSync(newP)) return newP;
+  const flat = path.join(PROJECTS_DIR, `${id}_backup.json`);
+  if (fs.existsSync(flat)) return flat;
+  return null;
+}
+// 항상 신 레이아웃 경로 — write 전용. migrator 없으면 인라인 계산.
+function _ensureNewLayoutPaths(id) {
+  const m = _getMigrator();
+  if (m && typeof m.ensureNewLayoutPaths === 'function') {
+    return m.ensureNewLayoutPaths(PROJECTS_DIR, id);
+  }
+  const dir = path.join(PROJECTS_DIR, id);
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
+  return {
+    dir,
+    proj:    path.join(dir, 'proj.json'),
+    backup:  path.join(dir, 'proj_backup.json'),
+    meta:    path.join(dir, 'proj_meta.json'),
+    history: path.join(dir, 'proj_history'),
+  };
+}
+
 /* ── IPC: AI Image Gen ──
    이미지는 projects/<id>/images/aig_xxx.png로 디스크 분리 저장 (프로젝트 JSON에 base64 금지).
    blobPath는 프로젝트 폴더 상대경로. */
@@ -464,39 +536,64 @@ ipcMain.handle('ai:deleteImage', (_e, { projectId, blobPath } = {}) => {
 });
 
 ipcMain.handle('projects:list', () => {
-  const items = fs.readdirSync(PROJECTS_DIR)
-    .filter(f => /^proj_\d+\.json$/.test(f))
-    .map(f => {
-      try {
-        const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
-        if (!data.id || data.id === 'undefined') return null;
-        // thumbnail은 _meta.json에서 우선 조회, 없으면 proj.json 폴백 (마이그레이션 전 하위 호환)
-        let thumbnail = data.thumbnail || null;
-        const metaPath = path.join(PROJECTS_DIR, `${data.id}_meta.json`);
-        if (fs.existsSync(metaPath)) {
-          try {
-            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-            if (meta.thumbnail) thumbnail = meta.thumbnail;
-          } catch {}
-        }
-        return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail };
-      } catch { return null; }
-    })
-    .filter(Boolean)
-    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-
-  // 같은 ID 중복 제거 — updatedAt 최신 것만 유지 (정렬 후 첫 번째)
+  // 번들 레이아웃: PROJECTS_DIR 안의 proj_<id>/proj.json + 아직 마이그 안 된 flat proj_<id>.json 둘 다 인식.
+  // 중복 ID는 신 위치 우선.
   const seen = new Set();
-  return items.filter(p => {
-    if (seen.has(p.id)) return false;
-    seen.add(p.id);
-    return true;
-  });
+  const items = [];
+
+  let entries = [];
+  try { entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true }); }
+  catch { entries = []; }
+
+  // 1) 신 레이아웃 우선: proj_<id>/proj.json
+  for (const ent of entries) {
+    if (!ent.isDirectory()) continue;
+    if (!/^proj_\d+$/.test(ent.name)) continue;
+    const projPath = path.join(PROJECTS_DIR, ent.name, 'proj.json');
+    if (!fs.existsSync(projPath)) continue;
+    try {
+      const data = JSON.parse(fs.readFileSync(projPath, 'utf8'));
+      if (!data.id || data.id === 'undefined' || seen.has(data.id)) continue;
+      let thumbnail = data.thumbnail || null;
+      const metaPath = _resolveMetaJsonPath(data.id);
+      if (metaPath && fs.existsSync(metaPath)) {
+        try {
+          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+          if (meta.thumbnail) thumbnail = meta.thumbnail;
+        } catch {}
+      }
+      seen.add(data.id);
+      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail });
+    } catch {}
+  }
+
+  // 2) flat fallback: proj_<id>.json (마이그레이션 안 된 케이스). 같은 ID는 1)에서 이미 등록됐으면 skip.
+  for (const ent of entries) {
+    if (!ent.isFile()) continue;
+    if (!/^proj_\d+\.json$/.test(ent.name)) continue;
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, ent.name), 'utf8'));
+      if (!data.id || data.id === 'undefined' || seen.has(data.id)) continue;
+      let thumbnail = data.thumbnail || null;
+      const metaPath = _resolveMetaJsonPath(data.id);
+      if (metaPath && fs.existsSync(metaPath)) {
+        try {
+          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+          if (meta.thumbnail) thumbnail = meta.thumbnail;
+        } catch {}
+      }
+      seen.add(data.id);
+      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail });
+    } catch {}
+  }
+
+  items.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  return items;
 });
 
 ipcMain.handle('projects:load', (event, id) => {
-  const filePath = path.join(PROJECTS_DIR, `${id}.json`);
-  if (!fs.existsSync(filePath)) return null;
+  const filePath = _resolveProjectJsonPath(id);
+  if (!filePath) return null;
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 });
 
@@ -512,20 +609,21 @@ function _countSections(proj) {
 }
 
 ipcMain.handle('projects:save', async (event, project) => {
-  const filePath = path.join(PROJECTS_DIR, `${project.id}.json`);
+  // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
+  const paths = _ensureNewLayoutPaths(project.id);
+  const filePath = paths.proj;
 
-  // 백업만 수행 — 페이지/섹션 감소 차단 가드는 제거 (정당한 삭제도 막혔던 부작용)
-  // 데이터 손실 방지는 동기 IPC(#44) + 다중 백업 슬롯이 담당
-  if (fs.existsSync(filePath)) {
+  // 백업 만들 때는 마이그레이션 안 된 케이스도 대비 — 직전 버전이 flat에만 있을 수 있음.
+  const prevPath = _resolveProjectJsonPath(project.id);
+
+  if (prevPath && fs.existsSync(prevPath)) {
     try {
-      // 롤링 백업: 정상 저장 전 직전 버전 보존 (단일 _backup)
-      const backupPath = path.join(PROJECTS_DIR, `${project.id}_backup.json`);
-      fs.copyFileSync(filePath, backupPath);
+      // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
+      try { fs.copyFileSync(prevPath, paths.backup); } catch (_) {}
 
-      // 다중 백업: 시간 기반 5개 슬롯 (사용자가 며칠 전 상태로 복원 가능)
-      // 슬롯 키: 가장 오래된 슬롯을 덮어쓰는 라운드로빈 방식 (10분 이상 차이날 때만 새 슬롯 생성)
+      // 다중 백업: 시간 기반 5개 슬롯 — 신 위치 디렉터리 안 history/
       try {
-        const histDir = path.join(PROJECTS_DIR, `${project.id}_history`);
+        const histDir = paths.history;
         if (!fs.existsSync(histDir)) fs.mkdirSync(histDir, { recursive: true });
         const slots = fs.readdirSync(histDir).filter(f => f.endsWith('.json')).sort();
         const now = Date.now();
@@ -535,7 +633,7 @@ ipcMain.handle('projects:save', async (event, project) => {
         // 직전 슬롯과 10분 이상 차이날 때만 새 스냅샷 추가 (저장 폭주 방지)
         if (now - lastSlotTs > 10 * 60 * 1000) {
           const newSlot = path.join(histDir, `${now}.json`);
-          fs.copyFileSync(filePath, newSlot);
+          fs.copyFileSync(prevPath, newSlot);
           // 5개 초과 시 가장 오래된 슬롯 제거
           const refreshed = fs.readdirSync(histDir).filter(f => f.endsWith('.json')).sort();
           while (refreshed.length > 5) {
@@ -549,7 +647,7 @@ ipcMain.handle('projects:save', async (event, project) => {
     } catch {}
   }
 
-  fs.writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf8');
+  _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
   // claude-pm/project.meta.json title 동기화 (PM 폴더 있을 때만, best-effort)
   try { await syncClaudePmTitle(PROJECTS_DIR, project.id, project.name); } catch {}
   return { ok: true };
@@ -561,13 +659,14 @@ ipcMain.handle('projects:save', async (event, project) => {
 ipcMain.on('projects:save-sync', (event, project) => {
   try {
     if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
-    const filePath = path.join(PROJECTS_DIR, `${project.id}.json`);
-    if (fs.existsSync(filePath)) {
+    // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
+    const paths = _ensureNewLayoutPaths(project.id);
+    const prevPath = _resolveProjectJsonPath(project.id);
+    if (prevPath && fs.existsSync(prevPath)) {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
-      const backupPath = path.join(PROJECTS_DIR, `${project.id}_backup.json`);
-      try { fs.copyFileSync(filePath, backupPath); } catch {}
+      try { fs.copyFileSync(prevPath, paths.backup); } catch {}
     }
-    fs.writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf8');
+    _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
     // claude-pm title 동기화 — sync 경로에서는 fire-and-forget (returnValue를 막지 않음)
     Promise.resolve()
       .then(() => syncClaudePmTitle(PROJECTS_DIR, project.id, project.name))
@@ -585,24 +684,32 @@ ipcMain.handle('projects:delete', (event, id) => {
   if (!safeId || safeId.includes('/') || safeId.includes('\\') || /^\.+$/.test(safeId)) {
     return false;
   }
-  // 본 JSON + _meta.json + _backup.json 삭제
-  const filePath = path.join(PROJECTS_DIR, `${safeId}.json`);
-  const metaPath = path.join(PROJECTS_DIR, `${safeId}_meta.json`);
-  const backupPath = path.join(PROJECTS_DIR, `${safeId}_backup.json`);
-  if (fs.existsSync(filePath))   fs.unlinkSync(filePath);
-  if (fs.existsSync(metaPath))   fs.unlinkSync(metaPath);
-  if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
-  // 프로젝트 디렉터리 (claude-pm/ + images/ + assets/ + 기타 잔재) 통째 삭제
+  // 번들 레이아웃: proj_<id>/ 디렉터리 한 방 삭제 (proj.json/proj_backup.json/proj_meta.json/proj_history/claude-pm/assets/images 포함)
   // path.resolve로 base 밖 탈출 2차 방어
+  const projectsBase = path.resolve(PROJECTS_DIR);
   const dirPath = path.resolve(PROJECTS_DIR, safeId);
   let dirOk = true;
-  if (dirPath.startsWith(path.resolve(PROJECTS_DIR) + path.sep) && fs.existsSync(dirPath)) {
+  if (dirPath.startsWith(projectsBase + path.sep) && fs.existsSync(dirPath)) {
     try { fs.rmSync(dirPath, { recursive: true, force: true }); }
     catch (e) {
       // partial delete — 호출측에 false 반환해 알림 (codex Medium fix)
       console.error('[projects:delete] dir 삭제 실패:', e.message, 'path:', dirPath);
       dirOk = false;
     }
+  }
+  // 마이그레이션 안 된 flat 잔재 best-effort cleanup
+  // (proj_<id>.json / proj_<id>_meta.json / proj_<id>_backup.json / proj_<id>_history/)
+  const flatCandidates = [
+    path.join(PROJECTS_DIR, `${safeId}.json`),
+    path.join(PROJECTS_DIR, `${safeId}_meta.json`),
+    path.join(PROJECTS_DIR, `${safeId}_backup.json`),
+  ];
+  for (const p of flatCandidates) {
+    try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch (_) {}
+  }
+  const flatHist = path.join(PROJECTS_DIR, `${safeId}_history`);
+  if (flatHist.startsWith(projectsBase + path.sep)) {
+    try { if (fs.existsSync(flatHist)) fs.rmSync(flatHist, { recursive: true, force: true }); } catch (_) {}
   }
   return dirOk;
 });
@@ -613,14 +720,18 @@ ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {
       return { ok: false, error: 'sourceProjectId 필수', code: 'invalid' };
     if (!/^proj_\d+$/.test(sourceProjectId))
       return { ok: false, error: 'proj_* 만 복제 가능', code: 'not_proj' };
-    const srcJsonPath = path.join(PROJECTS_DIR, `${sourceProjectId}.json`);
-    if (!fs.existsSync(srcJsonPath))
+    // source dual-read — 신 위치 우선, flat fallback
+    const srcJsonPath = _resolveProjectJsonPath(sourceProjectId);
+    if (!srcJsonPath || !fs.existsSync(srcJsonPath))
       return { ok: false, error: '원본 프로젝트 없음', code: 'no_source' };
 
-    // 새 ID — 동일 ms 빠른 연속 호출 방어
+    // 새 ID — 동일 ms 빠른 연속 호출 방어. 신/구 둘 다 충돌 체크.
     let newId, t = Date.now();
     do { newId = `proj_${t}`; t++; }
-    while (fs.existsSync(path.join(PROJECTS_DIR, `${newId}.json`)));
+    while (
+      fs.existsSync(path.join(PROJECTS_DIR, newId)) ||              // 신 디렉터리
+      fs.existsSync(path.join(PROJECTS_DIR, `${newId}.json`))        // flat 잔재
+    );
 
     // JSON 복사 + 메타 갱신
     const src = JSON.parse(fs.readFileSync(srcJsonPath, 'utf8'));
@@ -655,6 +766,7 @@ ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {
     walkRewrite(dup);
 
     // 자산 폴더 복사 — tmp → rename으로 원자성
+    // source 디렉터리는 항상 PROJECTS_DIR/<sourceProjectId>/ (claude-pm/images/assets 등은 이미 신 레이아웃)
     const srcDir = path.join(PROJECTS_DIR, sourceProjectId);
     const dstDir = path.join(PROJECTS_DIR, newId);
     const tmpDir = path.join(PROJECTS_DIR, `.${newId}.tmp`);
@@ -674,21 +786,24 @@ ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {
       }
     }
 
-    // JSON 쓰기 (실패 시 dstDir 롤백)
+    // 신 레이아웃 경로 보장 (assets/images 복사가 없었던 경우에도 폴더 생성)
+    const targetPaths = _ensureNewLayoutPaths(newId);
+
+    // proj.json 쓰기 (atomic). 실패 시 dstDir 롤백.
     try {
-      fs.writeFileSync(path.join(PROJECTS_DIR, `${newId}.json`), JSON.stringify(dup, null, 2), 'utf8');
+      _atomicWriteFileSync(targetPaths.proj, JSON.stringify(dup, null, 2));
     } catch (e) {
       try { fs.rmSync(dstDir, { recursive: true, force: true }); } catch {}
       return { ok: false, error: `JSON 쓰기 실패: ${e.message}`, code: 'io' };
     }
 
-    // _meta.json 복사 (thumbnail 보존)
-    const srcMeta = path.join(PROJECTS_DIR, `${sourceProjectId}_meta.json`);
-    if (fs.existsSync(srcMeta)) {
+    // meta 복사 (thumbnail 보존) — source dual-read, target은 신 위치 atomic
+    const srcMeta = _resolveMetaJsonPath(sourceProjectId);
+    if (srcMeta && fs.existsSync(srcMeta)) {
       try {
         const meta = JSON.parse(fs.readFileSync(srcMeta, 'utf8'));
         meta.id = newId; meta.name = baseName; meta.updatedAt = now;
-        fs.writeFileSync(path.join(PROJECTS_DIR, `${newId}_meta.json`), JSON.stringify(meta, null, 2), 'utf8');
+        _atomicWriteFileSync(targetPaths.meta, JSON.stringify(meta, null, 2));
       } catch (e) { console.warn('[projects:duplicate] meta 복사 실패:', e.message); }
     }
 
@@ -701,14 +816,16 @@ ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {
 
 /* ── IPC: Projects Meta (branches/commits/thumbnail 분리 저장) ── */
 ipcMain.handle('projects:save-meta', (event, projectId, metaData) => {
-  const filePath = path.join(PROJECTS_DIR, `${projectId}_meta.json`);
-  fs.writeFileSync(filePath, JSON.stringify(metaData, null, 2), 'utf8');
+  // write는 항상 신 위치 — proj_<id>/proj_meta.json
+  const paths = _ensureNewLayoutPaths(projectId);
+  _atomicWriteFileSync(paths.meta, JSON.stringify(metaData, null, 2));
   return { ok: true };
 });
 
 ipcMain.handle('projects:load-meta', (event, projectId) => {
-  const filePath = path.join(PROJECTS_DIR, `${projectId}_meta.json`);
-  if (!fs.existsSync(filePath)) return null;
+  // read는 dual fallback — 신 우선, flat fallback
+  const filePath = _resolveMetaJsonPath(projectId);
+  if (!filePath) return null;
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 });
 
@@ -1044,6 +1161,28 @@ function setupAutoUpdater() {
 
 /* ── App lifecycle ── */
 app.whenReady().then(async () => {
+  // 프로젝트 데이터 번들 레이아웃 마이그레이션 (flat → proj_<id>/ 디렉터리)
+  // copy-then-verify 패턴이라 실패해도 flat 원본 보존 → 앱 시작 차단 X.
+  // 머지 전이라 migrator 모듈이 없을 수 있어 best-effort.
+  try {
+    const migrator = _getMigrator();
+    if (migrator && typeof migrator.migrateAll === 'function') {
+      const result = await migrator.migrateAll(PROJECTS_DIR, {
+        log: (lvl, msg) => console.log(`[migrator:${lvl}] ${msg}`),
+      });
+      console.log(
+        `[migrator] migrated=${(result?.migrated || []).length},`,
+        `skipped=${(result?.skipped || []).length},`,
+        `failed=${(result?.failed || []).length}`
+      );
+    } else {
+      console.log('[migrator] module not present — dual-read fallback active');
+    }
+  } catch (e) {
+    console.error('[migrator] startup migration failed:', e);
+    // 실패해도 앱은 계속 — IPC 핸들러의 flat fallback이 read 경로 보장
+  }
+
   createWindow();
   watchFiles();
   // 개발 모드에서는 자동업데이트 스킵
