@@ -185,8 +185,13 @@
           st.panelState.top = lastTop;
           st.panelState.width = panel.offsetWidth;
           st.panelState.height = panel.offsetHeight;
-          _savePanelState(_activeProjectId, st.panelState);
           if (st.fitAddon) { try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {} }
+          // fit() 이후 cols/rows 캡처 — 최소화→복원 정확성 향상
+          if (st.term && Number.isFinite(st.term.cols) && Number.isFinite(st.term.rows)) {
+            st.panelState.cols = st.term.cols;
+            st.panelState.rows = st.term.rows;
+          }
+          _savePanelState(_activeProjectId, st.panelState);
         }
       };
       document.addEventListener('mousemove', onMove);
@@ -304,10 +309,15 @@
       st.panelState.top = newT;
       st.panelState.width = newW;
       st.panelState.height = newH;
-      _savePanelState(_activeProjectId, st.panelState);
       if (st.fitAddon) {
         try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {}
       }
+      // fit() 이후 cols/rows 캡처 — 최소화→복원 정확성 향상
+      if (st.term && Number.isFinite(st.term.cols) && Number.isFinite(st.term.rows)) {
+        st.panelState.cols = st.term.cols;
+        st.panelState.rows = st.term.rows;
+      }
+      _savePanelState(_activeProjectId, st.panelState);
     }
   }
   function _stopResizerDrag() {
@@ -588,7 +598,8 @@
 
   function minimizeClaudePMTerminalPanel() {
     if (!_panelEl) return;
-    // panelState 저장 (현재 위치/크기)
+    // panelState 저장 (현재 위치/크기 + xterm cols/rows)
+    // display:none *이전*에 getBoundingClientRect로 정확한 width/height 캡처
     if (_activeProjectId) {
       const st = _projectStates[_activeProjectId];
       if (st) {
@@ -598,6 +609,13 @@
         if (_panelEl.style.top)   st.panelState.top  = parseFloat(_panelEl.style.top);
         st.panelState.width = rect.width;
         st.panelState.height = rect.height;
+        // 현재 xterm cols/rows를 같이 저장 — restore 시 fit() 결과 의존도 줄이는 안전망.
+        // 패널 transition / display 토글 타이밍에 fit()이 임시 width=0을 보더라도
+        // 직접 term.resize(cols, rows)로 복원 가능.
+        if (st.term && Number.isFinite(st.term.cols) && Number.isFinite(st.term.rows)) {
+          st.panelState.cols = st.term.cols;
+          st.panelState.rows = st.term.rows;
+        }
         _savePanelState(_activeProjectId, st.panelState);
       }
     }
@@ -614,23 +632,74 @@
     if (_miniEl) _miniEl.classList.remove('cpmt-mini-pulsing');
     if (_miniDotTimer) { clearTimeout(_miniDotTimer); _miniDotTimer = null; }
     // active 프로젝트의 panelState 복원
-    if (_activeProjectId) {
-      const st = _projectStates[_activeProjectId];
-      _applyPanelState(st && st.panelState);
+    const st = _activeProjectId && _projectStates[_activeProjectId];
+    if (st) {
+      _applyPanelState(st.panelState);
     }
     _panelEl.style.display = 'flex';
-    // fit() 호출은 display:flex가 layout commit된 후로 미룬다 (double RAF).
-    // 같은 frame에서 즉시 fit() 호출 시 패널 width=0으로 계산되어 cols가 매우 작게 잡혀
-    // 복원 후 텍스트가 5~10자로 쏠려 보이는 버그 회귀 방지.
+
+    // [team-b fix] 최소화→복원 cols 좌쏠림 재발 방지.
+    //
+    // 기존 double-RAF 방식은 layout commit 직후(~16ms) fit()을 호출하지만,
+    // CSS transition(0.18s)이 끝나기 전이라 fit()이 transient width를 잘못
+    // 채집할 수 있다. 또한 ResizeObserver가 중간 width로 fit()을 다시
+    // 호출하면 cols가 잘못 fix될 수 있음.
+    //
+    // 전략:
+    //  1) panelState에 저장된 cols/rows가 있으면 term.resize(cols, rows)로
+    //     즉시 정확한 dimension 복원 (display:flex 직후 1 RAF 후).
+    //     → fit() 결과에 의존하지 않으므로 transition 중에도 안전.
+    //  2) transition 완료 시점(transitionend 또는 230ms fallback)에 fit() 한 번
+    //     더 호출해 픽셀 정밀 align (잔여 오차 보정).
+    //  3) 저장된 cols/rows 없으면 (구버전 panelState) 기존 double-RAF 경로로 폴백.
+    const savedCols = st && st.panelState && Number.isFinite(st.panelState.cols) ? st.panelState.cols : null;
+    const savedRows = st && st.panelState && Number.isFinite(st.panelState.rows) ? st.panelState.rows : null;
+
     requestAnimationFrame(() => {
       _panelEl.classList.add('cpmt-open');
-      requestAnimationFrame(() => {
-        const st = _activeProjectId && _projectStates[_activeProjectId];
-        if (st && st.fitAddon) {
-          try { st.fitAddon.fit(); _notifyResize(st); } catch (_) {}
+      // 1) 저장된 cols/rows 우선 복원
+      if (st && st.term && savedCols && savedRows) {
+        try {
+          st.term.resize(savedCols, savedRows);
+          _notifyResize(st);
+        } catch (_) {}
+      } else {
+        // 폴백: 기존 double-RAF + fit() (첫 진입자 or 구버전 panelState)
+        requestAnimationFrame(() => {
+          const s = _activeProjectId && _projectStates[_activeProjectId];
+          if (s && s.fitAddon) {
+            try { s.fitAddon.fit(); _notifyResize(s); } catch (_) {}
+          }
+        });
+      }
+
+      // 2) transition 종료 후 fit()으로 잔여 오차 보정 — 한 번만 트리거
+      let finalizeDone = false;
+      let fallbackTimer = null;
+      const onTrEnd = (e) => {
+        // transform 또는 opacity 끝났을 때만 (transition 정의 기준)
+        if (e.target !== _panelEl) return;
+        if (e.propertyName !== 'transform' && e.propertyName !== 'opacity') return;
+        finalize();
+      };
+      const finalize = () => {
+        if (finalizeDone) return;
+        finalizeDone = true;
+        _panelEl.removeEventListener('transitionend', onTrEnd);
+        if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+        // 가드: 패널이 현재 보이고 cpmt-open 상태일 때만 fit() 실행.
+        // (사용자가 finalize 전에 다시 minimize / close 한 경우 width=0 함정 회피)
+        if (!_panelEl || _panelEl.style.display === 'none' || !_panelEl.classList.contains('cpmt-open')) return;
+        const s = _activeProjectId && _projectStates[_activeProjectId];
+        if (s && s.fitAddon) {
+          try { s.fitAddon.fit(); _notifyResize(s); } catch (_) {}
         }
-      });
+      };
+      _panelEl.addEventListener('transitionend', onTrEnd);
+      // 폴백 — 0.18s transition + 마진. transitionend 안 오는 케이스(prefers-reduced-motion 등) 대비.
+      fallbackTimer = setTimeout(finalize, 230);
     });
+
     _bindEsc();
   }
 
