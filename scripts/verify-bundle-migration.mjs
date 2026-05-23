@@ -190,13 +190,12 @@ async function loadMigrator() {
   }
   try {
     const mod = await import(pathToFileURL(found).href);
-    // migrator는 migrateAll({ projectsDir, dryRun, logger })를 export 한다고 가정.
-    // 기대 시그니처는 plan 문서 + handleEnsureClaudePMFolder 패턴 기준.
+    // 실제 시그니처: migrateAll(projectsDir, { dryRun, log }) → { migrated:string[], skipped:string[], failed:Array, logPath:string }
     if (typeof mod.migrateAll !== 'function') {
       console.error(`[verify] ERROR: migrator 모듈에 migrateAll() export가 없다 — ${found}`);
       console.error('         팀 1이 어떻게 export 했는지 확인 필요. 다음 이름들을 발견:');
       for (const k of Object.keys(mod)) console.error(`           - ${k}`);
-      console.error('         기대 시그니처: migrateAll({ projectsDir, dryRun, logger }) → { summary: { migrated, skipped, failed }, ... }');
+      console.error('         기대 시그니처: migrateAll(projectsDir, { dryRun, log }) → { migrated, skipped, failed, logPath }');
       process.exit(69);
     }
     return { module: mod, source: found };
@@ -231,7 +230,7 @@ async function modeDryRun(copyDir) {
   console.log('\n[verify] STEP 1 — migrateAll({ dryRun: true })');
   let dryRes;
   try {
-    dryRes = await migrator.migrateAll({ projectsDir: copyDir, dryRun: true, logger: console });
+    dryRes = await migrator.migrateAll(copyDir, { dryRun: true, log: (lvl, msg) => console.log(`[migrator:${lvl}]`, msg) });
   } catch (e) {
     report.fail('dryRun=true 호출 실패', e.message);
     return report.print();
@@ -271,7 +270,7 @@ async function modeDryRun(copyDir) {
   console.log('\n[verify] STEP 2 — migrateAll({ dryRun: false })');
   let realRes;
   try {
-    realRes = await migrator.migrateAll({ projectsDir: copyDir, dryRun: false, logger: console });
+    realRes = await migrator.migrateAll(copyDir, { dryRun: false, log: (lvl, msg) => console.log(`[migrator:${lvl}]`, msg) });
   } catch (e) {
     report.fail('dryRun=false 호출 실패', e.message);
     return report.print();
@@ -380,14 +379,15 @@ async function modeDryRun(copyDir) {
   console.log('\n[verify] STEP 3 — migrateAll 재호출 (멱등성)');
   let idem;
   try {
-    idem = await migrator.migrateAll({ projectsDir: copyDir, dryRun: false, logger: console });
+    idem = await migrator.migrateAll(copyDir, { dryRun: false, log: (lvl, msg) => console.log(`[migrator:${lvl}]`, msg) });
   } catch (e) {
     report.fail('멱등 재호출 실패', e.message);
     return report.print();
   }
   // 기대: summary.migrated == 0, failed == 0
   const sum = idem?.summary || idem || {};
-  if ((sum.migrated ?? 0) === 0 && (sum.failed ?? 0) === 0) {
+  const _len = (v) => Array.isArray(v) ? v.length : (typeof v === 'number' ? v : 0);
+  if (_len(sum.migrated) === 0 && _len(sum.failed) === 0) {
     report.ok('멱등성 OK — 두 번째 호출 migrated=0, failed=0', JSON.stringify(sum));
   } else {
     report.fail('멱등성 실패', `결과: ${JSON.stringify(sum)}`);
@@ -594,7 +594,7 @@ async function modeKill9(copyDir) {
   console.log('\n[verify] migrateAll 재호출 (partial 상태에서 복구 시도)');
   let retry;
   try {
-    retry = await migrator.migrateAll({ projectsDir: copyDir, dryRun: false, logger: console });
+    retry = await migrator.migrateAll(copyDir, { dryRun: false, log: (lvl, msg) => console.log(`[migrator:${lvl}]`, msg) });
   } catch (e) {
     report.fail('재호출 중 예외', e.message);
     return report.print();
@@ -619,13 +619,14 @@ async function modeKill9(copyDir) {
   console.log('\n[verify] 한번 더 재호출 (멱등성 재확인)');
   let again;
   try {
-    again = await migrator.migrateAll({ projectsDir: copyDir, dryRun: false, logger: console });
+    again = await migrator.migrateAll(copyDir, { dryRun: false, log: (lvl, msg) => console.log(`[migrator:${lvl}]`, msg) });
   } catch (e) {
     report.fail('멱등 재호출 실패', e.message);
     return report.print();
   }
   const sum = again?.summary || again || {};
-  if ((sum.migrated ?? 0) === 0 && (sum.failed ?? 0) === 0) {
+  const _len = (v) => Array.isArray(v) ? v.length : (typeof v === 'number' ? v : 0);
+  if (_len(sum.migrated) === 0 && _len(sum.failed) === 0) {
     report.ok('partial 복구 후 멱등성 OK', JSON.stringify(sum));
   } else {
     report.fail('partial 복구 후 멱등성 실패', JSON.stringify(sum));
