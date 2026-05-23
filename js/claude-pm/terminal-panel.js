@@ -76,7 +76,7 @@
           <span class="cpmt-folder" id="cpmt-folder"></span>
         </span>
         <div class="cpmt-actions">
-          <input type="range" class="cpmt-opacity-slider" min="30" max="100" value="100" title="투명도 조절">
+          <input type="range" class="cpmt-opacity-slider" min="20" max="100" value="100" title="투명도 조절">
           <button class="cpmt-btn" type="button" data-cpmt-action="restart" title="재시작">↻</button>
           <button class="cpmt-btn" type="button" data-cpmt-action="minimize" title="최소화">▭</button>
           <button class="cpmt-btn cpmt-close" type="button" data-cpmt-action="close" title="닫기">✕</button>
@@ -96,7 +96,7 @@
     if (slider) {
       const _OPACITY_LS_KEY = 'cpmt-bg-opacity';
       let saved = parseInt(localStorage.getItem(_OPACITY_LS_KEY) || '100', 10);
-      if (!(saved >= 30 && saved <= 100)) saved = 100;
+      if (!(saved >= 20 && saved <= 100)) saved = 100;
       slider.value = String(saved);
       panel.style.setProperty('--cpmt-bg-alpha', (saved / 100).toFixed(2));
       const _onOpacity = (e) => {
@@ -365,10 +365,13 @@
       fontSize: 12,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       theme: {
-        background: '#0f0f10',
+        // rgba + allowTransparency 짝 — xterm canvas가 자기 배경을 덮지 않게.
+        // 실제 어두운 톤은 .cpmt-body 의 rgba(15,15,16, --cpmt-bg-alpha)가 그려준다.
+        background: 'rgba(15, 15, 16, 0)',
         foreground: '#e6e6e6',
         cursor: '#6b9eff',
       },
+      allowTransparency: true,
       convertEol: true,
       scrollback: 5000,
     });

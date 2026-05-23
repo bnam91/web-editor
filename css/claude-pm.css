@@ -359,10 +359,14 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   z-index: 10001; /* 좌측 패널(9999)·AI 패널·폴더 모달(10000) 위 */
   /* --cpmt-bg-alpha는 슬라이더가 설정 (기본 1 = 불투명) */
   background: rgba(15, 15, 16, var(--cpmt-bg-alpha, 1));
+  /* 뒤가 비치는 게 명확히 보이게 backdrop blur (codecast 패턴) */
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
   border-left: 1px solid var(--ui-border-mid, #2a2a2e);
   display: none;
   flex-direction: column;
-  box-shadow: -8px 0 24px rgba(0,0,0,0.45);
+  /* alpha가 낮을수록 shadow도 옅게 — 알파가 100%일 때만 짙음 */
+  box-shadow: -8px 0 24px rgba(0, 0, 0, calc(var(--cpmt-bg-alpha, 1) * 0.45));
   transform: translateX(100%);
   opacity: 0;
   transition: transform 0.18s ease-out, opacity 0.18s ease-out;
@@ -396,7 +400,8 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px 8px 14px;
-  background: #18181b;
+  /* alpha를 따라가게 — 자식이 panel root의 rgba를 가리지 않도록 */
+  background: rgba(24, 24, 27, var(--cpmt-bg-alpha, 1));
   border-bottom: 1px solid #2a2a2e;
   user-select: none;
   cursor: move;
@@ -488,7 +493,8 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   flex: 1 1 auto;
   min-height: 0;
   padding: 4px 4px 0 4px;
-  background: #0f0f10;
+  /* alpha를 따라가게 — 패널의 가장 큰 영역. 이게 root rgba를 가리던 주범. */
+  background: rgba(15, 15, 16, var(--cpmt-bg-alpha, 1));
   overflow: hidden;
 }
 .cpmt-body .xterm {
@@ -496,11 +502,15 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   width: 100%;
 }
 .cpmt-body .xterm-viewport { background: transparent !important; }
+/* xterm 내부 canvas/layer도 자기 배경 칠하지 않게 — allowTransparency:true 와 짝 */
+.cpmt-body .xterm,
+.cpmt-body .xterm-screen { background: transparent !important; }
 
 .cpmt-footer {
   flex: 0 0 auto;
   padding: 4px 12px;
-  background: #18181b;
+  /* alpha를 따라가게 */
+  background: rgba(24, 24, 27, var(--cpmt-bg-alpha, 1));
   border-top: 1px solid #2a2a2e;
   font-size: 11px;
   color: #777;
