@@ -1206,7 +1206,10 @@ app.whenReady().then(async () => {
 
 // ─── Phase 2 — renderer 측 write helper ────────────────────────────────────
 // PM Claude의 MCP add_text_block 호출이 main을 거쳐 renderer의 window.addTextBlock을 호출.
-// 동시수정 가드(사용자 편집/최근 키 입력/in-flight)를 renderer 측에서 평가한 뒤 통과 시에만 추가.
+// Codex 2차 리뷰 반영:
+//   (1) 가드 + 호출을 *단일 atomic IIFE*로 합침 — 두 executeJavaScript 사이 race 차단
+//   (2) _autoSaveInFlight 가드 제거 — save-load.js의 _isSavingToFile는 module-local이라 가드 작동 안 함.
+//       active editing + recent key 두 가드로 충분
 async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
@@ -1214,9 +1217,14 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId 
   if (mainWindow.isMinimized()) {
     return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
   }
-  // 1. 가드 평가 (renderer 측 — 사용자가 편집 중인지)
-  const guardJs = `(() => {
+  // type/content/sectionId는 mcp-server에서 whitelist+길이 검증 후 들어옴. JSON.stringify로 escape.
+  const safeType = JSON.stringify(String(type));
+  const safeContent = JSON.stringify(String(content));
+  const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  // 단일 atomic IIFE — 가드 + 섹션 보장 + addTextBlock + before/after 측정 + return
+  const atomicJs = `(() => {
     try {
+      // ── 동시수정 가드 (atomic, renderer 한 frame 안에서 평가) ──
       const ae = document.activeElement;
       const userEditing = !!(ae && (
         ae.isContentEditable ||
@@ -1225,58 +1233,37 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId 
       ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
       const lastKey = window._lastUserKeydown || 0;
       const recentKey = (Date.now() - lastKey) < 1500;
-      const autoSaveInFlight = !!window._autoSaveInFlight;
-      return { userEditing, recentKey, autoSaveInFlight };
-    } catch (e) { return { error: e.message }; }
-  })()`;
-  let guard;
-  try {
-    guard = await mainWindow.webContents.executeJavaScript(guardJs, true);
-  } catch (e) {
-    throw new Error('guard eval failed: ' + e.message);
-  }
-  if (guard && (guard.userEditing || guard.recentKey || guard.autoSaveInFlight)) {
-    return {
-      ok: false,
-      code: 'USER_BUSY',
-      message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.',
-      retryAfter: 2000,
-      detail: guard,
-    };
-  }
-  // 2. 실제 호출 — type은 mcp-server 측에서 whitelist 검증 후 들어옴.
-  //    content는 JSON.stringify로 안전 escape. sectionId는 optional.
-  const safeType = JSON.stringify(String(type));
-  const safeContent = JSON.stringify(String(content));
-  const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
-  const callJs = `(() => {
-    try {
+      if (userEditing || recentKey) {
+        return {
+          ok: false,
+          code: 'USER_BUSY',
+          message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.',
+          retryAfter: 2000,
+          detail: { userEditing, recentKey }
+        };
+      }
+      // ── 실제 호출 ──
       if (typeof window.addTextBlock !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.addTextBlock not found' };
       }
-      // 1) sectionId 주어지면 그걸로 선택
       const sid = ${safeSectionId};
       if (sid && typeof window.selectSection === 'function') {
         const target = document.getElementById(sid) || document.querySelector('[data-section-id="' + sid + '"]');
         if (target) { try { window.selectSection(target); } catch (_) {} }
       }
-      // 2) 그래도 활성 section 없으면 첫 섹션 자동 선택 — PM 호출 시 '선택된 섹션 없음' 무응답 회피
       if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
           && typeof window.selectSection === 'function') {
-        const firstSec = document.querySelector('section[data-section-id], .section, [class~="section"]')
-          || document.querySelector('[id^="sec_"]');
-        if (firstSec) {
-          try { window.selectSection(firstSec); } catch (_) {}
-        }
+        const firstSec = document.querySelector('[id^="sec_"]');
+        if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
       }
       const before = document.querySelectorAll('.text-block').length;
       window.addTextBlock(${safeType}, { content: ${safeContent} });
       const blocks = document.querySelectorAll('.text-block');
       const after = blocks.length;
-      const newBlock = after > before ? blocks[blocks.length - 1] : null;
       if (after <= before) {
-        return { ok: false, code: 'NO_SECTION', message: '활성 섹션이 없어 블록을 추가하지 못했습니다. 사용자가 캔버스에서 섹션을 먼저 선택해주세요.' };
+        return { ok: false, code: 'NO_SECTION', message: '활성 섹션이 없어 블록을 추가하지 못했습니다.' };
       }
+      const newBlock = blocks[blocks.length - 1];
       return {
         ok: true,
         blockId: newBlock?.id || null,
@@ -1287,7 +1274,7 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId 
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {
-    return await mainWindow.webContents.executeJavaScript(callJs, true);
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('addTextBlock call failed: ' + e.message);
   }
