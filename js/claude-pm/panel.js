@@ -266,6 +266,23 @@
     if (hint) hint.textContent = connected
       ? 'Claude Code가 이 프로젝트를 인식 중입니다.'
       : 'Claude Code에서 .mcp.json을 추가하면 연결됩니다.';
+    // ensure 성공으로 PM 폴더가 이미 자동 생성된 프로젝트에선 "만들기" 버튼 숨김.
+    // 판단: claudePM:folderMap[activeProjectId]에 경로가 기록되어 있으면 ensure 성공한 것.
+    const createBtn = _panelEl.querySelector('[data-cpm-action="create-folder"]');
+    if (createBtn) {
+      let hasAutoFolder = false;
+      try {
+        const pid = window.activeProjectId;
+        if (pid) {
+          const raw = localStorage.getItem('claudePM:folderMap');
+          if (raw) {
+            const map = JSON.parse(raw);
+            if (map && typeof map === 'object' && map[pid]) hasAutoFolder = true;
+          }
+        }
+      } catch (_) {}
+      createBtn.style.display = hasAutoFolder ? 'none' : '';
+    }
   }
 
   // ── MCP ping (5s interval) ───────────────

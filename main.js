@@ -26,7 +26,7 @@ const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
-const { registerClaudePMIPC, setActualMcpPort } = require('./main/claude-pm/ipc');
+const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
 const { startMcpServer, stopMcpServer } = require('./main/claude-pm/mcp-server');
 
@@ -511,7 +511,7 @@ function _countSections(proj) {
   return (c.match(/section-block/g)?.length || 0);
 }
 
-ipcMain.handle('projects:save', (event, project) => {
+ipcMain.handle('projects:save', async (event, project) => {
   const filePath = path.join(PROJECTS_DIR, `${project.id}.json`);
 
   // 백업만 수행 — 페이지/섹션 감소 차단 가드는 제거 (정당한 삭제도 막혔던 부작용)
@@ -550,6 +550,8 @@ ipcMain.handle('projects:save', (event, project) => {
   }
 
   fs.writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf8');
+  // claude-pm/project.meta.json title 동기화 (PM 폴더 있을 때만, best-effort)
+  try { await syncClaudePmTitle(PROJECTS_DIR, project.id, project.name); } catch {}
   return { ok: true };
 });
 
@@ -566,6 +568,10 @@ ipcMain.on('projects:save-sync', (event, project) => {
       try { fs.copyFileSync(filePath, backupPath); } catch {}
     }
     fs.writeFileSync(filePath, JSON.stringify(project, null, 2), 'utf8');
+    // claude-pm title 동기화 — sync 경로에서는 fire-and-forget (returnValue를 막지 않음)
+    Promise.resolve()
+      .then(() => syncClaudePmTitle(PROJECTS_DIR, project.id, project.name))
+      .catch(() => {});
     event.returnValue = { ok: true };
   } catch (e) {
     console.error('[projects:save-sync] 저장 실패:', e);

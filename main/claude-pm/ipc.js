@@ -44,6 +44,34 @@ function _legacyBasePath() {
   return path.join(os.homedir(), 'Documents', 'claude-pm-projects');
 }
 
+// 메인 스토어(<projectsDir>/<id>.json `name`)와 claude-pm/project.meta.json `title` 동기화.
+// 폴더가 없으면(=PM 폴더 미생성 프로젝트) silent skip. title 변경 없으면 noop.
+async function syncClaudePmTitle(projectsDir, projectId, name) {
+  const pid = sanitizeProjectId(projectId);
+  if (!projectsDir || !pid || !name) return false;
+  const folder = path.join(projectsDir, pid, 'claude-pm');
+  const metaPath = path.join(folder, 'project.meta.json');
+  if (!fs.existsSync(metaPath)) return false;
+  try {
+    const current = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    if (current && current.title === name) return false;
+    const tg = await _tryImportTemplateGenerator();
+    if (tg && typeof tg.updateMeta === 'function') {
+      await tg.updateMeta(folder, { title: name });
+      return true;
+    }
+    // template-generator 로드 실패 fallback — title 필드만 패치 (CLAUDE.md 재생성 X)
+    const next = current && typeof current === 'object' ? current : {};
+    next.title = name;
+    next.updatedAt = new Date().toISOString();
+    fs.writeFileSync(metaPath, JSON.stringify(next, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.warn('[syncClaudePmTitle] 실패:', e.message);
+    return false;
+  }
+}
+
 let MCP_PORT = 9345; // EADDRINUSE fallback 시 main.js가 setActualMcpPort()로 갱신
 function setActualMcpPort(p) {
   if (typeof p === 'number' && p > 0) MCP_PORT = p;
@@ -564,6 +592,7 @@ function registerClaudePMIPC(ipcMain) {
 module.exports = {
   registerClaudePMIPC,
   setActualMcpPort,
+  syncClaudePmTitle,
   // 테스트/디버깅용 export
   _internal: {
     expandHome,
