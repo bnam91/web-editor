@@ -25,32 +25,41 @@
 
 /* ──────────────────────────────────────
    2. Panel (#claude-pm-panel)
-   right:24px; top:80px (AI 패널과 동일 위치)
-   width:360px, slide-in 150ms
+   2026-05-23 — 중앙 모달로 변경 (팀 C — UX)
+   - dim overlay + 중앙 정렬 (settings-modal / folder-create-modal과 동일 패턴)
+   - z-index 9990 → 터미널 패널(10001)이 매니저 dim 위에 표시되어 mutex 옵션 C 구현
+   - 내부 shell(.cpm-panel-shell)은 width 360px 유지
 ────────────────────────────────────── */
 #claude-pm-panel {
   position: fixed;
-  right: 24px;
-  top: 80px;
-  z-index: 9999;
-  width: 360px;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
-  background: var(--ui-bg-base);
-  border: 1px solid var(--ui-border-mid);
-  border-radius: 12px;
-  padding: 0;
+  inset: 0;
+  z-index: 9990;
+  background: rgba(0, 0, 0, 0.55);
   display: none;
-  flex-direction: column;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  align-items: center;
+  justify-content: center;
   font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
-  color: var(--ui-text);
   opacity: 0;
   transition: opacity 0.15s ease-out;
 }
 #claude-pm-panel.cpm-open {
   display: flex;
   opacity: 1;
+}
+
+/* 내부 shell — 실제 컨텐츠 컨테이너 (드래그 이동은 이 shell에 transform 적용) */
+.cpm-panel-shell {
+  width: 360px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  color: var(--ui-text);
 }
 
 /* preview 모드일 때 숨김 */
