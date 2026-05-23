@@ -77,6 +77,8 @@
         </span>
         <div class="cpmt-actions">
           <input type="range" class="cpmt-opacity-slider" min="20" max="100" value="100" title="투명도 조절">
+          <button class="cpmt-btn" type="button" data-cpmt-action="open-finder" title="Finder에서 폴더 열기">🔍</button>
+          <button class="cpmt-btn" type="button" data-cpmt-action="mcp-guide" title=".mcp.json 가이드">ⓘ</button>
           <button class="cpmt-btn" type="button" data-cpmt-action="restart" title="재시작">↻</button>
           <button class="cpmt-btn" type="button" data-cpmt-action="minimize" title="최소화">▭</button>
           <button class="cpmt-btn cpmt-close" type="button" data-cpmt-action="close" title="닫기">✕</button>
@@ -121,6 +123,8 @@
     }
 
     _panelEl = panel;
+    // MCP 상태 dot — 패널 DOM 만들어진 직후 ping 시작 (매니저 패널 없이도 동작).
+    _startDotPing();
     return panel;
   }
 
@@ -252,6 +256,52 @@
     if (action === 'close') closeClaudePMTerminalPanel();
     else if (action === 'restart') _restartActiveSession();
     else if (action === 'minimize') minimizeClaudePMTerminalPanel();
+    else if (action === 'open-finder') _onClickOpenFinder();
+    else if (action === 'mcp-guide') _onClickMcpGuide();
+  }
+
+  // 매니저 패널에서 이전 (2026-05-23 UX 단순화).
+  async function _onClickOpenFinder() {
+    const st = _activeProjectId && _projectStates[_activeProjectId];
+    const folderPath = st && st.folderPath;
+    if (!folderPath) {
+      try { window.showToast?.('🔍 폴더 경로를 찾을 수 없음'); } catch (_) {}
+      return;
+    }
+    try {
+      const res = await window.electronAPI?.openInFinder?.(folderPath);
+      if (!res || !res.ok) {
+        try { window.showToast?.('🔍 Finder 열기 실패: ' + (res?.error || 'electronAPI 없음')); } catch (_) {}
+      }
+    } catch (e) {
+      try { window.showToast?.('🔍 Finder 에러: ' + e.message); } catch (_) {}
+    }
+  }
+  function _onClickMcpGuide() {
+    try { window.showToast?.('ⓘ .mcp.json 가이드 — 본 프로젝트의 PM 폴더 안 .mcp.json이 자동 적용됨'); } catch (_) {}
+  }
+
+  // MCP 헬스 ping — cpmt-dot 색을 연결 상태에 동기화.
+  // 패널 DOM 첫 생성 시 시작, 영구 5초 interval. 매니저 패널이 안 떠도 동작.
+  let _mcpPingTimer = null;
+  async function _pingMcpForDot() {
+    if (!_panelEl) return;
+    const dot = _panelEl.querySelector('.cpmt-dot');
+    if (!dot) return;
+    let connected = false;
+    try {
+      const res = await window.electronAPI?.pingClaudePM?.();
+      connected = !!(res && res.ok && res.connected);
+    } catch (_) { connected = false; }
+    dot.classList.toggle('connected', connected);
+    dot.classList.toggle('disconnected', !connected);
+    // 다른 모듈 참조용 글로벌 상태 동기화
+    try { window._claudePMState && (window._claudePMState.mcpConnected = connected); } catch (_) {}
+  }
+  function _startDotPing() {
+    if (_mcpPingTimer) return;
+    _pingMcpForDot();
+    _mcpPingTimer = setInterval(_pingMcpForDot, 5000);
   }
 
   // Resizer (좌측 핸들 → 너비 변경)

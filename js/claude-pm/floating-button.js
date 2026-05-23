@@ -7,20 +7,45 @@
 (function () {
   'use strict';
 
+  // 활성 프로젝트의 claude-pm 폴더 경로 — terminal-panel.js가 필요로 함.
+  // ensureClaudePMFolder 성공 시 claudePM:folderMap[projectId]에 저장됨.
+  function _resolveActiveFolderPath() {
+    try {
+      const pid = window.activeProjectId;
+      if (!pid) return '';
+      const raw = localStorage.getItem('claudePM:folderMap');
+      if (!raw) return '';
+      const map = JSON.parse(raw);
+      return (map && map[pid]) || '';
+    } catch (_) { return ''; }
+  }
+
   /**
-   * 플로팅 버튼 클릭 핸들러.
-   * - 패널이 열려있으면 닫기 (토글)
-   * - 닫혀있으면 열기
-   * panel.js의 open/closeClaudePMPanel을 위임 호출.
+   * 플로팅 버튼 클릭 핸들러 (2026-05-23 UX 단순화).
+   * - 매니저 패널 단계 제거 → 터미널 패널을 *직접* 토글.
+   * - 기존 매니저 패널 (#claude-pm-panel) 코드는 dead-code로 유지.
+   * - Finder 열기 / MCP 가이드는 터미널 헤더 안에 통합됨.
    */
   function onClickClaudePMBtn() {
-    const panel = document.getElementById('claude-pm-panel');
-    const isOpen = panel && panel.classList.contains('cpm-open');
+    const term = document.getElementById('claude-pm-terminal-panel');
+    const isOpen = term && term.classList.contains('cpmt-open');
+    const mini = document.getElementById('claude-pm-terminal-mini');
+    const miniVisible = mini && getComputedStyle(mini).display !== 'none';
+
     if (isOpen) {
-      window.closeClaudePMPanel?.();
-    } else {
-      window.openClaudePMPanel?.();
+      window.closeClaudePMTerminalPanel?.();
+      return;
     }
+    if (miniVisible) {
+      window.restoreClaudePMTerminalPanel?.();
+      return;
+    }
+    const folderPath = _resolveActiveFolderPath();
+    if (!folderPath) {
+      try { window.showToast?.('💻 활성 프로젝트가 없습니다. 프로젝트를 먼저 여세요.'); } catch (_) {}
+      return;
+    }
+    window.openClaudePMTerminalPanel?.({ folderPath });
   }
 
   window.onClickClaudePMBtn = onClickClaudePMBtn;

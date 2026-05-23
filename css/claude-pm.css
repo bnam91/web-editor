@@ -431,6 +431,16 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   border-radius: 50%;
   background: #6b9eff;
   box-shadow: 0 0 6px rgba(107,158,255,0.6);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+/* MCP 상태 동기화 — terminal-panel.js의 _pingMcpForDot이 클래스 토글 */
+.cpmt-dot.connected {
+  background: #6b9eff;
+  box-shadow: 0 0 6px rgba(107,158,255,0.65);
+}
+.cpmt-dot.disconnected {
+  background: #6b6b70;
+  box-shadow: 0 0 4px rgba(107,107,112,0.45);
 }
 /* xterm 기본 user-select:none override — 출력 텍스트 마우스 선택 가능하게 */
 .cpmt-body .xterm,
