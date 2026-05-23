@@ -295,12 +295,12 @@ async function modeDryRun(copyDir) {
     if (missing.length === 0) {
       report.ok(`신 레이아웃 파일 모두 존재 — ${id}`);
     } else {
-      // proj_backup.json은 첫 저장 전 프로젝트에 없을 수도 있음 → warn
-      const criticalMissing = missing.filter(f => f === 'proj.json' || f === 'proj_meta.json');
+      // proj.json만 critical (메인 store). _meta.json/_backup.json은 원본부터 없는 orphan 가능 → warn
+      const criticalMissing = missing.filter(f => f === 'proj.json');
       if (criticalMissing.length > 0) {
         report.fail(`핵심 파일 누락 — ${id}`, criticalMissing.join(','));
       } else {
-        report.warn(`보조 파일 누락 — ${id}`, missing.join(','));
+        report.warn(`보조 파일 누락 — ${id} (orphan 가능)`, missing.join(','));
       }
     }
     // proj_history 존재 여부는 정보 차원
@@ -314,8 +314,10 @@ async function modeDryRun(copyDir) {
     if (fs.existsSync(marker)) {
       try {
         const m = JSON.parse(fs.readFileSync(marker, 'utf8'));
-        if (m && m.timestamp && (m.sourceLayout || m.schemaVersion !== undefined)) {
-          report.ok(`마이그레이션 마커 OK — ${id}`, `ts=${m.timestamp}`);
+        // 실제 migrator는 migratedAt 필드를 씀 (timestamp는 plan 명세). 둘 다 인정.
+        const ts = m && (m.migratedAt || m.timestamp);
+        if (ts && m && (m.sourceLayout || m.schemaVersion !== undefined)) {
+          report.ok(`마이그레이션 마커 OK — ${id}`, `ts=${ts}`);
         } else {
           report.warn(`마이그레이션 마커 필드 부족 — ${id}`, JSON.stringify(m).slice(0, 100));
         }

@@ -255,6 +255,19 @@ function ensureNewLayoutPaths(projectsDir, projectId) {
 //   (a) flat `<id>.json` 파일 — 진짜 마이그레이션 대상
 //   (b) 이미 마이그레이션된 디렉터리 `<id>/.migrated.json` — 멱등 확인용 skip 보고
 // `<id>_backup.json` / `<id>_meta.json`은 제외.
+// 메인 store JSON이 정상이고 id 필드가 파일명 stem과 일치하는지 검증.
+// corrupted/rejected/safety/plan 같은 비표준 파일을 자동 거른다.
+function _isValidProjectStore(jsonPath, expectedId) {
+  try {
+    const txt = fs.readFileSync(jsonPath, 'utf8');
+    const obj = JSON.parse(txt);
+    if (!obj || typeof obj !== 'object') return false;
+    return obj.id === expectedId;
+  } catch (_) {
+    return false;
+  }
+}
+
 function _scanCandidateIds(projectsDir) {
   const ids = new Set();
   let entries = [];
@@ -268,10 +281,15 @@ function _scanCandidateIds(projectsDir) {
       if (name === MARKER_NAME) continue;
       const stem = name.slice(0, -'.json'.length);
       if (stem.endsWith('_backup') || stem.endsWith('_meta')) continue;
+      // `^proj` 접두 — plan_*, 기타 별도 시스템 데이터 제외
+      if (!stem.startsWith('proj')) continue;
       const safe = sanitizeProjectId(stem);
       if (!safe) continue;
+      // 메인 store JSON id 필드 ↔ stem 일치 확인 (corrupted/rejected/safety 자동 거름)
+      if (!_isValidProjectStore(path.join(projectsDir, name), safe)) continue;
       ids.add(safe);
     } else if (ent.isDirectory()) {
+      if (!name.startsWith('proj')) continue;
       // 이미 마이그레이션된 디렉터리도 후보로 잡아 skipped 보고에 포함.
       const safe = sanitizeProjectId(name);
       if (!safe) continue;
