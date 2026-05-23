@@ -589,11 +589,16 @@ ipcMain.handle('projects:delete', (event, id) => {
   // 프로젝트 디렉터리 (claude-pm/ + images/ + assets/ + 기타 잔재) 통째 삭제
   // path.resolve로 base 밖 탈출 2차 방어
   const dirPath = path.resolve(PROJECTS_DIR, safeId);
+  let dirOk = true;
   if (dirPath.startsWith(path.resolve(PROJECTS_DIR) + path.sep) && fs.existsSync(dirPath)) {
     try { fs.rmSync(dirPath, { recursive: true, force: true }); }
-    catch (e) { console.warn('[projects:delete] dir 삭제 실패:', e.message); }
+    catch (e) {
+      // partial delete — 호출측에 false 반환해 알림 (codex Medium fix)
+      console.error('[projects:delete] dir 삭제 실패:', e.message, 'path:', dirPath);
+      dirOk = false;
+    }
   }
-  return true;
+  return dirOk;
 });
 
 ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {}) => {
