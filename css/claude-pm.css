@@ -408,7 +408,9 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   flex: 1 1 auto;
 }
 .cpmt-dot {
-  width: 8px; height: 8px; border-radius: 50%;
+  width: 8px; height: 8px; min-width: 8px; min-height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
   background: #6b9eff;
   box-shadow: 0 0 6px rgba(107,158,255,0.6);
 }
