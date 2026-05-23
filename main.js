@@ -1254,15 +1254,29 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId 
       if (typeof window.addTextBlock !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.addTextBlock not found' };
       }
+      // 1) sectionId 주어지면 그걸로 선택
       const sid = ${safeSectionId};
       if (sid && typeof window.selectSection === 'function') {
-        try { window.selectSection(sid); } catch (_) {}
+        const target = document.getElementById(sid) || document.querySelector('[data-section-id="' + sid + '"]');
+        if (target) { try { window.selectSection(target); } catch (_) {} }
+      }
+      // 2) 그래도 활성 section 없으면 첫 섹션 자동 선택 — PM 호출 시 '선택된 섹션 없음' 무응답 회피
+      if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
+          && typeof window.selectSection === 'function') {
+        const firstSec = document.querySelector('section[data-section-id], .section, [class~="section"]')
+          || document.querySelector('[id^="sec_"]');
+        if (firstSec) {
+          try { window.selectSection(firstSec); } catch (_) {}
+        }
       }
       const before = document.querySelectorAll('.text-block').length;
       window.addTextBlock(${safeType}, { content: ${safeContent} });
       const blocks = document.querySelectorAll('.text-block');
       const after = blocks.length;
       const newBlock = after > before ? blocks[blocks.length - 1] : null;
+      if (after <= before) {
+        return { ok: false, code: 'NO_SECTION', message: '활성 섹션이 없어 블록을 추가하지 못했습니다. 사용자가 캔버스에서 섹션을 먼저 선택해주세요.' };
+      }
       return {
         ok: true,
         blockId: newBlock?.id || null,
