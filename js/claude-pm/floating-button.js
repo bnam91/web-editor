@@ -49,4 +49,18 @@
   }
 
   window.onClickClaudePMBtn = onClickClaudePMBtn;
+
+  // ── Phase 2 동시수정 가드용 — 사용자 캔버스 키 입력 추적 (add_text_block에서 검사) ──
+  // capture 단계로 1회만 등록. 클로드 PM 터미널/알약/xterm 영역은 *PM 자기 입력*이므로 제외 (Codex 리뷰 #4).
+  if (!window.__cpmKeydownGuardBound) {
+    window.__cpmKeydownGuardBound = true;
+    document.addEventListener('keydown', (e) => {
+      try {
+        if (e.target && e.target.closest && e.target.closest(
+          '#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea'
+        )) return;
+        window._lastUserKeydown = Date.now();
+      } catch (_) {}
+    }, true);
+  }
 })();

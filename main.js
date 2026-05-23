@@ -28,7 +28,7 @@ const { fillSectionTexts: anthropicFill } = require('./services/anthropicService
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker } = require('./main/claude-pm/mcp-server');
 
 /* ── 사용자별 Preferences (API 토큰 + 단축키) ──
    USER_DATA_DIR는 app.getPath('userData') 기반이라 app.whenReady 이후에 안전.
@@ -1197,10 +1197,87 @@ app.whenReady().then(async () => {
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
     setActualMcpPort(actualPort);
+    // Phase 2 — renderer write bridge 주입 (mcp add_text_block 도구가 사용)
+    setMcpRendererInvoker({ addTextBlock: _invokeRendererAddBlock });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
   }
 });
+
+// ─── Phase 2 — renderer 측 write helper ────────────────────────────────────
+// PM Claude의 MCP add_text_block 호출이 main을 거쳐 renderer의 window.addTextBlock을 호출.
+// 동시수정 가드(사용자 편집/최근 키 입력/in-flight)를 renderer 측에서 평가한 뒤 통과 시에만 추가.
+async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  // 1. 가드 평가 (renderer 측 — 사용자가 편집 중인지)
+  const guardJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable ||
+        ae.tagName === 'INPUT' ||
+        ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const lastKey = window._lastUserKeydown || 0;
+      const recentKey = (Date.now() - lastKey) < 1500;
+      const autoSaveInFlight = !!window._autoSaveInFlight;
+      return { userEditing, recentKey, autoSaveInFlight };
+    } catch (e) { return { error: e.message }; }
+  })()`;
+  let guard;
+  try {
+    guard = await mainWindow.webContents.executeJavaScript(guardJs, true);
+  } catch (e) {
+    throw new Error('guard eval failed: ' + e.message);
+  }
+  if (guard && (guard.userEditing || guard.recentKey || guard.autoSaveInFlight)) {
+    return {
+      ok: false,
+      code: 'USER_BUSY',
+      message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.',
+      retryAfter: 2000,
+      detail: guard,
+    };
+  }
+  // 2. 실제 호출 — type은 mcp-server 측에서 whitelist 검증 후 들어옴.
+  //    content는 JSON.stringify로 안전 escape. sectionId는 optional.
+  const safeType = JSON.stringify(String(type));
+  const safeContent = JSON.stringify(String(content));
+  const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const callJs = `(() => {
+    try {
+      if (typeof window.addTextBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addTextBlock not found' };
+      }
+      const sid = ${safeSectionId};
+      if (sid && typeof window.selectSection === 'function') {
+        try { window.selectSection(sid); } catch (_) {}
+      }
+      const before = document.querySelectorAll('.text-block').length;
+      window.addTextBlock(${safeType}, { content: ${safeContent} });
+      const blocks = document.querySelectorAll('.text-block');
+      const after = blocks.length;
+      const newBlock = after > before ? blocks[blocks.length - 1] : null;
+      return {
+        ok: true,
+        blockId: newBlock?.id || null,
+        pageId: window.activePageId || null,
+        beforeCount: before,
+        afterCount: after,
+      };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(callJs, true);
+  } catch (e) {
+    throw new Error('addTextBlock call failed: ' + e.message);
+  }
+}
 
 /* ── 종료 전 강제 저장 ── */
 app.on('before-quit', (event) => {

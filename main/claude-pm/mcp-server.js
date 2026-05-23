@@ -21,6 +21,9 @@ const path = require('path');
 let server = null;
 let currentPort = null;
 let onActiveProjectCb = null;
+// Phase 2: renderer 측 write 작업(예: window.addTextBlock)을 main에서 호출하는 bridge.
+// main.js가 setRendererInvoker({addTextBlock})로 주입 (순환 의존성 회피).
+let _rendererInvoker = null;
 
 const tools = new Map();
 const toolSchemas = new Map();
@@ -163,6 +166,40 @@ function _registerDefaultTools() {
         type: 'object',
         properties: { projectFolder: { type: 'string' } },
         required: []
+      }
+    }
+  );
+
+  // Phase 2 MVP — 캔버스에 텍스트 블록 1개 추가. renderer의 window.addTextBlock을 main 통해 호출.
+  registerTool(
+    'add_text_block',
+    async ({ type = 'body', content = '', sectionId } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.addTextBlock !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      // type whitelist (raw interpolation 안전성)
+      const allowedTypes = ['body', 'h1', 'h2', 'h3'];
+      if (!allowedTypes.includes(type)) {
+        throw new Error(`invalid type: ${type}. allowed: ${allowedTypes.join('|')}`);
+      }
+      // content 검증 (code-point 단위, 한글 안전)
+      const text = String(content || '');
+      const codePointLen = [...text].length;
+      if (codePointLen === 0) throw new Error('content required');
+      if (codePointLen > 500) throw new Error(`content too long (${codePointLen} > 500)`);
+      // renderer 호출 (가드 + executeJavaScript는 main 측 helper에서)
+      return await _rendererInvoker.addTextBlock({ type, content: text, sectionId });
+    },
+    {
+      description: 'Add a single text block (Phase 2 MVP). Inserts after currently selected block in active section. Requires user not editing — returns { ok:false, code:"USER_BUSY" } if user is typing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['body', 'h1', 'h2', 'h3'], description: 'block style (default: body)' },
+          content: { type: 'string', description: 'text content (1~500 code points)' },
+          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses currently selected section' }
+        },
+        required: ['content']
       }
     }
   );
@@ -336,8 +373,14 @@ function stopMcpServer() {
   });
 }
 
+// Phase 2 — renderer bridge 주입 (ipc.js의 setActualMcpPort 동일 패턴, 순환 의존성 회피)
+function setRendererInvoker(invoker) {
+  _rendererInvoker = invoker || null;
+}
+
 module.exports = {
   startMcpServer,
   stopMcpServer,
   registerTool,
+  setRendererInvoker,
 };
