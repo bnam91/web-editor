@@ -11,6 +11,8 @@
  * Mix 표기는 prop-text.js prelude 에서 _detectMix 로 계산 → template input 에 placeholder="Mix" 로 반영.
  */
 
+import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
+
 export function wireTextEditSection({ ctx, currentColorAlpha }) {
   let _savedColorSel = null;
   let _colorSpan = null; // 색상 적용 시 생성한 span (input 반복 호출에 재사용)
@@ -262,4 +264,40 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
   });
   colorAlpha.addEventListener('blur', () => { colorAlpha.value = String(_txtAlpha); });
   colorAlpha.addEventListener('change', () => { window.pushHistory?.(); });
+
+  /* ── 컬러 변수 칩 (L3 동적 바인딩) ──
+   * 정의된 컬러 변수를 칩으로 노출하고, 클릭 시 글자색을 var(--color-<name>, #hex)로 바인딩한다.
+   * 정적 hex 복사가 아니므로 변수 값이 바뀌면 자동 반영(L3 핵심).
+   * fallback hex를 함께 넣어 export(HTML)/var 미정의 환경에서도 graceful degrade. */
+  const chipContainer = document.getElementById('txt-color-chips');
+  if (chipContainer) {
+    // 현재 블록(또는 selection span)이 참조 중인 변수명 → 칩 active 표시
+    const getActiveName = () => {
+      // selection 적용 중이면 그 span의 color, 아니면 contentEl의 color
+      if (_colorSpan && _colorSpan.isConnected) return parseColorVarName(_colorSpan.style.color);
+      return parseColorVarName(ctx.contentEl?.style.color);
+    };
+    wireColorVarChips({
+      container: chipContainer,
+      getActiveName,
+      // fallback hex는 변수의 현재 hex 사용 (export/HTML에서 var 미해석 시 대체)
+      getFallbackHex: (name, hex) => hex,
+      onPick: (cssRef /* var(--color-name, #hex) */) => {
+        window.pushHistory?.();
+        applyColorToSel(cssRef);
+        // 피커 UI 동기화: 바인딩된 변수의 fallback hex를 swatch/hex 입력에 반영
+        const fbHex = (cssRef.match(/#([0-9a-fA-F]{3,8})/) || [])[0];
+        if (fbHex && /^#[0-9a-fA-F]{6}$/.test(fbHex)) {
+          colorPicker.value = fbHex;
+          colorHex.value = fbHex.replace('#', '').toUpperCase();
+        }
+        // var 바인딩 시 불투명도는 100으로 — 칩 색이 안 보이는 일 방지
+        _txtAlpha = 100;
+        if (colorAlpha) colorAlpha.value = '100';
+        colorSwatch.style.background = cssRef;
+        // selection 적용을 1회로 마감(다음 picker 조작은 새 시퀀스)
+        _savedColorSel = null; _colorSpan = null;
+      },
+    });
+  }
 }

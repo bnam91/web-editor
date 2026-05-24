@@ -172,6 +172,7 @@ export function buildTextPropsHtml(state) {
           </label>
         </div>
       </div>
+      <div class="cv-chips" id="txt-color-chips" hidden></div>
     </div>
 
     <div class="prop-section" id="txt-shadow-section">
