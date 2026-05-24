@@ -237,7 +237,7 @@ function _registerDefaultTools() {
   // 이미지 *생성*은 안 함 — 비율 잡힌 자리만 만들고 사용자가 채움.
   registerTool(
     'add_asset_block',
-    async ({ preset = 'img1' } = {}) => {
+    async ({ preset = 'img1', sectionId } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.addAssetBlock !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
@@ -245,14 +245,20 @@ function _registerDefaultTools() {
       if (!allowed.includes(preset)) {
         throw new Error(`invalid preset: ${preset}. allowed: ${allowed.join('|')}`);
       }
-      return await _rendererInvoker.addAssetBlock({ preset });
+      if (sectionId !== undefined) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+          throw new Error(`invalid sectionId: ${sectionId}. expected string starting with sec_`);
+        }
+      }
+      return await _rendererInvoker.addAssetBlock({ preset, sectionId });
     },
     {
       description: 'Add an image-placeholder row with a ratio preset (Phase 3 MVP). Does NOT generate images — only the ratio-sized slot for the user to fill. img1=single full-width, img2=2-up 1:1, img3=3-up 1:1:1, text-img=text+image 1:1.',
       inputSchema: {
         type: 'object',
         properties: {
-          preset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout preset (default img1)' }
+          preset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout preset (default img1)' },
+          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses the currently selected section' }
         },
         required: []
       }
