@@ -253,12 +253,11 @@ function _renderNotesMd() {
 }
 
 function _renderMcpJson() {
+  // Claude Code 표준 형식: type/url 최상위 (transport 래퍼 X — 래퍼 쓰면 인식 실패).
   return JSON.stringify(
     {
       mcpServers: {
-        goditor: {
-          transport: { type: 'http', url: 'http://localhost:9345/mcp' },
-        },
+        goditor: { type: 'http', url: 'http://localhost:9345/mcp' },
       },
     },
     null,
