@@ -405,6 +405,40 @@
 }
 .prop-none-check input { cursor: pointer; accent-color: var(--ui-accent-primary); }
 
+/* ── 컬러 변수 칩 (Team C — L3 소비 레이어) ──
+   색 지정 필드 아래에 정의된 컬러 변수를 칩으로 노출. 클릭 시 var() 동적 바인딩. */
+.cv-chips {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  margin-top: 6px;
+}
+.cv-chips[hidden] { display: none; }
+.cv-chips-label {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.35); user-select: none;
+  margin-right: 2px;
+}
+.cv-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 7px 0 5px;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 10px;
+  color: var(--ui-text);
+  font-size: 10px; line-height: 1; cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+}
+.cv-chip:hover { border-color: var(--ui-border-mid); }
+.cv-chip.active {
+  border-color: var(--ui-accent-primary);
+  background: color-mix(in srgb, var(--ui-accent-primary) 18%, var(--ui-bg-input));
+}
+.cv-chip-dot {
+  width: 11px; height: 11px; border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.25);
+  flex-shrink: 0;
+}
+.cv-chip-label { white-space: nowrap; }
+
 /* 공통 버튼 */
 .prop-btn {
   width: 24px; height: 24px;
