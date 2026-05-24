@@ -294,6 +294,60 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // update_block — 기존 텍스트 블록 1개를 id로 수정 (색/크기/굵기/문구/정렬).
+  // 모든 write 툴은 ADD만 함 — 이게 유일한 EDIT 진입점. blockId는 get_canvas_state/read_section으로 획득.
+  registerTool(
+    'update_block',
+    async ({ blockId, content, color, fontSize, fontWeight, align } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.editTextBlock !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      if (typeof blockId !== 'string' || !blockId.startsWith('tb_')) {
+        throw new Error(`invalid blockId: ${blockId}. must be a string starting with "tb_"`);
+      }
+      const hasField = [content, color, fontSize, fontWeight, align].some((v) => v !== undefined);
+      if (!hasField) throw new Error('no fields to update — provide at least one of content/color/fontSize/fontWeight/align');
+
+      if (color !== undefined && !/^#?[0-9a-fA-F]{3,8}$/.test(String(color))) {
+        throw new Error(`invalid color: ${color}`);
+      }
+      if (fontSize !== undefined) {
+        if (!Number.isInteger(fontSize) || fontSize < 8 || fontSize > 400) {
+          throw new Error(`invalid fontSize: ${fontSize}. must be integer 8~400`);
+        }
+      }
+      if (fontWeight !== undefined) {
+        const allowedWeights = [100, 200, 300, 400, 500, 600, 700, 800, 900, 'normal', 'bold'];
+        if (!allowedWeights.includes(fontWeight)) {
+          throw new Error(`invalid fontWeight: ${fontWeight}. allowed: 100~900 | normal | bold`);
+        }
+      }
+      if (align !== undefined && !['left', 'center', 'right'].includes(align)) {
+        throw new Error(`invalid align: ${align}. allowed: left|center|right`);
+      }
+      if (content !== undefined) {
+        const len = [...String(content)].length;
+        if (len > 500) throw new Error(`content too long (${len} > 500)`);
+      }
+      return await _rendererInvoker.editTextBlock({ blockId, content, color, fontSize, fontWeight, align });
+    },
+    {
+      description: 'Edit an EXISTING text block by id. Obtain blockId via get_canvas_state or read_section. Changes color/fontSize/fontWeight/content/align of one text block. Returns USER_BUSY if user is editing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'target block id (tb_xxx). Get it from get_canvas_state or read_section' },
+          content: { type: 'string', description: 'new text content (≤500 code points)' },
+          color: { type: 'string', description: 'text color hex (e.g. #ff0000 or #f00)' },
+          fontSize: { type: 'integer', description: 'font size in px (8~400)' },
+          fontWeight: { description: 'font weight: 100~900 | "normal" | "bold"' },
+          align: { type: 'string', enum: ['left', 'center', 'right'], description: 'text align' }
+        },
+        required: ['blockId']
+      }
+    }
+  );
 }
 
 // ─────────────────────────────────────────────
