@@ -203,6 +203,31 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // Phase 3 MVP — 캔버스에 섹션 1개 추가. renderer의 window.addSection 호출.
+  registerTool(
+    'add_section',
+    async ({ empty = false, bg } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.addSection !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      if (bg !== undefined && !/^#?[0-9a-fA-F]{3,8}$/.test(String(bg))) {
+        throw new Error(`invalid bg color: ${bg}`);
+      }
+      return await _rendererInvoker.addSection({ empty: !!empty, bg });
+    },
+    {
+      description: 'Add a new section to the canvas (Phase 3 MVP). Default = gap + h2 placeholder + gap. empty:true = only top/bottom gap blocks. Requires user not editing — returns { ok:false, code:"USER_BUSY" } if user is typing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          empty: { type: 'boolean', description: 'true = skip default h2 block (only gap blocks). default false' },
+          bg: { type: 'string', description: 'optional section background hex color (e.g. #f5f5f5)' }
+        },
+        required: []
+      }
+    }
+  );
 }
 
 // ─────────────────────────────────────────────

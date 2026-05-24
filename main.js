@@ -1197,8 +1197,11 @@ app.whenReady().then(async () => {
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
     setActualMcpPort(actualPort);
-    // Phase 2 — renderer write bridge 주입 (mcp add_text_block 도구가 사용)
-    setMcpRendererInvoker({ addTextBlock: _invokeRendererAddBlock });
+    // Phase 2/3 — renderer write bridge 주입 (mcp add_text_block / add_section 도구가 사용)
+    setMcpRendererInvoker({
+      addTextBlock: _invokeRendererAddBlock,
+      addSection: _invokeRendererAddSection,
+    });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
   }
@@ -1277,6 +1280,53 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId 
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('addTextBlock call failed: ' + e.message);
+  }
+}
+
+// ─── Phase 3 MVP — renderer 측 섹션 추가 helper ──────────────────────────────
+// add_text_block과 동일 패턴: 단일 atomic IIFE (동시수정 가드 + window.addSection 호출).
+async function _invokeRendererAddSection({ empty = false, bg } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const skipDefault = empty ? 'true' : 'false';
+  const safeBg = bg ? JSON.stringify(String(bg)) : 'null';
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 (atomic) ──
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addSection !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addSection not found' };
+      }
+      const before = document.querySelectorAll('.section-block').length;
+      const opts = {};
+      if (${skipDefault}) opts.skipDefaultBlock = true;
+      const bgv = ${safeBg};
+      if (bgv) opts.bg = bgv;
+      window.addSection(opts);
+      const secs = document.querySelectorAll('.section-block');
+      const after = secs.length;
+      if (after <= before) {
+        return { ok: false, code: 'NO_ADD', message: '섹션이 추가되지 않았습니다.' };
+      }
+      const newSec = secs[secs.length - 1];
+      return { ok: true, sectionId: newSec?.id || null, sectionName: newSec?.dataset?.name || null, beforeCount: before, afterCount: after };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addSection call failed: ' + e.message);
   }
 }
 
