@@ -254,6 +254,40 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // Phase 3 MVP — 기본 섹션 한 번에 조립: 메인카피(h1) + 본문(body) + 에셋(img1). 라벨 옵션.
+  // 갭/폰트는 sec_wd3nixu 실측 토큰 적용 (제목100/본문30, 갭 100/50/30).
+  registerTool(
+    'build_basic_section',
+    async ({ mainCopy = '', body = '', label, assetPreset = 'img1' } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.buildBasicSection !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      const mc = String(mainCopy || '');
+      if ([...mc].length === 0) throw new Error('mainCopy required');
+      if ([...mc].length > 200) throw new Error('mainCopy too long (>200)');
+      const bd = String(body || '');
+      if ([...bd].length > 800) throw new Error('body too long (>800)');
+      const allowed = ['img1', 'img2', 'img3', 'text-img'];
+      if (!allowed.includes(assetPreset)) throw new Error(`invalid assetPreset: ${assetPreset}`);
+      const lb = label !== undefined ? String(label) : null;
+      if (lb !== null && [...lb].length > 60) throw new Error('label too long (>60)');
+      return await _rendererInvoker.buildBasicSection({ mainCopy: mc, body: bd, label: lb, assetPreset });
+    },
+    {
+      description: 'Build a basic section in one call: main copy (h1, 100px) + body (30px) + asset placeholder (img1). Optional label (small bold). Gaps follow standard tokens (100/50/30). Use when user says "기본 섹션 만들어줘" or gives content for a single section without specifying layout.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          mainCopy: { type: 'string', description: 'main headline text (required, ~200)' },
+          body: { type: 'string', description: 'body/subcopy text (optional, ~800)' },
+          label: { type: 'string', description: 'optional small label above the headline (e.g. NEW ARRIVAL)' },
+          assetPreset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout (default img1)' }
+        },
+        required: ['mainCopy']
+      }
+    }
+  );
 }
 
 // ─────────────────────────────────────────────

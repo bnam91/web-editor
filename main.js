@@ -1197,11 +1197,12 @@ app.whenReady().then(async () => {
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
     setActualMcpPort(actualPort);
-    // Phase 2/3 — renderer write bridge 주입 (mcp add_text_block / add_section / add_asset_block 도구가 사용)
+    // Phase 2/3 — renderer write bridge 주입
     setMcpRendererInvoker({
       addTextBlock: _invokeRendererAddBlock,
       addSection: _invokeRendererAddSection,
       addAssetBlock: _invokeRendererAddAssetBlock,
+      buildBasicSection: _invokeRendererBuildBasicSection,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1373,6 +1374,73 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1' } = {}) {
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('addPresetRow call failed: ' + e.message);
+  }
+}
+
+// ─── Phase 3 MVP — 기본 섹션 한 번에 조립 ────────────────────────────────────
+// 빈 섹션 → (label) → 메인카피(h1,100px) → 본문(body,30px) → 에셋(preset). 갭 100/50/30.
+// insertAfterSelected의 하단갭-직전 누적 삽입 특성 + 각 함수의 selectSection(sec) 재선택 →
+// 순차 호출이 위→아래 순서대로 쌓임.
+async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', label = null, assetPreset = 'img1' } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const sMain = JSON.stringify(String(mainCopy));
+  const sBody = JSON.stringify(String(body || ''));
+  const sLabel = label ? JSON.stringify(String(label)) : 'null';
+  const sPreset = JSON.stringify(String(assetPreset));
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      for (const fn of ['addSection','addTextBlock','addGapBlock','addPresetRow']) {
+        if (typeof window[fn] !== 'function') return { ok: false, code: 'API_MISSING', message: fn + ' not found' };
+      }
+      const secBefore = document.querySelectorAll('.section-block').length;
+      // 1) 빈 섹션 (위아래 갭 100)
+      window.addSection({ skipDefaultBlock: true, paddingY: 100 });
+      // 2) 라벨 (옵션) → 갭50
+      const label = ${sLabel};
+      if (label) {
+        window.addTextBlock('label', { content: label });
+        window.addGapBlock(50);
+      }
+      // 3) 메인카피 h1 (100px) → 갭30
+      window.addTextBlock('h1', { content: ${sMain}, fontSize: 100 });
+      window.addGapBlock(30);
+      // 4) 본문 body (30px) → 갭50
+      const bodyText = ${sBody};
+      if (bodyText) {
+        window.addTextBlock('body', { content: bodyText, fontSize: 30 });
+        window.addGapBlock(50);
+      }
+      // 5) 에셋 (비율 프리셋)
+      window.addPresetRow(${sPreset});
+
+      const secAfter = document.querySelectorAll('.section-block').length;
+      const newSec = document.querySelectorAll('.section-block')[secAfter - 1];
+      return {
+        ok: true,
+        sectionId: newSec?.id || null,
+        sectionName: newSec?.dataset?.name || null,
+        blocksInSection: newSec ? newSec.querySelectorAll('.text-block, .asset-block').length : 0,
+        secBefore, secAfter,
+      };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('buildBasicSection call failed: ' + e.message);
   }
 }
 
