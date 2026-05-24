@@ -1215,7 +1215,7 @@ app.whenReady().then(async () => {
 //   (1) 가드 + 호출을 *단일 atomic IIFE*로 합침 — 두 executeJavaScript 사이 race 차단
 //   (2) _autoSaveInFlight 가드 제거 — save-load.js의 _isSavingToFile는 module-local이라 가드 작동 안 함.
 //       active editing + recent key 두 가드로 충분
-async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId } = {}) {
+async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId, align } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -1226,6 +1226,7 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId 
   const safeType = JSON.stringify(String(type));
   const safeContent = JSON.stringify(String(content));
   const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safeAlign = align ? JSON.stringify(String(align)) : 'null';
   // 단일 atomic IIFE — 가드 + 섹션 보장 + addTextBlock + before/after 측정 + return
   const atomicJs = `(() => {
     try {
@@ -1262,7 +1263,10 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId 
         if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
       }
       const before = document.querySelectorAll('.text-block').length;
-      window.addTextBlock(${safeType}, { content: ${safeContent} });
+      const _opts = { content: ${safeContent} };
+      const _al = ${safeAlign};
+      if (_al) _opts.align = _al;
+      window.addTextBlock(${safeType}, _opts);
       const blocks = document.querySelectorAll('.text-block');
       const after = blocks.length;
       if (after <= before) {
@@ -1381,7 +1385,7 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1' } = {}) {
 // 빈 섹션 → (label) → 메인카피(h1,100px) → 본문(body,30px) → 에셋(preset). 갭 100/50/30.
 // insertAfterSelected의 하단갭-직전 누적 삽입 특성 + 각 함수의 selectSection(sec) 재선택 →
 // 순차 호출이 위→아래 순서대로 쌓임.
-async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', label = null, assetPreset = 'img1' } = {}) {
+async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', label = null, assetPreset = 'img1', align = 'center' } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -1392,6 +1396,7 @@ async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', labe
   const sBody = JSON.stringify(String(body || ''));
   const sLabel = label ? JSON.stringify(String(label)) : 'null';
   const sPreset = JSON.stringify(String(assetPreset));
+  const sAlign = JSON.stringify(['left', 'center', 'right'].includes(align) ? align : 'center');
   const atomicJs = `(() => {
     try {
       const ae = document.activeElement;
@@ -1406,21 +1411,22 @@ async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', labe
         if (typeof window[fn] !== 'function') return { ok: false, code: 'API_MISSING', message: fn + ' not found' };
       }
       const secBefore = document.querySelectorAll('.section-block').length;
+      const al = ${sAlign};
       // 1) 빈 섹션 (위아래 갭 100)
       window.addSection({ skipDefaultBlock: true, paddingY: 100 });
       // 2) 라벨 (옵션) → 갭50
       const label = ${sLabel};
       if (label) {
-        window.addTextBlock('label', { content: label });
+        window.addTextBlock('label', { content: label, align: al });
         window.addGapBlock(50);
       }
       // 3) 메인카피 h1 (100px) → 갭30
-      window.addTextBlock('h1', { content: ${sMain}, fontSize: 100 });
+      window.addTextBlock('h1', { content: ${sMain}, fontSize: 100, align: al });
       window.addGapBlock(30);
       // 4) 본문 body (30px) → 갭50
       const bodyText = ${sBody};
       if (bodyText) {
-        window.addTextBlock('body', { content: bodyText, fontSize: 30 });
+        window.addTextBlock('body', { content: bodyText, fontSize: 30, align: al });
         window.addGapBlock(50);
       }
       // 5) 에셋 (비율 프리셋)

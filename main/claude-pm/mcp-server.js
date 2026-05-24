@@ -173,7 +173,7 @@ function _registerDefaultTools() {
   // Phase 2 MVP — 캔버스에 텍스트 블록 1개 추가. renderer의 window.addTextBlock을 main 통해 호출.
   registerTool(
     'add_text_block',
-    async ({ type = 'body', content = '', sectionId } = {}) => {
+    async ({ type = 'body', content = '', sectionId, align } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.addTextBlock !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
@@ -182,13 +182,16 @@ function _registerDefaultTools() {
       if (!allowedTypes.includes(type)) {
         throw new Error(`invalid type: ${type}. allowed: ${allowedTypes.join('|')}`);
       }
+      if (align !== undefined && !['left', 'center', 'right'].includes(align)) {
+        throw new Error(`invalid align: ${align}. allowed: left|center|right`);
+      }
       // content 검증 (code-point 단위, 한글 안전)
       const text = String(content || '');
       const codePointLen = [...text].length;
       if (codePointLen === 0) throw new Error('content required');
       if (codePointLen > 500) throw new Error(`content too long (${codePointLen} > 500)`);
       // renderer 호출 (가드 + executeJavaScript는 main 측 helper에서)
-      return await _rendererInvoker.addTextBlock({ type, content: text, sectionId });
+      return await _rendererInvoker.addTextBlock({ type, content: text, sectionId, align });
     },
     {
       description: 'Add a single text block (Phase 2 MVP). Inserts after currently selected block in active section. Requires user not editing — returns { ok:false, code:"USER_BUSY" } if user is typing.',
@@ -197,7 +200,8 @@ function _registerDefaultTools() {
         properties: {
           type: { type: 'string', enum: ['body', 'h1', 'h2', 'h3', 'label', 'caption', 'bullet'], description: 'block style (default: body). label=작은 강조라벨, caption=캡션, bullet=목록' },
           content: { type: 'string', description: 'text content (1~500 code points)' },
-          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses currently selected section' }
+          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses currently selected section' },
+          align: { type: 'string', enum: ['left', 'center', 'right'], description: 'text align. omit = inherit section align' }
         },
         required: ['content']
       }
@@ -259,7 +263,7 @@ function _registerDefaultTools() {
   // 갭/폰트는 sec_wd3nixu 실측 토큰 적용 (제목100/본문30, 갭 100/50/30).
   registerTool(
     'build_basic_section',
-    async ({ mainCopy = '', body = '', label, assetPreset = 'img1' } = {}) => {
+    async ({ mainCopy = '', body = '', label, assetPreset = 'img1', align = 'center' } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.buildBasicSection !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
@@ -270,19 +274,21 @@ function _registerDefaultTools() {
       if ([...bd].length > 800) throw new Error('body too long (>800)');
       const allowed = ['img1', 'img2', 'img3', 'text-img'];
       if (!allowed.includes(assetPreset)) throw new Error(`invalid assetPreset: ${assetPreset}`);
+      if (!['left', 'center', 'right'].includes(align)) throw new Error(`invalid align: ${align}`);
       const lb = label !== undefined ? String(label) : null;
       if (lb !== null && [...lb].length > 60) throw new Error('label too long (>60)');
-      return await _rendererInvoker.buildBasicSection({ mainCopy: mc, body: bd, label: lb, assetPreset });
+      return await _rendererInvoker.buildBasicSection({ mainCopy: mc, body: bd, label: lb, assetPreset, align });
     },
     {
-      description: 'Build a basic section in one call: main copy (h1, 100px) + body (30px) + asset placeholder (img1). Optional label (small bold). Gaps follow standard tokens (100/50/30). Use when user says "기본 섹션 만들어줘" or gives content for a single section without specifying layout.',
+      description: 'Build a basic section in one call: main copy (h1, 100px) + body (30px) + asset placeholder (img1). Optional label (small bold). Gaps follow standard tokens (100/50/30). Text centered by default (align). Use when user says "기본 섹션 만들어줘" or gives content for a single section without specifying layout.',
       inputSchema: {
         type: 'object',
         properties: {
           mainCopy: { type: 'string', description: 'main headline text (required, ~200)' },
           body: { type: 'string', description: 'body/subcopy text (optional, ~800)' },
           label: { type: 'string', description: 'optional small label above the headline (e.g. NEW ARRIVAL)' },
-          assetPreset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout (default img1)' }
+          assetPreset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout (default img1)' },
+          align: { type: 'string', enum: ['left', 'center', 'right'], description: 'text align (default center — hero/Hook convention)' }
         },
         required: ['mainCopy']
       }
