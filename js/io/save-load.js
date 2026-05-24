@@ -1282,6 +1282,8 @@ function initApp() {
           console.error('[initLoad] loadProject 실패:', e);
         }
         const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);
+        // 시맨틱 컬러 변수 복원 (meta.colorVars → localStorage + :root). 비차단.
+        window.DesignSystem?.restoreColorVarsFromMeta?.(activeProjectId);
         if (proj) {
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
           if (!meta && (proj.branches || proj.commits)) {
