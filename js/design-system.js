@@ -244,6 +244,104 @@ const DesignSystem = (() => {
     panel.classList.toggle('open');
   }
 
+  // ── 컬러 변수 섹션 (시맨틱 L3 — 팀 A 인터페이스 호출) ────
+  // 팀 A 미머지 상태에서도 안전하게 동작하도록 모든 호출을 옵셔널 가드 처리.
+
+  // 재렌더 중 input change가 다시 setColorVar를 호출하는 무한루프 방지 플래그.
+  let _cvRendering = false;
+
+  function _cvGet() {
+    return (window.DesignSystem && typeof window.DesignSystem.getColorVars === 'function')
+      ? (window.DesignSystem.getColorVars() || {})
+      : {};
+  }
+  function _cvSet(name, hex) {
+    if (window.DesignSystem && typeof window.DesignSystem.setColorVar === 'function') {
+      window.DesignSystem.setColorVar(name, hex);
+    }
+  }
+  function _cvRemove(name) {
+    if (window.DesignSystem && typeof window.DesignSystem.removeColorVar === 'function') {
+      window.DesignSystem.removeColorVar(name);
+    }
+  }
+
+  function renderColorVars() {
+    const list = document.getElementById('ds-colorvars-list');
+    if (!list) return;
+    _cvRendering = true;          // setProperty .value 변경이 input 이벤트를 발생시키진 않지만 이중 안전장치
+    try {
+      const vars = _cvGet();
+      const names = Object.keys(vars);
+      list.innerHTML = '';
+
+      if (names.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'ds-colorvars-empty';
+        empty.textContent = '정의된 컬러 변수가 없습니다.';
+        list.appendChild(empty);
+        return;
+      }
+
+      names.forEach((name) => {
+        const hex = vars[name] || '#000000';
+        const row = document.createElement('div');
+        row.className = 'ds-token-row ds-colorvar-row';
+        row.dataset.name = name;
+
+        const label = document.createElement('span');
+        label.className = 'ds-token-label ds-colorvar-name';
+        label.textContent = name;
+        label.title = name;
+
+        const picker = document.createElement('input');
+        picker.type = 'color';
+        picker.className = 'ds-token-picker';
+        picker.value = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#000000';
+        picker.addEventListener('input', () => {
+          if (_cvRendering) return;        // 재렌더로 인한 값 주입은 무시
+          _cvSet(name, picker.value);      // 외부 store 갱신 → colorvars-changed 이벤트
+        });
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'ds-colorvar-del';
+        del.title = '삭제';
+        del.textContent = '×';
+        del.addEventListener('click', () => {
+          if (window.confirm(`'${name}' 변수를 삭제할까요?`)) _cvRemove(name);
+        });
+
+        row.appendChild(label);
+        row.appendChild(picker);
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+    } finally {
+      _cvRendering = false;
+    }
+  }
+
+  function addColorVarFromPanel() {
+    const raw = prompt('새 컬러 변수 이름을 입력하세요 (예: primary, accent):');
+    if (raw == null) return;                 // 취소
+    const name = raw.trim();
+    if (!name) { alert('변수명을 입력하세요.'); return; }
+    const existing = _cvGet();
+    if (Object.prototype.hasOwnProperty.call(existing, name)) {
+      alert(`'${name}' 변수가 이미 존재합니다.`);
+      return;
+    }
+    _cvSet(name, '#3b82f6');                  // 기본색 — 이후 colorvars-changed가 재렌더 트리거
+  }
+
+  function _initColorVars() {
+    // 외부 변경(다른 패널/store) 반영
+    document.addEventListener('colorvars-changed', () => renderColorVars());
+    // 초기 렌더 — 팀 A 미머지 시 빈 목록
+    renderColorVars();
+  }
+
   // ── 초기화 ───────────────────────────────────────────
 
   function init() {
@@ -278,11 +376,15 @@ const DesignSystem = (() => {
     }
 
     syncPanelUI(tokens);
+
+    // 컬러 변수 섹션 초기화 (이벤트 바인딩 + 초기 렌더)
+    _initColorVars();
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI, saveNewPreset };
+  return { applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI, saveNewPreset,
+           addColorVarFromPanel, renderColorVars };
 })();
 
 window.DesignSystem = DesignSystem;
