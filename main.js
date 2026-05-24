@@ -1204,6 +1204,7 @@ app.whenReady().then(async () => {
       addSection: _invokeRendererAddSection,
       addAssetBlock: _invokeRendererAddAssetBlock,
       buildBasicSection: _invokeRendererBuildBasicSection,
+      getCanvasState: _invokeRendererGetCanvasState,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1506,6 +1507,30 @@ async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', labe
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('buildBasicSection call failed: ' + e.message);
+  }
+}
+
+// ─── PM get_canvas_state — renderer 측 READ-ONLY 캔버스 조회 helper ────────────
+// 변경(mutation) 없음 → USER_BUSY 가드 불필요. null/destroyed 가드만 유지.
+// (최소화 창도 읽기는 안전하므로 isMinimized 차단 안 함.)
+async function _invokeRendererGetCanvasState({ sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const atomicJs = `(() => {
+    try {
+      if (typeof window.getCanvasState !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.getCanvasState not found' };
+      }
+      const sid = ${safeSectionId};
+      return window.getCanvasState(sid);
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('getCanvasState call failed: ' + e.message);
   }
 }
 

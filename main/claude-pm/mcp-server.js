@@ -354,6 +354,32 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // PM get_canvas_state — 캔버스를 구조화 데이터로 조회 (READ-ONLY, mutation 없음 → USER_BUSY 불필요).
+  registerTool(
+    'get_canvas_state',
+    async ({ sectionId } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.getCanvasState !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      if (sectionId !== undefined && sectionId !== null) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+          throw new Error(`invalid sectionId: ${sectionId} (expected string starting with "sec_")`);
+        }
+      }
+      return await _rendererInvoker.getCanvasState({ sectionId });
+    },
+    {
+      description: 'Read the canvas as structured data: every section with its blocks (blockId, type, text, color, fontSize, align). Use to find the blockId of a specific text before calling update_block. Read-only.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, returns all sections on the active page' }
+        },
+        required: []
+      }
+    }
+  );
 }
 
 // ─────────────────────────────────────────────
