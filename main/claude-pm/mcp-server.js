@@ -177,8 +177,8 @@ function _registerDefaultTools() {
       if (!_rendererInvoker || typeof _rendererInvoker.addTextBlock !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
-      // type whitelist (raw interpolation 안전성)
-      const allowedTypes = ['body', 'h1', 'h2', 'h3'];
+      // type whitelist (raw interpolation 안전성). makeTextBlock 지원 7종.
+      const allowedTypes = ['body', 'h1', 'h2', 'h3', 'label', 'caption', 'bullet'];
       if (!allowedTypes.includes(type)) {
         throw new Error(`invalid type: ${type}. allowed: ${allowedTypes.join('|')}`);
       }
@@ -195,7 +195,7 @@ function _registerDefaultTools() {
       inputSchema: {
         type: 'object',
         properties: {
-          type: { type: 'string', enum: ['body', 'h1', 'h2', 'h3'], description: 'block style (default: body)' },
+          type: { type: 'string', enum: ['body', 'h1', 'h2', 'h3', 'label', 'caption', 'bullet'], description: 'block style (default: body). label=작은 강조라벨, caption=캡션, bullet=목록' },
           content: { type: 'string', description: 'text content (1~500 code points)' },
           sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses currently selected section' }
         },
