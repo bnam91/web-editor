@@ -1197,10 +1197,11 @@ app.whenReady().then(async () => {
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
     setActualMcpPort(actualPort);
-    // Phase 2/3 — renderer write bridge 주입 (mcp add_text_block / add_section 도구가 사용)
+    // Phase 2/3 — renderer write bridge 주입 (mcp add_text_block / add_section / add_asset_block 도구가 사용)
     setMcpRendererInvoker({
       addTextBlock: _invokeRendererAddBlock,
       addSection: _invokeRendererAddSection,
+      addAssetBlock: _invokeRendererAddAssetBlock,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1327,6 +1328,51 @@ async function _invokeRendererAddSection({ empty = false, bg } = {}) {
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('addSection call failed: ' + e.message);
+  }
+}
+
+// ─── Phase 3 MVP — renderer 측 에셋(비율 프리셋) row 추가 helper ──────────────
+// window.addPresetRow(preset) 호출. img1/img2/img3/text-img.
+async function _invokeRendererAddAssetBlock({ preset = 'img1' } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safePreset = JSON.stringify(String(preset));
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.addPresetRow !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addPresetRow not found' };
+      }
+      // 활성 섹션 없으면 첫 섹션 자동 선택
+      if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
+          && typeof window.selectSection === 'function') {
+        const firstSec = document.querySelector('[id^="sec_"]');
+        if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
+      }
+      const before = document.querySelectorAll('.asset-block').length;
+      window.addPresetRow(${safePreset});
+      const after = document.querySelectorAll('.asset-block').length;
+      if (after <= before) {
+        return { ok: false, code: 'NO_ADD', message: '에셋이 추가되지 않았습니다 (활성 섹션 확인).' };
+      }
+      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addPresetRow call failed: ' + e.message);
   }
 }
 

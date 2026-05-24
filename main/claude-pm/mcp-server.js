@@ -228,6 +228,32 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // Phase 3 MVP — 비율 프리셋 에셋(이미지 자리) row 추가. renderer의 window.addPresetRow 호출.
+  // 이미지 *생성*은 안 함 — 비율 잡힌 자리만 만들고 사용자가 채움.
+  registerTool(
+    'add_asset_block',
+    async ({ preset = 'img1' } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.addAssetBlock !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      const allowed = ['img1', 'img2', 'img3', 'text-img'];
+      if (!allowed.includes(preset)) {
+        throw new Error(`invalid preset: ${preset}. allowed: ${allowed.join('|')}`);
+      }
+      return await _rendererInvoker.addAssetBlock({ preset });
+    },
+    {
+      description: 'Add an image-placeholder row with a ratio preset (Phase 3 MVP). Does NOT generate images — only the ratio-sized slot for the user to fill. img1=single full-width, img2=2-up 1:1, img3=3-up 1:1:1, text-img=text+image 1:1.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          preset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout preset (default img1)' }
+        },
+        required: []
+      }
+    }
+  );
 }
 
 // ─────────────────────────────────────────────
