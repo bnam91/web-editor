@@ -640,6 +640,13 @@ function openPicker(swatch) {
   _syncSolidUI();
 
   // outside click close — composedPath로 swatch 포함 검사 + 충분한 지연으로 자기 mousedown 회피
+  // ※ 이전 openPicker 호출이 남긴 outside-handler를 먼저 제거한다.
+  //   (스와치 A→B 전환 시: A의 핸들러가 document(capture)에 살아 있으면, B를 여는 같은
+  //    mousedown에서 A 핸들러가 "B는 A 바깥" 으로 판정 → 방금 연 B 팝오버를 즉시 닫아버린다.
+  //    핸들러 참조만 덮어쓰고 removeEventListener를 안 해서 document에 핸들러가 누적되던 버그.)
+  if (_outsideHandler) {
+    document.removeEventListener('mousedown', _outsideHandler, true);
+  }
   _outsideHandler = (ev) => {
     const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
     if (_pop.contains(ev.target) || path.includes(_pop)) return;
