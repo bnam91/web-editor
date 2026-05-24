@@ -1200,6 +1200,7 @@ app.whenReady().then(async () => {
     // Phase 2/3 — renderer write bridge 주입
     setMcpRendererInvoker({
       addTextBlock: _invokeRendererAddBlock,
+      editTextBlock: _invokeRendererEditBlock,
       addSection: _invokeRendererAddSection,
       addAssetBlock: _invokeRendererAddAssetBlock,
       buildBasicSection: _invokeRendererBuildBasicSection,
@@ -1286,6 +1287,57 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('addTextBlock call failed: ' + e.message);
+  }
+}
+
+// ─── update_block — 기존 텍스트 블록 수정 helper ─────────────────────────────
+// add_text_block과 동일 패턴: 단일 atomic IIFE (동시수정 가드 + window.editTextBlock 호출).
+async function _invokeRendererEditBlock({ blockId, content, color, fontSize, fontWeight, align } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  // blockId/필드는 mcp-server에서 검증 후 들어옴. JSON.stringify로 전부 escape.
+  const safeBlockId = JSON.stringify(String(blockId));
+  const safeContent = content !== undefined && content !== null ? JSON.stringify(String(content)) : 'null';
+  const safeColor = color !== undefined && color !== null ? JSON.stringify(String(color)) : 'null';
+  const safeFontSize = fontSize !== undefined && fontSize !== null ? JSON.stringify(fontSize) : 'null';
+  const safeFontWeight = fontWeight !== undefined && fontWeight !== null ? JSON.stringify(String(fontWeight)) : 'null';
+  const safeAlign = align !== undefined && align !== null ? JSON.stringify(String(align)) : 'null';
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 (atomic, renderer 한 frame 안에서 평가) ──
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.editTextBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.editTextBlock not found' };
+      }
+      const _opts = {};
+      const _content = ${safeContent};
+      const _color = ${safeColor};
+      const _fontSize = ${safeFontSize};
+      const _fontWeight = ${safeFontWeight};
+      const _align = ${safeAlign};
+      if (_content !== null) _opts.content = _content;
+      if (_color !== null) _opts.color = _color;
+      if (_fontSize !== null) _opts.fontSize = _fontSize;
+      if (_fontWeight !== null) _opts.fontWeight = _fontWeight;
+      if (_align !== null) _opts.align = _align;
+      return window.editTextBlock(${safeBlockId}, _opts);
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('editTextBlock call failed: ' + e.message);
   }
 }
 
