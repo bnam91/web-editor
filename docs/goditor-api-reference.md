@@ -837,6 +837,118 @@ value: [{ src, x, y, w }, ...]
 
 ---
 
+## 편집/조회 API (Phase 4)
+
+기존 블록을 **수정**하거나 캔버스 상태를 **조회**하는 mutation/read API. (이전 섹션의 add 함수는 전부 추가 전용.)
+PM(Claude) 워크플로우 관점의 설명은 `main/claude-pm/design-knowledge/EDITING.md` 참조.
+
+### `window.editTextBlock(blockId, opts)`
+
+기존 **텍스트 블록**의 내용·스타일을 수정한다. opts 중 전달된 필드만 변경하고 나머지는 유지한다. 한 호출이 undo 1단위(`pushHistory`).
+
+```js
+window.editTextBlock('tb_a1b2', { color: '#FF3B30' })
+window.editTextBlock('tb_a1b2', { fontSize: 100 })
+window.editTextBlock('tb_a1b2', { content: '단 하나의 선택', fontWeight: 600, align: 'center' })
+```
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| `blockId` | string | 대상 텍스트 블록 id (`tb_xxx`) |
+
+| 옵션 | 타입 | 범위/값 | 설명 |
+|------|------|---------|------|
+| `content` | string | — | 텍스트 내용 교체. 생략 시 기존 유지 |
+| `color` | hex | `#RRGGBB` | 글자 색 |
+| `fontSize` | number (px) | 8–400 (정수) | 폰트 크기 |
+| `fontWeight` | number\|string | 100–900 또는 `normal`\|`bold` | 굵기 |
+| `align` | string | `left` `center` `right` | 정렬 |
+
+**반환**: 성공 시 `{ ok: true, blockId, type, before, applied }`. 대상이 없으면 `{ ok: false, code: 'NOT_FOUND' }`, 사용자가 편집 중이면 `{ ok: false, code: 'USER_BUSY' }`.
+
+> 텍스트 블록 전용. 에셋·구분선 등 비텍스트 블록은 수정 대상이 아니다.
+
+---
+
+### `window.getBlockById(id)`
+
+id로 블록 요소를 찾아 반환한다. 없으면 `null`.
+
+```js
+const el = window.getBlockById('tb_a1b2')
+if (el) { /* ... */ }
+```
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| `id` | string | 블록 id (`tb_xxx` 등) |
+
+**반환**: 해당 블록 HTMLElement 또는 `null`.
+
+---
+
+### `window.selectBlock(id)`
+
+id로 블록을 선택 상태로 만든다(속성 패널 활성화·핸들 표시). UI 선택만 수행한다.
+
+```js
+window.selectBlock('tb_a1b2')
+```
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| `id` | string | 선택할 블록 id |
+
+**반환**: 선택 성공 시 `true`, 블록이 없으면 `false`.
+
+---
+
+### `window.getCanvasState(sectionId?)`
+
+캔버스의 섹션/블록 트리를 읽기 전용으로 반환한다. 특정 문구의 `blockId`를 찾는 용도. `sectionId`를 주면 해당 섹션만 반환한다.
+
+```js
+const state = window.getCanvasState()              // 전체
+const one   = window.getCanvasState('sec_wd3nixu') // 특정 섹션만
+// state.sections[].blocks[] 에서 text 매칭으로 blockId 탐색
+```
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| `sectionId` | string | (선택) 특정 섹션 id. 생략 시 전체 섹션 |
+
+**반환**:
+```jsonc
+{
+  ok: true,
+  sections: [
+    {
+      sectionId: 'sec_xxx',
+      name: '섹션 이름',
+      blocks: [
+        { blockId: 'tb_xxx', type: 'h1', text: '메인카피', color: '#333333', fontSize: 104, align: 'center' }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### `window.addAssetBlock` — `sectionId` 추가
+
+기존 `addAssetBlock(preset?, opts?)`의 `opts`에 **`sectionId`** 가 추가되었다. 지정하면 선택된 섹션이 아니라 **해당 섹션**에 이미지 자리를 추가한다. 생략 시 기존대로 현재 선택된 섹션에 추가된다.
+
+```js
+window.addAssetBlock('standard', { sectionId: 'sec_wd3nixu' })
+```
+
+| 옵션 | 타입 | 설명 |
+|------|------|------|
+| `sectionId` | string | (선택) 대상 섹션 id. 생략 시 현재 선택된 섹션 |
+
+---
+
 ## 변경 이력
 
 | 날짜 | 버전 | 변경 |
@@ -852,3 +964,4 @@ value: [{ src, x, y, w }, ...]
 | 2026-04-08 | v2.0 | **`addFrameBlock` radius 옵션 추가**: `radius: number` 파라미터 추가 — `border-radius` + `overflow:hidden` 적용, `dataset.radius` 저장. fullWidth/freeLayout 양쪽 지원. `goditor_runner.js` frame/sub-section layout에서 `row.radius` 필드 자동 적용 |
 | 2026-04-08 | v1.9 | **freeLayout 절대좌표 지원**: `addTextBlock` / `addAssetBlock`에 `x`, `y`, `width` 옵션 추가. freeLayout Frame 내부에서 해당 값이 있으면 absolute 고정 위치로 배치, 없으면 기존 자동 스택 동작 유지. `dataset.offsetX` / `dataset.offsetY` 저장으로 재로드 시 복원 보장. `_insertToFlowFrame(makeBlockFn, opts)` 시그니처 확장 |
 | 2026-04-05 | v1.6 | **Shape 블록 완성**: (1) `deselectAll()`에 `.shape-block` 누락 추가 — 선택/해제 정상화. (2) `prop-shape.js` 신규 — `showShapeProperties(block)` 구현 (색상/두께/W·H). (3) 4코너 리사이즈 핸들 추가 — `calc(7px * var(--inv-zoom))` 배율 독립 크기, 저장 시 자동 제거. (4) 핸들 리사이즈 시 `block.left/top` 고정(0,0) — Frame(ss)만 리사이즈하도록 수정. (5) shape DnD: mousedown 드래그 제거, `isInnerBlock`에서 제외 → Frame 전체 HTML5 DnD로 이동. (6) 호버 `::after { background: var(--sel-color-fill) }` 추가 — 다른 블록과 일관성. |
+| 2026-05-24 | v2.1 | **Phase 4 편집/조회 API**: `editTextBlock(blockId, opts)`(텍스트 블록 수정 — content/color/fontSize/fontWeight/align), `getBlockById(id)`, `selectBlock(id)`, `getCanvasState(sectionId?)` 추가. `addAssetBlock` opts에 `sectionId` 추가 — 선택 섹션이 아닌 특정 섹션에 에셋 자리 삽입 가능. |
