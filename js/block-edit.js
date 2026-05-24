@@ -51,10 +51,20 @@ function editTextBlock(blockId, opts = {}) {
   const applied = {};
 
   if (opts.content !== undefined && opts.content !== null) {
-    contentEl.textContent = String(opts.content);
+    const text = String(opts.content);
+    // bullet(<ul class="tb-bullet">)은 textContent로 덮으면 <li> 구조가 파괴됨 → 줄마다 <li> 재구성
+    if (contentEl.matches('ul.tb-bullet')) {
+      contentEl.replaceChildren(...text.split(/\r?\n/).map((line) => {
+        const li = document.createElement('li');
+        li.textContent = line;
+        return li;
+      }));
+    } else {
+      contentEl.textContent = text;
+    }
     contentEl.style.whiteSpace = 'pre-wrap';
     delete contentEl.dataset.isPlaceholder;
-    applied.content = String(opts.content);
+    applied.content = text;
   }
   if (opts.color !== undefined && opts.color !== null) {
     contentEl.style.color = opts.color;

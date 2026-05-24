@@ -1413,11 +1413,14 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId } = {})
       if (typeof window.addPresetRow !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.addPresetRow not found' };
       }
-      // 지정 섹션 타게팅 (add_text_block과 동일 패턴)
+      // 지정 섹션 타게팅 (add_text_block과 동일 패턴). 지정했는데 없으면 무음 폴백 대신 NOT_FOUND.
       const sid = ${safeSectionId};
       if (sid && typeof window.selectSection === 'function') {
         const target = document.getElementById(sid) || document.querySelector('[data-section-id="' + sid + '"]');
-        if (target) { try { window.selectSection(target); } catch (_) {} }
+        if (!target) {
+          return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        }
+        try { window.selectSection(target); } catch (_) {}
       }
       // 활성 섹션 없으면 첫 섹션 자동 선택
       if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
