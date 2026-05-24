@@ -76,12 +76,12 @@
           <span class="cpmt-folder" id="cpmt-folder"></span>
         </span>
         <div class="cpmt-actions">
-          <input type="range" class="cpmt-opacity-slider" min="20" max="100" value="100" title="투명도 조절">
-          <button class="cpmt-btn" type="button" data-cpmt-action="open-finder" title="Finder에서 폴더 열기">🔍</button>
-          <button class="cpmt-btn" type="button" data-cpmt-action="mcp-guide" title=".mcp.json 가이드">ⓘ</button>
-          <button class="cpmt-btn" type="button" data-cpmt-action="restart" title="재시작">↻</button>
-          <button class="cpmt-btn" type="button" data-cpmt-action="minimize" title="최소화">▭</button>
-          <button class="cpmt-btn cpmt-close" type="button" data-cpmt-action="close" title="닫기">✕</button>
+          <input type="range" class="cpmt-opacity-slider" min="20" max="100" value="100" title="투명도 조절" aria-label="투명도 조절">
+          <button class="cpmt-btn" type="button" data-cpmt-action="open-finder" data-tip="Finder 열기" aria-label="Finder에서 폴더 열기">🔍</button>
+          <button class="cpmt-btn" type="button" data-cpmt-action="mcp-guide" data-tip="MCP 가이드" aria-label=".mcp.json 가이드">ⓘ</button>
+          <button class="cpmt-btn" type="button" data-cpmt-action="restart" data-tip="재시작" aria-label="재시작">↻</button>
+          <button class="cpmt-btn" type="button" data-cpmt-action="minimize" data-tip="최소화" aria-label="최소화">▭</button>
+          <button class="cpmt-btn cpmt-close" type="button" data-cpmt-action="close" data-tip="닫기" aria-label="닫기">✕</button>
         </div>
       </div>
       <div class="cpmt-body" id="cpmt-body"></div>

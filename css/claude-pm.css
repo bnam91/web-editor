@@ -500,6 +500,7 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative; /* tooltip 기준 */
 }
 .cpmt-btn:hover {
   background: #26262a;
@@ -507,6 +508,29 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   border-color: #333;
 }
 .cpmt-btn.cpmt-close:hover { color: #ff8a8a; }
+/* 즉시 뜨는 커스텀 tooltip (native title 1-2초 지연 회피). 버튼 아래 표시. */
+.cpmt-btn[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20,20,24,0.96);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 5px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+/* 우측 끝 버튼(닫기 등)은 tooltip이 패널 밖으로 안 나가게 오른쪽 정렬 */
+.cpmt-btn.cpmt-close[data-tip]:hover::after {
+  left: auto; right: 0; transform: none;
+}
 
 .cpmt-body {
   flex: 1 1 auto;
