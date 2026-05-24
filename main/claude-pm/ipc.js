@@ -120,6 +120,18 @@ async function _tryImportTemplateGenerator() {
     return null;
   }
 }
+// 기존 폴더 재사용 시 CLAUDE.md를 현재 템플릿으로 재생성 (도구 목록 등 최신화).
+// graceful: 실패해도 ensure 흐름을 깨지 않음. meta 보존(updatedAt 미변경).
+async function _refreshClaudeMdSafe(folder) {
+  try {
+    const tg = await _tryImportTemplateGenerator();
+    if (tg && typeof tg.refreshClaudeMd === 'function') {
+      await tg.refreshClaudeMd(folder);
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
 function _tryRequireMcpServer() {
   try {
     return require('./mcp-server');
@@ -420,9 +432,11 @@ async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath
           };
         }
         if (existingId === safePid) {
+          await _refreshClaudeMdSafe(overrideFolder);
           return { ok: true, folderPath: overrideFolder, created: false, reused: true, viaOverride: true };
         }
         const repaired = _repairFolder(overrideFolder, safePid, safeName);
+        await _refreshClaudeMdSafe(overrideFolder);
         return { ok: true, folderPath: overrideFolder, created: false, repaired, viaOverride: true };
       }
       // 신규 생성 (override)
@@ -443,6 +457,7 @@ async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath
         }
       } catch (_) {}
       if (existingId === safePid) {
+        await _refreshClaudeMdSafe(newFolder);
         return { ok: true, folderPath: newFolder, created: false, reused: true };
       }
       if (existingId && existingId !== safePid) {
@@ -454,6 +469,7 @@ async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath
         };
       }
       const repaired = _repairFolder(newFolder, safePid, safeName);
+      await _refreshClaudeMdSafe(newFolder);
       return { ok: true, folderPath: newFolder, created: false, repaired };
     }
 
@@ -493,6 +509,7 @@ async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath
       const { copied, skipped } = _copyDirSafe(legacySrc, newFolder);
       // 신규 위치 meta.id 보강
       const repaired = _repairFolder(newFolder, safePid, safeName);
+      await _refreshClaudeMdSafe(newFolder);
       return {
         ok: true,
         folderPath: newFolder,

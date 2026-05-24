@@ -306,6 +306,25 @@ export async function generateFolder(opts) {
 }
 
 /**
+ * CLAUDE.md만 현재 템플릿으로 재생성 (meta.json은 건드리지 않음 — updatedAt 미변경).
+ * 기존 프로젝트 진입 시 호출 → 템플릿(도구 목록 등)이 바뀌어도 CLAUDE.md가 최신 상태 유지.
+ * CLAUDE.md는 meta에서 파생되는 파일이므로 덮어써도 사용자 데이터(decisions/history/NOTES) 손실 없음.
+ * @param {string} folderPath
+ * @returns {Promise<{ok:boolean, reason?:string}>}
+ */
+export async function refreshClaudeMd(folderPath) {
+  const metaPath = path.join(folderPath, META_JSON);
+  let meta;
+  try {
+    meta = await _readJson(metaPath);
+  } catch {
+    return { ok: false, reason: 'no-meta' };
+  }
+  await _safeWriteFile(path.join(folderPath, CLAUDE_MD), renderClaudeMd(meta));
+  return { ok: true };
+}
+
+/**
  * project.meta.json 부분 업데이트 + CLAUDE.md 재생성.
  * @param {string} folderPath
  * @param {object} patch
