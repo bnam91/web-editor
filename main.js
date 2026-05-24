@@ -1338,7 +1338,7 @@ async function _invokeRendererAddSection({ empty = false, bg } = {}) {
 
 // ─── Phase 3 MVP — renderer 측 에셋(비율 프리셋) row 추가 helper ──────────────
 // window.addPresetRow(preset) 호출. img1/img2/img3/text-img.
-async function _invokeRendererAddAssetBlock({ preset = 'img1' } = {}) {
+async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -1346,6 +1346,7 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1' } = {}) {
     return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
   }
   const safePreset = JSON.stringify(String(preset));
+  const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
   const atomicJs = `(() => {
     try {
       const ae = document.activeElement;
@@ -1358,6 +1359,12 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1' } = {}) {
       }
       if (typeof window.addPresetRow !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.addPresetRow not found' };
+      }
+      // 지정 섹션 타게팅 (add_text_block과 동일 패턴)
+      const sid = ${safeSectionId};
+      if (sid && typeof window.selectSection === 'function') {
+        const target = document.getElementById(sid) || document.querySelector('[data-section-id="' + sid + '"]');
+        if (target) { try { window.selectSection(target); } catch (_) {} }
       }
       // 활성 섹션 없으면 첫 섹션 자동 선택
       if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
