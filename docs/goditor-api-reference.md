@@ -198,6 +198,32 @@ window.addAssetBlock('wide', { paddingX: 215 })  // asset 실질 너비 = 860 - 
 
 ---
 
+### `window.addPresetRow(type)`
+
+이미지 레이아웃 **프리셋 row**를 추가한다. `addAssetBlock`이 단일 에셋이라면, 이쪽은 *열 구성이 정해진* 다중 레이아웃이다.
+
+> **MCP 연동**: PM의 MCP 도구 `add_asset_block` / `build_basic_section`이 내부적으로 이 함수를 호출한다 (프리셋 값도 `img1`/`img2`/`img3`/`text-img` 동일). 따라서 PM이 만드는 에셋 자리 = `addPresetRow` 결과물이다.
+
+```js
+window.addPresetRow('img1')      // 단일 풀폭 이미지
+window.addPresetRow('img2')      // 2분할
+window.addPresetRow('img3')      // 3분할
+window.addPresetRow('text-img')  // 좌 텍스트 + 우 이미지
+```
+
+| type | 레이아웃 | 구성 |
+|------|---------|------|
+| `'img1'` (기본) | stack, 1열 100% | 단일 에셋 1개 |
+| `'img2'` | flex 1:1 | 에셋 2개 (각 height 390px) |
+| `'img3'` | flex 1:1:1 | 에셋 3개 (각 height 300px) |
+| `'text-img'` | flex 1:1 | 좌: `body` 텍스트 블록 / 우: 에셋 1개 |
+
+**동작**: 선택된 섹션의 선택 블록 뒤에 삽입(`insertAfterSelected`) → `pushHistory`(undo 1단위) → 첫 asset-block 자동 선택(이미지 업로드 유도). 활성 섹션 없으면 `showNoSelectionHint()` 후 no-op.
+
+> `addAssetBlock`(`standard`/`square`/`tall`/`wide`/`logo`)과 프리셋 어휘가 **다르다** — 단일 에셋 크기 프리셋은 `addAssetBlock`, 다중/혼합 레이아웃은 `addPresetRow`.
+
+---
+
 ### `window.addGapBlock(height?)`
 
 빈 공간(여백) 블록을 추가한다.
@@ -964,4 +990,5 @@ window.addAssetBlock('standard', { sectionId: 'sec_wd3nixu' })
 | 2026-04-08 | v2.0 | **`addFrameBlock` radius 옵션 추가**: `radius: number` 파라미터 추가 — `border-radius` + `overflow:hidden` 적용, `dataset.radius` 저장. fullWidth/freeLayout 양쪽 지원. `goditor_runner.js` frame/sub-section layout에서 `row.radius` 필드 자동 적용 |
 | 2026-04-08 | v1.9 | **freeLayout 절대좌표 지원**: `addTextBlock` / `addAssetBlock`에 `x`, `y`, `width` 옵션 추가. freeLayout Frame 내부에서 해당 값이 있으면 absolute 고정 위치로 배치, 없으면 기존 자동 스택 동작 유지. `dataset.offsetX` / `dataset.offsetY` 저장으로 재로드 시 복원 보장. `_insertToFlowFrame(makeBlockFn, opts)` 시그니처 확장 |
 | 2026-04-05 | v1.6 | **Shape 블록 완성**: (1) `deselectAll()`에 `.shape-block` 누락 추가 — 선택/해제 정상화. (2) `prop-shape.js` 신규 — `showShapeProperties(block)` 구현 (색상/두께/W·H). (3) 4코너 리사이즈 핸들 추가 — `calc(7px * var(--inv-zoom))` 배율 독립 크기, 저장 시 자동 제거. (4) 핸들 리사이즈 시 `block.left/top` 고정(0,0) — Frame(ss)만 리사이즈하도록 수정. (5) shape DnD: mousedown 드래그 제거, `isInnerBlock`에서 제외 → Frame 전체 HTML5 DnD로 이동. (6) 호버 `::after { background: var(--sel-color-fill) }` 추가 — 다른 블록과 일관성. |
-| 2026-05-24 | v2.1 | **Phase 4 편집/조회 API**: `editTextBlock(blockId, opts)`(텍스트 블록 수정 — content/color/fontSize/fontWeight/align), `getBlockById(id)`, `selectBlock(id)`, `getCanvasState(sectionId?)` 추가. `addAssetBlock` opts에 `sectionId` 추가 — 선택 섹션이 아닌 특정 섹션에 에셋 자리 삽입 가능. |
+| 2026-05-24 | v2.1 | **Phase 4 편집/조회 API**: `editTextBlock(blockId, opts)`(텍스트 블록 수정 — content/color/fontSize/fontWeight/align), `getBlockById(id)`, `selectBlock(id)`, `getCanvasState(sectionId?)` 추가. |
+| 2026-05-25 | v2.2 | **`addPresetRow(type)` 문서화** — img1/img2/img3/text-img 다중 이미지 레이아웃 (MCP `add_asset_block`/`build_basic_section`이 호출하는 실제 함수). **정정**: v2.1의 "`addAssetBlock` opts에 sectionId 추가"는 부정확 — sectionId는 **MCP `add_asset_block` 도구 레이어**에 추가된 것으로, main.js 브리지가 대상 섹션을 `selectSection`한 뒤 `addPresetRow`를 호출하는 방식. `window.addAssetBlock` 시그니처 자체는 불변. |
