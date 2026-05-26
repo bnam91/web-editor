@@ -36,14 +36,27 @@ for (let i = 2; i < process.argv.length; i++) {
 const CHANNEL = args.channel;
 const BUILD   = args.build === true || args.build === 'true';
 const PORT    = args.port ? parseInt(args.port) : 9336;
+// 디자이너/소스별 매핑 프로필 — dforce일 때만 공격적 휴리스틱(위치기반 center 추론,
+// 섹션 bg 승격) 적용. 기본(default)은 보수적(Figma 명시값만 반영).
+const PROFILE = (args.profile || 'default').toLowerCase();
+const IS_DFORCE = PROFILE === 'dforce';
 
 if (!CHANNEL) {
   console.error('Usage: node goditor_figma_importer.js --channel <id> [--frame <nodeId>] [--build]');
   process.exit(1);
 }
 
-// ─── Figma 커맨드 실행 ───────────────────────────────────────────
+// ─── Figma 커맨드 실행 (디스크 캐시 — 매핑 보정 후 재실행을 빠르게) ──
+// FIGMA_NO_CACHE=1 이면 캐시 무시(원본 재읽기). 채널+커맨드+파라미터로 키.
+const crypto = require('crypto');
+const FIGMA_CACHE_DIR = '/tmp/figma_import_cache';
+try { fs.mkdirSync(FIGMA_CACHE_DIR, { recursive: true }); } catch {}
 function figma(command, params) {
+  const key = crypto.createHash('md5').update(CHANNEL + '|' + command + '|' + JSON.stringify(params)).digest('hex');
+  const cf = path.join(FIGMA_CACHE_DIR, key + '.json');
+  if (!process.env.FIGMA_NO_CACHE && fs.existsSync(cf)) {
+    try { return JSON.parse(fs.readFileSync(cf, 'utf-8')); } catch {}
+  }
   const r = spawnSync('node', [FIGMA_CMD,
     '--command', command,
     '--params', JSON.stringify(params),
@@ -52,7 +65,10 @@ function figma(command, params) {
 
   if (r.error) throw r.error;
   if (!r.stdout?.trim()) return null;
-  try { return JSON.parse(r.stdout); } catch { return null; }
+  let parsed = null;
+  try { parsed = JSON.parse(r.stdout); } catch { return null; }
+  if (parsed !== null) { try { fs.writeFileSync(cf, JSON.stringify(parsed)); } catch {} }
+  return parsed;
 }
 
 // ─── 색상 변환 (0-1 rgba → hex) ─────────────────────────────────
@@ -197,9 +213,19 @@ function nodeToBlock(node, frameBox, containerW = 860) {
     const fontWeight = style.fontWeight || 400;
     const constraints = node.constraints || {};
     // textAlignHorizontal이 LEFT여도 constraint가 CENTER면 시각적으로 가운데 배치
-    const align = constraints.horizontal === 'CENTER' && style.textAlignHorizontal !== 'RIGHT'
+    let align = constraints.horizontal === 'CENTER' && style.textAlignHorizontal !== 'RIGHT'
       ? 'center'
       : mapAlign(style.textAlignHorizontal);
+    // 위치 기반 center 추론: textAlign 미지정인데 부모 프레임 대비 가로 중앙이면 center
+    // (dforce 프로필 전용 — textAlignHorizontal=null이지만 디자인상 중앙 배치된 텍스트 대응)
+    if (IS_DFORCE && align === 'left' && !style.textAlignHorizontal && frameBox && frameBox.width) {
+      const tb = node.absoluteBoundingBox;
+      if (tb && tb.width) {
+        const textCenter = tb.x + tb.width / 2;
+        const frameCenter = (frameBox.x || 0) + frameBox.width / 2;
+        if (Math.abs(textCenter - frameCenter) < frameBox.width * 0.12) align = 'center';
+      }
+    }
     const rot = getRotationDeg(node);
     return {
       type: 'text',
@@ -593,10 +619,25 @@ function buildRows(children, frameBox, parentNode = null) {
 // ─── 프레임 → Section spec ──────────────────────────────────────
 function frameToSection(frame) {
   const frameBox = frame.absoluteBoundingBox;
-  const bg = getBgColor(frame);
+  let bg = getBgColor(frame);
   const paddingX = 0; // Figma는 패딩 개념이 다름 — 일단 0
 
   const rows = buildRows(frame.children, frameBox, frame);
+
+  // 프레임 자체 bg가 없으면 풀폭 콘텐츠 서브섹션의 bg를 섹션 bg로 승격
+  // (dforce 프로필 전용 — 좌우 패딩·상하 gap 영역이 같은 색이 되어 '흰 테두리'가 안 생김)
+  if (IS_DFORCE && !bg) {
+    const fw = (frameBox?.width || 860) * 0.9;
+    for (const row of rows) {
+      for (const col of (row.cols || [])) {
+        for (const b of (col.blocks || [])) {
+          if (b.type === 'sub-section' && b.bg && (b.width || 0) >= fw) { bg = b.bg; break; }
+        }
+        if (bg) break;
+      }
+      if (bg) break;
+    }
+  }
 
   const section = {
     label: '',
