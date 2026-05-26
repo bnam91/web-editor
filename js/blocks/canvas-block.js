@@ -241,7 +241,15 @@ function renderCanvas(block) {
           const textW = designW - imgW;
 
           const imgDiv = document.createElement('div');
-          imgDiv.style.cssText = `position:absolute;left:0;top:0;width:${imgW}px;height:${designH}px;overflow:hidden;flex-shrink:0;`;
+          if (imgShape === 'circle') {
+            // 가로 모드 원형 — 이미지 영역 안에 중앙 정렬된 정사각 원 (portrait와 동일 규칙)
+            const side = Math.min(imgW, designH);
+            const ml = Math.max(0, Math.round((imgW - side) / 2));
+            const mt = Math.max(0, Math.round((designH - side) / 2));
+            imgDiv.style.cssText = `position:absolute;left:${ml}px;top:${mt}px;width:${side}px;height:${side}px;overflow:hidden;border-radius:50%;flex-shrink:0;`;
+          } else {
+            imgDiv.style.cssText = `position:absolute;left:0;top:0;width:${imgW}px;height:${designH}px;overflow:hidden;flex-shrink:0;`;
+          }
           if (card.icon && card.icon.svg) {
             _fillCardIcon(imgDiv, card, Math.min(imgW, designH), _iconOpts);
           } else if (card.imgSrc) {
