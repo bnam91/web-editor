@@ -690,22 +690,22 @@
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%; transform: translateX(-50%);
-  background: var(--ui-bg-base); border: 1px solid var(--ui-border);
+  background: var(--ui-bg-card); border: 1px solid var(--ui-border); /* 드롭다운/팝업 전용 surface 토큰 */
   border-radius: 8px; padding: 4px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
   min-width: 100px;
 }
 .fp-dropdown.open .fp-dropdown-menu { display: block; }
 .fp-menu-item {
-  display: block; width: 100%;
-  height: 28px; padding: 0 10px;
+  display: flex; align-items: center; width: 100%;
+  height: 28px; padding: 0 10px; line-height: 1; /* 세로 중앙 정렬 명시 */
   background: transparent; border: none;
   border-radius: 5px; color: var(--ui-text-sub);
   font-size: 11px; font-weight: 500;
   cursor: pointer; text-align: left;
   transition: background 0.1s, color 0.1s;
 }
-.fp-menu-item:hover { background: var(--ui-bg-input); color: #fff; }
+.fp-menu-item:hover { background: var(--ui-bg-input); color: var(--ui-text); }
 
 /* ═══════════════════════════════════
    ICON CIRCLE BLOCK
