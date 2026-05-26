@@ -1564,6 +1564,7 @@ function deselectAll() {
   window.hideCanvasRadiusHandles?.();
   window.hideCanvasResizeHandles?.();
   window.hideVectorResizeHandles?.();
+  window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
   canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
   window.showPageProperties();
 }
