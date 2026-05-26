@@ -2533,13 +2533,14 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 
 /* ──────────────────────────────────────────────
    Sticker 4모서리 리사이즈 핸들 (JS에서 .sticker-corner-handle 추가)
-   일반 블록의 .ss-resize-handle / .asset-handle와 동일 규칙, 색만 보라색
+   .shape-handle / .gradient-corner-handle과 동일하게 --inv-zoom calc()로
+   캔버스 배율 무관하게 화면상 7px 고정 — 색만 보라색
    highlightB(선)는 이 핸들 대신 .hlb-handle 사용
 ────────────────────────────────────────────── */
 .sticker-corner-handle {
   position: absolute;
-  width: 7px;
-  height: 7px;
+  width:  calc(7px * var(--inv-zoom, 1));
+  height: calc(7px * var(--inv-zoom, 1));
   background: #fff;
   border: 1px solid #9966ff;
   border-radius: 1px;
@@ -2550,11 +2551,11 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   mix-blend-mode: normal;
   isolation: isolate;
 }
-/* asset-handle과 동일한 절대 px 패턴 — 핸들이 모서리에서 3.5px씩 바깥쪽으로 (정사각형 7px의 절반) */
-.sticker-corner-handle[data-corner="tl"] { top: -3.5px; left:  -3.5px; cursor: nwse-resize; }
-.sticker-corner-handle[data-corner="tr"] { top: -3.5px; right: -3.5px; cursor: nesw-resize; }
-.sticker-corner-handle[data-corner="bl"] { bottom: -3.5px; left:  -3.5px; cursor: nesw-resize; }
-.sticker-corner-handle[data-corner="br"] { bottom: -3.5px; right: -3.5px; cursor: nwse-resize; }
+/* --inv-zoom calc() 패턴 — 핸들이 모서리에서 3.5px씩 바깥쪽으로 (정사각형 7px의 절반), 줌 무관 고정 */
+.sticker-corner-handle[data-corner="tl"] { top:    calc(-3.5px * var(--inv-zoom, 1)); left:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+.sticker-corner-handle[data-corner="tr"] { top:    calc(-3.5px * var(--inv-zoom, 1)); right: calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.sticker-corner-handle[data-corner="bl"] { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.sticker-corner-handle[data-corner="br"] { bottom: calc(-3.5px * var(--inv-zoom, 1)); right: calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
 .sticker-corner-handle:hover { background: #f0e8ff; }
 
 /* ──────────────────────────────────────────────
