@@ -170,7 +170,9 @@ function renderCanvas(block) {
     // 아이콘 모드(이스터에그) 블록 레벨 설정 — 크기(%)·색·이미지 배경
     const iconScale  = Math.min(90, Math.max(10, parseInt(block.dataset.iconScale) || 46));
     const iconColor  = block.dataset.iconColor || '#333333';
-    const iconBg     = block.dataset.iconBg    || 'transparent';
+    // 아이콘 모드면 이미지 배경 기본값을 연회색으로 → circle/rect가 바로 보임(reference 스타일).
+    // 투명을 원하면 패널에서 명시적으로 transparent 지정(그땐 dataset.iconBg='transparent'라 이 기본값 무시).
+    const iconBg     = block.dataset.iconBg    || (block.dataset.iconMode === 'true' ? '#eeeeee' : 'transparent');
     const _iconOpts  = { scale: iconScale, color: iconColor, bg: iconBg };
     const cards     = JSON.parse(block.dataset.cards    || '[]');
 

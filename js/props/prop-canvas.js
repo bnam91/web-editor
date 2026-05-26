@@ -314,7 +314,7 @@ function showSimpleCardProperties(block) {
   const iconMode  = block.dataset.iconMode === 'true';
   const iconScale = Math.min(90, Math.max(10, parseInt(block.dataset.iconScale) || 46));
   const iconColor = block.dataset.iconColor || '#333333';
-  const iconBgRaw = block.dataset.iconBg || 'transparent';
+  const iconBgRaw = block.dataset.iconBg || (iconMode ? '#eeeeee' : 'transparent');
   const isIconBgTransparent = iconBgRaw === 'transparent';
   const iconBg    = isIconBgTransparent ? (block.dataset.iconBgLast || '#eeeeee') : iconBgRaw;
 
