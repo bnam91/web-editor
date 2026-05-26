@@ -178,6 +178,7 @@
   transform-origin: center center;
   width: 7px;
   height: 7px;
+  box-sizing: border-box;
   background: rgba(255,255,255,0.88);
   border: 1.5px solid rgba(0,0,0,0.25);
   border-radius: 1px;
