@@ -105,7 +105,7 @@ function _bindGradientCornerDrag(handle, block, corner) {
 }
 
 // ── 엣지 맞닿기 스냅 (그라데이션 오버레이를 다른 블록 변에 약하게 끌어 붙임) ──
-const GRAD_SNAP_TH = 8; // 섹션 로컬 px 이내면 스냅 (약한 끌림)
+const GRAD_SNAP_SCREEN = 16; // 화면상 자석 끌림 거리(px) — 줌과 무관하게 일정한 체감
 const _GRAD_TARGET_SEL = '.text-block,.asset-block,.card-block,.canvas-block,.table-block,.graph-block,.divider-block,.icon-circle-block,.label-group-block,.icon-text-block,.step-block,.chat-block,.laurel-block,.mockup-block,.shape-block,.sticker-block,.gradient-block';
 let _gradSnapEls = [];
 
@@ -132,6 +132,7 @@ function _showGradSnapEdge(el, side) {
 function _gradEdgeSnap(block, sec, x, y) {
   const bw = block.offsetWidth, bh = block.offsetHeight;
   const zoom = (window.currentZoom || 40) / 100;
+  const GRAD_SNAP_TH = GRAD_SNAP_SCREEN / zoom; // 화면 px → 섹션 로컬 px 환산 (줌 무관 체감)
   const secRect = sec.getBoundingClientRect();
   const toLocal = r => ({
     L: (r.left  - secRect.left) / zoom, R: (r.right  - secRect.left) / zoom,
