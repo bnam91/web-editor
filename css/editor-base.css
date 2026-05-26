@@ -4,8 +4,8 @@
   --sel-color:            var(--color-selection);
   --sel-color-hover:      var(--color-selection-hover);
   --sel-color-fill:       var(--color-selection-fill);
-  /* 선택 아웃라인 두께 — 캔버스 줌과 무관하게 화면상 1.5px 고정 (핸들과 동일 방식) */
-  --sel-outline-w:        calc(1.5px * var(--inv-zoom, 1));
+  /* 선택 아웃라인 두께 — 캔버스 줌과 무관하게 화면상 1px 고정 (핸들과 동일 방식) */
+  --sel-outline-w:        calc(1px * var(--inv-zoom, 1));
   --preset-h1-color:      #111111;
   --preset-h1-family:     'Noto Sans KR', sans-serif;
   --preset-h2-color:      #1a1a1a;
