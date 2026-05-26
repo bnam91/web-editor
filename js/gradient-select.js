@@ -165,6 +165,12 @@ function _gradEdgeSnap(block, sec, x, y) {
     // 수평 맞닿기: 그라 오른변↔대상 왼변 / 그라 왼변↔대상 오른변
     d     = Math.abs(gR - e.L); if (d <= GRAD_SNAP_TH && (bestX === null || d < bestX)) { bestX = d; snapX = e.L - bw; edgeX = { el: t, side: 'left' }; }
     d     = Math.abs(gL - e.R); if (d <= GRAD_SNAP_TH && (bestX === null || d < bestX)) { bestX = d; snapX = e.R;      edgeX = { el: t, side: 'right' }; }
+    // 동일변 정렬: 윗변↔윗변 / 아랫변↔아랫변 (같은 쪽 변 줄맞춤)
+    d     = Math.abs(gT - e.T); if (d <= GRAD_SNAP_TH && (bestY === null || d < bestY)) { bestY = d; snapY = e.T;      edgeY = { el: t, side: 'top' }; }
+    d     = Math.abs(gB - e.B); if (d <= GRAD_SNAP_TH && (bestY === null || d < bestY)) { bestY = d; snapY = e.B - bh; edgeY = { el: t, side: 'bottom' }; }
+    // 동일변 정렬: 왼변↔왼변 / 오른변↔오른변
+    d     = Math.abs(gL - e.L); if (d <= GRAD_SNAP_TH && (bestX === null || d < bestX)) { bestX = d; snapX = e.L;      edgeX = { el: t, side: 'left' }; }
+    d     = Math.abs(gR - e.R); if (d <= GRAD_SNAP_TH && (bestX === null || d < bestX)) { bestX = d; snapX = e.R - bw; edgeX = { el: t, side: 'right' }; }
   }
   return { x: Math.round(snapX), y: Math.round(snapY), edgeX, edgeY };
 }
