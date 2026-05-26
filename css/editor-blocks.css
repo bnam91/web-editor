@@ -72,8 +72,8 @@
 /* ── Frame corner radius handles (Figma 스타일) ── */
 .ss-radius-handle {
   position: absolute;
-  width:  8px;
-  height: 8px;
+  width:  7px;
+  height: 7px;
   background: #fff;
   border: 1.5px solid var(--sel-color);
   border-radius: 50%;
@@ -91,8 +91,8 @@
 /* ── Asset Block corner radius handles (Figma 스타일) ── */
 .asset-radius-handle {
   position: absolute;
-  width:  8px;
-  height: 8px;
+  width:  7px;
+  height: 7px;
   background: #fff;
   border: 1.5px solid var(--sel-color);
   border-radius: 50%;
@@ -182,8 +182,8 @@
 /* ── Canvas Block corner radius handle ── */
 .canvas-radius-handle {
   position: absolute;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   background: #fff;
   border: 1.5px solid var(--sel-color);
   border-radius: 50%;

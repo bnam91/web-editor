@@ -85,7 +85,7 @@ function _updateHandlePositions() {
 
   // 코너 반경 핸들 위치 (프레임 안쪽 코너에서 INSET만큼 안쪽)
   const INSET = 10; // 코너에서 안쪽으로 떨어진 거리
-  const RADIUS_HALF = 4;
+  const RADIUS_HALF = 3.5; // 7px 핸들 중앙 정렬 (= 7/2)
   const rHandles = overlay.querySelectorAll('.ss-radius-handle');
   rHandles.forEach(h => {
     const dir = h.dataset.radiusDir;
@@ -417,7 +417,7 @@ function _updateAssetRadiusHandlePositions() {
   if (!overlay || !_assetRadiusBlock) return;
   const rect = _assetRadiusBlock.getBoundingClientRect();
   const INSET = 10;
-  const HALF  = 4;
+  const HALF  = 3.5; // 7px 핸들 중앙 정렬
   overlay.querySelectorAll('.asset-radius-handle').forEach(h => {
     const dir = h.dataset.assetRadiusDir;
     const top  = dir.includes('n') ? rect.top  + INSET - HALF : rect.bottom - INSET - HALF;
@@ -721,7 +721,7 @@ function _updateCanvasRadiusHandlePositions() {
   if (!overlay || !_canvasRadiusBlock) return;
   const rect = _canvasRadiusBlock.getBoundingClientRect();
   const INSET = 10;
-  const HALF  = 4;
+  const HALF  = 3.5; // 7px 핸들 중앙 정렬
   overlay.querySelectorAll('.canvas-radius-handle').forEach(h => {
     h.style.top  = (rect.top  + INSET - HALF) + 'px';
     h.style.left = (rect.left + INSET - HALF) + 'px';
