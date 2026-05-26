@@ -376,10 +376,10 @@
   padding: 0;
   border: 1px solid var(--ui-border);
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px; /* 패널 내 다른 버튼(11px)과 통일 */
   font-weight: 600;
   cursor: pointer;
-  margin-top: 4px;
+  margin-top: 6px; /* 섹션 리듬 통일 */
   letter-spacing: 0.02em;
   display: flex; align-items: center; justify-content: center;
 }
