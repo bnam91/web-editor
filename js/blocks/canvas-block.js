@@ -34,13 +34,15 @@ function _appendCardTexts(container, card, titleSize, descSize, textAlign, title
 }
 
 // 이스터에그(아이콘 모드): 카드 이미지 자리에 iconify SVG를 중앙 렌더 (currentColor로 색 제어)
-function _fillCardIcon(div, card, areaSize) {
+function _fillCardIcon(div, card, areaSize, opts) {
+  opts = opts || {};
   div.style.display = 'flex';
   div.style.alignItems = 'center';
   div.style.justifyContent = 'center';
-  div.style.background = card.iconBg || 'transparent';
-  div.style.color = card.iconColor || '#333333';
-  const iconSize = Math.round(Math.max(16, (areaSize || 80) * 0.46));
+  div.style.background = opts.bg    || card.iconBg    || 'transparent';
+  div.style.color      = opts.color || card.iconColor || '#333333';
+  const scale = (opts.scale != null ? opts.scale : 46) / 100;
+  const iconSize = Math.round(Math.max(12, (areaSize || 80) * scale));
   const wrap = document.createElement('div');
   wrap.style.cssText = `width:${iconSize}px;height:${iconSize}px;display:flex;align-items:center;justify-content:center;pointer-events:none;`;
   wrap.innerHTML = card.icon.svg;
@@ -165,6 +167,11 @@ function renderCanvas(block) {
     const textAlign  = block.dataset.textAlign || 'left';
     const titleColor = block.dataset.titleColor || '#ffffff';
     const descColor  = block.dataset.descColor  || '#ffffff';
+    // 아이콘 모드(이스터에그) 블록 레벨 설정 — 크기(%)·색·이미지 배경
+    const iconScale  = Math.min(90, Math.max(10, parseInt(block.dataset.iconScale) || 46));
+    const iconColor  = block.dataset.iconColor || '#333333';
+    const iconBg     = block.dataset.iconBg    || 'transparent';
+    const _iconOpts  = { scale: iconScale, color: iconColor, bg: iconBg };
     const cards     = JSON.parse(block.dataset.cards    || '[]');
 
     const totalW = designW * gridCols + GAP * (gridCols - 1);
@@ -236,7 +243,7 @@ function renderCanvas(block) {
           const imgDiv = document.createElement('div');
           imgDiv.style.cssText = `position:absolute;left:0;top:0;width:${imgW}px;height:${designH}px;overflow:hidden;flex-shrink:0;`;
           if (card.icon && card.icon.svg) {
-            _fillCardIcon(imgDiv, card, Math.min(imgW, designH));
+            _fillCardIcon(imgDiv, card, Math.min(imgW, designH), _iconOpts);
           } else if (card.imgSrc) {
             imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
             imgDiv.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';
@@ -276,7 +283,7 @@ function renderCanvas(block) {
               div.style.cssText = `width:100%;height:${imgH}px;overflow:hidden;box-sizing:border-box;flex-shrink:0;`;
             }
             if (card.icon && card.icon.svg) {
-              _fillCardIcon(div, card, imgShape === 'circle' ? Math.min(designW, imgH) : Math.min(designW, imgH));
+              _fillCardIcon(div, card, Math.min(designW, imgH), _iconOpts);
             } else if (card.imgSrc) {
               div.style.backgroundImage    = `url("${card.imgSrc}")`;
               div.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';

@@ -311,6 +311,12 @@ function showSimpleCardProperties(block) {
   const padX      = parseInt(block.dataset.padX ?? 0);
   const imgShape  = block.dataset.imgShape || 'rect';
   const labelPos  = block.dataset.labelPos || 'bottom';
+  const iconMode  = block.dataset.iconMode === 'true';
+  const iconScale = Math.min(90, Math.max(10, parseInt(block.dataset.iconScale) || 46));
+  const iconColor = block.dataset.iconColor || '#333333';
+  const iconBgRaw = block.dataset.iconBg || 'transparent';
+  const isIconBgTransparent = iconBgRaw === 'transparent';
+  const iconBg    = isIconBgTransparent ? (block.dataset.iconBgLast || '#eeeeee') : iconBgRaw;
 
   const cardItemsHtml = cards.map((card, i) => `
     <div class="cvb-card-item" data-card-index="${i}">
@@ -414,6 +420,31 @@ function showSimpleCardProperties(block) {
         <input type="number" class="prop-number" id="cvb-radius-number" min="0" max="60" value="${radius}">
       </div>
     </div>
+
+    ${iconMode ? `
+    <div class="prop-section">
+      <div class="prop-section-title">아이콘 (이스터에그)</div>
+      <div class="prop-row">
+        <span class="prop-label">아이콘 크기</span>
+        <input type="range" class="prop-slider" id="cvb-icon-size-slider" min="10" max="90" step="1" value="${iconScale}">
+        <input type="number" class="prop-number" id="cvb-icon-size-number" min="10" max="90" value="${iconScale}">
+      </div>
+      <div class="prop-color-row">
+        <span class="prop-label">아이콘 색</span>
+        <div class="prop-color-swatch" style="background:${iconColor}">
+          <input type="color" id="cvb-icon-color-pick" value="${iconColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="cvb-icon-color-hex" value="${iconColor}" maxlength="7">
+      </div>
+      <div class="prop-color-row">
+        <span class="prop-label">이미지 배경</span>
+        <div class="prop-color-swatch" style="background:${isIconBgTransparent ? 'transparent' : iconBg}; ${isIconBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
+          <input type="color" id="cvb-iconbg-pick" value="${iconBg}" ${isIconBgTransparent ? 'disabled' : ''}>
+        </div>
+        <input type="text" class="prop-color-hex" id="cvb-iconbg-hex" value="${isIconBgTransparent ? 'transparent' : iconBg}" maxlength="11" ${isIconBgTransparent ? 'disabled' : ''}>
+        <button class="prop-align-btn${isIconBgTransparent ? ' active' : ''}" id="cvb-iconbg-transparent-btn" style="width:36px;flex-shrink:0;">투명</button>
+      </div>
+    </div>` : ''}
 
     <div class="prop-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -613,6 +644,60 @@ function showSimpleCardProperties(block) {
   rSlider.addEventListener('input',  () => applyRadius(parseInt(rSlider.value)));
   rNumber.addEventListener('change', () => { applyRadius(parseInt(rNumber.value)); window.pushHistory?.(); });
   rSlider.addEventListener('change', () => window.pushHistory?.());
+
+  // ── 아이콘 컨트롤 (이스터에그, iconMode일 때만 존재) ──────────────────────────
+  const iconSizeSlider = document.getElementById('cvb-icon-size-slider');
+  if (iconSizeSlider) {
+    const iconSizeNumber = document.getElementById('cvb-icon-size-number');
+    const applyIconSize = v => {
+      v = Math.min(90, Math.max(10, v));
+      block.dataset.iconScale = v;
+      window.renderCanvas(block);
+      iconSizeSlider.value = v; iconSizeNumber.value = v;
+    };
+    iconSizeSlider.addEventListener('input',  () => applyIconSize(parseInt(iconSizeSlider.value)));
+    iconSizeNumber.addEventListener('change', () => { applyIconSize(parseInt(iconSizeNumber.value)); window.pushHistory?.(); });
+    iconSizeSlider.addEventListener('change', () => window.pushHistory?.());
+
+    const icPick = document.getElementById('cvb-icon-color-pick');
+    const icHex  = document.getElementById('cvb-icon-color-hex');
+    const icSwatch = icPick.closest('.prop-color-swatch');
+    const applyIconColor = v => {
+      block.dataset.iconColor = v;
+      window.renderCanvas(block);
+      icPick.value = v; icHex.value = v;
+      if (icSwatch) icSwatch.style.background = v;
+    };
+    icPick.addEventListener('input',  () => applyIconColor(icPick.value));
+    icPick.addEventListener('change', () => window.pushHistory?.());
+    icHex.addEventListener('change',  () => { const v = icHex.value.trim(); if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyIconColor(v); window.pushHistory?.(); } });
+
+    const ibPick = document.getElementById('cvb-iconbg-pick');
+    const ibHex  = document.getElementById('cvb-iconbg-hex');
+    const ibSwatch = ibPick.closest('.prop-color-swatch');
+    const ibTransBtn = document.getElementById('cvb-iconbg-transparent-btn');
+    const applyIconBg = v => {
+      block.dataset.iconBgLast = v;
+      block.dataset.iconBg = v;
+      window.renderCanvas(block);
+      ibPick.value = v; ibHex.value = v;
+      if (ibSwatch) { ibSwatch.style.backgroundImage = ''; ibSwatch.style.background = v; }
+    };
+    ibTransBtn.addEventListener('click', () => {
+      const on = !ibTransBtn.classList.contains('active');
+      if (on) { block.dataset.iconBgLast = (block.dataset.iconBg && block.dataset.iconBg !== 'transparent') ? block.dataset.iconBg : (block.dataset.iconBgLast || '#eeeeee'); block.dataset.iconBg = 'transparent'; }
+      else { block.dataset.iconBg = block.dataset.iconBgLast || '#eeeeee'; }
+      window.renderCanvas(block);
+      window.pushHistory?.();
+      ibTransBtn.classList.toggle('active', on);
+      ibPick.disabled = on; ibHex.disabled = on;
+      if (on) { ibHex.value = 'transparent'; ibSwatch.style.background = ''; ibSwatch.style.backgroundImage = 'repeating-conic-gradient(#888 0% 25%,#555 0% 50%)'; ibSwatch.style.backgroundSize = '8px 8px'; }
+      else { const v = block.dataset.iconBgLast || '#eeeeee'; ibHex.value = v; ibPick.value = v; ibSwatch.style.backgroundImage = ''; ibSwatch.style.background = v; }
+    });
+    ibPick.addEventListener('input',  () => applyIconBg(ibPick.value));
+    ibPick.addEventListener('change', () => window.pushHistory?.());
+    ibHex.addEventListener('change',  () => { const v = ibHex.value.trim(); if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyIconBg(v); window.pushHistory?.(); } });
+  }
 
   // ── 텍스트 영역 숨김 토글 ────────────────────────────────────────────────────
   const textHideBtn     = document.getElementById('cvb-text-hide-btn');
