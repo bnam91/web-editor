@@ -33,6 +33,9 @@ function renderStickerBlock(block) {
   const y          = parseInt(block.dataset.y) || 0;
   const imgSrc     = block.dataset.imgSrc || '';
   const mode       = block.dataset.mode || (imgSrc ? 'image' : 'text');
+  // 회전 — circle/square/image 스티커도 드래그 회전 지원 (텍스트 스티커는 자체 브랜치에서 처리)
+  const _stkRot    = parseFloat(block.dataset.rotation) || 0;
+  const _stkRotCss = _stkRot ? `transform:rotate(${_stkRot}deg);transform-origin:center center;` : '';
 
   if (shape === 'highlight') {
     // 형광펜 모드 — 색 사각형 (글자 없음), W/H 별도, z-index 낮음 (텍스트 아래)
@@ -190,6 +193,7 @@ function renderStickerBlock(block) {
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
       + `background:transparent;border-radius:${radius};overflow:hidden;`
       + `display:flex;align-items:center;justify-content:center;`
+      + `${_stkRotCss}`
       + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
     block.innerHTML = `<img class="sticker-img" src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;pointer-events:none;" draggable="false">`;
   } else {
@@ -198,6 +202,7 @@ function renderStickerBlock(block) {
       + `background:${bgColor};color:${textColor};border-radius:${radius};`
       + `display:flex;align-items:center;justify-content:center;`
       + `font-size:${fontSize}px;font-weight:${fontWeight};line-height:1;`
+      + `${_stkRotCss}`
       + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
     block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;">${text}</span>`;
   }

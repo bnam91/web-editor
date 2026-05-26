@@ -152,9 +152,13 @@ window._removeHlbHandles = _removeHlbHandles;
 // highlightB는 _addHlbHandles로 처리, 여기는 호출되지 않음.
 function _removeCornerHandles(block) {
   if (!block) return;
-  block.querySelectorAll(':scope > .sticker-corner-handle').forEach(h => h.remove());
+  block.querySelectorAll(':scope > .sticker-corner-handle, :scope > .sticker-rotate-zone').forEach(h => h.remove());
   block.classList.remove('tiny');
 }
+
+// 피그마식 회전 커서 (둥근 화살표)
+const _STK_ROTATE_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.6-6.3'/%3E%3Cpolyline points='21 4 21 9 16 9'/%3E%3C/svg%3E%0A%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.6-6.3'/%3E%3Cpolyline points='21 4 21 9 16 9'/%3E%3C/svg%3E\") 11 11, grab";
+
 function _addCornerHandles(block) {
   _removeCornerHandles(block);
   if (!block || block.dataset.shape === 'highlightB') return;
@@ -165,6 +169,59 @@ function _addCornerHandles(block) {
     el.dataset.corner = id;
     block.appendChild(el);
     _bindCornerHandleDrag(el, block, id);
+  });
+  // 회전 핫존 — 각 코너 바깥 대각선 영역(핸들 너머). 호버 시 회전 커서 → 드래그하면 회전
+  const ROT_SZ = 20; // 화면상 핫존 크기(px)
+  const neg = `calc(-${ROT_SZ}px * var(--inv-zoom, 1))`;
+  const sz  = `calc(${ROT_SZ}px * var(--inv-zoom, 1))`;
+  ['tl', 'tr', 'bl', 'br'].forEach(id => {
+    const z = document.createElement('div');
+    z.className = 'sticker-rotate-zone';
+    z.dataset.corner = id;
+    const pos = id === 'tl' ? `top:${neg};left:${neg};`
+              : id === 'tr' ? `top:${neg};right:${neg};`
+              : id === 'bl' ? `bottom:${neg};left:${neg};`
+              :               `bottom:${neg};right:${neg};`;
+    z.style.cssText = `position:absolute;${pos}width:${sz};height:${sz};z-index:99;pointer-events:auto;cursor:${_STK_ROTATE_CURSOR};`;
+    block.appendChild(z);
+    _bindRotateDrag(z, block);
+  });
+}
+
+// 회전 드래그 — 블록 중앙 기준 자유 회전. render(innerHTML 초기화)를 피하려고
+// transform만 직접 갱신 → 핸들/핫존 유지. dataset.rotation도 갱신해 저장·리로드 반영.
+function _bindRotateDrag(zone, block) {
+  zone.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    const br = block.getBoundingClientRect();
+    const cx = br.left + br.width / 2;
+    const cy = br.top  + br.height / 2;
+    const init   = parseFloat(block.dataset.rotation) || 0;
+    const startA = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const onMove = (ev) => {
+      const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
+      let deg = Math.round(init + (a - startA));
+      deg = ((deg % 360) + 360) % 360;
+      if (deg > 180) deg -= 360; // -180..180 (패널 슬라이더와 동일 범위)
+      block.style.transform = `rotate(${deg}deg)`;
+      block.style.transformOrigin = 'center center';
+      block.dataset.rotation = String(deg);
+      const rs = document.getElementById('stk-t-rot');
+      const rn = document.getElementById('stk-t-rot-num');
+      if (rs) rs.value = deg;
+      if (rn) rn.value = deg;
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      window.pushHistory?.('스티커 회전');
+      window.scheduleAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   });
 }
 
@@ -244,6 +301,7 @@ function _bindCornerHandleDrag(handle, block, corner) {
         block.dataset.size = String(Math.max(newW, newH));
       }
       window.renderStickerBlock?.(block);
+      _addCornerHandles(block); // render가 innerHTML을 비워 핸들/회전존이 사라지므로 재추가 (hlb 패턴과 동일)
       // 핸들은 block 자식이라 left/top % 기준 자동 따라감.
       // tiny 클래스만 갱신
       if (newW < 40 || newH < 40) block.classList.add('tiny');
@@ -279,6 +337,9 @@ function bindStickerSelect(block) {
   // 드래그 — mousedown으로 위치 이동
   block.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    // 코너 핸들(리사이즈)·회전 핫존·hlb 끝점 위에서 누른 경우는 각자 핸들러가 처리하도록 양보
+    // (이 리스너는 capture+stopImmediatePropagation이라 가드 없으면 핸들 mousedown을 삼켜 리사이즈/회전이 안 됨)
+    if (e.target.closest?.('.sticker-corner-handle, .sticker-rotate-zone, .hlb-handle')) return;
     e.stopImmediatePropagation();
     e.stopPropagation();
     e.preventDefault();
