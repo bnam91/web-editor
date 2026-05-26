@@ -53,6 +53,7 @@ function _bindGradientCornerDrag(handle, block, corner) {
     const MIN = 20;
 
     const onMove = (ev) => {
+      _hideGradSnap();
       const dx = (ev.clientX - startCX) / zoom;
       const dy = (ev.clientY - startCY) / zoom;
       const altCenter = ev.altKey;
@@ -71,6 +72,16 @@ function _bindGradientCornerDrag(handle, block, corner) {
       }
       newW = Math.max(MIN, Math.round(newW));
       newH = Math.max(MIN, Math.round(newH));
+      // ── 섹션 너비 스냅 (width only) ──────────────────────────────────────
+      const sec = block.closest('.section-block');
+      const secW = sec ? sec.offsetWidth : 0;
+      const snapTh = GRAD_SNAP_SCREEN / zoom; // 화면 px → 섹션 로컬 px
+      if (secW > 0 && Math.abs(newW - secW) <= snapTh) {
+        newW = secW;
+        _showGradSnapEdge(sec, 'left');
+        _showGradSnapEdge(sec, 'right');
+      }
+      // ─────────────────────────────────────────────────────────────────────
       let newX = initX, newY = initY;
       if (altCenter) {
         newX = initX + Math.round((initW - newW) / 2);
@@ -96,6 +107,7 @@ function _bindGradientCornerDrag(handle, block, corner) {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      _hideGradSnap();
       window.pushHistory?.('그라데이션 리사이즈');
       window.scheduleAutoSave?.();
     };
