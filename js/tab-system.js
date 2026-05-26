@@ -13,7 +13,7 @@
 ══════════════════════════════════════ */
 
 /* ── 상수 ── */
-const MAX_TABS = 5;
+const MAX_TABS = 10;
 const TAB_STATE_KEY = 'web-editor-open-tabs';
 
 /* ── 헬퍼: openTabs / activeProjectId 접근 ── */
