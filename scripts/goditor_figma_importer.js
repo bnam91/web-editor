@@ -114,6 +114,32 @@ function exportSvgInline(nodeId) {
   return svg;
 }
 
+// ─── PNG 래스터 폴백 (SVG export 실패 노드용) ──────────────────────
+// Figma가 렌더한 그대로(fill/stroke/effect 포함) PNG로 받아 data URL 반환 → 이미지 블록
+const __pngCache = new Map();
+function exportPngInline(nodeId, scale = 2) {
+  if (!nodeId) return '';
+  if (__pngCache.has(nodeId)) return __pngCache.get(nodeId);
+  let url = '';
+  try {
+    const exp = figma('export_node_as_image', { nodeId, format: 'PNG', scale });
+    if (exp?.imageData) {
+      // degenerate(1×1 등) PNG 거부 — 투명/비가시(opacity 0) 노드는 Figma가 1×1로 export함
+      const buf = Buffer.from(exp.imageData, 'base64');
+      let ok = true;
+      if (buf.length >= 24 && buf.toString('latin1', 1, 4) === 'PNG') {
+        const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+        if (w <= 2 || h <= 2) ok = false;
+      }
+      if (ok) url = `data:${exp.mimeType || 'image/png'};base64,${exp.imageData}`;
+    }
+  } catch (e) { url = ''; }
+  if (url) console.log(`   [png-fallback] ${nodeId} (len=${url.length})`);
+  else console.log(`   [skip-empty] ${nodeId} — SVG·PNG 모두 빈 콘텐츠(투명/비가시)`);
+  __pngCache.set(nodeId, url);
+  return url;
+}
+
 // ─── rotation 추출 (Figma rad → CSS deg, 부호 반전) ──────────────
 function getRotationDeg(node) {
   // 1순위: 명시적 rotation 필드 (라디안)
@@ -161,6 +187,8 @@ function mapAlign(figmaAlign) {
 // ─── 자식 노드 → 블록 ────────────────────────────────────────────
 // containerW: 에디터에서 실제 렌더링 될 컨테이너 폭(px). 기본값 860(메인 캔버스)
 function nodeToBlock(node, frameBox, containerW = 860) {
+  // 투명/비가시 노드 스킵 (opacity 0 등) — export 낭비·빈 블록 방지 (export 결과로도 2차 판정)
+  if (node.opacity === 0 || node.visible === false) return null;
   if (node.type === 'TEXT') {
     const style   = node.style || {};
     const fills   = node.fills || [];
@@ -192,6 +220,21 @@ function nodeToBlock(node, frameBox, containerW = 860) {
     const scale = containerW / (frameBox?.width || containerW);
     const bboxW = bbox.width || 200;
     const bboxH = bbox.height || 200;
+    // SVG 실패 → PNG 래스터 폴백 → 이미지 블록. PNG도 빈(1×1)이면 노드 스킵
+    if (!(typeof svgContent === 'string' && svgContent.includes('<svg'))) {
+      const png = exportPngInline(node.id, 2);
+      if (png) {
+        const rotJ = getRotationDeg(node);
+        return {
+          type: 'image', label: node.name || node.type,
+          preset: bboxH / bboxW > 1.1 ? 'tall' : bboxH / bboxW < 0.75 ? 'wide' : 'standard',
+          src: png, width: Math.round(bboxW * scale), height: Math.round(bboxH * scale),
+          x: Math.round((bbox.x - (frameBox?.x || 0)) * scale),
+          ...(rotJ ? { rotation: rotJ } : {}),
+        };
+      }
+      return null; // SVG·PNG 모두 빈 콘텐츠 → 투명/비가시 노드 스킵
+    }
     // SVG 자연 크기가 bbox보다 훨씬 작으면 (bbox가 hit area 포함 등) SVG 크기 우선
     const svgDims = getSvgNaturalSize(typeof svgContent === 'string' ? svgContent : '');
     const useW = (svgDims && bboxH / svgDims.h > 3) ? svgDims.w : bboxW;
@@ -333,6 +376,22 @@ function nodeToBlock(node, frameBox, containerW = 860) {
   const rotFallback = getRotationDeg(node);
 
   const svgContent = exportSvgInline(node.id);
+
+  // SVG 실패 → PNG 래스터 폴백 → 이미지 블록 (Figma 렌더 그대로 보존). PNG도 빈(1×1)이면 노드 스킵
+  if (!svgContent || (typeof svgContent === 'string' && !svgContent.includes('<svg'))) {
+    const png = exportPngInline(node.id, 2);
+    if (png) {
+      const sW = Math.round(bboxW * scale), sH = Math.round(bboxH * scale);
+      return {
+        type: 'image',
+        label: node.name || node.type,
+        preset: bboxH / bboxW > 1.1 ? 'tall' : bboxH / bboxW < 0.75 ? 'wide' : 'standard',
+        src: png, width: sW, height: sH, x: relX,
+        ...(rotFallback ? { rotation: rotFallback } : {}),
+      };
+    }
+    return null; // SVG·PNG 모두 실질 콘텐츠 없음 → 투명/비가시 노드 스킵
+  }
 
   // 이미지 fill 감지: SVG 안에 <image xlink:href="data:image/..." 패턴이 있으면 image 타입으로 변환
   if (typeof svgContent === 'string' && svgContent.includes('xlink:href="data:image/')) {
