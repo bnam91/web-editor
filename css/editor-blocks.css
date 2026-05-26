@@ -16,14 +16,14 @@
   min-height: unset;
 }
 .frame-block.selected {
-  outline: 3px solid var(--sel-color);
-  outline-offset: 0;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
   cursor: grab;
 }
-/* banner-preset 외곽은 step/card/table과 동일 컴포넌트 단위 — 1px + offset -1px (다른 component blocks와 일관) */
+/* banner-preset 외곽도 통일 토큰 사용 (다른 component blocks와 일관) */
 .frame-block[data-banner-preset].selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .frame-block:hover:not(.selected)::after {
   content: '';
@@ -410,8 +410,8 @@
 .section-block.selected .section-inner > :first-child::before { display: none; }
 
 .gap-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .gap-block.selected::before { display: block; }
 
@@ -720,7 +720,7 @@
 }
 .icon-circle-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-circle-block { position: relative; }
-.icon-circle-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; border-radius: 8px; }
+.icon-circle-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 8px; }
 .icon-circle-block.drag-over .icb-circle { outline: 2px dashed var(--sel-color); }
 
 .icb-circle {
@@ -778,7 +778,7 @@
   
 }
 .table-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.table-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; border-radius: 0; }
+.table-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 0; }
 
 .table-block .tb-table th,
 .table-block .tb-table td {
@@ -915,7 +915,7 @@
   background: #ffffff;
 }
 .graph-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.graph-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; border-radius: 0; }
+.graph-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 0; }
 
 /* ── 세로 막대 (bar-v) ── */
 .grb-bars-v {
@@ -1077,7 +1077,7 @@
 }
 .card-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .card-block { position: relative; }
-.card-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; border-radius: 0; }
+.card-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 0; }
 .card-block.drag-over .cdb-image { outline: 2px dashed var(--sel-color); }
 
 .cdb-image {
@@ -1153,13 +1153,13 @@
   
 }
 .divider-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.divider-block.selected { outline: 1px solid var(--sel-color); outline-offset: -1px; }
+.divider-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
 .frame-block[data-text-frame="true"]:has(.text-block:not(.speech-bubble-block).selected) {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 /* 버블 선택 시 frame-block outline: speech-bubble-block(z-index:2)이 outline을 덮으므로
    ::after pseudo-element를 z-index:10으로 올려서 위에 그림 */
@@ -1221,8 +1221,8 @@
   cursor: default;
 }
 .joker-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
   z-index: 2;
 }
 .joker-block-inner {
@@ -1252,8 +1252,8 @@
   z-index: 0;
 }
 .shape-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
   z-index: 2;
 }
 .shape-block .shape-svg {
@@ -1387,8 +1387,8 @@
   position: relative;
 }
 .icon-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .icon-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-block svg { display: block; }
@@ -1403,8 +1403,8 @@
   user-select: none;
 }
 .canvas-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .canvas-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .canvas-block .cvb-inner {
@@ -1424,8 +1424,8 @@
   margin: 0 auto;
 }
 .vector-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .vector-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .vector-block .vb-inner {
@@ -1573,8 +1573,8 @@ textarea.cvb-card-input {
   user-select: none;
 }
 .mockup-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .mockup-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .mkp-screen {
@@ -1600,8 +1600,8 @@ textarea.cvb-card-input {
   position: relative;
 }
 .step-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .step-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 
@@ -1623,8 +1623,8 @@ textarea.cvb-card-input {
   z-index: 0;
 }
 .chat-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 
 /* ── Laurel Block ──────────────────────────────────────────────────────────── */
@@ -1653,8 +1653,8 @@ textarea.cvb-card-input {
   outline-offset: -1px;
 }
 .laurel-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .chb-msg {
   display: flex;

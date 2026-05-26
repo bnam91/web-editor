@@ -176,11 +176,11 @@
   bottom: 0; right: 0;
   transform: translate(50%, 50%) scale(var(--inv-zoom, 1));
   transform-origin: center center;
-  width: 10px;
-  height: 10px;
+  width: 7px;
+  height: 7px;
   background: rgba(255,255,255,0.88);
   border: 1.5px solid rgba(0,0,0,0.25);
-  border-radius: 3px;
+  border-radius: 1px;
   cursor: nwse-resize;
   opacity: 0;
   transition: opacity 0.15s;
@@ -188,8 +188,8 @@
 }
 .scratch-item:hover .scratch-resize { opacity: 1; }
 .scratch-item.scratch-selected {
-  outline: 2px solid var(--sel-color);
-  outline-offset: 2px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 
 #canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; position: relative; }
@@ -217,8 +217,8 @@
 }
 .section-block:has(.section-hitzone:hover)::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .section-block.selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 
 .section-label {
