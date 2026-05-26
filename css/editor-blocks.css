@@ -2559,25 +2559,26 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 
 /* ──────────────────────────────────────────────
    Gradient 4모서리 리사이즈 핸들 (JS에서 .gradient-corner-handle 추가)
-   sticker와 색·규칙 동일, 크기만 키움 (gradient 블록이 860×300으로 큼)
+   프레임(.ss-resize-handle)·shape-handle과 동일하게 --inv-zoom calc()로
+   캔버스 배율 무관하게 화면상 7px 고정 — 색만 보라색
 ────────────────────────────────────────────── */
 .gradient-corner-handle {
   position: absolute;
-  width: 11px;
-  height: 11px;
+  width:  calc(7px * var(--inv-zoom, 1));
+  height: calc(7px * var(--inv-zoom, 1));
   background: #fff;
-  border: 1.5px solid #9966ff;
-  border-radius: 2px;
+  border: 1px solid #9966ff;
+  border-radius: 1px;
   pointer-events: auto;
   z-index: 100;
   box-sizing: border-box;
   mix-blend-mode: normal;
   isolation: isolate;
 }
-.gradient-corner-handle[data-corner="tl"] { top: -5.5px; left:  -5.5px; cursor: nwse-resize; }
-.gradient-corner-handle[data-corner="tr"] { top: -5.5px; right: -5.5px; cursor: nesw-resize; }
-.gradient-corner-handle[data-corner="bl"] { bottom: -5.5px; left:  -5.5px; cursor: nesw-resize; }
-.gradient-corner-handle[data-corner="br"] { bottom: -5.5px; right: -5.5px; cursor: nwse-resize; }
+.gradient-corner-handle[data-corner="tl"] { top:    calc(-3.5px * var(--inv-zoom, 1)); left:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+.gradient-corner-handle[data-corner="tr"] { top:    calc(-3.5px * var(--inv-zoom, 1)); right: calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.gradient-corner-handle[data-corner="bl"] { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.gradient-corner-handle[data-corner="br"] { bottom: calc(-3.5px * var(--inv-zoom, 1)); right: calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
 .gradient-corner-handle:hover { background: #f0e8ff; }
 
 /* HighlightB SVG 라인 — 회전 svg 컨테이너 (line/wavy/marker 공통) */
