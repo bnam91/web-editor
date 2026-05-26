@@ -327,6 +327,11 @@ function showSimpleCardProperties(block) {
           </svg>
         </button>
         ${card.imgSrc ? `<button class="prop-btn cvb-card-img-clear cvb-card-btn-sm-del" data-card-index="${i}" title="이미지 제거">✕</button>` : ''}
+        ${block.dataset.iconMode === 'true' ? `
+        <button class="prop-btn cvb-card-icon-btn cvb-card-btn-sm" data-card-index="${i}" title="${card.icon ? '아이콘 교체' : '아이콘 추가'}" style="display:inline-flex;align-items:center;justify-content:center;padding:3px 6px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6.4 6.9.6-5.2 4.6 1.6 6.8L12 17.9 5.8 21.5l1.6-6.8L2.2 9.5l6.9-.6z"/></svg>
+        </button>
+        ${card.icon ? `<button class="prop-btn cvb-card-icon-clear cvb-card-btn-sm-del" data-card-index="${i}" title="아이콘 제거">✕</button>` : ''}` : ''}
       </div>
       ${card.imgSrc ? `
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px;">
@@ -343,7 +348,7 @@ function showSimpleCardProperties(block) {
         <span class="cvb-card-meta">px</span>
       </div>
       <textarea class="cvb-card-title-input cvb-card-input" data-card-index="${i}" placeholder="제목 입력..." rows="2">${_escHtml(card.title || '')}</textarea>
-      <input type="text" class="cvb-card-desc-input cvb-card-input" data-card-index="${i}" placeholder="설명 입력..." value="${_escHtml(card.desc || '')}">
+      <textarea class="cvb-card-desc-input cvb-card-input" data-card-index="${i}" placeholder="설명 입력..." rows="2">${_escHtml(card.desc || '')}</textarea>
     </div>
   `).join('');
 
@@ -823,6 +828,32 @@ function showSimpleCardProperties(block) {
   cardItemsEl.addEventListener('click', e => {
     const imgBtn   = e.target.closest('.cvb-card-img-btn');
     const clearBtn = e.target.closest('.cvb-card-img-clear');
+    const iconBtn   = e.target.closest('.cvb-card-icon-btn');
+    const iconClear = e.target.closest('.cvb-card-icon-clear');
+
+    // 이스터에그(아이콘 모드): 카드 이미지 자리에 iconify 아이콘 지정
+    if (iconBtn) {
+      const idx = parseInt(iconBtn.dataset.cardIndex);
+      window.openIconifyModal?.((picked) => {
+        const arr = getCards();
+        if (arr[idx] !== undefined) {
+          arr[idx].icon = { name: picked.name, svg: picked.svg };
+          setCards(arr);
+          showSimpleCardProperties(block);
+        }
+      });
+      return;
+    }
+    if (iconClear) {
+      const idx = parseInt(iconClear.dataset.cardIndex);
+      const arr = getCards();
+      if (arr[idx] !== undefined) {
+        delete arr[idx].icon;
+        setCards(arr);
+        showSimpleCardProperties(block);
+      }
+      return;
+    }
 
     if (imgBtn) {
       const idx = parseInt(imgBtn.dataset.cardIndex);

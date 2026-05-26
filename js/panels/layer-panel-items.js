@@ -87,6 +87,15 @@ function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerNam
           window.enhanceTextEffectPropPanel?.(targetEl);
         }
       }
+      // 이스터에그: canvas-block(Card) layer label이 '**icon_'로 시작하면 아이콘 모드 ON
+      // → 카드 이미지 자리에 iconify 아이콘을 넣을 수 있게 됨 (prefix는 트리거 전용)
+      if (targetEl.classList?.contains('canvas-block') && /^\*\*icon_/i.test(newName) && targetEl.dataset.iconMode !== 'true') {
+        targetEl.dataset.iconMode = 'true';
+        window.renderCanvas?.(targetEl);
+        if (targetEl.classList.contains('selected')) {
+          window.showCanvasProperties?.(targetEl);
+        }
+      }
       // 프로퍼티 패널이 같은 블록을 표시 중이면 이름 동기화
       if (targetEl.classList.contains('selected')) {
         const propName = document.querySelector('.prop-block-name');

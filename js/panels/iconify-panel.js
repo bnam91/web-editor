@@ -18,6 +18,7 @@ const COLLECTIONS = [
 
 let _modal = null;
 let _selectedIcon = null;  // { name: 'mdi:home', svgUrl: '...' }
+let _onPick = null;        // 콜백 모드: 설정되면 블록 삽입 대신 onPick({name, svg, size}) 호출
 let _searchTimer = null;
 let _currentQuery = '';
 let _currentPrefix = '';
@@ -73,11 +74,12 @@ function _createModal() {
   return el;
 }
 
-function openIconifyModal() {
+function openIconifyModal(onPick) {
   if (!_modal) {
     _modal = _createModal();
     _bindModalEvents();
   }
+  _onPick = typeof onPick === 'function' ? onPick : null;
   _selectedIcon = null;
   _updateSelectedPreview(null);
   _modal.style.display = 'flex';
@@ -87,6 +89,7 @@ window.openIconifyModal = openIconifyModal;
 
 function closeIconifyModal() {
   if (_modal) _modal.style.display = 'none';
+  _onPick = null;
 }
 window.closeIconifyModal = closeIconifyModal;
 
@@ -199,19 +202,20 @@ async function _doInsert() {
   const size = Math.min(512, Math.max(16, parseInt(document.getElementById('iconify-size-input').value) || 64));
   const name = _selectedIcon.name;
   const [prefix, iconName] = name.split(':');
+  const pick = _onPick; // closeIconifyModal이 _onPick을 비우므로 먼저 캡처
 
+  let svgText;
   try {
     // SVG 콘텐츠 fetch (인라인 삽입)
     const res = await fetch(`${ICONIFY_API}/${prefix}/${iconName}.svg`);
-    const svgText = await res.text();
-    closeIconifyModal();
-    window.addIconifyBlock(name, svgText, size);
+    svgText = await res.text();
   } catch {
     // fetch 실패 시 img fallback
-    const svgText = `<img src="${ICONIFY_API}/${prefix}/${iconName}.svg" width="${size}" height="${size}" style="display:block;">`;
-    closeIconifyModal();
-    window.addIconifyBlock(name, svgText, size);
+    svgText = `<img src="${ICONIFY_API}/${prefix}/${iconName}.svg" width="${size}" height="${size}" style="display:block;">`;
   }
+  closeIconifyModal();
+  if (pick) pick({ name, svg: svgText, size });
+  else window.addIconifyBlock(name, svgText, size);
 }
 
 // 그리드 셀 hover CSS (style tag 주입)

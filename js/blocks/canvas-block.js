@@ -33,6 +33,28 @@ function _appendCardTexts(container, card, titleSize, descSize, textAlign, title
   }
 }
 
+// 이스터에그(아이콘 모드): 카드 이미지 자리에 iconify SVG를 중앙 렌더 (currentColor로 색 제어)
+function _fillCardIcon(div, card, areaSize) {
+  div.style.display = 'flex';
+  div.style.alignItems = 'center';
+  div.style.justifyContent = 'center';
+  div.style.background = card.iconBg || 'transparent';
+  div.style.color = card.iconColor || '#333333';
+  const iconSize = Math.round(Math.max(16, (areaSize || 80) * 0.46));
+  const wrap = document.createElement('div');
+  wrap.style.cssText = `width:${iconSize}px;height:${iconSize}px;display:flex;align-items:center;justify-content:center;pointer-events:none;`;
+  wrap.innerHTML = card.icon.svg;
+  const svg = wrap.querySelector('svg');
+  if (svg) {
+    svg.setAttribute('width', iconSize);
+    svg.setAttribute('height', iconSize);
+    svg.style.display = 'block';
+    svg.style.width  = iconSize + 'px';
+    svg.style.height = iconSize + 'px';
+  }
+  div.appendChild(wrap);
+}
+
 function _bindCvbImgDrag(imgDiv, block, idx) {
   if (!imgDiv.style.position) imgDiv.style.position = 'relative';
   imgDiv.style.pointerEvents = 'auto';
@@ -213,7 +235,9 @@ function renderCanvas(block) {
 
           const imgDiv = document.createElement('div');
           imgDiv.style.cssText = `position:absolute;left:0;top:0;width:${imgW}px;height:${designH}px;overflow:hidden;flex-shrink:0;`;
-          if (card.imgSrc) {
+          if (card.icon && card.icon.svg) {
+            _fillCardIcon(imgDiv, card, Math.min(imgW, designH));
+          } else if (card.imgSrc) {
             imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
             imgDiv.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';
             imgDiv.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
@@ -251,7 +275,9 @@ function renderCanvas(block) {
             } else {
               div.style.cssText = `width:100%;height:${imgH}px;overflow:hidden;box-sizing:border-box;flex-shrink:0;`;
             }
-            if (card.imgSrc) {
+            if (card.icon && card.icon.svg) {
+              _fillCardIcon(div, card, imgShape === 'circle' ? Math.min(designW, imgH) : Math.min(designW, imgH));
+            } else if (card.imgSrc) {
               div.style.backgroundImage    = `url("${card.imgSrc}")`;
               div.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';
               div.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
