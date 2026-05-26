@@ -224,6 +224,7 @@ function bindGradientSelect(block) {
         block.dataset.y = String(origY);
         block.style.left = origX + 'px';
         block.style.top  = origY + 'px';
+        window.renderGradientBlock?.(block);
         return;
       }
       const secRect = sec.getBoundingClientRect();
@@ -243,6 +244,8 @@ function bindGradientSelect(block) {
       block.dataset.y = String(newY);
       block.style.left = newX + 'px';
       block.style.top  = newY + 'px';
+      // fill 클리핑을 새 위치에 맞게 갱신 (outline + 핸들은 블록 요소에 있어 영향 없음)
+      window.renderGradientBlock?.(block);
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);

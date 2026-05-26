@@ -58,13 +58,35 @@ function renderGradientBlock(block) {
     bg = `linear-gradient(${direction}, ${c1} 0%, ${c2} 100%)`;
   }
 
-  // absolute floating overlay — sticker와 동일 패턴
+  // absolute floating overlay — 블록 자체는 배경 없음 (선택 outline + 핸들을 유지하기 위해)
   block.style.cssText = `position:absolute;left:${x}px;top:${y}px;`
     + `width:${width}px;height:${height}px;`
-    + `background:${bg};`
     + `user-select:none;cursor:move;z-index:2;pointer-events:auto;`
     + `box-sizing:border-box;`;
-  // 내부 콘텐츠는 없음 (배경만)
+
+  // 그라데이션 fill은 별도 inner div에 적용 — 섹션 박스로 클리핑 가능하게 분리
+  let gradFill = block.querySelector(':scope > .grad-fill');
+  if (!gradFill) {
+    gradFill = document.createElement('div');
+    gradFill.className = 'grad-fill';
+    block.insertBefore(gradFill, block.firstChild);
+  }
+  gradFill.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:0;background:${bg};`;
+
+  // 섹션 박스를 기준으로 fill 클리핑 (선택 outline + 코너 핸들은 블록 요소에 있어 영향 없음)
+  const sec = block.closest('.section-block');
+  if (sec) {
+    const secW = sec.offsetWidth;
+    const secH = sec.offsetHeight;
+    const clipTop    = Math.max(0, -y);
+    const clipRight  = Math.max(0, (x + width)  - secW);
+    const clipBottom = Math.max(0, (y + height) - secH);
+    const clipLeft   = Math.max(0, -x);
+    gradFill.style.clipPath =
+      `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`;
+  } else {
+    gradFill.style.clipPath = '';
+  }
 }
 
 function makeGradientBlock(opts = {}) {
