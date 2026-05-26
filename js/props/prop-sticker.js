@@ -635,12 +635,15 @@ export function showStickerProperties(block) {
   });
 
   // Size pair
-  const bindNumPair = (sliderId, numberId, key, min, max) => {
+  const bindNumPair = (sliderId, numberId, key, min, max, syncKeys) => {
     const s = propPanel.querySelector('#' + sliderId);
     const n = propPanel.querySelector('#' + numberId);
     const apply = v => {
       v = Math.min(max, Math.max(min, v));
       block.dataset[key] = v;
+      // syncKeys: 함께 동일 값으로 맞출 dataset 키 (예: 코너 리사이즈가 박아둔 sizeW/sizeH를
+      // 단일 size 슬라이더로 덮어써 균일 크기로 — 안 그러면 render가 sizeW/sizeH 우선해 슬라이더 무시됨)
+      if (syncKeys) syncKeys.forEach(k => { block.dataset[k] = v; });
       rerender();
       s.value = Math.min(parseInt(s.max), v);
       n.value = v;
@@ -649,7 +652,7 @@ export function showStickerProperties(block) {
     n.addEventListener('change', () => { apply(parseInt(n.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
     s.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
   };
-  bindNumPair('stk-size', 'stk-size-num', 'size',     10, 600);
+  bindNumPair('stk-size', 'stk-size-num', 'size',     10, 600, ['sizeW', 'sizeH']);
   bindNumPair('stk-fs',   'stk-fs-num',   'fontSize', 6,  150);
 
   // Font weight

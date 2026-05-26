@@ -157,7 +157,9 @@ function _removeCornerHandles(block) {
 }
 
 // 피그마식 회전 커서 (둥근 화살표)
-const _STK_ROTATE_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.6-6.3'/%3E%3Cpolyline points='21 4 21 9 16 9'/%3E%3C/svg%3E%0A%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.6-6.3'/%3E%3Cpolyline points='21 4 21 9 16 9'/%3E%3C/svg%3E\") 11 11, grab";
+// 피그마식 회전 커서 — 단일 SVG(흰 테두리 뒤 + 검정 화살표 앞)로 어떤 배경에서도 보이게.
+// (data-URI 커서는 반드시 SVG 1개여야 함 — 이전엔 svg 2개를 이어붙여 무효→grab 폴백되던 버그)
+const _STK_ROTATE_CURSOR = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.3-5.6' stroke='white' stroke-width='4'/%3E%3Cpolyline points='20 3 20 7 16 7' stroke='white' stroke-width='4'/%3E%3Cpath d='M20 12a8 8 0 1 1-2.3-5.6' stroke='%23222' stroke-width='2'/%3E%3Cpolyline points='20 3 20 7 16 7' stroke='%23222' stroke-width='2'/%3E%3C/svg%3E\") 12 12, grab";
 
 function _addCornerHandles(block) {
   _removeCornerHandles(block);
@@ -171,7 +173,7 @@ function _addCornerHandles(block) {
     _bindCornerHandleDrag(el, block, id);
   });
   // 회전 핫존 — 각 코너 바깥 대각선 영역(핸들 너머). 호버 시 회전 커서 → 드래그하면 회전
-  const ROT_SZ = 20; // 화면상 핫존 크기(px)
+  const ROT_SZ = 24; // 화면상 핫존 크기(px) — 코너 바깥 회전 영역, 잡기 쉽게
   const neg = `calc(-${ROT_SZ}px * var(--inv-zoom, 1))`;
   const sz  = `calc(${ROT_SZ}px * var(--inv-zoom, 1))`;
   ['tl', 'tr', 'bl', 'br'].forEach(id => {
