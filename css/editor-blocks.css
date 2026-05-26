@@ -1404,7 +1404,7 @@
 }
 .canvas-block.selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
-  outline-offset: calc(-1 * var(--sel-outline-w));
+  outline-offset: calc(1px * var(--inv-zoom, 1)); /* 이미지가 가장자리까지 차므로 안쪽 대신 바깥으로 빼서 겹침 방지 */
 }
 .canvas-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .canvas-block .cvb-inner {
