@@ -1756,10 +1756,20 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
         if (step !== 0) zoomStep(step);
       }, 16);
     } else {
-      // 두손가락 드래그 = 캔버스 팬 (양축 스크롤). OS 모멘텀 이벤트도 그대로 반영.
+      // 두손가락 드래그 = 캔버스 팬. 스크롤로 흡수 가능한 만큼 스크롤하고,
+      // 흡수 못한 잔여분(콘텐츠가 뷰포트에 맞거나 스크롤 끝)은 transform(panOffset)으로 자유 팬.
       e.preventDefault();
-      wrap.scrollLeft += e.deltaX;
+      const bt = wrap.scrollTop, bl = wrap.scrollLeft;
       wrap.scrollTop  += e.deltaY;
+      wrap.scrollLeft += e.deltaX;
+      const resY = e.deltaY - (wrap.scrollTop - bt);
+      const resX = e.deltaX - (wrap.scrollLeft - bl);
+      if (resX || resY) {
+        panOffsetX -= resX;
+        panOffsetY -= resY;
+        _applyScalerTransform();
+        if (window.updateNotchPosition) window.updateNotchPosition();
+      }
     }
   }, { passive: false });
 })();
