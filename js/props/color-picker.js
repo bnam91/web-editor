@@ -729,12 +729,22 @@ export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '', g
   `;
 }
 
-export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit } = {}) {
+export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit, onGradient } = {}) {
   const picker = document.getElementById(`${idPrefix}-color`);
   const hex    = document.getElementById(`${idPrefix}-hex`);
   const alpha  = document.getElementById(`${idPrefix}-alpha`);
   const swatch = picker?.closest('.prop-color-swatch');
   if (!picker || !hex || !alpha || !swatch) return null;
+
+  // 그라데이션 탭에서 emit되는 커스텀 이벤트 수신 (solid onApply와 별개 경로)
+  if (onGradient) {
+    picker.addEventListener('goya-cp:gradient', (e) => {
+      if (e.detail?.css) { swatch.style.background = e.detail.css; onGradient(e.detail.css, false); }
+    });
+    picker.addEventListener('goya-cp:gradient-commit', (e) => {
+      if (e.detail?.css) onGradient(e.detail.css, true);
+    });
+  }
 
   let _a = initialAlpha;
   // alpha=0(투명)인 상태에서 색만 바꾸면 결과가 여전히 투명이라 적용 안 보임.

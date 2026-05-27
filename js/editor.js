@@ -956,7 +956,9 @@ document.addEventListener('keydown', e => {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
-      const selGroup = document.querySelector('.group-block.group-selected');
+      // 피그마식 그룹(data-group 프레임) 우선, 없으면 레거시 group-block
+      const selGroup = document.querySelector('.frame-block[data-group="true"].selected')
+        || document.querySelector('.group-block.group-selected');
       if (selGroup) window.ungroupBlock?.(selGroup);
       return;
     }

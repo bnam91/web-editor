@@ -431,6 +431,32 @@ function _renderAutoPanel(ss) {
 
   // ── 자식 정렬 핸들러 ──
   const _setAlign = (alignItems, justifyContent) => {
+    // freeLayout(자유배치) 프레임: 자식이 절대좌표라 flex 정렬이 무효 →
+    // 부모 프레임 크기 기준으로 각 자식의 left/top을 직접 재계산
+    if (ss.dataset.freeLayout === 'true') {
+      const ssW = ss.clientWidth, ssH = ss.clientHeight;
+      const kids = [...ss.children].filter(c =>
+        !c.classList.contains('frame-resize-handle') &&
+        getComputedStyle(c).position === 'absolute');
+      kids.forEach(c => {
+        if (alignItems !== null) {
+          const cw = c.offsetWidth;
+          const left = alignItems === 'center' ? Math.round((ssW - cw) / 2)
+                     : alignItems === 'flex-end' ? Math.round(ssW - cw) : 0;
+          c.style.left = left + 'px'; c.dataset.offsetX = left;
+        }
+        if (justifyContent !== null) {
+          const ch = c.offsetHeight;
+          const top = justifyContent === 'center' ? Math.round((ssH - ch) / 2)
+                    : justifyContent === 'flex-end' ? Math.round(ssH - ch) : 0;
+          c.style.top = top + 'px'; c.dataset.offsetY = top;
+        }
+      });
+      if (alignItems !== null) ss.dataset.childAlignX = alignItems;
+      if (justifyContent !== null) ss.dataset.childAlignY = justifyContent;
+      window.scheduleAutoSave?.();
+      return;
+    }
     if (alignItems !== null) {
       ss.style.alignItems = alignItems;
       ss.dataset.alignItems = alignItems;
@@ -557,10 +583,24 @@ function _renderAutoPanel(ss) {
   if (bgImgClear) bgImgClear.addEventListener('click', removeBgImg);
   if (bgPosBtn)   bgPosBtn.addEventListener('click', () => window.enterBgPosDragMode?.(ss));
 
-  // 배경색
+  // 배경색 (solid + gradient)
   wireColorField('ss-bg', {
     initialAlpha: bgAlpha,
-    onApply: (c) => { ss.style.backgroundColor = c; ss.dataset.bg = c; window.scheduleAutoSave?.(); },
+    onApply: (c) => {
+      // 이전 그라데이션 제거 후 솔리드 적용
+      ss.style.backgroundImage = '';
+      ss.style.backgroundColor = c;
+      ss.dataset.bg = c;
+      window.scheduleAutoSave?.();
+    },
+    onGradient: (css, commit) => {
+      // 그라데이션은 backgroundColor가 아니라 background로 적용
+      ss.style.backgroundColor = '';
+      ss.style.background = css;
+      ss.dataset.bg = css;
+      window.scheduleAutoSave?.();
+      if (commit) window.pushHistory?.();
+    },
     onCommit: () => window.pushHistory?.(),
   });
 

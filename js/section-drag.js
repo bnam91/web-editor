@@ -103,10 +103,42 @@ function getLayerDragAfterItem(container, y) {
 }
 
 function ungroupBlock(groupEl) {
+  // 피그마식 그룹(freeLayout 프레임 + data-group): 그룹 위치/회전을 자식에 baking 후 부모로 이동
+  if (groupEl.dataset.group === 'true' || (groupEl.classList.contains('frame-block') && groupEl.dataset.freeLayout === 'true' && !groupEl.querySelector(':scope > .group-inner'))) {
+    window.pushHistory();
+    const parent = groupEl.parentElement;
+    const gx = parseInt(groupEl.style.left) || 0;
+    const gy = parseInt(groupEl.style.top) || 0;
+    const gRot = parseFloat(groupEl.dataset.rotateDeg) || 0;
+    const kids = [...groupEl.children].filter(c =>
+      !c.classList.contains('frame-resize-handle') &&
+      getComputedStyle(c).position === 'absolute');
+    kids.forEach(c => {
+      const cl = (parseInt(c.style.left) || 0) + gx;
+      const ct = (parseInt(c.style.top) || 0) + gy;
+      c.style.left = cl + 'px'; c.style.top = ct + 'px';
+      c.dataset.offsetX = String(cl); c.dataset.offsetY = String(ct);
+      // 그룹 회전은 각 자식 회전에 가산 (스큐 없음 가정)
+      if (gRot) {
+        const cr = (parseFloat(c.dataset.rotation) || 0) + gRot;
+        c.dataset.rotation = String(cr);
+        const base = (c.style.transform || '').replace(/\s*rotate\([^)]*\)/g, '').trim();
+        c.style.transform = (base ? base + ' ' : '') + `rotate(${cr}deg)`;
+        c.style.transformOrigin = 'center center';
+      }
+      groupEl.before(c);
+    });
+    groupEl.remove();
+    window.deselectAll?.();
+    window._activeFrame = (parent && parent.dataset?.freeLayout === 'true') ? parent : null;
+    window.buildLayerPanel();
+    window.scheduleAutoSave?.();
+    return;
+  }
+  // 레거시 group-block(group-inner) 호환
   const inner = groupEl.querySelector('.group-inner');
   if (!inner) { groupEl.remove(); return; }
   window.pushHistory();
-  // group-inner의 자식들을 group-block 위치로 이동
   [...inner.children].forEach(child => groupEl.before(child));
   groupEl.remove();
   window.buildLayerPanel();

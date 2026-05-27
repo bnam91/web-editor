@@ -114,6 +114,37 @@ function _onHandleMouseDown(e, ss, dir) {
 
   // fullWidth 프레임(stack 모드, 자동 높이)은 핸들로 높이 조절 안 함 — 자식이 결정.
   const isFullWidth = ss.dataset.fullWidth === 'true';
+
+  // ── 그룹 리사이즈: 자식을 비례 스케일 (피그마식). data-group 프레임에만 적용 ──
+  const isGroup = ss.dataset.group === 'true';
+  // 스케일 기준은 style.width/height(canvas px) — rect/scale 불일치 회피
+  const groupStartW = parseInt(ss.style.width) || startW;
+  const groupStartH = parseInt(ss.style.height) || startH;
+  let groupSnap = null;
+  if (isGroup) {
+    groupSnap = [];
+    const collect = (container) => {
+      [...container.children].forEach(c => {
+        if (c.classList.contains('frame-resize-handle')) return;
+        if (getComputedStyle(c).position !== 'absolute') return;
+        const isTextFrame = c.dataset.textFrame === 'true';
+        const contentEl = isTextFrame ? c.querySelector('[class^="tb-"]') : null;
+        groupSnap.push({
+          el: c,
+          left: parseInt(c.style.left) || 0,
+          top: parseInt(c.style.top) || 0,
+          w: parseInt(c.style.width) || c.offsetWidth,
+          h: parseInt(c.style.height) || c.offsetHeight,
+          isTextFrame,
+          contentEl,
+          fs: contentEl ? (parseFloat(getComputedStyle(contentEl).fontSize) || 0) : 0,
+        });
+        if (c.classList.contains('frame-block') && !isTextFrame) collect(c);
+      });
+    };
+    collect(ss);
+  }
+
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
@@ -130,6 +161,28 @@ function _onHandleMouseDown(e, ss, dir) {
     ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
     if (!isFullWidth) {
       ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+    }
+    // 그룹: 자식들을 좌상단(0,0) 원점 기준 비례 스케일 (기준은 style 기반 groupStartW/H)
+    if (isGroup && groupSnap) {
+      const sx = groupStartW ? newW / groupStartW : 1;
+      const sy = (!isFullWidth && groupStartH) ? newH / groupStartH : 1;
+      const fsScale = Math.min(sx, sy);
+      groupSnap.forEach(s => {
+        const L = Math.round(s.left * sx), T = Math.round(s.top * sy);
+        s.el.style.left = L + 'px'; s.el.dataset.offsetX = String(L);
+        s.el.style.top  = T + 'px'; s.el.dataset.offsetY = String(T);
+        const W = Math.round(s.w * sx);
+        s.el.style.width = W + 'px';
+        if (s.el.dataset.width !== undefined && s.el.dataset.width !== '100%') s.el.dataset.width = String(W);
+        if (s.isTextFrame) {
+          // 텍스트: 높이는 폰트로 결정 → fontSize만 스케일
+          if (s.contentEl && s.fs) s.contentEl.style.fontSize = (s.fs * fsScale).toFixed(1) + 'px';
+        } else {
+          const H = Math.round(s.h * sy);
+          s.el.style.height = H + 'px';
+          if (s.el.dataset.height !== undefined) s.el.dataset.height = String(H);
+        }
+      });
     }
     window.scheduleAutoSave?.();
   }

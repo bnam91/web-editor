@@ -83,6 +83,10 @@ function insertAfterSelected(section, el) {
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
       ref.after(el);
+    } else if (ssInner.classList.contains('selected')) {
+      // 내부 자식 선택 없이 프레임 자체가 오브젝트로 선택된 상태 → 프레임 안이 아니라 뒤(형제)에 삽입
+      const ref = ssInner.closest('.row') || ssInner;
+      ref.after(el);
     } else {
       ssInner.appendChild(el);
     }

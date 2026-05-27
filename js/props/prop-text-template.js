@@ -4,7 +4,7 @@ import { _fontDisplayName } from './prop-text-utils.js';
 export function buildTextPropsHtml(state) {
   const {
     tb, isOverlayTb, currentClass, currentAlign,
-    currentX, currentY, currentW, currentFont, currentWeight, currentSize,
+    currentX, currentY, currentRotation = 0, currentW, currentFont, currentWeight, currentSize,
     currentLH, currentLS, currentColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH,
@@ -104,6 +104,12 @@ export function buildTextPropsHtml(state) {
             <input type="number" id="txt-y-number" value="${currentY}" aria-label="Y position">
           </div>
         </div>
+      </div>
+      <span class="prop-field-label" style="margin-top:6px">Rotation</span>
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="txt-rot-slider" min="-180" max="180" step="1" value="${currentRotation}">
+        <input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="${currentRotation}">
       </div>
     </div>
 

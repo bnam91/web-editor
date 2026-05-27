@@ -85,6 +85,7 @@ export function showTextProperties(tb) {
   const isAbsolute  = _posEl.style.position === 'absolute';
   const currentX    = parseInt(_posEl.style.left  || _posEl.dataset.offsetX || '0');
   const currentY    = parseInt(_posEl.style.top   || _posEl.dataset.offsetY || '0');
+  const currentRotation = parseFloat(_posEl.dataset.rotation || '0') || 0;
   const _tbRow      = tb.closest('.row');
   const currentW    = parseInt(_tf?.dataset.width || _tbRow?.dataset.width) || Math.round(_tf?.offsetWidth || _tbRow?.offsetWidth || tb.offsetWidth);
 
@@ -96,7 +97,7 @@ export function showTextProperties(tb) {
 
   propPanel.innerHTML = buildTextPropsHtml({
     tb, isOverlayTb, currentClass, currentAlign,
-    currentX, currentY, currentW, currentFont, currentWeight, currentSize,
+    currentX, currentY, currentRotation, currentW, currentFont, currentWeight, currentSize,
     currentLH, currentLS, currentColor, currentColorAlpha,
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH,

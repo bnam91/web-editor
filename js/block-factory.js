@@ -293,7 +293,9 @@ function applyTextOpts(block, frame, opts, type) {
   const contentEl = block.querySelector('[class^="tb-"]');
   if (opts.content && contentEl) {
     contentEl.style.whiteSpace = 'pre-wrap';
-    contentEl.textContent = opts.content;
+    // opts.html이면 글자별 스타일 span 포함 HTML로 주입
+    if (opts.html) contentEl.innerHTML = opts.content;
+    else contentEl.textContent = opts.content;
     // content가 실제 텍스트이므로 placeholder 상태 해제
     delete contentEl.dataset.isPlaceholder;
   }
@@ -467,60 +469,9 @@ function promoteToFrame(block) {
   window.scheduleAutoSave?.();
 }
 
+// Cmd+G: 선택 블록을 피그마식 그룹(freeLayout 프레임 + data-group)으로 묶음
 function groupSelectedBlocks() {
-  const selected = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected')];
-
-  // 단일 블록 → 서브섹션으로 승격
-  if (selected.length === 1) {
-    promoteToFrame(selected[0]);
-    return;
-  }
-
-  if (selected.length < 2) return;
-
-  // 같은 섹션의 블록만 그룹
-  const sec = selected[0].closest('.section-block');
-  if (!selected.every(b => b.closest('.section-block') === sec)) return;
-
-  // 그룹 안의 블록은 중첩 그룹화 불가 (레이어 패널 미지원)
-  if (selected.some(b => b.closest('.group-block'))) {
-    if (window.showToast) window.showToast('그룹 안의 블록은 다시 그룹화할 수 없어요.');
-    return;
-  }
-
-  window.pushHistory();
-
-  // DOM 순서대로 부모 row/gap 수집 (중복 제거)
-  const sectionInner = sec.querySelector('.section-inner');
-  const childrenInOrder = [...sectionInner.children];
-  const rows = [];
-  selected.forEach(b => {
-    const row = b.classList.contains('gap-block') ? b : (b.closest('.frame-block[data-text-frame]') || b.closest('.row'));
-    if (row && !rows.includes(row)) rows.push(row);
-  });
-  rows.sort((a, b) => childrenInOrder.indexOf(a) - childrenInOrder.indexOf(b));
-
-  // group-block 생성
-  const groupCount = sectionInner.querySelectorAll('.group-block').length + 1;
-  const groupEl = document.createElement('div');
-  groupEl.className = 'group-block';
-  groupEl.dataset.name = `Group ${groupCount}`;
-  const labelEl = document.createElement('span');
-  labelEl.className = 'group-block-label';
-  labelEl.textContent = groupEl.dataset.name;
-  const groupInner = document.createElement('div');
-  groupInner.className = 'group-inner';
-  groupEl.appendChild(labelEl);
-  groupEl.appendChild(groupInner);
-
-  // 첫 번째 row 자리에 group-block 삽입 후 rows 이동
-  rows[0].before(groupEl);
-  rows.forEach(row => groupInner.appendChild(row));
-
-  bindGroupDrag(groupEl);
-  window.deselectAll();
-  window.buildLayerPanel();
-  window.selectSection(sec);
+  return wrapSelectedBlocksInFrame({ asGroup: true });
 }
 
 // ── Row 프리셋 생성 ──────────────────────────────────────────
@@ -1185,14 +1136,24 @@ function deactivateFrame() {
   window._activeFrame = null;
 }
 
-/* ── Wrap selected blocks into a new free-placement Frame ── */
-function wrapSelectedBlocksInFrame() {
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block';
-  const selected = [...document.querySelectorAll(
+/* ── Wrap selected blocks into a new free-placement Frame (옵션: 그룹) ── */
+function _nextGroupName() {
+  const n = document.querySelectorAll('.frame-block[data-group="true"]').length + 1;
+  return `Group ${n}`;
+}
+function wrapSelectedBlocksInFrame(opts = {}) {
+  const asGroup = opts.asGroup === true;
+  // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
+  let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
+  // text-frame 래퍼는 그룹 대상이 아님 (안의 text-block이 실제 선택 단위)
+  selected = selected.filter(el => el.dataset?.textFrame !== 'true');
+  // 다른 선택 항목을 포함하는 컨테이너(드릴인된 부모 프레임/그룹)는 제외 — 리프 선택만 그룹화
+  selected = selected.filter(el => !selected.some(o => o !== el && el.contains(o)));
   if (selected.length < 1) {
-    if (window.showToast) window.showToast('프레임으로 묶을 블록을 먼저 선택하세요.');
+    if (window.showToast) window.showToast(asGroup ? '그룹으로 묶을 블록을 먼저 선택하세요.' : '프레임으로 묶을 블록을 먼저 선택하세요.');
     return;
   }
 
@@ -1246,6 +1207,7 @@ function wrapSelectedBlocksInFrame() {
     ss.dataset.bg = 'transparent';
     ss.dataset.offsetX = String(minX);
     ss.dataset.offsetY = String(minY);
+    if (asGroup) { ss.dataset.group = 'true'; ss.dataset.name = _nextGroupName(); }
     parentFreeFrame.appendChild(ss);
 
     // 각 wrapper를 새 프레임으로 이동 — 상대좌표로 보정
@@ -1298,6 +1260,7 @@ function wrapSelectedBlocksInFrame() {
   ss.dataset.bg = 'transparent';
   ss.dataset.width = '100%';
   ss.dataset.padY = '0';
+  if (asGroup) { ss.dataset.group = 'true'; ss.dataset.name = _nextGroupName(); }
 
   // 첫 번째 row 자리에 프레임 삽입
   rows[0].before(ss);

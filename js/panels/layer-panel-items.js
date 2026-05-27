@@ -173,6 +173,17 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     window.syncSection(sec);
     window.highlightBlock(block, item);
     window.setBlockAnchor?.(block);
+    // 레이어 클릭 시 캔버스도 해당 블록으로 스크롤 (선택 아웃라인이 화면에 보이도록)
+    const _wrap = document.getElementById('canvas-wrap');
+    if (_wrap) {
+      const r = block.getBoundingClientRect();
+      const wr = _wrap.getBoundingClientRect();
+      // 블록이 뷰포트 밖이거나 가장자리에 걸쳐 있으면 스크롤
+      if (r.top < wr.top + 40 || r.bottom > wr.bottom - 40) {
+        const targetTop = r.top - wr.top + _wrap.scrollTop - 80;
+        _wrap.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+      }
+    }
     if (isShape) window.showShapeProperties?.(block);
     else if (isText || isIconText) window.showTextProperties(block);
     else if (isGap) window.showGapProperties(block);
@@ -606,17 +617,22 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   const shapeKey  = shapeType ? `shape-${shapeType}` : null;
   const shapeTypeLbls = { 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
+  // 그룹 감지 (data-group) — 최우선. 레이어패널에 "Group"으로 표시
+  const isGroup = ssEl.dataset.group === 'true';
+  const GROUP_ICON = `<svg class="layer-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`;
   // Banner preset 감지 (frame-block 변형) — shape보다 우선
   const isBanner = !!ssEl.dataset.bannerPreset;
   const BANNER_ICON = `<svg class="layer-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="4" width="12" height="8" rx="1.5"/><line x1="2" y1="7.5" x2="9" y2="7.5"/></svg>`;
 
-  const iconHtml  = isBanner
-    ? BANNER_ICON
-    : (shapeKey && layerIcons[shapeKey]
-      ? layerIcons[shapeKey]
-      : `<svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`);
-  const typeLabel = isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame');
-  const defaultName = isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame');
+  const iconHtml  = isGroup
+    ? GROUP_ICON
+    : (isBanner
+      ? BANNER_ICON
+      : (shapeKey && layerIcons[shapeKey]
+        ? layerIcons[shapeKey]
+        : `<svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`));
+  const typeLabel = isGroup ? 'Group' : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
+  const defaultName = isGroup ? (ssEl.dataset.name || 'Group') : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
   const name = ssEl.dataset.layerName || defaultName;
 
   wrapper.innerHTML = `${iconHtml}<span class="layer-item-name">${name}</span><span class="layer-item-type">${typeLabel}</span>`;
