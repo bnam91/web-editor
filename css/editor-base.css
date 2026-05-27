@@ -54,6 +54,14 @@
   --ui-accent:        #7cb8ff;   /* 강조/편집 (브랜치, focus, edit 계열) */
   --ui-accent-primary: #2d6fe8; /* 주요 액션/활성 색상 */
   --ui-accent-primary-hover: #3a7df0; /* 주요 액션 hover */
+
+  /* ── 미정의로 쓰이던 토큰 → canonical 별칭 (일관성 수정, 2026-05) ──
+     이전엔 정의 없이 var() fallback으로만 쓰여 fallback이 파일마다 달라 색이 갈렸음.
+     아래 별칭으로 한 톤으로 통일. (신규 코드는 위 canonical 토큰을 직접 쓸 것) */
+  --ui-bg-panel:  var(--ui-bg-card);   /* 팝업/드롭다운(color-picker·font-picker). 충돌(#2c2c2c/#1a1a1a) → 팝업 표준 #252525로 통일 */
+  --ui-bg-2:      var(--ui-bg-base);   /* grid-picker-cell 등 어두운 셀 배경 */
+  --ui-text-base: var(--ui-text);      /* (ai-image 패널) 본문 텍스트 */
+  --ui-text-main: var(--ui-text);      /* (color-adjust 헤더) — fallback 없어 색 깨지던 것 수정 */
 }
 
 /* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)

@@ -176,4 +176,20 @@
   --icon-layer-gap-item:        7px;    /* .layer-item icon ↔ name gap */
   --icon-layer-gap-row:         6px;    /* .layer-row-header icon ↔ name gap */
   --icon-prop-size:             16px;   /* prop panel block header icon */
+
+  /* ── 간격 스케일 (4px 기반) — 신규 UI 코드의 padding/gap/margin은 이 토큰 사용 ──
+     현재 코드엔 px 리터럴 3078개(4/8/6/10/12 군집 + 5·11·3 난립)라 점진 이관 대상.
+     ⚠️ 캔버스 콘텐츠(블록 내부 디자인)는 사용자 편집값이라 토큰 강제 적용 금지 — UI 크롬만. */
+  --space-0:   2px;
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   24px;
+  --space-6:   32px;
+
+  /* ── radius 스케일 (UI 크롬) ── */
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  10px;
 }

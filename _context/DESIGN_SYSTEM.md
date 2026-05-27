@@ -390,3 +390,94 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 ```
 
 적용 대상: `.section-label`, `.st-btn` 계열, 이미지 편집 핸들 등
+
+> 런타임 토큰: `--inv-zoom`, `--ui-scale`는 `editor.js`의 `applyZoom()`에서 `documentElement`에 set.
+> CSS에 정의 없음이 정상 — 가드레일/미정의 검사에서 제외 대상.
+
+---
+
+## 9. 토큰 정식 소유 + canonical 매핑 (2026-05 일관성 작업)
+
+### 9-A. 정식 소유 (어느 파일이 정의의 출처인가)
+
+| 토큰 계열 | 정의 파일 | 비고 |
+|---|---|---|
+| `--p-*` (primitive) | `css/design-tokens.css` | 원시 값 |
+| `--color-* / --bg-* / --border-* / --text-*` (semantic) | `css/design-tokens.css` | primitive 참조 |
+| `--ui-*` (UI shell) | `css/editor-base.css :root` | 하드코딩 값 (기존 호환) |
+| `--space-* / --radius-*` (간격·반경) | `css/design-tokens.css` | §10 |
+| `--inv-zoom / --ui-scale` (런타임) | `js/editor.js` (set) | CSS 정의 없음 = 정상 |
+
+> 별칭/신규 토큰은 위 "정식 소유" 파일에만 추가할 것. 엉뚱한 계층에 정의 금지.
+
+### 9-B. 미정의로 쓰이던 토큰 → canonical 별칭
+
+이전에 정의 없이 `var(--ui-xxx, fallback)`으로만 쓰여 **fallback이 파일마다 달라 색이 갈리던** 토큰들.
+`editor-base.css :root`에 별칭 정의로 **한 톤 통일** (사용처 코드는 그대로 두고 토큰만 정의 → 안전).
+
+| 미정의였던 토큰 | → canonical | 이유 |
+|---|---|---|
+| `--ui-bg-panel` | `--ui-bg-card` (#252525) | 두 사용처(color-picker 팝오버·font-picker 드롭다운)가 **모두 팝업** → 팝업 표준 톤. 충돌하던 fallback(#2c2c2c/#1a1a1a)의 중간 |
+| `--ui-bg-2` | `--ui-bg-base` (#1e1e1e) | grid-picker-cell 등 어두운 셀 배경 |
+| `--ui-text-base` | `--ui-text` (#e0e0e0) | ai-image 패널 본문 텍스트 (fallback #f0f0f0/#ddd 불일치였음) |
+| `--ui-text-main` | `--ui-text` (#e0e0e0) | color-adjust 헤더 — **fallback 없어 색이 깨지던 버그** 수정 |
+
+> 신규 코드는 위 미정의 별칭 대신 **canonical 토큰(`--ui-bg-card` 등)을 직접** 사용할 것.
+
+---
+
+## 10. 간격·반경 스케일 (`--space-*` / `--radius-*`)
+
+`css/design-tokens.css` 정의. **신규 UI 크롬** 코드의 padding/gap/margin/border-radius는 이 토큰 사용.
+
+```css
+--space-0: 2px;  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
+--space-4: 16px; --space-5: 24px; --space-6: 32px;
+--radius-sm: 4px; --radius-md: 6px; --radius-lg: 10px;
+```
+
+**정책**
+- 현재 CSS엔 px 리터럴 3078개 (흔한 값 4/8/6/10/12px 군집 + 5·11·3·7 난립). → **점진 이관** 대상이지 일괄 치환 X.
+- 이관 우선순위: 색 토큰 안정화 후 → UI 크롬 CSS부터.
+- ⚠️ **캔버스 콘텐츠(블록 내부 레이아웃·디자인 px)는 사용자 편집값** → 토큰 강제 금지. UI 크롬(패널/툴바/팝업)만.
+
+---
+
+## 11. 패널 공통 구조 + 타이포·대비 규칙
+
+### 11-A. 패널 공통 구조
+> 상세는 `docs/RIGHT_PANEL_PROPS.md §2` (단일 출처). 여기선 핵심만.
+
+```html
+<div class="prop-section">
+  <div class="prop-section-title">제목</div>
+  <div class="prop-row"><span class="prop-label">…</span> …입력…</div>
+</div>
+```
+- 모든 우측 프로퍼티 패널은 `prop-section`(블록 단위) → `prop-section-title` → `prop-row`(라벨+컨트롤) 구조.
+- 토글 버튼: `.prop-align-btn` (`flex:1; height:24px`) — **버튼그룹 전용**. 단독 텍스트 토글로 쓸 땐 `flex:0 0 auto` 필수(안 그러면 늘어남).
+- 색 입력: `colorFieldHTML()` + `wireColorField()` (solid `onApply` / 그라데이션 `onGradient`).
+
+### 11-B. 타이포·대비 (UI 크롬)
+
+배경 톤별 권장 텍스트 토큰 (어두운 셸 위):
+
+| 배경 | 본문 텍스트 | 서브/힌트 |
+|---|---|---|
+| `--ui-bg-base/elevated/card` (#1e~#25) | `--ui-text` (#e0e0e0) | `--ui-text-sub` (#aaa) / `--ui-text-muted` (#777) |
+| `--ui-bg-input` (#2a2a2a) | `--ui-text` | `--ui-text-sub` |
+| accent (`--ui-accent-primary` #2d6fe8) | `#fff` | — |
+
+- 본문은 `--ui-text` 이상, 비활성/힌트만 `--ui-text-muted/dim`. 어두운 배경에 `--ui-text-dim`(#555) 본문 사용 금지(대비 부족).
+
+### 11-C. 투명도(alpha/rgba) 정책
+- hover tint·shadow·overlay 등 반투명은 의미 토큰 우선: `--color-selection-fill`(hover), `--color-focus-fill` 등.
+- 토큰 없는 1회성 그림자/딤은 `rgba(0,0,0,α)` 허용하되 신규 반복 패턴은 토큰화 검토.
+
+---
+
+## 12. 가드레일 (일관성 회귀 방지)
+
+`scripts/check-design-tokens.sh` — 신규 미정의 `--ui-*` 토큰 / 신규 UI 크롬 하드코딩 색 검출.
+- 사용된 `var(--ui-*)` ∖ 정의된 `--ui-*` = 미정의 (런타임 `--ui-scale`/`--inv-zoom` 제외)
+- 정의/사용 토큰 수, 하드코딩 색·px 카운트 출력 (회귀 추세 모니터)
