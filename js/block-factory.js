@@ -247,6 +247,7 @@ function makeTableBlock() {
   tb.id = genId('tbl');
   tb.dataset.style = 'default';
   tb.dataset.showHeader = 'true';
+  tb.dataset.featuredCol = '-1';
   tb.dataset.cellAlign = 'center';
   // 신규 옵션 7개 기본값 (기존 테이블 사이트 호환을 위해 dataset 부재 시 default 동작은 CSS/prop 로직에서 보장)
   tb.dataset.showVLines = 'true';
@@ -1144,7 +1145,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];

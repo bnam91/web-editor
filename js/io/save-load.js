@@ -825,7 +825,7 @@ function rebindAll() {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -835,6 +835,7 @@ function rebindAll() {
         : b.classList.contains('card-block') ? 'cdb'
         : b.classList.contains('canvas-block') ? 'cvb'
         : b.classList.contains('banner02-block') ? 'bn2'
+        : b.classList.contains('comparison-block') ? 'cmp'
         : b.classList.contains('graph-block') ? 'grb'
         : b.classList.contains('icon-text-block') ? 'itb'
         : b.classList.contains('icon-block') ? 'icn'
@@ -849,6 +850,9 @@ function rebindAll() {
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
     // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
     if (b.classList.contains('chat-block')) window.renderChatBlock?.(b);
+    // banner02/comparison: scale-to-fit ResizeObserver + dblclick 편집 핸들러 재바인딩
+    if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
+    if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
     window.bindBlock(b);
   });
   // card-block 스타일 복원 (bgColor, radius, textAlign은 dataset에 저장되나 inline style은 재적용 필요)
@@ -933,6 +937,10 @@ function rebindAll() {
     if (block.dataset.showHeader === 'false' && thead) {
       thead.style.display = 'none';
     }
+    // 강조 칼럼 재적용 (.tbl-featured 클래스는 HTML로 보존되나 CSS var는 재설정 필요)
+    if (block.dataset.featuredBg) block.style.setProperty('--tbl-featured-bg', block.dataset.featuredBg);
+    if (block.dataset.featuredFg) block.style.setProperty('--tbl-featured-fg', block.dataset.featuredFg);
+    if (parseInt(block.dataset.featuredCol) >= 0) window.__applyTableFeaturedCol?.(block);
     const cellAlign = block.dataset.cellAlign;
     if (cellAlign) {
       block.querySelectorAll('th, td').forEach(cell => { cell.style.textAlign = cellAlign; });

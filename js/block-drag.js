@@ -92,6 +92,7 @@ function bindBlock(block) {
   const isShape      = block.classList.contains('shape-block');
   const isCanvas     = block.classList.contains('canvas-block');
   const isBanner02   = block.classList.contains('banner02-block');
+  const isComparison = block.classList.contains('comparison-block');
   const isIconify    = block.classList.contains('icon-block');
   const isMockup     = block.classList.contains('mockup-block');
   const isVector     = block.classList.contains('vector-block');
@@ -167,7 +168,7 @@ function bindBlock(block) {
         const hasSelected = ch.querySelector(
           '.text-block.selected,.asset-block.selected,.shape-block.selected,' +
           '.gap-block.selected,.icon-circle-block.selected,.table-block.selected,' +
-          '.label-group-block.selected,.graph-block.selected,.canvas-block.selected, .banner02-block.selected,' +
+          '.label-group-block.selected,.graph-block.selected,.canvas-block.selected, .banner02-block.selected, .comparison-block.selected,' +
           '.divider-block.selected,.mockup-block.selected,.vector-block.selected,.step-block.selected'
         );
         if (hasSelected) {
@@ -1156,6 +1157,33 @@ function bindBlock(block) {
     });
   }
 
+  if (isComparison) {
+    block.addEventListener('click', e => {
+      e.stopPropagation();
+      const sec = block.closest('.section-block');
+      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
+      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (_isInsideUnselectedFrame(block)) {
+        const ss = _getParentFrame(block);
+        window.deselectAll?.();
+        const parentSec = ss.closest('.section-block');
+        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+        ss.classList.add('selected');
+        window._activeFrame = ss;
+        window.highlightBlock?.(ss, ss._layerItem);
+        window.showFrameProperties?.(ss);
+        return;
+      }
+      window.deselectAll();
+      _restoreParentFrameSelected(block);
+      block.classList.add('selected');
+      window.syncSection(sec);
+      window.highlightBlock(block, block._layerItem);
+      window.setBlockAnchor?.(block);
+      window.showComparisonProperties?.(block);
+    });
+  }
+
   if (isVector) {
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -1433,7 +1461,7 @@ function bindFrameDropZone(ss) {
   // absolute 셀로 바인딩됐다가 flow로 변환된 frame도 click이 동작하도록 항상 바인딩
   ss.addEventListener('click', e => {
     // 내부 자식 블록 click은 자식 핸들러가 처리
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .vector-block, .step-block')) return;
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .step-block')) return;
     // 내부 nested frame 자체 click 핸들러가 있어서 이미 처리됨 → 여기로 버블된 경우 무시
     const innerFrame = e.target.closest('.frame-block:not([data-text-frame])');
     if (innerFrame && innerFrame !== ss) { e.stopPropagation(); return; }
@@ -1661,7 +1689,7 @@ function bindFrameDropZone(ss) {
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
     const isFreeLayout = ss.dataset.freeLayout === 'true';
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .mockup-block, .vector-block, .step-block';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
     const SS_W = 860; // 캔버스 기준 너비
 
     if (!isFreeLayout) {
@@ -1780,7 +1808,7 @@ function bindFrameDropZone(ss) {
 
   // 내부 블록 pointerdown 시 서브섹션 drag 일시 비활성 — 블록 선택/이동과 충돌 방지
   ss.addEventListener('pointerdown', e => {
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .vector-block, .step-block');
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .step-block');
     if (isInnerBlock) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');

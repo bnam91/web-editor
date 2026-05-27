@@ -363,6 +363,27 @@ async function exportSection(sec, format, width) {
     }
   }
 
+  // comparison-block: scale 평탄화 (텍스트 기반이라 bg-image 변환 불필요, overflow visible로 shadow 보존)
+  for (const cmp of clone.querySelectorAll('.comparison-block')) {
+    if (window.renderComparison) { window.renderComparison(cmp); if (cmp._cmpRO) { cmp._cmpRO.disconnect(); cmp._cmpRO = null; } }
+    const inner = cmp.querySelector('.cmp-inner');
+    if (!inner) continue;
+    const m = (inner.style.transform || '').match(/scale\(([^)]+)\)/);
+    const s = m ? parseFloat(m[1]) : 1;
+    cmp.getBoundingClientRect();
+    if (s && s !== 1) {
+      const scalePx = (st, props) => props.forEach(p => {
+        if (st[p] && /^[\d.]+px$/.test(st[p].trim())) st[p] = (parseFloat(st[p]) * s) + 'px';
+      });
+      inner.querySelectorAll('[style]').forEach(el =>
+        scalePx(el.style, ['left', 'top', 'width', 'height', 'fontSize', 'marginTop', 'borderRadius']));
+      inner.style.width  = (parseFloat(inner.style.width)  * s) + 'px';
+      inner.style.height = (parseFloat(inner.style.height) * s) + 'px';
+      inner.style.transform = 'none';
+      cmp.style.height = inner.style.height;
+    }
+  }
+
   // 색상 조정 필터가 적용된 img → Canvas로 bake
   // html2canvas는 SVG filter url()을 지원하지 않으므로 사전 변환 필요
   if (window.bakeImgFilterToCanvas) {
