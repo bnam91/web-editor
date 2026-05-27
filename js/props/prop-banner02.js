@@ -78,6 +78,7 @@ export function showBanner02Properties(block) {
         <button class="prop-align-btn${(d.imgFit || 'cover') === 'cover' ? ' active' : ''}" data-fit="cover" style="flex:1;font-size:11px;">꽉 채우기</button>
         <button class="prop-align-btn${d.imgFit === 'contain' ? ' active' : ''}" data-fit="contain" style="flex:1;font-size:11px;">원본 비율</button>
       </div>
+      <button class="prop-btn" id="bn2-swap" style="width:100%;margin-top:6px;">↔ 이미지·텍스트 좌우 바꾸기</button>
     </div>
 
     <div class="prop-section">
@@ -119,7 +120,10 @@ export function showBanner02Properties(block) {
   // Background color/gradient
   wireColorField('bn2-bg', {
     onApply: (c) => { block.dataset.bg = c; rerender(); window.scheduleAutoSave?.(); },
-    onGradient: (css, c) => { block.dataset.bg = css; rerender(); window.scheduleAutoSave?.(); if (c) commit(); },
+    onGradient: (css, c) => {
+      block.dataset.bg = css; rerender(); window.scheduleAutoSave?.(); if (c) commit();
+      if (!_applyingExternal) window.showGradientLine?.(block); // 모달 편집 → 캔버스 핸들 각도 재배치
+    },
     onCommit: commit,
   });
 
@@ -164,10 +168,36 @@ export function showBanner02Properties(block) {
     btn.addEventListener('click', () => { block.dataset.imgFit = btn.dataset.fit; rerender(); commit(); showBanner02Properties(block); });
   });
 
+  // 이미지·텍스트 좌우 바꾸기 — 가로 위치를 배너 중심 기준으로 미러링 (구버전 배너 _swapBannerChildren과 동일 개념)
+  propPanel.querySelector('#bn2-swap')?.addEventListener('click', () => {
+    const W = parseInt(block.dataset.bannerW) || 780;
+    const tX = parseInt(block.dataset.textX) || 0, tW = parseInt(block.dataset.textW) || 0;
+    const iX = parseInt(block.dataset.imgX) || 0,  iW = parseInt(block.dataset.imgW) || 0;
+    block.dataset.textX = Math.round(W - (tX + tW));
+    block.dataset.imgX  = Math.round(W - (iX + iW));
+    rerender(); commit();
+  });
+
   // Align
   propPanel.querySelectorAll('#bn2-align-group [data-align]').forEach(btn => {
     btn.addEventListener('click', () => { block.dataset.align = btn.dataset.align; rerender(); commit(); showBanner02Properties(block); });
   });
+
+  // 선택 시 배경이 그라데이션이면 캔버스 위 그라데이션 라인 표시 (gradient가 아니면 overlay가 no-op)
+  window.showGradientLine?.(block);
 }
+
+// 캔버스에서 그라데이션 라인을 드래그하면(source==='canvas') 모달 피커 스와치만 동기화.
+// bg 쓰기/재렌더는 overlay→gradient-model.set()이 이미 처리하므로 여기서 중복 적용하지 않는다(루프 방지).
+let _applyingExternal = false;
+document.addEventListener('gradient-line:change', (e) => {
+  if (e.detail?.source !== 'canvas') return;
+  const block = e.target?.closest?.('.banner02-block');
+  if (!block || !e.detail?.css) return;
+  _applyingExternal = true;
+  const sw = document.getElementById('bn2-bg-color')?.closest('.prop-color-swatch');
+  if (sw) sw.style.background = e.detail.css; // 모달이 열려 있으면 스와치 미리보기 갱신
+  _applyingExternal = false;
+});
 
 window.showBanner02Properties = showBanner02Properties;

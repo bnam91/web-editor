@@ -794,24 +794,6 @@
 }
 .tb-table thead th { font-weight: 600; }
 
-/* 강조 칼럼 — 셀 강조 방식(<table>은 칼럼 단독 부양 불가). bg+볼드+큰글자+외곽 라운드+그림자 */
-.tb-table td.tbl-featured, .tb-table th.tbl-featured {
-  background: var(--tbl-featured-bg, #222222) !important;
-  color: var(--tbl-featured-fg, #ffffff) !important;
-  font-weight: 700;
-  font-size: 1.08em;
-  position: relative;
-  z-index: 1;
-}
-.tb-table th.tbl-featured-top, .tb-table td.tbl-featured-top {
-  border-top-left-radius: 12px; border-top-right-radius: 12px;
-  box-shadow: 0 -6px 24px rgba(0,0,0,0.16);
-}
-.tb-table td.tbl-featured-bottom {
-  border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.16);
-}
-
 /* 기본 스타일 */
 .table-block[data-style="default"] .tb-table th,
 .table-block[data-style="default"] .tb-table td,
@@ -1441,6 +1423,14 @@
   outline-offset: calc(1px * var(--inv-zoom, 1));
 }
 .comparison-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+/* 셀 편집 모드 — 브라우저 기본 포커스링(노란색, macOS 강조색) 대신 디자인 토큰 사용 */
+.comparison-block .cmp-hd[contenteditable="true"],
+.comparison-block .cmp-row[contenteditable="true"] {
+  outline: 1px solid var(--sel-color);
+  outline-offset: 2px;
+  border-radius: 4px;
+  cursor: text;
+}
 .canvas-block .cvb-inner {
   position: absolute;
   inset: 0;

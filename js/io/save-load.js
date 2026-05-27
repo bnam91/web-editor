@@ -294,7 +294,7 @@ function getSerializedCanvas() {
   const clone = canvasEl.cloneNode(true);
   // ghost 섹션은 저장에서 제외
   clone.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle').forEach(el => el.remove());
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay').forEach(el => el.remove());
   // sticker 선택 상태 제거 — selected 클래스가 저장에 포함되면 outline 잔존 가능
   clone.querySelectorAll('.sticker-block.selected').forEach(s => s.classList.remove('selected'));
   clone.querySelectorAll('.sticker-block.tiny').forEach(s => s.classList.remove('tiny'));
@@ -937,10 +937,6 @@ function rebindAll() {
     if (block.dataset.showHeader === 'false' && thead) {
       thead.style.display = 'none';
     }
-    // 강조 칼럼 재적용 (.tbl-featured 클래스는 HTML로 보존되나 CSS var는 재설정 필요)
-    if (block.dataset.featuredBg) block.style.setProperty('--tbl-featured-bg', block.dataset.featuredBg);
-    if (block.dataset.featuredFg) block.style.setProperty('--tbl-featured-fg', block.dataset.featuredFg);
-    if (parseInt(block.dataset.featuredCol) >= 0) window.__applyTableFeaturedCol?.(block);
     const cellAlign = block.dataset.cellAlign;
     if (cellAlign) {
       block.querySelectorAll('th, td').forEach(cell => { cell.style.textAlign = cellAlign; });

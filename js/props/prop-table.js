@@ -77,29 +77,6 @@ function _applyColColors(block, bgList, fgList) {
 }
 window.__applyTableColColors = _applyColColors;
 
-// 강조 칼럼: 특정 칼럼을 더 크게/도드라지게 (셀 강조 방식 — <table>은 칼럼 단독 부양이 안되므로
-// bg+볼드+큰글자+위아래 라운드로 "도드라짐" 구현. 완전한 떠있는 카드는 comparison-block 사용)
-function _applyFeaturedCol(block) {
-  const table = block?.querySelector('.tb-table');
-  if (!table) return;
-  table.querySelectorAll('.tbl-featured, .tbl-featured-top, .tbl-featured-bottom').forEach(c =>
-    c.classList.remove('tbl-featured', 'tbl-featured-top', 'tbl-featured-bottom'));
-  const fc = parseInt(block.dataset.featuredCol);
-  if (isNaN(fc) || fc < 0) { delete block.dataset.featuredCol; return; }
-  block.dataset.featuredCol = String(fc);
-  if (block.dataset.featuredBg) block.style.setProperty('--tbl-featured-bg', block.dataset.featuredBg);
-  if (block.dataset.featuredFg) block.style.setProperty('--tbl-featured-fg', block.dataset.featuredFg);
-  const rows = [...table.querySelectorAll('tr')];
-  rows.forEach((tr, ri) => {
-    const cell = tr.querySelectorAll('th, td')[fc];
-    if (!cell) return;
-    cell.classList.add('tbl-featured');
-    if (ri === 0) cell.classList.add('tbl-featured-top');
-    if (ri === rows.length - 1) cell.classList.add('tbl-featured-bottom');
-  });
-}
-window.__applyTableFeaturedCol = _applyFeaturedCol;
-
 /* placeholder div 생성 — 명시 imgH가 있으면 height 적용, 없으면 정사각형(aspect-ratio: 1/1) */
 function _makeImgCellPlaceholder(tr) {
   const h = parseInt(tr?.dataset?.imgH) || 0;
@@ -224,9 +201,6 @@ export function showTableProperties(block) {
   const curHeaderAlpha = parseAlphaFromColor(curHeaderBg);
   const curTextColor   = block.dataset.textColor   || _tblTok('--preset-table-text', '#222222');
   const curTextAlpha   = parseAlphaFromColor(curTextColor);
-  const curFeaturedCol = parseInt(block.dataset.featuredCol);
-  const curFeaturedBg  = block.dataset.featuredBg  || '#222222';
-  const curFeaturedFg  = block.dataset.featuredFg  || '#ffffff';
   const curFontFamily  = block.dataset.fontFamily  || '';
   const curColRatio    = block.dataset.colWidths   || '';
   const curColBgs      = (block.dataset.colBgs || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -305,19 +279,6 @@ export function showTableProperties(block) {
         <button id="tbl-col-ratio-reset" style="height:24px;flex:0 0 auto;padding:0 10px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">균등</button>
       </div>
       <div class="prop-hint">예: 1:1:2 → 25/25/50%</div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">강조 칼럼 (도드라지게)</div>
-      <div class="prop-row">
-        <span class="prop-label">칼럼</span>
-        <select class="prop-select" id="tbl-featured-col" style="flex:1;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;font-size:11px;">
-          <option value="-1"${isNaN(curFeaturedCol) || curFeaturedCol < 0 ? ' selected' : ''}>없음</option>
-          ${Array.from({ length: colCount }, (_, i) => `<option value="${i}"${curFeaturedCol === i ? ' selected' : ''}>컬럼 ${i + 1}</option>`).join('')}
-        </select>
-      </div>
-      <div class="prop-color-row"><span class="prop-label">배경</span>${colorFieldHTML({ idPrefix: 'tbl-featured-bg', hex: curFeaturedBg })}</div>
-      <div class="prop-color-row"><span class="prop-label">텍스트</span>${colorFieldHTML({ idPrefix: 'tbl-featured-fg', hex: curFeaturedFg })}</div>
-      <div class="prop-hint">선택 칼럼이 더 크고 진하게 표시됩니다. (떠있는 카드형은 Comparison 블록)</div>
     </div>
     ${curStyle === 'colored' ? `
     <div class="prop-section" id="tbl-col-colors-section">
@@ -726,22 +687,6 @@ export function showTableProperties(block) {
       block.dataset.textColor = c;
       block.style.setProperty('--tbl-text-color', c);
     },
-    onCommit: () => window.pushHistory?.(),
-  });
-
-  /* 강조 칼럼 */
-  const featSel = document.getElementById('tbl-featured-col');
-  featSel?.addEventListener('change', () => {
-    block.dataset.featuredCol = featSel.value;
-    _applyFeaturedCol(block);
-    window.pushHistory?.(); window.scheduleAutoSave?.();
-  });
-  wireColorField('tbl-featured-bg', {
-    onApply: (c) => { block.dataset.featuredBg = c; block.style.setProperty('--tbl-featured-bg', c); _applyFeaturedCol(block); },
-    onCommit: () => window.pushHistory?.(),
-  });
-  wireColorField('tbl-featured-fg', {
-    onApply: (c) => { block.dataset.featuredFg = c; block.style.setProperty('--tbl-featured-fg', c); _applyFeaturedCol(block); },
     onCommit: () => window.pushHistory?.(),
   });
 
