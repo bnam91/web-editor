@@ -449,7 +449,7 @@ function showSimpleCardProperties(block) {
     <div class="prop-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div class="prop-section-title" style="margin-bottom:0;">Text Area</div>
-        <button class="prop-align-btn${textHide ? ' active' : ''}" id="cvb-text-hide-btn" style="width:auto;padding:0 8px;font-size:10px;">숨김</button>
+        <button class="prop-align-btn${textHide ? ' active' : ''}" id="cvb-text-hide-btn" style="flex:0 0 auto;width:auto;height:24px;padding:0 10px;font-size:11px;">숨김</button>
       </div>
       <div id="cvb-text-area-controls" style="${textHide ? 'opacity:0.35;pointer-events:none;' : ''}">
       <div class="prop-color-row">

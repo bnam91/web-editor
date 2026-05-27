@@ -1737,23 +1737,30 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
   if (['canvas-wrap','canvas-scaler','canvas'].includes(e.target.id)) deselectAll();
 });
 
-/* ── 트랙패드 핀치 줌 (macOS: pinch = wheel + ctrlKey) ── */
-(function initPinchZoom() {
+/* ── 트랙패드 제스쳐: 핀치(ctrl+wheel)=줌, 두손가락 드래그(wheel)=팬 ── */
+(function initTrackpadGestures() {
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap) return;
   let accum = 0, timer = null;
   wrap.addEventListener('wheel', (e) => {
-    if (!e.ctrlKey) return; // 핀치 제스쳐만 처리 — 일반 두손가락 스크롤은 통과
     if (document.body.classList.contains('preview-mode')) return;
-    e.preventDefault();
-    accum += -e.deltaY; // 핀치 아웃(확대) → deltaY 음수
-    if (timer) return;
-    // setTimeout 스로틀(~60fps) — rAF는 비포커스 윈도우에서 멈춰서 setTimeout 사용
-    timer = setTimeout(() => {
-      const d = accum; accum = 0; timer = null;
-      const step = Math.max(-30, Math.min(30, Math.round(d * 2)));
-      if (step !== 0) zoomStep(step);
-    }, 16);
+    if (e.ctrlKey) {
+      // 핀치 = 줌
+      e.preventDefault();
+      accum += -e.deltaY; // 핀치 아웃(확대) → deltaY 음수
+      if (timer) return;
+      // setTimeout 스로틀(~60fps) — rAF는 비포커스 윈도우에서 멈춰서 setTimeout 사용
+      timer = setTimeout(() => {
+        const d = accum; accum = 0; timer = null;
+        const step = Math.max(-30, Math.min(30, Math.round(d * 2)));
+        if (step !== 0) zoomStep(step);
+      }, 16);
+    } else {
+      // 두손가락 드래그 = 캔버스 팬 (양축 스크롤). OS 모멘텀 이벤트도 그대로 반영.
+      e.preventDefault();
+      wrap.scrollLeft += e.deltaX;
+      wrap.scrollTop  += e.deltaY;
+    }
   }, { passive: false });
 })();
 
