@@ -49,6 +49,7 @@ function getBlockHeight(block) {
     case 'text':      return Math.ceil((block.fontSize || 28) * (block.lineCount || 1) * 1.10);
     case 'divider':   return 2;
     case 'icon-circle': return block.size || 80;
+    case 'icon-text': return Math.ceil((block.fontSize || 28) * 1.5);
     default:          return 0;
   }
 }
@@ -73,7 +74,7 @@ function getBlockHeight(block) {
           pending.delete(id);
           reject(new Error('timeout: ' + expr.slice(0, 60)));
         }
-      }, 10000);
+      }, 30000);
     });
   }
 
@@ -94,6 +95,7 @@ function getBlockHeight(block) {
       case 'text': {
         const opts = JSON.stringify({
           ...(block.content  !== undefined && { content:  block.content  }),
+          ...(block.html     && { html:     true          }),
           ...(block.color    && { color:    block.color    }),
           ...(block.align    && { align:    block.align    }),
           ...(block.fontSize && { fontSize: block.fontSize }),
@@ -205,6 +207,10 @@ function getBlockHeight(block) {
           ${ssRadius !== undefined ? `f.style.borderRadius = '${ssRadius}px'; f.dataset.radius = '${ssRadius}';` : ''}
           ${ssRot ? `f.style.transform = (f.style.transform||'') + ' rotate(${ssRot}deg)'; f.style.transformOrigin='center center'; f.dataset.rotation='${ssRot}';` : ''}
         })()`);
+        // 하이브리드: 프레임 배경 이미지 (픽셀퍼펙트 렌더)
+        if (block.bgImage) {
+          await ev(`(function(){ const f=window._activeFrame; if(f){ f.style.backgroundImage=${JSON.stringify('url("' + block.bgImage + '")')}; f.style.backgroundSize='100% 100%'; f.style.backgroundRepeat='no-repeat'; f.style.backgroundPosition='center'; f.dataset.bgImage='1'; } })()`);
+        }
         await delay(200);
         // 카드 frame을 ID로 잡아두고 자식 처리 후 selected를 카드로 복원
         const cardFrameId = await ev(`window._activeFrame?.id || ''`);
@@ -259,6 +265,7 @@ function getBlockHeight(block) {
       case 'text': {
         const opts = JSON.stringify({
           ...(block.content   !== undefined && { content:   block.content   }),
+          ...(block.html      && { html:      true           }),
           ...(block.color     && { color:     block.color     }),
           ...(block.align     && { align:     block.align     }),
           ...(block.fontSize  && { fontSize:  block.fontSize  }),
@@ -278,6 +285,22 @@ function getBlockHeight(block) {
             el.style.transform = (el.style.transform||'') + ' rotate(${block.rotation}deg)';
             el.style.transformOrigin = 'center center';
             el.dataset.rotation = '${block.rotation}';
+          })()`);
+        }
+        // 하이브리드 마스킹: 래퍼+contentEl 배경색 박스로 배경에 구워진 텍스트를 덮음 (2겹 방지)
+        if (block.maskBg) {
+          await ev(`(function(){
+            const f = window._activeFrame;
+            if (!f) return;
+            const tfs = f.querySelectorAll(':scope > .frame-block[data-text-frame]');
+            const el = tfs[tfs.length - 1];
+            if (!el) return;
+            const bg = ${JSON.stringify(block.maskBg)};
+            el.style.backgroundColor = bg;
+            ${block.maskH ? `el.style.minHeight = '${block.maskH}px';` : ''}
+            const c = el.querySelector('[class^="tb-"]');
+            if (c) { c.style.backgroundColor = bg; c.style.whiteSpace = 'pre-wrap'; }
+            el.dataset.hybridMask = '1';
           })()`);
         }
         return await getLastBlockHeight('text');
@@ -334,6 +357,31 @@ function getBlockHeight(block) {
         await ev(`window.addIconCircleBlock(${JSON.stringify({ size: block.size, bgColor: block.bgColor })})`);
         await delay(200);
         return getBlockHeight(block);
+      case 'icon-text': {
+        await ev(`window.addIconTextBlock()`);
+        await delay(150);
+        await ev(`(function(){
+          const f = window._activeFrame; if (!f) return;
+          const its = f.querySelectorAll(':scope > .icon-text-block');
+          const el = its[its.length - 1]; if (!el) return;
+          el.style.position = 'absolute';
+          el.style.left = '${x}px'; el.style.top = '${y}px';
+          el.style.width = '${block.width || width || 200}px';
+          el.dataset.offsetX = '${x}'; el.dataset.offsetY = '${y}';
+          const ic = el.querySelector('.itb-icon');
+          const svg = ${JSON.stringify(block.icon || '')};
+          if (ic && svg) ic.innerHTML = svg;
+          const tx = el.querySelector('.itb-text');
+          if (tx) {
+            tx.textContent = ${JSON.stringify(block.content || '')};
+            tx.style.whiteSpace = 'pre-wrap';
+            ${block.color ? `tx.style.color = ${JSON.stringify(block.color)};` : ''}
+            ${block.fontSize ? `tx.style.fontSize = '${block.fontSize}px';` : ''}
+          }
+        })()`);
+        await delay(100);
+        return getBlockHeight(block);
+      }
       case 'joker':
         await ev(`window.addJokerBlock(${JSON.stringify({
           label:  block.label,
@@ -418,6 +466,20 @@ function getBlockHeight(block) {
     }
   }
 
+  // 페이지 설정 적용 (하이브리드: padX/padY/gap=0 → 흰/회색 테두리 제거)
+  if (spec.meta?.pageSettings) {
+    const ps = spec.meta.pageSettings;
+    await ev(`(function(){
+      const s = window.state; if (!s) return;
+      const over = ${JSON.stringify(ps)};
+      Object.assign(s.pageSettings, over);
+      const pg = s.pages && s.pages[s.currentPageIndex || 0];
+      if (pg && pg.pageSettings) Object.assign(pg.pageSettings, over);
+      if (window.applyPageSettings) window.applyPageSettings();
+    })()`);
+    await delay(200);
+  }
+
   for (const section of spec.sections) {
     const bg       = section.settings?.bg || '';
     const paddingY = section.settings?.paddingY;
@@ -443,6 +505,15 @@ function getBlockHeight(block) {
       await ev(`window.addSection(${addSecOpts})`);
     }
     await delay(300);
+
+    // 섹션 배경이 그라데이션이면 backgroundColor로는 안 되므로 background로 재적용
+    if (bg && /gradient\(/.test(bg)) {
+      await ev(`(function(){
+        const sec = document.querySelector('.section-block.selected') || [...document.querySelectorAll('.section-block')].pop();
+        if (sec) { sec.style.background = ${JSON.stringify(bg)}; sec.style.backgroundColor = ''; sec.dataset.bg = ${JSON.stringify(bg)}; }
+      })()`);
+      await delay(100);
+    }
 
     for (const row of section.rows) {
 

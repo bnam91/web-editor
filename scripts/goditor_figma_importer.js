@@ -40,6 +40,8 @@ const PORT    = args.port ? parseInt(args.port) : 9336;
 // 섹션 bg 승격) 적용. 기본(default)은 보수적(Figma 명시값만 반영).
 const PROFILE = (args.profile || 'default').toLowerCase();
 const IS_DFORCE = PROFILE === 'dforce';
+// 하이브리드 모드: 프레임 통짜 PNG를 배경으로(픽셀퍼펙트) + 텍스트만 절대좌표 편집 오버레이
+const HYBRID = args.hybrid === true || args.hybrid === 'true';
 
 if (!CHANNEL) {
   console.error('Usage: node goditor_figma_importer.js --channel <id> [--frame <nodeId>] [--build]');
@@ -176,10 +178,49 @@ function getRotationDeg(node) {
   return 0;
 }
 
-// ─── 노드 배경색 추출 ────────────────────────────────────────────
+// ─── 노드 배경색 추출 (SOLID hex만 — 섹션/페이지 backgroundColor용) ──
 function getBgColor(node) {
   const fill = node.background?.[0] || node.fills?.[0];
   if (fill?.type === 'SOLID') return rgba2hex(fill.color);
+  return null;
+}
+
+// ─── 색 객체 → CSS (alpha<1이면 rgba) ──
+function rgbaCss(c) {
+  if (!c) return '#000000';
+  const a = c.a === undefined ? 1 : c.a;
+  if (a >= 1) return rgba2hex(c);
+  const r = Math.round((c.r || 0) * 255), g = Math.round((c.g || 0) * 255), b = Math.round((c.b || 0) * 255);
+  return `rgba(${r},${g},${b},${+a.toFixed(3)})`;
+}
+
+// ─── Figma 그라데이션 fill → CSS gradient ──
+function gradientToCss(fill) {
+  const stops = (fill.gradientStops || [])
+    .map(s => `${rgbaCss(s.color)} ${Math.round((s.position || 0) * 100)}%`).join(', ');
+  if (!stops) return null;
+  if (fill.type === 'GRADIENT_RADIAL') return `radial-gradient(circle, ${stops})`;
+  // linear: 핸들 위치로 각도 산출 (y축 아래로 증가 → CSS 0deg=위쪽 기준)
+  const h = fill.gradientHandlePositions || [];
+  let angle = 180;
+  if (h.length >= 2) {
+    const dx = h[1].x - h[0].x, dy = h[1].y - h[0].y;
+    angle = Math.round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360);
+  }
+  return `linear-gradient(${angle}deg, ${stops})`;
+}
+
+// ─── 노드 배경 fill → { kind:'solid'|'gradient'|'image', css } ──
+// 프레임 background는 CSS `background`라서 solid/gradient 모두 받을 수 있음
+function getBgFill(node) {
+  const fill = node.background?.[0] || node.fills?.[0];
+  if (!fill || fill.visible === false) return null;
+  if (fill.type === 'SOLID') return { kind: 'solid', css: rgba2hex(fill.color) };
+  if (fill.type === 'GRADIENT_LINEAR' || fill.type === 'GRADIENT_RADIAL') {
+    const css = gradientToCss(fill);
+    return css ? { kind: 'gradient', css } : null;
+  }
+  if (fill.type === 'IMAGE') return { kind: 'image' };
   return null;
 }
 
@@ -200,11 +241,90 @@ function mapAlign(figmaAlign) {
   return 'left';
 }
 
+// ─── HTML 이스케이프 ──
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ─── 글자별 스타일(styleOverrideTable) → HTML span run ──
+// Figma 텍스트의 characterStyleOverrides(글자별 키) + styleOverrideTable(키별 스타일)을
+// 연속 run으로 묶어 <span style="color/font-weight/font-size">로 출력. override 없으면 null.
+function buildStyledTextHtml(node, baseColor, scale) {
+  const chars = node.characters || '';
+  const cso = node.characterStyleOverrides;
+  const tbl = node.styleOverrideTable;
+  if (!chars || !Array.isArray(cso) || !tbl || Object.keys(tbl).length === 0) return null;
+  const baseSize = node.style?.fontSize;
+  const baseWeight = node.style?.fontWeight;
+  const styleOf = (key) => {
+    const ov = tbl[String(key)];
+    if (!ov) return null;
+    const parts = [];
+    const fill = (ov.fills || [])[0];
+    if (fill?.type === 'SOLID') { const c = rgbaCss(fill.color); if (c !== baseColor) parts.push(`color:${c}`); }
+    if (ov.fontWeight && ov.fontWeight !== baseWeight) parts.push(`font-weight:${ov.fontWeight}`);
+    if (ov.fontSize && ov.fontSize !== baseSize) parts.push(`font-size:${Math.round(ov.fontSize * scale)}px`);
+    if (ov.fontStyle && /italic/i.test(ov.fontStyle)) parts.push('font-style:italic');
+    return parts.length ? parts.join(';') : null;
+  };
+  let html = '', curStyle = undefined, buf = '', anyOverride = false;
+  const flush = () => {
+    if (!buf) return;
+    html += curStyle ? `<span style="${curStyle}">${escHtml(buf)}</span>` : escHtml(buf);
+    buf = '';
+  };
+  for (let i = 0; i < chars.length; i++) {
+    const key = cso[i];
+    const st = (key === undefined || key === null) ? null : styleOf(key);
+    if (st !== curStyle) { flush(); curStyle = st; }
+    if (st) anyOverride = true;
+    buf += chars[i];
+  }
+  flush();
+  return anyOverride ? html : null;
+}
+
+// ─── 컴포넌트 분류기: FRAME을 고디터 네이티브 블록으로 매핑 (frame 남용 방지) ──
+// 매칭 안 되면 null → 호출부에서 일반 sub-section으로 처리
+function classifyNative(node, detail, childNodes, bbox, frameBox, containerW) {
+  const scale = containerW / (frameBox?.width || containerW);
+  const relX = Math.round(((bbox.x || 0) - (frameBox?.x || 0)) * scale);
+  const vis = (childNodes || []).filter(c => c.opacity !== 0 && c.visible !== false);
+  const textKids = vis.filter(c => c.type === 'TEXT');
+  const graphicTypes = ['VECTOR', 'ELLIPSE', 'STAR', 'POLYGON', 'BOOLEAN_OPERATION', 'LINE', 'GROUP', 'INSTANCE', 'COMPONENT'];
+  const iconKids = vis.filter(c => graphicTypes.includes(c.type));
+
+  // icon-text: 가로 autoLayout + 정확히 [아이콘 1 + 텍스트 1]
+  const isHoriz = detail?.layoutMode === 'HORIZONTAL';
+  if (isHoriz && vis.length === 2 && textKids.length === 1 && iconKids.length === 1) {
+    const iconNode = iconKids[0], txtNode = textKids[0];
+    const iconSvg = exportSvgInline(iconNode.id);
+    const ts = txtNode.style || {};
+    const tf = txtNode.fills || [];
+    const tcolor = tf[0]?.type === 'SOLID' ? rgba2hex(tf[0].color) : '#111111';
+    return {
+      type: 'icon-text',
+      icon: (typeof iconSvg === 'string' && iconSvg.includes('<svg')) ? iconSvg : null,
+      content: txtNode.characters || '',
+      color: tcolor,
+      fontSize: Math.round((ts.fontSize || 28) * scale),
+      width: Math.round((bbox.width || 200) * scale),
+      x: relX,
+    };
+  }
+  return null;
+}
+
 // ─── 자식 노드 → 블록 ────────────────────────────────────────────
 // containerW: 에디터에서 실제 렌더링 될 컨테이너 폭(px). 기본값 860(메인 캔버스)
 function nodeToBlock(node, frameBox, containerW = 860) {
-  // 투명/비가시 노드 스킵 (opacity 0 등) — export 낭비·빈 블록 방지 (export 결과로도 2차 판정)
-  if (node.opacity === 0 || node.visible === false) return null;
+  // 투명/비가시 노드: 공간을 차지하는 스페이서(투명 RECTANGLE 등)는 gap-block으로 보존,
+  // 공간 없는 것만 스킵 — 레이아웃 리듬 유지 (export 낭비·빈 블록 방지)
+  if (node.opacity === 0 || node.visible === false) {
+    const nscale = containerW / (frameBox?.width || containerW);
+    const nh = Math.round((node.absoluteBoundingBox?.height || 0) * nscale);
+    return nh >= 8 ? { type: 'gap', height: nh } : null;
+  }
   if (node.type === 'TEXT') {
     const style   = node.style || {};
     const fills   = node.fills || [];
@@ -227,12 +347,16 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       }
     }
     const rot = getRotationDeg(node);
+    // 글자별 스타일(styleOverrideTable) → HTML span run. scale: 부모 컨테이너 폭 기준
+    const tscale = containerW / (frameBox?.width || containerW);
+    const htmlContent = buildStyledTextHtml(node, color, tscale);
     return {
       type: 'text',
       style: mapStyle(fontSize, fontWeight),
-      content: node.characters || '',
+      content: htmlContent || (node.characters || ''),
+      ...(htmlContent ? { html: true } : {}),
       color,
-      fontSize: Math.round(fontSize),
+      fontSize: Math.round(fontSize * tscale),
       align,
       ...(rot ? { rotation: rot } : {}),
     };
@@ -294,11 +418,26 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       return { type: 'gap', height: Math.round(bbox.height || 20) };
     }
 
+    // ── 컴포넌트 분류: 아이콘+텍스트 가로 배치 → icon-text 네이티브 블록 (frame 남용 방지) ──
+    {
+      const native = classifyNative(node, detail, childNodes, bbox, frameBox, containerW);
+      if (native) return native;
+    }
+
     const scale = containerW / (frameBox?.width || containerW);
     const scaledW = Math.round((bbox.width || 200) * scale);
     const scaledH = Math.round((bbox.height || 200) * scale);
     const relX = Math.round(((bbox.x || 0) - (frameBox?.x || 0)) * scale);
-    const bg = getBgColor(node) || '#f5f5f5';
+    // 배경 fill: SOLID/그라데이션은 CSS background, IMAGE는 bgImage로 (SOLID만 보던 버그 수정)
+    const bgFill = getBgFill(node);
+    let bg = '#f5f5f5', frameBgImage;
+    if (bgFill?.kind === 'solid' || bgFill?.kind === 'gradient') {
+      bg = bgFill.css;
+    } else if (bgFill?.kind === 'image' && childNodes.length === 0) {
+      // 자식 없는 순수 이미지 배경 프레임만 PNG로 (자식 있으면 굽힘 방지 위해 스킵)
+      const png = exportPngInline(node.id, 2);
+      if (png) { frameBgImage = png; bg = 'transparent'; }
+    }
 
     // 자식은 서브섹션의 실제 렌더 폭(scaledW)을 컨테이너로 사용 → scale=1.0
     const children = [];
@@ -348,6 +487,7 @@ function nodeToBlock(node, frameBox, containerW = 860) {
       height: scaledH,
       x: relX,
       bg,
+      ...(frameBgImage ? { bgImage: frameBgImage } : {}),
       ...(radius !== undefined ? { radius } : {}),
       clip,
       ...(rot ? { rotation: rot } : {}),
@@ -617,12 +757,107 @@ function buildRows(children, frameBox, parentNode = null) {
 }
 
 // ─── 프레임 → Section spec ──────────────────────────────────────
+// 블록 우측이 컨테이너 폭을 넘으면 안쪽으로 보정 (row 근사 오버플로우 방지)
+// 폭이 컨테이너 이하면 x를 당기고, 폭이 더 크면 폭을 컨테이너로 줄임. 자식은 부모 폭 기준 재귀.
+function clampBlocks(block, containerW) {
+  if (!block || typeof block !== 'object') return;
+  if (typeof block.width === 'number' && containerW) {
+    let x = typeof block.x === 'number' ? block.x : 0;
+    let w = block.width;
+    if (x < 0) x = 0;
+    if (x + w > containerW + 0.5) {
+      if (w <= containerW) x = containerW - w;
+      else { x = 0; w = containerW; }
+      block.x = Math.round(x);
+      block.width = Math.round(w);
+    }
+  }
+  if (Array.isArray(block.children)) {
+    const childCW = typeof block.width === 'number' ? block.width : containerW;
+    block.children.forEach(c => clampBlocks(c, childCW));
+  }
+}
+
+// 프레임의 대표 배경색 추정 (자체 fill → 풀폭 솔리드 자식 → 기본 흰색)
+function detectHybridBg(frame) {
+  const direct = getBgColor(frame);
+  if (direct) return direct;
+  const fw = (frame.absoluteBoundingBox?.width || 860) * 0.8;
+  let found = null;
+  (function scan(nodes, depth) {
+    for (const n of (nodes || [])) {
+      if (found || depth > 2) return;
+      const bb = n.absoluteBoundingBox || {};
+      const fill = (n.fills || [])[0];
+      if (fill?.type === 'SOLID' && (bb.width || 0) >= fw) { found = rgba2hex(fill.color); return; }
+      if (n.children) scan(n.children, depth + 1);
+    }
+  })(frame.children, 0);
+  return found || '#ffffff';
+}
+
+// 하이브리드 섹션: 프레임 통짜 PNG = freeLayout 서브섹션 배경, 텍스트만 절대좌표 자식으로 오버레이.
+// 배경에 구워진 텍스트와 2겹 방지 — 오버레이 텍스트에 배경색(maskBg)을 깔아 구워진 텍스트를 덮음.
+function frameToSectionHybrid(frame, frameMeta) {
+  const fb = frame.absoluteBoundingBox || { x: 0, y: 0, width: 860, height: 600 };
+  const containerW = 860;
+  const scale = containerW / (fb.width || containerW);
+  const frameBg = detectHybridBg(frame);
+  const png = exportPngInline(frame.id, 2); // 프레임 전체 렌더(픽셀퍼펙트)
+  // 보이는 텍스트 재귀 수집
+  const texts = [];
+  (function walk(nodes) {
+    for (const n of (nodes || [])) {
+      if (n.opacity === 0 || n.visible === false) continue;
+      if (n.type === 'TEXT' && (n.characters || '').trim()) texts.push(n);
+      else if (n.children) walk(n.children);
+    }
+  })(frame.children);
+  const children = texts.map(t => {
+    const tb = t.absoluteBoundingBox || {};
+    const st = t.style || {};
+    const fills = t.fills || [];
+    const color = fills[0]?.type === 'SOLID' ? rgba2hex(fills[0].color) : '#111111';
+    const fs = st.fontSize || 36;
+    let align = mapAlign(st.textAlignHorizontal);
+    if (IS_DFORCE && align === 'left' && !st.textAlignHorizontal && tb.width) {
+      const tc = tb.x + tb.width / 2, fc = (fb.x || 0) + fb.width / 2;
+      if (Math.abs(tc - fc) < fb.width * 0.12) align = 'center';
+    }
+    return {
+      type: 'text', style: mapStyle(fs, st.fontWeight || 400),
+      content: t.characters || '', color,
+      fontSize: Math.round(fs * scale), align,
+      x: Math.round(((tb.x || 0) - (fb.x || 0)) * scale),
+      y: Math.round(((tb.y || 0) - (fb.y || 0)) * scale),
+      width: Math.round((tb.width || 100) * scale),
+      // 구워진 텍스트 마스킹: bbox 크기의 배경색 박스로 덮음
+      maskBg: frameBg,
+      maskH: Math.max(1, Math.round((tb.height || fs * 1.2) * scale)),
+    };
+  });
+  const sub = {
+    type: 'sub-section', label: frameMeta?.name || 'Frame', mode: 'freeLayout',
+    bgImage: png, width: containerW, height: Math.round((fb.height || 600) * scale), x: 0, children,
+  };
+  return { label: '', settings: { bg: frameBg }, rows: [{ layout: 'stack', cols: [{ flex: 1, blocks: [sub] }] }] };
+}
+
 function frameToSection(frame) {
   const frameBox = frame.absoluteBoundingBox;
-  let bg = getBgColor(frame);
+  // 섹션 배경: SOLID hex 또는 그라데이션 CSS (그라데이션이면 runner가 background로 적용)
+  const sbgFill = getBgFill(frame);
+  let bg = (sbgFill?.kind === 'solid' || sbgFill?.kind === 'gradient') ? sbgFill.css : null;
   const paddingX = 0; // Figma는 패딩 개념이 다름 — 일단 0
 
   const rows = buildRows(frame.children, frameBox, frame);
+
+  // 우측 오버플로우 clamp (섹션 폭 860 기준, 자식은 재귀)
+  for (const row of rows) {
+    for (const col of (row.cols || [])) {
+      for (const b of (col.blocks || [])) clampBlocks(b, 860);
+    }
+  }
 
   // 프레임 자체 bg가 없으면 풀폭 콘텐츠 서브섹션의 bg를 섹션 bg로 승격
   // (dforce 프로필 전용 — 좌우 패딩·상하 gap 영역이 같은 색이 되어 '흰 테두리'가 안 생김)
@@ -646,6 +881,45 @@ function frameToSection(frame) {
   };
 
   return section;
+}
+
+// 풀폭 밴드 프레임 1개 → 1 섹션 (밴드의 bg + 자식들을 섹션 콘텐츠로)
+function bandToSection(band) {
+  const bb = band.absoluteBoundingBox || { width: 860 };
+  const detail = figma('get_node_info', { nodeId: band.id });
+  const sbg = getBgFill(band);
+  let bg = (sbg?.kind === 'solid' || sbg?.kind === 'gradient') ? sbg.css : null;
+  const rows = buildRows(detail?.children || band.children || [], bb, detail || band);
+  for (const row of rows)
+    for (const col of (row.cols || []))
+      for (const b of (col.blocks || [])) clampBlocks(b, 860);
+  if (IS_DFORCE && !bg) {
+    const fw2 = (bb.width || 860) * 0.9;
+    for (const row of rows) {
+      for (const col of (row.cols || [])) {
+        for (const b of (col.blocks || [])) {
+          if (b.type === 'sub-section' && b.bg && (b.width || 0) >= fw2) { bg = b.bg; break; }
+        }
+        if (bg) break;
+      }
+      if (bg) break;
+    }
+  }
+  return { label: band.name || '', settings: { ...(bg ? { bg } : {}) }, rows };
+}
+
+// 프레임 → 섹션 배열. 풀폭 밴드(직속 FRAME 자식)가 2개 이상이면 각각 top-level 섹션으로 승격
+// (한 페이지 프레임 안에 여러 콘텐츠 밴드가 쌓인 구조 → 밴드별 독립 섹션으로 분리)
+function frameToSections(frame) {
+  const fb = frame.absoluteBoundingBox || { width: 860 };
+  const detail = figma('get_node_info', { nodeId: frame.id });
+  const kids = (detail?.children || frame.children || []).filter(c => c.opacity !== 0 && c.visible !== false);
+  const fw = fb.width || 860;
+  const bands = kids.filter(c => c.type === 'FRAME' && (c.absoluteBoundingBox?.width || 0) >= fw * 0.9);
+  if (bands.length >= 2 && bands.length >= kids.length * 0.6) {
+    return bands.map(b => bandToSection(b));
+  }
+  return [frameToSection(frame)];
 }
 
 // ─── 메인 ────────────────────────────────────────────────────────
@@ -772,8 +1046,13 @@ function frameToSection(frame) {
   const spec = {
     schema: 'goditor-spec',
     version: 2,
-    meta: { source: 'figma', frameId: targetId, frameName: targetMeta.name },
-    sections: [frameToSection(frame)]
+    meta: {
+      source: 'figma', frameId: targetId, frameName: targetMeta.name,
+      mode: HYBRID ? 'hybrid' : 'decompose',
+      // 흰/회색 테두리 제거 — 좌우패딩·상하패딩·섹션간격 0으로 섹션을 맞붙임 + 페이지 bg=프레임 bg
+      pageSettings: { padX: 0, padY: 0, gap: 0, bg: detectHybridBg(frame) },
+    },
+    sections: HYBRID ? [frameToSectionHybrid(frame, targetMeta)] : frameToSections(frame)
   };
 
   fs.writeFileSync(specPath, JSON.stringify(spec, null, 2));
