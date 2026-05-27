@@ -27,6 +27,7 @@
     '.divider-block',
     '.icon-text-block',
     '.canvas-block',
+    '.banner02-block',
     '.icon-block',
     '.mockup-block',
     '.vector-block',

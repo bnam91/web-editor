@@ -825,7 +825,7 @@ function rebindAll() {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -834,6 +834,7 @@ function rebindAll() {
         : b.classList.contains('label-group-block') ? 'lg'
         : b.classList.contains('card-block') ? 'cdb'
         : b.classList.contains('canvas-block') ? 'cvb'
+        : b.classList.contains('banner02-block') ? 'bn2'
         : b.classList.contains('graph-block') ? 'grb'
         : b.classList.contains('icon-text-block') ? 'itb'
         : b.classList.contains('icon-block') ? 'icn'

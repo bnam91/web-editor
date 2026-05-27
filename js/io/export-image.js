@@ -325,6 +325,44 @@ async function exportSection(sec, format, width) {
     }
   }
 
+  // banner02-block: canvas-block과 동일한 transform:scale() 트릭 → export 시 px 평탄화 + bg-image→canvas
+  for (const bn of clone.querySelectorAll('.banner02-block')) {
+    if (window.renderBanner02) { window.renderBanner02(bn); if (bn._bn2RO) { bn._bn2RO.disconnect(); bn._bn2RO = null; } }
+    const inner = bn.querySelector('.bn2-inner');
+    if (!inner) continue;
+    const m = (inner.style.transform || '').match(/scale\(([^)]+)\)/);
+    const s = m ? parseFloat(m[1]) : 1;
+    bn.getBoundingClientRect();
+    if (s && s !== 1) {
+      const scalePx = (st, props) => props.forEach(p => {
+        if (st[p] && /^[\d.]+px$/.test(st[p].trim())) st[p] = (parseFloat(st[p]) * s) + 'px';
+      });
+      inner.querySelectorAll('[style]').forEach(el =>
+        scalePx(el.style, ['left', 'top', 'width', 'height', 'fontSize', 'marginTop', 'borderRadius']));
+      inner.style.width  = (parseFloat(inner.style.width)  * s) + 'px';
+      inner.style.height = (parseFloat(inner.style.height) * s) + 'px';
+      inner.style.transform = 'none';
+      bn.style.height = inner.style.height;
+    }
+    // bg-image div(.bn2-img) → canvas (html2canvas가 scale 내부 bg-image 못 그림)
+    for (const div of inner.querySelectorAll('[style*="background-image"]')) {
+      const mm = (div.style.backgroundImage || '').match(/url\(["']?([^"')]+)["']?\)/);
+      if (!mm) continue;
+      const dw = div.offsetWidth || 200, dh = div.offsetHeight || 200;
+      const cvs = document.createElement('canvas'); cvs.width = dw; cvs.height = dh;
+      const ctx2 = cvs.getContext('2d');
+      const img = new Image(); img.src = mm[1];
+      await new Promise(r => { img.onload = img.onerror = r; });
+      const cover = (div.style.backgroundSize || 'cover').includes('contain')
+        ? Math.min(dw / img.naturalWidth, dh / img.naturalHeight)
+        : Math.max(dw / img.naturalWidth, dh / img.naturalHeight);
+      const sw = img.naturalWidth * cover, sh = img.naturalHeight * cover;
+      ctx2.drawImage(img, (dw - sw) / 2, (dh - sh) / 2, sw, sh);
+      cvs.style.cssText = 'display:block;width:100%;height:100%;';
+      div.style.backgroundImage = ''; div.innerHTML = ''; div.appendChild(cvs);
+    }
+  }
+
   // 색상 조정 필터가 적용된 img → Canvas로 bake
   // html2canvas는 SVG filter url()을 지원하지 않으므로 사전 변환 필요
   if (window.bakeImgFilterToCanvas) {
