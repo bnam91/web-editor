@@ -15,7 +15,7 @@ export function showComparisonProperties(block) {
     const rowInputs = (col.rows || []).map((t, i) => `
       <div class="prop-row" style="gap:4px;">
         <input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" value="${_esc(t)}" style="flex:1;">
-        <button class="prop-btn cmp-row-del" data-col="${idx}" data-idx="${i}" style="width:28px;color:#e06c6c;">×</button>
+        <button class="prop-btn prop-btn-danger cmp-row-del" data-col="${idx}" data-idx="${i}" style="width:24px;">×</button>
       </div>`).join('');
     const bgVal = col.bg || '#ffffff';
     const bgIsGrad = /gradient/i.test(bgVal);
@@ -24,13 +24,13 @@ export function showComparisonProperties(block) {
       <div class="prop-section">
         <div class="prop-section-title" style="display:flex;align-items:center;justify-content:space-between;">
           <span>칼럼 ${idx + 1}${idx === featuredIdx ? ' ★' : ''}</span>
-          ${canDelete ? `<button class="prop-btn cmp-col-del" data-col="${idx}" title="칼럼 삭제" style="width:24px;color:#e06c6c;">×</button>` : ''}
+          ${canDelete ? `<button class="prop-btn prop-btn-danger cmp-col-del" data-col="${idx}" title="칼럼 삭제" style="width:24px;">×</button>` : ''}
         </div>
         <textarea class="prop-textarea cmp-col-title" data-col="${idx}" rows="1" style="width:100%;box-sizing:border-box;">${_esc(col.title)}</textarea>
         <div class="prop-color-row"><span class="prop-label">배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Bg', hex: bgIsGrad ? '#ffffff' : bgVal, gradientCss: bgIsGrad ? bgVal : '' })}</div>
         <div class="prop-color-row"><span class="prop-label">텍스트</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Text', hex: col.text || '#1a1a1a' })}</div>
         <div style="margin-top:6px;">${rowInputs}</div>
-        <button class="prop-btn cmp-row-add" data-col="${idx}" style="width:100%;margin-top:4px;">+ 행 추가</button>
+        <button class="prop-btn cmp-row-add" data-col="${idx}" style="width:100%;margin-top:6px;">+ 행 추가</button>
       </div>`;
   };
 

@@ -72,7 +72,7 @@ export function showBanner02Properties(block) {
       <div class="prop-section-title">Image</div>
       <div class="prop-row" style="gap:4px;">
         <button class="prop-btn" id="bn2-img-upload" style="flex:1;">${d.imgSrc ? '교체' : '추가'}</button>
-        ${d.imgSrc ? '<button class="prop-btn" id="bn2-img-clear" style="flex:1;color:#e06c6c;">제거</button>' : ''}
+        ${d.imgSrc ? '<button class="prop-btn prop-btn-danger" id="bn2-img-clear" style="flex:1;">제거</button>' : ''}
       </div>
       <div class="prop-align-group" id="bn2-fit-group" style="display:flex;gap:4px;margin-top:4px;">
         <button class="prop-align-btn${(d.imgFit || 'cover') === 'cover' ? ' active' : ''}" data-fit="cover" style="flex:1;font-size:11px;">꽉 채우기</button>

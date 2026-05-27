@@ -1420,7 +1420,7 @@
 .comparison-block { display:block; position:relative; margin:0 auto; cursor:pointer; box-sizing:border-box; user-select:none; overflow:visible; }
 .comparison-block.selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
-  outline-offset: calc(1px * var(--inv-zoom, 1));
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .comparison-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 /* 셀 편집 모드 — 브라우저 기본 포커스링(노란색, macOS 강조색) 대신 디자인 토큰 사용 */
