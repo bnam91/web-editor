@@ -1,0 +1,54 @@
+name: Release Windows
+
+# Goditor Windows 빌드 (NSIS .exe) — macOS에서 cross-compile하지 않고
+# 진짜 Windows runner에서 빌드 후 GitHub Releases에 자산 추가.
+#
+# 트리거:
+# - workflow_dispatch: 수동 (ref=v0.5.0 같은 tag 지정해서 그 시점 코드로 빌드)
+# - tag push: v* 태그 푸시 시 자동
+#
+# 미서명: Windows 코드서명 인증서 없음. SmartScreen 경고는 사용자가 1회 수락.
+# 자동업데이트: electron-updater + NSIS는 미서명에서도 동작.
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build & publish Windows
+        run: npm run release:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifact (backup)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-dist
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+          if-no-files-found: warn
+          retention-days: 7
