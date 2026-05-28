@@ -11,11 +11,6 @@ function makeColPlaceholder(col) {
   const ph = document.createElement('div');
   ph.className = 'col-placeholder';
   ph.innerHTML = `
-    <button class="col-add-btn">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
-        <line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/>
-      </svg>
-    </button>
     <div class="col-add-menu" style="display:none">
       <button class="col-add-item" data-add="h2">Heading</button>
       <button class="col-add-item" data-add="body">Body</button>
@@ -25,15 +20,7 @@ function makeColPlaceholder(col) {
       <button class="col-add-item" data-add="asset">Asset</button>
     </div>`;
 
-  const btn  = ph.querySelector('.col-add-btn');
   const menu = ph.querySelector('.col-add-menu');
-
-  btn.addEventListener('click', e => {
-    e.stopPropagation();
-    // 다른 열린 메뉴 닫기
-    document.querySelectorAll('.col-add-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-  });
 
   ph.querySelectorAll('.col-add-item').forEach(item => {
     item.addEventListener('click', e => {
@@ -49,7 +36,7 @@ function makeColPlaceholder(col) {
         if (rowLayout !== 'grid' && rowLayout !== 'flex') ab.style.height = '460px';
         ab.innerHTML = `
           ${window.ASSET_SVG || ''}
-          <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
+          <div class="asset-overlay"></div>`;
         block = ab;
       } else {
         const { block: tb } = window.makeTextBlock(type);
@@ -134,6 +121,44 @@ window.getCurrentRatioStr = getCurrentRatioStr;
 window.bindLayoutInput    = bindLayoutInput;
 window.makeColPlaceholder  = makeColPlaceholder;
 window.makeEmptyCol        = makeEmptyCol;
+
+/* ── Row col-add 버튼 ── */
+function bindRowColAdd(rowEl) {
+  if (rowEl.querySelector('.row-col-add-btn')) return;
+  const btn = document.createElement('button');
+  btn.className = 'row-col-add-btn';
+  btn.title = '열 추가';
+  btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>`;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    window.pushHistory();
+    const layout = rowEl.dataset.layout || 'stack';
+    if (layout === 'stack' || layout === 'flex') {
+      rowEl.dataset.layout = 'flex';
+      rowEl.style.display = '';
+      rowEl.style.gridTemplateColumns = '';
+      const existingCols = [...rowEl.querySelectorAll(':scope > .col')];
+      existingCols.forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
+      const newCol = window.makeEmptyCol('1');
+      rowEl.insertBefore(newCol, btn);
+      window.bindColDropZone?.(newCol);
+      rowEl.dataset.ratioStr = `${rowEl.querySelectorAll(':scope > .col').length}*1`;
+    } else if (layout === 'grid') {
+      const gtc = rowEl.style.gridTemplateColumns || '';
+      let colCount = gtc.startsWith('repeat(') ? (parseInt(gtc.match(/repeat\((\d+)/)?.[1]) || 1) : (gtc ? gtc.split(/\s+/).filter(Boolean).length : 1);
+      colCount++;
+      rowEl.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
+      const newCol = window.makeEmptyCol(null);
+      rowEl.insertBefore(newCol, btn);
+      window.bindColDropZone?.(newCol);
+      rowEl.dataset.ratioStr = `${colCount}*${Math.ceil(rowEl.querySelectorAll(':scope > .col').length / colCount)}`;
+    }
+    window.buildLayerPanel();
+    window.triggerAutoSave?.();
+  });
+  rowEl.appendChild(btn);
+}
+window.bindRowColAdd = bindRowColAdd;
 
 /* ── Col 프로퍼티 패널 ── */
 function getColBlockType(block) {
@@ -258,7 +283,7 @@ function showColProperties(colEl) {
         newBlock.className = 'asset-block';
         const rowLayout = row?.dataset.layout;
         if (rowLayout !== 'grid' && rowLayout !== 'flex') newBlock.style.height = '460px';
-        newBlock.innerHTML = `${window.ASSET_SVG || ''}<span class="asset-label">에셋을 업로드하거나 드래그하세요</span>`;
+        newBlock.innerHTML = `<div class="asset-overlay"></div>`;
       } else if (newType === 'icon-circle') {
         const { block: icb } = window.makeIconCircleBlock();
         newBlock = icb;

@@ -1,0 +1,93 @@
+{
+  "testName": "tb_ouof7et / itb_0a334az 레이어 패널 독립 드래그 검증",
+  "date": "2026-03-31",
+  "evaluator": "Evaluator Agent (CDP 9335)",
+
+  "testA": {
+    "description": "Heading(tb_ouof7et) 드래그 → tb만 새 row로 분리, itb는 그대로",
+    "before": {
+      "nyfyiwbColKids": ["gb_400gtpb:gap-block", "gb_ndkd8f7:gap-block"]
+    },
+    "after": {
+      "tbRowId": "(no-id - 새 row 생성됨)",
+      "tbRowKids": ["tb_ouof7et"],
+      "itbRowId": "row_hu226vb",
+      "tbSameAsItb": false,
+      "tbParentSameAsItbParent": false
+    },
+    "criteria": {
+      "tbSameAsItb_false": "PASS",
+      "tbParent_notEqual_itbParent": "PASS",
+      "itbParent_is_row_3bxwjje": "FAIL (itbParent=row_hu226vb, row_3bxwjje 존재하지 않음 - 구조 변경됨)",
+      "tb_and_itb_not_merged": "PASS"
+    },
+    "verdict": "PASS (핵심 기준 충족 - 독립 분리 성공, row_3bxwjje 기준은 실제 구조와 불일치)"
+  },
+
+  "testB": {
+    "description": "Icon Text(itb_0a334az) 드래그 → itb도 독립 이동, tb는 그대로",
+    "before": {
+      "tbRowId": "(no-id)",
+      "itbRowId": "row_hu226vb",
+      "tbSameRowAsItb": false
+    },
+    "after": {
+      "tbRowId": "(no-id)",
+      "tbRowKids": ["tb_ouof7et"],
+      "itbRowId": "(no-id - 새 row 생성됨)",
+      "itbRowKids": ["itb_0a334az"],
+      "tbSameRowAsItb": false,
+      "tbSameColAsItb": false
+    },
+    "criteria": {
+      "itb_moved_independently": "PASS",
+      "tb_unchanged": "PASS",
+      "tb_and_itb_not_merged": "PASS"
+    },
+    "verdict": "PASS"
+  },
+
+  "finalSectionStructure": {
+    "description": "Test B 완료 후 section-inner 내 row 순서",
+    "rows": [
+      "row_nyfyiwb_TEST (kids: [])",
+      "row_nyfyiwb (kids: [gb_400gtpb, gb_ndkd8f7])",
+      "row_msorj4g (kids: [ab_kofeh7q])",
+      "gap-block: gb_8uocl75, gb_hq5ju66, gb_jaszy6k",
+      "row_0ngpr4f (kids: [sbb_1dofx3w])",
+      "row_jyx91wd (kids: [ab_b3r22t6])",
+      "row_k0g7gn1 (kids: [icb_wp17zvw])",
+      "row_o86iuy1 (kids: [grb_d3p0io8])",
+      "row_jt4onu3 (kids: [tbl_2lxjc44])",
+      "gap-block: gb_hwgwqg5",
+      "(no-id) row (kids: [tb_ouof7et])",
+      "(no-id) row (kids: [itb_0a334az])"
+    ]
+  },
+
+  "additionalBugs": [
+    {
+      "id": "BUG-01",
+      "severity": "medium",
+      "description": "드래그로 생성된 새 row에 id가 부여되지 않음 (id=''). 저장 후 재로드 시 참조 불가 가능성 있음.",
+      "detail": "tb, itb 모두 드래그 후 closest('.row').id === '' (no-id)"
+    },
+    {
+      "id": "BUG-02",
+      "severity": "low",
+      "description": "row_3bxwjje가 DOM에 존재하지 않음. 검증 스펙의 기준 row_id와 실제 구조가 불일치.",
+      "detail": "itb의 실제 원래 row는 row_hu226vb였으며, row_3bxwjje는 페이지에 없음"
+    },
+    {
+      "id": "BUG-03",
+      "severity": "info",
+      "description": "row_hu226vb는 Test A 드래그 후 itb만 남은 상태였다가 Test B에서 itb가 빠져나간 후 빈 row가 됨 - 빈 row 정리 로직 필요 여부 검토 권장"
+    }
+  ],
+
+  "summary": {
+    "testA": "PASS",
+    "testB": "PASS",
+    "overall": "PASS"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "agent": "Evaluator-R2",
+  "phase": "Round2-Eval",
+  "ts": "2026-03-31T00:00:00.000Z",
+  "method": "cdp+static",
+  "cdp_port": 9335,
+  "verifications": [
+    {
+      "id": "eval-01",
+      "name": "showRowProperties 등록",
+      "status": "PASS",
+      "detail": "typeof window.showRowProperties === 'function'. prop-row.js line 414에 window.showRowProperties = showRowProperties 확인. 여분 } 제거 후 SyntaxError 없음."
+    },
+    {
+      "id": "eval-02",
+      "name": "g 키 단축키 → addGapBlock",
+      "status": "PASS",
+      "detail": "keydown 'g' 이벤트 dispatch 후 gap-block 개수 before=4 → after=5 (diff=+1). editor.js line 396-400 확인."
+    },
+    {
+      "id": "eval-03",
+      "name": "clearCircleImage imgScale 삭제",
+      "status": "PASS",
+      "detail": "icb.dataset.imgScale='2.5' 세팅 후 clearCircleImage(icb) 호출. 결과 isUndefined=true. image-handling.js line 847 'delete icb.dataset.imgScale' 확인."
+    },
+    {
+      "id": "eval-04",
+      "name": "asset-block 체커패턴",
+      "status": "PASS",
+      "detail": "getComputedStyle(ab).backgroundImage에 'repeating-conic-gradient' 포함 확인. 실제값: 'repeating-conic-gradient(rgb(68,68,68) 0%,25%, rgb(51,51,51) 0%,50%)'. editor-layout.css line 290 확인."
+    },
+    {
+      "id": "eval-05",
+      "name": "addSection → addRowBlock → showRowProperties 흐름",
+      "status": "PASS",
+      "detail": "addRowBlock()이 생성하는 클래스는 '.row-block'이 아닌 '.row'. 올바른 셀렉터로 재실행 시 rowFound=true, showRowPropsError=null. 오류 없이 정상 동작."
+    }
+  ],
+  "regressions_found": [
+    {
+      "id": "reg-01",
+      "name": "eval-05 셀렉터 불일치 (검증 스크립트 결함)",
+      "severity": "low",
+      "detail": "Round 1 검증 스크립트에서 '.row-block' 셀렉터 사용. 실제 addRowBlock()은 className='row'로 생성. 코드 자체 버그는 아니며, 검증 시나리오 셀렉터 오류임. 기능 동작은 정상."
+    }
+  ],
+  "notes": {
+    "static_analysis": {
+      "prop_row_js_line_371": "여분 } 없음 확인. line 370이 }); 로 정상 닫힘, line 371은 } 로 함수 종결. SyntaxError 없음.",
+      "editor_js_g_key": "line 396: e.key==='g' && !e.metaKey && !e.ctrlKey 조건, line 400: window.addGapBlock() 호출.",
+      "image_handling_js": "line 847: delete icb.dataset.imgScale 존재 확인.",
+      "css_checker": "editor-layout.css line 290 (.asset-block), editor-blocks.css line 133 (.icb-circle) 모두 repeating-conic-gradient 적용."
+    }
+  },
+  "pass_count": 5,
+  "fail_count": 0
+}

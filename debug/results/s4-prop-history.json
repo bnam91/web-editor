@@ -1,0 +1,41 @@
+{
+  "agent": "S4-PropHistory",
+  "session": 4,
+  "fixes": [
+    {"file": "js/prop-text.js", "location": "line 237", "event": "change", "target": "font-family select", "applied": true},
+    {"file": "js/prop-text.js", "location": "line 250", "event": "click", "target": "type button (H1/H2/H3/Body/Cap/Tag)", "applied": true},
+    {"file": "js/prop-text.js", "location": "line 328", "event": "click", "target": "text align buttons", "applied": true},
+    {"file": "js/prop-text.js", "location": "lhSlider mousedown", "event": "mousedown", "target": "line-height slider", "applied": true},
+    {"file": "js/prop-text.js", "location": "lhNumber change", "event": "change", "target": "line-height number input", "applied": true},
+    {"file": "js/prop-text.js", "location": "lsSlider mousedown", "event": "mousedown", "target": "letter-spacing slider", "applied": true},
+    {"file": "js/prop-text.js", "location": "lsNumber change", "event": "change", "target": "letter-spacing number input", "applied": true},
+    {"file": "js/prop-asset.js", "location": "rSlider mousedown", "event": "mousedown", "target": "border-radius slider", "applied": true},
+    {"file": "js/prop-asset.js", "location": "rNumber change", "event": "change", "target": "border-radius number input", "applied": true},
+    {"file": "js/prop-asset.js", "location": "asset-align-group click", "event": "click", "target": "image align buttons (left/center/right)", "applied": true},
+    {"file": "js/prop-card.js", "location": "bgInput mousedown", "event": "mousedown", "target": "background color picker", "applied": true},
+    {"file": "js/prop-card.js", "location": "bgHex change", "event": "change", "target": "background color hex input", "applied": true},
+    {"file": "js/prop-card.js", "location": "rSlider mousedown", "event": "mousedown", "target": "border-radius slider", "applied": true},
+    {"file": "js/prop-card.js", "location": "rNumber change", "event": "change", "target": "border-radius number input", "applied": true}
+  ],
+  "skipped": [
+    {"file": "js/prop-text.js", "location": "line 242", "event": "change", "target": "font-weight select", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-text.js", "location": "line 374", "event": "click", "target": "italic button", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-text.js", "location": "line 407", "event": "change", "target": "font-size slider", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-text.js", "location": "line 414", "event": "change", "target": "font-size number", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-text.js", "location": "line 446", "event": "change", "target": "text color picker", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-asset.js", "location": "line 158", "event": "change", "target": "padx toggle", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-asset.js", "location": "line 166", "event": "input", "target": "height slider", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-asset.js", "location": "line 169", "event": "change", "target": "height number", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-asset.js", "location": "line 187", "event": "click", "target": "preset buttons", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-asset.js", "location": "line 223", "event": "input", "target": "bg-color input", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-asset.js", "location": "line 229", "event": "click", "target": "bg-clear button", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-asset.js", "location": "line 243", "event": "change", "target": "overlay toggle", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-asset.js", "location": "line 264", "event": "click", "target": "overlay position buttons", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-card.js", "location": "line 120", "event": "click", "target": "card text align buttons", "reason": "already has window.pushHistory() inside applyCardAlign"},
+    {"file": "js/prop-card.js", "location": "line 130", "event": "click", "target": "card-add-btn", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-card.js", "location": "line 172", "event": "click", "target": "card-remove-btn", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-card.js", "location": "line 200", "event": "change", "target": "title size slider", "reason": "already has window.pushHistory()"},
+    {"file": "js/prop-card.js", "location": "line 214", "event": "change", "target": "desc size slider", "reason": "already has window.pushHistory()"}
+  ],
+  "overall": "DONE"
+}

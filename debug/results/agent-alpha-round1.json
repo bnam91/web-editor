@@ -1,0 +1,40 @@
+{
+  "agent": "Agent-α",
+  "version": "2.0",
+  "part": "피그마 표준 기능 (editor.js, drag-drop.js)",
+  "ts": "2026-03-31T03:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9335,
+  "scenarios": [
+    {
+      "id": "alpha-01",
+      "name": "getSelectedSection() 블록 선택 시 올바른 섹션 반환",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "addSection() 후 getSelectedSection() → section-block.selected 정상 반환",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "alpha-02",
+      "name": "Cmd+D 섹션 복제",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "sections before=2, after Cmd+D=3. copySelected+pasteClipboard 정상 동작",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "alpha-03",
+      "name": "canvas 존재 및 dragDrop 함수",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "canvas element 존재, drag-drop 함수 로드됨",
+      "fix_applied": null,
+      "verified": true
+    }
+  ],
+  "bugs_found": 0,
+  "fixes_applied": 0,
+  "unverified_fixes": 0
+}

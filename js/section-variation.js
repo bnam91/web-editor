@@ -68,7 +68,7 @@ function createVariation(sec) {
   window.bindSectionOrder(clone);
   if (window.bindSectionDrag) window.bindSectionDrag(clone);
   if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => window.bindBlock && window.bindBlock(b));
+  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
   bindVariationToolbarBtn(clone);
   if (window.buildLayerPanel) window.buildLayerPanel();
 }
@@ -93,6 +93,7 @@ function addVariation(sec) {
   if (!groupId) return;
   const all = [...document.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)];
   if (all.length >= VARIATION_LABELS.length) return;
+  window.pushHistory(`${VARIATION_LABELS[all.length]}안 추가`);
   const nextLabel = VARIATION_LABELS[all.length];
   const active = all.find(s => s.dataset.variationActive === '1') || all[0];
   const clone = active.cloneNode(true);
@@ -109,16 +110,34 @@ function addVariation(sec) {
   window.bindSectionOrder(clone);
   if (window.bindSectionDrag) window.bindSectionDrag(clone);
   if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => window.bindBlock && window.bindBlock(b));
+  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
   bindVariationToolbarBtn(clone);
   all.forEach(s => bindVariationToolbarBtn(s));
   if (window.buildLayerPanel) window.buildLayerPanel();
-  window.pushHistory(`${nextLabel}안 추가`);
 }
 
-export { bindVariationToolbarBtn, createVariation, toggleVariation, addVariation };
+function resolveVariation(sec) {
+  const groupId = sec.dataset.variationGroup;
+  if (!groupId) return;
+  window.pushHistory('Variant 확정');
+  const all = [...document.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)];
+  const active = all.find(s => s.dataset.variationActive === '1') || all[0];
+  all.forEach(s => { if (s !== active) s.remove(); });
+  delete active.dataset.variationGroup;
+  delete active.dataset.variation;
+  delete active.dataset.variationActive;
+  active.querySelector('.variation-badge')?.remove();
+  active.querySelector('.st-ab-btn')?.remove();
+  active.querySelector('.st-resolve-btn')?.remove();
+  window.deselectAll?.();
+  window.selectSection?.(active);
+  if (window.buildLayerPanel) window.buildLayerPanel();
+}
+
+export { bindVariationToolbarBtn, createVariation, toggleVariation, addVariation, resolveVariation };
 
 window.bindVariationToolbarBtn = bindVariationToolbarBtn;
 window.createVariation         = createVariation;
 window.toggleVariation         = toggleVariation;
 window.addVariation            = addVariation;
+window.resolveVariation        = resolveVariation;

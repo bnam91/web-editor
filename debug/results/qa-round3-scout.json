@@ -1,0 +1,172 @@
+{
+  "timestamp": "2026-03-30T00:00:00.000Z",
+  "round": 3,
+  "tester": "UX Scout Round 3",
+  "cdpPort": 9335,
+  "summary": {
+    "total": 12,
+    "pass": 7,
+    "fail": 3,
+    "skip": 1,
+    "info": 1,
+    "failures": [
+      { "id": "R3-UX-01", "title": "addCardBlock col-active: state._lastActiveCol fallback 미사용" },
+      { "id": "R3-UX-02", "title": "Layer panel col-group DnD drop: col 내부 블록을 다른 col로 이동 불가" },
+      { "id": "R3-UX-03", "title": "빈 col 자동 정리(cleanup) 함수 없음 - 수동 DnD 후 잔존" }
+    ]
+  },
+  "tests": [
+    {
+      "id": "R3-A1",
+      "area": "A",
+      "status": "PASS",
+      "title": "col 안에 row를 중첩한 뒤 레이어 패널이 정확히 반영되는가",
+      "detail": {
+        "method": "addRowBlock(1,1) with .col.col-active → row appended to col",
+        "layerPanel": "makeLayerColItem()이 col의 자식 중 .row를 감지하여 makeLayerRowGroup 재귀 호출로 표시",
+        "nestedRowsInLayer": true,
+        "colGroupCount": 22,
+        "nestedRowGroupsInColGroups": 13,
+        "verdict": "중첩 구조 올바르게 렌더링됨"
+      }
+    },
+    {
+      "id": "R3-A2",
+      "area": "A",
+      "status": "PASS",
+      "title": "layer panel DnD로 row를 다른 위치로 이동할 때 구조가 깨지지 않는가",
+      "detail": {
+        "draggableCount": 45,
+        "layerDnDHandler": "buildLayerPanel 내 children.addEventListener('drop') 구현",
+        "crossBoundarySupport": "col 내부 블록을 section으로 꺼낼 때 srcRow 비어있으면 srcRow.remove() 처리됨",
+        "verdict": "DnD 구조 이동은 올바르게 처리됨"
+      }
+    },
+    {
+      "id": "R3-A3",
+      "area": "A",
+      "status": "PASS",
+      "title": "비어있는 col이 레이어 패널에서 올바르게 표시되는가",
+      "detail": {
+        "emptyColRendering": "makeLayerColItem()이 col의 자식이 없어도 col-group을 렌더링함",
+        "emptyColLabel": "Col 1 / Frame 레이블로 표시됨",
+        "verdict": "빈 col도 layer panel에 올바르게 표시됨"
+      }
+    },
+    {
+      "id": "R3-B1",
+      "area": "B",
+      "status": "PASS",
+      "title": "addRowBlock(2,1) 호출 시 col-active 상태에서 새 row가 col 안에 들어가는가",
+      "detail": {
+        "implementation": "addRowBlock()이 document.querySelector('.col.col-active') 확인 → activeCol.appendChild(row)",
+        "testResult": "beforeColRows=0 → afterColRows=1, rowAddedToCol=true",
+        "verdict": "PASS - col-active 상태에서 row가 col 안에 올바르게 삽입됨"
+      }
+    },
+    {
+      "id": "R3-B2",
+      "area": "B",
+      "status": "PASS",
+      "title": "addCardBlock() 호출 시 col-active 상태에서 올바르게 col에 들어가는가",
+      "detail": {
+        "implementation": "addCardBlock()이 document.querySelector('.col.col-active') 직접 확인 → activeCol.appendChild(row)",
+        "testResult": "cardAddedToCol=true, beforeColItems=0→afterColItems=2",
+        "note": "addCardBlock은 _insertToActiveCol 미사용 - 직접 querySelector로 처리",
+        "verdict": "PASS - col-active에 올바르게 삽입됨"
+      }
+    },
+    {
+      "id": "R3-B3",
+      "area": "B",
+      "status": "PASS",
+      "title": "addAssetBlock() 호출 시 col-active 상태에서 col에 들어가는가",
+      "detail": {
+        "implementation": "_insertToActiveCol() closure 함수 사용 (block-factory.js:26-44)",
+        "fallback": "state._lastActiveCol?.isConnected 확인 포함 (R2-UX-02 fix 확인)",
+        "testResult": "assetInCol=true, beforeColAssets=0→afterColAssets=1",
+        "verdict": "PASS - _insertToActiveCol가 올바르게 동작함"
+      }
+    },
+    {
+      "id": "R3-C1",
+      "area": "C",
+      "status": "PASS",
+      "title": "col 안의 row를 드래그해서 col 밖으로 빼면 structure가 유지되는가",
+      "detail": {
+        "layerDnDCrossBoundary": "buildLayerPanel drop 핸들러에서 srcCol.closest('.row') 확인 후 빈 row 자동 제거",
+        "code": "const allEmpty = [...srcRow.querySelectorAll(':scope > .col')].every(c => ...) → if (allEmpty) srcRow.remove()",
+        "testResult": "rowNowInSection=true, rowRemovedFromCol=true, success=true",
+        "verdict": "PASS - layer panel DnD를 통한 cross-boundary 이동은 올바름"
+      }
+    },
+    {
+      "id": "R3-UX-01",
+      "area": "B",
+      "status": "FAIL",
+      "severity": "Medium",
+      "title": "addCardBlock: state._lastActiveCol fallback 미사용으로 col-active 해제 후 삽입 실패 가능",
+      "reproduce": "1. col 더블클릭하여 col-active 활성화 2. 다른 요소 클릭으로 col-active DOM 클래스 해제 3. addCardBlock() 호출",
+      "rootCause": "addCardBlock(block-factory.js:698)은 document.querySelector('.col.col-active')만 체크하고 state._lastActiveCol fallback을 사용하지 않음. 반면 _insertToActiveCol(line 27-28)은 state._lastActiveCol?.isConnected fallback을 포함함. addCardBlock은 _insertToActiveCol 미사용.",
+      "fixFile": "js/block-factory.js",
+      "fixLine": 698,
+      "fixDirection": "addCardBlock도 다른 함수들처럼 _insertToActiveCol() 패턴을 사용하거나, activeCol 감지 로직에 state._lastActiveCol 체크 추가",
+      "codeSnippet": "const activeCol = document.querySelector('.col.col-active');\nif (activeCol) { ... }\n// ← state._lastActiveCol fallback 없음"
+    },
+    {
+      "id": "R3-UX-02",
+      "area": "A",
+      "status": "FAIL",
+      "severity": "Low",
+      "title": "layer panel: col-group 내부 블록을 다른 col-group으로 DnD 이동 불가",
+      "reproduce": "1. 2-col row 생성 2. col 1 내부에 텍스트 블록 생성 3. layer panel에서 해당 텍스트 블록을 col 2로 드래그",
+      "rootCause": "makeLayerColItem(layer-panel.js:562)의 colChildren dragover/drop 핸들러는 동일 section의 최상위 컨테이너로만 이동 처리. col-to-col 크로스 이동 로직이 없음. buildLayerPanel의 children.drop 핸들러에서 'Col 내부 블록 → 섹션으로 꺼내기'는 구현됐으나, 'col1 내부 → col2 내부'로의 이동 핸들러가 없음.",
+      "fixFile": "js/layer-panel.js",
+      "fixLine": 652,
+      "fixDirection": "makeLayerColItem의 drop 핸들러에 다른 col-group으로의 cross-col 이동 처리 추가. dragTarget의 현재 col과 drop target col을 비교하여 col-to-col 이동 지원.",
+      "codeSnippet": "// colChildren.addEventListener('drop') 핸들러에\n// cross-col 이동 처리 없음 (line 652~)"
+    },
+    {
+      "id": "R3-UX-03",
+      "area": "C",
+      "status": "FAIL",
+      "severity": "Low",
+      "title": "빈 col cleanup 함수 없음 - 직접 DOM 조작 시 빈 col 잔존",
+      "reproduce": "1. col 안에 row 생성 2. JavaScript 직접 DOM 조작으로 row를 col 밖으로 이동 3. 빈 col이 DOM에 남음",
+      "rootCause": "cleanupEmptyCols, removeEmptyCols 등의 함수가 전혀 없음. layer panel DnD를 통한 이동은 srcRow 자동 제거 로직이 있으나, 직접 DOM 조작이나 undo/redo 시나리오에서는 빈 col이 정리되지 않음. makeEmptyCol도 col에 ID를 부여하지 않아 추적 자체가 어려움.",
+      "fixFile": "js/block-factory.js 또는 js/editor.js",
+      "fixDirection": "글로벌 cleanupEmptyCols() 함수를 추가하여 col 중 자식이 col-placeholder만 남은 경우 제거. pushHistory() 호출 지점이나 save 이전에 cleanup 호출.",
+      "note": "심각도 Low: 실제 사용자는 layer panel DnD만 사용하므로 발동 조건이 제한적"
+    },
+    {
+      "id": "R3-R2UX01-verify",
+      "area": "A",
+      "status": "PASS",
+      "title": "R2-UX-01 수정 검증: layer panel row 항목에 Stack/Flex/Grid 레이블 표시",
+      "detail": {
+        "rowLabels": ["Stack 1*1", "Flex 2*1", "Grid 2*2"],
+        "makeLayerRowGroup": "layoutLabel = layout === 'grid' ? 'Grid' : layout === 'flex' ? 'Flex' : 'Stack'",
+        "verdict": "PASS - Stack/Flex/Grid 레이블 올바르게 표시됨"
+      }
+    },
+    {
+      "id": "R3-R2UX02-verify",
+      "area": "B",
+      "status": "PASS",
+      "title": "R2-UX-02 수정 검증: _insertToActiveCol에서 state._lastActiveCol fallback 사용",
+      "detail": {
+        "location": "js/block-factory.js:27-28",
+        "code": "|| (state._lastActiveCol?.isConnected ? state._lastActiveCol : null)",
+        "usedBy": ["addAssetBlock", "addTextBlock", "addLabelGroupBlock", "addIconCircleBlock", "addTableBlock", "addStripBannerBlock", "addGraphBlock", "addDividerBlock", "addLogoBlock", "addGapBlock"],
+        "notUsedBy": ["addCardBlock - 직접 querySelector 사용, fallback 없음 → R3-UX-01 참조"],
+        "verdict": "PASS - 대부분 함수에서 올바르게 적용됨"
+      }
+    }
+  ],
+  "architectureNotes": {
+    "layerPanelItemQuery": "layer panel은 [data-id] 속성 대신 _dragTarget 참조 사용 (DOM 기반 추적)",
+    "colIds": "col 요소에 ID 없음 - makeEmptyCol/addRowBlock 모두 col에 genId() 미호출",
+    "layerPanelStructure": "section → layer-section → layer-children → layer-row-group(row) → layer-row-children → layer-col-group(col) → 블록 items",
+    "nestedRowRendering": "makeLayerColItem line 588-592: block.classList.contains('row')인 경우 makeLayerRowGroup 재귀 호출로 표시"
+  }
+}

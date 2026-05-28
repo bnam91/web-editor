@@ -1,0 +1,159 @@
+{
+  "agent": "Generator-C",
+  "role": "저장/로드/Undo/브랜치 전환 시나리오 검증",
+  "timestamp": "2026-03-31T00:00:00Z",
+  "cdp_port": 9335,
+  "scenarios": [
+    {
+      "id": "S1",
+      "name": "clearHistory 순서 검증 (정적)",
+      "status": "PASS",
+      "detail": {
+        "switchBranch": {
+          "order": "applyProjectData(data) → clearHistory()",
+          "line_applyProjectData": 172,
+          "line_clearHistory": 175,
+          "correct": true,
+          "comment": "branch-system.js:172~175 — applyProjectData 이후 clearHistory 호출. 주석 '// 브랜치 전환 시 히스토리 스택 초기화 — applyProjectData 이후 호출해야 새 브랜치 상태가 초기 스냅샷으로 저장됨' 명시"
+        },
+        "mergeBranch": {
+          "order": "applyProjectData(data) → clearHistory()",
+          "line_applyProjectData": 263,
+          "line_clearHistory": 265,
+          "correct": true,
+          "comment": "branch-system.js:263~265 — 동일 패턴. 주석 '// 병합 후 히스토리 초기화 — applyProjectData 이후 호출해야 병합된 상태가 초기 스냅샷으로 저장됨' 명시"
+        },
+        "initBranchStore": {
+          "order": "applyProjectData(data) → clearHistory()",
+          "line_applyProjectData": 56,
+          "line_clearHistory": 59,
+          "correct": true,
+          "comment": "branch-system.js:56~59 — 초기 로드 시에도 동일 순서"
+        }
+      }
+    },
+    {
+      "id": "S2",
+      "name": "autoSave suppress 검증 (정적)",
+      "status": "PASS",
+      "detail": {
+        "switchTab": {
+          "suppressSetTrue_line": 218,
+          "canvasInnerHTMLClear_line": 219,
+          "suppressSetFalse_lines": [233, 258],
+          "order": "state._suppressAutoSave = true (218) → canvasEl.innerHTML = '' (219)",
+          "correct": true,
+          "comment": "save-load.js:218~219 — canvas.innerHTML 초기화 전에 suppress=true 설정. 두 경로(캐시/파일) 모두 false 복원 확인됨"
+        },
+        "switchPage": {
+          "suppressSetTrue_line": 529,
+          "canvasInnerHTMLClear_line": 533,
+          "order": "state._suppressAutoSave = true (529) → canvasEl.innerHTML = page.canvas (533)",
+          "correct": true,
+          "comment": "save-load.js:529~533 — .pos-dragging cleanup(522~528) 후 suppress=true, 그 다음 canvas 초기화"
+        }
+      }
+    },
+    {
+      "id": "S3",
+      "name": "rebindAll 완전성",
+      "status": "PASS",
+      "detail": {
+        "block_types_in_querySelectorAll": [
+          "text-block",
+          "asset-block",
+          "gap-block",
+          "icon-circle-block",
+          "table-block",
+          "label-group-block",
+          "card-block",
+          "strip-banner-block",
+          "graph-block",
+          "divider-block",
+          "icon-text-block"
+        ],
+        "count": 11,
+        "line": 719,
+        "selector": ".text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block",
+        "bindBlock_called": true,
+        "icon_text_block_path": {
+          "in_querySelectorAll": true,
+          "bindBlock_handling": "drag-drop.js bindBlock() 내 isIconText 플래그(line 663)로 별도 처리",
+          "prefix_assignment": "'itb' (line 729)",
+          "correct": true
+        },
+        "additional_bindings": {
+          "section-block": "개별 처리 (line 641~686): secClickBound, bindSectionDelete, bindSectionOrder, bindSectionDrag, bindSectionDropZone, bindSectionHitzone, branchBtn",
+          "group-block": "개별 처리 (line 736~744): group-block-label 복원, bindGroupDrag",
+          "row": "개별 처리 (line 706~709): bindRowColAdd",
+          "col-placeholder": "개별 처리 (line 746~750): makeColPlaceholder 재생성",
+          "strip-banner-block": "sbb-gap-top/bottom 마이그레이션 (line 688~703)",
+          "text-block_contenteditable": "저장 시 제거된 contenteditable 복원 (line 712~717)"
+        },
+        "verdict": "11개 블록 타입 전부 커버, icon-text-block은 bindBlock 내부에서 isIconText 분기로 처리됨"
+      }
+    },
+    {
+      "id": "S4",
+      "name": "페이지 전환 메모리 누수 (정적)",
+      "status": "PASS",
+      "detail": {
+        "switchPage": {
+          "cleanup_present": true,
+          "selector": "canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging')",
+          "cleanup_lines": "522~528",
+          "cleanup_actions": ["_posDragCleanup()", "document.removeEventListener('click', _exitPosDrag)", "document.removeEventListener('keydown', _exitPosDragEsc)", "_posDragging = false", "classList.remove('pos-dragging', 'img-editing')"]
+        },
+        "switchTab": {
+          "cleanup_present": true,
+          "selector": "canvasEl.querySelectorAll('.pos-dragging')",
+          "cleanup_lines": "209~215",
+          "cleanup_actions": ["_posDragCleanup()", "document.removeEventListener('click', _exitPosDrag)", "document.removeEventListener('keydown', _exitPosDragEsc)", "_posDragging = false"],
+          "note": "switchTab은 .pos-dragging만 선택, switchPage는 [data-pos-dragging], .pos-dragging 모두 선택 — 경미한 불일치지만 실질 누수 없음"
+        }
+      }
+    },
+    {
+      "id": "S5",
+      "name": "CDP 실행 - Undo 사이클 검증",
+      "status": "FAIL",
+      "expected": "undo 3번 후 sections > 0 (clearHistory 초기 스냅샷 덕분에)",
+      "actual": "undo 3번 후 sections = 0 (캔버스 완전히 빔)",
+      "detail": {
+        "test_sequence": [
+          { "step": "canvas 초기화 + clearHistory()", "result": "sections=0" },
+          { "step": "addSection()", "result": "sections=1" },
+          { "step": "addTextBlock('h1')", "result": "sections=1 text=2" },
+          { "step": "addGapBlock()", "result": "sections=1 gap=3" },
+          { "step": "undo #1", "result": "sections=1 gap=2 text=1" },
+          { "step": "undo #2", "result": "sections=1 text=1" },
+          { "step": "undo #3", "result": "sections=0 canvasLen=0" },
+          { "step": "undo #4 (최하한 확인)", "result": "sections=0 (변화 없음 - historyPos=0 올바르게 멈춤)" }
+        ],
+        "root_cause": "clearHistory()가 현재 캔버스(빈 상태)를 초기 스냅샷으로 저장함. 빈 캔버스에서 clearHistory를 호출했으므로 historyStack[0].canvas='' — addSection/TextBlock/GapBlock은 히스토리를 3개 push하므로 3번 undo 시 historyStack[0]으로 복귀, 즉 빈 캔버스가 올바른 동작",
+        "clarification": "시나리오 설명의 기대값 '0이 아닌 값'은 기존 컨텐츠가 있는 상태에서 clearHistory를 호출했을 때만 해당. 빈 캔버스에서 clearHistory → 3개 추가 → undo 3회는 빈 캔버스 복귀가 정상 동작",
+        "historyStack_internals": "historyStack/historyPos는 모듈 스코프 변수 (window에 미노출) — clearHistory 소스 확인: historyStack=[{canvas:getSerializedCanvas(),...}], historyPos=0",
+        "verdict": "clearHistory 로직은 정상. 초기 스냅샷은 clearHistory 호출 시점 캔버스 상태로 저장됨. 빈 상태에서 호출했으므로 3 undo 후 빈 캔버스 = 올바른 동작. 시나리오 기대값 설명이 오해의 소지 있음"
+      }
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "pass": 4,
+    "fail": 1,
+    "issues": [
+      {
+        "scenario": "S5",
+        "severity": "INFO (기대값 설명 오해)",
+        "finding": "clearHistory는 호출 시점 캔버스 상태를 초기 스냅샷으로 저장. 빈 캔버스에서 호출 시 undo 최하한도 빈 캔버스. 실제 버그 없음 — 시나리오 기대값 설명 수정 필요",
+        "recommendation": "switchBranch/mergeBranch에서 clearHistory가 applyProjectData 이후 호출되므로 브랜치 전환 후에는 새 브랜치 컨텐츠가 초기 스냅샷으로 정상 저장됨"
+      }
+    ],
+    "notable_findings": [
+      "S3: rebindAll의 querySelectorAll 셀렉터에 11개 블록 타입 전부 포함 확인",
+      "S3: icon-text-block은 bindBlock 내 isIconText 분기(drag-drop.js:663)로 처리 — 정상",
+      "S4: switchTab(.pos-dragging) vs switchPage([data-pos-dragging], .pos-dragging) 셀렉터 경미한 불일치 존재하나 실질 영향 없음",
+      "S1/S2: clearHistory 순서 및 suppressAutoSave 가드 모두 올바르게 구현됨"
+    ]
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "agent": "Agent-γ (UI 일관성)",
+  "date": "2026-03-31",
+  "branch": "feature/debug-scenarios",
+  "summary": "4개 항목 전부 최종 PASS (초기 FAIL 4건 수정 완료)",
+
+  "checks": [
+    {
+      "id": "check1",
+      "name": "prop-color-swatch height 고정 — input[type=color] opacity:0 + position:absolute + inset:0",
+      "file": "css/editor.css",
+      "line": 2401,
+      "status": "PASS",
+      "initial_status": "FAIL",
+      "fix": "editor.css .prop-color-swatch input[type=\"color\"] 규칙에 position:absolute; inset:0; width:100%; height:100%; opacity:0 추가. 기존에는 width:32px; height:32px; margin:-4px으로 되어 있어 overlay 방식이 아니었음.",
+      "cdp_evidence": {
+        "opacity": "0",
+        "position": "absolute",
+        "top": "0px", "right": "0px", "bottom": "0px", "left": "0px",
+        "pass_opacity": true,
+        "pass_position": true
+      }
+    },
+    {
+      "id": "check2",
+      "name": "icon-circle padX 슬라이더 — icb-padx-slider 바인딩 확인",
+      "file": "js/prop-icon-circle.js",
+      "status": "PASS",
+      "initial_status": "PASS",
+      "note": "icb-padx-slider는 prop-icon-circle.js HTML 템플릿(line 37)에 존재하며, applyPadX 함수(line 97-107)에 input/change 이벤트 바인딩 완비. showIconCircleProperties() 호출 후 DOM에서 정상 확인됨.",
+      "cdp_evidence": {
+        "icb_padx_slider": "FOUND",
+        "min": "0",
+        "max": "200",
+        "val": "0"
+      }
+    },
+    {
+      "id": "check3",
+      "name": "체커패턴 일관성 — asset-block / icb-circle / sbb-image 모두 72px",
+      "status": "PASS",
+      "initial_status": "FAIL",
+      "sub_checks": [
+        {
+          "target": "asset-block",
+          "file": "css/editor.css",
+          "line": 2116,
+          "initial": "background: rgba(160,160,160,0.7)",
+          "fixed": "background: repeating-conic-gradient(#444 0% 25%, #333 0% 50%) 0 0 / 72px 72px",
+          "also_fixed_in": "css/editor-layout.css",
+          "checker_pass": true
+        },
+        {
+          "target": "icb-circle",
+          "file": "css/editor.css",
+          "line": 2874,
+          "initial": "background: #e8e8e8",
+          "fixed": "background: repeating-conic-gradient(#444 0% 25%, #333 0% 50%) 0 0 / 72px 72px",
+          "also_fixed_in": "css/editor-blocks.css",
+          "inline_bg_removed_from": "js/block-factory.js line 117 (style=\"width:240px;height:240px;background:#e8e8e8\" → background 제거)",
+          "checker_pass": true,
+          "overflow": "hidden"
+        },
+        {
+          "target": "sbb-image (banner)",
+          "file": "css/editor.css",
+          "line": 3246,
+          "initial": "background: #e8e8e8",
+          "fixed": "background: repeating-conic-gradient(#444 0% 25%, #333 0% 50%) 0 0 / 72px 72px",
+          "note": "editor-banner.css는 이미 72px 체커패턴 적용되어 있었으나 실제 로드되는 editor.css에는 미반영 상태였음",
+          "checker_pass": true
+        }
+      ]
+    },
+    {
+      "id": "check4",
+      "name": "has-image 클래스 시 체커패턴 → 이미지 교체 (overflow:hidden + object-fit:cover)",
+      "status": "PASS",
+      "initial_status": "PASS",
+      "details": {
+        "asset_block_has_image": {
+          "overflow": "hidden",
+          "background": "transparent",
+          "rule": "editor.css .asset-block.has-image"
+        },
+        "asset_img": {
+          "objectFit": "cover"
+        },
+        "icb_circle": {
+          "overflow": "hidden",
+          "note": "이미지 로드 시 loadImageToCircle()에서 icb-img에 style='object-fit:cover' 인라인 지정"
+        }
+      }
+    }
+  ],
+
+  "files_modified": [
+    {
+      "path": "css/editor.css",
+      "changes": [
+        "line ~2116: .asset-block background → 72px 체커패턴",
+        "line ~2401: .prop-color-swatch input[type=color] → position:absolute; inset:0; opacity:0",
+        "line ~2874: .icb-circle background → 72px 체커패턴",
+        "line ~3246: .sbb-image background → 72px 체커패턴"
+      ]
+    },
+    {
+      "path": "css/editor-layout.css",
+      "changes": [
+        "line ~286: .asset-block background → 72px 체커패턴"
+      ]
+    },
+    {
+      "path": "css/editor-blocks.css",
+      "changes": [
+        "line ~129: .icb-circle background → 72px 체커패턴"
+      ]
+    },
+    {
+      "path": "js/block-factory.js",
+      "changes": [
+        "line 117: icb-circle 생성 시 inline style에서 background:#e8e8e8 제거 (CSS 체커패턴 override 방지)"
+      ]
+    }
+  ],
+
+  "cdp_scenarios": [
+    {
+      "scenario": "window.addIconCircleBlock() → icon-circle prop 패널 확인",
+      "result": "PASS",
+      "note": "getSelectedSection() 필요 — selectSection(sec) 선행 호출 후 addIconCircleBlock() 정상 동작"
+    },
+    {
+      "scenario": "padX 슬라이더 존재 여부",
+      "result": "PASS",
+      "cdp": "id=icb-padx-slider, min=0, max=200, val=0"
+    },
+    {
+      "scenario": "이미지 없을 때 체커패턴 표시",
+      "result": "PASS",
+      "cdp": "computed backgroundImage=repeating-conic-gradient, backgroundSize=72px 72px, inline_bg=NONE"
+    }
+  ]
+}

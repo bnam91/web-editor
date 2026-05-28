@@ -112,15 +112,23 @@ function showRowProperties(rowEl) {
       </div>
     </div>
     ${childBatchHTML}
+    <div class="prop-section">
+      <div class="prop-section-title">열 구성</div>
+      <div class="prop-row">
+        <span class="prop-label">열 수</span>
+        <span style="color:#ccc;font-size:12px;margin-right:auto">${layout === 'grid' ? (() => { const gtc = rowEl.style.gridTemplateColumns||''; return gtc.startsWith('repeat(') ? parseInt(gtc.match(/repeat\((\d+)/)?.[1])||cols.length : cols.length; })() : cols.length}</span>
+        <button class="prop-btn" id="row-col-remove" title="열 제거" ${cols.length <= 1 ? 'disabled' : ''}>−</button>
+        <button class="prop-btn" id="row-col-add" title="열 추가">+</button>
+      </div>
+    </div>
     ${layout !== 'stack' ? `
     <div class="prop-section">
       <div class="prop-section-title">컬럼 비율</div>
       ${colRatioHTML}
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">그리드 크기</div>
-      <div class="grid-picker" id="row-grid-picker"></div>
-      <div class="grid-picker-label" id="row-grid-picker-label">—</div>
+      <div class="prop-section-title">레이아웃 프리셋</div>
+      <div class="layout-preset-btns" id="row-layout-presets"></div>
     </div>` : ''}
     <div class="prop-section">
       <div class="prop-section-title">크기 / 간격</div>
@@ -141,9 +149,48 @@ function showRowProperties(rowEl) {
         <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
       </div>
     </div>
+    ${childBatchHTML}
     `;
 
   if (window.setRpIdBadge) window.setRpIdBadge(rowEl.id);
+
+  /* ── 열 추가 / 제거 ── */
+  document.getElementById('row-col-add')?.addEventListener('click', () => {
+    window.pushHistory();
+    if (layout === 'stack') {
+      rowEl.dataset.layout = 'flex';
+      rowEl.style.display = '';
+      rowEl.style.gridTemplateColumns = '';
+      [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
+    }
+    if (rowEl.dataset.layout === 'grid') {
+      const gtc = rowEl.style.gridTemplateColumns || '';
+      const n = gtc.startsWith('repeat(') ? (parseInt(gtc.match(/repeat\((\d+)/)?.[1]) || 1) + 1 : ([...rowEl.querySelectorAll(':scope > .col')].length + 1);
+      rowEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+    }
+    const newCol = window.makeEmptyCol('1');
+    rowEl.appendChild(newCol);
+    rowEl.dataset.ratioStr = `${rowEl.querySelectorAll(':scope > .col').length}*1`;
+    window.buildLayerPanel();
+    showRowProperties(rowEl);
+  });
+  document.getElementById('row-col-remove')?.addEventListener('click', () => {
+    const currentCols = [...rowEl.querySelectorAll(':scope > .col')];
+    if (currentCols.length <= 1) return;
+    window.pushHistory();
+    currentCols[currentCols.length - 1].remove();
+    const remaining = [...rowEl.querySelectorAll(':scope > .col')];
+    if (remaining.length === 1) {
+      rowEl.dataset.layout = 'stack';
+      rowEl.style.display = '';
+      rowEl.style.gridTemplateColumns = '';
+      remaining[0].style.flex = '';
+      delete remaining[0].dataset.flex;
+    }
+    rowEl.dataset.ratioStr = `${remaining.length}*1`;
+    window.buildLayerPanel();
+    showRowProperties(rowEl);
+  });
 
   /* ── 높이 ── */
   const applyRowHeight = v => {
@@ -274,101 +321,97 @@ function showRowProperties(rowEl) {
 
   /* ── Grid 크기 피커 ── */
   if (layout !== 'stack') {
-    _bindGridPicker(rowEl, gridRowCount);
+    _bindLayoutPresets(rowEl);
   }
 }
 
-/* Grid 크기 피커 이벤트 바인딩 — showRowProperties에서 분리 */
-function _bindGridPicker(rowEl, prevGridRowCount) {
-  const picker = document.getElementById('row-grid-picker');
-  const pickerLabel = document.getElementById('row-grid-picker-label');
-  const MAX = 4;
+/* 레이아웃 프리셋 버튼 (1×1, 2×1, 3×1, 2×2) */
+function _bindLayoutPresets(rowEl) {
+  const wrap = document.getElementById('row-layout-presets');
+  if (!wrap) return;
 
-  for (let r = 1; r <= MAX; r++) {
-    for (let c = 1; c <= MAX; c++) {
-      const cell = document.createElement('div');
-      cell.className = 'grid-picker-cell';
-      cell.dataset.r = r;
-      cell.dataset.c = c;
-      picker.appendChild(cell);
-    }
-  }
+  const PRESETS = [
+    { label: '1×1', cols: 1, rows: 1 },
+    { label: '2×1', cols: 2, rows: 1 },
+    { label: '3×1', cols: 3, rows: 1 },
+    { label: '2×2', cols: 2, rows: 2 },
+  ];
 
-  const highlight = (maxR, maxC) => {
-    picker.querySelectorAll('.grid-picker-cell').forEach(cl => {
-      cl.classList.toggle('active', parseInt(cl.dataset.r) <= maxR && parseInt(cl.dataset.c) <= maxC);
-    });
-  };
+  // 현재 레이아웃 판별
+  const curLayout = rowEl.dataset.layout || 'stack';
+  const curCols = [...rowEl.querySelectorAll(':scope > .col')];
+  const gtc = rowEl.style.gridTemplateColumns || '';
+  const curGridCols = gtc.startsWith('repeat(') ? (parseInt(gtc.match(/repeat\((\d+)/)?.[1]) || curCols.length) : curCols.length;
+  const curGridRows = curLayout === 'grid' ? Math.ceil(curCols.length / curGridCols) : 1;
+  const activeCols = curLayout === 'stack' ? 1 : curGridCols;
+  const activeRows = curGridRows;
 
-  picker.addEventListener('mouseover', e => {
-    const cell = e.target.closest('.grid-picker-cell');
-    if (!cell) return;
-    const r = parseInt(cell.dataset.r), c = parseInt(cell.dataset.c);
-    highlight(r, c);
-    pickerLabel.textContent = `${c} × ${r}`;
-  });
-  picker.addEventListener('mouseleave', () => {
-    picker.querySelectorAll('.grid-picker-cell').forEach(cl => cl.classList.remove('active'));
-    pickerLabel.textContent = '—';
-  });
+  wrap.innerHTML = PRESETS.map(p =>
+    `<button class="layout-preset-btn ${p.cols === activeCols && p.rows === activeRows ? 'active' : ''}"
+      data-cols="${p.cols}" data-rows="${p.rows}">${p.label}</button>`
+  ).join('');
 
-  picker.addEventListener('click', e => {
-    const cell = e.target.closest('.grid-picker-cell');
-    if (!cell) return;
-    const targetCols = parseInt(cell.dataset.c);
-    const targetRows = parseInt(cell.dataset.r);
-    const totalNeeded = targetCols * targetRows;
-    const curCols = [...rowEl.querySelectorAll(':scope > .col')];
-    if (curCols.length < totalNeeded) {
-      for (let i = curCols.length; i < totalNeeded; i++) {
-        const col = document.createElement('div');
-        col.className = 'col';
-        col.appendChild(window.makeColPlaceholder(col));
-        rowEl.appendChild(col);
+  wrap.querySelectorAll('.layout-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetCols = parseInt(btn.dataset.cols);
+      const targetRows = parseInt(btn.dataset.rows);
+      const totalNeeded = targetCols * targetRows;
+      const existing = [...rowEl.querySelectorAll(':scope > .col')];
+
+      if (existing.length < totalNeeded) {
+        for (let i = existing.length; i < totalNeeded; i++) {
+          const col = document.createElement('div');
+          col.className = 'col';
+          col.appendChild(window.makeColPlaceholder(col));
+          rowEl.appendChild(col);
+          window.bindColDropZone?.(col);
+        }
+      } else {
+        for (let i = existing.length - 1; i >= totalNeeded; i--) existing[i].remove();
       }
-    } else {
-      for (let i = curCols.length - 1; i >= totalNeeded; i--) curCols[i].remove();
-    }
-    /* layout/display 동기화 */
-    if (targetRows > 1) {
-      rowEl.dataset.layout = 'grid';
-      rowEl.style.display = 'grid';
-    } else {
-      rowEl.dataset.layout = 'flex';
-      rowEl.style.display = '';
-      rowEl.style.gridTemplateRows = '';
-    }
-    rowEl.style.gridTemplateColumns = `repeat(${targetCols}, 1fr)`;
-    /* flex 단일행은 col flex 값 초기화 */
-    if (targetRows === 1) {
-      [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = '1'; c.dataset.flex = '1'; });
-    }
-    /* 부모 높이 고정, 새 행 수에 맞게 분배 */
-    const gap = parseInt(rowEl.dataset.gap) || 0;
-    /* 현재 총 높이: dataset.rowHeight → offsetHeight → minHeight → 기본값(430) */
-    const fixedH = parseInt(rowEl.dataset.rowHeight)
-      || rowEl.offsetHeight
-      || parseInt(rowEl.style.minHeight)
-      || Math.round(860 / targetCols);
-    const minH = targetRows * 80 + (targetRows - 1) * gap;
-    const totalH = Math.max(minH, fixedH);
-    const perRow = Math.round((totalH - (targetRows - 1) * gap) / targetRows);
 
-    if (targetRows > 1) {
-      rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRow}px)`;
-      rowEl.style.minHeight = '';
-    } else {
-      rowEl.style.gridTemplateRows = '';
-      rowEl.style.minHeight = totalH + 'px';
-    }
-    rowEl.dataset.rowHeight = String(totalH);
-    rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
+      if (targetRows > 1) {
+        rowEl.dataset.layout = 'grid';
+        rowEl.style.display = 'grid';
+      } else if (targetCols > 1) {
+        rowEl.dataset.layout = 'flex';
+        rowEl.style.display = '';
+        rowEl.style.gridTemplateRows = '';
+      } else {
+        rowEl.dataset.layout = 'stack';
+        rowEl.style.display = '';
+        rowEl.style.gridTemplateColumns = '';
+        rowEl.style.gridTemplateRows = '';
+      }
 
-    buildLayerPanel();
-    showRowProperties(rowEl);
-    window.pushHistory();
+      if (targetCols > 1) {
+        rowEl.style.gridTemplateColumns = `repeat(${targetCols}, 1fr)`;
+      }
+      if (targetRows === 1) {
+        [...rowEl.querySelectorAll(':scope > .col')].forEach(c => { c.style.flex = targetCols > 1 ? '1' : ''; c.dataset.flex = targetCols > 1 ? '1' : ''; });
+      }
+
+      const gap = parseInt(rowEl.dataset.gap) || 0;
+      const fixedH = parseInt(rowEl.dataset.rowHeight) || rowEl.offsetHeight || parseInt(rowEl.style.minHeight) || Math.round(860 / targetCols);
+      const minH = targetRows * 80 + (targetRows - 1) * gap;
+      const totalH = Math.max(minH, fixedH);
+      const perRow = Math.round((totalH - (targetRows - 1) * gap) / targetRows);
+
+      if (targetRows > 1) {
+        rowEl.style.gridTemplateRows = `repeat(${targetRows}, ${perRow}px)`;
+        rowEl.style.minHeight = '';
+      } else {
+        rowEl.style.gridTemplateRows = '';
+        rowEl.style.minHeight = targetCols > 1 ? totalH + 'px' : '';
+      }
+      rowEl.dataset.rowHeight = targetCols > 1 ? String(totalH) : '';
+      rowEl.dataset.ratioStr = `${targetCols}*${targetRows}`;
+
+      buildLayerPanel();
+      showRowProperties(rowEl);
+      window.pushHistory();
+    });
   });
-  }
 }
 
 /* Row 레이아웃 직접 전환 (rowEl 기준) */

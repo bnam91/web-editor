@@ -1,0 +1,83 @@
+{
+  "agent": "agent-02",
+  "role": "이미지/asset/circle 담당",
+  "branch": "feature/debug-scenarios",
+  "timestamp": "2026-03-31",
+  "cdp_port": 9335,
+
+  "files_inspected": [
+    "js/prop-asset.js",
+    "js/image-handling.js",
+    "js/prop-icon-circle.js"
+  ],
+
+  "checks": {
+    "asset_block_checker_background": {
+      "status": "PASS",
+      "detail": "이미지 없는 상태: background rgba(160,160,160,0.7) — CSS .asset-block 정의와 일치. 체커패턴은 color swatch(.prop-color-swatch.swatch-none)에만 적용됨. asset block 자체 배경은 회색(의도된 동작).",
+      "css_source": "css/editor.css:2119, css/editor-layout.css:289"
+    },
+    "asset_upload_button": {
+      "status": "PASS",
+      "detail": "prop-asset.js에서 hasImage 분기로 '이미지 선택' 버튼(#asset-upload-btn) 렌더링, addEventListener click → window.triggerAssetUpload(ab) 연결 확인"
+    },
+    "icon_circle_checker_background": {
+      "status": "PASS",
+      "detail": "icb-circle: background rgb(232,232,232) — CSS .icb-circle { background: #e8e8e8 } 와 일치. 체커패턴 없음(의도된 동작). border-radius: 50% 원형 확인.",
+      "css_source": "css/editor.css:2877, css/editor-blocks.css:132"
+    },
+    "icon_circle_padX_slider": {
+      "status": "PASS",
+      "detail": "#icb-padx-slider 존재 확인, value=0. min=0, max=200, step=4. applyPadX 핸들러 연결 완료.",
+      "prop_source": "js/prop-icon-circle.js:37-107"
+    },
+    "icon_circle_size_slider": {
+      "status": "PASS",
+      "detail": "#icb-size-slider 존재 확인, value=240. min=40, max=860, step=4. applySize 핸들러 연결 완료.",
+      "prop_source": "js/prop-icon-circle.js:32-95"
+    },
+    "clearCircleImage_dataset_cleanup": {
+      "status": "BUG_FIXED",
+      "detail": "clearCircleImage 실행 후 imgScale dataset이 잔류하는 버그 발견. imgSrc/imgW/imgX/imgY는 정상 삭제됨. imgScale 삭제 누락.",
+      "before": { "hasImage": true, "imgSrc": true, "imgW": "200", "imgX": "10", "imgY": "5", "imgScale": "1.5" },
+      "after_before_fix": { "hasImage": false, "imgScale": "1.5" },
+      "fix": "delete icb.dataset.imgScale 추가 (image-handling.js:847 이후)",
+      "file": "js/image-handling.js",
+      "line": 847
+    }
+  },
+
+  "bug_fix": {
+    "file": "js/image-handling.js",
+    "function": "clearCircleImage",
+    "original_line": 847,
+    "change": "delete icb.dataset.imgScale 추가",
+    "reason": "이미지 제거 시 imgScale dataset이 잔류하면 이후 재업로드 시 stale 값이 남아 레이아웃 오동작 가능성 있음"
+  },
+
+  "cdp_scenarios": {
+    "scenario_1": {
+      "action": "window.addAssetBlock('standard')",
+      "result": "PASS",
+      "detail": "section-block 선택 후 asset-block 추가 성공. background rgba(160,160,160,0.7), has-image class 없음(정상)"
+    },
+    "scenario_2": {
+      "action": "window.addIconCircleBlock()",
+      "result": "PASS",
+      "detail": "icon-circle-block 추가 성공. icb-circle background rgb(232,232,232), border-radius 50%. padX 슬라이더(value=0), size 슬라이더(value=240) 모두 렌더링 확인"
+    },
+    "scenario_3": {
+      "action": "window.clearCircleImage(icb) — dataset 잔류 확인",
+      "result": "BUG_FOUND_AND_FIXED",
+      "detail": "imgScale=1.5 세팅 후 clearCircleImage 실행 → imgScale이 삭제되지 않고 잔류. fix 적용 완료"
+    }
+  },
+
+  "summary": {
+    "bugs_found": 1,
+    "bugs_fixed": 1,
+    "css_ok": true,
+    "sliders_ok": true,
+    "upload_button_ok": true
+  }
+}

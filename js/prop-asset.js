@@ -72,10 +72,10 @@ export function showAssetProperties(ab) {
     <div class="prop-section">
       <div class="prop-section-title">프리셋</div>
       <div class="prop-preset-group">
-        <button class="prop-preset-btn" data-w="860" data-h="780">Standard<span>860×780</span></button>
-        <button class="prop-preset-btn" data-w="860" data-h="860">Square<span>860×860</span></button>
-        <button class="prop-preset-btn" data-w="860" data-h="1032">Tall<span>860×1032</span></button>
-        <button class="prop-preset-btn" data-w="860" data-h="575">Wide<span>860×575</span></button>
+        <button class="prop-preset-btn" data-w="860" data-h="780">Standard</button>
+        <button class="prop-preset-btn" data-w="860" data-h="860">Square</button>
+        <button class="prop-preset-btn" data-w="860" data-h="1032">Tall</button>
+        <button class="prop-preset-btn" data-w="860" data-h="575">Wide</button>
       </div>
     </div>
     <div class="prop-section">
@@ -197,13 +197,15 @@ export function showAssetProperties(ab) {
     document.querySelectorAll('#asset-align-group .prop-align-btn').forEach(b => b.classList.toggle('active', b.dataset.align === a));
   };
   document.querySelectorAll('#asset-align-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => applyAlign(btn.dataset.align));
+    btn.addEventListener('click', () => { window.pushHistory?.(); applyAlign(btn.dataset.align); });
   });
 
   const rSlider = document.getElementById('asset-r-slider');
   const rNumber = document.getElementById('asset-r-number');
   const applyR = v => { ab.style.borderRadius = v + 'px'; };
+  rSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   rSlider.addEventListener('input', () => { applyR(parseInt(rSlider.value)); rNumber.value = rSlider.value; });
+  rNumber.addEventListener('change', () => { window.pushHistory?.(); });
   rNumber.addEventListener('input', () => {
     const v = Math.min(120, Math.max(0, parseInt(rNumber.value) || 0));
     applyR(v); rSlider.value = v;

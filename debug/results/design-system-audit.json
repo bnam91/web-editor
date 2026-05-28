@@ -1,0 +1,174 @@
+{
+  "agent": "DesignSystem-Audit",
+  "date": "2026-03-31",
+  "fixes_applied": [
+    {
+      "file": "js/prop-asset.js",
+      "line": 90,
+      "type": "align-group",
+      "before": "<div class=\"prop-align-group\" id=\"asset-align-group\">",
+      "after": "<div class=\"prop-align-group\" id=\"asset-align-group\" style=\"flex:1\">",
+      "reason": "prop-row + 레이블 동반 시 flex:1 필수"
+    },
+    {
+      "file": "js/prop-table.js",
+      "line": 90,
+      "type": "align-group",
+      "before": "<div class=\"prop-align-group\" id=\"tbl-align-group\">",
+      "after": "<div class=\"prop-align-group\" id=\"tbl-align-group\" style=\"flex:1\">",
+      "reason": "prop-row + 레이블 동반 시 flex:1 필수"
+    },
+    {
+      "file": "js/prop-strip-banner.js",
+      "line": 146,
+      "type": "align-group",
+      "before": "<div class=\"prop-row\"><div class=\"prop-align-group\" id=\"sbb-imgpos-group\" style=\"width:100%\">...</div></div>",
+      "after": "<div class=\"prop-align-group\" id=\"sbb-imgpos-group\"> (prop-section 직접 자식으로 이동, prop-row 래퍼 제거)",
+      "reason": "레이블 없는 prop-align-group은 prop-section 직접 자식이어야 함"
+    },
+    {
+      "file": "js/prop-text.js",
+      "line": 75,
+      "type": "danger-btn",
+      "before": "<button class=\"prop-action-btn secondary\" id=\"itb-clear-btn\">제거</button>",
+      "after": "<button class=\"prop-action-btn danger\" id=\"itb-clear-btn\">제거</button>",
+      "reason": "제거 버튼은 danger 클래스 사용 규칙"
+    },
+    {
+      "file": "js/prop-asset.js",
+      "line": 235,
+      "type": "querySelectorAll",
+      "before": "document.querySelectorAll('.prop-preset-btn')",
+      "after": "propPanel.querySelectorAll('.prop-preset-btn')",
+      "reason": "패널 내부 쿼리는 propPanel 범위로 제한"
+    },
+    {
+      "file": "js/prop-asset.js",
+      "line": 260,
+      "type": "querySelectorAll",
+      "before": "document.querySelectorAll('#asset-align-group .prop-align-btn') (×2)",
+      "after": "propPanel.querySelectorAll('#asset-align-group .prop-align-btn') (×2)",
+      "reason": "패널 내부 쿼리는 propPanel 범위로 제한"
+    },
+    {
+      "file": "js/prop-asset.js",
+      "line": 323,
+      "type": "querySelectorAll",
+      "before": "document.querySelectorAll('#overlay-position-group .prop-align-btn') (×2)",
+      "after": "propPanel.querySelectorAll('#overlay-position-group .prop-align-btn') (×2)",
+      "reason": "패널 내부 쿼리는 propPanel 범위로 제한"
+    },
+    {
+      "file": "js/prop-card.js",
+      "line": 132,
+      "type": "querySelectorAll",
+      "before": "document.querySelectorAll('#card-align-group .prop-align-btn') (×2)",
+      "after": "propPanel.querySelectorAll('#card-align-group .prop-align-btn') (×2)",
+      "reason": "패널 내부 쿼리는 propPanel 범위로 제한"
+    },
+    {
+      "file": "js/prop-table.js",
+      "line": 177,
+      "type": "querySelectorAll",
+      "before": "document.querySelectorAll('#tbl-align-group .prop-align-btn') (×2)",
+      "after": "propPanel.querySelectorAll('#tbl-align-group .prop-align-btn') (×2)",
+      "reason": "패널 내부 쿼리는 propPanel 범위로 제한"
+    },
+    {
+      "file": "js/prop-strip-banner.js",
+      "line": 386,
+      "type": "querySelectorAll",
+      "before": "document.querySelectorAll('#sbb-align-group .prop-align-btn') (×2), document.querySelectorAll('#sbb-imgpos-group .prop-align-btn') (×2)",
+      "after": "propPanel.querySelectorAll('#sbb-align-group .prop-align-btn') (×2), propPanel.querySelectorAll('#sbb-imgpos-group .prop-align-btn') (×2)",
+      "reason": "패널 내부 쿼리는 propPanel 범위로 제한"
+    }
+  ],
+  "not_modified": [
+    {
+      "file": "js/prop-layout.js",
+      "line": 34,
+      "note": "document.querySelectorAll('.col-add-menu') — 캔버스 전체 메뉴 닫기 위한 글로벌 쿼리, 허용"
+    },
+    {
+      "file": "js/prop-layout.js",
+      "line": 233,
+      "note": "document.querySelector('#panel-right .panel-body') — propPanel이 아닌 col 패널용 선택자, 허용"
+    },
+    {
+      "file": "js/prop-page.js",
+      "lines": [147, 154],
+      "note": "document.querySelectorAll('.text-block'), document.querySelectorAll('.label-group-block') — 캔버스 전체 일괄 정렬 기능, 의도적 글로벌 쿼리"
+    },
+    {
+      "file": "js/prop-section.js",
+      "line": 374,
+      "note": "document.querySelectorAll('.section-block') — 캔버스 전체 섹션 선택 해제, 의도적 글로벌 쿼리"
+    }
+  ],
+  "term_inconsistencies": [
+    {
+      "term_a": "크기",
+      "file_a": "prop-icon-circle.js, prop-graph.js, prop-asset.js, prop-strip-banner.js, prop-row.js",
+      "term_b": "사이즈 (미사용)",
+      "file_b": "N/A",
+      "recommendation": "\"크기\" 통일 유지 — 현재 일관됨"
+    },
+    {
+      "term_a": "Style (영문)",
+      "file_a": "prop-label-group.js (line 49)",
+      "term_b": "스타일 (한국어)",
+      "file_b": "prop-table.js (line 79), prop-divider.js (line 24)",
+      "recommendation": "prop-label-group.js의 \"Style\" → \"스타일\"로 통일 권장 (수정 미적용)"
+    },
+    {
+      "term_a": "Preset (영문)",
+      "file_a": "prop-section.js (line 111), prop-graph.js (line 53)",
+      "term_b": "프리셋 (한국어)",
+      "file_b": "prop-asset.js (line 78)",
+      "recommendation": "영문 Preset은 섹션 프리셋 피커에서 사용, 한국어 프리셋은 에셋/그래프에서 사용. 섹션은 디자인 의도상 영문 유지 가능하나 통일 시 모두 \"프리셋\" 권장"
+    },
+    {
+      "term_a": "Contents (영문)",
+      "file_a": "prop-layout.js (showColProperties, line 253)",
+      "term_b": "하위 블록 일괄 (한국어)",
+      "file_b": "prop-row.js (line 58)",
+      "recommendation": "Col 프로퍼티의 \"Contents\"는 블록 타입 교체 기능 레이블로 기능이 달라 혼용 허용, 그러나 \"콘텐츠\"로 한국어 통일 고려"
+    },
+    {
+      "term_a": "텍스트 컬러 (한국/영혼합)",
+      "file_a": "prop-section.js (line 126)",
+      "term_b": "색상 / 글자색",
+      "file_b": "prop-icon-circle.js (line 32), prop-strip-banner.js",
+      "recommendation": "섹션 일괄 변경 레이블 \"텍스트 컬러\" → \"텍스트 색상\" 통일 권장"
+    },
+    {
+      "term_a": "Gap (영문)",
+      "file_a": "prop-label-group.js (line 85), prop-row.js (line 150)",
+      "term_b": "간격 (한국어)",
+      "file_b": "prop-label-group.js (line 83 section-title)",
+      "recommendation": "prop-label 수준의 \"Gap\" 레이블 → \"간격\" 통일 권장"
+    }
+  ],
+  "prop_label_nowrap_status": "already_exists",
+  "prop_label_nowrap_detail": "editor-props.css 및 prop-panel.css 모두 white-space: nowrap 이미 적용됨 (linter가 width도 36px→52px로 조정)",
+  "svg_size_audit": {
+    "status": "compliant",
+    "standard_action_icon": "14px × 14px",
+    "standard_block_label_icon": "12px × 12px",
+    "anomalies": [
+      {
+        "file": "js/prop-text.js",
+        "line": 71,
+        "size": "18px × 18px",
+        "context": "Icon Text 블록 아이콘 미리보기 placeholder SVG (itb-icon-preview 내부)",
+        "verdict": "허용 — 미리보기 전용 아이콘, 액션/정렬 아이콘 아님"
+      }
+    ]
+  },
+  "summary": {
+    "total_fixes": 10,
+    "files_modified": 5,
+    "items_checked": 6,
+    "files_checked": 15
+  }
+}

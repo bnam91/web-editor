@@ -1,0 +1,152 @@
+{
+  "session": "Session-6",
+  "title": "드래그앤드롭 + 멀티선택 심층 검증",
+  "date": "2026-03-31",
+  "method": "정적 분석 (CDP 없음)",
+  "files_analyzed": [
+    "js/drag-drop.js (781줄)",
+    "js/editor.js (997줄)",
+    "js/block-factory.js (927줄)",
+    "js/drag-utils.js (208줄)",
+    "js/prop-layout.js",
+    "js/save-load.js"
+  ],
+
+  "DND-01": {
+    "title": "블록 드래그앤드롭 완전성",
+    "status": "PARTIAL",
+    "details": {
+      "draggable_설정_방식": "bindBlock() 내 dragTarget에 setAttribute('draggable', 'true') 설정. dragTarget = isGap ? block : (block.closest('.row') || block). 즉 대부분의 블록은 row 전체를 드래그 단위로 삼음.",
+      "draggable_예외": "overlay-tb 클래스 블록은 드래그 제외 (early return). icon-text-block의 내부 요소(.itb-text, .itb-icon)는 draggable=false로 명시 차단.",
+      "처리되는_블록_타입_11개": {
+        "text-block": "O - bindBlock 내 dragTarget 등록",
+        "gap-block": "O - block 자체가 dragTarget",
+        "asset-block": "O - row 또는 block이 dragTarget",
+        "icon-circle-block": "O",
+        "table-block": "O",
+        "label-group-block": "O",
+        "card-block": "O",
+        "strip-banner-block": "O",
+        "graph-block": "O",
+        "divider-block": "O",
+        "icon-text-block": "O - block 자체(row)가 dragTarget, 단 내부 요소는 draggable=false"
+      },
+      "dragstart_데이터": "모든 타입 공통: dataTransfer.setData('text/plain', '') + 투명 ghost image + dragSrc = dragTarget",
+      "dragover_drop_in_section": "bindSectionDropZone()의 section-inner가 dragover/drop 수신. dragSrc가 있으면 어떤 블록이든 drop 허용 (타입 필터 없음)",
+      "icon-text-block_타겟으로_drop_수신": "O - section-inner에 drop 시 타입 무관하게 insertBefore(dragSrc, indicator) 처리. icon-text-block도 drop 타겟이 될 수 있음 (section-inner 내 위치 기준)"
+    },
+    "issues": [
+      "icon-text-block에 Shift+Click 멀티선택 미구현 (isIconText 분기에 shiftKey 처리 없음)",
+      "group-block은 bindGroupDrag로 별도 처리 - bindBlock과 혼용 시 _dragBound 충돌 가능성 낮음"
+    ]
+  },
+
+  "DND-02": {
+    "title": "멀티선택 (Shift+Click)",
+    "status": "PARTIAL",
+    "details": {
+      "블록_레벨_shiftKey_지원": {
+        "text-block": "O - shiftKey 감지 → selected 토글, deselectAll 없이 누적",
+        "asset-block": "O - shiftKey 감지 → selected 토글",
+        "icon-circle-block": "O - classList.toggle('selected')",
+        "table-block": "O - classList.toggle('selected')",
+        "card-block": "O - shiftKey 감지 → selected 토글",
+        "strip-banner-block": "O - classList.toggle('selected')",
+        "graph-block": "O - classList.toggle('selected')",
+        "divider-block": "O - classList.toggle('selected')",
+        "gap-block": "X - shiftKey 처리 없음, 항상 단일 선택",
+        "icon-text-block": "X - shiftKey 처리 없음, editing 중이면 return만",
+        "label-group-block": "X - shiftKey 없이 아이템 클릭 처리만"
+      },
+      "섹션_레벨_멀티선택": "O - selectSectionWithModifier()로 Cmd/Ctrl+Click(토글) + Shift+Click(range) 구현. multiSel.sections Set으로 관리",
+      "col_레벨_멀티선택": "O - selectColWithModifier()로 Cmd/Ctrl+Click + Shift+Click 구현. multiSel.cols Set으로 관리",
+      "선택된_여러_블록_동시_삭제": {
+        "블록_레벨": "MISSING - Delete 키 핸들러에서 단일 블록만 삭제. selected 클래스 가진 복수 블록 일괄 삭제 로직 없음",
+        "섹션_레벨": "O - multiSel.sections.size > 1이면 forEach 삭제",
+        "col_레벨": "O - multiSel.cols.size > 1이면 forEach 삭제"
+      },
+      "선택된_여러_블록_동시_이동": {
+        "구현여부": "MISSING",
+        "설명": "dragstart 시 dragSrc = dragTarget(단일). 복수 블록 동시 드래그 로직 없음. selected 블록들을 하나의 드래그로 묶는 구현 없음"
+      }
+    },
+    "verdict": "블록 단위 멀티선택은 UI 표시(selected CSS)만 되고, 삭제/이동은 단일 처리만 됨. 섹션/col 멀티선택은 삭제까지 구현됨"
+  },
+
+  "DND-03": {
+    "title": "섹션 드래그 순서 변경",
+    "status": "PASS",
+    "details": {
+      "bindSectionDrag_존재": "O - js/drag-drop.js:133. .section-label에 draggable=true 설정",
+      "dragstart": "sectionDragSrc = sec, sec.classList.add('section-dragging'), 투명 ghost",
+      "dragend": "section-dragging 제거, clearSectionIndicators(), sectionDragSrc = null",
+      "drop_존재": "O - js/save-load.js의 canvasEl.addEventListener('drop'). sectionDragSrc 있으면 section-drop-indicator 기준으로 canvasEl.insertBefore 실행",
+      "dragover_인디케이터": "O - canvasEl의 dragover에서 getSectionDragAfterEl()로 위치 계산 후 section-drop-indicator div 삽입 (rAF throttle 적용)",
+      "시각적_인디케이터": "O - .section-drop-indicator CSS 클래스로 표시",
+      "레이어패널_연동": "O - 레이어 패널(layer-panel.js)에서도 layerSectionDragSrc로 별도 드래그 구현, layer-section-drop-indicator 표시"
+    },
+    "issues": []
+  },
+
+  "DND-04": {
+    "title": "블록 → 다른 col로 이동",
+    "status": "FAIL",
+    "details": {
+      "bindColDropZone_구현_여부": "MISSING - 프로젝트 전체에서 bindColDropZone 함수 정의 없음. block-factory.js:50에서 window.bindColDropZone?.(c) 호출하지만 항상 undefined",
+      "실제_col간_이동_경로": "bindSectionDropZone의 section-inner만 drop 수신. drop 후 dragSrc를 section-inner 기준으로 재배치. 이 경우 블록의 col 소속이 변경될 수 있으나 의도적인 col 타겟팅은 불가",
+      "drop_후_bindBlock_재등록": "현재 drop 핸들러(bindSectionDropZone)에서 dragSrc 이동 후 buildLayerPanel() 호출만 함. bindBlock 재등록 없음. _blockBound flag 때문에 재등록 시도해도 무시됨",
+      "icon-text-block_col간_이동": "MISSING - bindColDropZone 미구현으로 col 단위 이동 자체가 없음"
+    },
+    "issues": [
+      "CRITICAL: bindColDropZone 함수가 코드베이스 어디에도 정의되지 않음",
+      "블록을 다른 col로 드래그해서 이동하는 기능 미구현",
+      "section-inner 단위 재배치는 가능하나 col 경계를 인식하지 않음"
+    ]
+  },
+
+  "DND-05": {
+    "title": "Row '+' 버튼 (col 추가)",
+    "status": "PASS",
+    "details": {
+      "bindRowColAdd_구현": "O - js/prop-layout.js:126. row에 .row-col-add-btn 버튼 삽입",
+      "버튼_동작": "layout=stack/flex이면 새 col 추가 후 flex:1 균등 분배. layout=grid이면 gridTemplateColumns의 repeat(N) 증가",
+      "width_계산": "flex: existingCols.forEach(c => c.style.flex='1'), newCol=makeEmptyCol('1'). grid: colCount++ 후 repeat(colCount, 1fr)",
+      "ratioStr_갱신": "O - rowEl.dataset.ratioStr 갱신",
+      "buildLayerPanel_및_autoSave": "O - 추가 후 buildLayerPanel() + triggerAutoSave?.()",
+      "중복_방지": "O - querySelector('.row-col-add-btn')로 이미 있으면 return",
+      "col_삭제_버튼": {
+        "row-col-add-btn_방식": "삭제 버튼 없음 (추가만 가능)",
+        "prop-row.js_방식": "Row Properties 패널에 row-col-add(+) 및 row-col-remove(−) 버튼 별도 존재. cols.length <= 1이면 disabled"
+      }
+    },
+    "issues": [
+      "row-col-add-btn(캔버스 상의 + 버튼)에는 삭제 기능 없고, 삭제는 Properties 패널에서만 가능"
+    ]
+  },
+
+  "MULTISEL-01": {
+    "title": "멀티선택 상태에서 prop 패널",
+    "status": "PARTIAL",
+    "details": {
+      "multiSel_state_구조": "{ sections: Set, cols: Set, lastSection, lastCol } — editor.js:163",
+      "showMultiSelPanel_구현": "O - editor.js:179. propPanel.innerHTML = '<div>N개 선택됨</div>' (단순 텍스트)",
+      "표시_조건": "sections.size > 1 또는 cols.size > 1일 때 showMultiSelPanel() 호출",
+      "블록_멀티선택_패널": "MISSING - 블록 레벨 multiSel은 selected CSS만 붙고 패널 처리 없음. 각 블록 클릭이 자체 showXxxProperties()를 호출하거나 return만 함",
+      "동시_속성_변경": "MISSING - 'N개 선택됨' 표시 외에 일괄 속성 변경 UI 없음",
+      "window_노출": "O - window.multiSel, window.clearMultiSel, window.showMultiSelPanel 모두 노출"
+    },
+    "verdict": "섹션/col 멀티선택은 'N개 선택됨' UI까지 있으나 속성 일괄 변경 불가. 블록 레벨 멀티선택은 패널 처리 전혀 없음"
+  },
+
+  "summary": {
+    "pass": ["DND-03 (섹션 드래그 순서 변경)"],
+    "partial": ["DND-01 (블록 draggable 설정, icon-text-block shift+click 누락)", "DND-02 (섹션/col 멀티선택은 있으나 블록 레벨 멀티 삭제/이동 없음)", "DND-05 (col 추가는 완전, 삭제는 패널에서만)", "MULTISEL-01 (N개 선택됨 표시만 있고 일괄 속성 변경 없음)"],
+    "fail": ["DND-04 (bindColDropZone 미구현 - 블록을 다른 col로 이동 불가)"],
+    "critical_bugs": [
+      "bindColDropZone 함수 미구현: block-factory.js에서 호출하나 실제 함수 없음",
+      "블록 레벨 멀티선택 후 Delete 키로 일괄 삭제 불가 (섹션/col은 가능)",
+      "블록 멀티선택 후 드래그로 동시 이동 불가",
+      "icon-text-block, gap-block, label-group-block의 Shift+Click 멀티선택 미구현"
+    ]
+  }
+}

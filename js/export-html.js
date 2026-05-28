@@ -5,7 +5,7 @@ const CANVAS_W = 860;
 function exportHTMLFile() {
   // canvas clone — 에디터 UI 요소 제거
   const clone = canvasEl.cloneNode(true);
-  clone.querySelectorAll('.section-label, .section-toolbar, .col-placeholder, .col-add-btn, .col-add-menu, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
+  clone.querySelectorAll('.section-label, .section-toolbar, .col-placeholder, .col-add-btn, .col-add-menu, .row-col-add-btn, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));

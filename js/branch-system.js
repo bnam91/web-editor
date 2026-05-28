@@ -25,6 +25,9 @@ function saveBranchStore(store) {
 
 async function _persistBranchesToFile(store) {
   if (!activeProjectId || !IS_ELECTRON) return;
+  // BUG4: saveProjectToFile과 동시 실행 시 덮어쓰기 방지 — _isSavingToFile 진행 중이면 스킵
+  // (브랜치 메타만 업데이트하므로 saveProjectToFile의 pending 큐를 통한 재실행 불필요)
+  if (window._isSavingToFile) return;
   try {
     const proj = await window.electronAPI.loadProject(activeProjectId);
     if (!proj) return;
@@ -44,12 +47,19 @@ async function initBranchStore() {
         const store = { current: proj.currentBranch || 'main', branches: proj.branches };
         localStorage.setItem(getBranchKey(), JSON.stringify(store)); // 로컬 캐시
         // 현재 브랜치 스냅샷을 캔버스에 적용
+        // BUG6: applyProjectData가 DOM 변경을 일으켜 autoSave 트리거 방지
         const activeBranch = store.branches[store.current];
         if (activeBranch?.snapshot) {
           try {
             const data = JSON.parse(activeBranch.snapshot);
+            window.state._suppressAutoSave = true;
             applyProjectData(data);
-          } catch {}
+            window.state._suppressAutoSave = false;
+            // 초기 로드 후 히스토리 초기화 — 로드된 상태가 초기 스냅샷으로 저장됨
+            if (window.clearHistory) window.clearHistory();
+          } catch {
+            window.state._suppressAutoSave = false;
+          }
         }
         updateBranchIndicator(store.current);
         applyFocusMode(store.current);
@@ -157,10 +167,12 @@ function switchBranch(name) {
   // 대상 브랜치 로드
   store.current = name;
   saveBranchStore(store);
-  // 브랜치 전환 시 히스토리 스택 초기화 (다른 브랜치 상태로 Undo 역점프 방지)
-  if (window.clearHistory) window.clearHistory();
   const data = JSON.parse(store.branches[name].snapshot);
+  window.state._suppressAutoSave = true;
   applyProjectData(data);
+  window.state._suppressAutoSave = false;
+  // 브랜치 전환 시 히스토리 스택 초기화 — applyProjectData 이후 호출해야 새 브랜치 상태가 초기 스냅샷으로 저장됨
+  if (window.clearHistory) window.clearHistory();
   updateBranchIndicator(name);
   applyFocusMode(name);
   _mainUnlocked = false; // 브랜치 전환 시 임시 해제 초기화
@@ -186,7 +198,7 @@ function createBranch(name) {
 function deleteBranch(name) {
   const store = loadBranchStore();
   if (!store) return;
-  if (name === 'main') { alert('main 브랜치는 삭제할 수 없습니다.'); return; }
+  if (name === 'main' || name === 'dev') { alert(`'${name}' 브랜치는 삭제할 수 없습니다.`); return; }
   if (store.current === name) { alert('현재 작업 중인 브랜치는 삭제할 수 없습니다.'); return; }
   if (!confirm(`'${name}' 브랜치를 삭제할까요?`)) return;
   delete store.branches[name];
@@ -246,7 +258,11 @@ function mergeBranch(fromName) {
   store.current = toName;
   saveBranchStore(store);
   const data = JSON.parse(store.branches[toName].snapshot);
+  window.state._suppressAutoSave = true;
   applyProjectData(data);
+  window.state._suppressAutoSave = false;
+  // 병합 후 히스토리 초기화 — applyProjectData 이후 호출해야 병합된 상태가 초기 스냅샷으로 저장됨
+  if (window.clearHistory) window.clearHistory();
   updateBranchIndicator(toName);
   applyFocusMode(toName);
   renderBranchPanel();

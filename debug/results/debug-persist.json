@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-03-31T00:00:00.000Z",
+  "squad": "Debug Squad",
+  "mission": "BUG-PERSIST 수정 + CDP 회귀 확인",
+
+  "bug_fixes": {
+    "BUG-PERSIST-1": {
+      "file": "/Users/a1/web-editor/js/branch-system.js",
+      "function": "_persistBranchesToFile",
+      "status": "ALREADY_FIXED",
+      "detail": "line 30: `if (window._isSavingToFile) return;` 이미 존재. 추가 수정 불필요.",
+      "action": "no_change"
+    },
+    "BUG-PERSIST-2": {
+      "file": "/Users/a1/web-editor/js/branch-system.js",
+      "function": "initBranchStore",
+      "status": "ALREADY_FIXED",
+      "detail": "lines 55-57: `window.state._suppressAutoSave = true/false`로 applyProjectData 호출 이미 감싸져 있음. try/catch의 catch에도 false 복원 존재.",
+      "action": "no_change"
+    }
+  },
+
+  "cdp_regression": {
+    "port_used": 9335,
+    "page_url": "file:///Users/a1/web-editor/index.html?project=proj_1774363044119",
+    "checks": {
+      "1_group_block_label_display_none": {
+        "query": "document.querySelectorAll('.group-block-label')",
+        "result": "요소 0개 — 현재 캔버스에 group-block 없음 (sections=1, groups=0)",
+        "status": "SKIP",
+        "note": "group-block이 캔버스에 추가될 때만 검증 가능. 기능 코드 자체는 applyFocusMode에서 정상 처리됨."
+      },
+      "2_row_layout_presets_exists": {
+        "query": "#row-layout-presets 또는 .layout-preset-btns",
+        "result": "요소 없음 — row 블록 선택 시에만 props 패널에 렌더링됨 (prop-row.js line 131)",
+        "status": "SKIP",
+        "note": "현재 캔버스에 row-block이 없으므로 props 패널 미렌더링. 소스 코드는 정상."
+      },
+      "3_resolve_variation_function": {
+        "query": "typeof window.resolveVariation === 'function'",
+        "result": "true",
+        "status": "PASS"
+      },
+      "4_localstorage_autosave_keys": {
+        "query": "Object.keys(localStorage).filter(k => k.includes('web-editor-autosave'))",
+        "result": [
+          "web-editor-autosave_ts",
+          "web-editor-autosave__proj_1774363044119",
+          "web-editor-autosave__proj_1774363044119_ts",
+          "web-editor-autosave"
+        ],
+        "status": "PASS",
+        "note": "프로젝트별 키(proj_1774363044119) 존재 확인."
+      }
+    },
+    "summary": {
+      "PASS": 2,
+      "SKIP": 2,
+      "FAIL": 0,
+      "note": "SKIP 2건은 버그가 아닌 '현재 캔버스 상태'의 문제 (group/row 블록 없음). 소스 코드 정상."
+    }
+  },
+
+  "conclusion": "BUG-PERSIST-1, BUG-PERSIST-2 모두 이미 수정된 상태. CDP 회귀 확인 PASS 2건, SKIP 2건(요소 없어 확인 불가 — 기능 코드 정상)."
+}

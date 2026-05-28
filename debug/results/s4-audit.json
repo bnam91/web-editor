@@ -1,0 +1,178 @@
+{
+  "agent": "S4-Audit",
+  "session": 4,
+  "audited_at": "2026-03-31",
+  "audits": [
+    {
+      "id": "AUDIT-1",
+      "title": "export.js / export-design-json.js 블록 처리",
+      "status": "FAIL",
+      "detail": {
+        "export_design_json_js": {
+          "status": "PASS",
+          "block_types_covered": ["gap", "text", "asset", "card", "graph", "strip-banner", "label-group", "table"],
+          "icon_text_block": "MISSING — serializeBlock()에 icon-text-block 분기 없음",
+          "icon_circle_block": "MISSING — serializeBlock()에 icon-circle-block 분기 없음",
+          "divider_block": "MISSING — serializeBlock()에 divider-block 분기 없음",
+          "note": "export-design-json.js(JS 내보내기용)는 8종만 처리. 공식 지원 11종 중 3종 누락"
+        },
+        "export_js_serializeBlock": {
+          "status": "FAIL",
+          "function": "serializeBlock() (line 113)",
+          "block_types_covered": ["gap", "text", "asset", "card", "graph", "strip-banner", "label-group", "table"],
+          "icon_text_block": "MISSING",
+          "icon_circle_block": "MISSING",
+          "divider_block": "MISSING",
+          "note": "export.js의 첫 번째 serializeBlock 함수(exportDesignJSON용)에 icon-text-block, icon-circle-block, divider-block 분기 없음"
+        },
+        "export_js_block_figma": {
+          "status": "PARTIAL PASS",
+          "function": "_block() (line 887, buildFigmaExportJSON용)",
+          "block_types_covered": ["gap", "text", "label-group", "asset", "icon-circle", "table", "card", "graph", "strip-banner"],
+          "icon_text_block": "MISSING — _block()에 icon-text-block 분기 없음",
+          "divider_block": "MISSING",
+          "selector_in_row": "line 1057의 _row() querySelectorAll에도 icon-text-block 없음 → 렌더링 시 아예 순회 안 됨"
+        }
+      },
+      "fix_applied": null
+    },
+    {
+      "id": "AUDIT-2",
+      "title": "template-system.js 블록 처리",
+      "status": "FAIL",
+      "detail": {
+        "saveAsTemplate": "cloneNode(true) + outerHTML 저장 → HTML 그대로 보존 → icon-text-block DOM 보존됨 (PASS)",
+        "insertTemplate_bindBlock": {
+          "status": "FAIL",
+          "code_line": 147,
+          "selector": ".text-block, .asset-block, .gap-block, .icon-circle-block, .table-block",
+          "missing": ["label-group-block", "card-block", "strip-banner-block", "graph-block", "divider-block", "icon-text-block"],
+          "impact": "템플릿 삽입 후 icon-text-block에 bindBlock이 호출되지 않아 클릭/더블클릭/드래그 이벤트 등록 안 됨. 편집 불가 상태로 삽입됨"
+        },
+        "note": "insertTemplate()의 bindBlock 재등록 querySelectorAll 선택자가 5종만 포함(2024년 이전 버전 수준). section-variation.js, block-factory.js의 11종 selector와 불일치"
+      },
+      "fix_applied": null
+    },
+    {
+      "id": "AUDIT-3",
+      "title": "preview.js 블록 처리",
+      "status": "PASS",
+      "detail": {
+        "approach": "preview.js는 page.canvas(저장된 HTML 문자열)를 inner.innerHTML에 직접 대입. contentEditable 제거 코드를 preview.js에서 별도로 호출하지 않음",
+        "contenteditable_in_preview": "itb-text는 block-factory.js에서 생성 시 contenteditable='false'로 초기화됨. 프리뷰는 저장된 HTML을 그대로 렌더링하므로 contenteditable이 false 상태로 표시됨 → 별도 제거 코드 불필요",
+        "itb_text_selector": "preview.js 내에 contenteditable 관련 선택자/코드 없음. 구조상 문제 없음",
+        "caveat": "만약 사용자가 편집 중(editing 클래스 + contenteditable='true' 상태)에서 preview로 진입하면 contenteditable이 남아있을 수 있으나, flushCurrentPage()가 호출되므로 저장된 HTML 기준으로 렌더링"
+      },
+      "fix_applied": null
+    },
+    {
+      "id": "AUDIT-4",
+      "title": "inspector.js 블록 처리",
+      "status": "FAIL",
+      "detail": {
+        "collected_block_types": ["text-block", "asset-block", "gap-block", "icon-circle-block", "table-block"],
+        "missing_from_collection": ["label-group-block", "card-block", "strip-banner-block", "graph-block", "divider-block", "icon-text-block"],
+        "totalBlocks_formula": "line 101: textBlocks + assetBlocks + gapBlocks + iconBlocks + tableBlocks — icon-text-block 미포함으로 전체 블록 수 undercount",
+        "icon_text_block_handling": "MISSING — document.querySelectorAll에서 icon-text-block 수집 없음",
+        "impact": "인스펙터 패널의 '전체 블록' 수치가 부정확. icon-text-block 컬러도 팔레트에서 누락됨"
+      },
+      "fix_applied": null
+    },
+    {
+      "id": "AUDIT-5",
+      "title": "복사/붙여넣기 (Cmd+C/V/D) 사이클 — 블록 레벨",
+      "status": "PASS",
+      "detail": {
+        "copySelected": {
+          "selector": "line 276 — icon-text-block.selected 포함됨",
+          "storage": "outerHTML을 clipboard.html에 저장 — icon-text-block 구조 완전 보존"
+        },
+        "pasteClipboard_block": {
+          "status": "PASS",
+          "bindBlock_selector": "line 320 — icon-text-block 포함됨",
+          "new_id_generation": "블록 레벨 붙여넣기(type !== 'section')에서는 genId 호출 없음 — 기존 ID 그대로 재사용됨 (잠재적 ID 중복 문제 있으나 현재 기능은 동작)"
+        },
+        "pasteClipboard_section": {
+          "status": "PASS",
+          "genId_called": true,
+          "bindBlock_selector": "line 310 — icon-text-block 포함됨",
+          "note": "섹션 붙여넣기 시 el.querySelectorAll('[id]')로 모든 자식 id 재생성"
+        },
+        "cmd_d_flow": "copySelected → pasteClipboard 순서로 호출. icon-text-block 정상 복사/붙여넣기 지원"
+      },
+      "fix_applied": null
+    },
+    {
+      "id": "AUDIT-6",
+      "title": "섹션 복사 (Cmd+D 섹션 레벨) — section-variation.js",
+      "status": "PASS",
+      "detail": {
+        "section_variation_js": {
+          "line_71_selector": ".text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block",
+          "line_113_selector": "동일 — icon-text-block 포함됨",
+          "genId_called": "line 58, 100 — clone.id = window.genId('sec')",
+          "bindBlock_called": "window.bindBlock && window.bindBlock(b) — icon-text-block 포함"
+        },
+        "editor_js_section_paste": {
+          "line_310_selector": "icon-text-block 포함됨",
+          "genId_all_children": "el.querySelectorAll('[id]')로 모든 자식 id 재생성됨"
+        },
+        "result": "섹션 레벨 복사 시 icon-text-block을 포함한 전체 블록 bindBlock 재등록 정상"
+      },
+      "fix_applied": null
+    },
+    {
+      "id": "AUDIT-7",
+      "title": "CSS 최종 확인 — icon-text-block 스타일",
+      "status": "PASS",
+      "detail": {
+        "editor_css": {
+          "file": "css/editor.css",
+          "icon_text_block_lines": [4892, 4902, 4909],
+          "selectors_found": [".icon-text-block", ".icon-text-block:hover::after", ".icon-text-block.selected"],
+          "itb_text_lines": [4930, 4940, 4941],
+          "itb_text_selectors": [".itb-text", ".itb-text:empty::before", ".itb-text[contenteditable='true']"]
+        },
+        "editor_blocks_css": {
+          "file": "css/editor-blocks.css",
+          "icon_text_block_lines": [405, 415, 422],
+          "itb_text_lines": [443, 453, 454]
+        },
+        "result": "icon-text-block 및 itb-text[contenteditable] 스타일 모두 정의됨. CSS 완전 처리"
+      },
+      "fix_applied": null
+    }
+  ],
+  "summary": {
+    "PASS": ["AUDIT-3", "AUDIT-5", "AUDIT-6", "AUDIT-7"],
+    "FAIL": ["AUDIT-1", "AUDIT-2", "AUDIT-4"],
+    "SKIP": []
+  },
+  "overall": "FAIL",
+  "critical_findings": [
+    {
+      "severity": "HIGH",
+      "location": "js/export.js — serializeBlock() (exportDesignJSON), _block() (buildFigmaExportJSON)",
+      "issue": "icon-text-block이 두 export 직렬화 함수 모두에서 처리되지 않음. JSON 내보내기 시 icon-text-block 데이터 유실",
+      "affected_functions": ["exportDesignJSON", "buildFigmaExportJSON", "_row() querySelectorAll"]
+    },
+    {
+      "severity": "HIGH",
+      "location": "js/export-design-json.js — serializeBlock()",
+      "issue": "icon-text-block, icon-circle-block, divider-block 3종 모두 serializeBlock에 분기 없음",
+      "affected_functions": ["exportDesignJSON (export-design-json.js)"]
+    },
+    {
+      "severity": "HIGH",
+      "location": "js/template-system.js — insertTemplate() line 147",
+      "issue": "bindBlock 재등록 querySelectorAll 선택자가 5종만 포함. icon-text-block, label-group-block, card-block, strip-banner-block, graph-block, divider-block 누락. 템플릿 삽입 후 이들 블록 편집 불가",
+      "fix_hint": "선택자를 '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block'으로 교체"
+    },
+    {
+      "severity": "MEDIUM",
+      "location": "js/inspector.js — renderInspectorPanel()",
+      "issue": "icon-text-block, label-group-block, card-block, strip-banner-block, graph-block, divider-block 카운트 누락. 전체 블록 수 undercount 및 색상 팔레트 불완전",
+      "fix_hint": "querySelectorAll에 나머지 6종 추가 및 totalBlocks 합산에 포함"
+    }
+  ]
+}

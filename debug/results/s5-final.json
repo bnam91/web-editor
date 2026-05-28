@@ -1,0 +1,201 @@
+{
+  "agent": "S5-Final",
+  "session": 5,
+  "checks": [
+    {
+      "id": "1",
+      "target": "editor.js deselectAll querySelectorAll",
+      "status": "PASS",
+      "evidence": "line 615~632: .text-block, .asset-block, .gap-block, .icon-circle-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block, .label-group-block, .table-block — 11개 타입 모두 포함 (개별 querySelectorAll 호출로 분리되어 있으나 11개 전부 커버)"
+    },
+    {
+      "id": "2",
+      "target": "editor.js copySelected querySelector (all 11 types in selector)",
+      "status": "PASS",
+      "evidence": "line 276: querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "3",
+      "target": "editor.js delete handler allSelBlocks querySelectorAll",
+      "status": "PASS",
+      "evidence": "line 464: querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "4",
+      "target": "editor.js 초기 bindBlock DOMContentLoaded",
+      "status": "PASS",
+      "evidence": "line 704: querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "5",
+      "target": "editor.js row-active guard !e.target.closest (~line 685)",
+      "status": "PASS",
+      "evidence": "line 685: !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "6",
+      "target": "save-load.js rebindAll querySelectorAll",
+      "status": "PASS",
+      "evidence": "line 719: querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "7",
+      "target": "drag-utils.js insertAfterSelected querySelector",
+      "status": "PASS",
+      "evidence": "line 70: querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "8",
+      "target": "block-factory.js groupSelectedBlocks querySelectorAll",
+      "status": "PASS",
+      "evidence": "line 326: querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "9",
+      "target": "block-factory.js addSection() bindBlock (~line 862)",
+      "status": "PASS",
+      "evidence": "line 862: querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "10",
+      "target": "block-factory.js addSection() row-active guard (~line 851)",
+      "status": "PASS",
+      "evidence": "line 851: !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "11",
+      "target": "section-variation.js createVariation bindBlock",
+      "status": "PASS",
+      "evidence": "line 71: querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "12",
+      "target": "section-variation.js addVariation bindBlock",
+      "status": "PASS",
+      "evidence": "line 113: querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "13",
+      "target": "template-system.js insertTemplate bindBlock",
+      "status": "PASS",
+      "evidence": "line 147: querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "14",
+      "target": "export-design-json.js serializeCol querySelectorAll",
+      "status": "PASS",
+      "evidence": "line 208: querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block, :scope > .label-group-block, :scope > .table-block, :scope > .icon-text-block, :scope > .divider-block, :scope > .icon-circle-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "15",
+      "target": "export.js _row() col querySelectorAll",
+      "status": "PASS",
+      "evidence": "line 1057: querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block, :scope > .icon-text-block, :scope > .divider-block') — 11개 타입 모두 포함"
+    },
+    {
+      "id": "16",
+      "target": "css/editor.css .icon-text-block / .itb-icon / .itb-text 존재",
+      "status": "PASS",
+      "evidence": "line 4892: .icon-text-block { ... }, line 4911: .itb-icon { ... }, line 4930: .itb-text { ... } — 3개 클래스 모두 정의됨"
+    },
+    {
+      "id": "17",
+      "target": "drag-drop.js text-block dblclick pushHistory",
+      "status": "PASS",
+      "evidence": "line 238~240: block.addEventListener('dblclick', ...) → window.pushHistory?.() — text-block 편집 시작 전 pushHistory 호출"
+    },
+    {
+      "id": "18",
+      "target": "drag-drop.js card-block (.cdb-title/.cdb-desc) dblclick pushHistory",
+      "status": "PASS",
+      "evidence": "line 548~558: dblclick → e.target.closest('.cdb-title, .cdb-desc') → window.pushHistory?.() — card-block 텍스트 편집 전 pushHistory 호출"
+    },
+    {
+      "id": "19",
+      "target": "drag-drop.js banner (.sbb-heading/.sbb-body) dblclick pushHistory",
+      "status": "PASS",
+      "evidence": "line 608~616: dblclick → e.target.closest('.sbb-heading, .sbb-body') → window.pushHistory?.() — strip-banner-block 텍스트 편집 전 pushHistory 호출"
+    },
+    {
+      "id": "20",
+      "target": "drag-drop.js icon-text (.itb-text) dblclick pushHistory",
+      "status": "PASS",
+      "evidence": "line 679~683: dblclick → block.querySelector('.itb-text') → window.pushHistory?.() — icon-text-block 편집 전 pushHistory 호출"
+    },
+    {
+      "id": "21",
+      "target": "drag-drop.js label-group (.label-item-text) dblclick pushHistory",
+      "status": "PASS",
+      "evidence": "line 498~504: dblclick → e.target.closest('.label-item') → window.pushHistory?.() — label-group-block 편집 전 pushHistory 호출"
+    },
+    {
+      "id": "22",
+      "target": "drag-drop.js table cell dblclick pushHistory",
+      "status": "PASS",
+      "evidence": "line 413~421: dblclick → e.target.closest('th, td') → window.pushHistory('셀 편집') — table-block 셀 편집 전 pushHistory 호출"
+    },
+    {
+      "id": "23",
+      "target": "prop-gap.js slider mousedown pushHistory",
+      "status": "PASS",
+      "evidence": "line 35: slider.addEventListener('mousedown', () => { window.pushHistory?.(); }) — 슬라이더 조작 시작 시 pushHistory 호출"
+    },
+    {
+      "id": "24",
+      "target": "prop-text.js font-family change pushHistory",
+      "status": "PASS",
+      "evidence": "line 236~237: document.getElementById('txt-font-family').addEventListener('change', ...) → window.pushHistory?.() — 폰트 변경 시 pushHistory 호출"
+    },
+    {
+      "id": "25",
+      "target": "prop-text.js 타입 전환 click pushHistory",
+      "status": "PASS",
+      "evidence": "line 249~251: propPanel.querySelectorAll('.prop-type-btn').forEach(btn => btn.addEventListener('click', () => { window.pushHistory?.(); ... })) — 타입 전환 클릭 시 pushHistory 호출"
+    },
+    {
+      "id": "26",
+      "target": "prop-asset.js radius mousedown pushHistory",
+      "status": "PASS",
+      "evidence": "line 206: rSlider.addEventListener('mousedown', () => { window.pushHistory?.(); }) — radius 슬라이더 조작 시작 시 pushHistory 호출"
+    },
+    {
+      "id": "27",
+      "target": "prop-card.js bgColor mousedown pushHistory",
+      "status": "PASS",
+      "evidence": "line 91: bgInput.addEventListener('mousedown', () => { window.pushHistory?.(); }) — 배경색 입력 mousedown 시 pushHistory 호출"
+    },
+    {
+      "id": "28",
+      "target": "prop-card.js radius mousedown pushHistory",
+      "status": "PASS",
+      "evidence": "line 108: rSlider.addEventListener('mousedown', () => { window.pushHistory?.(); }) — radius 슬라이더 mousedown 시 pushHistory 호출"
+    },
+    {
+      "id": "29",
+      "target": "branch-system.js initBranchStore — applyProjectData 이후 clearHistory",
+      "status": "PASS",
+      "evidence": "line 56: applyProjectData(data); line 59: if (window.clearHistory) window.clearHistory(); — applyProjectData 직후 clearHistory 호출"
+    },
+    {
+      "id": "30",
+      "target": "branch-system.js mergeBranch — applyProjectData 이후 clearHistory",
+      "status": "PASS",
+      "evidence": "line 262: applyProjectData(data); line 265: if (window.clearHistory) window.clearHistory(); — applyProjectData 직후 clearHistory 호출"
+    },
+    {
+      "id": "31",
+      "target": "branch-system.js switchBranch — applyProjectData 이후 clearHistory",
+      "status": "PASS",
+      "evidence": "line 172: applyProjectData(data); line 175: if (window.clearHistory) window.clearHistory(); — applyProjectData 직후 clearHistory 호출"
+    },
+    {
+      "id": "32",
+      "target": "layer-panel.js makeLayerBlockItem — labels/typeLbls에 'icon-text' 키",
+      "status": "PASS",
+      "evidence": "line 66: labels = { ..., 'icon-text':'Icon Text' }, line 67: typeLbls = { ..., 'icon-text':'Text' } — makeLayerBlockItem 및 관련 함수(line 561~562)에도 동일하게 'icon-text' 키 존재"
+    }
+  ],
+  "fail_count": 0,
+  "overall": "PASS",
+  "summary": "32개 항목 전부 PASS. 블록 선택자 11개 타입 완전성(items 1~15), CSS icon-text-block 스타일 정의(item 16), dblclick pushHistory 패턴 6개(items 17~22), prop 패널 pushHistory 6개(items 23~28), branch-system clearHistory 3개(items 29~31), layer-panel icon-text 키(item 32) — 모두 정상 확인됨. export.js _row() 함수(line 1057)는 11개 타입 모두 포함하여 PASS. export-design-json.js serializeCol도 11개 모두 포함 PASS."
+}

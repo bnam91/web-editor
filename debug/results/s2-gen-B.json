@@ -1,0 +1,43 @@
+{
+  "agent": "S2-Generator-B",
+  "session": 2,
+  "method": "static",
+  "scenarios": [
+    {
+      "id": "SCN-B1",
+      "name": "텍스트 블록 타입별 CSS 클래스 확인",
+      "status": "PASS",
+      "detail": "block-factory.js line 94: classMap = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label' } 정확히 설정됨. css/editor-layout.css (및 editor.css 번들)에 .text-block .tb-h1 (104px/700), .text-block .tb-h3 (52px/600) 스타일 모두 존재 확인.",
+      "fix_applied": null
+    },
+    {
+      "id": "SCN-B2",
+      "name": "플로팅 패널 Text 드롭다운 'Icon Text' 버튼 위치 확인",
+      "status": "PASS",
+      "detail": "index.html line 605: <button class=\"fp-menu-item\" onclick=\"addIconTextBlock();toggleFpDropdown('fp-text-dropdown')\">Icon Text</button> — Text 드롭다운(fp-text-menu) 마지막 항목으로 이미 존재. 추가 불필요.",
+      "fix_applied": null
+    },
+    {
+      "id": "SCN-B3",
+      "name": "col-active 상태와 블록 삽입 검증",
+      "status": "PASS",
+      "detail": "_insertToActiveCol (block-factory.js line 26-58): (1) col-active 없으면 state._lastActiveCol?.isConnected 폴백 사용 확인. (2) stack 레이아웃에서 leaf 블록(text-block, icon-text-block, asset-block, gap-block, divider-block, label-group-block) 존재 시 false 반환(삽입 거부) 확인. (3) addIconTextBlock (line 217-225)이 _insertToActiveCol(() => makeIconTextBlock(), true) 경로 정확히 사용 확인.",
+      "fix_applied": null
+    },
+    {
+      "id": "SCN-B4",
+      "name": "그룹 블록 내 icon-text-block 복사 경로",
+      "status": "PASS",
+      "detail": "copySelected (editor.js line 276): .icon-text-block.selected 셀렉터 포함 — outerHTML clipboard 저장 확인. pasteClipboard (line 310, 320): 붙여넣기 시 .icon-text-block에 window.bindBlock(b) 재호출 확인. Cmd+D는 copySelected() + pasteClipboard() 순서로 동작(line 364-365).",
+      "fix_applied": null
+    },
+    {
+      "id": "SCN-B5",
+      "name": "섹션 variation 시스템과 icon-text-block",
+      "status": "FIXED",
+      "detail": "section-variation.js의 createVariation(line 71)과 addVariation(line 113) 두 함수에서 cloneNode 후 bindBlock 재바인딩 querySelectorAll 셀렉터에 .icon-text-block 누락 발견. resolveVariation은 블록 제거만 수행하므로 영향 없음. window.resolveVariation, window.addVariation 모두 export+window 등록 확인(line 142-143).",
+      "fix_applied": "section-variation.js createVariation(line 71) + addVariation(line 113): querySelectorAll에 '.icon-text-block' 추가 (replace_all 적용)"
+    }
+  ],
+  "overall": "PASS"
+}

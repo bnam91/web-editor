@@ -1,0 +1,226 @@
+{
+  "session": "Session-6",
+  "title": "멀티페이지/브랜치/템플릿 심층 검증",
+  "date": "2026-03-31",
+  "cdp_used": true,
+  "cdp_port": 9335,
+  "live_state": {
+    "pages": 1,
+    "branches": 2,
+    "currentPage": "page_1",
+    "currentBranch": "dev",
+    "branchNames": ["main", "dev"],
+    "pageDetails": [{ "id": "page_1", "name": "Page 1", "label": "" }]
+  },
+
+  "PAGE-01": {
+    "title": "멀티페이지 전환 플로우",
+    "status": "PASS",
+    "file": "js/save-load.js",
+    "switchPage_line": 518,
+    "findings": {
+      "현재페이지_캔버스_저장": {
+        "status": "PASS",
+        "detail": "switchPage() 최초에 flushCurrentPage() 호출 → page.canvas = getSerializedCanvas() 저장"
+      },
+      "prop_패널_초기화": {
+        "status": "PASS",
+        "detail": "line 536-537: propPanel.innerHTML = '' 명시적 클리어 후 showPageProperties() 재호출"
+      },
+      "레이어_패널_재빌드": {
+        "status": "PASS",
+        "detail": "line 542: window.buildLayerPanel() 호출 (buildFilePageSection 포함)"
+      },
+      "suppressAutoSave": {
+        "status": "PASS",
+        "detail": "전환 시작 시 _suppressAutoSave = true, rebindAll 후 false 해제"
+      },
+      "addPage": {
+        "status": "PASS",
+        "detail": "js/save-load.js line 547: addPage() 구현 — flushCurrentPage 후 새 페이지 push"
+      },
+      "deletePage": {
+        "status": "PASS",
+        "detail": "js/save-load.js line 555: deletePage() 구현 — 1페이지 보호, 삭제 시 인접 페이지 로드"
+      },
+      "copyPage": {
+        "status": "PASS",
+        "detail": "js/file-page-section.js line 74: File 탭 UI에서 복사 버튼(⧉)으로 딥카피 후 삽입"
+      },
+      "pageReorder": {
+        "status": "PASS",
+        "detail": "js/file-page-section.js: 드래그앤드랍으로 페이지 순서 변경 지원"
+      }
+    }
+  },
+
+  "PAGE-02": {
+    "title": "페이지 레이블 (Hook/Main/Detail/CTA)",
+    "status": "PASS",
+    "files": ["js/file-page-section.js", "js/globals.js"],
+    "findings": {
+      "PAGE_LABELS": {
+        "status": "PASS",
+        "detail": "globals.js line 9: PAGE_LABELS = ['', 'Hook', 'Main', 'Detail', 'CTA', 'Event'] — 6개 값"
+      },
+      "레이블_변경_기능": {
+        "status": "PASS",
+        "detail": "file-page-section.js line 22-39: <select class='file-page-label'>로 드롭다운 변경, page.label 실시간 반영 + scheduleAutoSave()"
+      },
+      "File탭_페이지목록_표시": {
+        "status": "PASS",
+        "detail": "buildFilePageSection()이 File 탭 #page-props-in-file에 페이지별 레이블 배지 렌더링"
+      },
+      "CDP_확인": {
+        "status": "PASS",
+        "detail": "buildFilePageSection 함수 window 전역으로 노출 확인됨"
+      }
+    }
+  },
+
+  "BRANCH-01": {
+    "title": "브랜치 전환 완전성",
+    "status": "PASS",
+    "file": "js/branch-system.js",
+    "switchBranch_line": 161,
+    "findings": {
+      "캔버스_데이터_보존": {
+        "status": "PASS",
+        "detail": "line 165-166: 전환 전 현재 브랜치 snapshot = serializeProject() 저장 후 store 갱신"
+      },
+      "suppressAutoSave": {
+        "status": "PASS",
+        "detail": "line 171-173: applyProjectData 전후로 _suppressAutoSave true/false 명시"
+      },
+      "rebindAll_호출": {
+        "status": "PASS",
+        "detail": "switchBranch → applyProjectData(data) → rebindAll() (save-load.js line 616)"
+      },
+      "buildLayerPanel_호출": {
+        "status": "PASS",
+        "detail": "applyProjectData → window.buildLayerPanel() (save-load.js line 619)"
+      },
+      "히스토리_초기화": {
+        "status": "PASS",
+        "detail": "line 175: applyProjectData 이후 clearHistory() 호출로 히스토리 스택 리셋"
+      },
+      "브랜치_UI": {
+        "status": "PASS",
+        "detail": "updateBranchIndicator: #branch-name 텍스트+색상 업데이트 / renderBranchDropdown: 드롭다운 목록 렌더링 / renderBranchPanel: 브랜치 탭 전체 목록 갱신"
+      },
+      "CDP_확인": {
+        "status": "PASS",
+        "detail": "switchBranch 함수 window 전역으로 노출, 현재 브랜치 dev 확인됨"
+      }
+    }
+  },
+
+  "BRANCH-02": {
+    "title": "브랜치 생성/삭제",
+    "status": "PARTIAL",
+    "file": "js/branch-system.js",
+    "findings": {
+      "생성_시_스냅샷_저장": {
+        "status": "PASS",
+        "detail": "createBranch() line 183: snapshot = serializeProject() 현재 캔버스 스냅샷 포함하여 생성"
+      },
+      "삭제_확인_다이얼로그": {
+        "status": "PASS",
+        "detail": "deleteBranch() line 203: confirm() 다이얼로그 표시"
+      },
+      "main_보호": {
+        "status": "PASS",
+        "detail": "deleteBranch() line 201: name === 'main' alert + return으로 삭제 방지"
+      },
+      "dev_보호": {
+        "status": "PARTIAL",
+        "detail": "renderBranchPanel UI에서 dev 삭제버튼 미표시(line 314: name !== 'main' && name !== 'dev')하지만 deleteBranch() 함수 자체엔 dev 하드코딩 방어 없음 — 직접 호출 시 삭제 가능",
+        "severity": "LOW",
+        "recommendation": "deleteBranch() 함수에 name === 'dev' 방어 추가 권장"
+      },
+      "현재_브랜치_삭제_방지": {
+        "status": "PASS",
+        "detail": "line 202: store.current === name 이면 alert + return"
+      }
+    }
+  },
+
+  "TEMPLATE-01": {
+    "title": "템플릿 저장/로드 플로우",
+    "status": "PASS",
+    "file": "js/template-system.js",
+    "findings": {
+      "섹션_저장_함수": {
+        "status": "PASS",
+        "detail": "saveAsTemplate(sec, name, folder, category, tags) line 73: 섹션 cloneNode → canvas HTML 저장"
+      },
+      "bindBlock_재등록": {
+        "status": "PASS",
+        "detail": "insertTemplate() line 147: querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => bindBlock(b)) — 11개 타입 전부 재등록",
+        "block_count": 11
+      },
+      "템플릿_카테고리_구조": {
+        "status": "PASS",
+        "detail": "3계층: folder(폴더) > category(카테고리) > name(이름). renderTemplatePanel에서 폴더 드롭다운 필터 + 카테고리별 그룹핑. 현재 실사용 폴더: '와이어프레임'"
+      },
+      "미리보기_기능": {
+        "status": "PASS",
+        "detail": "showTemplatePreview(id) line 184: 모달 생성, section scale transform으로 뷰포트 피팅, '+ 섹션 추가' 버튼 포함"
+      },
+      "CDP_확인": {
+        "status": "PASS",
+        "detail": "saveAsTemplate, insertTemplate, showTemplatePreview 모두 window 전역 노출 확인"
+      }
+    }
+  },
+
+  "TEMPLATE-02": {
+    "title": "인라인 템플릿 vs 파일 기반 템플릿",
+    "status": "PASS",
+    "findings": {
+      "canvas_html_파일_수": {
+        "status": "PASS",
+        "count": 8,
+        "files": [
+          "tpl_1742688001001.html",
+          "tpl_1742688001002.html",
+          "tpl_1742688001003.html",
+          "tpl_1742688001004.html",
+          "tpl_1742688001005.html",
+          "tpl_1774209242726.html",
+          "tpl_1774611180296.html",
+          "tpl_1774611675830.html"
+        ]
+      },
+      "index_json_구조": {
+        "status": "PASS",
+        "detail": "templates/index.json: 배열 형태, 각 항목 { id, name, folder, category, tags, createdAt, thumbnail }. canvas HTML은 별도 파일로 분리 저장 (메타/데이터 분리 아키텍처)",
+        "template_count": 8
+      },
+      "섹션_ID_재생성": {
+        "status": "FAIL",
+        "detail": "insertTemplate()에서 sec.id 재할당 코드 없음 — 원본 템플릿 ID 그대로 삽입됨. 동일 템플릿을 2회 삽입 시 중복 ID 발생 가능",
+        "severity": "MEDIUM",
+        "recommendation": "insertTemplate() 내부에서 sec.id = 'sec_' + Date.now() 재생성 필요. rebindAll/bindSectionHitzone 등에서도 새 ID 기준으로 동작하도록 수정 필요"
+      },
+      "비electron_fallback": {
+        "status": "PASS",
+        "detail": "localStorage 기반 fallback 지원, 마이그레이션 로직(LS → 파일) 포함"
+      }
+    }
+  },
+
+  "summary": {
+    "total_checks": 24,
+    "pass": 22,
+    "partial": 1,
+    "fail": 1,
+    "critical_issues": [],
+    "medium_issues": [
+      "TEMPLATE-02: 섹션 ID 재생성 없음 — 동일 템플릿 2회 삽입 시 중복 ID 가능"
+    ],
+    "low_issues": [
+      "BRANCH-02: deleteBranch() 함수 자체에 dev 하드코딩 방어 없음 (UI에서만 버튼 숨김)"
+    ]
+  }
+}

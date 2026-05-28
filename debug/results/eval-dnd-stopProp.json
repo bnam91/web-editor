@@ -1,0 +1,45 @@
+{
+  "agent": "Evaluator-DnD-StopProp",
+  "date": "2026-03-31",
+  "fix_verification": {
+    "code_check": "PASS",
+    "code_detail": "drag-drop.js bindColDropZone dragover 핸들러(L901~929) 확인 완료. early-return 순서: (1) L902 if(!dragSrc) return, (2) L903 if(col.contains(dragSrc)) return, (3) L904 if(dragSrc.contains(col)) return, (4) L906 asset-block/icon-text-block 체크 return (stopPropagation 없이 버블링 허용), (5) L909 stack layout + row 체크 return (버블링 허용). e.stopPropagation()은 L911에서 이 모든 early-return 이후에 호출됨. 수정 의도대로 정확히 구현되어 있음.",
+    "cdp_check": "SKIP",
+    "cdp_detail": "dragover 이벤트는 실제 사용자 제스처 없이는 신뢰 이벤트(trusted event)로 시뮬레이션 불가. preventDefault()가 untrusted dragover에서는 drop을 허용하지 않음. 코드 레벨 검증으로 대체."
+  },
+  "similar_bugs": [
+    {
+      "location": "drag-drop.js:204-208 (section-inner dragover 핸들러)",
+      "pattern": "e.preventDefault()가 rAF throttle guard(if _innerDragRafId return) 이전에 호출",
+      "severity": "low",
+      "detail": "section-inner의 첫 번째 dragover 핸들러(L204)에서 e.preventDefault()를 먼저 호출한 뒤 L208 'if (_innerDragRafId) return'으로 throttle 처리. preventDefault 자체는 이미 발화되므로 기능적 문제는 없음(drop 허용 유지). 단, rAF 대기 중 불필요한 preventDefault 호출이 매 dragover 이벤트마다 실행됨. 버그는 아니나 의도한 throttle 범위 밖에서 처리됨."
+    },
+    {
+      "location": "drag-drop.js:841-848 (bindAssetOverlayDropZone dragover)",
+      "pattern": "stopPropagation이 early-return 이후에 위치 — 수정된 bindColDropZone과 동일한 올바른 패턴",
+      "severity": "low",
+      "detail": "overlayEl dragover: L842 if(!dragSrc) return, L843 if(ab.dataset.overlay !== 'true') return 이후 L844에서 stopPropagation 호출. 버블링 차단이 올바른 early-return 이후에 이루어짐. 현재 정상이나, 만약 오버레이가 비활성(overlay !== 'true') 상태일 때 dragover 이벤트가 col이나 section-inner로 버블링되어 두 핸들러가 모두 반응할 수 있음. asset-overlay가 asset-block 내부에 위치하고 asset-block은 col dragover에서 이미 early-return되므로 section-inner까지 버블링됨 — 의도된 동작이나 오버레이 비활성 상태 UX를 명시적으로 테스트한 기록 없음."
+    },
+    {
+      "location": "drag-drop.js:332 (iconSlot dragover, icon-text-block 내부)",
+      "pattern": "조건 체크 없이 즉시 stopPropagation 호출",
+      "severity": "low",
+      "detail": "iconSlot.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); ... }) — dragSrc 체크 없이 항상 stopPropagation. 파일 드래그(File drag)를 위한 핸들러이므로 block DnD와 분리됨. 그러나 block DnD 중 iconSlot 위를 지나갈 때도 stopPropagation이 발화되어 col 및 section-inner 핸들러가 이벤트를 받지 못함. icon-text-block이 있는 col은 bindColDropZone에서 이미 early-return(L906)되므로 section-inner 버블링을 기대하는데, iconSlot이 그 이전에 버블링을 차단함. 결과: icon-text-block 내부의 iconSlot 영역 위를 지나갈 때 section-inner drop indicator가 표시되지 않을 수 있음."
+    },
+    {
+      "location": "drag-drop.js:204-221 vs 228-233 (section-inner에 dragover 핸들러 두 개 등록)",
+      "pattern": "동일 요소에 두 개의 dragover 리스너 — 하나는 bubbling phase, 하나는 capturing phase",
+      "severity": "low",
+      "detail": "L204: inner.addEventListener('dragover', ...) — bubbling phase, 블록 재정렬용. L228: inner.addEventListener('dragover', ..., true) — capturing phase, 파일 드롭용. capturing phase 리스너가 먼저 실행되며 Files 타입이면 preventDefault를 호출. dragSrc가 있는 블록 DnD 중에는 L229의 'if (dragSrc) return'으로 즉시 종료되어 문제없음. 그러나 Files + dragSrc가 동시에 있는 엣지 케이스(예: 드래그 중 외부에서 파일 드롭)에서 두 핸들러가 충돌할 수 있음."
+    }
+  ],
+  "scenario_coverage_gap": "기존 qa-drag-together.json과 debug-drag-together.json은 '블록이 같이 붙어서 움직이는' 버그(layer-panel.js nearestRow fix)를 집중 검증했음. 두 파일 모두 'asset-block/icon-text-block이 있는 col 위를 지나치는 dragover' 시나리오를 명시적으로 테스트하지 않았음. 구체적으로: (1) 섹션A에 heading + asset-block이 있을 때, 섹션B의 블록을 섹션A 위로 드래그하여 heading과 asset-block 사이에 드롭하는 케이스가 누락됨. (2) 기존 테스트는 레이어 패널 DnD(layerDragSrc)에 초점을 맞췄고, 캔버스 직접 DnD(dragSrc)의 섹션 레벨 drop indicator 동작은 별도 검증 없이 전제됨.",
+  "recommendations": [
+    "iconSlot dragover 핸들러(L332)에 dragSrc 체크 추가: 'if (dragSrc) return;'을 e.preventDefault() 이전에 삽입하여 block DnD 중 iconSlot이 버블링을 차단하지 않도록 할 것. 이렇게 하면 icon-text-block 내 iconSlot 위를 지날 때도 section-inner drop indicator가 정상 표시됨.",
+    "테스트 케이스 추가: '헤딩 블록 → 드래그 → asset-block이 있는 섹션의 행 사이 영역 통과 → section-inner drop indicator 표시 확인' 시나리오를 QA 체크리스트에 추가.",
+    "asset-overlay 비활성 상태(overlay !== 'true') DnD 동작 명시적 검증: 오버레이가 없는 asset-block 위를 지나갈 때 section-inner가 정상 처리하는지 확인.",
+    "section-inner dragover 핸들러 이중 등록(L204, L228) 문서화: 두 핸들러의 역할과 실행 순서를 코드 주석으로 명확히 기술하여 향후 유지보수 혼선 방지."
+  ],
+  "overall": "ISSUES_FOUND",
+  "overall_detail": "bindColDropZone 수정은 PASS. 그러나 iconSlot dragover(L332)에서 dragSrc 체크 없이 즉시 stopPropagation을 호출하는 패턴이 동일한 버그 클래스의 잠재적 발생 지점으로 확인됨(severity: low). 이 경우 icon-text-block 내 iconSlot 영역에서 section-level drop indicator가 억제될 수 있음."
+}

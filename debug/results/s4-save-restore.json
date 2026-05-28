@@ -1,0 +1,51 @@
+{
+  "agent": "S4-SaveRestore",
+  "session": 4,
+  "timestamp": "2026-03-31",
+  "tasks": [
+    {
+      "id": "TASK-1",
+      "status": "INFO",
+      "detail": "DOMContentLoaded는 save-load.js에 직접 없음. initApp()이 editor.js에서 호출되는 구조. initApp() 내부에서 즉시실행 async 함수 initLoad()가 실행됨. URL 파라미터 ?project=id는 파일 최상단(line 12-13)에서 const _urlParams = new URLSearchParams(window.location.search); let activeProjectId = _urlParams.get('project'); 로 읽음. 이 값이 존재하면 initLoad()가 electronAPI.loadProject(activeProjectId)를 호출해 파일 로드 → applyAndFinish(proj) 호출. 즉 reload 시 URL에 ?project=id가 남아있으면 올바르게 로드됨. initBranchStore()는 initApp() 본체에서 initLoad() IIFE 종료 후에 실행되나, initLoad() 내부 applyAndFinish()에서는 initBranchStore가 호출되지 않음 — switchTab()과 달리 initApp 경로에서는 initBranchStore가 IIFE 외부(initApp 본체)에서 호출되므로 정상."
+    },
+    {
+      "id": "TASK-2",
+      "status": "FAIL",
+      "detail": "switchTab() line 193: 'if (id === activeProjectId) return;' 조건 확인됨. reload 시 initLoad()는 switchTab()을 거치지 않고 직접 electronAPI.loadProject + applyAndFinish를 호출하므로 이 조건은 reload 경로에서는 무관함. 그러나 openTabForProject(id)가 호출될 때 '이미 탭이 열려 있으면 switchTab(id)를 호출'하는 분기(line 276)가 존재함. reload 후 localStorage TAB_STATE_KEY에 동일 activeProjectId가 저장되어 있고, 이후 어떤 경로로 openTabForProject(activeProjectId)가 호출되면 openTabs에 이미 해당 id가 있어 switchTab(id)로 진입 → id === activeProjectId이면 즉시 return. 그러나 initLoad() 직접 경로(line 855-880)에서는 switchTab()을 호출하지 않으므로 이 조건이 reload 실패의 직접 원인은 아님. 실제 블로커는 별도로 존재할 가능성이 높음 — 아래 상세 분석 참조.",
+      "analysis": {
+        "switchTab_early_return": "reload 직접 경로에서는 switchTab()을 호출하지 않으므로 이 early return은 reload 실패의 직접 원인이 아님",
+        "potential_issue": "initLoad()의 applyAndFinish()는 try{applyProjectData(data)}catch{} 형태로 예외를 묵음 처리함. applyProjectData 내부에서 예외 발생 시 빈 캔버스로 fall-through되어도 오류 없이 return — 이것이 실질적 복원 실패 원인일 가능성 있음",
+        "second_issue": "initLoad()에서 applyAndFinish(proj)후 return할 때 initBranchStore()가 initApp() 본체에서 이미 예약되어 있으나, applyProjectData가 완료되기 전에 initBranchStore가 실행될 경우 race condition 가능. initLoad는 async IIFE이고 initBranchStore는 IIFE 외부 동기 코드로 거의 즉시 실행됨 — initLoad의 await electronAPI.loadProject 전에 initBranchStore가 먼저 실행될 수 있음"
+      }
+    },
+    {
+      "id": "TASK-3",
+      "status": "PASS",
+      "detail": "전체 체인 파악 완료. [main.js] ipcMain.handle('projects:load', (event, id) => { fs.readFileSync(`projects/${id}.json`) }) → [preload.js] contextBridge.exposeInMainWorld('electronAPI', { loadProject: (id) => ipcRenderer.invoke('projects:load', id) }) → [save-load.js initLoad()] electronAPI.loadProject(activeProjectId) → applyAndFinish(proj) → applyProjectData(data) → canvasEl.innerHTML = page.canvas. 이 체인은 구조적으로 정상이며 각 단계가 연결되어 있음.",
+      "chain": [
+        "main.js: ipcMain.handle('projects:load') — projects/{id}.json 동기 파일 읽기",
+        "preload.js: electronAPI.loadProject(id) — ipcRenderer.invoke('projects:load', id)",
+        "save-load.js initLoad(): await window.electronAPI.loadProject(activeProjectId)",
+        "applyAndFinish(proj) → applyProjectData(data) → canvasEl.innerHTML = page.canvas"
+      ]
+    },
+    {
+      "id": "TASK-4",
+      "status": "PASS",
+      "detail": ".icon-text-block 스타일이 css/editor.css 마지막에 존재함. .icon-text-block { display:flex; align-items:center; gap:16px; padding:12px var(--page-padx,32px); cursor:pointer; outline:2px solid transparent; } + hover::after overlay, .selected outline, .itb-icon (40x40 dashed border), .itb-text (font-size:32px, flex:1) 등 전체 스타일 반영 확인됨."
+    },
+    {
+      "id": "TASK-5",
+      "status": "PASS",
+      "detail": "drag-drop.js의 dblclick + pushHistory 패턴 전수 확인 완료. text-block: pushHistory?.() ✓ (line 240), card-block (.cdb-title/.cdb-desc): pushHistory?.() ✓ (line 558), strip-banner (.sbb-heading/.sbb-body): pushHistory?.() ✓ (line 616), icon-text-block (.itb-text): pushHistory?.() ✓ (line 683), label-group-block (.label-item-text): pushHistory?.() ✓ (line 504), table cell: pushHistory('셀 편집') ✓ (line 421) + pushHistory('셀 텍스트 변경') on blur ✓ (line 436). 6종 모두 pushHistory 호출 확인. asset-block과 icon-circle-block은 dblclick 시 이미지 업로드 진입이므로 텍스트 편집이 아닌 별도 흐름으로 pushHistory 불필요. 빠진 블록 타입 없음."
+    }
+  ],
+  "blocker_confirmed": true,
+  "blocker_analysis": {
+    "root_cause": "reload 시 initLoad()의 applyAndFinish()가 try{}catch{} 로 예외를 묵음 처리하므로 applyProjectData 내부 오류가 발생해도 실패가 감지되지 않음. 더 중요한 문제: initLoad()는 async IIFE이고 그 내부에서 await electronAPI.loadProject() 실행 중 initApp() 본체의 initBranchStore()가 동기적으로 먼저 실행됨. 즉 프로젝트 데이터가 캔버스에 apply되기 전에 브랜치 스토어가 초기화되어 빈 캔버스 기준으로 브랜치 스냅샷이 설정될 수 있음. 이후 applyProjectData가 완료되어도 이미 브랜치 시스템이 빈 상태로 고정됨.",
+    "secondary_cause": "switchTab early return(id === activeProjectId)은 reload 직접 경로에서는 무관하나, 탭이 이미 열린 상태에서 reload 후 동일 id로 openTabForProject 재호출 시에는 캐시된 _cache(비어있을 수 있음)로 복원하여 실패 가능"
+  },
+  "blocker_fix": "1. initApp()에서 initBranchStore() 호출을 initLoad() IIFE의 완료 이후로 이동시켜야 함 — IIFE를 await 가능하게 만들거나 applyAndFinish() 내부에서 initBranchStore()를 호출. 2. applyAndFinish()의 catch{}를 catch(e){console.error('[initLoad] applyProjectData 실패:', e)}로 변경해 오류 가시성 확보. 3. switchTab의 early return 조건을 reload 시 우회하려면: reload 후 캔버스가 비어있거나 _cache가 null인 경우 강제 파일 재로드 경로를 타도록 조건 추가 — 예: if (id === activeProjectId && targetTab?._cache) return; 으로 변경하여 _cache 없는 경우에는 계속 로드 진행.",
+  "overall": "FAIL",
+  "summary": "TASK-4(CSS), TASK-5(pushHistory) PASS. TASK-1,3은 구조 파악 완료. TASK-2는 실제 블로커 확인됨: initBranchStore()가 async initLoad() 완료 전에 동기적으로 실행되는 race condition이 reload 실패의 주요 원인. applyAndFinish의 묵음 catch도 부가 원인."
+}

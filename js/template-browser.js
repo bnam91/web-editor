@@ -12,6 +12,12 @@ function openTemplateBrowser() {
   if (!panel) return;
   _browserOpen = true;
   panel.style.display = 'flex';
+  if (!panel.dataset.userMoved) {
+    const leftPanel = document.getElementById('panel-left');
+    const leftW = leftPanel ? leftPanel.getBoundingClientRect().width : 240;
+    panel.style.left = (leftW + 4) + 'px';
+    panel.style.top = '44px';
+  }
   requestAnimationFrame(() => panel.classList.add('open'));
   document.getElementById('templates-section-header')?.classList.add('browser-open');
   _renderBrowserTree();
@@ -351,6 +357,36 @@ function _esc(str) {
 /* ── 초기화: 이벤트 바인딩 ── */
 function initTemplateBrowser() {
   document.getElementById('tpl-browser-close')?.addEventListener('click', closeTemplateBrowser);
+
+  // 헤더 드래그 이동
+  const panel = document.getElementById('tpl-browser');
+  const header = panel && (panel.querySelector('.tpl-browser-header') || panel.querySelector('.tpl-browser-top'));
+  if (header && !header._dragBound) {
+    header._dragBound = true;
+    header.style.cursor = 'grab';
+    header.addEventListener('mousedown', e => {
+      if (e.target.closest('button, input, select')) return;
+      e.preventDefault();
+      const rect = panel.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+      header.style.cursor = 'grabbing';
+      const onMove = mv => {
+        const newLeft = Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, mv.clientX - offsetX));
+        const newTop  = Math.max(0, Math.min(window.innerHeight - 60, mv.clientY - offsetY));
+        panel.style.left = newLeft + 'px';
+        panel.style.top  = newTop  + 'px';
+        panel.dataset.userMoved = '1';
+      };
+      const onUp = () => {
+        header.style.cursor = 'grab';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup',   onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup',   onUp);
+    });
+  }
 
   // Esc 닫기
   document.addEventListener('keydown', e => {

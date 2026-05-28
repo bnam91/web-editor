@@ -1,0 +1,95 @@
+{
+  "agent": "S6-LiveFlow",
+  "session": 6,
+  "method": "cdp-9335",
+  "timestamp": "2026-03-31T00:49:06.880Z",
+  "summary": {
+    "pass": 5,
+    "fail": 0,
+    "total": 5
+  },
+  "scenarios": [
+    {
+      "id": "LIVE-01",
+      "label": "11개 블록 타입 추가 실행",
+      "status": "PASS",
+      "detail": {
+        "results": {
+          "addSection": "ok",
+          "addTextBlock": "ok",
+          "addAssetBlock": "ok",
+          "addGapBlock": "ok",
+          "addIconTextBlock": "ok",
+          "addIconCircleBlock": "ok",
+          "addTableBlock": "ok",
+          "addCardBlock": "ok",
+          "addStripBannerBlock": "ok",
+          "addGraphBlock": "ok",
+          "addDividerBlock": "ok",
+          "addLabelGroupBlock": "ok"
+        },
+        "okCount": 12,
+        "errorCount": 0,
+        "total": 12
+      }
+    },
+    {
+      "id": "LIVE-02",
+      "label": "블록 추가 후 Undo 테스트",
+      "status": "PASS",
+      "detail": {
+        "before": 1,
+        "after": 0,
+        "undoWorked": true
+      }
+    },
+    {
+      "id": "LIVE-03",
+      "label": "icon-text-block CSS 실제 렌더링 확인",
+      "status": "PASS",
+      "detail": {
+        "found": true,
+        "display": "flex",
+        "flexDirection": "row",
+        "alignItems": "center",
+        "iconFound": true,
+        "iconWidth": "40px",
+        "iconHeight": "40px",
+        "textFound": true,
+        "textFontSize": "32px"
+      }
+    },
+    {
+      "id": "LIVE-04",
+      "label": "레이어 패널 업데이트 확인",
+      "status": "PASS",
+      "detail": {
+        "panelFound": true,
+        "panelId": "layer-panel-body",
+        "totalItems": 27,
+        "layerPanelUpdated": true,
+        "text": "SectionGapGapHHeadingTextAssetImageIcon TextTextGapGap",
+        "sampleTexts": [
+          "SectionGapGapHHeadingTextAssetImageIcon TextTextGapGap",
+          "Section",
+          "",
+          "",
+          "Section"
+        ]
+      }
+    },
+    {
+      "id": "LIVE-05",
+      "label": "저장 후 섹션 개수 보존 확인",
+      "status": "PASS",
+      "detail": {
+        "sectionCountBefore": 2,
+        "sectionCountAfter": 2,
+        "preserved": true,
+        "saveMethod": "scheduleAutoSave",
+        "saved": true
+      }
+    }
+  ],
+  "overall": "PASS"
+}

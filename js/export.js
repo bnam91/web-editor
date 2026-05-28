@@ -1054,7 +1054,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block').forEach(b => {
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .card-block, :scope > .graph-block, :scope > .strip-banner-block, :scope > .icon-text-block, :scope > .divider-block').forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });

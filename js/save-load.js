@@ -3,8 +3,18 @@ import { canvasEl, canvasWrap, state, PAGE_LABELS } from './globals.js';
 /* ══════════════════════════════════════
    저장 / 불러오기
 ══════════════════════════════════════ */
-const SAVE_KEY = 'web-editor-autosave';
+// DBG-REFRESH: SAVE_KEY는 프로젝트별로 분리 — 탭 전환 시 다른 프로젝트 데이터 오염 방지
+// 전역 키('web-editor-autosave')는 더 이상 사용하지 않음
+const SAVE_KEY_PREFIX = 'web-editor-autosave';
 const PROJECTS_KEY = 'sangpe-projects';
+
+/** 현재 activeProjectId 기준 localStorage 키 반환 */
+function getSaveKey() {
+  return activeProjectId ? `${SAVE_KEY_PREFIX}__${activeProjectId}` : SAVE_KEY_PREFIX;
+}
+function getSaveTsKey() {
+  return getSaveKey() + '_ts';
+}
 let autoSaveTimer = null;
 let currentFileName = null; // 현재 세션의 저장 파일명 (null = 최초 저장 전)
 
@@ -203,10 +213,19 @@ async function switchTab(id) {
   activeProjectId = id;
   history.replaceState(null, '', '?project=' + id);
 
+  // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
+  const canvasEl = document.getElementById('canvas');
+  if (canvasEl) {
+    canvasEl.querySelectorAll('.pos-dragging').forEach(ab => {
+      if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
+      if (ab._exitPosDrag)    { document.removeEventListener('click', ab._exitPosDrag); ab._exitPosDrag = null; }
+      if (ab._exitPosDragEsc) { document.removeEventListener('keydown', ab._exitPosDragEsc); ab._exitPosDragEsc = null; }
+      ab._posDragging = false;
+    });
+  }
   // 즉시 캔버스 클리어 (이전 탭 내용이 잠깐 보이지 않도록)
   // autoSaveObserver가 빈 캔버스를 파일에 덮어쓰지 않도록 억제
   state._suppressAutoSave = true;
-  const canvasEl = document.getElementById('canvas');
   if (canvasEl) canvasEl.innerHTML = '';
   // propPanel 클리어 — 이전 탭의 속성 패널 내용이 잔존하지 않도록
   const propPanel = document.querySelector('#panel-right .panel-body');
@@ -292,14 +311,14 @@ async function createNewProjectTab() {
   const now = new Date().toISOString();
   const emptySnap = JSON.stringify({
     version: 2, currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 32, padY: 32 }, canvas: '' }]
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 32, padY: 32 }, canvas: '' }]
   });
   const proj = {
     id, name: 'Untitled',
     createdAt: now, updatedAt: now,
     version: 2,
     currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#f5f5f5', gap: 100, padX: 32, padY: 32 }, canvas: '' }],
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 32, padY: 32 }, canvas: '' }],
     currentBranch: 'dev',
     branches: {
       main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },
@@ -509,6 +528,14 @@ function flushCurrentPage() {
 function switchPage(pageId) {
   if (pageId === state.currentPageId) return;
   flushCurrentPage();
+  // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
+  canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging').forEach(ab => {
+    if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
+    if (ab._exitPosDrag)    { document.removeEventListener('click', ab._exitPosDrag); ab._exitPosDrag = null; }
+    if (ab._exitPosDragEsc) { document.removeEventListener('keydown', ab._exitPosDragEsc); ab._exitPosDragEsc = null; }
+    ab._posDragging = false;
+    ab.classList.remove('pos-dragging', 'img-editing');
+  });
   state._suppressAutoSave = true;
   state.currentPageId = pageId;
   const page = getCurrentPage();
@@ -631,20 +658,24 @@ function rebindAll() {
       sec.style.backgroundPosition = 'center';
       sec.style.backgroundRepeat = 'no-repeat';
     }
-    sec.addEventListener('click', e => {
-      e.stopPropagation();
-      window.selectSectionWithModifier(sec, e);
-      const row = e.target.closest('.row');
-      if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block')) {
-        document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
-        row.classList.add('row-active');
-        if (window.syncLayerRow) window.syncLayerRow(row);
-      }
-    });
+    if (!sec._secClickBound) {
+      sec._secClickBound = true;
+      sec.addEventListener('click', e => {
+        e.stopPropagation();
+        window.selectSectionWithModifier(sec, e);
+        const row = e.target.closest('.row');
+        if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+          document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
+          row.classList.add('row-active');
+          if (window.syncLayerRow) window.syncLayerRow(row);
+        }
+      });
+    }
     bindSectionDelete(sec);
     bindSectionOrder(sec);
     bindSectionDrag(sec);
     bindSectionDropZone(sec);
+    sec.querySelectorAll('.col').forEach(c => window.bindColDropZone?.(c));
     if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
     // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');
@@ -685,6 +716,7 @@ function rebindAll() {
   // row ID 복원: 저장/불러오기 시 row에도 고유 ID 부여
   canvasEl.querySelectorAll('.row').forEach(row => {
     if (!row.id) row.id = 'row_' + Math.random().toString(36).slice(2, 9);
+    if (window.bindRowColAdd) window.bindRowColAdd(row);
   });
 
   // 저장 시 제거된 contenteditable 속성 복원 (텍스트 블록 내부 편집 가능 요소)
@@ -695,7 +727,7 @@ function rebindAll() {
     }
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -705,6 +737,7 @@ function rebindAll() {
         : b.classList.contains('card-block') ? 'cdb'
         : b.classList.contains('strip-banner-block') ? 'sbb'
         : b.classList.contains('graph-block') ? 'grb'
+        : b.classList.contains('icon-text-block') ? 'itb'
         : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
@@ -747,13 +780,27 @@ function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
   clearTimeout(autoSaveTimer);
   _setAutosaveIndicator('saving');
+  // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
   autoSaveTimer = setTimeout(() => {
     const snap = serializeProject();
-    localStorage.setItem(SAVE_KEY, snap);
+    localStorage.setItem(getSaveKey(), snap);
+    localStorage.setItem(getSaveTsKey(), String(Date.now()));
     saveProjectToFile(snap, { skipThumbnail: true }); // 자동저장은 썸네일 캡처 생략
     _setAutosaveIndicator('saved');
   }, 1500);
 }
+
+// 새로고침/탭 닫기 시 미완료 debounce 즉시 flush → localStorage 백업
+// DBG-REFRESH: getSaveKey()로 프로젝트별 키 사용 — 다른 프로젝트 데이터 오염 방지
+window.addEventListener('beforeunload', () => {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+    const snap = serializeProject();
+    localStorage.setItem(getSaveKey(), snap);
+    localStorage.setItem(getSaveTsKey(), String(Date.now()));
+  }
+});
 
 // 변경 감지 — canvas MutationObserver
 const autoSaveObserver = new MutationObserver(scheduleAutoSave);
@@ -813,7 +860,7 @@ function initApp() {
   // 프로젝트 로드 (Electron: 파일, 브라우저: localStorage)
   (async function initLoad() {
     function applyAndFinish(data) {
-      try { applyProjectData(data); } catch {}
+      try { applyProjectData(data); } catch(e) { console.error('[initApp] applyProjectData 실패:', e); }
     }
     function initEmpty() {
       state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
@@ -841,6 +888,14 @@ function initApp() {
           const tab = openTabs.find(t => t.id === activeProjectId);
           if (tab) tab.name = name;
           renderTabBar();
+          // DBG-REFRESH: 프로젝트별 키로 localStorage 조회 — 다른 프로젝트 데이터 오염 방지
+          // localStorage가 파일보다 새로우면 우선 적용 (새로고침 데이터 손실 방지)
+          const lsTs = parseInt(localStorage.getItem(getSaveTsKey()) || '0');
+          const fileTs = new Date(proj.updatedAt || 0).getTime();
+          if (lsTs > fileTs + 500) {
+            const lsSaved = localStorage.getItem(getSaveKey());
+            if (lsSaved) { try { applyAndFinish(JSON.parse(lsSaved)); return; } catch {} }
+          }
           if (proj.version === 2 && proj.pages) { applyAndFinish(proj); return; }
           if (proj.snapshot) { try { applyAndFinish(typeof proj.snapshot === 'string' ? JSON.parse(proj.snapshot) : proj.snapshot); } catch {} return; }
         }
@@ -858,7 +913,7 @@ function initApp() {
       openTabs = [];
       renderTabBar();
     }
-    const saved = localStorage.getItem(SAVE_KEY);
+    const saved = localStorage.getItem(getSaveKey());
     if (saved) { try { applyAndFinish(JSON.parse(saved)); return; } catch {} }
     initEmpty();
   })();
@@ -882,6 +937,7 @@ function initApp() {
   // Cmd+G 그룹 — capture phase로 브라우저 Find Next 보다 먼저 처리
   document.addEventListener('keydown', e => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'g') {
+      if (e.target.isContentEditable) return;
       e.preventDefault();
       e.stopImmediatePropagation();
       groupSelectedBlocks();
@@ -985,10 +1041,16 @@ window.applyProjectData = applyProjectData;
 window.applyPageSettings = applyPageSettings;
 window.rebindAll = rebindAll;
 window.scheduleAutoSave = scheduleAutoSave;
+window.triggerAutoSave = scheduleAutoSave; // alias used by drag-drop.js, prop-layout.js
 window.initApp = initApp;
 
 // branch-system.js, commit-system.js 등 다른 모듈에서 참조하는 변수들 노출
 window.IS_ELECTRON = IS_ELECTRON;
+// BUG4: _persistBranchesToFile에서 race condition 감지용 — getter로 읽기 전용 노출
+Object.defineProperty(window, '_isSavingToFile', {
+  get: () => _isSavingToFile,
+  configurable: true,
+});
 Object.defineProperty(window, 'activeProjectId', {
   get: () => activeProjectId,
   set: (v) => { activeProjectId = v; },

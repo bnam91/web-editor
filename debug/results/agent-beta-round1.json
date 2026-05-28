@@ -1,0 +1,40 @@
+{
+  "agent": "Agent-β",
+  "version": "2.0",
+  "part": "상태 오염 (save-load.js, editor.js)",
+  "ts": "2026-03-31T03:00:00.000Z",
+  "method": "cdp",
+  "cdp_port": 9335,
+  "scenarios": [
+    {
+      "id": "beta-01",
+      "name": "Cmd+G contentEditable guard",
+      "status": "PASS",
+      "method": "static+cdp",
+      "detail": "save-load.js:887 — e.target.isContentEditable 가드 확인됨. CDP 검증: guard active",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "beta-02",
+      "name": "multiSel 전역 존재 및 clearMultiSel",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "window.multiSel, window.clearMultiSel, window.showMultiSelPanel 모두 존재",
+      "fix_applied": null,
+      "verified": true
+    },
+    {
+      "id": "beta-03",
+      "name": "state._suppressAutoSave 초기값",
+      "status": "PASS",
+      "method": "cdp",
+      "detail": "window.state._suppressAutoSave = false (초기값 정상)",
+      "fix_applied": null,
+      "verified": true
+    }
+  ],
+  "bugs_found": 0,
+  "fixes_applied": 0,
+  "unverified_fixes": 0
+}

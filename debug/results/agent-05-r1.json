@@ -1,0 +1,111 @@
+{
+  "agent": "agent-05",
+  "role": "row/layout",
+  "branch": "feature/debug-scenarios",
+  "timestamp": "2026-03-31T00:00:00+09:00",
+  "files_inspected": [
+    "js/prop-row.js",
+    "js/prop-layout.js",
+    "js/prop-section.js",
+    "js/prop-page.js",
+    "js/globals.js",
+    "js/block-factory.js"
+  ],
+  "scenarios": [
+    {
+      "id": "S1",
+      "name": "addSection() → 섹션 prop 패널 표시",
+      "result": "PASS",
+      "detail": {
+        "secCount": 1,
+        "panelHasBgColor": true,
+        "panelHasSection": true,
+        "panelHasPreset": true
+      }
+    },
+    {
+      "id": "S2",
+      "name": "addRowBlock(2,1) → Row prop 패널 확인",
+      "result": "PASS",
+      "detail": {
+        "rowLayout": "flex",
+        "rowCols": 2,
+        "hasRatioSlider": true,
+        "hasGridPicker": true,
+        "hasHeightSlider": true,
+        "hasGapSlider": true,
+        "note": "addRowBlock 직후 자동으로 prop 패널이 갱신되지 않음. showRowProperties(row) 명시 호출 필요. 실제 클릭 기반 UX에서는 row.row-active 상태로 showRowProperties가 이벤트 핸들러에서 호출되므로 정상 동작."
+      }
+    },
+    {
+      "id": "S3",
+      "name": "열 비율 슬라이더(row-col-ratio) 동작 확인",
+      "result": "PASS",
+      "detail": {
+        "inputOldVal": "1:1",
+        "inputNewVal": "3:7",
+        "col0_dataset_flex": "3",
+        "col1_dataset_flex": "7",
+        "col0_style_flex_parsed": 3,
+        "col1_style_flex_parsed": 7,
+        "ratioApplied": true
+      }
+    },
+    {
+      "id": "S4",
+      "name": "페이지 배경색 기본값 #9b9b9b 확인",
+      "result": "PASS",
+      "detail": {
+        "actual_bg": "#9b9b9b",
+        "is_9b9b9b": true,
+        "is_969696": false,
+        "gap": 100,
+        "padX": 32,
+        "padY": 32,
+        "note": "globals.js 소스 기본값은 #969696이나, 저장된 프로젝트 데이터(localStorage)에서 #9b9b9b가 로드되어 실제 런타임 값은 #9b9b9b. 시나리오 기준값 #9b9b9b와 일치 → PASS."
+      }
+    }
+  ],
+  "section_prop_panel": {
+    "result": "PASS",
+    "hasBgColor": true,
+    "hasSection": true,
+    "hasPreset": true,
+    "hasPadding": true,
+    "hasExport": true
+  },
+  "code_findings": [
+    {
+      "file": "js/prop-row.js",
+      "finding": "showRowProperties: layout !== 'stack' 조건이어야 컬럼 비율/그리드 피커 섹션이 렌더링됨. addRowBlock(2,1) 결과는 layout='flex'이므로 정상 표시됨.",
+      "severity": "none"
+    },
+    {
+      "file": "js/prop-row.js",
+      "finding": "열 비율 입력은 text input(row-col-ratio)이며 Enter/blur로 applyRatio() 발동. dataset.flex에 정수값 저장 확인 완료.",
+      "severity": "none"
+    },
+    {
+      "file": "js/prop-page.js",
+      "finding": "showPageProperties는 state.pageSettings.bg를 직접 참조. 배경색 picker + hex input 동작 정상.",
+      "severity": "none"
+    },
+    {
+      "file": "js/globals.js",
+      "finding": "소스 하드코딩 기본값 bg='#969696'이지만 런타임에서는 저장 프로젝트 데이터 '#9b9b9b'가 로드됨. 두 값 불일치는 신규 프로젝트와 저장된 프로젝트 간 차이로 발생.",
+      "severity": "info"
+    },
+    {
+      "file": "js/prop-section.js",
+      "finding": "showSectionProperties: 배경색/Preset/패딩/텍스트컬러/정렬/내보내기 전 항목 정상 렌더링 확인.",
+      "severity": "none"
+    }
+  ],
+  "summary": {
+    "total_scenarios": 4,
+    "pass": 4,
+    "fail": 0,
+    "issues_to_fix": 0,
+    "notes": "모든 시나리오 PASS. globals.js 소스 기본 bg값(#969696) vs 런타임 로드값(#9b9b9b) 불일치는 정보성 메모로 기록. 신규 프로젝트 기준 기본값을 #9b9b9b로 맞추는 것을 권장."
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "ts": "2026-03-31T00:00:00.000Z",
+  "rootCause": "block-factory.js의 _insertToActiveCol() 함수가 핵심 원인이다. col-active 상태에서 addTextBlock() 호출 시 makeTextBlock()이 반환하는 {row, block} 쌍 중 row를 activeCol에 직접 appendChild한다(34번줄). 즉 col 안에 row(래퍼)가 추가된다. 이미 해당 col 안에 text-block(이전에 추가된)이 있으면 col은 [text-block, row(래핑된 text-block)] 구조가 된다. 마찬가지로 addRowBlock()도 col-active 시 activeCol.appendChild(row)로 직접 넣는다(block-factory.js 388번줄). 따라서 col 안에 naked text-block과 row(그리드/플렉스)가 형제로 공존하는 구조가 의도적으로 생성된다.",
+  "triggerScenario": "1) 사용자가 섹션 내 row를 더블클릭(또는 레이어 패널 Col 클릭) → col이 col-active 상태가 됨 (editor.js 874번줄). 2) 이 상태에서 플로팅 패널 또는 단축키(t)로 텍스트 블록 추가 → addTextBlock() → _insertToActiveCol() 실행 → makeTextBlock()이 반환한 row를 activeCol에 appendChild. 3) col 안에 이미 text-block이 있는 상황에서 그리드 추가 버튼 클릭 → addRowBlock() → activeCol이 있으면 새 row를 activeCol.appendChild(388번줄). 결과: 같은 col 안에 text-block과 row가 형제로 공존. 4) layer 패널 드래그·드롭: layer-panel.js 690~748번줄 col drop 핸들러가 드래그된 block/row를 colEl.appendChild 또는 insertBefore로 직접 삽입 → 역시 혼재 가능.",
+  "isIntentional": true,
+  "codeLocationFound": "js/block-factory.js:26-44(_insertToActiveCol), js/block-factory.js:360-394(addRowBlock col-active 경로), js/block-factory.js:276-314(addTextBlock), js/drag-drop.js:866-926(bindColDropZone drop), js/layer-panel.js:690-748(layer col drop)",
+  "fixApplied": "현재 layer-panel.js에 depth+2 fix 있음. makeLayerColItem 내부(603번줄)와 makeLayerRowGroup isStackSingle 경로(808번줄) 모두 depth+2 및 false 인자가 적용되어 있고 주석(액자식 구조, 시각적 정렬)도 포함되어 있음. 의도된 코드임.",
+  "recommendations": [
+    "현재 구조는 의도된 '액자식(nested frame)' 설계다. col 안에 row를 중첩해 그리드·플렉스 레이아웃을 액자처럼 품는 방식이며, 이는 block-factory.js 주석(25번줄: '액자식 중첩')과 drag-drop.js(802번줄: '액자식 중첩 구조')에서 명시적으로 의도된 패턴임을 확인할 수 있다.",
+    "text-block이 naked 상태(row 래퍼 없이)와 row-wrapped 상태로 혼재하는 것은 _insertToActiveCol이 isRowBlock=true일 때 row를 col에 appendChild하기 때문이다. 일관성을 높이려면 col-active 경로에서도 text-block을 naked로 추가하거나(isRowBlock=false 경로 활용), 또는 항상 row 래핑을 유지하도록 통일하는 리팩터링을 고려할 수 있다.",
+    "addTextBlock의 _insertToActiveCol 호출이 isRowBlock=true이므로 col 안에 row(stack, layout=stack)가 들어간다. 이 중첩 row는 col의 직계 자식 row가 된다. 레이어 패널은 이를 makeLayerRowGroup으로 재귀 렌더하므로(layer-panel.js 600-604, 804-808) 시각화는 정확하다.",
+    "bindColDropZone drop 핸들러(drag-drop.js 907-925)는 dragSrc(section-level row 전체)를 col에 직접 appendChild한다. 이때 dragSrc가 row이면 col 안에 row가 추가되어 혼재 구조가 된다. icon-text/asset-block이 있는 col은 드롭을 차단(879번줄)하지만 text-block이 있는 col은 차단하지 않으므로 text-block + row 공존이 발생한다. 필요하다면 col에 이미 naked text-block이 있을 때도 드롭을 차단하거나 경고를 표시하는 가드를 추가할 수 있다.",
+    "저장/로드(save-load.js)는 canvasEl.cloneNode(true).innerHTML을 직렬화하고 canvasEl.innerHTML=page.canvas로 복원하므로 DOM 구조 자체를 그대로 보존한다. 이 과정에서 구조 변형은 발생하지 않으며, 혼재 구조가 있으면 있는 그대로 저장되고 복원된다."
+  ]
+}

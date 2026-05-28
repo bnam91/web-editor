@@ -1,0 +1,81 @@
+{
+  "agent": "Debug Squad Agent-β (상태 오염)",
+  "timestamp": "2026-03-31T00:00:00+09:00",
+  "branch": "feature/debug-scenarios",
+  "files_analyzed": [
+    "js/save-load.js"
+  ],
+
+  "static_analysis": {
+    "check_1_cmd_g_contentEditable_guard": {
+      "status": "PASS",
+      "location": "save-load.js:887",
+      "evidence": "document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'g') { if (e.target.isContentEditable) return; ... } }, true);",
+      "note": "capture phase 핸들러에서 isContentEditable 가드 정상 존재. 수정 불필요."
+    },
+    "check_2_suppressAutoSave_before_canvas_clear": {
+      "status": "PASS",
+      "location": "save-load.js:208-210",
+      "evidence": "state._suppressAutoSave = true; const canvasEl = document.getElementById('canvas'); if (canvasEl) canvasEl.innerHTML = '';",
+      "note": "canvasEl.innerHTML = '' 실행 전에 _suppressAutoSave = true 가 선행 설정됨. 순서 올바름."
+    },
+    "bug_persist_1_isSavingToFile": {
+      "status": "PASS",
+      "location": "save-load.js:395-413 (플래그), 996-999 (window getter 노출)",
+      "evidence": "let _isSavingToFile = false; — 정의 존재. Object.defineProperty(window, '_isSavingToFile', { get: () => _isSavingToFile, configurable: true }); — 읽기전용 getter로 노출됨.",
+      "note": "BUG-PERSIST-1 정적 분석 결과: _isSavingToFile 플래그 정상 존재. DBG-11 race condition 패턴(_pendingSaveData 대기열 포함) 구현 완료."
+    }
+  },
+
+  "cdp_scenarios": {
+    "target": {
+      "port": 9335,
+      "id": "2536FEA99800474890F8B7D0B948A8E2",
+      "title": "Goya Web Design Editor",
+      "url": "file:///Users/a1/web-editor/index.html?project=proj_1774908303809"
+    },
+    "scenario_1_tab_switch_propPanel": {
+      "status": "PASS",
+      "description": "탭 전환 시 propPanel 클리어 확인",
+      "steps": [
+        { "step": "초기 상태", "propPanel_len": 3492, "_suppressAutoSave": false },
+        { "step": "새 탭 생성 (proj_1774911147183)", "result": "created" },
+        { "step": "proj_1774908303809 탭으로 전환", "before": "proj_1774911147183", "after": "proj_1774908303809" },
+        { "step": "전환 후 propPanel 복원", "propPanel_len": 6622, "_suppressAutoSave": false }
+      ],
+      "finding": "switchTab 내부에서 propPanel.innerHTML = '' 클리어 후 applyProjectData()로 올바르게 복원됨. 오염 없음.",
+      "canvas_clear_suppress_order": {
+        "suppressOnClear": true,
+        "note": "canvas.innerHTML = '' 실행 시점에 _suppressAutoSave = true 확인됨 (monkey-patch 검증). 순서 정확."
+      }
+    },
+    "scenario_2_cmd_g_contenteditable": {
+      "status": "PASS",
+      "description": "contenteditable 요소에서 Cmd+G 시 groupSelectedBlocks 미호출 확인",
+      "steps": [
+        {
+          "step": "contenteditable div에서 metaKey+g KeyboardEvent dispatch",
+          "groupSelectedBlocks_called": false
+        }
+      ],
+      "finding": "isContentEditable 가드가 정상 동작. contenteditable 대상에서 Cmd+G 입력 시 groupSelectedBlocks()가 호출되지 않음."
+    }
+  },
+
+  "bugs_found": [],
+
+  "fixes_applied": "없음 — 모든 체크 PASS. 수정 필요 항목 없음.",
+
+  "summary": {
+    "total_checks": 3,
+    "pass": 3,
+    "fail": 0,
+    "fix_applied": 0,
+    "notes": [
+      "Cmd+G isContentEditable 가드: save-load.js line 887에 정상 구현됨",
+      "_suppressAutoSave 탭 전환 억제: switchTab에서 canvasEl.innerHTML = '' 이전에 suppress = true 선행. CDP monkey-patch 검증 완료",
+      "_isSavingToFile 플래그: save-load.js line 395에 정의, window getter로 읽기전용 노출 (line 996). DBG-11 race condition 방지 패턴 완비",
+      "BUG-PERSIST-1 (branch-system.js): Agent-δ 담당, 정적 분석 범위 아님. save-load.js 내 관련 플래그만 확인"
+    ]
+  }
+}

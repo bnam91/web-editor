@@ -1,0 +1,96 @@
+{
+  "agent": "S2-Generator-A",
+  "session": 2,
+  "method": "static",
+  "checks": [
+    {
+      "id": "A-1-1",
+      "target": "block-factory.js:862 — addSection() bindBlock selector",
+      "status": "PASS",
+      "detail": "line 862: querySelectorAll includes both .label-group-block and .icon-text-block. Confirmed."
+    },
+    {
+      "id": "A-1-2",
+      "target": "branch-system.js — initBranchStore + mergeBranch clearHistory",
+      "status": "PASS",
+      "detail": "initBranchStore (line 59) and mergeBranch (line 175, 265) all call window.clearHistory(). Confirmed."
+    },
+    {
+      "id": "A-1-3",
+      "target": "layer-panel.js — labels/typeLbls icon-text key",
+      "status": "PASS",
+      "detail": "lines 66-67 and 561-562: both labels and typeLbls maps include 'icon-text':'Icon Text' and 'icon-text':'Text'. isIconText detection at line 64 confirmed."
+    },
+    {
+      "id": "A-1-4",
+      "target": "index.html — floating panel button completeness",
+      "status": "PASS",
+      "detail": "H1(line 598), H3(line 600), 1×2(line 576), 1×3(line 578), 3×1(line 579), Icon Text(line 605), Tags/Label Group(line 604 + 643), Icon Circle(line 637) all present."
+    },
+    {
+      "id": "A-2-1",
+      "target": "editor.js — arrow-key handler querySelector",
+      "status": "PASS",
+      "detail": "lines 387-389: icon-text-block.selected included in arrow-key block selector."
+    },
+    {
+      "id": "A-2-2",
+      "target": "editor.js — section click handler closest selector (line 685)",
+      "status": "FAIL→FIXED",
+      "detail": "icon-text-block was MISSING from !e.target.closest(...) guard. Fixed: added .icon-text-block to selector at line 685."
+    },
+    {
+      "id": "A-2-3",
+      "target": "drag-drop.js — bindBlock isIconText handling",
+      "status": "PASS",
+      "detail": "line 663: isIconText = block.classList.contains('icon-text-block'); full click+dblclick handler at lines 664-679."
+    },
+    {
+      "id": "A-2-4",
+      "target": "drag-utils.js — selected block querySelector",
+      "status": "PASS",
+      "detail": "line 70: .icon-text-block.selected included in combined selector."
+    },
+    {
+      "id": "A-2-5",
+      "target": "save-load.js — rebindAll prefix map itb",
+      "status": "PASS",
+      "detail": "lines 725,729: label-group-block → 'lg', icon-text-block → 'itb'. Both present in prefix mapping."
+    },
+    {
+      "id": "A-2-6",
+      "target": "block-factory.js — addSection() section click handler closest (line 851)",
+      "status": "FAIL→FIXED",
+      "detail": "icon-text-block was MISSING from !e.target.closest(...) row-active guard. Fixed: added .icon-text-block to selector at line 851."
+    },
+    {
+      "id": "A-3",
+      "target": "index.html — floating panel Icon Text button in Text dropdown",
+      "status": "PASS",
+      "detail": "line 605: <button onclick=\"addIconTextBlock();...\">Icon Text</button> present in fp-text-menu."
+    },
+    {
+      "id": "A-4",
+      "target": "block-factory.js — addRowBlock(rows, cols) signature",
+      "status": "PASS_WITH_NOTE",
+      "detail": "Signature is addRowBlock(cols=2, rows=1). UI calls addRowBlock(1,2) for '1×2', addRowBlock(1,3) for '1×3', addRowBlock(3,1) for '3×1'. Parameter order is (cols, rows) — calls are consistent: (1,2)=1col×2rows grid, (1,3)=1col×3rows grid, (3,1)=3col×1row flex. All valid."
+    }
+  ],
+  "fixes_applied": [
+    {
+      "file": "js/editor.js",
+      "line": 685,
+      "description": "Section click handler row-active guard: added .icon-text-block to !e.target.closest(...) selector",
+      "old": "'.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block'",
+      "new": "'.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block'"
+    },
+    {
+      "file": "js/block-factory.js",
+      "line": 851,
+      "description": "addSection() section click handler row-active guard: added .icon-text-block to !e.target.closest(...) selector",
+      "old": "'.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block'",
+      "new": "'.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block'"
+    }
+  ],
+  "overall": "PASS"
+}

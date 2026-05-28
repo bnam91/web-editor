@@ -67,29 +67,6 @@ export function showTextProperties(tb) {
         <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
       </div>
     </div>
-    <div id="label-style-section" style="display:${isLabel?'block':'none'}">
-      <div class="prop-section">
-        <div class="prop-section-title">태그 스타일</div>
-        <div class="prop-color-row">
-          <span class="prop-label">배경색</span>
-          <div class="prop-color-swatch${currentBgColor==='transparent'?' swatch-none':''}" style="background:${currentBgColor==='transparent'?'transparent':currentBgColor}">
-            <input type="color" id="label-bg-color" value="${currentBgColor==='transparent'?'#111111':currentBgColor}">
-          </div>
-          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor}" maxlength="7" placeholder="없음">
-          <label class="prop-none-check"><input type="checkbox" id="label-bg-none" ${currentBgColor==='transparent'?'checked':''}>없음</label>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">모서리</span>
-          <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
-          <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">높이</span>
-          <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="${labelPillH}">
-          <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="${labelPillH}">
-        </div>
-      </div>
-    </div>
 
     <div class="prop-section">
       <div class="prop-section-title">정렬</div>
@@ -155,7 +132,8 @@ export function showTextProperties(tb) {
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <div class="prop-style-group">
-          <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic)"><i>I</i></button>
+          <button class="prop-style-btn ${isBold?'active':''}" id="txt-bold-btn" title="굵게 (Bold / Cmd+B)"><b>B</b></button>
+          <button class="prop-style-btn ${isItalic?'active':''}" id="txt-italic-btn" title="기울임 (Italic / Cmd+I)"><i>I</i></button>
         </div>
       </div>
       <div class="prop-row">
@@ -163,8 +141,12 @@ export function showTextProperties(tb) {
         <input type="range" class="prop-slider" id="txt-size-slider" min="8" max="400" step="1" value="${currentSize}">
         <input type="number" class="prop-number" id="txt-size-number" min="8" max="400" value="${currentSize}">
       </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-section-title">색상</div>
       <div class="prop-color-row">
-        <span class="prop-label">색상</span>
+        <span class="prop-label">글자색</span>
         <div class="prop-color-swatch" style="background:${currentColor}">
           <input type="color" id="txt-color" value="${currentColor}">
         </div>
@@ -184,13 +166,17 @@ export function showTextProperties(tb) {
         <input type="range" class="prop-slider" id="txt-ls-slider" min="-10" max="40" step="0.5" value="${currentLS}">
         <input type="number" class="prop-number" id="txt-ls-number" min="-10" max="40" step="0.5" value="${currentLS}">
       </div>
-      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+    </div>
+
+    <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
+      <div class="prop-section-title">패딩</div>
+      <div class="prop-row">
         <span class="prop-label">상하</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}">
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}">
       </div>
-      <div class="prop-ph-header" style="${isOverlayTb ? 'display:none' : ''}">
-        <span class="prop-section-title" style="margin-bottom:0">패딩</span>
+      <div class="prop-ph-header">
+        <span class="prop-section-title" style="margin-bottom:0">좌우</span>
         <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
@@ -199,18 +185,41 @@ export function showTextProperties(tb) {
           </svg>
         </button>
       </div>
-      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+      <div class="prop-row">
         <span class="prop-label" style="width:60px">왼쪽 패딩</span>
         <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="${currentPadL}">
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
       </div>
-      <div class="prop-row" style="${isOverlayTb ? 'display:none' : ''}">
+      <div class="prop-row">
         <span class="prop-label" style="width:60px">오른쪽 패딩</span>
         <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="${currentPadR}">
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
       </div>
     </div>
 
+    <div id="label-style-section" style="display:${isLabel?'block':'none'}">
+      <div class="prop-section">
+        <div class="prop-section-title">태그 스타일</div>
+        <div class="prop-color-row">
+          <span class="prop-label">배경색</span>
+          <div class="prop-color-swatch${currentBgColor==='transparent'?' swatch-none':''}" style="background:${currentBgColor==='transparent'?'transparent':currentBgColor}">
+            <input type="color" id="label-bg-color" value="${currentBgColor==='transparent'?'#111111':currentBgColor}">
+          </div>
+          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor}" maxlength="7" placeholder="없음">
+          <label class="prop-none-check"><input type="checkbox" id="label-bg-none" ${currentBgColor==='transparent'?'checked':''}>없음</label>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">모서리</span>
+          <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
+          <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">높이</span>
+          <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="${labelPillH}">
+          <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="${labelPillH}">
+        </div>
+      </div>
+    </div>
 
     <div class="prop-section prop-section--anim" style="${isOverlayTb ? 'display:none' : ''}">
       <button class="prop-anim-btn" id="open-anim-btn">
@@ -226,6 +235,7 @@ export function showTextProperties(tb) {
 
   /* 폰트 종류 */
   document.getElementById('txt-font-family').addEventListener('change', e => {
+    window.pushHistory?.();
     contentEl.style.fontFamily = e.target.value;
   });
 
@@ -239,6 +249,7 @@ export function showTextProperties(tb) {
   const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label' };
   propPanel.querySelectorAll('.prop-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      window.pushHistory?.();
       const cls = btn.dataset.cls;
       contentEl.className = cls;
       tb.dataset.type = typeMap2[cls];
@@ -317,6 +328,7 @@ export function showTextProperties(tb) {
   /* 정렬 */
   propPanel.querySelectorAll('.prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      window.pushHistory?.();
       // label(inline-block)은 부모 tb에 text-align 적용해야 블록 자체가 정렬됨
       if (contentEl.classList.contains('tb-label')) {
         tb.style.textAlign = btn.dataset.align;
@@ -350,6 +362,23 @@ export function showTextProperties(tb) {
     return true;
   };
 
+  let _savedBoldSel = null;
+  document.getElementById('txt-bold-btn').addEventListener('mousedown', () => {
+    if (hasSel()) _savedBoldSel = window.getSelection().getRangeAt(0).cloneRange();
+    else _savedBoldSel = null;
+  });
+  document.getElementById('txt-bold-btn').addEventListener('click', () => {
+    if (_savedBoldSel) {
+      applyExecCmd(_savedBoldSel, 'bold');
+      _savedBoldSel = null;
+    } else {
+      const isNowBold = contentEl.style.fontWeight === '700' || contentEl.style.fontWeight === 'bold';
+      contentEl.style.fontWeight = isNowBold ? '' : '700';
+      document.getElementById('txt-bold-btn').classList.toggle('active', !isNowBold);
+    }
+    window.pushHistory();
+  });
+
   document.getElementById('txt-italic-btn').addEventListener('mousedown', () => {
     if (hasSel()) _savedItalicSel = window.getSelection().getRangeAt(0).cloneRange();
     else _savedItalicSel = null;
@@ -366,14 +395,44 @@ export function showTextProperties(tb) {
     window.pushHistory();
   });
 
-  /* 폰트 크기 */
+  /* 폰트 크기 — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   const sizeSlider = document.getElementById('txt-size-slider');
   const sizeNumber = document.getElementById('txt-size-number');
-  sizeSlider.addEventListener('input', () => { contentEl.style.fontSize = sizeSlider.value+'px'; sizeNumber.value = sizeSlider.value; });
+  let _savedSizeSel = null;
+  let _sizeSpan = null;
+
+  const saveSizeSel = () => {
+    if (hasSel()) { _savedSizeSel = window.getSelection().getRangeAt(0).cloneRange(); _sizeSpan = null; }
+    else { _savedSizeSel = null; _sizeSpan = null; }
+  };
+  const applySizeToSel = (v) => {
+    if (!_savedSizeSel) { contentEl.style.fontSize = v + 'px'; return; }
+    if (_sizeSpan) {
+      _sizeSpan.style.fontSize = v + 'px';
+    } else {
+      const r = _savedSizeSel.cloneRange();
+      const frag = r.extractContents();
+      _sizeSpan = document.createElement('span');
+      _sizeSpan.style.fontSize = v + 'px';
+      _sizeSpan.appendChild(frag);
+      r.insertNode(_sizeSpan);
+    }
+  };
+
+  sizeSlider.addEventListener('mousedown', saveSizeSel);
+  sizeSlider.addEventListener('input', () => {
+    const v = parseInt(sizeSlider.value);
+    applySizeToSel(v);
+    sizeNumber.value = v;
+  });
+  sizeSlider.addEventListener('change', () => { _savedSizeSel = null; _sizeSpan = null; window.pushHistory(); });
+  sizeNumber.addEventListener('mousedown', saveSizeSel);
   sizeNumber.addEventListener('input', () => {
     const v = Math.min(400, Math.max(8, parseInt(sizeNumber.value)||8));
-    contentEl.style.fontSize = v+'px'; sizeSlider.value = v;
+    applySizeToSel(v);
+    sizeSlider.value = v;
   });
+  sizeNumber.addEventListener('change', () => { _savedSizeSel = null; _sizeSpan = null; window.pushHistory(); });
 
   /* 색상 — 선택 영역이 있으면 해당 영역에만, 없으면 전체에 적용 */
   const colorPicker = document.getElementById('txt-color');
@@ -417,7 +476,9 @@ export function showTextProperties(tb) {
   /* 줄간격 */
   const lhSlider = document.getElementById('txt-lh-slider');
   const lhNumber = document.getElementById('txt-lh-number');
+  lhSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   lhSlider.addEventListener('input', () => { contentEl.style.lineHeight = lhSlider.value; lhNumber.value = parseFloat(lhSlider.value).toFixed(2); });
+  lhNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lhNumber.addEventListener('input', () => {
     const v = Math.min(3, Math.max(1, parseFloat(lhNumber.value)||1));
     contentEl.style.lineHeight = v; lhSlider.value = v;
@@ -426,7 +487,9 @@ export function showTextProperties(tb) {
   /* 자간 */
   const lsSlider = document.getElementById('txt-ls-slider');
   const lsNumber = document.getElementById('txt-ls-number');
+  lsSlider.addEventListener('mousedown', () => { window.pushHistory?.(); });
   lsSlider.addEventListener('input', () => { contentEl.style.letterSpacing = lsSlider.value + 'px'; lsNumber.value = lsSlider.value; });
+  lsNumber.addEventListener('change', () => { window.pushHistory?.(); });
   lsNumber.addEventListener('input', () => {
     const v = Math.min(40, Math.max(-10, parseFloat(lsNumber.value) || 0));
     contentEl.style.letterSpacing = v + 'px'; lsSlider.value = v;
