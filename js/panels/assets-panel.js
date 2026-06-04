@@ -10,41 +10,6 @@
 window._assetsImgCache = window._assetsImgCache || new Map();
 
 /* ════════════════════════════════════════════════════════════════════════
- * Folder Context — 폴더 진입 시 별도 뷰 (리스트 / 그리드 토글)
- * ════════════════════════════════════════════════════════════════════════ */
-let _assetsCurrentFolderId = null;
-let _assetsViewMode = (() => {
-  try { return localStorage.getItem('assets.viewMode') || 'list'; }
-  catch (_) { return 'list'; }
-})();
-let _assetsCardSize = (() => {
-  try { return parseInt(localStorage.getItem('assets.cardSize'), 10) || 80; }
-  catch (_) { return 80; }
-})();
-
-function _assetsEnterFolder(id) {
-  _assetsCurrentFolderId = id;
-  buildAssetsPanel();
-}
-function _assetsExitFolder() {
-  _assetsCurrentFolderId = null;
-  buildAssetsPanel();
-}
-function _assetsSetViewMode(m) {
-  if (m !== 'list' && m !== 'grid') return;
-  _assetsViewMode = m;
-  try { localStorage.setItem('assets.viewMode', m); } catch (_) {}
-  buildAssetsPanel();
-}
-function _assetsSetCardSize(n) {
-  n = Math.max(40, Math.min(160, parseInt(n, 10) || 80));
-  _assetsCardSize = n;
-  try { localStorage.setItem('assets.cardSize', String(n)); } catch (_) {}
-  const grid = document.querySelector('.assets-grid');
-  if (grid) grid.style.setProperty('--assets-card-size', n + 'px');
-}
-
-/* ════════════════════════════════════════════════════════════════════════
    Selection — 에셋 항목 선택 (단일/⌘다중/Shift범위) + Backspace 삭제
    ════════════════════════════════════════════════════════════════════════ */
 const _assetsSelectedIds = new Set();
@@ -138,6 +103,29 @@ function _assetsBindGlobalKeydown() {
 
 const ASSETS_ACCEPT_MIME = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp', 'image/gif'];
 const ASSETS_ACCEPT_ATTR = 'image/png,image/jpeg,image/svg+xml,image/webp,image/gif';
+
+// dataURL → Blob 직접 파싱 (Codex #7 — fetch round-trip 회피)
+function _dataUrlToBlobInline(dataUrl) {
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+  const head = dataUrl.indexOf(',');
+  if (head < 0) return null;
+  const meta = dataUrl.slice(5, head);
+  const data = dataUrl.slice(head + 1);
+  const parts = meta.split(';');
+  const mime = parts[0] || 'application/octet-stream';
+  const isBase64 = parts.slice(1).some(p => p.trim().toLowerCase() === 'base64');
+  let bytes;
+  try {
+    if (isBase64) {
+      const bin = atob(data);
+      bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    } else {
+      bytes = new TextEncoder().encode(decodeURIComponent(data));
+    }
+  } catch (_) { return null; }
+  return new Blob([bytes], { type: mime });
+}
 
 /* ── 유틸 ── */
 function _assetsProjectId() {
@@ -819,7 +807,8 @@ function _bindExternalFileDrop(treeEl, defaultParentId = null) {
       if (!payload?.src) return;
       const parentId = _resolveDropParent(e);
       try {
-        const blob = await (await fetch(payload.src)).blob();
+        // dataURL 직접 파싱 — fetch round-trip 회피 (Codex #7)
+        const blob = _dataUrlToBlobInline(payload.src) || await (await fetch(payload.src)).blob();
         const mime = blob.type || 'image/png';
         const ext = mime.includes('svg') ? 'svg' : (mime.includes('png') ? 'png' : (mime.includes('jpeg') ? 'jpg' : 'img'));
         const name = 'scratch_' + (payload.scratchId || Date.now()) + '.' + ext;
@@ -1124,108 +1113,6 @@ function _assetsBeginRowDrag(id, mouseEvent) {
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
-}
-
-/* ══════════════════════════════════════
-   Folder Context 렌더 (리스트/그리드 토글)
-══════════════════════════════════════ */
-function _renderFolderContext(host, folder) {
-  _renderFolderToolbar(host, folder);
-  _renderFolderActionBar(host, folder);
-
-  const body = document.createElement('div');
-  body.className = 'assets-folder-body';
-  host.appendChild(body);
-
-  if (!folder.children || folder.children.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'assets-tree-empty';
-    empty.innerHTML = '빈 폴더입니다.<br>+ 파일 / + URL 로 추가하거나<br>Finder에서 끌어다 놓으세요.';
-    body.appendChild(empty);
-    _bindExternalFileDrop(body, folder.id);
-    return;
-  }
-
-  if (_assetsViewMode === 'grid') {
-    _renderFolderGridView(body, folder);
-  } else {
-    folder.children.forEach(n => _renderTreeNode(n, 0, body));
-  }
-  _bindExternalFileDrop(body, folder.id);
-}
-
-function _renderFolderToolbar(host, folder) {
-  const tb = document.createElement('div');
-  tb.className = 'assets-folder-toolbar';
-  tb.innerHTML = `
-    <button class="assets-folder-back" title="상위로">←</button>
-    <span class="assets-folder-breadcrumb">
-      <a class="assets-bc-root" data-act="root">Assets</a>
-      <span class="assets-bc-sep">/</span>
-      <span class="assets-bc-current"></span>
-    </span>
-  `;
-  tb.querySelector('.assets-bc-current').textContent = folder.name || '';
-  tb.querySelector('.assets-folder-back').addEventListener('click', () => _assetsExitFolder());
-  tb.querySelector('.assets-bc-root').addEventListener('click', () => _assetsExitFolder());
-  host.appendChild(tb);
-}
-
-function _renderFolderActionBar(host, folder) {
-  const bar = document.createElement('div');
-  bar.className = 'assets-actionbar assets-actionbar--folder';
-  bar.innerHTML = `
-    <button class="assets-action-btn" data-act="new-folder" title="새 폴더">+ 폴더</button>
-    <button class="assets-action-btn" data-act="new-file"   title="파일 추가">+ 파일</button>
-    <button class="assets-action-btn" data-act="new-url"    title="URL 추가">+ URL</button>
-    <button class="assets-action-btn" data-act="import"     title="AI 갤러리에서 가져오기">📥</button>
-    <span class="assets-actionbar-sep"></span>
-    <button class="assets-view-toggle${_assetsViewMode==='list'?' active':''}" data-view="list" title="리스트 뷰">☰</button>
-    <button class="assets-view-toggle${_assetsViewMode==='grid'?' active':''}" data-view="grid" title="그리드 뷰">▣</button>
-    <input type="range" class="assets-card-size" min="40" max="160" step="8" value="${_assetsCardSize}" title="카드 크기 ${_assetsCardSize}px"${_assetsViewMode==='grid'?'':' disabled'}>
-  `;
-  host.appendChild(bar);
-
-  // hidden file input
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.multiple = true;
-  fileInput.accept = ASSETS_ACCEPT_ATTR;
-  fileInput.style.display = 'none';
-  fileInput.addEventListener('change', async () => {
-    const files = Array.from(fileInput.files || []);
-    if (files.length > 0) await assetsAddImageFiles(files, folder.id);
-    fileInput.value = '';
-  });
-  host.appendChild(fileInput);
-
-  bar.addEventListener('click', e => {
-    const actBtn = e.target.closest('button[data-act]');
-    if (actBtn) {
-      const act = actBtn.dataset.act;
-      if (act === 'new-folder') assetsCreateFolder(folder.id);
-      else if (act === 'new-file') fileInput.click();
-      else if (act === 'new-url') _assetsShowUrlPopover(bar);
-      else if (act === 'import') _assetsShowImportModal();
-      return;
-    }
-    const viewBtn = e.target.closest('.assets-view-toggle');
-    if (viewBtn) _assetsSetViewMode(viewBtn.dataset.view);
-  });
-
-  const slider = bar.querySelector('.assets-card-size');
-  slider.addEventListener('input', e => {
-    _assetsSetCardSize(parseInt(e.target.value, 10));
-    e.target.title = '카드 크기 ' + e.target.value + 'px';
-  });
-}
-
-function _renderFolderGridView(body, folder) {
-  const grid = document.createElement('div');
-  grid.className = 'assets-grid';
-  grid.style.setProperty('--assets-card-size', _assetsCardSize + 'px');
-  folder.children.forEach(n => grid.appendChild(_buildGridCard(n)));
-  body.appendChild(grid);
 }
 
 function _buildGridCard(node) {

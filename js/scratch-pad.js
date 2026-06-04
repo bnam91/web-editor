@@ -874,6 +874,31 @@ window._scratchRemoveById = async (id) => {
 };
 
 // ════════════════════════════════════════════════════════════════════════
+// dataURL → Blob 직접 파싱 (Codex #7 — fetch round-trip 회피)
+// ════════════════════════════════════════════════════════════════════════
+function _dataUrlToBlob(dataUrl) {
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+  const head = dataUrl.indexOf(',');
+  if (head < 0) return null;
+  const meta = dataUrl.slice(5, head); // 'image/png;base64' or 'image/svg+xml;utf8'
+  const data = dataUrl.slice(head + 1);
+  const parts = meta.split(';');
+  const mime = parts[0] || 'application/octet-stream';
+  const isBase64 = parts.slice(1).some(p => p.trim().toLowerCase() === 'base64');
+  let bytes;
+  try {
+    if (isBase64) {
+      const bin = atob(data);
+      bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    } else {
+      bytes = new TextEncoder().encode(decodeURIComponent(data));
+    }
+  } catch (_) { return null; }
+  return new Blob([bytes], { type: mime });
+}
+
+// ════════════════════════════════════════════════════════════════════════
 // Scratch → Assets — scratch 카드 우클릭 → 폴더 선택 메뉴
 // ════════════════════════════════════════════════════════════════════════
 function _scratchShowSendMenu(item, x, y) {
@@ -903,7 +928,8 @@ function _scratchShowSendMenu(item, x, y) {
       btn.addEventListener('click', async () => {
         menu.remove();
         try {
-          const blob = await (await fetch(item.src)).blob();
+          // dataURL 직접 파싱 — fetch round-trip 회피 (Codex #7)
+          const blob = _dataUrlToBlob(item.src) || await (await fetch(item.src)).blob();
           const mime = blob.type || 'image/png';
           const ext = mime.includes('svg') ? 'svg' : (mime.includes('png') ? 'png' : (mime.includes('jpeg') ? 'jpg' : 'img'));
           const name = 'scratch_' + (item.id || Date.now()) + '.' + ext;
