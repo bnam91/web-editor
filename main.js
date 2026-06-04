@@ -179,6 +179,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: windowTitle,
+    icon: path.join(__dirname, 'build/icon.png'),
     ...(isMac ? { titleBarStyle: 'hiddenInset' } : { titleBarStyle: 'default' }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

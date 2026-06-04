@@ -464,6 +464,13 @@ function _createItem(src, x, y, w = 220, idArg) {
   });
   el.appendChild(resizeH);
 
+  // 우클릭 → 자산 폴더로 보내기 메뉴
+  el.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    _scratchShowSendMenu(item, e.clientX, e.clientY);
+  });
+
   el.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (e.target === closeBtn || e.target === resizeH || e.target === idChip || e.target === sliceBtn) return;
@@ -865,3 +872,104 @@ window._scratchRemoveById = async (id) => {
   await _saveScratch();
   return true;
 };
+
+// ════════════════════════════════════════════════════════════════════════
+// Scratch → Assets — scratch 카드 우클릭 → 폴더 선택 메뉴
+// ════════════════════════════════════════════════════════════════════════
+function _scratchShowSendMenu(item, x, y) {
+  document.querySelectorAll('.scratch-send-menu').forEach(m => m.remove());
+  const folders = (typeof window.assetsGetAllFolders === 'function')
+    ? window.assetsGetAllFolders()
+    : [];
+  const menu = document.createElement('div');
+  menu.className = 'scratch-send-menu';
+  menu.style.cssText = `position:fixed; left:${x}px; top:${y}px; z-index:99999; min-width:180px; max-height:320px; overflow:auto; background:#1a1a1a; border:1px solid #333; border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,0.5); padding:4px 0; font-size:12px; color:#e0e0e0;`;
+  const header = document.createElement('div');
+  header.textContent = '자산 폴더로 보내기';
+  header.style.cssText = 'padding:6px 10px; color:#888; font-size:10px; border-bottom:1px solid #333; margin-bottom:4px;';
+  menu.appendChild(header);
+  if (folders.length === 0) {
+    const empty = document.createElement('div');
+    empty.textContent = '폴더 없음 — 에셋 탭에서 폴더 생성';
+    empty.style.cssText = 'padding:8px 10px; color:#888;';
+    menu.appendChild(empty);
+  } else {
+    folders.forEach(f => {
+      const btn = document.createElement('div');
+      btn.style.cssText = `padding:6px 10px; padding-left:${10 + f.depth * 12}px; cursor:pointer;`;
+      btn.innerHTML = `<span style="opacity:0.6;">📁</span> ${f.name || '(이름 없음)'}`;
+      btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(45,111,232,0.18)');
+      btn.addEventListener('mouseleave', () => btn.style.background = '');
+      btn.addEventListener('click', async () => {
+        menu.remove();
+        try {
+          const blob = await (await fetch(item.src)).blob();
+          const mime = blob.type || 'image/png';
+          const ext = mime.includes('svg') ? 'svg' : (mime.includes('png') ? 'png' : (mime.includes('jpeg') ? 'jpg' : 'img'));
+          const name = 'scratch_' + (item.id || Date.now()) + '.' + ext;
+          const file = new File([blob], name, { type: mime });
+          await window.assetsAddImageFiles?.([file], f.id);
+        } catch (err) {
+          console.warn('[scratch → assets] 실패:', err);
+        }
+      });
+      menu.appendChild(btn);
+    });
+  }
+  document.body.appendChild(menu);
+  // 화면 경계 보정
+  const r = menu.getBoundingClientRect();
+  if (r.right > window.innerWidth) menu.style.left = (window.innerWidth - r.width - 8) + 'px';
+  if (r.bottom > window.innerHeight) menu.style.top = (window.innerHeight - r.height - 8) + 'px';
+  // 바깥 클릭 시 닫기
+  setTimeout(() => {
+    const close = e => {
+      if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', close, true); }
+    };
+    document.addEventListener('mousedown', close, true);
+  }, 0);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Assets → Scratch — 자산 패널에서 끌어 온 이미지를 스크래치 카드로 추가
+//   캔버스 어디든 (scaler 안 섹션, scaler 밖 wrap 회색 영역 모두) 받음
+// ════════════════════════════════════════════════════════════════════════
+function _bindAssetToScratchDrop() {
+  const _hasAssetMIME = dt => dt && Array.from(dt.types || []).includes('application/x-goditor-asset');
+  const _dragover = e => {
+    if (!_hasAssetMIME(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const _drop = async e => {
+    if (!_hasAssetMIME(e.dataTransfer)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation(); // Codex #6 — 같은 target 다른 listener 차단
+    let payload;
+    try { payload = JSON.parse(e.dataTransfer.getData('application/x-goditor-asset') || '{}'); } catch (_) { payload = null; }
+    if (!payload?.assetId) return;
+    const dataUrl = await window.assetsGetDataUrl?.(payload.assetId);
+    if (!dataUrl) return;
+    const scaler = document.getElementById('canvas-scaler');
+    if (!scaler) return;
+    const rect = scaler.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) - 110); // width 220 가운데 정렬
+    const y = Math.round((e.clientY - rect.top) - 60);
+    await window._scratchAddAndSave?.(dataUrl, x, y, 220);
+  };
+
+  // scaler (캔버스 내부 — 섹션·블록 영역) + wrap (scaler 외 회색 배경) 둘 다 등록
+  for (const id of ['canvas-scaler', 'canvas-wrap']) {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.assetDropBound === '1') continue;
+    el.dataset.assetDropBound = '1';
+    el.addEventListener('dragover', _dragover, true);
+    el.addEventListener('drop', _drop, true);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _bindAssetToScratchDrop);
+} else {
+  _bindAssetToScratchDrop();
+}

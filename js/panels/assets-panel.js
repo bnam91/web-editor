@@ -9,6 +9,133 @@
 // 메모리 캐시: id → dataUrl (페이지 reload 후 lazy load)
 window._assetsImgCache = window._assetsImgCache || new Map();
 
+/* ════════════════════════════════════════════════════════════════════════
+ * Folder Context — 폴더 진입 시 별도 뷰 (리스트 / 그리드 토글)
+ * ════════════════════════════════════════════════════════════════════════ */
+let _assetsCurrentFolderId = null;
+let _assetsViewMode = (() => {
+  try { return localStorage.getItem('assets.viewMode') || 'list'; }
+  catch (_) { return 'list'; }
+})();
+let _assetsCardSize = (() => {
+  try { return parseInt(localStorage.getItem('assets.cardSize'), 10) || 80; }
+  catch (_) { return 80; }
+})();
+
+function _assetsEnterFolder(id) {
+  _assetsCurrentFolderId = id;
+  buildAssetsPanel();
+}
+function _assetsExitFolder() {
+  _assetsCurrentFolderId = null;
+  buildAssetsPanel();
+}
+function _assetsSetViewMode(m) {
+  if (m !== 'list' && m !== 'grid') return;
+  _assetsViewMode = m;
+  try { localStorage.setItem('assets.viewMode', m); } catch (_) {}
+  buildAssetsPanel();
+}
+function _assetsSetCardSize(n) {
+  n = Math.max(40, Math.min(160, parseInt(n, 10) || 80));
+  _assetsCardSize = n;
+  try { localStorage.setItem('assets.cardSize', String(n)); } catch (_) {}
+  const grid = document.querySelector('.assets-grid');
+  if (grid) grid.style.setProperty('--assets-card-size', n + 'px');
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Selection — 에셋 항목 선택 (단일/⌘다중/Shift범위) + Backspace 삭제
+   ════════════════════════════════════════════════════════════════════════ */
+const _assetsSelectedIds = new Set();
+let _assetsLastClickedId = null;
+
+function _assetsClearSelection() {
+  _assetsSelectedIds.clear();
+  document.querySelectorAll('.assets-row--selected, .assets-grid-card--selected').forEach(el => {
+    el.classList.remove('assets-row--selected', 'assets-grid-card--selected');
+  });
+}
+function _assetsSetSelectedClass(id, on) {
+  document.querySelectorAll(`[data-asset-id="${id}"]`).forEach(el => {
+    if (el.classList.contains('assets-row')) {
+      el.classList.toggle('assets-row--selected', on);
+    } else if (el.classList.contains('assets-grid-card')) {
+      el.classList.toggle('assets-grid-card--selected', on);
+    }
+  });
+}
+function _assetsSetSelected(id, on) {
+  if (on) _assetsSelectedIds.add(id);
+  else _assetsSelectedIds.delete(id);
+  _assetsSetSelectedClass(id, on);
+}
+function _assetsGetVisibleOrder() {
+  const out = [];
+  const walk = (arr) => {
+    if (!arr) return;
+    for (const n of arr) {
+      out.push(n.id);
+      if (n.type === 'folder' && !n.collapsed && n.children) walk(n.children);
+    }
+  };
+  walk(_assetsTreeRef());
+  return out;
+}
+function _assetsSelectRange(fromId, toId) {
+  const order = _assetsGetVisibleOrder();
+  const a = order.indexOf(fromId), b = order.indexOf(toId);
+  if (a < 0 || b < 0) return;
+  const [lo, hi] = a < b ? [a, b] : [b, a];
+  for (let i = lo; i <= hi; i++) _assetsSetSelected(order[i], true);
+}
+function _assetsHandleSelectClick(id, e) {
+  if (e.shiftKey && _assetsLastClickedId) {
+    if (!(e.metaKey || e.ctrlKey)) _assetsClearSelection();
+    _assetsSelectRange(_assetsLastClickedId, id);
+    _assetsSetSelected(id, true);
+  } else if (e.metaKey || e.ctrlKey) {
+    _assetsSetSelected(id, !_assetsSelectedIds.has(id));
+    _assetsLastClickedId = id;
+  } else {
+    _assetsClearSelection();
+    _assetsSetSelected(id, true);
+    _assetsLastClickedId = id;
+  }
+}
+function _assetsReapplySelectionClasses() {
+  // buildAssetsPanel rebuild 후 클래스 재적용
+  for (const id of _assetsSelectedIds) _assetsSetSelectedClass(id, true);
+}
+function _assetsBindGlobalKeydown() {
+  if (window._assetsKeydownBound) return;
+  window._assetsKeydownBound = true;
+  document.addEventListener('keydown', async e => {
+    if (e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Escape') return;
+    if (_assetsSelectedIds.size === 0) return;
+    // input/textarea/contenteditable focused 시 무시 (rename 등)
+    const ae = document.activeElement;
+    if (ae) {
+      const tag = (ae.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || ae.isContentEditable) return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      _assetsClearSelection();
+      return;
+    }
+    e.preventDefault();
+    const ids = [..._assetsSelectedIds];
+    const msg = ids.length === 1 ? '선택한 자산 1개를 삭제할까요? (폴더면 하위 포함)' : `선택한 자산 ${ids.length}개를 삭제할까요? (폴더면 하위 포함)`;
+    if (!window.confirm(msg)) return;
+    for (const id of ids) {
+      try { await assetsDeleteNode(id); } catch (_) {}
+    }
+    _assetsSelectedIds.clear();
+    _assetsLastClickedId = null;
+  });
+}
+
 const ASSETS_ACCEPT_MIME = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp', 'image/gif'];
 const ASSETS_ACCEPT_ATTR = 'image/png,image/jpeg,image/svg+xml,image/webp,image/gif';
 
@@ -407,7 +534,15 @@ function _renderTreeNode(node, depth, parentEl) {
   const btnSend = node.type === 'image' ? `<button data-act="send" title="캔버스로 보내기">↗</button>` : '';
   const btnOpen = node.type === 'url' ? `<button data-act="open" title="링크 열기">↗</button>` : '';
   const btnDel = `<button data-act="delete" title="삭제">🗑</button>`;
-  actions.innerHTML = btnRename + btnSend + btnOpen + btnDel;
+  // 폴더 전용 — 리스트/그리드 인라인 토글 (SVG)
+  let btnView = '';
+  if (node.type === 'folder') {
+    const isGrid = node.viewMode === 'grid';
+    btnView = isGrid
+      ? `<button data-act="view-toggle" title="리스트로" class="assets-view-icon active"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="4" height="4"/><rect x="7" y="1" width="4" height="4"/><rect x="1" y="7" width="4" height="4"/><rect x="7" y="7" width="4" height="4"/></svg></button>`
+      : `<button data-act="view-toggle" title="그리드로" class="assets-view-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><line x1="2" y1="3" x2="10" y2="3"/><line x1="2" y1="6" x2="10" y2="6"/><line x1="2" y1="9" x2="10" y2="9"/></svg></button>`;
+  }
+  actions.innerHTML = btnView + btnRename + btnSend + btnOpen + btnDel;
   actions.addEventListener('click', e => {
     const btn = e.target.closest('button[data-act]');
     if (!btn) return;
@@ -418,6 +553,15 @@ function _renderTreeNode(node, depth, parentEl) {
     else if (act === 'open' && node.type === 'url') {
       try { window.open(node.url, '_blank'); } catch (_) {}
     } else if (act === 'delete') assetsDeleteNode(node.id);
+    else if (act === 'view-toggle' && node.type === 'folder') {
+      node.viewMode = (node.viewMode === 'grid') ? 'list' : 'grid';
+      if (node.viewMode === 'grid') {
+        if (!node.cardSize) node.cardSize = 56;
+        if (node.collapsed) node.collapsed = false; // 그리드 켜면 자동 펼침
+      }
+      buildAssetsPanel();
+      window.triggerAutoSave?.();
+    }
   });
   row.appendChild(actions);
 
@@ -430,11 +574,73 @@ function _renderTreeNode(node, depth, parentEl) {
     _assetsBeginRowDrag(node.id, e);
   });
 
+  // HTML5 native drag — 다른 폴더 이동 + 캔버스(scratch) cross-element drop
+  if (node.type === 'image' || node.type === 'folder') {
+    row.draggable = true;
+    row.addEventListener('dragstart', e => {
+      // 액션/체브론/rename 영역에서 시작하면 native drag 막음 (오동작 방지)
+      if (e.target.closest && (
+        e.target.closest('.assets-row-actions') ||
+        e.target.closest('.assets-chevron') ||
+        e.target.closest('.assets-row-name[contenteditable="true"]')
+      )) {
+        e.preventDefault();
+        return;
+      }
+      e.dataTransfer.setData('application/x-goditor-asset', JSON.stringify({ assetId: node.id, kind: node.type }));
+      e.dataTransfer.effectAllowed = 'copyMove';
+      if (node.type === 'image') {
+        const thumb = row.querySelector('.assets-row-thumb');
+        try { if (thumb) e.dataTransfer.setDragImage(thumb, 16, 16); } catch (_) {}
+      }
+    });
+  }
+
+  // click — 선택 (chevron/actions/rename input 영역 제외)
+  row.addEventListener('click', e => {
+    if (e.target.closest('.assets-row-actions, .assets-chevron')) return;
+    if (e.target.closest('.assets-row-name[contenteditable="true"]')) return;
+    _assetsHandleSelectClick(node.id, e);
+  });
+
   parentEl.appendChild(row);
 
   // 자식
-  if (node.type === 'folder' && !node.collapsed && Array.isArray(node.children)) {
-    node.children.forEach(c => _renderTreeNode(c, depth + 1, parentEl));
+  if (node.type === 'folder' && !node.collapsed && Array.isArray(node.children) && node.children.length > 0) {
+    if (node.viewMode === 'grid') {
+      // 인라인 그리드 + slider strip
+      const wrap = document.createElement('div');
+      wrap.className = 'assets-inline-grid-wrap';
+      wrap.style.paddingLeft = `calc(20px + ${depth} * 14px)`;
+
+      const cardSize = node.cardSize || 56;
+
+      const strip = document.createElement('div');
+      strip.className = 'assets-inline-grid-strip';
+      strip.innerHTML = `<input type="range" min="40" max="160" step="8" value="${cardSize}" class="assets-card-size" title="카드 크기 ${cardSize}px"><span class="assets-card-size-val">${cardSize}px</span>`;
+      const slider = strip.querySelector('input');
+      const sizeLabel = strip.querySelector('.assets-card-size-val');
+      slider.addEventListener('input', e => {
+        const v = parseInt(e.target.value, 10);
+        node.cardSize = v;
+        const grid = wrap.querySelector('.assets-grid');
+        if (grid) grid.style.setProperty('--assets-card-size', v + 'px');
+        if (sizeLabel) sizeLabel.textContent = v + 'px';
+        slider.title = '카드 크기 ' + v + 'px';
+        window.triggerAutoSave?.();
+      });
+      wrap.appendChild(strip);
+
+      const grid = document.createElement('div');
+      grid.className = 'assets-grid';
+      grid.style.setProperty('--assets-card-size', cardSize + 'px');
+      node.children.forEach(c => grid.appendChild(_buildGridCard(c)));
+      wrap.appendChild(grid);
+
+      parentEl.appendChild(wrap);
+    } else {
+      node.children.forEach(c => _renderTreeNode(c, depth + 1, parentEl));
+    }
   }
 }
 
@@ -486,6 +692,7 @@ function _assetsBeginInlineRename(nameEl, id) {
 function buildAssetsPanel() {
   const host = document.getElementById('assets-panel-body');
   if (!host) return;
+
   const tree = _assetsTreeRef();
 
   // 기존 컨텐츠 제거 (innerHTML — 좌측 패널 내부에만 한정, 캔버스 아님)
@@ -498,7 +705,6 @@ function buildAssetsPanel() {
     <button class="assets-action-btn" data-act="new-folder" title="새 폴더">+ 폴더</button>
     <button class="assets-action-btn" data-act="new-file"   title="파일 추가">+ 파일</button>
     <button class="assets-action-btn" data-act="new-url"    title="URL 추가">+ URL</button>
-    <button class="assets-action-btn" data-act="import"     title="AI 갤러리에서 가져오기">📥 갤러리</button>
   `;
   host.appendChild(bar);
 
@@ -542,18 +748,36 @@ function buildAssetsPanel() {
 
   // 외부 파일 드롭 — Files 타입만 수신
   _bindExternalFileDrop(treeEl);
+  // 선택 클래스 재적용 (rebuild 후 visual state 유지)
+  _assetsReapplySelectionClasses();
 }
 
-/* ── 외부 파일(Finder) 드래그 ── */
-function _bindExternalFileDrop(treeEl) {
+/* ── 외부 파일(Finder) 드래그 + scratch → asset 폴더 드롭 ── */
+function _bindExternalFileDrop(treeEl, defaultParentId = null) {
   let overTimer = null;
+  const _isExternalFile = dt => dt && Array.from(dt.types || []).includes('Files');
+  const _isScratchDrag = dt => dt && Array.from(dt.types || []).includes('application/x-goditor-scratch');
+  const _isAssetDrag = dt => dt && Array.from(dt.types || []).includes('application/x-goditor-asset');
+  const _resolveDropParent = (e) => {
+    const row = e.target.closest && e.target.closest('.assets-row--folder');
+    if (row) return row.dataset.assetId;
+    const gridFolder = e.target.closest && e.target.closest('.assets-grid-card--folder');
+    if (gridFolder) return gridFolder.dataset.assetId;
+    const wrap = e.target.closest && e.target.closest('.assets-inline-grid-wrap');
+    if (wrap) {
+      const sibling = wrap.previousElementSibling;
+      if (sibling && sibling.classList.contains('assets-row--folder')) return sibling.dataset.assetId;
+    }
+    return defaultParentId;
+  };
+
   const onOver = e => {
-    if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+    if (!_isExternalFile(e.dataTransfer) && !_isScratchDrag(e.dataTransfer) && !_isAssetDrag(e.dataTransfer)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+    e.dataTransfer.dropEffect = _isAssetDrag(e.dataTransfer) ? 'move' : 'copy';
     treeEl.classList.add('assets-drop-target');
-    // 폴더 행 하이라이트
-    const row = (e.target.closest && e.target.closest('.assets-row--folder'));
+    const row = (e.target.closest && e.target.closest('.assets-row--folder'))
+      || (e.target.closest && e.target.closest('.assets-grid-card--folder'));
     treeEl.querySelectorAll('.assets-row--drop-into').forEach(r => r.classList.remove('assets-row--drop-into'));
     if (row) row.classList.add('assets-row--drop-into');
     clearTimeout(overTimer);
@@ -564,12 +788,54 @@ function _bindExternalFileDrop(treeEl) {
     treeEl.querySelectorAll('.assets-row--drop-into').forEach(r => r.classList.remove('assets-row--drop-into'));
   };
   const onDrop = async e => {
-    if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+    // 0) asset → asset 폴더 (트리 내 노드 이동)
+    if (_isAssetDrag(e.dataTransfer)) {
+      e.preventDefault();
+      treeEl.classList.remove('assets-drop-target');
+      treeEl.querySelectorAll('.assets-row--drop-into').forEach(r => r.classList.remove('assets-row--drop-into'));
+      let payload;
+      try { payload = JSON.parse(e.dataTransfer.getData('application/x-goditor-asset') || '{}'); } catch (_) { payload = null; }
+      if (!payload?.assetId) return;
+      const newParentId = _resolveDropParent(e);
+      // 자기 자신으로 이동, 자기 자손으로 이동, 동일 부모면 noop
+      if (newParentId === payload.assetId) return;
+      const found = _assetsFindNodeById(payload.assetId);
+      if (!found) return;
+      const currentParentId = found.parent ? found.parent.id : null;
+      if (currentParentId === newParentId) return; // 같은 부모면 무동작
+      if (newParentId && _assetsIsDescendant(payload.assetId, newParentId)) return; // 사이클 가드
+      assetsMoveNode(payload.assetId, newParentId, null);
+      buildAssetsPanel();
+      window.triggerAutoSave?.();
+      return;
+    }
+    // 1) scratch 카드 → asset 폴더
+    if (_isScratchDrag(e.dataTransfer)) {
+      e.preventDefault();
+      treeEl.classList.remove('assets-drop-target');
+      treeEl.querySelectorAll('.assets-row--drop-into').forEach(r => r.classList.remove('assets-row--drop-into'));
+      let payload;
+      try { payload = JSON.parse(e.dataTransfer.getData('application/x-goditor-scratch') || '{}'); } catch (_) { payload = null; }
+      if (!payload?.src) return;
+      const parentId = _resolveDropParent(e);
+      try {
+        const blob = await (await fetch(payload.src)).blob();
+        const mime = blob.type || 'image/png';
+        const ext = mime.includes('svg') ? 'svg' : (mime.includes('png') ? 'png' : (mime.includes('jpeg') ? 'jpg' : 'img'));
+        const name = 'scratch_' + (payload.scratchId || Date.now()) + '.' + ext;
+        const file = new File([blob], name, { type: mime });
+        await assetsAddImageFiles([file], parentId);
+      } catch (err) {
+        console.warn('[assets] scratch drop 실패:', err);
+      }
+      return;
+    }
+    // 2) 외부 파일 (기존)
+    if (!_isExternalFile(e.dataTransfer)) return;
     e.preventDefault();
     treeEl.classList.remove('assets-drop-target');
-    const targetRow = e.target.closest && e.target.closest('.assets-row--folder');
-    const parentId = targetRow ? targetRow.dataset.assetId : null;
     treeEl.querySelectorAll('.assets-row--drop-into').forEach(r => r.classList.remove('assets-row--drop-into'));
+    const parentId = _resolveDropParent(e);
     await assetsAddImageFiles(e.dataTransfer.files, parentId);
   };
   treeEl.addEventListener('dragover', onOver);
@@ -861,6 +1127,176 @@ function _assetsBeginRowDrag(id, mouseEvent) {
 }
 
 /* ══════════════════════════════════════
+   Folder Context 렌더 (리스트/그리드 토글)
+══════════════════════════════════════ */
+function _renderFolderContext(host, folder) {
+  _renderFolderToolbar(host, folder);
+  _renderFolderActionBar(host, folder);
+
+  const body = document.createElement('div');
+  body.className = 'assets-folder-body';
+  host.appendChild(body);
+
+  if (!folder.children || folder.children.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'assets-tree-empty';
+    empty.innerHTML = '빈 폴더입니다.<br>+ 파일 / + URL 로 추가하거나<br>Finder에서 끌어다 놓으세요.';
+    body.appendChild(empty);
+    _bindExternalFileDrop(body, folder.id);
+    return;
+  }
+
+  if (_assetsViewMode === 'grid') {
+    _renderFolderGridView(body, folder);
+  } else {
+    folder.children.forEach(n => _renderTreeNode(n, 0, body));
+  }
+  _bindExternalFileDrop(body, folder.id);
+}
+
+function _renderFolderToolbar(host, folder) {
+  const tb = document.createElement('div');
+  tb.className = 'assets-folder-toolbar';
+  tb.innerHTML = `
+    <button class="assets-folder-back" title="상위로">←</button>
+    <span class="assets-folder-breadcrumb">
+      <a class="assets-bc-root" data-act="root">Assets</a>
+      <span class="assets-bc-sep">/</span>
+      <span class="assets-bc-current"></span>
+    </span>
+  `;
+  tb.querySelector('.assets-bc-current').textContent = folder.name || '';
+  tb.querySelector('.assets-folder-back').addEventListener('click', () => _assetsExitFolder());
+  tb.querySelector('.assets-bc-root').addEventListener('click', () => _assetsExitFolder());
+  host.appendChild(tb);
+}
+
+function _renderFolderActionBar(host, folder) {
+  const bar = document.createElement('div');
+  bar.className = 'assets-actionbar assets-actionbar--folder';
+  bar.innerHTML = `
+    <button class="assets-action-btn" data-act="new-folder" title="새 폴더">+ 폴더</button>
+    <button class="assets-action-btn" data-act="new-file"   title="파일 추가">+ 파일</button>
+    <button class="assets-action-btn" data-act="new-url"    title="URL 추가">+ URL</button>
+    <button class="assets-action-btn" data-act="import"     title="AI 갤러리에서 가져오기">📥</button>
+    <span class="assets-actionbar-sep"></span>
+    <button class="assets-view-toggle${_assetsViewMode==='list'?' active':''}" data-view="list" title="리스트 뷰">☰</button>
+    <button class="assets-view-toggle${_assetsViewMode==='grid'?' active':''}" data-view="grid" title="그리드 뷰">▣</button>
+    <input type="range" class="assets-card-size" min="40" max="160" step="8" value="${_assetsCardSize}" title="카드 크기 ${_assetsCardSize}px"${_assetsViewMode==='grid'?'':' disabled'}>
+  `;
+  host.appendChild(bar);
+
+  // hidden file input
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.multiple = true;
+  fileInput.accept = ASSETS_ACCEPT_ATTR;
+  fileInput.style.display = 'none';
+  fileInput.addEventListener('change', async () => {
+    const files = Array.from(fileInput.files || []);
+    if (files.length > 0) await assetsAddImageFiles(files, folder.id);
+    fileInput.value = '';
+  });
+  host.appendChild(fileInput);
+
+  bar.addEventListener('click', e => {
+    const actBtn = e.target.closest('button[data-act]');
+    if (actBtn) {
+      const act = actBtn.dataset.act;
+      if (act === 'new-folder') assetsCreateFolder(folder.id);
+      else if (act === 'new-file') fileInput.click();
+      else if (act === 'new-url') _assetsShowUrlPopover(bar);
+      else if (act === 'import') _assetsShowImportModal();
+      return;
+    }
+    const viewBtn = e.target.closest('.assets-view-toggle');
+    if (viewBtn) _assetsSetViewMode(viewBtn.dataset.view);
+  });
+
+  const slider = bar.querySelector('.assets-card-size');
+  slider.addEventListener('input', e => {
+    _assetsSetCardSize(parseInt(e.target.value, 10));
+    e.target.title = '카드 크기 ' + e.target.value + 'px';
+  });
+}
+
+function _renderFolderGridView(body, folder) {
+  const grid = document.createElement('div');
+  grid.className = 'assets-grid';
+  grid.style.setProperty('--assets-card-size', _assetsCardSize + 'px');
+  folder.children.forEach(n => grid.appendChild(_buildGridCard(n)));
+  body.appendChild(grid);
+}
+
+function _buildGridCard(node) {
+  const card = document.createElement('div');
+  card.className = 'assets-grid-card assets-grid-card--' + node.type;
+  card.dataset.assetId = node.id;
+  card.title = (node.type === 'url' ? (node.title || node.url || '') : (node.name || '')) || '';
+
+  const thumbBox = document.createElement('div');
+  thumbBox.className = 'assets-grid-thumb';
+  if (node.type === 'folder') {
+    thumbBox.innerHTML = _folderIconLarge();
+  } else if (node.type === 'url') {
+    thumbBox.innerHTML = _urlIconLarge();
+  } else if (node.type === 'image') {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.draggable = false;
+    thumbBox.appendChild(img);
+    assetsGetDataUrl(node.id).then(d => { if (d) img.src = d; });
+  }
+  card.appendChild(thumbBox);
+
+  const name = document.createElement('div');
+  name.className = 'assets-grid-name';
+  name.textContent = (node.type === 'url' ? node.title : node.name) || '';
+  card.appendChild(name);
+
+  // 단일 클릭 = 선택 (다중: ⌘+클릭 / Shift+범위)
+  card.addEventListener('click', e => {
+    _assetsHandleSelectClick(node.id, e);
+  });
+
+  if (node.type === 'folder') {
+    // 폴더도 grid 카드 자체 draggable — 다른 폴더 위로 끌어 이동 가능 (assetsMoveNode)
+    card.draggable = true;
+    card.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('application/x-goditor-asset', JSON.stringify({ assetId: node.id, kind: 'folder' }));
+      e.dataTransfer.effectAllowed = 'copyMove';
+    });
+  } else if (node.type === 'image') {
+    card.addEventListener('dblclick', () => assetsSendToCanvas(node.id));
+    // Assets → Scratch (canvas) + Assets → 다른 폴더(이동) 둘 다 같은 MIME
+    card.draggable = true;
+    card.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('application/x-goditor-asset', JSON.stringify({ assetId: node.id, kind: 'image' }));
+      e.dataTransfer.effectAllowed = 'copyMove';
+      const imgEl = card.querySelector('img');
+      try { if (imgEl) e.dataTransfer.setDragImage(imgEl, 20, 20); } catch (_) {}
+    });
+  } else if (node.type === 'url') {
+    card.addEventListener('dblclick', () => { try { window.open(node.url, '_blank'); } catch(_){} });
+  }
+  return card;
+}
+
+function _folderIconLarge() {
+  return `<svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M8 24 L8 70 Q8 76 14 76 L86 76 Q92 76 92 70 L92 30 Q92 24 86 24 L48 24 L40 14 Q38 12 36 12 L14 12 Q8 12 8 18 Z" fill="#f4c450" stroke="#c89a25" stroke-width="1"/>
+    <path d="M8 28 L8 18 Q8 12 14 12 L36 12 Q38 12 40 14 L48 24 L86 24 Q92 24 92 30 L92 32 L8 32 Z" fill="#e8b03f" opacity="0.55"/>
+  </svg>`;
+}
+
+function _urlIconLarge() {
+  return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+    <path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1.5 1.5"/>
+    <path d="M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1.5-1.5"/>
+  </svg>`;
+}
+
+/* ══════════════════════════════════════
    공개 노출
 ══════════════════════════════════════ */
 window.buildAssetsPanel        = buildAssetsPanel;
@@ -877,7 +1313,24 @@ window.assetsFindNode          = assetsFindNode;
 window.assetsAddNode           = assetsAddNode;
 window.assetsRemoveNode        = assetsRemoveNode;
 
+// 트리 전체 폴더 목록 (scratch 우클릭 메뉴 등에서 사용)
+window.assetsGetAllFolders = function () {
+  const out = [];
+  const walk = (arr, depth) => {
+    if (!arr) return;
+    for (const n of arr) {
+      if (n.type === 'folder') {
+        out.push({ id: n.id, name: n.name || '', depth });
+        if (Array.isArray(n.children)) walk(n.children, depth + 1);
+      }
+    }
+  };
+  walk(_assetsTreeRef(), 0);
+  return out;
+};
+
 // 초기 렌더 (state.assetsTree는 globals.js에서 [] 초기화됨)
 document.addEventListener('DOMContentLoaded', () => {
   buildAssetsPanel();
+  _assetsBindGlobalKeydown();
 });

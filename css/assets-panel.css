@@ -364,3 +364,239 @@
 .assets-import-footer-actions button:not(:disabled):hover {
   background: var(--ui-accent-primary-hover);
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Folder Context — 폴더 진입 시 toolbar / breadcrumb / view toggle / grid
+   ════════════════════════════════════════════════════════════════════════ */
+
+.assets-folder-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ui-border-subtle, rgba(255,255,255,0.06));
+  background: var(--ui-panel-bg, rgba(255,255,255,0.02));
+}
+.assets-folder-back {
+  background: transparent;
+  color: var(--ui-text-primary, #e0e0e0);
+  border: 1px solid var(--ui-border-subtle, rgba(255,255,255,0.08));
+  border-radius: 4px;
+  padding: 2px 9px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.assets-folder-back:hover {
+  background: var(--ui-bg-hover, rgba(255,255,255,0.06));
+}
+.assets-folder-breadcrumb {
+  font-size: 12px;
+  color: var(--ui-text-secondary, #999);
+  display: inline-flex;
+  align-items: center;
+}
+.assets-bc-root {
+  color: var(--ui-accent-primary, #2d6fe8);
+  cursor: pointer;
+  text-decoration: none;
+}
+.assets-bc-root:hover { text-decoration: underline; }
+.assets-bc-sep { margin: 0 5px; opacity: 0.6; }
+.assets-bc-current {
+  color: var(--ui-text-primary, #e0e0e0);
+  font-weight: 500;
+}
+
+/* Action bar — folder mode (toggle + slider) */
+.assets-actionbar--folder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+.assets-actionbar--folder .assets-actionbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--ui-border-subtle, rgba(255,255,255,0.1));
+  margin: 0 4px;
+}
+.assets-view-toggle {
+  background: transparent;
+  color: var(--ui-text-primary, #e0e0e0);
+  border: 1px solid var(--ui-border-subtle, rgba(255,255,255,0.08));
+  border-radius: 4px;
+  padding: 2px 7px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.assets-view-toggle:hover {
+  background: var(--ui-bg-hover, rgba(255,255,255,0.06));
+}
+.assets-view-toggle.active {
+  background: var(--ui-accent-primary, #2d6fe8);
+  border-color: var(--ui-accent-primary, #2d6fe8);
+  color: #fff;
+}
+.assets-card-size {
+  flex: 1;
+  min-width: 50px;
+  max-width: 90px;
+  margin-left: 4px;
+  height: 18px;
+  cursor: pointer;
+}
+.assets-card-size:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Body container */
+.assets-folder-body { padding: 4px 0; }
+
+/* Grid */
+.assets-grid {
+  --assets-card-size: 80px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--assets-card-size), 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+.assets-grid-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+.assets-grid-card:hover {
+  background: var(--ui-bg-hover, rgba(255,255,255,0.06));
+}
+.assets-grid-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ui-bg-input, rgba(255,255,255,0.04));
+}
+.assets-grid-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.assets-grid-thumb svg {
+  width: 70%;
+  height: 70%;
+}
+.assets-grid-card--folder .assets-grid-thumb {
+  background: transparent; /* 폴더 SVG 자체가 시각적 */
+}
+.assets-grid-name {
+  margin-top: 4px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--ui-text-primary, #e0e0e0);
+  width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  line-height: 1.3;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Inline grid — 폴더 행 아래 펼침 시 children grid 렌더 (folder별 토글)
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* 폴더 액션 영역의 view-toggle 아이콘 */
+.assets-row-actions .assets-view-icon {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ui-text-secondary, #888);
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.assets-row-actions .assets-view-icon:hover {
+  background: var(--ui-bg-hover, rgba(255,255,255,0.08));
+  color: var(--ui-text-primary, #e0e0e0);
+}
+.assets-row-actions .assets-view-icon.active {
+  color: var(--ui-accent-primary, #2d6fe8);
+}
+
+/* 인라인 grid wrap (폴더 펼침 시 자식 영역) */
+.assets-inline-grid-wrap {
+  padding-top: 2px;
+  padding-bottom: 6px;
+  padding-right: 8px;
+}
+
+/* slider strip */
+.assets-inline-grid-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 4px;
+  color: var(--ui-text-secondary, #888);
+  font-size: 10px;
+}
+.assets-inline-grid-strip .assets-card-size {
+  flex: 0 1 90px;
+  height: 14px;
+  cursor: pointer;
+}
+.assets-inline-grid-strip .assets-card-size-val {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+/* 인라인 grid 기본 — 카드 크기 변수 사용 (가운데 정렬 X, 좌측 정렬) */
+.assets-inline-grid-wrap .assets-grid {
+  --assets-card-size: 56px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--assets-card-size), 1fr));
+  gap: 6px;
+  padding: 0;
+}
+
+/* assets image grid card 자체 드래그 — Scratch로 끌어 놓기 */
+.assets-grid-card--image {
+  cursor: grab;
+}
+.assets-grid-card--image:active { cursor: grabbing; }
+
+/* drop target highlight (scratch → folder) */
+.assets-row--drop-into,
+.assets-grid-card--folder.assets-row--drop-into {
+  outline: 2px solid var(--ui-accent-primary, #2d6fe8);
+  outline-offset: -2px;
+  background: rgba(45,111,232,0.08);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Selection — 선택 시각 표시 (row + grid card)
+   ════════════════════════════════════════════════════════════════════════ */
+
+.assets-row--selected {
+  background: rgba(45,111,232,0.15) !important;
+  outline: 1px solid var(--ui-accent-primary, #2d6fe8);
+  outline-offset: -1px;
+  border-radius: 4px;
+}
+.assets-grid-card--selected {
+  background: rgba(45,111,232,0.22) !important;
+  outline: 2px solid var(--ui-accent-primary, #2d6fe8);
+  outline-offset: -1px;
+}
+.assets-grid-card { cursor: pointer; }
