@@ -52,18 +52,43 @@ export function wireLabelSection({ ctx }) {
     rNumber.addEventListener('change', () => window.pushHistory?.());
   }
 
-  /* 태그 pill 높이 (상하 패딩으로 조절) */
+  /* 태그 pill 높이 (상하 패딩으로 조절)
+   * - label-style-section의 label-pill-height-slider (Tag Style 안)
+   * - Padding 섹션의 txt-label-h-slider (isLabel일 때만 노출)
+   * 두 슬라이더는 같은 값을 가리키므로 양방향 동기화한다.
+   */
   const pillHSlider = document.getElementById('label-pill-height-slider');
   const pillHNumber = document.getElementById('label-pill-height-number');
+  const lhSlider    = document.getElementById('txt-label-h-slider');
+  const lhNumber    = document.getElementById('txt-label-h-number');
+  const setPillH = v => {
+    const half = Math.round(v/2);
+    ctx.contentEl.style.paddingTop = half+'px';
+    ctx.contentEl.style.paddingBottom = half+'px';
+  };
+  const syncPillH = v => {
+    if (pillHSlider) pillHSlider.value = v;
+    if (pillHNumber) pillHNumber.value = v;
+    if (lhSlider)    lhSlider.value    = v;
+    if (lhNumber)    lhNumber.value    = v;
+  };
   if (pillHSlider) {
-    const setPillH = v => { const half = Math.round(v/2); ctx.contentEl.style.paddingTop = half+'px'; ctx.contentEl.style.paddingBottom = half+'px'; };
-    pillHSlider.addEventListener('input', () => { setPillH(parseInt(pillHSlider.value)); pillHNumber.value = pillHSlider.value; });
+    pillHSlider.addEventListener('input', () => { const v=parseInt(pillHSlider.value); setPillH(v); syncPillH(v); });
     pillHSlider.addEventListener('change', () => window.pushHistory?.());
     pillHNumber.addEventListener('input', () => {
       const v = Math.min(120, Math.max(0, parseInt(pillHNumber.value)||0));
-      setPillH(v); pillHSlider.value = v;
+      setPillH(v); syncPillH(v);
     });
     pillHNumber.addEventListener('change', () => window.pushHistory?.());
+  }
+  if (lhSlider) {
+    lhSlider.addEventListener('input', () => { const v=parseInt(lhSlider.value); setPillH(v); syncPillH(v); });
+    lhSlider.addEventListener('change', () => window.pushHistory?.());
+    lhNumber.addEventListener('input', () => {
+      const v = Math.min(120, Math.max(0, parseInt(lhNumber.value)||0));
+      setPillH(v); syncPillH(v);
+    });
+    lhNumber.addEventListener('change', () => window.pushHistory?.());
   }
 
   /* 태그 형태 프리셋 */
