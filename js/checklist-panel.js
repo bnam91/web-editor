@@ -810,7 +810,9 @@ function _appendInlineItemInput(sectionId, opts = {}) {
       if (idx !== -1) { all[idx].text = text; saveItems(all); }
     }
     _renderList();
-    if (continueAdding) _appendInlineItemInput(sectionId);
+    // ephemeral: continueAdding 무시 (placeholder DIV가 _renderList에서 다시 그려지고
+    // 다음 입력은 사용자 더블클릭으로 명시 시작 — 자동 input focus 무한루프 방지)
+    if (continueAdding && !ephemeral) _appendInlineItemInput(sectionId);
   };
 
   // 첫 타이핑 시 ephemeral → persisted 전환
@@ -837,11 +839,26 @@ function _appendInlineItemInput(sectionId, opts = {}) {
   input.addEventListener('blur', () => commit(false));
 }
 
-// ── 빈 리스트 placeholder 입력 행 (T8) ───────────────────────────────────────
-// 리스트가 완전히 비어있을 때 자동으로 빈 입력 행을 띄운다.
-// 사용자가 클릭/타이핑 전엔 storage에 저장하지 않는다.
+// ── 항상 마지막에 떠 있는 placeholder 행 (T8 v2) ─────────────────────────────
+// - input이 아니라 비활성 DIV (자동 focus 없음 → 체크박스/다른 항목 hit-test 안 막힘)
+// - 더블클릭하면 그 자리에 input 활성화 (ephemeral=true)
+// - 입력 후 Enter/blur로 commit → _renderList → 다시 이 placeholder가 마지막에 자동 생성
 function _appendEmptyPlaceholderRow() {
-  _appendInlineItemInput(null, { ephemeral: true });
+  const list = document.getElementById('ck-list');
+  if (!list) return;
+  const row = document.createElement('div');
+  row.className = 'ck-item ck-item--placeholder ck-item--ephemeral';
+  row.innerHTML =
+    '<span class="ck-item-text ck-item-text--empty">' +
+      '<span style="color:var(--ui-border-mid);font-style:italic;">할 일 입력... (더블클릭)</span>' +
+    '</span>';
+  row.title = '더블클릭하여 입력 시작';
+  row.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    row.remove();
+    _appendInlineItemInput(null, { ephemeral: true });
+  });
+  list.appendChild(row);
 }
 
 // ── 인라인 섹션 입력 ─────────────────────────────────────────────────────────
