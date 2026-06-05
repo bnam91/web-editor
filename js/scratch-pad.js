@@ -494,8 +494,12 @@ function _createItem(src, x, y, w = 220, idArg) {
     // 드래그 중에는 scratch-item이 마우스 아래를 가리지 않도록 pointer-events 차단
     if (isSingleDrag) dragTargets.forEach(t => { t.el.style.pointerEvents = 'none'; });
 
-    let prevX = e.clientX;
-    let prevY = e.clientY;
+    // 시작 시점의 커서 좌표 + 각 타겟의 원점 좌표 기록
+    // → Shift 축 고정(Figma/Sketch 표준): 시작점 기준 X/Y 누적 변위가 큰 축으로만 이동
+    //   드래그 도중 Shift on/off 시 실시간 반응을 위해 항상 (시작점 → 현재 커서) 델타에서 다시 계산
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    dragTargets.forEach(t => { t._dragOrigX = t.x; t._dragOrigY = t.y; });
     let lastClientX = e.clientX;
     let lastClientY = e.clientY;
     let hasMoved = false;
@@ -507,13 +511,19 @@ function _createItem(src, x, y, w = 220, idArg) {
       lastClientX = mv.clientX;
       lastClientY = mv.clientY;
       const scale = _getScale();
-      const dx = (mv.clientX - prevX) / scale;
-      const dy = (mv.clientY - prevY) / scale;
-      prevX = mv.clientX;
-      prevY = mv.clientY;
+      // 시작점 기준 총 변위 (free)
+      const totalDx = (mv.clientX - startClientX) / scale;
+      const totalDy = (mv.clientY - startClientY) / scale;
+      // Shift 누른 채면 절댓값 큰 축만 살리고 반대 축 0으로 클램프
+      let applyDx = totalDx;
+      let applyDy = totalDy;
+      if (mv.shiftKey) {
+        if (Math.abs(totalDx) >= Math.abs(totalDy)) applyDy = 0;
+        else applyDx = 0;
+      }
       dragTargets.forEach(t => {
-        t.x += dx;
-        t.y += dy;
+        t.x = t._dragOrigX + applyDx;
+        t.y = t._dragOrigY + applyDy;
       });
       if (!_rafId) _rafId = requestAnimationFrame(() => {
         dragTargets.forEach(t => {
@@ -533,6 +543,8 @@ function _createItem(src, x, y, w = 220, idArg) {
       if (_rafId) cancelAnimationFrame(_rafId);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      // 드래그 원점 임시 프로퍼티 정리 (저장 직렬화에는 무영향 — 정리만)
+      dragTargets.forEach(t => { delete t._dragOrigX; delete t._dragOrigY; });
 
       // 단일 드래그 + 움직임 있었으면 마지막 좌표에서 변환 시도
       // (pointer-events:none을 commit 전까지 유지해야 elementFromPoint가 underneath 캔버스를 잡음)
