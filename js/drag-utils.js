@@ -239,9 +239,25 @@ function renderGraph(block) {
     const colorAttr = userColor ? ` stroke="${userColor}"` : '';
     const pointInlineStyle = userColor ? `background:${userColor};border-color:${userColor};` : '';
 
+    // T10: 면 채우기 옵션 (dataset.fillArea === '1')
+    const fillArea = block.dataset.fillArea === '1';
+    const fillAlpha = Math.max(0, Math.min(1, parseFloat(block.dataset.fillAlpha) || 0.18));
+
     // SVG는 polyline + baseline 만 (preserveAspectRatio="none" + non-scaling-stroke)
     // 데이터 포인트 원은 HTML div 오버레이로 — 가로/세로 스케일 차이로 인한 타원화 방지
     const baselineY = plotB.toFixed(1);
+
+    // 면 채우기 polygon: polyPoints + (lastX, baselineY) + (firstX, baselineY)로 닫음
+    const areaEl = (fillArea && n >= 2) ? (() => {
+      const firstX = points[0].x.toFixed(1);
+      const lastX  = points[points.length - 1].x.toFixed(1);
+      const areaPoints = `${polyPoints} ${lastX},${baselineY} ${firstX},${baselineY}`;
+      const fillAttr = userColor
+        ? `fill="${userColor}" fill-opacity="${fillAlpha}"`
+        : `fill="currentColor" fill-opacity="${fillAlpha}" style="color:var(--ui-accent-primary,#3b82f6)"`;
+      return `<polygon class="grb-line-area" points="${areaPoints}" ${fillAttr} stroke="none"/>`;
+    })() : '';
+
     const polyEl = n >= 2
       ? `<polyline class="grb-line-path" points="${polyPoints}" fill="none" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${colorAttr}/>`
       : '';
@@ -258,6 +274,7 @@ function renderGraph(block) {
       <div class="grb-line-wrap" style="height:${chartH}px">
         <svg class="grb-line-svg" viewBox="0 0 ${innerW} ${innerH}" preserveAspectRatio="none">
           <line class="grb-line-axis" x1="${plotL}" y1="${baselineY}" x2="${plotR}" y2="${baselineY}" stroke-width="1"/>
+          ${areaEl}
           ${polyEl}
         </svg>
         <div class="grb-line-overlay">${pointDots}${labelsHTML}</div>

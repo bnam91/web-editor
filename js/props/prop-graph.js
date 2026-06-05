@@ -15,6 +15,8 @@ export function showGraphProperties(block) {
   const pctSize      = parseInt(block.dataset.pctSize)      || 60;
   const strokeWidth  = parseInt(block.dataset.strokeWidth)  || 3;
   const pointRadius  = parseInt(block.dataset.pointRadius)  || 5;
+  const fillArea     = block.dataset.fillArea === '1';
+  const fillAlpha    = Math.round((parseFloat(block.dataset.fillAlpha) || 0.18) * 100);
 
   const presets = [
     { id: 'default',  label: '기본' },
@@ -74,6 +76,18 @@ export function showGraphProperties(block) {
       <div class="prop-row">
         <span class="prop-label">선 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">면 채우기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-fillarea-toggle" ${fillArea ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-row" id="grb-fillalpha-row" style="display:${fillArea ? 'flex' : 'none'}">
+        <span class="prop-label">투명도</span>
+        <input type="range" class="prop-slider" id="grb-fillalpha-slider" min="0" max="100" step="1" value="${fillAlpha}">
+        <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
       </div>
     </div>` : ''}
     ${chartType === 'bar-h' ? `
@@ -305,6 +319,32 @@ export function showGraphProperties(block) {
     ptSlider.addEventListener('input',  () => applyPoint(parseInt(ptSlider.value)));
     ptNumber.addEventListener('change', () => { applyPoint(parseInt(ptNumber.value)); window.pushHistory(); });
     ptSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // T10: 면 채우기 토글 + 알파 (line 전용)
+  const fillToggle = document.getElementById('grb-fillarea-toggle');
+  const fillRow    = document.getElementById('grb-fillalpha-row');
+  if (fillToggle) {
+    fillToggle.addEventListener('change', () => {
+      const on = fillToggle.checked;
+      block.dataset.fillArea = on ? '1' : '0';
+      if (fillRow) fillRow.style.display = on ? 'flex' : 'none';
+      window.renderGraph(block);
+      window.pushHistory();
+    });
+  }
+  const faSlider = document.getElementById('grb-fillalpha-slider');
+  const faNumber = document.getElementById('grb-fillalpha-number');
+  if (faSlider) {
+    const applyAlpha = v => {
+      v = Math.min(100, Math.max(0, v));
+      block.dataset.fillAlpha = (v / 100).toFixed(2);
+      window.renderGraph(block);
+      faSlider.value = v; faNumber.value = v;
+    };
+    faSlider.addEventListener('input',  () => applyAlpha(parseInt(faSlider.value)));
+    faNumber.addEventListener('change', () => { applyAlpha(parseInt(faNumber.value)); window.pushHistory(); });
+    faSlider.addEventListener('change', () => window.pushHistory());
   }
 
   // 라벨 크기

@@ -428,8 +428,18 @@ function _renderList() {
   const sections = loadSections();
   const pinNumMap = _getPinnedItemsInOrder();
 
+  // T9: 완료 항목은 맨 아래로 정렬 (Apple Reminders 패턴). 안정 정렬로 원래 순서 유지.
+  const _sortDoneToBottom = (arr) =>
+    arr.map((it, i) => ({ it, i }))
+       .sort((a, b) => {
+         const da = a.it.done ? 1 : 0;
+         const db = b.it.done ? 1 : 0;
+         return da !== db ? da - db : a.i - b.i;
+       })
+       .map(x => x.it);
+
   // 섹션 없는 items (sectionId === null / undefined)
-  const unsectionedItems = items.filter(it => !it.sectionId);
+  const unsectionedItems = _sortDoneToBottom(items.filter(it => !it.sectionId));
   unsectionedItems.forEach(item => {
     list.appendChild(_buildItemEl(item, null, pinNumMap.get(item.id)));
   });
@@ -440,7 +450,7 @@ function _renderList() {
     list.appendChild(headerEl);
 
     if (!sec.collapsed) {
-      const secItems = items.filter(it => it.sectionId === sec.id);
+      const secItems = _sortDoneToBottom(items.filter(it => it.sectionId === sec.id));
       secItems.forEach(item => {
         list.appendChild(_buildItemEl(item, sec.id, pinNumMap.get(item.id)));
       });
@@ -455,12 +465,11 @@ function _renderList() {
   list.addEventListener('drop', _onListDrop);
   list.addEventListener('dragend', () => { _removeDropIndicator(); _dragSrcId = null; _dragType = null; });
 
-  // T8: 리스트가 완전히 비어있으면 자동으로 ephemeral 빈 입력 행 표시
-  // - items/sections 모두 없을 때만 적용 (섹션만 있는 경우 placeholder 안 띄움)
-  // - ephemeral 행은 사용자가 타이핑하기 전엔 storage에 저장되지 않음
-  if (items.length === 0 && sections.length === 0) {
-    _appendEmptyPlaceholderRow();
-  }
+  // T8: 항상 unsectioned 영역 마지막에 ephemeral 빈 입력 행 표시 (Apple Reminders 패턴)
+  // - +버튼 누르지 않고 바로 입력 가능
+  // - 입력 시작 시 storage에 push → _renderList 재호출 → 다시 마지막에 새 ephemeral row 생성 (연속 입력)
+  // - 빈 채로 다른 곳 클릭하면 흔적 없이 사라짐
+  _appendEmptyPlaceholderRow();
 
   // 패널 다시 그린 직후 — 기존 선택 상태 복원 (renderPins와 동일 패턴)
   if (_selectedPinId) {
