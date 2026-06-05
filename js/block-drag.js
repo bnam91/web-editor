@@ -1461,7 +1461,9 @@ function bindFrameDropZone(ss) {
   // absolute 셀로 바인딩됐다가 flow로 변환된 frame도 click이 동작하도록 항상 바인딩
   ss.addEventListener('click', e => {
     // 내부 자식 블록 click은 자식 핸들러가 처리
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .step-block')) return;
+    // FIX(T5): .mockup-block 누락 — 프레임 안 mockup 클릭 시 자식 핸들러로 위임 안 되고
+    // 프레임이 선택돼버려 mockup 선택/드래그 흐름이 깨지는 문제 수정
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block')) return;
     // 내부 nested frame 자체 click 핸들러가 있어서 이미 처리됨 → 여기로 버블된 경우 무시
     const innerFrame = e.target.closest('.frame-block:not([data-text-frame])');
     if (innerFrame && innerFrame !== ss) { e.stopPropagation(); return; }
@@ -1807,8 +1809,10 @@ function bindFrameDropZone(ss) {
   });
 
   // 내부 블록 pointerdown 시 서브섹션 drag 일시 비활성 — 블록 선택/이동과 충돌 방지
+  // FIX(T5): .mockup-block 누락 시 mockup pointerdown → deselectAll 후 frame 재선택되어
+  // 직후 mousedown drag 핸들러의 selected 체크에 걸려 드래그 시작이 막힘 (asset 등 다른 블록은 정상)
   ss.addEventListener('pointerdown', e => {
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .step-block');
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
     if (isInnerBlock) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
