@@ -207,6 +207,13 @@ function _renderBrowserCards() {
     return;
   }
 
+  // 현재 선택 항목이 필터된 목록에 더 이상 없으면 선택 해제
+  if (_browserSelected && !templates.some(t => t.id === _browserSelected)) {
+    _browserSelected = null;
+    _hidePreview();
+    _syncInsertBtn();
+  }
+
   const starred = _getStarred();
   container.innerHTML = templates.map(tpl => {
     const isSelected = _browserSelected === tpl.id;
@@ -351,6 +358,55 @@ function _renderBrowserCards() {
       _renderBrowserCards();
     });
   });
+
+  // 첫 진입(또는 필터 변경 후) 선택 항목이 없으면 첫 카드 자동 선택 + 프리뷰
+  if (!_browserSelected) {
+    const firstCard = container.querySelector('.tb-card');
+    if (firstCard && firstCard.dataset.tplId) {
+      _selectBrowserTemplate(firstCard.dataset.tplId);
+    }
+  }
+}
+
+/* ── 키보드 navigation (T7) ──
+   ↑/↓ : 카드 리스트 내 선택 이동 + 프리뷰 자동 갱신
+   Enter : 선택된 템플릿 삽입 (insert 버튼과 동일)
+   리스트가 비었거나 단일 항목이면 안전하게 무동작.
+   양 끝에서는 멈춤 (wrap-around 없음). */
+function _navigateBrowserCard(direction) {
+  const container = document.getElementById('tpl-browser-cards');
+  if (!container) return false;
+  const cards = Array.from(container.querySelectorAll('.tb-card'));
+  if (!cards.length) return false;
+
+  let idx = cards.findIndex(c => c.dataset.tplId === _browserSelected);
+  if (idx === -1) {
+    // 선택 항목이 없으면 첫 카드(↓)/마지막 카드(↑)에서 시작
+    idx = direction > 0 ? 0 : cards.length - 1;
+  } else {
+    const next = idx + direction;
+    if (next < 0 || next >= cards.length) return true; // 양 끝에서 멈춤 (이벤트는 소비)
+    idx = next;
+  }
+
+  const target = cards[idx];
+  if (!target || !target.dataset.tplId) return true;
+  _selectBrowserTemplate(target.dataset.tplId);
+  // 보이는 영역에 들어오게
+  if (typeof target.scrollIntoView === 'function') {
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  return true;
+}
+
+function _applySelectedBrowserTemplate() {
+  if (!_browserSelected) return false;
+  const t = loadTemplates().find(x => x.id === _browserSelected);
+  if (!t) return false;
+  closeTemplateBrowser();
+  // insertTemplate 는 비동기지만 fire-and-forget (insert 버튼과 동일 흐름)
+  insertTemplate(t);
+  return true;
 }
 
 /* ── 태그 칩 렌더 ── */
@@ -614,6 +670,42 @@ function initTemplateBrowser() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && _browserOpen) closeTemplateBrowser();
   });
+
+  // ── 키보드 navigation (T7): ↑/↓ 선택 이동 + Enter 적용 ──
+  // 패널이 열린 상태에서만 활성. 검색 input 포커스 중에도 ↑/↓는 카드 navigation 으로 사용
+  // (텍스트 input 내부 캐럿 이동은 좌/우만 의미 있음). Enter 는 input 안이면 검색 컨펌으로
+  // 작동시키지 않고 무조건 템플릿 적용. 다른 editable / contenteditable 영역에서는 비활성.
+  document.addEventListener('keydown', e => {
+    if (!_browserOpen) return;
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'Enter') return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    const ae = document.activeElement;
+    const panel = document.getElementById('tpl-browser');
+    const inPanel = panel && (panel === ae || panel.contains(ae));
+    // 패널 밖에 포커스 있으면 캔버스/다른 패널 키 단축키 보호 — 무시
+    if (ae && ae !== document.body && !inPanel) return;
+    // contenteditable / textarea (제목 인라인 편집 등) 안에서는 비활성
+    if (ae && (ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+    // 검색 input 외 다른 input(예: 인라인 편집)에서는 비활성
+    if (ae && ae.tagName === 'INPUT' && ae.id !== 'tpl-browser-search') return;
+
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const dir = e.key === 'ArrowDown' ? 1 : -1;
+      if (_navigateBrowserCard(dir)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      if (_applySelectedBrowserTemplate()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+  }, true); // capture: 캔버스/에디터의 document keydown 핸들러보다 먼저 가로채기
 
   // 캔버스 영역 클릭 시 닫기
   document.getElementById('canvas-area')?.addEventListener('mousedown', () => {
