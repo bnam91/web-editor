@@ -455,6 +455,13 @@ function _renderList() {
   list.addEventListener('drop', _onListDrop);
   list.addEventListener('dragend', () => { _removeDropIndicator(); _dragSrcId = null; _dragType = null; });
 
+  // T8: 리스트가 완전히 비어있으면 자동으로 ephemeral 빈 입력 행 표시
+  // - items/sections 모두 없을 때만 적용 (섹션만 있는 경우 placeholder 안 띄움)
+  // - ephemeral 행은 사용자가 타이핑하기 전엔 storage에 저장되지 않음
+  if (items.length === 0 && sections.length === 0) {
+    _appendEmptyPlaceholderRow();
+  }
+
   // 패널 다시 그린 직후 — 기존 선택 상태 복원 (renderPins와 동일 패턴)
   if (_selectedPinId) {
     if (loadItems().some(it => it.id === _selectedPinId)) _selectPin(_selectedPinId);
@@ -729,19 +736,27 @@ function _dropSection(targetEl, before) {
 
 // ── 인라인 아이템 입력 행 추가 ───────────────────────────────────────────────
 // Apple Reminders 스타일: 버튼 클릭 시 즉시 빈 행 추가 (여러 번 클릭 → 여러 빈 행)
-function _appendInlineItemInput(sectionId) {
+//
+// 옵션 ephemeral=true: 사용자가 타이핑하기 전까지 storage 저장 X (T8: 빈 리스트 placeholder용)
+function _appendInlineItemInput(sectionId, opts = {}) {
+  const { ephemeral = false } = opts;
   const list = document.getElementById('ck-list');
   if (!list) return;
 
-  // 빈 아이템을 즉시 storage에 저장 (빈 text도 OK)
   const newItem = { id: genCkId(), text: '', done: false, x: null, y: null,
                     sectionId: sectionId || null, createdAt: Date.now() };
-  const items = loadItems();
-  items.push(newItem);
-  saveItems(items);
+
+  // ephemeral=false → 즉시 storage에 저장 (기존 동작)
+  // ephemeral=true  → 사용자가 input 첫 타이핑 시점에 저장 (autoSave 트리거 회피)
+  let _persisted = !ephemeral;
+  if (!ephemeral) {
+    const items = loadItems();
+    items.push(newItem);
+    saveItems(items);
+  }
 
   const row = document.createElement('div');
-  row.className = 'ck-item ck-item--editing';
+  row.className = 'ck-item ck-item--editing' + (ephemeral ? ' ck-item--ephemeral' : '');
   row.dataset.editId = newItem.id;
   if (sectionId) row.dataset.sectionId = sectionId;
 
@@ -756,23 +771,68 @@ function _appendInlineItemInput(sectionId) {
 
   let _done = false;
 
+  const _persistIfNeeded = () => {
+    if (_persisted) return;
+    _persisted = true;
+    newItem.text = input.value;
+    const items = loadItems();
+    items.push(newItem);
+    saveItems(items);
+  };
+
   const commit = (continueAdding) => {
     if (_done) return;
     _done = true;
     const text = input.value.trim();
-    // 텍스트 업데이트 (빈 값이면 빈 텍스트로 저장)
-    const all = loadItems();
-    const idx = all.findIndex(it => it.id === newItem.id);
-    if (idx !== -1) { all[idx].text = text; saveItems(all); }
+    if (!_persisted) {
+      // ephemeral인데 텍스트 없이 떠난 경우 — 저장 안 함
+      if (text) {
+        newItem.text = text;
+        // _persistIfNeeded는 input.value를 쓰므로 text 동기화 후 호출
+        const items = loadItems();
+        items.push(newItem);
+        saveItems(items);
+        _persisted = true;
+      }
+    } else {
+      // 텍스트 업데이트 (빈 값이면 빈 텍스트로 저장)
+      const all = loadItems();
+      const idx = all.findIndex(it => it.id === newItem.id);
+      if (idx !== -1) { all[idx].text = text; saveItems(all); }
+    }
     _renderList();
     if (continueAdding) _appendInlineItemInput(sectionId);
   };
 
+  // 첫 타이핑 시 ephemeral → persisted 전환
+  input.addEventListener('input', () => {
+    if (input.value.length > 0) _persistIfNeeded();
+  });
+
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(true); }
+    // T3 픽스: IME composition 중 Enter는 무시 (한국어 마지막 글자 중복 등록 버그)
+    // - e.isComposing: 표준 W3C 플래그 — composition 활성 중 발생한 keydown에서 true
+    // - e.keyCode === 229: Chromium/일부 브라우저에서 composition 확정용 Enter의 keyCode
+    // composition 끝난 뒤 브라우저가 따로 '실제 Enter' keydown(isComposing=false)을 fire하므로
+    // 그 시점에 commit이 실행된다 (Slack/Notion 등 표준 패턴)
+    if (e.key === 'Enter') {
+      if (e.isComposing || e.keyCode === 229) {
+        // IME 확정용 Enter — commit 호출 금지, 새 행 생성 금지
+        return;
+      }
+      e.preventDefault();
+      commit(true);
+    }
     if (e.key === 'Escape') { commit(false); }
   });
   input.addEventListener('blur', () => commit(false));
+}
+
+// ── 빈 리스트 placeholder 입력 행 (T8) ───────────────────────────────────────
+// 리스트가 완전히 비어있을 때 자동으로 빈 입력 행을 띄운다.
+// 사용자가 클릭/타이핑 전엔 storage에 저장하지 않는다.
+function _appendEmptyPlaceholderRow() {
+  _appendInlineItemInput(null, { ephemeral: true });
 }
 
 // ── 인라인 섹션 입력 ─────────────────────────────────────────────────────────
@@ -807,6 +867,8 @@ function _appendInlineSectionInput() {
   };
 
   input.addEventListener('keydown', e => {
+    // T3 IME 가드 — composition 중 Enter 무시
+    if (e.key === 'Enter' && (e.isComposing || e.keyCode === 229)) return;
     if (e.key === 'Enter') { e.preventDefault(); save(); }
     if (e.key === 'Escape') { _secSaved = true; row.remove(); }
   });
@@ -839,6 +901,8 @@ function _startItemInlineEdit(el, item) {
   };
 
   input.addEventListener('keydown', e => {
+    // T3 IME 가드 — composition 중 Enter 무시 (한국어 입력 안정성)
+    if (e.key === 'Enter' && (e.isComposing || e.keyCode === 229)) return;
     if (e.key === 'Enter')  { e.preventDefault(); save(); }
     if (e.key === 'Escape') { _editSaved = true; _renderList(); }
   });
@@ -871,6 +935,8 @@ function _startSectionInlineEdit(el, sec) {
   };
 
   input.addEventListener('keydown', e => {
+    // T3 IME 가드 — composition 중 Enter 무시
+    if (e.key === 'Enter' && (e.isComposing || e.keyCode === 229)) return;
     if (e.key === 'Enter')  { e.preventDefault(); save(); }
     if (e.key === 'Escape') { _secEditSaved = true; _renderList(); }
   });
