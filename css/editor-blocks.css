@@ -1038,6 +1038,75 @@
 .graph-block[data-preset="colorful"] .grb-bar-row:nth-child(5) .grb-bar-h-fill { background: #da77f2; }
 .graph-block[data-preset="colorful"] .grb-bar-row:nth-child(6) .grb-bar-h-fill { background: #ff6b6b; }
 
+/* ── 꺾은선 (line) ── */
+.grb-line-wrap {
+  position: relative;
+  width: 100%;
+  height: 240px;
+}
+.grb-line-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.grb-line-axis {
+  stroke: var(--ui-border, #cccccc);
+  opacity: 0.6;
+}
+.grb-line-path {
+  stroke: var(--ui-accent-primary, #4f8ef7);
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+.grb-line-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.grb-line-point-dot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--ui-accent-primary, #4f8ef7);
+  border: 1.5px solid #ffffff;
+  box-sizing: border-box;
+}
+.grb-line-vlabel,
+.grb-line-xlabel {
+  position: absolute;
+  transform: translate(-50%, 0);
+  white-space: nowrap;
+  color: inherit;
+  text-align: center;
+  line-height: 1.1;
+}
+.grb-line-vlabel { font-weight: 600; }
+.grb-line-empty {
+  width: 100%;
+  height: 100%;
+  border-bottom: 1px dashed var(--ui-border, #cccccc);
+  opacity: 0.4;
+}
+
+/* ── 프리셋별 line 색상 오버라이드 ── */
+.graph-block[data-preset="default"] .grb-line-path { stroke: var(--ui-accent-primary); }
+.graph-block[data-preset="default"] .grb-line-point-dot { background: var(--ui-accent-primary); border-color: #ffffff; }
+.graph-block[data-preset="default"] .grb-line-vlabel { color: var(--ui-accent-primary); }
+
+.graph-block[data-preset="dark"] .grb-line-path { stroke: #4f8ef7; }
+.graph-block[data-preset="dark"] .grb-line-point-dot { background: #4f8ef7; border-color: #1a1a2e; }
+.graph-block[data-preset="dark"] .grb-line-axis { stroke: rgba(255,255,255,0.2); }
+.graph-block[data-preset="dark"] .grb-line-vlabel { color: #ffffff; }
+.graph-block[data-preset="dark"] .grb-line-xlabel { color: rgba(255,255,255,0.75); }
+
+.graph-block[data-preset="minimal"] .grb-line-path { stroke: var(--ui-text-sub); }
+.graph-block[data-preset="minimal"] .grb-line-point-dot { background: var(--ui-text-sub); border-color: #ffffff; }
+.graph-block[data-preset="minimal"] .grb-line-vlabel { color: #888; }
+
+.graph-block[data-preset="colorful"] .grb-line-path { stroke: #4dabf7; }
+.graph-block[data-preset="colorful"] .grb-line-point-dot { background: #ff6b6b; border-color: #ffffff; }
+
 /* 프로퍼티 패널 - 데이터 편집 */
 .grb-data-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .grb-data-item { display: flex; align-items: center; gap: 4px; }
@@ -1160,6 +1229,13 @@
 .frame-block[data-text-frame="true"]:has(.text-block:not(.speech-bubble-block).selected) {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
+}
+/* T6: outline 2겹 픽스 — 부모 row/text-frame이 outline을 책임지면
+   .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
+   (text-block은 padding/border-box 변화로 부모와 미세 어긋남이 생겨 2겹으로 보였음) */
+.row:has(.text-block.selected) > .text-block.selected,
+.frame-block[data-text-frame="true"] > .text-block:not(.speech-bubble-block).selected {
+  outline: var(--sel-outline-w) solid transparent;
 }
 /* 버블 선택 시 frame-block outline: speech-bubble-block(z-index:2)이 outline을 덮으므로
    ::after pseudo-element를 z-index:10으로 올려서 위에 그림 */

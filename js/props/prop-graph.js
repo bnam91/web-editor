@@ -13,6 +13,8 @@ export function showGraphProperties(block) {
   const barAlpha     = parseAlphaFromColor(barColor);
   const itemGap      = parseInt(block.dataset.itemGap)      || 24;
   const pctSize      = parseInt(block.dataset.pctSize)      || 60;
+  const strokeWidth  = parseInt(block.dataset.strokeWidth)  || 3;
+  const pointRadius  = parseInt(block.dataset.pointRadius)  || 5;
 
   const presets = [
     { id: 'default',  label: '기본' },
@@ -51,6 +53,29 @@ export function showGraphProperties(block) {
         <input type="number" class="prop-number" id="grb-label-number" min="8" max="28" value="${labelSize}">
       </div>
     </div>
+    ${chartType === 'line' ? `
+    <div class="prop-section">
+      <div class="prop-section-title">Line Settings</div>
+      <div class="prop-row">
+        <span class="prop-label">선 두께</span>
+        <input type="range" class="prop-slider" id="grb-stroke-slider" min="1" max="12" step="1" value="${strokeWidth}">
+        <input type="number" class="prop-number" id="grb-stroke-number" min="1" max="12" value="${strokeWidth}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">점 크기</span>
+        <input type="range" class="prop-slider" id="grb-point-slider" min="0" max="16" step="1" value="${pointRadius}">
+        <input type="number" class="prop-number" id="grb-point-number" min="0" max="16" value="${pointRadius}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
+        <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">선 색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
+      </div>
+    </div>` : ''}
     ${chartType === 'bar-h' ? `
     <div class="prop-section">
       <div class="prop-section-title">Bar Settings</div>
@@ -84,6 +109,7 @@ export function showGraphProperties(block) {
       <div class="prop-type-group">
         <button class="prop-type-btn ${chartType === 'bar-v' ? 'active' : ''}" id="grb-type-v">세로 막대</button>
         <button class="prop-type-btn ${chartType === 'bar-h' ? 'active' : ''}" id="grb-type-h">가로 막대</button>
+        <button class="prop-type-btn ${chartType === 'line' ? 'active' : ''}" id="grb-type-line">꺾은선</button>
       </div>
     </div>
     <div class="prop-section">
@@ -118,6 +144,11 @@ export function showGraphProperties(block) {
   });
   document.getElementById('grb-type-h').addEventListener('click', () => {
     block.dataset.chartType = 'bar-h';
+    window.renderGraph(block);
+    showGraphProperties(block);
+  });
+  document.getElementById('grb-type-line').addEventListener('click', () => {
+    block.dataset.chartType = 'line';
     window.renderGraph(block);
     showGraphProperties(block);
   });
@@ -237,13 +268,43 @@ export function showGraphProperties(block) {
     pxSlider.addEventListener('change', () => window.pushHistory());
   }
 
-  // 바 색상 (bar-h 전용)
+  // 바 색상 (bar-h / line 공통)
   if (document.getElementById('grb-bar-color')) {
     wireColorField('grb-bar', {
       initialAlpha: barAlpha,
       onApply: (c) => { block.dataset.barColor = c; window.renderGraph(block); },
       onCommit: () => window.pushHistory(),
     });
+  }
+
+  // 선 두께 (line 전용)
+  const swSlider = document.getElementById('grb-stroke-slider');
+  const swNumber = document.getElementById('grb-stroke-number');
+  if (swSlider) {
+    const applyStroke = v => {
+      v = Math.min(12, Math.max(1, v));
+      block.dataset.strokeWidth = v;
+      window.renderGraph(block);
+      swSlider.value = v; swNumber.value = v;
+    };
+    swSlider.addEventListener('input',  () => applyStroke(parseInt(swSlider.value)));
+    swNumber.addEventListener('change', () => { applyStroke(parseInt(swNumber.value)); window.pushHistory(); });
+    swSlider.addEventListener('change', () => window.pushHistory());
+  }
+
+  // 점 크기 (line 전용)
+  const ptSlider = document.getElementById('grb-point-slider');
+  const ptNumber = document.getElementById('grb-point-number');
+  if (ptSlider) {
+    const applyPoint = v => {
+      v = Math.min(16, Math.max(0, v));
+      block.dataset.pointRadius = v;
+      window.renderGraph(block);
+      ptSlider.value = v; ptNumber.value = v;
+    };
+    ptSlider.addEventListener('input',  () => applyPoint(parseInt(ptSlider.value)));
+    ptNumber.addEventListener('change', () => { applyPoint(parseInt(ptNumber.value)); window.pushHistory(); });
+    ptSlider.addEventListener('change', () => window.pushHistory());
   }
 
   // 라벨 크기

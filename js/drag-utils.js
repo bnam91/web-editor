@@ -188,6 +188,80 @@ function renderGraph(block) {
             </div>`;
         }).join('')}
       </div>`;
+  } else if (chartType === 'line') {
+    // ── 꺾은선 (line) — SVG polyline + circle data points
+    const strokeWidth = parseInt(block.dataset.strokeWidth) || 3;
+    const pointRadius = parseInt(block.dataset.pointRadius) || 5;
+    const padXL       = parseInt(block.dataset.padX) || 16;
+    const padTop      = Math.round(valSize * 1.4) + 8;
+    const padBottom   = Math.round(labelSize * 1.4) + 8;
+
+    if (block.style.position !== 'absolute') {
+      block.style.height = 'auto';
+    }
+
+    // 안전 가드: 빈 데이터
+    if (items.length === 0) {
+      block.innerHTML = `<div class="grb-line-empty" style="height:${chartH}px"></div>`;
+      return;
+    }
+
+    const innerW = 1000; // viewBox 기준 가상폭, CSS로 100% 늘림
+    const innerH = chartH;
+    const plotL  = padXL;
+    const plotR  = innerW - padXL;
+    const plotT  = padTop;
+    const plotB  = innerH - padBottom;
+    const plotW  = Math.max(1, plotR - plotL);
+    const plotH  = Math.max(1, plotB - plotT);
+    const n      = items.length;
+
+    // 1개 점일 때는 중앙에 단일 점만
+    const xOf = i => (n === 1) ? (plotL + plotW / 2) : plotL + (plotW * i) / (n - 1);
+    const yOf = v => {
+      const ratio = maxVal <= 0 ? 0 : (v / maxVal);
+      return plotB - plotH * Math.max(0, Math.min(1, ratio));
+    };
+
+    const points = items.map((it, i) => ({ x: xOf(i), y: yOf(it.value), v: it.value, label: it.label }));
+    const polyPoints = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+    // %-좌표 (오버레이 HTML 점/라벨 배치용)
+    const overlayItems = points.map(p => {
+      const leftPct  = (p.x / innerW) * 100;
+      const topPct   = (p.y / innerH) * 100;
+      const yLabelTop = (plotB + 4) / innerH * 100;
+      const yValTop  = Math.max(0, (p.y - valSize - pointRadius - 4)) / innerH * 100;
+      return { p, leftPct, topPct, yLabelTop, yValTop };
+    });
+
+    const userColor = block.dataset.barColor || '';
+    const colorAttr = userColor ? ` stroke="${userColor}"` : '';
+    const pointInlineStyle = userColor ? `background:${userColor};border-color:${userColor};` : '';
+
+    // SVG는 polyline + baseline 만 (preserveAspectRatio="none" + non-scaling-stroke)
+    // 데이터 포인트 원은 HTML div 오버레이로 — 가로/세로 스케일 차이로 인한 타원화 방지
+    const baselineY = plotB.toFixed(1);
+    const polyEl = n >= 2
+      ? `<polyline class="grb-line-path" points="${polyPoints}" fill="none" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${colorAttr}/>`
+      : '';
+
+    const pointDots = overlayItems.map(o =>
+      `<div class="grb-line-point-dot" style="left:${o.leftPct.toFixed(2)}%;top:${o.topPct.toFixed(2)}%;width:${pointRadius * 2}px;height:${pointRadius * 2}px;${pointInlineStyle}"></div>`
+    ).join('');
+    const labelsHTML = overlayItems.map(o =>
+      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px">${o.p.v}</div>
+       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px">${o.p.label}</div>`
+    ).join('');
+
+    block.innerHTML = `
+      <div class="grb-line-wrap" style="height:${chartH}px">
+        <svg class="grb-line-svg" viewBox="0 0 ${innerW} ${innerH}" preserveAspectRatio="none">
+          <line class="grb-line-axis" x1="${plotL}" y1="${baselineY}" x2="${plotR}" y2="${baselineY}" stroke-width="1"/>
+          ${polyEl}
+        </svg>
+        <div class="grb-line-overlay">${pointDots}${labelsHTML}</div>
+      </div>`;
   } else {
     const barThickness = parseInt(block.dataset.barThickness) || 0;
     const padX         = parseInt(block.dataset.padX)         || 0;
