@@ -609,6 +609,25 @@ function _countSections(proj) {
   return (c.match(/section-block/g)?.length || 0);
 }
 
+// BUG-NAME-LOSS: 큰 프로젝트 load race에서 tab.name='Untitled' 상태로 save 들어와 진짜 이름이 'Untitled'로 덮어쓰이는 회귀 방어.
+// prev.name이 'Untitled' 아닌 유의미한 이름인데 incoming.name이 비거나 'Untitled'이면 prev.name 유지.
+// (사용자가 의도적으로 'Untitled'로 rename하는 케이스는 거의 없음 — rename UI는 빈 input만 'Untitled' 폴백)
+function _guardProjectName(incomingProject, prevPath) {
+  try {
+    if (!prevPath || !fs.existsSync(prevPath)) return incomingProject;
+    const prev = JSON.parse(fs.readFileSync(prevPath, 'utf8'));
+    const prevName = prev && prev.name;
+    const incomingName = incomingProject && incomingProject.name;
+    const incomingFalsyOrDefault = !incomingName || incomingName === 'Untitled';
+    const prevMeaningful = prevName && prevName !== 'Untitled';
+    if (incomingFalsyOrDefault && prevMeaningful) {
+      console.warn(`[projects:save] name guard: '${incomingName}' → '${prevName}' 복원 (id=${incomingProject.id})`);
+      return { ...incomingProject, name: prevName };
+    }
+  } catch (_) {}
+  return incomingProject;
+}
+
 ipcMain.handle('projects:save', async (event, project) => {
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
@@ -616,6 +635,7 @@ ipcMain.handle('projects:save', async (event, project) => {
 
   // 백업 만들 때는 마이그레이션 안 된 케이스도 대비 — 직전 버전이 flat에만 있을 수 있음.
   const prevPath = _resolveProjectJsonPath(project.id);
+  project = _guardProjectName(project, prevPath);
 
   if (prevPath && fs.existsSync(prevPath)) {
     try {
@@ -663,6 +683,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
     // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
     const paths = _ensureNewLayoutPaths(project.id);
     const prevPath = _resolveProjectJsonPath(project.id);
+    project = _guardProjectName(project, prevPath);
     if (prevPath && fs.existsSync(prevPath)) {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
       try { fs.copyFileSync(prevPath, paths.backup); } catch {}

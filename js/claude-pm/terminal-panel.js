@@ -20,7 +20,6 @@
 
   let _panelEl = null;
   let _miniEl = null;
-  let _escHandler = null;
   let _resizeObs = null;
   let _dragging = false;
   let _activeProjectId = null;   // 현재 패널이 보여주고 있는 projectId
@@ -78,6 +77,7 @@
         <div class="cpmt-actions">
           <input type="range" class="cpmt-opacity-slider" min="20" max="100" value="100" title="투명도 조절" aria-label="투명도 조절">
           <button class="cpmt-btn" type="button" data-cpmt-action="open-finder" data-tip="Finder 열기" aria-label="Finder에서 폴더 열기">🔍</button>
+          <button class="cpmt-btn" type="button" data-cpmt-action="open-external-terminal" data-tip="외부 터미널로 꺼내기" aria-label="Terminal.app에서 열기">↗</button>
           <button class="cpmt-btn" type="button" data-cpmt-action="mcp-guide" data-tip="MCP 가이드" aria-label=".mcp.json 가이드">ⓘ</button>
           <button class="cpmt-btn" type="button" data-cpmt-action="restart" data-tip="재시작" aria-label="재시작">↻</button>
           <button class="cpmt-btn" type="button" data-cpmt-action="minimize" data-tip="최소화" aria-label="최소화">▭</button>
@@ -257,7 +257,27 @@
     else if (action === 'restart') _restartActiveSession();
     else if (action === 'minimize') minimizeClaudePMTerminalPanel();
     else if (action === 'open-finder') _onClickOpenFinder();
+    else if (action === 'open-external-terminal') _onClickOpenExternalTerminal();
     else if (action === 'mcp-guide') _onClickMcpGuide();
+  }
+
+  async function _onClickOpenExternalTerminal() {
+    const st = _activeProjectId && _projectStates[_activeProjectId];
+    const folderPath = st && st.folderPath;
+    if (!folderPath) {
+      try { window.showToast?.('↗ 폴더 경로를 찾을 수 없음'); } catch (_) {}
+      return;
+    }
+    try {
+      const res = await window.electronAPI?.spawnClaudeTerminal?.(folderPath);
+      if (!res || !res.ok) {
+        try { window.showToast?.('↗ 외부 터미널 실행 실패: ' + (res?.error || 'electronAPI 없음')); } catch (_) {}
+        return;
+      }
+      try { window.showToast?.('↗ Terminal.app으로 꺼냄 (앱 내부 세션은 유지)'); } catch (_) {}
+    } catch (e) {
+      try { window.showToast?.('↗ 외부 터미널 실행 예외: ' + (e?.message || e)); } catch (_) {}
+    }
   }
 
   // 매니저 패널에서 이전 (2026-05-23 UX 단순화).
@@ -615,8 +635,6 @@
     } else {
       _setFooter(`세션 ${st.sessionId} · 재연결`);
     }
-
-    _bindEsc();
   }
 
   async function closeClaudePMTerminalPanel() {
@@ -627,7 +645,6 @@
         _panelEl.style.display = 'none';
       }
     }, 160);
-    _unbindEsc();
     // 명시적 close는 active 세션 종료
     if (_activeProjectId) {
       const pid = _activeProjectId;
@@ -672,7 +689,6 @@
     _panelEl.style.display = 'none';
     _ensureMiniDOM();
     _miniEl.style.display = 'inline-flex';
-    _unbindEsc();
   }
 
   function restoreClaudePMTerminalPanel() {
@@ -748,8 +764,6 @@
       // 폴백 — 0.18s transition + 마진. transitionend 안 오는 케이스(prefers-reduced-motion 등) 대비.
       fallbackTimer = setTimeout(finalize, 230);
     });
-
-    _bindEsc();
   }
 
   // active-project-sync.js에서 setter wrap 시 호출
@@ -783,22 +797,6 @@
       // mini도 끔 (CTA는 ProjectPM 사이드바의 "터미널 실행" 버튼)
       if (_miniEl) _miniEl.style.display = 'none';
     }
-  }
-
-  function _bindEsc() {
-    if (_escHandler) return;
-    _escHandler = (e) => {
-      if (e.key !== 'Escape') return;
-      if (_panelEl && _panelEl.contains(document.activeElement)) return;
-      e.stopPropagation();
-      closeClaudePMTerminalPanel();
-    };
-    document.addEventListener('keydown', _escHandler);
-  }
-  function _unbindEsc() {
-    if (!_escHandler) return;
-    document.removeEventListener('keydown', _escHandler);
-    _escHandler = null;
   }
 
   window.openClaudePMTerminalPanel     = openClaudePMTerminalPanel;

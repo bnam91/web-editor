@@ -33,7 +33,9 @@
     const miniVisible = mini && getComputedStyle(mini).display !== 'none';
 
     if (isOpen) {
-      window.closeClaudePMTerminalPanel?.();
+      // 플로팅 버튼은 토글 = 최소화. close(세션 종료)는 패널 헤더의 X 버튼 전용.
+      // (close 호출 시 _stopSessionForProject + term.dispose로 대화 세션 손실)
+      window.minimizeClaudePMTerminalPanel?.();
       return;
     }
     if (miniVisible) {
