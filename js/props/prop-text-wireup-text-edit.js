@@ -147,7 +147,7 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
   sizeNumber.addEventListener('pointerdown', saveSizeSel);
   sizeNumber.addEventListener('focus', saveSizeSel);
   sizeNumber.addEventListener('input', () => {
-    const v = Math.min(400, Math.max(8, parseInt(sizeNumber.value)||8));
+    const v = Math.min(800, Math.max(8, parseInt(sizeNumber.value)||8));
     applySizeToSel(v);
   });
   sizeNumber.addEventListener('change', () => { _savedSizeSel = null; _sizeSpan = null; window.pushHistory?.(); });

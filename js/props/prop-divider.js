@@ -56,8 +56,8 @@ export function showDividerProperties(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="dvd-weight-slider" min="1" max="12" step="1" value="${lineWeight}">
-        <input type="number" class="prop-number" id="dvd-weight-number" min="1" max="12" value="${lineWeight}">
+        <input type="range" class="prop-slider" id="dvd-weight-slider" min="1" max="24" step="1" value="${lineWeight}">
+        <input type="number" class="prop-number" id="dvd-weight-number" min="1" max="24" value="${lineWeight}">
       </div>
       <div class="prop-row" id="dvd-length-row" style="display:${isVertical?'flex':'none'}">
         <span class="prop-label">길이</span>
@@ -122,7 +122,7 @@ export function showDividerProperties(block) {
   const wSlider = document.getElementById('dvd-weight-slider');
   const wNumber = document.getElementById('dvd-weight-number');
   const applyWeight = v => {
-    v = Math.min(12, Math.max(1, v));
+    v = Math.min(24, Math.max(1, v));
     block.dataset.lineWeight = v;
     applyAll();
     wSlider.value = v; wNumber.value = v;

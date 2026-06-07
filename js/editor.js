@@ -328,7 +328,10 @@ function toggleBlockSelect(block, sec) {
 const SIBLING_MULTI_SEL =
   '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
   '.table-block, .label-group-block, .graph-block, .divider-block, ' +
-  '.icon-text-block, .shape-block, .frame-block';
+  '.icon-text-block, .shape-block, .frame-block, ' +
+  // 누락 블록 추가 (#14): divider + 카드/말풍선/배너02/비교/목업/벡터/스텝/조커/캔버스 다중선택 지원
+  '.card-block, .speech-bubble-block, .banner02-block, .comparison-block, ' +
+  '.mockup-block, .vector-block, .step-block, .joker-block, .canvas-block';
 
 function _toSibling(el) {
   if (!el) return null;

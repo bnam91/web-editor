@@ -141,7 +141,7 @@ export function buildTextPropsHtml(state) {
           <option value="800" ${!_weightMixed && currentWeight==='800'?'selected':''}>ExtraBold 800</option>
           <option value="900" ${!_weightMixed && currentWeight==='900'?'selected':''}>Black 900</option>
         </select>
-        <input type="number" class="prop-number prop-number-select" id="txt-size-number" min="8" max="400" value="${_sizeVal}" placeholder="${_sizePh}" style="flex:1;min-width:0">
+        <input type="number" class="prop-number prop-number-select" id="txt-size-number" min="8" max="800" value="${_sizeVal}" placeholder="${_sizePh}" style="flex:1;min-width:0">
       </div>
 
       <div class="prop-lhls-row">
