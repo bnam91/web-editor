@@ -41,7 +41,7 @@ export function showComparisonProperties(block) {
     <div class="prop-section">
       <div class="prop-block-label">
         <div class="prop-block-info">
-          <span class="prop-block-name">${d.layerName || 'Comparison'}</span>
+          <span class="prop-block-name">${_esc(d.layerName) || 'Comparison'}</span>
           <span class="prop-breadcrumb">${window.getBlockBreadcrumb?.(block) || ''}</span>
         </div>
         ${block.id ? `<span class="prop-block-id" title="복사" onclick="_copyToClipboard && _copyToClipboard('${block.id}')">${block.id}</span>` : ''}

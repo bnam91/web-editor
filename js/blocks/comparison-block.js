@@ -184,9 +184,13 @@ function makeComparisonBlock(data = {}) {
     { title: data.leftTitle  ?? '일반 제품',        bg: data.leftBg  || '#e9ebef', text: data.leftText  || '#9aa0a8', rows: data.leftRows  || ['경쟁사 내용', '경쟁사 내용', '경쟁사 내용', '경쟁사 내용'] },
     { title: data.rightTitle ?? '브랜드 명·상품 명', bg: data.rightBg || '#ffffff', text: data.rightText || '#1a1a1a', rows: data.rightRows || ['강점 키워드 입력', '강점 키워드 입력', '강점 키워드 입력', '강점 키워드 입력'] },
   ];
-  block.dataset.cols = JSON.stringify(data.cols || defaultCols);
+  const cols0 = data.cols || defaultCols;
+  block.dataset.cols = JSON.stringify(cols0);
   // featured: 인덱스. 구버전 'left'/'right'도 허용. 기본은 마지막(오른쪽) 칼럼.
-  block.dataset.featured = data.featured != null ? String(data.featured) : '1';
+  // Codex Medium 픽스: cols 3개 이상에서 '1' 하드코딩이 가운데를 강조하던 회귀 수정.
+  block.dataset.featured = data.featured != null
+    ? String(data.featured)
+    : String(Math.max(0, (Array.isArray(cols0) ? cols0.length : 2) - 1));
   renderComparison(block);
   row.appendChild(block);
   return { row, block };
@@ -226,55 +230,58 @@ function updateComparisonBlock(blockId, partial = {}) {
     return { ok: false, code: 'INVALID', message: 'partial must be object' };
   }
 
-  const before = {
-    cols: block.dataset.cols, featured: block.dataset.featured,
-    featScale: block.dataset.featScale, compW: block.dataset.compW,
-  };
+  // Codex Medium 픽스: 검증 단계에서 어떤 dataset도 mutate하지 않는다.
+  // 모든 검증을 통과한 후에만 마지막에 일괄 commit. 실패해도 상태는 변화 없음.
+  const draft = {};      // 데이터셋 단순 필드 (key → string)
+  const applied = {};    // 반환용 요약
+  let draftCols = null;  // cols 변경분 (cols 전체교체 또는 columnPatch 적용 후)
 
-  window.pushHistory?.();
-
-  const applied = {};
-
-  const _setNum = (datasetKey, value, min, max) => {
+  const _setNumDraft = (datasetKey, value, min, max, appliedKey) => {
     const n = Number(value);
-    if (!Number.isFinite(n)) return false;
-    if (min !== undefined && n < min) return false;
-    if (max !== undefined && n > max) return false;
-    block.dataset[datasetKey] = String(n);
-    return true;
-  };
-  const _setStr = (datasetKey, value, maxLen) => {
-    const s = String(value);
-    if (maxLen !== undefined && [...s].length > maxLen) return null;
-    block.dataset[datasetKey] = s;
-    return s;
+    if (!Number.isFinite(n)) return { ok: false, msg: `${appliedKey || datasetKey} must be finite number` };
+    if (min !== undefined && n < min) return { ok: false, msg: `${appliedKey || datasetKey} < ${min}` };
+    if (max !== undefined && n > max) return { ok: false, msg: `${appliedKey || datasetKey} > ${max}` };
+    draft[datasetKey] = String(n);
+    applied[appliedKey || datasetKey] = n;
+    return { ok: true };
   };
 
   if (partial.layerName !== undefined && partial.layerName !== null) {
-    const v = _setStr('layerName', partial.layerName, 100);
-    if (v !== null) applied.layerName = v;
+    const s = String(partial.layerName);
+    if ([...s].length > 100) return { ok: false, code: 'INVALID', message: 'layerName too long' };
+    draft.layerName = s;
+    applied.layerName = s;
   }
 
   // 외곽/크기
-  if (partial.compW    !== undefined) { if (_setNum('compW',    partial.compW,    120, 4000)) applied.compW    = Number(partial.compW); }
-  if (partial.featScale!== undefined) {
-    const n = Number(partial.featScale);
-    if (Number.isFinite(n) && n >= 1 && n <= 1.5) {
-      block.dataset.featScale = String(n);
-      applied.featScale = n;
-    }
+  const _numFields = [
+    ['compW',     'compW',     120, 4000],
+    ['overlap',   'overlap',   0,   400],
+    ['radius',    'radius',    0,   400],
+    ['padX',      'padX',      0,   400],
+    ['padY',      'padY',      0,   400],
+    ['headerH',   'headerH',   16,  400],
+    ['rowH',      'rowH',      16,  400],
+    ['rowGap',    'rowGap',    0,   200],
+    ['titleFont', 'titleFont', 4,   400],
+    ['rowFont',   'rowFont',   4,   400],
+  ];
+  for (const [pk, dk, min, max] of _numFields) {
+    if (partial[pk] === undefined || partial[pk] === null) continue;
+    const r = _setNumDraft(dk, partial[pk], min, max, pk);
+    if (!r.ok) return { ok: false, code: 'INVALID', message: r.msg };
   }
-  if (partial.overlap  !== undefined) { if (_setNum('overlap',  partial.overlap,  0,   400))  applied.overlap  = Number(partial.overlap); }
-  if (partial.radius   !== undefined) { if (_setNum('radius',   partial.radius,   0,   400))  applied.radius   = Number(partial.radius); }
-  if (partial.padX     !== undefined) { if (_setNum('padX',     partial.padX,     0,   400))  applied.padX     = Number(partial.padX); }
-  if (partial.padY     !== undefined) { if (_setNum('padY',     partial.padY,     0,   400))  applied.padY     = Number(partial.padY); }
-  if (partial.headerH  !== undefined) { if (_setNum('headerH',  partial.headerH,  16,  400))  applied.headerH  = Number(partial.headerH); }
-  if (partial.rowH     !== undefined) { if (_setNum('rowH',     partial.rowH,     16,  400))  applied.rowH     = Number(partial.rowH); }
-  if (partial.rowGap   !== undefined) { if (_setNum('rowGap',   partial.rowGap,   0,   200))  applied.rowGap   = Number(partial.rowGap); }
-  if (partial.titleFont!== undefined) { if (_setNum('titleFont',partial.titleFont,4,   400))  applied.titleFont= Number(partial.titleFont); }
-  if (partial.rowFont  !== undefined) { if (_setNum('rowFont',  partial.rowFont,  4,   400))  applied.rowFont  = Number(partial.rowFont); }
 
-  // cols 전체 교체
+  if (partial.featScale !== undefined && partial.featScale !== null) {
+    const n = Number(partial.featScale);
+    if (!Number.isFinite(n) || n < 1 || n > 1.5) {
+      return { ok: false, code: 'INVALID', message: 'featScale out of range (1.0~1.5)' };
+    }
+    draft.featScale = String(n);
+    applied.featScale = n;
+  }
+
+  // cols 전체 교체 (draft만 갱신, mutate X)
   if (partial.cols !== undefined && partial.cols !== null) {
     if (!Array.isArray(partial.cols)) {
       return { ok: false, code: 'INVALID', message: 'cols must be array' };
@@ -295,18 +302,19 @@ function updateComparisonBlock(blockId, partial = {}) {
       if (bg.length > 1024 || text.length > 64) return { ok: false, code: 'INVALID', message: `cols[${i}] color too long` };
       const rows  = Array.isArray(c.rows) ? c.rows : [];
       if (rows.length > 20) return { ok: false, code: 'INVALID', message: `cols[${i}].rows length > 20` };
-      const safeRows = rows.map((r, ri) => {
-        const s = r == null ? '' : String(r);
-        if ([...s].length > 500) throw new Error(`cols[${i}].rows[${ri}] too long`);
-        return s;
-      });
+      const safeRows = [];
+      for (let ri = 0; ri < rows.length; ri++) {
+        const s = rows[ri] == null ? '' : String(rows[ri]);
+        if ([...s].length > 500) return { ok: false, code: 'INVALID', message: `cols[${i}].rows[${ri}] too long` };
+        safeRows.push(s);
+      }
       safeCols.push({ title, bg, text, rows: safeRows });
     }
-    block.dataset.cols = JSON.stringify(safeCols);
+    draftCols = safeCols;
     applied.cols = safeCols;
   }
 
-  // columnPatch — 개별 칼럼 부분 갱신 (index 기반)
+  // columnPatch — 개별 칼럼 부분 갱신 (draft만 갱신, mutate X)
   if (partial.columnPatch !== undefined && partial.columnPatch !== null) {
     if (!Array.isArray(partial.columnPatch)) {
       return { ok: false, code: 'INVALID', message: 'columnPatch must be array' };
@@ -314,57 +322,80 @@ function updateComparisonBlock(blockId, partial = {}) {
     if (partial.columnPatch.length > 16) {
       return { ok: false, code: 'INVALID', message: 'columnPatch too long' };
     }
-    const current = getComparisonCols(block.dataset);
+    // cols 전체교체 결과를 base로 사용 (없으면 현재 dataset). 둘 다 draft 단계라 mutate X.
+    const base = draftCols ? draftCols.map(c => ({ ...c, rows: [...c.rows] })) : getComparisonCols(block.dataset);
     const appliedPatches = [];
-    for (const p of partial.columnPatch) {
+    for (let pi = 0; pi < partial.columnPatch.length; pi++) {
+      const p = partial.columnPatch[pi];
       if (!p || typeof p !== 'object') {
-        return { ok: false, code: 'INVALID', message: 'columnPatch entry must be object' };
+        return { ok: false, code: 'INVALID', message: `columnPatch[${pi}] must be object` };
       }
       const idx = Number(p.index);
-      if (!Number.isInteger(idx) || idx < 0 || idx >= current.length) {
-        return { ok: false, code: 'INVALID', message: `columnPatch.index ${p.index} out of range (0~${current.length - 1})` };
+      if (!Number.isInteger(idx) || idx < 0 || idx >= base.length) {
+        return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].index ${p.index} out of range (0~${base.length - 1})` };
       }
-      const col = current[idx];
+      const col = base[idx];
       if (p.title !== undefined && p.title !== null) {
         const t = String(p.title);
-        if ([...t].length > 200) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].title too long` };
+        if ([...t].length > 200) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].title too long` };
         col.title = t;
       }
       if (p.bg !== undefined && p.bg !== null) {
         const v = String(p.bg);
-        if (v.length > 1024) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].bg too long` };
+        if (v.length > 1024) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].bg too long` };
         col.bg = v;
       }
       if (p.text !== undefined && p.text !== null) {
         const v = String(p.text);
-        if (v.length > 64) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].text too long` };
+        if (v.length > 64) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].text too long` };
         col.text = v;
       }
       if (p.rows !== undefined && p.rows !== null) {
-        if (!Array.isArray(p.rows)) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].rows must be array` };
-        if (p.rows.length > 20) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].rows length > 20` };
-        col.rows = p.rows.map((r, ri) => {
-          const s = r == null ? '' : String(r);
-          if ([...s].length > 500) throw new Error(`columnPatch[${idx}].rows[${ri}] too long`);
-          return s;
-        });
+        if (!Array.isArray(p.rows)) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].rows must be array` };
+        if (p.rows.length > 20) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].rows length > 20` };
+        const newRows = [];
+        for (let ri = 0; ri < p.rows.length; ri++) {
+          const s = p.rows[ri] == null ? '' : String(p.rows[ri]);
+          if ([...s].length > 500) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].rows[${ri}] too long` };
+          newRows.push(s);
+        }
+        col.rows = newRows;
       }
       appliedPatches.push({ index: idx });
     }
-    block.dataset.cols = JSON.stringify(current);
+    draftCols = base;
     applied.columnPatch = appliedPatches;
   }
 
-  // featured (int index) — cols 갱신 후에 적용 (length 검증)
+  // featured (int index) — cols 변경분과의 정합성 검사
+  let draftFeatured = null;
   if (partial.featured !== undefined && partial.featured !== null) {
-    const cols = getComparisonCols(block.dataset);
+    const refCols = draftCols || getComparisonCols(block.dataset);
     const fi = Number(partial.featured);
-    if (!Number.isInteger(fi) || fi < 0 || fi >= cols.length) {
-      return { ok: false, code: 'INVALID', message: `featured ${partial.featured} out of range (0~${cols.length - 1})` };
+    if (!Number.isInteger(fi) || fi < 0 || fi >= refCols.length) {
+      return { ok: false, code: 'INVALID', message: `featured ${partial.featured} out of range (0~${refCols.length - 1})` };
     }
-    block.dataset.featured = String(fi);
+    draftFeatured = String(fi);
     applied.featured = fi;
   }
+
+  // before 스냅샷 (commit 직전, 검증 모두 통과 후)
+  const before = {
+    cols: block.dataset.cols, featured: block.dataset.featured,
+    featScale: block.dataset.featScale, compW: block.dataset.compW,
+  };
+
+  // ── 모든 검증 통과 — 여기서부터 mutate ──
+  window.pushHistory?.();
+
+  // 단순 필드 (key=value)
+  for (const [k, v] of Object.entries(draft)) {
+    block.dataset[k] = v;
+  }
+  // cols 변경분
+  if (draftCols) block.dataset.cols = JSON.stringify(draftCols);
+  // featured
+  if (draftFeatured !== null) block.dataset.featured = draftFeatured;
 
   // 재렌더
   try {

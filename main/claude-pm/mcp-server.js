@@ -1426,8 +1426,23 @@ function _validateBanner02Opts(args, { mode } = {}) {
 // mode='update' → sectionId 무시, blockId는 caller에서 처리
 const _CMP_BG_RE   = /^#[0-9a-fA-F]{3,8}$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
 // gradient는 linear-gradient(...) / radial-gradient(...) / conic-gradient(...) 만 허용 (편집기 기본 패턴).
-// 인자 내부: 영숫자, 공백, , % # ( ) . - + / 만 허용 → ;, url(), expression(), backslash, < > 모두 차단.
-const _CMP_GRAD_RE = /^(linear|radial|conic)-gradient\(\s*[\sa-zA-Z0-9,%#().\-+/]{1,1024}\s*\)$/;
+// 인자 내부: 영숫자, 공백, , % # . - + / 만 허용 → '(' ')' ';' url() expression() backslash < > 모두 차단.
+// '(' ')' 차단으로 multi-background 우회 (`linear-gradient(...), url(...)`)와 nested 함수 차단.
+// 따라서 gradient 안의 rgba()/hsl() 같은 nested 함수도 사용 불가 — hex/keyword/percentage 인자만 허용.
+const _CMP_GRAD_INNER_RE = /^[\sa-zA-Z0-9,%#.\-+/]{1,1024}$/;
+const _CMP_GRAD_HEAD_RE  = /^(linear|radial|conic)-gradient$/;
+
+function _isValidCmpGradient(s) {
+  // top-level paren 정확히 한 쌍: `<head>(<inner>)`
+  if (!s.endsWith(')')) return false;
+  const openIdx = s.indexOf('(');
+  if (openIdx < 0) return false;
+  const head  = s.slice(0, openIdx);
+  const inner = s.slice(openIdx + 1, -1);
+  if (!_CMP_GRAD_HEAD_RE.test(head)) return false;
+  if (!_CMP_GRAD_INNER_RE.test(inner)) return false;
+  return true;
+}
 
 function _validateComparisonBg(v, label) {
   if (typeof v !== 'string') throw new Error(`${label} must be string`);
@@ -1436,7 +1451,7 @@ function _validateComparisonBg(v, label) {
   if (s.length > 1024) throw new Error(`${label} too long`);
   if (s === 'transparent') return s;
   if (_CMP_BG_RE.test(s)) return s;
-  if (_CMP_GRAD_RE.test(s)) return s;
+  if (_isValidCmpGradient(s)) return s;
   throw new Error(`${label} invalid (allowed: #hex | rgb(a)/hsl(a)() | transparent | (linear|radial|conic)-gradient(...))`);
 }
 function _validateComparisonTextColor(v, label) {
