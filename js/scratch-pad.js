@@ -874,6 +874,37 @@ window._scratchGetItemById = id => {
   return it ? { id: it.id, src: it.src } : null;
 };
 
+// ── Claude PM MCP 노출: 스크래치 아이템 메타데이터 조회 ──
+// list: src 제외(토큰 폭발 방지) — id/position/srcType/srcSize만
+// read: 단일 아이템 전체 (main 측에서 truncate 처리)
+window._getScratchItemsForMCP = function() {
+  return _scratchItems.map(({ src, x, y, w, id }) => {
+    let srcType = 'other';
+    if (typeof src === 'string') {
+      if (src.startsWith('data:image/svg')) srcType = 'svg';
+      else if (src.startsWith('data:image/')) srcType = 'image';
+      else if (/^https?:/.test(src)) srcType = 'url';
+      else if (src.startsWith('data:')) srcType = 'dataurl';
+    }
+    return {
+      id,
+      x: Math.round(x), y: Math.round(y), w: Math.round(w),
+      srcType,
+      srcSize: typeof src === 'string' ? src.length : 0,
+    };
+  });
+};
+
+window._getScratchItemByIdForMCP = function(id) {
+  const it = _scratchItems.find(s => s.id === id);
+  if (!it) return null;
+  return {
+    id: it.id,
+    x: Math.round(it.x), y: Math.round(it.y), w: Math.round(it.w),
+    src: it.src,
+  };
+};
+
 // canvas-scratch-drop.js → 드롭 성공 후 스크래치 DOM·IndexedDB 정리
 window._scratchRemoveById = async (id) => {
   const it = _scratchItems.find(s => s.id === id);

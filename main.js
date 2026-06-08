@@ -1227,6 +1227,8 @@ app.whenReady().then(async () => {
       addAssetBlock: _invokeRendererAddAssetBlock,
       buildBasicSection: _invokeRendererBuildBasicSection,
       getCanvasState: _invokeRendererGetCanvasState,
+      listScratchItems: _invokeRendererListScratchItems,
+      readScratchItem: _invokeRendererReadScratchItem,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1311,6 +1313,28 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
   } catch (e) {
     throw new Error('addTextBlock call failed: ' + e.message);
   }
+}
+
+// ─── 스크래치 아이템 조회 (renderer IndexedDB 메모리 접근) ───────────────────
+async function _invokeRendererListScratchItems() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  return await mainWindow.webContents.executeJavaScript(
+    '(typeof window._getScratchItemsForMCP === "function") ? window._getScratchItemsForMCP() : []',
+    true
+  );
+}
+
+async function _invokeRendererReadScratchItem(id) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeId = JSON.stringify(String(id || ''));
+  return await mainWindow.webContents.executeJavaScript(
+    `(typeof window._getScratchItemByIdForMCP === "function") ? window._getScratchItemByIdForMCP(${safeId}) : null`,
+    true
+  );
 }
 
 // ─── update_block — 기존 텍스트 블록 수정 helper ─────────────────────────────

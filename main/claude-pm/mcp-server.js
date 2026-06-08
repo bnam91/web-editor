@@ -380,6 +380,56 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // PM list_scratch_items — 스크래치패드 아이템 목록 (메타데이터만, src 제외 → 토큰 폭발 방지)
+  registerTool(
+    'list_scratch_items',
+    async () => {
+      if (!_rendererInvoker || typeof _rendererInvoker.listScratchItems !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      return await _rendererInvoker.listScratchItems();
+    },
+    {
+      description: 'List all scratch pad items in the active page. Returns [{id, x, y, w, srcType, srcSize}] — src content is excluded to avoid token blowup. Use read_scratch_item to fetch a specific one.',
+      inputSchema: { type: 'object', properties: {}, required: [] }
+    }
+  );
+
+  // PM read_scratch_item — 단일 스크래치 아이템. 기본은 src 잘라서 반환(토큰 절약), includeSrc=true면 전체.
+  registerTool(
+    'read_scratch_item',
+    async ({ id, includeSrc = false, truncateSrcTo = 200 } = {}) => {
+      if (!id || typeof id !== 'string') throw new Error('id required (e.g. "sp_br70mc")');
+      if (!id.startsWith('sp_')) throw new Error(`invalid scratch id: ${id} (expected prefix "sp_")`);
+      if (!_rendererInvoker || typeof _rendererInvoker.readScratchItem !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      const item = await _rendererInvoker.readScratchItem(id);
+      if (!item) return null;
+      // src 토큰 폭발 방지 — 기본은 prefix만 노출
+      if (typeof item.src === 'string') {
+        item.srcSize = item.src.length;
+        if (!includeSrc && item.src.length > truncateSrcTo) {
+          item.srcPreview = item.src.slice(0, truncateSrcTo) + '...';
+          delete item.src;
+        }
+      }
+      return item;
+    },
+    {
+      description: 'Read a single scratch pad item by id (e.g. "sp_br70mc"). Returns {id, x, y, w, src|srcPreview, srcSize}. By default the src dataURL is truncated to avoid token blowup; pass includeSrc=true to get the full content.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Scratch item id, e.g. "sp_br70mc"' },
+          includeSrc: { type: 'boolean', description: 'If true, return full src content (may be large dataURL). Default: false (only first 200 chars as srcPreview).', default: false },
+          truncateSrcTo: { type: 'number', description: 'When includeSrc=false, prefix length for srcPreview. Default: 200.', default: 200 }
+        },
+        required: ['id']
+      }
+    }
+  );
 }
 
 // ─────────────────────────────────────────────
