@@ -907,6 +907,7 @@ function addSection(opts = {}) {
       <div class="section-toolbar">
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
         <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
+        <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모">📝</button>
       </div>
       <div class="section-inner">
         <div class="gap-block" data-type="gap" style="height:${gapH}px" id="${genId('gb')}"></div>
@@ -919,6 +920,7 @@ function addSection(opts = {}) {
       <div class="section-toolbar">
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
         <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
+        <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모">📝</button>
       </div>
       <div class="section-inner">
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>

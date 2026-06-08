@@ -88,4 +88,81 @@
   window.getSectionMemo        = getSectionMemo;
   window.appendSectionMemoLine = appendSectionMemoLine;
   window.SECTION_MEMO_MAX_LEN  = MAX_MEMO_LEN;
+
+  // ── section-toolbar 메모 버튼 popover 토글 (UI) ────────────────────────────
+  let _activePop = null;
+  window.toggleSectionMemoPopover = function toggleSectionMemoPopover(btn) {
+    if (!btn) return;
+    const sec = btn.closest('.section-block');
+    if (!sec) return;
+    if (_activePop) {
+      _activePop.remove();
+      const prev = _activePop;
+      _activePop = null;
+      if (prev._anchor === sec) return; // 같은 섹션 토글 = 닫기만
+    }
+    const memo = sec.dataset.memo || '';
+    const pop = document.createElement('div');
+    pop._anchor = sec;
+    pop.className = 'section-memo-popover';
+    pop.innerHTML = `
+      <div class="smp-head">
+        <span class="smp-title">📝 메모 — ${sec.dataset.name || sec.id}</span>
+        <button class="smp-close" type="button" title="닫기">✕</button>
+      </div>
+      <textarea class="smp-textarea" rows="8" maxlength="${MAX_MEMO_LEN}" placeholder="섹션 메모 (출처, 의도, 디자인 노트 등)..."></textarea>
+      <div class="smp-foot">
+        <span class="smp-count">0 / ${MAX_MEMO_LEN}</span>
+        <span class="smp-status"></span>
+      </div>
+    `;
+    const ta = pop.querySelector('.smp-textarea');
+    const count = pop.querySelector('.smp-count');
+    const status = pop.querySelector('.smp-status');
+    ta.value = memo;
+    const refreshCount = () => { count.textContent = `${[...ta.value].length} / ${MAX_MEMO_LEN}`; };
+    refreshCount();
+    let saveTimer = null;
+    const commit = () => {
+      const v = ta.value;
+      if (v === memo && !sec.dataset.memo === !v) return;
+      const r = setSectionMemo(sec.id, v);
+      status.textContent = r.ok ? '저장됨' : ('오류: ' + r.code);
+      setTimeout(() => { status.textContent = ''; }, 1500);
+    };
+    ta.addEventListener('input', () => {
+      refreshCount();
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(commit, 500);
+    });
+    ta.addEventListener('blur', () => { clearTimeout(saveTimer); commit(); });
+    pop.querySelector('.smp-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearTimeout(saveTimer);
+      commit();
+      pop.remove();
+      _activePop = null;
+    });
+    pop.addEventListener('click', e => e.stopPropagation());
+
+    // popover를 section-toolbar 다음에 attach
+    const toolbar = sec.querySelector('.section-toolbar');
+    if (toolbar) toolbar.insertAdjacentElement('afterend', pop);
+    else sec.appendChild(pop);
+    _activePop = pop;
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    // 다른 곳 클릭 시 닫기
+    setTimeout(() => {
+      const closer = (ev) => {
+        if (!pop.contains(ev.target)) {
+          clearTimeout(saveTimer); commit();
+          pop.remove();
+          if (_activePop === pop) _activePop = null;
+          document.removeEventListener('mousedown', closer, true);
+        }
+      };
+      document.addEventListener('mousedown', closer, true);
+    }, 0);
+  };
 })();

@@ -230,11 +230,7 @@ async function showSectionProperties(sec) {
         <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
       </div>
     </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Memo</div>
-      <textarea class="prop-textarea" id="sec-memo" placeholder="섹션 메모 (출처, 가설, todo 등) — 자동 저장" maxlength="${_memoMaxLen}" style="min-height:64px;"></textarea>
-      <div class="prop-field-label" id="sec-memo-counter" style="margin-top:4px;opacity:0.6;">0 / ${_memoMaxLen}</div>
-    </div>
+    <!-- Memo: section-toolbar의 📝 버튼으로 popover 표시 (prop 패널 X) -->
     <div class="prop-section">
       <div class="prop-section-title">Export</div>
       <div class="prop-row" style="margin-bottom:4px;">
