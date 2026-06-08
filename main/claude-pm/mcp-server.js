@@ -985,6 +985,56 @@ function _registerDefaultTools() {
     }
   );
 
+  // ─── add_banner02_block — banner02 블록 추가 (가로 배너) ───────────────────
+  // banner02-block.js의 makeBanner02Block 전체 opts 노출. variant 2종 (frame_8, wide_4x1).
+  // 텍스트(label/title/sub) + 이미지(imgSrc) + 색/크기/레이아웃까지 1콜에서 생성.
+  registerTool(
+    'add_banner02_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.addBanner02Block) throw new Error('renderer bridge not ready');
+      const opts = _validateBanner02Opts(args, { mode: 'add' });
+      return await _rendererInvoker.addBanner02Block(opts);
+    },
+    {
+      description: 'Add a banner02 block (horizontal banner with label/title/sub + image). 1급 독립 배너 (banner-presets 후속). variant=frame_8 (780×260) 또는 wide_4x1 (800×200). Returns {ok, blockId, ...}. blockId는 bn2_xxx. 이후 update_banner02_block(blockId, partial)로 수정.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx — omit to use currently selected section' },
+          variant:   { type: 'string', enum: ['frame_8', 'wide_4x1'], description: '배너 변형 (frame_8=780×260 가로배너, wide_4x1=800×200 와이드). default frame_8' },
+          layerName: { type: 'string', description: '레이어 패널 표시명. default "Banner"' },
+          width:  { type: 'integer', description: '배너 가로 (80~4000). variant 기본값 사용 권장' },
+          height: { type: 'integer', description: '배너 세로 (40~4000)' },
+          radius: { type: 'integer', description: '모서리 반경 px (0~400)' },
+          bg:     { type: 'string',  description: '배경 색상 (hex 또는 css color string). default variant 기본값' },
+          align:  { type: 'string', enum: ['left','center','right'], description: '텍스트 정렬. default left' },
+          textX: { type: 'integer', description: '텍스트 박스 X (-4000~4000)' },
+          textY: { type: 'integer', description: '텍스트 박스 Y' },
+          textW: { type: 'integer', description: '텍스트 박스 너비 (20~4000)' },
+          label:      { type: 'string', description: '라벨 텍스트 (≤500). default "라벨입니다."' },
+          labelSize:  { type: 'integer', description: '라벨 폰트크기 px (4~400)' },
+          labelColor: { type: 'string',  description: '라벨 색상 (#RRGGBB)' },
+          title:      { type: 'string', description: '제목 텍스트 (≤500). default "제목을 입력합니다."' },
+          titleSize:  { type: 'integer', description: '제목 폰트크기 px (4~400)' },
+          titleColor: { type: 'string',  description: '제목 색상' },
+          sub:        { type: 'string', description: '부제/캡션 텍스트 (≤500). default "캡션이 입력됩니다."' },
+          subSize:    { type: 'integer', description: '부제 폰트크기 px (4~400)' },
+          subColor:   { type: 'string',  description: '부제 색상' },
+          gap1: { type: 'integer', description: '라벨↔제목 간격 px (0~400)' },
+          gap2: { type: 'integer', description: '제목↔부제 간격 px (0~400)' },
+          imgSrc: { type: 'string', description: '이미지 URL 또는 dataURL (≤200000). " 와 개행 금지 (CSS url("") 안전)' },
+          imgX: { type: 'integer', description: '이미지 X' },
+          imgY: { type: 'integer', description: '이미지 Y' },
+          imgW: { type: 'integer', description: '이미지 너비 (4~4000)' },
+          imgH: { type: 'integer', description: '이미지 높이 (4~4000)' },
+          imgFit: { type: 'string', enum: ['cover','contain'], description: '이미지 fit. default cover' },
+          layout: { type: 'string', enum: ['left','right'], description: 'text 위치 (left=텍스트 왼쪽 + 이미지 오른쪽, right=반대). 미지정 시 variant 기본값.' }
+        },
+        required: []
+      }
+    }
+  );
+
   // ─── update_mockup_block — 기존 목업 블록 부분 수정 ────────────────────────
   registerTool(
     'update_mockup_block',
@@ -1029,6 +1079,124 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // ─── update_banner02_block — banner02 블록 부분 수정 (id 기반) ────────────
+  // PM이 텍스트/이미지/색상/레이아웃 등 partial update. add와 동일 필드 set 지원 (variant 포함).
+  registerTool(
+    'update_banner02_block',
+    async ({ blockId, ...rest } = {}) => {
+      if (!_rendererInvoker?.updateBanner02Block) throw new Error('renderer bridge not ready');
+      if (typeof blockId !== 'string' || !blockId.startsWith('bn2_')) {
+        throw new Error(`invalid blockId: ${blockId}. must be a string starting with "bn2_"`);
+      }
+      const partial = _validateBanner02Opts(rest, { mode: 'update' });
+      if (Object.keys(partial).length === 0) {
+        throw new Error('no fields to update — provide at least one banner02 field');
+      }
+      return await _rendererInvoker.updateBanner02Block({ blockId, partial });
+    },
+    {
+      description: 'Edit an EXISTING banner02 block (bn2_xxx) — partial update of any field from add_banner02_block. Use to change text(label/title/sub), image(imgSrc), colors, sizes, layout swap, variant. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state or returned from add_banner02_block.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'bn2_xxx (banner02 block id)' },
+          variant: { type: 'string', enum: ['frame_8', 'wide_4x1'] },
+          width:  { type: 'integer' }, height: { type: 'integer' },
+          radius: { type: 'integer' }, bg: { type: 'string' },
+          align:  { type: 'string', enum: ['left','center','right'] },
+          textX:  { type: 'integer' }, textY: { type: 'integer' }, textW: { type: 'integer' },
+          label:      { type: 'string' }, labelSize:  { type: 'integer' }, labelColor: { type: 'string' },
+          title:      { type: 'string' }, titleSize:  { type: 'integer' }, titleColor: { type: 'string' },
+          sub:        { type: 'string' }, subSize:    { type: 'integer' }, subColor:   { type: 'string' },
+          gap1: { type: 'integer' }, gap2: { type: 'integer' },
+          imgSrc: { type: 'string' }, imgX: { type: 'integer' }, imgY: { type: 'integer' },
+          imgW: { type: 'integer' }, imgH: { type: 'integer' }, imgFit: { type: 'string', enum: ['cover','contain'] },
+          layout: { type: 'string', enum: ['left','right'] }
+        },
+        required: ['blockId']
+      }
+    }
+  );
+}
+
+// ─── banner02 옵션 검증 (add/update 공용) ───────────────────────────────────
+// mode='add'  → sectionId 허용, 모든 필드 optional (block-factory가 기본값 채움)
+// mode='update' → sectionId 무시, blockId는 caller에서 처리. 빈 객체도 허용 (caller가 별도 체크).
+function _validateBanner02Opts(args, { mode } = {}) {
+  if (!args || typeof args !== 'object') throw new Error('args must be object');
+  const out = {};
+
+  const _int = (key, min, max) => {
+    if (args[key] === undefined || args[key] === null) return;
+    const n = args[key];
+    if (!Number.isInteger(n)) throw new Error(`${key} must be integer`);
+    if (min !== undefined && n < min) throw new Error(`${key} < ${min}`);
+    if (max !== undefined && n > max) throw new Error(`${key} > ${max}`);
+    out[key] = n;
+  };
+  const _str = (key, maxLen) => {
+    if (args[key] === undefined || args[key] === null) return;
+    if (typeof args[key] !== 'string') throw new Error(`${key} must be string`);
+    if (maxLen !== undefined && [...args[key]].length > maxLen) {
+      throw new Error(`${key} too long (>${maxLen} code points)`);
+    }
+    out[key] = args[key];
+  };
+  // hex/rgb()/rgba()/hsl()/hsla()/transparent — strict. CSS injection 차단.
+  const _color = (key) => {
+    if (args[key] === undefined || args[key] === null) return;
+    if (typeof args[key] !== 'string') throw new Error(`${key} must be string`);
+    const v = args[key].trim();
+    if (v.length === 0) throw new Error(`${key} empty`);
+    if (v.length > 64) throw new Error(`${key} too long`);
+    const ok =
+      /^#[0-9a-fA-F]{3,8}$/.test(v) ||
+      /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(v) ||
+      v === 'transparent';
+    if (!ok) throw new Error(`${key} invalid color (allowed: #hex | rgb(a)/hsl(a)() | transparent)`);
+    out[key] = v;
+  };
+  const _enum = (key, allowed) => {
+    if (args[key] === undefined || args[key] === null) return;
+    if (!allowed.includes(args[key])) throw new Error(`invalid ${key}: ${args[key]}. allowed: ${allowed.join('|')}`);
+    out[key] = args[key];
+  };
+
+  if (mode === 'add') {
+    if (args.sectionId !== undefined && args.sectionId !== null) {
+      if (typeof args.sectionId !== 'string' || !args.sectionId.startsWith('sec_')) {
+        throw new Error(`invalid sectionId: ${args.sectionId}. expected string starting with sec_`);
+      }
+      out.sectionId = args.sectionId;
+    }
+  }
+
+  _enum('variant', ['frame_8', 'wide_4x1']);
+  _str('layerName', 100);
+  _int('width', 80, 4000);
+  _int('height', 40, 4000);
+  _int('radius', 0, 400);
+  _color('bg');
+  _enum('align', ['left', 'center', 'right']);
+  _int('textX', -4000, 4000); _int('textY', -4000, 4000); _int('textW', 20, 4000);
+  _str('label', 500); _int('labelSize', 4, 400); _color('labelColor');
+  _str('title', 500); _int('titleSize', 4, 400); _color('titleColor');
+  _str('sub',   500); _int('subSize',   4, 400); _color('subColor');
+  _int('gap1', 0, 400); _int('gap2', 0, 400);
+
+  if (args.imgSrc !== undefined && args.imgSrc !== null) {
+    if (typeof args.imgSrc !== 'string') throw new Error('imgSrc must be string');
+    if (args.imgSrc.length > 200000) throw new Error('imgSrc too long (>200000)');
+    if (/["\r\n]/.test(args.imgSrc)) throw new Error('imgSrc contains quote/newline (escape unsafe)');
+    out.imgSrc = args.imgSrc;
+  }
+  _int('imgX', -4000, 4000); _int('imgY', -4000, 4000);
+  _int('imgW', 4, 4000); _int('imgH', 4, 4000);
+  _enum('imgFit', ['cover', 'contain']);
+  _enum('layout', ['left', 'right']);
+
+  return out;
 }
 
 // ─────────────────────────────────────────────

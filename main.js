@@ -1244,6 +1244,8 @@ app.whenReady().then(async () => {
       updateChecklistItem: _invokeRendererUpdateChecklistItem,
       addMockupBlock: _invokeRendererAddMockupBlock,
       updateMockupBlock: _invokeRendererUpdateMockupBlock,
+      addBanner02Block: _invokeRendererAddBanner02Block,
+      updateBanner02Block: _invokeRendererUpdateBanner02Block,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -2106,6 +2108,106 @@ async function _invokeRendererUpdateMockupBlock({ blockId, deviceKey, width, img
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('updateMockupBlock call failed: ' + e.message);
+  }
+}
+
+// ─── add_banner02_block — banner02 블록 추가 (data 옵션 풀세트) ──────────────
+// add_text_block과 동일 패턴: 단일 atomic IIFE (동시수정 가드 + window.addBanner02Block).
+// mcp-server에서 type/length 검증 후 들어옴. 여기선 JSON.stringify로 전부 escape.
+async function _invokeRendererAddBanner02Block(opts = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeSectionId = opts.sectionId ? JSON.stringify(String(opts.sectionId)) : 'null';
+  // opts에서 sectionId 분리해서 dataOpts만 makeBanner02Block에 전달 (sectionId는 selectSection용)
+  const dataOpts = { ...opts };
+  delete dataOpts.sectionId;
+  const safeData = JSON.stringify(dataOpts);
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 (atomic) ──
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addBanner02Block !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addBanner02Block not found' };
+      }
+      // 지정 섹션 타게팅 (add_asset_block 패턴)
+      const sid = ${safeSectionId};
+      if (sid) {
+        const target = document.getElementById(sid) || document.querySelector('[data-section-id="' + sid + '"]');
+        if (!target) return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        if (typeof window.selectSection === 'function') { try { window.selectSection(target); } catch(_){} }
+      }
+      if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
+          && typeof window.selectSection === 'function') {
+        const firstSec = document.querySelector('[id^="sec_"]');
+        if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.banner02-block')].map(b => b.id));
+      const result = window.addBanner02Block(${safeData});
+      const blocks = [...document.querySelectorAll('.banner02-block')];
+      const newBlock = (result && result.block) || blocks.find(b => !beforeIds.has(b.id));
+      if (!newBlock) {
+        return { ok: false, code: 'NO_ADD', message: 'banner02-block이 추가되지 않았습니다.' };
+      }
+      return {
+        ok: true,
+        blockId: newBlock.id,
+        pageId: window.activePageId || null,
+        beforeCount: beforeIds.size,
+        afterCount: blocks.length,
+      };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addBanner02Block call failed: ' + e.message);
+  }
+}
+
+// ─── update_banner02_block — 기존 banner02 블록 부분 수정 ────────────────────
+// 텍스트(label/title/sub)·색상·이미지·레이아웃 partial update. editTextBlock 패턴 미러.
+async function _invokeRendererUpdateBanner02Block({ blockId, partial } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeBlockId = JSON.stringify(String(blockId || ''));
+  // partial은 mcp-server에서 검증 후 들어옴. JSON.stringify로 escape.
+  const safePartial = JSON.stringify(partial || {});
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 (atomic) ──
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.updateBanner02Block !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.updateBanner02Block not found' };
+      }
+      return window.updateBanner02Block(${safeBlockId}, ${safePartial});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('updateBanner02Block call failed: ' + e.message);
   }
 }
 
