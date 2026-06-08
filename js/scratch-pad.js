@@ -874,6 +874,40 @@ window._scratchGetItemById = id => {
   return it ? { id: it.id, src: it.src } : null;
 };
 
+// ── 스크래치 그룹화 + 스마트 그리드 정렬 (Cmd+G — editor.js 단축키 분기) ──────
+// 다중 선택된 스크래치들을 4열 그리드로 재배치 + data-scratch-group 박음.
+// 같은 그룹은 시각적 묶음 (향후 함께 이동 등 확장 가능).
+window._scratchHasSelection = () => _selectedItems.size >= 2;
+
+window._scratchGroupAndAlign = () => {
+  if (_selectedItems.size < 2) return { ok: false, msg: '2개 이상 선택 필요' };
+  const items = [...(_selectedItems)];
+  // 기준 좌표: 선택 중 가장 좌상단 (최소 x, 최소 y)
+  const minX = Math.min(...items.map(i => i.x));
+  const minY = Math.min(...items.map(i => i.y));
+  // 스마트 그리드 — 220px width, 4 cols, gap 16
+  const W = 220, GAP = 16, COLS = 4;
+  // 그룹 id (이미 그룹 있으면 재사용 — 첫 아이템 기준)
+  const groupId = items[0].el?.dataset?.scratchGroup || ('g_' + Math.random().toString(36).slice(2, 8));
+  items.forEach((it, idx) => {
+    const col = idx % COLS;
+    const row = Math.floor(idx / COLS);
+    const newX = minX + col * (W + GAP);
+    const newY = minY + row * (W + GAP);
+    it.x = newX;
+    it.y = newY;
+    if (it.el) {
+      it.el.style.left = newX + 'px';
+      it.el.style.top  = newY + 'px';
+      it.el.style.width = W + 'px';
+      it.el.dataset.scratchGroup = groupId;
+    }
+    it.w = W;
+  });
+  _saveScratch();
+  return { ok: true, count: items.length, groupId };
+};
+
 // ── Claude PM MCP 노출: 스크래치 아이템 메타데이터 조회 ──
 // list: src 제외(토큰 폭발 방지) — id/position/srcType/srcSize만
 // read: 단일 아이템 전체 (main 측에서 truncate 처리)

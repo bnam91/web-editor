@@ -975,7 +975,12 @@ document.addEventListener('keydown', e => {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
-      window.groupSelectedBlocks?.();
+      // 스크래치 다중 선택 상태면 스크래치 정렬+그룹 (같은 단축키)
+      if (typeof window._scratchHasSelection === 'function' && window._scratchHasSelection()) {
+        window._scratchGroupAndAlign?.();
+      } else {
+        window.groupSelectedBlocks?.();
+      }
       return;
     }
     // ungroup (기본: ⌘⇧G)
