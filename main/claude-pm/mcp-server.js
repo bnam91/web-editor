@@ -278,8 +278,13 @@ function _registerDefaultTools() {
       if ([...mc].length > 200) throw new Error('mainCopy too long (>200)');
       const bd = String(body || '');
       if ([...bd].length > 800) throw new Error('body too long (>800)');
-      const allowed = ['img1', 'img2', 'img3', 'text-img'];
-      if (!allowed.includes(assetPreset)) throw new Error(`invalid assetPreset: ${assetPreset}`);
+      // 2026-06-08 NewGrid 봉인: multi-col preset deprecated → 'img1'만 허용.
+      // 'img2'/'img3'/'text-img'는 multi-col row 생성 → save-load.js가 자동 grid 변환하던 좀비 동작.
+      // 비교 레이아웃은 add_section + add_asset_block 여러 개(stack)로 처리.
+      const allowed = ['img1'];
+      if (!allowed.includes(assetPreset)) {
+        throw new Error(`invalid assetPreset: "${assetPreset}". Only 'img1' allowed (img2/img3/text-img deprecated — multi-col grid 봉인). For multi-image layout, use add_asset_block multiple times.`);
+      }
       if (!['left', 'center', 'right'].includes(align)) throw new Error(`invalid align: ${align}`);
       const lb = label !== undefined ? String(label) : null;
       if (lb !== null && [...lb].length > 60) throw new Error('label too long (>60)');
@@ -293,7 +298,7 @@ function _registerDefaultTools() {
           mainCopy: { type: 'string', description: 'main headline text (required, ~200)' },
           body: { type: 'string', description: 'body/subcopy text (optional, ~800)' },
           label: { type: 'string', description: 'optional small label above the headline (e.g. NEW ARRIVAL)' },
-          assetPreset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout (default img1)' },
+          assetPreset: { type: 'string', enum: ['img1'], description: 'asset layout — only "img1" (single stacked image) allowed. Multi-col presets (img2/img3/text-img) deprecated as of 2026-06-08 due to NewGrid Frame seal.' },
           align: { type: 'string', enum: ['left', 'center', 'right'], description: 'text align (default center — hero/Hook convention)' }
         },
         required: ['mainCopy']

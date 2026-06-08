@@ -476,6 +476,13 @@ function groupSelectedBlocks() {
 
 // ── Row 프리셋 생성 ──────────────────────────────────────────
 function makePresetRow(type) {
+  // 2026-06-08 NewGrid 봉인: img2/img3 multi-col preset deprecated.
+  // 다음 load 때 save-load.js가 NewGrid로 자동 변환하던 좀비 동작 차단.
+  // 이미지 multi-col 비교가 필요하면 add_asset_block 여러 개 (stack)로 처리.
+  if (type === 'img2' || type === 'img3' || type === 'text-img') {
+    console.warn('[block-factory] preset', type, '→ img1 fallback (multi-col deprecated)');
+    type = 'img1';
+  }
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row');
 
