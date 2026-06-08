@@ -748,7 +748,7 @@ function _dropSection(targetEl, before) {
 //
 // 옵션 ephemeral=true: 사용자가 타이핑하기 전까지 storage 저장 X (T8: 빈 리스트 placeholder용)
 function _appendInlineItemInput(sectionId, opts = {}) {
-  const { ephemeral = false } = opts;
+  const { ephemeral = false, prepend = false } = opts;
   const list = document.getElementById('ck-list');
   if (!list) return;
 
@@ -775,7 +775,8 @@ function _appendInlineItemInput(sectionId, opts = {}) {
   input.placeholder = '할 일을 입력하고 Enter...';
   input.maxLength   = 100;
   row.appendChild(input);
-  list.appendChild(row);
+  if (prepend) list.insertBefore(row, list.firstChild);
+  else list.appendChild(row);
   input.focus();
 
   let _done = false;
@@ -856,9 +857,11 @@ function _appendEmptyPlaceholderRow() {
   row.addEventListener('dblclick', (e) => {
     e.stopPropagation();
     row.remove();
-    _appendInlineItemInput(null, { ephemeral: true });
+    // 새 input row도 list 맨 위에 prepend (사용자 스크롤 수고 제거)
+    _appendInlineItemInput(null, { ephemeral: true, prepend: true });
   });
-  list.appendChild(row);
+  // 사용자 명시: placeholder는 list 맨 위로 (스크롤 수고 제거)
+  list.insertBefore(row, list.firstChild);
 }
 
 // ── 인라인 섹션 입력 ─────────────────────────────────────────────────────────
