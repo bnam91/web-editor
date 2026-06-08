@@ -729,25 +729,38 @@ function addIconCircleBlock(opts = {}) {
 }
 
 function addTableBlock(opts = {}) {
+  // 2026-06-08: opts.headers + opts.rows 데이터 직접 주입 지원 (MCP add_table_block)
+  const _escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const applyData = (block) => {
+    if (opts.showHeader === false) {
+      block.dataset.showHeader = 'false';
+      const thead = block.querySelector('thead'); if (thead) thead.style.display = 'none';
+    }
+    const align = opts.cellAlign || block.dataset.cellAlign || 'center';
+    if (opts.cellAlign) { block.dataset.cellAlign = opts.cellAlign; }
+    if (Array.isArray(opts.headers) && opts.headers.length > 0) {
+      const thead = block.querySelector('thead');
+      if (thead) thead.innerHTML = `<tr>${opts.headers.map(h => `<th style="text-align:${align}">${_escHtml(h)}</th>`).join('')}</tr>`;
+    }
+    if (Array.isArray(opts.rows) && opts.rows.length > 0) {
+      const tbody = block.querySelector('tbody');
+      if (tbody) tbody.innerHTML = opts.rows.map(r =>
+        `<tr>${(Array.isArray(r) ? r : [r]).map(cell => `<td style="text-align:${align}">${_escHtml(cell)}</td>`).join('')}</tr>`
+      ).join('');
+    }
+    // 정렬 일괄 (기존 셀에도)
+    if (opts.cellAlign) block.querySelectorAll('td, th').forEach(c => { c.style.textAlign = opts.cellAlign; });
+  };
   if (_insertToFlowFrame(() => {
     const { row, block } = makeTableBlock();
-    if (opts.showHeader === false) { block.dataset.showHeader = 'false'; const th = block.querySelector('thead'); if (th) th.style.display = 'none'; }
-    if (opts.cellAlign) { block.dataset.cellAlign = opts.cellAlign; block.querySelectorAll('td, th').forEach(c => { c.style.textAlign = opts.cellAlign; }); }
+    applyData(block);
     return { row, block };
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const { row, block } = makeTableBlock();
-  if (opts.showHeader === false) {
-    block.dataset.showHeader = 'false';
-    const thead = block.querySelector('thead');
-    if (thead) thead.style.display = 'none';
-  }
-  if (opts.cellAlign) {
-    block.dataset.cellAlign = opts.cellAlign;
-    block.querySelectorAll('td, th').forEach(cell => { cell.style.textAlign = opts.cellAlign; });
-  }
+  applyData(block);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();

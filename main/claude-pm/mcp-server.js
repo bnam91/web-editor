@@ -400,6 +400,42 @@ function _registerDefaultTools() {
     }
   );
 
+  // PM add_table_block — 표 블록 추가 (headers + rows 직접 주입)
+  registerTool(
+    'add_table_block',
+    async ({ sectionId, headers, rows, showHeader = true, cellAlign = 'center' } = {}) => {
+      if (sectionId !== undefined && (typeof sectionId !== 'string' || !sectionId.startsWith('sec_'))) {
+        throw new Error(`invalid sectionId: ${sectionId}`);
+      }
+      if (headers !== undefined && !Array.isArray(headers)) throw new Error('headers must be array of strings');
+      if (rows !== undefined && (!Array.isArray(rows) || rows.some(r => !Array.isArray(r)))) {
+        throw new Error('rows must be array of arrays (string[][]). e.g. [["row1col1","row1col2"], ...]');
+      }
+      if (Array.isArray(headers) && Array.isArray(rows)) {
+        const cols = headers.length;
+        const mismatch = rows.findIndex(r => r.length !== cols);
+        if (mismatch !== -1) throw new Error(`row ${mismatch} length ${rows[mismatch].length} != headers ${cols}`);
+      }
+      if (!['left','center','right'].includes(cellAlign)) throw new Error(`invalid cellAlign: ${cellAlign}`);
+      if (!_rendererInvoker?.addTableBlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.addTableBlock({ sectionId, headers, rows, showHeader, cellAlign });
+    },
+    {
+      description: 'Add a table block with data. Pass headers (string[]) for column titles and rows (string[][]) for data — each row array length must match headers length. showHeader=false hides the header row. cellAlign: left/center/right. Use for spec/comparison tables instead of cramming into a single text block.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
+          headers: { type: 'array', items: { type: 'string' }, description: 'column headers (e.g. ["항목","내용"])' },
+          rows: { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: '2D string array, each inner array must match headers length' },
+          showHeader: { type: 'boolean', description: 'show header row. default true', default: true },
+          cellAlign: { type: 'string', enum: ['left','center','right'], description: 'text align inside cells. default center', default: 'center' }
+        },
+        required: []
+      }
+    }
+  );
+
   // PM update_section — 섹션 속성 변경 (배경 등)
   registerTool(
     'update_section',

@@ -1235,6 +1235,7 @@ app.whenReady().then(async () => {
       moveSection: _invokeRendererMoveSection,
       insertGapAfterBlock: _invokeRendererInsertGapAfterBlock,
       updateSection: _invokeRendererUpdateSection,
+      addTableBlock: _invokeRendererAddTableBlock,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1319,6 +1320,33 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
   } catch (e) {
     throw new Error('addTextBlock call failed: ' + e.message);
   }
+}
+
+// ─── add_table_block — 표 블록 추가 (headers + rows 데이터 직접 주입) ────────
+async function _invokeRendererAddTableBlock({ sectionId, headers, rows, showHeader = true, cellAlign = 'center' } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
+  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safeHeaders = JSON.stringify(Array.isArray(headers) ? headers.map(h => String(h)) : null);
+  const safeRows = JSON.stringify(Array.isArray(rows) ? rows.map(r => (Array.isArray(r) ? r.map(c => String(c)) : [String(r)])) : null);
+  const safeAlign = JSON.stringify(['left','center','right'].includes(cellAlign) ? cellAlign : 'center');
+  const sh = showHeader === false ? 'false' : 'true';
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      if (typeof window.addTableBlock !== 'function') return { ok:false, code:'API_MISSING' };
+      const sid = ${safeSid};
+      if (sid) {
+        const sec = document.getElementById(sid);
+        if (!sec) return { ok:false, code:'NOT_FOUND', message:'section not found: '+sid };
+        if (typeof window.selectSection === 'function') window.selectSection(sec);
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.table-block')].map(b => b.id));
+      window.addTableBlock({ showHeader: ${sh}, cellAlign: ${safeAlign}, headers: ${safeHeaders}, rows: ${safeRows} });
+      const newTb = [...document.querySelectorAll('.table-block')].find(b => !beforeIds.has(b.id));
+      return { ok: true, tableBlockId: newTb?.id || null, rowCount: newTb?.querySelectorAll('tbody tr').length || 0 };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
 }
 
 // ─── update_section — 섹션 속성 (배경 등) 변경 ──────────────────────────────
