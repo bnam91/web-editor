@@ -400,6 +400,37 @@ function _registerDefaultTools() {
     }
   );
 
+  // PM add_checklist_item — 체크리스트 항목(=핀) 추가. 평가/todo 등록용.
+  registerTool(
+    'add_checklist_item',
+    async ({ text, x, y, sectionId, done = false, urgent = false } = {}) => {
+      if (!text || typeof text !== 'string') throw new Error('text required (string)');
+      if (text.length > 500) throw new Error('text too long (>500)');
+      if (sectionId !== undefined && sectionId !== null) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) throw new Error(`invalid sectionId: ${sectionId}`);
+      }
+      if (x !== undefined && x !== null && typeof x !== 'number') throw new Error('x must be number');
+      if (y !== undefined && y !== null && typeof y !== 'number') throw new Error('y must be number');
+      if (!_rendererInvoker?.addChecklistItem) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.addChecklistItem({ text, x, y, sectionId, done, urgent });
+    },
+    {
+      description: 'Add a checklist item (todo). If sectionId given (without x/y), pin auto-positions next to that section on the canvas. If x/y given, pin placed at those canvas coords. Otherwise just a list item (no pin). Use for: section evaluation notes, work-needed todos, scratch-source tracking ("이 섹션은 sp_xxx 출처").',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'todo/note text (≤500 chars)' },
+          sectionId: { type: 'string', description: 'sec_xxx — auto-position pin next to this section' },
+          x: { type: 'number', description: 'canvas x coord (overrides sectionId auto-position)' },
+          y: { type: 'number', description: 'canvas y coord' },
+          done: { type: 'boolean', description: 'mark as already completed. default false' },
+          urgent: { type: 'boolean', description: 'mark as urgent. default false' }
+        },
+        required: ['text']
+      }
+    }
+  );
+
   // PM add_table_block — 표 블록 추가 (headers + rows 직접 주입)
   registerTool(
     'add_table_block',

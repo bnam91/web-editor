@@ -1236,6 +1236,7 @@ app.whenReady().then(async () => {
       insertGapAfterBlock: _invokeRendererInsertGapAfterBlock,
       updateSection: _invokeRendererUpdateSection,
       addTableBlock: _invokeRendererAddTableBlock,
+      addChecklistItem: _invokeRendererAddChecklistItem,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1320,6 +1321,21 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
   } catch (e) {
     throw new Error('addTextBlock call failed: ' + e.message);
   }
+}
+
+// ─── add_checklist_item — 체크리스트 항목(=핀) 추가 ─────────────────────────
+async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, done = false, urgent = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
+  const safeArgs = JSON.stringify({ text: String(text||''), x, y, sectionId, done: !!done, urgent: !!urgent });
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      if (typeof window.addChecklistItem !== 'function') return { ok:false, code:'API_MISSING' };
+      const id = window.addChecklistItem(${safeArgs});
+      return { ok:true, itemId: id };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
 }
 
 // ─── add_table_block — 표 블록 추가 (headers + rows 데이터 직접 주입) ────────

@@ -51,3 +51,40 @@ function _getPinnedItemsInOrder() {
 function _escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ── 외부 API (MCP add_checklist_item) ────────────────────────────────────────
+// text + 선택적 x/y(핀) + 선택적 sectionId + done/urgent flag.
+// sectionId가 'sec_xxx'면 자동으로 그 섹션의 절대 좌표 옆에 핀 위치 계산 (x/y 명시 안 했을 때만).
+window.addChecklistItem = function addChecklistItem({ text, x, y, sectionId, done = false, urgent = false } = {}) {
+  const items = loadItems();
+  let px = (typeof x === 'number') ? x : null;
+  let py = (typeof y === 'number') ? y : null;
+  // sectionId 주고 x/y 없으면 섹션 위치 기반 자동 핀 좌표
+  if (sectionId && (px == null || py == null)) {
+    const sec = document.getElementById(sectionId);
+    if (sec) {
+      const canvas = document.getElementById('canvas');
+      const cRect = canvas?.getBoundingClientRect();
+      const sRect = sec.getBoundingClientRect();
+      if (cRect && sRect) {
+        // 캔버스 우측 + 섹션 중앙 높이
+        px = (cRect.width + 40);
+        py = (sRect.top - cRect.top) + sRect.height / 2;
+      }
+    }
+  }
+  const newItem = {
+    id: genCkId(),
+    text: String(text || ''),
+    done: !!done,
+    urgent: !!urgent,
+    x: px, y: py,
+    sectionId: null, // checklist의 sectionId는 checklist 섹션 분류용, 자동 X
+    createdAt: Date.now(),
+  };
+  items.push(newItem);
+  saveItems(items);
+  window.renderChecklistPanel?.();
+  window.renderTodoPins?.();
+  return newItem.id;
+};
