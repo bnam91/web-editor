@@ -209,9 +209,10 @@ function _registerDefaultTools() {
   );
 
   // Phase 3 MVP — 캔버스에 섹션 1개 추가. renderer의 window.addSection 호출.
+  // sourceScratchIds: 호출 시 자동으로 dataset.memo에 "출처: sp_xxx, ..." 한 줄 기록 (P/G/E + Codex 리뷰).
   registerTool(
     'add_section',
-    async ({ empty = false, bg, beforeId, afterId } = {}) => {
+    async ({ empty = false, bg, beforeId, afterId, sourceScratchIds } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.addSection !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
@@ -225,17 +226,30 @@ function _registerDefaultTools() {
         throw new Error(`invalid afterId: ${afterId} (must start with "sec_")`);
       }
       if (beforeId && afterId) throw new Error('beforeId and afterId are mutually exclusive');
-      return await _rendererInvoker.addSection({ empty: !!empty, bg, beforeId, afterId });
+      // sourceScratchIds 검증 — 배열 + 각 항목 sp_ prefix.
+      let scratch;
+      if (sourceScratchIds !== undefined && sourceScratchIds !== null) {
+        if (!Array.isArray(sourceScratchIds)) throw new Error('sourceScratchIds must be an array of sp_xxx strings');
+        if (sourceScratchIds.length > 16) throw new Error('sourceScratchIds too many (max 16)');
+        for (const s of sourceScratchIds) {
+          if (typeof s !== 'string' || !/^sp_[A-Za-z0-9_-]+$/.test(s)) {
+            throw new Error(`invalid sourceScratchIds entry: ${s} (must match /^sp_[A-Za-z0-9_-]+$/)`);
+          }
+        }
+        scratch = sourceScratchIds;
+      }
+      return await _rendererInvoker.addSection({ empty: !!empty, bg, beforeId, afterId, sourceScratchIds: scratch });
     },
     {
-      description: 'Add a new section. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps.',
+      description: 'Add a new section. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into dataset.memo for traceability.',
       inputSchema: {
         type: 'object',
         properties: {
           empty: { type: 'boolean', description: 'true = skip default h2 block (only gap blocks). default false' },
           bg: { type: 'string', description: 'optional section background hex color (e.g. #f5f5f5)' },
           beforeId: { type: 'string', description: 'optional sec_xxx — insert the new section BEFORE this one' },
-          afterId:  { type: 'string', description: 'optional sec_xxx — insert the new section AFTER this one' }
+          afterId:  { type: 'string', description: 'optional sec_xxx — insert the new section AFTER this one' },
+          sourceScratchIds: { type: 'array', items: { type: 'string' }, description: 'optional sp_xxx[] — auto-tagged into dataset.memo as source trace ("출처: sp_xx, ..."). Max 16 ids.' }
         },
         required: []
       }
@@ -284,7 +298,7 @@ function _registerDefaultTools() {
   // 갭/폰트는 sec_wd3nixu 실측 토큰 적용 (제목100/본문30, 갭 100/50/30).
   registerTool(
     'build_basic_section',
-    async ({ mainCopy = '', body = '', label, assetPreset = 'img1', align = 'center' } = {}) => {
+    async ({ mainCopy = '', body = '', label, assetPreset = 'img1', align = 'center', sourceScratchIds } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.buildBasicSection !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
@@ -302,10 +316,22 @@ function _registerDefaultTools() {
       if (!['left', 'center', 'right'].includes(align)) throw new Error(`invalid align: ${align}`);
       const lb = label !== undefined ? String(label) : null;
       if (lb !== null && [...lb].length > 60) throw new Error('label too long (>60)');
-      return await _rendererInvoker.buildBasicSection({ mainCopy: mc, body: bd, label: lb, assetPreset, align });
+      // sourceScratchIds — add_section 과 동일 검증/형식.
+      let scratch;
+      if (sourceScratchIds !== undefined && sourceScratchIds !== null) {
+        if (!Array.isArray(sourceScratchIds)) throw new Error('sourceScratchIds must be an array of sp_xxx strings');
+        if (sourceScratchIds.length > 16) throw new Error('sourceScratchIds too many (max 16)');
+        for (const s of sourceScratchIds) {
+          if (typeof s !== 'string' || !/^sp_[A-Za-z0-9_-]+$/.test(s)) {
+            throw new Error(`invalid sourceScratchIds entry: ${s} (must match /^sp_[A-Za-z0-9_-]+$/)`);
+          }
+        }
+        scratch = sourceScratchIds;
+      }
+      return await _rendererInvoker.buildBasicSection({ mainCopy: mc, body: bd, label: lb, assetPreset, align, sourceScratchIds: scratch });
     },
     {
-      description: 'Build a basic section in one call: main copy (h1, 100px) + body (30px) + asset placeholder (img1). Optional label (small bold). Gaps follow standard tokens (100/50/30). Text centered by default (align). Use when user says "기본 섹션 만들어줘" or gives content for a single section without specifying layout.',
+      description: 'Build a basic section in one call: main copy (h1, 100px) + body (30px) + asset placeholder (img1). Optional label (small bold). Gaps follow standard tokens (100/50/30). Text centered by default (align). Use when user says "기본 섹션 만들어줘" or gives content for a single section without specifying layout. sourceScratchIds: optional sp_xxx[] — auto-records "출처: sp_aa, sp_bb" line into the new section dataset.memo (same shape as add_section).',
       inputSchema: {
         type: 'object',
         properties: {
@@ -313,7 +339,8 @@ function _registerDefaultTools() {
           body: { type: 'string', description: 'body/subcopy text (optional, ~800)' },
           label: { type: 'string', description: 'optional small label above the headline (e.g. NEW ARRIVAL)' },
           assetPreset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout. img1: single stacked image. img2/img3: auto-converted to canvas-block (cvb_, cardMode=simple, N cards) — NewGrid Frame seal 2026-06-08. text-img: stack fallback (text top / image bottom).' },
-          align: { type: 'string', enum: ['left', 'center', 'right'], description: 'text align (default center — hero/Hook convention)' }
+          align: { type: 'string', enum: ['left', 'center', 'right'], description: 'text align (default center — hero/Hook convention)' },
+          sourceScratchIds: { type: 'array', items: { type: 'string' }, description: 'optional sp_xxx[] — auto-tagged into the new section dataset.memo as source trace. Max 16 ids.' }
         },
         required: ['mainCopy']
       }
@@ -642,6 +669,97 @@ function _registerDefaultTools() {
           id: { type: 'string', description: 'Scratch item id, e.g. "sp_br70mc"' },
           includeSrc: { type: 'boolean', description: 'If true, return full src content (may be large dataURL). Default: false (only first 200 chars as srcPreview).', default: false },
           truncateSrcTo: { type: 'number', description: 'When includeSrc=false, prefix length for srcPreview. Default: 200.', default: 200 }
+        },
+        required: ['id']
+      }
+    }
+  );
+
+  // ─── set_section_memo — 섹션 메모 작성/수정 (P/G/E + Codex 리뷰) ───────────
+  registerTool(
+    'set_section_memo',
+    async ({ sectionId, memo } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.setSectionMemo !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+        throw new Error(`invalid sectionId: ${sectionId} (must start with "sec_")`);
+      }
+      if (memo === undefined || memo === null) throw new Error('memo required (use "" to clear)');
+      const m = String(memo);
+      if ([...m].length > 2000) throw new Error(`memo too long (>2000 code points)`);
+      return await _rendererInvoker.setSectionMemo({ sectionId, memo: m });
+    },
+    {
+      description: 'Write/replace the memo string attached to a section (dataset.memo, persisted in proj.json via innerHTML). Use to record source scratch ids, hypotheses, todo notes per section. Max 2000 code points. Pass "" to clear. If user is currently editing the same section memo textarea, returns USER_BUSY.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx' },
+          memo: { type: 'string', description: 'memo text (≤2000 code points). Empty string clears the memo.' }
+        },
+        required: ['sectionId', 'memo']
+      }
+    }
+  );
+
+  // ─── get_section_memo — 섹션 메모 조회 (read-only) ─────────────────────────
+  registerTool(
+    'get_section_memo',
+    async ({ sectionId } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.getSectionMemo !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+        throw new Error(`invalid sectionId: ${sectionId} (must start with "sec_")`);
+      }
+      return await _rendererInvoker.getSectionMemo({ sectionId });
+    },
+    {
+      description: 'Read the memo string of a section (dataset.memo). Returns {ok, sectionId, memo}. Empty string if no memo. Read-only — no USER_BUSY guard.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx' }
+        },
+        required: ['sectionId']
+      }
+    }
+  );
+
+  // ─── update_checklist_item — 체크리스트 항목 부분 갱신 (text/done/urgent/x/y) ──
+  // PM이 done 토글, 텍스트 수정, 핀 위치 재배치 가능 (이전 add_checklist_item만 있던 한계 해결).
+  registerTool(
+    'update_checklist_item',
+    async ({ id, text, done, urgent, x, y } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.updateChecklistItem !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      if (typeof id !== 'string' || !id.startsWith('ck_')) {
+        throw new Error(`invalid id: ${id} (must start with "ck_")`);
+      }
+      if (text !== undefined && typeof text !== 'string') throw new Error('text must be string');
+      if (text !== undefined && text.length > 500) throw new Error('text too long (>500)');
+      if (done !== undefined && typeof done !== 'boolean') throw new Error('done must be boolean');
+      if (urgent !== undefined && typeof urgent !== 'boolean') throw new Error('urgent must be boolean');
+      if (x !== undefined && x !== null && typeof x !== 'number') throw new Error('x must be number or null');
+      if (y !== undefined && y !== null && typeof y !== 'number') throw new Error('y must be number or null');
+      // 최소 1개 필드 필수
+      const has = [text, done, urgent, x, y].some(v => v !== undefined);
+      if (!has) throw new Error('no fields to update — provide at least one of text/done/urgent/x/y');
+      return await _rendererInvoker.updateChecklistItem({ id, text, done, urgent, x, y });
+    },
+    {
+      description: 'Update an existing checklist item (ck_xxx) — partial update of text/done/urgent/x/y. Use to toggle done, edit text, reposition pin. Returns {ok, itemId, item}. Pass null for x/y to detach the pin.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'ck_xxx (checklist item id from add_checklist_item)' },
+          text: { type: 'string', description: 'new text (≤500 chars)' },
+          done: { type: 'boolean', description: 'mark complete/incomplete' },
+          urgent: { type: 'boolean', description: 'urgent flag' },
+          x: { type: ['number', 'null'], description: 'canvas x coord. null = detach pin' },
+          y: { type: ['number', 'null'], description: 'canvas y coord. null = detach pin' }
         },
         required: ['id']
       }

@@ -52,6 +52,45 @@ function _escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── 외부 API (MCP update_checklist_item) ─────────────────────────────────────
+// 기존 체크리스트 항목의 text/done/urgent 등을 수정.
+// PM이 done 토글, 텍스트 수정으로 todo를 운영할 수 있게 함.
+// 보너스 기능 (P/G/E + Codex 리뷰).
+window.updateChecklistItem = function updateChecklistItem({ id, text, done, urgent, x, y } = {}) {
+  if (!id || typeof id !== 'string') return { ok: false, code: 'BAD_ARGS', message: 'id required' };
+  // 동일 항목 인라인 편집 race 가드 (Codex 리뷰 #1):
+  // 사용자가 같은 ck_xxx 행을 인라인 편집 중이면 거부 — render unmount + blur save 덮어쓰기 방지.
+  // (main.js bridge에서도 1차 컷, 여기는 직접 호출/다른 경로 폴백)
+  try {
+    const ae = document.activeElement;
+    if (ae) {
+      const ckHost = (ae.closest && ae.closest('.ck-item, .todo-pin-popup')) || null;
+      const editingId = ckHost && ckHost.dataset ? (ckHost.dataset.id || null) : null;
+      if (editingId && editingId === id) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 이 항목을 편집 중입니다.', retryAfter: 2000 };
+      }
+    }
+  } catch (_) { /* ignore — guard is best-effort */ }
+
+  const items = loadItems();
+  const idx = items.findIndex(it => it.id === id);
+  if (idx === -1) return { ok: false, code: 'NOT_FOUND', message: 'checklist item not found: ' + id };
+  const item = items[idx];
+  // 부분 갱신 — 정의된 필드만 덮어씀
+  if (text   !== undefined) item.text   = String(text || '');
+  if (done   !== undefined) item.done   = !!done;
+  if (urgent !== undefined) item.urgent = !!urgent;
+  if (x !== undefined) item.x = (typeof x === 'number') ? x : null;
+  if (y !== undefined) item.y = (typeof y === 'number') ? y : null;
+  item.updatedAt = Date.now();
+  saveItems(items);
+  // 렌더 동기화 (renderChecklistPanel/renderTodoPins이 동시에 saveItems 트리거하지 않도록
+  // saveItems가 먼저 호출되어 _ckItems 가 update된 후 렌더 함수 실행 → race 없음)
+  if (typeof window.renderChecklistPanel === 'function') window.renderChecklistPanel();
+  if (typeof window.renderTodoPins === 'function')       window.renderTodoPins();
+  return { ok: true, itemId: id, item };
+};
+
 // ── 외부 API (MCP add_checklist_item) ────────────────────────────────────────
 // text + 선택적 x/y(핀) + 선택적 sectionId + done/urgent flag.
 // sectionId가 'sec_xxx'면 자동으로 그 섹션의 절대 좌표 옆에 핀 위치 계산 (x/y 명시 안 했을 때만).

@@ -883,6 +883,22 @@ function addSection(opts = {}) {
     sec.dataset.bg = opts.bg;
   }
 
+  // sourceScratchIds — PM이 add_section/build_basic_section 호출 시 자동 출처 기록.
+  // dataset.memo 에 "출처: sp_xxx, sp_yyy" 한 줄로 기록 (이미 메모가 있으면 append).
+  if (Array.isArray(opts.sourceScratchIds) && opts.sourceScratchIds.length) {
+    const safeIds = opts.sourceScratchIds
+      .filter(id => typeof id === 'string' && /^sp_[A-Za-z0-9_-]+$/.test(id));
+    if (safeIds.length) {
+      const line = `출처: ${safeIds.join(', ')}`;
+      if (typeof window.appendSectionMemoLine === 'function') {
+        window.appendSectionMemoLine(sec, line);
+      } else {
+        // section-memo.js 미로드 폴백 (구버전 호환)
+        sec.dataset.memo = (sec.dataset.memo ? sec.dataset.memo + '\n' : '') + line;
+      }
+    }
+  }
+
   if (opts.skipDefaultBlock) {
     // 기본 h2+asset 블록 없이 빈 섹션 생성 (API 자동화용)
     const gapH = opts.paddingY !== undefined ? opts.paddingY : 100;

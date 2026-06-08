@@ -1237,6 +1237,9 @@ app.whenReady().then(async () => {
       updateSection: _invokeRendererUpdateSection,
       addTableBlock: _invokeRendererAddTableBlock,
       addChecklistItem: _invokeRendererAddChecklistItem,
+      setSectionMemo: _invokeRendererSetSectionMemo,
+      getSectionMemo: _invokeRendererGetSectionMemo,
+      updateChecklistItem: _invokeRendererUpdateChecklistItem,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1563,7 +1566,7 @@ async function _invokeRendererEditBlock({ blockId, content, color, fontSize, fon
 
 // ─── Phase 3 MVP — renderer 측 섹션 추가 helper ──────────────────────────────
 // add_text_block과 동일 패턴: 단일 atomic IIFE (동시수정 가드 + window.addSection 호출).
-async function _invokeRendererAddSection({ empty = false, bg, beforeId, afterId } = {}) {
+async function _invokeRendererAddSection({ empty = false, bg, beforeId, afterId, sourceScratchIds } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -1574,6 +1577,10 @@ async function _invokeRendererAddSection({ empty = false, bg, beforeId, afterId 
   const safeBg = bg ? JSON.stringify(String(bg)) : 'null';
   const safeBefore = beforeId ? JSON.stringify(String(beforeId)) : 'null';
   const safeAfter  = afterId  ? JSON.stringify(String(afterId))  : 'null';
+  // sourceScratchIds — array of sp_xxx (이미 mcp-server에서 형식 검증)
+  const safeScratch = Array.isArray(sourceScratchIds)
+    ? JSON.stringify(sourceScratchIds.map(s => String(s)))
+    : 'null';
   const atomicJs = `(() => {
     try {
       // ── 동시수정 가드 (atomic) ──
@@ -1604,6 +1611,8 @@ async function _invokeRendererAddSection({ empty = false, bg, beforeId, afterId 
         if (!document.getElementById(aId)) return { ok:false, code:'NOT_FOUND', message:'afterId not found: '+aId };
         opts.afterId = aId;
       }
+      const sScratch = ${safeScratch};
+      if (Array.isArray(sScratch) && sScratch.length) opts.sourceScratchIds = sScratch;
       window.addSection(opts);
       const allSecs = [...document.querySelectorAll('.section-block')];
       const after = allSecs.length;
@@ -1690,7 +1699,7 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratc
 // 빈 섹션 → (label) → 메인카피(h1,100px) → 본문(body,30px) → 에셋(preset). 갭 100/50/30.
 // insertAfterSelected의 하단갭-직전 누적 삽입 특성 + 각 함수의 selectSection(sec) 재선택 →
 // 순차 호출이 위→아래 순서대로 쌓임.
-async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', label = null, assetPreset = 'img1', align = 'center' } = {}) {
+async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', label = null, assetPreset = 'img1', align = 'center', sourceScratchIds } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -1702,6 +1711,11 @@ async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', labe
   const sLabel = label ? JSON.stringify(String(label)) : 'null';
   const sPreset = JSON.stringify(String(assetPreset));
   const sAlign = JSON.stringify(['left', 'center', 'right'].includes(align) ? align : 'center');
+  // sourceScratchIds — addSection 호출 시점에 dataset.memo에 자동 기록.
+  // mcp-server에서 형식 검증 끝났으므로 여기선 stringify만.
+  const sScratch = Array.isArray(sourceScratchIds)
+    ? JSON.stringify(sourceScratchIds.map(s => String(s)))
+    : 'null';
   const atomicJs = `(() => {
     try {
       const ae = document.activeElement;
@@ -1717,8 +1731,11 @@ async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', labe
       }
       const secBefore = document.querySelectorAll('.section-block').length;
       const al = ${sAlign};
-      // 1) 빈 섹션 (위아래 갭 100)
-      window.addSection({ skipDefaultBlock: true, paddingY: 100 });
+      // 1) 빈 섹션 (위아래 갭 100) — sourceScratchIds가 있으면 addSection이 dataset.memo에 자동 기록
+      const _sScratch = ${sScratch};
+      const _addOpts = { skipDefaultBlock: true, paddingY: 100 };
+      if (Array.isArray(_sScratch) && _sScratch.length) _addOpts.sourceScratchIds = _sScratch;
+      window.addSection(_addOpts);
       // 2) 라벨 (옵션) → 갭50
       const label = ${sLabel};
       if (label) {
@@ -1777,6 +1794,105 @@ async function _invokeRendererGetCanvasState({ sectionId } = {}) {
   } catch (e) {
     throw new Error('getCanvasState call failed: ' + e.message);
   }
+}
+
+// ─── set_section_memo — 섹션 dataset.memo 갱신 ───────────────────────────────
+// 메모는 attribute 저장이라 XSS 안전. textarea 사용자 동시 편집 race 방지 위해
+// active editing 가드 적용 (사용자가 메모 textarea에 입력 중이면 USER_BUSY).
+async function _invokeRendererSetSectionMemo({ sectionId, memo } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeSid = JSON.stringify(String(sectionId || ''));
+  const safeMemo = JSON.stringify(String(memo == null ? '' : memo));
+  const atomicJs = `(() => {
+    try {
+      // 사용자가 동일 섹션 memo textarea 편집 중이면 race 방지 (보너스: 다른 곳 입력은 차단 안 함)
+      const ae = document.activeElement;
+      if (ae && ae.id === 'sec-memo') {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 메모를 편집 중입니다.', retryAfter: 2000 };
+      }
+      if (typeof window.setSectionMemo !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.setSectionMemo not found' };
+      }
+      const result = window.setSectionMemo(${safeSid}, ${safeMemo});
+      // prop 패널이 열려 있고 같은 섹션이면 textarea도 즉시 동기화
+      if (result && result.ok) {
+        const memoEl = document.getElementById('sec-memo');
+        const sec = document.getElementById(${safeSid});
+        if (memoEl && sec && sec.classList.contains('selected')) {
+          memoEl.value = sec.dataset.memo || '';
+          const counter = document.getElementById('sec-memo-counter');
+          if (counter && typeof window.SECTION_MEMO_MAX_LEN === 'number') {
+            counter.textContent = [...memoEl.value].length + ' / ' + window.SECTION_MEMO_MAX_LEN;
+          }
+        }
+      }
+      return result;
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('setSectionMemo call failed: ' + e.message);
+  }
+}
+
+// ─── get_section_memo — 섹션 dataset.memo 조회 (read-only, USER_BUSY 가드 불필요) ──
+async function _invokeRendererGetSectionMemo({ sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  const safeSid = JSON.stringify(String(sectionId || ''));
+  const atomicJs = `(() => {
+    try {
+      if (typeof window.getSectionMemo !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.getSectionMemo not found' };
+      }
+      return window.getSectionMemo(${safeSid});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('getSectionMemo call failed: ' + e.message);
+  }
+}
+
+// ─── update_checklist_item — 체크리스트 항목 부분 갱신 (text/done/urgent) ────
+// USER_BUSY 가드: 사용자가 체크리스트 인라인 편집 중이면 (.ck-inline-input 등) MCP write 차단.
+// renderChecklistPanel()이 input을 unmount하면서 blur save가 stale closure로 덮는 race 방지 (Codex 리뷰 #1).
+async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const args = { id: String(id || '') };
+  if (text   !== undefined) args.text = String(text);
+  if (done   !== undefined) args.done = !!done;
+  if (urgent !== undefined) args.urgent = !!urgent;
+  if (x      !== undefined) args.x = (typeof x === 'number') ? x : null;
+  if (y      !== undefined) args.y = (typeof y === 'number') ? y : null;
+  const safeArgs = JSON.stringify(args);
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      if (typeof window.updateChecklistItem !== 'function') return { ok:false, code:'API_MISSING' };
+      // 체크리스트 인라인 편집 race 가드 (Codex #1): focus가 ck-inline-input / ck-pin-popup-text 안이면 거부
+      const ae = document.activeElement;
+      if (ae && (ae.classList?.contains('ck-inline-input')
+                || ae.classList?.contains('ck-pin-popup-text')
+                || (ae.closest && ae.closest('.ck-item, .todo-pin-popup, .ck-inline-input')))) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 체크리스트를 편집 중입니다.', retryAfter: 2000 };
+      }
+      return window.updateChecklistItem(${safeArgs});
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
 }
 
 /* ── 종료 전 강제 저장 ── */
