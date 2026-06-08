@@ -361,35 +361,59 @@ function rangeSelectBlocks(block, sec) {
   const anchor = _toSibling(_lastClickedBlock);
   const parent = target?.parentElement;
 
-  if (!anchor || !parent || anchor.parentElement !== parent) {
-    // 앵커 없거나 부모 다르면 단일 선택만
-    window.deselectAll?.();
-    block.classList.add('selected');
-    const li = _getBlockLayerItem(block);
-    if (li) li.classList.add('active');
-    _lastClickedBlock = block;
-    if (sec) window.syncSection?.(sec);
-    return;
+  // Path 1: 같은 부모 — 기존 빠른 경로 (row 안 형제, frame 안 형제 등)
+  if (anchor && parent && anchor.parentElement === parent) {
+    const siblings = Array.from(parent.children).filter(c => c.matches(SIBLING_MULTI_SEL));
+    const a = siblings.indexOf(anchor);
+    const b = siblings.indexOf(target);
+    if (a >= 0 && b >= 0) {
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      window.deselectAll?.();
+      _lastClickedBlock = anchor;
+      for (let i = lo; i <= hi; i++) _selectSibling(siblings[i]);
+      if (sec) window.syncSection?.(sec);
+      if (_isInFreeLayout(block)) {
+        _restoreFreeLayoutFrameSelected(block);
+        setTimeout(_updateFreeLayoutMultiSelPanel, 0);
+      }
+      return;
+    }
   }
 
-  // 부모의 직속 자식 중 selectable
-  const siblings = Array.from(parent.children).filter(c => c.matches(SIBLING_MULTI_SEL));
-  const a = siblings.indexOf(anchor);
-  const b = siblings.indexOf(target);
-  if (a < 0 || b < 0) {
-    window.deselectAll?.();
-    block.classList.add('selected');
-    return;
+  // Path 2: 부모 다르거나 sibling 매칭 실패 — 같은 섹션 안 selectable 블록 통째 fallback
+  // (sec_xxx > section-inner > row > divider | section-inner > frame[textFrame] > text-block 같이 깊이 다른 케이스)
+  if (anchor && sec && sec.contains(anchor) && sec.contains(target)) {
+    const all = Array.from(sec.querySelectorAll(SIBLING_MULTI_SEL));
+    // text-frame 안 text-block은 frame 자체를 repr로 → 중복 회피
+    const seen = new Set();
+    const sibs = [];
+    for (const el of all) {
+      const repr = _toSibling(el);
+      if (!repr || seen.has(repr)) continue;
+      // repr 자체가 SIBLING_MULTI_SEL을 만족해야 함 (안전망)
+      if (!repr.matches || !repr.matches(SIBLING_MULTI_SEL)) continue;
+      seen.add(repr);
+      sibs.push(repr);
+    }
+    const a = sibs.indexOf(anchor);
+    const b = sibs.indexOf(target);
+    if (a >= 0 && b >= 0) {
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      window.deselectAll?.();
+      _lastClickedBlock = anchor;
+      for (let i = lo; i <= hi; i++) _selectSibling(sibs[i]);
+      if (sec) window.syncSection?.(sec);
+      return;
+    }
   }
-  const [lo, hi] = a < b ? [a, b] : [b, a];
+
+  // 끝까지 매칭 실패 — 단일 선택
   window.deselectAll?.();
-  _lastClickedBlock = anchor;
-  for (let i = lo; i <= hi; i++) _selectSibling(siblings[i]);
+  block.classList.add('selected');
+  const li = _getBlockLayerItem(block);
+  if (li) li.classList.add('active');
+  _lastClickedBlock = block;
   if (sec) window.syncSection?.(sec);
-  if (_isInFreeLayout(block)) {
-    _restoreFreeLayoutFrameSelected(block);
-    setTimeout(_updateFreeLayoutMultiSelPanel, 0);
-  }
 }
 
 /* 일반 클릭 시 앵커 업데이트 */
