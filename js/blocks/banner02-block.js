@@ -149,20 +149,175 @@ function makeBanner02Block(data = {}) {
 }
 
 function addBanner02Block(opts = {}) {
-  if (window._insertToFlowFrame?.(() => makeBanner02Block(opts))) return;
+  // freeLayout 프레임 내부 삽입 — 별도 경로
+  if (window._insertToFlowFrame?.(() => makeBanner02Block(opts))) {
+    // freeLayout 경로는 row를 반환하지 않으므로 추가 후 마지막 banner02 추정 필요 — 호출자가 사용 X
+    return null;
+  }
   const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
+  if (!sec) { showNoSelectionHint(); return null; }
   window.pushHistory();
   const { row, block } = makeBanner02Block(opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
-  window.buildLayerPanel();
-  window.selectSection(sec);
+  window.buildLayerPanel?.();
+  window.selectSection?.(sec);
+  window.scheduleAutoSave?.();
+  return { row, block };
 }
 
-window.makeBanner02Block = makeBanner02Block;
-window.addBanner02Block  = addBanner02Block;
-window.renderBanner02    = renderBanner02;
-window.BANNER02_VARIANTS = BANNER02_VARIANTS;
+// ── 수정 ────────────────────────────────────────────────────────────────────
+// PM의 update_banner02_block(MCP) → main(_invokeRendererUpdateBanner02Block) → 여기.
+// add_text_block의 editTextBlock 패턴 미러링: pushHistory + dataset partial write + renderBanner02 재렌더 + scheduleAutoSave.
+// 지원 필드 (data-* 매핑):
+//   - 변형: variant
+//   - 외곽: width(bannerW), height(bannerH), radius, bg, align
+//   - 텍스트 박스: textX/textY/textW
+//   - 텍스트: label/labelSize/labelColor, title/titleSize/titleColor, sub/subSize/subColor, gap1, gap2
+//   - 이미지: imgSrc, imgX/imgY/imgW/imgH, imgFit
+//   - 편의: layout: 'left'|'right'  (text/img 좌우 swap — variant 기본 textX/imgX 사용)
+function updateBanner02Block(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('banner02-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `banner02-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
 
-export { makeBanner02Block, addBanner02Block, renderBanner02, BANNER02_VARIANTS };
+  // before 스냅샷 (mutate 전, undo 푸시 전)
+  const before = {
+    variant: block.dataset.variant,
+    label: block.dataset.label, title: block.dataset.title, sub: block.dataset.sub,
+    imgSrc: block.dataset.imgSrc, bg: block.dataset.bg, align: block.dataset.align,
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  // 1) variant 스왑 — variant 키만 바뀌고 나머지는 유지 (Codex 안전성: 정의된 키만 허용)
+  if (partial.variant !== undefined) {
+    if (!BANNER02_VARIANTS[partial.variant]) {
+      return { ok: false, code: 'INVALID', message: `invalid variant: ${partial.variant}` };
+    }
+    block.dataset.variant = String(partial.variant);
+    applied.variant = block.dataset.variant;
+  }
+
+  // 2) 외곽
+  const _setNum = (datasetKey, value, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return false;
+    if (min !== undefined && n < min) return false;
+    if (max !== undefined && n > max) return false;
+    block.dataset[datasetKey] = String(n);
+    return true;
+  };
+  if (partial.width  !== undefined) { if (_setNum('bannerW', partial.width, 80, 4000))  applied.width  = Number(partial.width); }
+  if (partial.height !== undefined) { if (_setNum('bannerH', partial.height, 40, 4000)) applied.height = Number(partial.height); }
+  if (partial.radius !== undefined) { if (_setNum('radius',  partial.radius, 0, 400))   applied.radius = Number(partial.radius); }
+  if (partial.bg !== undefined && partial.bg !== null) {
+    block.dataset.bg = String(partial.bg);
+    applied.bg = block.dataset.bg;
+  }
+  if (partial.align !== undefined) {
+    if (!['left','center','right'].includes(partial.align)) {
+      return { ok: false, code: 'INVALID', message: `invalid align: ${partial.align}` };
+    }
+    block.dataset.align = partial.align;
+    applied.align = partial.align;
+  }
+
+  // 3) 텍스트 박스
+  if (partial.textX !== undefined) { if (_setNum('textX', partial.textX, -4000, 4000)) applied.textX = Number(partial.textX); }
+  if (partial.textY !== undefined) { if (_setNum('textY', partial.textY, -4000, 4000)) applied.textY = Number(partial.textY); }
+  if (partial.textW !== undefined) { if (_setNum('textW', partial.textW, 20, 4000))    applied.textW = Number(partial.textW); }
+
+  // 4) 텍스트 콘텐츠/스타일 (renderBanner02가 textContent로 박으므로 XSS-safe)
+  const _setStr = (datasetKey, value, maxLen) => {
+    const s = String(value);
+    if (maxLen !== undefined && [...s].length > maxLen) return null;
+    block.dataset[datasetKey] = s;
+    return s;
+  };
+  if (partial.label      !== undefined && partial.label !== null)      { const v = _setStr('label',      partial.label,      500); if (v !== null) applied.label = v; }
+  if (partial.title      !== undefined && partial.title !== null)      { const v = _setStr('title',      partial.title,      500); if (v !== null) applied.title = v; }
+  if (partial.sub        !== undefined && partial.sub !== null)        { const v = _setStr('sub',        partial.sub,        500); if (v !== null) applied.sub = v; }
+  if (partial.labelSize  !== undefined) { if (_setNum('labelSize',  partial.labelSize,  4, 400)) applied.labelSize  = Number(partial.labelSize); }
+  if (partial.titleSize  !== undefined) { if (_setNum('titleSize',  partial.titleSize,  4, 400)) applied.titleSize  = Number(partial.titleSize); }
+  if (partial.subSize    !== undefined) { if (_setNum('subSize',    partial.subSize,    4, 400)) applied.subSize    = Number(partial.subSize); }
+  if (partial.labelColor !== undefined && partial.labelColor !== null) { block.dataset.labelColor = String(partial.labelColor); applied.labelColor = block.dataset.labelColor; }
+  if (partial.titleColor !== undefined && partial.titleColor !== null) { block.dataset.titleColor = String(partial.titleColor); applied.titleColor = block.dataset.titleColor; }
+  if (partial.subColor   !== undefined && partial.subColor !== null)   { block.dataset.subColor   = String(partial.subColor);   applied.subColor   = block.dataset.subColor; }
+  if (partial.gap1 !== undefined) { if (_setNum('gap1', partial.gap1, 0, 400)) applied.gap1 = Number(partial.gap1); }
+  if (partial.gap2 !== undefined) { if (_setNum('gap2', partial.gap2, 0, 400)) applied.gap2 = Number(partial.gap2); }
+
+  // 5) 이미지 — imgSrc는 renderBanner02에서 url("...") template에 들어가므로 escape 필요
+  if (partial.imgSrc !== undefined && partial.imgSrc !== null) {
+    const src = String(partial.imgSrc);
+    // 길이 가드 (data URL 폭주 방지) + " 와 개행 차단 (CSS url("") 깨짐/탈출 방지)
+    if (src.length > 200000) {
+      return { ok: false, code: 'TOO_LARGE', message: `imgSrc too long (>200000)` };
+    }
+    if (/["\r\n]/.test(src)) {
+      return { ok: false, code: 'INVALID', message: 'imgSrc contains quote/newline (escape unsafe)' };
+    }
+    block.dataset.imgSrc = src;
+    applied.imgSrc = src;
+  }
+  if (partial.imgX !== undefined) { if (_setNum('imgX', partial.imgX, -4000, 4000)) applied.imgX = Number(partial.imgX); }
+  if (partial.imgY !== undefined) { if (_setNum('imgY', partial.imgY, -4000, 4000)) applied.imgY = Number(partial.imgY); }
+  if (partial.imgW !== undefined) { if (_setNum('imgW', partial.imgW, 4, 4000))     applied.imgW = Number(partial.imgW); }
+  if (partial.imgH !== undefined) { if (_setNum('imgH', partial.imgH, 4, 4000))     applied.imgH = Number(partial.imgH); }
+  if (partial.imgFit !== undefined) {
+    if (!['cover','contain'].includes(partial.imgFit)) {
+      return { ok: false, code: 'INVALID', message: `invalid imgFit: ${partial.imgFit}` };
+    }
+    block.dataset.imgFit = partial.imgFit;
+    applied.imgFit = partial.imgFit;
+  }
+
+  // 6) layout swap — text/img 좌우 위치 swap (편의 필드).
+  // 현재 dataset의 textX/imgX 값을 swap. layout='left'면 text가 왼쪽(textX<imgX), 'right'면 그 반대.
+  if (partial.layout !== undefined) {
+    if (!['left','right'].includes(partial.layout)) {
+      return { ok: false, code: 'INVALID', message: `invalid layout: ${partial.layout}` };
+    }
+    const tx = parseInt(block.dataset.textX) || 0;
+    const ix = parseInt(block.dataset.imgX)  || 0;
+    const textIsLeft = tx < ix;
+    if ((partial.layout === 'left' && !textIsLeft) || (partial.layout === 'right' && textIsLeft)) {
+      block.dataset.textX = String(ix);
+      block.dataset.imgX  = String(tx);
+    }
+    applied.layout = partial.layout;
+  }
+
+  // 7) 재렌더 (변경 없어도 idempotent — Codex round-trip 안전성)
+  try {
+    renderBanner02(block);
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  // 8) 우측 패널 갱신 (선택 상태일 때만)
+  if (block.classList.contains('selected')) {
+    try { window.showBanner02Properties?.(block); } catch (_) {}
+  }
+  // 9) 레이어 패널 (layerName 변경 가능성 대비)
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
+window.makeBanner02Block   = makeBanner02Block;
+window.addBanner02Block    = addBanner02Block;
+window.updateBanner02Block = updateBanner02Block;
+window.renderBanner02      = renderBanner02;
+window.BANNER02_VARIANTS   = BANNER02_VARIANTS;
+
+export { makeBanner02Block, addBanner02Block, updateBanner02Block, renderBanner02, BANNER02_VARIANTS };
