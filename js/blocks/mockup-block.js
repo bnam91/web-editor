@@ -117,9 +117,223 @@ function addDeviceMockupBlock(deviceKey, width) {
   window.selectSection(sec);
 }
 
+// ── MCP-friendly helpers (PM-C) ─────────────────────────────────────────────
+// asset-block과 동일한 체커보드 패턴 (prop-mockup.js와 일치)
+const _MKP_CHECKER_BG = 'repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px';
+
+// 화면 이미지를 mkp-screen에 적용 (placeholder innerHTML 비움 + background로 설정).
+// prop-mockup.js _applyScreenImage와 동작 일치.
+// Codex #1: CSS url() injection 방어 — 백슬래시·작은따옴표 escape.
+function _cssEscapeUrl(src) {
+  return String(src).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+function applyMockupScreenImage(block, src) {
+  if (!block) return;
+  const screen = block.querySelector('.mkp-screen');
+  if (!screen) return;
+  if (!src) {
+    // 비우기 — placeholder 복원은 안 함 (디자인 결정: 빈 src = 단색 #111)
+    screen.style.background = '#111';
+    screen.style.backgroundImage = '';
+    screen.innerHTML = '';
+    return;
+  }
+  const safe = _cssEscapeUrl(src);
+  screen.style.backgroundImage    = `url('${safe}')`;
+  screen.style.backgroundSize     = '100% auto';
+  screen.style.backgroundPosition = 'top center';
+  screen.style.backgroundRepeat   = 'no-repeat';
+  screen.style.background         = `url('${safe}') top center / 100% auto no-repeat, ${_MKP_CHECKER_BG}`;
+  screen.innerHTML = '';
+}
+
+// shadow 적용 (none/soft/strong) — prop-mockup.js _applyShadow와 일치.
+function applyMockupShadow(block, val) {
+  if (!block) return;
+  const shadows = {
+    none:   'none',
+    soft:   '0 20px 60px rgba(0,0,0,0.25)',
+    strong: '0 30px 80px rgba(0,0,0,0.55)',
+  };
+  const v = shadows[val] !== undefined ? val : 'soft';
+  block.style.filter = v === 'none' ? '' : `drop-shadow(${shadows[v]})`;
+  block.dataset.shadow = v;
+}
+
+// 옵션 기반 add — MCP add_mockup_block의 단일 진입점.
+// opts: { deviceKey, width, sectionId, imgSrc, shadow }
+//   - deviceKey 필수 (window.MOCKUP_DEVICES에 등록된 키)
+//   - width 안 주면 dev.defaultWidth
+//   - sectionId 안 주면 현재 선택 섹션
+//   - imgSrc 주면 화면에 적용
+//   - shadow 안 주면 'soft' 유지
+// return: { ok, blockId, deviceKey, width, hasImage } 또는 { ok:false, code, message }
+function addMockupBlock(opts = {}) {
+  const devices = window.MOCKUP_DEVICES || {};
+  const deviceKey = opts.deviceKey || 'iphone';
+  const dev = devices[deviceKey];
+  if (!dev) return { ok: false, code: 'INVALID_DEVICE', message: `unknown device: ${deviceKey}` };
+
+  // width: clamp 100~860, 기본은 dev.defaultWidth
+  let width = parseInt(opts.width);
+  if (!Number.isFinite(width)) width = dev.defaultWidth || 360;
+  width = Math.min(860, Math.max(100, width));
+
+  // 섹션 결정 — sectionId 지정 → 우선, 아니면 현재 선택.
+  let sec = null;
+  if (opts.sectionId) {
+    sec = document.getElementById(opts.sectionId);
+    if (!sec || !sec.classList.contains('section-block')) {
+      return { ok: false, code: 'NOT_FOUND', message: `section not found: ${opts.sectionId}` };
+    }
+    if (typeof window.selectSection === 'function') {
+      try { window.selectSection(sec); } catch (_) {}
+    }
+  } else {
+    sec = window.getSelectedSection?.();
+    if (!sec) {
+      // 첫 섹션 자동 선택 (다른 MCP 도구와 동일 폴백)
+      const first = document.querySelector('[id^="sec_"]');
+      if (first && typeof window.selectSection === 'function') {
+        try { window.selectSection(first); sec = first; } catch (_) {}
+      }
+    }
+    if (!sec) return { ok: false, code: 'NO_SECTION', message: '활성 섹션이 없습니다.' };
+  }
+
+  const result = makeDeviceMockupBlock(deviceKey, width);
+  if (!result) return { ok: false, code: 'CREATE_FAILED', message: 'makeDeviceMockupBlock returned null' };
+
+  const { row, block } = result;
+
+  // imgSrc / shadow 옵션 — DOM 삽입 전에 dataset 세팅 (저장 직렬화 안전성)
+  if (typeof opts.imgSrc === 'string' && opts.imgSrc) {
+    block.dataset.imgSrc = opts.imgSrc;
+    applyMockupScreenImage(block, opts.imgSrc);
+  }
+  if (opts.shadow !== undefined && opts.shadow !== null) {
+    applyMockupShadow(block, String(opts.shadow));
+  }
+
+  window.pushHistory?.();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  window.buildLayerPanel?.();
+  window.selectSection?.(sec);
+
+  return {
+    ok: true,
+    blockId: block.id,
+    deviceKey,
+    width,
+    shadow: block.dataset.shadow || 'soft',
+    hasImage: !!block.dataset.imgSrc,
+  };
+}
+
+// 옵션 기반 update — MCP update_mockup_block의 단일 진입점.
+// opts: { deviceKey, width, imgSrc, shadow } — 최소 1개 필드.
+// imgSrc === '' (빈 문자열) = 이미지 제거.
+function updateMockupBlock(blockId, opts = {}) {
+  if (!blockId || typeof blockId !== 'string') {
+    return { ok: false, code: 'INVALID_ID', message: 'blockId required' };
+  }
+  const block = document.getElementById(blockId);
+  if (!block || !block.classList.contains('mockup-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `mockup-block not found: ${blockId}` };
+  }
+
+  const devices = window.MOCKUP_DEVICES || {};
+  let changed = false;
+
+  // deviceKey 변경 — renderMockupBlock가 SVG/screen 위치를 다시 그림
+  if (opts.deviceKey !== undefined && opts.deviceKey !== null) {
+    const next = String(opts.deviceKey);
+    if (!devices[next]) {
+      return { ok: false, code: 'INVALID_DEVICE', message: `unknown device: ${next}` };
+    }
+    if (block.dataset.device !== next) {
+      block.dataset.device = next;
+      // 디바이스 변경 시 기존 width 유지하되 새 디바이스 viewW/H 비율로 리렌더.
+      changed = true;
+    }
+  }
+
+  // width 변경
+  if (opts.width !== undefined && opts.width !== null) {
+    let w = parseInt(opts.width);
+    if (!Number.isFinite(w)) {
+      return { ok: false, code: 'INVALID_WIDTH', message: `width must be number, got ${opts.width}` };
+    }
+    w = Math.min(860, Math.max(100, w));
+    block.dataset.width = String(w);
+    block.style.width = w + 'px';
+    changed = true;
+  }
+
+  // shadow 변경 (none/soft/strong 화이트리스트는 mcp-server에서 검증)
+  if (opts.shadow !== undefined && opts.shadow !== null) {
+    applyMockupShadow(block, String(opts.shadow));
+    changed = true;
+  }
+
+  // imgSrc 변경 — '' 빈 문자열 = clear
+  if (opts.imgSrc !== undefined && opts.imgSrc !== null) {
+    const src = String(opts.imgSrc);
+    if (src === '') {
+      block.dataset.imgSrc = '';
+      // sourceSec 도 초기화 — 캡처 출처 연결 해제
+      block.dataset.sourceSec = '';
+      applyMockupScreenImage(block, '');
+    } else {
+      block.dataset.imgSrc = src;
+      // 직접 imgSrc로 수정 시 캡처 출처 연결 해제 (prop-mockup의 업로드 분기와 동일)
+      block.dataset.sourceSec = '';
+      applyMockupScreenImage(block, src);
+    }
+    changed = true;
+  }
+
+  if (!changed) {
+    return { ok: false, code: 'NO_OP', message: 'no fields provided to update' };
+  }
+
+  // 디바이스/너비 변경은 SVG 프레임 + screen overlay 재계산 필요
+  if (opts.deviceKey !== undefined || opts.width !== undefined) {
+    renderMockupBlock(block);
+    // 디바이스 교체 후 이미지가 있으면 다시 적용 (renderMockupBlock가 screen.innerHTML 안 건드림 — 안전하지만 명시적 재적용)
+    if (block.dataset.imgSrc) {
+      applyMockupScreenImage(block, block.dataset.imgSrc);
+    }
+  }
+
+  window.pushHistory?.();
+
+  return {
+    ok: true,
+    blockId,
+    deviceKey: block.dataset.device,
+    width: parseInt(block.dataset.width) || parseInt(block.style.width) || 0,
+    shadow: block.dataset.shadow || 'soft',
+    hasImage: !!block.dataset.imgSrc,
+  };
+}
+
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeDeviceMockupBlock = makeDeviceMockupBlock;
 window.addDeviceMockupBlock  = addDeviceMockupBlock;
 window.renderMockupBlock     = renderMockupBlock;
+window.addMockupBlock        = addMockupBlock;
+window.updateMockupBlock     = updateMockupBlock;
+window.applyMockupScreenImage = applyMockupScreenImage;
+window.applyMockupShadow     = applyMockupShadow;
 
-export { makeDeviceMockupBlock, addDeviceMockupBlock, renderMockupBlock };
+export {
+  makeDeviceMockupBlock,
+  addDeviceMockupBlock,
+  renderMockupBlock,
+  addMockupBlock,
+  updateMockupBlock,
+  applyMockupScreenImage,
+  applyMockupShadow,
+};
