@@ -42,13 +42,15 @@ function _applyIconifyBlockStyle(block, svgContent, size, rotation) {
 
 function addIconifyBlock(iconName, svgContent, size = 64) {
   const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
+  if (!sec) { showNoSelectionHint(); return null; }
   window.pushHistory();
   const { row, block } = makeIconifyBlock(iconName, svgContent, size);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
   window.selectSection(sec);
+  // MCP/orchestrator가 blockId를 즉시 알 수 있도록 row/block 반환. 기존 패널 호출자는 반환값을 안 써서 호환.
+  return { row, block };
 }
 
 // ── window 노출 ────────────────────────────────────────────────────────────

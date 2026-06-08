@@ -28,7 +28,7 @@ const { fillSectionTexts: anthropicFill } = require('./services/anthropicService
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi } = require('./main/claude-pm/mcp-server');
 
 /* ── 사용자별 Preferences (API 토큰 + 단축키) ──
    USER_DATA_DIR는 app.getPath('userData') 기반이라 app.whenReady 이후에 안전.
@@ -1246,7 +1246,12 @@ app.whenReady().then(async () => {
       updateMockupBlock: _invokeRendererUpdateMockupBlock,
       addBanner02Block: _invokeRendererAddBanner02Block,
       updateBanner02Block: _invokeRendererUpdateBanner02Block,
+      addIconifyBlock: _invokeRendererAddIconifyBlock,
     });
+    // iconify search/svg fetch는 main에서 직접 (renderer CSP/외부 fetch 우회 + SSRF 가드)
+    if (typeof setMcpIconifyApi === 'function') {
+      setMcpIconifyApi({ search: _doIconifySearch, fetchSvg: _fetchIconifySvg });
+    }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
   }
@@ -2208,6 +2213,142 @@ async function _invokeRendererUpdateBanner02Block({ blockId, partial } = {}) {
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('updateBanner02Block call failed: ' + e.message);
+  }
+}
+
+// ─── iconify: search + svg fetch (main 측에서 직접, renderer CSP/외부 fetch 우회 + SSRF 가드) ──
+// prefix/name 화이트리스트는 mcp-server.js에서 strict 검증 후 들어옴.
+// 여기선 URL 조립 시 한 번 더 sanity check.
+const _ICONIFY_API_BASE = 'https://api.iconify.design';
+const _ICONIFY_PREFIX_RE = /^[a-z0-9-]{2,32}$/;
+const _ICONIFY_NAME_RE   = /^[a-z0-9-]{1,80}$/;
+const _ICONIFY_TIMEOUT_MS = 8000;
+
+async function _fetchWithTimeout(url, ms = _ICONIFY_TIMEOUT_MS) {
+  const ctl = new AbortController();
+  const tid = setTimeout(() => ctl.abort(), ms);
+  try {
+    return await fetch(url, { signal: ctl.signal, redirect: 'error' });
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
+async function _doIconifySearch({ query, prefix, limit = 10 } = {}) {
+  if (typeof query !== 'string' || !query.trim()) {
+    return { ok: false, code: 'INVALID', message: 'query required' };
+  }
+  const q = query.trim().slice(0, 100);
+  const lim = Math.max(1, Math.min(30, parseInt(limit, 10) || 10));
+  let url = `${_ICONIFY_API_BASE}/search?query=${encodeURIComponent(q)}&limit=${lim}`;
+  if (prefix) {
+    if (!_ICONIFY_PREFIX_RE.test(prefix)) {
+      return { ok: false, code: 'INVALID', message: `invalid prefix: ${prefix}` };
+    }
+    url += `&prefix=${encodeURIComponent(prefix)}`;
+  }
+  try {
+    const res = await _fetchWithTimeout(url);
+    if (!res.ok) return { ok: false, code: 'HTTP_ERROR', message: `iconify search HTTP ${res.status}` };
+    const data = await res.json();
+    const icons = Array.isArray(data.icons) ? data.icons : [];
+    const out = icons.map((full) => {
+      const idx = full.indexOf(':');
+      if (idx < 0) return null;
+      return { fullName: full, prefix: full.slice(0, idx), name: full.slice(idx + 1) };
+    }).filter(Boolean);
+    return { ok: true, total: data.total || out.length, query: q, prefix: prefix || null, icons: out };
+  } catch (e) {
+    return { ok: false, code: 'NETWORK_ERROR', message: e.message || String(e) };
+  }
+}
+
+async function _fetchIconifySvg({ prefix, name, color } = {}) {
+  if (!_ICONIFY_PREFIX_RE.test(prefix || '')) {
+    return { ok: false, code: 'INVALID', message: `invalid prefix: ${prefix}` };
+  }
+  if (!_ICONIFY_NAME_RE.test(name || '')) {
+    return { ok: false, code: 'INVALID', message: `invalid name: ${name}` };
+  }
+  let url = `${_ICONIFY_API_BASE}/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg`;
+  if (color) url += `?color=${encodeURIComponent(color)}`;
+  try {
+    const res = await _fetchWithTimeout(url);
+    if (!res.ok) return { ok: false, code: 'HTTP_ERROR', message: `iconify svg HTTP ${res.status}` };
+    const svg = await res.text();
+    // 정합성 + XSS 추가 가드: iconify 공식 응답은 정제됨이지만 방어적으로 한 번 더 거름.
+    if (!svg || svg.length > 200000) return { ok: false, code: 'INVALID_SVG', message: 'empty or too large svg' };
+    if (!/^\s*<svg\b/i.test(svg)) return { ok: false, code: 'INVALID_SVG', message: 'not an svg' };
+    if (/<script\b|on\w+\s*=|javascript:/i.test(svg)) {
+      return { ok: false, code: 'UNSAFE_SVG', message: 'svg contains script/event handler' };
+    }
+    return { ok: true, svg };
+  } catch (e) {
+    return { ok: false, code: 'NETWORK_ERROR', message: e.message || String(e) };
+  }
+}
+
+// add_iconify_block renderer bridge: main에서 svg fetch 후 renderer에 atomic 삽입.
+// banner02/mockup 패턴 미러 (USER_BUSY 가드 + before/after diff로 새 blockId 추출).
+async function _invokeRendererAddIconifyBlock({ sectionId, name, svg, size = 96 } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safeName = JSON.stringify(String(name || ''));
+  const safeSvg  = JSON.stringify(String(svg  || ''));
+  const safeSize = Number.isFinite(size) ? Math.max(16, Math.min(512, parseInt(size, 10))) : 96;
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 (atomic) ──
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addIconifyBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addIconifyBlock not found' };
+      }
+      // 지정 섹션 타게팅
+      const sid = ${safeSectionId};
+      if (sid) {
+        const target = document.getElementById(sid) || document.querySelector('[data-section-id="' + sid + '"]');
+        if (!target) return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        if (typeof window.selectSection === 'function') { try { window.selectSection(target); } catch(_){} }
+      }
+      if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
+          && typeof window.selectSection === 'function') {
+        const firstSec = document.querySelector('[id^="sec_"]');
+        if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.icon-block')].map(b => b.id));
+      const result = window.addIconifyBlock(${safeName}, ${safeSvg}, ${safeSize});
+      const blocks = [...document.querySelectorAll('.icon-block')];
+      const newBlock = (result && result.block) || blocks.find(b => !beforeIds.has(b.id));
+      if (!newBlock) {
+        return { ok: false, code: 'NO_ADD', message: 'icon-block이 추가되지 않았습니다.' };
+      }
+      const sec = (typeof window.getSelectedSection === 'function') ? window.getSelectedSection() : null;
+      return {
+        ok: true,
+        blockId: newBlock.id,
+        sectionId: sec ? sec.id : null,
+        pageId: window.activePageId || null,
+        beforeCount: beforeIds.size,
+        afterCount: blocks.length,
+      };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addIconifyBlock call failed: ' + e.message);
   }
 }
 

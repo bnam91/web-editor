@@ -24,6 +24,8 @@ let onActiveProjectCb = null;
 // Phase 2: renderer 측 write 작업(예: window.addTextBlock)을 main에서 호출하는 bridge.
 // main.js가 setRendererInvoker({addTextBlock})로 주입 (순환 의존성 회피).
 let _rendererInvoker = null;
+// main.js가 setIconifyApi({search, fetchSvg})로 주입. main 측에서 직접 fetch (SSRF/CSP 안전).
+let _iconifyApi = null;
 
 const tools = new Map();
 const toolSchemas = new Map();
@@ -1118,6 +1120,114 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // ─── search_iconify — iconify API 검색 ─────────────────────────────────────
+  // 화이트리스트 prefix만 허용. main 측 _doIconifySearch가 실제 fetch 수행 (SSRF 가드 포함).
+  registerTool(
+    'search_iconify',
+    async ({ query, prefix, limit = 10 } = {}) => {
+      if (!_iconifyApi?.search) throw new Error('iconify api not initialized (setIconifyApi not called)');
+      if (typeof query !== 'string' || !query.trim()) throw new Error('query required (non-empty string)');
+      if (query.length > 100) throw new Error('query too long (≤100)');
+      if (prefix !== undefined && prefix !== null && prefix !== '') {
+        if (typeof prefix !== 'string') throw new Error('prefix must be string');
+        if (!_ICONIFY_PREFIXES.includes(prefix)) {
+          throw new Error(`invalid prefix: ${prefix}. allowed: ${_ICONIFY_PREFIXES.join('|')}`);
+        }
+      } else {
+        prefix = undefined;
+      }
+      const lim = (limit === undefined || limit === null) ? 10 : parseInt(limit, 10);
+      if (!Number.isFinite(lim) || lim < 1 || lim > 30) throw new Error('limit must be 1~30');
+      return await _iconifyApi.search({ query: query.trim(), prefix, limit: lim });
+    },
+    {
+      description: 'Search Iconify icons by keyword. Returns up to `limit` icon candidates. Filter by `prefix` (icon family) to enforce visual consistency — REQUIRED to keep all icons in one set within a single task. Allowed prefixes: ' + _ICONIFY_PREFIXES.join(', ') + '. Returns {ok, total, icons: [{fullName, prefix, name}]}. POC 교훈: 첫 후보가 의미적으로 안 맞을 수 있음 — fullName을 보고 직접 검증할 것.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '검색어 (영문 권장, 1~100자). 예: "home", "arrow", "fan", "shirt"' },
+          prefix: { type: 'string', enum: _ICONIFY_PREFIXES, description: '아이콘 패밀리 필터 — 한 작업 내 일관성 유지를 위해 지정 권장' },
+          limit: { type: 'integer', description: '결과 개수 1~30 (default 10)' }
+        },
+        required: ['query']
+      }
+    }
+  );
+
+  // ─── add_iconify_block — 아이콘 SVG fetch + 캔버스 삽입 ────────────────────
+  // main에서 svg fetch (CSP/SSRF 안전) → renderer atomic IIFE에 인자로 넘김.
+  // banner02 패턴 미러: USER_BUSY 가드 + before/after icon-block diff로 blockId 추출.
+  registerTool(
+    'add_iconify_block',
+    async ({ sectionId, name, size = 96, color } = {}) => {
+      // 입력 검증을 dependency 체크보다 먼저 — 잘못된 입력은 즉시 거절 (DI 상태 영향 X).
+      if (typeof name !== 'string' || !name.includes(':')) {
+        throw new Error('name required in "prefix:icon-name" form (e.g. "ph:house-bold")');
+      }
+      const colonIdx = name.indexOf(':');
+      const prefix = name.slice(0, colonIdx);
+      const iconName = name.slice(colonIdx + 1);
+      if (!_ICONIFY_PREFIXES.includes(prefix)) {
+        throw new Error(`invalid prefix in name: ${prefix}. allowed: ${_ICONIFY_PREFIXES.join('|')}`);
+      }
+      if (!/^[a-z0-9-]{1,80}$/.test(iconName)) {
+        throw new Error(`invalid icon name: ${iconName} (lowercase a-z 0-9 - only, ≤80)`);
+      }
+      if (sectionId !== undefined && sectionId !== null) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+          throw new Error(`invalid sectionId: ${sectionId} (expected string starting with sec_)`);
+        }
+      }
+      const sz = (size === undefined || size === null) ? 96 : parseInt(size, 10);
+      if (!Number.isFinite(sz) || sz < 16 || sz > 512) throw new Error('size must be 16~512');
+      let validatedColor;
+      if (color !== undefined && color !== null && color !== '') {
+        _validateIconifyColor(color);
+        validatedColor = color;
+      }
+      // DI 체크는 검증 이후
+      if (!_iconifyApi?.fetchSvg) throw new Error('iconify api not initialized (setIconifyApi not called)');
+      if (!_rendererInvoker?.addIconifyBlock) throw new Error('renderer bridge not ready');
+      const svgResult = await _iconifyApi.fetchSvg({ prefix, name: iconName, color: validatedColor });
+      if (!svgResult || !svgResult.ok) {
+        return svgResult || { ok: false, code: 'FETCH_FAILED', message: 'svg fetch failed' };
+      }
+      return await _rendererInvoker.addIconifyBlock({ sectionId, name, svg: svgResult.svg, size: sz });
+    },
+    {
+      description: 'Insert an Iconify icon as an icon-block (icn_xxx). Fetches SVG from api.iconify.design and inserts atomically. `name` must be "prefix:icon-name" (e.g. "ph:house-bold"). Returns {ok, blockId: "icn_xxx", sectionId, ...}. ALLOWED prefixes: ' + _ICONIFY_PREFIXES.join(', ') + '. POC 교훈: 같은 작업 내 모든 아이콘은 동일 prefix + 동일 weight(-bold/-fill 등) 사용해 시각 일관성 유지할 것.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx — 미지정 시 현재 선택된 섹션' },
+          name: { type: 'string', description: '"prefix:icon-name" 형식. 예: "ph:fan-bold", "lucide:home", "tabler:user"' },
+          size: { type: 'integer', description: '아이콘 픽셀 크기 16~512 (default 96)' },
+          color: { type: 'string', description: 'SVG fill 색 — #hex / rgb(a)() / hsl(a)() / transparent. 미지정 시 SVG 원본 사용.' }
+        },
+        required: ['name']
+      }
+    }
+  );
+}
+
+// ─── iconify: 화이트리스트 + 색상 검증 ──────────────────────────────────────
+// COLLECTIONS 11종 중 'All' 제외. banner02 _color 패턴 미러.
+const _ICONIFY_PREFIXES = [
+  'mdi', 'material-symbols', 'heroicons', 'lucide', 'ph',
+  'tabler', 'bi', 'feather', 'ion', 'ri'
+];
+
+function _validateIconifyColor(v) {
+  if (typeof v !== 'string') throw new Error('color must be string');
+  const s = v.trim();
+  if (!s) throw new Error('color empty');
+  if (s.length > 64) throw new Error('color too long');
+  const ok =
+    /^#[0-9a-fA-F]{3,8}$/.test(s) ||
+    /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(s) ||
+    s === 'transparent';
+  if (!ok) throw new Error('invalid color (allowed: #hex | rgb(a)/hsl(a)() | transparent)');
 }
 
 // ─── banner02 옵션 검증 (add/update 공용) ───────────────────────────────────
@@ -1372,9 +1482,15 @@ function setRendererInvoker(invoker) {
   _rendererInvoker = invoker || null;
 }
 
+// iconify API 주입 (main에서 fetch — SSRF 가드/timeout 포함). setRendererInvoker와 동일 패턴.
+function setIconifyApi(api) {
+  _iconifyApi = api || null;
+}
+
 module.exports = {
   startMcpServer,
   stopMcpServer,
   registerTool,
   setRendererInvoker,
+  setIconifyApi,
 };
