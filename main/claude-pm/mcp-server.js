@@ -211,22 +211,31 @@ function _registerDefaultTools() {
   // Phase 3 MVP — 캔버스에 섹션 1개 추가. renderer의 window.addSection 호출.
   registerTool(
     'add_section',
-    async ({ empty = false, bg } = {}) => {
+    async ({ empty = false, bg, beforeId, afterId } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.addSection !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
       if (bg !== undefined && !/^#?[0-9a-fA-F]{3,8}$/.test(String(bg))) {
         throw new Error(`invalid bg color: ${bg}`);
       }
-      return await _rendererInvoker.addSection({ empty: !!empty, bg });
+      if (beforeId !== undefined && (typeof beforeId !== 'string' || !beforeId.startsWith('sec_'))) {
+        throw new Error(`invalid beforeId: ${beforeId} (must start with "sec_")`);
+      }
+      if (afterId !== undefined && (typeof afterId !== 'string' || !afterId.startsWith('sec_'))) {
+        throw new Error(`invalid afterId: ${afterId} (must start with "sec_")`);
+      }
+      if (beforeId && afterId) throw new Error('beforeId and afterId are mutually exclusive');
+      return await _rendererInvoker.addSection({ empty: !!empty, bg, beforeId, afterId });
     },
     {
-      description: 'Add a new section to the canvas (Phase 3 MVP). Default = gap + h2 placeholder + gap. empty:true = only top/bottom gap blocks. Requires user not editing — returns { ok:false, code:"USER_BUSY" } if user is typing.',
+      description: 'Add a new section. Default = appended after selected (or canvas end). Use beforeId/afterId to insert at a specific position. Default body = gap + h2 placeholder + gap. empty:true = only top/bottom gaps.',
       inputSchema: {
         type: 'object',
         properties: {
           empty: { type: 'boolean', description: 'true = skip default h2 block (only gap blocks). default false' },
-          bg: { type: 'string', description: 'optional section background hex color (e.g. #f5f5f5)' }
+          bg: { type: 'string', description: 'optional section background hex color (e.g. #f5f5f5)' },
+          beforeId: { type: 'string', description: 'optional sec_xxx — insert the new section BEFORE this one' },
+          afterId:  { type: 'string', description: 'optional sec_xxx — insert the new section AFTER this one' }
         },
         required: []
       }
@@ -237,7 +246,7 @@ function _registerDefaultTools() {
   // 이미지 *생성*은 안 함 — 비율 잡힌 자리만 만들고 사용자가 채움.
   registerTool(
     'add_asset_block',
-    async ({ preset = 'img1', sectionId } = {}) => {
+    async ({ preset = 'img1', sectionId, scratchId } = {}) => {
       if (!_rendererInvoker || typeof _rendererInvoker.addAssetBlock !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
@@ -250,15 +259,21 @@ function _registerDefaultTools() {
           throw new Error(`invalid sectionId: ${sectionId}. expected string starting with sec_`);
         }
       }
-      return await _rendererInvoker.addAssetBlock({ preset, sectionId });
+      if (scratchId !== undefined) {
+        if (typeof scratchId !== 'string' || !scratchId.startsWith('sp_')) {
+          throw new Error(`invalid scratchId: ${scratchId}. expected string starting with sp_`);
+        }
+      }
+      return await _rendererInvoker.addAssetBlock({ preset, sectionId, scratchId });
     },
     {
-      description: 'Add an image-placeholder row with a ratio preset (Phase 3 MVP). Does NOT generate images — only the ratio-sized slot for the user to fill. img1=single full-width, img2=2-up 1:1, img3=3-up 1:1:1, text-img=text+image 1:1.',
+      description: 'Add an image-placeholder row with a ratio preset. img1=single, img2=2-up (canvas-block cards), img3=3-up (canvas-block cards), text-img=text+image stack. Pass scratchId to auto-attach a scratch pad image (sp_xxx) — renderer reads from IndexedDB directly (no IPC payload blowup for large GIF/dataURL).',
       inputSchema: {
         type: 'object',
         properties: {
           preset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout preset (default img1)' },
-          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses the currently selected section' }
+          sectionId: { type: 'string', description: 'optional sec_xxx — if omitted, uses the currently selected section' },
+          scratchId: { type: 'string', description: 'optional sp_xxx — auto-attach scratch pad image as asset src (only meaningful with preset=img1)' }
         },
         required: []
       }

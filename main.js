@@ -1422,7 +1422,7 @@ async function _invokeRendererEditBlock({ blockId, content, color, fontSize, fon
 
 // ─── Phase 3 MVP — renderer 측 섹션 추가 helper ──────────────────────────────
 // add_text_block과 동일 패턴: 단일 atomic IIFE (동시수정 가드 + window.addSection 호출).
-async function _invokeRendererAddSection({ empty = false, bg } = {}) {
+async function _invokeRendererAddSection({ empty = false, bg, beforeId, afterId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -1431,6 +1431,8 @@ async function _invokeRendererAddSection({ empty = false, bg } = {}) {
   }
   const skipDefault = empty ? 'true' : 'false';
   const safeBg = bg ? JSON.stringify(String(bg)) : 'null';
+  const safeBefore = beforeId ? JSON.stringify(String(beforeId)) : 'null';
+  const safeAfter  = afterId  ? JSON.stringify(String(afterId))  : 'null';
   const atomicJs = `(() => {
     try {
       // ── 동시수정 가드 (atomic) ──
@@ -1445,18 +1447,29 @@ async function _invokeRendererAddSection({ empty = false, bg } = {}) {
       if (typeof window.addSection !== 'function') {
         return { ok: false, code: 'API_MISSING', message: 'window.addSection not found' };
       }
-      const before = document.querySelectorAll('.section-block').length;
+      const beforeIds = new Set([...document.querySelectorAll('.section-block')].map(s => s.id));
+      const before = beforeIds.size;
       const opts = {};
       if (${skipDefault}) opts.skipDefaultBlock = true;
       const bgv = ${safeBg};
       if (bgv) opts.bg = bgv;
+      const bId = ${safeBefore};
+      const aId = ${safeAfter};
+      if (bId) {
+        if (!document.getElementById(bId)) return { ok:false, code:'NOT_FOUND', message:'beforeId not found: '+bId };
+        opts.beforeId = bId;
+      }
+      if (aId) {
+        if (!document.getElementById(aId)) return { ok:false, code:'NOT_FOUND', message:'afterId not found: '+aId };
+        opts.afterId = aId;
+      }
       window.addSection(opts);
-      const secs = document.querySelectorAll('.section-block');
-      const after = secs.length;
+      const allSecs = [...document.querySelectorAll('.section-block')];
+      const after = allSecs.length;
       if (after <= before) {
         return { ok: false, code: 'NO_ADD', message: '섹션이 추가되지 않았습니다.' };
       }
-      const newSec = secs[secs.length - 1];
+      const newSec = allSecs.find(s => !beforeIds.has(s.id));
       return { ok: true, sectionId: newSec?.id || null, sectionName: newSec?.dataset?.name || null, beforeCount: before, afterCount: after };
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
@@ -1469,7 +1482,7 @@ async function _invokeRendererAddSection({ empty = false, bg } = {}) {
 
 // ─── Phase 3 MVP — renderer 측 에셋(비율 프리셋) row 추가 helper ──────────────
 // window.addPresetRow(preset) 호출. img1/img2/img3/text-img.
-async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId } = {}) {
+async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId, scratchId } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
@@ -1478,6 +1491,7 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId } = {})
   }
   const safePreset = JSON.stringify(String(preset));
   const safeSectionId = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safeScratch   = scratchId ? JSON.stringify(String(scratchId)) : 'null';
   const atomicJs = `(() => {
     try {
       const ae = document.activeElement;
@@ -1507,12 +1521,21 @@ async function _invokeRendererAddAssetBlock({ preset = 'img1', sectionId } = {})
         if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
       }
       const before = document.querySelectorAll('.asset-block').length;
-      window.addPresetRow(${safePreset});
+      const beforeIds = new Set([...document.querySelectorAll('.asset-block')].map(b => b.id));
+      const scId = ${safeScratch};
+      if (scId && typeof window.addAssetBlock === 'function') {
+        // scratchId 전달 — renderer가 자체 IndexedDB에서 src 꺼내 박음 (IPC payload 폭발 회피)
+        window.addAssetBlock(${safePreset}, { scratchId: scId });
+      } else {
+        window.addPresetRow(${safePreset});
+      }
       const after = document.querySelectorAll('.asset-block').length;
       if (after <= before) {
         return { ok: false, code: 'NO_ADD', message: '에셋이 추가되지 않았습니다 (활성 섹션 확인).' };
       }
-      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after };
+      const newAssets = [...document.querySelectorAll('.asset-block')].filter(b => !beforeIds.has(b.id));
+      const lastNew = newAssets[newAssets.length - 1];
+      return { ok: true, preset: ${safePreset}, assetBefore: before, assetAfter: after, assetBlockId: lastNew?.id || null, hasImage: !!(lastNew?.querySelector('.asset-img')?.src || lastNew?.dataset?.imgSrc) };
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
   })()`;
   try {

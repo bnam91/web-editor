@@ -634,6 +634,17 @@ function addAssetBlock(preset, opts = {}) {
       block.style.width = `calc(100% + ${px * 2}px)`;
     }
   };
+  // 이미지 자동 박기 (opts.imgSrc | opts.scratchId)
+  const applyImageIfAny = (block) => {
+    let src = opts.imgSrc;
+    if (!src && opts.scratchId && typeof window._getScratchItemByIdForMCP === 'function') {
+      const item = window._getScratchItemByIdForMCP(opts.scratchId, { includeSrc: true });
+      if (item?.src) src = item.src;
+    }
+    if (src && typeof window.setAssetImageFromSrc === 'function') {
+      try { window.setAssetImageFromSrc(block, src); } catch (e) { console.warn('[addAssetBlock] setAssetImageFromSrc 실패:', e); }
+    }
+  };
   // fullWidth sub-section 분기
   let insertedBlock = null;
   if (_insertToFlowFrame(() => {
@@ -643,7 +654,7 @@ function addAssetBlock(preset, opts = {}) {
     insertedBlock = block;
     return { row, block };
   }, opts)) {
-    if (insertedBlock) applyExcludePadX(insertedBlock);
+    if (insertedBlock) { applyExcludePadX(insertedBlock); applyImageIfAny(insertedBlock); }
     return;
   }
   const sec = window.getSelectedSection();
@@ -654,6 +665,7 @@ function addAssetBlock(preset, opts = {}) {
   applyRowPaddingX(row);
   insertAfterSelected(sec, row);
   applyExcludePadX(block);   // DOM 삽입 후 실행
+  applyImageIfAny(block);
   bindBlock(block);
   window.buildLayerPanel();
   window.selectSection(sec);
@@ -921,9 +933,21 @@ function addSection(opts = {}) {
     }
   }
 
-  const selectedSec = document.querySelector('.section-block.selected');
-  if (selectedSec) selectedSec.after(sec);
-  else canvas.appendChild(sec);
+  // 위치 지정: opts.beforeId / opts.afterId 우선, 없으면 selected → 끝
+  let placed = false;
+  if (opts.beforeId) {
+    const ref = document.getElementById(opts.beforeId);
+    if (ref && ref.classList.contains('section-block')) { ref.before(sec); placed = true; }
+  }
+  if (!placed && opts.afterId) {
+    const ref = document.getElementById(opts.afterId);
+    if (ref && ref.classList.contains('section-block')) { ref.after(sec); placed = true; }
+  }
+  if (!placed) {
+    const selectedSec = document.querySelector('.section-block.selected');
+    if (selectedSec) selectedSec.after(sec);
+    else canvas.appendChild(sec);
+  }
 
   // 이벤트 바인딩
   window.pushHistory();
