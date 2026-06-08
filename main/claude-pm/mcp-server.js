@@ -1209,6 +1209,117 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // ─── add_comparison_block — N칼럼 비교 블록 추가 (1:1, 1:1:1 …) ───────────
+  // comparison-block.js의 makeComparisonBlock opts 노출. cols 배열 + featured(int idx) + 강조크기/겹침/반경/폰트.
+  registerTool(
+    'add_comparison_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.addComparisonBlock) throw new Error('renderer bridge not ready');
+      const opts = _validateComparisonOpts(args, { mode: 'add' });
+      return await _rendererInvoker.addComparisonBlock(opts);
+    },
+    {
+      description: 'Add a comparison block (cmp_xxx) — N칼럼 비교 블록 (1:1, 1:1:1 …). 한 칼럼(featured)이 더 크게 떠보임. cols 배열로 칼럼 정의 (2~8개), 각 칼럼 {title, bg, text, rows[]}. featured는 강조 칼럼 인덱스(기본 마지막). 반환 blockId는 cmp_xxx. 이후 update_comparison_block으로 수정.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx — 미지정 시 현재 선택된 섹션' },
+          layerName: { type: 'string', description: '레이어 패널 표시명 (≤100)' },
+          cols: {
+            type: 'array',
+            description: '칼럼 배열 (2~8개). 미지정 시 기본 2칼럼 (일반 제품 vs 브랜드).',
+            minItems: 2, maxItems: 8,
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: '칼럼 제목 (≤200)' },
+                bg:    { type: 'string', description: '배경색 (#hex|rgb(a)/hsl(a)|transparent) 또는 gradient css' },
+                text:  { type: 'string', description: '텍스트 색 (#hex|rgb(a)/hsl(a)|transparent)' },
+                rows:  { type: 'array', description: '행 텍스트 배열 (≤20개)', items: { type: 'string' } }
+              }
+            }
+          },
+          featured:  { type: 'integer', description: '강조 칼럼 인덱스 (0~cols.length-1). 기본은 마지막 칼럼.' },
+          featScale: { type: 'number',  description: '강조 칼럼 스케일 (1.0~1.5, default 1.2)' },
+          compW:     { type: 'integer', description: '디자인 폭 (120~4000, default 720)' },
+          overlap:   { type: 'integer', description: '인접 칼럼 겹침 px (0~400, default 32)' },
+          radius:    { type: 'integer', description: '카드 모서리 반경 px (0~400, default 20)' },
+          padX:      { type: 'integer', description: '블록 좌우 패딩 px (0~400, default 0)' },
+          padY:      { type: 'integer', description: '카드 내부 상하 패딩 px (0~400, default 0)' },
+          headerH:   { type: 'integer', description: '헤더 높이 px (16~400, default 72)' },
+          rowH:      { type: 'integer', description: '행 높이 px (16~400, default 64)' },
+          rowGap:    { type: 'integer', description: '행 간격 px (0~200, default 8)' },
+          titleFont: { type: 'integer', description: '제목 폰트 px (4~400, default 26)' },
+          rowFont:   { type: 'integer', description: '내용 폰트 px (4~400, default 18)' }
+        },
+        required: []
+      }
+    }
+  );
+
+  // ─── update_comparison_block — 기존 comparison 블록 부분 수정 ──────────────
+  registerTool(
+    'update_comparison_block',
+    async ({ blockId, ...rest } = {}) => {
+      if (!_rendererInvoker?.updateComparisonBlock) throw new Error('renderer bridge not ready');
+      if (typeof blockId !== 'string' || !blockId.startsWith('cmp_')) {
+        throw new Error(`invalid blockId: ${blockId}. must be a string starting with "cmp_"`);
+      }
+      const partial = _validateComparisonOpts(rest, { mode: 'update' });
+      if (Object.keys(partial).length === 0) {
+        throw new Error('no fields to update — provide at least one comparison field');
+      }
+      return await _rendererInvoker.updateComparisonBlock({ blockId, partial });
+    },
+    {
+      description: 'Edit an EXISTING comparison block (cmp_xxx) — partial update. 외곽(featScale/overlap/radius/padX/padY/compW/headerH/rowH/rowGap/titleFont/rowFont) + featured(int) + 칼럼 전체교체(cols) + 칼럼 부분 패치(columnPatch [{index, title?, bg?, text?, rows?}]). cols 와 columnPatch 동시 지정 시 cols가 먼저 적용된다. USER_BUSY 시 즉시 반환.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'cmp_xxx (comparison block id)' },
+          layerName: { type: 'string' },
+          cols: {
+            type: 'array', minItems: 2, maxItems: 8,
+            description: '칼럼 배열 전체 교체 (2~8). 부분만 바꾸려면 columnPatch 사용.',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' }, bg: { type: 'string' }, text: { type: 'string' },
+                rows:  { type: 'array', items: { type: 'string' } }
+              }
+            }
+          },
+          columnPatch: {
+            type: 'array',
+            description: '특정 칼럼만 부분 갱신 (index 필수). 최대 16개 patch.',
+            items: {
+              type: 'object',
+              properties: {
+                index: { type: 'integer', description: '대상 칼럼 인덱스 (0-base)' },
+                title: { type: 'string' }, bg: { type: 'string' }, text: { type: 'string' },
+                rows:  { type: 'array', items: { type: 'string' } }
+              },
+              required: ['index']
+            }
+          },
+          featured:  { type: 'integer' },
+          featScale: { type: 'number' },
+          compW:     { type: 'integer' },
+          overlap:   { type: 'integer' },
+          radius:    { type: 'integer' },
+          padX:      { type: 'integer' },
+          padY:      { type: 'integer' },
+          headerH:   { type: 'integer' },
+          rowH:      { type: 'integer' },
+          rowGap:    { type: 'integer' },
+          titleFont: { type: 'integer' },
+          rowFont:   { type: 'integer' }
+        },
+        required: ['blockId']
+      }
+    }
+  );
 }
 
 // ─── iconify: 화이트리스트 + 색상 검증 ──────────────────────────────────────
@@ -1305,6 +1416,138 @@ function _validateBanner02Opts(args, { mode } = {}) {
   _int('imgW', 4, 4000); _int('imgH', 4, 4000);
   _enum('imgFit', ['cover', 'contain']);
   _enum('layout', ['left', 'right']);
+
+  return out;
+}
+
+// ─── comparison 옵션 검증 (add/update 공용) ────────────────────────────────
+// banner02 패턴 미러. cols 배열 + columnPatch 추가 검증.
+// mode='add'  → sectionId 허용, 모든 필드 optional
+// mode='update' → sectionId 무시, blockId는 caller에서 처리
+const _CMP_BG_RE   = /^#[0-9a-fA-F]{3,8}$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+// gradient는 linear-gradient(...) / radial-gradient(...) / conic-gradient(...) 만 허용 (편집기 기본 패턴).
+// 인자 내부: 영숫자, 공백, , % # ( ) . - + / 만 허용 → ;, url(), expression(), backslash, < > 모두 차단.
+const _CMP_GRAD_RE = /^(linear|radial|conic)-gradient\(\s*[\sa-zA-Z0-9,%#().\-+/]{1,1024}\s*\)$/;
+
+function _validateComparisonBg(v, label) {
+  if (typeof v !== 'string') throw new Error(`${label} must be string`);
+  const s = v.trim();
+  if (!s) return ''; // 빈 문자열은 dataset 기본값으로 폴백 (clear)
+  if (s.length > 1024) throw new Error(`${label} too long`);
+  if (s === 'transparent') return s;
+  if (_CMP_BG_RE.test(s)) return s;
+  if (_CMP_GRAD_RE.test(s)) return s;
+  throw new Error(`${label} invalid (allowed: #hex | rgb(a)/hsl(a)() | transparent | (linear|radial|conic)-gradient(...))`);
+}
+function _validateComparisonTextColor(v, label) {
+  if (typeof v !== 'string') throw new Error(`${label} must be string`);
+  const s = v.trim();
+  if (!s) return '';
+  if (s.length > 64) throw new Error(`${label} too long`);
+  if (s === 'transparent') return s;
+  if (_CMP_BG_RE.test(s)) return s;
+  throw new Error(`${label} invalid color (allowed: #hex | rgb(a)/hsl(a)() | transparent)`);
+}
+function _validateComparisonCol(c, label) {
+  if (!c || typeof c !== 'object') throw new Error(`${label} must be object`);
+  const out = {};
+  if (c.title !== undefined && c.title !== null) {
+    if (typeof c.title !== 'string') throw new Error(`${label}.title must be string`);
+    if ([...c.title].length > 200) throw new Error(`${label}.title too long (>200 code points)`);
+    out.title = c.title;
+  }
+  if (c.bg !== undefined && c.bg !== null) out.bg = _validateComparisonBg(c.bg, `${label}.bg`);
+  if (c.text !== undefined && c.text !== null) out.text = _validateComparisonTextColor(c.text, `${label}.text`);
+  if (c.rows !== undefined && c.rows !== null) {
+    if (!Array.isArray(c.rows)) throw new Error(`${label}.rows must be array`);
+    if (c.rows.length > 20) throw new Error(`${label}.rows length > 20`);
+    out.rows = c.rows.map((r, ri) => {
+      if (r != null && typeof r !== 'string') throw new Error(`${label}.rows[${ri}] must be string`);
+      const s = r == null ? '' : r;
+      if ([...s].length > 500) throw new Error(`${label}.rows[${ri}] too long (>500 code points)`);
+      return s;
+    });
+  }
+  return out;
+}
+
+function _validateComparisonOpts(args, { mode } = {}) {
+  if (!args || typeof args !== 'object') throw new Error('args must be object');
+  const out = {};
+
+  const _int = (key, min, max) => {
+    if (args[key] === undefined || args[key] === null) return;
+    const n = args[key];
+    if (!Number.isInteger(n)) throw new Error(`${key} must be integer`);
+    if (min !== undefined && n < min) throw new Error(`${key} < ${min}`);
+    if (max !== undefined && n > max) throw new Error(`${key} > ${max}`);
+    out[key] = n;
+  };
+  const _num = (key, min, max) => {
+    if (args[key] === undefined || args[key] === null) return;
+    const n = args[key];
+    if (typeof n !== 'number' || !Number.isFinite(n)) throw new Error(`${key} must be finite number`);
+    if (min !== undefined && n < min) throw new Error(`${key} < ${min}`);
+    if (max !== undefined && n > max) throw new Error(`${key} > ${max}`);
+    out[key] = n;
+  };
+  const _str = (key, maxLen) => {
+    if (args[key] === undefined || args[key] === null) return;
+    if (typeof args[key] !== 'string') throw new Error(`${key} must be string`);
+    if (maxLen !== undefined && [...args[key]].length > maxLen) {
+      throw new Error(`${key} too long (>${maxLen} code points)`);
+    }
+    out[key] = args[key];
+  };
+
+  if (mode === 'add') {
+    if (args.sectionId !== undefined && args.sectionId !== null) {
+      if (typeof args.sectionId !== 'string' || !args.sectionId.startsWith('sec_')) {
+        throw new Error(`invalid sectionId: ${args.sectionId}. expected string starting with sec_`);
+      }
+      out.sectionId = args.sectionId;
+    }
+  }
+
+  _str('layerName', 100);
+  _int('compW',     120, 4000);
+  _num('featScale', 1.0, 1.5);
+  _int('overlap',   0,   400);
+  _int('radius',    0,   400);
+  _int('padX',      0,   400);
+  _int('padY',      0,   400);
+  _int('headerH',   16,  400);
+  _int('rowH',      16,  400);
+  _int('rowGap',    0,   200);
+  _int('titleFont', 4,   400);
+  _int('rowFont',   4,   400);
+  _int('featured',  0,   7); // 최대 cols=8 → 인덱스 0~7. 실제 cols 길이와의 정합성은 renderer가 재검증.
+
+  if (args.cols !== undefined && args.cols !== null) {
+    if (!Array.isArray(args.cols)) throw new Error('cols must be array');
+    if (args.cols.length < 2 || args.cols.length > 8) {
+      throw new Error(`cols length ${args.cols.length} out of range (2~8)`);
+    }
+    out.cols = args.cols.map((c, i) => _validateComparisonCol(c, `cols[${i}]`));
+  }
+
+  if (args.columnPatch !== undefined && args.columnPatch !== null) {
+    if (!Array.isArray(args.columnPatch)) throw new Error('columnPatch must be array');
+    if (args.columnPatch.length > 16) throw new Error('columnPatch length > 16');
+    out.columnPatch = args.columnPatch.map((p, i) => {
+      if (!p || typeof p !== 'object') throw new Error(`columnPatch[${i}] must be object`);
+      if (!Number.isInteger(p.index) || p.index < 0 || p.index > 7) {
+        throw new Error(`columnPatch[${i}].index invalid (must be integer 0~7)`);
+      }
+      const v = _validateComparisonCol(p, `columnPatch[${i}]`);
+      return { index: p.index, ...v };
+    });
+  }
+
+  // featured와 cols 정합성 (둘 다 add에서 지정된 경우만)
+  if (out.featured !== undefined && out.cols !== undefined && out.featured >= out.cols.length) {
+    throw new Error(`featured ${out.featured} out of range for cols length ${out.cols.length}`);
+  }
 
   return out;
 }

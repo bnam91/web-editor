@@ -193,22 +193,202 @@ function makeComparisonBlock(data = {}) {
 }
 
 function addComparisonBlock(opts = {}) {
-  if (window._insertToFlowFrame?.(() => makeComparisonBlock(opts))) return;
+  if (window._insertToFlowFrame?.(() => makeComparisonBlock(opts))) return null;
   const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
+  if (!sec) { showNoSelectionHint(); return null; }
   window.pushHistory();
   const { row, block } = makeComparisonBlock(opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
   window.selectSection(sec);
+  window.scheduleAutoSave?.();
+  return { row, block };
+}
+
+// ── 수정 ────────────────────────────────────────────────────────────────────
+// PM의 update_comparison_block(MCP) → main(_invokeRendererUpdateComparisonBlock) → 여기.
+// banner02 updateBanner02Block 패턴 미러. dataset partial write + renderComparison 재렌더 + autoSave.
+// 지원 필드 (data-* 매핑):
+//   - 외곽: compW, featScale, overlap, radius, padX, padY, headerH, rowH, rowGap
+//   - 텍스트: titleFont, rowFont
+//   - 강조: featured (int index)
+//   - 칼럼 전체: cols (배열 전체 교체, 길이 2~8, rows ≤ 20)
+//   - 칼럼 단위 patch: columnPatch [{index, title?, bg?, text?, rows?}, ...]
+//   - 메타: layerName
+function updateComparisonBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('comparison-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `comparison-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+
+  const before = {
+    cols: block.dataset.cols, featured: block.dataset.featured,
+    featScale: block.dataset.featScale, compW: block.dataset.compW,
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  const _setNum = (datasetKey, value, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return false;
+    if (min !== undefined && n < min) return false;
+    if (max !== undefined && n > max) return false;
+    block.dataset[datasetKey] = String(n);
+    return true;
+  };
+  const _setStr = (datasetKey, value, maxLen) => {
+    const s = String(value);
+    if (maxLen !== undefined && [...s].length > maxLen) return null;
+    block.dataset[datasetKey] = s;
+    return s;
+  };
+
+  if (partial.layerName !== undefined && partial.layerName !== null) {
+    const v = _setStr('layerName', partial.layerName, 100);
+    if (v !== null) applied.layerName = v;
+  }
+
+  // 외곽/크기
+  if (partial.compW    !== undefined) { if (_setNum('compW',    partial.compW,    120, 4000)) applied.compW    = Number(partial.compW); }
+  if (partial.featScale!== undefined) {
+    const n = Number(partial.featScale);
+    if (Number.isFinite(n) && n >= 1 && n <= 1.5) {
+      block.dataset.featScale = String(n);
+      applied.featScale = n;
+    }
+  }
+  if (partial.overlap  !== undefined) { if (_setNum('overlap',  partial.overlap,  0,   400))  applied.overlap  = Number(partial.overlap); }
+  if (partial.radius   !== undefined) { if (_setNum('radius',   partial.radius,   0,   400))  applied.radius   = Number(partial.radius); }
+  if (partial.padX     !== undefined) { if (_setNum('padX',     partial.padX,     0,   400))  applied.padX     = Number(partial.padX); }
+  if (partial.padY     !== undefined) { if (_setNum('padY',     partial.padY,     0,   400))  applied.padY     = Number(partial.padY); }
+  if (partial.headerH  !== undefined) { if (_setNum('headerH',  partial.headerH,  16,  400))  applied.headerH  = Number(partial.headerH); }
+  if (partial.rowH     !== undefined) { if (_setNum('rowH',     partial.rowH,     16,  400))  applied.rowH     = Number(partial.rowH); }
+  if (partial.rowGap   !== undefined) { if (_setNum('rowGap',   partial.rowGap,   0,   200))  applied.rowGap   = Number(partial.rowGap); }
+  if (partial.titleFont!== undefined) { if (_setNum('titleFont',partial.titleFont,4,   400))  applied.titleFont= Number(partial.titleFont); }
+  if (partial.rowFont  !== undefined) { if (_setNum('rowFont',  partial.rowFont,  4,   400))  applied.rowFont  = Number(partial.rowFont); }
+
+  // cols 전체 교체
+  if (partial.cols !== undefined && partial.cols !== null) {
+    if (!Array.isArray(partial.cols)) {
+      return { ok: false, code: 'INVALID', message: 'cols must be array' };
+    }
+    if (partial.cols.length < 2 || partial.cols.length > 8) {
+      return { ok: false, code: 'INVALID', message: 'cols length must be 2~8' };
+    }
+    const safeCols = [];
+    for (let i = 0; i < partial.cols.length; i++) {
+      const c = partial.cols[i];
+      if (!c || typeof c !== 'object') {
+        return { ok: false, code: 'INVALID', message: `cols[${i}] must be object` };
+      }
+      const title = c.title != null ? String(c.title) : '';
+      if ([...title].length > 200) return { ok: false, code: 'INVALID', message: `cols[${i}].title too long` };
+      const bg    = c.bg   != null ? String(c.bg)   : '';
+      const text  = c.text != null ? String(c.text) : '';
+      if (bg.length > 1024 || text.length > 64) return { ok: false, code: 'INVALID', message: `cols[${i}] color too long` };
+      const rows  = Array.isArray(c.rows) ? c.rows : [];
+      if (rows.length > 20) return { ok: false, code: 'INVALID', message: `cols[${i}].rows length > 20` };
+      const safeRows = rows.map((r, ri) => {
+        const s = r == null ? '' : String(r);
+        if ([...s].length > 500) throw new Error(`cols[${i}].rows[${ri}] too long`);
+        return s;
+      });
+      safeCols.push({ title, bg, text, rows: safeRows });
+    }
+    block.dataset.cols = JSON.stringify(safeCols);
+    applied.cols = safeCols;
+  }
+
+  // columnPatch — 개별 칼럼 부분 갱신 (index 기반)
+  if (partial.columnPatch !== undefined && partial.columnPatch !== null) {
+    if (!Array.isArray(partial.columnPatch)) {
+      return { ok: false, code: 'INVALID', message: 'columnPatch must be array' };
+    }
+    if (partial.columnPatch.length > 16) {
+      return { ok: false, code: 'INVALID', message: 'columnPatch too long' };
+    }
+    const current = getComparisonCols(block.dataset);
+    const appliedPatches = [];
+    for (const p of partial.columnPatch) {
+      if (!p || typeof p !== 'object') {
+        return { ok: false, code: 'INVALID', message: 'columnPatch entry must be object' };
+      }
+      const idx = Number(p.index);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= current.length) {
+        return { ok: false, code: 'INVALID', message: `columnPatch.index ${p.index} out of range (0~${current.length - 1})` };
+      }
+      const col = current[idx];
+      if (p.title !== undefined && p.title !== null) {
+        const t = String(p.title);
+        if ([...t].length > 200) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].title too long` };
+        col.title = t;
+      }
+      if (p.bg !== undefined && p.bg !== null) {
+        const v = String(p.bg);
+        if (v.length > 1024) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].bg too long` };
+        col.bg = v;
+      }
+      if (p.text !== undefined && p.text !== null) {
+        const v = String(p.text);
+        if (v.length > 64) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].text too long` };
+        col.text = v;
+      }
+      if (p.rows !== undefined && p.rows !== null) {
+        if (!Array.isArray(p.rows)) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].rows must be array` };
+        if (p.rows.length > 20) return { ok: false, code: 'INVALID', message: `columnPatch[${idx}].rows length > 20` };
+        col.rows = p.rows.map((r, ri) => {
+          const s = r == null ? '' : String(r);
+          if ([...s].length > 500) throw new Error(`columnPatch[${idx}].rows[${ri}] too long`);
+          return s;
+        });
+      }
+      appliedPatches.push({ index: idx });
+    }
+    block.dataset.cols = JSON.stringify(current);
+    applied.columnPatch = appliedPatches;
+  }
+
+  // featured (int index) — cols 갱신 후에 적용 (length 검증)
+  if (partial.featured !== undefined && partial.featured !== null) {
+    const cols = getComparisonCols(block.dataset);
+    const fi = Number(partial.featured);
+    if (!Number.isInteger(fi) || fi < 0 || fi >= cols.length) {
+      return { ok: false, code: 'INVALID', message: `featured ${partial.featured} out of range (0~${cols.length - 1})` };
+    }
+    block.dataset.featured = String(fi);
+    applied.featured = fi;
+  }
+
+  // 재렌더
+  try {
+    renderComparison(block);
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  if (block.classList.contains('selected')) {
+    try { window.showComparisonProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
 }
 
 window.makeComparisonBlock = makeComparisonBlock;
 window.addComparisonBlock  = addComparisonBlock;
+window.updateComparisonBlock = updateComparisonBlock;
 window.renderComparison    = renderComparison;
 window.getComparisonCols   = getComparisonCols;
 window.getComparisonFeaturedIdx = getComparisonFeaturedIdx;
 window.setComparisonCols   = setComparisonCols;
 
-export { makeComparisonBlock, addComparisonBlock, renderComparison, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols };
+export { makeComparisonBlock, addComparisonBlock, updateComparisonBlock, renderComparison, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols };
