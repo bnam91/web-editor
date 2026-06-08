@@ -1236,6 +1236,8 @@ app.whenReady().then(async () => {
       insertGapAfterBlock: _invokeRendererInsertGapAfterBlock,
       updateSection: _invokeRendererUpdateSection,
       addTableBlock: _invokeRendererAddTableBlock,
+      addCardBlock: _invokeRendererAddCardBlock,
+      updateCardBlock: _invokeRendererUpdateCardBlock,
       addChecklistItem: _invokeRendererAddChecklistItem,
       setSectionMemo: _invokeRendererSetSectionMemo,
       getSectionMemo: _invokeRendererGetSectionMemo,
@@ -1366,6 +1368,132 @@ async function _invokeRendererAddTableBlock({ sectionId, headers, rows, showHead
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
     true
   );
+}
+
+// ─── add_card_block — 카드 블록(들) 추가 (cards 배열 직접 주입) ────────────
+// 2026-06-08: PM이 card-block을 직접 생성 못 하던 한계 해결. 1 row + N cards.
+// shared props(bgColor/radius/textAlign/titleSize/descSize)는 모든 카드에 동일 적용.
+// 개별 카드 필드(title/desc/imgSrc/bg)는 cards[i]에서 지정.
+async function _invokeRendererAddCardBlock({ sectionId, cards, bgColor, radius, textAlign, titleSize, descSize } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태' };
+  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  // cards는 mcp-server에서 길이·필드 검증 후 들어옴. 여기서 string 강제 + null 정리.
+  const safeCards = JSON.stringify(Array.isArray(cards)
+    ? cards.map(c => ({
+        title:  c && c.title  != null ? String(c.title)  : undefined,
+        desc:   c && c.desc   != null ? String(c.desc)   : undefined,
+        imgSrc: c && c.imgSrc != null ? String(c.imgSrc) : undefined,
+      }))
+    : null
+  );
+  const safeBgColor   = bgColor   != null ? JSON.stringify(String(bgColor))   : 'null';
+  const safeRadius    = radius    != null ? JSON.stringify(parseInt(radius))  : 'null';
+  const safeTextAlign = textAlign != null ? JSON.stringify(String(textAlign)) : 'null';
+  const safeTitleSize = titleSize != null ? JSON.stringify(parseInt(titleSize)) : 'null';
+  const safeDescSize  = descSize  != null ? JSON.stringify(parseInt(descSize))  : 'null';
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 ──
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addCardBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addCardBlock not found' };
+      }
+      const sid = ${safeSid};
+      if (sid) {
+        const sec = document.getElementById(sid);
+        if (!sec) return { ok:false, code:'NOT_FOUND', message:'section not found: ' + sid };
+        if (typeof window.selectSection === 'function') window.selectSection(sec);
+      }
+      const opts = {};
+      const _cards = ${safeCards};
+      const _bg = ${safeBgColor};
+      const _rad = ${safeRadius};
+      const _ta = ${safeTextAlign};
+      const _ts = ${safeTitleSize};
+      const _ds = ${safeDescSize};
+      if (Array.isArray(_cards) && _cards.length > 0) opts.cards = _cards;
+      if (_bg !== null) opts.bgColor = _bg;
+      if (_rad !== null) opts.radius = _rad;
+      if (_ta !== null) opts.textAlign = _ta;
+      if (_ts !== null) opts.titleSize = _ts;
+      if (_ds !== null) opts.descSize = _ds;
+      const beforeIds = new Set([...document.querySelectorAll('.card-block')].map(b => b.id));
+      window.addCardBlock(opts);
+      const newCdbs = [...document.querySelectorAll('.card-block')].filter(b => !beforeIds.has(b.id));
+      return { ok: true, cardBlockIds: newCdbs.map(b => b.id), count: newCdbs.length };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addCardBlock call failed: ' + e.message);
+  }
+}
+
+// ─── update_card_block — 단일 카드 블록 부분 갱신 ────────────────────────────
+// card-block 1개의 필드를 partial update. 멀티 카드 row 안에서도 개별 cdb_* id로 타깃팅.
+async function _invokeRendererUpdateCardBlock({ blockId, title, desc, imgSrc, bgColor, radius, textAlign, titleSize, descSize } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태' };
+  const safeId = JSON.stringify(String(blockId || ''));
+  // patch 필드별 정규화 (mcp-server validation을 한 번 더)
+  const patch = {};
+  if (title     !== undefined) patch.title     = String(title);
+  if (desc      !== undefined) patch.desc      = String(desc);
+  if (imgSrc    !== undefined) patch.imgSrc    = imgSrc == null ? '' : String(imgSrc);
+  if (bgColor   !== undefined) patch.bgColor   = String(bgColor);
+  if (radius    !== undefined) patch.radius    = parseInt(radius);
+  if (textAlign !== undefined) patch.textAlign = String(textAlign);
+  if (titleSize !== undefined) patch.titleSize = parseInt(titleSize);
+  if (descSize  !== undefined) patch.descSize  = parseInt(descSize);
+  const safePatch = JSON.stringify(patch);
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 (add_card_block과 동일 강도; Codex 리뷰 #1 반영) ──
+      // 다른 블록 편집 중에도 DOM/history mutation race 가능하므로 동등 차단.
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.updateCardBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.updateCardBlock not found' };
+      }
+      // pre-flight: target 존재 확인 — invalid id가 빈 history entry 만드는 것 방지 (Codex 리뷰 #3)
+      const _pre = document.getElementById(${safeId});
+      if (!_pre || !_pre.classList.contains('card-block')) {
+        return { ok: false, code: 'NOT_FOUND', message: 'card-block not found: ' + ${safeId} };
+      }
+      // pushHistory는 검증 통과 후 (Codex 리뷰 #3)
+      if (typeof window.pushHistory === 'function') window.pushHistory();
+      const result = window.updateCardBlock(${safeId}, ${safePatch});
+      // 적용 후 prop 패널이 열려 있고 같은 블록이 선택되어 있으면 다시 그려 동기화
+      if (result && result.ok) {
+        const cdb = document.getElementById(${safeId});
+        if (cdb && cdb.classList.contains('selected') && typeof window.showCardProperties === 'function') {
+          try { window.showCardProperties(cdb); } catch(_) {}
+        }
+        if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
+      }
+      return result;
+    } catch(e) { return { ok:false, code:'EXCEPTION', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('updateCardBlock call failed: ' + e.message);
+  }
 }
 
 // ─── update_section — 섹션 속성 (배경 등) 변경 ──────────────────────────────
