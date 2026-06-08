@@ -1229,6 +1229,7 @@ app.whenReady().then(async () => {
       getCanvasState: _invokeRendererGetCanvasState,
       listScratchItems: _invokeRendererListScratchItems,
       readScratchItem: _invokeRendererReadScratchItem,
+      addGapBlock: _invokeRendererAddGapBlock,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1313,6 +1314,32 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
   } catch (e) {
     throw new Error('addTextBlock call failed: ' + e.message);
   }
+}
+
+// ─── add_gap_block — 갭(spacer) 블록 추가 ────────────────────────────────────
+async function _invokeRendererAddGapBlock({ height = 40, sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태' };
+  const h = Math.max(4, Math.min(800, parseInt(height) || 40));
+  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const atomicJs = `(async () => {
+    try {
+      if (typeof window.addGapBlock !== 'function') return { ok:false, code:'API_MISSING', message:'window.addGapBlock not found' };
+      const targetSid = ${safeSid};
+      if (targetSid) {
+        const sec = document.getElementById(targetSid);
+        if (sec && typeof window.selectSection === 'function') window.selectSection(sec);
+        else if (!sec) return { ok:false, code:'SECTION_NOT_FOUND', message: 'section id not in DOM: ' + targetSid };
+      }
+      const before = document.querySelectorAll('.gap-block').length;
+      window.addGapBlock(${h});
+      const after = document.querySelectorAll('.gap-block').length;
+      const allGaps = document.querySelectorAll('.gap-block');
+      const last = allGaps[allGaps.length - 1];
+      return { ok: true, height: ${h}, gapBlockId: last?.id || null, beforeCount: before, afterCount: after };
+    } catch (e) { return { ok:false, code:'EXCEPTION', message: e.message }; }
+  })()`;
+  return await mainWindow.webContents.executeJavaScript(atomicJs, true);
 }
 
 // ─── 스크래치 아이템 조회 (renderer IndexedDB 메모리 접근) ───────────────────

@@ -381,6 +381,35 @@ function _registerDefaultTools() {
     }
   );
 
+  // PM add_gap_block — 갭(spacer) 블록을 섹션에 추가. 텍스트 블록 사이 여백·섹션 높이 조절용.
+  registerTool(
+    'add_gap_block',
+    async ({ height = 40, sectionId } = {}) => {
+      const h = parseInt(height);
+      if (!Number.isFinite(h) || h < 4 || h > 800) throw new Error(`invalid height: ${height} (4–800 px)`);
+      if (sectionId !== undefined && sectionId !== null) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+          throw new Error(`invalid sectionId: ${sectionId} (expected string starting with "sec_")`);
+        }
+      }
+      if (!_rendererInvoker || typeof _rendererInvoker.addGapBlock !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      return await _rendererInvoker.addGapBlock({ height: h, sectionId });
+    },
+    {
+      description: 'Add a gap (spacer) block to control vertical spacing between blocks or pad section height. Returns {ok, height, gapBlockId, beforeCount, afterCount}. Useful when build_basic_section/add_text_block leave too little or too much room between elements.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          height: { type: 'number', description: 'Gap height in px (4–800). Default 40.', default: 40 },
+          sectionId: { type: 'string', description: 'Target section (sec_xxx). If omitted, adds to currently selected section.' }
+        },
+        required: []
+      }
+    }
+  );
+
   // PM list_scratch_items — 스크래치패드 아이템 목록 (메타데이터만, src 제외 → 토큰 폭발 방지)
   registerTool(
     'list_scratch_items',
