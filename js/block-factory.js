@@ -476,11 +476,29 @@ function groupSelectedBlocks() {
 
 // ── Row 프리셋 생성 ──────────────────────────────────────────
 function makePresetRow(type) {
-  // 2026-06-08 NewGrid 봉인: img2/img3 multi-col preset deprecated.
-  // 다음 load 때 save-load.js가 NewGrid로 자동 변환하던 좀비 동작 차단.
-  // 이미지 multi-col 비교가 필요하면 add_asset_block 여러 개 (stack)로 처리.
-  if (type === 'img2' || type === 'img3' || type === 'text-img') {
-    console.warn('[block-factory] preset', type, '→ img1 fallback (multi-col deprecated)');
+  // 2026-06-08 NewGrid 봉인: img2/img3 multi-col preset → canvas-block(cvb_)로 변환.
+  // 옛 경로(.row + .col x N)는 load 시 save-load.js가 NewGrid로 자동 변환하던 좀비 동작.
+  // canvas-block은 허용된 grid 컴포넌트이므로 multi-image 비교 의도 보존하며 NewGrid 회피.
+  if (type === 'img2' || type === 'img3') {
+    const n = (type === 'img2') ? 2 : 3;
+    const cards = Array.from({ length: n }, (_, i) => ({
+      title: `카드 ${i + 1}`, desc: '', imgSrc: '', cellBg: ''
+    }));
+    const { row, block } = window.makeCanvasBlock({
+      cardMode: 'simple',
+      gridCols: n, gridRows: 1,
+      width: 360, height: 480,
+      titleSize: 40, descSize: 22,
+      textAlign: 'center', textBg: '#a2abb8',
+      imgRatio: 76, cardGap: 12, padX: 0,
+      layerName: 'Card',
+      cards,
+    });
+    return { row, firstBlock: block };
+  }
+  if (type === 'text-img') {
+    // 텍스트+이미지 좌우는 stack(text 위 / image 아래)으로 fallback
+    console.warn('[block-factory] preset text-img → img1 stack fallback (multi-col grid deprecated)');
     type = 'img1';
   }
   const row = document.createElement('div');

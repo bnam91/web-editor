@@ -278,13 +278,12 @@ function _registerDefaultTools() {
       if ([...mc].length > 200) throw new Error('mainCopy too long (>200)');
       const bd = String(body || '');
       if ([...bd].length > 800) throw new Error('body too long (>800)');
-      // 2026-06-08 NewGrid 봉인: multi-col preset deprecated → 'img1'만 허용.
-      // 'img2'/'img3'/'text-img'는 multi-col row 생성 → save-load.js가 자동 grid 변환하던 좀비 동작.
-      // 비교 레이아웃은 add_section + add_asset_block 여러 개(stack)로 처리.
-      const allowed = ['img1'];
-      if (!allowed.includes(assetPreset)) {
-        throw new Error(`invalid assetPreset: "${assetPreset}". Only 'img1' allowed (img2/img3/text-img deprecated — multi-col grid 봉인). For multi-image layout, use add_asset_block multiple times.`);
-      }
+      // 2026-06-08 NewGrid 봉인 + canvas-block fallback:
+      // 'img2'/'img3' → renderer가 canvas-block(cvb_, cardMode='simple', cards:N)로 자동 변환.
+      // 'text-img' → img1 stack fallback (text 위/이미지 아래).
+      // 옛 NewGrid Frame(ss_*) 생성 경로는 봉인됨. 도구 자체는 모든 preset 허용 (생성은 됨).
+      const allowed = ['img1', 'img2', 'img3', 'text-img'];
+      if (!allowed.includes(assetPreset)) throw new Error(`invalid assetPreset: ${assetPreset}`);
       if (!['left', 'center', 'right'].includes(align)) throw new Error(`invalid align: ${align}`);
       const lb = label !== undefined ? String(label) : null;
       if (lb !== null && [...lb].length > 60) throw new Error('label too long (>60)');
@@ -298,7 +297,7 @@ function _registerDefaultTools() {
           mainCopy: { type: 'string', description: 'main headline text (required, ~200)' },
           body: { type: 'string', description: 'body/subcopy text (optional, ~800)' },
           label: { type: 'string', description: 'optional small label above the headline (e.g. NEW ARRIVAL)' },
-          assetPreset: { type: 'string', enum: ['img1'], description: 'asset layout — only "img1" (single stacked image) allowed. Multi-col presets (img2/img3/text-img) deprecated as of 2026-06-08 due to NewGrid Frame seal.' },
+          assetPreset: { type: 'string', enum: ['img1', 'img2', 'img3', 'text-img'], description: 'asset layout. img1: single stacked image. img2/img3: auto-converted to canvas-block (cvb_, cardMode=simple, N cards) — NewGrid Frame seal 2026-06-08. text-img: stack fallback (text top / image bottom).' },
           align: { type: 'string', enum: ['left', 'center', 'right'], description: 'text align (default center — hero/Hook convention)' }
         },
         required: ['mainCopy']
