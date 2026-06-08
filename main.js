@@ -1240,6 +1240,8 @@ app.whenReady().then(async () => {
       setSectionMemo: _invokeRendererSetSectionMemo,
       getSectionMemo: _invokeRendererGetSectionMemo,
       updateChecklistItem: _invokeRendererUpdateChecklistItem,
+      addMockupBlock: _invokeRendererAddMockupBlock,
+      updateMockupBlock: _invokeRendererUpdateMockupBlock,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1893,6 +1895,90 @@ async function _invokeRendererUpdateChecklistItem({ id, text, done, urgent, x, y
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
     true
   );
+}
+
+// ─── add_mockup_block — 휴대폰/태블릿/PC 목업 블록 추가 ─────────────────────
+// add_asset_block과 동일 패턴: 단일 atomic IIFE (USER_BUSY 가드 + window.addMockupBlock 호출).
+// imgSrc는 dataURL 가능 — main↔renderer IPC payload 한도 고려해 mcp-server에서 길이 제한.
+async function _invokeRendererAddMockupBlock({ deviceKey, width, sectionId, imgSrc, shadow } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  // 모든 인자 stringify로 escape (이미지 URL '/'/" 안전)
+  const args = { deviceKey: String(deviceKey || '') };
+  if (width !== undefined && width !== null) args.width = parseInt(width);
+  if (sectionId) args.sectionId = String(sectionId);
+  if (imgSrc !== undefined && imgSrc !== null) args.imgSrc = String(imgSrc);
+  if (shadow !== undefined && shadow !== null) args.shadow = String(shadow);
+  const safeArgs = JSON.stringify(args);
+
+  const atomicJs = `(() => {
+    try {
+      // USER_BUSY 가드 — 다른 write tool과 동일.
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.addMockupBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addMockupBlock not found' };
+      }
+      return window.addMockupBlock(${safeArgs});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addMockupBlock call failed: ' + e.message);
+  }
+}
+
+// ─── update_mockup_block — 기존 목업 블록 부분 수정 ─────────────────────────
+async function _invokeRendererUpdateMockupBlock({ blockId, deviceKey, width, imgSrc, shadow } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const args = { blockId: String(blockId || '') };
+  if (deviceKey !== undefined && deviceKey !== null) args.deviceKey = String(deviceKey);
+  if (width     !== undefined && width     !== null) args.width = parseInt(width);
+  if (imgSrc    !== undefined && imgSrc    !== null) args.imgSrc = String(imgSrc);
+  if (shadow    !== undefined && shadow    !== null) args.shadow = String(shadow);
+  const safeArgs = JSON.stringify(args);
+  const safeBlockId = JSON.stringify(args.blockId);
+
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000 };
+      }
+      if (typeof window.updateMockupBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.updateMockupBlock not found' };
+      }
+      const args = ${safeArgs};
+      return window.updateMockupBlock(${safeBlockId}, args);
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('updateMockupBlock call failed: ' + e.message);
+  }
 }
 
 /* ── 종료 전 강제 저장 ── */

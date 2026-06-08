@@ -765,6 +765,117 @@ function _registerDefaultTools() {
       }
     }
   );
+
+  // ─── add_mockup_block — 디바이스 목업 블록 추가 ────────────────────────────
+  // 화이트리스트 + 길이 검증은 server-side, atomic 호출은 main bridge에서.
+  // imgSrc 검증: dataURL/http(s) 만 허용 (javascript:, file: 등 차단)
+  const _MKP_DEVICES = ['iphone', 'macbook', 'ipad', 'android', 'browser'];
+  const _MKP_SHADOWS = ['none', 'soft', 'strong'];
+  // Codex #1: dataURL 너무 길면 executeJavaScript payload 폭발 → 5MB cap (대략 base64 7M chars)
+  const _MKP_MAX_IMGSRC = 7 * 1024 * 1024;
+
+  function _validateMkpImgSrc(src) {
+    if (typeof src !== 'string') throw new Error('imgSrc must be string');
+    if (src.length > _MKP_MAX_IMGSRC) {
+      throw new Error(`imgSrc too large (${src.length} > ${_MKP_MAX_IMGSRC} bytes). 5MB cap to avoid IPC payload blowup.`);
+    }
+    if (src === '') return; // 빈 문자열은 clear 의미
+    // 허용 스킴: data:image/, http://, https://, assets/ (앱 내부 정적 경로)
+    const ok =
+      /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/.test(src) ||
+      /^https?:\/\//i.test(src) ||
+      /^assets\//.test(src);
+    if (!ok) {
+      throw new Error('imgSrc must be data:image/* (base64), http(s)://, or assets/...');
+    }
+  }
+
+  registerTool(
+    'add_mockup_block',
+    async ({ deviceKey = 'iphone', width, sectionId, imgSrc, shadow } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.addMockupBlock !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      if (!_MKP_DEVICES.includes(deviceKey)) {
+        throw new Error(`invalid deviceKey: ${deviceKey}. allowed: ${_MKP_DEVICES.join('|')}`);
+      }
+      if (width !== undefined && width !== null) {
+        const w = parseInt(width);
+        if (!Number.isFinite(w) || w < 100 || w > 860) {
+          throw new Error(`invalid width: ${width} (100~860)`);
+        }
+      }
+      if (sectionId !== undefined && sectionId !== null) {
+        if (typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+          throw new Error(`invalid sectionId: ${sectionId} (must start with sec_)`);
+        }
+      }
+      if (imgSrc !== undefined && imgSrc !== null) _validateMkpImgSrc(imgSrc);
+      if (shadow !== undefined && shadow !== null && !_MKP_SHADOWS.includes(String(shadow))) {
+        throw new Error(`invalid shadow: ${shadow}. allowed: ${_MKP_SHADOWS.join('|')}`);
+      }
+      return await _rendererInvoker.addMockupBlock({ deviceKey, width, sectionId, imgSrc, shadow });
+    },
+    {
+      description: 'Add a device mockup block (id prefix mkp_): phone/tablet/laptop/browser frame with an optional screenshot inside. deviceKey: iphone|macbook|ipad|android|browser. width clamped 100~860 (default = device default). imgSrc: optional data:image/* | http(s) URL | assets/... — fills the device screen. shadow: none|soft|strong (default soft). Returns {ok, blockId, deviceKey, width, hasImage}.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          deviceKey: { type: 'string', enum: ['iphone', 'macbook', 'ipad', 'android', 'browser'], description: 'device frame style (default iphone)' },
+          width: { type: 'integer', description: 'pixel width, clamped 100~860. omit = device default' },
+          sectionId: { type: 'string', description: 'sec_xxx target section (else selected section)' },
+          imgSrc: { type: 'string', description: 'optional screen image: data:image/*;base64,... | http(s)://... | assets/...' },
+          shadow: { type: 'string', enum: ['none', 'soft', 'strong'], description: 'drop-shadow preset (default soft)' }
+        },
+        required: []
+      }
+    }
+  );
+
+  // ─── update_mockup_block — 기존 목업 블록 부분 수정 ────────────────────────
+  registerTool(
+    'update_mockup_block',
+    async ({ blockId, deviceKey, width, imgSrc, shadow } = {}) => {
+      if (!_rendererInvoker || typeof _rendererInvoker.updateMockupBlock !== 'function') {
+        throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
+      }
+      if (typeof blockId !== 'string' || !blockId.startsWith('mkp_')) {
+        throw new Error(`invalid blockId: ${blockId} (must start with mkp_)`);
+      }
+      const hasField = [deviceKey, width, imgSrc, shadow].some(v => v !== undefined);
+      if (!hasField) {
+        throw new Error('no fields to update — provide at least one of deviceKey/width/imgSrc/shadow');
+      }
+      if (deviceKey !== undefined && !_MKP_DEVICES.includes(deviceKey)) {
+        throw new Error(`invalid deviceKey: ${deviceKey}. allowed: ${_MKP_DEVICES.join('|')}`);
+      }
+      if (width !== undefined && width !== null) {
+        const w = parseInt(width);
+        if (!Number.isFinite(w) || w < 100 || w > 860) {
+          throw new Error(`invalid width: ${width} (100~860)`);
+        }
+      }
+      if (imgSrc !== undefined && imgSrc !== null) _validateMkpImgSrc(imgSrc);
+      if (shadow !== undefined && shadow !== null && !_MKP_SHADOWS.includes(String(shadow))) {
+        throw new Error(`invalid shadow: ${shadow}. allowed: ${_MKP_SHADOWS.join('|')}`);
+      }
+      return await _rendererInvoker.updateMockupBlock({ blockId, deviceKey, width, imgSrc, shadow });
+    },
+    {
+      description: 'Partial update of an EXISTING device mockup block (mkp_xxx). At least one field required. deviceKey: iphone|macbook|ipad|android|browser. width: 100~860 px. imgSrc: data:image/*|http(s)|assets/ ; pass "" to clear. shadow: none|soft|strong. Re-renders SVG frame on device/width change. Returns USER_BUSY if user is editing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'target mockup block id (mkp_xxx). Get from get_canvas_state or read_section' },
+          deviceKey: { type: 'string', enum: ['iphone', 'macbook', 'ipad', 'android', 'browser'], description: 'change device frame' },
+          width: { type: 'integer', description: 'new width 100~860' },
+          imgSrc: { type: 'string', description: 'new screen image (data:image/* | http(s) | assets/). Empty string clears the image.' },
+          shadow: { type: 'string', enum: ['none', 'soft', 'strong'], description: 'drop-shadow preset' }
+        },
+        required: ['blockId']
+      }
+    }
+  );
 }
 
 // ─────────────────────────────────────────────
