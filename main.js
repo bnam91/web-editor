@@ -1247,6 +1247,8 @@ app.whenReady().then(async () => {
       addBanner02Block: _invokeRendererAddBanner02Block,
       updateBanner02Block: _invokeRendererUpdateBanner02Block,
       addIconifyBlock: _invokeRendererAddIconifyBlock,
+      addComparisonBlock: _invokeRendererAddComparisonBlock,
+      updateComparisonBlock: _invokeRendererUpdateComparisonBlock,
     });
     // iconify search/svg fetch는 main에서 직접 (renderer CSP/외부 fetch 우회 + SSRF 가드)
     if (typeof setMcpIconifyApi === 'function') {
@@ -2354,6 +2356,105 @@ async function _invokeRendererAddIconifyBlock({ sectionId, name, svg, size = 96 
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('addIconifyBlock call failed: ' + e.message);
+  }
+}
+
+// ─── add_comparison_block — comparison(N칼럼 비교) 블록 추가 ──────────────────
+// banner02 패턴 미러: USER_BUSY 가드 + before/after .comparison-block diff로 blockId 추출.
+// mcp-server에서 cols 배열/색상 검증 후 들어옴. 여기선 JSON.stringify로 전부 escape.
+async function _invokeRendererAddComparisonBlock(opts = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeSectionId = opts.sectionId ? JSON.stringify(String(opts.sectionId)) : 'null';
+  const dataOpts = { ...opts };
+  delete dataOpts.sectionId;
+  const safeData = JSON.stringify(dataOpts);
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 (atomic) ──
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addComparisonBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addComparisonBlock not found' };
+      }
+      // 지정 섹션 타게팅
+      const sid = ${safeSectionId};
+      if (sid) {
+        const target = document.getElementById(sid) || document.querySelector('[data-section-id="' + sid + '"]');
+        if (!target) return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        if (typeof window.selectSection === 'function') { try { window.selectSection(target); } catch(_){} }
+      }
+      if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
+          && typeof window.selectSection === 'function') {
+        const firstSec = document.querySelector('[id^="sec_"]');
+        if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.comparison-block')].map(b => b.id));
+      const result = window.addComparisonBlock(${safeData});
+      const blocks = [...document.querySelectorAll('.comparison-block')];
+      const newBlock = (result && result.block) || blocks.find(b => !beforeIds.has(b.id));
+      if (!newBlock) {
+        return { ok: false, code: 'NO_ADD', message: 'comparison-block이 추가되지 않았습니다.' };
+      }
+      const sec = (typeof window.getSelectedSection === 'function') ? window.getSelectedSection() : null;
+      return {
+        ok: true,
+        blockId: newBlock.id,
+        sectionId: sec ? sec.id : null,
+        pageId: window.activePageId || null,
+        beforeCount: beforeIds.size,
+        afterCount: blocks.length,
+      };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addComparisonBlock call failed: ' + e.message);
+  }
+}
+
+// ─── update_comparison_block — 기존 comparison 블록 부분 수정 ────────────────
+async function _invokeRendererUpdateComparisonBlock({ blockId, partial } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeBlockId = JSON.stringify(String(blockId || ''));
+  const safePartial = JSON.stringify(partial || {});
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 (atomic) ──
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.updateComparisonBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.updateComparisonBlock not found' };
+      }
+      return window.updateComparisonBlock(${safeBlockId}, ${safePartial});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('updateComparisonBlock call failed: ' + e.message);
   }
 }
 
