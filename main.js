@@ -1230,6 +1230,10 @@ app.whenReady().then(async () => {
       listScratchItems: _invokeRendererListScratchItems,
       readScratchItem: _invokeRendererReadScratchItem,
       addGapBlock: _invokeRendererAddGapBlock,
+      deleteSection: _invokeRendererDeleteSection,
+      deleteBlock: _invokeRendererDeleteBlock,
+      moveSection: _invokeRendererMoveSection,
+      insertGapAfterBlock: _invokeRendererInsertGapAfterBlock,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1314,6 +1318,74 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
   } catch (e) {
     throw new Error('addTextBlock call failed: ' + e.message);
   }
+}
+
+// ─── delete_section / delete_block / move_section / insert_gap_after_block ──
+async function _invokeRendererDeleteSection({ sectionId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
+  const safe = JSON.stringify(String(sectionId || ''));
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      const ok = typeof window.deleteSection === 'function' && window.deleteSection(${safe});
+      if (!ok) return { ok:false, code:'DELETE_FAILED', message:'섹션을 삭제할 수 없습니다 (없거나 마지막 섹션)' };
+      return { ok:true, sectionId: ${safe}, remaining: document.querySelectorAll('.section-block').length };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
+}
+
+async function _invokeRendererDeleteBlock({ blockId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
+  const safe = JSON.stringify(String(blockId || ''));
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      const el = document.getElementById(${safe});
+      if (!el) return { ok:false, code:'NOT_FOUND', message:'block not found: '+${safe} };
+      if (el.classList.contains('section-block')) return { ok:false, code:'IS_SECTION', message:'section은 delete_section 사용' };
+      const ok = typeof window.deleteBlock === 'function' && window.deleteBlock(${safe});
+      return { ok: !!ok, blockId: ${safe} };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
+}
+
+async function _invokeRendererMoveSection({ sectionId, beforeId, afterId } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
+  const safeSid = JSON.stringify(String(sectionId || ''));
+  const safeB   = beforeId ? JSON.stringify(String(beforeId)) : 'null';
+  const safeA   = afterId  ? JSON.stringify(String(afterId))  : 'null';
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      const sid = ${safeSid}, bId = ${safeB}, aId = ${safeA};
+      const sec = document.getElementById(sid);
+      if (!sec) return { ok:false, code:'NOT_FOUND', message:'section not found: '+sid };
+      if (bId && !document.getElementById(bId)) return { ok:false, code:'NOT_FOUND', message:'beforeId not found' };
+      if (aId && !document.getElementById(aId)) return { ok:false, code:'NOT_FOUND', message:'afterId not found' };
+      const ok = window.moveSection(sid, { beforeId: bId, afterId: aId });
+      return { ok: !!ok, sectionId: sid, beforeId: bId, afterId: aId };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
+}
+
+async function _invokeRendererInsertGapAfterBlock({ blockId, height = 40 } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
+  const h = Math.max(4, Math.min(800, parseInt(height) || 40));
+  const safe = JSON.stringify(String(blockId || ''));
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      const el = document.getElementById(${safe});
+      if (!el) return { ok:false, code:'NOT_FOUND', message:'block not found: '+${safe} };
+      const gapId = window.insertGapAfterBlock(${safe}, ${h});
+      return gapId ? { ok:true, gapBlockId: gapId, afterBlockId: ${safe}, height: ${h} }
+                   : { ok:false, code:'INSERT_FAILED' };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
 }
 
 // ─── add_gap_block — 갭(spacer) 블록 추가 ────────────────────────────────────

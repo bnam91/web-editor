@@ -1852,6 +1852,55 @@ function deleteSection(secIdOrEl) {
 }
 window.deleteSection = deleteSection;
 
+/* ── 블록 삭제 (text/asset/gap/frame 등 일반 블록) ── */
+function deleteBlock(blockIdOrEl) {
+  const block = typeof blockIdOrEl === 'string' ? document.getElementById(blockIdOrEl) : blockIdOrEl;
+  if (!block) return false;
+  // section은 deleteSection 별도
+  if (block.classList.contains('section-block')) return false;
+  pushHistory('블록 삭제 전');
+  block.remove();
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return true;
+}
+window.deleteBlock = deleteBlock;
+
+/* ── 섹션 이동 (DOM 순서 변경, beforeId 또는 afterId) ── */
+function moveSection(sectionId, { beforeId, afterId } = {}) {
+  const sec = document.getElementById(sectionId);
+  if (!sec || !sec.classList.contains('section-block')) return false;
+  let placed = false;
+  if (beforeId) {
+    const ref = document.getElementById(beforeId);
+    if (ref && ref.classList.contains('section-block') && ref !== sec) { ref.before(sec); placed = true; }
+  } else if (afterId) {
+    const ref = document.getElementById(afterId);
+    if (ref && ref.classList.contains('section-block') && ref !== sec) { ref.after(sec); placed = true; }
+  }
+  if (!placed) return false;
+  pushHistory('섹션 이동 전');
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return true;
+}
+window.moveSection = moveSection;
+
+/* ── 특정 블록 뒤에 갭 삽입 (기존 섹션 중간 갭) ── */
+function insertGapAfterBlock(blockId, height) {
+  const block = document.getElementById(blockId);
+  if (!block) return null;
+  const gb = window.makeGapBlock?.() || (() => { const d = document.createElement('div'); d.className = 'gap-block'; d.dataset.type = 'gap'; d.id = 'gb_' + Math.random().toString(36).slice(2,8); return d; })();
+  if (height) gb.style.height = height + 'px';
+  block.after(gb);
+  if (typeof window.bindBlock === 'function') { try { window.bindBlock(gb); } catch (_) {} }
+  pushHistory('갭 삽입 전');
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return gb.id;
+}
+window.insertGapAfterBlock = insertGapAfterBlock;
+
 /* ── 플로팅 패널 드롭다운 ── */
 function toggleFpPluginPanel() {
   const panel = document.getElementById('fp-plugin-panel');

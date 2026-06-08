@@ -400,6 +400,93 @@ function _registerDefaultTools() {
     }
   );
 
+  // PM delete_section — 섹션 삭제 (마지막 섹션은 삭제 불가)
+  registerTool(
+    'delete_section',
+    async ({ sectionId } = {}) => {
+      if (!sectionId || typeof sectionId !== 'string' || !sectionId.startsWith('sec_')) {
+        throw new Error('sectionId required (sec_xxx)');
+      }
+      if (!_rendererInvoker?.deleteSection) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.deleteSection({ sectionId });
+    },
+    {
+      description: 'Delete a section by id. Last section is protected (will return code:DELETE_FAILED).',
+      inputSchema: {
+        type: 'object',
+        properties: { sectionId: { type: 'string', description: 'sec_xxx to remove' } },
+        required: ['sectionId']
+      }
+    }
+  );
+
+  // PM delete_block — 일반 블록 삭제 (text/asset/gap/frame 등). section은 delete_section 사용.
+  registerTool(
+    'delete_block',
+    async ({ blockId } = {}) => {
+      if (!blockId || typeof blockId !== 'string') throw new Error('blockId required');
+      if (!_rendererInvoker?.deleteBlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.deleteBlock({ blockId });
+    },
+    {
+      description: 'Delete a non-section block by id (tb_/ab_/gb_/cvb_/ss_ etc.). For sections use delete_section.',
+      inputSchema: {
+        type: 'object',
+        properties: { blockId: { type: 'string', description: 'block id to remove (any prefix except sec_)' } },
+        required: ['blockId']
+      }
+    }
+  );
+
+  // PM move_section — 섹션 순서 변경. beforeId 또는 afterId 한 쪽만.
+  registerTool(
+    'move_section',
+    async ({ sectionId, beforeId, afterId } = {}) => {
+      if (!sectionId || !sectionId.startsWith('sec_')) throw new Error('sectionId required (sec_xxx)');
+      if (!beforeId && !afterId) throw new Error('beforeId or afterId required');
+      if (beforeId && afterId) throw new Error('beforeId and afterId are mutually exclusive');
+      if (beforeId && (typeof beforeId !== 'string' || !beforeId.startsWith('sec_'))) throw new Error('invalid beforeId');
+      if (afterId  && (typeof afterId  !== 'string' || !afterId.startsWith('sec_')))  throw new Error('invalid afterId');
+      if (!_rendererInvoker?.moveSection) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.moveSection({ sectionId, beforeId, afterId });
+    },
+    {
+      description: 'Move an existing section to a new position relative to another section (beforeId or afterId, mutually exclusive).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx to move' },
+          beforeId:  { type: 'string', description: 'place BEFORE this sec_xxx' },
+          afterId:   { type: 'string', description: 'place AFTER this sec_xxx' }
+        },
+        required: ['sectionId']
+      }
+    }
+  );
+
+  // PM insert_gap_after_block — 특정 블록 뒤 정확한 위치에 갭 삽입 (add_gap_block 한계 보완).
+  registerTool(
+    'insert_gap_after_block',
+    async ({ blockId, height = 40 } = {}) => {
+      if (!blockId || typeof blockId !== 'string') throw new Error('blockId required');
+      const h = parseInt(height);
+      if (!Number.isFinite(h) || h < 4 || h > 800) throw new Error(`invalid height: ${height} (4–800)`);
+      if (!_rendererInvoker?.insertGapAfterBlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.insertGapAfterBlock({ blockId, height: h });
+    },
+    {
+      description: 'Insert a gap (spacer) block immediately AFTER the specified block. Useful for fine-tuning vertical spacing between existing blocks (add_gap_block only appends at section end).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'block id to insert gap after (any non-section block)' },
+          height: { type: 'number', description: 'gap height in px (4–800). Default 40.', default: 40 }
+        },
+        required: ['blockId']
+      }
+    }
+  );
+
   // PM add_gap_block — 갭(spacer) 블록을 섹션에 추가. 텍스트 블록 사이 여백·섹션 높이 조절용.
   registerTool(
     'add_gap_block',
