@@ -444,51 +444,24 @@ function migrateColsFromDOM(canvasEl) {
     });
     row.dataset.cardGrid = '1';
   });
-  // Flex/Grid row: col → NewGrid 변환
+  // Flex/Grid row: col → NewGrid 변환 (deprecated, 2026-06-08 봉인)
+  // NewGrid Frame(ss_*) 블록은 사용자 정책상 안 씀 (UI 노출 0, 플로팅 패널 숨김).
+  // proj.json load 시 multi-col row를 자동 grid 변환하던 코드 비활성화.
+  // 단일 col은 stack 정리만 유지(grid 생성 없음).
   canvasEl.querySelectorAll('.row[data-layout="flex"], .row[data-layout="grid"]').forEach(row => {
-    if (row.dataset.cardGrid) return; // 카드 그리드는 위에서 처리
+    if (row.dataset.cardGrid) return;
     const cols = [...row.querySelectorAll(':scope > .col')];
-    if (cols.length < 2) {
-      // 단일 col이면 stack처럼 처리
-      if (cols.length === 1) {
-        if (cols[0].style.backgroundColor) row.style.backgroundColor = cols[0].style.backgroundColor;
-        [...cols[0].childNodes].forEach(child => {
-          if (child.classList?.contains('col-placeholder')) return;
-          row.appendChild(child);
-        });
-        cols[0].remove();
-        row.dataset.layout = 'stack';
-      }
-      return;
-    }
-    // 멀티 col → NewGrid 변환
-    const gap = 16;
-    const colCount = cols.length;
-    const ratios = cols.map(c => parseFloat(c.style.flex) || parseFloat(c.dataset.flex) || 1);
-    // 변환 전 해당 row의 섹션을 활성화
-    const sec = row.closest('.section-block');
-    if (sec) {
-      document.querySelectorAll('.section-block.selected').forEach(s => s.classList.remove('selected'));
-      sec.classList.add('selected');
-      window._activeFrame = null;
-    }
-    const gridFrame = window.addNewGridBlock?.(colCount, 1, { gap, ratios });
-    if (!gridFrame) {
-      // addNewGridBlock 없으면 col-placeholder만 제거
-      cols.forEach(col => col.querySelector('.col-placeholder')?.remove());
-      return;
-    }
-    // 각 col 내용을 cell frame에 이식
-    const cellFrames = [...gridFrame.querySelectorAll('[data-grid-cell]')];
-    cols.forEach((col, i) => {
-      const cell = cellFrames[i];
-      if (!cell) return;
-      [...col.childNodes].forEach(child => {
+    if (cols.length === 1) {
+      // 단일 col → stack 정리
+      if (cols[0].style.backgroundColor) row.style.backgroundColor = cols[0].style.backgroundColor;
+      [...cols[0].childNodes].forEach(child => {
         if (child.classList?.contains('col-placeholder')) return;
-        cell.appendChild(child);
+        row.appendChild(child);
       });
-    });
-    row.replaceWith(gridFrame);
+      cols[0].remove();
+      row.dataset.layout = 'stack';
+    }
+    // multi-col(cols.length >= 2)은 .row + .col 그대로 보존 (NewGrid 변환 X)
   });
 
   // row[data-layout="stack"] > text-block → frame-block[data-text-frame] > text-block

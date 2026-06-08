@@ -61,37 +61,14 @@ window.goditor = {
       return;
     }
 
-    // flex / grid → NewGrid Frame
-    const colCount = cols.length;
-    if (colCount < 2) {
-      console.warn('[goditor] flex/grid row에 cols가 2개 미만 — stack으로 처리');
-      const col = cols[0];
-      if (col) {
-        for (const block of (col.blocks || [])) {
-          this._addBlock(block);
-        }
-      }
-      return;
-    }
-
-    const ratios = cols.map(c => c.flex || 1);
-    const gridFrame = window.addNewGridBlock?.(colCount, 1, { gap: 16, ratios });
-    if (!gridFrame) {
-      console.error('[goditor] addNewGridBlock 실패');
-      return;
-    }
-
-    const cellFrames = [...gridFrame.querySelectorAll('[data-grid-cell]')];
-    for (let i = 0; i < cols.length; i++) {
-      const cell = cellFrames[i];
-      if (!cell) continue;
-      // cell frame 선택 후 블록 추가
-      window._activeFrame = cell;
-      for (const block of (cols[i].blocks || [])) {
+    // flex / grid → stack fallback (NewGrid Frame 봉인 2026-06-08)
+    // 사용자 정책: ss_* Grid 블록 deprecated. 외부 API에서 multi-col 요청 와도 stack으로 처리.
+    console.warn('[goditor] flex/grid row 요청 — stack으로 fallback (NewGrid Frame deprecated)');
+    for (const col of cols) {
+      for (const block of (col.blocks || [])) {
         this._addBlock(block);
       }
     }
-    window._activeFrame = null;
   },
 
   /**
