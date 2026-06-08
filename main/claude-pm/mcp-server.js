@@ -494,6 +494,159 @@ function _registerDefaultTools() {
     }
   );
 
+  // PM add_card_block — 카드 블록 row 추가 (1 row + N cards). 각 카드는 image+title+desc.
+  // cards 배열로 카드별 title/desc/imgSrc 지정. shared 옵션(bgColor/radius/...)은 row 전체 적용.
+  // canvas-block과 차이: canvas-block은 단일 절대배치 컴포넌트(Figma 임포트용), card-block은 row+col 그리드.
+  registerTool(
+    'add_card_block',
+    async ({ sectionId, cards, bgColor, radius, textAlign, titleSize, descSize } = {}) => {
+      if (sectionId !== undefined && (typeof sectionId !== 'string' || !sectionId.startsWith('sec_'))) {
+        throw new Error(`invalid sectionId: ${sectionId}`);
+      }
+      if (!Array.isArray(cards) || cards.length === 0) {
+        throw new Error('cards required: non-empty array of {title?, desc?, imgSrc?}');
+      }
+      if (cards.length > 8) {
+        throw new Error(`too many cards: ${cards.length} (max 8 — UI 가독성/레이아웃 한계)`);
+      }
+      cards.forEach((c, i) => {
+        if (c === null || typeof c !== 'object') throw new Error(`cards[${i}] must be object`);
+        if (c.title !== undefined && typeof c.title !== 'string') throw new Error(`cards[${i}].title must be string`);
+        if (c.desc !== undefined && typeof c.desc !== 'string') throw new Error(`cards[${i}].desc must be string`);
+        if (c.imgSrc !== undefined && c.imgSrc !== null && typeof c.imgSrc !== 'string') throw new Error(`cards[${i}].imgSrc must be string`);
+        // imgSrc 길이 cap: dataURL은 매우 길 수 있어 토큰/RAM 폭발 방지
+        if (typeof c.imgSrc === 'string' && c.imgSrc.length > 2_000_000) {
+          throw new Error(`cards[${i}].imgSrc too large (>2MB; use URL not base64 dataURL when possible)`);
+        }
+        if (typeof c.title === 'string' && [...c.title].length > 500) throw new Error(`cards[${i}].title too long (>500)`);
+        if (typeof c.desc === 'string' && [...c.desc].length > 2000) throw new Error(`cards[${i}].desc too long (>2000)`);
+      });
+      if (bgColor !== undefined) {
+        if (typeof bgColor !== 'string') throw new Error('bgColor must be string');
+        // hex(#rgb/#rrggbb/#rrggbbaa) | rgb()/rgba() | transparent — Codex 리뷰 #2 반영
+        // rgb 토큰은 함수형식까지 확인 (단순 startsWith로 'rgbjunk' 통과 방지)
+        const _bcOk = /^#[0-9a-fA-F]{3,8}$/.test(bgColor)
+          || /^rgba?\(\s*[\d.,\s%/]+\)$/.test(bgColor)
+          || bgColor === 'transparent';
+        if (!_bcOk) {
+          throw new Error(`invalid bgColor: ${bgColor} (use "#rrggbb", "rgb(r,g,b)", "rgba(r,g,b,a)", or "transparent")`);
+        }
+      }
+      if (radius !== undefined) {
+        const r = parseInt(radius);
+        if (!Number.isFinite(r) || r < 0 || r > 40) throw new Error(`invalid radius: ${radius} (0–40)`);
+      }
+      if (textAlign !== undefined && !['left','center','right'].includes(textAlign)) {
+        throw new Error(`invalid textAlign: ${textAlign}`);
+      }
+      if (titleSize !== undefined) {
+        const v = parseInt(titleSize);
+        if (!Number.isFinite(v) || v < 12 || v > 60) throw new Error(`invalid titleSize: ${titleSize} (12–60)`);
+      }
+      if (descSize !== undefined) {
+        const v = parseInt(descSize);
+        if (!Number.isFinite(v) || v < 10 || v > 40) throw new Error(`invalid descSize: ${descSize} (10–40)`);
+      }
+      if (!_rendererInvoker?.addCardBlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.addCardBlock({ sectionId, cards, bgColor, radius, textAlign, titleSize, descSize });
+    },
+    {
+      description: 'Add a card-block row containing N cards (image + title + desc each). Use for feature cards / benefit highlights. Differs from canvas-block: card-block is a row+col grid of independent cards (each gets its own cdb_* id), while canvas-block is one absolute-positioned compound block (mainly used for Figma imports). cards=[{title,desc,imgSrc?}, ...] — max 8. shared props (bgColor/radius/textAlign/titleSize/descSize) apply to all cards in the row.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx to insert into (else uses selected section)' },
+          cards: {
+            type: 'array',
+            description: 'card payloads (1–8). Each card has title/desc (text) + optional imgSrc (URL or dataURL).',
+            items: {
+              type: 'object',
+              properties: {
+                title:  { type: 'string', description: 'card title (≤500 chars)' },
+                desc:   { type: 'string', description: 'card description (≤2000 chars)' },
+                imgSrc: { type: 'string', description: 'image src (URL or dataURL ≤2MB)' }
+              }
+            },
+            minItems: 1,
+            maxItems: 8
+          },
+          bgColor:   { type: 'string', description: 'shared bottom-area bg color (e.g. "#f5f5f5"). default #f5f5f5' },
+          radius:    { type: 'number', description: 'shared corner radius (0–40 px). default 12' },
+          textAlign: { type: 'string', enum: ['left','center','right'], description: 'shared text alignment. default left' },
+          titleSize: { type: 'number', description: 'shared title font-size px (12–60). default 24' },
+          descSize:  { type: 'number', description: 'shared desc font-size px (10–40). default 18' }
+        },
+        required: ['cards']
+      }
+    }
+  );
+
+  // PM update_card_block — 단일 카드 블록(cdb_*) 부분 갱신.
+  // 멀티 카드 row 안에서도 cdb_* 단위로 개별 수정 가능 (각 카드는 독립 DOM 노드).
+  registerTool(
+    'update_card_block',
+    async ({ blockId, title, desc, imgSrc, bgColor, radius, textAlign, titleSize, descSize } = {}) => {
+      if (!blockId || typeof blockId !== 'string' || !blockId.startsWith('cdb_')) {
+        throw new Error(`blockId required (cdb_xxx)`);
+      }
+      const fields = { title, desc, imgSrc, bgColor, radius, textAlign, titleSize, descSize };
+      const hasAny = Object.values(fields).some(v => v !== undefined);
+      if (!hasAny) throw new Error('at least one field required (title/desc/imgSrc/bgColor/radius/textAlign/titleSize/descSize)');
+      if (title !== undefined && typeof title !== 'string') throw new Error('title must be string');
+      if (desc !== undefined && typeof desc !== 'string') throw new Error('desc must be string');
+      if (imgSrc !== undefined && imgSrc !== null && typeof imgSrc !== 'string') throw new Error('imgSrc must be string or null');
+      if (typeof title === 'string' && [...title].length > 500) throw new Error('title too long (>500)');
+      if (typeof desc === 'string' && [...desc].length > 2000) throw new Error('desc too long (>2000)');
+      if (typeof imgSrc === 'string' && imgSrc.length > 2_000_000) throw new Error('imgSrc too large (>2MB)');
+      if (bgColor !== undefined) {
+        if (typeof bgColor !== 'string') throw new Error('bgColor must be string');
+        // hex(#rgb/#rrggbb/#rrggbbaa) | rgb()/rgba() | transparent — Codex 리뷰 #2 반영
+        // rgb 토큰은 함수형식까지 확인 (단순 startsWith로 'rgbjunk' 통과 방지)
+        const _bcOk = /^#[0-9a-fA-F]{3,8}$/.test(bgColor)
+          || /^rgba?\(\s*[\d.,\s%/]+\)$/.test(bgColor)
+          || bgColor === 'transparent';
+        if (!_bcOk) {
+          throw new Error(`invalid bgColor: ${bgColor} (use "#rrggbb", "rgb(r,g,b)", "rgba(r,g,b,a)", or "transparent")`);
+        }
+      }
+      if (radius !== undefined) {
+        const r = parseInt(radius);
+        if (!Number.isFinite(r) || r < 0 || r > 40) throw new Error(`invalid radius: ${radius} (0–40)`);
+      }
+      if (textAlign !== undefined && !['left','center','right'].includes(textAlign)) {
+        throw new Error(`invalid textAlign: ${textAlign}`);
+      }
+      if (titleSize !== undefined) {
+        const v = parseInt(titleSize);
+        if (!Number.isFinite(v) || v < 12 || v > 60) throw new Error(`invalid titleSize: ${titleSize} (12–60)`);
+      }
+      if (descSize !== undefined) {
+        const v = parseInt(descSize);
+        if (!Number.isFinite(v) || v < 10 || v > 40) throw new Error(`invalid descSize: ${descSize} (10–40)`);
+      }
+      if (!_rendererInvoker?.updateCardBlock) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.updateCardBlock({ blockId, title, desc, imgSrc, bgColor, radius, textAlign, titleSize, descSize });
+    },
+    {
+      description: 'Partially update a single card-block (cdb_*). Each card in a multi-card row has its own cdb_* id — pass that id directly. Pass only fields you want changed; others are preserved. Returns {ok, blockId, applied}. Use empty string for imgSrc to remove the image. If user is editing inside the same card, returns USER_BUSY.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId:   { type: 'string', description: 'cdb_xxx to update' },
+          title:     { type: 'string', description: 'new title text (≤500)' },
+          desc:      { type: 'string', description: 'new description text (≤2000)' },
+          imgSrc:    { type: 'string', description: 'image src (URL or dataURL ≤2MB). Empty string removes image.' },
+          bgColor:   { type: 'string', description: 'bottom-area bg color' },
+          radius:    { type: 'number', description: 'corner radius (0–40 px)' },
+          textAlign: { type: 'string', enum: ['left','center','right'] },
+          titleSize: { type: 'number', description: 'title font-size px (12–60)' },
+          descSize:  { type: 'number', description: 'desc font-size px (10–40)' }
+        },
+        required: ['blockId']
+      }
+    }
+  );
+
   // PM update_section — 섹션 속성 변경 (배경 등)
   registerTool(
     'update_section',
