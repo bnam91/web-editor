@@ -1121,6 +1121,111 @@ function _registerDefaultTools() {
     }
   );
 
+  // ─── add_step_block — 단계 표시 블록 추가 ──────────────────────────────────
+  // step-block.js의 makeStepBlock 전체 opts 노출. steps 배열(1~10) + 색/크기/레이아웃까지 1콜.
+  registerTool(
+    'add_step_block',
+    async (args = {}) => {
+      if (!_rendererInvoker?.addStepBlock) throw new Error('renderer bridge not ready');
+      const opts = _validateStepOpts(args, { mode: 'add' });
+      return await _rendererInvoker.addStepBlock(opts);
+    },
+    {
+      description: 'Add a step-block (numbered steps with title/desc each). blockId prefix: stb_. steps[1~10] = [{title, desc?}]. stepStyle: default|card|circle|number. stepOrient: vertical|horizontal (default=vertical; circle/number는 항상 horizontal). stepAlign: left|center|right|stack. badgeFormat: number|padded|alpha|step|point. connectorStyle: line|arrow|divider. Returns {ok, blockId, sectionId, ...}. 이후 update_step_block(blockId, partial)로 수정.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx — omit to use currently selected section' },
+          steps: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 10,
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: '단계 제목 (≤200)' },
+                desc:  { type: 'string', description: '단계 설명 (≤500)' }
+              },
+              required: ['title']
+            },
+            description: '단계 배열 (1~10개). 각 요소 {title, desc?}'
+          },
+          numBg:      { type: 'string',  description: '배지 배경색 (#hex|rgb()|hsl()|transparent)' },
+          numColor:   { type: 'string',  description: '배지 글자색' },
+          numSize:    { type: 'integer', description: '배지 크기 px (4~400)' },
+          titleSize:  { type: 'integer', description: '제목 폰트 크기 px (4~400)' },
+          descSize:   { type: 'integer', description: '설명 폰트 크기 px (4~400)' },
+          titleColor: { type: 'string',  description: '제목 색상' },
+          descColor:  { type: 'string',  description: '설명 색상' },
+          gap:        { type: 'integer', description: '단계 사이 간격 px (0~400)' },
+          badgeGap:   { type: 'integer', description: '배지↔콘텐츠 간격 px (0~400)' },
+          connector:  { type: 'boolean', description: '단계 연결선 표시 (default true)' },
+          connectorStyle: { type: 'string', enum: ['line','arrow','divider'], description: '연결선 스타일 (default line)' },
+          stepStyle:  { type: 'string', enum: ['default','card','circle','number'], description: '블록 스타일 (default default)' },
+          stepOrient: { type: 'string', enum: ['vertical','horizontal'], description: '방향 (default vertical). circle/number는 무시되고 항상 horizontal.' },
+          stepAlign:  { type: 'string', enum: ['left','center','right','stack'], description: '정렬 (default left)' },
+          stepCardBg: { type: 'string',  description: '카드형(stepStyle=card) 배경색' },
+          stepPadX:   { type: 'integer', description: '좌우 패딩 px (0~400)' },
+          stepPadL:   { type: 'integer', description: '왼쪽 패딩 px (0~400) — stepPadX 우선' },
+          stepPadR:   { type: 'integer', description: '오른쪽 패딩 px (0~400) — stepPadX 우선' },
+          badgeFormat: { type: 'string', enum: ['number','padded','alpha','step','point'], description: '배지 표기 (1/01/A/STEP 01/POINT 01)' }
+        },
+        required: ['steps']
+      }
+    }
+  );
+
+  // ─── update_step_block — step-block 부분 수정 (id 기반) ───────────────────
+  registerTool(
+    'update_step_block',
+    async ({ blockId, ...rest } = {}) => {
+      if (!_rendererInvoker?.updateStepBlock) throw new Error('renderer bridge not ready');
+      if (typeof blockId !== 'string' || !blockId.startsWith('stb_')) {
+        throw new Error(`invalid blockId: ${blockId}. must be a string starting with "stb_"`);
+      }
+      const partial = _validateStepOpts(rest, { mode: 'update' });
+      if (Object.keys(partial).length === 0) {
+        throw new Error('no fields to update — provide at least one step field');
+      }
+      return await _rendererInvoker.updateStepBlock({ blockId, partial });
+    },
+    {
+      description: 'Edit an EXISTING step-block (stb_xxx) — partial update. steps[] passes replace the entire array (1~10). Any field from add_step_block accepted. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state or add_step_block.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId: { type: 'string', description: 'stb_xxx (step-block id)' },
+          steps: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 10,
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                desc:  { type: 'string' }
+              },
+              required: ['title']
+            }
+          },
+          numBg:      { type: 'string' }, numColor:   { type: 'string' },
+          numSize:    { type: 'integer' }, titleSize:  { type: 'integer' }, descSize: { type: 'integer' },
+          titleColor: { type: 'string' }, descColor:  { type: 'string' },
+          gap:        { type: 'integer' }, badgeGap:   { type: 'integer' },
+          connector:  { type: 'boolean' },
+          connectorStyle: { type: 'string', enum: ['line','arrow','divider'] },
+          stepStyle:  { type: 'string', enum: ['default','card','circle','number'] },
+          stepOrient: { type: 'string', enum: ['vertical','horizontal'] },
+          stepAlign:  { type: 'string', enum: ['left','center','right','stack'] },
+          stepCardBg: { type: 'string' },
+          stepPadX:   { type: 'integer' }, stepPadL: { type: 'integer' }, stepPadR: { type: 'integer' },
+          badgeFormat: { type: 'string', enum: ['number','padded','alpha','step','point'] }
+        },
+        required: ['blockId']
+      }
+    }
+  );
+
   // ─── search_iconify — iconify API 검색 ─────────────────────────────────────
   // 화이트리스트 prefix만 허용. main 측 _doIconifySearch가 실제 fetch 수행 (SSRF 가드 포함).
   registerTool(
@@ -1305,6 +1410,119 @@ function _validateBanner02Opts(args, { mode } = {}) {
   _int('imgW', 4, 4000); _int('imgH', 4, 4000);
   _enum('imgFit', ['cover', 'contain']);
   _enum('layout', ['left', 'right']);
+
+  return out;
+}
+
+// ─── step-block 옵션 검증 (add/update 공용) ───────────────────────────────
+// mode='add'  → sectionId 허용, steps required
+// mode='update' → sectionId 무시, steps optional. blockId는 caller에서 처리.
+// Codex 리뷰: step-block.js renderStepBlock이 title/desc를 innerHTML 템플릿에 직접 interpolate함
+// (banner02의 textContent와 달리). MCP entry는 신규 공격면이므로 boundary에서 HTML escape 강제.
+const _STEP_MAX_TITLE_LEN = 200;
+const _STEP_MAX_DESC_LEN  = 500;
+const _STEP_MAX_ITEMS     = 10;
+
+function _stepEscapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function _validateStepOpts(args, { mode } = {}) {
+  if (!args || typeof args !== 'object') throw new Error('args must be object');
+  const out = {};
+
+  const _int = (key, min, max) => {
+    if (args[key] === undefined || args[key] === null) return;
+    const n = args[key];
+    if (!Number.isInteger(n)) throw new Error(`${key} must be integer`);
+    if (min !== undefined && n < min) throw new Error(`${key} < ${min}`);
+    if (max !== undefined && n > max) throw new Error(`${key} > ${max}`);
+    out[key] = n;
+  };
+  const _color = (key) => {
+    if (args[key] === undefined || args[key] === null) return;
+    if (typeof args[key] !== 'string') throw new Error(`${key} must be string`);
+    const v = args[key].trim();
+    if (v.length === 0) throw new Error(`${key} empty`);
+    if (v.length > 64) throw new Error(`${key} too long`);
+    const ok =
+      /^#[0-9a-fA-F]{3,8}$/.test(v) ||
+      /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(v) ||
+      v === 'transparent';
+    if (!ok) throw new Error(`${key} invalid color (allowed: #hex | rgb(a)/hsl(a)() | transparent)`);
+    out[key] = v;
+  };
+  const _enum = (key, allowed) => {
+    if (args[key] === undefined || args[key] === null) return;
+    if (!allowed.includes(args[key])) throw new Error(`invalid ${key}: ${args[key]}. allowed: ${allowed.join('|')}`);
+    out[key] = args[key];
+  };
+  const _bool = (key) => {
+    if (args[key] === undefined || args[key] === null) return;
+    if (typeof args[key] !== 'boolean') throw new Error(`${key} must be boolean`);
+    out[key] = args[key];
+  };
+
+  if (mode === 'add') {
+    if (args.sectionId !== undefined && args.sectionId !== null) {
+      if (typeof args.sectionId !== 'string' || !args.sectionId.startsWith('sec_')) {
+        throw new Error(`invalid sectionId: ${args.sectionId}. expected string starting with sec_`);
+      }
+      out.sectionId = args.sectionId;
+    }
+  }
+
+  // steps — add는 required, update는 optional. 둘 다 형식/길이 strict 검증.
+  if (mode === 'add' && (args.steps === undefined || args.steps === null)) {
+    throw new Error('steps required (array of {title, desc?}, 1~10 items)');
+  }
+  if (args.steps !== undefined && args.steps !== null) {
+    if (!Array.isArray(args.steps)) throw new Error('steps must be array');
+    if (args.steps.length < 1) throw new Error('steps must have at least 1 item');
+    if (args.steps.length > _STEP_MAX_ITEMS) {
+      throw new Error(`steps too long (>${_STEP_MAX_ITEMS} items)`);
+    }
+    const cleaned = args.steps.map((s, i) => {
+      if (!s || typeof s !== 'object') throw new Error(`steps[${i}] must be object`);
+      if (typeof s.title !== 'string') throw new Error(`steps[${i}].title required (string)`);
+      if ([...s.title].length > _STEP_MAX_TITLE_LEN) {
+        throw new Error(`steps[${i}].title too long (>${_STEP_MAX_TITLE_LEN} code points)`);
+      }
+      // HTML escape at MCP boundary — renderStepBlock interpolates via innerHTML.
+      const o = { title: _stepEscapeHtml(s.title) };
+      if (s.desc !== undefined && s.desc !== null) {
+        if (typeof s.desc !== 'string') throw new Error(`steps[${i}].desc must be string`);
+        if ([...s.desc].length > _STEP_MAX_DESC_LEN) {
+          throw new Error(`steps[${i}].desc too long (>${_STEP_MAX_DESC_LEN} code points)`);
+        }
+        o.desc = _stepEscapeHtml(s.desc);
+      }
+      return o;
+    });
+    out.steps = cleaned;
+  }
+
+  _color('numBg'); _color('numColor');
+  _color('titleColor'); _color('descColor'); _color('stepCardBg');
+  _int('numSize',   4, 400);
+  _int('titleSize', 4, 400);
+  _int('descSize',  4, 400);
+  _int('gap',       0, 400);
+  _int('badgeGap',  0, 400);
+  _int('stepPadX',  0, 400);
+  _int('stepPadL',  0, 400);
+  _int('stepPadR',  0, 400);
+  _bool('connector');
+  _enum('connectorStyle', ['line', 'arrow', 'divider']);
+  _enum('stepStyle',      ['default', 'card', 'circle', 'number']);
+  _enum('stepOrient',     ['vertical', 'horizontal']);
+  _enum('stepAlign',      ['left', 'center', 'right', 'stack']);
+  _enum('badgeFormat',    ['number', 'padded', 'alpha', 'step', 'point']);
 
   return out;
 }

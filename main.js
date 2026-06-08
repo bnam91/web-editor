@@ -1247,6 +1247,8 @@ app.whenReady().then(async () => {
       addBanner02Block: _invokeRendererAddBanner02Block,
       updateBanner02Block: _invokeRendererUpdateBanner02Block,
       addIconifyBlock: _invokeRendererAddIconifyBlock,
+      addStepBlock: _invokeRendererAddStepBlock,
+      updateStepBlock: _invokeRendererUpdateStepBlock,
     });
     // iconify search/svg fetch는 main에서 직접 (renderer CSP/외부 fetch 우회 + SSRF 가드)
     if (typeof setMcpIconifyApi === 'function') {
@@ -2354,6 +2356,102 @@ async function _invokeRendererAddIconifyBlock({ sectionId, name, svg, size = 96 
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('addIconifyBlock call failed: ' + e.message);
+  }
+}
+
+// ─── add_step_block — 단계 표시 블록 추가 (banner02 패턴 미러) ────────────────
+// opts 전체를 _validateStepOpts에서 검증 후 들어옴. atomic IIFE + USER_BUSY 가드.
+async function _invokeRendererAddStepBlock(opts = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeSectionId = opts.sectionId ? JSON.stringify(String(opts.sectionId)) : 'null';
+  const dataOpts = { ...opts };
+  delete dataOpts.sectionId;
+  const safeData = JSON.stringify(dataOpts);
+  const atomicJs = `(() => {
+    try {
+      // ── 동시수정 가드 (atomic) ──
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addStepBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addStepBlock not found' };
+      }
+      const sid = ${safeSectionId};
+      if (sid) {
+        const target = document.getElementById(sid) || document.querySelector('[data-section-id="' + sid + '"]');
+        if (!target) return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sid };
+        if (typeof window.selectSection === 'function') { try { window.selectSection(target); } catch(_){} }
+      }
+      if (typeof window.getSelectedSection === 'function' && !window.getSelectedSection()
+          && typeof window.selectSection === 'function') {
+        const firstSec = document.querySelector('[id^="sec_"]');
+        if (firstSec) { try { window.selectSection(firstSec); } catch (_) {} }
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.step-block')].map(b => b.id));
+      const result = window.addStepBlock(${safeData});
+      const blocks = [...document.querySelectorAll('.step-block')];
+      const newBlock = (result && result.block) || blocks.find(b => !beforeIds.has(b.id));
+      if (!newBlock) {
+        return { ok: false, code: 'NO_ADD', message: 'step-block이 추가되지 않았습니다.' };
+      }
+      const sec = (typeof window.getSelectedSection === 'function') ? window.getSelectedSection() : null;
+      return {
+        ok: true,
+        blockId: newBlock.id,
+        sectionId: sec ? sec.id : null,
+        pageId: window.activePageId || null,
+        beforeCount: beforeIds.size,
+        afterCount: blocks.length,
+      };
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addStepBlock call failed: ' + e.message);
+  }
+}
+
+// ─── update_step_block — 기존 step-block 부분 수정 (banner02 패턴 미러) ───────
+async function _invokeRendererUpdateStepBlock({ blockId, partial } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+    throw new Error('renderer not ready');
+  }
+  if (mainWindow.isMinimized()) {
+    return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  }
+  const safeBlockId = JSON.stringify(String(blockId || ''));
+  const safePartial = JSON.stringify(partial || {});
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.updateStepBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.updateStepBlock not found' };
+      }
+      return window.updateStepBlock(${safeBlockId}, ${safePartial});
+    } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('updateStepBlock call failed: ' + e.message);
   }
 }
 

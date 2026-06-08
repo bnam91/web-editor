@@ -330,18 +330,155 @@ function makeStepBlock(opts = {}) {
 
 function addStepBlock(opts = {}) {
   const sec = window.getSelectedSection?.();
-  if (!sec) { window.showNoSelectionHint?.(); return; }
+  if (!sec) { window.showNoSelectionHint?.(); return null; }
   window.pushHistory();
   const { row, block } = makeStepBlock(opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
   window.triggerAutoSave?.();
+  return { row, block };
+}
+
+// ── 수정 ────────────────────────────────────────────────────────────────────
+// PM의 update_step_block(MCP) → main(_invokeRendererUpdateStepBlock) → 여기.
+// banner02 updateBanner02Block 패턴 미러: pushHistory + dataset partial write + renderStepBlock 재렌더 + scheduleAutoSave.
+// 지원 필드 (data-* 매핑):
+//   - steps: 배열 전체 replace
+//   - 색상: numBg, numColor, titleColor, descColor, stepCardBg
+//   - 크기: numSize, titleSize, descSize, gap, badgeGap, stepPadX, stepPadL, stepPadR
+//   - boolean: connector
+//   - enum: stepStyle, stepOrient, stepAlign, badgeFormat, connectorStyle
+function updateStepBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('step-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `step-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+
+  // Codex 리뷰 픽스: pushHistory + mutate는 *전체 입력 검증* 후에만 수행.
+  // 1단계 — 검증만 (mutate X). 실패 시 noop으로 종료.
+  const next = {}; // dataset 키 → string 값 (커밋 전 계산)
+  const applied = {};
+
+  if (partial.steps !== undefined && partial.steps !== null) {
+    if (!Array.isArray(partial.steps)) {
+      return { ok: false, code: 'INVALID', message: 'steps must be array' };
+    }
+    if (partial.steps.length < 1 || partial.steps.length > 10) {
+      return { ok: false, code: 'INVALID', message: 'steps length must be 1..10' };
+    }
+    const cleaned = partial.steps.map((s) => {
+      const t = (s && typeof s.title === 'string') ? s.title : '';
+      const d = (s && typeof s.desc === 'string')  ? s.desc  : '';
+      return d ? { title: t, desc: d } : { title: t };
+    });
+    next.steps = JSON.stringify(cleaned);
+    applied.steps = cleaned;
+  }
+
+  // Codex 리뷰 픽스 (#4): 부분 적용/조용한 drop 제거. 잘못된 값은 즉시 reject.
+  // MCP 호출 경로는 _validateStepOpts에서 이미 strict 검증되지만, 직접 호출 경로도 보호.
+  let _planErr = null;
+  const _planNum = (datasetKey, srcKey, value, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n) || (min !== undefined && n < min) || (max !== undefined && n > max)) {
+      _planErr = `${srcKey} invalid (must be ${min}..${max})`;
+      return;
+    }
+    next[datasetKey] = String(n);
+    applied[srcKey] = n;
+  };
+
+  if (partial.numSize    !== undefined) _planNum('numSize',    'numSize',    partial.numSize,    4, 400);
+  if (partial.titleSize  !== undefined) _planNum('titleSize',  'titleSize',  partial.titleSize,  4, 400);
+  if (partial.descSize   !== undefined) _planNum('descSize',   'descSize',   partial.descSize,   4, 400);
+  if (partial.gap        !== undefined) _planNum('gap',        'gap',        partial.gap,        0, 400);
+  if (partial.badgeGap   !== undefined) _planNum('badgeGap',   'badgeGap',   partial.badgeGap,   0, 400);
+  if (partial.stepPadX   !== undefined) _planNum('stepPadX',   'stepPadX',   partial.stepPadX,   0, 400);
+  if (partial.stepPadL   !== undefined) _planNum('stepPadL',   'stepPadL',   partial.stepPadL,   0, 400);
+  if (partial.stepPadR   !== undefined) _planNum('stepPadR',   'stepPadR',   partial.stepPadR,   0, 400);
+  if (_planErr) {
+    return { ok: false, code: 'INVALID', message: _planErr };
+  }
+
+  if (partial.numBg      !== undefined && partial.numBg      !== null) { next.numBg      = String(partial.numBg);      applied.numBg      = next.numBg; }
+  if (partial.numColor   !== undefined && partial.numColor   !== null) { next.numColor   = String(partial.numColor);   applied.numColor   = next.numColor; }
+  if (partial.titleColor !== undefined && partial.titleColor !== null) { next.titleColor = String(partial.titleColor); applied.titleColor = next.titleColor; }
+  if (partial.descColor  !== undefined && partial.descColor  !== null) { next.descColor  = String(partial.descColor);  applied.descColor  = next.descColor; }
+  if (partial.stepCardBg !== undefined && partial.stepCardBg !== null) { next.stepCardBg = String(partial.stepCardBg); applied.stepCardBg = next.stepCardBg; }
+
+  if (partial.connector !== undefined) {
+    const v = (partial.connector === true || partial.connector === 'true');
+    next.connector = String(v);
+    applied.connector = v;
+  }
+
+  if (partial.stepStyle      !== undefined) { next.stepStyle      = String(partial.stepStyle);      applied.stepStyle      = next.stepStyle; }
+  if (partial.stepOrient     !== undefined) { next.stepOrient     = String(partial.stepOrient);     applied.stepOrient     = next.stepOrient; }
+  if (partial.stepAlign      !== undefined) { next.stepAlign      = String(partial.stepAlign);      applied.stepAlign      = next.stepAlign; }
+  if (partial.badgeFormat    !== undefined) { next.badgeFormat    = String(partial.badgeFormat);    applied.badgeFormat    = next.badgeFormat; }
+  if (partial.connectorStyle !== undefined) { next.connectorStyle = String(partial.connectorStyle); applied.connectorStyle = next.connectorStyle; }
+
+  // 변경 없음 → noop (pushHistory/autosave 스킵)
+  if (Object.keys(next).length === 0) {
+    return { ok: true, blockId, before: null, applied: {}, noop: true };
+  }
+
+  // 2단계 — before 스냅샷 (rollback 대비). next에 든 키만 백업.
+  const beforeSnapshot = {};
+  const before = {};
+  for (const k of Object.keys(next)) {
+    beforeSnapshot[k] = block.dataset[k];
+    before[k] = block.dataset[k];
+  }
+
+  // 3단계 — pushHistory (변경 전 캔버스 = undo 타겟). banner02 패턴과 동일.
+  // 주의: render 실패 시 rollback해도 이 history 엔트리는 남음 (no-op undo).
+  //       이는 banner02도 동일한 잔존 UX 이슈. _validateStepOpts가 strict이므로
+  //       MCP 경로에서 render 실패는 사실상 unreachable.
+  window.pushHistory?.();
+
+  // 4단계 — 커밋 (mutate)
+  for (const k of Object.keys(next)) {
+    block.dataset[k] = next[k];
+  }
+
+  // 5단계 — 재렌더 (실패 시 rollback)
+  try {
+    renderStepBlock(block);
+  } catch (e) {
+    // rollback dataset (snapshot 기준)
+    for (const k of Object.keys(beforeSnapshot)) {
+      const v = beforeSnapshot[k];
+      if (v === undefined) {
+        delete block.dataset[k];
+      } else {
+        block.dataset[k] = v;
+      }
+    }
+    try { renderStepBlock(block); } catch (_) {}
+    return { ok: false, code: 'RENDER_ERROR', message: e.message, rolledBack: true };
+  }
+
+  // 6단계 — 우측 패널 / 레이어 / autosave
+  if (block.classList.contains('selected')) {
+    try { window.showStepProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.triggerAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
 }
 
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeStepBlock   = makeStepBlock;
 window.addStepBlock    = addStepBlock;
+window.updateStepBlock = updateStepBlock;
 window.renderStepBlock = renderStepBlock;
 
-export { makeStepBlock, addStepBlock, renderStepBlock, STEP_DEFAULT_DATA };
+export { makeStepBlock, addStepBlock, updateStepBlock, renderStepBlock, STEP_DEFAULT_DATA };
