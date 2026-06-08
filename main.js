@@ -2224,11 +2224,16 @@ const _ICONIFY_PREFIX_RE = /^[a-z0-9-]{2,32}$/;
 const _ICONIFY_NAME_RE   = /^[a-z0-9-]{1,80}$/;
 const _ICONIFY_TIMEOUT_MS = 8000;
 
-async function _fetchWithTimeout(url, ms = _ICONIFY_TIMEOUT_MS) {
+// Codex Medium 픽스: parse 콜백을 받아 body 읽기까지 같은 AbortController로 보호.
+// 기존엔 fetch resolve 직후 clearTimeout — 본문 stall 시 무한 대기 가능했음.
+async function _fetchWithTimeout(url, parse, ms = _ICONIFY_TIMEOUT_MS) {
   const ctl = new AbortController();
   const tid = setTimeout(() => ctl.abort(), ms);
   try {
-    return await fetch(url, { signal: ctl.signal, redirect: 'error' });
+    const res = await fetch(url, { signal: ctl.signal, redirect: 'error' });
+    if (!res.ok) return { ok: false, status: res.status, body: null };
+    const body = parse ? await parse(res) : null;
+    return { ok: true, status: res.status, body };
   } finally {
     clearTimeout(tid);
   }
@@ -2248,9 +2253,9 @@ async function _doIconifySearch({ query, prefix, limit = 10 } = {}) {
     url += `&prefix=${encodeURIComponent(prefix)}`;
   }
   try {
-    const res = await _fetchWithTimeout(url);
-    if (!res.ok) return { ok: false, code: 'HTTP_ERROR', message: `iconify search HTTP ${res.status}` };
-    const data = await res.json();
+    const r = await _fetchWithTimeout(url, res => res.json());
+    if (!r.ok) return { ok: false, code: 'HTTP_ERROR', message: `iconify search HTTP ${r.status}` };
+    const data = r.body || {};
     const icons = Array.isArray(data.icons) ? data.icons : [];
     const out = icons.map((full) => {
       const idx = full.indexOf(':');
@@ -2273,9 +2278,9 @@ async function _fetchIconifySvg({ prefix, name, color } = {}) {
   let url = `${_ICONIFY_API_BASE}/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg`;
   if (color) url += `?color=${encodeURIComponent(color)}`;
   try {
-    const res = await _fetchWithTimeout(url);
-    if (!res.ok) return { ok: false, code: 'HTTP_ERROR', message: `iconify svg HTTP ${res.status}` };
-    const svg = await res.text();
+    const r = await _fetchWithTimeout(url, res => res.text());
+    if (!r.ok) return { ok: false, code: 'HTTP_ERROR', message: `iconify svg HTTP ${r.status}` };
+    const svg = r.body || '';
     // 정합성 + XSS 추가 가드: iconify 공식 응답은 정제됨이지만 방어적으로 한 번 더 거름.
     if (!svg || svg.length > 200000) return { ok: false, code: 'INVALID_SVG', message: 'empty or too large svg' };
     if (!/^\s*<svg\b/i.test(svg)) return { ok: false, code: 'INVALID_SVG', message: 'not an svg' };
