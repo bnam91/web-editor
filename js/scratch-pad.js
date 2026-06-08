@@ -895,14 +895,28 @@ window._getScratchItemsForMCP = function() {
   });
 };
 
-window._getScratchItemByIdForMCP = function(id) {
+// Codex #1 fix: truncate를 renderer 측에서 처리 — IPC/main 메모리 폭발 방지.
+// opts: { includeSrc?: boolean, truncateSrcTo?: number }
+window._getScratchItemByIdForMCP = function(id, opts) {
   const it = _scratchItems.find(s => s.id === id);
   if (!it) return null;
-  return {
+  const includeSrc  = !!(opts && opts.includeSrc);
+  const truncateTo  = (opts && Number.isFinite(opts.truncateSrcTo)) ? opts.truncateSrcTo : 200;
+  const out = {
     id: it.id,
     x: Math.round(it.x), y: Math.round(it.y), w: Math.round(it.w),
-    src: it.src,
+    srcSize: typeof it.src === 'string' ? it.src.length : 0,
   };
+  if (typeof it.src === 'string') {
+    if (includeSrc) {
+      out.src = it.src;
+    } else if (it.src.length > truncateTo) {
+      out.srcPreview = it.src.slice(0, truncateTo) + '...';
+    } else {
+      out.src = it.src;
+    }
+  }
+  return out;
 };
 
 // canvas-scratch-drop.js → 드롭 성공 후 스크래치 DOM·IndexedDB 정리

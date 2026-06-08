@@ -1326,13 +1326,18 @@ async function _invokeRendererListScratchItems() {
   );
 }
 
-async function _invokeRendererReadScratchItem(id) {
+async function _invokeRendererReadScratchItem(id, opts = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
     throw new Error('renderer not ready');
   }
-  const safeId = JSON.stringify(String(id || ''));
+  // opts는 renderer에서 truncate 결정 → IPC payload 폭발 방지 (Codex #1)
+  const safeId   = JSON.stringify(String(id || ''));
+  const safeOpts = JSON.stringify({
+    includeSrc:    !!opts.includeSrc,
+    truncateSrcTo: Number.isFinite(opts.truncateSrcTo) ? opts.truncateSrcTo : 200,
+  });
   return await mainWindow.webContents.executeJavaScript(
-    `(typeof window._getScratchItemByIdForMCP === "function") ? window._getScratchItemByIdForMCP(${safeId}) : null`,
+    `(typeof window._getScratchItemByIdForMCP === "function") ? window._getScratchItemByIdForMCP(${safeId}, ${safeOpts}) : null`,
     true
   );
 }

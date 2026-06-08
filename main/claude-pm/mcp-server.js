@@ -405,17 +405,8 @@ function _registerDefaultTools() {
       if (!_rendererInvoker || typeof _rendererInvoker.readScratchItem !== 'function') {
         throw new Error('renderer bridge not initialized (setRendererInvoker not called)');
       }
-      const item = await _rendererInvoker.readScratchItem(id);
-      if (!item) return null;
-      // src 토큰 폭발 방지 — 기본은 prefix만 노출
-      if (typeof item.src === 'string') {
-        item.srcSize = item.src.length;
-        if (!includeSrc && item.src.length > truncateSrcTo) {
-          item.srcPreview = item.src.slice(0, truncateSrcTo) + '...';
-          delete item.src;
-        }
-      }
-      return item;
+      // truncate/includeSrc는 renderer에서 처리 (Codex #1: IPC payload 폭발 방지)
+      return await _rendererInvoker.readScratchItem(id, { includeSrc, truncateSrcTo });
     },
     {
       description: 'Read a single scratch pad item by id (e.g. "sp_br70mc"). Returns {id, x, y, w, src|srcPreview, srcSize}. By default the src dataURL is truncated to avoid token blowup; pass includeSrc=true to get the full content.',
