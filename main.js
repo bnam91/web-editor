@@ -1234,6 +1234,7 @@ app.whenReady().then(async () => {
       deleteBlock: _invokeRendererDeleteBlock,
       moveSection: _invokeRendererMoveSection,
       insertGapAfterBlock: _invokeRendererInsertGapAfterBlock,
+      updateSection: _invokeRendererUpdateSection,
     });
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
@@ -1318,6 +1319,30 @@ async function _invokeRendererAddBlock({ type = 'body', content = '', sectionId,
   } catch (e) {
     throw new Error('addTextBlock call failed: ' + e.message);
   }
+}
+
+// ─── update_section — 섹션 속성 (배경 등) 변경 ──────────────────────────────
+async function _invokeRendererUpdateSection({ sectionId, bg } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED' };
+  const safeSid = JSON.stringify(String(sectionId || ''));
+  const safeBg  = bg !== undefined ? JSON.stringify(String(bg)) : 'null';
+  return await mainWindow.webContents.executeJavaScript(
+    `(() => { try {
+      const sid = ${safeSid};
+      const sec = document.getElementById(sid);
+      if (!sec || !sec.classList.contains('section-block')) return { ok:false, code:'NOT_FOUND', message:'section not found: '+sid };
+      const applied = {};
+      const bgv = ${safeBg};
+      if (bgv !== null) {
+        if (typeof window.setSectionBg !== 'function') return { ok:false, code:'API_MISSING' };
+        window.setSectionBg(sec, bgv);
+        applied.bg = bgv;
+      }
+      return { ok:true, sectionId: sid, applied };
+    } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
+    true
+  );
 }
 
 // ─── delete_section / delete_block / move_section / insert_gap_after_block ──

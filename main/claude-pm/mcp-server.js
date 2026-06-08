@@ -400,6 +400,30 @@ function _registerDefaultTools() {
     }
   );
 
+  // PM update_section — 섹션 속성 변경 (배경 등)
+  registerTool(
+    'update_section',
+    async ({ sectionId, bg } = {}) => {
+      if (!sectionId || !sectionId.startsWith('sec_')) throw new Error('sectionId required (sec_xxx)');
+      if (bg !== undefined && bg !== null && !/^#?[0-9a-fA-F]{3,8}$|^transparent$|^rgb/.test(String(bg))) {
+        throw new Error(`invalid bg: ${bg}`);
+      }
+      if (!_rendererInvoker?.updateSection) throw new Error('renderer bridge not ready');
+      return await _rendererInvoker.updateSection({ sectionId, bg });
+    },
+    {
+      description: 'Update section properties (bg color, etc.). Use for changing existing section background. bg: hex color (#000, #ffffff) or "transparent".',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx to update' },
+          bg: { type: 'string', description: 'background color (hex like #000000 or "transparent")' }
+        },
+        required: ['sectionId']
+      }
+    }
+  );
+
   // PM delete_section — 섹션 삭제 (마지막 섹션은 삭제 불가)
   registerTool(
     'delete_section',
