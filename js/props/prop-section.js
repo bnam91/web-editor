@@ -147,6 +147,11 @@ async function showSectionProperties(sec) {
   }).join('');
 
   const currentPreset = sec.dataset.preset || 'default';
+  // section memo (P/G/E + Codex 리뷰) — dataset.memo ↔ textarea 양방향 바인딩.
+  // 메모는 HTML attribute (data-memo)로 저장되어 innerHTML 직렬화로 안전하게 영속화됨.
+  // textarea value는 브라우저가 자동 escape — 추가 escape 불필요.
+  const _memoMaxLen = (typeof window.SECTION_MEMO_MAX_LEN === 'number') ? window.SECTION_MEMO_MAX_LEN : 2000;
+  const _memoRaw = sec.dataset.memo || '';
   const presetSelectHTML = PRESETS.map(p =>
     `<option value="${p.id}"${p.id === currentPreset ? ' selected' : ''}>${p.name}</option>`
   ).join('');
@@ -224,6 +229,11 @@ async function showSectionProperties(sec) {
         <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
         <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
       </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Memo</div>
+      <textarea class="prop-textarea" id="sec-memo" placeholder="섹션 메모 (출처, 가설, todo 등) — 자동 저장" maxlength="${_memoMaxLen}" style="min-height:64px;"></textarea>
+      <div class="prop-field-label" id="sec-memo-counter" style="margin-top:4px;opacity:0.6;">0 / ${_memoMaxLen}</div>
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Export</div>
@@ -459,6 +469,47 @@ async function showSectionProperties(sec) {
         .forEach(b => b.classList.toggle('active', b === btn));
     });
   });
+
+  // 메모 textarea — dataset.memo ↔ value 양방향, 입력 시 debounced autosave
+  const memoEl     = document.getElementById('sec-memo');
+  const memoCount  = document.getElementById('sec-memo-counter');
+  if (memoEl) {
+    // 초기값 주입 (DOM textContent로 안전 세팅 — XSS 차단)
+    memoEl.value = _memoRaw;
+    if (memoCount) memoCount.textContent = `${[..._memoRaw].length} / ${_memoMaxLen}`;
+    // 디바운스: 입력 빈도가 높아도 autosave/history는 천천히
+    let _memoTimer = null;
+    let _memoPrev = _memoRaw;
+    const _commit = () => {
+      const v = memoEl.value;
+      // 길이 가드 (maxlength로 1차 컷, 코드포인트 기준 한 번 더 컷)
+      const clipped = [...v].slice(0, _memoMaxLen).join('');
+      if (clipped !== v) {
+        memoEl.value = clipped;
+      }
+      if (clipped === _memoPrev) return; // 변경 없으면 skip
+      _memoPrev = clipped;
+      if (clipped === '') {
+        delete sec.dataset.memo;
+      } else {
+        sec.dataset.memo = clipped;
+      }
+      // autosave는 trigger 우선 (scheduleAutoSave는 일부 환경에서만 존재)
+      if (typeof window.scheduleAutoSave === 'function') window.scheduleAutoSave();
+      else if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
+    };
+    memoEl.addEventListener('input', () => {
+      if (memoCount) memoCount.textContent = `${[...memoEl.value].length} / ${_memoMaxLen}`;
+      clearTimeout(_memoTimer);
+      _memoTimer = setTimeout(_commit, 500);
+    });
+    memoEl.addEventListener('blur', () => {
+      clearTimeout(_memoTimer);
+      _commit();
+      // 히스토리 푸시는 blur 시점 — 한 글자마다 undo 스택 부풀리는 것 방지
+      if (typeof pushHistory === 'function' && memoEl.value !== _memoRaw) pushHistory();
+    });
+  }
 
   // 내보내기 / 템플릿 저장
   _bindSectionExport(sec);
