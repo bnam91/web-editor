@@ -380,12 +380,13 @@ function _createItem(src, x, y, w = 220, idArg) {
   });
   el.appendChild(closeBtn);
 
-  // ✨ AI 버튼 — 이 이미지를 베이스로 AI 모달 오픈
+  // ✨ AI 버튼 — 이 이미지를 베이스로 AI 모달 오픈 (사용자 요청으로 일시 숨김)
   const aiBtn = document.createElement('button');
   aiBtn.className = 'scratch-ai-btn';
   aiBtn.type = 'button';
   aiBtn.innerHTML = '✨';
   aiBtn.title = 'AI 이미지 생성 (이 이미지 기반)';
+  aiBtn.style.display = 'none';
   aiBtn.addEventListener('mousedown', e => e.stopPropagation());
   aiBtn.addEventListener('click', e => {
     e.stopPropagation();
