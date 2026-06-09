@@ -19,9 +19,24 @@ version: 3.0.0
 
 ---
 
-## 5단계 흑백 팔레트 (고정)
+## 모드 (세션 시작 시 반드시 묻기)
 
-레이아웃 카피 목적이므로 **모든 색상은 아래 5단계만 사용**한다. 세션마다 컬러 모드를 묻지 않아도 됨 (항상 흑백).
+스킬 시작 시 사용자에게 먼저 *모드*를 묻는다:
+
+> "어떤 작업을 할까요?
+> 1. **create** — 이미지 → 새 섹션 생성 (흑백 5단계 카피)
+> 2. **fill** — 이미지 → 기존 섹션/블록의 텍스트·색상 채우기 (원본 컬러 카피)"
+
+| 모드 | 색상 룰 | 도구 | 워크플로우 |
+|---|---|---|---|
+| **create** | 흑백 5단계 고정 (L1~L5) | `addTextBlock/addAssetBlock/...` | planner → generator → evaluator |
+| **fill** | 원본 컬러 그대로 | `update_*_block` MCP 도구 | 시각 분석 → blockId별 partial update → evaluator |
+
+---
+
+## 5단계 흑백 팔레트 (create 모드 전용 고정)
+
+create 모드에서는 **모든 색상은 아래 5단계만 사용**한다. fill 모드에서는 적용 안 됨.
 
 | 레벨 | hex | 용도 |
 |------|-----|------|
@@ -35,9 +50,9 @@ version: 3.0.0
 
 ---
 
-## 세션 시작 루틴 (항상 먼저 실행)
+## [CREATE 모드] 세션 시작 루틴
 
-스킬 시작 시 반드시 사용자에게 묻는다:
+모드=create 선택 시. 사용자에게 묻는다:
 
 > "새 프로젝트를 만들까요, 아니면 기존 프로젝트를 이어서 할까요?
 > 1. 새 프로젝트 만들기
@@ -472,7 +487,7 @@ frame row 예시:
 
 ---
 
-## 전체 실행 순서
+## [CREATE 모드] 전체 실행 순서
 
 ```
 1. node /tmp/scratch_single_load.js   → 스크래치패드에 원본 이미지 로드
@@ -482,6 +497,84 @@ frame row 예시:
 5. /goditor-layout-evaluator          → 원본 vs 결과 스크린샷 독립 비교
 6. PARTIAL/FAIL 항목 있으면 → Spec 수정 후 4번부터 재실행
 ```
+
+---
+
+## [FILL 모드] 기존 섹션/블록 채우기
+
+### 목적
+이미 만들어진 섹션(예: `sec_xxx`) 안의 기존 블록(banner02/comparison/step/card/mockup/text)을 *참고 이미지를 보고* 텍스트·색상으로 채운다. **새 블록을 생성하지 않는다.**
+
+### 룰 차이 (create와 비교)
+| | create | fill |
+|---|---|---|
+| 색상 | 흑백 5단계 고정 | **원본 컬러 카피** |
+| 도구 | `addTextBlock/addAssetBlock/...` | **`update_*_block` MCP 도구만** |
+| Spec | v2 JSON (rows/cols/blocks) | 불필요 — blockId별 partial 직접 작성 |
+| 스크래치 이미지 | 참고 자료 | 참고 자료 (블록에 박지 말 것) |
+
+### 금지 사항 (fill 모드)
+- ❌ **스크래치 이미지를 블록에 그대로 박지 말 것** — sp_xxx는 *시각 참고용*. (사용자 룰)
+- ❌ 새 블록 생성 (`addTextBlock`, `addBanner02Block` 등) 금지 — *기존 블록만* update
+- ❌ 흑백 5단계 강제 안 함 — 원본 컬러 그대로 카피
+- ⚠️ 그라데이션 미지원 → 가장 가까운 hex로 근사 + Spec/보고에 `note: "그라데이션 → hex 근사"` 명시
+- ⚠️ banner02 우측 이미지/일러스트 슬롯 같은 *외부 src* 필요한 자리는 비워두기 (보고에 명시)
+
+### 흐름
+
+**1) 대상 섹션 + 참고 이미지 입력**
+- 섹션 ID: `sec_xxx` (사용자 명시) — 또는 `window.getSelectedSection()?.id` 자동 픽
+- 참고 이미지: `sp_xxx` (스크래치) 또는 외부 파일 경로
+
+**2) 기존 블록 enumerate**
+```js
+const sec = document.getElementById('sec_xxx');
+const blocks = [...sec.querySelectorAll('[id]')].filter(b =>
+  /^(tb_|ab_|bn2_|cmp_|stb_|cdb_|cvb_|mkp_|icn_)/.test(b.id)
+).map(b => ({
+  id: b.id,
+  type: (b.className.split(' ').find(c => c.endsWith('-block')) || '?'),
+  dataset: { ...b.dataset }
+}));
+```
+
+**3) 매핑 — 원본 이미지의 어느 영역 ↔ 어느 blockId**
+- 이미지 시각 분석 (Read tool로 png 보기)
+- 영역별로 *어떤 블록 종류와 매칭되는지* 추정 (banner02 ↔ 가로 배너, comparison ↔ N칼럼 비교 등)
+- 1:1 매핑 표 작성 (메인 세션 또는 sub-skill)
+
+**4) 블록별 partial 작성 후 update**
+
+| 블록 prefix | MCP 도구 | partial 예시 |
+|---|---|---|
+| `bn2_` | `update_banner02_block` | `{label, title, sub, labelColor, titleColor, subColor, bg, layout, imgFit}` (단 imgSrc는 외부 자산 필요) |
+| `cmp_` | `update_comparison_block` | `{cols: [{title, rows, bg, text}], featured, ...}` 또는 `{columnPatch: [{index, ...}]}` |
+| `stb_` | `update_step_block` | `{steps: [{title, desc}], titleColor, descColor, numBg, ...}` |
+| `cdb_` | `update_card_block` | `{cards: [{title, desc, imgSrc?}], bgColor, ...}` |
+| `mkp_` | `update_mockup_block` | `{deviceKey?, width?, shadow?}` (imgSrc는 외부 자산 필요) |
+| `tb_` | `update_block` | `{content}` |
+| `icn_` | (도구 미존재) | iconify는 *교체*는 어려움 — 빈 슬롯에 *새로 추가*는 `add_iconify_block` 별도 호출 |
+
+**5) 검증 (evaluator 독립)**
+- 원본 이미지 vs 결과 스크린샷 1:1 비교
+- 체크: 텍스트 일치, 색상 톤 일치, 줄바꿈, 강조 위치
+- 흑백 5단계 룰 *적용 안 함* (원본 컬러 그대로)
+
+### Fill 모드 실행 순서 (요약)
+```
+1. 모드=fill 확정 + 대상 sec_xxx + 참고 이미지(sp_xxx 또는 파일)
+2. sec_xxx 안 블록 enumerate (id prefix 기반 type 추정)
+3. 원본 이미지 시각 분석 → 영역 ↔ blockId 1:1 매핑
+4. blockId별 partial 작성 (banner02 패턴 미러)
+5. update_*_block 시퀀스 호출 (CDP 또는 PM이 MCP로)
+6. /goditor-layout-evaluator (Spec 없이 원본 vs 결과 비교)
+7. 불일치 항목 → partial 재작성 후 4번부터 재실행
+```
+
+### 일치 한계 (보고에 항상 포함)
+- 그라데이션 배경 → hex 근사 (정확한 톤 재현 X)
+- 외부 이미지/일러스트 슬롯 → 비움 (사용자에게 자산 요청)
+- 폰트/줄간격 등 디테일은 도구 지원 범위 내에서만
 
 ---
 
