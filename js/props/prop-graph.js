@@ -60,9 +60,17 @@ export function showGraphProperties(block) {
         <input type="range" class="prop-slider" id="grb-label-slider" min="8" max="28" step="1" value="${labelSize}">
         <input type="number" class="prop-number" id="grb-label-number" min="8" max="28" value="${labelSize}">
       </div>
-      <div class="prop-row">
+      <div class="prop-row" title="값 라벨(숫자) + 카테고리 라벨 둘 다 일괄 적용. 아래 항목별로 따로 설정 가능">
         <span class="prop-label">라벨 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-label', hex: labelColor, alpha: labelAlpha })}
+      </div>
+      <div class="prop-row" title="값 라벨(숫자)만 별도 색상">
+        <span class="prop-label">값 색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: block.dataset.vlabelColor || labelColor, alpha: parseAlphaFromColor(block.dataset.vlabelColor || labelColor) })}
+      </div>
+      <div class="prop-row" title="카테고리 라벨(7차 입고 등)만 별도 색상">
+        <span class="prop-label">카테고리 색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-xlabel', hex: block.dataset.xlabelColor || labelColor, alpha: parseAlphaFromColor(block.dataset.xlabelColor || labelColor) })}
       </div>
       <div class="prop-row">
         <span class="prop-label">값 표시</span>
@@ -403,6 +411,20 @@ export function showGraphProperties(block) {
   lSlider.addEventListener('change', () => window.pushHistory());
 
   // 라벨 색상
+  if (document.getElementById('grb-vlabel-color')) {
+    wireColorField('grb-vlabel', {
+      initialAlpha: parseAlphaFromColor(block.dataset.vlabelColor || labelColor),
+      onApply: (c) => { block.dataset.vlabelColor = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
+    });
+  }
+  if (document.getElementById('grb-xlabel-color')) {
+    wireColorField('grb-xlabel', {
+      initialAlpha: parseAlphaFromColor(block.dataset.xlabelColor || labelColor),
+      onApply: (c) => { block.dataset.xlabelColor = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
+    });
+  }
   if (document.getElementById('grb-label-color')) {
     wireColorField('grb-label', {
       initialAlpha: labelAlpha,

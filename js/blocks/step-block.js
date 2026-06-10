@@ -24,6 +24,48 @@ function _stepToken(name, fallback) {
 }
 
 function renderStepBlock(block) {
+  // ── 더블클릭 인라인 편집 위임 (block 자체에 한 번만 등록 — innerHTML이 갱신돼도 살아남음) ──
+  if (!block._stbDblBound) {
+    block._stbDblBound = true;
+    block.addEventListener('dblclick', (e) => {
+      const target = e.target.closest('.stb-title, .stb-desc');
+      if (!target || !block.contains(target)) return;
+      e.stopPropagation();
+      target.contentEditable = 'true';
+      target.style.outline = '2px dashed var(--ui-accent-primary, #3b82f6)';
+      target.style.outlineOffset = '2px';
+      target.focus();
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(range);
+    });
+    const commit = (target) => {
+      target.contentEditable = 'false';
+      target.style.outline = ''; target.style.outlineOffset = '';
+      const titles = [...block.querySelectorAll('.stb-title')];
+      const descs  = [...block.querySelectorAll('.stb-desc')];
+      const stepsArr = JSON.parse(block.dataset.steps || '[]');
+      titles.forEach((t, i) => { if (stepsArr[i]) stepsArr[i].title = t.innerText.trim(); });
+      descs.forEach((d, i)  => { if (stepsArr[i]) stepsArr[i].desc  = d.innerText.trim(); });
+      block.dataset.steps = JSON.stringify(stepsArr);
+      window.pushHistory?.('스텝 편집');
+      window.scheduleAutoSave?.();
+      if (block.classList.contains('selected') && window.showStepProperties) window.showStepProperties(block);
+    };
+    block.addEventListener('blur', (e) => {
+      const target = e.target?.closest?.('.stb-title, .stb-desc');
+      if (target && target.contentEditable === 'true') commit(target);
+    }, true); // capture — focusout 대신 blur capture
+    block.addEventListener('keydown', (e) => {
+      const target = e.target?.closest?.('.stb-title, .stb-desc');
+      if (!target || target.contentEditable !== 'true') return;
+      // Enter = 줄바꿈 (기본 동작 유지). Escape 또는 Cmd/Ctrl+Enter = 편집 종료
+      if (e.key === 'Escape') { e.preventDefault(); target.blur(); }
+      else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); target.blur(); }
+    });
+  }
+
   const steps      = JSON.parse(block.dataset.steps || '[]');
   const numBg      = block.dataset.numBg      || _stepToken('--preset-step-num-bg', '#222222');
   const numColor   = block.dataset.numColor   || _stepToken('--preset-step-num-color', '#ffffff');
@@ -47,8 +89,11 @@ function renderStepBlock(block) {
   // 'step'/'point'는 텍스트가 길어 원형 유지 불가 → pill(직사각형) 박스로 렌더
   const badgeIsPill = badgeFmt === 'step' || badgeFmt === 'point';
 
+  // 시작 번호 — 한 섹션에 step-block 여러 개 흩어 놓고 01/02/03 순차 표시할 때 사용
+  const startNumber = parseInt(block.dataset.startNumber) || 1;
+
   function badgeLabel(i) {
-    const n = i + 1;
+    const n = i + startNumber;
     const pad = String(n).padStart(2, '0');
     if (badgeFmt === 'padded') return pad;
     if (badgeFmt === 'alpha')  return String.fromCharCode(64 + n); // A, B, C...

@@ -120,6 +120,10 @@ export function showStepProperties(block) {
         <input type="range" class="prop-slider" id="stb-badge-gap-slider" min="4" max="200" step="4" value="${badgeGap}">
         <input type="number" class="prop-number" id="stb-badge-gap-number" min="4" max="200" value="${badgeGap}">
       </div>
+      <div class="prop-row" title="이 step-block의 첫 번호 (다른 step-block과 01/02/03 순차 표시할 때 사용)">
+        <span class="prop-label">시작 번호</span>
+        <input type="number" class="prop-number" id="stb-start-number" min="1" max="99" value="${parseInt(block.dataset.startNumber) || 1}" style="flex:1">
+      </div>
       <div class="prop-row">
         <span class="prop-label">배지 형식</span>
         <select id="stb-badge-fmt-select" class="prop-select" style="flex:1">
@@ -322,6 +326,20 @@ export function showStepProperties(block) {
   });
 
   bindSlider('stb-badge-gap-slider', 'stb-badge-gap-number', 4, 200, 'badgeGap');
+
+  // ── 시작 번호 (이 step-block 첫 번호) ──
+  const startNumInput = propPanel.querySelector('#stb-start-number');
+  if (startNumInput) {
+    startNumInput.addEventListener('input', () => {
+      const v = Math.max(1, Math.min(99, parseInt(startNumInput.value) || 1));
+      block.dataset.startNumber = v;
+      rerender();
+    });
+    startNumInput.addEventListener('change', () => {
+      window.pushHistory?.('시작 번호');
+      window.scheduleAutoSave?.();
+    });
+  }
 
   // ── 연결선 토글 ──
   propPanel.querySelector('#stb-connector').addEventListener('change', e => {

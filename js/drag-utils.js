@@ -268,14 +268,18 @@ function renderGraph(block) {
     ).join('');
     // 라벨 색상 + 표시 옵션 (vlabel = 값, xlabel = 카테고리)
     const labelColor = block.dataset.labelColor || '';
+    // vlabel(값)/xlabel(카테고리) 별도 색상 — 개별 set 안 됐으면 labelColor fallback
+    const vlabelColor = block.dataset.vlabelColor || labelColor;
+    const xlabelColor = block.dataset.xlabelColor || labelColor;
     const showVLabel = block.dataset.showVLabel !== '0';  // default 보임
     const showXLabel = block.dataset.showXLabel !== '0';  // default 보임
-    const labelColorCss = labelColor ? `color:${labelColor};` : '';
+    const vlabelColorCss = vlabelColor ? `color:${vlabelColor};` : '';
+    const xlabelColorCss = xlabelColor ? `color:${xlabelColor};` : '';
     const vlabelDisp = showVLabel ? '' : 'display:none;';
     const xlabelDisp = showXLabel ? '' : 'display:none;';
     const labelsHTML = overlayItems.map(o =>
-      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${labelColorCss}${vlabelDisp}">${o.p.v}</div>
-       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${labelColorCss}${xlabelDisp}">${o.p.label}</div>`
+      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${vlabelColorCss}${vlabelDisp}">${o.p.v}</div>
+       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${xlabelColorCss}${xlabelDisp}">${o.p.label}</div>`
     ).join('');
 
     block.innerHTML = `

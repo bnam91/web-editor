@@ -367,8 +367,8 @@ function _registerDefaultTools() {
         throw new Error(`invalid color: ${color}`);
       }
       if (fontSize !== undefined) {
-        if (!Number.isInteger(fontSize) || fontSize < 8 || fontSize > 400) {
-          throw new Error(`invalid fontSize: ${fontSize}. must be integer 8~400`);
+        if (!Number.isInteger(fontSize) || fontSize < 8 || fontSize > 2000) {
+          throw new Error(`invalid fontSize: ${fontSize}. must be integer 8~2000`);
         }
       }
       if (fontWeight !== undefined) {
@@ -394,7 +394,7 @@ function _registerDefaultTools() {
           blockId: { type: 'string', description: 'target block id (tb_xxx). Get it from get_canvas_state or read_section' },
           content: { type: 'string', description: 'new text content (≤500 code points)' },
           color: { type: 'string', description: 'text color hex (e.g. #ff0000 or #f00)' },
-          fontSize: { type: 'integer', description: 'font size in px (8~400)' },
+          fontSize: { type: 'integer', description: 'font size in px (8~2000)' },
           fontWeight: { description: 'font weight: 100~900 | "normal" | "bold"' },
           align: { type: 'string', enum: ['left', 'center', 'right'], description: 'text align' }
         },

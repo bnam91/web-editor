@@ -1241,7 +1241,8 @@ document.addEventListener('keydown', e => {
     const moveTarget = selBlock
       ? (selBlock.classList.contains('gap-block') || selBlock.classList.contains('frame-block')
           ? selBlock
-          : (selBlock.closest('.row') || selBlock))
+          // row 없으면 frame-block fallback — text-block이 frame-block 직접 자식 케이스 등
+          : (selBlock.closest('.row') || selBlock.closest('.frame-block') || selBlock))
       : selSection;
     if (moveTarget) {
       e.preventDefault();
