@@ -80,9 +80,156 @@ function addVectorBlock(svgString = '', opts = {}) {
   window.selectSection(sec);
 }
 
+// ── 수정 ──────────────────────────────────────────────────────────────────────
+// PM의 update_vector_block(MCP) → main(_invokeRendererUpdateVectorBlock) → 여기.
+// banner02 updateBanner02Block 패턴 미러: pushHistory + dataset partial write + renderVector 재렌더 + scheduleAutoSave.
+// 지원 필드 (data-* 매핑):
+//   - svg       (string, ≤200000)
+//   - color     (hex/rgb(a)/hsl(a)/transparent)
+//   - w, h      (int 10~4000, dataset에는 String으로 저장)
+//   - layerName (string, ≤200)
+function updateVectorBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('vector-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `vector-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+
+  // ── 동시수정 가드 (renderer 단 self-defense — main의 atomic IIFE 가드와 별개 second-line) ──
+  try {
+    const ae = document.activeElement;
+    const userEditing = !!(ae && (
+      ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+    ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+    const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+    if (userEditing || recentKey) {
+      return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+    }
+  } catch (_) {}
+
+  // 허용된 필드만 추출해서 partial이 실제로 의미있는지 확인
+  const ALLOWED = ['svg', 'color', 'w', 'h', 'layerName'];
+  const keys = Object.keys(partial).filter(k => ALLOWED.includes(k) && partial[k] !== undefined);
+  if (keys.length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one of svg/color/w/h/layerName' };
+  }
+
+  // ── 입력 검증 (banner02 _validate 패턴 미러: throw → INVALID 반환) ──
+  // 색상: hex/rgb(a)/hsl(a)/transparent만 허용 (banner02 _color 정규식)
+  const _colorOk = (v) => {
+    if (typeof v !== 'string') return false;
+    const s = v.trim();
+    if (!s || s.length > 64) return false;
+    return (
+      /^#[0-9a-fA-F]{3,8}$/.test(s) ||
+      /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(s) ||
+      s === 'transparent'
+    );
+  };
+
+  if (partial.svg !== undefined && partial.svg !== null) {
+    if (typeof partial.svg !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'svg must be string' };
+    }
+    if (partial.svg.length > 200000) {
+      return { ok: false, code: 'TOO_LARGE', message: 'svg too long (>200000)' };
+    }
+    // XSS 가드: <script> 차단 (SVG raw → innerHTML 경로)
+    if (/<script[\s>]/i.test(partial.svg)) {
+      return { ok: false, code: 'INVALID', message: 'svg contains <script> (blocked)' };
+    }
+  }
+  if (partial.color !== undefined && partial.color !== null) {
+    if (!_colorOk(partial.color)) {
+      return { ok: false, code: 'INVALID', message: 'color invalid (allowed: #hex | rgb(a)/hsl(a)() | transparent)' };
+    }
+  }
+  if (partial.w !== undefined && partial.w !== null) {
+    const n = Number(partial.w);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 10 || n > 4000) {
+      return { ok: false, code: 'INVALID', message: 'w must be integer in [10,4000]' };
+    }
+  }
+  if (partial.h !== undefined && partial.h !== null) {
+    const n = Number(partial.h);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 10 || n > 4000) {
+      return { ok: false, code: 'INVALID', message: 'h must be integer in [10,4000]' };
+    }
+  }
+  if (partial.layerName !== undefined && partial.layerName !== null) {
+    if (typeof partial.layerName !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'layerName must be string' };
+    }
+    if ([...partial.layerName].length > 200) {
+      return { ok: false, code: 'INVALID', message: 'layerName too long (>200 code points)' };
+    }
+  }
+
+  // ── before 스냅샷 (mutate 전, undo 푸시 전) ──
+  const before = {
+    svg:       block.dataset.svg,
+    color:     block.dataset.color,
+    w:         block.dataset.w,
+    h:         block.dataset.h,
+    layerName: block.dataset.layerName,
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  if (partial.svg !== undefined && partial.svg !== null) {
+    block.dataset.svg = String(partial.svg);
+    applied.svg = block.dataset.svg;
+  }
+  if (partial.color !== undefined && partial.color !== null) {
+    block.dataset.color = String(partial.color).trim();
+    applied.color = block.dataset.color;
+  }
+  if (partial.w !== undefined && partial.w !== null) {
+    block.dataset.w = String(Number(partial.w));
+    applied.w = Number(partial.w);
+  }
+  if (partial.h !== undefined && partial.h !== null) {
+    block.dataset.h = String(Number(partial.h));
+    applied.h = Number(partial.h);
+  }
+  let layerNameChanged = false;
+  if (partial.layerName !== undefined && partial.layerName !== null) {
+    const ln = String(partial.layerName).trim() || 'Vector';
+    block.dataset.layerName = ln;
+    applied.layerName = ln;
+    layerNameChanged = true;
+  }
+
+  // ── 재렌더 (svg/color/w/h 어느 것이 바뀌어도 idempotent) ──
+  try {
+    if (typeof window.renderVector === 'function') {
+      window.renderVector(block);
+    } else {
+      renderVector(block);
+    }
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  // ── 레이어 패널 (layerName 바뀐 경우) ──
+  if (layerNameChanged) {
+    try { window.buildLayerPanel?.(); } catch (_) {}
+  }
+
+  try { window.scheduleAutoSave?.(); } catch (_) {}
+
+  return { ok: true, blockId, before, applied };
+}
+
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeVectorBlock = makeVectorBlock;
 window.addVectorBlock  = addVectorBlock;
 window.renderVector    = renderVector;
+window.updateVectorBlock = updateVectorBlock;
 
-export { makeVectorBlock, addVectorBlock, renderVector };
+export { makeVectorBlock, addVectorBlock, updateVectorBlock, renderVector };

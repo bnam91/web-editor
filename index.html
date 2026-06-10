@@ -11,6 +11,8 @@
 <link rel="stylesheet" href="css/editor-props.css">
 <link rel="stylesheet" href="css/color-picker.css">
 <link rel="stylesheet" href="css/editor-blocks.css">
+<link rel="stylesheet" href="css/editor-toast.css">
+<link rel="stylesheet" href="css/editor-graph.css">
 <link rel="stylesheet" href="css/editor-extra.css">
 <link rel="stylesheet" href="css/settings-modal.css">
 <link rel="stylesheet" href="css/ai-image.css">
@@ -563,6 +565,7 @@
       <button class="fp-menu-item" onclick="addAssetBlock('small');toggleFpDropdown('fp-asset-dropdown')">Object</button>
       <button class="fp-menu-item" onclick="addAssetBlock('logo');toggleFpDropdown('fp-asset-dropdown')">Logo</button>
       <button class="fp-menu-item" onclick="addIconCircleBlock();toggleFpDropdown('fp-asset-dropdown')">Circle</button>
+      <button class="fp-menu-item" onclick="addIconifyBlock('', '', 64);toggleFpDropdown('fp-asset-dropdown')">Icon</button>
     </div>
   </div>
   <div class="fp-dropdown" id="fp-shape-dropdown">
@@ -1127,9 +1130,12 @@
 <script src="js/claude-pm/terminal-panel.js"></script>
 <script src="js/canvas-state.js"></script>
 <script src="js/section-memo.js"></script>
+<script src="js/section-protection.js"></script>
+<script src="js/section-cleanup.js"></script>
 <script type="module" src="js/annotation-tool.js"></script>
 <script src="js/annotation-select.js"></script>
 <script src="js/sticker-select.js"></script>
+<script src="js/asset-rotate.js"></script>
 <script type="module" src="js/gradient-select.js"></script>
 <script type="module" src="js/gradient-line-overlay.js"></script>
 <script src="js/alt-click-layer-select.js"></script>

@@ -121,9 +121,184 @@ function addGradientBlock(opts = {}) {
   return block;
 }
 
+// ── 수정 ──────────────────────────────────────────────────────────────────────
+// PM의 update_gradient_block(MCP) → main(_invokeRendererUpdateGradientBlock) → 여기.
+// banner02 updateBanner02Block 패턴 미러: NOT_FOUND/INVALID 검증 + before snapshot + pushHistory +
+//   dataset partial write + renderGradientBlock 재렌더 + showGradientProperties 갱신 + scheduleAutoSave.
+// 지원 필드 (data-* 매핑):
+//   - style → gradStyle (linear|radial)
+//   - direction → gradDirection (8방향, linear 전용)
+//   - startColor → gradStart (#RRGGBB만 — _hexToRgba 안전성)
+//   - endColor   → gradEnd   (#RRGGBB만)
+//   - startAlpha → gradStartAlpha (0~1 float)
+//   - endAlpha   → gradEndAlpha   (0~1 float)
+//   - width  → gradWidth  (200~1200 px)
+//   - height → gradHeight (50~1500 px)
+//   - x, y (섹션 기준 좌표, -4000~4000)
+//   - layerName (≤100)
+function updateGradientBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('gradient-block') || block.dataset.type !== 'gradient') {
+    return { ok: false, code: 'NOT_FOUND', message: `gradient-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial is empty — provide at least one field' };
+  }
+
+  // ── 동시수정 가드 (USER_BUSY) ───────────────────────────────────────────────
+  // banner02 패턴: contenteditable / INPUT / TEXTAREA 활성 + 최근 키입력 1.5s 이내면 후퇴.
+  try {
+    const ae = document.activeElement;
+    const userEditing = !!(ae && (
+      ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+    ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+    const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+    if (userEditing || recentKey) {
+      return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+    }
+  } catch (_) { /* guard 실패는 무시 */ }
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+  const _HEX6 = /^#[0-9a-fA-F]{6}$/;
+  const _STYLES = ['linear', 'radial'];
+  const _DIRS = ['to bottom','to top','to right','to left','to bottom right','to bottom left','to top right','to top left'];
+
+  // before snapshot (mutate 전, pushHistory 전)
+  const before = { ...block.dataset };
+
+  // ── 1) 값 검증 (mutate 전 모두 검사 → 일부 fail시 부분반영 방지) ───────────
+  const writes = {}; // datasetKey -> stringValue
+  const applied = {};
+
+  if (partial.style !== undefined) {
+    if (!_STYLES.includes(partial.style)) {
+      return { ok: false, code: 'INVALID', message: `invalid style: ${partial.style}. allowed: ${_STYLES.join('|')}` };
+    }
+    writes.gradStyle = String(partial.style);
+    applied.style = partial.style;
+  }
+  if (partial.direction !== undefined) {
+    if (!_DIRS.includes(partial.direction)) {
+      return { ok: false, code: 'INVALID', message: `invalid direction: ${partial.direction}. allowed: ${_DIRS.join('|')}` };
+    }
+    writes.gradDirection = String(partial.direction);
+    applied.direction = partial.direction;
+  }
+  if (partial.startColor !== undefined) {
+    if (typeof partial.startColor !== 'string' || !_HEX6.test(partial.startColor)) {
+      return { ok: false, code: 'INVALID', message: `startColor must be #RRGGBB hex (got: ${partial.startColor})` };
+    }
+    writes.gradStart = partial.startColor;
+    applied.startColor = partial.startColor;
+  }
+  if (partial.endColor !== undefined) {
+    if (typeof partial.endColor !== 'string' || !_HEX6.test(partial.endColor)) {
+      return { ok: false, code: 'INVALID', message: `endColor must be #RRGGBB hex (got: ${partial.endColor})` };
+    }
+    writes.gradEnd = partial.endColor;
+    applied.endColor = partial.endColor;
+  }
+  if (partial.startAlpha !== undefined) {
+    const a = Number(partial.startAlpha);
+    if (!Number.isFinite(a) || a < 0 || a > 1) {
+      return { ok: false, code: 'INVALID', message: `startAlpha must be number 0~1 (got: ${partial.startAlpha})` };
+    }
+    writes.gradStartAlpha = String(a);
+    applied.startAlpha = a;
+  }
+  if (partial.endAlpha !== undefined) {
+    const a = Number(partial.endAlpha);
+    if (!Number.isFinite(a) || a < 0 || a > 1) {
+      return { ok: false, code: 'INVALID', message: `endAlpha must be number 0~1 (got: ${partial.endAlpha})` };
+    }
+    writes.gradEndAlpha = String(a);
+    applied.endAlpha = a;
+  }
+  if (partial.width !== undefined) {
+    const n = Number(partial.width);
+    if (!Number.isFinite(n) || n < 200 || n > 1200) {
+      return { ok: false, code: 'INVALID', message: `width must be 200~1200 (got: ${partial.width})` };
+    }
+    writes.gradWidth = String(Math.round(n));
+    applied.width = Math.round(n);
+  }
+  if (partial.height !== undefined) {
+    const n = Number(partial.height);
+    if (!Number.isFinite(n) || n < 50 || n > 1500) {
+      return { ok: false, code: 'INVALID', message: `height must be 50~1500 (got: ${partial.height})` };
+    }
+    writes.gradHeight = String(Math.round(n));
+    applied.height = Math.round(n);
+  }
+  if (partial.x !== undefined) {
+    const n = Number(partial.x);
+    if (!Number.isFinite(n) || n < -4000 || n > 4000) {
+      return { ok: false, code: 'INVALID', message: `x must be -4000~4000 (got: ${partial.x})` };
+    }
+    writes.x = String(Math.round(n));
+    applied.x = Math.round(n);
+  }
+  if (partial.y !== undefined) {
+    const n = Number(partial.y);
+    if (!Number.isFinite(n) || n < -4000 || n > 4000) {
+      return { ok: false, code: 'INVALID', message: `y must be -4000~4000 (got: ${partial.y})` };
+    }
+    writes.y = String(Math.round(n));
+    applied.y = Math.round(n);
+  }
+  if (partial.layerName !== undefined && partial.layerName !== null) {
+    if (typeof partial.layerName !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'layerName must be string' };
+    }
+    if ([...partial.layerName].length > 100) {
+      return { ok: false, code: 'INVALID', message: 'layerName too long (>100)' };
+    }
+    writes.layerName = partial.layerName;
+    applied.layerName = partial.layerName;
+  }
+
+  if (Object.keys(writes).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'no recognized fields in partial' };
+  }
+
+  // ── 2) pushHistory (변경 전 1회) ──────────────────────────────────────────
+  try { window.pushHistory?.('그라데이션 수정'); } catch (_) {}
+
+  // ── 3) dataset commit ─────────────────────────────────────────────────────
+  for (const [k, v] of Object.entries(writes)) {
+    block.dataset[k] = v;
+  }
+
+  // ── 4) 재렌더 ─────────────────────────────────────────────────────────────
+  try {
+    (window.renderGradientBlock || renderGradientBlock)(block);
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  // ── 5) 우측 패널 갱신 (선택 상태일 때만 — prop-gradient.js가 ID로 input 참조) ──
+  if (block.classList.contains('selected')) {
+    try { window.showGradientProperties?.(block); } catch (_) {}
+  }
+
+  // ── 6) 레이어 패널 (layerName 변경 가능성) ────────────────────────────────
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  // ── 7) autosave ───────────────────────────────────────────────────────────
+  try { window.scheduleAutoSave?.(); } catch (_) {}
+
+  const after = { ...block.dataset };
+  return { ok: true, blockId, before, applied, after };
+}
+
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeGradientBlock   = makeGradientBlock;
 window.addGradientBlock    = addGradientBlock;
 window.renderGradientBlock = renderGradientBlock;
+window.updateGradientBlock = updateGradientBlock;
 
-export { makeGradientBlock, addGradientBlock, renderGradientBlock, GRADIENT_DEFAULTS };
+export { makeGradientBlock, addGradientBlock, updateGradientBlock, renderGradientBlock, GRADIENT_DEFAULTS };

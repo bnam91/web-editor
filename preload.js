@@ -11,6 +11,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   duplicateProject: ({ sourceProjectId, newName }) =>
     ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName }),
 
+  // SVG Presets (사용자 자산 — 모든 프로젝트 공유)
+  svgPresets: {
+    list:   ()                           => ipcRenderer.invoke('svgPresets:list'),
+    read:   ({ category, file })         => ipcRenderer.invoke('svgPresets:read',   { category, file }),
+    save:   ({ category, name, svg })    => ipcRenderer.invoke('svgPresets:save',   { category, name, svg }),
+    delete: ({ category, file })         => ipcRenderer.invoke('svgPresets:delete', { category, file }),
+  },
+
   // Projects Meta — branches/commits/thumbnail 분리 저장
   saveProjectMeta: (projectId, metaData) => ipcRenderer.invoke('projects:save-meta', projectId, metaData),
   loadProjectMeta: (projectId)           => ipcRenderer.invoke('projects:load-meta', projectId),

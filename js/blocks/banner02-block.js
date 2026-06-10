@@ -25,6 +25,68 @@ const BANNER02_VARIANTS = {
 
 function _variant(key) { return BANNER02_VARIANTS[key] || BANNER02_VARIANTS.frame_8; }
 
+// ── 가변 텍스트 lines 모델 ──────────────────────────────────────────────────
+// dataset.lines = JSON.stringify([{kind, text, size, color, gapTop}, ...])
+// kind: 'label' | 'title' | 'sub' (자유 문자열도 허용 — 클래스명 bn2-{kind}로 매핑)
+// 기존 d.label/title/sub + d.labelSize/titleSize/subSize + d.labelColor/titleColor/subColor + d.gap1/gap2는
+// 1) 첫 render 시 lines 배열로 자동 migrate
+// 2) lines 배열의 첫 매칭 kind 항목에 동기화되어 유지 (이전 API/저장 포맷 호환)
+function _defaultLines(v) {
+  return [
+    { kind: 'label', text: '라벨입니다.',         size: v.labelSize, color: '#000000', gapTop: 0,      fontFamily: '', fontWeight: 400, letterSpacing: 0 },
+    { kind: 'title', text: '제목을 입력합니다.',    size: v.titleSize, color: '#000000', gapTop: v.gap1, fontFamily: '', fontWeight: 400, letterSpacing: 0 },
+    { kind: 'sub',   text: '캡션이 입력됩니다.',    size: v.subSize,   color: '#000000', gapTop: v.gap2, fontFamily: '', fontWeight: 400, letterSpacing: 0 },
+  ];
+}
+function _readLines(block) {
+  const d = block.dataset;
+  if (d.lines) {
+    try {
+      const arr = JSON.parse(d.lines);
+      if (Array.isArray(arr) && arr.length) return arr.map(_normLine);
+    } catch (_) {}
+  }
+  // legacy migrate
+  const v = _variant(d.variant);
+  const lines = [];
+  if (d.label !== undefined) lines.push(_normLine({ kind: 'label', text: d.label, size: d.labelSize, color: d.labelColor, gapTop: 0 }, v.labelSize));
+  if (d.title !== undefined) lines.push(_normLine({ kind: 'title', text: d.title, size: d.titleSize, color: d.titleColor, gapTop: d.gap1 ?? v.gap1 }, v.titleSize));
+  if (d.sub   !== undefined) lines.push(_normLine({ kind: 'sub',   text: d.sub,   size: d.subSize,   color: d.subColor,   gapTop: d.gap2 ?? v.gap2 }, v.subSize));
+  return lines.length ? lines : _defaultLines(v).map(_normLine);
+}
+// fontFamily 안전 정규화: CSS injection 차단 — 영숫자/공백/콤마/하이픈/괄호/점/언더스코어/single quote만 허용, 최대 100자
+function _safeFontFamily(s) {
+  if (typeof s !== 'string') return '';
+  const v = s.slice(0, 100);
+  if (v === '') return '';
+  // 허용 문자만 통과 — { ; } : @ " < > 등 차단
+  if (!/^[A-Za-z0-9 ,\-_().' -￿]+$/.test(v)) return '';
+  return v;
+}
+function _normLine(l, fallbackSize) {
+  return {
+    kind:    String(l?.kind || 'sub'),
+    text:    String(l?.text ?? ''),
+    size:    Number.isFinite(+l?.size) ? Math.max(4, Math.min(400, +l.size)) : (fallbackSize || 16),
+    color:   typeof l?.color === 'string' ? l.color : '#000000',
+    gapTop:  Number.isFinite(+l?.gapTop) ? Math.max(0, +l.gapTop) : 0,
+    fontFamily:    _safeFontFamily(l?.fontFamily),
+    fontWeight:    Number.isFinite(+l?.fontWeight) ? Math.max(100, Math.min(900, Math.round(+l.fontWeight))) : 400,
+    letterSpacing: Number.isFinite(+l?.letterSpacing) ? Math.max(-20, Math.min(50, +l.letterSpacing)) : 0,
+  };
+}
+function _writeLines(block, lines) {
+  const arr = (Array.isArray(lines) ? lines : []).map(_normLine);
+  block.dataset.lines = JSON.stringify(arr);
+  // legacy mirror — 첫 label/title/sub kind만 동기화 (이전 reader 호환)
+  const findFirst = k => arr.find(x => x.kind === k);
+  const lab = findFirst('label'), tit = findFirst('title'), sub = findFirst('sub');
+  if (lab) { block.dataset.label = lab.text; block.dataset.labelSize = String(lab.size); block.dataset.labelColor = lab.color; }
+  if (tit) { block.dataset.title = tit.text; block.dataset.titleSize = String(tit.size); block.dataset.titleColor = tit.color; block.dataset.gap1 = String(tit.gapTop); }
+  if (sub) { block.dataset.sub   = sub.text; block.dataset.subSize   = String(sub.size); block.dataset.subColor   = sub.color; block.dataset.gap2 = String(sub.gapTop); }
+  return arr;
+}
+
 // ── 렌더 ────────────────────────────────────────────────────────────────────
 function renderBanner02(block) {
   const d = block.dataset;
@@ -48,32 +110,52 @@ function renderBanner02(block) {
   inner.innerHTML = '';
   inner.style.cssText = `position:absolute;top:0;left:0;right:auto;bottom:auto;width:${designW}px;height:${designH}px;transform-origin:top left;`;
 
-  // 텍스트 영역 (라벨/제목/부제)
+  // 텍스트 영역 (가변 lines)
+  const lines = _readLines(block);
+  // 자동 migrate 결과를 dataset.lines에 저장 (다음 read 빠르게 + 저장 포맷 통일)
+  if (!d.lines) _writeLines(block, lines);
+
   const tx = document.createElement('div');
   tx.className = 'bn2-text';
   tx.style.cssText = `position:absolute;left:${parseInt(d.textX)||36}px;top:${parseInt(d.textY)||35}px;width:${parseInt(d.textW)||358}px;display:flex;flex-direction:column;align-items:${align==='center'?'center':align==='right'?'flex-end':'flex-start'};text-align:${align};`;
-  const mkLine = (cls, field, size, color, gapTop) => {
+  const mkLine = (line, idx) => {
     const el = document.createElement('div');
-    el.className = 'bn2-' + cls;
-    el.textContent = d[field] || '';
-    el.style.cssText = `font-size:${size}px;color:${color};line-height:1.25;width:100%;white-space:pre-wrap;word-break:break-word;${gapTop?`margin-top:${gapTop}px;`:''}`;
+    el.className = 'bn2-' + line.kind;
+    el.textContent = line.text;
+    const styleParts = [
+      `font-size:${line.size}px`,
+      `color:${line.color}`,
+      'line-height:1.25',
+      'width:100%',
+      'white-space:pre-wrap',
+      'word-break:break-word',
+    ];
+    if (line.gapTop)                                  styleParts.push(`margin-top:${line.gapTop}px`);
+    if (line.fontFamily)                              styleParts.push(`font-family:${line.fontFamily}`);
+    if (line.fontWeight && line.fontWeight !== 400)   styleParts.push(`font-weight:${line.fontWeight}`);
+    if (line.letterSpacing)                           styleParts.push(`letter-spacing:${line.letterSpacing}px`);
+    el.style.cssText = styleParts.join(';') + ';';
     el.setAttribute('contenteditable', 'false');
-    el.dataset.field = field;
+    el.dataset.lineIdx = String(idx);
+    el.dataset.kind = line.kind;
     el.addEventListener('dblclick', e => {
       e.stopPropagation();
       el.setAttribute('contenteditable', 'true'); el.focus();
     });
     el.addEventListener('blur', () => {
       el.setAttribute('contenteditable', 'false');
-      block.dataset[field] = el.textContent;
-      window.pushHistory?.(); window.scheduleAutoSave?.();
-      if (block.classList.contains('selected')) window.showBanner02Properties?.(block);
+      const cur = _readLines(block);
+      const i = parseInt(el.dataset.lineIdx);
+      if (Number.isInteger(i) && cur[i]) {
+        cur[i].text = el.textContent;
+        _writeLines(block, cur);
+        window.pushHistory?.(); window.scheduleAutoSave?.();
+        if (block.classList.contains('selected')) window.showBanner02Properties?.(block);
+      }
     });
     return el;
   };
-  tx.appendChild(mkLine('label', 'label', parseInt(d.labelSize)||24, d.labelColor||'#000000', 0));
-  tx.appendChild(mkLine('title', 'title', parseInt(d.titleSize)||42, d.titleColor||'#000000', parseInt(d.gap1)||5));
-  tx.appendChild(mkLine('sub',   'sub',   parseInt(d.subSize)||16, d.subColor||'#000000', parseInt(d.gap2)||10));
+  lines.forEach((line, i) => tx.appendChild(mkLine(line, i)));
   inner.appendChild(tx);
 
   // 이미지 영역
@@ -235,24 +317,99 @@ function updateBanner02Block(blockId, partial = {}) {
   if (partial.textY !== undefined) { if (_setNum('textY', partial.textY, -4000, 4000)) applied.textY = Number(partial.textY); }
   if (partial.textW !== undefined) { if (_setNum('textW', partial.textW, 20, 4000))    applied.textW = Number(partial.textW); }
 
-  // 4) 텍스트 콘텐츠/스타일 (renderBanner02가 textContent로 박으므로 XSS-safe)
-  const _setStr = (datasetKey, value, maxLen) => {
-    const s = String(value);
-    if (maxLen !== undefined && [...s].length > maxLen) return null;
-    block.dataset[datasetKey] = s;
-    return s;
+  // 4) 텍스트 콘텐츠/스타일 — 가변 lines 모델
+  //    a) 신규 partial (권장): lines / addLine / removeLine / editLine
+  //    b) 레거시 partial (호환): label/title/sub + 사이즈/색상/gap1/gap2 → 첫 매칭 kind의 line에 반영
+  let lines = _readLines(block);
+  const _findIdx = (kind, occurrence = 1) => {
+    let seen = 0;
+    for (let i = 0; i < lines.length; i++) if (lines[i].kind === kind) { seen++; if (seen === occurrence) return i; }
+    return -1;
   };
-  if (partial.label      !== undefined && partial.label !== null)      { const v = _setStr('label',      partial.label,      500); if (v !== null) applied.label = v; }
-  if (partial.title      !== undefined && partial.title !== null)      { const v = _setStr('title',      partial.title,      500); if (v !== null) applied.title = v; }
-  if (partial.sub        !== undefined && partial.sub !== null)        { const v = _setStr('sub',        partial.sub,        500); if (v !== null) applied.sub = v; }
-  if (partial.labelSize  !== undefined) { if (_setNum('labelSize',  partial.labelSize,  4, 400)) applied.labelSize  = Number(partial.labelSize); }
-  if (partial.titleSize  !== undefined) { if (_setNum('titleSize',  partial.titleSize,  4, 400)) applied.titleSize  = Number(partial.titleSize); }
-  if (partial.subSize    !== undefined) { if (_setNum('subSize',    partial.subSize,    4, 400)) applied.subSize    = Number(partial.subSize); }
-  if (partial.labelColor !== undefined && partial.labelColor !== null) { block.dataset.labelColor = String(partial.labelColor); applied.labelColor = block.dataset.labelColor; }
-  if (partial.titleColor !== undefined && partial.titleColor !== null) { block.dataset.titleColor = String(partial.titleColor); applied.titleColor = block.dataset.titleColor; }
-  if (partial.subColor   !== undefined && partial.subColor !== null)   { block.dataset.subColor   = String(partial.subColor);   applied.subColor   = block.dataset.subColor; }
-  if (partial.gap1 !== undefined) { if (_setNum('gap1', partial.gap1, 0, 400)) applied.gap1 = Number(partial.gap1); }
-  if (partial.gap2 !== undefined) { if (_setNum('gap2', partial.gap2, 0, 400)) applied.gap2 = Number(partial.gap2); }
+
+  // 4-a) 신규 partial
+  if (partial.lines !== undefined) {
+    if (!Array.isArray(partial.lines)) return { ok: false, code: 'INVALID', message: 'lines must be array' };
+    if (partial.lines.length === 0)    return { ok: false, code: 'INVALID', message: 'lines must have at least 1 item' };
+    if (partial.lines.length > 20)     return { ok: false, code: 'INVALID', message: 'lines too many (>20)' };
+    lines = partial.lines.map(_normLine);
+    applied.lines = lines;
+  }
+  if (partial.addLine !== undefined && partial.addLine !== null) {
+    const a = partial.addLine;
+    if (typeof a !== 'object') return { ok: false, code: 'INVALID', message: 'addLine must be object' };
+    if (lines.length >= 20)    return { ok: false, code: 'INVALID', message: 'lines limit reached (20)' };
+    const newLine = _normLine(a);
+    const at = Number.isInteger(a.atIndex) ? Math.max(0, Math.min(lines.length, a.atIndex)) : lines.length;
+    lines.splice(at, 0, newLine);
+    applied.addLine = { ...newLine, atIndex: at };
+  }
+  if (partial.removeLine !== undefined && partial.removeLine !== null) {
+    const r = partial.removeLine;
+    let idx = -1;
+    if (typeof r === 'number') idx = r;
+    else if (typeof r === 'object' && Number.isInteger(r.index)) idx = r.index;
+    else if (typeof r === 'object' && typeof r.kind === 'string') idx = _findIdx(r.kind, r.occurrence || 1);
+    if (idx < 0 || idx >= lines.length) return { ok: false, code: 'NOT_FOUND', message: `removeLine target not found: ${JSON.stringify(r)}` };
+    if (lines.length <= 1)              return { ok: false, code: 'INVALID', message: 'cannot remove last remaining line' };
+    const removed = lines.splice(idx, 1)[0];
+    applied.removeLine = { index: idx, removed };
+  }
+  if (partial.editLine !== undefined && partial.editLine !== null) {
+    const e = partial.editLine;
+    if (typeof e !== 'object') return { ok: false, code: 'INVALID', message: 'editLine must be object' };
+    let idx = Number.isInteger(e.index) ? e.index : (typeof e.kind === 'string' ? _findIdx(e.kind, e.occurrence || 1) : -1);
+    if (idx < 0 || idx >= lines.length) return { ok: false, code: 'NOT_FOUND', message: `editLine target not found: ${JSON.stringify(e)}` };
+    const cur = lines[idx];
+    const merged = _normLine({
+      kind:          e.kind          !== undefined ? e.kind          : cur.kind,
+      text:          e.text          !== undefined ? e.text          : cur.text,
+      size:          e.size          !== undefined ? e.size          : cur.size,
+      color:         e.color         !== undefined ? e.color         : cur.color,
+      gapTop:        e.gapTop        !== undefined ? e.gapTop        : cur.gapTop,
+      fontFamily:    e.fontFamily    !== undefined ? e.fontFamily    : cur.fontFamily,
+      fontWeight:    e.fontWeight    !== undefined ? e.fontWeight    : cur.fontWeight,
+      letterSpacing: e.letterSpacing !== undefined ? e.letterSpacing : cur.letterSpacing,
+    });
+    lines[idx] = merged;
+    applied.editLine = { index: idx, ...merged };
+  }
+
+  // 4-b) 레거시 partial (label/title/sub 직접) — 첫 매칭 kind에 반영. 없으면 append.
+  const _legacyLine = (kind, textKey, sizeKey, colorKey, gapKey, vSize, vGap) => {
+    const hasAny = partial[textKey] !== undefined || partial[sizeKey] !== undefined || partial[colorKey] !== undefined || partial[gapKey] !== undefined;
+    if (!hasAny) return;
+    let idx = _findIdx(kind);
+    if (idx < 0) {
+      // append new line of this kind
+      lines.push(_normLine({ kind, text: partial[textKey] ?? '', size: partial[sizeKey] ?? vSize, color: partial[colorKey] ?? '#000000', gapTop: partial[gapKey] ?? vGap }));
+      idx = lines.length - 1;
+    } else {
+      const cur = lines[idx];
+      lines[idx] = _normLine({
+        kind: cur.kind,
+        text:   partial[textKey]  !== undefined && partial[textKey]  !== null ? String(partial[textKey])  : cur.text,
+        size:   partial[sizeKey]  !== undefined ? Number(partial[sizeKey])  : cur.size,
+        color:  partial[colorKey] !== undefined && partial[colorKey] !== null ? String(partial[colorKey]) : cur.color,
+        gapTop: partial[gapKey]   !== undefined ? Number(partial[gapKey])   : cur.gapTop,
+        // 새 폰트 필드는 legacy partial로 안 들어오므로 cur 값 보존
+        fontFamily:    cur.fontFamily,
+        fontWeight:    cur.fontWeight,
+        letterSpacing: cur.letterSpacing,
+      });
+    }
+    if (partial[textKey]  !== undefined && partial[textKey]  !== null) applied[textKey]  = lines[idx].text;
+    if (partial[sizeKey]  !== undefined) applied[sizeKey]  = lines[idx].size;
+    if (partial[colorKey] !== undefined && partial[colorKey] !== null) applied[colorKey] = lines[idx].color;
+    if (partial[gapKey]   !== undefined) applied[gapKey]   = lines[idx].gapTop;
+  };
+  const _v = _variant(block.dataset.variant);
+  _legacyLine('label', 'label', 'labelSize', 'labelColor', 'gap0', _v.labelSize, 0);          // gap0은 사실상 미사용 — label은 첫 줄
+  _legacyLine('title', 'title', 'titleSize', 'titleColor', 'gap1', _v.titleSize, _v.gap1);
+  _legacyLine('sub',   'sub',   'subSize',   'subColor',   'gap2', _v.subSize,   _v.gap2);
+
+  // lines 변경 사항을 dataset에 한 번에 commit
+  _writeLines(block, lines);
 
   // 5) 이미지 — imgSrc는 renderBanner02에서 url("...") template에 들어가므로 escape 필요
   if (partial.imgSrc !== undefined && partial.imgSrc !== null) {
@@ -319,5 +476,6 @@ window.addBanner02Block    = addBanner02Block;
 window.updateBanner02Block = updateBanner02Block;
 window.renderBanner02      = renderBanner02;
 window.BANNER02_VARIANTS   = BANNER02_VARIANTS;
+window._bn2Lines = { read: _readLines, write: _writeLines, normalize: _normLine, defaults: _defaultLines };
 
 export { makeBanner02Block, addBanner02Block, updateBanner02Block, renderBanner02, BANNER02_VARIANTS };

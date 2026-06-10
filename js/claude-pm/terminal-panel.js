@@ -804,4 +804,41 @@
   window.minimizeClaudePMTerminalPanel = minimizeClaudePMTerminalPanel;
   window.restoreClaudePMTerminalPanel  = restoreClaudePMTerminalPanel;
   window._claudePMTerminalOnProjectChange = onProjectChange;
+
+  // CDP 등 외부에서 활성 PM 터미널에 프롬프트를 보낼 때 사용
+  window.claudePMSendPrompt = async function (text, projectId, opts) {
+    const pid = projectId || _activeProjectId;
+    if (!pid) return { ok: false, error: '활성 프로젝트 없음' };
+    const st = _projectStates[pid];
+    if (!st || !st.sessionId) return { ok: false, error: `세션 없음 (project=${pid})` };
+    if (!window.electronAPI?.claudePMTerminalWrite) return { ok: false, error: 'preload 브리지 없음' };
+    const submitDelay = (opts && typeof opts.submitDelayMs === 'number') ? opts.submitDelayMs : 200;
+    const body = String(text ?? '');
+    await window.electronAPI.claudePMTerminalWrite(st.sessionId, body);
+    if (submitDelay > 0) await new Promise(r => setTimeout(r, submitDelay));
+    await window.electronAPI.claudePMTerminalWrite(st.sessionId, '\r');
+    return { ok: true, projectId: pid, sessionId: st.sessionId, length: body.length, submitDelay };
+  };
+  window.claudePMListSessions = function () {
+    return Object.keys(_projectStates).map(pid => ({
+      projectId: pid,
+      sessionId: _projectStates[pid]?.sessionId || null,
+      active: pid === _activeProjectId,
+    }));
+  };
+  // xterm 버퍼 덤프(가시영역 위주). lines 생략 시 전체 buffer.
+  window.claudePMDumpBuffer = function (projectId, lines) {
+    const pid = projectId || _activeProjectId;
+    const st = _projectStates[pid];
+    if (!st || !st.term) return { ok: false, error: '터미널 없음' };
+    const buf = st.term.buffer.active;
+    const total = buf.length;
+    const take = Math.min(total, lines || total);
+    const out = [];
+    for (let i = total - take; i < total; i++) {
+      const line = buf.getLine(i);
+      if (line) out.push(line.translateToString(true));
+    }
+    return { ok: true, projectId: pid, sessionId: st.sessionId, lines: out.length, text: out.join('\n') };
+  };
 })();

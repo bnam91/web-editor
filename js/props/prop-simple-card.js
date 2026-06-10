@@ -23,6 +23,9 @@ function showSimpleCardProperties(block) {
   const padX      = parseInt(block.dataset.padX ?? 0);
   const imgShape  = block.dataset.imgShape || 'rect';
   const labelPos  = block.dataset.labelPos || 'bottom';
+  const overlayHeight = parseInt(block.dataset.overlayHeight) || 140;
+  const overlayWidth  = Math.min(100, Math.max(10, parseInt(block.dataset.overlayWidth) || 100));
+  const isOverlay = labelPos.startsWith('overlay-');
   const iconMode  = block.dataset.iconMode === 'true';
   const iconScale = Math.min(90, Math.max(10, parseInt(block.dataset.iconScale) || 46));
   const iconColor = block.dataset.iconColor || '#333333';
@@ -113,8 +116,17 @@ function showSimpleCardProperties(block) {
         </div>
       </div>
       <div class="prop-row">
+        <span class="prop-label">라벨 모드</span>
+        <div class="prop-align-group" id="cvb-label-mode-group">
+          <button class="prop-align-btn${(!isOverlay && !textHide) ? ' active' : ''}" data-mode="separate" title="분리 박스 — 이미지와 텍스트가 별도 영역">분리</button>
+          <button class="prop-align-btn${(isOverlay && !textHide) ? ' active' : ''}" data-mode="overlay" title="오버레이 — 이미지 위에 텍스트가 떠 있음 (그라데이션용)">오버레이</button>
+          <button class="prop-align-btn${textHide ? ' active' : ''}" data-mode="hide" title="숨김 — 텍스트 영역 없이 이미지만 표시">숨김</button>
+        </div>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">라벨 위치</span>
-        <div class="prop-align-group" id="cvb-label-pos-group">
+        <div class="prop-align-group" id="cvb-label-pos-group" data-mode="${isOverlay ? 'overlay' : 'separate'}">
+          ${!isOverlay ? `
           <button class="prop-align-btn${labelPos === 'top' ? ' active' : ''}" data-pos="top" title="라벨 위">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="3.5" fill="currentColor"/><rect x="2" y="6.5" width="12" height="7.5"/></svg>
           </button>
@@ -124,7 +136,42 @@ function showSimpleCardProperties(block) {
           <button class="prop-align-btn${labelPos === 'both' ? ' active' : ''}" data-pos="both" title="라벨 위+아래">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="2.5" fill="currentColor"/><rect x="2" y="5.5" width="12" height="5"/><rect x="2" y="11.5" width="12" height="2.5" fill="currentColor"/></svg>
           </button>
+          ` : `
+          <button class="prop-align-btn${labelPos === 'overlay-top' ? ' active' : ''}" data-pos="overlay-top" title="위쪽 오버레이">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="12"/><rect x="2" y="2" width="12" height="3.5" fill="currentColor" opacity="0.7"/></svg>
+          </button>
+          <button class="prop-align-btn${labelPos === 'overlay-bottom' ? ' active' : ''}" data-pos="overlay-bottom" title="아래쪽 오버레이">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="12"/><rect x="2" y="10.5" width="12" height="3.5" fill="currentColor" opacity="0.7"/></svg>
+          </button>
+          <button class="prop-align-btn${labelPos === 'overlay-center' ? ' active' : ''}" data-pos="overlay-center" title="중앙 오버레이">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="12"/><rect x="2" y="6.5" width="12" height="3" fill="currentColor" opacity="0.7"/></svg>
+          </button>
+          `}
         </div>
+      </div>
+      <div class="prop-row" id="cvb-overlay-h-row" style="display:${isOverlay ? 'flex' : 'none'}">
+        <span class="prop-label">오버레이 높이</span>
+        <input type="range" class="prop-slider" id="cvb-overlay-h-slider" min="40" max="400" step="4" value="${overlayHeight}">
+        <input type="number" class="prop-number" id="cvb-overlay-h-number" min="40" max="400" value="${overlayHeight}">
+      </div>
+      <div class="prop-row" id="cvb-overlay-w-row" style="display:${isOverlay ? 'flex' : 'none'}">
+        <span class="prop-label">오버레이 너비</span>
+        <input type="range" class="prop-slider" id="cvb-overlay-w-slider" min="10" max="100" step="1" value="${overlayWidth}">
+        <input type="number" class="prop-number" id="cvb-overlay-w-number" min="10" max="100" value="${overlayWidth}">
+      </div>
+      <div class="prop-color-row">
+        <span class="prop-label">라벨 배경</span>
+        <div class="prop-color-swatch" id="cvb-text-bg-swatch" style="background:${(block.dataset.textBg || 'transparent').replace(/"/g, '&quot;')}" title="클릭해서 단색 선택">
+          <input type="color" id="cvb-text-bg-pick" value="${/^#[0-9a-fA-F]{6}$/.test(block.dataset.textBg || '') ? block.dataset.textBg : '#222222'}">
+        </div>
+        <input type="text" class="prop-color-hex" id="cvb-text-bg-raw" value="${(block.dataset.textBg || '').replace(/"/g, '&quot;')}" placeholder="hex / rgba / linear-gradient(...)" title="${(block.dataset.textBg || '').replace(/"/g, '&quot;')}">
+      </div>
+      <div class="prop-row" style="padding-left:60px;gap:4px;">
+        <span class="prop-label" style="font-size:10px;color:var(--ui-text-sub);min-width:0;flex:0 0 auto;margin-right:4px;">그라데이션</span>
+        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(180deg, transparent, rgba(0,0,0,0.85))" title="아래로 어두워짐" style="flex:1;background:linear-gradient(180deg, transparent, rgba(0,0,0,0.85));color:#fff;text-shadow:0 0 2px #000;height:24px;">↓</button>
+        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(0deg, transparent, rgba(0,0,0,0.85))" title="위로 어두워짐" style="flex:1;background:linear-gradient(0deg, transparent, rgba(0,0,0,0.85));color:#fff;text-shadow:0 0 2px #000;height:24px;">↑</button>
+        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.95))" title="아래 강조" style="flex:1;background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.95));color:#fff;text-shadow:0 0 2px #000;height:24px;">⇊</button>
+        <button class="prop-align-btn cvb-grad-preset" data-grad="rgba(0,0,0,0.5)" title="반투명 검정" style="flex:1;background:rgba(0,0,0,0.5);color:#fff;height:24px;">半</button>
       </div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
@@ -159,10 +206,7 @@ function showSimpleCardProperties(block) {
     </div>` : ''}
 
     <div class="prop-section">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div class="prop-section-title" style="margin-bottom:0;">Text Area</div>
-        <button class="prop-align-btn${textHide ? ' active' : ''}" id="cvb-text-hide-btn" style="flex:0 0 auto;width:auto;height:24px;padding:0 10px;font-size:11px;">숨김</button>
-      </div>
+      <div class="prop-section-title">Text Area</div>
       <div id="cvb-text-area-controls" style="${textHide ? 'opacity:0.35;pointer-events:none;' : ''}">
       <div class="prop-color-row">
         <span class="prop-label">배경색 (일괄)</span>
@@ -318,15 +362,141 @@ function showSimpleCardProperties(block) {
     });
   });
 
-  // ── 라벨 위치 (위/아래/둘 다) ────────────────────────────────────────────────
+  // ── 라벨 모드 (분리 vs 오버레이) — 모드 바꾸면 prop UI 재렌더 ───────────────────
+  const modeGroup = document.getElementById('cvb-label-mode-group');
+  const overlayHRow = document.getElementById('cvb-overlay-h-row');
+  modeGroup?.querySelectorAll('.prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const newMode = btn.dataset.mode;
+      const currentPos = block.dataset.labelPos || 'bottom';
+      const wasOverlay = currentPos.startsWith('overlay-');
+      // hide 모드 — textHide=true. 다른 모드면 textHide=false
+      const overlayWRow = document.getElementById('cvb-overlay-w-row');
+      if (newMode === 'hide') {
+        block.dataset.textHide = 'true';
+        // hide 모드면 overlay-h/w-row 강제 숨김
+        if (overlayHRow) overlayHRow.style.display = 'none';
+        if (overlayWRow) overlayWRow.style.display = 'none';
+      } else {
+        block.dataset.textHide = 'false';
+        // 모드 변경 시 labelPos 매핑: separate↔overlay 적절 기본값
+        if (newMode === 'overlay' && !wasOverlay) {
+          const bare = currentPos === 'both' ? 'bottom' : currentPos;
+          block.dataset.labelPos = 'overlay-' + bare;
+        } else if (newMode === 'separate' && wasOverlay) {
+          const bare = currentPos.replace('overlay-', '').replace('center', 'bottom');
+          block.dataset.labelPos = bare;
+        }
+      }
+      window.renderCanvas(block);
+      window.pushHistory?.('라벨 모드');
+      window.scheduleAutoSave?.();
+      // prop UI 재렌더 (위치 버튼이 모드에 따라 달라지므로)
+      window.showSimpleCardProperties(block);
+    });
+  });
+
+  // ── 라벨 위치 (모드에 맞는 옵션 중 선택) ────────────────────────────────────────
   const posGroup = document.getElementById('cvb-label-pos-group');
   posGroup?.querySelectorAll('.prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const pos = btn.dataset.pos;
       posGroup.querySelectorAll('.prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
       block.dataset.labelPos = pos;
+      const overlayOn = pos.startsWith('overlay-');
+      if (overlayHRow) overlayHRow.style.display = overlayOn ? 'flex' : 'none';
+      const owRow = document.getElementById('cvb-overlay-w-row');
+      if (owRow) owRow.style.display = overlayOn ? 'flex' : 'none';
       window.renderCanvas(block);
       window.pushHistory?.('라벨 위치');
+      window.scheduleAutoSave?.();
+    });
+  });
+
+  // ── 오버레이 높이 ────────────────────────────────────────────────
+  const ohSlider = document.getElementById('cvb-overlay-h-slider');
+  const ohNumber = document.getElementById('cvb-overlay-h-number');
+  if (ohSlider) {
+    const applyOH = v => {
+      v = Math.min(400, Math.max(40, v));
+      block.dataset.overlayHeight = v;
+      window.renderCanvas(block);
+      ohSlider.value = v; ohNumber.value = v;
+    };
+    ohSlider.addEventListener('input',  () => applyOH(parseInt(ohSlider.value)));
+    ohNumber.addEventListener('change', () => { applyOH(parseInt(ohNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    ohSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  }
+  // ── 오버레이 너비(%) ────────────────────────────────────────────────
+  const owSlider = document.getElementById('cvb-overlay-w-slider');
+  const owNumber = document.getElementById('cvb-overlay-w-number');
+  if (owSlider) {
+    const applyOW = v => {
+      v = Math.min(100, Math.max(10, v));
+      block.dataset.overlayWidth = v;
+      window.renderCanvas(block);
+      owSlider.value = v; owNumber.value = v;
+    };
+    owSlider.addEventListener('input',  () => applyOW(parseInt(owSlider.value)));
+    owNumber.addEventListener('change', () => { applyOW(parseInt(owNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    owSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  }
+
+  // ── 라벨 배경 raw CSS (그라데이션/rgba 등 임의 입력) ────────────────────────
+  // sanitize: <>"' 문자, javascript:/data:image/svg+xml inline, expression() 등 XSS 벡터 차단
+  const sanitizeCss = (s) => {
+    if (!s) return '';
+    if (/[<>"]/.test(s)) return '';
+    if (/javascript\s*:/i.test(s)) return '';
+    if (/expression\s*\(/i.test(s)) return '';
+    if (/<\s*script/i.test(s)) return '';
+    if (/onerror|onclick|onload|onfocus/i.test(s)) return '';
+    return s;
+  };
+  const textBgRaw = document.getElementById('cvb-text-bg-raw');
+  const textBgSwatch = document.getElementById('cvb-text-bg-swatch');
+  const textBgPick2 = document.getElementById('cvb-text-bg-pick');
+  const syncSwatch = (v) => { if (textBgSwatch) textBgSwatch.style.background = v || 'transparent'; };
+  if (textBgRaw) {
+    // 실시간 preview (input 이벤트) — swatch만 갱신 (render는 change에서)
+    textBgRaw.addEventListener('input', () => syncSwatch(sanitizeCss(textBgRaw.value.trim())));
+    textBgRaw.addEventListener('change', () => {
+      const raw = textBgRaw.value.trim();
+      const v = sanitizeCss(raw);
+      if (raw && !v) {
+        textBgRaw.value = '';
+        syncSwatch('');
+        return;
+      }
+      if (v) block.dataset.textBg = v;
+      else delete block.dataset.textBg;
+      syncSwatch(v);
+      textBgRaw.title = v;
+      window.renderCanvas(block);
+      window.pushHistory?.('라벨 배경');
+      window.scheduleAutoSave?.();
+    });
+  }
+  // swatch 컬러 picker — 단색만 선택. 그라데이션 입력 상태에서 picker로 단색 선택 시 raw input도 hex로 동기화
+  if (textBgPick2) {
+    textBgPick2.addEventListener('input', () => {
+      const v = textBgPick2.value;
+      block.dataset.textBg = v;
+      if (textBgRaw) { textBgRaw.value = v; textBgRaw.title = v; }
+      syncSwatch(v);
+      window.renderCanvas(block);
+    });
+    textBgPick2.addEventListener('change', () => window.pushHistory?.('라벨 배경'));
+  }
+  // 그라데이션 preset 버튼 — 클릭 시 자동 입력
+  document.querySelectorAll('.cvb-grad-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const grad = btn.dataset.grad;
+      block.dataset.textBg = grad;
+      if (textBgRaw) { textBgRaw.value = grad; textBgRaw.title = grad; }
+      syncSwatch(grad);
+      window.renderCanvas(block);
+      window.pushHistory?.('라벨 배경 그라데이션');
       window.scheduleAutoSave?.();
     });
   });
@@ -411,23 +581,25 @@ function showSimpleCardProperties(block) {
     ibHex.addEventListener('change',  () => { const v = ibHex.value.trim(); if (/^#[0-9a-fA-F]{6}$/.test(v)) { applyIconBg(v); window.pushHistory?.(); } });
   }
 
-  // ── 텍스트 영역 숨김 토글 ────────────────────────────────────────────────────
+  // ── 텍스트 영역 숨김 토글 (구 버튼 — label-mode-group의 'hide'로 이관됨. legacy 호환 유지) ──
   const textHideBtn     = document.getElementById('cvb-text-hide-btn');
   const textAreaControls = document.getElementById('cvb-text-area-controls');
-  textHideBtn.addEventListener('click', () => {
+  textHideBtn?.addEventListener('click', () => {
     const on = !textHideBtn.classList.contains('active');
     block.dataset.textHide = String(on);
     window.renderCanvas(block);
     window.pushHistory?.();
     textHideBtn.classList.toggle('active', on);
-    textAreaControls.style.opacity = on ? '0.35' : '';
-    textAreaControls.style.pointerEvents = on ? 'none' : '';
+    if (textAreaControls) {
+      textAreaControls.style.opacity = on ? '0.35' : '';
+      textAreaControls.style.pointerEvents = on ? 'none' : '';
+    }
   });
 
   // ── 텍스트 배경색 (일괄) ─────────────────────────────────────────────────────
   const textBgPick  = document.getElementById('cvb-textbg-pick');
   const textBgHex   = document.getElementById('cvb-textbg-hex');
-  const textBgSwatch = textBgPick.closest('.prop-color-swatch');
+  const textBgPickSwatch = textBgPick?.closest('.prop-color-swatch');
   const textBgTransBtn = document.getElementById('cvb-textbg-transparent-btn');
 
   const setTextBgTransparentUI = on => {
@@ -436,15 +608,15 @@ function showSimpleCardProperties(block) {
     textBgHex.disabled  = on;
     if (on) {
       textBgHex.value = 'transparent';
-      textBgSwatch.style.background = '';
-      textBgSwatch.style.backgroundImage = 'repeating-conic-gradient(#888 0% 25%,#555 0% 50%)';
-      textBgSwatch.style.backgroundSize = '8px 8px';
+      textBgPickSwatch.style.background = '';
+      textBgPickSwatch.style.backgroundImage = 'repeating-conic-gradient(#888 0% 25%,#555 0% 50%)';
+      textBgPickSwatch.style.backgroundSize = '8px 8px';
     } else {
       const v = block.dataset.textBgLast || '#f5f5f5';
       textBgHex.value = v;
       textBgPick.value = v;
-      textBgSwatch.style.backgroundImage = '';
-      textBgSwatch.style.background = v;
+      textBgPickSwatch.style.backgroundImage = '';
+      textBgPickSwatch.style.background = v;
     }
   };
 
@@ -454,7 +626,7 @@ function showSimpleCardProperties(block) {
     window.renderCanvas(block);
     textBgPick.value = v;
     textBgHex.value  = v;
-    if (textBgSwatch) textBgSwatch.style.background = v;
+    if (textBgPickSwatch) textBgPickSwatch.style.background = v;
   };
 
   textBgTransBtn.addEventListener('click', () => {
@@ -546,8 +718,8 @@ function showSimpleCardProperties(block) {
     gapSlider.value = v; gapNumber.value = v;
   };
   gapSlider.addEventListener('input',  () => applyGap(parseInt(gapSlider.value)));
-  gapNumber.addEventListener('change', () => { applyGap(parseInt(gapNumber.value)); window.pushHistory?.(); });
-  gapSlider.addEventListener('change', () => window.pushHistory?.());
+  gapNumber.addEventListener('change', () => { applyGap(parseInt(gapNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  gapSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
 
   const padxSlider = document.getElementById('cvb-padx-slider');
   const padxNumber = document.getElementById('cvb-padx-number');
@@ -558,8 +730,8 @@ function showSimpleCardProperties(block) {
     padxSlider.value = v; padxNumber.value = v;
   };
   padxSlider.addEventListener('input',  () => applyPadX(parseInt(padxSlider.value)));
-  padxNumber.addEventListener('change', () => { applyPadX(parseInt(padxNumber.value)); window.pushHistory?.(); });
-  padxSlider.addEventListener('change', () => window.pushHistory?.());
+  padxNumber.addEventListener('change', () => { applyPadX(parseInt(padxNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  padxSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
 
   // ── 카드별 항목 편집 ─────────────────────────────────────────────────────────
   const cardItemsEl = document.getElementById('cvb-card-items');

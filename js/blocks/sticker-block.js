@@ -267,9 +267,348 @@ function addStickerBlock(opts = {}) {
   window.scheduleAutoSave?.();
 }
 
+// ── 수정 ────────────────────────────────────────────────────────────────────
+// PM의 update_sticker_block(MCP) → main(_invokeRendererUpdateStickerBlock) → 여기.
+// banner02 패턴 미러링: NOT_FOUND/INVALID + before snapshot + pushHistory + dataset partial write
+// + renderStickerBlock 재렌더 + scheduleAutoSave.
+//
+// sticker는 polymorphic 블록 — shape에 따라 활성 dataset 키가 완전히 달라짐:
+//   - circle/square: size/sizeW/sizeH/text/bgColor/textColor/fontSize/fontWeight/mode/imgSrc/rotation
+//   - text:          text/fontFamily/fontSize/fontWeight/textColor/strokeWidth/strokeColor/letterSpacing/textAlign/shadow*/bgColor/padX/padY/rotation
+//   - highlight:     hlW/hlH/hlColor
+//   - highlightB:    x1/y1/x2/y2/thickness/hlColor/lineStyle/amplitude/period
+//
+// 모든 필드는 partial 허용. renderer가 무관 키는 알아서 무시. shape 변경 시에는 prop-sticker.js Shape 토글 패턴 그대로
+// 기본값을 server-side에서 주입해 PM이 1콜로 "circle → text 전환"해도 깨지지 않게 함.
+function updateStickerBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('sticker-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `sticker-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+
+  // before 스냅샷 (mutate 전, undo 푸시 전) — 주요 식별 필드만 저장 (전체 dataset 무게 줄임)
+  const before = {
+    shape: block.dataset.shape,
+    mode: block.dataset.mode,
+    text: block.dataset.text,
+    bgColor: block.dataset.bgColor,
+    textColor: block.dataset.textColor,
+    fontSize: block.dataset.fontSize,
+    fontWeight: block.dataset.fontWeight,
+    size: block.dataset.size,
+    sizeW: block.dataset.sizeW,
+    sizeH: block.dataset.sizeH,
+    x: block.dataset.x,
+    y: block.dataset.y,
+    rotation: block.dataset.rotation,
+    imgSrc: block.dataset.imgSrc,
+    layerName: block.dataset.layerName,
+    hlW: block.dataset.hlW,
+    hlH: block.dataset.hlH,
+    hlColor: block.dataset.hlColor,
+    x1: block.dataset.x1, y1: block.dataset.y1,
+    x2: block.dataset.x2, y2: block.dataset.y2,
+    thickness: block.dataset.thickness,
+    lineStyle: block.dataset.lineStyle,
+    amplitude: block.dataset.amplitude,
+    period: block.dataset.period,
+    fontFamily: block.dataset.fontFamily,
+    strokeWidth: block.dataset.strokeWidth,
+    strokeColor: block.dataset.strokeColor,
+    letterSpacing: block.dataset.letterSpacing,
+    textAlign: block.dataset.textAlign,
+    shadowOn: block.dataset.shadowOn,
+    shadowX: block.dataset.shadowX,
+    shadowY: block.dataset.shadowY,
+    shadowBlur: block.dataset.shadowBlur,
+    shadowColor: block.dataset.shadowColor,
+    padX: block.dataset.padX,
+    padY: block.dataset.padY,
+  };
+
+  window.pushHistory?.('스티커 수정');
+
+  const applied = {};
+
+  // 공통 헬퍼
+  const _SHAPES = ['circle','square','text','highlight','highlightB'];
+  const _MODES  = ['text','image'];
+  const _WEIGHTS = ['300','400','500','600','700','800','900'];
+  const _ALIGNS = ['left','center','right'];
+  const _LSTYLES = ['line','wavy','marker'];
+  const _FONTS = [
+    "'Pretendard', sans-serif",
+    "'Noto Sans KR', sans-serif",
+    "'Noto Serif KR', serif",
+    "'Inter', sans-serif",
+    "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    'sans-serif', 'serif', 'monospace',
+  ];
+  const _COLOR_RE = /^#[0-9a-fA-F]{3,8}$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+
+  const _isColor = (v) => typeof v === 'string' && (v === 'transparent' || _COLOR_RE.test(v.trim()));
+  const _setNum = (datasetKey, value, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return false;
+    if (min !== undefined && n < min) return false;
+    if (max !== undefined && n > max) return false;
+    block.dataset[datasetKey] = String(n);
+    return true;
+  };
+  const _applyNum = (key, datasetKey, min, max) => {
+    if (partial[key] === undefined || partial[key] === null) return;
+    if (_setNum(datasetKey, partial[key], min, max)) applied[key] = Number(partial[key]);
+  };
+  const _applyColor = (key, datasetKey) => {
+    if (partial[key] === undefined || partial[key] === null) return;
+    if (!_isColor(partial[key])) return; // silently ignore invalid color (mcp validator should have caught)
+    block.dataset[datasetKey] = String(partial[key]).trim();
+    applied[key] = block.dataset[datasetKey];
+  };
+  const _applyEnum = (key, datasetKey, allowed) => {
+    if (partial[key] === undefined || partial[key] === null) return;
+    if (!allowed.includes(String(partial[key]))) return;
+    block.dataset[datasetKey] = String(partial[key]);
+    applied[key] = block.dataset[datasetKey];
+  };
+  const _applyStr = (key, datasetKey, maxLen) => {
+    if (partial[key] === undefined || partial[key] === null) return;
+    if (typeof partial[key] !== 'string') return;
+    if (maxLen !== undefined && [...partial[key]].length > maxLen) return;
+    block.dataset[datasetKey] = partial[key];
+    applied[key] = partial[key];
+  };
+
+  // 1) shape 변경 — Shape 토글 패턴 (prop-sticker.js 486~542 mirror): 기본값 자동 주입
+  if (partial.shape !== undefined) {
+    if (!_SHAPES.includes(partial.shape)) {
+      return { ok: false, code: 'INVALID', message: `invalid shape: ${partial.shape}` };
+    }
+    const prevShape = block.dataset.shape;
+    const nextShape = String(partial.shape);
+    if (prevShape !== nextShape) {
+      block.dataset.shape = nextShape;
+      applied.shape = nextShape;
+
+      if (nextShape === 'text') {
+        // text shape 기본값 주입
+        if (!block.dataset.fontFamily)    block.dataset.fontFamily    = "'Pretendard', sans-serif";
+        const curFs = parseInt(block.dataset.fontSize);
+        if (!Number.isFinite(curFs) || curFs < 8) block.dataset.fontSize = '32';
+        if (!block.dataset.fontWeight)    block.dataset.fontWeight    = '700';
+        if (!block.dataset.textColor)     block.dataset.textColor     = '#222222';
+        if (block.dataset.strokeWidth === undefined) block.dataset.strokeWidth = '0';
+        if (!block.dataset.strokeColor)   block.dataset.strokeColor   = '#ffffff';
+        if (block.dataset.letterSpacing === undefined) block.dataset.letterSpacing = '0';
+        if (!block.dataset.textAlign)     block.dataset.textAlign     = 'left';
+        if (block.dataset.shadowOn === undefined) block.dataset.shadowOn = '0';
+        if (block.dataset.shadowX === undefined) block.dataset.shadowX = '0';
+        if (block.dataset.shadowY === undefined) block.dataset.shadowY = '2';
+        if (block.dataset.shadowBlur === undefined) block.dataset.shadowBlur = '4';
+        if (!block.dataset.shadowColor)   block.dataset.shadowColor   = 'rgba(0,0,0,0.4)';
+        block.dataset.bgColor    = 'transparent';
+        if (block.dataset.rotation === undefined) block.dataset.rotation = '0';
+        if (!block.dataset.text || block.dataset.text === 'NEW') block.dataset.text = 'Text';
+        if (block.dataset.padX === undefined) block.dataset.padX = '10';
+        if (block.dataset.padY === undefined) block.dataset.padY = '6';
+      } else if (nextShape === 'highlightB') {
+        // highlightB 전환 — 두 점 기본값 주입 (현재 x,y 기준)
+        const baseX = parseInt(block.dataset.x) || 0;
+        const baseY = parseInt(block.dataset.y) || 0;
+        if (block.dataset.x1 === undefined) block.dataset.x1 = String(baseX);
+        if (block.dataset.y1 === undefined) block.dataset.y1 = String(baseY + 20);
+        if (block.dataset.x2 === undefined) block.dataset.x2 = String(baseX + 160);
+        if (block.dataset.y2 === undefined) block.dataset.y2 = String(baseY + 20);
+        if (block.dataset.thickness === undefined) block.dataset.thickness = '12';
+        if (!block.dataset.hlColor) block.dataset.hlColor = 'rgba(255, 235, 70, 0.7)';
+        if (!block.dataset.lineStyle) block.dataset.lineStyle = 'line';
+      } else if (nextShape === 'highlight') {
+        if (block.dataset.hlW === undefined) block.dataset.hlW = '160';
+        if (block.dataset.hlH === undefined) block.dataset.hlH = '28';
+        if (!block.dataset.hlColor) block.dataset.hlColor = 'rgba(255, 235, 70, 0.7)';
+      } else {
+        // circle/square — text shape에서 돌아올 때 transform 잔재 제거
+        if (prevShape === 'text') {
+          block.style.transform = '';
+          block.style.transformOrigin = '';
+        }
+      }
+    }
+  }
+
+  // 2) mode (circle/square 전용) — partial.mode='text' 또는 imgSrc='' 시 dataset.imgSrc 클리어
+  if (partial.mode !== undefined && partial.mode !== null) {
+    if (!_MODES.includes(partial.mode)) {
+      return { ok: false, code: 'INVALID', message: `invalid mode: ${partial.mode}` };
+    }
+    block.dataset.mode = String(partial.mode);
+    applied.mode = block.dataset.mode;
+    if (block.dataset.mode === 'text') {
+      delete block.dataset.imgSrc;
+    }
+  }
+
+  // 3) imgSrc — banner02 패턴: 길이/escape 가드 + 빈 문자열은 클리어 의미
+  if (partial.imgSrc !== undefined && partial.imgSrc !== null) {
+    const src = String(partial.imgSrc);
+    if (src.length > 200000) {
+      return { ok: false, code: 'TOO_LARGE', message: 'imgSrc too long (>200000)' };
+    }
+    if (/["\r\n]/.test(src)) {
+      return { ok: false, code: 'INVALID', message: 'imgSrc contains quote/newline (escape unsafe)' };
+    }
+    if (src === '') {
+      delete block.dataset.imgSrc;
+      block.dataset.mode = 'text';
+      applied.imgSrc = '';
+      applied.mode = 'text';
+    } else {
+      // prefix 가드 (mockup _validateMkpImgSrc pattern)
+      const okPrefix = /^(data:image\/|https?:\/\/|assets\/)/.test(src);
+      if (!okPrefix) {
+        return { ok: false, code: 'INVALID', message: 'imgSrc must start with data:image/, http(s)://, or assets/' };
+      }
+      block.dataset.imgSrc = src;
+      applied.imgSrc = src;
+    }
+  }
+
+  // 4) text content
+  _applyStr('text', 'text', 500);
+
+  // 5) layerName
+  _applyStr('layerName', 'layerName', 200);
+
+  // 6) position
+  _applyNum('x', 'x', -4000, 4000);
+  _applyNum('y', 'y', -4000, 4000);
+
+  // 7) rotation
+  if (partial.rotation !== undefined && partial.rotation !== null) {
+    const n = Number(partial.rotation);
+    if (Number.isFinite(n) && n >= -180 && n <= 180) {
+      block.dataset.rotation = String(n);
+      applied.rotation = n;
+    }
+  }
+
+  // 8) circle/square size — size sync (size 들어오면 sizeW/sizeH 모두 덮어씀; bindNumPair syncKeys 미러)
+  if (partial.size !== undefined && partial.size !== null) {
+    if (_setNum('size', partial.size, 10, 600)) {
+      const n = Number(partial.size);
+      block.dataset.sizeW = String(n);
+      block.dataset.sizeH = String(n);
+      applied.size = n;
+      applied.sizeW = n;
+      applied.sizeH = n;
+    }
+  }
+  _applyNum('sizeW', 'sizeW', 10, 600);
+  _applyNum('sizeH', 'sizeH', 10, 600);
+
+  // 9) fontSize — shape 검사 후 max 적용 (circle/square: 6~150, text: 8~400)
+  if (partial.fontSize !== undefined && partial.fontSize !== null) {
+    const n = Number(partial.fontSize);
+    const curShape = block.dataset.shape;
+    const minFs = curShape === 'text' ? 8 : 6;
+    const maxFs = curShape === 'text' ? 400 : 150;
+    if (Number.isFinite(n) && n >= minFs && n <= maxFs) {
+      block.dataset.fontSize = String(n);
+      applied.fontSize = n;
+    }
+  }
+
+  // 10) fontWeight — number/string 모두 받아서 string normalize
+  if (partial.fontWeight !== undefined && partial.fontWeight !== null) {
+    const fw = String(partial.fontWeight);
+    if (_WEIGHTS.includes(fw)) {
+      block.dataset.fontWeight = fw;
+      applied.fontWeight = fw;
+    }
+  }
+
+  // 11) 색상 — bgColor/textColor/hlColor/strokeColor/shadowColor
+  _applyColor('bgColor', 'bgColor');
+  _applyColor('textColor', 'textColor');
+  _applyColor('hlColor', 'hlColor');
+  _applyColor('strokeColor', 'strokeColor');
+  _applyColor('shadowColor', 'shadowColor');
+
+  // 12) highlight (사각 형광펜)
+  _applyNum('hlW', 'hlW', 10, 1200);
+  _applyNum('hlH', 'hlH', 4, 400);
+
+  // 13) highlightB (선 형광펜)
+  _applyNum('x1', 'x1', -4000, 4000);
+  _applyNum('y1', 'y1', -4000, 4000);
+  _applyNum('x2', 'x2', -4000, 4000);
+  _applyNum('y2', 'y2', -4000, 4000);
+  _applyNum('thickness', 'thickness', 1, 200);
+  _applyEnum('lineStyle', 'lineStyle', _LSTYLES);
+  _applyNum('amplitude', 'amplitude', 1, 60);
+  _applyNum('period', 'period', 6, 200);
+
+  // 14) text shape 전용 — fontFamily / strokeWidth / letterSpacing / textAlign / shadow / padding
+  if (partial.fontFamily !== undefined && partial.fontFamily !== null) {
+    if (_FONTS.includes(String(partial.fontFamily))) {
+      block.dataset.fontFamily = String(partial.fontFamily);
+      applied.fontFamily = block.dataset.fontFamily;
+    }
+  }
+  _applyNum('strokeWidth', 'strokeWidth', 0, 50);
+  if (partial.letterSpacing !== undefined && partial.letterSpacing !== null) {
+    const n = Number(partial.letterSpacing);
+    if (Number.isFinite(n) && n >= -10 && n <= 40) {
+      block.dataset.letterSpacing = String(n);
+      applied.letterSpacing = n;
+    }
+  }
+  _applyEnum('textAlign', 'textAlign', _ALIGNS);
+
+  // shadowOn — boolean true/false 도 받아서 '1'/'0' normalize (prop UI는 문자열 저장)
+  if (partial.shadowOn !== undefined && partial.shadowOn !== null) {
+    const so = (partial.shadowOn === true || partial.shadowOn === '1' || partial.shadowOn === 1) ? '1' : '0';
+    block.dataset.shadowOn = so;
+    applied.shadowOn = so;
+  }
+  _applyNum('shadowX', 'shadowX', -20, 20);
+  _applyNum('shadowY', 'shadowY', -20, 20);
+  _applyNum('shadowBlur', 'shadowBlur', 0, 40);
+  _applyNum('padX', 'padX', 0, 400);
+  _applyNum('padY', 'padY', 0, 400);
+
+  // 15) 재렌더 (변경 없어도 idempotent)
+  try {
+    renderStickerBlock(block);
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  // 16) 우측 패널 갱신 (선택 상태일 때만)
+  if (block.classList.contains('selected')) {
+    try { window.showStickerProperties?.(block); } catch (_) {}
+  }
+  // 17) 레이어 패널 (layerName 변경 가능성 대비)
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  const changedKeys = Object.keys(applied);
+  return { ok: true, blockId, before, applied, changedKeys };
+}
+
+window.updateStickerBlock = updateStickerBlock;
+
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeStickerBlock   = makeStickerBlock;
 window.addStickerBlock    = addStickerBlock;
 window.renderStickerBlock = renderStickerBlock;
 
-export { makeStickerBlock, addStickerBlock, renderStickerBlock, STICKER_DEFAULTS };
+export { makeStickerBlock, addStickerBlock, updateStickerBlock, renderStickerBlock, STICKER_DEFAULTS };

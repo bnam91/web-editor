@@ -1124,7 +1124,12 @@ function bindBlock(block) {
       window.syncSection(sec);
       window.highlightBlock(block, block._layerItem);
       window.setBlockAnchor?.(block);
-      window.showCanvasProperties(block);
+      // simple card mode면 전용 prop 패널, 아니면 일반 canvas prop 패널
+      if (block.dataset.cardMode === 'simple' && typeof window.showSimpleCardProperties === 'function') {
+        window.showSimpleCardProperties(block);
+      } else {
+        window.showCanvasProperties(block);
+      }
       showCanvasRadiusHandles(block);
       showCanvasResizeHandles(block);
     });

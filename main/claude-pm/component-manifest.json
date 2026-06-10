@@ -1,0 +1,418 @@
+{
+  "version": 1,
+  "generatedAt": "2026-06-09",
+  "purpose": "PM이 spec(JSON) 작성 직전 컴포넌트 선택 근거를 마련하기 위한 메타 카탈로그. addXxxBlock API 시그니처가 아니라 '언제 쓰는가'에 초점.",
+  "consumers": [
+    "goditor-layout-planner (spec 작성 시)",
+    "goditor-layout-orchestrator (블록 매핑 검증 시)",
+    "사람 (docs/component-manifest.md로 검색)"
+  ],
+  "categories": {
+    "special": "독립 기능을 갖는 복합 컴포넌트. 자체 모달/렌더러/데이터 모델 있음.",
+    "primitive": "단순 빌딩블록. 텍스트/이미지/도형 등 1차 요소."
+  },
+  "components": [
+    {
+      "name": "banner02",
+      "prefix": "bn2_",
+      "category": "special",
+      "api": "window.addBanner02Block(opts)",
+      "useCases": [
+        "3단(label/title/sub) 마케팅 배너 — 'NEW LAUNCH / 이번주 한정 / 무료배송' 같은 헤드 블록",
+        "가변 lines 지원하므로 4단 이상 안내 카피도 한 블록으로 처리 가능",
+        "section 최상단 attention grabber"
+      ],
+      "notRecommendedFor": [
+        "본문 단락 (text-block 사용)",
+        "이미지가 핵심인 hero (asset/canvas 사용)"
+      ],
+      "examplePrompt": "섹션 맨 위에 'EVENT / 6월 한정 50% OFF / 한정수량 소진시 종료' 3단 배너 넣어줘"
+    },
+    {
+      "name": "laurel",
+      "prefix": "lrb_",
+      "category": "special",
+      "api": "window.addLaurelBlock(opts)",
+      "useCases": [
+        "월계관/리본 strip — 인증·수상·랭킹 표시",
+        "'2025 베스트셀러 1위', 'KC 인증 완료' 같은 신뢰 배지",
+        "후기 카드 위 sub-heading"
+      ],
+      "notRecommendedFor": [
+        "긴 설명 텍스트",
+        "단순 강조 (sticker 사용)"
+      ],
+      "examplePrompt": "리뷰 섹션 위에 '2025 고객만족도 1위' 월계관 넣어줘"
+    },
+    {
+      "name": "canvas",
+      "prefix": "cvb_",
+      "category": "special",
+      "api": "window.addCanvasBlock(opts)",
+      "useCases": [
+        "이미지 + 텍스트 자유 배치가 필요한 hero 영역",
+        "단일 카드 내 absolute positioning (제품샷 위 카피 오버레이)",
+        "freeLayout 컨테이너가 필요한 모든 복합 비주얼"
+      ],
+      "notRecommendedFor": [
+        "단순 풀폭 이미지 (asset-block 사용)",
+        "리스트성 반복 카드 (card-block 반복 사용)"
+      ],
+      "examplePrompt": "제품 이미지 위에 '한정수량' 텍스트 좌상단, 가격 우하단 absolute로 얹은 hero canvas 만들어줘"
+    },
+    {
+      "name": "chat",
+      "prefix": "chb_",
+      "category": "special",
+      "api": "window.addChatBlock(opts)",
+      "useCases": [
+        "고객 후기/대화 메신저 UI (말풍선 + 시간 + 프로필)",
+        "Q&A 시나리오를 시각화한 FAQ",
+        "Before/After 대화형 비교"
+      ],
+      "notRecommendedFor": [
+        "단순 인용문 (speech-bubble 사용)",
+        "긴 후기 본문 (text-block 인용 스타일 사용)"
+      ],
+      "examplePrompt": "고객 후기 섹션에 카톡 스타일 메신저 대화 3턴 넣어줘"
+    },
+    {
+      "name": "comparison",
+      "prefix": "cmp_",
+      "category": "special",
+      "api": "window.addComparisonBlock(opts)",
+      "useCases": [
+        "자사 vs 경쟁사 N열 비교표 (featured 컬럼 강조 지원)",
+        "기능별 ✓/✗ 체크 표",
+        "가격/스펙 비교"
+      ],
+      "notRecommendedFor": [
+        "일반 데이터 표 (table-block 사용)",
+        "1:1 단순 비교 (canvas 2분할 사용)"
+      ],
+      "examplePrompt": "우리 제품, A사, B사 3열 비교표 만들고 우리 컬럼 강조해줘"
+    },
+    {
+      "name": "gradient",
+      "prefix": "grad_",
+      "category": "special",
+      "api": "window.addGradientBlock(opts)",
+      "useCases": [
+        "섹션 구분용 그라데이션 strip (얇은 띠)",
+        "배경 분위기 전환 (밝음→어두움 transition)",
+        "decorative divider (단순 divider보다 강조)"
+      ],
+      "notRecommendedFor": [
+        "단순 구분선 (divider 사용)",
+        "섹션 전체 배경 (section bgColor 직접 설정)"
+      ],
+      "examplePrompt": "두 섹션 사이에 보라→핑크 그라데이션 띠 넣어줘"
+    },
+    {
+      "name": "iconify",
+      "prefix": "icn_",
+      "category": "special",
+      "api": "window.addIconifyBlock(iconName, svgContent, size)",
+      "useCases": [
+        "Iconify 라이브러리 아이콘 단독 배치",
+        "텍스트 옆 보조 픽토그램 (단, label-group 안에서 더 자주 씀)",
+        "특정 브랜드/서비스 로고 SVG"
+      ],
+      "notRecommendedFor": [
+        "원형 배경 있는 아이콘 (icon-circle 사용)",
+        "텍스트와 한 줄 묶음 (icon-text 사용)"
+      ],
+      "examplePrompt": "체크 아이콘 3개를 가로로 배치해줘"
+    },
+    {
+      "name": "mockup",
+      "prefix": "mkp_",
+      "category": "special",
+      "api": "window.addMockupBlock(opts)",
+      "useCases": [
+        "디바이스 프레임(폰/태블릿/노트북) 안에 스크린샷 합성",
+        "앱 UI 소개 / 웹 서비스 데모",
+        "앱스토어 스타일 product shot"
+      ],
+      "notRecommendedFor": [
+        "실물 제품 사진 (asset 또는 canvas 사용)",
+        "프레임 없는 평면 스크린샷 (asset 사용)"
+      ],
+      "examplePrompt": "아이폰 mockup에 우리 앱 메인 화면 스크린샷 넣어줘"
+    },
+    {
+      "name": "step",
+      "prefix": "stb_",
+      "category": "special",
+      "api": "window.addStepBlock(opts)",
+      "useCases": [
+        "3~5단계 사용법 가이드 (STEP 1 → 2 → 3)",
+        "구매 후 진행 프로세스 (주문 → 배송 → 도착)",
+        "서비스 이용 flow"
+      ],
+      "notRecommendedFor": [
+        "단순 번호 매긴 리스트 (text-block bullet 사용)",
+        "복잡한 분기 flowchart (canvas로 직접 그리기)"
+      ],
+      "examplePrompt": "STEP1 결제 / STEP2 배송 / STEP3 사용 3단계 가이드 만들어줘"
+    },
+    {
+      "name": "sticker",
+      "prefix": "stk_",
+      "category": "special",
+      "api": "window.addStickerBlock(opts)",
+      "useCases": [
+        "SOLD OUT, NEW, BEST, HOT 같은 짧은 강조 라벨",
+        "카드 우상단 overlay 배지",
+        "가격표 옆 'SALE' 도장"
+      ],
+      "notRecommendedFor": [
+        "긴 본문 텍스트 (text-block 사용)",
+        "다국어 번역이 필요한 카피 (text-block + i18n)",
+        "본문 흐름에 들어가는 강조 (text-block bold 사용)"
+      ],
+      "examplePrompt": "제품 카드 우상단에 'NEW' 스티커 붙여줘"
+    },
+    {
+      "name": "vector",
+      "prefix": "vb_",
+      "category": "special",
+      "api": "window.addVectorBlock(svgString, opts)",
+      "useCases": [
+        "임의 SVG 일러스트/장식 요소",
+        "브랜드 그래픽 (squiggle, underline 강조)",
+        "Iconify에 없는 커스텀 SVG"
+      ],
+      "notRecommendedFor": [
+        "Iconify에 있는 표준 아이콘 (iconify 사용)",
+        "비트맵 이미지 (asset 사용)"
+      ],
+      "examplePrompt": "제목 아래 손글씨 느낌 squiggle underline SVG 넣어줘"
+    },
+    {
+      "name": "banner",
+      "prefix": "(preset 기반, frame_N)",
+      "category": "special",
+      "api": "window.addBannerBlock(presetKey)",
+      "useCases": [
+        "사전 정의된 BANNER_PRESETS 프레임을 한 번에 가져오기",
+        "프로젝트 표준 배너 템플릿 일괄 적용",
+        "디자이너가 미리 만들어둔 배너 세트 호출"
+      ],
+      "notRecommendedFor": [
+        "자유 텍스트 배너 (banner02 사용)",
+        "preset이 없는 신규 배너 (banner02로 직접 작성)"
+      ],
+      "examplePrompt": "표준 배너 frame_8 가져와줘"
+    },
+    {
+      "name": "text",
+      "prefix": "tb_",
+      "category": "primitive",
+      "api": "window.addTextBlock(role, opts)",
+      "useCases": [
+        "모든 일반 텍스트 — h1/h2/h3/body/caption/label",
+        "본문, 부제, 캡션, 라벨",
+        "리스트 항목 (• 기호 직접 입력)"
+      ],
+      "notRecommendedFor": [
+        "장식적 짧은 강조 (sticker 사용)",
+        "아이콘과 한 줄 결합 (icon-text 사용)"
+      ],
+      "examplePrompt": "h2 '왜 우리 제품인가' 추가하고 그 아래 body로 3줄 설명"
+    },
+    {
+      "name": "asset",
+      "prefix": "ab_",
+      "category": "primitive",
+      "api": "window.addAssetBlock(preset)",
+      "useCases": [
+        "단일 이미지 풀폭 또는 정사각 (standard 780px / square 860px 등 preset)",
+        "제품 사진, 배경 이미지",
+        "스크래치패드 드롭으로 자동 생성"
+      ],
+      "notRecommendedFor": [
+        "디바이스 프레임 필요 (mockup 사용)",
+        "이미지 위 텍스트 오버레이 (canvas 사용)",
+        "SVG 일러스트 (vector 사용)"
+      ],
+      "examplePrompt": "정사각 제품 사진 1장 추가"
+    },
+    {
+      "name": "gap",
+      "prefix": "gb_",
+      "category": "primitive",
+      "api": "(spec에서 gap row로 표현)",
+      "useCases": [
+        "블록 사이 빈 공간 (px 단위 높이)",
+        "섹션 내 호흡 만들기",
+        "그리드 row 간격"
+      ],
+      "notRecommendedFor": [
+        "시각적 구분이 필요한 경우 (divider 또는 gradient 사용)",
+        "section 외부 padding (section padding 속성 사용)"
+      ],
+      "examplePrompt": "텍스트와 이미지 사이 80px 갭"
+    },
+    {
+      "name": "divider",
+      "prefix": "dvd_",
+      "category": "primitive",
+      "api": "(block-factory: divider-block 생성)",
+      "useCases": [
+        "얇은 가로선 — 섹션 내 항목 구분",
+        "FAQ 항목 사이 라인",
+        "footer 위 separator"
+      ],
+      "notRecommendedFor": [
+        "시각적 강조 필요 (gradient 사용)",
+        "단순 여백 (gap 사용)"
+      ],
+      "examplePrompt": "FAQ 질문 사이 회색 1px divider 넣어줘"
+    },
+    {
+      "name": "icon-circle",
+      "prefix": "icb_",
+      "category": "primitive",
+      "api": "(block-factory: icon-circle-block 생성)",
+      "useCases": [
+        "원형 배경 위 아이콘 — feature/benefit 카드 헤드",
+        "3-col 'WHY US' 섹션의 각 컬럼 상단 아이콘",
+        "step 인디케이터로 활용"
+      ],
+      "notRecommendedFor": [
+        "텍스트와 한 줄 (icon-text 사용)",
+        "원형 배경 불필요 (iconify 사용)"
+      ],
+      "examplePrompt": "3개 컬럼 각 상단에 컬러풀한 원형 아이콘 배치"
+    },
+    {
+      "name": "label-group",
+      "prefix": "lg_",
+      "category": "primitive",
+      "api": "(block-factory: label-group-block 생성)",
+      "useCases": [
+        "키워드/태그 chips 그룹 — '#친환경 #국내산 #저알러지'",
+        "특징 요약 라벨 묶음",
+        "필터 옵션 시각화"
+      ],
+      "notRecommendedFor": [
+        "비교 표 (comparison 사용)",
+        "단일 라벨 (sticker 또는 text-block label 사용)"
+      ],
+      "examplePrompt": "제품 특징 태그 5개 chips로 묶어줘"
+    },
+    {
+      "name": "table",
+      "prefix": "tbl_",
+      "category": "primitive",
+      "api": "(block-factory: table-block 생성)",
+      "useCases": [
+        "일반 데이터 표 (스펙시트, 영양성분, 가격표)",
+        "행/열 수 자유로운 정보 매트릭스",
+        "주의사항 매트릭스"
+      ],
+      "notRecommendedFor": [
+        "자사 vs 경쟁사 강조 비교 (comparison 사용)",
+        "2~3행 단순 정보 (text-block 줄바꿈)"
+      ],
+      "examplePrompt": "성분표 4x5 표 만들어줘"
+    },
+    {
+      "name": "card",
+      "prefix": "cdb_",
+      "category": "primitive",
+      "api": "(block-factory: card-block 생성, prop-card에서 관리)",
+      "useCases": [
+        "이미지 + 제목 + 설명 묶음 카드",
+        "리스트성 반복 항목 (3-col 추천 제품, 후기 카드)",
+        "feature card"
+      ],
+      "notRecommendedFor": [
+        "단일 hero (canvas 사용)",
+        "freeLayout 필요 (canvas 사용)"
+      ],
+      "examplePrompt": "3-col grid에 추천 제품 카드 3개 (이미지 + 제목 + 가격)"
+    },
+    {
+      "name": "graph",
+      "prefix": "grb_",
+      "category": "primitive",
+      "api": "(block-factory: graph-block 생성, dataset.items 기반)",
+      "useCases": [
+        "막대/꺾은선/원형 차트 — 만족도, 점유율, 성장률",
+        "수치 비교 시각화 (5개 항목 미만 권장)",
+        "before/after 수치 차트"
+      ],
+      "notRecommendedFor": [
+        "복잡한 다축 차트 (외부 이미지 사용)",
+        "단일 수치 강조 (text-block 큰 폰트 사용)"
+      ],
+      "examplePrompt": "고객 만족도 항목 5개 막대 차트로 표현"
+    },
+    {
+      "name": "icon-text",
+      "prefix": "itb_",
+      "category": "primitive",
+      "api": "(block-factory: icon-text-block 생성)",
+      "useCases": [
+        "아이콘 + 한 줄 텍스트 (체크리스트, 특징 bullet)",
+        "✓ 무료배송 / ✓ 당일출고 / ✓ 정품보장 같은 trust badge 행",
+        "FAQ 항목 헤더"
+      ],
+      "notRecommendedFor": [
+        "아이콘만 (iconify 사용)",
+        "여러 줄 본문 동반 (card 사용)"
+      ],
+      "examplePrompt": "체크 아이콘 + '무료배송', '당일출고', '정품보장' 3행 만들어줘"
+    },
+    {
+      "name": "speech-bubble",
+      "prefix": "sb_",
+      "category": "primitive",
+      "api": "(block-factory: speech-bubble-block 생성)",
+      "useCases": [
+        "단일 말풍선 인용 — 한 줄 후기, 슬로건",
+        "캐릭터 옆 대사",
+        "FAQ 답변 한 줄 요약"
+      ],
+      "notRecommendedFor": [
+        "여러 턴 대화 (chat 사용)",
+        "긴 후기 본문 (text-block 인용 스타일)"
+      ],
+      "examplePrompt": "캐릭터 일러스트 옆에 '이거 진짜 좋아요!' 말풍선"
+    },
+    {
+      "name": "frame",
+      "prefix": "ss_",
+      "category": "primitive",
+      "api": "(block-factory: frame-block 생성, section/sub-section 공용)",
+      "useCases": [
+        "freeLayout 컨테이너 (absolute 자식 블록 담는 통)",
+        "그룹화된 sub-section",
+        "그룹(data-group=true)으로 묶어 일괄 이동/스타일"
+      ],
+      "notRecommendedFor": [
+        "단순 1차 섹션 (Spec section level)",
+        "row layout이면 충분한 경우 (row 사용)"
+      ],
+      "examplePrompt": "이 5개 블록을 하나의 frame으로 묶어줘"
+    },
+    {
+      "name": "grid",
+      "prefix": "(row의 layout 모드)",
+      "category": "primitive",
+      "api": "(row.dataset.layout='grid' 또는 cols 지정)",
+      "useCases": [
+        "N-column 균등 분할 (2/3/4-col 레이아웃)",
+        "카드 반복 배치",
+        "갤러리"
+      ],
+      "notRecommendedFor": [
+        "freeLayout 필요 (frame freeLayout=true 사용)",
+        "비율이 다른 컬럼 (col별 flex 지정)"
+      ],
+      "examplePrompt": "3-col 그리드에 카드 6개 배치"
+    }
+  ]
+}

@@ -605,8 +605,8 @@ function rebindAll() {
     // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');
     if (toolbar) {
-      // 구버전 ↑ ↓ ✕ 버튼 제거
-      toolbar.querySelectorAll('.st-btn:not(.st-branch-btn):not(.st-ab-btn)').forEach(el => el.remove());
+      // 구버전 ↑ ↓ ✕ 버튼 제거 — 단, 살아남아야 할 버튼은 보존 (branch/AB/memo/AI-fill)
+      toolbar.querySelectorAll('.st-btn:not(.st-branch-btn):not(.st-ab-btn):not(.st-memo-btn):not(.st-ai-fill-btn)').forEach(el => el.remove());
       let branchBtn = toolbar.querySelector('.st-branch-btn');
       if (!branchBtn) {
         branchBtn = document.createElement('button');

@@ -507,6 +507,90 @@ function _createItem(src, x, y, w = 220, idArg) {
     let dropKind = 'none';  // 마지막 mousemove의 분류 결과 — mouseup 직전 갱신용
     let _rafId = null;
 
+    // ── 스냅(자석) 셋업 ─────────────────────────────────
+    // dragTargets 제외한 나머지 scratch 아이템들의 rect 캐시 (scaler 좌표계)
+    // x/y는 model 값, w는 model 값, h는 offsetHeight/scale 추정 (이미지 로드 후엔 정확)
+    const SNAP_THRESHOLD = 6;        // edge/center 거리 px
+    const SNAP_THRESHOLD_SPACING = 4; // spacing 일치 거리 px
+    const snapTargets = [];
+    const dragSet = new Set(dragTargets);
+    for (const s of _scratchItems) {
+      if (dragSet.has(s)) continue;
+      const w = s.w || s.el.offsetWidth || 0;
+      const h = s.el.offsetHeight || (s.el.querySelector('img')?.offsetHeight) || 0;
+      snapTargets.push({
+        left: s.x, top: s.y,
+        right: s.x + w, bottom: s.y + h,
+        cx: s.x + w / 2, cy: s.y + h / 2,
+      });
+    }
+    // dragTargets의 시작 시점 union bbox (model 좌표)
+    let _bx0 = Infinity, _by0 = Infinity, _br0 = -Infinity, _bb0 = -Infinity;
+    for (const t of dragTargets) {
+      const tw = t.w || t.el.offsetWidth || 0;
+      const th = t.el.offsetHeight || 0;
+      if (t.x < _bx0) _bx0 = t.x;
+      if (t.y < _by0) _by0 = t.y;
+      if (t.x + tw > _br0) _br0 = t.x + tw;
+      if (t.y + th > _bb0) _bb0 = t.y + th;
+    }
+    const bboxOrigW = _br0 - _bx0;
+    const bboxOrigH = _bb0 - _by0;
+    const bboxOrigX = _bx0;
+    const bboxOrigY = _by0;
+
+    // 가이드 오버레이 컨테이너 (scaler 좌표계 위에 띄움)
+    const scalerEl = document.getElementById('canvas-scaler');
+    let guidesOverlay = null;
+    const guidesPool = []; // 재사용 풀 [{el, used:boolean}]
+    const _getGuide = (cls) => {
+      let slot = guidesPool.find(g => !g.used);
+      if (!slot) {
+        const d = document.createElement('div');
+        d.className = 'scratch-snap-guide-line';
+        guidesOverlay.appendChild(d);
+        slot = { el: d, used: false };
+        guidesPool.push(slot);
+      }
+      slot.used = true;
+      slot.el.className = 'scratch-snap-guide-line ' + cls;
+      slot.el.style.display = 'block';
+      return slot.el;
+    };
+    const _resetGuides = () => { guidesPool.forEach(g => { g.used = false; g.el.style.display = 'none'; }); };
+    const _ensureOverlay = () => {
+      if (guidesOverlay || !scalerEl) return;
+      guidesOverlay = document.createElement('div');
+      guidesOverlay.id = 'scratch-snap-guides';
+      guidesOverlay.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:9999;';
+      scalerEl.appendChild(guidesOverlay);
+    };
+    const _destroyOverlay = () => {
+      try { guidesOverlay?.remove(); } catch (_) {}
+      guidesOverlay = null;
+      guidesPool.length = 0;
+    };
+
+    // 가이드 라인 추가 헬퍼 (좌표는 scaler 내부 px)
+    const _addV = (xPos, y1, y2, kind) => {
+      const g = _getGuide(kind === 'spacing' ? 'v spacing' : 'v');
+      const top = Math.min(y1, y2);
+      const h = Math.max(2, Math.abs(y2 - y1));
+      g.style.left = (xPos - 0.5) + 'px';
+      g.style.top = top + 'px';
+      g.style.width = '1px';
+      g.style.height = h + 'px';
+    };
+    const _addH = (yPos, x1, x2, kind) => {
+      const g = _getGuide(kind === 'spacing' ? 'spacing' : '');
+      const left = Math.min(x1, x2);
+      const w = Math.max(2, Math.abs(x2 - x1));
+      g.style.left = left + 'px';
+      g.style.top = (yPos - 0.5) + 'px';
+      g.style.width = w + 'px';
+      g.style.height = '1px';
+    };
+
     const onMove = mv => {
       hasMoved = true;
       lastClientX = mv.clientX;
@@ -522,15 +606,121 @@ function _createItem(src, x, y, w = 220, idArg) {
         if (Math.abs(totalDx) >= Math.abs(totalDy)) applyDy = 0;
         else applyDx = 0;
       }
+
+      // ── 스냅 계산 (Alt 누르면 bypass) ──────────────────
+      let snapDx = 0, snapDy = 0;
+      const snapGuides = []; // 적용된 가이드 목록
+      const snapEnabled = !mv.altKey && snapTargets.length > 0;
+      if (snapEnabled) {
+        // 현재 union bbox(free 적용 후) 좌표
+        const curLeft = bboxOrigX + applyDx;
+        const curTop  = bboxOrigY + applyDy;
+        const curRight = curLeft + bboxOrigW;
+        const curBottom = curTop + bboxOrigH;
+        const curCx = curLeft + bboxOrigW / 2;
+        const curCy = curTop  + bboxOrigH / 2;
+
+        // 가로 (X축) 후보: bbox의 left/right/cx ↔ target의 left/right/cx
+        let bestX = { d: SNAP_THRESHOLD + 1, dx: 0, guides: [] };
+        const considerX = (curVal, targetVal, alignVal, kind) => {
+          const d = Math.abs(curVal - targetVal);
+          if (d < bestX.d) {
+            bestX = { d, dx: targetVal - curVal, guides: [{ kind, x: targetVal }] };
+          } else if (d === bestX.d && Math.abs(bestX.dx - (targetVal - curVal)) < 0.5) {
+            bestX.guides.push({ kind, x: targetVal });
+          }
+        };
+        let bestY = { d: SNAP_THRESHOLD + 1, dy: 0, guides: [] };
+        const considerY = (curVal, targetVal, kind) => {
+          const d = Math.abs(curVal - targetVal);
+          if (d < bestY.d) {
+            bestY = { d, dy: targetVal - curVal, guides: [{ kind, y: targetVal }] };
+          } else if (d === bestY.d && Math.abs(bestY.dy - (targetVal - curVal)) < 0.5) {
+            bestY.guides.push({ kind, y: targetVal });
+          }
+        };
+        for (const T of snapTargets) {
+          // left ↔ left / right / cx
+          considerX(curLeft, T.left, 'edge');
+          considerX(curLeft, T.right, 'edge');
+          considerX(curLeft, T.cx, 'center');
+          // right ↔ left / right / cx
+          considerX(curRight, T.left, 'edge');
+          considerX(curRight, T.right, 'edge');
+          considerX(curRight, T.cx, 'center');
+          // cx ↔ left / right / cx
+          considerX(curCx, T.left, 'center');
+          considerX(curCx, T.right, 'center');
+          considerX(curCx, T.cx, 'center');
+          // top ↔ top / bottom / cy
+          considerY(curTop, T.top, 'edge');
+          considerY(curTop, T.bottom, 'edge');
+          considerY(curTop, T.cy, 'center');
+          // bottom ↔ top / bottom / cy
+          considerY(curBottom, T.top, 'edge');
+          considerY(curBottom, T.bottom, 'edge');
+          considerY(curBottom, T.cy, 'center');
+          // cy ↔ top / bottom / cy
+          considerY(curCy, T.top, 'center');
+          considerY(curCy, T.bottom, 'center');
+          considerY(curCy, T.cy, 'center');
+        }
+        if (bestX.d <= SNAP_THRESHOLD) {
+          snapDx = bestX.dx;
+          for (const g of bestX.guides) snapGuides.push({ orient: 'v', kind: g.kind, pos: g.x });
+        }
+        if (bestY.d <= SNAP_THRESHOLD) {
+          snapDy = bestY.dy;
+          for (const g of bestY.guides) snapGuides.push({ orient: 'h', kind: g.kind, pos: g.y });
+        }
+      }
+
+      const finalDx = applyDx + snapDx;
+      const finalDy = applyDy + snapDy;
       dragTargets.forEach(t => {
-        t.x = t._dragOrigX + applyDx;
-        t.y = t._dragOrigY + applyDy;
+        t.x = t._dragOrigX + finalDx;
+        t.y = t._dragOrigY + finalDy;
       });
+
       if (!_rafId) _rafId = requestAnimationFrame(() => {
         dragTargets.forEach(t => {
           t.el.style.left = t.x + 'px';
           t.el.style.top  = t.y + 'px';
         });
+        // 가이드 라인 그리기
+        if (snapGuides.length > 0) {
+          _ensureOverlay();
+          _resetGuides();
+          // 가이드 라인 길이: 후보 target들과 현재 bbox를 포함하는 범위로 그림
+          const curLeft = bboxOrigX + finalDx;
+          const curTop  = bboxOrigY + finalDy;
+          const curRight = curLeft + bboxOrigW;
+          const curBottom = curTop + bboxOrigH;
+          for (const g of snapGuides) {
+            if (g.orient === 'v') {
+              // 세로선: y 범위는 모든 target 중 이 x를 공유하는 것 + 현재 bbox
+              let y1 = curTop, y2 = curBottom;
+              for (const T of snapTargets) {
+                if (Math.abs(T.left - g.pos) < 0.5 || Math.abs(T.right - g.pos) < 0.5 || Math.abs(T.cx - g.pos) < 0.5) {
+                  if (T.top < y1) y1 = T.top;
+                  if (T.bottom > y2) y2 = T.bottom;
+                }
+              }
+              _addV(g.pos, y1, y2, g.kind);
+            } else {
+              let x1 = curLeft, x2 = curRight;
+              for (const T of snapTargets) {
+                if (Math.abs(T.top - g.pos) < 0.5 || Math.abs(T.bottom - g.pos) < 0.5 || Math.abs(T.cy - g.pos) < 0.5) {
+                  if (T.left < x1) x1 = T.left;
+                  if (T.right > x2) x2 = T.right;
+                }
+              }
+              _addH(g.pos, x1, x2, g.kind);
+            }
+          }
+        } else if (guidesOverlay) {
+          _resetGuides();
+        }
         // 단일 드래그면 캔버스 변환 가이드 미리보기
         if (isSingleDrag) {
           try { dropKind = previewScratchDropAt(lastClientX, lastClientY); }
@@ -544,6 +734,9 @@ function _createItem(src, x, y, w = 220, idArg) {
       if (_rafId) cancelAnimationFrame(_rafId);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      // 스냅 가이드/캐시 정리
+      _destroyOverlay();
+      snapTargets.length = 0;
       // 드래그 원점 임시 프로퍼티 정리 (저장 직렬화에는 무영향 — 정리만)
       dragTargets.forEach(t => { delete t._dragOrigX; delete t._dragOrigY; });
 

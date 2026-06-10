@@ -16,6 +16,13 @@ export function hideAssetLoading(block) {
 
 /* ── 이미지 위치/스케일 복원 (로드·undo 후) ── */
 function applyImageTransform(ab) {
+  // ab 컨테이너 자체 회전 (asset-rotate.js에서 저장한 dataset.rotation) 먼저 복원
+  // — imgW 없어도(이미지 편집 안 한 상태) 컨테이너 회전은 유지돼야 함
+  const abRot = parseFloat(ab.dataset.rotation);
+  if (Number.isFinite(abRot) && abRot !== 0) {
+    ab.style.transform = `rotate(${abRot}deg)`;
+    ab.style.transformOrigin = 'center center';
+  }
   const img = ab.querySelector('.asset-img');
   if (!img) return;
   if (ab.dataset.imgPosition) {

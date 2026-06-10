@@ -16,11 +16,25 @@ function _rgbToHex(rgb) {
 }
 
 /* 비율 문자열("1:1:2") → 정규화 % colgroup 적용 + dataset.colWidths 저장.
-   부족하면 1로 패딩, 넘치면 자른다. table-layout: fixed로 고정해 비율이 정확히 반영되도록. */
+   부족하면 1로 패딩, 넘치면 자른다. table-layout: fixed로 고정해 비율이 정확히 반영되도록.
+   ※ colCount는 logical(병합 포함 합산) 기준. 우선순위: tbody 첫 tr(td 갯수) > thead 첫 tr(colspan 합산). */
 function _applyColRatio(block, rawRatio) {
   const table = block?.querySelector('.tb-table');
   if (!table) return;
-  const colCount = table.querySelector('tr')?.querySelectorAll('th,td').length || 0;
+  const _logicalCount = (tr) => {
+    if (!tr) return 0;
+    let n = 0;
+    tr.querySelectorAll('th,td').forEach(c => {
+      const cs = parseInt(c.getAttribute('colspan') || '1', 10) || 1;
+      n += cs;
+    });
+    return n;
+  };
+  const bodyTr = table.querySelector('tbody > tr');
+  const headTr = table.querySelector('thead > tr');
+  const colCount = bodyTr
+    ? bodyTr.querySelectorAll('th,td').length
+    : _logicalCount(headTr) || _logicalCount(table.querySelector('tr'));
   if (!colCount) return;
   let parts = String(rawRatio || '').split(/[:,\s]+/).filter(Boolean).map(Number).filter(n => !isNaN(n) && n > 0);
   while (parts.length < colCount) parts.push(1);
@@ -42,11 +56,26 @@ function _applyColRatio(block, rawRatio) {
 window.__applyTableColRatio = _applyColRatio;
 
 /* 컬럼별 색 적용/해제. style==='colored'일 때만 적용. 부족하면 기본색 패딩, 넘치면 잘림.
-   bgList/fgList 파라미터로 직접 갱신할 수 있고, 생략 시 dataset에서 읽는다. */
+   bgList/fgList 파라미터로 직접 갱신할 수 있고, 생략 시 dataset에서 읽는다.
+   ※ logical colCount는 tbody td 갯수 또는 thead colspan 합산. 셀별 색칠은 각 셀이 차지하는
+      logical col 범위 중 '첫 col'의 색을 사용 (병합 셀이 여러 col에 걸쳐 있어도 시각상 단일 색). */
 function _applyColColors(block, bgList, fgList) {
   const table = block?.querySelector('.tb-table');
   if (!table) return;
-  const colCount = table.querySelector('tr')?.querySelectorAll('th,td').length || 0;
+  const _logicalCount = (tr) => {
+    if (!tr) return 0;
+    let n = 0;
+    tr.querySelectorAll('th,td').forEach(c => {
+      const cs = parseInt(c.getAttribute('colspan') || '1', 10) || 1;
+      n += cs;
+    });
+    return n;
+  };
+  const bodyTr = table.querySelector('tbody > tr');
+  const headTr = table.querySelector('thead > tr');
+  const colCount = bodyTr
+    ? bodyTr.querySelectorAll('th,td').length
+    : _logicalCount(headTr) || _logicalCount(table.querySelector('tr'));
   if (!colCount) return;
   const isColored = block.dataset.style === 'colored';
   // 컬럼별 색 cleanup (모든 td/th에서 inline bg/color 제거)
@@ -66,10 +95,13 @@ function _applyColColors(block, bgList, fgList) {
   bgs = bgs.slice(0, colCount);
   fgs = fgs.slice(0, colCount);
   table.querySelectorAll('tr').forEach(tr => {
-    const cells = tr.querySelectorAll('th, td');
-    cells.forEach((cell, i) => {
+    let logicalIdx = 0;
+    tr.querySelectorAll('th, td').forEach(cell => {
+      const span = parseInt(cell.getAttribute('colspan') || '1', 10) || 1;
+      const i = logicalIdx;
       if (bgs[i]) cell.style.backgroundColor = bgs[i];
       if (fgs[i]) cell.style.color = fgs[i];
+      logicalIdx += span;
     });
   });
   block.dataset.colBgs = bgs.join(',');
@@ -178,8 +210,33 @@ export function showTableProperties(block) {
   const table    = block.querySelector('.tb-table');
   const thead    = table.querySelector('thead');
   const tbody    = table.querySelector('tbody');
-  const colCount = table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
+  // logical col count = (a) tbody 첫 td 갯수 (b) thead colspan 합산 (c) 첫 tr 단순 카운트(폴백)
+  const _logicalColCount = () => {
+    const bodyTr = tbody?.querySelector('tr');
+    if (bodyTr) return bodyTr.querySelectorAll('th,td').length;
+    const headTr = thead?.querySelector('tr');
+    if (headTr) {
+      let n = 0;
+      headTr.querySelectorAll('th,td').forEach(c => {
+        n += parseInt(c.getAttribute('colspan') || '1', 10) || 1;
+      });
+      return n;
+    }
+    return table.querySelector('tr')?.querySelectorAll('th,td').length || 2;
+  };
+  const colCount = _logicalColCount();
   const rowCount = tbody?.querySelectorAll('tr').length || 0;
+
+  // ── mergedHeaderCols dataset 파싱 → 사용자 친화 문자열 "start:span,start:span" ──
+  let _curMergesArr = [];
+  try {
+    const raw = block.dataset.mergedHeaderCols;
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (Array.isArray(p)) _curMergesArr = p.filter(it => Array.isArray(it) && it.length >= 2);
+    }
+  } catch (_) {}
+  const curMergesStr = _curMergesArr.map(([s, n]) => `${s}:${n}`).join(',');
   const curStyle      = block.dataset.style || 'default';
   const curAlign      = block.dataset.cellAlign || 'left';
   const curPad        = parseInt(block.dataset.cellPad) || 10;
@@ -279,6 +336,15 @@ export function showTableProperties(block) {
         <button id="tbl-col-ratio-reset" style="height:24px;flex:0 0 auto;padding:0 10px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">균등</button>
       </div>
       <div class="prop-hint">예: 1:1:2 → 25/25/50%</div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Header Merge</div>
+      <div class="prop-row">
+        <span class="prop-label">병합</span>
+        <input type="text" class="prop-input" id="tbl-merge-headers" placeholder="0:2,3:2" value="${curMergesStr}" title="형식: start:span 쉼표구분. 예) 0:2,3:2 = col0~1, col3~4 그룹화" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
+        <button id="tbl-merge-headers-clear" style="height:24px;flex:0 0 auto;padding:0 10px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">지우기</button>
+      </div>
+      <div class="prop-hint">헤더 가로 병합 (start:span, 0-base). 예) 0:2,3:2 — 첫 2칸 + 4~5칸 그룹</div>
     </div>
     ${curStyle === 'colored' ? `
     <div class="prop-section" id="tbl-col-colors-section">
@@ -480,8 +546,16 @@ export function showTableProperties(block) {
     window.pushHistory();
   });
 
-  /* 열 추가/삭제 */
+  /* 열 추가/삭제 — v1: 열 갯수가 바뀌면 header merge 정합성이 깨질 위험이 있어 자동 clear */
+  const _clearMergesIfAny = () => {
+    if (block.dataset.mergedHeaderCols && block.dataset.mergedHeaderCols !== '[]') {
+      delete block.dataset.mergedHeaderCols;
+    }
+    // thead의 colspan 속성도 제거 (시각 정합성)
+    block.querySelectorAll('.tb-table > thead th[colspan]').forEach(th => th.removeAttribute('colspan'));
+  };
   document.getElementById('tbl-col-plus').addEventListener('click', () => {
+    _clearMergesIfAny();
     table.querySelectorAll('tr').forEach(tr => {
       const isHead = tr.closest('thead');
       const cell = document.createElement(isHead ? 'th' : 'td');
@@ -503,6 +577,7 @@ export function showTableProperties(block) {
     if (block.dataset.style === 'colored') { _applyColColors(block); showTableProperties(block); }
   });
   document.getElementById('tbl-col-minus').addEventListener('click', () => {
+    _clearMergesIfAny();
     const cols = table.querySelector('tr')?.querySelectorAll('th,td').length || 0;
     if (cols > 1) {
       table.querySelectorAll('tr').forEach(tr => tr.lastElementChild?.remove());
@@ -511,6 +586,36 @@ export function showTableProperties(block) {
     if (block.dataset.colWidths) _applyColRatio(block, block.dataset.colWidths);
     if (block.dataset.style === 'colored') { _applyColColors(block); showTableProperties(block); }
     window.pushHistory();
+  });
+
+  /* 헤더 병합 (mergedHeaderCols) — 입력 형식 "start:span,start:span"
+     - 빈 값 / 지우기 버튼 → dataset 제거 + thead 단순 재구성
+     - 정상 입력 → window.updateTableBlock(id, { mergedHeaderCols: arr }) 호출 (검증/렌더 통합) */
+  const _parseMergesStr = (str) => {
+    const out = [];
+    String(str || '').split(',').map(s => s.trim()).filter(Boolean).forEach(tok => {
+      const m = tok.match(/^(\d+)\s*:\s*(\d+)$/);
+      if (!m) return null;
+      out.push([parseInt(m[1], 10), parseInt(m[2], 10)]);
+    });
+    return out;
+  };
+  const _applyMergeInput = (raw) => {
+    const arr = _parseMergesStr(raw);
+    if (typeof window.updateTableBlock !== 'function') return;
+    const res = window.updateTableBlock(block.id, { mergedHeaderCols: arr });
+    if (res && res.ok === false) {
+      // 사용자에게 가볍게 알림 (콘솔만) + 패널 재렌더로 입력값 원복
+      console.warn('[table-merge] update failed:', res.code, res.message);
+    }
+    // 패널 재렌더 (입력값 정규형 반영)
+    try { showTableProperties(block); } catch (_) {}
+  };
+  const mergeInput = document.getElementById('tbl-merge-headers');
+  mergeInput?.addEventListener('change', e => _applyMergeInput(e.target.value));
+  document.getElementById('tbl-merge-headers-clear')?.addEventListener('click', () => {
+    if (mergeInput) mergeInput.value = '';
+    _applyMergeInput('');
   });
 
   /* 컬럼 비율 */

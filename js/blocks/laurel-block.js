@@ -237,6 +237,333 @@ function addLaurelBlock(opts = {}) {
   window.triggerAutoSave?.();
 }
 
+// ── 수정 ─────────────────────────────────────────────────────────────────────
+// PM의 update_laurel_block(MCP) → main(_invokeRendererUpdateLaurelBlock) → 여기.
+// banner02 패턴 미러: pushHistory + dataset partial write + renderLaurelBlock 재렌더 + triggerAutoSave.
+// 데이터 모델: dataset.cells = JSON.stringify([{ lines:[{text,fontSize,fontWeight,color,letterSpacing}], leafColor, leafFill, gap, height }])
+// 지원 partial:
+//   - layerName, gridCols, gridRows, gridColGap, gridRowGap (dataset 직접 set)
+//   - cells (배열 전체 교체)
+//   - editCell { index, lines?, leafColor?, leafFill?, gap?, height? } (단일 cell 부분 머지)
+//   - addLine    { cellIndex, line:{text,fontSize,fontWeight,color,letterSpacing}, atIndex? }
+//   - removeLine { cellIndex, lineIndex }   (마지막 1개 보호)
+//   - editLine   { cellIndex, lineIndex, text?, fontSize?, fontWeight?, color?, letterSpacing? }
+//   - allGap, allHeight, allLeafColor, allLeafFill (모든 cells 일괄 적용)
+function updateLaurelBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  if (typeof blockId !== 'string' || !blockId.startsWith('lrb_')) {
+    return { ok: false, code: 'INVALID', message: `invalid blockId: ${blockId} (must start with lrb_)` };
+  }
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('laurel-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `laurel-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  const keys = Object.keys(partial);
+  if (keys.length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial is empty — provide at least one laurel field' };
+  }
+
+  // ── 보안 가드 (renderer side double-check — main 에서 한 번 거쳤어도 무결성용) ──
+  const _COLOR_RE  = /^#[0-9a-fA-F]{3,8}$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+  const _isColor = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && (_COLOR_RE.test(v.trim()) || v.trim() === 'transparent');
+  const _LEAF_FILLS = ['solid','gold','silver','bronze','rosegold','platinum','appleGold','appleSilver','appleMidnight','appleStarlight','polishedGold','mirrorSilver','champagne','emeraldMetal','iridescent'];
+  const _isInt   = (n, min, max) => Number.isInteger(n) && (min === undefined || n >= min) && (max === undefined || n <= max);
+  const _isNum   = (n, min, max) => Number.isFinite(n) && (min === undefined || n >= min) && (max === undefined || n <= max);
+  const _normLine = (l, ctx) => {
+    if (!l || typeof l !== 'object') throw new Error(`${ctx} must be object`);
+    const o = {};
+    if (l.text !== undefined && l.text !== null) {
+      if (typeof l.text !== 'string') throw new Error(`${ctx}.text must be string`);
+      if ([...l.text].length > 500) throw new Error(`${ctx}.text too long (>500)`);
+      o.text = l.text;
+    }
+    if (l.fontSize !== undefined && l.fontSize !== null) {
+      const n = parseInt(l.fontSize);
+      if (!_isInt(n, 8, 400)) throw new Error(`${ctx}.fontSize out of range [8,400]`);
+      o.fontSize = n;
+    }
+    if (l.fontWeight !== undefined && l.fontWeight !== null) {
+      const n = parseInt(l.fontWeight);
+      if (!_isInt(n, 100, 900)) throw new Error(`${ctx}.fontWeight out of range [100,900]`);
+      o.fontWeight = n;
+    }
+    if (l.color !== undefined && l.color !== null) {
+      if (!_isColor(l.color)) throw new Error(`${ctx}.color invalid`);
+      o.color = l.color.trim();
+    }
+    if (l.letterSpacing !== undefined && l.letterSpacing !== null) {
+      const n = parseFloat(l.letterSpacing);
+      if (!_isNum(n, -20, 50)) throw new Error(`${ctx}.letterSpacing out of range [-20,50]`);
+      o.letterSpacing = n;
+    }
+    return o;
+  };
+  const _normCell = (c, ctx) => {
+    if (!c || typeof c !== 'object') throw new Error(`${ctx} must be object`);
+    const o = {};
+    if (c.lines !== undefined && c.lines !== null) {
+      if (!Array.isArray(c.lines)) throw new Error(`${ctx}.lines must be array`);
+      if (c.lines.length < 1 || c.lines.length > 20) throw new Error(`${ctx}.lines length must be in [1,20]`);
+      o.lines = c.lines.map((ln, i) => {
+        const merged = _normLine(ln, `${ctx}.lines[${i}]`);
+        // 신규 line 필수 필드 보강
+        return {
+          text:       merged.text       !== undefined ? merged.text       : '',
+          fontSize:   merged.fontSize   !== undefined ? merged.fontSize   : 56,
+          fontWeight: merged.fontWeight !== undefined ? merged.fontWeight : 700,
+          color:      merged.color      !== undefined ? merged.color      : '#1a1a1a',
+          ...(merged.letterSpacing !== undefined ? { letterSpacing: merged.letterSpacing } : {}),
+        };
+      });
+    }
+    if (c.leafColor !== undefined && c.leafColor !== null) {
+      if (!_isColor(c.leafColor)) throw new Error(`${ctx}.leafColor invalid`);
+      o.leafColor = c.leafColor.trim();
+    }
+    if (c.leafFill !== undefined && c.leafFill !== null) {
+      if (!_LEAF_FILLS.includes(c.leafFill)) throw new Error(`${ctx}.leafFill invalid (allowed: ${_LEAF_FILLS.join('|')})`);
+      o.leafFill = c.leafFill;
+    }
+    if (c.gap !== undefined && c.gap !== null) {
+      const n = parseInt(c.gap);
+      if (!_isInt(n, 0, 2000)) throw new Error(`${ctx}.gap out of range [0,2000]`);
+      o.gap = n;
+    }
+    if (c.height !== undefined && c.height !== null) {
+      const n = parseInt(c.height);
+      if (!_isInt(n, 20, 600)) throw new Error(`${ctx}.height out of range [20,600]`);
+      o.height = n;
+    }
+    return o;
+  };
+
+  // ── before 스냅샷 (mutate 전, undo 푸시 전) ──
+  const before = {
+    gridCols:   block.dataset.gridCols,
+    gridRows:   block.dataset.gridRows,
+    gridColGap: block.dataset.gridColGap,
+    gridRowGap: block.dataset.gridRowGap,
+    layerName:  block.dataset.layerName,
+    cells:      block.dataset.cells,
+  };
+
+  window.pushHistory?.('Laurel 수정');
+
+  const applied = {};
+
+  // ── 1) 단순 dataset 필드 ──
+  if (partial.layerName !== undefined && partial.layerName !== null) {
+    if (typeof partial.layerName !== 'string') return { ok: false, code: 'INVALID', message: 'layerName must be string' };
+    if ([...partial.layerName].length > 100)   return { ok: false, code: 'INVALID', message: 'layerName too long (>100)' };
+    block.dataset.layerName = partial.layerName;
+    applied.layerName = partial.layerName;
+  }
+  if (partial.gridCols !== undefined && partial.gridCols !== null) {
+    const n = parseInt(partial.gridCols);
+    if (!_isInt(n, 1, 4)) return { ok: false, code: 'INVALID', message: 'gridCols out of range [1,4]' };
+    block.dataset.gridCols = String(n);
+    applied.gridCols = n;
+  }
+  if (partial.gridRows !== undefined && partial.gridRows !== null) {
+    const n = parseInt(partial.gridRows);
+    if (!_isInt(n, 1, 4)) return { ok: false, code: 'INVALID', message: 'gridRows out of range [1,4]' };
+    block.dataset.gridRows = String(n);
+    applied.gridRows = n;
+  }
+  if (partial.gridColGap !== undefined && partial.gridColGap !== null) {
+    const n = parseInt(partial.gridColGap);
+    if (!_isInt(n, 0, 400)) return { ok: false, code: 'INVALID', message: 'gridColGap out of range [0,400]' };
+    block.dataset.gridColGap = String(n);
+    applied.gridColGap = n;
+  }
+  if (partial.gridRowGap !== undefined && partial.gridRowGap !== null) {
+    const n = parseInt(partial.gridRowGap);
+    if (!_isInt(n, 0, 400)) return { ok: false, code: 'INVALID', message: 'gridRowGap out of range [0,400]' };
+    block.dataset.gridRowGap = String(n);
+    applied.gridRowGap = n;
+  }
+
+  // ── 2) cells 모델 조작 (renderer-side 처리: dataset.cells 직접 mutate) ──
+  // _readLaurelCells가 backward-compat 마이그레이션도 처리하므로 현재 cells 시드를 거기서 가져옴
+  let cells;
+  try {
+    cells = (typeof window._readLaurelCells === 'function')
+      ? window._readLaurelCells(block)
+      : (block.dataset.cells ? JSON.parse(block.dataset.cells) : [{ lines:[{text:'1위',fontSize:56,fontWeight:700,color:'#1a1a1a'}], leafColor:'#1a1a1a', gap:24, height:140 }]);
+    if (!Array.isArray(cells) || cells.length === 0) {
+      cells = [{ lines:[{text:'1위',fontSize:56,fontWeight:700,color:'#1a1a1a'}], leafColor:'#1a1a1a', gap:24, height:140 }];
+    }
+  } catch (e) {
+    return { ok: false, code: 'INVALID', message: `cells parse failed: ${e.message}` };
+  }
+
+  try {
+    // (a) cells 전체 교체 — 최우선
+    if (partial.cells !== undefined && partial.cells !== null) {
+      if (!Array.isArray(partial.cells)) return { ok: false, code: 'INVALID', message: 'cells must be array' };
+      if (partial.cells.length < 1 || partial.cells.length > 16) return { ok: false, code: 'INVALID', message: 'cells length must be in [1,16]' };
+      const next = partial.cells.map((c, i) => {
+        const validated = _normCell(c, `cells[${i}]`);
+        return {
+          lines:     validated.lines     !== undefined ? validated.lines     : [{ text:'1위', fontSize:56, fontWeight:700, color:'#1a1a1a' }],
+          leafColor: validated.leafColor !== undefined ? validated.leafColor : '#1a1a1a',
+          leafFill:  validated.leafFill  !== undefined ? validated.leafFill  : 'solid',
+          gap:       validated.gap       !== undefined ? validated.gap       : 24,
+          height:    validated.height    !== undefined ? validated.height    : 140,
+        };
+      });
+      cells = next;
+      applied.cells = cells;
+    }
+
+    // (b) editCell — 단일 cell 부분 머지
+    if (partial.editCell !== undefined && partial.editCell !== null) {
+      const e = partial.editCell;
+      if (typeof e !== 'object') return { ok: false, code: 'INVALID', message: 'editCell must be object' };
+      if (!_isInt(parseInt(e.index), 0, 15)) return { ok: false, code: 'INVALID', message: 'editCell.index must be integer in [0,15]' };
+      const idx = parseInt(e.index);
+      if (idx >= cells.length) return { ok: false, code: 'NOT_FOUND', message: `editCell.index ${idx} out of bounds (cells.length=${cells.length})` };
+      const patch = _normCell(e, 'editCell');
+      cells[idx] = { ...cells[idx], ...patch };
+      applied.editCell = { index: idx, ...patch };
+    }
+
+    // (c) addLine — 특정 cell에 line 추가
+    if (partial.addLine !== undefined && partial.addLine !== null) {
+      const a = partial.addLine;
+      if (typeof a !== 'object') return { ok: false, code: 'INVALID', message: 'addLine must be object' };
+      if (!_isInt(parseInt(a.cellIndex), 0, 15)) return { ok: false, code: 'INVALID', message: 'addLine.cellIndex must be integer in [0,15]' };
+      const ci = parseInt(a.cellIndex);
+      if (ci >= cells.length) return { ok: false, code: 'NOT_FOUND', message: `addLine.cellIndex ${ci} out of bounds` };
+      if (!a.line || typeof a.line !== 'object') return { ok: false, code: 'INVALID', message: 'addLine.line must be object' };
+      const newLineRaw = _normLine(a.line, 'addLine.line');
+      const newLine = {
+        text:       newLineRaw.text       !== undefined ? newLineRaw.text       : '',
+        fontSize:   newLineRaw.fontSize   !== undefined ? newLineRaw.fontSize   : 56,
+        fontWeight: newLineRaw.fontWeight !== undefined ? newLineRaw.fontWeight : 700,
+        color:      newLineRaw.color      !== undefined ? newLineRaw.color      : '#1a1a1a',
+        ...(newLineRaw.letterSpacing !== undefined ? { letterSpacing: newLineRaw.letterSpacing } : {}),
+      };
+      const targetCell = cells[ci];
+      const curLines = Array.isArray(targetCell.lines) ? targetCell.lines.slice() : [];
+      if (curLines.length >= 20) return { ok: false, code: 'INVALID', message: `addLine: cell[${ci}].lines limit reached (20)` };
+      let at = curLines.length;
+      if (a.atIndex !== undefined && a.atIndex !== null) {
+        if (!_isInt(parseInt(a.atIndex), 0, 20)) return { ok: false, code: 'INVALID', message: 'addLine.atIndex must be integer in [0,20]' };
+        at = Math.max(0, Math.min(curLines.length, parseInt(a.atIndex)));
+      }
+      curLines.splice(at, 0, newLine);
+      cells[ci] = { ...targetCell, lines: curLines };
+      applied.addLine = { cellIndex: ci, atIndex: at, line: newLine };
+    }
+
+    // (d) removeLine — 특정 cell의 line 제거 (마지막 1개 보호)
+    if (partial.removeLine !== undefined && partial.removeLine !== null) {
+      const r = partial.removeLine;
+      if (typeof r !== 'object') return { ok: false, code: 'INVALID', message: 'removeLine must be object' };
+      if (!_isInt(parseInt(r.cellIndex), 0, 15)) return { ok: false, code: 'INVALID', message: 'removeLine.cellIndex must be integer in [0,15]' };
+      const ci = parseInt(r.cellIndex);
+      if (ci >= cells.length) return { ok: false, code: 'NOT_FOUND', message: `removeLine.cellIndex ${ci} out of bounds` };
+      if (!_isInt(parseInt(r.lineIndex), 0, 19)) return { ok: false, code: 'INVALID', message: 'removeLine.lineIndex must be integer in [0,19]' };
+      const li = parseInt(r.lineIndex);
+      const targetCell = cells[ci];
+      const curLines = Array.isArray(targetCell.lines) ? targetCell.lines.slice() : [];
+      if (li >= curLines.length) return { ok: false, code: 'NOT_FOUND', message: `removeLine.lineIndex ${li} out of bounds (cell[${ci}].lines.length=${curLines.length})` };
+      if (curLines.length <= 1)  return { ok: false, code: 'INVALID', message: `cannot remove last remaining line in cell[${ci}]` };
+      const removed = curLines.splice(li, 1)[0];
+      cells[ci] = { ...targetCell, lines: curLines };
+      applied.removeLine = { cellIndex: ci, lineIndex: li, removed };
+    }
+
+    // (e) editLine — 특정 cell의 특정 line 부분 머지
+    if (partial.editLine !== undefined && partial.editLine !== null) {
+      const e = partial.editLine;
+      if (typeof e !== 'object') return { ok: false, code: 'INVALID', message: 'editLine must be object' };
+      if (!_isInt(parseInt(e.cellIndex), 0, 15)) return { ok: false, code: 'INVALID', message: 'editLine.cellIndex must be integer in [0,15]' };
+      const ci = parseInt(e.cellIndex);
+      if (ci >= cells.length) return { ok: false, code: 'NOT_FOUND', message: `editLine.cellIndex ${ci} out of bounds` };
+      if (!_isInt(parseInt(e.lineIndex), 0, 19)) return { ok: false, code: 'INVALID', message: 'editLine.lineIndex must be integer in [0,19]' };
+      const li = parseInt(e.lineIndex);
+      const targetCell = cells[ci];
+      const curLines = Array.isArray(targetCell.lines) ? targetCell.lines.slice() : [];
+      if (li >= curLines.length) return { ok: false, code: 'NOT_FOUND', message: `editLine.lineIndex ${li} out of bounds` };
+      const patch = _normLine(e, 'editLine');
+      curLines[li] = { ...curLines[li], ...patch };
+      cells[ci] = { ...targetCell, lines: curLines };
+      applied.editLine = { cellIndex: ci, lineIndex: li, ...patch };
+    }
+
+    // (f) 일괄 적용 (모든 cells)
+    if (partial.allGap !== undefined && partial.allGap !== null) {
+      const n = parseInt(partial.allGap);
+      if (!_isInt(n, 0, 2000)) return { ok: false, code: 'INVALID', message: 'allGap out of range [0,2000]' };
+      cells = cells.map(c => ({ ...c, gap: n }));
+      applied.allGap = n;
+    }
+    if (partial.allHeight !== undefined && partial.allHeight !== null) {
+      const n = parseInt(partial.allHeight);
+      if (!_isInt(n, 20, 600)) return { ok: false, code: 'INVALID', message: 'allHeight out of range [20,600]' };
+      cells = cells.map(c => ({ ...c, height: n }));
+      applied.allHeight = n;
+    }
+    if (partial.allLeafColor !== undefined && partial.allLeafColor !== null) {
+      if (!_isColor(partial.allLeafColor)) return { ok: false, code: 'INVALID', message: 'allLeafColor invalid' };
+      const v = partial.allLeafColor.trim();
+      cells = cells.map(c => ({ ...c, leafColor: v }));
+      applied.allLeafColor = v;
+    }
+    if (partial.allLeafFill !== undefined && partial.allLeafFill !== null) {
+      if (!_LEAF_FILLS.includes(partial.allLeafFill)) return { ok: false, code: 'INVALID', message: `allLeafFill invalid (allowed: ${_LEAF_FILLS.join('|')})` };
+      cells = cells.map(c => ({ ...c, leafFill: partial.allLeafFill }));
+      applied.allLeafFill = partial.allLeafFill;
+    }
+  } catch (e) {
+    return { ok: false, code: 'INVALID', message: e.message };
+  }
+
+  // cells 길이 1~16 가드 (방어적)
+  if (cells.length < 1 || cells.length > 16) {
+    return { ok: false, code: 'INVALID', message: `cells length out of range [1,16]: ${cells.length}` };
+  }
+
+  // dataset.cells commit (renderLaurelBlock도 길이 보정하지만 명시적으로 한번 더)
+  block.dataset.cells = JSON.stringify(cells);
+
+  // ── 3) 재렌더 ──
+  try {
+    if (typeof window.renderLaurelBlock === 'function') {
+      window.renderLaurelBlock(block);
+    }
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  // ── 4) 우측 패널 / 레이어 패널 갱신 ──
+  if (block.classList.contains('selected')) {
+    try { window.showLaurelProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  // ── 5) autosave ──
+  try { window.triggerAutoSave?.(); } catch (_) {}
+  try { window.scheduleAutoSave?.(); } catch (_) {}
+
+  // ── 6) 응답 ──
+  const finalCells = (() => { try { return JSON.parse(block.dataset.cells || '[]'); } catch (_) { return []; } })();
+  return {
+    ok: true,
+    blockId,
+    cellsCount: finalCells.length,
+    gridCols: parseInt(block.dataset.gridCols) || 1,
+    gridRows: parseInt(block.dataset.gridRows) || 1,
+    before,
+    applied,
+  };
+}
+
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeLaurelBlock     = makeLaurelBlock;
 window.addLaurelBlock      = addLaurelBlock;
@@ -245,10 +572,12 @@ window._readLaurelLines    = _readLaurelLines;
 window._readLaurelCells    = _readLaurelCells;
 window._renderLaurelCellHtml = _renderLaurelCellHtml;
 window.LAUREL_FILL_PRESETS = LAUREL_FILL_PRESETS;
+window.updateLaurelBlock   = updateLaurelBlock;
 
 export {
   makeLaurelBlock,
   addLaurelBlock,
+  updateLaurelBlock,
   renderLaurelBlock,
   LAUREL_FILL_PRESETS,
   LAUREL_DEFAULTS,

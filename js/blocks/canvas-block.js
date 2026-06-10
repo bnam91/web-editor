@@ -329,6 +329,39 @@ function renderCanvas(block) {
             if (!textHide) cell.appendChild(makeTextDiv(textH, 'top'));
             cell.appendChild(makeImgDiv());
             if (!textHide) cell.appendChild(makeTextDiv(textH, 'bottom'));
+          } else if (labelPos === 'overlay-bottom' || labelPos === 'overlay-top' || labelPos === 'overlay-center') {
+            // 이미지가 셀 전체를 덮고 그 위에 라벨 absolute 오버레이
+            const fullImg = document.createElement('div');
+            fullImg.style.cssText = `position:absolute;inset:0;overflow:hidden;`;
+            if (card.icon && card.icon.svg) {
+              _fillCardIcon(fullImg, card, Math.min(designW, designH), _iconOpts);
+            } else if (card.imgSrc) {
+              fullImg.style.backgroundImage    = `url("${card.imgSrc}")`;
+              fullImg.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';
+              fullImg.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
+              fullImg.style.backgroundRepeat   = 'no-repeat';
+              _bindCvbImgDrag(fullImg, block, idx);
+            } else {
+              fullImg.style.background = 'rgba(0,0,0,0.06)';
+              fullImg.style.display = 'flex'; fullImg.style.alignItems = 'center'; fullImg.style.justifyContent = 'center';
+              const ph = document.createElement('span');
+              ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
+              ph.textContent = '+'; fullImg.appendChild(ph);
+            }
+            cell.appendChild(fullImg);
+            if (!textHide) {
+              const overlayDiv = makeTextDiv(textH, 'middle');
+              const overlayH = parseInt(block.dataset.overlayHeight) || textH;
+              // 좌우 너비(%) — 기본 100%. left/right 대칭 inset 으로 가운데 정렬
+              const overlayWPct = Math.min(100, Math.max(10, parseInt(block.dataset.overlayWidth) || 100));
+              const sideInset = (100 - overlayWPct) / 2; // %
+              const verticalAnchor =
+                labelPos === 'overlay-top'    ? 'top:0;'
+              : labelPos === 'overlay-center' ? `top:50%;transform:translateY(-50%);`
+              :                                  'bottom:0;';
+              overlayDiv.style.cssText = `position:absolute;left:${sideInset}%;right:${sideInset}%;${verticalAnchor}height:${overlayH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;`;
+              cell.appendChild(overlayDiv);
+            }
           } else {
             // bottom (기본)
             cell.appendChild(makeImgDiv());
@@ -574,9 +607,395 @@ function addCanvasBlock(opts = {}) {
   window.selectSection(sec);
 }
 
+// ── 수정 (PM/MCP 진입점) ──────────────────────────────────────────────────────────────────────
+// updateCanvasBlock(blockId, partial) — banner02 updateBanner02Block 패턴 미러.
+// dual-mode 컴포넌트:
+//   - 레이어 모드 (cardMode 미지정): layers[] / patchLayers[{index,...}] free-placement
+//   - Simple Card Mode (cardMode='simple'): cards[] / patchCards[{index,...}] 그리드
+// 시퀀스: 검증 → before snapshot → pushHistory → dataset write → renderCanvas → autosave → 패널 리프레시
+// 보안:
+//   - 색상: #hex | rgb(a)/hsl(a)() | transparent 만 허용 (CSS injection 차단)
+//   - imgSrc / layer.src: length ≤200000 + ["\r\n] 차단 (CSS url("") 안전)
+//   - icon.svg: length ≤20000 + <script / on*= / javascript: 차단
+//   - layer.fontWeight: '100'..'900' | 'normal' | 'bold' 화이트리스트
+//   - gridCols/gridRows 변경 시 cards 배열 자동 sync (insertCanvasGrid 패턴 미러)
+function updateCanvasBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('canvas-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `canvas-block not found: ${blockId}` };
+  }
+  if (!String(blockId).startsWith('cvb_')) {
+    return { ok: false, code: 'INVALID', message: `blockId must start with cvb_: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+
+  // ── 내부 가드 helper (boundary 재검증 — main 보낸 값도 한 번 더) ─────────────
+  const _COLOR_RE_HEX = /^#[0-9a-fA-F]{3,8}$/;
+  const _COLOR_RE_FN  = /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+  const _isColor = v => typeof v === 'string' && (v === 'transparent' || _COLOR_RE_HEX.test(v.trim()) || _COLOR_RE_FN.test(v.trim()));
+  const _isImgSrc = v => typeof v === 'string' && v.length <= 200000 && !/["\r\n]/.test(v);
+  const _SVG_BAD_RE = /<script\b|on[a-z]+\s*=|javascript\s*:/i;
+  const _isSafeSvg = v => typeof v === 'string' && v.length <= 20000 && !_SVG_BAD_RE.test(v);
+  const _FW_ALLOWED = ['100','200','300','400','500','600','700','800','900','normal','bold'];
+  const _ALIGN_ALLOWED = ['left','center','right'];
+  const _LAYER_TYPES = ['shape','image','text'];
+  const _isInt = (n, min, max) => Number.isInteger(n) && (min === undefined || n >= min) && (max === undefined || n <= max);
+  const _isNum = (n, min, max) => typeof n === 'number' && Number.isFinite(n) && (min === undefined || n >= min) && (max === undefined || n <= max);
+
+  // before 스냅샷 (rollback/diff 용)
+  const before = {
+    canvasW: block.dataset.canvasW, canvasH: block.dataset.canvasH,
+    bg: block.dataset.bg, radius: block.dataset.radius,
+    layerName: block.dataset.layerName,
+    gridCols: block.dataset.gridCols, gridRows: block.dataset.gridRows,
+    cardGap: block.dataset.cardGap, padX: block.dataset.padX,
+    cardMode: block.dataset.cardMode || '',
+    imgRatio: block.dataset.imgRatio, imgShape: block.dataset.imgShape,
+    labelPos: block.dataset.labelPos, textHide: block.dataset.textHide,
+    textBg: block.dataset.textBg,
+    titleSize: block.dataset.titleSize, descSize: block.dataset.descSize,
+    textAlign: block.dataset.textAlign,
+    titleColor: block.dataset.titleColor, descColor: block.dataset.descColor,
+    cardOrient: block.dataset.cardOrient,
+    iconMode: block.dataset.iconMode, iconScale: block.dataset.iconScale,
+    iconColor: block.dataset.iconColor, iconBg: block.dataset.iconBg,
+    cards: block.dataset.cards, layers: block.dataset.layers,
+  };
+
+  const applied = {};
+  // history는 변경 직전 1회만 — 검증 통과 후
+  const _pushOnce = (() => { let done = false; return () => { if (done) return; done = true; window.pushHistory?.(); }; })();
+
+  // ── 1) 단순 dataset 필드 (int / color / enum / str) ──────────────────────────
+  const _setIntField = (key, datasetKey, min, max) => {
+    if (partial[key] === undefined) return;
+    const n = Number(partial[key]);
+    if (!_isInt(n, min, max)) {
+      return { ok: false, code: 'INVALID', message: `${key} must be integer in [${min},${max}]: ${partial[key]}` };
+    }
+    _pushOnce(); block.dataset[datasetKey] = String(n); applied[key] = n;
+  };
+  const _setColorField = (key, datasetKey) => {
+    if (partial[key] === undefined || partial[key] === null) return;
+    if (!_isColor(partial[key])) {
+      return { ok: false, code: 'INVALID', message: `${key} invalid color (allowed: #hex | rgb(a)/hsl(a)() | transparent): ${partial[key]}` };
+    }
+    _pushOnce(); block.dataset[datasetKey] = String(partial[key]).trim(); applied[key] = block.dataset[datasetKey];
+  };
+  const _setEnumField = (key, datasetKey, allowed) => {
+    if (partial[key] === undefined) return;
+    if (!allowed.includes(partial[key])) {
+      return { ok: false, code: 'INVALID', message: `invalid ${key}: ${partial[key]}. allowed: ${allowed.join('|')}` };
+    }
+    _pushOnce(); block.dataset[datasetKey] = String(partial[key]); applied[key] = partial[key];
+  };
+  const _setStrField = (key, datasetKey, maxLen) => {
+    if (partial[key] === undefined || partial[key] === null) return;
+    if (typeof partial[key] !== 'string') {
+      return { ok: false, code: 'INVALID', message: `${key} must be string` };
+    }
+    if (maxLen !== undefined && [...partial[key]].length > maxLen) {
+      return { ok: false, code: 'INVALID', message: `${key} too long (>${maxLen} code points)` };
+    }
+    _pushOnce(); block.dataset[datasetKey] = partial[key]; applied[key] = partial[key];
+  };
+  // boolean → 'true'/'false' 문자열 저장
+  const _setBoolStrField = (key, datasetKey) => {
+    if (partial[key] === undefined || partial[key] === null) return;
+    let v = partial[key];
+    if (typeof v === 'boolean') v = v ? 'true' : 'false';
+    if (!['true', 'false'].includes(v)) {
+      return { ok: false, code: 'INVALID', message: `${key} must be boolean or 'true'/'false': ${partial[key]}` };
+    }
+    _pushOnce(); block.dataset[datasetKey] = v; applied[key] = v;
+  };
+
+  const _try = (r) => { if (r && r.ok === false) throw r; };
+
+  try {
+    _try(_setIntField('canvasW',   'canvasW',   100, 1200));
+    _try(_setIntField('canvasH',   'canvasH',   40,  2000));
+    _try(_setColorField('bg',      'bg'));
+    _try(_setIntField('radius',    'radius',    0,   60));
+    _try(_setStrField('layerName', 'layerName', 100));
+    _try(_setIntField('cardGap',   'cardGap',   0,   48));
+    _try(_setIntField('padX',      'padX',      0,   80));
+    _try(_setEnumField('cardMode', 'cardMode',  ['simple', '']));
+    _try(_setIntField('imgRatio',  'imgRatio',  10,  90));
+    _try(_setEnumField('imgShape', 'imgShape',  ['rect','circle']));
+    _try(_setEnumField('labelPos', 'labelPos',  ['top','bottom','both']));
+    _try(_setBoolStrField('textHide','textHide'));
+    _try(_setColorField('textBg',  'textBg'));
+    _try(_setIntField('titleSize', 'titleSize', 4,   400));
+    _try(_setIntField('descSize',  'descSize',  4,   400));
+    _try(_setEnumField('textAlign','textAlign', _ALIGN_ALLOWED));
+    _try(_setColorField('titleColor','titleColor'));
+    _try(_setColorField('descColor', 'descColor'));
+    _try(_setEnumField('cardOrient','cardOrient', ['portrait','landscape']));
+    _try(_setBoolStrField('iconMode','iconMode'));
+    _try(_setIntField('iconScale', 'iconScale', 10,  90));
+    _try(_setColorField('iconColor','iconColor'));
+    _try(_setColorField('iconBg',  'iconBg'));
+  } catch (errResult) {
+    return errResult;
+  }
+
+  // ── 2) grid 크기 변경 → cards 배열 자동 sync (insertCanvasGrid 패턴 미러) ──
+  let needGridSync = false;
+  if (partial.gridCols !== undefined) {
+    const n = Number(partial.gridCols);
+    if (!_isInt(n, 1, 4)) return { ok: false, code: 'INVALID', message: `gridCols must be integer in [1,4]: ${partial.gridCols}` };
+    _pushOnce(); block.dataset.gridCols = String(n); applied.gridCols = n; needGridSync = true;
+  }
+  if (partial.gridRows !== undefined) {
+    const n = Number(partial.gridRows);
+    if (!_isInt(n, 1, 4)) return { ok: false, code: 'INVALID', message: `gridRows must be integer in [1,4]: ${partial.gridRows}` };
+    _pushOnce(); block.dataset.gridRows = String(n); applied.gridRows = n; needGridSync = true;
+  }
+
+  // ── 3) cards 풀 교체 / patch ───────────────────────────────────────────────────
+  const _validateCard = (c, ctx) => {
+    if (!c || typeof c !== 'object') return { ok: false, code: 'INVALID', message: `${ctx} must be object` };
+    if (c.title !== undefined && c.title !== null) {
+      if (typeof c.title !== 'string') return { ok: false, code: 'INVALID', message: `${ctx}.title must be string` };
+      if ([...c.title].length > 500) return { ok: false, code: 'INVALID', message: `${ctx}.title too long (>500)` };
+    }
+    if (c.desc !== undefined && c.desc !== null) {
+      if (typeof c.desc !== 'string') return { ok: false, code: 'INVALID', message: `${ctx}.desc must be string` };
+      if ([...c.desc].length > 500) return { ok: false, code: 'INVALID', message: `${ctx}.desc too long (>500)` };
+    }
+    if (c.imgSrc !== undefined && c.imgSrc !== null) {
+      if (typeof c.imgSrc !== 'string') return { ok: false, code: 'INVALID', message: `${ctx}.imgSrc must be string` };
+      if (c.imgSrc.length > 200000) return { ok: false, code: 'TOO_LARGE', message: `${ctx}.imgSrc too long (>200000)` };
+      if (/["\r\n]/.test(c.imgSrc)) return { ok: false, code: 'INVALID', message: `${ctx}.imgSrc contains quote/newline (escape unsafe)` };
+    }
+    if (c.imgFit !== undefined && c.imgFit !== null) {
+      if (!['cover','contain'].includes(c.imgFit)) return { ok: false, code: 'INVALID', message: `${ctx}.imgFit must be cover|contain` };
+    }
+    if (c.imgX !== undefined && c.imgX !== null) {
+      if (!_isNum(Number(c.imgX), 0, 100)) return { ok: false, code: 'INVALID', message: `${ctx}.imgX must be number 0~100` };
+    }
+    if (c.imgY !== undefined && c.imgY !== null) {
+      if (!_isNum(Number(c.imgY), 0, 100)) return { ok: false, code: 'INVALID', message: `${ctx}.imgY must be number 0~100` };
+    }
+    if (c.cellBg !== undefined && c.cellBg !== null && c.cellBg !== '') {
+      if (!_isColor(c.cellBg)) return { ok: false, code: 'INVALID', message: `${ctx}.cellBg invalid color` };
+    }
+    if (c.borderWidth !== undefined && c.borderWidth !== null) {
+      if (!_isInt(Number(c.borderWidth), 0, 20)) return { ok: false, code: 'INVALID', message: `${ctx}.borderWidth must be integer 0~20` };
+    }
+    if (c.borderColor !== undefined && c.borderColor !== null && c.borderColor !== '') {
+      if (!_isColor(c.borderColor)) return { ok: false, code: 'INVALID', message: `${ctx}.borderColor invalid color` };
+    }
+    if (c.icon !== undefined && c.icon !== null) {
+      if (typeof c.icon !== 'object') return { ok: false, code: 'INVALID', message: `${ctx}.icon must be object` };
+      if (c.icon.svg !== undefined && c.icon.svg !== null) {
+        if (!_isSafeSvg(c.icon.svg)) return { ok: false, code: 'INVALID', message: `${ctx}.icon.svg unsafe or too long (≤20000, no <script/on*=/javascript:)` };
+      }
+    }
+    if (c.iconBg !== undefined && c.iconBg !== null && c.iconBg !== '') {
+      if (!_isColor(c.iconBg)) return { ok: false, code: 'INVALID', message: `${ctx}.iconBg invalid color` };
+    }
+    if (c.iconColor !== undefined && c.iconColor !== null && c.iconColor !== '') {
+      if (!_isColor(c.iconColor)) return { ok: false, code: 'INVALID', message: `${ctx}.iconColor invalid color` };
+    }
+    return { ok: true };
+  };
+
+  if (partial.cards !== undefined) {
+    if (!Array.isArray(partial.cards)) return { ok: false, code: 'INVALID', message: 'cards must be array' };
+    if (partial.cards.length < 1 || partial.cards.length > 64) {
+      return { ok: false, code: 'INVALID', message: `cards length ${partial.cards.length} out of range [1,64]` };
+    }
+    for (let i = 0; i < partial.cards.length; i++) {
+      const r = _validateCard(partial.cards[i], `cards[${i}]`);
+      if (!r.ok) return r;
+    }
+    _pushOnce();
+    block.dataset.cards = JSON.stringify(partial.cards);
+    applied.cards = partial.cards.length;
+    needGridSync = false; // 풀 교체했으므로 sync 불필요
+  }
+
+  if (partial.patchCards !== undefined) {
+    if (!Array.isArray(partial.patchCards)) return { ok: false, code: 'INVALID', message: 'patchCards must be array' };
+    if (partial.patchCards.length === 0 || partial.patchCards.length > 16) {
+      return { ok: false, code: 'INVALID', message: `patchCards length ${partial.patchCards.length} out of range [1,16]` };
+    }
+    let curCards;
+    try { curCards = JSON.parse(block.dataset.cards || '[]'); }
+    catch (_) { curCards = []; }
+    if (!Array.isArray(curCards)) curCards = [];
+    const appliedPatches = [];
+    for (let i = 0; i < partial.patchCards.length; i++) {
+      const p = partial.patchCards[i];
+      if (!p || typeof p !== 'object') return { ok: false, code: 'INVALID', message: `patchCards[${i}] must be object` };
+      if (!Number.isInteger(p.index) || p.index < 0 || p.index >= curCards.length) {
+        return { ok: false, code: 'NOT_FOUND', message: `patchCards[${i}].index out of range [0,${curCards.length - 1}]: ${p.index}` };
+      }
+      const { index, ...partialCard } = p;
+      const r = _validateCard(partialCard, `patchCards[${i}]`);
+      if (!r.ok) return r;
+      const cur = curCards[index] || {};
+      // icon 객체는 deep merge (svg만 들어오면 기존 icon 유지하고 svg만 교체)
+      const merged = { ...cur, ...partialCard };
+      if (partialCard.icon !== undefined && partialCard.icon !== null && typeof partialCard.icon === 'object') {
+        merged.icon = { ...(cur.icon || {}), ...partialCard.icon };
+      }
+      curCards[index] = merged;
+      appliedPatches.push({ index, ...partialCard });
+    }
+    _pushOnce();
+    block.dataset.cards = JSON.stringify(curCards);
+    applied.patchCards = appliedPatches;
+  }
+
+  // grid 크기 변경 후 cards 풀 교체가 없었다면 자동 sync (insertCanvasGrid 미러)
+  if (needGridSync && block.dataset.cardMode === 'simple') {
+    const cols  = parseInt(block.dataset.gridCols) || 1;
+    const rows  = parseInt(block.dataset.gridRows) || 1;
+    const total = cols * rows;
+    let curCards;
+    try { curCards = JSON.parse(block.dataset.cards || '[]'); } catch (_) { curCards = []; }
+    if (!Array.isArray(curCards)) curCards = [];
+    while (curCards.length < total) curCards.push({ title: '카드 제목', desc: '', imgSrc: '', cellBg: '' });
+    while (curCards.length > total) curCards.pop();
+    block.dataset.cards = JSON.stringify(curCards);
+    applied.cardsSynced = total;
+  }
+
+  // ── 4) layers 풀 교체 / patch ───────────────────────────────────────────────────
+  const _validateLayer = (l, ctx) => {
+    if (!l || typeof l !== 'object') return { ok: false, code: 'INVALID', message: `${ctx} must be object` };
+    if (l.type !== undefined && l.type !== null) {
+      if (!_LAYER_TYPES.includes(l.type)) return { ok: false, code: 'INVALID', message: `${ctx}.type must be shape|image|text` };
+    }
+    if (l.x !== undefined && l.x !== null) {
+      if (!_isInt(Number(l.x), -4000, 4000)) return { ok: false, code: 'INVALID', message: `${ctx}.x must be integer -4000~4000` };
+    }
+    if (l.y !== undefined && l.y !== null) {
+      if (!_isInt(Number(l.y), -4000, 4000)) return { ok: false, code: 'INVALID', message: `${ctx}.y must be integer -4000~4000` };
+    }
+    if (l.w !== undefined && l.w !== null) {
+      if (!_isInt(Number(l.w), 1, 4000)) return { ok: false, code: 'INVALID', message: `${ctx}.w must be integer 1~4000` };
+    }
+    if (l.h !== undefined && l.h !== null) {
+      if (!_isInt(Number(l.h), 1, 4000)) return { ok: false, code: 'INVALID', message: `${ctx}.h must be integer 1~4000` };
+    }
+    if (l.color !== undefined && l.color !== null && l.color !== '') {
+      if (!_isColor(l.color)) return { ok: false, code: 'INVALID', message: `${ctx}.color invalid color` };
+    }
+    if (l.radius !== undefined && l.radius !== null) {
+      if (!_isInt(Number(l.radius), 0, 400)) return { ok: false, code: 'INVALID', message: `${ctx}.radius must be integer 0~400` };
+    }
+    if (l.src !== undefined && l.src !== null) {
+      if (typeof l.src !== 'string') return { ok: false, code: 'INVALID', message: `${ctx}.src must be string` };
+      if (l.src.length > 200000) return { ok: false, code: 'TOO_LARGE', message: `${ctx}.src too long (>200000)` };
+      if (/["\r\n]/.test(l.src)) return { ok: false, code: 'INVALID', message: `${ctx}.src contains quote/newline (escape unsafe)` };
+    }
+    if (l.content !== undefined && l.content !== null) {
+      if (typeof l.content !== 'string') return { ok: false, code: 'INVALID', message: `${ctx}.content must be string` };
+      if ([...l.content].length > 2000) return { ok: false, code: 'INVALID', message: `${ctx}.content too long (>2000)` };
+    }
+    if (l.fontSize !== undefined && l.fontSize !== null) {
+      if (!_isInt(Number(l.fontSize), 4, 400)) return { ok: false, code: 'INVALID', message: `${ctx}.fontSize must be integer 4~400` };
+    }
+    if (l.fontWeight !== undefined && l.fontWeight !== null) {
+      const fw = String(l.fontWeight);
+      if (!_FW_ALLOWED.includes(fw)) return { ok: false, code: 'INVALID', message: `${ctx}.fontWeight must be one of ${_FW_ALLOWED.join('|')}` };
+    }
+    if (l.align !== undefined && l.align !== null) {
+      if (!_ALIGN_ALLOWED.includes(l.align)) return { ok: false, code: 'INVALID', message: `${ctx}.align must be left|center|right` };
+    }
+    if (l.label !== undefined && l.label !== null) {
+      if (typeof l.label !== 'string') return { ok: false, code: 'INVALID', message: `${ctx}.label must be string` };
+      if ([...l.label].length > 100) return { ok: false, code: 'INVALID', message: `${ctx}.label too long (>100)` };
+    }
+    return { ok: true };
+  };
+
+  if (partial.layers !== undefined) {
+    if (!Array.isArray(partial.layers)) return { ok: false, code: 'INVALID', message: 'layers must be array' };
+    if (partial.layers.length > 64) return { ok: false, code: 'INVALID', message: `layers length ${partial.layers.length} > 64` };
+    for (let i = 0; i < partial.layers.length; i++) {
+      const r = _validateLayer(partial.layers[i], `layers[${i}]`);
+      if (!r.ok) return r;
+      // type은 풀 교체일 때 필수
+      if (!partial.layers[i].type) return { ok: false, code: 'INVALID', message: `layers[${i}].type required (shape|image|text)` };
+    }
+    _pushOnce();
+    block.dataset.layers = JSON.stringify(partial.layers);
+    applied.layers = partial.layers.length;
+  }
+
+  if (partial.patchLayers !== undefined) {
+    if (!Array.isArray(partial.patchLayers)) return { ok: false, code: 'INVALID', message: 'patchLayers must be array' };
+    if (partial.patchLayers.length === 0 || partial.patchLayers.length > 16) {
+      return { ok: false, code: 'INVALID', message: `patchLayers length ${partial.patchLayers.length} out of range [1,16]` };
+    }
+    let curLayers;
+    try { curLayers = JSON.parse(block.dataset.layers || '[]'); }
+    catch (_) { curLayers = []; }
+    if (!Array.isArray(curLayers)) curLayers = [];
+    const appliedPatches = [];
+    for (let i = 0; i < partial.patchLayers.length; i++) {
+      const p = partial.patchLayers[i];
+      if (!p || typeof p !== 'object') return { ok: false, code: 'INVALID', message: `patchLayers[${i}] must be object` };
+      if (!Number.isInteger(p.index) || p.index < 0 || p.index >= curLayers.length) {
+        return { ok: false, code: 'NOT_FOUND', message: `patchLayers[${i}].index out of range [0,${curLayers.length - 1}]: ${p.index}` };
+      }
+      const { index, ...partialLayer } = p;
+      const r = _validateLayer(partialLayer, `patchLayers[${i}]`);
+      if (!r.ok) return r;
+      const cur = curLayers[index] || {};
+      curLayers[index] = { ...cur, ...partialLayer };
+      appliedPatches.push({ index, ...partialLayer });
+    }
+    _pushOnce();
+    block.dataset.layers = JSON.stringify(curLayers);
+    applied.patchLayers = appliedPatches;
+  }
+
+  if (Object.keys(applied).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'no valid fields applied' };
+  }
+
+  // ── 5) 재렌더 ───────────────────────────────────────────────────────────────────
+  try {
+    window.renderCanvas?.(block);
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  // ── 6) 우측 패널 갱신 (선택 상태일 때만) ───────────────────────────────────────
+  if (block.classList.contains('selected')) {
+    try {
+      if (block.dataset.cardMode === 'simple' && typeof window.showSimpleCardProperties === 'function') {
+        window.showSimpleCardProperties(block);
+      } else if (typeof window.showCanvasProperties === 'function') {
+        window.showCanvasProperties(block);
+      }
+    } catch (_) {}
+  }
+  // 7) 레이어 패널 (layerName 변경 가능성 대비)
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeCanvasBlock  = makeCanvasBlock;
 window.addCanvasBlock   = addCanvasBlock;
 window.renderCanvas     = renderCanvas;
+// window 노출 — banner02 패턴 미러
+window.updateCanvasBlock = updateCanvasBlock;
 
-export { makeCanvasBlock, addCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS };
+export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS };

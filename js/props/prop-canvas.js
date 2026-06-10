@@ -12,6 +12,7 @@ export function showCanvasProperties(block) {
   const bg     = block.dataset.bg     || 'transparent';
   const radius = parseInt(block.dataset.radius)   || 0;
   const layers = JSON.parse(block.dataset.layers  || '[]');
+  const imgRatio = parseInt(block.dataset.imgRatio) || 76;
 
   const layerRows = layers.map((layer, i) => {
     if (layer.type === 'shape') {
@@ -73,6 +74,11 @@ export function showCanvasProperties(block) {
         <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
         <span class="prop-label" style="margin-left:8px">H</span>
         <input type="number" class="prop-number" id="cvb-h" value="${h}" min="40" max="2000">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">사진 영역</span>
+        <input type="range" class="prop-slider" id="cvb-img-ratio-slider" min="0" max="100" step="1" value="${imgRatio}">
+        <input type="number" class="prop-number" id="cvb-img-ratio-number" min="0" max="100" value="${imgRatio}">
       </div>
     </div>
 
@@ -168,6 +174,21 @@ export function showCanvasProperties(block) {
     window.renderCanvas(block);
     window.pushHistory?.();
   });
+
+  // ── 사진 영역 비율 (cardMode=simple 카드의 img:text 비율) ──
+  const irSlider = document.getElementById('cvb-img-ratio-slider');
+  const irNumber = document.getElementById('cvb-img-ratio-number');
+  if (irSlider) {
+    const applyImgRatio = v => {
+      v = Math.min(100, Math.max(0, v));
+      block.dataset.imgRatio = v;
+      window.renderCanvas(block);
+      irSlider.value = v; irNumber.value = v;
+    };
+    irSlider.addEventListener('input',  () => applyImgRatio(parseInt(irSlider.value)));
+    irNumber.addEventListener('change', () => { applyImgRatio(parseInt(irNumber.value)); window.pushHistory?.(); });
+    irSlider.addEventListener('change', () => window.pushHistory?.());
+  }
 
   // ── 배경 ──────────────────────────────────────────────────────────────────
   const bgPick = document.getElementById('cvb-bg-pick');

@@ -1989,92 +1989,23 @@ function addShapeBlock(type = 'rectangle') {
   window.showFrameProperties?.(ss);
 }
 
-// ── New Grid Block ──
-// col 개념 없이 freeLayout Frame 안에 셀 Frame을 x,y 절대좌표로 배치하는 그리드
-// addNewGridBlock(cols, rows, opts)
-//   cols: 열 수 (기본 2)
-//   rows: 행 수 (기본 1)
-//   opts: { gap: 16, cellHeight: auto, ratios: [1,1,...], bg: '' }
-function addNewGridBlock(cols = 2, rows = 1, opts = {}) {
-  const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-
-  const CANVAS_W   = 860;
-  const gap        = opts.gap        ?? 16;
-  const ratios     = opts.ratios     || Array(cols).fill(1);
-  const bg         = opts.bg         || '';
-
-  // 너비 계산
-  const totalRatio = ratios.reduce((a, b) => a + b, 0);
-  const usableW    = CANVAS_W - gap * (cols - 1);
-  const colWidths  = ratios.map(r => Math.floor(usableW * r / totalRatio));
-  // 반올림 오차 → 마지막 컬에 보정
-  const widthSum   = colWidths.reduce((a, b) => a + b, 0);
-  colWidths[colWidths.length - 1] += (usableW - widthSum);
-
-  // 높이 계산 (cellHeight 미지정 시 첫 번째 컬 너비 × 0.65, 4px 배수)
-  const cellH  = opts.cellHeight ?? Math.round(colWidths[0] * 0.65 / 4) * 4;
-  const frameH = rows * cellH + gap * (rows - 1);
-
-  window.pushHistory();
-
-  // ── 1. 부모 GridFrame (freeLayout) ──
-  const parentSS = makeFrameBlock();
-  parentSS.dataset.layerName   = 'Grid';
-  parentSS.setAttribute('data-layer-name', 'Grid');
-  parentSS.style.width     = CANVAS_W + 'px';
-  parentSS.style.maxWidth  = '100%';
-  parentSS.style.height    = frameH + 'px';
-  parentSS.style.minHeight = frameH + 'px';
-  parentSS.style.margin    = '0 auto';
-  parentSS.dataset.width      = String(CANVAS_W);
-  parentSS.dataset.height     = String(frameH);
-  parentSS.dataset.freeLayout = 'true';
-  parentSS.dataset.newGrid    = 'true';
-  parentSS.dataset.gridCols   = String(cols);
-  parentSS.dataset.gridRows   = String(rows);
-  parentSS.dataset.gridGap    = String(gap);
-  if (bg) { parentSS.style.background = bg; parentSS.dataset.bg = bg; }
-
-  // parentSS는 overflow:visible — 셀이 absolute로 배치되므로
-  parentSS.style.overflow = 'visible';
-
-  // ── 2. 셀 Frame 생성 (rows × cols) ──
-  for (let r = 0; r < rows; r++) {
-    const y = r * (cellH + gap);
-    let x = 0;
-    for (let c = 0; c < cols; c++) {
-      const w = colWidths[c];
-      const cellSS = makeFrameBlock();
-      const cellIdx = r * cols + c + 1;
-      cellSS.dataset.layerName = `Cell ${cellIdx}`;
-      cellSS.setAttribute('data-layer-name', `Cell ${cellIdx}`);
-      cellSS.style.cssText = `position:absolute;left:${x}px;top:${y}px;` +
-        `width:${w}px;height:${cellH}px;min-height:${cellH}px;margin:0;box-sizing:border-box;overflow:hidden;`;
-      cellSS.dataset.offsetX  = String(x);
-      cellSS.dataset.offsetY  = String(y);
-      cellSS.dataset.width    = String(w);
-      cellSS.dataset.height   = String(cellH);
-      cellSS.dataset.gridCell = `${r}-${c}`;
-
-      parentSS.appendChild(cellSS);
-      window.bindFrameDropZone?.(cellSS);
-      x += w + gap;
-    }
+// ── New Grid Block ── [봉인됨 2026-06-08]
+// 봉인 이유: img2/img3 multi-col preset은 canvas-block(cvb_)로 통합. 옛 .row+.col 경로는 좀비 동작.
+// 봉인 후 호출 시 명시적 경고 + canvas-block 대체 안내. 함수 정의는 save-load 마이그레이션이 참조할 수 있어 보존.
+// PM/MCP 등록 금지 — update_new_grid_block 같은 도구를 만들지 말 것.
+//
+// 원래 시그니처 (참고용 — 호출 X):
+//   addNewGridBlock(cols, rows, opts)
+//     cols: 열 수 (기본 2) / rows: 행 수 (기본 1)
+//     opts: { gap: 16, cellHeight: auto, ratios: [1,1,...], bg: '' }
+function addNewGridBlock(/* cols, rows, opts */) {
+  // [SEALED 2026-06-08] 호출 차단 — multi-col 이미지 비교는 canvas-block(addCanvasBlock)으로 대체.
+  // 원본 구현은 git history(v2025-06-08 이전 commit)에서 참조 가능. PM/MCP 등록 금지.
+  console.warn('[sealed] addNewGridBlock is deprecated since 2026-06-08. Use addCanvasBlock for multi-image grid.');
+  if (typeof window.showToast === 'function') {
+    window.showToast('NewGrid는 봉인된 컴포넌트입니다. Canvas 블록을 사용하세요.');
   }
-
-  // ── 3. 섹션에 삽입 ──
-  const _prev = window._activeFrame;
-  window._activeFrame = null;
-  insertAfterSelected(sec, parentSS);
-  window._activeFrame = _prev;
-
-  window.bindFrameDropZone?.(parentSS);
-  window.buildLayerPanel();
-  window._activeFrame = parentSS;
-  window.showFrameProperties?.(parentSS);
-
-  return parentSS;
+  return null;
 }
 window.addNewGridBlock = addNewGridBlock;
 
@@ -2145,6 +2076,2077 @@ function addSpeechBubbleBlock(tail) {
   window.selectSection(sec);
 }
 
+// ─── update* functions for secondary blocks (MCP partial update entry points) ────────
+// divider / asset / table / icon-circle / graph / gap / speech-bubble / label-group / shape / icon-text
+
+// ─── updateDividerBlock — divider 블록 부분 수정 (id 기반) ──────────────────
+// banner02 패턴 미러. before snapshot + pushHistory + applied 추적 + applyDividerStyle + autosave.
+// 지원 필드 (data-* 매핑):
+//   - lineColor  (color)        → dataset.lineColor
+//   - lineStyle  (enum)         → dataset.lineStyle  (solid|dashed|dotted)
+//   - lineWeight (int 1~24)     → dataset.lineWeight
+//   - padV       (int 0~120)    → dataset.padV
+//   - padH       (int 0~200)    → dataset.padH
+//   - lineDir    (enum)         → dataset.lineDir    (horizontal|vertical)
+//   - lineLength (int 20~400)   → dataset.lineLength  (vertical일 때만 시각 영향)
+function updateDividerBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('divider-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `divider-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+
+  // before 스냅샷 (mutate 전, undo 푸시 전)
+  const before = {
+    lineColor:  block.dataset.lineColor,
+    lineStyle:  block.dataset.lineStyle,
+    lineWeight: block.dataset.lineWeight,
+    padV:       block.dataset.padV,
+    padH:       block.dataset.padH,
+    lineDir:    block.dataset.lineDir,
+    lineLength: block.dataset.lineLength,
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  // ── helpers ──
+  const _setInt = (datasetKey, value, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return false;
+    if (min !== undefined && n < min) return false;
+    if (max !== undefined && n > max) return false;
+    block.dataset[datasetKey] = String(Math.trunc(n));
+    return true;
+  };
+  const _COLOR_RE = /^#[0-9a-fA-F]{3,8}$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+  const _isValidColor = (v) => {
+    if (typeof v !== 'string') return false;
+    const s = v.trim();
+    if (!s || s.length > 64) return false;
+    return s === 'transparent' || _COLOR_RE.test(s);
+  };
+
+  // 1) lineColor
+  if (partial.lineColor !== undefined && partial.lineColor !== null) {
+    if (!_isValidColor(partial.lineColor)) {
+      return { ok: false, code: 'INVALID', message: `invalid lineColor: ${partial.lineColor}` };
+    }
+    block.dataset.lineColor = String(partial.lineColor).trim();
+    applied.lineColor = block.dataset.lineColor;
+  }
+
+  // 2) lineStyle
+  if (partial.lineStyle !== undefined && partial.lineStyle !== null) {
+    if (!['solid', 'dashed', 'dotted'].includes(partial.lineStyle)) {
+      return { ok: false, code: 'INVALID', message: `invalid lineStyle: ${partial.lineStyle}` };
+    }
+    block.dataset.lineStyle = partial.lineStyle;
+    applied.lineStyle = partial.lineStyle;
+  }
+
+  // 3) lineWeight (1~24)
+  if (partial.lineWeight !== undefined && partial.lineWeight !== null) {
+    if (!_setInt('lineWeight', partial.lineWeight, 1, 24)) {
+      return { ok: false, code: 'INVALID', message: `invalid lineWeight: ${partial.lineWeight} (1~24)` };
+    }
+    applied.lineWeight = Number(block.dataset.lineWeight);
+  }
+
+  // 4) padV (0~120)
+  if (partial.padV !== undefined && partial.padV !== null) {
+    if (!_setInt('padV', partial.padV, 0, 120)) {
+      return { ok: false, code: 'INVALID', message: `invalid padV: ${partial.padV} (0~120)` };
+    }
+    applied.padV = Number(block.dataset.padV);
+  }
+
+  // 5) padH (0~200)
+  if (partial.padH !== undefined && partial.padH !== null) {
+    if (!_setInt('padH', partial.padH, 0, 200)) {
+      return { ok: false, code: 'INVALID', message: `invalid padH: ${partial.padH} (0~200)` };
+    }
+    applied.padH = Number(block.dataset.padH);
+  }
+
+  // 6) lineDir
+  if (partial.lineDir !== undefined && partial.lineDir !== null) {
+    if (!['horizontal', 'vertical'].includes(partial.lineDir)) {
+      return { ok: false, code: 'INVALID', message: `invalid lineDir: ${partial.lineDir}` };
+    }
+    block.dataset.lineDir = partial.lineDir;
+    applied.lineDir = partial.lineDir;
+  }
+
+  // 7) lineLength (20~400) — dataset에는 항상 저장, 시각 효과는 lineDir=vertical일 때만
+  if (partial.lineLength !== undefined && partial.lineLength !== null) {
+    if (!_setInt('lineLength', partial.lineLength, 20, 400)) {
+      return { ok: false, code: 'INVALID', message: `invalid lineLength: ${partial.lineLength} (20~400)` };
+    }
+    applied.lineLength = Number(block.dataset.lineLength);
+  }
+
+  // 8) 실 스타일 반영 (필수)
+  try {
+    if (typeof window.applyDividerStyle === 'function') {
+      window.applyDividerStyle(block);
+    }
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  // 9) 우측 패널 갱신 (선택 상태일 때만)
+  if (block.classList.contains('selected')) {
+    try { window.showDividerProperties?.(block); } catch (_) {}
+  }
+  // 10) 레이어 패널 (이름 변경 가능성 대비)
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
+// ── 수정 (update_asset_block MCP 진입점) ───────────────────────────────────
+// PM의 update_asset_block(MCP) → main(_invokeRendererUpdateAssetBlock) → 여기.
+// banner02/mockup/card/step 패턴 미러링: pushHistory + before snapshot + applied 추적 + autosave.
+// asset-block은 renderer 함수가 따로 없고 inline style + dataset + 자식(.asset-img/.asset-overlay) 직접 조작 구조.
+// 지원 필드:
+//   - 크기/모양: width(px 또는 860+=full bleed), height(px), borderRadius(px)
+//   - 정렬/패딩: align(left|center|right) + style.alignSelf 동기, usePadx(true|false) — 음수 margin + width calc
+//   - 이미지: fit(cover|contain) — img.style.objectFit 동기, imgSrc(""=clear, setAssetImageFromSrc 사용)
+//   - 배경: bgColor("" reset; hex/rgb/rgba/hsl/transparent 허용)
+//   - 오버레이: overlay(true|false), overlayOpacity(0~100 → rgba 알파), overlayPosition(flex-start|center|flex-end)
+//   - preset: 'logo' (200x64 강제 + usePadx 무시), 'none' (dataset.preset delete)
+//   - layerName: 80자
+function updateAssetBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('asset-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `asset-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+
+  // ── 색상 정규식 (banner02/comparison 패턴 동일) ──
+  const COLOR_RE = /^#[0-9a-fA-F]{3,8}$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+  const _isValidColor = (v) => {
+    if (typeof v !== 'string') return false;
+    const s = v.trim();
+    if (s.length === 0 || s.length > 64) return false;
+    return s === 'transparent' || COLOR_RE.test(s);
+  };
+
+  // ── before 스냅샷 (mutate/pushHistory 전) ──
+  const before = {
+    width: block.style.width || '',
+    height: block.style.height || '',
+    borderRadius: block.style.borderRadius || '',
+    backgroundColor: block.style.backgroundColor || '',
+    align: block.dataset.align || '',
+    usePadx: block.dataset.usePadx || '',
+    fit: block.dataset.fit || '',
+    bgColor: block.dataset.bgColor || '',
+    overlay: block.dataset.overlay || '',
+    preset: block.dataset.preset || '',
+    baseHeight: block.dataset.baseHeight || '',
+    layerName: block.dataset.layerName || '',
+    imgSrc: block.dataset.imgSrc || '',
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  // ── 헬퍼 ──
+  const _enum = (key, allowed) => {
+    if (!allowed.includes(partial[key])) {
+      return { ok: false, code: 'INVALID', message: `invalid ${key}: ${partial[key]}. allowed: ${allowed.join('|')}` };
+    }
+    return null;
+  };
+  const _intRange = (key, min, max) => {
+    const n = Number(partial[key]);
+    if (!Number.isFinite(n)) return { ok: false, code: 'INVALID', message: `${key} must be number` };
+    if (n < min || n > max) return { ok: false, code: 'INVALID', message: `${key} out of range [${min},${max}]` };
+    return { value: Math.round(n) };
+  };
+
+  // section-inner padX 산출 (usePadx 적용 시 음수 margin 폭 계산용)
+  const _resolvePadX = () => {
+    const inner = block.closest('.section-inner');
+    const hasOverride = inner && inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+    const globalPx = (window.state?.pageSettings?.padX) || 0;
+    if (inner && hasOverride) {
+      const n = parseInt(inner.dataset.paddingX);
+      return Number.isFinite(n) ? n : globalPx;
+    }
+    return globalPx;
+  };
+
+  // ── 1) preset (다른 width/height에 영향 주므로 먼저 처리) ──
+  // 'logo' → 200x64 강제 + width opt 무시 + usePadx 무시 (inline margin 제거)
+  // 'none' → dataset.preset delete
+  if (partial.preset !== undefined && partial.preset !== null) {
+    const err = _enum('preset', ['logo', 'none']);
+    if (err) return err;
+    if (partial.preset === 'logo') {
+      block.dataset.preset = 'logo';
+      block.style.width = '200px';
+      block.style.height = '64px';
+      block.style.marginLeft = '';
+      block.style.marginRight = '';
+      block.dataset.baseHeight = '64';
+      applied.preset = 'logo';
+      applied.width = 200;
+      applied.height = 64;
+    } else {
+      delete block.dataset.preset;
+      applied.preset = 'none';
+    }
+  }
+
+  // ── 2) width (logo preset이면 무시 — preset이 이미 width 강제 처리) ──
+  if (partial.width !== undefined && partial.width !== null && block.dataset.preset !== 'logo') {
+    const r = _intRange('width', 100, 860);
+    if (r.ok === false) return r;
+    if (r.value >= 860) {
+      // full bleed — inline width 제거
+      block.style.width = '';
+    } else {
+      block.style.width = r.value + 'px';
+      // align에 맞춰 alignSelf 재정렬 (prop-asset의 applyW 패턴)
+      const a = block.dataset.align || 'center';
+      block.style.alignSelf = a === 'left' ? 'flex-start' : a === 'right' ? 'flex-end' : 'center';
+    }
+    applied.width = r.value;
+  }
+
+  // ── 3) height (logo preset이면 무시) ──
+  if (partial.height !== undefined && partial.height !== null && block.dataset.preset !== 'logo') {
+    const r = _intRange('height', 200, 1600);
+    if (r.ok === false) return r;
+    block.style.height = r.value + 'px';
+    block.dataset.baseHeight = String(r.value); // padX 비례 계산 기준 동기
+    applied.height = r.value;
+    applied.baseHeight = r.value;
+  }
+
+  // ── 4) borderRadius ──
+  if (partial.borderRadius !== undefined && partial.borderRadius !== null) {
+    const r = _intRange('borderRadius', 0, 120);
+    if (r.ok === false) return r;
+    block.style.borderRadius = r.value + 'px';
+    applied.borderRadius = r.value;
+  }
+
+  // ── 5) align (dataset + style.alignSelf 동기) ──
+  if (partial.align !== undefined && partial.align !== null) {
+    const err = _enum('align', ['left', 'center', 'right']);
+    if (err) return err;
+    block.dataset.align = partial.align;
+    block.style.alignSelf = partial.align === 'left' ? 'flex-start'
+      : partial.align === 'right' ? 'flex-end' : 'center';
+    applied.align = partial.align;
+  }
+
+  // ── 6) usePadx (음수 margin + width calc 자동 적용; logo preset이면 무시) ──
+  if (partial.usePadx !== undefined && partial.usePadx !== null && block.dataset.preset !== 'logo') {
+    const err = _enum('usePadx', ['true', 'false']);
+    if (err) return err;
+    block.dataset.usePadx = partial.usePadx;
+    const padX = _resolvePadX();
+    if (partial.usePadx === 'true' && padX > 0) {
+      block.style.marginLeft = -padX + 'px';
+      block.style.marginRight = -padX + 'px';
+      block.style.width = `calc(100% + ${padX * 2}px)`;
+    } else {
+      block.style.marginLeft = '';
+      block.style.marginRight = '';
+      // partial.width로 명시 지정된 경우엔 유지, 그 외엔 초기화
+      if (partial.width === undefined || partial.width === null) {
+        block.style.width = '';
+      }
+    }
+    applied.usePadx = partial.usePadx;
+  }
+
+  // ── 7) bgColor (placeholder 배경; "" = reset) ──
+  if (partial.bgColor !== undefined && partial.bgColor !== null) {
+    if (partial.bgColor === '') {
+      delete block.dataset.bgColor;
+      block.style.backgroundColor = '';
+      applied.bgColor = '';
+    } else {
+      if (!_isValidColor(partial.bgColor)) {
+        return { ok: false, code: 'INVALID', message: `invalid bgColor: ${partial.bgColor} (allowed: #hex | rgb(a)/hsl(a)() | transparent)` };
+      }
+      const c = String(partial.bgColor).trim();
+      block.dataset.bgColor = c;
+      block.style.backgroundColor = c;
+      applied.bgColor = c;
+    }
+  }
+
+  // ── 8) imgSrc — setAssetImageFromSrc / clearAssetImage 사용 ──
+  // "" 빈문자열 = 이미지 해제 (.has-image 클래스도 제거)
+  // 외부 헬퍼 부재 시 dataset.imgSrc만 갱신 (graceful fallback)
+  if (partial.imgSrc !== undefined && partial.imgSrc !== null) {
+    if (typeof partial.imgSrc !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'imgSrc must be string' };
+    }
+    const src = partial.imgSrc;
+    if (src.length > 200000) {
+      return { ok: false, code: 'TOO_LARGE', message: 'imgSrc too long (>200000)' };
+    }
+    if (/["\r\n]/.test(src)) {
+      return { ok: false, code: 'INVALID', message: 'imgSrc contains quote/newline (escape unsafe)' };
+    }
+    if (src === '') {
+      if (typeof window.clearAssetImage === 'function') {
+        try { window.clearAssetImage(block); } catch (e) {
+          // fallback
+          block.classList.remove('has-image');
+          delete block.dataset.imgSrc;
+        }
+      } else {
+        block.classList.remove('has-image');
+        delete block.dataset.imgSrc;
+      }
+      applied.imgSrc = '';
+    } else {
+      if (typeof window.setAssetImageFromSrc === 'function') {
+        try { window.setAssetImageFromSrc(block, src); } catch (e) {
+          return { ok: false, code: 'RENDER_ERROR', message: 'setAssetImageFromSrc failed: ' + e.message };
+        }
+      } else {
+        // fallback (full helper 부재시 최소 동작)
+        block.classList.add('has-image');
+        block.dataset.imgSrc = src;
+      }
+      applied.imgSrc = src;
+    }
+  }
+
+  // ── 9) fit (img.style.objectFit + dataset.fit 동기) ──
+  if (partial.fit !== undefined && partial.fit !== null) {
+    const err = _enum('fit', ['cover', 'contain']);
+    if (err) return err;
+    block.dataset.fit = partial.fit;
+    const img = block.querySelector('.asset-img');
+    if (img) img.style.objectFit = partial.fit;
+    applied.fit = partial.fit;
+  }
+
+  // ── 10) overlay 토글 (자식 .asset-overlay 보장 생성) ──
+  if (partial.overlay !== undefined && partial.overlay !== null) {
+    const err = _enum('overlay', ['true', 'false']);
+    if (err) return err;
+    block.dataset.overlay = partial.overlay;
+    let overlayEl = block.querySelector('.asset-overlay');
+    if (partial.overlay === 'true' && !overlayEl) {
+      overlayEl = document.createElement('div');
+      overlayEl.className = 'asset-overlay';
+      block.appendChild(overlayEl);
+    }
+    applied.overlay = partial.overlay;
+  }
+
+  // ── 11) overlayOpacity (% → rgba) ──
+  if (partial.overlayOpacity !== undefined && partial.overlayOpacity !== null) {
+    const r = _intRange('overlayOpacity', 0, 100);
+    if (r.ok === false) return r;
+    let overlayEl = block.querySelector('.asset-overlay');
+    if (!overlayEl) {
+      overlayEl = document.createElement('div');
+      overlayEl.className = 'asset-overlay';
+      block.appendChild(overlayEl);
+    }
+    const op = r.value / 100;
+    overlayEl.style.background = `rgba(0,0,0,${op})`;
+    overlayEl.dataset.ovOpacity = String(op);
+    applied.overlayOpacity = r.value;
+  }
+
+  // ── 12) overlayPosition (justifyContent) ──
+  if (partial.overlayPosition !== undefined && partial.overlayPosition !== null) {
+    const err = _enum('overlayPosition', ['flex-start', 'center', 'flex-end']);
+    if (err) return err;
+    let overlayEl = block.querySelector('.asset-overlay');
+    if (!overlayEl) {
+      overlayEl = document.createElement('div');
+      overlayEl.className = 'asset-overlay';
+      block.appendChild(overlayEl);
+    }
+    overlayEl.style.justifyContent = partial.overlayPosition;
+    applied.overlayPosition = partial.overlayPosition;
+  }
+
+  // ── 13) layerName ──
+  if (partial.layerName !== undefined && partial.layerName !== null) {
+    if (typeof partial.layerName !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'layerName must be string' };
+    }
+    if ([...partial.layerName].length > 80) {
+      return { ok: false, code: 'INVALID', message: 'layerName too long (>80)' };
+    }
+    block.dataset.layerName = partial.layerName;
+    applied.layerName = partial.layerName;
+  }
+
+  // ── 14) 우측 패널 갱신 (선택 상태일 때만) ──
+  if (block.classList.contains('selected')) {
+    try { window.showAssetProperties?.(block); } catch (_) {}
+  }
+  // 15) 레이어 패널 (layerName 변경 가능성 대비)
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
+// ─── table 헤더 병합(merge) 헬퍼 ──────────────────────────────────────────
+// dataset.mergedHeaderCols = JSON string. shape: [[startColIdx, span], ...]
+// (0-base logical column index, span>=2, 정렬·범위·겹침 검증 통과한 정규형)
+//
+// _parseMergedHeaderCols: dataset 문자열 → 배열. 깨졌으면 [] 리턴 (안전 fallback).
+function _parseMergedHeaderCols(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) raw = JSON.stringify(raw);
+  if (typeof raw !== 'string') return [];
+  let arr;
+  try { arr = JSON.parse(raw); } catch (_) { return []; }
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const it of arr) {
+    if (!Array.isArray(it) || it.length < 2) continue;
+    const s = Number(it[0]), n = Number(it[1]);
+    if (!Number.isInteger(s) || !Number.isInteger(n)) continue;
+    if (s < 0 || n < 2) continue;
+    out.push([s, n]);
+  }
+  return out;
+}
+
+// _normalizeMergedHeaderCols(merges, colCount)
+//   → { ok:true, normalized:[[s,n],...], serialized: string }
+//   → { ok:false, message }
+// 정렬(start 오름차순) + 범위 검사(s+n<=colCount) + 겹침 검사.
+function _normalizeMergedHeaderCols(merges, colCount) {
+  if (!Array.isArray(merges)) return { ok: false, message: 'mergedHeaderCols must be array' };
+  if (merges.length === 0) return { ok: true, normalized: [], serialized: '[]' };
+  if (!Number.isInteger(colCount) || colCount <= 0) {
+    return { ok: false, message: 'cannot validate mergedHeaderCols without colCount' };
+  }
+  const norm = [];
+  for (let i = 0; i < merges.length; i++) {
+    const it = merges[i];
+    if (!Array.isArray(it) || it.length < 2) {
+      return { ok: false, message: `mergedHeaderCols[${i}] must be [start, span]` };
+    }
+    const s = Number(it[0]), n = Number(it[1]);
+    if (!Number.isInteger(s) || !Number.isInteger(n)) {
+      return { ok: false, message: `mergedHeaderCols[${i}] start/span must be integer` };
+    }
+    if (n < 2) continue; // span<2는 무시 (병합 아님)
+    if (s < 0 || s + n > colCount) {
+      return { ok: false, message: `mergedHeaderCols[${i}] out of range (start=${s}, span=${n}, colCount=${colCount})` };
+    }
+    norm.push([s, n]);
+  }
+  norm.sort((a, b) => a[0] - b[0]);
+  for (let i = 1; i < norm.length; i++) {
+    if (norm[i - 1][0] + norm[i - 1][1] > norm[i][0]) {
+      return { ok: false, message: `mergedHeaderCols overlap at [${norm[i - 1][0]},${norm[i - 1][1]}] vs [${norm[i][0]},${norm[i][1]}]` };
+    }
+  }
+  return { ok: true, normalized: norm, serialized: JSON.stringify(norm) };
+}
+
+// _renderHeaderRowHTML(headers, mergedHeaderCols, alignForCells)
+//   → <tr> 내용 HTML 문자열 (예: "<th colspan=2>좌측</th><th>C</th>")
+// 'headers'는 '시각 셀 단위' 텍스트 배열 (병합 후 실제로 그릴 th 갯수). length는 colCount - sum(span-1).
+// 단순 갯수 일치 가정(헤더 갯수 == 시각 th 갯수). 부족하면 빈 문자열로 패딩, 넘치면 자름.
+function _renderHeaderRowHTML(headers, mergedHeaderCols, alignForCells) {
+  const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const align = alignForCells || 'center';
+  // 시각 th 인덱스 → colspan map (start 기준)
+  // 시각 th는 logical col 순으로 그려지되, merge에 들어간 logical col은 첫 시작 col에서만 1번 그림.
+  const merges = Array.isArray(mergedHeaderCols) ? mergedHeaderCols : [];
+  // logical col → merge span (없으면 1)
+  const visualSequence = []; // [{logicalStart, span}]
+  // logical col count는 시각 헤더 갯수 + sum(merge.span-1)로 역산. 그러나 안전을 위해 헤더 갯수 기반.
+  // 시각 헤더 i번째가 어떤 logical col에서 시작하는지 계산:
+  let logical = 0;
+  let visualIdx = 0;
+  // headers.length 만큼만 그림. merge는 정렬되어 있다고 가정.
+  let mIdx = 0;
+  while (visualIdx < headers.length) {
+    if (mIdx < merges.length && merges[mIdx][0] === logical) {
+      visualSequence.push({ logicalStart: logical, span: merges[mIdx][1] });
+      logical += merges[mIdx][1];
+      mIdx += 1;
+    } else {
+      visualSequence.push({ logicalStart: logical, span: 1 });
+      logical += 1;
+    }
+    visualIdx += 1;
+  }
+  return visualSequence.map((seg, i) => {
+    const text = esc(headers[i] ?? '');
+    const colspanAttr = seg.span > 1 ? ` colspan="${seg.span}"` : '';
+    return `<th${colspanAttr} style="text-align:${align}">${text}</th>`;
+  }).join('');
+}
+
+// _migrateLegacyHeaderColspan(block)
+//   thead에 colspan>1 인 th가 있고 dataset.mergedHeaderCols이 비어있으면 자동 추출하여 기록.
+//   tbl_6y56fxq 류 ghost colspan 보존 목적. 부수효과: dataset.mergedHeaderCols 세팅.
+function _migrateLegacyHeaderColspan(block) {
+  if (!block) return;
+  if (block.dataset.mergedHeaderCols && block.dataset.mergedHeaderCols !== '[]') return;
+  const thead = block.querySelector('.tb-table > thead');
+  if (!thead) return;
+  const ths = thead.querySelectorAll('tr > th');
+  if (!ths.length) return;
+  const merges = [];
+  let logical = 0;
+  let hasAny = false;
+  ths.forEach(th => {
+    const cs = parseInt(th.getAttribute('colspan') || '1', 10) || 1;
+    if (cs > 1) {
+      merges.push([logical, cs]);
+      hasAny = true;
+    }
+    logical += cs;
+  });
+  if (hasAny) {
+    block.dataset.mergedHeaderCols = JSON.stringify(merges);
+  }
+}
+// expose for save-load / hydrate 등 외부 호출 가능
+try { if (typeof window !== 'undefined') {
+  window.__migrateLegacyHeaderColspan = _migrateLegacyHeaderColspan;
+  window.__parseMergedHeaderCols = _parseMergedHeaderCols;
+  window.__normalizeMergedHeaderCols = _normalizeMergedHeaderCols;
+  window.__renderHeaderRowHTML = _renderHeaderRowHTML;
+} } catch (_) {}
+
+// ─── updateTableBlock ─────────────────────────────────────────────────────
+// PM의 update_table_block(MCP) → main(_invokeRendererUpdateTableBlock) → 여기.
+// banner02-block 패턴 미러링: pushHistory + dataset partial write + 직접 DOM 적용 + scheduleAutoSave.
+function updateTableBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('table-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `table-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial is empty — provide at least one field' };
+  }
+
+  const table = block.querySelector('.tb-table');
+  if (!table) return { ok: false, code: 'INVALID', message: 'no .tb-table inside block' };
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+
+  // ── 레거시 colspan 마이그레이션 (tbl_6y56fxq 류 ghost 보존) ──
+  // dataset.mergedHeaderCols가 비어 있는데 DOM에 colspan>1 th가 있으면 자동 추출.
+  try { _migrateLegacyHeaderColspan(block); } catch (_) {}
+
+  // ── 화이트리스트 / 정규식 가드 ──
+  const _STYLE_ENUM = ['default', 'stripe', 'borderless', 'colored'];
+  const _ALIGN_ENUM = ['left', 'center', 'right'];
+  const _FONT_FAMILY_ENUM = [
+    '',
+    "'Pretendard', sans-serif",
+    "'Noto Sans KR', sans-serif",
+    "'Spoqa Han Sans Neo', sans-serif",
+    "'Inter', sans-serif",
+    "'Roboto', sans-serif",
+    "'Helvetica Neue', sans-serif",
+    'Georgia, serif',
+    "'Times New Roman', serif",
+    'monospace',
+  ];
+  const _COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+  const _isColor = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && _COLOR_RE.test(v.trim());
+  const _escHtml = (s) => String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  // ── before 스냅샷 ──
+  // logical col count 계산: 우선순위 (1) tbody 첫 row의 td 갯수 (가장 신뢰)
+  // (2) thead 첫 row의 th 갯수 + colspan sum (병합 보정)
+  // (3) table의 첫 tr.
+  const _logicalColCountFromTr = (tr) => {
+    if (!tr) return 0;
+    let n = 0;
+    tr.querySelectorAll('th,td').forEach(c => {
+      const cs = parseInt(c.getAttribute('colspan') || '1', 10) || 1;
+      n += cs;
+    });
+    return n;
+  };
+  const _currentColCount = () => {
+    const bodyTr = tbody?.querySelector('tr');
+    if (bodyTr) return bodyTr.querySelectorAll('th,td').length; // tbody는 colspan 없다고 가정 (v1)
+    const headTr = thead?.querySelector('tr');
+    if (headTr) return _logicalColCountFromTr(headTr);
+    const tr = table.querySelector('tr');
+    return _logicalColCountFromTr(tr);
+  };
+  const beforeColCount = _currentColCount();
+  const before = {
+    style: block.dataset.style,
+    cellAlign: block.dataset.cellAlign,
+    cellPad: block.dataset.cellPad,
+    showHeader: block.dataset.showHeader,
+    showVLines: block.dataset.showVLines,
+    showHLines: block.dataset.showHLines,
+    showOuterX: block.dataset.showOuterX,
+    showOuterY: block.dataset.showOuterY,
+    outerWidth: block.dataset.outerWidth,
+    rowH: block.dataset.rowH,
+    tablePadX: block.dataset.tablePadX,
+    lineColor: block.dataset.lineColor,
+    headerBg: block.dataset.headerBg,
+    textColor: block.dataset.textColor,
+    fontFamily: block.dataset.fontFamily,
+    fontSize: table.style.fontSize || '',
+    colWidths: block.dataset.colWidths,
+    colBgs: block.dataset.colBgs,
+    colFgs: block.dataset.colFgs,
+    mergedHeaderCols: block.dataset.mergedHeaderCols,
+    colCount: beforeColCount,
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  // ── 1) 데이터: headers + rows + mergedHeaderCols ──
+  let newColCount = beforeColCount;
+  let headersTouched = false;
+  let rowsTouched = false;
+  let mergedHeaderColsTouched = false;
+  let newHeaders = null;
+  let newRows = null;
+  // mergedHeaderCols (정규형 배열). null = 미지정. [] = explicit clear.
+  let newMergedHeaderCols = null;
+
+  // partial.mergedHeaderCols는 (a) 배열 [[s,n],...] (b) JSON 문자열 (c) null/"" (clear) 모두 수용.
+  if (partial.mergedHeaderCols !== undefined) {
+    let raw = partial.mergedHeaderCols;
+    if (raw === null || raw === '') {
+      newMergedHeaderCols = [];
+    } else if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); }
+      catch (e) { return { ok: false, code: 'INVALID', message: `mergedHeaderCols JSON parse failed: ${e.message}` }; }
+      if (!Array.isArray(raw)) return { ok: false, code: 'INVALID', message: 'mergedHeaderCols must parse to array' };
+      newMergedHeaderCols = raw;
+    } else if (Array.isArray(raw)) {
+      newMergedHeaderCols = raw;
+    } else {
+      return { ok: false, code: 'INVALID', message: 'mergedHeaderCols must be array or JSON string or null' };
+    }
+    mergedHeaderColsTouched = true;
+  }
+
+  if (partial.headers !== undefined) {
+    if (!Array.isArray(partial.headers)) {
+      return { ok: false, code: 'INVALID', message: 'headers must be array of strings' };
+    }
+    if (partial.headers.length === 0) {
+      return { ok: false, code: 'INVALID', message: 'headers must have at least 1 item' };
+    }
+    if (partial.headers.length > 32) {
+      return { ok: false, code: 'INVALID', message: 'headers too many (>32)' };
+    }
+    for (let i = 0; i < partial.headers.length; i++) {
+      if (typeof partial.headers[i] !== 'string') {
+        return { ok: false, code: 'INVALID', message: `headers[${i}] must be string` };
+      }
+      if (partial.headers[i].length > 2000) {
+        return { ok: false, code: 'INVALID', message: `headers[${i}] too long (>2000)` };
+      }
+    }
+    newHeaders = partial.headers.slice();
+    // headers의 length는 시각 th 갯수. logical colCount는 merges가 같이 제공된 경우 +span-1 합산.
+    const effectiveMerges = mergedHeaderColsTouched
+      ? newMergedHeaderCols
+      : _parseMergedHeaderCols(block.dataset.mergedHeaderCols);
+    const validMerges = (effectiveMerges || []).filter(m => Array.isArray(m) && Number(m[1]) >= 2);
+    const spanExtra = validMerges.reduce((acc, m) => acc + (Number(m[1]) - 1), 0);
+    newColCount = newHeaders.length + spanExtra;
+    headersTouched = true;
+  }
+
+  if (partial.rows !== undefined) {
+    if (!Array.isArray(partial.rows)) {
+      return { ok: false, code: 'INVALID', message: 'rows must be array of arrays' };
+    }
+    if (partial.rows.length > 500) {
+      return { ok: false, code: 'INVALID', message: 'rows too many (>500)' };
+    }
+    const expectedCols = headersTouched ? newColCount : beforeColCount;
+    if (!expectedCols) {
+      return { ok: false, code: 'INVALID', message: 'cannot determine column count for rows update' };
+    }
+    for (let i = 0; i < partial.rows.length; i++) {
+      const r = partial.rows[i];
+      if (!Array.isArray(r)) {
+        return { ok: false, code: 'INVALID', message: `rows[${i}] must be array` };
+      }
+      if (r.length !== expectedCols) {
+        return { ok: false, code: 'INVALID', message: `rows[${i}].length (${r.length}) != cols (${expectedCols})` };
+      }
+      for (let j = 0; j < r.length; j++) {
+        if (typeof r[j] !== 'string') {
+          return { ok: false, code: 'INVALID', message: `rows[${i}][${j}] must be string` };
+        }
+        if (r[j].length > 2000) {
+          return { ok: false, code: 'INVALID', message: `rows[${i}][${j}] too long (>2000)` };
+        }
+      }
+    }
+    newRows = partial.rows.map(r => r.slice());
+    rowsTouched = true;
+  }
+
+  // ── 1-b) mergedHeaderCols 정규화/검증 ──
+  // colCount 기준: headersTouched 면 newColCount, 아니면 beforeColCount.
+  // headersTouched=false + mergedHeaderColsTouched=true 인 경우 = 헤더 그대로 두고 병합만 바꾸려는 의도.
+  // 이 때 시각 th 갯수가 기존 thead의 시각 th 갯수(_visualThCount)와 맞는지 후속 render에서 안전 처리.
+  let normalizedMergedHeaderCols = null;
+  let normalizedMergedHeaderColsSerialized = null;
+  if (mergedHeaderColsTouched) {
+    const colCountForMerge = headersTouched ? newColCount : beforeColCount;
+    const r = _normalizeMergedHeaderCols(newMergedHeaderCols, colCountForMerge);
+    if (!r.ok) {
+      return { ok: false, code: 'INVALID', message: r.message };
+    }
+    normalizedMergedHeaderCols = r.normalized;
+    normalizedMergedHeaderColsSerialized = r.serialized;
+  }
+
+  // ── 2) dataset 스칼라 검증/세팅 ──
+  if (partial.style !== undefined) {
+    if (!_STYLE_ENUM.includes(partial.style)) {
+      return { ok: false, code: 'INVALID', message: `invalid style: ${partial.style}. allowed: ${_STYLE_ENUM.join('|')}` };
+    }
+    block.dataset.style = partial.style;
+    applied.style = partial.style;
+  }
+
+  if (partial.cellAlign !== undefined) {
+    if (!_ALIGN_ENUM.includes(partial.cellAlign)) {
+      return { ok: false, code: 'INVALID', message: `invalid cellAlign: ${partial.cellAlign}` };
+    }
+    block.dataset.cellAlign = partial.cellAlign;
+    applied.cellAlign = partial.cellAlign;
+  }
+
+  if (partial.cellPad !== undefined) {
+    const n = Number(partial.cellPad);
+    if (!Number.isFinite(n) || n < 0 || n > 40) {
+      return { ok: false, code: 'INVALID', message: `invalid cellPad: ${partial.cellPad} (0~40)` };
+    }
+    block.dataset.cellPad = String(n);
+    applied.cellPad = n;
+  }
+
+  const _setBool = (datasetKey, value) => {
+    let str;
+    if (typeof value === 'boolean') str = value ? 'true' : 'false';
+    else if (value === 'true' || value === 'false') str = value;
+    else return { ok: false, code: 'INVALID', message: `${datasetKey} must be boolean or "true"/"false"` };
+    block.dataset[datasetKey] = str;
+    return { ok: true, str };
+  };
+
+  if (partial.showHeader !== undefined) {
+    const r = _setBool('showHeader', partial.showHeader);
+    if (!r.ok) return r;
+    applied.showHeader = r.str;
+  }
+  if (partial.showVLines !== undefined) {
+    const r = _setBool('showVLines', partial.showVLines);
+    if (!r.ok) return r;
+    applied.showVLines = r.str;
+  }
+  if (partial.showHLines !== undefined) {
+    const r = _setBool('showHLines', partial.showHLines);
+    if (!r.ok) return r;
+    applied.showHLines = r.str;
+  }
+  if (partial.showOuterX !== undefined) {
+    const r = _setBool('showOuterX', partial.showOuterX);
+    if (!r.ok) return r;
+    applied.showOuterX = r.str;
+  }
+  if (partial.showOuterY !== undefined) {
+    const r = _setBool('showOuterY', partial.showOuterY);
+    if (!r.ok) return r;
+    applied.showOuterY = r.str;
+  }
+
+  if (partial.outerWidth !== undefined) {
+    const n = Number(partial.outerWidth);
+    if (!Number.isFinite(n) || n < 1 || n > 6) {
+      return { ok: false, code: 'INVALID', message: `invalid outerWidth: ${partial.outerWidth} (1~6)` };
+    }
+    block.dataset.outerWidth = String(n);
+    applied.outerWidth = n;
+  }
+
+  if (partial.rowH !== undefined) {
+    const n = Number(partial.rowH);
+    if (!Number.isFinite(n) || n < 0 || n > 160) {
+      return { ok: false, code: 'INVALID', message: `invalid rowH: ${partial.rowH} (0~160)` };
+    }
+    block.dataset.rowH = String(n);
+    applied.rowH = n;
+  }
+
+  if (partial.tablePadX !== undefined) {
+    const n = Number(partial.tablePadX);
+    if (!Number.isFinite(n) || n < 0 || n > 120) {
+      return { ok: false, code: 'INVALID', message: `invalid tablePadX: ${partial.tablePadX} (0~120)` };
+    }
+    block.dataset.tablePadX = String(n);
+    applied.tablePadX = n;
+  }
+
+  if (partial.lineColor !== undefined) {
+    if (!_isColor(partial.lineColor)) {
+      return { ok: false, code: 'INVALID', message: `invalid lineColor: ${partial.lineColor}` };
+    }
+    block.dataset.lineColor = partial.lineColor.trim();
+    applied.lineColor = block.dataset.lineColor;
+  }
+  if (partial.headerBg !== undefined) {
+    if (!_isColor(partial.headerBg)) {
+      return { ok: false, code: 'INVALID', message: `invalid headerBg: ${partial.headerBg}` };
+    }
+    block.dataset.headerBg = partial.headerBg.trim();
+    applied.headerBg = block.dataset.headerBg;
+  }
+  if (partial.textColor !== undefined) {
+    if (!_isColor(partial.textColor)) {
+      return { ok: false, code: 'INVALID', message: `invalid textColor: ${partial.textColor}` };
+    }
+    block.dataset.textColor = partial.textColor.trim();
+    applied.textColor = block.dataset.textColor;
+  }
+
+  if (partial.fontFamily !== undefined) {
+    if (typeof partial.fontFamily !== 'string' || !_FONT_FAMILY_ENUM.includes(partial.fontFamily)) {
+      return { ok: false, code: 'INVALID', message: `invalid fontFamily: ${partial.fontFamily}` };
+    }
+    block.dataset.fontFamily = partial.fontFamily;
+    applied.fontFamily = partial.fontFamily;
+  }
+
+  if (partial.fontSize !== undefined) {
+    const n = Number(partial.fontSize);
+    if (!Number.isFinite(n) || n < 12 || n > 60) {
+      return { ok: false, code: 'INVALID', message: `invalid fontSize: ${partial.fontSize} (12~60)` };
+    }
+    applied.fontSize = n;
+    block._tblNextFontSize = n;
+  }
+
+  let colWidthsTouched = false;
+  if (partial.colWidths !== undefined) {
+    if (typeof partial.colWidths !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'colWidths must be string (e.g. "1:1:2")' };
+    }
+    if (partial.colWidths.length > 200) {
+      return { ok: false, code: 'INVALID', message: 'colWidths too long (>200)' };
+    }
+    block.dataset.colWidths = partial.colWidths;
+    applied.colWidths = partial.colWidths;
+    colWidthsTouched = true;
+  }
+
+  const _normColorList = (v, label) => {
+    let arr;
+    if (Array.isArray(v)) arr = v.slice();
+    else if (typeof v === 'string') arr = v.split(',').map(s => s.trim()).filter(Boolean);
+    else return { err: { ok: false, code: 'INVALID', message: `${label} must be array or comma-joined string` } };
+    if (arr.length > 32) return { err: { ok: false, code: 'INVALID', message: `${label} too many (>32)` } };
+    for (let i = 0; i < arr.length; i++) {
+      if (typeof arr[i] !== 'string' || !_isColor(arr[i])) {
+        return { err: { ok: false, code: 'INVALID', message: `${label}[${i}] invalid color: ${arr[i]}` } };
+      }
+      arr[i] = arr[i].trim();
+    }
+    return { arr };
+  };
+
+  let colBgsTouched = false, colFgsTouched = false;
+  let nextColBgs = null, nextColFgs = null;
+  if (partial.colBgs !== undefined) {
+    const r = _normColorList(partial.colBgs, 'colBgs');
+    if (r.err) return r.err;
+    nextColBgs = r.arr;
+    colBgsTouched = true;
+  }
+  if (partial.colFgs !== undefined) {
+    const r = _normColorList(partial.colFgs, 'colFgs');
+    if (r.err) return r.err;
+    nextColFgs = r.arr;
+    colFgsTouched = true;
+  }
+
+  // ── 3) 데이터 모델 (thead/tbody) 통째 재생성 ──
+  const alignForCells = applied.cellAlign || block.dataset.cellAlign || 'center';
+
+  // mergedHeaderCols dataset 먼저 commit (render에서 읽음)
+  if (mergedHeaderColsTouched) {
+    if (normalizedMergedHeaderCols && normalizedMergedHeaderCols.length > 0) {
+      block.dataset.mergedHeaderCols = normalizedMergedHeaderColsSerialized;
+    } else {
+      // clear 의도 — dataset 자체를 제거 (저장 용량/정합성)
+      delete block.dataset.mergedHeaderCols;
+    }
+    applied.mergedHeaderCols = normalizedMergedHeaderCols;
+  }
+
+  // 헤더 렌더링: headersTouched 면 newHeaders, 아니면 mergedHeaderColsTouched 만으로도 thead 재구성 필요.
+  // 재구성 시 현재 thead의 시각 텍스트(또는 newHeaders)를 활용.
+  const _activeMerges = mergedHeaderColsTouched
+    ? (normalizedMergedHeaderCols || [])
+    : _parseMergedHeaderCols(block.dataset.mergedHeaderCols);
+
+  if ((headersTouched || mergedHeaderColsTouched) && thead) {
+    let visualHeaders;
+    if (headersTouched) {
+      visualHeaders = newHeaders;
+    } else {
+      // 기존 시각 th의 textContent 추출 (legacy 보존)
+      visualHeaders = Array.from(thead.querySelectorAll('tr > th')).map(th => th.textContent || '');
+      // 만약 시각 th 갯수가 _activeMerges 적용 후 logical colCount 와 안 맞으면 패딩/자름
+      const spanExtra = (_activeMerges || []).reduce((acc, m) => acc + (Number(m[1]) - 1), 0);
+      const expectedVisual = Math.max(0, beforeColCount - spanExtra);
+      while (visualHeaders.length < expectedVisual) visualHeaders.push('');
+      if (visualHeaders.length > expectedVisual) visualHeaders.length = expectedVisual;
+    }
+    const innerHTML = _renderHeaderRowHTML(visualHeaders, _activeMerges, alignForCells);
+    thead.innerHTML = `<tr>${innerHTML}</tr>`;
+    if (headersTouched) applied.headers = newHeaders;
+  }
+  if (rowsTouched && tbody) {
+    const html = newRows.map(r =>
+      `<tr>${r.map(cell => `<td style="text-align:${alignForCells}">${_escHtml(cell)}</td>`).join('')}</tr>`
+    ).join('');
+    tbody.innerHTML = html;
+    applied.rows = newRows;
+  }
+
+  // ── 4) 시각 적용 ──
+  try {
+    if (partial.showHeader !== undefined && thead) {
+      thead.style.display = block.dataset.showHeader === 'false' ? 'none' : '';
+    }
+    if (partial.cellAlign !== undefined) {
+      block.querySelectorAll('th, td').forEach(c => { c.style.textAlign = block.dataset.cellAlign; });
+    }
+    if (partial.cellPad !== undefined) {
+      const v = parseInt(block.dataset.cellPad) || 0;
+      block.querySelectorAll('th, td').forEach(c => { c.style.padding = v + 'px 16px'; });
+    }
+    if (partial.rowH !== undefined) {
+      const v = parseInt(block.dataset.rowH) || 0;
+      const h = v > 0 ? (v + 'px') : '';
+      block.querySelectorAll('thead tr, tbody tr').forEach(tr => { tr.style.height = h; });
+    }
+    if (partial.tablePadX !== undefined) {
+      const v = parseInt(block.dataset.tablePadX) || 0;
+      block.style.paddingLeft = v + 'px';
+      block.style.paddingRight = v + 'px';
+    }
+    if (partial.outerWidth !== undefined) {
+      block.style.setProperty('--tbl-outer-w', (parseInt(block.dataset.outerWidth) || 1) + 'px');
+    }
+    if (partial.lineColor !== undefined) {
+      block.style.setProperty('--tbl-line-color', block.dataset.lineColor);
+    }
+    if (partial.headerBg !== undefined) {
+      block.style.setProperty('--tbl-header-bg', block.dataset.headerBg);
+    }
+    if (partial.textColor !== undefined) {
+      block.style.setProperty('--tbl-text-color', block.dataset.textColor);
+    }
+    if (partial.fontFamily !== undefined) {
+      if (block.dataset.fontFamily) block.style.setProperty('--tbl-font-family', block.dataset.fontFamily);
+      else block.style.removeProperty('--tbl-font-family');
+    }
+    if (partial.fontSize !== undefined) {
+      table.style.fontSize = (block._tblNextFontSize) + 'px';
+      delete block._tblNextFontSize;
+    }
+    if (partial.style !== undefined) {
+      if (typeof window.__applyTableColColors === 'function') {
+        window.__applyTableColColors(block);
+      }
+    }
+    if (colWidthsTouched && typeof window.__applyTableColRatio === 'function') {
+      window.__applyTableColRatio(block, block.dataset.colWidths);
+    }
+    if (colBgsTouched || colFgsTouched) {
+      if (typeof window.__applyTableColColors === 'function') {
+        window.__applyTableColColors(
+          block,
+          colBgsTouched ? nextColBgs : undefined,
+          colFgsTouched ? nextColFgs : undefined
+        );
+      }
+      if (colBgsTouched) applied.colBgs = (block.dataset.colBgs || '');
+      if (colFgsTouched) applied.colFgs = (block.dataset.colFgs || '');
+    }
+    if ((headersTouched || rowsTouched) && !colWidthsTouched && block.dataset.colWidths && typeof window.__applyTableColRatio === 'function') {
+      window.__applyTableColRatio(block, block.dataset.colWidths);
+    }
+    if ((headersTouched || rowsTouched) && !(colBgsTouched || colFgsTouched) && block.dataset.style === 'colored' && typeof window.__applyTableColColors === 'function') {
+      window.__applyTableColColors(block);
+    }
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  // ── 5) 우측 패널 / 레이어 패널 갱신 ──
+  if (block.classList.contains('selected')) {
+    try { window.showTableProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
+// ── updateIconCircleBlock ──────────────────────────────────────────────
+// PM의 update_icon_circle_block(MCP) → main(_invokeRendererUpdateIconCircleBlock) → 여기.
+function updateIconCircleBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('icon-circle-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `icon-circle-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object' || Array.isArray(partial)) {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+
+  const circle = block.querySelector('.icb-circle');
+  if (!circle) {
+    return { ok: false, code: 'INVALID', message: '.icb-circle child missing' };
+  }
+
+  const before = {
+    size:      block.dataset.size,
+    bgColor:   block.dataset.bgColor,
+    border:    block.dataset.border,
+    radius:    block.dataset.radius,
+    padX:      block.dataset.padX,
+    imgSrc:    block.dataset.imgSrc,
+    layerName: block.dataset.layerName,
+    hasImage:  block.classList.contains('has-image'),
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  const _isColor = (v) => {
+    if (typeof v !== 'string') return false;
+    const s = v.trim();
+    if (!s || s.length > 64) return false;
+    return /^#[0-9a-fA-F]{3,8}$/.test(s)
+        || /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(s)
+        || s === 'transparent';
+  };
+
+  const _setNum = (datasetKey, value, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    if (min !== undefined && n < min) return null;
+    if (max !== undefined && n > max) return null;
+    block.dataset[datasetKey] = String(n);
+    return n;
+  };
+
+  if (partial.size !== undefined && partial.size !== null) {
+    const n = _setNum('size', partial.size, 40, 860);
+    if (n === null) {
+      return { ok: false, code: 'INVALID', message: `size invalid (must be number in [40,860]): ${partial.size}` };
+    }
+    circle.style.width  = n + 'px';
+    circle.style.height = n + 'px';
+    applied.size = n;
+  }
+
+  if (partial.bgColor !== undefined && partial.bgColor !== null) {
+    if (!_isColor(partial.bgColor)) {
+      return { ok: false, code: 'INVALID', message: `bgColor invalid (allowed: #hex | rgb(a)/hsl(a)() | transparent)` };
+    }
+    const v = String(partial.bgColor).trim();
+    block.dataset.bgColor = v;
+    circle.style.backgroundColor = v;
+    applied.bgColor = v;
+  }
+
+  if (partial.border !== undefined && partial.border !== null) {
+    if (!['none', 'solid', 'dashed'].includes(partial.border)) {
+      return { ok: false, code: 'INVALID', message: `invalid border: ${partial.border}. allowed: none|solid|dashed` };
+    }
+    block.dataset.border  = partial.border;
+    circle.dataset.border = partial.border;
+    applied.border = partial.border;
+  }
+
+  if (partial.radius !== undefined && partial.radius !== null) {
+    const n = _setNum('radius', partial.radius, 0, 500);
+    if (n === null) {
+      return { ok: false, code: 'INVALID', message: `radius invalid (must be number in [0,500]): ${partial.radius}` };
+    }
+    applied.radius = n;
+  }
+
+  if (partial.padX !== undefined && partial.padX !== null) {
+    const n = _setNum('padX', partial.padX, 0, 200);
+    if (n === null) {
+      return { ok: false, code: 'INVALID', message: `padX invalid (must be number in [0,200]): ${partial.padX}` };
+    }
+    block.style.paddingLeft  = n + 'px';
+    block.style.paddingRight = n + 'px';
+    applied.padX = n;
+  }
+
+  if (partial.imgSrc !== undefined) {
+    if (partial.imgSrc === null || partial.imgSrc === '') {
+      delete block.dataset.imgSrc;
+      block.classList.remove('has-image');
+      circle.style.backgroundImage    = '';
+      circle.style.backgroundSize     = '';
+      circle.style.backgroundPosition = '';
+      circle.style.backgroundRepeat   = '';
+      applied.imgSrc = '';
+    } else {
+      if (typeof partial.imgSrc !== 'string') {
+        return { ok: false, code: 'INVALID', message: 'imgSrc must be string' };
+      }
+      const src = partial.imgSrc;
+      if (src.length > 200000) {
+        return { ok: false, code: 'TOO_LARGE', message: 'imgSrc too long (>200000)' };
+      }
+      if (/["\r\n]/.test(src)) {
+        return { ok: false, code: 'INVALID', message: 'imgSrc contains quote/newline (escape unsafe)' };
+      }
+      block.dataset.imgSrc = src;
+      block.classList.add('has-image');
+      circle.style.backgroundImage    = `url("${src}")`;
+      circle.style.backgroundSize     = 'cover';
+      circle.style.backgroundPosition = 'center';
+      circle.style.backgroundRepeat   = 'no-repeat';
+      applied.imgSrc = src;
+    }
+  }
+
+  if (partial.layerName !== undefined && partial.layerName !== null) {
+    if (typeof partial.layerName !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'layerName must be string' };
+    }
+    if ([...partial.layerName].length > 80) {
+      return { ok: false, code: 'INVALID', message: 'layerName too long (>80 code points)' };
+    }
+    block.dataset.layerName = partial.layerName;
+    applied.layerName = partial.layerName;
+  }
+
+  if (block.classList.contains('selected')) {
+    try { window.showIconCircleProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
+// ── updateGraphBlock (graph-block) ─────────────────────────────────────
+function updateGraphBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('graph-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `graph-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+
+  const before = {
+    chartType:    block.dataset.chartType,
+    preset:       block.dataset.preset,
+    items:        block.dataset.items,
+    chartHeight:  block.dataset.chartHeight,
+    labelSize:    block.dataset.labelSize,
+    barThickness: block.dataset.barThickness,
+    padX:         block.dataset.padX,
+    barColor:     block.dataset.barColor,
+    itemGap:      block.dataset.itemGap,
+    pctSize:      block.dataset.pctSize,
+    strokeWidth:  block.dataset.strokeWidth,
+    pointRadius:  block.dataset.pointRadius,
+    fillArea:     block.dataset.fillArea,
+    fillAlpha:    block.dataset.fillAlpha,
+  };
+
+  const _setInt = (datasetKey, value, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return false;
+    if (min !== undefined && n < min) return false;
+    if (max !== undefined && n > max) return false;
+    block.dataset[datasetKey] = String(Math.round(n));
+    return true;
+  };
+  const _colorOk = (v) => {
+    if (typeof v !== 'string') return false;
+    const s = v.trim();
+    if (!s || s.length > 64) return false;
+    return (
+      /^#[0-9a-fA-F]{3,8}$/.test(s) ||
+      /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(s) ||
+      s === 'transparent'
+    );
+  };
+
+  const CHART_TYPES = ['bar-v', 'bar-h', 'line'];
+  const PRESETS     = ['default', 'dark', 'minimal', 'colorful'];
+  const FILLAREAS   = ['0', '1'];
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  if (partial.chartType !== undefined) {
+    if (!CHART_TYPES.includes(partial.chartType)) {
+      return { ok: false, code: 'INVALID', message: `invalid chartType: ${partial.chartType}. allowed: ${CHART_TYPES.join('|')}` };
+    }
+    block.dataset.chartType = String(partial.chartType);
+    applied.chartType = block.dataset.chartType;
+  }
+
+  if (partial.preset !== undefined) {
+    if (!PRESETS.includes(partial.preset)) {
+      return { ok: false, code: 'INVALID', message: `invalid preset: ${partial.preset}. allowed: ${PRESETS.join('|')}` };
+    }
+    block.dataset.preset = String(partial.preset);
+    applied.preset = block.dataset.preset;
+  }
+
+  if (partial.items !== undefined) {
+    if (!Array.isArray(partial.items)) {
+      return { ok: false, code: 'INVALID', message: 'items must be array' };
+    }
+    if (partial.items.length === 0) {
+      return { ok: false, code: 'INVALID', message: 'items must have at least 1 entry' };
+    }
+    if (partial.items.length > 50) {
+      return { ok: false, code: 'INVALID', message: 'items too many (>50)' };
+    }
+    const norm = [];
+    for (let i = 0; i < partial.items.length; i++) {
+      const it = partial.items[i];
+      if (!it || typeof it !== 'object') {
+        return { ok: false, code: 'INVALID', message: `items[${i}] must be object` };
+      }
+      const label = it.label;
+      if (typeof label !== 'string') {
+        return { ok: false, code: 'INVALID', message: `items[${i}].label must be string` };
+      }
+      if ([...label].length > 80) {
+        return { ok: false, code: 'INVALID', message: `items[${i}].label too long (>80)` };
+      }
+      const v = Number(it.value);
+      if (!Number.isFinite(v)) {
+        return { ok: false, code: 'INVALID', message: `items[${i}].value must be finite number` };
+      }
+      if (v < 0 || v > 9999) {
+        return { ok: false, code: 'INVALID', message: `items[${i}].value out of range [0,9999]` };
+      }
+      norm.push({ label, value: v });
+    }
+    block.dataset.items = JSON.stringify(norm);
+    applied.items = norm;
+  }
+
+  const _intField = (key, datasetKey, min, max) => {
+    if (partial[key] === undefined) return;
+    if (!_setInt(datasetKey, partial[key], min, max)) {
+      throw { code: 'INVALID', message: `${key} invalid (expected finite number in [${min},${max}])` };
+    }
+    applied[key] = Number(block.dataset[datasetKey]);
+  };
+  try {
+    _intField('chartHeight',  'chartHeight',  80, 2000);
+    _intField('labelSize',    'labelSize',    8,  28);
+    _intField('barThickness', 'barThickness', 8,  48);
+    _intField('padX',         'padX',         0,  80);
+    _intField('itemGap',      'itemGap',      8,  80);
+    _intField('pctSize',      'pctSize',      20, 120);
+    _intField('strokeWidth',  'strokeWidth',  1,  12);
+    _intField('pointRadius',  'pointRadius',  0,  16);
+  } catch (e) {
+    if (e && e.code) return { ok: false, code: e.code, message: e.message };
+    throw e;
+  }
+
+  if (partial.barColor !== undefined && partial.barColor !== null) {
+    if (!_colorOk(partial.barColor)) {
+      return { ok: false, code: 'INVALID', message: 'barColor invalid (allowed: #hex | rgb(a)/hsl(a)() | transparent)' };
+    }
+    block.dataset.barColor = String(partial.barColor).trim();
+    applied.barColor = block.dataset.barColor;
+  }
+
+  if (partial.fillArea !== undefined && partial.fillArea !== null) {
+    let v = partial.fillArea;
+    if (v === true || v === 1) v = '1';
+    else if (v === false || v === 0) v = '0';
+    v = String(v);
+    if (!FILLAREAS.includes(v)) {
+      return { ok: false, code: 'INVALID', message: `invalid fillArea: ${partial.fillArea}. allowed: 0|1` };
+    }
+    block.dataset.fillArea = v;
+    applied.fillArea = v;
+  }
+
+  if (partial.fillAlpha !== undefined && partial.fillAlpha !== null) {
+    const n = Number(partial.fillAlpha);
+    if (!Number.isFinite(n)) {
+      return { ok: false, code: 'INVALID', message: 'fillAlpha must be finite number' };
+    }
+    if (n < 0 || n > 1) {
+      return { ok: false, code: 'INVALID', message: 'fillAlpha out of range [0,1]' };
+    }
+    const s = n.toFixed(2);
+    block.dataset.fillAlpha = s;
+    applied.fillAlpha = s;
+  }
+
+  try {
+    if (typeof window.renderGraph === 'function') {
+      window.renderGraph(block);
+    }
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  if (block.classList.contains('selected')) {
+    try { window.showGraphProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
+// ── updateGapBlock ─────────────────────────────────────────────────────
+function updateGapBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('gap-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `gap-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  const keys = Object.keys(partial);
+  if (keys.length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+
+  const before = {
+    height: parseInt(block.style.height) || block.offsetHeight || 0,
+    h: block.dataset.h !== undefined ? parseInt(block.dataset.h) : undefined,
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  if (partial.height !== undefined && partial.height !== null) {
+    const n = Number(partial.height);
+    if (!Number.isFinite(n)) {
+      return { ok: false, code: 'INVALID', message: `height must be number, got ${partial.height}` };
+    }
+    if (n < 0 || n > 400) {
+      return { ok: false, code: 'INVALID', message: `height out of range [0,400]: ${n}` };
+    }
+    const v = Math.round(n);
+    block.style.height = v + 'px';
+    block.dataset.h = String(v);
+    applied.height = v;
+  }
+
+  if (block.classList.contains('selected')) {
+    try { window.showGapProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
+// ── updateSpeechBubbleBlock ────────────────────────────────────────────
+function updateSpeechBubbleBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('speech-bubble-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `speech-bubble-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial must have at least one field' };
+  }
+
+  const bubbleEl = block.querySelector('.tb-bubble');
+  const senderEl = block.querySelector('.tb-sender-name');
+  if (!bubbleEl) {
+    return { ok: false, code: 'RENDER_ERROR', message: '.tb-bubble missing — block malformed' };
+  }
+
+  const before = {
+    tail:        block.dataset.tail,
+    bubbleStyle: block.dataset.bubbleStyle,
+    showSender:  block.dataset.showSender,
+    senderName:  block.dataset.senderName,
+    bubbleBg:    block.style.getPropertyValue('--bubble-bg').trim() || bubbleEl.style.backgroundColor || '',
+    text:        bubbleEl.dataset.isPlaceholder === 'true' ? '' : (bubbleEl.innerText || ''),
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  if (partial.tail !== undefined) {
+    if (!['left', 'center', 'right'].includes(partial.tail)) {
+      return { ok: false, code: 'INVALID', message: `invalid tail: ${partial.tail}. allowed: left|center|right` };
+    }
+    const dir = partial.tail;
+    block.dataset.tail = dir;
+    block.style.marginLeft  = dir === 'right' || dir === 'center' ? 'auto' : '';
+    block.style.marginRight = dir === 'center' ? 'auto' : '';
+    const oldTail = block.querySelector('.tb-bubble-tail');
+    if (typeof window.getBubbleTailSVG === 'function') {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = window.getBubbleTailSVG(dir);
+      const newTail = tmp.firstElementChild;
+      if (newTail) {
+        if (oldTail) oldTail.replaceWith(newTail);
+        else block.appendChild(newTail);
+      }
+    }
+    applied.tail = dir;
+  }
+
+  if (partial.bubbleStyle !== undefined) {
+    if (!['default', 'apple', 'imessage'].includes(partial.bubbleStyle)) {
+      return { ok: false, code: 'INVALID', message: `invalid bubbleStyle: ${partial.bubbleStyle}. allowed: default|apple|imessage` };
+    }
+    const style = partial.bubbleStyle;
+    block.dataset.bubbleStyle = style;
+    if (style === 'apple') {
+      bubbleEl.dataset.bubbleStyle = 'apple';
+    } else {
+      delete bubbleEl.dataset.bubbleStyle;
+    }
+    applied.bubbleStyle = style;
+  }
+
+  if (partial.showSender !== undefined) {
+    let show;
+    if (typeof partial.showSender === 'boolean') show = partial.showSender;
+    else if (partial.showSender === 'true')  show = true;
+    else if (partial.showSender === 'false') show = false;
+    else return { ok: false, code: 'INVALID', message: `invalid showSender: ${partial.showSender}. allowed: true|false` };
+    block.dataset.showSender = show ? 'true' : 'false';
+    if (senderEl) senderEl.style.display = show ? '' : 'none';
+    applied.showSender = show ? 'true' : 'false';
+  }
+
+  if (partial.senderName !== undefined && partial.senderName !== null) {
+    if (typeof partial.senderName !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'senderName must be string' };
+    }
+    if ([...partial.senderName].length > 100) {
+      return { ok: false, code: 'INVALID', message: 'senderName too long (>100)' };
+    }
+    block.dataset.senderName = partial.senderName;
+    if (senderEl) senderEl.textContent = partial.senderName || 'Your name';
+    applied.senderName = partial.senderName;
+  }
+
+  if (partial.bubbleBg !== undefined && partial.bubbleBg !== null) {
+    if (typeof partial.bubbleBg !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'bubbleBg must be string' };
+    }
+    const v = partial.bubbleBg.trim();
+    if (v.length === 0) {
+      return { ok: false, code: 'INVALID', message: 'bubbleBg empty' };
+    }
+    if (v.length > 64) {
+      return { ok: false, code: 'INVALID', message: 'bubbleBg too long (>64)' };
+    }
+    const okColor =
+      /^#[0-9a-fA-F]{3,8}$/.test(v) ||
+      /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(v) ||
+      v === 'transparent';
+    if (!okColor) {
+      return { ok: false, code: 'INVALID', message: 'bubbleBg invalid color (allowed: #hex | rgb(a)/hsl(a)() | transparent)' };
+    }
+    bubbleEl.style.backgroundColor = v;
+    block.style.setProperty('--bubble-bg', v);
+    applied.bubbleBg = v;
+  }
+
+  if (partial.text !== undefined && partial.text !== null) {
+    if (typeof partial.text !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'text must be string' };
+    }
+    if ([...partial.text].length > 2000) {
+      return { ok: false, code: 'INVALID', message: 'text too long (>2000)' };
+    }
+    if (partial.text === '') {
+      const ph = bubbleEl.dataset.placeholder || '말풍선 텍스트를 입력하세요';
+      bubbleEl.dataset.isPlaceholder = 'true';
+      bubbleEl.innerText = ph;
+      applied.text = '';
+    } else {
+      delete bubbleEl.dataset.isPlaceholder;
+      bubbleEl.innerText = partial.text;
+      applied.text = partial.text;
+    }
+  }
+
+  if (block.classList.contains('selected')) {
+    try { window.showSpeechBubbleProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.triggerAutoSave?.();
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
+// ─── updateLabelGroupBlock ───────────────────────────────────────────────
+function updateLabelGroupBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('label-group-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `label-group-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial is empty — provide at least one field' };
+  }
+
+  const LABEL_STYLE_PRESETS = {
+    Default: { bg: '#111111', color: '#ffffff', border: 'none' },
+    Filled:  { bg: '#333333', color: '#ffffff', border: 'none' },
+    Outline: { bg: 'transparent', color: '#111111', border: '1.5px solid #111111' },
+    Ghost:   { bg: 'rgba(0,0,0,0.06)', color: '#333333', border: 'none' },
+  };
+
+  const isAbsolute = block.style.position === 'absolute';
+
+  const _readLabels = () => [...block.querySelectorAll('.label-item .label-item-text')]
+    .map(s => s.textContent || '');
+  const before = {
+    labels: _readLabels(),
+    shape:  block.dataset.shape || 'pill',
+    align:  block.style.justifyContent || '',
+    gap:    parseInt(block.style.gap) || 0,
+    width:  isAbsolute ? (parseInt(block.style.width) || 0) : undefined,
+    x:      isAbsolute ? (parseInt(block.style.left)  || 0) : undefined,
+    y:      isAbsolute ? (parseInt(block.style.top)   || 0) : undefined,
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+  const warnings = [];
+
+  let shape = before.shape;
+  if (partial.shape !== undefined) {
+    if (!['pill', 'circle'].includes(partial.shape)) {
+      return { ok: false, code: 'INVALID', message: `invalid shape: ${partial.shape}` };
+    }
+    shape = partial.shape;
+    block.dataset.shape = shape;
+    applied.shape = shape;
+  }
+
+  if (partial.labels !== undefined) {
+    if (!Array.isArray(partial.labels)) {
+      return { ok: false, code: 'INVALID', message: 'labels must be array' };
+    }
+    if (partial.labels.length > 50) {
+      return { ok: false, code: 'INVALID', message: 'labels too many (>50)' };
+    }
+    for (let i = 0; i < partial.labels.length; i++) {
+      if (typeof partial.labels[i] !== 'string') {
+        return { ok: false, code: 'INVALID', message: `labels[${i}] must be string` };
+      }
+      if (partial.labels[i].length > 500) {
+        return { ok: false, code: 'INVALID', message: `labels[${i}] too long (>500)` };
+      }
+    }
+    if (typeof window.makeLabelItem !== 'function') {
+      return { ok: false, code: 'API_MISSING', message: 'window.makeLabelItem not found' };
+    }
+    const firstItem = block.querySelector('.label-item');
+    const baseBg     = firstItem?.dataset.bg     || '#e8e8e8';
+    const baseColor  = firstItem?.dataset.color  || '#333333';
+    const baseRadius = parseInt(firstItem?.dataset.radius) || 40;
+
+    block.querySelectorAll('.label-item').forEach(l => l.remove());
+    const addBtn = block.querySelector('.label-group-add-btn');
+    partial.labels.forEach(text => {
+      const item = window.makeLabelItem(text, baseBg, baseColor, baseRadius, shape);
+      if (addBtn) block.insertBefore(item, addBtn);
+      else block.appendChild(item);
+    });
+    applied.labels = partial.labels.slice();
+  }
+
+  if (partial.shape !== undefined) {
+    const isCircle = shape === 'circle';
+    block.querySelectorAll('.label-item').forEach(item => {
+      item.dataset.shape = shape;
+      item.classList.toggle('label-circle', isCircle);
+      if (isCircle) {
+        item.style.borderRadius = '50%';
+        item.dataset.radius     = '50%';
+      } else {
+        const r = parseInt(item.dataset.radius);
+        const rPx = Number.isFinite(r) ? r : 40;
+        item.style.borderRadius = rPx + 'px';
+        item.dataset.radius     = String(rPx);
+      }
+    });
+  }
+
+  if (partial.align !== undefined) {
+    if (!['left', 'center', 'right'].includes(partial.align)) {
+      return { ok: false, code: 'INVALID', message: `invalid align: ${partial.align}` };
+    }
+    block.style.justifyContent =
+      partial.align === 'center' ? 'center' :
+      partial.align === 'right'  ? 'flex-end' : 'flex-start';
+    applied.align = partial.align;
+  }
+  if (partial.gap !== undefined) {
+    const n = Number(partial.gap);
+    if (!Number.isFinite(n) || n < 0 || n > 60) {
+      return { ok: false, code: 'INVALID', message: 'gap must be number in [0,60]' };
+    }
+    block.style.gap = Math.round(n) + 'px';
+    applied.gap = Math.round(n);
+  }
+
+  if (partial.allItemHeight !== undefined) {
+    const n = Number(partial.allItemHeight);
+    if (!Number.isFinite(n) || n < 0 || n > 120) {
+      return { ok: false, code: 'INVALID', message: 'allItemHeight must be number in [0,120]' };
+    }
+    const half = Math.round(n / 2);
+    block.querySelectorAll('.label-item').forEach(item => {
+      item.style.paddingTop    = half + 'px';
+      item.style.paddingBottom = half + 'px';
+    });
+    applied.allItemHeight = Math.round(n);
+  }
+
+  if (partial.stylePreset !== undefined) {
+    if (!LABEL_STYLE_PRESETS[partial.stylePreset]) {
+      return { ok: false, code: 'INVALID', message: `invalid stylePreset: ${partial.stylePreset}` };
+    }
+    const p = LABEL_STYLE_PRESETS[partial.stylePreset];
+    block.querySelectorAll('.label-item').forEach(item => {
+      item.style.backgroundColor = p.bg;
+      item.style.color           = p.color;
+      item.style.border          = p.border;
+      item.dataset.bg            = p.bg;
+      item.dataset.color         = p.color;
+    });
+    applied.stylePreset = partial.stylePreset;
+  }
+
+  if (partial.itemBg !== undefined && partial.itemBg !== null) {
+    const bg = String(partial.itemBg);
+    block.querySelectorAll('.label-item').forEach(item => {
+      item.style.backgroundColor = bg;
+      item.dataset.bg            = bg;
+    });
+    applied.itemBg = bg;
+  }
+  if (partial.itemColor !== undefined && partial.itemColor !== null) {
+    const c = String(partial.itemColor);
+    block.querySelectorAll('.label-item').forEach(item => {
+      item.style.color   = c;
+      item.dataset.color = c;
+    });
+    applied.itemColor = c;
+  }
+
+  if (partial.itemRadius !== undefined) {
+    const n = Number(partial.itemRadius);
+    if (!Number.isFinite(n) || n < 0 || n > 50) {
+      return { ok: false, code: 'INVALID', message: 'itemRadius must be number in [0,50]' };
+    }
+    if (shape === 'circle') {
+      warnings.push('itemRadius ignored: shape=circle keeps 50%');
+    } else {
+      const r = Math.round(n);
+      block.querySelectorAll('.label-item').forEach(item => {
+        item.style.borderRadius = r + 'px';
+        item.dataset.radius     = String(r);
+      });
+      applied.itemRadius = r;
+    }
+  }
+
+  const _absNum = (key, datasetCssKey, min, max) => {
+    if (partial[key] === undefined) return;
+    if (!isAbsolute) { warnings.push(`${key} ignored: block is not absolute`); return; }
+    const n = Number(partial[key]);
+    if (!Number.isFinite(n)) {
+      return { ok: false, code: 'INVALID', message: `${key} must be number` };
+    }
+    if (min !== undefined && n < min) {
+      return { ok: false, code: 'INVALID', message: `${key} < ${min}` };
+    }
+    if (max !== undefined && n > max) {
+      return { ok: false, code: 'INVALID', message: `${key} > ${max}` };
+    }
+    block.style[datasetCssKey] = Math.round(n) + 'px';
+    applied[key] = Math.round(n);
+  };
+  const widthErr = _absNum('width', 'width', 40, 860); if (widthErr && widthErr.ok === false) return widthErr;
+  const xErr     = _absNum('x',     'left',  undefined, undefined); if (xErr && xErr.ok === false) return xErr;
+  const yErr     = _absNum('y',     'top',   undefined, undefined); if (yErr && yErr.ok === false) return yErr;
+
+  if (block.classList.contains('selected')) {
+    try {
+      const selectedItem = block.querySelector('.label-item.selected') || null;
+      window.showLabelGroupProperties?.(block, selectedItem);
+    } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied, warnings };
+}
+
+// ── updateShapeBlock: shape 블록 부분 수정 ────────────────────────────────
+function updateShapeBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('shape-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `shape-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object' || Array.isArray(partial)) {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+
+  const svg = block.querySelector('svg.shape-svg');
+  if (!svg) return { ok: false, code: 'INVALID', message: 'shape svg missing (corrupted block)' };
+
+  const frame = block.closest('.frame-block');
+
+  const before = {
+    shapeType:        block.dataset.shapeType,
+    shapeColor:       block.dataset.shapeColor,
+    shapeStrokeColor: block.dataset.shapeStrokeColor,
+    shapeStrokeWidth: block.dataset.shapeStrokeWidth,
+    shapeRotation:    block.dataset.shapeRotation,
+    width:  frame ? (frame.dataset.width  || (parseInt(frame.style.width)  || null)) : null,
+    height: frame ? (frame.dataset.height || (parseInt(frame.style.height) || null)) : null,
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  const _isColor = (v) => {
+    if (typeof v !== 'string') return false;
+    const s = v.trim();
+    if (s.length === 0 || s.length > 64) return false;
+    return /^#[0-9a-fA-F]{3,8}$/.test(s)
+        || /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(s)
+        || s === 'transparent';
+  };
+
+  const _setInt = (key, value, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    const c = Math.max(min, Math.min(max, Math.round(n)));
+    return c;
+  };
+
+  const SHAPE_TYPES = ['rectangle', 'ellipse', 'line', 'arrow', 'polygon', 'star'];
+
+  if (partial.shapeType !== undefined) {
+    if (!SHAPE_TYPES.includes(partial.shapeType)) {
+      return { ok: false, code: 'INVALID', message: `invalid shapeType: ${partial.shapeType}. allowed: ${SHAPE_TYPES.join('|')}` };
+    }
+    const SHAPE_DEFS_REF = (typeof window !== 'undefined' && window.SHAPE_DEFS) ? window.SHAPE_DEFS : null;
+    if (SHAPE_DEFS_REF && SHAPE_DEFS_REF[partial.shapeType]) {
+      const def = SHAPE_DEFS_REF[partial.shapeType];
+      const sw  = Number(block.dataset.shapeStrokeWidth ?? 3) || 0;
+      if (block.dataset.shapeGradient && typeof window._clearShapeGradient === 'function') {
+        try { window._clearShapeGradient(block); } catch (_) {}
+      }
+      const innerSVG = def.dynamic
+        ? (typeof window._shapeInnerSVG === 'function' ? window._shapeInnerSVG(partial.shapeType, sw) : '')
+        : (def.inner || '');
+      svg.setAttribute('viewBox', def.vb);
+      svg.innerHTML = innerSVG;
+      svg.style.fill = def.fill ? 'currentColor' : 'none';
+      if (!svg.style.stroke) svg.style.stroke = 'currentColor';
+    } else if (typeof window.makeShapeBlock === 'function') {
+      try {
+        const fresh = window.makeShapeBlock(partial.shapeType);
+        const freshSvg = fresh.block.querySelector('svg.shape-svg');
+        if (freshSvg) {
+          svg.setAttribute('viewBox', freshSvg.getAttribute('viewBox'));
+          svg.innerHTML = freshSvg.innerHTML;
+          svg.style.fill = freshSvg.style.fill || svg.style.fill;
+        }
+        if (block.dataset.shapeGradient && typeof window._clearShapeGradient === 'function') {
+          try { window._clearShapeGradient(block); } catch (_) {}
+        }
+      } catch (e) {
+        return { ok: false, code: 'RENDER_ERROR', message: `shapeType swap failed: ${e.message}` };
+      }
+    } else {
+      return { ok: false, code: 'API_MISSING', message: 'SHAPE_DEFS/makeShapeBlock 미노출 — shapeType 변경 불가' };
+    }
+    block.dataset.shapeType = partial.shapeType;
+    applied.shapeType = partial.shapeType;
+  }
+
+  if (partial.shapeColor !== undefined && partial.shapeColor !== null) {
+    if (!_isColor(partial.shapeColor)) {
+      return { ok: false, code: 'INVALID', message: `shapeColor invalid (allowed: #hex | rgb(a)/hsl(a)() | transparent)` };
+    }
+    const c = String(partial.shapeColor).trim();
+    if (block.dataset.shapeGradient && typeof window._clearShapeGradient === 'function') {
+      try { window._clearShapeGradient(block); } catch (_) {}
+    }
+    block.dataset.shapeColor = c;
+    svg.style.color = c;
+    applied.shapeColor = c;
+  }
+
+  if (partial.shapeStrokeColor !== undefined && partial.shapeStrokeColor !== null) {
+    if (partial.shapeStrokeColor === '') {
+      delete block.dataset.shapeStrokeColor;
+      svg.style.stroke = 'currentColor';
+      applied.shapeStrokeColor = '';
+    } else {
+      if (!_isColor(partial.shapeStrokeColor)) {
+        return { ok: false, code: 'INVALID', message: `shapeStrokeColor invalid` };
+      }
+      const c = String(partial.shapeStrokeColor).trim();
+      block.dataset.shapeStrokeColor = c;
+      svg.style.stroke = c;
+      applied.shapeStrokeColor = c;
+    }
+  }
+
+  if (partial.shapeStrokeWidth !== undefined && partial.shapeStrokeWidth !== null) {
+    const sw = _setInt('shapeStrokeWidth', partial.shapeStrokeWidth, 0, 20);
+    if (sw === null) return { ok: false, code: 'INVALID', message: 'shapeStrokeWidth must be finite number' };
+    block.dataset.shapeStrokeWidth = String(sw);
+    svg.style.strokeWidth = String(sw);
+    if (typeof window.refreshShapeInnerSVG === 'function') {
+      try { window.refreshShapeInnerSVG(block); } catch (_) {}
+    }
+    applied.shapeStrokeWidth = sw;
+  }
+
+  if (partial.shapeRotation !== undefined && partial.shapeRotation !== null) {
+    const deg = _setInt('shapeRotation', partial.shapeRotation, -180, 180);
+    if (deg === null) return { ok: false, code: 'INVALID', message: 'shapeRotation must be finite number' };
+    const cur = (block.style.transform || '').replace(/rotate\([^)]*\)\s*/g, '').trim();
+    if (deg === 0) {
+      delete block.dataset.shapeRotation;
+      block.style.transform = cur;
+      if (!block.style.transform) block.style.removeProperty('transform');
+    } else {
+      block.dataset.shapeRotation = String(deg);
+      block.style.transform = (cur + ` rotate(${deg}deg)`).trim();
+      block.style.transformOrigin = 'center center';
+    }
+    applied.shapeRotation = deg;
+  }
+
+  if (partial.width !== undefined && partial.width !== null) {
+    if (!frame) return { ok: false, code: 'NOT_FOUND', message: 'parent .frame-block not found — cannot resize' };
+    const w = _setInt('width', partial.width, 10, 860);
+    if (w === null) return { ok: false, code: 'INVALID', message: 'width must be finite number in [10,860]' };
+    frame.style.width = w + 'px';
+    frame.dataset.width = String(w);
+    applied.width = w;
+  }
+  if (partial.height !== undefined && partial.height !== null) {
+    if (!frame) return { ok: false, code: 'NOT_FOUND', message: 'parent .frame-block not found — cannot resize' };
+    const h = _setInt('height', partial.height, 10, 860);
+    if (h === null) return { ok: false, code: 'INVALID', message: 'height must be finite number in [10,860]' };
+    frame.style.height = h + 'px';
+    frame.style.minHeight = h + 'px';
+    frame.dataset.height = String(h);
+    applied.height = h;
+  }
+
+  try { window.buildLayerPanel?.(); } catch (_) {}
+  try { window.triggerAutoSave?.() ?? window.scheduleAutoSave?.(); } catch (_) {}
+
+  return { ok: true, blockId, before, applied };
+}
+
+// ── 수정: icon-text 블록 partial update ──────────────────────────────────
+function updateIconTextBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('icon-text-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `icon-text-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object' || Array.isArray(partial)) {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+
+  const _textEl0 = block.querySelector(':scope > .itb-text');
+  const before = {
+    text:   _textEl0 ? _textEl0.textContent : '',
+    imgSrc: block.dataset.imgSrc || '',
+  };
+
+  if (partial.text !== undefined && partial.text !== null) {
+    if (typeof partial.text !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'text must be string' };
+    }
+    if ([...partial.text].length > 2000) {
+      return { ok: false, code: 'TOO_LARGE', message: 'text too long (>2000)' };
+    }
+  }
+  if (partial.imgSrc !== undefined && partial.imgSrc !== null) {
+    if (typeof partial.imgSrc !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'imgSrc must be string' };
+    }
+    if (partial.imgSrc.length > 200000) {
+      return { ok: false, code: 'TOO_LARGE', message: 'imgSrc too long (>200000)' };
+    }
+    if (partial.imgSrc.length > 0) {
+      if (/["\r\n]/.test(partial.imgSrc)) {
+        return { ok: false, code: 'INVALID', message: 'imgSrc contains quote/newline (escape unsafe)' };
+      }
+      const _src = partial.imgSrc.trim();
+      const _okProto =
+        /^data:image\//i.test(_src) ||
+        /^https?:\/\//i.test(_src) ||
+        /^blob:/i.test(_src) ||
+        /^assets\//i.test(_src);
+      if (!_okProto) {
+        return { ok: false, code: 'INVALID', message: 'imgSrc protocol not allowed (use data:image/*, http(s)://, blob:, or assets/)' };
+      }
+    }
+  }
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  if (partial.text !== undefined && partial.text !== null) {
+    const textEl = block.querySelector(':scope > .itb-text');
+    if (textEl) {
+      textEl.textContent = String(partial.text);
+      if (!textEl.hasAttribute('contenteditable')) {
+        textEl.setAttribute('contenteditable', 'false');
+      }
+    }
+    applied.text = String(partial.text);
+  }
+
+  if (partial.imgSrc !== undefined && partial.imgSrc !== null) {
+    const iconEl = block.querySelector(':scope > .itb-icon');
+    const newSrc = String(partial.imgSrc);
+    if (iconEl) {
+      if (newSrc.length === 0) {
+        iconEl.querySelectorAll('img').forEach(n => n.remove());
+        iconEl.classList.remove('has-image');
+        iconEl.style.border = '';
+        delete block.dataset.imgSrc;
+      } else {
+        let img = iconEl.querySelector('img');
+        if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
+        img.src = newSrc;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
+        img.setAttribute('draggable', 'false');
+        iconEl.classList.add('has-image');
+        iconEl.style.border = 'none';
+        block.dataset.imgSrc = newSrc;
+      }
+    }
+    applied.imgSrc = newSrc;
+  }
+
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  try { window.triggerAutoSave?.(); } catch (_) {}
+  try { window.scheduleAutoSave?.(); } catch (_) {}
+
+  return { ok: true, blockId, before, applied };
+}
+
 // Backward compat
 window.makeTextBlock        = makeTextBlock;
 window.makeAssetBlock       = makeAssetBlock;
@@ -2190,6 +4192,18 @@ window.addShapeBlock        = addShapeBlock;
 window.makeAnnotationBlock  = makeAnnotationBlock;
 window.makeSpeechBubbleBlock = makeSpeechBubbleBlock;
 window.addSpeechBubbleBlock  = addSpeechBubbleBlock;
+// ─── update* exports for secondary blocks (MCP partial update bridges) ──
+window.updateDividerBlock     = updateDividerBlock;
+window.updateAssetBlock       = updateAssetBlock;
+window.updateTableBlock       = updateTableBlock;
+window.updateIconCircleBlock  = updateIconCircleBlock;
+window.updateGraphBlock       = updateGraphBlock;
+window.updateGapBlock         = updateGapBlock;
+window.updateSpeechBubbleBlock = updateSpeechBubbleBlock;
+window.updateLabelGroupBlock  = updateLabelGroupBlock;
+window.updateShapeBlock       = updateShapeBlock;
+window.updateIconTextBlock    = updateIconTextBlock;
+window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType swap 시 참조
 
 
 /* ── 블록 컨텍스트 메뉴 ── */
@@ -2301,3 +4315,302 @@ window.addSpeechBubbleBlock  = addSpeechBubbleBlock;
   // window에 등록 (bindBlock에서 사용)
   window._openBlockContextMenu = openMenu;
 })();
+
+// ── Frame Update API (D 워크플로우 결과 적용 2026-06-09) ──
+// frame-block: blockId prefix 'ss'. ID 기반 partial update — banner02 updateBanner02Block 패턴 미러.
+// frame은 자체 render 함수가 없고 dataset + inline style 직접 조작 모델 (block-factory.makeFrameBlock 참고).
+// 지원 필드: bg, bgImage, width, height, paddingY, radius, borderWidth, borderStyle, borderColor,
+//          alignItems, justifyContent, gap, translateX, translateY, rotateDeg, flipH, flipV, bannerPreset.
+// 제외: layout 모드 전환(freeLayout↔fullWidth는 구조적 마이그레이션 필요), 자식 add/remove(add_* 도구 영역).
+function updateFrameBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('frame-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `frame-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial must have at least 1 field' };
+  }
+
+  // before 스냅샷 (mutate / pushHistory 이전)
+  const before = {
+    bg: block.dataset.bg || block.style.backgroundColor || null,
+    bgImage: block.dataset.bgImg || (block.style.backgroundImage && block.style.backgroundImage !== 'none' ? block.style.backgroundImage : null),
+    width: parseInt(block.dataset.width) || block.offsetWidth || null,
+    height: parseInt(block.dataset.height) || null,
+    paddingY: parseInt(block.dataset.padY) || 0,
+    radius: parseInt(block.dataset.radius) || 0,
+    borderWidth: parseInt(block.dataset.borderWidth) || 0,
+    borderStyle: block.dataset.borderStyle || 'solid',
+    borderColor: block.dataset.borderColor || null,
+    alignItems: block.dataset.alignItems || block.style.alignItems || null,
+    justifyContent: block.dataset.justifyContent || block.style.justifyContent || null,
+    gap: parseInt(block.dataset.gap) || parseInt(block.style.gap) || 0,
+    translateX: parseInt(block.dataset.translateX) || 0,
+    translateY: parseInt(block.dataset.translateY) || 0,
+    rotateDeg: parseFloat(block.dataset.rotateDeg) || 0,
+    flipH: block.dataset.flipH === '1' ? 1 : 0,
+    flipV: block.dataset.flipV === '1' ? 1 : 0,
+    bannerPreset: block.dataset.bannerPreset || null,
+  };
+
+  window.pushHistory?.();
+
+  const applied = {};
+
+  // ── helpers (banner02 패턴 미러) ──
+  const _setNum = (datasetKey, value, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return false;
+    if (min !== undefined && n < min) return false;
+    if (max !== undefined && n > max) return false;
+    block.dataset[datasetKey] = String(n);
+    return true;
+  };
+
+  // 1) bg — solid / gradient(css) 둘 다 허용. prop-frame.js wireColorField onApply/onGradient 패턴 미러.
+  //    string으로 들어오는 색상값을 그대로 backgroundColor에 (gradient면 backgroundImage로 분리해야 정상 표시).
+  if (partial.bg !== undefined && partial.bg !== null) {
+    if (typeof partial.bg !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'bg must be string' };
+    }
+    const v = partial.bg.trim();
+    if (v.length === 0)   return { ok: false, code: 'INVALID', message: 'bg empty' };
+    if (v.length > 1024)  return { ok: false, code: 'INVALID', message: 'bg too long (>1024)' };
+    if (/["\r\n;]/.test(v)) return { ok: false, code: 'INVALID', message: 'bg contains quote/newline/semicolon (CSS injection guard)' };
+    const isGradient = /gradient\s*\(/i.test(v);
+    if (isGradient) {
+      block.style.backgroundColor = '';
+      block.style.background = v;
+    } else {
+      // strict color guard (hex / rgb(a) / hsl(a) / transparent)
+      const okColor = /^#[0-9a-fA-F]{3,8}$/.test(v) || /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(v) || v === 'transparent';
+      if (!okColor) return { ok: false, code: 'INVALID', message: `bg invalid color (allowed: #hex | rgb(a)/hsl(a)() | transparent | css gradient)` };
+      // 기존 그라데이션 제거
+      block.style.backgroundImage = block.dataset.bgImg ? `url("${block.dataset.bgImg}")` : '';
+      block.style.background = '';
+      block.style.backgroundColor = v;
+    }
+    block.dataset.bg = v;
+    applied.bg = v;
+  }
+
+  // 2) bgImage — file path / URL only (data URL 폭주 방지). " 와 개행 차단.
+  //    null/empty 명시면 이미지 제거.
+  if (partial.bgImage !== undefined) {
+    if (partial.bgImage === null || partial.bgImage === '') {
+      block.style.backgroundImage = '';
+      block.style.backgroundSize = '';
+      block.style.backgroundPosition = '';
+      delete block.dataset.bgImg;
+      delete block.dataset.bgPos;
+      applied.bgImage = null;
+    } else {
+      if (typeof partial.bgImage !== 'string') {
+        return { ok: false, code: 'INVALID', message: 'bgImage must be string (url/path) or null' };
+      }
+      const src = String(partial.bgImage).trim();
+      if (src.length === 0)   return { ok: false, code: 'INVALID', message: 'bgImage empty' };
+      if (src.length > 4096)  return { ok: false, code: 'TOO_LARGE', message: 'bgImage too long (>4096)' };
+      if (/["\r\n]/.test(src)) return { ok: false, code: 'INVALID', message: 'bgImage contains quote/newline (escape unsafe)' };
+      if (/^data:/i.test(src)) return { ok: false, code: 'INVALID', message: 'bgImage data: URL not allowed — use file path or http(s) URL' };
+      // http(s)/file/relative path만 허용 — javascript: 등 차단
+      if (!/^(https?:\/\/|file:\/\/|\/|\.{1,2}\/|[a-zA-Z0-9_\-./])/.test(src)) {
+        return { ok: false, code: 'INVALID', message: 'bgImage scheme not allowed (http/https/file/relative only)' };
+      }
+      block.style.backgroundImage = `url("${src}")`;
+      block.style.backgroundSize = 'cover';
+      block.style.backgroundPosition = 'center';
+      block.dataset.bgImg = src;
+      applied.bgImage = src;
+    }
+  }
+
+  // 3) Size
+  if (partial.width !== undefined) {
+    if (_setNum('width', partial.width, 20, 4000)) {
+      const w = Number(partial.width);
+      block.style.width = w + 'px';
+      block.style.margin = '0 auto'; block.style.alignSelf = 'center';
+      applied.width = w;
+    } else return { ok: false, code: 'INVALID', message: 'width out of range [20, 4000]' };
+  }
+  if (partial.height !== undefined) {
+    if (_setNum('height', partial.height, 20, 4000)) {
+      const h = Number(partial.height);
+      block.style.height = h + 'px';
+      block.style.minHeight = h + 'px';
+      applied.height = h;
+    } else return { ok: false, code: 'INVALID', message: 'height out of range [20, 4000]' };
+  }
+
+  // 4) Padding (상하)
+  if (partial.paddingY !== undefined) {
+    if (_setNum('padY', partial.paddingY, 0, 400)) {
+      const p = Number(partial.paddingY);
+      block.style.paddingTop = p + 'px';
+      block.style.paddingBottom = p + 'px';
+      applied.paddingY = p;
+    } else return { ok: false, code: 'INVALID', message: 'paddingY out of range [0, 400]' };
+  }
+
+  // 5) Border radius
+  if (partial.radius !== undefined) {
+    if (_setNum('radius', partial.radius, 0, 400)) {
+      const r = Number(partial.radius);
+      block.style.borderRadius = r + 'px';
+      applied.radius = r;
+    } else return { ok: false, code: 'INVALID', message: 'radius out of range [0, 400]' };
+  }
+
+  // 6) Border (width/style/color) — 셋이 합쳐져 ss.style.border로 일괄 적용 (prop-frame applyBorder 미러)
+  const _borderTouched = (partial.borderWidth !== undefined || partial.borderStyle !== undefined || partial.borderColor !== undefined);
+  if (_borderTouched) {
+    if (partial.borderWidth !== undefined) {
+      if (!_setNum('borderWidth', partial.borderWidth, 0, 100)) {
+        return { ok: false, code: 'INVALID', message: 'borderWidth out of range [0, 100]' };
+      }
+      applied.borderWidth = Number(partial.borderWidth);
+    }
+    if (partial.borderStyle !== undefined) {
+      const allowedStyles = ['solid', 'dashed', 'dotted', 'double', 'none'];
+      if (!allowedStyles.includes(partial.borderStyle)) {
+        return { ok: false, code: 'INVALID', message: `invalid borderStyle: ${partial.borderStyle}. allowed: ${allowedStyles.join('|')}` };
+      }
+      block.dataset.borderStyle = partial.borderStyle;
+      applied.borderStyle = partial.borderStyle;
+    }
+    if (partial.borderColor !== undefined && partial.borderColor !== null) {
+      if (typeof partial.borderColor !== 'string') {
+        return { ok: false, code: 'INVALID', message: 'borderColor must be string' };
+      }
+      const v = partial.borderColor.trim();
+      if (v.length === 0)   return { ok: false, code: 'INVALID', message: 'borderColor empty' };
+      if (v.length > 64)    return { ok: false, code: 'INVALID', message: 'borderColor too long' };
+      const okColor = /^#[0-9a-fA-F]{3,8}$/.test(v) || /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(v) || v === 'transparent';
+      if (!okColor) return { ok: false, code: 'INVALID', message: `borderColor invalid (allowed: #hex | rgb(a)/hsl(a)() | transparent)` };
+      block.dataset.borderColor = v;
+      applied.borderColor = v;
+    }
+    const w = parseInt(block.dataset.borderWidth) || 0;
+    const s = block.dataset.borderStyle || 'solid';
+    const c = block.dataset.borderColor || '#888888';
+    block.style.border = w > 0 ? `${w}px ${s} ${c}` : '';
+  }
+
+  // 7) Child align (flex) — alignItems(horizontal) / justifyContent(vertical for column flex)
+  //    NOTE: freeLayout 프레임에선 자식이 absolute이므로 flex align이 무효 → dataset만 갱신 + style은 무효.
+  //    구조적 재배치(자식 left/top 갱신)는 prop-frame _setAlign이 담당 — MCP partial 범위에선 제외.
+  const _alignAllowed = ['flex-start', 'center', 'flex-end', 'stretch', 'baseline'];
+  const _justifyAllowed = ['flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'];
+  if (partial.alignItems !== undefined) {
+    if (!_alignAllowed.includes(partial.alignItems)) {
+      return { ok: false, code: 'INVALID', message: `invalid alignItems: ${partial.alignItems}. allowed: ${_alignAllowed.join('|')}` };
+    }
+    block.dataset.alignItems = partial.alignItems;
+    if (block.dataset.freeLayout !== 'true') block.style.alignItems = partial.alignItems;
+    applied.alignItems = partial.alignItems;
+  }
+  if (partial.justifyContent !== undefined) {
+    if (!_justifyAllowed.includes(partial.justifyContent)) {
+      return { ok: false, code: 'INVALID', message: `invalid justifyContent: ${partial.justifyContent}. allowed: ${_justifyAllowed.join('|')}` };
+    }
+    block.dataset.justifyContent = partial.justifyContent;
+    if (block.dataset.freeLayout !== 'true') block.style.justifyContent = partial.justifyContent;
+    applied.justifyContent = partial.justifyContent;
+  }
+
+  // 8) gap
+  if (partial.gap !== undefined) {
+    if (_setNum('gap', partial.gap, 0, 400)) {
+      const g = Number(partial.gap);
+      block.style.gap = g + 'px';
+      applied.gap = g;
+    } else return { ok: false, code: 'INVALID', message: 'gap out of range [0, 400]' };
+  }
+
+  // 9) Transform (translate / rotate / flip) — prop-frame _applyTransform 미러
+  const _transformTouched = (
+    partial.translateX !== undefined || partial.translateY !== undefined ||
+    partial.rotateDeg !== undefined || partial.flipH !== undefined || partial.flipV !== undefined
+  );
+  if (partial.translateX !== undefined) {
+    if (!_setNum('translateX', partial.translateX, -10000, 10000)) {
+      return { ok: false, code: 'INVALID', message: 'translateX out of range [-10000, 10000]' };
+    }
+    applied.translateX = Number(partial.translateX);
+  }
+  if (partial.translateY !== undefined) {
+    if (!_setNum('translateY', partial.translateY, -10000, 10000)) {
+      return { ok: false, code: 'INVALID', message: 'translateY out of range [-10000, 10000]' };
+    }
+    applied.translateY = Number(partial.translateY);
+  }
+  if (partial.rotateDeg !== undefined) {
+    const n = Number(partial.rotateDeg);
+    if (!Number.isFinite(n)) return { ok: false, code: 'INVALID', message: 'rotateDeg must be number' };
+    if (n < -360 || n > 360) return { ok: false, code: 'INVALID', message: 'rotateDeg out of range [-360, 360]' };
+    block.dataset.rotateDeg = String(n);
+    applied.rotateDeg = n;
+  }
+  if (partial.flipH !== undefined) {
+    const v = (partial.flipH === true || partial.flipH === 1 || partial.flipH === '1') ? '1' : '0';
+    block.dataset.flipH = v;
+    applied.flipH = v === '1';
+  }
+  if (partial.flipV !== undefined) {
+    const v = (partial.flipV === true || partial.flipV === 1 || partial.flipV === '1') ? '1' : '0';
+    block.dataset.flipV = v;
+    applied.flipV = v === '1';
+  }
+  if (_transformTouched) {
+    const tx = parseInt(block.dataset.translateX) || 0;
+    const ty = parseInt(block.dataset.translateY) || 0;
+    const rd = parseFloat(block.dataset.rotateDeg) || 0;
+    const fx = block.dataset.flipH === '1' ? -1 : 1;
+    const fy = block.dataset.flipV === '1' ? -1 : 1;
+    block.style.transform = `translate(${tx}px,${ty}px) rotate(${rd}deg) scale(${fx},${fy})`;
+  }
+
+  // 10) bannerPreset — destructive. 자식 모두 사라짐. PM 호출 시 명시적 confirmDestructive=true 필요.
+  if (partial.bannerPreset !== undefined && partial.bannerPreset !== null) {
+    if (typeof partial.bannerPreset !== 'string') {
+      return { ok: false, code: 'INVALID', message: 'bannerPreset must be string' };
+    }
+    const presets = window.BANNER_PRESETS || {};
+    if (!presets[partial.bannerPreset]) {
+      return { ok: false, code: 'INVALID', message: `invalid bannerPreset: ${partial.bannerPreset}. available: ${Object.keys(presets).join('|') || '(none registered)'}` };
+    }
+    if (partial.confirmDestructive !== true) {
+      return { ok: false, code: 'DESTRUCTIVE_REQUIRES_CONFIRM', message: 'bannerPreset 변경은 frame 내부 자식을 모두 제거합니다. confirmDestructive:true를 명시하세요.' };
+    }
+    try {
+      if (typeof window._applyBannerPreset === 'function') {
+        window._applyBannerPreset(block, partial.bannerPreset);
+        applied.bannerPreset = partial.bannerPreset;
+      } else {
+        return { ok: false, code: 'API_MISSING', message: 'window._applyBannerPreset not available' };
+      }
+    } catch (e) {
+      return { ok: false, code: 'PRESET_ERROR', message: e.message };
+    }
+  }
+
+  // 11) 우측 패널 갱신 (선택 상태일 때만)
+  if (block.classList.contains('selected')) {
+    try { window.showFrameProperties?.(block); } catch (_) {}
+    try { window.showFrameHandles?.(block); } catch (_) {}
+  }
+  // 12) 레이어 패널
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  window.scheduleAutoSave?.();
+
+  return { ok: true, blockId, before, applied };
+}
+
+window.updateFrameBlock = updateFrameBlock;
+export { updateFrameBlock };

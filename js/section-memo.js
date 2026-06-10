@@ -96,9 +96,9 @@
     const sec = btn.closest('.section-block');
     if (!sec) return;
     if (_activePop) {
-      _activePop.remove();
       const prev = _activePop;
       _activePop = null;
+      (prev._backdrop || prev).remove();
       if (prev._anchor === sec) return; // 같은 섹션 토글 = 닫기만
     }
     const memo = sec.dataset.memo || '';
@@ -107,10 +107,10 @@
     pop.className = 'section-memo-popover';
     pop.innerHTML = `
       <div class="smp-head">
-        <span class="smp-title">📝 메모 — ${sec.dataset.name || sec.id}</span>
-        <button class="smp-close" type="button" title="닫기">✕</button>
+        <span class="smp-title">📝 ${sec.dataset.name || sec.id}</span>
+        <button class="smp-close" type="button" title="닫기 (Esc)">✕</button>
       </div>
-      <textarea class="smp-textarea" rows="8" maxlength="${MAX_MEMO_LEN}" placeholder="섹션 메모 (출처, 의도, 디자인 노트 등)..."></textarea>
+      <textarea class="smp-textarea" rows="12" maxlength="${MAX_MEMO_LEN}" placeholder="섹션 메모 (출처, 의도, 디자인 노트 등)..."></textarea>
       <div class="smp-foot">
         <span class="smp-count">0 / ${MAX_MEMO_LEN}</span>
         <span class="smp-status"></span>
@@ -136,33 +136,73 @@
       saveTimer = setTimeout(commit, 500);
     });
     ta.addEventListener('blur', () => { clearTimeout(saveTimer); commit(); });
+    // 모달 backdrop으로 감싸기 — 화면 중앙에 "열린다" 느낌
+    const backdrop = document.createElement('div');
+    backdrop.className = 'section-memo-backdrop';
+    backdrop.appendChild(pop);
+    document.body.appendChild(backdrop);
+    pop._backdrop = backdrop;
+
+    const closeModal = () => {
+      clearTimeout(saveTimer); commit();
+      document.removeEventListener('keydown', onKey, true);
+      backdrop.classList.remove('open');
+      // transition 끝난 후 제거 (CSS 200ms와 일치)
+      setTimeout(() => { backdrop.remove(); }, 220);
+      if (_activePop === pop) _activePop = null;
+    };
+
     pop.querySelector('.smp-close').addEventListener('click', (e) => {
       e.stopPropagation();
-      clearTimeout(saveTimer);
-      commit();
-      pop.remove();
-      _activePop = null;
+      closeModal();
     });
-    pop.addEventListener('click', e => e.stopPropagation());
+    // 안쪽 클릭은 닫힘 방지
+    pop.addEventListener('mousedown', e => e.stopPropagation());
+    // backdrop 클릭으로 닫기
+    backdrop.addEventListener('mousedown', (e) => {
+      if (e.target === backdrop) closeModal();
+    });
+    // Esc 키로 닫기
+    const onKey = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); closeModal(); } };
+    document.addEventListener('keydown', onKey, true);
 
-    // popover를 section-toolbar 다음에 attach
-    const toolbar = sec.querySelector('.section-toolbar');
-    if (toolbar) toolbar.insertAdjacentElement('afterend', pop);
-    else sec.appendChild(pop);
     _activePop = pop;
-    ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
-    // 다른 곳 클릭 시 닫기
+    // 다음 frame에 open class → CSS transition 트리거 (열리는 애니메이션)
+    requestAnimationFrame(() => backdrop.classList.add('open'));
     setTimeout(() => {
-      const closer = (ev) => {
-        if (!pop.contains(ev.target)) {
-          clearTimeout(saveTimer); commit();
-          pop.remove();
-          if (_activePop === pop) _activePop = null;
-          document.removeEventListener('mousedown', closer, true);
-        }
-      };
-      document.addEventListener('mousedown', closer, true);
-    }, 0);
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }, 60);
   };
+
+  // 마이그레이션: 기존 저장 프로젝트의 toolbar에 📝 버튼 주입 (ai-section-fill 패턴 미러).
+  function _ensureMemoButton(sec) {
+    if (!sec) return;
+    const tb = sec.querySelector(':scope > .section-toolbar');
+    if (!tb) return;
+    let btn = tb.querySelector('.st-memo-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.className = 'st-btn st-memo-btn';
+      btn.title = '섹션 메모';
+      btn.textContent = '📝';
+      btn.setAttribute('onclick', 'window.toggleSectionMemoPopover(this)');
+    }
+    // toolbar 맨 왼쪽으로 이동 — 항상 첫 자식
+    if (tb.firstChild !== btn) tb.insertBefore(btn, tb.firstChild);
+  }
+  function _hydrateAllSectionsForMemoBtn() {
+    document.querySelectorAll('.section-block').forEach(_ensureMemoButton);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      _hydrateAllSectionsForMemoBtn();
+      setTimeout(_hydrateAllSectionsForMemoBtn, 1500);
+    });
+  } else {
+    _hydrateAllSectionsForMemoBtn();
+    setTimeout(_hydrateAllSectionsForMemoBtn, 1500);
+  }
+  window._ensureMemoButton = _ensureMemoButton;
+  window._hydrateAllSectionsForMemoBtn = _hydrateAllSectionsForMemoBtn;
 })();

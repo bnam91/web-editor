@@ -331,7 +331,9 @@ const SIBLING_MULTI_SEL =
   '.icon-text-block, .shape-block, .frame-block, ' +
   // 누락 블록 추가 (#14): divider + 카드/말풍선/배너02/비교/목업/벡터/스텝/조커/캔버스 다중선택 지원
   '.card-block, .speech-bubble-block, .banner02-block, .comparison-block, ' +
-  '.mockup-block, .vector-block, .step-block, .joker-block, .canvas-block';
+  '.mockup-block, .vector-block, .step-block, .joker-block, .canvas-block, ' +
+  // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel — 다중선택 지원
+  '.iconify-block, .chat-block, .gradient-block, .sticker-block, .laurel-block';
 
 function _toSibling(el) {
   if (!el) return null;
@@ -1229,12 +1231,12 @@ document.addEventListener('keydown', e => {
   if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-    const selBlock = document.querySelector(
-      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .vector-block.selected, ' +
-      '.frame-block.selected'
-    );
+    // 섹션 외 모든 selected 요소를 블록으로 취급 (iconify/shape/sticker/laurel 등 누락 방지)
+    const selBlock = [...document.querySelectorAll('.selected')]
+      .find(el => el !== document.body
+        && !el.classList.contains('section-block')
+        && !el.classList.contains('layer-item')
+        && el.id);
     const selSection = document.querySelector('.section-block.selected');
     const moveTarget = selBlock
       ? (selBlock.classList.contains('gap-block') || selBlock.classList.contains('frame-block')
@@ -1308,7 +1310,15 @@ document.addEventListener('keydown', e => {
     if (multiSel.sections.size > 1) {
       e.preventDefault();
       const allSecs = canvasEl.querySelectorAll('.section-block');
-      const toDelete = [...multiSel.sections];
+      // 보호 섹션 필터링 (section-protection.js)
+      const requested = [...multiSel.sections];
+      const isProtected = window.isSectionProtected || (() => false);
+      const toDelete = requested.filter(s => !isProtected(s));
+      const skipped = requested.length - toDelete.length;
+      if (skipped > 0 && typeof window.showToast === 'function') {
+        window.showToast(`🔒 보호된 섹션 ${skipped}개 제외 (메모: "삭제하지말것" 자동 감지)`);
+      }
+      if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return; }
       ensureHistoryCheckpoint('섹션 다중 삭제 전');
       toDelete.forEach(s => s.remove());
       clearMultiSel();
@@ -1404,15 +1414,28 @@ document.addEventListener('keydown', e => {
         pushHistory('행 삭제');
       } else if (selSection) {
         e.preventDefault();
+        const isProtected = window.isSectionProtected || (() => false);
         if (selSection.dataset.variationGroup) {
           const gid = selSection.dataset.variationGroup;
           const grouped = [...document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`)];
-          grouped.forEach(s => s.remove());
+          const toDelete = grouped.filter(s => !isProtected(s));
+          const skipped = grouped.length - toDelete.length;
+          if (skipped > 0 && typeof window.showToast === 'function') {
+            window.showToast(`🔒 보호된 섹션 ${skipped}개 제외`);
+          }
+          if (toDelete.length === 0) { deselectAll(); return; }
+          toDelete.forEach(s => s.remove());
           deselectAll();
           if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
           window.buildLayerPanel();
           pushHistory('섹션 삭제');
         } else {
+          if (isProtected(selSection)) {
+            if (typeof window.showToast === 'function') {
+              window.showToast(`🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요`);
+            }
+            return;
+          }
           selSection.remove();
           deselectAll();
           if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();

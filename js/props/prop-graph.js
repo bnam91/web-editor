@@ -17,6 +17,12 @@ export function showGraphProperties(block) {
   const pointRadius  = parseInt(block.dataset.pointRadius)  || 5;
   const fillArea     = block.dataset.fillArea === '1';
   const fillAlpha    = Math.round((parseFloat(block.dataset.fillAlpha) || 0.18) * 100);
+  const labelColor   = block.dataset.labelColor || '#888888';
+  const labelAlpha   = parseAlphaFromColor(labelColor);
+  const fillColor    = block.dataset.fillColor || block.dataset.barColor || '#3b82f6';
+  const fillColorAlpha = parseAlphaFromColor(fillColor);
+  const showVLabel   = block.dataset.showVLabel !== '0';
+  const showXLabel   = block.dataset.showXLabel !== '0';
 
   const presets = [
     { id: 'default',  label: '기본' },
@@ -46,13 +52,31 @@ export function showGraphProperties(block) {
       <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="grb-h-slider" min="80" max="600" step="8" value="${chartH}">
-        <input type="number" class="prop-number" id="grb-h-number" min="80" max="600" value="${chartH}">
+        <input type="range" class="prop-slider" id="grb-h-slider" min="80" max="2000" step="8" value="${chartH}">
+        <input type="number" class="prop-number" id="grb-h-number" min="80" max="2000" value="${chartH}">
       </div>
       <div class="prop-row">
         <span class="prop-label">라벨</span>
         <input type="range" class="prop-slider" id="grb-label-slider" min="8" max="28" step="1" value="${labelSize}">
         <input type="number" class="prop-number" id="grb-label-number" min="8" max="28" value="${labelSize}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">라벨 색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-label', hex: labelColor, alpha: labelAlpha })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">값 표시</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-show-vlabel" ${showVLabel ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">카테고리 표시</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-show-xlabel" ${showXLabel ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>
     </div>
     ${chartType === 'line' ? `
@@ -83,6 +107,10 @@ export function showGraphProperties(block) {
           <input type="checkbox" id="grb-fillarea-toggle" ${fillArea ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
+      </div>
+      <div class="prop-row" id="grb-fillcolor-row" style="display:${fillArea ? 'flex' : 'none'}">
+        <span class="prop-label">면 색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-fill', hex: fillColor, alpha: fillColorAlpha })}
       </div>
       <div class="prop-row" id="grb-fillalpha-row" style="display:${fillArea ? 'flex' : 'none'}">
         <span class="prop-label">투명도</span>
@@ -213,7 +241,7 @@ export function showGraphProperties(block) {
   const hSlider = document.getElementById('grb-h-slider');
   const hNumber = document.getElementById('grb-h-number');
   const applyChartH = v => {
-    v = Math.min(600, Math.max(80, v));
+    v = Math.min(2000, Math.max(80, v));
     block.dataset.chartHeight = v;
     window.renderGraph(block);
     hSlider.value = v; hNumber.value = v;
@@ -282,11 +310,15 @@ export function showGraphProperties(block) {
     pxSlider.addEventListener('change', () => window.pushHistory());
   }
 
-  // 바 색상 (bar-h / line 공통)
+  // 색상 — line 차트는 선 색상(lineColor)에, bar 차트는 막대 색상(barColor)에 적용
   if (document.getElementById('grb-bar-color')) {
     wireColorField('grb-bar', {
       initialAlpha: barAlpha,
-      onApply: (c) => { block.dataset.barColor = c; window.renderGraph(block); },
+      onApply: (c) => {
+        if (block.dataset.chartType === 'line') block.dataset.lineColor = c;
+        else block.dataset.barColor = c;
+        window.renderGraph(block);
+      },
       onCommit: () => window.pushHistory(),
     });
   }
@@ -321,16 +353,26 @@ export function showGraphProperties(block) {
     ptSlider.addEventListener('change', () => window.pushHistory());
   }
 
-  // T10: 면 채우기 토글 + 알파 (line 전용)
-  const fillToggle = document.getElementById('grb-fillarea-toggle');
-  const fillRow    = document.getElementById('grb-fillalpha-row');
+  // T10: 면 채우기 토글 + 색상 + 알파 (line 전용)
+  const fillToggle  = document.getElementById('grb-fillarea-toggle');
+  const fillRow     = document.getElementById('grb-fillalpha-row');
+  const fillColorRow = document.getElementById('grb-fillcolor-row');
   if (fillToggle) {
     fillToggle.addEventListener('change', () => {
       const on = fillToggle.checked;
       block.dataset.fillArea = on ? '1' : '0';
       if (fillRow) fillRow.style.display = on ? 'flex' : 'none';
+      if (fillColorRow) fillColorRow.style.display = on ? 'flex' : 'none';
       window.renderGraph(block);
       window.pushHistory();
+    });
+  }
+  // 면 색상 picker
+  if (document.getElementById('grb-fill-color')) {
+    wireColorField('grb-fill', {
+      initialAlpha: fillColorAlpha,
+      onApply: (c) => { block.dataset.fillColor = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
     });
   }
   const faSlider = document.getElementById('grb-fillalpha-slider');
@@ -359,6 +401,34 @@ export function showGraphProperties(block) {
   lSlider.addEventListener('input',  () => applyLabelSize(parseInt(lSlider.value)));
   lNumber.addEventListener('change', () => { applyLabelSize(parseInt(lNumber.value)); window.pushHistory(); });
   lSlider.addEventListener('change', () => window.pushHistory());
+
+  // 라벨 색상
+  if (document.getElementById('grb-label-color')) {
+    wireColorField('grb-label', {
+      initialAlpha: labelAlpha,
+      onApply: (c) => { block.dataset.labelColor = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
+    });
+  }
+
+  // 값 라벨 표시 toggle
+  const showVL = document.getElementById('grb-show-vlabel');
+  if (showVL) {
+    showVL.addEventListener('change', () => {
+      block.dataset.showVLabel = showVL.checked ? '1' : '0';
+      window.renderGraph(block);
+      window.pushHistory();
+    });
+  }
+  // 카테고리 라벨 표시 toggle
+  const showXL = document.getElementById('grb-show-xlabel');
+  if (showXL) {
+    showXL.addEventListener('change', () => {
+      block.dataset.showXLabel = showXL.checked ? '1' : '0';
+      window.renderGraph(block);
+      window.pushHistory();
+    });
+  }
 }
 
 

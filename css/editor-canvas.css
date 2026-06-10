@@ -241,3 +241,25 @@
 
 
 /* (dead .scratch-asset-handle 제거됨 — 우클릭 메뉴로 전환) */
+
+/* ─── 스크래치 자석 스냅 가이드라인 ──────────────────
+   #scratch-snap-guides 컨테이너는 canvas-scaler 내부에 절대좌표.
+   각 라인은 width 또는 height 1px div. transform scale은 scaler 따라감. */
+.scratch-snap-guide-line {
+  position: absolute;
+  background: #ff3b6b;          /* edge/center 기본 = 빨강 실선 */
+  pointer-events: none;
+  z-index: 9999;
+  /* 1px 실선처럼 보이게 — background 색이 곧 선 색 */
+}
+.scratch-snap-guide-line.spacing {
+  /* spacing(파랑 점선) — background는 비우고 border로 점선 표현 */
+  background: transparent;
+  border-top: 1px dashed #2d6fe8;
+  height: 0 !important;
+}
+.scratch-snap-guide-line.v.spacing {
+  border-top: none;
+  border-left: 1px dashed #2d6fe8;
+  width: 0 !important;
+}

@@ -74,6 +74,20 @@
 }
 .prop-number:hover { border-color: var(--ui-border-mid); }
 .prop-number:focus { border-color: var(--ui-accent-primary); }
+
+/* .prop-text — 자유 문자열(CSS gradient 등) raw input. .prop-number와 동일 스킨, flex로 채움 */
+.prop-text {
+  flex: 1; min-width: 0; height: 24px;
+  background: var(--ui-bg-input); border: 1px solid transparent;
+  border-radius: 4px; color: var(--ui-text);
+  font-size: 11px; padding: 0 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  outline: none; transition: border-color 0.1s;
+  text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+}
+.prop-text:hover { border-color: var(--ui-border-mid); }
+.prop-text:focus { border-color: var(--ui-accent-primary); }
+.prop-text::placeholder { color: var(--ui-text-sub, #888); opacity: 0.6; }
 .prop-number-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -242,10 +256,10 @@
 
 /* 정렬 버튼 그룹 */
 .prop-align-group {
-  display: flex; gap: 4px; flex: 1; min-width: 0;
+  display: flex; gap: 4px; flex: 1; min-width: 0; flex-wrap: wrap; row-gap: 4px;
 }
 .prop-align-btn {
-  flex: 1; height: 24px; min-width: 28px;
+  flex: 1 0 28px; height: 24px; min-width: 28px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
   border-radius: 4px; color: var(--ui-text-dim);
   font-size: 12px; cursor: pointer;

@@ -235,16 +235,17 @@ function renderGraph(block) {
       return { p, leftPct, topPct, yLabelTop, yValTop };
     });
 
-    const userColor = block.dataset.barColor || '';
-    const colorAttr = userColor ? ` stroke="${userColor}"` : '';
-    const pointInlineStyle = userColor ? `background:${userColor};border-color:${userColor};` : '';
+    // 선/면 색상 분리 — lineColor가 선(stroke)·점, fillColor가 면(area). fallback은 barColor.
+    // CSS preset rule이 stroke를 var()로 박아 SVG attribute를 덮어씀 → inline style로 우선순위 강제
+    const lineColor = block.dataset.lineColor || block.dataset.barColor || '';
+    const fillColor = block.dataset.fillColor || block.dataset.barColor || '';
+    const colorAttr = lineColor ? ` style="stroke:${lineColor}"` : '';
+    const pointInlineStyle = lineColor ? `background:${lineColor};border-color:${lineColor};` : '';
 
     // T10: 면 채우기 옵션 (dataset.fillArea === '1')
     const fillArea = block.dataset.fillArea === '1';
     const fillAlpha = Math.max(0, Math.min(1, parseFloat(block.dataset.fillAlpha) || 0.18));
 
-    // SVG는 polyline + baseline 만 (preserveAspectRatio="none" + non-scaling-stroke)
-    // 데이터 포인트 원은 HTML div 오버레이로 — 가로/세로 스케일 차이로 인한 타원화 방지
     const baselineY = plotB.toFixed(1);
 
     // 면 채우기 polygon: polyPoints + (lastX, baselineY) + (firstX, baselineY)로 닫음
@@ -252,8 +253,8 @@ function renderGraph(block) {
       const firstX = points[0].x.toFixed(1);
       const lastX  = points[points.length - 1].x.toFixed(1);
       const areaPoints = `${polyPoints} ${lastX},${baselineY} ${firstX},${baselineY}`;
-      const fillAttr = userColor
-        ? `fill="${userColor}" fill-opacity="${fillAlpha}"`
+      const fillAttr = fillColor
+        ? `fill="${fillColor}" fill-opacity="${fillAlpha}"`
         : `fill="currentColor" fill-opacity="${fillAlpha}" style="color:var(--ui-accent-primary,#3b82f6)"`;
       return `<polygon class="grb-line-area" points="${areaPoints}" ${fillAttr} stroke="none"/>`;
     })() : '';
@@ -265,9 +266,16 @@ function renderGraph(block) {
     const pointDots = overlayItems.map(o =>
       `<div class="grb-line-point-dot" style="left:${o.leftPct.toFixed(2)}%;top:${o.topPct.toFixed(2)}%;width:${pointRadius * 2}px;height:${pointRadius * 2}px;${pointInlineStyle}"></div>`
     ).join('');
+    // 라벨 색상 + 표시 옵션 (vlabel = 값, xlabel = 카테고리)
+    const labelColor = block.dataset.labelColor || '';
+    const showVLabel = block.dataset.showVLabel !== '0';  // default 보임
+    const showXLabel = block.dataset.showXLabel !== '0';  // default 보임
+    const labelColorCss = labelColor ? `color:${labelColor};` : '';
+    const vlabelDisp = showVLabel ? '' : 'display:none;';
+    const xlabelDisp = showXLabel ? '' : 'display:none;';
     const labelsHTML = overlayItems.map(o =>
-      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px">${o.p.v}</div>
-       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px">${o.p.label}</div>`
+      `<div class="grb-line-vlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yValTop.toFixed(2)}%;font-size:${valSize}px;${labelColorCss}${vlabelDisp}">${o.p.v}</div>
+       <div class="grb-line-xlabel" style="left:${o.leftPct.toFixed(2)}%;top:${o.yLabelTop.toFixed(2)}%;font-size:${labelSize}px;${labelColorCss}${xlabelDisp}">${o.p.label}</div>`
     ).join('');
 
     block.innerHTML = `

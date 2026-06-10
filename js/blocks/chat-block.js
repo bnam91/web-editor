@@ -173,9 +173,271 @@ function addChatBlock(opts = {}) {
   window.triggerAutoSave?.();
 }
 
+// ── 수정 ──────────────────────────────────────────────────────────────────────
+// PM의 update_chat_block(MCP) → main(_invokeRendererUpdateChatBlock) → 여기.
+// banner02 updateBanner02Block 패턴 미러: NOT_FOUND/INVALID/USER_BUSY 처리,
+// before snapshot + pushHistory + dataset partial write + renderChatBlock 재렌더 + autoSave.
+//
+// 지원 필드:
+//   - 메시지 배열: messages(전체 교체) / addMessage / removeMessage / editMessage
+//   - 스타일: gap, fontSize, bgLeft, bgRight, colorLeft, colorRight, radius, padding
+//   - 프로필: showProfile, showName, profileSize, profileOffsetY, profileGap
+//   - 기타: layerName
+function updateChatBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('chat-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `chat-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
+  }
+  // 사용자가 인라인 편집(dblclick contenteditable) 중이면 USER_BUSY
+  if (block.querySelector('.chb-bubble[contenteditable="true"]')) {
+    return { ok: false, code: 'USER_BUSY', message: 'user is editing a bubble — try again later', retryAfter: 2000 };
+  }
+
+  // ── 내부 헬퍼 ──────────────────────────────────────────────────────────────
+  const _colorRe = /^#[0-9a-fA-F]{3,8}$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$|^transparent$/;
+  const _isImgSrcOk = (s) => {
+    if (typeof s !== 'string') return false;
+    if (s.length > 200000) return false;
+    if (/["\r\n]/.test(s)) return false;
+    return true;
+  };
+  const _normBool01 = (v) => {
+    if (v === true || v === 1 || v === '1' || v === 'true') return '1';
+    if (v === false || v === 0 || v === '0' || v === 'false') return '0';
+    return null;
+  };
+  const _normMsg = (m, ctx) => {
+    if (!m || typeof m !== 'object') throw new Error(`${ctx} must be object`);
+    const o = {};
+    if (m.text !== undefined && m.text !== null) {
+      if (typeof m.text !== 'string') throw new Error(`${ctx}.text must be string`);
+      if ([...m.text].length > 2000) throw new Error(`${ctx}.text too long (>2000)`);
+      o.text = m.text;
+    } else {
+      o.text = '';
+    }
+    if (m.align !== undefined && m.align !== null) {
+      if (m.align !== 'left' && m.align !== 'right') throw new Error(`${ctx}.align must be 'left'|'right'`);
+      o.align = m.align;
+    } else {
+      o.align = 'left';
+    }
+    if (m.hideProfile !== undefined && m.hideProfile !== null) {
+      o.hideProfile = m.hideProfile === true || m.hideProfile === 'true' || m.hideProfile === 1 || m.hideProfile === '1';
+    }
+    if (m.profileImg !== undefined && m.profileImg !== null) {
+      if (!_isImgSrcOk(m.profileImg)) throw new Error(`${ctx}.profileImg invalid (must be string, ≤200000, no quote/newline)`);
+      o.profileImg = String(m.profileImg);
+    }
+    if (m.profileName !== undefined && m.profileName !== null) {
+      if (typeof m.profileName !== 'string') throw new Error(`${ctx}.profileName must be string`);
+      if ([...m.profileName].length > 200) throw new Error(`${ctx}.profileName too long (>200)`);
+      o.profileName = m.profileName;
+    }
+    return o;
+  };
+
+  // ── before snapshot ────────────────────────────────────────────────────────
+  const before = {
+    messages: block.dataset.messages,
+    gap: block.dataset.gap, fontSize: block.dataset.fontSize,
+    bgLeft: block.dataset.bgLeft, bgRight: block.dataset.bgRight,
+    colorLeft: block.dataset.colorLeft, colorRight: block.dataset.colorRight,
+    radius: block.dataset.radius, padding: block.dataset.padding,
+    showProfile: block.dataset.showProfile, showName: block.dataset.showName,
+    profileSize: block.dataset.profileSize, profileOffsetY: block.dataset.profileOffsetY,
+    profileGap: block.dataset.profileGap, layerName: block.dataset.layerName,
+  };
+
+  window.pushHistory?.('채팅 블록 수정');
+
+  const applied = {};
+
+  // ── 1) 메시지 배열 ─────────────────────────────────────────────────────────
+  let messages;
+  try {
+    messages = JSON.parse(block.dataset.messages || '[]');
+    if (!Array.isArray(messages)) messages = [];
+  } catch (_) { messages = []; }
+
+  if (partial.messages !== undefined) {
+    if (!Array.isArray(partial.messages)) return { ok: false, code: 'INVALID', message: 'messages must be array' };
+    if (partial.messages.length < 1) return { ok: false, code: 'INVALID', message: 'messages must have at least 1 item' };
+    if (partial.messages.length > 100) return { ok: false, code: 'INVALID', message: 'messages too many (>100)' };
+    try {
+      messages = partial.messages.map((m, i) => _normMsg(m, `messages[${i}]`));
+    } catch (e) { return { ok: false, code: 'INVALID', message: e.message }; }
+    applied.messages = messages;
+  }
+  if (partial.addMessage !== undefined && partial.addMessage !== null) {
+    if (typeof partial.addMessage !== 'object') return { ok: false, code: 'INVALID', message: 'addMessage must be object' };
+    if (messages.length >= 100) return { ok: false, code: 'INVALID', message: 'messages limit reached (100)' };
+    let newMsg;
+    try { newMsg = _normMsg(partial.addMessage, 'addMessage'); }
+    catch (e) { return { ok: false, code: 'INVALID', message: e.message }; }
+    let at = messages.length;
+    if (partial.addMessage.atIndex !== undefined && partial.addMessage.atIndex !== null) {
+      if (!Number.isInteger(partial.addMessage.atIndex) || partial.addMessage.atIndex < 0) {
+        return { ok: false, code: 'INVALID', message: 'addMessage.atIndex must be integer >=0' };
+      }
+      at = Math.min(messages.length, partial.addMessage.atIndex);
+    }
+    messages.splice(at, 0, newMsg);
+    applied.addMessage = { ...newMsg, atIndex: at };
+  }
+  if (partial.removeMessage !== undefined && partial.removeMessage !== null) {
+    const r = partial.removeMessage;
+    let idx = -1;
+    if (typeof r === 'number') idx = r;
+    else if (typeof r === 'object' && Number.isInteger(r.index)) idx = r.index;
+    else return { ok: false, code: 'INVALID', message: 'removeMessage must be number(index) or {index}' };
+    if (!Number.isInteger(idx) || idx < 0 || idx >= messages.length) {
+      return { ok: false, code: 'NOT_FOUND', message: `removeMessage target not found: ${JSON.stringify(r)}` };
+    }
+    const removed = messages.splice(idx, 1)[0];
+    applied.removeMessage = { index: idx, removed };
+  }
+  if (partial.editMessage !== undefined && partial.editMessage !== null) {
+    const e = partial.editMessage;
+    if (typeof e !== 'object') return { ok: false, code: 'INVALID', message: 'editMessage must be object' };
+    if (!Number.isInteger(e.index)) return { ok: false, code: 'INVALID', message: 'editMessage.index must be integer >=0' };
+    if (e.index < 0 || e.index >= messages.length) {
+      return { ok: false, code: 'NOT_FOUND', message: `editMessage.index out of range: ${e.index}` };
+    }
+    const cur = messages[e.index] || {};
+    let merged;
+    try {
+      merged = _normMsg({
+        text:        e.text        !== undefined ? e.text        : cur.text,
+        align:       e.align       !== undefined ? e.align       : cur.align,
+        hideProfile: e.hideProfile !== undefined ? e.hideProfile : cur.hideProfile,
+        profileImg:  e.profileImg  !== undefined ? e.profileImg  : cur.profileImg,
+        profileName: e.profileName !== undefined ? e.profileName : cur.profileName,
+      }, 'editMessage');
+    } catch (err) { return { ok: false, code: 'INVALID', message: err.message }; }
+    messages[e.index] = merged;
+    applied.editMessage = { index: e.index, ...merged };
+  }
+  // messages 변경이 있었다면 dataset에 commit
+  if (partial.messages !== undefined || partial.addMessage !== undefined || partial.removeMessage !== undefined || partial.editMessage !== undefined) {
+    block.dataset.messages = JSON.stringify(messages);
+  }
+
+  // ── 2) 숫자 스타일 (gap/fontSize/radius/padding) ───────────────────────────
+  const _setInt = (key, datasetKey, min, max) => {
+    if (partial[key] === undefined) return null;
+    const v = partial[key];
+    if (!Number.isFinite(+v) || !Number.isInteger(+v)) return { ok: false, code: 'INVALID', message: `${key} must be integer` };
+    const n = +v;
+    if (n < min || n > max) return { ok: false, code: 'INVALID', message: `${key} out of range [${min},${max}]` };
+    block.dataset[datasetKey] = String(n);
+    applied[key] = n;
+    return null;
+  };
+  let err;
+  err = _setInt('gap',      'gap',      0, 400); if (err) return err;
+  err = _setInt('fontSize', 'fontSize', 4, 400); if (err) return err;
+  err = _setInt('radius',   'radius',   0, 400); if (err) return err;
+  err = _setInt('padding',  'padding',  0, 400); if (err) return err;
+  err = _setInt('profileOffsetY', 'profileOffsetY', -400, 400); if (err) return err;
+  err = _setInt('profileGap',     'profileGap',     0, 400);    if (err) return err;
+
+  // profileSize: null 명시 입력 → reset (dataset에서 제거)
+  if (partial.profileSize !== undefined) {
+    if (partial.profileSize === null) {
+      delete block.dataset.profileSize;
+      applied.profileSize = null;
+    } else {
+      const v = partial.profileSize;
+      if (!Number.isFinite(+v) || !Number.isInteger(+v)) return { ok: false, code: 'INVALID', message: 'profileSize must be integer or null' };
+      const n = +v;
+      if (n < 24 || n > 400) return { ok: false, code: 'INVALID', message: 'profileSize out of range [24,400]' };
+      block.dataset.profileSize = String(n);
+      applied.profileSize = n;
+    }
+  }
+
+  // ── 3) 색상 (bgLeft/bgRight/colorLeft/colorRight) ──────────────────────────
+  const _setColor = (key, datasetKey) => {
+    if (partial[key] === undefined) return null;
+    if (partial[key] === null || partial[key] === '') {
+      delete block.dataset[datasetKey];
+      applied[key] = null;
+      return null;
+    }
+    if (typeof partial[key] !== 'string') return { ok: false, code: 'INVALID', message: `${key} must be string` };
+    const v = partial[key].trim();
+    if (v.length === 0 || v.length > 64) return { ok: false, code: 'INVALID', message: `${key} length invalid` };
+    if (!_colorRe.test(v)) return { ok: false, code: 'INVALID', message: `${key} invalid color (allowed: #hex | rgb(a)/hsl(a)() | transparent)` };
+    block.dataset[datasetKey] = v;
+    applied[key] = v;
+    return null;
+  };
+  err = _setColor('bgLeft',     'bgLeft');     if (err) return err;
+  err = _setColor('bgRight',    'bgRight');    if (err) return err;
+  err = _setColor('colorLeft',  'colorLeft');  if (err) return err;
+  err = _setColor('colorRight', 'colorRight'); if (err) return err;
+
+  // ── 4) enum 토글 (showProfile/showName) — boolean 입력도 정규화 ────────────
+  const _setEnum01 = (key, datasetKey) => {
+    if (partial[key] === undefined) return null;
+    const v = _normBool01(partial[key]);
+    if (v === null) return { ok: false, code: 'INVALID', message: `${key} must be 0/1 or boolean` };
+    block.dataset[datasetKey] = v;
+    applied[key] = v;
+    return null;
+  };
+  err = _setEnum01('showProfile', 'showProfile'); if (err) return err;
+  err = _setEnum01('showName',    'showName');    if (err) return err;
+
+  // ── 5) layerName ───────────────────────────────────────────────────────────
+  if (partial.layerName !== undefined) {
+    if (partial.layerName === null) {
+      delete block.dataset.layerName;
+      applied.layerName = null;
+    } else {
+      if (typeof partial.layerName !== 'string') return { ok: false, code: 'INVALID', message: 'layerName must be string' };
+      if ([...partial.layerName].length > 200) return { ok: false, code: 'INVALID', message: 'layerName too long (>200)' };
+      block.dataset.layerName = partial.layerName;
+      applied.layerName = partial.layerName;
+    }
+  }
+
+  // ── 6) 재렌더 (padding/style 동기화 포함, idempotent) ──────────────────────
+  try {
+    if (typeof window.renderChatBlock === 'function') {
+      window.renderChatBlock(block);
+    } else {
+      renderChatBlock(block);
+    }
+  } catch (e) {
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+
+  // ── 7) 우측 패널 + 레이어 패널 갱신 ────────────────────────────────────────
+  if (block.classList.contains('selected')) {
+    try { window.showChatProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+
+  // ── 8) autosave ────────────────────────────────────────────────────────────
+  try { window.scheduleAutoSave?.(); } catch (_) {}
+  try { window.triggerAutoSave?.(); } catch (_) {}
+
+  return { ok: true, blockId, before, applied };
+}
+
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeChatBlock   = makeChatBlock;
 window.addChatBlock    = addChatBlock;
 window.renderChatBlock = renderChatBlock;
+window.updateChatBlock = updateChatBlock;
 
-export { makeChatBlock, addChatBlock, renderChatBlock, CHAT_DEFAULT_MESSAGES, CHAT_TAIL_PATH };
+export { makeChatBlock, addChatBlock, updateChatBlock, renderChatBlock, CHAT_DEFAULT_MESSAGES, CHAT_TAIL_PATH };

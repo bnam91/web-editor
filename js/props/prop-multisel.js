@@ -14,7 +14,10 @@ function _getSelectedFrameWrappers() {
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
-    '.icon-text-block.selected, .shape-block.selected';
+    '.icon-text-block.selected, .shape-block.selected, ' +
+    // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel
+    '.iconify-block.selected, .chat-block.selected, .gradient-block.selected, ' +
+    '.sticker-block.selected, .laurel-block.selected';
 
   const blocks = [...document.querySelectorAll(BLOCK_SEL)];
   const wrappers = new Set();
