@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
@@ -405,6 +405,19 @@ ipcMain.handle('svgPresets:save', (_e, { category, name, svg } = {}) => {
     const fp = path.join(catDir, `${safeName}.svg`);
     fs.writeFileSync(fp, svg);
     return { ok: true, category: safeCat, file: `${safeName}.svg` };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('svgPresets:createCategory', (_e, { name } = {}) => {
+  try {
+    if (!name || typeof name !== 'string') return { ok: false, error: '이름 필수' };
+    const safe = name.trim().replace(/[\/\\:]/g, '').replace(/^\./, '');
+    if (!safe) return { ok: false, error: '잘못된 이름' };
+    const dir = path.join(SVG_PRESETS_DIR, safe);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    return { ok: true, name: safe };
   } catch (e) {
     return { ok: false, error: e.message };
   }

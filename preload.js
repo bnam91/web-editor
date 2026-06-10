@@ -13,10 +13,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // SVG Presets (사용자 자산 — 모든 프로젝트 공유)
   svgPresets: {
-    list:   ()                           => ipcRenderer.invoke('svgPresets:list'),
-    read:   ({ category, file })         => ipcRenderer.invoke('svgPresets:read',   { category, file }),
-    save:   ({ category, name, svg })    => ipcRenderer.invoke('svgPresets:save',   { category, name, svg }),
-    delete: ({ category, file })         => ipcRenderer.invoke('svgPresets:delete', { category, file }),
+    list:           ()                           => ipcRenderer.invoke('svgPresets:list'),
+    read:           ({ category, file })         => ipcRenderer.invoke('svgPresets:read',   { category, file }),
+    save:           ({ category, name, svg })    => ipcRenderer.invoke('svgPresets:save',   { category, name, svg }),
+    delete:         ({ category, file })         => ipcRenderer.invoke('svgPresets:delete', { category, file }),
+    createCategory: ({ name })                   => ipcRenderer.invoke('svgPresets:createCategory', { name }),
   },
 
   // Projects Meta — branches/commits/thumbnail 분리 저장

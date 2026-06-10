@@ -93,22 +93,22 @@ export function showPageProperties() {
         </div>
       </div>
     </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Bulk Align</div>
+    <div class="prop-section" style="opacity:0.4;pointer-events:none;" title="잘못 누르는 사고 방지로 일시 비활성 — 필요 시 prop-page.js에서 복구">
+      <div class="prop-section-title">Bulk Align (비활성)</div>
       <div class="prop-align-group">
-        <button class="prop-align-btn" id="page-align-left">
+        <button class="prop-align-btn" id="page-align-left" disabled>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
             <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
             <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
           </svg>
         </button>
-        <button class="prop-align-btn" id="page-align-center">
+        <button class="prop-align-btn" id="page-align-center" disabled>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
             <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
             <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
           </svg>
         </button>
-        <button class="prop-align-btn" id="page-align-right">
+        <button class="prop-align-btn" id="page-align-right" disabled>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
             <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
             <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
