@@ -269,6 +269,10 @@ function deletePage(pageId) {
   if (state.pages.length <= 1) { window.showToast('⚠️ 페이지가 1개 이상이어야 합니다.'); return; }
   const idx = state.pages.findIndex(p => p.id === pageId);
   if (idx === -1) return;
+  const page = state.pages[idx];
+  // 파괴적 액션 가드 (Adobe/Figma 표준): 내용 있는 페이지 삭제는 되돌릴 수 없으므로 확인받는다.
+  const hasContent = !!(page && page.canvas && page.canvas.includes('section-block'));
+  if (hasContent && !window.confirm(`'${(page && page.name) || '이 페이지'}'를 삭제하시겠습니까?\n페이지의 모든 내용이 영구 삭제되며 되돌릴 수 없습니다.`)) return;
   const wasActive = pageId === state.currentPageId;
   state.pages.splice(idx, 1);
   if (wasActive) {
@@ -1057,8 +1061,16 @@ function scheduleAutoSave() {
   clearTimeout(autoSaveTimer);
   _setAutosaveIndicator('saving');
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
+  const _saveTargetId = activeProjectId; // H1: 발화 시점에 탭이 바뀌었는지 비교할 대상 캡처
   autoSaveTimer = setTimeout(() => {
     autoSaveTimer = null; // 발화 후 stale id 잔존 방지 — hasUnsavedChanges 판정에 쓰임
+    // H1: 타이머 set 이후 탭이 전환됐으면 이 저장은 다른 프로젝트를 오염시킨다 — 건너뛴다.
+    // (전환된 탭은 자기 편집 시 자체 타이머를 갖고, 이전 탭은 flushCurrentPage/beforeunload로 보존됨)
+    if (activeProjectId !== _saveTargetId) {
+      console.warn('[save-load] autoSave skip: 탭 전환 감지 (target=' + _saveTargetId + ' now=' + activeProjectId + ')');
+      _setAutosaveIndicator('saved');
+      return;
+    }
     const snap = serializeProject();
     // S11: 빈 canvas 저장 방지 — _suppressAutoSave 해제 직후 빈 상태 덮어쓰기 방지
     try {

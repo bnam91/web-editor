@@ -720,10 +720,20 @@ function _guardProjectName(incomingProject, prevPath) {
     const incomingName = incomingProject && incomingProject.name;
     const incomingFalsyOrDefault = !incomingName || incomingName === 'Untitled';
     const prevMeaningful = prevName && prevName !== 'Untitled';
+    let guarded = incomingProject;
     if (incomingFalsyOrDefault && prevMeaningful) {
       console.warn(`[projects:save] name guard: '${incomingName}' → '${prevName}' 복원 (id=${incomingProject.id})`);
-      return { ...incomingProject, name: prevName };
+      guarded = { ...incomingProject, name: prevName };
     }
+    // DATA-LOSS guard (H3): beforeunload sync 경로는 createdAt/type 없는 snapshot을 보내 verbatim write 시
+    // 이 메타가 매 새로고침마다 소실됐다. 기존 파일에 있고 incoming에 없으면 보존한다.
+    if (prev && (prev.createdAt != null || prev.type != null)) {
+      const patch = {};
+      if (prev.createdAt != null && guarded.createdAt == null) patch.createdAt = prev.createdAt;
+      if (prev.type != null && guarded.type == null) patch.type = prev.type;
+      if (Object.keys(patch).length) guarded = { ...guarded, ...patch };
+    }
+    return guarded;
   } catch (_) {}
   return incomingProject;
 }
