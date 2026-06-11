@@ -225,7 +225,7 @@ function enhanceBadgePropPanel(sec) {
 
       <div class="prop-section-title" style="margin-top:14px;">정사각형 크기</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <input type="range" id="badge-size" min="120" max="320" value="${currentSize}" style="flex:2;">
+        <input type="range" class="prop-slider" id="badge-size" min="120" max="320" value="${currentSize}" style="flex:2;">
         <input type="number" id="badge-size-num" min="120" max="320" value="${currentSize}"
                style="width:54px;padding:3px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
       </div>

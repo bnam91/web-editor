@@ -101,8 +101,8 @@ export function showChatProperties(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">패딩</span>
-        <input type="range" id="chb-padding-range" min="0" max="60" value="${padding}" style="flex:1">
-        <span id="chb-padding-val" style="width:28px;text-align:right;font-size:12px">${padding}</span>
+        <input type="range" class="prop-slider" id="chb-padding-range" min="0" max="60" value="${padding}" style="flex:1">
+        <input type="number" class="prop-number" id="chb-padding-val" min="0" max="60" value="${padding}" style="width:54px">
       </div>
     </div>
 
@@ -132,18 +132,18 @@ export function showChatProperties(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
-        <input type="range" id="chb-profile-size-range" min="24" max="120" value="${profileSize}" style="flex:1">
-        <input type="number" id="chb-profile-size-num" class="prop-color-hex" value="${profileSize}" min="24" max="120" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-profile-size-range" min="24" max="120" value="${profileSize}" style="flex:1">
+        <input type="number" id="chb-profile-size-num" class="prop-number" value="${profileSize}" min="24" max="120" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">Y 위치</span>
-        <input type="range" id="chb-profile-y-range" min="-40" max="40" value="${profileOffsetY}" style="flex:1">
-        <input type="number" id="chb-profile-y-num" class="prop-color-hex" value="${profileOffsetY}" min="-40" max="40" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-profile-y-range" min="-40" max="40" value="${profileOffsetY}" style="flex:1">
+        <input type="number" id="chb-profile-y-num" class="prop-number" value="${profileOffsetY}" min="-40" max="40" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">간격</span>
-        <input type="range" id="chb-profile-gap-range" min="0" max="40" value="${profileGap}" style="flex:1">
-        <input type="number" id="chb-profile-gap-num" class="prop-color-hex" value="${profileGap}" min="0" max="40" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-profile-gap-range" min="0" max="40" value="${profileGap}" style="flex:1">
+        <input type="number" id="chb-profile-gap-num" class="prop-number" value="${profileGap}" min="0" max="40" style="width:54px">
       </div>
     </div>
 
@@ -212,12 +212,15 @@ export function showChatProperties(block) {
   // ─── 스타일 이벤트 ────────────────────────────────────────────
   const paddingRange = propPanel.querySelector('#chb-padding-range');
   const paddingVal   = propPanel.querySelector('#chb-padding-val');
-  paddingRange.addEventListener('input', e => {
-    paddingVal.textContent = e.target.value;
-    block.dataset.padding = e.target.value;
-    block.style.padding = e.target.value + 'px ' + e.target.value + 'px';
+  const applyPadding = v => {
+    v = Math.min(60, Math.max(0, parseInt(v) || 0));
+    block.dataset.padding = v;
+    block.style.padding = v + 'px ' + v + 'px';
+    paddingRange.value = v; paddingVal.value = v;
     window.triggerAutoSave?.();
-  });
+  };
+  paddingRange.addEventListener('input', () => applyPadding(paddingRange.value));
+  paddingVal.addEventListener('change', () => applyPadding(paddingVal.value));
 
   propPanel.querySelector('#chb-fontsize').addEventListener('input', e => {
     block.dataset.fontSize = e.target.value;

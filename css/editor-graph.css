@@ -227,4 +227,4 @@
   border-radius: 4px; color: var(--ui-text-dim); cursor: pointer; font-size: 11px;
   display: flex; align-items: center; justify-content: center;
 }
-.grb-data-del-btn:hover { border-color: #e06060; color: #e06060; }
+.grb-data-del-btn:hover { border-color: var(--ui-danger); color: var(--ui-danger); }

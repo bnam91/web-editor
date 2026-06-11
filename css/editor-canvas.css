@@ -99,7 +99,7 @@
   line-height: 1;
 }
 .scratch-item:hover .scratch-close { opacity: 1; }
-.scratch-close:hover { background: #e74c3c; border-color: #e74c3c; }
+.scratch-close:hover { background: var(--ui-danger-hover); border-color: var(--ui-danger-hover); }
 
 /* ── 슬라이스 버튼 + 모드 ── */
 .scratch-slice-btn {

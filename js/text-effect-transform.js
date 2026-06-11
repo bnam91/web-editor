@@ -175,12 +175,12 @@ function enhanceTextEffectPropPanel(tb) {
       </div>
       <div id="tfx-intensity-row" style="display:${showIntensity ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
         <span style="flex:1;font-size:11px;color:#999;">강도</span>
-        <input type="range" id="tfx-intensity" min="0" max="100" value="${cfg.intensity}" style="flex:2;">
+        <input type="range" class="prop-slider" id="tfx-intensity" min="0" max="100" value="${cfg.intensity}" style="flex:2;">
         <span id="tfx-intensity-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.intensity}%</span>
       </div>
       <div id="tfx-grain-row" style="display:${showGrain ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
         <span style="flex:1;font-size:11px;color:#999;">그레인 강도</span>
-        <input type="range" id="tfx-grain" min="0" max="100" value="${cfg.grain}" style="flex:2;">
+        <input type="range" class="prop-slider" id="tfx-grain" min="0" max="100" value="${cfg.grain}" style="flex:2;">
         <span id="tfx-grain-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.grain}%</span>
       </div>
       <button id="tfx-remove" style="margin-top:10px;width:100%;padding:6px;font-size:11px;background:#2a1a1a;color:#c66;border:1px solid #553;border-radius:4px;cursor:pointer;">효과 제거</button>

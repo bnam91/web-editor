@@ -125,7 +125,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
   padding: 10px 12px; font-family: inherit;
 }
 #cm-msg-input::placeholder { color: var(--ui-border-mid); }
-#cm-msg-input.cm-shake { animation: cmShake 0.35s ease; border-color: #c0392b; }
+#cm-msg-input.cm-shake { animation: cmShake 0.35s ease; border-color: var(--ui-danger); }
 @keyframes cmShake {
   0%,100% { transform: translateX(0); }
   25% { transform: translateX(-4px); }
@@ -1337,7 +1337,7 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
   border-radius: 3px; padding: 0;
 }
 .ck-item:hover .ck-delete { color: var(--ui-text-dim); }
-.ck-delete:hover { color: #e06c6c !important; }
+.ck-delete:hover { color: var(--ui-danger) !important; }
 .ck-section-header:hover .ck-section-delete { color: var(--ui-text-dim); }
 
 /* ── 긴급 버튼 ──────────────────────────────────────────────────────────── */
