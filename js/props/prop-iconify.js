@@ -28,7 +28,7 @@ export function showIconifyProperties(block) {
 
     <div class="prop-section">
       <div class="prop-section-title">Icon</div>
-      <div class="prop-row" style="gap:6px;">
+      <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#888;" title="${iconName}">${iconName || '(없음)'}</span>
         <button class="prop-btn" id="icn-replace-btn" title="Iconify에서 교체"
           style="width:auto;height:auto;padding:3px 8px;font-size:10px;">교체</button>
@@ -78,22 +78,22 @@ export function showIconifyProperties(block) {
 
     <div class="prop-section">
       <div class="prop-section-title">내 SVG 프리셋</div>
-      <div class="prop-row" style="gap:6px;">
+      <div class="prop-row" style="gap:4px;">
         <span class="prop-label">카테고리</span>
         <select id="icn-preset-cat" class="prop-number" style="flex:1;width:auto;text-align:left;padding:0 6px;">
           <option value="">로딩중...</option>
         </select>
         <button class="prop-btn" id="icn-preset-new-cat-btn" title="새 카테고리 추가" style="width:24px;height:24px;padding:0;font-size:14px;line-height:1;">+</button>
       </div>
-      <div class="prop-row" id="icn-preset-newcat-row" style="display:none;gap:6px;margin-top:4px;">
+      <div class="prop-row" id="icn-preset-newcat-row" style="display:none;gap:4px;margin-top:4px;">
         <input type="text" id="icn-preset-newcat-input" placeholder="새 카테고리 이름 입력 후 Enter" class="prop-color-hex" style="flex:1;">
         <button class="prop-btn" id="icn-preset-newcat-cancel" title="취소" style="width:24px;height:24px;padding:0;font-size:11px;">✕</button>
       </div>
       <div id="icn-preset-grid" style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;margin-top:6px;min-height:24px;"></div>
-      <div class="prop-row" style="margin-top:6px;gap:6px;">
+      <div class="prop-row" style="gap:4px;">
         <button class="prop-btn" id="icn-preset-save-btn" title="현재 SVG를 내 라이브러리에 저장 (현재 선택된 카테고리로)" style="flex:1;height:24px;padding:0 8px;font-size:11px;">💾 라이브러리에 저장</button>
       </div>
-      <div class="prop-row" id="icn-preset-save-row" style="display:none;gap:6px;margin-top:4px;">
+      <div class="prop-row" id="icn-preset-save-row" style="display:none;gap:4px;margin-top:4px;">
         <input type="text" id="icn-preset-save-input" placeholder="이름 (Enter로 저장)" class="prop-color-hex" style="flex:1;">
         <button class="prop-btn" id="icn-preset-save-cancel" title="취소" style="width:24px;height:24px;padding:0;font-size:11px;">✕</button>
       </div>

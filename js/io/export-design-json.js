@@ -97,17 +97,6 @@ function exportDesignJSON() {
       return block;
     }
 
-    if (el.classList.contains('card-block')) {
-      return {
-        id:      uid('cdb'),
-        type:    'card',
-        bgColor: el.dataset.bgColor || '#f5f5f5',
-        radius:  parseInt(el.dataset.radius) || 12,
-        height:  parseFloat(el.style.height) || 400,
-        src:     el.dataset.imgSrc || null,
-      };
-    }
-
     if (el.classList.contains('graph-block')) {
       let items = [];
       try { items = JSON.parse(el.dataset.items || '[]'); } catch {}
@@ -195,7 +184,7 @@ function exportDesignJSON() {
 
   function serializeCol(colEl) {
     const blocks = [];
-    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .card-block, :scope > .graph-block, :scope > .label-group-block, :scope > .table-block, :scope > .icon-text-block, :scope > .divider-block, :scope > .icon-circle-block').forEach(b => {
+    colEl.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .graph-block, :scope > .label-group-block, :scope > .table-block, :scope > .icon-text-block, :scope > .divider-block, :scope > .icon-circle-block').forEach(b => {
       const s = serializeBlock(b);
       if (s) blocks.push(s);
     });

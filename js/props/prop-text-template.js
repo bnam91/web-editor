@@ -267,7 +267,7 @@ export function buildTextPropsHtml(state) {
     <div id="label-style-section" style="display:${isLabel?'block':'none'}">
       <div class="prop-section">
         <div class="prop-section-title">Tag Style</div>
-        <div class="prop-row" style="gap:6px">
+        <div class="prop-row" style="gap:4px">
           <button class="prop-btn-full" id="label-shape-pill">Pill</button>
           <button class="prop-btn-full" id="label-shape-box">Box</button>
           <button class="prop-btn-full" id="label-shape-outline">Outline</button>

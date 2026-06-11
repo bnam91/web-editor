@@ -266,6 +266,8 @@ function makeTableBlock() {
   tb.dataset.textColor = _tblTok('--preset-table-text', '#222222');
   tb.dataset.fontFamily = '';
   tb.style.setProperty('--tbl-outer-w', '1px');
+  tb.style.setProperty('--tbl-hline-w', '1px'); // 수평선 두께 (showHLines=true 시 사용)
+  tb.style.setProperty('--tbl-vline-w', '1px'); // 수직선 두께 (showVLines=true 시 사용)
   tb.style.setProperty('--tbl-line-color', tb.dataset.lineColor);
   tb.style.setProperty('--tbl-header-bg', tb.dataset.headerBg);
   tb.style.setProperty('--tbl-text-color', tb.dataset.textColor);
@@ -807,224 +809,6 @@ function addGraphBlock(opts = {}) {
   window.selectSection(sec);
 }
 
-// ─── Card Block ─────────────────────────────────────────────────────────────
-// card-block은 이미지+제목+설명 단위 카드. 멀티카드는 row 안에 N개의 col, 각 col에 card-block 1개.
-// 2026-06-08: MCP add_card_block / update_card_block 지원 (PM-C에서 생성/수정 가능).
-//
-// 데이터 구조:
-//   - 단일 카드: row(stack) > col? > card-block (단일 card-block은 col 없이 row 직속 가능)
-//   - 멀티 카드: row(flex) > col(flex:1) * N, 각 col 안에 card-block 1개
-//   - dataset: bgColor, radius, textAlign, titleSize, descSize, imgSrc
-//   - id prefix: cdb_
-//
-// _escHtml: title/desc XSS 방지 (Codex 리뷰: 사용자 입력은 textContent 우선, 마크업 주입 시 escape).
-function _cdbEscHtml(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function makeSingleCardBlock(cardOpts = {}, sharedOpts = {}) {
-  const cdb = document.createElement('div');
-  cdb.className = 'card-block';
-  cdb.dataset.type = 'card';
-  cdb.id = genId('cdb');
-  const bgColor   = sharedOpts.bgColor   || '#f5f5f5';
-  const radius    = sharedOpts.radius    != null ? String(sharedOpts.radius)    : '12';
-  const textAlign = sharedOpts.textAlign || 'left';
-  const titleSize = sharedOpts.titleSize != null ? String(sharedOpts.titleSize) : '24';
-  const descSize  = sharedOpts.descSize  != null ? String(sharedOpts.descSize)  : '18';
-  cdb.dataset.bgColor   = bgColor;
-  cdb.dataset.radius    = radius;
-  cdb.dataset.textAlign = textAlign;
-  cdb.dataset.titleSize = titleSize;
-  cdb.dataset.descSize  = descSize;
-  cdb.style.borderRadius = radius + 'px';
-
-  const title = cardOpts.title != null ? String(cardOpts.title) : '카드 제목';
-  const desc  = cardOpts.desc  != null ? String(cardOpts.desc)  : '설명 텍스트를 입력하세요';
-  const imgSrc = cardOpts.imgSrc ? String(cardOpts.imgSrc) : '';
-
-  let imageHtml;
-  if (imgSrc) {
-    cdb.classList.add('has-image');
-    cdb.dataset.imgSrc = imgSrc;
-    imageHtml = `<img class="cdb-img" src="${_cdbEscHtml(imgSrc)}" draggable="false">
-      <button class="cdb-clear-btn" title="이미지 제거">✕</button>`;
-  } else {
-    imageHtml = `<span class="cdb-img-placeholder">+</span>`;
-  }
-
-  cdb.innerHTML = `
-    <div class="cdb-image">${imageHtml}</div>
-    <div class="cdb-body" style="background:${_cdbEscHtml(bgColor)}; border-radius:0 0 ${_cdbEscHtml(radius)}px ${_cdbEscHtml(radius)}px;">
-      <div class="cdb-title" contenteditable="false" style="font-size:${_cdbEscHtml(titleSize)}px; text-align:${_cdbEscHtml(textAlign)}">${_cdbEscHtml(title)}</div>
-      <div class="cdb-desc" contenteditable="false" style="font-size:${_cdbEscHtml(descSize)}px; text-align:${_cdbEscHtml(textAlign)}">${_cdbEscHtml(desc)}</div>
-    </div>`;
-
-  // 이미지 클리어 버튼 바인딩 (image-handling-card.js와 동일 패턴)
-  if (imgSrc) {
-    const clearBtn = cdb.querySelector('.cdb-clear-btn');
-    if (clearBtn && typeof window.clearCardImage === 'function') {
-      clearBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        window.clearCardImage(cdb);
-      });
-    }
-  }
-  return cdb;
-}
-
-// MCP add_card_block 기본 진입점. cards 배열 받음.
-// opts: { count?, cards?, bgColor?, radius?, textAlign?, titleSize?, descSize? }
-function makeCardBlock(opts = {}) {
-  const row = document.createElement('div');
-  row.className = 'row'; row.id = genId('row');
-
-  // 카드 개수 결정: cards 우선, 없으면 count, 둘 다 없으면 2 (디폴트)
-  const cards = Array.isArray(opts.cards) && opts.cards.length > 0
-    ? opts.cards
-    : Array.from({ length: Math.max(1, parseInt(opts.count) || 2) }, () => ({}));
-
-  const shared = {
-    bgColor:   opts.bgColor,
-    radius:    opts.radius,
-    textAlign: opts.textAlign,
-    titleSize: opts.titleSize,
-    descSize:  opts.descSize,
-  };
-
-  const createdBlocks = [];
-  if (cards.length === 1) {
-    row.dataset.layout = 'stack';
-    const cdb = makeSingleCardBlock(cards[0], shared);
-    row.appendChild(cdb);
-    createdBlocks.push(cdb);
-  } else {
-    row.dataset.layout = 'flex';
-    row.dataset.ratioStr = `${cards.length}*1`;
-    cards.forEach(cardOpts => {
-      const col = document.createElement('div');
-      col.className = 'col';
-      col.style.flex = '1';
-      col.dataset.flex = '1';
-      const cdb = makeSingleCardBlock(cardOpts || {}, shared);
-      col.appendChild(cdb);
-      row.appendChild(col);
-      createdBlocks.push(cdb);
-    });
-  }
-
-  // 반환 — block은 첫 카드(prop-panel 표시 용), createdBlocks는 전체
-  return { row, block: createdBlocks[0], createdBlocks };
-}
-
-// 윈도우 노출용 entry. PM이 직접 호출하지는 않지만 goditor-api.js & runner와 시그니처 호환.
-//   - 첫 인자가 number → 레거시 (count, opts) 시그니처
-//   - 첫 인자가 object → 새 (opts) 시그니처 (cards 배열 등)
-function addCardBlock(arg1, arg2) {
-  let opts;
-  if (typeof arg1 === 'number') {
-    opts = { count: arg1, ...(arg2 || {}) };
-  } else {
-    opts = arg1 || {};
-  }
-  if (_insertToFlowFrame(() => makeCardBlock(opts))) return;
-  const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
-  window.pushHistory();
-  const { row, block, createdBlocks } = makeCardBlock(opts);
-  insertAfterSelected(sec, row);
-  // 멀티 카드 모두 bind (factory가 한 row 안에 N개의 cdb를 만들 수 있음)
-  (createdBlocks || [block]).forEach(b => bindBlock(b));
-  window.buildLayerPanel();
-  window.selectSection(sec);
-  return createdBlocks || [block];
-}
-
-// 단일 카드 블록의 필드를 부분 수정. patch에 있는 키만 반영.
-// patch: { title?, desc?, imgSrc?, bgColor?, radius?, textAlign?, titleSize?, descSize? }
-// 반환: { ok, blockId, applied: {...} } 또는 { ok:false, code, message }
-function updateCardBlock(blockId, patch = {}) {
-  const cdb = document.getElementById(blockId);
-  if (!cdb || !cdb.classList.contains('card-block')) {
-    return { ok: false, code: 'NOT_FOUND', message: `card-block not found: ${blockId}` };
-  }
-  const titleEl = cdb.querySelector('.cdb-title');
-  const descEl  = cdb.querySelector('.cdb-desc');
-  const body    = cdb.querySelector('.cdb-body');
-  const imageEl = cdb.querySelector('.cdb-image');
-  const applied = {};
-
-  if (patch.title !== undefined && titleEl) {
-    titleEl.textContent = String(patch.title);
-    applied.title = patch.title;
-  }
-  if (patch.desc !== undefined && descEl) {
-    descEl.textContent = String(patch.desc);
-    applied.desc = patch.desc;
-  }
-  if (patch.bgColor !== undefined && body) {
-    const bg = String(patch.bgColor);
-    cdb.dataset.bgColor = bg;
-    body.style.background = bg;
-    applied.bgColor = bg;
-  }
-  if (patch.radius !== undefined) {
-    const r = Math.max(0, Math.min(40, parseInt(patch.radius) || 0));
-    cdb.dataset.radius = String(r);
-    cdb.style.borderRadius = r + 'px';
-    if (body) body.style.borderRadius = `0 0 ${r}px ${r}px`;
-    applied.radius = r;
-  }
-  if (patch.textAlign !== undefined) {
-    const a = String(patch.textAlign);
-    if (['left','center','right'].includes(a)) {
-      cdb.dataset.textAlign = a;
-      if (titleEl) titleEl.style.textAlign = a;
-      if (descEl)  descEl.style.textAlign  = a;
-      applied.textAlign = a;
-    }
-  }
-  if (patch.titleSize !== undefined && titleEl) {
-    const v = Math.max(12, Math.min(60, parseInt(patch.titleSize) || 24));
-    cdb.dataset.titleSize = String(v);
-    titleEl.style.fontSize = v + 'px';
-    applied.titleSize = v;
-  }
-  if (patch.descSize !== undefined && descEl) {
-    const v = Math.max(10, Math.min(40, parseInt(patch.descSize) || 18));
-    cdb.dataset.descSize = String(v);
-    descEl.style.fontSize = v + 'px';
-    applied.descSize = v;
-  }
-  if (patch.imgSrc !== undefined && imageEl) {
-    const src = patch.imgSrc ? String(patch.imgSrc) : '';
-    if (src) {
-      cdb.classList.add('has-image');
-      cdb.dataset.imgSrc = src;
-      imageEl.innerHTML = `<img class="cdb-img" src="${_cdbEscHtml(src)}" draggable="false">
-        <button class="cdb-clear-btn" title="이미지 제거">✕</button>`;
-      const clearBtn = imageEl.querySelector('.cdb-clear-btn');
-      if (clearBtn && typeof window.clearCardImage === 'function') {
-        clearBtn.addEventListener('click', e => {
-          e.stopPropagation();
-          window.clearCardImage(cdb);
-        });
-      }
-    } else {
-      cdb.classList.remove('has-image');
-      delete cdb.dataset.imgSrc;
-      imageEl.innerHTML = `<span class="cdb-img-placeholder">+</span>`;
-    }
-    applied.imgSrc = src || null;
-  }
-  return { ok: true, blockId, applied };
-}
-
 function makeDividerBlock() {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
@@ -1204,7 +988,7 @@ function addSection(opts = {}) {
     e.stopPropagation();
     window.selectSectionWithModifier(sec, e);
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -1217,7 +1001,7 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
@@ -1442,7 +1226,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -1616,9 +1400,6 @@ export {
   addTableBlock,
   makeGraphBlock,
   addGraphBlock,
-  makeCardBlock,
-  addCardBlock,
-  updateCardBlock,
   makeDividerBlock,
   addDividerBlock,
   addSection,
@@ -2086,7 +1867,7 @@ function addSpeechBubbleBlock(tail) {
 //   - lineStyle  (enum)         → dataset.lineStyle  (solid|dashed|dotted)
 //   - lineWeight (int 1~24)     → dataset.lineWeight
 //   - padV       (int 0~120)    → dataset.padV
-//   - padH       (int 0~200)    → dataset.padH
+//   - padH       (int 0~2000)    → dataset.padH
 //   - lineDir    (enum)         → dataset.lineDir    (horizontal|vertical)
 //   - lineLength (int 20~400)   → dataset.lineLength  (vertical일 때만 시각 영향)
 function updateDividerBlock(blockId, partial = {}) {
@@ -2168,10 +1949,10 @@ function updateDividerBlock(blockId, partial = {}) {
     applied.padV = Number(block.dataset.padV);
   }
 
-  // 5) padH (0~200)
+  // 5) padH (0~2000)
   if (partial.padH !== undefined && partial.padH !== null) {
-    if (!_setInt('padH', partial.padH, 0, 200)) {
-      return { ok: false, code: 'INVALID', message: `invalid padH: ${partial.padH} (0~200)` };
+    if (!_setInt('padH', partial.padH, 0, 2000)) {
+      return { ok: false, code: 'INVALID', message: `invalid padH: ${partial.padH} (0~2000)` };
     }
     applied.padH = Number(block.dataset.padH);
   }
@@ -4168,9 +3949,6 @@ window.addIconCircleBlock   = addIconCircleBlock;
 window.addTableBlock        = addTableBlock;
 window.makeGraphBlock       = makeGraphBlock;
 window.addGraphBlock        = addGraphBlock;
-window.makeCardBlock        = makeCardBlock;
-window.addCardBlock         = addCardBlock;
-window.updateCardBlock      = updateCardBlock;
 window.makeDividerBlock     = makeDividerBlock;
 window.addDividerBlock      = addDividerBlock;
 window.addSection           = addSection;

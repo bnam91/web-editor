@@ -73,7 +73,7 @@ export function showStickerProperties(block) {
         ${block.dataset.imgSrc ? `<img src="${block.dataset.imgSrc}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
         <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
       </div>
-      ${block.dataset.imgSrc ? `<div class="prop-row" style="margin-top:6px;"><button class="prop-action-btn" id="stk-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
+      ${block.dataset.imgSrc ? `<div class="prop-row"><button class="prop-action-btn" id="stk-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Shape</div>

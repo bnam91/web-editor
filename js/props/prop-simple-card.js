@@ -634,12 +634,28 @@ function showSimpleCardProperties(block) {
     if (on) {
       block.dataset.textBgLast = block.dataset.textBg || '#f5f5f5';
       block.dataset.textBg = 'transparent';
+      // 투명 활성화 — 카드 배경이 사라지므로 #ffffff 흰 텍스트는 안 보임. 자동으로 검정으로 전환
+      const tc = (block.dataset.titleColor || '').toLowerCase();
+      const dc = (block.dataset.descColor  || '').toLowerCase();
+      if (tc === '#ffffff' || tc === '#fff') {
+        block.dataset.titleColorLast = block.dataset.titleColor;
+        block.dataset.titleColor = '#222222';
+      }
+      if (dc === '#ffffff' || dc === '#fff') {
+        block.dataset.descColorLast = block.dataset.descColor;
+        block.dataset.descColor = '#222222';
+      }
     } else {
       block.dataset.textBg = block.dataset.textBgLast || '#f5f5f5';
+      // 투명 해제 — 자동 전환했던 텍스트 색을 원래 흰색으로 복원
+      if (block.dataset.titleColorLast) { block.dataset.titleColor = block.dataset.titleColorLast; delete block.dataset.titleColorLast; }
+      if (block.dataset.descColorLast)  { block.dataset.descColor  = block.dataset.descColorLast;  delete block.dataset.descColorLast; }
     }
     window.renderCanvas(block);
     window.pushHistory?.();
     setTextBgTransparentUI(on);
+    // prop UI 갱신 (색상 picker swatch 동기화)
+    if (block.classList.contains('selected')) window.showSimpleCardProperties?.(block);
   });
 
   textBgPick.addEventListener('input',  () => applyTextBg(textBgPick.value));
@@ -656,6 +672,9 @@ function showSimpleCardProperties(block) {
     const swatch = pick.closest('.prop-color-swatch');
     const apply = v => {
       block.dataset[datasetKey] = v;
+      // 사용자가 텍스트 색을 수동 변경하면 투명-토글-자동백업 무효화 — OFF 시 사용자 선택을 덮어쓰지 않게
+      if (datasetKey === 'titleColor') delete block.dataset.titleColorLast;
+      if (datasetKey === 'descColor')  delete block.dataset.descColorLast;
       window.renderCanvas(block);
       pick.value = v;
       hex.value  = v;

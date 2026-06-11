@@ -130,17 +130,17 @@ export function showChatProperties(block) {
           <span>이름 표시</span>
         </label>
       </div>
-      <div class="prop-row" style="margin-top:6px">
+      <div class="prop-row">
         <span class="prop-label">크기</span>
         <input type="range" id="chb-profile-size-range" min="24" max="120" value="${profileSize}" style="flex:1">
         <input type="number" id="chb-profile-size-num" class="prop-color-hex" value="${profileSize}" min="24" max="120" style="width:54px">
       </div>
-      <div class="prop-row" style="margin-top:6px">
+      <div class="prop-row">
         <span class="prop-label">Y 위치</span>
         <input type="range" id="chb-profile-y-range" min="-40" max="40" value="${profileOffsetY}" style="flex:1">
         <input type="number" id="chb-profile-y-num" class="prop-color-hex" value="${profileOffsetY}" min="-40" max="40" style="width:54px">
       </div>
-      <div class="prop-row" style="margin-top:6px">
+      <div class="prop-row">
         <span class="prop-label">간격</span>
         <input type="range" id="chb-profile-gap-range" min="0" max="40" value="${profileGap}" style="flex:1">
         <input type="number" id="chb-profile-gap-num" class="prop-color-hex" value="${profileGap}" min="0" max="40" style="width:54px">

@@ -64,6 +64,8 @@ async function captureThumbnail() {
 // DBG-11: 저장 중 대기열 패턴 — 동시 저장 race condition 방지
 let _isSavingToFile = false;
 let _pendingSaveData = null; // { snapshot, opts }
+// DEF-03: 마지막 저장 완료 이후 변경이 있었는지 — 무편집 방문/언로드가 파일을 재기록(updatedAt 오염)하지 않도록 게이트
+let _dirtySinceSave = false;
 
 async function saveProjectToFile(snapshot, opts = {}) {
   // 저장 중이면 최신 데이터를 pendingData로 대기
@@ -74,6 +76,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
   _isSavingToFile = true;
   try {
     await _doSaveProjectToFile(snapshot, opts);
+    _dirtySinceSave = false;
   } finally {
     _isSavingToFile = false;
     if (_pendingSaveData) {
@@ -436,7 +439,6 @@ function migrateColsFromDOM(canvasEl) {
   canvasEl.querySelectorAll('.row[data-layout="grid"][data-card-grid], .row[data-layout="grid"]').forEach(row => {
     const cols = [...row.querySelectorAll(':scope > .col')];
     if (cols.length === 0) return;
-    // card-grid 마이그레이션 — card-block 제거 이후 불필요하므로 스킵
     return;
     cols.forEach(col => {
       [...col.childNodes].forEach(child => row.appendChild(child));
@@ -805,7 +807,6 @@ function rebindAll() {
         : b.classList.contains('gap-block') ? 'gb'
         : b.classList.contains('icon-circle-block') ? 'icb'
         : b.classList.contains('label-group-block') ? 'lg'
-        : b.classList.contains('card-block') ? 'cdb'
         : b.classList.contains('canvas-block') ? 'cvb'
         : b.classList.contains('banner02-block') ? 'bn2'
         : b.classList.contains('comparison-block') ? 'cmp'
@@ -826,31 +827,10 @@ function rebindAll() {
     // banner02/comparison: scale-to-fit ResizeObserver + dblclick 편집 핸들러 재바인딩
     if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
     if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
+    // canvas-block(cvb): 저장본 innerHTML은 정적이라 더블클릭 인라인 편집 핸들러(_bindCvbDblEdit)가
+    // 없음 → renderCanvas로 재렌더해 위임 바인딩 (chat/banner02와 동일 패턴, 누락돼 있던 것)
+    if (b.classList.contains('canvas-block')) window.renderCanvas?.(b);
     window.bindBlock(b);
-  });
-  // card-block 스타일 복원 (bgColor, radius, textAlign은 dataset에 저장되나 inline style은 재적용 필요)
-  canvasEl.querySelectorAll('.card-block').forEach(cdb => {
-    const bg = cdb.dataset.bgColor;
-    const r  = parseInt(cdb.dataset.radius) || 12;
-    const align = cdb.dataset.textAlign;
-    const body = cdb.querySelector('.cdb-body');
-    if (body) {
-      if (bg) body.style.background = bg;
-      body.style.borderRadius = `0 0 ${r}px ${r}px`;
-    }
-    cdb.style.borderRadius = r + 'px';
-    if (align) {
-      const title = cdb.querySelector('.cdb-title');
-      const desc  = cdb.querySelector('.cdb-desc');
-      if (title) title.style.textAlign = align;
-      if (desc)  desc.style.textAlign  = align;
-    }
-    const titleSize = parseInt(cdb.dataset.titleSize);
-    const descSize  = parseInt(cdb.dataset.descSize);
-    const titleEl2 = cdb.querySelector('.cdb-title');
-    const descEl2  = cdb.querySelector('.cdb-desc');
-    if (titleEl2 && titleSize) titleEl2.style.fontSize = titleSize + 'px';
-    if (descEl2  && descSize)  descEl2.style.fontSize  = descSize  + 'px';
   });
 
   // group-block 라벨 복원
@@ -1073,10 +1053,12 @@ function scheduleAutoSave() {
   if (state._suppressAutoSave) return;
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
   if (!activeProjectId) { console.warn('[save-load] scheduleAutoSave: activeProjectId 없음, 저장 건너뜀'); return; }
+  _dirtySinceSave = true;
   clearTimeout(autoSaveTimer);
   _setAutosaveIndicator('saving');
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
   autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null; // 발화 후 stale id 잔존 방지 — hasUnsavedChanges 판정에 쓰임
     const snap = serializeProject();
     // S11: 빈 canvas 저장 방지 — _suppressAutoSave 해제 직후 빈 상태 덮어쓰기 방지
     try {
@@ -1098,6 +1080,8 @@ function scheduleAutoSave() {
 window.addEventListener('beforeunload', () => {
   // BUG-12: activeProjectId 없으면 undefined 키 오염 방지
   if (!activeProjectId) return;
+  // DEF-03: 마지막 저장 이후 변경이 없으면 재기록하지 않음 (무편집 새로고침/방문의 updatedAt·파일 오염 방지)
+  if (!_dirtySinceSave && !autoSaveTimer && !_isSavingToFile) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
@@ -1164,7 +1148,18 @@ if (IS_ELECTRON) {
 // class 속성 변경만 제외 (드래그 UI 상태 토글 spam 방지, DBG-11)
 // data-* 속성 변경(prop 패널 값)은 감지해야 하므로 attributes:true 포함
 const autoSaveObserver = new MutationObserver(mutations => {
-  if (mutations.every(m => m.type === 'attributes' && m.attributeName === 'class')) return;
+  const meaningful = mutations.some(m => {
+    if (m.type === 'attributes' && m.attributeName === 'class') return false;
+    // DEF-03: 콘텐츠가 아닌 코스메틱 mutation은 dirty로 치지 않음 —
+    // 로드 직후 늦게 도착하는 섹션 툴바 장식·#canvas 자체 attr 변경이
+    // 무편집 방문마다 autosave를 유발해 파일을 재기록(updatedAt 오염)하던 문제.
+    // (둘 다 직렬화 콘텐츠가 아님: 툴바는 rebind 시 재생성, canvas style은 state.pageSettings가 진실)
+    const el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+    if (el && el.closest('.section-toolbar')) return false;
+    if (m.type === 'attributes' && el && el.id === 'canvas') return false;
+    return true;
+  });
+  if (!meaningful) return;
   scheduleAutoSave();
 });
 
@@ -1527,6 +1522,7 @@ window.flushSave = async function() {
         updatedAt: new Date().toISOString(),
       };
       await window.electronAPI.saveProject(proj);
+      _dirtySinceSave = false;
     } catch (e) {
       console.error('[flushSave] 저장 실패:', e);
       window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
@@ -1535,6 +1531,8 @@ window.flushSave = async function() {
   }
   _setAutosaveIndicator('saved');
 };
+// DEF-03: 탭 전환 등에서 "변경 없으면 저장 생략" 판정용
+window.hasUnsavedChanges = () => _dirtySinceSave || !!autoSaveTimer || _isSavingToFile;
 window.initApp = initApp;
 
 // branch-system.js, commit-system.js 등 다른 모듈에서 참조하는 변수들 노출

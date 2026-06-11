@@ -585,12 +585,20 @@ async function exportSection(sec, format, width) {
   }
 }
 
-async function exportAllSections(format, width) {
+async function exportAllSections(format, width, onProgress) {
   const sections = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
-  for (const sec of sections) {
-    await exportSection(sec, format, width);
+  const failed = [];
+  for (let i = 0; i < sections.length; i++) {
+    onProgress?.(i + 1, sections.length);
+    try {
+      await exportSection(sections[i], format, width);
+    } catch (err) {
+      console.error('[export] 섹션 내보내기 실패:', sections[i].id, err);
+      failed.push(sections[i]._name || sections[i].id);
+    }
     await new Promise(r => setTimeout(r, 300));
   }
+  return { total: sections.length, failed };
 }
 
 window.exportSection     = exportSection;

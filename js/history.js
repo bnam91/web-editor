@@ -62,6 +62,11 @@ function restoreSnapshot(snap) {
 }
 
 function undo() {
+  // 스택 끝에서 undo 시작 시 라이브 상태(tip)가 스택에 없으면 먼저 적재 —
+  // 없으면 첫 undo가 마지막 액션 이후 상태를 폐기해 redo로도 복원 불가 (DEF-01)
+  if (historyPos === historyStack.length - 1) {
+    ensureHistoryCheckpoint('현재 상태');
+  }
   if (historyPos <= 0) return;
   // 떠나는 snap의 onUndo (예: 스크래치 복원) — 캔버스 복원 *후* 실행해서 DOM 안정 상태에서 처리
   const leavingSnap = historyStack[historyPos];

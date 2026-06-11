@@ -150,7 +150,7 @@
   padding: 0;
 }
 .aig-count-step:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
-.aig-count-step:disabled { opacity: 0.3; cursor: not-allowed; }
+.aig-count-step:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 .aig-count-val {
   flex: 1;
   text-align: center;

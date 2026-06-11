@@ -57,13 +57,6 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 /* group */
 .group-block{width:100%;}
 .group-inner{display:flex;flex-direction:column;}
-/* card */
-.card-block{width:100%;overflow:hidden;display:flex;flex-direction:column;}
-.cdb-image{width:100%;overflow:hidden;flex:1;}
-.cdb-image img{display:block;width:100%;height:100%;object-fit:cover;}
-.cdb-body{padding:16px;}
-.cdb-title{font-size:32px;font-weight:600;color:#111;}
-.cdb-desc{font-size:24px;color:#555;margin-top:6px;}
 /* graph */
 .graph-block{width:100%;overflow:hidden;}
 .grb-inner{display:flex;flex-direction:column;height:100%;}

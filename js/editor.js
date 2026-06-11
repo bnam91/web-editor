@@ -130,7 +130,7 @@ function zoomStep(delta) {
   const selectedBlock = delta > 0 && document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, .speech-bubble-block.selected'
   );
   let targetEl = selectedBlock ? (selectedBlock.closest('.section-block') || selectedBlock) : null;
@@ -330,7 +330,7 @@ const SIBLING_MULTI_SEL =
   '.table-block, .label-group-block, .graph-block, .divider-block, ' +
   '.icon-text-block, .shape-block, .frame-block, ' +
   // 누락 블록 추가 (#14): divider + 카드/말풍선/배너02/비교/목업/벡터/스텝/조커/캔버스 다중선택 지원
-  '.card-block, .speech-bubble-block, .banner02-block, .comparison-block, ' +
+  '.speech-bubble-block, .banner02-block, .comparison-block, ' +
   '.mockup-block, .vector-block, .step-block, .joker-block, .canvas-block, ' +
   // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel — 다중선택 지원
   '.iconify-block, .chat-block, .gradient-block, .sticker-block, .laurel-block';
@@ -692,7 +692,7 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -1109,7 +1109,7 @@ document.addEventListener('keydown', e => {
     const sel = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.card-block.selected, .graph-block.selected, .divider-block.selected, ' +
+      '.graph-block.selected, .divider-block.selected, ' +
       '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, .shape-block.selected'
     );

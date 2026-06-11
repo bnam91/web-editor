@@ -2119,7 +2119,7 @@ function _registerDefaultTools() {
           lineStyle:  { type: 'string',  enum: ['solid', 'dashed', 'dotted'], description: '선 스타일. default solid' },
           lineWeight: { type: 'integer', description: '선 두께 px (1~24). default 1' },
           padV:       { type: 'integer', description: '상하 패딩 px (0~120). default 30' },
-          padH:       { type: 'integer', description: '좌우 패딩 px (0~200). default 0' },
+          padH:       { type: 'integer', description: '좌우 패딩 px (0~2000). default 0' },
           lineDir:    { type: 'string',  enum: ['horizontal', 'vertical'], description: '방향. default horizontal' },
           lineLength: { type: 'integer', description: '세로 방향일 때 선 길이 px (20~400). default 80' }
         },
@@ -2145,7 +2145,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateDividerBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING divider block (dvd_xxx) — partial update. Fields: lineColor(#hex|rgb|transparent) / lineStyle(solid|dashed|dotted) / lineWeight(1~24) / padV(0~120) / padH(0~200) / lineDir(horizontal|vertical) / lineLength(20~400, vertical일 때만 시각 영향). 한 콜에 여러 필드 조합 가능. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state or returned from add_divider_block.',
+      description: 'Edit an EXISTING divider block (dvd_xxx) — partial update. Fields: lineColor(#hex|rgb|transparent) / lineStyle(solid|dashed|dotted) / lineWeight(1~24) / padV(0~120) / padH(0~2000) / lineDir(horizontal|vertical) / lineLength(20~400, vertical일 때만 시각 영향). 한 콜에 여러 필드 조합 가능. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state or returned from add_divider_block.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2154,7 +2154,7 @@ function _registerDefaultTools() {
           lineStyle:  { type: 'string',  enum: ['solid', 'dashed', 'dotted'] },
           lineWeight: { type: 'integer', description: '선 두께 px (1~24)' },
           padV:       { type: 'integer', description: '상하 패딩 px (0~120)' },
-          padH:       { type: 'integer', description: '좌우 패딩 px (0~200)' },
+          padH:       { type: 'integer', description: '좌우 패딩 px (0~2000)' },
           lineDir:    { type: 'string',  enum: ['horizontal', 'vertical'] },
           lineLength: { type: 'integer', description: '세로일 때 선 길이 px (20~400)' }
         },
@@ -4488,7 +4488,7 @@ function _validateDividerOpts(args, { mode } = {}) {
   _enum('lineStyle', ['solid', 'dashed', 'dotted']);
   _int('lineWeight', 1, 24);
   _int('padV', 0, 120);
-  _int('padH', 0, 200);
+  _int('padH', 0, 2000);
   _enum('lineDir', ['horizontal', 'vertical']);
   _int('lineLength', 20, 400);
 

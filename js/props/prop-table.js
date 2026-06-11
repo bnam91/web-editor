@@ -350,7 +350,7 @@ export function showTableProperties(block) {
     <div class="prop-section" id="tbl-col-colors-section">
       <div class="prop-section-title">Column Colors</div>
       ${Array.from({ length: colCount }, (_, i) => `
-        <div class="prop-row" style="gap:6px;">
+        <div class="prop-row" style="gap:4px;">
           <span class="prop-label" style="width:48px;">컬럼 ${i + 1}</span>
           <input type="color" class="prop-color-input" id="tbl-col-bg-${i}"
                  value="${curColBgs[i] || _tblTok('--preset-table-col-bg', '#f5f5f5')}"

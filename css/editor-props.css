@@ -182,6 +182,8 @@
   border: 1px solid var(--ui-border); border-radius: 4px;
   display: flex; align-items: center; justify-content: center;
 }
+/* 헤더 아이콘 크기 통일 — 26패널이 svg width=12/14/16 제각각 → 16px 강제(토큰 --icon-prop-size). 2026-06-11 */
+.prop-block-icon svg { width: 16px; height: 16px; }
 .prop-block-name { font-size: 12px; font-weight: 600; color: var(--ui-text-sub); }
 .prop-breadcrumb { display: none; }
 .prop-block-id { font-size: 9px; font-weight: 400; color: var(--ui-text-dim); margin-left: auto; cursor: pointer; letter-spacing: 0.02em; }
@@ -196,7 +198,7 @@
 }
 .prop-toggle-track::after {
   content: ''; position: absolute; top: 3px; left: 3px;
-  width: 12px; height: 12px; border-radius: 50%; background: var(--ui-text-dim);
+  width: 12px; height: 12px; border-radius: 50%; background: var(--ui-divider);
   transition: transform 0.2s, background 0.2s;
 }
 .prop-toggle input:checked + .prop-toggle-track { background: var(--ui-accent-primary); }
@@ -211,7 +213,7 @@
   transition: border-color 0.15s, background 0.15s;
 }
 .prop-preset-group .prop-preset-btn span { font-size: 9px; font-weight: 400; color: var(--ui-text-dim); }
-.prop-preset-group .prop-preset-btn:hover { border-color: var(--ui-text-dim); background: #222; }
+.prop-preset-group .prop-preset-btn:hover { border-color: var(--ui-divider); background: #222; }
 
 /* 타입 토글 버튼 그룹 */
 .prop-type-group {
@@ -251,7 +253,7 @@
   white-space: nowrap;
   padding: 0 4px;
 }
-.prop-type-btn:hover { border-color: var(--ui-text-dim); color: var(--ui-text-sub); }
+.prop-type-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }
 .prop-type-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
 /* 정렬 버튼 그룹 */
@@ -266,7 +268,7 @@
   display: flex; align-items: center; justify-content: center;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
-.prop-align-btn:hover { border-color: var(--ui-text-dim); color: var(--ui-text-sub); background: var(--ui-bg-elevated); }
+.prop-align-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); background: var(--ui-bg-elevated); }
 .prop-align-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
 /* 스타일 버튼 그룹 (Bold / Italic) */
@@ -279,7 +281,7 @@
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s;
 }
-.prop-style-btn:hover { border-color: var(--ui-text-dim); color: var(--ui-text-sub); }
+.prop-style-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }
 .prop-style-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
 /* prop-type-btn 세그먼트 pill (정렬 탭 용도) */
@@ -465,7 +467,7 @@
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .prop-btn:hover { background: var(--ui-bg-hover); color: #fff; } /* --ui-bg-2 미정의 버그 수정 */
-.prop-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.prop-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 .prop-btn-full {
   width: 100%; height: 24px;
   background: var(--ui-bg-app); border: 1px solid var(--ui-border-strong);
@@ -473,7 +475,7 @@
   font-size: 11px; cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.prop-btn-full:hover { background: var(--ui-bg-card); border-color: var(--ui-text-dim); }
+.prop-btn-full:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
 .prop-btn-sm {
   height: 24px; padding: 0 8px;
   background: var(--ui-bg-app); border: 1px solid var(--ui-border-strong);
@@ -481,9 +483,9 @@
   font-size: 11px; cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.prop-btn-sm:hover { background: var(--ui-bg-card); border-color: var(--ui-text-dim); }
-.prop-btn-danger { border-color: #6b2e2e; color: #e06060; }
-.prop-btn-danger:hover { background: #2a1818; border-color: #e06060; }
+.prop-btn-sm:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
+.prop-btn-danger { background: var(--ui-danger-bg); border-color: var(--ui-danger-border); color: var(--ui-danger); }
+.prop-btn-danger:hover { background: var(--ui-danger-bg); border-color: var(--ui-danger-hover); color: var(--ui-danger-hover); }
 /* deprecated: use .prop-btn-full */
 .prop-full-btn {
   width: 100%; height: 24px;
@@ -492,7 +494,7 @@
   font-size: 11px; cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.prop-full-btn:hover { background: var(--ui-bg-card); border-color: var(--ui-text-dim); }
+.prop-full-btn:hover { background: var(--ui-bg-card); border-color: var(--ui-divider); }
 
 /* 폰트 셀렉터 */
 .prop-select {
@@ -524,7 +526,7 @@
   border-radius: 7px; cursor: pointer;
   transition: all 0.15s;
 }
-.prop-preset-btn:hover { border-color: var(--ui-text-dim); background: #222; }
+.prop-preset-btn:hover { border-color: var(--ui-divider); background: #222; }
 .prop-preset-btn.active { border-color: var(--ui-accent-primary); background: #1a2a3a; }
 .prop-preset-swatches {
   display: flex; gap: 3px;
@@ -546,7 +548,7 @@
   background: var(--ui-accent-primary);
   color: #fff;
   border: none;
-  border-radius: 5px;
+  border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -744,6 +746,18 @@
 }
 .prop-line-card .prop-row { margin: 0; }
 .prop-line-card-header { gap: 4px; }
+/* step 아이템 카드 — CSS 미정의로 간격 0이던 것 표준 .prop-line-card와 동일 스타일로 정의. 2026-06-11 */
+.stb-prop-item {
+  background: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stb-prop-item .prop-row { margin: 0; }
 .prop-line-card .lrl-line-toggle svg { transition: transform 0.15s; }
 .prop-line-card.expanded .lrl-line-toggle svg { transform: rotate(180deg); }
 .prop-line-card.expanded .lrl-line-toggle { color: var(--ui-accent-primary); }

@@ -48,7 +48,7 @@ export function showVectorProperties(block) {
 
     <div class="prop-section">
       <div class="prop-section-title">Rotate / Flip</div>
-      <div class="prop-row" style="gap:6px;">
+      <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="flex-shrink:0;">각도</span>
         <input type="number" class="prop-number" id="vb-rotate-deg" style="width:56px;" min="-360" max="360" value="${rotateDeg}">
         <span style="font-size:11px;color:#6b6b6b;flex-shrink:0;">°</span>

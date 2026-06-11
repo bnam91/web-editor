@@ -47,13 +47,28 @@
   --ui-border-strong: #444444;   /* 강조 보더, active */
   --ui-text:          #e0e0e0;   /* 기본 텍스트 */
   --ui-text-sub:      #aaaaaa;   /* 서브 텍스트 */
-  --ui-text-muted:    #777777;   /* 뮤트 텍스트 */
-  --ui-text-dim:      #555555;   /* 딤 텍스트 */
-  --ui-danger:        #e06c6c;   /* 위험/삭제 */
+  --ui-text-muted:    #9e9e9e;   /* 뮤트 텍스트 (AA: was #777 3.21:1 → #9e9e9e ≥5.07:1, 2026-06-11) */
+  --ui-text-dim:      #969696;   /* 딤 텍스트 (AA: was #555 1.93:1 → #969696 ≥4.59:1, 2026-06-11) */
+  --ui-divider:       #555555;   /* 비텍스트: 미세 보더/구분선 + 비활성 장식점(연결안됨·저장중·OFF 토글). 대비 무관 */
+  --ui-danger:        #e06c6c;   /* 위험/삭제 (텍스트/보더) */
+  --ui-danger-bg:     rgba(224,108,108,0.12); /* danger 채움 배경(정석=토큰 fill-alpha, 매트릭스 danger 4방식→1) */
+  --ui-danger-border: #e06c6c;   /* danger 보더 */
+  --ui-danger-hover:  #e74c3c;   /* danger hover */
   --ui-success:       #7fc87f;   /* 성공/병합 */
   --ui-accent:        #7cb8ff;   /* 강조/편집 (브랜치, focus, edit 계열) */
-  --ui-accent-primary: #2d6fe8; /* 주요 액션/활성 색상 */
+  --ui-accent-primary: #2d6fe8; /* 주요 액션/활성 색상 (파랑 정본 — #6b9eff/#6fa3f7/#6cf 등 우회 폐기 대상) */
   --ui-accent-primary-hover: #3a7df0; /* 주요 액션 hover */
+
+  /* ── 컴포넌트 치수/상태 토큰 (매트릭스 13영역 분열 근본처방, 2026-06-11) — 신규 UI는 반드시 이걸 사용 ── */
+  --ui-btn-h:        24px;   /* 버튼/컨트롤 표준 높이 (height 10단 난립→통일) */
+  --ui-input-h:      24px;   /* input/select 높이 */
+  --ui-radius-sm:    4px;    /* 버튼/입력 radius */
+  --ui-radius-md:    6px;    /* 카드/패널 radius */
+  --ui-radius-lg:    10px;   /* 모달/팝오버 radius */
+  --ui-form-label-w: 56px;   /* prop-row 라벨 폭 (56/62/40/32→56) */
+  --ui-row-gap:      4px;    /* 폼 행 gap (4 vs 6 충돌→4) */
+  --ui-pad-panel:    8px;    /* 패널 콘텐츠 좌우 패딩 */
+  --ui-disabled-opacity: 0.5; /* 비활성 흐림 (8값→0.5) */
 
   /* ── 미정의로 쓰이던 토큰 → canonical 별칭 (일관성 수정, 2026-05) ──
      이전엔 정의 없이 var() fallback으로만 쓰여 fallback이 파일마다 달라 색이 갈렸음.
@@ -153,13 +168,13 @@
 .ds-token-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ui-row-gap);
   margin-bottom: 5px;
 }
 .ds-token-label {
   font-size: 10px;
   color: var(--ui-text-sub);
-  width: 62px;
+  width: var(--ui-form-label-w);
   flex-shrink: 0;
 }
 .ds-token-picker {
@@ -628,14 +643,14 @@ body {
   background: transparent; border: none; border-radius: 3px;
   color: var(--ui-text-dim); cursor: pointer; transition: all 0.1s;
 }
-.proj-tab-close:hover { background: var(--ui-text-dim); color: #ccc; }
+.proj-tab-close:hover { background: var(--ui-divider); color: #ccc; }
 
 /* 탭 드래그 */
 .proj-tab.tab-dragging { opacity: 0.3; }
 .proj-tab.tab-ghost {
   position: absolute; top: 0; pointer-events: none;
   opacity: 0.85; z-index: 100; background: var(--ui-border-mid);
-  border-color: var(--ui-text-dim); color: #ddd;
+  border-color: var(--ui-divider); color: #ddd;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 .proj-tab.tab-drop-before { border-left: 2px solid #6a9fd8; }
@@ -652,7 +667,7 @@ body {
   border-radius: 5px; color: var(--ui-text-dim); cursor: pointer;
   transition: all 0.12s;
 }
-#tab-add-btn:hover { background: var(--ui-bg-hover); border-color: var(--ui-text-dim); color: #ccc; }
+#tab-add-btn:hover { background: var(--ui-bg-hover); border-color: var(--ui-divider); color: #ccc; }
 #tab-add-menu {
   display: none;
   position: absolute; top: calc(100% + 6px); left: 0;
@@ -752,6 +767,28 @@ body {
 #autosave-indicator.saving { opacity: 1; color: var(--ui-text-muted); }
 #autosave-indicator.saved  { opacity: 1; color: #4ecb7a; }
 #autosave-indicator.saved::before  { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #4ecb7a; }
-#autosave-indicator.saving::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ui-text-muted); animation: blink 0.8s ease infinite; }
+#autosave-indicator.saving::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ui-divider); animation: blink 0.8s ease infinite; }
 @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+/* ── Keyboard focus ring (공용, a11y) ── color-picker 패턴 승격, 키보드 focus만. 입력류/캔버스/preview 제외. 2026-06-11 */
+button:focus-visible,
+.tb-btn:focus-visible,
+.prop-btn:focus-visible,
+.prop-action-btn:focus-visible,
+.cpm-btn:focus-visible,
+.cpm-action:focus-visible,
+.layer-item:focus-visible,
+.file-page-item:focus-visible,
+.file-page-add:focus-visible,
+.file-page-copy:focus-visible,
+.file-page-del:focus-visible,
+.file-page-info:focus-visible,
+.zoom-btn:focus-visible,
+.prop-align-btn:focus-visible,
+.cv-chip:focus-visible,
+.prop-slider:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 2px solid var(--ui-accent-primary, #2d6fe8);
+  outline-offset: 1px;
+}
 

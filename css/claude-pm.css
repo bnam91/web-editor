@@ -117,7 +117,7 @@ body.preview-mode #claude-pm-panel { display: none !important; }
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--ui-text-muted);
+  background: var(--ui-divider);
   flex-shrink: 0;
 }
 .cpm-status-dot.connected { background: var(--ui-success); box-shadow: 0 0 6px rgba(127, 200, 127, 0.5); }
@@ -282,7 +282,7 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
 }
 .cpm-input:focus { border-color: #6b9eff; box-shadow: 0 0 0 2px rgba(107, 158, 255, 0.18); }
 .cpm-input::placeholder { color: var(--ui-text-dim); }
-.cpm-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.cpm-input:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 
 .cpm-pick-btn {
   background: var(--ui-bg-input);
@@ -507,7 +507,7 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   color: #fff;
   border-color: #333;
 }
-.cpmt-btn.cpmt-close:hover { color: #ff8a8a; }
+.cpmt-btn.cpmt-close:hover { color: var(--ui-danger); }
 /* 즉시 뜨는 커스텀 tooltip (native title 1-2초 지연 회피). 버튼 아래 표시. */
 .cpmt-btn[data-tip]:hover::after {
   content: attr(data-tip);

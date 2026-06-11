@@ -249,7 +249,7 @@ function _renderAutoPanel(ss) {
     ` : ''}
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
-      <div class="prop-row" style="gap:6px;">
+      <div class="prop-row" style="gap:4px;">
         <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
         ${isFreeLayout ? `<button class="prop-action-btn secondary" id="ss-to-stack-btn" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">stack</button>` : ''}
       </div>
@@ -267,7 +267,7 @@ function _renderAutoPanel(ss) {
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
         <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">위치 편집</button>
-        <button class="prop-action-btn" id="ss-bg-img-clear" style="margin-top:4px;background:#3a2a2a;color:#e06c6c;">이미지 제거</button>
+        <button class="prop-action-btn danger" id="ss-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
       ` : ''}
     </div>
     <div class="prop-section">
@@ -277,7 +277,7 @@ function _renderAutoPanel(ss) {
         <input type="range" class="prop-slider" id="ss-border-w-slider" min="0" max="20" step="1" value="${borderWidth}">
         <input type="number" class="prop-number" id="ss-border-w-num" min="0" max="20" value="${borderWidth}">
       </div>
-      <div class="prop-row" style="margin-top:6px;">
+      <div class="prop-row">
         <span class="prop-label">스타일</span>
         <select class="prop-select" id="ss-border-style">
           <option value="solid"  ${borderStyle === 'solid'  ? 'selected' : ''}>Solid</option>
@@ -289,7 +289,7 @@ function _renderAutoPanel(ss) {
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'ss-border', hex: hexBorderColor, alpha: borderAlpha })}
       </div>
-      <div class="prop-row" style="margin-top:6px;">
+      <div class="prop-row">
         <span class="prop-label">코너</span>
         <input type="range" class="prop-slider" id="ss-radius-slider" min="0" max="80" step="1" value="${radius}">
         <input type="number" class="prop-number" id="ss-radius-num" min="0" max="80" value="${radius}">
@@ -302,12 +302,12 @@ function _renderAutoPanel(ss) {
         <input type="range" class="prop-slider" id="ss-width-slider" min="${minWidth}" max="860" step="10" value="${width}">
         <input type="number" class="prop-number" id="ss-width-num" min="${minWidth}" max="860" value="${width}">
       </div>
-      <div class="prop-row" style="margin-top:6px;">
+      <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="ss-height-slider" min="100" max="1200" step="10" value="${height}">
         <input type="number" class="prop-number" id="ss-height-num" min="100" max="1200" value="${height}">
       </div>
-      <div class="prop-row" style="margin-top:6px;">
+      <div class="prop-row">
         <span class="prop-label">상/하 여백</span>
         <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
@@ -315,7 +315,7 @@ function _renderAutoPanel(ss) {
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Position</div>
-      <div class="prop-row" style="margin-top:6px;gap:6px;">
+      <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="width:16px;flex-shrink:0;">X</span>
         <input type="number" class="prop-number" id="ss-pos-x" style="flex:1;" value="${parseInt(ss.dataset.translateX) || 0}">
         <span class="prop-label" style="width:16px;flex-shrink:0;margin-left:4px;">Y</span>
@@ -340,7 +340,7 @@ function _renderAutoPanel(ss) {
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Rotate / Flip</div>
-      <div class="prop-row" style="margin-top:6px;gap:6px;">
+      <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="flex-shrink:0;">각도</span>
         <input type="number" class="prop-number" id="ss-rotate-deg" style="width:56px;" min="-360" max="360" value="${parseInt(ss.dataset.rotateDeg) || 0}">
         <span style="font-size:11px;color:#6b6b6b;flex-shrink:0;">°</span>
@@ -559,8 +559,8 @@ function _renderAutoPanel(ss) {
       if (!document.getElementById('ss-bg-img-clear')) {
         const clearBtn = document.createElement('button');
         clearBtn.id = 'ss-bg-img-clear';
-        clearBtn.className = 'prop-action-btn';
-        clearBtn.style.cssText = 'margin-top:4px;background:#3a2a2a;color:#e06c6c;';
+        clearBtn.className = 'prop-action-btn danger';
+        clearBtn.style.cssText = 'margin-top:4px;';
         clearBtn.textContent = '이미지 제거';
         clearBtn.addEventListener('click', removeBgImg);
         document.getElementById('ss-bg-pos-btn').after(clearBtn);

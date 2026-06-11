@@ -31,7 +31,7 @@ export function showMockupProperties(block) {
     <!-- 디바이스 선택 -->
     <div class="prop-section">
       <div class="prop-section-title">Device</div>
-      <div class="prop-row" style="gap:6px;">
+      <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="flex:1;font-size:10px;color:#888;">${deviceLabel}</span>
         <button class="prop-btn" id="mkp-change-device-btn"
           style="width:auto;height:auto;padding:3px 8px;font-size:10px;">변경</button>
@@ -53,7 +53,7 @@ export function showMockupProperties(block) {
     <!-- 화면 이미지 -->
     <div class="prop-section">
       <div class="prop-section-title">Screen Image</div>
-      <div class="prop-row" style="flex-direction:column;gap:6px;">
+      <div class="prop-row" style="flex-direction:column;gap:4px;">
         <!-- 섹션 ID로 캡처 -->
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="text" id="mkp-sec-id-input" placeholder="섹션 ID 입력 (sec_xxx)"

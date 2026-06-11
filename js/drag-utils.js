@@ -333,9 +333,10 @@ function applyDividerStyle(block) {
   const style   = block.dataset.lineStyle   || 'solid';
   const color   = block.dataset.lineColor   || '#cccccc';
   const padV    = block.dataset.padV        || '30';
-  const padH    = block.dataset.padH        || '0';
+  const padH    = parseInt(block.dataset.padH) || 0;
   const dir     = block.dataset.lineDir     || 'horizontal';
   const lineLen = parseInt(block.dataset.lineLength) || 80;
+  // padH가 콘텐츠 폭의 절반보다 커도 그대로 적용 (사용자 의도). 라인은 box-sizing border-box로 음수 폭 시 안 보일 수 있음.
 
   if (dir === 'vertical') {
     hr.style.cssText = `border-left:${weight}px ${style} ${color}; border-top:none; width:0; height:${lineLen}px;`;

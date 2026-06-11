@@ -69,7 +69,7 @@ function showLabelGroupProperties(block, selectedItem) {
         </select>
       </div>
       <div class="prop-row">
-        <button class="prop-btn-full" id="lg-apply-all-btn">전체 적용</button>
+        <button class="prop-action-btn primary" id="lg-apply-all-btn">전체 적용</button>
       </div>
     </div>
     <div class="prop-section">

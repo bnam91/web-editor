@@ -189,6 +189,20 @@ function createWindow() {
     },
   });
 
+  // 다운로드(섹션 내보내기 등)는 다이얼로그 없이 Downloads에 바로 저장.
+  // 핸들러가 없으면 Electron 기본 저장 다이얼로그에 의존 — 창이 가려진/숨겨진
+  // 상태에서는 다이얼로그가 못 떠서 다운로드가 조용히 유실된다.
+  mainWindow.webContents.session.on('will-download', (event, item) => {
+    const dir = app.getPath('downloads');
+    const base = item.getFilename() || 'export';
+    let dest = path.join(dir, base);
+    for (let n = 1; fs.existsSync(dest); n++) {
+      const ext = path.extname(base);
+      dest = path.join(dir, `${path.basename(base, ext)} (${n})${ext}`);
+    }
+    item.setSavePath(dest);
+  });
+
   // local-fonts 퍼미션 허용 (queryLocalFonts API)
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
     if (permission === 'local-fonts') {

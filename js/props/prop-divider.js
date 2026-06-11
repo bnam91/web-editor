@@ -74,8 +74,8 @@ export function showDividerProperties(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="dvd-padx-slider" min="0" max="200" step="4" value="${padH}">
-        <input type="number" class="prop-number" id="dvd-padx-number" min="0" max="200" value="${padH}">
+        <input type="range" class="prop-slider" id="dvd-padx-slider" min="0" max="2000" step="4" value="${padH}">
+        <input type="number" class="prop-number" id="dvd-padx-number" min="0" max="2000" value="${padH}">
       </div>
     </div>`;
 
@@ -146,7 +146,7 @@ export function showDividerProperties(block) {
   const pxSlider = document.getElementById('dvd-padx-slider');
   const pxNumber = document.getElementById('dvd-padx-number');
   const applyPadH = v => {
-    v = Math.min(200, Math.max(0, v));
+    v = Math.min(2000, Math.max(0, v));
     block.dataset.padH = v;
     applyAll();
     pxSlider.value = v; pxNumber.value = v;

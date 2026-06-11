@@ -10,17 +10,21 @@
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
-function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor) {
+function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor, cardIdx) {
   const _tc = titleColor || '#ffffff';
   const _dc = descColor  || '#ffffff';
   if (card.title && card.title.trim() !== '') {
     const el = document.createElement('div');
+    el.className = 'cvb-card-title';
+    if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = 'title'; }
     el.style.cssText = `font-size:${titleSize}px;font-weight:600;color:${_tc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
     el.textContent = card.title;
     container.appendChild(el);
   }
   if (card.desc && card.desc.trim() !== '') {
     const el = document.createElement('div');
+    el.className = 'cvb-card-desc';
+    if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = 'desc'; }
     el.style.cssText = `font-size:${descSize}px;font-weight:400;color:${_dc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
     el.textContent = card.desc;
     container.appendChild(el);
@@ -55,6 +59,47 @@ function _fillCardIcon(div, card, areaSize, opts) {
     svg.style.height = iconSize + 'px';
   }
   div.appendChild(wrap);
+}
+
+// 카드 제목/설명 더블클릭 인라인 편집 — block 자체에 한 번만 등록
+function _bindCvbDblEdit(block) {
+  if (block._cvbDblBound) return;
+  block._cvbDblBound = true;
+  block.addEventListener('dblclick', (e) => {
+    const target = e.target.closest('.cvb-card-title, .cvb-card-desc');
+    if (!target || !block.contains(target)) return;
+    e.stopPropagation();
+    target.contentEditable = 'true';
+    target.style.outline = '2px dashed var(--ui-accent-primary, #3b82f6)';
+    target.style.outlineOffset = '2px';
+    target.focus();
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+  });
+  block.addEventListener('blur', (e) => {
+    const target = e.target?.closest?.('.cvb-card-title, .cvb-card-desc');
+    if (!target || target.contentEditable !== 'true') return;
+    target.contentEditable = 'false';
+    target.style.outline = ''; target.style.outlineOffset = '';
+    const idx = parseInt(target.dataset.cardIdx);
+    const field = target.dataset.field;
+    if (!Number.isFinite(idx) || !field) return;
+    const cards = JSON.parse(block.dataset.cards || '[]');
+    if (!cards[idx]) cards[idx] = {};
+    cards[idx][field] = target.innerText.trim();
+    block.dataset.cards = JSON.stringify(cards);
+    window.pushHistory?.('카드 편집');
+    window.scheduleAutoSave?.();
+    if (block.classList.contains('selected') && window.showSimpleCardProperties) window.showSimpleCardProperties(block);
+  }, true);
+  block.addEventListener('keydown', (e) => {
+    const target = e.target?.closest?.('.cvb-card-title, .cvb-card-desc');
+    if (!target || target.contentEditable !== 'true') return;
+    if (e.key === 'Escape') { e.preventDefault(); target.blur(); }
+    else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); target.blur(); }
+  });
 }
 
 function _bindCvbImgDrag(imgDiv, block, idx) {
@@ -272,7 +317,7 @@ function renderCanvas(block) {
           if (!textHide) {
             const textDiv = document.createElement('div');
             textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:6px;`;
-            _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor);
+            _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor, idx);
             cell.appendChild(textDiv);
           }
 
@@ -318,7 +363,7 @@ function renderCanvas(block) {
                      : position === 'bottom' ? `0 0 ${radius}px ${radius}px`
                      : '0';
             div.style.cssText = `width:100%;height:${h}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;border-radius:${br};`;
-            _appendCardTexts(div, card, titleSize, descSize, textAlign, titleColor, descColor);
+            _appendCardTexts(div, card, titleSize, descSize, textAlign, titleColor, descColor, idx);
             return div;
           };
 
@@ -379,6 +424,7 @@ function renderCanvas(block) {
         inner.appendChild(cell);
       }
     }
+    _bindCvbDblEdit(block);
     return;
   }
   // ── End Simple Card Mode ───────────────────────────────────────────────────

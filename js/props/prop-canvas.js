@@ -33,7 +33,7 @@ export function showCanvasProperties(block) {
           <button class="cvb-img-upload-btn prop-btn" data-index="${i}" title="이미지 업로드">
             ${hasSrc ? '교체' : '추가'}
           </button>
-          ${hasSrc ? `<button class="cvb-img-clear-btn prop-btn" data-index="${i}" title="이미지 제거" style="color:#e55;">✕</button>` : ''}
+          ${hasSrc ? `<button class="cvb-img-clear-btn prop-btn prop-btn-danger" data-index="${i}" title="이미지 제거">✕</button>` : ''}
         </div>`;
     } else if (layer.type === 'text') {
       return `

@@ -82,7 +82,7 @@ export function showShapeProperties(block) {
         <input type="range" class="prop-slider" id="shape-w-slider" min="10" max="860" step="1" value="${w}">
         <input type="number" class="prop-number" id="shape-w-num" min="10" max="860" value="${w}">
       </div>
-      <div class="prop-row" style="margin-top:6px;">
+      <div class="prop-row">
         <span class="prop-label">H</span>
         <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
         <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">

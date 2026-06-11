@@ -126,12 +126,20 @@ window.goditor = {
         });
         break;
 
-      case 'card':
-        window.addCardBlock(block.count, {
-          bgColor: block.bgColor,
-          radius: block.radius,
+      case 'card': {
+        // card-block(cdb)은 중앙패널에서 제거됨 + 타입목록 누락으로 편집/삭제 버그 다수 →
+        // 자동조립도 canvas-block(cvb) simple 카드로 통일. count장을 가로 그리드로.
+        const _cardN = Math.max(1, parseInt(block.count) || 1);
+        window.addCanvasBlock({
+          cardMode: 'simple',
+          gridCols: _cardN,
+          gridRows: 1,
+          ...(block.radius  !== undefined && { radius: block.radius }),
+          ...(block.bgColor !== undefined && { textBg: block.bgColor }),
+          cards: Array.from({ length: _cardN }, () => ({ title: '카드 제목', desc: '', imgSrc: '', cellBg: '' })),
         });
         break;
+      }
 
       case 'graph':
         window.addGraphBlock({

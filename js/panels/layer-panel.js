@@ -3,7 +3,7 @@
    makeLayer* 렌더러는 layer-panel-items.js로 분리 (2025-03-31)
 ═══════════════════════════════════ */
 import { makeIndents, layerIcons, addLayerRename, makeLayerBlockItem, makeLayerGroupItem,
-         makeLayerFrameItem, makeLayerAssetItem, makeLayerCardItem } from './layer-panel-items.js';
+         makeLayerFrameItem, makeLayerAssetItem } from './layer-panel-items.js';
 
 // LP-COLLAPSE-DEFAULT (2026-05): 신규 row-group은 collapsed로 시작.
 // 사용자가 chevron을 직접 펼쳐야 _expandedRowGroupIds 에 등록되고, 이후 빌드에서도 펼침 유지.
@@ -212,14 +212,19 @@ export function buildLayerPanel() {
         .filter(el => !el.classList.contains('drop-indicator'));
 
       const renderBlock = (block) => {
+        if (block.classList.contains('col')) {
+          // 멀티 카드 등 row > .col 래퍼 — 내부 블록으로 내려가 렌더 (래퍼 자체는 비표시)
+          [...block.children]
+            .filter(el => !el.classList.contains('drop-indicator'))
+            .forEach(renderBlock);
+          return;
+        }
         if (block.classList.contains('frame-block')) {
           const ssItem = makeLayerFrameItem(block, sec, appendRowToLayer);
           ssItem._dragTarget = child;
           container.appendChild(ssItem);
         } else if (block.classList.contains('asset-block')) {
           container.appendChild(makeLayerAssetItem(block, child, sec));
-        } else if (block.classList.contains('card-block')) {
-          container.appendChild(makeLayerCardItem(block, child, sec));
         } else {
           container.appendChild(makeLayerBlockItem(block, child, sec, depth));
         }
@@ -245,7 +250,6 @@ export function buildLayerPanel() {
         }
       } else if (child.classList.contains('text-block')
               || child.classList.contains('asset-block')
-              || child.classList.contains('card-block')
               || child.classList.contains('icon-circle-block')
               || child.classList.contains('table-block')
               || child.classList.contains('label-group-block')

@@ -216,7 +216,10 @@ async function switchTab(id) {
   const prevProjectId = _getActId(); // activeProjectId 변경 전 캡처 (S10 race condition 방지)
   if (curTab) {
     curTab._cache = window.serializeProject();
-    window.saveProjectToFile(curTab._cache, { skipThumbnail: true, projectId: prevProjectId }); // 파일 저장은 await 안 함 (비동기)
+    // DEF-03: 변경이 없으면 파일 재기록 생략 (무편집 방문이 updatedAt/파일을 오염시키는 문제). 메모리 캐시는 항상 갱신.
+    if (window.hasUnsavedChanges?.() ?? true) {
+      window.saveProjectToFile(curTab._cache, { skipThumbnail: true, projectId: prevProjectId }); // 파일 저장은 await 안 함 (비동기)
+    }
     // 캔버스 뷰 상태 저장 (줌 + 팬 오프셋)
     const pan = window.getPanOffset?.() || { x: 0, y: 0 };
     curTab._viewState = { zoom: window.currentZoom || 40, panX: pan.x, panY: pan.y };

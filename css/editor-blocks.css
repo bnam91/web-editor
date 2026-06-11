@@ -386,9 +386,9 @@
 .prop-action-btn.primary { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 .prop-action-btn.primary:hover { background: #3d7ff8; border-color: #3d7ff8; }
 .prop-action-btn.secondary { background: var(--ui-bg-app); color: var(--ui-text-dim); border: 1px solid var(--ui-border); }
-.prop-action-btn.secondary:hover { border-color: var(--ui-text-dim); color: var(--ui-text-sub); }
-.prop-action-btn.danger { background: #c0392b; color: #fff; }
-.prop-action-btn.danger:hover { background: #e74c3c; }
+.prop-action-btn.secondary:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }
+.prop-action-btn.danger { background: var(--ui-danger-bg); border-color: var(--ui-danger-border); color: var(--ui-danger); }
+.prop-action-btn.danger:hover { background: var(--ui-danger-hover); border-color: var(--ui-danger-hover); color: #fff; }
 
 /* ═══════════════════════════════════
    GAP BLOCK — 섹션과 에셋 사이 여백
@@ -601,6 +601,40 @@
   text-align: center;
   vertical-align: middle;
 }
+
+/* colored 스타일 — 셀 모든 border를 토글로 제어 */
+.table-block[data-style="colored"] .tb-table {
+  border-collapse: collapse;
+}
+.table-block[data-style="colored"] .tb-table th,
+.table-block[data-style="colored"] .tb-table td {
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-right: 0;
+  padding: 10px 16px;
+  vertical-align: middle;
+}
+/* 수평선 토글 (data-show-h-lines="true" 시 행 사이 border-bottom 적용) */
+.table-block[data-style="colored"][data-show-h-lines="true"] .tb-table tr {
+  border-bottom: var(--tbl-hline-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+}
+/* 수직선 토글 (data-show-v-lines="true") */
+.table-block[data-style="colored"][data-show-v-lines="true"] .tb-table th,
+.table-block[data-style="colored"][data-show-v-lines="true"] .tb-table td {
+  border-left: var(--tbl-vline-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+  border-right: var(--tbl-vline-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+}
+/* 외곽 좌우 — table 자체 border */
+.table-block[data-style="colored"][data-show-outer-x="true"] .tb-table {
+  border-left: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+  border-right: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+}
+/* 외곽 상하 */
+.table-block[data-style="colored"][data-show-outer-y="true"] .tb-table {
+  border-top: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+  border-bottom: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+}
 .table-block[data-style="default"] .tb-table thead th,
 .table-block:not([data-style]) .tb-table thead th {
   background: var(--tbl-header-bg, #f0f0f0);
@@ -697,86 +731,6 @@
   cursor: text;
 }
 
-/* graph chart 스타일 → editor-graph.css 로 분리됨 (2026-06-09) */
-/* ═══════════════════════════════════
-   CARD BLOCK
-═══════════════════════════════════ */
-.card-block {
-  display: flex;
-  flex-direction: column;
-  border-radius: 12px;
-  overflow: hidden;
-  cursor: pointer;
-  outline: 2px solid transparent;
-  
-  width: 100%;
-  padding-left: 0;
-  padding-right: 0;
-}
-.card-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.card-block { position: relative; }
-.card-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 0; }
-.card-block.drag-over .cdb-image { outline: 2px dashed var(--sel-color); }
-
-.cdb-image {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  background: #e8e8e8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  position: relative;
-  flex-shrink: 0;
-}
-.cdb-img-placeholder {
-  font-size: 32px;
-  color: var(--ui-text-sub);
-  user-select: none;
-  pointer-events: none;
-}
-.cdb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.cdb-clear-btn {
-  position: absolute;
-  top: 6px; right: 6px;
-  width: 20px; height: 20px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.55);
-  color: #fff;
-  border: none; cursor: pointer;
-  font-size: 10px; line-height: 20px; text-align: center;
-  display: none;
-  padding: 0;
-  z-index: 1;
-}
-.card-block:hover .cdb-clear-btn,
-.card-block.selected .cdb-clear-btn { display: block; }
-
-.cdb-body {
-  padding: 10px 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: #f5f5f5;
-}
-.cdb-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #111;
-  outline: none;
-  line-height: 1.4;
-}
-.cdb-desc {
-  font-size: 18px;
-  color: var(--ui-text-dim);
-  outline: none;
-  line-height: 1.5;
-}
 
 /* ═══════════════════════════════════
    DIVIDER BLOCK
@@ -845,7 +799,6 @@
 .icon-circle-block.selected,
 .table-block.selected,
 .graph-block.selected,
-.card-block.selected,
 .divider-block.selected,
 .mockup-block.selected { z-index: 2; }
 .row.row-active,
@@ -951,7 +904,6 @@
 .frame-block:not(.selected) .icon-circle-block:hover,
 .frame-block:not(.selected) .table-block:hover,
 .frame-block:not(.selected) .label-group-block:hover,
-.frame-block:not(.selected) .card-block:hover,
 .frame-block:not(.selected) .graph-block:hover,
 .frame-block:not(.selected) .divider-block:hover,
 .frame-block:not(.selected) .icon-text-block:hover,
@@ -962,7 +914,6 @@
 .frame-block:not(.selected) .icon-circle-block:hover::after,
 .frame-block:not(.selected) .table-block:hover::after,
 .frame-block:not(.selected) .graph-block:hover::after,
-.frame-block:not(.selected) .card-block:hover::after,
 .frame-block:not(.selected) .divider-block:hover::after,
 .frame-block:not(.selected) .label-group-block:hover::after,
 .frame-block:not(.selected) .shape-block:hover::after {
@@ -1081,6 +1032,12 @@
   inset: 0;
   overflow: hidden;
   pointer-events: none;
+}
+/* 카드 제목/설명은 클릭 가능해야 더블클릭 인라인 편집(_bindCvbDblEdit)이 동작한다.
+   cvb-inner의 pointer-events:none를 텍스트에서만 되살림 (나머지는 카드 본체로 통과). */
+.canvas-block .cvb-card-title,
+.canvas-block .cvb-card-desc {
+  pointer-events: auto;
 }
 
 /* ── Vector Block ────────────────────────────────────────────────────────── */
@@ -1229,7 +1186,7 @@ textarea.cvb-card-input {
   height: auto;
   font-size: 10px;
   padding: 2px 4px;
-  color: #e55;
+  color: var(--ui-danger);
 }
 
 /* ── Device Mockup Block ─────────────────────────────────────────────────── */

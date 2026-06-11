@@ -244,8 +244,8 @@ export function showAssetProperties(ab) {
   const setWSliderDisabled = disabled => {
     wSlider.disabled = disabled;
     wNumber.disabled = disabled;
-    wSlider.style.opacity = disabled ? '0.4' : '';
-    wNumber.style.opacity = disabled ? '0.4' : '';
+    wSlider.style.opacity = disabled ? 'var(--ui-disabled-opacity)' : '';
+    wNumber.style.opacity = disabled ? 'var(--ui-disabled-opacity)' : '';
   };
 
   // 초기 상태: Logo 프리셋이면 width 슬라이더 비활성화

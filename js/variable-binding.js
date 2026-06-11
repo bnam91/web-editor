@@ -125,7 +125,7 @@ function applyAllBindings() {
       contentEl.style.color = val;
     }
     // asset-block, card-block 등: background 적용
-    else if (el.classList.contains('asset-block') || el.classList.contains('card-block')) {
+    else if (el.classList.contains('asset-block')) {
       el.style.backgroundColor = val;
     }
     // 그 외 범용: CSS variable로 주입

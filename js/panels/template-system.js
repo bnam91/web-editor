@@ -176,7 +176,7 @@ async function insertTemplate(tpl) {
     // 이벤트 재바인딩
     window.bindFrameDropZone?.(ss);
     // 내부 블록 이벤트 핸들러 재등록 (Section 삽입과 동일 수준)
-    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block').forEach(b => window.bindBlock?.(b));
+    ss.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block').forEach(b => window.bindBlock?.(b));
     ss.querySelectorAll('.group-block').forEach(g => window.bindGroupDrag?.(g));
     if (ss.dataset.bg) ss.style.backgroundColor = ss.dataset.bg;
     if (ss.dataset.bgImg && !ss.style.backgroundImage) {
@@ -262,7 +262,7 @@ async function insertTemplate(tpl) {
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
   bindSectionDropZone(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.group-block').forEach(g => {
     if (!g.querySelector(':scope > .group-block-label')) {
       const lbl = document.createElement('span');

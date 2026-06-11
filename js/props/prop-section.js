@@ -103,7 +103,7 @@ async function showSectionProperties(sec) {
     : (parseInt(inner?.style.paddingLeft) || 0);
   const secPadXAsset   = inner?.dataset.padXExcludesAsset || '';
   const bgImgHTML = hasBgImg ? `
-    <div class="prop-row" style="margin-top:6px;">
+    <div class="prop-row">
       <span class="prop-label">사이즈</span>
       <select class="prop-select" id="sec-bg-size">
         <option value="cover"   ${bgSize==='cover'   ?'selected':''}>Cover</option>

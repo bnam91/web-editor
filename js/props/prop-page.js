@@ -128,7 +128,7 @@ export function showPageProperties() {
         <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="4" value="${padX}">
         <input type="number" class="prop-number" id="page-padx-number" min="0" max="200" value="${padX}">
       </div>
-      <div class="prop-row" style="align-items:center;gap:6px;">
+      <div class="prop-row" style="align-items:center;gap:4px;">
         <input type="checkbox" id="page-padx-asset" ${padXExcludesAsset ? 'checked' : ''}>
         <span class="prop-label" style="margin:0;width:auto;overflow:visible;white-space:normal;">에셋블록은 일괄패딩적용에서 제외합니다.</span>
       </div>
@@ -316,7 +316,17 @@ export function showPageProperties() {
       pageExportBtn.disabled = true;
       pageExportBtn.textContent = '내보내는 중...';
       try {
-        await window.exportAllSections(fmt, w);
+        const res = await window.exportAllSections(fmt, w, (i, total) => {
+          pageExportBtn.textContent = `내보내는 중... (${i}/${total})`;
+        });
+        if (res?.failed?.length) {
+          window.showToast?.(`⚠️ ${res.failed.length}/${res.total}개 섹션 내보내기 실패: ${res.failed.join(', ')}`);
+        } else {
+          window.showToast?.(`✅ ${res?.total ?? secCount}개 섹션 내보내기 완료 — 다운로드 폴더를 확인하세요`);
+        }
+      } catch (err) {
+        console.error('[export] 전체 내보내기 실패:', err);
+        window.showToast?.('⚠️ 내보내기 실패: ' + (err?.message || err));
       } finally {
         pageExportBtn.disabled = false;
         pageExportBtn.textContent = '전체 섹션 내보내기';
