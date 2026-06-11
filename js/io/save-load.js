@@ -271,7 +271,11 @@ function deletePage(pageId) {
   if (idx === -1) return;
   const page = state.pages[idx];
   // 파괴적 액션 가드 (Adobe/Figma 표준): 내용 있는 페이지 삭제는 되돌릴 수 없으므로 확인받는다.
-  const hasContent = !!(page && page.canvas && page.canvas.includes('section-block'));
+  // 활성 페이지는 라이브 DOM이 진실 소스 — stale page.canvas(flush 전이면 빈 문자열)를 읽으면
+  // 미저장 콘텐츠가 confirm 없이 무음 소실된다(deletePage 무보호 데이터유실 버그).
+  const isActivePage = pageId === state.currentPageId;
+  const canvasHtmlForCheck = isActivePage ? getSerializedCanvas() : (page && page.canvas) || '';
+  const hasContent = canvasHtmlForCheck.includes('section-block');
   if (hasContent && !window.confirm(`'${(page && page.name) || '이 페이지'}'를 삭제하시겠습니까?\n페이지의 모든 내용이 영구 삭제되며 되돌릴 수 없습니다.`)) return;
   const wasActive = pageId === state.currentPageId;
   state.pages.splice(idx, 1);
