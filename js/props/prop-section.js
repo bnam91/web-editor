@@ -445,6 +445,9 @@ async function showSectionProperties(sec) {
     h.addEventListener('input', () => {
       if (/^#[0-9a-f]{6}$/i.test(h.value)) { applyColor(h.value); p.value = h.value; sw.style.background = h.value; }
     });
+    // 커밋(change) 시 undo·autosave 반영 (input엔 미적용 — 드래그당 1히스토리)
+    p.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    h.addEventListener('change', () => { if (/^#[0-9a-f]{6}$/i.test(h.value)) { window.pushHistory?.(); window.scheduleAutoSave?.(); } });
   });
 
   // 일괄 정렬
@@ -463,6 +466,8 @@ async function showSectionProperties(sec) {
       });
       propPanel.querySelectorAll('#sec-align-left,#sec-align-center,#sec-align-right')
         .forEach(b => b.classList.toggle('active', b === btn));
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
     });
   });
 

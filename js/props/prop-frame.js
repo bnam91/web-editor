@@ -428,6 +428,9 @@ function _renderAutoPanel(ss) {
   };
   document.getElementById('ss-pos-x')?.addEventListener('input', e => { ss.dataset.translateX = parseInt(e.target.value) || 0; _applyTransform(); });
   document.getElementById('ss-pos-y')?.addEventListener('input', e => { ss.dataset.translateY = parseInt(e.target.value) || 0; _applyTransform(); });
+  // 드래그 커밋(change) 1회 = undo 1액션
+  document.getElementById('ss-pos-x')?.addEventListener('change', () => window.pushHistory?.());
+  document.getElementById('ss-pos-y')?.addEventListener('change', () => window.pushHistory?.());
 
   // ── 자식 정렬 핸들러 ──
   const _setAlign = (alignItems, justifyContent) => {
@@ -490,13 +493,13 @@ function _renderAutoPanel(ss) {
   _markAlignActive(hMap[curAlignItems]    || 'ss-align-left', hGroup);
   _markAlignActive(vMap[curJustifyContent] || 'ss-align-top',  vGroup);
 
-  document.getElementById('ss-align-left')?.addEventListener('click',    () => { _setAlign('flex-start', null); _markAlignActive('ss-align-left',    hGroup); });
-  document.getElementById('ss-align-hcenter')?.addEventListener('click', () => { _setAlign('center',     null); _markAlignActive('ss-align-hcenter', hGroup); });
-  document.getElementById('ss-align-right')?.addEventListener('click',   () => { _setAlign('flex-end',   null); _markAlignActive('ss-align-right',   hGroup); });
+  document.getElementById('ss-align-left')?.addEventListener('click',    () => { _setAlign('flex-start', null); _markAlignActive('ss-align-left',    hGroup); window.pushHistory?.(); });
+  document.getElementById('ss-align-hcenter')?.addEventListener('click', () => { _setAlign('center',     null); _markAlignActive('ss-align-hcenter', hGroup); window.pushHistory?.(); });
+  document.getElementById('ss-align-right')?.addEventListener('click',   () => { _setAlign('flex-end',   null); _markAlignActive('ss-align-right',   hGroup); window.pushHistory?.(); });
 
-  document.getElementById('ss-align-top')?.addEventListener('click',     () => { _setAlign(null, 'flex-start'); _markAlignActive('ss-align-top',    vGroup); });
-  document.getElementById('ss-align-vcenter')?.addEventListener('click', () => { _setAlign(null, 'center');     _markAlignActive('ss-align-vcenter', vGroup); });
-  document.getElementById('ss-align-bottom')?.addEventListener('click',  () => { _setAlign(null, 'flex-end');   _markAlignActive('ss-align-bottom',  vGroup); });
+  document.getElementById('ss-align-top')?.addEventListener('click',     () => { _setAlign(null, 'flex-start'); _markAlignActive('ss-align-top',    vGroup); window.pushHistory?.(); });
+  document.getElementById('ss-align-vcenter')?.addEventListener('click', () => { _setAlign(null, 'center');     _markAlignActive('ss-align-vcenter', vGroup); window.pushHistory?.(); });
+  document.getElementById('ss-align-bottom')?.addEventListener('click',  () => { _setAlign(null, 'flex-end');   _markAlignActive('ss-align-bottom',  vGroup); window.pushHistory?.(); });
 
   const gapSlider = document.getElementById('ss-gap-slider');
   const gapNum    = document.getElementById('ss-gap-num');
@@ -507,6 +510,7 @@ function _renderAutoPanel(ss) {
     ss.dataset.rotateDeg = parseFloat(e.target.value) || 0;
     _applyTransform();
   });
+  document.getElementById('ss-rotate-deg')?.addEventListener('change', () => window.pushHistory?.());
   document.getElementById('ss-rotate-90')?.addEventListener('click', () => {
     const cur = parseFloat(ss.dataset.rotateDeg) || 0;
     const next = (cur + 90) % 360;
@@ -514,16 +518,19 @@ function _renderAutoPanel(ss) {
     const inp = document.getElementById('ss-rotate-deg');
     if (inp) inp.value = next;
     _applyTransform();
+    window.pushHistory?.();
   });
   document.getElementById('ss-flip-h')?.addEventListener('click', () => {
     ss.dataset.flipH = ss.dataset.flipH === '1' ? '0' : '1';
     document.getElementById('ss-flip-h')?.classList.toggle('active', ss.dataset.flipH === '1');
     _applyTransform();
+    window.pushHistory?.();
   });
   document.getElementById('ss-flip-v')?.addEventListener('click', () => {
     ss.dataset.flipV = ss.dataset.flipV === '1' ? '0' : '1';
     document.getElementById('ss-flip-v')?.classList.toggle('active', ss.dataset.flipV === '1');
     _applyTransform();
+    window.pushHistory?.();
   });
   // 초기 flip 상태 반영
   if (ss.dataset.flipH === '1') document.getElementById('ss-flip-h')?.classList.add('active');

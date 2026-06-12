@@ -115,6 +115,8 @@ export function showVectorProperties(block) {
     block.dataset.rotateDeg = parseFloat(e.target.value) || 0;
     applyTransform();
   });
+  // 드래그 커밋(change) 1회 = undo 1액션 (input마다 히스토리 쌓지 않음)
+  document.getElementById('vb-rotate-deg')?.addEventListener('change', () => pushHistory());
   document.getElementById('vb-rotate-90')?.addEventListener('click', () => {
     const cur  = parseFloat(block.dataset.rotateDeg) || 0;
     const next = (cur + 90) % 360;
@@ -122,6 +124,7 @@ export function showVectorProperties(block) {
     const inp = document.getElementById('vb-rotate-deg');
     if (inp) inp.value = next;
     applyTransform();
+    pushHistory();
   });
 
   // ── 반전 ──────────────────────────────────────────────────────────────────────
@@ -129,11 +132,13 @@ export function showVectorProperties(block) {
     block.dataset.flipH = block.dataset.flipH === '1' ? '0' : '1';
     document.getElementById('vb-flip-h')?.classList.toggle('active', block.dataset.flipH === '1');
     applyTransform();
+    pushHistory();
   });
   document.getElementById('vb-flip-v')?.addEventListener('click', () => {
     block.dataset.flipV = block.dataset.flipV === '1' ? '0' : '1';
     document.getElementById('vb-flip-v')?.classList.toggle('active', block.dataset.flipV === '1');
     applyTransform();
+    pushHistory();
   });
 }
 

@@ -677,6 +677,9 @@ export function showTableProperties(block) {
     };
     slider?.addEventListener('input', e => apply(e.target.value));
     num?.addEventListener('input',    e => apply(e.target.value));
+    // 커밋(change) 1회 = undo 1액션 (다른 tbl 슬라이더와 동일 패턴)
+    slider?.addEventListener('change', () => window.pushHistory());
+    num?.addEventListener('change',    () => window.pushHistory());
   });
 
   /* 정렬 */
