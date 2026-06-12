@@ -148,10 +148,7 @@ async function showSectionProperties(sec) {
 
   const currentPreset = sec.dataset.preset || 'default';
   // section memo (P/G/E + Codex 리뷰) — dataset.memo ↔ textarea 양방향 바인딩.
-  // 메모는 HTML attribute (data-memo)로 저장되어 innerHTML 직렬화로 안전하게 영속화됨.
-  // textarea value는 브라우저가 자동 escape — 추가 escape 불필요.
-  const _memoMaxLen = (typeof window.SECTION_MEMO_MAX_LEN === 'number') ? window.SECTION_MEMO_MAX_LEN : 2000;
-  const _memoRaw = sec.dataset.memo || '';
+  // 메모는 섹션 툴바 📝 버튼(section-memo.js popover)에서 편집·data-memo로 영속화됨 — prop 패널에는 없음.
   const presetSelectHTML = PRESETS.map(p =>
     `<option value="${p.id}"${p.id === currentPreset ? ' selected' : ''}>${p.name}</option>`
   ).join('');
@@ -471,46 +468,8 @@ async function showSectionProperties(sec) {
     });
   });
 
-  // 메모 textarea — dataset.memo ↔ value 양방향, 입력 시 debounced autosave
-  const memoEl     = document.getElementById('sec-memo');
-  const memoCount  = document.getElementById('sec-memo-counter');
-  if (memoEl) {
-    // 초기값 주입 (DOM textContent로 안전 세팅 — XSS 차단)
-    memoEl.value = _memoRaw;
-    if (memoCount) memoCount.textContent = `${[..._memoRaw].length} / ${_memoMaxLen}`;
-    // 디바운스: 입력 빈도가 높아도 autosave/history는 천천히
-    let _memoTimer = null;
-    let _memoPrev = _memoRaw;
-    const _commit = () => {
-      const v = memoEl.value;
-      // 길이 가드 (maxlength로 1차 컷, 코드포인트 기준 한 번 더 컷)
-      const clipped = [...v].slice(0, _memoMaxLen).join('');
-      if (clipped !== v) {
-        memoEl.value = clipped;
-      }
-      if (clipped === _memoPrev) return; // 변경 없으면 skip
-      _memoPrev = clipped;
-      if (clipped === '') {
-        delete sec.dataset.memo;
-      } else {
-        sec.dataset.memo = clipped;
-      }
-      // autosave는 trigger 우선 (scheduleAutoSave는 일부 환경에서만 존재)
-      if (typeof window.scheduleAutoSave === 'function') window.scheduleAutoSave();
-      else if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
-    };
-    memoEl.addEventListener('input', () => {
-      if (memoCount) memoCount.textContent = `${[...memoEl.value].length} / ${_memoMaxLen}`;
-      clearTimeout(_memoTimer);
-      _memoTimer = setTimeout(_commit, 500);
-    });
-    memoEl.addEventListener('blur', () => {
-      clearTimeout(_memoTimer);
-      _commit();
-      // 히스토리 푸시는 blur 시점 — 한 글자마다 undo 스택 부풀리는 것 방지
-      if (typeof pushHistory === 'function' && memoEl.value !== _memoRaw) pushHistory();
-    });
-  }
+  // (메모 textarea 핸들러 제거됨 — 메모 UI는 prop 패널이 아닌 섹션 툴바 📝 popover(section-memo.js)로 일원화.
+  //  과거 #sec-memo 블록은 패널에 해당 HTML이 없어 항상 null이던 dead-code였음.)
 
   // 내보내기 / 템플릿 저장
   _bindSectionExport(sec);

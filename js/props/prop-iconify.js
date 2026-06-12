@@ -206,6 +206,7 @@ export function showIconifyProperties(block) {
   const submitNewCat = async () => {
     const name = newCatInput.value.trim();
     if (!name) { hideNewCatInput(); return; }
+    if (!window.electronAPI?.svgPresets) { window.showToast?.('프리셋 라이브러리는 데스크톱 앱에서만 사용할 수 있어요'); return; }
     const res = await window.electronAPI?.svgPresets?.createCategory({ name });
     if (res?.ok) {
       window.showToast?.(`카테고리 생성: ${res.name}`);
@@ -251,6 +252,7 @@ export function showIconifyProperties(block) {
     if (!cat) { window.showToast?.('카테고리 먼저 선택/추가'); return; }
     const name = saveInput.value.trim();
     if (!name) { return; }
+    if (!window.electronAPI?.svgPresets) { window.showToast?.('프리셋 라이브러리는 데스크톱 앱에서만 사용할 수 있어요'); return; }
     const res = await window.electronAPI?.svgPresets?.save({ category: cat, name, svg });
     if (res?.ok) {
       window.showToast?.(`저장: ${res.category}/${res.file}`);
