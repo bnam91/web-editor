@@ -56,8 +56,9 @@
   --ui-danger-hover:  #e74c3c;   /* danger hover */
   --ui-success:       #7fc87f;   /* 성공/병합 */
   --ui-accent:        #7cb8ff;   /* 강조/편집 (브랜치, focus, edit 계열) */
-  --ui-accent-primary: #2d6fe8; /* 주요 액션/활성 색상 (파랑 정본 — #6b9eff/#6fa3f7/#6cf 등 우회 폐기 대상) */
+  --ui-accent-primary: #2d6fe8; /* 주요 액션/활성 색상 (파랑 정본 — fill/보더/배경용. #6b9eff/#6cf 등 우회 폐기 대상) */
   --ui-accent-primary-hover: #3a7df0; /* 주요 액션 hover */
+  --ui-accent-text:    #6fa3f7;  /* 다크배경 활성 텍스트 전용 액센트 (accent-primary는 텍스트로 쓰면 3.3:1 AA미달 → 6.8:1 가독판) */
 
   /* ── 컴포넌트 치수/상태 토큰 (매트릭스 13영역 분열 근본처방, 2026-06-11) — 신규 UI는 반드시 이걸 사용 ── */
   --ui-btn-h:        24px;   /* 버튼/컨트롤 표준 높이 (height 10단 난립→통일) */
