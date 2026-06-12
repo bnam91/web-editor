@@ -950,7 +950,18 @@ ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {
 ipcMain.handle('projects:save-meta', (event, projectId, metaData) => {
   // write는 항상 신 위치 — proj_<id>/proj_meta.json
   const paths = _ensureNewLayoutPaths(projectId);
-  _atomicWriteFileSync(paths.meta, JSON.stringify(metaData, null, 2));
+  // H2: 다중 writer(branch/commit/thumbnail/colorVars) lost update 방지.
+  // 기존엔 verbatim 덮어쓰기라, 동시 writer가 각자 stale base를 읽어 마지막 writer가
+  // 다른 필드를 되돌렸다. 핸들러에서 동기 read-merge-write 하면(Node 단일스레드라 핸들러 간
+  // 동기 구간이 인터리브되지 않음) 서로 다른 top-level 필드가 모두 보존된다.
+  let merged = metaData;
+  try {
+    if (fs.existsSync(paths.meta)) {
+      const cur = JSON.parse(fs.readFileSync(paths.meta, 'utf8'));
+      if (cur && typeof cur === 'object') merged = { ...cur, ...metaData };
+    }
+  } catch (_) { /* 손상 파일이면 incoming으로 신규 작성 */ }
+  _atomicWriteFileSync(paths.meta, JSON.stringify(merged, null, 2));
   return { ok: true };
 });
 
