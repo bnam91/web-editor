@@ -538,7 +538,7 @@ function _startInlineEdit(id) {
     <input class="tbe-folder-new" type="text" placeholder="새 폴더 이름" style="display:none;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:4px 6px;outline:none;width:100%;box-sizing:border-box;">
     <input class="tbe-tags" type="text" value="${_esc(currentTags)}" placeholder="태그 (쉼표 구분)" style="background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:4px 6px;outline:none;width:100%;box-sizing:border-box;">
     <div style="display:flex;gap:4px;">
-      <button class="tbe-save" style="flex:1;background:#2d6fe8;border:none;border-radius:4px;color:#fff;font-size:11px;padding:4px 0;cursor:pointer;">저장</button>
+      <button class="tbe-save" style="flex:1;background:var(--ui-accent-primary);border:none;border-radius:4px;color:#fff;font-size:11px;padding:4px 0;cursor:pointer;">저장</button>
       <button class="tbe-cancel" style="flex:1;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#ccc;font-size:11px;padding:4px 0;cursor:pointer;">취소</button>
     </div>`;
 

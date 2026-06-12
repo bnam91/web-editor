@@ -35,7 +35,7 @@ function showFilenameModal(defaultName, onConfirm) {
         style="width:100%;box-sizing:border-box;background:#2a2a2a;border:1px solid #555;border-radius:6px;color:#eee;font-size:13px;padding:7px 10px;outline:none;">
       <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
         <button id="filename-modal-cancel" style="padding:6px 14px;border-radius:6px;border:1px solid #444;background:#333;color:#aaa;cursor:pointer;font-size:12px;">취소</button>
-        <button id="filename-modal-ok" style="padding:6px 14px;border-radius:6px;border:none;background:#4c8aff;color:#fff;cursor:pointer;font-size:12px;">저장</button>
+        <button id="filename-modal-ok" style="padding:6px 14px;border-radius:6px;border:none;background:var(--ui-accent-primary);color:#fff;cursor:pointer;font-size:12px;">저장</button>
       </div>
     </div>`;
 
