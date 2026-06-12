@@ -38,7 +38,7 @@ function _createMockupModal() {
         <span style="font-size:11px;color:#666;font-family:Pretendard,-apple-system,sans-serif;">px</span>
         <div style="flex:1;"></div>
         <button id="mkp-insert-btn"
-          style="background:#2563eb;border:none;border-radius:6px;color:#fff;font-size:12px;padding:7px 20px;cursor:pointer;font-weight:600;font-family:Pretendard,-apple-system,sans-serif;opacity:0.4;" disabled>
+          style="background:var(--ui-accent-primary);border:none;border-radius:6px;color:#fff;font-size:12px;padding:7px 20px;cursor:pointer;font-weight:600;font-family:Pretendard,-apple-system,sans-serif;opacity:0.4;" disabled>
           삽입
         </button>
       </div>

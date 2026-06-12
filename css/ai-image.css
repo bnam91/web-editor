@@ -120,7 +120,7 @@
   cursor: pointer;
   border: 1px solid transparent;
 }
-.aig-popover-cell:hover { border-color: var(--ui-accent-primary, #6cf); }
+.aig-popover-cell:hover { border-color: var(--ui-accent-primary, #2d6fe8); }
 .aig-popover-empty { font-size: 11px; color: var(--ui-text-sub, #999); padding: 12px; text-align: center; }
 
 /* ── 매수 stepper (pill 형태) ── */
@@ -288,7 +288,7 @@
 
 /* ── chip 영역 dropzone hover ── */
 .aig-picker-chips.aig-dropzone-hover {
-  outline: 2px dashed var(--ui-accent-primary, #6cf);
+  outline: 2px dashed var(--ui-accent-primary, #2d6fe8);
   outline-offset: -4px;
   background: rgba(102, 204, 255, 0.05);
 }

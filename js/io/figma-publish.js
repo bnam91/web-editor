@@ -111,7 +111,7 @@ async function _buildFigmaSectionList() {
       row.className = 'figma-sec-row';
       row.innerHTML = `
         <input type="checkbox" class="figma-sec-cb" data-sec-id="${id}" checked
-          style="accent-color:#2563eb; cursor:pointer; flex-shrink:0;" />
+          style="accent-color:var(--ui-accent-primary); cursor:pointer; flex-shrink:0;" />
         <span style="font-size:11px; color:#ccc; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
           title="${name}">${name}${pageLabel}</span>
         <span class="figma-sec-badge ${isSynced ? 'synced' : 'new'}">${isSynced ? '✓ 업데이트' : '새 업로드'}</span>
@@ -210,7 +210,7 @@ async function doFigmaUpload() {
         retryBtn = document.createElement('button');
         retryBtn.id = 'figma-retry-btn';
         retryBtn.className = 'figma-upload-btn-primary';
-        retryBtn.style.cssText = 'margin-top:8px;width:100%;background:#2563eb;border:none;border-radius:6px;color:#fff;padding:6px 14px;font-size:11px;cursor:pointer;font-weight:600;';
+        retryBtn.style.cssText = 'margin-top:8px;width:100%;background:var(--ui-accent-primary);border:none;border-radius:6px;color:#fff;padding:6px 14px;font-size:11px;cursor:pointer;font-weight:600;';
         cancelBtn.parentElement.insertBefore(retryBtn, cancelBtn);
       }
       retryBtn.textContent = '↺ 재시도';

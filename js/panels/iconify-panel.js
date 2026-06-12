@@ -64,7 +64,7 @@ function _createModal() {
           style="width:56px;background:#111;border:1px solid #333;border-radius:4px;color:#ddd;font-size:12px;padding:5px 7px;text-align:center;font-family:Pretendard,-apple-system,sans-serif;">
         <span style="font-size:11px;color:#666;font-family:Pretendard,-apple-system,sans-serif;">px</span>
         <button id="iconify-insert-btn"
-          style="background:#2563eb;border:none;border-radius:6px;color:#fff;font-size:12px;padding:7px 18px;cursor:pointer;font-weight:600;font-family:Pretendard,-apple-system,sans-serif;opacity:0.4;" disabled>
+          style="background:var(--ui-accent-primary);border:none;border-radius:6px;color:#fff;font-size:12px;padding:7px 18px;cursor:pointer;font-weight:600;font-family:Pretendard,-apple-system,sans-serif;opacity:0.4;" disabled>
           삽입
         </button>
       </div>
@@ -222,6 +222,6 @@ async function _doInsert() {
 const _style = document.createElement('style');
 _style.textContent = `
   .iconify-icon-cell:hover { background:#1e1e1e !important; border-color:#444 !important; }
-  .iconify-icon-cell.sel   { background:#1a2a4a !important; border-color:#2563eb !important; }
+  .iconify-icon-cell.sel   { background:#1a2a4a !important; border-color:var(--ui-accent-primary) !important; }
 `;
 document.head.appendChild(_style);

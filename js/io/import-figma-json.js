@@ -224,7 +224,7 @@ export function openFigmaImportPreview(event) {
     listEl.innerHTML = data.frames.map((f, i) => `
       <label class="figma-sec-row" style="cursor:pointer;">
         <input type="checkbox" class="figma-import-cb" data-idx="${i}" checked
-          style="accent-color:#2563eb; cursor:pointer; flex-shrink:0;">
+          style="accent-color:var(--ui-accent-primary); cursor:pointer; flex-shrink:0;">
         <span style="flex:1; font-size:11px; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${_escapeHtml(f.name || `Frame ${i+1}`)}</span>
         <span style="font-size:10px; color:#555; white-space:nowrap;">${f.width || 860}×${f.height || 780}</span>
       </label>`).join('');
