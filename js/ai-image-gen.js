@@ -509,6 +509,11 @@
       window.showToast?.('❌ projectId 없음 — 저장 불가');
       return { ok: false, error: 'projectId 없음' };
     }
+    // H7/STATE-02: 생성(await) 동안 사용자가 다른 프로젝트로 전환했는지 감지.
+    // blob은 캡처된 projectId로 저장되지만, 아래 갤러리 push가 라이브 window.state(=전환된 B)에
+    // 들어가면 B 갤러리가 오염되고 캡처 A는 blob만 남아 갤러리 엔트리가 유실된다.
+    const switchedAway = _getProjectId() !== projectId;
+    const capturedItems = [];
     const items = [];
     const now = new Date().toISOString();
     const referenceMode = refs.length >= 2 ? 'composite' : 'single';
@@ -539,14 +544,40 @@
         },
         favorite: false,
       };
-      window.state.imageGallery = window.state.imageGallery || [];
-      window.state.imageGallery.push(galleryItem);
+      if (switchedAway) {
+        // 캡처된 A 파일에 직접 적재 (라이브 B state 미접촉)
+        capturedItems.push(galleryItem);
+      } else {
+        window.state.imageGallery = window.state.imageGallery || [];
+        window.state.imageGallery.push(galleryItem);
+      }
       items.push({ id: saveRes.id, dataUrl, blobPath: saveRes.blobPath });
+    }
+    if (switchedAway) {
+      // 전환 감지: 캡처 프로젝트 파일에 갤러리 엔트리를 직접 병합 (라이브 화면/저장 미오염)
+      await _appendGalleryToProject(projectId, capturedItems);
+      window.showToast?.(`✨ ${items.length}장 생성 — 생성 시작한 프로젝트에 저장됨 (다른 프로젝트로 전환되어 현재 화면엔 미표시)`);
+      return { ok: true, items, cost: res.cost };
     }
     window.buildAIImageGallery?.();
     window.triggerAutoSave?.();
     window.showToast?.(`✨ ${items.length}장 생성 완료 (₩${res.cost?.krwApprox || 0})`);
     return { ok: true, items, cost: res.cost };
+  }
+
+  // H7: 생성 중 프로젝트 전환 시, 캡처된 원래 프로젝트의 파일에 갤러리 엔트리를 직접 병합한다.
+  // 라이브 window.state(전환된 다른 프로젝트)를 건드리지 않아 오염을 막는다.
+  async function _appendGalleryToProject(pid, newItems) {
+    if (!pid || !newItems?.length) return;
+    try {
+      const existing = await window.electronAPI.loadProject(pid);
+      if (!existing) return;
+      existing.imageGallery = Array.isArray(existing.imageGallery) ? existing.imageGallery : [];
+      existing.imageGallery.push(...newItems);
+      await window.electronAPI.saveProject(existing);
+    } catch (e) {
+      console.warn('[ai-image-gen] H7 캡처 프로젝트 갤러리 적재 실패:', e);
+    }
   }
 
   // 모달 내부 submit 라우터를 위한 헬퍼 — ai-prompt.js에서 호출
