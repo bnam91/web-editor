@@ -15,15 +15,15 @@ export function showStepProperties(block) {
       <div class="stb-prop-item" data-idx="${i}">
         <div class="prop-row" style="align-items:center">
           <span class="prop-label" style="font-weight:600">스텝 ${i + 1}</span>
-          <button class="prop-btn prop-btn-danger stb-del-btn" data-idx="${i}" style="margin-left:auto;padding:3px 6px;line-height:0" title="삭제"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><polyline points="1,3 10,3"/><path d="M2.5,3V9.5h6V3"/><line x1="4" y1="3" x2="4" y2="1.5"/><line x1="7" y1="3" x2="7" y2="1.5"/><line x1="4" y1="1.5" x2="7" y2="1.5"/></svg></button>
+          <button class="prop-btn prop-btn-danger stb-del-btn" data-idx="${i}" style="margin-left:auto" title="삭제"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><polyline points="1,3 10,3"/><path d="M2.5,3V9.5h6V3"/><line x1="4" y1="3" x2="4" y2="1.5"/><line x1="7" y1="3" x2="7" y2="1.5"/><line x1="4" y1="1.5" x2="7" y2="1.5"/></svg></button>
         </div>
         <div class="prop-row">
           <span class="prop-label">제목</span>
-          <input type="text" class="prop-color-hex stb-title-input" data-idx="${i}" value="${(s.title || '').replace(/"/g, '&quot;')}" style="flex:1;width:auto;max-width:none">
+          <input type="text" class="prop-input stb-title-input" data-idx="${i}" value="${(s.title || '').replace(/"/g, '&quot;')}" style="flex:1;min-width:0">
         </div>
         <div class="prop-row">
           <span class="prop-label">설명</span>
-          <input type="text" class="prop-color-hex stb-desc-input" data-idx="${i}" value="${(s.desc || '').replace(/"/g, '&quot;')}" style="flex:1;width:auto;max-width:none">
+          <input type="text" class="prop-input stb-desc-input" data-idx="${i}" value="${(s.desc || '').replace(/"/g, '&quot;')}" style="flex:1;min-width:0">
         </div>
       </div>`).join('');
   }
