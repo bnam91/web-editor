@@ -314,7 +314,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 }
 .tpl-card-meta {
   font-size: 9px;
-  color: var(--ui-border-strong);
+  color: var(--ui-text-dim);
 }
 .tpl-card:hover .tpl-card-actions { opacity: 1; }
 .tpl-delete-btn:hover { background: var(--ui-danger-bg); color: var(--ui-danger); }
@@ -666,7 +666,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 }
 #logo-version-badge {
   font-size: 9px; font-weight: 500;
-  color: #505050; letter-spacing: 0.3px;
+  color: var(--ui-text-dim); letter-spacing: 0.3px;
   border: 1px solid var(--ui-bg-hover);
   border-radius: 3px;
   padding: 1px 5px;
@@ -709,7 +709,7 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 #project-id-display {
   display: block;
   font-size: 10px;
-  color: #484848;
+  color: var(--ui-text-dim);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   margin-top: 4px;
   font-family: monospace;
@@ -1193,7 +1193,7 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .layer-row-header .layer-item { flex: 1; padding: 0; height: 100%; border-radius: 0; }
 .layer-row-header .layer-item:hover { background: transparent; }
 .layer-item-name.editing { background: #2a3a55; color: #aecbff; outline: none; cursor: text; padding: 0 2px; }
-.layer-item-type { font-size: 9px; color: #4a4a4a; letter-spacing: 0.06em; text-transform: uppercase; }
+.layer-item-type { font-size: 9px; color: var(--ui-text-dim); letter-spacing: 0.06em; text-transform: uppercase; }
 .layer-ungroup-btn {
   display: none; margin-left: auto; padding: 2px 4px;
   width: 20px; height: 20px;

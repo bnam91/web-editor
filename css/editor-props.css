@@ -294,7 +294,7 @@
   width: 16px;
   flex-shrink: 0;
   font-size: 10px;
-  color: #666;
+  color: var(--ui-text-dim);
   text-align: center;
   font-weight: 600;
   letter-spacing: 0;

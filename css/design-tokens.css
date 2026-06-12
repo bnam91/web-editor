@@ -137,8 +137,8 @@
   /* ── Text ── */
   --text-default:               var(--p-gray-50);
   --text-sub:                   var(--p-gray-150);
-  --text-muted:                 var(--p-gray-250);
-  --text-dim:                   var(--p-gray-400);
+  --text-muted:                 #9e9e9e;   /* AA: was --p-gray-250 #777 3.47:1 → #9e9e9e ≥5.07:1 (editor-base와 정렬) */
+  --text-dim:                   #969696;   /* AA: was --p-gray-400 #555 2.08:1 → #969696 ≥4.59:1 (editor-base와 정렬) */
   --text-hint:                  var(--p-gray-350);  /* prop-hint, section-title */
 
   /* ── Status ── */
