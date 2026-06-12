@@ -126,7 +126,7 @@
   flex: 1;
   background: #141414;
   border: 1px solid #333;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   color: #e0e0e0;
   padding: 6px 9px;
   font-size: 12px;
@@ -141,7 +141,7 @@
   color: #ccc;
   font-size: 11px;
   padding: 5px 9px;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   cursor: pointer;
   height: 28px;
   white-space: nowrap;
@@ -237,7 +237,7 @@
 .settings-btn {
   font-size: 12px;
   padding: 6px 16px;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   cursor: pointer;
   border: 1px solid #3a3a3a;
 }

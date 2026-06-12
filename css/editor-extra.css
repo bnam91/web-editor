@@ -148,7 +148,7 @@ body.preview-mode #preview-navigator { display: flex; }
   padding: 5px 10px;
   background: #1e2a3e;
   border: 1px solid #2d4a72;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   color: #6aabf7;
   font-size: 11px;
   font-weight: 600;
@@ -206,7 +206,7 @@ body.preview-mode #preview-navigator { display: flex; }
 .anim-modal-close {
   width: 26px; height: 26px;
   display: flex; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 5px;
+  background: transparent; border: none; border-radius: var(--ui-radius-sm);
   color: var(--ui-text-dim); cursor: pointer; transition: all 0.12s;
 }
 .anim-modal-close:hover { background: var(--ui-border); color: #ccc; }
@@ -352,7 +352,7 @@ body.preview-mode #preview-navigator { display: flex; }
   font-size: 11px;
   line-height: 1.4;
   padding: 7px 10px;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-md);
   margin-bottom: 8px;
 }
 
@@ -1045,7 +1045,7 @@ body.preview-mode #preview-navigator { display: flex; }
   flex: 1;
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border);
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   color: var(--ui-text);
   font-size: 11px;
   padding: 5px 8px;
@@ -1064,7 +1064,7 @@ body.preview-mode #preview-navigator { display: flex; }
 .comp-shelf-save-btn {
   background: var(--ui-accent-primary);
   border: none;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   color: #fff;
   font-size: 11px;
   font-weight: 600;
@@ -1200,7 +1200,7 @@ body.preview-mode #preview-navigator { display: flex; }
   align-items: center;
   gap: 8px;
   padding: 7px 8px;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-md);
   cursor: pointer;
   transition: background 0.1s;
   user-select: none;
@@ -1442,7 +1442,7 @@ body.preview-mode #preview-navigator { display: flex; }
   flex: 1;
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border);
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   color: var(--ui-text);
   font-size: 11px;
   padding: 5px 8px;
@@ -1467,7 +1467,7 @@ body.preview-mode #preview-navigator { display: flex; }
 .comp-shelf-save-btn {
   background: var(--ui-accent-primary);
   border: none;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   color: #fff;
   font-size: 11px;
   font-weight: 600;

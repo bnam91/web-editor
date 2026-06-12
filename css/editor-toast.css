@@ -197,7 +197,7 @@
   display: flex; align-items: center; width: 100%;
   height: 28px; padding: 0 10px; line-height: 1; /* 세로 중앙 정렬 명시 */
   background: transparent; border: none;
-  border-radius: 5px; color: var(--ui-text-sub);
+  border-radius: var(--ui-radius-sm); color: var(--ui-text-sub);
   font-size: 11px; font-weight: 500;
   cursor: pointer; text-align: left;
   transition: background 0.1s, color 0.1s;

@@ -521,7 +521,7 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   font-weight: 500;
   line-height: 1;
   padding: 5px 8px;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   white-space: nowrap;
   z-index: 20;
   pointer-events: none;
