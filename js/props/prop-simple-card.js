@@ -457,6 +457,36 @@ function showSimpleCardProperties(block) {
   const textBgSwatch = document.getElementById('cvb-text-bg-swatch');
   const textBgPick2 = document.getElementById('cvb-text-bg-pick');
   const syncSwatch = (v) => { if (textBgSwatch) textBgSwatch.style.background = v || 'transparent'; };
+  // dataset.textBg를 공유하는 두 컨트롤(Card Size raw + Text Area 일괄)의 위젯을 양방향 동기화 —
+  // 한쪽 변경 시 다른쪽 스와치/입력값이 stale로 남아 조용히 덮어쓰던 이중소스 desync 수정.
+  function syncTextBgUI() {
+    const v = block.dataset.textBg || '';
+    const isT = v === 'transparent';
+    const isHex6 = /^#[0-9a-fA-F]{6}$/.test(v);
+    // cluster1 (Card Size)
+    const c1raw = document.getElementById('cvb-text-bg-raw');
+    const c1sw  = document.getElementById('cvb-text-bg-swatch');
+    const c1pk  = document.getElementById('cvb-text-bg-pick');
+    if (c1raw) { c1raw.value = isT ? '' : v; c1raw.title = v; }
+    if (c1sw)  c1sw.style.background = isT ? 'transparent' : (v || 'transparent');
+    if (c1pk && isHex6) c1pk.value = v;
+    // cluster2 (Text Area 일괄)
+    const c2pk = document.getElementById('cvb-textbg-pick');
+    const c2hx = document.getElementById('cvb-textbg-hex');
+    const c2bt = document.getElementById('cvb-textbg-transparent-btn');
+    const c2sw = c2pk && c2pk.closest('.prop-color-swatch');
+    if (c2bt) c2bt.classList.toggle('active', isT);
+    if (c2pk) c2pk.disabled = isT;
+    if (c2hx) c2hx.disabled = isT;
+    if (isT) {
+      if (c2hx) c2hx.value = 'transparent';
+      if (c2sw) { c2sw.style.background = ''; c2sw.style.backgroundImage = 'repeating-conic-gradient(#888 0% 25%,#555 0% 50%)'; c2sw.style.backgroundSize = '8px 8px'; }
+    } else {
+      if (c2sw) { c2sw.style.backgroundImage = ''; c2sw.style.background = v || '#f5f5f5'; }
+      if (isHex6) { if (c2pk) c2pk.value = v; if (c2hx) c2hx.value = v; }
+      else if (c2hx && v.length <= 11) c2hx.value = v; // 그라데이션 등 긴 값은 스와치만 반영(hex 필드 미변경)
+    }
+  }
   if (textBgRaw) {
     // 실시간 preview (input 이벤트) — swatch만 갱신 (render는 change에서)
     textBgRaw.addEventListener('input', () => syncSwatch(sanitizeCss(textBgRaw.value.trim())));
@@ -472,6 +502,7 @@ function showSimpleCardProperties(block) {
       else delete block.dataset.textBg;
       syncSwatch(v);
       textBgRaw.title = v;
+      syncTextBgUI();
       window.renderCanvas(block);
       window.pushHistory?.('라벨 배경');
       window.scheduleAutoSave?.();
@@ -484,6 +515,7 @@ function showSimpleCardProperties(block) {
       block.dataset.textBg = v;
       if (textBgRaw) { textBgRaw.value = v; textBgRaw.title = v; }
       syncSwatch(v);
+      syncTextBgUI();
       window.renderCanvas(block);
     });
     textBgPick2.addEventListener('change', () => window.pushHistory?.('라벨 배경'));
@@ -495,6 +527,7 @@ function showSimpleCardProperties(block) {
       block.dataset.textBg = grad;
       if (textBgRaw) { textBgRaw.value = grad; textBgRaw.title = grad; }
       syncSwatch(grad);
+      syncTextBgUI();
       window.renderCanvas(block);
       window.pushHistory?.('라벨 배경 그라데이션');
       window.scheduleAutoSave?.();
@@ -627,6 +660,7 @@ function showSimpleCardProperties(block) {
     textBgPick.value = v;
     textBgHex.value  = v;
     if (textBgPickSwatch) textBgPickSwatch.style.background = v;
+    syncTextBgUI();
   };
 
   textBgTransBtn.addEventListener('click', () => {

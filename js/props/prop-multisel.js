@@ -173,10 +173,11 @@ function _applyDimension(wrappers, field, value) {
       wrapper.dataset.offsetY = String(num);
     } else if (field === 'w') {
       wrapper.style.width = num + 'px';
-      if (wrapper.dataset.width !== undefined) wrapper.dataset.width = String(num);
+      // X/Y(offsetX/Y)와 동일하게 dataset도 항상 기록 — 재로드 시 width 폴백 일관성 확보
+      wrapper.dataset.width = String(num);
     } else if (field === 'h') {
       wrapper.style.height = num + 'px';
-      if (wrapper.dataset.height !== undefined) wrapper.dataset.height = String(num);
+      wrapper.dataset.height = String(num);
     }
   });
 

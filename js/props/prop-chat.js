@@ -266,6 +266,13 @@ export function showChatProperties(block) {
   function bindMsgEvents() {
     // 텍스트 수정
     propPanel.querySelectorAll('.chb-text-input').forEach(inp => {
+      // input: blur 전이라도 in-memory messages·dataset를 실시간 동기화
+      // (add/delete가 rebindMsgList로 messages를 재직렬화할 때 미커밋 편집 유실 방지)
+      inp.addEventListener('input', e => {
+        const i = parseInt(e.target.dataset.idx);
+        messages[i].text = e.target.value;
+        block.dataset.messages = JSON.stringify(messages);
+      });
       inp.addEventListener('change', e => {
         const i = parseInt(e.target.dataset.idx);
         messages[i].text = e.target.value;
