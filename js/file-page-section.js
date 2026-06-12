@@ -103,6 +103,14 @@ function buildFilePageSection() {
     item.appendChild(delBtn);
     item.addEventListener('click', () => window.switchPage(page.id));
 
+    // a11y(N8): 키보드 포커스/활성화 — tabindex 없는 div라 :focus-visible 규칙이 dead였음
+    item.tabIndex = 0;
+    item.setAttribute('role', 'button');
+    item.setAttribute('aria-label', `${page.name || '페이지'}${isActive ? ' (현재)' : ''}`);
+    item.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.switchPage(page.id); }
+    });
+
     // Drag-and-drop reorder
     item.setAttribute('draggable', 'true');
     item.addEventListener('dragstart', e => {

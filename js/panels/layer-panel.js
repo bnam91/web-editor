@@ -564,6 +564,20 @@ export function buildLayerPanel() {
     }
   });
 
+  // a11y(N8): 키보드 포커스/활성화를 모든 인터랙티브 레이어 행에 보장 (개별 생성부 누락 방지 후처리).
+  // role이 이미 부여된 행(개별 생성부에서 처리)은 건너뛰어 이중 keydown 바인딩을 막는다.
+  panel.querySelectorAll('.layer-item, .layer-row-header').forEach(row => {
+    if (row.getAttribute('role')) return;
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    const nm = row.querySelector('.layer-item-name')?.textContent?.trim();
+    const ty = row.querySelector('.layer-item-type')?.textContent?.trim();
+    if (nm) row.setAttribute('aria-label', `${nm}${ty ? ' ' + ty : ''}`);
+    row.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+    });
+  });
+
   if (window.buildFilePageSection) window.buildFilePageSection();
 
   // Inspector 탭이 활성화 상태이면 실시간 갱신

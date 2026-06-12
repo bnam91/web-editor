@@ -154,6 +154,13 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const displayName = block.dataset.layerName || labels[type] || type;
   item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name">${displayName}</span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
   item.prepend(makeIndents(depth));
+  // a11y(N8): 키보드 포커스/활성화 — tabindex 없는 div라 :focus-visible 규칙이 dead였음
+  item.tabIndex = 0;
+  item.setAttribute('role', 'button');
+  item.setAttribute('aria-label', `${displayName} 레이어`);
+  item.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.click(); }
+  });
   item._dragTarget = dragTarget;
   addLayerRename(item.querySelector('.layer-item-name'), block, labels[type] || type);
 
@@ -266,6 +273,13 @@ function makeLayerGroupItem(groupEl, sec, appendRowFn) {
       </svg>
     </button>`;
   header.prepend(makeIndents(1));
+  // a11y(N8): 키보드 포커스/활성화
+  header.tabIndex = 0;
+  header.setAttribute('role', 'button');
+  header.setAttribute('aria-label', `${name} 그룹`);
+  header.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
+  });
   addLayerRename(header.querySelector('.layer-item-name'), groupEl, 'Group', 'name');
 
   header.addEventListener('click', e => {
@@ -556,6 +570,13 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
   wrapper.prepend(makeIndents(depth));
   addLayerRename(wrapper.querySelector('.layer-item-name'), ssEl, defaultName, 'layerName');
 
+  // a11y(N8): 키보드 포커스/활성화
+  wrapper.tabIndex = 0;
+  wrapper.setAttribute('role', 'button');
+  wrapper.setAttribute('aria-label', `${name} ${typeLabel}`);
+  wrapper.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); wrapper.click(); }
+  });
   wrapper.setAttribute('draggable', 'true');
   wrapper.addEventListener('click', e => {
     if (e.target.classList.contains('editing')) return;

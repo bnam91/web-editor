@@ -791,4 +791,11 @@ button:focus-visible,
   outline: 2px solid var(--ui-accent-primary, #2d6fe8);
   outline-offset: 1px;
 }
+/* a11y(N8): overflow:hidden 컨테이너(.layer-children/.layer-row-* 등) 안의 항목은
+   바깥 outline(offset 1px)이 잘리므로 inset(음수 offset)으로 링을 요소 안쪽에 렌더한다. */
+.layer-item:focus-visible,
+.layer-row-header:focus-visible,
+.file-page-item:focus-visible {
+  outline-offset: -2px;
+}
 
