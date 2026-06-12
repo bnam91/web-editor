@@ -63,14 +63,18 @@ async function captureThumbnail() {
 /* ── 프로젝트 파일 저장 (Electron: projects/{id}.json, 브라우저: localStorage) ── */
 // DBG-11: 저장 중 대기열 패턴 — 동시 저장 race condition 방지
 let _isSavingToFile = false;
-let _pendingSaveData = null; // { snapshot, opts }
+// H5: 프로젝트별 대기 큐 — 단일 슬롯이면 in-flight 중 2건+ 큐잉 시 중간 프로젝트 저장이
+// 덮여 영구 드롭(빠른 연속 탭전환 시 중간 프로젝트 디스크 미반영). targetId별로 최신값 coalesce.
+const _pendingSaves = new Map(); // targetId → { snapshot, opts }
 // DEF-03: 마지막 저장 완료 이후 변경이 있었는지 — 무편집 방문/언로드가 파일을 재기록(updatedAt 오염)하지 않도록 게이트
 let _dirtySinceSave = false;
 
 async function saveProjectToFile(snapshot, opts = {}) {
-  // 저장 중이면 최신 데이터를 pendingData로 대기
+  const _targetId = opts.projectId || activeProjectId;
+  // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
+  // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
-    _pendingSaveData = { snapshot, opts };
+    if (_targetId) _pendingSaves.set(_targetId, { snapshot, opts });
     return;
   }
   _isSavingToFile = true;
@@ -79,10 +83,11 @@ async function saveProjectToFile(snapshot, opts = {}) {
     _dirtySinceSave = false;
   } finally {
     _isSavingToFile = false;
-    if (_pendingSaveData) {
-      const { snapshot: ps, opts: po } = _pendingSaveData;
-      _pendingSaveData = null;
-      await saveProjectToFile(ps, po);
+    // 대기 중인 프로젝트별 저장을 FIFO로 순차 드레인 (드롭 없음)
+    if (_pendingSaves.size) {
+      const [nextId, nextSave] = _pendingSaves.entries().next().value;
+      _pendingSaves.delete(nextId);
+      await saveProjectToFile(nextSave.snapshot, nextSave.opts);
     }
   }
 }
