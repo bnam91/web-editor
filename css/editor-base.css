@@ -88,7 +88,7 @@
   --ui-shadow-lg: 0 8px 24px rgba(0,0,0,0.5);   /* 메뉴 팝업/패널 (최대 클러스터) */
   --ui-shadow-xl: 0 12px 48px rgba(0,0,0,0.6);  /* 모달 다이얼로그 */
 
-  /* ── font-size (UI chrome) 토큰 — css/ 실측 분포 기반. 캔버스 .tb-*/--preset-* 은 별도 (정의만, 치환은 2단계) ── */
+  /* ── font-size (UI chrome) 토큰 — css/ 실측 분포 기반. 캔버스 콘텐츠(.tb-* 와 --preset-* 패밀리)는 별도 (정의만, 치환은 2단계) ── */
   --ui-fs-9:    9px;    /* 실측 36회 — 최소 캡션/뱃지카운트 */
   --ui-fs-10:   10px;   /* 실측 90회 — 보조 라벨/마이크로 텍스트 */
   --ui-fs-base: 11px;   /* 실측 160회 (압도적 1위) — UI 크롬 기본 본문/컨트롤 */
@@ -126,8 +126,8 @@
   margin-bottom: 0;
 }
 #ds-panel-header .ds-panel-title {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--ui-fs-9);
+  font-weight: var(--ui-fw-bold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ui-text-dim);
@@ -135,7 +135,7 @@
 #ds-panel-header .ds-panel-chevron {
   color: var(--ui-text-dim);
   transition: transform 0.18s;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
 }
 #design-system-panel.open #ds-panel-header .ds-panel-chevron {
   transform: rotate(180deg);
@@ -148,8 +148,8 @@
   display: block;
 }
 .ds-section-label {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--ui-fs-9);
+  font-weight: var(--ui-fw-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ui-text-dim);
@@ -170,7 +170,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   padding: 0 6px;
   outline: none;
   cursor: pointer;
@@ -180,7 +180,7 @@
 .ds-new-preset-btn {
   flex: 1;
   padding: 4px 8px;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   background: var(--ui-bg-elevated);
   border: 1px dashed var(--ui-border);
   border-radius: 4px;
@@ -198,7 +198,7 @@
   margin-bottom: 5px;
 }
 .ds-token-label {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-sub);
   width: var(--ui-form-label-w);
   flex-shrink: 0;
@@ -220,7 +220,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   font-family: monospace;
   padding: 0 5px;
   outline: none;
@@ -234,7 +234,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   padding: 0 4px;
   outline: none;
   cursor: pointer;
@@ -246,7 +246,7 @@
   accent-color: var(--ui-accent-primary);
 }
 .ds-slider-row span {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-sub);
   width: 28px;
   text-align: right;
@@ -265,8 +265,8 @@
   border: none;
   border-radius: var(--ui-radius-sm);
   color: #fff;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--ui-fs-base);
+  font-weight: var(--ui-fw-semibold);
   cursor: pointer;
   transition: opacity 0.15s;
 }
@@ -278,7 +278,7 @@
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-sm);
   color: var(--ui-text-muted);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
 }
@@ -290,7 +290,7 @@
   margin-bottom: 4px;
 }
 .ds-colorvars-empty {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-dim);
   padding: 4px 0 6px;
 }
@@ -313,7 +313,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 3px;
   color: var(--ui-text-muted);
-  font-size: 14px;
+  font-size: var(--ui-fs-14);
   line-height: 1;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
@@ -336,8 +336,8 @@
   border: none;
   border-bottom: 1px solid #2e2e2e;
   color: #888;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--ui-fs-base);
+  font-weight: var(--ui-fw-semibold);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
@@ -381,8 +381,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--ui-fs-9);
+  font-weight: var(--ui-fw-bold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ui-text-dim);
@@ -410,7 +410,7 @@
 
 /* 변수 없음 메시지 */
 .var-empty {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-dim);
   padding: 4px 0;
 }
@@ -430,8 +430,8 @@
 
 /* 타입 뱃지 */
 .var-item-type {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--ui-fs-9);
+  font-weight: var(--ui-fw-bold);
   letter-spacing: 0.04em;
   padding: 1px 4px;
   border-radius: 3px;
@@ -453,7 +453,7 @@
 /* 변수 이름 */
 .var-item-name {
   flex: 1;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub);
   white-space: nowrap;
   overflow: hidden;
@@ -470,7 +470,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 3px;
   color: var(--ui-text-sub);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   font-family: monospace;
   text-align: center;
   outline: none;
@@ -515,7 +515,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   padding: 0 7px;
   outline: none;
 }
@@ -528,7 +528,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   padding: 0 5px;
   outline: none;
   cursor: pointer;
@@ -544,8 +544,8 @@
   flex: 1;
   height: 24px;
   border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--ui-fs-base);
+  font-weight: var(--ui-fw-semibold);
   cursor: pointer;
   border: none;
   transition: opacity 0.13s;
@@ -574,7 +574,7 @@
   margin-bottom: 5px;
 }
 .var-bind-label {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-dim);
   width: 34px;
   flex-shrink: 0;
@@ -582,7 +582,7 @@
 .var-bind-select {
   flex: 1;
   height: 22px;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
 }
 
 /* ─────────────────────────────── */
@@ -623,7 +623,7 @@ body {
 /* Electron: 신호등(약 80px) 영역 확보 */
 .electron-app #topbar { padding-left: 80px; }
 .electron-app.fullscreen #topbar { padding-left: 12px; }
-#topbar .logo { font-size: 14px; font-weight: 600; color: #fff; margin-right: 8px; }
+#topbar .logo { font-size: var(--ui-fs-14); font-weight: var(--ui-fw-semibold); color: #fff; margin-right: 8px; }
 #topbar .divider { width: 1px; height: 20px; background: var(--ui-border-mid); flex-shrink: 0; margin: 0 2px; }
 #topbar .spacer { flex: 1; }
 
@@ -651,7 +651,7 @@ body {
   flex: 0 1 148px; min-width: 48px; /* 기본 148px, 탭 많아지면 줄어들어 한 화면에 맞춤 */
   background: var(--ui-bg-elevated); border: 1px solid var(--ui-border);
   border-radius: 6px; cursor: pointer;
-  font-size: 12px; font-weight: 500; color: #888;
+  font-size: var(--ui-fs-12); font-weight: var(--ui-fw-medium); color: #888;
   transition: background 0.12s, color 0.12s;
   overflow: hidden;
   -webkit-app-region: no-drag;
@@ -700,27 +700,27 @@ body {
   min-width: 220px;
   background: var(--ui-bg-card); border: 1px solid var(--ui-border-mid);
   border-radius: 8px; padding: 6px 0;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: var(--ui-shadow-lg);
   z-index: 9999;
 }
 #tab-add-wrap.open #tab-add-menu { display: block; }
 .tab-add-item {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 14px; cursor: pointer;
-  font-size: 12px; color: #ccc;
+  font-size: var(--ui-fs-12); color: #ccc;
   transition: background 0.1s;
 }
 .tab-add-item:hover { background: var(--ui-bg-hover); color: #fff; }
 .tab-add-item svg { flex-shrink: 0; opacity: 0.5; }
 .tab-add-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tab-add-item-date { font-size: 10px; color: var(--ui-text-dim); flex-shrink: 0; }
-.tab-add-empty { padding: 12px 14px; font-size: 12px; color: var(--ui-text-dim); }
+.tab-add-item-date { font-size: var(--ui-fs-10); color: var(--ui-text-dim); flex-shrink: 0; }
+.tab-add-empty { padding: 12px 14px; font-size: var(--ui-fs-12); color: var(--ui-text-dim); }
 
 .tb-btn {
   height: 28px; padding: 0 10px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid transparent;
-  border-radius: var(--ui-radius-sm); color: var(--ui-text-sub); font-size: 11px;
+  border-radius: var(--ui-radius-sm); color: var(--ui-text-sub); font-size: var(--ui-fs-base);
   cursor: pointer; transition: all 0.15s;
 }
 .tb-btn:hover { background: var(--ui-border); color: #fff; border-color: var(--ui-border-strong); }
@@ -735,7 +735,7 @@ body {
 /* Topbar/Dropdown 안의 작은 status 배지 (debug-port, figma-bridge 등) — 토큰 통일 */
 .tb-badge {
   display: inline-flex; align-items: center;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-dim);
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border-mid);
@@ -775,17 +775,17 @@ body {
 }
 .zoom-btn {
   width: 22px; height: 22px; background: transparent; border: none;
-  border-radius: var(--ui-radius-sm); color: var(--ui-text-sub); font-size: 12px; cursor: pointer;
+  border-radius: var(--ui-radius-sm); color: var(--ui-text-sub); font-size: var(--ui-fs-12); cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: all 0.15s;
 }
 .zoom-btn:hover { background: var(--ui-border); color: #fff; }
-#zoom-display { font-size: 11px; color: #ccc; width: 36px; text-align: center; user-select: none; }
+#zoom-display { font-size: var(--ui-fs-base); color: #ccc; width: 36px; text-align: center; user-select: none; }
 .zoom-sep { width: 1px; height: 14px; background: var(--ui-border-mid); margin: 0 2px; }
-#canvas-size-label { font-size: 11px; color: var(--ui-text-muted); letter-spacing: 0.01em; }
+#canvas-size-label { font-size: var(--ui-fs-base); color: var(--ui-text-muted); letter-spacing: 0.01em; }
 
 /* ── Autosave Indicator ── */
 #autosave-indicator {
-  font-size: 10px; color: var(--ui-text-dim);
+  font-size: var(--ui-fs-10); color: var(--ui-text-dim);
   display: inline-flex; align-items: center; gap: 4px;
   opacity: 0; transition: opacity 0.3s;
   white-space: nowrap; padding: 0 4px;

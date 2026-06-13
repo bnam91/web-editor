@@ -17,8 +17,8 @@
   border: 0;
   background: transparent;
   color: var(--ui-text-sub, #999);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--ui-fs-12);
+  font-weight: var(--ui-fw-medium);
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
@@ -32,7 +32,7 @@
 /* ── 이미지 모드 패널 ── */
 .aig-image-panel { display: flex; flex-direction: column; gap: 10px; }
 .aig-row { display: flex; align-items: center; gap: 8px; }
-.aig-row-label { font-size: 11px; color: var(--ui-text-sub, #999); min-width: 56px; flex-shrink: 0; }
+.aig-row-label { font-size: var(--ui-fs-base); color: var(--ui-text-sub, #999); min-width: 56px; flex-shrink: 0; }
 .aig-select {
   flex: 1;
   background: var(--ui-bg-card, #1c1c1c);
@@ -40,10 +40,10 @@
   border: 1px solid var(--ui-border-mid, #333);
   border-radius: 6px;
   padding: 6px 8px;
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
 }
 .aig-mode-radios { display: flex; gap: 12px; flex: 1; }
-.aig-mode-radios label { font-size: 12px; color: var(--ui-text-base, #f0f0f0); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.aig-mode-radios label { font-size: var(--ui-fs-12); color: var(--ui-text-base, #f0f0f0); cursor: pointer; display: flex; align-items: center; gap: 4px; }
 
 /* ── Picker 영역 ── */
 .aig-picker {
@@ -59,7 +59,7 @@
   color: var(--ui-text-base, #f0f0f0);
   border: 1px solid var(--ui-border-mid, #333);
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   cursor: pointer;
 }
 .aig-picker-btn:hover { background: var(--ui-bg-hover, #333); }
@@ -73,7 +73,7 @@
   background-color: var(--ui-bg-base, #2a2a2a);
   border: 1px solid var(--ui-border-mid, #444);
   display: flex; align-items: center; justify-content: center;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-sub, #ccc);
   overflow: hidden;
 }
@@ -82,7 +82,7 @@
   background: rgba(0,0,0,0.6);
   padding: 1px 4px;
   border-radius: 3px;
-  font-size: 9px;
+  font-size: var(--ui-fs-9);
 }
 .aig-chip-x {
   position: absolute; top: -4px; right: -4px;
@@ -91,7 +91,7 @@
   color: #fff;
   border: 0;
   border-radius: 50%;
-  font-size: 9px;
+  font-size: var(--ui-fs-9);
   cursor: pointer;
   line-height: 1;
 }
@@ -104,12 +104,12 @@
   border: 1px solid var(--ui-border-mid, #333);
   border-radius: 8px;
   padding: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: var(--ui-shadow-lg);
   max-width: 240px;
   max-height: 320px;
   overflow-y: auto;
 }
-.aig-popover-title { font-size: 11px; color: var(--ui-text-sub, #999); margin-bottom: 6px; }
+.aig-popover-title { font-size: var(--ui-fs-base); color: var(--ui-text-sub, #999); margin-bottom: 6px; }
 .aig-popover-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 .aig-popover-cell {
   width: 100%; aspect-ratio: 1;
@@ -121,7 +121,7 @@
   border: 1px solid transparent;
 }
 .aig-popover-cell:hover { border-color: var(--ui-accent-primary, #2d6fe8); }
-.aig-popover-empty { font-size: 11px; color: var(--ui-text-sub, #999); padding: 12px; text-align: center; }
+.aig-popover-empty { font-size: var(--ui-fs-base); color: var(--ui-text-sub, #999); padding: 12px; text-align: center; }
 
 /* ── 매수 stepper (pill 형태) ── */
 .aig-count-seg {
@@ -145,7 +145,7 @@
   border-radius: 999px;
   color: var(--ui-text, #ddd);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ui-fs-14);
   line-height: 1;
   padding: 0;
 }
@@ -154,15 +154,15 @@
 .aig-count-val {
   flex: 1;
   text-align: center;
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: var(--ui-fw-semibold);
+  font-size: var(--ui-fs-12);
   color: var(--ui-text, #ddd);
   user-select: none;
   padding: 0 4px;
   white-space: nowrap;
 }
 .aig-count-x {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   opacity: 0.6;
   margin-right: 1px;
 }
@@ -174,7 +174,7 @@
   border: 1px solid rgba(168, 85, 247, 0.5);
   border-radius: 6px;
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   cursor: pointer;
   margin-right: 6px;
 }
@@ -192,7 +192,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text, #ddd);
   cursor: pointer;
 }
@@ -214,7 +214,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 4px;
   color: var(--ui-text, #ddd);
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -240,7 +240,7 @@
   font-variant-numeric: tabular-nums;
 }
 .aig-outpaint-info-detail {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub, #999);
   margin-top: 3px;
   font-variant-numeric: tabular-nums;
@@ -295,7 +295,7 @@
 
 /* ── 비용 표시 ── */
 .aig-cost {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub, #999);
   margin-top: 2px;
 }
@@ -312,7 +312,7 @@
 }
 .aig-preview-actions { display: flex; gap: 6px; margin-top: 6px; }
 .aig-preview-actions button {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   padding: 3px 6px;
   background: var(--ui-bg-card, #1c1c1c);
   color: var(--ui-text-base, #f0f0f0);
@@ -325,7 +325,7 @@
    File 패널 — AI Images 섹션
 ══════════════════════════════════════ */
 .ai-img-count {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-sub, #999);
   background: var(--ui-bg-card, #1c1c1c);
   padding: 1px 6px;
@@ -384,7 +384,7 @@
   border-radius: 4px;
   background: rgba(255,255,255,0.15);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   cursor: pointer;
   padding: 0;
   line-height: 1;
@@ -392,7 +392,7 @@
 .ai-img-cell-actions button:hover { background: rgba(255,255,255,0.3); }
 .ai-img-grid-empty {
   grid-column: 1 / -1;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub, #888);
   padding: 12px;
   text-align: center;

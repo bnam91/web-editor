@@ -56,7 +56,7 @@
 .st-btn {
   height: 18px; padding: 0 6px;
   background: transparent; border: none; border-radius: var(--ui-radius-sm);
-  color: var(--ui-text-muted); font-size: 10px; cursor: pointer; white-space: nowrap;
+  color: var(--ui-text-muted); font-size: var(--ui-fs-10); cursor: pointer; white-space: nowrap;
   transition: background 0.15s ease, color 0.15s ease;
 }
 .st-btn:hover { background: var(--ui-border); color: #fff; }
@@ -102,13 +102,13 @@
   border-bottom: 1px solid var(--ui-border, #333);
 }
 .smp-title {
-  font-size: 14px;
+  font-size: var(--ui-fs-14);
   color: var(--ui-text, #eee);
-  font-weight: 500;
+  font-weight: var(--ui-fw-medium);
 }
 .smp-close {
   background: transparent; border: none; color: #888; cursor: pointer;
-  font-size: 16px; padding: 2px 8px; line-height: 1;
+  font-size: var(--ui-fs-16); padding: 2px 8px; line-height: 1;
   border-radius: 4px;
   transition: background 120ms, color 120ms;
 }
@@ -121,7 +121,7 @@
   border-radius: 6px;
   padding: 10px 12px;
   font-family: 'Pretendard', 'SF Pro', sans-serif;
-  font-size: 13px;
+  font-size: var(--ui-fs-13);
   line-height: 1.55;
   color: var(--ui-text, #eee);
   resize: vertical;
@@ -129,7 +129,7 @@
 .smp-textarea:focus { outline: 1px solid var(--ui-accent-primary, #3b82f6); border-color: var(--ui-accent-primary, #3b82f6); }
 .smp-foot {
   display: flex; justify-content: space-between; align-items: center;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-muted, #777);
   padding: 0 2px;
 }
@@ -199,9 +199,9 @@
   border-bottom: 1px solid var(--ui-border, #333);
 }
 .spp-title {
-  font-size: 13px;
+  font-size: var(--ui-fs-13);
   color: var(--ui-text, #eee);
-  font-weight: 500;
+  font-weight: var(--ui-fw-medium);
 }
 .spp-close {
   background: transparent; border: none; color: #888; cursor: pointer;
@@ -217,7 +217,7 @@
 }
 .spp-toggle {
   display: flex; align-items: center; gap: 8px;
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   color: var(--ui-text, #eee);
   cursor: pointer;
   user-select: none;
@@ -228,7 +228,7 @@
   cursor: pointer;
 }
 .spp-reason-label {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-muted, #888);
 }
 .spp-reason {
@@ -239,7 +239,7 @@
   border-radius: 6px;
   padding: 8px 10px;
   font-family: 'Pretendard', 'SF Pro', sans-serif;
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   line-height: 1.5;
   color: var(--ui-text, #eee);
   resize: vertical;
@@ -247,7 +247,7 @@
 .spp-reason:focus { outline: 1px solid #e8c547; border-color: #e8c547; }
 .spp-foot {
   display: flex; justify-content: space-between; align-items: center;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-muted, #777);
   padding: 0 2px;
 }

@@ -13,7 +13,7 @@
   box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.35);
   color: var(--ui-text, #ddd);
   font-family: Pretendard, -apple-system, 'SF Pro Display', 'Inter', sans-serif;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   line-height: 16px;
   user-select: none;
   overflow: hidden;
@@ -224,7 +224,7 @@
   background: transparent;
   border: none;
   color: var(--ui-text, #ddd);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   font-weight: 400;
   padding: 0 4px 0 8px;
   height: 100%;
@@ -249,7 +249,7 @@
   background: transparent;
   border: none;
   color: var(--ui-text, #ddd);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   line-height: 16px;
   height: 100%;
   padding: 0;
@@ -285,7 +285,7 @@
   background: transparent;
   border: none;
   color: var(--ui-text, #ddd);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   line-height: 16px;
   height: 100%;
   padding: 0;
@@ -295,7 +295,7 @@
   font-variant-numeric: tabular-nums;
 }
 .goya-cp-suffix {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: rgba(255,255,255,0.4);
   user-select: none;
   flex-shrink: 0;
@@ -352,7 +352,7 @@
   border: 1px solid transparent;
   border-radius: 4px;
   color: var(--ui-text, #ddd);
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   height: 24px;
   padding: 0 4px;
   outline: none;
@@ -371,7 +371,7 @@
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   color: var(--ui-text-muted, #888);
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   background-size: contain; background-position: center; background-repeat: no-repeat;
   background-color: var(--ui-bg-input, #1a1a1a);
   transition: border-color 0.15s, color 0.15s;
@@ -392,7 +392,7 @@
   border: 1px solid transparent;
   border-radius: 4px;
   color: var(--ui-text, #ddd);
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   height: 24px;
   padding: 0 4px;
   cursor: pointer;
@@ -404,7 +404,7 @@
 .goya-cp-placeholder {
   padding: 40px 10px;
   text-align: center;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-muted, #888);
   letter-spacing: 0.02em;
 }

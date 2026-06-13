@@ -58,7 +58,7 @@
   border-radius: 12px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--ui-shadow-xl);
   color: var(--ui-text);
 }
 
@@ -80,8 +80,8 @@ body.preview-mode #claude-pm-panel { display: none !important; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--ui-fs-13);
+  font-weight: var(--ui-fw-semibold);
   color: var(--ui-text);
 }
 .cpm-title svg { color: #6b9eff; }
@@ -110,7 +110,7 @@ body.preview-mode #claude-pm-panel { display: none !important; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   color: var(--ui-text);
 }
 .cpm-status-dot {
@@ -123,7 +123,7 @@ body.preview-mode #claude-pm-panel { display: none !important; }
 .cpm-status-dot.connected { background: var(--ui-success); box-shadow: 0 0 6px rgba(127, 200, 127, 0.5); }
 .cpm-status-dot.disconnected { background: #888; }
 .cpm-status-hint {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-muted);
   padding-left: 16px;
 }
@@ -142,7 +142,7 @@ body.preview-mode #claude-pm-panel { display: none !important; }
   border: none;
   color: var(--ui-text);
   text-align: left;
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   padding: 11px 16px;
   cursor: pointer;
   transition: background 0.12s;
@@ -150,18 +150,18 @@ body.preview-mode #claude-pm-panel { display: none !important; }
 }
 .cpm-action:hover { background: var(--ui-bg-hover); }
 .cpm-action-icon {
-  font-size: 16px;
+  font-size: var(--ui-fs-16);
   width: 20px;
   text-align: center;
   flex-shrink: 0;
 }
 .cpm-action-label {
   flex: 1;
-  font-weight: 500;
+  font-weight: var(--ui-fw-medium);
 }
 .cpm-action-arrow {
   color: var(--ui-text-dim);
-  font-size: 14px;
+  font-size: var(--ui-fs-14);
 }
 
 /* Footer */
@@ -173,12 +173,12 @@ body.preview-mode #claude-pm-panel { display: none !important; }
   gap: 8px;
 }
 .cpm-footer-desc {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub);
   line-height: 1.5;
 }
 .cpm-footer-link {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: #6b9eff;
   background: none;
   border: none;
@@ -213,7 +213,7 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   width: 520px;
   max-width: calc(100vw - 40px);
   color: var(--ui-text);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--ui-shadow-xl);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -229,8 +229,8 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
 }
 .cpm-modal-header .cpm-modal-close { cursor: pointer; }
 .cpm-modal-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--ui-fs-13);
+  font-weight: var(--ui-fw-semibold);
   color: var(--ui-text);
 }
 .cpm-modal-close {
@@ -258,8 +258,8 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   gap: 6px;
 }
 .cpm-field-label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--ui-fs-base);
+  font-weight: var(--ui-fw-semibold);
   color: var(--ui-text-sub);
   letter-spacing: 0.02em;
 }
@@ -274,7 +274,7 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   border: 1px solid var(--ui-border-mid);
   border-radius: 6px;
   color: var(--ui-text);
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   padding: 8px 10px;
   outline: none;
   font-family: inherit;
@@ -289,7 +289,7 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   border: 1px solid var(--ui-border-mid);
   border-radius: 6px;
   color: var(--ui-text-sub);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   padding: 7px 12px;
   cursor: not-allowed;
   opacity: 0.55;
@@ -302,7 +302,7 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   border: 1px dashed var(--ui-border-mid);
   border-radius: 6px;
   padding: 10px 12px;
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   color: var(--ui-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   word-break: break-all;
@@ -312,7 +312,7 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub);
   background: rgba(107, 158, 255, 0.06);
   border: 1px solid rgba(107, 158, 255, 0.18);
@@ -334,7 +334,7 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   border: 1px solid var(--ui-border-mid);
   border-radius: 6px;
   color: var(--ui-text-sub);
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   padding: 7px 16px;
   cursor: pointer;
   font-family: inherit;
@@ -344,7 +344,7 @@ body.preview-mode #claude-pm-folder-modal { display: none !important; }
   background: #2d6fe8;
   border-color: #2d6fe8;
   color: #fff;
-  font-weight: 600;
+  font-weight: var(--ui-fw-semibold);
 }
 .cpm-btn.primary:hover { background: #3a7df0; border-color: #3a7df0; }
 .cpm-btn.primary:disabled {
@@ -420,8 +420,8 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--ui-fs-12);
+  font-weight: var(--ui-fw-semibold);
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -479,7 +479,7 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
 }
 .cpmt-title-text { color: #e6e6e6; }
 .cpmt-folder {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   font-weight: 400;
   color: #888;
   overflow: hidden;
@@ -495,7 +495,7 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   border: 1px solid transparent;
   border-radius: 4px;
   color: #aaa;
-  font-size: 12px;
+  font-size: var(--ui-fs-12);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -555,7 +555,7 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   /* alpha를 따라가게 */
   background: rgba(24, 24, 27, var(--cpmt-bg-alpha, 1));
   border-top: 1px solid #2a2a2e;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: #777;
   overflow: hidden;
   text-overflow: ellipsis;

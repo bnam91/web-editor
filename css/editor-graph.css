@@ -213,18 +213,18 @@
 .grb-data-label-input {
   flex: 1; height: 24px; min-width: 0;
   background: var(--ui-bg-app); border: 1px solid var(--ui-border);
-  border-radius: 4px; color: #ddd; font-size: 11px; padding: 0 6px; outline: none;
+  border-radius: 4px; color: #ddd; font-size: var(--ui-fs-base); padding: 0 6px; outline: none;
 }
 .grb-data-val-input {
   width: 44px; height: 24px; flex-shrink: 0;
   background: var(--ui-bg-app); border: 1px solid var(--ui-border);
-  border-radius: 4px; color: #ddd; font-size: 11px; text-align: center; outline: none;
+  border-radius: 4px; color: #ddd; font-size: var(--ui-fs-base); text-align: center; outline: none;
 }
 .grb-data-label-input:focus, .grb-data-val-input:focus { border-color: var(--ui-accent-primary); }
 .grb-data-del-btn {
   width: 20px; height: 20px; flex-shrink: 0;
   background: none; border: 1px solid var(--ui-border-mid);
-  border-radius: 4px; color: var(--ui-text-dim); cursor: pointer; font-size: 11px;
+  border-radius: 4px; color: var(--ui-text-dim); cursor: pointer; font-size: var(--ui-fs-base);
   display: flex; align-items: center; justify-content: center;
 }
 .grb-data-del-btn:hover { border-color: var(--ui-danger); color: var(--ui-danger); }
