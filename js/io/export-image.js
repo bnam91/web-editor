@@ -182,10 +182,12 @@ async function exportSection(sec, format, width) {
   clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
   // 미입력 placeholder 안내문구는 export 결과에 박히면 안 됨.
   // data-is-placeholder="true"는 실제 글자가 들어가면 즉시 삭제되므로,
-  // 클론에 true로 남은 요소는 미입력 placeholder가 확정 → 텍스트만 비워
-  // 레이아웃 높이는 유지하고 안내문구만 사라지게 함.
+  // 클론에 true로 남은 요소는 미입력 placeholder가 확정 → 안내문구 가시성만
+  // 숨겨 자식 DOM(<li>/<span> 등)과 점유 높이는 그대로 두고 글자만 렌더에서 사라지게 함.
+  // (textContent='' 는 tb-bullet의 <li> 등 자식 DOM을 통째로 제거해 height가
+  //  collapse되므로 금지. visibility:hidden은 자식·list marker까지 함께 숨기되 박스 높이 유지.)
   clone.querySelectorAll('[data-is-placeholder="true"]').forEach(el => {
-    el.textContent = '';
+    el.style.visibility = 'hidden';
   });
   clone.classList.remove('selected');
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)

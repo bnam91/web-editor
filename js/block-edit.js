@@ -3,12 +3,15 @@
  * add_text_block(block-factory.js) 패턴을 미러링: pushHistory(undo) + scheduleAutoSave + applyTextOpts 정렬 규칙.
  */
 
-// id로 .text-block element 반환 (없거나 text-block 아니면 null)
+// id로 블록 element 반환 (블록 컨테이너 아니면 null)
+// '-block'으로 끝나는 클래스 + dataset.type 동시 충족만 블록으로 인정.
+// (row/section/col 등 비블록 컨테이너는 dataset.type 없어 차단)
 function getBlockById(id) {
   if (!id) return null;
   const el = document.getElementById(String(id));
-  if (!el || !el.classList || !el.classList.contains('text-block')) return null;
-  return el;
+  if (!el || !el.classList) return null;
+  const isBlockEl = [...el.classList].some((c) => c.endsWith('-block')) && !!el.dataset?.type;
+  return isBlockEl ? el : null;
 }
 
 // 대상 블록만 선택 상태로 전환. 다른 선택 해제 + 우측 패널 갱신.
@@ -20,7 +23,15 @@ function selectBlock(id) {
     if (el !== block) el.classList.remove('selected');
   });
   block.classList.add('selected');
-  try { window.showTextProperties?.(block); } catch (_) {}
+  // 블록 타입별 우측 패널 디스패치 (layer-panel-items.js 분기 미러)
+  try {
+    const cl = block.classList;
+    if (cl.contains('shape-block')) window.showShapeProperties?.(block);
+    else if (cl.contains('table-block')) window.showTableProperties?.(block);
+    else if (cl.contains('graph-block')) window.showGraphProperties?.(block);
+    else if (cl.contains('divider-block')) window.showDividerProperties?.(block);
+    else window.showTextProperties?.(block);
+  } catch (_) {}
   return true;
 }
 

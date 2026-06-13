@@ -574,6 +574,7 @@ function clearAssetImage(ab) {
     <div class="asset-overlay" ${prevOverlayStyle2 ? `style="${prevOverlayStyle2}"` : ''}>${prevOverlayHTML2}</div>`;
   ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
   showAssetProperties(ab);
+  window.showToast?.('🗑 이미지 삭제됨 · ⌘Z로 되돌리기');
 }
 
 /* ══════════════════════════════════════
