@@ -1201,8 +1201,52 @@ document.addEventListener('keydown', e => {
       } else if (phMap[cls]) {
         contentEl.dataset.placeholder = phMap[cls];
       }
+      // 레이어 패널 이름 동기화: 자동이름 모드(사용자 rename 없음)일 때만 유형 라벨 갱신
+      if (!tb.dataset.layerName) {
+        const nameSpan = tb._layerItem?.querySelector('.layer-item-name');
+        if (nameSpan) nameSpan.textContent = (dtype === 'heading') ? 'Heading' : 'Body';
+      }
       window.showTextProperties?.(tb);
       return;
+    }
+  }
+
+  // ── 크기 세부조정: +/- (수정키 없음). 텍스트=fontSize, 갭=height. 줌은 ⌘+/-라 충돌 없음 ──
+  // '+'는 Shift+Equal이라 e.code로 매칭(shift 무관). 기본 step 작게(세부조정), Shift로 큰 step.
+  if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (!(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) {
+      const isPlus  = e.code === 'Equal' || e.code === 'NumpadAdd';
+      const isMinus = e.code === 'Minus' || e.code === 'NumpadSubtract';
+      if ((isPlus || isMinus) && !document.querySelector('.text-block.editing')) {
+        const tb = document.querySelector('.text-block.selected');
+        const gb = document.querySelector('.gap-block.selected');
+        if (tb) {
+          const contentEl = tb.querySelector('[class^="tb-"]');
+          if (contentEl) {
+            e.preventDefault();
+            const cur = parseFloat(getComputedStyle(contentEl).fontSize) || 16;
+            const step = e.shiftKey ? 4 : 1;
+            const next = Math.min(400, Math.max(4, cur + (isPlus ? step : -step)));
+            contentEl.style.fontSize = next + 'px';
+            window.scheduleAutoSave?.();
+            window.showTextProperties?.(tb);
+          }
+          return;
+        }
+        if (gb) {
+          e.preventDefault();
+          const step = e.shiftKey ? 20 : 4;
+          const cur = gb.offsetHeight;
+          const next = Math.min(400, Math.max(0, cur + (isPlus ? step : -step)));
+          gb.style.height = next + 'px';
+          const sl = document.getElementById('gap-slider');
+          const nb = document.getElementById('gap-number');
+          if (sl) sl.value = next;
+          if (nb) nb.value = next;
+          window.scheduleAutoSave?.();
+          return;
+        }
+      }
     }
   }
 
