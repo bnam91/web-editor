@@ -180,6 +180,9 @@ async function exportSection(sec, format, width) {
   if (cloneLabel)   cloneLabel.remove();
   if (cloneToolbar) cloneToolbar.remove();
   clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
+  // C18: 펜툴 어노테이션(리뷰용 주석)과 진행중 미리보기는 리뷰 표시일 뿐 — export 산출 이미지에 박히면 안 됨.
+  // (대조: todo-pin은 #todo-pin-overlay로 섹션 밖이라 애초에 export 클론에 안 들어감)
+  clone.querySelectorAll('.annotation-block, .annot-preview').forEach(el => el.remove());
   // 미입력 placeholder 안내문구는 export 결과에 박히면 안 됨.
   // data-is-placeholder="true"는 실제 글자가 들어가면 즉시 삭제되므로,
   // 클론에 true로 남은 요소는 미입력 placeholder가 확정 → 안내문구 가시성만
@@ -610,5 +613,24 @@ async function exportAllSections(format, width, onProgress) {
   return { total: sections.length, failed };
 }
 
+// A30: 'Export' 버튼 드롭다운에서 곧바로 이미지(PNG)로 내보내기 — 핵심 산출물 동선을
+//      Page 속성패널 깊숙이에만 두지 않고 Export 메뉴 1급 항목으로 노출.
+//      (실제 렌더는 Page 속성패널과 동일하게 exportAllSections 재사용)
+async function exportAllImagesPNG() {
+  const n = canvasEl.querySelectorAll('.section-block:not([data-ghost])').length;
+  if (!n) { window.showToast?.('내보낼 섹션이 없습니다.'); return; }
+  if (!confirm(`전체 ${n}개 섹션을 PNG 이미지로 내보냅니다. 계속할까요?`)) return;
+  window.showToast?.('이미지 내보내는 중...');
+  try {
+    const res = await window.exportAllSections('png', 860, (i, t) => window.showToast?.(`내보내는 중... (${i}/${t})`));
+    if (res?.failed?.length) window.showToast?.(`⚠️ ${res.failed.length}/${res.total}개 실패: ${res.failed.join(', ')}`);
+    else window.showToast?.(`✅ ${res?.total ?? n}개 섹션 PNG 내보내기 완료 — 다운로드 폴더 확인`);
+  } catch (err) {
+    console.error('[export] PNG 전체 내보내기 실패:', err);
+    window.showToast?.('⚠️ 내보내기 실패: ' + (err?.message || err));
+  }
+}
+
 window.exportSection     = exportSection;
 window.exportAllSections = exportAllSections;
+window.exportAllImagesPNG = exportAllImagesPNG;

@@ -259,7 +259,8 @@ function makeStickerBlock(opts = {}) {
 }
 
 function addStickerBlock(opts = {}) {
-  const sec = window.getSelectedSection?.();
+  // B12: 섹션 미선택이어도 먹통처럼 보이지 않게 — 마지막 섹션으로 폴백(텍스트 추가 동작과 일관). 섹션 0개일 때만 중단.
+  const sec = window.getSelectedSection?.() || [...document.querySelectorAll('.section-block')].pop();
   if (!sec) { window.showNoSelectionHint?.(); return; }
   // A25/A27: x/y 미지정 시 cascade offset — 같은 자리 겹침 방지 (highlight 포함 shape 공통)
   if (opts.x == null && opts.y == null) {

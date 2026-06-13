@@ -7,30 +7,32 @@ paths:
 
 ## 블록 선택 스타일 (변경 금지)
 
-### 두 가지 outline 표준 — **컴포넌트 vs 컨테이너**
+### 선택 outline 표준 — **`--sel-outline-w` 토큰으로 통일** (DS-09, 2026-06-14)
+
+> 과거에는 컨테이너(frame) 3px / 컴포넌트 1px로 분리했으나, 코드는 **모든 블록을 단일 토큰
+> `--sel-outline-w`(= `calc(1px * var(--inv-zoom,1))` — 줌 보정 ≈ 1px)로 통일**했다. 두께 분기는 폐기됨.
 
 | 종류 | outline | offset | 적용 블록 |
 |---|---|---|---|
-| **컴포넌트(component)** | `1px solid var(--sel-color)` | `-1px` | `text-block`, `asset-block`, `card-block`, `table-block`, `graph-block`, `step-block`, `icon-circle-block`, `icon-text-block`, `divider-block`, **`frame-block[data-banner-preset]`**, 기타 단일 컴포넌트 블록 |
-| **컨테이너(container)** | `3px solid var(--sel-color)` | `0` | `frame-block` (data-banner-preset 없는 일반 frame) |
+| **모든 선택 블록(통일)** | `var(--sel-outline-w) solid var(--sel-color)` | `calc(-1 * var(--sel-outline-w))` | `text/asset/card/table/graph/step/icon-circle/icon-text/divider/frame-block`(banner-preset 유무 무관), 기타 전 블록 |
 
-- **컨테이너는 두꺼운 outline** — 자식들을 감싸는 영역이라 흰 배경에서 잘 보이도록.
-- **컴포넌트는 얇은 outline** — 콘텐츠 자체가 시각 정보라 outline이 콘텐츠를 가리지 않도록.
+- **줌 보정**: `--sel-outline-w`가 `--inv-zoom`을 곱해, 캔버스를 확대/축소해도 선택 테두리가 화면상 일정 두께로 보인다.
 - **색은 모두 동일**: `var(--sel-color)` (파란색).
 - **배경 fill 없음**: selected 상태에서는 배경색 변화 없이 outline만 표시.
 
 ### 신규 컴포넌트 블록 추가 시 (frame-block 변형 패턴 포함)
 
-> `step/card/table`처럼 frame-block을 **구조적으로 재사용**(`data-xxx-preset` 속성)하는 컴포넌트는 **반드시 컴포넌트 outline을 별도 적용**해야 함. frame-block의 3px이 자동 상속되지 않도록 더 구체적인 selector로 override.
+> 선택 outline이 `--sel-outline-w` 단일 토큰으로 통일된 뒤로는, frame-block을 재사용하는 컴포넌트
+> (`data-xxx-preset`)도 같은 토큰을 상속받으므로 **두께 불일치를 막는 별도 override가 더 이상 필요 없다**.
+> 단, 컴포넌트가 자체 outline 규칙을 둘 경우에도 폭은 반드시 `var(--sel-outline-w)`를 쓸 것(하드코딩 px 금지).
 
 ```css
-.frame-block[data-banner-preset].selected {
-  outline: 1px solid var(--sel-color);
-  outline-offset: -1px;
+/* 통일 표준 — 전 블록 공통 */
+.frame-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 ```
-
-**왜 자동 안 되는지**: `.frame-block.selected { outline: 3px ...; }` 룰이 이미 있어서 `[data-banner-preset]`만 추가해도 selector 특이도(specificity)가 더 높아 override됨. 이 명시 override 빠뜨리면 모든 컴포넌트가 두꺼운 컨테이너 outline을 받아 다른 컴포넌트 블록과 두께 불일치.
 
 ### 절대 하지 말 것
 - `.text-block`에 `border-radius` 추가하지 말 것

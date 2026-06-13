@@ -110,7 +110,8 @@ function makeGradientBlock(opts = {}) {
 }
 
 function addGradientBlock(opts = {}) {
-  const sec = window.getSelectedSection?.();
+  // B12: 섹션 미선택이어도 먹통처럼 보이지 않게 — 마지막 섹션으로 폴백(텍스트 추가 동작과 일관). 섹션 0개일 때만 중단.
+  const sec = window.getSelectedSection?.() || [...document.querySelectorAll('.section-block')].pop();
   if (!sec) { window.showNoSelectionHint?.(); return; }
   window.pushHistory?.('그라데이션 추가');
   const block = makeGradientBlock(opts);
