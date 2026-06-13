@@ -78,6 +78,31 @@
   --ui-bg-2:      var(--ui-bg-base);   /* grid-picker-cell 등 어두운 셀 배경 */
   --ui-text-base: var(--ui-text);      /* (ai-image 패널) 본문 텍스트 */
   --ui-text-main: var(--ui-text);      /* (color-adjust 헤더) — fallback 없어 색 깨지던 것 수정 */
+  /* text — assets-panel.css var() fallback(#e0e0e0/#888)만으로 쓰이던 미정의 토큰 → canonical 별칭 (2026-06-11) */
+  --ui-text-primary:   var(--ui-text);        /* assets-panel.css:417,444 (fallback #e0e0e0 = --ui-text) 가장 또렷한 본문색 */
+  --ui-text-secondary: var(--ui-text-muted);  /* assets-panel.css:433,463 (fallback #888 3.5:1 AA미달) → muted #9e9e9e ≥5.07:1 */
+
+  /* ── shadow (elevation) 토큰 — 산재 box-shadow 리터럴을 blur 기준 4단으로 정리 (정의만, 치환은 2단계) ── */
+  --ui-shadow-sm: 0 2px 8px rgba(0,0,0,0.4);    /* 드롭다운/툴팁/소형 카드 (실측 최빈) */
+  --ui-shadow-md: 0 4px 16px rgba(0,0,0,0.5);   /* 토스트/팝오버/포커스 카드 */
+  --ui-shadow-lg: 0 8px 24px rgba(0,0,0,0.5);   /* 메뉴 팝업/패널 (최대 클러스터) */
+  --ui-shadow-xl: 0 12px 48px rgba(0,0,0,0.6);  /* 모달 다이얼로그 */
+
+  /* ── font-size (UI chrome) 토큰 — css/ 실측 분포 기반. 캔버스 .tb-*/--preset-* 은 별도 (정의만, 치환은 2단계) ── */
+  --ui-fs-9:    9px;    /* 실측 36회 — 최소 캡션/뱃지카운트 */
+  --ui-fs-10:   10px;   /* 실측 90회 — 보조 라벨/마이크로 텍스트 */
+  --ui-fs-base: 11px;   /* 실측 160회 (압도적 1위) — UI 크롬 기본 본문/컨트롤 */
+  --ui-fs-12:   12px;   /* 실측 58회 — 강조 라벨/섹션 텍스트 */
+  --ui-fs-13:   13px;   /* 실측 18회 — 소제목/약간 큰 라벨 */
+  --ui-fs-14:   14px;   /* 실측 10회 — 패널 헤더/로고 */
+  --ui-fs-16:   16px;   /* 실측 — 아이콘/소형 헤딩 */
+  --ui-fs-20:   20px;   /* 실측 — 모달/패널 타이틀 (18px 흡수) */
+  --ui-fs-28:   28px;   /* 실측 — icb-placeholder(이미지캔버스 빈블록 안내). 스케일 최상단 */
+
+  /* ── font-weight 토큰 — css/ 실측 분포 기반 (정의만, 치환은 2단계) ── */
+  --ui-fw-medium:   500;   /* 실측 26회 — 약강조 */
+  --ui-fw-semibold: 600;   /* 실측 87회 (1위) — 라벨/제목 표준 강조 */
+  --ui-fw-bold:     700;   /* 실측 29회 — 강한 제목/활성 */
 }
 
 /* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)
