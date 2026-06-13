@@ -60,6 +60,34 @@
   --ui-accent-primary-hover: #3a7df0; /* 주요 액션 hover */
   --ui-accent-text:    #6fa3f7;  /* 다크배경 활성 텍스트 전용 액센트 (accent-primary는 텍스트로 쓰면 3.3:1 AA미달 → 6.8:1 가독판) */
 
+  /* ── 선택/AI 어포던스 보라 패밀리 토큰 (DS-10, 2026-06-14) — 일반 파랑선택(--sel-color)과 별개 패밀리. 비텍스트 장식이라 대비 무관 ── */
+  --ui-sel-overlay:   #9966ff;   /* 스티커/그라데이션/체크리스트/핀 선택 오버레이·코너핸들 보라 */
+  --ui-sel-ai:        #c084fc;   /* AI-Fill 패널/버튼 보라 어포던스 */
+  --ui-sel-outline-offset-out: calc(1px * var(--inv-zoom, 1)); /* 배경/이미지가 가장자리까지 차는 블록(canvas/banner02)의 바깥 outline offset — 겹침 방지 (DS-20) */
+  /* NOTE: rgba(153,102,255,*) 등 알파 리터럴은 이번 패스 비토큰화(보수적 보류) — 알파 토큰화는 별 이슈 */
+
+  /* ── active/선택 강조 채움 배경 (DS-12, 2026-06-14) — 파랑 0.15 표준. primitive(--p-blue-alpha-*)와 톤 일치하나 정본은 --ui-*에 정의 ── */
+  --ui-accent-fill:   rgba(45,111,232,0.15);
+
+  /* ── autosave 'saved' 상태색 (DS-23, 2026-06-14) — --ui-success(#7fc87f)보다 밝고 고채도라 success로 흡수 불가, 전용 토큰. 다크배경서 AA 충분 ── */
+  --ui-saved:         #4ecb7a;
+
+  /* ── A/B 베리에이션 카테고리 팔레트 (DS-16, 2026-06-14) — 비텍스트 뱃지 배경이라 대비 무관 ── */
+  --ui-cat-a:         var(--ui-accent-primary);  /* A=파랑(accent-primary 동치) */
+  --ui-cat-a-hover:   #1a5ac8;
+  --ui-cat-b:         #e88c2d;   /* B=주황 */
+  --ui-cat-b-hover:   #c87018;
+  --ui-cat-c:         #2db87a;   /* C=초록 */
+  --ui-cat-c-hover:   #1e9460;
+  --ui-cat-d:         #9b59b6;   /* D=보라 */
+  --ui-cat-d-hover:   #7d4394;
+  --ui-cat-e:         #e84c4c;   /* E=빨강 */
+  --ui-cat-e-hover:   #c03030;
+
+  /* ── 선택 핸들 보더 두께 (DS-19, 2026-06-14) — 의미별 2토큰(사각=얇게/원형=두껍게), 광학 의도 보존 + 출처 일원화 ── */
+  --ui-handle-border-w:       1px;     /* 사각 리사이즈 핸들 보더 */
+  --ui-handle-border-w-round: 1.5px;   /* 원형 radius/overlay 핸들 보더 */
+
   /* ── 컴포넌트 치수/상태 토큰 (매트릭스 13영역 분열 근본처방, 2026-06-11) — 신규 UI는 반드시 이걸 사용 ── */
   --ui-btn-h:        24px;   /* 버튼/컨트롤 표준 높이 (height 10단 난립→통일) */
   --ui-input-h:      24px;   /* input/select 높이 */
@@ -103,6 +131,13 @@
   --ui-fw-medium:   500;   /* 실측 26회 — 약강조 */
   --ui-fw-semibold: 600;   /* 실측 87회 (1위) — 라벨/제목 표준 강조 */
   --ui-fw-bold:     700;   /* 실측 29회 — 강한 제목/활성 */
+
+  /* ── line-height (UI chrome) 토큰 — css/ 실측 분포 기반 (정의만, 치환은 2단계). 캔버스 콘텐츠(.tb-*/--preset-*) 제외 (DS-22, 2026-06-14) ── */
+  --ui-lh-tight:    1.3;   /* 실측 5회 — 조밀 (라벨/뱃지) */
+  --ui-lh-normal:   1.4;   /* 실측 7회 — 표준 본문 */
+  --ui-lh-relaxed:  1.6;   /* 실측 9회 — 여유 본문 (1.5는 relaxed로 흡수, 후속 판단) */
+  /* NOTE: --ui-fs-18 신설 보류 — 실측 0회 + --ui-fs-20이 18 흡수(주석). 신설 시 dead 토큰 재생산.
+     preset-h*-weight는 --preset-* 캔버스 네임스페이스라 UI 크롬 토큰 범위 밖(제외). */
 }
 
 /* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)
@@ -791,8 +826,8 @@ body {
   white-space: nowrap; padding: 0 4px;
 }
 #autosave-indicator.saving { opacity: 1; color: var(--ui-text-muted); }
-#autosave-indicator.saved  { opacity: 1; color: #4ecb7a; }
-#autosave-indicator.saved::before  { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #4ecb7a; }
+#autosave-indicator.saved  { opacity: 1; color: var(--ui-saved); }
+#autosave-indicator.saved::before  { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ui-saved); }
 #autosave-indicator.saving::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ui-divider); animation: blink 0.8s ease infinite; }
 @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 /* ── Keyboard focus ring (공용, a11y) ── color-picker 패턴 승격, 키보드 focus만. 입력류/캔버스/preview 제외. 2026-06-11 */

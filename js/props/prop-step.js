@@ -120,13 +120,10 @@ export function showStepProperties(block) {
         <input type="range" class="prop-slider" id="stb-badge-gap-slider" min="4" max="200" step="4" value="${badgeGap}">
         <input type="number" class="prop-number" id="stb-badge-gap-number" min="4" max="200" value="${badgeGap}">
       </div>
-      <div class="prop-row" title="이 step-block의 첫 번호 (다른 step-block과 01/02/03 순차 표시할 때 사용)">
-        <span class="prop-label">시작 번호</span>
-        <input type="number" class="prop-number" id="stb-start-number" min="1" max="99" value="${parseInt(block.dataset.startNumber) || 1}" style="flex:1">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">배지 형식</span>
-        <select id="stb-badge-fmt-select" class="prop-select" style="flex:1">
+      <div class="prop-row" title="시작: 이 step-block의 첫 번호 (다른 step-block과 01/02/03 순차 표시) · 형식: 배지 표기 방식">
+        <span class="prop-label" style="width:auto;flex:0 0 auto">시작</span>
+        <input type="number" class="prop-number" id="stb-start-number" min="1" max="99" value="${parseInt(block.dataset.startNumber) || 1}" style="width:44px;flex:0 0 auto">
+        <select id="stb-badge-fmt-select" class="prop-select" style="flex:1;min-width:0;margin-left:4px">
           <option value="number"  ${badgeFormat === 'number'  ? 'selected' : ''}>1, 2, 3</option>
           <option value="padded"  ${badgeFormat === 'padded'  ? 'selected' : ''}>01, 02, 03</option>
           <option value="alpha"   ${badgeFormat === 'alpha'   ? 'selected' : ''}>A, B, C</option>

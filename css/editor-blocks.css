@@ -59,7 +59,7 @@
   width:  7px;
   height: 7px;
   background: #fff;
-  border: 1px solid var(--sel-color);
+  border: var(--ui-handle-border-w, 1px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 1;
   pointer-events: auto;
@@ -75,7 +75,7 @@
   width:  7px;
   height: 7px;
   background: #fff;
-  border: 1.5px solid var(--sel-color);
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
   border-radius: 50%;
   z-index: 1001;
   pointer-events: auto;
@@ -94,7 +94,7 @@
   width:  7px;
   height: 7px;
   background: #fff;
-  border: 1.5px solid var(--sel-color);
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
   border-radius: 50%;
   z-index: 1001;
   pointer-events: auto;
@@ -113,7 +113,7 @@
   width:  7px;
   height: 7px;
   background: #fff;
-  border: 1px solid var(--sel-color);
+  border: var(--ui-handle-border-w, 1px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 100;
   pointer-events: auto;
@@ -134,7 +134,7 @@
   width:  7px;
   height: 7px;
   background: #fff;
-  border: 1.5px solid var(--sel-color);
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 9992;
   pointer-events: auto;
@@ -151,7 +151,7 @@
   width: 7px;
   height: 7px;
   background: #fff;
-  border: 1.5px solid var(--sel-color);
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 9992;
   pointer-events: auto;
@@ -168,7 +168,7 @@
   width: 7px;
   height: 7px;
   background: #fff;
-  border: 1.5px solid var(--sel-color);
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 9992;
   pointer-events: auto;
@@ -185,7 +185,7 @@
   width: 7px;
   height: 7px;
   background: #fff;
-  border: 1.5px solid var(--sel-color);
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
   border-radius: 50%;
   z-index: 9993;
   pointer-events: auto;
@@ -245,7 +245,7 @@
   width: 7px;
   height: 7px;
   background: #fff;
-  border: 1px solid var(--sel-color);
+  border: var(--ui-handle-border-w, 1px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 9992;
   box-sizing: border-box;
@@ -1001,7 +1001,7 @@
 }
 .canvas-block.selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
-  outline-offset: calc(1px * var(--inv-zoom, 1)); /* 이미지가 가장자리까지 차므로 안쪽 대신 바깥으로 빼서 겹침 방지 */
+  outline-offset: var(--ui-sel-outline-offset-out, calc(1px * var(--inv-zoom, 1))); /* 이미지가 가장자리까지 차므로 안쪽 대신 바깥으로 빼서 겹침 방지 */
 }
 .canvas-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 
@@ -1009,7 +1009,7 @@
 .banner02-block { display:block; position:relative; margin:0 auto; cursor:pointer; box-sizing:border-box; user-select:none; }
 .banner02-block.selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
-  outline-offset: calc(1px * var(--inv-zoom, 1));
+  outline-offset: var(--ui-sel-outline-offset-out, calc(1px * var(--inv-zoom, 1)));
 }
 .banner02-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 
@@ -1609,7 +1609,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 .annotation-block.selected .annot-label {
   outline: 1.5px solid var(--ui-accent-primary);
   outline-offset: 1px;
-  box-shadow: 0 0 0 3px rgba(21, 146, 254, 0.15);
+  box-shadow: 0 0 0 3px var(--ui-accent-fill, rgba(45, 111, 232, 0.15));
 }
 .annotation-block.selected .annot-line {
   stroke-width: 2.5;
@@ -2094,7 +2094,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   box-sizing: border-box;
 }
 .gradient-block.selected {
-  outline: 1px solid #9966ff;
+  outline: 1px solid var(--ui-sel-overlay, #9966ff);
   outline-offset: -1px;
   /* mix-blend 이슈는 없지만 일관성 위해 isolation */
   isolation: isolate;
@@ -2109,7 +2109,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   user-select: text !important;
   -webkit-user-select: text !important;
   cursor: text !important;
-  outline: 1px dashed #9966ff;
+  outline: 1px dashed var(--ui-sel-overlay, #9966ff);
   outline-offset: 1px;
 }
 
@@ -2119,7 +2119,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
    highlightB(선)는 아웃라인 없이 끝점 핸들만 (JS로 동적 inject)
 ────────────────────────────────────────────── */
 .sticker-block.selected {
-  outline: 1px solid #9966ff;
+  outline: 1px solid var(--ui-sel-overlay, #9966ff);
   outline-offset: -1px;
   /* mix-blend-mode 적용된 highlight/highlightB는 outline이 blend되어 안 보일 수 있음 → isolate */
   isolation: isolate;
@@ -2130,7 +2130,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   position: absolute;
   inset: 0;
   pointer-events: none;
-  outline: 1px solid #9966ff;
+  outline: 1px solid var(--ui-sel-overlay, #9966ff);
   outline-offset: -1px;
   mix-blend-mode: normal;
   z-index: 99;
@@ -2150,7 +2150,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   margin-left: -6px;
   margin-top: -6px;
   background: #ffffff;
-  border: 1.5px solid #9966ff;
+  border: 1.5px solid var(--ui-sel-overlay, #9966ff);
   border-radius: 50%;
   cursor: pointer;
   pointer-events: auto;
@@ -2170,7 +2170,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   width:  calc(7px * var(--inv-zoom, 1));
   height: calc(7px * var(--inv-zoom, 1));
   background: #fff;
-  border: 1px solid #9966ff;
+  border: 1px solid var(--ui-sel-overlay, #9966ff);
   border-radius: 1px;
   pointer-events: auto;
   z-index: 100;
@@ -2196,7 +2196,7 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   width:  calc(7px * var(--inv-zoom, 1));
   height: calc(7px * var(--inv-zoom, 1));
   background: #fff;
-  border: 1px solid #9966ff;
+  border: 1px solid var(--ui-sel-overlay, #9966ff);
   border-radius: 1px;
   pointer-events: auto;
   z-index: 100;

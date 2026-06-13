@@ -87,6 +87,14 @@ export function showGraphProperties(block) {
         </label>
       </div>
     </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Chart Type</div>
+      <div class="prop-type-group">
+        <button class="prop-type-btn ${chartType === 'bar-v' ? 'active' : ''}" id="grb-type-v">세로 막대</button>
+        <button class="prop-type-btn ${chartType === 'bar-h' ? 'active' : ''}" id="grb-type-h">가로 막대</button>
+        <button class="prop-type-btn ${chartType === 'line' ? 'active' : ''}" id="grb-type-line">꺾은선</button>
+      </div>
+    </div>
     ${chartType === 'line' ? `
     <div class="prop-section">
       <div class="prop-section-title">Line Settings</div>
@@ -154,14 +162,6 @@ export function showGraphProperties(block) {
         ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
       </div>
     </div>` : ''}
-    <div class="prop-section">
-      <div class="prop-section-title">Chart Type</div>
-      <div class="prop-type-group">
-        <button class="prop-type-btn ${chartType === 'bar-v' ? 'active' : ''}" id="grb-type-v">세로 막대</button>
-        <button class="prop-type-btn ${chartType === 'bar-h' ? 'active' : ''}" id="grb-type-h">가로 막대</button>
-        <button class="prop-type-btn ${chartType === 'line' ? 'active' : ''}" id="grb-type-line">꺾은선</button>
-      </div>
-    </div>
     <div class="prop-section">
       <div class="prop-section-title">Preset</div>
       <div class="prop-preset-group">

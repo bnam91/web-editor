@@ -918,8 +918,8 @@ function addSection(opts = {}) {
       <div class="section-hitzone"><span class="section-label">${secLabel}</span></div>
       <div class="section-toolbar">
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
-        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
-        <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모">📝</button>
+        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M6 1.2 L7 4.6 L10.4 5.6 L7 6.6 L6 10 L5 6.6 L1.6 5.6 L5 4.6 Z"/><path d="M10 1.2 L10 2.8 M9.2 2 L10.8 2"/></svg></button>
+        <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M7.4 1.5 H3 A1 1 0 0 0 2 2.5 V9.5 A1 1 0 0 0 3 10.5 H9 A1 1 0 0 0 10 9.5 V4.1"/><path d="M8.2 1.3 L10.7 3.8 L7.2 7.3 L5.6 7.7 L6 6.1 Z"/></svg></button>
       </div>
       <div class="section-inner">
         <div class="gap-block" data-type="gap" style="height:${gapH}px" id="${genId('gb')}"></div>
@@ -931,8 +931,8 @@ function addSection(opts = {}) {
       <div class="section-hitzone"><span class="section-label">${secLabel}</span></div>
       <div class="section-toolbar">
         <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
-        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기">✨</button>
-        <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모">📝</button>
+        <button class="st-btn st-ai-fill-btn" onclick="openAIFillUI(this)" title="AI로 섹션 텍스트 채우기"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M6 1.2 L7 4.6 L10.4 5.6 L7 6.6 L6 10 L5 6.6 L1.6 5.6 L5 4.6 Z"/><path d="M10 1.2 L10 2.8 M9.2 2 L10.8 2"/></svg></button>
+        <button class="st-btn st-memo-btn" onclick="window.toggleSectionMemoPopover(this)" title="섹션 메모"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M7.4 1.5 H3 A1 1 0 0 0 2 2.5 V9.5 A1 1 0 0 0 3 10.5 H9 A1 1 0 0 0 10 9.5 V4.1"/><path d="M8.2 1.3 L10.7 3.8 L7.2 7.3 L5.6 7.7 L6 6.1 Z"/></svg></button>
       </div>
       <div class="section-inner">
         <div class="gap-block" data-type="gap" style="height:100px" id="${genId('gb')}"></div>
