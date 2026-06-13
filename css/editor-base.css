@@ -335,7 +335,7 @@
   background: transparent;
   border: none;
   border-bottom: 1px solid #2e2e2e;
-  color: #888;
+  color: var(--ui-text-muted);
   font-size: var(--ui-fs-base);
   font-weight: var(--ui-fw-semibold);
   letter-spacing: 0.05em;
@@ -651,7 +651,7 @@ body {
   flex: 0 1 148px; min-width: 48px; /* 기본 148px, 탭 많아지면 줄어들어 한 화면에 맞춤 */
   background: var(--ui-bg-elevated); border: 1px solid var(--ui-border);
   border-radius: 6px; cursor: pointer;
-  font-size: var(--ui-fs-12); font-weight: var(--ui-fw-medium); color: #888;
+  font-size: var(--ui-fs-12); font-weight: var(--ui-fw-medium); color: var(--ui-text-muted);
   transition: background 0.12s, color 0.12s;
   overflow: hidden;
   -webkit-app-region: no-drag;

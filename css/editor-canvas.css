@@ -123,7 +123,7 @@
   padding: 0;
 }
 .scratch-item:hover .scratch-slice-btn { opacity: 1; }
-.scratch-slice-btn:hover { background: #2d6fe8; border-color: #2d6fe8; }
+.scratch-slice-btn:hover { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); }
 
 /* ── AI 버튼 (가위 앞) ── */
 .scratch-ai-btn {
@@ -255,11 +255,11 @@
 .scratch-snap-guide-line.spacing {
   /* spacing(파랑 점선) — background는 비우고 border로 점선 표현 */
   background: transparent;
-  border-top: 1px dashed #2d6fe8;
+  border-top: 1px dashed var(--ui-accent-primary);
   height: 0 !important;
 }
 .scratch-snap-guide-line.v.spacing {
   border-top: none;
-  border-left: 1px dashed #2d6fe8;
+  border-left: 1px dashed var(--ui-accent-primary);
   width: 0 !important;
 }

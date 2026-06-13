@@ -302,7 +302,7 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 .anim-opt-label {
   font-size: var(--ui-fs-base);
-  color: #888;
+  color: var(--ui-text-muted);
   width: 32px;
   flex-shrink: 0;
 }
@@ -394,7 +394,7 @@ body.preview-mode #preview-navigator { display: flex; }
 .insp-badge {
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
   border-radius: 10px; padding: 1px 6px;
-  font-size: var(--ui-fs-9); color: #888; font-weight: var(--ui-fw-semibold);
+  font-size: var(--ui-fs-9); color: var(--ui-text-muted); font-weight: var(--ui-fw-semibold);
   text-transform: none; letter-spacing: 0;
 }
 .insp-stat-row {
@@ -437,7 +437,7 @@ body.preview-mode #preview-navigator { display: flex; }
   background: rgba(40,40,40,0.7);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 7px;
-  color: #999; font-size: var(--ui-fs-base); font-weight: var(--ui-fw-medium);
+  color: var(--ui-text-muted); font-size: var(--ui-fs-base); font-weight: var(--ui-fw-medium);
   cursor: pointer;
   transition: all 0.15s;
   letter-spacing: 0.02em;
@@ -612,7 +612,7 @@ body.preview-mode #preview-navigator { display: flex; }
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border-mid);
   border-radius: 6px;
-  color: #888;
+  color: var(--ui-text-muted);
   font-size: var(--ui-fs-base);
   padding: 6px 14px;
   cursor: pointer;
@@ -697,7 +697,7 @@ body.preview-mode #preview-navigator { display: flex; }
 .tpl-browser-title {
   font-size: var(--ui-fs-base);
   font-weight: var(--ui-fw-bold);
-  color: #888;
+  color: var(--ui-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -773,7 +773,7 @@ body.preview-mode #preview-navigator { display: flex; }
   padding: 5px 10px;
   cursor: pointer;
   font-size: var(--ui-fs-base);
-  color: #888;
+  color: var(--ui-text-muted);
   transition: background 0.1s, color 0.1s;
   user-select: none;
 }
@@ -926,7 +926,7 @@ body.preview-mode #preview-navigator { display: flex; }
   flex-shrink: 0;
   margin-left: auto;
 }
-.tpl-browser-insert-btn:hover { background: #3d7ff8; }
+.tpl-browser-insert-btn:hover { background: var(--ui-accent-primary-hover); }
 
 /* 카드 리스트 */
 .tpl-browser-cards {
@@ -957,7 +957,7 @@ body.preview-mode #preview-navigator { display: flex; }
 .tpl-card-drag-ghost {
   position: fixed;
   z-index: 9999;
-  background: #2d6fe8;
+  background: var(--ui-accent-primary);
   color: #fff;
   font-size: 10px;
   font-weight: 600;

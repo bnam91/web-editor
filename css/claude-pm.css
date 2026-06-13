@@ -481,7 +481,7 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
 .cpmt-folder {
   font-size: var(--ui-fs-base);
   font-weight: 400;
-  color: #888;
+  color: var(--ui-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -556,7 +556,7 @@ body.preview-mode #claude-pm-terminal-panel { display: none !important; }
   background: rgba(24, 24, 27, var(--cpmt-bg-alpha, 1));
   border-top: 1px solid #2a2a2e;
   font-size: var(--ui-fs-base);
-  color: #777;
+  color: var(--ui-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

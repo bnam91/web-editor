@@ -155,7 +155,7 @@
   opacity: 0.6;
 }
 .grb-line-path {
-  stroke: var(--ui-accent-primary, #4f8ef7);
+  stroke: var(--ui-accent-primary, #2d6fe8);
   fill: none;
   vector-effect: non-scaling-stroke;
 }
@@ -168,7 +168,7 @@
   position: absolute;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: var(--ui-accent-primary, #4f8ef7);
+  background: var(--ui-accent-primary, #2d6fe8);
   border: 1.5px solid #ffffff;
   box-sizing: border-box;
 }

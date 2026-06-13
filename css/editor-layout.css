@@ -107,7 +107,7 @@
   font-weight: var(--ui-fw-medium);
 }
 .smp-close {
-  background: transparent; border: none; color: #888; cursor: pointer;
+  background: transparent; border: none; color: var(--ui-text-muted); cursor: pointer;
   font-size: var(--ui-fs-16); padding: 2px 8px; line-height: 1;
   border-radius: 4px;
   transition: background 120ms, color 120ms;
@@ -126,7 +126,7 @@
   color: var(--ui-text, #eee);
   resize: vertical;
 }
-.smp-textarea:focus { outline: 1px solid var(--ui-accent-primary, #3b82f6); border-color: var(--ui-accent-primary, #3b82f6); }
+.smp-textarea:focus { outline: 1px solid var(--ui-accent-primary, #2d6fe8); border-color: var(--ui-accent-primary, #2d6fe8); }
 .smp-foot {
   display: flex; justify-content: space-between; align-items: center;
   font-size: var(--ui-fs-base);
@@ -134,13 +134,13 @@
   padding: 0 2px;
 }
 .smp-status {
-  color: var(--ui-accent-primary, #3b82f6);
+  color: var(--ui-accent-primary, #2d6fe8);
   transition: opacity 160ms;
 }
 
 /* ── Section Protection (section-toolbar 🔒 버튼 + popover) ───────────── */
 .st-protected-btn {
-  color: #888;
+  color: var(--ui-text-muted);
   transition: color 120ms, background 120ms;
 }
 .st-protected-btn:hover {
@@ -204,7 +204,7 @@
   font-weight: var(--ui-fw-medium);
 }
 .spp-close {
-  background: transparent; border: none; color: #888; cursor: pointer;
+  background: transparent; border: none; color: var(--ui-text-muted); cursor: pointer;
   font-size: 15px; padding: 2px 8px; line-height: 1;
   border-radius: 4px;
   transition: background 120ms, color 120ms;
@@ -430,7 +430,7 @@
   border-radius: 50%;
   border: 1.5px dashed var(--ui-divider);
   background: none;
-  color: #888;
+  color: var(--ui-text-muted);
   font-size: 20px;
   cursor: pointer;
   opacity: 0;
