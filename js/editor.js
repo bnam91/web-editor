@@ -5,6 +5,34 @@ import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './histor
    포커스 시 전체 선택 (Figma 스타일)
    - 숫자/hex/opacity 프로퍼티 인풋 클릭 시 텍스트 전체 선택 → 바로 덮어쓰기
 ═══════════════════════════════════ */
+/* ═══════════════════════════════════
+   C3: 연속 크기/간격 조정 히스토리 병합 (coalesce)
+   - +/- 키 연타가 키스트로크마다 별도 히스토리 엔트리를 쌓는 문제 해결.
+   - 트레일링 디바운스(push-after): 마지막 DOM 상태를 단일 엔트리로 캡처.
+   - 같은 블록+라벨 연타는 타이머 리셋, 다른 블록/라벨로 전환 시 직전 보류분 즉시 확정.
+═══════════════════════════════════ */
+let _sizeCoalesceTimer = null;
+let _sizeCoalesceKey   = null;
+function coalesceSizeHistory(targetEl, label) {
+  // dataset.blockId 없는 블록은 비직렬화 _uid로 fallback (저장/복원 무영향)
+  let uid = targetEl?.dataset?.blockId;
+  if (!uid && targetEl) uid = (targetEl._uid ??= 'sz' + Math.random().toString(36).slice(2));
+  const key = (uid || 'sz?') + '|' + label;
+  if (_sizeCoalesceTimer && _sizeCoalesceKey === key) {
+    clearTimeout(_sizeCoalesceTimer); // 같은 대상 연타 → 타이머 연장
+  } else if (_sizeCoalesceTimer) {
+    // 다른 블록/라벨로 전환 → 직전 보류분 즉시 확정
+    clearTimeout(_sizeCoalesceTimer);
+    window.pushHistory?.(_sizeCoalesceKey.split('|').slice(1).join('|'));
+  }
+  _sizeCoalesceKey = key;
+  _sizeCoalesceTimer = setTimeout(() => {
+    _sizeCoalesceTimer = null;
+    _sizeCoalesceKey   = null;
+    window.pushHistory?.(label);
+  }, 450);
+}
+
 const _AUTO_SELECT_SEL = '.prop-number, .prop-color-hex, .prop-color-alpha-input, .goya-cp-hex, .goya-cp-alpha-input';
 document.addEventListener('focusin', (e) => {
   const el = e.target;
@@ -1235,7 +1263,7 @@ document.addEventListener('keydown', e => {
             const step = e.shiftKey ? 4 : 1;
             const next = Math.min(400, Math.max(4, cur + (isPlus ? step : -step)));
             contentEl.style.fontSize = next + 'px';
-            window.pushHistory?.('글자 크기');
+            coalesceSizeHistory(tb, '글자 크기');
             window.scheduleAutoSave?.();
             window.showTextProperties?.(tb);
           }
@@ -1251,7 +1279,7 @@ document.addEventListener('keydown', e => {
           const nb = document.getElementById('gap-number');
           if (sl) sl.value = next;
           if (nb) nb.value = next;
-          window.pushHistory?.('간격 조정');
+          coalesceSizeHistory(gb, '간격 조정');
           window.scheduleAutoSave?.();
           return;
         }

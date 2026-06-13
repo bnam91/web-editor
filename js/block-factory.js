@@ -420,7 +420,10 @@ function addTextBlock(type, opts = {}) {
   insertAfterSelected(sec, tf);
   bindBlock(block);
   window.buildLayerPanel();
-  window.selectSection(sec);
+  // 방금 추가한 블록을 자동 선택 + 화면 안으로 스크롤 (섹션을 다시 선택하면
+  // selectSection→deselectAll로 새 블록 선택이 풀리고 스크롤도 안 일어남)
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  tf.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function promoteToFrame(block) {

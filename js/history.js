@@ -9,6 +9,9 @@ const MAX_HISTORY = 50;
 let historyStack = [];
 let historyPos   = -1;
 let _historyPaused = false;
+// D1: 페이지별 히스토리 저장맵. 라이브 스택(historyStack/historyPos)은 그대로 두고,
+// 페이지를 떠날 때만 여기에 스냅샷을 보관/복원하는 보조 저장소로 사용.
+const pageHistories = new Map(); // pageId -> { stack, pos }
 
 function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
@@ -99,6 +102,38 @@ function clearHistory() {
   _updateUndoRedoBtns();
 }
 
+/* ── D1: 페이지별 히스토리 헬퍼 ──
+   save-load.js의 switchPage/deletePage/applyProjectData가 window.* 로 호출.
+   switchPage/load 경로는 _historyPaused가 아니므로 paused 무관하게 동작. */
+
+// 떠나는 페이지의 라이브 스택을 맵에 보관. slice로 얕은 복사해 이후 변이와 격리.
+function stashHistoryFor(pageId) {
+  if (!pageId) return;
+  pageHistories.set(pageId, { stack: historyStack.slice(), pos: historyPos });
+}
+
+// 대상 페이지의 보관된 스택을 라이브로 복원. 없으면 현 DOM 기준 초기 스냅샷(clearHistory).
+function adoptHistoryFor(pageId) {
+  const saved = pageId ? pageHistories.get(pageId) : null;
+  if (saved) {
+    historyStack = saved.stack.slice(); // 맵 내부 배열 오염 방지
+    historyPos   = saved.pos;
+    _updateUndoRedoBtns();
+  } else {
+    clearHistory();
+  }
+}
+
+// 삭제된 페이지의 stash 정리 (메모리 누수 방지).
+function dropHistoryFor(pageId) {
+  pageHistories.delete(pageId);
+}
+
+// 프로젝트 로드/탭 전환 시 페이지간 히스토리 전부 비워 프로젝트 격리.
+function resetAllPageHistory() {
+  pageHistories.clear();
+}
+
 /**
  * 현재 DOM 상태가 마지막 히스토리 항목과 다를 때만 체크포인트 저장.
  * block-factory.js가 push-before 방식이라 paste/copy 전에 현재 상태가
@@ -128,6 +163,11 @@ window.undo         = undo;
 window.redo         = redo;
 window.clearHistory = clearHistory;
 window.restoreSnapshot = restoreSnapshot;
+// D1: 페이지별 히스토리 헬퍼 노출 (save-load.js는 window.* 로만 호출)
+window.stashHistoryFor    = stashHistoryFor;
+window.adoptHistoryFor    = adoptHistoryFor;
+window.dropHistoryFor     = dropHistoryFor;
+window.resetAllPageHistory = resetAllPageHistory;
 
 // historyStack / historyPos 읽기 전용 노출 (CDP 검증용)
 Object.defineProperty(window, 'historyStack', {
@@ -144,4 +184,5 @@ Object.defineProperty(window, '_historyPaused', {
   configurable: true,
 });
 
-export { pushHistory, undo, redo, clearHistory, restoreSnapshot, _updateUndoRedoBtns };
+export { pushHistory, undo, redo, clearHistory, restoreSnapshot, _updateUndoRedoBtns,
+         stashHistoryFor, adoptHistoryFor, dropHistoryFor, resetAllPageHistory };
