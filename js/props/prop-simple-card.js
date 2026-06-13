@@ -168,10 +168,10 @@ function showSimpleCardProperties(block) {
       </div>
       <div class="prop-row" style="padding-left:60px;gap:4px;">
         <span class="prop-label" style="font-size:10px;color:var(--ui-text-sub);min-width:0;flex:0 0 auto;margin-right:4px;">그라데이션</span>
-        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(180deg, transparent, rgba(0,0,0,0.85))" title="아래로 어두워짐" style="flex:1;background:linear-gradient(180deg, transparent, rgba(0,0,0,0.85));color:#fff;text-shadow:0 0 2px #000;height:24px;">↓</button>
-        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(0deg, transparent, rgba(0,0,0,0.85))" title="위로 어두워짐" style="flex:1;background:linear-gradient(0deg, transparent, rgba(0,0,0,0.85));color:#fff;text-shadow:0 0 2px #000;height:24px;">↑</button>
-        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.95))" title="아래 강조" style="flex:1;background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.95));color:#fff;text-shadow:0 0 2px #000;height:24px;">⇊</button>
-        <button class="prop-align-btn cvb-grad-preset" data-grad="rgba(0,0,0,0.5)" title="반투명 검정" style="flex:1;background:rgba(0,0,0,0.5);color:#fff;height:24px;">半</button>
+        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(180deg, transparent, rgba(0,0,0,0.85))" title="아래로 어두워짐" style="background:linear-gradient(180deg, transparent, rgba(0,0,0,0.85));">↓</button>
+        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(0deg, transparent, rgba(0,0,0,0.85))" title="위로 어두워짐" style="background:linear-gradient(0deg, transparent, rgba(0,0,0,0.85));">↑</button>
+        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.95))" title="아래 강조" style="background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.95));">⇊</button>
+        <button class="prop-align-btn cvb-grad-preset" data-grad="rgba(0,0,0,0.5)" title="반투명 검정" style="background:rgba(0,0,0,0.5);">半</button>
       </div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
@@ -201,7 +201,7 @@ function showSimpleCardProperties(block) {
           <input type="color" id="cvb-iconbg-pick" value="${iconBg}" ${isIconBgTransparent ? 'disabled' : ''}>
         </div>
         <input type="text" class="prop-color-hex" id="cvb-iconbg-hex" value="${isIconBgTransparent ? 'transparent' : iconBg}" maxlength="11" ${isIconBgTransparent ? 'disabled' : ''}>
-        <button class="prop-align-btn${isIconBgTransparent ? ' active' : ''}" id="cvb-iconbg-transparent-btn" style="width:36px;flex-shrink:0;">투명</button>
+        <button class="prop-align-btn prop-align-btn--aux${isIconBgTransparent ? ' active' : ''}" id="cvb-iconbg-transparent-btn">투명</button>
       </div>
     </div>` : ''}
 
@@ -214,7 +214,7 @@ function showSimpleCardProperties(block) {
           <input type="color" id="cvb-textbg-pick" value="${textBg}" ${isTextBgTransparent ? 'disabled' : ''}>
         </div>
         <input type="text" class="prop-color-hex" id="cvb-textbg-hex" value="${isTextBgTransparent ? 'transparent' : textBg}" maxlength="11" ${isTextBgTransparent ? 'disabled' : ''}>
-        <button class="prop-align-btn${isTextBgTransparent ? ' active' : ''}" id="cvb-textbg-transparent-btn" style="width:36px;flex-shrink:0;">투명</button>
+        <button class="prop-align-btn prop-align-btn--aux${isTextBgTransparent ? ' active' : ''}" id="cvb-textbg-transparent-btn">투명</button>
       </div>
       <div class="prop-color-row">
         <span class="prop-label">제목 색</span>

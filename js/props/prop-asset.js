@@ -66,7 +66,7 @@ export function showAssetProperties(ab) {
       <div class="prop-color-row" style="margin-top:10px;">
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'asset-bg', hex: currentBgColor, alpha: currentBgAlpha })}
-        <button class="prop-align-btn" id="asset-bg-clear" style="font-size:10px;padding:0 8px;flex-shrink:0;">초기화</button>
+        <button class="prop-align-btn prop-align-btn--aux" id="asset-bg-clear">초기화</button>
       </div>
     </div>`;
 

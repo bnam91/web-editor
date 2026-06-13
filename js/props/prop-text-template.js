@@ -189,7 +189,7 @@ export function buildTextPropsHtml(state) {
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-      <div id="txt-shadow-controls">
+      <div id="txt-shadow-controls" style="display:${_sh.enabled ? 'block' : 'none'}">
         <div class="prop-row">
           <span class="prop-label">X</span>
           <input type="range" class="prop-slider" id="txt-shadow-x-slider" min="-20" max="20" step="1" value="${_sh.x}">

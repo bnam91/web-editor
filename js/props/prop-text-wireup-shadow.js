@@ -73,8 +73,7 @@ export function wireShadowSection({ ctx, initial }) {
 
   const _setCtrlsDisabled = (disabled) => {
     if (!ctrls) return;
-    ctrls.style.opacity = disabled ? 'var(--ui-disabled-opacity)' : '';
-    ctrls.style.pointerEvents = disabled ? 'none' : '';
+    ctrls.style.display = disabled ? 'none' : 'block';
   };
 
   const _apply = () => {
