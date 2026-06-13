@@ -144,12 +144,12 @@ function _renderLaurelCellHtml(cell, idx) {
   const lines     = Array.isArray(cell.lines) && cell.lines.length > 0
     ? cell.lines
     : [{ text: '1위', fontSize: 56, fontWeight: 700, color: '#1a1a1a' }];
-  const linesHtml = lines.map(ln => {
+  const linesHtml = lines.map((ln, lineIdx) => {
     const fs = parseInt(ln.fontSize)   || LAUREL_DEFAULTS.fontSize;
     const fw = parseInt(ln.fontWeight) || LAUREL_DEFAULTS.fontWeight;
     const cl = ln.color || LAUREL_DEFAULTS.textColor;
     const ls = (ln.letterSpacing !== undefined && ln.letterSpacing !== null && !isNaN(parseFloat(ln.letterSpacing))) ? parseFloat(ln.letterSpacing) : 0;
-    return `<span class="laurel-text-line" style="font-size:${fs}px;font-weight:${fw};line-height:1.1;white-space:nowrap;color:${cl};letter-spacing:${ls}px;">${_escLaurelText(ln.text)}</span>`;
+    return `<span class="laurel-text-line" data-line-idx="${lineIdx}" style="font-size:${fs}px;font-weight:${fw};line-height:1.1;white-space:nowrap;color:${cl};letter-spacing:${ls}px;">${_escLaurelText(ln.text)}</span>`;
   }).join('');
   return `
     <div class="laurel-cell" data-cell-idx="${idx}" style="color:${leafColor};">
@@ -185,6 +185,49 @@ function renderLaurelBlock(block) {
   block.style.columnGap            = (parseInt(block.dataset.gridColGap) || 32) + 'px';
   block.style.rowGap               = (parseInt(block.dataset.gridRowGap) || 24) + 'px';
   block.innerHTML = cells.map((c, i) => _renderLaurelCellHtml(c, i)).join('');
+  _bindLaurelInlineEdit(block);
+}
+
+// A29: 가운데 글자(.laurel-text-line)도 표·스텝·채팅·카드처럼 더블클릭 인라인 편집.
+//      (기존엔 우측 속성패널 .lrl-line-text 입력으로만 수정 — 다른 컴포넌트와 불일치)
+//      리스너는 block에 위임(span은 재렌더로 교체) + 가드 플래그로 1회만 — renderLaurelBlock이
+//      신규 생성/프로젝트 로드(save-load rebindAll) 양쪽에서 호출되므로 로드된 블록도 커버됨.
+function _bindLaurelInlineEdit(block) {
+  if (block._laurelEditBound) return;
+  block._laurelEditBound = true;
+  block.addEventListener('dblclick', (e) => {
+    const span = e.target.closest('.laurel-text-line');
+    if (!span || !block.contains(span)) return;
+    if (span.getAttribute('contenteditable') === 'true') return;
+    e.preventDefault(); e.stopPropagation();
+    const ci = parseInt(span.closest('.laurel-cell')?.dataset.cellIdx);
+    const li = parseInt(span.dataset.lineIdx);
+    if (isNaN(ci) || isNaN(li)) return;
+    span.setAttribute('contenteditable', 'true');
+    span.focus();
+    const range = document.createRange(); range.selectNodeContents(span);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    const onKey = (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); span.blur(); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); span.removeEventListener('blur', commit); span.removeAttribute('contenteditable'); renderLaurelBlock(block); }
+    };
+    const commit = () => {
+      span.removeEventListener('blur', commit);
+      span.removeEventListener('keydown', onKey);
+      span.removeAttribute('contenteditable');
+      const cells = _readLaurelCells(block);
+      if (!cells[ci]?.lines?.[li]) { renderLaurelBlock(block); return; }
+      const newText = (span.textContent || '').replace(/\s+/g, ' ').trim();
+      if (cells[ci].lines[li].text === newText) { renderLaurelBlock(block); return; }
+      window.pushHistory?.('로렐 글자 편집');
+      cells[ci].lines[li].text = newText;
+      block.dataset.cells = JSON.stringify(cells);
+      renderLaurelBlock(block);
+      window.triggerAutoSave?.();
+    };
+    span.addEventListener('blur', commit);
+    span.addEventListener('keydown', onKey);
+  });
 }
 
 function makeLaurelBlock(opts = {}) {
