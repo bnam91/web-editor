@@ -1198,6 +1198,10 @@ document.addEventListener('keydown', e => {
       // (tb-h1 104 / tb-h2 72 / tb-h3 52 / tb-body 36). 이후 +/-로 미세조정 가능.
       contentEl.style.fontSize = '';
       // TODO-QA: 타입 변환 시 data-placeholder 텍스트도 새 타입에 맞게 갱신
+      // 잘못 켜진 placeholder 플래그 정정 — 실제 글자가 있으면 플래그 끔(block-drag.js:496 자가보정과 동일 기준)
+      if (contentEl.dataset.isPlaceholder === 'true' && contentEl.textContent.trim() !== '') {
+        delete contentEl.dataset.isPlaceholder;
+      }
       if (contentEl.dataset.isPlaceholder === 'true' && phMap[cls]) {
         contentEl.dataset.placeholder = phMap[cls];
         contentEl.innerHTML = phMap[cls];
@@ -1231,6 +1235,7 @@ document.addEventListener('keydown', e => {
             const step = e.shiftKey ? 4 : 1;
             const next = Math.min(400, Math.max(4, cur + (isPlus ? step : -step)));
             contentEl.style.fontSize = next + 'px';
+            window.pushHistory?.('글자 크기');
             window.scheduleAutoSave?.();
             window.showTextProperties?.(tb);
           }
@@ -1246,6 +1251,7 @@ document.addEventListener('keydown', e => {
           const nb = document.getElementById('gap-number');
           if (sl) sl.value = next;
           if (nb) nb.value = next;
+          window.pushHistory?.('간격 조정');
           window.scheduleAutoSave?.();
           return;
         }

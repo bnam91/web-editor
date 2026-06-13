@@ -41,6 +41,10 @@ function _updateUndoRedoBtns() {
 
 function restoreSnapshot(snap) {
   _historyPaused = true;
+  // innerHTML 교체가 autoSaveObserver(MutationObserver→scheduleAutoSave)를 발화시켜
+  // 복원 도중(rebindAll/applyPageSettings 중간 DOM)에 부분 상태가 저장되는 레이스를 봉쇄.
+  // switchPage / applyProjectData와 동일 가드. (DBG-SEC-LOSS)
+  state._suppressAutoSave = true;
   // 페이지가 다르면 현재 페이지 flush 후 대상 페이지로 전환
   if (snap.pageId && snap.pageId !== state.currentPageId) {
     if (window.flushCurrentPage) window.flushCurrentPage();
@@ -59,6 +63,9 @@ function restoreSnapshot(snap) {
   window.deselectAll();
   _historyPaused = false;
   _updateUndoRedoBtns();
+  // _suppressAutoSave는 한 프레임 뒤 해제 — MutationObserver는 microtask 후 발화하므로
+  // 동기 해제 시 잔여 mutation이 새어 부분저장을 유발. (applyProjectData와 동일 패턴)
+  requestAnimationFrame(() => { state._suppressAutoSave = false; });
 }
 
 function undo() {

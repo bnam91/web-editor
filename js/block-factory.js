@@ -3329,7 +3329,7 @@ function updateSpeechBubbleBlock(blockId, partial = {}) {
     showSender:  block.dataset.showSender,
     senderName:  block.dataset.senderName,
     bubbleBg:    block.style.getPropertyValue('--bubble-bg').trim() || bubbleEl.style.backgroundColor || '',
-    text:        bubbleEl.dataset.isPlaceholder === 'true' ? '' : (bubbleEl.innerText || ''),
+    text:        (() => { const t = (bubbleEl.innerText || ''); const ph = bubbleEl.dataset.placeholder || ''; return (bubbleEl.dataset.isPlaceholder === 'true' && (t.trim() === '' || t.trim() === ph.trim())) ? '' : t; })(),
   };
 
   window.pushHistory?.();

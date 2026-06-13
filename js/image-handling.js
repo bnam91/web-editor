@@ -492,6 +492,9 @@ function exitImageEditMode(ab) {
     ab.dataset.imgY = parseFloat(img.style.top)  || 0;
     img.style.objectFit = 'cover';
   }
+  // 편집 세션 종료 시 단일 커밋 — 입력/정렬/드래그/스케일 전부 포함 (undo·자동저장 choke point)
+  window.pushHistory?.('이미지 위치/크기');
+  window.scheduleAutoSave?.();
   document.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone').forEach(el => el.remove());
   if (ab._imgEditCleanup) { ab._imgEditCleanup(); ab._imgEditCleanup = null; }
   document.removeEventListener('click',   ab._exitImgEdit);

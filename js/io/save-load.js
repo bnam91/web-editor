@@ -232,6 +232,8 @@ async function switchPage(pageId) {
   state._suppressAutoSave = true; // DOM 조작 전 억제 시작 (MutationObserver 경쟁 조건 방지)
   await window.switchScratchPage?.(pageId);
   flushCurrentPage();
+  // D1: 떠나는 페이지(아직 currentPageId가 이전 페이지)의 라이브 히스토리 스택을 보관
+  window.stashHistoryFor?.(state.currentPageId);
   // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
   canvasEl.querySelectorAll('[data-pos-dragging], .pos-dragging').forEach(ab => {
     if (ab._posDragCleanup) { ab._posDragCleanup(); ab._posDragCleanup = null; }
@@ -257,8 +259,10 @@ async function switchPage(pageId) {
   window.showPageProperties();
   window.buildLayerPanel(); // also calls buildFilePageSection
   state._suppressAutoSave = false;
-  // 페이지 전환 시 히스토리 초기화 — 이전 페이지 스냅샷으로 되돌아가는 버그 방지
-  window.clearHistory?.();
+  // D1: 페이지별 히스토리 복원 — 같은 페이지 복귀 시 undo 기록 유지, 처음 방문 페이지는 초기 스냅샷.
+  // adopt 헬퍼 미탑재 시(history.js 미패치) 기존 동작(빈 히스토리)로 graceful degrade.
+  if (window.adoptHistoryFor) window.adoptHistoryFor(pageId);
+  else window.clearHistory?.();
   scheduleAutoSave();
 }
 
@@ -284,6 +288,8 @@ function deletePage(pageId) {
   if (hasContent && !window.confirm(`'${(page && page.name) || '이 페이지'}'를 삭제하시겠습니까?\n페이지의 모든 내용이 영구 삭제되며 되돌릴 수 없습니다.`)) return;
   const wasActive = pageId === state.currentPageId;
   state.pages.splice(idx, 1);
+  // D1: 삭제된 페이지의 히스토리 stash 정리 (메모리 누수 방지)
+  window.dropHistoryFor?.(pageId);
   if (wasActive) {
     const next = state.pages[Math.min(idx, state.pages.length - 1)];
     state._suppressAutoSave = true;
@@ -399,6 +405,8 @@ function applyProjectData(data) {
     window.buildAIImageGallery?.();
     window.buildAssetsPanel?.();
     // 프로젝트 로드/탭 전환 후 히스토리 초기화 — 이전 프로젝트/페이지 스냅샷 잔류 방지
+    // D1: 페이지간 히스토리(stash Map)도 전부 비워 프로젝트 격리 (프로젝트 B 로드 시 A stash 오염 방지)
+    window.resetAllPageHistory?.();
     window.clearHistory?.();
   } finally {
     // MutationObserver는 microtask 후 발화 — rAF로 한 프레임 뒤 해제해 잔여 mutation까지 흡수
@@ -710,6 +718,13 @@ function rebindAll() {
         if (txt === '') inner.innerHTML = ph; // 비어있으면 placeholder 텍스트 복원
         inner.dataset.isPlaceholder = 'true';
       }
+    } else {
+      // C2/D2: 역방향 보정 — 플래그가 잘못 켜졌는데 실제 글자가 들어있으면 끈다
+      // (block-drag.js:496 자가보정과 동일 기준). 라운드트립으로 잘못된 플래그를 자가치유해
+      // 유형변경/직렬화 시 글자손실 재발을 막는다.
+      const txt2 = inner.textContent.trim();
+      const ph2 = inner.dataset.placeholder;
+      if (txt2 !== '' && txt2 !== (ph2 || '').trim()) delete inner.dataset.isPlaceholder;
     }
   });
 
