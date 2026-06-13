@@ -1194,6 +1194,9 @@ document.addEventListener('keydown', e => {
       window.pushHistory?.();
       contentEl.className = cls;
       tb.dataset.type = dtype;
+      // 유형 변경 = 스타일 프리셋 적용. inline fontSize 제거 → CSS 유형 표준크기 적용
+      // (tb-h1 104 / tb-h2 72 / tb-h3 52 / tb-body 36). 이후 +/-로 미세조정 가능.
+      contentEl.style.fontSize = '';
       // TODO-QA: 타입 변환 시 data-placeholder 텍스트도 새 타입에 맞게 갱신
       if (contentEl.dataset.isPlaceholder === 'true' && phMap[cls]) {
         contentEl.dataset.placeholder = phMap[cls];
