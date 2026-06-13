@@ -6,6 +6,7 @@
 //   - window.getSelectedSection / showNoSelectionHint / pushHistory /
 //     bindStickerSelect / scheduleAutoSave
 
+// NOTE(B13): 색/텍스트 프리셋 다양화는 후속. 위치 다양화는 addStickerBlock cascade(A25)로 처리.
 const STICKER_DEFAULTS = {
   shape: 'circle',
   size: 60,
@@ -260,10 +261,27 @@ function makeStickerBlock(opts = {}) {
 function addStickerBlock(opts = {}) {
   const sec = window.getSelectedSection?.();
   if (!sec) { window.showNoSelectionHint?.(); return; }
+  // A25/A27: x/y 미지정 시 cascade offset — 같은 자리 겹침 방지 (highlight 포함 shape 공통)
+  if (opts.x == null && opts.y == null) {
+    const n = sec.querySelectorAll('.sticker-block').length;
+    let cx = 40 + (n % 8) * 24;
+    let cy = 40 + (n % 8) * 24;
+    // highlight는 폭이 커서 clamp 가정 크기를 분기 (A27)
+    const bw = (opts.shape === 'highlight') ? 160 : 60;
+    const bh = (opts.shape === 'highlight') ? 28  : 60;
+    const [qx, qy] = window._clampToSection?.(cx, cy, sec, bw, bh) || [cx, cy];
+    opts = { ...opts, x: qx, y: qy };
+  }
   window.pushHistory?.('스티커 추가');
   const block = makeStickerBlock(opts);
   sec.appendChild(block); // 섹션 직접 자식 (absolute → 섹션 기준)
   window.bindStickerSelect?.(block);
+  // A24: 생성 직후 자동 선택 → 핸들 + 우측 속성패널 노출 (_selectSticker가 deselect/select/handles/panel 일괄 처리)
+  window._selectSticker?.(block);
+  // A26: text shape는 생성 직후 인라인 편집 진입 (rAF로 DOM 부착·핸들 생성 후 안전 focus)
+  if ((opts.shape ?? STICKER_DEFAULTS.shape) === 'text') {
+    requestAnimationFrame(() => window._enterStickerEdit?.(block));
+  }
   window.scheduleAutoSave?.();
 }
 

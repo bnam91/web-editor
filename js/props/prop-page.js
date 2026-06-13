@@ -175,6 +175,8 @@ export function showPageProperties() {
   bgPicker.addEventListener('input', () => {
     state.pageSettings.bg = bgPicker.value;
     bgHex.value = bgPicker.value.replace('#','').toUpperCase();
+    // 솔리드 색 선택 시 그라데이션 해제(잔상 방지) — 솔리드로 복귀
+    delete state.pageSettings.bgGradient;
     _applyBg();
   });
   bgPicker.addEventListener('change', () => {
@@ -213,6 +215,33 @@ export function showPageProperties() {
   bgAlphaInp.addEventListener('blur', () => {
     bgAlphaInp.value = String(state.pageSettings.bgAlpha ?? 100);
   });
+
+  // ── 페이지 배경 그라데이션 수신 (color-picker gradient 탭) ──
+  // prop-shape.js 그라데이션 패턴 미러. goya-cp:gradient = 라이브 미리보기(매 프레임),
+  // goya-cp:gradient-commit = 사용자 확정(마우스업·select 변경) → pushHistory.
+  // NOTE(B6): export-html/export-image는 아직 solid bg만 읽으므로 내보내기엔 그라데이션 미반영(후속).
+  const _applyBgGradient = (css) => {
+    canvasWrap.style.background = css;
+    bgSwatch.style.background = css;
+  };
+  if (!bgPicker._gradWired) {
+    bgPicker._gradWired = true;
+    bgPicker.addEventListener('goya-cp:gradient', (e) => {
+      if (!e.detail || !e.detail.css) return;
+      state.pageSettings.bgGradient = JSON.stringify({
+        type: e.detail.type,
+        angle: e.detail.angle,
+        stops: e.detail.stops,
+      });
+      _applyBgGradient(e.detail.css);
+      if (e.detail.commit) window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+    bgPicker.addEventListener('goya-cp:gradient-commit', () => {
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+  }
 
   const gapSlider = document.getElementById('section-gap-slider');
   const gapNumber = document.getElementById('section-gap-number');

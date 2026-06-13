@@ -286,6 +286,12 @@ function _syncSolidUI() {
 // 'change' 이벤트(pushHistory를 트리거하는 commit 이벤트)는 mouseup에서 단 1회.
 function _emitToTarget(hex, opts) {
   if (!_targetInput) return;
+  // C12: native input[type=color]은 alpha 비지원 → dataset.cpAlpha(0~100)에 실어
+  // 수신측(wireColorField)이 'input' 핸들러에서 읽어 _a를 동기화하게 한다.
+  // (CustomEvent 신설 시 기존 solid 'input' 경로와 이중 적용 위험 → dataset 방식이 더 안전)
+  if (opts && typeof opts.alpha === 'number') {
+    _targetInput.dataset.cpAlpha = String(Math.round(Math.max(0, Math.min(1, opts.alpha)) * 100));
+  }
   _targetInput.value = hex;
   _targetInput.dispatchEvent(new Event('input', { bubbles: true }));
   // commit 이벤트는 명시적 요청 시(마우스업·키보드 confirm)만 발행
@@ -297,7 +303,8 @@ function _emitToTarget(hex, opts) {
 function _applySolidAndEmit(opts) {
   _syncSolidUI();
   const hex = hexFromHsv(_state.h, _state.s, _state.v);
-  _emitToTarget(hex, opts);
+  // C12: solid 피커의 alpha를 함께 내려보낸다 (target은 native라 hex만 받지만 dataset로 alpha 전달)
+  _emitToTarget(hex, { ...(opts || {}), alpha: _state.a });
 }
 
 /* ─── 드래그 헬퍼 (rAF throttle + commit on mouseup) ─── */
@@ -468,14 +475,16 @@ function _wireEvents(pop) {
   const gradThumbEnd   = _els.gradThumbEnd;
   const gradStartOffsetLabel = _els.gradStartOffsetLabel;
   const gradEndOffsetLabel   = _els.gradEndOffsetLabel;
-  // stop offset 상태 (0~1)
-  let _gradStartOffset = 0;
-  let _gradEndOffset   = 1;
+  // D6: stop offset 상태(0~1)를 per-target으로 격리.
+  // _wireEvents는 _ensurePopover에서 1회만 실행되지만 _state는 openPicker마다 새 객체로 교체되므로,
+  // _state.grad를 통해 접근하면 스와치별 격리가 자동으로 보장된다(싱글턴 클로저 변수 누수 제거).
+  const _grad = () => (_state && (_state.grad ??= { startOffset: 0, endOffset: 1 })) || { startOffset: 0, endOffset: 1 };
   function _updateThumbPositions() {
-    if (gradThumbStart) gradThumbStart.style.left = (_gradStartOffset * 100) + '%';
-    if (gradThumbEnd)   gradThumbEnd.style.left   = (_gradEndOffset   * 100) + '%';
-    if (gradStartOffsetLabel) gradStartOffsetLabel.textContent = Math.round(_gradStartOffset * 100) + '%';
-    if (gradEndOffsetLabel)   gradEndOffsetLabel.textContent   = Math.round(_gradEndOffset   * 100) + '%';
+    const g = _grad();
+    if (gradThumbStart) gradThumbStart.style.left = (g.startOffset * 100) + '%';
+    if (gradThumbEnd)   gradThumbEnd.style.left   = (g.endOffset   * 100) + '%';
+    if (gradStartOffsetLabel) gradStartOffsetLabel.textContent = Math.round(g.startOffset * 100) + '%';
+    if (gradEndOffsetLabel)   gradEndOffsetLabel.textContent   = Math.round(g.endOffset   * 100) + '%';
   }
   function _setActiveThumb(idx) {
     gradThumbStart?.classList.toggle('is-active', idx === 0);
@@ -491,8 +500,10 @@ function _wireEvents(pop) {
         const r = gradBar.getBoundingClientRect();
         let p = (ev.clientX - r.left) / r.width;
         p = Math.max(0, Math.min(1, p));
-        if (isEnd) _gradEndOffset   = p;
-        else       _gradStartOffset = p;
+        const g = _grad();
+        // C13: start/end stop 상호 clamp — 두 stop이 교차해 gradient가 역전/깨지지 않게
+        if (isEnd) g.endOffset   = Math.max(g.startOffset, p);
+        else       g.startOffset = Math.min(g.endOffset,   p);
         _updateThumbPositions();
         _scheduleEmitGradient(false);
       };
@@ -508,6 +519,24 @@ function _wireEvents(pop) {
   }
   _bindThumbDrag(gradThumbStart, false);
   _bindThumbDrag(gradThumbEnd,   true);
+  // B7: 바의 빈 영역(thumb 외)을 누르면 '가까운 쪽 stop을 클릭 위치로 이동'(reposition).
+  // ※ N-stop 진짜 추가는 detail.stops 가변 + 수신측(prop-shape/page) 동시 수정이 필요한 구조변경이라
+  //    이번 범위에서는 제외하고 어포던스 일관성(라이트 reposition)만 확보 — note로 별도 이슈 권장.
+  if (gradBar) {
+    gradBar.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.goya-cp-grad-thumb')) return; // thumb 드래그는 _bindThumbDrag가 처리
+      const r = gradBar.getBoundingClientRect();
+      const p = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      const g = _grad();
+      if (Math.abs(p - g.startOffset) <= Math.abs(p - g.endOffset)) {
+        g.startOffset = Math.min(g.endOffset, p); _setActiveThumb(0);
+      } else {
+        g.endOffset = Math.max(g.startOffset, p); _setActiveThumb(1);
+      }
+      _updateThumbPositions();
+      _scheduleEmitGradient(true);
+    });
+  }
   _updateThumbPositions();
   const _aClamp = (v) => Math.max(0, Math.min(100, parseInt(v) || 0));
   const _hexToRgba = (hex, a) => {
@@ -525,8 +554,9 @@ function _wireEvents(pop) {
     const eA = _aClamp(gradEndAlpha?.value ?? 100);
     const s = sA < 100 ? _hexToRgba(sHex, sA) : sHex;
     const e = eA < 100 ? _hexToRgba(eHex, eA) : eHex;
-    const sOff = Math.round(_gradStartOffset * 100);
-    const eOff = Math.round(_gradEndOffset   * 100);
+    const g = _grad();
+    const sOff = Math.round(g.startOffset * 100);
+    const eOff = Math.round(g.endOffset   * 100);
     if (type === 'radial') return `radial-gradient(circle, ${s} ${sOff}%, ${e} ${eOff}%)`;
     return `linear-gradient(${angle}deg, ${s} ${sOff}%, ${e} ${eOff}%)`;
   }
@@ -558,8 +588,8 @@ function _wireEvents(pop) {
       type: gradType.value,
       angle: parseInt(gradAngle.value) || 90,
       stops: [
-        { color: gradStart.value, offset: _gradStartOffset, opacity: sA / 100 },
-        { color: gradEnd.value,   offset: _gradEndOffset,   opacity: eA / 100 },
+        { color: gradStart.value, offset: _grad().startOffset, opacity: sA / 100 },
+        { color: gradEnd.value,   offset: _grad().endOffset,   opacity: eA / 100 },
       ],
       commit: !!commit,
     };
@@ -592,11 +622,53 @@ function _wireEvents(pop) {
   gradStartAlpha?.addEventListener('change', () => _scheduleEmitGradient(true));
   gradEndAlpha?.addEventListener('input',    () => _scheduleEmitGradient(false));
   gradEndAlpha?.addEventListener('change',   () => _scheduleEmitGradient(true));
+  // A15: radial-gradient(circle)은 angle을 안 쓰므로 radial일 때 angle <select> 숨김.
+  // (display:none이어도 .value는 유지되어 linear 복귀 시 각도 보존)
+  const _syncGradAngleVis = () => {
+    if (gradAngle) gradAngle.style.display = (gradType.value === 'radial') ? 'none' : '';
+  };
   // type/angle 은 selectbox 'change'만 발생 — 항상 commit
-  gradType.addEventListener('change',  () => _scheduleEmitGradient(true));
+  gradType.addEventListener('change',  () => { _syncGradAngleVis(); _scheduleEmitGradient(true); });
   gradAngle.addEventListener('change', () => _scheduleEmitGradient(true));
+
+  // A16: gradient 컨텍스트 시드 브리지.
+  // _gradStartOffset 등 핵심 상태가 이 클로저 안에 있어 openPicker가 직접 못 만지므로,
+  // openPicker가 _targetInput.dispatchEvent('goya-cp:seed-gradient')로 값을 넘기면 여기서 복원한다.
+  function _seedGradientUI(g) {
+    if (!g || !Array.isArray(g.stops) || g.stops.length < 2) return false;
+    const s0 = g.stops[0], s1 = g.stops[1];
+    const _h6 = (c) => _hex6(c);
+    if (gradType)  gradType.value  = (g.type === 'radial') ? 'radial' : 'linear';
+    if (gradAngle && g.angle != null) gradAngle.value = String(parseInt(g.angle) || 90);
+    const sHex = _h6(s0.color), eHex = _h6(s1.color);
+    if (gradStart) gradStart.value = sHex;
+    if (gradEnd)   gradEnd.value   = eHex;
+    if (gradStartHex) gradStartHex.value = sHex.replace('#','').toUpperCase();
+    if (gradEndHex)   gradEndHex.value   = eHex.replace('#','').toUpperCase();
+    if (gradStartAlpha) gradStartAlpha.value = String(Math.round((s0.opacity ?? 1) * 100));
+    if (gradEndAlpha)   gradEndAlpha.value   = String(Math.round((s1.opacity ?? 1) * 100));
+    const gr = _grad();
+    gr.startOffset = Math.max(0, Math.min(1, s0.offset ?? 0));
+    gr.endOffset   = Math.max(0, Math.min(1, s1.offset ?? 1));
+    _updateThumbPositions();
+    _syncGradAngleVis();
+    _emitGradientNow(false);
+    return true;
+  }
+  // openPicker가 _pop에 직접 dispatch하는 시드 이벤트를 수신 (_pop은 body 직속이라 bubbling 미사용)
+  pop.addEventListener('goya-cp:seed-gradient', (e) => {
+    if (!e.detail) return;
+    const ok = _seedGradientUI(e.detail);
+    if (ok) {
+      // gradient 탭으로 전환
+      pop.querySelectorAll('.goya-cp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'gradient'));
+      pop.querySelectorAll('.goya-cp-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'gradient'));
+    }
+  });
+
   // 탭 진입 시 초기 프리뷰
   pop.querySelector('.goya-cp-tab[data-tab="gradient"]').addEventListener('click', () => {
+    _syncGradAngleVis();
     gradFill.style.background = _buildGradientCSS();
   });
 }
@@ -629,7 +701,10 @@ function openPicker(swatch) {
   const currentHex = nativeInp.value || '#000000';
   const { r, g, b } = hexToRgb(currentHex);
   const { h, s, v } = rgbToHsv(r, g, b);
-  _state = { h, s, v, a: 1 };
+  // D6: grad 서브상태를 매 open마다 기본값으로 초기화 → 스와치 간 offset 누수 방지
+  const cpAlpha = nativeInp.dataset.cpAlpha != null && nativeInp.dataset.cpAlpha !== ''
+    ? Math.max(0, Math.min(1, (parseInt(nativeInp.dataset.cpAlpha) || 0) / 100)) : 1;
+  _state = { h, s, v, a: cpAlpha, grad: { startOffset: 0, endOffset: 1 } };
 
   // solid 탭으로 초기화
   _pop.querySelectorAll('.goya-cp-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'solid'));
@@ -638,6 +713,20 @@ function openPicker(swatch) {
   _pop.hidden = false;
   _position(swatch);
   _syncSolidUI();
+
+  // A16: target에 gradient 컨텍스트(dataset.cpGradient)가 있으면 gradient 탭으로 복원.
+  // 시드 로직은 _wireEvents 클로저에 갇혀 있어 직접 못 부르므로 이벤트 브리지로 전달한다.
+  // (잘못된 시드 방지: stops>=2 + 유효 JSON 파싱 성공 시에만)
+  const gctx = nativeInp.dataset.cpGradient;
+  if (gctx) {
+    try {
+      const g = JSON.parse(gctx);
+      if (g && Array.isArray(g.stops) && g.stops.length >= 2) {
+        // _pop은 document.body 직속이라 nativeInp에서의 bubbling이 닿지 않음 → _pop에 직접 dispatch
+        _pop.dispatchEvent(new CustomEvent('goya-cp:seed-gradient', { detail: g }));
+      }
+    } catch (_) { /* 손상된 컨텍스트 무시 → solid 탭 유지 */ }
+  }
 
   // outside click close — composedPath로 swatch 포함 검사 + 충분한 지연으로 자기 mousedown 회피
   // ※ 이전 openPicker 호출이 남긴 outside-handler를 먼저 제거한다.
@@ -739,7 +828,16 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
   // 그라데이션 탭에서 emit되는 커스텀 이벤트 수신 (solid onApply와 별개 경로)
   if (onGradient) {
     picker.addEventListener('goya-cp:gradient', (e) => {
-      if (e.detail?.css) { swatch.style.background = e.detail.css; onGradient(e.detail.css, false); }
+      if (e.detail?.css) {
+        swatch.style.background = e.detail.css;
+        // A16: 재오픈 시 gradient 탭/stop을 복원할 수 있게 컨텍스트를 native input에 보존
+        try {
+          picker.dataset.cpGradient = JSON.stringify({
+            type: e.detail.type, angle: e.detail.angle, stops: e.detail.stops,
+          });
+        } catch (_) {}
+        onGradient(e.detail.css, false);
+      }
     });
     picker.addEventListener('goya-cp:gradient-commit', (e) => {
       if (e.detail?.css) onGradient(e.detail.css, true);
@@ -773,7 +871,18 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
 
   picker.addEventListener('input', () => {
     hex.value = picker.value.replace('#','').toUpperCase();
-    _bumpAlphaIfHidden();
+    // A16: solid로 색을 바꾸면 그라데이션 컨텍스트를 폐기 → 재오픈 시 solid 탭으로 정상 복귀
+    delete picker.dataset.cpGradient;
+    // C12: 고급 피커(solid 탭)가 dataset.cpAlpha로 내려준 alpha를 반영.
+    // _userTouchedAlpha와 충돌하지 않게: cpAlpha가 오면 그게 사용자의 명시적 alpha 조작이므로 동기화.
+    if (picker.dataset.cpAlpha != null && picker.dataset.cpAlpha !== '') {
+      const cpA = Math.max(0, Math.min(100, parseInt(picker.dataset.cpAlpha) || 0));
+      _a = cpA;
+      if (alpha) alpha.value = String(cpA);
+      _userTouchedAlpha = true;
+    } else {
+      _bumpAlphaIfHidden();
+    }
     apply();
   });
   picker.addEventListener('change', () => onCommit?.());

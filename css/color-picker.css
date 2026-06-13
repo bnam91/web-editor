@@ -312,7 +312,8 @@
                     linear-gradient(45deg, #666 25%, transparent 25%, transparent 75%, #666 75%);
   background-size: 8px 8px; background-position: 0 0, 4px 4px;
   background-color: #fff;
-  cursor: pointer;
+  /* B7: 바를 눌러 stop 위치를 지정하는 어포던스 — thumb의 grab/grabbing과 구분 */
+  cursor: crosshair;
 }
 .goya-cp-gradient-fill {
   position: absolute; inset: 0;

@@ -252,6 +252,8 @@ function _bindCornerHandleDrag(handle, block, corner) {
     const initX = parseInt(block.dataset.x) || 0;
     const initY = parseInt(block.dataset.y) || 0;
     const aspect = initH > 0 ? initW / initH : 1;
+    // B14: circle/square 리사이즈 시 내부 텍스트 폰트도 비례 스케일 (highlight는 글자 없음 → 제외)
+    const initFs = parseInt(block.dataset.fontSize) || 14;
     const startCX = e.clientX, startCY = e.clientY;
     const MIN = 10;
 
@@ -301,6 +303,10 @@ function _bindCornerHandleDrag(handle, block, corner) {
         block.dataset.sizeH = String(newH);
         // data-size는 max로 동기화 (기존 단일 슬라이더 호환)
         block.dataset.size = String(Math.max(newW, newH));
+        // B14: 폰트도 W 비율로 스케일 (정사각 뱃지 주용도). circle/square fontSize 범위 6~150 clamp.
+        const ratio = initW > 0 ? newW / initW : 1;
+        const nextFs = Math.round(initFs * ratio);
+        block.dataset.fontSize = String(Math.max(6, Math.min(150, nextFs)));
       }
       window.renderStickerBlock?.(block);
       _addCornerHandles(block); // render가 innerHTML을 비워 핸들/회전존이 사라지므로 재추가 (hlb 패턴과 동일)
@@ -442,42 +448,49 @@ function bindStickerSelect(block) {
   // 더블클릭 → 텍스트 편집 (contenteditable)
   block.addEventListener('dblclick', (e) => {
     e.stopPropagation();
-    const textEl = block.querySelector('.sticker-text');
-    if (!textEl) return;
-    textEl.setAttribute('contenteditable', 'true');
-    textEl.style.userSelect = 'text';
-    textEl.style.cursor = 'text';
-    textEl.focus();
-    const range = document.createRange();
-    range.selectNodeContents(textEl);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-
-    const finish = () => {
-      textEl.removeAttribute('contenteditable');
-      const t = (textEl.textContent || '').trim();
-      const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
-      block.dataset.text = t || fallback;
-      if (!t) textEl.textContent = fallback;
-      // 우측 prop 패널의 #stk-text input도 sync
-      const propInp = document.querySelector('#stk-text');
-      if (propInp && document.querySelector('.sticker-block.selected') === block) {
-        propInp.value = block.dataset.text;
-      }
-      window.pushHistory?.('스티커 텍스트');
-      window.scheduleAutoSave?.();
-      textEl.removeEventListener('blur', finish);
-      textEl.removeEventListener('keydown', onKey);
-    };
-    const onKey = (ev) => {
-      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); textEl.blur(); }
-      else if (ev.key === 'Escape') { ev.stopPropagation(); textEl.blur(); }
-    };
-    textEl.addEventListener('blur', finish);
-    textEl.addEventListener('keydown', onKey);
+    _enterStickerEdit(block);
   });
 }
+
+// A26: dblclick 인라인 편집 로직을 재사용 가능한 함수로 추출 — 생성 직후 프로그램적 편집 진입에도 사용.
+function _enterStickerEdit(block) {
+  if (!block) return;
+  const textEl = block.querySelector('.sticker-text');
+  if (!textEl) return;
+  textEl.setAttribute('contenteditable', 'true');
+  textEl.style.userSelect = 'text';
+  textEl.style.cursor = 'text';
+  textEl.focus();
+  const range = document.createRange();
+  range.selectNodeContents(textEl);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  const finish = () => {
+    textEl.removeAttribute('contenteditable');
+    const t = (textEl.textContent || '').trim();
+    const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
+    block.dataset.text = t || fallback;
+    if (!t) textEl.textContent = fallback;
+    // 우측 prop 패널의 #stk-text input도 sync
+    const propInp = document.querySelector('#stk-text');
+    if (propInp && document.querySelector('.sticker-block.selected') === block) {
+      propInp.value = block.dataset.text;
+    }
+    window.pushHistory?.('스티커 텍스트');
+    window.scheduleAutoSave?.();
+    textEl.removeEventListener('blur', finish);
+    textEl.removeEventListener('keydown', onKey);
+  };
+  const onKey = (ev) => {
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); textEl.blur(); }
+    else if (ev.key === 'Escape') { ev.stopPropagation(); textEl.blur(); }
+  };
+  textEl.addEventListener('blur', finish);
+  textEl.addEventListener('keydown', onKey);
+}
+window._enterStickerEdit = _enterStickerEdit;
 window.bindStickerSelect = bindStickerSelect;
 
 // ESC/v로 deselect

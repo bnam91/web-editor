@@ -825,8 +825,8 @@ function bindBlock(block) {
         block.querySelectorAll('[contenteditable="true"]').forEach(el => {
           if (el !== cell) el.setAttribute('contenteditable','false');
         });
-        // 편집 시작 전 히스토리 스냅샷 저장 (undo 복원 기준점)
-        window.pushHistory('셀 편집');
+        // 편집 시작 전 원본 텍스트 스냅샷 (dirty 비교용)
+        cell._editBefore = cell.textContent;
         cell.setAttribute('contenteditable','true');
         cell.focus();
         // 커서를 끝으로 이동
@@ -841,7 +841,8 @@ function bindBlock(block) {
           cell._editBound = true;
           cell.addEventListener('blur', () => {
             cell.setAttribute('contenteditable', 'false');
-            window.pushHistory('셀 텍스트 변경');
+            const _dirty = cell.textContent !== (cell._editBefore ?? cell.textContent);
+            if (_dirty) window.pushHistory('셀 텍스트 변경');
             // :img 이스터에그 — row 전체를 이미지 placeholder row로 변환
             if (cell.textContent.trim() === ':img') {
               const tr = cell.closest('tr');

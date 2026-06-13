@@ -205,7 +205,9 @@ function addComparisonBlock(opts = {}) {
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
-  window.selectSection(sec);
+  // 방금 추가한 블록 자동 선택 + 화면 안으로 스크롤 (C9)
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   window.scheduleAutoSave?.();
   return { row, block };
 }

@@ -232,6 +232,7 @@ function _finalizeAnnotation() {
   window.bindAnnotationSelect?.(block);
   _cancelPending();
   window.scheduleAutoSave?.();
+  window.showToast?.('✏️ 펜 모드 유지 중 — ESC로 종료');
 }
 
 function _bindLabelEdit(label, block) {
@@ -264,6 +265,20 @@ function _onKeydown(e) {
   const editingLabel = active && active.classList && active.classList.contains('annot-label')
     && active.getAttribute('contenteditable') === 'true';
 
+  // 그리는 중 Cmd+Z → 전역 undo(완성 주석 삭제) 막고 펜딩 마지막 점만 취소
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+    if (editingLabel) return;            // 라벨 편집 중 undo는 브라우저/전역에 위임
+    if (_pendingPoints && _pendingPoints.points.length > 0) {
+      e.stopPropagation();
+      e.preventDefault();
+      _pendingPoints.points.pop();
+      if (_pendingPoints.points.length === 0) { _cancelPending(); }
+      else { _lastClickAt = 0; _updatePreviewSvg(); }
+      return;
+    }
+    // 펜딩 없으면 전역 undo 그대로 통과(가로채지 않음)
+  }
+
   if (e.key === 'Escape') {
     // 라벨 편집 중 → 라벨 blur에 위임
     if (editingLabel) return;
@@ -277,6 +292,18 @@ function _onKeydown(e) {
     e.stopPropagation();
     exitPenMode();
     return;
+  }
+
+  if (e.key === 'Backspace' || e.key === 'Delete') {
+    if (editingLabel) return;            // 라벨 편집 중엔 텍스트 삭제로 위임
+    if (_pendingPoints && _pendingPoints.points.length > 0) {
+      e.stopPropagation();
+      e.preventDefault();
+      _pendingPoints.points.pop();        // 마지막 점 취소
+      if (_pendingPoints.points.length === 0) { _cancelPending(); }
+      else { _lastClickAt = 0; _updatePreviewSvg(); }  // 더블검출 리셋 + 미리보기 갱신
+      return;
+    }
   }
 
   if (e.key === 'Enter') {

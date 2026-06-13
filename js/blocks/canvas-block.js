@@ -650,7 +650,9 @@ function addCanvasBlock(opts = {}) {
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
-  window.selectSection(sec);
+  // 방금 추가한 블록 자동 선택 + 화면 안으로 스크롤 (C9: selectSection→deselectAll 회피)
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // ── 수정 (PM/MCP 진입점) ──────────────────────────────────────────────────────────────────────

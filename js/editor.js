@@ -140,6 +140,18 @@ function _applyScalerTransform() {
 
 function resetPanOffset() {
   panOffsetX = 0;
+  // C14: panOffsetY를 0으로 만들 때 잃는 세로 보정을 wrap.scrollTop으로 흡수해
+  //       콘텐츠 중앙정렬 유지 (applyZoom의 idealScrollTop/clamp 공식 차용).
+  const wrap = document.getElementById('canvas-wrap');
+  const scalerEl = document.getElementById('canvas-scaler');
+  if (wrap && scalerEl) {
+    void scalerEl.offsetHeight; void wrap.scrollHeight;
+    const scale = currentZoom / 100;
+    const contentH = scalerEl.offsetHeight * scale;
+    const idealScrollTop = Math.round((contentH - wrap.clientHeight) / 2);
+    const maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+    wrap.scrollTop = Math.max(0, Math.min(maxScroll, idealScrollTop));
+  }
   panOffsetY = 0;
   _applyScalerTransform();
 }
@@ -1485,6 +1497,16 @@ document.addEventListener('keydown', e => {
     const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected')];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
+      // A13: 보호섹션(메모 '삭제하지말것' 등) 내부 블록/도형 삭제 우회 차단.
+      //       선택 중 하나라도 보호섹션에 속하면 전체 차단(부분삭제 모호성 회피).
+      const _isProt = window.isSectionProtected || (() => false);
+      const _protShape = allSelShapes.some(s => { const sec = s.closest('.section-block'); return sec && _isProt(sec); });
+      const _protBlock = allSelBlocks.some(b => { const sec = b.closest('.section-block'); return sec && _isProt(sec); });
+      if (_protShape || _protBlock) {
+        if (typeof window.showToast === 'function') window.showToast('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요');
+        deselectAll();
+        return;
+      }
       window.ensureHistoryCheckpoint?.('삭제 전');
       // shape: 부모 ss/row 단위로 삭제
       const ssRowsToRemove = new Set();
