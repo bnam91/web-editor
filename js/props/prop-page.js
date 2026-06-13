@@ -120,12 +120,12 @@ export function showPageProperties() {
       <div class="prop-section-title">Layout</div>
       <div class="prop-row">
         <span class="prop-label">섹션 간격</span>
-        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="200" step="4" value="${gap}">
+        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="200" step="1" value="${gap}">
         <input type="number" class="prop-number" id="section-gap-number" min="0" max="200" value="${gap}">
       </div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="4" value="${padX}">
+        <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="1" value="${padX}">
         <input type="number" class="prop-number" id="page-padx-number" min="0" max="200" value="${padX}">
       </div>
       <div class="prop-row" style="align-items:center;gap:4px;">
@@ -134,7 +134,7 @@ export function showPageProperties() {
       </div>
       <div class="prop-row">
         <span class="prop-label">상하 패딩</span>
-        <input type="range" class="prop-slider" id="page-pady-slider" min="0" max="200" step="4" value="${padY}">
+        <input type="range" class="prop-slider" id="page-pady-slider" min="0" max="200" step="1" value="${padY}">
         <input type="number" class="prop-number" id="page-pady-number" min="0" max="200" value="${padY}">
       </div>
     </div>

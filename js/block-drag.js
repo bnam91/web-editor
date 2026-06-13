@@ -511,7 +511,8 @@ function bindBlock(block) {
           el.innerHTML = ph;
         }
         el.dataset.isPlaceholder = 'true';
-      } else if (el.textContent.trim() !== '') {
+      } else if (el.textContent.trim() !== '' && el.textContent.trim() !== (el.dataset.placeholder || '').trim()) {
+        // placeholder 문구와 동일하면(더블클릭 전체선택 후 무입력 blur 등) isPlaceholder 유지 — 안내문구가 본문으로 굳는 지뢰 방지
         delete el.dataset.isPlaceholder;
       }
     });

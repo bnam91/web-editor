@@ -225,7 +225,7 @@ export function buildTextPropsHtml(state) {
       <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="4" value="${currentW}">
+        <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="1" value="${currentW}">
         <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="${currentW}">
       </div>
     </div>

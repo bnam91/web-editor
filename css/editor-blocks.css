@@ -783,10 +783,11 @@
 }
 
 /* ── 텍스트 블록 placeholder 스타일 (PPT 스타일) ── */
-[data-is-placeholder="true"] {
+/* #canvas 스코프: export 클론은 body에 첨부되므로 dim 규칙이 새어 들어가지 않게 함 */
+#canvas [data-is-placeholder="true"] {
   opacity: 0.45;
 }
-[data-is-placeholder="true"][contenteditable="true"] {
+#canvas [data-is-placeholder="true"][contenteditable="true"] {
   opacity: 1;
 }
 

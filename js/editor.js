@@ -329,6 +329,27 @@ function _updateFreeLayoutMultiSelPanel() {
   }
 }
 
+/* 일반(플로우) 블록 멀티선택 카운트 패널 트리거 (A11)
+ * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
+ *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
+// 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected';
+
+function _countFlowMultiSel() {
+  return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
+}
+
+function _updateMultiSelPanel(block) {
+  if (_isInFreeLayout(block)) {
+    _updateFreeLayoutMultiSelPanel();
+    return;
+  }
+  const n = _countFlowMultiSel();
+  if (n > 1 && propPanel) {
+    propPanel.innerHTML = `<div class="prop-section"><div class="prop-block-label" style="padding:2px 0 4px;"><div class="prop-block-info"><span class="prop-block-name">${n}개 선택됨</span><span class="prop-breadcrumb">블록 멀티선택</span></div></div></div>`;
+  }
+}
+
 /* Cmd+클릭: 단일 블록 토글 */
 function toggleBlockSelect(block, sec) {
   const layerItem = _getBlockLayerItem(block);
@@ -345,6 +366,9 @@ function toggleBlockSelect(block, sec) {
   if (_isInFreeLayout(block)) {
     _restoreFreeLayoutFrameSelected(block);
     setTimeout(_updateFreeLayoutMultiSelPanel, 0);
+  } else {
+    // 일반(플로우) 블록 — 멀티선택 시 카운트 패널 트리거 (A11)
+    setTimeout(() => _updateMultiSelPanel(block), 0);
   }
 }
 
@@ -405,6 +429,9 @@ function rangeSelectBlocks(block, sec) {
       if (_isInFreeLayout(block)) {
         _restoreFreeLayoutFrameSelected(block);
         setTimeout(_updateFreeLayoutMultiSelPanel, 0);
+      } else {
+        // 일반(플로우) 블록 범위선택 후 카운트 패널 갱신 (A11)
+        setTimeout(() => _updateMultiSelPanel(block), 0);
       }
       return;
     }
@@ -433,6 +460,8 @@ function rangeSelectBlocks(block, sec) {
       _lastClickedBlock = anchor;
       for (let i = lo; i <= hi; i++) _selectSibling(sibs[i]);
       if (sec) window.syncSection?.(sec);
+      // 멀티선택 후 패널 갱신 (A11) — n>1 가드로 단일선택엔 무동작
+      setTimeout(() => _updateMultiSelPanel(block), 0);
       return;
     }
   }
@@ -444,6 +473,8 @@ function rangeSelectBlocks(block, sec) {
   if (li) li.classList.add('active');
   _lastClickedBlock = block;
   if (sec) window.syncSection?.(sec);
+  // 단일선택 fallback — n>1 가드로 카운트 패널은 자연히 안 뜸 (A11)
+  setTimeout(() => _updateMultiSelPanel(block), 0);
 }
 
 /* 일반 클릭 시 앵커 업데이트 */

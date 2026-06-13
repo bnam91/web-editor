@@ -769,7 +769,10 @@ function addTableBlock(opts = {}) {
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
-  window.selectSection(sec);
+  // 방금 추가한 블록을 자동 선택 + 화면 안으로 스크롤 (selectSection→deselectAll로
+  // 새 블록 선택이 풀리고 스크롤도 안 일어남 — A1 패턴과 동일)
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 
@@ -809,7 +812,9 @@ function addGraphBlock(opts = {}) {
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
-  window.selectSection(sec);
+  // 방금 추가한 블록을 자동 선택 + 화면 안으로 스크롤 (A1 패턴과 동일)
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function makeDividerBlock() {
@@ -852,7 +857,9 @@ function addDividerBlock(opts = {}) {
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
-  window.selectSection(sec);
+  // 방금 추가한 블록을 자동 선택 + 화면 안으로 스크롤 (A1 패턴과 동일)
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function addGhostSection() {
@@ -969,6 +976,11 @@ function addSection(opts = {}) {
     }
   }
 
+  // 히스토리 스냅샷은 새 섹션 삽입 '前' 캔버스를 캡처해야 한다 (push-before 관용구).
+  // deleteSection이 sec.remove() 前에 pushHistory하는 것과 대칭 — 첫 ⌘Z 1회로 삭제 복원.
+  // (ghost 섹션은 위에서 이미 제거됐고, 신규 sec은 아직 DOM에 안 붙어 스냅샷에서 빠짐)
+  window.pushHistory();
+
   // 위치 지정: opts.beforeId / opts.afterId 우선, 없으면 selected → 끝
   let placed = false;
   if (opts.beforeId) {
@@ -986,7 +998,6 @@ function addSection(opts = {}) {
   }
 
   // 이벤트 바인딩
-  window.pushHistory();
   sec.addEventListener('click', e => {
     e.stopPropagation();
     window.selectSectionWithModifier(sec, e);
@@ -1764,6 +1775,8 @@ function addShapeBlock(type = 'rectangle') {
       window._activeFrame = null;
       insertAfterSelected(sec, ss);
       window._activeFrame = prevActiveSS;
+      // 새로 만든 도형 프레임을 화면 안으로 스크롤 (섹션 레벨 추가 시 폴드 밖 방지)
+      ss.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }
 

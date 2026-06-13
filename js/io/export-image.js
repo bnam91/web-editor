@@ -180,6 +180,13 @@ async function exportSection(sec, format, width) {
   if (cloneLabel)   cloneLabel.remove();
   if (cloneToolbar) cloneToolbar.remove();
   clone.querySelectorAll('.variation-badge').forEach(el => el.remove());
+  // 미입력 placeholder 안내문구는 export 결과에 박히면 안 됨.
+  // data-is-placeholder="true"는 실제 글자가 들어가면 즉시 삭제되므로,
+  // 클론에 true로 남은 요소는 미입력 placeholder가 확정 → 텍스트만 비워
+  // 레이아웃 높이는 유지하고 안내문구만 사라지게 함.
+  clone.querySelectorAll('[data-is-placeholder="true"]').forEach(el => {
+    el.textContent = '';
+  });
   clone.classList.remove('selected');
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
   clone.querySelectorAll(
