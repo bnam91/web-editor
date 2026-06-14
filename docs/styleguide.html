@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GODITOR · 디자인 토큰 스타일가이드</title>
+<style>
+  :root{
+    /* 가이드 문서 자체 테마 (GODITOR 다크) */
+    --doc-bg:#161616; --doc-panel:#1e1e1e; --doc-card:#252525; --doc-input:#2a2a2a;
+    --doc-border:#333; --doc-border-mid:#3a3a3a; --doc-border-strong:#444; --doc-text:#e0e0e0; --doc-sub:#aaa;
+    --doc-dim:#969696; --doc-accent:#2d6fe8; --doc-accent-text:#6fa3f7;
+    --doc-danger:#e06c6c; --doc-warn:#e8c547; --doc-ok:#7fc87f;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--doc-bg); color:var(--doc-text);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,'Noto Sans KR','Segoe UI',sans-serif;
+    display:flex; min-height:100vh;
+  }
+  code,.mono{font-family:'SF Mono','JetBrains Mono',Menlo,Consolas,monospace}
+
+  /* ── TOC ── */
+  aside{
+    position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto;
+    width:228px; flex:none; background:var(--doc-panel);
+    border-right:1px solid var(--doc-border); padding:20px 14px;
+  }
+  aside h1{font-size:15px; margin:0 0 4px; letter-spacing:.3px}
+  aside .sub{font-size:11px; color:var(--doc-dim); margin-bottom:16px}
+  aside nav a{
+    display:block; padding:6px 10px; margin:1px 0; border-radius:6px;
+    color:var(--doc-sub); text-decoration:none; font-size:12.5px;
+  }
+  aside nav a:hover{background:var(--doc-input); color:var(--doc-text)}
+  aside nav a.warn{color:var(--doc-warn)}
+  aside nav .grp{font-size:10.5px; text-transform:uppercase; letter-spacing:.8px;
+    color:var(--doc-dim); margin:14px 0 4px 10px}
+
+  /* ── main ── */
+  main{flex:1; max-width:1180px; padding:34px 44px 120px}
+  section{margin-bottom:54px; scroll-margin-top:20px}
+  h2{font-size:22px; margin:0 0 4px; display:flex; align-items:center; gap:10px}
+  h2 .cnt{font-size:12px; font-weight:500; color:var(--doc-dim); background:var(--doc-card);
+    padding:2px 9px; border-radius:20px; border:1px solid var(--doc-border)}
+  .desc{color:var(--doc-sub); margin:0 0 20px; max-width:760px; font-size:13px}
+  h3{font-size:14px; color:var(--doc-accent-text); margin:30px 0 12px;
+    text-transform:uppercase; letter-spacing:.6px; font-weight:600}
+
+  /* ── token grid ── */
+  .grid{display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(248px,1fr))}
+  .swatch{
+    background:var(--doc-card); border:1px solid var(--doc-border); border-radius:10px;
+    overflow:hidden; display:flex; flex-direction:column;
+  }
+  .swatch .chip{height:62px; position:relative; border-bottom:1px solid var(--doc-border)}
+  .swatch .meta{padding:10px 12px}
+  .tok{
+    cursor:pointer; font-size:12.5px; font-weight:600; letter-spacing:.2px;
+    display:inline-flex; align-items:center; gap:5px; word-break:break-all;
+  }
+  .tok:hover{color:var(--doc-accent-text)}
+  .tok::after{content:'⧉'; font-size:11px; opacity:.4}
+  .tok.copied::after{content:'✓ copied'; opacity:1; color:var(--doc-ok); font-size:10px}
+  .val{font-size:11.5px; color:var(--doc-dim); margin-top:3px}
+  .use{font-size:11px; color:var(--doc-sub); margin-top:6px; display:flex; align-items:center; gap:6px}
+  .bar{height:4px; border-radius:3px; background:var(--doc-accent); flex:none}
+  .role{font-size:11px; color:var(--doc-sub); margin-top:5px; line-height:1.4}
+  .pill{font-size:9.5px; padding:1px 7px; border-radius:20px; font-weight:600;
+    text-transform:uppercase; letter-spacing:.4px}
+  .pill.dead{background:rgba(224,108,108,.14); color:var(--doc-danger)}
+  .pill.live{background:rgba(127,200,127,.14); color:var(--doc-ok)}
+  .pill.bridge{background:rgba(232,197,71,.14); color:var(--doc-warn)}
+  .pill.runtime{background:rgba(111,163,247,.16); color:var(--doc-accent-text)}
+  .pill.aa{background:rgba(224,108,108,.14); color:var(--doc-danger)}
+
+  /* ── warning box ── */
+  .warnbox{
+    background:linear-gradient(180deg,rgba(232,197,71,.07),rgba(232,197,71,.02));
+    border:1px solid rgba(232,197,71,.35); border-left:4px solid var(--doc-warn);
+    border-radius:10px; padding:18px 22px; margin-bottom:18px;
+  }
+  .warnbox h3{color:var(--doc-warn); margin:0 0 6px; font-size:14px}
+  .warnbox p{margin:6px 0; font-size:13px; color:var(--doc-text)}
+  .plain{background:rgba(255,255,255,.04); border-radius:8px; padding:11px 14px; margin:0 0 12px;
+    font-size:13.5px; line-height:1.65; color:var(--doc-text); display:flex; gap:9px}
+  .plain b{color:var(--doc-warn)}
+  .plain .ico{flex:none; font-size:15px; line-height:1.5}
+  .tech{margin-top:12px}
+  .tech>summary{cursor:pointer; font-size:11.5px; color:var(--doc-dim); list-style:none; user-select:none}
+  .tech>summary::before{content:'▸ '; color:var(--doc-dim)}
+  .tech[open]>summary::before{content:'▾ '}
+  .tech>summary:hover{color:var(--doc-sub)}
+  .warnbox ul{margin:8px 0 0; padding-left:18px}
+  .warnbox li{margin:5px 0; font-size:12.5px; color:var(--doc-sub)}
+  .warnbox b{color:var(--doc-text)}
+  .num{color:var(--doc-warn); font-weight:700}
+
+  /* ── typography samples ── */
+  .typo-row{display:flex; align-items:baseline; gap:18px; padding:10px 0;
+    border-bottom:1px solid var(--doc-border)}
+  .typo-row .lbl{width:120px; flex:none; color:var(--doc-dim); font-size:11.5px}
+  .typo-row .smpl{color:var(--doc-text)}
+
+  /* ── radius / spacing ── */
+  .rad-row,.sp-row{display:flex; align-items:center; gap:18px; padding:9px 0;
+    border-bottom:1px solid var(--doc-border)}
+  .rad-box{width:80px; height:54px; background:var(--doc-input);
+    border:1px solid var(--doc-border-strong)}
+  .sp-vis{height:18px; background:var(--doc-accent); border-radius:3px}
+  .dim-tok{font-size:12px; color:var(--doc-dim)} .dim-tok b{color:var(--doc-text)}
+
+  /* ── components demo ── */
+  .demo{background:var(--doc-panel); border:1px solid var(--doc-border);
+    border-radius:10px; padding:22px; display:flex; flex-wrap:wrap; gap:16px; align-items:center}
+  .g-btn{height:24px; padding:0 14px; border-radius:4px; border:none; cursor:pointer;
+    font-size:12px; font-weight:600; background:var(--doc-accent); color:#fff}
+  .g-btn.sec{background:var(--doc-input); color:var(--doc-text); border:1px solid var(--doc-border)}
+  .g-btn.danger{background:#e06c6c}
+  .g-btn.ghost{background:transparent; color:var(--doc-sub); border:1px solid var(--doc-border)}
+  .g-btn.ghost:hover{background:var(--doc-input); color:var(--doc-text)}
+  .g-btn.sm{height:20px; padding:0 10px; font-size:11px}
+  .g-btn:disabled{opacity:.5; cursor:not-allowed}
+  .g-input{height:24px; background:var(--doc-input); border:1px solid var(--doc-border);
+    border-radius:4px; color:var(--doc-text); padding:0 10px; font-size:12px; width:160px}
+  .g-input:focus{outline:none; border-color:var(--doc-accent)}
+  .g-input.sm2{width:64px; height:22px; padding:0 8px}
+  select.g-input{padding:0 6px}
+  /* checkbox */
+  .g-check{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--doc-text); cursor:pointer}
+  .g-check input{accent-color:var(--doc-accent); width:14px; height:14px}
+  /* toggle */
+  .g-toggle{width:34px; height:18px; border-radius:20px; background:var(--doc-border-mid);
+    position:relative; cursor:pointer; transition:background .15s; display:inline-block}
+  .g-toggle.on{background:var(--doc-accent)}
+  .g-toggle .knob{position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%;
+    background:#fff; transition:left .15s}
+  .g-toggle.on .knob{left:18px}
+  /* tabs */
+  .g-tabs{display:flex; border-bottom:1px solid var(--doc-border)}
+  .g-tab{padding:7px 16px; font-size:12px; color:var(--doc-sub); cursor:pointer;
+    border-bottom:2px solid transparent; margin-bottom:-1px}
+  .g-tab:hover{color:var(--doc-text)}
+  .g-tab.active{color:var(--doc-accent-text); border-bottom-color:var(--doc-accent)}
+  /* badge */
+  .g-badge{font-size:10px; font-weight:600; padding:2px 9px; border-radius:20px}
+  .g-badge.accent{background:rgba(45,111,232,.18); color:var(--doc-accent-text)}
+  .g-badge.ok{background:rgba(127,200,127,.16); color:var(--doc-ok)}
+  .g-badge.danger{background:rgba(224,108,108,.16); color:var(--doc-danger)}
+  .g-badge.edit{background:rgba(124,184,255,.16); color:#9cc6ff}
+  .g-badge.muted{background:var(--doc-input); color:var(--doc-dim)}
+  /* prop row */
+  .g-prop{display:flex; align-items:center; gap:8px; padding:3px 0; font-size:11.5px}
+  .g-prop>span:first-child{width:40px; color:var(--doc-dim); flex:none}
+  .g-swatch{width:18px; height:18px; border-radius:4px; border:1px solid var(--doc-border)}
+  /* toast */
+  .g-toast{display:inline-flex; align-items:center; gap:8px; background:var(--doc-card);
+    border:1px solid var(--doc-border); border-radius:6px; padding:8px 14px; font-size:12px;
+    box-shadow:0 4px 14px rgba(0,0,0,.4)}
+  .g-panel{background:var(--doc-card); border:1px solid var(--doc-border);
+    border-radius:6px; padding:12px 14px; min-width:200px}
+  .g-panel .ph{font-size:12px; font-weight:600; margin-bottom:8px}
+  .g-row{display:flex; justify-content:space-between; font-size:11.5px; padding:3px 0}
+  .g-row span:first-child{color:var(--doc-dim)}
+  .note{font-size:11.5px; color:var(--doc-dim); margin-top:12px}
+
+  /* ── do / don't ── */
+  .dd{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:8px 0 0}
+  .dd-col{border-radius:10px; padding:14px 16px; border:1px solid var(--doc-border)}
+  .dd-col.do{background:rgba(127,200,127,.05); border-color:rgba(127,200,127,.3)}
+  .dd-col.dont{background:rgba(224,108,108,.05); border-color:rgba(224,108,108,.3)}
+  .dd-col h4{margin:0 0 10px; font-size:13px}
+  .dd-col.do h4{color:var(--doc-ok)} .dd-col.dont h4{color:var(--doc-danger)}
+  .dd-col ul{margin:0; padding-left:18px}
+  .dd-col li{margin:7px 0; font-size:12.5px; color:var(--doc-sub); line-height:1.5}
+  .dd-col li b{color:var(--doc-text)}
+  @media(max-width:760px){.dd{grid-template-columns:1fr}}
+
+  /* ── contrast pairing table ── */
+  table.gtbl{border-collapse:collapse; width:100%; font-size:12.5px; margin-top:4px}
+  table.gtbl th,table.gtbl td{border:1px solid var(--doc-border); padding:9px 12px; text-align:left}
+  table.gtbl th{background:var(--doc-card); color:var(--doc-sub); font-weight:600; font-size:11.5px}
+  table.gtbl .cell-bg{display:inline-block; padding:3px 10px; border-radius:5px; font-size:11.5px}
+  .ratio{font-size:10px; color:var(--doc-dim); margin-left:5px}
+  .ok-mark{color:var(--doc-ok)} .no-mark{color:var(--doc-danger)}
+
+  /* ===== FIX QUEUE 인터랙션 ===== */
+  #fq-copy{
+    margin-left:10px; font-size:11.5px; font-weight:500;
+    color:var(--doc-sub); background:var(--doc-card);
+    border:1px solid var(--doc-border); border-radius:6px;
+    padding:4px 10px; cursor:pointer; vertical-align:middle;
+    transition:background .12s,color .12s,border-color .12s;
+  }
+  #fq-copy:hover{ background:var(--doc-input); color:var(--doc-text); border-color:var(--doc-border-mid) }
+  #fq-copy.done{ color:var(--doc-ok); border-color:rgba(127,200,127,.4) }
+  .fq-status{
+    width:100%; min-width:74px; font-size:11.5px; font-weight:600;
+    font-family:inherit; padding:4px 6px; border-radius:6px;
+    background:var(--doc-input); color:var(--doc-text);
+    border:1px solid var(--doc-border); cursor:pointer;
+    -webkit-appearance:none; appearance:none; text-align:center;
+  }
+  .fq-status:focus{ outline:1px solid var(--doc-accent); outline-offset:0 }
+  .fq-status[data-status="미정"]{ color:var(--doc-dim) }
+  .fq-status[data-status="대기"]{ color:var(--doc-dim); background:rgba(150,150,150,.14); border-color:rgba(150,150,150,.35) }
+  .fq-status[data-status="진행중"]{ color:var(--doc-accent-text); background:rgba(111,163,247,.16); border-color:rgba(111,163,247,.4) }
+  .fq-status[data-status="승인"]{ color:var(--doc-ok); background:rgba(127,200,127,.14); border-color:rgba(127,200,127,.4) }
+  .fq-status[data-status="반려"]{ color:var(--doc-danger); background:rgba(224,108,108,.14); border-color:rgba(224,108,108,.4) }
+  .fq-status option{ background:var(--doc-panel); color:var(--doc-text) }
+  .fq-comment{
+    width:100%; box-sizing:border-box; font-size:11.5px; font-family:inherit;
+    padding:5px 8px; border-radius:6px;
+    background:var(--doc-input); color:var(--doc-text);
+    border:1px solid var(--doc-border);
+  }
+  .fq-comment::placeholder{ color:var(--doc-dim) }
+  .fq-comment:focus{ outline:1px solid var(--doc-accent); outline-offset:0; border-color:var(--doc-accent) }
+  #fq-table th.fq-col-status,#fq-table td.fq-col-status{ width:92px }
+  #fq-table th.fq-col-comment,#fq-table td.fq-col-comment{ width:200px }
+
+  /* ── outline demo ── */
+  .ol-demo{display:flex; gap:30px; flex-wrap:wrap; background:#f0f0f0; border-radius:10px; padding:28px; margin-top:6px}
+  .ol-box{background:#fff; width:130px; height:84px; border-radius:6px; display:flex;
+    align-items:center; justify-content:center; color:#555; font-size:11.5px; position:relative}
+  .ol-box.comp{outline:1px solid #2d6fe8; outline-offset:-1px}
+  .ol-box.cont{outline:1px solid #2d6fe8; outline-offset:-1px; display:flex; gap:6px; padding:10px}
+  .ol-box.cont .child{background:#e8e8e8; border-radius:3px; flex:1; height:100%}
+  .ol-box.purple{outline:1px solid #9966ff; outline-offset:-1px}
+  .ol-box.purple2{outline:1px dashed #c084fc; outline-offset:-1px}
+  .ol-cap{font-size:11px; color:var(--doc-dim); margin-top:8px; text-align:center}
+
+  /* ── checklist ── */
+  .ckl{list-style:none; padding:0; margin:6px 0 0}
+  .ckl li{display:flex; gap:11px; align-items:flex-start; padding:11px 14px; margin:7px 0;
+    background:var(--doc-card); border:1px solid var(--doc-border); border-radius:9px; font-size:13px; cursor:pointer}
+  .ckl li:hover{border-color:var(--doc-border-strong)}
+  .ckl .box{flex:none; width:18px; height:18px; border-radius:5px; border:1.5px solid var(--doc-border-strong);
+    margin-top:1px; display:flex; align-items:center; justify-content:center; font-size:12px; color:transparent}
+  .ckl li.done .box{background:var(--doc-ok); border-color:var(--doc-ok); color:#0b1f0b}
+  .ckl li.done .ck-txt{color:var(--doc-dim); text-decoration:line-through}
+  .ckl .ck-txt b{color:var(--doc-text)} .ckl li.done .ck-txt b{color:var(--doc-dim)}
+  .ck-sub{font-size:11px; color:var(--doc-dim); margin-top:2px}
+  .ck-grp{margin:22px 0 4px; display:flex; align-items:center; gap:10px}
+  .ck-grp h3{margin:0; font-size:13.5px; color:var(--doc-accent-text); text-transform:none; letter-spacing:0}
+  .ck-grp .ck-area{font-size:10.5px; color:var(--doc-dim); background:var(--doc-card);
+    border:1px solid var(--doc-border); padding:2px 9px; border-radius:20px}
+  .ck-grp .ck-prog{margin-left:auto; font-size:11px; color:var(--doc-dim)}
+  .meth{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:6px 0 20px}
+  .meth-card{background:var(--doc-card); border:1px solid var(--doc-border); border-radius:9px; padding:13px 15px}
+  .meth-card h4{margin:0 0 5px; font-size:12.5px; color:var(--doc-text)}
+  .meth-card p{margin:0; font-size:11.5px; color:var(--doc-sub); line-height:1.5}
+  .meth-card .tag{font-size:9.5px; color:var(--doc-accent-text); font-weight:600}
+  .legend{display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:var(--doc-sub); margin:0 0 22px}
+  .legend span{display:inline-flex; align-items:center; gap:5px}
+  a.anchor-self{color:inherit;text-decoration:none}
+</style>
+</head>
+<body>
+<aside>
+  <h1>GODITOR</h1>
+  <div class="sub">디자인 토큰 스타일가이드<br>vanilla-JS · Electron · 다크</div>
+  <nav>
+    <a href="#issues" class="warn">⚠️ 알려진 이슈</a>
+    <a href="#fixqueue" class="warn">🔧 고칠 후보 (대기열)</a>
+    <div class="grp">색상</div>
+    <a href="#ui-shell">UI Shell (실가동)</a>
+    <a href="#accent">Accent · Selection</a>
+    <a href="#status">Status</a>
+    <a href="#category">Category (A/B 베리에이션)</a>
+    <a href="#primitive">Primitive 팔레트</a>
+    <a href="#dead">Semantic (dead)</a>
+    <a href="#preset">Preset (캔버스 콘텐츠)</a>
+    <a href="#runtime">Runtime (JS 주입)</a>
+    <div class="grp">스케일</div>
+    <a href="#typo">타이포그래피</a>
+    <a href="#radius">Radius</a>
+    <a href="#spacing">Spacing</a>
+    <a href="#shadow">Shadow</a>
+    <div class="grp">예시</div>
+    <a href="#components">컴포넌트</a>
+    <div class="grp">명세 · 가이드</div>
+    <a href="#usage">토큰 사용 규칙 (Do/Don't)</a>
+    <a href="#contrast">배경별 텍스트 대비</a>
+    <a href="#outline">블록 선택 outline</a>
+    <a href="#blocks">캔버스 블록 카탈로그</a>
+    <a href="#handles">핸들 · 오버레이</a>
+    <a href="#zindex">z-index 질서</a>
+    <a href="#focus">키보드 포커스 링</a>
+    <a href="#checklist">✅ 디자인 감수 체크리스트</a>
+  </nav>
+</aside>
+
+<main>
+  <header style="margin-bottom:40px">
+    <h2 style="font-size:28px">디자인 토큰 스타일가이드</h2>
+    <p class="desc" style="font-size:14px">
+      <code>css/</code> 16개 파일에서 추출한 GODITOR 디자인 토큰 정본 문서. 토큰명을 <b>클릭하면 클립보드에 복사</b>됩니다.
+      사용횟수는 <code>var(--token)</code> 참조 수(css 전역)이며 <b>2026-06-14 스냅샷</b>입니다 — fable이 코드를 계속 정리 중이라 ±변동하며, 정확값은 <code>scripts/check-design-tokens.sh</code>로 재집계하세요. <span class="pill live">live</span> 실가동 /
+      <span class="pill bridge">bridge</span> 별칭·연결 / <span class="pill dead">dead</span> 미사용·중복 /
+      <span class="pill runtime">runtime</span> JS가 런타임 주입 으로 구분했습니다.
+    </p>
+  </header>
+
+  <!-- ════════ ISSUES ════════ -->
+  <section id="issues">
+    <h2>⚠️ 알려진 이슈 · 디자인 부채</h2>
+    <p class="desc">현재 코드 상태를 과장 없이 정리. 가이드를 보기 전에 먼저 알아둘 맥락입니다.</p>
+
+    <div class="warnbox">
+      <h3>1. 색·치수 "정답표"가 두 개라서 한쪽은 거의 안 쓰임</h3>
+      <div class="plain"><span class="ico">💬</span><div><b>쉽게 말하면</b> — 누군가 색·간격을 깔끔하게 정리한 <b>공식 정답표(A)</b>를 만들어 뒀는데,
+        정작 화면을 그릴 땐 다른 사람이 <b>따로 만든 정답표(B)</b>를 씁니다. 둘이 적어둔 값은 사실 거의 똑같아요(예: 같은 파란색 #2d6fe8을 A·B가 각자 적어둠).
+        그래서 <b>표 A는 만들어만 놓고 먼지 쌓인 상태</b>고, 나중에 색을 바꾸려면 "어느 표를 고쳐야 먹히지?" 헷갈립니다. 정리하면 유지보수가 훨씬 편해집니다.</div></div>
+      <details class="tech"><summary>개발 디테일 보기</summary>
+      <p><code>design-tokens.css</code>는 2계층(primitive <code>--p-*</code> → semantic <code>--color-*/--bg-*/--text-*</code>)을 잘 정의해 뒀지만,
+      실제 앱은 <code>editor-base.css</code>의 평행 세트 <code>--ui-*</code>로 그려집니다.</p>
+      <ul>
+        <li><code>--ui-accent-primary</code>(#2d6fe8, <span class="num">152회</span>) ≈ <code>--p-blue-600</code>(#2d6fe8) <b>값 중복</b> — semantic <code>--color-accent</code>는 <span class="num">1회</span>뿐.</li>
+        <li><code>--bg-*</code>, <code>--color-handle*</code>, <code>--color-danger*</code> 등 semantic 다수가 <b>각 1회</b>(브리지용) → 사실상 dead.</li>
+        <li><code>--space-0~6</code>, <code>--radius-*</code>(design-tokens) = <b>사용 0회</b>, <code>--ui-radius-*</code>가 대체. 완전 dead.</li>
+      </ul>
+      </details>
+    </div>
+
+    <div class="warnbox">
+      <h3>2. 흐린 회색 글씨가 어두운 배경에서 잘 안 보이는 곳이 남아 있음</h3>
+      <div class="plain"><span class="ico">💬</span><div><b>쉽게 말하면</b> — 어두운 배경에 너무 연한 회색 글씨를 쓰면 눈이 침침해서 읽기 힘들죠.
+        <b>"정답표를 거친 글자색"은 이미 또렷하게 고쳐졌습니다</b>(잘 보이게). 문제는 표를 안 거치고 <b>코드에 직접 색을 박아 넣은 곳</b>이 아직 많아서,
+        거기 회색 글씨들은 여전히 흐릿합니다. 눈 편하게 보려면 그 직접 박은 색들을 정답표 색으로 바꿔줘야 해요.</div></div>
+      <details class="tech"><summary>개발 디테일 보기</summary>
+      <p>텍스트 <b>토큰</b>은 2026-06-11 패치로 AA 충족(<code>--ui-text-muted</code> #777→#9e9e9e 5.07:1, <code>--ui-text-dim</code> #555→#969696 4.59:1). 하지만 토큰 미경유 하드코딩 회색이 잔존:</p>
+      <ul>
+        <li>저대비 회색 직박이: <code>#888</code> <span class="num">43회</span>, <code>#555</code> <span class="num">14·5회</span>, <code>#999</code> <span class="num">13회</span>, <code>#666</code> <span class="num">8회</span>, <code>#777</code> <span class="num">5회</span> 등 — 다크 배경에서 WCAG AA 미달 다수.</li>
+        <li>css 전역 하드코딩 hex 총 <span class="num">926개</span> — 토큰화 이관 절반 이상 미완.</li>
+        <li><b>의도적 비토큰</b>(예외 — 고치지 말 것): <code>.layer-item-type</code> = raw <code>#7e7e7e</code> (editor-panels.css). 과거 <code>var(--ui-text-dim)</code>였으나 레이어 type 태그를 <b>의도적으로 위계 다운</b>(1단계 더 흐리게)하려 토큰 미경유 raw값으로 내림. <code>--ui-text-dim</code>(#969696)과 별개 톤이 목적이라 토큰화 대상 아님.</li>
+      </ul>
+      </details>
+    </div>
+
+    <div class="warnbox">
+      <h3>3. "같은 파란색"이어야 하는데 미묘하게 다른 파랑이 섞여 있음</h3>
+      <div class="plain"><span class="ico">💬</span><div><b>쉽게 말하면</b> — 버튼·선택·강조에 쓰는 <b>대표 파란색은 딱 하나</b>여야 통일감이 있는데,
+        실제론 비슷하지만 살짝 다른 파랑이 여러 개 섞여 있어요. 그래서 화면마다 파란색 톤이 미묘하게 달라 <b>"왜 여긴 색이 좀 다르지?"</b> 싶은 위화감이 생깁니다.</div></div>
+      <details class="tech"><summary>개발 디테일 보기</summary>
+      <p>정본 <code>--ui-accent-primary</code>(#2d6fe8) 외 우회 블루 산재: <code>#6b9eff</code> <span class="num">13회</span>, <code>#4f8ef7</code> <span class="num">8회</span>, <code>#1592fe</code> <span class="num">7회</span> 등 → 활성 색 화면별 분열.</p>
+      </details>
+    </div>
+
+    <div class="warnbox">
+      <h3>4. 이름만 부르고 실제 값은 안 정해둔 색이 있음 <span style="color:var(--doc-ok);font-size:11px;background:rgba(127,200,127,.14);padding:2px 9px;border-radius:20px">✅ fable 해결됨</span></h3>
+      <div class="plain"><span class="ico">💬</span><div><b>쉽게 말하면</b> — "이 글자색은 <i>기본글자색</i>으로 해줘"라고 <b>이름만 불러놓고, 정작 그 이름이 무슨 색인지는 어디에도 안 적어둔</b> 경우예요.
+        지금은 비상용 기본값으로 대충 때워지지만, 상황이 바뀌면 <b>색이 엉뚱하게 깨질 수 있는</b> 불안한 부분입니다. (과거에 실제로 이렇게 깨졌다가 고친 적 있음.)</div></div>
+      <details class="tech"><summary>개발 디테일 보기</summary>
+      <p><code>--ui-text-primary</code>(2회), <code>--ui-text-secondary</code>(2회)는 <code>:root</code> 정의 <b>없음</b> → <code>var()</code> fallback 의존. 과거 <code>--ui-text-main</code> 동일 사유로 깨져 별칭 수습 전례.</p>
+      </details>
+    </div>
+
+    <div class="warnbox">
+      <h3>5. 그림자(입체감) 규칙이 따로 없어서 그때그때 손으로 넣음 <span style="color:var(--doc-ok);font-size:11px;background:rgba(127,200,127,.14);padding:2px 9px;border-radius:20px">✅ fable 해결됨</span></h3>
+      <div class="plain"><span class="ico">💬</span><div><b>쉽게 말하면</b> — 팝업·모달이 떠 있을 때 주는 <b>그림자(떠 보이는 입체감)</b>에 정해진 규칙이 없어서,
+        만드는 곳마다 그림자를 따로따로 손으로 넣습니다. 그래서 <b>어떤 창은 진하고 어떤 창은 연해</b> 입체감이 들쭉날쭉해요. 그림자 규칙을 하나 정해두면 깔끔하게 통일됩니다.</div></div>
+      <details class="tech"><summary>개발 디테일 보기</summary>
+      <p><code>--shadow-*</code> / <code>--elevation-*</code> 토큰 <b>전무</b>. 드롭다운·모달·팝오버 그림자가 전부 ad-hoc <code>box-shadow</code> 리터럴 → depth 일관성 미보장.</p>
+      </details>
+    </div>
+
+    <div class="warnbox">
+      <h3>6. 색상 입력칸의 hex 표기가 곳마다 다름 (#ffffff vs ffffff)</h3>
+      <div class="plain"><span class="ico">💬</span><div><b>쉽게 말하면</b> — 색을 입력하는 칸이 어떤 곳은 <b><code>ffffff</code>(# 없이 6자리)</b>로,
+        어떤 곳은 <b><code>#111111</code>(# 붙여 7자리)</b>로 표시돼요. 심지어 <b>같은 패널 안에서도</b> 배경색 칸과 글자색 칸이 서로 다르게 보입니다.
+        이유는 색 입력칸을 만든 <b>방식이 두 가지(신·구 버전)</b>가 섞여 있어서예요. 신형은 Figma처럼 # 없이 + 투명도(%)칸까지 있고, 구형은 # 붙은 옛날 방식.
+        보기에 들쭉날쭉하고, 사용자가 "#을 넣어야 하나 말아야 하나" 헷갈립니다. <b>전부 신형으로 맞추면</b> 깔끔하게 통일돼요.</div></div>
+      <details class="tech"><summary>개발 디테일 보기</summary>
+      <p>색 입력 UI 2세대 공존:</p>
+      <ul>
+        <li><b>신형 정석 헬퍼</b> <code>colorFieldHTML()</code> (color-picker.js) — <span class="num">46곳</span> 사용. <b># 없이 대문자 6자리</b>(FFFFFF) + 알파(%) 입력. 입력 시 <code>#</code> 자동 제거·대문자화. = Figma 방식·정본.</li>
+        <li><b>구형 인라인</b> — 최소 <span class="num">6곳</span>(prop-text-template 2·prop-section 1·prop-simple-card 3). <b># 포함 7자리</b>(#111111), <code>maxlength="7"</code>, 알파 없음, 각 파일에 손으로 작성.</li>
+        <li>증상: <code>prop-section.js</code>에서 배경색=신형(<code>FFFFFF</code>) / Heading색=구형(<code>#111111</code>) → 한 패널 내 표기 분열.</li>
+      </ul>
+      <p><b>제안:</b> 구형 6곳을 <code>colorFieldHTML()</code> + <code>wireColorField()</code>로 교체해 # 없는 6자리 + 알파로 일원화.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ════════ FIX QUEUE ════════ -->
+  <section id="fixqueue">
+    <h2>🔧 고칠 후보 — fable 일괄 요청 대기열 <span class="cnt" id="fq-cnt"></span>
+      <button id="fq-copy" type="button">📋 전체 복사</button></h2>
+    <p class="desc">현빈이 실사용 중 발견한 <b>구체적 UI 일관성·접근성 패치 항목</b> + 전방위 감사 발굴분. 위 이슈(시스템급 부채)와 달리 바로 손볼 수 있는 개별 건입니다. 각 행에서 <b>상태(미정·대기·진행중·승인·반려)와 코멘트를 직접 지정</b>할 수 있고(브라우저에 자동 저장), <b>📋 전체 복사</b>로 마크다운을 떠서 <b>고디터-fable에 한 번에 요청</b>하면 됩니다. <span style="color:var(--doc-dim)">(이 문서는 앱 코드를 직접 고치지 않습니다 — fable 세션이 일괄 처리)</span></p>
+    <table class="gtbl" id="fq-table">
+      <thead><tr><th style="width:30px">#</th><th style="width:200px">위치</th><th>증상</th><th>제안 수정</th><th class="fq-col-status">상태</th><th class="fq-col-comment">코멘트</th></tr></thead>
+      <tbody id="fq-body"></tbody>
+    </table>
+    <p class="note">더 발견하면 계속 추가됩니다. 상태·코멘트는 이 브라우저(localStorage)에 저장돼 새로고침해도 유지됩니다.</p>
+  </section>
+
+  <!-- 데이터는 하단 스크립트가 렌더 -->
+  <section id="ui-shell">
+    <h2>UI Shell <span class="cnt" data-cnt="ui"></span></h2>
+    <p class="desc">실제 앱 크롬(패널·보더·텍스트·버튼)을 굴리는 <b>실가동 정본</b> 세트. <code>editor-base.css</code>에 직접 정의. GODITOR의 다크 UI는 사실상 이 토큰들로 만들어집니다.</p>
+    <div class="grid" id="grid-ui"></div>
+  </section>
+
+  <section id="accent">
+    <h2>Accent · Selection <span class="cnt" data-cnt="accent"></span></h2>
+    <p class="desc">주요 액션 블루와 캔버스 블록 선택 색. <code>--sel-*</code>는 줌 무관 1px 아웃라인을 위해 <code>--color-selection</code>을 브리지합니다.</p>
+    <div class="grid" id="grid-accent"></div>
+  </section>
+
+  <section id="status">
+    <h2>Status <span class="cnt" data-cnt="status"></span></h2>
+    <p class="desc">위험/성공/저장 상태 색.</p>
+    <div class="grid" id="grid-status"></div>
+  </section>
+
+  <section id="category">
+    <h2>Category 팔레트 (A/B 베리에이션) <span class="cnt" data-cnt="cat"></span></h2>
+    <p class="desc">A/B 베리에이션 카테고리 뱃지 배경색 <code>--ui-cat-a~e</code>(+hover) — DS-16, 2026-06-14 신설. <b>비텍스트 뱃지 배경</b>이라 대비 무관. A=파랑(accent-primary 동치)·B=주황·C=초록·D=보라·E=빨강. 각 1회 사용(claude-pm/editor-panels).</p>
+    <div class="grid" id="grid-cat"></div>
+  </section>
+
+  <section id="primitive">
+    <h2>Primitive 팔레트 <span class="cnt" data-cnt="prim"></span></h2>
+    <p class="desc"><code>--p-*</code> 원형 값. semantic 계층의 재료지만 대부분 <b>1회</b>(semantic이 1번 참조)만 쓰임. 회색 21단계가 촘촘히 난립(중복 톤 다수).</p>
+    <h3>Neutral / Gray (21단)</h3>
+    <div class="grid" id="grid-gray"></div>
+    <h3>Blue · Sky · Cornflower (selection/accent 원형)</h3>
+    <div class="grid" id="grid-blue"></div>
+    <h3>Status · Content · Canvas 원형</h3>
+    <div class="grid" id="grid-prim-misc"></div>
+  </section>
+
+  <section id="dead">
+    <h2>Semantic 계층 (대부분 dead) <span class="cnt" data-cnt="dead"></span></h2>
+    <p class="desc"><code>design-tokens.css</code>가 의도한 "이상적" 의미 토큰. 좋은 설계지만 <code>--ui-*</code>에 밀려 <b>각 1회 또는 0회</b>만 사용. 향후 통합 시 살릴지/버릴지 결정 대상.</p>
+    <div class="grid" id="grid-dead"></div>
+  </section>
+
+  <section id="preset">
+    <h2>Preset · 캔버스 콘텐츠 <span class="cnt" data-cnt="preset"></span></h2>
+    <p class="desc">사용자가 편집하는 <b>블록 내부 디자인</b> 기본값(밝은 배경 전제). UI 크롬과 분리 관리 — 토큰 강제 적용 금지 영역. JS가 inline으로 주입.</p>
+    <div class="grid" id="grid-preset"></div>
+  </section>
+
+  <section id="runtime">
+    <h2>Runtime 토큰 (JS 주입) <span class="cnt" data-cnt="rt"></span></h2>
+    <p class="desc"><code>:root</code>에 없고 <b>JS가 런타임에 요소별로 주입</b>하는 동적 변수. 줌 보정·표 스타일·텍스트 이펙트·말풍선색 등. 값은 상황에 따라 변동.
+      또한 <code>theme-system.js</code>는 위 <b>UI Shell <code>--ui-*</code> 토큰 전체를 런타임에 덮어쓸 수</b> 있습니다(= 테마 전환 기능). 즉 정적 정본값은 "기본 테마"이고, 사용자가 바꾸면 JS가 그 위에 올립니다.</p>
+    <div class="grid" id="grid-rt"></div>
+  </section>
+
+  <!-- ════════ TYPOGRAPHY ════════ -->
+  <section id="typo">
+    <h2>타이포그래피</h2>
+    <p class="desc"><b>✅ fable이 폰트 스케일을 토큰화 완료</b>(2026-06-13, 내 요청 반영) — <code>--ui-fs-9 ~ --ui-fs-28</code> 9단. 더 이상 px 리터럴 역산이 아니라 토큰 기준입니다. <b>폰트는 2종</b>: UI 크롬 = <code>Pretendard</code> 스택, 캔버스 콘텐츠 = <code>Noto Sans KR</code>(<code>--preset-*-family</code>). weight도 <code>--ui-fw-medium/semibold/bold</code> 토큰화됨.</p>
+    <h3>UI 크롬 스케일 (--ui-fs-*)</h3>
+    <div id="typo-list"></div>
+    <h3>캔버스 콘텐츠 (.tb-*, Noto Sans KR · 사용자 편집값)</h3>
+    <div id="typo-canvas-list"></div>
+    <h3>weight 토큰 (--ui-fw-*)</h3>
+    <div id="fw-list"></div>
+    <h3>line-height 토큰 (--ui-lh-*)</h3>
+    <div id="lh-list"></div>
+    <p class="note">⚠️ 남은 부채: <code>18px</code>는 토큰 없이 리터럴 5곳 난립(16/20 중 흡수 미정), <code>--ui-fs-28</code>은 정의됐으나 var 0회(dead). <span style="color:var(--doc-ok)">✅ line-height 토큰 신설됨</span> (DS-22, 2026-06-14): <code>--ui-lh-tight/normal/relaxed</code> = 1.3/1.4/1.6 — <b>정의만, 치환은 2단계</b>(현재 var 0회). 캔버스 콘텐츠(.tb-*/--preset-*)는 범위 밖. → 치환 대기열.</p>
+  </section>
+
+  <section id="radius">
+    <h2>Radius</h2>
+    <p class="desc">UI 크롬 모서리 스케일. 실가동은 <code>--ui-radius-*</code>(editor-base). <code>--radius-*</code>(design-tokens)는 동일 값이나 <b>사용 0회</b>.</p>
+    <div id="radius-list"></div>
+  </section>
+
+  <section id="spacing">
+    <h2>Spacing / 간격</h2>
+    <p class="desc">4px 기반 간격 스케일 <code>--space-0~6</code>이 design-tokens에 정의됐으나 <b>직접 사용 0회</b> — css에 px 리터럴 3000+개가 미이관. 아래는 정의된 스케일(시각 바).</p>
+    <div id="spacing-list"></div>
+    <p class="note">⚠️ 실코드의 padding/gap은 4·8·6·10·12 군집 + 5·11·3 난립. 이 스케일은 "지향점"이지 아직 강제되지 않음.</p>
+  </section>
+
+  <section id="shadow">
+    <h2>Shadow / Elevation</h2>
+    <p class="desc"><b>✅ fable이 그림자 토큰화 완료</b>(이슈 #5 해소) — <code>--ui-shadow-sm/md/lg/xl</code> 4단, var 11회 사용 중. 아래는 실제 토큰 샘플(클릭 복사).</p>
+    <div id="shadow-list" class="demo"></div>
+    <p class="note">남은 부채: 일부 모달이 아직 ad-hoc <code>box-shadow</code> 리터럴(10/12px radius 분열과 함께) → 대기열. focus-ring 그림자는 별도.</p>
+  </section>
+
+  <!-- ════════ COMPONENTS ════════ -->
+  <section id="components">
+    <h2>컴포넌트 예시</h2>
+    <p class="desc">위 토큰들을 조합하면 실제 GODITOR UI가 이렇게 나옵니다. 마우스를 올리거나 클릭해 동작도 확인해 보세요.</p>
+
+    <h3>버튼</h3>
+    <div class="demo">
+      <button class="g-btn">주요 액션</button>
+      <button class="g-btn sec">보조</button>
+      <button class="g-btn danger">삭제</button>
+      <button class="g-btn ghost">고스트</button>
+      <button class="g-btn sm">작은 버튼</button>
+      <button class="g-btn" disabled>비활성</button>
+    </div>
+    <p class="note">accent #2d6fe8 · 보더 #333 · radius 4px · 높이 24px · 비활성 opacity 0.5</p>
+
+    <h3>입력 · 선택</h3>
+    <div class="demo">
+      <input class="g-input" placeholder="텍스트 입력 (focus 시 파란 보더)">
+      <select class="g-input" style="width:120px"><option>드롭다운</option><option>옵션 2</option></select>
+      <label class="g-check"><input type="checkbox" checked> 체크박스</label>
+      <label class="g-check"><input type="checkbox"> 해제됨</label>
+      <span class="g-toggle on" onclick="this.classList.toggle('on')"><span class="knob"></span></span>
+      <span class="dim-tok">← 토글 (클릭)</span>
+    </div>
+
+    <h3>탭</h3>
+    <div class="demo" style="gap:0;padding:0;background:none;border:none">
+      <div class="g-tabs">
+        <span class="g-tab active">디자인</span>
+        <span class="g-tab">레이어</span>
+        <span class="g-tab">에셋</span>
+        <span class="g-tab">설정</span>
+      </div>
+    </div>
+
+    <h3>뱃지 · 상태칩</h3>
+    <div class="demo">
+      <span class="g-badge accent">활성</span>
+      <span class="g-badge ok">저장됨</span>
+      <span class="g-badge danger">충돌</span>
+      <span class="g-badge edit">편집중</span>
+      <span class="g-badge muted">초안</span>
+    </div>
+
+    <h3>속성 패널 (오른쪽 패널)</h3>
+    <div class="demo" style="align-items:flex-start">
+      <div class="g-panel" style="min-width:240px">
+        <div class="ph">프레임 속성</div>
+        <div class="g-prop"><span>너비</span><input class="g-input sm2" value="320"></div>
+        <div class="g-prop"><span>높이</span><input class="g-input sm2" value="180"></div>
+        <div class="g-prop"><span>반경</span><input class="g-input sm2" value="6"></div>
+        <div class="g-prop"><span>배경</span><span class="g-swatch" style="background:#2d6fe8"></span><span class="mono" style="font-size:11px;color:var(--doc-sub)">#2d6fe8</span></div>
+      </div>
+      <div class="g-toast"><span class="g-badge ok" style="font-size:9px">✓</span> 자동 저장됨</div>
+    </div>
+    <p class="note">패널 배경 #252525 · 라벨폭 56px · 행 gap 4px · input 높이 24px</p>
+  </section>
+
+  <!-- ════════ USAGE RULES ════════ -->
+  <section id="usage">
+    <h2>토큰 사용 규칙 (Do / Don't)</h2>
+    <p class="desc">새 UI를 만들거나 색을 고칠 때 지켜야 할 실전 규칙. <code>_context/DESIGN_SYSTEM.md</code> · <code>CLAUDE.md</code> 기준. <b>"하지 말 것"은 실제로 과거에 색이 깨지거나 어긋났던 사례</b>들입니다.</p>
+    <div class="dd">
+      <div class="dd-col do">
+        <h4>✅ 이렇게 하세요</h4>
+        <ul>
+          <li>UI 크롬(패널·툴바·버튼)의 색·보더·텍스트는 <b>실가동 <code>--ui-*</code> 토큰</b>을 직접 쓴다.</li>
+          <li>파란 강조/활성색은 <b>오직 <code>--ui-accent-primary</code>(#2d6fe8)</b> 하나로.</li>
+          <li>본문 글자는 <b><code>--ui-text</code>(#e0e0e0) 이상</b>의 또렷한 색. 흐린 색은 비활성·힌트에만.</li>
+          <li>모서리·간격은 <code>--ui-radius-*</code> / <code>--space-*</code> 스케일 값에 맞춰.</li>
+          <li>hover·선택 같은 반투명 효과는 <b>의미 토큰</b>(<code>--sel-color-fill</code> 등) 우선.</li>
+          <li>색을 새로 정의해야 하면 <b>정해진 파일에만</b>: 원형값→<code>design-tokens.css</code>, UI색→<code>editor-base.css</code>.</li>
+        </ul>
+      </div>
+      <div class="dd-col dont">
+        <h4>🚫 하지 마세요</h4>
+        <ul>
+          <li>색을 <b>코드에 직접(#888 같은 hex) 박지</b> 말 것 — 토큰을 거칠 것. (지금 926개가 직박이 상태)</li>
+          <li>어두운 배경에 <b><code>--ui-text-dim</code>(#555급) 본문</b> 금지 — 대비 부족으로 안 보임.</li>
+          <li><b>비슷한 다른 파랑</b>(#6b9eff·#4f8ef7·#1592fe) 끌어다 쓰지 말 것.</li>
+          <li>이름만 부르고 <b>값을 안 정한 토큰</b>(<code>--ui-text-primary</code> 등) 새로 만들지 말 것.</li>
+          <li>선택 상태(selected)에 <b><code>background</code> 추가 금지</b> — outline만.</li>
+          <li>텍스트 블록에 <b><code>border-radius</code> 추가 금지</b>, <code>box-shadow:0 0 0 2px</code>식 선택 표시 금지.</li>
+          <li>캔버스 콘텐츠(블록 내부 디자인)에 UI 토큰 <b>강제 적용 금지</b> — 사용자 편집값임.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ CONTRAST PAIRING ════════ -->
+  <section id="contrast">
+    <h2>배경별 텍스트 대비 가이드</h2>
+    <p class="desc">어떤 배경 위에 어떤 글자색을 올려야 잘 보이는지 짝지어 둔 표. <b>다크 셸(#252525) 기준 대비비</b>를 함께 표기 — 본문은 4.5:1 이상이어야 또렷합니다(WCAG AA).</p>
+    <table class="gtbl">
+      <thead><tr><th>배경</th><th>본문 텍스트 (권장)</th><th>서브 / 힌트</th><th>쓰면 안 됨</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="cell-bg" style="background:#1e1e1e;color:#e0e0e0">패널 #1e1e1e</span></td>
+          <td><span class="cell-bg" style="background:#1e1e1e;color:#e0e0e0">--ui-text</span><span class="ratio ok-mark">11.6:1 ✓</span></td>
+          <td><span class="cell-bg" style="background:#1e1e1e;color:#aaaaaa">--ui-text-sub</span><span class="ratio ok-mark">6.4:1 ✓</span></td>
+          <td><span class="cell-bg" style="background:#1e1e1e;color:#555555">#555 본문</span><span class="ratio no-mark">✗ 미달</span></td>
+        </tr>
+        <tr>
+          <td><span class="cell-bg" style="background:#252525;color:#e0e0e0">팝업 #252525</span></td>
+          <td><span class="cell-bg" style="background:#252525;color:#e0e0e0">--ui-text</span><span class="ratio ok-mark">10.5:1 ✓</span></td>
+          <td><span class="cell-bg" style="background:#252525;color:#9e9e9e">--ui-text-muted</span><span class="ratio ok-mark">5.1:1 ✓</span></td>
+          <td><span class="cell-bg" style="background:#252525;color:#777777">#777 본문</span><span class="ratio no-mark">3.2:1 ✗</span></td>
+        </tr>
+        <tr>
+          <td><span class="cell-bg" style="background:#2a2a2a;color:#e0e0e0">입력 #2a2a2a</span></td>
+          <td><span class="cell-bg" style="background:#2a2a2a;color:#e0e0e0">--ui-text</span><span class="ratio ok-mark">9.5:1 ✓</span></td>
+          <td><span class="cell-bg" style="background:#2a2a2a;color:#969696">--ui-text-dim</span><span class="ratio ok-mark">4.6:1 ✓</span></td>
+          <td><span class="cell-bg" style="background:#2a2a2a;color:#666666">#666 본문</span><span class="ratio no-mark">✗ 미달</span></td>
+        </tr>
+        <tr>
+          <td><span class="cell-bg" style="background:#2d6fe8;color:#fff">accent #2d6fe8</span></td>
+          <td><span class="cell-bg" style="background:#2d6fe8;color:#ffffff">#fff 흰색</span><span class="ratio ok-mark">✓</span></td>
+          <td>—</td>
+          <td><span class="cell-bg" style="background:#2d6fe8;color:#2d6fe8">어두운 글자</span><span class="ratio no-mark">✗</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">규칙: 본문은 <code>--ui-text</code> 이상, 비활성·힌트만 <code>--ui-text-muted/dim</code>. accent 파랑 위 글자는 흰색.</p>
+  </section>
+
+  <!-- ════════ SELECTION OUTLINE ════════ -->
+  <section id="outline">
+    <h2>블록 선택 outline 명세</h2>
+    <p class="desc">캔버스에서 블록을 선택했을 때 테두리 규칙. <b>실제 코드 기준</b>으로 정리했습니다(명세 문서와 일부 다름 — 아래 ⚠️ 참고).</p>
+
+    <div class="plain" style="background:rgba(127,200,127,.07);border:1px solid rgba(127,200,127,.3)"><span class="ico">✅</span><div>
+      <b>두께 — 전 블록 단일 토큰으로 통일됨</b> (DS-09, 2026-06-14): 파랑·보라 가릴 것 없이 <b>모든 선택 블록</b>(frame 포함)이 <code>--sel-outline-w</code> = 화면상 1px(줌 보정)으로 통일됐습니다. 과거 보라 선택(<code>.gradient-block/.sticker-block/.sticker-text edit/.sticker highlight::after</code>)에 박혀 있던 <code>1px</code> 하드코딩도 <code>var(--sel-outline-w)</code>로 교체 → 파랑 선택과 줌 보정 두께가 정확히 일치합니다. <code>css-blocks.md</code>도 같은 기준으로 갱신됨. (참고: <code>DESIGN_SYSTEM.md</code>의 "컨테이너 3px" 서술만 아직 옛날 — 문서 갱신 대기.)
+    </div></div>
+
+    <h3>실제 선택 색 — 파랑이 기본, 일부는 보라</h3>
+    <div class="ol-demo">
+      <div>
+        <div class="ol-box comp">일반 블록</div>
+        <div class="ol-cap"><b>파랑 #2d6fe8</b> (--sel-color)<br>text·asset·card·table·step·frame 등 대부분</div>
+      </div>
+      <div>
+        <div class="ol-box purple">스티커/오버레이</div>
+        <div class="ol-cap"><b>보라 #9966ff</b> (--ui-sel-overlay)<br>스티커 패널 계열(오버레이) — 의도</div>
+      </div>
+      <div>
+        <div class="ol-box purple2" style="color:#9b6dc8">AI Fill 영역</div>
+        <div class="ol-cap"><b>연보라 #c084fc</b> (--ui-sel-ai)<br>ai-fill 패널 강조색</div>
+      </div>
+      <div>
+        <div class="ol-box cont" style="outline-color:#7878c8"><span class="child"></span><span class="child"></span></div>
+        <div class="ol-cap"><b>연보라 보더</b> rgba(120,120,200)<br>group-block 그룹 선택</div>
+      </div>
+    </div>
+
+    <div class="dd" style="margin-top:18px">
+      <div class="dd-col do">
+        <h4>✅ 규칙 (코드 기준 + 디자인 결정)</h4>
+        <ul>
+          <li><b>전 블록(파랑·보라 모두)</b> = <b>1px</b> <code>--sel-outline-w</code> 단일 토큰(줌 무관) + 안쪽 offset. <b>두께 분기 폐기</b>(DS-09).</li>
+          <li><b>일반 캔버스 블록 = 파랑</b> <code>--sel-color</code> (#2d6fe8).</li>
+          <li><b>스티커 패널로 들어가는 오버레이 계열 = 보라</b> <code>--ui-sel-overlay</code> (#9966ff) — <b>의도된 구분 (현빈 확정)</b>. sticker·gradient 등.</li>
+          <li>그룹 선택은 연보라 보더, AI Fill 패널은 연보라 <code>--ui-sel-ai</code> (#c084fc) 강조.</li>
+          <li>hover tint = <code>--sel-color-fill</code>, selected는 <b>outline만</b>(배경 X).</li>
+        </ul>
+      </div>
+      <div class="dd-col dont">
+        <h4>🔧 남은 정리 (대기열)</h4>
+        <ul>
+          <li><span style="color:var(--doc-ok)">✅ 보라 색은 토큰화 완료</span> — <code>--ui-sel-overlay</code>(#9966ff)·<code>--ui-sel-ai</code>(#c084fc) 정의됨(DS-10, 2026-06-14). 단 <code>--ui-sel-overlay</code>는 selected 규칙에서 <code>var()</code>로 소비(7회)되지만, <code>--ui-sel-ai</code>는 정의만 됐고 <code>#c084fc</code> 리터럴 13곳이 아직 미경유(치환 대기열).</li>
+          <li>selected에 배경색 X, text-block <code>border-radius</code> X, speech-bubble은 <code>::after</code> 별도 패턴.</li>
+          <li>명세 문서의 "3px 컨테이너" 서술은 코드(1px)와 불일치 → 문서 갱신 필요.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ CANVAS BLOCK CATALOG ════════ -->
+  <section id="blocks">
+    <h2>캔버스 블록 카탈로그</h2>
+    <p class="desc">캔버스 컴포넌트(블록) 종류와 <b>선택 색 체계</b>. 정합성 점검의 기준선 — 어떤 블록이 어떤 색/두께로 선택되는지. (단일 진실 소스: <code>editor.js</code> deselectAll 셀렉터)</p>
+    <table class="gtbl">
+      <thead><tr><th>블록(클래스)</th><th>선택색</th><th>종류</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td>text·asset·table·step·divider·icon-circle·icon-text·label-group·banner02·comparison·laurel·chat</td><td><span style="color:#2d6fe8">● 파랑</span> --sel-color</td><td>컴포넌트(1px)</td><td>대다수 일반 블록</td></tr>
+        <tr><td>frame-block (일반)</td><td><span style="color:#2d6fe8">● 파랑</span> --sel-color</td><td>컨테이너</td><td>자식 감쌈 (코드상 1px, 명세는 3px라 적힘)</td></tr>
+        <tr><td>sticker-block · gradient-block</td><td><span style="color:#9966ff">● 보라</span> --ui-sel-overlay</td><td>오버레이 컴포넌트(1px)</td><td><b>스티커 패널 계열 = 보라 (의도 확정)</b> · 두께 <code>--sel-outline-w</code> 통일</td></tr>
+        <tr><td>annotation-block (.annot-label)</td><td><span style="color:#1592fe">● 시안</span> #1592fe</td><td>예외</td><td>⚠ box-shadow식 — Do/Don't 위반, 대기열</td></tr>
+        <tr><td>group-block (.group-selected)</td><td><span style="color:#7878c8">● 연보라 보더</span> + 파랑 outline</td><td>그룹</td><td>클래스가 .selected 아님(.group-selected)</td></tr>
+      </tbody>
+    </table>
+    <p class="note">⚠ card-block은 2026-06-11 삭제(canvas-block simple 모드로 통합). DESIGN_SYSTEM.md §4·component-manifest 간 블록 목록 불일치 → 대기열.</p>
+  </section>
+
+  <!-- ════════ HANDLES ════════ -->
+  <section id="handles">
+    <h2>핸들 · 오버레이 시스템</h2>
+    <p class="desc">캔버스 편집의 핵심 비주얼. 모든 핸들은 <code>#ss-handles-overlay</code>(position:fixed, z-index:9990) 위에 그려지고, <b>줌과 무관하게 화면상 고정 크기</b>(<code>--inv-zoom</code> 역보정)를 유지합니다.</p>
+    <table class="gtbl">
+      <thead><tr><th>핸들</th><th>형태</th><th>크기·보더</th><th>용도</th></tr></thead>
+      <tbody>
+        <tr><td>리사이즈 (.ss-resize-handle · .asset-handle 등)</td><td>흰 <b>정사각</b> (radius 1px)</td><td>7×7px · 보더 <b>1px</b> --sel-color</td><td>4코너 크기조절</td></tr>
+        <tr><td>코너 반경 (.ss-radius-handle · .asset-radius-handle)</td><td>흰 <b>원형</b> (radius 50%)</td><td>7~8px · 보더 <b>1.5px</b> --sel-color</td><td>모서리 둥글기</td></tr>
+        <tr><td>선택 아웃라인</td><td>1px 라인</td><td><code>--sel-outline-w</code> = calc(1px×--inv-zoom)</td><td>줌에서도 화면 1px 고정</td></tr>
+      </tbody>
+    </table>
+    <p class="note">공통: hover 시 <code>transform:scale(1.4)</code> + 채움색 --sel-color. <span style="color:var(--doc-ok)">✅ 핸들 보더 두께 토큰화됨</span> (DS-19, 2026-06-14): 사각=<code>--ui-handle-border-w</code>(1px, var 3회)·원형=<code>--ui-handle-border-w-round</code>(1.5px, var 6회). 광학 의도(원형 핸들 살짝 두껍게) 보존하며 출처 일원화 — 혼용이 아니라 의미별 2토큰. 신규 오버레이 핸들 추가 시 <code>--inv-zoom</code> 역보정 필수.</p>
+  </section>
+
+  <!-- ════════ Z-INDEX ════════ -->
+  <section id="zindex">
+    <h2>z-index 레이어 질서</h2>
+    <p class="desc">무엇이 무엇 위에 오는지 정본 밴드. 신규 레이어는 이 밴드 안에 배치 — 매직넘버 인플레 금지.</p>
+    <table class="gtbl">
+      <thead><tr><th>밴드</th><th>z-index</th><th>대상</th></tr></thead>
+      <tbody>
+        <tr><td>캔버스 콘텐츠</td><td>0 ~ 100</td><td>블록·섹션</td></tr>
+        <tr><td>핸들 오버레이</td><td>9990 ~ 9993</td><td>#ss-handles-overlay · asset/canvas/vector 핸들</td></tr>
+        <tr><td>패널 크롬</td><td>9999</td><td>#panel-left / #panel-right</td></tr>
+        <tr><td>모달 · 백드롭</td><td>10000</td><td>settings · color-picker · section-memo</td></tr>
+        <tr><td>모달 위 팝오버 · AI/터미널</td><td>10001</td><td>claude-pm · ai-image</td></tr>
+        <tr><td class="no-mark">⚠ 이탈값</td><td class="no-mark">99999</td><td class="no-mark">assets-panel.css:191 — 밴드 초과, 정리 대상(대기열)</td></tr>
+      </tbody>
+    </table>
+    <p class="note">⚠ editor-base.css:613에 "panel-right(9999) 동률 시 DOM 순서로 가려짐" 회피 주석 존재 — 동률 의존 취약. 밴드 사이 여유를 둘 것.</p>
+  </section>
+
+  <!-- ════════ FOCUS RING ════════ -->
+  <section id="focus">
+    <h2>키보드 포커스 링 (a11y)</h2>
+    <p class="desc">키보드 탐색 시 어디에 포커스가 있는지 보이게 하는 표준. <code>:focus-visible</code> 기준 — 마우스 클릭엔 안 뜨고 Tab 이동에만.</p>
+    <div class="demo">
+      <button class="g-btn" style="outline:2px solid var(--doc-accent);outline-offset:1px">2px accent 링</button>
+      <input class="g-input" style="outline:2px solid var(--doc-accent);outline-offset:1px" value="offset 1px">
+      <div class="g-panel" style="min-width:0;outline:2px solid var(--doc-accent);outline-offset:-2px">클립 컨테이너<br><span class="dim-tok">inset -2px</span></div>
+    </div>
+    <div class="dd" style="margin-top:16px">
+      <div class="dd-col do"><h4>✅ 규칙 (editor-base.css:798~)</h4><ul>
+        <li>button·prop-btn·align-btn·cv-chip·slider·[role=button/tab] = <b>outline 2px solid --ui-accent-primary, offset 1px</b>.</li>
+        <li><code>overflow:hidden</code> 컨테이너 내부 항목은 <b>offset -2px(inset)</b>로 잘림 방지.</li>
+      </ul></div>
+      <div class="dd-col dont"><h4>🚫 주의</h4><ul>
+        <li><code>outline:none</code> 71곳 — 그중 비입력 포커서블(버튼·contenteditable)에 대체 표시 없으면 키보드 사용자 길 잃음.</li>
+        <li>input :focus를 border-color 전환만으로 처리하면 비텍스트 대비 3:1 미보장 → outline/box-shadow 병행.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ════════ REVIEW CHECKLIST ════════ -->
+  <section id="checklist">
+    <h2>✅ 디자인 감수 체크리스트 (권역별)</h2>
+    <p class="desc">실무에서 디자인 감수는 <b>단일 체크리스트 하나로 끝내지 않습니다.</b> 보통 ① 자동 토큰 lint → ② <b>권역별(영역·탭별) 휴리스틱 리뷰</b> → ③ 접근성 감사 → ④ 비주얼 회귀 비교를 함께 돌립니다. Figma·Adobe도 컴포넌트/스크린 단위로 나눠 감사해요. 아래는 그중 <b>②권역별 리뷰용</b> 점검표 — GODITOR 실제 영역(상단바·좌측·우측·캔버스·모달)으로 나눴습니다. <b>항목 클릭 시 체크</b>(그 자리 확인용, 저장 안 됨).</p>
+
+    <div class="meth">
+      <div class="meth-card"><span class="tag">① 자동</span><h4>토큰 lint</h4><p><code>scripts/check-design-tokens.sh</code> — 하드코딩 색·미정의 토큰 자동 검출.</p></div>
+      <div class="meth-card"><span class="tag">② 휴리스틱</span><h4>권역별 리뷰</h4><p>아래 체크리스트. 영역별로 토큰·간격·상태 일관성 눈으로 확인.</p></div>
+      <div class="meth-card"><span class="tag">③ 접근성</span><h4>대비·포커스</h4><p>WCAG 대비 4.5:1, 키보드 포커스 표시 (axe·Stark 류).</p></div>
+      <div class="meth-card"><span class="tag">④ 회귀</span><h4>비주얼 비교</h4><p>변경 전/후 스크린샷 대조 — 의도 안 한 시각 변화 감지.</p></div>
+    </div>
+
+    <div id="checklist-ul"></div>
+  </section>
+</main>
+
+<script>
+// ── 토큰 데이터 (css/ 추출, 사용횟수=var() 참조 수) ──
+const UI = [
+  ['--ui-bg-app','#1a1a1a',19,'앱 최하위 배경 (body)'],
+  ['--ui-bg-base','#1e1e1e',24,'사이드 패널 배경'],
+  ['--ui-bg-elevated','#242424',15,'topbar / elevated 요소'],
+  ['--ui-bg-card','#252525',43,'드롭다운·팝업·카드'],
+  ['--ui-bg-input','#2a2a2a',99,'input · sunken · active'],
+  ['--ui-bg-hover','#2e2e2e',48,'hover 상태 / 패널 border'],
+  ['--ui-border','#333333',121,'기본 보더'],
+  ['--ui-border-mid','#3a3a3a',80,'구분선 / 스크롤바'],
+  ['--ui-border-strong','#444444',44,'강조 보더 / active'],
+  ['--ui-text','#e0e0e0',77,'기본 텍스트'],
+  ['--ui-text-sub','#aaaaaa',75,'서브 텍스트'],
+  ['--ui-text-muted','#9e9e9e',39,'뮤트 텍스트 · AA 5.07:1'],
+  ['--ui-text-dim','#969696',100,'딤 텍스트 · AA 4.59:1'],
+  ['--ui-divider','#555555',21,'미세 구분선·비활성 장식점(비텍스트)'],
+  ['--ui-accent-primary','#2d6fe8',137,'주요 액션/활성 정본 (fill·보더·배경)'],
+  ['--ui-accent-primary-hover','#3a7df0',5,'주요 액션 hover'],
+  ['--ui-accent','#7cb8ff',40,'강조/편집 (브랜치·focus·edit)'],
+  ['--ui-accent-text','#6fa3f7',4,'다크배경 활성 텍스트 전용 (6.8:1)'],
+  ['--ui-text-base','var → --ui-text',11,'(ai-image) 본문 — 별칭','bridge'],
+  ['--ui-text-main','var → --ui-text',1,'(color-adjust 헤더) — 별칭','bridge'],
+  ['--ui-bg-panel','var → --ui-bg-card',2,'팝업/드롭다운 표준 별칭','bridge'],
+  ['--ui-bg-2','var → --ui-bg-base',1,'grid-picker-cell 별칭','bridge'],
+  ['--ui-text-primary','var → --ui-text',2,'assets-panel 본문 — 별칭 (fable이 정의 추가, 과거 미정의 해소)','bridge'],
+  ['--ui-text-secondary','var → --ui-text-muted',2,'assets-panel 서브 — 별칭 (fable이 정의 추가)','bridge'],
+];
+const UIDIM = [
+  ['--ui-radius-sm','4px',34,'버튼/입력 radius'],
+  ['--ui-radius-md','6px',11,'카드/패널 radius'],
+  ['--ui-radius-lg','10px',0,'모달/팝오버 radius','dead'],
+  ['--ui-btn-h','24px',0,'버튼/컨트롤 표준 높이','dead'],
+  ['--ui-input-h','24px',0,'input/select 높이','dead'],
+  ['--ui-form-label-w','56px',1,'prop-row 라벨 폭'],
+  ['--ui-row-gap','4px',1,'폼 행 gap'],
+  ['--ui-pad-panel','8px',0,'패널 콘텐츠 좌우 패딩','dead'],
+  ['--ui-disabled-opacity','0.5',7,'비활성 흐림'],
+];
+const ACCENT = [
+  ['--sel-color','#2d6fe8',59,'캔버스 블록 선택 아웃라인 (→ --color-selection)','bridge'],
+  ['--sel-outline-w','calc(1px*--inv-zoom)',55,'줌 무관 1px 선택선 두께 — 전 블록(파랑·보라) 통일 (DS-09)','runtime'],
+  ['--sel-color-fill','rgba(45,111,232,.08)',25,'선택 채움 (→ --color-selection-fill)','bridge'],
+  ['--sel-color-hover','rgba(45,111,232,.40)',0,'hover 선택 (→ --color-selection-hover)','dead'],
+  ['--color-selection-glow','rgba(45,111,232,.70)',4,'드래그 핸들 글로우','live'],
+  ['--p-blue-alpha-40','rgba(45,111,232,.40)',4,'직접 사용되는 드물한 primitive','live'],
+  ['--ui-sel-overlay','#9966ff',7,'스티커/그라데이션/핀 선택 오버레이 보라 (DS-10, 비텍스트)','live'],
+  ['--ui-sel-ai','#c084fc',0,'AI-Fill 패널/버튼 보라 어포던스 (DS-10) — 정의됨, #c084fc 리터럴 13곳 치환 대기','dead'],
+  ['--ui-sel-outline-offset-out','calc(1px*--inv-zoom)',2,'배경꽉찬 블록(canvas/banner02) 바깥 outline offset, 겹침방지 (DS-20)','runtime'],
+  ['--ui-accent-fill','rgba(45,111,232,.15)',5,'active/선택 강조 채움 배경 — 파랑 0.15 표준 (DS-12)','live'],
+];
+const STATUS = [
+  ['--ui-danger','#e06c6c',25,'위험/삭제 텍스트·보더'],
+  ['--ui-danger-bg','rgba(224,108,108,.12)',9,'danger 채움 배경'],
+  ['--ui-danger-border','#e06c6c',4,'danger 보더'],
+  ['--ui-danger-hover','#e74c3c',10,'danger hover'],
+  ['--ui-success','#7fc87f',3,'성공/병합'],
+  ['--ui-saved','#4ecb7a',2,'autosave saved 상태색 (DS-23) — success보다 밝고 고채도라 전용 토큰','live'],
+];
+// 2026-06-14: autosave 저장색 #4ecb7a는 --ui-saved로 토큰화됨(DS-23, var 2회). 단 editor-panels.css 2곳(196·203)에 #4ecb7a 리터럴 잔존 → 치환 대기열.
+// A/B 베리에이션 카테고리 팔레트 (DS-16, 2026-06-14 신설) — 비텍스트 뱃지 배경. 각 1회.
+const CAT = [
+  ['--ui-cat-a','var → --ui-accent-primary',1,'A = 파랑 (accent-primary 동치)','bridge'],
+  ['--ui-cat-a-hover','#1a5ac8',1,'A hover'],
+  ['--ui-cat-b','#e88c2d',1,'B = 주황'],
+  ['--ui-cat-b-hover','#c87018',1,'B hover'],
+  ['--ui-cat-c','#2db87a',1,'C = 초록'],
+  ['--ui-cat-c-hover','#1e9460',1,'C hover'],
+  ['--ui-cat-d','#9b59b6',1,'D = 보라'],
+  ['--ui-cat-d-hover','#7d4394',1,'D hover'],
+  ['--ui-cat-e','#e84c4c',1,'E = 빨강'],
+  ['--ui-cat-e-hover','#c03030',1,'E hover'],
+];
+// 2026-06-13 재동기화 — design-tokens.css가 dead primitive 대량 정리(87종 제거). 현존만 표기.
+const GRAY = [
+  ['--p-gray-950','#1a1a1a'],['--p-gray-800','#242424'],['--p-gray-775','#252525'],
+  ['--p-gray-700','#2a2a2a'],['--p-gray-675','#2e2e2e'],['--p-gray-650','#333333'],
+  ['--p-gray-550','#3a3a3a'],['--p-gray-150','#aaaaaa'],['--p-gray-50','#e0e0e0'],
+];
+const BLUE = [
+  ['--p-blue-600','#2d6fe8'],['--p-blue-650','#3a7df0'],['--p-blue-800','#1a5dd4'],
+  ['--p-cornflower-500','#1592fe'],
+  ['--p-blue-alpha-08','rgba(45,111,232,.08)'],['--p-blue-alpha-40','rgba(45,111,232,.40)'],
+  ['--p-blue-alpha-60','rgba(45,111,232,.60)'],['--p-blue-alpha-70','rgba(45,111,232,.70)'],
+  ['--p-blue-alpha-90','rgba(45,111,232,.90)'],
+];
+const PMISC = [
+  ['--p-green-500','#7fc87f'],['--p-red-500','#e06c6c'],
+];
+// 2026-06-13 재동기화 — design-tokens.css semantic 계층도 대폭 정리됨. phantom(--color-accent-active·--bg-base 등) 제거.
+const DEAD = [
+  ['--color-accent','#2d6fe8',1,'→ --p-blue-600 · --ui-accent-primary가 대체(137회)'],
+  ['--color-accent-hover','#3a7df0',1,'→ --p-blue-650'],
+  ['--bg-input','#2a2a2a',2,'→ --p-gray-700'],
+  ['--bg-hover','#2e2e2e',1,'→ --p-gray-675'],
+  ['--text-default','#e0e0e0',1,'→ --p-gray-50'],
+  ['--color-handle','#1592fe',1,'이미지/CI 핸들 (→ cornflower)'],
+  ['--color-danger','#e06c6c',1,'→ --p-red-500 · --ui-danger가 대체(23회)'],
+  ['--space-2','8px',0,'4px 간격 스케일 — 직접 사용 0'],
+  ['--space-4','16px',0,'4px 간격 스케일 — 직접 사용 0'],
+  ['--radius-md','6px',0,'→ --ui-radius-md가 대체'],
+];
+const PRESET = [
+  ['--preset-h1-color','#111111',1,'본문 H1 텍스트'],
+  ['--preset-h2-color','#1a1a1a',1,'본문 H2'],
+  ['--preset-h3-color','#333333',1,'본문 H3'],
+  ['--preset-body-color','#555555',2,'본문 body'],
+  ['--preset-caption-color','#999999',1,'캡션'],
+  ['--preset-label-bg','#111111',1,'라벨 배경'],
+  ['--preset-chat-bg-left','#e5e5ea',0,'채팅 말풍선 좌(상대)'],
+  ['--preset-chat-bg-right','#1888fe','0','채팅 말풍선 우(나)'],
+  ['--preset-step-card-bg','#f5f5f5',0,'스텝 카드 배경'],
+  ['--preset-table-header-bg','#f0f0f0',0,'표 헤더 배경'],
+  ['--preset-body-family',"'Noto Sans KR'",4,'캔버스 본문 폰트 (UI는 Pretendard)'],
+];
+// ⚠️ preset 색 토큰 다수가 var() 0회인 건 dead가 아니라 JS가 블록 생성 시 inline style로 직접 색을 박아 우회하기 때문(이중구조). → 대기열.
+const RT = [
+  ['--inv-zoom','1 / 줌배율',42,'캔버스 줌 역수 — 핸들·선택선 화면고정 크기 보정'],
+  ['--ui-scale','동적',3,'UI 배율'],
+  ['--tfx-color','#ff2d6e',9,'텍스트 이펙트 메인컬러'],
+  ['--tfx-intensity','0.7',17,'텍스트 이펙트 강도 0~1'],
+  ['--tfx-grain','0.4',6,'텍스트 이펙트 그레인 0~1'],
+  ['--tbl-line-color','동적',10,'표 라인 색'],
+  ['--tbl-outer-w','동적',8,'표 외곽선 두께'],
+  ['--tbl-text-color','동적',3,'표 텍스트 색'],
+  ['--tbl-header-bg','동적',3,'표 헤더 배경'],
+  ['--bubble-bg','#e5e5ea',2,'말풍선 배경 — JS가 변경'],
+  ['--cpmt-bg-alpha','1',5,'color-picker 알파 슬라이더값'],
+  ['--cp-slider-h','12px',6,'color-picker 슬라이더 높이'],
+  ['--assets-card-size','80/56px',2,'에셋 카드 크기'],
+];
+// UI 크롬 폰트 스케일 — fable이 --ui-fs-* 토큰화 완료(2026-06-13). [라벨, 용도, px, weight, 사용]
+const TYPO = [
+  ['--ui-fs-28','icb-placeholder (스케일 최상단) ⚠ var 0회',28,700,'토큰 dead'],
+  ['--ui-fs-20','모달·패널 타이틀 (18px 흡수)',20,700,'토큰'],
+  ['--ui-fs-16','아이콘·소형 헤딩',16,600,'토큰'],
+  ['--ui-fs-14','패널 헤더·로고',14,600,'10회'],
+  ['--ui-fs-13','소제목·약간 큰 라벨',13,600,'18회'],
+  ['--ui-fs-12','강조 라벨·섹션 텍스트',12,500,'58회'],
+  ['--ui-fs-base','UI 크롬 기본 본문/컨트롤 (11px, 압도적 1위)',11,500,'160회'],
+  ['--ui-fs-10','보조 라벨·마이크로 텍스트',10,500,'90회'],
+  ['--ui-fs-9','최소 캡션·뱃지 카운트',9,600,'36회'],
+];
+// 캔버스 콘텐츠 텍스트(.tb-*) — 사용자 편집 기본값, Noto Sans KR. UI 스케일과 별개.
+const TYPO_CANVAS = [
+  ['.tb-h1','캔버스 대형 타이틀',104,700,'h1'],
+  ['.tb-h2','캔버스 헤딩2',72,600,'h2'],
+  ['.tb-h3','캔버스 헤딩3',52,600,'h3'],
+  ['.tb-body','캔버스 본문',36,400,'body'],
+  ['.tb-caption','캔버스 캡션',26,400,'caption'],
+  ['.tb-label','캔버스 라벨(뱃지형)',26,700,'label'],
+];
+// weight 토큰 (fable 신설)
+const FW = [['--ui-fw-medium','500',26],['--ui-fw-semibold','600 (1위)',87],['--ui-fw-bold','700',29]];
+// line-height 토큰 (DS-22, 2026-06-14 신설) — 정의만, 치환 2단계라 var 0회
+const LH = [['--ui-lh-tight','1.3',0,'조밀 (라벨/뱃지) · 실측 5회'],['--ui-lh-normal','1.4',0,'표준 본문 · 실측 7회'],['--ui-lh-relaxed','1.6',0,'여유 본문 · 실측 9회 (1.5 흡수)']];
+// shadow/elevation 토큰 (fable 신설)
+const SHADOW = [
+  ['--ui-shadow-sm','0 2px 8px rgba(0,0,0,.4)','드롭다운·툴팁·소형 카드'],
+  ['--ui-shadow-md','0 4px 16px rgba(0,0,0,.5)','토스트·팝오버·포커스 카드'],
+  ['--ui-shadow-lg','0 8px 24px rgba(0,0,0,.5)','메뉴 팝업·패널'],
+  ['--ui-shadow-xl','0 12px 48px rgba(0,0,0,.6)','모달 다이얼로그'],
+];
+const RADIUS = [['--ui-radius-sm','4px',34],['--ui-radius-md','6px',11],['--ui-radius-lg','10px',0]];
+const SPACING = [['--space-0','2px'],['--space-1','4px'],['--space-2','8px'],['--space-3','12px'],
+  ['--space-4','16px'],['--space-5','24px'],['--space-6','32px']];
+
+// ── 대비 계산 (다크 패널 #252525 기준) ──
+function lum(hex){
+  let m=hex.replace('#','');
+  if(m.length===3)m=m.split('').map(c=>c+c).join('');
+  if(!/^[0-9a-f]{6}$/i.test(m))return null;
+  const v=[0,2,4].map(i=>{let c=parseInt(m.slice(i,i+2),16)/255;return c<=.03928?c/12.92:Math.pow((c+.055)/1.055,2.4)});
+  return .2126*v[0]+.7152*v[1]+.0722*v[2];
+}
+function contrast(hex,bg=.0176){const L=lum(hex);if(L==null)return null;const hi=Math.max(L,bg),lo=Math.min(L,bg);return (hi+.05)/(lo+.05);}
+
+function copy(el,name){
+  navigator.clipboard?.writeText('var('+name+')').then(()=>{
+    el.classList.add('copied');setTimeout(()=>el.classList.remove('copied'),1100);
+  });
+}
+function chipBg(val){
+  if(val.startsWith('#')||val.startsWith('rgb'))return val;
+  return 'repeating-linear-gradient(45deg,#2a2a2a 0 8px,#222 8px 16px)';
+}
+function pillFor(use,tag){
+  if(tag)return tag;
+  if(use===0)return 'dead'; if(use>=20)return 'live'; return '';
+}
+function card(name,val,use,role,tag){
+  const isColor=val.startsWith('#')||val.startsWith('rgb');
+  const pill=pillFor(use,tag);
+  const cr=isColor&&val.startsWith('#')?contrast(val):null;
+  // 텍스트(전경) 용도 토큰만 대상으로, 다크 패널(#252525) 위 WCAG AA(4.5:1) 미달 표시
+  // content/preset 계열은 밝은 캔버스 배경 전용이라 다크 기준 판정 제외 (오해 방지)
+  const isFg=/text|dim|muted|sub/i.test(name)
+    && !/bg|border|divider|fill|glow|overlay|canvas|handle|danger-bg|outline|preset|content/i.test(name);
+  const aaBadge=(isFg&&cr!=null&&cr<4.5)?
+    `<span class="pill aa" title="다크패널(#252525) 대비 ${cr.toFixed(2)}:1 — 본문 텍스트론 AA 미달">텍스트시 ${cr.toFixed(1)}:1</span>`:'';
+  const barW=Math.min(100,(use/152)*100);
+  return `<div class="swatch">
+    <div class="chip" style="background:${isColor?chipBg(val):'#1c1c1c'}">
+      ${!isColor?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#777;font:11px monospace">${val}</div>`:''}
+    </div>
+    <div class="meta">
+      <span class="tok" onclick="copy(this,'${name}')">${name}</span>
+      ${pill?`<span class="pill ${pill}" style="margin-left:6px">${pill}</span>`:''} ${aaBadge}
+      <div class="val mono">${val}</div>
+      ${role?`<div class="role">${role}</div>`:''}
+      ${use!=null?`<div class="use"><span class="bar" style="width:${Math.max(6,barW)}px"></span>${use}회 사용</div>`:''}
+    </div>
+  </div>`;
+}
+const render=(id,arr)=>document.getElementById(id).innerHTML=arr.map(t=>card(...t)).join('');
+render('grid-ui',[...UI,...UIDIM]);
+render('grid-accent',ACCENT);
+render('grid-status',STATUS);
+render('grid-cat',CAT);
+render('grid-gray',GRAY.map(([n,v])=>[n,v,1,'',null]));
+render('grid-blue',BLUE.map(([n,v])=>[n,v,1,'',null]));
+render('grid-prim-misc',PMISC.map(([n,v])=>[n,v,1,'',null]));
+render('grid-dead',DEAD);
+render('grid-preset',PRESET);
+render('grid-rt',RT.map(t=>[t[0],t[1],t[2],t[3],'runtime']));
+
+// counts
+const cnt={ui:UI.length+UIDIM.length,accent:ACCENT.length,status:STATUS.length,cat:CAT.length,
+  prim:GRAY.length+BLUE.length+PMISC.length,dead:DEAD.length,preset:PRESET.length,rt:RT.length};
+document.querySelectorAll('[data-cnt]').forEach(e=>e.textContent=cnt[e.dataset.cnt]+'개');
+
+// typography — UI 스케일 (토큰명 클릭 복사)
+document.getElementById('typo-list').innerHTML=TYPO.map(([lbl,role,sz,w,u])=>
+  `<div class="typo-row"><span class="lbl mono"><span class="tok" onclick="copy(this,'${lbl}')">${lbl}</span><br><span style="color:#6b6b6b">${sz}px / ${w} · ${u}</span></span>
+   <span class="smpl" style="font-size:${Math.min(sz,40)}px;font-weight:${w}">${role}</span></div>`).join('');
+// 캔버스 텍스트
+document.getElementById('typo-canvas-list').innerHTML=TYPO_CANVAS.map(([lbl,role,sz,w])=>
+  `<div class="typo-row"><span class="lbl mono">${lbl}<br><span style="color:#6b6b6b">${sz}px / ${w}</span></span>
+   <span class="smpl" style="font-size:${Math.min(sz,40)}px;font-weight:${w}">${role}</span></div>`).join('');
+// weight 토큰
+document.getElementById('fw-list').innerHTML=FW.map(([n,v,u])=>
+  `<div class="typo-row"><span class="lbl mono"><span class="tok" onclick="copy(this,'${n}')">${n}</span><br><span style="color:#6b6b6b">${u}회</span></span>
+   <span class="smpl" style="font-weight:${parseInt(v)}">${v} — 다람쥐 헌 쳇바퀴 Aa</span></div>`).join('');
+// line-height 토큰
+document.getElementById('lh-list').innerHTML=LH.map(([n,v,u,role])=>
+  `<div class="typo-row"><span class="lbl mono"><span class="tok" onclick="copy(this,'${n}')">${n}</span><br><span style="color:#6b6b6b">${v} · var ${u}회</span></span>
+   <span class="smpl" style="font-size:13px;line-height:${v};display:inline-block;max-width:340px">${role} — 줄간격 ${v} 미리보기 텍스트 두 줄 이상일 때 행간이 어떻게 벌어지는지 보여주는 샘플 문장입니다.</span></div>`).join('');
+// shadow 토큰
+document.getElementById('shadow-list').innerHTML=SHADOW.map(([n,v,role])=>
+  `<div class="g-panel" style="box-shadow:${v}"><span class="tok" onclick="copy(this,'${n}')">${n}</span><br><span class="dim-tok">${role}</span></div>`).join('');
+
+// radius
+document.getElementById('radius-list').innerHTML=RADIUS.map(([n,v,u])=>
+  `<div class="rad-row"><div class="rad-box" style="border-radius:${v}"></div>
+   <div class="dim-tok"><span class="tok" onclick="copy(this,'${n}')"><b>${n}</b></span> &nbsp;${v} &nbsp;·&nbsp; ${u}회${u===0?' (dead)':''}</div></div>`).join('');
+
+// fix queue — 현빈 발견 패치 후보 (누적)
+const FIXQ=[
+  ['색 hex 입력 표기 분열','js/props/* (색 입력 전반)',
+   '같은 색 칸인데 <code>ffffff</code>(# 없이 6자리)·<code>#111111</code>(# 7자리)·<code>#a2abb8</code>(11자리)·(20자리)로 제각각. maxlength <b>6(7곳)·7(6곳)·11(2곳)·20(1곳)</b> 4종 난립.',
+   '<code>colorFieldHTML()</code>+<code>wireColorField()</code> 정석 헬퍼로 통일(# 없는 6자리+알파). 이슈 #6 연계.'],
+  ['그라데이션 프리셋 버튼 인라인 스타일','prop-simple-card.js:171–174 (.cvb-grad-preset)',
+   '<code>prop-align-btn</code> 재사용하면서 <b>인라인 style 범벅</b>(flex·background·height·text-shadow) + 기호 <b>↓ ↑ ⇊ 半</b> 하드코딩. CSS와 분리 안 됨.',
+   '전용 클래스(.cvb-grad-preset)로 스타일 추출, 인라인 제거. 기호는 통일된 아이콘/라벨로.'],
+  ['보조 버튼(투명·초기화 등) 너비 제각각','prop-simple-card.js:204·217 · asset 배경색 행(asset-bg-clear) 등',
+   '행의 주 <code>prop-align-btn</code>은 <code>flex:1</code>로 늘어나는데, "투명"은 <code>width:36px</code>, "초기화"는 <code>font-size:10px;padding:0 8px</code>로 <b>각자 인라인 크기 지정</b> → 너비가 들쭉날쭉.',
+   '보조/아이콘 버튼 공통 규격(고정 너비 토큰 또는 동일 패턴 클래스)으로 정렬.'],
+  ['긴 라벨 말줄임 시 hover로도 안 보임','editor-props.css:20 .prop-label + prop-graph.js:83 등',
+   '<code>.prop-label</code>은 width 56px·<code>ellipsis</code>라 "카테고리 표시"·"배경색 (일괄)"처럼 길면 <b>…로 잘림</b>. 근데 <code>title</code>이 거의 없어(전체 중 1곳) <b>마우스 올려도 전체 텍스트 안 보임</b>.',
+   '말줄임 대상 라벨에 <code>title="라벨텍스트"</code> 추가(또는 렌더 시 자동 부여).'],
+  ['그래프 패널 섹션 순서','prop-graph.js (Chart Type ↔ Bar/Line Settings)',
+   '현재 <b>Size → Line Settings → Bar Settings → Chart Type</b> 순. 차트 종류를 <b>맨 나중에</b> 고르게 돼 있어 흐름이 거꾸로.',
+   '<b>Chart Type을 위로</b> 올려, 타입 선택 → 그 아래 Bar/Line Settings가 따라오게 재배치.'],
+  ['VAR 컬러칩이 "글자색 하위 옵션"으로 안 보임','color-var-chips.js + prop-text-template.js:181 (#txt-color-chips)',
+   'VAR 칩(메인·보조·강조)이 글자색 영역의 <b>하위 옵션</b>인데, 시각적으로 종속·들여쓰기 표현이 약해 <b>별개 요소처럼</b> 보임.',
+   '글자색 그룹 안에 들여쓰기/구획(서브라벨·배경 묶음 등)으로 계층 명확화.'],
+  ['Shadow 토글 OFF인데 하위 세팅 항상 보임','prop-text-template.js:188 (#txt-shadow-on) 하위 Shadow 세팅',
+   '그림자 토글이 꺼져 있어도 아래 그림자 세팅 행들이 계속 노출. <b>sticker 패널은 이미 <code>display</code>로 동적 표시</b>하는데 텍스트 패널은 안 해서 일관성도 깨짐.',
+   'OFF일 때 하위 세팅을 <code>display:none</code>으로 접고, ON 시 펼치기(sticker 패턴과 통일).'],
+  ['step 배지 — "시작 번호"+"배지 형식" 두 줄 차지','prop-step.js (#stb-start-number · #stb-badge-fmt-select)',
+   '관련 깊은 두 입력이 <b>각각 한 행</b>을 써서 패널이 길어짐. 시작 번호는 단순 숫자 1개.',
+   '한 행으로 합치기: <b>배지 형식 드롭다운 옆에 시작 번호를 작은 인풋(placeholder만)</b>으로 인라인 배치 — 다른 수치 입력과 동일 톤.'],
+  ['선택 outline: 명세(3px)와 코드(1px) 불일치','DESIGN_SYSTEM.md/css-blocks.md ↔ editor-blocks.css:19 등',
+   '문서는 "컨테이너 frame=3px / 컴포넌트=1px"라 적혀 있으나, <b>실제 코드는 frame 포함 전부 1px(<code>--sel-outline-w</code>, 줌보정)으로 통일</b>됨. 문서가 옛날 상태.',
+   '코드(1px 통일)에 맞춰 <b>명세 문서 갱신</b>(또는 컨테이너만 3px로 되살릴지 디자인 결정).'],
+  ['보라 선택색 하드코딩 → 의미 토큰화','editor-blocks.css:2096~ (sticker·gradient #9966ff) · ai-fill #c084fc · group rgba(120,120,200)',
+   '<b>일반=파랑, 스티커 패널 오버레이 계열=보라</b>로 <b>구분은 의도 확정</b>(현빈 결정). 다만 보라 #9966ff·#c084fc가 <b>토큰 아닌 하드코딩</b>이라 곳마다 흩어짐.',
+   '보라를 <b>의미 토큰</b>으로 정식화: 예 <code>--sel-color-overlay</code>(#9966ff)·<code>--sel-color-ai</code>(#c084fc). 일반 파랑은 <code>--sel-color</code> 유지.'],
+  ['레이어 이름 글자 위계 어정쩡 (비토큰 회색)','css/editor-panels.css:1189·1196·1204 (.layer-item-name / -type)',
+   '레이어 <b>이름</b>(.layer-item-name)이 표준 텍스트 토큰이 아닌 <b>#b0b0b0 일회성 회색</b>. 9px 타입(--ui-text-dim #969696)과 명도 차이가 거의 없어 <b>주 라벨이 안 도드라짐</b>. active 타입 색 #3a5fa0도 하드코딩 저대비 파랑.',
+   '이름을 <code>--ui-text-sub</code>(#aaaaaa) 이상 표준 토큰으로, 타입은 한 단 낮춰 위계 차이 확보. active #3a5fa0를 <code>--ui-accent-text</code> 계열 토큰으로 교체.'],
+  // ── 전방위 감사(8 에이전트) 발굴 design-debt 일괄 추가 ──
+  ['.active 활성 배경색 47회 하드코딩','전역 (editor-panels.css:590·1149·1185 등)',
+   '활성 상태 배경 <code>rgba(45,111,232,0.15)</code>가 토큰 미경유로 <b>47회 직박</b>. accent(#2d6fe8)와 같은 색이라 토큰화 가능.',
+   'accent 알파 의미 토큰(예 <code>--ui-accent-fill</code>) 신설해 47곳 수렴.'],
+  ['placeholder 색 6종 분열 (대비 1.5~4.9)','editor-props.css:90·671·836 · editor-panels.css:127·578 · editor-blocks.css:1148',
+   'placeholder가 --ui-text-dim/muted/sub·--ui-border-mid/strong·#555 등 <b>6가지</b>로 분산. 대비 1.47~4.85:1로 3배 격차, 일부 거의 안 보임.',
+   'placeholder 단일 표준(<code>--ui-text-dim</code> 이상, ≥3:1)으로 명문화·수렴.'],
+  ['아이콘 stroke-width 7종 난립 (1.0~3.5)','전역 인라인 SVG (block-factory.js:168 등)',
+   '동일 24그리드 아이콘인데 stroke-width가 1.3(115)·1.4(34)·1.5(41)·1.6·1.8·2·2.5·3.5로 <b>난립</b> → 화면마다 아이콘 무게 다름.',
+   '다수파 <b>1.3</b>(또는 1.5) 한 값으로 확정, 이탈값 정리. 아이콘 그리드(24)·기본 18px 규약 명문화.'],
+  ['UI 아이콘 SVG ↔ 이모지 글리프 이원화','js/block-factory.js:920~ section-toolbar (⎇ ✨ 📝 🔒)',
+   'UI는 인라인 SVG인데 section-toolbar·일부 토스트는 <b>이모지 글리프</b>. OS/폰트별 렌더 달라 색·크기 어긋나고 토큰 색 제어 불가.',
+   'UI 크롬 아이콘 = SVG 단일 시스템 원칙. 이모지 사용처를 SVG로 이관.'],
+  ['variation 뱃지 A~E 5색 하드코딩','css/editor-panels.css:984~ (.variation-badge -b~-e)',
+   '카테고리 A~E 색 <code>#e88c2d·#2db87a·#9b59b6·#e84c4c</code>(+hover 4색)가 토큰 미경유 직박. Do/Don\'t의 "다른 색 직박 금지"를 정작 위반.',
+   '<code>--cat-a~e</code>(또는 --variation-*) 토큰으로 승격, Status 팔레트에 등재.'],
+  ['z-index 99999 이탈값','css/assets-panel.css:191',
+   '다른 최상위가 9999(패널)·10000~10001(모달/팝오버) 밴드인데 assets-panel만 <b>99999</b> 매직넘버 → 모든 모달 위 무조건 올라탐.',
+   '용도 확인 후 10001 또는 정의된 최상위 토큰으로 정렬.'],
+  ['모달 radius 10/12px 분열','editor-layout.css:84·181(12px) ↔ settings-modal.css:19·color-picker.css:12(10px)',
+   '같은 모달 계층인데 section-*-popover=12px, settings/color-picker=10px. <code>--ui-radius-lg</code>(10px) 정의됐으나 미적용(dead).',
+   '모달 표준 radius 1값 확정 → <code>--ui-radius-lg</code> 실제 적용(dead 해소), 하드코딩 12px 토큰화.'],
+  ['핸들 보더 1px/1.5px 혼용','css/editor-blocks.css:62(1px) vs 78·97·137·154·171·188(1.5px)',
+   '같은 7px 핸들군인데 리사이즈=1px, 반경/오버레이 핸들=1.5px로 보더 굵기 갈림 → 줌 시 굵기 미묘하게 달라 보임.',
+   '핸들 보더 두께 단일값 확정 또는 <code>--handle-border-w</code> 토큰화.'],
+  ['banner02 선택 outline-offset만 양수','css/editor-blocks.css:1010 (.banner02-block.selected)',
+   '다른 컴포넌트 블록은 outline-offset 음수(안쪽 1px)인데 banner02만 <b>양수</b>(바깥) → 선택 시 테두리가 1px 바깥으로 떠 인접 블록과 겹침.',
+   'offset을 <code>calc(-1*var(--sel-outline-w))</code>로 통일.'],
+  ['annotation-block 제3 선택색 + box-shadow 규칙위반','css/editor-blocks.css:1608 (.annotation-block.selected .annot-label)',
+   '파랑도 보라도 아닌 <b>시안 #1592fe</b> + <code>box-shadow 0 0 0 3px</code> 선택 표시 → Do/Don\'t의 "box-shadow식 선택 금지" 위반.',
+   '의도면 outline 방식+토큰 정렬(시안 선택색 명문화), 아니면 파랑/보라 체계로 흡수.'],
+  ['line-height·preset weight·18px 토큰 부재','editor-layout.css:305~ · editor-base.css:9~',
+   'line-height 토큰 전무(캔버스 1.1~1.6 ad-hoc), --preset-*-weight 부재(.tb-* weight 하드코딩), <code>--ui-fs-18</code> 부재(18px 리터럴 5곳).',
+   '<code>--lh-tight/normal/relaxed</code>, <code>--preset-h*-weight</code>, <code>--ui-fs-18</code> 토큰 신설 검토.'],
+  ['autosave 저장색 #4ecb7a 토큰 미경유','editor-base.css:794·795 · editor-panels.css:196·203',
+   '"저장됨" 색 #4ecb7a가 토큰(--color-saved는 var 0회) 안 거치고 <b>raw hex 4곳 직박</b>.',
+   '<code>--ui-saved</code> 또는 --color-saved를 실제 적용해 4곳 수렴.'],
+];
+// ===== FIX QUEUE 인터랙션: 상태·코멘트 영속 + 일괄 복사 =====
+const FQ_LS_KEY='fq-state-v1';
+const FQ_STATUSES=['미정','대기','진행중','승인','반려'];
+function fqLoad(){ try{ return JSON.parse(localStorage.getItem(FQ_LS_KEY))||{}; }catch(e){ return {}; } }
+function fqSave(store){ try{ localStorage.setItem(FQ_LS_KEY, JSON.stringify(store)); }catch(e){} }
+function fqKey(t,i){ return t; }  // 제목 기반 키 (인덱스 흔들림 방지)
+function fqStrip(html){ const d=document.createElement('div'); d.innerHTML=html; return (d.textContent||'').replace(/\s+/g,' ').trim(); }
+const fqBody=document.getElementById('fq-body');
+if(fqBody){
+  const store=fqLoad();
+  fqBody.innerHTML=FIXQ.map(([t,loc,sym,fix],i)=>{
+    const key=fqKey(t,i);
+    const st=(store[key]&&store[key].status)||'미정';
+    const cm=(store[key]&&store[key].comment)||'';
+    const opts=FQ_STATUSES.map(s=>`<option value="${s}"${s===st?' selected':''}>${s}</option>`).join('');
+    return `<tr data-fq-key="${encodeURIComponent(key)}">
+      <td style="color:var(--doc-dim)">${i+1}</td>
+      <td><b>${t}</b><div class="mono" style="font-size:10.5px;color:var(--doc-dim);margin-top:3px">${loc}</div></td>
+      <td style="color:var(--doc-sub)">${sym}</td>
+      <td style="color:var(--doc-text)">${fix}</td>
+      <td class="fq-col-status"><select class="fq-status" data-status="${st}">${opts}</select></td>
+      <td class="fq-col-comment"><input class="fq-comment" type="text" placeholder="코멘트…" value="${cm.replace(/"/g,'&quot;')}"></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('fq-cnt').textContent=FIXQ.length+'건';
+  function fqPersist(tr){
+    const key=decodeURIComponent(tr.getAttribute('data-fq-key'));
+    const s=fqLoad();
+    s[key]={status:tr.querySelector('.fq-status').value, comment:tr.querySelector('.fq-comment').value};
+    fqSave(s);
+  }
+  fqBody.addEventListener('change',e=>{
+    if(e.target.classList.contains('fq-status')){
+      e.target.setAttribute('data-status',e.target.value);
+      fqPersist(e.target.closest('tr'));
+    }
+  });
+  fqBody.addEventListener('input',e=>{
+    if(e.target.classList.contains('fq-comment')) fqPersist(e.target.closest('tr'));
+  });
+  const copyBtn=document.getElementById('fq-copy');
+  if(copyBtn){
+    copyBtn.addEventListener('click',async()=>{
+      const s=fqLoad();
+      const lines=[`## 🔧 고칠 후보 — fable 일괄 요청 대기열 (${FIXQ.length}건)`,''];
+      FIXQ.forEach(([t,loc,sym,fix],i)=>{
+        const key=fqKey(t,i);
+        const st=(s[key]&&s[key].status)||'미정';
+        const cm=(s[key]&&s[key].comment)||'';
+        lines.push(`### ${i+1}. ${t}`);
+        lines.push(`- **위치**: ${fqStrip(loc)}`);
+        lines.push(`- **증상**: ${fqStrip(sym)}`);
+        lines.push(`- **제안 수정**: ${fqStrip(fix)}`);
+        lines.push(`- **상태**: ${st}`);
+        lines.push(`- **코멘트**: ${cm||'(없음)'}`);
+        lines.push('');
+      });
+      const text=lines.join('\n');
+      let ok=false;
+      try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); ok=true; } }catch(e){ ok=false; }
+      if(!ok){ try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); ok=document.execCommand('copy'); document.body.removeChild(ta); }catch(e){ ok=false; } }
+      copyBtn.textContent= ok?'✓ 복사됨':'⚠ 복사 실패';
+      copyBtn.classList.toggle('done',ok);
+      setTimeout(()=>{ copyBtn.textContent='📋 전체 복사'; copyBtn.classList.remove('done'); },1600);
+    });
+  }
+}
+
+// checklist — 권역별(영역·탭별)
+const CHECK_GROUPS=[
+  ['전역 · 디자인 토큰','모든 영역 공통',[
+    ['색을 코드에 직접 박지 않고 토큰(--ui-* 등)을 거쳤다','#888 같은 hex 직박이 금지 (현재 926개 잔존)'],
+    ['파란 강조·활성색이 --ui-accent-primary(#2d6fe8) 하나로 통일됐다','#6b9eff·#4f8ef7 등 우회 파랑 X'],
+    ['새로 부른 토큰이 :root에 값이 정의돼 있다','--ui-text-primary처럼 값 없는 토큰 금지'],
+    ['모서리·간격이 --ui-radius-* / --space-* 스케일에 맞다','±1px 임의값 난립 방지'],
+  ]],
+  ['상단바 (Topbar)','#topbar',[
+    ['버튼·컨트롤 높이가 24px(--ui-btn-h)로 통일됐다','height 난립 방지'],
+    ['아이콘 버튼 간격·정렬이 일정하다','ghost 버튼 hover 색 토큰 사용'],
+    ['저장·브랜치 인디케이터 색이 토큰(--ui-success/accent)이다','상태색 하드코딩 X'],
+  ]],
+  ['좌측 — 레이어 패널','#layer-panel',[
+    ['아이콘 크기 14px(--icon-layer-size), 들여쓰기 일관','섹션/행 gap 토큰 사용'],
+    ['행 hover 색이 --ui-bg-hover 토큰이다','트리 hover 색 통일'],
+    ['긴 레이어 이름 말줄임 시 title로 전체가 보인다','hover 툴팁 누락 주의'],
+  ]],
+  ['우측 — 속성 패널','#right-panel / prop-*',[
+    ['prop-section → title → prop-row 공통 구조를 지켰다','RIGHT_PANEL_PROPS.md 기준'],
+    ['라벨폭 56px(--ui-form-label-w), input 높이 24px','폼 행 gap 4px'],
+    ['색 입력이 colorFieldHTML() 헬퍼다 (# 없는 6자리+알파)','구형 인라인 #7자리 혼용 X — 대기열 #1'],
+    ['토글 OFF 시 하위 세팅이 접힌다 (동적 표시)','sticker 패턴과 통일 — 대기열 #7'],
+    ['긴 라벨 말줄임 시 title 제공','"카테고리 표시" 등 — 대기열 #4'],
+  ]],
+  ['캔버스 — 블록 선택·상태','canvas / *-block',[
+    ['선택 outline이 1px(--sel-outline-w, 줌보정)로 일관','명세는 3px라 적혀있으나 코드는 1px — 대기열 #9'],
+    ['선택색 체계가 의도대로다 (파랑 기본 / 보라=스티커)','보라 하드코딩 토큰화 — 대기열 #10'],
+    ['selected에 배경색 없음, text-block border-radius 없음','outline만 표시'],
+    ['hover tint가 --sel-color-fill이다','GitHub row-highlight 스타일'],
+  ]],
+  ['캔버스 — 핸들·오버레이','#ss-handles-overlay',[
+    ['리사이즈 7px 정사각·반경 8px 원형 규격을 지켰다','frame/asset 핸들 공통'],
+    ['핸들이 줌 무관 고정 크기다 (--inv-zoom calc)','줌 시 핸들 크기 안 변함'],
+  ]],
+  ['모달 · 팝업 · 플로팅','modal / popup',[
+    ['모서리 radius가 --ui-radius-lg(10px)다','모달/팝오버 표준'],
+    ['팝업 배경이 #252525(--ui-bg-card)다','드롭다운·팝오버 톤 통일'],
+    ['그림자가 --ui-shadow-sm/md/lg/xl 토큰을 쓴다','fable이 그림자 토큰 신설 완료 — ad-hoc box-shadow 대신 토큰'],
+  ]],
+  ['접근성 · 대비','전역',[
+    ['본문 글자가 배경 대비 4.5:1 이상이다','흐린 회색은 비활성·힌트에만'],
+    ['accent(#2d6fe8) 위 글자는 흰색이다','파랑 위 어두운 글자 X'],
+    ['포커스·활성 상태가 시각적으로 구분된다','키보드 접근 고려'],
+  ]],
+  ['마감 검증','작업 완료 후',[
+    ['신규 블록이면 5곳(editor.js·layer-panel·prop·block-drag·css outline) 모두 수정','CLAUDE.md 체크리스트'],
+    ['캔버스 콘텐츠(블록 내부)에 UI 토큰을 강제하지 않았다','사용자 편집값 보존'],
+    ['CDP로 실제 앱에서 눈으로 확인했다 (콘솔 오류 0)','작업 완료 후 QA 루틴'],
+  ]],
+  ['상태 매트릭스 (state consistency)','전역 / .active · :hover · :disabled',[
+    ['.active 배경이 rgba(45,111,232,0.15) 직박이 아닌 accent 알파 토큰을 쓴다','현재 47회 하드코딩 — #2d6fe8와 같은 색이므로 토큰화 가능'],
+    [':disabled 흐림이 --ui-disabled-opacity(0.5) 토큰이다','css/editor-panels.css:1049 .layer-variation-add:disabled가 표준. opacity:0.4 임의값 X'],
+    ['hover/active/focus 3상태가 한 컴포넌트 안에서 모두 정의됐다','.cm-filter-tab/.panel-tab은 .active만 있고 hover 누락 여부 확인'],
+    ['selected(파랑/보라)와 active(rgba accent)가 시각적으로 구분된다','--sel-color vs .active 배경 혼동 방지'],
+    ['error 상태색이 --ui-danger(rgba 224,108,108) 하나로 통일됐다','css/editor-base.css:502 .var-item-del:hover 패턴 기준'],
+    ['disabled 시 cursor:default/not-allowed가 일관 적용됐다','.layer-variation-add:disabled cursor:default 패턴'],
+  ]],
+  ['빈 상태 · 에러 · 로딩 UI','.empty-state / .ai-spinner / .asset-loading-overlay',[
+    ['빈 목록 안내가 .empty-state 구조(아이콘 opacity:0.3 + 12px 안내문)를 따른다','css/editor-panels.css:1079 — height:120px, color:--ui-border-strong'],
+    ['로딩 스피너가 .ai-spinner(11px, ai-spin 0.7s linear) 규격이다','css/editor-extra.css:640 — 별도 회전 애니 난립 방지'],
+    ['이미지 업로드 중 .asset-loading-overlay/.asset-loading-spinner를 띄운다','css/editor-extra.css:1668~ — 무피드백 정지 방지'],
+    ['placeholder 텍스트 색이 --ui-text-dim 토큰이다','css/editor-base.css:523 .var-input::placeholder 표준 — #555 직박(editor-blocks.css:1148) X'],
+    ['텍스트 빈 블록 placeholder가 [data-is-placeholder] 규약을 쓴다','css/editor-blocks.css:787 — opacity 처리 시 배경까지 투명해지는 버그(1475) 주의'],
+    ['생성 실패/에러 시 사용자에게 명확한 메시지를 노출한다','js/ai-prompt.js:36 \'생성 중...\' 스피너 이후 실패 분기 확인'],
+  ]],
+  ['리사이즈 · 줌 거동','#ss-handles-overlay / --inv-zoom',[
+    ['모든 리사이즈 핸들이 calc(7px * var(--inv-zoom))로 줌 무관 고정 크기다','css/editor-blocks.css:886(shape)·2169(sticker)·2169 공통 패턴'],
+    ['핸들 모서리 오프셋이 calc(-3.5px * var(--inv-zoom))로 7px의 절반이다','css/editor-blocks.css:896~899 nw/ne/sw/se 대칭'],
+    ['선택 outline-offset이 calc(1px * var(--inv-zoom))로 줌에서 두꺼워지지 않는다','css/editor-blocks.css:1004·1012 — 이미지 가장자리 겹침 방지'],
+    ['줌 보정이 필요한 UI 라벨이 scale/calc(var(--inv-zoom))를 적용했다','css/editor-blocks.css:310 섹션 라벨, editor-extra.css:1345 줌 표시'],
+    ['코너 반경 핸들도 --inv-zoom calc 패턴을 따른다','css/editor-blocks.css:2181 sticker-corner-handle[data-corner]'],
+    ['신규 오버레이 핸들 추가 시 --inv-zoom 역보정을 빠뜨리지 않았다','줌 시 핸들만 커지는 회귀 방지 — gradient-corner-handle 동일 패턴'],
+  ]],
+  ['모션 · 트랜지션','전역 / transition · @keyframes',[
+    ['hover/색 전환 duration이 0.1~0.15s 한 단으로 수렴한다','현재 0.1/0.12/0.15s 혼재 — \'all 0.15s\' 16회 vs \'background 0.1s\' 15회'],
+    ['토글 스위치 전환이 transition:background 0.2s(--prop-toggle 표준)다','css/editor-props.css:194 .prop-toggle-track'],
+    ['패널/모달 슬라이드 easing이 cubic-bezier(0.4,0,0.2,1) 계열로 통일됐다','right 0.22s cubic-bezier — entrance/exit 일관'],
+    ['transition:all 남용 없이 변하는 속성만 명시했다','\'all 0.15s\' 16회 — reflow·예기치 못한 전환 유발'],
+    ['스피너 등 무한 애니가 0.7s linear infinite 규격이다','css/editor-extra.css @keyframes ai-spin — 속도 난립 방지'],
+  ]],
+  ['아이콘 시스템','prop-block-icon / layer-item-icon · stroke-width',[
+    ['프로퍼티 헤더 아이콘이 16px(--icon-prop-size)로 강제됐다','css/editor-props.css:184 — 패널별 12/14/16 제각각이던 것 통일'],
+    ['레이어 패널 아이콘이 14px(.layer-item-icon/.layer-section-icon)다','css/editor-panels.css:1118·1187 — width/height:14px'],
+    ['아이콘 stroke-width가 표준값(1.3 또는 1.5) 한두 단으로 수렴한다','현재 1.3/1.4/1.5/1.6/1.8/2 7종 — 1.3이 115회로 사실상 표준'],
+    ['같은 패널 안의 아이콘 stroke 굵기가 들쭉날쭉하지 않다','한 화면에 1.3·1.6 섞이면 시각 무게 불일치'],
+    ['아이콘 opacity 처리가 토큰/일관값이다','css/editor-panels.css:1187 .layer-item-icon opacity:0.5, .active 0.7 패턴'],
+  ]],
+  ['z-index 레이어 질서','#ss-handles-overlay 9990 / panel 9999 / modal 10000',[
+    ['캔버스 핸들 오버레이가 z-index:9990(#ss-handles-overlay)을 지킨다','css/editor-blocks.css:55 — 블록보다 위, 패널(9999)보다 아래'],
+    ['좌우 패널이 9999, 모달/팝오버가 10000 이상으로 패널 위에 뜬다','css/editor-panels.css:58 panel-right:9999 vs settings-modal 10000'],
+    ['동률 z-index로 DOM 순서에 의존하는 가려짐이 없다','css/editor-base.css:613 주석 — panel-right(9999)와 동률 시 버그'],
+    ['터미널/AI 패널(10001)이 모달(10000) 위 의도된 위계다','css/claude-pm.css:368·576, ai-image.css:102'],
+    ['99999 같은 극단값이 정당한 최상위(어셋 패널)에만 쓰였다','css/assets-panel.css:191 — 무분별한 z-index 인플레 방지'],
+  ]],
+  ['라벨 카피 일관성','js/props/*.js — label',[
+    ['같은 의미 라벨이 패널 간 영/한 혼용 없이 한 언어로 통일됐다','prop-graph.js \'Chart Type\'(영) vs prop-step.js \'시작 번호\'(한) 충돌'],
+    ['\'Type\'을 한 패널은 영문, 옆 패널은 \'유형\'으로 쓰지 않는다','js/props/prop-graph.js \'Type\' 다수 vs 한글 라벨 혼재'],
+    ['단위·약어 표기(px, %, 색)가 라벨 전반에서 일관된다','prop-step.js \'제목 크기\'·\'설명 크기\' 패턴 기준'],
+    ['버튼/토글 카피가 동일 동작에 동일 단어를 쓴다','\'배경색\' vs \'Background\' 같은 짝 불일치 점검'],
+    ['신규 prop 패널 라벨이 기존 언어 정책을 따른다','한글 우세(prop-step) 기준 — 영문 신규 라벨 도입 시 정책 확인'],
+  ]],
+];
+let _ckId=0;
+document.getElementById('checklist-ul').innerHTML=CHECK_GROUPS.map(([title,area,items])=>{
+  const lis=items.map(([t,s])=>
+    `<li onclick="this.classList.toggle('done');updateProg(this)"><span class="box">✓</span>
+     <span class="ck-txt"><b>${t}</b><div class="ck-sub">${s}</div></span></li>`).join('');
+  return `<div class="ck-grp"><h3>${title}</h3><span class="ck-area mono">${area}</span>
+    <span class="ck-prog" data-total="${items.length}">0 / ${items.length}</span></div>
+    <ul class="ckl">${lis}</ul>`;
+}).join('');
+window.updateProg=(li)=>{
+  const ul=li.closest('ul'); const prog=ul.previousElementSibling.querySelector('.ck-prog');
+  const done=ul.querySelectorAll('li.done').length, total=prog.dataset.total;
+  prog.textContent=`${done} / ${total}`;
+  prog.style.color = done==total ? 'var(--doc-ok)' : 'var(--doc-dim)';
+};
+
+// spacing
+document.getElementById('spacing-list').innerHTML=SPACING.map(([n,v])=>
+  `<div class="sp-row"><div class="dim-tok" style="width:140px"><span class="tok" onclick="copy(this,'${n}')"><b>${n}</b></span> ${v}</div>
+   <div class="sp-vis" style="width:${parseInt(v)*4}px"></div></div>`).join('')
+   +`<p class="note">바 길이 = 값 ×4 (시각 과장). 전부 사용 0회.</p>`;
+</script>
+</body>
+</html>
