@@ -17,6 +17,9 @@
   display: flex; align-items: center; gap: 4px;
   min-height: 24px; margin-bottom: 6px; overflow: hidden;
 }
+/* A37: 표 속성 선 토글 2×2 그리드 — 4줄→2줄 */
+.prop-toggle-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; row-gap: 6px; margin-bottom: 6px; }
+.prop-toggle-grid .prop-row { margin-bottom: 0; min-width: 0; }
 .prop-label { font-size: var(--ui-fs-base); color: var(--ui-text-muted, #6b6b6b); width: 56px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prop-field-label { font-size: var(--ui-fs-10); color: var(--ui-text-muted, #6b6b6b); margin-bottom: 4px; display: block; }
 

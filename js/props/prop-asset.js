@@ -44,6 +44,10 @@ export function showAssetProperties(ab) {
   const currentBgColor = ab.dataset.bgColor || '#a0a0a0';
   const currentBgAlpha = parseAlphaFromColor(currentBgColor);
   const currentFit = ab.dataset.fit || 'cover';
+  // B23: 에셋 외곽선(stroke)
+  const currentStrokeWidth = parseInt(ab.dataset.strokeWidth || '0');
+  const currentStrokeColor = ab.dataset.strokeColor || '#000000';
+  const currentStrokeAlpha = parseAlphaFromColor(currentStrokeColor);
   const imageSection = hasImage ? `
     <div class="prop-section">
       <div class="prop-section-title">Image</div>
@@ -134,6 +138,18 @@ export function showAssetProperties(ab) {
           <input type="checkbox" id="asset-padx-toggle" ${usePadX ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">Border</div>
+      <div class="prop-color-row">
+        <span class="prop-label">외곽선</span>
+        ${colorFieldHTML({ idPrefix: 'asset-stroke-color', hex: currentStrokeColor, alpha: currentStrokeAlpha })}
+      </div>
+      <div class="prop-row" style="margin-top:8px;">
+        <span class="prop-label">두께</span>
+        <input type="range" class="prop-slider" id="asset-stroke-slider" min="0" max="20" step="1" value="${currentStrokeWidth}">
+        <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
       </div>
     </div>
     ${imageSection}
@@ -339,6 +355,36 @@ export function showAssetProperties(ab) {
     applyR(v); rSlider.value = v;
   });
 
+  // ── B23: 외곽선(border) — 도형 stroke와 동등. 에셋은 div라 border-* 사용(box-sizing:border-box로 레이아웃 시프트 없음) ──
+  const applyAssetBorder = v => {
+    ab.dataset.strokeWidth = String(v);
+    if (v > 0) {
+      ab.style.borderStyle = 'solid';
+      ab.style.borderWidth = v + 'px';
+      ab.style.borderColor = ab.dataset.strokeColor || '#000000';
+    } else {
+      ab.style.border = '';
+    }
+  };
+  const applyAssetStrokeColor = c => {
+    ab.dataset.strokeColor = c;
+    if ((parseInt(ab.dataset.strokeWidth) || 0) > 0) ab.style.borderColor = c;
+  };
+  if ((parseInt(ab.dataset.strokeWidth) || 0) > 0) applyAssetBorder(parseInt(ab.dataset.strokeWidth));
+  wireColorField('asset-stroke-color', {
+    initialAlpha: currentStrokeAlpha,
+    onApply: (c) => applyAssetStrokeColor(c),
+    onCommit: () => window.pushHistory?.(),
+  });
+  const stSlider = document.getElementById('asset-stroke-slider');
+  const stNum    = document.getElementById('asset-stroke-num');
+  stSlider.addEventListener('input',  () => { stNum.value = stSlider.value; applyAssetBorder(parseInt(stSlider.value)); });
+  stSlider.addEventListener('change', () => window.pushHistory?.());
+  stNum.addEventListener('input', () => {
+    const v = Math.min(20, Math.max(0, parseInt(stNum.value) || 0));
+    stSlider.value = v; applyAssetBorder(v);
+  });
+  stNum.addEventListener('change', () => window.pushHistory?.());
 
   if (hasImage) {
     document.getElementById('asset-fit-group').addEventListener('click', e => {

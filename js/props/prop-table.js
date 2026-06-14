@@ -473,33 +473,35 @@ export function showTableProperties(block) {
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Borders</div>
-      <div class="prop-row">
-        <span class="prop-label">세로선</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="tbl-show-vlines" ${curShowVLines ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">수평선</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="tbl-show-hlines" ${curShowHLines ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">외곽 좌우</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="tbl-show-outerx" ${curShowOuterX ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">외곽 상하</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="tbl-show-outery" ${curShowOuterY ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+      <div class="prop-toggle-grid">
+        <div class="prop-row">
+          <span class="prop-label">세로선</span>
+          <label class="prop-toggle">
+            <input type="checkbox" id="tbl-show-vlines" ${curShowVLines ? 'checked' : ''}>
+            <span class="prop-toggle-track"></span>
+          </label>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">수평선</span>
+          <label class="prop-toggle">
+            <input type="checkbox" id="tbl-show-hlines" ${curShowHLines ? 'checked' : ''}>
+            <span class="prop-toggle-track"></span>
+          </label>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">외곽 좌우</span>
+          <label class="prop-toggle">
+            <input type="checkbox" id="tbl-show-outerx" ${curShowOuterX ? 'checked' : ''}>
+            <span class="prop-toggle-track"></span>
+          </label>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">외곽 상하</span>
+          <label class="prop-toggle">
+            <input type="checkbox" id="tbl-show-outery" ${curShowOuterY ? 'checked' : ''}>
+            <span class="prop-toggle-track"></span>
+          </label>
+        </div>
       </div>
       <div class="prop-row">
         <span class="prop-label">외곽두께</span>
