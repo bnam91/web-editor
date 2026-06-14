@@ -1961,6 +1961,11 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
       if (resX || resY) {
         panOffsetX -= resX;
         panOffsetY -= resY;
+        // over-scroll 상한: 콘텐츠 끝을 지나 최대 '반 화면'까지만 휠 팬 허용.
+        // ★휠이 실제로 민 축만 클램프(resX/resY 각각) — 세로 over-scroll이 기존 가로 오프셋(줌/스페이스팬)을
+        //   깎거나 노치를 튀게 하지 않도록(Codex 리뷰 반영). 줌/스크롤바/스페이스팬은 이 경로를 안 타므로 무영향.
+        if (resX) { const LIM_X = wrap.clientWidth  / 2; panOffsetX = Math.max(-LIM_X, Math.min(LIM_X, panOffsetX)); }
+        if (resY) { const LIM_Y = wrap.clientHeight / 2; panOffsetY = Math.max(-LIM_Y, Math.min(LIM_Y, panOffsetY)); }
         _applyScalerTransform();
         if (window.updateNotchPosition) window.updateNotchPosition();
       }
