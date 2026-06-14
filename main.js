@@ -18,8 +18,8 @@ function _loadEnvFile(p) {
   });
 }
 _loadEnvFile(path.join(__dirname, '.env'));
-// 외부 자격증명 저장소(symlink로 관리되는 공유 시크릿) — GEMINI_API_KEY 등
-_loadEnvFile('/Users/a1/github_cloud/module_api_key/.env');
+// 외부 자격증명 저장소(로컬 공유 시크릿) — GEMINI_API_KEY 등. iCloud dataless(EDEADLK) 회피 위해 ~/.config/secrets 로 일원화
+_loadEnvFile(path.join(os.homedir(), '.config/secrets/.env'));
 const { spawn } = require('child_process');
 const { getPublicIp, findUserByIp, registerLicense, removeIp, updateIpAlias, updateUserName, createLicenseKey, listLicenseKeys } = require('./services/licenseService');
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');

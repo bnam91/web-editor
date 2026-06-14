@@ -68,7 +68,7 @@ cd /Users/a1/web-editor && npx playwright test
 - **노션 관리 페이지 ID**: `329111a5-7788-803b-b812-d171b6321e60`
 - **로컬 경로**: `/Users/a1/web-editor/`
 - **GitHub**: `https://github.com/bnam91/web-editor`
-- **API 키 경로**: `~/Documents/claude_skills/.env` → `NOTION_API_KEY`
+- **API 키 경로**: `~/.config/secrets/.env` → `NOTION_API_KEY`
 
 ## 관리 DB 목록
 
@@ -217,7 +217,7 @@ import { readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 
-const envRaw = readFileSync(path.join(os.homedir(), 'Documents/claude_skills/.env'), 'utf8');
+const envRaw = readFileSync(path.join(os.homedir(), '.config/secrets/.env'), 'utf8');
 const apiKey = envRaw.match(/NOTION_API_KEY=(.+)/)[1].trim();
 
 const dbRes = await fetch('https://api.notion.com/v1/databases/329111a5-7788-8021-9027-deea1f33dd18/query', {
@@ -243,7 +243,7 @@ import { readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 
-const envRaw = readFileSync(path.join(os.homedir(), 'Documents/claude_skills/.env'), 'utf8');
+const envRaw = readFileSync(path.join(os.homedir(), '.config/secrets/.env'), 'utf8');
 const apiKey = envRaw.match(/NOTION_API_KEY=(.+)/)[1].trim();
 
 const dbRes = await fetch('https://api.notion.com/v1/databases/329111a5-7788-8021-9027-deea1f33dd18/query', {
@@ -270,7 +270,7 @@ import { readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 
-const envRaw = readFileSync(path.join(os.homedir(), 'Documents/claude_skills/.env'), 'utf8');
+const envRaw = readFileSync(path.join(os.homedir(), '.config/secrets/.env'), 'utf8');
 const apiKey = envRaw.match(/NOTION_API_KEY=(.+)/)[1].trim();
 const PAGE_ID = '329111a5-7788-812e-878b-f7532f706e05';
 
@@ -303,7 +303,7 @@ import { readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 
-const envRaw = readFileSync(path.join(os.homedir(), 'Documents/claude_skills/.env'), 'utf8');
+const envRaw = readFileSync(path.join(os.homedir(), '.config/secrets/.env'), 'utf8');
 const apiKey = envRaw.match(/NOTION_API_KEY=(.+)/)[1].trim();
 const PAGE_ID = '329111a5-7788-812e-878b-f7532f706e05';
 const 다음할일 = '다음에 할 작업 내용';

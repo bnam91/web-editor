@@ -25,7 +25,7 @@ import { readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 
-const envRaw = readFileSync(path.join(os.homedir(), 'Documents/claude_skills/.env'), 'utf8');
+const envRaw = readFileSync(path.join(os.homedir(), '.config/secrets/.env'), 'utf8');
 const apiKey = envRaw.match(/NOTION_API_KEY=(.+)/)[1].trim();
 const BRANCH = 'feature/T23-text-edit-ux';  // ← 사용자 입력값으로 교체
 
@@ -74,7 +74,7 @@ import { readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 
-const envRaw = readFileSync(path.join(os.homedir(), 'Documents/claude_skills/.env'), 'utf8');
+const envRaw = readFileSync(path.join(os.homedir(), '.config/secrets/.env'), 'utf8');
 const apiKey = envRaw.match(/NOTION_API_KEY=(.+)/)[1].trim();
 const PAGE_ID = 'XXXXXXXX-...';  // ← 1단계에서 출력된 PAGE_ID로 교체
 
@@ -105,7 +105,7 @@ import { readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 
-const envRaw = readFileSync(path.join(os.homedir(), 'Documents/claude_skills/.env'), 'utf8');
+const envRaw = readFileSync(path.join(os.homedir(), '.config/secrets/.env'), 'utf8');
 const apiKey = envRaw.match(/NOTION_API_KEY=(.+)/)[1].trim();
 
 // ── 여기만 수정 ──

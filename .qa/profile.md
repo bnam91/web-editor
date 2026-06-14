@@ -282,7 +282,7 @@ node -e "
 import { readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
-const envRaw = readFileSync(path.join(os.homedir(), 'Documents/claude_skills/.env'), 'utf8');
+const envRaw = readFileSync(path.join(os.homedir(), '.config/secrets/.env'), 'utf8');
 const apiKey = envRaw.match(/NOTION_API_KEY=(.+)/)[1].trim();
 const DB_ID = '333111a5-7788-817f-91ab-f20f5ede759d';
 
@@ -303,7 +303,7 @@ node -e "
 import { readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
-const envRaw = readFileSync(path.join(os.homedir(), 'Documents/claude_skills/.env'), 'utf8');
+const envRaw = readFileSync(path.join(os.homedir(), '.config/secrets/.env'), 'utf8');
 const apiKey = envRaw.match(/NOTION_API_KEY=(.+)/)[1].trim();
 const PAGE_ID = 'REPLACE_ME';  // 항목 page ID
 const STATUS = '완료';  // '완료' | '실패' | '대기'
