@@ -1193,8 +1193,9 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 .layer-row-header .layer-item { flex: 1; padding: 0; height: 100%; border-radius: 0; }
 .layer-row-header .layer-item:hover { background: transparent; }
 .layer-item-name.editing { background: #2a3a55; color: #aecbff; outline: none; cursor: text; padding: 0 2px; }
-/* type 태그(9px 대문자): name(--ui-text-sub)보다 한 단계 눌러 위계 + 우측 여백으로 가장자리 붙음 완화 — 현빈 2026-06-14 */
-.layer-item-type { font-size: var(--ui-fs-9); color: #7e7e7e; letter-spacing: 0.06em; text-transform: uppercase; margin-right: 10px; }
+/* type 태그(항목별 반복 메타 — 패널 최약 위계): name(--ui-text-sub) + 섹션헤더(9px볼드 #969696)보다 더 눌러
+   8px + 한 톤 darker(#6e6e6e)로 크기·명도 모두 하위. 우측 여백으로 가장자리 붙음 완화 — 현빈 2026-06-14 */
+.layer-item-type { font-size: 8px; color: #6e6e6e; letter-spacing: 0.06em; text-transform: uppercase; margin-right: 10px; }
 .layer-ungroup-btn {
   display: none; margin-left: auto; padding: 2px 4px;
   width: 20px; height: 20px;
