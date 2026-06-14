@@ -172,6 +172,13 @@ function _gradEdgeSnap(block, sec, x, y) {
     d     = Math.abs(gL - e.L); if (d <= GRAD_SNAP_TH && (bestX === null || d < bestX)) { bestX = d; snapX = e.L;      edgeX = { el: t, side: 'left' }; }
     d     = Math.abs(gR - e.R); if (d <= GRAD_SNAP_TH && (bestX === null || d < bestX)) { bestX = d; snapX = e.R - bw; edgeX = { el: t, side: 'right' }; }
   }
+  // 섹션 자신의 네 모서리도 스냅 타깃 — 풀폭이 아닌 페이드 오버레이를 섹션 좌/우/상/하 끝에 다시 붙이기 쉽게.
+  // (기존엔 형제 블록 변에만 스냅돼, 좌측 끝(x=0)에 재정렬이 어려웠음)
+  const _secW = sec.clientWidth || 0, _secH = sec.clientHeight || 0;
+  let ds = Math.abs(gL - 0);     if (ds <= GRAD_SNAP_TH && (bestX === null || ds < bestX)) { bestX = ds; snapX = 0;          edgeX = { el: sec, side: 'left' }; }
+  ds     = Math.abs(gR - _secW); if (ds <= GRAD_SNAP_TH && (bestX === null || ds < bestX)) { bestX = ds; snapX = _secW - bw; edgeX = { el: sec, side: 'right' }; }
+  ds     = Math.abs(gT - 0);     if (ds <= GRAD_SNAP_TH && (bestY === null || ds < bestY)) { bestY = ds; snapY = 0;          edgeY = { el: sec, side: 'top' }; }
+  ds     = Math.abs(gB - _secH); if (ds <= GRAD_SNAP_TH && (bestY === null || ds < bestY)) { bestY = ds; snapY = _secH - bh; edgeY = { el: sec, side: 'bottom' }; }
   return { x: Math.round(snapX), y: Math.round(snapY), edgeX, edgeY };
 }
 

@@ -2094,8 +2094,8 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   box-sizing: border-box;
 }
 .gradient-block.selected {
-  outline: 1px solid var(--ui-sel-overlay, #9966ff);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--ui-sel-overlay, #9966ff);
+  outline-offset: calc(-1 * var(--sel-outline-w));
   /* mix-blend 이슈는 없지만 일관성 위해 isolation */
   isolation: isolate;
 }
@@ -2109,8 +2109,8 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   user-select: text !important;
   -webkit-user-select: text !important;
   cursor: text !important;
-  outline: 1px dashed var(--ui-sel-overlay, #9966ff);
-  outline-offset: 1px;
+  outline: var(--sel-outline-w) dashed var(--ui-sel-overlay, #9966ff);
+  outline-offset: var(--sel-outline-w);
 }
 
 /* ──────────────────────────────────────────────
@@ -2119,8 +2119,8 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
    highlightB(선)는 아웃라인 없이 끝점 핸들만 (JS로 동적 inject)
 ────────────────────────────────────────────── */
 .sticker-block.selected {
-  outline: 1px solid var(--ui-sel-overlay, #9966ff);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--ui-sel-overlay, #9966ff);
+  outline-offset: calc(-1 * var(--sel-outline-w));
   /* mix-blend-mode 적용된 highlight/highlightB는 outline이 blend되어 안 보일 수 있음 → isolate */
   isolation: isolate;
 }
@@ -2130,8 +2130,8 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   position: absolute;
   inset: 0;
   pointer-events: none;
-  outline: 1px solid var(--ui-sel-overlay, #9966ff);
-  outline-offset: -1px;
+  outline: var(--sel-outline-w) solid var(--ui-sel-overlay, #9966ff);
+  outline-offset: calc(-1 * var(--sel-outline-w));
   mix-blend-mode: normal;
   z-index: 99;
 }
