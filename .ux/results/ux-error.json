@@ -1,0 +1,416 @@
+{
+ "agent": "UXS-error",
+ "version": "3.0",
+ "dimension": "error",
+ "scope": "whole-surface",
+ "method": "cdp",
+ "run_date": "2026-06-11",
+ "verdict": "verify-candidate",
+ "dynamic_verification": {
+  "block_delete_undo": "blocks 16→15→16 복원 확인 (history action '블록 삭제')",
+  "section_delete_undo": "sections 4→3→4 복원 확인 (history action '섹션 삭제')",
+  "restored_to_original": true,
+  "evidence": [
+   ".ux/results/evidence/error-before.png",
+   ".ux/results/evidence/error-block-deleted.png",
+   ".ux/results/evidence/error-block-restored.png",
+   ".ux/results/evidence/error-section-deleted.png",
+   ".ux/results/evidence/error-section-restored.png"
+  ],
+  "note": "undo 호출은 window.undo()로 수행 — 사용자 지각 가능 진입로는 Cmd+Z 단축키뿐(J-1 참조). 검증 중 앱이 외부 요인으로 종료되어 npm run dev로 재기동(파괴 조작 미발생 확인 후 진행). module_api_key/.env iCloud dataless(EDEADLK) → brctl download로 해결."
+ },
+ "destructive_inventory": [
+  {
+   "action": "블록 삭제 (Delete/Backspace, 다중선택 포함)",
+   "entry": "캔버스 선택+키 / 레이어 패널",
+   "protection": "undo",
+   "evidence": "js/editor.js:1407,1890 (pushHistory '블록 삭제')"
+  },
+  {
+   "action": "섹션 삭제",
+   "entry": "캔버스 선택+키 / 레이어 패널",
+   "protection": "undo + 보호섹션 🔒 잠금('삭제하지말것' 메모 자동감지)",
+   "evidence": "js/editor.js:1329,1432-1444, 안내 toast :1436"
+  },
+  {
+   "action": "프레임/행/열/서브섹션 삭제",
+   "entry": "캔버스 선택+키",
+   "protection": "undo",
+   "evidence": "js/editor.js:1345,1415,1307,1365"
+  },
+  {
+   "action": "어노테이션 삭제",
+   "entry": "어노테이션 선택+키",
+   "protection": "undo",
+   "evidence": "js/annotation-select.js:43"
+  },
+  {
+   "action": "라벨 아이템 삭제",
+   "entry": "라벨그룹 × 버튼",
+   "protection": "undo + 마지막 1개 삭제 차단",
+   "evidence": "js/block-drag.js:927-933"
+  },
+  {
+   "action": "스크래치패드 이미지 삭제",
+   "entry": "스크래치 선택+삭제",
+   "protection": "undo (sideEffects로 IDB 복원)",
+   "evidence": "js/scratch-pad.js:154-173"
+  },
+  {
+   "action": "Variant 그룹 삭제 / 베리에이션 확정(나머지 삭제)",
+   "entry": "레이어 패널 버튼",
+   "protection": "undo",
+   "evidence": "js/panels/layer-panel.js:490-529 (pushHistory :493,:529)"
+  },
+  {
+   "action": "AI 섹션 채우기(기존 텍스트 교체)",
+   "entry": "AI fill 패널",
+   "protection": "undo + '적용됨 (Cmd+Z 되돌리기)' 안내 표시",
+   "evidence": "js/ai-section-fill.js:759,780"
+  },
+  {
+   "action": "Figma JSON 가져오기(캔버스 변경)",
+   "entry": "import 모달",
+   "protection": "undo",
+   "evidence": "js/io/import-figma-json.js:198"
+  },
+  {
+   "action": "이미지 비우기(이미지 편집모드 Delete)",
+   "entry": "asset 블록 편집모드+키",
+   "protection": "undo(캔버스 조작 경로)",
+   "evidence": "js/editor.js:1289-1294 clearAssetImage"
+  },
+  {
+   "action": "프로젝트 삭제",
+   "entry": "프로젝트 목록 카드 ✕",
+   "protection": "confirm",
+   "evidence": "pages/projects.html:370-375"
+  },
+  {
+   "action": "자산(에셋) 삭제 단일/다중(Backspace)",
+   "entry": "assets 패널 🗑 / Backspace",
+   "protection": "confirm",
+   "evidence": "js/panels/assets-panel.js:94-95,375"
+  },
+  {
+   "action": "AI 생성 이미지 영구 삭제",
+   "entry": "AI 갤러리 🗑",
+   "protection": "confirm",
+   "evidence": "js/panels/ai-image-gallery.js:154"
+  },
+  {
+   "action": "커스텀 아이콘 삭제(파일 영구)",
+   "entry": "iconify prop",
+   "protection": "confirm",
+   "evidence": "js/props/prop-iconify.js:161"
+  },
+  {
+   "action": "브랜치 삭제",
+   "entry": "브랜치 드롭다운",
+   "protection": "confirm + main/dev/현재 브랜치 삭제 차단",
+   "evidence": "js/branch-system.js:204-206"
+  },
+  {
+   "action": "브랜치 병합(현재 내용 대체)",
+   "entry": "브랜치 UI",
+   "protection": "confirm (대체 범위 명시)",
+   "evidence": "js/branch-system.js:225-230"
+  },
+  {
+   "action": "커밋 복원(현재 상태 덮어쓰기)",
+   "entry": "커밋 히스토리 (MVP 숨김)",
+   "protection": "confirm + '자동저장으로 보존' 안내",
+   "evidence": "js/commit-system.js:250"
+  },
+  {
+   "action": "main 브랜치 잠금 해제",
+   "entry": "브랜치 UI",
+   "protection": "confirm",
+   "evidence": "js/branch-system.js:622"
+  },
+  {
+   "action": "디자인시스템 컬러 변수 삭제",
+   "entry": "디자인시스템 패널",
+   "protection": "confirm",
+   "evidence": "js/design-system.js:441"
+  },
+  {
+   "action": "단축키 기본값 초기화",
+   "entry": "설정 모달",
+   "protection": "confirm",
+   "evidence": "js/settings/settings-modal.js:289"
+  },
+  {
+   "action": "배너 프리셋 변경(내용 전체 소실)",
+   "entry": "prop-frame 프리셋",
+   "protection": "confirm ('내용이 모두 사라집니다')",
+   "evidence": "js/props/prop-frame.js:390"
+  },
+  {
+   "action": "페이지 삭제(블록·섹션 전체 포함)",
+   "entry": "좌측 파일 패널 ✕ (hover 노출, 복제 버튼 인접)",
+   "protection": "none (마지막 1페이지 차단만)",
+   "evidence": "js/file-page-section.js:97-98 → js/io/save-load.js:268-289 (confirm 無, pushHistory 無, scheduleAutoSave 즉시 영속화)"
+  },
+  {
+   "action": "템플릿 삭제(영구 저장물)",
+   "entry": "템플릿 패널 🗑 + 템플릿 브라우저 카드 ✕",
+   "protection": "none",
+   "evidence": "js/panels/template-system.js:607-610, js/panels/template-browser.js:349-352 → deleteTemplate :102-104"
+  },
+  {
+   "action": "템플릿 덮어쓰기(기존 캔버스 교체)",
+   "entry": "템플릿 편집 폼 '덮어쓰기'",
+   "protection": "none",
+   "evidence": "js/panels/template-system.js:433-449"
+  },
+  {
+   "action": "컴포넌트 삭제(localStorage 영구)",
+   "entry": "Component Shelf 🗑",
+   "protection": "none",
+   "evidence": "js/component-shelf.js:222-226 → deleteComponent :86-89"
+  },
+  {
+   "action": "바인딩 변수 삭제",
+   "entry": "변수 drawer 삭제 버튼",
+   "protection": "none",
+   "evidence": "js/variable-binding.js:322-330"
+  },
+  {
+   "action": "체크리스트 아이템/핀 삭제",
+   "entry": "ck-delete × / 핀 팝업 삭제",
+   "protection": "none",
+   "evidence": "js/checklist-panel.js:571-575,182-187"
+  },
+  {
+   "action": "체크리스트 섹션 삭제(아이템은 보존)",
+   "entry": "ck-section-delete ×",
+   "protection": "none (아이템 sectionId만 해제 — 손실 적음)",
+   "evidence": "js/checklist-panel.js:622-630"
+  }
+ ],
+ "findings": [
+  {
+   "id": "ERR-C1",
+   "track": "conformance",
+   "area": "left-panel",
+   "severity": "blocker",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "복구 경로 존재 — 파괴 액션은 확인 다이얼로그 또는 Undo 중 하나 이상",
+   "actual": "페이지 삭제가 무보호: confirm 없음, pushHistory 없음(히스토리는 현재 페이지 캔버스만 스냅샷 — pages 배열 미포함), 삭제 직후 scheduleAutoSave로 영속화. 페이지 안의 모든 섹션/블록이 한 클릭에 유실. 백엔드 롤링 백업(main.js projects:save의 proj_backup+history 5슬롯)은 존재하나 UI 복구 진입로 0 (커밋 복원 UI는 .tb-hidden-mvp 숨김). 과거 main 프로세스의 '페이지 수 감소 차단 가드'도 제거됨(main.js:780 주석).",
+   "evidence": "js/file-page-section.js:97-98 / js/io/save-load.js:268-289 / main.js:778-780 주석",
+   "fix_hint": "deletePage에 confirm 1줄 추가(저빈도 액션 — 확인 피로 우려 없음) 또는 pages 배열을 히스토리 스냅샷에 포함. 부가: ✕ 버튼이 hover 노출 + 복제 버튼 인접이라 오클릭 비용이 큼 — confirm이 이것도 흡수.",
+   "heuristic_basis": "nielsen-10.md#5-error-prevention (파괴 액션에 확인/유예), #9-recovery (복구 수단 부재)",
+   "adjudication": "central-confirmed",
+   "self_guard_note": "오적용 가드 대조: '고빈도 액션엔 확인 대신 Undo' — 페이지 삭제는 저빈도이므로 confirm이 표준 측. Undo도 없으므로 가드 비적용. 데이터 유실 경로 → blocker."
+  },
+  {
+   "id": "ERR-C2",
+   "track": "conformance",
+   "area": "template-browser",
+   "severity": "major",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "복구 경로 존재",
+   "actual": "사용자 저장 템플릿 삭제가 무보호 — 2개 진입로(템플릿 패널 🗑, 브라우저 카드 ✕) 모두 클릭 즉시 영구 삭제(electronAPI 파일 삭제/localStorage). confirm·undo 없음. 같은 성격의 영구 삭제인 자산/AI이미지/아이콘은 모두 confirm — 내부 비일관.",
+   "evidence": "js/panels/template-system.js:607-610, js/panels/template-browser.js:349-352, deleteTemplate js/panels/template-system.js:102-110",
+   "fix_hint": "deleteTemplate 호출 전 confirm 추가 (assets-panel.js:375 패턴 재사용).",
+   "heuristic_basis": "nielsen-10.md#5-error-prevention, #4-consistency (동종 액션 보호 방식 비일관)",
+   "adjudication": "central-confirmed",
+   "self_guard_note": "저빈도+영구 저장물 → confirm 표준. Undo 대안 가드 비적용."
+  },
+  {
+   "id": "ERR-C3",
+   "track": "conformance",
+   "area": "template-browser",
+   "severity": "major",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "복구 경로 존재",
+   "actual": "템플릿 '덮어쓰기'가 기존 템플릿 캔버스를 선택 섹션으로 즉시 교체 — 확인 없음, 이전 내용 복구 불가. 동일 패턴인 배너 프리셋 변경(prop-frame.js:390)은 confirm으로 보호 — 비일관.",
+   "evidence": "js/panels/template-system.js:433-449",
+   "fix_hint": "prop-frame.js:390과 같은 confirm('덮어쓰면 기존 템플릿 내용이 사라집니다') 추가.",
+   "heuristic_basis": "nielsen-10.md#5-error-prevention",
+   "adjudication": "central-confirmed",
+   "self_guard_note": "덮어쓰기는 저빈도·비가역 — confirm 표준 측."
+  },
+  {
+   "id": "ERR-C4",
+   "track": "conformance",
+   "area": "template-browser",
+   "severity": "major",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "복구 경로 존재",
+   "actual": "Component Shelf 컴포넌트 삭제가 무보호 — 클릭 즉시 localStorage에서 영구 제거, confirm·undo 없음.",
+   "evidence": "js/component-shelf.js:222-226, deleteComponent :86-89",
+   "fix_hint": "confirm 추가 또는 삭제 직후 '삭제됨 — 되돌리기' 토스트(soft delete).",
+   "heuristic_basis": "nielsen-10.md#5-error-prevention",
+   "adjudication": "central-refuted",
+   "self_guard_note": "저빈도+영구 저장물 → confirm 표준 측."
+  },
+  {
+   "id": "ERR-C5",
+   "track": "conformance",
+   "area": "design-system",
+   "severity": "minor",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "복구 경로 존재 + 동종 액션 동일 보호",
+   "actual": "바인딩 변수 삭제(variable-binding.js)는 무보호인데, 동일 개념인 디자인시스템 컬러 변수 삭제(design-system.js:441)는 confirm — 같은 '변수 삭제'에 보호 방식이 갈림. 삭제 시 바인딩된 텍스트들의 연결이 끊김.",
+   "evidence": "js/variable-binding.js:322-330 vs js/design-system.js:441",
+   "fix_hint": "variable-binding 삭제에도 동일 confirm 적용.",
+   "heuristic_basis": "nielsen-10.md#5-error-prevention, #4-consistency",
+   "adjudication": "self",
+   "self_guard_note": "데이터 손실 폭이 작아(변수 1건) minor. 비일관 사실은 deterministic."
+  },
+  {
+   "id": "ERR-C6",
+   "track": "conformance",
+   "area": "pm-panel",
+   "severity": "minor",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "복구 경로 존재",
+   "actual": "체크리스트 아이템 삭제(×)와 핀 삭제가 무보호 — 즉시 영속화, confirm·undo 없음. 체크리스트 섹션 삭제는 아이템을 보존(sectionId 해제)해 상대적으로 안전.",
+   "evidence": "js/checklist-panel.js:571-575,182-187 (대조: :622-630)",
+   "fix_hint": "todo 1건 수준이라 confirm은 과함 — '삭제됨 · 되돌리기' 토스트가 적정.",
+   "heuristic_basis": "nielsen-10.md#5-error-prevention",
+   "adjudication": "self",
+   "self_guard_note": "유실 단위가 작고(텍스트 1건) 재입력 용이 → minor. confirm 일괄 요구 아님(확인 피로 가드 준수). G5 보류는 PM 패널 *스타일* judgment 건 — 본 건은 파괴 액션 인벤토리로 보고 범위."
+  },
+  {
+   "id": "ERR-J1",
+   "track": "judgment",
+   "area": "toolbar",
+   "impact": "high",
+   "observation": "Undo/Redo의 가시 진입로가 전무 — history.js:27-40은 #undo-btn/#redo-btn을 갱신하려 하지만 해당 버튼이 index.html 어디에도 존재하지 않음(데드 코드, 과거 제거 추정). 복구는 Cmd+Z/Shift+Cmd+Z 키보드 전용(editor.js:895-896). Electron 앱 메뉴도 미정의(main.js에 Menu 구성 없음 — 기본 Edit>Undo는 네이티브 텍스트 undo라 캔버스 복구와 무관). 동적 검증 스크린샷(error-block-restored.png)에서도 툴바에 undo 컨트롤 부재 확인.",
+   "friction": "G1 확정 페르소나(외부 일반 사용자)는 블록/섹션을 지우고 복구 방법을 화면에서 찾을 수 없음. 캔버스 파괴 액션군이 confirm 없이 합격인 근거가 'Undo 존재'인데, 그 Undo가 지각 불가능하면 보호 체계 전체가 일반 사용자에게는 무보호로 체감됨.",
+   "proposal": "툴바에 undo/redo 버튼 복원(#undo-btn/#redo-btn — history.js가 이미 disabled 상태·툴팁('실행 취소: 블록 삭제')까지 구현해 두어 버튼만 추가하면 작동). 부가로 삭제 직후 '삭제됨 — Cmd+Z로 되돌리기' 토스트(ai-section-fill.js:780의 기존 패턴 재사용).",
+   "tradeoffs": "툴바 1~2버튼 추가 — #8 미니멀리즘 비용 미미, 업계 표준 컨트롤. MVP 숨김 정책(.tb-hidden-mvp)과 무관한 핵심 복구 컨트롤.",
+   "approval": "pending",
+   "heuristic_basis": "nielsen-10.md#6-recognition (회상 기반 가속 경로는 '가시적 대체 경로 존재' 시에만 합격 — 현재 대체 경로 0), #9-recovery, #3-control",
+   "adjudication": "central-confirmed",
+   "self_guard_note": "오적용 가드 대조: '전문가용 가속 경로를 문제 삼지 마라' — 문제 삼는 건 가속 경로(Cmd+Z)가 아니라 가시적 대체 경로의 부재. Undo 실행 신뢰성은 qa 소관 — 본 건은 지각 가능성만."
+  },
+  {
+   "id": "ERR-J2",
+   "track": "judgment",
+   "area": "toast",
+   "impact": "medium",
+   "observation": "에러 toast 문자열 전수(162건) 검토 결과 품질 이원화: 우수 — '⚠️ 확장 영역 0 — 핸들로 늘려주세요', '💻 활성 프로젝트가 없습니다. 프로젝트를 먼저 여세요.', '🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요', '⚠️ 저장 공간이 부족합니다. 오래된 프로젝트를 삭제해 주세요.'(원인+다음 행동). 미흡 — '❌ 병합 결과 적용 실패', '❌ 에셋 블록 생성 실패', '❌ 이미지 로드 실패'(원인·해결책 0), raw 기술 문자열 노출형 '❌ 저장 오류: ' + e.message, alert('GIF 생성 중 오류: ' + err.message).",
+   "friction": "실패 시 사용자가 재시도 외 취할 행동을 알 수 없음. e.message 노출은 #9 '평문' 원칙 위반 — 일반 사용자에게 무의미.",
+   "proposal": "실패 토스트 표준형 '무엇이 실패 — 무엇을 해보세요' 채택, e.message는 console로 강등하고 사용자 문구는 고정 평문화.",
+   "tradeoffs": "모든 실패에 장문 안내는 불필요(#9 가드) — 사용자 행동이 존재하는 실패에만 적용.",
+   "approval": "pending",
+   "heuristic_basis": "nielsen-10.md#9-recovery (평문·원인·건설적 해결책)",
+   "adjudication": "self",
+   "self_guard_note": "오적용 가드 준수: 인라인 즉시 교정형(입력 검증)은 짧은 표시 유지 — 대상은 비동기 작업 실패군만."
+  },
+  {
+   "id": "ERR-J3",
+   "track": "judgment",
+   "area": "modals",
+   "impact": "medium",
+   "observation": "에러/확인 표시 채널이 alert()(약 20곳: variable-binding.js:256, design-system.js:458-461, branch-system.js:191,204-205, image-handling.js:516,787, animation-engine.js:502,510 등)와 showToast(162곳)에 혼용. 같은 성격의 입력 검증 오류가 어떤 곳은 OS 모달(alert — 흐름 차단·앱 스타일 무관), 어떤 곳은 토스트로 나옴. 확인류도 native confirm과 커스텀 모달 혼재.",
+   "friction": "예측 불가한 피드백 채널 — 동일 실수에 다른 강도의 중단을 경험. native alert는 다크 UI 크롬과 시각적으로 단절.",
+   "proposal": "검증 오류는 toast(또는 인라인)로 일원화, alert는 비가역 확인(confirm)에만 잔류 — 점진 치환.",
+   "tradeoffs": "native confirm 자체는 파괴 액션 보호로 기능 중 — 채널 통일은 보호 약화 없이 표현만 교체할 것.",
+   "approval": "pending",
+   "heuristic_basis": "nielsen-10.md#4-consistency (동일 동작 동일 표현), #9-recovery",
+   "adjudication": "self",
+   "self_guard_note": "영역 간 분포 전수 비교는 MATRIX 소관 — 본 건은 '채널 혼용 사실'과 대표 사례만 보고."
+  }
+ ],
+ "out_of_scope_flags": [
+  "Undo push-after 패턴(삭제 후 pushHistory)과 ensureHistoryCheckpoint 의존 구조의 스택 정합성/신뢰성 — qa-squad 소관 (지각 가능성 아님)",
+  "main.js 롤링 백업(proj_backup/history 5슬롯) 실동작 신뢰성 — qa-squad 소관",
+  "삭제 버튼 danger hover 색 토큰 값(--ui-danger) 적정성 — design-squad 소관 (구분 신호의 '존재'는 확인됨: file-page-del/tpl-delete-btn/tb-card-del-btn/ck-delete 모두 hover danger 보유)",
+  "history.js의 undo-btn 참조 데드 코드 정리 — 코드 위생, debug-squad/refactor 소관 (UX 함의는 ERR-J1로 보고)"
+ ],
+ "area_summary": [
+  {
+   "area": "toolbar",
+   "status": "attention",
+   "note": "ERR-J1: Undo/Redo 가시 진입로 부재 (history.js가 기대하는 #undo-btn/#redo-btn 미존재). 파괴 액션 자체는 0개."
+  },
+  {
+   "area": "left-panel",
+   "status": "attention",
+   "note": "ERR-C1 blocker: 페이지 삭제 무보호(✕ hover 노출, 복제 버튼 인접). 페이지 복제/재배치는 비파괴."
+  },
+  {
+   "area": "prop-panel",
+   "status": "clean",
+   "note": "파괴 후보 2건 모두 보호 — 배너 프리셋 변경 confirm(prop-frame.js:390), 아이콘 삭제 confirm(prop-iconify.js:161)."
+  },
+  {
+   "area": "canvas-block",
+   "status": "clean",
+   "note": "삭제군(블록/섹션/프레임/행/열/어노테이션/라벨) 전부 undo 보호 + 보호섹션 🔒 가드 + 마지막 라벨 차단. 동적 검증으로 복원 확인. confirm 부재는 고빈도 액션 Undo 표준 — 위반 아님."
+  },
+  {
+   "area": "modals",
+   "status": "attention",
+   "note": "ERR-J3: alert/toast 채널 혼용. 단축키 초기화 confirm ✓. Esc/취소 비상구는 flow 차원 소관."
+  },
+  {
+   "area": "template-browser",
+   "status": "attention",
+   "note": "ERR-C2/C3/C4 major 3건: 템플릿 삭제(2 진입로)·템플릿 덮어쓰기·컴포넌트 삭제 모두 무보호 영구 파괴."
+  },
+  {
+   "area": "assets-ai",
+   "status": "clean",
+   "note": "자산 삭제(단일/다중/Backspace) confirm ✓, AI 이미지 영구 삭제 confirm ✓, 스크래치 삭제 undo(sideEffects) ✓."
+  },
+  {
+   "area": "design-system",
+   "status": "attention",
+   "note": "ERR-C5 minor: 바인딩 변수 삭제 무보호 vs 디자인 변수 삭제 confirm — 동종 액션 보호 비일관."
+  },
+  {
+   "area": "pm-panel",
+   "status": "attention",
+   "note": "ERR-C6 minor: 체크리스트 아이템/핀 삭제 무보호(섹션 삭제는 아이템 보존). 스타일 judgment는 G5 보류 유지."
+  },
+  {
+   "area": "pickers",
+   "status": "clean",
+   "note": "파괴 액션 0개 확인 (color-picker/gradient — 값 변경은 undo 경로)."
+  },
+  {
+   "area": "graph",
+   "status": "clean",
+   "note": "파괴 액션 0개 확인 (그래프 데이터 편집은 캔버스 undo 경로)."
+  },
+  {
+   "area": "toast",
+   "status": "attention",
+   "note": "ERR-J2: 에러 문자열 품질 이원화 — 원인+해결책 제시형과 무정보 실패형 혼재, e.message 노출형 존재."
+  },
+  {
+   "area": "home-pages",
+   "status": "clean",
+   "note": "프로젝트 삭제 confirm ✓ (pages/projects.html:375) + main 프로세스 롤링 백업. 파괴 액션 추가 0개."
+  }
+ ],
+ "judgment_count": 3,
+ "conformance_confirmed": 6,
+ "by_impact": {
+  "high": 1,
+  "medium": 2
+ },
+ "by_severity": {
+  "blocker": 1,
+  "major": 3,
+  "minor": 2
+ },
+ "grouped_overflow": [],
+ "by_adjudication": {
+  "self": 4,
+  "central-confirmed": 4,
+  "central-refuted": 1
+ }
+}

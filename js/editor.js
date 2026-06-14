@@ -87,14 +87,12 @@ function switchToTab(tabName) {
     t.classList.toggle('active', t.dataset.tab === tabName));
   const filePanel = document.getElementById('file-panel-body');
   if (filePanel) filePanel.style.display = tabName === 'file' ? 'flex' : 'none';
-  document.getElementById('branch-panel-body').style.display     = tabName === 'branch'    ? '' : 'none';
   document.getElementById('inspector-panel-body').style.display  = tabName === 'inspector' ? 'flex' : 'none';
   document.getElementById('checklist-panel-body').style.display  = tabName === 'checklist' ? 'flex' : 'none';
   const assetsBody = document.getElementById('assets-panel-body');
   if (assetsBody) assetsBody.style.display = tabName === 'assets' ? 'flex' : 'none';
   const collapseBtn = document.getElementById('layer-collapse-all');
   if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
-  if (tabName === 'branch') window.renderBranchPanel();
   if (tabName === 'inspector') window.renderInspectorPanel();
   if (tabName === 'checklist') window.renderChecklistPanel?.();
   if (tabName === 'assets')    window.buildAssetsPanel?.();
@@ -136,7 +134,41 @@ function applyZoom(z) {
 
 function _applyScalerTransform() {
   scaler.style.transform = `translate(${panOffsetX}px, ${panOffsetY}px) scale(${currentZoom / 100})`;
+  _syncScalerHeight();
 }
+
+/* C20: transform:scale은 레이아웃 박스 높이를 안 바꿔 #canvas-wrap.scrollHeight가 미축소 원본 기준으로 잡힘
+ *      → 줌아웃 시 마지막 섹션 아래로 빈 회색이 과도하게 스크롤됨. scaler 레이아웃 높이를
+ *      (미축소 자연높이 × scale)로 명시해 스크롤 영역을 줌과 동기화(top 고정 유지). */
+function _syncScalerHeight() {
+  if (!scaler) return;
+  const scale = currentZoom / 100;
+  const prev = scaler.style.height;
+  scaler.style.height = '';
+  void scaler.offsetHeight;            // reflow → 자연(미축소) 높이 측정
+  let naturalH = scaler.offsetHeight;  // flow 콘텐츠(#canvas) 기준 (abs 자식 미포함)
+  for (const c of scaler.children) {   // canvas 아래로 배치된 absolute 자식(scratch-item 등) 커버
+    if (c.style && c.style.position === 'absolute') {
+      const b = c.offsetTop + c.offsetHeight;
+      if (b > naturalH) naturalH = b;
+    }
+  }
+  const target = Math.round(naturalH * scale) + 'px';
+  scaler.style.height = (target !== prev) ? target : prev;
+}
+
+/* C20: 섹션/블록 추가·삭제·리사이즈로 #canvas 높이가 바뀌면 scaler 레이아웃 높이도 재동기화.
+ *      scaler.style.height 변경은 #canvas.offsetHeight에 영향 없어 피드백 루프 없음. rAF 디바운스. */
+(() => {
+  const canvasEl = document.getElementById('canvas');
+  if (!canvasEl || typeof ResizeObserver === 'undefined') return;
+  let raf = 0;
+  const ro = new ResizeObserver(() => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => { raf = 0; _syncScalerHeight(); });
+  });
+  ro.observe(canvasEl);
+})();
 
 function resetPanOffset() {
   panOffsetX = 0;
@@ -358,7 +390,9 @@ function _updateMultiSelPanel(block) {
   }
   const n = _countFlowMultiSel();
   if (n > 1 && propPanel) {
-    propPanel.innerHTML = `<div class="prop-section"><div class="prop-block-label" style="padding:2px 0 4px;"><div class="prop-block-info"><span class="prop-block-name">${n}개 선택됨</span><span class="prop-breadcrumb">블록 멀티선택</span></div></div></div>`;
+    // B15: 카운트-온리 → 정렬/분배 패널 (prop-multisel.js)
+    if (window.showFlowMultiSelPanel) window.showFlowMultiSelPanel();
+    else propPanel.innerHTML = `<div class="prop-section"><div class="prop-block-label" style="padding:2px 0 4px;"><div class="prop-block-info"><span class="prop-block-name">${n}개 선택됨</span><span class="prop-breadcrumb">블록 멀티선택</span></div></div></div>`;
   }
 }
 

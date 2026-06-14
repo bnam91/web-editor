@@ -1,0 +1,188 @@
+{
+ "projName": "Goya Web Design Editor",
+ "canvasText": "",
+ "emptyMarkers": [
+  {
+   "cls": "var-empty",
+   "text": "변수 없음 — + 버튼으로 추가"
+  }
+ ],
+ "btnCount": 35,
+ "btns": [
+  {
+   "t": "",
+   "title": "홈으로",
+   "cls": ""
+  },
+  {
+   "t": "",
+   "title": "닫기",
+   "cls": "proj-tab-close"
+  },
+  {
+   "t": "",
+   "title": "닫기",
+   "cls": "proj-tab-close"
+  },
+  {
+   "t": "",
+   "title": "닫기",
+   "cls": "proj-tab-close"
+  },
+  {
+   "t": "",
+   "title": "닫기",
+   "cls": "proj-tab-close"
+  },
+  {
+   "t": "",
+   "title": "닫기",
+   "cls": "proj-tab-close"
+  },
+  {
+   "t": "",
+   "title": "닫기",
+   "cls": "proj-tab-close"
+  },
+  {
+   "t": "",
+   "title": "닫기",
+   "cls": "proj-tab-close"
+  },
+  {
+   "t": "",
+   "title": "닫기",
+   "cls": "proj-tab-close"
+  },
+  {
+   "t": "",
+   "title": "다른 프로젝트 열기",
+   "cls": ""
+  },
+  {
+   "t": "Export",
+   "title": "Export / Import",
+   "cls": "tb-btn"
+  },
+  {
+   "t": "",
+   "title": "환경설정 (⌘,)",
+   "cls": "tb-btn"
+  },
+  {
+   "t": "",
+   "title": "File",
+   "cls": "panel-tab"
+  },
+  {
+   "t": "",
+   "title": "Inspector",
+   "cls": "panel-tab"
+  },
+  {
+   "t": "",
+   "title": "Assets",
+   "cls": "panel-tab active"
+  },
+  {
+   "t": "",
+   "title": "Checklist",
+   "cls": "panel-tab"
+  },
+  {
+   "t": "+ 폴더",
+   "title": "새 폴더",
+   "cls": "assets-action-btn"
+  },
+  {
+   "t": "+ 파일",
+   "title": "파일 추가",
+   "cls": "assets-action-btn"
+  },
+  {
+   "t": "+ URL",
+   "title": "URL 추가",
+   "cls": "assets-action-btn"
+  },
+  {
+   "t": "−",
+   "title": "",
+   "cls": "zoom-btn"
+  },
+  {
+   "t": "+",
+   "title": "",
+   "cls": "zoom-btn"
+  },
+  {
+   "t": "Fit",
+   "title": "",
+   "cls": "zoom-btn"
+  },
+  {
+   "t": "",
+   "title": "Preview",
+   "cls": ""
+  },
+  {
+   "t": "",
+   "title": "변수 추가",
+   "cls": "var-add-btn"
+  },
+  {
+   "t": "전체 섹션 내보내기",
+   "title": "",
+   "cls": "prop-export-btn"
+  },
+  {
+   "t": "",
+   "title": "새 섹션 추가",
+   "cls": "fp-btn primary"
+  },
+  {
+   "t": "",
+   "title": "Frame 추가 (Auto/Free 모드 전환 가능)",
+   "cls": "fp-btn"
+  },
+  {
+   "t": "",
+   "title": "텍스트 블록 추가 (Heading / Body / Caption / Label)",
+   "cls": "fp-btn fp-dropdown-trigger"
+  },
+  {
+   "t": "",
+   "title": "이미지(Asset) 블록 추가",
+   "cls": "fp-btn fp-dropdown-trigger"
+  },
+  {
+   "t": "",
+   "title": "도형 추가 (Rectangle / Line / Arrow / Ellipse / Polygon / Star)",
+   "cls": "fp-btn fp-dropdown-trigger"
+  },
+  {
+   "t": "",
+   "title": "스티커 패널 — 스티커 / 하이라이트 / 어노테이션",
+   "cls": "fp-btn fp-dropdown-trigger"
+  },
+  {
+   "t": "",
+   "title": "컴포넌트 블록 추가 (Table / Card / Graph / Divider / Step / Chat / Banner)",
+   "cls": "fp-btn fp-dropdown-trigger"
+  },
+  {
+   "t": "",
+   "title": "Plugins",
+   "cls": "fp-btn"
+  },
+  {
+   "t": "✨",
+   "title": "AI 섹션 생성 (⌘K)",
+   "cls": "fp-btn fp-btn-ai"
+  },
+  {
+   "t": "",
+   "title": "Claude PM — 프로젝트 매니저",
+   "cls": "fp-btn"
+  }
+ ]
+}

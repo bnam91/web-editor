@@ -1,0 +1,142 @@
+{
+  "area": "pickers",
+  "owns": {
+    "selectors": [".goya-cp-*"],
+    "files": ["css/color-picker.css(424줄)", "js/props/color-picker.js", "js/props/gradient-model.js"]
+  },
+  "method": "static — css/color-picker.css 전수 grep(.goya-cp- prefix만 존재; .cp-/.ck-/fp- 없음) + color-picker.js / gradient-model.js 인라인 스타일·raw hex 실측. 토큰 실값은 editor-base.css :root 대조. CDP 미사용.",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "scope_note": "프롬프트 영역은 '컬러/폰트/그래디언트 피커'이나 실제 표면은 color-picker.css 단일 파일(=컬러+그래디언트+이미지 통합 Figma형 팝오버) 1개뿐. **font-picker.css/js·.fp-* 셀렉터는 코드베이스에 존재하지 않음**(grep 0). 폰트 선택은 prop-panel select(.prop-select)에서 처리되며 별도 피커 컴포넌트 없음 → 폰트 피커는 N/A. 셀렉터 prefix는 전부 .goya-cp-.",
+
+  "signature": {
+    "D-component": {
+      "popover_container": ".goya-cp-popover — width 240px(고정, content-box), border-radius:10px(=--radius-lg), border 1px solid var(--ui-border,#3a3a3a), box-shadow 2겹(0 12px 40px rgba(0,0,0,.55) + 0 2px 4px rgba(0,0,0,.35)), padding-bottom:12px, font 11px/16px Pretendard. radius 10은 토큰 일치.",
+      "swatch_button_radius": "혼재 — tab 3px / headbtn·dropper 4px / value-grid·spectrum·slider(=h/2≈6px) 5px / gradient-bar·image-zone 4px / select 4px. 컨테이너는 10px. 즉 내부 칩/버튼 radius가 3/4/5px 3종 난립(토큰 4/6/10과 불일치, 3·5는 비토큰값).",
+      "button_height": "tab 22px / headbtn 22×22 / dropper 24×24 / value-grid(hex행) 24px / gradient·image select 24px / gradient-bar 24px / image-zone 140px. 컨트롤 높이 22 vs 24 갈림(prop-panel 표준 24와도 tab/headbtn 22 어긋남).",
+      "slider": ".goya-cp-slider --cp-slider-h:12px, radius=h/2(pill). thumb 14×14 원형 border 2px #fff + 2겹 shadow, currentColor 배경. hue/alpha 그라데이션 인라인. 잘 설계됨.",
+      "reticle": ".goya-cp-reticle 16×16 원형 border 4px #fff + shadow — 스펙트럼 커서. 일관.",
+      "hex_input": ".goya-cp-hex / .goya-cp-alpha-input height:100%(=24px grid), 'SF Mono' monospace tabular-nums, border none(value-grid 컨테이너가 박스 담당). text-transform:uppercase(hex). 통합 value-grid 3컬럼(format auto | hex 1fr | opacity 54px) 좋음.",
+      "grad_thumb": ".goya-cp-grad-thumb 12×12 원형, border 2px #1592fe, is-active 시 scale(1.15)+배경 #1592fe. 단 accent색이 컴포넌트 표준(--ui-accent-primary #2d6fe8)이 아닌 raw #1592fe."
+    },
+
+    "D-color": {
+      "bg_panel": "var(--ui-bg-panel, #2c2c2c) — ⚠ fallback #2c2c2c는 실제 토큰값 #252525(=--ui-bg-card)와 불일치(stale fallback). 토큰 로드 시 #252525로 정상.",
+      "bg_input": "var(--ui-bg-input, #1a1a1a) — ⚠ fallback #1a1a1a, 실제 토큰값 #2a2a2a. value-grid/select/image-zone 배경.",
+      "border": "var(--ui-border, #3a3a3a) — ⚠ fallback #3a3a3a, 실제 토큰값 #333333(#3a3a3a은 --ui-border-mid). popover/gradient-bar/image-zone/format-trigger divider.",
+      "border_mid": "var(--ui-border-mid, #555) — ⚠ fallback #555, 실제값 #3a3a3a(#555은 --ui-divider). select:hover border.",
+      "text": "var(--ui-text, #ddd) — fallback #ddd ≈ 실제 #e0e0e0(근사).",
+      "text_muted": "var(--ui-text-muted, #888) — ⚠ fallback #888, 실제값 #9e9e9e(AA fix됨). tab/headbtn/dropper 기본 글리프·image-zone·placeholder.",
+      "accent": "var(--ui-accent-primary, #2d6fe8) — fallback 정확. value-grid:focus-within / focus-visible outline / image-zone:hover.",
+      "raw_hex_no_token": "다수 — 흰색 글리프 #fff(tab.active/headbtn.active/dropper hover/thumb/reticle), 체커보드 #666·#e1e1e1·spectrum #f00·#000. **이질 accent 블루 3종**: grad-thumb #1592fe / grad-thumb:hover #2d8eff / grad-thumb.is-active border #ffffff+bg #1592fe — 모두 표준 accent #2d6fe8 아닌 raw. JS gradient 기본 stop색 #ff5e3a/#1aa6ff/#1c1c1c/#2a2a2a/#888/#666 인라인.",
+      "verdict": "토큰 참조 자체는 성실(var() 사용)하나 **fallback 값 4종(#2c2c2c/#1a1a1a/#3a3a3a/#888/#555)이 현행 토큰 실값과 전부 어긋남** = 토큰 미로드 환경에서 색 깨짐. + 그래디언트 accent가 prop-panel #2d6fe8과 다른 #1592fe 계열."
+    },
+
+    "D-spacing": {
+      "popover_padding": "헤더 8px 16px 6px / spectrum-wrap 4px 16px 0 / controls 8px 16px 0 / format-row 8px 16px 0 / image-opts·gradient-opts 8px (0 또는 16). **좌우 인셋 16px가 대부분이나 panel 컨테이너는 padding:0 12px**(.goya-cp-panel) → 16 vs 12 좌우 인셋 갈림(solid 패널 16, gradient/placeholder 패널 12).",
+      "vertical_rhythm": "섹션 간 top 8px(controls/format/opts), gradient-bar margin 10px 0 0, image-zone margin 10px 16px 0, grad-stops margin-top 10px/6px(인라인). 8/10/6 혼재.",
+      "swatch_grid_gap": "정형 스와치 그리드 없음(Figma형 스펙트럼 방식). header gap 4px / tabs gap 2px / controls gap 10px / slider-stack gap 8px / opts gap 4px. gap 2/4/8/10 혼재(grid_unit 4 기준 2·10 비배수).",
+      "grad_stops_inline": "JS grad-stops 행 인라인 gap:8px / margin-top:10px·6px / span width:32px·36px — CSS 미정의 전량 인라인."
+    },
+
+    "D-states": {
+      "hover": "tab:hover color→#ddd / headbtn·dropper:hover background→var(--ui-bg-input,#1a1a1a)+#fff / format-trigger:hover bg rgba(255,255,255,.04) / select:hover border→border-mid / image-zone:hover border+color→accent / grad-thumb:hover border #2d8eff. hover 표현 4종(색만/배경/반투명오버레이/보더) 분산.",
+      "focus": "**focus-visible 존재**(.goya-cp-tab/headbtn/dropper/format-trigger:focus-visible → outline 1px accent, offset -1px) — prop-panel(:focus만)보다 진보. value-grid는 :focus-within(컨테이너 보더). 단 spectrum/slider/hex input 자체 focus 표시 없음(reticle/thumb로 대체).",
+      "selected": "tab.active → background var(--ui-border,#3a3a3a)+#fff / headbtn.active 동일 / grad-thumb.is-active → border #fff + bg #1592fe + scale(1.15). 선택 표현이 tab(보더배경)과 grad-thumb(accent채움+스케일)로 메타포 상이.",
+      "disabled": "dropper[disabled] opacity .35 + not-allowed. (prop-panel과 동일 opacity 감쇠 패턴 — 일관.)",
+      "dragging": "grad-thumb.is-dragging cursor:grabbing. transition border-color/box-shadow/transform 명시(0.1s/0.05s)."
+    }
+  },
+
+  "violations": [
+    {
+      "id": "MPK-01",
+      "dim": "D-color",
+      "severity": "major",
+      "title": "토큰 fallback 4종이 현행 실값과 전부 불일치 — 토큰 미로드 시 피커 색 전면 깨짐",
+      "evidence": "color-picker.css: var(--ui-bg-panel,#2c2c2c)→실값 #252525, var(--ui-bg-input,#1a1a1a)→#2a2a2a, var(--ui-border,#3a3a3a)→#333333(#3a3a3a은 border-mid), var(--ui-border-mid,#555)→#3a3a3a(#555은 divider), var(--ui-text-muted,#888)→#9e9e9e(AA fix됨). fallback이 옛 값으로 박제됨.",
+      "fix_hint": "fallback을 현행 토큰값으로 동기화(#252525/#2a2a2a/#333333/#3a3a3a/#9e9e9e) 또는 fallback 제거(토큰 보장 전제)."
+    },
+    {
+      "id": "MPK-02",
+      "dim": "D-color / D-component",
+      "severity": "major",
+      "title": "그래디언트 accent 블루가 컴포넌트 표준 #2d6fe8과 다른 raw #1592fe 계열 3종",
+      "evidence": "color-picker.css:329/337/340 grad-thumb border #1592fe / hover #2d8eff / is-active bg #1592fe. 같은 팝오버 내 focus-visible·value-grid focus는 --ui-accent-primary(#2d6fe8) 사용 → 한 컴포넌트에 accent 블루 2계열 공존. JS 기본 stop #ff5e3a/#1aa6ff도 raw.",
+      "fix_hint": "grad-thumb accent를 var(--ui-accent-primary)로 통일, raw #1592fe/#2d8eff 제거."
+    },
+    {
+      "id": "MPK-03",
+      "dim": "D-component",
+      "severity": "major",
+      "title": "내부 칩/버튼 radius 3종 난립(3/4/5px) — 토큰 4/6/10과 불일치, 3·5는 비토큰값",
+      "evidence": "tab 3px / headbtn·dropper·gradient-bar·image-zone·select 4px / value-grid·spectrum·slider(h/2≈6)·grad-fill 5px. 컨테이너만 10px(토큰). 3px와 5px는 radius_scale[4,6,10] 밖.",
+      "fix_hint": "내부 small radius를 4px(--radius-sm) 단일화, slider만 pill 유지. 5px·3px 제거."
+    },
+    {
+      "id": "MPK-04",
+      "dim": "D-spacing",
+      "severity": "minor",
+      "title": "패널 좌우 인셋 16px(solid) vs 12px(panel 컨테이너) 갈림 → gradient/image 탭 본문 정렬 어긋남",
+      "evidence": ".goya-cp-panel{padding:0 12px}인데 헤더/스펙트럼/컨트롤/포맷행은 16px 좌우 인셋. solid 탭(16)과 gradient·placeholder 탭(12) 본문 좌측 정렬 4px 어긋남.",
+      "fix_hint": "인셋 16px 단일화(panel padding 0 16px) 또는 모든 행 16px→panel 위임."
+    },
+    {
+      "id": "MPK-05",
+      "dim": "D-component / D-spacing",
+      "severity": "minor",
+      "title": "컨트롤 높이 22 vs 24 혼재 — tab/headbtn 22px, dropper/value-grid/select 24px(prop-panel 표준 24와도 어긋남)",
+      "evidence": "tab height:22px, headbtn 22×22 vs dropper 24×24, value-grid·select 24px. prop-panel 표준(24)·left-panel 컨트롤 높이와 22가 어긋남.",
+      "fix_hint": "터치 컨트롤 24px 수렴 또는 헤더 칩(tab/headbtn) 22를 의도적 컴팩트로 명시 분리."
+    },
+    {
+      "id": "MPK-06",
+      "dim": "D-color / D-component",
+      "severity": "minor",
+      "title": "JS 인라인 gradient stop 행 — class 미부여 raw hex 재스킨(피커 CSS 우회)",
+      "evidence": "color-picker.js:194/201 gradStartAlpha/gradEndAlpha input 인라인 background:#1c1c1c;border:1px solid #2a2a2a;color:#ccc;border-radius:3px. span color:#888/#666 인라인. value-grid 표준 스킨 대신 손수 raw hex. (gradStartHex/EndHex는 .goya-cp-hex class 재사용 — 부분만 표준.)",
+      "fix_hint": "alpha input을 .goya-cp-alpha-input/value-grid 패턴으로 흡수, 인라인 raw hex 제거."
+    },
+    {
+      "id": "MPK-07",
+      "dim": "D-states",
+      "severity": "minor",
+      "title": "hover 표현 4종 분산 — 색만(tab) / 배경교체(headbtn,dropper) / 반투명오버레이(format-trigger) / 보더(select,image-zone)",
+      "evidence": "tab:hover color만 / headbtn·dropper:hover background var(--ui-bg-input) / format-trigger:hover rgba(255,255,255,.04) / select·image-zone:hover border-color. 동급 인터랙션 칩들의 hover 메타포 불일치.",
+      "fix_hint": "헤더 칩 hover 단일(배경 var(--ui-bg-input)) 표준화."
+    },
+    {
+      "id": "MPK-08",
+      "dim": "D-spacing",
+      "severity": "nit",
+      "title": "gap·수직 리듬 비그리드값(2/10px) + 인라인 grad-stops 간격 전량 CSS 미정의",
+      "evidence": "tabs gap 2px / controls gap 10px / 섹션 top 8px·gradient margin 10px·grad-stops margin 6px 혼재(grid_unit 4 기준 2·10 비배수). grad-stops 행 gap/margin/span-width 전량 JS 인라인.",
+      "fix_hint": "gap 4/8 수렴, grad-stops 행 스타일을 color-picker.css로 이관."
+    }
+  ],
+
+  "crossAreaFlags": [
+    {
+      "flag": "토큰 fallback 동기화 정책 — 전역 토큰 영역과 교차",
+      "detail": "MPK-01 fallback 불일치는 color-picker.css 단독이 아니라 editor-base.css :root 토큰값 변경(2026-06-11 AA fix #777→#9e9e9e, 팝업 #2c2c2c→#252525 통일 주석)이 보조 CSS fallback에 반영 안 된 결과. 전역 토큰 변경 시 var() fallback 일괄 동기화 정책 필요(다른 보조 표면도 동일 위험).",
+      "to_area": "color / design-tokens / form-controls"
+    },
+    {
+      "flag": "accent 블루 단일 기준 — prop-panel/전역 accent와 교차",
+      "detail": "grad-thumb #1592fe vs --ui-accent-primary #2d6fe8. prop-panel active도 #2d6fe8. 피커 그래디언트만 별도 accent → 앱 전역 accent 단일화 시 함께 수렴해야.",
+      "to_area": "color / prop-panel"
+    },
+    {
+      "flag": "폰트 피커 부재 — 컴포넌트 인벤토리 갭",
+      "detail": "프롬프트가 가정한 '폰트 피커'가 코드에 없음(prop-panel .prop-select로 폰트 선택). 컬러피커 수준의 전용 폰트 미리보기/검색 피커는 미구현 — 향후 기능 갭이지 이탈 아님.",
+      "to_area": "prop-panel / feature-scout"
+    }
+  ],
+
+  "summary": {
+    "by_severity": { "blocker": 0, "major": 3, "minor": 4, "nit": 1 },
+    "surface": "color-picker.css 424줄 단일(.goya-cp- prefix) — 컬러+그래디언트+이미지 통합 팝오버. font-picker 미존재.",
+    "strengths": ["focus-visible 실사용(prop-panel보다 진보)", "토큰 var() 참조 성실", "통합 value-grid 3컬럼 hex 입력", "slider/reticle 일관 설계"],
+    "top_fixes": ["MPK-01 토큰 fallback 4종 현행값 동기화", "MPK-02 grad accent #1592fe→--ui-accent-primary 통일", "MPK-03 내부 radius 3/5px→4px 정리"]
+  }
+}

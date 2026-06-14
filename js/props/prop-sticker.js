@@ -315,7 +315,7 @@ export function showStickerProperties(block) {
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
-  const rerender = () => window.renderStickerBlock?.(block);
+  const rerender = () => { window.renderStickerBlock?.(block); window.rememberStickerStyle?.(block); };
 
   // 텍스트 — input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
   const txt = propPanel.querySelector('#stk-text');

@@ -1,0 +1,215 @@
+{
+  "station": "D-color",
+  "version": "design-squad v3.1",
+  "method": "정적 종합(static synthesis). 13개 영역 matrix-*.json의 signature.color + crossAreaFlags 가로 비교. 수정 없음. 렌더 미실측 — 영역 감사자 실측값 집계.",
+  "project": "web-editor (GODITOR)",
+  "git_head": "1afbe91",
+  "areasCompared": 13,
+  "areasOrder": [
+    "left-panel",
+    "prop-panel",
+    "canvas-block",
+    "pm-panel",
+    "assets-ai",
+    "toolbar",
+    "modals",
+    "pickers",
+    "design-system",
+    "graph",
+    "toast",
+    "template-browser",
+    "home-pages"
+  ],
+  "baseline": {
+    "--ui-accent-primary": "#2d6fe8",
+    "--ui-accent": "#7cb8ff",
+    "--ui-danger": "#e06c6c",
+    "--ui-success": "#7fc87f",
+    "--color-saved": "#4ecb7a",
+    "source": "editor-base.css :root (+ design-tokens.css 병행 정의)"
+  },
+  "comparisonTable": [
+    {
+      "axis": "accent-blue (활성/선택/primary)",
+      "left-panel": "토큰 --ui-accent-primary #2d6fe8 명목, 단 active 텍스트 raw #6fa3f7(4회) + 선택 bg/border rgba(45,111,232,*) raw 11회 우회",
+      "prop-panel": "#2d6fe8 정상(primary/active)",
+      "canvas-block": "토큰 --sel-color/--ui-accent 계열, 핸들 #fff",
+      "pm-panel": "Claude-blue #6b9eff 고유색(15회) — accent와 별개 'AI/연결'색",
+      "assets-ai": "--ui-accent-primary 폴백을 #6cf(청록)로 fork (8회). 토큰 미정의 시 이 영역만 청록",
+      "toolbar": "active 솔리드 accent 채움 — #6a9fd8 계열 + saved raw #4ecb7a 하드코딩",
+      "modals": "prop-export hover raw #3d7ff8",
+      "pickers": "grad-thumb raw #1592fe (+ #2d8eff) — 그래디언트 전용 별도 블루",
+      "design-system": "토큰 적용, del hover만 accent로 우회",
+      "graph": "공용 .prop-* 베이스 그대로(override 없음=일관)",
+      "toast": "accent 미사용",
+      "template-browser": "#2d6fe8 다수 정석, active bg rgba(45,111,232,*) raw 우회 + insert hover 파랑 3종 #3a7ff5/#3d7ff8/#3a7ff8",
+      "home-pages": "license=공유토큰 / planning=accent를 초록 #22c48a로 fork / projects=raw. 파랑→초록→파랑 점프"
+    },
+    {
+      "axis": "danger-red (삭제/위험)",
+      "left-panel": "outline 스타일 — transparent bg + 1px raw border #5a3a3a/#c87878/#ff9090, del fill #c0392b. 토큰 미사용",
+      "prop-panel": "--ui-danger 토큰 부재 → raw #c0392b/#e06060/#e55, border #6b2e2e, hover bg #2a1818/#3a2a2a",
+      "canvas-block": "color:var(--ui-danger) 토큰만(외곽/배경 없음, toned). 가장 위생적",
+      "pm-panel": "danger 없음",
+      "assets-ai": "danger 없음(export 보라 rgba(168,85,247))",
+      "toolbar": "danger 버튼 없음",
+      "modals": "settings status raw #ff6b6b, toast raw #ef5350",
+      "pickers": "danger 없음",
+      "design-system": "--ui-danger 부재 → del hover가 danger-red 대신 accent-blue로 승격(잘못된 의미색)",
+      "graph": "danger 없음",
+      "toast": "settings-toast raw #ef5350 (-err 보더)",
+      "template-browser": "comp-shelf-delete만 --ui-danger 토큰 fill-alpha(정석), tpl-delete/preview-close는 raw #3a2020/#3a2a2a",
+      "home-pages": "raw 계열"
+    },
+    {
+      "axis": "raw 팔레트 독립도(토큰 미사용 표면)",
+      "left-panel": "부분 raw — 인라인 #888/#bbb/#ccc/#ddd/#b0b0b0, variation 버튼 bg #141e2e/#1f3a60/#1a3a1a/#3a1a1a, 패널바 #161616/#141414",
+      "prop-panel": "danger·일부 raw, bg는 토큰",
+      "canvas-block": "토큰 우세",
+      "pm-panel": "#6b9eff 고유 raw 다수",
+      "assets-ai": "accent 폴백 raw #6cf, 보라 raw",
+      "toolbar": "saved raw #4ecb7a, radius raw px",
+      "modals": "★settings-modal 완전 독립 raw 팔레트 #1e1e1e/#181818 + status #5bc77c/#ff6b6b/#ffb86b",
+      "pickers": "fallback raw + grad raw",
+      "design-system": "토큰 우세, 입력높이 raw",
+      "graph": "텍스트 raw #ddd",
+      "toast": "★editor-toast vs settings-toast 2시스템, raw bg #1e1e1e vs #2a2a2a, raw 상태 #4caf50/#ef5350",
+      "template-browser": "comp-shelf=토큰 / ★tpl 패밀리=raw 다발 #ccc/#ddd/#bbb/#888/#aaa/#c8a840 + preview 남색크롬 #1e2533/#2a3550",
+      "home-pages": "★projects.html=토큰 전무 완전 독립 raw, planning=토큰명만 빌리고 값 fork, license만 공유토큰"
+    },
+    {
+      "axis": "stale fallback(토큰 변경 미반영 구버전 값)",
+      "left-panel": "—",
+      "prop-panel": "—",
+      "canvas-block": "—",
+      "pm-panel": "—",
+      "assets-ai": "ai-image accent 폴백 #6cf = 현행 #2d6fe8 이전 값(stale)",
+      "toolbar": "—",
+      "modals": "—",
+      "pickers": "color-picker.css fallback이 2026-06-11 토큰 변경(#777→#9e9e9e, 팝업 #2c2c2c→#252525) 미반영 — stale #777 잔존",
+      "design-system": "—",
+      "graph": "—",
+      "toast": "—",
+      "template-browser": "—",
+      "home-pages": "planning.html이 토큰명만 공유하고 값은 옛 fork(#22c48a) 유지"
+    },
+    {
+      "axis": "토큰 시스템 이중화(--ui-* vs --color-*/--p-*)",
+      "left-panel": "--ui-* 만 사용, semantic --color-* 미사용",
+      "prop-panel": "--ui-* 명목, danger 토큰 자체 없음",
+      "canvas-block": "--ui-* / --sel-color",
+      "pm-panel": "--ui-* + raw #6b9eff",
+      "assets-ai": "--ui-* (폴백 fork)",
+      "toolbar": "★--ui-* 만. design-tokens.css의 --color-saved(#4ecb7a)를 무시하고 raw 중복",
+      "modals": "raw + 일부 --ui-*",
+      "pickers": "--ui-* fallback 동기화 실패",
+      "design-system": "--ui-* + 토큰 패널이라 양쪽 노출",
+      "graph": "공용 베이스 상속",
+      "toast": "★--ui-success/-danger / --color-success/-danger 양쪽 존재하나 토스트는 둘 다 미사용 + 제3의 raw #4caf50/#ef5350 = 3중 분기",
+      "template-browser": "--ui-* + raw 혼용",
+      "home-pages": "license=design-tokens.css 공유, 나머지=별도/없음"
+    }
+  ],
+  "crossAreaFindings": [
+    {
+      "id": "STC-01",
+      "title": "파랑 계열 총 9종 난립 — accent 단일 기준 붕괴",
+      "severity": "high",
+      "blueFamilyCount": 9,
+      "palette": [
+        "#2d6fe8 (--ui-accent-primary 기준)",
+        "#7cb8ff (--ui-accent)",
+        "#6b9eff (pm-panel Claude-blue, 15회)",
+        "#6fa3f7 (left-panel active 텍스트 raw, 4회)",
+        "#6cf (assets-ai accent 폴백 fork = stale)",
+        "#6a9fd8 (toolbar 계열)",
+        "#1592fe (pickers grad-thumb)",
+        "#2d8eff (pickers 보조)",
+        "#3a7ff5 / #3d7ff8 / #3a7ff8 (insert/export hover 파랑 3변종 — --ui-accent-primary-hover #3a7df0 미사용)"
+      ],
+      "note": "추가로 home planning accent가 초록 #22c48a로 fork되어 파랑 연속성 자체를 끊음(파랑→초록→파랑 점프). rgba(45,111,232,*) raw 우회는 left-panel·template-browser 공통 — --p-blue-alpha-* 토큰 미정착이 전역 부채.",
+      "areas": ["left-panel", "pm-panel", "assets-ai", "toolbar", "pickers", "template-browser", "modals", "home-pages"]
+    },
+    {
+      "id": "STC-02",
+      "title": "danger 빨강 총 6종 + 시각표현 4분기 — --ui-danger 토큰 전역 부재가 근원",
+      "severity": "high",
+      "dangerHexCount": 6,
+      "palette": [
+        "#e06c6c (--ui-danger 기준, canvas-block·comp-shelf만 토큰 채택)",
+        "#c0392b (left-panel del fill / prop-panel)",
+        "#e06060 (prop-panel)",
+        "#e55 (prop-panel)",
+        "#ff6b6b / #ff9090 (modals status / left-panel outline)",
+        "#ef5350 (toast settings-toast -err)"
+      ],
+      "visualBranches": [
+        "toolbar: danger 버튼 자체 없음",
+        "canvas-block / comp-shelf: 토큰 채택(toned color-only or fill-alpha) — 정석",
+        "settings-modal: raw status 색(#ff6b6b/#ffb86b)",
+        "prop-panel/left-panel/tpl: raw hex(outline #5a3a3a vs fill #c0392b vs bg #3a2020 vs border #6b2e2e) — 영역마다 outline/fill/toned 제각각",
+        "design-system: 토큰 부재로 삭제 hover가 danger 대신 accent-blue로 잘못 승격(의미색 오염)"
+      ],
+      "note": "--ui-danger 패밀리가 editor-base.css :root에 없어 prop-panel·design-system·left-panel이 각자 raw로 위험색을 손수 그림. 토큰 신설 시 5개 영역 동시 수렴 가능.",
+      "areas": ["left-panel", "prop-panel", "canvas-block", "modals", "design-system", "toast", "template-browser"]
+    },
+    {
+      "id": "STC-03",
+      "title": "독립 raw 팔레트 영역 4개 — 토큰 시스템 밖의 미니 디자인 시스템",
+      "severity": "high",
+      "rawPaletteAreas": [
+        "settings-modal (modals): #1e1e1e/#181818 bg + status #5bc77c/#ff6b6b/#ffb86b 완전 독립",
+        "projects.html (home-pages): 토큰 전무, 전량 raw hex — '완전 독립형'",
+        "template-browser tpl 패밀리: comp-shelf는 토큰 / tpl은 raw #ccc/#ddd/#bbb/#888/#aaa/#c8a840 + 남색크롬 #1e2533/#2a3550 다발",
+        "toast: editor-toast(#1e1e1e) vs settings-toast(#2a2a2a) 2개 raw 시스템 공존"
+      ],
+      "note": "planning.html은 토큰명만 빌리고 값을 fork한 '위장 통합형'(accent 초록 #22c48a)으로 준-독립. 같은 앱 안에 4~5개 분리 색 체계가 병존.",
+      "areas": ["modals", "home-pages", "template-browser", "toast"]
+    },
+    {
+      "id": "STC-04",
+      "title": "stale fallback 3영역 — 2026-06-11 토큰 변경이 보조 CSS에 미전파",
+      "severity": "med",
+      "staleFallbacks": [
+        "pickers: color-picker.css var() fallback이 #777(AA fix 전값) 잔존 — 현행 #9e9e9e 미반영, 팝업 #2c2c2c→#252525도 미동기화",
+        "assets-ai: ai-image.css accent 폴백 #6cf — 현행 #2d6fe8 이전 청록값(8회)",
+        "planning.html(home): accent 초록 fork 값이 갱신 안 됨"
+      ],
+      "note": "전역 토큰 변경 시 보조 CSS의 var() fallback을 일괄 동기화하는 정책 부재. 토큰 미정의 환경에서만 노출되는 숨은 색 불일치.",
+      "areas": ["pickers", "assets-ai", "home-pages"]
+    },
+    {
+      "id": "STC-05",
+      "title": "--ui-* vs --color-*/--p-* 이중 토큰 — 같은 값 중복 정의로 동기화 누락",
+      "severity": "med",
+      "evidence": [
+        "saved 색: --color-saved(#4ecb7a) 토큰 존재하나 toolbar는 raw #4ecb7a 하드코딩",
+        "상태색: --ui-success/-danger (editor-base.css:53-54) 와 --color-success/-danger (design-tokens.css:145-148) 양쪽 정의 — toast는 둘 다 안 쓰고 raw #4caf50/#ef5350 박음(3중 분기)",
+        "editor-base.css(--ui-*) 와 design-tokens.css(--p-*/--color-*/--bg-*) 가 같은 값 병행 정의 — alias 통합 미완"
+      ],
+      "note": "toolbar X03·toast X02·color 영역 동일 뿌리. --ui-* 와 --color-*/--p-* 를 alias로 묶어 단일 소스화해야 동기화 사고 방지.",
+      "areas": ["toolbar", "toast", "design-system"]
+    }
+  ],
+  "consistent": [
+    "bg 스케일: --ui-bg-base #1e1e1e / -elevated #242424 / -card #252525 / -input #2a2a2a / -hover #2e2e2e 는 left-panel·template-browser 등 토큰 채택 영역에서 일관 (settings-modal·projects.html 독립 raw 제외)",
+    "text 스케일: --ui-text #e0e0e0 / -sub / -muted / -dim 4단은 토큰 영역 공통 (단 인라인 #888/#bbb/#ccc/#ddd 혼용이 left/tpl/graph에 잔존)",
+    "canvas-block·comp-shelf의 danger 토큰화(var(--ui-danger))는 통일 시 기준으로 삼을 정석 패턴",
+    "graph 영역은 공용 .prop-* 베이스를 override 없이 상속 — 별도 색 위반 없음(일관)",
+    "license.html은 design-tokens.css를 공유하는 유일한 '통합형' 홈 페이지 — alias 블록이 planning/projects 표준 모델"
+  ],
+  "inconsistent_count": 5,
+  "summary": {
+    "blueFamilies": 9,
+    "dangerFamilies": 6,
+    "dangerVisualBranches": 4,
+    "rawPaletteAreas": 4,
+    "staleFallbackAreas": 3,
+    "headline": "파랑 9종 / danger 6종(시각 4분기) / 독립 raw 팔레트 4영역. 근원은 (1)--ui-danger 토큰 전역 부재 (2)--ui-*↔--color-* 이중 토큰 미통합 (3)홈/세팅/토스트의 독립 색 체계.",
+    "top3": [
+      "1. 파랑 9종 난립: #2d6fe8 기준이 무너지고 pm #6b9eff·left #6fa3f7·assets #6cf·toolbar #6a9fd8·pickers #1592fe/#2d8eff·hover #3a7ff5/#3d7ff8/#3a7ff8 + home planning 초록 #22c48a 까지 fork. --ui-accent-primary(-hover) + --p-blue-alpha-* 토큰으로 일괄 수렴 필요.",
+      "2. danger 토큰 전역 부재: --ui-danger 가 :root에 없어 prop-panel·left-panel·design-system이 각자 raw(빨강 6종)로 위험색을 그리고, design-system은 삭제 hover가 accent-blue로 잘못 승격됨. --ui-danger 패밀리 신설이 단일 최대 레버리지(5영역 동시 해결).",
+      "3. 독립 raw 팔레트 4영역: settings-modal(#1e1e1e/#181818)·projects.html(토큰 전무)·template-browser tpl·toast(2시스템) 가 토큰 밖에서 따로 산다. 단일 소스(design-tokens.css alias)로 흡수 + 보조 CSS fallback 동기화 정책으로 stale(pickers #777, assets #6cf) 제거."
+    ]
+  }
+}

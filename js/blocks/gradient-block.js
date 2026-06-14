@@ -35,6 +35,34 @@ function _hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
+// B24: stop 배열 정본. gradStops(JSON) 우선, 없으면 레거시 start/end 2-stop 합성(하위호환).
+function _resolveStops(block) {
+  const raw = block.dataset.gradStops;
+  if (raw) {
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length >= 2) {
+        const clean = arr
+          .map(s => ({
+            color: /^#[0-9a-fA-F]{6}$/.test(s.color) ? s.color : '#000000',
+            alpha: Math.max(0, Math.min(1, parseFloat(s.alpha))) || 0,
+            offset: Math.max(0, Math.min(1, parseFloat(s.offset))) || 0,
+          }))
+          .sort((a, b) => a.offset - b.offset);
+        if (clean.length >= 2) return clean;
+      }
+    } catch (_) { /* fall through to legacy */ }
+  }
+  const startColor = block.dataset.gradStart || GRADIENT_DEFAULTS.startColor;
+  const endColor   = block.dataset.gradEnd   || GRADIENT_DEFAULTS.endColor;
+  const sA = block.dataset.gradStartAlpha != null ? parseFloat(block.dataset.gradStartAlpha) : GRADIENT_DEFAULTS.startAlpha;
+  const eA = block.dataset.gradEndAlpha   != null ? parseFloat(block.dataset.gradEndAlpha)   : GRADIENT_DEFAULTS.endAlpha;
+  return [
+    { color: startColor, alpha: Math.max(0, Math.min(1, sA)), offset: 0 },
+    { color: endColor,   alpha: Math.max(0, Math.min(1, eA)), offset: 1 },
+  ];
+}
+
 function renderGradientBlock(block) {
   const style       = block.dataset.gradStyle      || GRADIENT_DEFAULTS.style;
   const direction   = block.dataset.gradDirection  || GRADIENT_DEFAULTS.direction;
@@ -47,15 +75,19 @@ function renderGradientBlock(block) {
   const x           = parseInt(block.dataset.x) || 0;
   const y           = parseInt(block.dataset.y) || 0;
 
-  const c1 = _hexToRgba(startColor, startAlpha);
-  const c2 = _hexToRgba(endColor,   endAlpha);
+  const stops = _resolveStops(block);
+  const stopCss = (arr) => arr
+    .map(s => `${_hexToRgba(s.color, s.alpha)} ${Math.round(Math.max(0, Math.min(1, s.offset)) * 100)}%`)
+    .join(', ');
 
   let bg;
   if (style === 'radial') {
-    // 비네트: 중앙 = endColor(투명) → 외곽 = startColor(불투명)
-    bg = `radial-gradient(circle at center, ${c2} 0%, ${c1} 100%)`;
+    // 비네트: 중앙(0%)이 마지막 stop(투명), 외곽(100%)이 첫 stop(불투명) — 기존 2-stop 동작과 동일 순서 유지.
+    // Codex 반영: 등간격 재배치 대신 user offset 보존 — radial은 방향만 반전(1-offset)해 중앙=마지막stop 유지.
+    const radialStops = stops.map(s => ({ ...s, offset: Math.max(0, Math.min(1, 1 - s.offset)) })).sort((a, b) => a.offset - b.offset);
+    bg = `radial-gradient(circle at center, ${stopCss(radialStops)})`;
   } else {
-    bg = `linear-gradient(${direction}, ${c1} 0%, ${c2} 100%)`;
+    bg = `linear-gradient(${direction}, ${stopCss(stops)})`;
   }
 
   // absolute floating overlay — 블록 자체는 배경 없음 (선택 outline + 핸들을 유지하기 위해)
@@ -274,6 +306,11 @@ function updateGradientBlock(blockId, partial = {}) {
     block.dataset[k] = v;
   }
 
+  // B24: 레거시 색/alpha 필드가 MCP로 들어오면 gradStops 정본을 비워 2-stop 레거시로 폴백(불일치 방지).
+  if (['gradStart','gradEnd','gradStartAlpha','gradEndAlpha'].some(k => k in writes)) {
+    delete block.dataset.gradStops;
+  }
+
   // ── 4) 재렌더 ─────────────────────────────────────────────────────────────
   try {
     (window.renderGradientBlock || renderGradientBlock)(block);
@@ -301,5 +338,6 @@ window.makeGradientBlock   = makeGradientBlock;
 window.addGradientBlock    = addGradientBlock;
 window.renderGradientBlock = renderGradientBlock;
 window.updateGradientBlock = updateGradientBlock;
+window.resolveGradientStops = _resolveStops;
 
-export { makeGradientBlock, addGradientBlock, updateGradientBlock, renderGradientBlock, GRADIENT_DEFAULTS };
+export { makeGradientBlock, addGradientBlock, updateGradientBlock, renderGradientBlock, _resolveStops, GRADIENT_DEFAULTS };

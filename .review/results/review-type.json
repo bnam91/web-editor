@@ -1,0 +1,81 @@
+{
+  "dimension": "type",
+  "engine": "debug-squad v4.0",
+  "generatedAt": "2026-06-11",
+  "scope": "js/**/*.js + main.js (node_modules/gif.js·gif.worker.js 벤더 제외, figma-plugin/dist 등 profile 제외 경로 준수)",
+  "method": "Scan(dataset 숫자비교/parseInt·parseFloat 전수 grep, == 느슨비교 전수, JSON.stringify 싱크 전수, Date.now ID, .value 비교, NaN 가드 분포) → Trace(깨지는 실제 입력 역추적: width:100% 프레임 생성 경로 ×2, 커밋 메시지 sink ×3, 핸들 바인딩 도달성) → Grade. profile.md 적용: #9(window.* 전역), #13(가드용 빈 catch) 제외. 코드베이스 전반에 isNaN/Number.isFinite 가드가 잘 깔려 있어(40+곳) suspected는 실제 깨지는 입력이 특정된 것만 채택.",
+  "summary": { "blocker": 0, "major": 2, "minor": 2, "total": 4 },
+  "findings": [
+    {
+      "id": "TYPE-01",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "high",
+      "title": "parseInt('100%') === 100 — 퍼센트 폭 프레임을 '100px'로 오인하는 패밀리: 그룹 리사이즈 시 자식이 ~8배로 점프, 폭 슬라이더 조작 시 자식 비례폭주",
+      "files": [
+        "js/overlay-handles.js:121 (groupStartW = parseInt(ss.style.width) || startW — '100%'→100, truthy라 rect 폴백 사장)",
+        "js/block-factory.js:1559-1563 (그룹 생성: style width:100% + dataset.width='100%' + dataset.group='true', 1597에서 즉시 showFrameHandles)",
+        "js/block-factory.js:441 (promoteToFrame도 dataset.width='100%')",
+        "js/props/prop-frame.js:676 (applyWidth: oldW = parseInt(ss.dataset.width)→100, ratio = v/100으로 자식 left/width 스케일)",
+        "js/props/prop-frame.js:302-303 + ~205 (_renderAutoPanel: width = parseInt(dataset.width)→슬라이더 초기값 100으로 표시, 실제 ~780)",
+        "js/props/prop-frame.js:83,148 (_analyzeFreeLayoutChildren: frameW=100 → 스택변환 시 it.width<parentW 판정 전부 false → 폭 유지/센터 정렬 분기 죽음)"
+      ],
+      "evidence": "그룹(asGroup) 생성 경로(block-factory.js:1550-1597)는 ss.style.cssText에 width:100%를 쓰고 dataset.group='true'를 단 뒤 곧바로 showFrameHandles(ss) 호출. overlay-handles.js:121은 isGroup 분기 기준폭을 parseInt(ss.style.width)로 잡는데 parseInt('100%')는 NaN이 아니라 100이므로 || startW(rect 실측) 폴백이 절대 발동하지 않음. onMove에서 sx = newW/groupStartW = (약 780~860)/100 ≈ 8 — 첫 1px 드래그에 모든 자식 left/top/width가 8배로 스케일되고 dataset.offsetX/offsetY/width에 String()으로 즉시 영속화(line 174-184) + scheduleAutoSave. applyWidth(prop-frame.js:676)도 동일하게 oldW=100으로 ratio 폭주. 참고: 1510 경로(free-layout 서브그룹)는 px라 안전 — 1563 row 경로만 해당.",
+      "impact": "사용자가 블록들을 그룹으로 묶은 직후 리사이즈 핸들을 건드리면 그룹 내용물이 화면 밖으로 폭발하고, autosave가 깨진 좌표를 파일에 영속화. undo(onUp의 pushHistory가 push-before라 1회 복구 가능)로 살릴 수는 있으나 사용자는 원인을 알 수 없음. 폭 슬라이더는 더 은밀함 — 패널이 100을 표시하고 있어 850으로 올리면 ratio 8.5.",
+      "breakingInput": "섹션에서 블록 2개 선택 → 그룹 만들기(row 경로) → 생성 직후 표시되는 e/w 리사이즈 핸들을 1px이라도 드래그. 또는 같은 그룹 선택 후 프레임 폭 슬라이더 터치.",
+      "fix": "퍼센트 인지 헬퍼 도입: const pxW = (el) => { const v = el.style.width; return v.endsWith('%') ? el.getBoundingClientRect().width / scale : parseInt(v); } — overlay-handles.js:121과 prop-frame.js:676/83은 style.width가 '%'로 끝나면 rect 실측(또는 offsetWidth)으로 폴백. 근본적으로는 dataset.width에 px/% 혼합 저장을 중단하고 단위 필드 분리.",
+      "group": "percent-width-as-100px"
+    },
+    {
+      "id": "TYPE-02",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "high",
+      "title": "커밋 메시지를 JSON.stringify → 작은따옴표 HTML 속성에 무이스케이프 주입 — 메시지에 ' 하나면 커밋 모달 DOM 파손 + 브랜치 필터 JSON.parse throw",
+      "files": [
+        "js/commit-system.js:163 (data-commits='${JSON.stringify(...)}' — 싱글쿼트 속성에 raw JSON)",
+        "js/commit-system.js:183 (filterCommitHistory: JSON.parse(historyEl.dataset.commits || '[]') — try/catch 없음)",
+        "js/commit-system.js:121,206 (${c.message}를 innerHTML에 무이스케이프 삽입 — < > 포함 메시지가 마크업으로 해석)"
+      ],
+      "evidence": "doCommit의 message는 textarea 자유 입력(maxlength 200만 제한). JSON.stringify는 작은따옴표를 이스케이프하지 않으므로(JSON 스펙상 불필요) message에 '가 있으면 data-commits='[{\"message\":\"it's done\"}]'에서 속성이 it 뒤에서 조기 종료 — 나머지 JSON 조각이 고아 속성/텍스트로 파싱되어 모달 DOM 파손. 이후 브랜치 필터 탭 클릭 시 dataset.commits는 잘린 JSON → JSON.parse가 SyntaxError throw(183, 가드 없음) → onclick 핸들러 사망, 필터 기능 전멸. 별개로 121/206의 ${c.message}는 innerHTML 직삽이라 '<b>긴급</b>' 같은 메시지가 마크업으로 렌더, '</div>' 포함 시 리스트 구조 파손. (restoreCommit('${c.id}')는 id가 c_+Date.now() 고정 포맷이라 안전.)",
+      "impact": "아포스트로피/꺾쇠가 든 커밋 메시지 1건이 들어가는 순간부터 해당 프로젝트의 커밋 모달 히스토리 표시·브랜치 필터가 매번 깨짐(메시지는 _meta.json에 영속이므로 재현 100%). 데이터 자체는 무사 — 표시 계층만 파손.",
+      "breakingInput": "커밋 메시지에 `it's done` 입력 → 커밋 → 모달 재오픈 → 브랜치 필터 탭 클릭. 또는 메시지 `<img src=x onerror=alert(1)>` (HTML 주입까지 성립).",
+      "fix": "(1) data-commits 속성 제거 — 이미 _cmCommits 메모리 스냅샷이 있으므로(165) filterCommitHistory가 _cmCommits를 직접 읽게 변경(직렬화 왕복 자체가 불필요). (2) 메시지 표시는 textContent 기반으로 바꾸거나 esc 헬퍼(&amp;<>\"' 치환) 적용. (3) 183 JSON.parse에 try/catch 보강.",
+      "group": "unescaped-serialization"
+    },
+    {
+      "id": "TYPE-03",
+      "severity": "minor",
+      "adjudication": "self",
+      "confidence": "high",
+      "title": "goditor API 블록 정보의 width 반환 타입 혼재 — string('100%'/'860') | number | null",
+      "files": [
+        "js/block-factory.js:3909 (width: frame.dataset.width || (parseInt(frame.style.width) || null))"
+      ],
+      "evidence": "dataset.width가 있으면 문자열 그대로('100%' 또는 '860'), 없으면 parseInt 결과 number, 둘 다 없으면 null. 같은 필드가 세 타입으로 반환됨. 외부 에이전트(goditor-layout-generator 등)가 width+10 같은 연산을 하면 '86010' 문자열 연결 사고. 인접 필드(3496의 h: parseInt(...))는 number로 통일돼 있어 비대칭.",
+      "impact": "에디터 내부 동작은 영향 없음. API 소비자(CDP 워커/스킬)가 산술 시 silent 오답. 실제 사고 사례 미확인이라 minor.",
+      "breakingInput": "API로 frame info 조회 → width '860'(string) 수신 → width + 20 연산 → '86020'.",
+      "fix": "width: frame.dataset.width === '100%' ? '100%' : (parseInt(frame.dataset.width) || parseInt(frame.style.width) || null) 식으로 number|'100%'|null 계약을 명시하거나 {value, unit} 분리.",
+      "group": "percent-width-as-100px"
+    },
+    {
+      "id": "TYPE-04",
+      "severity": "minor",
+      "adjudication": "self",
+      "confidence": "medium",
+      "title": "main.js 카드 API radius/titleSize parseInt NaN 미가드 — JSON.stringify(NaN)→'null' 주입 / patch에 NaN 기록",
+      "files": [
+        "main.js:1535-1538 (safeRadius = JSON.stringify(parseInt(radius)) — 비수치 입력 시 NaN→'null' 문자열로 atomicJs에 주입)",
+        "main.js:1597-1600 (patch.radius = parseInt(radius) — NaN이면 NaN이 patch 객체에 들어가고 이후 JSON 직렬화 시 null로 변질)"
+      ],
+      "evidence": "radius != null 체크만 있고 Number.isFinite 가드 없음. 'abc' 같은 값이 오면 1535 경로는 null로 강등(다운스트림 ?? 기본값이 받아주면 무해), 1597 경로는 NaN이 patch에 실려 직렬화 시점에 null로 바뀜 — 호출자에 침묵. 동일 파일 2477은 Number.isFinite로 올바르게 가드하고 있어 비대칭. 단 입력이 mcp-server 검증을 거친다는 주석(1525)이 있어 실전 도달 가능성 낮음 → minor/self.",
+      "breakingInput": "MCP 검증을 우회한 직접 IPC 호출로 radius:'12px' 전달 → parseInt('12px')=12는 통과하지만 radius:{} → NaN → 카드 radius가 null/NaN으로 기록.",
+      "fix": "2477과 동일 패턴으로 통일: const r = parseInt(radius,10); radius가 finite일 때만 patch/safe에 반영.",
+      "group": "nan-unguarded"
+    }
+  ],
+  "notes": {
+    "cleanAreas": "dataset 숫자비교(=== 0 류) 0건, == 느슨비교는 전부 관용적 == null, ID는 전부 접두사 문자열(c_/proj_/page_/tpl_)이라 타입 혼용 없음, Date 직렬화는 ISO 문자열로 일관, props/* 의 parseInt/parseFloat는 isNaN·Number.isFinite·|| 폴백 가드가 광범위하게 적용됨(prop-text-wireup-shadow, _helpers.clamp, sticker-block Number.isFinite 등). reference-modal의 parseInt NaN→JSON null→?? 폴백 체인은 우연히 안전하게 동작함을 확인.",
+    "excludedAsIntended": "profile #9 window.* 전역, #13 가드용 빈 catch, js/gif.js·gif.worker.js(벤더). layer-panel.js:94 parseInt(dataset.section)-1은 NaN 시 soft no-op이며 dataset.section이 buildLayerPanel에서 항상 세팅됨을 확인 — 실제 깨지는 입력 특정 불가로 제외. branch-system.js:460 parseInt(prompt)-1은 범위 가드로 안전."
+  }
+}

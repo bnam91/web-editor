@@ -1,0 +1,122 @@
+{
+  "group": "graphic",
+  "files": [
+    "js/props/prop-shape.js",
+    "js/props/prop-vector.js",
+    "js/props/prop-icon-circle.js",
+    "js/props/prop-iconify.js",
+    "js/props/prop-gradient.js"
+  ],
+  "notes": [
+    "직렬화는 canvas outerHTML/innerHTML 통째 저장(save-load.js:340 clone.innerHTML). 따라서 dataset.* 및 inline style은 자동 영속. 'save serialization 누락'은 상태가 dataset/style이 아닌 JS변수·런타임 DOM에만 남는 경우에만 발생.",
+    "renderVector(blocks/vector-block.js:232)·renderGradientBlock(blocks/gradient-block.js:301)·refreshShapeInnerSVG(block-factory.js:1470) 모두 window 노출 확인됨."
+  ],
+  "blocks": [
+    {
+      "block": "shape",
+      "panelFn": "showShapeProperties",
+      "controls": [
+        {"id": "shape-color (color-picker)", "type": "color-field", "label": "색상", "event": "wireColorField onApply/onCommit + goya-cp:gradient(-commit)", "writes": "dataset.shapeColor / dataset.shapeGradient / svg.style.color / SVG defs gradient", "silentFailRisk": "low", "note": "L188,210-221. solid+gradient 모두 wire됨. applyColor 가드(L136)로 동일색 skip 정상."},
+        {"id": "shape-stroke-color", "type": "color-field", "label": "외곽선", "event": "wireColorField onApply/onCommit", "writes": "dataset.shapeStrokeColor / svg.style.stroke", "silentFailRisk": "none", "note": "L195-199, applyStrokeColor L165."},
+        {"id": "shape-stroke-slider / shape-stroke-num", "type": "range+number", "label": "두께", "event": "input/change", "writes": "dataset.shapeStrokeWidth / svg.style.strokeWidth / refreshShapeInnerSVG", "silentFailRisk": "none", "note": "L224-232 양방향 동기 OK. 클램프 0~20."},
+        {"id": "shape-w-slider / shape-w-num", "type": "range+number", "label": "W", "event": "input/change", "writes": "frame(ss).style.width / dataset.width", "silentFailRisk": "low", "note": "L235-243. applySize는 frame(ss)만 변경(L173). ss(closest .frame-block) 없으면 W/H 무반응 — 가드는 있으나 silent. shape는 항상 frame 래퍼 보유 전제."},
+        {"id": "shape-h-slider / shape-h-num", "type": "range+number", "label": "H", "event": "input/change", "writes": "frame(ss).style.height / dataset.height", "silentFailRisk": "low", "note": "L246-254. 위와 동일."},
+        {"id": "shape-rot-slider / shape-rot-num", "type": "range+number", "label": "회전°", "event": "input/change", "writes": "block.style.transform(rotate) / dataset.shapeRotation", "silentFailRisk": "none", "note": "L289-299, applyRotation L268. 0이면 dataset 삭제·transform 정리. 클램프 -180~180."}
+      ],
+      "syncPairs": [
+        ["shape-stroke-slider", "shape-stroke-num"],
+        ["shape-w-slider", "shape-w-num"],
+        ["shape-h-slider", "shape-h-num"],
+        ["shape-rot-slider", "shape-rot-num"]
+      ],
+      "risks": [
+        "W/H 슬라이더는 applySize가 frame(ss)에만 적용 — frame 래퍼 없는 shape(이론상)에서 무반응 silent (L173 가드).",
+        "applyColor 가드 L136: dataset.shapeColor===hex && !shapeGradient면 early-return. 그라데이션→솔리드 동일 hex 전환 시 정상 클리어(분기 통과). 가드 자체는 안전."
+      ]
+    },
+    {
+      "block": "vector",
+      "panelFn": "showVectorProperties",
+      "controls": [
+        {"id": "vb-w", "type": "number", "label": "W", "event": "change", "writes": "dataset.w → renderVector()", "silentFailRisk": "none", "note": "L89-94. min/max만 HTML, JS 클램프는 없으나 renderVector 위임."},
+        {"id": "vb-h", "type": "number", "label": "H", "event": "change", "writes": "dataset.h → renderVector()", "silentFailRisk": "none", "note": "L95-100."},
+        {"id": "vb (color-field)", "type": "color-field", "label": "Fill", "event": "wireColorField onApply/onCommit", "writes": "dataset.color → renderVector()", "silentFailRisk": "none", "note": "L103-111."},
+        {"id": "vb-rotate-deg", "type": "number", "label": "각도", "event": "input", "writes": "dataset.rotateDeg → block.style.transform", "silentFailRisk": "med", "note": "L114-117. input만 wire, change/blur 없음 → pushHistory가 input 경유 applyTransform()에선 호출 안 됨(applyTransform은 scheduleAutoSave만). 회전 각도 변경이 undo 히스토리에 안 남을 수 있음(autosave는 됨). vb-w/h·color는 pushHistory 호출하나 rotate-deg 직접입력은 누락."},
+        {"id": "vb-rotate-90", "type": "button", "label": "90° 회전", "event": "click", "writes": "dataset.rotateDeg / input.value / transform", "silentFailRisk": "med", "note": "L118-125. applyTransform()만 호출 → pushHistory 누락. undo 불가."},
+        {"id": "vb-flip-h", "type": "button(toggle)", "label": "좌우 반전", "event": "click", "writes": "dataset.flipH / class active / transform", "silentFailRisk": "med", "note": "L128-132. pushHistory 누락 → undo 불가."},
+        {"id": "vb-flip-v", "type": "button(toggle)", "label": "상하 반전", "event": "click", "writes": "dataset.flipV / class active / transform", "silentFailRisk": "med", "note": "L133-137. pushHistory 누락 → undo 불가."}
+      ],
+      "syncPairs": [],
+      "risks": [
+        "회전/반전 4개 컨트롤(vb-rotate-deg input, vb-rotate-90, vb-flip-h, vb-flip-v) 모두 applyTransform()만 호출 — pushHistory() 누락. 변경은 DOM·dataset·autosave엔 반영되나 undo 스택에 안 들어가 Ctrl+Z로 되돌릴 수 없음. (W/H/색상은 pushHistory 호출하므로 일관성 결여)"
+      ]
+    },
+    {
+      "block": "icon-circle",
+      "panelFn": "showIconCircleProperties",
+      "controls": [
+        {"id": "icb-size-slider / icb-size-number", "type": "range+number", "label": "지름", "event": "input/change", "writes": "dataset.size / circle.style.width&height", "silentFailRisk": "none", "note": "L85-95 양방향 동기. circle=.icb-circle null이면 throw 위험(가드 없음)."},
+        {"id": "icb-padx-slider / icb-padx-number", "type": "range+number", "label": "좌우 패딩", "event": "input/change", "writes": "dataset.padX / block.style.paddingLeft&Right", "silentFailRisk": "none", "note": "L97-107 양방향 동기."},
+        {"id": "icb-bg (color-field)", "type": "color-field", "label": "배경", "event": "wireColorField onApply/onCommit", "writes": "dataset.bgColor / circle.style.backgroundColor", "silentFailRisk": "none", "note": "L109-116."},
+        {"id": "icb-border-select", "type": "select", "label": "스타일", "event": "change", "writes": "dataset.border / circle.dataset.border", "silentFailRisk": "low", "note": "L118-122. circle.dataset.border만 갱신 — 실제 border-style을 그리는 CSS가 [data-border] attr 셀렉터에 의존. circle.style.borderStyle 직접 설정은 안 함 → CSS 미정의 시 무효과(시각 변화 silent). 검증필요하나 정적상 라이브로 표기."},
+        {"id": "icb-upload-btn", "type": "button", "label": "이미지 선택", "event": "click", "writes": "→ window.triggerCircleUpload", "silentFailRisk": "low", "note": "L82. window.triggerCircleUpload 미정의 시 throw."},
+        {"id": "icb-pos-btn", "type": "button", "label": "이미지 위치 조절", "event": "click", "writes": "→ window.enterCircleImageEditMode", "silentFailRisk": "low", "note": "L78. hasImage일 때만."},
+        {"id": "icb-replace-btn", "type": "button", "label": "이미지 교체", "event": "click", "writes": "→ window.triggerCircleUpload", "silentFailRisk": "low", "note": "L79."},
+        {"id": "icb-remove-btn", "type": "button", "label": "이미지 제거", "event": "click", "writes": "→ window.clearCircleImage", "silentFailRisk": "low", "note": "L80."}
+      ],
+      "syncPairs": [
+        ["icb-size-slider", "icb-size-number"],
+        ["icb-padx-slider", "icb-padx-number"]
+      ],
+      "risks": [
+        "L10 const radius = dataset.radius 읽지만 패널에 radius 조절 컨트롤이 전혀 없음 — dead read (HTML 컨트롤 부재). border/radius 디자인 변형 노출 안 됨.",
+        "icb-border-select(L118): circle.dataset.border만 set, circle.style.borderStyle 직접 미설정. border 시각 적용이 CSS [data-border=...] 셀렉터 정의에 전적 의존 → 미정의 시 select 변경해도 외곽선 변화 없음(silent). 'med'급 의심(CSS 확인 권장).",
+        "circle=block.querySelector('.icb-circle')가 null이면 applySize 등에서 TypeError(가드 없음, L88)."
+      ]
+    },
+    {
+      "block": "iconify",
+      "panelFn": "showIconifyProperties",
+      "controls": [
+        {"id": "icn-replace-btn", "type": "button", "label": "교체", "event": "click", "writes": "→ window.openIconifyModal", "silentFailRisk": "low", "note": "L319. ?. 가드로 미정의 시 무동작 silent."},
+        {"id": "icn-size-slider / icn-size-number", "type": "range+number", "label": "Size", "event": "mousedown/input/change", "writes": "dataset.size / block.style.w&h / svg|img attr", "silentFailRisk": "none", "note": "L276-292 양방향 동기."},
+        {"id": "icn-align-group (left/center/right)", "type": "button-group", "label": "정렬", "event": "click", "writes": "dataset.align / block.margin / parent .row justifyContent / class active", "silentFailRisk": "none", "note": "L326-345. pushHistory+autosave 호출."},
+        {"id": "icn-color (color-field)", "type": "color-field", "label": "Color", "event": "wireColorField onApply/onCommit", "writes": "dataset.iconColor / block.style.color", "silentFailRisk": "none", "note": "L295-302."},
+        {"id": "icn-rotation-group (0/90/180/270)", "type": "button-group", "label": "회전", "event": "click", "writes": "dataset.rotation / block.style.transform / class active", "silentFailRisk": "low", "note": "L304-315. applyRotation은 pushHistory 호출하나 scheduleAutoSave 호출 안 함(L311) — autosave는 MutationObserver(style/dataset 변경)로 간접 트리거되므로 실제 저장은 됨. 명시 누락이지만 동작."},
+        {"id": "icn-preset-cat", "type": "select", "label": "카테고리", "event": "change", "writes": "renderPresetGrid (그리드 렌더만)", "silentFailRisk": "none", "note": "L194."},
+        {"id": "icn-preset-new-cat-btn / newcat-input / cancel", "type": "button+text", "label": "새 카테고리", "event": "click/keydown", "writes": "electronAPI.svgPresets.createCategory", "silentFailRisk": "low", "note": "L220-228. electronAPI 미정의 시 ?.로 무동작 silent(toast도 안 뜸)."},
+        {"id": "icn-preset-grid 셀", "type": "dynamic button", "label": "프리셋 적용", "event": "click", "writes": "block svg 교체 / dataset.iconName / dataset.iconSvg / pushHistory / autosave", "silentFailRisk": "low", "note": "L133-151. electronAPI 미정의 시 res undefined→toast '로드 실패'."},
+        {"id": "icn-preset-grid 삭제(×)", "type": "dynamic button", "label": "프리셋 삭제", "event": "click", "writes": "electronAPI.svgPresets.delete", "silentFailRisk": "low", "note": "L159-171."},
+        {"id": "icn-preset-save-btn / save-input / cancel", "type": "button+text", "label": "라이브러리에 저장", "event": "click/keydown", "writes": "electronAPI.svgPresets.save", "silentFailRisk": "low", "note": "L265-273."},
+        {"id": "icn-open-modal-btn", "type": "button", "label": "Iconify에서 교체", "event": "click", "writes": "→ window.openIconifyModal", "silentFailRisk": "low", "note": "L320."}
+      ],
+      "syncPairs": [
+        ["icn-size-slider", "icn-size-number"]
+      ],
+      "risks": [
+        "preset 라이브러리 전체(목록/적용/삭제/저장/카테고리생성)가 window.electronAPI?.svgPresets에 의존 — Electron 외 환경(웹 미리보기/CDP)에서는 ?. 단락으로 전부 무동작, 일부는 toast조차 없음. 정적 관점 'low'(가드 존재)이나 환경 의존 silent.",
+        "applyRotation(L304-312)은 scheduleAutoSave 미호출 — MutationObserver 의존으로 실제 저장은 되나 다른 컨트롤과 명시 패턴 불일치."
+      ]
+    },
+    {
+      "block": "gradient",
+      "panelFn": "showGradientProperties",
+      "controls": [
+        {"id": "grad-style", "type": "select", "label": "타입", "event": "change", "writes": "dataset.gradStyle / dir-row 표시토글 / renderGradientBlock / pushHistory / autosave", "silentFailRisk": "none", "note": "L134-140."},
+        {"id": "grad-direction", "type": "select", "label": "방향", "event": "change", "writes": "dataset.gradDirection / renderGradientBlock", "silentFailRisk": "none", "note": "L141-146. radial일 때 row 숨김."},
+        {"id": "grad-start-color / grad-start-hex / grad-start-alpha", "type": "color+text+text", "label": "시작", "event": "input/change/blur", "writes": "dataset.gradStart / gradStartAlpha / swatch bg / renderGradientBlock", "silentFailRisk": "none", "note": "L159-182 (wireColor('start'))."},
+        {"id": "grad-end-color / grad-end-hex / grad-end-alpha", "type": "color+text+text", "label": "끝", "event": "input/change/blur", "writes": "dataset.gradEnd / gradEndAlpha / swatch bg / renderGradientBlock", "silentFailRisk": "none", "note": "L184 (wireColor('end'))."},
+        {"id": "grad-width-slider / grad-width-num", "type": "range+number", "label": "너비", "event": "bindSlider(input/change/mousedown)", "writes": "dataset.gradWidth / renderGradientBlock", "silentFailRisk": "none", "note": "L188-194. bindSlider 표준 양방향 동기+history+autosave."},
+        {"id": "grad-height-slider / grad-height-num", "type": "range+number", "label": "높이", "event": "bindSlider(input/change/mousedown)", "writes": "dataset.gradHeight / renderGradientBlock", "silentFailRisk": "none", "note": "L196-202."}
+      ],
+      "syncPairs": [
+        ["grad-width-slider", "grad-width-num"],
+        ["grad-height-slider", "grad-height-num"]
+      ],
+      "risks": [
+        "grad-start/end hex input: 6자리 정규식 미통과 시 dataset 미갱신(L165-168) — 부분입력 중 정상 디바운스. blur로 dataset값 복원하므로 silent-fail 아님.",
+        "전 컨트롤이 renderGradientBlock?.()(window 노출 확인됨)에 의존 — 미정의 시 ?. 단락이나 정상 환경 OK."
+      ]
+    }
+  ]
+}

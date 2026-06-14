@@ -1,0 +1,99 @@
+{
+  "agent": "DSN-color-component",
+  "version": "3.3.1",
+  "dimension": "color",
+  "method": "static",
+  "scope": "post-fix verification (D-color + D-component)",
+  "basis": {
+    "head": "a7ad40b25285d2ef94824c4e34b50f768bb7d386",
+    "head_subject": "fix: 디자인 일관성 정비(design-squad) + card-block 제거 마무리",
+    "token_def_file": "css/editor-base.css:38-83",
+    "predecessor_reports": [
+      ".design/results/design-color.json (DSN-color v3.0)",
+      ".design/results/design-component.json",
+      ".design/results/matrix-station-color.json",
+      ".design/results/matrix-station-component.json"
+    ],
+    "fix_under_review": "danger raw hex(#c0392b/#e06060/#e06c6c/#e74c3c/#6b2e2e 등) → --ui-danger{,-bg,-border,-hover} 토큰화 + 치수/상태 토큰패밀리(--ui-btn-h/--ui-input-h/--ui-radius-{sm,md,lg}/--ui-form-label-w/--ui-row-gap/--ui-disabled-opacity) 신설 + '전체 적용'→prop-action-btn.primary + export-btn radius 5→4",
+    "guards": [
+      "캔버스 콘텐츠(--preset-*/cvb/annotation·sticker·highlight 캔버스 툴) 불가침",
+      "토큰 정의부(editor-base.css:53-56, design-tokens.css:78-80 --p-red-*) raw hex 제외",
+      "신설 직후 소비처 적은 토큰=pending, dead로 오판 금지 (D-integrity scan은 dead_real로 잘못 분류)"
+    ]
+  },
+  "root_cause": "danger 표현은 토큰화로 수렴 완료(블로커·항목 tier 모두 --ui-danger 패밀리 fill-alpha 정석). 잔존 D-color 이탈의 근본 원인은 (1) 이번 FIX 범위 밖인 파랑(accent/active) 계열이 정본 토큰 --ui-accent-primary(#2d6fe8) 대신 raw hex(#6b9eff/#6fa3f7/#6cf/#3d7ff8/#1592fe/#2d6fe8/#6a9fd8)로 파일마다 난립, (2) radius/shadow는 신설 토큰(--ui-radius-*)이 정의만 되고 소비처 0이라 raw px literal(border-radius 19종 ~370회)이 그대로 분산. 둘 다 danger와 달리 '치환 대상 토큰은 있으나 아직 미이관' 상태(pending).",
+  "area_summary": [
+    {
+      "area": "D-color / danger 토큰화 (FIX 대상)",
+      "status": "해소됨",
+      "severity": "resolved",
+      "confidence": "confirmed",
+      "evidence_grade": "measure",
+      "detail": "FIX 클레임 전부 안착 확인. prop-action-btn.danger(editor-blocks.css:390-391), layer-variation-del/variant-del(editor-panels.css:1054/1062), tpl-delete-btn/tpl-preview-close(320/456), file-page-del(626), tb-card-del-btn(editor-extra.css:1270), cpmt-close(claude-pm.css:510), branch-action-btn.danger(885) 모두 var(--ui-danger{,-bg,-border,-hover}) 사용. danger 채움은 --ui-danger-bg(rgba(224,108,108,0.12)) fill-alpha 단일 정석으로 수렴(매트릭스 danger 4방식→1).",
+      "remaining_raw_danger_chrome": [
+        "css/editor-panels.css:128 #cm-msg-input.cm-shake border-color:#c0392b (shake 애니메이션, --ui-danger-bg 정의값과 동일 계열이나 raw)",
+        "css/editor-panels.css:1340 .ck-delete:hover color:#e06c6c !important (=--ui-danger 정확히 동일값, 무손실 치환 가능)",
+        "css/ai-image.css:90 .aig-chip-x background:#e53 (칩 삭제 X 버튼)",
+        "css/editor-graph.css:230 .grb-data-del-btn:hover border/color:#e06060 (=--ui-danger 인접)",
+        "css/editor-canvas.css:102 .scratch-close:hover background/border:#e74c3c (=--ui-danger-hover)"
+      ],
+      "excluded_canvas_content": [
+        "js/annotation-tool.js / annotation-select.js / highlight-line-tool.js / blocks/sticker-block.js / props/prop-sticker.js / prop-annotation.js #e74c3c — 캔버스 드로잉 툴 기본색(사용자 편집값), 불가침",
+        "css/editor-blocks.css:1628 .annot-anchor-preview background:#e74c3c — annotation 캔버스 프리뷰, 콘텐츠 인접 회색지대"
+      ]
+    },
+    {
+      "area": "D-color / 파랑(accent) 난립 (FIX 범위 밖)",
+      "status": "미해소 (이번 FIX 대상 아님)",
+      "severity": "major",
+      "confidence": "suspected",
+      "evidence_grade": "measure",
+      "detail": "UI 크롬 파랑 raw hex ~31회+ 잔존. 정본 토큰 --ui-accent-primary(#2d6fe8)/--ui-accent-primary-hover(#3a7df0)가 있으나 우회. 그룹: (a) claude-pm.css #6b9eff ×11(title/icon/focus/btn-bg) + #2d6fe8/#3a7df0 raw, (b) editor-panels.css #6fa3f7 ×4(file-page/layer active name), (c) editor-base.css:656-657 #6a9fd8 ×2(tab-drop, 토큰 --color-tab-drop=#6a9fd8 존재하나 미사용), (d) #3d7ff8 ×3(prop-action-btn.primary:hover, tpl-browser-insert:hover, prop-export-btn:hover — primary 본체는 토큰화됐는데 :hover만 raw), (e) #1592fe ×다수(canvas selection outline·color-picker), (f) editor-canvas/extra #2d6fe8 raw.",
+      "evidence": "grep -rniE '#(6b9eff|6fa3f7|6cf|4f8ef7|3d7ff8|3a7df0|2d6fe8|1592fe)\\b' css/ | grep -v preset|--p-|--ui-|design-tokens → 31+ (chrome)",
+      "note": "danger와 동일한 처방(토큰 치환)이 필요하나 이번 FIX 스코프 아님 → suspected 보고로만."
+    },
+    {
+      "area": "D-component / 치수 토큰 (--ui-btn-h, --ui-input-h, --ui-radius-*)",
+      "status": "pending (소비처 0 — dead 아님)",
+      "severity": "info",
+      "confidence": "confirmed",
+      "evidence_grade": "measure",
+      "detail": "FIX에서 정의만 신설. var() 소비처: --ui-btn-h=0, --ui-input-h=0, --ui-radius-sm/md/lg=0. ⚠️ D-integrity scan은 이들을 dead_real로 분류했으나, FIX 직후 의도된 정의(height 10단 난립/radius 19종 통일 목표)로 점진 이관 대기 상태 = pending. dead로 오판 금지. 실제 이관 부채: border-radius raw px ~370회(4px×115/3px×54/6px×45/5px×41/2px×33/8px×25…19종), box-shadow 74개 분산.",
+      "evidence": "grep -rn 'var(--ui-btn-h' css/ js/ → 0; 'var(--ui-radius-' → 0; raw 'border-radius: Npx' 분포 19종"
+    },
+    {
+      "area": "D-component / 상태·폼 토큰 (--ui-disabled-opacity, --ui-form-label-w, --ui-row-gap)",
+      "status": "부분 안착",
+      "severity": "info",
+      "confidence": "confirmed",
+      "evidence_grade": "measure",
+      "detail": "--ui-disabled-opacity: 소비처 7회(ai-image/editor-props/claude-pm/color-picker/editor-panels×2/settings-modal) — 활성 적용. --ui-form-label-w / --ui-row-gap: 각 1회(editor-base.css:177/171 canonical prop-row) — 정의처에서만 소비, 확산 대기. disabled-opacity는 8값 난립→0.5 통일이 실제로 일부 안착.",
+      "evidence": "grep -rcn 'var(--ui-disabled-opacity' css/ → 7; form-label-w/row-gap → 각 1"
+    },
+    {
+      "area": "D-component / danger tier (blocker vs item)",
+      "status": "해소됨",
+      "severity": "resolved",
+      "confidence": "confirmed",
+      "evidence_grade": "measure",
+      "detail": "blocker tier(prop-action-btn.danger: bg+border+color 3토큰 풀세트) vs 항목 tier(layer-del류: hover시 bg+color+border-color) 모두 --ui-danger 패밀리로 일관 표현. var-type-number/var-item-del만 rgba(224,108,108,...) 인라인 잔존(editor-base.css:416/476 — danger-bg/danger-alpha 토큰 자리, 정의부 인접이라 minor)."
+    }
+  ],
+  "metrics": {
+    "danger_raw_hex_chrome_remaining": 5,
+    "danger_raw_hex_canvas_excluded": 8,
+    "blue_raw_hex_chrome_remaining": 31,
+    "ui_dimension_token_consumers": {
+      "--ui-btn-h": 0,
+      "--ui-input-h": 0,
+      "--ui-radius-sm/md/lg": 0,
+      "--ui-form-label-w": 1,
+      "--ui-row-gap": 1,
+      "--ui-disabled-opacity": 7
+    },
+    "raw_border_radius_literals": 372,
+    "distinct_radius_values": 19,
+    "box_shadow_declarations": 74
+  },
+  "verdict": "danger 토큰화 FIX 안착 성공(해소됨). 남은 D-color 이탈은 FIX 범위 밖 파랑 난립(major suspected). 신설 치수 토큰(btn-h/input-h/radius)은 pending이며 dead 아님."
+}

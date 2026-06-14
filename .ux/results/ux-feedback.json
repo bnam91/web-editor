@@ -1,0 +1,240 @@
+{
+ "agent": "UXS-feedback",
+ "version": "3.0",
+ "dimension": "feedback",
+ "scope": "대표 액션 4종+실패 경로",
+ "method": "cdp",
+ "session_note": "CDP 9334 / proj_1775644888754. 측정 방법: Runtime.evaluate 인페이지 스크립트 — 액션 트리거 직전 performance.now()=t0, MutationObserver 발화=DOM 반영(dom_ms), 이후 double requestAnimationFrame=페인트 프레임 포함(paint_ms). 판정은 paint_ms 기준(사용자 가시 시점에 더 가까움). 각 3회. 측정 종료·디스크 무결 검증 후 앱이 외부 요인으로 종료됨(마지막 자동저장 23:35 정상 — proj.json 4섹션·radius 복원 확인, 데이터 영향 없음).",
+ "findings": [
+  {
+   "id": "FB-J1",
+   "track": "judgment",
+   "area": "toolbar",
+   "impact": "high",
+   "observation": "자동저장 인디케이터(#autosave-indicator)가 실제 파일 저장 완료 전에 '저장됨'을 표시한다. js/io/save-load.js scheduleAutoSave(): debounce 발화 시 비동기 saveProjectToFile(snap)을 await 없이 호출한 직후 동기적으로 _setAutosaveIndicator('saved') 실행. Electron 파일 저장이 실패하면(catch) '❌ 저장 실패' 토스트가 2초 떴다 사라지지만 인디케이터는 '저장됨' 상태 유지(2.5초 후 소멸) — 성공 신호와 실패 신호가 동시에 존재하는 모순. 페이지 수 감소로 저장 거부(ok:false)된 경우도 동일.",
+   "friction": "사용자가 '저장됨'을 믿고 앱을 닫으면 실패한 저장분이 유실될 수 있다. 실패의 유일한 신호가 2초 transient 토스트라 자리 비움/시선 이탈 시 인지 불가. 저장 상태 신뢰 신호가 거짓일 수 있는 구조.",
+   "proposal": "'saved' 상태 전환을 saveProjectToFile resolve 이후로 이동(localStorage 성공만으로 'saved' 금지 또는 단계 분리). 실패 시 인디케이터에 지속형 'error' 상태(예: 빨강 '저장 실패 — 재시도') 추가, 토스트는 보조로 유지.",
+   "tradeoffs": "'저장됨' 표시가 파일 IO 완료까지(수십~수백ms) 늦어짐 — 지각 차이는 미미. 인디케이터 상태머신에 error 상태 1개 추가되는 복잡도.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "nielsen-10.md#1-visibility",
+    "nielsen-10.md#9-recovery"
+   ],
+   "adjudication": "central-confirmed",
+   "evidence": "js/io/save-load.js — scheduleAutoSave 내 saveProjectToFile(snap, {skipThumbnail:true}); _setAutosaveIndicator('saved'); (비동기 미대기), _doSaveProjectToFile catch에서 window.showToast?.('❌ 저장 실패: ...')",
+   "self_guard_note": "verify-candidate (judgment high). 오적용 가드 대조: 무음 자동저장에 토스트를 요구하는 것이 아님 — 이미 존재하는 신호('저장됨')의 진실성 문제이므로 #8 충돌 아님."
+  },
+  {
+   "id": "FB-J2",
+   "track": "judgment",
+   "area": "toast",
+   "impact": "medium",
+   "observation": "토스트 시스템(js/drag-utils.js showToast)이 단일 엘리먼트(#editor-toast) 재사용 + 2000ms 고정 + 정보/경고/에러 무구분(스타일·지속시간 동일, 이모지 prefix만 차이). 새 토스트가 오면 clearTimeout 후 textContent를 즉시 덮어써 이전 메시지(에러 포함)가 소멸. '❌ 저장 실패', '⚠️ 저장 공간 부족' 같은 행동이 필요한 에러도 2초 후 흔적 없이 사라진다.",
+   "friction": "에러를 놓치면 재확인 경로가 없다(로그/히스토리 부재). 연속 액션 중 에러 토스트가 후속 정보 토스트에 덮이면 실패 인지 자체가 불가능.",
+   "proposal": "에러성 토스트(❌/⚠️)는 지속시간 연장(4~6초) 또는 수동 닫기 + 시각 구분(색). 큐잉 또는 최소한 에러가 비에러에 덮이지 않는 우선순위.",
+   "tradeoffs": "토스트 체류 연장은 #8 미니멀리즘과 긴장 — 에러에 한정하면 충돌 최소. 큐잉 구현 복잡도 소폭 증가.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "nielsen-10.md#9-recovery",
+    "nielsen-10.md#1-visibility"
+   ],
+   "adjudication": "self",
+   "evidence": "js/drag-utils.js:140-152 — showToast: 단일 #editor-toast, clearTimeout(t._timer) 후 2000ms 고정 재설정, msg 종류 무구분",
+   "self_guard_note": "단일 모듈(toast) 내부 속성 판단 — 모듈 간 toast/silent 분포 비교 아님(qa MATRIX 불침범)."
+  },
+  {
+   "id": "FB-J3",
+   "track": "judgment",
+   "area": "toolbar",
+   "impact": "low",
+   "observation": "scheduleAutoSave의 빈 캔버스 보호 가드(S11)가 저장을 건너뛰면서도 _setAutosaveIndicator('saved')로 '저장됨'을 표시한다(console.warn만 남김). 데이터 보호 목적의 의도된 skip이지만 사용자에게는 거짓 확인 신호.",
+   "friction": "엣지 케이스(빈 캔버스 상태로 작업 중단)에서 '저장됨'을 믿었으나 실제로는 아무것도 기록되지 않음. 발생 빈도는 낮음.",
+   "proposal": "skip 시 인디케이터를 무표시(또는 중립 상태)로 두기 — '저장됨' 거짓 신호만 제거. 보호 가드 자체는 유지.",
+   "tradeoffs": "없음에 가까움 — 표시 한 줄 분기.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "nielsen-10.md#1-visibility"
+   ],
+   "adjudication": "self",
+   "evidence": "js/io/save-load.js scheduleAutoSave — if (_isAllCanvasEmpty(snapData)) { console.warn(...); _setAutosaveIndicator('saved'); return; }",
+   "self_guard_note": "S11 가드 자체는 의도된 결정(데이터 보호)으로 존중 — 지적 범위는 표시 신호의 진실성만."
+  },
+  {
+   "id": "FB-J4",
+   "track": "judgment",
+   "area": "assets-ai",
+   "impact": "medium",
+   "observation": "AI 이미지 생성(장시간 작업)의 진행 표시가 제출 버튼의 스피너+'생성 중...'+disabled 뿐(js/ai-image-gen.js:617). 경과 시간·단계·취소 수단 없음. 실패 시 '❌ (사유)' 토스트, 성공 시 '✨ N장 생성 완료 (₩비용)' 토스트는 존재 — 실패가 silent하지는 않음(코드 전 경로 확인: ok:false 모든 분기에서 토스트 발화). 단, 실제 생성 소요시간은 미실측(과금 발생 작업 — 코드 관찰 기반 평가임을 명시).",
+   "friction": "생성이 10초 이상 걸리는 경우(외부 API 의존) 사용자는 진행 여부를 스피너 하나로만 추정해야 하고, 잘못 제출했을 때 중단할 수 없다. 모달을 닫으면 결과 수신 여부도 불확실해진다.",
+   "proposal": "경과 시간 표시(초 단위) + 취소 버튼. 장기적으로 생성 요청을 모달 수명과 분리(백그라운드 + 완료 토스트는 이미 존재).",
+   "tradeoffs": "취소는 API 호출 abort 배선 필요. 경과 표시는 저비용.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "interaction-laws.md#doherty",
+    "nielsen-10.md#1-visibility",
+    "nielsen-10.md#3-control"
+   ],
+   "adjudication": "self",
+   "evidence": "js/ai-image-gen.js:614-641 handleImageSubmit — submitBtn.innerHTML='<span class=\"ai-spinner\"></span> 생성 중...'; finally에서 복원. generateAIImage 내 실패 분기 showToast 확인(462행 이하)",
+   "self_guard_note": "doherty 오적용 가드 준수 — '느리다' 주장 아님(소요시간 미실측·미주장). 지적은 진행/취소 신호의 구조적 부재만."
+  }
+ ],
+ "measurements": [
+  {
+   "action": "① prop 패널 속성 변경(모서리 슬라이더 input)→캔버스 블록 반영",
+   "median_ms": 40.2,
+   "runs": [
+    33.3,
+    46.6,
+    40.2
+   ],
+   "dom_ms_runs": [
+    3.8,
+    2.7,
+    4.2
+   ],
+   "status": "PASS",
+   "note": "baseline 300ms 대비 여유. 슬라이더 드래그 중 실시간 반영 — doherty '즉각(100ms 이하)' 범위"
+  },
+  {
+   "action": "② 블록 추가(addTextBlock body — fp 메뉴 onclick 동일 경로)→캔버스 표시",
+   "median_ms": 95.9,
+   "runs": [
+    95.9,
+    113.3,
+    84.2
+   ],
+   "dom_ms_runs": [
+    58.7,
+    38.0,
+    30.2
+   ],
+   "status": "PASS",
+   "note": "3회 중 1회 113.3ms — 흔들림 폭 작아 중앙값 채택, 범위 84~113ms"
+  },
+  {
+   "action": "③ 자동저장 트리거(triggerAutoSave)→#autosave-indicator '저장 중...' 표시",
+   "median_ms": 18.7,
+   "runs": [
+    16.0,
+    23.5,
+    18.7
+   ],
+   "dom_ms_runs": [
+    0.3,
+    0.3,
+    0.2
+   ],
+   "status": "PASS",
+   "note": "'저장됨' 전환 총 소요 1519/1527/1524ms — debounce 1500ms 설계치(Notion~1s/Figma~2s 중간값, 코드 주석 명시)로 의도된 결정. 위반 아님. 단 '저장됨' 신호의 진실성 문제는 FB-J1"
+  },
+  {
+   "action": "④ 실패 경로: 선택 없이 블록 추가 시도→경고 토스트 '⚠️ 섹션 또는 블록을 먼저 선택하세요' + 팔레트 shake",
+   "median_ms": 26.3,
+   "runs": [
+    21.3,
+    26.3,
+    40.2
+   ],
+   "dom_ms_runs": [
+    1.1,
+    1.3,
+    1.1
+   ],
+   "status": "PASS",
+   "note": "실패 경로 라이브 검증 — silent 아님. 토스트+fp-shake 이중 신호는 좋은 패턴(clean 사례)"
+  }
+ ],
+ "xref_note": "qa matrix-station-feedback.json 부재 — soft skip (4조건 규약). 모듈 간 피드백 방식 분포 비교(toast vs silent 분포)는 qa MATRIX 소관으로 본 결과에서 제외 — 본 보고는 단일 액션 피드백 측정+맥락 판단까지만.",
+ "out_of_scope_flags": [
+  "pm-panel: G5 회신 대기(텔레그램 msg 424) — judgment 보고 보류, 본 차원에서 미관찰",
+  "자동저장 debounce 1500ms: 코드 주석에 근거 명시된 의도된 결정 — 위반 미기록",
+  "AI 이미지 생성 실 소요시간: 과금 발생 작업으로 미실측 — FB-J4는 코드 관찰 기반",
+  "측정 종료 후 앱 외부 종료(23:35) — 추가 evidence 스크린샷(토스트 순간 캡처) 미확보. 수치+코드 라인 인용으로 대체"
+ ],
+ "area_summary": [
+  {
+   "area": "toolbar",
+   "status": "findings",
+   "detail": "FB-J1, FB-J3 (autosave indicator). 측정 ③ PASS"
+  },
+  {
+   "area": "left-panel",
+   "status": "skipped",
+   "reason": "대표 액션 4종에 미포함 — 전 영역 실측 비현실"
+  },
+  {
+   "area": "prop-panel",
+   "status": "clean",
+   "detail": "측정 ① PASS (median 40.2ms) — 슬라이더→캔버스 즉각 반영"
+  },
+  {
+   "area": "canvas-block",
+   "status": "clean",
+   "detail": "측정 ② PASS (median 95.9ms), 실패 경로 ④ 토스트+shake 이중 신호 양호"
+  },
+  {
+   "area": "modals",
+   "status": "skipped",
+   "reason": "대표 액션 미포함"
+  },
+  {
+   "area": "template-browser",
+   "status": "skipped",
+   "reason": "대표 액션 미포함"
+  },
+  {
+   "area": "assets-ai",
+   "status": "findings",
+   "detail": "FB-J4 (장시간 작업 진행 표시 최소·취소 부재). 실패 토스트 경로는 코드로 확인됨"
+  },
+  {
+   "area": "design-system",
+   "status": "skipped",
+   "reason": "대표 액션 미포함"
+  },
+  {
+   "area": "pm-panel",
+   "status": "skipped",
+   "reason": "G5 보류 + 대표 액션 미포함"
+  },
+  {
+   "area": "pickers",
+   "status": "skipped",
+   "reason": "대표 액션 미포함 (저가중 영역)"
+  },
+  {
+   "area": "graph",
+   "status": "skipped",
+   "reason": "대표 액션 미포함 (저가중 영역)"
+  },
+  {
+   "area": "toast",
+   "status": "findings",
+   "detail": "FB-J2 (에러/정보 무구분, 2s 고정, 덮어쓰기). 표시 지연 자체는 ④ PASS"
+  },
+  {
+   "area": "home-pages",
+   "status": "skipped",
+   "reason": "대표 액션 미포함"
+  }
+ ],
+ "judgment_count": 4,
+ "conformance_confirmed": 0,
+ "by_impact": {
+  "high": 1,
+  "medium": 2,
+  "low": 1
+ },
+ "by_severity": {},
+ "grouped_overflow": [],
+ "evidence_files": [
+  ".ux/results/evidence/feedback-before.png (측정 직전 — 4섹션+카드 블록 선택 상태)",
+  ".ux/results/evidence/feedback-after-clean.png (주의: 앱 종료 직전 빈 윈도가 찍힘 — 데이터 무결은 디스크 proj.json 검증으로 확인: Page 1 sections 4, cvb_rvw92pq radius 12 복원, text-block 8개 원상)"
+ ],
+ "by_adjudication": {
+  "self": 3,
+  "central-confirmed": 1,
+  "central-refuted": 0
+ }
+}

@@ -1,0 +1,137 @@
+{
+  "schema": "v3.3.1",
+  "agent": "DSN-css-health",
+  "dimension": "css-health",
+  "method": "static",
+  "evidence_grade": "deterministic",
+  "target": "/Users/a1/web-editor",
+  "head": "a7ad40b25285d2ef94824c4e34b50f768bb7d386",
+  "scanned_at": "2026-06-11",
+  "basis": {
+    "css_files": 16,
+    "css_dir": "css/",
+    "total_css_lines": 10995,
+    "js_files_scanned": 138,
+    "html_files_scanned": 1,
+    "token_definitions": 202,
+    "distinct_var_references": 129,
+    "grep": "deterministic full-tree def/use graph (CSS+JS+HTML)",
+    "false_positive_guards_applied": [
+      "fallback-aware: var(--x,default) NOT counted as broken",
+      "dynamic-set excluded: setProperty('--x',...) + --x-${} prefixes from block-factory.js/zoom/preset/tbl/sel/tfx",
+      "pending != dead: newly added --ui-* migration tokens classified pending",
+      "keyframe from/to + percent steps excluded from duplicate-selector count",
+      "@media-scoped overrides separated from real top-level duplicates (0 found this run)"
+    ]
+  },
+  "headline": {
+    "token_coverage_pct": 14.8,
+    "coverage_formula": "var()-bearing value declarations / total value declarations",
+    "coverage_numerator": 1343,
+    "coverage_denominator": 9087,
+    "dead": 68,
+    "broken": 0,
+    "malformed": 0,
+    "duplicate_definitions": 66,
+    "important_count": 114
+  },
+  "root_cause": "token-dualization",
+  "root_cause_detail": "css/design-tokens.css holds an orphaned semantic token layer (--bg-*, --color-*, --space-*, --radius-*, --p-* palette chain, --content-*, --icon-*) while the live UI layer migrated to a parallel --ui-* namespace defined in css/editor-base.css :root (--ui-accent used 200x, --ui-border 252x, --ui-text 311x). All 68 dead-real tokens sit in design-tokens.css; design-tokens.css :root is itself defined twice — a symptom of the same dualization.",
+  "findings": [
+    {
+      "id": "malformed",
+      "severity": "major",
+      "verify_candidate": true,
+      "count": 0,
+      "status": "FIX CONFIRMED",
+      "note": "Prior FIX (var(--ui-border)NNN) verified resolved. Raw re-grep 'var\\([^)]*\\)[0-9]' across css/ returns 0. Prior scan's editor-panels.css:561 (var(--ui-border)3) now reads a clean closed var(--ui-border). No malformed var() declarations remain."
+    },
+    {
+      "id": "broken",
+      "severity": "major",
+      "verify_candidate": true,
+      "count": 0,
+      "status": "clean",
+      "note": "Every var(--x) with no fallback resolves: either defined in CSS, or written dynamically via JS setProperty / prefix templates. Prior scan's broken_undef list (--tbl-*, --inv-zoom, --ui-scale, --var-color, --color-name, --page-pady, --cpmt-bg-alpha, --ui-text-*, --ui-border-hi, --ui-accent-primary-active) all confirmed as JS-driven (block-factory.js / zoom / preset / picker) — false positives under guard #2, not broken."
+    },
+    {
+      "id": "dead-real",
+      "severity": "minor",
+      "verify_candidate": false,
+      "count": 68,
+      "all_in_file": "css/design-tokens.css",
+      "tokens": ["--bg-app","--bg-base","--bg-card","--bg-elevated","--border-mid","--border-strong","--canvas-bg-light","--canvas-bg-white","--canvas-overlay","--color-accent","--color-accent-active","--color-accent-edit","--color-accent-edit-bg","--color-accent-hover","--color-danger","--color-danger-alpha","--color-danger-badge-bg","--color-danger-bg","--color-danger-hover","--color-focus-fill","--color-handle-glow","--color-handle-outline","--color-handle-swatch","--color-saved","--color-selection-fill-dim","--color-selection-outline","--color-success","--color-success-bg","--color-tab-drop","--content-body-color","--content-caption-color","--content-h1-color","--content-h2-color","--content-h3-color","--icon-layer-gap-item","--icon-layer-gap-row","--icon-layer-gap-section","--icon-layer-size","--icon-prop-size","--p-blue-500","--p-blue-800","--p-canvas-stripe","--p-canvas-table","--p-graph-dark-bar","--p-graph-dark-bg","--p-gray-100","--p-gray-20","--p-gray-200","--p-gray-300","--p-gray-600","--p-gray-750","--p-gray-850","--p-overlay-black-06","--p-overlay-dark-80","--p-sky-alpha-15","--p-white","--radius-lg","--radius-md","--radius-sm","--space-0","--space-1","--space-2","--space-3","--space-4","--space-5","--space-6","--text-dim","--text-hint"],
+      "note": "Defined, zero var() references, never JS-set. Orphaned semantic+palette layer superseded by --ui-* in editor-base.css. The --p-* palette chain is a cascade (palette feeds semantic, both now unreferenced)."
+    },
+    {
+      "id": "pending",
+      "severity": "nit",
+      "verify_candidate": false,
+      "count": 6,
+      "tokens": ["--ui-btn-h","--ui-input-h","--ui-pad-panel","--ui-radius-lg","--ui-radius-md","--ui-radius-sm"],
+      "defined_in": "css/editor-base.css",
+      "note": "Newly added --ui-* migration tokens, defined but not yet consumed. Classified pending (guard #3), NOT dead — awaiting hardcoded-value migration."
+    },
+    {
+      "id": "set-only",
+      "severity": "nit",
+      "verify_candidate": false,
+      "count": 14,
+      "tokens": ["--preset-chat-bg-left","--preset-chat-bg-right","--preset-chat-text-left","--preset-chat-text-right","--preset-step-card-bg","--preset-step-desc","--preset-step-num-bg","--preset-step-num-color","--preset-step-title","--preset-table-col-bg","--preset-table-header-bg","--preset-table-line","--preset-table-text","--sel-color-hover"],
+      "note": "Defined in CSS and written via JS setProperty but never read through var() — write-side live, read-side dead. Reported separately from dead-real; not a runtime bug. Likely leftover from preset-driven theming whose consumers were refactored out."
+    },
+    {
+      "id": "duplicate-definitions",
+      "severity": "minor",
+      "verify_candidate": false,
+      "count": 66,
+      "media_overrides_excluded": 0,
+      "biggest_cluster": {
+        "file": "css/editor-extra.css",
+        "selectors": 31,
+        "note": "comp-shelf panel block defined 2x (occurrences span lines 975/993 and the duplicated block at 1369/1386/1390+, ~215 lines). Some sub-selectors (.comp-shelf-panel.open, ::-webkit-scrollbar*, :focus/::placeholder) hit 3x."
+      },
+      "by_file": {
+        "editor-extra.css": 31,
+        "editor-blocks.css": 9,
+        "editor-panels.css": 6,
+        "color-picker.css": 4,
+        "editor-layout.css": 4,
+        "editor-props.css": 4,
+        "assets-panel.css": 2,
+        "claude-pm.css": 2,
+        "design-tokens.css": 1,
+        "editor-base.css": 1,
+        "editor-graph.css": 1,
+        "settings-modal.css": 1
+      },
+      "note": "All 66 are genuine top-level redefinitions (>=2 occurrences outside @media/@keyframes). design-tokens.css :root 2x reinforces the token-dualization root cause."
+    },
+    {
+      "id": "important-density",
+      "severity": "nit",
+      "verify_candidate": false,
+      "count": 114,
+      "top_files": {"editor-blocks.css": 55, "editor-panels.css": 16, "editor-extra.css": 13, "claude-pm.css": 9, "editor-layout.css": 7},
+      "note": "editor-blocks.css carries 48% of all !important — specificity-war hotspot, consistent with its 9 duplicate-selector overrides."
+    },
+    {
+      "id": "large-files",
+      "severity": "nit",
+      "verify_candidate": false,
+      "files": [
+        {"file": "css/editor-blocks.css", "bytes": 77221, "lines": 2219},
+        {"file": "css/editor-panels.css", "bytes": 60960, "lines": 1756},
+        {"file": "css/editor-extra.css", "bytes": 40372, "lines": 1688}
+      ],
+      "note": "Three files dominate CSS weight; editor-extra.css size inflated by the duplicated comp-shelf block."
+    }
+  ],
+  "area_summary": [
+    {"area": "design-tokens.css", "verdict": "dualization epicenter", "detail": "68/68 dead-real tokens + :root 2x. Entire semantic/palette layer orphaned by --ui-* migration."},
+    {"area": "editor-base.css", "verdict": "live token authority", "detail": ":root --ui-* layer (heavily referenced). Hosts 6 pending migration tokens."},
+    {"area": "editor-extra.css", "verdict": "duplicate-definition hotspot", "detail": "comp-shelf panel block defined twice (~215 lines), 31 dup selectors."},
+    {"area": "editor-blocks.css", "verdict": "specificity-war hotspot", "detail": "55 !important (48% of total) + 9 dup block-state selectors."},
+    {"area": "integrity (broken/malformed)", "verdict": "clean", "detail": "0 broken, 0 malformed after deterministic re-scan. Prior var(--ui-border)NNN FIX confirmed."}
+  ]
+}

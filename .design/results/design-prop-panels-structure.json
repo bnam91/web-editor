@@ -1,0 +1,71 @@
+{
+  "agent": "DSN-pp-structure",
+  "dimension": "css-health",
+  "scope": "prop-panels",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "standard_refs": ["js/props/prop-section.js", "js/props/prop-text.js", "js/props/prop-text-template.js", "js/props/_helpers.js"],
+  "scanned": {
+    "js_prop_files": 46,
+    "css_file": "css/editor-props.css",
+    "css_lines": 759,
+    "align_group_files": 19,
+    "danger_button_files": 28,
+    "bindslider_helper_adopters": 4,
+    "bindslider_manual_panels": 22
+  },
+  "summary": "정렬그룹 계층(규칙1)은 v2 회귀(Banner/Card)가 치유됨 — 현재 모든 text-align/bulk-align 전용 그룹은 .prop-section 직속(full-width)이고, .prop-row로 감싼 정렬그룹은 전부 56px prop-label과 짝지어진 labelled-row(정렬/위치/말꼬리)라 .prop-align-group{flex:1}로 정상 균등분할 → 규칙1 위반 없음. 진짜 이탈은 danger 토큰(규칙2): prop-frame.js가 파괴버튼 '이미지 제거'를 .danger 토큰 대신 raw hex(#3a2a2a/#e06c6c)로 그림 — 같은 '이미지 제거'를 표준 prop-section.js는 'prop-action-btn danger'로 처리해 정면 분기. prop-canvas/prop-simple-card는 raw hex color:#e55, prop-annotation/prop-sticker/prop-asset(초기화)는 destructive인데 danger affordance 없는 중립 클래스. 빌드패턴(규칙3): bindSlider 헬퍼(RIGHT_PANEL_PROPS §4-4 표준)가 4파일만 채택, 22파일이 손수 slider 와이어업. CSS(규칙4): .prop-full-btn deprecated 블록이 dead(JS 0참조, 대체 .prop-btn-full이 6파일서 실사용). 의도주석 DBG-A(prop-number height)는 제외함.",
+  "findings": [
+    {
+      "id": "PPS-01",
+      "severity": "major",
+      "tag": "verify-candidate",
+      "title": "위험 버튼 danger 우회 — prop-frame '이미지 제거'가 .danger 토큰 대신 raw hex (표준 prop-section과 정면 분기)",
+      "evidence": "동일 라벨 '이미지 제거'를 두 패널이 다르게 그림. 표준 prop-section.js:115는 `class=\"prop-action-btn danger\"`(editor-blocks.css:390 토큰: bg#c0392b). prop-frame.js:270은 `class=\"prop-action-btn\"` + 인라인 `style=\"...background:#3a2a2a;color:#e06c6c;\"` — danger 토큰 우회 raw hex. 같은 파일 JS fallback prop-frame.js:562-563도 `className='prop-action-btn'` + cssText 동일 raw hex로 중복. 추가로 destructive인데 danger affordance가 아예 없는 케이스: prop-sticker.js:76 '이미지 제거' = bare `prop-action-btn`(중립), prop-annotation.js:306 '이미지 제거' = `prop-btn` + `color:var(--ui-text-muted)`(중립 회색), prop-asset.js:69 '초기화' = `prop-align-btn`(정렬버튼 클래스 전용). raw hex 변형: prop-canvas.js:36 '이미지 제거' `prop-btn` + `color:#e55`, prop-simple-card.js:50/55 '이미지/아이콘 제거' `prop-btn` + cvb-card-btn-sm-del(빨강). 표준 danger 패밀리 2종(`prop-action-btn danger`, `prop-btn prop-btn-danger`)을 올바로 쓰는 패널(asset:59, icon-circle:49, section:115, banner02, chat, comparison, step)과 대비됨.",
+      "files": ["js/props/prop-frame.js", "js/props/prop-canvas.js", "js/props/prop-annotation.js", "js/props/prop-sticker.js", "js/props/prop-asset.js", "js/props/prop-simple-card.js"],
+      "metric": {"raw_hex_danger": 4, "neutral_destructive": 3, "token_correct_panels": 7},
+      "recommendation": "파괴버튼은 danger 패밀리 2종 중 하나로 통일: 단독 폭은 `prop-action-btn danger`, prop-btn 계열은 `prop-btn prop-btn-danger`. prop-frame.js:270/563 raw hex(#3a2a2a/#e06c6c) → `danger` 토큰 교체(JS fallback도 동시). prop-canvas/simple-card color:#e55 → prop-btn-danger. sticker/annotation 중립 '이미지 제거'에 danger 부여. asset '초기화'는 정렬버튼 클래스 이탈이라 prop-btn 계열로 변경 검토.",
+      "exceptions_respected": "블록 고유 컨트롤(variant/shape/fit 등) 구조 차이는 정상으로 제외. querySelectorAll 코드규칙은 debug-squad 영역이라 미판정."
+    },
+    {
+      "id": "PPS-02",
+      "severity": "minor",
+      "tag": "group",
+      "title": "빌드 패턴 분기 — bindSlider 표준 헬퍼 4/26 채택, 22패널 손수 slider 와이어업",
+      "evidence": "_helpers.js의 bindSlider(slider+number 표준 hook: mousedown=pushHistory, input=apply+sync, change=autosave)가 RIGHT_PANEL_PROPS §4-4 표준으로 명시됐으나 채택은 prop-gradient/prop-frame/prop-step + _helpers 정의부뿐. slider를 쓰는 나머지 22패널(prop-section 포함, 표준 참조파일조차 라인281-326 손수 와이어업)은 각자 addEventListener input/change를 중복 구현. 시각 회귀는 아니나 history/autosave 타이밍 규약이 패널마다 손수라 drift·누락 위험(예: 일부는 change에 pushHistory 누락 가능).",
+      "files": ["js/props/_helpers.js", "js/props/prop-section.js", "js/props/prop-asset.js", "js/props/prop-banner02.js", "js/props/prop-table.js"],
+      "metric": {"helper_adopters": 4, "manual_panels": 22},
+      "recommendation": "신규/수정 패널부터 bindSlider로 점진 이관. 표준 참조파일 prop-section.js를 우선 이관해 모범 통일. history/autosave 누락은 debug-squad 교차 확인 권장.",
+      "exceptions_respected": "블록 고유 슬라이더 동작 차이는 제외."
+    },
+    {
+      "id": "PPS-03",
+      "severity": "minor",
+      "tag": "nit",
+      "title": "정렬그룹 full-width 분할 표준은 CSS 의존 — 일부 패널 버튼에 중복 인라인 flex:1",
+      "evidence": ".prop-align-btn은 CSS(editor-props.css:262)에 이미 `flex:1 0 28px` 보유 → .prop-align-group 직속이면 인라인 없이 균등분할됨(label-group/section/divider가 이 방식). 그러나 prop-step.js:74-97, prop-banner02.js:144-153, prop-simple-card.js 등은 각 버튼에 `style=\"flex:1\"`을 중복 부여 — 결과는 동일하나 일부는 그렸고 일부는 안 그려 일관성 없음. CSS가 표준이므로 인라인 flex:1은 잉여. (regression 아님, 표시상 동일.)",
+      "files": ["js/props/prop-step.js", "js/props/prop-banner02.js", "js/props/prop-simple-card.js"],
+      "metric": {"redundant_inline_flex_panels": 3},
+      "recommendation": "버튼 인라인 flex:1 제거하고 .prop-align-btn CSS에 위임(단일 소스). 차이 없으니 우선순위 낮음.",
+      "exceptions_respected": "labelled-row(prop-label+align-group) 패턴은 정상으로 인정."
+    },
+    {
+      "id": "PPS-04",
+      "severity": "nit",
+      "tag": "self",
+      "title": "deprecated .prop-full-btn dead — JS 0참조, 대체 .prop-btn-full 실가동",
+      "evidence": "editor-props.css:488-495 `.prop-full-btn`은 주석 'deprecated: use .prop-btn-full'로 표기됐고 JS/HTML 전역 grep 결과 참조 0회. 실제 사용되는 건 .prop-btn-full(prop-text-template/chat/label-group/mockup/graph/iconify 6파일). 즉 deprecated 블록(base+hover 2룰)이 완전 사망 잔존. cross-file 중복 selector는 없음(prop-number:101 'DBG-A' 주석은 의도적 정리이므로 제외).",
+      "files": ["css/editor-props.css"],
+      "metric": {"dead_deprecated_rules": 2, "prop_btn_full_users": 6},
+      "recommendation": ".prop-full-btn(488-495) 삭제. 위험 없음(0참조).",
+      "exceptions_respected": "DBG-A 의도 정리주석(prop-number height 통일)은 회귀 아님으로 제외."
+    }
+  ],
+  "rule_compliance_table": {
+    "rule1_align_group_hierarchy": "PASS — text-align/bulk-align 전용 그룹은 전 패널 .prop-section 직속(section/text-template/banner02/simple-card/step/divider/label-group/comparison/mockup). .prop-row 안 align-group은 모두 56px prop-label 동반 labelled-row(sticker 정렬/table 정렬/iconify 정렬/asset 위치/text-template 말꼬리)라 flex:1 균등분할 정상. v2 Banner/Card 회귀 치유 확인.",
+    "rule2_danger_token": "FAIL(major) — PPS-01. prop-frame raw hex, canvas/simple-card #e55, sticker/annotation/asset 중립.",
+    "rule3_build_pattern": "MIXED(minor) — PPS-02 bindSlider 미이관 22패널.",
+    "rule4_css_dup_deprecated": "MINOR(nit) — PPS-04 .prop-full-btn dead. 실제 중복 base-rule 정의 0건."
+  }
+}

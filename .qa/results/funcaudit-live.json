@@ -1,0 +1,42 @@
+{
+  "audit": "GODITOR 블록별 prop 패널 기능 작동 전수검수 (라이브 CDP 차분)",
+  "model": "Opus 4.8",
+  "date": "2026-06-12",
+  "cdp": "9334",
+  "project": "proj_1775644888754",
+  "method": "섹션선택→블록추가→show*Properties→가시컨트롤 전수구동→블록서브트리(rootFresh) 차분 오라클(dataset+computed style). hex=유효hex주입, 숨김/검색/파괴적/유료/모달버튼 제외.",
+  "oracleNotes": "차분이 변화없음+토스트없음=silent후보. 단 (a)이미 활성옵션 재클릭 (b)부모/캔버스 외부효과 (c)export/템플릿 메타컨트롤 은 정상 no-op으로 분류.",
+  "globalVerdict": {
+    "panelsOpened": "30+/30+ (전부 정상 오픈)",
+    "handlerExceptions": 0,
+    "consoleErrors": 0,
+    "consoleWarns": 0
+  },
+  "blocks": [
+    {"block":"text","entry":"showTextProperties","ctrlTotal":70,"drove":43,"changed":42,"skipped":27,"silentReal":[{"id":"txt-ph-chain","note":"좌우연동 토글—블록 미변경(phLinked 로컬변수, 정적#4 일치). 저영향"}]},
+    {"block":"shape","entry":"showShapeProperties","ctrlTotal":14,"drove":14,"changed":14,"silentReal":[]},
+    {"block":"divider","entry":"showDividerProperties","ctrlTotal":14,"drove":14,"changed":13,"silentReal":[],"note":"prop-align-btn '가로'=이미활성 재클릭 no-op"},
+    {"block":"gap","entry":"showGapProperties","ctrlTotal":7,"drove":7,"changed":7,"silentReal":[]},
+    {"block":"table","entry":"showTableProperties","ctrlTotal":37,"drove":37,"changed":35,"silentReal":[],"note":"균등/지우기=이미기본값 no-op"},
+    {"block":"graph","entry":"showGraphProperties","ctrlTotal":38,"drove":34,"changed":33,"silentReal":[],"note":"세로막대=이미활성"},
+    {"block":"icon-circle","entry":"showIconCircleProperties","ctrlTotal":9,"drove":8,"changed":8,"silentReal":[]},
+    {"block":"sticker","entry":"showStickerProperties","ctrlTotal":73,"drove":14,"changed":13,"skipped":59,"silentReal":[],"note":"원형=이미활성. skip 다수=컨텍스트 숨김 섹션"},
+    {"block":"laurel","entry":"showLaurelProperties","ctrlTotal":29,"drove":9,"changed":8,"silentReal":[],"note":"펼치기/접기=토글UI"},
+    {"block":"joker","entry":"showJokerProperties","ctrlTotal":4,"drove":4,"changed":4,"silentReal":[]},
+    {"block":"step","entry":"showStepProperties","ctrlTotal":54,"drove":47,"changed":43,"silentReal":[{"id":"stb-ph-chain","note":"좌우연동 토글(text와 동일 패턴)"}],"note":"세로/기본/← align=이미활성"},
+    {"block":"comparison","entry":"showComparisonProperties","ctrlTotal":53,"drove":53,"changed":53,"silentReal":[]},
+    {"block":"label-group","entry":"showLabelGroupProperties","ctrlTotal":9,"drove":9,"changed":8,"silentReal":[{"id":"lg-style-select","sev":"MED","note":"태그 미선택 상태 프리셋 변경→무반응+피드백無. 정적#11 라이브확정"}]},
+    {"block":"gradient","entry":"showGradientProperties","ctrlTotal":12,"drove":11,"changed":11,"silentReal":[]},
+    {"block":"vector","entry":"showVectorProperties","ctrlTotal":9,"drove":9,"changed":9,"silentReal":[],"note":"라이브 반영 정상. 단 정적: flip/rotate undo누락(MED)"},
+    {"block":"frame","entry":"showFrameProperties","ctrlTotal":41,"drove":35,"changed":30,"silentReal":[],"note":"ss-tpl-*=컴포넌트저장 메타UI(블록미변경 정상), stack=이미활성"},
+    {"block":"asset","entry":"showAssetProperties","ctrlTotal":26,"drove":25,"changed":25,"silentReal":[]},
+    {"block":"canvas","entry":"showCanvasProperties","ctrlTotal":48,"drove":48,"changed":47,"silentReal":[],"note":"'이미지 추가'=파일피커(정상). 정적: 카드전용 컨트롤 레이어모드 노출(HIGH/MED)"},
+    {"block":"chat","entry":"showChatProperties","ctrlTotal":32,"drove":28,"changed":27,"silentReal":[],"note":"좌측정렬=이미활성. 정적: 텍스트 change-only 유실(MED)"},
+    {"block":"mockup","entry":"showMockupProperties","ctrlTotal":9,"drove":6,"changed":5,"silentReal":[],"note":"mkp-sec-id-input=무효값 거부(정상)"},
+    {"block":"iconify","entry":"showIconifyProperties","ctrlTotal":21,"drove":19,"changed":11,"silentReal":[{"ids":["icn-preset-save-btn","icn-preset-new-cat-btn","icn-preset-newcat-input","icn-preset-save-input","icn-preset-newcat-cancel","icn-preset-save-cancel","icn-replace-btn"],"sev":"MED","note":"프리셋 라이브러리 컨트롤 8개 silent—electronAPI.svgPresets 의존, CDP/비Electron서 무동작·일부 토스트無. 정적④ 라이브확정"}]},
+    {"block":"banner02","entry":"showBanner02Properties","ctrlTotal":53,"drove":49,"changed":49,"silentReal":[],"note":"전용패널 완벽. 프리셋변경 시 내용소실 confirm 다이얼로그(좋은 UX)"},
+    {"block":"section","entry":"showSectionProperties","ctrlTotal":28,"drove":24,"changed":16,"silentReal":[],"note":"silent=export설정/템플릿저장/이미활성정렬(섹션스타일 아님 정상). 정적: #sec-memo dead-wire(HIGH), 텍스트색/정렬 pushHistory누락(MED)"},
+    {"block":"page","entry":"showPageProperties","ctrlTotal":16,"drove":15,"changed":6,"silentReal":[{"ids":["page-align-left","page-align-center","page-align-right"],"sev":"LOW","note":"일괄정렬 3버튼 무동작—pointer-events:none+disabled 영구비활성(의도적,정적#11 일치). bg-color silent=snap-root 아티팩트(캔버스래퍼 적용)"}]},
+    {"block":"multisel","entry":"showFreeLayoutMultiSelPanel","ctrlTotal":24,"silentReal":[{"ids":["msp-w","msp-h","msp-x"],"sev":"MED-needs-real-repro","note":"패널 정상렌더(msp-x/y/w/h). 합성 freeLayout서 W/X 구동 미반영했으나 수동구성 아티팩트 가능성—실UI 재현 필요. 정적: dataset.width undefined 가드로 일부 래퍼 W/H 미영속(prop-multisel.js:176,179 MED)"}]}
+  ]
+}

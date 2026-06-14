@@ -1,0 +1,67 @@
+{
+  "agent": "QA-05",
+  "version": "4.0",
+  "role": "core",
+  "scope": "export-template-layers",
+  "method": "cdp",
+  "date": "2026-06-11",
+  "project": "proj_1775644888754",
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "템플릿 삽입 후 ID 충돌 없음",
+      "plan": "loadTemplatesPublic()로 섹션 템플릿 2개(tpl_1742688001002, tpl_1742688001003) 확보 → insertTemplate() 연속 2회 → 신규 섹션 ID 유일성 검증",
+      "result": "pass",
+      "severity": null,
+      "evidence": {
+        "before_ids": ["sec_mm5e5ja", "sec_936a2pu", "sec_x2hu586", "sec_ychvg5w", "sec_3teqgt0", "sec_l4rxq7k", "sec_in1df7e"],
+        "new_ids": ["sec_oz8wgaa", "sec_cofw28c"],
+        "new_ids_distinct": true,
+        "duplicates_in_document": [],
+        "collision_with_existing": []
+      }
+    },
+    {
+      "id": 2,
+      "name": "레이어패널 동기화 (자기 섹션 서브트리만)",
+      "plan": "내 섹션(sec_oz8wgaa) selectSection 후 addTextBlock('body') 추가 → layer-panel.js 순회 로직을 미러한 기대 항목수와 #layer-panel-body 내 해당 layer-section의 layer-item 수 비교 → deleteBlock으로 삭제 후 재비교",
+      "result": "pass",
+      "severity": null,
+      "evidence": {
+        "baseline": { "expected": 9, "layer_items": 9 },
+        "after_add_block": { "expected": 10, "layer_items": 10, "added_block": "tb_et7rn4s" },
+        "after_delete_block": { "expected": 9, "layer_items": 9, "block_gone": true },
+        "note": "타 에이전트 섹션은 비교에서 제외, dataset.secId='sec_oz8wgaa' 서브트리만 비교"
+      }
+    },
+    {
+      "id": 3,
+      "name": "회귀: 전체 섹션 내보내기 피드백 (진행표시 + 토스트)",
+      "plan": "MutationObserver(#editor-toast) + 50ms 버튼 텍스트 샘플러 설치 → showPageProperties()로 Page 패널 렌더 → #page-export-all-btn 클릭(dialogAction:accept로 confirm 수락) → 진행표시/토스트 수집",
+      "result": "pass",
+      "severity": null,
+      "evidence": {
+        "confirm_dialog": "표시됨, accept 처리",
+        "progress_texts_sampled": ["내보내는 중... (1/11)", "내보내는 중... (2/11)", "내보내는 중... (3/11)"],
+        "button_disabled_during_export": true,
+        "completion_toast": "✅ 11개 섹션 내보내기 완료 — 다운로드 폴더를 확인하세요",
+        "toast_visible": true,
+        "console_errors": 0,
+        "file_creation": "미검증 (앱 재시작 전 알려진 상태, FAIL 아님)"
+      },
+      "ux_observation": {
+        "severity": "ux",
+        "desc": "내보내기 도중(~10.7s) props 패널이 재렌더되면 #page-export-all-btn이 새 버튼으로 교체돼 진행표시가 기본 텍스트로 리셋됨(내보내기는 백그라운드 계속 진행, 완료 토스트는 ~18s에 정상 표시). 동시작업 환경에서 타 에이전트 선택 변경이 원인일 가능성이 높아 단독 재현 필요. 사용자가 내보내기 중 다른 요소를 선택하면 진행표시를 잃는 동일 경로 존재 — 클로저가 detached 버튼을 참조."
+      }
+    }
+  ],
+  "etiquette": {
+    "created_sections_cleaned": true,
+    "cleanup_detail": "sec_oz8wgaa, sec_cofw28c 삭제 + 히스토리/동시작업 중 다른 ID(sec_pd8oz8a)로 잔존한 [QA-05] 섹션 1개 추가 삭제. 종료 시점 [QA-05] 섹션 0개 확인",
+    "no_reload_no_tab_switch": true
+  },
+  "passed": 3,
+  "failed": 0,
+  "ux_issues": 1,
+  "blocker_candidates": 0
+}

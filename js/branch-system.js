@@ -629,7 +629,7 @@ function unlockMainBranch() {
 
 // 크로스 모듈 접근용 window 노출
 window.maybeAddNewSectionToScope  = maybeAddNewSectionToScope;
-window.openSectionBranchMenu      = openSectionBranchMenu;
+window.openSectionBranchMenu      = function(){}; // C21: 섹션 ⎇ 데드 제거 — inline onclick 잔존 대비 무해 가드
 window.getCurrentBranch           = getCurrentBranch;
 window.getBranchColor             = getBranchColor;
 window.renderBranchPanel          = renderBranchPanel;

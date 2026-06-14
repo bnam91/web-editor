@@ -1,0 +1,79 @@
+{
+  "round": "2026-06-15 전수재조사",
+  "project": "/Users/a1/web-editor",
+  "cdp": 9334,
+  "testProject": "proj_1775644888754",
+  "method": "cdp-live + code cross-check (fresh-eyes free drive, visual/interaction focus)",
+  "focus": "스크롤/줌/시각일관성/정렬/선택 — 지난 RUN의 사각(콘텐츠기능 위주로 시각·상호작용 누락)",
+  "findings": [
+    {
+      "id": "C20",
+      "symptom": "캔버스를 아래로 내리면 마지막 섹션이 끝난 뒤에도 화면 6~7개 높이만큼 빈 회색 공간이 계속 스크롤돼서, 내 작업물이 사라진 줄 알고 끝이 어딘지 가늠이 안 돼요.",
+      "class": "C 버그",
+      "confidence": "✅ 확정",
+      "priority": "높음",
+      "repro": "1.프로젝트 열기(기본 40% 줌) 2.캔버스를 휠로 끝까지 내림 → 마지막 섹션(bottom) 지나고도 ~6600px 빈 회색 영역으로 계속 내려감. 100% 줌에선 정상(빈공간 0).",
+      "code_ref": "#canvas-scaler transform:scale(z)로 시각 축소하지만 #canvas-wrap 스크롤 높이는 미축소 원본(canvas.offsetHeight≈10878px) 기준 → 줌<100%에서 scrollHeight(10958)가 시각 콘텐츠높이(4351@40%)의 ~2.5배. 줌과 스크롤영역 높이 미동기.",
+      "measured": "40%: scrollHeight=10958, 시각높이=4351, 유령스크롤≈6607px / 100%: 유령 0",
+      "status": "미착수",
+      "verified_by_central": true
+    },
+    {
+      "id": "B15",
+      "symptom": "블록을 두 개 이상 선택하면 오른쪽 속성 패널에 'N개 선택됨'만 뜨고 정렬·분배·일괄 스타일 같은 할 수 있는 동작이 하나도 없어서, 여러 개를 왜 선택했나 싶어요.",
+      "class": "B 기능갭",
+      "confidence": "✅ 확정",
+      "priority": "보통",
+      "repro": "레이어 패널에서 Table 클릭 → shift+Graph 클릭(다중선택 됨, 3행 하이라이트) → 우측 패널은 '2개 선택됨'만 표시, 그 아래 비어있음(정렬/분배/일괄편집 0). 단일 섹션 선택 시엔 Bulk Align 정렬버튼이 활성인데 다중블록엔 전무.",
+      "code_ref": "다중선택 properties 렌더 경로(블록 N>1 분기). Figma/Adobe는 다중선택 시 정렬·분배·그룹·일괄편집 제공.",
+      "status": "미착수",
+      "verified_by_central": true
+    },
+    {
+      "id": "A33",
+      "symptom": "그래프 블록 속성에서 '카테고리 색상', '카테고리 표시' 라벨이 '카테고리 ...'로 잘려서 무슨 항목인지 끝까지 안 보여요.",
+      "class": "A 이상함",
+      "confidence": "✅ 확정",
+      "priority": "낮음",
+      "repro": "그래프 블록 선택 → 우측 속성 패널 '카테고리 색상/표시' 라벨 텍스트오버플로우(scrollWidth 60 > clientWidth 56)로 ellipsis.",
+      "code_ref": "그래프 속성 라벨 컬럼 폭 부족(prop label width). 라벨 줄임 대신 폭 확보/2줄 허용 필요.",
+      "status": "미착수",
+      "verified_by_central": true
+    },
+    {
+      "id": "A32",
+      "symptom": "줌 컨트롤의 'Fit'을 누르면 전체가 한눈에 보이게 맞춰질 거라 기대했는데, 오히려 123%로 확대돼서 더 안 보이고 스크롤만 길어져요.",
+      "class": "A 이상함",
+      "confidence": "🟡 의심",
+      "priority": "낮음",
+      "repro": "줌 'Fit' 클릭 → currentZoom 123%(=캔버스폭/페이지폭, fit-width). 세로로 긴 상세페이지라 전체는 더 안 보임. 라벨 기대(전체맞춤)와 동작(가로폭맞춤) 불일치.",
+      "code_ref": "zoomFit() = fit-to-width. 라벨을 'Fit Width'로 명확화하거나 fit-to-page 옵션 분리 검토. (의도된 fit-width일 수 있어 🟡)",
+      "status": "미착수",
+      "verified_by_central": true
+    },
+    {
+      "id": "A34",
+      "symptom": "레이어 패널에서 항목(Body·Table·Graph 등) 위에 마우스를 올려도 줄 강조가 전혀 안 떠서, 어느 줄을 누를지 눈으로 짚기 어려워요.",
+      "class": "A 이상함",
+      "confidence": "🟡 의심",
+      "priority": "낮음",
+      "repro": "레이어 패널 자식 항목 hover → 배경 변화 없음. CSS '.layer-row-header .layer-item:hover { background: transparent; }'로 hover 피드백이 명시적으로 제거됨.",
+      "code_ref": "layers css .layer-item:hover. (선택이 곧 피드백이라는 의도일 수 있어 🟡)",
+      "status": "미착수",
+      "verified_by_central": true
+    }
+  ],
+  "excluded_not_a_bug": [
+    {"symptom": "줌 레벨별 선택 outline 두께 불일치(예상 사각)", "reason": "--sel-outline-w = calc(1px * 1/zoom)로 줌 역보정 → 화면상 항상 ~1px 일정. 개발자가 이미 보정함. 버그 아님."},
+    {"symptom": "레이어 type 라벨(COMPONENT/TEXT 등) 저대비", "reason": "color #7e7e7e/dark ≈ 4:1 — 기존 E 디자인부채(#777/#555 ~110곳)와 중복(xref E)."},
+    {"symptom": "상단 중앙 검은 알약", "reason": "그래프 첫 막대(접힘 경계) + '중앙으로 이동' 노치(툴팁 '클릭하면 캔버스 중앙으로 이동', 클릭 시 정상 센터링). 버그 아님."},
+    {"symptom": "카드 제목 밑 'ㅋ' 글자", "reason": "사용자가 입력한 테스트 콘텐츠. 버그 아님."},
+    {"symptom": "빈 섹션의 빨강 'NEW' 배지", "reason": "사용자가 배치한 sticker-block(콘텐츠). 버그 아님."},
+    {"symptom": "섹션 헤더 'A/B' 컨트롤", "reason": "'A/B 베리에이션 생성' 버튼(툴팁 있음, 정상 기능)."},
+    {"symptom": "Page 패널 'Bulk Align (비활성)' 항상 회색", "reason": "섹션 선택 시 정렬버튼 활성화됨(Section 06 패널 확인). Page 레벨에서만 비활성. 버그 아님."},
+    {"symptom": "currentZoom=300 직접 설정 시 --sel-outline-w=NaN", "reason": "UI(+/-/Fit)로 도달 불가한 프로그램적 전역 직접조작 아티팩트. 사용자 경로 아님."}
+  ],
+  "by_class": {"A": 3, "B": 1, "C": 1, "D": 0},
+  "by_confidence": {"confirmed": 3, "suspected": 2},
+  "notes": "헤드라인 over-scroll(C20)이 지난 RUN의 핵심 사각(시각/상호작용) 정조준. D 희귀버그는 이번 세션 미발견(억지 채움 안 함)."
+}

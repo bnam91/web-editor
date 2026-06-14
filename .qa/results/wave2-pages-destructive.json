@@ -1,0 +1,44 @@
+{
+  "run": "wave2-pages-destructive",
+  "date": "2026-06-12",
+  "baseline": "18c279f",
+  "cdp_port": 9334,
+  "project": "proj_1775644888754",
+  "method": "CDP single-window serial, atomic evaluate_script, live-DOM + disk oracles",
+  "scope_note": "단일 CDP창 직렬. 실프로젝트 proj_1780630539284에서 테스트 프로젝트로 안전 복귀 후 진행. 본 RUN은 페이지 라이프사이클·파괴조작(N-01~03) + blocker3 실검증에 집중. 22 희귀버그 전수/3-스쿼드 풀 감사는 미주행(아래 not_run).",
+  "findings": [
+    {
+      "id": "WAVE2-DEF-01",
+      "title": "deletePage 활성페이지 무음 데이터소실 (stale page.canvas confirm 우회)",
+      "severity": "blocker",
+      "status": "FIXED+VERIFIED",
+      "evidence_grade": "deterministic-reproduced",
+      "root_cause": "deletePage(save-load.js:274)의 hasContent 판정이 활성 페이지인데도 stale `page.canvas` 문자열(flush 전이면 빈값)을 읽음. 새 페이지+섹션 추가 직후(autosave 1.5s 디바운스 내) X 클릭 시 hasContent=false → confirm 미발화 → 라이브 DOM 콘텐츠가 splice로 영구삭제, undo 불가(deletePage는 pushHistory 안 함 + rebindAll이 clearHistory).",
+      "repro": "addPage→(await switchPage)→addSection(라이브 1섹션, page.canvas 빈값 유지)→deletePage(active): confirmCalled=false, pageGoneFromState=true → DATA-LOSS",
+      "oracle": "monkeypatch window.confirm로 호출여부 캡처 + state.pages 존재여부 + 라이브 섹션수",
+      "fix": "활성 페이지는 라이브 DOM이 진실 소스 — isActivePage면 getSerializedCanvas()로 hasContent 판정. js/io/save-load.js deletePage.",
+      "fix_verification": "수정+reload 후: 라이브 섹션 보유 시 confirm 발화 확인, decline 시 페이지 보존(무손실), accept-cleanup로 베이스라인 복원. verdict=FIX VERIFIED.",
+      "should_have_been_caught_by": "qa Boundary B-11(페이지 삭제 confirm) — 단 stale-canvas 타이밍축(autosave 창)이 빠져 18c279f H4 가드가 '내용 있으면 confirm'을 약속했지만 활성 미flush 페이지에서 거짓 안전이었음. = blocker3 H4의 보강 결함."
+    },
+    {
+      "id": "WAVE2-N03",
+      "title": "페이지 삭제는 undo 불가 (블록/섹션 삭제와 대칭 깨짐)",
+      "severity": "minor",
+      "status": "BY-DESIGN+GUARDED",
+      "evidence_grade": "static-confirmed",
+      "detail": "deletePage는 history에 push하지 않고, active 경로의 rebindAll이 clearHistory를 호출(save-load.js:540) → 삭제된 페이지는 Cmd+Z로 복구 불가. 블록/섹션 삭제는 history 스냅샷으로 복구 가능. 비대칭이나 confirm 가드(WAVE2-DEF-01 수정 후)가 파괴 직전 안전망 — Figma도 페이지 삭제는 confirm+비undo가 통상. Adobe-bar 충족.",
+      "note": "유령페이지(deletePage후 undo→무음증발) 가설은 active-delete 경로에서 rebindAll→clearHistory가 stale 스냅샷을 선제거하여 미재현. 실제 무음증발은 WAVE2-DEF-01(confirm 우회)이 본체였음."
+    }
+  ],
+  "blocker3_verification": {
+    "H4_deletePage_confirm": "PASS — 18c279f confirm 가드 존재. + WAVE2-DEF-01로 stale-canvas 우회 보강.",
+    "H1_autosave_tab_capture": "PASS(static) — scheduleAutoSave가 _saveTargetId 캡처(1068), 발화 시 activeProjectId 불일치면 skip(1073). 실프로젝트 탭전환 재현은 실프로젝트 오염 위험으로 미실행, 코드 정확.",
+    "H3_createdAt_type_preserve": "PASS(static+disk) — main.js _guardProjectName(728-735)이 prev 파일의 createdAt/type을 incoming에 없으면 보존. name guard + 롤링백업 + history 5슬롯 동반. 테스트 프로젝트 파일은 createdAt 자체가 이전 소실되어 보존 대상 없음(no-op)."
+  },
+  "not_run": [
+    "희귀버그 T1~T4 22종 전수(H2 meta 6-writer 락·H5 pendingSave 단일슬롯·H7 STATE-02 이미지생성 오염) — 다중탭/실프로젝트 전환 필요분은 실프로젝트 오염 위험으로 보류",
+    "ux craft 군집2/focus링 잘림/누락플로우4종/U-feedback 6경로 실측",
+    "design 신규동적표면 트리거렌더/a11y대비 실측/N8 focus dead rule"
+  ],
+  "cleanup": "테스트 프로젝트 proj_1775644888754 → [page_1] 4섹션 베이스라인 복원, flushSave 완료. 실프로젝트 proj_1780630539284 무수정(navigate만)."
+}

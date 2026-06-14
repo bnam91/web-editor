@@ -628,17 +628,8 @@ function rebindAll() {
     // ⎇ 버튼 없으면 추가, 있으면 onclick 재바인딩 (직렬화 시 프로퍼티가 유실되므로 항상 재설정)
     const toolbar = sec.querySelector('.section-toolbar');
     if (toolbar) {
-      // 구버전 ↑ ↓ ✕ 버튼 제거 — 단, 살아남아야 할 버튼은 보존 (branch/AB/memo/AI-fill)
-      toolbar.querySelectorAll('.st-btn:not(.st-branch-btn):not(.st-ab-btn):not(.st-memo-btn):not(.st-ai-fill-btn)').forEach(el => el.remove());
-      let branchBtn = toolbar.querySelector('.st-branch-btn');
-      if (!branchBtn) {
-        branchBtn = document.createElement('button');
-        branchBtn.className = 'st-btn st-branch-btn';
-        branchBtn.title = 'feature 브랜치로 실험';
-        branchBtn.textContent = '⎇';
-        toolbar.appendChild(branchBtn);
-      }
-      branchBtn.onclick = function() { openSectionBranchMenu(this); };
+      // C21: 구버전 ↑↓✕ + 데드 ⎇(st-branch-btn) 일괄 제거 — 살릴 버튼만 보존(AB/memo/AI-fill)
+      toolbar.querySelectorAll('.st-btn:not(.st-ab-btn):not(.st-memo-btn):not(.st-ai-fill-btn)').forEach(el => el.remove());
       // variation 툴바 버튼 복원
       if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
     }

@@ -79,33 +79,11 @@ export function showGradientProperties(block) {
     </div>
 
     <div class="prop-section">
-      <div class="prop-section-title">Colors</div>
-      <div class="prop-color-row">
-        <span class="prop-label">시작</span>
-        <div class="prop-color-field">
-          <div class="prop-color-swatch" style="background:${startColor}">
-            <input type="color" id="grad-start-color" value="${startColor}">
-          </div>
-          <input type="text" class="prop-color-hex" id="grad-start-hex" value="${startHex}" maxlength="6" aria-label="시작 색">
-          <label class="prop-color-alpha" title="Opacity">
-            <input type="text" class="prop-color-alpha-input" id="grad-start-alpha" value="${startAlphaPct}" aria-label="시작 opacity">
-            <span class="prop-color-alpha-suffix">%</span>
-          </label>
-        </div>
-      </div>
-      <div class="prop-color-row">
-        <span class="prop-label">끝</span>
-        <div class="prop-color-field">
-          <div class="prop-color-swatch" style="background:${endColor}">
-            <input type="color" id="grad-end-color" value="${endColor}">
-          </div>
-          <input type="text" class="prop-color-hex" id="grad-end-hex" value="${endHex}" maxlength="6" aria-label="끝 색">
-          <label class="prop-color-alpha" title="Opacity">
-            <input type="text" class="prop-color-alpha-input" id="grad-end-alpha" value="${endAlphaPct}" aria-label="끝 opacity">
-            <span class="prop-color-alpha-suffix">%</span>
-          </label>
-        </div>
-      </div>
+      <div class="prop-section-title">Color Stops</div>
+      <div class="grad-stops-bar" id="grad-stops-bar" style="position:relative;height:24px;border-radius:4px;border:1px solid var(--border,#2a2a2a);cursor:copy;margin-bottom:8px;background:#222;"></div>
+      <div class="prop-hint" style="font-size:11px;color:#999;margin:-2px 0 8px">바를 클릭해 중간색 추가 · 핸들 드래그로 위치 · ×로 삭제(최소 2개)</div>
+      <div id="grad-stops-list"></div>
+      <button type="button" id="grad-add-stop" class="prop-btn" style="margin-top:6px;width:100%;font-size:12px;">+ 중간색 추가</button>
     </div>
 
     <div class="prop-section">
@@ -145,44 +123,108 @@ export function showGradientProperties(block) {
     window.scheduleAutoSave?.();
   });
 
-  // 색상 + alpha — 시작/끝 각각 동일 패턴
-  const wireColor = (which) => {
-    const picker = document.getElementById(`grad-${which}-color`);
-    const hex    = document.getElementById(`grad-${which}-hex`);
-    const alpha  = document.getElementById(`grad-${which}-alpha`);
-    const swatch = picker.closest('.prop-color-swatch');
-    const dataKey = which === 'start' ? 'gradStart' : 'gradEnd';
-    const alphaKey = which === 'start' ? 'gradStartAlpha' : 'gradEndAlpha';
+  // ── B24: multi-stop 에디터 ─────────────────────────────────────────────────
+  const STOP = () => (window.resolveGradientStops || (b => []))(block);
+  const _hex6 = (v) => { const h = String(v||'').replace(/^#/,''); return /^[0-9a-f]{6}$/i.test(h) ? '#'+h.toLowerCase() : null; };
+  const _toRgba = (hex, a) => { const h=(hex||'#000000').replace('#',''); const r=parseInt(h.slice(0,2),16)||0,g=parseInt(h.slice(2,4),16)||0,b=parseInt(h.slice(4,6),16)||0; return `rgba(${r},${g},${b},${Math.max(0,Math.min(1,a))})`; };
+  const barEl  = document.getElementById('grad-stops-bar');
+  const listEl = document.getElementById('grad-stops-list');
+  const addBtn = document.getElementById('grad-add-stop');
 
-    const apply = () => { swatch.style.background = block.dataset[dataKey]; rerender(); };
+  const setStops = (stops, commit) => {
+    const norm = stops
+      .map(s => ({ color: _hex6(s.color)||'#000000', alpha: Math.max(0,Math.min(1, s.alpha)), offset: Math.max(0,Math.min(1, s.offset)) }))
+      .sort((a,b)=>a.offset-b.offset);
+    block.dataset.gradStops = JSON.stringify(norm);
+    // 레거시 4필드 미러(MCP/로더 호환)
+    block.dataset.gradStart = norm[0].color;            block.dataset.gradStartAlpha = String(norm[0].alpha);
+    block.dataset.gradEnd   = norm[norm.length-1].color; block.dataset.gradEndAlpha   = String(norm[norm.length-1].alpha);
+    rerender();
+    if (commit) { window.pushHistory?.(); window.scheduleAutoSave?.(); }
+    paintBar(norm); buildList(norm);
+  };
 
-    picker.addEventListener('input', () => {
-      block.dataset[dataKey] = picker.value;
-      hex.value = picker.value.replace('#','').toUpperCase();
-      apply();
-    });
-    picker.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-    hex.addEventListener('input', () => {
-      const v = hex.value.trim().replace(/^#/, '');
-      if (/^[0-9a-f]{6}$/i.test(v)) { block.dataset[dataKey] = '#' + v.toLowerCase(); picker.value = block.dataset[dataKey]; apply(); }
-    });
-    hex.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-    hex.addEventListener('blur', () => { hex.value = (block.dataset[dataKey] || '#000000').replace('#','').toUpperCase(); });
-    alpha.addEventListener('input', () => {
-      const m = alpha.value.match(/(\d+)/);
-      if (!m) return;
-      const p = Math.max(0, Math.min(100, parseInt(m[1])));
-      block.dataset[alphaKey] = String(p / 100);
-      rerender();
-    });
-    alpha.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-    alpha.addEventListener('blur', () => {
-      const v = parseFloat(block.dataset[alphaKey] || '1');
-      alpha.value = String(Math.round(v * 100));
+  const paintBar = (stops) => {
+    if (!barEl) return;
+    const css = 'linear-gradient(to right, ' + stops.map(s => `${_toRgba(s.color,s.alpha)} ${Math.round(s.offset*100)}%`).join(', ') + ')';
+    barEl.style.background = `${css}, repeating-conic-gradient(#666 0% 25%, #888 0% 50%) 0/10px 10px`;
+    barEl.querySelectorAll('.grad-stop-thumb').forEach(t=>t.remove());
+    stops.forEach((s, i) => {
+      const t = document.createElement('div');
+      t.className = 'grad-stop-thumb'; t.dataset.idx = String(i);
+      t.style.cssText = `position:absolute;top:-3px;width:10px;height:30px;margin-left:-5px;left:${s.offset*100}%;border:2px solid #fff;border-radius:3px;box-shadow:0 0 0 1px #000;background:${s.color};cursor:ew-resize;`;
+      barEl.appendChild(t);
+      t.addEventListener('mousedown', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const arr = STOP();
+        const onMove = (ev) => {
+          const r = barEl.getBoundingClientRect();
+          const p = Math.max(0, Math.min(1, (ev.clientX - r.left)/r.width));
+          arr[i].offset = p;
+          block.dataset.gradStops = JSON.stringify(arr.slice().sort((a,b)=>a.offset-b.offset));
+          rerender(); paintBar(arr.slice().sort((a,b)=>a.offset-b.offset));
+        };
+        const onUp = () => { window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); setStops(STOP(), true); };
+        window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+      });
     });
   };
-  wireColor('start');
-  wireColor('end');
+
+  const buildList = (stops) => {
+    if (!listEl) return;
+    listEl.innerHTML = stops.map((s, i) => `
+      <div class="prop-color-row grad-stop-row" data-idx="${i}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <div class="prop-color-swatch" style="background:${s.color};position:relative;width:24px;height:24px;border-radius:4px;overflow:hidden;">
+          <input type="color" class="grad-stop-color" value="${s.color}" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+        </div>
+        <input type="text" class="prop-color-hex grad-stop-hex" maxlength="6" value="${s.color.replace('#','').toUpperCase()}" style="flex:1;" aria-label="stop ${i+1} 색">
+        <input type="text" class="grad-stop-alpha" value="${Math.round(s.alpha*100)}" style="width:34px;text-align:right;" aria-label="stop ${i+1} opacity">%
+        <input type="number" class="grad-stop-offset" min="0" max="100" value="${Math.round(s.offset*100)}" style="width:48px;" aria-label="stop ${i+1} 위치">%
+        <button type="button" class="grad-stop-del" title="삭제" ${stops.length<=2?'disabled':''} style="border:none;background:none;color:${stops.length<=2?'#555':'#c66'};cursor:${stops.length<=2?'default':'pointer'};font-size:14px;">×</button>
+      </div>`).join('');
+    listEl.querySelectorAll('.grad-stop-row').forEach((row) => {
+      const i = parseInt(row.dataset.idx);
+      const colorIn = row.querySelector('.grad-stop-color');
+      const hexIn   = row.querySelector('.grad-stop-hex');
+      const alphaIn = row.querySelector('.grad-stop-alpha');
+      const offIn   = row.querySelector('.grad-stop-offset');
+      const delBtn  = row.querySelector('.grad-stop-del');
+      const mutate = (fn, commit) => { const arr = STOP(); if (!arr[i]) return; fn(arr[i]); setStops(arr, commit); };
+      colorIn.addEventListener('input',  () => mutate(s => s.color = colorIn.value, false));
+      colorIn.addEventListener('change', () => mutate(s => s.color = colorIn.value, true));
+      hexIn.addEventListener('input',  () => { const h=_hex6(hexIn.value); if (h) mutate(s=>s.color=h, false); });
+      hexIn.addEventListener('change', () => { const h=_hex6(hexIn.value); if (h) mutate(s=>s.color=h, true); });
+      alphaIn.addEventListener('input',  () => { const m=alphaIn.value.match(/\d+/); if(m) mutate(s=>s.alpha=Math.max(0,Math.min(100,+m[0]))/100, false); });
+      alphaIn.addEventListener('change', () => { const m=alphaIn.value.match(/\d+/); if(m) mutate(s=>s.alpha=Math.max(0,Math.min(100,+m[0]))/100, true); });
+      offIn.addEventListener('input',  () => mutate(s => s.offset = Math.max(0,Math.min(100, +offIn.value||0))/100, false));
+      offIn.addEventListener('change', () => mutate(s => s.offset = Math.max(0,Math.min(100, +offIn.value||0))/100, true));
+      delBtn.addEventListener('click', () => { const arr=STOP(); if (arr.length<=2) return; arr.splice(i,1); setStops(arr, true); });
+    });
+  };
+
+  // 바 빈 영역 클릭 → 보간색으로 stop 추가
+  barEl?.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.grad-stop-thumb')) return;
+    const r = barEl.getBoundingClientRect();
+    const p = Math.max(0, Math.min(1, (e.clientX - r.left)/r.width));
+    const arr = STOP().slice().sort((a,b)=>a.offset-b.offset);
+    // p를 둘러싼 이웃 stop 색을 그대로 차용(보간 단순화: 가까운 쪽 색)
+    let near = arr[0];
+    for (const s of arr) if (Math.abs(s.offset-p) < Math.abs(near.offset-p)) near = s;
+    arr.push({ color: near.color, alpha: near.alpha, offset: p });
+    setStops(arr, true);
+  });
+  addBtn?.addEventListener('click', () => {
+    const arr = STOP().slice().sort((a,b)=>a.offset-b.offset);
+    // 가장 큰 간격 중앙에 추가
+    let gap=-1, at=0.5, c='#000000', a0=1;
+    for (let i=0;i<arr.length-1;i++){ const d=arr[i+1].offset-arr[i].offset; if(d>gap){gap=d; at=(arr[i].offset+arr[i+1].offset)/2; c=arr[i].color; a0=arr[i].alpha;} }
+    arr.push({ color:c, alpha:a0, offset:at });
+    setStops(arr, true);
+  });
+
+  // 초기 렌더
+  { const init = STOP(); paintBar(init); buildList(init); }
 
   // 너비/높이 — sticker 패턴: dataset만 갱신, renderGradientBlock으로 cssText 재적용
   const widthSlider = document.getElementById('grad-width-slider');

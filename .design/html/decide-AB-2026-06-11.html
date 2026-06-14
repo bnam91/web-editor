@@ -1,0 +1,81 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
+<title>FIX 결정 A·B — 2026-06-11</title>
+<link rel="stylesheet" href="../../css/design-tokens.css">
+<link rel="stylesheet" href="../../css/editor-base.css">
+<link rel="stylesheet" href="../../css/editor-props.css">
+<style>
+:root{--bg:#16181d;--panel:#1f2229;--line:#32363f;--text:#d7dae0;--muted:#9aa0aa;--ok:#7fc87f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 Pretendard,system-ui,sans-serif;padding:24px;max-width:980px}
+h1{font-size:18px}h2{font-size:15px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-top:30px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;margin:12px 0}
+.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.opt{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:8px 0;cursor:pointer;display:block}
+.opt:hover{border-color:#5b8def}.opt input{margin-right:8px}
+.sw{display:inline-block;width:46px;height:30px;border-radius:5px;border:1px solid #0006;vertical-align:middle;margin-right:8px}
+.cap{font-size:11px;color:var(--muted);font-family:monospace}
+.demo{background:#242424;border:1px solid var(--line);border-radius:6px;padding:12px;margin:8px 0}
+.lab{font-size:11px;color:var(--muted)}
+.mut{color:var(--muted);font-size:12.5px}
+button.exp{background:#2d6fe8;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-weight:600;cursor:pointer;margin-top:8px}
+textarea{width:100%;min-height:90px;background:#111;border:1px solid var(--line);border-radius:6px;color:#9ec8e0;font-family:monospace;font-size:12px;padding:10px;margin-top:8px}
+.pn{width:54px;height:24px;background:var(--ui-bg-input);border:1px solid transparent;border-radius:4px;color:var(--ui-text);font-size:11px;text-align:center}
+</style></head><body>
+<h1>🎚️ FIX 결정 시트 — A(슬라이더 값) · B(파랑 정본)</h1>
+<p class="mut">실제 에디터 CSS로 렌더. 선택 후 맨 아래 "결정 내보내기" → 복사해서 붙여주세요. (지금 ux RUN 중이라 적용은 코드만, reload는 ux 끝나고)</p>
+
+<h2>A. 슬라이더 행의 "값 표시" — 읽기전용 span 4개를 어떻게?</h2>
+<div class="card">
+<div class="mut">현재 슬라이더행 readout이 3종: <b>.prop-number 132개(표준·편집가능)</b> / .prop-color-hex 3개(→방금 통일함) / <b>읽기전용 span 4개</b>(chb-padding-val 등). 이 span 4개만 남았습니다.</div>
+<div class="row" style="margin-top:12px">
+  <div class="demo" style="flex:1;min-width:240px">
+    <div class="lab">현재 (읽기전용 span)</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+      <span class="prop-label">패딩</span>
+      <input type="range" class="prop-slider" min="0" max="60" value="16" style="flex:1">
+      <span style="width:28px;text-align:right;font-size:12px">16</span>
+    </div>
+    <div class="lab" style="margin-top:6px">→ 값을 못 침(드래그만)</div>
+  </div>
+  <div class="demo" style="flex:1;min-width:240px">
+    <div class="lab" style="color:var(--ok)">통일안 (편집가능 .prop-number)</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+      <span class="prop-label">패딩</span>
+      <input type="range" class="prop-slider" min="0" max="60" value="16" style="flex:1">
+      <input type="number" class="pn" value="16" min="0" max="60">
+    </div>
+    <div class="lab" style="margin-top:6px">→ 숫자 직접 입력 가능 (132개 표준과 동일)</div>
+  </div>
+</div>
+<label class="opt"><input type="radio" name="A" value="unify-editable"> <b>통일(편집가능)</b> — span 4개 → .prop-number, 값 입력 가능하게 (JS 와이어업 포함). 슬라이더행 100% 일관</label>
+<label class="opt"><input type="radio" name="A" value="keep-readonly"> 유지(읽기전용) — 그대로 둠 (이 4개는 의도적으로 표시만)</label>
+<label class="opt"><input type="radio" name="A" value="unify-look-only"> 외형만 통일 — span을 .prop-number처럼 보이게만(편집 불가 유지)</label>
+</div>
+
+<h2>B. 파랑 정본 — 9종 난립을 뭐로 통일?</h2>
+<div class="card">
+<div class="mut">정식 토큰 <b>--ui-accent-primary #2d6fe8</b> 있는데 raw로 31회 우회. 어느 걸 정본 삼고 나머지를 그쪽으로 모을지:</div>
+<div class="row" style="margin-top:12px">
+  <div><span class="sw" style="background:#2d6fe8"></span><span class="cap">#2d6fe8<br>정식 primary</span></div>
+  <div><span class="sw" style="background:#7cb8ff"></span><span class="cap">#7cb8ff<br>정식 accent</span></div>
+  <div><span class="sw" style="background:#6b9eff"></span><span class="cap">#6b9eff<br>pm×11</span></div>
+  <div><span class="sw" style="background:#6fa3f7"></span><span class="cap">#6fa3f7<br>left active×4</span></div>
+  <div><span class="sw" style="background:#6a9fd8"></span><span class="cap">#6a9fd8<br>tab-drop</span></div>
+  <div><span class="sw" style="background:#3d7ff8"></span><span class="cap">#3d7ff8<br>hover×3</span></div>
+  <div><span class="sw" style="background:#1592fe"></span><span class="cap">#1592fe<br>canvas</span></div>
+</div>
+<label class="opt"><input type="radio" name="B" value="unify-2d6fe8"> <b>전부 --ui-accent-primary(#2d6fe8)로 통일</b> — 모든 우회 파랑을 정식 토큰으로. 가장 일관</label>
+<label class="opt"><input type="radio" name="B" value="keep-pm"> #2d6fe8 통일하되 <b>pm Claude-blue(#6b9eff)는 의도색으로 유지</b> — "AI/PM 영역" 식별색 (--ui-pm-accent로 토큰화)</label>
+<label class="opt"><input type="radio" name="B" value="two-tier"> 2단만 정리 — primary(#2d6fe8)/accent(#7cb8ff) 2종으로 수렴, 나머지(#6fa3f7/#6a9fd8/#3d7ff8 등) 폐기</label>
+<label class="opt"><input type="radio" name="B" value="hold"> 보류 — 더 보고 결정</label>
+</div>
+
+<button class="exp" onclick="exp()">결정 내보내기 ↓</button>
+<textarea id="out" placeholder="여기에 결정이 나옵니다 — 복사해서 붙여주세요"></textarea>
+<script>
+function exp(){
+ const a=document.querySelector('input[name=A]:checked'), b=document.querySelector('input[name=B]:checked');
+ const t=`FIX 결정 A·B — 2026-06-11\nA(슬라이더 값표시): ${a?a.value:'미정'}\nB(파랑 정본): ${b?b.value:'미정'}`;
+ const o=document.getElementById('out'); o.value=t;
+ if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=>o.value=t+'\n\n(클립보드 복사됨)');
+}
+</script></body></html>

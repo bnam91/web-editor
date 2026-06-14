@@ -1,0 +1,315 @@
+{
+  "station": "D-component",
+  "version": "v3.1-matrix-13area",
+  "method": "13개 영역 matrix JSON의 signature.component(또는 signatures.D-component) + crossAreaFlags를 나란히 정렬해 가로 크로스체크. 정적 종합, 코드 수정 없음. 버튼 height/radius/border/shadow, danger 스타일·색, primary, input height, 모달 컨테이너 radius/shadow(modals)를 영역별로 추출해 spread 산정.",
+  "project": "web-editor (goditor)",
+  "git_head": "1afbe91",
+  "areasCompared": 13,
+  "areasOrder": [
+    "left-panel",
+    "prop-panel",
+    "canvas-block",
+    "pm-panel",
+    "assets-ai",
+    "toolbar",
+    "modals",
+    "pickers",
+    "design-system",
+    "graph",
+    "toast",
+    "template-browser",
+    "home-pages"
+  ],
+  "rootCauseHypothesis": {
+    "claim": "--ui-btn-h / --ui-radius-*(sm/md/lg) / --ui-input-h / --ui-danger 패밀리 부재가 13영역 컴포넌트 분열의 단일 근본원인이다.",
+    "verdict": "CONFIRMED (13/13 영역 데이터로 확정)",
+    "evidence": {
+      "ui_btn_h_absent": "13영역 중 11영역이 버튼 height를 raw px 또는 padding-derived로 결정(명시 height 토큰 0건). height 군집 = 15·16·18·20·22·24·26·28·30·32 — 10단 난립. graph만 공용 베이스 클래스 재사용으로 회피(자체 height 없음).",
+      "ui_radius_absent": "스케일 토큰은 design-tokens.css의 --radius-sm/md/lg = 4/6/10 뿐인데 owned 요소들이 2(st-btn)·3(proj-tab-close/tpl-edit/ds-picker)·5(tb-btn/apply-reset)·7(btn-new)·8(card/toast/modal)을 off-scale로 남발. 컴포넌트(--ui-radius-*) 토큰이 따로 없어 영역마다 raw 선택.",
+      "ui_input_h_absent": "입력 height = 20·22·24·28 4단 + padding-derived 다수. prop-panel 내부에서도 prop-select 24 / prop-input ≈24 / prop-number 28로 갈리고, design-system 내부에서도 base-select 24 / font-select 22 / token-hex 20 3단. 단일 기준 토큰 부재가 한 패널 안에서도 분열 유발.",
+      "ui_danger_absent": "editor-base.css :root에 --ui-danger 1개만 존재(#e06c6c)하고 --ui-danger-bg/-border/-hover 변형이 없음. 그 결과 danger '삭제' 표현이 ① 토큰 색만(canvas-block, graph) ② 토큰 fill-alpha 정석(comp-shelf-delete, assets delete) ③ raw outline(left-panel #5a3a3a, prop-btn-danger #6b2e2e) ④ raw solid fill(prop-action-btn.danger #c0392b, projects card-delete #c0392b) — 4방식 공존. danger 변형 토큰 부재가 직접 원인."
+    }
+  },
+  "comparisonTable": [
+    {
+      "element": "버튼 radius",
+      "values": {
+        "left-panel": "2px(variation) / 3px(proj-tab-close·layer-eye·ungroup) / 5px(tab-add·tb-btn)",
+        "prop-panel": "4px (전 버튼 통일 — 모범)",
+        "canvas-block": "베이스 .prop-btn 상속 = 4px (override 없음, OK)",
+        "pm-panel": "6px(cpm-btn/input/field) / 4px(cpmt-btn) / 0(cpm-action)",
+        "assets-ai": "4px(.assets-*) vs 6px(.aig-*) — 영역 내부 분기",
+        "toolbar": "5px(tb-btn/tab-add) / 3px(section-toolbar/proj-tab-close) / 2px(st-btn)",
+        "modals": "primary CTA 4/5/8px 3분기",
+        "pickers": "tab 3 / headbtn·dropper 4 / value-grid·slider 5 / 컨테이너 10",
+        "design-system": "5px(apply/reset) / 4px(select·hex) / 3px(picker·del) — 한 패널 3단",
+        "graph": "4px (공용 베이스 재사용, OK)",
+        "toast": "8px(off-scale) / settings-toast 6px",
+        "template-browser": "tplCard 5 / compShelfCard 6 / insert-btn 4·5 / del-btn 3·4",
+        "home-pages": "planning 5 / projects 7·4·6 / license 6·4 — 영역 내 4/5/6/7 난립"
+      },
+      "consistent": false,
+      "spread": "0·2·3·4·5·6·7·8·10 (9단, off-scale 2/3/5/7/8 다수)",
+      "tokenStandard": "4/6/10(--radius-sm/md/lg) 정의돼 있으나 컴포넌트 owned가 미준수",
+      "modelArea": "prop-panel / canvas-block / graph (4px 단일 또는 베이스 상속)"
+    },
+    {
+      "element": "버튼 height",
+      "values": {
+        "left-panel": "행 28px / 아이콘버튼 15~22px(15·18·20·22)",
+        "prop-panel": "24px 표준(.prop-btn 24, .prop-chain-btn 22) — 모범",
+        "canvas-block": ".cvb-card-btn-sm = 베이스 24 확장 후 height auto(가변)",
+        "pm-panel": ".cpm-btn ~30(padding) / .cpmt-btn 24×24 / cpm-action padding",
+        "assets-ai": "action-btn 22 / row 24 / actionbar 32 / aig-stepper 26(pill)",
+        "toolbar": ".tb-btn 28 / zoom 22 / st-btn 18 / proj-tab 28 / panel-tab 32",
+        "modals": "primary·input 모두 명시 height 없이 padding-derived(≈24~30)",
+        "pickers": "tab·headbtn 22 / dropper·value-grid·select 24 / image-zone 140",
+        "design-system": "select 24 / font-select 22 / token-hex 20 / apply·reset padding(≈28~30)",
+        "graph": "data-input 24 / data-del-btn 20×20 / 나머지 공용 베이스",
+        "toast": "버튼 없음(텍스트 알림)",
+        "template-browser": "insert-btn 30 / del-btn 16×16 / preview-close 20×20",
+        "home-pages": "projects btn-new 32 / home-proj-tab 26 / card-action 22 / planning·license padding"
+      },
+      "consistent": false,
+      "spread": "15·16·18·20·22·24·26·28·30·32 (10단)",
+      "tokenStandard": "없음 — --ui-btn-h 부재, 11/13 영역이 raw px or padding-derived",
+      "modelArea": "prop-panel(24 단일) / graph(베이스 상속)"
+    },
+    {
+      "element": "버튼 border (기본)",
+      "values": {
+        "left-panel": "주로 none(아이콘버튼) 또는 1px solid raw-hex(variation). 토큰 미사용 다수",
+        "prop-panel": ".prop-btn 항상 1px solid var(--ui-border-strong)",
+        "canvas-block": "베이스 .prop-btn 상속",
+        "pm-panel": "cpm-btn 1px var(--ui-border-mid) / cpmt-btn 1px transparent→hover #333",
+        "assets-ai": "공통 1px solid; 강조 --ui-border-strong, ai 패널 --ui-border-mid 폴백 #333",
+        "toolbar": "tb-btn 1px solid transparent→hover strong (기본 보더 없음)",
+        "modals": "settings-btn 1px #3a3a3a(raw) / primary 1px accent",
+        "pickers": "컨테이너 1px var(--ui-border); 칩/버튼 다양",
+        "design-system": "apply 없음 / reset 1px var(--ui-border) / new-preset 1px dashed",
+        "graph": "data-input 1px var(--ui-border) / del 1px var(--ui-border-mid)",
+        "toast": "1px solid var(--ui-border-strong)",
+        "template-browser": "tplCard 1px --ui-bg-hover / compShelfCard 1px --ui-border",
+        "home-pages": "대부분 border none(planning/projects btn) / license 토큰경유"
+      },
+      "consistent": false,
+      "spread": "기본 보더 유무 갈림(toolbar/home none vs prop 항상 1px) + 토큰 vs raw-hex 혼용",
+      "tokenStandard": "--ui-border / -mid / -strong 존재하나 left-panel·modals·home raw 혼용",
+      "modelArea": "prop-panel / graph (토큰 border 일관)"
+    },
+    {
+      "element": "버튼/컨테이너 shadow",
+      "values": {
+        "left-panel": "버튼 shadow 없음(인라인)",
+        "prop-panel": "없음",
+        "canvas-block": "없음",
+        "pm-panel": "버튼 shadow 없음 / panel-shell만",
+        "assets-ai": "팝오버·모달만: 0 8px 24px(.5) / 0 12px 32px(.6) / drag-ghost 0 6px 18px(.5)",
+        "toolbar": "없음",
+        "modals": "settings 0 12px 48px(.6) / anim 0 24px 64px(.6) / tpl-preview 0 8px 40px(.7) — 3종 상이",
+        "pickers": "popover 2겹: 0 12px 40px(.55) + 0 2px 4px(.35)",
+        "design-system": "없음",
+        "graph": "없음",
+        "toast": "#editor-toast 0 4px 16px(.5) / settings-toast 동일계열",
+        "template-browser": "카드 shadow 없음 / tpl-preview-modal 0 8px 40px(.7)",
+        "home-pages": "카드 hover shadow 산발(영역별)"
+      },
+      "consistent": false,
+      "spread": "elevation: blur 16/18/24/32/40/48/64 · y 4/6/8/12/24 · alpha .35/.5/.55/.6/.7",
+      "tokenStandard": "없음 — --ui-shadow-*/--elevation-* 부재. 모달 3종·팝오버·토스트 전부 raw",
+      "modelArea": "pickers(2겹 일관 적용)"
+    },
+    {
+      "element": "danger 스타일(삭제/제거)",
+      "values": {
+        "left-panel": "outline: transparent + 1px raw #5a3a3a, hover bg #3a1a1a / text #c87878→#ff9090 (raw, --ui-danger 미사용). file-page-del만 hover fill #c0392b",
+        "prop-panel": "★2계열 충돌: prop-action-btn.danger=solid fill #c0392b / prop-btn-danger=outline #6b2e2e. 둘 다 raw, 동일 시맨틱이 채움 vs 아웃라인 정반대",
+        "canvas-block": "cvb-card-btn-sm-del = color:var(--ui-danger)만(bg/border 없음, toned) — 토큰 위생적",
+        "pm-panel": "전용 danger 클래스 없음. cpmt-close:hover color #ff8a8a(전경만)",
+        "assets-ai": "assets delete:hover color var(--ui-danger)(정상) / ai chip 삭제는 raw #e53 원형",
+        "toolbar": "danger 버튼 없음(제거는 패널/캔버스 소관)",
+        "modals": "전용 danger 없음(설정 모달 destructive CTA 부재)",
+        "pickers": "danger 없음",
+        "design-system": "ds-colorvar-del = danger 토큰 부재로 hover가 accent-blue로 승격(danger-red 아님)",
+        "graph": "data-del-btn = 중립(border-mid), danger 색 없음",
+        "toast": "danger 없음(상태는 이모지 ❌)",
+        "template-browser": "★3방식: comp-shelf-delete=토큰 fill-alpha(정석) / tpl-delete·preview-close=raw #3a2020 + var(--ui-danger) / (좌측은 outline)",
+        "home-pages": "projects card-delete:hover bg #c0392b(raw) / license btn-delete=토큰 hover rgba(255,107,107,.1)(alpha색이 --ui-danger와 불일치) / planning danger 없음"
+      },
+      "consistent": false,
+      "spread": "4방식: ①toned(색만: canvas/pm/assets-delete) ②token fill-alpha(comp-shelf/license) ③raw outline(left #5a3a3a/prop-btn-danger #6b2e2e) ④raw solid fill(prop-action #c0392b/projects #c0392b). 색도 #e06c6c(토큰)/#c0392b/#c87878/#ff8a8a/#e53/#ff6b6b 혼재",
+      "tokenStandard": "--ui-danger(#e06c6c) 1개만 존재, -bg/-border/-hover 변형 부재가 4방식 분열의 직접 원인",
+      "modelArea": "comp-shelf-delete-btn(template-browser) = hover bg rgba(224,108,108,.12) + border/text var(--ui-danger) — danger 토큰 정석 사용 유일. canvas-block(toned 토큰)도 위생적"
+    },
+    {
+      "element": "primary 버튼(accent fill)",
+      "values": {
+        "left-panel": "전용 primary CTA 거의 없음. tb-btn.active 등 var(--ui-accent-primary) #2d6fe8/#fff",
+        "prop-panel": "prop-export-btn = var(--ui-accent-primary)/#fff/radius4",
+        "canvas-block": "전용 primary 없음(작은 토큰 컨트롤)",
+        "pm-panel": "cpm-btn.primary = #2d6fe8(raw, =토큰값)/#fff/radius6/600",
+        "assets-ai": "import-footer/url-ok = var(--ui-accent-primary) #2d6fe8/#fff/radius4 (단 폴백 #6cf 청록 분기)",
+        "toolbar": "tb-btn.active = 솔리드 accent #2d6fe8/#fff/border accent",
+        "modals": "settings-primary radius5 / anim-export radius8 / prop-export radius4 — bg는 모두 accent(좋음), radius 3분기",
+        "pickers": "primary 버튼 없음(grad-thumb accent가 raw #1592fe로 갈림)",
+        "design-system": "ds-apply-btn = var(--ui-accent-primary)/#fff/radius5/hover opacity.85",
+        "graph": "prop-btn-full 베이스 재사용",
+        "toast": "primary 없음",
+        "template-browser": "insert-btn = var(--ui-accent-primary) 상시 fill / comp-shelf-insert는 outline→hover fill (철학 다름)",
+        "home-pages": "★planning btn-save=초록 #22c48a / projects btn-new=파랑 raw #2d6fe8 / btn-new-planning=초록 #1a7a5e / license btn=토큰경유 #2d6fe8"
+      },
+      "consistent": "partial",
+      "spread": "fill bg는 대부분 #2d6fe8로 수렴(좋음). 단 ①토큰 var() vs raw hash 표기 갈림 ②home planning은 초록(#22c48a)으로 accent 의미색 자체가 분기 ③pickers grad-thumb #1592fe ④assets-ai 폴백 #6cf(청록) ⑤hover 파랑이 #3a7df0/#3a7ff5/#3d7ff8/#3a7ff8 raw 분산(--ui-accent-primary-hover 미정착)",
+      "tokenStandard": "--ui-accent-primary(#2d6fe8) 존재, -hover 변형 정착 안 됨. accent semantics(파랑=design/초록=planning) 의미색 토큰 부재",
+      "modelArea": "license.html / design-system(토큰 var() 경유 + hover 토큰단계)"
+    },
+    {
+      "element": "input height",
+      "values": {
+        "left-panel": "tpl-name-input 24 / ck-text-input·인라인은 height 무지정",
+        "prop-panel": "prop-select 24 / prop-input ≈24(padding) / prop-number 28 — 24 vs 28 혼재",
+        "canvas-block": "cvb-card-input(텍스트 raw #ddd, focus-visible 부재)",
+        "pm-panel": "cpm-input padding-derived(8×10, ≈) / radius6 / focus ring #6b9eff",
+        "assets-ai": "name-input 류(label min-width 56px = prop-panel 일치)",
+        "toolbar": "입력 거의 없음(badge·zoom)",
+        "modals": "settings-api-input padding(≈28) / api-eye·test 28 명시 — input 암묵 28",
+        "pickers": "hex/alpha-input height 100%(=24 grid) monospace",
+        "design-system": "base-select 24 / font-select 22 / token-hex 20 — 3단",
+        "graph": "data-label·val-input 24 / radius4 / font11",
+        "toast": "입력 없음",
+        "template-browser": "tplNameInput 24 / compShelfNameInput(radius5) / folderSelect 24 / browser-search borderless",
+        "home-pages": "planning intake radius4 / projects card-name radius4 / license input radius6 font14 padding9·12(큼직)"
+      },
+      "consistent": false,
+      "spread": "20·22·24·28 + padding-derived 다수. radius도 3/4/5/6 혼재",
+      "tokenStandard": "없음 — --ui-input-h 부재. prop-panel·design-system이 한 패널 안에서도 분열",
+      "modelArea": "graph(24/radius4 일관) / left-panel·template-browser(24 다수)"
+    },
+    {
+      "element": "모달 컨테이너 radius (modals 전담)",
+      "values": {
+        "modals": "settings-modal-shell 10px / anim-modal 12px / tpl-preview-modal 8px — 3종 분기, 토큰 미사용 하드코딩",
+        "pm-panel": "(참고) modal-shell 12px / panel-shell 12px",
+        "assets-ai": "(참고) import-modal·popover 컨테이너 8px",
+        "pickers": "(참고) popover 컨테이너 10px(=--radius-lg, 토큰 일치)",
+        "toast": "(참고) editor-toast 8px",
+        "template-browser": "(참고) tpl-preview-modal 8px"
+      },
+      "consistent": false,
+      "spread": "8·10·12 (3단)",
+      "tokenStandard": "--radius-lg=10 존재. pickers popover만 토큰 준수, 모달 3종은 raw",
+      "modelArea": "pickers(.goya-cp-popover 10px = --radius-lg 토큰 준수)"
+    },
+    {
+      "element": "모달 컨테이너 shadow (modals 전담)",
+      "values": {
+        "modals": "settings 0 12px 48px(.6) / anim 0 24px 64px(.6) / tpl-preview 0 8px 40px(.7) — 3종 모두 상이(blur 40/48/64, y 8/12/24, alpha .6/.7)",
+        "assets-ai": "(참고) import-modal 0 12px 32px(.6)",
+        "pickers": "(참고) 2겹 0 12px 40px(.55) + 0 2px 4px(.35)"
+      },
+      "consistent": false,
+      "spread": "blur 32/40/48/64 · y 8/12/24 · alpha .55/.6/.7",
+      "tokenStandard": "없음 — 모달 elevation 토큰 부재",
+      "modelArea": "(없음 — 전부 raw, pickers 2겹이 가장 정교하나 모달과 별개)"
+    }
+  ],
+  "crossAreaFindings": [
+    {
+      "id": "STN-COMP-01",
+      "title": "danger '삭제/제거' 표현이 앱 전역 4방식으로 분열 (최우선)",
+      "what": "동일 시맨틱(삭제)의 시각 규칙이 ①toned(색만) ②token fill-alpha(정석) ③raw outline ④raw solid fill 4가지로 갈리고, 색도 #e06c6c·#c0392b·#c87878·#ff8a8a·#e53·#ff6b6b로 산재.",
+      "where": "left-panel(outline #5a3a3a), prop-panel(prop-action.danger fill #c0392b ↔ prop-btn-danger outline #6b2e2e — 한 영역 내 정반대), canvas-block(toned 토큰), template-browser(comp-shelf 정석 vs tpl raw #3a2020), home-pages(projects #c0392b vs license alpha), design-system(danger 부재→accent로 승격)",
+      "rootCause": "--ui-danger 1개만 존재하고 --ui-danger-bg/-border/-hover 변형 토큰 부재.",
+      "recommendedStandard": "comp-shelf-delete-btn 패턴 채택 → --ui-danger(#e06c6c) + --ui-danger-bg(rgba(224,108,108,.12)) + --ui-danger-border 신설. 솔리드 파괴 CTA는 별도 --ui-danger-solid(#c0392b 계열) 단일화. prop-action.danger/prop-btn-danger 2계열을 1개로 수렴.",
+      "severity": "high"
+    },
+    {
+      "id": "STN-COMP-02",
+      "title": "버튼 height 10단 난립 (--ui-btn-h 부재)",
+      "what": "버튼 height = 15·16·18·20·22·24·26·28·30·32px 10단. 11/13 영역이 raw px 또는 padding-derived. prop-panel(24)·design-system 등은 같은 패널 안에서도 22/24/28로 갈림.",
+      "where": "toolbar(18·22·28·32 동시), left-panel(15~28), assets-ai(22·24·26·32), pm-panel(padding-derived 30 vs 24), modals(전부 padding-derived)",
+      "rootCause": "--ui-btn-h(+ --ui-btn-h-sm) 치수 토큰 부재 → 폰트/padding 변동 시 높이 흔들림.",
+      "recommendedStandard": "--ui-btn-h:24(표준)/--ui-btn-h-sm:22/--ui-btn-h-lg:28 도입. prop-panel 24 표준을 base로 행/툴바/모달 일괄 정렬.",
+      "severity": "high"
+    },
+    {
+      "id": "STN-COMP-03",
+      "title": "radius off-scale 9단 (--ui-radius-* 부재)",
+      "what": "스케일 토큰은 4/6/10(--radius-sm/md/lg)뿐인데 owned 요소가 0·2·3·5·7·8을 off-scale로 남발해 9단.",
+      "where": "toolbar(2/3/5), left-panel(2/3/5), home-pages(7/8/10), modals(4/5/8), design-system(3/4/5), template-browser(3/4/5/6), pickers(3/4/5 vs 컨테이너 10)",
+      "rootCause": "컴포넌트 owned용 --ui-radius-*(sm/md/lg) 토큰 부재. 스케일(4/6/10)은 있으나 강제력 없어 영역마다 raw 선택.",
+      "recommendedStandard": "--ui-radius-sm:4/-md:6/-lg:10 도입 후 off-scale(2/3/5/7/8) 일괄 치환. 버튼=sm(4), 카드/필드=md(6), 모달/팝오버=lg(10).",
+      "severity": "high"
+    },
+    {
+      "id": "STN-COMP-04",
+      "title": "input height/radius 단일 기준 부재 (--ui-input-h 부재)",
+      "what": "입력 height 20·22·24·28 + padding-derived, radius 3/4/5/6 혼재. prop-panel(24/≈24/28)·design-system(24/22/20)이 한 패널 안에서도 분열.",
+      "where": "prop-panel, design-system, template-browser, home-pages(license 큼직 vs 나머지 24), modals(암묵 28)",
+      "rootCause": "--ui-input-h 토큰 부재 + 폼 radius 미합의.",
+      "recommendedStandard": "--ui-input-h:24 + 입력 radius=--ui-radius-sm(4) 강제. graph(24/4) 패턴이 모범.",
+      "severity": "med"
+    },
+    {
+      "id": "STN-COMP-05",
+      "title": "모달/팝오버/토스트 elevation(radius+shadow) 토큰 부재",
+      "what": "모달 컨테이너 radius 8/10/12 3종, shadow는 settings·anim·tpl-preview 3종이 blur 40/48/64·alpha .6/.7로 전부 상이. 토스트 8px·팝오버 10px까지 합치면 표면 radius 5단. 토스트는 별도로 #editor-toast(중앙·radius8) vs .settings-toast(하단·radius6) 2개 시스템 공존.",
+      "where": "modals(컨테이너 3종), assets-ai(8px), pickers(10px 토큰준수+2겹 shadow), toast(2개 시스템)",
+      "rootCause": "--ui-shadow-*/--elevation-* + 모달 컨테이너 radius 토큰 부재.",
+      "recommendedStandard": "모달 컨테이너 radius=--radius-lg(10, pickers가 이미 준수) 통일. --elevation-modal / --elevation-popover shadow 토큰 2단 도입. 토스트는 1개 컴포넌트로 통합(settings-toast의 ok/err 보더 패턴 흡수).",
+      "severity": "med"
+    },
+    {
+      "id": "STN-COMP-06",
+      "title": "primary accent 표기/의미색 분기 (값은 #2d6fe8 수렴, hover·green은 갈림)",
+      "what": "primary fill bg는 대부분 #2d6fe8로 수렴(긍정)이나 ①토큰 var() vs raw hash 표기 혼용 ②home planning은 초록(#22c48a) accent로 의미 분기 ③pickers grad-thumb raw #1592fe ④assets-ai 폴백 #6cf(청록) ⑤hover 파랑 #3a7df0/#3a7ff5/#3d7ff8 raw 분산.",
+      "where": "home-pages(planning green), pickers(#1592fe), assets-ai(폴백 #6cf), pm-panel(raw #2d6fe8 + Claude-blue #6b9eff 별도), template-browser(hover raw 분산)",
+      "rootCause": "--ui-accent-primary-hover 변형 미정착 + accent semantics(design=blue/planning=green) 토큰 부재 + raw 폴백값 영역별 상이.",
+      "recommendedStandard": "--ui-accent-primary-hover 정착, raw hash를 var()로 교체, planning 초록은 --color-planning 의미 토큰 신설.",
+      "severity": "med"
+    },
+    {
+      "id": "STN-COMP-07",
+      "title": "버튼 기본 border 유무 불일치 + 토큰 vs raw-hex 혼용",
+      "what": "prop-panel은 버튼에 항상 1px border, toolbar/home primary는 border none. 보더 색도 --ui-border-* 토큰 vs raw(#3a3a3a/#333/#5a3a3a) 혼용.",
+      "where": "prop-panel(항상 1px) vs toolbar/home(none), modals(raw #3a3a3a), left-panel(raw variation border)",
+      "rootCause": "버튼 변형(solid/outline/ghost)별 border 규약 미정의 + 토큰 강제 부재.",
+      "recommendedStandard": "버튼 변형 3종(primary=border none, secondary=1px --ui-border, ghost=transparent) 규약화. raw border-hex를 토큰으로 교체.",
+      "severity": "low"
+    }
+  ],
+  "consistent": [
+    "graph 영역은 차트타입/프리셋/항목추가 버튼을 공용 베이스(.prop-type-btn/.prop-preset-btn/.prop-btn-full) 그대로 재사용 — 자체 radius/height override 0건으로 가장 위생적(모범 영역)",
+    "canvas-block은 danger 제거버튼에 color:var(--ui-danger) 토큰을 toned로 사용 — raw hex 우회 없이 토큰 위생 유지",
+    "comp-shelf-delete-btn(template-browser)은 hover bg rgba(224,108,108,.12)+border/text var(--ui-danger)로 danger 토큰을 정석 사용 — 전 13영역 중 danger 변형까지 토큰화한 유일 패밀리",
+    "pickers .goya-cp-popover 컨테이너 radius 10px = --radius-lg 토큰 준수 — 모달 3종(8/10/12 raw)이 못 한 컨테이너 radius 토큰화를 유일하게 달성",
+    "primary fill 배경값은 13영역 대부분 #2d6fe8로 수렴(home planning 초록 제외) — accent 단일화는 표기·hover만 정리하면 거의 완료된 상태",
+    "license.html은 design-tokens.css 단일 소스 + alias 블록으로 에디터와 토큰 동기화 — home 3페이지 중 통합형 모범",
+    "assets-ai aig-row-label min-width 56px = prop-panel prop-label 56px — 영역 간 드문 폼 라벨폭 일치"
+  ],
+  "inconsistent_count": 7,
+  "summary": {
+    "headline": "13영역 컴포넌트 크로스체크 — 근본원인 CONFIRMED: --ui-btn-h / --ui-radius-* / --ui-input-h / --ui-danger(변형) 4개 토큰 패밀리 부재가 전 분열의 단일 뿌리. 7건 inconsistent.",
+    "top3": [
+      "1) danger 삭제 표현 4방식 분열(toned/token-alpha/raw-outline/raw-solid) — prop-panel 한 영역 안에서도 fill ↔ outline 정반대 (STN-COMP-01, high)",
+      "2) 버튼 height 10단 난립(15·16·18·20·22·24·26·28·30·32) — --ui-btn-h 부재, 11/13 영역 raw/padding (STN-COMP-02, high)",
+      "3) radius off-scale 9단(0·2·3·4·5·6·7·8·10) — 스케일 토큰 4/6/10 있으나 컴포넌트 owned가 2/3/5/7/8 남발 (STN-COMP-03, high)"
+    ],
+    "spreadMetrics": {
+      "buttonHeight": "10단 (15·16·18·20·22·24·26·28·30·32px)",
+      "buttonRadius": "9단 (0·2·3·4·5·6·7·8·10px; off-scale = 2/3/5/7/8)",
+      "inputHeight": "4단 (20·22·24·28) + padding-derived 다수",
+      "modalContainerRadius": "3단 (8·10·12px)",
+      "modalShadow": "3종 전부 상이 (blur 40/48/64, y 8/12/24, alpha .6/.7)",
+      "dangerMethod": "4방식 (toned 색만 / token fill-alpha 정석 / raw outline / raw solid fill)"
+    },
+    "modelAreas": {
+      "overall": "graph — 공용 베이스 클래스 재사용으로 자체 override 0건, 가장 일관",
+      "danger": "comp-shelf-delete-btn (template-browser) — danger 토큰 정석 사용 유일",
+      "containerRadius": "pickers — popover 10px = --radius-lg 토큰 준수",
+      "input": "graph — 24px/radius4 단일 기준",
+      "tokenIntegration": "license.html — design-tokens.css 단일 소스 동기화"
+    },
+    "rootCauseVerdict": "CONFIRMED — 13/13 영역 데이터로 --ui-btn-h·--ui-radius-*·--ui-input-h·--ui-danger(변형) 부재가 분열의 단일 근본원인임을 확정. 토큰 4패밀리 신설 시 7개 finding이 일괄 수렴 가능."
+  }
+}

@@ -1,0 +1,211 @@
+{
+ "agent": "UXS-onboarding",
+ "version": "3.0",
+ "dimension": "onboarding",
+ "scope": "flows/first-section",
+ "method": "cdp",
+ "run_date": "2026-06-11",
+ "created_test_project": "proj_1781188552759 (이름: ux-squad-test-0611 — 삭제하지 않음, 정리는 사용자 승인 후)",
+ "step_measurement": {
+  "measured_steps": 2,
+  "baseline": "first_output_steps_max 7",
+  "status": "PASS",
+  "steps_log": [
+   "1: projects.html에서 '디자인 프로젝트 만들기' 클릭 → 프로젝트 즉시 생성(이름 프롬프트 없음, 'Untitled') + 에디터 자동 진입 (evidence: onboarding-01-projects-page.png → onboarding-02-editor-empty.png)",
+   "2: 하단 플로팅 바 파란 '+'(title='새 섹션 추가') 클릭 → 캔버스에 Section 01 + Heading placeholder('소제목을 입력하세요') 가시 생성 + 상단 '저장 중...' 저장 피드백 표시 (evidence: onboarding-03-after-plus.png)"
+  ],
+  "completion_check": "캔버스 가시 산출물 1개(Section 01) ✓ + 저장 상태 피드백('저장 중...' 인디케이터) ✓ — 플로우 5단계 완료 판정 충족. 앱 재시작 후에도 Section 01 영속 확인(자동저장 정상).",
+  "note": "측정은 admin 모드 빌드(npm run dev) 기준. 외부 일반 사용자 첫 실행은 license.html(라이선스 키 등록)이 선행될 수 있음 — 본 측정은 라이선스 통과 이후 구간(out_of_scope_flags 참조). admin 모드에선 생성 버튼이 2개(기획/디자인)지만 일반 모드는 '디자인 프로젝트 만들기' 1개만 노출(projects.html:504 isAdmin 가드 코드 확인) — 외부 사용자 선택 부담 없음."
+ },
+ "findings": [
+  {
+   "id": "UXO-C01",
+   "track": "conformance",
+   "area": "home-pages+canvas-block",
+   "severity": "pass",
+   "confidence": "high",
+   "evidence_grade": "measure",
+   "baseline": "first_output_steps_max = 7 (G3)",
+   "actual": "2단계 (프로젝트 생성 클릭 1 + 새 섹션 클릭 1)",
+   "evidence": ".ux/results/evidence/onboarding-01-projects-page.png, onboarding-02-editor-empty.png, onboarding-03-after-plus.png",
+   "fix_hint": null,
+   "heuristic_basis": "profile.md first_output_steps_max (G3 확정값)",
+   "adjudication": "self",
+   "self_guard_note": "사용자 액션 1회=1단계 정의 그대로 실측. 앱 실행 자체·자동 화면전환은 액션으로 미산입. 7 대비 2 — 큰 여유로 PASS. 단 2단계가 가능한 이유는 '+' 버튼이 primary 강조로 존재하기 때문이며, 그 버튼의 발견가능성 자체는 judgment(UXO-J01, J04)에서 별도 평가."
+  },
+  {
+   "id": "UXO-J01",
+   "track": "judgment",
+   "area": "canvas-block",
+   "impact": "medium",
+   "observation": "새 프로젝트 에디터 진입 직후 캔버스는 완전 공백(연회색 면, 텍스트 0자). 다음 행동을 알려주는 empty state 문구/CTA가 없다. 유일한 생성 진입로는 하단 플로팅 바의 아이콘 버튼들(시각 레이블 없음, hover title만). (evidence: onboarding-02-editor-empty.png — canvasText='')",
+   "friction": "내부 용어를 모르는 외부 사용자가 처음 진입하면 빈 회색 화면에서 시선 둘 곳이 없다. 하단 파란 '+'가 시각적으로 가장 강조돼 있어 결국 찾을 가능성은 높지만, '+'가 '섹션을 추가한다'는 것은 호버해야만(native title) 알 수 있다 — '섹션'이라는 개념 자체도 첫 대면이다.",
+   "proposal": "빈 캔버스(섹션 0개) 상태에서만 캔버스 중앙에 클릭 가능한 1회성 CTA 표시: '+ 새 섹션을 추가해 시작하세요' (클릭 시 '+'와 동일 동작). 섹션이 1개라도 생기면 영구 제거.",
+   "tradeoffs": "#8(미니멀리즘) 충돌은 빈 상태 한정 표시로 최소화. 자동조립 워커의 '빈 자산 체크보드 = 사용자 신호' 규약은 블록 레벨 규약으로 캔버스 레벨 CTA와 무충돌. 구현 시 빈 상태 판정 로직 1개 추가 비용.",
+   "approval": "pending",
+   "heuristic_basis": "nielsen-10.md#6-recognition (empty state가 다음 행동을 알려주는가)",
+   "adjudication": "self",
+   "self_guard_note": "오적용 가드 대조: '+'는 primary 색 강조로 어느 정도 가시적 대체 신호가 있어 high가 아닌 medium. 실측 2단계 PASS와 모순 아님 — 단계 수가 아니라 '첫 클릭까지의 인지 비용' 문제."
+  },
+  {
+   "id": "UXO-J02",
+   "track": "judgment",
+   "area": "home-pages",
+   "impact": "high",
+   "observation": "프로젝트 생성 시 이름 입력 단계가 없고('Untitled' 자동 부여), 이름변경 진입로가 양쪽 모두 숨은 제스처뿐이다: projects 카드는 더블클릭(title='더블클릭하여 이름 변경' — hover해야만 보임, projects.html:295), 에디터는 #project-name-display 더블클릭(index.html:252). 가시적 rename 버튼/메뉴 없음. 증거: 실사용 프로젝트 목록 19개 중 9개가 'Untitled*' (onboarding-06-projects-after.png).",
+   "friction": "외부 사용자는 더블클릭 rename을 발견하지 못해 프로젝트가 전부 'Untitled'로 쌓인다. 전문가(내부) 사용 환경에서조차 47%가 무명 상태라는 실증이 이미 있다. 프로젝트가 3개만 돼도 어느 것이 어느 작업인지 식별 불가 → 잘못된 프로젝트 열기/삭제 위험으로 연쇄.",
+   "proposal": "(a) 카드/이름 hover 시 연필 아이콘 노출(가시적 대체 경로 추가 — 더블클릭은 가속 경로로 유지), (b) 생성 직후 에디터 이름 필드 인라인 포커스 + placeholder '프로젝트 이름 입력' (Esc/무시로 스킵 가능).",
+   "tradeoffs": "(b)는 생성 마찰 +1단계가 될 수 있으나 스킵 가능 인라인이면 first_output_steps에 미산입. (a)는 hover 아이콘 1개 추가로 #8 영향 미미.",
+   "approval": "pending",
+   "heuristic_basis": "nielsen-10.md#6-recognition (숨은 제스처가 유일 진입로) + nielsen-10.md#5-error-prevention (식별 불가 → 오조작 유발 배치)",
+   "adjudication": "central-confirmed",
+   "gate": "verify-candidate",
+   "self_guard_note": "오적용 가드 대조: #6 가드는 '가시적 대체 경로가 있으면 합격' — rename은 대체 경로가 없어 위반 성립. 19개 중 9개 Untitled는 추정이 아닌 실측 증거라 high 유지. conformance PASS + 본 judgment high → verify-candidate."
+  },
+  {
+   "id": "UXO-J03",
+   "track": "judgment",
+   "area": "prop-panel(첫 사용 노출면 한정)",
+   "impact": "medium",
+   "observation": "첫 섹션 생성 직후 우측 패널 최하단에 'Template / Test / Hero / 템플릿 이름 / 태그 / [저장]' 블록이 노출된다(onboarding-03-after-plus.png). 버튼 레이블이 generic '저장'이다. 같은 화면 상단에는 문서 자동저장('저장 중...')이 별도로 존재한다.",
+   "friction": "외부 사용자가 '작업을 저장해야 한다'는 통념으로 화면에서 '저장'을 찾으면 이 버튼이 유일하게 보이는 '저장'이다. 누르면 작업 저장이 아니라 템플릿 라이브러리 등록이 일어난다 — 결과 예측 실패 + 템플릿 DB에 무의미 항목 누적. '소제목을 입력하세요'만 있는 빈 섹션이 'Test/Hero' 템플릿으로 등록될 수 있다.",
+   "proposal": "(a) 버튼 레이블을 '템플릿으로 저장'으로 구체화(다른 표면의 '블록 템플릿으로 저장'과 용어 정렬), (b) 이 블록이 제작자(admin) 기능이라면 admin 모드에서만 노출.",
+   "tradeoffs": "(a) 레이블 길이 증가 미미. (b)는 해당 기능의 사용 주체 확인 필요 — 외부 사용자용 기능이면 (a)만.",
+   "approval": "pending",
+   "heuristic_basis": "ia-principles.md#labeling (누르기 전에 결과 예측 — '저장'이 무엇을 저장하나) + nielsen-10.md#10-help (처음 보는 개념 'Template/Hero'에 맥락 도움 없음)",
+   "adjudication": "self",
+   "self_guard_note": "오적용 가드 대조: labeling 가드 '예측 실패 시나리오를 적을 수 있을 때만 성립' — 위 friction이 그 시나리오. 자동저장이 있어 데이터 유실은 없으므로 high 아님. admin 모드 노출 여부 미확인이라 (b)는 조건부 제안."
+  },
+  {
+   "id": "UXO-J04",
+   "track": "judgment",
+   "area": "toolbar(하단 플로팅 바)",
+   "impact": "low",
+   "observation": "하단 플로팅 바 10개 버튼 전원이 시각 레이블 없는 아이콘이며 도움은 native title 툴팁뿐(DOM 실측: hasVisibleLabel=false 9/10). T(텍스트)·이미지 아이콘은 보편 도상이나, Frame·스티커·Plugins·'Claude PM'은 첫 대면 사용자에게 자명하지 않다. 'AI 섹션 생성 (⌘K)' 단축키 안내도 title 속에만 있다.",
+   "friction": "외부 사용자가 Frame과 섹션의 차이, 'Claude PM'이 무엇인지 알 길이 호버 외엔 없고, native title은 ~1초 지연돼 탐색 비용이 크다.",
+   "proposal": "비자명 버튼(Frame/스티커/Plugins/Claude PM/AI)에 한해 즉시 표시형(≤300ms) 커스텀 툴팁 + 첫 실행 1회 코치마크 1장(플로팅 바 전체를 '여기서 추가합니다'로 묶어 안내).",
+   "tradeoffs": "툴팁 전면 살포는 #10 오적용 가드('처음 마주치는+자명하지 않은 개념에만') 위반 — T/이미지/도형 등 보편 도상은 제외해야 함. 코치마크는 1회성·dismiss 가능이 전제.",
+   "approval": "pending",
+   "heuristic_basis": "nielsen-10.md#10-help (맥락 도움이 과업 시점에 닿는가) + nielsen-10.md#6-recognition",
+   "adjudication": "self",
+   "self_guard_note": "오적용 가드 자체 대조 완료 — 제안 범위를 비자명 버튼으로 한정. 모든 버튼에 title은 존재하므로 '도움 전무'는 아님 → low."
+  },
+  {
+   "id": "UXO-J05",
+   "track": "judgment",
+   "area": "left-panel",
+   "impact": "low",
+   "observation": "빈 새 프로젝트 첫 진입 시 좌측 패널 기본 활성 탭이 Assets(자산)이고 '+ 폴더 / + 파일 / + URL'과 기본 폴더 '제품사진'이 첫 시야를 차지한다(onboarding-02-editor-empty.png). 패널 탭 4종(File/Inspector/Assets/Checklist)은 아이콘 전용 + 영문 title. 첫 섹션 생성 후에는 File 탭으로 자동 전환된다(onboarding-03).",
+   "friction": "아무것도 만들지 않은 상태에서 첫 인상이 '파일 업로드 도구'다. 외부 사용자는 페이지/섹션 구조(File 탭)가 어디 있는지 모른 채 자산 패널에서 시작한다.",
+   "proposal": "섹션 0개인 프로젝트 첫 진입 시 기본 탭을 File(구조)로. (자산 선업로드 워크플로 사용자는 탭 1클릭으로 복귀 가능.)",
+   "tradeoffs": "이미지부터 모으는 실무 워크플로(스크래치패드 선행)에는 1클릭 추가 — 빈도 데이터 없으므로 medium 이상 금지(현재 low).",
+   "approval": "pending",
+   "heuristic_basis": "ia-principles.md#wayfinding (첫 진입 시 현재 작업 맥락 표시) + ia-principles.md#progressive-disclosure (공개 순서가 과업 단계와 정합한가)",
+   "adjudication": "self",
+   "self_guard_note": "progressive-disclosure 가드 준수: 빈도 데이터 부재를 명시하고 low로 캡. 섹션 생성 시 File 탭 자동 전환은 이미 잘 설계된 부분으로 병기."
+  },
+  {
+   "id": "UXO-J06",
+   "track": "judgment",
+   "area": "toolbar+home-pages",
+   "impact": "low",
+   "observation": "첫 사용 경로 전 화면(projects, 에디터)에 도움말/가이드/튜토리얼 진입점이 없다. 단축키 안내(⌘K, ⌘,)는 hover title 안에만 존재.",
+   "friction": "외부 사용자가 막혔을 때 앱 안에서 갈 곳이 없다 — G1(외부 배포) 기준 최소한의 '도움말' 진입점(메뉴 1개라도) 부재.",
+   "proposal": "상단 설정(⚙) 인근에 '도움말/단축키' 항목 1개 추가(단축키 목록 모달이면 충분 — 별도 문서 사이트보다 과업 시점에 가까움).",
+   "tradeoffs": "유지비용(문서 최신화). MVP 단계 출시 우선순위와 경합 — 차기 UI 정비 때 묶음 처리 가능.",
+   "approval": "pending",
+   "heuristic_basis": "nielsen-10.md#10-help (필요 시 과업 중심의 짧은 도움이 검색 가능해야)",
+   "adjudication": "self",
+   "self_guard_note": "오적용 가드: '도움 없이 쓸 수 있는 게 최선' — 현재 2단계로 첫 산출물 도달이 가능하므로 blocker 아님, low."
+  }
+ ],
+ "out_of_scope_flags": [
+  "license-first-run: 비라이선스 IP의 진짜 첫 실행은 license.html 키 등록이 선행(main.js checkLicenseAndLoad) — admin 모드 주행이라 미측정. 외부 배포 onboarding 전체 단계 수는 라이선스 플로우 포함 재측정 필요.",
+  "환경 간섭: 주행 중 페이지가 proj_1775644888754로 2회 외부 전환됨 + 앱 프로세스 1회 사망(.env iCloud dataless EDEADLK로 재기동 실패 → brctl download로 해결 후 npm run dev 재기동). 각 단계 재검증으로 측정 무결성 유지. 종료 시 원래 페이지(proj_1775644888754)로 복원함.",
+  "projects 카드 미렌더 1회 관찰(onboarding-01 스크린샷의 빈 그리드): 사망 직전 인스턴스에서만 발생, 재기동 후 정상 렌더(onboarding-06) — 재현 불가로 finding 보류.",
+  "MVP 숨김(.tb-hidden-mvp) 및 PM 패널(.cpm-*, G5 보류)은 지침대로 지적 제외 — 'Claude PM' 플로팅 버튼은 노출돼 있어 레이블 비자명성만 J04에 포함."
+ ],
+ "area_summary": [
+  {
+   "area": "home-pages",
+   "status": "covered",
+   "note": "projects 진입·생성·rename 실주행 (UXO-C01, J02)"
+  },
+  {
+   "area": "canvas-block",
+   "status": "covered",
+   "note": "empty state 정밀 관찰 (J01) + 첫 섹션 생성 확인"
+  },
+  {
+   "area": "left-panel",
+   "status": "covered",
+   "note": "기본 탭/아이콘 탭 관찰 (J05)"
+  },
+  {
+   "area": "toolbar",
+   "status": "covered",
+   "note": "상단 바 + 하단 플로팅 바 레이블/툴팁 전수 (J04, J06)"
+  },
+  {
+   "area": "template-browser",
+   "status": "partial",
+   "note": "첫 화면에서 TEMPLATES 선반 가시성만 확인(좌하단 텍스트 레이블 존재 — 발견가능성 양호). 브라우저 내부 탐색은 첫 사용 경로 밖"
+  },
+  {
+   "area": "prop-panel",
+   "status": "partial",
+   "note": "첫 섹션 직후 노출면만 관찰 (J03). 46빌더 전수는 경로 밖"
+  },
+  {
+   "area": "modals",
+   "status": "skipped",
+   "note": "첫 사용 경로 밖"
+  },
+  {
+   "area": "assets-ai",
+   "status": "skipped",
+   "note": "첫 사용 경로 밖"
+  },
+  {
+   "area": "design-system",
+   "status": "skipped",
+   "note": "첫 사용 경로 밖"
+  },
+  {
+   "area": "pm-panel",
+   "status": "skipped",
+   "note": "G5 보류 + 첫 사용 경로 밖"
+  },
+  {
+   "area": "pickers",
+   "status": "skipped",
+   "note": "첫 사용 경로 밖"
+  },
+  {
+   "area": "graph",
+   "status": "skipped",
+   "note": "첫 사용 경로 밖"
+  },
+  {
+   "area": "toast",
+   "status": "skipped",
+   "note": "첫 사용 경로에서 토스트 미발생('저장 중...'은 상단 인디케이터로 관찰)"
+  }
+ ],
+ "judgment_count": 6,
+ "conformance_confirmed": 1,
+ "by_impact": {
+  "high": 1,
+  "medium": 2,
+  "low": 3
+ },
+ "by_severity": {
+  "pass": 1
+ },
+ "grouped_overflow": [],
+ "by_adjudication": {
+  "self": 6,
+  "central-confirmed": 1,
+  "central-refuted": 0
+ }
+}

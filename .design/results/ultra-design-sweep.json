@@ -1,0 +1,241 @@
+{
+  "agent": "DSN-ultra-wave1-sweep",
+  "run": "ULTRA RUN Wave1 (static, report-only)",
+  "missions": ["1: typo/motion/icon 영역분해 첫스윕 (델타)", "2: 신규 8영역(N1-N8) 정적 시그니처"],
+  "project": "/Users/a1/web-editor",
+  "git_head": "eb8c390",
+  "scanned_at": "2026-06-12",
+  "method": "static",
+  "bar": "Figma/Adobe급",
+  "scope_note": "UI 크롬만. 캔버스 콘텐츠(--preset-*, 블록 내부, presets/) 불가침. vendor/xterm/pretendard 제외. profile.md 의도된 예외(pending 토큰, pm Claude-blue #6b9eff, tfx %슬라이더, zoom !important) 제외.",
+  "delta_note": "design-typo/motion/icon.json(1afbe91)은 전역 합산만 있고 영역간 비교 미실행 → 본 스윕은 영역분해 신규분만. 기존 finding(TYPO-01~04, MOT-01~05, ICON-01~07)은 eb8c390에서도 전부 잔존 확인(중복 미기재). 1afbe91→eb8c390 diff는 슬라이더행 표준화+focus-visible 공용규칙 추가가 주 — typo/motion/icon 차원 신규 회귀 없음.",
+
+  "area_decomposition": {
+    "typo_font_size_dominant_by_area": {
+      "left-panel (editor-panels)": "11px x39 지배 + 9px x19 (9px 최대 진원지)",
+      "prop-panel (editor-props)": "11px x27 지배",
+      "modals (editor-extra)": "11px x31 지배",
+      "design-system (editor-base)": "11px x13 / 10px x12",
+      "pm-panel (claude-pm)": "12px x9 = 11px x9 동률 — 12px 베이스 혼입",
+      "settings-modal": "12px x6 = 11px x6 동률 — 12px 베이스 혼입",
+      "assets-ai (assets-panel+ai-image)": "11px 지배, ai-image 8px 1회 (최소값)",
+      "pickers (color-picker)": "11px x5 / 10px x4",
+      "graph (editor-graph)": "11px x3 / 14px / 13px — 표면 작음",
+      "toast (editor-toast)": "9~14px 6종 산재 (12선언에 6종 — 밀도당 난립 최다)",
+      "toolbar/home (editor-layout)": "UI분은 12/13px, 대형값(104/72/52/36/26)은 캔버스 프리셋 제외"
+    },
+    "motion_duration_dominant_by_area": {
+      "prop-panel": "0.1s x25 지배 (+.08s x5)",
+      "left-panel": "0.15s x28 지배",
+      "modals (extra)": "0.12s x30 지배",
+      "design-system (base)": "0.15s x13",
+      "pm-panel": "0.15s x6 (+0.18s x2)",
+      "pickers": "0.1s x6 (+0.05s 단발 — 전앱 최단)",
+      "graph": "0.3s only x2 — 전 영역 기본값 최장",
+      "toolbar/home (layout)": "ms표기 전용(120/160/180/200ms) — 유일 ms계 영역",
+      "canvas-chrome": "0.15s/0.25s 혼재",
+      "toast": "0.15s/0.1s"
+    },
+    "motion_easing_by_area": {
+      "pm-panel": "ease/ease-out/ease-in-out 3종 혼용 (단일 영역 내 최다)",
+      "modals (extra)": "ease + linear + cubic-bezier(0.4,0,0.2,1)",
+      "toolbar/home (layout)": "cubic-bezier(0.16,1,0.3,1) + cubic-bezier(0.4, 0, 0.2, 1) — 커스텀 곡선 전용 영역",
+      "others": "ease 단일"
+    },
+    "icon_stroke_width_dominant_by_area": {
+      "left-panel (js/panels)": "1.3 x34 지배 (62%)",
+      "prop-panel (js/props)": "1.3 x71 + 1.4 x30 (2종 혼합)",
+      "toolbar/modals 정적마크업 (index.html)": "1.5 x18 + 1.4 x11 지배 — 패널계(1.3)와 다른 무게",
+      "pm-panel (js/claude-pm)": "1.8 단발",
+      "outliers": "3.5/3.2/0.6 각 1 (js/props)"
+    },
+    "icon_svg_size_by_area": {
+      "prop-panel (js/props)": "14 x74 / 12 x33 / 16 x25 — 3군 수렴 (가장 정돈됨)",
+      "index.html 정적마크업": "11/14/10/9/13/18/12/8/16 9종 난립 — 크기 난립 진원지",
+      "left-panel (js/panels)": "8/18/10/9/36/13/12 산재"
+    }
+  },
+
+  "findings": [
+    {
+      "id": "ULTRA-TYPO-A1",
+      "dimension": "typo",
+      "area_comparison": true,
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "영역별 베이스 라벨 크기 분열 — pm-panel·settings-modal은 12px계, 나머지 크롬은 11px계",
+      "evidence": "font-size 지배값: editor-panels 11px(x39), editor-props 11px(x27), editor-extra 11px(x31), editor-base 11px(x13) vs claude-pm 12px(x9, 11px과 동률), settings-modal 12px(x6, 동률). 동일 위계(패널 본문 라벨)가 영역 따라 11/12px로 갈림. editor-graph는 11/13/14만 사용.",
+      "rationale": "TYPO-01(토큰 부재)의 영역간 결과 — 토큰이 없으니 영역(파일)마다 다른 베이스에 수렴. Figma는 전 패널 단일 11px UI 스케일.",
+      "files": ["css/claude-pm.css", "css/settings-modal.css", "css/editor-panels.css"],
+      "fix_hint": "--font-size-base(11px) 토큰 도입 시 pm/settings의 12px 군집을 의도(가독 상향)인지 우발인지 판정 후 일원화.",
+      "delta_of": "TYPO-01"
+    },
+    {
+      "id": "ULTRA-TYPO-A2",
+      "dimension": "typo",
+      "area_comparison": true,
+      "severity": "minor",
+      "adjudication": "self",
+      "title": "9px 서브가독 군집의 영역 분포 — left-panel이 진원지(19/36), toast는 밀도당 난립 최다",
+      "evidence": "9px: editor-panels 19 / editor-base 4 / editor-props 4 / editor-toast 2 / ai-image 2(+8px 1) / assets-panel 1. editor-toast는 총 12개 font-size 선언에 6종(9~14px) — 선언당 distinct 비율 전 영역 1위.",
+      "rationale": "TYPO-02의 영역분해. 수정 우선순위를 left-panel(레이어 패널 라벨군)에 집중하면 19/36이 한 번에 해소.",
+      "files": ["css/editor-panels.css", "css/editor-toast.css"],
+      "delta_of": "TYPO-02"
+    },
+    {
+      "id": "ULTRA-MOT-A1",
+      "dimension": "motion",
+      "area_comparison": true,
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "영역별 기본 duration 4분열 — props 0.1s / panels 0.15s / modals 0.12s / layout ms표기, graph는 0.3s",
+      "evidence": "지배 duration: editor-props 0.1s(x25), editor-panels 0.15s(x28), editor-extra 0.12s(x30), editor-base 0.15s(x13), editor-layout만 ms표기(120/160/180/200ms), editor-graph 0.3s only(x2), color-picker 0.05s 단발 보유. 같은 hover 인터랙션이 영역 따라 2~3배 속도차.",
+      "rationale": "MOT-02(토큰 부재)의 영역간 결과를 처음 계측. 전역 합산에선 '3값 수렴'으로 보였으나 실제로는 영역마다 서로 다른 단일값에 수렴 — 패널 넘나들 때 모션 속도감이 영역별로 다름. Figma는 단일 fast/base 2단.",
+      "files": ["css/editor-props.css", "css/editor-panels.css", "css/editor-extra.css", "css/editor-layout.css", "css/editor-graph.css"],
+      "fix_hint": "--dur-fast/base 토큰 도입 시 영역별 지배값 매핑표(이 항목의 evidence)를 그대로 치환 가이드로 사용.",
+      "delta_of": "MOT-02, MOT-04"
+    },
+    {
+      "id": "ULTRA-MOT-A2",
+      "dimension": "motion",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "[델타 확인] prefers-reduced-motion 여전히 0회 (eb8c390) — 무한 애니 6개 상주 유지",
+      "evidence": "grep 'prefers-reduced-motion' css/ = 0. MOT-01 미해소 잔존. 신규 추가분 없음.",
+      "rationale": "기존 MOT-01 재확인용 델타 항목(중복 아님, 잔존 증빙).",
+      "delta_of": "MOT-01"
+    },
+    {
+      "id": "ULTRA-ICON-A1",
+      "dimension": "icon",
+      "area_comparison": true,
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "영역별 stroke-width 표준 분열 — 패널계 1.3 vs index.html 정적마크업 1.5 vs props 1.3+1.4 혼합",
+      "evidence": "js/panels: 1.3 x34(62%) / index.html: 1.5 x18 + 1.4 x11 / js/props: 1.3 x71 + 1.4 x30 + 1.6 x8 + 1.5 x8 / js/claude-pm: 1.8. SVG 크기도 props는 14/12/16 3군 수렴인데 index.html은 8~18 9종 난립.",
+      "rationale": "ICON-04(15종 산재)의 영역분해 — 산재가 아니라 '영역마다 다른 표준'이 실체. 같은 화면에 패널 아이콘(1.3)과 툴바/모달 아이콘(1.5)이 나란히 보여 무게 불일치가 시각적으로 드러남. index.html 정적 마크업이 크기·스트로크 양쪽 난립 진원지.",
+      "files": ["index.html", "js/panels/", "js/props/"],
+      "fix_hint": "viewBox별 표준(12→1.4, 14→1.3, 16→1.5) 명문화 후 index.html 정적 SVG부터 정비.",
+      "delta_of": "ICON-04, ICON-05"
+    },
+    {
+      "id": "ULTRA-N1-01",
+      "dimension": "adoption+color",
+      "area": "N1 context-menu",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "유일한 컨텍스트메뉴(#block-context-menu)가 통째로 inline style + raw hex 구축 — E3 패턴 재현",
+      "evidence": "index.html:1141-1163 컨테이너·입력 4개·버튼이 전부 inline style. raw hex: #1a1a1a/#333/#2a2a2a(x5)/#444(x4)/#ccc(x4)/#2d6fe8(정본값을 raw로). inline outline:none 4회(focus 대체 없음). CSS는 editor-extra.css:1656-1666 .bcm-item 2줄뿐, hover도 raw #2a2a2a. 토큰 사용 0.",
+      "rationale": "adoption 강화정의(class보유 ∧ inline없음 ∧ raw없음) 전 항목 위반. 또한 우클릭 메뉴가 앱 전체 1개(블록 템플릿 저장용)뿐 — 캔버스/섹션/레이어/탭 우클릭 메뉴 표면 부재로 Figma 대비 메뉴 체계 자체가 빈약. branch-system.js openSectionBranchMenu는 이름과 달리 메뉴 없이 즉시 실행(vestigial).",
+      "files": ["index.html:1141-1163", "css/editor-extra.css:1656-1666"],
+      "fix_hint": "inline style을 .bcm-* 클래스로 추출 + --ui-* 토큰 치환. 메뉴 항목 height/단축키 칼럼 표준은 Wave2에서 실측 후 설계.",
+      "wave2_cdp": "메뉴 열림 시 항목 height·hover·위치보정 실측"
+    },
+    {
+      "id": "ULTRA-N2-01",
+      "dimension": "component",
+      "area": "N2 tooltip",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "native title= 287회 남발 vs 커스텀 툴팁은 pm-panel 1곳만 — 영역간 툴팁 체계 분열",
+      "evidence": "title= 총 287회: js 241(js/props 157 최다, js/panels 24, js/claude-pm 12) + index.html 46. 커스텀 툴팁은 claude-pm.css:511-531 .cpmt-btn[data-tip]:hover::after 단 1구현 — 주석에 'native title 1-2초 지연 회피'라고 문제를 인지하고도 PM 터미널 버튼에만 적용.",
+      "rationale": "Figma는 전 크롬 커스텀 툴팁(즉시·일관 스타일·단축키 병기). native title은 OS 스타일·1초+ 지연·다크테마 무시. 287:6 비율로 사실상 전 앱이 '안 만든 티' 상태. 해결책(data-tip 패턴)이 코드베이스 안에 이미 있는데 미전파.",
+      "files": ["css/claude-pm.css:511-531", "js/props/ (157)", "index.html (46)"],
+      "fix_hint": "cpmt data-tip 패턴을 전역 [data-tip] 규칙으로 승격 후 고빈도 표면(toolbar, prop 헤더 버튼)부터 title→data-tip 이관.",
+      "wave2_cdp": "툴팁 지연/겹침/화면끝 클리핑 실측"
+    },
+    {
+      "id": "ULTRA-N3-01",
+      "dimension": "component",
+      "area": "N3 scrollbar",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "커스텀 스크롤바 16표면 산재 — 폭 4종(3/4/5/6px)·thumb 색 4종·track 유무 비일관·전역 표준 부재",
+      "evidence": "::-webkit-scrollbar 정의: editor-panels 4표면(4px, --ui-border-mid), editor-extra 7표면(3px와 4px 혼재, --ui-border vs --ui-border-mid vs --ui-border-strong), editor-canvas(6px, --ui-border), editor-base var-panel(4px), editor-props font-picker(4px, --ui-border-strong), pages/planning.html(4px와 5px 혼재), index.html figma-section-list(raw #333). comp-shelf-list는 3중 정의(editor-extra.css:1092/1495/1499 — 알려진 215줄 중복 블록). track 명시는 comp-shelf/figma-list만.",
+      "rationale": "'패널마다 스크롤바 다른 폭/색 = 촌스러움 1순위'(ultraplan N3). 같은 사이드바 안에서 3px(preview-navigator)와 4px(panel-body)가 공존. 전역 표준 셀렉터가 없어 미정의 스크롤 컨테이너는 OS 기본 스크롤바로 떨어짐(다크 크롬에서 이질) — 어느 컨테이너가 미정의인지는 렌더 필요.",
+      "files": ["css/editor-extra.css", "css/editor-panels.css", "css/editor-canvas.css", "index.html:181-183", "pages/planning.html"],
+      "fix_hint": "전역 *::-webkit-scrollbar 4px + thumb --ui-border-mid 1규칙으로 통합, canvas-wrap(6px)만 예외 명시. comp-shelf 3중 정의 제거는 기존 comp-shelf 중복 todo에 병합.",
+      "wave2_cdp": "스크롤 가능한 전 컨테이너 enumerate → 미정의(OS 기본) 컨테이너 목록화"
+    },
+    {
+      "id": "ULTRA-N4-01",
+      "dimension": "component+color",
+      "area": "N4 drag/drop",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "드롭 인디케이터 6변종(높이 2~6px, 도트 유무) + proj-tab 드롭표시는 폐기 파랑 #6a9fd8 raw + tpl 고스트 중복 정의",
+      "evidence": "인디케이터: .drop-indicator 5px+도트15px+glow / .section-drop-indicator 6px+도트18px+glow / .layer-drop-indicator 3px+도트11px / .layer-section-drop-indicator 3px+도트11px / .page-drop-indicator 2px 도트없음 / .ck-drop-indicator 2px 도트없음 (editor-blocks.css:427-490, editor-panels.css:630,1371). 색은 전부 --ui-accent-primary로 통일돼 있으나 형태 문법(도트 유무)이 캔버스/레이어계 vs 페이지/체크리스트계로 분열. 탭만 이탈: .proj-tab.tab-drop-before/after = border 2px solid #6a9fd8 raw(editor-base.css:656-657) — profile 명시 폐기 파랑. design-tokens.css:171 --color-tab-drop은 소비 0(dead). 고스트: .tpl-card-drag-ghost 동일 셀렉터 2중 정의(editor-extra.css:941 var(--ui-accent-primary) vs :957 raw #2d6fe8), z-index 9999 vs .assets-drag-ghost 99999.",
+      "rationale": "드롭 인디케이터 = '만든 사람 실력' 직격 표면. 색 토큰화는 잘 됐는데 ①탭 한 곳만 폐기 hex ②굵기/도트 문법 비표준 ③동일 셀렉터 중복(나중 정의가 raw hex로 역행 — 중복 제거 시 어느 쪽이 살아남느냐에 따라 회귀 위험).",
+      "files": ["css/editor-base.css:656-657", "css/design-tokens.css:171", "css/editor-extra.css:941,957", "css/editor-blocks.css:427-490", "css/editor-panels.css:630,1371"],
+      "fix_hint": "tab-drop-before/after → var(--ui-accent-primary). tpl-card-drag-ghost 중복 1개 제거(토큰판 유지). 인디케이터 2계열(캔버스=도트형, 리스트=라인형) 명문화.",
+      "wave2_cdp": "탭 드래그 시 드롭표시 실표시 여부 + 인디케이터 실측 비교 스크린샷"
+    },
+    {
+      "id": "ULTRA-N5-01",
+      "dimension": "color+component",
+      "area": "N5 ruler/guide",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "스냅 가이드 2계통 색 분열(scratch raw #ff3b6b/#2d6fe8 vs 캔버스 var(--sel-color)) + 룰러 표면 자체 부재",
+      "evidence": "scratch-pad 가이드: .scratch-snap-guide-line raw #ff3b6b 빨강 실선 + .spacing 변형 raw #2d6fe8 점선, z-index 9999 (editor-canvas.css:248-261, scratch-pad.js:550-). 캔버스 이미지 스냅 가이드: .img-snap-guide-h/v var(--sel-color) opacity .7, z-index 9993 (editor-blocks.css:267-283). 같은 '스냅 표시' 기능이 영역 따라 색 체계·z-index 다름. 룰러(.ruler-*)는 grep 0 — 표면 부재.",
+      "rationale": "Figma 정체성 요소인 룰러/가이드에서 ①눈금자 없음 ②가이드 색이 빨강(scratch) vs 선택색(캔버스)으로 갈려 같은 제스처에 다른 피드백. #ff3b6b는 danger 계열로 오독 가능(스냅은 정보지 경고 아님).",
+      "files": ["css/editor-canvas.css:248-261", "css/editor-blocks.css:267-283", "js/scratch-pad.js:550-566"],
+      "fix_hint": "--ui-snap-guide 토큰 신설(Figma 관례는 빨강 — 빨강 채택 시 캔버스 쪽을 빨강으로, 선택색과 분리). 룰러는 기능 부재로 feature-scout 영역.",
+      "wave2_cdp": "줌 스케일에서 1px 가이드 렌더 확인(반픽셀 블러)"
+    },
+    {
+      "id": "ULTRA-N6-01",
+      "dimension": "component+css-health",
+      "area": "N6 loading/skeleton",
+      "severity": "minor",
+      "adjudication": "self",
+      "title": "동일 스피너 3중 복제(키프레임 3개 이름만 다름) + 스켈레톤 1곳뿐 + 진행바 완료색 raw #4ade80",
+      "evidence": "스피너: .ai-spinner 11px(editor-extra:640) / .asset-loading-spinner 28px(editor-extra:1680) / .ai-fill-spinner 12px(editor-panels:1725) — 셋 다 border-top 회전 0.7s linear infinite, @keyframes ai-spin/asset-spin/ai-fill-spin 완전 동일 본문 3중 정의. 스켈레톤: .ai-img-cell-loading aig-shimmer 1곳(ai-image.css:352, raw #2a2a2a/#333 그라디언트). 진행바: .ck-progress-fill--complete raw #4ade80(editor-panels:1226) — 성공 그린 토큰 부재. 전역 로딩/스켈레톤 컴포넌트 없음. 무한 애니 6개 전부 reduced-motion 가드 0(MOT-01 교차).",
+      "rationale": "패널/리스트 로딩이 대부분 '빈 화면'으로 처리됨(스켈레톤 미적용). 스피너 중복은 css-health, 표준 부재는 component.",
+      "files": ["css/editor-extra.css:640-649,1680-1688", "css/editor-panels.css:1725-1733,1226", "css/ai-image.css:352-360"],
+      "fix_hint": "@keyframes spin 1개 + .ui-spinner{--spinner-size} 1컴포넌트로 통합. --ui-success 토큰 신설 후 #4ade80 치환.",
+      "wave2_cdp": "프로젝트 로드/템플릿 브라우저 첫 로딩 시 실제 로딩 표시 유무"
+    },
+    {
+      "id": "ULTRA-N7-01",
+      "dimension": "component+color",
+      "area": "N7 empty-state",
+      "severity": "minor",
+      "adjudication": "self",
+      "title": "빈상태 12+ 변종 — 텍스트 색 4계열(보더 토큰을 텍스트 색으로 쓴 곳 포함)·크기 10/11px·패딩 4~24px 산재",
+      "evidence": "표면: assets-tree-empty(--ui-text-muted, 24px 12px, 11px) / var-empty(--ui-text-dim, 4px, 11px) / ds-colorvars-empty(--ui-text-dim, 10px) / tb-cards-empty(--ui-text-dim, 20px) / aig-popover-empty(--ui-text-sub fallback #999) / ai-img-grid-empty(--ui-text-sub fallback #888 — 같은 토큰 fallback 분열) / insp-empty(**--ui-border-strong을 색으로** + italic, editor-extra:424) / comp-shelf-empty / tpl-browser-preview-empty / grb-line-empty / assets-import-empty / tab-add-empty(--ui-text-dim, 12px). 공용 .ui-empty 클래스 없음.",
+      "rationale": "'빈상태 디자인 = 프로/아마추어 가르는 선'(ultraplan N7). 보더 토큰의 텍스트 색 전용(insp-empty)은 명백한 토큰 오용. 같은 --ui-text-sub의 fallback이 파일마다 #999/#888로 갈리는 건 토큰 신뢰 훼손.",
+      "files": ["css/editor-extra.css:424,1097", "css/ai-image.css:124,393", "css/assets-panel.css:58,317", "css/editor-base.css:266,386,691"],
+      "fix_hint": ".ui-empty{color:var(--ui-text-dim);font-size:11px;text-align:center;padding:20px 12px} 공용 클래스 신설 후 12표면 흡수. insp-empty 색 즉시 교정.",
+      "wave2_cdp": "각 패널 빈상태 실렌더 스크린샷 비교(아이콘 유무 포함)"
+    },
+    {
+      "id": "ULTRA-N8-01",
+      "dimension": "states+a11y",
+      "area": "N8 focus-order",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "title": "focus-visible 공용규칙이 비포커서블 div를 타겟(dead rule) — tabindex 전 코드베이스 2회뿐, 패널 키보드 진입 불가",
+      "evidence": "editor-base.css:773-796 공용 :focus-visible 규칙이 .layer-item/.file-page-item 등 18셀렉터 커버. 그러나 layer-item은 div(layer-panel.js:33 createElement('div'), tabindex 없음), file-page-item도 div(file-page-section.js:18) — :focus-visible 도달 자체가 불가능한 dead 타겟. tabindex 사용은 전 코드베이스 2회(js/props/color-picker.js:134,137 — hue/alpha 슬라이더만, role=slider+aria 모범). role= 총 9회(dialog 5, slider 2, tablist 2) — menu/listbox/tree 0. outline:none 잔존 71회(panels 18, props 12, extra 11) 중 inline 구축 표면(N1 컨텍스트메뉴 등)은 공용 focus 규칙 범위 밖.",
+      "rationale": "E1 교훈(시각 OK ↔ AT 노출 X)의 키보드판: focus 스타일은 추가됐지만(eb8c390 보강) 포커스 '도달 경로'가 없어 레이어 패널·페이지 리스트는 키보드 only 조작 불가. Figma는 패널 전체 Tab/방향키 순회 가능. 규칙만 보면 통과처럼 보이는 전형적 escape 구조.",
+      "files": ["css/editor-base.css:773-796", "js/panels/layer-panel.js:33", "js/file-page-section.js:18", "js/props/color-picker.js:134-137"],
+      "fix_hint": "layer-item/file-page-item에 tabindex=0 + role(option/treeitem) + 방향키 핸들러. color-picker 슬라이더 패턴이 사내 모범 — 그 패턴 전파.",
+      "wave2_cdp": "실제 Tab 순회 경로 기록(어디서 끊기나) + accessibility tree 덤프"
+    }
+  ],
+
+  "cap_applied": false,
+  "findings_count": 12,
+  "verify_candidates": ["ULTRA-TYPO-A1", "ULTRA-MOT-A1", "ULTRA-MOT-A2", "ULTRA-ICON-A1", "ULTRA-N1-01", "ULTRA-N2-01", "ULTRA-N3-01", "ULTRA-N4-01", "ULTRA-N5-01", "ULTRA-N8-01"],
+
+  "area_summary": {
+    "N1 context-menu": "표면 실재(단 1개): index.html#block-context-menu — 통째 inline style+raw hex(major). 캔버스/섹션/레이어/탭 우클릭 메뉴는 표면 부재. openSectionBranchMenu는 메뉴 아님(즉시 실행). Wave2 CDP: 항목 height/hover 실측.",
+    "N2 tooltip": "표면 실재(분열): native title= 287회(props 157 최다) vs 커스텀 [data-tip] 툴팁 pm-panel 6버튼만. 해결 패턴 사내 보유·미전파(major). Wave2 CDP: 지연/클리핑 실측.",
+    "N3 scrollbar": "표면 실재(16표면 32정의): 폭 3/4/5/6px 4종, thumb 색 4종(+raw #333 1), comp-shelf 3중 정의. 전역 표준 셀렉터 부재 → 미정의 컨테이너는 OS 기본(major). Wave2 CDP: 미정의 스크롤 컨테이너 enumerate.",
+    "N4 drag/drop": "표면 실재(인디케이터 6변종+고스트 2): 색은 --ui-accent-primary 통일이나 proj-tab만 폐기 #6a9fd8 raw, --color-tab-drop dead, tpl-card-drag-ghost 동일 셀렉터 2중(토큰판 vs raw판)(major). Wave2 CDP: 드래그 실표시 검증.",
+    "N5 ruler/guide": "룰러 = 표면 부재(grep 0, Figma 정체성 요소 결손 — feature-scout 영역). 가이드 = 실재 2계통이나 색 분열(scratch raw #ff3b6b/#2d6fe8 vs 캔버스 var(--sel-color))(major). Wave2 CDP: 줌 시 1px 렌더.",
+    "N6 loading/skeleton": "표면 실재(빈약): 스피너 3중 복제(동일 키프레임 3이름), 스켈레톤 ai-image 1곳뿐, 진행바 완료색 raw #4ade80, 전역 로딩 컴포넌트 부재(minor). 부트/패널 로딩 실태는 Wave2 CDP.",
+    "N7 empty-state": "표면 실재(12+ 변종): 공용 클래스 없음, 색 4계열(보더 토큰 텍스트 오용 1, 동일 토큰 fallback #999/#888 분열), 패딩 4~24px(minor). Wave2 CDP: 실렌더 비교.",
+    "N8 focus-order": "표면 실재(결손): focus-visible 규칙은 있으나 타겟 div들이 비포커서블(dead rule), tabindex 2회뿐(color-picker 모범 단독), role 9회·menu/listbox 0(major). Wave2 CDP: Tab 순회 경로 + AT 트리."
+  }
+}

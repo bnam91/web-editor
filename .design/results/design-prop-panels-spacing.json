@@ -1,0 +1,155 @@
+{
+  "agent": "DSN-pp-spacing",
+  "dimension": "spacing",
+  "scope": "prop-panels",
+  "method": "static",
+  "date": "2026-06-11",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "baseline": {
+    "grid_unit": 4,
+    "scale_tokens": "--space-0..6 = 2/4/8/12/16/24/32",
+    "reference_standards": ["css/editor-props.css", "js/props/prop-section.js", "js/props/prop-text.js"],
+    "prop_row_standard": {
+      "min-height": "24px",
+      "gap": "4px",
+      "margin-bottom": "6px"
+    },
+    "prop_section_standard": {
+      "padding": "0 8px 4px",
+      "section_gap": "border-top divider (+ .prop-section-title padding 8px 0 4px)"
+    },
+    "prop_label_standard": { "width": "56px" },
+    "known_debt": "px 리터럴 3078개 점진 이관 인지됨 (design-tokens.css:182). per-line 금지, 군집 그룹핑."
+  },
+  "scope_detail": {
+    "audited": "js/props/**.js 인라인 style의 prop-row gap/margin, prop-label width, prop-section padding, 반복-아이템 카드 컨테이너 간격 — 표준(editor-props.css) 대비 패널 간 동일역할 갈림",
+    "excluded": [
+      "블록 고유 컨트롤 영역 간격 (기능차 — 명세 예외)",
+      "editor-props.css 토큰/스킨 정의부 (표준 자체)",
+      "저대비/색상 (다른 차원)",
+      "단순 그리드 비배수만인 건 (design-spacing.json SPACE-G1에서 이미 군집 처리)"
+    ]
+  },
+  "measure_table": {
+    "prop_row_gap_inline_overrides": {
+      "standard_css": "4px",
+      "distribution": { "6px": 14, "4px": 3, "3px": 3, "12px": 1 },
+      "note": "표준 .prop-row gap=4px인데 인라인 override는 6px가 압도적(14건). 같은 prop-row 역할인데 패널별로 gap 4 vs 6 갈림.",
+      "files_using_6px": ["prop-iconify.js(5)", "prop-frame.js(3)", "prop-mockup.js(2)", "prop-vector.js", "prop-text-template.js", "prop-table.js", "prop-page.js"]
+    },
+    "prop_row_vertical_rhythm": {
+      "standard_css": "margin-bottom:6px",
+      "inline_margin_top": { "6px": 13, "4px": 3, "8px": 2, "2px": 1 },
+      "note": "다수 패널이 행 리듬을 margin-bottom(표준) 대신 인라인 margin-top:6px로 구현. margin-top 6px가 앞 행의 margin-bottom 6px와 합쳐져 12px 간격(이중 마진)이 되는 행이 존재 → 같은 prop-row 인데 수직 간격 6 vs 12 갈림."
+    },
+    "prop_label_width": {
+      "standard_css": "56px",
+      "inline_overrides": { "60px": 4, "16px": 4, "48px": 1, "40px": 1 },
+      "note": "16px는 1글자 아이콘 라벨(W/H/X/Y — 기능차, 예외). 그러나 60px(4건: step·text-template의 '왼쪽/오른쪽 패딩')와 48px·40px은 일반 텍스트 라벨로 표준 56px와 갈림. 같은 좌측 라벨 역할인데 패널마다 40/48/56/60 혼용."
+    },
+    "prop_section_padding": {
+      "standard_css": "0 8px 4px",
+      "inline_overrides": "없음 (모든 패널 표준 .prop-section 유지)",
+      "note": "섹션 컨테이너 패딩은 일관 — 인라인 우회 0건. 좋음."
+    },
+    "repeatable_item_card": {
+      "standard_css_classes": [".prop-line-card (padding:8px, margin-bottom:8px, gap:6px)", ".prop-cell-card (padding:8px, margin-bottom:10px)"],
+      "uses_standard": ["prop-laurel.js"],
+      "rolls_own_inline": {
+        "prop-chat.js": "padding:8px; margin-bottom:8px (값은 표준 line-card와 같으나 인라인 하드코딩, 클래스 미사용)",
+        "prop-step.js": ".stb-prop-item — CSS 정의 없음(패딩/마진 0), 카드 외형/간격 없이 행만 나열",
+        "prop-table.js / prop-comparison.js / prop-label-group.js": "반복 아이템에 표준 카드 클래스 미사용, 인라인/무패딩 혼용"
+      },
+      "note": "동일 역할(반복 편집 아이템 카드)인데 laurel만 표준 카드 클래스를 쓰고 chat/step/table/comparison/label-group은 제각각(하드코딩 8px / 정의없는 클래스 / 무패딩)으로 갈림."
+    },
+    "prop_section_count_per_panel": {
+      "note": "prop-text.js는 .prop-section 래퍼 0개 — 표준 참조 패널이지만 섹션 패딩 체계 밖에서 렌더(text는 wireup 모듈 조합 특성). 나머지 패널은 prop-section 정상 사용."
+    }
+  },
+  "findings": [
+    {
+      "id": "PP-SPACE-1",
+      "title": "prop-row gap 표준 4px ↔ 인라인 6px 패널 간 갈림 (동일 역할)",
+      "severity": "major",
+      "status": "verify-candidate",
+      "method": "static",
+      "dimension": "spacing",
+      "type": "role-dispersion",
+      "detail": "표준 .prop-row gap=4px(editor-props.css:17). 그러나 인라인 override는 gap:6px가 14건으로 4px(3건)을 압도. iconify/frame/mockup/vector/table/page 패널의 일반 입력 행이 6px gap을 쓰고, comparison/banner02 등은 4px를 써서 같은 '라벨+입력 행' 역할이 패널 간 4 vs 6으로 갈림. 인접 패널 전환 시 행 내 요소 간격 리듬이 미세하게 달라짐.",
+      "evidence_variants": [
+        { "gap": "6px", "count": 14, "role": "prop-row 라벨+입력/버튼 행" },
+        { "gap": "4px(=표준)", "count": 3 },
+        { "gap": "3px", "count": 3 },
+        { "gap": "12px", "count": 1 }
+      ],
+      "hotspot_files": ["js/props/prop-iconify.js", "js/props/prop-frame.js", "js/props/prop-mockup.js", "js/props/prop-table.js"],
+      "recommendation": "prop-row 기본 gap을 4px(표준) 또는 6px 중 하나로 수렴. 6px가 실질 다수면 표준값을 6px로 승격하거나, 6px 인라인을 제거해 4px 표준에 흡수. 일괄 치환 금지 — 터치하는 행만.",
+      "verify": { "needed": true, "how": "CDP 9334에서 iconify/frame 패널과 comparison 패널의 동일류 행 내 요소 간격 실측 비교", "by": "rendered measurement" },
+      "action": "verify-then-decide"
+    },
+    {
+      "id": "PP-SPACE-2",
+      "title": "행 수직 리듬 — 표준 margin-bottom:6px ↔ 인라인 margin-top:6px 혼용 (이중 마진 위험)",
+      "severity": "major",
+      "status": "verify-candidate",
+      "method": "static",
+      "dimension": "spacing",
+      "type": "role-dispersion",
+      "detail": "표준 .prop-row는 margin-bottom:6px로 아래 간격을 만든다. 그런데 다수 패널(chat/frame/iconify 등)이 행 간격을 인라인 margin-top:6px(13건)로 구현. 표준 margin-bottom을 가진 행 뒤에 margin-top:6px 행이 오면 마진이 합산되어 12px 간격이 생기는 반면, 표준만 쓰는 패널은 6px → 같은 '연속 행 사이' 역할인데 패널/위치에 따라 6px vs 12px로 갈림. margin-top 8px(2건)·4px(3건)도 섞여 리듬이 4~12px로 분산.",
+      "evidence_variants": [
+        { "spacing": "margin-bottom:6px(표준)", "role": "행 하단 간격" },
+        { "spacing": "margin-top:6px(인라인)", "count": 13 },
+        { "spacing": "margin-top:8px", "count": 2 },
+        { "spacing": "margin-top:4px", "count": 3 }
+      ],
+      "hotspot_files": ["js/props/prop-frame.js", "js/props/prop-chat.js", "js/props/prop-iconify.js"],
+      "recommendation": "행 간격을 한 방향(표준 margin-bottom)으로 통일하고 인라인 margin-top 제거. 섹션 첫 행만 추가 상단 간격이 필요하면 별도 클래스로. 이중 마진 행 우선 정리.",
+      "verify": { "needed": true, "how": "CDP 9334에서 margin-top 행이 표준 margin-bottom 행 뒤에 올 때 실제 간격이 12px로 벌어지는지 실측", "by": "rendered measurement" },
+      "action": "verify-then-decide"
+    },
+    {
+      "id": "PP-SPACE-3",
+      "title": "prop-label 폭 — 표준 56px ↔ 40/48/60px 패널 간 갈림",
+      "severity": "minor",
+      "status": "self",
+      "method": "static",
+      "dimension": "spacing",
+      "type": "role-dispersion",
+      "detail": "표준 .prop-label width=56px. 인라인 override로 60px(4건: step·text-template '왼쪽/오른쪽 패딩'), 48px(1), 40px(1)이 일반 텍스트 라벨 역할에 사용됨 → 좌측 라벨 컬럼 폭이 패널 간 40/48/56/60으로 갈려 인접 패널 전환 시 입력 필드 시작 x좌표가 어긋남. (width:16px 4건은 W/H/X/Y 1글자 아이콘 라벨 — 기능차 예외로 제외.)",
+      "evidence_variants": [
+        { "width": "56px(표준)" },
+        { "width": "60px", "count": 4, "role": "긴 한글 라벨('왼쪽 패딩' 등)" },
+        { "width": "48px", "count": 1 },
+        { "width": "40px", "count": 1 }
+      ],
+      "hotspot_files": ["js/props/prop-step.js", "js/props/prop-text-template.js", "js/props/prop-frame.js", "js/props/prop-label-group.js"],
+      "recommendation": "라벨 폭을 표준 56px로 수렴하거나, 긴 한글 라벨용 변종이 정말 필요하면 .prop-label--wide(60px) 등 토큰화된 변종 1종으로 정의. 40/48 단발성 폭은 56으로 흡수.",
+      "action": "self-fix (touch 시 56px 또는 명명 변종으로)"
+    },
+    {
+      "id": "PP-SPACE-4",
+      "title": "반복 아이템 카드 — laurel만 표준 카드 클래스, chat/step/table 등은 제각각",
+      "severity": "major",
+      "status": "verify-candidate",
+      "method": "static",
+      "dimension": "spacing",
+      "type": "role-dispersion",
+      "detail": "editor-props.css에 반복 편집 아이템용 표준 카드(.prop-line-card: padding:8px/margin-bottom:8px/gap:6px, .prop-cell-card: padding:8px/margin-bottom:10px)가 정의돼 있으나 사용처는 prop-laurel.js 단 1개. 같은 '반복 편집 아이템(메시지/스텝/행/컬럼/라벨)' 역할인데 prop-chat.js는 인라인 padding:8px/margin-bottom:8px 하드코딩, prop-step.js는 .stb-prop-item(CSS 정의 없음 → 패딩·마진 0, 카드 외형 없음), table/comparison/label-group은 표준 카드 미사용. 결과적으로 아이템 카드 간격·내부 패딩이 패널마다 8px / 0 / 무패딩으로 갈림.",
+      "evidence_variants": [
+        { "panel": "prop-laurel.js", "card": "표준 .prop-line-card/.prop-cell-card" },
+        { "panel": "prop-chat.js", "card": "인라인 padding:8px margin-bottom:8px (값은 같으나 클래스 미사용)" },
+        { "panel": "prop-step.js", "card": ".stb-prop-item — CSS 미정의(간격 0)" },
+        { "panel": "prop-table/comparison/label-group", "card": "표준 카드 미사용/무패딩" }
+      ],
+      "hotspot_files": ["js/props/prop-chat.js", "js/props/prop-step.js", "js/props/prop-table.js", "js/props/prop-comparison.js", "js/props/prop-label-group.js"],
+      "recommendation": "반복 아이템 카드는 표준 .prop-line-card(또는 .prop-cell-card)로 수렴. chat의 인라인 하드코딩 → 클래스 치환, step의 .stb-prop-item → .prop-line-card 채택. 패널별 아이템 간격/패딩 일치시켜야 다중 아이템 패널 간 일관성 확보.",
+      "verify": { "needed": true, "how": "CDP 9334에서 laurel(표준)·chat·step 아이템 카드의 패딩/카드 간 margin 실측 비교", "by": "rendered measurement" },
+      "action": "verify-then-decide"
+    }
+  ],
+  "grouped_overflow": {
+    "applied": true,
+    "rationale": "패널 간 동일역할 간격 갈림만 4개 finding으로 군집화(gap / 수직리듬 / 라벨폭 / 아이템카드). 단순 그리드 비배수는 design-spacing.json SPACE-G1에서 이미 처리됨이라 per-line 재나열 안 함. 캡15 이내."
+  }
+}

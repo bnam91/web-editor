@@ -1,0 +1,56 @@
+{
+  "run": "wave2-design",
+  "date": "2026-06-12",
+  "baseline": "132c2b7",
+  "cdp_port": 9334,
+  "project": "proj_1775644888754",
+  "mode": "report-only (다음 디자인정비 라운드 입력)",
+  "basis": ".design/profile.md (contrast_standard AA: 4.5:1 텍스트 / 3:1 UI) + 신규 동적표면 트리거렌더. px 리터럴 부채는 개별버그 금지·군집 그룹핑.",
+  "safety": "실프로젝트 7개 탭 상주 → UI 탭전환 0, 테스트 projectId 직접. 베이스라인 복원+저장.",
+  "findings": [
+    {
+      "id": "N8", "title": "focus dead rule — .layer-item/.file-page-item tabindex 부재로 키보드 접근 불가", "severity": "major", "grade": "deterministic-confirmed",
+      "detail": ".layer-item·.file-page-item 존재하나 tabindex=null(div, 비포커서블). 그러나 공용 CSS에 `.layer-item:focus-visible, .file-page-item:focus-visible` 규칙 존재 → 영원히 발화 못하는 dead rule. 키보드 사용자는 레이어/페이지 패널 진입·탐색 불가.",
+      "fix_hint": "tabindex=0 부여 + role + 키보드 핸들러. 단 UX-FOCUS-CLIP(overflow:hidden 부모 링 잘림)과 한 쌍으로 — tabindex만 주면 링이 잘려 보임.",
+      "verify_candidate": true
+    },
+    {
+      "id": "D-A11Y-DIM", "title": "저대비 dim 텍스트 군집 (1.47~4.39:1, AA 미달)", "severity": "major", "grade": "rendered-measured(7건)",
+      "measured": [
+        {"el":"option/placeholder #3a3a3a on #1e1e1e", "ratio":1.47, "px":9},
+        {"el":"placeholder '할 일 입력' #3a3a3a", "ratio":1.47, "px":11},
+        {"el":"tpl-card-meta 날짜 #444", "ratio":1.59, "px":9},
+        {"el":"layer-item-type 'Gap' #4a4a4a", "ratio":1.88, "px":9},
+        {"el":"proj id #484848", "ratio":1.98, "px":10},
+        {"el":"BETA 배지 #505050", "ratio":2.24, "px":9},
+        {"el":"tpl-type-badge 녹색 #6abf6a on #2a4a2a", "ratio":4.39, "px":9}
+      ],
+      "cross_ref": "license.html도 동일 — .desc 본문 #777 3.47:1, (선택) #555 2.08:1. project_goditor_design_debt(#777/#555 ~110곳)의 라이브 확인.",
+      "secondary": "9px 초소형 텍스트 다수 — 가독성 craft 동반 이슈.",
+      "verify_candidate": true
+    },
+    {
+      "id": "D-RULER-ABSENT", "title": "룰러/가이드 완전 부재 (Figma 정체성 결손)", "severity": "medium", "grade": "deterministic-confirmed",
+      "detail": ".ruler/#ruler/[class*=ruler]·guide 엘리먼트 0. 캔버스 좌표/정렬 기준선 없음. Figma/Adobe 핵심 식별 기능 부재.",
+      "note": "신규 기능 영역 — 정비보다 로드맵 항목."
+    },
+    {
+      "id": "D-CTXMENU-ABSENT", "title": "컨텍스트 메뉴 시스템 전무", "severity": "medium", "grade": "deterministic-confirmed",
+      "detail": "커스텀 context-menu 엘리먼트/CSS 0. (ux UX-DISCOVER-CTX와 동일 근원 — 시각+거동 양면)."
+    },
+    {
+      "id": "D-TOOLTIP-NATIVE", "title": "툴팁 네이티브 title만(177개) — 커스텀 0", "severity": "medium", "grade": "deterministic-confirmed",
+      "detail": "[title] 177개, 커스텀 tooltip 엘리먼트/CSS 0. 네이티브 title은 ~1s 지연·OS 스타일·다크테마 불일치. Figma는 커스텀 스타일 툴팁. 일관성/craft 결손."
+    },
+    {
+      "id": "D-DYNAMIC-OK", "title": "동적표면 일부는 양호", "severity": "info/pass", "grade": "confirmed",
+      "detail": "스크롤바 커스텀 34규칙(var-panel/file-panel/tpl-panel 등 스타일됨 — 커버리지 점검 권장), 드래그고스트/drop-indicator 34규칙 존재(시각 피드백 OK)."
+    },
+    {
+      "id": "D-RADIUS-INCONSIST", "title": "버튼 radius 4종 난립 (2/4/4/5px)", "severity": "minor", "grade": "rendered-measured",
+      "detail": ".st-btn 2px / .zoom-btn 4px / .prop-align-btn 4px / .tb-btn 5px. 컴포넌트 표준 radius 토큰 부재 신호(matrix station-component).",
+      "note": "px 부채 군집 — 개별 아닌 '버튼 radius 표준화' 1건으로 그룹핑."
+    }
+  ],
+  "summary": "N8 focus dead rule(키보드 접근불가, major) + 저대비 dim 텍스트 군집(1.47~4.39:1, AA 미달, license 포함) + 룰러/컨텍스트메뉴 전무 + 툴팁 네이티브-only + radius 4종 난립. 스크롤바/드래그고스트는 양호. 전부 report-only — 다음 디자인정비 라운드 입력."
+}

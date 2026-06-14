@@ -1,0 +1,322 @@
+{
+ "agent": "UXS-layout",
+ "version": "3.0",
+ "dimension": "layout",
+ "scope": "whole-surface",
+ "method": "cdp",
+ "run_date": "2026-06-11",
+ "run_notes": "CDP 9334 실주행. 감사 중 병렬 ux-squad 에이전트(flow/error/onboarding 등)가 동일 페이지를 조작·재시작·페이지 전환하여 일부 캡처가 경합됨. 모든 상호작용은 선택/드롭다운/모달 열기 등 비파괴·가역만 수행. 앱이 1회 종료되어 npm run dev로 재기동함.",
+ "findings": [
+  {
+   "id": "UXS-layout-001",
+   "track": "judgment",
+   "title": "Export 드롭다운에 불러오기·저장·Figma 연동·참고 이미지 추가가 혼재 — 레이블과 내용물 불일치 그룹",
+   "where": "toolbar / #publish-btn → .pub-dd-* (불러오기, 저장, JSON 내보내기, Figma Bridge ON, Figma 업로드, Figma 가져오기, 참고 이미지 일괄 추가) — evidence/layout-10-publish-dropdown.png",
+   "impact": "high",
+   "observation": "상단 우측 'Export' 버튼의 드롭다운 7항목 중 내보내기는 'JSON 내보내기' 1건뿐. 불러오기(역방향), 저장, Figma 양방향 연동, '참고 이미지 일괄 추가'(스크래치패드 입력 = 핵심작업 #2의 진입점)가 한 메뉴에 평면 나열됨. 한편 실제 산출물 내보내기(PNG/JPG/GIF)는 섹션 props와 페이지 props의 Export 그룹에 있음.",
+   "friction": "ia-principles.md#labeling — 'Export'를 누르기 전 예측되는 결과(상세페이지 산출물 내보내기)와 내용물이 불일치. 핵심작업 #5(내보내기/발행) 사용자가 Export를 열면 PNG 내보내기가 없어 막히고, 핵심작업 #2(이미지 자산 삽입) 사용자는 '참고 이미지 추가'가 Export 안에 있을 것이라 예측할 수 없음. gestalt.md#common-region — 한 경계(드롭다운) 안에 서로 다른 대상(프로젝트 파일 IO/Figma/스크래치패드)에 작용하는 컨트롤 혼재. interaction-laws.md#hick — 분류 없는 동급 7항목.",
+   "proposal": "드롭다운을 기능별 재편: (a) 산출물 내보내기(전체 PNG/JPG — 현재 페이지 props에 있는 '전체 섹션 내보내기'를 이 메뉴로 승격 또는 양쪽 유지), (b) 프로젝트 파일(저장/불러오기/JSON)을 구분선으로 분리, (c) Figma 연동을 서브그룹화, (d) '참고 이미지 일괄 추가'는 자산 진입점(좌측 Assets 탭 또는 플로팅 바 이미지 그룹)으로 이동. 버튼 레이블을 내용물에 맞게 조정(예: 파일/공유).",
+   "tradeoffs": "항목 이동 시 기존 사용자(현빈·직원)의 위치 기억 무효화. 서브그룹화는 클릭 뎁스 +1 (click_depth_max=4 내 수용 가능 범위인지 flow 차원과 교차 확인 필요). 메뉴 분리로 상단 버튼이 늘면 #8-minimalist와 충돌 가능.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "ia-principles.md#labeling",
+    "gestalt.md#common-region",
+    "interaction-laws.md#hick"
+   ],
+   "adjudication": "central-confirmed"
+  },
+  {
+   "id": "UXS-layout-002",
+   "track": "judgment",
+   "title": "섹션 속성 패널 안에 동급 primary 파랑 2개('이 섹션 내보내기'와 Template '저장') — 위계 경쟁 + 일반어 '저장'의 오인 배치",
+   "where": "prop-panel / #panel-right .panel-body (섹션 선택 시): Export 그룹 '이 섹션 내보내기'(blue full-width) + Template 그룹 '저장'(blue full-width) — evidence/layout-08-section-selected.png, layout-09-prop-panel-section.png",
+   "impact": "high",
+   "observation": "섹션 선택 시 우측 패널 하단에 파란 primary 풀폭 버튼이 2개 연속 등장: '이 섹션 내보내기'(Export 그룹)와 '저장'(Template 그룹 — 현 섹션을 템플릿으로 저장하는 폼: Test/Hero 셀렉트+템플릿 이름+태그+저장). 프로젝트 실제 저장은 자동저장(topbar '저장됨' 인디케이터)으로 무음 처리됨.",
+   "friction": "gestalt.md#figure-ground — 한 컬럼에 primary 강조 2개가 동급으로 보여 주 액션이 전경으로 분리되지 않음(주 액션 근거: 핵심작업 #1 '저장 확인', #5 '내보내기'). ia-principles.md#semantic-mapping — primary 기표가 템플릿 저장(부가 기능)에도 소모됨. ia-principles.md#labeling — 일반 사용자(G1 외부)가 작업 후 '저장'을 찾을 때 이 파란 '저장' 버튼을 프로젝트 저장으로 오인하고 클릭 → 빈 이름의 템플릿이 생성되는 시행착오 시나리오.",
+   "proposal": "Template 저장 폼을 기본 접힘(예: 'Template으로 저장…' 토글/링크)으로 강등하고 '저장' 레이블을 '템플릿으로 저장'으로 구체화. primary 파랑은 섹션 props 안에서 1개(내보내기)만 유지.",
+   "tradeoffs": "템플릿 저장은 내부 제작팀(현빈·직원)의 고빈도 동작일 수 있음 — 접으면 그들의 클릭 +1 (ia-principles.md#progressive-disclosure 가드: 빈도 데이터 없이 단정 금지 → 접힘 강도는 현빈 확인 필요). 레이블 변경은 semantics 차원과 교차.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "gestalt.md#figure-ground",
+    "ia-principles.md#semantic-mapping",
+    "ia-principles.md#labeling"
+   ],
+   "adjudication": "central-confirmed"
+  },
+  {
+   "id": "UXS-layout-003",
+   "track": "judgment",
+   "title": "앱 전체에서 가장 강한 시각 강조(파란 박스 버튼)가 Preview에 — 핵심작업 목록에 없는 기능이 최전경",
+   "where": "toolbar(소유 셀렉터 #zoom-ctrl)·우측 패널 상단 / #rp-top-row: #zoom-ctrl(−/40%/+/Fit) + #rp-preview-btn(파란 박스) — evidence/layout-01-full.png 우상단",
+   "impact": "medium",
+   "observation": "우측 패널 최상단 #rp-preview-btn이 크롬 전체에서 유일하게 상시 노출되는 대형 파란 박스 버튼(40×28+ 강조). 반면 핵심작업 #5의 Export는 무채색 tb-btn, 핵심작업 #1의 블록 추가(+)는 화면 하단 플로팅 바에 있음. Preview는 profile 핵심작업 Top 5+1에 없음.",
+   "friction": "gestalt.md#figure-ground — 과업상 주 액션(블록 추가/내보내기)이 아닌 Preview가 시각적 전경을 독점. 첫 진입한 외부 사용자(G1)의 시선이 Preview로 먼저 유도되어 주 플로우(섹션/블록 추가) 발견이 지연되는 시나리오.",
+   "proposal": "Preview를 zoom 클러스터와 동일한 무채색 토널로 낮추거나, 강조를 유지하려면 핵심작업 진입점(새 섹션 + 또는 Export)과의 강조 위계를 재배분.",
+   "tradeoffs": "결과물 확인(Preview)이 실제로는 고빈도일 수 있음 — 빈도 실측 없이 강등 단정은 금물(figure-ground 오적용 가드). 다크크롬/라이트캔버스 의도 결정과는 무관함을 확인함.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "gestalt.md#figure-ground"
+   ],
+   "adjudication": "self"
+  },
+  {
+   "id": "UXS-layout-004",
+   "track": "judgment",
+   "title": "섹션 툴바(A/B·메모·AI 채우기)가 캔버스 줌과 함께 축소 — 40% 줌에서 15×12px 타겟",
+   "where": "canvas-block / .section-toolbar .st-btn (섹션 선택 시 섹션 우상단) — 실측 rect: A/B [877,71,18,12], 메모 [897,71,15,12], AI [913,71,15,12] @ zoom 40% — evidence/layout-08-section-selected.png",
+   "impact": "medium",
+   "observation": ".section-toolbar가 캔버스 스케일러 내부에 있어 줌 배율에 비례해 축소됨. 'Fit' 기본 작업 줌(이번 실측 40%)에서 버튼이 15×12px로 렌더링.",
+   "friction": "interaction-laws.md#fitts — 타겟 획득 시간은 크기에 반비례. 섹션 단위 AI 텍스트 채우기·메모는 섹션 작업 중 반복 사용되는 컨트롤인데, 전체 보기(저줌)에서 가장 필요할 때 가장 작아짐. min_target_px 미설정이므로 judgment로만 보고(profile 게이트 G3).",
+   "proposal": "섹션 툴바를 줌 비보정 오버레이(고정 px, 캔버스 좌표만 추적)로 렌더 — 선택 핸들·오버레이(.canvas-overlay-handle)와 동일한 계층으로.",
+   "tradeoffs": "고정 크기 오버레이는 저줌에서 섹션이 화면상 작을 때 이웃 섹션 툴바와 겹칠 수 있음 — 선택된 섹션에만 표시하면 완화. 구현은 overlay 레이어 추가 비용.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "interaction-laws.md#fitts"
+   ],
+   "adjudication": "self"
+  },
+  {
+   "id": "UXS-layout-005",
+   "track": "judgment",
+   "title": "블록 추가 플로팅 바에 Claude PM 진입 버튼 동거 — 무관 기능이 한 그룹으로 지각",
+   "where": "toolbar(하단 플로팅) / #floating-panel: [+섹션(primary)] [Frame] [Text] [Image] [도형] [스티커] [컴포넌트] [Plugins] [AI 섹션 생성 ⌘K] [Claude PM 💬] — evidence/layout-05-floating-bar.png, layout-01-full.png 하단",
+   "impact": "medium",
+   "observation": "하단 중앙 플로팅 바는 '캔버스에 무언가를 추가'하는 도구 모음(섹션/프레임/텍스트/이미지/도형/스티커/컴포넌트, AI 섹션 생성까지 일관). 마지막 버튼 'Claude PM — 프로젝트 매니저'는 추가 동작이 아닌 별개 시스템 패널 토글이며 시각적 구분(구분선/간격) 없이 같은 줄에 배치됨.",
+   "friction": "gestalt.md#proximity — 기능적으로 무관한 컨트롤(PM 패널 토글)이 추가 도구들과 밀착해 한 그룹으로 지각됨. 외부 사용자가 '말풍선 블록 추가'로 오인 클릭하는 시나리오(같은 바의 다른 버튼들이 전부 블록을 만들기 때문에 동작 기대가 전이됨 — gestalt.md#similarity).",
+   "proposal": "PM 버튼을 구분선으로 분리하거나 토바/우측 패널 등 '패널 토글' 계열 위치로 이동. 최소 조치: 플로팅 바 내 divider 1개 추가(Plugins·AI·PM 보조 그룹 구획).",
+   "tradeoffs": "PM 패널 자체의 위상은 G5 회신 대기 — 본 finding은 버튼 '배치'만 다룸(.cpm-* 스타일 판단 아님). PM 접근성을 낮추면 PM 중심 워크플로(내부)에서 클릭 거리 증가.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "gestalt.md#proximity",
+    "gestalt.md#similarity"
+   ],
+   "adjudication": "self"
+  },
+  {
+   "id": "UXS-layout-006",
+   "track": "judgment",
+   "title": "토스트가 화면 정중앙(캔버스 작업 지점 위)에 표시 — 가장자리 관례 이탈 + 작업 대상 가림",
+   "where": "toast / #editor-toast — css/editor-toast.css L7-19: position:fixed; top:50%; left:50%; translate(-50%,-50%)",
+   "impact": "medium",
+   "observation": "토스트가 뷰포트 정중앙에 뜨도록 정적 정의됨. 캔버스 중앙 = 사용자가 방금 편집한 블록이 있을 확률이 가장 높은 지점.",
+   "friction": "interaction-laws.md#jakob — 토스트는 상/하단 가장자리라는 보편 관례를 이탈해, 전환 사용자가 '모달/에러 다이얼로그'로 순간 오인. gestalt.md#figure-ground — 알림이 방금 편집한 결과물(사용자가 확인하려는 전경) 바로 위를 덮어 결과 확인과 경쟁. pointer-events:none·일시 표시라 차단은 아니나 매 알림마다 반복되는 가림.",
+   "proposal": "하단 중앙(플로팅 바 위쪽 여백) 또는 상단 중앙으로 이동. 플로팅 바와 겹침 회피를 위해 bottom: 88px 선.",
+   "tradeoffs": "중앙 배치는 '반드시 봐야 하는' 알림에는 유리 — 심각도별 위치 이원화(에러=중앙, 정보=가장자리)도 선택지이나 일관성(#4-consistency)과 충돌. 표시 시간/빈도의 맥락 적절성은 U-feedback 소관 — 침범하지 않음(위치만 판단).",
+   "approval": "pending",
+   "heuristic_basis": [
+    "interaction-laws.md#jakob",
+    "gestalt.md#figure-ground"
+   ],
+   "adjudication": "self"
+  },
+  {
+   "id": "UXS-layout-007",
+   "track": "judgment",
+   "title": "프로젝트 카드의 복제·삭제 버튼이 동형·동색·4px 밀착 — 위험도가 다른 액션의 무차별 배치",
+   "where": "home-pages / pages/projects.html .card-actions(.card-duplicate ⎘ + .card-delete ✕, 22×22px, gap 4px, 휴지 상태 동일 회색 #666; 삭제의 빨강은 hover시에만) — 정적 분석 L109-124, L290-300",
+   "impact": "medium",
+   "observation": "프로젝트 카드 hover 시 우상단에 복제(⎘)와 삭제(✕)가 같은 모양·같은 색의 22px 버튼으로 4px 간격 밀착 노출. 위험 기표(빨강)는 hover 후에만 나타남.",
+   "friction": "gestalt.md#similarity — 다른 위험도의 액션이 같은 모양이라 같은 동작 계열로 지각됨. gestalt.md#proximity — 파괴 액션이 비파괴 액션과 밀착해 슬립 클릭 거리 4px. 프로젝트 삭제는 작업물 전체에 작용하는 최고 위험 액션(핵심작업 #0 진입 표면). 확인 다이얼로그 존재 여부는 U-error 전수조사 소관 — 여기서는 배치·모양만 판단.",
+   "proposal": "삭제를 휴지 상태에서도 위험 기표로 구분(외곽/아이콘 색)하거나, 복제와 삭제 사이 간격을 그룹 내 간격보다 크게 벌려 별개 그룹으로 구획. 또는 삭제를 ⋯ 오버플로 메뉴로 이동.",
+   "tradeoffs": "휴지 상태부터 빨강이면 카드 그리드 전체에 danger 기표가 살포되어 늑대 소년 효과(semantic-mapping 가드) — hover 시점 구분 강화가 절충안. 오버플로 메뉴는 삭제 뎁스 +1.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "gestalt.md#similarity",
+    "gestalt.md#proximity",
+    "nielsen-10.md#5-error-prevention"
+   ],
+   "adjudication": "self"
+  },
+  {
+   "id": "UXS-layout-008",
+   "track": "judgment",
+   "title": "텍스트 블록 Type 세그먼트 7개가 패널 폭에 압착되어 레이블 잘림(B…, C…) — 누르기 전 구분 불가",
+   "where": "prop-panel / 텍스트 블록 선택 시 Type 그룹: H1 H2 H3 B… C… Tag List (227px 폭에 7버튼) — evidence/layout-07-prop-panel-text.png",
+   "impact": "medium",
+   "observation": "240px 우측 패널에서 텍스트 타입 세그먼트 7개 중 Body·Caption이 'B…'/'C…'로 잘려 렌더링됨(실측 스크린샷). 두 항목 모두 'B/C' 한 글자+말줄임으로만 구분됨.",
+   "friction": "ia-principles.md#labeling — 레이블은 누르기 전에 결과를 예측하게 해야 하나, 잘린 두 레이블은 시행착오 클릭을 강제. 텍스트 타입 전환은 핵심작업 #1(블록 추가→속성 변경)의 첫 단계 컨트롤. interaction-laws.md#miller 가드 확인 — 7개 자체는 위반 아님(청킹 문제 아님), 문제는 잘림.",
+   "proposal": "2행 배치(4+3) 또는 아이콘+툴팁 세그먼트로 전환, 혹은 저빈도 타입(Tag/List)을 드롭다운 말미로 분리해 1행 5개 이하 유지.",
+   "tradeoffs": "2행은 패널 세로 공간 소비(현 스크롤 906/787 — 이미 약간 스크롤됨). 아이콘화는 학습 비용 — 보편 도상(H1/H2)이 있는 항목만 아이콘화하는 절충 가능.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "ia-principles.md#labeling"
+   ],
+   "adjudication": "self"
+  },
+  {
+   "id": "UXS-layout-009",
+   "track": "judgment",
+   "title": "자동저장 인디케이터('저장됨')와 디버그 포트 배지(:9334)가 한 클러스터 — 사용자 상태 정보와 개발자 정보의 혼재",
+   "where": "toolbar / #autosave-indicator + #debug-port-badge (topbar 우측, 8~14px 간격 인접) — evidence/layout-02-topbar.png",
+   "impact": "low",
+   "observation": "topbar 우측 상태 영역에 '저장 중…/저장됨'(핵심작업 #1의 저장 확인 신호)과 ':9334' 디버그 배지가 인접 배치됨.",
+   "friction": "gestalt.md#proximity — 외부 일반 사용자(G1)에게 의미 없는 내부 정보가 저장 상태와 한 그룹으로 지각되어, 저장 확인 신호의 스캔을 방해. nielsen-10.md#8-minimalist — 무관 정보가 관련 정보(저장 상태)의 가시성과 경쟁.",
+   "proposal": "배지를 dev 실행 모드에서만 표시하거나(이미 그럴 가능성 — 빌드 분기 확인 필요), 저장 인디케이터와 시각적으로 분리(구분선/간격).",
+   "tradeoffs": "dev 전용 표시라면 외부 배포 빌드에서 비표시일 수 있음 — 그 경우 본 건은 무효(릴리스 빌드에서 재확인 필요, 관찰 환경이 npm run dev였음).",
+   "approval": "pending",
+   "heuristic_basis": [
+    "gestalt.md#proximity",
+    "nielsen-10.md#8-minimalist"
+   ],
+   "adjudication": "self"
+  },
+  {
+   "id": "UXS-layout-010",
+   "track": "judgment",
+   "title": "좌측 패널 최상단 1차 시야를 브랜드 로고타입 + 내부 식별자(proj_ID)가 점유",
+   "where": "left-panel / #project-name-bar (높이 101px: 'GOYA DESIGN EDITOR BETA' + 프로젝트명 입력 + proj_1775644888754) — evidence/layout-03-left-panel.png, layout-13-left-assets-tab.png",
+   "impact": "low",
+   "observation": "좌측 패널 상단 101px이 브랜드명(BETA 뱃지 포함)·프로젝트명 필드·내부 프로젝트 ID 문자열로 구성. 프로젝트명 rename은 기능적이나, 브랜드 로고타입과 raw ID는 과업 정보가 아님.",
+   "friction": "nielsen-10.md#8-minimalist — 매 세션 수십 회 스캔되는 레이어 패널의 진입 시야에서 무관 정보(브랜드·내부 ID)가 PAGE/LAYERS의 가시 영역과 경쟁. proj_ID는 사용자 과업 어휘가 아닌 구현 식별자(#2-match 연계).",
+   "proposal": "브랜드는 topbar 홈 버튼 영역으로 흡수하고 proj_ID는 툴팁/설정으로 강등 — 패널 상단을 프로젝트명 필드만으로 압축해 LAYERS 가시 행수를 늘림.",
+   "tradeoffs": "proj_ID는 내부 디버깅·PM 연동(현빈 워크플로)에서 복사용으로 쓰일 수 있음 — 강등 전 사용 빈도 확인 필요. 브랜드 노출은 BETA 단계 의도(마케팅)일 수 있으나 profile 의도 결정 목록에는 없음.",
+   "approval": "pending",
+   "heuristic_basis": [
+    "nielsen-10.md#8-minimalist",
+    "nielsen-10.md#2-match"
+   ],
+   "adjudication": "self"
+  }
+ ],
+ "out_of_scope_flags": [
+  "pm-panel(.cpm-*) 독자 스타일 G5 회신 대기(텔레그램 msg 424) — finding 보류, suspected 메모: PM 패널 토글 버튼이 #floating-panel 내 위치하는 '배치'만 UXS-layout-005로 보고(스타일 판단 아님).",
+  "병렬 ux-squad 에이전트들이 동일 CDP 페이지를 동시 조작(페이지 전환·앱 재시작·프로젝트 전환) — 일부 상호작용(텍스트 블록 선택, Export 드롭다운 열기)이 비테스트 프로젝트(proj_1781188552759)에서 수행됨. 전부 비파괴(선택/열고닫기)임을 확인. 템플릿 브라우저 등 후반 검증은 테스트 프로젝트(proj_1775644888754)에서 수행.",
+  "evidence/layout-06-projects-page.png는 페이지 전환 경합으로 에디터가 찍힘 — home-pages는 정적 분석으로 결산.",
+  "Export 기능 3개 위치 분산(topbar 드롭다운/섹션 props/페이지 props)의 흐름 비용은 U-flow와 교차 — 본 보고서는 그룹핑·레이블 관점(001)만 다룸.",
+  "interaction-laws.md#doherty 가드 준수 — 지연 체감 항목은 실측 불가하여 일절 미보고."
+ ],
+ "area_summary": [
+  {
+   "area": "toolbar",
+   "status": "findings",
+   "refs": [
+    "UXS-layout-001",
+    "UXS-layout-003",
+    "UXS-layout-005",
+    "UXS-layout-009"
+   ],
+   "note": "topbar 자식 순서 전수 추출(home/탭바/+/spacer/autosave/badge/Export/settings). mode-design/preview 버튼은 topbar에선 비표시(우패널 #rp-preview-btn으로 이전된 구조). .tb-hidden-mvp(Commit/Branch)는 의도 결정으로 제외."
+  },
+  {
+   "area": "left-panel",
+   "status": "findings",
+   "refs": [
+    "UXS-layout-010"
+   ],
+   "note": "검사: 레이어 트리 들여쓰기/계층 오독(continuity) — 섹션>블록 2단 들여쓰기·타입 칩 우측 정렬 일관, 위반 없음. PAGE/LAYERS/AI Images/Templates 섹션 구획(common-region) 정상. 탭 5종 중 Branch는 MVP 숨김(제외)."
+  },
+  {
+   "area": "prop-panel",
+   "status": "findings",
+   "refs": [
+    "UXS-layout-002",
+    "UXS-layout-008"
+   ],
+   "note": "검사: 텍스트 블록 그룹 순서 Type→Position→Typography→Fill→Shadow→Size→Padding — 작업 순서와 정합(청킹 양호, miller 위반 없음). Chat 블록(Style→Color→Profile→Messages)·Card 블록(Size→Text→Spacing→Grid→Cards) 그룹핑 정상. 블록타입 간 동일 속성 위치 일관 비교는 MATRIX 모드 소관으로 미수행."
+  },
+  {
+   "area": "canvas-block",
+   "status": "findings",
+   "refs": [
+    "UXS-layout-004"
+   ],
+   "note": "검사: 선택 상태 전경 분리(figure-ground) — 파란 보더+레이어 패널 동기 하이라이트로 분리 명확. 섹션 라벨(SECTION 01) 칩 위치 일관. 블록 내부 콘텐츠는 불가침 준수. 드래그 성능은 qa 소관 — 미침범."
+  },
+  {
+   "area": "modals",
+   "status": "clean",
+   "refs": [],
+   "note": "검사 항목: 설정 모달(환경설정) — ①헤더 ×·Esc 비상구 동작 실확인(Esc로 닫힘) ②푸터 버튼 순서: 파괴성(기본값 복원) 좌측 분리 + 취소→저장(primary 우측) 관례 정합 ③탭(API 토큰/단축키) 구획 정상. evidence/layout-11-settings-modal.png. publish 드롭다운은 toolbar 001로 보고."
+  },
+  {
+   "area": "template-browser",
+   "status": "clean",
+   "refs": [],
+   "note": "검사 항목: ①공통영역 구획 — 프리뷰(상)/폴더 트리(좌 180px)/카드 그리드(우) 3분할 명확 ②주 액션 '+ 섹션 추가' 필터 행 우측 primary 단일 강조 ③진입점 File탭 하단 'Templates' 트리거 — 가시 레이블 있음 ④Esc 닫힘 확인. evidence/layout-12-template-browser.png. 템플릿/컴포넌트 용어 구분은 U-semantics 소관."
+  },
+  {
+   "area": "assets-ai",
+   "status": "findings",
+   "refs": [
+    "GRP-overflow-1"
+   ],
+   "note": "검사: Assets 탭 내부(+불러/+파일/+URL 버튼 행 + 폴더 트리) 그룹핑 정상(layout-11 배경 캡처). 자산 진입점 3곳 분산은 overflow 그룹으로. AI 생성 대기 상태는 U-feedback 소관 — 미침범."
+  },
+  {
+   "area": "design-system",
+   "status": "findings",
+   "refs": [
+    "GRP-overflow-2"
+   ],
+   "note": "검사: DS 패널은 Inspector 탭 내 접힘 패널(헤더 토글+chevron) — 구조 자체는 정상. 프리셋 선택 이원화(섹션 props Preset vs DS 패널 base select)는 overflow 그룹으로. '어디가 바뀌나' 예측성은 U-semantics/wayfinding 소관."
+  },
+  {
+   "area": "pm-panel",
+   "status": "skipped",
+   "refs": [],
+   "note": "사유: G5 회신 대기(profile 지침 — judgment 보고 보류). 플로팅 바 내 PM '버튼 배치'만 UXS-layout-005로 보고(스타일·위상 판단 제외). suspected 메모는 out_of_scope_flags 참조."
+  },
+  {
+   "area": "pickers",
+   "status": "skipped",
+   "refs": [],
+   "note": "사유: 병렬 에이전트 경합으로 팝오버 실주행 생략(저가중 영역 — profile 분할 결정). 정적 확인만: color-picker.css 팝오버 position:fixed Figma형 구조, 배치 위반 징후 없음. 다음 RUN에서 진입-적용-닫기 흐름과 함께 실주행 권고."
+  },
+  {
+   "area": "graph",
+   "status": "clean",
+   "refs": [],
+   "note": "검사 항목(정적): .grb-data-list 행 구조 — 행마다 label입력+값입력+삭제버튼 동일 패턴 flex 그룹(proximity 정합), 삭제가 행 단위 우측 끝 일관 배치. 차트 시각화는 콘텐츠 불가침 준수. 실주행은 그래프 블록 부재로 미수행."
+  },
+  {
+   "area": "toast",
+   "status": "findings",
+   "refs": [
+    "UXS-layout-006"
+   ],
+   "note": "위치(정중앙)만 판단. toast vs silent 분포의 맥락 적절성은 U-feedback 소관 — 미침범."
+  },
+  {
+   "area": "home-pages",
+   "status": "findings",
+   "refs": [
+    "UXS-layout-007"
+   ],
+   "note": "정적 분석 결산(캡처는 경합으로 실패): projects.html — 헤더(h1 프로젝트+새 프로젝트 버튼 우측) 관례 정상, 카드 그리드 thumb/name/date 스캔 구조 정상, 카드 액션 밀착은 007. planning/license는 구조 스캔만(진입 흐름은 U-onboarding 소관)."
+  }
+ ],
+ "judgment_count": 10,
+ "by_impact": {
+  "high": 2,
+  "medium": 6,
+  "low": 2
+ },
+ "grouped_overflow": [
+  {
+   "id": "GRP-overflow-1",
+   "theme": "연관 기능의 위치 분산 (gestalt.md#proximity — 연관 컨트롤이 멀어 관계가 안 보임)",
+   "items": [
+    "자산 진입점 3곳 분산: 좌패널 Assets 탭(불러/파일/URL) / File 탭 AI Images 섹션 / 플로팅 바 이미지 블록 추가 — 핵심작업 #2 표면이나 각 진입점이 서로의 존재를 시사하지 않음 (impact low)",
+    "참고: Export 계열 분산은 UXS-layout-001에 흡수"
+   ],
+   "heuristic_basis": [
+    "gestalt.md#proximity"
+   ]
+  },
+  {
+   "id": "GRP-overflow-2",
+   "theme": "동일 선택지의 이중 배치 (gestalt.md#common-region + nielsen-10.md#4-consistency 단일영역 한정)",
+   "items": [
+    "프리셋 선택(Default/Dark/Brand/Minimal)이 섹션 props 'Preset'과 Inspector 탭 DS 패널 base select 두 곳에 존재 — 적용 범위(섹션 vs 전역) 차이가 배치로는 지각되지 않음 (impact low). 영역 간 비교 판정은 MATRIX 소관이라 사실 메모만"
+   ],
+   "heuristic_basis": [
+    "gestalt.md#common-region"
+   ]
+  }
+ ],
+ "by_adjudication": {
+  "self": 8,
+  "central-confirmed": 2,
+  "central-refuted": 0
+ }
+}

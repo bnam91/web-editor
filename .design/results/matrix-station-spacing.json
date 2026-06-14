@@ -1,0 +1,180 @@
+{
+  "station": "D-spacing",
+  "role": "정류장 결산자 (정적 종합, 코드 수정 금지)",
+  "areasCompared": 13,
+  "method": "static 종합 — 13영역 matrix-*.json signature[D-spacing]/signature.spacing + crossAreaFlags 가로 비교. padding·gap·margin·label-width만 집계(radius/height는 D-component 정류장 소관). 코드 미수정.",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "grid_baseline": "4px 그리드 (--space-* 2/4/8/12/16). 4의 배수 정합 여부로 off-grid 판정.",
+  "inputs": [
+    "matrix-left-panel.json", "matrix-prop-panel.json", "matrix-canvas-block.json",
+    "matrix-pm-panel.json", "matrix-assets-ai.json", "matrix-toolbar.json",
+    "matrix-modals.json", "matrix-pickers.json", "matrix-design-system.json",
+    "matrix-graph.json", "matrix-toast.json", "matrix-template-browser.json",
+    "matrix-home-pages.json"
+  ],
+
+  "comparisonTable": [
+    {
+      "metric": "폼 라벨폭 (가로 라벨)",
+      "byArea": {
+        "left-panel": "40px (file-page-label 고정)",
+        "prop-panel": "56px 표준 (FIX 반영). 인라인 override 60×4/48×1/40×1, 16px×4(W/H/X/Y 1글자 예외)",
+        "assets-ai": "56px (aig-row-label min-width) — prop과 일치",
+        "design-system": "62px (.ds-token-label) — 단독 이탈",
+        "modals": "anim-opt-label 32px 고정 / settings는 stack(라벨 위, 폭 미지정)",
+        "pm-panel": "없음 (cpm-field 세로 stack)",
+        "canvas-block": "없음 (layer-row, 라벨폭 개념 없음)",
+        "graph": "없음 (data-label-input flex:1, 가로 라벨 아님)",
+        "toast": "없음", "pickers": "없음", "toolbar": "없음", "template-browser": "없음", "home-pages": "없음"
+      },
+      "distinctValues": ["56px", "62px", "40px", "32px", "16px(예외)"],
+      "verdict": "라벨폭 4종(예외 제외). 56px가 prop+assets 2영역 수렴 다수파. design-system 62px·left-panel 40px·modals 32px가 각자 단독. 같은 '라벨:입력' 행에서 입력 시작 x좌표가 영역마다 달라 패널 전환 시 좌측 정렬선 튐."
+    },
+    {
+      "metric": "행 gap (row-gap)",
+      "byArea": {
+        "prop-panel": "4px 표준 (단 JS 인라인 6px×14·3px×3·12px×1 잔존)",
+        "left-panel": "6px 최빈 (gap 8/6/4 각 13회 삼분)",
+        "canvas-block": "layer-row 6px",
+        "assets-ai": "assets-row 4px / aig-row 8px / aig-image-panel 10px",
+        "design-system": "한 패널 내 4/6/8 3종 (base-row 4 / token-row 6 / slider-row 8 / btn-row 6)",
+        "graph": "4px (data-list/data-item)",
+        "modals": "settings 5/6/10/14 다단 (api-row 5 / shortcut-list 6 / shortcut-row 10 / api-list 14)",
+        "pm-panel": "status 4 / field 6 / action 12 / modal-body 14 / footer 8 — 5단",
+        "pickers": "header 4 / tabs 2 / controls 10 / slider-stack 8 / opts 4 (2/4/8/10 혼재)",
+        "template-browser": "comp-shelf-list 6 / card-actions 4 / tpl-card-actions 2 / card main 6",
+        "toolbar": "topbar 6 / zoom 4 / tab-bar 3 / section-toolbar 2 / dropdown 7",
+        "toast": "스택 gap 없음 (단일 element 재사용)",
+        "home-pages": "swot-grid 6 / project-grid 14"
+      },
+      "distinctValues": ["2px", "3px", "4px", "5px", "6px", "7px", "8px", "10px", "12px", "14px"],
+      "verdict": "행/요소 gap 10종 난립(2·3·4·5·6·7·8·10·12·14). 4px 정합값(4/8/12)은 일부, off-grid(2·3·5·6·7·10·14)가 절반 이상. 4px와 6px가 양대 최빈값으로 영역마다 어느 걸 행 표준으로 쓰는지 갈림(prop=4, left=6)."
+    },
+    {
+      "metric": "패널/모달 바디 패딩 (좌우 인셋·세로)",
+      "byArea": {
+        "prop-panel": "prop-section 0 8px 4px (전 패널 일관, 인라인 0건 — 모범)",
+        "left-panel": "panel-body 6px / file-page-item 3px 6px / header 0 12px / layer-section-header 0 8px",
+        "pm-panel": "header 14 16 12 / modal-body 18 20 / footer 12 16 14 / terminal-body 4 4 0 4",
+        "assets-ai": "actionbar 0 8 / import-modal 10 14 / import-body 10 / aig-picker 8 / aig-preview 10",
+        "toolbar": "topbar 0 12 / tb-btn 0 10 / zoom 0 4 / section-toolbar 0 4 / dropdown-item 7 9",
+        "modals": "settings-content 18 22 / header 14 18 / footer 12 18 / anim-preview 16 / tab 9 16",
+        "pickers": "popover header 8 16 6 / spectrum 4 16 0 / controls 8 16 0 / goya-cp-panel 0 12 (16 vs 12 인셋 갈림)",
+        "design-system": "panel-body margin-top 10 / section-label 10 0 5 / btn-row margin-top 10",
+        "toast": "10px 18px (세로10·가로18 둘 다 off-grid)",
+        "template-browser": "card 7 10 / comp-shelf-card 8 10 / folder-header 5 10 / shelf-header 10 12 / browser-header 6 12 / search-wrap 6 10",
+        "canvas-block": "layer-row 4 0 / card-item 8 0 / card-input 4 6",
+        "home-pages": "planning 16/14~18 / projects #main 40 48·card 12 / license card 40 36 32",
+        "graph": "data-input 0 6"
+      },
+      "distinctValues_horizontal_inset": ["4px", "6px", "8px", "9px", "10px", "12px", "14px", "16px", "18px", "20px", "22px", "48px"],
+      "verdict": "패널 좌우 인셋이 6·8·10·12·16·22 등 다단. 모달 본체 패딩은 settings 18 22 / pm 18 20 / anim 16으로 제각각(헤더 14 18만 settings·anim·pm 근사 일치=모범). pickers는 한 컴포넌트 안에서 16 vs 12 좌우 인셋 분열. toast·template-browser·home은 off-grid(7/10/18/22) 군집."
+    },
+    {
+      "metric": "off-grid (4px 비배수) 군집",
+      "byArea": {
+        "left-panel": "gap·radius 3·5·7px 비배수 군집 (점진이관 부채 자인)",
+        "prop-panel": "인라인 px override가 전역 px 리터럴 3078개 부채(SPACE-G1)의 일부",
+        "pm-panel": "패딩 스케일 11단계, 7px·11px odd값 (4 비배수)",
+        "design-system": "행 mb 5px·section-label margin 5px 비배수, gap 6 포함",
+        "pickers": "gap 2/10 비배수, vertical 6/10 혼재, grad-stops 전량 인라인",
+        "toast": "10/18 둘 다 off-grid",
+        "template-browser": "패딩/gap 3·5·7·9px 군집 (tpl 패밀리 집중)",
+        "home-pages": "14/20/28/40/48/36/32 — 에디터 --space-* 토큰 전혀 미사용, raw px",
+        "toolbar": "5/3/2 (주로 radius, padding은 6/12/10/4/8/2)",
+        "modals": "settings 22/5px off-grid"
+      },
+      "verdict": "거의 전 영역에 4px 비배수 산발. 최악 군집: template-browser(3·5·7·9 tpl 패밀리), pm-panel(7·11 odd 11단), home-pages(--space-* 완전 미사용). prop-panel만 토큰화 정책 진행 중. 공통 뿌리는 --space-* 토큰 미이관(px 리터럴 3078개)."
+    },
+    {
+      "metric": "모달 좌측 레일폭",
+      "byArea": {
+        "modals": "settings-tabs 140px / anim-list 200px",
+        "home-pages": "planning intake 260px / inspector 220px",
+        "pm-panel": "panel-shell 360 / modal-shell 520 / terminal 480 (레일 아닌 패널폭)"
+      },
+      "distinctValues": ["140px", "200px", "220px", "260px"],
+      "verdict": "모달 좌측 레일폭 140 vs 200으로 settings/anim 간 60px 차이. home planning 패널 레일은 220/260로 또 다름. 공용 --ui-rail-w 토큰 부재."
+    }
+  ],
+
+  "crossAreaFindings": [
+    {
+      "id": "ST-SPACING-01",
+      "title": "폼 라벨폭 3~4종 난립 (56 / 62 / 40 / 32)",
+      "affected": ["prop-panel(56)", "assets-ai(56)", "design-system(62)", "left-panel(40)", "modals/anim(32)"],
+      "detail": "가로 라벨:입력 행을 쓰는 5영역이 라벨폭 4종으로 갈림. prop-panel·assets-ai가 56px로 수렴(영역 간 드문 일치점)했으나 design-system만 62px(.ds-token-label)로 6px 어긋나 입력 시작 x좌표가 패널 전환 시 튄다. left-panel 40px는 file-page 전용이라 맥락 다름. pm-panel·settings·canvas·graph 등은 세로 stack이라 라벨폭 개념 자체가 없음 — stack vs 고정폭 정책도 영역 간 미합의.",
+      "root": "전역 --ui-form-label-w 토큰 부재. 56px가 사실상 다수파 표준.",
+      "severity": "high"
+    },
+    {
+      "id": "ST-SPACING-02",
+      "title": "행 gap 10종 난립 — 4px와 6px 양대 표준 충돌",
+      "affected": ["전 13영역"],
+      "detail": "row/요소 gap이 2·3·4·5·6·7·8·10·12·14px로 10종. prop-panel은 4px를 행 표준으로 못박았으나(단 인라인 6px 14건이 깨뜨림), left-panel은 6px가 최빈(8/6/4 삼분), design-system은 한 패널 안에서 4/6/8 3종을 동시 사용. 같은 '라벨-입력 행'인데 영역마다 4 또는 6으로 갈려 수직 리듬이 영역 경계에서 끊긴다. off-grid 값(3·5·7·10·14)도 절반 차지.",
+      "root": "--space-* 토큰(2/4/8/12/16) 미채택 + 행 gap 단일 기준(4 또는 6) 미확정.",
+      "severity": "high"
+    },
+    {
+      "id": "ST-SPACING-03",
+      "title": "모달 본체 패딩·레일폭 제각각 (헤더만 우연 일치)",
+      "affected": ["modals(settings 18 22 / anim 16)", "pm-panel(18 20)"],
+      "detail": "모달 content 패딩이 settings 18 22 / pm-modal 18 20 / anim 16으로 갈리고, footer도 12 18 / 12 16 14로 다름. 유일하게 헤더 14 18만 settings·anim·pm-panel이 근사 일치(모범 사례). 좌측 레일폭은 settings-tabs 140 vs anim-list 200으로 60px 차이. 공용 모달 셸 토큰(--ui-modal-pad / --ui-rail-w) 없이 모달마다 손수 패딩.",
+      "root": "공용 모달 셸 spacing 토큰 부재.",
+      "severity": "medium"
+    },
+    {
+      "id": "ST-SPACING-04",
+      "title": "off-grid(4px 비배수) 전 영역 산발 — --space-* 미이관 공통 부채",
+      "affected": ["template-browser(3·5·7·9)", "pm-panel(7·11)", "toast(10·18)", "home-pages(raw px 전량)", "pickers(2·10)", "design-system(5)"],
+      "detail": "--space-*(2/4/8/12/16) 토큰이 정의돼 있으나 거의 모든 영역이 px 리터럴 직접 사용(전역 3078개 부채). template-browser는 tpl 패밀리에 3·5·7·9px 군집, pm-panel은 7·11px odd 11단계, home-pages 3파일은 --space-* 토큰을 아예 링크조차 안 함. prop-panel만 토큰 이관 정책 진행 중. 점진이관 부채가 영역마다 다른 속도로 남아있어 그리드 기준선이 깨짐.",
+      "root": "--space-* 토큰 미채택(px 리터럴 직접). 영역별 이관 진척 불균등.",
+      "severity": "medium"
+    },
+    {
+      "id": "ST-SPACING-05",
+      "title": "한 컴포넌트 내부 좌우 인셋 분열 (pickers 16 vs 12)",
+      "affected": ["pickers"],
+      "detail": "color-picker popover가 대부분 좌우 16px 인셋(header/spectrum/controls/format)인데 goya-cp-panel 컨테이너만 padding 0 12px — solid 패널은 16, gradient/placeholder 패널은 12로 같은 피커 안에서 좌우 인셋이 갈린다. 단일 영역 이슈지만 컴포넌트 내부 일관성 결손으로 결산에 등재.",
+      "root": "피커 컨테이너 패딩 단일화 누락.",
+      "severity": "low"
+    }
+  ],
+
+  "consistent": [
+    "prop-section 패딩 0 8px 4px — prop-panel 전 패널 인라인 우회 0건(전 영역 통틀어 가장 위생적인 패딩 규율).",
+    "라벨폭 56px — prop-panel·assets-ai 2영역 자발적 수렴(영역 간 드문 일치점, 표준 후보).",
+    "모달 헤더 패딩 14 18 — settings·anim·pm-panel 근사 일치.",
+    "titlebar/topbar height 44px + padding-left 80px(electron 신호등) — 에디터 topbar·home 3파일·planning/projects/license 전부 통일.",
+    "graph data-input 컨트롤 24/20px·gap 4px·pad 0 6px — 4px 그리드 완전 정합(공용 베이스 .prop-* 재사용, override 0)."
+  ],
+
+  "inconsistent_count": 5,
+  "consistent_count": 5,
+
+  "severity_rollup": { "high": 2, "medium": 2, "low": 1 },
+
+  "summary": {
+    "headline": "라벨폭 4종 · 행 gap 10종 · 패널/모달 패딩 다단(좌우 인셋 12종) — 13영역 spacing 일관성 5건 이탈, 공통 뿌리는 --space-*/--ui-form-label-w 토큰 미채택.",
+    "label_width_kinds": 4,
+    "label_width_values": ["56px(prop·assets 다수파)", "62px(design-system 단독)", "40px(left-panel)", "32px(modals/anim)"],
+    "row_gap_kinds": 10,
+    "row_gap_values": ["2", "3", "4", "5", "6", "7", "8", "10", "12", "14"],
+    "padding_tiers": "패널 좌우 인셋 12종(4~48px) · 모달 본체 패딩 3단(settings 18 22 / pm 18 20 / anim 16)",
+    "modal_rail_widths": ["140px(settings)", "200px(anim)"],
+    "topThree": [
+      "ST-SPACING-01 라벨폭 56/62/40/32 4종 — design-system 62px만 다수파(56) 이탈, 패널 전환 시 입력 정렬선 튐. (high)",
+      "ST-SPACING-02 행 gap 10종 — prop=4 vs left=6 양대 표준 충돌, design-system은 한 패널서 4/6/8 동시. (high)",
+      "ST-SPACING-04 off-grid 전 영역 산발 — template-browser(3·5·7·9)·pm(7·11)·home(raw px) 군집, --space-* 미이관 공통 부채. (medium)"
+    ],
+    "recommended_tokens": {
+      "--ui-form-label-w": "56px (prop·assets 다수파 채택, design-system 62→56, left-panel 40은 file-page 예외 유지). W/H/X/Y 1글자 라벨은 16px 예외 토큰 별도(--ui-form-label-w-xs).",
+      "--ui-row-gap": "4px 단일 표준 (prop-panel 기준 채택, left-panel 6→4, design-system 패널 내 4/6/8→4). 카드/모달 본체 등 의도적 넓은 간격은 --space-* 명시 사용.",
+      "--ui-pad-panel": "패널 좌우 인셋 8px 표준 (prop-section 0 8px 기준), --ui-pad-card 8px·--ui-pad-modal-body 16/20 정수화(22→20).",
+      "--ui-modal-header-pad": "14px 18px (이미 settings·anim·pm 근사 일치 → 토큰화로 고정).",
+      "--ui-rail-w": "모달 좌측 레일 단일화 (140 또는 200 택1; settings 140·anim 200 통일)."
+    },
+    "note": "라벨폭·행gap·off-grid는 전부 --space-* + --ui-form-label-w 토큰 부재라는 단일 뿌리에서 파생. 토큰 신설 후 prop-panel을 레퍼런스로 영역별 이관하면 5건 이탈 일괄 수렴 가능. radius/height(28 vs 24, 5px off-scale)는 D-component 정류장 소관이라 본 결산 제외."
+  }
+}

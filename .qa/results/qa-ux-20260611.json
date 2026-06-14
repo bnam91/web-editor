@@ -1,0 +1,146 @@
+{
+  "agent": "QA-UX",
+  "version": "4.0",
+  "role": "ux",
+  "scope": "shortcuts-feedback",
+  "method": "cdp",
+  "date": "2026-06-11",
+  "page": "index.html?project=proj_1775644888754",
+  "environment_note": "5-agent 동시작업 환경. 전역 history 스택(restoreSnapshot이 canvas.innerHTML 통째 교체) 때문에 타 에이전트 undo/restore가 본 에이전트 섹션을 2회 소멸시킴. 오염 의심 케이스는 에티켓에 따라 1회 재시도로 처리. press_key 도구로만 단축키 실측.",
+  "scenarios": [
+    {
+      "id": "U-01",
+      "title": "단축키 일관성",
+      "status": "PASS",
+      "severity": null,
+      "adjudication": null,
+      "checks": [
+        {
+          "shortcut": "Cmd+D",
+          "expected": "선택 블록 복제",
+          "result": "PASS",
+          "evidence": "1차 시도는 선택 도난(동시작업 오염)으로 무효, 재시도에서 text-block 3→4, 신규 tb_lz6mj4l 생성·선택됨. 핸들러 editor.js:940 duplicateSelected()."
+        },
+        {
+          "shortcut": "Cmd+Z",
+          "expected": "Undo",
+          "result": "PASS",
+          "evidence": "press_key 직후 historyPos 49→48 감소 + restoreSnapshot으로 캔버스 복원 확인. 단 전역 공유 스택이라 5-agent 환경에서는 '내 액션'이 아닌 타 에이전트 스냅샷으로 복원될 수 있음(앱은 단일 사용자 설계이므로 결함 아님). 핸들러 editor.js:895."
+        },
+        {
+          "shortcut": "Cmd+Shift+Z",
+          "expected": "Redo",
+          "result": "PASS",
+          "evidence": "press_key 직후 historyPos 48→49 전진 복원 확인. 핸들러 editor.js:896."
+        },
+        {
+          "shortcut": "Cmd+G",
+          "expected": "선택 블록 그룹",
+          "result": "PASS",
+          "evidence": "내 섹션 블록 2개 멀티선택 후 press → frame-block[data-group=true] ss_taqowt0 생성, 두 블록 모두 내부 포함, 그룹 자동 선택됨."
+        },
+        {
+          "shortcut": "Cmd+Shift+G",
+          "expected": "그룹 해제",
+          "result": "PASS",
+          "evidence": "그룹 선택 상태에서 press → ss_taqowt0 소멸, 두 블록 모두 섹션에 생존."
+        },
+        {
+          "shortcut": "Cmd+A",
+          "expected": "선택 섹션 내 전체선택",
+          "result": "PASS",
+          "evidence": "[QA-UX] 섹션 선택 후 press → 섹션 내 text-block 3/3 선택, 섹션 외부 선택 0개 (섹션 스코프 한정 동작 확인). 핸들러 editor.js:1002."
+        },
+        {
+          "shortcut": "Delete",
+          "expected": "선택 블록 삭제",
+          "result": "PASS",
+          "evidence": "tb_9hm3m1b 선택 후 press → DOM에서 제거, text-block 3→2. 핸들러 editor.js:1282 (Delete/Backspace 모두 수용)."
+        },
+        {
+          "shortcut": "Cmd+ArrowDown / Cmd+ArrowUp",
+          "expected": "블록 순서 이동",
+          "result": "PASS",
+          "evidence": "Down: wrapper ss_dtzs7tj index 1→2 이동 + 선택 유지(코드가 buildLayerPanel 후 선택 복원). Up: 원래 순서로 완전 복원(restored=true). 핸들러 editor.js:1231."
+        }
+      ],
+      "notes": "Cmd+[ / Cmd+] (moveSelectedBlocks up/down)도 코드상 존재(editor.js:947~). Cmd+D 직후 selIds에 원본+클론 둘 다 selected로 남는 것 관찰 — 피그마는 클론만 선택. 명세 외 항목이라 ux 메모만."
+    },
+    {
+      "id": "U-02",
+      "title": "드래그 UX (rAF / buildLayerPanel)",
+      "status": "PASS",
+      "severity": null,
+      "adjudication": null,
+      "method": "static + dynamic",
+      "checks": [
+        {
+          "item": "(a) dragover 핸들러 rAF 적용",
+          "result": "PASS",
+          "evidence": "block-drag.js:1659~1678 inner dragover — _rafId 가드 + requestAnimationFrame 스로틀, dragleave에서 cancelAnimationFrame. section-drag.js:270~286 동일 패턴(_innerDragRafId, 'rAF throttle (DBG-11)' 주석으로 getBoundingClientRect 매 이벤트 호출 방지 명시). 파일드롭용 dragover(block-drag.js:668,767)는 classList.add만 하는 O(1) 핸들러라 rAF 불필요."
+        },
+        {
+          "item": "(b) drag 중 buildLayerPanel() 호출 없음",
+          "result": "PASS",
+          "evidence": "static: buildLayerPanel 호출 지점은 dragend(block-drag.js:1652), drop(block-drag.js:1812, section-drag.js:302), 드롭 후 재바인딩(block-drag.js:305)뿐 — dragover 경로에 없음. dynamic: buildLayerPanel 래핑 후 실제 dragstart + dragover 40회 합성 디스패치 → 호출 0회 실측."
+        }
+      ]
+    },
+    {
+      "id": "U-03",
+      "title": "선택 시각 피드백",
+      "status": "PASS",
+      "severity": null,
+      "adjudication": null,
+      "checks": [
+        {
+          "item": "단일 선택 즉시 하이라이트",
+          "result": "PASS",
+          "evidence": "click 직후 동기 체크에서 .selected 클래스 즉시 부여. 시각 하이라이트는 부모 frame-block[data-text-frame]에 outline 2.19px solid rgb(45,111,232)(--sel-color #2d6fe8) 렌더. 블록 자체 outline은 의도적으로 transparent(editor-blocks.css:837 'T6: outline 2겹 픽스' — 부모가 outline 책임지면 자식은 transparent로 한 겹만)."
+        },
+        {
+          "item": "멀티선택 복수 하이라이트",
+          "result": "PASS",
+          "evidence": "Shift+click으로 2개 블록 모두 .selected + 양쪽 부모 wrapper 모두 rgb(45,111,232) outline 동시 표시, selectedCount=2."
+        }
+      ]
+    },
+    {
+      "id": "U-04",
+      "title": "에러 피드백",
+      "status": "PASS",
+      "severity": null,
+      "adjudication": null,
+      "checks": [
+        {
+          "item": "섹션 미선택 상태 블록 추가",
+          "result": "PASS",
+          "evidence": "deselectAll 후 addTextBlock → #editor-toast.show + '⚠️ 섹션 또는 블록을 먼저 선택하세요' + floating-panel fp-shake 애니메이션 동시 발화 (drag-utils.js:133 showNoSelectionHint)."
+        },
+        {
+          "item": "선택 없이 Cmd+G 그룹 시도",
+          "result": "PASS",
+          "evidence": "press_key Meta+g → 토스트 '그룹으로 묶을 블록을 먼저 선택하세요.' 발화 (block-factory.js:1456). 타 섹션 혼합 선택 시 '같은 섹션 안의 블록만 묶을 수 있어요' 가드도 코드 확인(1464)."
+        },
+        {
+          "item": "중첩 그룹 시도",
+          "result": "N/A (지원 동작)",
+          "evidence": "block-factory.js:1447 BLOCK_SEL에 frame-block 포함 — 중첩 그룹은 미지원 동작이 아니라 공식 지원('서브섹션·중첩그룹 포함' 주석). 에러 케이스 아님."
+        },
+        {
+          "item": "블록 미선택 시 프로퍼티 패널",
+          "result": "PASS",
+          "evidence": "deselectAll 후 #panel-right .panel-body가 Page 레벨 속성(Page/Background/Bulk Align/Layout/Export)으로 폴백. Bulk Align은 '(비활성)' 라벨로 명시. 깨진 UI·잔류 블록 속성 없음, 입력 12개 정상 렌더."
+        }
+      ]
+    }
+  ],
+  "ux_notes": [
+    "Cmd+D 복제 후 원본과 클론이 동시에 selected로 남음 — 피그마 관례(클론만 선택)와 다름. 명세 외 관찰이라 이슈로 집계 안 함.",
+    "비이미지 파일 드롭 시 토스트('이미지 파일만 업로드할 수 있습니다')는 이미 구현됨 — 코드 내 TODO-QA 주석(block-drag.js:683,780)이 구현 이전 상태로 남아있어 주석 정리 여지."
+  ],
+  "passed": 4,
+  "failed": 0,
+  "ux_issues": 0,
+  "blocker_candidates": 0
+}

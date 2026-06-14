@@ -156,7 +156,6 @@ export function convertFrameToSectionHTML(frame, index) {
     `data-name="${_escapeAttr(secName)}" style="background:${bgColor}">` +
     `<div class="section-hitzone"><span class="section-label">Section ${index + 1}</span></div>` +
     `<div class="section-toolbar">` +
-    `<button class="st-btn st-branch-btn" title="feature 브랜치로 실험">⎇</button>` +
     `</div>` +
     `<div class="section-inner">${innerHTML}</div>` +
     `</div>`;

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UX Squad — GODITOR (상페마법사 웹에디터)</title>
+
+<style>
+:root{--bg:#16181d;--panel:#1f2229;--line:#32363f;--text:#d7dae0;--muted:#9aa0aa;--accent:#5b8def}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,'Pretendard',sans-serif;padding:28px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:21px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.sub{color:var(--muted);font-size:12.5px;margin-bottom:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:10px 0}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:1px 9px;font-size:11.5px;color:var(--muted);margin:0 4px 4px 0;background:#262a33}
+.sev{font-weight:700;border-radius:4px;padding:1px 7px;font-size:11.5px;color:#16181d}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#23262e;color:var(--muted);font-weight:600}
+.kv{color:var(--muted)} .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.toggle{cursor:pointer;user-select:none;border:1px solid var(--line);border-radius:6px;padding:3px 10px;font-size:12px;background:#262a33;color:var(--text)}
+.appr{display:flex;gap:14px;align-items:center;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:12.5px}
+.appr label{cursor:pointer;color:var(--muted)} .appr .cmt{flex:1;background:#14161a;border:1px solid var(--line);border-radius:5px;color:var(--text);padding:4px 8px;font-size:12px}
+.toggle.off{opacity:.35}
+.swatch{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;border:1px solid #0008;margin-right:4px}
+img.ev{max-width:100%;border:1px solid var(--line);border-radius:6px}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ba .lab{font-size:11.5px;color:var(--muted);margin-bottom:4px}
+.foot{margin-top:34px;color:var(--muted);font-size:11.5px;border-top:1px solid var(--line);padding-top:10px}
+</style></head><body>
+
+<h1>🧭 UX Squad — GODITOR (상페마법사 웹에디터)</h1>
+<div class="sub">프로젝트 비종속 엔진 + <span class="mono">.ux/</span> 프로젝트 명세 2레이어 · 스폰단위=UX 차원 · judgment-native(근거+제안+승인) · 기본 report-only</div>
+
+<h2>이 프로젝트 현황 (최근 RUN: 2026-06-12)</h2>
+<div class="bar"><span class="chip">judgment 제안 39</span><span class="chip">conformance 15</span>
+<span class="sev" style="background:#e0606c">impact high 10</span><span class="sev" style="background:#e0a060">impact medium 19</span><span class="sev" style="background:#8a8f98">impact low 11</span>
+<span class="sev" style="background:#e0606c">blocker 1</span><span class="sev" style="background:#e0a060">major 4</span><span class="sev" style="background:#d8c860">minor 9</span><span class="sev" style="background:#8a8f98">nit 0</span>
+<span class="chip">뎁스≤4</span><span class="chip">피드백≤300ms</span><span class="chip">첫산출≤7단계</span></div>
+<table><tr><th>영역</th><th>발견</th><th>검사 항목</th><th>미검사</th></tr><tr><td><b>toolbar</b></td><td>0</td><td>0</td><td>—</td></tr><tr><td><b>left-panel</b></td><td>0</td><td>0</td><td>⚠ 1</td></tr><tr><td><b>prop-panel</b></td><td>0</td><td>0</td><td>—</td></tr><tr><td><b>canvas-block</b></td><td>0</td><td>0</td><td>—</td></tr><tr><td><b>modals</b></td><td>0</td><td>0</td><td>⚠ 2</td></tr><tr><td><b>template-browser</b></td><td>0</td><td>0</td><td>⚠ 1</td></tr><tr><td><b>assets-ai</b></td><td>0</td><td>0</td><td>⚠ 1</td></tr><tr><td><b>design-system</b></td><td>0</td><td>0</td><td>⚠ 2</td></tr><tr><td><b>pm-panel</b></td><td>0</td><td>0</td><td>⚠ 3</td></tr><tr><td><b>pickers</b></td><td>0</td><td>0</td><td>⚠ 3</td></tr><tr><td><b>graph</b></td><td>0</td><td>0</td><td>⚠ 2</td></tr><tr><td><b>toast</b></td><td>0</td><td>0</td><td>⚠ 1</td></tr><tr><td><b>home-pages</b></td><td>0</td><td>0</td><td>⚠ 1</td></tr><tr><td><b>edit-block</b></td><td>0</td><td>0</td><td>—</td></tr><tr><td><b>insert-asset</b></td><td>0</td><td>0</td><td>—</td></tr><tr><td><b>section-rearrange</b></td><td>0</td><td>0</td><td>—</td></tr><tr><td><b>export-publish</b></td><td>0</td><td>0</td><td>—</td></tr></table>
+
+<h2>리포트 / 작업계획서</h2>
+<div class="card"><div>📄 <a href="report-2026-06-12.html">report-2026-06-12.html</a></div></div>
+
+<h2>스쿼드 구성 — 6개 UX 차원 (차원 1개 = 병렬 에이전트 1개)</h2>
+<table><tr><th>코드</th><th>차원</th><th>무엇을 보나</th><th>이번 RUN</th></tr><tr><td class="mono">U-layout</td><td>배치 판단</td><td class="kv">위계·그룹핑·순서 — 주 액션 전경/연관 근접 (judgment 전용)</td><td>✅</td></tr><tr><td class="mono">U-semantics</td><td>시맨틱</td><td class="kv">의미-기표/레이블 정오, 용어 일관 (judgment + 용어사전 conformance)</td><td>✅</td></tr><tr><td class="mono">U-flow</td><td>작업 흐름</td><td class="kv">플로우 단계·복귀 경로, 클릭 뎁스 기준 대조</td><td>✅</td></tr><tr><td class="mono">U-feedback</td><td>상태 가시성</td><td class="kv">피드백 지연 실측 + 맥락 적절성 (거동 분포 비교는 qa 소관)</td><td>✅</td></tr><tr><td class="mono">U-error</td><td>오류 예방·복구</td><td class="kv">파괴 액션 보호, Undo 경로 전수, 메시지 품질</td><td>✅</td></tr><tr><td class="mono">U-onboarding</td><td>첫 사용·발견가능성</td><td class="kv">empty state, 기능 발견가능성, 첫 산출물 단계 수</td><td>✅</td></tr></table>
+
+<h2>동작 방식</h2>
+<div class="card">
+<b>모드</b> — PROFILE(핵심작업·기준값·영역 명세 생성) / RUN(차원 병렬 감사→리포트) / MATRIX(영역×차원 격자) / GATE(머지 전 UX 사전 평가) / FIX(승인된 제안만 적용) / UPGRADE(방법론 갱신)<br>
+<b>신뢰 장치</b> — ① judgment(휴리스틱 근거+제안+승인)와 conformance(기준값 판정) 트랙 분리 ② impact=high·severity=blocker/major는 독립 검증자가 적대적 반증(오적용/트레이드오프/의도된 결정 3축) ③ 의도된 UX 결정 사전 제외 + 노이즈 캡(judgment 10/conformance 15) ④ heuristic_basis 근거 추적(못 대면 no-basis) ⑤ 영역 전원 보고(침묵 금지)<br>
+<b>3자 경계</b> — ux=구조적 판단("이 구조가 옳은가") / qa=실행 마찰("밟아보니 걸리나") / design=시각 이탈("기준에서 벗어났나")<br>
+<b>정본</b> — 명세 <span class="mono">.ux/profile.md</span> · 결과 <span class="mono">results/*.json</span> · 리포트 <span class="mono">report-*.md</span> · 이 HTML은 뷰 (승인 시트 내보내기 md = FIX 입력)
+</div>
+<div class="foot">ux-squad · md/JSON이 정본, 이 HTML은 재생성 가능한 뷰 (scripts/report-html.mjs) · 승인 시트 내보내기 md가 FIX의 유일한 입력</div>
+</body></html>

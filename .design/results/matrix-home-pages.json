@@ -1,0 +1,165 @@
+{
+  "area": "home-pages",
+  "agent": "DSN-matrix-home-pages",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "owns": {
+    "selectors": [
+      "pages/planning.html: #toolbar, .tool-logo, .admin-badge, .tool-sep, #vol-select, #btn-load-dummy, #btn-save, #save-status, .back-btn, #intake-panel, .intake-label, .intake-row, .swot-grid, .swot-item, #outline-panel, .outline-block, .block-header, .block-copy, .sec-badge, #inspector-panel, .insp-row, .toggle-btn",
+      "pages/projects.html: #titlebar, #app-logo, #main, #header, #btn-new, #btn-new-planning, .project-card, .planning-card, .planning-badge, .card-thumb, .card-body, .card-name, .card-date, .card-actions, .card-action, .card-delete, #empty-state, #home-tab-bar, .home-proj-tab, .home-proj-tab-close, .card-name-input",
+      "pages/license.html: .card, .logo, .logo-icon, .logo-text, h2, .desc, label, input[type=text], .field, .btn, .btn-back, .btn-delete, .status, .ip-list, .ip-addr, .spinner"
+    ],
+    "files": [
+      "pages/planning.html (1-340, 자체 인라인 <style> + 자체 --ui-* :root)",
+      "pages/projects.html (6-169, 자체 인라인 <style>, 토큰 0 — raw hex 전량)",
+      "pages/license.html (1-460, ../css/design-tokens.css 링크 + --ui-* alias 매핑)"
+    ]
+  },
+  "scanned_files": [
+    "pages/planning.html",
+    "pages/projects.html",
+    "pages/license.html",
+    "css/editor-base.css (:root --ui-* 비교용)",
+    "css/design-tokens.css (--color-*/--bg-*/--p-* 비교용)"
+  ],
+  "signature": {
+    "_strategy_split": "이 영역 3파일은 에디터 토큰 통합 방식이 제각각: (1) license.html = design-tokens.css 링크 후 --ui-* alias로 매핑 (모범, 에디터와 단일 소스) → 자동 동기화. (2) planning.html = 토큰 이름은 --ui-* 로 mirror하되 :root에서 값을 직접 재정의 (fork된 사본) → 값 drift 발생. (3) projects.html = 토큰 전무, 모든 색/치수 raw hex 하드코딩 → 에디터와 완전 별개 디자인 언어.",
+    "D-component": {
+      "primary_button": {
+        "planning #btn-save": "bg var(--ui-accent) #22c48a(GREEN!), color #0f1a15, border none, radius 5px, padding 4px 14px, font 11px/700, hover #29d99a, disabled bg --ui-bg-input + muted. 즉 planning의 primary는 초록 솔리드 — 에디터 primary(파랑 #2d6fe8)와 색상 자체가 다름",
+        "projects #btn-new": "bg #2d6fe8(파랑, raw), color #fff, border none, radius 7px, height 32px, padding 0 14px, font 12px/600, hover #3a7df0. → 색은 에디터 accent-primary와 일치하나 raw hex이고 radius 7px·height 32px",
+        "projects #btn-new-planning": "bg #1a7a5e(짙은 초록, raw), hover #22976f, 나머지 동일. planning 계열은 초록, design 계열은 파랑으로 의미색 분리",
+        "license .btn": "width 100%, bg var(--ui-accent-primary)=var(--color-accent)=#2d6fe8(파랑, 토큰경유), color #fff, radius 6px, padding 11px 12px, font 14px/600, hover/active/disabled 전부 토큰 단계(hover/p-blue-800/opacity.4)"
+      },
+      "danger_button": {
+        "projects .card-delete:hover": "bg #c0392b(raw 빨강) — 에디터 --ui-danger(#e06c6c) 와 다른 톤",
+        "license .btn-delete": "border var(--ui-border-mid), color var(--ui-danger), hover bg rgba(255,107,107,0.1)(=#ff6b6b alpha, 토큰 --ui-danger #e06c6c 와 hover alpha 색이 불일치)",
+        "planning": "danger 솔리드 버튼 없음. 텍스트 *(필수) 마커만 raw #e06c6c 인라인"
+      },
+      "card_radius": "projects .project-card 10px, .card-action 4px, license .card 8px, planning .outline-block 6px. 같은 '카드' 개념인데 6/8/10 3단",
+      "button_radius_spread": "planning 5px(btn-save/load-dummy/back-btn), projects 7px(btn-new) / 4px(card-action) / 6px(home-proj-tab), license 6px(btn) / 4px(btn-delete). → 영역 내부에서도 4/5/6/7 난립, 에디터 owned(5/4/3/2)와도 또 다름",
+      "button_height": "planning btn = 패딩기반(고정 height 없음), projects btn-new 32px / home-proj-tab 26px / card-action 22px, license btn = 패딩기반. 에디터 tb-btn 28 / prop-btn 24 와 또 별개",
+      "input_field": "planning .intake-row input radius 4px font 11px / projects .card-name-input radius 4px / license input[text] radius 6px font 14px padding 9px 12px. license만 큼직(가입폼 성격), 나머지는 에디터 input(--ui-bg-input radius 4px)에 근사"
+    },
+    "D-color": {
+      "planning_tokens": "자체 :root --ui-* 14개 정의. 에디터와 이름 같지만 VALUE drift: --ui-border #2a2a2a(에디터 #333), --ui-border-mid #333(에디터 #3a3a3a), --ui-border-hi #404040(에디터엔 --ui-border-strong #444), --ui-text-muted #777(에디터 AA수정본 #9e9e9e), --ui-accent #22c48a GREEN(에디터 --ui-accent #7cb8ff 하늘색 / --ui-accent-primary #2d6fe8 파랑). bg 토큰(app/base/elevated/card/input)만 에디터와 동일값.",
+      "projects_raw": "토큰 0개. 전량 raw hex: #1a1a1a #1e1e1e #242424 #2e2e2e #333 #484848 #555 #666 #2d6fe8 #3a7df0 #1a7a5e #22976f #22c48a #c0392b #f0f0f0 #e0e0e0 #ccc #bbb #777. 에디터 값과 일부 겹치나(#1a1a1a 등) 하드코딩이라 토큰 변경 시 동기화 불가. border용 #2e2e2e·#484848·#555 는 에디터 토큰(#333/#3a3a3a/#444) 어디에도 없는 신규 회색.",
+      "license_tokens": "유일하게 design-tokens.css 링크 → --ui-* 를 --color-*/--bg-*/--p-* 로 alias. 에디터와 동일 primitive 소스 공유. raw hex는 #fff(btn text), rgba(255,107,107,0.1)(btn-delete hover, --ui-danger와 톤 불일치), rgba(255,255,255,0.3)(spinner) 정도.",
+      "accent_conflict": "★핵심: 같은 'GOYA DESIGN EDITOR' 브랜드인데 accent가 두 색으로 갈림. planning=초록 #22c48a(+ admin-badge·planning-badge·sec 강조 모두 초록), projects 디자인버튼/license=파랑 #2d6fe8. 초록은 '기획(planning)' 모드 식별색으로 의도된 것으로 보이나, planning.html의 primary 저장 버튼까지 초록이라 에디터 파랑 primary와 시각적으로 단절됨."
+    },
+    "D-spacing": {
+      "planning_grid": "3패널 레이아웃(intake 260px / outline flex / inspector 220px). 패딩 16px 14~18px, intake-section margin-bottom 20px, swot-grid gap 6px. px 리터럴(16/14/20/12/8/6/4) — --space-* 토큰 미사용",
+      "projects_grid": "#main padding 40px 48px(큼), #project-grid repeat(auto-fill,minmax(200px,1fr)) gap 14px, card-body padding 12px, header margin-bottom 28px. 카드 그리드 전용 수치, 에디터 패널 간격과 무관",
+      "license_spacing": "card padding 40px 36px 32px width 420px, field margin-bottom 16px, 단일 센터 카드. 모든 수치 px 리터럴",
+      "scale_token_usage": "3파일 전부 --space-* 토큰 정의/사용 없음. license가 design-tokens.css를 링크하지만 spacing 토큰은 끌어쓰지 않고 px 리터럴 유지",
+      "titlebar_height": "planning #toolbar / projects #titlebar / license(드래그 body) 모두 44px 통일 — 에디터 topbar 44px와 일치(전기획 일관). padding-left 80px(electron 신호등) 패턴도 3파일 공통"
+    },
+    "D-states": {
+      "hover": "planning: back-btn/load-dummy/grip 등 color+border 전환(transition 0.15s). projects: card translateY(-2px)+border #484848, card-action bg accent. license: btn bg 토큰 hover. 영역 전반 hover는 정의돼 있음",
+      "focus_visible": "★3파일 전부 :focus-visible 룰 0개. focus는 input/select의 :focus{border-color:accent} 만 존재(키보드 포커스 링 부재). projects의 버튼·카드, planning의 버튼, license의 .btn 모두 키보드 포커스 표시 없음 — 에디터 toolbar와 동일한 a11y 갭이 홈 페이지에도 그대로",
+      "active": "license만 .btn:active{bg --ui-accent-primary-active} 명시. planning/projects 버튼은 :active 정의 없음",
+      "disabled": "planning #btn-save:disabled(bg input+muted+cursor default), license .btn:disabled(opacity .4 cursor not-allowed). 두 disabled 표현 메커니즘 다름(색교체 vs opacity). 에디터 패널 .prop-btn:disabled(opacity.35)와도 제각각",
+      "selected_drag": "planning outline-block: selected=outline 2px accent(초록), drag-over=outline 2px #4a9ede(또 다른 raw 파랑). CLAUDE.md 규칙(selected는 outline만, bg 금지) 주석으로 명시·준수. 단 drag-over 색 #4a9ede 는 토큰 미존재 raw",
+      "transition": "0.1s~0.15s 산재(planning 0.15s, projects 0.12s/0.1s, license 0.15s). 에디터와 동일 대역이나 토큰화 안 됨"
+    }
+  },
+  "violations": [
+    {
+      "id": "MTX-home-01",
+      "severity": "major",
+      "dimension": "D-color",
+      "title": "planning.html이 에디터 --ui-* 토큰을 같은 이름으로 fork해 값을 재정의 (drift)",
+      "evidence": "planning.html :root(10-25)가 --ui-border:#2a2a2a, --ui-border-mid:#333, --ui-text-muted:#777, --ui-accent:#22c48a 로 직접 정의. 에디터(editor-base.css :root)는 동일 이름이 --ui-border:#333, --ui-border-mid:#3a3a3a, --ui-text-muted:#9e9e9e(AA수정본), --ui-accent:#7cb8ff. 이름이 같아 '에디터 토큰을 쓴다'는 착시를 주지만 실제 값은 다른 사본. 특히 --ui-text-muted #777은 에디터가 a11y 위해 #9e9e9e로 올린 값을 되돌린 셈(대비 3.21:1 회귀).",
+      "locations": ["pages/planning.html:10-25"],
+      "expected": "license.html처럼 ../css/design-tokens.css 링크 후 --ui-* 를 alias로 매핑하거나, 최소한 에디터와 값 동기화. mirror 사본 금지.",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-home-02",
+      "severity": "major",
+      "dimension": "D-color",
+      "title": "projects.html 토큰 전무 — 색/치수 전량 raw hex 하드코딩",
+      "evidence": "projects.html <style>(6-169)에 CSS 변수 0개. 카드/버튼/탭/그리드 색이 #242424 #2e2e2e #484848 #555 #2d6fe8 #1a7a5e #22c48a #c0392b 등 raw. 에디터 토큰(--color-accent #2d6fe8 등)과 값이 겹쳐도 토큰을 변경하면 이 페이지만 동기화 누락. border용 #2e2e2e/#484848/#555 는 에디터 보더 토큰 스케일(#333/#3a3a3a/#444)에 없는 신규 회색.",
+      "locations": ["pages/projects.html:6-169"],
+      "expected": "design-tokens.css 링크 + 토큰 참조로 전환(license.html 패턴 적용). 최소 accent/danger/bg/border는 토큰화.",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-home-03",
+      "severity": "major",
+      "dimension": "D-states",
+      "title": "3파일 전체 :focus-visible 포커스 링 부재 (키보드 접근성)",
+      "evidence": "planning/projects/license 어디에도 :focus-visible 룰 없음. input/select :focus{border-color}만 존재. projects는 버튼(btn-new) 외에 .project-card가 클릭 가능 요소인데 키보드 포커스 표시 전무. license는 인증 게이트(가입 첫 화면)인데 .btn 포커스 링 없음.",
+      "locations": ["pages/planning.html (전역)", "pages/projects.html (전역)", "pages/license.html (전역)"],
+      "expected": "인터랙티브 요소(button/.project-card/.card-action/a.back-btn)에 공통 :focus-visible outline 추가",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-home-04",
+      "severity": "minor",
+      "dimension": "D-component",
+      "title": "버튼/카드 radius 영역 내부 4/5/6/7 난립",
+      "evidence": "planning 5px(btn-save/load-dummy/back-btn) · projects 7px(btn-new)/4px(card-action)/6px(home-proj-tab)/10px(project-card) · license 6px(btn)/8px(card)/4px(btn-delete). 동일 '버튼'이 5/6/7, 동일 '카드'가 6/8/10. 에디터 owned(2/3/4/5)와 합치면 2~10 전 구간 난립.",
+      "locations": ["pages/planning.html:61,67,78", "pages/projects.html:47,90,116,144", "pages/license.html:47,148,206"],
+      "expected": "--radius-* 토큰(4/6/10) 도입 후 버튼=6, 카드=10 등 의미별 단일화",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-home-05",
+      "severity": "minor",
+      "dimension": "D-color",
+      "title": "danger 색이 파일마다 다른 톤 (raw)",
+      "evidence": "projects .card-delete:hover #c0392b(채도 높은 벽돌빨강), license .btn-delete color var(--ui-danger)이나 hover는 rgba(255,107,107,0.1)=#ff6b6b alpha(토큰 #e06c6c와 다른 hue), planning 필수마커 raw #e06c6c. 삭제/위험 의미색이 #c0392b / #ff6b6b / #e06c6c 3종.",
+      "locations": ["pages/projects.html:124", "pages/license.html:211", "pages/planning.html:271"],
+      "expected": "--color-danger 단일 토큰 + danger-alpha 토큰으로 hover 통일",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-home-06",
+      "severity": "nit",
+      "dimension": "D-states",
+      "title": "disabled 표현 메커니즘 파일 간 불일치",
+      "evidence": "planning #btn-save:disabled = 배경/색 교체(bg --ui-bg-input + text-muted), license .btn:disabled = opacity 0.4. 동일 '비활성 버튼'을 색교체 vs 투명도로 다르게 표현. 에디터 .prop-btn:disabled(opacity .35)와도 또 다름.",
+      "locations": ["pages/planning.html:72", "pages/license.html:157"],
+      "expected": "공용 disabled 토큰/패턴(opacity 또는 색)으로 통일",
+      "disposition": "self"
+    }
+  ],
+  "crossAreaFlags": [
+    {
+      "id": "MTX-home-X01",
+      "to_area": "color / tokens (전 영역)",
+      "title": "★home-pages는 '에디터와 완전 별개 디자인 언어'에 가깝다 — 단, 3단계로 갈림",
+      "detail": "결론: 부분적으로 별개. (a) license.html = 에디터와 동일 토큰 소스(design-tokens.css)를 공유하는 '통합형' — 가장 일관. (b) planning.html = 토큰 이름만 빌리고 값은 fork한 '위장 통합형' — accent가 초록(#22c48a)으로 갈려 시각적으로 에디터(파랑)와 단절. (c) projects.html = 토큰 자체가 없는 '완전 독립형' raw hex. 즉 홈 진입 3페이지가 서로도 다르고 에디터와도 다른, 3개의 분리된 미니 디자인 시스템. 사용자가 projects→(파랑버튼)→planning(초록 UI)→editor(파랑 UI) 로 이동하며 accent 색이 파랑→초록→파랑으로 튐.",
+      "shared_token_gap": "단일 소스(design-tokens.css)로 일원화 필요. license.html의 alias 블록(11-28)이 표준 패턴 — planning/projects에 동일 적용하면 3페이지가 에디터와 자동 동기화."
+    },
+    {
+      "id": "MTX-home-X02",
+      "to_area": "color / accent semantics",
+      "title": "초록 accent(#22c48a)가 '기획(planning) 모드' 식별색으로 도입됐으나 토큰 미정의",
+      "detail": "planning.html accent·admin-badge·planning-badge, projects.html planning-card border-left/planning-badge/btn-new-planning 가 모두 초록 계열(#22c48a, #1a7a5e, rgba(34,196,138,.12/.3)). 이는 '디자인 프로젝트=파랑 / 기획 프로젝트=초록'이라는 의도된 의미색으로 보이나, design-tokens.css에 --color-planning/--color-accent-green 같은 semantic 토큰이 없어 raw로 산재. 의도가 있다면 토큰화 필요.",
+      "shared_token_gap": "--color-planning(=#22c48a) + alpha 변형 토큰 신설. 에디터 본체에도 기획 진입 표식이 생기면 공유."
+    },
+    {
+      "id": "MTX-home-X03",
+      "to_area": "toolbar / states (DSN-matrix-toolbar X 동일)",
+      "title": ":focus-visible 부재가 에디터 toolbar에 이어 home-pages 전체에도 동일 재현",
+      "detail": "matrix-toolbar(MTX-toolbar-01)이 지적한 '포커스 링 부재'가 home 3페이지에도 그대로. 특히 license.html은 앱 최초 진입 게이트(키보드만으로 라이선스 입력→인증)인데 .btn 포커스 표시가 없어 a11y 영향이 toolbar보다 큼. 전역 공용 :focus-visible 토큰/유틸 도입 시 home도 포함해야.",
+      "shared_token_gap": "전역 --focus-ring 토큰 + 공용 :focus-visible 룰. editor/home 공통."
+    },
+    {
+      "id": "MTX-home-X04",
+      "to_area": "component / radius scale (DSN-component-04 / toolbar X02)",
+      "title": "radius off-scale에 home-pages도 7px·10px·8px로 추가 기여",
+      "detail": "toolbar가 5/3/2, 패널이 4/5 쓰는 위에 home이 7px(btn-new)·8px(license card)·10px(project-card)을 더함. 스케일 토큰(4/6/10)의 10은 project-card가 유일 정합, 7/8/5는 off-scale. 전 영역 radius 토큰화 시 home owned도 일괄 이관 대상.",
+      "shared_token_gap": "--ui-radius-*(4/6/10) 부재. 도입 시 home 3파일 포함 일괄 치환."
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "by_severity": {"blocker": 0, "major": 3, "minor": 2, "nit": 1},
+    "crossAreaFlags": 4,
+    "notes": "home-pages는 에디터와 '부분적 별개 디자인 언어'. 3파일이 토큰 통합도가 제각각(license=공유, planning=fork사본, projects=raw 전무)이라 영역 내부 일관성부터 깨짐. 가장 큰 시각 단절은 accent 색 분기(planning 초록 #22c48a vs 에디터/디자인 파랑 #2d6fe8) — projects→planning→editor 이동 시 accent가 튐. license.html의 design-tokens.css alias 패턴이 정답 템플릿이므로 planning/projects에 이식하면 3페이지가 에디터와 자동 동기화됨. titlebar 44px·padding-left 80px 같은 레이아웃 규약은 3파일 공통으로 잘 지켜짐."
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "run": "qa-squad v4.0 full run",
+  "date": "2026-06-11",
+  "project": "web-editor (GODITOR)",
+  "cdp_port": 9334,
+  "test_project": "proj_1775644888754",
+  "waves": {
+    "wave1_parallel": ["QA-01", "QA-02", "QA-03", "QA-05", "QA-06", "QA-UX"],
+    "wave2_solo_sequential": ["QA-04", "QA-Regression", "QA-Boundary"]
+  },
+  "totals": { "scenarios": 49, "passed": 45, "failed": 3, "skipped": 1, "ux_observations": 6 },
+  "confirmed_defects": [
+    {
+      "id": "DEF-01",
+      "severity": "blocker",
+      "title": "Undo tip 유실 — 첫 undo가 마지막 라이브 상태를 폐기, redo로 복원 불가",
+      "found_by": "QA-04 S2",
+      "adjudication": "central-adversarial (독립 재현 2회 확정)",
+      "mechanism": "pushHistory가 액션 '전' 스냅샷만 push — 마지막 액션 후 tip 상태가 스택에 없어 첫 undo가 즉시 폐기",
+      "repro": "블록 5개 추가 → Cmd+Z x5 → Cmd+Shift+Z 충분히 → 마지막 블록 1개 영구 손실 (redo 스택 소진)",
+      "evidence": "QA-04: undo[14,12,11,10,9,9]/redo cap 13; 중앙검증: 6블록→풀redo 후 5블록, historyPos 9/10 소진",
+      "fix_direction": "undo 진입 시 현재 tip을 스택에 push하는 표준 패턴 (editor.js history)"
+    },
+    {
+      "id": "DEF-02",
+      "severity": "major",
+      "title": "카드 블록 클릭 시 전용 패널 미표시 + 레이어패널 'Asset' 오표시",
+      "found_by": "QA-03 S2",
+      "adjudication": "self (코드 근거 2건)",
+      "mechanism": "bindBlock(block-drag.js:80)에 isCard 분기 부재; layer-panel appendRowToLayer가 .col 래퍼 내부 미순회",
+      "note": "showCardProperties(prop-card.js)는 직접 호출 시 정상 — 와이어링만 끊김. table/graph와 비일관",
+      "fix_direction": "bindBlock isCard 분기 추가 + layer-panel .col 순회"
+    },
+    {
+      "id": "DEF-03",
+      "severity": "major",
+      "title": "무편집 프로젝트 방문만으로 파일 재기록 (updatedAt 오염 + 정규화 잠재 위험)",
+      "found_by": "QA-04 S1",
+      "adjudication": "central-adversarial (blocker→major 강등: 데이터 손실 미증명, 7.5KB 축소는 상태요소 정규화 추정)",
+      "mechanism": "switchPage() 말미 scheduleAutoSave() 무조건 호출 (save-load.js:254) — 로드만 해도 1.5초 뒤 재직렬화→디스크 쓰기",
+      "fix_direction": "로드 직후엔 dirty 플래그 없으면 저장 생략"
+    }
+  ],
+  "ux_observations": [
+    "B-02: 마지막 섹션 삭제 가드 피드백이 console.warn뿐 — 사용자에겐 무반응",
+    "B-07: 중첩 그룹 생성 직후 내부+외부 프레임 동시 .selected — 후속 조작 대상 모호",
+    "QA-05: 내보내기 중 props 패널 재렌더 시 진행표시 리셋 (prop-page.js:311 detached 버튼 클로저)",
+    "QA-06: addTextBlock 잘못된 type이 에러 없이 class=undefined 블록 silent 생성",
+    "QA-UX: Cmd+D 후 원본+클론 동시 selected (피그마는 클론만)",
+    "B-01 파생(저신뢰): fp-asset-dropdown이 Escape로 안 닫힘"
+  ],
+  "recon_suspicions_resolved": [
+    "flushSave 락 우회 race → 실측 통과 (2연속 호출 에러 0, 중복 저장 0)",
+    "새로고침 직전 미저장 유실 → 실측 통과 (beforeunload 가드가 파일까지 보존)",
+    "switchBranch suppress 플래그 → 통과 (전환 중 autosave 키 쓰기 0건)"
+  ],
+  "doc_updates_proposed": [
+    "guard_doc: R-09로 'undo tip 유실' 적립 (사용자 승인 대기)",
+    "guard_doc S-06: localStorage prefix 구버전 (wb_save_ → web-editor-autosave__)",
+    "profile.md: addTextBlock('h3') 실제 지원됨 — 'h3 없으면 대체' 전제 제거",
+    "profile.md R-03: 'a' 단축키는 블록 추가가 아닌 에셋 드롭다운 오픈 (현행 설계)"
+  ],
+  "notion_sync": "대기 1건(Logo 블록 좌/중/우 정렬 변경) — 시나리오 미매핑으로 미변경 (자동 추가 금지 규칙)",
+  "environment_notes": [
+    "전역 undo 히스토리·선택 상태가 에이전트 간 공유 — Wave1 병렬 중 오염 이벤트 다수 (원자 실행으로 보완, 제품 버그 아님)",
+    "콘솔 error/warn 최종 0건, 실프로젝트 무접촉(읽기 검증 제외), 테스트 프로젝트 원상 복구"
+  ]
+}

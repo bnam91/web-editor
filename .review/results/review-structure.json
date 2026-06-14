@@ -1,0 +1,227 @@
+{
+  "dimension": "structure",
+  "engine": "debug-squad v4.0 / D-structure",
+  "generated_at": "2026-06-11",
+  "scope": "js/**/*.js + main.js (node_modules, claude-talk-to-figma-mcp, figma-plugin, figma-renderer, dist, build 제외)",
+  "method": "Scan(import 그래프 141파일/122엣지 + selector·조립코드 diff) → Trace(저장 3경로 proj 조립 비교, 바인딩 경로 추적, IPC 핸들러 대조) → Grade",
+  "excluded_known_issues": [
+    "block-factory.js 4.6k줄 책임 혼재",
+    "props 47파일 복붙 패턴",
+    "CLAUDE/AGENTS 중복",
+    "banner-block.js (살아있는 경로, profile #7)",
+    "window.* 320+ 개별 노출 (profile #9 — 총평만, ST-11)"
+  ],
+  "overview": "정적 import 그래프에는 순환 의존 0, 파일 단위 죽은 코드 0 (script 태그 미등재 23개 파일 전부 ES import로 살아있음). 진짜 위험은 '같은 기능의 N사본' 패턴: proj 조립 3사본, 블록 바인딩 selector 목록 6사본, 클론 정리 목록 5사본, escapeHtml 4사본, 카드 이미지 마크업 3사본. 새 블록 타입/필드가 추가될 때마다 일부 사본만 갱신되는 구조라 '특정 경로에서만 깨지는' 버그를 시스템적으로 재생산한다. 메인-렌더러 간에는 제거된 가드를 렌더러가 여전히 믿는 비대칭이 있다.",
+  "findings": [
+    {
+      "id": "ST-01",
+      "severity": "major",
+      "status": "verify-candidate",
+      "title": "저장 직렬화 경로 3곳이 proj를 각자 조립 — beforeunload 경로는 existing 머지 없이 통째 덮어쓰기 (createdAt/type 등 최상위 필드 유실)",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "115-128 (_doSaveProjectToFile: existing spread 머지 + 메타 스트립)" },
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "1118-1133 (beforeunload: {...snapData, id, name:탭이름} — 머지 없음)" },
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "1537-1547 (flushSave: existing 머지하나 메타 스트립 없음)" },
+        { "path": "/Users/a1/web-editor/main.js", "lines": "780-801 (projects:save-sync — 받은 객체 그대로 atomic write, name만 가드)" }
+      ],
+      "why": "serializeProject()는 version/currentPageId/pages/checklist/imageGallery/assetsTree만 직렬화한다. _doSaveProjectToFile은 existing 파일을 spread해 createdAt·type 등 레거시 필드를 보존하지만, beforeunload 동기 경로는 {...snapData, id, name}으로 파일을 통째로 교체한다. main의 save-sync는 name만 _guardProjectName으로 가드하고 나머지는 받은 그대로 쓴다. 결과: 편집 후 새로고침/탭닫기 1회면 proj.json에서 createdAt·type(기획 프로젝트 구분)·기타 최상위 필드가 영구 소실 → projects:list의 정렬·타입 표시가 깨진다. '저장 경로 3개가 미세하게 달라 한쪽만 고쳐지는' 전형.",
+      "evidence": "실파일 projects/proj_1775413973024.json 키: id,name,createdAt,updatedAt,version,currentPageId,pages,currentBranch,branches,thumbnail,commits — serializeProject 산출물에 없는 키 5개가 beforeunload 경로에서 탈락. pages/projects.html:357은 type:'planning'을 생성하는데 이 필드도 동일 경로로 소실.",
+      "suggested_fix": "proj 조립을 buildProjForSave(snapData, {existing, nameSource}) 단일 함수로 추출하고 3경로 모두 이 함수만 호출. beforeunload는 existing을 동기 IPC(loadProjectSync 추가) 또는 메모리 캐시로 머지."
+    },
+    {
+      "id": "ST-02",
+      "severity": "major",
+      "status": "verify-candidate",
+      "title": "flushSave는 레거시 메타(branches/commits/currentBranch/thumbnail) 스트립을 안 함 — 자동저장 경로와 파일 포맷 줄다리기",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "120-128 (_doSaveProjectToFile: 양쪽에서 스트립, '메타는 _meta.json 관리' 주석)" },
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "1540-1546 (flushSave: {...existing, ...data} — 스트립 없음)" }
+      ],
+      "why": "_doSaveProjectToFile은 'branches/commits/thumbnail은 _meta.json에서 관리' 정책으로 existing과 data 양쪽에서 해당 키를 제거하고 저장한다. flushSave(저장하기 버튼)는 existing을 그대로 spread해 미마이그레이션 파일의 레거시 메타(base64 썸네일 포함)를 파일에 되살린다. 어느 경로가 마지막에 돌았느냐에 따라 proj.json 포맷이 왕복 — 파일 비대화 + 메타 진실 소스 이원화 재발 + diff/백업 슬롯 오염.",
+      "evidence": "projects/proj_1775413973024.json에 branches/commits/thumbnail 실존(미마이그레이션 케이스 존재 증명). flushSave는 saveResult.ok 체크도 없어 3경로 중 유일하게 main 거부 응답을 무시한 채 'saved' 인디케이터를 띄움.",
+      "suggested_fix": "ST-01의 buildProjForSave에 메타 스트립을 포함시켜 flushSave도 경유시키기. flushSave의 saveProject 결과 검사 추가."
+    },
+    {
+      "id": "ST-03",
+      "severity": "major",
+      "status": "verify-candidate",
+      "title": "page_count_reduced 데이터 보호 가드 — main에서는 제거됐는데 renderer는 여전히 존재한다고 믿음 (죽은 분기 + 거짓 보호)",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "130-135 (saveResult.ok===false 검사 + '데이터 보호됨' 토스트)" },
+        { "path": "/Users/a1/web-editor/main.js", "lines": "731-775 (projects:save — 무조건 {ok:true} 반환)" },
+        { "path": "/Users/a1/web-editor/main.js", "lines": "777-779 (주석: '페이지/섹션 감소 차단 가드는 제거')" }
+      ],
+      "why": "전 코드베이스에서 'page_count_reduced' 문자열은 renderer 주석 1곳뿐. main의 projects:save는 항상 {ok:true}를 반환하므로 renderer의 거부 처리 분기(경고 토스트 '⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨')는 도달 불가능한 죽은 코드다. 위험한 이유: 코드를 읽는 사람(과 에이전트)이 '페이지 수 감소는 main이 막아준다'고 믿고 renderer 측 방어를 생략하게 됨 — 실제 보호는 롤링 백업뿐. 한쪽(main)만 고쳐진 양면 가드의 전형.",
+      "evidence": "grep 'page_count_reduced' → js/io/save-load.js:130 단 1건. main.js projects:save/save-sync 어디에도 reason 반환 없음.",
+      "suggested_fix": "renderer의 죽은 분기와 주석 제거, 또는 가드를 다시 둘 거면 main에 복원하고 '정당한 삭제' 케이스는 renderer가 의도 플래그를 같이 보내는 방식으로 재설계."
+    },
+    {
+      "id": "ST-04",
+      "severity": "major",
+      "status": "verify-candidate",
+      "title": "블록 바인딩 selector 목록이 최소 6사본 — 템플릿 삽입·AB variation 경로는 신형 블록(chat/step/banner02/canvas/mockup 등)을 바인딩하지 않음",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/block-factory.js", "lines": "1222 (addSection: 15종)" },
+        { "path": "/Users/a1/web-editor/js/panels/template-system.js", "lines": "179 (subsection 템플릿 삽입: 12종 — vector/step/chat/laurel/canvas/banner02/comparison/mockup 누락)" },
+        { "path": "/Users/a1/web-editor/js/panels/template-system.js", "lines": "265 (섹션 템플릿 삽입: 10종 — shape/joker까지 누락)" },
+        { "path": "/Users/a1/web-editor/js/section-variation.js", "lines": "71 (AB B-클론: 10종)" },
+        { "path": "/Users/a1/web-editor/js/editor.js", "lines": "695 (BLOCK_SEL: 22종)" },
+        { "path": "/Users/a1/web-editor/js/block-factory.js", "lines": "1447 (BLOCK_SEL: 21종 — editor.js판과도 불일치: frame-block 有/gradient 無 vs 반대)" }
+      ],
+      "why": "블록 타입 레지스트리가 없어 '바인딩 대상 블록 목록'이 경로마다 하드코딩 사본으로 존재. 사본마다 수록 타입이 다르므로: (1) chat-block이 든 섹션을 AB variation하면 B변형의 chat은 클릭/편집 불가, (2) step/banner02 포함 템플릿을 삽입하면 해당 블록 inert — 앱 재시작(rebindAll)까지. 또한 rebindAll만 renderChatBlock/renderBanner02/renderComparison 재렌더를 호출하고 템플릿 삽입 경로는 호출하지 않아 정적 innerHTML 블록(저장본 chat 등)은 바인딩해도 편집 핸들러가 없음. 새 블록 타입이 추가될 때마다 이 6곳 중 일부만 갱신되는 사고가 구조적으로 반복됨 (실제로 6곳 전부 목록이 다름).",
+      "evidence": "save-load.js:827-831 주석이 재렌더 필요성을 명시('저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음') — 같은 요구가 template-system 삽입 경로에는 반영 안 됨.",
+      "suggested_fix": "BLOCK_TYPES 레지스트리(클래스명, bind 함수, 재렌더 함수) 단일 모듈 도입 → bindBlocksIn(rootEl) 헬퍼 하나로 6곳 교체."
+    },
+    {
+      "id": "ST-05",
+      "severity": "major",
+      "status": "verify-candidate",
+      "title": "card-block 이미지 ✕(제거) 버튼 리스너가 생성 시점 인라인 바인딩 3사본에만 존재 — 저장 후 리로드하면 캔버스의 ✕ 버튼이 죽음",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/block-factory.js", "lines": "869-878 (makeSimpleCard 인라인 바인딩)" },
+        { "path": "/Users/a1/web-editor/js/block-factory.js", "lines": "1006-1020 (updateCardBlock patch 인라인 바인딩)" },
+        { "path": "/Users/a1/web-editor/js/image-handling-card.js", "lines": "26-32 (loadImageToCard 인라인 바인딩)" },
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "834-857 (rebindAll card 복원: 스타일만 복원, ✕ 리스너 재부착 없음)" }
+      ],
+      "why": ".cdb-clear-btn 마크업은 직렬화돼 저장되지만 click 리스너는 생성 경로 3곳의 인라인 addEventListener에만 있다. bindBlock(block-drag.js)에는 card 클리어 처리 없고, 위임 핸들러(closest('.cdb-clear-btn'))도 전무. rebindAll의 card 복원 블록은 bgColor/radius/fontSize 스타일만 재적용한다. 결과: 이미지 있는 카드를 저장→리로드하면 캔버스 위 ✕ 버튼 클릭이 무반응(프롭 패널의 '이미지 제거' 버튼으로만 가능). '바인딩이 생성 경로에 인라인으로 사본화되고 복원 경로가 빠진' 구조 버그.",
+      "evidence": "grep 'cdb-clear-btn' → block-factory.js(2곳)·image-handling-card.js(1곳)뿐. bindBlock/rebindAll/위임 핸들러에 부재.",
+      "suggested_fix": "✕ 클릭을 canvas 레벨 위임 1곳으로 통합 (e.target.closest('.cdb-clear-btn') → clearCardImage) — 3개 인라인 바인딩 제거 가능."
+    },
+    {
+      "id": "ST-06",
+      "severity": "major",
+      "status": "verify-candidate",
+      "title": "_meta.json에 오너 없음 — 4개 모듈이 각자 load→spread→save (RMW), main은 전체 덮어쓰기라 동시 저장 시 상호 소실",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/design-system.js", "lines": "93-96 (colorVars RMW)" },
+        { "path": "/Users/a1/web-editor/js/branch-system.js", "lines": "30-37 (branches RMW)" },
+        { "path": "/Users/a1/web-editor/js/commit-system.js", "lines": "236-242, 374-382 외 다수 (commits RMW)" },
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "137-139 (thumbnail RMW)" },
+        { "path": "/Users/a1/web-editor/main.js", "lines": "940-945 (projects:save-meta — 병합 없이 통째 atomic write)" }
+      ],
+      "why": "한 파일(proj_meta.json)의 진실을 4개 렌더러 모듈이 분산 read-modify-write한다. main 핸들러는 머지하지 않으므로 두 RMW가 인터리브되면(예: goHome 썸네일 저장 await 중에 커밋 생성) 나중 쓰기가 먼저 쓰기를 통째로 지운다 — commits가 thumbnail 저장에 밀려 사라지거나 colorVars가 브랜치 persist에 지워지는 형태. branch-system의 BUG4 주석(_isSavingToFile race 감지용 getter)은 이 구조가 이미 race를 일으켰던 흔적이지만 그 가드는 proj.json만 커버하고 meta는 무방비.",
+      "evidence": "saveProjectMeta 호출처 grep — 4모듈 7+곳 전부 'load→{...existing, 필드}→save' 패턴 반복. 직렬화 큐/오너 모듈 없음.",
+      "suggested_fix": "main의 save-meta를 부분 패치(merge) 시맨틱으로 바꾸거나(projects:patch-meta(projectId, partial)), 렌더러에 meta-store 싱글톤(쓰기 큐 직렬화)을 두고 4모듈이 경유하게."
+    },
+    {
+      "id": "ST-07",
+      "severity": "major",
+      "status": "verify-candidate",
+      "title": "프로젝트 이름 진실 소스 4중화 (tab.name / proj.json name / claude-pm meta title / main 가드) — 경로별 우선순위도 상충",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "126 (_doSave: existing?.name 우선), 181-188 (getProjectName: Electron=탭, browser=파일), 1123 (beforeunload: 탭 이름 우선)" },
+        { "path": "/Users/a1/web-editor/js/tab-system.js", "lines": "88-107, 271-275 (탭↔파일 양방향 동기화 수동 코드)" },
+        { "path": "/Users/a1/web-editor/pages/projects.html", "lines": "242-249 (renameProject 별도 구현)" },
+        { "path": "/Users/a1/web-editor/main.js", "lines": "712-729 (_guardProjectName — 'Untitled' 케이스만 휴리스틱 복원)" }
+      ],
+      "why": "이름이 openTabs[].name(메모리+탭상태 LS), proj.json name, claude-pm project.meta.json title(syncClaudePmTitle), main의 복원 휴리스틱 네 곳에 살고, 쓰기 경로마다 우선순위가 다르다(_doSave는 파일 우선, beforeunload는 탭 우선, getProjectName은 플랫폼별로 다른 소스). main.js BUG-NAME-LOSS 주석이 증명하듯 이 구조는 이미 '큰 프로젝트 load race에서 이름이 Untitled로 덮임' 버그를 냈고, 현재 가드는 Untitled 케이스만 막는다 — 탭A 이름과 파일 이름이 다른 일반 케이스(load 지연 중 stale 탭 이름으로 beforeunload 저장)는 여전히 무방비.",
+      "evidence": "main.js:712 'BUG-NAME-LOSS' 주석 = 과거 실버그 기록. beforeunload(1123)와 _doSave(126)의 name 소스가 반대.",
+      "suggested_fix": "이름의 단일 진실을 proj.json으로 고정하고 tab.name은 표시 캐시로 강등(쓰기 금지). 저장 경로의 name 결정을 ST-01 buildProjForSave 한 곳으로."
+    },
+    {
+      "id": "ST-08",
+      "severity": "minor",
+      "status": "self",
+      "title": "직렬화/내보내기 전 '클론 정리' 목록 5+사본 — 템플릿 저장본·HTML 내보내기에 에디터 핸들 DOM 혼입 가능",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "291-328 (getSerializedCanvas — 가장 완전한 목록), 38-52 (captureThumbnail — label/toolbar만)" },
+        { "path": "/Users/a1/web-editor/js/io/export-html.js", "lines": "7-8 (resize/img 핸들 미제거)" },
+        { "path": "/Users/a1/web-editor/js/io/export-image.js", "lines": "175-190 (자체 목록)" },
+        { "path": "/Users/a1/web-editor/js/panels/template-system.js", "lines": "434-440 (3종 핸들만 제거 — img-edge-handle/sticker/gradient 핸들·drop-indicator·ghost 등 잔존)" }
+      ],
+      "why": "UI 잔재(핸들·선택 클래스·드래그 클래스) 제거 규칙이 5곳에 서로 다른 부분집합으로 복제됨. 핸들 종류가 추가될 때 getSerializedCanvas만 갱신되는 패턴이라, 템플릿 덮어쓰기 저장본이나 export-html 산출물에 에디터 전용 DOM이 섞여 들어가 재삽입/배포 시 유령 요소·스타일 깨짐을 만든다.",
+      "evidence": "template-system L436은 block-resize-handle/img-corner-handle/img-edit-hint 3종만 제거 — getSerializedCanvas의 제거 목록은 12종+.",
+      "suggested_fix": "cleanCanvasClone(clone, {forExport|forTemplate|forThumbnail}) 단일 유틸로 통합."
+    },
+    {
+      "id": "ST-09",
+      "severity": "minor",
+      "status": "self",
+      "title": "localStorage quota 처리 비대칭 + 롤백 죽은 코드 — flushSave는 raw setItem이라 quota 초과 시 파일 저장까지 중단",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "156-168 (QuotaExceededError '원복' 주석 + 아무것도 안 하는 블록)" },
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "1534-1535 (flushSave: safeLocalStorageSet 안 쓰고 raw setItem, try 밖)" }
+      ],
+      "why": "(1) L160-168: '저장 실패한 snapshot을 메모리에서도 롤백'을 주장하는 주석 아래 prevList 파싱·탐색 후 아무 동작 없는 죽은 블록 — 읽는 사람에게 롤백이 존재한다는 거짓 신호. (2) scheduleAutoSave는 safeLocalStorageSet으로 quota를 흡수하는데 flushSave(저장하기 버튼)는 raw setItem을 try 밖에서 호출 — 대형 프로젝트로 quota 초과 시 예외가 flushSave를 중단시켜 진실 소스인 파일 저장(electronAPI.saveProject)까지 도달 못 함. 같은 기능(LS 캐시 쓰기)의 두 구현 중 한쪽만 방어가 들어간 사례.",
+      "evidence": "flushSave L1534는 try 블록 진입 전. commit-system '저장하기'가 유일 호출처라 사용자 명시 저장이 가장 취약한 역설.",
+      "suggested_fix": "flushSave도 safeLocalStorageSet 사용 + LS 실패와 무관하게 파일 저장 진행. L160-168 블록 삭제."
+    },
+    {
+      "id": "ST-10",
+      "severity": "minor",
+      "status": "self",
+      "title": "프로젝트 생성 객체 리터럴이 tab-system.js와 pages/projects.html에 복붙 2사본 — 생성 경로별 파일 스키마 분기 위험",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/tab-system.js", "lines": "335-350" },
+        { "path": "/Users/a1/web-editor/pages/projects.html", "lines": "315-330, 357 (planning 타입은 이쪽에만)" }
+      ],
+      "why": "id/name/createdAt/branches{main,dev} 구조의 신규 프로젝트 객체가 두 파일에 독립 사본으로 존재. projects.html에는 type:'planning' 생성 변형까지 있다. 스키마가 바뀌면(예: 메타 분리 정책 확장) 한쪽 생성 경로만 갱신돼 '에디터에서 만든 프로젝트'와 '홈에서 만든 프로젝트'의 파일 포맷이 갈라진다 — ST-01/02의 필드 유실 버그와 결합하면 추적이 매우 어려워짐.",
+      "evidence": "두 위치의 emptySnap+branches 리터럴이 자구까지 거의 동일 (grep createdAt).",
+      "suggested_fix": "createProjectScaffold(name, type) 공용 함수로 추출 (shared 모듈 또는 main IPC)."
+    },
+    {
+      "id": "ST-11",
+      "severity": "minor",
+      "status": "self",
+      "title": "escapeHtml 4중 구현 — import-figma-json판은 작은따옴표 미이스케이프",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/badge-transform.js", "lines": "45-49 (5문자 완전)" },
+        { "path": "/Users/a1/web-editor/js/io/import-figma-json.js", "lines": "256-258 (_escapeHtml — ' 누락, 별도 _escapeAttr 보완)" },
+        { "path": "/Users/a1/web-editor/js/section-protection.js", "lines": "314-320 (완전)" },
+        { "path": "/Users/a1/web-editor/js/block-factory.js", "lines": "_cdbEscHtml (카드 전용 또 하나)" }
+      ],
+      "why": "동일 목적 유틸 4사본 중 1개(import-figma-json)는 작은따옴표를 escape하지 않아, 작은따옴표로 감싼 속성에 쓰이면 Figma 레이어 이름의 ' 문자로 마크업이 깨질 수 있다(현재는 큰따옴표 속성+_escapeAttr로 우회 중 — 우회가 깨지기 쉬운 구조). 새 코드가 '아무 escapeHtml이나' 골라 쓰는 복권 구조.",
+      "evidence": "4개 구현의 escape 문자 집합이 3종류로 갈림.",
+      "suggested_fix": "js/utils/escape.js 단일화 후 re-export."
+    },
+    {
+      "id": "ST-12",
+      "severity": "info",
+      "status": "self",
+      "title": "카드 이미지 영역 마크업 3중 생성 + 카드 스타일 복원 로직 rebindAll에 4번째 사본",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/block-factory.js", "lines": "850-868 (makeSimpleCard), 1006-1025 (updateCardBlock)" },
+        { "path": "/Users/a1/web-editor/js/image-handling-card.js", "lines": "20-37 (loadImageToCard)" },
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "834-857 (rebindAll 스타일 재적용)" }
+      ],
+      "why": "cdb-image innerHTML 템플릿이 3곳, dataset→inline style 매핑이 사실상 4곳에 산다. 카드에 fit/keep 같은 속성을 추가하면(asset-block처럼) 일부 경로만 반영돼 '업로드로 넣은 이미지'와 'MCP로 넣은 이미지'와 '리로드된 이미지'의 동작이 갈라진다. ST-05(✕ 버튼 사망)가 이미 이 구조가 낳은 실증 버그.",
+      "evidence": "makeSimpleCard는 src를 _cdbEscHtml로 escape, loadImageToCard는 raw 삽입 — 동일 마크업의 미세 차이 실례.",
+      "suggested_fix": "renderCardImage(cdb, src|null) 단일 함수로 마크업+바인딩 통합 (ST-05 fix와 동일 작업)."
+    },
+    {
+      "id": "ST-13",
+      "severity": "info",
+      "status": "self",
+      "title": "[총평] 모듈 결합의 실체는 window.* 320+ — 정적 import 그래프 순환 0은 착시, 죽은 노출 후보 다수",
+      "files": [
+        { "path": "/Users/a1/web-editor/js/io/save-load.js", "lines": "1505-1559 (window 노출 블록 — export와 이중 공급)" }
+      ],
+      "why": "ES import 그래프(122엣지)에는 순환이 없지만, 핵심 호출(rebindAll→window.bindBlock, block-factory→window.clearCardImage 등)이 window 전역을 경유해 컴파일타임 검증이 불가능하고 사실상의 런타임 순환(save-load↔block-factory↔block-drag)이 존재한다. 의도된 스타일(profile #9)이므로 개별 보고는 생략하나, 구조적 결과만 기록: (1) 로드 순서가 index.html script 태그 순서에 암묵 의존, (2) 오타·미정의 호출이 ?.로 조용히 무시됨, (3) 외부참조 0인 노출 20+ (GoyaColorPicker 계열, claudePM* 콘솔용, __table 내부 함수들) — 진짜 죽었는지 CDP 콘솔용인지 코드만으로 구분 불가한 상태 자체가 비용.",
+      "evidence": "window 할당 식별자 619개 중 외부 참조 0인 것 22개 검출 (대부분 디버그/콘솔용 추정).",
+      "suggested_fix": "콘솔 전용 노출은 window.__debug 네임스페이스로 격리해 '의도된 미참조'를 표시."
+    },
+    {
+      "id": "ST-14",
+      "severity": "info",
+      "status": "self",
+      "title": "projects/undefined.json 잔존 + 프로젝트 파일 dual-layout 과도기 — resolve 로직 2함수 분산",
+      "files": [
+        { "path": "/Users/a1/web-editor/projects/undefined.json", "lines": "-" },
+        { "path": "/Users/a1/web-editor/main.js", "lines": "624-693 (projects:list — 신/구 레이아웃 이중 스캔)" }
+      ],
+      "why": "undefined.json은 BUG-12(activeProjectId 부재 저장) 시대의 물증으로, 가드는 들어갔지만 잔재가 정리되지 않아 projects:list의 'undefined' id 필터(L677)가 영구히 필요해진 상태. flat(proj_x.json)/디렉터리(proj_x/proj.json) dual-layout은 의도된 과도기지만 읽기 fallback·백업·마이그레이션 분기가 list/load/save/save-sync/delete에 반복돼, 레이아웃 단일화 전까지 모든 신규 파일 IO 코드가 이 분기를 기억해야 하는 부담이 남는다.",
+      "evidence": "ls projects/ → undefined.json 실존. _resolveProjectJsonPath/_ensureNewLayoutPaths 이중 체계.",
+      "suggested_fix": "기동 시 1회 마이그레이션(flat→dir) + undefined.json 격리 이동으로 dual-layout 코드 수명 단축."
+    }
+  ],
+  "stats": {
+    "files_scanned": 142,
+    "import_edges": 122,
+    "circular_dependencies_static": 0,
+    "dead_files": 0,
+    "findings_total": 14,
+    "verify_candidates": 7,
+    "self_graded": 7
+  },
+  "coverage_notes": "js/claude-pm/, services/, preload.js는 통과 스캔만 수행(다른 차원이 주담당). figma-renderer/figma-plugin/claude-talk-to-figma-mcp는 profile상 스코프 제외 — 커버리지 구멍으로 별도 인지 필요."
+}

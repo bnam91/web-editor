@@ -354,3 +354,130 @@ export function hasFreeLayoutMultiSel() {
 
 window.showFreeLayoutMultiSelPanel = showFreeLayoutMultiSelPanel;
 window.hasFreeLayoutMultiSel = hasFreeLayoutMultiSel;
+
+/* ═══════════════════════════════════
+   FLOW(세로 스택) MULTI-SELECT PANEL  (B15/B18)
+═══════════════════════════════════ */
+
+// editor.js:348 FLOW_BLOCK_SEL_SELECTED와 동일 셀렉터 — SSOT
+const FLOW_SEL =
+  '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, ' +
+  '.table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, ' +
+  '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
+  '.mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, ' +
+  '.laurel-block.selected, .gradient-block.selected, .chat-block.selected';
+
+// editor.js _isInFreeLayout 역미러: freeLayout 래퍼 밖(=플로우)만 true
+function _isFlowBlock(b) {
+  const wrapper = b.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+    (b.style.position === 'absolute' ? b : null);
+  return !(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
+}
+
+function _getSelectedFlowBlocks() {
+  return [...document.querySelectorAll(FLOW_SEL)].filter(_isFlowBlock); // DOM 순서 보존
+}
+
+export function hasFlowMultiSel() {
+  return _getSelectedFlowBlocks().length >= 2;
+}
+
+// 블록 타입별 수평 정렬 (기존 단일패널 핸들러 미러)
+function _alignFlowBlock(b, dir) {
+  const selfMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  const jcMap   = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  if (b.classList.contains('text-block')) {
+    const contentEl = b.querySelector('.tb-content, [contenteditable]') || b;
+    if (contentEl.classList.contains('tb-label') || b.querySelector('.tb-label')) {
+      b.style.textAlign = dir;                       // label은 tb 자체 (align wireup:13)
+    } else {
+      contentEl.style.textAlign = dir;               // 일반 텍스트 (align wireup:22)
+    }
+  } else if (b.classList.contains('icon-text-block')) {
+    b.style.justifyContent = jcMap[dir];             // align wireup:17
+    const itbText = b.querySelector('.itb-text');
+    if (itbText) itbText.style.flex = dir === 'left' ? '1' : '0 1 auto';
+  } else if (b.classList.contains('asset-block')) {
+    b.dataset.align = dir;                           // prop-asset.js:322
+    b.style.alignSelf = selfMap[dir];
+  } else {
+    b.style.alignSelf = selfMap[dir];                // 범용 fallback (무해)
+  }
+}
+
+function _applyFlowAlign(blocks, dir) {
+  blocks.forEach(b => _alignFlowBlock(b, dir));
+  window.pushHistory?.('블록 정렬');
+  showFlowMultiSelPanel();
+}
+
+// 선택 블록들의 연속 형제 사이 gap-block 수집 → 평균 높이로 통일 (B18)
+function _collectInterGaps(blocks) {
+  if (blocks.length < 2) return [];
+  // 같은 부모(section-inner)에 직속인 블록만 대상; gap-block은 spacer
+  const gaps = [];
+  for (let i = 0; i < blocks.length - 1; i++) {
+    const a = blocks[i], z = blocks[i + 1];
+    if (a.parentElement !== z.parentElement) continue;
+    let n = a.nextElementSibling;
+    while (n && n !== z) {
+      if (n.classList.contains('gap-block')) gaps.push(n);
+      n = n.nextElementSibling;
+    }
+  }
+  return gaps;
+}
+
+function _applyFlowDistribute(blocks) {
+  const gaps = _collectInterGaps(blocks);
+  if (gaps.length < 2) return;
+  const avg = Math.round(gaps.reduce((s, g) => s + g.offsetHeight, 0) / gaps.length);
+  gaps.forEach(g => {
+    g.style.height = avg + 'px';
+    if (g.dataset) g.dataset.height = String(avg);
+  });
+  window.pushHistory?.('세로 분배');
+  showFlowMultiSelPanel();
+}
+
+export function showFlowMultiSelPanel() {
+  if (!propPanel) return;
+  const blocks = _getSelectedFlowBlocks();
+  if (blocks.length < 2) return;
+  const gaps = _collectInterGaps(blocks);
+  const canDistribute = gaps.length >= 2;
+
+  propPanel.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-block-label" style="padding:2px 0 4px;">
+        <div class="prop-block-info">
+          <span class="prop-block-name">${blocks.length}개 선택됨</span>
+          <span class="prop-breadcrumb">블록 멀티선택 · 정렬/분배</span>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-title">수평 정렬</div>
+      <div class="prop-row" style="gap:3px;">
+        <button class="msp-align-btn" data-fdir="left"   title="왼쪽 정렬">L</button>
+        <button class="msp-align-btn" data-fdir="center" title="가운데 정렬">C</button>
+        <button class="msp-align-btn" data-fdir="right"  title="오른쪽 정렬">R</button>
+      </div>
+    </div>
+    <div class="prop-section" style="${canDistribute ? '' : 'display:none;'}">
+      <div class="prop-section-title">분배</div>
+      <div class="prop-row" style="gap:3px;">
+        <button class="msp-dist-btn" data-dist="v" title="세로 간격 균등">세로 균등</button>
+      </div>
+    </div>`;
+
+  propPanel.querySelectorAll('.msp-align-btn[data-fdir]').forEach(btn => {
+    btn.addEventListener('click', () => _applyFlowAlign(blocks, btn.dataset.fdir));
+  });
+  propPanel.querySelectorAll('.msp-dist-btn').forEach(btn => {
+    btn.addEventListener('click', () => _applyFlowDistribute(blocks));
+  });
+}
+
+window.showFlowMultiSelPanel = showFlowMultiSelPanel;
+window.hasFlowMultiSel = hasFlowMultiSel;

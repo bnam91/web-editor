@@ -1,0 +1,22 @@
+{
+  "phase": "P3 전 영역 매트릭스 전수 (이동/L3/L4/복합희귀 + AI UX)",
+  "round": "2026-06-14 사각지대심층",
+  "status": "완료",
+  "new_findings": [
+    {
+      "id":"C19","class":"C 버그","confidence":"✅ 확정","priority":"보통","area":"AI Generate 모달 / 텍스트 생성",
+      "symptom":"✨ AI Generate 창에서 '텍스트 생성' 탭을 골라 프롬프트를 쓰고 '생성하기'를 누르면 '생성 중...' 스피너만 잠깐 돌고 아무 섹션도 만들어지지 않습니다. 동작하는 것처럼 보이는데 실제로는 콘솔에만 찍히는 미완성 기능입니다.",
+      "code_ref":"js/ai-prompt.js:43-60 submitAiPrompt — image모드만 _aigHandleImageSubmit로 실연결, 텍스트모드는 빈가드 후 setLoading→console.log→setLoading off(섹션 생성 0). 별도 텍스트 핸들러 없음. index.html:1070 onclick=submitAiPrompt. (섹션툴바 ✨ openAIFillUI는 별개 기능—정상)",
+      "oracle":"코드 deterministic + 모달 라이브확인: '텍스트 생성'/'이미지 생성' 두 탭 존재, 텍스트탭 submit 경로가 죽은 스켈레톤",
+      "status":"미착수"
+    }
+  ],
+  "cells_verified_clean": [
+    {"area":"AI 모달","axis":"빈입력 가드","result":"✅ 클린","evidence":"submitAiPrompt 빈 프롬프트 시 focus만(유료 호출 안 함). 모달 취소/닫기 정상"},
+    {"area":"AI 이미지 생성","axis":"발견성/모달구조","result":"✅ 클린(기능 미실행)","evidence":"모델선택(Nano Banana/GPT Image)+모드탭 정상 — 유료라 실제 생성은 미실행"}
+  ],
+  "inconclusive": [
+    {"area":"그룹화 + undo(L4 복합)","reason":"groupSelected/groupBlocks API 미노출, ⌘G 키보드 전용 + 합성 키 불가(메모리) → 프로그래밍 주행 불가. 미검증"}
+  ],
+  "note":"P3 매트릭스 전수에서 신규 1건(C19). 그 외 미시킨 영역(AI 이미지모달 구조·빈가드)은 클린. 그룹 L4는 키보드전용이라 미검."
+}

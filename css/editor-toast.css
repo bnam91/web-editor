@@ -203,3 +203,21 @@
   transition: background 0.1s, color 0.1s;
 }
 .fp-menu-item:hover { background: var(--ui-bg-input); color: var(--ui-text); }
+
+/* B13: 스티커/하이라이트 프리셋 서브 플라이아웃 */
+.fp-menu-item.fp-has-sub { position: relative; justify-content: space-between; gap: 8px; }
+.fp-sub-arrow { opacity: 0.45; font-size: 13px; }
+.fp-submenu {
+  display: none; position: absolute; left: 100%; top: -4px; margin-left: 4px;
+  background: var(--ui-bg-card); border: 1px solid var(--ui-border);
+  border-radius: 8px; padding: 6px; box-shadow: var(--ui-shadow-lg);
+  flex-wrap: wrap; width: 96px; gap: 6px; z-index: 5;
+}
+.fp-menu-item.fp-has-sub:hover .fp-submenu { display: flex; }
+.fp-swatch {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--sw); border: 1px solid rgba(0,0,0,0.25);
+  cursor: pointer; padding: 0;
+}
+.fp-swatch.fp-swatch-sq { border-radius: 4px; }
+.fp-swatch:hover { outline: 2px solid var(--ui-accent, #5a8aff); outline-offset: 1px; }

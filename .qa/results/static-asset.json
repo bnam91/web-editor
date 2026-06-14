@@ -1,0 +1,141 @@
+{
+  "group": "asset",
+  "files": [
+    "js/props/prop-asset.js",
+    "js/props/prop-canvas.js",
+    "js/props/prop-mockup.js",
+    "js/props/prop-sticker.js"
+  ],
+  "blocks": [
+    {
+      "block": "asset",
+      "panelFn": "showAssetProperties",
+      "file": "js/props/prop-asset.js",
+      "controls": [
+        {"id": "asset-bg-pick(없음)/_copyToClipboard", "type": "span", "label": "블록 ID 복사", "event": "onclick(inline)", "writes": "clipboard", "silentFailRisk": "low", "note": "L87 인라인 onclick. _copyToClipboard 미정의 시 무음 실패하나 정보성 기능."},
+        {"id": "prop-preset-btn (Standard/Square/Tall/Wide/Logo)", "type": "button", "label": "프리셋", "event": "click", "writes": "dataset.size/baseHeight/preset, style.width/height/marginL/R/alignSelf", "silentFailRisk": "low", "note": "L254~317. baseHeight=h 갱신, padX 음수마진 분기 정상. pushHistory 호출됨."},
+        {"id": "asset-align-group .prop-align-btn", "type": "button", "label": "정렬(좌/중/우)", "event": "click", "writes": "dataset.align, style.alignSelf, .active class", "silentFailRisk": "low", "note": "L327. width<860일 때만 alignSelf가 시각효과. full-width(860)면 정렬 변경이 무시됨 — 사용자 혼란 가능하나 데이터는 저장됨."},
+        {"id": "asset-w-slider / asset-w-number", "type": "range+number", "label": "너비", "event": "input/change", "writes": "style.width, style.alignSelf", "silentFailRisk": "low", "note": "L175~193. v>=860이면 width=''(full). 양방향 동기 OK. pushHistory change에서만."},
+        {"id": "asset-h-slider / asset-h-number", "type": "range+number", "label": "높이", "event": "input/change", "writes": "style.height", "silentFailRisk": "low", "note": "L195~242. 양방향 동기 OK."},
+        {"id": "asset-r-slider / asset-r-number", "type": "range+number", "label": "모서리", "event": "input/change", "writes": "style.borderRadius", "silentFailRisk": "low", "note": "L331~340. 동기 OK."},
+        {"id": "asset-padx-toggle", "type": "checkbox", "label": "패딩 제외", "event": "change", "writes": "dataset.usePadx, style.marginL/R/width/height", "silentFailRisk": "med", "note": "L198~230. section-inner.dataset.paddingX 빈문자/undefined 분기는 처리되나, ab가 section-inner 밖(중첩 frame 내부)이면 inner=null로 글로벌 padX만 사용 → 중첩 프레임 안 asset에서는 패딩 제외가 의도와 다르게 동작 가능. 또한 토글 OFF 시 width=''로 리셋되어 사용자가 슬라이더로 지정했던 너비가 소실됨."},
+        {"id": "asset-fit-group [data-fit]", "type": "button", "label": "Fit(꽉채우기/원본비율)", "event": "click(위임)", "writes": "dataset.fit, img.style.objectFit", "silentFailRisk": "low", "note": "L344. hasImage일 때만 존재. img 없으면 objectFit 적용 안 되나 dataset.fit은 저장됨."},
+        {"id": "asset-pos-btn", "type": "button", "label": "이미지 위치 조절", "event": "click", "writes": "window.enterPosDragMode(ab)", "silentFailRisk": "low", "note": "L354. enterPosDragMode 정의 확인됨(image-handling.js:579). pushHistory는 해당 모드 내부 책임."},
+        {"id": "asset-replace-btn", "type": "button", "label": "이미지 교체", "event": "click", "writes": "window.triggerAssetUpload(ab)", "silentFailRisk": "low", "note": "L355. 정의 확인됨. 유료 API 아님(로컬 파일 업로드)."},
+        {"id": "asset-remove-btn", "type": "button", "label": "이미지 제거", "event": "click", "writes": "window.clearAssetImage(ab)", "silentFailRisk": "low", "note": "L356. 정의 확인됨."},
+        {"id": "asset-upload-btn", "type": "button", "label": "이미지 선택...", "event": "click", "writes": "window.triggerAssetUpload(ab)", "silentFailRisk": "low", "note": "L358. 빈 블록일 때만 존재."},
+        {"id": "asset-bg (colorField)", "type": "color", "label": "배경색", "event": "wireColorField apply/commit", "writes": "dataset.bgColor, style.backgroundColor", "silentFailRisk": "low", "note": "L359. 빈 블록일 때만. wireColorField 반환 null이면 setHex 옵셔널체이닝으로 무음. 정상."},
+        {"id": "asset-bg-clear", "type": "button", "label": "배경색 초기화", "event": "click", "writes": "delete dataset.bgColor, style.backgroundColor='', bgField.setHex", "silentFailRisk": "low", "note": "L364."},
+        {"id": "asset-overlay-toggle", "type": "checkbox", "label": "Text Overlay 활성화", "event": "change", "writes": "dataset.overlay, #asset-overlay-controls display", "silentFailRisk": "low", "note": "L378. block-factory L2042/2237에서 overlay dataset 직렬화/렌더 확인됨."},
+        {"id": "asset-overlay-opacity / -num", "type": "range+number", "label": "오버레이 불투명", "event": "input/change", "writes": "overlayEl.style.background rgba(), overlayEl.dataset.ovOpacity", "silentFailRisk": "low", "note": "L385~396. ovOpacity 직렬화 확인됨(block-factory:2259). 동기 OK."},
+        {"id": "overlay-position-group [data-pos]", "type": "button", "label": "오버레이 위치(상/중/하)", "event": "click", "writes": "overlayEl.style.justifyContent, .active", "silentFailRisk": "med", "note": "L399~405. overlayEl.style.justifyContent에만 씀 — block-factory의 overlay 렌더 partial이 justifyContent를 재적용/직렬화하는지 미확인. 인라인 style이므로 outerHTML 저장 시 보존되나, renderAssetBlock 재호출 시 overlay 재생성 경로(L2238~)에서 justifyContent 유실 위험."}
+      ],
+      "syncPairs": [
+        "asset-w-slider <-> asset-w-number",
+        "asset-h-slider <-> asset-h-number",
+        "asset-r-slider <-> asset-r-number",
+        "asset-overlay-opacity <-> asset-overlay-opacity-num"
+      ],
+      "risks": [
+        "패딩 제외 토글 OFF가 사용자 지정 width를 ''로 리셋(L211~214) — 너비 설정 소실",
+        "중첩 프레임 내부 asset은 section-inner 미탐지로 padX 계산이 글로벌 fallback",
+        "overlay-position justifyContent가 renderAssetBlock overlay 재생성 시 유실 가능",
+        "유료 API 트리거 버튼 없음 (AI 이미지 생성 H7 경로는 이 패널에 컨트롤 미존재 — 업로드는 전부 로컬 FileReader)"
+      ]
+    },
+    {
+      "block": "canvas",
+      "panelFn": "showCanvasProperties",
+      "file": "js/props/prop-canvas.js",
+      "controls": [
+        {"id": "cvb-w", "type": "number", "label": "W(너비)", "event": "change", "writes": "dataset.canvasW, renderCanvas", "silentFailRisk": "med", "note": "L167. min/max 속성만 있고 JS 클램프 없음 — 범위 밖 값(예 5000) 직접 입력 시 그대로 dataset 저장됨. renderCanvas 결과만 의존."},
+        {"id": "cvb-h", "type": "number", "label": "H(높이)", "event": "change", "writes": "dataset.canvasH, renderCanvas", "silentFailRisk": "med", "note": "L172. 동일하게 JS 클램프 없음."},
+        {"id": "cvb-img-ratio-slider / -number", "type": "range+number", "label": "사진 영역", "event": "input/change", "writes": "dataset.imgRatio, renderCanvas", "silentFailRisk": "high", "note": "L179~191. 주석상 cardMode=simple 카드의 img:text 비율(L178). 그러나 이 패널은 cardMode!=='simple'일 때만 실행됨(L4~7에서 simple은 showSimpleCardProperties로 분기). 즉 레이어모드에서는 imgRatio가 렌더에 영향 없는데 컨트롤은 항상 표시 → 조작해도 시각 변화 없는 무음 컨트롤 의심. renderCanvas(layer mode)가 imgRatio를 쓰는지 미확인."},
+        {"id": "cvb-bg-pick", "type": "color", "label": "배경 색상(picker)", "event": "input/change", "writes": "dataset.bg, renderCanvas, hex/swatch 동기", "silentFailRisk": "low", "note": "L194~205. 양방향 동기 OK."},
+        {"id": "cvb-bg-hex", "type": "text", "label": "배경 hex", "event": "change", "writes": "dataset.bg (정규식 통과 시)", "silentFailRisk": "med", "note": "L206~209. #RRGGBB 6자리 또는 transparent만 허용. 3자리(#fff)·8자리 alpha·rgb() 입력은 무음 무시(아무 일도 안 일어남) — 사용자 입력이 조용히 버려짐."},
+        {"id": "cvb-radius-slider / -number", "type": "range+number", "label": "반경", "event": "input/change", "writes": "dataset.radius, renderCanvas", "silentFailRisk": "low", "note": "L212~222. 클램프+동기 OK."},
+        {"id": "cvb-gap-slider / -number", "type": "range+number", "label": "Card Gap", "event": "input/change", "writes": "dataset.cardGap, renderCanvas", "silentFailRisk": "med", "note": "L225~235. 레이어모드 패널에 노출되나 cardGap은 카드 그리드 전용 — 레이어모드 canvas에서 renderCanvas가 cardGap을 반영하는지 불명. 무음 가능."},
+        {"id": "cvb-padx-slider / -number", "type": "range+number", "label": "좌우 패딩", "event": "input/change", "writes": "dataset.padX, renderCanvas", "silentFailRisk": "med", "note": "L238~248. cardGap과 동일 우려 — 카드 그리드 전용 속성이 레이어모드 패널에 노출."},
+        {"id": "cvb-grid-picker (4x4 cells)", "type": "div grid", "label": "Insert Grid", "event": "mouseover/leave/click", "writes": "insertCanvasGrid -> dataset.gridCols/gridRows(+cards in simple), renderCanvas", "silentFailRisk": "low", "note": "L128~162, 317~331. 클릭 시 그리드 삽입. 정상."},
+        {"id": "cvb-img-upload-btn (per layer)", "type": "button", "label": "추가/교체", "event": "click(위임)", "writes": "layers[idx].src(dataURL), dataset.layers, renderCanvas, autoSave, 패널재렌더", "silentFailRisk": "low", "note": "L251~278. FileReader 로컬 업로드. 정상."},
+        {"id": "cvb-img-clear-btn (per layer)", "type": "button", "label": "✕ 이미지 제거", "event": "click(위임)", "writes": "delete layers[idx].src, dataset.layers, renderCanvas, autoSave", "silentFailRisk": "low", "note": "L280~291. 정상."},
+        {"id": "cvb-color-pick (per layer)", "type": "color", "label": "레이어 색상", "event": "input/change(위임)", "writes": "layers[idx].color, swatch bg, dataset.layers, renderCanvas; pushHistory on change", "silentFailRisk": "low", "note": "L294~310. 위임 처리, 동기 OK."}
+      ],
+      "syncPairs": [
+        "cvb-bg-pick <-> cvb-bg-hex",
+        "cvb-img-ratio-slider <-> cvb-img-ratio-number",
+        "cvb-radius-slider <-> cvb-radius-number",
+        "cvb-gap-slider <-> cvb-gap-number",
+        "cvb-padx-slider <-> cvb-padx-number"
+      ],
+      "risks": [
+        "imgRatio/cardGap/padX 컨트롤이 레이어모드(cardMode!=='simple') 패널에 노출되나 해당 모드 renderCanvas가 이 값들을 쓰는지 불확실 → 조작 무음 의심(high/med)",
+        "cvb-bg-hex가 #RRGGBB/transparent 외 입력을 조용히 버림(검증 실패 시 토스트/롤백 없음)",
+        "cvb-w/cvb-h JS 클램프 없음 — min/max 속성만 의존(직접 타이핑 시 범위 초과 저장)"
+      ]
+    },
+    {
+      "block": "mockup",
+      "panelFn": "showMockupProperties",
+      "file": "js/props/prop-mockup.js",
+      "controls": [
+        {"id": "mkp-change-device-btn", "type": "button", "label": "변경(디바이스)", "event": "click", "writes": "window.openMockupModal()", "silentFailRisk": "med", "note": "L92. openMockupModal 옵셔널체이닝(?.) — 미정의 시 무음 무반응. 정의 존재 미확인."},
+        {"id": "mkp-width-slider / -number", "type": "range+number", "label": "Width", "event": "mousedown/input/change", "writes": "dataset.width, style.width, renderMockupBlock", "silentFailRisk": "low", "note": "L96~110. 클램프+동기 OK. renderMockupBlock?. 옵셔널."},
+        {"id": "mkp-sec-id-input", "type": "text", "label": "섹션 ID 입력", "event": "(읽기전용, capture 버튼에서 .value 사용)", "writes": "—(직접 write 없음)", "silentFailRisk": "low", "note": "L59~61, 114. 자체 change 핸들러 없음. 값은 capture 버튼이 읽어감. blur로 dataset.sourceSec에 저장되진 않음 — capture 안 누르면 입력 ID 비영속(의도된 동작)."},
+        {"id": "mkp-capture-btn", "type": "button", "label": "가져오기(캡처)", "event": "click async", "writes": "html2canvas -> dataset.imgSrc(dataURL)/sourceSec, _applyScreenImage, sec.display=none, pushHistory, 패널재렌더", "silentFailRisk": "med", "note": "L112~120, 177~216. html2canvas undefined면 토스트 후 return(무음 아님). 섹션 미발견 시 토스트. 단 캡처 후 scheduleAutoSave 호출 없음 — pushHistory만. autoSave는 MutationObserver가 잡을 수 있으나 명시 누락."},
+        {"id": "mkp-toggle-sec-btn", "type": "button", "label": "섹션 숨기기/보이기", "event": "click", "writes": "sec.style.display, sec.dataset.mockupHidden, btn.textContent, pushHistory", "silentFailRisk": "low", "note": "L122~136. sourceSec 있을 때만 렌더. 정상."},
+        {"id": "mkp-upload-btn", "type": "button", "label": "이미지 파일 업로드", "event": "click", "writes": "_applyScreenImage, dataset.imgSrc(dataURL), dataset.sourceSec='', 패널재렌더", "silentFailRisk": "low", "note": "L138~156. FileReader 로컬. scheduleAutoSave 미호출(pushHistory만)."},
+        {"id": "mkp-shadow-group .prop-align-btn", "type": "button", "label": "Shadow(없음/부드럽게/강하게)", "event": "click", "writes": "dataset.shadow, style.filter(drop-shadow), .active", "silentFailRisk": "low", "note": "L158~169, 232~240. 정상."}
+      ],
+      "syncPairs": [
+        "mkp-width-slider <-> mkp-width-number"
+      ],
+      "risks": [
+        "mkp-change-device-btn → openMockupModal 옵셔널체이닝, 미정의 시 무반응(med)",
+        "capture/upload 모두 scheduleAutoSave 미호출 — pushHistory만 의존. dataURL 대용량 이미지가 autoSave에 안 잡히면 새로고침 시 유실 위험",
+        "mkp-sec-id-input은 blur 저장 없음 — capture 누르기 전 패널 닫으면 입력 ID 휘발(의도일 수 있음)",
+        "유료 API 트리거 없음 (캡처는 로컬 html2canvas)"
+      ]
+    },
+    {
+      "block": "sticker",
+      "panelFn": "showStickerProperties",
+      "file": "js/props/prop-sticker.js",
+      "controls": [
+        {"id": "stk-mode-img", "type": "checkbox", "label": "이미지 모드", "event": "change", "writes": "dataset.mode, text/image 섹션 display, rerender", "silentFailRisk": "low", "note": "L417~423. circle/square에서만 표시. 정상."},
+        {"id": "stk-text", "type": "text", "label": "텍스트", "event": "input/change", "writes": "dataset.text, .sticker-text textContent(input); pushHistory+autoSave(change)", "silentFailRisk": "low", "note": "L321~327. input은 textContent 직접 갱신(캐럿 보존). 정상."},
+        {"id": "stk-img-drop", "type": "dropzone+click", "label": "이미지 드래그/클릭", "event": "click/drag/drop", "writes": "dataset.imgSrc(dataURL), dataset.mode='image', rerender, 패널재렌더", "silentFailRisk": "low", "note": "L440~463. 5MB 초과 토스트 거부. FileReader 로컬. 정상."},
+        {"id": "stk-img-clear", "type": "button", "label": "이미지 제거", "event": "click", "writes": "delete dataset.imgSrc, dataset.mode='text', rerender, 패널재렌더", "silentFailRisk": "low", "note": "L465~471. 정상."},
+        {"id": "stk-shape-group .prop-align-btn", "type": "button", "label": "Shape(원/사각/텍스트/형광/선형광)", "event": "click", "writes": "dataset.shape + 다수 dataset 초기화, 섹션 display 토글, rerender, 패널재렌더", "silentFailRisk": "med", "note": "L473~546. 복잡한 분기. text<->비text 전환은 전체 재렌더. 비text 간 전환은 부분 display 토글 — stk-text-sticker/colors/stroke/shadow/pad/rot 섹션들이 display:none 처리 안 됨(L518~531에서 토글하는 섹션 목록에 text전용 섹션 누락). 단 text가 아니면 애초에 display:none으로 시작하므로 실해는 적으나, text->highlight 직접전환은 L511 분기로 전체재렌더되어 커버됨. 잔존 위험 낮음~중."},
+        {"id": "stk-hl-w/-num, stk-hl-h/-num", "type": "range+number", "label": "형광펜 너비/높이", "event": "input/change", "writes": "dataset.hlW/hlH, rerender", "silentFailRisk": "low", "note": "L548~565. bindHlPair 동기 OK."},
+        {"id": "stk-hl-color", "type": "color", "label": "형광펜 색상", "event": "wireColorField", "writes": "dataset.hlColor, rerender", "silentFailRisk": "med", "note": "L567~572. HTML hex 표시는 정규식으로 항상 '#ffeb46' 고정(L114) — 저장된 hlColor가 다른 색이어도 컬러필드 초기 hex가 노란색으로 표시됨(양방향 동기 깨짐). initialAlpha도 70 고정."},
+        {"id": "stk-hlb-style-group [data-style]", "type": "button", "label": "선형광 스타일(직선/물결/마커)", "event": "click", "writes": "dataset.lineStyle, wavy행 display, rerender, _addHlbHandles", "silentFailRisk": "low", "note": "L592~608. 정상."},
+        {"id": "stk-hlb-thick/-num", "type": "range+number", "label": "선형광 두께", "event": "input/change", "writes": "dataset.thickness, rerender", "silentFailRisk": "low", "note": "L574~590. 동기 OK."},
+        {"id": "stk-hlb-amp/-num, stk-hlb-period/-num", "type": "range+number", "label": "진폭/주기", "event": "input/change", "writes": "dataset.amplitude/period, rerender, _addHlbHandles", "silentFailRisk": "low", "note": "L610~628. wavy일 때만 표시. 동기 OK."},
+        {"id": "stk-hlb-color", "type": "color", "label": "선형광 색상", "event": "wireColorField", "writes": "dataset.hlColor, rerender", "silentFailRisk": "med", "note": "L630~635. stk-hl-color와 동일: hex 표시 '#ffeb46' 고정(L150), alpha 70 고정 — 저장값과 양방향 동기 깨짐."},
+        {"id": "stk-size/-num, stk-fs/-num", "type": "range+number", "label": "크기/폰트크기", "event": "input/change", "writes": "dataset.size(+sizeW/sizeH sync)/fontSize, rerender", "silentFailRisk": "low", "note": "L637~656. size는 syncKeys로 sizeW/sizeH 덮어씀(코너리사이즈 무시 방지). 정상."},
+        {"id": "stk-fw", "type": "select", "label": "폰트 굵기", "event": "change", "writes": "dataset.fontWeight, rerender", "silentFailRisk": "low", "note": "L658~663. 정상."},
+        {"id": "stk-bg, stk-txt", "type": "color", "label": "배경색/글자색", "event": "wireColorField", "writes": "dataset.bgColor/textColor, rerender", "silentFailRisk": "low", "note": "L665~675. 정상."},
+        {"id": "stk-t-ff", "type": "select", "label": "텍스트스티커 폰트", "event": "change", "writes": "dataset.fontFamily, rerender", "silentFailRisk": "low", "note": "L330~334. 정상."},
+        {"id": "stk-t-fw", "type": "select", "label": "텍스트스티커 굵기", "event": "change", "writes": "dataset.fontWeight, rerender", "silentFailRisk": "low", "note": "L336~340. 정상."},
+        {"id": "stk-t-fs/-num,ls,stk-w,sh-x/y/b,rot,pad-x/y", "type": "range+number", "label": "타이포/그림자/패딩/회전", "event": "input/change", "writes": "dataset[key], rerender", "silentFailRisk": "low", "note": "L342~369 _bindTPair. 9쌍 동기 OK."},
+        {"id": "stk-t-align-group [data-align]", "type": "button", "label": "텍스트 정렬", "event": "click", "writes": "dataset.textAlign, rerender", "silentFailRisk": "low", "note": "L371~379. 정상."},
+        {"id": "stk-t-color,stk-t-bg,stk-t-stk-c,stk-t-sh-c", "type": "color", "label": "글자/배경/외곽선/그림자 색", "event": "wireColorField", "writes": "dataset.textColor/bgColor/strokeColor/shadowColor, rerender", "silentFailRisk": "low", "note": "L381~414. stk-t-bg는 alpha 0 -> transparent 변환 처리. 정상."},
+        {"id": "stk-t-shadow-on", "type": "checkbox", "label": "그림자 on/off", "event": "change", "writes": "dataset.shadowOn('1'/'0'), rerender", "silentFailRisk": "low", "note": "L405~409. 정상. 단 detail 섹션(#stk-t-shadow-detail) display 토글 없음 — off여도 X/Y/Blur 슬라이더 항상 표시(시각적 disable 안 됨, 기능 무해)."}
+      ],
+      "syncPairs": [
+        "stk-hl-w <-> stk-hl-w-num", "stk-hl-h <-> stk-hl-h-num",
+        "stk-hlb-thick <-> stk-hlb-thick-num", "stk-hlb-amp <-> -num", "stk-hlb-period <-> -num",
+        "stk-size <-> stk-size-num", "stk-fs <-> stk-fs-num",
+        "stk-t-fs <-> -num", "stk-t-ls <-> -num", "stk-t-stk-w <-> -num",
+        "stk-t-sh-x <-> -num", "stk-t-sh-y <-> -num", "stk-t-sh-b <-> -num",
+        "stk-t-rot <-> -num", "stk-t-pad-x <-> -num", "stk-t-pad-y <-> -num"
+      ],
+      "risks": [
+        "stk-hl-color/stk-hlb-color 컬러필드 hex가 '#ffeb46', alpha 70으로 하드코딩 초기화(L114,150) — 저장된 hlColor 값을 패널이 반영하지 못함(양방향 동기 깨짐, med)",
+        "stk-t-shadow-on off 시 detail 슬라이더 비활성화/숨김 없음(무해)",
+        "유료 API 트리거 없음 (모든 이미지 로컬 FileReader)"
+      ]
+    }
+  ]
+}

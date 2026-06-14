@@ -1,0 +1,115 @@
+{
+  "group": "meta",
+  "files": [
+    "js/props/prop-page.js",
+    "js/props/prop-section.js",
+    "js/props/prop-multisel.js"
+  ],
+  "blocks": [
+    {
+      "block": "page",
+      "panelFn": "showPageProperties",
+      "file": "js/props/prop-page.js",
+      "controls": [
+        {"id": "page-bg-color", "type": "color", "label": "배경색(피커)", "wired": true, "events": ["input", "change"], "writes": "state.pageSettings.bg + canvasWrap.style.background + bgHex 동기", "silentFail": "none", "note": "input→bg/hex/_applyBg, change→pushHistory+autoSave"},
+        {"id": "page-bg-hex", "type": "text", "label": "배경색(hex)", "wired": true, "events": ["input", "change", "blur"], "writes": "state.pageSettings.bg + picker 동기", "silentFail": "low", "note": "유효 hex가 아니면 input이 조용히 무시되나 blur에서 복원되어 UX는 닫힘. 가드 정상"},
+        {"id": "page-bg-alpha-input", "type": "text", "label": "배경 투명도(%)", "wired": true, "events": ["input", "change", "blur"], "writes": "state.pageSettings.bgAlpha + _applyBg", "silentFail": "low", "note": "숫자 매치 실패 시 조용히 return하나 blur 복원 있음"},
+        {"id": "page-align-left", "type": "button", "label": "일괄정렬 왼쪽(비활성)", "wired": true, "events": ["click"], "writes": "text-block textAlign / label-group justifyContent", "silentFail": "med", "note": "부모 .prop-section이 opacity:0.4;pointer-events:none + button disabled. 핸들러는 wire되어 있으나 영구 비활성 — 의도된 dead control(주석상 '사고 방지'). HTML L96-118"},
+        {"id": "page-align-center", "type": "button", "label": "일괄정렬 가운데(비활성)", "wired": true, "events": ["click"], "writes": "동일", "silentFail": "med", "note": "비활성 dead control. L283-306 핸들러"},
+        {"id": "page-align-right", "type": "button", "label": "일괄정렬 오른쪽(비활성)", "wired": true, "events": ["click"], "writes": "동일", "silentFail": "med", "note": "비활성 dead control"},
+        {"id": "section-gap-slider", "type": "range", "label": "섹션 간격", "wired": true, "events": ["mousedown", "input", "change"], "writes": "state.pageSettings.gap + canvasEl.style.gap + number 동기", "silentFail": "none"},
+        {"id": "section-gap-number", "type": "number", "label": "섹션 간격(숫자)", "wired": true, "events": ["input", "change"], "writes": "state.pageSettings.gap + canvasEl.style.gap + slider 동기", "silentFail": "none"},
+        {"id": "page-padx-slider", "type": "range", "label": "좌우 패딩", "wired": true, "events": ["mousedown", "input", "change"], "writes": "state.pageSettings.padX + applyPagePadX", "silentFail": "none"},
+        {"id": "page-padx-number", "type": "number", "label": "좌우 패딩(숫자)", "wired": true, "events": ["input", "change"], "writes": "동일", "silentFail": "none"},
+        {"id": "page-padx-asset", "type": "checkbox", "label": "에셋블록 일괄패딩 제외", "wired": true, "events": ["change"], "writes": "state.pageSettings.padXExcludesAsset + 모든 섹션 applyPadXToSection 재적용", "silentFail": "none", "note": "전체 섹션 루프 정상, override 고려"},
+        {"id": "page-pady-slider", "type": "range", "label": "상하 패딩", "wired": true, "events": ["mousedown", "input", "change"], "writes": "state.pageSettings.padY + canvasEl --page-pady CSS var", "silentFail": "none"},
+        {"id": "page-pady-number", "type": "number", "label": "상하 패딩(숫자)", "wired": true, "events": ["input", "change"], "writes": "동일", "silentFail": "none"},
+        {"id": "page-export-format", "type": "select", "label": "내보내기 포맷", "wired": true, "events": ["(read on click)"], "writes": "export-all 시 값만 읽음", "silentFail": "none"},
+        {"id": "page-export-width", "type": "select", "label": "내보내기 너비", "wired": true, "events": ["(read on click)"], "writes": "export-all 시 값만 읽음", "silentFail": "none"},
+        {"id": "page-export-all-btn", "type": "button", "label": "전체 섹션 내보내기", "wired": true, "events": ["click"], "writes": "window.exportAllSections 호출", "silentFail": "low", "note": "window.exportAllSections 미정의 시 await에서 throw→catch→toast. 가드 정상"}
+      ],
+      "syncPairs": [
+        ["page-bg-color", "page-bg-hex"],
+        ["section-gap-slider", "section-gap-number"],
+        ["page-padx-slider", "page-padx-number"],
+        ["page-pady-slider", "page-pady-number"]
+      ],
+      "risks": [
+        "Bulk Align 3버튼은 영구 비활성(주석상 의도) — UI에 보이나 작동하지 않음. report-only 관점에서 med silent-fail로 분류",
+        "bgAlpha/gap/padX/padY 모두 state.pageSettings에 기록되고 save-load.js L227에서 직렬화됨 — 직렬화 누락 없음"
+      ]
+    },
+    {
+      "block": "section",
+      "panelFn": "showSectionProperties",
+      "file": "js/props/prop-section.js",
+      "controls": [
+        {"id": "sec-preset", "type": "select", "label": "프리셋", "wired": true, "events": ["change"], "writes": "applyPreset → sec.style CSS vars + dataset.preset + dataset.bg", "silentFail": "none", "note": "change 후 패널 재렌더"},
+        {"id": "sec-bg-color", "type": "color", "label": "배경색(피커)", "wired": true, "events": ["input", "change"], "writes": "sec.dataset.bg(rgba) + _applySectionBg + hex 동기", "silentFail": "none"},
+        {"id": "sec-bg-hex", "type": "text", "label": "배경색(hex)", "wired": true, "events": ["input", "change", "blur"], "writes": "picker 동기 + _applySecBg", "silentFail": "low", "note": "유효 hex만 적용, blur 복원 있음"},
+        {"id": "sec-bg-alpha", "type": "text", "label": "배경 투명도(%)", "wired": true, "events": ["input", "change", "blur"], "writes": "_secAlpha 클로저 + sec.dataset.bg rgba", "silentFail": "low"},
+        {"id": "sec-bg-img-btn", "type": "button", "label": "이미지 선택", "wired": true, "events": ["click"], "writes": "file input click 트리거", "silentFail": "none", "note": "hasBgImg=false일 때만 렌더"},
+        {"id": "sec-bg-img-input", "type": "file", "label": "배경 이미지 파일", "wired": true, "events": ["change"], "writes": "sec.dataset.bgImg(dataURL) + dataset.bgSize + _applySectionBg + 패널재렌더", "silentFail": "none"},
+        {"id": "sec-bg-size", "type": "select", "label": "이미지 사이즈", "wired": true, "events": ["change"], "writes": "sec.dataset.bgSize + _applySectionBg", "silentFail": "none", "note": "hasBgImg=true일 때만 렌더"},
+        {"id": "sec-bg-pos-btn", "type": "button", "label": "위치 편집", "wired": true, "events": ["click"], "writes": "window.enterBgPosDragMode(sec)", "silentFail": "low", "note": "옵셔널 체이닝 가드 있음"},
+        {"id": "sec-bg-img-remove", "type": "button", "label": "이미지 제거", "wired": true, "events": ["click"], "writes": "delete dataset.bgImg/bgSize + _applySectionBg", "silentFail": "none"},
+        {"id": "sec-txt-{heading|body|caption|label}", "type": "color", "label": "텍스트 색(타입별)", "wired": true, "events": ["input"], "writes": "found[type].blocks 루프 contentEl.style.color + hex 동기", "silentFail": "low", "note": "해당 타입 블록 존재 시에만 렌더+wire. input만 wire — change/pushHistory 없음 → undo/autosave 누락 가능성"},
+        {"id": "sec-txt-{type}-hex", "type": "text", "label": "텍스트 색 hex", "wired": true, "events": ["input"], "writes": "동일 applyColor + picker 동기", "silentFail": "med", "note": "input만 wire, pushHistory/scheduleAutoSave 호출 없음 → 텍스트 색 변경이 히스토리/자동저장에 안 잡힐 수 있음(다른 트리거에 의존). L433-448"},
+        {"id": "sec-align-left", "type": "button", "label": "일괄정렬 왼쪽", "wired": true, "events": ["click"], "writes": "allTextBlocks textAlign / label tb.style.textAlign", "silentFail": "med", "note": "핸들러에 pushHistory/scheduleAutoSave 없음 — 정렬 변경이 자동저장/undo에 안 잡힐 위험. L452-467"},
+        {"id": "sec-align-center", "type": "button", "label": "일괄정렬 가운데", "wired": true, "events": ["click"], "writes": "동일", "silentFail": "med", "note": "pushHistory/autoSave 누락"},
+        {"id": "sec-align-right", "type": "button", "label": "일괄정렬 오른쪽", "wired": true, "events": ["click"], "writes": "동일", "silentFail": "med", "note": "pushHistory/autoSave 누락"},
+        {"id": "sec-padx-slider", "type": "range", "label": "좌우 패딩", "wired": true, "events": ["input", "change"], "writes": "inner.style.paddingL/R + inner.dataset.paddingX + 직속 ab margin/width", "silentFail": "none"},
+        {"id": "sec-padx-number", "type": "number", "label": "좌우 패딩(숫자)", "wired": true, "events": ["change"], "writes": "동일 + pushHistory", "silentFail": "low", "note": "number에 input 이벤트 없음 — 타이핑 중 즉시반영 안되고 change(blur/enter)에만. 의도된 듯"},
+        {"id": "sec-padb-slider", "type": "range", "label": "아래 패딩", "wired": true, "events": ["input", "change"], "writes": "sec.style.paddingBottom", "silentFail": "none"},
+        {"id": "sec-padb-number", "type": "number", "label": "아래 패딩(숫자)", "wired": true, "events": ["change"], "writes": "동일 + pushHistory", "silentFail": "low"},
+        {"id": "sec-memo", "type": "textarea", "label": "섹션 메모", "wired": true, "events": ["input", "blur"], "writes": "sec.dataset.memo + autosave + pushHistory", "silentFail": "high", "note": "wire 코드(L470-508)는 존재하나 HTML(propPanel.innerHTML)에 textarea#sec-memo가 없음 — L233 주석상 메모는 섹션 툴바 popover로 이동됨. getElementById('sec-memo')는 항상 null이라 if(memoEl) 가드로 전체 블록이 dead code. _memoMaxLen/_memoRaw 계산(L153-154)도 무용. 명백한 silent dead-wire"},
+        {"id": "sec-memo-counter", "type": "span", "label": "메모 카운터", "wired": true, "events": [], "writes": "textContent", "silentFail": "high", "note": "위와 동일 dead — null"},
+        {"id": "sec-export-format", "type": "select", "label": "내보내기 포맷", "wired": true, "events": ["(read on click)"], "writes": "export 시 읽음", "silentFail": "none"},
+        {"id": "sec-export-width", "type": "select", "label": "내보내기 너비", "wired": true, "events": ["(read on click)"], "writes": "export 시 읽음", "silentFail": "none"},
+        {"id": "sec-export-btn", "type": "button", "label": "이 섹션 내보내기", "wired": true, "events": ["click"], "writes": "window.exportSection(sec,fmt,w)", "silentFail": "low", "note": "_bindSectionExport. exportSection 미정의 시 throw→finally 복원되나 catch 없어 콘솔 에러"},
+        {"id": "sec-tpl-folder", "type": "select", "label": "템플릿 폴더", "wired": true, "events": ["change"], "writes": "__new__ 선택 시 sec-tpl-folder-new 표시", "silentFail": "none"},
+        {"id": "sec-tpl-cat", "type": "select", "label": "템플릿 카테고리", "wired": true, "events": ["(read on save)"], "writes": "저장 시 읽음", "silentFail": "none"},
+        {"id": "sec-tpl-folder-new", "type": "text", "label": "새 폴더 이름", "wired": true, "events": ["(read on save)"], "writes": "저장 시 읽음", "silentFail": "none"},
+        {"id": "sec-tpl-name", "type": "text", "label": "템플릿 이름", "wired": true, "events": ["(read on save)"], "writes": "saveAsTemplate 인자", "silentFail": "none"},
+        {"id": "sec-tpl-tags", "type": "text", "label": "태그", "wired": true, "events": ["(read on save)"], "writes": "saveAsTemplate 인자", "silentFail": "none"},
+        {"id": "sec-tpl-save-btn", "type": "button", "label": "저장", "wired": true, "events": ["click"], "writes": "window.saveAsTemplate(...)", "silentFail": "med", "note": "버튼 라벨 불일치: 초기 HTML은 '저장'(L275)인데 저장 후 setTimeout에서 '템플릿으로 저장'(L566)으로 복원 → 한 번 저장하면 라벨이 바뀜. saveAsTemplate 옵셔널 체이닝이라 미정의 시 조용히 아무것도 안하고 '저장됨 ✓'만 표시될 위험"}
+      ],
+      "syncPairs": [
+        ["sec-bg-color", "sec-bg-hex"],
+        ["sec-padx-slider", "sec-padx-number"],
+        ["sec-padb-slider", "sec-padb-number"],
+        ["sec-txt-{type}", "sec-txt-{type}-hex"]
+      ],
+      "risks": [
+        "sec-memo / sec-memo-counter: HTML 미존재로 wire 블록 전체 dead (high)",
+        "secPadXAsset 변수(L104)는 inner.dataset.padXExcludesAsset를 읽지만 HTML/wire 어디에도 사용 안됨 — dead read (low~med)",
+        "Bulk Align 버튼 3개 + 텍스트 컬러 hex: pushHistory/scheduleAutoSave 미호출 → 직접 변경분이 자동저장·undo에 누락될 수 있음 (med)",
+        "sec-tpl-save-btn 라벨이 저장 후 '저장'→'템플릿으로 저장'으로 바뀌는 불일치"
+      ]
+    },
+    {
+      "block": "multisel",
+      "panelFn": "showFreeLayoutMultiSelPanel",
+      "file": "js/props/prop-multisel.js",
+      "controls": [
+        {"id": "msp-x", "type": "number/text", "label": "X 위치", "wired": true, "events": ["focus", "keydown(Enter/Esc)", "blur"], "writes": "_applyDimension: 모든 wrapper.style.left + dataset.offsetX", "silentFail": "low", "note": "mixed→focus시 빈값 전환. 전체 wrapper 루프 적용됨"},
+        {"id": "msp-y", "type": "number/text", "label": "Y 위치", "wired": true, "events": ["focus", "keydown", "blur"], "writes": "wrapper.style.top + dataset.offsetY (전체 루프)", "silentFail": "low"},
+        {"id": "msp-w", "type": "number/text", "label": "너비", "wired": true, "events": ["focus", "keydown", "blur"], "writes": "wrapper.style.width + (dataset.width !== undefined일 때만) dataset.width", "silentFail": "med", "note": "L176 가드 'if(wrapper.dataset.width!==undefined)' — dataset.width가 없는 래퍼(예: text-frame 등 dataset.width 미설정 블록)는 style만 바뀌고 dataset 미기록 → 저장/리로드 시 너비 복원 안될 위험. 일부 타입만 영속화되는 partial silent-skip"},
+        {"id": "msp-h", "type": "number/text", "label": "높이", "wired": true, "events": ["focus", "keydown", "blur"], "writes": "wrapper.style.height + (dataset.height !== undefined일 때만) dataset.height", "silentFail": "med", "note": "L179 동일 가드 — dataset.height 없는 래퍼는 style만 적용, dataset 미기록. 높이가 직렬화에 반영 안될 수 있음"},
+        {"id": "msp-spacing(gap)", "type": "text(readonly)", "label": "간격", "wired": false, "events": [], "writes": "표시 전용(readonly)", "silentFail": "none", "note": "의도된 읽기전용 표시"},
+        {"id": "msp-align-left", "type": "button", "label": "왼쪽 정렬", "wired": true, "events": ["click"], "writes": "_applyAlign: 전체 wrapper left/top + dataset.offsetX/Y + pushHistory", "silentFail": "none", "note": "전체 루프 + pushHistory 정상"},
+        {"id": "msp-align-hcenter", "type": "button", "label": "가운데(수평)", "wired": true, "events": ["click"], "writes": "동일", "silentFail": "none"},
+        {"id": "msp-align-right", "type": "button", "label": "오른쪽 정렬", "wired": true, "events": ["click"], "writes": "동일", "silentFail": "none"},
+        {"id": "msp-align-top", "type": "button", "label": "위쪽 정렬", "wired": true, "events": ["click"], "writes": "동일", "silentFail": "none"},
+        {"id": "msp-align-vcenter", "type": "button", "label": "가운데(수직)", "wired": true, "events": ["click"], "writes": "동일", "silentFail": "none"},
+        {"id": "msp-align-bottom", "type": "button", "label": "아래쪽 정렬", "wired": true, "events": ["click"], "writes": "동일", "silentFail": "none"}
+      ],
+      "syncPairs": [],
+      "risks": [
+        "_applyDimension W/H: dataset.width/height가 미리 설정된 래퍼에만 dataset 기록 — 그 외 래퍼는 style만 변경되어 직렬화 누락 가능 (med). X/Y는 무조건 dataset.offsetX/Y 기록되어 안전",
+        "_applyDimension/_applyAlign 모두 선택된 전체 wrappers를 루프 → 일괄적용은 정상 동작. 타입별 silent-skip은 없으나 W/H의 dataset 영속화에서만 부분 누락",
+        "정렬/치수 변경 후 showFreeLayoutMultiSelPanel() 재렌더로 양방향 동기 유지됨"
+      ]
+    }
+  ]
+}

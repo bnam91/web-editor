@@ -6,7 +6,10 @@
 //   - window.getSelectedSection / showNoSelectionHint / pushHistory /
 //     bindStickerSelect / scheduleAutoSave
 
-// NOTE(B13): 색/텍스트 프리셋 다양화는 후속. 위치 다양화는 addStickerBlock cascade(A25)로 처리.
+// B13: sticky — 마지막에 쓴 스티커 스타일을 shape별로 기억해 다음 addStickerBlock 기본값으로 사용.
+//      위치(x/y)·절대크기·text 내용은 제외(cascade/placeholder 담당), 스타일 토큰만 캡처.
+const _lastStickerStyle = Object.create(null);  // { [shape]: {필드...}, __last: {...} }
+// 위치 다양화는 addStickerBlock cascade(A25)로 처리.
 const STICKER_DEFAULTS = {
   shape: 'circle',
   size: 60,
@@ -209,6 +212,30 @@ function renderStickerBlock(block) {
   }
 }
 
+// B13: 현재 sticker의 스타일 토큰을 shape별 슬롯에 저장 (위치/절대크기/text 제외)
+function rememberStickerStyle(block) {
+  if (!block || !block.classList || !block.classList.contains('sticker-block')) return;
+  const d = block.dataset;
+  const shape = d.shape || 'circle';
+  const slot = {};
+  const put = (k) => { if (d[k] !== undefined && d[k] !== '') slot[k] = d[k]; };
+  if (shape === 'highlight') {
+    put('hlColor');
+  } else if (shape === 'highlightB') {
+    put('hlColor'); put('thickness'); put('lineStyle'); put('amplitude'); put('period');
+  } else if (shape === 'text') {
+    ['fontFamily','fontSize','fontWeight','textColor','strokeWidth','strokeColor',
+     'letterSpacing','textAlign','shadowOn','shadowX','shadowY','shadowBlur','shadowColor',
+     'bgColor','padX','padY'].forEach(put);
+  } else { // circle / square (image 모드는 imgSrc 제외 — 다음 생성은 텍스트 스타일만)
+    ['bgColor','textColor','fontSize','fontWeight'].forEach(put);
+  }
+  slot.shape = shape;
+  _lastStickerStyle[shape] = slot;
+  _lastStickerStyle.__last = slot;   // shape 미지정 생성 시 마지막 shape 재현용
+}
+window.rememberStickerStyle = rememberStickerStyle;
+
 function makeStickerBlock(opts = {}) {
   const block = document.createElement('div');
   block.className = 'sticker-block';
@@ -255,6 +282,8 @@ function makeStickerBlock(opts = {}) {
     block.dataset.rotation      = opts.rotation      ?? 0;
   }
   renderStickerBlock(block);
+  // B13(Codex): 프리셋/메뉴로 생성한 스타일도 다음 스티커에 sticky하게 — 생성 직후 기억.
+  try { rememberStickerStyle(block); } catch (_) {}
   return block;
 }
 
@@ -262,6 +291,15 @@ function addStickerBlock(opts = {}) {
   // B12: 섹션 미선택이어도 먹통처럼 보이지 않게 — 마지막 섹션으로 폴백(텍스트 추가 동작과 일관). 섹션 0개일 때만 중단.
   const sec = window.getSelectedSection?.() || [...document.querySelectorAll('.section-block')].pop();
   if (!sec) { window.showNoSelectionHint?.(); return; }
+  // B13: sticky — 호출 opts에 없는 스타일 필드는 마지막에 쓴 스타일로 보충.
+  //   shape 결정: 명시 opts.shape > 마지막에 쓴 shape > 기본. 그 shape 슬롯을 깔고 opts로 덮어씀.
+  //   슬롯은 x/y/size/text를 안 담으므로 cascade·placeholder 분기 영향 없음.
+  {
+    const wantShape = opts.shape ?? _lastStickerStyle.__last?.shape ?? STICKER_DEFAULTS.shape;
+    const remembered = _lastStickerStyle[wantShape];
+    if (remembered) opts = { shape: wantShape, ...remembered, ...opts };
+    else if (opts.shape == null && wantShape !== STICKER_DEFAULTS.shape) opts = { ...opts, shape: wantShape };
+  }
   // A25/A27: x/y 미지정 시 cascade offset — 같은 자리 겹침 방지 (highlight 포함 shape 공통)
   if (opts.x == null && opts.y == null) {
     const n = sec.querySelectorAll('.sticker-block').length;
@@ -617,6 +655,7 @@ function updateStickerBlock(blockId, partial = {}) {
   // 17) 레이어 패널 (layerName 변경 가능성 대비)
   try { window.buildLayerPanel?.(); } catch (_) {}
 
+  try { rememberStickerStyle(block); } catch (_) {}
   window.scheduleAutoSave?.();
 
   const changedKeys = Object.keys(applied);
@@ -630,4 +669,4 @@ window.makeStickerBlock   = makeStickerBlock;
 window.addStickerBlock    = addStickerBlock;
 window.renderStickerBlock = renderStickerBlock;
 
-export { makeStickerBlock, addStickerBlock, updateStickerBlock, renderStickerBlock, STICKER_DEFAULTS };
+export { makeStickerBlock, addStickerBlock, updateStickerBlock, renderStickerBlock, rememberStickerStyle, STICKER_DEFAULTS };

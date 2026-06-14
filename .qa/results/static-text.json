@@ -1,0 +1,119 @@
+{
+  "group": "text",
+  "files": [
+    "js/props/prop-text.js",
+    "js/props/prop-text-template.js",
+    "js/props/prop-text-mix-detect.js",
+    "js/props/prop-text-utils.js",
+    "js/props/prop-text-wireup-align.js",
+    "js/props/prop-text-wireup-font.js",
+    "js/props/prop-text-wireup-label.js",
+    "js/props/prop-text-wireup-padding.js",
+    "js/props/prop-text-wireup-position.js",
+    "js/props/prop-text-wireup-shadow.js",
+    "js/props/prop-text-wireup-spacing.js",
+    "js/props/prop-text-wireup-type.js",
+    "js/props/prop-text-wireup-text-edit.js",
+    "js/props/prop-text-wireup-bubble.js",
+    "js/props/prop-label-group.js"
+  ],
+  "blocks": [
+    {
+      "block": "text",
+      "panelFn": "showTextProperties",
+      "controls": [
+        {"id": "prop-type-btn[data-cls]", "type": "button x7 (H1/H2/H3/Body/Cap/Tag/List)", "label": "Type", "event": "click", "writes": "contentEl.className=cls / replaceWith(ul|div) / tb.dataset.type / label preset style.backgroundColor,color,borderRadius", "silentFailRisk": "low", "note": "wired in prop-text-wireup-type.js:8. bullet<->div node swap migrates content. tb.dataset.type persisted."},
+        {"id": "prop-align-btn[data-align]", "type": "button x3 (left/center/right)", "label": "정렬 Alignment", "event": "click", "writes": "tb.style.textAlign(label) | tb.style.justifyContent+itbText.flex(iconText) | contentEl.style.textAlign(normal)", "silentFailRisk": "med", "note": "align.js:8. For NORMAL text, writes contentEl.style.textAlign (inline). No dataset. If serializer doesn't persist contentEl inline textAlign it reloads as left. For label writes tb.style.textAlign which is read back at prop-text.js:49 — OK. icon-text justifyContent read back prop-text.js:51 — OK."},
+        {"id": "txt-x-number", "type": "number", "label": "X position", "event": "input/change", "writes": "posEl.style.left + posEl.dataset.offsetX", "silentFailRisk": "low", "note": "position.js:39. dataset.offsetX persisted; read back prop-text.js:86. parseInt||0 guard."},
+        {"id": "txt-y-number", "type": "number", "label": "Y position", "event": "input/change", "writes": "posEl.style.top + posEl.dataset.offsetY", "silentFailRisk": "low", "note": "position.js:48. dataset.offsetY persisted; read back prop-text.js:87."},
+        {"id": "txt-rot-slider / txt-rot-number", "type": "range+number", "label": "회전° Rotation", "event": "input/change", "writes": "el.style.transform rotate() + el.dataset.rotation (deleted when 0)", "silentFailRisk": "med", "note": "position.js:60-76. dataset.rotation persisted/read prop-text.js:88. BUT style.transform itself is NOT in dataset — if serializer drops inline transform but keeps dataset.rotation, reload reads dataset but transform never re-applied until panel reopened. Sync pair OK. Guard clamps -180..180."},
+        {"id": "txt-font-trigger / txt-font-list", "type": "custom dropdown picker", "label": "Font", "event": "click/mousedown/input(search)", "writes": "contentEl.style.fontFamily + contentEl.dataset.rawFont; removes child div font-family", "silentFailRisk": "low", "note": "font.js:101-151. dataset.rawFont persisted; read prop-text.js:74. pushHistory called."},
+        {"id": "txt-font-weight", "type": "select", "label": "폰트 굵기 (weight)", "event": "change (+mousedown/focus to save sel)", "writes": "selection: wraps in <span style=font-weight>; no selection: contentEl.style.fontWeight", "silentFailRisk": "med", "note": "font.js:169. Mix option (value='') is disabled so safe. When user has stale _savedFwSel but range detached, extractContents on dead range could no-op silently. Partial weight lives only in span inline style — relies on innerHTML serialization."},
+        {"id": "txt-size-number", "type": "number (NO slider)", "label": "폰트 크기 (size)", "event": "mousedown/pointerdown/focus(save sel)/input/change", "writes": "selection: <span style=font-size>; no selection: contentEl.style.fontSize (after clearing child size spans)", "silentFailRisk": "med", "note": "text-edit.js:89-153. NO paired slider — number only. Selection-aware: if selection lost (panel click drops it) but _lastSelRange caches it via selectionchange. Risk: when block has font-size on child spans (copied block, prop-text.js:55), editing without selection wipes all child size spans then sets contentEl — could surprise-flatten Mix. Guard 8..800."},
+        {"id": "txt-lh-number", "type": "number (NO slider)", "label": "줄간격 Line Height", "event": "input/change", "writes": "contentEl.style.lineHeight (unitless)", "silentFailRisk": "med", "note": "spacing.js:9. number-only, no slider. Inline style only, NO dataset — relies on contentEl inline style serialization. Guard 1..3. No history on input, only change."},
+        {"id": "txt-ls-number", "type": "number (NO slider)", "label": "자간 Letter Spacing", "event": "input/change", "writes": "contentEl.style.letterSpacing px", "silentFailRisk": "med", "note": "spacing.js:17. number-only. Inline style only, no dataset. Guard -10..40. Read back prop-text.js:65 from contentEl.style.letterSpacing — OK if inline persisted."},
+        {"id": "txt-color (picker)", "type": "color", "label": "글자색 Fill", "event": "input/change", "writes": "selection: <span style=color>; no sel: contentEl.style.color (clears child color spans)", "silentFailRisk": "med", "note": "text-edit.js:238. selection-aware. swatch bg sync. Partial colors live in span inline — innerHTML-dependent. _buildColor merges alpha."},
+        {"id": "txt-color-hex", "type": "text", "label": "Color hex", "event": "input/blur", "writes": "colorPicker.value + applyColorToSel", "silentFailRisk": "low", "note": "text-edit.js:245. validated /^[0-9a-f]{6}$/i. blur resets to picker value."},
+        {"id": "txt-color-alpha", "type": "text (NO slider)", "label": "Opacity %", "event": "input/blur/change", "writes": "_txtAlpha module var -> applyColorToSel rgba()", "silentFailRisk": "med", "note": "text-edit.js:257. alpha stored only as part of rgba() in span/contentEl color. No separate dataset; on reload alpha is re-derived from color rgba parse prop-text.js:60-63 — OK only if color is rgba. If var-chip color picked, alpha forced 100 (text-edit.js:295)."},
+        {"id": "txt-color-chips", "type": "dynamic chips", "label": "컬러 변수 칩", "event": "click(onPick)", "writes": "applyColorToSel(var(--color-x,#hex))", "silentFailRisk": "low", "note": "text-edit.js:272-302. Container starts hidden; wireColorVarChips populates."},
+        {"id": "txt-shadow-on", "type": "checkbox toggle", "label": "그림자 켜기/끄기 Shadow", "event": "change", "writes": "contentEl.style.textShadow + contentEl.dataset.shadowEnabled", "silentFailRisk": "low", "note": "shadow.js:111. dataset.shadow* fully persisted & read via readShadowState prop-text.js:96. Good pattern."},
+        {"id": "txt-shadow-x-slider / -number", "type": "range+number", "label": "Shadow X", "event": "input/change", "writes": "s.x -> textShadow + dataset.shadowX", "silentFailRisk": "low", "note": "shadow.js:120-130. sync pair OK. clamp -20..20. dataset persisted."},
+        {"id": "txt-shadow-y-slider / -number", "type": "range+number", "label": "Shadow Y", "event": "input/change", "writes": "s.y -> textShadow + dataset.shadowY", "silentFailRisk": "low", "note": "shadow.js:133-143. sync pair OK. clamp -20..20."},
+        {"id": "txt-shadow-blur-slider / -number", "type": "range+number", "label": "Shadow Blur", "event": "input/change", "writes": "s.blur -> textShadow + dataset.shadowBlur", "silentFailRisk": "low", "note": "shadow.js:146-156. sync pair OK. clamp 0..40."},
+        {"id": "txt-shadow-color (picker/hex/alpha)", "type": "color+text+text", "label": "Shadow 색상", "event": "input/blur/change", "writes": "s.color/s.alpha -> textShadow + dataset.shadowColor/shadowAlpha", "silentFailRisk": "low", "note": "shadow.js:159-187. hex validated. alpha clamp 0..100. all in dataset."},
+        {"id": "txt-width-slider / txt-width-number", "type": "range+number", "label": "너비 Size width", "event": "input/change", "writes": "row|text-frame|tb .style.width + .dataset.width (+maxWidth/margin)", "silentFailRisk": "low", "note": "position.js:6-34. dataset.width persisted; read prop-text.js:90. clamp 80..860. scheduleAutoSave."},
+        {"id": "txt-pv-slider / txt-pv-number", "type": "range+number", "label": "상하 패딩 (top+bottom)", "event": "input", "writes": "tb.style.paddingTop + paddingBottom", "silentFailRisk": "med", "note": "padding.js:11-13. Single slider sets BOTH top&bottom. NO dataset, NO pushHistory (input only, no change handler). Inline style only on tb. Read back prop-text.js:68 currentPadT only (top). NOTE no separate change->history => undo granularity lost."},
+        {"id": "txt-ph-chain", "type": "button toggle", "label": "좌우 연동 chain", "event": "click", "writes": "phLinked toggle + paddingRight sync + chainBtn.innerHTML", "silentFailRisk": "med", "note": "padding.js:27-36. phLinked state is LOCAL var only — NOT persisted to dataset. On reload phLinked is recomputed from padL===padR (prop-text.js:72), so a deliberately-linked-but-equal state survives, but link INTENT when L!=R is lost. No pushHistory on chain toggle."},
+        {"id": "txt-pl-slider / txt-pl-number", "type": "range+number", "label": "왼쪽 패딩", "event": "input", "writes": "tb.style.paddingLeft + tb.dataset.customPadL='1'", "silentFailRisk": "low", "note": "padding.js:71-72. dataset.customPadL flag set. clamp 0..120. NO pushHistory (input only)."},
+        {"id": "txt-pr-slider / txt-pr-number", "type": "range+number", "label": "오른쪽 패딩", "event": "input", "writes": "tb.style.paddingRight + tb.dataset.customPadR='1'", "silentFailRisk": "low", "note": "padding.js:73-74. clamp 0..120. NO pushHistory."},
+        {"id": "txt-label-h-slider / txt-label-h-number", "type": "range+number", "label": "박스 높이 (Padding section, label only)", "event": "input/change", "writes": "contentEl.style.paddingTop/Bottom (half each) + syncs pill height controls", "silentFailRisk": "low", "note": "label.js:84-92. Bidirectional sync with label-pill-height. clamp 0..120."},
+        {"id": "label-shape-pill/box/outline/circle/text", "type": "button x5", "label": "Tag Style preset", "event": "click", "writes": "contentEl.style backgroundColor/color/border/borderRadius/padding/width/height/display + textContent('1' for circle)", "silentFailRisk": "med", "note": "label.js:107-162. All inline styles, NO dataset. Circle OVERWRITES textContent to '1' destructively (label.js:147). On reload presets are not re-detectable (no data-label-preset) — only inline styles persist. radius slider synced."},
+        {"id": "label-bg-color / label-bg-hex / label-bg-none", "type": "color+text+checkbox", "label": "배경색 (label)", "event": "input/change", "writes": "contentEl.style.backgroundColor + padding/borderRadius reset when none", "silentFailRisk": "low", "note": "label.js:25-40. hex validated 6-digit. none->transparent. Inline only."},
+        {"id": "label-radius-slider / label-radius-number", "type": "range+number", "label": "모서리 (label)", "event": "input/change", "writes": "contentEl.style.borderRadius", "silentFailRisk": "low", "note": "label.js:46-52. sync pair OK. clamp 0..40."},
+        {"id": "label-pill-height-slider / label-pill-height-number", "type": "range+number", "label": "높이 (Tag Style)", "event": "input/change", "writes": "contentEl.style.paddingTop/Bottom half + syncs txt-label-h", "silentFailRisk": "low", "note": "label.js:75-83. Bidirectional 4-way sync. clamp 0..120."},
+        {"id": "bubble-style-select", "type": "select", "label": "스타일 (bubble)", "event": "change", "writes": "tb.dataset.bubbleStyle + bubbleEl.dataset.bubbleStyle (apple) ", "silentFailRisk": "low", "note": "bubble.js:15-21. dataset persisted; read prop-text.js:38."},
+        {"id": "bubble-tail-left/center/right", "type": "button x3", "label": "말꼬리 tail", "event": "click", "writes": "tb.dataset.tail + tb.style.margin + replaces tail SVG", "silentFailRisk": "low", "note": "bubble.js:35-55. dataset.tail persisted; read prop-text.js:37."},
+        {"id": "bubble-bg-color / bubble-bg-hex", "type": "color+text", "label": "배경색 (bubble)", "event": "input/change", "writes": "contentEl.style.backgroundColor + tb.style --bubble-bg var", "silentFailRisk": "low", "note": "bubble.js:57-72. --bubble-bg CSS var on tb; read prop-text.js:39. hex validated."},
+        {"id": "bubble-show-sender", "type": "checkbox toggle", "label": "발신자 이름 표시", "event": "change", "writes": "tb.dataset.showSender + senderEl.style.display + nameRow display", "silentFailRisk": "low", "note": "bubble.js:75-84. dataset persisted; read prop-text.js:42."},
+        {"id": "bubble-sender-name-input", "type": "text", "label": "발신자 이름", "event": "input/change", "writes": "tb.dataset.senderName + senderEl.textContent", "silentFailRisk": "low", "note": "bubble.js:87-94. dataset persisted; read prop-text.js:43."},
+        {"id": "itb-gap-slider / itb-gap-number", "type": "range+number", "label": "아이콘-텍스트 간격 (icon-text)", "event": "input", "writes": "tb.style.gap", "silentFailRisk": "med", "note": "align.js:30-36 (also DUPLICATE template emits same ids; wireAlignSection handles them). Inline style only, NO dataset. Read back prop-text.js:53 from tb.style.gap. NO pushHistory (input only) — undo lost. triggerAutoSave called."},
+        {"id": "open-anim-btn", "type": "button", "label": "애니메이션 GIF 만들기", "event": "click (onclick=)", "writes": "calls window.openAnimModal(tb)", "silentFailRisk": "low", "note": "prop-text.js:131-132. onclick replaced (not addEventListener) to avoid dup."}
+      ],
+      "syncPairs": [
+        ["txt-rot-slider", "txt-rot-number"],
+        ["txt-shadow-x-slider", "txt-shadow-x-number"],
+        ["txt-shadow-y-slider", "txt-shadow-y-number"],
+        ["txt-shadow-blur-slider", "txt-shadow-blur-number"],
+        ["txt-width-slider", "txt-width-number"],
+        ["txt-pv-slider", "txt-pv-number"],
+        ["txt-pl-slider", "txt-pl-number"],
+        ["txt-pr-slider", "txt-pr-number"],
+        ["txt-label-h-slider", "txt-label-h-number"],
+        ["label-radius-slider", "label-radius-number"],
+        ["label-pill-height-slider", "label-pill-height-number"],
+        ["label-pill-height", "txt-label-h (cross-sync)"],
+        ["itb-gap-slider", "itb-gap-number"]
+      ],
+      "risks": [
+        "txt-size-number / txt-lh-number / txt-ls-number / txt-color-alpha are NUMBER-ONLY (no paired slider) by design — not a sync bug but inconsistent with rest of panel.",
+        "Line-height & letter-spacing written ONLY to contentEl inline style (no dataset) — silent loss if serializer normalizes/strips contentEl inline styles.",
+        "Rotation & label-shape presets persist only via inline transform/styles; dataset.rotation exists but raw transform re-application depends on save-load reapplying inline transform.",
+        "phLinked (L/R chain) intent is local-only; lost on reload when padL!=padR.",
+        "label-shape-circle DESTRUCTIVELY overwrites textContent to '1' (label.js:147) — silent content loss if user mis-clicks.",
+        "Multiple input-only handlers skip pushHistory (txt-pv, txt-pl, txt-pr, itb-gap) — undo granularity / history coverage gap, not data loss.",
+        "Normal-text alignment writes contentEl.style.textAlign (inline, no dataset) — reload integrity depends on inline serialization."
+      ]
+    },
+    {
+      "block": "label-group (Tags)",
+      "panelFn": "showLabelGroupProperties",
+      "controls": [
+        {"id": "lg-style-select", "type": "select", "label": "Preset Style", "event": "change", "writes": "_applyPresetToItem(selectedItem): style bg/color/border + dataset.bg/color; syncs pickers", "silentFailRisk": "med", "note": "prop-label-group.js:212. If NO selectedItem the change handler returns early (line 213) — selecting a preset with no tag chosen SILENTLY does nothing (no toast/feedback). border preset value NOT written to dataset (only bg/color are) — border lost on reload."},
+        {"id": "lg-apply-all-btn", "type": "button", "label": "전체 적용", "event": "click", "writes": "all .label-item bg/color/border + dataset.bg/color + --preset-label-bg/color CSS vars", "silentFailRisk": "med", "note": "prop-label-group.js:232-249. border applied inline but NOT saved to dataset — reload loses border. window.DesignSystem guard but sets doc vars regardless."},
+        {"id": "prop-align-btn[data-align]", "type": "button x3", "label": "Align", "event": "click", "writes": "block.style.justifyContent", "silentFailRisk": "low", "note": "prop-label-group.js:165-172. Inline style; read back line 29. No pushHistory on align click (med-low)."},
+        {"id": "lg-gap-slider / lg-gap-number", "type": "range+number", "label": "Gap", "event": "input/change", "writes": "block.style.gap", "silentFailRisk": "low", "note": "label-group.js:177-187. sync OK. clamp 0..60. Inline only, read back line 28."},
+        {"id": "lg-all-height-slider / lg-all-height-number", "type": "range+number", "label": "Height (All)", "event": "input/change", "writes": "all .label-item paddingTop/Bottom (half)", "silentFailRisk": "low", "note": "label-group.js:199-205. clamp 0..120. Inline padding only."},
+        {"id": "lg-item-bg (color field)", "type": "color+hex+alpha", "label": "배경색 (selected tag)", "event": "via wireColorField", "writes": "selectedItem.style.backgroundColor + dataset.bg", "silentFailRisk": "low", "note": "label-group.js:254-258. dataset.bg persisted; read line 35."},
+        {"id": "lg-item-color (color field)", "type": "color+hex+alpha", "label": "글자색 (selected tag)", "event": "via wireColorField", "writes": "selectedItem.style.color + dataset.color", "silentFailRisk": "low", "note": "label-group.js:261-265. dataset.color persisted; read line 36."},
+        {"id": "lg-item-radius-slider / lg-item-radius-number", "type": "range+number", "label": "모서리 (selected tag)", "event": "input/change", "writes": "selectedItem.style.borderRadius + dataset.radius", "silentFailRisk": "low", "note": "label-group.js:270-282. dataset.radius persisted; read line 39. clamp 0..50."},
+        {"id": "lg-item-height-slider / lg-item-height-number", "type": "range+number", "label": "높이 (selected tag)", "event": "input/change", "writes": "selectedItem.style.paddingTop/Bottom (half)", "silentFailRisk": "low", "note": "label-group.js:292-298. clamp 0..120. Inline padding only (no dataset, but re-derived from padding line 40-42)."},
+        {"id": "lg-width-slider / lg-width-number", "type": "range+number (absolute only)", "label": "Width", "event": "input/change", "writes": "block.style.width", "silentFailRisk": "low", "note": "label-group.js:305-311. clamp 40..860. Inline only, read back line 25."},
+        {"id": "lg-x-number", "type": "number (absolute only)", "label": "X", "event": "input/change", "writes": "block.style.left", "silentFailRisk": "low", "note": "label-group.js:315-316. Inline only, read line 27. parseInt||0 guard."},
+        {"id": "lg-y-number", "type": "number (absolute only)", "label": "Y", "event": "input/change", "writes": "block.style.top", "silentFailRisk": "low", "note": "label-group.js:317-318. Inline only, read line 28."}
+      ],
+      "syncPairs": [
+        ["lg-gap-slider", "lg-gap-number"],
+        ["lg-all-height-slider", "lg-all-height-number"],
+        ["lg-item-radius-slider", "lg-item-radius-number"],
+        ["lg-item-height-slider", "lg-item-height-number"],
+        ["lg-width-slider", "lg-width-number"]
+      ],
+      "risks": [
+        "Preset 'border' (Outline preset 1.5px solid) is applied to element inline but NOT stored in dataset (only dataset.bg & dataset.color saved) — border silently lost on reload.",
+        "lg-style-select change with NO selectedItem returns silently (line 213) — no feedback to user.",
+        "lg-style-select & apply-all both lack any guard re-sync of the selected-tag radius/height inputs.",
+        "Align button click has no pushHistory."
+      ]
+    }
+  ]
+}

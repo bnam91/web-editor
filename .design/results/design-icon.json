@@ -1,0 +1,135 @@
+{
+  "agent": "DSN-icon",
+  "dimension": "icon",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "generated_at": "2026-06-11",
+  "standard": {
+    "icon_layer_size": "14px (--icon-layer-size)",
+    "icon_prop_size": "16px (--icon-prop-size)",
+    "icon_layer_gaps": "8/7/6px (--icon-layer-gap-section/item/row)"
+  },
+  "scope_note": "UI 크롬 아이콘만 감사. 캔버스 블록 내부 아이콘(사용자 콘텐츠)·iconify-panel(콘텐츠 삽입 도구)·vendor 제외.",
+  "summary": {
+    "blocker": 0,
+    "major": 2,
+    "minor": 4,
+    "nit": 1,
+    "total": 7,
+    "capped": false
+  },
+  "findings": [
+    {
+      "id": "ICON-01",
+      "grade": "major",
+      "title": "--icon-* 토큰 5종 전부 미사용 (정의만 있고 실사용 0회)",
+      "evidence": "design-tokens.css:174-178에 --icon-layer-size(14px)/--icon-prop-size(16px)/--icon-layer-gap-section/item/row 정의. grep 'var(--icon-' 전체 codebase(css+js+index.html) 결과 0건. 토큰이 aspirational 상태.",
+      "standard": "--icon-layer-size 14px / --icon-prop-size 16px",
+      "deviation": "토큰 정의부만 존재, 소비처 0. 아이콘 크기 표준이 코드로 강제되지 않아 px 리터럴이 자유 산재.",
+      "locations": [
+        "css/editor-panels.css:1118 .layer-section-icon { width:14px; height:14px } — var(--icon-layer-size) 대신 리터럴",
+        "css/editor-panels.css:1187 .layer-item-icon { width:14px; height:14px } — 동일",
+        "css/editor-props.css:180 .prop-block-icon { width:20px; height:20px } — 토큰(16px)과 값도 불일치"
+      ],
+      "method": "static",
+      "verify": "self",
+      "fix_hint": "값 일치하는 layer-section-icon/layer-item-icon(14px)는 var(--icon-layer-size)로 치환. prop-block-icon은 토큰값(16px)과 정합화 후 var(--icon-prop-size) 적용 검토."
+    },
+    {
+      "id": "ICON-02",
+      "grade": "major",
+      "title": "UI 크롬 액션 버튼에 이모지 글리프와 인라인 SVG 혼합 (mixed icon-set)",
+      "evidence": "패널 탭/툴바 액션은 인라인 SVG(stroke outline)로 통일돼 있으나, 주요 액션 버튼은 이모지 글리프 사용. SVG 아이콘과 동일 위계의 버튼에서 렌더 스타일·크기·스트로크가 OS 이모지로 빠짐.",
+      "standard": "단일 outline SVG 아이콘셋 (currentColor, stroke 기반)",
+      "deviation": "이모지(filled/컬러풀, OS 의존)와 SVG(outline, 모노톤)가 같은 툴바/버튼 레이어에 혼재.",
+      "locations": [
+        "index.html:644 <button class='fp-btn fp-btn-ai' id='ai-btn'>✨</button>",
+        "index.html:1070 <button class='ai-submit-btn'>✨ 생성하기</button>",
+        "index.html:1052 aig-prompt-copy-btn >📋<",
+        "index.html:1069 aig-outpaint-export-btn >⬇ 확장 PNG 내보내기<",
+        "index.html:1024 >🔲 이미지 확장(outpaint)<, :1028 >✂️ 누끼따기<"
+      ],
+      "method": "static",
+      "verify": "verify-candidate",
+      "fix_hint": "동일 outline SVG 아이콘셋으로 교체(✨→sparkle SVG, 📋→copy SVG, ⬇→download SVG, ✂️→scissors SVG). 텍스트 토스트/안내문 이모지는 예외 허용."
+    },
+    {
+      "id": "ICON-03",
+      "grade": "minor",
+      "title": "닫기 버튼 글리프 비일관 — 이모지 ✕/× 4종 vs SVG X 부재",
+      "evidence": "모달/패널 닫기 버튼이 이모지/유니코드 글리프 ✕(U+2715)·×(U+00D7) 텍스트로 산재. SVG X 아이콘으로 통일된 곳 없음.",
+      "standard": "닫기 아이콘 단일화 (SVG X 또는 단일 글리프)",
+      "deviation": "✕와 × 두 종류 유니코드가 혼용(굵기·정렬 다름) + 이모지/SVG 혼합.",
+      "locations": [
+        "index.html:1175 #color-adjust-close >✕<",
+        "index.html:901 닫기\">× (× 사용)",
+        "js/panels/assets-panel.js, mockup-panel.js, iconify-panel.js, layer-panel.js — >✕< 4건"
+      ],
+      "method": "static",
+      "verify": "self",
+      "fix_hint": "닫기 버튼 글리프를 단일 SVG X(viewBox 12 12, stroke 1.3) 또는 단일 유니코드로 통일."
+    },
+    {
+      "id": "ICON-04",
+      "grade": "minor",
+      "title": "stroke-width 15종 산재 (표준 없음)",
+      "evidence": "인라인 SVG stroke-width 값 분포: 1.3×110, 1.5×41, 1.4×34, 1.6×14, 1.8×12, 2×11, 1×5, 2.5×3, 1.2×2, 3.5/3.2/1.1/0.6 각 1. 표준 stroke-width 토큰 없음.",
+      "standard": "아이콘 stroke-width 1~2종 (예: 1.3 layer / 1.4 tab)",
+      "deviation": "12px viewBox에 1.4, 14px viewBox에 1.3 등 viewBox별 규칙이 암묵적으로만 존재. 1.6/1.8/2.5 등 산발값이 일관성 흐림.",
+      "locations": [
+        "js/panels/layer-panel.js — stroke-width 1.3 (14px viewBox)",
+        "index.html:255~ 패널 탭 — stroke-width 1.4 (12px viewBox)",
+        "js/props, js/panels 전반 — 1.5/1.6/1.8/2/2.5 산재"
+      ],
+      "method": "static",
+      "verify": "self",
+      "fix_hint": "viewBox 크기별 stroke-width 규칙 명문화(예: 12px→1.4, 14px→1.3, 16px→1.5). 1.6/1.8/2.5 산발값 정리."
+    },
+    {
+      "id": "ICON-05",
+      "grade": "minor",
+      "title": "viewBox 표준 불일치 — 동일 위계 아이콘에 12/14/16 혼용 + width≠viewBox",
+      "evidence": "UI 아이콘 viewBox 분포: '0 0 12 12'×80, '0 0 16 16'×57, '0 0 14 14'×53, '0 0 10 10'×16, '1.5 1.5 13 13'×3 등. 패널 탭 SVG는 width=13/height=13인데 viewBox='0 0 12 12' — 12단위 그리드를 13px로 렌더(비정수 스케일).",
+      "standard": "아이콘 크기군 14px(layer)/16px(prop) 토큰, viewBox는 크기와 정합",
+      "deviation": "width(13) ≠ viewBox(12) 로 0.92x 비정수 스케일. 동일 패널 탭 아이콘이 13px인데 토큰 표준은 14/16px.",
+      "locations": [
+        "index.html:259,267,275 .panel-tab <svg width='13' height='13' viewBox='0 0 12 12'>",
+        "viewBox '1.5 1.5 13 13' (3건) — 비표준 오프셋"
+      ],
+      "method": "static",
+      "verify": "self",
+      "fix_hint": "패널 탭 아이콘 width/height를 viewBox 정합(12→12px) 또는 14px 토큰에 맞춤. 비표준 viewBox 오프셋(1.5 1.5 13 13) 정리."
+    },
+    {
+      "id": "ICON-06",
+      "grade": "minor",
+      "title": "prop-block-icon 내부 SVG stroke에 raw hex 산재 (currentColor 미사용)",
+      "evidence": "layer-panel 아이콘은 stroke='currentColor'로 테마 연동되나, prop-block-icon SVG는 stroke='#888' 등 raw hex 하드코딩. props/panels에서 stroke 하드코딩: #888×36, #555×5, #3a3a3c×4, #444×2 등.",
+      "standard": "아이콘 stroke=currentColor + 색은 부모 color 토큰(--ui-text-*)",
+      "deviation": "아이콘 색이 raw hex로 박혀 테마/상태(hover/active) 색 전환 불가. layer 아이콘(currentColor)과 prop 아이콘(raw hex) 처리 비일관.",
+      "locations": [
+        "js/props/prop-sticker.js:47 <svg ... stroke='#888'>",
+        "js/props/prop-row.js:104 <svg ... stroke='#888'>",
+        "js/props/* 36건 stroke='#888'"
+      ],
+      "method": "static",
+      "verify": "self",
+      "fix_hint": "prop-block-icon SVG stroke를 currentColor로 통일하고 .prop-block-icon { color: var(--ui-text-sub) } 로 색 위임."
+    },
+    {
+      "id": "ICON-07",
+      "grade": "nit",
+      "title": "layer-panel eye(visibility) 아이콘 SVG 인라인 3회 중복",
+      "evidence": "layer-panel.js:55-56,70,77 에서 동일 eye on/off SVG 마크업이 초기 렌더 + 토글 핸들러에 인라인 중복. 값은 일관(viewBox 14 14, stroke 1.3)이나 유지보수 시 동기화 누락 위험.",
+      "standard": "아이콘 마크업 단일 출처(상수/헬퍼)",
+      "deviation": "동일 SVG 문자열 3회 하드코딩.",
+      "locations": [
+        "js/panels/layer-panel.js:55-56 (초기), :70,:77 (토글 핸들러)"
+      ],
+      "method": "static",
+      "verify": "self",
+      "fix_hint": "eyeOn/eyeOff SVG를 layerIcons 상수처럼 헬퍼/상수로 추출해 1곳에서 관리."
+    }
+  ]
+}

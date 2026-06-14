@@ -959,12 +959,6 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
   transition: opacity 0.2s;
 }
 
-/* ── Section Toolbar: Branch Button ── */
-.st-branch-btn { color: #5a8ab8 !important; }
-.st-branch-btn:hover { color: var(--ui-accent) !important; background: #1a2840 !important; }
-/* ── MVP: 섹션 단위 feature 브랜치 기능 비활성 — 버튼 숨김 ── */
-/* 재활성화 시 이 룰만 제거하면 됨. */
-.st-branch-btn { display: none !important; }
 
 /* ── Section Toolbar: A/B Variation Button ── */
 .st-ab-btn { color: var(--ui-accent-primary) !important; }

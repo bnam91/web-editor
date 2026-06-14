@@ -1,0 +1,127 @@
+{
+  "agent": "DSN-states",
+  "dimension": "states",
+  "method": "static",
+  "version": "v3.3.1",
+  "git_head": "a7ad40b",
+  "scanned_at": "2026-06-11",
+  "scope": "인터랙티브 UI 크롬 요소×상태 커버리지 매트릭스. 대상셀렉터=.prop-btn/.prop-action-btn/.prop-align-btn/.tb-btn/.cpm-btn/.cpm-action/.cv-chip/.prop-slider/.prop-select/.prop-number/.layer-item/.file-page-item/.goya-cp-tab/.zoom-btn. 캔버스 블록/contenteditable/토큰정의/vendor(xterm) 제외. method=static — hover/focus 실동작 렌더확정 보류, CSS 규칙 존재여부=deterministic.",
+  "evidence_grade_legend": {
+    "deterministic": "CSS 규칙(셀렉터) 존재/부재를 grep로 확정",
+    "pattern": "동급 요소군 간 패턴 일관성·메타포 추론"
+  },
+  "postfix_verification": {
+    "focus_visible_common_rule": {
+      "status": "FIXED-CONFIRMED",
+      "evidence": "editor-base.css:773-793 공용 :focus-visible 블록 신설. .cv-chip / .prop-align-btn / .prop-slider 모두 셀렉터 목록에 추가됨(787/786/788). 직전 ST-01/ST-02/ST-03 대거 해소.",
+      "rule": "outline:2px solid var(--ui-accent-primary,#2d6fe8); outline-offset:1px"
+    },
+    "aria_pressed_visual": {
+      "status": "STILL-MISSING",
+      "evidence": "마크업 aria-pressed=1건(js/props/color-var-chips.js:50, .cv-chip), CSS [aria-pressed] 셀렉터=0건(css/ 전역 grep). ARIA 상태에 전용 스타일 훅 없음 — pressed 시각은 평행 class=active(editor-props.css:449)에만 의존.",
+      "basis": "deterministic"
+    },
+    "disabled_opacity_migration": {
+      "status": "PARTIAL",
+      "evidence": "--ui-disabled-opacity(=0.5, editor-base.css:71) 토큰 신설 + 7개 셀렉터가 이를 채택(ai-image.css:153 / editor-panels.css:1049,1721 / settings-modal.css:152 / claude-pm.css:285 / color-picker.css:140 / editor-props.css:470). 그러나 일부는 여전히 리터럴: ai-submit-btn opacity:0.6(editor-extra.css:637), cpm-btn.primary:disabled opacity:0.6(claude-pm.css:354), assets-import-footer button:disabled opacity:0.4(assets-panel.css:361), anim-export-btn/prop-export-btn는 bg/color 교체식(opacity 미사용).",
+      "basis": "deterministic"
+    }
+  },
+  "summary": {
+    "elements_in_matrix": 14,
+    "focus_visible_now_covered": "버튼·항목 12/14 (공용 규칙). 미포함 2 = .prop-select/.prop-number — 입력류로 :focus{border-color} 교체 짝 보유(정당 예외).",
+    "aria_pressed_mismatch": "markup 1 / CSS [aria-pressed] 0 — 시각은 class=active로 대체되어 '완전 무표시'는 아니나 ARIA 상태에 자체 스타일 훅 부재(완전성 결함).",
+    "disabled_coverage": "토큰화 진행 중(7건 채택) — 리터럴/교체식 잔존 4+건으로 값 불일치 지속.",
+    "loading_state": "여전히 부재(.is-loading/skeleton/spinner CSS 0건).",
+    "findings": 4
+  },
+  "coverage_matrix": [
+    { "selector": ".prop-btn", "hover": true, "focus_visible": true, "focus": true, "active": false, "disabled": true, "note": "disabled 토큰화 완료(editor-props.css:470)" },
+    { "selector": ".prop-action-btn", "hover": false, "focus_visible": true, "focus": true, "active": false, "disabled": false, "note": "전용 :hover 규칙 부재 — 상위 .prop-btn류 상속/공유 가능성, 단독 hover 피드백 없음" },
+    { "selector": ".prop-align-btn", "hover": true, "focus_visible": true, "focus": true, "active": true, "disabled": false, "note": "active=accent fill(editor-props.css:272). 토글버튼이나 disabled 부재" },
+    { "selector": ".tb-btn", "hover": true, "focus_visible": true, "focus": true, "active": true, "disabled": false, "note": "active=accent fill(editor-base.css:701). disabled 부재" },
+    { "selector": ".cpm-btn", "hover": true, "focus_visible": true, "focus": true, "active": false, "disabled": true, "note": ".cpm-btn.primary:disabled 리터럴 opacity:0.6(claude-pm.css:354) — 토큰 미적용" },
+    { "selector": ".cpm-action", "hover": true, "focus_visible": true, "focus": true, "active": false, "disabled": false },
+    { "selector": ".cv-chip", "hover": true, "focus_visible": true, "focus": true, "active": true, "disabled": false, "note": "active=accent border+18% mix(editor-props.css:449). aria-pressed 마크업 有 ↔ [aria-pressed] CSS 無 — pressed 시각은 class=active에 의존" },
+    { "selector": ".prop-slider", "hover": false, "focus_visible": true, "focus": true, "active": false, "disabled": false, "note": "focus-visible 공용 규칙은 element box에 outline — 실제 draggable thumb에는 glow 없음(::thumb 미타깃)" },
+    { "selector": ".prop-select", "hover": true, "focus_visible": false, "focus": true, "active": false, "disabled": false, "note": "입력류 — :focus{border-color:accent} 교체 짝(정당 예외). focus-visible 공용목록 미포함" },
+    { "selector": ".prop-number", "hover": true, "focus_visible": false, "focus": true, "active": false, "disabled": false, "note": "입력류 — :focus{border-color:accent} 교체 짝(정당 예외)" },
+    { "selector": ".layer-item", "hover": true, "focus_visible": true, "focus": true, "active": true, "disabled": false },
+    { "selector": ".file-page-item", "hover": true, "focus_visible": true, "focus": true, "active": true, "disabled": false },
+    { "selector": ".goya-cp-tab", "hover": true, "focus_visible": true, "focus": true, "active": true, "disabled": false, "note": "focus-visible는 color-picker.css:418 자체 규칙 보유" },
+    { "selector": ".zoom-btn", "hover": true, "focus_visible": true, "focus": true, "active": false, "disabled": false }
+  ],
+  "findings": [
+    {
+      "id": "ST-A1",
+      "severity": "major",
+      "verify_candidate": true,
+      "evidence_grade": "deterministic",
+      "title": "aria-pressed 마크업 ↔ CSS 불일치: ARIA pressed 상태에 전용 스타일 훅 없음",
+      "detail": ".cv-chip이 aria-pressed='true/false'를 렌더(color-var-chips.js:50)하나, css/ 전역에서 [aria-pressed] 셀렉터는 0건. pressed 시각은 평행으로 부여되는 class='active'(editor-props.css:449, accent border + 18% color-mix bg)에만 의존한다. 따라서 '완전 무표시'는 아니지만, ARIA 상태와 시각 상태가 별도 마크업(attribute vs class)에 이중으로 매여 있어 동기화 책임이 JS에 떠넘겨진 상태 — class만 토글하고 aria를 빠뜨리거나 그 반대 시 보조기술/시각이 어긋날 수 있는 완전성 결함. method=static이라 두 마크업이 항상 함께 토글되는지 확정 불가 → verify 후보(CDP로 cv-chip 클릭 시 class.active와 aria-pressed 동시 전환 여부 실측).",
+      "evidence": [
+        "js/props/color-var-chips.js:50 (class='cv-chip${active? active}' + aria-pressed='${active}')",
+        "css [aria-pressed] 셀렉터 grep = 0건",
+        "editor-props.css:449 .cv-chip.active (실제 시각 담당)"
+      ],
+      "fix_hint": "(택1) .cv-chip[aria-pressed='true'] 를 시각 규칙의 진짜 소스로 승격해 class=active 의존 제거 — 마크업 단일화. 또는 최소한 [aria-pressed='true']를 .active 셀렉터에 ,로 병기해 동기화 안전망 확보."
+    },
+    {
+      "id": "ST-A2",
+      "severity": "major",
+      "verify_candidate": true,
+      "evidence_grade": "deterministic",
+      "title": ".prop-slider focus-visible가 thumb가 아닌 박스에 적용 — 키보드 포커스 위치 모호",
+      "detail": "ST-03(직전) 후 .prop-slider가 공용 :focus-visible 목록에 추가됐으나(editor-base.css:788), 적용 스타일이 outline(element box 외곽)이다. range input은 ←/→로 thumb를 조작하는데, 박스 외곽 outline은 thumb 위치를 지시하지 못한다. ::-webkit-slider-thumb:focus 류 thumb glow가 여전히 없음. focus 규칙은 생겼으나 '슬라이더에 맞는 focus 시각'으로는 미완. method=static이라 박스 outline의 실제 가시성은 보류 → CDP에서 Tab 포커스 시 outline이 thumb를 충분히 가리키는지 실측 권장.",
+      "evidence": [
+        "editor-base.css:788 .prop-slider:focus-visible → 791 outline:2px(박스)",
+        "::-webkit-slider-thumb / ::-moz-range-thumb 의 :focus glow 규칙 0건",
+        "editor-props.css:61 .prop-slider{outline:none} (기본 제거)"
+      ],
+      "fix_hint": ".prop-slider:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 3px color-mix(in srgb, var(--ui-accent-primary) 40%, transparent); } (+ ::-moz-range-thumb) 추가해 thumb 자체에 포커스 표시."
+    },
+    {
+      "id": "ST-A3",
+      "severity": "minor",
+      "verify_candidate": false,
+      "evidence_grade": "deterministic",
+      "title": ":disabled 토큰 마이그레이션 미완 — 리터럴/교체식 잔존으로 값 불일치 지속",
+      "detail": "--ui-disabled-opacity(0.5) 토큰 도입은 옳은 방향이나 7개 셀렉터만 채택. 동급 액션 버튼에 리터럴/이질 패턴 잔존: ai-submit-btn opacity:0.6(editor-extra.css:637), cpm-btn.primary:disabled opacity:0.6(claude-pm.css:354), assets-import-footer button:disabled opacity:0.4(assets-panel.css:361). anim-export-btn(editor-extra.css:344)·prop-export-btn(editor-props.css:560)은 opacity 대신 bg/color 교체식 — disabled 메타포 자체가 분기. 결과적으로 비활성 흐림 값이 0.4/0.6/0.5/교체식으로 분산. 또한 .tb-btn/.zoom-btn/.prop-align-btn/.cpm-action 등 토글·액션 버튼군에는 :disabled 규칙 자체가 부재(JS disabled 토글 시 시각 피드백 누락 위험).",
+      "evidence": [
+        "토큰 채택 7건 vs 리터럴 0.6/0.4 잔존 3건 + 교체식 2건",
+        "editor-extra.css:637 opacity:0.6 / assets-panel.css:361 opacity:0.4",
+        "matrix상 disabled=false: tb-btn/zoom-btn/prop-align-btn/cpm-action/prop-action-btn 등 9/14"
+      ],
+      "fix_hint": "잔존 리터럴(0.6/0.4)을 var(--ui-disabled-opacity)로 통일 + 공용 [disabled],:disabled{opacity:var(--ui-disabled-opacity);cursor:not-allowed;} 베이스 규칙으로 미커버 버튼군 일괄 보강."
+    },
+    {
+      "id": "ST-A4",
+      "severity": "minor",
+      "verify_candidate": false,
+      "evidence_grade": "deterministic",
+      "title": "loading / skeleton 비동기 진행 상태 시각 부재(미해소)",
+      "detail": "직전 ST-06 후에도 css/ 전역에서 .is-loading / skeleton / spinner 류 상태 클래스 0건. 비동기 트리거 버튼(.ai-submit-btn, .ai-fill-panel-run, .anim-export-btn, .settings-api-test)이 진행 중일 때 disabled opacity 외 별도 진행 표현 없음 — AI 생성/이미지 로드/저장 등 지연 동작에서 사용자가 처리 중 여부를 알 단서 부족. 상태셋(hover/focus/disabled/active) 중 loading 축이 매트릭스 전반에서 통째로 비어 있음.",
+      "evidence": [
+        "grep skeleton|is-loading|spinner across css/ = 0건",
+        "비동기 버튼: editor-extra.css:637(ai-submit) / editor-panels.css:1721(ai-fill-run) / editor-extra.css:344(anim-export)"
+      ],
+      "fix_hint": "비동기 트리거 버튼에 .is-loading{ pointer-events:none } + 스피너(::after rotate) 표준화. 차원 메모의 loading/skeleton 축 충족."
+    }
+  ],
+  "area_summary": [
+    { "area": "prop-panel buttons (.prop-btn/.prop-action-btn/.prop-align-btn)", "focus_visible": "covered(공용)", "active": "align만 有", "disabled": "prop-btn만 토큰", "verdict": "focus-visible 해소, disabled 일관성 잔여" },
+    { "area": "toolbar (.tb-btn/.zoom-btn)", "focus_visible": "covered", "active": "tb-btn 有", "disabled": "부재", "verdict": "disabled 시각 누락" },
+    { "area": "claude-pm (.cpm-btn/.cpm-action)", "focus_visible": "covered", "active": "부재", "disabled": "primary만 리터럴0.6", "verdict": "토큰 미적용" },
+    { "area": "color-var chips (.cv-chip)", "focus_visible": "covered", "active": "有(class)", "disabled": "n/a", "verdict": "aria-pressed↔CSS 불일치(ST-A1, major)" },
+    { "area": "slider (.prop-slider)", "focus_visible": "박스 outline만", "active": "n/a", "disabled": "부재", "verdict": "thumb focus 시각 미완(ST-A2, major)" },
+    { "area": "inputs (.prop-select/.prop-number)", "focus_visible": "미포함(정당)", "active": "n/a", "disabled": "부재", "verdict": ":focus border-color 짝 보유 — 예외 정당" },
+    { "area": "left panel (.layer-item/.file-page-item)", "focus_visible": "covered", "active": "有", "disabled": "n/a", "verdict": "양호" },
+    { "area": "color-picker tabs (.goya-cp-tab)", "focus_visible": "자체+공용", "active": "有", "disabled": "n/a", "verdict": "양호" },
+    { "area": "async action buttons (loading)", "focus_visible": "covered", "active": "n/a", "disabled": "일부", "verdict": "loading 상태 축 전무(ST-A4)" }
+  ],
+  "exceptions_observed": [
+    ".prop-select/.prop-number의 outline:none + :focus{border-color:var(--ui-accent-primary)} 교체 짝 = 정당, focus-visible 공용목록 미포함은 이탈 아님.",
+    "contenteditable/캔버스 라벨 outline:none(.proj-tab-name, [contenteditable], .label-item-text 등) = 캔버스/편집 예외, 불가침.",
+    "#preview-overlay outline:none !important = 프리뷰(편집 비활성) 의도."
+  ]
+}

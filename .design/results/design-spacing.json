@@ -1,0 +1,123 @@
+{
+  "agent": "DSN-spacing",
+  "dimension": "spacing",
+  "method": "static",
+  "date": "2026-06-11",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "baseline": {
+    "grid_unit": 4,
+    "scale_tokens": "--space-0..6 = 2/4/8/12/16/24/32",
+    "valid_set_px": [2, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
+    "known_debt": "design-tokens.css:182 — px 리터럴 3078개 점진 이관 인지됨. per-line 버그 금지, 군집 그룹핑."
+  },
+  "scope": {
+    "audited": "UI 크롬 CSS의 margin/padding/gap/row-gap/column-gap raw px",
+    "excluded": [
+      "editor-blocks.css 캔버스 블록 내부 px (사용자 편집값 — design-tokens.css:182)",
+      "토큰 정의부 (--space-*/--radius-*/--p-*)",
+      "vendor (xterm.css/pretendard.css)",
+      "border-width/outline (간격 아님)"
+    ]
+  },
+  "summary": {
+    "off_grid_chrome_instances": 438,
+    "off_grid_distribution_px": {
+      "6": 146,
+      "10": 85,
+      "5": 63,
+      "3": 35,
+      "14": 32,
+      "1": 28,
+      "7": 19,
+      "18": 14,
+      "9": 9,
+      "22": 3,
+      "11": 3,
+      "58": 1
+    },
+    "verdict": "대부분 알려진 부채(minor/nit). 단 1건의 진짜 비일관(컨테이너/행 패딩 역할 분산)만 major→verify-candidate."
+  },
+  "findings": [
+    {
+      "id": "SPACE-G1",
+      "title": "그리드 비배수 간격 군집 — UI 크롬 438건 (5/6/10/14/18px 등)",
+      "severity": "minor",
+      "status": "known-debt",
+      "method": "static",
+      "dimension": "spacing",
+      "type": "grouped_overflow",
+      "group_count": 438,
+      "detail": "4px 그리드(--space-*) 비배수 px가 margin/padding/gap에 산재. 최대 군집은 6px(146)·10px(85)·5px(63). 5/6/10은 행·툴바·prop 패딩 리듬으로 굳어진 실질 디팩토 값이라 그리드와 평행 존재. design-tokens.css:182에 점진 이관 부채로 이미 인지됨 — 개별 라인 버그 아님.",
+      "hotspot_files": [
+        { "file": "css/editor-panels.css", "off_grid": 136 },
+        { "file": "css/editor-extra.css", "off_grid": 96 },
+        { "file": "css/editor-base.css", "off_grid": 42 },
+        { "file": "css/editor-props.css", "off_grid": 33 },
+        { "file": "css/ai-image.css", "off_grid": 31 },
+        { "file": "css/settings-modal.css", "off_grid": 26 }
+      ],
+      "value_clusters": [
+        { "px": 6, "count": 146, "role": "prop-row/툴바/드롭다운 gap·세로 패딩, calc(100%+6px) 드롭다운 오프셋" },
+        { "px": 10, "count": 85, "role": "패널 가로 패딩 (8/10/12 혼용 축)" },
+        { "px": 5, "count": 63, "role": "행 세로 패딩·gap (padding:1px 5px / 5px 8px / 5px 10px)" },
+        { "px": 3, "count": 35, "role": "마이크로 패딩·갭" },
+        { "px": 14, "count": 32, "role": "버튼/섹션 가로 패딩 (0 14px)" }
+      ],
+      "recommendation": "신규/수정 시 5→4, 6→8(또는 4), 10→8/12, 14→16으로 토큰(--space-*) 흡수. 일괄 치환 금지(시각 회귀 위험), 터치하는 셀렉터만 점진 이관.",
+      "action": "no-fix (debt acknowledged)"
+    },
+    {
+      "id": "SPACE-G2",
+      "title": "1px 마이크로 간격 군집 — padding:1px 5px / 1px 6px (28건)",
+      "severity": "nit",
+      "status": "known-debt",
+      "method": "static",
+      "dimension": "spacing",
+      "type": "grouped_overflow",
+      "group_count": 28,
+      "detail": "chip/badge/태그형 요소의 세로 1px 패딩. 그리드 최소값 2px(--space-0) 미만. 시각상 hairline 고정폭 의도로 보이나 토큰 부재. editor-panels.css:311/354/436/444/672 등.",
+      "hotspot_files": [
+        { "file": "css/editor-panels.css", "note": "padding:1px 5px 반복 (chip류)" }
+      ],
+      "recommendation": "2px(--space-0)로 정렬 가능한지 시각 확인 후 흡수. 단독으로 우선순위 낮음.",
+      "action": "no-fix"
+    },
+    {
+      "id": "SPACE-R1",
+      "title": "컨테이너/행 패딩 역할 분산 — 동일 역할에 2축 변종 8종+",
+      "severity": "major",
+      "status": "verify-candidate",
+      "method": "static",
+      "dimension": "spacing",
+      "type": "role-dispersion",
+      "detail": "같은 '컨테이너/행 패딩' 역할이 세로축 5/6/8/10, 가로축 8/10/12로 교차하며 최소 8개 변종으로 갈림: 10px 12px(12) · 8px 10px(11) · 5px 8px(10) · 6px 8px(7) · 5px 10px(7) · 8px 12px(4) · 6px 12px(3) · 6px 10px(3). 단순 그리드 비배수를 넘어 '같은 컴포넌트류인데 패딩 리듬이 제각각'인 구조적 비일관 — 인접 패널/행 간 수직 정렬·높이 어긋남 유발 가능.",
+      "evidence_variants": [
+        { "padding": "10px 12px", "count": 12 },
+        { "padding": "8px 10px", "count": 11 },
+        { "padding": "5px 8px", "count": 10 },
+        { "padding": "6px 8px", "count": 7 },
+        { "padding": "5px 10px", "count": 7 },
+        { "padding": "8px 12px", "count": 4 },
+        { "padding": "6px 12px", "count": 3 },
+        { "padding": "6px 10px", "count": 3 }
+      ],
+      "hotspot_files": [
+        "css/editor-panels.css",
+        "css/editor-props.css",
+        "css/editor-extra.css"
+      ],
+      "recommendation": "패널/행 패딩을 2~3개 토큰 조합으로 수렴(예: 행=8px 12px, 조밀행=4px 8px). 렌더 실측(CDP 9334)으로 인접 패널 높이·정렬 어긋남 confirmed 시 severity 유지, 무해 시 minor 강등.",
+      "verify": {
+        "needed": true,
+        "how": "CDP 9334에서 사이드/레이어/prop 패널 행 높이·baseline 비교, 동일 역할 행 간 패딩 차이 시각 확인",
+        "by": "rendered measurement (D-spacing 미니 하네스 Measure 단계)"
+      },
+      "action": "verify-then-decide"
+    }
+  ],
+  "grouped_overflow": {
+    "applied": true,
+    "rationale": "px 리터럴 3078개 알려진 부채. per-instance 나열 폭주 방지 위해 비배수 값 군집(SPACE-G1/G2)으로 묶고 차원당 개별 나열 대신 value_cluster+hotspot_file 요약. 진짜 비일관(SPACE-R1)만 단독 finding."
+  }
+}

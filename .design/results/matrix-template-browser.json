@@ -1,0 +1,169 @@
+{
+  "area": "template-browser",
+  "version": "3.1",
+  "method": "static",
+  "scope": {
+    "selectors": [".comp-shelf-*", ".tpl-*", ".tb-* (tree/card/tag 보조)"],
+    "files": ["css/editor-panels.css (.tpl-* 패널·카드·미리보기모달·편집폼·필터 257~578)", "css/editor-extra.css (.tpl-browser-* 688~967, .comp-shelf-* 975~1190 + 중복블록 1369~1599, .tb-tree/.tb-tag-chip 769~1337)"],
+    "note": "두 카드 패밀리 공존: ① 좌측패널 인라인 .tpl-card(editor-panels) ② 떠있는 컴포넌트 선반 .comp-shelf-card(editor-extra) ③ 브라우저 모달 .tb-card/.tpl-browser-card(editor-extra). comp-shelf 블록 전체가 editor-extra.css에서 verbatim 2회 정의(975·1369)됨 — 알려진 중복정의 이력 확인."
+  },
+  "signature": {
+    "component": {
+      "card": {
+        "tplCard": "radius 5px / border 1px solid var(--ui-bg-hover) / bg var(--ui-bg-elevated) / hover bg --ui-bg-input + border --ui-border-mid / shadow 없음 (좌측패널 인라인)",
+        "compShelfCard": "radius 6px / border 1px solid var(--ui-border) / bg var(--ui-bg-card) / hover border --ui-border-strong만(bg 불변) / shadow 없음",
+        "tbCard": "radius 5px (브라우저 트리 카드)",
+        "modal": "tpl-preview-modal radius 8px / border 1px solid --ui-accent-primary / shadow 0 8px 40px rgba(0,0,0,0.7)",
+        "divergence": "카드 radius 5px(tpl/tb) vs 6px(comp-shelf) / 카드 hover 거동 불일치: tpl은 bg+border 둘 다 변경, comp-shelf는 border만"
+      },
+      "actionBtn": {
+        "tplInsert": "tpl-preview-insert-btn h30/radius5 fill --ui-accent-primary #fff, hover raw #3a7ff5 / tpl-browser-insert-btn radius4 fill --ui-accent-primary, hover raw #3d7ff8",
+        "compShelfInsert": "comp-shelf-insert-btn outline형 (bg --ui-bg-input + 1px --ui-border-mid + text --ui-text-sub) → hover 시 --ui-accent-primary fill+#fff. tpl insert(상시 fill)와 스타일 철학 다름",
+        "compShelfSave": "fill --ui-accent-primary #fff, hover opacity 0.85 (색전환 아닌 투명도)",
+        "tplEdit": "tpl-edit-save fill --ui-accent-primary; tpl-edit-cancel bg --ui-bg-input/text #888; tpl-edit-overwrite bg raw #2a2a1e/text raw #c8a840"
+      },
+      "deleteBtn": {
+        "compShelf": "comp-shelf-delete-btn: 토큰 정석 — hover bg rgba(224,108,108,0.12) + border/text var(--ui-danger). (danger 토큰 올바르게 사용하는 유일 패밀리)",
+        "tpl": "tpl-delete-btn / tpl-preview-close: hover bg raw #3a2020 + color var(--ui-danger). danger bg가 토큰 아닌 raw hex — comp-shelf와 표현 불일치",
+        "size": "tpl-edit/delete-btn 16x16 radius3 / comp-shelf-delete-btn padding3 radius4 / tpl-preview-close 20x20 radius4"
+      },
+      "searchInput": {
+        "tplBrowserSearch": "borderless inline (bg none/border none/outline none) text #ddd, placeholder --ui-text-dim. 검색모드 select 52x22 radius3 bg --ui-bg-base",
+        "compShelfNameInput": "bg --ui-bg-input + 1px --ui-border radius5, focus border --ui-accent-primary, placeholder --ui-text-dim",
+        "tplNameInput": "h24 bg --ui-bg-app + 1px --ui-border radius4, focus border --ui-accent-primary, placeholder --ui-border-strong",
+        "tplFolderSelect": "h24 bg --ui-bg-base + 1px raw #2d2d2d radius4 text raw #bbb",
+        "divergence": "input radius 3/4/5px 분산, border 토큰(--ui-border) vs raw(#2d2d2d) 혼용, text 토큰 vs raw(#bbb/#ddd) 혼용"
+      }
+    },
+    "color": {
+      "tokenSystem": "--ui-* (editor-base.css). comp-shelf 패밀리는 토큰 거의 완전 적용 / tpl 패밀리는 raw hex 다발",
+      "bg": ["--ui-bg-base #1e1e1e", "--ui-bg-elevated #242424", "--ui-bg-card #252525", "--ui-bg-input #2a2a2a", "--ui-bg-hover #2e2e2e", "--ui-bg-app #1a1a1a", "raw 리터럴 #161616(preview-area)·#f0f0f0/#f5f5f5(preview canvas)·#1e2533(preview header/footer)·#1e2030/#1e2030(editing)·#141414(edit input)·#2a2a1e(overwrite)·#222(filter border)·#2d2d2d(folder-select border)"],
+      "text": ["--ui-text #e0e0e0", "--ui-text-sub", "--ui-text-muted", "--ui-text-dim", "tpl 패밀리 raw #ccc/#ddd/#bbb/#888/#aaa/#c8a840 다발 혼용"],
+      "accent": ["--ui-accent-primary #2d6fe8 (정석 다수)", "--ui-accent #7cb8ff (browser-trigger/tree active)", "active bg는 rgba(45,111,232,*) raw 리터럴로 우회 (tree/tag-chip/card-cat)"],
+      "danger": ["--ui-danger #e06c6c (comp-shelf-delete 정석: bg rgba(224,108,108,0.12)+border+text)", "tpl-delete/preview-close는 danger bg를 raw #3a2020로 직접 — 토큰화 안 됨"],
+      "rawHex": ["#3a7ff5 / #3d7ff8 / #3a7ff8 (insert hover 파랑 3종 — --ui-accent-primary-hover #3a7df0 미사용·서로 다름)", "rgba(45,111,232,0.06/0.1/0.12/0.15/0.18/0.25) 다발 (--p-blue-alpha-* / --ui-accent-primary 우회)", "#3a2020 (tpl danger hover bg)", "#1e2533·#2a3550 (preview 모달 남색 크롬)", "#2d6fe8 raw (drag-ghost 중복블록)", "#f5a623 + rgba(245,166,35,*) (starred 노랑 — 의미색 일부 의도)", "#2a2a1e/#c8a840 (overwrite 버튼)", "#bbb/#2d2d2d (folder-select)", "#555/#333/#444/#222/#161616 (preview/handle 회색)"]
+    },
+    "spacing": {
+      "cardPadding": "tpl-card 7px 10px / comp-shelf-card 8px 10px / tb-card 7px 8px / tpl-folder-header 5px 10px — 카드 패딩 7/8px·8/10px 분산",
+      "listGap": "comp-shelf-list gap 6px / tpl-card는 margin 0 6px 3px(개별 마진, gap 아님) / comp-shelf-card-actions gap 4px / tpl-card-actions gap 2px",
+      "cardInnerGap": "tpl-card gap 2px(세로) + main gap 6px / comp-shelf-card gap 8px / search-wrap gap 6px",
+      "panelPadding": "comp-shelf-header 10px 12px / save-area 10px 12px / list 8px 10px / tpl-browser-header 6px 12px / search-wrap 6px 10px — 헤더 패딩 10·6px 불일치",
+      "gridNote": "패딩/gap에 3·5·7·9px 4px 비배수 군집 (tpl 패밀리 집중) — 점진이관 부채 범위"
+    },
+    "states": {
+      "hover": "카드: tpl은 bg+border 둘 다 전환 / comp-shelf는 border-color만 전환(bg 불변) — 거동 불일치. 액션버튼은 bg fill 또는 opacity",
+      "focus": "focus-visible 0건. input류만 :focus 시 border-color → --ui-accent-primary. 카드(tpl-card/comp-shelf-card/tb-card)·insert·delete 버튼은 키보드 focus 표시 전무",
+      "danger": "comp-shelf-delete만 토큰 기반 danger(bg+border+text 3중) / tpl-delete·preview-close는 raw #3a2020 bg+토큰 text — danger 시각언어 분열",
+      "opacity": "comp-shelf-save-btn hover는 opacity 0.85 (타 버튼은 색전환) — hover 표현 방식 불일치"
+    }
+  },
+  "violations": [
+    {
+      "id": "TB-CSS-01",
+      "dimension": "component",
+      "severity": "major",
+      "where": "editor-extra.css: .comp-shelf-* 블록 전체가 975~1190과 1369~1599에 2회 정의. 둘째 블록 내부에서도 panel.open(1386·1390)/name-input:focus(1452·1459)/::placeholder(1455·1463)/save-btn:hover(1480·1482)/list scrollbar(1495·1499)/card:hover(1530·1533)/card-info(1531·1537)가 추가 중복",
+      "what": "컴포넌트 선반 CSS 통째 중복정의(verbatim) + 블록 내 셀렉터 3중 정의까지. 알려진 comp-shelf-card-info 중복정의 이력의 실체. 유지보수 시 한쪽만 고치면 불일치 발생 위험",
+      "actual": ".comp-shelf-panel / .comp-shelf-card / .comp-shelf-card-info 등 ~215줄 블록이 두 번. card-info는 사실상 3회 선언",
+      "baseline": "단일 정의. 중복 블록(1369~1599) 제거"
+    },
+    {
+      "id": "TB-CSS-02",
+      "dimension": "component",
+      "severity": "minor",
+      "where": "editor-panels.css:561 .tpl-edit-overwrite:hover",
+      "what": "구문 깨진 값 — var(--ui-border)322 (토큰 뒤 322가 붙어 선언 무효). overwrite 버튼 hover 배경 미적용. (좌측패널 감사 LP-CSS-04와 동일 라인 — tpl 영역 소속)",
+      "actual": "background: var(--ui-border)322;",
+      "baseline": "유효 토큰 (예: var(--ui-bg-hover))"
+    },
+    {
+      "id": "TB-COL-03",
+      "dimension": "color",
+      "severity": "major",
+      "where": "editor-panels.css: .tpl-delete-btn:hover #3a2020 / .tpl-preview-close:hover #3a2020 — vs editor-extra.css .comp-shelf-delete-btn:hover rgba(224,108,108,0.12)+var(--ui-danger)",
+      "what": "삭제 danger 표현이 두 패밀리에서 분열. comp-shelf는 --ui-danger 토큰(bg+border+text) 정석, tpl은 danger bg를 raw #3a2020(적갈색)로 직접 + text만 토큰. 같은 '삭제' 액션이 시각적으로 다름",
+      "actual": "tpl: background:#3a2020; color:var(--ui-danger) / comp-shelf: background:rgba(224,108,108,0.12); border+color:var(--ui-danger)",
+      "baseline": "danger hover bg를 --color-danger-badge-bg/--color-danger-alpha 류 토큰으로 통일"
+    },
+    {
+      "id": "TB-COL-04",
+      "dimension": "color",
+      "severity": "major",
+      "where": "editor-panels.css(.tpl-card-cat/.tpl-preview-cat 310·435)·editor-extra.css(.tb-tree-*.active 784·800, .tb-tag-chip.active 1334, .tpl-browser-trigger 237)",
+      "what": "선택/활성/배지 bg를 --ui-accent-primary 토큰 대신 rgba(45,111,232,0.06~0.25) raw 리터럴 다발로 우회. design-tokens.css에 --p-blue-alpha-* 프리미티브가 존재하나 미사용",
+      "actual": "background: rgba(45,111,232,0.12) / 0.18 / 0.25 등 6단계 raw",
+      "baseline": "--p-blue-alpha-* / --color-selection-fill 류 토큰"
+    },
+    {
+      "id": "TB-COL-05",
+      "dimension": "color",
+      "severity": "minor",
+      "where": "insert/save 버튼 hover: tpl-preview-insert #3a7ff5, tpl-browser-insert #3d7ff8, tpl-edit-save #3a7ff5",
+      "what": "primary 버튼 hover 파랑이 raw #3a7ff5/#3d7ff8 2종으로 분산. --ui-accent-primary-hover #3a7df0 토큰이 있는데도 미사용·값도 서로 다름",
+      "actual": "hover background: #3a7ff5 / #3d7ff8",
+      "baseline": "var(--ui-accent-primary-hover) #3a7df0 단일"
+    },
+    {
+      "id": "TB-COL-06",
+      "dimension": "color",
+      "severity": "minor",
+      "where": "editor-panels.css: tpl 패밀리 text·bg raw hex (#ccc/#ddd/#bbb/#888 텍스트, #1e2533/#141414/#2a2a1e/#2d2d2d/#161616 bg)",
+      "what": "tpl 패밀리가 텍스트·배경을 --ui-text*/--ui-bg* 토큰 대신 raw hex로 직접 지정 다발. comp-shelf 패밀리(토큰 적용)와 토큰화 수준 격차",
+      "actual": "color:#ccc/#ddd/#bbb/#888; background:#1e2533/#141414/#2d2d2d 등",
+      "baseline": "--ui-text/--ui-text-sub/--ui-bg-* 토큰"
+    },
+    {
+      "id": "TB-CMP-07",
+      "dimension": "component",
+      "severity": "minor",
+      "where": ".tpl-card(radius5) vs .comp-shelf-card(radius6) vs .tb-card(radius5); 카드 hover 거동",
+      "what": "카드 radius 5/6px 불일치 + hover 거동 불일치(tpl=bg+border 변경 / comp-shelf=border만). radius 스케일(4/6/10)과도 어긋남(5px)",
+      "actual": "border-radius: 5px(tpl/tb) / 6px(comp-shelf); hover: bg+border vs border-only",
+      "baseline": "--radius-md 6px 통일 + 카드 hover 거동 단일화"
+    },
+    {
+      "id": "TB-CMP-08",
+      "dimension": "component",
+      "severity": "minor",
+      "where": "insert 버튼: .comp-shelf-insert-btn(outline→fill) vs .tpl-preview/browser-insert-btn(상시 fill)",
+      "what": "동일 'insert(삽입)' 액션 버튼이 패밀리별로 스타일 철학 상반 — comp-shelf는 outline 기본+hover fill, tpl은 상시 solid fill. 사용자에게 같은 동작이 다른 위계로 보임",
+      "actual": "comp-shelf: bg --ui-bg-input/border/hover fill / tpl: bg --ui-accent-primary 상시",
+      "baseline": "insert 액션 버튼 위계 통일(주 CTA면 fill, 보조면 outline 일관)"
+    },
+    {
+      "id": "TB-STA-09",
+      "dimension": "states",
+      "severity": "minor",
+      "where": "editor-panels.css·editor-extra.css: 카드·insert·delete 버튼 전 영역",
+      "what": "focus-visible 0건. tpl-card/comp-shelf-card/tb-card 및 insert/delete 아이콘버튼이 키보드 focus 표시 전무 → 키보드 내비 불가시. input만 :focus border 변경",
+      "actual": "focus-visible: 0 / 카드·액션버튼 focus 스타일 없음",
+      "baseline": ":focus-visible 가시 링/표시"
+    },
+    {
+      "id": "TB-CSS-10",
+      "dimension": "component",
+      "severity": "nit",
+      "where": "editor-extra.css:941·957 .tpl-card-drag-ghost (연속 2회 정의)",
+      "what": "드래그 고스트 셀렉터 중복정의 — 첫 정의 bg var(--ui-accent-primary), 둘째(덮어쓰기) bg raw #2d6fe8. 토큰→raw로 후속 덮어써 토큰화 무효화",
+      "actual": ".tpl-card-drag-ghost { background:var(--ui-accent-primary) } 직후 { background:#2d6fe8 }",
+      "baseline": "단일 정의 + 토큰 유지"
+    },
+    {
+      "id": "TB-SPC-11",
+      "dimension": "spacing",
+      "severity": "nit",
+      "where": "카드 패딩 7px 10px(tpl)·8px 10px(comp-shelf)·7px 8px(tb); 헤더 패딩 10px 12px vs 6px 12px; actions gap 2/4px",
+      "what": "카드/헤더 패딩·gap 4px 비배수(7·9·5·3px) 군집 + 패밀리간 미세 불일치. 개별버그 아닌 군집 1건으로 보고",
+      "actual": "padding 7px 10px / 8px 10px / 6px 12px; gap 2/4/6px 혼재",
+      "baseline": "--space-* (4/8/12) 4px 그리드"
+    }
+  ],
+  "crossAreaFlags": [
+    "danger 표현이 영역간 분열: comp-shelf-delete는 --ui-danger 토큰 fill-alpha(정석), tpl-delete/preview-close는 raw #3a2020 — 좌측패널(LP-COL-01)은 또 outline #5a3a3a. 앱 전역 danger 스타일 3종 공존, 결산자 통일 필요",
+    "선택/활성 bg를 rgba(45,111,232,*) raw 리터럴로 우회하는 패턴이 좌측패널(LP-COL-02)·template-browser 공통 — --p-blue-alpha-* 토큰 미정착이 전역 부채",
+    "primary 버튼 hover 파랑 raw(#3a7ff5/#3d7ff8/#3a7ff8 등) 분산 — 타영역 토픽바/모달의 hover 파랑값과 대조해 --ui-accent-primary-hover 정착 여부 확인 권장",
+    "var(--ui-border)322 깨진 선언은 좌측패널 감사(LP-CSS-04)와 동일 라인(editor-panels.css:561) — 중복 카운트 방지, 단일 수정",
+    "focus-visible 0건은 좌측패널·prop-panel·template-browser 공통으로 관측 — 전역이면 a11y 차원으로 승격",
+    "comp-shelf 블록 통째 중복(975/1369)은 editor-extra.css 내 빌드/병합 사고 흔적일 수 있음 — 타 .comp-* / .tb-* 블록도 중복 스캔 권장"
+  ]
+}

@@ -886,7 +886,7 @@
   width:  calc(7px * var(--inv-zoom, 1));
   height: calc(7px * var(--inv-zoom, 1));
   background: #fff;
-  border: 1px solid var(--sel-color);
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
   border-radius: 1px;
   z-index: 10;
   display: none;

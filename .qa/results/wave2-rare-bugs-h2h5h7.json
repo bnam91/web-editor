@@ -1,0 +1,47 @@
+{
+  "run": "wave2-rare-bugs-H2-H5-H7",
+  "date": "2026-06-12",
+  "baseline_before": "cbaff0d",
+  "cdp_port": 9334,
+  "method": "두 테스트 프로젝트 간 재현 (실프로젝트 절대 미접촉). UI switchTab 미사용 — openTabs에 실프로젝트 6개 상주 확인되어, saveProjectToFile/saveProjectMeta를 명시적 테스트 projectId로 직접 호출. 디스크 proj.json/proj_meta.json 오라클.",
+  "safety": "openTabs에 실프로젝트(proj_1780630539284 끌리젠_카피 등 6개) 탭 상주 → UI 탭전환 금지. 모든 쓰기는 테스트 projectId(proj_1775644888754, proj_1781222998623) 명시. 실프로젝트 읽기/쓰기 0.",
+  "test_projects": ["proj_1775644888754(기존)", "proj_1781222998623(신규 생성, createNewProjectTab)"],
+  "findings": [
+    {
+      "id": "H5",
+      "title": "저장 대기 큐 단일슬롯 → 중간 프로젝트 저장 영구 드롭",
+      "severity": "blocker",
+      "status": "FIXED+VERIFIED",
+      "evidence_grade": "deterministic-reproduced (disk oracle)",
+      "root_cause": "_pendingSaveData 단일 슬롯. saveProjectToFile in-flight 중 2건+ 큐잉되면 마지막이 슬롯을 덮어 중간 저장 드롭(save-load.js). 빠른 연속 탭전환 시 중간 프로젝트 디스크 미반영.",
+      "repro": "saveProjectToFile 3연속 직접호출(t1 in-flight → t2 pending → t1 pending이 t2 덮음). 디스크: t2(...623) canvas 빈값/마커부재 = 드롭 확정. t1은 최신 반영.",
+      "fix": "_pendingSaveData → _pendingSaves Map<targetId,{snapshot,opts}>. 프로젝트별 coalesce + FIFO 드레인. 커밋 b5595ef.",
+      "fix_verification": "동일 3연속 재실행 → 디스크 t2 hasT2KEEP:true (드롭 해소), t1 최신. 통과."
+    },
+    {
+      "id": "H7",
+      "title": "AI 이미지 생성 중 프로젝트 전환 시 갤러리 엔트리 오염/유실 (STATE-02)",
+      "severity": "major",
+      "status": "FIXED",
+      "evidence_grade": "static-confirmed (frozen IPC라 라이브 모킹 불가, 무과금 정책상 실생성 미실행)",
+      "root_cause": "generateAIImage(ai-image-gen.js): blob은 캡처된 projectId로 저장(516)하나 갤러리 push는 라이브 window.state.imageGallery(542)에 직접 → 생성 await 동안 전환되면 전환된 B 갤러리 오염 + 캡처 A는 blob만 남고 갤러리 엔트리 유실 + triggerAutoSave가 B 저장.",
+      "repro_note": "electronAPI가 contextBridge frozen 객체라 IPC 메서드 모킹 불가. 실 generateAIImage 호출은 유료 Gemini/GPT-image API(₩54~56/장) 과금 위험으로 미실행. galleryLen 오라클로 우발 실호출이 ok:false(과금 0) 였음 확인. 코드상 mismatch는 명백.",
+      "fix": "await 후 switchedAway=_getProjectId()!==캡처 projectId 감지. 전환 시 라이브 state 미접촉, _appendGalleryToProject(캡처 pid, items)로 캡처 프로젝트 파일에 직접 병합. 무전환 경로 불변(회귀 0). 커밋 b6aa722. 앱 부팅 무에러 확인.",
+      "fix_verification": "정적 + 모듈 로드(generateAIImage 함수 존재, 부팅 콘솔 에러 0). switchedAway 브랜치 라이브 검증은 frozen IPC/무과금 제약으로 보류."
+    },
+    {
+      "id": "H2",
+      "title": "proj_meta.json 다중 writer lost update",
+      "severity": "major",
+      "status": "FIXED+VERIFIED(logic)",
+      "evidence_grade": "deterministic-reproduced (disk oracle) + fix logic node-verified",
+      "root_cause": "projects:save-meta 핸들러(main.js:950)가 verbatim 덮어쓰기. branch/commit/thumbnail/colorVars writer가 각자 stale base를 load-merge 후 저장 → 동시 실행 시 마지막 writer가 다른 writer 필드를 되돌려 유실.",
+      "repro": "test2(...623)에 같은 base 기반 thumbnail/colorVars 동시 saveProjectMeta → 디스크 meta에 colorVars만 남고 thumbnail 유실 확정.",
+      "fix": "핸들러를 동기 read-merge-write로 변경({...cur,...metaData}). Node 단일스레드라 핸들러 동기구간 비인터리브 → 서로 다른 top-level 필드 모두 보존. top-level 키 교체(branch삭제)는 정상. 커밋 132c2b7.",
+      "fix_verification": "main 프로세스라 렌더러 reload 미반영(라이브 재검증=앱 재시작 필요, 실행중 창 보호 위해 분리). 머지 로직 Node 재현: 두 writer 필드+branches 모두 보존 확인."
+    }
+  ],
+  "deferred_live_verification": "H2 라이브 CDP 재검증은 Electron main 프로세스 재시작 필요. 현재 실행 창에 실프로젝트 탭 6개 상주 → 임의 재시작은 보류(다음 세션 앱 재기동 후 재현 1회 권장).",
+  "cleanup": "test1(...754) proj.json을 proj_history 슬롯(1781221342315, 원본 4섹션 556395)에서 복원. test2(...623) canvas 빈값 + meta junk(colorVars 테스트값) 제거. 실프로젝트 무수정.",
+  "commits": ["cbaff0d deletePage", "b5595ef H5", "b6aa722 H7", "132c2b7 H2"]
+}

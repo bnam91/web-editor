@@ -1,0 +1,199 @@
+{
+  "dimension": "doc",
+  "engine": "debug-squad v4.0",
+  "agent": "D-doc",
+  "generated_at": "2026-06-11",
+  "scope": [
+    "CLAUDE.md", "AGENTS.md", "README.md", "docs/**", "SECTION_BACKLOG.md",
+    "SECTION_ISSUE_LOG.md", ".qa/profile.md", ".claude/rules/**",
+    "js/CLAUDE.md", "debug/CLAUDE.md (참조 문서로 포함)"
+  ],
+  "method": "Scan(문서 주장 수집) → Trace(코드 grep 대조) → Grade",
+  "known_issues_referenced_not_rereported": [
+    "AGENTS.md .Codex/rules/ 경로 오류",
+    "CLAUDE.md ↔ AGENTS.md 100% 중복",
+    "docs/goditor-spec-v2.md 미갱신",
+    "orchestrator 스킬 포트 모순",
+    "가드문서 S-06 LS prefix 구버전",
+    "h3 지원 관련 .qa/profile.md 전제 오류"
+  ],
+  "summary": {
+    "total": 13,
+    "major_verify_candidate": 2,
+    "minor": 11,
+    "headline": "docs/goditor-api-reference.md가 봉인(sealed)된 addNewGridBlock을 표준 다열 API로 안내(major), 같은 문서의 addAssetBlock sectionId 본문이 자체 changelog와 모순되어 잘못된 섹션에 삽입 유도(major). README 블록 표는 ID prefix 4종 오기 + 존재하지 않는 블록 2종 + 신규 블록 12종 누락. DOM 계층 문서(.row 누락), 프로젝트 저장 경로, editTextBlock 반환 명세 등 minor 11건."
+  },
+  "findings": [
+    {
+      "id": "DOC-01",
+      "severity": "major",
+      "grade": "confirmed (verify-candidate)",
+      "title": "api-reference가 봉인된 addNewGridBlock을 다열 레이아웃 표준 API로 안내",
+      "doc_claim": "docs/goditor-api-reference.md L18(세션 초기화 step 2), L103-121(NewGrid 제어 섹션), L480-505(2열 NewGrid 조립 패턴), L859(주의사항 2) — addNewGridBlock(cols,rows) 호출 시 그리드 생성 + window._activeFrame 자동 설정",
+      "code_reality": "js/block-factory.js:2003-2012 — `function addNewGridBlock(/* cols, rows, opts */) { // [SEALED 2026-06-08] 호출 차단 — multi-col 이미지 비교는 canvas-block(addCanvasBlock)으로 대체` → console.warn + toast 후 `return null`. 대체 함수 addCanvasBlock(js/blocks/canvas-block.js:1042)은 api-reference에 미문서화",
+      "evidence": "grep 'function addNewGridBlock' js/block-factory.js → SEALED 주석/return null 확인. grep 'window.addCanvasBlock' → js/blocks/canvas-block.js:1042. grep 'addNewGridBlock' docs/ → goditor-api-reference.md 7곳 + goditor-test-session-prompt.md:123 + FLOATING_PANEL.md:227에서 여전히 사용 지시",
+      "impact": "문서를 따르는 CDP 에이전트가 다열 섹션 조립 시 no-op → _activeFrame이 이전 값/null인 채로 후속 activateFrame/querySelector 진행 → 엉뚱한 프레임에 블록 삽입 또는 TypeError. 자동 조립 데이터가 잘못된 위치에 저장될 수 있어 verify-candidate",
+      "files": ["/Users/a1/web-editor/docs/goditor-api-reference.md", "/Users/a1/web-editor/docs/goditor-test-session-prompt.md", "/Users/a1/web-editor/docs/FLOATING_PANEL.md", "/Users/a1/web-editor/js/block-factory.js"],
+      "recommendation": "api-reference의 NewGrid 섹션을 deprecated 표기 + addCanvasBlock 문서로 교체. test-session-prompt.md L123, FLOATING_PANEL.md L227 동시 수정"
+    },
+    {
+      "id": "DOC-02",
+      "severity": "major",
+      "grade": "confirmed (verify-candidate)",
+      "title": "api-reference 본문 'addAssetBlock — sectionId 추가' 섹션이 자체 v2.2 changelog와 모순 (코드에 sectionId 없음)",
+      "doc_claim": "docs/goditor-api-reference.md L964-974 — `window.addAssetBlock('standard', { sectionId: 'sec_wd3nixu' })` 지정 시 해당 섹션에 추가된다고 본문에 명시",
+      "code_reality": "js/block-factory.js:604 `function addAssetBlock(preset, opts = {})` 본문 전체에 sectionId 처리 없음 (grep 'sectionId' js/block-factory.js → 0건). 같은 문서 L994 v2.2 changelog가 이미 '정정: v2.1의 sectionId 추가는 부정확 — MCP 도구 레이어에 추가된 것, window.addAssetBlock 시그니처 불변'이라 인정했으나 본문 섹션은 삭제하지 않음",
+      "evidence": "grep -n 'sectionId' js/block-factory.js → no match. addAssetBlock 폴백 = window.getSelectedSection() 현재 선택 섹션",
+      "impact": "에이전트가 sectionId를 믿고 호출하면 옵션이 조용히 무시되고 '현재 선택된 섹션'에 에셋이 삽입됨 → 잘못된 섹션 데이터 오염 + triggerAutoSave로 영속화. 문서 내부 모순이라 발견도 어려움",
+      "files": ["/Users/a1/web-editor/docs/goditor-api-reference.md", "/Users/a1/web-editor/js/block-factory.js"],
+      "recommendation": "L964-974 본문 섹션 삭제 또는 'MCP add_asset_block 도구 전용(window API 아님)'으로 재작성"
+    },
+    {
+      "id": "DOC-03",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "README 블록 표 ID prefix 4종 오기 — fb_/cb_/div_/spb_는 코드에 존재하지 않는 prefix",
+      "doc_claim": "README.md L46-62 블록 표 + L175-190 블록 ID 체계: Frame=fb_, Card=cb_, Divider=div_, Speech Bubble=spb_",
+      "code_reality": "실제 genId 호출 — Frame: genId('ss') (block-factory.js:87, 1296, className='frame-block'), Card: genId('cdb') (L836), Divider: genId('dvd') (L1036), Speech Bubble: genId('sb') (L2053). joker-block도 sb_ 사용(L1239). grep \"'fb_\" js/ → 0건",
+      "evidence": "grep \"genId('\" js/ 전수 집계: ab/ant/cdb/chb/cmp/col/cvb/dvd/gb/grb/icb/icn/itb/lg/mkp/row/sb/sec/shp/ss/tb/tbl/vb — fb/cb/div/spb/cl 없음",
+      "impact": "prefix 기반으로 블록을 탐색하는 자동화/디버깅이 영구 miss (예: document.querySelector('[id^=fb_]') 항상 0건)",
+      "files": ["/Users/a1/web-editor/README.md", "/Users/a1/web-editor/js/block-factory.js", "/Users/a1/web-editor/js/drag-utils.js"],
+      "recommendation": "README 표를 실측 prefix(ss_/cdb_/dvd_/sb_)로 갱신, speech-bubble과 joker의 sb_ 공유 명기"
+    },
+    {
+      "id": "DOC-04",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "README 블록 표에 존재하지 않는 블록 2종(strip-banner, checklist) 기재 + 실존 신규 블록 12종 누락",
+      "doc_claim": "README.md L57 'Strip Banner .strip-banner-block sb_', L61 'Checklist .checklist-block cl_'",
+      "code_reality": "grep -rln 'strip-banner' js/ css/ index.html → 0건 (.qa/profile.md R-01/R-07도 'strip-banner/배너 블록 삭제됨' 명기). grep 'checklist-block' js/ css/ → 0건. 반면 js/blocks/ 실존 12종(banner-block, banner02-block bn2_, canvas-block cvb_, chat-block chb_, comparison-block, gradient-block, iconify-block, laurel-block, mockup-block mkp_, step-block, sticker-block, vector-block vb_)은 전부 미기재",
+      "evidence": "ls js/blocks/ → 12개 모듈. README 블록 종류 표는 14행 중 2행이 phantom",
+      "impact": "신규 합류 에이전트가 삭제된 블록을 찾거나, 실존 블록(canvas/chat/banner02 등)을 모른 채 작업",
+      "files": ["/Users/a1/web-editor/README.md", "/Users/a1/web-editor/js/blocks/"],
+      "recommendation": "phantom 2행 삭제 + js/blocks/ 12종 추가"
+    },
+    {
+      "id": "DOC-05",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "DOM 계층 문서(.row 레이어 누락) — README·js-structure.md('변경 금지' 규칙)·AGENTS.md 모두 실제 구조와 다름",
+      "doc_claim": "README.md L25-36, .claude/rules/js-structure.md L64-77 'DOM 계층 구조 (현재)': section-inner 직속으로 frame-block/asset-block 나열 — .row 없음",
+      "code_reality": "블록 factory가 거의 모든 블록을 .row[data-layout] 래퍼에 담아 삽입 (js/block-factory.js genId('row') 18곳, 예: L96/119/1032/1235). genId('col')도 2곳. templates/canvas/*.html 19개 중 16개에 class=\"row\" 실재. .review/profile.md도 layer-panel '.col 하강' 언급",
+      "evidence": "grep -c 'class=\"row' templates/canvas/*.html → 16/19 파일. js-structure.md는 paths: js/** 자동 로드 규칙이라 모든 js 편집 세션에 잘못된 구조가 주입됨",
+      "impact": "에이전트가 section-inner에 블록을 직속 삽입하는 코드를 작성하면 기존 .row 기반 직렬화/드래그 로직과 구조 불일치 발생 가능",
+      "files": ["/Users/a1/web-editor/README.md", "/Users/a1/web-editor/.claude/rules/js-structure.md", "/Users/a1/web-editor/js/block-factory.js"],
+      "recommendation": "DOM 다이어그램에 .row(및 .col) 레이어 추가. js-structure.md text-block 구조의 tb-h3/tb-bullet 누락도 함께 갱신(코드: editor.js:1189-1192)"
+    },
+    {
+      "id": "DOC-06",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "README '프로젝트 파일은 projects/ 폴더에 저장' — 실제 저장소는 userData/projects, 레포 projects/는 구경로",
+      "doc_claim": "README.md L129 'projects/ ← 프로젝트 JSON 저장소', L155 '프로젝트 파일은 projects/ 폴더에 JSON으로 저장됨'",
+      "code_reality": "main.js:363 `const PROJECTS_DIR = path.join(USER_DATA_DIR, 'projects')`, L364 `migrateFiles(path.join(__dirname, 'projects'), PROJECTS_DIR); // 구 경로 마이그레이션` — 레포 내 projects/는 읽기 마이그레이션 소스일 뿐",
+      "evidence": "grep -n 'projects' main.js (L363-364, projects:save 핸들러 모두 PROJECTS_DIR 사용)",
+      "impact": "레포 projects/ 안 JSON을 직접 수정/검사하는 작업은 무효 — 실데이터는 ~/Library/Application Support 쪽. 디버깅 방향 오도",
+      "files": ["/Users/a1/web-editor/README.md", "/Users/a1/web-editor/main.js"],
+      "recommendation": "README에 실제 경로(userData/projects)와 마이그레이션 관계 명기 (docs/project-storage.md 기준으로 통일)"
+    },
+    {
+      "id": "DOC-07",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "api-reference editTextBlock 반환/검증 명세 과대 — USER_BUSY 코드와 fontSize 8–400 범위가 코드에 없음",
+      "doc_claim": "docs/goditor-api-reference.md L889 'fontSize 8–400 (정수)', L893 '사용자가 편집 중이면 { ok: false, code: USER_BUSY }'",
+      "code_reality": "js/block-edit.js (100줄 전체) — USER_BUSY 분기 없음(NOT_FOUND만, L31/L35), fontSize는 L73-76에서 범위 검증 없이 그대로 적용. USER_BUSY 가드는 gradient-block.js:161, chat-block.js:200 등 다른 update 함수에만 존재",
+      "evidence": "grep -rn 'USER_BUSY' js/ → gradient-block.js, chat-block.js만. block-edit.js 0건",
+      "impact": "에이전트가 존재하지 않는 USER_BUSY 재시도 로직을 구현하거나, 사용자 편집 중 가드가 있다고 믿고 무신경하게 호출(실제로는 사용자의 진행 중 편집을 덮어씀)",
+      "files": ["/Users/a1/web-editor/docs/goditor-api-reference.md", "/Users/a1/web-editor/js/block-edit.js"],
+      "recommendation": "문서에서 USER_BUSY·범위 명세 삭제, 또는 block-edit.js에 가드 구현(다른 블록들과 패턴 통일)"
+    },
+    {
+      "id": "DOC-08",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "api-reference getBlockById — '블록 id (tb_xxx 등)' 범용 조회처럼 기술됐으나 실제는 text-block 전용",
+      "doc_claim": "docs/goditor-api-reference.md L899-912 'id로 블록 요소를 찾아 반환한다. 없으면 null' (블록 일반)",
+      "code_reality": "js/block-edit.js:7-12 — `if (!el || !el.classList.contains('text-block')) return null` → asset/frame/card 등 비텍스트 블록은 존재해도 null 반환",
+      "evidence": "block-edit.js getBlockById 본문 직접 확인",
+      "impact": "에이전트가 ab_/ss_ id로 호출 후 null을 '블록 없음'으로 오판 → 불필요한 재생성/중복 삽입 가능",
+      "files": ["/Users/a1/web-editor/docs/goditor-api-reference.md", "/Users/a1/web-editor/js/block-edit.js"],
+      "recommendation": "문서에 'text-block 전용' 명기 (selectBlock도 동일 제약)"
+    },
+    {
+      "id": "DOC-09",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "README Figma 연동 다이어그램의 'figma-publisher.js' — 실제 파일명은 js/io/figma-publish.js",
+      "doc_claim": "README.md L165 '→ figma-publisher.js (JSON → Figma 커맨드 순차 실행)'",
+      "code_reality": "ls js/io/ → figma-publish.js 실재, figma-publisher.js는 레포 어디에도 없음 (grep -rl 'figma-publisher' → README와 worktree 사본만)",
+      "evidence": "grep -rln 'figma-publisher' (node_modules 제외) → README.md, .claude/worktrees/feat-section-memo/README.md, (참조 비교용) js/io/figma-publish.js",
+      "impact": "파일 탐색 혼선 (낮음)",
+      "files": ["/Users/a1/web-editor/README.md", "/Users/a1/web-editor/js/io/figma-publish.js"],
+      "recommendation": "파일명 정정"
+    },
+    {
+      "id": "DOC-10",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "README 'css/editor.css ← 전체 스타일' — CSS는 17개 파일로 분할된 지 오래",
+      "doc_claim": "README.md L126 'css/editor.css ← 전체 스타일'",
+      "code_reality": "ls css/ → editor-base/blocks/canvas/extra/graph/layout/panels/props/toast/banner + ai-image/assets-panel/claude-pm/color-picker/design-tokens/settings-modal 등 17개. CLAUDE.md 체크리스트도 css/editor-blocks.css를 별도 지목",
+      "evidence": "ls css/ 실측 17파일",
+      "impact": "스타일 수정 위치 오도 (낮음)",
+      "files": ["/Users/a1/web-editor/README.md", "/Users/a1/web-editor/css/"],
+      "recommendation": "분할 구조 반영"
+    },
+    {
+      "id": "DOC-11",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "CLAUDE.md·AGENTS.md 신규 블록 체크리스트 내부 모순 — '아래 4곳' 선언 후 표 5행 + '위 5곳' 푸터",
+      "doc_claim": "CLAUDE.md L125 '아래 4곳을 반드시 동시에 수정' vs L127-133 표 5행 vs L135 '위 5곳을 grep으로 교차 확인' (AGENTS.md L125/L135 동일)",
+      "code_reality": "표 자체는 5행(editor.js, layer-panel-items.js, prop-xxx.js, block-drag.js, css) — 숫자 '4'만 stale",
+      "evidence": "두 파일 본문 직접 확인",
+      "impact": "체크리스트 1곳 누락 유도 가능 (특히 CSS outline override 행)",
+      "files": ["/Users/a1/web-editor/CLAUDE.md", "/Users/a1/web-editor/AGENTS.md"],
+      "recommendation": "'아래 5곳'으로 정정"
+    },
+    {
+      "id": "DOC-12",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "포트 문서 불일치 — .qa/profile.md '9335 기본/9334 구버전' vs CLAUDE.md '9334 메인·고정', 그리고 dev:admin 9339 중복 미기재",
+      "doc_claim": "(a) .qa/profile.md L26 '9335 (기본) / 9334 (구버전)' ↔ CLAUDE.md L100 '9334 (메인)' + L108 'chrome-devtools MCP는 9334 고정' ↔ .review/profile.md cdp_port: 9334. (b) CLAUDE.md 포트맵에 dev:template-tag=9339만 기재",
+      "code_reality": "package.json: dev(메인 스크립트)=9334, dev:step2=9335 — 9334가 메인이 맞음. 또한 dev:admin도 9339로 dev:template-tag와 포트 충돌하는데 어느 문서에도 없음",
+      "evidence": "package.json scripts 직접 확인 (dev:template-tag·dev:admin 둘 다 --remote-debugging-port=9339)",
+      "impact": "QA 에이전트가 9335를 기본으로 잡고 메인 인스턴스(9334)를 '구버전'으로 오인. 9339는 어떤 인스턴스인지 판별 불가. known '오케스트레이터 스킬 포트 모순'과 별개의 레포 내 문서 간 모순",
+      "files": ["/Users/a1/web-editor/.qa/profile.md", "/Users/a1/web-editor/CLAUDE.md", "/Users/a1/web-editor/package.json"],
+      "recommendation": ".qa/profile.md 포트 서술을 CLAUDE.md 기준(9334 메인)으로 통일 + 포트맵에 dev:admin 추가(또는 포트 분리)"
+    },
+    {
+      "id": "DOC-13",
+      "severity": "minor",
+      "grade": "confirmed",
+      "title": "AGENTS.md가 참조하는 js/AGENTS.md·debug/AGENTS.md 파일 부재 (known .Codex 경로 오류와 동일 원인의 추가 사례)",
+      "doc_claim": "AGENTS.md L61 '세부 JS 규칙: js/AGENTS.md 참조', L119 'debug/AGENTS.md 참조'",
+      "code_reality": "ls js/AGENTS.md debug/AGENTS.md → No such file. 실제 파일은 js/CLAUDE.md, debug/CLAUDE.md (CLAUDE→AGENTS 일괄 치환 시 링크만 깨짐)",
+      "evidence": "ls 실측. known 이슈(.Codex/rules/ 경로)와 같은 sed 치환 산물 — 중복 보고 아님, 미기록 추가 위치 2곳",
+      "impact": "Codex 에이전트가 세부 규칙 문서를 못 찾음",
+      "files": ["/Users/a1/web-editor/AGENTS.md"],
+      "recommendation": "js/CLAUDE.md·debug/CLAUDE.md로 경로 정정 (또는 symlink)"
+    }
+  ],
+  "verified_ok": [
+    "api-reference의 window.* 34개 함수 전부 실재 확인 (addSection~getCanvasState, grep window.<fn> = 전수 매칭) — 단 DOC-01/02/07/08 시그니처 이슈 제외",
+    "ASSET_PRESETS 값 문서와 일치 (drag-utils.js:353 standard 780/square 860/tall 1032/wide 575/logo 200×64) — 'small' 300×300 preset만 문서 누락(경미)",
+    "CLAUDE.md 'node --check 훅' 실재 (~/.claude/settings.json PreToolUse Edit|Write)",
+    "CLAUDE.md 'npm run dev 핫리로드' 실재 (main.js:137 watchFiles, '[hot-reload]')",
+    "autoSave debounce 1.5s 일치 (save-load.js:1082-1099), triggerAutoSave=scheduleAutoSave alias (save-load.js:1521)",
+    "저장 포맷 v2 필드 일치 (save-load.js:333-363 version/currentPageId/pages/pageSettings)",
+    "js/CLAUDE.md 세부 규칙 일치 (smart-guides SNAP 10/GUIDE 12, txt-pv-slider=prop-text-wireup-padding.js:9, reference-modal.js 실재)",
+    ".qa/profile.md 참조 함수 실재 (resolveVariation, buildFilePageSection, groupSelectedBlocks)",
+    "css-blocks.md 셀렉터 패턴 실재 (data-banner-preset 4파일, #ss-handles-overlay)",
+    "CLAUDE.md 핵심 파일 책임표·참고 문서 경로 전부 실재 (_context/DESIGN_SYSTEM.md, SKILLS_GUIDE.md, docs/* 7종, js/drag-drop.js 등)",
+    "api-reference 참조 경로 실재 (main/claude-pm/design-knowledge/EDITING.md, docs/SCRATCH_PAD.md)",
+    "SECTION_BACKLOG.md·SECTION_ISSUE_LOG.md — 운영 로그 성격, 기재된 sec_/sp_/블록 API 명칭이 코드 어휘와 일치, 모순 없음"
+  ],
+  "coverage_notes": "goditor-spec-v2.md(미갱신)·orchestrator 포트·h3 qa 전제는 known으로 스킵. docs/goditor-api-planning.md, BUN_SETUP.md, migration-e2e-checklist.md 등 계획/체크리스트성 문서는 코드 대조 가치 낮아 표면 스캔만."
+}

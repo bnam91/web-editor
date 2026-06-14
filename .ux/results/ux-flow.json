@@ -1,0 +1,266 @@
+{
+ "agent": "UXS-flow",
+ "version": "3.0",
+ "dimension": "flow",
+ "scope": "flows/4",
+ "method": "cdp",
+ "run_date": "2026-06-11",
+ "measurement_method": "CDP 9334 Runtime.evaluate 실주행 — 사용자 액션 1회(클릭/드래그/키입력/다이얼로그 확인)=1뎁스. 셀렉터 기반 el.click() + DragEvent/KeyboardEvent 디스패치 + Page.handleJavaScriptDialog(confirm 자동수락). 각 단계 Page.captureScreenshot. 타이핑(텍스트 필드 입력)은 뎁스 외 별도 기록.",
+ "environment_caveats": [
+  "측정 중 앱 1회 재시작 + 페이지가 타 프로젝트(proj_1781188552759)로 수 차례 자동 전환됨(타 에이전트/탭 복원 추정). 모든 측정 배치에 URL 가드를 넣어 테스트 프로젝트(proj_1775644888754)에서만 실측 — 오염 배치는 폐기 후 재실행.",
+  "부산물: ~/Downloads에 JSON 3개 + Section-0N.png 4개(앱 다운로드 산출물), 테스트 프로젝트에 텍스트 블록 2(tb_eo2bi2f, tb_mtcaen5)·이미지 적용된 에셋 블록 1(ab_6xbgzab)·URL 자산 1(ast_1y2bw0) 잔존 — 편집 허용 프로젝트. 복제/이동은 원복 완료."
+ ],
+ "findings": [
+  {
+   "id": "UXS-flow-001",
+   "track": "judgment",
+   "title": "섹션 이동·복제·삭제의 가시적 진입로 전무 — 전부 은닉 경로(키보드/레이어 드래그)",
+   "where": "section-rearrange / 단계 2~4 (섹션 툴바·레이어 패널·컨텍스트 메뉴)",
+   "heuristic_basis": [
+    "ia-principles.md#progressive-disclosure",
+    "nielsen-10.md#3-control",
+    "profile.md#페르소나(일반 사용자·가시적 대체 경로 조건)"
+   ],
+   "adjudication": "central-confirmed",
+   "impact": "high",
+   "observation": "섹션 선택 시 .section-toolbar 노출(확인) — 버튼은 메모/보호/AB/branch/AI 5종뿐, 이동·복제·삭제 없음. 레이어 행 버튼은 눈(숨기기)뿐. 캔버스 섹션 우클릭 컨텍스트 메뉴 없음(블록용 _openBlockContextMenu만 존재). 실제 경로: 이동=레이어 패널 드래그만(캔버스 섹션 draggable=false), 복제=Cmd+D만, 삭제=Delete/Backspace만. js/editor.js:1737 주석 '삭제 버튼 제거됨 — 레이어 패널 또는 컨텍스트 메뉴에서 처리'가 약속한 대체 UI가 미구현 상태.",
+   "friction": "외부 일반 사용자가 '섹션 02를 위로 올리고 복제 후 옛 것을 지우는' 매 세션 다수 빈도 작업(핵심 작업 #3)을 화면 어디서도 발견할 수 없음. 섹션을 선택하고 툴바를 훑어도 해당 기능이 없어 막히며, 단축키는 어디에도 표기돼 있지 않음.",
+   "proposal": "섹션 툴바(.section-toolbar)에 복제·삭제 아이콘 추가 또는 섹션 우클릭 컨텍스트 메뉴(복제/삭제/위·아래 이동) 구현 — 코드 주석이 이미 컨텍스트 메뉴를 전제함.",
+   "tradeoffs": "툴바 버튼 추가는 Hick(현재 5종→7종, 동질 그룹 구획 필요)과 충돌 가능. 컨텍스트 메뉴 쪽이 클릭뎁스 +1이지만 가시성·관례(우클릭=객체 액션) 모두 충족. 파괴 액션(삭제)은 일부러 덜 눈에 띄게 두는 설계도 정당하나(fitts 가드) '덜 눈에 띔'과 '존재하지 않음'은 다름.",
+   "approval": "pending",
+   "evidence": ".ux/results/evidence/flow-rearrange-1-ctxmenu-attempt.png (우클릭 무반응), stBtns 실측값 5종, js/editor.js:1737-1744 (읽기 전용 확인)"
+  },
+  {
+   "id": "UXS-flow-002",
+   "track": "judgment",
+   "title": "섹션 삭제 즉시 실행 — 확인·토스트·Undo 힌트 전무 (보호 방식 = 무표시 Undo-only)",
+   "where": "section-rearrange / 단계 4-5 (삭제→복원)",
+   "heuristic_basis": [
+    "nielsen-10.md#3-control",
+    "profile.md#MATRIX(error-convention: 파괴 액션 보호 방식)"
+   ],
+   "adjudication": "central-confirmed",
+   "impact": "high",
+   "observation": "섹션 선택 후 Delete → 다이얼로그 0, 토스트 0, 어떤 피드백도 없이 즉시 소멸(실측: dialogs=[], toasts=[]). Cmd+Z로 복원은 정상 동작(실측 confirmed) — 그러나 Undo 가능하다는 사실이 화면 어디에도 지각되지 않음. 대조: 전체 섹션 내보내기는 confirm 다이얼로그 사용 — 파괴 강도가 더 낮은 작업이 더 강한 확인을 받는 역전.",
+   "friction": "Delete를 잘못 누른 사용자(텍스트 수정하려다 블록 포커스 상태에서 등)는 섹션이 사라진 것을 늦게 알아채거나, 알아채도 복구 수단(Cmd+Z)을 모름. 다중 선택 삭제도 같은 경로라 피해 규모가 커질 수 있음.",
+   "proposal": "삭제 직후 'N개 섹션 삭제됨 — 실행취소' 액션 토스트(Undo 버튼 포함) 표시. 확인 다이얼로그보다 흐름 차단이 없고 복구 경로를 지각시킴.",
+   "tradeoffs": "확인 다이얼로그 방식은 매 세션 다수 빈도 작업(핵심 작업 #3)에 마찰 추가 — Undo 토스트가 빈도/안전 균형점. 토스트 채널(editor-toast) 이미 존재해 구현 부담 낮음.",
+   "approval": "pending",
+   "evidence": ".ux/results/evidence/flow-rearrange-4-deleted.png, 삭제 실측 {n0:5,n1:4,dialogs:[],toasts:[]} + Undo 복원 {n0:4,n1:5,restored:true}"
+  },
+  {
+   "id": "UXS-flow-003",
+   "track": "judgment",
+   "title": "선택 없는 상태에서 블록 추가 = 완전한 silent no-op",
+   "where": "edit-block / 단계 2 (블록 추가 진입로 변형: 섹션 미선택)",
+   "heuristic_basis": [
+    "interaction-laws.md#tesler",
+    "nielsen-10.md#3-control"
+   ],
+   "adjudication": "central-refuted",
+   "impact": "high",
+   "observation": "Esc로 전체 선택 해제 후 플로팅 패널 '텍스트 블록 추가→Caption' 클릭 — 블록 수 8→8, 토스트 0, 에러 0, 아무 변화 없음(실측). 드롭다운은 닫혀 사용자 액션은 소비됨. 시스템은 '타겟 섹션 미선택'을 알고 있으나 흡수(마지막/유일 섹션에 추가)도, 고지(토스트)도 하지 않음.",
+   "friction": "신규 사용자가 첫 동작으로 하단 플로팅 패널의 블록 버튼부터 누르는 경우(섹션 선택 선행을 모름) 버튼이 '고장난 것처럼' 보임. 주 액션(핵심 작업 #1, 매 세션 수십 회)의 진입로가 보이지 않는 선행 조건에 묶여 있음.",
+   "proposal": "미선택 시 (a) 마지막 활성 섹션에 자동 추가(시스템이 확실히 아는 합리적 기본값) 또는 (b) '섹션을 먼저 선택하세요' 토스트 + 해당 섹션 하이라이트. (a) 우선 — tesler 흡수.",
+   "tradeoffs": "(a)는 잘못 추측 시 의도치 않은 위치에 블록 생성 — 단 추가 직후 스크롤+선택으로 보이게 하면 복구 1클릭(Delete)이라 비용 낮음. (b)는 안전하지만 사용자에게 복잡성을 떠넘김.",
+   "approval": "pending",
+   "evidence": "실측 {selAfterEsc:[], beforeCount:8, afterCount:8, toasts:[]} — 2026-06-11 재현 1회"
+  },
+  {
+   "id": "UXS-flow-004",
+   "track": "judgment",
+   "title": "블록 추가 직후 선택 상태 비일관 — 새 블록이 선택되지 않거나 선택이 이탈",
+   "where": "edit-block / 단계 2→3 전환",
+   "heuristic_basis": [
+    "ia-principles.md#wayfinding",
+    "nielsen-10.md#3-control"
+   ],
+   "adjudication": "self",
+   "impact": "medium",
+   "observation": "1차 추가(Heading): 직후 새 블록 tb_eo2bi2f가 .selected였으나 수 초 내 다른 블록(cvb_rvw92pq)으로 선택이 이동(사용자 입력 없음, prop 패널도 Card로 전환). 2차 추가(Body): 새 블록 tb_mtcaen5는 2.4초간 관찰 내내 미선택, 섹션만 선택 유지. 결과적으로 속성 변경 전 캔버스에서 블록을 다시 클릭해야 함(+1뎁스) — 이 때문에 실측 뎁스가 명세 기대(3)보다 1 큼.",
+   "friction": "추가한 블록이 '지금 편집 대상'이라는 신호가 없어, 사용자가 prop 패널을 보고 엉뚱한 객체(섹션/다른 블록)의 속성을 바꿀 수 있음. 1차 관찰의 선택 이탈은 재현 불확실(타 에이전트 간섭 가능성 배제 못함) — 미선택 패턴은 2차에서 명확 재현.",
+   "proposal": "블록 추가 직후 해당 블록을 항상 선택 + prop 패널 동기화 + scrollIntoView. 추가→속성변경이 연속 동작이 되어 뎁스 3 회복.",
+   "tradeoffs": "연속 다중 추가 워크플로(블록 여러 개 연달아 추가)에서는 매번 선택 전환이 거슬릴 수 있으나, 추가 직후 다시 추가하는 경로는 선택 상태와 무관하게 동작하므로 충돌 없음.",
+   "approval": "pending",
+   "evidence": ".ux/results/evidence/flow-editblock-4-body-added.png, 선택 타임라인 실측 ['sec_90fn0rg'×6 @0.4s 간격]",
+   "self_guard_note": "pending"
+  },
+  {
+   "id": "UXS-flow-005",
+   "track": "judgment",
+   "title": "URL 자산은 추가는 되지만 블록에 쓸 수 없는 막다른 길",
+   "where": "insert-asset / 단계 2→3 (에셋 패널 URL 경로)",
+   "heuristic_basis": [
+    "interaction-laws.md#tesler",
+    "ia-principles.md#wayfinding"
+   ],
+   "adjudication": "self",
+   "impact": "medium",
+   "observation": "에셋 패널 '+ URL'로 이미지 URL 자산 등록 성공(3클릭+2입력, ast_1y2bw0). 그러나 URL 자산 행은 draggable=false(파일/폴더 행은 true), 행 액션은 ✎이름변경/↗외부열기/🗑삭제뿐 — 에셋 블록에 적용할 경로가 없음. 에셋 블록의 이미지 채움은 더블클릭·'이미지 선택...'(파일 다이얼로그)·파일 드래그만 안내됨.",
+   "friction": "사용자가 '웹에서 찾은 이미지 URL을 에셋에 넣고 블록에 쓰겠다'는 자연스러운 기대로 5단계를 수행한 뒤 적용 방법을 찾지 못하고 막힘. 패널 이름(Assets)이 '캔버스에 쓸 재료'를 함의하므로 기대 불일치가 큼.",
+   "proposal": "URL 자산도 드래그 가능하게 하거나(드롭 시 다운로드→임베드), 적용 불가라면 추가 시점에 '링크 보관용 — 블록 적용은 파일 자산만'을 고지.",
+   "tradeoffs": "URL 핫링크 임베드는 오프라인/만료 리스크 — 추가 시점 다운로드 임베드가 안전하나 용량 비용. 고지-only 안은 비용 0이지만 기대 불일치 자체는 남음.",
+   "approval": "pending",
+   "evidence": ".ux/results/evidence/flow-asset-3-added.png, 행 실측 {cls:'assets-row--url', drag:false}, prop 패널 안내 문구 '더블클릭하여 이미지 추가/또는 파일을 블록에 드래그'",
+   "self_guard_note": "pending"
+  },
+  {
+   "id": "UXS-flow-006",
+   "track": "judgment",
+   "title": "내보내기 이중 진입로의 의미 분열 — 'Export' 버튼에 정작 주 산출물(섹션 이미지) 내보내기가 없음",
+   "where": "export-publish / 단계 2-3 (톱바 #publish-btn 드롭다운 vs 우측 페이지 속성 인라인)",
+   "heuristic_basis": [
+    "ia-principles.md#wayfinding",
+    "interaction-laws.md#hick"
+   ],
+   "adjudication": "self",
+   "impact": "medium",
+   "observation": "스펙이 물은 이중 진입로 판정: 혼란 쪽. 톱바 'Export'(title: Export / Import) 드롭다운 = 불러오기/저장/JSON 내보내기/Figma 3종/참고 이미지 — 상세페이지 에디터의 최종 산출물인 섹션 PNG/이미지 내보내기가 없음. PNG 내보내기는 우측 패널 페이지 속성 최하단(빈 캔버스 클릭 시에만 표시)에 위치. 두 진입로가 서로 다른 산출물을 다루며 교차 안내 없음. 부가: 드롭다운 안 '저장' 항목은 자동저장과 의미 충돌(실제로는 JSON 다운로드).",
+   "friction": "세션 말미 사용자는 당연히 톱바 'Export'를 먼저 열고, 원하는 'PNG로 뽑기'가 없어 JSON 내보내기를 잘못 누르거나 탐색을 반복함. 페이지 속성 경로는 '빈 캔버스 클릭'이라는 비가시 선행 조건까지 있음.",
+   "proposal": "톱바 Export 드롭다운에 '전체 섹션 이미지 내보내기(PNG/JPG)' 항목 추가(클릭 시 기존 인라인 플로우 재사용) — 인라인 경로는 형식/폭 세부 제어용으로 유지(이중 진입로를 '편의'로 전환).",
+   "tradeoffs": "드롭다운 항목 +1로 Hick 부담 미증(현재 7항목, 구획선 이미 존재). 항목 중복은 '같은 작업 두 위치' 비판 가능하나 빈도 데이터상(핵심 작업 #5, 세션 말미 1회) 주 동선 회수 이득이 큼.",
+   "approval": "pending",
+   "evidence": ".ux/results/evidence/flow-export-1-dropdown.png (드롭다운 항목 전수), flow-export-3-inline-done.png",
+   "self_guard_note": "pending"
+  },
+  {
+   "id": "UXS-flow-007",
+   "track": "judgment",
+   "title": "publish 드롭다운이 Esc로 닫히지 않음 (바깥 클릭만 가능)",
+   "where": "export-publish / 복귀·취소 지점",
+   "heuristic_basis": [
+    "nielsen-10.md#3-control"
+   ],
+   "adjudication": "self",
+   "impact": "low",
+   "observation": "드롭다운 열림 상태에서 Esc 디스패치 → open 유지(실측 closedByEsc:false), 바깥 클릭으로만 닫힘(closedByOutside:true). 스펙 복귀·취소 항목 '드롭다운 Esc 닫기' 불충족.",
+   "friction": "키보드 사용자/Esc 관례 기대자가 한 번 더 헛동작. 마우스 대체 경로는 있어 손실은 작음.",
+   "proposal": "document keydown Esc에서 closePublishDropdown() 호출 추가(이미 외부 클릭 핸들러 존재 — 같은 자리).",
+   "tradeoffs": "없음에 가까움. 다른 오버레이의 Esc 우선순위(중첩 시 최상위만 닫기)만 정리 필요.",
+   "approval": "pending",
+   "evidence": "실측 {opened:true, closedByEsc:false, closedByOutside:true}",
+   "self_guard_note": "pending"
+  },
+  {
+   "id": "UXS-flow-008",
+   "track": "judgment",
+   "title": "저장 상태 표시가 일시적 — idle 시 빈 칸이라 '저장 확인' 단계를 지각으로 닫을 수 없음",
+   "where": "edit-block / 단계 5 (저장 상태 피드백) + 전 플로우 공통",
+   "heuristic_basis": [
+    "ia-principles.md#wayfinding",
+    "nielsen-10.md#3-control"
+   ],
+   "adjudication": "self",
+   "impact": "low",
+   "observation": "#autosave-indicator(톱바 1362,22)는 변경 직후 '저장 중...'→'저장됨'을 표시(실측: 속성 변경 150ms 시점 '저장 중...', 1.65s 시점 '저장됨')하나 이후 빈 문자열로 사라짐. 플로우 완료 판정 기준인 '저장 상태 피드백 가시'는 변경 직후 수 초 창에서만 성립.",
+   "friction": "작업을 멈췄다 돌아온 사용자가 '저장된 상태인가'를 확인할 표면이 없음(빈 칸은 미저장과 구분 불가). Export 드롭다운의 '저장' 항목과 결합해 수동 저장이 필요하다는 오해 유발 가능.",
+   "proposal": "idle 시에도 '저장됨 · 방금/N분 전' 상시 표시(흐린 톤). 변경 중에만 강조.",
+   "tradeoffs": "톱바 상시 텍스트 +1 — 시각 소음 미미(기존 자리 재사용). 표기 신뢰성 책임 발생(flushSave 실패 시 거짓 안심 금지 — 실패 상태도 표기 필요).",
+   "approval": "pending",
+   "evidence": "실측 타임라인 {indBefore:'', indAt150ms:'저장 중...', indAt1650ms:'저장됨', 이후 ''}",
+   "self_guard_note": "pending"
+  },
+  {
+   "id": "UXS-flow-009",
+   "track": "judgment",
+   "title": "JSON 내보내기 완료 토스트에 산출물 위치 미안내 (PNG 토스트와 비일관)",
+   "where": "export-publish / 단계 4 (완료 피드백)",
+   "heuristic_basis": [
+    "ia-principles.md#wayfinding"
+   ],
+   "adjudication": "self",
+   "impact": "low",
+   "observation": "PNG 경로 토스트는 '✅ 4개 섹션 내보내기 완료 — 다운로드 폴더를 확인하세요'로 위치 안내, JSON 경로는 '✅ JSON 내보내기 완료 — ux-squad-test-0611.json'으로 파일명만. 둘 다 동일하게 ~/Downloads에 저장됨(실측 확인).",
+   "friction": "JSON을 처음 내보낸 사용자가 파일이 어디 갔는지 모름 — 특히 다이얼로그 없는 silent 다운로드라 단서가 토스트뿐.",
+   "proposal": "JSON 토스트에도 '다운로드 폴더' 문구 통일(commit-system.js:332 한 줄).",
+   "tradeoffs": "없음.",
+   "approval": "pending",
+   "evidence": "토스트 실측 'SHOW:✅ JSON 내보내기 완료 — ux-squad-test-0611.json' + ~/Downloads 파일 생성 확인",
+   "self_guard_note": "pending"
+  }
+ ],
+ "flow_measurements": [
+  {
+   "flow": "edit-block",
+   "measured_depth": 4,
+   "depth_breakdown": "텍스트 드롭다운 트리거 1 + Heading 항목 1 + 캔버스 블록 선택 1 + Type H2→H3 변경 1 (섹션 기선택 상태 기준)",
+   "spec_expected": "3 이내 (추가1+선택1+변경1)",
+   "status": "PASS",
+   "baseline": "click_depth_max 4 — 4≤4 경계 통과",
+   "completion_check": "캔버스 즉시 반영(tb-h2→tb-h3, 150ms 내) + autosave '저장 중...'→'저장됨' 가시 — 모두 confirmed",
+   "spec_update_note": "명세 기대 3은 '추가=1클릭' 가정 — 실제 추가는 드롭다운 2클릭이고, 추가 후 블록 미선택(UXS-flow-004)으로 선택 1클릭이 필수. 명세 기대 뎁스를 4로 갱신 제안(직접 수정 금지 — 제안만)."
+  },
+  {
+   "flow": "insert-asset",
+   "measured_depth": 3,
+   "depth_breakdown": "주 경로(블록 먼저): 에셋 드롭다운 트리거 1 + Standard 프리셋 1 + 파일 드래그(Finder 시뮬레이션 DataTransfer drop) 1. 패널 경로(URL): Assets 탭 1 + '+URL' 1 + '추가' 1 (+제목/URL 타이핑 2) — 단 블록 적용 불가 dead end(UXS-flow-005)",
+   "spec_expected": "3클릭 이내",
+   "status": "PASS",
+   "baseline": "click_depth_max 4 — 3≤4 통과",
+   "completion_check": "블록에 이미지 표시(img data: src 실측) + 자동저장 트리거 + 교체/제거 경로 prop 패널 가시(이미지 교체/이미지 제거) — confirmed",
+   "unmeasured_part": "'+ 파일' 업로드 경로와 '이미지 선택...' 버튼 경로는 OS 네이티브 파일 다이얼로그 — CDP 자동화 불가로 UNMEASURED(파일 드래그 경로로 대체 측정). AI 생성 경로는 이번 RUN 미주행(스펙상 별도 측정 항목, 진행 표시 존재 여부만 대상 — 미착수 사유: 생성 비용·공유 앱 간섭)"
+  },
+  {
+   "flow": "section-rearrange",
+   "measured_depth": 2,
+   "depth_breakdown": "이동: 레이어 패널 드래그 1 / 복제: 섹션 선택 1 + Cmd+D 1 = 2 / 삭제: 섹션 선택 1 + Delete 1 = 2 / Undo: Cmd+Z 1 — 최대 2",
+   "spec_expected": "이동/복제/삭제 각 2클릭 이내",
+   "status": "PASS",
+   "baseline": "click_depth_max 4 — 모두 통과",
+   "completion_check": "섹션 툴바 노출 confirmed(5버튼·재배치 기능 없음) / 이동 캔버스 순서 반영 confirmed / 복제 confirmed(sec_pqgesuy, insertAfter) / 삭제 confirmed(무확인·무피드백 — UXS-flow-002) / Undo 복원 confirmed",
+   "spec_update_note": "뎁스는 통과하나 세 경로 모두 비가시(드래그는 레이어 패널 한정, 복제/삭제는 단축키 전용) — UXS-flow-001. 명세에 '진입로 가시성' 체크 항목 추가 제안."
+  },
+  {
+   "flow": "export-publish",
+   "measured_depth": 3,
+   "depth_breakdown": "경로A(JSON): publish-btn 1 + 'JSON 내보내기' 1 = 2 / 경로B(섹션 PNG): 빈 캔버스 클릭(페이지 속성 표시) 1 + '전체 섹션 내보내기' 1 + confirm 확인 1 = 3",
+   "spec_expected": "3클릭 이내",
+   "status": "PASS",
+   "baseline": "click_depth_max 4 — 통과",
+   "completion_check": "경로A: ~/Downloads JSON 생성 + 토스트 '✅ JSON 내보내기 완료' confirmed / 경로B: confirm 다이얼로그 → 버튼 진행표시 '내보내는 중...(3/4)' → 토스트 '✅ 4개 섹션 내보내기 완료 — 다운로드 폴더를 확인하세요' + PNG 4개 생성 confirmed / Esc 닫기 FAIL(UXS-flow-007), 진행 중 취소 수단 없음(4섹션 ~3s라 실해 낮음 — 미보고)",
+   "spec_update_note": "이중 진입로 판정 = 혼란(UXS-flow-006): 두 진입로가 같은 작업의 대체 경로가 아니라 서로 다른 산출물(JSON vs PNG)을 배타 보유. MVP 숨김 commit 항목은 의도 결정으로 제외."
+  }
+ ],
+ "out_of_scope_flags": [
+  "PM 패널(.cpm-*) — G5 회신 대기로 judgment 보류, 이번 RUN 미진입(claude-pm-btn 존재만 확인)",
+  "first-section.md — U-onboarding 소관, 미주행",
+  "Export 드롭다운 '저장' vs 자동저장 vs commit의 용어 혼용 — U-semantics 차원으로 이관 메모(UXS-flow-008 관찰에 부수 기록)",
+  "드롭다운 트리거의 물리 좌표 클릭(Input.dispatchMouseEvent)이 open 직후 document 클릭 핸들러로 재닫힘 의심 1회 — 재현 불충분, 합성 click()으로는 정상. 미보고"
+ ],
+ "area_summary": [
+  {
+   "area": "edit-block",
+   "verdict": "PASS(뎁스 4/4 경계) + judgment 3건(003 high, 004 medium, 008 low)",
+   "ui_areas_touched": "floating-panel(블록 추가), prop-panel(Type 변경), toolbar(autosave indicator)"
+  },
+  {
+   "area": "insert-asset",
+   "verdict": "PASS(뎁스 3) + judgment 1건(005 medium), 파일 다이얼로그 경로 UNMEASURED",
+   "ui_areas_touched": "left-panel(Assets 탭), floating-panel(에셋 블록), prop-panel(Image 컨트롤), canvas-block"
+  },
+  {
+   "area": "section-rearrange",
+   "verdict": "PASS(뎁스 ≤2) + judgment 2건(001·002 high) — 뎁스는 짧으나 경로가 안 보임",
+   "ui_areas_touched": "canvas-block(section-toolbar), left-panel(레이어 드래그), 키보드"
+  },
+  {
+   "area": "export-publish",
+   "verdict": "PASS(뎁스 2~3) + judgment 3건(006 medium, 007·009 low)",
+   "ui_areas_touched": "toolbar(publish 드롭다운), prop-panel(페이지 속성 Export), toast"
+  }
+ ],
+ "judgment_count": 9,
+ "conformance_confirmed": 0,
+ "by_impact": {
+  "high": 3,
+  "medium": 3,
+  "low": 3
+ },
+ "by_severity": {},
+ "grouped_overflow": [],
+ "by_adjudication": {
+  "self": 6,
+  "central-confirmed": 2,
+  "central-refuted": 1
+ }
+}

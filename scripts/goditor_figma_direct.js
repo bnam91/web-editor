@@ -316,7 +316,6 @@ function buildSectionHtml(frameNode) {
   <div class="section-hitzone"><span class="section-label" draggable="true">__NAME__</span></div>
   <div class="section-toolbar">
     <button class="st-btn st-ab-btn" title="A/B 베리에이션 생성">A/B</button>
-    <button class="st-btn st-branch-btn" onclick="openSectionBranchMenu(this)" title="feature 브랜치로 실험">⎇</button>
   </div>
   <div class="section-inner" style="padding:0;">${rowHtml}</div>
 </div>`,
