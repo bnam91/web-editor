@@ -1,7 +1,7 @@
 ---
 name: goditor-layout-orchestrator
-description: 이미지 파일 경로를 받아 ① 스크래치패드에 올리고 ② Goditor Spec v2 JSON으로 레이아웃 분석 후 ③ 에디터 캔버스에 섹션을 자동 조립하는 총괄 오케스트레이터 스킬. CDP 포트 9336 대상.
-version: 3.0.0
+description: 이미지 + (선택)대상 섹션 ID를 받아 자동으로 create/rebuild/fill 모드를 디스패치해서 에디터 섹션을 완성하는 총괄 오케스트레이터 스킬. CDP 포트 9334 대상. 사용자에게 모드/프로젝트 선택을 묻지 않는다.
+version: 3.1.0
 ---
 
 # goditor-layout-orchestrator (총괄 오케스트레이터)
@@ -19,18 +19,34 @@ version: 3.0.0
 
 ---
 
-## 모드 (세션 시작 시 반드시 묻기)
+## 자동 디스패치 (사용자에게 모드 묻지 않음)
 
-스킬 시작 시 사용자에게 먼저 *모드*를 묻는다:
+사용자는 단순히 *"이 이미지(스크래치)대로 섹션 완성해줘"* 라고만 지시한다.
+스킬이 입력을 보고 자동으로 모드를 선택한다. **모드는 사용자가 알 필요 없는 내부 구현 디테일이다.**
 
-> "어떤 작업을 할까요?
-> 1. **create** — 이미지 → 새 섹션 생성 (흑백 5단계 카피)
-> 2. **fill** — 이미지 → 기존 섹션/블록의 텍스트·색상 채우기 (원본 컬러 카피)"
+### 디스패치 결정 트리
 
-| 모드 | 색상 룰 | 도구 | 워크플로우 |
-|---|---|---|---|
-| **create** | 흑백 5단계 고정 (L1~L5) | `addTextBlock/addAssetBlock/...` | planner → generator → evaluator |
-| **fill** | 원본 컬러 그대로 | `update_*_block` MCP 도구 | 시각 분석 → blockId별 partial update → evaluator |
+```
+1) 입력 확인: 이미지(또는 sp_xxx) + 대상 섹션 ID(sec_xxx)?
+   ├─ 대상 섹션 ID 없음 / 빈 캔버스 지시 → 모드 = create (새 섹션 생성)
+   └─ 대상 섹션 ID 있음 → 2)로
+
+2) sec_xxx 내부 enumerate
+   ├─ 블록 0개 (빈 섹션) → 모드 = rebuild (= create 로직을 sec 안에서 실행)
+   └─ 블록 1개 이상 → 3)으로
+
+3) 이미지 영역 ↔ 기존 블록 매핑 시도 (planner-경량 분석)
+   ├─ 종류·개수·배치가 매칭됨 → 모드 = fill (텍스트/색상만 채움)
+   └─ 매칭 안 됨 (블록 추가/삭제/재배치 필요) → 모드 = rebuild
+```
+
+**결정 후 후행 보고만** 한다: `"rebuild 모드로 진행했습니다 (기존 N개 블록 → 새 M개 블록으로 재조립)"`. 모드 선택 자체로 사용자에게 묻지 않는다.
+
+| 모드 | 트리거 | 색상 룰 | 도구 | 워크플로우 |
+|---|---|---|---|---|
+| **create** | 새 섹션 | 흑백 5단계 (L1~L5) | `addTextBlock/addAssetBlock/...` | planner → generator → evaluator |
+| **rebuild** | 기존 sec, 구조 불일치 또는 빈 sec | 흑백 5단계 (L1~L5) | `deleteBlock` 후 create 도구 (sec_id 유지) | enumerate → delete-all → planner → generator(`--target-section`) → evaluator |
+| **fill** | 기존 sec, 구조 일치 | 원본 컬러 그대로 | `update_*_block` MCP 도구 | 시각 분석 → blockId별 partial update → evaluator |
 
 ---
 
@@ -52,34 +68,17 @@ create 모드에서는 **모든 색상은 아래 5단계만 사용**한다. fill
 
 ## [CREATE 모드] 세션 시작 루틴
 
-모드=create 선택 시. 사용자에게 묻는다:
+모드=create로 디스패치된 경우. **사용자에게 새 vs 기존 프로젝트 묻지 않는다.** 디폴트는 현재 활성 프로젝트.
 
-> "새 프로젝트를 만들까요, 아니면 기존 프로젝트를 이어서 할까요?
-> 1. 새 프로젝트 만들기
-> 2. 기존 프로젝트 이어서"
+### 프로젝트 결정 규칙 (자동)
 
-### 1번 선택 — 새 프로젝트 만들기
-
-1. 프로젝트명 입력 받기: `"프로젝트 이름을 알려주세요."`
-2. 에디터에서 새 프로젝트 생성:
+1. **현재 활성 프로젝트가 있으면 그걸 사용** (`window.activeProjectId`)
+2. 활성 프로젝트가 없으면 새 프로젝트 자동 생성:
    ```javascript
-   // 새 탭 생성 (id = 'proj_' + Date.now() 자동 부여)
    await window.createNewProjectTab()
-   // 이름 설정
-   await window.setProjectName('{프로젝트명}')
-   // 생성된 프로젝트 ID 확인
-   window.activeProjectId   // → 'proj_1234567890'
+   await window.setProjectName('자동생성-' + Date.now())
    ```
-3. 반환된 `PROJECT_ID`를 이후 모든 서브스킬 호출에 전달
-
-### 2번 선택 — 기존 프로젝트 이어서
-
-1. 현재 에디터에 열린 프로젝트 확인:
-   ```javascript
-   window.activeProjectId   // 현재 활성 프로젝트 ID
-   ```
-2. 또는 사용자에게 `proj_xxxx` ID 직접 입력 받기
-3. `openTabForProject(PROJECT_ID)`로 해당 프로젝트 열기
+3. 사용자가 *명시적으로* "새 프로젝트로 만들어줘" 또는 "프로젝트명 X로" 라고 한 경우에만 새 프로젝트 생성. 그 외 묻지 않음.
 
 ### PROJECT_ID 전달 규칙
 
@@ -402,6 +401,37 @@ function getWsUrl() {
 
 ---
 
+## 컴포넌트 선택 가이드 (Manifest)
+
+spec 작성 직전, **"어떤 블록을 쓸 것인가"** 결정 단계에서 반드시 manifest를 참조한다.
+API 시그니처(아래 "블록 추가 API 전체")는 **컴포넌트가 정해진 뒤** 호출 문법을 찾는 용도다.
+
+- 사람이 빠르게 보기: `/Users/a1/web-editor/docs/component-manifest.md`
+- planner/orchestrator가 programmatic하게 읽기: `/Users/a1/web-editor/main/claude-pm/component-manifest.json`
+
+각 컴포넌트는 다음 메타를 가진다:
+- `name`, `prefix` (DOM id 접두사 — orchestrator가 generator 호출 검증에 사용)
+- `category` — `special` (자체 모달/렌더러) / `primitive` (1차 요소)
+- `useCases` — 권장 시나리오 리스트
+- `notRecommendedFor` — 다른 컴포넌트로 빠질 만한 함정 케이스
+- `examplePrompt` — 사용자 요청 → 이 컴포넌트가 정답인 예시
+- `api` — 실제 호출할 `window.addXxxBlock` 식별자
+
+### 선택 절차
+
+1. 사용자 요청에서 핵심 의도 추출 (예: "강조 라벨", "단계 가이드", "비교표")
+2. manifest의 `useCases` 매칭으로 후보 2~3개
+3. `notRecommendedFor`로 후보 제거 (예: 짧은 라벨인데 text-block 쓰면 안 됨 → sticker로 확정)
+4. spec JSON `type` 필드에 컴포넌트명 적기
+5. orchestrator가 prefix 검증 + 해당 `api`로 실제 호출
+
+### Manifest에 없는 컴포넌트가 필요할 때
+
+1. 본 스킬의 "API 부재 시 프로세스" 따르기
+2. 신규 블록이 에디터에 추가되면 manifest JSON에도 한 항목 추가 (PM이 즉시 활용)
+
+---
+
 ## 블록 추가 API 전체
 
 ```javascript
@@ -497,6 +527,85 @@ frame row 예시:
 5. /goditor-layout-evaluator          → 원본 vs 결과 스크린샷 독립 비교
 6. PARTIAL/FAIL 항목 있으면 → Spec 수정 후 4번부터 재실행
 ```
+
+---
+
+## [REBUILD 모드] 기존 섹션 재조립
+
+### 목적
+기존 섹션 `sec_xxx`의 **블록 구조 자체가 이미지와 다를 때**, 안의 블록을 전부 비우고 이미지 기준으로 다시 조립한다. **sec_id는 유지**된다 (다른 곳에서 sec_id를 참조하고 있을 수 있으므로).
+
+create와의 차이점은 단 하나: `addSection`을 호출하지 않고 기존 sec를 재사용한다. 색상 룰(흑백 5단계), 블록 추가 API, planner/generator 사용은 동일.
+
+### 트리거 조건 (디스패처가 자동 선택)
+- 대상 sec_xxx가 비어있음 (블록 0개)
+- 대상 sec_xxx에 블록이 있지만 이미지 구조와 매칭이 안 됨 (개수·종류·배치 불일치)
+
+### 흐름
+
+**1) sec 존재 확인 + 활성 프로젝트 확인**
+```js
+const sec = document.getElementById('sec_xxx');
+if (!sec) throw new Error('sec_xxx 없음');
+```
+
+**2) sec 내부 기존 블록 enumerate (top-level 전체 — 화이트리스트 없이)**
+```js
+// 모든 top-level 자식 (gap/row/frame/text 등 종류 무관) — id 있는 것만
+// 이전 화이트리스트 방식은 누락 prefix(gb_, row_, ss_ 등) 때문에 잔존 누적 발생 → 화이트리스트 폐기
+const blockIds = [...sec.querySelectorAll(':scope > [id]')].map(b => b.id);
+```
+※ section-hitzone, section-toolbar 같은 inner sibling은 id 없으므로 자연 제외. section-inner 안의 자식들도 동일 패턴(`:scope > .section-inner > [id]`)으로 enumerate 가능.
+
+**3) 기존 블록 일괄 삭제 — 빈 컨테이너 + gap도 다 지움**
+```js
+for (const id of blockIds) window.deleteBlock(id);
+// 또는 더 단순: sec.querySelector(':scope > .section-inner').innerHTML = '' (단 이벤트 listener 잔존 위험)
+```
+
+**3-1) 신규 gap 삽입은 반드시 정식 API 사용**
+```js
+// ❌ 핵 금지: document.createElement('div').className = 'gap-block'
+// ✅ 정식: addGapBlock(height) — 자동으로 id/dataset/이벤트 다 갖춤
+window.addGapBlock(80);  // 80px gap
+```
+
+**4) sec 선택 상태로 만들기**
+```js
+window.deselectAll?.();
+sec.classList.add('selected');
+window.syncSection?.(sec);
+```
+(이 단계는 runner가 `--target-section` 받으면 내부에서 자동으로 처리하므로 생략 가능)
+
+**5) planner → spec 생성 (create와 동일)**
+```
+/goditor-layout-planner   → /tmp/goditor_spec_{이름}.json
+```
+
+**6) generator를 `--target-section` 플래그로 실행**
+```bash
+node /Users/a1/web-editor/scripts/goditor_runner.js \
+  /tmp/goditor_spec_{이름}.json \
+  --port 9334 \
+  --target-section sec_xxx
+```
+runner가 `addSection` 호출을 스킵하고 기존 sec_xxx에 블록을 추가한다.
+
+**7) evaluator로 원본 vs 결과 비교 (create와 동일)**
+
+### 후행 보고 (사용자에게)
+```
+rebuild 모드로 진행 (sec_xxx 유지)
+- 삭제: 기존 N개 블록
+- 추가: 새 M개 블록 (planner spec 기반)
+- evaluator 결과: ...
+```
+
+### 금지 사항 (rebuild 모드)
+- ❌ sec_xxx 자체를 deleteSection으로 삭제하지 말 것 — sec_id는 유지
+- ❌ 새 섹션을 만들어서 마치 rebuild인 것처럼 위장 금지
+- ❌ "fill로 안 됐으니 그냥 새 섹션 만들고 끝" 같은 우회 금지
 
 ---
 
@@ -610,6 +719,8 @@ const blocks = [...sec.querySelectorAll('[id]')].filter(b =>
 |------|------|
 | **API 레퍼런스 (최신)** | `/Users/a1/web-editor/docs/goditor-api-reference.md` |
 | **Spec v2 정의** | `/Users/a1/web-editor/docs/goditor-spec-v2.md` |
+| **컴포넌트 선택 카탈로그 (사람용)** | `/Users/a1/web-editor/docs/component-manifest.md` |
+| **컴포넌트 메타 (PM/스킬용 JSON)** | `/Users/a1/web-editor/main/claude-pm/component-manifest.json` |
 | **테스트 세션 프롬프트** | `/Users/a1/web-editor/docs/goditor-test-session-prompt.md` |
 
 ---
