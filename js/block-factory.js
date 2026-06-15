@@ -4073,6 +4073,16 @@ function updateFrameBlock(blockId, partial = {}) {
 
   const applied = {};
 
+  // ── pre-mutation validation (I2-F2) ──
+  // bgOpacity 범위 검증을 bg/bgImage 등 mutation 이전으로 선행.
+  // 과거: {bg, bgOpacity:2} 입력 시 bg는 적용된 뒤 bgOpacity에서 INVALID 반환 → 부분 mutation 잔존.
+  if (partial.bgOpacity !== undefined) {
+    const _o = Number(partial.bgOpacity);
+    if (!Number.isFinite(_o) || _o < 0 || _o > 1) {
+      return { ok: false, code: 'INVALID', message: 'bgOpacity out of range [0, 1] (float)' };
+    }
+  }
+
   // ── helpers (banner02 패턴 미러) ──
   const _setNum = (datasetKey, value, min, max) => {
     const n = Number(value);
@@ -4346,16 +4356,19 @@ function updateFrameBlock(blockId, partial = {}) {
     if (active) {
       _syncBgVars();
     } else {
-      // 100%(불투명) 복귀: ::before 비활성 → 본체 배경 원복
+      // 100%(불투명) 복귀: ::before 비활성 → 본체 배경 원복.
+      // gradient / image / solid 상호배타 (I2-F1): gradient면 이미지로 덮지 않음.
       const bgVal = block.dataset.bg || '';
-      if (bgVal) {
-        if (/gradient\s*\(/i.test(bgVal)) block.style.background = bgVal;
-        else block.style.backgroundColor = bgVal;
-      }
-      if (block.dataset.bgImg) {
+      const isGradientBg = /gradient\s*\(/i.test(bgVal);
+      if (isGradientBg) {
+        block.style.background = bgVal;
+        block.style.backgroundImage = '';
+      } else if (block.dataset.bgImg) {
         block.style.backgroundImage = `url("${block.dataset.bgImg}")`;
         block.style.backgroundSize = 'cover';
         block.style.backgroundPosition = block.dataset.bgPos || 'center';
+      } else if (bgVal) {
+        block.style.backgroundColor = bgVal;
       }
     }
     applied.bgOpacity = o;

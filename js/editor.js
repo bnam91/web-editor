@@ -1029,8 +1029,11 @@ document.addEventListener('keydown', e => {
       // ⌘F — 섹션 검색이동 팔레트. 편집/입력 중엔 양보(기본 동작도 막지 않음).
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      e.preventDefault();
-      window.openSectionSearch?.();
+      // I3-F1: openSectionSearch 없으면 preventDefault 안 함 → 브라우저 기본 찾기 허용(no-op로 막지 않음).
+      if (typeof window.openSectionSearch === 'function') {
+        e.preventDefault();
+        window.openSectionSearch();
+      }
       return;
     }
     if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }

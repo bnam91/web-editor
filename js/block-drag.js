@@ -1835,7 +1835,8 @@ function bindFrameDropZone(ss) {
   // FIX(T5): .mockup-block 누락 시 mockup pointerdown → deselectAll 후 frame 재선택되어
   // 직후 mousedown drag 핸들러의 selected 체크에 걸려 드래그 시작이 막힘 (asset 등 다른 블록은 정상)
   ss.addEventListener('pointerdown', e => {
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
+    // I4-F1: .icon-block 누락 → free-layout 아이콘이 pointerdown drag-disable에서 빠져 이동 막힘. drop/multi 셀렉터(BLOCK_SEL)와 정합.
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
     if (isInnerBlock) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');

@@ -923,7 +923,9 @@ function rebindAll() {
     // 배경 투명도(bgOpacity) 복원 (I2) — 위 배경색/이미지 복원 직후 분기.
     // has-bg-opacity면 본체 배경을 비우고 ::before용 CSS변수로만 그린다.
     if (ss.dataset.bgOpacity !== undefined) {
-      const o = parseFloat(ss.dataset.bgOpacity);
+      // I2-F3: invalid 저장본(NaN/범위초과) 클램프 후 사용.
+      let o = parseFloat(ss.dataset.bgOpacity);
+      if (!Number.isFinite(o) || o < 0 || o > 1) o = 1;
       ss.style.setProperty('--frame-bg-opacity', String(o));
       const active = o < 1;
       ss.classList.toggle('has-bg-opacity', active);

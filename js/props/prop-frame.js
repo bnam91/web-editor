@@ -216,8 +216,11 @@ function _renderAutoPanel(ss) {
   const borderAlpha    = parseAlphaFromColor(rawBorderColor);
   const radius = parseInt(ss.dataset.radius) || 0;
   // 배경 투명도 (I2): dataset.bgOpacity는 0~1 float, UI는 0~100 표시. 미설정 = 100%.
+  // I2-F3: invalid 값(NaN/범위초과)은 1(100%)로 클램프 후 표시.
+  let _bgOpa = parseFloat(ss.dataset.bgOpacity);
+  if (!Number.isFinite(_bgOpa) || _bgOpa < 0 || _bgOpa > 1) _bgOpa = 1;
   const bgOpacity = ss.dataset.bgOpacity !== undefined
-    ? Math.round(parseFloat(ss.dataset.bgOpacity) * 100)
+    ? Math.round(_bgOpa * 100)
     : 100;
 
   const bannerPreset = ss.dataset.bannerPreset || '';
@@ -587,16 +590,19 @@ function _renderAutoPanel(ss) {
     if (active) {
       _syncFrameBgVars();
     } else {
-      // 100%로 복귀 시 ::before 비활성 → 본체 배경 원복
+      // 100%로 복귀 시 ::before 비활성 → 본체 배경 원복.
+      // gradient / image / solid 상호배타 (I2-F1): gradient면 이미지로 덮지 않음.
       const bgVal = ss.dataset.bg || '';
-      if (bgVal) {
-        if (/gradient\s*\(/i.test(bgVal)) { ss.style.background = bgVal; }
-        else { ss.style.backgroundColor = bgVal; }
-      }
-      if (ss.dataset.bgImg) {
+      const isGradient = /gradient\s*\(/i.test(bgVal);
+      if (isGradient) {
+        ss.style.background = bgVal;
+        ss.style.backgroundImage = '';
+      } else if (ss.dataset.bgImg) {
         ss.style.backgroundImage = `url("${ss.dataset.bgImg}")`;
         ss.style.backgroundSize = 'cover';
         ss.style.backgroundPosition = ss.dataset.bgPos || 'center';
+      } else if (bgVal) {
+        ss.style.backgroundColor = bgVal;
       }
     }
   };

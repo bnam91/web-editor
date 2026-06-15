@@ -105,6 +105,13 @@ function renderMockupBlock(block) {
 }
 
 function addDeviceMockupBlock(deviceKey, width) {
+  // I5-F1: 다른 블록처럼 _insertToFlowFrame 무조건 우선 호출.
+  //   내부에서 freeLayout(B)·fullWidth(A) 분기를 모두 처리(+buildLayerPanel 호출)하고,
+  //   해당 없으면 false 반환 → 아래 섹션 레벨 flow 삽입으로 폴백.
+  //   (기존엔 freeLayout 사전조건 분기라 mockup이 프레임 안에서 드래그 이동 안 됐음)
+  if (window._insertToFlowFrame?.(() => makeDeviceMockupBlock(deviceKey, width))) {
+    return;
+  }
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   const result = makeDeviceMockupBlock(deviceKey, width);
@@ -201,19 +208,46 @@ function addMockupBlock(opts = {}) {
     if (!sec) return { ok: false, code: 'NO_SECTION', message: '활성 섹션이 없습니다.' };
   }
 
-  const result = makeDeviceMockupBlock(deviceKey, width);
+  // imgSrc / shadow 옵션을 적용한 블록을 생성하는 공통 팩토리.
+  // (DOM 삽입 전에 dataset/배경 세팅 → 저장 직렬화 안전성)
+  let createdBlock = null;
+  const makeWithOpts = () => {
+    const r = makeDeviceMockupBlock(deviceKey, width);
+    if (!r) return null;
+    const { block } = r;
+    if (typeof opts.imgSrc === 'string' && opts.imgSrc) {
+      block.dataset.imgSrc = opts.imgSrc;
+      applyMockupScreenImage(block, opts.imgSrc);
+    }
+    if (opts.shadow !== undefined && opts.shadow !== null) {
+      applyMockupShadow(block, String(opts.shadow));
+    }
+    createdBlock = block;
+    return r;
+  };
+
+  // I5-F1: 다른 블록처럼 _insertToFlowFrame 무조건 우선 호출.
+  //   내부에서 freeLayout(B)·fullWidth(A) 분기를 모두 처리하고, 해당 없으면 false 반환 → 섹션 삽입 폴백.
+  //   (freeLayout 프레임에서 mockup이 절대좌표로 들어가 드래그 이동 가능해지는 게 목표.)
+  //   _insertToFlowFrame이 내부에서 buildLayerPanel을 호출하므로 여기선 중복 호출 안 함.
+  if (window._insertToFlowFrame?.(makeWithOpts)) {
+    if (!createdBlock) {
+      return { ok: false, code: 'CREATE_FAILED', message: 'makeDeviceMockupBlock returned null' };
+    }
+    return {
+      ok: true,
+      blockId: createdBlock.id,
+      deviceKey,
+      width,
+      shadow: createdBlock.dataset.shadow || 'soft',
+      hasImage: !!createdBlock.dataset.imgSrc,
+    };
+  }
+
+  const result = makeWithOpts();
   if (!result) return { ok: false, code: 'CREATE_FAILED', message: 'makeDeviceMockupBlock returned null' };
 
   const { row, block } = result;
-
-  // imgSrc / shadow 옵션 — DOM 삽입 전에 dataset 세팅 (저장 직렬화 안전성)
-  if (typeof opts.imgSrc === 'string' && opts.imgSrc) {
-    block.dataset.imgSrc = opts.imgSrc;
-    applyMockupScreenImage(block, opts.imgSrc);
-  }
-  if (opts.shadow !== undefined && opts.shadow !== null) {
-    applyMockupShadow(block, String(opts.shadow));
-  }
 
   window.pushHistory?.();
   insertAfterSelected(sec, row);
