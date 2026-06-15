@@ -3996,6 +3996,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       sendItem.style.display = (isAsset && hasImg) ? 'flex' : 'none';
     }
 
+    // STICKERUX(3): 아이콘 블록(.icon-block)일 때만 "스티커로 변환" 노출
+    const iconStickerItem = document.getElementById('bcm-icon-to-sticker');
+    if (iconStickerItem) {
+      const isIcon = block.classList.contains('icon-block');
+      iconStickerItem.style.display = isIcon ? 'flex' : 'none';
+    }
+
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
     const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
     menu.style.left    = x + 'px';
@@ -4035,6 +4042,24 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     } catch (err) {
       window.showToast?.('❌ 실패: ' + (err?.message || err));
     }
+  });
+
+  // STICKERUX(3): 아이콘 블록 → 스티커 변환(복제 — 원본 .icon-block 유지)
+  document.getElementById('bcm-icon-to-sticker')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    closeMenu();
+    if (!block) return;
+    const svg = block.querySelector('svg')?.outerHTML;
+    if (!svg || svg.length > 200000) { window.showToast?.('⚠️ 변환할 아이콘 SVG가 없습니다'); return; }
+    const iconName  = block.dataset?.iconName || '';
+    const size      = parseInt(block.dataset?.size, 10) || 64;
+    const iconColor = block.dataset?.iconColor || '';
+    // addStickerBlock은 섹션 미선택 시 게이트되므로(STICKERUX(1)),
+    // 원본 아이콘블럭을 선택 상태로 만들어 그 섹션을 타겟으로 삼는다(복제 — 원본 유지).
+    try { window.selectBlock?.(block.id); } catch (_) {}
+    window.addStickerBlock?.({ shape: 'icon', iconName, svg, size, iconColor });
+    window.showToast?.('스티커로 변환됨');
   });
 
   nameConfirm?.addEventListener('click', e => {
