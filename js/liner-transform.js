@@ -55,12 +55,18 @@ function resolveLinerFill(mirror, cs) {
   return '#111111';
 }
 
-// ── path d 생성 공식 (viewBox 0 0 W H, 좌우 패딩 P) ──
-function buildLinerPathD(preset, curvature, W, H, P) {
-  const cy = H / 2;
+// 곡률 → 베지에 제어점 진폭 k (곡률 0~100 → 0 ~ baseH*0.45).
+// H가 아닌 baseH(고정 기준)에 비례시켜 큰 폰트로 H가 커져도 아치가 과장되지 않게 한다.
+function linerAmplitude(curvature, baseH) {
+  return (normCurvature(curvature) / 100) * ((baseH || LINER_BASE_H) * 0.45);
+}
+
+// ── path d 생성 공식 (viewBox 0 0 W H, 좌우 패딩 P, 베이스라인 cy, 진폭 k) ──
+// cy/k를 caller가 명시(폰트 ascent 여유 반영). 미지정 시 옛 동작(H/2 기준)으로 fallback.
+function buildLinerPathD(preset, curvature, W, H, P, cy, k) {
   const c = normCurvature(curvature);
-  // 진폭 k: 곡률 0~100 → 0 ~ H*0.45
-  const k = (c / 100) * (H * 0.45);
+  if (cy == null) cy = H / 2;
+  if (k == null)  k  = (c / 100) * (H * 0.45);
   const x0 = P, x1 = W - P;
   if (c === 0) {
     return `M ${x0},${cy} L ${x1},${cy}`;
@@ -127,13 +133,21 @@ function applyLiner(block, opts) {
   // 폰트크기 먼저 읽기 (M4: H 계산에 반영) — 미러 inline style 우선, 없으면 computed
   const csEarly = window.getComputedStyle(mirror);
   const fontSizePx = parseInt(mirror.style.fontSize) || parseInt(csEarly.fontSize) || 28;
-  const lineHeightFactor = 1.4;
 
   // 폭: 블록(미러) 실측 폭 — 0이면 fallback
   const W = Math.max(120, Math.round(mirror.offsetWidth || block.offsetWidth || 600));
-  // 높이: 곡률 진폭 + 폰트크기*lineHeight 여유를 모두 포함 (M4: 큰 폰트 잘림 방지)
-  const amp = (cfg.curvature / 100) * (LINER_BASE_H * 0.45);
-  const H = Math.round(Math.max(LINER_BASE_H, fontSizePx * lineHeightFactor) + amp + 24);
+
+  // 진폭 k: 곡률 0~100 → 0 ~ baseH*0.45 (H가 아닌 고정 baseH 기준 → 큰 폰트에서 아치 과장 방지)
+  const amp = linerAmplitude(cfg.curvature, LINER_BASE_H);
+  // 글자 ascent/descent 여유 (M4: arc-up 상단 / arc-down 하단 클리핑 방지)
+  const ascent  = fontSizePx * 0.85;  // 베이스라인 위 글자 높이
+  const descent = fontSizePx * 0.30;  // 베이스라인 아래 꼬리
+  const padTop    = 6;
+  const padBottom = 6;
+  // 베이스라인 cy: 상단에 (amp[arc-up peak] + ascent) 여유, 하단에 (descent) 여유 확보
+  const cy = Math.round(padTop + ascent + amp);
+  // 높이 H: 베이스라인 + (descent, 그리고 arc-down일 때 아래로 휜 peak amp) + 하단 패딩
+  const H = Math.round(cy + descent + amp + padBottom);
 
   const P = LINER_PAD;
   const pid = linerPathId(block);
@@ -154,9 +168,9 @@ function applyLiner(block, opts) {
   svg.setAttribute('height', String(H));
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-  // path d
+  // path d — 명시적 cy/amp 전달(폰트 ascent 여유 반영)
   path.setAttribute('id', pid);
-  path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, H, P));
+  path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, H, P, cy, amp));
   path.setAttribute('fill', 'none');
 
   // textPath href (id 재바인드)
@@ -182,12 +196,32 @@ function applyLiner(block, opts) {
   textEl.setAttribute('fill', fill);
   textEl.setAttribute('letter-spacing', (ls === 'normal' ? '0' : ls));
 
-  // 긴 텍스트가 path 범위(P~W-P) 밖으로 잘리지 않게 path 길이에 맞춰 자간 조정 (M3)
-  tp.setAttribute('textLength', String(Math.max(1, W - 2 * P)));
-  tp.setAttribute('lengthAdjust', 'spacingAndGlyphs');
-
-  // 텍스트 내용 동기화
+  // 텍스트 내용 먼저 동기화 (측정 전에 채워야 getComputedTextLength가 유효)
   tp.textContent = readLinerText(mirror);
+
+  // ── textLength 보정: 기본은 자연 자간(미설정). 실제로 path 가용길이를 넘칠 때만 spacing만 좁힘 ──
+  // (M1 FIX) 전체폭 강제 + spacingAndGlyphs 제거 → 짧은 텍스트 stretch/글리프 왜곡 방지
+  tp.removeAttribute('textLength');
+  tp.removeAttribute('lengthAdjust');
+  // path 가용 길이: 좌우 패딩 제외한 path arc length. path가 곡선이라 실제 length로 측정.
+  let avail = W - 2 * P;
+  try {
+    if (path.getTotalLength) {
+      const L = path.getTotalLength();
+      if (Number.isFinite(L) && L > 0) avail = L;
+    }
+  } catch (e) { /* getTotalLength 미지원 → W-2P fallback */ }
+  let natural = 0;
+  try {
+    // textPath 우선(곡선 배치 실폭), 없으면 text 엘리먼트
+    if (tp.getComputedTextLength) natural = tp.getComputedTextLength();
+    if (!(natural > 0) && textEl.getComputedTextLength) natural = textEl.getComputedTextLength();
+  } catch (e) { natural = 0; }
+  // 자연 폭이 path 가용길이보다 길 때만 자간(spacing)만 좁혀 path 안에 수용 (글리프 왜곡 없음)
+  if (natural > 0 && natural > avail) {
+    tp.setAttribute('textLength', String(Math.max(1, Math.round(avail))));
+    tp.setAttribute('lengthAdjust', 'spacing');
+  }
 
   // 블록 minHeight 동기 (곡선이 잘리지 않게)
   block.style.minHeight = H + 'px';
@@ -287,6 +321,7 @@ new MutationObserver(muts => {
 }).observe(document.body, { childList: true, subtree: true });
 
 window.buildLinerPathD       = buildLinerPathD;
+window.linerAmplitude        = linerAmplitude;
 window.applyLiner            = applyLiner;
 window.applyLinerText        = applyLinerText;
 window.ensureLiner           = ensureLiner;
