@@ -32,14 +32,6 @@ const LINER_BASE_H = 80;  // 기본 블록/뷰박스 높이
 const LINER_LS_MIN = -2;
 const LINER_LS_MAX = 20;
 
-// 곡률 비례 폰트 다운스케일 (미감 규칙 #4): 곡률 0=1.0배 → 100=0.65배 선형
-// 아치가 반원에 가까울수록 글자를 작게 만들어 자연스럽게 보이게 한다.
-const LINER_CURV_MIN_SCALE = 0.65;
-function linerCurvatureScale(curvature) {
-  const c = normCurvature(curvature);
-  return 1 - (c / 100) * (1 - LINER_CURV_MIN_SCALE);
-}
-
 // 자간 정규화 — NaN은 0
 function normLetterSpacing(x) {
   const n = Number(x);
@@ -276,9 +268,9 @@ function applyLiner(block, opts) {
   path.setAttribute('fill', 'none');
 
   const isCircle = (cfg.preset === 'circle');
-  // 곡률 비례 다운스케일 (#4): 곡률↑ → 폰트↓ (모든 프리셋 공통)
-  const curvScale = linerCurvatureScale(cfg.curvature);
-  let effFont = Math.max(6, userFontPx * curvScale);
+  // effFont = userFont 그대로 시작 (곡률→폰트 연동 제거: 곡률 바꿔도 글자크기 불변).
+  // 가로 넘칠 때만 아래 fit-to-width 루프가 줄인다.
+  let effFont = Math.max(6, userFontPx);
 
   const LINER_FONT_FLOOR = 6;
   const LINER_FIT_ITERS  = 5;   // M4b: 최대 반복 축소 횟수
@@ -526,7 +518,6 @@ window.linerArcSagitta       = linerArcSagitta;
 window.linerArcRadius        = linerArcRadius;
 window.normStartAngle        = normStartAngle;
 window.linerStartOffsetPct   = linerStartOffsetPct;
-window.linerCurvatureScale   = linerCurvatureScale;
 window.applyLiner            = applyLiner;
 window.applyLinerText        = applyLinerText;
 window.ensureLiner           = ensureLiner;
