@@ -1363,7 +1363,14 @@ document.addEventListener('keydown', e => {
         delete contentEl.dataset.isPlaceholder;
       }
       // 의도적 빈 줄(data-blank)이면 placeholder 문구 덮어쓰기 skip — 빈 블록 유지
-      const isBlank = contentEl.dataset.blank === 'true' || tb.dataset.blank === 'true';
+      // (EMPTY) 아직 승격 안 된 'Enter 빈 줄' 블록(br/빈요소만 존재)도 여기서 보존 승격
+      let isBlank = contentEl.dataset.blank === 'true' || tb.dataset.blank === 'true';
+      if (!isBlank && window.isVisuallyBlankButHasBreaks?.(contentEl)) {
+        contentEl.dataset.blank = 'true';
+        tb.dataset.blank = 'true';
+        delete contentEl.dataset.isPlaceholder;
+        isBlank = true;
+      }
       if (!isBlank && contentEl.dataset.isPlaceholder === 'true' && phMap[cls]) {
         contentEl.dataset.placeholder = phMap[cls];
         contentEl.innerHTML = phMap[cls];

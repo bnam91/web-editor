@@ -738,7 +738,15 @@ function rebindAll() {
       return;
     }
     // 의도적 빈 줄(data-blank) 블록은 placeholder 복원/플래그 보정에서 제외 — 빈 상태 유지
-    const blank = inner.dataset.blank === 'true' || tb.dataset.blank === 'true';
+    let blank = inner.dataset.blank === 'true' || tb.dataset.blank === 'true';
+    // (EMPTY) data-blank 없이 br/빈 줄요소만 있는 블록(=의도적 Enter 빈 줄)도 보존 승격.
+    // 구버전 저장본이나 승격 누락 케이스를 로드 시점에 자가치유한다.
+    if (!blank && window.isVisuallyBlankButHasBreaks?.(inner)) {
+      inner.dataset.blank = 'true';
+      tb.dataset.blank = 'true';
+      delete inner.dataset.isPlaceholder;
+      blank = true;
+    }
     // data-is-placeholder 보정: 저장된 내용이 placeholder 텍스트와 같거나 비어있으면 placeholder 상태로 표시
     if (!blank && inner.dataset.isPlaceholder !== 'true') {
       const ph = inner.dataset.placeholder;

@@ -510,7 +510,18 @@ function bindBlock(block) {
       el.setAttribute('contenteditable', 'false');
       // 빈 텍스트면 placeholder 복원 — 단 의도적 빈 줄(data-blank)이면 복원 skip
       const ph = el.dataset.placeholder;
-      const blank = el.dataset.blank === 'true' || block.dataset.blank === 'true';
+      let blank = el.dataset.blank === 'true' || block.dataset.blank === 'true';
+      // (EMPTY) 사용자가 편집 진입 후 Enter만 눌러 만든 빈 줄(<br>/빈 div 등)은
+      // placeholder로 덮지 말고 data-blank='true'로 승격(보존)한다.
+      // isVisuallyBlankButHasBreaks: textContent는 비었지만 br/빈 줄요소가 있는 경우만 true
+      // → 한 번도 편집 안 한 순수 placeholder(br 없는 안내문구)는 여기 안 걸려 기존대로 복원.
+      if (!blank && (window.isVisuallyBlankButHasBreaks?.(el))) {
+        el.dataset.blank = 'true';
+        block.dataset.blank = 'true';
+        delete el.dataset.isPlaceholder;
+        blank = true;
+        window.scheduleAutoSave?.();
+      }
       if (ph && el.textContent.trim() === '' && !blank) {
         // tb-bullet: ul placeholder는 <li>로 감싸서 복원해야 list-style이 유지됨
         if (el.classList.contains('tb-bullet')) {
