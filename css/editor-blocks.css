@@ -47,6 +47,33 @@
   outline: 2px dashed var(--sel-color);
 }
 
+/* ── 배경 투명도(bgOpacity) — 점진 적용안 (I2) ──
+   has-bg-opacity 클래스가 있을 때만 활성. 기존 프레임은 무변경.
+   배경(색/이미지/그라데이션)을 ::before 레이어로 분리하고 그 레이어에만
+   opacity를 걸어 배경만 반투명, 콘텐츠는 불투명 유지.
+   배경 값은 --frame-bg(색) / --frame-bg-img(이미지·그라데이션) CSS변수로 전달. */
+.frame-block.has-bg-opacity {
+  background: transparent;
+}
+.frame-block.has-bg-opacity::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: var(--frame-bg, transparent);
+  background-image: var(--frame-bg-img, none);
+  background-size: cover;
+  background-position: var(--frame-bg-pos, center);
+  opacity: var(--frame-bg-opacity, 1);
+  border-radius: inherit;
+}
+/* 직속 자식이 ::before(z-index:0) 위에 오도록 보장 (free/flow 양쪽) */
+.frame-block.has-bg-opacity > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* ── 프레임 오버레이 핸들 (Figma 방식 — #ss-handles-overlay 에 렌더링) ── */
 #ss-handles-overlay {
   position: fixed;

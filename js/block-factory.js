@@ -4065,6 +4065,7 @@ function updateFrameBlock(blockId, partial = {}) {
     rotateDeg: parseFloat(block.dataset.rotateDeg) || 0,
     flipH: block.dataset.flipH === '1' ? 1 : 0,
     flipV: block.dataset.flipV === '1' ? 1 : 0,
+    bgOpacity: block.dataset.bgOpacity !== undefined ? parseFloat(block.dataset.bgOpacity) : 1,
     bannerPreset: block.dataset.bannerPreset || null,
   };
 
@@ -4080,6 +4081,24 @@ function updateFrameBlock(blockId, partial = {}) {
     if (max !== undefined && n > max) return false;
     block.dataset[datasetKey] = String(n);
     return true;
+  };
+
+  // ── 배경 CSS변수 동기화 (I2, prop-frame _syncFrameBgVars 미러) ──
+  //    has-bg-opacity 프레임만: 배경을 ::before가 그리므로 --frame-bg/--frame-bg-img로 전달하고 본체 배경 비움.
+  const _syncBgVars = () => {
+    if (!block.classList.contains('has-bg-opacity')) return;
+    const bgVal = block.dataset.bg || block.style.backgroundColor || 'transparent';
+    if (/gradient\s*\(/i.test(bgVal)) {
+      block.style.setProperty('--frame-bg', 'transparent');
+      block.style.setProperty('--frame-bg-img', bgVal);
+    } else {
+      block.style.setProperty('--frame-bg', bgVal);
+      block.style.setProperty('--frame-bg-img', block.dataset.bgImg ? `url("${block.dataset.bgImg}")` : 'none');
+    }
+    block.style.setProperty('--frame-bg-pos', block.dataset.bgPos || 'center');
+    block.style.backgroundColor = '';
+    block.style.backgroundImage = '';
+    block.style.background = '';
   };
 
   // 1) bg — solid / gradient(css) 둘 다 허용. prop-frame.js wireColorField onApply/onGradient 패턴 미러.
@@ -4106,6 +4125,7 @@ function updateFrameBlock(blockId, partial = {}) {
       block.style.backgroundColor = v;
     }
     block.dataset.bg = v;
+    _syncBgVars();
     applied.bg = v;
   }
 
@@ -4118,6 +4138,7 @@ function updateFrameBlock(blockId, partial = {}) {
       block.style.backgroundPosition = '';
       delete block.dataset.bgImg;
       delete block.dataset.bgPos;
+      _syncBgVars();
       applied.bgImage = null;
     } else {
       if (typeof partial.bgImage !== 'string') {
@@ -4136,6 +4157,7 @@ function updateFrameBlock(blockId, partial = {}) {
       block.style.backgroundSize = 'cover';
       block.style.backgroundPosition = 'center';
       block.dataset.bgImg = src;
+      _syncBgVars();
       applied.bgImage = src;
     }
   }
@@ -4308,6 +4330,35 @@ function updateFrameBlock(blockId, partial = {}) {
     } catch (e) {
       return { ok: false, code: 'PRESET_ERROR', message: e.message };
     }
+  }
+
+  // 11b) bgOpacity (I2) — 0~1 float. 배경만 반투명(::before 레이어), 콘텐츠 불투명 유지.
+  //      prop-frame applyBgOpacity 미러: dataset.bgOpacity set, --frame-bg-opacity set, has-bg-opacity toggle, CSS변수 동기화.
+  if (partial.bgOpacity !== undefined) {
+    const o = Number(partial.bgOpacity);
+    if (!Number.isFinite(o) || o < 0 || o > 1) {
+      return { ok: false, code: 'INVALID', message: 'bgOpacity out of range [0, 1] (float)' };
+    }
+    block.dataset.bgOpacity = String(o);
+    block.style.setProperty('--frame-bg-opacity', String(o));
+    const active = o < 1;
+    block.classList.toggle('has-bg-opacity', active);
+    if (active) {
+      _syncBgVars();
+    } else {
+      // 100%(불투명) 복귀: ::before 비활성 → 본체 배경 원복
+      const bgVal = block.dataset.bg || '';
+      if (bgVal) {
+        if (/gradient\s*\(/i.test(bgVal)) block.style.background = bgVal;
+        else block.style.backgroundColor = bgVal;
+      }
+      if (block.dataset.bgImg) {
+        block.style.backgroundImage = `url("${block.dataset.bgImg}")`;
+        block.style.backgroundSize = 'cover';
+        block.style.backgroundPosition = block.dataset.bgPos || 'center';
+      }
+    }
+    applied.bgOpacity = o;
   }
 
   // 11) 우측 패널 갱신 (선택 상태일 때만)
