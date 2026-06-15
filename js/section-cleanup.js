@@ -20,6 +20,8 @@
       if (!el.classList.contains('row') && !el.classList.contains('frame-block')) return false;
       const txt = (el.textContent || '').trim();
       if (txt) return false;
+      // 의도적 빈 줄(data-blank) 텍스트블럭은 비어 보여도 사용자 콘텐츠 → 정리 대상에서 제외
+      if (el.querySelector('[data-blank="true"]')) return false;
       if (el.querySelector('img, svg')) return false;
       // bg image — 자기 자신 + 모든 자손 검사
       if (hasBgImg(el)) return false;

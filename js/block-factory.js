@@ -56,7 +56,7 @@ function getOverlayAlign(overlay) {
 }
 
 
-function makeTextBlock(type) {
+function makeTextBlock(type, opts = {}) {
   type = type || 'body';
   const classMap  = { h1:'tb-h1', h2:'tb-h2', h3:'tb-h3', body:'tb-body', caption:'tb-caption', label:'tb-label', bullet:'tb-bullet' };
   const dataType  = (type==='h1'||type==='h2'||type==='h3') ? 'heading' : type;
@@ -66,6 +66,21 @@ function makeTextBlock(type) {
   tb.className = 'text-block'; tb.dataset.type = dataType;
   tb.id = genId('tb');
   const phText = placeholder[type];
+
+  // blank 모드: placeholder 문구 없는 "의도적 빈 줄" 블록.
+  // data-placeholder는 유지(실제 글자 입력 시 승격 후 다시 비우면 placeholder 복원 대비),
+  // data-is-placeholder는 두지 않고 data-blank='true'로 표시한다.
+  if (opts.blank) {
+    if (type === 'bullet') {
+      tb.innerHTML = `
+    <ul class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif" data-placeholder="${phText}" data-blank="true"><li><br></li></ul>`;
+    } else {
+      tb.innerHTML = `
+    <div class="${classMap[type]}" contenteditable="false" style="font-family:'Pretendard', sans-serif" data-placeholder="${phText}" data-blank="true"><br></div>`;
+    }
+    tb.dataset.blank = 'true';
+    return { block: tb };
+  }
 
   if (type === 'bullet') {
     // bullet 변형: <ul class="tb-bullet"><li>...</li></ul>
@@ -424,6 +439,96 @@ function addTextBlock(type, opts = {}) {
   // selectSection→deselectAll로 새 블록 선택이 풀리고 스크롤도 안 일어남)
   try { window.selectBlock?.(block.id); } catch (_) {}
   tf.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// 의도적 "빈 줄" 텍스트블럭을 선택 섹션/프레임에 삽입한다.
+// placeholder 문구 없이 빈 상태를 유지하며(blur/load/타입변경에서 복원 skip),
+// 실제 글자를 입력하면 data-blank가 해제되어 일반 텍스트블럭으로 승격된다.
+// addTextBlock 패턴(overlay → activeFrame → section)을 그대로 재사용한다.
+function addBlankTextBlock(type = 'body', opts = {}) {
+  const o = { ...opts, blank: true };
+
+  // 오버레이가 활성화된 에셋 블록이 선택된 경우 → 오버레이에 추가
+  const overlay = getSelectedOverlay();
+  if (overlay) {
+    window.pushHistory();
+    const { block } = makeTextBlock(type, { blank: true });
+    block.classList.add('overlay-tb');
+    const overlayAlign = o.align || getOverlayAlign(overlay);
+    if (overlayAlign) {
+      const contentEl = block.querySelector('[class^="tb-"]');
+      if (type === 'label') block.style.textAlign = overlayAlign;
+      else if (contentEl) contentEl.style.textAlign = overlayAlign;
+    }
+    const overlayRow = document.createElement('div');
+    overlayRow.className = 'row'; overlayRow.dataset.layout = 'stack';
+    overlayRow.appendChild(block);
+    insertIntoOverlay(overlay, overlayRow);
+    bindBlock(block);
+    window.buildLayerPanel();
+    try { window.selectBlock?.(block.id); } catch (_) {}
+    return block.id;
+  }
+
+  // 활성 프레임(frame-block) 분기
+  const activeSS = window._activeFrame;
+  if (activeSS && !activeSS.dataset.bannerPreset) {
+    window.pushHistory();
+    const { block } = makeTextBlock(type, { blank: true });
+    const tf = _makeTextFrame();
+    if (o.align) {
+      const contentEl = block.querySelector('[class^="tb-"]');
+      if (type === 'label') block.style.textAlign = o.align;
+      else if (contentEl) contentEl.style.textAlign = o.align;
+    }
+    tf.appendChild(block);
+
+    if (activeSS.dataset.freeLayout === 'true') {
+      const stackY = _calcFreeLayoutStackY(activeSS);
+      tf.style.position = 'absolute';
+      tf.style.left     = '0px';
+      tf.style.top      = stackY + 'px';
+      tf.style.width    = '100%';
+      activeSS.appendChild(tf);
+    } else if (activeSS.dataset.fullWidth === 'true') {
+      let refChild = null;
+      const selList = activeSS.querySelectorAll('.selected');
+      if (selList.length) {
+        let cur = selList[selList.length - 1];
+        while (cur && cur.parentElement !== activeSS) cur = cur.parentElement;
+        if (cur && cur.parentElement === activeSS && cur !== tf) refChild = cur;
+      }
+      if (refChild) activeSS.insertBefore(tf, refChild.nextSibling);
+      else activeSS.appendChild(tf);
+    } else {
+      return null; // 지원하지 않는 프레임 타입
+    }
+    bindBlock(block);
+    window.buildLayerPanel();
+    try { window.selectBlock?.(block.id); } catch (_) {}
+    return block.id;
+  }
+
+  // 섹션에 직접 추가
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return null; }
+  window.pushHistory();
+  const { block } = makeTextBlock(type, { blank: true });
+  const tf = _makeTextFrame();
+  const align = o.align || getSectionAlign(sec);
+  if (align) {
+    const contentEl = block.querySelector('[class^="tb-"]');
+    if (type === 'label') block.style.textAlign = align;
+    else if (contentEl) contentEl.style.textAlign = align;
+  }
+  tf.appendChild(block);
+
+  insertAfterSelected(sec, tf);
+  bindBlock(block);
+  window.buildLayerPanel();
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  tf.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return block.id;
 }
 
 function promoteToFrame(block) {
@@ -1404,6 +1509,7 @@ export {
   addLabelGroupBlock,
   makeTableBlock,
   addTextBlock,
+  addBlankTextBlock,
   groupSelectedBlocks,
   promoteToFrame,
   makePresetRow,
@@ -3766,6 +3872,7 @@ window.makeIconTextBlock    = makeIconTextBlock;
 window.addIconTextBlock     = addIconTextBlock;
 window.makeTableBlock       = makeTableBlock;
 window.addTextBlock         = addTextBlock;
+window.addBlankTextBlock    = addBlankTextBlock;
 window.groupSelectedBlocks  = groupSelectedBlocks;
 window.promoteToFrame  = promoteToFrame;
 window.makePresetRow        = makePresetRow;

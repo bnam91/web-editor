@@ -701,15 +701,17 @@ function rebindAll() {
       }
       return;
     }
+    // 의도적 빈 줄(data-blank) 블록은 placeholder 복원/플래그 보정에서 제외 — 빈 상태 유지
+    const blank = inner.dataset.blank === 'true' || tb.dataset.blank === 'true';
     // data-is-placeholder 보정: 저장된 내용이 placeholder 텍스트와 같거나 비어있으면 placeholder 상태로 표시
-    if (inner.dataset.isPlaceholder !== 'true') {
+    if (!blank && inner.dataset.isPlaceholder !== 'true') {
       const ph = inner.dataset.placeholder;
       const txt = inner.textContent.trim();
       if (ph && (txt === '' || txt === ph.trim())) {
         if (txt === '') inner.innerHTML = ph; // 비어있으면 placeholder 텍스트 복원
         inner.dataset.isPlaceholder = 'true';
       }
-    } else {
+    } else if (!blank) {
       // C2/D2: 역방향 보정 — 플래그가 잘못 켜졌는데 실제 글자가 들어있으면 끈다
       // (block-drag.js:496 자가보정과 동일 기준). 라운드트립으로 잘못된 플래그를 자가치유해
       // 유형변경/직렬화 시 글자손실 재발을 막는다.

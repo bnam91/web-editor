@@ -1623,6 +1623,7 @@ body.preview-mode #preview-navigator { display: flex; }
 .itb-icon {
   width: 40px;
   height: 40px;
+  aspect-ratio: 1 / 1;   /* 원형 variant/has-image 시 1:1 보장 — 인접 텍스트블럭 flex squash 차단 */
   flex-shrink: 0;
   border-radius: 6px;
   border: 1.5px dashed var(--ui-border, #555);

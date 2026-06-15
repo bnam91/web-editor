@@ -86,7 +86,8 @@ export function showIconCircleProperties(block) {
     v = Math.min(860, Math.max(40, v));
     block.dataset.size     = v;
     circle.style.width     = v + 'px';
-    circle.style.height    = v + 'px';
+    circle.style.height    = v + 'px';   // height는 항상 width와 동일 — 단일 차원 경로 방어
+    circle.style.aspectRatio = '1 / 1';  // 런타임 가드 — 부모 flex stretch로 squash되는 케이스 차단
     propPanel.querySelector('#icb-size-slider').value = v;
     propPanel.querySelector('#icb-size-number').value = v;
   };

@@ -496,14 +496,21 @@ function bindBlock(block) {
       if (el.dataset.isPlaceholder === 'true' && el.textContent.trim() !== '') {
         delete el.dataset.isPlaceholder;
       }
+      // blank(의도적 빈 줄) 블록에 실제 글자를 입력하면 일반 블록으로 승격
+      // → 이후 비우면 다시 placeholder 복원되는 정상 동작으로 돌아간다.
+      if (el.textContent.trim() !== '') {
+        if (el.dataset.blank === 'true') delete el.dataset.blank;
+        if (block.dataset.blank === 'true') delete block.dataset.blank;
+      }
     });
     // blur → 편집 종료 (외부 클릭, 포커스 이탈 시)
     el.addEventListener('blur', () => {
       block.classList.remove('editing');
       el.setAttribute('contenteditable', 'false');
-      // 빈 텍스트면 placeholder 복원
+      // 빈 텍스트면 placeholder 복원 — 단 의도적 빈 줄(data-blank)이면 복원 skip
       const ph = el.dataset.placeholder;
-      if (ph && el.textContent.trim() === '') {
+      const blank = el.dataset.blank === 'true' || block.dataset.blank === 'true';
+      if (ph && el.textContent.trim() === '' && !blank) {
         // tb-bullet: ul placeholder는 <li>로 감싸서 복원해야 list-style이 유지됨
         if (el.classList.contains('tb-bullet')) {
           el.innerHTML = `<li>${ph}</li>`;
