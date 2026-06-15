@@ -262,6 +262,21 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
   imgDiv.addEventListener('mousedown', onDragStart);
 }
 
+// full-bleed: 카드가 속한 섹션의 effective 좌우패딩(px) 해석.
+//   - closest('.section-inner')의 dataset.paddingX override가 있으면 그 값
+//   - 없으면 window.state?.pageSettings?.padX (프로젝트 globals state)
+//   - section-inner 없거나(프레임 free-layout 등) full-bleed 무의미하면 0
+// 에셋블럭 패턴(prop-asset.js:217-221) 미러. free-layout 프레임 내부 카드는 절대좌표라 제외.
+function _effSectionPadX(block) {
+  // free-layout 프레임 내부 카드는 absolute 배치 → full-bleed 무의미 (에셋 applyExcludePadX 가드 미러)
+  if (block.closest?.('.frame-block[data-free-layout="true"]')) return 0;
+  const inner = block.closest?.('.section-inner');
+  if (!inner) return 0;
+  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+  if (hasOverride) return parseInt(inner.dataset.paddingX) || 0;
+  return window.state?.pageSettings?.padX || 0;
+}
+
 function renderCanvas(block) {
   const layers   = JSON.parse(block.dataset.layers || '[]');
   const designW  = parseInt(block.dataset.canvasW) || 360;
@@ -296,14 +311,28 @@ function renderCanvas(block) {
     const totalW = designW * gridCols + GAP * (gridCols - 1);
     const totalH = designH * gridRows + GAP * (gridRows - 1);
 
-    if (gridCols === 1) {
-      block.style.width    = designW + 'px';
-      block.style.maxWidth = '';
-      block.style.minWidth = '';
+    // full-bleed: 섹션 좌우패딩 무시 — 음수마진 + calc 확장폭으로 섹션 가장자리까지 확장.
+    // 에셋과 달리 카드는 renderCanvas가 매 렌더 width를 덮으므로 여기서 통합 처리.
+    const _fb    = block.dataset.fullBleed === 'true';
+    const _secPX = _fb ? _effSectionPadX(block) : 0;
+    if (_fb && _secPX > 0) {
+      block.style.width      = `calc(100% + ${_secPX * 2}px)`;
+      block.style.maxWidth   = '';
+      block.style.minWidth   = '0';
+      block.style.marginLeft  = -_secPX + 'px';
+      block.style.marginRight = -_secPX + 'px';
     } else {
-      block.style.width    = '100%';
-      block.style.maxWidth = '';
-      block.style.minWidth = '0';
+      block.style.marginLeft  = '';
+      block.style.marginRight = '';
+      if (gridCols === 1) {
+        block.style.width    = designW + 'px';
+        block.style.maxWidth = '';
+        block.style.minWidth = '';
+      } else {
+        block.style.width    = '100%';
+        block.style.maxWidth = '';
+        block.style.minWidth = '0';
+      }
     }
     const padX = parseInt(block.dataset.padX ?? '0');
 
@@ -510,14 +539,27 @@ function renderCanvas(block) {
   const totalH = designH * gridRows + GAP * (gridRows - 1);
 
   // block: gridCols===1이면 고정 너비, 2+이면 섹션 너비에 맞춤
-  if (gridCols === 1) {
-    block.style.width    = designW + 'px';
-    block.style.maxWidth = '';
-    block.style.minWidth = '';
+  // full-bleed면 섹션 좌우패딩 무시 — simple 분기와 동일 패턴(dataset 일관성)
+  const _fbL    = block.dataset.fullBleed === 'true';
+  const _secPXL = _fbL ? _effSectionPadX(block) : 0;
+  if (_fbL && _secPXL > 0) {
+    block.style.width      = `calc(100% + ${_secPXL * 2}px)`;
+    block.style.maxWidth   = '';
+    block.style.minWidth   = '0';
+    block.style.marginLeft  = -_secPXL + 'px';
+    block.style.marginRight = -_secPXL + 'px';
   } else {
-    block.style.width    = '100%';
-    block.style.maxWidth = '';
-    block.style.minWidth = '0';
+    block.style.marginLeft  = '';
+    block.style.marginRight = '';
+    if (gridCols === 1) {
+      block.style.width    = designW + 'px';
+      block.style.maxWidth = '';
+      block.style.minWidth = '';
+    } else {
+      block.style.width    = '100%';
+      block.style.maxWidth = '';
+      block.style.minWidth = '0';
+    }
   }
   block.style.height       = '';
   block.style.minHeight    = '';
@@ -673,6 +715,8 @@ function makeCanvasBlock(data = {}) {
   block.dataset.gridRows  = data.gridRows || 1;
   block.dataset.cardGap   = data.cardGap ?? 12;
   block.dataset.padX      = data.padX ?? 0;
+  // full-bleed: 섹션 좌우패딩 무시 옵션 (자동조립/MCP 경로 대응). 기본 off — true일 때만 set.
+  if (data.fullBleed === true || data.fullBleed === 'true') block.dataset.fullBleed = 'true';
   if (data.cardMode) {
     block.dataset.cardMode  = data.cardMode;
     block.dataset.imgRatio  = data.imgRatio  ?? 76;
@@ -708,6 +752,7 @@ const CARD_DEFAULT_OPTS = {
   layerName: 'Card',
   layers: [],
   gridCols: 1, gridRows: 1, cardGap: 12, padX: 0,
+  fullBleed: false,
   cards: [{ title: '카드 제목', desc: '', imgSrc: '', cellBg: '' }],
 };
 
@@ -780,6 +825,7 @@ function updateCanvasBlock(blockId, partial = {}) {
     layerName: block.dataset.layerName,
     gridCols: block.dataset.gridCols, gridRows: block.dataset.gridRows,
     cardGap: block.dataset.cardGap, padX: block.dataset.padX,
+    fullBleed: block.dataset.fullBleed || '',
     cardMode: block.dataset.cardMode || '',
     imgRatio: block.dataset.imgRatio, imgShape: block.dataset.imgShape,
     labelPos: block.dataset.labelPos, textHide: block.dataset.textHide,
@@ -851,6 +897,7 @@ function updateCanvasBlock(blockId, partial = {}) {
     _try(_setStrField('layerName', 'layerName', 100));
     _try(_setIntField('cardGap',   'cardGap',   0,   48));
     _try(_setIntField('padX',      'padX',      0,   80));
+    _try(_setBoolStrField('fullBleed', 'fullBleed'));
     _try(_setEnumField('cardMode', 'cardMode',  ['simple', '']));
     _try(_setIntField('imgRatio',  'imgRatio',  10,  90));
     _try(_setEnumField('imgShape', 'imgShape',  ['rect','circle']));
