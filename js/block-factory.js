@@ -391,16 +391,22 @@ function addTextBlock(type, opts = {}) {
       const hasAbsCoords = (opts.x !== undefined || opts.y !== undefined || opts.width !== undefined);
       const stackY = hasAbsCoords ? (opts.y ?? 0) : _calcFreeLayoutStackY(activeSS);
       const leftPx = hasAbsCoords ? (opts.x ?? 0) : 0;
-      const widthVal = opts.width ? opts.width + 'px' : '100%';
       tf.style.position = 'absolute';
       tf.style.left     = leftPx + 'px';
       tf.style.top      = stackY + 'px';
-      tf.style.width    = widthVal;
       if (hasAbsCoords) {
         tf.dataset.offsetX = leftPx;
         tf.dataset.offsetY = stackY;
       }
       activeSS.appendChild(tf);
+      // width: opts.width 명시 시 우선, 아니면 콘텐츠 폭으로 클램프
+      // (drop 경로 makeAbsolute / asset·icon과 동일 규칙 — 전폭 '100%' 비일관 제거)
+      if (opts.width) {
+        tf.style.width = opts.width + 'px';
+        tf.dataset.width = String(opts.width);
+      } else {
+        _clampTextFrameWidth(tf, activeSS);
+      }
     } else if (activeSS.dataset.fullWidth === 'true') {
       // A 모드: fullWidth 플로우 — 선택된 자손이 있으면 그것을 품은 직계 자식 다음 sibling으로 삽입
       let refChild = null;
@@ -488,8 +494,12 @@ function addBlankTextBlock(type = 'body', opts = {}) {
       tf.style.position = 'absolute';
       tf.style.left     = '0px';
       tf.style.top      = stackY + 'px';
-      tf.style.width    = '100%';
       activeSS.appendChild(tf);
+      // 의도적 빈 줄(data-blank)은 콘텐츠 폭이 ~0이라 클램프 시 너무 좁아짐
+      // → _clampTextFrameWidth가 측정 실패(<=1px)로 안전 원복하므로 100% 기본 명시
+      tf.style.width = '100%';
+      tf.dataset.width = '100%';
+      _clampTextFrameWidth(tf, activeSS);
     } else if (activeSS.dataset.fullWidth === 'true') {
       let refChild = null;
       const selList = activeSS.querySelectorAll('.selected');
@@ -1246,6 +1256,45 @@ function makeFrameBlock(opts = {}) {
     ss.style.cssText = css;
   }
   return ss;
+}
+
+/* freeLayout 텍스트프레임 width를 콘텐츠 폭으로 클램프(asset/icon makeAbsolute와 통일).
+   tf는 이미 DOM(부모 freeLayout 프레임)에 append된 상태여야 정확히 측정됨.
+   - 중앙/우측/양끝 정렬 텍스트(헤드라인 등)는 전폭 의도 → '100%' 유지(예외)
+   - 그 외 좌측정렬/기본은 콘텐츠 실측 폭을 min(content, 프레임폭)px로 클램프
+   - inline style.width와 dataset.width를 함께 동기화(HTML outerHTML 영속 + 로드 반영)
+   반환: 적용한 width 문자열('100%' 또는 'NNNpx') */
+function _clampTextFrameWidth(tf, frameEl) {
+  if (!tf || tf.dataset.textFrame !== 'true') return tf && tf.style.width;
+  // 정렬 확인 — text-block 또는 내부 콘텐츠 요소의 textAlign
+  const tb = tf.querySelector('.text-block, [class^="tb-"]');
+  const contentEl = tf.querySelector('[class^="tb-"]') || tb;
+  const align = (contentEl && contentEl.style.textAlign)
+    || (tb && tb.style.textAlign)
+    || tf.style.textAlign
+    || 'left';
+  if (align === 'center' || align === 'right' || align === 'justify') {
+    tf.style.width = '100%';
+    tf.dataset.width = '100%';
+    return '100%';
+  }
+  // 프레임 가용 폭(클램프 상한)
+  const frameW = (frameEl && frameEl.clientWidth) || 860;
+  // 콘텐츠 실측: 측정 동안 width를 fit-content로 잠시 풀어 자연 폭 산출
+  const prevWidth = tf.style.width;
+  tf.style.width = 'fit-content';
+  // tb 자식이 inline-block이 아니어도 tf가 fit-content면 콘텐츠 폭으로 수축
+  let contentW = tf.offsetWidth || (tb && tb.offsetWidth) || 0;
+  // box-sizing:border-box이므로 패딩 포함 offsetWidth가 곧 프레임 폭
+  if (!contentW || contentW <= 1) {
+    // 측정 실패 시 안전하게 원복
+    tf.style.width = prevWidth || '100%';
+    return tf.style.width;
+  }
+  const w = Math.min(Math.round(contentW), frameW);
+  tf.style.width = w + 'px';
+  tf.dataset.width = String(w);
+  return tf.style.width;
 }
 
 /* freeLayout inner 안에서 absolute 블록들을 아래로 쌓을 Y 좌표 계산 */
@@ -3937,6 +3986,7 @@ window.addIconTextBlock     = addIconTextBlock;
 window.makeTableBlock       = makeTableBlock;
 window.addTextBlock         = addTextBlock;
 window.addBlankTextBlock    = addBlankTextBlock;
+window._clampTextFrameWidth = _clampTextFrameWidth;
 window.isVisuallyBlankButHasBreaks = isVisuallyBlankButHasBreaks;
 window.groupSelectedBlocks  = groupSelectedBlocks;
 window.promoteToFrame  = promoteToFrame;
