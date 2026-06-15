@@ -389,15 +389,34 @@ function applyProjectData(data) {
     window._ckSections = Array.isArray(data.checklistSections) ? data.checklistSections : [];
     // AI 이미지 갤러리 복원 — 누락된 프로젝트는 [] 폴백 (마이그레이션 코드 불필요)
     state.imageGallery = Array.isArray(data.imageGallery) ? data.imageGallery : [];
-    // Assets 트리 복원 — 빈 트리면 기본 "제품사진" 폴더 1개 자동 생성
+    // Assets 트리 복원 — 빈 트리면 기본 "제품사진" + "favorite" 폴더 자동 생성
+    // (U7) favorite 폴더는 favorite:true 플래그로 식별하는 보호 폴더.
+    //      빈 트리가 아니어도 favorite 플래그 폴더가 없으면 1회만 멱등 삽입(중복 금지).
     state.assetsTree   = Array.isArray(data.assetsTree)   ? data.assetsTree   : [];
+    const _astId = () => 'ast_' + Math.random().toString(36).slice(2, 8);
     if (state.assetsTree.length === 0) {
       state.assetsTree.push({
-        id: 'ast_' + Math.random().toString(36).slice(2, 8),
+        id: _astId(),
         type: 'folder',
         name: '제품사진',
         children: [],
       });
+    }
+    // favorite 폴더 멱등 시드/마이그레이션 — 최상위에 favorite:true 폴더가 없을 때만 삽입
+    const _hasFavorite = state.assetsTree.some(n => n && n.type === 'folder' && n.favorite === true);
+    if (!_hasFavorite) {
+      const favNode = {
+        id: _astId(),
+        type: 'folder',
+        name: 'favorite',
+        favorite: true,
+        children: [],
+        collapsed: false,
+      };
+      // 제품사진 폴더 바로 다음에 삽입 (없으면 맨 앞)
+      const prodIdx = state.assetsTree.findIndex(n => n && n.type === 'folder' && n.name === '제품사진');
+      if (prodIdx >= 0) state.assetsTree.splice(prodIdx + 1, 0, favNode);
+      else state.assetsTree.unshift(favNode);
     }
     window.buildLayerPanel(); // also calls buildFilePageSection
     window.showPageProperties();
