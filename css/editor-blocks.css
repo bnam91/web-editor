@@ -723,6 +723,15 @@
 .table-block[data-show-outer-y="false"] .tb-table tr:last-child > td {
   border-bottom: none;
 }
+/* colored 수평선 ON 규칙(621행)이 <tr> 요소 자체에 border-bottom !important 를 박으므로,
+   셀(th/td) 제거만으로는 마지막행 하단선이 잔류한다. <tr> 요소 자체의 외곽 상/하 border 도 제거.
+   상단(first-child top)은 현재 잔류 사례 없으나 대칭/회귀방지용. */
+.table-block[data-show-outer-y="false"] .tb-table tr:last-child {
+  border-bottom: none !important;
+}
+.table-block[data-show-outer-y="false"] .tb-table tr:first-child {
+  border-top: none !important;
+}
 
 /* 셀 편집 모드 */
 .tb-table td[contenteditable="true"],
