@@ -114,10 +114,10 @@ function _assetsBindGlobalKeydown() {
     const msg = ids.length === 1 ? '선택한 자산 1개를 삭제할까요? (폴더면 하위 포함)' : `선택한 자산 ${ids.length}개를 삭제할까요? (폴더면 하위 포함)`;
     if (!window.confirm(msg)) return;
     for (const id of ids) {
-      // (U7) favorite 보호 폴더는 다중 삭제에서도 개별 skip
+      // (U7) favorite/Texture 고정 보호 폴더는 다중 삭제에서도 개별 skip
       const f = assetsFindNode(id);
-      if (f && f.node && f.node.type === 'folder' && f.node.favorite === true) {
-        window.showToast?.('⭐ favorite 폴더는 삭제할 수 없습니다.');
+      if (f && f.node && f.node.type === 'folder' && (f.node.favorite === true || f.node.texture === true)) {
+        window.showToast?.(`📌 ${f.node.name} 폴더는 삭제할 수 없습니다.`);
         continue;
       }
       try { await assetsDeleteNode(id); } catch (_) {}
@@ -237,9 +237,9 @@ function assetsMoveNode(id, newParentId, beforeId = null) {
   if (newParentId && _assetsIsDescendant(id, newParentId)) return; // 사이클 가드
   const src = assetsFindNode(id);
   if (!src) return;
-  // (U7) favorite 보호 폴더는 이동 차단
-  if (src.node && src.node.type === 'folder' && src.node.favorite === true) {
-    window.showToast?.('⭐ favorite 폴더는 이동할 수 없습니다.');
+  // (U7) favorite/Texture 고정 보호 폴더는 이동 차단
+  if (src.node && src.node.type === 'folder' && (src.node.favorite === true || src.node.texture === true)) {
+    window.showToast?.(`📌 ${src.node.name} 폴더는 이동할 수 없습니다.`);
     return;
   }
   // 원위치에서 제거
@@ -403,9 +403,9 @@ function assetsAddUrl({ title, url, note }, parentId = null) {
 async function assetsDeleteNode(id) {
   const f = assetsFindNode(id);
   if (!f) return false;
-  // (U7) favorite 보호 폴더는 삭제 차단
-  if (f.node.type === 'folder' && f.node.favorite === true) {
-    window.showToast?.('⭐ favorite 폴더는 삭제할 수 없습니다.');
+  // (U7) favorite/Texture 고정 보호 폴더는 삭제 차단
+  if (f.node.type === 'folder' && (f.node.favorite === true || f.node.texture === true)) {
+    window.showToast?.(`📌 ${f.node.name} 폴더는 삭제할 수 없습니다.`);
     return false;
   }
   const label = f.node.type === 'folder' ? `'${f.node.name}' 폴더와 그 안의 모든 자산을` : `'${f.node.name || f.node.title || ''}' 항목을`;
@@ -507,6 +507,16 @@ function _urlIcon() {
   </span>`;
 }
 
+// Texture 고정 보호 폴더 전용 아이콘 — 격자(스와치) 표식
+function _textureFolderIcon() {
+  return `<span class="assets-row-thumb-icon" aria-hidden="true" title="Texture">
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round">
+      <rect x="1.8" y="1.8" width="10.4" height="10.4" rx="1.2"/>
+      <path d="M1.8 5.3 H12.2 M1.8 8.7 H12.2 M5.3 1.8 V12.2 M8.7 1.8 V12.2"/>
+    </svg>
+  </span>`;
+}
+
 function _renderTreeNode(node, depth, parentEl) {
   const row = document.createElement('div');
   row.className = 'assets-row assets-row--' + node.type;
@@ -535,8 +545,11 @@ function _renderTreeNode(node, depth, parentEl) {
 
   // 썸네일
   if (node.type === 'folder') {
-    // (U7) favorite 보호 폴더는 ★ 표식
-    row.insertAdjacentHTML('beforeend', node.favorite === true ? _favoriteFolderIcon() : _folderIcon());
+    // (U7) favorite=★ / Texture=격자 / 일반 폴더 아이콘
+    row.insertAdjacentHTML('beforeend',
+      node.favorite === true ? _favoriteFolderIcon()
+      : node.texture === true ? _textureFolderIcon()
+      : _folderIcon());
   } else if (node.type === 'url') {
     row.insertAdjacentHTML('beforeend', _urlIcon());
   } else if (node.type === 'image') {
@@ -568,9 +581,9 @@ function _renderTreeNode(node, depth, parentEl) {
   const btnRename = `<button data-act="rename" title="이름변경">✎</button>`;
   const btnSend = node.type === 'image' ? `<button data-act="send" title="캔버스로 보내기">↗</button>` : '';
   const btnOpen = node.type === 'url' ? `<button data-act="open" title="링크 열기">↗</button>` : '';
-  // (U7) favorite 보호 폴더는 삭제 버튼 숨김
-  const _isFavFolder = node.type === 'folder' && node.favorite === true;
-  const btnDel = _isFavFolder ? '' : `<button data-act="delete" title="삭제">🗑</button>`;
+  // (U7) favorite/Texture 고정 보호 폴더는 삭제 버튼 숨김
+  const _isFixedFolder = node.type === 'folder' && (node.favorite === true || node.texture === true);
+  const btnDel = _isFixedFolder ? '' : `<button data-act="delete" title="삭제">🗑</button>`;
   // 폴더 전용 — 리스트/그리드 인라인 토글 (SVG)
   let btnView = '';
   if (node.type === 'folder') {

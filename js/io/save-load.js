@@ -418,6 +418,23 @@ function applyProjectData(data) {
       if (prodIdx >= 0) state.assetsTree.splice(prodIdx + 1, 0, favNode);
       else state.assetsTree.unshift(favNode);
     }
+    // Texture 폴더 멱등 시드/마이그레이션 — 최상위에 texture:true 폴더가 없을 때만 삽입(고정 보호 폴더)
+    const _hasTexture = state.assetsTree.some(n => n && n.type === 'folder' && n.texture === true);
+    if (!_hasTexture) {
+      const texNode = {
+        id: _astId(),
+        type: 'folder',
+        name: 'Texture',
+        texture: true,
+        children: [],
+        collapsed: false,
+      };
+      // favorite 폴더 바로 다음(없으면 제품사진 다음, 그것도 없으면 맨 앞)에 삽입
+      const favIdx = state.assetsTree.findIndex(n => n && n.type === 'folder' && n.favorite === true);
+      const prodIdx2 = state.assetsTree.findIndex(n => n && n.type === 'folder' && n.name === '제품사진');
+      const insAt = favIdx >= 0 ? favIdx + 1 : (prodIdx2 >= 0 ? prodIdx2 + 1 : 0);
+      state.assetsTree.splice(insAt, 0, texNode);
+    }
     window.buildLayerPanel(); // also calls buildFilePageSection
     window.showPageProperties();
     window.renderChecklistPanel?.();
