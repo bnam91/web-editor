@@ -167,6 +167,7 @@ function bindBlock(block) {
         if (ch === dragEl || ch.style.position !== 'absolute') return;
         const hasSelected = ch.querySelector(
           '.text-block.selected,.asset-block.selected,.shape-block.selected,' +
+          '.icon-block.selected,' +
           '.gap-block.selected,.icon-circle-block.selected,.table-block.selected,' +
           '.label-group-block.selected,.graph-block.selected,.canvas-block.selected, .banner02-block.selected, .comparison-block.selected,' +
           '.divider-block.selected,.mockup-block.selected,.vector-block.selected,.step-block.selected'
@@ -1515,6 +1516,7 @@ function bindFrameDropZone(ss) {
     // text-frame 제거: B가 selected 상태에서 TF에 pointer-events:auto가 생겨도
     // B의 mousedown이 drag를 시작할 수 있도록 (text-frame은 투명 래퍼라 드래그 시작점으로 써도 됨)
     const CHILD_BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
+      '.icon-block, ' +
       '.table-block, .label-group-block, .graph-block, .divider-block, ' +
       '.icon-text-block, .shape-block, .mockup-block';
 
@@ -1712,7 +1714,7 @@ function bindFrameDropZone(ss) {
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
     const isFreeLayout = ss.dataset.freeLayout === 'true';
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
     const SS_W = 860; // 캔버스 기준 너비
 
     if (!isFreeLayout) {
