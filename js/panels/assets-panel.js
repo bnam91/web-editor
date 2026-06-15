@@ -94,8 +94,10 @@ function _assetsBindGlobalKeydown() {
     }
     // (U7) 캔버스 선택 우선 가드 — 캔버스 블록/섹션/그룹/프레임이 선택되어 있으면
     //      자산 삭제를 양보하고 캔버스 삭제 핸들러에 넘긴다.
-    const canvasSelected = document.querySelector(
-      '.section-block.selected, .section-block.multi-selected, ' +
+    // (FIX-2b) editor.js의 SSOT 셀렉터(window.CANVAS_SEL_BLOCKS_AND_SHAPE)를 그대로 사용해
+    //          스티커/조커/챗 등 누락 없이 동기화. (미정의 시 폴백 리터럴)
+    const _canvasSel = window.CANVAS_SEL_BLOCKS_AND_SHAPE ||
+      ('.section-block.selected, .section-block.multi-selected, ' +
       '.col.multi-selected, .frame-block.selected, .group-block.group-selected, ' +
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
@@ -104,9 +106,8 @@ function _assetsBindGlobalKeydown() {
       '.banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, ' +
       '.laurel-block.selected, .gradient-block.selected, ' +
-      // (FIX-2) 스티커/조커/챗 플로팅 블록도 캔버스 선택으로 인식 — editor.js Delete 핸들러와 동기화
-      '.sticker-block.selected, .joker-block.selected, .chat-block.selected'
-    );
+      '.sticker-block.selected, .joker-block.selected, .chat-block.selected');
+    const canvasSelected = document.querySelector(_canvasSel);
     if (canvasSelected) return;
     e.preventDefault();
     const ids = [..._assetsSelectedIds];
@@ -123,7 +124,8 @@ function _assetsBindGlobalKeydown() {
     }
     _assetsSelectedIds.clear();
     _assetsLastClickedId = null;
-  });
+  }, true); // (FIX-2b) capture 단계: editor.js bubble 삭제 핸들러보다 먼저 실행되어
+            //          블록이 삭제되기 전에 캔버스 선택 상태를 읽고 양보(레이스 해소)
 }
 
 const ASSETS_ACCEPT_MIME = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp', 'image/gif'];
