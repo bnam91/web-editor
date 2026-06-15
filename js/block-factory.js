@@ -4361,8 +4361,9 @@ function updateFrameBlock(blockId, partial = {}) {
       const bgVal = block.dataset.bg || '';
       const isGradientBg = /gradient\s*\(/i.test(bgVal);
       if (isGradientBg) {
+        // background shorthand가 gradient를 backgroundImage 롱핸드에 넣고 다른 롱핸드도 초기화 →
+        // 별도 backgroundImage='' 는 방금 넣은 gradient를 지우므로 제거(I2-F1 회귀 방지)
         block.style.background = bgVal;
-        block.style.backgroundImage = '';
       } else if (block.dataset.bgImg) {
         block.style.backgroundImage = `url("${block.dataset.bgImg}")`;
         block.style.backgroundSize = 'cover';

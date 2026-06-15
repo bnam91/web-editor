@@ -595,8 +595,9 @@ function _renderAutoPanel(ss) {
       const bgVal = ss.dataset.bg || '';
       const isGradient = /gradient\s*\(/i.test(bgVal);
       if (isGradient) {
+        // background shorthand가 gradient를 backgroundImage 롱핸드에 넣고 다른 롱핸드도 초기화 →
+        // 별도 backgroundImage='' 는 방금 넣은 gradient를 지우므로 제거(I2-F1 회귀 방지)
         ss.style.background = bgVal;
-        ss.style.backgroundImage = '';
       } else if (ss.dataset.bgImg) {
         ss.style.backgroundImage = `url("${ss.dataset.bgImg}")`;
         ss.style.backgroundSize = 'cover';
