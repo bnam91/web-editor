@@ -18,7 +18,7 @@ export function showTextProperties(tb) {
   // contenteditable 속성이 없는 경우(저장 후 복원 시 속성 누락) fallback으로 내부 첫 자식 div를 사용
   let contentEl = tb.querySelector('[contenteditable]');
   if (!contentEl) {
-    contentEl = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet');
+    contentEl = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner');
     if (contentEl) contentEl.setAttribute('contenteditable', 'false');
   }
   if (!contentEl) {

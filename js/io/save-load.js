@@ -719,7 +719,7 @@ function rebindAll() {
   });
 
   canvasEl.querySelectorAll('.text-block').forEach(tb => {
-    const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bubble,.tb-bullet');
+    const inner = tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bubble,.tb-bullet,.tb-liner');
     if (!inner) return;
     if (!inner.hasAttribute('contenteditable')) {
       inner.setAttribute('contenteditable', 'false');
