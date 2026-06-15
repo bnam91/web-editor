@@ -2029,7 +2029,7 @@ function getSelectedSection() {
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
     '.graph-block.selected, .shape-block.selected, ' +
-    '.divider-block.selected, .icon-text-block.selected'
+    '.divider-block.selected, .icon-text-block.selected, .sticker-block.selected'
   );
   return selBlock?.closest('.section-block') || null;
 }

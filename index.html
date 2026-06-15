@@ -592,26 +592,10 @@
     </button>
     <div class="fp-dropdown-menu" id="fp-pen-menu">
       <button class="fp-menu-item" onclick="togglePenMode();toggleFpDropdown('fp-pen-dropdown')" title="펜툴 어노테이션 — 클릭으로 점 추가 · 더블클릭/Enter 종료 · ESC 취소">Annotation</button>
-      <div class="fp-menu-item fp-has-sub" onclick="addStickerBlock();toggleFpDropdown('fp-pen-dropdown')" title="플로팅 스티커 — 클릭=마지막 스타일 / 오른쪽 프리셋 선택">
-        <span>Sticker</span><span class="fp-sub-arrow">›</span>
-        <div class="fp-submenu" onclick="event.stopPropagation()">
-          <button class="fp-swatch" style="--sw:#e74c3c" title="빨강 원" onclick="addStickerBlock({shape:'circle',bgColor:'#e74c3c',textColor:'#ffffff'});toggleFpDropdown('fp-pen-dropdown')"></button>
-          <button class="fp-swatch" style="--sw:#2d7ef7" title="파랑 원" onclick="addStickerBlock({shape:'circle',bgColor:'#2d7ef7',textColor:'#ffffff'});toggleFpDropdown('fp-pen-dropdown')"></button>
-          <button class="fp-swatch" style="--sw:#2ecc71" title="초록 원" onclick="addStickerBlock({shape:'circle',bgColor:'#2ecc71',textColor:'#ffffff'});toggleFpDropdown('fp-pen-dropdown')"></button>
-          <button class="fp-swatch" style="--sw:#222222" title="검정 원" onclick="addStickerBlock({shape:'circle',bgColor:'#222222',textColor:'#ffffff'});toggleFpDropdown('fp-pen-dropdown')"></button>
-          <button class="fp-swatch fp-swatch-sq" style="--sw:#ffd400" title="노랑 사각" onclick="addStickerBlock({shape:'square',bgColor:'#ffd400',textColor:'#222222'});toggleFpDropdown('fp-pen-dropdown')"></button>
-        </div>
-      </div>
+      <button class="fp-menu-item" onclick="addStickerBlock();toggleFpDropdown('fp-pen-dropdown')" title="플로팅 스티커 — 클릭=마지막 스타일 / 색·프리셋은 우측 패널에서 선택">Sticker</button>
       <button class="fp-menu-item" onclick="addStickerBlock({shape:'text'});toggleFpDropdown('fp-pen-dropdown')" title="텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (폰트/외곽선/그림자 등 풀 옵션)">Text Sticker</button>
-      <div class="fp-menu-item fp-has-sub" onclick="addStickerBlock({shape:'highlight'});toggleFpDropdown('fp-pen-dropdown')" title="형광펜 — 클릭=마지막 색 / 오른쪽 프리셋 선택">
-        <span>Highlight</span><span class="fp-sub-arrow">›</span>
-        <div class="fp-submenu" onclick="event.stopPropagation()">
-          <button class="fp-swatch fp-swatch-sq" style="--sw:rgba(255,235,70,0.7)" title="노랑" onclick="addStickerBlock({shape:'highlight',hlColor:'rgba(255,235,70,0.7)'});toggleFpDropdown('fp-pen-dropdown')"></button>
-          <button class="fp-swatch fp-swatch-sq" style="--sw:rgba(255,120,180,0.5)" title="분홍" onclick="addStickerBlock({shape:'highlight',hlColor:'rgba(255,120,180,0.5)'});toggleFpDropdown('fp-pen-dropdown')"></button>
-          <button class="fp-swatch fp-swatch-sq" style="--sw:rgba(120,230,200,0.55)" title="민트" onclick="addStickerBlock({shape:'highlight',hlColor:'rgba(120,230,200,0.55)'});toggleFpDropdown('fp-pen-dropdown')"></button>
-          <button class="fp-swatch fp-swatch-sq" style="--sw:rgba(120,180,255,0.5)" title="파랑" onclick="addStickerBlock({shape:'highlight',hlColor:'rgba(120,180,255,0.5)'});toggleFpDropdown('fp-pen-dropdown')"></button>
-        </div>
-      </div>
+      <button class="fp-menu-item" onclick="openIconifyModal((p)=>window.addStickerBlock({shape:'icon', iconName:p.name, svg:p.svg, size:p.size}));toggleFpDropdown('fp-pen-dropdown')" title="아이콘 스티커 — Iconify에서 아이콘을 골라 캔버스에 스티커로 추가">Icon Sticker</button>
+      <button class="fp-menu-item" onclick="addStickerBlock({shape:'highlight'});toggleFpDropdown('fp-pen-dropdown')" title="형광펜 — 클릭=마지막 색 / 색·프리셋은 우측 패널에서 선택">Highlight</button>
       <button class="fp-menu-item" onclick="toggleHighlightBMode();toggleFpDropdown('fp-pen-dropdown')" title="선 형광펜 — 두 점 클릭으로 직선 형광펜 추가 · ESC 취소">HighlightB</button>
       <button class="fp-menu-item" onclick="addGradientBlock();toggleFpDropdown('fp-pen-dropdown')" title="그라데이션 페이드 — 섹션 너비 전체, 이미지 끝 자연 페이드 효과">Gradient</button>
     </div>
