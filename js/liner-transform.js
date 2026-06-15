@@ -21,7 +21,8 @@ const LINER_PRESETS = [
 const LINER_DEFAULTS = {
   preset:        'arc-up',
   curvature:     50,        // 0~100
-  letterSpacing: 0          // px, 자연 자간에 더하는 추가 자간 (음수 가능)
+  letterSpacing: 0,         // px, 자연 자간에 더하는 추가 자간 (음수 가능)
+  startAngle:    0          // 0~360°, 텍스트 시작(회전) 위치. 0=기본(circle 12시 중앙 / arc·wave 중앙)
 };
 
 const LINER_PAD = 12;     // 좌우 패딩 P (글자 잘림 방지)
@@ -53,6 +54,27 @@ function normCurvature(x) {
   return Math.max(0, Math.min(100, n));
 }
 
+// 시작각(회전) 정규화 — 0~360 wrap. NaN은 0.
+function normStartAngle(x) {
+  let n = Number(x);
+  if (!Number.isFinite(n)) return 0;
+  n = n % 360;
+  if (n < 0) n += 360;
+  return n;
+}
+
+// startAngle(0~360°) → textPath startOffset(%) 계산.
+//   circle: 기본 12시 중앙 = 둘레의 50%. 시계방향으로 startAngle 만큼 회전.
+//     path는 6시 시작, 시계방향 진행이므로 (angle/360) 비율만큼 더하면 시계방향 회전.
+//     0°=50%(12시), 90°=75%(3시), 180°=100%≡0%(6시), 270°=25%(9시).
+//   arc/wave: 기본 중앙 50%. startAngle/360 비율만큼 path 길이를 따라 이동(보정).
+function linerStartOffsetPct(preset, startAngle) {
+  const a = normStartAngle(startAngle);
+  let pct = 50 + (a / 360) * 100;   // 중앙(50%) 기준 회전/이동
+  pct = ((pct % 100) + 100) % 100;  // 0~100 wrap
+  return pct;
+}
+
 // 색 문자열이 투명(transparent / alpha=0)인지 판정 (M1)
 function isTransparentColor(c) {
   if (!c) return true;
@@ -76,19 +98,39 @@ function resolveLinerFill(mirror, cs) {
   return '#111111';
 }
 
-// 곡률 → 베지에 제어점 진폭 k (곡률 0~100 → 0 ~ baseH*0.45).
-// H가 아닌 baseH(고정 기준)에 비례시켜 큰 폰트로 H가 커져도 아치가 과장되지 않게 한다.
-function linerAmplitude(curvature, baseH) {
-  return (normCurvature(curvature) / 100) * ((baseH || LINER_BASE_H) * 0.45);
+// ── arc(arc-up/arc-down) sagitta 매핑 ──
+// 곡률 → 가용 폭(availW = W - 2P) 비례 sagitta(s = 호의 실제 솟음/꺼짐 높이).
+// 곡률 0 = 직선(s=0), **곡률 100 = 정확한 반원(s = availW/2, 반지름 r = availW/2)**.
+// arc-up/arc-down은 Q(포물선) 대신 SVG arc(A 커맨드)로 진짜 원호를 그려 꼭대기가 둥글다.
+function linerArcSagitta(curvature, availW) {
+  const w = (Number.isFinite(availW) && availW > 0) ? availW : (LINER_BASE_H * 2);
+  return (normCurvature(curvature) / 100) * (w / 2);  // 100 → w/2 = 반원
+}
+
+// sagitta s + 현(=availW) chord 로부터 원호 반지름 r 환산: r = (s² + (c/2)²) / (2s).
+// s = c/2(반원)일 때 r = c/2. s→0이면 r→∞(직선).
+function linerArcRadius(sagitta, chord) {
+  const s = sagitta, half = chord / 2;
+  if (!(s > 0)) return Infinity;
+  return (s * s + half * half) / (2 * s);
+}
+
+// wave 진폭(폭 비례). wave는 Q곡선 유지 → 제어점 오프셋 k(렌더 진폭 = k/2).
+const LINER_WAVE_SCALE = 0.5;
+function linerAmplitude(curvature, availW, scale) {
+  const w = (Number.isFinite(availW) && availW > 0) ? availW : (LINER_BASE_H * 2);
+  const s = (scale != null) ? scale : LINER_WAVE_SCALE;
+  return (normCurvature(curvature) / 100) * w * s;
 }
 
 // ── path d 생성 공식 (viewBox 0 0 W H, 좌우 패딩 P, 베이스라인 cy, 진폭 k) ──
+// arc-up/arc-down: k = sagitta(s, 호 솟음 높이). wave: k = Q 제어점 오프셋. circle: k = 반지름 r.
 // cy/k를 caller가 명시(폰트 ascent 여유 반영). 미지정 시 옛 동작(H/2 기준)으로 fallback.
 function buildLinerPathD(preset, curvature, W, H, P, cy, k) {
   const c = normCurvature(curvature);
   if (cy == null) cy = H / 2;
-  if (k == null)  k  = (c / 100) * (H * 0.45);
   const x0 = P, x1 = W - P;
+  const chord = x1 - x0;
   if (preset === 'circle') {
     // 풀 원형: <circle>은 textPath 못 받으니 두 개의 A(arc)로 360°.
     // 시작점 = 최하단(6시) (cx, cy+r). 시계방향(sweep=1)으로 왼쪽→상단→오른쪽→하단 복귀.
@@ -105,15 +147,20 @@ function buildLinerPathD(preset, curvature, W, H, P, cy, k) {
   if (c === 0) {
     return `M ${x0},${cy} L ${x1},${cy}`;
   }
-  if (preset === 'arc-up') {
-    // 위로 볼록 — 제어점이 위(작은 y)
-    return `M ${x0},${cy} Q ${W / 2},${cy - k} ${x1},${cy}`;
+  if (preset === 'arc-up' || preset === 'arc-down') {
+    // 진짜 원호: k = sagitta(s). r = (s² + (chord/2)²)/(2s). 곡률100 → s=chord/2 → 반원.
+    const s = (k != null) ? k : linerArcSagitta(c, chord);
+    if (!(s > 0)) return `M ${x0},${cy} L ${x1},${cy}`;
+    const r = linerArcRadius(s, chord);
+    // y-down 좌표계: 시작(x0,cy)→끝(x1,cy), large-arc=0(소호).
+    //   arc-up(위로 볼록): 꼭대기가 위(작은 y) → sweep-flag=1
+    //   arc-down(아래로 오목): 바닥이 아래(큰 y) → sweep-flag=0
+    // (좌→우 진행에서 sweep=1 이 곡선을 위로 솟게 함 — 실측 검증)
+    const sweep = (preset === 'arc-up') ? 1 : 0;
+    return `M ${x0},${cy} A ${r},${r} 0 0 ${sweep} ${x1},${cy}`;
   }
-  if (preset === 'arc-down') {
-    // 아래로 오목 — 제어점이 아래(큰 y)
-    return `M ${x0},${cy} Q ${W / 2},${cy + k} ${x1},${cy}`;
-  }
-  // wave: sine 1주기 — Q...T 대칭 파동
+  // wave: sine 1주기 — Q...T 대칭 파동 (k = 제어점 오프셋)
+  if (k == null) k = (c / 100) * (H * 0.45);
   return `M ${x0},${cy} Q ${W / 4},${cy - k} ${W / 2},${cy} T ${x1},${cy}`;
 }
 
@@ -164,6 +211,7 @@ function applyLiner(block, opts) {
   const cfg = { ...LINER_DEFAULTS, ...prev, ...(opts || {}) };
   cfg.curvature     = normCurvature(cfg.curvature);          // m7: NaN → 기본값
   cfg.letterSpacing = normLetterSpacing(cfg.letterSpacing);  // #1: 자간 정규화
+  cfg.startAngle    = normStartAngle(cfg.startAngle);        // 시작각(회전) 정규화
 
   // 사용자 폰트크기 = "원하는 최대치" (#3) — 미러 inline style 우선, 없으면 computed
   const csEarly = window.getComputedStyle(mirror);
@@ -209,9 +257,10 @@ function applyLiner(block, opts) {
   if (!tp) { tp = document.createElementNS('http://www.w3.org/2000/svg', 'textPath'); textEl.appendChild(tp); }
 
   // textPath href / 공통 텍스트 속성 (측정 전에 세팅)
+  const startPct = linerStartOffsetPct(cfg.preset, cfg.startAngle); // 시작각 → startOffset%
   tp.setAttribute('href', '#' + pid);
   tp.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#' + pid);
-  tp.setAttribute('startOffset', '50%');
+  tp.setAttribute('startOffset', startPct + '%');
   textEl.setAttribute('text-anchor', 'middle');
   textEl.setAttribute('font-family', fontFamily);
   textEl.setAttribute('font-weight', fontWeight);
@@ -251,13 +300,31 @@ function applyLiner(block, opts) {
       pathK = r;
     } else {
       // ── arc/wave: effFont 기준 높이/베이스라인 (#2) ──
-      const amp     = linerAmplitude(cfg.curvature, LINER_BASE_H);
+      const availW  = W - 2 * P;
       const ascent  = effFont * 0.85;
       const descent = effFont * 0.30;
       const padTop = 6, padBottom = 6;
-      cy    = Math.round(padTop + ascent + amp);
-      H     = Math.round(cy + descent + amp + padBottom);
-      pathK = amp;
+      if (cfg.preset === 'arc-up' || cfg.preset === 'arc-down') {
+        // 진짜 원호. rise = sagitta(s). 곡률100 → s = availW/2 (반원).
+        const rise = linerArcSagitta(cfg.curvature, availW);
+        if (cfg.preset === 'arc-up') {
+          // 위로만 솟음 → 상단에 rise 만큼 여유
+          cy = Math.round(padTop + ascent + rise);
+          H  = Math.round(cy + descent + padBottom);
+        } else {
+          // 아래로만 꺼짐 → 하단에 rise 만큼 여유
+          cy = Math.round(padTop + ascent);
+          H  = Math.round(cy + descent + rise + padBottom);
+        }
+        pathK = rise;                    // buildLinerPathD arc 분기에 sagitta 전달
+      } else {
+        // wave: Q곡선 유지. amp = 제어점 오프셋, 렌더 진폭 = amp/2. 양쪽 흔들림.
+        const amp  = linerAmplitude(cfg.curvature, availW, LINER_WAVE_SCALE);
+        const rise = amp / 2;
+        cy    = Math.round(padTop + ascent + rise);
+        H     = Math.round(cy + descent + rise + padBottom);
+        pathK = amp;
+      }
     }
     // write: 현재 프리셋 path d 적용
     path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, H, P, cy, pathK));
@@ -298,16 +365,15 @@ function applyLiner(block, opts) {
 
   // path d / font-size 는 writeAndMeasure 루프에서 이미 확정됨.
 
-  // 원형: path 시작점=6시, 12시=둘레 50% 지점. startOffset='50%' + text-anchor=middle
-  // ⇒ 텍스트 중앙이 12시에 오고 좌우로 자연스럽게 감김(짧으면 상단 호만 차지, stretch X).
-  // arc/wave도 동일하게 50% 중앙정렬.
-  tp.setAttribute('startOffset', '50%');
+  // 원형: path 시작점=6시, 12시=둘레 50% 지점. startOffset(시작각 반영) + text-anchor=middle
+  // ⇒ 텍스트 중앙이 12시(기본)에 오고, startAngle 만큼 시계방향 회전. arc/wave도 동일 보정.
+  tp.setAttribute('startOffset', startPct + '%');
 
   // 블록/섹션 차지 높이 동기 (#2: 위 콘텐츠와 겹침/잘림 방지)
   block.style.minHeight = H + 'px';
 
   // dataset 저장 (autoSave가 outerHTML 직렬화 → data-* 보존). 사용자 폰트크기는 미러가 보존, 여기엔 effFont 미저장.
-  block.dataset.liner = JSON.stringify({ preset: cfg.preset, curvature: cfg.curvature, letterSpacing: cfg.letterSpacing });
+  block.dataset.liner = JSON.stringify({ preset: cfg.preset, curvature: cfg.curvature, letterSpacing: cfg.letterSpacing, startAngle: cfg.startAngle });
 }
 
 // 저장/로드 사이클에서 SVG가 innerHTML로 살아있어도 path id/폭변화 재계산
@@ -332,6 +398,15 @@ function enhanceLinerPropPanel(block) {
                  || document.querySelector('.panel-body');
   if (!propPanel) return;
 
+  // 현재 사용자 폰트크기(userFont 단일소스 = 미러 .tb-liner style.fontSize). 없으면 computed.
+  const mirrorEl = findLinerMirror(block);
+  const LNR_FONT_MIN = 8, LNR_FONT_MAX = 200;
+  let curFont = parseInt(mirrorEl && mirrorEl.style.fontSize);
+  if (!Number.isFinite(curFont) || curFont <= 0) {
+    curFont = parseInt(mirrorEl ? window.getComputedStyle(mirrorEl).fontSize : '') || 28;
+  }
+  curFont = Math.max(LNR_FONT_MIN, Math.min(LNR_FONT_MAX, curFont));
+
   const presetOpts = LINER_PRESETS
     .map(p => `<option value="${p.value}" ${p.value === cfg.preset ? 'selected' : ''}>${p.label}</option>`)
     .join('');
@@ -339,6 +414,11 @@ function enhanceLinerPropPanel(block) {
   const html = `
     <div class="prop-section" id="liner-controls-section">
       <div class="prop-section-title">곡선 텍스트 〰️</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <span style="flex:1;font-size:11px;color:#999;">글자크기</span>
+        <input type="range" class="prop-slider" id="lnr-fontsize" min="${LNR_FONT_MIN}" max="${LNR_FONT_MAX}" step="1" value="${curFont}" style="flex:2;">
+        <span id="lnr-fontsize-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${curFont}</span>
+      </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
         <span style="flex:1;font-size:11px;color:#999;">프리셋</span>
         <select id="lnr-preset" style="flex:2;padding:5px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
@@ -355,6 +435,11 @@ function enhanceLinerPropPanel(block) {
         <input type="range" class="prop-slider" id="lnr-letterspacing" min="${LINER_LS_MIN}" max="${LINER_LS_MAX}" step="0.5" value="${cfg.letterSpacing}" style="flex:2;">
         <span id="lnr-letterspacing-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.letterSpacing}</span>
       </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <span style="flex:1;font-size:11px;color:#999;">시작 위치</span>
+        <input type="range" class="prop-slider" id="lnr-startangle" min="0" max="360" step="1" value="${cfg.startAngle}" style="flex:2;">
+        <span id="lnr-startangle-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.startAngle}°</span>
+      </div>
     </div>
   `;
 
@@ -366,12 +451,24 @@ function enhanceLinerPropPanel(block) {
     const next = {
       preset:        propPanel.querySelector('#lnr-preset').value,
       curvature:     parseInt(propPanel.querySelector('#lnr-curvature').value),
-      letterSpacing: parseFloat(propPanel.querySelector('#lnr-letterspacing').value)
+      letterSpacing: parseFloat(propPanel.querySelector('#lnr-letterspacing').value),
+      startAngle:    parseInt(propPanel.querySelector('#lnr-startangle').value)
     };
     applyLiner(block, next);
     return next;
   };
 
+  // 글자크기 — userFont 단일소스(미러 style.fontSize) 갱신 → applyLiner(곡률 다운스케일/fit는 그 위에 재계산)
+  propPanel.querySelector('#lnr-fontsize')?.addEventListener('input', e => {
+    const v = Math.max(LNR_FONT_MIN, Math.min(LNR_FONT_MAX, parseInt(e.target.value) || LNR_FONT_MIN));
+    propPanel.querySelector('#lnr-fontsize-val').textContent = String(v);
+    const mr = findLinerMirror(block);                  // 라이브 미러 재조회(closure stale 방지)
+    if (mr) mr.style.fontSize = v + 'px';               // 직렬화로 round-trip 보존
+    applyLiner(block);                                   // dataset+미러에서 재계산 (effFont 미저장)
+  });
+  propPanel.querySelector('#lnr-fontsize')?.addEventListener('change', () => {
+    window.pushHistory?.('곡선 텍스트 글자크기'); window.scheduleAutoSave?.();
+  });
   propPanel.querySelector('#lnr-preset')?.addEventListener('change', () => {
     const lbl = propPanel.querySelector('#lnr-curvature-label');
     if (lbl) lbl.textContent = (propPanel.querySelector('#lnr-preset').value === 'circle') ? '원 크기' : '곡률';
@@ -390,6 +487,14 @@ function enhanceLinerPropPanel(block) {
   });
   propPanel.querySelector('#lnr-letterspacing')?.addEventListener('change', () => {
     window.pushHistory?.('곡선 텍스트 자간'); window.scheduleAutoSave?.();
+  });
+  // 시작 위치(회전) — input 마다 실시간 연속 이동(라이브 미리보기), change 시 history/autosave
+  propPanel.querySelector('#lnr-startangle')?.addEventListener('input', e => {
+    propPanel.querySelector('#lnr-startangle-val').textContent = e.target.value + '°';
+    read();
+  });
+  propPanel.querySelector('#lnr-startangle')?.addEventListener('change', () => {
+    window.pushHistory?.('곡선 텍스트 시작위치'); window.scheduleAutoSave?.();
   });
 }
 
@@ -417,6 +522,10 @@ new MutationObserver(muts => {
 
 window.buildLinerPathD       = buildLinerPathD;
 window.linerAmplitude        = linerAmplitude;
+window.linerArcSagitta       = linerArcSagitta;
+window.linerArcRadius        = linerArcRadius;
+window.normStartAngle        = normStartAngle;
+window.linerStartOffsetPct   = linerStartOffsetPct;
 window.linerCurvatureScale   = linerCurvatureScale;
 window.applyLiner            = applyLiner;
 window.applyLinerText        = applyLinerText;
