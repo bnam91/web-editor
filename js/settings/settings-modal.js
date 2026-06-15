@@ -29,6 +29,9 @@
     { key: 'penMode',          label: '펜 주석 모드', desc: '자유 펜 드로잉 주석', trigger: 'window.togglePenMode()', enabledByDefault: true },
     { key: 'hideGapLayers',    label: '레이어 패널 갭 숨김', desc: '레이어 트리에서 gap 블록 항목을 숨김', trigger: 'window.toggleHideGapLayers()', enabledByDefault: true },
     { key: 'freeLayoutAnalyze', label: '프리레이아웃 분석/변환(개발)', desc: 'window.__analyzeFreeLayoutFrame / __convertFreeLayoutToStack 콘솔 디버그 함수', trigger: '콘솔 __ 커맨드 (prop-frame.js)', enabledByDefault: true },
+    { key: 'textEffect',       label: '텍스트 효과(네온/메탈릭 등)', desc: '텍스트 블록 레이어 이름을 **text_ 로 바꾸면 네온·메탈릭·그런지·빈티지·시네마틱 효과 + 우측패널 컨트롤이 켜짐', trigger: '레이어명 prefix **text_ (layer-panel-items.js)', enabledByDefault: true },
+    { key: 'iconMode',         label: '카드 아이콘 모드', desc: '카드(canvas) 블록 레이어 이름을 **icon_ 로 바꾸면 카드 이미지 자리에 iconify 아이콘을 넣는 모드로 전환', trigger: '레이어명 prefix **icon_ (layer-panel-items.js)', enabledByDefault: true },
+    { key: 'badgeTransform',   label: '정품인증 배지 변환', desc: '섹션 이름을 **badge_ 로 바꾸면 해당 섹션이 정품인증 배지 블록으로 변환됨', trigger: '섹션명 prefix **badge_ (layer-panel.js)', enabledByDefault: true },
   ];
 
   // 이스터에그 기본값 맵 (전부 enabled=true → 기존 동작 보존)

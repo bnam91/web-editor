@@ -177,7 +177,7 @@ export function buildLayerPanel() {
           const propBreadcrumb = document.querySelector('.prop-breadcrumb');
           if (propBreadcrumb && sec.classList.contains('selected')) propBreadcrumb.textContent = newName;
           // 이스터에그: '**badge_' prefix → 정품 인증 블록으로 덮어쓰기 (숨은 명령어)
-          if (/^\*\*badge_/i.test(newName)) {
+          if (/^\*\*badge_/i.test(newName) && window.isEasterEggEnabled?.('badgeTransform') !== false) {
             window.transformSectionToBadge?.(sec, newName.replace(/^\*\*badge_/i, '').trim() || '정품인증');
           }
           window.pushHistory?.('섹션명 변경');

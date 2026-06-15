@@ -80,7 +80,7 @@ function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerNam
       }
       // 이스터에그: text-block의 layer label이 '**text_'로 시작하면 텍스트 효과 적용
       // (badge prefix와 동일 패턴, prefix는 트리거 전용 — 텍스트 콘텐츠는 건드리지 않음)
-      if (targetEl.classList?.contains('text-block') && /^\*\*text_/i.test(newName) && !targetEl.dataset.textEffect) {
+      if (targetEl.classList?.contains('text-block') && /^\*\*text_/i.test(newName) && !targetEl.dataset.textEffect && window.isEasterEggEnabled?.('textEffect') !== false) {
         window.applyTextEffect?.(targetEl, { ...(window.TEXT_EFFECT_DEFAULTS || {}) });
         // 우측 패널이 이 블록을 보고 있으면 컨트롤 즉시 노출
         if (targetEl.classList.contains('selected')) {
@@ -89,7 +89,7 @@ function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerNam
       }
       // 이스터에그: canvas-block(Card) layer label이 '**icon_'로 시작하면 아이콘 모드 ON
       // → 카드 이미지 자리에 iconify 아이콘을 넣을 수 있게 됨 (prefix는 트리거 전용)
-      if (targetEl.classList?.contains('canvas-block') && /^\*\*icon_/i.test(newName) && targetEl.dataset.iconMode !== 'true') {
+      if (targetEl.classList?.contains('canvas-block') && /^\*\*icon_/i.test(newName) && targetEl.dataset.iconMode !== 'true' && window.isEasterEggEnabled?.('iconMode') !== false) {
         targetEl.dataset.iconMode = 'true';
         window.renderCanvas?.(targetEl);
         if (targetEl.classList.contains('selected')) {
