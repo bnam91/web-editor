@@ -1025,6 +1025,14 @@ document.addEventListener('keydown', e => {
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100); }
     if (e.key === 'z' && !e.shiftKey)   { if (document.activeElement?.isContentEditable) return; e.preventDefault(); undo(); return; }
     if (e.key === 'z' && e.shiftKey)    { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
+    if (e.code === 'KeyF' && !e.shiftKey && !e.altKey) {
+      // ⌘F — 섹션 검색이동 팔레트. 편집/입력 중엔 양보(기본 동작도 막지 않음).
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      window.openSectionSearch?.();
+      return;
+    }
     if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
     if (e.key === 'b' && !e.shiftKey) {
