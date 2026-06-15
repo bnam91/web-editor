@@ -3,6 +3,35 @@
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
+// ── cmp 셀 placeholder(기본문구) 식별 ───────────────────────────────────────
+// comparison 셀은 일반 텍스트블럭과 달리 cols 모델에 텍스트가 들어있어 data-isPlaceholder
+// 플래그를 못 단다. 그래서 '기본문구와 동일 비교'(간단·저위험)로 placeholder를 식별한다.
+// 신규 칼럼/행 추가(prop-comparison.js)도 같은 상수를 import해서 일관성 유지.
+// 헤더 기본문구·행 기본문구를 한 묶음으로 둔다(편집 진입 시 전체선택, 빈 셀 blur 시 복원 판정용).
+export const CMP_PLACEHOLDER_TITLE = '새 칼럼';      // 신규 칼럼 헤더 기본문구
+export const CMP_PLACEHOLDER_ROW   = '내용 입력';    // 신규 행 기본문구
+export const CMP_PLACEHOLDERS = [
+  '강점 키워드 입력', '경쟁사 내용', '내용 입력', '새 칼럼',
+  '일반 제품', '브랜드 명·상품 명',
+];
+// 셀 텍스트가 기본문구와 동일하거나 비어있으면 placeholder로 간주.
+export function isCmpPlaceholderText(t) {
+  const s = (t == null ? '' : String(t)).trim();
+  if (s === '') return true;
+  return CMP_PLACEHOLDERS.includes(s);
+}
+// focus된 contenteditable el의 내용 전체를 선택 (block-drag.js:617-624 미러).
+// focus 직후 동기 실행 필수 — 비동기면 caret이 선택을 덮는다.
+function _selectAllContents(el) {
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (_) {}
+}
+
 // 행 모델 정규화: 문자열 rows(구버전)는 {type:'text', text} 객체로 무손실 마이그레이션.
 // 객체면 type 화이트리스트(text|image)·필드 보정 후 반환. 비교블록 칼럼 간 행 정렬 유지를 위해
 // 행은 칼럼별 독립 배열이지만 같은 행 인덱스를 공통 단위로 본다.
@@ -184,25 +213,48 @@ function renderComparison(block) {
 
 function _editableTitle(el, block, colIdx) {
   el.setAttribute('contenteditable', 'false');
-  el.addEventListener('dblclick', e => { e.stopPropagation(); el.setAttribute('contenteditable', 'true'); el.focus(); });
+  el.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    // placeholder(기본문구)면 전체선택 → 첫 타이핑이 즉시 교체. 실데이터면 caret 유지.
+    if (isCmpPlaceholderText(el.textContent)) _selectAllContents(el);
+  });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
     const cols = getComparisonCols(block.dataset);
-    if (cols[colIdx]) { cols[colIdx].title = el.textContent; setComparisonCols(block, cols); }
+    if (cols[colIdx]) {
+      // 빈 셀로 굳으면 레이아웃 빈칸 → 헤더 기본문구 복원(MEMORY: cmp 텍스트 placeholder 필수)
+      let val = el.textContent;
+      if (val.trim() === '') { val = CMP_PLACEHOLDER_TITLE; el.textContent = val; }
+      cols[colIdx].title = val;
+      setComparisonCols(block, cols);
+    }
     window.pushHistory?.(); window.scheduleAutoSave?.();
     if (block.classList.contains('selected')) window.showComparisonProperties?.(block);
   });
 }
 function _editableRow(el, block, colIdx, rowIdx) {
   el.setAttribute('contenteditable', 'false');
-  el.addEventListener('dblclick', e => { e.stopPropagation(); el.setAttribute('contenteditable', 'true'); el.focus(); });
+  el.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    // placeholder(기본문구)면 전체선택 → 첫 타이핑이 즉시 교체. 실데이터면 caret 유지.
+    if (isCmpPlaceholderText(el.textContent)) _selectAllContents(el);
+  });
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
     const cols = getComparisonCols(block.dataset);
     const row = cols[colIdx]?.rows?.[rowIdx];
     // 객체행이면 .text만 갱신(이미지행 imgSrc 유실 방지). getComparisonCols가 항상 객체로 정규화하므로 항상 객체.
     if (row && typeof row === 'object') {
-      if (row.type !== 'image') row.text = el.textContent;
+      if (row.type !== 'image') {
+        // 빈 셀로 굳으면 레이아웃 빈칸 → 행 기본문구 복원(MEMORY: cmp 텍스트 placeholder 필수)
+        let val = el.textContent;
+        if (val.trim() === '') { val = CMP_PLACEHOLDER_ROW; el.textContent = val; }
+        row.text = val;
+      }
       setComparisonCols(block, cols);
     }
     window.pushHistory?.(); window.scheduleAutoSave?.();
