@@ -4,6 +4,7 @@ import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { getComparisonCols, getComparisonFeaturedIdx, setComparisonCols } from '../blocks/comparison-block.js';
 
 const _esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const _rowHeights = d => { try { const a = JSON.parse(d.rowHeights || 'null'); return Array.isArray(a) ? a : []; } catch { return []; } };
 
 export function showComparisonProperties(block) {
   const d = block.dataset;
@@ -11,12 +12,42 @@ export function showComparisonProperties(block) {
   const N = cols.length;
   const featuredIdx = getComparisonFeaturedIdx(d, N);
 
+  const rowHeights = _rowHeights(d);
   const colSection = (col, idx) => {
-    const rowInputs = (col.rows || []).map((t, i) => `
-      <div class="prop-row" style="gap:4px;">
-        <input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" value="${_esc(t)}" style="flex:1;">
-        <button class="prop-btn prop-btn-danger cmp-row-del" data-col="${idx}" data-idx="${i}" style="width:24px;">×</button>
-      </div>`).join('');
+    const rowInputs = (col.rows || []).map((row, i) => {
+      const isImg = row && row.type === 'image';
+      const rhVal = (rowHeights[i] != null && rowHeights[i] !== 0) ? rowHeights[i] : '';
+      // 행별 type 토글 + 높이 (행 높이는 행 인덱스 단위 → 전 칼럼 공통, 첫 칼럼에서만 노출)
+      const typeToggle = `
+        <button class="prop-align-btn cmp-row-type${!isImg ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-type="text" style="flex:0 0 auto;font-size:10px;padding:2px 6px;">텍스트</button>
+        <button class="prop-align-btn cmp-row-type${isImg ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-type="image" style="flex:0 0 auto;font-size:10px;padding:2px 6px;">이미지</button>`;
+      const heightInput = idx === 0
+        ? `<input type="number" class="prop-number cmp-row-h" data-idx="${i}" min="16" max="400" placeholder="${parseInt(d.rowH) || 64}" value="${rhVal}" title="행 높이(비우면 기본)" style="width:52px;">`
+        : '';
+      let body;
+      if (isImg) {
+        const fit = row.imgFit === 'contain' ? 'contain' : 'cover';
+        body = `
+          <div class="prop-row" style="gap:4px;">
+            <button class="prop-btn cmp-row-img" data-col="${idx}" data-idx="${i}" style="flex:1;">${row.imgSrc ? '교체' : '+ 이미지'}</button>
+            ${row.imgSrc ? `<button class="prop-btn prop-btn-danger cmp-row-img-clear" data-col="${idx}" data-idx="${i}" style="width:24px;">×</button>` : ''}
+          </div>
+          <div class="prop-row" style="gap:4px;">
+            <button class="prop-align-btn cmp-row-fit${fit === 'cover' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="cover" style="flex:1;font-size:10px;">꽉 채우기</button>
+            <button class="prop-align-btn cmp-row-fit${fit === 'contain' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="contain" style="flex:1;font-size:10px;">원본 비율</button>
+          </div>`;
+      } else {
+        body = `<input type="text" class="prop-input cmp-row-input" data-col="${idx}" data-idx="${i}" value="${_esc(row && row.text)}" style="flex:1;">`;
+      }
+      return `
+        <div class="cmp-row-edit" style="margin-bottom:6px;border-bottom:1px solid var(--border-subtle,#2a2a2a);padding-bottom:6px;">
+          <div class="prop-row" style="gap:4px;align-items:center;">
+            ${typeToggle}${heightInput}
+            <button class="prop-btn prop-btn-danger cmp-row-del" data-col="${idx}" data-idx="${i}" style="width:24px;margin-left:auto;">×</button>
+          </div>
+          <div class="prop-row" style="gap:4px;margin-top:4px;">${body}</div>
+        </div>`;
+    }).join('');
     const bgVal = col.bg || '#ffffff';
     const bgIsGrad = /gradient/i.test(bgVal);
     const canDelete = N > 2;
@@ -152,23 +183,87 @@ export function showComparisonProperties(block) {
     });
   });
 
-  // 행 편집 / 추가 / 삭제
+  // 행 텍스트 편집 (text행만 .text 갱신)
   propPanel.querySelectorAll('.cmp-row-input').forEach(inp => {
     inp.addEventListener('input', () => {
-      const c = getCols(); const ci = +inp.dataset.col;
-      if (c[ci]) { c[ci].rows[+inp.dataset.idx] = inp.value; saveCols(c); rerender(); }
+      const c = getCols(); const ci = +inp.dataset.col; const ri = +inp.dataset.idx;
+      const row = c[ci]?.rows?.[ri];
+      if (row && row.type !== 'image') { row.text = inp.value; saveCols(c); rerender(); }
     });
     inp.addEventListener('change', commit);
   });
+  // 행 type 토글 (text ↔ image)
+  propPanel.querySelectorAll('.cmp-row-type').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const c = getCols(); const ci = +btn.dataset.col; const ri = +btn.dataset.idx;
+      const row = c[ci]?.rows?.[ri]; if (!row) return;
+      const newType = btn.dataset.type;
+      if (row.type === newType) return;
+      if (newType === 'image') { row.type = 'image'; row.imgSrc = row.imgSrc || ''; row.imgFit = row.imgFit || 'cover'; }
+      else { row.type = 'text'; } // imgSrc/imgFit는 보존(다시 이미지로 전환 시 복원)
+      saveCols(c); rerender(); commit(); showComparisonProperties(block);
+    }));
+  // 행 이미지 업로드/교체 (FileReader→dataURL, banner02 패턴)
+  propPanel.querySelectorAll('.cmp-row-img').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const ci = +btn.dataset.col, ri = +btn.dataset.idx;
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = () => {
+        const f = inp.files?.[0]; if (!f) return;
+        const r = new FileReader();
+        r.onload = () => {
+          const c = getCols(); const row = c[ci]?.rows?.[ri]; if (!row) return;
+          row.type = 'image'; row.imgSrc = r.result; row.imgFit = row.imgFit || 'cover';
+          saveCols(c); rerender(); commit(); showComparisonProperties(block);
+        };
+        r.readAsDataURL(f);
+      };
+      inp.click();
+    }));
+  propPanel.querySelectorAll('.cmp-row-img-clear').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const c = getCols(); const row = c[+btn.dataset.col]?.rows?.[+btn.dataset.idx]; if (!row) return;
+      row.imgSrc = ''; saveCols(c); rerender(); commit(); showComparisonProperties(block);
+    }));
+  propPanel.querySelectorAll('.cmp-row-fit').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const c = getCols(); const row = c[+btn.dataset.col]?.rows?.[+btn.dataset.idx]; if (!row) return;
+      row.imgFit = btn.dataset.fit === 'contain' ? 'contain' : 'cover';
+      saveCols(c); rerender(); commit(); showComparisonProperties(block);
+    }));
+  // 행 높이 (행 인덱스 단위 → block.dataset.rowHeights, 전 칼럼 동시)
+  propPanel.querySelectorAll('.cmp-row-h').forEach(inp => {
+    const apply = () => {
+      const ri = +inp.dataset.idx;
+      const arr = _rowHeights(block.dataset);
+      const raw = inp.value.trim();
+      if (raw === '') { arr[ri] = null; }
+      else { let v = Math.max(16, Math.min(400, parseInt(raw) || 0)); arr[ri] = v; }
+      // trailing null 정리 (최대 인덱스까지만 보존)
+      while (arr.length && arr[arr.length - 1] == null) arr.pop();
+      block.dataset.rowHeights = JSON.stringify(arr);
+      rerender();
+    };
+    inp.addEventListener('input', apply);
+    inp.addEventListener('change', commit);
+  });
+  // 행 삭제 (해당 칼럼 행 제거 + 첫 칼럼이면 rowHeights에서도 해당 인덱스 제거)
   propPanel.querySelectorAll('.cmp-row-del').forEach(btn =>
     btn.addEventListener('click', () => {
-      const c = getCols(); const ci = +btn.dataset.col;
-      if (c[ci]) { c[ci].rows.splice(+btn.dataset.idx, 1); saveCols(c); rerender(); commit(); showComparisonProperties(block); }
+      const c = getCols(); const ci = +btn.dataset.col; const ri = +btn.dataset.idx;
+      if (!c[ci]) return;
+      c[ci].rows.splice(ri, 1); saveCols(c);
+      if (ci === 0) {
+        const arr = _rowHeights(block.dataset);
+        if (ri < arr.length) { arr.splice(ri, 1); while (arr.length && arr[arr.length - 1] == null) arr.pop(); block.dataset.rowHeights = JSON.stringify(arr); }
+      }
+      rerender(); commit(); showComparisonProperties(block);
     }));
+  // 행 추가 (기본 text)
   propPanel.querySelectorAll('.cmp-row-add').forEach(btn =>
     btn.addEventListener('click', () => {
       const c = getCols(); const ci = +btn.dataset.col;
-      if (c[ci]) { c[ci].rows.push('내용 입력'); saveCols(c); rerender(); commit(); showComparisonProperties(block); }
+      if (c[ci]) { c[ci].rows.push({ type: 'text', text: '내용 입력' }); saveCols(c); rerender(); commit(); showComparisonProperties(block); }
     }));
 
   // 선택 시 활성 칼럼 배경이 그라데이션이면 캔버스 위 그라데이션 라인 표시 (아니면 overlay가 no-op)
