@@ -1401,6 +1401,7 @@ app.whenReady().then(async () => {
       updateDividerBlock: _invokeRendererUpdateDividerBlock,
       updateAssetBlock: _invokeRendererUpdateAssetBlock,
       updateTableBlock: _invokeRendererUpdateTableBlock,
+      addIconCircleBlock: _invokeRendererAddIconCircleBlock,
       updateIconCircleBlock: _invokeRendererUpdateIconCircleBlock,
       addGraphBlock: _invokeRendererAddGraphBlock,
       updateGraphBlock: _invokeRendererUpdateGraphBlock,
@@ -3775,6 +3776,40 @@ async function _invokeRendererUpdateIconCircleBlock({ blockId, partial } = {}) {
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('updateIconCircleBlock call failed: ' + e.message);
+  }
+}
+
+// ─── add_icon_circle_block — icon-circle 블록 추가 (bridge 누락 보완, addFrameBlock 패턴 미러) ───
+async function _invokeRendererAddIconCircleBlock(opts = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeOpts = JSON.stringify(opts || {});
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addIconCircleBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addIconCircleBlock not found' };
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.icon-circle-block')].map(b => b.id));
+      window.addIconCircleBlock(${safeOpts});
+      const blocks = [...document.querySelectorAll('.icon-circle-block')];
+      const newBlock = blocks.find(b => !beforeIds.has(b.id));
+      if (!newBlock) return { ok: false, code: 'NO_ADD', message: 'icon-circle-block이 추가되지 않았습니다.' };
+      if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
+      return { ok: true, blockId: newBlock.id, pageId: window.activePageId || null };
+    } catch(e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addIconCircleBlock call failed: ' + e.message);
   }
 }
 
