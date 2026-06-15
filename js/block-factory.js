@@ -2313,6 +2313,7 @@ function updateTableBlock(blockId, partial = {}) {
     textColor: block.dataset.textColor,
     fontFamily: block.dataset.fontFamily,
     fontSize: table.style.fontSize || '',
+    headerSize: parseInt(block.dataset.headerSize) || 0,
     colWidths: block.dataset.colWidths,
     colBgs: block.dataset.colBgs,
     colFgs: block.dataset.colFgs,
@@ -2556,6 +2557,15 @@ function updateTableBlock(blockId, partial = {}) {
     block._tblNextFontSize = n;
   }
 
+  if (partial.headerSize !== undefined) {
+    const n = Number(partial.headerSize);
+    if (!Number.isFinite(n) || n < 0 || n > 60) {
+      return { ok: false, code: 'INVALID', message: `invalid headerSize: ${partial.headerSize} (0~60, 0=상속)` };
+    }
+    applied.headerSize = n;
+    block._tblNextHeaderSize = n;
+  }
+
   let colWidthsTouched = false;
   if (partial.colWidths !== undefined) {
     if (typeof partial.colWidths !== 'string') {
@@ -2685,6 +2695,17 @@ function updateTableBlock(blockId, partial = {}) {
     if (partial.fontSize !== undefined) {
       table.style.fontSize = (block._tblNextFontSize) + 'px';
       delete block._tblNextFontSize;
+    }
+    if (partial.headerSize !== undefined) {
+      const n = block._tblNextHeaderSize;
+      if (n > 0) {
+        block.dataset.headerSize = n;
+        block.style.setProperty('--tbl-header-size', n + 'px');
+      } else {
+        delete block.dataset.headerSize;
+        block.style.removeProperty('--tbl-header-size');
+      }
+      delete block._tblNextHeaderSize;
     }
     if (partial.style !== undefined) {
       if (typeof window.__applyTableColColors === 'function') {

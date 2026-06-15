@@ -589,7 +589,7 @@
   table-layout: fixed;
   color: #222;
 }
-.tb-table thead th { font-weight: 600; }
+.tb-table thead th { font-weight: 600; font-size: var(--tbl-header-size, inherit); }
 
 /* 기본 스타일 */
 .table-block[data-style="default"] .tb-table th,
