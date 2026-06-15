@@ -738,7 +738,10 @@ function rebindAll() {
       return;
     }
     // 의도적 빈 줄(data-blank) 블록은 placeholder 복원/플래그 보정에서 제외 — 빈 상태 유지
-    const blank = inner.dataset.blank === 'true' || tb.dataset.blank === 'true';
+    // (EMPTY) 로드 경로엔 런타임 Enter 신호가 없으므로 has-breaks 헬퍼로 승격하면
+    // "전부삭제 leftover <br>"까지 빈줄로 오판해 회귀가 저장본에 고착된다.
+    // → 이미 blur에서 박힌 data-blank='true'만 존중(U5 방식). 그 외 빈 블록은 placeholder 복원.
+    let blank = inner.dataset.blank === 'true' || tb.dataset.blank === 'true';
     // data-is-placeholder 보정: 저장된 내용이 placeholder 텍스트와 같거나 비어있으면 placeholder 상태로 표시
     if (!blank && inner.dataset.isPlaceholder !== 'true') {
       const ph = inner.dataset.placeholder;
