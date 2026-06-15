@@ -14,7 +14,8 @@
 const LINER_PRESETS = [
   { value: 'arc-up',   label: 'Arc Up (위로 아치)' },
   { value: 'arc-down', label: 'Arc Down (아래 오목)' },
-  { value: 'wave',     label: 'Wave (물결)' }
+  { value: 'wave',     label: 'Wave (물결)' },
+  { value: 'circle',   label: '원형' }
 ];
 
 const LINER_DEFAULTS = {
@@ -88,6 +89,19 @@ function buildLinerPathD(preset, curvature, W, H, P, cy, k) {
   if (cy == null) cy = H / 2;
   if (k == null)  k  = (c / 100) * (H * 0.45);
   const x0 = P, x1 = W - P;
+  if (preset === 'circle') {
+    // 풀 원형: <circle>은 textPath 못 받으니 두 개의 A(arc)로 360°.
+    // 시작점 = 최하단(6시) (cx, cy+r). 시계방향(sweep=1)으로 왼쪽→상단→오른쪽→하단 복귀.
+    // ⇒ 최상단(12시)이 둘레의 정확히 50% 지점에 위치 → startOffset='50%' + text-anchor=middle 로
+    //    텍스트 중앙이 12시에 오고, 좌우로 자연스럽게 감김(짧으면 상단 호만 차지).
+    // caller가 cy=원 중심 y, k=반지름 r 로 전달.
+    const cx = W / 2;
+    const r = (k != null) ? k : (Math.min(W - 2 * P, H) / 2);
+    const botX = cx, botY = cy + r;
+    const topX = cx, topY = cy - r;
+    // 하단 → (왼쪽 반원) 상단 → (오른쪽 반원) 하단. sweep-flag=1(시계방향).
+    return `M ${botX},${botY} A ${r},${r} 0 1 1 ${topX},${topY} A ${r},${r} 0 1 1 ${botX},${botY}`;
+  }
   if (c === 0) {
     return `M ${x0},${cy} L ${x1},${cy}`;
   }
@@ -193,38 +207,71 @@ function applyLiner(block, opts) {
   tp.removeAttribute('lengthAdjust');
   tp.textContent = readLinerText(mirror);
 
-  // path 가용 길이 — 임시 path(직선 근사)로 selector 안정화 후 실제 d는 effFont 확정 뒤 다시 그림
   path.setAttribute('id', pid);
   path.setAttribute('fill', 'none');
-  if (!path.getAttribute('d')) path.setAttribute('d', `M ${P},40 L ${W - P},40`);
-  let avail = W - 2 * P;
-  try {
-    if (path.getTotalLength) { const L = path.getTotalLength(); if (Number.isFinite(L) && L > 0) avail = L; }
-  } catch (e) { /* fallback W-2P */ }
 
-  // ── effective 폰트 산출 ──
-  // 1) 곡률 비례 다운스케일 (#4): 곡률↑ → 폰트↓
+  const isCircle = (cfg.preset === 'circle');
+  // 곡률 비례 다운스케일 (#4): 곡률↑ → 폰트↓ (모든 프리셋 공통)
   const curvScale = linerCurvatureScale(cfg.curvature);
   let effFont = Math.max(6, userFontPx * curvScale);
-  // 2) 가로 넘침 fit-to-width (#3): effFont로 측정한 자연폭이 avail 넘으면 폭 비율만큼 추가 축소 (stretch X)
-  textEl.setAttribute('font-size', String(effFont));
-  let natural = 0;
-  try {
-    if (tp.getComputedTextLength) natural = tp.getComputedTextLength();
-    if (!(natural > 0) && textEl.getComputedTextLength) natural = textEl.getComputedTextLength();
-  } catch (e) { natural = 0; }
-  if (natural > avail && natural > 0) {
-    effFont = Math.max(6, effFont * (avail / natural) * 0.985); // 0.985 안전마진
-    textEl.setAttribute('font-size', String(effFont));
-  }
 
-  // ── effFont 기준 높이/베이스라인 계산 (#2: 아치 rise + ascent만큼 블록 높이 확보) ──
-  const amp     = linerAmplitude(cfg.curvature, LINER_BASE_H); // 아치 sagitta rise
-  const ascent  = effFont * 0.85;  // 베이스라인 위 글자 높이
-  const descent = effFont * 0.30;  // 베이스라인 아래 꼬리
-  const padTop = 6, padBottom = 6;
-  const cy = Math.round(padTop + ascent + amp);                 // arc-up peak/ascent 상단 여유
-  const H  = Math.round(cy + descent + amp + padBottom);        // arc-down peak/descent 하단 여유
+  let cy, H, pathK;
+
+  if (isCircle) {
+    // ── 원형: 블록은 정사각형(H=W), 원은 가운데. 곡률↑ → 원 작게 + 글자 작게 ──
+    // 글자 ascent가 path 바깥(위)으로 올라가므로 ascent만큼 반지름을 줄여 블록 안에 가둠.
+    const ascent = effFont * 0.78;
+    // 곡률로 원 크기 제어: 곡률 0 → 가용폭 꽉, 100 → 60%. (curvScale 0.65~1.0 와 별개로 좀 더 강하게)
+    const sizeScale = 1 - (normCurvature(cfg.curvature) / 100) * 0.40; // 1.0 ~ 0.60
+    const maxR = (W - 2 * P) / 2 - ascent;
+    let r = Math.max(8, maxR * sizeScale);
+    // 임시 path로 둘레(circumference) 측정 → fit-to-width 기준
+    H = W; // 정사각형
+    const cyTmp = H / 2;
+    path.setAttribute('d', buildLinerPathD('circle', cfg.curvature, W, H, P, cyTmp, r));
+    let circ = 2 * Math.PI * r;
+    try { if (path.getTotalLength) { const L = path.getTotalLength(); if (Number.isFinite(L) && L > 0) circ = L; } } catch (e) {}
+    // "채울 수 있는 만큼만": 자연 길이가 둘레를 넘을 때만 폰트 축소 (stretch X, 강제 360° X)
+    textEl.setAttribute('font-size', String(effFont));
+    let natural = 0;
+    try {
+      if (tp.getComputedTextLength) natural = tp.getComputedTextLength();
+      if (!(natural > 0) && textEl.getComputedTextLength) natural = textEl.getComputedTextLength();
+    } catch (e) { natural = 0; }
+    if (natural > circ && natural > 0) {
+      effFont = Math.max(6, effFont * (circ / natural) * 0.985);
+      textEl.setAttribute('font-size', String(effFont));
+    }
+    cy    = Math.round(H / 2);   // 원 중심 = 블록 중앙
+    pathK = r;
+  } else {
+    // ── arc/wave: path 가용 길이(직선 근사) → fit-to-width ──
+    if (!path.getAttribute('d')) path.setAttribute('d', `M ${P},40 L ${W - P},40`);
+    let avail = W - 2 * P;
+    try {
+      if (path.getTotalLength) { const L = path.getTotalLength(); if (Number.isFinite(L) && L > 0) avail = L; }
+    } catch (e) { /* fallback W-2P */ }
+
+    textEl.setAttribute('font-size', String(effFont));
+    let natural = 0;
+    try {
+      if (tp.getComputedTextLength) natural = tp.getComputedTextLength();
+      if (!(natural > 0) && textEl.getComputedTextLength) natural = textEl.getComputedTextLength();
+    } catch (e) { natural = 0; }
+    if (natural > avail && natural > 0) {
+      effFont = Math.max(6, effFont * (avail / natural) * 0.985); // 0.985 안전마진
+      textEl.setAttribute('font-size', String(effFont));
+    }
+
+    // ── effFont 기준 높이/베이스라인 계산 (#2: 아치 rise + ascent만큼 블록 높이 확보) ──
+    const amp     = linerAmplitude(cfg.curvature, LINER_BASE_H); // 아치 sagitta rise
+    const ascent  = effFont * 0.85;  // 베이스라인 위 글자 높이
+    const descent = effFont * 0.30;  // 베이스라인 아래 꼬리
+    const padTop = 6, padBottom = 6;
+    cy    = Math.round(padTop + ascent + amp);                 // arc-up peak/ascent 상단 여유
+    H     = Math.round(cy + descent + amp + padBottom);        // arc-down peak/descent 하단 여유
+    pathK = amp;
+  }
 
   // viewBox / 크기
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -232,8 +279,13 @@ function applyLiner(block, opts) {
   svg.setAttribute('height', String(H));
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-  // 최종 path d (확정 cy/amp)
-  path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, H, P, cy, amp));
+  // 최종 path d (확정 cy/k)
+  path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, H, P, cy, pathK));
+
+  // 원형: path 시작점=6시, 12시=둘레 50% 지점. startOffset='50%' + text-anchor=middle
+  // ⇒ 텍스트 중앙이 12시에 오고 좌우로 자연스럽게 감김(짧으면 상단 호만 차지, stretch X).
+  // arc/wave도 동일하게 50% 중앙정렬.
+  tp.setAttribute('startOffset', '50%');
 
   // 블록/섹션 차지 높이 동기 (#2: 위 콘텐츠와 겹침/잘림 방지)
   block.style.minHeight = H + 'px';
@@ -278,7 +330,7 @@ function enhanceLinerPropPanel(block) {
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">곡률</span>
+        <span style="flex:1;font-size:11px;color:#999;" id="lnr-curvature-label">${cfg.preset === 'circle' ? '원 크기' : '곡률'}</span>
         <input type="range" class="prop-slider" id="lnr-curvature" min="0" max="100" value="${cfg.curvature}" style="flex:2;">
         <span id="lnr-curvature-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.curvature}</span>
       </div>
@@ -305,6 +357,8 @@ function enhanceLinerPropPanel(block) {
   };
 
   propPanel.querySelector('#lnr-preset')?.addEventListener('change', () => {
+    const lbl = propPanel.querySelector('#lnr-curvature-label');
+    if (lbl) lbl.textContent = (propPanel.querySelector('#lnr-preset').value === 'circle') ? '원 크기' : '곡률';
     read(); window.pushHistory?.('곡선 텍스트 프리셋'); window.scheduleAutoSave?.();
   });
   propPanel.querySelector('#lnr-curvature')?.addEventListener('input', e => {
