@@ -344,9 +344,70 @@ function applyLiner(block, opts) {
     iter++;
   }
   // M4b 폴백: 폰트 하한에 닿고도 여전히 넘치면 textLength=avail + lengthAdjust=spacing 으로 강제 수용.
-  if (m.natural > m.avail && m.natural > 0) {
+  const stretchFallback = (m.natural > m.avail && m.natural > 0);
+  if (stretchFallback) {
     tp.setAttribute('textLength', String(Math.max(1, Math.round(m.avail))));
     tp.setAttribute('lengthAdjust', 'spacing');
+  }
+
+  // ── LINERH: arc/wave 타이트 높이 2차 패스 ──
+  // 문제: H가 '아치 전체 sagitta'를 예약하지만, 텍스트는 startOffset 50% + anchor=middle 라서
+  //   정점 밴드에만 앉음(짧은 텍스트+고곡률일수록 끝점 하강분이 통째로 빈 공간이 됨).
+  // 해결: 텍스트가 실제 덮는 패스 구간 [f0,f1]의 베이스라인 y 밴드를 샘플링해 H를 콘텐츠 최소높이로
+  //   다시 잡고, cy를 위로 평행이동(shift)해 콘텐츠를 새 박스 상단에 정렬한 뒤 path d를 재작성.
+  // circle은 정사각(H=W) 유지 → 스킵. getTotal/getPointAtLength 실패 시 기존 H로 fallback.
+  if (!isCircle) {
+    try {
+      let availPathLen = (W - 2 * P);
+      if (path.getTotalLength) {
+        const L = path.getTotalLength();
+        if (Number.isFinite(L) && L > 0) availPathLen = L;
+      }
+      // natural: 텍스트 자연 길이. stretch 폴백이 걸린 경우는 glyph가 늘어나 측정이 왜곡되므로
+      //   half=0.5(전체 구간)로 안전하게 두어 기존 full-sagitta 수렴을 보장.
+      let half = 0.5;
+      if (!stretchFallback && Number.isFinite(m.natural) && m.natural > 0 && availPathLen > 0) {
+        half = Math.min(0.5, (m.natural / 2) / availPathLen);
+      }
+      if (!(half > 0)) half = 0; // 빈 텍스트 등 → 밴드 0 (글자 없음)
+      const f0 = 0.5 - half, f1 = 0.5 + half;
+
+      // 구간 [f0,f1]을 N등분 샘플 → 베이스라인 y 밴드(min/max)
+      const N = 40;
+      let minBaseY = Infinity, maxBaseY = -Infinity, sampled = 0;
+      if (path.getPointAtLength) {
+        for (let i = 0; i <= N; i++) {
+          const f = f0 + (f1 - f0) * (i / N);
+          const pt = path.getPointAtLength(availPathLen * f);
+          if (pt && Number.isFinite(pt.y)) {
+            if (pt.y < minBaseY) minBaseY = pt.y;
+            if (pt.y > maxBaseY) maxBaseY = pt.y;
+            sampled++;
+          }
+        }
+      }
+      // half=0(빈 텍스트)이면 정점 1점만 샘플되도록 보강
+      if (sampled === 0 && path.getPointAtLength) {
+        const pt = path.getPointAtLength(availPathLen * 0.5);
+        if (pt && Number.isFinite(pt.y)) { minBaseY = maxBaseY = pt.y; sampled = 1; }
+      }
+
+      if (sampled > 0 && Number.isFinite(minBaseY) && Number.isFinite(maxBaseY)) {
+        const ascent = effFont * 0.85;
+        const descent = effFont * 0.30;
+        const padTop = 6, padBottom = 6;
+        const band = maxBaseY - minBaseY;
+        const newH = Math.round(band + ascent + descent + padTop + padBottom);
+        // 콘텐츠(minBaseY-ascent ... maxBaseY+descent)를 새 박스 상단(padTop)에 정렬
+        const shift = Math.round(padTop + ascent - minBaseY);
+        const cyNew = cy + shift;
+        if (Number.isFinite(newH) && newH > 0 && Number.isFinite(cyNew)) {
+          path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, newH, P, cyNew, pathK));
+          H = newH;
+          cy = cyNew;
+        }
+      }
+    } catch (e) { /* getTotalLength/getPointAtLength 실패 → 기존 H 유지 */ }
   }
 
   // viewBox / 크기
