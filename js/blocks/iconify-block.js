@@ -41,6 +41,19 @@ function _applyIconifyBlockStyle(block, svgContent, size, rotation) {
 }
 
 function addIconifyBlock(iconName, svgContent, size = 64) {
+  // FRAMEICON: mockup(I5-F1) 패턴 미러. free-layout/fullWidth 프레임이면 _insertToFlowFrame이
+  //   makeBlockFn을 자기가 1회 호출해 block을 absolute로 전환(free-layout) + frame 직속 append +
+  //   pushHistory/bindBlock/buildLayerPanel까지 처리한다. 해당 안 되면 false 반환 → 아래 섹션-레벨
+  //   flow 삽입으로 폴백. (기존 generic insertAfterSelected만 호출해서 free-layout 프레임 안 icon-block이
+  //   flow .row에 남아 position!=='absolute' → bindBlock mousedown 가드에 걸려 드래그가 시작 안 됐음)
+  let made = null; // _insertToFlowFrame 콜백이 만든 핸들 캡처 (MCP 반환 호환)
+  if (window._insertToFlowFrame?.(() => (made = makeIconifyBlock(iconName, svgContent, size)))) {
+    // _insertToFlowFrame이 pushHistory/bindBlock/buildLayerPanel을 자체 처리하므로 여기선 추가 호출 X.
+    // (free-layout 경로는 row를 버리고 block만 frame에 append — MCP는 block.id만 사용)
+    return made; // { row, block } (헬퍼가 makeBlockFn 결과를 그대로 캡처)
+  }
+
+  // ── 폴백: 일반 섹션 / 비-프레임 ──
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return null; }
   window.pushHistory();
