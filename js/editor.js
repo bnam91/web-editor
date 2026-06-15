@@ -1307,7 +1307,9 @@ document.addEventListener('keydown', e => {
       if (contentEl.dataset.isPlaceholder === 'true' && contentEl.textContent.trim() !== '') {
         delete contentEl.dataset.isPlaceholder;
       }
-      if (contentEl.dataset.isPlaceholder === 'true' && phMap[cls]) {
+      // 의도적 빈 줄(data-blank)이면 placeholder 문구 덮어쓰기 skip — 빈 블록 유지
+      const isBlank = contentEl.dataset.blank === 'true' || tb.dataset.blank === 'true';
+      if (!isBlank && contentEl.dataset.isPlaceholder === 'true' && phMap[cls]) {
         contentEl.dataset.placeholder = phMap[cls];
         contentEl.innerHTML = phMap[cls];
       } else if (phMap[cls]) {

@@ -522,6 +522,8 @@
 
 .icb-circle {
   width: 80px; height: 80px;
+  aspect-ratio: 1 / 1;          /* width만 살아있어도 정원 유지하는 안전망 — 부모 flex squash 방어 */
+  align-self: center;            /* 부모 flex stretch로 height가 늘어나는 경우 대비 */
   border-radius: 50%;
   background:
     repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
