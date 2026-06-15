@@ -180,6 +180,12 @@
 /* Text 드롭다운 */
 .fp-dropdown { position: relative; }
 .fp-dropdown-trigger { width: auto; padding: 0 6px; gap: 3px; }
+/* F10: 펜모드 등 활성 시 toolbar 트리거 시각 표시 */
+.fp-dropdown-trigger.active {
+  background: var(--ui-bg-input);
+  border-color: var(--ui-border-mid);
+  color: var(--ui-text);
+}
 .fp-chevron { opacity: 0.5; transition: transform 0.15s; }
 .fp-dropdown.open .fp-chevron { transform: rotate(180deg); }
 .fp-dropdown-menu {

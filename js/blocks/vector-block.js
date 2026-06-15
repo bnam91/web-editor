@@ -40,6 +40,31 @@ function renderVector(block) {
 
 }
 
+// ── 펜 패스 SVG 재빌드 (공용) ──────────────────────────────────────────────────
+// penNodes(viewBox 좌표) 보유 블록의 color/stroke/fill 변경 시 dataset.svg를 재생성.
+// prop-vector.js의 rebuildPenSvg와 동일 로직 — 공용화(F6).
+// 반환: 재빌드했으면 true (펜 블록), 아니면 false.
+function rebuildPenSvg(block) {
+  if (!block) return false;
+  let nodes = null;
+  try { nodes = JSON.parse(block.dataset.penNodes || 'null'); } catch (_) { return false; }
+  if (!Array.isArray(nodes) || nodes.length < 2) return false;
+  const closed = block.dataset.penClosed === '1';
+  const sw     = parseFloat(block.dataset.strokeWidth) || 2;
+  const fill   = block.dataset.penFill || 'none';
+  const w      = parseInt(block.dataset.w) || 120;
+  const h      = parseInt(block.dataset.h) || 120;
+  const d      = window.nodesToSvgPath?.(nodes, closed) || '';
+  if (!d) return false;
+  const stroke   = block.dataset.color || '#1a1a1a';
+  const fillAttr = (fill && fill !== 'none') ? fill : 'none';
+  block.dataset.svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">` +
+    `<path d="${d}" fill="${fillAttr}" stroke="${stroke}" stroke-width="${sw}" ` +
+    `stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  return true;
+}
+
 function makeVectorBlock(data = {}) {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
@@ -72,18 +97,23 @@ function makeVectorBlock(data = {}) {
 }
 
 function addVectorBlock(svgString = '', opts = {}) {
+  // F1: 생성된 block을 반환해 호출측이 정확히 그 블록에 메타를 부착하게 한다
+  // (querySelectorAll 마지막 집기 방식은 insertAfterSelected로 위치가 바뀌면 오부착됨).
+  let created = null;
   if (window._insertToFlowFrame?.(() => {
     const { row, block } = makeVectorBlock({ svg: svgString, ...opts });
+    created = block;
     return { row, block };
-  })) return;
+  })) return created;
   const sec = window.getSelectedSection();
-  if (!sec) { showNoSelectionHint(); return; }
+  if (!sec) { showNoSelectionHint(); return null; }
   window.pushHistory();
   const { row, block } = makeVectorBlock({ svg: svgString, ...opts });
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
   window.selectSection(sec);
+  return block;
 }
 
 // ── 수정 ──────────────────────────────────────────────────────────────────────
@@ -225,6 +255,17 @@ function updateVectorBlock(blockId, partial = {}) {
     layerNameChanged = true;
   }
 
+  // ── F6: 펜 패스 블록은 color/stroke/fill 변경 시 SVG 재빌드 ──
+  // (renderVector는 fill 치환만 하므로 stroke 색·두께가 반영 안 됨.)
+  // svg를 명시적으로 넘기지 않은 경우에만 재빌드(명시 svg가 우선).
+  if (partial.svg === undefined &&
+      (applied.color !== undefined || applied.strokeWidth !== undefined ||
+       applied.penFill !== undefined || applied.penClosed !== undefined)) {
+    try {
+      if (rebuildPenSvg(block)) applied.svg = block.dataset.svg;
+    } catch (_) {}
+  }
+
   // ── 재렌더 (svg/color/w/h 어느 것이 바뀌어도 idempotent) ──
   try {
     if (typeof window.renderVector === 'function') {
@@ -251,5 +292,6 @@ window.makeVectorBlock = makeVectorBlock;
 window.addVectorBlock  = addVectorBlock;
 window.renderVector    = renderVector;
 window.updateVectorBlock = updateVectorBlock;
+window.rebuildPenSvg   = rebuildPenSvg;
 
-export { makeVectorBlock, addVectorBlock, updateVectorBlock, renderVector };
+export { makeVectorBlock, addVectorBlock, updateVectorBlock, renderVector, rebuildPenSvg };

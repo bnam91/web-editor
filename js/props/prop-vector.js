@@ -59,23 +59,20 @@ export function showVectorProperties(block) {
     <div class="prop-section">
       <div class="prop-section-title">Path</div>
       <div class="prop-row">
-        <button class="prop-align-btn" id="vb-pen-edit" style="flex:1;justify-content:center;gap:6px;padding:6px 8px;">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
-            <path d="M2 11l2-.5L10.5 4 9 2.5 2.5 9 2 11Z"/>
-          </svg>
-          <span>패스 편집</span>
-        </button>
+        <button class="prop-btn-full" id="vb-pen-edit">패스 편집</button>
       </div>
       <div class="prop-row" style="margin-top:6px;">
         <span class="prop-label">선 두께</span>
-        <input type="number" class="prop-number" id="vb-stroke-w" value="${strokeWidth}" min="0.5" max="40" step="0.5">
+        <input type="range" class="prop-slider" id="vb-stroke-w" min="0.5" max="40" step="0.5" value="${strokeWidth}">
+        <input type="number" class="prop-number" id="vb-stroke-w-num" min="0.5" max="40" step="0.5" value="${strokeWidth}">
       </div>
       ${penClosed ? `
       <div class="prop-row" style="margin-top:6px;">
         <span class="prop-label">채움</span>
-        <button class="prop-align-btn${fillOn ? ' active' : ''}" id="vb-pen-fill" title="닫힌 패스 채움 토글" style="margin-left:auto;padding:4px 10px;">
-          ${fillOn ? 'ON' : 'OFF'}
-        </button>
+        <label class="prop-toggle" title="닫힌 패스 채움 토글" style="margin-left:auto;">
+          <input type="checkbox" id="vb-pen-fill" ${fillOn ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>` : ''}
     </div>` : ''}
 
@@ -152,6 +149,12 @@ export function showVectorProperties(block) {
   // ── 펜 패스 ──────────────────────────────────────────────────────────────────
   // penNodes(viewBox 좌표) + 현재 stroke/fill로 SVG 재빌드 → dataset.svg 갱신 → renderVector
   function rebuildPenSvg() {
+    // F6: 공용 window.rebuildPenSvg 재사용 (vector-block.js). 폴백 인라인 유지.
+    if (window.rebuildPenSvg?.(block)) {
+      window.renderVector(block);
+      window.scheduleAutoSave?.();
+      return;
+    }
     let nodes = null;
     try { nodes = JSON.parse(block.dataset.penNodes || 'null'); } catch (_) { return; }
     if (!Array.isArray(nodes) || nodes.length < 2) return;
@@ -174,18 +177,24 @@ export function showVectorProperties(block) {
   document.getElementById('vb-pen-edit')?.addEventListener('click', () => {
     window.enterPenEditMode?.(block);
   });
-  document.getElementById('vb-stroke-w')?.addEventListener('change', () => {
-    const v = parseFloat(document.getElementById('vb-stroke-w').value);
+  // F13: 선 두께 슬라이더 ↔ 숫자 동기 (annotation 패널과 동형). input=라이브, change=히스토리 1회.
+  const strokeSlider = document.getElementById('vb-stroke-w');
+  const strokeNum    = document.getElementById('vb-stroke-w-num');
+  function applyStroke(v) {
     if (!Number.isFinite(v) || v <= 0) return;
     block.dataset.strokeWidth = String(v);
+    if (strokeSlider) strokeSlider.value = v;
+    if (strokeNum)    strokeNum.value    = v;
     rebuildPenSvg();
-    pushHistory();
-  });
-  document.getElementById('vb-pen-fill')?.addEventListener('click', () => {
-    const on = block.dataset.penFill && block.dataset.penFill !== 'none';
-    block.dataset.penFill = on ? 'none' : (block.dataset.color || '#1a1a1a');
-    const btn = document.getElementById('vb-pen-fill');
-    if (btn) { btn.classList.toggle('active', !on); btn.textContent = on ? 'OFF' : 'ON'; }
+  }
+  strokeSlider?.addEventListener('input', () => applyStroke(parseFloat(strokeSlider.value)));
+  strokeNum?.addEventListener('input',    () => applyStroke(parseFloat(strokeNum.value)));
+  strokeSlider?.addEventListener('change', () => pushHistory());
+  strokeNum?.addEventListener('change',    () => pushHistory());
+  // F9: 채움 토글 표준 스위치(checkbox change)
+  document.getElementById('vb-pen-fill')?.addEventListener('change', (e) => {
+    const on = e.target.checked;
+    block.dataset.penFill = on ? (block.dataset.color || '#1a1a1a') : 'none';
     rebuildPenSvg();
     pushHistory();
   });

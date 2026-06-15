@@ -17,7 +17,13 @@
 // 편집: window.enterPenEditMode(vbBlock) — dataset.penNodes 복원 → 오버레이에서 앵커/핸들 재편집.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const ACCENT = '#0d99ff';
+// F8: 정본 토큰(--ui-accent-primary)에서 런타임 1회 초기화. 미정의 시 #2d6fe8 폴백.
+const ACCENT = (() => {
+  try {
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue('--ui-accent-primary').trim() || '#2d6fe8';
+  } catch (_) { return '#2d6fe8'; }
+})();
 
 // ── 모듈 상태 (그리기) ──────────────────────────────────────────────────────
 let _mode = false;
@@ -27,6 +33,7 @@ let _overlay = null;         // 그리기 라이브 오버레이 (sec 내부)
 let _cursor = { x: 0, y: 0 };// 현재 커서 (sec 좌표)
 let _dragging = null;        // 드래그 중 핸들 만드는 임시 노드 ref
 let _dragStart = null;       // 드래그 시작 sec 좌표
+let _closingDrag = false;    // F4: 닫기 드래그(첫 앵커 hIn 갱신) 모드
 
 // node = { x, y, type:'corner'|'smooth', hIn:{x,y}|null, hOut:{x,y}|null }
 // 핸들은 노드 기준 "절대 좌표"(sec 좌표).
@@ -78,6 +85,7 @@ function exitVectorPenMode() {
   const btn = document.getElementById('fp-shape-dropdown')?.querySelector('.fp-dropdown-trigger');
   btn?.classList.remove('active');
   _cancelDraw();
+  _teardownListeners();
   document.removeEventListener('keydown', _onDrawKeydown, true);
 }
 
@@ -100,10 +108,26 @@ function _initListeners() {
   _bound = true;
 }
 
+// F2: 종료 시 동일 옵션(capture=true)으로 전부 해제 + _bound 해제 (리스너 누수 방지)
+function _teardownListeners() {
+  if (!_bound) return;
+  const wrap = document.getElementById('canvas-wrap');
+  if (wrap) {
+    wrap.removeEventListener('mousedown',  _onMouseDown,  true);
+    wrap.removeEventListener('mousemove',  _onMouseMove,  true);
+    wrap.removeEventListener('mouseup',    _onMouseUp,    true);
+    wrap.removeEventListener('click',      _onClick,      true);
+    wrap.removeEventListener('dblclick',   _onDblClick,   true);
+    wrap.removeEventListener('contextmenu',_onContextMenu,true);
+  }
+  _bound = false;
+}
+
 function _cancelDraw() {
   _draw = null;
   _dragging = null;
   _dragStart = null;
+  _closingDrag = false;
   if (_overlay) { _overlay.remove(); _overlay = null; }
 }
 
@@ -127,8 +151,10 @@ function _onMouseDown(e) {
     if (_screenDist(p, { x: first.x, y: first.y }) <= 10) {
       _draw.closed = true;
       // 닫는 동작에서도 드래그하면 첫 앵커의 hIn을 만들 수 있게 dragging 세팅
+      // F4: 닫기 드래그는 첫 앵커의 hIn(닫는 곡선 진입 핸들)을 갱신해야 함
       _dragging = first;
       _dragStart = { x: first.x, y: first.y };
+      _closingDrag = true;
       _renderDraw();
       return;
     }
@@ -140,6 +166,7 @@ function _onMouseDown(e) {
   _draw.nodes.push(node);
   _dragging = node;
   _dragStart = { x: p.x, y: p.y };
+  _closingDrag = false;
   _renderDraw();
 }
 
@@ -156,6 +183,18 @@ function _onMouseMove(e) {
     let q = _applyShift(p, e, _dragStart);
     const dx = q.x - _dragging.x;
     const dy = q.y - _dragging.y;
+    if (_closingDrag) {
+      // F4: 닫기 드래그 — 첫 앵커의 hIn(마지막→첫 앵커 곡선의 진입 핸들)을 직접 갱신.
+      // 드래그 방향 반대편을 hIn으로 둬 닫는 곡선이 자연스럽게 휘게 한다.
+      _dragging.hIn = { x: _dragging.x - dx, y: _dragging.y - dy };
+      if (!e.altKey) {
+        // 대칭이면 hOut도 맞춰(첫 세그먼트도 부드럽게)
+        _dragging.hOut = { x: _dragging.x + dx, y: _dragging.y + dy };
+        _dragging.type = 'smooth';
+      }
+      _renderDraw();
+      return;
+    }
     _dragging.hOut = { x: _dragging.x + dx, y: _dragging.y + dy };
     if (e.altKey) {
       // Option: 비대칭 — hIn은 건드리지 않음 (out만 끌기)
@@ -178,6 +217,7 @@ function _onMouseUp(e) {
     e.stopPropagation();
     _dragging = null;
     _dragStart = null;
+    _closingDrag = false;
     // 닫힌 패스를 드래그로 마무리했으면 확정
     if (_draw.closed) { _finalizeDraw(); return; }
     _renderDraw();
@@ -197,14 +237,15 @@ function _onDblClick(e) {
   if (!_mode) return;
   e.stopPropagation();
   e.preventDefault();
-  if (_draw && _draw.nodes.length >= 2) _finalizeDraw();
+  // A1: 앵커 1개여도 _finalizeDraw가 토스트 안내 + 정리 담당
+  if (_draw && _draw.nodes.length >= 1) _finalizeDraw();
 }
 
 function _onContextMenu(e) {
   if (!_mode) return;
   e.stopPropagation();
   e.preventDefault();
-  if (_draw && _draw.nodes.length >= 2) _finalizeDraw();
+  if (_draw && _draw.nodes.length >= 1) _finalizeDraw();
   else _cancelDraw();
 }
 
@@ -390,14 +431,46 @@ function _anchor(svg, n, isFirst, idx, selected) {
 // ════════════════════════════════════════════════════════════════════════════
 //  확정 → vector-block 커밋
 // ════════════════════════════════════════════════════════════════════════════
+// F17: penNodes JSON dataset 저장 길이 한도 (vector-block updateVectorBlock의 svg 한도와 동일)
+const PEN_NODES_MAX = 200000;
+
 function _finalizeDraw() {
-  if (!_draw || _draw.nodes.length < 2) { _cancelDraw(); return; }
+  // A1: 앵커가 2개 미만이면 패스를 만들 수 없음 → 토스트 안내 + 펜딩 정리
+  if (!_draw || _draw.nodes.length < 2) {
+    if (_draw && _draw.nodes.length > 0) {
+      window.showToast?.('점을 2개 이상 찍어야 패스가 만들어집니다');
+    }
+    _cancelDraw();
+    return;
+  }
+  const sec = _draw.sec;
+  // F7: 더블클릭/Enter 직전 중복 마지막 노드 제거 (같은 좌표 연속 클릭으로 생긴 퇴화 앵커)
+  {
+    const ns = _draw.nodes;
+    while (ns.length >= 2) {
+      const a = ns[ns.length - 1], b = ns[ns.length - 2];
+      if (Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && !a.hIn && !a.hOut) {
+        ns.pop();
+      } else break;
+    }
+    if (ns.length < 2) {
+      window.showToast?.('점을 2개 이상 찍어야 패스가 만들어집니다');
+      _cancelDraw();
+      return;
+    }
+  }
   const { nodes, closed } = _draw;
   const color = '#1a1a1a';
   const strokeWidth = 2;
   const fill = closed ? 'none' : 'none'; // 기본 채움 없음 — prop에서 토글
 
   const bb = _bbox(nodes);
+  // F7: 퇴화 패스(bbox가 사실상 0) 미확정
+  if ((bb.maxX - bb.minX) < 1 && (bb.maxY - bb.minY) < 1) {
+    window.showToast?.('패스가 너무 작아 만들 수 없습니다');
+    _cancelDraw();
+    return;
+  }
   const pad = strokeWidth + 2;
   const w = Math.max(20, Math.round(bb.maxX - bb.minX + pad * 2));
   const h = Math.max(20, Math.round(bb.maxY - bb.minY + pad * 2));
@@ -406,17 +479,30 @@ function _finalizeDraw() {
 
   const svg = _buildSvg(d, w, h, color, strokeWidth, fill);
 
-  window.addVectorBlock?.(svg, { w, h, color, label: 'Pen' });
+  // F1: 그린 섹션을 선택 상태로 동기화 → addVectorBlock의 insertAfterSelected가 해당 섹션 기준 삽입
+  if (sec) window.selectSection?.(sec);
 
-  // 방금 생성된 vector-block에 penNodes 등 부착 (addVectorBlock이 마지막 블록 추가)
-  // selectSection 후 새 블록 찾기 — 가장 최근 vector-block
-  const vbs = document.querySelectorAll('.vector-block');
-  const vb = vbs[vbs.length - 1];
-  if (vb) {
-    vb.dataset.penNodes = JSON.stringify(norm);
-    vb.dataset.penClosed = closed ? '1' : '0';
-    vb.dataset.strokeWidth = String(strokeWidth);
-    vb.dataset.penFill = fill;
+  // F17: penNodes JSON 길이 가드 — 초과 시 경고 후 메타 없이 저장(편집 불가하지만 도형은 유지)
+  let penNodesStr = JSON.stringify(norm);
+  let penMeta = {
+    penNodes: penNodesStr,
+    penClosed: closed ? '1' : '0',
+    strokeWidth: String(strokeWidth),
+    penFill: fill,
+  };
+  if (penNodesStr.length > PEN_NODES_MAX) {
+    window.showToast?.('⚠ 패스 데이터가 너무 커 재편집 정보를 저장하지 않습니다');
+    penMeta = {}; // 메타 스킵 (SVG 도형만 저장)
+  }
+
+  // F1: 펜 메타를 opts로 넘겨 makeVectorBlock이 생성 시점에 dataset에 박게 한다
+  // (반환된 block을 fallback으로도 직접 부착 — querySelectorAll 마지막 집기 제거).
+  const vb = window.addVectorBlock?.(svg, { w, h, color, label: 'Pen', ...penMeta });
+  if (vb && penNodesStr.length <= PEN_NODES_MAX) {
+    vb.dataset.penNodes = penMeta.penNodes;
+    vb.dataset.penClosed = penMeta.penClosed;
+    vb.dataset.strokeWidth = penMeta.strokeWidth;
+    vb.dataset.penFill = penMeta.penFill;
   }
 
   _cancelDraw();
@@ -444,7 +530,8 @@ function _onDrawKeydown(e) {
     return;
   }
   if (e.key === 'Enter') {
-    if (_draw && _draw.nodes.length >= 2) {
+    // A1: 앵커 1개여도 _finalizeDraw가 토스트 안내 + 정리 담당
+    if (_draw && _draw.nodes.length >= 1) {
       e.stopPropagation();
       e.preventDefault();
       _finalizeDraw();
@@ -488,6 +575,7 @@ function enterPenEditMode(block) {
   };
   _selectedNodeIdx = -1;
   document.body.classList.add('vpen-edit-mode');
+  block.classList.add('pen-editing'); // F15: 편집 대상 블록 강조 (CSS .pen-editing 활성화)
   _buildEditOverlay();
   _startEditRaf();
   if (!_editKeyBound) {
@@ -499,6 +587,7 @@ function enterPenEditMode(block) {
 
 function exitPenEditMode() {
   if (!_edit) return;
+  _edit.block?.classList.remove('pen-editing'); // F15: 강조 해제
   _edit = null;
   _selectedNodeIdx = -1;
   document.body.classList.remove('vpen-edit-mode');
@@ -524,15 +613,22 @@ function _buildEditOverlay() {
   _renderEdit();
 }
 
+// F5: 실제 SVG viewBox 추출 (dataset.svg에서). 없으면 dataset.w/h 폴백.
+function _viewBoxOf(block) {
+  const svg = block.dataset.svg || '';
+  const m = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/i);
+  if (m) return { vw: parseFloat(m[1]) || 120, vh: parseFloat(m[2]) || 120 };
+  return { vw: parseInt(block.dataset.w) || 120, vh: parseInt(block.dataset.h) || 120 };
+}
+
 // 편집은 화면(client) 좌표로 핸들을 그린다 — block bbox를 screen에 매핑.
 function _blockMap() {
-  // penNodes는 svg viewBox 좌표(0..w, 0..h). 블록의 client rect로 매핑.
+  // F5: penNodes는 svg viewBox 좌표. 블록 client rect 폭/높이를 viewBox 기준으로 매핑.
   const b = _edit.block;
   const rect = b.getBoundingClientRect();
-  const w = parseInt(b.dataset.w) || 120;
-  const h = parseInt(b.dataset.h) || 120;
-  const sx = rect.width / w;
-  const sy = rect.height / h;
+  const { vw, vh } = _viewBoxOf(b);
+  const sx = rect.width / vw;
+  const sy = rect.height / vh;
   return {
     toScreen: (p) => ({ x: rect.left + p.x * sx, y: rect.top + p.y * sy }),
     toLocal: (cx, cy) => ({ x: (cx - rect.left) / sx, y: (cy - rect.top) / sy }),
@@ -557,12 +653,12 @@ function _renderEdit() {
   nodes.forEach((n, i) => {
     const a = m.toScreen(n);
     const r = document.createElementNS(SVG_NS, 'rect');
-    const SZ = 8;
+    const SZ = 7; // F14: 그리기 앵커(7px)와 통일
     r.setAttribute('x', _n(a.x - SZ / 2)); r.setAttribute('y', _n(a.y - SZ / 2));
     r.setAttribute('width', SZ); r.setAttribute('height', SZ);
     r.setAttribute('fill', i === _selectedNodeIdx ? ACCENT : '#fff');
     r.setAttribute('stroke', ACCENT);
-    r.setAttribute('stroke-width', '1.4');
+    r.setAttribute('stroke-width', '1.2'); // F14: 그리기 앵커(1.2)와 통일
     r.dataset.nodeIdx = String(i);
     svg.appendChild(r);
   });
@@ -651,23 +747,39 @@ function _onEditHandleDown(e) {
   document.addEventListener('mouseup', onUp, true);
 }
 
-// 편집 중 라이브 — bbox 재계산 없이 viewBox 안에서만 path 갱신(블록 크기 고정)
+// 편집 중 라이브 — bbox 재계산 없이 현재 viewBox 안에서만 path 갱신(드래그 중 크기 고정)
 function _commitEditLive() {
   if (!_edit) return;
   const b = _edit.block;
-  const w = parseInt(b.dataset.w) || 120;
-  const h = parseInt(b.dataset.h) || 120;
+  const { vw, vh } = _viewBoxOf(b);
   const d = nodesToSvgPath(_edit.nodes, _edit.closed);
-  const svg = _buildSvg(d, w, h, _edit.color, _edit.strokeWidth, _edit.fill);
+  const svg = _buildSvg(d, vw, vh, _edit.color, _edit.strokeWidth, _edit.fill);
   b.dataset.svg = svg;
   window.renderVector?.(b);
 }
 
+// F5: 드래그 종료 시 핸들 포함 bbox 재계산 → 노드 정규화 → viewBox/w/h 함께 갱신(클리핑 방지)
 function _commitEdit() {
   if (!_edit) return;
   const b = _edit.block;
-  _commitEditLive();
+
+  // 핸들 포함 bbox 재계산 + 정규화
+  const sw = _edit.strokeWidth || 2;
+  const pad = sw + 2;
+  const bb = _bbox(_edit.nodes);
+  const norm = normalizeToBBox(_edit.nodes, bb, pad);
+  _edit.nodes = norm;
+  const vw = Math.max(20, Math.round(bb.maxX - bb.minX + pad * 2));
+  const vh = Math.max(20, Math.round(bb.maxY - bb.minY + pad * 2));
+
+  const d = nodesToSvgPath(_edit.nodes, _edit.closed);
+  const svg = _buildSvg(d, vw, vh, _edit.color, sw, _edit.fill);
+  b.dataset.svg = svg;
+  b.dataset.w = String(vw);
+  b.dataset.h = String(vh);
   b.dataset.penNodes = JSON.stringify(_edit.nodes);
+  window.renderVector?.(b);
+
   // updateVectorBlock으로 히스토리/저장 일원화 (svg는 이미 dataset에 반영됨)
   window.pushHistory?.('패스 편집');
   window.scheduleAutoSave?.();

@@ -18,6 +18,8 @@ const DBL_DIST_PX = 6;
 // ── 모드 토글 ─────────────────────────────────────────────────────────────
 function enterPenMode() {
   if (_penMode) return;
+  // F3: 벡터펜 모드와 상호 배타 — vectorPen이 켜져 있으면 종료(대칭 가드)
+  window.exitVectorPenMode?.();
   _penMode = true;
   document.body.classList.add('pen-mode');
   const btn = document.getElementById('fp-pen-btn');
