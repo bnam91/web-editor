@@ -265,17 +265,26 @@
 
 ---
 
-### `card`
+### `card` (DEPRECATED → `canvas-card`)
+
+> **폐기**: 구 `cdb` 카드 블록(`addCardBlock`)은 제거됨. 카드는 `canvas-card`(canvas-block, `cardMode: "simple"`)로 재정의됨. 신규 spec은 아래 `canvas-card`를 사용할 것.
 
 ```json
-{ "type": "card", "count": 2, "bgColor": "#f5f5f5", "radius": 12 }
+{ "type": "canvas-card", "cardMode": "simple", "gridCols": 1, "gridRows": 1,
+  "cards": [ { "title": "카드 제목", "desc": "", "imgSrc": "", "cellBg": "" } ] }
 ```
 
-| 필드 | 값 | 기본값 |
-|------|----|--------|
-| `count` | `2` \| `3` | `2` |
-| `bgColor` | hex | `"#f5f5f5"` |
-| `radius` | number (px 단위) | `12` |
+`canvas-card`는 canvas-block의 Simple Card Mode다. 자세한 필드는 아래 `canvas` 타입 참조.
+
+| 필드 | 값 | 기본값 | 설명 |
+|------|----|--------|------|
+| `cardMode` | `"simple"` | — | simple 카드 모드 (지정 시 `cards[]` 그리드) |
+| `gridCols` | number | `1` | 카드 그리드 열 수 |
+| `gridRows` | number | `1` | 카드 그리드 행 수 |
+| `cardGap` | number (px) | `12` | 카드 간 간격 |
+| `cards` | `{ title, desc, imgSrc, cellBg }[]` | 1개 샘플 | 카드 데이터 (gridCols × gridRows 개) |
+| `bg` | hex \| `"transparent"` | `"transparent"` | 블록 배경 |
+| `radius` | number (px 단위) | `12` | 모서리 반경 |
 
 ---
 
@@ -298,6 +307,237 @@
 | `items` | `{ label: string, value: number(0~100) }[]` | 5개 샘플 |
 
 > **이미지 분석 봇 주의**: 이미지에서 수치 추출이 불확실할 경우 `items: []`로 빈 배열 전달. 실행 봇이 에디터 기본값으로 생성.
+
+---
+
+## 신규 블록 타입 (v2.4)
+
+> v2.4에서 추가된 컴포넌트 블록. 모두 에디터 `window.add*Block` 함수에 1:1 매핑되며, PM/MCP `update_*_block` 도구로 수정 가능. 각 add/update API 시그니처는 `goditor-api-reference.md` 참조.
+
+### `comparison`
+
+제품 비교표 블록. (DOM `.comparison-block`)
+
+```json
+{ "type": "comparison", "featured": 0,
+  "cols": [ { "title": "A사", "bg": "#fff", "rows": ["항목1", "항목2"] }, { "title": "우리", "rows": [] } ] }
+```
+
+| 필드 | 값 | 설명 |
+|------|----|------|
+| `cols` | `{ title, bg?, rows[] }[]` | 칼럼 2~8개. `rows` 항목은 문자열 또는 `{type:'text'\|'image', text?, imgSrc?, imgFit?}` |
+| `featured` | number | 강조 칼럼 index |
+
+---
+
+### `canvas-card` (cvb)
+
+자유 배치(layers) 또는 Simple Card Mode 겸용 캔버스 블록. (DOM `.canvas-block`, id prefix `cvb_`)
+
+```json
+{ "type": "canvas-card", "cardMode": "simple",
+  "gridCols": 1, "gridRows": 1,
+  "cards": [ { "title": "카드 제목", "desc": "", "imgSrc": "", "cellBg": "" } ] }
+```
+
+| 필드 | 값 | 설명 |
+|------|----|------|
+| `cardMode` | `"simple"` (생략 시 레이어 모드) | simple = `cards[]` 그리드, 미지정 = `layers[]` 자유배치 |
+| `cards` | `{ title, desc, imgSrc, cellBg }[]` | simple 모드 카드 데이터 |
+| `gridCols` / `gridRows` | number | 카드 그리드 크기 |
+| `layers` | object[] | 레이어 모드 자유배치 요소 |
+
+> 옵션 없이 호출하면 기본 심플 카드 템플릿(width 360 / height 480 / cardMode simple)으로 생성됨.
+
+---
+
+### `chat`
+
+말풍선 대화형 블록. (DOM `.chat-block`)
+
+```json
+{ "type": "chat", "messages": [ { "text": "안녕하세요", "align": "left" }, { "text": "네!", "align": "right" } ] }
+```
+
+| 필드 | 값 | 설명 |
+|------|----|------|
+| `messages` | `{ text, align: 'left'\|'right' }[]` | 메시지 배열 |
+| `bgLeft` / `bgRight` | hex | 좌/우 말풍선 배경 |
+| `showProfile` | boolean | 프로필 표시 |
+
+---
+
+### `step`
+
+단계(스텝) 안내 블록. (DOM `.step-block`)
+
+```json
+{ "type": "step", "steps": [ { "title": "1단계", "desc": "설명" }, { "title": "2단계" } ] }
+```
+
+| 필드 | 값 | 설명 |
+|------|----|------|
+| `steps` | `{ title, desc? }[]` | 1~10개 |
+| `stepStyle` / `stepOrient` / `stepAlign` | enum | 스타일/방향/정렬 |
+| `connector` | boolean | 단계 연결선 |
+
+---
+
+### `laurel`
+
+월계관(인증/수상) 블록. (DOM `.laurel-block`, id prefix `lrb_`)
+
+```json
+{ "type": "laurel", "gridCols": 1, "gridRows": 1,
+  "cells": [ { "lines": [ { "text": "1위", "fontSize": 40 } ], "leafFill": "gold" } ] }
+```
+
+| 필드 | 값 | 설명 |
+|------|----|------|
+| `cells` | `{ lines[], leafColor?, leafFill?, gap?, height? }[]` | 월계관 셀 |
+| `gridCols` / `gridRows` | number | 셀 그리드 |
+
+---
+
+### `mockup`
+
+디바이스 목업 블록. (DOM `.mockup-block`)
+
+```json
+{ "type": "mockup", "deviceKey": "iphone", "width": 360, "imgSrc": "", "shadow": "soft" }
+```
+
+| 필드 | 값 | 기본값 | 설명 |
+|------|----|--------|------|
+| `deviceKey` | `window.MOCKUP_DEVICES` 키 | `"iphone"` | 디바이스 종류 |
+| `width` | number (px) | 디바이스 기본값 | 100~860 clamp |
+| `imgSrc` | string | `""` | 스크린 이미지 |
+| `shadow` | string | `"soft"` | 그림자 |
+
+---
+
+### `banner`
+
+프리셋 기반 배너(frame) 블록. (DOM `.frame-block`, `dataset.bannerPreset`)
+
+```json
+{ "type": "banner", "preset": "frame_8" }
+```
+
+| 필드 | 값 | 기본값 | 설명 |
+|------|----|--------|------|
+| `preset` | `window.BANNER_PRESETS` 키 | `"frame_8"` | 배너 프리셋 |
+
+---
+
+### `banner02`
+
+텍스트+이미지 변형 배너 블록. (DOM `.banner02-block`)
+
+```json
+{ "type": "banner02", "variant": "default", "title": "제목", "sub": "부제", "imgSrc": "" }
+```
+
+| 필드 | 값 | 설명 |
+|------|----|------|
+| `variant` | `window.BANNER02_VARIANTS` 키 | 배너 변형 |
+| `label` / `title` / `sub` | string | 텍스트 |
+| `imgSrc` | string | 이미지 |
+| `layout` | `"left"` \| `"right"` | 텍스트/이미지 좌우 배치 |
+
+---
+
+### `gradient`
+
+그라데이션 배경 블록 (섹션 직속 absolute). (DOM `.gradient-block`)
+
+```json
+{ "type": "gradient", "style": "linear", "direction": "to bottom",
+  "startColor": "#ffffff", "endColor": "#000000", "width": 600, "height": 300 }
+```
+
+| 필드 | 값 | 설명 |
+|------|----|------|
+| `style` | `"linear"` \| `"radial"` | 그라데이션 종류 |
+| `direction` | 8방향 enum | linear 전용 |
+| `startColor` / `endColor` | `#RRGGBB` | 시작/끝 색 |
+| `startAlpha` / `endAlpha` | 0~1 | 투명도 |
+| `width` / `height` | number (px) | 크기 |
+
+---
+
+### `sticker`
+
+스티커(절대 위치) 블록. (DOM `.sticker-block`, 섹션 직속 absolute)
+
+```json
+{ "type": "sticker", "shape": "circle", "text": "NEW", "x": 40, "y": 40 }
+```
+
+| 필드 | 값 | 설명 |
+|------|----|------|
+| `shape` | `"circle"` \| `"square"` \| `"text"` \| `"highlight"` \| `"highlightB"` | 스티커 형태 (polymorphic — shape별 활성 필드 상이) |
+| `text` | string | 텍스트 |
+| `x` / `y` | number (px) | 섹션 기준 좌표 (미지정 시 cascade offset) |
+
+---
+
+### `liner`
+
+라이너(텍스트 강조선) 블록.
+
+```json
+{ "type": "liner" }
+```
+
+> `window.addLinerBlock`으로 생성. 세부 필드는 에디터 기본값 사용 후 속성 패널/`update`로 편집.
+
+---
+
+### `vector` (1급 타입)
+
+> v2.2의 `joker`(Figma 패스스루)와 별개로, **vector를 1급 블록 타입으로 승격**. SVG 패스/펜툴 도형을 에디터 네이티브 블록으로 보존·편집. (DOM `.vector-block`)
+
+```json
+{ "type": "vector", "svg": "<svg ...>...</svg>", "color": "#000000", "w": 200, "h": 200 }
+```
+
+| 필드 | 값 | 설명 |
+|------|----|------|
+| `svg` | string (≤200000) | SVG 마크업 |
+| `color` | hex/rgb(a)/hsl(a)/transparent | 색상 |
+| `w` / `h` | int 10~4000 | 크기 |
+
+> **joker vs vector**: `joker`는 Figma 임포트 시 변환 불가 요소의 읽기 위주 패스스루 컨테이너(frame children). `vector`는 섹션 플로우에 들어가는 편집 가능한 1급 블록.
+
+---
+
+### `speech-bubble`
+
+말풍선 단일 블록.
+
+```json
+{ "type": "speech-bubble" }
+```
+
+> `window.addSpeechBubbleBlock`으로 생성 (block-factory). 세부 필드는 에디터 기본값/속성 패널 편집.
+
+---
+
+### `iconify`
+
+Iconify 아이콘 블록. (DOM `.icon-block`)
+
+```json
+{ "type": "iconify", "iconName": "mdi:home", "size": 64 }
+```
+
+| 필드 | 값 | 기본값 | 설명 |
+|------|----|--------|------|
+| `iconName` | `"prefix:icon-name"` | — | Iconify 아이콘 ID |
+| `size` | number (px) | `64` | 16~512 |
+| `iconColor` | hex/rgb(a)/hsl(a)/transparent | — | 색상 (currentColor) |
+| `rotation` | `0`\|`90`\|`180`\|`270` | `0` | 회전 |
 
 ---
 
@@ -441,7 +681,7 @@ GPT/Gemini에게 전달할 시스템 프롬프트 핵심 포인트:
 1. **섹션 목적 판단** → `label` (Hook/Main/Detail/CTA/Event/"")
 2. **레이아웃 구조 파악** → `layout` 결정 규칙 (단열=stack, 가로분할=flex, 격자=grid)
 3. **Col 비율 추정** → `flex` 값 (예: 왼쪽이 좁으면 1, 오른쪽이 넓으면 2)
-4. **블록 타입 식별** → text/image/gap/divider/icon-circle/label-group/table/card/graph
+4. **블록 타입 식별** → text/image/gap/divider/icon-circle/label-group/table/graph + 신규: comparison/canvas-card/chat/step/laurel/mockup/banner/banner02/gradient/sticker/liner/vector/speech-bubble/iconify (구 `card`는 `canvas-card`로 대체)
 5. **텍스트 스타일 판단** → h1/h2/h3/body/caption/label 기준표 참조
 6. **이미지 preset 선택** → standard/square/tall/wide/logo 기준표 참조
 7. **수치 추출 불확실 시** → `content: ""`, `items: []` 등 빈 값 사용
@@ -461,6 +701,7 @@ GPT/Gemini에게 전달할 시스템 프롬프트 핵심 포인트:
 | `Row.ratio: "100"` | `Col.widthPct: 100` | 필드명 명확화 |
 | `divider.style` | `divider.lineStyle` | type 충돌 방지 |
 | `"type": "sub-section"` | `"type": "frame"` | 클래스명 통일 (web editor rename) |
+| `"type": "card"` (cdb) | `"type": "canvas-card"` (cvb, `cardMode: "simple"`) | 카드 블록 → canvas-block 통합 (v2.4) |
 
 ---
 
@@ -473,3 +714,4 @@ GPT/Gemini에게 전달할 시스템 프롬프트 핵심 포인트:
 | v2.1 | 2026-04-03 | `settings.padX` 설명 갱신 — 섹션 레벨 override 동작 명시 (페이지 레벨 `applyPagePadX` 우선순위 구조 반영) |
 | v2.2 | 2026-04-03 | `sub-section`, `joker` 블록 타입 추가 (Figma 임포트 파이프라인 대응) |
 | v2.3 | 2026-04-07 | `sub-section` 타입 → `frame` 타입으로 변경 (에디터 frame-block 명칭 통일) |
+| v2.4 | 2026-06-15 | 신규 블록 타입 14종 추가 (comparison/canvas-card(cvb)/chat/step/laurel/mockup/banner/banner02/gradient/sticker/liner/vector/speech-bubble/iconify). 구 `card`(cdb) 타입 폐기 → `canvas-card`(canvas-block `cardMode: "simple"`)로 재정의. `vector`를 1급 타입으로 승격(joker 패스스루와 구분) |
