@@ -511,11 +511,13 @@ function bindBlock(block) {
       // 빈 텍스트면 placeholder 복원 — 단 의도적 빈 줄(data-blank)이면 복원 skip
       const ph = el.dataset.placeholder;
       let blank = el.dataset.blank === 'true' || block.dataset.blank === 'true';
-      // (EMPTY) 사용자가 편집 진입 후 Enter만 눌러 만든 빈 줄(<br>/빈 div 등)은
+      // (EMPTY) 사용자가 편집 진입 후 "실제로 Enter를 눌러" 만든 빈 줄(<br>/빈 div 등)만
       // placeholder로 덮지 말고 data-blank='true'로 승격(보존)한다.
-      // isVisuallyBlankButHasBreaks: textContent는 비었지만 br/빈 줄요소가 있는 경우만 true
-      // → 한 번도 편집 안 한 순수 placeholder(br 없는 안내문구)는 여기 안 걸려 기존대로 복원.
-      if (!blank && (window.isVisuallyBlankButHasBreaks?.(el))) {
+      // _userPressedEnter 게이트: Chromium은 텍스트 전부삭제 시에도 leftover <br>을 남겨
+      // isVisuallyBlankButHasBreaks가 true가 되는데, 그 경우(Enter 안 누름) 승격하면
+      // "내용 다 지우고 blur"한 일반 블록이 data-blank로 고착돼 placeholder가 영영 복원 안 됨(회귀).
+      // → has-breaks AND _userPressedEnter===true 일 때만 승격. 그 외엔 아래 placeholder 복원.
+      if (!blank && el._userPressedEnter === true && (window.isVisuallyBlankButHasBreaks?.(el))) {
         el.dataset.blank = 'true';
         block.dataset.blank = 'true';
         delete el.dataset.isPlaceholder;
@@ -534,6 +536,12 @@ function bindBlock(block) {
         // placeholder 문구와 동일하면(더블클릭 전체선택 후 무입력 blur 등) isPlaceholder 유지 — 안내문구가 본문으로 굳는 지뢰 방지
         delete el.dataset.isPlaceholder;
       }
+    });
+    // (EMPTY) Enter(또는 시각적 빈 줄을 만드는 입력) 감지 → 의도적 빈 줄 신호.
+    // 이 신호가 켜진 채 blur 시 br/빈요소만 남으면 data-blank로 승격(보존).
+    // 신호 없이(=텍스트 다 지운 결과로 br만 남음) blur하면 placeholder 복원.
+    el.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') el._userPressedEnter = true;
     });
     // Escape → 편집 종료, 블록 선택 상태 유지
     el.addEventListener('keydown', ev => {
@@ -602,6 +610,7 @@ function bindBlock(block) {
       // 클릭 위치에 해당하는 편집 요소 찾기 (보통 1개)
       const clicked = [...editEls].find(el => el.contains(document.elementFromPoint(e.clientX, e.clientY))) || editEls[0];
       if (clicked) {
+        clicked._userPressedEnter = false; // (EMPTY) 편집 진입마다 Enter 신호 초기화
         clicked.focus();
         // placeholder 상태면 전체 선택 (즉시 타이핑으로 교체 가능)
         if (clicked.dataset.isPlaceholder === 'true') {
@@ -635,6 +644,7 @@ function bindBlock(block) {
       editEls.forEach(el => el.setAttribute('contenteditable', 'true'));
       const target = editEls[0];
       if (!target) return;
+      target._userPressedEnter = false; // (EMPTY) 편집 진입마다 Enter 신호 초기화
       _bindTextEditEl(target, block);
       target.focus();
       // 커서를 끝으로 이동
