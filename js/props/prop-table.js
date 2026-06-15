@@ -242,6 +242,7 @@ export function showTableProperties(block) {
   const curPad        = parseInt(block.dataset.cellPad) || 10;
   const curSize       = parseInt(table.style.fontSize) || 28;
   const curShowHeader = block.dataset.showHeader !== 'false';
+  const curHeaderSize = parseInt(block.dataset.headerSize) || 0; // 0 = 본문 크기 상속
 
   // 신규 옵션 7개 기본값
   const curShowVLines  = block.dataset.showVLines  !== 'false';   // 세로선 (default: true)
@@ -392,6 +393,12 @@ export function showTableProperties(block) {
           <span class="prop-toggle-track"></span>
         </label>
       </div>
+      <div class="prop-row">
+        <span class="prop-label">글자크기</span>
+        <input type="range" class="prop-slider" id="tbl-header-size-slider" min="0" max="60" step="2" value="${curHeaderSize}">
+        <input type="number" class="prop-number" id="tbl-header-size-number" min="0" max="60" value="${curHeaderSize}">
+      </div>
+      <div class="prop-hint">0 = 본문 크기 상속</div>
       <div class="prop-color-row" style="margin-top:6px;">
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'tbl-header-bg', hex: _rgbToHex(curHeaderBg), alpha: curHeaderAlpha })}
@@ -705,6 +712,22 @@ export function showTableProperties(block) {
   document.getElementById('tbl-size-slider').addEventListener('input',  e => applySize(parseInt(e.target.value)));
   document.getElementById('tbl-size-number').addEventListener('change', e => { applySize(parseInt(e.target.value)); window.pushHistory(); });
   document.getElementById('tbl-size-slider').addEventListener('change', () => window.pushHistory());
+
+  /* 헤더 글자 크기 (0 = 본문 크기 상속) */
+  const applyHeaderSize = v => {
+    if (v > 0) {
+      block.dataset.headerSize = v;
+      block.style.setProperty('--tbl-header-size', v + 'px');
+    } else {
+      delete block.dataset.headerSize;
+      block.style.removeProperty('--tbl-header-size');
+    }
+    document.getElementById('tbl-header-size-slider').value = v;
+    document.getElementById('tbl-header-size-number').value = v;
+  };
+  document.getElementById('tbl-header-size-slider').addEventListener('input',  e => applyHeaderSize(parseInt(e.target.value)));
+  document.getElementById('tbl-header-size-number').addEventListener('change', e => { applyHeaderSize(parseInt(e.target.value)); window.pushHistory(); });
+  document.getElementById('tbl-header-size-slider').addEventListener('change', () => window.pushHistory());
 
   /* 셀 여백 (상하) */
   const applyPad = v => {

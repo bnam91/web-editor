@@ -918,6 +918,11 @@ function rebindAll() {
       const table = block.querySelector('.tb-table');
       if (table) table.style.fontSize = fontSize + 'px';
     }
+    // 헤더 전용 글자크기 복원 (CSS variable, 0/미설정 = 본문 상속)
+    const headerSize = parseInt(block.dataset.headerSize);
+    if (headerSize > 0) {
+      block.style.setProperty('--tbl-header-size', headerSize + 'px');
+    }
     const cellPad = parseInt(block.dataset.cellPad);
     if (!isNaN(cellPad)) {
       block.querySelectorAll('th, td').forEach(cell => { cell.style.padding = cellPad + 'px 16px'; });
