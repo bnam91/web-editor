@@ -107,6 +107,7 @@ export function showTextProperties(tb) {
     isIconText, currentItbGap,
     mix,
     shadow,
+    isLiner,
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
@@ -117,7 +118,8 @@ export function showTextProperties(tb) {
 
   if (isSpeechBubble) wireBubbleSection({ tb, ctx, currentBubbleStyle });
   wireFontSection({ propPanel, ctx });
-  wireTypeSection({ tb, propPanel, ctx });
+  // 라이너 블록은 Type 토글 숨김 — 클릭 시 contentEl.className 교체로 .tb-liner가 깨지는 회귀 방지 (M2)
+  if (!isLiner) wireTypeSection({ tb, propPanel, ctx });
   wireLabelSection({ ctx });
   wireAlignSection({ tb, ctx, propPanel, isIconText });
   wireTextEditSection({ ctx, currentColorAlpha });

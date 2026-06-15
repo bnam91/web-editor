@@ -13,6 +13,7 @@ export function buildTextPropsHtml(state) {
     isIconText, currentItbGap,
     mix,
     shadow,
+    isLiner,
   } = state;
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
@@ -54,7 +55,7 @@ export function buildTextPropsHtml(state) {
       </div>
     </div>
 
-    <div class="prop-section">
+    <div class="prop-section" id="type-section" style="display:${isLiner?'none':'block'}">
       <div class="prop-section-title">Type</div>
       <div class="prop-type-group">
         <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>

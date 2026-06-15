@@ -25,10 +25,40 @@ const LINER_DEFAULTS = {
 const LINER_PAD = 12;     // 좌우 패딩 P (글자 잘림 방지)
 const LINER_BASE_H = 80;  // 기본 블록/뷰박스 높이
 
+// 곡률 정규화 — NaN/비유한값은 기본값(50)으로 (m7)
+function normCurvature(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return LINER_DEFAULTS.curvature;
+  return Math.max(0, Math.min(100, n));
+}
+
+// 색 문자열이 투명(transparent / alpha=0)인지 판정 (M1)
+function isTransparentColor(c) {
+  if (!c) return true;
+  const v = String(c).trim().toLowerCase();
+  if (v === 'transparent' || v === 'none') return true;
+  // rgba(...,0) / rgba(...,0.0) 형태의 alpha=0 감지
+  const m = v.match(/^rgba?\(([^)]+)\)$/);
+  if (m) {
+    const parts = m[1].split(',').map(s => s.trim());
+    if (parts.length === 4 && parseFloat(parts[3]) === 0) return true;
+  }
+  return false;
+}
+
+// SVG <text> fill 색 결정 — 미러 inline style.color 우선, 비었거나 transparent면 기본색 fallback (M1)
+function resolveLinerFill(mirror, cs) {
+  const inline = (mirror.style.color || '').trim();
+  if (inline && !isTransparentColor(inline)) return inline;
+  const computed = (cs && cs.color) || '';
+  if (computed && !isTransparentColor(computed)) return computed;
+  return '#111111';
+}
+
 // ── path d 생성 공식 (viewBox 0 0 W H, 좌우 패딩 P) ──
 function buildLinerPathD(preset, curvature, W, H, P) {
   const cy = H / 2;
-  const c = Math.max(0, Math.min(100, Number(curvature) || 0));
+  const c = normCurvature(curvature);
   // 진폭 k: 곡률 0~100 → 0 ~ H*0.45
   const k = (c / 100) * (H * 0.45);
   const x0 = P, x1 = W - P;
@@ -60,9 +90,17 @@ function readLinerText(mirror) {
   return t;
 }
 
+// 블록 id 보장 — 없으면 즉시 발급 (m8: 'unknown' path id 공유 방지)
+function ensureBlockId(block) {
+  if (!block.id) {
+    block.id = window.genId ? window.genId('lnr') : 'lnr_' + Math.random().toString(36).slice(2, 9);
+  }
+  return block.id;
+}
+
 // path id 보장 — 블록 id 기준 (복제/복원 시 충돌 회피)
 function linerPathId(block) {
-  return 'liner-path-' + (block.id || 'unknown');
+  return 'liner-path-' + ensureBlockId(block);
 }
 
 // 미러 div → SVG textPath 텍스트 동기화
@@ -77,19 +115,25 @@ function applyLinerText(block) {
 
 function applyLiner(block, opts) {
   if (!block) return;
+  ensureBlockId(block); // m8: id 없으면 즉시 발급
   const mirror = findLinerMirror(block);
   const svg = block.querySelector('svg.lnr-svg');
   if (!mirror || !svg) return;
 
   const prev = (() => { try { return JSON.parse(block.dataset.liner || '{}'); } catch (e) { return {}; } })();
   const cfg = { ...LINER_DEFAULTS, ...prev, ...(opts || {}) };
-  cfg.curvature = Math.max(0, Math.min(100, Number(cfg.curvature)));
+  cfg.curvature = normCurvature(cfg.curvature); // m7: NaN → 기본값
+
+  // 폰트크기 먼저 읽기 (M4: H 계산에 반영) — 미러 inline style 우선, 없으면 computed
+  const csEarly = window.getComputedStyle(mirror);
+  const fontSizePx = parseInt(mirror.style.fontSize) || parseInt(csEarly.fontSize) || 28;
+  const lineHeightFactor = 1.4;
 
   // 폭: 블록(미러) 실측 폭 — 0이면 fallback
   const W = Math.max(120, Math.round(mirror.offsetWidth || block.offsetWidth || 600));
-  // 높이: 곡률이 클수록 글자가 안 잘리도록 자동 증가
+  // 높이: 곡률 진폭 + 폰트크기*lineHeight 여유를 모두 포함 (M4: 큰 폰트 잘림 방지)
   const amp = (cfg.curvature / 100) * (LINER_BASE_H * 0.45);
-  const H = Math.round(LINER_BASE_H + amp + 24); // 진폭 여유 + 폰트 여유
+  const H = Math.round(Math.max(LINER_BASE_H, fontSizePx * lineHeightFactor) + amp + 24);
 
   const P = LINER_PAD;
   const pid = linerPathId(block);
@@ -122,12 +166,14 @@ function applyLiner(block, opts) {
   textEl.setAttribute('text-anchor', 'middle');
 
   // 폰트/색/letter-spacing — 미러 div style/computed에서 복사 (단일 소스 = 미러)
-  const cs = window.getComputedStyle(mirror);
+  const cs = csEarly;
   const fontFamily = mirror.style.fontFamily || cs.fontFamily || "'Pretendard', sans-serif";
-  const fontSize   = parseInt(cs.fontSize) || 28;
+  const fontSize   = fontSizePx;
   const fontWeight = mirror.style.fontWeight || cs.fontWeight || '400';
   const fontStyle  = mirror.style.fontStyle || cs.fontStyle || 'normal';
-  const fill       = mirror.style.color || cs.color || '#111111';
+  // 색: 미러 inline style.color 우선. 비었거나 transparent/alpha=0면 #111111 fallback (M1)
+  // .tb-liner는 CSS color:transparent로 숨겨져 있어 computed color를 그대로 쓰면 글자가 안 보임
+  const fill       = resolveLinerFill(mirror, cs);
   const ls         = mirror.style.letterSpacing || cs.letterSpacing || 'normal';
   textEl.setAttribute('font-family', fontFamily);
   textEl.setAttribute('font-size', String(fontSize));
@@ -135,6 +181,10 @@ function applyLiner(block, opts) {
   textEl.setAttribute('font-style', fontStyle);
   textEl.setAttribute('fill', fill);
   textEl.setAttribute('letter-spacing', (ls === 'normal' ? '0' : ls));
+
+  // 긴 텍스트가 path 범위(P~W-P) 밖으로 잘리지 않게 path 길이에 맞춰 자간 조정 (M3)
+  tp.setAttribute('textLength', String(Math.max(1, W - 2 * P)));
+  tp.setAttribute('lengthAdjust', 'spacingAndGlyphs');
 
   // 텍스트 내용 동기화
   tp.textContent = readLinerText(mirror);

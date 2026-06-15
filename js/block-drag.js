@@ -656,8 +656,10 @@ function bindBlock(block) {
           window.applyLinerText?.(block);
         });
         // 폰트/색/크기 prop 변경은 미러 div style을 바꾼다 → SVG <text>로 재매핑
-        new MutationObserver(() => { window.applyLiner?.(block); })
-          .observe(mirror, { attributes: true, attributeFilter: ['style', 'class', 'data-is-placeholder'] });
+        // m5: 기존 observer가 있으면 disconnect 후 재바인딩 (detached 미러 누수 방지)
+        if (mirror._linerObserver) mirror._linerObserver.disconnect();
+        mirror._linerObserver = new MutationObserver(() => { window.applyLiner?.(block); });
+        mirror._linerObserver.observe(mirror, { attributes: true, attributeFilter: ['style', 'class', 'data-is-placeholder'] });
       }
     }
 

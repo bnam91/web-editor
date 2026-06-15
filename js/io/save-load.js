@@ -684,7 +684,7 @@ function rebindAll() {
   const _phTextMap = {
     'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요',
     'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요', 'tb-label':'Label',
-    'tb-bullet':'항목을 입력하세요'
+    'tb-bullet':'항목을 입력하세요', 'tb-liner':'곡선 텍스트'
   };
   // 말풍선 SVG 말꼬리 마이그레이션 (구버전 저장 파일 대응)
   canvasEl.querySelectorAll('.speech-bubble-block').forEach(sb => {
