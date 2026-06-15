@@ -18,12 +18,32 @@ const LINER_PRESETS = [
 ];
 
 const LINER_DEFAULTS = {
-  preset:    'arc-up',
-  curvature: 50          // 0~100
+  preset:        'arc-up',
+  curvature:     50,        // 0~100
+  letterSpacing: 0          // px, 자연 자간에 더하는 추가 자간 (음수 가능)
 };
 
 const LINER_PAD = 12;     // 좌우 패딩 P (글자 잘림 방지)
 const LINER_BASE_H = 80;  // 기본 블록/뷰박스 높이
+
+// 자간 슬라이더 범위 (px)
+const LINER_LS_MIN = -2;
+const LINER_LS_MAX = 20;
+
+// 곡률 비례 폰트 다운스케일 (미감 규칙 #4): 곡률 0=1.0배 → 100=0.65배 선형
+// 아치가 반원에 가까울수록 글자를 작게 만들어 자연스럽게 보이게 한다.
+const LINER_CURV_MIN_SCALE = 0.65;
+function linerCurvatureScale(curvature) {
+  const c = normCurvature(curvature);
+  return 1 - (c / 100) * (1 - LINER_CURV_MIN_SCALE);
+}
+
+// 자간 정규화 — NaN은 0
+function normLetterSpacing(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(LINER_LS_MIN, Math.min(LINER_LS_MAX, n));
+}
 
 // 곡률 정규화 — NaN/비유한값은 기본값(50)으로 (m7)
 function normCurvature(x) {
@@ -128,29 +148,25 @@ function applyLiner(block, opts) {
 
   const prev = (() => { try { return JSON.parse(block.dataset.liner || '{}'); } catch (e) { return {}; } })();
   const cfg = { ...LINER_DEFAULTS, ...prev, ...(opts || {}) };
-  cfg.curvature = normCurvature(cfg.curvature); // m7: NaN → 기본값
+  cfg.curvature     = normCurvature(cfg.curvature);          // m7: NaN → 기본값
+  cfg.letterSpacing = normLetterSpacing(cfg.letterSpacing);  // #1: 자간 정규화
 
-  // 폰트크기 먼저 읽기 (M4: H 계산에 반영) — 미러 inline style 우선, 없으면 computed
+  // 사용자 폰트크기 = "원하는 최대치" (#3) — 미러 inline style 우선, 없으면 computed
   const csEarly = window.getComputedStyle(mirror);
-  const fontSizePx = parseInt(mirror.style.fontSize) || parseInt(csEarly.fontSize) || 28;
+  const userFontPx = parseInt(mirror.style.fontSize) || parseInt(csEarly.fontSize) || 28;
 
   // 폭: 블록(미러) 실측 폭 — 0이면 fallback
   const W = Math.max(120, Math.round(mirror.offsetWidth || block.offsetWidth || 600));
-
-  // 진폭 k: 곡률 0~100 → 0 ~ baseH*0.45 (H가 아닌 고정 baseH 기준 → 큰 폰트에서 아치 과장 방지)
-  const amp = linerAmplitude(cfg.curvature, LINER_BASE_H);
-  // 글자 ascent/descent 여유 (M4: arc-up 상단 / arc-down 하단 클리핑 방지)
-  const ascent  = fontSizePx * 0.85;  // 베이스라인 위 글자 높이
-  const descent = fontSizePx * 0.30;  // 베이스라인 아래 꼬리
-  const padTop    = 6;
-  const padBottom = 6;
-  // 베이스라인 cy: 상단에 (amp[arc-up peak] + ascent) 여유, 하단에 (descent) 여유 확보
-  const cy = Math.round(padTop + ascent + amp);
-  // 높이 H: 베이스라인 + (descent, 그리고 arc-down일 때 아래로 휜 peak amp) + 하단 패딩
-  const H = Math.round(cy + descent + amp + padBottom);
-
   const P = LINER_PAD;
   const pid = linerPathId(block);
+
+  // 폰트/색 — 미러 div style/computed에서 복사 (단일 소스 = 미러)
+  const cs = csEarly;
+  const fontFamily = mirror.style.fontFamily || cs.fontFamily || "'Pretendard', sans-serif";
+  const fontWeight = mirror.style.fontWeight || cs.fontWeight || '400';
+  const fontStyle  = mirror.style.fontStyle || cs.fontStyle || 'normal';
+  const fill       = resolveLinerFill(mirror, cs);
+  const ls         = cfg.letterSpacing; // #1: dataset의 추가 자간(px)
 
   // defs / path / text 보장
   let defs = svg.querySelector('defs');
@@ -162,72 +178,68 @@ function applyLiner(block, opts) {
   let tp = textEl.querySelector('textPath');
   if (!tp) { tp = document.createElementNS('http://www.w3.org/2000/svg', 'textPath'); textEl.appendChild(tp); }
 
+  // textPath href / 공통 텍스트 속성 (측정 전에 세팅)
+  tp.setAttribute('href', '#' + pid);
+  tp.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#' + pid);
+  tp.setAttribute('startOffset', '50%');
+  textEl.setAttribute('text-anchor', 'middle');
+  textEl.setAttribute('font-family', fontFamily);
+  textEl.setAttribute('font-weight', fontWeight);
+  textEl.setAttribute('font-style', fontStyle);
+  textEl.setAttribute('fill', fill);
+  textEl.setAttribute('letter-spacing', String(ls));
+  // 측정 신뢰성: 항상 자연 자간(stretch 미설정)
+  tp.removeAttribute('textLength');
+  tp.removeAttribute('lengthAdjust');
+  tp.textContent = readLinerText(mirror);
+
+  // path 가용 길이 — 임시 path(직선 근사)로 selector 안정화 후 실제 d는 effFont 확정 뒤 다시 그림
+  path.setAttribute('id', pid);
+  path.setAttribute('fill', 'none');
+  if (!path.getAttribute('d')) path.setAttribute('d', `M ${P},40 L ${W - P},40`);
+  let avail = W - 2 * P;
+  try {
+    if (path.getTotalLength) { const L = path.getTotalLength(); if (Number.isFinite(L) && L > 0) avail = L; }
+  } catch (e) { /* fallback W-2P */ }
+
+  // ── effective 폰트 산출 ──
+  // 1) 곡률 비례 다운스케일 (#4): 곡률↑ → 폰트↓
+  const curvScale = linerCurvatureScale(cfg.curvature);
+  let effFont = Math.max(6, userFontPx * curvScale);
+  // 2) 가로 넘침 fit-to-width (#3): effFont로 측정한 자연폭이 avail 넘으면 폭 비율만큼 추가 축소 (stretch X)
+  textEl.setAttribute('font-size', String(effFont));
+  let natural = 0;
+  try {
+    if (tp.getComputedTextLength) natural = tp.getComputedTextLength();
+    if (!(natural > 0) && textEl.getComputedTextLength) natural = textEl.getComputedTextLength();
+  } catch (e) { natural = 0; }
+  if (natural > avail && natural > 0) {
+    effFont = Math.max(6, effFont * (avail / natural) * 0.985); // 0.985 안전마진
+    textEl.setAttribute('font-size', String(effFont));
+  }
+
+  // ── effFont 기준 높이/베이스라인 계산 (#2: 아치 rise + ascent만큼 블록 높이 확보) ──
+  const amp     = linerAmplitude(cfg.curvature, LINER_BASE_H); // 아치 sagitta rise
+  const ascent  = effFont * 0.85;  // 베이스라인 위 글자 높이
+  const descent = effFont * 0.30;  // 베이스라인 아래 꼬리
+  const padTop = 6, padBottom = 6;
+  const cy = Math.round(padTop + ascent + amp);                 // arc-up peak/ascent 상단 여유
+  const H  = Math.round(cy + descent + amp + padBottom);        // arc-down peak/descent 하단 여유
+
   // viewBox / 크기
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('width', String(W));
   svg.setAttribute('height', String(H));
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-  // path d — 명시적 cy/amp 전달(폰트 ascent 여유 반영)
-  path.setAttribute('id', pid);
+  // 최종 path d (확정 cy/amp)
   path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, H, P, cy, amp));
-  path.setAttribute('fill', 'none');
 
-  // textPath href (id 재바인드)
-  tp.setAttribute('href', '#' + pid);
-  tp.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#' + pid);
-  tp.setAttribute('startOffset', '50%');
-  textEl.setAttribute('text-anchor', 'middle');
-
-  // 폰트/색/letter-spacing — 미러 div style/computed에서 복사 (단일 소스 = 미러)
-  const cs = csEarly;
-  const fontFamily = mirror.style.fontFamily || cs.fontFamily || "'Pretendard', sans-serif";
-  const fontSize   = fontSizePx;
-  const fontWeight = mirror.style.fontWeight || cs.fontWeight || '400';
-  const fontStyle  = mirror.style.fontStyle || cs.fontStyle || 'normal';
-  // 색: 미러 inline style.color 우선. 비었거나 transparent/alpha=0면 #111111 fallback (M1)
-  // .tb-liner는 CSS color:transparent로 숨겨져 있어 computed color를 그대로 쓰면 글자가 안 보임
-  const fill       = resolveLinerFill(mirror, cs);
-  const ls         = mirror.style.letterSpacing || cs.letterSpacing || 'normal';
-  textEl.setAttribute('font-family', fontFamily);
-  textEl.setAttribute('font-size', String(fontSize));
-  textEl.setAttribute('font-weight', fontWeight);
-  textEl.setAttribute('font-style', fontStyle);
-  textEl.setAttribute('fill', fill);
-  textEl.setAttribute('letter-spacing', (ls === 'normal' ? '0' : ls));
-
-  // 텍스트 내용 먼저 동기화 (측정 전에 채워야 getComputedTextLength가 유효)
-  tp.textContent = readLinerText(mirror);
-
-  // ── textLength 보정: 기본은 자연 자간(미설정). 실제로 path 가용길이를 넘칠 때만 spacing만 좁힘 ──
-  // (M1 FIX) 전체폭 강제 + spacingAndGlyphs 제거 → 짧은 텍스트 stretch/글리프 왜곡 방지
-  tp.removeAttribute('textLength');
-  tp.removeAttribute('lengthAdjust');
-  // path 가용 길이: 좌우 패딩 제외한 path arc length. path가 곡선이라 실제 length로 측정.
-  let avail = W - 2 * P;
-  try {
-    if (path.getTotalLength) {
-      const L = path.getTotalLength();
-      if (Number.isFinite(L) && L > 0) avail = L;
-    }
-  } catch (e) { /* getTotalLength 미지원 → W-2P fallback */ }
-  let natural = 0;
-  try {
-    // textPath 우선(곡선 배치 실폭), 없으면 text 엘리먼트
-    if (tp.getComputedTextLength) natural = tp.getComputedTextLength();
-    if (!(natural > 0) && textEl.getComputedTextLength) natural = textEl.getComputedTextLength();
-  } catch (e) { natural = 0; }
-  // 자연 폭이 path 가용길이보다 길 때만 자간(spacing)만 좁혀 path 안에 수용 (글리프 왜곡 없음)
-  if (natural > 0 && natural > avail) {
-    tp.setAttribute('textLength', String(Math.max(1, Math.round(avail))));
-    tp.setAttribute('lengthAdjust', 'spacing');
-  }
-
-  // 블록 minHeight 동기 (곡선이 잘리지 않게)
+  // 블록/섹션 차지 높이 동기 (#2: 위 콘텐츠와 겹침/잘림 방지)
   block.style.minHeight = H + 'px';
 
-  // dataset 저장 (autoSave가 outerHTML 직렬화 → data-* 보존)
-  block.dataset.liner = JSON.stringify({ preset: cfg.preset, curvature: cfg.curvature });
+  // dataset 저장 (autoSave가 outerHTML 직렬화 → data-* 보존). 사용자 폰트크기는 미러가 보존, 여기엔 effFont 미저장.
+  block.dataset.liner = JSON.stringify({ preset: cfg.preset, curvature: cfg.curvature, letterSpacing: cfg.letterSpacing });
 }
 
 // 저장/로드 사이클에서 SVG가 innerHTML로 살아있어도 path id/폭변화 재계산
@@ -270,6 +282,11 @@ function enhanceLinerPropPanel(block) {
         <input type="range" class="prop-slider" id="lnr-curvature" min="0" max="100" value="${cfg.curvature}" style="flex:2;">
         <span id="lnr-curvature-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.curvature}</span>
       </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <span style="flex:1;font-size:11px;color:#999;">자간</span>
+        <input type="range" class="prop-slider" id="lnr-letterspacing" min="${LINER_LS_MIN}" max="${LINER_LS_MAX}" step="0.5" value="${cfg.letterSpacing}" style="flex:2;">
+        <span id="lnr-letterspacing-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.letterSpacing}</span>
+      </div>
     </div>
   `;
 
@@ -279,8 +296,9 @@ function enhanceLinerPropPanel(block) {
 
   const read = () => {
     const next = {
-      preset:    propPanel.querySelector('#lnr-preset').value,
-      curvature: parseInt(propPanel.querySelector('#lnr-curvature').value)
+      preset:        propPanel.querySelector('#lnr-preset').value,
+      curvature:     parseInt(propPanel.querySelector('#lnr-curvature').value),
+      letterSpacing: parseFloat(propPanel.querySelector('#lnr-letterspacing').value)
     };
     applyLiner(block, next);
     return next;
@@ -295,6 +313,13 @@ function enhanceLinerPropPanel(block) {
   });
   propPanel.querySelector('#lnr-curvature')?.addEventListener('change', () => {
     window.pushHistory?.('곡선 텍스트 곡률'); window.scheduleAutoSave?.();
+  });
+  propPanel.querySelector('#lnr-letterspacing')?.addEventListener('input', e => {
+    propPanel.querySelector('#lnr-letterspacing-val').textContent = e.target.value;
+    read();
+  });
+  propPanel.querySelector('#lnr-letterspacing')?.addEventListener('change', () => {
+    window.pushHistory?.('곡선 텍스트 자간'); window.scheduleAutoSave?.();
   });
 }
 
@@ -322,6 +347,7 @@ new MutationObserver(muts => {
 
 window.buildLinerPathD       = buildLinerPathD;
 window.linerAmplitude        = linerAmplitude;
+window.linerCurvatureScale   = linerCurvatureScale;
 window.applyLiner            = applyLiner;
 window.applyLinerText        = applyLinerText;
 window.ensureLiner           = ensureLiner;
