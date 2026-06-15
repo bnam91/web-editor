@@ -1148,6 +1148,8 @@ document.addEventListener('keydown', e => {
   {
     const fMatch = e.code.match(/^F([1-9])$/);
     if (fMatch && !e.metaKey && !e.ctrlKey) {
+      // 이스터에그 토글 off 시 F키 점프/등록 건너뜀
+      if (window.isEasterEggEnabled && !window.isEasterEggEnabled('fkeyHotkeys')) return;
       const slot = parseInt(fMatch[1]); // 1~9
       if (e.shiftKey) {
         // 등록: 현재 선택된(또는 첫 번째) 섹션을 slot에 저장

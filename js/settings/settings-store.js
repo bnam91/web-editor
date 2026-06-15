@@ -18,6 +18,14 @@
       ungroup:     'Meta+Shift+KeyG',
       wrapInFrame: 'Meta+Alt+KeyG',
     },
+    easterEggs: {
+      fkeyHotkeys:      true,
+      jokerBlock:       true,
+      highlightBMode:   true,
+      penMode:          true,
+      hideGapLayers:    true,
+      freeLayoutAnalyze: true,
+    },
   };
 
   // 초기 로드 — settings:ready 이벤트로 알림
@@ -36,6 +44,12 @@
 
   window.getShortcut = function (action) {
     return (window._settings && window._settings.shortcuts && window._settings.shortcuts[action]) || null;
+  };
+
+  // 이스터에그(숨은 기능) on/off 확인 — 기본값 true(기존 동작 보존), 명시적 false일 때만 비활성
+  window.isEasterEggEnabled = function (key) {
+    const e = window._settings && window._settings.easterEggs;
+    return e ? e[key] !== false : true;
   };
 
   window.saveSettings = async function (patch) {
