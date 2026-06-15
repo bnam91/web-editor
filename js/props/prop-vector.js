@@ -9,6 +9,15 @@ export function showVectorProperties(block) {
   const colorAlpha = parseAlphaFromColor(color);
   const rotateDeg = parseFloat(block.dataset.rotateDeg) || 0;
 
+  // 펜툴 패스 메타
+  let penNodes = null;
+  try { penNodes = JSON.parse(block.dataset.penNodes || 'null'); } catch (_) { penNodes = null; }
+  const hasPen      = Array.isArray(penNodes) && penNodes.length >= 2;
+  const penClosed   = block.dataset.penClosed === '1';
+  const strokeWidth = parseFloat(block.dataset.strokeWidth) || 2;
+  const penFill     = block.dataset.penFill || 'none';
+  const fillOn      = penFill && penFill !== 'none';
+
   propPanel.innerHTML = `
     <div class="prop-section">
       <div class="prop-block-label">
@@ -45,6 +54,30 @@ export function showVectorProperties(block) {
         ${colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha })}
       </div>
     </div>
+
+    ${hasPen ? `
+    <div class="prop-section">
+      <div class="prop-section-title">Path</div>
+      <div class="prop-row">
+        <button class="prop-align-btn" id="vb-pen-edit" style="flex:1;justify-content:center;gap:6px;padding:6px 8px;">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+            <path d="M2 11l2-.5L10.5 4 9 2.5 2.5 9 2 11Z"/>
+          </svg>
+          <span>패스 편집</span>
+        </button>
+      </div>
+      <div class="prop-row" style="margin-top:6px;">
+        <span class="prop-label">선 두께</span>
+        <input type="number" class="prop-number" id="vb-stroke-w" value="${strokeWidth}" min="0.5" max="40" step="0.5">
+      </div>
+      ${penClosed ? `
+      <div class="prop-row" style="margin-top:6px;">
+        <span class="prop-label">채움</span>
+        <button class="prop-align-btn${fillOn ? ' active' : ''}" id="vb-pen-fill" title="닫힌 패스 채움 토글" style="margin-left:auto;padding:4px 10px;">
+          ${fillOn ? 'ON' : 'OFF'}
+        </button>
+      </div>` : ''}
+    </div>` : ''}
 
     <div class="prop-section">
       <div class="prop-section-title">Rotate / Flip</div>
@@ -104,11 +137,61 @@ export function showVectorProperties(block) {
     initialAlpha: colorAlpha,
     onApply: (c) => {
       block.dataset.color = c;
-      window.renderVector(block);
+      // 펜 패스: stroke(및 fill ON이면 fill) 색을 penNodes 기반으로 재빌드
+      if (hasPen) {
+        if (block.dataset.penFill && block.dataset.penFill !== 'none') block.dataset.penFill = c;
+        rebuildPenSvg();
+      } else {
+        window.renderVector(block);
+      }
       window.scheduleAutoSave?.();
     },
     onCommit: () => pushHistory(),
   });
+
+  // ── 펜 패스 ──────────────────────────────────────────────────────────────────
+  // penNodes(viewBox 좌표) + 현재 stroke/fill로 SVG 재빌드 → dataset.svg 갱신 → renderVector
+  function rebuildPenSvg() {
+    let nodes = null;
+    try { nodes = JSON.parse(block.dataset.penNodes || 'null'); } catch (_) { return; }
+    if (!Array.isArray(nodes) || nodes.length < 2) return;
+    const closed = block.dataset.penClosed === '1';
+    const sw     = parseFloat(block.dataset.strokeWidth) || 2;
+    const fill   = block.dataset.penFill || 'none';
+    const w      = parseInt(block.dataset.w) || 120;
+    const h      = parseInt(block.dataset.h) || 120;
+    const d = window.nodesToSvgPath?.(nodes, closed) || '';
+    const stroke = block.dataset.color || '#1a1a1a';
+    const fillAttr = (fill && fill !== 'none') ? fill : 'none';
+    block.dataset.svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">` +
+      `<path d="${d}" fill="${fillAttr}" stroke="${stroke}" stroke-width="${sw}" ` +
+      `stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+    window.renderVector(block);
+    window.scheduleAutoSave?.();
+  }
+
+  document.getElementById('vb-pen-edit')?.addEventListener('click', () => {
+    window.enterPenEditMode?.(block);
+  });
+  document.getElementById('vb-stroke-w')?.addEventListener('change', () => {
+    const v = parseFloat(document.getElementById('vb-stroke-w').value);
+    if (!Number.isFinite(v) || v <= 0) return;
+    block.dataset.strokeWidth = String(v);
+    rebuildPenSvg();
+    pushHistory();
+  });
+  document.getElementById('vb-pen-fill')?.addEventListener('click', () => {
+    const on = block.dataset.penFill && block.dataset.penFill !== 'none';
+    block.dataset.penFill = on ? 'none' : (block.dataset.color || '#1a1a1a');
+    const btn = document.getElementById('vb-pen-fill');
+    if (btn) { btn.classList.toggle('active', !on); btn.textContent = on ? 'OFF' : 'ON'; }
+    rebuildPenSvg();
+    pushHistory();
+  });
+
+  // 색상이 바뀌면 fill이 ON인 경우 fill 색도 동기화 — wireColorField onApply 후 rebuild
+  // (아래 색상 wiring의 onApply에 penFill 동기화 추가는 별도 — 여기서는 fill=색상 추종)
 
   // ── 회전 ──────────────────────────────────────────────────────────────────────
   document.getElementById('vb-rotate-deg')?.addEventListener('input', e => {

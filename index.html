@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="css/editor-toast.css">
 <link rel="stylesheet" href="css/editor-graph.css">
 <link rel="stylesheet" href="css/editor-extra.css">
+<link rel="stylesheet" href="css/pen-tool.css">
 <link rel="stylesheet" href="css/settings-modal.css">
 <link rel="stylesheet" href="css/ai-image.css">
 <link rel="stylesheet" href="css/assets-panel.css">
@@ -579,6 +580,7 @@
       <button class="fp-menu-item" onclick="addShapeBlock('ellipse');toggleFpDropdown('fp-shape-dropdown')">Ellipse</button>
       <button class="fp-menu-item" onclick="addShapeBlock('polygon');toggleFpDropdown('fp-shape-dropdown')">Polygon</button>
       <button class="fp-menu-item" onclick="addShapeBlock('star');toggleFpDropdown('fp-shape-dropdown')">Star</button>
+      <button class="fp-menu-item" onclick="toggleVectorPenMode();toggleFpDropdown('fp-shape-dropdown')">Pen</button>
     </div>
   </div>
   <div class="fp-divider"></div>
@@ -1127,6 +1129,7 @@
 <script src="js/section-protection.js"></script>
 <script src="js/section-cleanup.js"></script>
 <script type="module" src="js/annotation-tool.js"></script>
+<script type="module" src="js/pen-tool.js"></script>
 <script src="js/annotation-select.js"></script>
 <script src="js/sticker-select.js"></script>
 <script src="js/asset-rotate.js"></script>

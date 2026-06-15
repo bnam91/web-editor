@@ -54,6 +54,12 @@ function makeVectorBlock(data = {}) {
   block.dataset.w      = String(data.w || 120);
   block.dataset.h      = String(data.h || 120);
   block.dataset.layerName = data.label || 'Vector';
+  // 펜툴 재편집 데이터 패스스루 (pen-tool.js가 commit 후 부착하기도 하지만,
+  // 직렬화→복원 경로(makeVectorBlock(data))에서도 보존되도록 여기서 받는다)
+  if (data.penNodes   !== undefined) block.dataset.penNodes   = String(data.penNodes);
+  if (data.penClosed  !== undefined) block.dataset.penClosed  = String(data.penClosed);
+  if (data.strokeWidth!== undefined) block.dataset.strokeWidth= String(data.strokeWidth);
+  if (data.penFill    !== undefined) block.dataset.penFill    = String(data.penFill);
 
   const inner = document.createElement('div');
   inner.className = 'vb-inner';
@@ -111,7 +117,7 @@ function updateVectorBlock(blockId, partial = {}) {
   } catch (_) {}
 
   // 허용된 필드만 추출해서 partial이 실제로 의미있는지 확인
-  const ALLOWED = ['svg', 'color', 'w', 'h', 'layerName'];
+  const ALLOWED = ['svg', 'color', 'w', 'h', 'layerName', 'penNodes', 'penClosed', 'strokeWidth', 'penFill'];
   const keys = Object.keys(partial).filter(k => ALLOWED.includes(k) && partial[k] !== undefined);
   if (keys.length === 0) {
     return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one of svg/color/w/h/layerName' };
@@ -196,6 +202,20 @@ function updateVectorBlock(blockId, partial = {}) {
   if (partial.h !== undefined && partial.h !== null) {
     block.dataset.h = String(Number(partial.h));
     applied.h = Number(partial.h);
+  }
+  // 펜툴 재편집 메타 (검증 최소 — 문자열/길이 가드만)
+  if (partial.penNodes !== undefined && partial.penNodes !== null) {
+    const s = String(partial.penNodes);
+    if (s.length <= 200000) { block.dataset.penNodes = s; applied.penNodes = s; }
+  }
+  if (partial.penClosed !== undefined && partial.penClosed !== null) {
+    block.dataset.penClosed = String(partial.penClosed); applied.penClosed = block.dataset.penClosed;
+  }
+  if (partial.strokeWidth !== undefined && partial.strokeWidth !== null) {
+    block.dataset.strokeWidth = String(partial.strokeWidth); applied.strokeWidth = block.dataset.strokeWidth;
+  }
+  if (partial.penFill !== undefined && partial.penFill !== null) {
+    block.dataset.penFill = String(partial.penFill); applied.penFill = block.dataset.penFill;
   }
   let layerNameChanged = false;
   if (partial.layerName !== undefined && partial.layerName !== null) {

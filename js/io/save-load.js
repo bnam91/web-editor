@@ -316,7 +316,7 @@ function getSerializedCanvas() {
   const clone = canvasEl.cloneNode(true);
   // ghost 섹션은 저장에서 제외
   clone.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay').forEach(el => el.remove());
+  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay').forEach(el => el.remove());
   // sticker 선택 상태 제거 — selected 클래스가 저장에 포함되면 outline 잔존 가능
   clone.querySelectorAll('.sticker-block.selected').forEach(s => s.classList.remove('selected'));
   clone.querySelectorAll('.sticker-block.tiny').forEach(s => s.classList.remove('tiny'));

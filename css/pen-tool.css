@@ -1,0 +1,25 @@
+/* pen-tool.css — Figma 스타일 벡터 펜툴 (그리기/편집) */
+
+/* 펜 모드 진입 시 캔버스 커서 = 펜촉 */
+body.vpen-mode #canvas-wrap,
+body.vpen-mode .section-block {
+  cursor: crosshair;
+}
+
+/* 그리기 라이브 오버레이 (섹션 내부) */
+.vpen-preview { pointer-events: none; }
+.vpen-preview svg { overflow: visible; }
+
+/* 편집 모드 오버레이 (fixed, 화면 좌표) */
+.vpen-edit-overlay { pointer-events: none; }
+.vpen-edit-overlay svg { overflow: visible; }
+.vpen-edit-overlay rect,
+.vpen-edit-overlay circle[data-handle-kind] {
+  pointer-events: auto;
+  cursor: move;
+}
+
+/* 편집 모드일 때 펜 패스 블록 강조용 (선택적) */
+body.vpen-edit-mode .vector-block.pen-editing {
+  outline: 1px dashed #0d99ff;
+}

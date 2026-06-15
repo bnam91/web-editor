@@ -1157,6 +1157,18 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  // vectorPen 토글 (기본: P) — 입력/contenteditable 가드
+  if (e.code === 'KeyP' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) {
+      // 입력 중이면 펜 토글 안 함 (글자 입력 보존)
+    } else {
+      e.preventDefault();
+      window.toggleVectorPenMode?.();
+      return;
+    }
+  }
+
   // addSection (기본: S)
   const _isAddSection = window._matchShortcut
     ? window._matchShortcut(e, 'addSection')
@@ -1226,6 +1238,10 @@ document.addEventListener('keydown', e => {
 
   if (e.key === 'Escape') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    // vectorPen 그리기/편집 모드는 자체 capture 핸들러가 ESC를 먼저 소비함.
+    // 안전망: 모드가 살아있으면 종료만 하고 선택 해제는 건너뜀.
+    if (document.body.classList.contains('vpen-mode')) { window.exitVectorPenMode?.(); return; }
+    if (document.body.classList.contains('vpen-edit-mode')) { window.exitPenEditMode?.(); return; }
     // group-editing 중이면 editing만 해제, 선택은 유지
     const editingGroup = document.querySelector('.group-block.group-editing');
     if (editingGroup) {
