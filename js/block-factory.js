@@ -1060,6 +1060,8 @@ function makeJokerBlock(opts = {}) {
 }
 
 function addJokerBlock(opts = {}) {
+  // 이스터에그 토글 off 시 조커 블록 생성 차단 (콘솔/Figma 호출 무관)
+  if (window.isEasterEggEnabled && !window.isEasterEggEnabled('jokerBlock')) return;
   // 서브섹션 활성화 상태: absolute 위치로 직접 삽입 (Figma 좌표 재현)
   if (window._activeFrame) {
     const ss = window._activeFrame;

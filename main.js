@@ -53,6 +53,14 @@ const DEFAULT_SETTINGS = {
     ungroup:      'Meta+Shift+KeyG',
     wrapInFrame:  'Meta+Alt+KeyG',
   },
+  easterEggs: {
+    fkeyHotkeys:      true,
+    jokerBlock:       true,
+    highlightBMode:   true,
+    penMode:          true,
+    hideGapLayers:    true,
+    freeLayoutAnalyze: true,
+  },
 };
 function readSettings() {
   try {
@@ -64,6 +72,7 @@ function readSettings() {
       ...raw,
       apiKeys:   { ...DEFAULT_SETTINGS.apiKeys,   ...(raw.apiKeys   || {}) },
       shortcuts: { ...DEFAULT_SETTINGS.shortcuts, ...(raw.shortcuts || {}) },
+      easterEggs: { ...DEFAULT_SETTINGS.easterEggs, ...(raw.easterEggs || {}) },
     };
   } catch (_) {
     return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
@@ -76,6 +85,7 @@ function writeSettings(patch) {
     ...patch,
     apiKeys:   { ...cur.apiKeys,   ...(patch?.apiKeys   || {}) },
     shortcuts: { ...cur.shortcuts, ...(patch?.shortcuts || {}) },
+    easterEggs: { ...cur.easterEggs, ...(patch?.easterEggs || {}) },
   };
   fs.writeFileSync(getSettingsPath(), JSON.stringify(next, null, 2), 'utf8');
   return next;

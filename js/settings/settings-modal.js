@@ -21,6 +21,19 @@
     { key: 'wrapInFrame',  label: '프레임으로 감싸기',  allowMod: true },
   ];
 
+  // 코드에서 grep으로 발굴한 숨은 트리거 카탈로그
+  const EASTER_EGGS = [
+    { key: 'fkeyHotkeys',      label: '섹션 F1~F9 핫키(스타크래프트식)', desc: 'F1~F9로 섹션 점프, Shift+F1~F9로 현재 섹션 등록', trigger: '키 시퀀스 (editor.js)', enabledByDefault: true },
+    { key: 'jokerBlock',       label: '시크릿 블록(Figma 패스스루/조커)', desc: 'window.addJokerBlock() 콘솔 호출 또는 Figma import 시 생성되는 SVG 패스스루 블록', trigger: '콘솔 커맨드 (block-factory.js)', enabledByDefault: true },
+    { key: 'highlightBMode',   label: '형광펜 라인 모드(B)', desc: '섹션 위에 형광펜 라인 주석을 그리는 모드', trigger: 'window.toggleHighlightBMode()', enabledByDefault: true },
+    { key: 'penMode',          label: '펜 주석 모드', desc: '자유 펜 드로잉 주석', trigger: 'window.togglePenMode()', enabledByDefault: true },
+    { key: 'hideGapLayers',    label: '레이어 패널 갭 숨김', desc: '레이어 트리에서 gap 블록 항목을 숨김', trigger: 'window.toggleHideGapLayers()', enabledByDefault: true },
+    { key: 'freeLayoutAnalyze', label: '프리레이아웃 분석/변환(개발)', desc: 'window.__analyzeFreeLayoutFrame / __convertFreeLayoutToStack 콘솔 디버그 함수', trigger: '콘솔 __ 커맨드 (prop-frame.js)', enabledByDefault: true },
+  ];
+
+  // 이스터에그 기본값 맵 (전부 enabled=true → 기존 동작 보존)
+  const defaultEggEnabled = EASTER_EGGS.reduce((m, e) => { m[e.key] = e.enabledByDefault; return m; }, {});
+
   let _captureState = null;   // { actionKey } — 키 캡처 대기 중인 액션
   let _draft = null;          // 모달이 열린 동안의 임시 설정 (저장 전)
 
@@ -54,10 +67,12 @@
           <div class="settings-tabs" role="tablist">
             <button class="settings-tab active" data-tab="api">API 토큰</button>
             <button class="settings-tab" data-tab="shortcuts">단축키</button>
+            <button class="settings-tab" data-tab="easter">이스터에그</button>
           </div>
           <div class="settings-content">
             <div class="settings-pane settings-pane-api" data-pane="api"></div>
             <div class="settings-pane settings-pane-shortcuts" data-pane="shortcuts" style="display:none"></div>
+            <div class="settings-pane settings-pane-easter" data-pane="easter" style="display:none"></div>
           </div>
         </div>
         <div class="settings-modal-footer">
@@ -195,6 +210,42 @@
     });
   }
 
+  function renderEasterPane() {
+    const pane = document.querySelector('.settings-pane-easter');
+    if (!pane) return;
+    pane.innerHTML = `
+      <div class="settings-section-title">이스터에그 (숨은 기능)</div>
+      <div class="settings-help">코드에 숨어있는 트리거 기반 기능들입니다. 끄면 해당 트리거가 동작하지 않습니다. (앱 전역 적용 · 저장 버튼을 눌러야 반영됨)</div>
+      <div class="settings-egg-list">
+        ${EASTER_EGGS.map(egg => `
+          <div class="settings-egg-row" data-egg="${egg.key}">
+            <div class="settings-egg-text">
+              <div class="settings-egg-label">${egg.label}</div>
+              <div class="settings-egg-desc">${egg.desc}</div>
+              <div class="settings-egg-trigger">${egg.trigger}</div>
+            </div>
+            <label class="settings-egg-toggle">
+              <input type="checkbox" data-egg-key="${egg.key}" />
+              <span class="settings-egg-slider"></span>
+            </label>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    // 현재값 채우기 + change 핸들러
+    EASTER_EGGS.forEach(egg => {
+      const input = pane.querySelector(`input[data-egg-key="${egg.key}"]`);
+      if (!input) return;
+      const cur = _draft.easterEggs ? _draft.easterEggs[egg.key] : undefined;
+      input.checked = (cur !== false); // 기본 true(켜짐)
+      input.addEventListener('change', () => {
+        if (!_draft.easterEggs) _draft.easterEggs = {};
+        _draft.easterEggs[egg.key] = input.checked;
+      });
+    });
+  }
+
   function refreshShortcutBadges() {
     const pane = document.querySelector('.settings-pane-shortcuts');
     if (!pane) return;
@@ -277,6 +328,7 @@
       await window.saveSettings({
         apiKeys: _draft.apiKeys,
         shortcuts: _draft.shortcuts,
+        easterEggs: _draft.easterEggs,
       });
       toast('저장되었습니다.', 'ok');
       closeSettingsModal();
@@ -306,13 +358,15 @@
   window.openSettingsModal = function () {
     const modal = ensureModal();
     // 현재 settings → draft 복사
-    const cur = window._settings || { apiKeys: {}, shortcuts: {} };
+    const cur = window._settings || { apiKeys: {}, shortcuts: {}, easterEggs: {} };
     _draft = {
       apiKeys:   { openai: '', gemini: '', anthropic: '', ...(cur.apiKeys || {}) },
       shortcuts: { ...(cur.shortcuts || {}) },
+      easterEggs: { ...defaultEggEnabled, ...(cur.easterEggs || {}) },
     };
     renderApiPane();
     renderShortcutsPane();
+    renderEasterPane();
     show(modal);
     document.addEventListener('keydown', onCaptureKeydown, true);
   };
