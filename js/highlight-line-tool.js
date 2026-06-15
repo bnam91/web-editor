@@ -43,8 +43,10 @@ function exitHighlightBMode() {
 }
 
 function toggleHighlightBMode() {
-  if (_hlbMode) exitHighlightBMode();
-  else enterHighlightBMode();
+  if (_hlbMode) { exitHighlightBMode(); return; }
+  // (FIX-4) 이스터에그 게이팅 — off면 활성화 차단 (이미 켜진 건 위에서 정상 종료)
+  if (window.isEasterEggEnabled && !window.isEasterEggEnabled('highlightBMode')) return;
+  enterHighlightBMode();
 }
 
 function _cancelPending() {

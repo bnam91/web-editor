@@ -669,12 +669,16 @@ function showSimpleCardProperties(block) {
       block.dataset.textBgLast = block.dataset.textBg || '#f5f5f5';
       block.dataset.textBg = 'transparent';
       // 투명 활성화 — 카드 배경이 사라지므로 밝은 텍스트는 안 보임. 밝은 색이면 자동으로 어둡게 전환
-      if (_cvbIsLightColor(block.dataset.titleColor)) {
-        block.dataset.titleColorLast = block.dataset.titleColor;
+      // (FIX-6) dataset 미존재 시 패널 렌더와 동일하게 effective 기본값 '#ffffff' 적용
+      //          → 신규 카드(기본 흰 글자)도 투명 전환 시 어두운색으로 바뀜.
+      const _effTitle = block.dataset.titleColor || '#ffffff';
+      const _effDesc  = block.dataset.descColor  || '#ffffff';
+      if (_cvbIsLightColor(_effTitle)) {
+        block.dataset.titleColorLast = _effTitle;
         block.dataset.titleColor = '#222222';
       }
-      if (_cvbIsLightColor(block.dataset.descColor)) {
-        block.dataset.descColorLast = block.dataset.descColor;
+      if (_cvbIsLightColor(_effDesc)) {
+        block.dataset.descColorLast = _effDesc;
         block.dataset.descColor = '#222222';
       }
     } else {

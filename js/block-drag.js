@@ -541,6 +541,13 @@ function bindBlock(block) {
       sel.deleteFromDocument();
       sel.getRangeAt(0).insertNode(document.createTextNode(text));
       sel.collapseToEnd();
+      // (FIX-5) 붙여넣은 결과에 비공백 문자가 있으면 blank/placeholder 해제
+      //          — input 핸들러의 클리어 로직과 동일하게.
+      if (el.textContent.trim() !== '') {
+        if (el.dataset.isPlaceholder === 'true') delete el.dataset.isPlaceholder;
+        if (el.dataset.blank === 'true') delete el.dataset.blank;
+        if (block.dataset.blank === 'true') delete block.dataset.blank;
+      }
     });
   }
 

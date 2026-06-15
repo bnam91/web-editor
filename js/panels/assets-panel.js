@@ -103,7 +103,9 @@ function _assetsBindGlobalKeydown() {
       '.shape-block.selected, .speech-bubble-block.selected, .canvas-block.selected, ' +
       '.banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, ' +
-      '.laurel-block.selected, .gradient-block.selected'
+      '.laurel-block.selected, .gradient-block.selected, ' +
+      // (FIX-2) 스티커/조커/챗 플로팅 블록도 캔버스 선택으로 인식 — editor.js Delete 핸들러와 동기화
+      '.sticker-block.selected, .joker-block.selected, .chat-block.selected'
     );
     if (canvasSelected) return;
     e.preventDefault();

@@ -2,6 +2,28 @@ import { canvasEl, propPanel, state } from './globals.js';
 import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
 
 /* ═══════════════════════════════════
+   SSOT: 캔버스에서 "선택된 블록" 셀렉터 목록
+   - Delete 핸들러(allSelBlocks)와 getSelectedSection()이 공유.
+   - 스티커/조커 등 플로팅 블록 포함 (closest('.row') 없으므로 block.remove()로 안전 삭제).
+   - 에셋패널 keydown 가드(canvasSelected)도 window.CANVAS_SEL_BLOCKS로 동기화.
+═══════════════════════════════════ */
+const CANVAS_SEL_BLOCKS =
+  '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+  '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+  '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, ' +
+  '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
+  '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
+  '.step-block.selected, .laurel-block.selected, .gradient-block.selected, ' +
+  '.sticker-block.selected, .joker-block.selected, .chat-block.selected';
+// shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
+// 단, "캔버스에 무언가 선택됨" 판정/섹션 매핑엔 shape도 포함해야 함.
+const CANVAS_SEL_BLOCKS_AND_SHAPE = CANVAS_SEL_BLOCKS + ', .shape-block.selected';
+if (typeof window !== 'undefined') {
+  window.CANVAS_SEL_BLOCKS = CANVAS_SEL_BLOCKS;
+  window.CANVAS_SEL_BLOCKS_AND_SHAPE = CANVAS_SEL_BLOCKS_AND_SHAPE;
+}
+
+/* ═══════════════════════════════════
    포커스 시 전체 선택 (Figma 스타일)
    - 숫자/hex/opacity 프로퍼티 인풋 클릭 시 텍스트 전체 선택 → 바로 덮어쓰기
 ═══════════════════════════════════ */
@@ -72,6 +94,8 @@ function _applyHideGapLayers(hide) {
 }
 function toggleHideGapLayers() {
   const cur = localStorage.getItem('goditor_hide_gap_layers') === '1';
+  // (FIX-4) 이스터에그 게이팅 — off면 새로 켜는 것만 차단 (이미 켜진 상태는 끌 수 있게 허용)
+  if (!cur && window.isEasterEggEnabled && !window.isEasterEggEnabled('hideGapLayers')) return;
   const next = !cur;
   localStorage.setItem('goditor_hide_gap_layers', next ? '1' : '0');
   _applyHideGapLayers(next);
@@ -1534,7 +1558,7 @@ document.addEventListener('keydown', e => {
 
     // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll(CANVAS_SEL_BLOCKS)];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
       e.preventDefault();
       // A13: 보호섹션(메모 '삭제하지말것' 등) 내부 블록/도형 삭제 우회 차단.
@@ -2027,12 +2051,7 @@ function getSelectedSection() {
   // sub-section 선택 시 부모 섹션 반환
   const selSS = document.querySelector('.frame-block.selected');
   if (selSS) return selSS.closest('.section-block') || null;
-  const selBlock = document.querySelector(
-    '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .shape-block.selected, ' +
-    '.divider-block.selected, .icon-text-block.selected, .sticker-block.selected'
-  );
+  const selBlock = document.querySelector(CANVAS_SEL_BLOCKS_AND_SHAPE);
   return selBlock?.closest('.section-block') || null;
 }
 

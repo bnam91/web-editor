@@ -87,6 +87,8 @@ function _analyzeFreeLayoutChildren(ss) {
 }
 
 function _logAnalysis(ss) {
+  // (FIX-4) 이스터에그 게이팅 — off면 콘솔 디버그 함수 동작 차단
+  if (window.isEasterEggEnabled && !window.isEasterEggEnabled('freeLayoutAnalyze')) return;
   const a = _analyzeFreeLayoutChildren(ss);
   const lines = [];
   lines.push(`프레임: ${ss.id} (${a.frameW}×${a.frameH})`);
@@ -132,6 +134,8 @@ function _swapBannerChildren(ss) {
 
 /* ── 자유배치 → 스택 변환 (Step 2: 단일 자식 행만) ── */
 function _convertFreeLayoutToStack(ss) {
+  // (FIX-4) 이스터에그 게이팅 — off면 콘솔 디버그 변환 함수 동작 차단
+  if (window.isEasterEggEnabled && !window.isEasterEggEnabled('freeLayoutAnalyze')) return false;
   const a = _analyzeFreeLayoutChildren(ss);
   const multiRows = a.rows.filter(r => r.items.length > 1);
   if (multiRows.length > 0) {
