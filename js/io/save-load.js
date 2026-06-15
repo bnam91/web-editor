@@ -920,6 +920,30 @@ function rebindAll() {
     }
     // 배경색 복원
     if (ss.dataset.bg && !ss.style.backgroundColor) ss.style.backgroundColor = ss.dataset.bg;
+    // 배경 투명도(bgOpacity) 복원 (I2) — 위 배경색/이미지 복원 직후 분기.
+    // has-bg-opacity면 본체 배경을 비우고 ::before용 CSS변수로만 그린다.
+    if (ss.dataset.bgOpacity !== undefined) {
+      const o = parseFloat(ss.dataset.bgOpacity);
+      ss.style.setProperty('--frame-bg-opacity', String(o));
+      const active = o < 1;
+      ss.classList.toggle('has-bg-opacity', active);
+      if (active) {
+        const bgVal = ss.dataset.bg || ss.style.backgroundColor || 'transparent';
+        const isGradient = /gradient\s*\(/i.test(bgVal);
+        if (isGradient) {
+          ss.style.setProperty('--frame-bg', 'transparent');
+          ss.style.setProperty('--frame-bg-img', bgVal);
+        } else {
+          ss.style.setProperty('--frame-bg', bgVal);
+          ss.style.setProperty('--frame-bg-img', ss.dataset.bgImg ? `url("${ss.dataset.bgImg}")` : 'none');
+        }
+        ss.style.setProperty('--frame-bg-pos', ss.dataset.bgPos || 'center');
+        // 본체 배경은 ::before가 대신 그리므로 비워 이중 배경 방지
+        ss.style.backgroundColor = '';
+        ss.style.backgroundImage = '';
+        ss.style.background = '';
+      }
+    }
     // 코너 반경 복원
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
     // explicit height 복원 — justify-content 정렬 작동을 위해 필요

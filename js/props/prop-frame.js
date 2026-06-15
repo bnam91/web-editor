@@ -215,6 +215,10 @@ function _renderAutoPanel(ss) {
   const hexBorderColor = rgbToHex(rawBorderColor);
   const borderAlpha    = parseAlphaFromColor(rawBorderColor);
   const radius = parseInt(ss.dataset.radius) || 0;
+  // 배경 투명도 (I2): dataset.bgOpacity는 0~1 float, UI는 0~100 표시. 미설정 = 100%.
+  const bgOpacity = ss.dataset.bgOpacity !== undefined
+    ? Math.round(parseFloat(ss.dataset.bgOpacity) * 100)
+    : 100;
 
   const bannerPreset = ss.dataset.bannerPreset || '';
   const isBanner = !!bannerPreset;
@@ -263,6 +267,11 @@ function _renderAutoPanel(ss) {
       <div class="prop-color-row">
         <span class="prop-label">${bgAlpha === 0 ? '배경색 (투명)' : '배경색'}</span>
         ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">배경 투명도</span>
+        <input type="range" class="prop-slider" id="ss-bgopa-slider" min="0" max="100" step="1" value="${bgOpacity}">
+        <input type="number" class="prop-number" id="ss-bgopa-num" min="0" max="100" value="${bgOpacity}">
       </div>
     </div>
     <div class="prop-section">
@@ -540,6 +549,59 @@ function _renderAutoPanel(ss) {
   if (ss.dataset.flipH === '1') document.getElementById('ss-flip-h')?.classList.add('active');
   if (ss.dataset.flipV === '1') document.getElementById('ss-flip-v')?.classList.add('active');
 
+  // ── 배경 CSS변수 동기화 (I2) ──
+  // has-bg-opacity 프레임은 배경을 ::before가 그리므로 --frame-bg / --frame-bg-img로 전달.
+  // 색(--frame-bg) / 이미지·그라데이션(--frame-bg-img) / 위치(--frame-bg-pos) 3분기 모두 반영.
+  const _syncFrameBgVars = () => {
+    if (!ss.classList.contains('has-bg-opacity')) return;
+    const bgVal = ss.dataset.bg || ss.style.backgroundColor || 'transparent';
+    const isGradient = /gradient\s*\(/i.test(bgVal);
+    if (isGradient) {
+      // 그라데이션: 색은 비우고 이미지 슬롯에 gradient css
+      ss.style.setProperty('--frame-bg', 'transparent');
+      ss.style.setProperty('--frame-bg-img', bgVal);
+    } else {
+      ss.style.setProperty('--frame-bg', bgVal);
+      if (ss.dataset.bgImg) {
+        ss.style.setProperty('--frame-bg-img', `url("${ss.dataset.bgImg}")`);
+      } else {
+        ss.style.setProperty('--frame-bg-img', 'none');
+      }
+    }
+    ss.style.setProperty('--frame-bg-pos', ss.dataset.bgPos || 'center');
+    // 본체 배경은 ::before가 대신 그리므로 비워 이중 배경 방지
+    ss.style.backgroundColor = '';
+    ss.style.backgroundImage = '';
+    ss.style.background = '';
+  };
+
+  // ── 배경 투명도(bgOpacity) 슬라이더 (I2) ──
+  const bgOpaSlider = document.getElementById('ss-bgopa-slider');
+  const bgOpaNum    = document.getElementById('ss-bgopa-num');
+  const applyBgOpacity = (v) => {
+    const o = v / 100;
+    ss.dataset.bgOpacity = String(o);
+    ss.style.setProperty('--frame-bg-opacity', String(o));
+    const active = o < 1;
+    ss.classList.toggle('has-bg-opacity', active);
+    if (active) {
+      _syncFrameBgVars();
+    } else {
+      // 100%로 복귀 시 ::before 비활성 → 본체 배경 원복
+      const bgVal = ss.dataset.bg || '';
+      if (bgVal) {
+        if (/gradient\s*\(/i.test(bgVal)) { ss.style.background = bgVal; }
+        else { ss.style.backgroundColor = bgVal; }
+      }
+      if (ss.dataset.bgImg) {
+        ss.style.backgroundImage = `url("${ss.dataset.bgImg}")`;
+        ss.style.backgroundSize = 'cover';
+        ss.style.backgroundPosition = ss.dataset.bgPos || 'center';
+      }
+    }
+  };
+  if (bgOpaSlider && bgOpaNum) bindSlider(bgOpaSlider, bgOpaNum, applyBgOpacity, { min: 0, max: 100 });
+
   // 배경 이미지
   const bgImgBtn   = document.getElementById('ss-bg-img-btn');
   const bgImgInput = document.getElementById('ss-bg-img-input');
@@ -556,6 +618,7 @@ function _renderAutoPanel(ss) {
       ss.style.backgroundSize = 'cover';
       ss.style.backgroundPosition = 'center';
       ss.dataset.bgImg = e.target.result;
+      _syncFrameBgVars();
       window.scheduleAutoSave?.();
       window.pushHistory?.();
       if (!document.getElementById('ss-bg-pos-btn')) {
@@ -586,6 +649,7 @@ function _renderAutoPanel(ss) {
     ss.style.backgroundPosition = '';
     delete ss.dataset.bgImg;
     delete ss.dataset.bgPos;
+    _syncFrameBgVars();
     document.getElementById('ss-bg-pos-btn')?.remove();
     document.getElementById('ss-bg-img-clear')?.remove();
     window.scheduleAutoSave?.();
@@ -602,6 +666,7 @@ function _renderAutoPanel(ss) {
       ss.style.backgroundImage = '';
       ss.style.backgroundColor = c;
       ss.dataset.bg = c;
+      _syncFrameBgVars();
       window.scheduleAutoSave?.();
     },
     onGradient: (css, commit) => {
@@ -609,6 +674,7 @@ function _renderAutoPanel(ss) {
       ss.style.backgroundColor = '';
       ss.style.background = css;
       ss.dataset.bg = css;
+      _syncFrameBgVars();
       window.scheduleAutoSave?.();
       if (commit) window.pushHistory?.();
     },
