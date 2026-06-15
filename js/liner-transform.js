@@ -167,7 +167,13 @@ function applyLiner(block, opts) {
 
   // 사용자 폰트크기 = "원하는 최대치" (#3) — 미러 inline style 우선, 없으면 computed
   const csEarly = window.getComputedStyle(mirror);
-  const userFontPx = parseInt(mirror.style.fontSize) || parseInt(csEarly.fontSize) || 28;
+  // m2: parseInt 가드 — 유한·양수만 채택, 상한 클램프, 아니면 fallback 체인
+  const LINER_FONT_MAX = 800;
+  const safeFontPx = (x, fb) => {
+    const n = parseInt(x);
+    return (Number.isFinite(n) && n > 0) ? Math.min(n, LINER_FONT_MAX) : fb;
+  };
+  const userFontPx = safeFontPx(mirror.style.fontSize, safeFontPx(csEarly.fontSize, 28));
 
   // 폭: 블록(미러) 실측 폭 — 0이면 fallback
   const W = Math.max(120, Math.round(mirror.offsetWidth || block.offsetWidth || 600));
@@ -180,7 +186,17 @@ function applyLiner(block, opts) {
   const fontWeight = mirror.style.fontWeight || cs.fontWeight || '400';
   const fontStyle  = mirror.style.fontStyle || cs.fontStyle || 'normal';
   const fill       = resolveLinerFill(mirror, cs);
-  const ls         = cfg.letterSpacing; // #1: dataset의 추가 자간(px)
+  // M6a: 라이너 자간 단일소스 = 우리 슬라이더(dataset.liner.letterSpacing).
+  // opts/dataset에 명시 없으면 미러 inline style.letterSpacing → 0 폴백.
+  let ls = (opts && opts.letterSpacing != null) ? cfg.letterSpacing
+         : (prev && prev.letterSpacing != null) ? cfg.letterSpacing
+         : null;
+  if (ls == null) {
+    const mls = parseFloat(mirror.style.letterSpacing);
+    ls = Number.isFinite(mls) ? normLetterSpacing(mls) : (cfg.letterSpacing || 0);
+  }
+  ls = normLetterSpacing(ls);
+  cfg.letterSpacing = ls; // dataset 저장값과 일치
 
   // defs / path / text 보장
   let defs = svg.querySelector('defs');
@@ -215,62 +231,63 @@ function applyLiner(block, opts) {
   const curvScale = linerCurvatureScale(cfg.curvature);
   let effFont = Math.max(6, userFontPx * curvScale);
 
+  const LINER_FONT_FLOOR = 6;
+  const LINER_FIT_ITERS  = 5;   // M4b: 최대 반복 축소 횟수
+
   let cy, H, pathK;
 
-  if (isCircle) {
-    // ── 원형: 블록은 정사각형(H=W), 원은 가운데. 곡률↑ → 원 작게 + 글자 작게 ──
-    // 글자 ascent가 path 바깥(위)으로 올라가므로 ascent만큼 반지름을 줄여 블록 안에 가둠.
-    const ascent = effFont * 0.78;
-    // 곡률로 원 크기 제어: 곡률 0 → 가용폭 꽉, 100 → 60%. (curvScale 0.65~1.0 와 별개로 좀 더 강하게)
-    const sizeScale = 1 - (normCurvature(cfg.curvature) / 100) * 0.40; // 1.0 ~ 0.60
-    const maxR = (W - 2 * P) / 2 - ascent;
-    let r = Math.max(8, maxR * sizeScale);
-    // 임시 path로 둘레(circumference) 측정 → fit-to-width 기준
-    H = W; // 정사각형
-    const cyTmp = H / 2;
-    path.setAttribute('d', buildLinerPathD('circle', cfg.curvature, W, H, P, cyTmp, r));
-    let circ = 2 * Math.PI * r;
-    try { if (path.getTotalLength) { const L = path.getTotalLength(); if (Number.isFinite(L) && L > 0) circ = L; } } catch (e) {}
-    // "채울 수 있는 만큼만": 자연 길이가 둘레를 넘을 때만 폰트 축소 (stretch X, 강제 360° X)
-    textEl.setAttribute('font-size', String(effFont));
-    let natural = 0;
-    try {
-      if (tp.getComputedTextLength) natural = tp.getComputedTextLength();
-      if (!(natural > 0) && textEl.getComputedTextLength) natural = textEl.getComputedTextLength();
-    } catch (e) { natural = 0; }
-    if (natural > circ && natural > 0) {
-      effFont = Math.max(6, effFont * (circ / natural) * 0.985);
-      textEl.setAttribute('font-size', String(effFont));
+  // 현재 effFont 기준으로 path d를 SVG에 쓰고(write) → 그 path에서 길이를 측정(measure).
+  // M4a: 측정 전에 반드시 현재 프리셋 path를 써서, 프리셋 전환 시 이전 path 길이 오측정 제거.
+  // 반환: { avail, natural } — avail=path 가용 길이, natural=텍스트 자연 길이.
+  const writeAndMeasure = () => {
+    if (isCircle) {
+      // M4c: circle 반지름/ascent/원 중심을 "현재(축소된) effFont" 기준으로 재계산.
+      const ascent = effFont * 0.78;
+      const sizeScale = 1 - (normCurvature(cfg.curvature) / 100) * 0.40; // 1.0 ~ 0.60
+      const maxR = (W - 2 * P) / 2 - ascent;
+      const r = Math.max(8, maxR * sizeScale);
+      H = W;                       // 정사각형
+      cy = Math.round(H / 2);      // 원 중심 = 블록 중앙
+      pathK = r;
+    } else {
+      // ── arc/wave: effFont 기준 높이/베이스라인 (#2) ──
+      const amp     = linerAmplitude(cfg.curvature, LINER_BASE_H);
+      const ascent  = effFont * 0.85;
+      const descent = effFont * 0.30;
+      const padTop = 6, padBottom = 6;
+      cy    = Math.round(padTop + ascent + amp);
+      H     = Math.round(cy + descent + amp + padBottom);
+      pathK = amp;
     }
-    cy    = Math.round(H / 2);   // 원 중심 = 블록 중앙
-    pathK = r;
-  } else {
-    // ── arc/wave: path 가용 길이(직선 근사) → fit-to-width ──
-    if (!path.getAttribute('d')) path.setAttribute('d', `M ${P},40 L ${W - P},40`);
-    let avail = W - 2 * P;
+    // write: 현재 프리셋 path d 적용
+    path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, H, P, cy, pathK));
+    // avail: 방금 쓴 path의 실제 길이 (원형=둘레, arc/wave=곡선 호 길이)
+    let avail = isCircle ? (2 * Math.PI * pathK) : (W - 2 * P);
     try {
       if (path.getTotalLength) { const L = path.getTotalLength(); if (Number.isFinite(L) && L > 0) avail = L; }
-    } catch (e) { /* fallback W-2P */ }
-
+    } catch (e) { /* fallback */ }
+    // measure: 현재 effFont(+letter-spacing 포함)로 텍스트 자연 길이
     textEl.setAttribute('font-size', String(effFont));
     let natural = 0;
     try {
       if (tp.getComputedTextLength) natural = tp.getComputedTextLength();
       if (!(natural > 0) && textEl.getComputedTextLength) natural = textEl.getComputedTextLength();
     } catch (e) { natural = 0; }
-    if (natural > avail && natural > 0) {
-      effFont = Math.max(6, effFont * (avail / natural) * 0.985); // 0.985 안전마진
-      textEl.setAttribute('font-size', String(effFont));
-    }
+    return { avail, natural };
+  };
 
-    // ── effFont 기준 높이/베이스라인 계산 (#2: 아치 rise + ascent만큼 블록 높이 확보) ──
-    const amp     = linerAmplitude(cfg.curvature, LINER_BASE_H); // 아치 sagitta rise
-    const ascent  = effFont * 0.85;  // 베이스라인 위 글자 높이
-    const descent = effFont * 0.30;  // 베이스라인 아래 꼬리
-    const padTop = 6, padBottom = 6;
-    cy    = Math.round(padTop + ascent + amp);                 // arc-up peak/ascent 상단 여유
-    H     = Math.round(cy + descent + amp + padBottom);        // arc-down peak/descent 하단 여유
-    pathK = amp;
+  // M4b: 반복 수렴 루프 — 넘치면 축소 후 재측정, 수렴(또는 폰트 하한) 시 종료.
+  let m = writeAndMeasure();
+  let iter = 0;
+  while (m.natural > m.avail && m.natural > 0 && effFont > LINER_FONT_FLOOR && iter < LINER_FIT_ITERS) {
+    effFont = Math.max(LINER_FONT_FLOOR, effFont * (m.avail / m.natural) * 0.985); // 0.985 안전마진
+    m = writeAndMeasure();
+    iter++;
+  }
+  // M4b 폴백: 폰트 하한에 닿고도 여전히 넘치면 textLength=avail + lengthAdjust=spacing 으로 강제 수용.
+  if (m.natural > m.avail && m.natural > 0) {
+    tp.setAttribute('textLength', String(Math.max(1, Math.round(m.avail))));
+    tp.setAttribute('lengthAdjust', 'spacing');
   }
 
   // viewBox / 크기
@@ -279,8 +296,7 @@ function applyLiner(block, opts) {
   svg.setAttribute('height', String(H));
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-  // 최종 path d (확정 cy/k)
-  path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, H, P, cy, pathK));
+  // path d / font-size 는 writeAndMeasure 루프에서 이미 확정됨.
 
   // 원형: path 시작점=6시, 12시=둘레 50% 지점. startOffset='50%' + text-anchor=middle
   // ⇒ 텍스트 중앙이 12시에 오고 좌우로 자연스럽게 감김(짧으면 상단 호만 차지, stretch X).

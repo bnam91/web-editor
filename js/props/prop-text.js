@@ -123,7 +123,7 @@ export function showTextProperties(tb) {
   wireLabelSection({ ctx });
   wireAlignSection({ tb, ctx, propPanel, isIconText });
   wireTextEditSection({ ctx, currentColorAlpha });
-  wireSpacingSection({ ctx });
+  wireSpacingSection({ ctx, isLiner }); // M6b: 라이너는 자간 바인딩 스킵(우리 슬라이더 단일소스)
   wireShadowSection({ ctx, initial: shadow });
   if (!isOverlayTb) wirePositionSection({ tb });
   if (!isOverlayTb) wirePaddingSection({ tb, phLinked });
