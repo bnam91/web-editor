@@ -3014,7 +3014,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateComparisonBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING comparison block (cmp_xxx) — partial update. 외곽(featScale/overlap/radius/padX/padY/compW/headerH/rowH/rowGap/titleFont/rowFont) + featured(int) + 칼럼 전체교체(cols) + 칼럼 부분 패치(columnPatch [{index, title?, bg?, text?, rows?}]). cols 와 columnPatch 동시 지정 시 cols가 먼저 적용된다. USER_BUSY 시 즉시 반환.',
+      description: 'Edit an EXISTING comparison block (cmp_xxx) — partial update. 외곽(featScale/overlap/radius/padX/padY/compW/headerH/rowH/rowGap/titleFont/rowFont) + featured(int) + 칼럼 전체교체(cols) + 칼럼 부분 패치(columnPatch [{index, title?, bg?, text?, rows?}]) + 행 높이(rowHeights 행 인덱스→px 배열, null이면 기본 rowH). rows 항목은 문자열(text행) 또는 {type:"image", imgSrc(dataURL, ≤200000자, 따옴표/개행 금지), imgFit:"cover"|"contain"} 객체. cols 와 columnPatch 동시 지정 시 cols가 먼저 적용된다. USER_BUSY 시 즉시 반환.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -3027,7 +3027,7 @@ function _registerDefaultTools() {
               type: 'object',
               properties: {
                 title: { type: 'string' }, bg: { type: 'string' }, text: { type: 'string' },
-                rows:  { type: 'array', items: { type: 'string' } }
+                rows:  { type: 'array', description: '행 배열. 문자열(text행) 또는 {type:"text"|"image", text?, imgSrc?, imgFit?} 객체.' }
               }
             }
           },
@@ -3039,10 +3039,15 @@ function _registerDefaultTools() {
               properties: {
                 index: { type: 'integer', description: '대상 칼럼 인덱스 (0-base)' },
                 title: { type: 'string' }, bg: { type: 'string' }, text: { type: 'string' },
-                rows:  { type: 'array', items: { type: 'string' } }
+                rows:  { type: 'array', description: '행 배열. 문자열 또는 {type, text, imgSrc, imgFit} 객체.' }
               },
               required: ['index']
             }
+          },
+          rowHeights: {
+            type: 'array', maxItems: 20,
+            description: '행 인덱스별 높이(px) 오버라이드. null/0이면 기본 rowH 사용. 값 범위 16~400. 전 칼럼 공통.',
+            items: { type: ['integer', 'null'] }
           },
           featured:  { type: 'integer' },
           featScale: { type: 'number' },
@@ -5225,14 +5230,44 @@ function _validateComparisonCol(c, label) {
   if (c.rows !== undefined && c.rows !== null) {
     if (!Array.isArray(c.rows)) throw new Error(`${label}.rows must be array`);
     if (c.rows.length > 20) throw new Error(`${label}.rows length > 20`);
-    out.rows = c.rows.map((r, ri) => {
-      if (r != null && typeof r !== 'string') throw new Error(`${label}.rows[${ri}] must be string`);
-      const s = r == null ? '' : r;
-      if ([...s].length > 500) throw new Error(`${label}.rows[${ri}] too long (>500 code points)`);
-      return s;
-    });
+    out.rows = c.rows.map((r, ri) => _validateComparisonRow(r, `${label}.rows[${ri}]`));
   }
   return out;
+}
+
+// 행 1개 검증 — 문자열(text행) 또는 {type:'text'|'image', text?, imgSrc?, imgFit?} 객체.
+// imgSrc는 렌더의 url("...") template에 들어가므로 escape 가드(banner02 imgSrc 패턴 미러).
+function _validateComparisonRow(r, label) {
+  if (r == null || typeof r === 'string') {
+    const s = r == null ? '' : r;
+    if ([...s].length > 500) throw new Error(`${label} too long (>500 code points)`);
+    return { type: 'text', text: s };
+  }
+  if (typeof r !== 'object') throw new Error(`${label} must be string or object`);
+  const type = r.type === undefined || r.type === null || r.type === 'text' ? 'text'
+             : (r.type === 'image' ? 'image' : null);
+  if (type === null) throw new Error(`${label}.type invalid: ${r.type} (allowed: text|image)`);
+  let text = '';
+  if (r.text !== undefined && r.text !== null) {
+    if (typeof r.text !== 'string') throw new Error(`${label}.text must be string`);
+    if ([...r.text].length > 500) throw new Error(`${label}.text too long (>500 code points)`);
+    text = r.text;
+  }
+  if (type === 'text') return { type: 'text', text };
+  // image
+  let imgSrc = '';
+  if (r.imgSrc !== undefined && r.imgSrc !== null) {
+    if (typeof r.imgSrc !== 'string') throw new Error(`${label}.imgSrc must be string`);
+    if (r.imgSrc.length > 200000) throw new Error(`${label}.imgSrc too long (>200000)`);
+    if (/["\r\n]/.test(r.imgSrc)) throw new Error(`${label}.imgSrc contains quote/newline (escape unsafe)`);
+    imgSrc = r.imgSrc;
+  }
+  let imgFit = 'cover';
+  if (r.imgFit !== undefined && r.imgFit !== null) {
+    if (r.imgFit !== 'cover' && r.imgFit !== 'contain') throw new Error(`${label}.imgFit invalid: ${r.imgFit} (allowed: cover|contain)`);
+    imgFit = r.imgFit;
+  }
+  return { type: 'image', text, imgSrc, imgFit };
 }
 
 function _validateComparisonOpts(args, { mode } = {}) {
@@ -5310,6 +5345,18 @@ function _validateComparisonOpts(args, { mode } = {}) {
 
   if (out.featured !== undefined && out.cols !== undefined && out.featured >= out.cols.length) {
     throw new Error(`featured ${out.featured} out of range for cols length ${out.cols.length}`);
+  }
+
+  // rowHeights — 행 인덱스별 높이 오버라이드 배열 (null/0이면 기본 rowH, 16~400, ≤ 20개)
+  if (args.rowHeights !== undefined && args.rowHeights !== null) {
+    if (!Array.isArray(args.rowHeights)) throw new Error('rowHeights must be array');
+    if (args.rowHeights.length > 20) throw new Error('rowHeights length > 20');
+    out.rowHeights = args.rowHeights.map((v, ri) => {
+      if (v == null || v === 0 || v === '') return null;
+      if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error(`rowHeights[${ri}] must be number or null`);
+      if (v < 16 || v > 400) throw new Error(`rowHeights[${ri}] out of range (16~400 or null)`);
+      return Math.round(v);
+    });
   }
 
   return out;
