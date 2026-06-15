@@ -3,14 +3,33 @@
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
-const _rows = s => { try { const a = JSON.parse(s || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
+// 행 모델 정규화: 문자열 rows(구버전)는 {type:'text', text} 객체로 무손실 마이그레이션.
+// 객체면 type 화이트리스트(text|image)·필드 보정 후 반환. 비교블록 칼럼 간 행 정렬 유지를 위해
+// 행은 칼럼별 독립 배열이지만 같은 행 인덱스를 공통 단위로 본다.
+function normalizeRow(r) {
+  if (typeof r === 'string') return { type: 'text', text: r };
+  if (r && typeof r === 'object') {
+    const type = r.type === 'image' ? 'image' : 'text';
+    if (type === 'image') {
+      return { type: 'image', text: r.text != null ? String(r.text) : '',
+               imgSrc: r.imgSrc != null ? String(r.imgSrc) : '',
+               imgFit: r.imgFit === 'contain' ? 'contain' : 'cover' };
+    }
+    return { type: 'text', text: r.text != null ? String(r.text) : '' };
+  }
+  return { type: 'text', text: '' };
+}
+const _rows = s => { try { const a = JSON.parse(s || '[]'); return Array.isArray(a) ? a.map(normalizeRow) : []; } catch { return []; } };
 const _colsParse = s => { try { const a = JSON.parse(s || 'null'); return Array.isArray(a) && a.length ? a : null; } catch { return null; } };
+// per-row 높이 오버라이드 배열 (행 인덱스→px, null/0이면 기본 rowH). data-rowHeights JSON.
+function _rowHeights(d) { try { const a = JSON.parse(d.rowHeights || 'null'); return Array.isArray(a) ? a : []; } catch { return []; } }
 
-// cols 배열 획득 (없으면 구버전 left/right dataset → 배열로 마이그레이션)
+// cols 배열 획득 (없으면 구버전 left/right dataset → 배열로 마이그레이션). rows는 객체로 정규화.
 function getComparisonCols(d) {
   const parsed = _colsParse(d.cols);
   if (parsed) return parsed.map(c => ({
-    title: c.title ?? '', bg: c.bg || '', text: c.text || '', rows: Array.isArray(c.rows) ? c.rows : []
+    title: c.title ?? '', bg: c.bg || '', text: c.text || '',
+    rows: (Array.isArray(c.rows) ? c.rows : []).map(normalizeRow)
   }));
   return [
     { title: d.leftTitle ?? '일반 제품',        bg: d.leftBg  || '#e9ebef', text: d.leftText  || '#9aa0a8', rows: _rows(d.leftRows) },
@@ -45,6 +64,7 @@ function renderComparison(block) {
   // 칼럼 모델 (없으면 left/right에서 마이그레이션 → cols로 영속화)
   const cols = getComparisonCols(d);
   if (!_colsParse(d.cols)) d.cols = JSON.stringify(cols);
+  const rowHeights = _rowHeights(d);        // 행 인덱스별 높이 오버라이드 (전 칼럼 공통)
   const N = cols.length;
   const featuredIdx = getComparisonFeaturedIdx(d, N);
   if (d.featured !== String(featuredIdx)) d.featured = String(featuredIdx);
@@ -56,12 +76,22 @@ function renderComparison(block) {
   const baseW = Math.round((contentW + overlap * (N - 1)) / ((N - 1) + featScale));
   const featW = Math.round(baseW * featScale);
 
-  // 각 칼럼 높이 (featured만 header/row/gap 확대). 각 카드 상하 padY 포함.
+  // 행 인덱스 ri의 기본 높이(featScale 적용 전): rowHeights 오버라이드 있으면 그 값, 없으면 rowH.
+  const baseRowH = (ri) => {
+    const o = rowHeights[ri];
+    const n = (o == null) ? 0 : Number(o);
+    return (Number.isFinite(n) && n > 0) ? n : rowH;
+  };
+  // 각 칼럼 높이 (featured만 header/row/gap 확대). 각 카드 상하 padY 포함. 행별 높이 누적.
   const colHeightOf = (rowsLen, isFeat) => {
     const hH  = isFeat ? Math.round(headerH * featScale) : headerH;
-    const rH  = isFeat ? Math.round(rowH * featScale) : rowH;
     const gap = isFeat ? Math.round(rowGap * featScale) : rowGap;
-    return padY * 2 + hH + rowsLen * (rH + gap);
+    let acc = padY * 2 + hH;
+    for (let ri = 0; ri < rowsLen; ri++) {
+      const rH = isFeat ? Math.round(baseRowH(ri) * featScale) : baseRowH(ri);
+      acc += rH + gap;
+    }
+    return acc;
   };
   const heights = cols.map((c, i) => colHeightOf(c.rows.length, i === featuredIdx));
   const totalH = Math.max(...heights, 1);
@@ -83,7 +113,6 @@ function renderComparison(block) {
     col.className = 'cmp-col' + (isFeat ? ' cmp-feat' : ' cmp-muted');
     col.dataset.colIdx = idx;
     const hH    = isFeat ? Math.round(headerH * featScale) : headerH;
-    const rH    = isFeat ? Math.round(rowH * featScale) : rowH;
     const gap   = isFeat ? Math.round(rowGap * featScale) : rowGap;
     const tFont = isFeat ? Math.round(baseTitleFont * featScale) : baseTitleFont;
     const rFont = isFeat ? Math.round(baseRowFont * featScale) : baseRowFont;
@@ -105,14 +134,28 @@ function renderComparison(block) {
       `font-size:${tFont}px;font-weight:${isFeat ? 800 : 700};color:${textColor};padding:0 16px;box-sizing:border-box;line-height:1.2;`;
     _editableTitle(hd, block, idx);
     col.appendChild(hd);
-    // 행
-    c.rows.forEach((txt, ri) => {
+    // 행 (행 인덱스별 높이 + text/image 분기)
+    c.rows.forEach((row, ri) => {
+      const effRowH = isFeat ? Math.round(baseRowH(ri) * featScale) : baseRowH(ri);
       const r = document.createElement('div');
       r.className = 'cmp-row'; r.dataset.colIdx = idx; r.dataset.rowIdx = ri;
-      r.textContent = txt;
-      r.style.cssText = `height:${rH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
-        `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};padding:0 12px;box-sizing:border-box;`;
-      _editableRow(r, block, idx, ri);
+      const isImg = row && row.type === 'image';
+      if (isImg) {
+        // 순수 이미지 행: backgroundImage div. 빈 imgSrc면 placeholder(체커보드) — dataset 직접 채우지 않음.
+        r.classList.add('cmp-img');
+        const src = row.imgSrc || '';
+        const fit = row.imgFit === 'contain' ? 'contain' : 'cover';
+        r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;box-sizing:border-box;overflow:hidden;` +
+          (src
+            ? `background-image:url("${src}");background-size:${fit};background-position:center;background-repeat:no-repeat;`
+            : '');
+        if (!src) r.classList.add('cmp-img-empty');
+      } else {
+        r.textContent = (row && row.text != null) ? row.text : '';
+        r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
+          `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};padding:0 12px;box-sizing:border-box;`;
+        _editableRow(r, block, idx, ri);
+      }
       col.appendChild(r);
     });
     return col;
@@ -156,7 +199,12 @@ function _editableRow(el, block, colIdx, rowIdx) {
   el.addEventListener('blur', () => {
     el.setAttribute('contenteditable', 'false');
     const cols = getComparisonCols(block.dataset);
-    if (cols[colIdx]) { cols[colIdx].rows[rowIdx] = el.textContent; setComparisonCols(block, cols); }
+    const row = cols[colIdx]?.rows?.[rowIdx];
+    // 객체행이면 .text만 갱신(이미지행 imgSrc 유실 방지). getComparisonCols가 항상 객체로 정규화하므로 항상 객체.
+    if (row && typeof row === 'object') {
+      if (row.type !== 'image') row.text = el.textContent;
+      setComparisonCols(block, cols);
+    }
     window.pushHistory?.(); window.scheduleAutoSave?.();
     if (block.classList.contains('selected')) window.showComparisonProperties?.(block);
   });
@@ -220,7 +268,9 @@ function addComparisonBlock(opts = {}) {
 //   - 텍스트: titleFont, rowFont
 //   - 강조: featured (int index)
 //   - 칼럼 전체: cols (배열 전체 교체, 길이 2~8, rows ≤ 20)
-//   - 칼럼 단위 patch: columnPatch [{index, title?, bg?, text?, rows?}, ...]
+//       rows 항목: 문자열(=text행) 또는 {type:'text'|'image', text?, imgSrc?, imgFit?'cover'|'contain'}
+//   - 칼럼 단위 patch: columnPatch [{index, title?, bg?, text?, rows?}, ...] (rows 항목 동일 규칙)
+//   - 행 높이: rowHeights (행 인덱스→px 배열, null/0이면 기본 rowH, 16~400, ≤ 20개)
 //   - 메타: layerName
 function updateComparisonBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
@@ -246,6 +296,28 @@ function updateComparisonBlock(blockId, partial = {}) {
     draft[datasetKey] = String(n);
     applied[appliedKey || datasetKey] = n;
     return { ok: true };
+  };
+
+  // 행 1개 검증/정규화 — 문자열(text행) 또는 {type:'text'|'image', text, imgSrc, imgFit} 객체 허용.
+  // imgSrc는 renderComparison의 url("...") template에 들어가므로 escape 가드(banner02:417-424 미러).
+  const _sanitizeRow = (raw) => {
+    if (raw == null || typeof raw === 'string') {
+      const s = raw == null ? '' : String(raw);
+      if ([...s].length > 500) return { ok: false, msg: 'too long' };
+      return { ok: true, row: { type: 'text', text: s } };
+    }
+    if (typeof raw !== 'object') return { ok: false, msg: 'must be string or object' };
+    const type = raw.type === 'image' ? 'image' : (raw.type == null || raw.type === 'text' ? 'text' : null);
+    if (type === null) return { ok: false, msg: `invalid type: ${raw.type}` };
+    const text = raw.text == null ? '' : String(raw.text);
+    if ([...text].length > 500) return { ok: false, msg: 'text too long' };
+    if (type === 'text') return { ok: true, row: { type: 'text', text } };
+    // image
+    const imgSrc = raw.imgSrc == null ? '' : String(raw.imgSrc);
+    if (imgSrc.length > 200000) return { ok: false, msg: 'imgSrc too long (>200000)' };
+    if (/["\r\n]/.test(imgSrc)) return { ok: false, msg: 'imgSrc contains quote/newline (escape unsafe)' };
+    const imgFit = raw.imgFit === 'contain' ? 'contain' : 'cover';
+    return { ok: true, row: { type: 'image', text, imgSrc, imgFit } };
   };
 
   if (partial.layerName !== undefined && partial.layerName !== null) {
@@ -306,9 +378,9 @@ function updateComparisonBlock(blockId, partial = {}) {
       if (rows.length > 20) return { ok: false, code: 'INVALID', message: `cols[${i}].rows length > 20` };
       const safeRows = [];
       for (let ri = 0; ri < rows.length; ri++) {
-        const s = rows[ri] == null ? '' : String(rows[ri]);
-        if ([...s].length > 500) return { ok: false, code: 'INVALID', message: `cols[${i}].rows[${ri}] too long` };
-        safeRows.push(s);
+        const sr = _sanitizeRow(rows[ri]);
+        if (!sr.ok) return { ok: false, code: 'INVALID', message: `cols[${i}].rows[${ri}] ${sr.msg}` };
+        safeRows.push(sr.row);
       }
       safeCols.push({ title, bg, text, rows: safeRows });
     }
@@ -357,9 +429,9 @@ function updateComparisonBlock(blockId, partial = {}) {
         if (p.rows.length > 20) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].rows length > 20` };
         const newRows = [];
         for (let ri = 0; ri < p.rows.length; ri++) {
-          const s = p.rows[ri] == null ? '' : String(p.rows[ri]);
-          if ([...s].length > 500) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].rows[${ri}] too long` };
-          newRows.push(s);
+          const sr = _sanitizeRow(p.rows[ri]);
+          if (!sr.ok) return { ok: false, code: 'INVALID', message: `columnPatch[${pi}].rows[${ri}] ${sr.msg}` };
+          newRows.push(sr.row);
         }
         col.rows = newRows;
       }
@@ -381,10 +453,34 @@ function updateComparisonBlock(blockId, partial = {}) {
     applied.featured = fi;
   }
 
+  // rowHeights — 행 인덱스별 높이 오버라이드 배열 (draft만 갱신, mutate X)
+  let draftRowHeights = null;
+  if (partial.rowHeights !== undefined && partial.rowHeights !== null) {
+    if (!Array.isArray(partial.rowHeights)) {
+      return { ok: false, code: 'INVALID', message: 'rowHeights must be array' };
+    }
+    if (partial.rowHeights.length > 20) {
+      return { ok: false, code: 'INVALID', message: 'rowHeights length > 20' };
+    }
+    const safeRH = [];
+    for (let ri = 0; ri < partial.rowHeights.length; ri++) {
+      const v = partial.rowHeights[ri];
+      if (v == null || v === 0 || v === '') { safeRH.push(null); continue; } // 기본 rowH 사용
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 16 || n > 400) {
+        return { ok: false, code: 'INVALID', message: `rowHeights[${ri}] out of range (16~400 or null)` };
+      }
+      safeRH.push(Math.round(n));
+    }
+    draftRowHeights = safeRH;
+    applied.rowHeights = safeRH;
+  }
+
   // before 스냅샷 (commit 직전, 검증 모두 통과 후)
   const before = {
     cols: block.dataset.cols, featured: block.dataset.featured,
     featScale: block.dataset.featScale, compW: block.dataset.compW,
+    rowHeights: block.dataset.rowHeights,
   };
 
   // ── 모든 검증 통과 — 여기서부터 mutate ──
@@ -398,6 +494,8 @@ function updateComparisonBlock(blockId, partial = {}) {
   if (draftCols) block.dataset.cols = JSON.stringify(draftCols);
   // featured
   if (draftFeatured !== null) block.dataset.featured = draftFeatured;
+  // rowHeights
+  if (draftRowHeights !== null) block.dataset.rowHeights = JSON.stringify(draftRowHeights);
 
   // 재렌더
   try {
@@ -423,5 +521,6 @@ window.renderComparison    = renderComparison;
 window.getComparisonCols   = getComparisonCols;
 window.getComparisonFeaturedIdx = getComparisonFeaturedIdx;
 window.setComparisonCols   = setComparisonCols;
+window.normalizeComparisonRow = normalizeRow;
 
-export { makeComparisonBlock, addComparisonBlock, updateComparisonBlock, renderComparison, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols };
+export { makeComparisonBlock, addComparisonBlock, updateComparisonBlock, renderComparison, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, normalizeRow };

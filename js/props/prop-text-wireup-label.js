@@ -100,9 +100,11 @@ export function wireLabelSection({ ctx }) {
     ctx.contentEl.style.border = '';
     ctx.contentEl.style.width  = '';
     ctx.contentEl.style.height = '';
+    ctx.contentEl.style.padding = '';   // circle→타shape 전환 시 padding:0 잔류 방지
     ctx.contentEl.style.display = '';
     ctx.contentEl.style.alignItems = '';
     ctx.contentEl.style.justifyContent = '';
+    delete ctx.contentEl.dataset.shape; // 원형 가드 마커 제거(타shape에 aspect-ratio 가드 미적용)
   };
   document.getElementById('label-shape-pill')?.addEventListener('click', () => {
     window.pushHistory?.();
@@ -112,6 +114,7 @@ export function wireLabelSection({ ctx }) {
     const rSlider2 = document.getElementById('label-radius-slider');
     const rNumber2 = document.getElementById('label-radius-number');
     if (rSlider2) { rSlider2.value = 999; rNumber2.value = 999; }
+    window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-box')?.addEventListener('click', () => {
     window.pushHistory?.();
@@ -121,6 +124,7 @@ export function wireLabelSection({ ctx }) {
     const rSlider2 = document.getElementById('label-radius-slider');
     const rNumber2 = document.getElementById('label-radius-number');
     if (rSlider2) { rSlider2.value = 8; rNumber2.value = 8; }
+    window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-outline')?.addEventListener('click', () => {
     window.pushHistory?.();
@@ -132,10 +136,13 @@ export function wireLabelSection({ ctx }) {
     const rSlider2 = document.getElementById('label-radius-slider');
     const rNumber2 = document.getElementById('label-radius-number');
     if (rSlider2) { rSlider2.value = 8; rNumber2.value = 8; }
+    window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-circle')?.addEventListener('click', () => {
     window.pushHistory?.();
     _resetLabelInline();
+    // CSS 가드(.tb-label[data-shape="circle"])가 정원/padding:0을 강제 → 저장된 블록도 회복
+    ctx.contentEl.dataset.shape = 'circle';
     ctx.contentEl.style.borderRadius = '50%';
     ctx.contentEl.style.padding = '0';
     ctx.contentEl.style.width  = '64px';
@@ -148,6 +155,7 @@ export function wireLabelSection({ ctx }) {
     const rSlider2 = document.getElementById('label-radius-slider');
     const rNumber2 = document.getElementById('label-radius-number');
     if (rSlider2) { rSlider2.value = 999; rNumber2.value = 999; }
+    window.scheduleAutoSave?.();
   });
   document.getElementById('label-shape-text')?.addEventListener('click', () => {
     window.pushHistory?.();
@@ -159,5 +167,6 @@ export function wireLabelSection({ ctx }) {
     const rSlider2 = document.getElementById('label-radius-slider');
     const rNumber2 = document.getElementById('label-radius-number');
     if (rSlider2) { rSlider2.value = 0; rNumber2.value = 0; }
+    window.scheduleAutoSave?.();
   });
 }

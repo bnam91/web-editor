@@ -33,7 +33,10 @@ function showSimpleCardProperties(block) {
   const isIconBgTransparent = iconBgRaw === 'transparent';
   const iconBg    = isIconBgTransparent ? (block.dataset.iconBgLast || '#eeeeee') : iconBgRaw;
 
-  const cardItemsHtml = cards.map((card, i) => `
+  const isBoth = labelPos === 'both';
+  const cardItemsHtml = cards.map((card, i) => {
+    const imgScale = Math.min(400, Math.max(100, parseInt(card.imgScale) || 100));
+    return `
     <div class="cvb-card-item" data-card-index="${i}">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
         <span class="cvb-card-meta-label">카드 ${i + 1}</span>
@@ -59,6 +62,12 @@ function showSimpleCardProperties(block) {
         <span class="cvb-card-meta" style="flex:1;">Fit</span>
         <button class="prop-align-btn cvb-card-fit-btn cvb-card-btn-sm${(card.imgFit||'cover')==='cover'?' active':''}" data-card-index="${i}" data-fit="cover" style="padding:2px 8px;">꽉 채우기</button>
         <button class="prop-align-btn cvb-card-fit-btn cvb-card-btn-sm${(card.imgFit||'cover')==='contain'?' active':''}" data-card-index="${i}" data-fit="contain" style="padding:2px 8px;">원본 비율</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px;">
+        <span class="cvb-card-meta" style="flex:0 0 auto;">확대</span>
+        <input type="range" class="prop-slider cvb-card-zoom" data-card-index="${i}" min="100" max="400" step="10" value="${imgScale}" style="flex:1;">
+        <input type="number" class="prop-number cvb-card-zoom-num" data-card-index="${i}" min="100" max="400" step="10" value="${imgScale}" style="width:54px;">
+        <span class="cvb-card-meta">%</span>
       </div>` : ''}
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:5px;">
         <span class="cvb-card-meta" style="flex:1;">테두리</span>
@@ -68,10 +77,40 @@ function showSimpleCardProperties(block) {
         <input type="number" class="cvb-card-border-width" data-card-index="${i}" value="${card.borderWidth || 0}" min="0" max="20">
         <span class="cvb-card-meta">px</span>
       </div>
+      ${isBoth ? `
+      <div class="cvb-slot-block" style="border-left:2px solid var(--ui-border, #ddd);padding-left:6px;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+          <span class="cvb-card-meta" style="flex:1;font-weight:600;">상단 라벨</span>
+          <div class="prop-color-swatch" style="width:14px;height:14px;border-radius:3px;flex-shrink:0;background:${card.titleColorTop || titleColor};" title="상단 제목 색">
+            <input type="color" class="cvb-slot-color" data-card-index="${i}" data-slot-field="titleColorTop" value="${/^#[0-9a-fA-F]{6}$/.test(card.titleColorTop||'') ? card.titleColorTop : (/^#[0-9a-fA-F]{6}$/.test(titleColor)?titleColor:'#ffffff')}">
+          </div>
+          <div class="prop-color-swatch" style="width:14px;height:14px;border-radius:3px;flex-shrink:0;background:${card.descColorTop || descColor};" title="상단 설명 색">
+            <input type="color" class="cvb-slot-color" data-card-index="${i}" data-slot-field="descColorTop" value="${/^#[0-9a-fA-F]{6}$/.test(card.descColorTop||'') ? card.descColorTop : (/^#[0-9a-fA-F]{6}$/.test(descColor)?descColor:'#ffffff')}">
+          </div>
+        </div>
+        <textarea class="cvb-card-input cvb-slot-input" data-card-index="${i}" data-slot-field="titleTop" placeholder="상단 제목..." rows="1">${_escHtml(card.titleTop ?? '')}</textarea>
+        <textarea class="cvb-card-input cvb-slot-input" data-card-index="${i}" data-slot-field="descTop" placeholder="상단 설명..." rows="1">${_escHtml(card.descTop ?? '')}</textarea>
+      </div>
+      <div class="cvb-slot-block" style="border-left:2px solid var(--ui-border, #ddd);padding-left:6px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+          <span class="cvb-card-meta" style="flex:1;font-weight:600;">하단 라벨</span>
+          <div class="prop-color-swatch" style="width:14px;height:14px;border-radius:3px;flex-shrink:0;background:${card.titleColorBottom || titleColor};" title="하단 제목 색">
+            <input type="color" class="cvb-slot-color" data-card-index="${i}" data-slot-field="titleColorBottom" value="${/^#[0-9a-fA-F]{6}$/.test(card.titleColorBottom||'') ? card.titleColorBottom : (/^#[0-9a-fA-F]{6}$/.test(titleColor)?titleColor:'#ffffff')}">
+          </div>
+          <div class="prop-color-swatch" style="width:14px;height:14px;border-radius:3px;flex-shrink:0;background:${card.descColorBottom || descColor};" title="하단 설명 색">
+            <input type="color" class="cvb-slot-color" data-card-index="${i}" data-slot-field="descColorBottom" value="${/^#[0-9a-fA-F]{6}$/.test(card.descColorBottom||'') ? card.descColorBottom : (/^#[0-9a-fA-F]{6}$/.test(descColor)?descColor:'#ffffff')}">
+          </div>
+        </div>
+        <textarea class="cvb-card-input cvb-slot-input" data-card-index="${i}" data-slot-field="titleBottom" placeholder="하단 제목..." rows="1">${_escHtml(card.titleBottom ?? '')}</textarea>
+        <textarea class="cvb-card-input cvb-slot-input" data-card-index="${i}" data-slot-field="descBottom" placeholder="하단 설명..." rows="1">${_escHtml(card.descBottom ?? '')}</textarea>
+      </div>
+      ` : `
       <textarea class="cvb-card-title-input cvb-card-input" data-card-index="${i}" placeholder="제목 입력..." rows="2">${_escHtml(card.title || '')}</textarea>
       <textarea class="cvb-card-desc-input cvb-card-input" data-card-index="${i}" placeholder="설명 입력..." rows="2">${_escHtml(card.desc || '')}</textarea>
+      `}
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -839,11 +878,64 @@ function showSimpleCardProperties(block) {
         setCards(arr, true);
       }
     }
+
+    // 이미지 확대(zoom) 슬라이더 — 실시간(히스토리 없음). number 동기화.
+    const zoomSlider = e.target.closest('.cvb-card-zoom');
+    if (zoomSlider) {
+      const idx = parseInt(zoomSlider.dataset.cardIndex);
+      const arr = getCards();
+      if (arr[idx] !== undefined) {
+        const v = Math.min(400, Math.max(100, parseInt(zoomSlider.value) || 100));
+        arr[idx].imgScale = v;
+        const num = cardItemsEl.querySelector(`.cvb-card-zoom-num[data-card-index="${idx}"]`);
+        if (num) num.value = v;
+        setCards(arr, true);
+      }
+    }
+
+    // 라벨 상/하 분리 슬롯 텍스트(both 모드) — 실시간(히스토리 없음)
+    const slotInput = e.target.closest('.cvb-slot-input');
+    if (slotInput) {
+      const idx = parseInt(slotInput.dataset.cardIndex);
+      const field = slotInput.dataset.slotField;
+      const arr = getCards();
+      if (arr[idx] !== undefined && field) { arr[idx][field] = slotInput.value; setCards(arr, true); }
+    }
+
+    // 라벨 상/하 분리 슬롯 색 override(both 모드) — 실시간
+    const slotColor = e.target.closest('.cvb-slot-color');
+    if (slotColor) {
+      const idx = parseInt(slotColor.dataset.cardIndex);
+      const field = slotColor.dataset.slotField;
+      const arr = getCards();
+      if (arr[idx] !== undefined && field) {
+        arr[idx][field] = slotColor.value;
+        const swatch = slotColor.closest('.prop-color-swatch');
+        if (swatch) swatch.style.background = slotColor.value;
+        setCards(arr, true);
+      }
+    }
   });
 
   // change → pushHistory
   cardItemsEl.addEventListener('change', e => {
-    if (e.target.closest('.cvb-card-title-input, .cvb-card-desc-input, .cvb-card-cell-bg, .cvb-card-border-color, .cvb-card-border-width')) {
+    // 확대 number 입력은 슬라이더와 별도 경로(input 안 탐) — 여기서 값 반영 + 히스토리
+    const zoomNum = e.target.closest('.cvb-card-zoom-num');
+    if (zoomNum) {
+      const idx = parseInt(zoomNum.dataset.cardIndex);
+      const arr = getCards();
+      if (arr[idx] !== undefined) {
+        const v = Math.min(400, Math.max(100, parseInt(zoomNum.value) || 100));
+        arr[idx].imgScale = v;
+        zoomNum.value = v;
+        const sl = cardItemsEl.querySelector(`.cvb-card-zoom[data-card-index="${idx}"]`);
+        if (sl) sl.value = v;
+        setCards(arr, true);
+      }
+      window.pushHistory?.();
+      return;
+    }
+    if (e.target.closest('.cvb-card-title-input, .cvb-card-desc-input, .cvb-card-cell-bg, .cvb-card-border-color, .cvb-card-border-width, .cvb-card-zoom, .cvb-slot-input, .cvb-slot-color')) {
       window.pushHistory?.();
     }
   });

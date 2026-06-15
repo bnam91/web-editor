@@ -531,6 +531,28 @@ function addBlankTextBlock(type = 'body', opts = {}) {
   return block.id;
 }
 
+// ── 공용 빈판정 헬퍼 ───────────────────────────────────────────────
+// "사용자가 contenteditable 안에서 Enter만 눌러 만든 의도적 빈 줄"인지 판별한다.
+// 텍스트는 없지만(textContent.trim()==='') <br> 또는 빈 자식 블록(div/p/li)이
+// 1개 이상 존재하면 true. 네이티브 contenteditable은 Enter를
+// <br> / <br><br> / <div><br></div> / <p><br></p> 등으로 삽입하므로
+// 그 산출물을 폭넓게 인식한다.
+//
+// 단 "한 번도 편집하지 않은 완전 신규 placeholder 블록"과 구분이 필요하다.
+//  - placeholder 블록의 innerHTML은 안내 문구(순수 텍스트)라 br/빈요소가 없으므로
+//    여기서 false가 나온다(= 보존 대상 아님 → 기존대로 placeholder 유지).
+//  - 사용자가 편집 진입 후 Enter를 누르면 br/빈div가 생겨 true가 된다(= 보존).
+function isVisuallyBlankButHasBreaks(el) {
+  if (!el) return false;
+  // 실제 글자가 있으면 빈 블록이 아니다.
+  if (el.textContent.trim() !== '') return false;
+  // <br>이 하나라도 있으면 의도적 빈 줄로 본다.
+  if (el.querySelector('br')) return true;
+  // <div>/<p>/<li> 같은 줄 컨테이너 자식이 있으면(텍스트 없는 빈 줄들) 빈 줄로 본다.
+  if (el.querySelector('div, p, li')) return true;
+  return false;
+}
+
 function promoteToFrame(block) {
   const col = block.closest('.col');
   if (!col) {
@@ -1510,6 +1532,7 @@ export {
   makeTableBlock,
   addTextBlock,
   addBlankTextBlock,
+  isVisuallyBlankButHasBreaks,
   groupSelectedBlocks,
   promoteToFrame,
   makePresetRow,
@@ -3914,6 +3937,7 @@ window.addIconTextBlock     = addIconTextBlock;
 window.makeTableBlock       = makeTableBlock;
 window.addTextBlock         = addTextBlock;
 window.addBlankTextBlock    = addBlankTextBlock;
+window.isVisuallyBlankButHasBreaks = isVisuallyBlankButHasBreaks;
 window.groupSelectedBlocks  = groupSelectedBlocks;
 window.promoteToFrame  = promoteToFrame;
 window.makePresetRow        = makePresetRow;
@@ -3996,6 +4020,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       sendItem.style.display = (isAsset && hasImg) ? 'flex' : 'none';
     }
 
+    // STICKERUX(3): 아이콘 블록(.icon-block)일 때만 "스티커로 변환" 노출
+    const iconStickerItem = document.getElementById('bcm-icon-to-sticker');
+    if (iconStickerItem) {
+      const isIcon = block.classList.contains('icon-block');
+      iconStickerItem.style.display = isIcon ? 'flex' : 'none';
+    }
+
     const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
     const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
     menu.style.left    = x + 'px';
@@ -4035,6 +4066,24 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     } catch (err) {
       window.showToast?.('❌ 실패: ' + (err?.message || err));
     }
+  });
+
+  // STICKERUX(3): 아이콘 블록 → 스티커 변환(복제 — 원본 .icon-block 유지)
+  document.getElementById('bcm-icon-to-sticker')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    closeMenu();
+    if (!block) return;
+    const svg = block.querySelector('svg')?.outerHTML;
+    if (!svg || svg.length > 200000) { window.showToast?.('⚠️ 변환할 아이콘 SVG가 없습니다'); return; }
+    const iconName  = block.dataset?.iconName || '';
+    const size      = parseInt(block.dataset?.size, 10) || 64;
+    const iconColor = block.dataset?.iconColor || '';
+    // addStickerBlock은 섹션 미선택 시 게이트되므로(STICKERUX(1)),
+    // 원본 아이콘블럭을 선택 상태로 만들어 그 섹션을 타겟으로 삼는다(복제 — 원본 유지).
+    try { window.selectBlock?.(block.id); } catch (_) {}
+    window.addStickerBlock?.({ shape: 'icon', iconName, svg, size, iconColor });
+    window.showToast?.('스티커로 변환됨');
   });
 
   nameConfirm?.addEventListener('click', e => {

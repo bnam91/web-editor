@@ -1363,7 +1363,10 @@ document.addEventListener('keydown', e => {
         delete contentEl.dataset.isPlaceholder;
       }
       // 의도적 빈 줄(data-blank)이면 placeholder 문구 덮어쓰기 skip — 빈 블록 유지
-      const isBlank = contentEl.dataset.blank === 'true' || tb.dataset.blank === 'true';
+      // (EMPTY) 승격 판정은 blur(런타임 Enter 신호) 한 곳에서만 한다. 타입변경 경로엔
+      // Enter 신호가 없어 has-breaks 헬퍼를 쓰면 "전부삭제 leftover <br>"을 빈줄로 오판해
+      // 회귀가 저장본에 전파된다. → 여기선 이미 승격된 data-blank='true'만 존중(U5 방식).
+      let isBlank = contentEl.dataset.blank === 'true' || tb.dataset.blank === 'true';
       if (!isBlank && contentEl.dataset.isPlaceholder === 'true' && phMap[cls]) {
         contentEl.dataset.placeholder = phMap[cls];
         contentEl.innerHTML = phMap[cls];

@@ -335,15 +335,15 @@ function makeStickerBlock(opts = {}) {
 }
 
 function addStickerBlock(opts = {}) {
-  // U6(b): "맨 아래 섹션에 추가" 버그 교정 — sec 결정 우선순위:
+  // U6(b): 섹션 미선택 게이트 — sec 결정 우선순위(맨아래-섹션 자동 폴백 제거):
   //   1) getSelectedSection() (이제 .sticker-block.selected 포함 — editor.js U6 보강)
   //   2) 현재 선택된 sticker/일반 블록의 closest('.section-block') (명시적 회귀 방지)
-  //   3) 진짜 아무것도 선택 안됐을 때만 마지막 섹션 폴백 (B12: 먹통 방지)
+  //   둘 다 없으면(=아무것도 선택 안 됨) 추가하지 않고 "섹션을 선택하세요" 토스트만 띄움.
+  //   (구 3순위 last-section 폴백은 의도치 않은 맨아래 섹션 추가를 유발해 제거됨)
   const selectedAnyBlock = document.querySelector('.sticker-block.selected, .block.selected, [class*="-block"].selected');
   const sec = window.getSelectedSection?.()
-    || selectedAnyBlock?.closest('.section-block')
-    || [...document.querySelectorAll('.section-block')].pop();
-  if (!sec) { window.showNoSelectionHint?.(); return; }
+    || selectedAnyBlock?.closest('.section-block');
+  if (!sec) { window.showToast?.('섹션을 선택하세요'); return; }
   // B13: sticky — 호출 opts에 없는 스타일 필드는 마지막에 쓴 스타일로 보충.
   //   shape 결정: 명시 opts.shape > 마지막에 쓴 shape > 기본. 그 shape 슬롯을 깔고 opts로 덮어씀.
   //   슬롯은 x/y/size/text를 안 담으므로 cascade·placeholder 분기 영향 없음.
