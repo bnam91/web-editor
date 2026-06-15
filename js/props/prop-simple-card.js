@@ -315,6 +315,14 @@ function showSimpleCardProperties(block) {
         <input type="range" class="prop-slider" id="cvb-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="cvb-padx-number" min="0" max="80" value="${padX}">
       </div>
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="cvb-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-hint" style="margin-top:2px;">켜면 카드가 섹션 좌우 패딩을 무시하고 가장자리까지 확장됩니다</div>
     </div>
 
     <div class="prop-section">
@@ -826,6 +834,18 @@ function showSimpleCardProperties(block) {
   padxSlider.addEventListener('input',  () => applyPadX(parseInt(padxSlider.value)));
   padxNumber.addEventListener('change', () => { applyPadX(parseInt(padxNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
   padxSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+
+  // full-bleed: 섹션 좌우패딩 무시 토글. 에셋 패턴과 달리 카드는 renderCanvas가 width를 통합 처리.
+  const fullBleedToggle = document.getElementById('cvb-fullbleed-toggle');
+  if (fullBleedToggle) {
+    fullBleedToggle.addEventListener('change', e => {
+      if (e.target.checked) block.dataset.fullBleed = 'true';
+      else delete block.dataset.fullBleed;
+      window.renderCanvas?.(block);
+      window.pushHistory?.();
+      window.scheduleAutoSave?.();
+    });
+  }
 
   // ── 카드별 항목 편집 ─────────────────────────────────────────────────────────
   const cardItemsEl = document.getElementById('cvb-card-items');
