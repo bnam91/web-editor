@@ -84,16 +84,39 @@ function _assetsBindGlobalKeydown() {
       const tag = (ae.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || ae.isContentEditable) return;
     }
+    // (U7) 패널 가시성 가드 — assets 탭이 비활성(display:none)이면 키 입력을 양보
+    const _assetsBody = document.getElementById('assets-panel-body');
+    if (!_assetsBody || _assetsBody.style.display === 'none') return;
     if (e.key === 'Escape') {
       e.preventDefault();
       _assetsClearSelection();
       return;
     }
+    // (U7) 캔버스 선택 우선 가드 — 캔버스 블록/섹션/그룹/프레임이 선택되어 있으면
+    //      자산 삭제를 양보하고 캔버스 삭제 핸들러에 넘긴다.
+    const canvasSelected = document.querySelector(
+      '.section-block.selected, .section-block.multi-selected, ' +
+      '.col.multi-selected, .frame-block.selected, .group-block.group-selected, ' +
+      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+      '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, ' +
+      '.shape-block.selected, .speech-bubble-block.selected, .canvas-block.selected, ' +
+      '.banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
+      '.icon-block.selected, .vector-block.selected, .step-block.selected, ' +
+      '.laurel-block.selected, .gradient-block.selected'
+    );
+    if (canvasSelected) return;
     e.preventDefault();
     const ids = [..._assetsSelectedIds];
     const msg = ids.length === 1 ? '선택한 자산 1개를 삭제할까요? (폴더면 하위 포함)' : `선택한 자산 ${ids.length}개를 삭제할까요? (폴더면 하위 포함)`;
     if (!window.confirm(msg)) return;
     for (const id of ids) {
+      // (U7) favorite 보호 폴더는 다중 삭제에서도 개별 skip
+      const f = assetsFindNode(id);
+      if (f && f.node && f.node.type === 'folder' && f.node.favorite === true) {
+        window.showToast?.('⭐ favorite 폴더는 삭제할 수 없습니다.');
+        continue;
+      }
       try { await assetsDeleteNode(id); } catch (_) {}
     }
     _assetsSelectedIds.clear();
@@ -210,6 +233,11 @@ function assetsMoveNode(id, newParentId, beforeId = null) {
   if (newParentId && _assetsIsDescendant(id, newParentId)) return; // 사이클 가드
   const src = assetsFindNode(id);
   if (!src) return;
+  // (U7) favorite 보호 폴더는 이동 차단
+  if (src.node && src.node.type === 'folder' && src.node.favorite === true) {
+    window.showToast?.('⭐ favorite 폴더는 이동할 수 없습니다.');
+    return;
+  }
   // 원위치에서 제거
   src.parentArr.splice(src.index, 1);
   const dst = _assetsParentArrOf(newParentId);
@@ -371,6 +399,11 @@ function assetsAddUrl({ title, url, note }, parentId = null) {
 async function assetsDeleteNode(id) {
   const f = assetsFindNode(id);
   if (!f) return false;
+  // (U7) favorite 보호 폴더는 삭제 차단
+  if (f.node.type === 'folder' && f.node.favorite === true) {
+    window.showToast?.('⭐ favorite 폴더는 삭제할 수 없습니다.');
+    return false;
+  }
   const label = f.node.type === 'folder' ? `'${f.node.name}' 폴더와 그 안의 모든 자산을` : `'${f.node.name || f.node.title || ''}' 항목을`;
   if (!window.confirm(`${label} 삭제할까요?`)) return false;
   await assetsRemoveNode(id);
@@ -452,6 +485,15 @@ function _folderIcon() {
   </span>`;
 }
 
+// (U7) favorite 보호 폴더 전용 아이콘 — ★ 표식
+function _favoriteFolderIcon() {
+  return `<span class="assets-row-thumb-icon" aria-hidden="true" title="favorite">
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor" stroke="currentColor" stroke-width="0.6" stroke-linejoin="round">
+      <path d="M7 1.5 L8.6 4.8 L12.2 5.3 L9.6 7.9 L10.2 11.5 L7 9.8 L3.8 11.5 L4.4 7.9 L1.8 5.3 L5.4 4.8 Z"/>
+    </svg>
+  </span>`;
+}
+
 function _urlIcon() {
   return `<span class="assets-row-thumb-icon" aria-hidden="true">
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
@@ -489,7 +531,8 @@ function _renderTreeNode(node, depth, parentEl) {
 
   // 썸네일
   if (node.type === 'folder') {
-    row.insertAdjacentHTML('beforeend', _folderIcon());
+    // (U7) favorite 보호 폴더는 ★ 표식
+    row.insertAdjacentHTML('beforeend', node.favorite === true ? _favoriteFolderIcon() : _folderIcon());
   } else if (node.type === 'url') {
     row.insertAdjacentHTML('beforeend', _urlIcon());
   } else if (node.type === 'image') {
@@ -521,7 +564,9 @@ function _renderTreeNode(node, depth, parentEl) {
   const btnRename = `<button data-act="rename" title="이름변경">✎</button>`;
   const btnSend = node.type === 'image' ? `<button data-act="send" title="캔버스로 보내기">↗</button>` : '';
   const btnOpen = node.type === 'url' ? `<button data-act="open" title="링크 열기">↗</button>` : '';
-  const btnDel = `<button data-act="delete" title="삭제">🗑</button>`;
+  // (U7) favorite 보호 폴더는 삭제 버튼 숨김
+  const _isFavFolder = node.type === 'folder' && node.favorite === true;
+  const btnDel = _isFavFolder ? '' : `<button data-act="delete" title="삭제">🗑</button>`;
   // 폴더 전용 — 리스트/그리드 인라인 토글 (SVG)
   let btnView = '';
   if (node.type === 'folder') {
@@ -1199,6 +1244,7 @@ window.assetsGetDataUrl        = assetsGetDataUrl;
 window.assetsFindNode          = assetsFindNode;
 window.assetsAddNode           = assetsAddNode;
 window.assetsRemoveNode        = assetsRemoveNode;
+window._assetsClearSelection   = _assetsClearSelection; // (U7) 탭 전환 시 잔류 선택 클리어용
 
 // 트리 전체 폴더 목록 (scratch 우클릭 메뉴 등에서 사용)
 window.assetsGetAllFolders = function () {

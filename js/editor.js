@@ -96,6 +96,8 @@ function switchToTab(tabName) {
   if (tabName === 'inspector') window.renderInspectorPanel();
   if (tabName === 'checklist') window.renderChecklistPanel?.();
   if (tabName === 'assets')    window.buildAssetsPanel?.();
+  // (U7) assets 탭이 아닌 곳으로 전환 시 잔류 자산 선택 클리어 (Delete 오발동 안전망)
+  if (tabName !== 'assets')    window._assetsClearSelection?.();
 }
 
 function initFileTabToggle() {
