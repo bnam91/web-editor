@@ -14,8 +14,8 @@ CDP 에이전트 및 자동화 스크립트가 에디터를 제어하기 위해 
 window.addSection()
 window.addSection({ skipDefaultBlock: true })  // 빈 섹션 (기본 h2+asset 없음)
 
-// 2. (다열 레이아웃의 경우) NewGrid 생성
-window.addNewGridBlock(cols, rows)  // cols: 열 수, rows: 행 수
+// 2. (다열 레이아웃의 경우) Canvas 블록 생성  ※ addNewGridBlock은 봉인됨(SEALED)
+window.addCanvasBlock({ cardMode: 'simple', gridCols: 2, gridRows: 1 })
 
 // 3. 블록 추가
 window.addTextBlock('h1', { content: '제목', align: 'center' })
@@ -100,25 +100,19 @@ window.deleteSection(sec)
 
 ## NewGrid 제어
 
-### `window.addNewGridBlock(cols?, rows?, opts?)`
+### `window.addNewGridBlock(cols?, rows?, opts?)` — **DEPRECATED / SEALED (2026-06-08)**
 
-기존 addRowBlock을 대체하는 그리드 프레임 블록 생성 함수.
+> **봉인됨**: `addNewGridBlock`은 2026-06-08부터 호출이 차단되었다(`[SEALED]`). 인자를 무시하고 `console.warn` + 토스트("NewGrid는 봉인된 컴포넌트입니다. Canvas 블록을 사용하세요.") 출력 후 **`null`을 반환**하며 아무 블록도 생성하지 않는다. multi-col 이미지 비교/그리드는 `window.addCanvasBlock`(자유배치) 또는 `addCanvasBlock({ cardMode: 'simple', gridCols, gridRows })`(카드 그리드)로 대체한다. PM/MCP 도구 등록 금지.
 
 ```js
-window.addNewGridBlock(2)     // 2열 그리드
-window.addNewGridBlock(3)     // 3열 그리드
-window.addNewGridBlock(2, 3)  // 2열×3행 그리드
+// 봉인됨 — null 반환:
+window.addNewGridBlock(2)     // → console.warn + toast, returns null
+
+// 대체:
+window.addCanvasBlock({ cardMode: 'simple', gridCols: 2, gridRows: 1, cards: [ /* ... */ ] })
 ```
 
-| 파라미터 | 타입 | 기본값 | 설명 |
-|---------|------|--------|------|
-| `cols` | number | `2` | 열 수 |
-| `rows` | number | `1` | 행 수 |
-| `opts` | object | `{}` | 추가 옵션 |
-
-**반환**: 없음. 호출 후 생성된 frame이 선택되고 `window._activeFrame`에 설정됨.
-
-addNewGridBlock 호출 후 각 셀에 블록을 추가하려면 셀을 클릭하거나 frame.querySelector를 통해 해당 셀의 frame-block을 직접 활성화한다. (activateCol은 삭제됨)
+> **stack-fallback 참고**: 봉인 이전 버전은 빈 그리드 프레임을 생성하고 `window._activeFrame`에 설정했으나, 현재는 어떤 프레임도 만들지 않는다. 따라서 호출자는 반환값(`null`)을 반드시 확인해야 하며, 레이아웃은 섹션 stack flow로 폴백된다. (`activateCol`도 함께 삭제됨)
 
 ---
 
@@ -306,24 +300,23 @@ window.addTableBlock({ showHeader: false, cellAlign: 'left' })
 
 ---
 
-### `window.addCardBlock(count?, opts?)`
+### `window.addCardBlock(count?, opts?)` — **DEPRECATED → `addCanvasBlock({ cardMode: 'simple' })`**
 
-카드 블록을 추가한다. grid row로 자동 생성된다.
+> **폐기됨**: 구 `cdb` 카드 블록(`window.addCardBlock`)은 코드에서 제거되었다. 카드는 canvas-block의 Simple Card Mode로 통합되었으므로 `window.addCanvasBlock({ cardMode: 'simple', ... })`를 사용한다. (아래 `window.addCanvasBlock` 참조)
 
 ```js
-window.addCardBlock()
-window.addCardBlock(3)
-window.addCardBlock(2, { bgColor: '#ffffff', radius: 8 })
+// 구 (사용 금지):
+// window.addCardBlock(2, { bgColor: '#ffffff', radius: 8 })
+
+// 신규:
+window.addCanvasBlock({
+  cardMode: 'simple',
+  gridCols: 2, gridRows: 1,
+  cards: [ { title: '카드1', desc: '', imgSrc: '', cellBg: '#ffffff' },
+           { title: '카드2', desc: '', imgSrc: '', cellBg: '#ffffff' } ],
+  radius: 8,
+})
 ```
-
-| 파라미터 | 타입 | 기본값 | 설명 |
-|----------|------|--------|------|
-| `count` | number | `2` | 카드 수 (2~4) |
-
-| 옵션 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| `bgColor` | hex | `'#f5f5f5'` | 카드 배경색 |
-| `radius` | number (px) | `12` | 모서리 반경 |
 
 ---
 
@@ -347,6 +340,238 @@ window.addGraphBlock({
 |------|------|--------|------|
 | `chartType` | string | `'bar-v'` | `bar-v` (세로 막대) `bar-h` (가로 막대) |
 | `items` | `{ label, value }[]` | 5개 샘플 | value 범위: 0~100. 빈 배열이면 기본값 사용 |
+
+---
+
+## 신규 블록 add/update API
+
+> 2026-06 추가된 컴포넌트 블록 함수들. 각 블록은 `window.add*Block`(생성)과 `window.update*Block(blockId, partial)`(수정) 쌍을 가진다. update 함수는 banner02 패턴을 미러링한다: `pushHistory` → dataset partial write → 재렌더 → `scheduleAutoSave`/`triggerAutoSave`. 검증 실패 시 `{ ok:false, code:'NOT_FOUND'|'INVALID'|'USER_BUSY'|... }`를 반환한다. PM은 MCP `update_*_block` 도구 → main 브리지 → 아래 renderer 함수 순으로 도달한다.
+
+### `window.addCanvasBlock(opts?)` / `window.updateCanvasBlock(blockId, partial)`
+
+자유 배치(layers) 또는 Simple Card Mode 캔버스 블록. DOM `.canvas-block`, id prefix `cvb_`.
+
+```js
+// 기본(옵션 없음) → 심플 카드 템플릿 (width 360 / height 480 / cardMode 'simple')
+window.addCanvasBlock()
+// 카드 그리드
+window.addCanvasBlock({ cardMode: 'simple', gridCols: 2, gridRows: 1,
+  cards: [ { title: '카드1', desc: '', imgSrc: '', cellBg: '' } ] })
+// 자유배치 레이어 모드
+window.addCanvasBlock({ layers: [ /* ... */ ] })
+
+window.updateCanvasBlock('cvb_...', { cards: [ /* ... */ ] })
+```
+
+| dual-mode | 활성 필드 |
+|-----------|-----------|
+| 레이어 모드 (cardMode 미지정) | `layers[]` / update의 `patchLayers[{index,...}]` |
+| Simple Card Mode (`cardMode: 'simple'`) | `cards[]` / update의 `patchCards[{index,...}]`, `gridCols`/`gridRows` (변경 시 cards 자동 sync) |
+
+> `updateCanvasBlock` 보안: 색상은 hex/rgb(a)/hsl(a)/transparent만, `imgSrc`/layer.src는 length ≤200000 + `["\r\n]` 차단, icon.svg는 length ≤20000 + `<script`/`on*=`/`javascript:` 차단.
+
+### `window.addLinerBlock()`
+
+라이너(텍스트 강조선) 블록 생성. (block-factory.js)
+
+```js
+window.addLinerBlock()
+```
+
+### `window.addVectorBlock(svgString?, opts?)` / `window.updateVectorBlock(blockId, partial)`
+
+SVG 벡터(펜툴/패스) 1급 블록. DOM `.vector-block`. **생성된 block을 반환**한다(호출측 메타 부착용).
+
+```js
+const block = window.addVectorBlock('<svg ...>...</svg>', { w: 200, h: 200 })
+window.updateVectorBlock(block.id, { color: '#ff0000', w: 240 })
+```
+
+| update 지원 필드 | 설명 |
+|------------------|------|
+| `svg` | ≤200000 |
+| `color` | hex/rgb(a)/hsl(a)/transparent |
+| `w`, `h` | int 10~4000 |
+| `layerName` | string ≤200 |
+
+> 추가 내부 필드: `penNodes` / `penClosed` / `strokeWidth` / `penFill` (펜툴 편집용).
+
+### `window.addStickerBlock(opts?)` / `window.updateStickerBlock(blockId, partial)`
+
+스티커(절대 위치, 섹션 직속) 블록. DOM `.sticker-block`. polymorphic — `shape`에 따라 활성 필드가 달라진다.
+
+```js
+window.addStickerBlock({ shape: 'circle', text: 'NEW', x: 40, y: 40 })
+window.updateStickerBlock('...', { text: 'SALE', bgColor: '#ff0000' })
+```
+
+| shape | 활성 dataset 필드 |
+|-------|-------------------|
+| `circle`/`square` | size/sizeW/sizeH/text/bgColor/textColor/fontSize/fontWeight/mode/imgSrc/rotation |
+| `text` | text/fontFamily/fontSize/fontWeight/textColor/strokeWidth/strokeColor/letterSpacing/textAlign/shadow*/bgColor/padX/padY/rotation |
+| `highlight` | hlW/hlH/hlColor |
+| `highlightB` | x1/y1/x2/y2/thickness/hlColor/lineStyle/amplitude/period |
+
+> `x`/`y` 미지정 시 cascade offset으로 겹침 방지. shape 변경 시 server-side 기본값 주입으로 1콜 전환 가능.
+
+### `window.addComparisonBlock(opts?)` / `window.updateComparisonBlock(blockId, partial)`
+
+제품 비교표 블록. DOM `.comparison-block`. add는 `{ row, block }` 반환.
+
+```js
+window.addComparisonBlock({ cols: [ { title: 'A사', rows: ['항목1'] }, { title: '우리', rows: [] } ], featured: 1 })
+```
+
+| update 지원 필드 | 설명 |
+|------------------|------|
+| 외곽 | compW, featScale, overlap, radius, padX, padY, headerH, rowH, rowGap |
+| 텍스트 | titleFont, rowFont |
+| 강조 | featured (int index) |
+| 칼럼 | `cols` (전체 교체, 길이 2~8, rows ≤20) / `columnPatch [{index, title?, bg?, text?, rows?}]` |
+| 행 높이 | `rowHeights` (행 index→px, 16~400, ≤20개) |
+| 메타 | layerName |
+
+> rows 항목: 문자열 또는 `{ type:'text'|'image', text?, imgSrc?, imgFit:'cover'|'contain' }`.
+
+### `window.addMockupBlock(opts?)` / `window.updateMockupBlock(blockId, opts)`
+
+디바이스 목업 블록. DOM `.mockup-block`. `{ ok, blockId, deviceKey, width, shadow, hasImage }` 반환.
+
+```js
+window.addMockupBlock({ deviceKey: 'iphone', width: 360, imgSrc: '', shadow: 'soft' })
+window.updateMockupBlock('...', { imgSrc: '' })  // imgSrc '' = 이미지 제거
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `deviceKey` | `'iphone'` | `window.MOCKUP_DEVICES` 키 (미존재 시 `INVALID_DEVICE`) |
+| `width` | 디바이스 기본값 | 100~860 clamp |
+| `imgSrc` | — | 스크린 이미지 |
+| `shadow` | `'soft'` | 그림자 |
+| `sectionId` | 현재 선택 | 대상 섹션 직접 지정 |
+
+> 관련: `window.addDeviceMockupBlock(deviceKey, width)` (내부 팩토리).
+
+### `window.addLaurelBlock(opts?)` / `window.updateLaurelBlock(blockId, partial)`
+
+월계관(수상/인증) 블록. DOM `.laurel-block`, id prefix `lrb_`. 데이터 모델: `dataset.cells = [{ lines:[{text,fontSize,fontWeight,color,letterSpacing}], leafColor, leafFill, gap, height }]`.
+
+```js
+window.addLaurelBlock({ cells: [ { lines: [ { text: '1위', fontSize: 40 } ], leafFill: 'gold' } ] })
+```
+
+| update 지원 partial | 설명 |
+|---------------------|------|
+| layerName, gridCols, gridRows, gridColGap, gridRowGap | dataset 직접 set |
+| `cells` | 배열 전체 교체 |
+| `editCell { index, lines?, leafColor?, leafFill?, gap?, height? }` | 단일 cell 부분 머지 |
+| `addLine`/`removeLine`/`editLine` | line 단위 조작 (마지막 1개 보호) |
+| `allGap`/`allHeight`/`allLeafColor`/`allLeafFill` | 모든 cells 일괄 적용 |
+
+### `window.addStepBlock(opts?)` / `window.updateStepBlock(blockId, partial)`
+
+단계 안내 블록. DOM `.step-block`. add는 `{ row, block }` 반환.
+
+```js
+window.addStepBlock({ steps: [ { title: '1단계', desc: '설명' }, { title: '2단계' } ] })
+```
+
+| update 지원 필드 | 설명 |
+|------------------|------|
+| `steps` | 배열 전체 replace (1~10개, `{ title, desc? }`) |
+| 색상 | numBg, numColor, titleColor, descColor, stepCardBg |
+| 크기 | numSize, titleSize, descSize, gap, badgeGap, stepPadX, stepPadL, stepPadR |
+| boolean | connector |
+| enum | stepStyle, stepOrient, stepAlign, badgeFormat, connectorStyle |
+
+### `window.addBannerBlock(presetKey?)`
+
+프리셋 기반 배너 블록. DOM은 `.frame-block` + `dataset.bannerPreset`.
+
+```js
+window.addBannerBlock('frame_8')  // 기본 'frame_8', window.BANNER_PRESETS 키
+```
+
+### `window.addBanner02Block(opts?)` / `window.updateBanner02Block(blockId, partial)`
+
+텍스트+이미지 변형 배너 블록. DOM `.banner02-block`. add는 `{ row, block }` 반환.
+
+```js
+window.addBanner02Block({ variant: 'default', title: '제목', sub: '부제' })
+window.updateBanner02Block('...', { layout: 'right', imgSrc: '...' })
+```
+
+| update 지원 필드 | 설명 |
+|------------------|------|
+| 변형 | `variant` (`window.BANNER02_VARIANTS` 키) |
+| 외곽 | width(bannerW), height(bannerH), radius, bg, align |
+| 텍스트 박스 | textX/textY/textW |
+| 텍스트 | label/labelSize/labelColor, title/titleSize/titleColor, sub/subSize/subColor, gap1, gap2 |
+| 이미지 | imgSrc, imgX/imgY/imgW/imgH, imgFit |
+| 편의 | `layout: 'left'\|'right'` (text/img 좌우 swap) |
+
+### `window.addGradientBlock(opts?)` / `window.updateGradientBlock(blockId, partial)`
+
+그라데이션 배경 블록 (섹션 직속 absolute). DOM `.gradient-block`. **생성된 block 반환**.
+
+```js
+const b = window.addGradientBlock({ style: 'linear', direction: 'to bottom',
+  startColor: '#ffffff', endColor: '#000000', width: 600, height: 300 })
+```
+
+| update 지원 필드 (data-* 매핑) | 설명 |
+|--------------------------------|------|
+| `style` → gradStyle | `linear`\|`radial` |
+| `direction` → gradDirection | 8방향 (linear 전용) |
+| `startColor`/`endColor` → gradStart/gradEnd | `#RRGGBB`만 |
+| `startAlpha`/`endAlpha` | 0~1 float |
+| `width`/`height` | 200~1200 / 50~1500 px |
+| `x`/`y` | 섹션 기준 좌표 (-4000~4000) |
+| `layerName` | ≤100 |
+
+### `window.addChatBlock(opts?)` / `window.updateChatBlock(blockId, partial)`
+
+말풍선 대화형 블록. DOM `.chat-block`.
+
+```js
+window.addChatBlock({ messages: [ { text: '안녕하세요', align: 'left' }, { text: '네!', align: 'right' } ] })
+```
+
+| update 지원 필드 | 설명 |
+|------------------|------|
+| 메시지 | `messages`(전체 교체) / `addMessage` / `removeMessage` / `editMessage` (`{ text, align:'left'\|'right' }`) |
+| 스타일 | gap, fontSize, bgLeft, bgRight, colorLeft, colorRight, radius, padding |
+| 프로필 | showProfile, showName, profileSize, profileOffsetY, profileGap |
+| 기타 | layerName |
+
+> 인라인 편집(`.chb-bubble[contenteditable]`) 중이면 `USER_BUSY` 반환.
+
+### `window.addSpeechBubbleBlock()`
+
+말풍선 단일 블록 생성. (block-factory.js)
+
+```js
+window.addSpeechBubbleBlock()
+```
+
+### `window.addIconifyBlock(iconName, svgContent, size?)` / `window.updateIconifyBlock(blockId, partial)`
+
+Iconify 아이콘 블록. DOM `.icon-block`. add는 `{ row, block }` 반환.
+
+```js
+window.addIconifyBlock('mdi:home', '<svg ...>...</svg>', 64)
+window.updateIconifyBlock('...', { iconColor: '#ff0000', rotation: '90' })
+```
+
+| update 지원 필드 (화이트리스트) | 설명 |
+|---------------------------------|------|
+| `layerName` | ≤100자 |
+| `size` | 16~512 px |
+| `rotation` | `'0'`\|`'90'`\|`'180'`\|`'270'` |
+| `iconColor` | hex/rgb(a)/hsl(a)/transparent (currentColor) |
+| `iconName` | `'prefix:icon-name'` — 변경 시 main이 fetch한 `svg` 동봉 |
+
+> 알 수 없는 키는 `INVALID` 반환. `svg`는 main 전용 내부 필드.
 
 ---
 
@@ -477,13 +702,15 @@ window.addLabelGroupBlock({ labels: ['특징1', '특징2', '특징3'] })
 window.triggerAutoSave()
 ```
 
-### 2열(NewGrid) 섹션 조립
+### 2열(NewGrid) 섹션 조립 — **DEPRECATED 예시**
+
+> **주의**: 아래 예시의 `window.addNewGridBlock(2)`는 2026-06-08부터 봉인되어 `null`을 반환한다. 새 코드에서는 다열 카드 그리드는 `window.addCanvasBlock({ cardMode: 'simple', gridCols, gridRows, cards })`로, 자유배치는 `window.addCanvasBlock({ layers })`로 작성한다. `activateCol` / 셀 직접 활성화 패턴은 더 이상 동작하지 않는다. 이 예시는 과거 frame-cell 흐름의 역사적 참고용이다.
 
 ```js
 // 1. 빈 섹션 생성
 window.addSection({ skipDefaultBlock: true })
 
-// 2. 2열 NewGrid 생성 → 자동으로 _activeFrame 설정
+// 2. 2열 NewGrid 생성 → [SEALED] null 반환, 아래 흐름은 더 이상 동작 안 함
 window.addNewGridBlock(2)
 
 // 3. 첫 번째 셀 frame-block을 직접 활성화 → 블록 추가
@@ -856,7 +1083,7 @@ value: [{ src, x, y, w }, ...]
 ## 주의 사항
 
 1. `addSection()` 호출 직후 섹션이 자동 선택됨 — 별도의 `selectSection()` 불필요
-2. `addNewGridBlock()` 호출 직후 `window._activeFrame`에 생성된 frame이 자동 설정됨
+2. ~~`addNewGridBlock()` 호출 직후 `window._activeFrame`에 생성된 frame이 자동 설정됨~~ — **봉인됨(2026-06-08)**, `null` 반환·프레임 미생성. 다열은 `addCanvasBlock`을 사용할 것
 3. Frame 내 셀 작업 후 섹션 레벨로 복귀하려면 `deactivateFrame()` 호출
 4. `addTextBlock`에 `content: ''` 전달 시 placeholder 텍스트 유지 (빈 문자열은 무시됨)
 5. 모든 작업 완료 후 `triggerAutoSave()` 필수 호출
@@ -991,4 +1218,5 @@ window.addAssetBlock('standard', { sectionId: 'sec_wd3nixu' })
 | 2026-04-08 | v1.9 | **freeLayout 절대좌표 지원**: `addTextBlock` / `addAssetBlock`에 `x`, `y`, `width` 옵션 추가. freeLayout Frame 내부에서 해당 값이 있으면 absolute 고정 위치로 배치, 없으면 기존 자동 스택 동작 유지. `dataset.offsetX` / `dataset.offsetY` 저장으로 재로드 시 복원 보장. `_insertToFlowFrame(makeBlockFn, opts)` 시그니처 확장 |
 | 2026-04-05 | v1.6 | **Shape 블록 완성**: (1) `deselectAll()`에 `.shape-block` 누락 추가 — 선택/해제 정상화. (2) `prop-shape.js` 신규 — `showShapeProperties(block)` 구현 (색상/두께/W·H). (3) 4코너 리사이즈 핸들 추가 — `calc(7px * var(--inv-zoom))` 배율 독립 크기, 저장 시 자동 제거. (4) 핸들 리사이즈 시 `block.left/top` 고정(0,0) — Frame(ss)만 리사이즈하도록 수정. (5) shape DnD: mousedown 드래그 제거, `isInnerBlock`에서 제외 → Frame 전체 HTML5 DnD로 이동. (6) 호버 `::after { background: var(--sel-color-fill) }` 추가 — 다른 블록과 일관성. |
 | 2026-05-24 | v2.1 | **Phase 4 편집/조회 API**: `editTextBlock(blockId, opts)`(텍스트 블록 수정 — content/color/fontSize/fontWeight/align), `getBlockById(id)`, `selectBlock(id)`, `getCanvasState(sectionId?)` 추가. |
+| 2026-06-15 | v2.3 | **신규 블록 add/update API 섹션 추가**: addCanvasBlock/addLinerBlock/addVectorBlock/addStickerBlock/addComparisonBlock/addMockupBlock/addLaurelBlock/addStepBlock/addBanner02Block/addGradientBlock/addChatBlock/addSpeechBubbleBlock/addIconifyBlock + 각 `update*Block`. **정정**: `addCardBlock` → DEPRECATED(`addCanvasBlock({cardMode:'simple'})`로 대체). `addNewGridBlock` → SEALED(2026-06-08, `null` 반환) 경고 추가. `activateCol` 잔존 참조 정리. |
 | 2026-05-25 | v2.2 | **`addPresetRow(type)` 문서화** — img1/img2/img3/text-img 다중 이미지 레이아웃 (MCP `add_asset_block`/`build_basic_section`이 호출하는 실제 함수). **정정**: v2.1의 "`addAssetBlock` opts에 sectionId 추가"는 부정확 — sectionId는 **MCP `add_asset_block` 도구 레이어**에 추가된 것으로, main.js 브리지가 대상 섹션을 `selectSection`한 뒤 `addPresetRow`를 호출하는 방식. `window.addAssetBlock` 시그니처 자체는 불변. |

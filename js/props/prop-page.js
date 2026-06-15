@@ -44,6 +44,11 @@ function applyPadXToSection(inner, padX) {
       if (!gb.style.width || gb.style.width.includes('calc')) gb.style.width = '100%';
     }
   });
+  // full-bleed 카드(canvas-block)는 width/margin을 직접 박지 않고 renderCanvas에 위임
+  // (renderCanvas가 effective 섹션 padX를 읽어 calc 확장폭/음수마진을 통합 계산).
+  inner.querySelectorAll('.canvas-block[data-full-bleed="true"]').forEach(cvb => {
+    window.renderCanvas?.(cvb);
+  });
 }
 
 /* ── 페이지 전체 padX 일괄 적용 (섹션 개별 override 제외) ── */

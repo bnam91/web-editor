@@ -74,14 +74,14 @@
 
 | 심각도 | 문제 | 필요 API |
 |--------|------|---------|
-| 높음 | Row/Col 생성 API 없음 | `window.addRow(layout, ratio)`, `window.activateCol(colId)` |
+| 높음 | Row/Col 생성 API 없음 | ~~`window.addRow(layout, ratio)`, `window.activateCol(colId)`~~ **폐기** — `addRow`/`activateCol`은 미구현·삭제됨. 다열은 `addCanvasBlock`(canvas-block) 사용 |
 | 높음 | text content/align 초기값 주입 불가 | `addTextBlock(style, {content, align})` |
 | 중간 | gap height 파라미터 없음 | `addGapBlock(height)` |
 | 중간 | divider 스타일 파라미터 없음 | `addDividerBlock({color, style, weight})` |
 | 중간 | iconCircle 파라미터 없음 | `addIconCircleBlock({size, bgColor})` |
 | 중간 | graph 데이터 주입 불가 | `addGraphBlock({chartType, items})` |
 | 중간 | labelGroup 초기값 없음 | `addLabelGroupBlock({labels})` |
-| 중간 | card count/스타일 하드코딩 | `addCardBlock(count, {bgColor, radius})` |
+| 중간 | card count/스타일 하드코딩 | ~~`addCardBlock(count, {bgColor, radius})`~~ **폐기** → `addCanvasBlock({cardMode:'simple', gridCols, gridRows, cards})` |
 
 ### 스키마 설계 관점 — 6/10
 
@@ -130,7 +130,7 @@
   "schema": "goditor-spec",
   "version": 2,
   "minCompatVersion": 1,
-  "meta": { "generator": "gemini-2.0", "createdAt": "2026-04-03" },
+  "meta": { "generator": "gemini-2.0-flash", "createdAt": "2026-06-15" },
   "sections": [...]
 }
 ```
@@ -151,8 +151,8 @@ Event  → 할인, 기간 한정, 프로모션
 
 ```js
 // 신규 추가 필요
-window.addRow(layout, ratioStr)           // Row 생성 + 레이아웃 적용
-window.activateCol(colId)                 // Col 선택 상태 설정 (state._lastActiveCol 동기화)
+// [폐기] window.addRow(layout, ratioStr)     — 미구현·삭제. 다열은 addCanvasBlock 사용
+// [폐기] window.activateCol(colId)           — 삭제됨 (col-active 컨벤션 제거)
 window.addTextBlock(style, {content, align, paddingX})  // 옵션 파라미터 추가 (paddingX 설계 완료 ✅)
 window.addSection({paddingX})             // paddingX 옵션 추가 (설계 완료 ✅)
 window.addGapBlock(height)                // height 파라미터 추가
@@ -160,7 +160,8 @@ window.addDividerBlock({color, style, weight})
 window.addIconCircleBlock({size, bgColor})
 window.addGraphBlock({chartType, items})
 window.addLabelGroupBlock({labels})
-window.addCardBlock(count, {bgColor, radius})
+// [폐기] window.addCardBlock(count, {bgColor, radius}) — addCanvasBlock({cardMode:'simple', ...})로 대체
+window.addCanvasBlock({cardMode:'simple', gridCols, gridRows, cards})  // 카드/다열 통합
 window.addTableBlock({showHeader, cellAlign})
 
 // 장기 (goditor-api.js 신규 파일)

@@ -1401,6 +1401,7 @@ app.whenReady().then(async () => {
       updateDividerBlock: _invokeRendererUpdateDividerBlock,
       updateAssetBlock: _invokeRendererUpdateAssetBlock,
       updateTableBlock: _invokeRendererUpdateTableBlock,
+      addIconCircleBlock: _invokeRendererAddIconCircleBlock,
       updateIconCircleBlock: _invokeRendererUpdateIconCircleBlock,
       addGraphBlock: _invokeRendererAddGraphBlock,
       updateGraphBlock: _invokeRendererUpdateGraphBlock,
@@ -1413,6 +1414,11 @@ app.whenReady().then(async () => {
       updateShapeBlock: _invokeRendererUpdateShapeBlock,
       addIconTextBlock: _invokeRendererAddIconTextBlock,
       updateIconTextBlock: _invokeRendererUpdateIconTextBlock,
+      // ── [APIMCP P1] 누락 add/update 도구 신설 ──
+      addFrameBlock: _invokeRendererAddFrameBlock,
+      addLinerBlock: _invokeRendererAddLinerBlock,
+      updateLinerBlock: _invokeRendererUpdateLinerBlock,
+      addBannerBlock: _invokeRendererAddBannerBlock,
     });
     // iconify search/svg fetch는 main에서 직접 (renderer CSP/외부 fetch 우회 + SSRF 가드)
     if (typeof setMcpIconifyApi === 'function') {
@@ -1549,126 +1555,71 @@ async function _invokeRendererAddTableBlock({ sectionId, headers, rows, showHead
 // 2026-06-08: PM이 card-block을 직접 생성 못 하던 한계 해결. 1 row + N cards.
 // shared props(bgColor/radius/textAlign/titleSize/descSize)는 모든 카드에 동일 적용.
 // 개별 카드 필드(title/desc/imgSrc/bg)는 cards[i]에서 지정.
+// [APIMCP P0] card-block(cdb_) → canvas-block(cvb_, cardMode='simple') 재배선.
+// window.addCardBlock은 더 이상 존재하지 않음 (card→canvas 전환, NewGrid seal 2026-06-08).
+// add_card_block은 canvas simple-card 그리드(gridCols=N, cards[])로 위임 → cvb_ 블록 1개 생성.
+// shared 옵션(bgColor/radius/textAlign/titleSize/descSize)을 canvas 필드로 매핑.
 async function _invokeRendererAddCardBlock({ sectionId, cards, bgColor, radius, textAlign, titleSize, descSize } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태' };
-  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
-  // cards는 mcp-server에서 길이·필드 검증 후 들어옴. 여기서 string 강제 + null 정리.
-  const safeCards = JSON.stringify(Array.isArray(cards)
-    ? cards.map(c => ({
-        title:  c && c.title  != null ? String(c.title)  : undefined,
-        desc:   c && c.desc   != null ? String(c.desc)   : undefined,
-        imgSrc: c && c.imgSrc != null ? String(c.imgSrc) : undefined,
-      }))
-    : null
-  );
-  const safeBgColor   = bgColor   != null ? JSON.stringify(String(bgColor))   : 'null';
-  const safeRadius    = radius    != null ? JSON.stringify(parseInt(radius))  : 'null';
-  const safeTextAlign = textAlign != null ? JSON.stringify(String(textAlign)) : 'null';
-  const safeTitleSize = titleSize != null ? JSON.stringify(parseInt(titleSize)) : 'null';
-  const safeDescSize  = descSize  != null ? JSON.stringify(parseInt(descSize))  : 'null';
-  const atomicJs = `(() => {
-    try {
-      // ── 동시수정 가드 ──
-      const ae = document.activeElement;
-      const userEditing = !!(ae && (
-        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
-      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
-      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
-      if (userEditing || recentKey) {
-        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
-      }
-      if (typeof window.addCardBlock !== 'function') {
-        return { ok: false, code: 'API_MISSING', message: 'window.addCardBlock not found' };
-      }
-      const sid = ${safeSid};
-      if (sid) {
-        const sec = document.getElementById(sid);
-        if (!sec) return { ok:false, code:'NOT_FOUND', message:'section not found: ' + sid };
-        if (typeof window.selectSection === 'function') window.selectSection(sec);
-      }
-      const opts = {};
-      const _cards = ${safeCards};
-      const _bg = ${safeBgColor};
-      const _rad = ${safeRadius};
-      const _ta = ${safeTextAlign};
-      const _ts = ${safeTitleSize};
-      const _ds = ${safeDescSize};
-      if (Array.isArray(_cards) && _cards.length > 0) opts.cards = _cards;
-      if (_bg !== null) opts.bgColor = _bg;
-      if (_rad !== null) opts.radius = _rad;
-      if (_ta !== null) opts.textAlign = _ta;
-      if (_ts !== null) opts.titleSize = _ts;
-      if (_ds !== null) opts.descSize = _ds;
-      const beforeIds = new Set([...document.querySelectorAll('.card-block')].map(b => b.id));
-      window.addCardBlock(opts);
-      const newCdbs = [...document.querySelectorAll('.card-block')].filter(b => !beforeIds.has(b.id));
-      return { ok: true, cardBlockIds: newCdbs.map(b => b.id), count: newCdbs.length };
-    } catch(e) { return { ok:false, code:'EXCEPTION', message: e.message }; }
-  })()`;
-  try {
-    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
-  } catch (e) {
-    throw new Error('addCardBlock call failed: ' + e.message);
+  const list = Array.isArray(cards) ? cards : [];
+  const n = Math.max(1, Math.min(8, list.length || 1));
+  // cards → canvas simple-card 항목 매핑 (title/desc/imgSrc + cellBg = shared bgColor).
+  const canvasCards = list.map(c => {
+    const o = {};
+    if (c && c.title  != null) o.title  = String(c.title);
+    if (c && c.desc   != null) o.desc   = String(c.desc);
+    if (c && c.imgSrc != null) o.imgSrc = String(c.imgSrc);
+    if (bgColor != null) o.cellBg = String(bgColor);
+    return o;
+  });
+  const opts = {
+    cardMode: 'simple',
+    gridCols: n,
+    gridRows: 1,
+    cards: canvasCards.length ? canvasCards : [{}],
+  };
+  if (radius    != null) opts.radius     = parseInt(radius);
+  if (textAlign != null) opts.textAlign  = String(textAlign);
+  if (titleSize != null) opts.titleSize  = parseInt(titleSize);
+  if (descSize  != null) opts.descSize   = parseInt(descSize);
+  if (bgColor   != null) opts.textBg     = String(bgColor);
+  // canvas 경로로 위임 — 단일 cvb_ 블록(simple card grid) 생성.
+  const res = await _invokeRendererAddCanvasBlock({ sectionId, ...opts });
+  // 하위호환 응답 형태 유지 (cardBlockIds → cvb_ id 1개).
+  if (res && res.ok && res.blockId) {
+    return { ok: true, blockId: res.blockId, cardBlockIds: [res.blockId], count: 1, deprecated: 'card-block→canvas-block(cvb_) 위임' };
   }
+  return res;
 }
 
-// ─── update_card_block — 단일 카드 블록 부분 갱신 ────────────────────────────
-// card-block 1개의 필드를 partial update. 멀티 카드 row 안에서도 개별 cdb_* id로 타깃팅.
+// [APIMCP P0] update_card_block → update_canvas_block 위임.
+// window.updateCardBlock 미존재 (card→canvas 전환). cvb_ 단일카드 블록의 첫 카드(index 0)를
+// patchCards로 갱신. cdb_ id는 더 이상 생성되지 않으므로 cvb_ 만 허용.
 async function _invokeRendererUpdateCardBlock({ blockId, title, desc, imgSrc, bgColor, radius, textAlign, titleSize, descSize } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태' };
-  const safeId = JSON.stringify(String(blockId || ''));
-  // patch 필드별 정규화 (mcp-server validation을 한 번 더)
-  const patch = {};
-  if (title     !== undefined) patch.title     = String(title);
-  if (desc      !== undefined) patch.desc      = String(desc);
-  if (imgSrc    !== undefined) patch.imgSrc    = imgSrc == null ? '' : String(imgSrc);
-  if (bgColor   !== undefined) patch.bgColor   = String(bgColor);
-  if (radius    !== undefined) patch.radius    = parseInt(radius);
-  if (textAlign !== undefined) patch.textAlign = String(textAlign);
-  if (titleSize !== undefined) patch.titleSize = parseInt(titleSize);
-  if (descSize  !== undefined) patch.descSize  = parseInt(descSize);
-  const safePatch = JSON.stringify(patch);
-  const atomicJs = `(() => {
-    try {
-      // ── 동시수정 가드 (add_card_block과 동일 강도; Codex 리뷰 #1 반영) ──
-      // 다른 블록 편집 중에도 DOM/history mutation race 가능하므로 동등 차단.
-      const ae = document.activeElement;
-      const userEditing = !!(ae && (
-        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
-      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
-      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
-      if (userEditing || recentKey) {
-        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
-      }
-      if (typeof window.updateCardBlock !== 'function') {
-        return { ok: false, code: 'API_MISSING', message: 'window.updateCardBlock not found' };
-      }
-      // pre-flight: target 존재 확인 — invalid id가 빈 history entry 만드는 것 방지 (Codex 리뷰 #3)
-      const _pre = document.getElementById(${safeId});
-      if (!_pre || !_pre.classList.contains('card-block')) {
-        return { ok: false, code: 'NOT_FOUND', message: 'card-block not found: ' + ${safeId} };
-      }
-      // pushHistory는 검증 통과 후 (Codex 리뷰 #3)
-      if (typeof window.pushHistory === 'function') window.pushHistory();
-      const result = window.updateCardBlock(${safeId}, ${safePatch});
-      // 적용 후 prop 패널이 열려 있고 같은 블록이 선택되어 있으면 다시 그려 동기화
-      if (result && result.ok) {
-        const cdb = document.getElementById(${safeId});
-        if (cdb && cdb.classList.contains('selected') && typeof window.showCardProperties === 'function') {
-          try { window.showCardProperties(cdb); } catch(_) {}
-        }
-        if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
-      }
-      return result;
-    } catch(e) { return { ok:false, code:'EXCEPTION', message: e.message }; }
-  })()`;
-  try {
-    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
-  } catch (e) {
-    throw new Error('updateCardBlock call failed: ' + e.message);
+  const id = String(blockId || '');
+  if (!id.startsWith('cvb_')) {
+    return { ok: false, code: 'DEPRECATED', message: 'card-block(cdb_)은 canvas-block(cvb_)으로 통합됨. cvb_ id를 전달하거나 update_canvas_block을 사용하세요.' };
   }
+  // 카드 항목 patch (index 0) + 블록 공통 필드를 canvas partial로 매핑.
+  const card = {};
+  if (title  !== undefined) card.title  = String(title);
+  if (desc   !== undefined) card.desc   = String(desc);
+  if (imgSrc !== undefined) card.imgSrc = imgSrc == null ? '' : String(imgSrc);
+  if (bgColor !== undefined) card.cellBg = String(bgColor);
+  const partial = {};
+  if (Object.keys(card).length) partial.patchCards = [{ index: 0, ...card }];
+  if (bgColor   !== undefined) partial.textBg    = String(bgColor);
+  if (radius    !== undefined) partial.radius    = parseInt(radius);
+  if (textAlign !== undefined) partial.textAlign = String(textAlign);
+  if (titleSize !== undefined) partial.titleSize = parseInt(titleSize);
+  if (descSize  !== undefined) partial.descSize  = parseInt(descSize);
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'no fields to update' };
+  }
+  return await _invokeRendererUpdateCanvasBlock({ blockId: id, partial });
 }
 
 // ─── update_section — 섹션 속성 (배경 등) 변경 ──────────────────────────────
@@ -2943,6 +2894,219 @@ async function _invokeRendererUpdateCanvasBlock({ blockId, partial } = {}) {
   }
 }
 
+// ─── [APIMCP P1] add_frame_block — frame-block(ss_) 컨테이너 추가 ─────────────
+// window.addFrameBlock({fullWidth, bg, radius}) 위임. add 후 update_frame_block(ss_, partial)로 수정.
+async function _invokeRendererAddFrameBlock({ sectionId, fullWidth, bg, radius } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeSid = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const opts = {};
+  if (fullWidth === true) opts.fullWidth = true;
+  if (bg != null) opts.bg = String(bg);
+  if (radius != null) opts.radius = parseInt(radius);
+  const safeOpts = JSON.stringify(opts);
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addFrameBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addFrameBlock not found' };
+      }
+      const sid = ${safeSid};
+      if (sid) {
+        const sec = document.getElementById(sid);
+        if (!sec) return { ok:false, code:'NOT_FOUND', message:'section not found: ' + sid };
+        if (typeof window.selectSection === 'function') window.selectSection(sec);
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.frame-block')].map(b => b.id));
+      window.addFrameBlock(${safeOpts});
+      const blocks = [...document.querySelectorAll('.frame-block')];
+      const newBlock = blocks.find(b => !beforeIds.has(b.id));
+      if (!newBlock) return { ok: false, code: 'NO_ADD', message: 'frame-block이 추가되지 않았습니다.' };
+      if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
+      return { ok: true, blockId: newBlock.id, pageId: window.activePageId || null };
+    } catch(e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addFrameBlock call failed: ' + e.message);
+  }
+}
+
+// ─── [APIMCP P1] add_liner_block — liner-block(lnr_, 곡선/원형 텍스트) 추가 ───
+// window.addLinerBlock(preset) 위임 + 생성 직후 text/fontSize/curvature/letterSpacing/startAngle를
+// 미러(.tb-liner)에 반영하고 window.applyLiner/applyLinerText로 SVG 재렌더.
+async function _invokeRendererAddLinerBlock({ sectionId, preset, text, fontSize, curvature, letterSpacing, startAngle } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeSid    = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safePreset = JSON.stringify(preset || 'arc-up');
+  const cfg = {};
+  if (curvature     != null) cfg.curvature     = Number(curvature);
+  if (letterSpacing != null) cfg.letterSpacing = Number(letterSpacing);
+  if (startAngle    != null) cfg.startAngle    = Number(startAngle);
+  const safeCfg      = JSON.stringify(cfg);
+  const safeText     = text     != null ? JSON.stringify(String(text)) : 'null';
+  const safeFontSize = fontSize != null ? JSON.stringify(parseInt(fontSize)) : 'null';
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addLinerBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addLinerBlock not found' };
+      }
+      const sid = ${safeSid};
+      if (sid) {
+        const sec = document.getElementById(sid);
+        if (!sec) return { ok:false, code:'NOT_FOUND', message:'section not found: ' + sid };
+        if (typeof window.selectSection === 'function') window.selectSection(sec);
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.liner-block')].map(b => b.id));
+      window.addLinerBlock(${safePreset});
+      const blocks = [...document.querySelectorAll('.liner-block')];
+      const block = blocks.find(b => !beforeIds.has(b.id));
+      if (!block) return { ok: false, code: 'NO_ADD', message: 'liner-block이 추가되지 않았습니다.' };
+      // 텍스트/폰트크기 — 미러(.tb-liner)가 SSOT.
+      const mirror = block.querySelector('.tb-liner');
+      const _text = ${safeText};
+      const _fs   = ${safeFontSize};
+      if (mirror) {
+        if (_text !== null) {
+          mirror.textContent = _text;
+          mirror.dataset.isPlaceholder = 'false';
+        }
+        if (_fs !== null) mirror.style.fontSize = _fs + 'px';
+      }
+      // curvature/letterSpacing/startAngle + 텍스트 재렌더.
+      const _cfg = Object.assign({ preset: ${safePreset} }, ${safeCfg});
+      if (typeof window.applyLiner === 'function') window.applyLiner(block, _cfg);
+      if (typeof window.applyLinerText === 'function') window.applyLinerText(block);
+      if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
+      return { ok: true, blockId: block.id, pageId: window.activePageId || null };
+    } catch(e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addLinerBlock call failed: ' + e.message);
+  }
+}
+
+// ─── [APIMCP P1] update_liner_block — liner-block(lnr_) 부분 수정 ─────────────
+// window.updateLinerBlock 미존재 → 미러(.tb-liner) 텍스트/폰트 직접 set + window.applyLiner로 재렌더.
+async function _invokeRendererUpdateLinerBlock({ blockId, preset, text, fontSize, curvature, letterSpacing, startAngle } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeId = JSON.stringify(String(blockId || ''));
+  const cfg = {};
+  if (preset        != null) cfg.preset        = String(preset);
+  if (curvature     != null) cfg.curvature     = Number(curvature);
+  if (letterSpacing != null) cfg.letterSpacing = Number(letterSpacing);
+  if (startAngle    != null) cfg.startAngle    = Number(startAngle);
+  const safeCfg      = JSON.stringify(cfg);
+  const safeText     = text     != null ? JSON.stringify(String(text)) : 'null';
+  const safeFontSize = fontSize != null ? JSON.stringify(parseInt(fontSize)) : 'null';
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.applyLiner !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.applyLiner not found' };
+      }
+      const block = document.getElementById(${safeId});
+      if (!block || !block.classList.contains('liner-block')) {
+        return { ok: false, code: 'NOT_FOUND', message: 'liner-block not found: ' + ${safeId} };
+      }
+      if (typeof window.pushHistory === 'function') window.pushHistory();
+      const mirror = block.querySelector('.tb-liner');
+      const _text = ${safeText};
+      const _fs   = ${safeFontSize};
+      const applied = {};
+      if (mirror) {
+        if (_text !== null) { mirror.textContent = _text; mirror.dataset.isPlaceholder = 'false'; applied.text = _text; }
+        if (_fs !== null)   { mirror.style.fontSize = _fs + 'px'; applied.fontSize = _fs; }
+      }
+      // 기존 dataset.liner 위에 cfg 머지 (preset 없으면 기존 유지).
+      let prev = {};
+      try { prev = JSON.parse(block.dataset.liner || '{}'); } catch(_) {}
+      const _cfg = Object.assign({}, prev, ${safeCfg});
+      Object.assign(applied, ${safeCfg});
+      window.applyLiner(block, _cfg);
+      if (typeof window.applyLinerText === 'function') window.applyLinerText(block);
+      if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
+      return { ok: true, blockId: block.id, applied };
+    } catch(e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('updateLinerBlock call failed: ' + e.message);
+  }
+}
+
+// ─── [APIMCP P1] add_banner_block — banner(frame_8|wide_4x1) 프리셋 외곽 추가 ─
+// window.addBannerBlock(presetKey) 위임. 생성 결과는 frame-block(ss_, bannerPreset set).
+async function _invokeRendererAddBannerBlock({ sectionId, preset } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeSid    = sectionId ? JSON.stringify(String(sectionId)) : 'null';
+  const safePreset = JSON.stringify(preset || 'frame_8');
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addBannerBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addBannerBlock not found' };
+      }
+      if (!window.BANNER_PRESETS || !window.BANNER_PRESETS[${safePreset}]) {
+        return { ok: false, code: 'INVALID', message: 'unknown banner preset: ' + ${safePreset} };
+      }
+      const sid = ${safeSid};
+      if (sid) {
+        const sec = document.getElementById(sid);
+        if (!sec) return { ok:false, code:'NOT_FOUND', message:'section not found: ' + sid };
+        if (typeof window.selectSection === 'function') window.selectSection(sec);
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.frame-block')].map(b => b.id));
+      window.addBannerBlock(${safePreset});
+      const blocks = [...document.querySelectorAll('.frame-block')];
+      const newBlock = blocks.find(b => !beforeIds.has(b.id));
+      if (!newBlock) return { ok: false, code: 'NO_ADD', message: 'banner(frame-block)이 추가되지 않았습니다.' };
+      return { ok: true, blockId: newBlock.id, preset: ${safePreset}, pageId: window.activePageId || null };
+    } catch(e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addBannerBlock call failed: ' + e.message);
+  }
+}
+
 // setRendererInvoker bridge에 추가 (main.js ~line 1247 인근 addBanner02Block 라인 뒤):
 //   addCanvasBlock: _invokeRendererAddCanvasBlock,
 //   updateCanvasBlock: _invokeRendererUpdateCanvasBlock,
@@ -3612,6 +3776,40 @@ async function _invokeRendererUpdateIconCircleBlock({ blockId, partial } = {}) {
     return await mainWindow.webContents.executeJavaScript(atomicJs, true);
   } catch (e) {
     throw new Error('updateIconCircleBlock call failed: ' + e.message);
+  }
+}
+
+// ─── add_icon_circle_block — icon-circle 블록 추가 (bridge 누락 보완, addFrameBlock 패턴 미러) ───
+async function _invokeRendererAddIconCircleBlock(opts = {}) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
+  const safeOpts = JSON.stringify(opts || {});
+  const atomicJs = `(() => {
+    try {
+      const ae = document.activeElement;
+      const userEditing = !!(ae && (
+        ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'
+      ) && !(ae.closest && ae.closest('#claude-pm-terminal-panel, #claude-pm-terminal-mini, .xterm, .xterm-helper-textarea')));
+      const recentKey = (Date.now() - (window._lastUserKeydown || 0)) < 1500;
+      if (userEditing || recentKey) {
+        return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다. 잠시 후 다시 시도하세요.', retryAfter: 2000, detail: { userEditing, recentKey } };
+      }
+      if (typeof window.addIconCircleBlock !== 'function') {
+        return { ok: false, code: 'API_MISSING', message: 'window.addIconCircleBlock not found' };
+      }
+      const beforeIds = new Set([...document.querySelectorAll('.icon-circle-block')].map(b => b.id));
+      window.addIconCircleBlock(${safeOpts});
+      const blocks = [...document.querySelectorAll('.icon-circle-block')];
+      const newBlock = blocks.find(b => !beforeIds.has(b.id));
+      if (!newBlock) return { ok: false, code: 'NO_ADD', message: 'icon-circle-block이 추가되지 않았습니다.' };
+      if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
+      return { ok: true, blockId: newBlock.id, pageId: window.activePageId || null };
+    } catch(e) { return { ok:false, code:'CALL_ERROR', message: e.message }; }
+  })()`;
+  try {
+    return await mainWindow.webContents.executeJavaScript(atomicJs, true);
+  } catch (e) {
+    throw new Error('addIconCircleBlock call failed: ' + e.message);
   }
 }
 

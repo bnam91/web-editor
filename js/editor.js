@@ -2116,7 +2116,17 @@ function deleteBlock(blockIdOrEl) {
   // section은 deleteSection 별도
   if (block.classList.contains('section-block')) return false;
   pushHistory('블록 삭제 전');
+  // 삭제 전 부모 text-frame 캡처 — 삭제 후 빈 wrapper(orphan) 정리용
+  const parentTf = block.closest?.('.frame-block[data-text-frame="true"]');
   block.remove();
+  // text-block을 지워 부모 text-frame이 비면(=.text-block 0개) 그 빈 프레임도 제거.
+  // freeLayout 직속 flow(position relative, h0) 유령 wrapper 잔존 방지.
+  // 단, 의도적 빈 줄(data-blank) 텍스트블럭을 품은 프레임은 정리 대상 아님
+  // (애초에 .text-block이 남아있으므로 아래 조건에서 자연히 제외됨).
+  if (parentTf && parentTf.isConnected && parentTf !== block
+      && !parentTf.querySelector('.text-block')) {
+    parentTf.remove();
+  }
   window.buildLayerPanel?.();
   window.triggerAutoSave?.();
   return true;

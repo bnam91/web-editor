@@ -553,7 +553,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.addCardBlock({ sectionId, cards, bgColor, radius, textAlign, titleSize, descSize });
     },
     {
-      description: 'Add a card-block row containing N cards (image + title + desc each). Use for feature cards / benefit highlights. Differs from canvas-block: card-block is a row+col grid of independent cards (each gets its own cdb_* id), while canvas-block is one absolute-positioned compound block (mainly used for Figma imports). cards=[{title,desc,imgSrc?}, ...] — max 8. shared props (bgColor/radius/textAlign/titleSize/descSize) apply to all cards in the row.',
+      description: 'DEPRECATED ALIAS → canvas-block. Adds N cards (image + title + desc each) as a single canvas-block (cvb_*) in Simple Card Mode (gridCols=N, gridRows=1). card-block(cdb_)은 canvas-block(cvb_)으로 통합됨 (2026-06-08 NewGrid seal) — 이 도구는 호환을 위해 canvas simple-card 그리드로 위임한다. Use for feature cards / benefit highlights. cards=[{title,desc,imgSrc?}, ...] — max 8. shared props: bgColor→textBg/cellBg, radius/textAlign/titleSize/descSize. Returns {ok, blockId(cvb_), cardBlockIds:[blockId], count:1}. 신규 작업은 add_canvas_block(cardMode="simple") 직접 사용 권장.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -588,8 +588,9 @@ function _registerDefaultTools() {
   registerTool(
     'update_card_block',
     async ({ blockId, title, desc, imgSrc, bgColor, radius, textAlign, titleSize, descSize } = {}) => {
-      if (!blockId || typeof blockId !== 'string' || !blockId.startsWith('cdb_')) {
-        throw new Error(`blockId required (cdb_xxx)`);
+      // [APIMCP P0] card-block→canvas-block 통합. cvb_ id만 허용 (cdb_는 더 이상 생성 안 됨).
+      if (!blockId || typeof blockId !== 'string' || !blockId.startsWith('cvb_')) {
+        throw new Error(`blockId required (cvb_xxx) — card-block(cdb_)은 canvas-block(cvb_)으로 통합됨. update_canvas_block을 직접 써도 됨.`);
       }
       const fields = { title, desc, imgSrc, bgColor, radius, textAlign, titleSize, descSize };
       const hasAny = Object.values(fields).some(v => v !== undefined);
@@ -630,11 +631,11 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateCardBlock({ blockId, title, desc, imgSrc, bgColor, radius, textAlign, titleSize, descSize });
     },
     {
-      description: 'Partially update a single card-block (cdb_*). Each card in a multi-card row has its own cdb_* id — pass that id directly. Pass only fields you want changed; others are preserved. Returns {ok, blockId, applied}. Use empty string for imgSrc to remove the image. If user is editing inside the same card, returns USER_BUSY.',
+      description: 'DEPRECATED ALIAS → update_canvas_block. Partially updates the first card (index 0) of a canvas simple-card block (cvb_*). card-block(cdb_)은 canvas-block(cvb_)으로 통합됨. Pass the cvb_ id (e.g. returned from add_card_block). Pass only fields you want changed. Use empty string for imgSrc to remove the image. Returns USER_BUSY if user is editing. 여러 카드 갱신은 update_canvas_block(patchCards) 사용.',
       inputSchema: {
         type: 'object',
         properties: {
-          blockId:   { type: 'string', description: 'cdb_xxx to update' },
+          blockId:   { type: 'string', description: 'cvb_xxx to update (canvas simple-card block)' },
           title:     { type: 'string', description: 'new title text (≤500)' },
           desc:      { type: 'string', description: 'new description text (≤2000)' },
           imgSrc:    { type: 'string', description: 'image src (URL or dataURL ≤2MB). Empty string removes image.' },
@@ -1180,7 +1181,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateFrameBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING frame block (ss_xxx) — partial update of container visual/layout properties. Frame은 다른 블록을 담는 컨테이너지만 자체 속성(배경/보더/사이즈/패딩/정렬/변형)을 직접 조작 가능. 자식 추가/제거는 add_* 도구를 사용. 지원 필드: bg(solid|gradient), bgImage(url/path|null), width/height/paddingY/radius, borderWidth/borderStyle/borderColor, alignItems/justifyContent/gap, translateX/translateY/rotateDeg/flipH/flipV, bannerPreset(+confirmDestructive). 주의: (1) layout 모드(freeLayout↔fullWidth)는 자식 좌표계 자체가 바뀌므로 update 범위에서 제외. (2) bannerPreset 변경은 destructive (frame 내부 자식 모두 삭제) — confirmDestructive:true 필수. (3) freeLayout 모드에선 alignItems/justifyContent가 flex 효과 없음 (자식이 absolute) — dataset만 갱신. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state.',
+      description: 'Edit an EXISTING frame block (ss_xxx) — partial update of container visual/layout properties. Frame은 다른 블록을 담는 컨테이너지만 자체 속성(배경/보더/사이즈/패딩/정렬/변형)을 직접 조작 가능. 자식 추가/제거는 add_* 도구를 사용. 지원 필드: bg(solid|gradient), bgImage(url/path|null), bgOpacity(0~1), width/height/paddingY/radius, borderWidth/borderStyle/borderColor, alignItems/justifyContent/gap, translateX/translateY/rotateDeg/flipH/flipV, bannerPreset(+confirmDestructive). 주의: (1) layout 모드(freeLayout↔fullWidth)는 자식 좌표계 자체가 바뀌므로 update 범위에서 제외. (2) bannerPreset 변경은 destructive (frame 내부 자식 모두 삭제) — confirmDestructive:true 필수. (3) freeLayout 모드에선 alignItems/justifyContent가 flex 효과 없음 (자식이 absolute) — dataset만 갱신. Returns USER_BUSY if user is editing. Get blockId from get_canvas_state.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1191,6 +1192,7 @@ function _registerDefaultTools() {
           height:   { type: 'integer', minimum: 20,   maximum: 4000, description: 'frame 높이 px' },
           paddingY: { type: 'integer', minimum: 0,    maximum: 400,  description: '상/하 패딩 px (좌우는 기본 0)' },
           radius:   { type: 'integer', minimum: 0,    maximum: 400,  description: 'border-radius px' },
+          bgOpacity: { type: 'number', minimum: 0,    maximum: 1,    description: '배경 불투명도 (0~1 float). 배경만 반투명, 콘텐츠는 불투명 유지. 1=완전 불투명' },
           borderWidth: { type: 'integer', minimum: 0, maximum: 100, description: '보더 두께 px (0이면 보더 제거)' },
           borderStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted', 'double', 'none'], description: '보더 스타일' },
           borderColor: { type: 'string', description: '보더 색상. #hex | rgb(a)/hsl(a)() | transparent' },
@@ -1206,6 +1208,131 @@ function _registerDefaultTools() {
           confirmDestructive: { type: 'boolean', description: 'bannerPreset 변경 시 자식 모두 삭제 동의 플래그. bannerPreset과 동반 호출해야 적용.' }
         },
         required: ['blockId']
+      }
+    }
+  );
+
+  // ─── [APIMCP P1] add_frame_block — frame-block(ss_) 컨테이너 추가 ──────────
+  // update_frame_block(ss_)만 있고 add가 없던 누락 보완. window.addFrameBlock 위임.
+  registerTool(
+    'add_frame_block',
+    async ({ sectionId, fullWidth, bg, radius } = {}) => {
+      if (!_rendererInvoker?.addFrameBlock) throw new Error('renderer bridge not ready');
+      if (sectionId !== undefined && (typeof sectionId !== 'string' || !sectionId.startsWith('sec_'))) {
+        throw new Error(`invalid sectionId: ${sectionId}`);
+      }
+      if (fullWidth !== undefined && typeof fullWidth !== 'boolean') throw new Error('fullWidth must be boolean');
+      if (bg !== undefined && bg !== null) {
+        if (typeof bg !== 'string') throw new Error('bg must be string');
+        const v = bg.trim();
+        const ok = /^#[0-9a-fA-F]{3,8}$/.test(v) || /^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/.test(v) || v === 'transparent';
+        if (!ok) throw new Error(`invalid bg: ${bg} (use #hex | rgb(a)/hsl(a)() | transparent)`);
+      }
+      if (radius !== undefined && radius !== null) {
+        if (!Number.isInteger(radius) || radius < 0 || radius > 400) throw new Error(`invalid radius: ${radius} (0~400)`);
+      }
+      return await _rendererInvoker.addFrameBlock({ sectionId, fullWidth, bg, radius });
+    },
+    {
+      description: 'Add a frame block (ss_xxx) — a container that holds other blocks. Two modes: freeLayout (default, absolute-positioned children, 860×520) or fullWidth(true) (flow layout, height auto, for dual-background sections). After creation use add_* tools to insert children (select the frame first) and update_frame_block(ss_, partial) to style it. Returns {ok, blockId}. blockId prefix: ss_.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx — omit to use currently selected section' },
+          fullWidth: { type: 'boolean', description: 'true=fullWidth flow layout (이중배경 섹션용), 미지정=freeLayout 자유배치(기본)' },
+          bg:        { type: 'string', description: '배경색 (#hex | rgb(a)/hsl(a)() | transparent). default #ffffff' },
+          radius:    { type: 'integer', minimum: 0, maximum: 400, description: 'border-radius px' }
+        },
+        required: []
+      }
+    }
+  );
+
+  // ─── [APIMCP P1] add_liner_block — liner-block(lnr_, 곡선/원형 텍스트) 추가 ─
+  // window.addLinerBlock(preset) + applyLiner로 text/fontSize/curvature/letterSpacing/startAngle 반영.
+  registerTool(
+    'add_liner_block',
+    async ({ sectionId, preset, text, fontSize, curvature, letterSpacing, startAngle } = {}) => {
+      if (!_rendererInvoker?.addLinerBlock) throw new Error('renderer bridge not ready');
+      if (sectionId !== undefined && (typeof sectionId !== 'string' || !sectionId.startsWith('sec_'))) {
+        throw new Error(`invalid sectionId: ${sectionId}`);
+      }
+      _validateLinerFields({ preset, text, fontSize, curvature, letterSpacing, startAngle });
+      return await _rendererInvoker.addLinerBlock({ sectionId, preset, text, fontSize, curvature, letterSpacing, startAngle });
+    },
+    {
+      description: 'Add a liner block (lnr_xxx) — text laid out along a curve/arc/wave/circle path (SVG textPath). Use for 곡선 텍스트 / 원형 라벨 / 아치형 헤드라인. preset: arc-up|arc-down|wave|circle. curvature(0~100) 곡률, letterSpacing(-2~20px) 자간, startAngle(0~360°) 시작 회전 위치(circle에서 12시 기준 시계방향), fontSize 글자 px, text 내용. Returns {ok, blockId}. blockId prefix: lnr_. 이후 update_liner_block(blockId, ...)로 수정.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId:     { type: 'string', description: 'sec_xxx — omit to use currently selected section' },
+          preset:        { type: 'string', enum: ['arc-up','arc-down','wave','circle'], description: '곡선 형태. default arc-up' },
+          text:          { type: 'string', description: '표시 텍스트 (미지정 시 placeholder)' },
+          fontSize:      { type: 'integer', minimum: 4, maximum: 400, description: '글자 크기 px' },
+          curvature:     { type: 'number', minimum: 0, maximum: 100, description: '곡률 (0~100). default 50' },
+          letterSpacing: { type: 'number', minimum: -2, maximum: 20, description: '추가 자간 px (-2~20). default 0' },
+          startAngle:    { type: 'number', minimum: 0, maximum: 360, description: '시작 회전 각도 deg (0~360). default 0' }
+        },
+        required: []
+      }
+    }
+  );
+
+  // ─── [APIMCP P1] update_liner_block — liner-block(lnr_) 부분 수정 ──────────
+  registerTool(
+    'update_liner_block',
+    async ({ blockId, preset, text, fontSize, curvature, letterSpacing, startAngle } = {}) => {
+      if (!_rendererInvoker?.updateLinerBlock) throw new Error('renderer bridge not ready');
+      if (typeof blockId !== 'string' || !blockId.startsWith('lnr_')) {
+        throw new Error(`invalid blockId: ${blockId}. must be a string starting with "lnr_"`);
+      }
+      _validateLinerFields({ preset, text, fontSize, curvature, letterSpacing, startAngle });
+      const hasAny = [preset, text, fontSize, curvature, letterSpacing, startAngle].some(v => v !== undefined);
+      if (!hasAny) throw new Error('no fields to update — provide at least one liner field');
+      return await _rendererInvoker.updateLinerBlock({ blockId, preset, text, fontSize, curvature, letterSpacing, startAngle });
+    },
+    {
+      description: 'Edit an EXISTING liner block (lnr_xxx) — partial update. Fields: preset(arc-up|arc-down|wave|circle), text, fontSize(4~400), curvature(0~100), letterSpacing(-2~20), startAngle(0~360). Pass only fields you want changed; preset omitted keeps current. Returns USER_BUSY if user is editing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          blockId:       { type: 'string', description: 'lnr_xxx (liner block id)' },
+          preset:        { type: 'string', enum: ['arc-up','arc-down','wave','circle'] },
+          text:          { type: 'string', description: '표시 텍스트' },
+          fontSize:      { type: 'integer', minimum: 4, maximum: 400, description: '글자 크기 px' },
+          curvature:     { type: 'number', minimum: 0, maximum: 100, description: '곡률 (0~100)' },
+          letterSpacing: { type: 'number', minimum: -2, maximum: 20, description: '추가 자간 px' },
+          startAngle:    { type: 'number', minimum: 0, maximum: 360, description: '시작 회전 각도 deg' }
+        },
+        required: ['blockId']
+      }
+    }
+  );
+
+  // ─── [APIMCP P1] add_banner_block — banner 프리셋 외곽(frame-block) 추가 ────
+  // window.addBannerBlock(presetKey) 위임. preset 화이트리스트: frame_8 | wide_4x1.
+  // 결과는 frame-block(ss_, bannerPreset set) — 자식 텍스트/이미지는 프리셋이 자동 주입.
+  registerTool(
+    'add_banner_block',
+    async ({ sectionId, preset } = {}) => {
+      if (!_rendererInvoker?.addBannerBlock) throw new Error('renderer bridge not ready');
+      if (sectionId !== undefined && (typeof sectionId !== 'string' || !sectionId.startsWith('sec_'))) {
+        throw new Error(`invalid sectionId: ${sectionId}`);
+      }
+      if (preset !== undefined && preset !== null && !['frame_8', 'wide_4x1'].includes(preset)) {
+        throw new Error(`invalid preset: ${preset}. allowed: frame_8|wide_4x1`);
+      }
+      return await _rendererInvoker.addBannerBlock({ sectionId, preset });
+    },
+    {
+      description: 'Add a banner block — a preset frame-block(ss_xxx) with auto-injected text+image children. preset: frame_8 (가로 배너, 텍스트+이미지) | wide_4x1 (와이드 4:1). 결과 blockId는 ss_ (frame). 외곽/자식 추가 수정은 update_frame_block + add_* 도구. Note: banner02-block(add_banner02_block)과는 별개 시스템 — 이쪽은 frame 기반 레거시 banner 프리셋. Returns {ok, blockId, preset}.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sectionId: { type: 'string', description: 'sec_xxx — omit to use currently selected section' },
+          preset:    { type: 'string', enum: ['frame_8', 'wide_4x1'], description: '배너 프리셋. default frame_8' }
+        },
+        required: []
       }
     }
   );
@@ -1473,6 +1600,7 @@ function _registerDefaultTools() {
                 imgFit:      { type: 'string', enum: ['cover','contain'] },
                 imgX:        { type: 'number', minimum: 0, maximum: 100, description: 'background-position X % (0~100)' },
                 imgY:        { type: 'number', minimum: 0, maximum: 100, description: 'background-position Y % (0~100)' },
+                imgScale:    { type: 'number', minimum: 100, maximum: 400, description: '이미지 확대 % (100~400). default 100' },
                 cellBg:      { type: 'string', description: '카드별 텍스트 영역 배경색 (textBg 오버라이드)' },
                 borderWidth: { type: 'integer', minimum: 0, maximum: 20 },
                 borderColor: { type: 'string' },
@@ -1555,6 +1683,7 @@ function _registerDefaultTools() {
                 imgFit:      { type: 'string', enum: ['cover','contain'] },
                 imgX:        { type: 'number', minimum: 0, maximum: 100 },
                 imgY:        { type: 'number', minimum: 0, maximum: 100 },
+                imgScale:    { type: 'number', minimum: 100, maximum: 400, description: '이미지 확대 % (100~400)' },
                 cellBg:      { type: 'string' },
                 borderWidth: { type: 'integer', minimum: 0, maximum: 20 },
                 borderColor: { type: 'string' },
@@ -1577,6 +1706,7 @@ function _registerDefaultTools() {
                 imgFit:      { type: 'string', enum: ['cover','contain'] },
                 imgX:        { type: 'number', minimum: 0, maximum: 100 },
                 imgY:        { type: 'number', minimum: 0, maximum: 100 },
+                imgScale:    { type: 'number', minimum: 100, maximum: 400, description: '이미지 확대 % (100~400)' },
                 cellBg:      { type: 'string' },
                 borderWidth: { type: 'integer', minimum: 0, maximum: 20 },
                 borderColor: { type: 'string' },
@@ -2222,7 +2352,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateTableBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING table block (tbl_xxx) — partial update. Data: headers (string[]) + rows (string[][]). Style: style|cellAlign|cellPad|showHeader|showVLines|showHLines|showOuterX|showOuterY|outerWidth|rowH|tablePadX|lineColor|headerBg|textColor|fontFamily|fontSize|colWidths|colBgs|colFgs. headers+rows 동시 갱신 시 cols 일치 필수. headers/rows 단독 갱신 시 기존 colCount와 일치 필수. Returns USER_BUSY if user is editing.',
+      description: 'Edit an EXISTING table block (tbl_xxx) — partial update. Data: headers (string[]) + rows (string[][]). Style: style|cellAlign|cellPad|showHeader|showVLines|showHLines|showOuterX|showOuterY|outerWidth|rowH|tablePadX|headerSize|lineColor|headerBg|textColor|fontFamily|fontSize|colWidths|colBgs|colFgs. headers+rows 동시 갱신 시 cols 일치 필수. headers/rows 단독 갱신 시 기존 colCount와 일치 필수. Returns USER_BUSY if user is editing.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2240,6 +2370,7 @@ function _registerDefaultTools() {
           outerWidth: { type: 'integer', minimum: 1, maximum: 6, description: '외곽선 두께 px' },
           rowH:       { type: 'integer', minimum: 0, maximum: 160, description: '행 높이 px (0=auto)' },
           tablePadX:  { type: 'integer', minimum: 0, maximum: 120, description: '테이블 좌우 여백 px' },
+          headerSize: { type: 'integer', minimum: 0, maximum: 60, description: '헤더 글자 크기 px (0~60). 0=본문 fontSize 상속' },
           lineColor:  { type: 'string', description: '선 색 (#hex | rgb(a)/hsl(a)() | transparent)' },
           headerBg:   { type: 'string', description: '헤더 배경색' },
           textColor:  { type: 'string', description: '글자색' },
@@ -3277,6 +3408,30 @@ function _validateBanner02Opts(args, { mode } = {}) {
 }
 
 
+// ─── [APIMCP P1] liner-block 필드 검증 (add/update 공용) ─────────────────────
+// preset enum(arc-up|arc-down|wave|circle), text(string ≤2000), fontSize(int 4~400),
+// curvature(0~100), letterSpacing(-2~20), startAngle(0~360). 모두 optional.
+const _LINER_PRESETS = ['arc-up', 'arc-down', 'wave', 'circle'];
+function _validateLinerFields({ preset, text, fontSize, curvature, letterSpacing, startAngle } = {}) {
+  if (preset !== undefined && preset !== null && !_LINER_PRESETS.includes(preset)) {
+    throw new Error(`invalid preset: ${preset}. allowed: ${_LINER_PRESETS.join('|')}`);
+  }
+  if (text !== undefined && text !== null) {
+    if (typeof text !== 'string') throw new Error('text must be string');
+    if ([...text].length > 2000) throw new Error('text too long (>2000)');
+  }
+  const _num = (v, key, min, max, intOnly) => {
+    if (v === undefined || v === null) return;
+    if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error(`${key} must be number`);
+    if (intOnly && !Number.isInteger(v)) throw new Error(`${key} must be integer`);
+    if (v < min || v > max) throw new Error(`${key} out of range [${min}, ${max}]`);
+  };
+  _num(fontSize, 'fontSize', 4, 400, true);
+  _num(curvature, 'curvature', 0, 100, false);
+  _num(letterSpacing, 'letterSpacing', -2, 20, false);
+  _num(startAngle, 'startAngle', 0, 360, false);
+}
+
 // frame-block partial validator (banner02 _validateBanner02Opts 패턴 미러).
 // mode='update' 전용 (frame은 add_* 도구를 별도로 가지므로 update만 다룸).
 // 모든 필드 optional, strict. enum은 화이트리스트 강제.
@@ -3364,6 +3519,9 @@ function _validateFrameOpts(args, { mode } = {}) {
   _int('height', 20, 4000);
   _int('paddingY', 0, 400);
   _int('radius', 0, 400);
+
+  // [APIMCP P1] bgOpacity (배경 반투명 0~1 float, 콘텐츠는 불투명 유지) — renderer 지원, MCP 노출 누락이었음.
+  _num('bgOpacity', 0, 1);
 
   // 4) Border
   _int('borderWidth', 0, 100);
@@ -3758,6 +3916,13 @@ function _validateCanvasOpts(args, { mode } = {}) {
         throw new Error(`${ctx}.imgY must be number 0~100`);
       }
       o.imgY = c.imgY;
+    }
+    // [APIMCP P1] imgScale (이미지 확대 100~400%) — renderer/canvas-block.js 지원, MCP 노출 누락이었음.
+    if (c.imgScale !== undefined && c.imgScale !== null) {
+      if (typeof c.imgScale !== 'number' || !Number.isFinite(c.imgScale) || c.imgScale < 100 || c.imgScale > 400) {
+        throw new Error(`${ctx}.imgScale must be number 100~400`);
+      }
+      o.imgScale = c.imgScale;
     }
     if (c.cellBg !== undefined && c.cellBg !== null) {
       if (!_isColorOk(c.cellBg)) throw new Error(`${ctx}.cellBg invalid color`);
@@ -4664,6 +4829,8 @@ function _validateTableOpts(args, { mode } = {}) {
   _int('outerWidth', 1,   6);
   _int('rowH',       0,   160);
   _int('tablePadX',  0,   120);
+  // [APIMCP P1] headerSize (헤더 글자 크기 px, 0=본문 fontSize 상속) — renderer 지원, MCP 노출 누락이었음.
+  _int('headerSize', 0,   60);
   _color('lineColor');
   _color('headerBg');
   _color('textColor');

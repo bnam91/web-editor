@@ -1814,14 +1814,20 @@ function bindFrameDropZone(ss) {
           dragState.dragSrc.style.position = 'absolute';
           dragState.dragSrc.style.left     = '0px';
           dragState.dragSrc.style.top      = (nextY > 0 ? nextY + 16 : 0) + 'px';
-          if (!dragState.dragSrc.style.width || dragState.dragSrc.style.width === '') {
-            dragState.dragSrc.style.width = '100%';
-          }
           // absolute 전환 후 HTML5 drag 비활성화 — 이후 커스텀 mousemove drag 사용
           // (섹션에서 드롭 시 draggable="true"가 잔류하면 다음 드래그에서 회색이 됨)
           dragState.dragSrc.removeAttribute('draggable');
           dragState.dragSrc._dragBound = false; // 재바인딩 허용 플래그
           inner.appendChild(dragState.dragSrc);
+          // width: asset/icon makeAbsolute와 동일하게 콘텐츠 폭으로 클램프(전폭 '100%' 비일관 제거).
+          // append 후 측정해야 정확. 명시 px가 이미 있으면 보존(클램프 헬퍼 내부에서 정렬·측정 처리).
+          if (window._clampTextFrameWidth) {
+            if (!dragState.dragSrc.style.width || dragState.dragSrc.style.width === '' || dragState.dragSrc.style.width === '100%') {
+              window._clampTextFrameWidth(dragState.dragSrc, inner);
+            }
+          } else if (!dragState.dragSrc.style.width || dragState.dragSrc.style.width === '') {
+            dragState.dragSrc.style.width = '100%';
+          }
           // text-block rebind — bindBlock이 absolute 상태를 다시 평가하도록
           const _tb = dragState.dragSrc.querySelector('.text-block');
           if (_tb) { _tb._blockBound = false; bindBlock(_tb); }
