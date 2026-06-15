@@ -10,31 +10,64 @@
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
-function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor, cardIdx) {
-  const _tc = titleColor || '#ffffff';
-  const _dc = descColor  || '#ffffff';
-  if (card.title && card.title.trim() !== '') {
+// slot: null | 'top' | 'bottom' — labelPos='both'일 때 상/하단 라벨이 서로 다른 내용·색을 갖도록 분리.
+//   - slot==='top'    → card.titleTop/descTop (없으면 card.title/desc fallback), 색은 titleColorTop/descColorTop (없으면 블록색)
+//   - slot==='bottom' → card.titleBottom/descBottom (없으면 card.title/desc fallback), 색은 titleColorBottom/descColorBottom
+//   - slot===null     → 기존 단일 슬롯 (card.title/desc)
+// dataset.field/slot은 인라인 편집(_bindCvbDblEdit) 라우팅에 사용.
+function _appendCardTexts(container, card, titleSize, descSize, textAlign, titleColor, descColor, cardIdx, slot) {
+  let titleField = 'title', descField = 'desc';
+  let titleText = card.title, descText = card.desc;
+  let _tc = titleColor, _dc = descColor;
+  if (slot === 'top') {
+    titleField = 'titleTop'; descField = 'descTop';
+    titleText = (card.titleTop !== undefined && card.titleTop !== null) ? card.titleTop : card.title;
+    descText  = (card.descTop  !== undefined && card.descTop  !== null) ? card.descTop  : card.desc;
+    if (card.titleColorTop) _tc = card.titleColorTop;
+    if (card.descColorTop)  _dc = card.descColorTop;
+  } else if (slot === 'bottom') {
+    titleField = 'titleBottom'; descField = 'descBottom';
+    titleText = (card.titleBottom !== undefined && card.titleBottom !== null) ? card.titleBottom : card.title;
+    descText  = (card.descBottom  !== undefined && card.descBottom  !== null) ? card.descBottom  : card.desc;
+    if (card.titleColorBottom) _tc = card.titleColorBottom;
+    if (card.descColorBottom)  _dc = card.descColorBottom;
+  }
+  _tc = _tc || '#ffffff';
+  _dc = _dc || '#ffffff';
+  if (titleText && titleText.trim() !== '') {
     const el = document.createElement('div');
     el.className = 'cvb-card-title';
-    if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = 'title'; }
+    if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = titleField; if (slot) el.dataset.slot = slot; }
     el.style.cssText = `font-size:${titleSize}px;font-weight:600;color:${_tc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.3;font-family:Pretendard,-apple-system,sans-serif;`;
-    el.textContent = card.title;
+    el.textContent = titleText;
     container.appendChild(el);
   }
-  if (card.desc && card.desc.trim() !== '') {
+  if (descText && descText.trim() !== '') {
     const el = document.createElement('div');
     el.className = 'cvb-card-desc';
-    if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = 'desc'; }
+    if (cardIdx != null) { el.dataset.cardIdx = cardIdx; el.dataset.field = descField; if (slot) el.dataset.slot = slot; }
     el.style.cssText = `font-size:${descSize}px;font-weight:400;color:${_dc};text-align:${textAlign};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-family:Pretendard,-apple-system,sans-serif;`;
-    el.textContent = card.desc;
+    el.textContent = descText;
     container.appendChild(el);
   }
-  if (!card.title && !card.desc) {
+  if ((!titleText || titleText.trim() === '') && (!descText || descText.trim() === '')) {
     const ph = document.createElement('div');
     ph.style.cssText = 'color:#bbb;font-size:13px;font-family:sans-serif;text-align:center;';
     ph.textContent = '텍스트를 입력하세요';
     container.appendChild(ph);
   }
+}
+
+// 카드 이미지 zoom(배율) → backgroundSize 계산.
+//   - scale<=1(미설정/100): 기존 그대로 cover|contain (회귀 없음)
+//   - scale>1: contain은 비율 유지하며 (`contain` 기준 × scale 불가하므로) cover처럼 `${100*scale}% auto` 대신
+//     가로/세로 모두 키우는 `${100*scale}%`(cover 근사) 사용. backgroundPosition(imgX/imgY)과 병행 동작.
+function _cvbBackgroundSize(card) {
+  const scale = Math.max(1, (Number(card.imgScale) || 100) / 100);
+  if (scale <= 1) return card.imgFit === 'contain' ? 'contain' : 'cover';
+  // cover를 기준으로 확대: backgroundSize 퍼센트는 가로 기준이라 cover와 정확히 같진 않지만
+  // 일반 가로>세로 카드에서 자연스러운 확대. contain도 확대 시 cover-like로 통일.
+  return `${Math.round(100 * scale)}%`;
 }
 
 // 이스터에그(아이콘 모드): 카드 이미지 자리에 iconify SVG를 중앙 렌더 (currentColor로 색 제어)
@@ -340,7 +373,7 @@ function renderCanvas(block) {
             _fillCardIcon(imgDiv, card, Math.min(imgW, designH), _iconOpts);
           } else if (card.imgSrc) {
             imgDiv.style.backgroundImage    = `url("${card.imgSrc}")`;
-            imgDiv.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';
+            imgDiv.style.backgroundSize     = _cvbBackgroundSize(card);
             imgDiv.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
             imgDiv.style.backgroundRepeat   = 'no-repeat';
             _bindCvbImgDrag(imgDiv, block, idx);
@@ -381,7 +414,7 @@ function renderCanvas(block) {
               _fillCardIcon(div, card, Math.min(designW, imgH), _iconOpts);
             } else if (card.imgSrc) {
               div.style.backgroundImage    = `url("${card.imgSrc}")`;
-              div.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';
+              div.style.backgroundSize     = _cvbBackgroundSize(card);
               div.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
               div.style.backgroundRepeat   = 'no-repeat';
               _bindCvbImgDrag(div, block, idx);
@@ -395,7 +428,8 @@ function renderCanvas(block) {
             }
             return div;
           };
-          const makeTextDiv = (h, position) => {
+          // slot: null | 'top' | 'bottom' — both 모드에서만 상/하단 분리 슬롯 사용
+          const makeTextDiv = (h, position, slot) => {
             // position: 'top' | 'bottom' | 'middle' — 모서리 radius 적용 결정
             const div = document.createElement('div');
             const rTop    = (position === 'top'    || position === 'middle') ? `${radius}px ${radius}px 0 0` : '0';
@@ -404,7 +438,7 @@ function renderCanvas(block) {
                      : position === 'bottom' ? `0 0 ${radius}px ${radius}px`
                      : '0';
             div.style.cssText = `width:100%;height:${h}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;border-radius:${br};`;
-            _appendCardTexts(div, card, titleSize, descSize, textAlign, titleColor, descColor, idx);
+            _appendCardTexts(div, card, titleSize, descSize, textAlign, titleColor, descColor, idx, slot || null);
             return div;
           };
 
@@ -412,9 +446,10 @@ function renderCanvas(block) {
             if (!textHide) cell.appendChild(makeTextDiv(textH, 'top'));
             cell.appendChild(makeImgDiv());
           } else if (labelPos === 'both') {
-            if (!textHide) cell.appendChild(makeTextDiv(textH, 'top'));
+            // 상/하단 라벨 완전 독립: 상단은 'top' 슬롯, 하단은 'bottom' 슬롯
+            if (!textHide) cell.appendChild(makeTextDiv(textH, 'top', 'top'));
             cell.appendChild(makeImgDiv());
-            if (!textHide) cell.appendChild(makeTextDiv(textH, 'bottom'));
+            if (!textHide) cell.appendChild(makeTextDiv(textH, 'bottom', 'bottom'));
           } else if (labelPos === 'overlay-bottom' || labelPos === 'overlay-top' || labelPos === 'overlay-center') {
             // 이미지가 셀 전체를 덮고 그 위에 라벨 absolute 오버레이
             const fullImg = document.createElement('div');
@@ -423,7 +458,7 @@ function renderCanvas(block) {
               _fillCardIcon(fullImg, card, Math.min(designW, designH), _iconOpts);
             } else if (card.imgSrc) {
               fullImg.style.backgroundImage    = `url("${card.imgSrc}")`;
-              fullImg.style.backgroundSize     = card.imgFit === 'contain' ? 'contain' : 'cover';
+              fullImg.style.backgroundSize     = _cvbBackgroundSize(card);
               fullImg.style.backgroundPosition = `${card.imgX ?? 50}% ${card.imgY ?? 50}%`;
               fullImg.style.backgroundRepeat   = 'no-repeat';
               _bindCvbImgDrag(fullImg, block, idx);
@@ -819,7 +854,7 @@ function updateCanvasBlock(blockId, partial = {}) {
     _try(_setEnumField('cardMode', 'cardMode',  ['simple', '']));
     _try(_setIntField('imgRatio',  'imgRatio',  10,  90));
     _try(_setEnumField('imgShape', 'imgShape',  ['rect','circle']));
-    _try(_setEnumField('labelPos', 'labelPos',  ['top','bottom','both']));
+    _try(_setEnumField('labelPos', 'labelPos',  ['top','bottom','both','overlay-top','overlay-bottom','overlay-center']));
     _try(_setBoolStrField('textHide','textHide'));
     _try(_setColorField('textBg',  'textBg'));
     _try(_setIntField('titleSize', 'titleSize', 4,   400));
@@ -873,6 +908,22 @@ function updateCanvasBlock(blockId, partial = {}) {
     }
     if (c.imgY !== undefined && c.imgY !== null) {
       if (!_isNum(Number(c.imgY), 0, 100)) return { ok: false, code: 'INVALID', message: `${ctx}.imgY must be number 0~100` };
+    }
+    if (c.imgScale !== undefined && c.imgScale !== null) {
+      if (!_isNum(Number(c.imgScale), 100, 400)) return { ok: false, code: 'INVALID', message: `${ctx}.imgScale must be number 100~400` };
+    }
+    // 라벨 상/하 분리 슬롯 텍스트(both 모드 전용, 미설정 시 title/desc fallback)
+    for (const k of ['titleTop','descTop','titleBottom','descBottom']) {
+      if (c[k] !== undefined && c[k] !== null) {
+        if (typeof c[k] !== 'string') return { ok: false, code: 'INVALID', message: `${ctx}.${k} must be string` };
+        if ([...c[k]].length > 500) return { ok: false, code: 'INVALID', message: `${ctx}.${k} too long (>500)` };
+      }
+    }
+    // 라벨 상/하 분리 슬롯 색 override(미설정 시 블록 titleColor/descColor fallback)
+    for (const k of ['titleColorTop','descColorTop','titleColorBottom','descColorBottom']) {
+      if (c[k] !== undefined && c[k] !== null && c[k] !== '') {
+        if (!_isColor(c[k])) return { ok: false, code: 'INVALID', message: `${ctx}.${k} invalid color` };
+      }
     }
     if (c.cellBg !== undefined && c.cellBg !== null && c.cellBg !== '') {
       if (!_isColor(c.cellBg)) return { ok: false, code: 'INVALID', message: `${ctx}.cellBg invalid color` };
