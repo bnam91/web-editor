@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="css/editor-extra.css">
 <link rel="stylesheet" href="css/pen-tool.css">
 <link rel="stylesheet" href="css/settings-modal.css">
+<link rel="stylesheet" href="css/section-search.css">
 <link rel="stylesheet" href="css/ai-image.css">
 <link rel="stylesheet" href="css/assets-panel.css">
 <link rel="stylesheet" href="css/claude-pm.css">
@@ -825,6 +826,8 @@
 <!-- Settings (다른 js보다 먼저 — _matchShortcut/getShortcut 글로벌 등록) -->
 <script src="js/settings/settings-store.js"></script>
 <script src="js/settings/settings-modal.js"></script>
+<!-- Section Search (⌘F 팔레트) — editor.js(module) 이전에 window.openSectionSearch 정의 -->
+<script src="js/section-search.js"></script>
 <script type="module" src="js/globals.js"></script>
 <script type="module" src="js/panels/template-system.js"></script>
 <script type="module" src="js/panels/template-browser.js"></script>
