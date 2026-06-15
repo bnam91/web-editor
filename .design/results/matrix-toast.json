@@ -1,0 +1,125 @@
+{
+  "area": "toast",
+  "agent": "DSN-matrix-toast",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "owns": {
+    "selectors": ["#editor-toast", "#editor-toast.show", ".toast-* (명세상 영역, 실제 미존재)"],
+    "files": ["css/editor-toast.css (5-19 토스트 본체, 1-205 전체 = floating-panel/plugin/dropdown와 동거)", "js/drag-utils.js (140-152 showToast 생성·표시 로직, 389 window.showToast 노출)"]
+  },
+  "scanned_files": [
+    "css/editor-toast.css",
+    "css/editor-base.css",
+    "css/design-tokens.css",
+    "css/settings-modal.css",
+    "js/drag-utils.js",
+    "index.html"
+  ],
+  "signature": {
+    "D-component": {
+      "container": {
+        "selector": "#editor-toast",
+        "position": "fixed, 화면 정중앙 (top 50% / left 50%, translate(-50%, -50%)) — 중앙 모달형 토스트. 통상적인 코너/상단/하단 토스트가 아니라 화면 한가운데 떠서 2초 후 사라짐",
+        "radius": "8px (스케일 4/6/10 비배수 — off-scale)",
+        "border": "1px solid var(--ui-border-strong) #444",
+        "shadow": "0 4px 16px rgba(0,0,0,0.5)",
+        "padding": "10px 18px",
+        "font": "13px / weight 500",
+        "white-space": "nowrap (한 줄 고정, 긴 메시지 줄바꿈 불가)",
+        "z-index": "600"
+      },
+      "action_button": "없음 — 토스트는 순수 텍스트 알림. 닫기 버튼/Undo·재시도 액션 버튼 전무. 클릭 불가(pointer-events:none)",
+      "icon": "전용 아이콘 슬롯 없음 — 상태 아이콘을 메시지 문자열 앞 이모지(✅/❌/⚠️/✨/📋/🔒/↩ 등)로 인라인 표현. 100+ 호출처가 전부 텍스트 prefix 이모지로 의미 전달",
+      "structure": "단일 div를 재사용(getElementById→없으면 createElement). textContent 덮어쓰기 방식이라 동시 2개 토스트 불가 = 스택 개념 자체가 없음",
+      "parallel_toast_systems": ".settings-toast (settings-modal.css:257) = 별개 토스트. radius 6px / padding 10px 18px / shadow 동일하나 bottom 30px 하단 배치 + -ok/-err 보더 변형 보유. #editor-toast(중앙·변형없음)와 완전히 다른 2개 토스트 시스템이 공존"
+    },
+    "D-color": {
+      "bg": "var(--ui-bg-base) #1e1e1e",
+      "text": "#f0f0f0 (raw hex — --ui-text(#e8e8e8) 토큰 미사용)",
+      "accent": "없음 — accent/primary 색 미적용",
+      "success_fail_tokens": "전혀 사용 안 함. --ui-success(#7fc87f)/--ui-danger(#e06c6c) 및 design-tokens의 --color-success/--color-danger 토큰이 존재하지만 #editor-toast는 성공/실패/경고를 색으로 구분하지 않음. 모든 상태가 동일한 회색(#1e1e1e bg/#f0f0f0 text)으로 표시되고 의미는 오직 이모지로만 전달",
+      "border": "var(--ui-border-strong) #444 (상태 무관 단일 보더 — settings-toast는 -ok #4caf50 / -err #ef5350 로 보더 구분하는 것과 대조)",
+      "raw_hex_in_owned": ["#f0f0f0 (text — 토큰 미사용)", "rgba(0,0,0,0.5) (shadow)"],
+      "note": "raw hex는 적으나(text 1건) '성공=초록/실패=빨강' semantic을 우회가 아니라 아예 포기. 토큰 우회보다 더 근본적: 상태색 시스템 미적용"
+    },
+    "D-spacing": {
+      "toast_padding": "10px 18px (세로 10 = 4그리드 배수 아님, 가로 18 = 4그리드 배수 아님 → 둘 다 off-grid)",
+      "icon_text_gap": "전용 gap 없음 — 이모지가 텍스트 노드 내부라 gap 속성 부재. 이모지와 글자 사이 간격은 폰트 메트릭에 의존",
+      "stack_gap": "해당 없음 — 단일 element 재사용으로 스택 미존재, 토스트 간 간격 개념 없음",
+      "scale_token_usage": "--space-* 토큰 미사용. 10/18 px 리터럴 직접"
+    },
+    "D-states": {
+      "enter_exit": "opacity 0↔1 + transform translate(-50%, calc(-50% + 12px))↔(-50%, -50%). 등장 시 12px 위로 슬라이드 + 페이드인, transition: opacity 0.15s, transform 0.15s",
+      "duration": "표시 2000ms 고정(drag-utils.js:151 setTimeout) 후 .show 제거로 퇴장. 메시지 길이/중요도 무관 일괄 2초",
+      "hover_pause": "없음 — pointer-events:none 이라 hover 자체가 불가. 마우스 올려 읽기 위한 일시정지·dismiss-on-hover 미구현. 긴 에러 메시지도 2초 후 강제 소멸",
+      "reduced_motion": "@media (prefers-reduced-motion) 대응 없음 — 모션 민감 사용자 배려 부재",
+      "re_trigger": "clearTimeout 후 재설정 — 연속 호출 시 이전 토스트 즉시 교체(이전 메시지 유실 가능)",
+      "shake": "@keyframes fp-shake 존재하나 #floating-panel 전용(.fp-shake)이지 토스트 대상 아님 — 토스트에는 에러 강조 흔들림 없음"
+    }
+  },
+  "violations": [
+    {
+      "id": "MTX-toast-01",
+      "severity": "minor",
+      "dimension": "D-color",
+      "title": "토스트가 성공/실패/경고를 색으로 구분하지 않고 이모지에만 의존",
+      "evidence": "#editor-toast는 상태와 무관하게 항상 동일한 bg #1e1e1e / text #f0f0f0 / border #444. --ui-success/--ui-danger 토큰이 정의돼 있고 showToast 호출처 100+ 곳이 ✅/❌/⚠️ 이모지로 성공·실패·경고를 구분하는데도 시각(색) 채널은 미사용. 색맹 사용자나 이모지 렌더 실패 시 성공/실패 구분 불가. 같은 앱의 .settings-toast는 -ok #4caf50 / -err #ef5350 보더로 구분하므로 일관성도 깨짐.",
+      "locations": ["css/editor-toast.css:9-17", "js/drag-utils.js:140-152", "css/settings-modal.css:274-275"],
+      "expected": "showToast(msg, type)의 type을 받아 #editor-toast.is-success/.is-danger/.is-warn 클래스로 border-color(또는 accent bar)를 --ui-success/--ui-danger/--ui-warn 토큰으로 적용. settings-toast와 동일한 semantic 보더 패턴으로 통일",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-toast-02",
+      "severity": "minor",
+      "dimension": "D-states",
+      "title": "토스트 hover 일시정지·dismiss 부재 + 2초 고정 만료",
+      "evidence": "pointer-events:none + 2000ms 고정 setTimeout. 마우스를 올려도 멈추지 않고, 닫기 버튼도 없어 긴 에러 메시지('❌ 저장 실패: '+e.message 등)를 다 읽기 전에 2초 후 사라짐. 메시지 길이/심각도와 무관하게 일괄 2초.",
+      "locations": ["css/editor-toast.css:16", "js/drag-utils.js:151"],
+      "expected": "hover 시 타이머 일시정지(pointer-events 허용 + mouseenter clearTimeout), 또는 error 타입은 수동 닫기/연장 노출. 최소한 길이 비례 가변 duration",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-toast-03",
+      "severity": "nit",
+      "dimension": "D-states",
+      "title": "토스트 트랜지션에 prefers-reduced-motion 미대응 + transform 슬라이드 항시 적용",
+      "evidence": "등장/퇴장이 opacity+transform 슬라이드(12px). @media (prefers-reduced-motion: reduce) 분기 없이 항상 모션 실행. D-motion 명세상 prefers-reduced-motion 부재는 전역 이슈이며 토스트도 동참.",
+      "locations": ["css/editor-toast.css:9-19"],
+      "expected": "prefers-reduced-motion: reduce 시 transform 슬라이드 제거하고 opacity만 전환",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-toast-04",
+      "severity": "nit",
+      "dimension": "D-component",
+      "title": "토스트 radius 8px가 스케일(4/6/10) 비배수 + text 색 raw hex",
+      "evidence": "#editor-toast border-radius 8px — --radius-sm/md/lg(4/6/10) 어디에도 없는 off-scale. color #f0f0f0 도 --ui-text(#e8e8e8) 토큰 대신 raw hex. settings-toast는 radius 6px(스케일 적중)이라 둘이 또 어긋남.",
+      "locations": ["css/editor-toast.css:11", "css/editor-toast.css:8"],
+      "expected": "radius를 6 또는 10으로 스케일 정렬, text 색을 --ui-text 토큰화. settings-toast(6px)와 수렴",
+      "disposition": "self"
+    }
+  ],
+  "crossAreaFlags": [
+    {
+      "id": "MTX-toast-X01",
+      "to_area": "settings-modal / modals",
+      "title": "#editor-toast 와 .settings-toast — 동일 목적 토스트 2개 시스템이 위치·변형·radius 전부 불일치",
+      "detail": "#editor-toast = 화면 정중앙(top/left 50%) / radius 8px / 상태 변형 없음(이모지만) / z-index 600 / duration 2s. .settings-toast = 하단(bottom 30px) / radius 6px / -ok·-err 보더 변형 보유 / z-index 10001 / bg #2a2a2a. 같은 '비차단 알림'인데 (1)배치(중앙 vs 하단), (2)radius(8 vs 6), (3)상태색(없음 vs 보더 ok/err), (4)bg(#1e1e1e vs #2a2a2a)가 전부 다름. 토스트 통합 컴포넌트 부재.",
+      "shared_token_gap": "공용 --ui-toast-* (bg/radius/duration/상태보더) 토큰·컴포넌트 없음. 통합 시 settings-toast의 ok/err 보더 패턴을 표준으로 흡수 권장"
+    },
+    {
+      "id": "MTX-toast-X02",
+      "to_area": "color / tokens",
+      "title": "토스트가 semantic 상태 토큰(success/danger)을 미사용 — 토큰 이원화·미이관 전역 패턴에 동참",
+      "detail": "--ui-success #7fc87f / --ui-danger #e06c6c (editor-base.css:53-54) 와 --color-success/--color-danger (design-tokens.css:145-148) 양쪽에 상태 토큰이 있으나 토스트는 어느 쪽도 안 씀. settings-toast는 또 다른 raw hex(#4caf50/#ef5350)를 직접 박아 3중 분기(--ui-* / --color-* / raw). matrix-toolbar X03(이중 토큰 시스템)·color 영역과 동일 뿌리.",
+      "shared_token_gap": "상태색 단일 소스(--ui-success/-danger/-warn)로 토스트·settings-toast·var-type 등 일괄 정렬 필요"
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "by_severity": {"blocker": 0, "major": 0, "minor": 2, "nit": 2},
+    "crossAreaFlags": 2,
+    "notes": "토스트 자체 CSS는 단순(div 5줄)이라 raw hex·복잡도는 낮음. 핵심 이탈은 컴포넌트 설계: (1)성공/실패를 색이 아닌 이모지로만 구분, (2)hover 일시정지·닫기 버튼 없는 2초 고정 만료, (3)#editor-toast와 .settings-toast가 배치·radius·상태변형 다른 별개 토스트 2개. 액션버튼·아이콘 슬롯·스택 모두 미존재(단일 element 재사용)."
+  }
+}

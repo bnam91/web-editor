@@ -1,0 +1,15 @@
+{
+  "phase": "P2 사각지대 첫 주행 (Export/플러그인/Templates/우측탭)",
+  "round": "2026-06-14 사각지대심층",
+  "status": "완료",
+  "cells_verified_clean": [
+    {"area":"우측 5탭(File/Inspector/Assets/Checklist)","axis":"전환+빈상태","result":"✅ 클린","evidence":"switchToTab이 각 *-panel-body 정상 전환. inspector=DESIGN SYSTEM+통계, assets=폴더/파일, checklist=0/0 할일입력 — 빈상태 정상 렌더. (Rdeep 미확정은 셀렉터 문제였음)"},
+    {"area":"Device Mockup 블록","axis":"L2 저장재오픈","result":"✅ 클린","evidence":"mkp_g7gg20b 삽입→flushSave→reload 후 복원(children2, img 포함)"},
+    {"area":"Templates 브라우저","axis":"열기/프리뷰","result":"✅ 클린","evidence":"File패널 인라인 섹션으로 펼쳐짐, tpl-browser-preview-canvas 라이브 프리뷰 + 항목 다수 정상"}
+  ],
+  "new_findings": [],
+  "inconclusive": [
+    {"area":"Iconify 블록 삽입","reason":"addIconifyBlock(name, svgContent, size) 2번째 인자가 SVG 마크업인데 테스트에서 'mdi' 문자열 오전달 → 내 호출 오류(제품버그 아님). 정상경로 openIconifyModal→픽→실 svgText는 코드상 정상"}
+  ],
+  "note":"P2 도메인 실버그 A30(Export에 PNG 내보내기 없음)·C17(플러그인 Figma Upload/Import dead)은 Rdeep 라운드에서 이미 적재됨. P2 신규 0건 — 사각지대 chrome은 대체로 성숙."
+}

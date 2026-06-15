@@ -1,0 +1,240 @@
+{
+  "agent": "DSN-matrix-pm-panel",
+  "area": "pm-panel",
+  "dimension": "matrix-signature",
+  "scope": "pm-panel",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "owns": ".cpm-* / .cpmt-* / #claude-pm-* (css/claude-pm.css)",
+  "lens": "4정류장 시그니처 (component / color / spacing / states) — 비교 가능한 실측값",
+  "standard_reference": "css/editor-base.css 토큰 (--ui-bg-base, --ui-border-mid, --ui-text*, --ui-accent*, --ui-success, --ui-divider, --ui-danger)",
+  "scanned_files": ["css/claude-pm.css"],
+  "method_notes": "claude-pm.css 626줄 전수 정적 분석. 토큰 정의는 editor-base.css:52-57 대조. report-only, 수정 없음. severity: 토큰 우회·색강제·시스템난립=major, 단발 raw hex·height누락=minor, 장식=nit.",
+
+  "signature": {
+    "D-component": {
+      "button_systems": [
+        {
+          "class": ".cpm-btn (modal footer)",
+          "radius": "6px",
+          "height": "padding-derived (no explicit height) — 7px 16px → ~30px",
+          "border": "1px solid var(--ui-border-mid)",
+          "bg": "var(--ui-bg-input)",
+          "text": "var(--ui-text-sub)",
+          "font_size": "12px",
+          "shadow": "none"
+        },
+        {
+          "class": ".cpm-btn.primary",
+          "radius": "6px (inherit)",
+          "bg": "#2d6fe8 (raw — == --ui-accent-primary)",
+          "hover_bg": "#3a7df0 (raw — == --ui-accent-primary-hover)",
+          "disabled_bg": "#1f3a6e (raw, color #aaa, opacity 0.6)",
+          "text": "#fff",
+          "font_weight": "600",
+          "border": "1px solid #2d6fe8 (matches bg)"
+        },
+        {
+          "class": ".cpm-action (action list row, button)",
+          "radius": "0 (none)",
+          "height": "padding-derived — 11px 16px",
+          "border": "none",
+          "bg": "transparent",
+          "text": "var(--ui-text)",
+          "font_size": "12px",
+          "shadow": "none",
+          "gap": "12px (icon↔label)"
+        },
+        {
+          "class": ".cpm-pick-btn (folder pick, disabled-by-design)",
+          "radius": "6px",
+          "border": "1px solid var(--ui-border-mid)",
+          "bg": "var(--ui-bg-input)",
+          "cursor": "not-allowed",
+          "opacity": "0.55",
+          "padding": "7px 12px",
+          "font_size": "11px"
+        },
+        {
+          "class": ".cpmt-btn (terminal header icon btn)",
+          "size": "24×24px fixed",
+          "radius": "4px",
+          "border": "1px solid transparent",
+          "bg": "transparent",
+          "text": "#aaa (raw)",
+          "hover_bg": "#26262a (raw), hover border #333, hover color #fff"
+        }
+      ],
+      "danger_style": "NO dedicated danger button class. .cpmt-btn.cpmt-close:hover { color:#ff8a8a } 만 위험신호 (전경색만, bg 없음). cpm primary와 정반대로 danger는 솔리드 채움 없음.",
+      "input": {
+        "class": ".cpm-input",
+        "height": "padding-derived (8px 10px) — no explicit height",
+        "radius": "6px",
+        "border": "1px solid var(--ui-border-mid)",
+        "bg": "var(--ui-bg-input)",
+        "font_size": "12px",
+        "focus": "border #6b9eff + box-shadow 0 0 0 2px rgba(107,158,255,0.18)"
+      },
+      "radius_scale": "panel-shell 12px / modal-shell 10px / btn·input·field 6px / cpmt-btn·close 4px / dot 50% / mini-pill 999px — 5단계 (12/10/6/4) 혼재, 패널/모달 radius 불일치"
+    },
+
+    "D-color": {
+      "panel_unique_accent": {
+        "hex": "#6b9eff",
+        "name": "Claude 톤 블루",
+        "usage_count": 15,
+        "is_project_token": false,
+        "where": "floating-btn color, .cpm-title svg, .cpm-input:focus ring, .cpm-footer-link, .cpm-info-icon, .cpmt-dot(connected), opacity slider thumb, .cpmt-mini-icon, .cpmt-resizer:hover",
+        "note": "프로젝트 토큰 아님. --ui-accent(#7cb8ff)·--ui-accent-primary(#2d6fe8)와 의도적 구분(주석:'AI 보라와 구분'). PM패널만의 정체성 색."
+      },
+      "accent_light": "#8fb6ff (raw, floating-btn hover/active + footer-link hover)",
+      "primary_button_hex": {
+        "values": ["#2d6fe8", "#3a7df0", "#1f3a6e"],
+        "token_equivalent": "#2d6fe8==--ui-accent-primary, #3a7df0==--ui-accent-primary-hover (editor-base.css:56-57). 값은 동일하나 var() 미사용 — 하드코딩.",
+        "verdict": "색은 표준과 일치, 그러나 토큰 우회"
+      },
+      "token_usage": "구조색은 토큰 사용(--ui-bg-base, --ui-border, --ui-border-mid, --ui-text, --ui-text-sub/muted/dim, --ui-bg-input, --ui-bg-hover, --ui-success, --ui-divider). 터미널 영역(.cpmt-*)은 토큰 거의 안 씀 — raw hex 다수.",
+      "raw_hex_terminal_block": ["#0f0f10(panel bg)", "#18181b/#1f1f24/#24181b", "#e6e6e6(text)", "#aaa/#888/#777/#444(muted)", "#2a2a2e/#333(border)", "#6b6b70(dot disconnected)", "#ff8a8a(close danger)", "#26262a(btn hover)"],
+      "important_count": 9,
+      "important_breakdown": "색강제 3개(floating-btn:hover bg/border/color — fp-btn 호스트 스타일 override 목적), display:none 4개(preview-mode 가드), xterm 배경 transparent 2개. → 진짜 '색 강제'는 floating-btn hover 3개뿐, 나머지 6개는 표시제어/xterm투명 정당."
+    },
+
+    "D-spacing": {
+      "panel_shell": "width 360px 고정, max-w calc(100vw-40px), max-h calc(100vh-80px)",
+      "modal_shell": "width 520px 고정",
+      "terminal_panel": "width 480px (top 64px, 우측 슬라이드인, 8방향 resize)",
+      "header_padding": "cpm-header 14px 16px 12px / cpm-modal-header 14px 18px / cpmt-header 8px 10px 8px 14px",
+      "body_padding": "cpm-modal-body 18px 20px / cpmt-body 4px 4px 0 4px",
+      "action_row_padding": "11px 16px",
+      "footer_padding": "cpm-footer 12px 16px 14px / cpm-modal-footer 12px 18px 16px / cpmt-footer 4px 12px",
+      "row_gap": "status 4px / action icon-label 12px / field 6px / modal-body 14px / footer 8px / cpmt-actions 4px",
+      "label_width": "없음 (cpm-field는 세로 stack — label 위, input 아래. 가로 라벨폭 개념 없음)",
+      "padding_scale": "4/6/7/8/10/11/12/14/16/18/20 — 11단계, 7px·11px 같은 비표준 odd값 존재(4의 배수 그리드 이탈)"
+    },
+
+    "D-states": {
+      "hover": "cpm-action/close/btn/pick 모두 bg 전환(--ui-bg-hover 또는 raw). floating-btn hover는 !important 3종.",
+      "focus_visible": "없음 — focus-visible 셀렉터 0개. .cpm-input:focus(border+ring)만 존재, 키보드 포커스 링 미정의(접근성 갭).",
+      "disabled": "cpm-input:disabled(opacity 0.5), cpm-btn.primary:disabled(#1f3a6e/#aaa/opacity 0.6), cpm-pick-btn(상시 disabled 스타일 opacity 0.55) — 3종 opacity 값(0.5/0.6/0.55) 미세 불일치",
+      "status_dot_systems": [
+        {
+          "class": ".cpm-status-dot",
+          "size": "8×8px",
+          "default": "var(--ui-divider) (#555 회색)",
+          "connected": "var(--ui-success) (#7fc87f 초록) + box-shadow green glow",
+          "disconnected": "#888 (raw)"
+        },
+        {
+          "class": ".cpmt-dot (terminal header)",
+          "size": "8×8px",
+          "default/connected": "#6b9eff (파랑!) + blue glow",
+          "disconnected": "#6b6b70 (raw) + dim glow"
+        },
+        {
+          "class": ".cpmt-mini-dot (mini pill)",
+          "size": "8×8px",
+          "default": "#444 (raw)",
+          "pulsing": "#6b9eff + blue glow + cpmt-mini-pulse 1s animation"
+        }
+      ],
+      "status_dot_inconsistency": "동일 'MCP 연결됨' 상태가 패널(.cpm-status-dot)은 초록(--ui-success), 터미널(.cpmt-dot)은 파랑(#6b9eff)으로 갈림 — 연결 성공 색 semantics 불일치",
+      "motion": "transition 0.12~0.18s ease-out (panel opacity, action bg, terminal transform/opacity, dot). cpmt-mini-pulse keyframe 1종."
+    }
+  },
+
+  "violations": [
+    {
+      "id": "DSN-mpm-01",
+      "title": "MCP 연결 상태 dot 색 불일치 — 패널=초록(--ui-success), 터미널=파랑(#6b9eff)",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "A",
+      "where": ["css/claude-pm.css:123", "css/claude-pm.css:437"],
+      "baseline": "동일 'MCP 연결됨' 상태는 단일 성공색으로 표현되어야 함",
+      "actual": ".cpm-status-dot.connected는 var(--ui-success)(#7fc87f 초록)+green glow, .cpmt-dot.connected는 #6b9eff(파랑)+blue glow. 같은 연결 성공이 영역마다 다른 색.",
+      "fix_hint": "연결 성공색 1택. cpmt-dot도 --ui-success로 통일하거나, 둘 다 Claude-blue로 통일(단 그럴 경우 '성공=초록' 관행과 충돌).",
+      "adjudication": "verify-candidate"
+    },
+    {
+      "id": "DSN-mpm-02",
+      "title": "primary 버튼 색이 토큰값과 동일한데 raw hex 하드코딩 (#2d6fe8/#3a7df0/#1f3a6e)",
+      "severity": "minor",
+      "confidence": "high",
+      "evidence_grade": "A",
+      "where": ["css/claude-pm.css:344-352"],
+      "baseline": "--ui-accent-primary / --ui-accent-primary-hover 토큰 var() 참조",
+      "actual": "#2d6fe8==--ui-accent-primary, #3a7df0==--ui-accent-primary-hover(editor-base.css:56-57)인데 var() 대신 raw hex. 값은 맞으나 토큰 변경 시 PM패널만 누락될 위험.",
+      "fix_hint": "background:var(--ui-accent-primary); hover:var(--ui-accent-primary-hover)로 교체. disabled #1f3a6e는 토큰 없음 → 신설하거나 color-mix.",
+      "adjudication": "self"
+    },
+    {
+      "id": "DSN-mpm-03",
+      "title": "focus-visible 링 전무 — 키보드 포커스 표시 없음",
+      "severity": "minor",
+      "confidence": "high",
+      "evidence_grade": "A",
+      "where": ["css/claude-pm.css (전체)"],
+      "baseline": "버튼/액션/링크는 키보드 focus-visible 링 제공(접근성)",
+      "actual": ".cpm-input:focus만 ring 존재. .cpm-action / .cpm-btn / .cpm-close / .cpm-footer-link / .cpmt-btn 전부 focus-visible 미정의 — 키보드 탐색 시 현재 포커스 불가시.",
+      "fix_hint": "공용 :focus-visible { outline:2px solid #6b9eff; outline-offset:2px } 또는 box-shadow ring 추가.",
+      "adjudication": "self"
+    },
+    {
+      "id": "DSN-mpm-04",
+      "title": "disabled opacity 3종 불일치 (0.5 / 0.55 / 0.6)",
+      "severity": "nit",
+      "confidence": "high",
+      "evidence_grade": "A",
+      "where": ["css/claude-pm.css:285", "css/claude-pm.css:295", "css/claude-pm.css:355"],
+      "baseline": "비활성 표현 opacity 단일값",
+      "actual": "cpm-input:disabled 0.5 / cpm-pick-btn 0.55 / cpm-btn.primary:disabled 0.6. 미세 차이로 비활성 톤 제각각.",
+      "fix_hint": "disabled opacity 단일 토큰/값(예 0.5)로 통일.",
+      "adjudication": "self"
+    },
+    {
+      "id": "DSN-mpm-05",
+      "title": "패널/모달 radius 불일치 (panel-shell 12px vs modal-shell 10px)",
+      "severity": "nit",
+      "confidence": "medium",
+      "evidence_grade": "A",
+      "where": ["css/claude-pm.css:58", "css/claude-pm.css:212"],
+      "baseline": "같은 위계의 floating 컨테이너는 동일 corner radius",
+      "actual": "cpm-panel-shell 12px, cpm-modal-shell 10px — 2px 차이. 둘 다 중앙 모달 컨테이너인데 모서리 곡률 다름.",
+      "fix_hint": "컨테이너 radius 1택(10 또는 12).",
+      "adjudication": "self"
+    },
+    {
+      "id": "DSN-mpm-06",
+      "title": "터미널 영역(.cpmt-*) 토큰 미사용 — raw hex 다발 (#e6e6e6/#aaa/#333/#2a2a2e 등)",
+      "severity": "minor",
+      "confidence": "high",
+      "evidence_grade": "A",
+      "where": ["css/claude-pm.css:362-625"],
+      "baseline": "텍스트/보더/배경은 --ui-* 토큰 사용",
+      "actual": "cpm-* 모달부는 토큰을 쓰나 cpmt-* 터미널부는 #e6e6e6(text)·#aaa/#888/#777(muted)·#2a2a2e/#333(border)·#18181b/#0f0f10(bg) 등 raw hex. 다크 토큰 변경 시 터미널만 따로 놂. (단 xterm 투명 합성 위해 rgba 알파 제어가 필요한 부분은 의도적일 수 있음 — verify 권장)",
+      "fix_hint": "비-알파 raw hex(#e6e6e6→--ui-text, #2a2a2e→--ui-border-mid 등)를 토큰으로 치환. rgba(...,var(--cpmt-bg-alpha)) 합성부는 예외 유지.",
+      "adjudication": "verify-candidate"
+    }
+  ],
+
+  "crossAreaFlags": [
+    {
+      "flag": "primary 버튼 색 #2d6fe8 = editor-base.css --ui-accent-primary. PM패널이 이 토큰값을 raw로 들고 있어, 토큰 소유 영역(base/tokens)이 값을 바꾸면 PM패널만 동기화 누락.",
+      "toArea": "base-tokens",
+      "where": ["css/claude-pm.css:344-352", "css/editor-base.css:56-57"]
+    },
+    {
+      "flag": ".fp-btn#claude-pm-btn:hover가 !important 3개로 floating-panel 영역(.fp-btn)의 호스트 hover 스타일을 강제 override. floating-panel 영역과 specificity 경쟁 — fp-btn 기본 hover가 바뀌면 PM 버튼만 어긋남.",
+      "toArea": "floating-panel",
+      "where": ["css/claude-pm.css:15-19"]
+    },
+    {
+      "flag": "Claude-blue #6b9eff는 PM패널 고유색이며 프로젝트 토큰(--ui-accent #7cb8ff, --ui-accent-primary #2d6fe8)과 별개. 향후 다른 영역이 '연결/AI' 표시에 또 다른 파랑을 쓰면 파랑 계열 3~4종 난립 위험.",
+      "toArea": "color-system",
+      "where": ["css/claude-pm.css (6b9eff 15회)"]
+    }
+  ],
+
+  "summary": "PM패널은 프로젝트 안의 '미니 디자인 시스템' — 고유색 Claude-blue #6b9eff(15회, 토큰 아님)로 floating버튼·focus링·연결dot·슬라이더를 묶어 정체성을 만든다(주석상 'AI 보라와 의도적 구분'). 버튼은 2계열: 모달 .cpm-btn(radius6, .primary는 #2d6fe8 솔리드=토큰값 raw하드코딩) + 리스트 .cpm-action(radius0·border없음·transparent). danger 버튼은 아예 없고 #ff8a8a 전경색만으로 위험 신호 — 타 영역의 솔리드 danger와 정반대. 가장 큰 이탈은 'MCP 연결됨' dot 색이 패널=초록(--ui-success) vs 터미널=파랑(#6b9eff)으로 갈리는 점(major). focus-visible 링 전무(접근성 갭), disabled opacity 0.5/0.55/0.6 3종. !important 9개 중 진짜 색강제는 floating-btn hover 3개뿐(나머지는 preview 숨김4·xterm투명2로 정당). cpm-* 모달부는 토큰 충실, cpmt-* 터미널부는 raw hex 다발로 토큰 위생이 영역 내에서도 둘로 갈린다."
+}

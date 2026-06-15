@@ -1,0 +1,366 @@
+{
+ "agent": "UXS-semantics",
+ "version": "3.0",
+ "dimension": "semantics",
+ "scope": "whole-surface",
+ "method": "static",
+ "run_date": "2026-06-11",
+ "findings": [
+  {
+   "id": "UXS-semantics-001",
+   "track": "conformance",
+   "title": "블록 공식 레이블 'Card' vs 토스트 지시어 'Canvas 블록' 불일치 — 사용자가 찾을 수 없는 이름으로 안내",
+   "where": "js/block-factory.js:1787 ↔ index.html:617 (fp-component-menu), js/panels/layer-panel-items.js:148",
+   "heuristic_basis": [
+    "ia-principles.md#terminology",
+    "nielsen-10.md#4-consistency"
+   ],
+   "adjudication": "central-refuted",
+   "severity": "major",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "사용자 가시 표면 전수에서 canvas-block의 공식 명칭은 'Card' — fp-component-menu 항목(index.html:617 'Card'→addCanvasBlock()), 레이어 패널 labels/typeLbls 맵(layer-panel-items.js:148-149 canvas:'Card')",
+   "actual": "토스트 'NewGrid는 봉인된 컴포넌트입니다. Canvas 블록을 사용하세요.'(block-factory.js:1787) — 'Canvas 블록'이라는 레이블은 어떤 메뉴/패널에도 존재하지 않음. 지시를 따르려는 사용자는 'Canvas'를 UI에서 찾지 못함",
+   "evidence": "grep 전수: 'Canvas'가 사용자 가시 레이블로 등장하는 곳 0건(prop-canvas.js 내부 그룹명 'Card Spacing'으로 Card 사용), 토스트 1건만 'Canvas 블록' 지칭",
+   "fix_hint": "토스트 문구를 UI 공식 레이블로 통일: 'Card 블록을 사용하세요'. 'NewGrid/봉인된 컴포넌트' 구현 용어는 UXS-semantics-012 참조"
+  },
+  {
+   "id": "UXS-semantics-002",
+   "track": "conformance",
+   "title": "스크래치패드 호칭 4종 혼용: 스크래치패드 / 스크래치 패드 / 스크래치 / 참고 이미지",
+   "where": "js/scratch-pad.js:933,969,1038 · js/panels/ai-image-gallery.js:140,144 · index.html:127-129,1038 (toolbar 메뉴·AI 패널)",
+   "heuristic_basis": [
+    "ia-principles.md#terminology"
+   ],
+   "root_cause": "terminology-glossary-missing",
+   "adjudication": "self",
+   "severity": "minor",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "한 개념 = 한 용어 (동일 대상: 참고 이미지 보관 영역)",
+   "actual": "'스크래치패드'(scratch-pad.js:933 '스크래치패드: 20MB 이하…', index.html:127 title '이미지 폴더를 스크래치패드에 일괄 추가') / '스크래치 패드'(ai-image-gallery.js:140,144) / '스크래치'(scratch-pad.js:1038 '✅ 스크래치 N개 추가 완료', index.html:1038 '+ 스크래치에서 선택') / 진입 메뉴 레이블은 '참고 이미지 일괄 추가'(index.html:129)",
+   "evidence": "grep 전수 — 같은 보관 영역을 toolbar 메뉴 1곳에서 '참고 이미지', 토스트 7곳+버튼 1곳에서 스크래치 계열 3가지 표기로 부름",
+   "fix_hint": "용어 사전 신설 후 1개 표기로 통일 (어느 표기가 옳은지는 감사자가 정하지 않음). 진입 메뉴-목적지 패널 명칭 일치가 핵심"
+  },
+  {
+   "id": "UXS-semantics-003",
+   "track": "conformance",
+   "title": "'컴포넌트' 동일 용어 3개 의미: 블록 카테고리 / 봉인 블록 / 저장·재사용 단위",
+   "where": "index.html:606 (fp-component-dropdown title) · js/block-factory.js:1787 · js/component-shelf.js:58,79,156,166,173",
+   "heuristic_basis": [
+    "ia-principles.md#terminology"
+   ],
+   "root_cause": "terminology-glossary-missing",
+   "adjudication": "self",
+   "severity": "minor",
+   "confidence": "suspected",
+   "evidence_grade": "deterministic",
+   "baseline": "한 개념 = 한 용어 (역도 성립: 다른 것을 같게 부르면 사용자는 동일시함)",
+   "actual": "① '컴포넌트 블록 추가'(index.html:606) = Table/Card/Graph 등 카테고리, 레이어 typeLbl 'Component'(layer-panel-items.js:149) ② '봉인된 컴포넌트'(block-factory.js:1787) = 편집 불가 레거시 ③ component-shelf.js 토스트 '컴포넌트를 찾을 수 없습니다' 등 = 저장·재사용 단위. 단 ③의 UI 진입점(fp-comp-shelf-btn)은 주석 처리로 숨김(index.html:628-638) — 도달성 불확실하여 suspected",
+   "evidence": "grep 전수: CompShelf 호출처가 component-shelf.js 내부 외 0건 → ③ 토스트는 현재 도달 불가 추정. ①②는 도달 가능 표면에서 의미 상이",
+   "fix_hint": "용어 사전에서 '컴포넌트' 의미 1개 확정. 템플릿 브라우저('템플릿'/'블록 템플릿')와의 개념 경계도 함께 정의 필요"
+  },
+  {
+   "id": "UXS-semantics-004",
+   "track": "conformance",
+   "title": "Label/라벨 영·한 혼용 — 동일 개념을 메뉴는 'Label', 그래프 속성·토스트는 '라벨'",
+   "where": "index.html:545 (fp-text-menu) · js/panels/layer-panel-items.js:148 · js/props/prop-graph.js:59,64 · js/block-drag.js:929",
+   "heuristic_basis": [
+    "ia-principles.md#terminology",
+    "nielsen-10.md#4-consistency"
+   ],
+   "root_cause": "terminology-glossary-missing",
+   "adjudication": "self",
+   "severity": "minor",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "동일 개념 = 동일 표기 (시스템 메시지와 UI 레이블 용어 일치)",
+   "actual": "블록 추가 메뉴 'Label'(index.html:545), DS 패널 'Label BG/FG/Label Radius'(index.html:398-440), 레이어 패널 'Label' ↔ 그래프 속성 '라벨'/'라벨 색상'(prop-graph.js:59,64), 토스트 '⚠️ 마지막 라벨은 삭제할 수 없어요.'(block-drag.js:929)",
+   "evidence": "grep 전수 — 영문 표기 5곳+, 한글 표기 3곳+",
+   "fix_hint": "용어 사전에서 표기 1개 확정 (UXS-semantics-010 영·한 혼용 패턴의 구체 사례)"
+  },
+  {
+   "id": "UXS-semantics-005",
+   "track": "conformance",
+   "title": "'프레임' 이중 referent — 에디터 Frame 블록 vs Figma 프레임(가져오면 섹션이 됨)",
+   "where": "index.html:527 (addFrameBlock 'Frame 추가') · index.html:197-200 (Figma Import 모달) · js/io/import-figma-json.js:244 · js/block-factory.js:1238 · js/settings/settings-modal.js:21",
+   "heuristic_basis": [
+    "ia-principles.md#terminology",
+    "ia-principles.md#labeling"
+   ],
+   "root_cause": "terminology-glossary-missing",
+   "adjudication": "self",
+   "severity": "minor",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "한 용어 = 한 referent",
+   "actual": "에디터 내 '프레임/Frame' = frame-block(컨테이너): 'Frame 추가'(index.html:527), '프레임으로 감싸기'(settings-modal.js:21), '프레임으로 묶을 블록을 먼저 선택하세요'(block-factory.js:1238). Figma Import 모달의 '프레임 선택'은 Figma 프레임이며 '선택된 프레임이 현재 캔버스에 섹션으로 추가됩니다'(index.html:197) — 프레임을 가져왔는데 결과물은 '섹션'",
+   "evidence": "grep 전수 — 두 의미가 같은 앱 안에서 각각 3곳+/2곳에 등장. 예측 실패 시나리오: Frame 블록을 학습한 사용자가 'Figma 프레임 가져오기'를 Frame 블록 삽입으로 오예측",
+   "fix_hint": "용어 사전에서 구분 표기 정의 (예: Figma 쪽은 항상 'Figma 프레임'으로 수식 — 구체 표기는 사전에서 확정)"
+  },
+  {
+   "id": "UXS-semantics-006",
+   "track": "conformance",
+   "title": "표 구조 호칭 영·한 혼용 — UI는 Row/Column, 토스트·히스토리는 행/열(col)",
+   "where": "js/props/prop-table.js:332,351,378 · js/props/prop-row.js:116 · js/block-factory.js:429 · js/editor.js:1415",
+   "heuristic_basis": [
+    "ia-principles.md#terminology",
+    "nielsen-10.md#4-consistency"
+   ],
+   "root_cause": "terminology-glossary-missing",
+   "adjudication": "self",
+   "severity": "minor",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "시스템 메시지와 UI 레이블의 용어 일치",
+   "actual": "속성 패널 레이블 'Row N'/'Column N'(prop-table.js), 'Column'(prop-row.js:116) ↔ 토스트 '열(col) 안의 블록만 컨테이너로 전환할 수 있어요.'(block-factory.js:429), 히스토리 '행 삭제'(editor.js:1415)",
+   "evidence": "grep 전수 — 동일 구조 개념이 표면별로 영/한 분리",
+   "fix_hint": "용어 사전 확정 후 토스트·히스토리 표기를 UI 레이블과 일치"
+  },
+  {
+   "id": "UXS-semantics-007",
+   "track": "conformance",
+   "title": "토스트 경어체 혼용 — 해요체 6건 vs 합니다·하세요체 31건",
+   "where": "js/ 전역 showToast 문자열 (예: js/block-drag.js:929 vs js/block-drag.js:684)",
+   "heuristic_basis": [
+    "nielsen-10.md#4-consistency"
+   ],
+   "adjudication": "self",
+   "severity": "minor",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "동일 채널(토스트)의 보이스 일관",
+   "actual": "같은 파일 안에서도 분기: '⚠️ 마지막 라벨은 삭제할 수 없어요.'(block-drag.js:929) vs '이미지 파일만 업로드할 수 있습니다.'(block-drag.js:684). '~할 수 없어요/보존돼요/열 수 있어요' 계열 6건, '~습니다/하세요/해주세요' 계열 31건",
+   "evidence": "grep 카운트: 해요체 6 / 합니다·하세요체 31 (showToast 문자열 한정)",
+   "fix_hint": "메시지 스타일 가이드 1줄 정의(어느 쪽이든) 후 전수 정렬"
+  },
+  {
+   "id": "UXS-semantics-008",
+   "track": "conformance",
+   "title": "danger 토큰의 장식적 사용 — 변수 타입 'Number' 배지가 위험/삭제 색을 점유",
+   "where": "css/editor-base.css:416 (.var-type-number) · js/variable-binding.js:292",
+   "heuristic_basis": [
+    "ia-principles.md#semantic-mapping"
+   ],
+   "adjudication": "self",
+   "severity": "minor",
+   "confidence": "confirmed",
+   "evidence_grade": "deterministic",
+   "baseline": "--ui-danger 토큰 자체 정의: '위험/삭제 (텍스트/보더)'(css/editor-base.css:53). 실제 사용처 전수에서 삭제 버튼류(.var-item-del, .tpl-delete-btn, .file-page-del, .prop-btn-danger 등)에 일관 사용",
+   "actual": ".var-type-number { color: var(--ui-danger) } — 비파괴 정보 배지(변수 타입 구분: color=accent청, text=success녹, number=danger적)가 danger 기표를 장식으로 소모. 변수 목록에서 Number 타입 변수마다 삭제 경고색 노출",
+   "evidence": "grep: --ui-danger 사용처 중 비파괴 용도는 .var-type-number 1건 (pm-panel .cpmt-close는 G5 보류로 제외)",
+   "fix_hint": "타입 배지 팔레트를 danger 계열 밖에서 선택 (디자인 토큰 값 선택은 design-squad 소관 — 여기선 '의미 충돌' 사실만)"
+  },
+  {
+   "id": "UXS-semantics-009",
+   "track": "judgment",
+   "title": "'Export' 버튼 드롭다운의 7개 항목 중 5개가 내보내기가 아님 (불러오기·저장·가져오기·참고 이미지 추가)",
+   "where": "index.html:89-131 (#publish-btn + #publish-dropdown-menu)",
+   "heuristic_basis": [
+    "ia-principles.md#labeling",
+    "nielsen-10.md#2-match"
+   ],
+   "adjudication": "central-confirmed",
+   "impact": "high",
+   "observation": "툴바 가시 레이블은 'Export'(보조로 title='Export / Import', aria-label='Export'). 메뉴 구성: 불러오기 / 저장 / JSON 내보내기 / Figma Bridge / Figma 업로드 / Figma 가져오기 / 참고 이미지 일괄 추가 — 내보내기 계열은 'JSON 내보내기'와 'Figma 업로드' 2개뿐. 특히 프로젝트 '불러오기'와 '저장', 스크래치패드 '참고 이미지 일괄 추가'는 Export 개념과 반대 방향",
+   "friction": "예측 실패 시나리오: ① 프로젝트를 불러오거나 수동 저장하려는 사용자가 'Export' 레이블만 보고 이 메뉴를 열지 않음(가시적 대체 경로 없음 — 저장/불러오기의 다른 진입점 부재, Commit은 MVP 숨김) ② 핵심 작업 #5(내보내기/발행)에서 메뉴를 연 사용자가 무관 항목 5개 사이에서 'JSON 내보내기'를 골라야 함",
+   "proposal": "레이블을 메뉴 실제 내용물에 맞추거나(예: 'File' 류 범용 레이블) 비-Export 항목을 분리. 정확한 명칭은 용어 사전과 함께 결정",
+   "tradeoffs": "C12 주석(index.html:88)에 'Figma→Export 명칭 변경' 이력 — 직전 개선의 재변경 비용. 단 메뉴 내용물과 레이블의 방향 불일치는 명칭 변경만으로는 해소 안 됨",
+   "approval": "pending"
+  },
+  {
+   "id": "UXS-semantics-010",
+   "track": "judgment",
+   "title": "UI 크롬 전반의 영·한 혼용 패턴 — 그룹 제목은 영문, 필드·버튼·메시지는 한글 (단일 패널 안에서도 병존)",
+   "where": "전 표면 — index.html:298-498 (Page/Layers/Templates/Properties), index.html:367-446 (DS 패널 'Color' 절 vs '컬러 변수' 절, Apply/Reset), js/props/prop-frame.js:233-344 (Banner Preset/Layout/Background/Size 헤더 vs 두께/색상/너비/높이 필드), js/props/color-picker.js, js/panels/assets-panel.js",
+   "heuristic_basis": [
+    "nielsen-10.md#2-match",
+    "nielsen-10.md#4-consistency"
+   ],
+   "adjudication": "self",
+   "impact": "medium",
+   "observation": "구조 레이블(패널 헤더·속성 그룹 제목·블록 타입명)은 영문, 행위 레이블(버튼·토스트·placeholder)은 한글이 지배적이나 경계가 불규칙: DS 패널은 'Color' 절과 '컬러 변수' 절, '＋ New Design System'과 '＋ 변수 추가' 버튼이 같은 화면에 병존(index.html:377-412). prop-frame은 'Bg Image' 헤더 아래 '이미지 선택/위치 편집/이미지 제거' 버튼",
+   "friction": "프로파일 G1 기준(외부 일반 사용자)에서 영문 구조 레이블('Child Align', 'Banner Position', 'Fit')은 해석 부하. 같은 추상 수준의 개념이 화면마다 다른 언어로 나타나 '다른 종류의 것'으로 오학습될 수 있음(예: 'Color' 토큰과 '컬러 변수'가 별개 시스템처럼 보임 — 실제로도 별개인지 레이블로 판별 불가)",
+   "proposal": "용어 사전 신설 시 언어 선택 규칙(구조/행위 축이든 전면 한글이든)을 함께 정의하고 패널 단위로 정렬",
+   "tradeoffs": "디자인 도구 관례상 영문 전문 용어(Fit, Opacity 등)는 Figma 사용 경험자에게 오히려 친숙(jakob). 전면 한글화는 기존 사용자 재학습 비용",
+   "approval": "pending"
+  },
+  {
+   "id": "UXS-semantics-011",
+   "track": "judgment",
+   "title": "'HighlightB' — 내부 버전명 관습이 그대로 메뉴 레이블로 노출",
+   "where": "index.html:601 (fp-pen-menu)",
+   "heuristic_basis": [
+    "ia-principles.md#labeling",
+    "nielsen-10.md#2-match"
+   ],
+   "adjudication": "self",
+   "impact": "medium",
+   "observation": "스티커 메뉴에 'Highlight'와 'HighlightB'가 나란히 존재. 차이(면 형광펜 vs 두 점 클릭 직선 형광펜)는 hover title에만 있음. 'B'는 개발 시안 차수 표기 관습으로, 누르기 전 결과 예측 불가",
+   "friction": "예측 실패 시나리오: 직선 형광펜이 필요한 사용자가 'HighlightB'가 그 기능임을 레이블로 알 수 없어 둘 다 시행착오 클릭. 인접 항목 'Banner'/'Banner 2'(index.html:622-623)도 같은 패턴이나 그쪽은 시각 결과물 차이라 비용이 낮음",
+   "proposal": "기능 차이를 드러내는 레이블로 교체 (예: 직선형임을 드러내는 명칭 — 확정은 용어 사전에서)",
+   "tradeoffs": "레이블 길이 증가로 메뉴 폭 영향 — 미미",
+   "approval": "pending"
+  },
+  {
+   "id": "UXS-semantics-012",
+   "track": "judgment",
+   "title": "구현 용어의 사용자 노출 — NewGrid · 봉인된 컴포넌트 · 열(col) · 컨테이너로 전환 · Child Align · 내부 ID 표시",
+   "where": "js/block-factory.js:1787,429 · js/props/prop-frame.js:92,326 · js/props/prop-frame.js:45 (헤더에 raw id)",
+   "heuristic_basis": [
+    "nielsen-10.md#2-match"
+   ],
+   "adjudication": "self",
+   "impact": "medium",
+   "observation": "사용자 대면 메시지·레이블에 구현 어휘 노출: 'NewGrid는 봉인된 컴포넌트입니다'(NewGrid·봉인 모두 비공식 용어), '열(col) 안의 블록만 컨테이너로 전환할 수 있어요'(col 약어·컨테이너), prop-frame 헤더의 '프레임: ss_xxxx (W×H)' raw ID, 그룹 제목 'Child Align'(CSS 개념 직역)",
+   "friction": "G1 외부 사용자 기준 — 에러를 만난 순간(가장 도움이 필요한 시점)에 시스템 내부 언어로 답해 회복 경로를 제시하지 못함. 'NewGrid' 토스트는 사용자가 한 적 없는 개념을 들어 거부 사유를 설명",
+   "proposal": "에러·안내 문구를 과업 언어로 재작성(무엇이 안 되고 → 대신 무엇을 하면 되는지). raw ID는 개발자 모드 한정 노출 검토",
+   "tradeoffs": "ID 노출은 CDP 자동화·PM 협업 워크플로(현재 운영 방식)에 유용 — admin/일반 모드 분기 필요",
+   "approval": "pending"
+  },
+  {
+   "id": "UXS-semantics-013",
+   "track": "judgment",
+   "title": "이모지 기표의 의미 불안정 — ✨가 AI와 비-AI 양쪽에, 실패가 ⚠️와 ❌ 양쪽에",
+   "where": "index.html:644 (ai-btn ✨) · js/panels/assets-panel.js:439,1057,1076 · js/io/save-load.js:133 vs 143",
+   "heuristic_basis": [
+    "ia-principles.md#semantic-mapping",
+    "nielsen-10.md#4-consistency"
+   ],
+   "adjudication": "self",
+   "impact": "medium",
+   "observation": "✨ = AI 기표(ai-btn 'AI 섹션 생성', '✨ AI Generate', '✨ AI가 작성 중…', '✨ 생성하기')로 확립돼 있으나, 비-AI 동작인 에셋 패널 일반 삽입 토스트도 '✨ 캔버스에 삽입됨'(assets-panel.js:439,1057), '✨ 새 섹션에 삽입됨'(1076). 실패 표기는 '❌ 저장 실패'(save-load.js:143)와 '⚠️ 저장 거부'(133)가 혼재하고 ⚠️는 차단·정보·실패 3용도에 걸침",
+   "friction": "기표가 장식으로 소모되면 진짜 신호가 죽음(늑대 소년) — ✨를 본 사용자가 AI 동작 여부를 판별할 수 없고, ⚠️의 심각도(되돌릴 수 있는 공지인지 데이터 손실 경고인지)를 학습할 수 없음",
+   "proposal": "이모지 의미 표를 1장으로 고정(✨=AI 전용, ❌=실패, ⚠️=주의/차단, ✅=성공)하고 토스트 전수 정렬",
+   "tradeoffs": "없음 — 문자열 치환 수준",
+   "approval": "pending"
+  },
+  {
+   "id": "UXS-semantics-014",
+   "track": "judgment",
+   "title": "기획 페이지의 '블록'(아웃라인 항목)과 에디터의 '블록'(캔버스 요소) — 동일 용어, 다른 referent",
+   "where": "pages/planning.html ('블록을 드래그해 순서 변경 · ● 클릭으로 켜고 끄기', '블록을 선택하면 상세 정보가 표시됩니다')",
+   "heuristic_basis": [
+    "ia-principles.md#terminology"
+   ],
+   "root_cause": "terminology-glossary-missing",
+   "adjudication": "self",
+   "impact": "low",
+   "observation": "기획 아웃라인 편집기의 항목 단위도 '블록', 에디터 캔버스의 콘텐츠 단위도 '블록'. 두 페이지를 오가는 워크플로(기획→에디터)에서 같은 단어가 다른 것을 가리킴",
+   "friction": "기획의 블록 1개가 에디터의 블록 1개로 매핑된다고 오예측 가능(실제는 기획 블록 ≈ 에디터 섹션에 가까움 — 매핑 검증은 U-flow 소관)",
+   "proposal": "용어 사전에서 기획 단위의 별도 명칭 검토",
+   "tradeoffs": "기획 페이지 단독 사용 시엔 무해 — 크로스 페이지 빈도 데이터 없어 low 유지",
+   "approval": "pending"
+  },
+  {
+   "id": "UXS-semantics-015",
+   "track": "judgment",
+   "title": "좌측 패널 탭 5종 아이콘 단독 + hover 시에만 영문 title (File/Branch/Inspector/Assets/Checklist)",
+   "where": "index.html:257-290 (.panel-tabs)",
+   "heuristic_basis": [
+    "ia-principles.md#labeling",
+    "nielsen-10.md#6-recognition"
+   ],
+   "adjudication": "self",
+   "impact": "low",
+   "observation": "탭 버튼이 모두 아이콘 단독이고 텍스트 레이블은 hover title뿐. Inspector 아이콘(원+선)과 Checklist 아이콘은 보편 도상 관례가 약함. Assets(폴더)·File(문서)은 관례 내",
+   "friction": "G1 외부 사용자 첫 진입 시 Inspector/Checklist 탭의 내용물을 누르기 전에 예측하기 어려움 — 단 탭 5개 전수 클릭 비용이 낮고(즉시 가역), Figma 등 디자인 도구의 아이콘 탭 관례(jakob) 존재",
+   "proposal": "온보딩 가중치가 높은 현 프로파일에선 활성 탭에 한해 텍스트 병기 또는 즉시 툴팁 검토 — U-onboarding 결과와 교차 판단 권장",
+   "tradeoffs": "텍스트 병기는 패널 폭 점유 — 고밀도 좌패널과 충돌 가능. low로 유지하고 단독 수정은 비권장",
+   "approval": "pending"
+  }
+ ],
+ "out_of_scope_flags": [
+  "pm-panel: G5 회신 대기(텔레그램 msg 424)로 finding 보류. suspected 메모 — ① .cpm-*/.cpmt-* Claude-blue 독자 스타일이 '별개 시스템' 기표로 기능하는지 미확정 ② .cpmt-close hover가 --ui-danger 사용(css/claude-pm.css:510) — 터미널 세션 종료가 파괴 액션이라면 적절, 단순 닫기라면 008과 동류. G5 확정 후 재감사",
+  "tb-hidden-mvp 숨김 표면(의도된 결정 — 제외): Commit 버튼·'✅ Committed —' 영문 토스트(commit-system.js:246), Branch 탭·branch-indicator, .st-branch-btn(css/editor-panels.css:967 display:none)의 'feature 브랜치로 실험' git 용어. MVP 해제 시 영문 토스트와 git 용어('브랜치/병합/main') 일반 사용자 노출 재감사 필요",
+  "캔버스 콘텐츠 불가침 — 블록 내부 placeholder('소제목을 입력하세요' 등), projects.html 템플릿 미리보기 내부 텍스트(Section 01/Headline 등), 그래프 시각화 자체는 인벤토리에서 제외",
+  "component-shelf 토스트 5건(component-shelf.js)은 UI 진입점 주석 처리(index.html:628-638)로 현재 도달 불가 추정 — 003에 suspected로만 반영, 재활성화 시 '컴포넌트' 의미 충돌 재평가"
+ ],
+ "area_summary": [
+  {
+   "area": "toolbar",
+   "status": "findings",
+   "notes": "009(Export 메뉴 불일치, high·verify-candidate), 010 일부(Export/Commit 영문 vs 메뉴 한글). Commit·Branch는 MVP 숨김 제외"
+  },
+  {
+   "area": "left-panel",
+   "status": "findings",
+   "notes": "015(아이콘 단독 탭), 010 일부(Page/Layers/Templates 영문 헤더). 페이지 삭제 버튼 danger 기표 적절(file-page-del hover danger)"
+  },
+  {
+   "area": "prop-panel",
+   "status": "findings",
+   "notes": "006(Row·Column/행·열), 010(영문 그룹 제목+한글 필드 패턴 최대 밀도 표면), 012(Child Align, raw ID 노출). danger 버튼 사용은 일관(prop-btn-danger=제거/삭제 전용)"
+  },
+  {
+   "area": "canvas-block",
+   "status": "findings",
+   "notes": "001(Card/Canvas 불일치 — 블록 조작 토스트), 012(NewGrid·col·컨테이너). 섹션 툴바 ⎇은 숨김, ✨/📝는 title 보유. 보호 섹션 토스트(editor.js:1436)는 회복 경로 제시 — 양호"
+  },
+  {
+   "area": "modals",
+   "status": "findings",
+   "notes": "005(Figma Import 모달 '프레임→섹션' referent 전환). 확인/취소 순서·파괴 confirm 문구는 일관(취소 좌·실행 우, '~할까요?' 의문형). settings 단축키 레이블 한글 일관 — 양호"
+  },
+  {
+   "area": "template-browser",
+   "status": "findings",
+   "notes": "003 연관 — '템플릿'(섹션 단위)과 '블록 템플릿'(우클릭 저장, index.html:1148)의 2계층이 브라우저 안에서 구분 기표 없음. '+ 섹션 추가' 삽입 버튼은 결과 예측성 양호"
+  },
+  {
+   "area": "assets-ai",
+   "status": "findings",
+   "notes": "002(스크래치 4종 표기 진원지), 013(✨ 비-AI 삽입 토스트). '누끼따기 (배경 제거)' 괄호 부연은 양호 사례. Model/Mode/Action/매수 혼용은 010에 포함"
+  },
+  {
+   "area": "design-system",
+   "status": "findings",
+   "notes": "010 핵심 사례 — 'Color' 절 vs '컬러 변수' 절, 'New Design System' vs '변수 추가', Apply/Reset 영문 버튼이 단일 패널 내 병존"
+  },
+  {
+   "area": "pm-panel",
+   "status": "deferred",
+   "notes": "G5 보류 — out_of_scope_flags 참조. finding 0건 발행"
+  },
+  {
+   "area": "pickers",
+   "status": "clean",
+   "notes": "Solid/Gradient/Image/Hex/Opacity 영문 단독이나 Figma 관례 내(jakob) — 010 패턴에 포섭, 단독 finding 없음. '(곧 지원)' 표기는 상태 가시성으로 U-feedback 소관"
+  },
+  {
+   "area": "graph",
+   "status": "findings",
+   "notes": "004(라벨 한글 vs 타 표면 Label 영문). 삭제 버튼 danger hover 일관(grb-data-del-btn)"
+  },
+  {
+   "area": "toast",
+   "status": "findings",
+   "notes": "007(경어체 6:31 혼용), 013(⚠️/❌ 실패 표기 혼재). 토스트 vs silent 분포의 맥락 적절성은 U-feedback 소관 — 침범하지 않음"
+  },
+  {
+   "area": "home-pages",
+   "status": "findings",
+   "notes": "014(planning '블록' referent 상이). projects.html 빈 상태 문구('아직 프로젝트가 없어요')·license 흐름 레이블은 예측성 양호. 010 일부(GOYA DESIGN EDITOR/License Activation 영문 혼용)"
+  }
+ ],
+ "judgment_count": 7,
+ "conformance_confirmed": 7,
+ "conformance_suspected": 1,
+ "by_impact": {
+  "high": 1,
+  "medium": 4,
+  "low": 2
+ },
+ "by_severity": {
+  "blocker": 0,
+  "major": 1,
+  "minor": 7,
+  "nit": 0
+ },
+ "grouped_overflow": [],
+ "by_adjudication": {
+  "self": 13,
+  "central-confirmed": 1,
+  "central-refuted": 1
+ }
+}

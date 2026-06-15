@@ -1,0 +1,314 @@
+{
+  "group": "special",
+  "files": [
+    "js/props/prop-graph.js",
+    "js/props/prop-comparison.js",
+    "js/props/prop-step.js",
+    "js/props/prop-banner02.js",
+    "js/props/prop-laurel.js",
+    "js/props/prop-joker.js",
+    "js/props/prop-annotation.js",
+    "js/props/prop-simple-card.js",
+    "js/props/prop-chat.js"
+  ],
+  "blocks": [
+    {
+      "block": "graph",
+      "panelFn": "showGraphProperties",
+      "file": "js/props/prop-graph.js",
+      "controls": [
+        { "id": "grb-h-slider/number", "type": "range+number", "label": "높이", "wired": true, "event": "input/change", "writes": "dataset.chartHeight", "silentFail": "none" },
+        { "id": "grb-label-slider/number", "type": "range+number", "label": "라벨", "wired": true, "event": "input/change", "writes": "dataset.labelSize", "silentFail": "none" },
+        { "id": "grb-label color", "type": "colorField", "label": "라벨 색상", "wired": true, "event": "apply/commit", "writes": "dataset.labelColor", "silentFail": "none" },
+        { "id": "grb-vlabel color", "type": "colorField", "label": "값 색상", "wired": true, "writes": "dataset.vlabelColor", "silentFail": "none" },
+        { "id": "grb-xlabel color", "type": "colorField", "label": "카테고리 색상", "wired": true, "writes": "dataset.xlabelColor", "silentFail": "none" },
+        { "id": "grb-show-vlabel", "type": "checkbox", "label": "값 표시", "wired": true, "event": "change", "writes": "dataset.showVLabel", "silentFail": "none" },
+        { "id": "grb-show-xlabel", "type": "checkbox", "label": "카테고리 표시", "wired": true, "event": "change", "writes": "dataset.showXLabel", "silentFail": "none" },
+        { "id": "grb-stroke-slider/number", "type": "range+number", "label": "선 두께 (line)", "wired": true, "writes": "dataset.strokeWidth", "silentFail": "none" },
+        { "id": "grb-point-slider/number", "type": "range+number", "label": "점 크기 (line)", "wired": true, "writes": "dataset.pointRadius", "silentFail": "none" },
+        { "id": "grb-padx-slider/number", "type": "range+number", "label": "좌우 패딩 (line/bar-h)", "wired": true, "writes": "dataset.padX", "silentFail": "low", "note": "id duplicated in both line & bar-h conditional sections but only one renders at a time (mutually exclusive chartType) — no real DOM collision" },
+        { "id": "grb-fillarea-toggle", "type": "checkbox", "label": "면 채우기 (line)", "wired": true, "writes": "dataset.fillArea", "silentFail": "none" },
+        { "id": "grb-fill color", "type": "colorField", "label": "면 색상 (line)", "wired": true, "writes": "dataset.fillColor", "silentFail": "none" },
+        { "id": "grb-fillalpha-slider/number", "type": "range+number", "label": "투명도 (line)", "wired": true, "writes": "dataset.fillAlpha", "silentFail": "none" },
+        { "id": "grb-bar-thickness-slider/number", "type": "range+number", "label": "두께 (bar-h)", "wired": true, "writes": "dataset.barThickness", "silentFail": "none" },
+        { "id": "grb-item-gap-slider/number", "type": "range+number", "label": "항목 간격 (bar-h)", "wired": true, "writes": "dataset.itemGap", "silentFail": "none" },
+        { "id": "grb-pct-size-slider/number", "type": "range+number", "label": "숫자 크기 (bar-h)", "wired": true, "writes": "dataset.pctSize", "silentFail": "none" },
+        { "id": "grb-bar color", "type": "colorField", "label": "바/선 색상", "wired": true, "writes": "dataset.barColor OR dataset.lineColor (chartType dependent)", "silentFail": "none" },
+        { "id": "grb-type-v/h/line", "type": "button", "label": "차트 타입", "wired": true, "event": "click", "writes": "dataset.chartType", "silentFail": "none" },
+        { "id": "grb-preset-*", "type": "button", "label": "프리셋", "wired": true, "event": "click", "writes": "dataset.preset", "silentFail": "none" },
+        { "id": "grb-data-list inputs", "type": "text+number", "label": "데이터 라벨/값", "wired": true, "event": "input", "writes": "dataset.items (JSON)", "silentFail": "none" },
+        { "id": "grb-data-del-btn / grb-add-item", "type": "button", "label": "데이터 삭/추가", "wired": true, "writes": "dataset.items", "silentFail": "none" }
+      ],
+      "syncPairs": [
+        "grb-h-slider<->grb-h-number", "grb-label-slider<->grb-label-number", "grb-stroke-slider<->grb-stroke-number",
+        "grb-point-slider<->grb-point-number", "grb-padx-slider<->grb-padx-number", "grb-fillalpha-slider<->grb-fillalpha-number",
+        "grb-bar-thickness-slider<->grb-bar-thickness-number", "grb-item-gap-slider<->grb-item-gap-number", "grb-pct-size-slider<->grb-pct-size-number"
+      ],
+      "risks": [
+        { "ctrl": "grb-bar color", "level": "low", "line": 321, "why": "color applied to barColor for bar charts but lineColor for line charts; the label HTML says '선 색상'/'바 색상' from chartType but the persisted key differs (barColor vs lineColor). When toggling chartType, a previously-set lineColor won't carry to barColor and vice versa — perceived 'reset'. Not a hard fail but easy to misread as data loss." }
+      ]
+    },
+    {
+      "block": "comparison",
+      "panelFn": "showComparisonProperties",
+      "file": "js/props/prop-comparison.js",
+      "controls": [
+        { "id": "cmp-feat-group [data-feat]", "type": "button", "label": "강조 칼럼", "wired": true, "event": "click", "writes": "dataset.featured", "silentFail": "none" },
+        { "id": "cmp-col-add", "type": "button", "label": "+ 칼럼 추가", "wired": true, "writes": "cols (setComparisonCols) + dataset.featured", "silentFail": "none" },
+        { "id": "cmp-col-del", "type": "button", "label": "칼럼 삭제", "wired": true, "writes": "cols", "silentFail": "none" },
+        { "id": "cmp-scale/-num", "type": "range+number", "label": "강조 크기", "wired": true, "writes": "dataset.featScale", "silentFail": "none", "note": "separate float handler" },
+        { "id": "cmp-ovl/-num", "type": "range+number", "label": "겹침", "wired": true, "writes": "dataset.overlap", "silentFail": "none" },
+        { "id": "cmp-rad/-num", "type": "range+number", "label": "반경", "wired": true, "writes": "dataset.radius", "silentFail": "none" },
+        { "id": "cmp-padx/-num", "type": "range+number", "label": "좌우 패딩", "wired": true, "writes": "dataset.padX", "silentFail": "none" },
+        { "id": "cmp-pady/-num", "type": "range+number", "label": "상하 패딩", "wired": true, "writes": "dataset.padY", "silentFail": "none" },
+        { "id": "cmp-tfont/-num", "type": "range+number", "label": "제목 크기", "wired": true, "writes": "dataset.titleFont", "silentFail": "none" },
+        { "id": "cmp-rfont/-num", "type": "range+number", "label": "내용 크기", "wired": true, "writes": "dataset.rowFont", "silentFail": "none" },
+        { "id": "cmp-rowh/-num", "type": "range+number", "label": "행 높이", "wired": true, "writes": "dataset.rowH", "silentFail": "none" },
+        { "id": "cmp-rowgap/-num", "type": "range+number", "label": "행 간격", "wired": true, "writes": "dataset.rowGap", "silentFail": "none" },
+        { "id": "cmp-col-title", "type": "textarea", "label": "칼럼 제목", "wired": true, "event": "input/change", "writes": "cols[i].title", "silentFail": "none" },
+        { "id": "cmp-c{i}Bg color", "type": "colorField+gradient", "label": "배경", "wired": true, "writes": "cols[i].bg", "silentFail": "none" },
+        { "id": "cmp-c{i}Text color", "type": "colorField", "label": "텍스트", "wired": true, "writes": "cols[i].text", "silentFail": "none" },
+        { "id": "cmp-row-input", "type": "text", "label": "행 내용", "wired": true, "event": "input/change", "writes": "cols[i].rows[j]", "silentFail": "none" },
+        { "id": "cmp-row-del / cmp-row-add", "type": "button", "label": "행 삭/추가", "wired": true, "writes": "cols[i].rows", "silentFail": "none" }
+      ],
+      "syncPairs": [
+        "cmp-scale<->cmp-scale-num", "cmp-ovl<->cmp-ovl-num", "cmp-rad<->cmp-rad-num", "cmp-padx<->cmp-padx-num",
+        "cmp-pady<->cmp-pady-num", "cmp-tfont<->cmp-tfont-num", "cmp-rfont<->cmp-rfont-num", "cmp-rowh<->cmp-rowh-num", "cmp-rowgap<->cmp-rowgap-num",
+        "cmp-c{i}Bg gradient <-> canvas gradient-line (via gradient-line:change, source-guarded)"
+      ],
+      "risks": [
+        { "ctrl": "cmp-* pair() sliders", "level": "low", "line": 114, "why": "pair() binds both slider AND number to 'input' with parseInt; commit() only on 'change'. Works, but number field uses parseInt (no float) — fine for these int props. No silent fail." },
+        { "ctrl": "gradient-line:change handler", "level": "low", "line": 181, "why": "uses window.getComparisonCols/getComparisonFeaturedIdx (global) but file imports module versions; if globals not exposed, swatch sync no-ops. Cosmetic only (swatch preview), data path unaffected." }
+      ]
+    },
+    {
+      "block": "step",
+      "panelFn": "showStepProperties",
+      "file": "js/props/prop-step.js",
+      "controls": [
+        { "id": "stb-orient-group", "type": "button", "label": "방향(세로/가로)", "wired": true, "writes": "dataset.stepOrient", "silentFail": "none" },
+        { "id": "stb-style-group", "type": "button", "label": "스타일(기본/카드/원형/번호)", "wired": true, "writes": "dataset.stepStyle", "silentFail": "none" },
+        { "id": "stb-card-bg color", "type": "colorField", "label": "카드 배경", "wired": true, "writes": "dataset.stepCardBg", "silentFail": "none" },
+        { "id": "stb-align-group", "type": "button", "label": "정렬", "wired": true, "writes": "dataset.stepAlign", "silentFail": "none" },
+        { "id": "stb-num-bg color", "type": "colorField", "label": "배지 배경색", "wired": true, "writes": "dataset.numBg", "silentFail": "none" },
+        { "id": "stb-num-color color", "type": "colorField", "label": "배지 글자색", "wired": true, "writes": "dataset.numColor", "silentFail": "none" },
+        { "id": "stb-num-size-slider/number", "type": "range+number", "label": "배지 크기", "wired": true, "writes": "dataset.numSize", "silentFail": "none" },
+        { "id": "stb-badge-gap-slider/number", "type": "range+number", "label": "배지 간격", "wired": true, "writes": "dataset.badgeGap", "silentFail": "none" },
+        { "id": "stb-start-number", "type": "number", "label": "시작 번호", "wired": true, "event": "input/change", "writes": "dataset.startNumber", "silentFail": "none" },
+        { "id": "stb-badge-fmt-select", "type": "select", "label": "배지 형식", "wired": true, "event": "change", "writes": "dataset.badgeFormat", "silentFail": "none" },
+        { "id": "stb-title-color color", "type": "colorField", "label": "제목 색", "wired": true, "writes": "dataset.titleColor", "silentFail": "none" },
+        { "id": "stb-desc-color color", "type": "colorField", "label": "설명 색", "wired": true, "writes": "dataset.descColor", "silentFail": "none" },
+        { "id": "stb-title-size-slider/number", "type": "range+number", "label": "제목 크기", "wired": true, "writes": "dataset.titleSize", "silentFail": "none" },
+        { "id": "stb-desc-size-slider/number", "type": "range+number", "label": "설명 크기", "wired": true, "writes": "dataset.descSize", "silentFail": "none" },
+        { "id": "stb-gap-slider/number", "type": "range+number", "label": "간격", "wired": true, "writes": "dataset.gap", "silentFail": "none" },
+        { "id": "stb-padl/padr-slider/number + chain", "type": "range+number+chain", "label": "L/R 패딩", "wired": true, "writes": "dataset.stepPadL/stepPadR", "silentFail": "low" },
+        { "id": "stb-connector", "type": "checkbox", "label": "연결선", "wired": true, "writes": "dataset.connector", "silentFail": "none" },
+        { "id": "stb-connector-style-select", "type": "select", "label": "연결선 스타일", "wired": true, "writes": "dataset.connectorStyle", "silentFail": "none" },
+        { "id": "stb-title-input / stb-desc-input", "type": "text", "label": "스텝 제목/설명", "wired": true, "event": "input", "writes": "dataset.steps (JSON)", "silentFail": "none" },
+        { "id": "stb-del-btn / stb-add-step", "type": "button", "label": "스텝 삭/추가", "wired": true, "writes": "dataset.steps", "silentFail": "none" }
+      ],
+      "syncPairs": [
+        "stb-num-size-slider<->number", "stb-title-size-slider<->number", "stb-desc-size-slider<->number", "stb-gap-slider<->number",
+        "stb-badge-gap-slider<->number", "stb-padl-slider<->number", "stb-padr-slider<->number", "stb-padl<->stb-padr (when chain active)"
+      ],
+      "risks": [
+        { "ctrl": "stb-start-number", "level": "med", "line": 333, "why": "On 'input' it writes dataset.startNumber + rerender but does NOT call scheduleAutoSave (only on 'change'). If user types and blurs via panel re-render before 'change' fires (e.g. selecting another block), the value persists in dataset but autoSave path relies on the later 'change' — generally OK since MutationObserver autosave watches dataset. Marginal." },
+        { "ctrl": "stepPadX legacy migration", "level": "low", "line": 46, "why": "stepPadL/R read falls back to legacy stepPadX, but writes only stepPadL/stepPadR — old stepPadX stays in dataset stale (never deleted). Harmless but could confuse serialization/diff." },
+        { "ctrl": "stb-padl/padr number 'input' vs 'change'", "level": "low", "line": 313, "why": "slider uses 'input' live; number uses 'change' only — typing in number box doesn't live-preview until blur. Minor UX, not data loss." }
+      ]
+    },
+    {
+      "block": "banner02",
+      "panelFn": "showBanner02Properties",
+      "file": "js/props/prop-banner02.js",
+      "controls": [
+        { "id": "bn2-variant-group", "type": "button", "label": "Variant", "wired": true, "writes": "dataset.variant + geometry keys", "silentFail": "none" },
+        { "id": "bn2-w / bn2-h", "type": "number", "label": "W/H", "wired": true, "event": "change", "writes": "dataset.bannerW/bannerH", "silentFail": "none" },
+        { "id": "bn2-bg color/gradient", "type": "colorField+gradient", "label": "색/그라데이션", "wired": true, "writes": "dataset.bg", "silentFail": "none" },
+        { "id": "bn2-radius/-num", "type": "range+number", "label": "반경", "wired": true, "writes": "dataset.radius", "silentFail": "none" },
+        { "id": "line kind select [data-line-kind]", "type": "select", "label": "줄 종류(Label/Title/Sub)", "wired": true, "writes": "_bn2Lines[i].kind", "silentFail": "none" },
+        { "id": "line text [data-line-text]", "type": "textarea", "label": "줄 텍스트", "wired": true, "event": "input/change", "writes": "_bn2Lines[i].text", "silentFail": "none" },
+        { "id": "line size [data-line-size/-num]", "type": "range+number", "label": "크기", "wired": true, "writes": "_bn2Lines[i].size", "silentFail": "none" },
+        { "id": "line font [data-line-font]", "type": "select", "label": "폰트", "wired": true, "event": "change", "writes": "_bn2Lines[i].fontFamily", "silentFail": "none" },
+        { "id": "line weight [data-line-weight]", "type": "select", "label": "굵기", "wired": true, "writes": "_bn2Lines[i].fontWeight", "silentFail": "none" },
+        { "id": "line ls [data-line-ls]", "type": "number", "label": "자간", "wired": true, "event": "change", "writes": "_bn2Lines[i].letterSpacing", "silentFail": "none" },
+        { "id": "line gap [data-line-gap]", "type": "number", "label": "여백위", "wired": true, "event": "change", "writes": "_bn2Lines[i].gapTop", "silentFail": "none" },
+        { "id": "bn2-line-{i}-col color", "type": "colorField", "label": "색", "wired": true, "writes": "_bn2Lines[i].color", "silentFail": "none" },
+        { "id": "line remove [data-line-remove]", "type": "button", "label": "줄 삭제", "wired": true, "writes": "_bn2Lines", "silentFail": "none" },
+        { "id": "bn2-line-add", "type": "button", "label": "줄 추가", "wired": true, "writes": "_bn2Lines", "silentFail": "none" },
+        { "id": "bn2-img-upload / bn2-img-clear", "type": "button", "label": "이미지 추가/제거", "wired": true, "writes": "dataset.imgSrc", "silentFail": "none" },
+        { "id": "bn2-fit-group [data-fit]", "type": "button", "label": "이미지 fit", "wired": true, "writes": "dataset.imgFit", "silentFail": "none" },
+        { "id": "bn2-swap", "type": "button", "label": "좌우 바꾸기", "wired": true, "writes": "dataset.textX/imgX", "silentFail": "none" },
+        { "id": "bn2-align-group [data-align]", "type": "button", "label": "텍스트 정렬", "wired": true, "writes": "dataset.align", "silentFail": "none" }
+      ],
+      "syncPairs": [
+        "bn2-radius<->bn2-radius-num", "data-line-size<->data-line-size-num (clamped, size>120 only number)",
+        "bn2-bg gradient <-> canvas gradient-line (source-guarded)"
+      ],
+      "risks": [
+        { "ctrl": "_bn2Lines.read/write", "level": "med", "line": 14, "why": "Entire lines UI depends on window._bn2Lines (read/write/normalize). If that global is undefined, line read returns [] (line 14 guarded) so panel renders zero rows, but line-add handler (line 277) calls window._bn2Lines.write/normalize UNGUARDED → throws on click. Hard dependency on external global with no fallback for mutators." },
+        { "ctrl": "bn2-w/bn2-h", "level": "low", "line": 184, "why": "No min/max clamp in JS (only HTML attr). User can type out-of-range; HTML min/max not enforced on programmatic 'change'. Cosmetic." }
+      ]
+    },
+    {
+      "block": "laurel",
+      "panelFn": "showLaurelProperties",
+      "file": "js/props/prop-laurel.js",
+      "controls": [
+        { "id": "lrl-grid-picker", "type": "grid-picker", "label": "Grid", "wired": true, "event": "click", "writes": "dataset.gridCols/gridRows", "silentFail": "none" },
+        { "id": "lrl-all-gap/-num", "type": "range+number", "label": "일괄 잎 간격", "wired": true, "writes": "cells[*].gap", "silentFail": "none" },
+        { "id": "lrl-all-height/-num", "type": "range+number", "label": "일괄 잎 크기", "wired": true, "writes": "cells[*].height", "silentFail": "none" },
+        { "id": "lrl-grid-col-gap/-num", "type": "range+number", "label": "셀 가로 간격", "wired": true, "writes": "dataset.gridColGap", "silentFail": "low" },
+        { "id": "lrl-grid-row-gap/-num", "type": "range+number", "label": "셀 세로 간격", "wired": true, "writes": "dataset.gridRowGap", "silentFail": "low" },
+        { "id": "lrl-all-fill", "type": "select", "label": "일괄 잎 채움", "wired": true, "writes": "cells[*].leafFill", "silentFail": "none" },
+        { "id": "lrl-all-leaf color", "type": "colorField", "label": "일괄 잎 색상", "wired": true, "writes": "cells[*].leafColor", "silentFail": "none" },
+        { "id": "lrl-line-text", "type": "text", "label": "줄 텍스트", "wired": true, "event": "input/change", "writes": "cells[ci].lines[li].text", "silentFail": "none" },
+        { "id": "lrl-line-fs/-fs-num", "type": "range+number", "label": "줄 크기", "wired": true, "writes": "cells[ci].lines[li].fontSize", "silentFail": "none" },
+        { "id": "lrl-line-fw", "type": "select", "label": "줄 굵기", "wired": true, "writes": "cells[ci].lines[li].fontWeight", "silentFail": "none" },
+        { "id": "lrl-line-ls/-ls-num", "type": "range+number", "label": "줄 자간", "wired": true, "writes": "cells[ci].lines[li].letterSpacing", "silentFail": "none" },
+        { "id": "lrl-line-color-{ci}-{li} color", "type": "colorField", "label": "줄 색", "wired": true, "writes": "cells[ci].lines[li].color", "silentFail": "none" },
+        { "id": "lrl-line-toggle / lrl-cell-toggle", "type": "button", "label": "펼치기/접기", "wired": true, "writes": "block._laurelCellExpanded (UI state)", "silentFail": "none" },
+        { "id": "lrl-line-remove / lrl-line-add / lrl-line-up", "type": "button", "label": "줄 삭/추가/순서", "wired": true, "writes": "cells[ci].lines", "silentFail": "none" },
+        { "id": "lrl-cell-gap/-num", "type": "range+number", "label": "셀 잎 간격", "wired": true, "writes": "cells[ci].gap", "silentFail": "none" },
+        { "id": "lrl-cell-height/-num", "type": "range+number", "label": "셀 잎 크기", "wired": true, "writes": "cells[ci].height", "silentFail": "none" },
+        { "id": "lrl-cell-fill", "type": "select", "label": "셀 잎 채움", "wired": true, "writes": "cells[ci].leafFill", "silentFail": "none" },
+        { "id": "lrl-cell-leaf-{ci} color", "type": "colorField", "label": "셀 잎 색상", "wired": true, "writes": "cells[ci].leafColor", "silentFail": "none" }
+      ],
+      "syncPairs": [
+        "lrl-all-gap<->lrl-all-gap-num & cascades to all .lrl-cell-gap/-num",
+        "lrl-all-height<->lrl-all-height-num & cascades to .lrl-cell-height",
+        "lrl-line-fs<->lrl-line-fs-num", "lrl-line-ls<->lrl-line-ls-num",
+        "lrl-all-leaf -> per-cell lrl-cell-leaf-{ci}-hex/swatch (one-way push, line 559)"
+      ],
+      "risks": [
+        { "ctrl": "lrl-all-gap / lrl-all-height (일괄)", "level": "med", "line": 494, "why": "bindAllNumPair: slider 'input' applies but the slider/number element CLAMP min/max differ from the dataset clamp (apply uses 0..2000 / 20..600 but slider max attr is 800/320). When a per-cell value exceeds slider max, the 일괄 slider thumb saturates yet underlying value stays — slider position no longer reflects true value (display desync). Number box (max 2000/600) is source of truth, slider lies." },
+        { "ctrl": "lrl-all-leaf onApply per-cell swatch sync", "level": "med", "line": 560, "why": "Manually pokes lrl-cell-leaf-{ci}-hex input and swatch by ID guesswork (two selector fallbacks). If color-picker DOM id scheme changes (e.g. -hex suffix), the per-cell swatches silently won't update while data IS written — visual/data desync, no error." },
+        { "ctrl": "_writeCells legacy deletion", "level": "low", "line": 19, "why": "_writeCells deletes legacy single fields (text/fontSize/...). Any code still reading those legacy keys would silently get undefined after first cell edit. Intentional migration but a hidden coupling." }
+      ]
+    },
+    {
+      "block": "joker",
+      "panelFn": "showJokerProperties",
+      "file": "js/props/prop-joker.js",
+      "controls": [
+        { "id": "joker-x-slider/number", "type": "range+number", "label": "X", "wired": true, "event": "input/change", "writes": "dataset.offsetX + style.left|transform", "silentFail": "none" },
+        { "id": "joker-y-slider/number", "type": "range+number", "label": "Y", "wired": true, "event": "input/change", "writes": "dataset.offsetY + style.top|transform", "silentFail": "none" }
+      ],
+      "syncPairs": ["joker-x-slider<->joker-x-number", "joker-y-slider<->joker-y-number"],
+      "risks": [
+        { "ctrl": "joker-x/y", "level": "low", "line": 50, "why": "applyX/applyY write style.left/top only when isAbsolute (captured once at panel build). If block position changes from absolute to static after panel open (unlikely while selected), transform branch would mismatch. Edge only. No autosave gap (scheduleAutoSave called)." }
+      ]
+    },
+    {
+      "block": "annotation",
+      "panelFn": "showAnnotationProperties",
+      "file": "js/props/prop-annotation.js",
+      "controls": [
+        { "id": "prop-preset-btn [data-preset-idx]", "type": "button", "label": "프리셋", "wired": true, "writes": "multiple dataset via _writeProps", "silentFail": "none" },
+        { "id": "annot-stroke color", "type": "colorField", "label": "선 색", "wired": true, "writes": "dataset.strokeColor", "silentFail": "none" },
+        { "id": "annot-stroke-w/-num", "type": "range+number", "label": "선 두께", "wired": true, "writes": "dataset.strokeWidth", "silentFail": "none" },
+        { "id": "annot-shape-group [data-shape]", "type": "button", "label": "시작점 모양", "wired": true, "writes": "dataset.anchorShape", "silentFail": "none" },
+        { "id": "annot-anchor-size/-num", "type": "range+number", "label": "시작점 크기", "wired": true, "writes": "dataset.anchorSize", "silentFail": "none" },
+        { "id": "annot-label-mode-group [data-mode]", "type": "button", "label": "라벨 모드(텍스트/이미지)", "wired": true, "writes": "dataset.labelMode (+purges opposite)", "silentFail": "none" },
+        { "id": "annot-text", "type": "textarea", "label": "라벨 텍스트", "wired": true, "event": "input/change", "writes": "dataset.text", "silentFail": "low" },
+        { "id": "annot-font-size/-num", "type": "range+number", "label": "라벨 크기", "wired": true, "writes": "dataset.labelFontSize", "silentFail": "none" },
+        { "id": "annot-label-color color", "type": "colorField", "label": "글자색", "wired": true, "writes": "dataset.labelColor", "silentFail": "none" },
+        { "id": "annot-label-img-upload / -remove", "type": "button", "label": "이미지 업로드/제거", "wired": true, "writes": "dataset.labelImageSrc", "silentFail": "none" },
+        { "id": "annot-img-size/-num", "type": "range+number", "label": "이미지 크기", "wired": true, "writes": "dataset.labelImageSize", "silentFail": "none" },
+        { "id": "annot-img-radius/-num", "type": "range+number", "label": "이미지 라운드", "wired": true, "writes": "dataset.labelImageRadius", "silentFail": "none" },
+        { "id": "annot-label-bg color", "type": "colorField", "label": "배경", "wired": true, "writes": "dataset.labelBg", "silentFail": "none" },
+        { "id": "annot-label-border color", "type": "colorField", "label": "테두리", "wired": true, "writes": "dataset.labelBorderColor", "silentFail": "none" },
+        { "id": "annot-border-style-group [data-style]", "type": "button", "label": "선 스타일", "wired": true, "writes": "dataset.labelBorderStyle", "silentFail": "none" },
+        { "id": "annot-border-w/-num", "type": "range+number", "label": "선 두께(라벨)", "wired": true, "writes": "dataset.labelBorderWidth", "silentFail": "med" }
+      ],
+      "syncPairs": [
+        "annot-stroke-w<->-num", "annot-anchor-size<->-num", "annot-font-size<->-num", "annot-img-size<->-num", "annot-img-radius<->-num", "annot-border-w<->-num"
+      ],
+      "risks": [
+        { "ctrl": "annot-border-w-num", "level": "med", "line": 530, "why": "border-width number box binds ONLY 'change' (no 'input'), unlike all sibling -num inputs which bind 'input' for live typing. Typing a value gives no live preview AND if user edits then the slider/preview only update on blur — inconsistent with rest of panel; easy to perceive as 'broken'." },
+        { "ctrl": "annot-text input", "level": "low", "line": 419, "why": "On 'input' writes dataset.text + sets label.textContent only if NOT contenteditable. If label is contenteditable=true (in-canvas edit active) the typed panel text is stored to dataset but visible label not updated until rerender — transient desync between panel and canvas." },
+        { "ctrl": "labelMode purge", "level": "low", "line": 82, "why": "Switching text<->image deletes opposite-mode data (labelImageSrc/labelImageSize or resets text). Intentional but destructive — toggling back loses prior content silently." }
+      ]
+    },
+    {
+      "block": "simple-card",
+      "panelFn": "showSimpleCardProperties",
+      "file": "js/props/prop-simple-card.js",
+      "controls": [
+        { "id": "cvb-w / cvb-h", "type": "number", "label": "카드 W/H", "wired": true, "event": "change", "writes": "dataset.canvasW/canvasH", "silentFail": "none" },
+        { "id": "cvb-img-ratio-slider/number", "type": "range+number", "label": "이미지 비율", "wired": true, "writes": "dataset.imgRatio", "silentFail": "none" },
+        { "id": "cvb-img-shape-group [data-shape]", "type": "button", "label": "이미지 모양", "wired": true, "writes": "dataset.imgShape", "silentFail": "none" },
+        { "id": "cvb-label-mode-group [data-mode]", "type": "button", "label": "라벨 모드(분리/오버레이/숨김)", "wired": true, "writes": "dataset.textHide/labelPos", "silentFail": "none" },
+        { "id": "cvb-label-pos-group [data-pos]", "type": "button", "label": "라벨 위치", "wired": true, "writes": "dataset.labelPos", "silentFail": "none" },
+        { "id": "cvb-overlay-h-slider/number", "type": "range+number", "label": "오버레이 높이", "wired": true, "writes": "dataset.overlayHeight", "silentFail": "none" },
+        { "id": "cvb-overlay-w-slider/number", "type": "range+number", "label": "오버레이 너비", "wired": true, "writes": "dataset.overlayWidth", "silentFail": "none" },
+        { "id": "cvb-text-bg-raw / -pick / -swatch", "type": "text+color+swatch", "label": "라벨 배경(raw CSS, Card Size 섹션)", "wired": true, "writes": "dataset.textBg (sanitized)", "silentFail": "med" },
+        { "id": "cvb-grad-preset", "type": "button", "label": "그라데이션 프리셋", "wired": true, "writes": "dataset.textBg", "silentFail": "none" },
+        { "id": "cvb-radius-slider/number", "type": "range+number", "label": "모서리", "wired": true, "writes": "dataset.radius", "silentFail": "none" },
+        { "id": "cvb-icon-size-slider/number", "type": "range+number", "label": "아이콘 크기 (iconMode)", "wired": true, "writes": "dataset.iconScale", "silentFail": "none" },
+        { "id": "cvb-icon-color-pick/hex", "type": "color+hex", "label": "아이콘 색 (iconMode)", "wired": true, "writes": "dataset.iconColor", "silentFail": "none" },
+        { "id": "cvb-iconbg-pick/hex/transparent-btn", "type": "color+hex+toggle", "label": "이미지 배경 (iconMode)", "wired": true, "writes": "dataset.iconBg/iconBgLast", "silentFail": "none" },
+        { "id": "cvb-textbg-pick/hex/transparent-btn", "type": "color+hex+toggle", "label": "배경색 일괄 (Text Area 섹션)", "wired": true, "writes": "dataset.textBg/textBgLast", "silentFail": "med" },
+        { "id": "cvb-title-color-pick/hex", "type": "color+hex", "label": "제목 색", "wired": true, "writes": "dataset.titleColor", "silentFail": "none" },
+        { "id": "cvb-desc-color-pick/hex", "type": "color+hex", "label": "설명 색", "wired": true, "writes": "dataset.descColor", "silentFail": "none" },
+        { "id": "cvb-title-slider/number", "type": "range+number", "label": "제목 크기", "wired": true, "writes": "dataset.titleSize", "silentFail": "none" },
+        { "id": "cvb-desc-slider/number", "type": "range+number", "label": "설명 크기", "wired": true, "writes": "dataset.descSize", "silentFail": "none" },
+        { "id": "cvb-align-group [data-align]", "type": "button", "label": "텍스트 정렬", "wired": true, "writes": "dataset.textAlign", "silentFail": "none" },
+        { "id": "cvb-gap-slider/number", "type": "range+number", "label": "Gap", "wired": true, "writes": "dataset.cardGap", "silentFail": "none" },
+        { "id": "cvb-padx-slider/number", "type": "range+number", "label": "좌우 패딩", "wired": true, "writes": "dataset.padX", "silentFail": "none" },
+        { "id": "cvb-grid-picker", "type": "grid-picker", "label": "Card Grid", "wired": true, "writes": "dataset.gridCols/gridRows/cards", "silentFail": "none" },
+        { "id": "cvb-card-cell-bg", "type": "color", "label": "카드 개별 배경", "wired": true, "event": "input", "writes": "cards[i].cellBg", "silentFail": "none" },
+        { "id": "cvb-card-img-btn / -img-clear", "type": "button", "label": "카드 이미지 추가/제거", "wired": true, "writes": "cards[i].imgSrc", "silentFail": "none" },
+        { "id": "cvb-card-icon-btn / -icon-clear", "type": "button", "label": "카드 아이콘 (iconMode)", "wired": true, "writes": "cards[i].icon", "silentFail": "none" },
+        { "id": "cvb-card-fit-btn [data-fit]", "type": "button", "label": "카드 이미지 fit", "wired": true, "writes": "cards[i].imgFit", "silentFail": "none" },
+        { "id": "cvb-card-border-color / -border-width", "type": "color+number", "label": "카드 테두리", "wired": true, "event": "input", "writes": "cards[i].borderColor/borderWidth", "silentFail": "none" },
+        { "id": "cvb-card-title-input / -desc-input", "type": "textarea", "label": "카드 제목/설명", "wired": true, "event": "input/change", "writes": "cards[i].title/desc", "silentFail": "none" },
+        { "id": "cvb-text-hide-btn", "type": "button", "label": "(legacy) 텍스트 숨김", "wired": "handler present but element NOT in HTML", "writes": "dataset.textHide", "silentFail": "low" }
+      ],
+      "syncPairs": [
+        "cvb-img-ratio-slider<->number", "cvb-overlay-h-slider<->number", "cvb-overlay-w-slider<->number", "cvb-radius-slider<->number",
+        "cvb-icon-size-slider<->number", "cvb-title-slider<->number", "cvb-desc-slider<->number", "cvb-gap-slider<->number", "cvb-padx-slider<->number",
+        "cvb-text-bg-raw<->cvb-text-bg-pick<->swatch", "cvb-iconbg-pick<->hex", "cvb-textbg-pick<->hex"
+      ],
+      "risks": [
+        { "ctrl": "cvb-text-bg-raw (Card Size) vs cvb-textbg-pick (Text Area)", "level": "med", "line": 456, "why": "TWO independent controls both persist to the SAME dataset.textBg with NO cross-sync. '라벨 배경'(raw CSS, line 456) and '배경색 일괄'(line 600) write textBg/textBgLast separately. Editing one does not update the other's swatch/value (they're seeded only at panel build). User changes raw gradient, then the Text Area '배경색 일괄' swatch still shows old value; clicking it silently overwrites the gradient. Confusing dual source of truth for one field." },
+        { "ctrl": "cvb-text-hide-btn handler", "level": "low", "line": 585, "why": "Handler wired to #cvb-text-hide-btn which is never emitted in current innerHTML (replaced by label-mode-group 'hide'). querySelector returns null, optional-chained → dead code, no fail. Flagged as orphan." },
+        { "ctrl": "cvb-card-cell-bg / border via input delegation", "level": "low", "line": 759, "why": "Native <input type=color> fires 'input' continuously; delegation calls setCards(arr,true) on every input (no debounce) re-stringifying full cards JSON + renderCanvas each tick. Functionally fine, perf only." },
+        { "ctrl": "textBg seeding ambiguity", "level": "low", "line": 11, "why": "isTextBgTransparent derived from dataset.textBg==='transparent' but the raw-CSS control can store a gradient into textBg; the '투명' toggle's textBgLast logic assumes textBg is a solid hex. After a gradient is set via raw input, toggling 투명 then off restores textBgLast (a hex), silently dropping the gradient." }
+      ]
+    },
+    {
+      "block": "chat",
+      "panelFn": "showChatProperties",
+      "file": "js/props/prop-chat.js",
+      "controls": [
+        { "id": "chb-fontsize", "type": "number", "label": "폰트 크기", "wired": true, "event": "input/change", "writes": "dataset.fontSize", "silentFail": "none" },
+        { "id": "chb-radius", "type": "number", "label": "말풍선 곡률", "wired": true, "writes": "dataset.radius", "silentFail": "none" },
+        { "id": "chb-gap", "type": "number", "label": "간격", "wired": true, "writes": "dataset.gap", "silentFail": "none" },
+        { "id": "chb-padding-range/val", "type": "range+number", "label": "패딩", "wired": true, "writes": "dataset.padding + style.padding", "silentFail": "low" },
+        { "id": "chb-bg-left color", "type": "colorField", "label": "좌측 배경", "wired": true, "writes": "dataset.bgLeft", "silentFail": "none" },
+        { "id": "chb-bg-right color", "type": "colorField", "label": "우측 배경", "wired": true, "writes": "dataset.bgRight", "silentFail": "none" },
+        { "id": "chb-show-profile", "type": "checkbox", "label": "프로필 이미지", "wired": true, "writes": "dataset.showProfile", "silentFail": "none" },
+        { "id": "chb-show-name", "type": "checkbox", "label": "이름 표시", "wired": true, "writes": "dataset.showName", "silentFail": "none" },
+        { "id": "chb-profile-size-range/num", "type": "range+number", "label": "프로필 크기", "wired": true, "writes": "dataset.profileSize", "silentFail": "none" },
+        { "id": "chb-profile-y-range/num", "type": "range+number", "label": "프로필 Y 위치", "wired": true, "writes": "dataset.profileOffsetY", "silentFail": "none" },
+        { "id": "chb-profile-gap-range/num", "type": "range+number", "label": "프로필 간격", "wired": true, "writes": "dataset.profileGap", "silentFail": "none" },
+        { "id": "chb-align-btn [data-dir]", "type": "button", "label": "메시지 방향(좌/우)", "wired": true, "writes": "messages[i].align", "silentFail": "none" },
+        { "id": "chb-text-input", "type": "textarea", "label": "메시지 텍스트", "wired": true, "event": "change", "writes": "messages[i].text", "silentFail": "med" },
+        { "id": "chb-del-btn", "type": "button", "label": "메시지 삭제", "wired": true, "writes": "messages", "silentFail": "none" },
+        { "id": "chb-hide-profile", "type": "checkbox", "label": "이 메시지 프로필 숨김", "wired": true, "writes": "messages[i].hideProfile", "silentFail": "none" },
+        { "id": "chb-profile-name-input", "type": "text", "label": "프로필 이름", "wired": true, "event": "input/change", "writes": "messages[i].profileName", "silentFail": "none" },
+        { "id": "chb-profile-thumb / chb-profile-file", "type": "button+file", "label": "프로필 이미지 업로드", "wired": true, "writes": "messages[i].profileImg", "silentFail": "none" },
+        { "id": "chb-add-msg", "type": "button", "label": "대화 추가", "wired": true, "writes": "messages", "silentFail": "none" }
+      ],
+      "syncPairs": [
+        "chb-profile-size-range<->num", "chb-profile-y-range<->num", "chb-profile-gap-range<->num", "chb-padding-range<->chb-padding-val"
+      ],
+      "risks": [
+        { "ctrl": "chb-text-input", "level": "med", "line": 269, "why": "Message text persists ONLY on 'change' (blur), not 'input'. If the user edits a message then immediately deletes/adds another message (which calls rebindMsgList re-stringifying from the in-memory messages array WITHOUT reading the pending textarea value), the un-blurred edit is lost. Also no live preview while typing — inconsistent with most other text controls in the suite." },
+        { "ctrl": "chb-profile fields visibility", "level": "med", "line": 40, "why": "Per-message profile row (thumb/name/hide) only rendered when dataset.showProfile==='1'. The 'chb-show-name' toggle writes showName and rerenders the CANVAS but does NOT rebindMsgList — so enabling '이름 표시' does not surface a name input in the panel unless 프로필 이미지 is also on. Name editing path is gated behind showProfile, not showName — control vs. its panel field are decoupled." },
+        { "ctrl": "chb-padding-val", "level": "low", "line": 223, "why": "Padding number box binds only 'change'; applyPadding writes dataset.padding AND inline block.style.padding directly (bypasses renderChatBlock). Padding lives in two places (dataset + inline style) — if serialization reads dataset but render reads style, possible divergence; here both set together so OK, flagged for the dual-write pattern." }
+      ]
+    }
+  ]
+}

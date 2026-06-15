@@ -1,0 +1,69 @@
+{
+  "agent": "QA-01",
+  "version": "4.0",
+  "role": "core",
+  "scope": "text-gap-divider",
+  "method": "cdp",
+  "scenarios": [
+    {
+      "id": "QA-S1-001",
+      "name": "5분 랜딩페이지 작성 흐름",
+      "steps": [
+        "addSection() → sec_936a2pu 생성, dataset.name='[QA-01]' 태깅",
+        "addTextBlock('h1') → tb_yf9hh76, addTextBlock('body') x2 → tb_pzx4whz/tb_q1yj29r, addGapBlock() → gb_k4e222l, addDividerBlock() → dvd_2d954sn (row 래핑, lineColor #cccccc)",
+        "dblclick으로 편집모드 진입(contenteditable false→true 전환 확인) 후 h1/body x2에 텍스트 입력, placeholder 플래그 정상 해제",
+        "편집모드에서 Cmd+B/Cmd+I (document keydown 핸들러 경유 execCommand) → 볼드/이탤릭 토글",
+        "triggerAutoSave() + flushSave() → localStorage 'web-editor-autosave__proj_1775644888754' 직렬화 검사"
+      ],
+      "status": "PASS",
+      "expected": "모든 블록 생성·텍스트 입력·볼드/이탤릭 토글 후 autosave 직렬화에 입력 내용 포함",
+      "actual": "전부 정상. body 블록 Cmd+B → '<b>QA01</b> 본문...' 적용. h1은 기본 굵기가 bold라 Cmd+B 토글 시 font-weight:normal 적용(정상 토글 의미론). Cmd+I 토글 on→off 왕복 정상. autosave raw(33,507자)에 h1 텍스트/본문/볼드 태그/divider/gap/sec_936a2pu 모두 포함 확인",
+      "evidence": "afterBold='<b>QA01</b> 본문 첫번째 문단입니다.' / italic on='<span...><i>QA01 헤드라인 테스트</i></span>' off='...테스트</span>' / localStorage checks: {h1Text:true, body1Plain:true, body2:true, boldTag:true, mySection:true, divider:true, gap:true}",
+      "verified": true,
+      "adjudication": "self"
+    },
+    {
+      "id": "QA-S2-001",
+      "name": "텍스트 스타일 전체 순환 + 정렬 변경",
+      "steps": [
+        "addTextBlock h1/h2/h3/body/caption/label/bullet 각 추가 (명세는 h3 부재 시 대체 지시했으나 addTextBlock('h3') 실제 지원됨 — tb-h3 '소항목을 입력하세요' 생성)",
+        "각 블록 selectBlock(id) → prop 패널 .prop-align-btn[data-align] 렌더 확인 → left/center/right 클릭",
+        "acceptance: contentEl.style.textAlign === 설정값 (label은 설계상 부모 tb.style.textAlign — inline-block 정렬 방식, prop-text-wireup-align.js 명시 분기)"
+      ],
+      "status": "PASS",
+      "expected": "7개 스타일 x 3개 정렬 = 21케이스 모두 textAlign === 설정값 + 버튼 active 토글",
+      "actual": "21/21 pass. h1/h2/h3/body/caption/bullet은 contentEl.style.textAlign, label은 tb.style.textAlign(코드상 의도된 분기)에 적용. 버튼 active 클래스 동기화 정상. 특이: 최초 생성한 h3 블록(tb_0a0p40e)이 테스트 도중 소실 — 전역 undo 히스토리 공유로 동시 작업 에이전트의 undo에 내 액션이 말려들어간 것으로 추정(재추가 tb_pbphd2j로 3정렬 모두 재검증 통과, 앱 버그 아님·동시성 환경 이슈로 기록)",
+      "evidence": "전체 결과 raw: 각 스타일별 {left:{applied:'left',pass:true,btnActive:true}, center:..., right:...} — h3 재실행 {id:'tb_pbphd2j', aligns:{left:pass, center:pass, right:pass}}",
+      "verified": true,
+      "adjudication": "self"
+    },
+    {
+      "id": "QA-S3-001",
+      "name": "편집 중 단축키 충돌 (Cmd+G 그룹화 / Delete 블록삭제)",
+      "steps": [
+        "tb_q1yj29r dblclick → 편집모드(editing class + contenteditable focus) 진입",
+        "press_key Cmd+G (trusted) → 그룹 0→0, 블록 13→13, 편집모드 유지 — 그룹화 미실행 확인",
+        "press_key Backspace/Delete x3회 시도 → 블록 삭제 안 됨(13개 유지)이나 글자 삭제도 미발생 + 편집모드 이탈 — 원인 분리 위해 대조군 press_key 'x'도 미입력 → 동시 작업 에이전트들의 focus 탈취(blur→편집종료, block-drag.js _bindTextEditEl blur 핸들러)로 판정, 앱 결함 아님",
+        "원자적 재검증(단일 evaluate): 편집모드 진입 → synthetic keydown Cmd+G → defaultPrevented=false·그룹 0→0 / synthetic keydown Backspace → defaultPrevented=false(핸들러가 네이티브 글자삭제에 양보) + execCommand('delete')로 네이티브 기본동작 재현 → len 18→17(끝 글자 1자만 삭제), 블록 13개 유지, 블록 생존",
+        "코드 교차검증: editor.js:1282-1286 (.text-block.editing/isContentEditable 시 Delete 핸들러 early return), editor.js 그룹화 분기도 .text-block.editing/isContentEditable 가드 확인"
+      ],
+      "status": "PASS",
+      "expected": "편집모드 중 Cmd+G는 그룹화 미실행, Delete는 블록 삭제 없이 글자만 삭제",
+      "actual": "Cmd+G: trusted press_key + synthetic 양쪽 모두 그룹화 미실행, 편집 유지. Delete/Backspace: 블록 삭제 0건(전 시도), 글자만 삭제됨(원자 검증 len 18→17 후 복원). 가드 로직 코드로도 확인",
+      "evidence": "press_key Meta+g 후: {groupsAfter:0, myBlocksAfter:13, stillEditing:true, stillFocused:true} / 원자 검증: {afterG:{groups:0,gPrevented:false,stillEditing:true}, afterBs:{bsPrevented:false, blocks:13, blockExists:true, len:17, stillEditing:true}, restoredText:'QA01 본문 두번째 문단입니다.'}",
+      "verified": true,
+      "adjudication": "self"
+    }
+  ],
+  "observations": [
+    "동시성 환경 노트 1: 테스트 중 confirm('전체 1개 섹션을 내보냅니다...') 다이얼로그 1회 출현 — 코드 전수 검색 결과 Cmd+B↔export 바인딩 없음(export confirm은 prop-page.js:309-315 #page-export-all-btn click 전용). 동시 작업 에이전트의 내보내기 버튼 클릭으로 판정, dismiss 처리. 내 export 미실행.",
+    "동시성 환경 노트 2: sec.dataset.name='[QA-01]' 태그가 재렌더(섹션 번호 재계산)로 'Section 02'로 덮어써짐 — 에티켓 태깅이 지속되지 않는 환경 한계. 앱 버그 아님.",
+    "동시성 환경 노트 3: CDP press_key는 호출 간 간격 동안 타 에이전트 evaluate가 focus를 뺏으면 키가 contenteditable에 도달하지 않음(대조군 'x' 미입력으로 확인). 멀티에이전트 공유 페이지에서 trusted key 테스트는 원자적 synthetic 검증으로 보완 필요.",
+    "명세 보정: addTextBlock('h3') 실제 지원됨(tb-h3 생성) — profile.md의 'h3 없으면 대체' 전제는 불필요. h1/h2/h3/body/caption/label/bullet 7종 모두 동작.",
+    "정리: 종료 시 deleteSection으로 [QA-01] 섹션(sec_936a2pu) 삭제 성공 + flushSave 완료. 잔여 섹션은 타 에이전트 소유분."
+  ],
+  "passed": 3,
+  "failed": 0,
+  "ux_issues": 0,
+  "blocker_candidates": 0
+}

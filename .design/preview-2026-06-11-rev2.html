@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>GODITOR FIX 재검토 (맥락) — 후보2·4 · 2026-06-11</title>
+<link rel="stylesheet" href="../css/design-tokens.css">
+<link rel="stylesheet" href="../css/editor-base.css">
+<link rel="stylesheet" href="../css/editor-props.css">
+<link rel="stylesheet" href="../css/editor-blocks.css">
+<style>
+  body { margin:0; background:#1a1a1a; color:#e0e0e0; font-family:Pretendard,system-ui,sans-serif; font-size:13px; }
+  .topbar { position:sticky; top:0; z-index:10; background:#161616; border-bottom:1px solid #333; padding:14px 24px; display:flex; align-items:center; gap:16px; }
+  .topbar h1 { font-size:15px; margin:0; } .topbar .sub { color:#9e9e9e; font-size:11px; } .spacer{flex:1;}
+  .btn { background:#2d6fe8; color:#fff; border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; }
+  .done-banner { background:#1e2a1e; border:1px solid #2d4a2d; color:#9ec89e; padding:10px 24px; font-size:12px; }
+  .tabs { display:flex; gap:4px; padding:12px 24px 0; background:#1a1a1a; position:sticky; top:57px; z-index:9; border-bottom:1px solid #2a2a2a; }
+  .tab { padding:8px 14px; background:#222; border:1px solid #333; border-bottom:none; border-radius:6px 6px 0 0; cursor:pointer; color:#aaa; font-size:12px; }
+  .tab.active { background:#2a2a2a; color:#fff; }
+  .panel { display:none; padding:26px 24px 80px; max-width:1140px; } .panel.active{display:block;}
+  .panel h2 { font-size:17px; margin:0 0 6px; }
+  .desc { color:#9e9e9e; font-size:12px; margin-bottom:8px; line-height:1.6; }
+  .ctxnote { background:#2a2418; border:1px solid #4a3f22; color:#e0c890; font-size:12px; padding:10px 14px; border-radius:6px; margin:14px 0; line-height:1.6; }
+  .cmp { display:flex; gap:18px; margin:18px 0; flex-wrap:wrap; }
+  .mock { flex:1; min-width:260px; background:#1e1e1e; border:1px solid #333; border-radius:8px; padding:0; overflow:hidden; }
+  .mock .cap { padding:8px 12px; font-size:11px; font-weight:700; border-bottom:1px solid #2a2a2a; }
+  .mock.before .cap { color:#e0a04e; } .mock.aopt .cap { color:#e06c6c; } .mock.bopt .cap { color:#7fc87f; }
+  /* 실제 패널 폭(우측 속성패널 ~250px) 재현 */
+  .panelbody { width:248px; margin:0 auto; padding:14px 10px; background:#1e1e1e; }
+  code { color:#bbb; background:#2a2a2a; padding:1px 5px; border-radius:3px; font-size:11px; }
+  .decision { margin-top:22px; background:#202020; border:1px solid #383838; border-radius:8px; padding:16px 18px; }
+  .decision h4 { margin:0 0 12px; font-size:12px; color:#ccc; }
+  .opts { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:12px; } .opts label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .decision textarea { width:100%; box-sizing:border-box; background:#1a1a1a; border:1px solid #3a3a3a; border-radius:6px; color:#e0e0e0; padding:10px; font-size:12px; min-height:48px; }
+  .exportbox { width:100%; box-sizing:border-box; min-height:120px; background:#111; border:1px solid #333; border-radius:6px; color:#9ec8e0; padding:12px; font-family:monospace; font-size:11px; margin-top:10px; }
+  .seclabel { color:#969696; font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin:0 0 6px; }
+  .fakerow { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .fakerow .l { font-size:11px; color:#aaa; width:50px; } .fakerow .v { flex:1; height:24px; background:#2a2a2a; border:1px solid rgba(0,0,0,0); border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="topbar"><h1>GODITOR FIX 재검토 — 맥락 반영</h1><span class="sub">후보2·4만 · 실제 패널 폭/맥락으로 재현</span><span class="spacer"></span><button class="btn" onclick="exportD()">결정 내보내기 ↓</button></div>
+<div class="done-banner">✅ 후보1(위험버튼 raw hex→토큰)·후보3(헤더아이콘 16px)·후보5(step 아이템 간격) — <b>적용+검증 완료</b>. 아래 2개만 맥락 보고 재결정.</div>
+<div class="tabs">
+  <div class="tab active" data-tab="2" onclick="show(2)">후보 2 — 풀폭 버튼 (역할 섞임 발견)</div>
+  <div class="tab" data-tab="4" onclick="show(4)">후보 4 — 행 간격 (정상마진 섞임)</div>
+</div>
+
+<!-- 후보2 -->
+<div class="panel active" data-cand="2">
+  <h2>후보 2 — 풀폭 버튼: <span style="color:#e0a04e;">A안(전부 파랑)은 맥락상 문제</span></h2>
+  <div class="desc">시트에선 <code>.prop-btn-full</code>을 "저장" 버튼처럼 보여드렸지만, 실제로는 <b>역할이 섞여</b> 있습니다 — "+대화 추가하기 / 항목 추가 / 전체 적용 / 이미지 업로드 / Pill·Box 토글". 전부 파랑(A안)으로 하면 <b>중립 버튼·토글까지 주요 CTA처럼 강조</b>됩니다.</div>
+  <div class="ctxnote">⚠️ 맥락: 아래는 실제 채팅 패널 하단의 "+ 대화 추가하기"(중립 add) 버튼이 들어간 모습입니다. A안(파랑)이면 add 버튼이 "저장" 같은 주요 액션처럼 튑니다.</div>
+  <div class="cmp">
+    <div class="mock before"><div class="cap">⚠️ BEFORE — 지금(중립 회색)</div>
+      <div class="panelbody">
+        <div class="seclabel">대화</div>
+        <div style="background:#252525;border:1px solid #333;border-radius:6px;padding:8px;margin-bottom:6px;font-size:11px;color:#ccc;">메시지 1 …</div>
+        <div style="background:#252525;border:1px solid #333;border-radius:6px;padding:8px;margin-bottom:8px;font-size:11px;color:#ccc;">메시지 2 …</div>
+        <button class="prop-btn-full" style="width:100%;">+ 대화 추가하기</button>
+      </div>
+    </div>
+    <div class="mock aopt"><div class="cap">A안 — 전부 파랑 (over-emphasis)</div>
+      <div class="panelbody">
+        <div class="seclabel">대화</div>
+        <div style="background:#252525;border:1px solid #333;border-radius:6px;padding:8px;margin-bottom:6px;font-size:11px;color:#ccc;">메시지 1 …</div>
+        <div style="background:#252525;border:1px solid #333;border-radius:6px;padding:8px;margin-bottom:8px;font-size:11px;color:#ccc;">메시지 2 …</div>
+        <button class="prop-action-btn primary" style="width:100%;">+ 대화 추가하기</button>
+        <div style="color:#e06c6c;font-size:10px;margin-top:6px;">add 버튼이 주요 CTA처럼 튐</div>
+      </div>
+    </div>
+    <div class="mock bopt"><div class="cap">B안(권장) — 역할별 구분</div>
+      <div class="panelbody">
+        <div class="seclabel">대화</div>
+        <div style="background:#252525;border:1px solid #333;border-radius:6px;padding:8px;margin-bottom:6px;font-size:11px;color:#ccc;">메시지 1 …</div>
+        <div style="background:#252525;border:1px solid #333;border-radius:6px;padding:8px;margin-bottom:8px;font-size:11px;color:#ccc;">메시지 2 …</div>
+        <button class="prop-btn-full" style="width:100%;">+ 대화 추가하기</button>
+        <div style="color:#7fc87f;font-size:10px;margin-top:6px;">add/toggle=중립 유지<br>저장·적용·내보내기=파랑 표준</div>
+      </div>
+    </div>
+  </div>
+  <div class="ctxnote" style="background:#1e2630;border-color:#2d4a5a;color:#9ec8e0;">B안(권장): 풀폭 버튼을 <b>역할로 분리</b> — 주요 액션(저장/적용/내보내기)만 <code>.prop-action-btn.primary</code> 파랑으로 통일, 추가/토글/업로드 같은 중립은 <code>.prop-btn-full</code> 회색 유지. 부수로 <code>.prop-export-btn</code> radius 5→4만 맞춤. (전부 통일 vs 역할 구분 중 선택)</div>
+  <div class="decision">
+    <h4>후보 2 재결정</h4>
+    <div class="opts">
+      <label><input type="radio" name="d2" value="A">A안 (그래도 전부 파랑)</label>
+      <label><input type="radio" name="d2" value="B">B안 권장 (역할별: 주요액션만 파랑)</label>
+      <label><input type="radio" name="d2" value="minimal">최소 (export radius만 맞춤, 색 유지)</label>
+      <label><input type="radio" name="d2" value="hold">보류</label>
+    </div>
+    <textarea id="n2" placeholder="메모"></textarea>
+  </div>
+</div>
+
+<!-- 후보4 -->
+<div class="panel" data-cand="4">
+  <h2>후보 4 — 행 간격: <span style="color:#e0a04e;">정상 마진과 섞여 있어 선별 필요</span></h2>
+  <div class="desc"><code>margin-top:6px</code> 인라인이 prop-row 더블마진(고쳐야 함)뿐 아니라 <b>그래디언트 stop·textarea 등 정상 간격</b>에도 쓰입니다. 일괄 제거하면 정상 간격까지 깨집니다.</div>
+  <div class="cmp">
+    <div class="mock before"><div class="cap">⚠️ 고쳐야 할 것 — prop-row 더블마진</div>
+      <div class="panelbody">
+        <div class="seclabel">속성</div>
+        <div class="prop-row" style="gap:6px;margin-top:6px;"><span class="l" style="font-size:11px;color:#aaa;width:50px;">라벨</span><div class="v" style="flex:1;height:24px;background:#2a2a2a;border-radius:4px;"></div></div>
+        <div class="prop-row" style="gap:6px;margin-top:6px;"><span class="l" style="font-size:11px;color:#aaa;width:50px;">라벨</span><div class="v" style="flex:1;height:24px;background:#2a2a2a;border-radius:4px;"></div></div>
+        <div style="color:#e0a04e;font-size:10px;margin-top:6px;">gap6+margin-top6 → 간격 들쭉날쭉</div>
+      </div>
+    </div>
+    <div class="mock bopt"><div class="cap">✓ AFTER — 표준 gap4·mb6</div>
+      <div class="panelbody">
+        <div class="seclabel">속성</div>
+        <div class="prop-row" style="gap:4px;margin-bottom:6px;"><span class="l" style="font-size:11px;color:#aaa;width:50px;">라벨</span><div class="v" style="flex:1;height:24px;background:#2a2a2a;border-radius:4px;"></div></div>
+        <div class="prop-row" style="gap:4px;margin-bottom:6px;"><span class="l" style="font-size:11px;color:#aaa;width:50px;">라벨</span><div class="v" style="flex:1;height:24px;background:#2a2a2a;border-radius:4px;"></div></div>
+        <div style="color:#7fc87f;font-size:10px;margin-top:6px;">균일</div>
+      </div>
+    </div>
+    <div class="mock aopt"><div class="cap">⛔ 건드리면 안 됨 — 정상 마진</div>
+      <div class="panelbody">
+        <div class="seclabel">그래디언트</div>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center;"><div style="width:18px;height:18px;border-radius:50%;background:#1888fe;border:1px solid #555;"></div><div style="width:18px;height:18px;border-radius:50%;background:#e5e5ea;border:1px solid #555;"></div><span style="font-size:10px;color:#888;">stop들</span></div>
+        <div style="color:#9e9e9e;font-size:10px;margin-top:8px;">여기 margin-top:6px은 정상 — 제거 X</div>
+      </div>
+    </div>
+  </div>
+  <div class="ctxnote" style="background:#1e2630;border-color:#2d4a5a;color:#9ec8e0;">권장: 일괄 제거가 아니라 <b>prop-row에 붙은 margin-top:6px(13건 중 행 더블마진인 것만)을 선별</b>해 표준 gap4/mb6로. 그래디언트 stop·textarea 등 비-row 마진은 보존.</div>
+  <div class="decision">
+    <h4>후보 4 재결정</h4>
+    <div class="opts">
+      <label><input type="radio" name="d4" value="selective">선별 수정 (prop-row 더블마진만) 권장</label>
+      <label><input type="radio" name="d4" value="all">그래도 일괄</label>
+      <label><input type="radio" name="d4" value="hold">보류</label>
+    </div>
+    <textarea id="n4" placeholder="메모"></textarea>
+  </div>
+</div>
+
+<script>
+const KEY='goditor_fix_rev2';
+let st=JSON.parse(localStorage.getItem(KEY)||'{}');
+function show(id){document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==id));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.dataset.cand==id));}
+function save(){['2','4'].forEach(id=>{const d=document.querySelector(`input[name="d${id}"]:checked`);st[id]={d:d?d.value:null,n:document.getElementById('n'+id).value};});localStorage.setItem(KEY,JSON.stringify(st));}
+document.addEventListener('change',save);document.addEventListener('input',e=>{if(e.target.tagName=='TEXTAREA')save();});
+(function(){for(const id in st){const s=st[id];if(s.d){const r=document.querySelector(`input[name="d${id}"][value="${s.d}"]`);if(r)r.checked=true;}if(s.n!=null){const n=document.getElementById('n'+id);if(n)n.value=s.n;}}})();
+function exportD(){save();const lines=['GODITOR FIX 재검토 결정 (후보2·4) — 2026-06-11',''];[['2','풀폭 버튼'],['4','행 간격']].forEach(([id,t])=>{const s=st[id]||{};lines.push(`후보 ${id} (${t}): ${s.d||'미정'}${s.n?'\n    메모: '+s.n:''}`);});const text=lines.join('\n');let b=document.getElementById('__e');if(!b){b=document.createElement('textarea');b.id='__e';b.className='exportbox';document.querySelector('.panel.active').appendChild(b);}document.querySelector('.panel.active').appendChild(b);b.value=text;if(navigator.clipboard)navigator.clipboard.writeText(text).then(()=>b.value=text+'\n\n(클립보드 복사됨)');b.scrollIntoView({behavior:'smooth'});}
+</script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+{
+  "agent": "DSN-matrix-assets-ai",
+  "area": "assets-ai",
+  "role": "영역 담당 (design-squad v3.1 매트릭스 파일럿, 행=영역)",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "owns": {
+    "selectors": [".assets-*", ".aig-*", ".ai-*", ".ai-img-*", ".outpaint-*"],
+    "files": ["css/assets-panel.css", "css/ai-image.css"]
+  },
+  "scanned": {
+    "assets_panel_lines": 515,
+    "ai_image_lines": 399,
+    "token_source": "css/editor-base.css :root (40-64)"
+  },
+  "summary": "assets-ai는 한 영역 안에 두 개의 서로 다른 디자인 방언이 공존한다. (1) .assets-*(트리/모달) = radius 4px 주류·24px row·22px action-btn·--ui-* 토큰 정상 사용, prop-panel과 같은 보수적 톤. (2) .aig-*/.ai-img-*(AI 모달) = radius 6/8px 주류·pill 999px stepper·**stale 폴백 팔레트**(card #1c1c1c·accent #6cf 등 현행 토큰과 전혀 다른 hex를 폴백으로 박음)·**토큰 없는 보라(#a855f7/#d6b4fb) outpaint 서브테마**·shimmer skeleton. 토큰은 정의돼 있어 폴백이 실제 렌더되진 않으나, 코드 전반이 구 팔레트 기준으로 작성돼 토큰 미정의 환경/리팩터 시 색이 튄다. 영역 고유 특징: 이 영역만 보라 accent·pill stepper·shimmer 로딩·:focus-visible 전무.",
+  "signature": {
+    "D-component": {
+      "button_radius_primary": "4px (.assets-action-btn, .assets-import-footer btn, .assets-url-popover btn)",
+      "button_radius_ai_panel": "6px (.aig-mode-tab, .aig-picker-btn, .ai-outpaint-export-btn, .aig-prompt-copy-btn 4px 예외)",
+      "container_radius": "8px (.assets-import-modal, .aig-mode-tabs, .aig-picker, .aig-popover)",
+      "cell_radius": "4px (.assets-import-cell, .ai-img-cell) vs 6px (.aig-chip, .aig-popover-cell, .aig-preview-cell)",
+      "button_height": {"assets_action_btn": "22px", "assets_row": "24px", "actionbar": "32px", "aig_count_stepper": "26px(pill)"},
+      "primary_button": ".assets-import-footer-actions btn / .assets-url-popover-ok = bg var(--ui-accent-primary)=#2d6fe8, color #fff, radius 4px, 1px solid 동색 border",
+      "danger_button": "assets측: button[data-act=delete]:hover → color var(--ui-danger)=#e06c6c (토큰 정상). ai측: --ui-danger 토큰 미사용, chip 삭제 X만 raw #e53 원형(50%)으로 처리",
+      "ai_img_cell": ".ai-img-cell aspect-ratio 1·radius 4px·1px solid border-mid·hover시 inset rgba(0,0,0,.6) 액션 오버레이(22px 흰 버튼). .assets-import-cell은 동일 1:1이나 hover=2px accent outline(오버레이 없음) → 같은 '이미지 셀'인데 hover 어포던스 2종 분기",
+      "border": "공통 1px solid; 강조 컨테이너는 var(--ui-border-strong)=#444, ai 패널은 var(--ui-border-mid)=#3a3a3a 폴백 #333",
+      "shadow": "팝오버/모달만: 0 8px 24px rgba(0,0,0,.5)(url-popover·aig-popover) / 0 12px 32px rgba(0,0,0,.6)(import-modal) / drag-ghost 0 6px 18px rgba(0,0,0,.5)"
+    },
+    "D-color": {
+      "bg_tokens": "--ui-bg-base(#1e1e1e), --ui-bg-elevated(#242424 actionbar), --ui-bg-card(#252525 카드/모달), --ui-bg-input(#2a2a2a 썸네일/셀 sunken), --ui-bg-hover(#2e2e2e)",
+      "text_tokens": "--ui-text(#e0e0e0), --ui-text-sub(#aaaaaa), --ui-text-muted(#9e9e9e empty상태)",
+      "accent_tokens": "--ui-accent(#7cb8ff edit/focus·folder icon·selected outline), --ui-accent-primary(#2d6fe8 primary btn·grid selected)",
+      "unique_violet_subtheme_raw_hex": "outpaint 전용 보라 계열 토큰 부재: #a855f7(handle/overlay border), #d6b4fb(export btn text·info-size), rgba(168,85,247,.08~.5). 이 영역만의 색군이며 디자인 토큰에 없음",
+      "raw_hex": ["#d8c878 (.assets-row--url 아이콘, URL 노드 황색 — 토큰 없음)", "#e53 (.aig-chip-x 삭제, --ui-danger 우회)", "#fff (primary/overlay 텍스트, 의도적)", "#a855f7 / #d6b4fb (보라 서브테마)", "#2a2a2a·#333 (shimmer gradient, --ui-bg-* 우회 raw)"],
+      "stale_fallback_palette": "ai-image.css 전역 var() 폴백이 현행 토큰과 불일치: --ui-bg-card 폴백 #1c1c1c(실 #252525), --ui-bg-base 폴백 #2a2a2a(실 #1e1e1e — 사실 input값), --ui-border-mid 폴백 #333(실 #3a3a3a), --ui-text-sub 폴백 #999/#ccc/#888(실 #aaaaaa, 셋이 제각각), --ui-accent-primary 폴백 #6cf(실 #2d6fe8 — 청록 vs 파랑 완전 다른 색상)"
+    },
+    "D-spacing": {
+      "panel_padding": "actionbar 0 8px / import-modal header·footer 10px 14px / import-body 10px / aig-picker 8px / aig-preview 10px",
+      "grid_gap": "import-body 8px(minmax 96px) / assets-grid 8px(minmax 80px) / inline-grid 6px(minmax 56px) / ai-img-grid 4px(repeat(3,1fr)) / aig-popover-grid 6px(repeat(2,1fr))",
+      "row_height_gap": "assets-row 24px·gap 4px / assets-actionbar gap 4px / aig-row gap 8px / aig-image-panel gap 10px",
+      "label_width": "aig-row-label min-width 56px (prop-panel prop-label 56px와 동일 — 영역 간 일치점)",
+      "card_size_var": "--assets-card-size: 80px(기본) / 56px(인라인). ai-img-grid는 고정 3열, aig-chip/preview는 56/96px 고정"
+    },
+    "D-states": {
+      "hover": "assets-row:hover→bg --ui-bg-hover + 숨은 actions display:flex / import-cell:hover→2px accent outline / ai-img-cell:hover→inset rgba(0,0,0,.6) 액션 오버레이 표출 / aig-mode-tab:hover:not(.active)→color만 변경",
+      "focus": ":focus 1곳뿐(.assets-url-popover input/textarea→border-color accent). :focus-visible 전무 — 키보드 포커스 링 영역 전체 부재",
+      "disabled": "import-footer btn:disabled→opacity .4 + not-allowed / aig-count-step:disabled→opacity .3 + not-allowed (두 disabled 투명도 .4 vs .3 불일치)",
+      "selected": "assets-row--selected→rgba(45,111,232,.15)!important + 1px accent-primary outline+radius 4px / grid-card--selected→rgba(45,111,232,.22)!important 2px outline / import-cell.is-selected→2px accent-primary outline (3종 선택 표현 톤 분기)",
+      "loading_skeleton": "영역 고유: .ai-img-cell-loading = linear-gradient(90deg,#2a2a2a,#333,#2a2a2a) + @keyframes aig-shimmer 1.4s infinite(background-position). AI 생성중 shimmer placeholder — 다른 영역엔 없는 유일한 skeleton 어포던스",
+      "drop_target": "assets-tree.drop-target→2px dashed accent + rgba(124,184,255,.06) / aig-picker-chips.dropzone-hover→2px dashed accent-primary(#6cf 폴백) + rgba(102,204,255,.05) (두 드롭존이 다른 accent·다른 rgba 사용)"
+    }
+  },
+  "violations": [
+    {
+      "id": "AAI-01",
+      "severity": "major",
+      "tag": "self",
+      "dimension": "D-color",
+      "title": "ai-image.css 전역 폴백이 stale 팔레트 — 현행 토큰과 hex 불일치(특히 accent #6cf vs #2d6fe8)",
+      "evidence": "ai-image.css의 var() 2nd-arg 폴백이 editor-base.css :root 현행값과 체계적으로 어긋남: --ui-bg-card 폴백 #1c1c1c(현행 #252525), --ui-bg-base 폴백 #2a2a2a(현행 #1e1e1e, #2a2a2a는 사실 --ui-bg-input), --ui-border-mid 폴백 #333(현행 #3a3a3a), --ui-text-sub 폴백이 #999/#ccc/#888 3종(현행 #aaaaaa 단일), 결정적으로 --ui-accent-primary 폴백 #6cf(청록)인데 현행은 #2d6fe8(파랑)으로 색상(hue) 자체가 다름. 토큰이 정의돼 있어 평시 렌더엔 영향 없으나, 파일 전체가 구 팔레트 기준으로 작성된 잔재이며 토큰 누락/포팅 시 청록 accent로 튄다. 대비: assets-panel.css는 폴백을 거의 안 달거나(--ui-bg-hover만 rgba 폴백) 토큰 직참조.",
+      "files": ["css/ai-image.css"],
+      "metric": {"stale_fallback_occurrences": "30+", "accent_hue_mismatch": "1 (#6cf↔#2d6fe8)", "text_sub_fallback_variants": 3},
+      "recommendation": "ai-image.css 폴백을 현행 토큰값으로 일괄 교정하거나(권장: 폴백 제거해 토큰 단일소스 위임). 최소한 --ui-accent-primary 폴백 #6cf→#2d6fe8, --ui-bg-card #1c1c1c→#252525, --ui-text-sub #999/#ccc/#888→#aaaaaa 통일.",
+      "exceptions_respected": "토큰이 정의된 현 상태에서 시각 회귀는 아님(report-only). 블록 콘텐츠 색 불가침."
+    },
+    {
+      "id": "AAI-02",
+      "severity": "minor",
+      "tag": "self",
+      "dimension": "D-color",
+      "title": "outpaint 보라 서브테마 + URL 황색이 디자인 토큰 부재 raw hex",
+      "evidence": "outpaint 관련 6+ 룰이 토큰 없는 보라 raw hex 사용: #a855f7(overlay border·handle bg), #d6b4fb(export-btn/info-size text), rgba(168,85,247,.08~.5)(overlay·info-box·export-btn bg/border). 이 색군은 :root에 정의가 없어 이 영역에만 존재하는 하드코딩 accent. 또 .assets-row--url 아이콘은 #d8c878(황색)로 URL 노드를 구분 — 역시 토큰 외. ai측 chip 삭제 .aig-chip-x는 --ui-danger(#e06c6c) 대신 raw #e53.",
+      "files": ["css/ai-image.css", "css/assets-panel.css"],
+      "metric": {"violet_raw_hex_rules": 8, "url_amber_hex": 1, "danger_token_bypass": 1},
+      "recommendation": "outpaint 보라가 영구 기능이면 --ui-accent-outpaint(또는 --ui-violet) 토큰 신설 후 참조. URL 황색·chip-x 삭제는 각각 --ui-warning/--ui-danger 토큰화 검토. 기능 색 정체성이라면 의도적 예외로 명시.",
+      "exceptions_respected": "보라는 outpaint 기능 식별색이라 의도일 수 있음 — 토큰화 권고 수준."
+    },
+    {
+      "id": "AAI-03",
+      "severity": "minor",
+      "tag": "self",
+      "dimension": "D-states",
+      "title": ":focus-visible 전무 — 영역 전체 키보드 포커스 링 부재",
+      "evidence": "assets-panel.css·ai-image.css 통틀어 :focus는 1곳(.assets-url-popover input/textarea:focus→border-color accent)뿐이고 :focus-visible은 0건. 버튼·셀·탭·stepper 다수가 클릭 타깃인데 키보드 포커스 시 시각 피드백이 없다. 영역 내 hover 상태는 풍부(row/cell/btn 다수)한 것과 대비.",
+      "files": ["css/assets-panel.css", "css/ai-image.css"],
+      "metric": {"focus_visible_rules": 0, "focus_rules": 1, "interactive_targets_est": "20+"},
+      "recommendation": "공통 :focus-visible 규약(예: outline 2px var(--ui-accent) offset)을 버튼/셀/탭에 부여. a11y 차원과 교차되므로 design-a11y 결산과 대조 권장.",
+      "exceptions_respected": "a11y-contrast 차원 결산이 별도 존재하므로 포커스 가시성은 교차 플래그로만 보고."
+    },
+    {
+      "id": "AAI-04",
+      "severity": "nit",
+      "tag": "self",
+      "dimension": "D-states",
+      "title": "동일 의미 상태값 미세 분기 — disabled opacity(.4/.3), drop accent(accent/accent-primary), 셀 hover 어포던스 2종",
+      "evidence": "disabled 투명도가 import btn .4 vs aig-count-step .3로 불일치. 드롭존 강조가 assets-tree=2px dashed --ui-accent + rgba(124,184,255,.06) vs aig-picker-chips=2px dashed --ui-accent-primary + rgba(102,204,255,.05)로 accent 토큰·rgba 모두 다름. 1:1 이미지 셀 hover도 import-cell=accent outline vs ai-img-cell=어두운 오버레이로 분기.",
+      "files": ["css/assets-panel.css", "css/ai-image.css"],
+      "metric": {"disabled_opacity_variants": 2, "dropzone_accent_variants": 2, "cell_hover_variants": 2},
+      "recommendation": "disabled opacity 단일값(.4 권장), 드롭존 강조 토큰/rgba 통일. 셀 hover는 용도(선택 vs 액션) 차이면 의도로 인정.",
+      "exceptions_respected": "ai-img-cell의 액션 오버레이는 인셀 액션(다운로드/삭제) 노출 목적이라 기능 차이로 인정 가능."
+    }
+  ],
+  "crossAreaFlags": [
+    {
+      "dimension": "D-color",
+      "flag": "accent-primary 폴백 hue 충돌: assets-ai(ai-image.css)는 --ui-accent-primary 폴백을 #6cf(청록)로, 현행 토큰·타 영역은 #2d6fe8(파랑). 토큰 미정의 환경에서 이 영역만 청록 accent로 갈라짐 — 정류장 D-color 결산에서 가로 비교 필요.",
+      "compare_to": ["prop-panel(#2d6fe8 danger/primary 정상)", "left-panel", "toolbar"]
+    },
+    {
+      "dimension": "D-component",
+      "flag": "button radius 영역 정체성 분기: assets-ai 내부조차 .assets-*=4px주류 vs .aig-*=6px주류. prop-panel(prop-btn 계열)과 비교해 어느 쪽이 표준 radius인지 정류장 D-component 결산서 판정 요망.",
+      "compare_to": ["prop-panel(.prop-btn radius)", "canvas-block(.cvb-* 버튼)"]
+    },
+    {
+      "dimension": "D-spacing",
+      "flag": "라벨폭 일치점: aig-row-label min-width 56px = prop-panel prop-label 56px. 영역 간 드문 일치 — 정류장 D-spacing 결산에서 '56px 라벨폭'이 전역 표준인지 확인 시 근거.",
+      "compare_to": ["prop-panel(prop-label 56px)"]
+    },
+    {
+      "dimension": "D-states",
+      "flag": ":focus-visible 부재는 assets-ai 단독 문제가 아닐 가능성 — 정류장 D-states 결산에서 6영역 focus 규약 유무를 나란히 봐야 전역 a11y 갭인지 이 영역 특수인지 판별됨.",
+      "compare_to": ["all-areas"]
+    }
+  ]
+}

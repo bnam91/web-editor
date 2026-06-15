@@ -1,0 +1,174 @@
+{
+  "dimension": "apierr",
+  "engine": "debug-squad v4.0",
+  "generatedAt": "2026-06-11",
+  "scope": "js/**/*.js + main.js + preload.js + services/*.js (node_modules/figma-plugin/figma-renderer/dist 제외)",
+  "method": "Scan(electronAPI. 141곳 / ipcMain.handle 62곳 / fetch 9곳 / 빈 catch grep) → Trace(실패 입력 시 사용자 가시 결과) → Grade. profile.md #13 적용: localStorage/JSON.parse 가드용 빈 catch 제외.",
+  "summary": { "blocker": 0, "major": 6, "minor": 3, "total": 9 },
+  "findings": [
+    {
+      "id": "APIERR-01",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "high",
+      "title": "AI 서비스 fetch 5곳 전부 타임아웃/AbortController 없음 — 취소 수단 0 (qa-squad 의심 → 코드로 확정)",
+      "files": [
+        "services/geminiService.js:284",
+        "services/anthropicService.js:271",
+        "services/openaiService.js:325",
+        "services/imageGenService.js:59",
+        "services/imageGenService.js:126",
+        "main.js:94-111 (testApiKey 3종 fetch)"
+      ],
+      "evidence": "5개 서비스 fetch 호출 모두 signal/AbortController 부재. 코드베이스 전체에서 외부 HTTP 타임아웃은 services/licenseService.js:42 (req.setTimeout 5000) 단 1곳. imageGenService._generateGemini는 count(최대4)만큼 순차 fetch — 누적 대기 4배.",
+      "impact": "API가 응답을 끌면(undici 기본 headersTimeout ~300s, body 스트림 지연 시 사실상 무한) 렌더러 버튼이 그 시간 동안 disabled 고정. AI fill·이미지 생성 모두 취소 버튼 없음. figma:upload(main.js:1045, 120s 타이머)와 대조적.",
+      "userTrace": "AI fill 실행 → 'AI가 작성 중…' 토스트 + 버튼 스피너 → 서버 무응답 시 수 분간 아무 일도 안 일어나고 취소 불가 → 사용자는 앱이 죽은 줄 알게 됨.",
+      "fix": "공통 헬퍼 fetchWithTimeout(url, opts, ms=60000) — AbortSignal.timeout(ms) 적용해 5곳 교체. 렌더러에 취소 버튼(메인에 AbortController 보관 + ai:cancel IPC) 추가는 후속.",
+      "group": "ai-timeout"
+    },
+    {
+      "id": "APIERR-02",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "high",
+      "title": "ai-section-fill run 핸들러 try/catch/finally 전무 — IPC rejection 시 버튼 영구 disabled + 무피드백",
+      "files": [
+        "js/ai-section-fill.js:685-783 (특히 726-757)",
+        "js/ai-image-gen.js:618-640 (catch 없는 try/finally)",
+        "js/ai-image-gen.js:607 (_composeOutpaintPayload 무보호 await)"
+      ],
+      "evidence": "runBtn.disabled=true(726) 후 `const res = await callGeminiFill(...)`(748)가 어떤 try에도 안 싸여 있음. 복구(755-757)는 정상 흐름 전용. 서비스가 {ok:false}를 반환하는 경로는 안전하지만, ipcRenderer.invoke 자체가 reject하면(핸들러 동기 throw·직렬화 오류 등) 복구 코드 도달 불가. ai-image-gen handleImageSubmit은 finally로 버튼은 복구하나 catch가 없어 throw 시 토스트 0(침묵). 759줄 이후 applyAIReplacements/applyAIExtensions throw도 미처리.",
+      "impact": "런 버튼 영구 스피너('생성 중…') — 패널 닫았다 열어야 복구(_openAIFillUI_impl:821). 에러는 콘솔 unhandledrejection으로만.",
+      "userTrace": "생성 → (IPC 레이어 예외) → 버튼 스피너 고정, 토스트 없음, 결과 없음.",
+      "fix": "726-783 전체를 try { … } catch(e){ showToast('❌ '+e.message) } finally { 버튼 복구 } 로 재구성. ai-image-gen try/finally에 catch(e){ showToast } 추가.",
+      "group": "ai-button-recovery"
+    },
+    {
+      "id": "APIERR-03",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "high",
+      "title": "commit-system 전 경로 IPC await 무보호 + main projects:save-meta가 쓰기 실패를 그대로 throw — 커밋 침묵 유실",
+      "files": [
+        "js/commit-system.js:236-243 (doCommit)",
+        "js/commit-system.js:84-88 (openCommitModal)",
+        "js/commit-system.js:257-261 (restoreCommit)",
+        "js/commit-system.js:319-323 (exportProjectJSON)",
+        "js/commit-system.js:341-345 (saveProjectAs)",
+        "main.js:940-945 (projects:save-meta — try 없음, _atomicWriteFileSync throw 전파)"
+      ],
+      "evidence": "doCommit은 onclick=\"doCommit()\"(commit-system.js:156)에서 직접 호출되는데 loadProjectMeta/loadProject/saveProjectMeta 3개 await 모두 try 밖. main의 save-meta 핸들러는 유일하게 쓰기 계열 중 try/catch 없이 _atomicWriteFileSync를 직접 호출(인접한 projects:save-sync는 try로 {ok:false} 반환하는 것과 비대칭). 디스크/권한/iCloud dataless(EDEADLK) 시 invoke reject → 모달 안 닫히고 토스트·에러 표시 0, 커밋 미기록.",
+      "impact": "커밋 했다고 생각했는데 기록 안 됨(모달이 안 닫히는 게 유일한 단서). openCommitModal rejection 시 커밋 모달 자체가 침묵 불발.",
+      "userTrace": "✔ Commit 클릭 → (meta 쓰기 실패) → 모달 그대로, 피드백 없음 → 사용자는 재클릭하거나 포기.",
+      "fix": "main: save-meta를 try/catch로 {ok:false,error}. 렌더러: doCommit 등 5곳 try/catch + 실패 토스트, doCommit은 성공시에만 모달 제거.",
+      "group": "ipc-throw-unhandled"
+    },
+    {
+      "id": "APIERR-04",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "high",
+      "title": "템플릿 저장 가짜 성공 — fire-and-forget 후 무조건 '저장됨 ✓' 표시",
+      "files": [
+        "js/props/prop-section.js:559-567 (saveAsTemplate 미await + 즉시 성공 표시)",
+        "js/panels/template-system.js:52-54 (saveTemplates → saveTemplateIndex 미await·미catch)",
+        "js/panels/template-system.js:90-91 (saveAsTemplate 내부 await saveTemplateCanvas 무보호)",
+        "main.js:1188-1191, 1199-1202 (templates:save-index/save-canvas — fs.writeFileSync throw 전파)"
+      ],
+      "evidence": "tplSaveBtn 핸들러가 `window.saveAsTemplate?.(...)`를 await 없이 호출하고 바로 '저장됨 ✓'+input 클리어. saveTemplateCanvas/saveTemplateIndex가 throw해도(디스크 풀·권한) UI는 성공으로 표시, rejection은 unhandled. saveTemplates의 인덱스 쓰기도 fire-and-forget이라 메모리 캐시(_templatesCache)와 파일이 영구 불일치 가능.",
+      "impact": "사용자가 '저장됨 ✓' 확인 후 떠났는데 템플릿 패널/재시작 후 템플릿 없음 — 데이터 유실 + 신뢰 손상. 실패 시그널이 어디에도 없음.",
+      "userTrace": "템플릿으로 저장 클릭 → ✓ 표시 → (실제 쓰기 실패) → 다음 사용 시 템플릿 부재.",
+      "fix": "핸들러를 async로 — await saveAsTemplate 성공시에만 ✓, catch 시 '저장 실패' 토스트. saveTemplates도 await+catch. main 핸들러는 {ok:false,error} 반환형으로 통일.",
+      "group": "ipc-throw-unhandled"
+    },
+    {
+      "id": "APIERR-05",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "high",
+      "title": "섹션 단건 내보내기: 이중 try/finally(catch 0) — 실패 시 다운로드도 토스트도 없는 완전 침묵",
+      "files": [
+        "js/props/prop-section.js:528-533 (try/finally, catch 없음)",
+        "js/io/export-image.js:465→583 (exportSection 본체 try…finally, catch 없음)",
+        "main.js:1225-1245 (capture-section-cdp — dbg.attach('1.3')/sendCommand throw 무보호 전파)"
+      ],
+      "evidence": "단건 내보내기 경로는 catch가 한 층도 없음. capture-section-cdp는 다른 디버거가 이미 attach된 상태(CDP 9334로 외부 도구 attach 등 — 이 워크플로우는 실제 상시 사용됨)나 sendCommand 실패 시 그대로 throw → exportSection finally(클론 제거)만 실행되고 rejection이 prop-section finally(버튼 복구)를 거쳐 unhandled로 증발. 전체 내보내기(prop-page.js:318-331)는 금일 수정으로 집계+토스트가 생겼지만 단건 경로는 잔존.",
+      "impact": "'이 섹션 내보내기' 클릭 → 버튼은 곧 복구되는데 파일이 안 떨어짐 — 원인 불명 침묵 실패. (금일 will-download 핸들러는 다이얼로그 유실만 해결, throw 경로는 미해결.)",
+      "userTrace": "내보내기 클릭 → '내보내는 중...' 잠깐 → 버튼 원복 → 다운로드 폴더 비어 있음, 안내 없음.",
+      "fix": "prop-section.js 핸들러에 catch(e){ showToast('⚠️ 내보내기 실패: '+e.message) } 추가(전체 내보내기와 동일 패턴). capture-section-cdp는 try/catch 후 {ok:false,error} 또는 detach 보장.",
+      "group": "try-finally-swallow"
+    },
+    {
+      "id": "APIERR-06",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "medium",
+      "title": "presets:read-all — 프리셋 JSON 1개만 손상돼도 전체 throw, 렌더러 _presetsReady에 catch 없어 섹션 속성 UI 연쇄 붕괴",
+      "files": [
+        "main.js:1004-1008 (presets:read-all — 파일별 가드 없는 readdirSync+JSON.parse)",
+        "js/editor.js:1552-1560 (_presetsReady = readPresets().then(...) — .catch 없음)",
+        "js/design-system.js:172-173 (readPresets 무보호 await)"
+      ],
+      "evidence": "read-all 핸들러는 PRESETS_DIR(userData — 사용자가 직접 만질 수 있는 위치)의 모든 .json을 map(JSON.parse)으로 읽음. 1개라도 파싱 실패 시 핸들러 전체 reject. 렌더러 _presetsReady는 rejected Promise가 되고, 이를 await하는 showSectionProperties(prop-section.js:85 주석 명시) 등이 호출 때마다 throw — 프리셋뿐 아니라 섹션 속성 패널 렌더 자체가 침묵으로 깨짐.",
+      "impact": "프리셋 파일 1개 손상 = 에디터 핵심 UI(섹션 속성) 전면 불능, 에러 표시 없음(콘솔만).",
+      "userTrace": "섹션 클릭 → 속성 패널 빈 채/먹통 → 원인 추적 불가.",
+      "fix": "main: 파일별 try/catch로 손상 파일 skip(+console.warn). 렌더러: _presetsReady에 .catch(()=>{}) 부착해 PRESET_FALLBACK 유지.",
+      "group": "ipc-throw-unhandled"
+    },
+    {
+      "id": "APIERR-07",
+      "severity": "minor",
+      "adjudication": "self",
+      "confidence": "high",
+      "title": "setProjectName — loadProject/saveProject await 무보호: 이름변경 침묵 유실(탭과 파일 불일치)",
+      "files": ["js/io/save-load.js:190-198"],
+      "evidence": "탭 이름은 먼저 바꾸고(194) 파일 저장(196-197)은 try 없이 await. saveProject 핸들러(main.js:731)의 _atomicWriteFileSync throw 시 unhandled rejection — UI는 새 이름, proj.json은 옛 이름.",
+      "impact": "다음 로드 때 이름이 되돌아가 보임. 피드백 없음. (_doSaveProjectToFile:116-144의 try+토스트 패턴과 비대칭.)",
+      "fix": "try/catch + 실패 토스트 + 탭 이름 롤백.",
+      "group": "ipc-throw-unhandled"
+    },
+    {
+      "id": "APIERR-08",
+      "severity": "minor",
+      "adjudication": "self",
+      "confidence": "medium",
+      "title": "doFigmaUpload — 스피너 ON 이후, try 진입 전 무보호 구간(readNodeMap·buildFigmaExportJSON) throw 시 스피너 영구",
+      "files": ["js/io/figma-publish.js:177-193 (try는 229부터)"],
+      "evidence": "spinner 표시·버튼 disable(178-180) 후 188줄 `await readNodeMap()`과 193줄 buildFigmaExportJSON(거대 DOM 직렬화)이 try(229) 밖. 여기서 throw하면 showDone 미호출 — 모달 스피너 영구 + 업로드 버튼 영구 disabled(닫기는 가능). 본 업로드 경로는 main 120s 타임아웃+catch+재시도로 모범적이라 대비됨.",
+      "impact": "발생 확률 낮음(read-node-map은 main에서 가드됨)이나 직렬화 예외 한 번에 모달 재오픈 필요.",
+      "fix": "try 블록을 177줄 직후로 확장.",
+      "group": "stuck-spinner"
+    },
+    {
+      "id": "APIERR-09",
+      "severity": "minor",
+      "adjudication": "self",
+      "confidence": "medium",
+      "title": "기동 라이선스 체크 — 네트워크 일시 오류와 '미등록'을 구분 없이 라이선스 화면으로 폴백",
+      "files": ["main.js:290-306 (checkLicenseAndLoad)", "services/licenseService.js:42"],
+      "evidence": "getPublicIp/findUserByIp 실패(catch {})를 미등록과 동일 취급해 license.html 로드. 5s 타임아웃은 있으나(양호) 오류 사유 전달·재시도 안내 없음.",
+      "impact": "정상 라이선스 사용자가 오프라인/일시 장애 때 라이선스 화면에 갇힘 — '키가 무효해졌나' 오인.",
+      "fix": "catch에서 사유를 query로 전달해 license.html에 '네트워크 오류 — 재시도' 배너 표시, 또는 최근 성공 캐시 grace 허용.",
+      "group": "startup-io"
+    }
+  ],
+  "groups": {
+    "ai-timeout": ["APIERR-01"],
+    "ai-button-recovery": ["APIERR-02"],
+    "ipc-throw-unhandled": ["APIERR-03", "APIERR-04", "APIERR-06", "APIERR-07"],
+    "try-finally-swallow": ["APIERR-05"],
+    "stuck-spinner": ["APIERR-08"],
+    "startup-io": ["APIERR-09"]
+  },
+  "notExceptions_verifiedOk": [
+    "services 4종 모두 fetch를 try/catch로 감싸 {ok:false,error} 반환 — 에러 '내용' 전달은 양호 (문제는 타임아웃/IPC 레이어)",
+    "figma:upload — 120s 타임아웃 + child error/close 처리 + 렌더러 catch/재시도 버튼: 모범 패턴",
+    "_doSaveProjectToFile(save-load.js:116-144) — try + 실패 토스트 + QuotaExceeded 분기 정상",
+    "iconify-panel/assets-panel/scratch-pad fetch — catch + 사용자 메시지/폴백 존재",
+    "ai-image-gallery/assets-panel의 aiReadImage·assetsReadFile — catch 후 null 폴백 (썸네일 침묵 누락은 수용 가능 수준)",
+    "branch-system._persistBranchesToFile — try/catch + warn (피드백은 콘솔뿐이나 자동 백그라운드 저장이라 수용)",
+    "settings-modal testApiKey — try/catch/finally + 상태 표시 정상 (타임아웃 부재만 APIERR-01에 포함)",
+    "claude-pm terminal-panel — spawn/finder/kill 실패 토스트 처리 확인",
+    "profile.md #13 적용: localStorage/JSON.parse 가드용 빈 catch (block-factory.js 다수 등) 제외"
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "group": "structure",
+  "files": [
+    "js/props/prop-frame.js",
+    "js/props/prop-row.js",
+    "js/props/prop-layout.js",
+    "js/props/prop-table.js",
+    "js/props/prop-gap.js"
+  ],
+  "blocks": [
+    {
+      "block": "frame",
+      "panelFn": "showFrameProperties",
+      "file": "js/props/prop-frame.js",
+      "controls": [
+        { "id": "ss-banner-preset", "type": "select", "label": "Banner Preset", "event": "change", "writes": "window._applyBannerPreset(ss,key) + 패널 재렌더", "silentFailRisk": "low", "note": "L384-399 banner-preset 변형일 때만 노출. confirm 가드 있음. _applyBannerPreset 미정의 시 옵셔널 체이닝으로 조용히 무시되지만 banner 전용이라 정상." },
+        { "id": "ss-banner-swap-btn", "type": "button", "label": "좌우 바꾸기", "event": "click", "writes": "_swapBannerChildren → child.style.left/marginLeft + dataset.offsetX", "silentFailRisk": "low", "note": "L402-404. bannerWidth 0이면 early return(조용). pushHistory/autoSave 호출됨." },
+        { "id": "ss-banner-inner-x-slider", "type": "range", "label": "Banner Position X", "event": "input(bindSlider)", "writes": "ss.style.marginLeft", "silentFailRisk": "low", "note": "L408-411. isBannerInner일 때만. dataset 미저장 → marginLeft는 inline style로 직렬화될 것이나 dataset.* 백업 없음." },
+        { "id": "ss-banner-inner-x-num", "type": "number", "label": "Banner Position X", "event": "input/change(bindSlider)", "writes": "ss.style.marginLeft", "silentFailRisk": "low", "note": "슬라이더와 양방향 쌍." },
+        { "id": "ss-to-stack-btn", "type": "button", "label": "stack (변환)", "event": "click", "writes": "_convertFreeLayoutToStack → DOM 재구성, dataset.fullWidth, gap blocks", "silentFailRisk": "low", "note": "L415-417. freeLayout일 때만 노출. multiRows면 alert 후 중단(가드 OK)." },
+        { "id": "ss-pos-x", "type": "number", "label": "Position X", "event": "input", "writes": "ss.dataset.translateX + ss.style.transform", "silentFailRisk": "low", "note": "L429. change 이벤트 없음 → pushHistory 미호출(input만). autoSave는 _applyTransform 내부 호출." },
+        { "id": "ss-pos-y", "type": "number", "label": "Position Y", "event": "input", "writes": "ss.dataset.translateY + ss.style.transform", "silentFailRisk": "low", "note": "L430. pushHistory 누락 (undo 체크포인트 없음)." },
+        { "id": "ss-align-left", "type": "button", "label": "왼쪽 정렬", "event": "click", "writes": "ss.style.alignItems + dataset.alignItems (+ freeLayout이면 자식 left)", "silentFailRisk": "low", "note": "L493. pushHistory 미호출 — _setAlign 내부엔 scheduleAutoSave만." },
+        { "id": "ss-align-hcenter", "type": "button", "label": "가운데 정렬", "event": "click", "writes": "ss.style.alignItems=center", "silentFailRisk": "low", "note": "L494. pushHistory 누락." },
+        { "id": "ss-align-right", "type": "button", "label": "오른쪽 정렬", "event": "click", "writes": "ss.style.alignItems=flex-end", "silentFailRisk": "low", "note": "L495. pushHistory 누락." },
+        { "id": "ss-align-top", "type": "button", "label": "위 정렬", "event": "click", "writes": "ss.style.justifyContent + dataset.justifyContent", "silentFailRisk": "low", "note": "L497. pushHistory 누락." },
+        { "id": "ss-align-vcenter", "type": "button", "label": "세로 가운데", "event": "click", "writes": "ss.style.justifyContent=center", "silentFailRisk": "low", "note": "L498." },
+        { "id": "ss-align-bottom", "type": "button", "label": "아래 정렬", "event": "click", "writes": "ss.style.justifyContent=flex-end", "silentFailRisk": "low", "note": "L499." },
+        { "id": "ss-gap-slider", "type": "range", "label": "간격(gap)", "event": "input(bindSlider)", "writes": "ss.style.gap + ss.dataset.gap", "silentFailRisk": "none", "note": "L501-503. _setGap 정상." },
+        { "id": "ss-gap-num", "type": "number", "label": "간격(gap)", "event": "input/change(bindSlider)", "writes": "ss.style.gap + dataset.gap", "silentFailRisk": "none", "note": "슬라이더 쌍." },
+        { "id": "ss-rotate-deg", "type": "number", "label": "각도", "event": "input", "writes": "ss.dataset.rotateDeg + style.transform", "silentFailRisk": "low", "note": "L506-509. pushHistory 누락 (autoSave만)." },
+        { "id": "ss-rotate-90", "type": "button", "label": "90° 회전", "event": "click", "writes": "ss.dataset.rotateDeg + input value + transform", "silentFailRisk": "low", "note": "L510-517. pushHistory 누락." },
+        { "id": "ss-flip-h", "type": "button", "label": "좌우 반전", "event": "click", "writes": "ss.dataset.flipH + transform", "silentFailRisk": "low", "note": "L518-522. pushHistory 누락." },
+        { "id": "ss-flip-v", "type": "button", "label": "상하 반전", "event": "click", "writes": "ss.dataset.flipV + transform", "silentFailRisk": "low", "note": "L523-527. pushHistory 누락." },
+        { "id": "ss-bg-img-btn", "type": "button", "label": "이미지 선택", "event": "click", "writes": "file input 트리거", "silentFailRisk": "med", "note": "L533/538. bgImgBtn.addEventListener 비-옵셔널 → bgImgBtn null이면 throw. 다른 버튼들과 달리 항상 존재(조건 없는 섹션)라 실제론 OK이나 ?. 없음=방어 불일치." },
+        { "id": "ss-bg-img-input", "type": "file", "label": "(숨김 파일입력)", "event": "change", "writes": "ss.style.backgroundImage + dataset.bgImg, 동적 버튼 생성", "silentFailRisk": "low", "note": "L539-570. 정상. pushHistory/autoSave 호출됨." },
+        { "id": "ss-bg-pos-btn", "type": "button", "label": "위치 편집", "event": "click", "writes": "window.enterBgPosDragMode(ss)", "silentFailRisk": "low", "note": "L584. hasBgImg일 때만 정적 존재. 동적 생성도 있음." },
+        { "id": "ss-bg-img-clear", "type": "button", "label": "이미지 제거", "event": "click", "writes": "removeBgImg → style/dataset 정리", "silentFailRisk": "none", "note": "L583." },
+        { "id": "ss-bg (color field)", "type": "color+alpha+gradient", "label": "배경색", "event": "wireColorField", "writes": "ss.style.backgroundColor/background + dataset.bg", "silentFailRisk": "none", "note": "L587-605. solid/gradient 모두 처리." },
+        { "id": "ss-border-w-slider", "type": "range", "label": "두께", "event": "input(bindSlider)", "writes": "applyBorder → ss.style.border + dataset.borderWidth", "silentFailRisk": "none", "note": "L608-619." },
+        { "id": "ss-border-w-num", "type": "number", "label": "두께", "event": "input/change(bindSlider)", "writes": "applyBorder", "silentFailRisk": "none", "note": "슬라이더 쌍." },
+        { "id": "ss-border-style", "type": "select", "label": "스타일", "event": "change", "writes": "applyBorder → dataset.borderStyle + style.border", "silentFailRisk": "none", "note": "L620." },
+        { "id": "ss-border (color field)", "type": "color+alpha", "label": "색상", "event": "wireColorField", "writes": "_borderColor + applyBorder → dataset.borderColor", "silentFailRisk": "none", "note": "L621-625." },
+        { "id": "ss-radius-slider", "type": "range", "label": "코너", "event": "input(bindSlider)", "writes": "ss.dataset.radius + style.borderRadius", "silentFailRisk": "none", "note": "L628-631." },
+        { "id": "ss-radius-num", "type": "number", "label": "코너", "event": "input/change(bindSlider)", "writes": "ss.style.borderRadius", "silentFailRisk": "none", "note": "슬라이더 쌍." },
+        { "id": "ss-width-slider", "type": "range", "label": "너비", "event": "input(bindSlider)", "writes": "applyWidth → ss.dataset.width + style.width + 자식 비례 스케일", "silentFailRisk": "none", "note": "L673-717." },
+        { "id": "ss-width-num", "type": "number", "label": "너비", "event": "input/change(bindSlider)", "writes": "applyWidth", "silentFailRisk": "none", "note": "슬라이더 쌍." },
+        { "id": "ss-height-slider", "type": "range", "label": "높이", "event": "input(bindSlider)", "writes": "applyHeight → ss.dataset.height + style.height/minHeight", "silentFailRisk": "none", "note": "L634-670." },
+        { "id": "ss-height-num", "type": "number", "label": "높이", "event": "input/change(bindSlider)", "writes": "applyHeight", "silentFailRisk": "none", "note": "슬라이더 쌍." },
+        { "id": "ss-pady-slider", "type": "range", "label": "상/하 여백", "event": "input(bindSlider)", "writes": "ss.dataset.padY + style.paddingTop/Bottom", "silentFailRisk": "none", "note": "L720-723." },
+        { "id": "ss-pady-num", "type": "number", "label": "상/하 여백", "event": "input/change(bindSlider)", "writes": "applyPadY", "silentFailRisk": "none", "note": "슬라이더 쌍." },
+        { "id": "ss-tpl-folder", "type": "select", "label": "폴더", "event": "change", "writes": "ss-tpl-folder-new 표시 토글 (input은 직접 쓰지 않음)", "silentFailRisk": "low", "note": "L728-730." },
+        { "id": "ss-tpl-folder-new", "type": "text", "label": "새 폴더 이름", "event": "(없음)", "writes": "저장 시 읽기만", "silentFailRisk": "low", "note": "리스너 없음. 저장 버튼에서 value 읽음 — 정상." },
+        { "id": "ss-tpl-cat", "type": "select", "label": "카테고리", "event": "(없음)", "writes": "저장 시 읽기만", "silentFailRisk": "low", "note": "저장 버튼에서 value 읽음." },
+        { "id": "ss-tpl-name", "type": "text", "label": "컴포넌트 이름", "event": "(없음)", "writes": "저장 시 읽기만", "silentFailRisk": "low", "note": "L733." },
+        { "id": "ss-tpl-save-btn", "type": "button", "label": "컴포넌트로 저장", "event": "click", "writes": "window.saveAsTemplate(...)", "silentFailRisk": "low", "note": "L731-743. name 빈값 가드 있음. saveAsTemplate 미정의 시 옵셔널 체이닝으로 조용히 무시되지만 버튼 텍스트는 '저장됨'으로 바뀜 → 거짓 성공 표시 가능." }
+      ],
+      "syncPairs": [
+        ["ss-banner-inner-x-slider", "ss-banner-inner-x-num"],
+        ["ss-gap-slider", "ss-gap-num"],
+        ["ss-border-w-slider", "ss-border-w-num"],
+        ["ss-radius-slider", "ss-radius-num"],
+        ["ss-width-slider", "ss-width-num"],
+        ["ss-height-slider", "ss-height-num"],
+        ["ss-pady-slider", "ss-pady-num"]
+      ],
+      "risks": [
+        "Position X/Y, 회전(각도/90°), flip H/V, 자식정렬 6버튼 — 전부 pushHistory 누락(autoSave만). undo 시 직전 상태로 못 돌아감.",
+        "ss-tpl-save-btn: saveAsTemplate?.() 옵셔널 체이닝 — 함수 미정의 시 저장 안 됐는데 버튼은 '저장됨 ✓' 표시 (거짓 성공).",
+        "ss-bg-img-btn: bgImgBtn.addEventListener 비방어(?. 없음). 섹션이 항상 존재해 실무상 OK지만 패턴 불일치.",
+        "ss-banner-inner-x: marginLeft를 inline style로만 기록, dataset 백업 없음 — 직렬화 의존성 점검 필요."
+      ]
+    },
+    {
+      "block": "row",
+      "panelFn": "showRowProperties",
+      "file": "js/props/prop-row.js",
+      "controls": [
+        { "id": "row-col-ratio", "type": "text", "label": "비율", "event": "keydown(Enter)/blur", "writes": "col.style.flex/dataset.flex 또는 gridTemplateColumns + dataset.ratioStr", "silentFailRisk": "med", "note": "L254-284. parts.length !== cols/gridColCount 면 조용히 return — 잘못된 비율 입력이 무반응, 사용자에게 피드백 없음. layout!==stack일 때만 노출." },
+        { "id": "row-height-slider", "type": "range", "label": "높이", "event": "input", "writes": "rowEl.style.minHeight 또는 gridTemplateRows + dataset.rowHeight", "silentFailRisk": "none", "note": "L169-171. 수동 슬라이더-숫자 동기." },
+        { "id": "row-height-number", "type": "number", "label": "높이", "event": "change", "writes": "applyRowHeight", "silentFailRisk": "none", "note": "L170. 슬라이더 쌍." },
+        { "id": "row-gap-slider", "type": "range", "label": "gap", "event": "input", "writes": "rowEl.style.gap + dataset.gap", "silentFailRisk": "low", "note": "L248-250. layout!==stack(flex/grid)일 때만 노출 — L235 stack early-return." },
+        { "id": "row-gap-number", "type": "number", "label": "gap", "event": "change", "writes": "applyGap", "silentFailRisk": "low", "note": "L249. 슬라이더 쌍. stack이면 미존재(가드됨)." },
+        { "id": "row-padx-slider", "type": "range", "label": "좌우 패딩", "event": "input", "writes": "rowEl.style.paddingLeft/Right + dataset.padX + asset margin hack", "silentFailRisk": "none", "note": "L198-200." },
+        { "id": "row-padx-number", "type": "number", "label": "좌우 패딩", "event": "change", "writes": "applyPadX", "silentFailRisk": "none", "note": "L199. 슬라이더 쌍." },
+        { "id": "row-child-h-slider", "type": "range", "label": "높이(자식 일괄)", "event": "input", "writes": "childBlocks[].style.minHeight", "silentFailRisk": "low", "note": "L212-214. hasChildren일 때만 비-옵셔널 addEventListener. hasChildren 가드로 보호됨." },
+        { "id": "row-child-h-number", "type": "number", "label": "높이(자식 일괄)", "event": "change", "writes": "applyChildHeight", "silentFailRisk": "low", "note": "L213. 슬라이더 쌍." },
+        { "id": "row-child-r-slider", "type": "range", "label": "radius(card 자식)", "event": "input", "writes": "childBlocks[].dataset.radius + style.borderRadius", "silentFailRisk": "low", "note": "L229-231. allCards일 때만 노출+wire. 정합." },
+        { "id": "row-child-r-number", "type": "number", "label": "radius(card 자식)", "event": "change", "writes": "applyChildRadius", "silentFailRisk": "low", "note": "L230. 슬라이더 쌍." }
+      ],
+      "syncPairs": [
+        ["row-height-slider", "row-height-number"],
+        ["row-gap-slider", "row-gap-number"],
+        ["row-padx-slider", "row-padx-number"],
+        ["row-child-h-slider", "row-child-h-number"],
+        ["row-child-r-slider", "row-child-r-number"]
+      ],
+      "risks": [
+        "row-col-ratio: parts.length 불일치 시 조용히 return (L258, L276) — 잘못된 비율 입력 시 무반응, 에러 피드백 없음(med).",
+        "row-height-number/gap-number/padx-number: input 이벤트 없이 change만 — 타이핑 중 슬라이더 미동기(타이핑 끝나야 반영). 일관성 낮음.",
+        "child-h/child-r 핸들러: 비-옵셔널 addEventListener지만 hasChildren/allCards 가드 내에 있어 안전."
+      ]
+    },
+    {
+      "block": "row-layout-direct",
+      "panelFn": "applyRowLayoutDirect",
+      "file": "js/props/prop-row.js",
+      "controls": [
+        { "id": "(프로그램 호출)", "type": "function", "label": "Row 레이아웃 전환(stack/flex/grid)", "event": "외부 호출", "writes": "rowEl.dataset.layout/ratioStr + style.display/gridTemplateColumns + col 생성/제거", "silentFailRisk": "low", "note": "L290-341. UI 컨트롤 아님(외부 트리거). stack 분기엔 pushHistory/autoSave 없음(flex만 있음)." }
+      ],
+      "syncPairs": [],
+      "risks": ["applyRowLayoutDirect stack/grid 분기에 pushHistory/scheduleAutoSave 누락 (flex 분기만 호출). 외부 호출자 책임일 수 있으나 불일치."]
+    },
+    {
+      "block": "table",
+      "panelFn": "showTableProperties",
+      "file": "js/props/prop-table.js",
+      "controls": [
+        { "id": "tbl-row-minus / tbl-row-plus", "type": "button", "label": "행 −/+", "event": "click", "writes": "tbody tr 추가/제거 + count textContent", "silentFailRisk": "none", "note": "L527-547. 비-옵셔널이나 패널 정적 존재. pushHistory 호출." },
+        { "id": "tbl-col-minus / tbl-col-plus", "type": "button", "label": "열 −/+", "event": "click", "writes": "tr th/td 추가제거 + merges clear + colRatio/colColors 재적용", "silentFailRisk": "none", "note": "L557-589." },
+        { "id": "tbl-col-ratio", "type": "text", "label": "비율", "event": "change", "writes": "_applyColRatio → colgroup + dataset.colWidths", "silentFailRisk": "low", "note": "L622-628. ?. 옵셔널. 잘못된 입력은 패딩/절삭으로 보정(조용하지만 의도된 동작)." },
+        { "id": "tbl-col-ratio-reset", "type": "button", "label": "균등", "event": "click", "writes": "_applyColRatio(equal)", "silentFailRisk": "none", "note": "L629-636." },
+        { "id": "tbl-merge-headers", "type": "text", "label": "병합", "event": "change", "writes": "window.updateTableBlock(id,{mergedHeaderCols}) + 패널 재렌더", "silentFailRisk": "med", "note": "L614-615. updateTableBlock 미정의(typeof!=='function')면 조용히 return(L605) — 입력해도 아무 변화 없음, 패널 재렌더도 안 됨. 실패 시 console.warn만(L609)." },
+        { "id": "tbl-merge-headers-clear", "type": "button", "label": "지우기", "event": "click", "writes": "_applyMergeInput('')", "silentFailRisk": "low", "note": "L616-619. 동일하게 updateTableBlock 의존." },
+        { "id": "tbl-col-bg-{i}", "type": "color", "label": "컬럼 N 배경", "event": "input", "writes": "_applyColColors → 셀 backgroundColor + dataset.colBgs", "silentFailRisk": "low", "note": "L660. curStyle==='colored'일 때만 존재+wire. 정합." },
+        { "id": "tbl-col-fg-{i}", "type": "color", "label": "컬럼 N 글자색", "event": "input", "writes": "_applyColColors → 셀 color + dataset.colFgs", "silentFailRisk": "low", "note": "L661." },
+        { "id": "tbl-img-h-slider-{i}", "type": "range", "label": "Image Row N 높이", "event": "input", "writes": "_applyRowImgHeight → ph.style.height + tr.dataset.imgH", "silentFailRisk": "low", "note": "L678. data-row-img row 있을 때만. ?. 옵셔널." },
+        { "id": "tbl-img-h-num-{i}", "type": "number", "label": "Image Row N 높이", "event": "input", "writes": "_applyRowImgHeight", "silentFailRisk": "low", "note": "L679. 슬라이더 쌍. pushHistory 없음(autoSave만)." },
+        { "id": "tbl-show-header", "type": "checkbox", "label": "헤더", "event": "change", "writes": "block.dataset.showHeader + thead.style.display", "silentFailRisk": "none", "note": "L519-524." },
+        { "id": "tbl-header-bg (color field)", "type": "color+alpha", "label": "헤더 배경색", "event": "wireColorField", "writes": "block.dataset.headerBg + CSS var --tbl-header-bg", "silentFailRisk": "none", "note": "L779-786." },
+        { "id": "tbl-style-select", "type": "select", "label": "테마", "event": "change", "writes": "block.dataset.style + _applyColColors + 패널 재렌더", "silentFailRisk": "none", "note": "L639-644." },
+        { "id": "tbl-align-group (3 btn)", "type": "button group", "label": "정렬 좌/가운데/우", "event": "click", "writes": "block.dataset.cellAlign + 셀 textAlign + active class", "silentFailRisk": "none", "note": "L683-691." },
+        { "id": "tbl-font-family", "type": "select", "label": "폰트", "event": "change", "writes": "block.dataset.fontFamily + CSS var --tbl-font-family", "silentFailRisk": "none", "note": "L799-805." },
+        { "id": "tbl-size-slider", "type": "range", "label": "크기", "event": "input", "writes": "table.style.fontSize + block.dataset.fontSize", "silentFailRisk": "none", "note": "L700-702." },
+        { "id": "tbl-size-number", "type": "number", "label": "크기", "event": "change", "writes": "applySize", "silentFailRisk": "none", "note": "L701. 슬라이더 쌍." },
+        { "id": "tbl-text (color field)", "type": "color+alpha", "label": "글자색", "event": "wireColorField", "writes": "block.dataset.textColor + CSS var --tbl-text-color", "silentFailRisk": "none", "note": "L789-796." },
+        { "id": "tbl-pad-slider", "type": "range", "label": "셀 패딩", "event": "input", "writes": "block.dataset.cellPad + 셀 padding", "silentFailRisk": "med", "note": "L705-713. applyPad에서 'v + px 16px' — 좌우 16px 하드코딩. dataset.cellPad엔 상하값만 저장 → 재렌더 시 좌우 16 고정, 좌우 패딩 직렬화/복원 불완전." },
+        { "id": "tbl-pad-number", "type": "number", "label": "셀 패딩", "event": "change", "writes": "applyPad", "silentFailRisk": "med", "note": "L712. 슬라이더 쌍. 좌우 16px 하드코딩 동일." },
+        { "id": "tbl-rowh-slider", "type": "range", "label": "행 높이", "event": "input", "writes": "block.dataset.rowH + tr.style.height", "silentFailRisk": "none", "note": "L729-731." },
+        { "id": "tbl-rowh-number", "type": "number", "label": "행 높이", "event": "change", "writes": "applyRowH", "silentFailRisk": "none", "note": "L730. 슬라이더 쌍." },
+        { "id": "tbl-padx-slider", "type": "range", "label": "좌우 여백", "event": "input", "writes": "block.dataset.tablePadX + block.style.paddingLeft/Right", "silentFailRisk": "none", "note": "L764-766." },
+        { "id": "tbl-padx-number", "type": "number", "label": "좌우 여백", "event": "change", "writes": "applyTablePadX", "silentFailRisk": "none", "note": "L765. 슬라이더 쌍." },
+        { "id": "tbl-show-vlines", "type": "checkbox", "label": "세로선", "event": "change", "writes": "block.dataset.showVLines", "silentFailRisk": "none", "note": "L740 bindLineToggle." },
+        { "id": "tbl-show-hlines", "type": "checkbox", "label": "수평선", "event": "change", "writes": "block.dataset.showHLines", "silentFailRisk": "none", "note": "L741." },
+        { "id": "tbl-show-outerx", "type": "checkbox", "label": "외곽 좌우", "event": "change", "writes": "block.dataset.showOuterX", "silentFailRisk": "none", "note": "L742." },
+        { "id": "tbl-show-outery", "type": "checkbox", "label": "외곽 상하", "event": "change", "writes": "block.dataset.showOuterY", "silentFailRisk": "none", "note": "L743." },
+        { "id": "tbl-outerw-slider", "type": "range", "label": "외곽두께", "event": "input", "writes": "block.dataset.outerWidth + CSS var --tbl-outer-w", "silentFailRisk": "none", "note": "L752-754." },
+        { "id": "tbl-outerw-number", "type": "number", "label": "외곽두께", "event": "change", "writes": "applyOuterW", "silentFailRisk": "none", "note": "L753. 슬라이더 쌍." },
+        { "id": "tbl-line (color field)", "type": "color+alpha", "label": "선 색", "event": "wireColorField", "writes": "block.dataset.lineColor + CSS var --tbl-line-color", "silentFailRisk": "none", "note": "L769-776." }
+      ],
+      "syncPairs": [
+        ["tbl-size-slider", "tbl-size-number"],
+        ["tbl-pad-slider", "tbl-pad-number"],
+        ["tbl-rowh-slider", "tbl-rowh-number"],
+        ["tbl-padx-slider", "tbl-padx-number"],
+        ["tbl-outerw-slider", "tbl-outerw-number"],
+        ["tbl-img-h-slider-{i}", "tbl-img-h-num-{i}"]
+      ],
+      "risks": [
+        "tbl-merge-headers: window.updateTableBlock 미정의면 조용히 return(L605) — 헤더 병합 입력이 무반응, 사용자 피드백 없음(med). 실패 시 console.warn만.",
+        "tbl-pad-slider/number(셀 패딩): applyPad에서 좌우 16px 하드코딩('v + px 16px'), dataset.cellPad엔 상하값만 — 좌우 패딩 비대칭/복원 불완전(med).",
+        "tbl-img-h: pushHistory 누락 (autoSave만) — 이미지 row 높이 변경 undo 불가.",
+        "헤더 병합/색 등 다수 컨트롤이 window.updateTableBlock·_apply* 외부 함수 의존 — 정의 누락 시 조용한 실패."
+      ]
+    },
+    {
+      "block": "gap",
+      "panelFn": "showGapProperties",
+      "file": "js/props/prop-gap.js",
+      "controls": [
+        { "id": "gap-slider", "type": "range", "label": "높이", "event": "mousedown/input", "writes": "gb.style.height + number.value", "silentFailRisk": "none", "note": "L38-43. mousedown→pushHistory, input→height+autoSave." },
+        { "id": "gap-number", "type": "number", "label": "높이", "event": "input/change", "writes": "gb.style.height + slider.value + preset active", "silentFailRisk": "none", "note": "L44-51. 슬라이더 쌍. clamp 0~400." },
+        { "id": "gap-preset-btn (20/40/80/120/200)", "type": "button x5", "label": "프리셋 높이", "event": "click", "writes": "gb.style.height + slider/number value + active class", "silentFailRisk": "none", "note": "L57-67. pushHistory+autoSave 정상." }
+      ],
+      "syncPairs": [
+        ["gap-slider", "gap-number"]
+      ],
+      "risks": [
+        "gap height를 style.height(inline)로만 기록 — dataset.h 백업 없음. 직렬화는 inline style 의존(makeGapBlock은 dataset.h 사용하지만 패널 조작 시 갱신 안 함). 저장 복원 정합성 점검 권장(low~med)."
+      ]
+    }
+  ]
+}

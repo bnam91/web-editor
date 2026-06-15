@@ -1,0 +1,625 @@
+/* ══════════════════════════════════════
+   Claude PM — Floating button · Panel · Folder-create modal
+   feature/claude-pm — Phase 1 (UI only, backend stubs)
+   다크 토큰만 사용 (--ui-bg-base, --ui-border, --ui-text 등)
+══════════════════════════════════════ */
+
+/* ──────────────────────────────────────
+   1. Floating Button (#claude-pm-btn)
+   #floating-panel 내부, ✨ AI 옆 (fp-btn 32×32)
+   Claude 톤 블루 #6b9eff (AI 보라와 구분)
+────────────────────────────────────── */
+.fp-btn#claude-pm-btn {
+  color: #6b9eff;
+}
+.fp-btn#claude-pm-btn:hover {
+  background: rgba(107, 158, 255, 0.12) !important;
+  border-color: rgba(107, 158, 255, 0.4) !important;
+  color: #8fb6ff !important;
+}
+.fp-btn#claude-pm-btn.active {
+  background: rgba(107, 158, 255, 0.18);
+  border-color: rgba(107, 158, 255, 0.5);
+  color: #8fb6ff;
+}
+
+/* ──────────────────────────────────────
+   2. Panel (#claude-pm-panel)
+   2026-05-23 — 중앙 모달로 변경 (팀 C — UX)
+   - dim overlay + 중앙 정렬 (settings-modal / folder-create-modal과 동일 패턴)
+   - z-index 9990 → 터미널 패널(10001)이 매니저 dim 위에 표시되어 mutex 옵션 C 구현
+   - 내부 shell(.cpm-panel-shell)은 width 360px 유지
+────────────────────────────────────── */
+#claude-pm-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  background: rgba(0, 0, 0, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+#claude-pm-panel.cpm-open {
+  display: flex;
+  opacity: 1;
+}
+
+/* 내부 shell — 실제 컨텐츠 컨테이너 (드래그 이동은 이 shell에 transform 적용) */
+.cpm-panel-shell {
+  width: 360px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--ui-shadow-xl);
+  color: var(--ui-text);
+}
+
+/* preview 모드일 때 숨김 */
+body.preview-mode #claude-pm-panel { display: none !important; }
+
+/* Header */
+.cpm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--ui-border);
+  cursor: move;
+  user-select: none;
+}
+.cpm-header .cpm-close { cursor: pointer; }
+.cpm-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-fs-13);
+  font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text);
+}
+.cpm-title svg { color: #6b9eff; }
+.cpm-close {
+  background: none;
+  border: none;
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cpm-close:hover { background: var(--ui-bg-hover); color: var(--ui-text); }
+
+/* MCP status */
+.cpm-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ui-border);
+}
+.cpm-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-fs-12);
+  color: var(--ui-text);
+}
+.cpm-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-divider);
+  flex-shrink: 0;
+}
+.cpm-status-dot.connected { background: var(--ui-success); box-shadow: 0 0 6px rgba(127, 200, 127, 0.5); }
+.cpm-status-dot.disconnected { background: #888; }
+.cpm-status-hint {
+  font-size: var(--ui-fs-base);
+  color: var(--ui-text-muted);
+  padding-left: 16px;
+}
+
+/* Action list */
+.cpm-actions {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+}
+.cpm-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  color: var(--ui-text);
+  text-align: left;
+  font-size: var(--ui-fs-12);
+  padding: 11px 16px;
+  cursor: pointer;
+  transition: background 0.12s;
+  font-family: inherit;
+}
+.cpm-action:hover { background: var(--ui-bg-hover); }
+.cpm-action-icon {
+  font-size: var(--ui-fs-16);
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.cpm-action-label {
+  flex: 1;
+  font-weight: var(--ui-fw-medium);
+}
+.cpm-action-arrow {
+  color: var(--ui-text-dim);
+  font-size: var(--ui-fs-14);
+}
+
+/* Footer */
+.cpm-footer {
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--ui-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cpm-footer-desc {
+  font-size: var(--ui-fs-base);
+  color: var(--ui-text-sub);
+  line-height: 1.5;
+}
+.cpm-footer-link {
+  font-size: var(--ui-fs-base);
+  color: #6b9eff;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cpm-footer-link:hover { color: #8fb6ff; text-decoration: underline; }
+
+/* ──────────────────────────────────────
+   3. Folder Create Modal
+   풀스크린 dimmer + 중앙 정렬, width 520px, z-index 10000
+────────────────────────────────────── */
+#claude-pm-folder-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+}
+#claude-pm-folder-modal.cpm-open { display: flex; }
+body.preview-mode #claude-pm-folder-modal { display: none !important; }
+
+.cpm-modal-shell {
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  width: 520px;
+  max-width: calc(100vw - 40px);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow-xl);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cpm-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--ui-border);
+  cursor: move;
+  user-select: none;
+}
+.cpm-modal-header .cpm-modal-close { cursor: pointer; }
+.cpm-modal-title {
+  font-size: var(--ui-fs-13);
+  font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text);
+}
+.cpm-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--ui-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.cpm-modal-close:hover { background: var(--ui-bg-hover); color: var(--ui-text); }
+
+.cpm-modal-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cpm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cpm-field-label {
+  font-size: var(--ui-fs-base);
+  font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text-sub);
+  letter-spacing: 0.02em;
+}
+.cpm-field-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cpm-input {
+  flex: 1;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 6px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-12);
+  padding: 8px 10px;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.cpm-input:focus { border-color: #6b9eff; box-shadow: 0 0 0 2px rgba(107, 158, 255, 0.18); }
+.cpm-input::placeholder { color: var(--ui-text-dim); }
+.cpm-input:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+
+.cpm-pick-btn {
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 6px;
+  color: var(--ui-text-sub);
+  font-size: var(--ui-fs-base);
+  padding: 7px 12px;
+  cursor: not-allowed;
+  opacity: 0.55;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.cpm-preview-box {
+  background: var(--ui-bg-input);
+  border: 1px dashed var(--ui-border-mid);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: var(--ui-fs-12);
+  color: var(--ui-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+
+.cpm-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: var(--ui-fs-base);
+  color: var(--ui-text-sub);
+  background: rgba(107, 158, 255, 0.06);
+  border: 1px solid rgba(107, 158, 255, 0.18);
+  border-radius: 6px;
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+.cpm-info-icon { color: #6b9eff; flex-shrink: 0; }
+
+.cpm-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--ui-border);
+}
+.cpm-btn {
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 6px;
+  color: var(--ui-text-sub);
+  font-size: var(--ui-fs-12);
+  padding: 7px 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cpm-btn:hover { background: var(--ui-border); color: var(--ui-text); }
+.cpm-btn.primary {
+  background: #2d6fe8;
+  border-color: #2d6fe8;
+  color: #fff;
+  font-weight: var(--ui-fw-semibold);
+}
+.cpm-btn.primary:hover { background: #3a7df0; border-color: #3a7df0; }
+.cpm-btn.primary:disabled {
+  background: #1f3a6e;
+  border-color: #1f3a6e;
+  color: #aaa;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ══════════════════════════════════════
+   Phase 3 (F8) — 내부 터미널 패널
+   right slide-in, width 320~900px, full height
+══════════════════════════════════════ */
+#claude-pm-terminal-panel {
+  position: fixed;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  width: 480px;
+  z-index: 10001; /* 좌측 패널(9999)·AI 패널·폴더 모달(10000) 위 */
+  /* --cpmt-bg-alpha는 슬라이더가 설정 (기본 1 = 불투명) */
+  background: rgba(15, 15, 16, var(--cpmt-bg-alpha, 1));
+  /* 뒤가 비치는 게 명확히 보이게 backdrop blur (codecast 패턴) */
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border-left: 1px solid var(--ui-border-mid, #2a2a2e);
+  display: none;
+  flex-direction: column;
+  /* alpha가 낮을수록 shadow도 옅게 — 알파가 100%일 때만 짙음 */
+  box-shadow: -8px 0 24px rgba(0, 0, 0, calc(var(--cpmt-bg-alpha, 1) * 0.45));
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform 0.18s ease-out, opacity 0.18s ease-out;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+  color: #e6e6e6;
+}
+#claude-pm-terminal-panel.cpmt-open {
+  display: flex;
+  transform: translateX(0);
+  opacity: 1;
+}
+body.preview-mode #claude-pm-terminal-panel { display: none !important; }
+
+/* 8방향 resize 핸들 (4 측면 + 4 corner). 모두 absolute, panel 가장자리에 배치. */
+.cpmt-resizer { position: absolute; background: transparent; z-index: 2; }
+.cpmt-resizer:hover { background: rgba(107,158,255,0.35); }
+/* 4 측면 — 6px 두께 */
+.cpmt-resizer-l { left: 0;  top: 0; bottom: 0; width: 6px;  cursor: ew-resize; }
+.cpmt-resizer-r { right: 0; top: 0; bottom: 0; width: 6px;  cursor: ew-resize; }
+.cpmt-resizer-t { left: 0; right: 0; top: 0;    height: 6px; cursor: ns-resize; }
+.cpmt-resizer-b { left: 0; right: 0; bottom: 0; height: 6px; cursor: ns-resize; }
+/* 4 corner — 12px, 측면 위로 우선 (z-index 3) */
+.cpmt-resizer-tl { left: 0;  top: 0;    width: 12px; height: 12px; cursor: nwse-resize; z-index: 3; }
+.cpmt-resizer-tr { right: 0; top: 0;    width: 12px; height: 12px; cursor: nesw-resize; z-index: 3; }
+.cpmt-resizer-bl { left: 0;  bottom: 0; width: 12px; height: 12px; cursor: nesw-resize; z-index: 3; }
+.cpmt-resizer-br { right: 0; bottom: 0; width: 12px; height: 12px; cursor: nwse-resize; z-index: 3; }
+
+.cpmt-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 8px 14px;
+  /* alpha를 따라가게 — 자식이 panel root의 rgba를 가리지 않도록 */
+  background: rgba(24, 24, 27, var(--cpmt-bg-alpha, 1));
+  border-bottom: 1px solid #2a2a2e;
+  user-select: none;
+  cursor: move;
+}
+.cpmt-header .cpmt-btn { cursor: pointer; }
+.cpmt-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-fs-12);
+  font-weight: var(--ui-fw-semibold);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cpmt-dot {
+  width: 8px; height: 8px; min-width: 8px; min-height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #6b9eff;
+  box-shadow: 0 0 6px rgba(107,158,255,0.6);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+/* MCP 상태 동기화 — terminal-panel.js의 _pingMcpForDot이 클래스 토글 */
+.cpmt-dot.connected {
+  background: #6b9eff;
+  box-shadow: 0 0 6px rgba(107,158,255,0.65);
+}
+.cpmt-dot.disconnected {
+  background: #6b6b70;
+  box-shadow: 0 0 4px rgba(107,107,112,0.45);
+}
+/* xterm 기본 user-select:none override — 출력 텍스트 마우스 선택 가능하게 */
+.cpmt-body .xterm,
+.cpmt-body .xterm-screen,
+.cpmt-body .xterm-rows {
+  user-select: text;
+  -webkit-user-select: text;
+}
+/* opacity 슬라이더 — 헤더 cpmt-actions 안 */
+.cpmt-opacity-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 70px;
+  height: 4px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  margin-right: 6px;
+  align-self: center;
+}
+.cpmt-opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  background: #6b9eff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 0;
+}
+.cpmt-opacity-slider::-moz-range-thumb {
+  width: 12px; height: 12px;
+  background: #6b9eff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 0;
+}
+.cpmt-title-text { color: #e6e6e6; }
+.cpmt-folder {
+  font-size: var(--ui-fs-base);
+  font-weight: 400;
+  color: var(--ui-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cpmt-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+.cpmt-btn {
+  width: 24px; height: 24px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #aaa;
+  font-size: var(--ui-fs-12);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative; /* tooltip 기준 */
+}
+.cpmt-btn:hover {
+  background: #26262a;
+  color: #fff;
+  border-color: #333;
+}
+.cpmt-btn.cpmt-close:hover { color: var(--ui-danger); }
+/* 즉시 뜨는 커스텀 tooltip (native title 1-2초 지연 회피). 버튼 아래 표시. */
+.cpmt-btn[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20,20,24,0.96);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 5px 8px;
+  border-radius: var(--ui-radius-sm);
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+/* 우측 끝 버튼(닫기 등)은 tooltip이 패널 밖으로 안 나가게 오른쪽 정렬 */
+.cpmt-btn.cpmt-close[data-tip]:hover::after {
+  left: auto; right: 0; transform: none;
+}
+
+.cpmt-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 4px 0 4px;
+  /* alpha를 따라가게 — 패널의 가장 큰 영역. 이게 root rgba를 가리던 주범. */
+  background: rgba(15, 15, 16, var(--cpmt-bg-alpha, 1));
+  overflow: hidden;
+}
+.cpmt-body .xterm {
+  height: 100%;
+  width: 100%;
+}
+.cpmt-body .xterm-viewport { background: transparent !important; }
+/* xterm 내부 canvas/layer도 자기 배경 칠하지 않게 — allowTransparency:true 와 짝 */
+.cpmt-body .xterm,
+.cpmt-body .xterm-screen { background: transparent !important; }
+
+.cpmt-footer {
+  flex: 0 0 auto;
+  padding: 4px 12px;
+  /* alpha를 따라가게 */
+  background: rgba(24, 24, 27, var(--cpmt-bg-alpha, 1));
+  border-top: 1px solid #2a2a2e;
+  font-size: var(--ui-fs-base);
+  color: var(--ui-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 프로젝트별 xterm body 컨테이너 — 한 번에 하나만 표시 */
+.cpmt-body-instance {
+  width: 100%;
+  height: 100%;
+}
+
+/* mini 알약 (우하단 floating, 드래그 가능) */
+#claude-pm-terminal-mini {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 10001;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 12px;
+  background: #18181b;
+  border: 1px solid #333;
+  border-radius: 999px;
+  color: #e6e6e6;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: grab;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+#claude-pm-terminal-mini:hover {
+  background: #1f1f24;
+  border-color: #444;
+}
+#claude-pm-terminal-mini.cpmt-mini-dragging {
+  cursor: grabbing;
+  transform: scale(1.02);
+}
+body.preview-mode #claude-pm-terminal-mini { display: none !important; }
+
+.cpmt-mini-icon {
+  font-family: Menlo, Monaco, monospace;
+  color: #6b9eff;
+  font-size: 12px;
+  line-height: 1;
+}
+.cpmt-mini-label {
+  color: #e6e6e6;
+}
+.cpmt-mini-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #444;
+  transition: background 0.15s ease;
+}
+#claude-pm-terminal-mini.cpmt-mini-pulsing .cpmt-mini-dot {
+  background: #6b9eff;
+  box-shadow: 0 0 6px rgba(107,158,255,0.7);
+  animation: cpmt-mini-pulse 1s ease-in-out infinite;
+}
+@keyframes cpmt-mini-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(1.25); }
+}

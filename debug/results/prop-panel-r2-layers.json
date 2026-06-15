@@ -1,0 +1,49 @@
+{
+  "agent": "LayerPanelGen2",
+  "round": 2,
+  "file": "css/editor-panels.css",
+  "changes": [
+    {
+      "selector": ".layer-item.active",
+      "property": "background",
+      "before": "rgba(45,111,232,0.12)",
+      "after": "rgba(45,111,232,0.15)"
+    },
+    {
+      "selector": ".layer-item:hover",
+      "property": "background",
+      "before": "var(--ui-bg-input)",
+      "after": "var(--ui-bg-hover, #252525)"
+    },
+    {
+      "selector": ".layer-item-name",
+      "property": "white-space / overflow / text-overflow",
+      "before": "(없음)",
+      "after": "white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+    },
+    {
+      "selector": ".layer-row-header",
+      "property": "padding",
+      "before": "0 8px",
+      "after": "0 6px 0 8px"
+    },
+    {
+      "selector": ".layer-row-header",
+      "property": "gap",
+      "before": "6px",
+      "after": "4px"
+    },
+    {
+      "selector": ".layer-indent",
+      "property": "width",
+      "before": "16px",
+      "after": "16px (변경 없음 — 이미 Figma 기준 충족)"
+    },
+    {
+      "selector": ".layer-item",
+      "property": "gap",
+      "before": "6px",
+      "after": "5px"
+    }
+  ]
+}

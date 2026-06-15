@@ -1,0 +1,99 @@
+{
+  "agent": "DSN-a11y-contrast",
+  "dimension": "a11y-contrast",
+  "method": "static",
+  "standard": "WCAG AA (text 4.5:1 / large-text & UI 3:1)",
+  "scope": "UI chrome only (--ui-* tokens). Canvas content (--preset-*/--content-*) excluded per profile.md:52-55.",
+  "harness": "Scan(color-pair usage sites) -> Measure(relative-luminance contrast ratio) -> Grade",
+  "summary": "Two dark-UI text tokens fail AA for normal text on EVERY shell background: --ui-text-dim (#555, 1.8-2.3:1) and --text-hint (#5a5a5a, 2.0-2.5:1). --ui-text-muted (#777) fails normal-text AA on all backgrounds (3.0-3.9:1) but passes the 3:1 large/UI floor. --ui-accent-primary (#2d6fe8) used as 9px text fails AA-normal (3.3:1). All luminances computed; render-side confirmation (effective bg under alpha layers, actual font-size/weight) deferred to center.",
+  "findings": [
+    {
+      "id": "A11Y-CONTRAST-01",
+      "severity": "blocker",
+      "verify": "verify-candidate",
+      "title": "--ui-text-dim (#555555) fails AA on all UI backgrounds — used as body/label/placeholder text",
+      "token": "--ui-text-dim / --text-dim (#555555)",
+      "selectors": [
+        "editor-panels.css:110 .cm-project (font-size:11px)",
+        "editor-panels.css:139 (font-size:10px)",
+        "editor-panels.css:231 (font-size:9px, weight:700)",
+        "editor-props.css:187 .prop-block-id (font-size:9px)",
+        "editor-props.css:213 .prop-preset-btn span (font-size:9px)",
+        "editor-base.css:482 .var-input::placeholder",
+        "editor-extra.css:580 .ai-textarea::placeholder",
+        "editor-extra.css:737 .tpl-browser-search::placeholder",
+        "+ ~100 more usages across panels/props/extra/toast/base"
+      ],
+      "evidence": "#555555 contrast: on --ui-bg-app #1a1a1a = 2.33:1; on --ui-bg-base #1e1e1e = 2.24:1; on --ui-bg-elevated #242424 = 2.08:1; on --ui-bg-card #252525 = 2.06:1; on --ui-bg-input #2a2a2a = 1.93:1; on --ui-bg-hover #2e2e2e = 1.82:1. AA-normal 4.5 FAIL on all, AA-large 3.0 FAIL on all. Used at 9-11px (normal text) so 4.5:1 applies. Largest fail margin in the system.",
+      "usage_count": "~109 color: declarations (panels 31, extra 24, props 23, base 18, blocks 4, toast 5, claude-pm 2, graph 2)"
+    },
+    {
+      "id": "A11Y-CONTRAST-02",
+      "severity": "blocker",
+      "verify": "verify-candidate",
+      "title": "--text-hint (#5a5a5a) fails AA on all UI backgrounds — prop-hint / section-title",
+      "token": "--text-hint (#5a5a5a, design-tokens.css:142)",
+      "selectors": [
+        "design-tokens.css:142 comment: 'prop-hint, section-title'",
+        "raw twin #5a5a5a at editor-props.css:6 (font-size:10px)"
+      ],
+      "evidence": "#5a5a5a contrast: on #1a1a1a = 2.52:1; on #1e1e1e = 2.42:1; on #242424 = 2.25:1; on #252525 = 2.22:1; on #2a2a2a = 2.08:1; on #2e2e2e = 1.97:1. AA-normal 4.5 FAIL, AA-large 3.0 FAIL on all backgrounds. Hint/section-title text at <=10px = normal text, 4.5:1 required.",
+      "note": "Semantic token --text-hint (design-tokens.css) and --ui-text-dim (editor-base.css) are near-identical low-contrast values; the token-system duplication (D-color) compounds this."
+    },
+    {
+      "id": "A11Y-CONTRAST-03",
+      "severity": "blocker",
+      "verify": "verify-candidate",
+      "title": "--ui-text-muted (#777777) fails AA-normal on all UI backgrounds (passes 3:1 floor only)",
+      "token": "--ui-text-muted / --text-muted (#777777)",
+      "selectors": [
+        "editor-base.css:146,239,274,358 (.ds-* labels)",
+        "editor-props.css (6x)",
+        "editor-extra.css (6x)",
+        "color-picker.css (4x)",
+        "editor-layout.css (3x), claude-pm.css (3x), toast (3x), assets-panel (2x), blocks (2x), canvas (1x)"
+      ],
+      "evidence": "#777777 contrast: on #1a1a1a = 3.89:1; on #1e1e1e = 3.72:1; on #242424 = 3.47:1; on #252525 = 3.42:1; on #2a2a2a = 3.21:1; on #2e2e2e = 3.03:1. AA-normal 4.5 FAIL on all; AA-large/UI 3.0 PASS on all. Blocker where used as normal-size text (most usages are <=12px labels); demote to OK only where verified >=18px or >=14px bold.",
+      "usage_count": "~33 color: declarations"
+    },
+    {
+      "id": "A11Y-CONTRAST-04",
+      "severity": "blocker",
+      "verify": "verify-candidate",
+      "title": "--ui-accent-primary (#2d6fe8) as 9px category-tag text fails AA-normal",
+      "token": "--ui-accent-primary (#2d6fe8)",
+      "selectors": [
+        "editor-panels.css:307 .tpl-card-cat (font-size:9px, weight:700, on rgba(45,111,232,0.12))",
+        "editor-panels.css:433 .tpl-preview-cat (font-size:9px, weight:700)",
+        "editor-base.css:151 .ds-new-preset-btn:hover (text)",
+        "editor-base.css:280 .ds-colorvar-del:hover (text)",
+        "color-picker.css:381 .goya-cp-image-zone:hover (text)",
+        "assets-panel.css:447 (text)"
+      ],
+      "evidence": "#2d6fe8 contrast: on #1a1a1a = 3.77:1; on #1e1e1e = 3.61:1; on #242424 = 3.36:1; on #252525 = 3.32:1; on #2a2a2a = 3.11:1; on #2e2e2e = 2.94:1. AA-normal 4.5 FAIL everywhere; AA-large 3.0 PASS except on bg-hover #2e2e2e (2.94 FAIL). The .tpl-card-cat/.tpl-preview-cat tags are 9px = normal text -> blocker. NOTE effective bg is text-on-rgba(45,111,232,0.12) tint over panel bg; center must render-measure the composited bg.",
+      "note": "9px weight:700 is still 'normal' under WCAG (large = 18px / 14px-bold). Render confirm composited tint background."
+    },
+    {
+      "id": "A11Y-CONTRAST-05",
+      "severity": "major",
+      "verify": "verify-candidate",
+      "title": "Raw #666 text literals fail AA on dark backgrounds (off-token)",
+      "token": "#666666 (hardcoded, not a token)",
+      "selectors": [
+        "editor-props.css:295 color:#666",
+        "editor-blocks.css:1166,1170 color:#666 (verify: canvas vs chrome)",
+        "editor-props.css:46 fallback var(--ui-text-dim,#666)",
+        "editor-props.css:165 fallback var(--ui-text-dim,#888)"
+      ],
+      "evidence": "#666666 contrast: on #1a1a1a = 3.03:1; on #1e1e1e = 2.90:1; on #252525 = 2.67:1; on #2a2a2a = 2.50:1; on #2e2e2e = 2.37:1. AA-normal FAIL on all; AA-large PASS only on #1a1a1a. Hardcoded value bypasses token system AND fails contrast. editor-blocks:1166/1170 may be canvas content (excluded) -> verify surface before grading.",
+      "note": "Crosses into D-color (off-token raw hex). Flagged here only for the contrast failure."
+    }
+  ],
+  "passed_self": [
+    {"token": "--ui-text #e0e0e0", "evidence": "on #1a1a1a = 13.18:1, on #252525 = 11.61:1 — PASS"},
+    {"token": "--ui-text-sub #aaaaaa", "evidence": "on #1a1a1a = 7.49:1, on #252525 = 6.60:1 — PASS"},
+    {"token": "--ui-accent #7cb8ff", "evidence": "on #1a1a1a = 8.42:1, on #252525 = 7.41:1 — PASS"},
+    {"token": "--ui-success #7fc87f", "evidence": "on #1a1a1a = 8.68:1, on #252525 = 7.64:1 — PASS"},
+    {"token": "--ui-danger #e06c6c (as text)", "evidence": "on #1a1a1a = 5.41:1, on #252525 = 4.77:1 — PASS (>=4.5 on all standard panel bgs; dips to 4.46 only on #2a2a2a input bg, where it is not used as text)"}
+  ]
+}

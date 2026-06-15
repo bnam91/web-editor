@@ -10,7 +10,7 @@ const DB_NAME = 'client_db';
 const COL_LICENSE = 'web_editor_license';
 const COL_USER = 'web_editor';
 const KEY_PREFIX = 'WE-';
-const MAX_IPS = 5;
+const MAX_IPS = 3;
 
 let client = null;
 

@@ -68,7 +68,7 @@ function createVariation(sec) {
   window.bindSectionOrder(clone);
   if (window.bindSectionDrag) window.bindSectionDrag(clone);
   if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
+  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
   bindVariationToolbarBtn(clone);
   if (window.buildLayerPanel) window.buildLayerPanel();
 }
@@ -83,8 +83,8 @@ function toggleVariation(sec) {
   const nextIdx = (activeIdx + 1) % all.length;
   all.forEach((s, i) => { s.dataset.variationActive = i === nextIdx ? '1' : '0'; });
   all.forEach(s => bindVariationToolbarBtn(s));
-  window.selectSection(all[nextIdx]);
   if (window.buildLayerPanel) window.buildLayerPanel();
+  window.selectSection(all[nextIdx]);
   window.pushHistory('베리에이션 전환');
 }
 
@@ -110,7 +110,7 @@ function addVariation(sec) {
   window.bindSectionOrder(clone);
   if (window.bindSectionDrag) window.bindSectionDrag(clone);
   if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
-  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
+  clone.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock && window.bindBlock(b));
   bindVariationToolbarBtn(clone);
   all.forEach(s => bindVariationToolbarBtn(s));
   if (window.buildLayerPanel) window.buildLayerPanel();

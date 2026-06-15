@@ -1,0 +1,36 @@
+{
+  "run": "wave2-rare-bugs-T1-T2-T3",
+  "date": "2026-06-12",
+  "baseline": "132c2b7",
+  "cdp_port": 9334,
+  "project": "proj_1775644888754 (테스트 전용)",
+  "safety": "실프로젝트 7개 탭 상주 → UI 탭전환 0, 테스트 projectId 직접. 시작 시 에디터 로드 상태 확인(쿠팡 이탈 없음). 매 시나리오 후 baseline 4섹션 복원+flushSave. 콘솔에러 전 시나리오 0.",
+  "headline": "T1/T2/T3 15시나리오 사냥 — 앱이 입력극단·상태경계·복합시퀀스에 견고(크래시/데이터유실 0). 유일 실질결함 undo/redo 비대칭은 근본원인 규명 완료, 회귀위험 커 report-only.",
+  "findings": [
+    {
+      "id": "T1a", "title": "number 인풋 극단값 — clamp 후 입력칸/state 시각 desync + 1e3 오파싱", "severity": "minor", "status": "REPORT-ONLY", "grade": "deterministic",
+      "detail": "section-gap-number(min0/max200)에 '-50'→state 0(clamp ok)이나 입력칸은 '-50' 표시(desync). '999'→state 200이나 칸은 '999'. 'abc'→state 0. 'empty'→0. NaN 0건(방어 양호). '1e3'→parseInt가 1로 오파싱(1000/200 아님).",
+      "verdict": "데이터무결성/크래시 없음(state·디스크는 clamp된 정상값). clamp 후 입력칸을 clamp값으로 동기화하면 해소(저위험 트리비얼, 핸들러 탐색 필요해 보류)."
+    },
+    {"id":"T1b","title":"동일버튼 spam 연속클릭(addSection×10)","severity":"pass","status":"ROBUST","detail":"10클릭=정확히 10섹션, 레이스/중복 0."},
+    {"id":"T1c","title":"IME 한글조합 중 undo","severity":"pass","status":"ROBUST","detail":"compositionstart/update 중 undo→compositionend 무크래시."},
+    {"id":"T1d","title":"빈 텍스트블록 저장","severity":"pass","status":"ROBUST","detail":"addTextBlock('body')→placeholder '본문 내용을 입력하세요.' 기본 부여. 내용 비워도 직렬화에 정상 포함(유실/undefined 없음)."},
+    {"id":"T2a","title":"삭제된 섹션 prop패널 잔존조작","severity":"info","status":"NO-CRASH","detail":"섹션 삭제 후 prop패널 미클리어이나, 표시 입력(section-gap)이 page-scope라 조작이 page설정만 변경(무해). 크래시 0. 단 패널 클리어 누락은 craft 노트."},
+    {"id":"T2b","title":"detached 블록에 단축키","severity":"inconclusive","status":"PATH-MISMATCH","detail":"window.deleteSelectedBlock 부재 — 실제 삭제 핸들러명 상이로 정확 경로 미주행. 크래시 0."},
+    {"id":"T2c","title":"빈 history 넘어 undo 언더플로우","severity":"pass","status":"ROBUST","detail":"clearHistory 후 undo×6→pos 0 유지, 섹션수 안정, 크래시 0(historyPos<=0 가드)."},
+    {"id":"T2d","title":"마지막 1섹션 삭제 시도","severity":"pass","status":"GUARDED","detail":"deleteSection(editor.js:1869) allSecs.length<=1 차단+section-block 검증. 코드 확정."},
+    {"id":"T3d","title":"undo 도중 새 편집 삽입 / 편집중 undo","severity":"pass","status":"NO-CRASH","detail":"contenteditable 포커스 상태서 undo→addSection→redo 무throw."},
+    {"id":"T3e","title":"빠른 add+delete 교차(6사이클)","severity":"pass","status":"ROBUST","detail":"넷제로 복귀(base→base), 고아/레이스 0, 크래시 0."},
+    {
+      "id": "UNDO-ASYM", "title": "undo/redo 카운트 비대칭 — 첫 undo no-op (add×3→undo×3=5)", "severity": "major", "status": "REPORT-ONLY (회귀위험)", "grade": "root-cause-confirmed",
+      "root_cause": "getSerializedCanvas() 비결정성. ① addSection은 appendChild→pushHistory(block-factory:986) 후에야 bindSectionDrag가 draggable='true'를, bindVariationToolbarBtn이 st-ab-btn(A/B)을 비동기 백필. 그래서 push 스냅샷(draggable·st-ab-btn 미부착) ≠ 이후 직렬화(부착). ② undo() 진입 시 historyPos===tip이라 ensureHistoryCheckpoint(DEF-01)가 `stack[tip].canvas !== current` 비교 → chrome drift로 false-positive → 스푸리어스 체크포인트 push → 첫 undo가 그걸 1회 소진해 no-op. ③ add는 push-after, delete(editor.js:1875)는 push-before — 모델 비일관도 카운트 혼선 가중.",
+      "evidence": "diff 실측: tip='<span class=\"section-label\">' vs now='...draggable=\"true\">' + 툴바 'st-branch,ai-fill' vs 'st-ab,st-branch,memo' 순서/구성 상이.",
+      "impact": "비데이터유실 — 추가 undo로 baseline 도달 가능. 단 Adobe/Figma 바(undo 1회=1액션) 위반, 직관 저해.",
+      "fix_attempted": "getSerializedCanvas에 draggable strip 시도 → draggable은 해소됐으나 툴바 마이그레이션 diff가 남아 비대칭 유지 → revert(불완전).",
+      "recommended_fix": "(다음 전용 라운드) addSection에서 pushHistory 전에 섹션 toolbar/drag ensure(bindVariationToolbarBtn+bindSectionDrag+memo ensure)를 front-load해 스냅샷=steady-state. 또는 getSerializedCanvas에서 draggable strip + 섹션툴바 정규화(단 rebindAll의 ai-fill 버튼 재구성 보강 동반). 둘 다 history/toolbar 다점 변경이라 격리 검증 필수 — 그래서 이번엔 미적용."
+    }
+  ],
+  "not_fully_driven": ["T2e variation 0개 편집(variation 미생성)", "T3a 다중선택→드래그중 Esc→undo(합성 드래그 신뢰성)", "T3b 브랜치+AIfill(유료 API 회피)", "T3c variation 편집중 페이지전환(앞 세션 페이지전환 데이터안전 커버)"],
+  "code_shipped": "없음 — 견고 확인 또는 report-only. draggable strip 시도 후 불완전으로 revert. HEAD 132c2b7 클린.",
+  "cleanup": "baseline 4섹션+gap 100 복원, flushSave. 실프로젝트 무수정."
+}

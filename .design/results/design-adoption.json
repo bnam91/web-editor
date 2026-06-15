@@ -1,0 +1,330 @@
+{
+  "agent": "DSN-adoption",
+  "dimension": "adoption",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "a7ad40b",
+  "schema": "design-squad v3.3.1",
+  "scanned_surfaces": [
+    "js/**/*.js (51 files + blocks/props/panels/settings/claude-pm/ai-ext/io)",
+    "index.html",
+    "pages/*.html"
+  ],
+  "headline": {
+    "adoption_rate_pct": 80.3,
+    "adopted": 759,
+    "total": 945,
+    "definition": "adopted = 표준/디자인시스템 CSS에 정의된 클래스를 가진 인스턴스. total = 표준화 대상 컨트롤(range/number/text/select/textarea/button)만. native-legit(color/checkbox/radio/file)은 오탐가드로 제외.",
+    "bare_total": 93,
+    "bare_breakdown": {
+      "range": 8,
+      "number": 8,
+      "text": 20,
+      "select": 10,
+      "button": 38,
+      "textarea": 9
+    },
+    "custom_class_total_standardizable": 61,
+    "by_type_adoption": {
+      "input_range": {
+        "bare": 8,
+        "undefined_custom": 0,
+        "defined_class": 137,
+        "adoption_pct": 94.5
+      },
+      "input_number": {
+        "bare": 8,
+        "undefined_custom": 0,
+        "defined_class": 167,
+        "adoption_pct": 95.4
+      },
+      "input_text": {
+        "bare": 20,
+        "undefined_custom": 8,
+        "defined_class": 59,
+        "adoption_pct": 67.8
+      },
+      "select": {
+        "bare": 10,
+        "undefined_custom": 1,
+        "defined_class": 47,
+        "adoption_pct": 81.0
+      },
+      "textarea": {
+        "bare": 9,
+        "undefined_custom": 0,
+        "defined_class": 10,
+        "adoption_pct": 52.6
+      },
+      "button": {
+        "bare": 38,
+        "undefined_custom": 84,
+        "defined_class": 339,
+        "adoption_pct": 73.5,
+        "note": "undefined_custom 84 중 ~70은 prop-align-btn${conditional} 템플릿리터럴 artifact(실제론 defined .prop-align-btn) → 실질 채택률 더 높음"
+      }
+    }
+  },
+  "fp_guard_excluded": {
+    "input[type=color]": 25,
+    "input[type=checkbox]": 28,
+    "input[type=radio]": 4,
+    "input[type=file]": 6,
+    "basis": "native가 정당: color=네이티브 스와치/피커 트리거, checkbox/radio=네이티브 폼컨트롤, file=전량 style=display:none 숨김 트리거. 표준 래퍼 클래스 부재가 결함 아님."
+  },
+  "findings": [
+    {
+      "id": "DSN-adoption-01",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "where": "js/props/prop-text-template.js, js/props/prop-chat.js, js/badge-transform.js, js/text-effect-transform.js, js/panels/mockup-panel.js, js/panels/iconify-panel.js (+range index.html:440)",
+      "what": "표준 .prop-number / .prop-slider 클래스를 우회한 bare input[type=number](8) · input[type=range](8). 같은 파일 인접 형제는 .prop-number를 쓰는데 일부 인스턴스만 클래스 누락 — 동일 컴포넌트 내 비일관 채택.",
+      "basis": [
+        "profile.md#필수 준수 규칙(prop 패널)",
+        "profile.md#D-component"
+      ],
+      "actual": "prop-text-template.js:98/104/152/159 = <input type=\"number\"> bare (vs :112/144/196/206 = class=\"prop-number\"). prop-chat.js:104/135/140/145 = <input type=\"range\" style=\"flex:1\"> bare (vs .prop-slider 표준 존재).",
+      "fix_hint": "bare number→class=\"prop-number\", bare range→class=\"prop-slider\" 부여. inline style=flex:1 대신 표준 클래스 폭 규칙 사용.",
+      "locations_number": [
+        "js/badge-transform.js:186",
+        "js/badge-transform.js:229",
+        "js/props/prop-text-template.js:98",
+        "js/props/prop-text-template.js:104",
+        "js/props/prop-text-template.js:152",
+        "js/props/prop-text-template.js:159",
+        "js/panels/mockup-panel.js:36",
+        "js/panels/iconify-panel.js:63"
+      ],
+      "locations_range": [
+        "js/text-effect-transform.js:178",
+        "js/text-effect-transform.js:183",
+        "js/badge-transform.js:228",
+        "js/props/prop-chat.js:104",
+        "js/props/prop-chat.js:135",
+        "js/props/prop-chat.js:140",
+        "js/props/prop-chat.js:145",
+        "index.html:440"
+      ],
+      "adjudication": "verify-candidate"
+    },
+    {
+      "id": "DSN-adoption-02",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "where": "index.html(5), js/props/color-picker.js(2), js/panels/assets-panel.js(2), pages/planning.html(2), pages/license.html(2) 외",
+      "what": "표준 .prop-input / .ui-input 을 우회한 bare input[type=text] 20개. index.html figma/project/bcm 모달 입력은 inline style로 토큰 우회.",
+      "basis": [
+        "profile.md#D-component",
+        "profile.md#핵심 구조 사실(토큰 강제)"
+      ],
+      "actual": "index.html: figma-channel-input·project-name-input·bcm-name/folder/tags-input = <input type=\"text\" style=\"...\"> 클래스 없음. 표준 .prop-input(2회만 채택) 존재.",
+      "fix_hint": "class=\"prop-input\" 또는 ui-input 부여, inline style 제거.",
+      "locations": [
+        "js/ai-section-fill.js:515",
+        "js/text-effect-transform.js:173",
+        "js/badge-transform.js:178",
+        "js/commit-system.js:34",
+        "js/props/prop-mockup.js:59",
+        "js/props/prop-multisel.js:251",
+        "js/props/color-picker.js:194",
+        "js/props/color-picker.js:201",
+        "js/panels/assets-panel.js:848",
+        "js/panels/assets-panel.js:849",
+        "js/panels/iconify-panel.js:35",
+        "index.html:147",
+        "index.html:253",
+        "index.html:1158",
+        "index.html:1160",
+        "index.html:1161",
+        "pages/planning.html:272",
+        "pages/planning.html:276",
+        "pages/license.html:255",
+        "pages/license.html:260"
+      ],
+      "adjudication": "verify-candidate"
+    },
+    {
+      "id": "DSN-adoption-03",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "where": "js/badge-transform.js(3), js/props/color-picker.js(3), js/text-effect-transform.js(2), index.html(1), pages/planning.html(1)",
+      "what": "표준 .prop-select 를 우회한 bare <select> 10개. color-picker gradType/gradAngle/imgFit, badge align/* 등.",
+      "basis": [
+        "profile.md#D-component"
+      ],
+      "actual": "color-picker.js:175/179/212 = <select data-el=\"...\"> 클래스 없음. 표준 .prop-select(중복정의 포함 47 채택) 존재.",
+      "fix_hint": "class=\"prop-select\" 부여.",
+      "locations": [
+        "js/text-effect-transform.js:159",
+        "js/text-effect-transform.js:165",
+        "js/badge-transform.js:199",
+        "js/badge-transform.js:205",
+        "js/badge-transform.js:211",
+        "js/props/color-picker.js:175",
+        "js/props/color-picker.js:179",
+        "js/props/color-picker.js:212",
+        "index.html:1159",
+        "pages/planning.html:246"
+      ],
+      "adjudication": "verify-candidate"
+    },
+    {
+      "id": "DSN-adoption-04",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "where": "index.html(14), js/panels/assets-panel.js(6), js/commit-system.js(3), js/panels/ai-image-gallery.js(3), js/props/prop-table.js(2), mockup/iconify-panel(각2), pages/*.html(4) 외",
+      "what": "표준 .prop-btn / .ui-btn / .prop-*-btn 계열을 우회한 bare <button> 38개. index.html figma 모달 버튼은 inline style(background:#2563eb 등)으로 토큰·클래스 동시 우회.",
+      "basis": [
+        "profile.md#D-component(prop 버튼 통일성)",
+        "profile.md#필수 준수 규칙"
+      ],
+      "actual": "index.html figma-upload-btn/figma-cancel-btn/doFigmaImport = <button style=\"background:#2563eb;border:none;border-radius:6px...\"> 클래스 없음. 339개는 정의된 클래스 채택(채택률 73.5%, artifact 보정 시 더 높음).",
+      "fix_hint": "기본 버튼 class=\"prop-btn\"/\"ui-btn\", 위험 버튼 class=\"prop-btn-danger\"(필수규칙), inline 색상 제거→토큰.",
+      "locations": [
+        "js/text-effect-transform.js:186",
+        "js/branch-system.js:612",
+        "js/commit-system.js:37",
+        "js/commit-system.js:38",
+        "js/commit-system.js:156",
+        "js/props/prop-table.js:336",
+        "js/props/prop-table.js:345",
+        "js/panels/ai-image-gallery.js:78",
+        "js/panels/ai-image-gallery.js:79",
+        "js/panels/ai-image-gallery.js:80",
+        "js/panels/assets-panel.js:521",
+        "js/panels/assets-panel.js:522",
+        "js/panels/assets-panel.js:523",
+        "js/panels/assets-panel.js:524",
+        "js/panels/assets-panel.js:852",
+        "js/panels/assets-panel.js:907",
+        "js/panels/mockup-panel.js:17",
+        "js/panels/mockup-panel.js:40",
+        "js/panels/iconify-panel.js:37",
+        "js/panels/iconify-panel.js:66",
+        "index.html:62",
+        "index.html:72",
+        "index.html:176",
+        "index.html:177",
+        "index.html:213",
+        "index.html:214",
+        "index.html:228",
+        "index.html:487",
+        "index.html:802",
+        "index.html:806",
+        "index.html:808",
+        "index.html:812",
+        "index.html:1162",
+        "index.html:1175",
+        "pages/planning.html:253",
+        "pages/planning.html:254",
+        "pages/projects.html:190",
+        "pages/projects.html:199"
+      ],
+      "adjudication": "verify-candidate"
+    },
+    {
+      "id": "DSN-adoption-05",
+      "severity": "minor",
+      "confidence": "medium",
+      "evidence_grade": "deterministic",
+      "where": "pages/planning.html(5 SWOT/포지셔닝), js/ai-section-fill.js, js/badge-transform.js, js/commit-system.js, js/panels/assets-panel.js",
+      "what": "표준 .prop-textarea(editor-props.css 정의) 를 우회한 bare <textarea> 9개. planning.html 5건은 .intake-section 부모 스코프 CSS로 스타일될 수 있어 suspected.",
+      "basis": [
+        "profile.md#D-component"
+      ],
+      "actual": "planning.html:284~305 = <textarea id=\"inp-*\"> bare (.intake-section textarea 스코프 가능). 표준 .prop-textarea / ai-textarea 클래스 존재(채택 10).",
+      "fix_hint": "에디터 크롬 내 textarea는 .prop-textarea 부여. planning.html는 부모 스코프 스타일 여부 확인 후 판단.",
+      "locations": [
+        "js/ai-section-fill.js:511",
+        "js/badge-transform.js:176",
+        "js/commit-system.js:153",
+        "js/panels/assets-panel.js:850",
+        "pages/planning.html:284",
+        "pages/planning.html:293",
+        "pages/planning.html:297",
+        "pages/planning.html:301",
+        "pages/planning.html:305"
+      ],
+      "adjudication": "suspected"
+    },
+    {
+      "id": "DSN-adoption-06",
+      "severity": "minor",
+      "confidence": "low",
+      "evidence_grade": "deterministic",
+      "where": "ds-token-* / grb-data-* / ai-fill-* / tpl-* / tbe-* / goya-cp-* / cpm-* / st-* 전용클래스 군",
+      "what": "표준 prop-*/ui-* 가 아닌 자체 전용클래스를 쓴 표준화대상 컨트롤 61개(range/number/text/select/textarea). 대부분 도메인 전용 컴포넌트(디자인시스템 패널·템플릿브라우저·컬러피커·grb 데이터블록)로 의도된 전용 컴포넌트일 수 있음 → case-by-case.",
+      "basis": [
+        "profile.md#스타일 표면(보조 표면 CSS 다수)"
+      ],
+      "actual": "ds-token-hex(5)·tpl-name-input(5)·goya-cp-hex(3)·ds-font-select(2)·grb-data-val-input·ai-fill-panel-*-input 등. 다수는 전용 CSS에 정의됨(=실 스타일 보유).",
+      "fix_hint": "전용 컴포넌트로 유지하되, 단순 텍스트/숫자 입력(tbe-*/tpl-* search 등)은 .prop-input/.prop-number로 수렴 검토.",
+      "adjudication": "suspected"
+    }
+  ],
+  "area_summary": [
+    {
+      "area": "prop 패널 (props/*.js)",
+      "bare": {
+        "number": 4,
+        "range": 4,
+        "text": 3,
+        "select": 3
+      },
+      "note": "표준 클래스 인접 채택 중 일부 누락 = 최고 신뢰 결함"
+    },
+    {
+      "area": "transform 패널 (badge/text-effect)",
+      "bare": {
+        "range": 3,
+        "number": 2,
+        "select": 5,
+        "textarea": 1
+      },
+      "note": "전용 transform UI, bare 다발"
+    },
+    {
+      "area": "index.html 모달 (figma/bcm/project)",
+      "bare": {
+        "text": 5,
+        "button": 14,
+        "range": 1
+      },
+      "note": "inline style로 클래스+토큰 동시 우회"
+    },
+    {
+      "area": "panels (assets/mockup/iconify/template/ai-gallery)",
+      "bare": {
+        "text": 4,
+        "number": 2,
+        "button": 13,
+        "textarea": 2
+      }
+    },
+    {
+      "area": "pages (planning/license/projects)",
+      "bare": {
+        "text": 4,
+        "select": 1,
+        "button": 4,
+        "textarea": 5
+      },
+      "note": "planning textarea는 부모 스코프 스타일 가능"
+    }
+  ],
+  "by_severity": {
+    "major": 4,
+    "minor": 2,
+    "info": 0
+  },
+  "by_adjudication": {
+    "verify-candidate": 4,
+    "suspected": 2,
+    "confirmed": 0
+  },
+  "notes": "bare 93건은 deterministic(class 속성 자체 부재)이나, design-squad 규칙상 verify-candidate(major)로 둠 — UX 렌더 실측 시 confirmed 승격 가능. 채택률 80.3%는 'CSS정의 클래스 보유'=채택 기준. button undefined_custom 84 중 ~70은 prop-align-btn${cond} 템플릿 artifact라 실질 채택은 더 높음. color/checkbox/radio/file은 native-legit으로 오탐가드 제외."
+}

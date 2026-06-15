@@ -1,0 +1,155 @@
+{
+  "area": "design-system",
+  "owns": {
+    "selectors": [".ds-*", "#ds-panel-header", "#ds-panel-body", "#design-system-panel"],
+    "files": ["css/editor-base.css(80~281, ds 부분 ~30룰)", "index.html(359~449 마크업)", "js/design-system.js(picker/colorvar 동적생성)"]
+  },
+  "method": "static — editor-base.css의 .ds-* 룰 전수(80~281) + index.html 마크업(359~449) + design-system.js 동적생성부 실측. :root --ui-* 토큰값 대조. CDP 미사용, report-only.",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "scope_note": "이 패널은 캔버스 --preset-* 토큰을 편집하는 UI 크롬이다. picker/hex의 input value(#111111 등)는 편집 대상 캔버스 콘텐츠 값이지 UI 색이 아니므로 raw hex 이탈로 보지 않음(불가침). 감사 대상은 .ds-* 컨트롤 자체의 치수·토큰·상태뿐. .ds-* 룰은 전부 editor-base.css 단일 파일에 있고 다른 CSS 중복 0건.",
+
+  "signature": {
+    "D-component": {
+      "apply_btn": ".ds-apply-btn = primary 채움 (background:var(--ui-accent-primary), color:#fff, font 11/600). border-radius:5px. height 명시 없음, padding:6px 0(실효 ≈30px). hover opacity:0.85.",
+      "reset_btn": ".ds-reset-btn = 아웃라인 (transparent, border 1px var(--ui-border), color var(--ui-text-muted), font 11). border-radius:5px. padding:5px 0(실효 ≈28px, apply와 1px 비대칭). hover border --ui-border-mid + color --ui-text-sub.",
+      "button_radius": "5px (.ds-apply-btn/.ds-reset-btn 둘 다). 입력류는 4px(.ds-base-select/.ds-font-select/.ds-token-hex), picker/del은 3px(.ds-token-picker/.ds-colorvar-del). → 한 패널 내 radius 3/4/5 3단 혼재.",
+      "button_height": "apply/reset 명시 height 없음(padding-derived ≈28~30, 비대칭). .ds-new-preset-btn도 height 없이 padding:4px 8px. .ds-colorvar-del 20×20.",
+      "select_input_height": {
+        "ds-base-select": "24px (r4, --ui-bg-input, font11)",
+        "ds-font-select": "22px (r4, --ui-bg-input, font10)",
+        "ds-token-hex": "20px (r4, --ui-bg-input, font10 monospace)",
+        "verdict": "동일 패널 폼 컨트롤 height 20/22/24 3단 갈림(base 24 / font 22 / hex 20). 입력 높이 단일 기준 없음."
+      },
+      "picker": ".ds-token-picker = 24×20 r3 1px --ui-border bg transparent (input[type=color]). .ds-colorvar-del 20×20 r3 1px --ui-border. → 두 소형 컨트롤 height 20 일치하나 radius 3으로 입력류(4)와 어긋남.",
+      "new_preset_btn": ".ds-new-preset-btn = 1px dashed --ui-border, r4, font10, --ui-text-muted (빈 슬롯 신규등록 affordance). 'New Design System'·'변수 추가' 2곳 공용. radius 4 — apply/reset(5)과도 다름.",
+      "no_height_token": "apply/reset/new-preset 모두 명시 height 없이 padding으로 높이 결정 → 폰트/박스 변동 시 높이 흔들림. 치수 토큰(--ui-btn-h) 부재."
+    },
+
+    "D-color": {
+      "bg_input": "var(--ui-bg-input) = #2a2a2a (base-select/font-select/token-hex 배경)",
+      "bg_elevated": "var(--ui-bg-elevated) = #242424 (new-preset-btn 배경)",
+      "text_sub": "var(--ui-text-sub) = #aaaaaa (select/hex/슬라이더값/라벨 텍스트)",
+      "text_muted": "var(--ui-text-muted) = #9e9e9e (new-preset-btn·reset-btn·colorvar-del 텍스트, AA fix ≥5.07:1)",
+      "text_dim": "var(--ui-text-dim) = #969696 (section-label·panel-title·chevron·colorvars-empty, AA fix ≥4.59:1)",
+      "border": "var(--ui-border) = #333333 (입력/버튼/picker 테두리)",
+      "border_mid": "var(--ui-border-mid) = #3a3a3a (reset hover border)",
+      "accent": "var(--ui-accent-primary) = #2d6fe8 (apply 채움, focus border-color, slider accent-color, colorvar-del hover, new-preset hover)",
+      "raw_hex_in_css": "단 1건: .ds-apply-btn color:#fff (primary 텍스트). 그 외 .ds-* 룰 raw hex 0건 — color 토큰화 위생 양호(전 색이 --ui-* 참조).",
+      "html_inline_values_excluded": "index.html의 picker/hex value(#111111/#555555/#999999/#ffffff 등)는 편집 대상 캔버스 --preset 기본값이지 UI 색 아님 → 이탈 제외(scope_note).",
+      "verdict": "이 영역은 raw hex 우회가 거의 없음(#fff 1건). color 측면에선 6영역 중 가장 위생적. danger 컬러는 아예 미사용(파괴 버튼 affordance 부재 — 아래 참조)."
+    },
+
+    "D-spacing": {
+      "panel_body_margin": "#ds-panel-body margin-top:10px. #ds-panel-header margin-bottom:0.",
+      "section_label_margin": ".ds-section-label margin:10px 0 5px (첫 라벨만 margin-top:0). 섹션 간 수직 리듬 10/5.",
+      "row_gap": "토큰 행 gap 갈림: .ds-token-row gap:6px / .ds-base-row gap:4px / .ds-slider-row gap:8px / .ds-btn-row gap:6px. → 한 패널 내 행 gap 4/6/8 3종.",
+      "row_margin_bottom": ".ds-token-row mb:5px / .ds-base-row mb:4px / .ds-colorvars-list mb:4px. 행 간 수직 간격 4/5 혼재(그리드 4 비배수 5 포함).",
+      "label_width": ".ds-token-label width:62px (flex-shrink:0). → prop-panel 표준 56px·assets aig-row-label 56px와 6px 어긋남. 입력 시작 x좌표 패널 간 불일치.",
+      "btn_row_margin": ".ds-btn-row margin-top:10px.",
+      "slider_value_width": ".ds-slider-row span width:28px text-align:right.",
+      "verdict": "라벨폭 62px가 전역 폼라벨 표준 56과 단독으로 어긋남(D-spacing 핫스팟). 행 gap 4/6/8·mb 4/5 비배수 5 군집 — 그리드(4) 비배수 산발."
+    },
+
+    "D-states": {
+      "hover": ".ds-apply-btn:hover opacity:0.85 / .ds-reset-btn:hover border-color --ui-border-mid + color --ui-text-sub / .ds-new-preset-btn:hover border --ui-accent-primary + color --ui-accent-primary / .ds-colorvar-del:hover border --ui-accent-primary + color --ui-accent-primary. → hover 표현 3방식(opacity 감쇠 / border+text 회색승격 / accent 승격) 혼재. 위험삭제 버튼(colorvar-del)도 hover가 danger-red 아닌 accent-blue로 승격(파괴 신호 부재).",
+      "focus": ".ds-base-select:focus border-color --ui-accent-primary / .ds-token-hex:focus border-color --ui-accent-primary 2곳만. .ds-font-select·.ds-token-picker·slider는 focus 스타일 없음(outline 기본 또는 무). ring 없음(border-color만).",
+      "focus_visible": "0건 — .ds-* 전 컨트롤 :focus-visible 미정의. 키보드 포커스 링 부재(전역 a11y 갭과 동일).",
+      "active": "토글 active 상태 없음(이 패널은 select/input/일반버튼만, 세그먼트 토글 없음).",
+      "disabled": "0건 — .ds-apply-btn/.ds-reset-btn/.ds-new-preset-btn 어디에도 :disabled/[disabled] 스타일 없음. Apply/Reset은 항상 활성(빈 상태에서도 클릭 가능, 비활성 피드백 부재).",
+      "transition": "border-color 0.15s(base-select) / opacity 0.15s(apply) / border-color+color 0.15s(reset/new-preset/colorvar-del) / transform 0.18s(chevron). duration 0.15 주류 + chevron 0.18 단발. prefers-reduced-motion 부재.",
+      "verdict": "focus가 2개 컨트롤만 border-color 보유, picker/font-select/slider는 무피드백. focus-visible·disabled 전무. colorvar-del의 '삭제' hover가 danger 아닌 accent."
+    }
+  },
+
+  "violations": [
+    {
+      "id": "MDS-01",
+      "dim": "D-component",
+      "severity": "major",
+      "title": "패널 내 컨트롤 치수 난립 — 폼 height 20/22/24 3단 + radius 3/4/5 3단 + 버튼 height 미명시(padding-derived)",
+      "evidence": "editor-base.css: ds-base-select h24·r4, ds-font-select h22·r4, ds-token-hex h20·r4, ds-token-picker 24×20·r3, ds-colorvar-del 20×20·r3, ds-apply-btn/ds-reset-btn r5(height 없음, padding 6/5px 0 → apply≈30 reset≈28 비대칭), ds-new-preset-btn r4(height 없음). 같은 패널 안에서 입력 높이 20/22/24, radius 3/4/5가 동시 등장.",
+      "fix_hint": "폼 컨트롤 단일 height(--ui-input-h, 예 24) + radius(--ui-radius-sm 4) 토큰화. apply/reset에 명시 height 부여(비대칭 padding 6/5 → 동일). radius는 버튼 5 → 입력과 동일 4로 수렴."
+    },
+    {
+      "id": "MDS-02",
+      "dim": "D-spacing",
+      "severity": "major",
+      "title": "ds-token-label 폭 62px — 전역 폼라벨 표준 56px와 단독 어긋남",
+      "evidence": "editor-base.css:163 .ds-token-label width:62px. prop-panel .prop-label·assets-ai .aig-row-label은 56px 표준(matrix-station 합의점). 이 패널만 62px라 색/폰트 행 입력 시작 x좌표가 다른 패널과 6px 어긋남.",
+      "fix_hint": "56px로 수렴(다수결) 또는 전역 --ui-form-label-w 토큰 신설 후 참조."
+    },
+    {
+      "id": "MDS-03",
+      "dim": "D-states",
+      "severity": "major",
+      "title": "focus 피드백 부분 적용 + focus-visible·disabled 전무 — Apply/Reset 항상 활성, picker/font-select/slider 포커스 무피드백",
+      "evidence": ":focus border-color는 .ds-base-select/.ds-token-hex 2곳뿐. .ds-font-select·.ds-token-picker·slider는 focus 스타일 0. :focus-visible 0건(키보드 링 없음). :disabled 스타일 0건 — Apply/Reset이 빈/무변경 상태에서도 활성 표시(피드백 부재). ring 보유 영역(pm-panel box-shadow) 패턴 미채택.",
+      "fix_hint": "전 인터랙티브 .ds-* 컨트롤에 :focus-visible 링(border + box-shadow, pm-panel 패턴) 일괄 적용. Apply/Reset에 :disabled(--ui-disabled-opacity) 추가 + 무변경 시 disabled 토글."
+    },
+    {
+      "id": "MDS-04",
+      "dim": "D-component / D-spacing",
+      "severity": "minor",
+      "title": "행 gap 4/6/8 3종 + 행 margin-bottom 4/5(그리드 비배수 5) 혼재",
+      "evidence": "ds-base-row gap4/mb4, ds-token-row gap6/mb5, ds-slider-row gap8, ds-btn-row gap6. 동일 패널 행 간격이 gap 4/6/8 + mb 4/5(5는 4px 그리드 비배수)로 산발.",
+      "fix_hint": "행 gap을 6px 단일(또는 컨트롤형별 1종)로 정리, mb 5→4(그리드 배수)로 정렬. spacing 전역 4px 그리드 부채(SPACE-G1)와 함께 묶음 처리."
+    },
+    {
+      "id": "MDS-05",
+      "dim": "D-states / D-component",
+      "severity": "minor",
+      "title": "hover 표현 3방식 혼재 + '변수 삭제'(colorvar-del) hover가 danger 아닌 accent-blue",
+      "evidence": "apply hover=opacity0.85, reset hover=border-mid+text-sub(회색 승격), new-preset/colorvar-del hover=accent-blue 승격. 파괴 액션 .ds-colorvar-del:hover가 빨강(danger) 아닌 파랑(accent)으로 승격 → 삭제 신호 약함. danger 토큰 자체가 .ds-*에서 미사용.",
+      "fix_hint": "hover 패턴을 컨트롤 역할별 2종(액션버튼=배경/opacity, 입력=border)으로 정리. colorvar-del은 danger 패밀리(--ui-danger 신설) hover로 전환해 파괴 신호 부여."
+    },
+    {
+      "id": "MDS-06",
+      "dim": "D-component",
+      "severity": "nit",
+      "title": "Apply/Reset radius 5px — prop-panel/전역 버튼 표준(4px)과 1px 어긋남 + height 미명시 비대칭 padding",
+      "evidence": "ds-apply-btn/ds-reset-btn border-radius:5px (prop-panel 전 버튼 4px, toolbar tb-btn 5px와는 일치). padding apply 6px 0 / reset 5px 0 → 실효 높이 30 vs 28 1px 비대칭.",
+      "fix_hint": "radius 4px(prop-panel 기준)로 수렴, padding 동일화 또는 명시 height 부여."
+    }
+  ],
+
+  "crossAreaFlags": [
+    {
+      "flag": "danger 토큰 부재 — colorvar-del 파괴버튼이 accent로 우회",
+      "detail": "--ui-danger 패밀리가 editor-base.css :root에 없어 '변수 삭제'(.ds-colorvar-del) hover가 danger-red 대신 accent-blue로 승격. prop-panel(MPP-01/03)·canvas와 동일한 전역 danger 토큰 부재 이슈. 토큰 신설 시 .ds-colorvar-del도 함께 수렴 가능.",
+      "to_area": "color / design-tokens"
+    },
+    {
+      "flag": "폼 컨트롤 height/radius 단일 기준 부재 — prop/left-panel 공통 컨트롤 교차",
+      "detail": ".ds-base-select(24)/.ds-font-select(22)/.ds-token-hex(20)가 입력 높이 3단. radius도 입력4/picker3/버튼5 갈림. prop-panel input 24/28 모호(MPP-08)·left-panel과 동일하게 전역 폼 height·radius 토큰(--ui-input-h, --ui-radius-sm) 확정 필요.",
+      "to_area": "prop-panel / left-panel / form-controls"
+    },
+    {
+      "flag": "라벨폭 56 vs 62 — 폼 라벨 정렬 전역 합의 깨짐",
+      "detail": "prop-panel·assets-ai가 56px로 수렴한 폼라벨폭을 design-system 패널만 62px 사용. 전역 --ui-form-label-w 토큰화로 일괄 정렬 필요.",
+      "to_area": "prop-panel / assets-ai / spacing(global)"
+    },
+    {
+      "flag": "focus-visible 전무 — 전역 a11y 갭 동참",
+      "detail": ".ds-* 전 컨트롤 :focus-visible 0건. matrix-station(:focus-visible 6영역 0건)의 전역 키보드 포커스 링 부재 결산에 design-system도 동일 포함. pm-panel ring 패턴을 전역 표준으로 승격 시 함께 적용.",
+      "to_area": "states / a11y (global)"
+    }
+  ],
+
+  "consistent": [
+    "color 토큰화 위생 양호 — .ds-* 룰 내 raw hex는 .ds-apply-btn color:#fff 단 1건, 그 외 전 색이 --ui-* 토큰 참조(6영역 중 가장 깨끗).",
+    "텍스트 색 AA fix(--ui-text-muted #9e9e9e / --ui-text-dim #969696) 반영 — 라벨·뮤트 텍스트 대비 기준 충족.",
+    "new-preset-btn(dashed border) 빈 슬롯 affordance가 'New Design System'·'변수 추가' 2곳에서 동일 클래스로 일관 사용.",
+    "transition duration 0.15s가 대부분 컨트롤에서 통일(chevron 0.18만 예외)."
+  ],
+
+  "inconsistent_count": 6,
+
+  "summary": {
+    "by_severity": { "blocker": 0, "major": 3, "minor": 2, "nit": 1 },
+    "rootCause": "editor-base.css :root에 폼 컨트롤 치수 토큰(--ui-input-h, --ui-radius-*, --ui-btn-h, --ui-form-label-w, --ui-disabled-opacity, --ui-danger 패밀리)이 부재. 그 결과 .ds-* 패널이 select/hex/picker/버튼을 raw px로 손수 그려 한 패널 안에서 height 20/22/24·radius 3/4/5·gap 4/6/8·label 62px가 분기. 색(color)만은 토큰 참조가 거의 완전(#fff 1건)해 위생적.",
+    "fix_confirmed": ["color 토큰 참조(raw hex 사실상 0)", "텍스트 AA fix 반영(#9e9e9e/#969696)"],
+    "fix_incomplete": ["폼 height 20/22/24 미통일", "radius 3/4/5 미통일", "label 62px(표준 56과 어긋남)", "focus-visible·disabled 전무", "danger 토큰 미신설로 colorvar-del 삭제 신호 약함"],
+    "standardPickRationale": "color 위생은 이 패널이 모범(전역 raw hex 정리 시 참고). 단 치수(height/radius/label)는 prop-panel(24·4·56) 표준으로 역수렴 필요. focus는 pm-panel ring 패턴, danger는 --ui-danger 신설 후 colorvar-del 적용이 최소변경 정합."
+  }
+}

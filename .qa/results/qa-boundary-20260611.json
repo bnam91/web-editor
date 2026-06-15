@@ -1,0 +1,101 @@
+{
+  "agent": "QA-Boundary",
+  "version": "4.0",
+  "role": "boundary",
+  "scope": "B-01..B-10",
+  "method": "cdp",
+  "date": "2026-06-11",
+  "project": "proj_1775644888754",
+  "scenarios": [
+    {
+      "id": "B-01",
+      "title": "섹션 0개 상태에서 g/t/a/Delete",
+      "result": "PASS",
+      "severity": null,
+      "evidence": "임시 페이지(섹션 0개)에서 press_key g/t → 토스트 '⚠️ 섹션 또는 블록을 먼저 선택하세요' 표시, 블록 미생성. a → fp-asset-dropdown 열림(피드백 있음). Delete/Backspace no-op. 콘솔 에러 0건.",
+      "notes": "피드백 토스트 존재함(g/t). a는 토스트 대신 에셋 드롭다운 UI가 열림 — 일관된 무해 동작."
+    },
+    {
+      "id": "B-02",
+      "title": "섹션 1개뿐일 때 deleteSection",
+      "result": "PASS",
+      "severity": "ux",
+      "evidence": "임시 페이지에 addSection으로 섹션 1개(sec_bwvmpr8) 생성 후 deleteSection 호출 → 가드 작동, 삭제 안 됨, false 반환. console.warn '[deleteSection] 마지막 섹션은 삭제할 수 없습니다.' 출력. 에러 없음.",
+      "notes": "UX 이슈: 마지막 섹션 삭제 거부가 console.warn으로만 표시되고 사용자 토스트가 없음 → UI 경로(우클릭 메뉴 등)로 삭제 시도 시 무반응으로 보일 수 있음."
+    },
+    {
+      "id": "B-03",
+      "title": "텍스트 블록 1000자+ 입력",
+      "result": "PASS",
+      "severity": null,
+      "evidence": "1143자(끊김 없는 ASCII 300자 + 한글 840자) 입력. computed style: overflow-wrap:break-word, word-break:break-word, white-space:normal. 블록이 섹션 경계 내 유지(overflowsX=false), scrollWidth==clientWidth, 문서 가로 스크롤 미발생.",
+      "notes": null
+    },
+    {
+      "id": "B-04",
+      "title": "이미지 없는 asset-block 이미지 편집 패널",
+      "result": "PASS",
+      "severity": null,
+      "evidence": "addAssetBlock('square')로 빈 asset-block(ab_p5gfuax, img 없음, dataset.imgSrc 없음) 생성. enterImageEditMode(ab) 직접 호출 + dblclick 디스패치 → graceful no-op(편집 모드 미진입), 콘솔 에러 0건.",
+      "notes": null
+    },
+    {
+      "id": "B-05",
+      "title": "100ms 간격 블록 5연속 클릭",
+      "result": "PASS",
+      "severity": null,
+      "evidence": "asset-block에 pointer/mouse 풀 시퀀스 5회(100ms 간격) → 선택 상태가 단일 클릭과 동일(섹션+블록 2요소 .selected, 앱 정상 동작). 텍스트 블록에 dblclick 포함 5연속 → editing 1회 진입, 중복 selected 없음, Escape로 정상 종료. 콘솔 에러 0건.",
+      "notes": "MCP 호출 지연 때문에 in-page 이벤트 디스패치로 100ms 타이밍 구현(클릭 핸들러 경로는 동일하게 통과)."
+    },
+    {
+      "id": "B-06",
+      "title": "Cmd+Z 50연속",
+      "result": "PASS",
+      "severity": null,
+      "evidence": "flushSave 후 진행. history 3스냅샷 상태에서 trusted press_key Meta+z 10회 + 동일 document keydown 핸들러로 합성 디스패치 40회(25ms 간격). 최초 스냅샷에서 멈춤(추가했던 gap 2개만 되돌려짐, 섹션 3개·텍스트 블록 유지), historyStack 길이 3 유지, 콘솔 에러/경고 0건, 앱 반응성 정상.",
+      "notes": "알려진 undo tip 유실 blocker는 기확정이라 중복 보고 생략."
+    },
+    {
+      "id": "B-07",
+      "title": "그룹 안 블록 선택 후 Cmd+G (중첩 그룹)",
+      "result": "PASS",
+      "severity": "ux",
+      "evidence": "블록 2개 Cmd+G → frame-block[data-group=true] ss_r780t3c 생성. 그룹 내부 블록 1개 선택 후 Cmd+G → 중첩 frame ss_3yiob9x 정상 생성(ss_r780t3c 내부). 방지 토스트 없음 = 의도된 frame 중첩 지원. 콘솔 에러 0건.",
+      "notes": "UX 관찰: 중첩 그룹 생성 직후 내부 프레임(ss_3yiob9x)과 외부 프레임(ss_r780t3c) 모두 .selected 클래스 보유 → 다음 조작(삭제 등) 대상이 모호해질 수 있음. QA-UX 교차 확인 권장."
+    },
+    {
+      "id": "B-08",
+      "title": "한글 IME 입력 중 g/t/a",
+      "result": "PASS",
+      "severity": null,
+      "evidence": "텍스트 블록 편집 모드(contentEditable focus) + compositionstart/compositionupdate 디스패치 후 trusted press_key g/t/a → 블록 수 변화 없음(text16/gap8/asset1 유지), 'gta'가 텍스트로 입력됨(정상). 드롭다운 초기 open은 B-01 잔류 상태로 확인 — 닫고 재시도 시 a가 드롭다운을 열지 않음을 확인.",
+      "notes": "근사 한계: CDP로 keyCode 229 네이티브 합성은 불가. 코드상 가드는 keydown 최상단 'activeElement.isContentEditable && !meta' 조기 리턴(editor.js:876)이며 편집 중 차단 확인됨. 비편집 상태에서 한글 IME가 켜진 채 ㅎ/ㅅ/ㅁ 키를 누르는 경우는 e.code 기반 매칭으로 블록이 추가되는 게 의도된 설계(editor.js:1142 주석 'IME 안전: e.code 사용')."
+    },
+    {
+      "id": "B-09",
+      "title": "이모지+특수문자 저장→리로드 유지",
+      "result": "PASS",
+      "severity": null,
+      "evidence": "'𝕊𝕡𝕖𝕔𝕚𝕒𝕝(서로게이트 페어) + 👨‍👩‍👧‍👦(ZWJ) + U+200B(ZWSP) + 🎯' 39 code unit 텍스트 입력 → flushSave → 페이지 리로드 → innerText 완전 일치(match=true), ZWSP/ZWJ 패밀리 이모지 모두 보존.",
+      "notes": null
+    },
+    {
+      "id": "B-10",
+      "title": "같은 템플릿 2연속 삽입 ID 충돌",
+      "result": "PASS",
+      "severity": null,
+      "evidence": "tpl_1742688001001('고객 후기') insertTemplate 2회 연속 → 섹션 sec_afw8vbv, sec_ofz9ad0로 각각 고유 ID 부여. 캔버스 내 전체 37개 id 검사 → 중복 0건. 콘솔 에러 0건.",
+      "notes": null
+    }
+  ],
+  "ux_observations": [
+    "B-02: 마지막 섹션 삭제 거부 시 사용자 피드백 없음 (console.warn만)",
+    "B-07: 중첩 그룹 생성 직후 내부+외부 프레임 동시 .selected",
+    "B-01/B-08 파생: fp-asset-dropdown이 Escape로 닫히지 않고 열린 채 잔류함 (저신뢰 — 합성 Escape 경로, 재확인 필요)"
+  ],
+  "cleanup": "임시 페이지 page_1781142028876 및 생성 섹션(sec_bwvmpr8, sec_afw8vbv, sec_ofz9ad0) 전부 deletePage로 제거, page_1 + sec_mm5e5ja('QA정찰 제목 테스트 🎯' 텍스트 포함) 원상 확인, flushSave 완료, 최종 콘솔 에러 0건.",
+  "passed": 10,
+  "failed": 0,
+  "ux_issues": 3,
+  "blocker_candidates": 0
+}

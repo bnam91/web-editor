@@ -1,0 +1,30 @@
+{
+  "agent": "Evaluator2",
+  "round": "R2 검증",
+  "checks": [
+    {"selector": ".prop-number", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-number", "property": "background", "expected": "var(--ui-bg-input)", "actual": "var(--ui-bg-input)", "status": "PASS"},
+    {"selector": ".prop-number", "property": "border", "expected": "1px solid var(--ui-border-mid)", "actual": "1px solid var(--ui-border-mid)", "status": "PASS"},
+    {"selector": ".prop-select", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-layout-input", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-layout-input", "property": "font-size", "expected": "11px", "actual": "12px", "status": "FAIL"},
+    {"selector": ".prop-type-btn", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-align-btn", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-style-btn", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-color-swatch", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-color-hex", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-btn", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-btn-full", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-chain-btn", "property": "height", "expected": "28px", "actual": "28px", "status": "PASS"},
+    {"selector": ".prop-section", "property": "padding", "expected": "8px 12px", "actual": "8px 12px", "status": "PASS"},
+    {"selector": ".prop-row", "property": "gap", "expected": "6px", "actual": "6px", "status": "PASS"},
+    {"selector": ".layer-item.active", "property": "background", "expected": "rgba(45,111,232,0.15)", "actual": "rgba(45,111,232,0.15)", "status": "PASS"},
+    {"selector": ".layer-item:hover", "property": "background", "expected": "var(--ui-bg-hover, #252525)", "actual": "var(--ui-bg-hover, #252525)", "status": "PASS"},
+    {"selector": ".layer-item-name", "property": "white-space", "expected": "nowrap", "actual": "nowrap", "status": "PASS"},
+    {"selector": ".layer-item-name", "property": "text-overflow", "expected": "ellipsis", "actual": "ellipsis", "status": "PASS"},
+    {"selector": ".layer-row-header", "property": "gap", "expected": "4px", "actual": "4px", "status": "PASS"},
+    {"selector": ".layer-item", "property": "gap", "expected": "5px", "actual": "5px", "status": "PASS"}
+  ],
+  "total_pass": 21,
+  "total_fail": 1
+}

@@ -1,0 +1,108 @@
+{
+  "agent": "QA-04",
+  "version": "4.0",
+  "role": "core",
+  "scope": "save-load-branch-history",
+  "method": "cdp",
+  "scenarios": [
+    {
+      "id": "S1",
+      "name": "저장 → 탭 전환 → 복귀",
+      "steps": [
+        "테스트 프로젝트(proj_1775644888754)에 addSection() x2 (sec_h3b3kme, sec_fokksp1) + addTextBlock('h2') + 텍스트 'QA04-S1-MARKER' 입력",
+        "triggerAutoSave() + await flushSave()",
+        "인접 실프로젝트 디선_임포트(proj_1779842095792) 파일 스냅샷: len=12093848, hash=-579747769",
+        "디선_임포트 탭 클릭 → 2.5s 대기, 무편집 → 테스트 탭 복귀",
+        "복귀 후 캔버스 fingerprint 비교: 섹션 id/텍스트 전부 동일 (마커 포함) — 콘텐츠 보존 OK",
+        "실프로젝트 재스냅샷: len=12086375, hash=646029242 → 파일이 7,473 bytes 축소 변경됨",
+        "추가 무편집 왕복 1회로 특성화: len 동일(12086375), 변경은 6 bytes = updatedAt 타임스탬프뿐 (cmp -l 확인). 즉 탭 방문마다 파일 재기록, 첫 방문 시 -7,473B 내용 변경"
+      ],
+      "status": "FAIL",
+      "severity": "blocker",
+      "expected": "복귀 후 캔버스 내용 동일 + 전환한 실프로젝트 파일 무결(전후 스냅샷 동일)",
+      "actual": "캔버스 내용은 동일(PASS 파트). 그러나 실프로젝트를 열고 무편집으로 떠나기만 해도 파일이 디스크에 재기록됨 — 첫 왕복에서 내용이 7,473 bytes 축소(원인 미상, 재직렬화 정규화 추정이나 무손실 증명 불가), 이후 왕복마다 updatedAt만 갱신. 콘솔 에러 없음('스냅샷 크기 초과, localStorage 건너뜀: 11803KB' 로그만)",
+      "repro": "프로젝트 A 활성 상태에서 실프로젝트 B의 파일 스냅샷(electronAPI.loadProject 해시) → B 탭 클릭 → 무편집 → A 탭 복귀 → B 재스냅샷 비교",
+      "evidence": "전: len=12093848 hash=-579747769 / 후: len=12086375 hash=646029242 / 2차 왕복 후: len=12086375 hash=1746644910 (diff=updatedAt 6B만, /Users/a1/claude-commander/.tmp/goditor-recon/qa04_real_after1.json vs qa04_real_after2.json cmp -l 결과 6 bytes, tail에서 updatedAt 2026-06-11T01:18:40.702Z → 01:19:38.849Z 확인)",
+      "verified": true,
+      "adjudication": "blocker-candidate"
+    },
+    {
+      "id": "S2",
+      "name": "Undo/Redo 체인 (블록 추가 5회 → Meta+z x5 → Meta+Shift+z x5)",
+      "steps": [
+        "sec_h3b3kme 선택 후 addTextBlock('h2') 5회, 매회 150ms 간격, 전체 .text-block 카운트 기록",
+        "추가 단계 카운트: 9 → 10 → 11 → 12 → 13 → 14",
+        "press_key Meta+z x5, 단계별 카운트: 14 → 12 → 11 → 10 → 9 → 9 (1번째 undo가 블록 2개를 한꺼번에 제거, 5번째는 가시적 no-op; S1 마커 텍스트는 보존 확인)",
+        "press_key Meta+Shift+z x5, 단계별 카운트: 9 → 9 → 10 → 11 → 12 → 13 (1번째 redo no-op)",
+        "진단용 6번째 redo: 여전히 13 — 14로 복원 불가"
+      ],
+      "status": "FAIL",
+      "severity": "blocker",
+      "expected": "각 단계 블록 수 정확히 원복/복원: undo 14→13→12→11→10→9, redo 9→10→11→12→13→14",
+      "actual": "undo/redo 히스토리 비대칭. 첫 undo가 2개 블록을 1스텝으로 병합 제거(히스토리 coalescing 추정)했으나 redo는 1개씩만 복원하고 13에서 cap — 5번째 추가 블록 1개가 redo 한도 초과로도 영구 유실(데이터 손실)",
+      "repro": "블록 5개 연속 추가(>=150ms 간격) → Cmd+Z 5회 → Cmd+Shift+Z 6회 → 블록 수가 원래 수보다 1 적음",
+      "evidence": "raw 카운트 시퀀스 — add:[9,10,11,12,13,14], undo:[12,11,10,9,9], redo:[9,10,11,12,13], redo6:13",
+      "verified": true,
+      "adjudication": "blocker-candidate"
+    },
+    {
+      "id": "S3",
+      "name": "브랜치 전환 데이터 보존 (dev ↔ main, 테스트 프로젝트 내)",
+      "steps": [
+        "기존 브랜치 구조 파악: loadBranchStore() → {main, dev}, current=dev (listBranches는 미존재, loadBranchStore/getCurrentBranch 사용)",
+        "dev fingerprint 기록(섹션id:블록수): sec_mm5e5ja:3|sec_l4rxq7k:1|sec_vheb9vo:2|sec_h3b3kme:5|sec_fokksp1:2",
+        "switchBranch('main') → main 캔버스 빈 상태(fp='') 기록, suppress=false",
+        "switchBranch('dev') → dev fp 동일, suppress=false",
+        "switchBranch('main') → main fp 동일(''), suppress=false",
+        "switchBranch('dev')로 원상복귀 → dev fp 동일, suppress=false"
+      ],
+      "status": "PASS",
+      "severity": "",
+      "expected": "왕복 후 각 브랜치 데이터 동일 + 전환 완료 후 state._suppressAutoSave === false",
+      "actual": "dev fingerprint 3회 측정 모두 동일, main 2회 측정 동일, 모든 전환 직후 _suppressAutoSave===false",
+      "repro": "switchBranch('main') → switchBranch('dev') 왕복 후 섹션/블록 fingerprint 비교",
+      "evidence": "devPreserved=true, mainPreserved=true, suppress 4회 측정 모두 false (raw evaluate 결과)",
+      "verified": true,
+      "adjudication": "self"
+    },
+    {
+      "id": "S4",
+      "name": "저장 race — 디바운스(1500ms) 내 flushSave 연속 2회",
+      "steps": [
+        "텍스트 블록에 'QA04-S4-RACE2-1781141058190' 입력 + input 이벤트 dispatch (autosave 디바운스 시작)",
+        "즉시 flushSave() 2회를 await 없이 연속 호출 → Promise.allSettled",
+        "localStorage(web-editor-autosave__proj_1775644888754) + electronAPI.loadProject 파일 양쪽 검증"
+      ],
+      "status": "PASS",
+      "severity": "",
+      "expected": "에러 없음 + 마지막 편집 내용이 직렬화에 반영 + 이중 저장 흔적 없음",
+      "actual": "두 flushSave 모두 fulfilled, 콘솔 에러/경고 0건, 마커가 localStorage·파일·serializeProject() 모두에 존재, 파일 내 마커 출현 횟수 정확히 1회(중복 저장 없음)",
+      "repro": "contenteditable 편집 직후 flushSave();flushSave(); 동시 호출",
+      "evidence": "flushResults=['fulfilled','fulfilled'], fileHasMarker=true, fileMarkerCount=1, lsHit=['web-editor-autosave__proj_1775644888754']",
+      "verified": true,
+      "adjudication": "self"
+    },
+    {
+      "id": "S5",
+      "name": "새로고침 race — 섹션 추가 직후 flushSave 없이 즉시 reload",
+      "steps": [
+        "addSection() → sec_l2l8aou 생성 (총 6섹션)",
+        "flushSave 없이 즉시 navigate_page reload (beforeunload accept)",
+        "로드 후 1.5s 대기 → DOM + electronAPI.loadProject 파일 양쪽 확인"
+      ],
+      "status": "PASS",
+      "severity": "",
+      "expected": "beforeunload 가드가 미저장 변경을 보존 (유실 시 blocker)",
+      "actual": "리로드 후 sec_l2l8aou가 캔버스와 파일 양쪽에 존재, S4 마커도 보존, 브랜치 dev 유지 — 데이터 유실 없음",
+      "repro": "addSection 직후 location.reload()",
+      "evidence": "hasNewSection=true, fileHasNewSection=true, branch='dev', s4MarkerStill=true",
+      "verified": true,
+      "adjudication": "self"
+    }
+  ],
+  "passed": 3,
+  "failed": 2,
+  "ux_issues": 0,
+  "blocker_candidates": 2,
+  "cleanup": "생성 섹션 3개(sec_h3b3kme, sec_fokksp1, sec_l2l8aou) deleteSection + flushSave 완료. 잔존 섹션은 원래 3개(sec_mm5e5ja, sec_l4rxq7k, sec_vheb9vo), 파일에 QA04 아티팩트 0건, 페이지=proj_1775644888754, 브랜치=dev, _suppressAutoSave=false"
+}

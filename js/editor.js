@@ -1,4 +1,81 @@
 import { canvasEl, propPanel, state } from './globals.js';
+import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './history.js';
+
+/* ═══════════════════════════════════
+   SSOT: 캔버스에서 "선택된 블록" 셀렉터 목록
+   - Delete 핸들러(allSelBlocks)와 getSelectedSection()이 공유.
+   - 스티커/조커 등 플로팅 블록 포함 (closest('.row') 없으므로 block.remove()로 안전 삭제).
+   - 에셋패널 keydown 가드(canvasSelected)도 window.CANVAS_SEL_BLOCKS로 동기화.
+═══════════════════════════════════ */
+const CANVAS_SEL_BLOCKS =
+  '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+  '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+  '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, ' +
+  '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
+  '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
+  '.step-block.selected, .laurel-block.selected, .gradient-block.selected, ' +
+  '.sticker-block.selected, .joker-block.selected, .chat-block.selected';
+// shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
+// 단, "캔버스에 무언가 선택됨" 판정/섹션 매핑엔 shape도 포함해야 함.
+const CANVAS_SEL_BLOCKS_AND_SHAPE = CANVAS_SEL_BLOCKS + ', .shape-block.selected';
+if (typeof window !== 'undefined') {
+  window.CANVAS_SEL_BLOCKS = CANVAS_SEL_BLOCKS;
+  window.CANVAS_SEL_BLOCKS_AND_SHAPE = CANVAS_SEL_BLOCKS_AND_SHAPE;
+}
+
+/* ═══════════════════════════════════
+   포커스 시 전체 선택 (Figma 스타일)
+   - 숫자/hex/opacity 프로퍼티 인풋 클릭 시 텍스트 전체 선택 → 바로 덮어쓰기
+═══════════════════════════════════ */
+/* ═══════════════════════════════════
+   C3: 연속 크기/간격 조정 히스토리 병합 (coalesce)
+   - +/- 키 연타가 키스트로크마다 별도 히스토리 엔트리를 쌓는 문제 해결.
+   - 트레일링 디바운스(push-after): 마지막 DOM 상태를 단일 엔트리로 캡처.
+   - 같은 블록+라벨 연타는 타이머 리셋, 다른 블록/라벨로 전환 시 직전 보류분 즉시 확정.
+═══════════════════════════════════ */
+let _sizeCoalesceTimer = null;
+let _sizeCoalesceKey   = null;
+function coalesceSizeHistory(targetEl, label) {
+  // dataset.blockId 없는 블록은 비직렬화 _uid로 fallback (저장/복원 무영향)
+  let uid = targetEl?.dataset?.blockId;
+  if (!uid && targetEl) uid = (targetEl._uid ??= 'sz' + Math.random().toString(36).slice(2));
+  const key = (uid || 'sz?') + '|' + label;
+  if (_sizeCoalesceTimer && _sizeCoalesceKey === key) {
+    clearTimeout(_sizeCoalesceTimer); // 같은 대상 연타 → 타이머 연장
+  } else if (_sizeCoalesceTimer) {
+    // 다른 블록/라벨로 전환 → 직전 보류분 즉시 확정
+    clearTimeout(_sizeCoalesceTimer);
+    window.pushHistory?.(_sizeCoalesceKey.split('|').slice(1).join('|'));
+  }
+  _sizeCoalesceKey = key;
+  _sizeCoalesceTimer = setTimeout(() => {
+    _sizeCoalesceTimer = null;
+    _sizeCoalesceKey   = null;
+    window.pushHistory?.(label);
+  }, 450);
+}
+
+const _AUTO_SELECT_SEL = '.prop-number, .prop-color-hex, .prop-color-alpha-input, .goya-cp-hex, .goya-cp-alpha-input';
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el.matches?.(_AUTO_SELECT_SEL)) return;
+  // mousedown 이후에 select() 호출되도록 한 틱 지연
+  setTimeout(() => { if (document.activeElement === el) el.select(); }, 0);
+});
+document.addEventListener('mouseup', (e) => {
+  const el = e.target;
+  if (!el.matches?.(_AUTO_SELECT_SEL)) return;
+  // 포커스 얻는 첫 클릭에서만 기본 caret 배치 막기
+  if (el.dataset._selJustFocused === '1') {
+    e.preventDefault();
+    delete el.dataset._selJustFocused;
+  }
+}, true);
+document.addEventListener('mousedown', (e) => {
+  const el = e.target;
+  if (!el.matches?.(_AUTO_SELECT_SEL)) return;
+  if (document.activeElement !== el) el.dataset._selJustFocused = '1';
+}, true);
 
 /* ═══════════════════════════════════
    PANEL TABS
@@ -9,17 +86,42 @@ function toggleAllSections() {
   sections.forEach(s => s.classList.toggle('collapsed', anyOpen));
 }
 
+// Gap 레이어 숨김 토글 — localStorage에 상태 저장 + 즉시 적용
+function _applyHideGapLayers(hide) {
+  document.body.classList.toggle('hide-gap-layers', hide);
+  const btn = document.getElementById('layer-hide-gap');
+  if (btn) btn.classList.toggle('active', hide);
+}
+function toggleHideGapLayers() {
+  const cur = localStorage.getItem('goditor_hide_gap_layers') === '1';
+  // (FIX-4) 이스터에그 게이팅 — off면 새로 켜는 것만 차단 (이미 켜진 상태는 끌 수 있게 허용)
+  if (!cur && window.isEasterEggEnabled && !window.isEasterEggEnabled('hideGapLayers')) return;
+  const next = !cur;
+  localStorage.setItem('goditor_hide_gap_layers', next ? '1' : '0');
+  _applyHideGapLayers(next);
+}
+window.toggleHideGapLayers = toggleHideGapLayers;
+// 페이지 로드 시 저장된 상태 복원
+document.addEventListener('DOMContentLoaded', () => {
+  _applyHideGapLayers(localStorage.getItem('goditor_hide_gap_layers') === '1');
+});
+
 function switchToTab(tabName) {
   document.querySelectorAll('.panel-tab').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === tabName));
   const filePanel = document.getElementById('file-panel-body');
   if (filePanel) filePanel.style.display = tabName === 'file' ? 'flex' : 'none';
-  document.getElementById('branch-panel-body').style.display    = tabName === 'branch'    ? '' : 'none';
-  document.getElementById('inspector-panel-body').style.display = tabName === 'inspector' ? 'flex' : 'none';
+  document.getElementById('inspector-panel-body').style.display  = tabName === 'inspector' ? 'flex' : 'none';
+  document.getElementById('checklist-panel-body').style.display  = tabName === 'checklist' ? 'flex' : 'none';
+  const assetsBody = document.getElementById('assets-panel-body');
+  if (assetsBody) assetsBody.style.display = tabName === 'assets' ? 'flex' : 'none';
   const collapseBtn = document.getElementById('layer-collapse-all');
   if (collapseBtn) collapseBtn.style.display = tabName === 'file' ? '' : 'none';
-  if (tabName === 'branch') window.renderBranchPanel();
   if (tabName === 'inspector') window.renderInspectorPanel();
+  if (tabName === 'checklist') window.renderChecklistPanel?.();
+  if (tabName === 'assets')    window.buildAssetsPanel?.();
+  // (U7) assets 탭이 아닌 곳으로 전환 시 잔류 자산 선택 클리어 (Delete 오발동 안전망)
+  if (tabName !== 'assets')    window._assetsClearSelection?.();
 }
 
 function initFileTabToggle() {
@@ -44,99 +146,162 @@ let panOffsetX = 0;
 let panOffsetY = 0;
 
 function applyZoom(z) {
-  currentZoom = Math.min(150, Math.max(25, z));
+  currentZoom = Math.min(400, Math.max(10, z));
   window.currentZoom = currentZoom;
   _applyScalerTransform();
   zoomDisplay.textContent = currentZoom + '%';
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
+  // 섹션 라벨/툴바 카운터-스케일
+  // - zoom ≥ 80%: 자연 스케일 (1.0) — 라벨이 섹션과 분리돼 보이지 않게
+  // - zoom < 80%: 점진적으로 키워서 가독성 유지, 최대 1.6 cap (겹침 방지는 max-width+ellipsis가 담당)
+  const uiScale = currentZoom >= 80 ? 1 : Math.min(1.6, 100 / currentZoom * 0.8);
+  document.documentElement.style.setProperty('--ui-scale', uiScale.toFixed(4));
 }
 
 function _applyScalerTransform() {
   scaler.style.transform = `translate(${panOffsetX}px, ${panOffsetY}px) scale(${currentZoom / 100})`;
+  _syncScalerHeight();
 }
+
+/* C20: transform:scale은 레이아웃 박스 높이를 안 바꿔 #canvas-wrap.scrollHeight가 미축소 원본 기준으로 잡힘
+ *      → 줌아웃 시 마지막 섹션 아래로 빈 회색이 과도하게 스크롤됨. scaler 레이아웃 높이를
+ *      (미축소 자연높이 × scale)로 명시해 스크롤 영역을 줌과 동기화(top 고정 유지). */
+function _syncScalerHeight() {
+  if (!scaler) return;
+  const scale = currentZoom / 100;
+  const prev = scaler.style.height;
+  scaler.style.height = '';
+  void scaler.offsetHeight;            // reflow → 자연(미축소) 높이 측정
+  let naturalH = scaler.offsetHeight;  // flow 콘텐츠(#canvas) 기준 (abs 자식 미포함)
+  for (const c of scaler.children) {   // canvas 아래로 배치된 absolute 자식(scratch-item 등) 커버
+    if (c.style && c.style.position === 'absolute') {
+      const b = c.offsetTop + c.offsetHeight;
+      if (b > naturalH) naturalH = b;
+    }
+  }
+  const target = Math.round(naturalH * scale) + 'px';
+  scaler.style.height = (target !== prev) ? target : prev;
+}
+
+/* C20: 섹션/블록 추가·삭제·리사이즈로 #canvas 높이가 바뀌면 scaler 레이아웃 높이도 재동기화.
+ *      scaler.style.height 변경은 #canvas.offsetHeight에 영향 없어 피드백 루프 없음. rAF 디바운스. */
+(() => {
+  const canvasEl = document.getElementById('canvas');
+  if (!canvasEl || typeof ResizeObserver === 'undefined') return;
+  let raf = 0;
+  const ro = new ResizeObserver(() => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => { raf = 0; _syncScalerHeight(); });
+  });
+  ro.observe(canvasEl);
+})();
 
 function resetPanOffset() {
   panOffsetX = 0;
+  // C14: panOffsetY를 0으로 만들 때 잃는 세로 보정을 wrap.scrollTop으로 흡수해
+  //       콘텐츠 중앙정렬 유지 (applyZoom의 idealScrollTop/clamp 공식 차용).
+  const wrap = document.getElementById('canvas-wrap');
+  const scalerEl = document.getElementById('canvas-scaler');
+  if (wrap && scalerEl) {
+    void scalerEl.offsetHeight; void wrap.scrollHeight;
+    const scale = currentZoom / 100;
+    const contentH = scalerEl.offsetHeight * scale;
+    const idealScrollTop = Math.round((contentH - wrap.clientHeight) / 2);
+    const maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+    wrap.scrollTop = Math.max(0, Math.min(maxScroll, idealScrollTop));
+  }
   panOffsetY = 0;
   _applyScalerTransform();
 }
-function zoomStep(delta) { applyZoom(currentZoom + delta); }
+function zoomStep(delta) {
+  const wrap = document.getElementById('canvas-wrap');
+  const scaler = document.getElementById('canvas-scaler');
+  if (!wrap || !scaler) { applyZoom(currentZoom + delta); return; }
+
+  const s_old = currentZoom / 100;
+  const newZoom = Math.min(400, Math.max(10, currentZoom + delta));
+  if (newZoom === currentZoom) return;
+  const s_new = newZoom / 100;
+
+  // 줌인 + 선택 블록 있음: 해당 섹션이 화면 밖일 때만 그쪽으로 점프
+  // (이미 화면에 보이는 경우엔 vpCenter 보존 — 사용자가 보던 영역이 갑자기 점프하지 않도록)
+  const selectedBlock = delta > 0 && document.querySelector(
+    '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, ' +
+    '.icon-text-block.selected, .shape-block.selected, .speech-bubble-block.selected'
+  );
+  let targetEl = selectedBlock ? (selectedBlock.closest('.section-block') || selectedBlock) : null;
+  if (targetEl) {
+    // 이미 화면 vp 안에 보이면 점프 안 함 (vpCenter 보존 분기로)
+    const wrapRect0 = wrap.getBoundingClientRect();
+    const tRect = targetEl.getBoundingClientRect();
+    const inView = tRect.bottom > wrapRect0.top && tRect.top < wrapRect0.bottom &&
+                   tRect.right  > wrapRect0.left && tRect.left < wrapRect0.right;
+    if (inView) targetEl = null;
+  }
+
+  // ───── 측정 기반 vpCenter(or selected block center) 보존 ─────
+  // 핵심:
+  //  1) wrap.scrollHeight는 untransformed offsetHeight 기준이라 scale 변경 시 즉시 안 바뀜.
+  //  2) #canvas-scaler의 `transition: transform 0.15s`로 인해 applyZoom 직후 동기 측정이
+  //     예전 scale을 반영하지 못함 → transition 일시 off + reflow.
+  //  3) anchor의 untransformed canvas-y를 줌 전 getBoundingClientRect로 측정해서,
+  //     줌 후 scrollTop을 직접 계산. scrollTop으로 흡수 불가 영역은 panOffsetY로 보완.
+  const wrapRectBefore = wrap.getBoundingClientRect();
+  const scalerRectBefore = scaler.getBoundingClientRect();
+  const anchorScreenY = targetEl
+    ? (() => { const r = targetEl.getBoundingClientRect(); return r.top + r.height / 2; })()
+    : (wrapRectBefore.top + wrapRectBefore.height / 2);
+  const anchorCanvasY = (anchorScreenY - scalerRectBefore.top) / s_old;
+  // anchor x (selected block 점프 시 좌우 정렬용)
+  const anchorScreenX = targetEl
+    ? (() => { const r = targetEl.getBoundingClientRect(); return r.left + r.width / 2; })()
+    : (wrapRectBefore.left + wrapRectBefore.width / 2);
+  // x 변환: transform-origin x = scaler.offsetWidth/2 (top center)
+  const scalerCenterX = scalerRectBefore.left + scalerRectBefore.width / 2;
+  // canvas-x (origin 기준 offset) = (screenX - centerX) / s_old
+  const anchorCanvasOffsetX = (anchorScreenX - scalerCenterX) / s_old;
+
+  // 줌 후 anchor가 viewport 내 어디 위치할지: 선택 블록이면 정중앙, 아니면 측정 시점과 같은 비율
+  const anchorVpY = targetEl ? (wrapRectBefore.height / 2) : (anchorScreenY - wrapRectBefore.top);
+  const anchorVpX = targetEl ? (wrapRectBefore.width  / 2) : (anchorScreenX - wrapRectBefore.left);
+
+  // transition 일시 off → 동기 적용
+  const prevTransition = scaler.style.transition;
+  scaler.style.transition = 'none';
+  // pan 초기화 (panning 기능 없음 가정, scrollTop 우선)
+  panOffsetX = 0;
+  panOffsetY = 0;
+  applyZoom(newZoom);
+  // force layout flush — wrap.scrollHeight / scaler.offsetTop 최신화
+  void scaler.offsetHeight; void wrap.scrollHeight;
+
+  // y축: 가능한 한 scrollTop으로 흡수, 잔여는 panOffsetY로 보완
+  const padTop = scaler.offsetTop;
+  const idealScrollTop = padTop + anchorCanvasY * s_new - anchorVpY;
+  const maxScroll = wrap.scrollHeight - wrap.clientHeight;
+  const clampedScroll = Math.max(0, Math.min(maxScroll, idealScrollTop));
+  wrap.scrollTop = clampedScroll;
+  panOffsetY = clampedScroll - idealScrollTop;
+
+  // x축: scrollLeft + transform-origin center. 보통 wrap.clientWidth >= scaler 가시폭이면 0.
+  // anchorScreenX 위치 == wrapTop + anchorVpX 만족하도록 panOffsetX 계산
+  //   screenX_after = scalerCenterX_after + anchorCanvasOffsetX * s_new + panOffsetX
+  //   wrapLeft + anchorVpX = (wrapLeft + scaler.offsetLeft + scaler.offsetWidth/2 - wrap.scrollLeft) + anchorCanvasOffsetX*s_new + panOffsetX
+  // → panOffsetX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth/2 + wrap.scrollLeft - anchorCanvasOffsetX*s_new
+  const wantedX = anchorVpX - scaler.offsetLeft - scaler.offsetWidth / 2 + wrap.scrollLeft - anchorCanvasOffsetX * s_new;
+  panOffsetX = wantedX;
+  _applyScalerTransform();
+
+  // transition 복원 (다음 프레임)
+  requestAnimationFrame(() => { scaler.style.transition = prevTransition; });
+}
 function zoomFit() {
   const wrap = document.getElementById('canvas-wrap');
   applyZoom(Math.floor(((wrap.clientWidth - 80) / CANVAS_W) * 100));
 }
 
-/* ══════════════════════════════════════
-   Undo / Redo
-══════════════════════════════════════ */
-const MAX_HISTORY = 50;
-let historyStack = [];
-let historyPos   = -1;
-let _historyPaused = false;
-
-function pushHistory(action = '작업') {
-  if (_historyPaused) return;
-  historyStack = historyStack.slice(0, historyPos + 1);
-  historyStack.push({ canvas: getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId });
-  if (historyStack.length > MAX_HISTORY) historyStack.shift();
-  else historyPos++;
-  _updateUndoRedoBtns();
-}
-
-function _updateUndoRedoBtns() {
-  const undoBtn = document.getElementById('undo-btn');
-  const redoBtn = document.getElementById('redo-btn');
-  if (undoBtn) {
-    const canUndo = historyPos > 0;
-    undoBtn.disabled = !canUndo;
-    undoBtn.title = canUndo ? `실행 취소: ${historyStack[historyPos].action}` : '실행 취소 없음';
-  }
-  if (redoBtn) {
-    const canRedo = historyPos < historyStack.length - 1;
-    redoBtn.disabled = !canRedo;
-    redoBtn.title = canRedo ? `다시 실행: ${historyStack[historyPos + 1]?.action || ''}` : '다시 실행 없음';
-  }
-}
-
-function restoreSnapshot(snap) {
-  _historyPaused = true;
-  // 페이지가 다르면 현재 페이지 flush 후 대상 페이지로 전환
-  if (snap.pageId && snap.pageId !== state.currentPageId) {
-    if (window.flushCurrentPage) window.flushCurrentPage();
-    state.currentPageId = snap.pageId;
-    const page = state.pages?.find(p => p.id === snap.pageId);
-    if (page?.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-    if (window.buildFilePageSection) window.buildFilePageSection();
-  }
-  Object.assign(state.pageSettings, snap.settings);
-  canvasEl.innerHTML = snap.canvas;
-  rebindAll();
-  deselectAll();
-  applyPageSettings();
-  if (window.buildLayerPanel) window.buildLayerPanel();
-  deselectAll();
-  _historyPaused = false;
-  _updateUndoRedoBtns();
-}
-
-function undo() {
-  if (historyPos <= 0) return;
-  historyPos--;
-  restoreSnapshot(historyStack[historyPos]);
-}
-function redo() {
-  if (historyPos >= historyStack.length - 1) return;
-  historyPos++;
-  restoreSnapshot(historyStack[historyPos]);
-}
-
-function clearHistory() {
-  // 초기 상태를 스냅샷으로 저장해 첫 번째 액션도 Undo 가능하게 함
-  const init = { canvas: getSerializedCanvas(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId };
-  historyStack = [init];
-  historyPos   = 0;
-  _updateUndoRedoBtns();
-}
 
 /* ══ 브레드크럼 헬퍼 ══ */
 function getBlockBreadcrumb(el) {
@@ -153,9 +318,243 @@ function getBlockBreadcrumb(el) {
 }
 
 /* ══════════════════════════════════════
+   클립보드 유틸 — Electron 권한 우회
+══════════════════════════════════════ */
+function _copyToClipboard(text) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    navigator.clipboard.writeText(text).catch(() => _clipboardFallback(text));
+  } else {
+    _clipboardFallback(text);
+  }
+}
+function _clipboardFallback(text) {
+  const el = document.createElement('textarea');
+  el.value = text;
+  el.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+  document.body.appendChild(el);
+  el.focus(); el.select();
+  try { document.execCommand('copy'); } catch (_) {}
+  document.body.removeChild(el);
+}
+window._copyToClipboard = _copyToClipboard;
+
+/* ══════════════════════════════════════
    복사 / 붙여넣기
 ══════════════════════════════════════ */
 let clipboard = null;
+
+/* ═══════════════════════════════════
+   BLOCK MULTI-SELECT HELPERS
+   - Cmd+click  : toggle individual block
+   - Shift+click: range select from last clicked
+═══════════════════════════════════ */
+const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, ' +
+  '.icon-text-block, .shape-block';
+
+let _lastClickedBlock = null;
+
+function _getBlockLayerItem(block) {
+  if (block.classList.contains('shape-block')) {
+    const ss = block.closest('.frame-block');
+    return ss?._layerItem || block._layerItem;
+  }
+  return block._layerItem;
+}
+
+/* freeLayout 내 블록인지 확인 */
+function _isInFreeLayout(block) {
+  const wrapper = block.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+    (block.style.position === 'absolute' ? block : null);
+  return !!(wrapper && wrapper.closest('.frame-block[data-free-layout]'));
+}
+
+/* freeLayout 내 블록의 모든 상위 freeLayout frame에 .selected 복원
+ * 중첩 프레임(B inside A) 구조에서 deselectAll() 후 A까지 복원하지 않으면
+ * A의 CSS pointer-events:none이 하위 전체에 적용되어 더블클릭이 막힘 */
+function _restoreFreeLayoutFrameSelected(block) {
+  let el = block;
+  let deepestFrame = null;
+  while (el) {
+    const textOrShape = el.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]');
+    const searchFrom = textOrShape || el;
+    const frame = searchFrom.closest('.frame-block[data-free-layout]');
+    if (!frame) break;
+    frame.classList.add('selected');
+    if (!deepestFrame) {
+      deepestFrame = frame;
+      window._activeFrame = frame;
+    }
+    const sec = frame.closest('.section-block');
+    if (sec) sec.classList.add('selected');
+    // 이 frame의 바깥에서 다시 탐색 (상위 frame 복원)
+    el = frame.parentElement;
+  }
+}
+
+/* freeLayout 멀티셀렉 패널 업데이트 트리거 */
+function _updateFreeLayoutMultiSelPanel() {
+  if (window.hasFreeLayoutMultiSel?.()) {
+    window.showFreeLayoutMultiSelPanel?.();
+  }
+}
+
+/* 일반(플로우) 블록 멀티선택 카운트 패널 트리거 (A11)
+ * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
+ *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
+// 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected';
+
+function _countFlowMultiSel() {
+  return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
+}
+
+function _updateMultiSelPanel(block) {
+  if (_isInFreeLayout(block)) {
+    _updateFreeLayoutMultiSelPanel();
+    return;
+  }
+  const n = _countFlowMultiSel();
+  if (n > 1 && propPanel) {
+    // B15: 카운트-온리 → 정렬/분배 패널 (prop-multisel.js)
+    if (window.showFlowMultiSelPanel) window.showFlowMultiSelPanel();
+    else propPanel.innerHTML = `<div class="prop-section"><div class="prop-block-label" style="padding:2px 0 4px;"><div class="prop-block-info"><span class="prop-block-name">${n}개 선택됨</span><span class="prop-breadcrumb">블록 멀티선택</span></div></div></div>`;
+  }
+}
+
+/* Cmd+클릭: 단일 블록 토글 */
+function toggleBlockSelect(block, sec) {
+  const layerItem = _getBlockLayerItem(block);
+  if (block.classList.contains('selected')) {
+    block.classList.remove('selected');
+    if (layerItem) { layerItem.classList.remove('active'); layerItem.style.background = ''; }
+  } else {
+    block.classList.add('selected');
+    if (layerItem) layerItem.classList.add('active');
+  }
+  if (sec) window.syncSection?.(sec);
+  _lastClickedBlock = block;
+  // freeLayout 내 블록이면 부모 프레임 selected 복원 + 멀티셀렉 패널 업데이트
+  if (_isInFreeLayout(block)) {
+    _restoreFreeLayoutFrameSelected(block);
+    setTimeout(_updateFreeLayoutMultiSelPanel, 0);
+  } else {
+    // 일반(플로우) 블록 — 멀티선택 시 카운트 패널 트리거 (A11)
+    setTimeout(() => _updateMultiSelPanel(block), 0);
+  }
+}
+
+/* Shift+클릭: 마지막 클릭 블록 ~ 현재 블록 범위 선택
+ * — 같은 부모(섹션 또는 프레임)의 직속 자식만 sibling으로 취급
+ * — 텍스트프레임(투명 wrapper)은 자기 안의 text-block을 selected
+ * — 프레임/일반 블록은 자기 자신을 selected
+ */
+const SIBLING_MULTI_SEL =
+  '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, ' +
+  '.icon-text-block, .shape-block, .frame-block, ' +
+  // 누락 블록 추가 (#14): divider + 카드/말풍선/배너02/비교/목업/벡터/스텝/조커/캔버스 다중선택 지원
+  '.speech-bubble-block, .banner02-block, .comparison-block, ' +
+  '.mockup-block, .vector-block, .step-block, .joker-block, .canvas-block, ' +
+  // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel — 다중선택 지원
+  '.iconify-block, .chat-block, .gradient-block, .sticker-block, .laurel-block';
+
+function _toSibling(el) {
+  if (!el) return null;
+  // 텍스트블록 클릭은 부모 텍스트프레임을 sibling 단위로 사용
+  const tf = el.closest('.frame-block[data-text-frame]');
+  return tf || el;
+}
+
+function _selectSibling(sib) {
+  // 텍스트프레임이면 inner text-block을 selected (기존 패턴 유지)
+  if (sib.dataset.textFrame === 'true') {
+    const tb = sib.querySelector('.text-block');
+    if (tb) {
+      tb.classList.add('selected');
+      const li = _getBlockLayerItem(tb);
+      if (li) li.classList.add('active');
+    }
+    return;
+  }
+  sib.classList.add('selected');
+  const li = _getBlockLayerItem(sib);
+  if (li) li.classList.add('active');
+}
+
+function rangeSelectBlocks(block, sec) {
+  const target = _toSibling(block);
+  const anchor = _toSibling(_lastClickedBlock);
+  const parent = target?.parentElement;
+
+  // Path 1: 같은 부모 — 기존 빠른 경로 (row 안 형제, frame 안 형제 등)
+  if (anchor && parent && anchor.parentElement === parent) {
+    const siblings = Array.from(parent.children).filter(c => c.matches(SIBLING_MULTI_SEL));
+    const a = siblings.indexOf(anchor);
+    const b = siblings.indexOf(target);
+    if (a >= 0 && b >= 0) {
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      window.deselectAll?.();
+      _lastClickedBlock = anchor;
+      for (let i = lo; i <= hi; i++) _selectSibling(siblings[i]);
+      if (sec) window.syncSection?.(sec);
+      if (_isInFreeLayout(block)) {
+        _restoreFreeLayoutFrameSelected(block);
+        setTimeout(_updateFreeLayoutMultiSelPanel, 0);
+      } else {
+        // 일반(플로우) 블록 범위선택 후 카운트 패널 갱신 (A11)
+        setTimeout(() => _updateMultiSelPanel(block), 0);
+      }
+      return;
+    }
+  }
+
+  // Path 2: 부모 다르거나 sibling 매칭 실패 — 같은 섹션 안 selectable 블록 통째 fallback
+  // (sec_xxx > section-inner > row > divider | section-inner > frame[textFrame] > text-block 같이 깊이 다른 케이스)
+  if (anchor && sec && sec.contains(anchor) && sec.contains(target)) {
+    const all = Array.from(sec.querySelectorAll(SIBLING_MULTI_SEL));
+    // text-frame 안 text-block은 frame 자체를 repr로 → 중복 회피
+    const seen = new Set();
+    const sibs = [];
+    for (const el of all) {
+      const repr = _toSibling(el);
+      if (!repr || seen.has(repr)) continue;
+      // repr 자체가 SIBLING_MULTI_SEL을 만족해야 함 (안전망)
+      if (!repr.matches || !repr.matches(SIBLING_MULTI_SEL)) continue;
+      seen.add(repr);
+      sibs.push(repr);
+    }
+    const a = sibs.indexOf(anchor);
+    const b = sibs.indexOf(target);
+    if (a >= 0 && b >= 0) {
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      window.deselectAll?.();
+      _lastClickedBlock = anchor;
+      for (let i = lo; i <= hi; i++) _selectSibling(sibs[i]);
+      if (sec) window.syncSection?.(sec);
+      // 멀티선택 후 패널 갱신 (A11) — n>1 가드로 단일선택엔 무동작
+      setTimeout(() => _updateMultiSelPanel(block), 0);
+      return;
+    }
+  }
+
+  // 끝까지 매칭 실패 — 단일 선택
+  window.deselectAll?.();
+  block.classList.add('selected');
+  const li = _getBlockLayerItem(block);
+  if (li) li.classList.add('active');
+  _lastClickedBlock = block;
+  if (sec) window.syncSection?.(sec);
+  // 단일선택 fallback — n>1 가드로 카운트 패널은 자연히 안 뜸 (A11)
+  setTimeout(() => _updateMultiSelPanel(block), 0);
+}
+
+/* 일반 클릭 시 앵커 업데이트 */
+function setBlockAnchor(block) { _lastClickedBlock = block; }
+window.toggleBlockSelect  = toggleBlockSelect;
+window.rangeSelectBlocks  = rangeSelectBlocks;
+window.setBlockAnchor     = setBlockAnchor;
+window._restoreFreeLayoutFrameSelected = _restoreFreeLayoutFrameSelected; // QA/디버그용
 
 /* ═══════════════════════════════════
    MULTI-SELECT STATE
@@ -177,8 +576,14 @@ function clearMultiSel() {
 }
 
 function showMultiSelPanel() {
-  const n = multiSel.sections.size || multiSel.cols.size;
   if (!propPanel) return;
+  // freeLayout 블록 멀티셀렉이면 전용 패널으로 위임
+  if (window.hasFreeLayoutMultiSel?.()) {
+    window.showFreeLayoutMultiSelPanel?.();
+    return;
+  }
+  // 기존 section/col 멀티셀렉 패널 (기존 동작 유지)
+  const n = multiSel.sections.size || multiSel.cols.size;
   propPanel.innerHTML = `<div style="padding:20px;color:#888;font-size:13px;">${n}개 선택됨</div>`;
 }
 
@@ -272,14 +677,142 @@ function selectColWithModifier(col, e) {
   return false;
 }
 
+/* Cmd+D: 선택 블록 복제 (freeLayout = offset +20px, 섹션 = insertAfter) */
+function duplicateSelected() {
+  // freeLayout 프레임 내 블록 복제 (absolute 배치)
+  const selBlock = document.querySelector(
+    '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, ' +
+    '.graph-block.selected, .table-block.selected, ' +
+    '.label-group-block.selected, .icon-text-block.selected'
+  );
+  const selSS = document.querySelector('.frame-block.selected:not([data-text-frame])');
+  const selSection = document.querySelector('.section-block.selected');
+
+  // freeLayout 내 절대 배치 블록: text-frame 또는 shape-frame 래퍼 복제
+  if (selBlock) {
+    const absWrapper = selBlock.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]') ||
+                       (selBlock.style.position === 'absolute' ? selBlock : null);
+    const parentFrame = absWrapper?.closest('.frame-block[data-free-layout]');
+    if (absWrapper && parentFrame) {
+      window.pushHistory('복제');
+      const clone = absWrapper.cloneNode(true);
+      // 새 id 생성
+      clone.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+      clone.querySelectorAll('[id]').forEach(el => {
+        const prefix = el.id.split('_')[0] || 'el';
+        el.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
+      });
+      // 오프셋 +20px
+      const origLeft = parseInt(absWrapper.style.left || '0');
+      const origTop  = parseInt(absWrapper.style.top  || '0');
+      clone.style.left = (origLeft + 20) + 'px';
+      clone.style.top  = (origTop  + 20) + 'px';
+      clone.dataset.offsetX = String(origLeft + 20);
+      clone.dataset.offsetY = String(origTop  + 20);
+      parentFrame.appendChild(clone);
+      // 이벤트 재바인딩
+      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block').forEach(b => {
+        delete b._blockBound;
+        window.bindBlock?.(b);
+      });
+      clone._dragBound = false;
+      clone._subSecBound = false;
+      window.bindFrameDropZone?.(clone);
+      // 기존 선택 해제 후 복제본 선택
+      deselectAll();
+      const cloneBlock = clone.querySelector('.text-block, .shape-block, .asset-block') || clone;
+      cloneBlock.classList.add('selected');
+      parentFrame.closest('.section-block')?.classList.add('selected');
+      window.buildLayerPanel?.();
+      window.pushHistory('복제 완료');
+      return;
+    }
+  }
+
+  // freeLayout 프레임 자체 복제 (frame-block.selected)
+  if (selSS && !selSS.dataset.freeLayout) {
+    copySelected();
+    pasteClipboard();
+    return;
+  }
+
+  // 섹션 복제
+  if (selSection) {
+    copySelected();
+    pasteClipboard();
+    return;
+  }
+
+  // 일반 flow 블록 복제
+  copySelected();
+  pasteClipboard();
+}
+
 function copySelected() {
-  const selBlock   = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected');
+  // 내부 클립보드(섹션/블록) 복사 timestamp — Cmd+V 시 외부 클립보드(스크래치 이미지)와 우선순위 비교용
+  window._internalClipboardTime = Date.now();
+
+  const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, ' +
+    '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
+    '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
+    '.laurel-block.selected, .joker-block.selected';
+
+  const allSel = [...document.querySelectorAll(MULTI_SEL)];
+
+  if (allSel.length > 1) {
+    // 멀티셀렉트: DOM 순서대로 고유 행 수집 (같은 row 중복 방지)
+    const seen = new Set();
+    const items = [];
+    allSel.forEach(block => {
+      let ref;
+      if (block.classList.contains('shape-block')) {
+        const ss = block.closest('.frame-block');
+        ref = ss?.closest('.row') || ss || block;
+      } else if (block.classList.contains('gap-block')) {
+        ref = block;
+      } else {
+        ref = block.closest('.row') || block;
+      }
+      if (!seen.has(ref)) {
+        seen.add(ref);
+        const banner = ref.closest?.('.frame-block[data-banner-preset]');
+        items.push({ html: ref.outerHTML, sourceBannerId: banner?.id || null });
+      }
+    });
+    clipboard = { type: 'multi-block', items };
+    return;
+  }
+
+  // 단건 copy
+  const selBlock   = allSel[0] || null;
+  const selShape   = selBlock?.classList.contains('shape-block') ? selBlock : null;
+  const selNormal  = selShape ? null : selBlock;
+  const selSS      = document.querySelector('.frame-block.selected');
   const selRow     = document.querySelector('.row.row-active');
   const selSection = document.querySelector('.section-block.selected');
-  if (selBlock) {
-    const isGapSel = selBlock.classList.contains('gap-block');
-    const target = isGapSel ? selBlock : (selBlock.closest('.row') || selBlock);
-    clipboard = { type: 'block', html: target.outerHTML };
+
+  if (selShape) {
+    const ss = selShape.closest('.frame-block');
+    const rowEl = ss?.closest('.row') || ss || selShape;
+    const banner = rowEl.closest?.('.frame-block[data-banner-preset]');
+    clipboard = { type: 'block', html: rowEl.outerHTML, sourceBannerId: banner?.id || null };
+  } else if (selNormal) {
+    const isGapSel = selNormal.classList.contains('gap-block');
+    // 스티커/플로팅 블럭은 row 밖에 absolute로 있으므로 자체 outerHTML만 복사 (closest('.row')로 잘못 wrapping 안 함)
+    const isFloating = selNormal.classList.contains('sticker-block')
+      || selNormal.classList.contains('chat-block')
+      || selNormal.classList.contains('laurel-block')
+      || selNormal.classList.contains('joker-block');
+    const target = (isGapSel || isFloating) ? selNormal : (selNormal.closest('.row') || selNormal);
+    const banner = target.closest?.('.frame-block[data-banner-preset]');
+    clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
+  } else if (selSS) {
+    // 서브섹션은 row > col > frame-block 구조이므로 row 단위로 복사
+    const rowEl = selSS.closest('.row') || selSS;
+    clipboard = { type: 'block', html: rowEl.outerHTML };
   } else if (selRow) {
     clipboard = { type: 'block', html: selRow.outerHTML };
   } else if (selSection) {
@@ -287,49 +820,198 @@ function copySelected() {
   }
 }
 
+/* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
+function _bindPastedEl(el) {
+  const rand = () => Math.random().toString(36).slice(2, 9);
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+
+  // 모든 ID 재생성 — 원본과 ID 충돌 방지
+  el.querySelectorAll('[id]').forEach(child => {
+    const prefix = child.id.split('_')[0] || 'el';
+    child.id = `${prefix}_${rand()}`;
+  });
+  if (el.id) {
+    const prefix = el.id.split('_')[0] || 'el';
+    el.id = `${prefix}_${rand()}`;
+  }
+
+  // frame-block 재바인딩 — el 자체 포함
+  const frames = [...el.querySelectorAll('.frame-block')];
+  if (el.classList.contains('frame-block')) frames.unshift(el);
+  frames.forEach(ss => {
+    ss._subSecBound = false;
+    window.bindFrameDropZone?.(ss);
+  });
+
+  // 일반 블록 재바인딩 — el 자체 포함 (_blockBound 리셋 후)
+  const blocks = [...el.querySelectorAll(BLOCK_SEL)];
+  if (el.matches?.(BLOCK_SEL)) blocks.unshift(el);
+  blocks.forEach(b => {
+    b._blockBound = false;
+    window.bindBlock(b);
+    // canvas-block: renderCanvas로 ResizeObserver 재연결
+    if (b.classList.contains('canvas-block')) window.renderCanvas?.(b);
+    // banner02-block: renderBanner02로 ResizeObserver 재연결
+    if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
+    if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
+  });
+}
+
+// 붙여넣은 최상위 요소가 freeLayout이 아닌 부모로 들어가면 absolute 좌표는
+// 무의미해진다(원본 banner-preset 등에서 복사된 경우). normal flow로 떨어뜨린다.
+function _normalizePastedAbsolute(el) {
+  if (!el) return;
+  const parent = el.parentElement;
+  const parentIsFree = parent?.dataset?.freeLayout === 'true';
+  if (parentIsFree) return;
+  if (el.style.position === 'absolute') {
+    el.style.position = '';
+    el.style.left = '';
+    el.style.top = '';
+    el.style.right = '';
+    el.style.bottom = '';
+  }
+}
+
+// banner-preset 안에서 복사한 자식이라면 같은 banner 안에 +20px 오프셋으로 복제.
+// banner가 더 이상 없으면 null 반환 → 호출부에서 일반 paste 경로로 fallback.
+function _pasteIntoSourceBanner(el, sourceBannerId) {
+  if (!sourceBannerId || !el) return null;
+  const banner = document.getElementById(sourceBannerId);
+  if (!banner || !banner.dataset?.bannerPreset) return null;
+  if (banner.dataset?.freeLayout !== 'true') return null;
+  banner.appendChild(el);
+  el.style.position = 'absolute';
+  const lx = parseInt(el.style.left || '0', 10) + 20;
+  const ly = parseInt(el.style.top  || '0', 10) + 20;
+  el.style.left = lx + 'px';
+  el.style.top  = ly + 'px';
+  el.style.marginLeft = '';
+  el.style.marginTop  = '';
+  return banner;
+}
+
 function pasteClipboard() {
   if (!clipboard) return;
-  pushHistory();
+  // 현재 DOM 상태가 마지막 히스토리와 다르면 체크포인트 저장
+  // (block-factory.js가 push-before라서 최신 N개 블록 상태가 히스토리에 없는 경우 대비)
+  window.ensureHistoryCheckpoint?.('붙여넣기 전');
+
+  if (clipboard.type === 'multi-block') {
+    const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+    if (!sec) return;
+    let lastEl = null;
+    clipboard.items.forEach(item => {
+      const temp = document.createElement('div');
+      temp.innerHTML = item.html;
+      const el = temp.firstElementChild;
+      if (!el) return;
+      // banner 내부 출처면 같은 banner 안에 복제
+      const banner = _pasteIntoSourceBanner(el, item.sourceBannerId);
+      if (banner) {
+        _bindPastedEl(el);
+        lastEl = el;
+        return;
+      }
+      if (lastEl) {
+        lastEl.after(el);
+      } else {
+        const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
+        const savedActiveSS = window._activeFrame;
+        if (pasteHasSS) window._activeFrame = null;
+        insertAfterSelected(sec, el);
+        if (pasteHasSS) window._activeFrame = savedActiveSS;
+      }
+      _bindPastedEl(el);
+      _normalizePastedAbsolute(el);
+      lastEl = el;
+    });
+    window.buildLayerPanel();
+    pushHistory('붙여넣기');
+    return;
+  }
+
   const temp = document.createElement('div');
   temp.innerHTML = clipboard.html;
   const el = temp.firstElementChild;
 
   if (clipboard.type === 'section') {
-    // ID 충돌 방지: 섹션 및 내부 블록 ID 재생성
     const genIdFn = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
     el.id = genIdFn('sec');
     el.querySelectorAll('[id]').forEach(child => {
       const prefix = child.id.split('_')[0] || 'el';
       child.id = genIdFn(prefix);
     });
-    canvasEl.appendChild(el);
+    const refSection = getSelectedSection();
+    if (refSection) {
+      refSection.after(el);
+    } else {
+      canvasEl.appendChild(el);
+    }
     bindSectionDelete(el);
     bindSectionOrder(el);
     bindSectionDrag(el);
     bindSectionDropZone(el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock(b));
-    el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
-      const col = ph.parentElement;
-      col.replaceChild(makeColPlaceholder(col), ph);
-    });
+    _bindPastedEl(el);
     el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
   } else {
-    const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
-    if (!sec) return;
-    insertAfterSelected(sec, el);
-    el.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock(b));
-    el.querySelectorAll('.col > .col-placeholder').forEach(ph => {
-      const col = ph.parentElement;
-      col.replaceChild(makeColPlaceholder(col), ph);
-    });
+    // banner 내부 출처면 같은 banner 안에 복제
+    const banner = _pasteIntoSourceBanner(el, clipboard.sourceBannerId);
+    if (banner) {
+      _bindPastedEl(el);
+    } else if (el.classList.contains('sticker-block')) {
+      // 스티커: section 안에 absolute로 +20px 오프셋해 추가
+      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      if (!sec) return;
+      sec.appendChild(el);
+      // ID 재생성 (기존 _bindPastedEl이 처리)
+      _bindPastedEl(el);
+      // 위치 오프셋
+      const curX = parseInt(el.dataset.x) || parseInt(el.style.left) || 0;
+      const curY = parseInt(el.dataset.y) || parseInt(el.style.top) || 0;
+      el.dataset.x = String(curX + 20);
+      el.dataset.y = String(curY + 20);
+      window.renderStickerBlock?.(el);
+      window.bindStickerSelect?.(el);
+    } else {
+      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      if (!sec) return;
+      const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
+      const savedActiveSS = window._activeFrame;
+      if (pasteHasSS) window._activeFrame = null;
+      insertAfterSelected(sec, el);
+      if (pasteHasSS) window._activeFrame = savedActiveSS;
+      _bindPastedEl(el);
+      _normalizePastedAbsolute(el);
+    }
   }
   window.buildLayerPanel();
+  pushHistory('붙여넣기');
 }
+
+// Option 키 독립 추적 (Korean IME가 altKey를 먹어버리는 문제 대응)
+window._optionKeyHeld = false;
+document.addEventListener('keydown', e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = true; }, true);
+document.addEventListener('keyup',   e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = false; }, true);
+
+// 갭 블록 높이 키 조정 후 keyup 시 undo 기록
+document.addEventListener('keyup', e => {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (document.querySelector('.gap-block.selected')) pushHistory();
+});
 
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
   if (document.activeElement?.isContentEditable && !e.metaKey && !e.ctrlKey) return;
+
+  // ⌘, (Comma) — 환경설정 모달 열기 (시스템 표준)
+  if ((e.metaKey || e.ctrlKey) && e.code === 'Comma' && !e.shiftKey && !e.altKey) {
+    e.preventDefault();
+    if (typeof window.openSettingsModal === 'function') window.openSettingsModal();
+    return;
+  }
 
   if (e.metaKey || e.ctrlKey) {
     if (e.key === '=' || e.key === '+') {
@@ -343,21 +1025,32 @@ document.addEventListener('keydown', e => {
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100); }
     if (e.key === 'z' && !e.shiftKey)   { if (document.activeElement?.isContentEditable) return; e.preventDefault(); undo(); return; }
     if (e.key === 'z' && e.shiftKey)    { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
+    if (e.code === 'KeyF' && !e.shiftKey && !e.altKey) {
+      // ⌘F — 섹션 검색이동 팔레트. 편집/입력 중엔 양보(기본 동작도 막지 않음).
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      // I3-F1: openSectionSearch 없으면 preventDefault 안 함 → 브라우저 기본 찾기 허용(no-op로 막지 않음).
+      if (typeof window.openSectionSearch === 'function') {
+        e.preventDefault();
+        window.openSectionSearch();
+      }
+      return;
+    }
     if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
     if (e.key === 'b' && !e.shiftKey) {
-      // 텍스트 편집 중일 때만 bold 토글
       if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
         e.preventDefault();
-        document.getElementById('txt-bold-btn')?.click();
+        document.execCommand('bold');
+        window.pushHistory?.();
         return;
       }
     }
     if (e.key === 'i' && !e.shiftKey) {
-      // 텍스트 편집 중일 때만 italic 토글
       if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
         e.preventDefault();
-        document.getElementById('txt-italic-btn')?.click();
+        document.execCommand('italic');
+        window.pushHistory?.();
         return;
       }
     }
@@ -370,29 +1063,81 @@ document.addEventListener('keydown', e => {
     if (e.key === 'v') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      pasteClipboard();
+      // 우선순위: 가장 최근 Cmd+C 액션이 내부(섹션) vs 외부(스크래치 이미지) 중 어느 것인지로 분기
+      // 동률(둘 다 0 또는 같은 시각) 시 scratch 우선 — 외부 이미지 paste를 막지 않기 위함
+      const internalT = window._internalClipboardTime || 0;
+      const scratchT  = window._scratchClipboardTime  || 0;
+      if (internalT > scratchT) {
+        // 섹션/블록이 더 최근 → 즉시 섹션 paste, scratch-pad는 양보
+        pasteClipboard();
+      } else {
+        // scratch 이미지가 더 최근 또는 동률 → paste 이벤트 양보, 처리 안 됐을 때만 fallback
+        setTimeout(() => {
+          if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
+          pasteClipboard();
+        }, 30);
+      }
       return;
     }
     if (e.key === 'd') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
-      copySelected();
-      pasteClipboard();
+      duplicateSelected();
       return;
     }
-    if (e.code === 'KeyG' && !e.shiftKey) {
+    if (e.code === 'BracketLeft') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
-      window.groupSelectedBlocks?.();
+      moveSelectedBlocks('up');
       return;
     }
-    if (e.code === 'KeyG' && e.shiftKey) {
+    if (e.code === 'BracketRight') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
-      const selGroup = document.querySelector('.group-block.selected');
+      moveSelectedBlocks('down');
+      return;
+    }
+    // wrapInFrame (기본: ⌘⌥G, IME 처리로 e.key === '©' 도 매칭)
+    const _isWrapFrame = window._matchShortcut
+      ? window._matchShortcut(e, 'wrapInFrame')
+      : (e.code === 'KeyG' && e.metaKey && !e.shiftKey && e.altKey);
+    if (_isWrapFrame || (e.code === 'KeyG' && e.metaKey && !e.shiftKey && (e.altKey || window._optionKeyHeld || e.key === '©'))) {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      window.wrapSelectedBlocksInFrame?.();
+      return;
+    }
+    // groupBlocks (기본: ⌘G)
+    const _isGroup = window._matchShortcut
+      ? window._matchShortcut(e, 'groupBlocks')
+      : (e.code === 'KeyG' && e.metaKey && !e.shiftKey && !e.altKey);
+    if (_isGroup && !window._optionKeyHeld && e.key !== '©') {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      // 스크래치 다중 선택 상태면 스크래치 정렬+그룹 (같은 단축키)
+      if (typeof window._scratchHasSelection === 'function' && window._scratchHasSelection()) {
+        window._scratchGroupAndAlign?.();
+      } else {
+        window.groupSelectedBlocks?.();
+      }
+      return;
+    }
+    // ungroup (기본: ⌘⇧G)
+    const _isUngroup = window._matchShortcut
+      ? window._matchShortcut(e, 'ungroup')
+      : (e.code === 'KeyG' && e.metaKey && e.shiftKey);
+    if (_isUngroup) {
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      // 피그마식 그룹(data-group 프레임) 우선, 없으면 레거시 group-block
+      const selGroup = document.querySelector('.frame-block[data-group="true"].selected')
+        || document.querySelector('.group-block.group-selected');
       if (selGroup) window.ungroupBlock?.(selGroup);
       return;
     }
@@ -405,24 +1150,195 @@ document.addEventListener('keydown', e => {
       if (activeSec) {
         const allBlocks = activeSec.querySelectorAll(
           '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block'
+          '.label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block'
         );
         allBlocks.forEach(b => b.classList.add('selected'));
       }
       return;
     }
   }
+  // pinToggle (기본: `)
+  const _isPinToggle = window._matchShortcut
+    ? window._matchShortcut(e, 'pinToggle')
+    : (e.code === 'Backquote' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey);
+  if (_isPinToggle) {
+    if (document.activeElement?.isContentEditable) return;
+    e.preventDefault();
+    window.togglePinMode?.();
+    return;
+  }
+
+  // vectorPen 토글 (기본: P) — 입력/contenteditable 가드
+  if (e.code === 'KeyP' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) {
+      // 입력 중이면 펜 토글 안 함 (글자 입력 보존)
+    } else {
+      e.preventDefault();
+      window.toggleVectorPenMode?.();
+      return;
+    }
+  }
+
+  // addSection (기본: S)
+  const _isAddSection = window._matchShortcut
+    ? window._matchShortcut(e, 'addSection')
+    : (e.code === 'KeyS' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey);
+  if (_isAddSection) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+    e.preventDefault();
+    window.addSection?.();
+    return;
+  }
+
+  // Shift+F1~F9: 섹션 단축키 등록 / F1~F9: 해당 섹션으로 이동 (스타크래프트식)
+  // Mac 매직키보드: Fn+F1(이동), Shift+Fn+F1(등록) / Windows: F1(이동), Shift+F1(등록)
+  {
+    const fMatch = e.code.match(/^F([1-9])$/);
+    if (fMatch && !e.metaKey && !e.ctrlKey) {
+      // 이스터에그 토글 off 시 F키 점프/등록 건너뜀
+      if (window.isEasterEggEnabled && !window.isEasterEggEnabled('fkeyHotkeys')) return;
+      const slot = parseInt(fMatch[1]); // 1~9
+      if (e.shiftKey) {
+        // 등록: 현재 선택된(또는 첫 번째) 섹션을 slot에 저장
+        if (document.activeElement?.isContentEditable) return;
+        e.preventDefault();
+        const sec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
+        if (!sec) return;
+        const map = JSON.parse(localStorage.getItem('section-fkey-map') || '{}');
+        map[slot] = sec.id || sec.dataset.name || '';
+        localStorage.setItem('section-fkey-map', JSON.stringify(map));
+        // 등록 피드백: 섹션 레이블 잠깐 강조
+        const label = sec.querySelector('.section-label');
+        if (label) {
+          label.style.transition = 'background 0.15s';
+          label.style.background = 'rgba(45,111,232,0.35)';
+          setTimeout(() => { label.style.background = ''; }, 600);
+        }
+        return;
+      } else {
+        // 이동: slot에 등록된 섹션으로 스크롤
+        e.preventDefault();
+        const map = JSON.parse(localStorage.getItem('section-fkey-map') || '{}');
+        const secId = map[slot];
+        if (!secId) return;
+        const target = document.getElementById(secId)
+          || [...document.querySelectorAll('.section-block')].find(s => s.dataset.name === secId);
+        if (target) {
+          // 빠른 smooth 스크롤 (브라우저 기본 smooth보다 3배 빠름, 200ms)
+          const wrap = document.getElementById('canvas-wrap');
+          if (!wrap) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+          const targetTop = target.getBoundingClientRect().top - wrap.getBoundingClientRect().top + wrap.scrollTop - 40;
+          const startTop = wrap.scrollTop;
+          const dist = targetTop - startTop;
+          const duration = 200;
+          const startTime = performance.now();
+          const ease = t => t < 0.5 ? 2*t*t : -1+(4-2*t)*t; // easeInOut
+          const step = now => {
+            const t = Math.min((now - startTime) / duration, 1);
+            wrap.scrollTop = startTop + dist * ease(t);
+            if (t < 1) requestAnimationFrame(step);
+          };
+          requestAnimationFrame(step);
+        }
+        return;
+      }
+    }
+  }
+
   if (e.key === 'Escape') {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    // vectorPen 그리기/편집 모드는 자체 capture 핸들러가 ESC를 먼저 소비함.
+    // 안전망: 모드가 살아있으면 종료만 하고 선택 해제는 건너뜀.
+    if (document.body.classList.contains('vpen-mode')) { window.exitVectorPenMode?.(); return; }
+    if (document.body.classList.contains('vpen-edit-mode')) { window.exitPenEditMode?.(); return; }
+    // group-editing 중이면 editing만 해제, 선택은 유지
+    const editingGroup = document.querySelector('.group-block.group-editing');
+    if (editingGroup) {
+      editingGroup.classList.remove('group-editing');
+      return;
+    }
     deselectAll();
   }
 
-  // 블록 추가 단축키: G=Gap, T=Text, A=Asset (IME 안전: e.code 사용)
+  // Cmd/Ctrl + [ / ] : free 모드 frame 안의 selected 블록 z-order 변경
+  // Shift 조합 시 맨 앞/뒤로. stack(flow) 모드는 영향 X (free 자식만).
+  if ((e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']')) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    const sel = document.querySelector(
+      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+      '.graph-block.selected, .divider-block.selected, ' +
+      '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
+      '.icon-block.selected, .vector-block.selected, .step-block.selected, .shape-block.selected'
+    );
+    if (!sel) return;
+    // selected의 z-order 단위 = free frame의 직속 자식까지 거슬러 올라간 wrapper
+    const freeFrame = sel.closest('.frame-block[data-free-layout]');
+    if (!freeFrame) return;
+    let wrapper = sel.closest('.row') || sel;
+    while (wrapper && wrapper.parentElement !== freeFrame) wrapper = wrapper.parentElement;
+    if (!wrapper) return;
+
+    e.preventDefault();
+    window.pushHistory?.('레이어 순서');
+    const forward = e.key === ']';
+    const toEnd = e.shiftKey;
+    if (forward && toEnd) {
+      freeFrame.appendChild(wrapper);                      // 맨 위로
+    } else if (!forward && toEnd) {
+      freeFrame.insertBefore(wrapper, freeFrame.firstChild); // 맨 아래로
+    } else if (forward && wrapper.nextElementSibling) {
+      freeFrame.insertBefore(wrapper.nextElementSibling, wrapper); // 한 단계 위
+    } else if (!forward && wrapper.previousElementSibling) {
+      freeFrame.insertBefore(wrapper, wrapper.previousElementSibling); // 한 단계 아래
+    }
+    window.scheduleAutoSave?.();
+    window.buildLayerPanel?.();
+    return;
+  }
+
+  // 블록 추가 단축키: addGap/addText/addAsset (사용자 설정 가능, 기본 G/T/A — IME 안전: e.code 사용)
   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-    if (e.code === 'KeyG') { e.preventDefault(); window.addGapBlock?.(); return; }
-    if (e.code === 'KeyT') { e.preventDefault(); window.addTextBlock?.('body'); return; }
-    if (e.code === 'KeyA') { e.preventDefault(); window.addAssetBlock?.(); return; }
+    const _ms = window._matchShortcut;
+    const _isAddGap   = _ms ? _ms(e, 'addGap')   : (e.code === 'KeyG');
+    const _isAddText  = _ms ? _ms(e, 'addText')  : (e.code === 'KeyT');
+    const _isAddAsset = _ms ? _ms(e, 'addAsset') : (e.code === 'KeyA');
+    if (_isAddGap)   { e.preventDefault(); window.addGapBlock?.(); return; }
+    if (_isAddText)  { e.preventDefault(); window.addTextBlock?.('body'); return; }
+    if (_isAddAsset) { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
+
+    // Enter → 선택된 텍스트 블록 편집 모드 진입
+    if (e.code === 'Enter') {
+      const tb = document.querySelector('.text-block.selected');
+      if (tb && typeof tb._enterTextEditMode === 'function') {
+        e.preventDefault();
+        tb._enterTextEditMode();
+        return;
+      }
+    }
+
+    // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=200 (텍스트 편집 중이면 무시)
+    if (['Digit1','Digit2','Digit3','Digit4','Digit5'].includes(e.code)) {
+      if (!document.querySelector('.text-block.editing')) {
+        const gb = document.querySelector('.gap-block.selected');
+        if (gb) {
+          e.preventDefault();
+          const presets = { Digit1: 20, Digit2: 40, Digit3: 80, Digit4: 120, Digit5: 200 };
+          const h = presets[e.code];
+          gb.style.height = h + 'px';
+          const sl = document.getElementById('gap-slider');
+          const nb = document.getElementById('gap-number');
+          if (sl) sl.value = h;
+          if (nb) nb.value = h;
+          window.scheduleAutoSave?.();
+          pushHistory();
+          return;
+        }
+      }
+    }
 
     // 텍스트 타입 단축키: 1=H1, 2=H2, 3=H3, 4=Body (텍스트 편집 중이면 무시)
     if (['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
@@ -431,13 +1347,97 @@ document.addEventListener('keydown', e => {
       if (!tb) return;
       e.preventDefault();
       const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
+      const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.' };
       const [cls, dtype] = typeMap[e.code];
-      const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
+      const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet');
       if (!contentEl) return;
       window.pushHistory?.();
       contentEl.className = cls;
       tb.dataset.type = dtype;
+      // 유형 변경 = 스타일 프리셋 적용. inline fontSize 제거 → CSS 유형 표준크기 적용
+      // (tb-h1 104 / tb-h2 72 / tb-h3 52 / tb-body 36). 이후 +/-로 미세조정 가능.
+      contentEl.style.fontSize = '';
+      // TODO-QA: 타입 변환 시 data-placeholder 텍스트도 새 타입에 맞게 갱신
+      // 잘못 켜진 placeholder 플래그 정정 — 실제 글자가 있으면 플래그 끔(block-drag.js:496 자가보정과 동일 기준)
+      if (contentEl.dataset.isPlaceholder === 'true' && contentEl.textContent.trim() !== '') {
+        delete contentEl.dataset.isPlaceholder;
+      }
+      // 의도적 빈 줄(data-blank)이면 placeholder 문구 덮어쓰기 skip — 빈 블록 유지
+      const isBlank = contentEl.dataset.blank === 'true' || tb.dataset.blank === 'true';
+      if (!isBlank && contentEl.dataset.isPlaceholder === 'true' && phMap[cls]) {
+        contentEl.dataset.placeholder = phMap[cls];
+        contentEl.innerHTML = phMap[cls];
+      } else if (phMap[cls]) {
+        contentEl.dataset.placeholder = phMap[cls];
+      }
+      // 레이어 패널 이름 동기화: 자동이름 모드(사용자 rename 없음)일 때만 유형 라벨 갱신
+      if (!tb.dataset.layerName) {
+        const nameSpan = tb._layerItem?.querySelector('.layer-item-name');
+        if (nameSpan) nameSpan.textContent = (dtype === 'heading') ? 'Heading' : 'Body';
+      }
       window.showTextProperties?.(tb);
+      return;
+    }
+  }
+
+  // ── 크기 세부조정: +/- (수정키 없음). 텍스트=fontSize, 갭=height. 줌은 ⌘+/-라 충돌 없음 ──
+  // '+'는 Shift+Equal이라 e.code로 매칭(shift 무관). 기본 step 작게(세부조정), Shift로 큰 step.
+  if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (!(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) {
+      const isPlus  = e.code === 'Equal' || e.code === 'NumpadAdd';
+      const isMinus = e.code === 'Minus' || e.code === 'NumpadSubtract';
+      if ((isPlus || isMinus) && !document.querySelector('.text-block.editing')) {
+        const tb = document.querySelector('.text-block.selected');
+        const gb = document.querySelector('.gap-block.selected');
+        if (tb) {
+          const contentEl = tb.querySelector('[class^="tb-"]');
+          if (contentEl) {
+            e.preventDefault();
+            const cur = parseFloat(getComputedStyle(contentEl).fontSize) || 16;
+            const step = e.shiftKey ? 4 : 1;
+            const next = Math.min(400, Math.max(4, cur + (isPlus ? step : -step)));
+            contentEl.style.fontSize = next + 'px';
+            coalesceSizeHistory(tb, '글자 크기');
+            window.scheduleAutoSave?.();
+            window.showTextProperties?.(tb);
+          }
+          return;
+        }
+        if (gb) {
+          e.preventDefault();
+          const step = e.shiftKey ? 20 : 4;
+          const cur = gb.offsetHeight;
+          const next = Math.min(400, Math.max(0, cur + (isPlus ? step : -step)));
+          gb.style.height = next + 'px';
+          const sl = document.getElementById('gap-slider');
+          const nb = document.getElementById('gap-number');
+          if (sl) sl.value = next;
+          if (nb) nb.value = next;
+          coalesceSizeHistory(gb, '간격 조정');
+          window.scheduleAutoSave?.();
+          return;
+        }
+      }
+    }
+  }
+
+  // ── 갭 블록 높이 조정: 방향키 (수정키 없음 or Shift) ──
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+    const selGap = document.querySelector('.gap-block.selected');
+    if (selGap) {
+      e.preventDefault();
+      const step = e.shiftKey ? 20 : 4;
+      const delta = e.key === 'ArrowUp' ? step : -step;
+      const cur = selGap.offsetHeight;
+      const next = Math.min(400, Math.max(0, cur + delta));
+      selGap.style.height = next + 'px';
+      // 패널 슬라이더/숫자 동기화
+      const sl = document.getElementById('gap-slider');
+      const nb = document.getElementById('gap-number');
+      if (sl) sl.value = next;
+      if (nb) nb.value = next;
+      window.scheduleAutoSave?.();
       return;
     }
   }
@@ -446,14 +1446,18 @@ document.addEventListener('keydown', e => {
   if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-    const selBlock = document.querySelector(
-      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected'
-    );
+    // 섹션 외 모든 selected 요소를 블록으로 취급 (iconify/shape/sticker/laurel 등 누락 방지)
+    const selBlock = [...document.querySelectorAll('.selected')]
+      .find(el => el !== document.body
+        && !el.classList.contains('section-block')
+        && !el.classList.contains('layer-item')
+        && el.id);
     const selSection = document.querySelector('.section-block.selected');
     const moveTarget = selBlock
-      ? (selBlock.classList.contains('gap-block') ? selBlock : (selBlock.closest('.row') || selBlock))
+      ? (selBlock.classList.contains('gap-block') || selBlock.classList.contains('frame-block')
+          ? selBlock
+          // row 없으면 frame-block fallback — text-block이 frame-block 직접 자식 케이스 등
+          : (selBlock.closest('.row') || selBlock.closest('.frame-block') || selBlock))
       : selSection;
     if (moveTarget) {
       e.preventDefault();
@@ -466,8 +1470,26 @@ document.addEventListener('keydown', e => {
         const next = moveTarget.nextElementSibling;
         if (next && !next.classList.contains('drop-indicator')) parent.insertBefore(next, moveTarget);
       }
+      // 이동 전 선택 상태 수집
+      const moveTargetId = moveTarget.id;
+      const selBlockIds = selBlock ? [selBlock.id].filter(Boolean) : [];
+      const selSectionId = selSection ? selSection.id : null;
       window.buildLayerPanel();
       pushHistory('블록 이동');
+      // buildLayerPanel 후 선택 상태 복원
+      if (selSectionId) {
+        const sec = document.getElementById(selSectionId);
+        if (sec) {
+          sec.classList.add('selected');
+          if (sec._layerItem) { sec._layerItem.classList.add('active'); sec._layerItem.style.background = 'var(--ui-bg-card)'; }
+        }
+      }
+      selBlockIds.forEach(id => {
+        const b = document.getElementById(id);
+        if (!b) return;
+        b.classList.add('selected');
+        if (b._layerItem) { b._layerItem.classList.add('active'); b._layerItem.style.background = 'var(--ui-bg-card)'; }
+      });
       return;
     }
   }
@@ -489,7 +1511,6 @@ document.addEventListener('keydown', e => {
     // 다중 선택 삭제: col 다중
     if (multiSel.cols.size > 1) {
       e.preventDefault();
-      pushHistory();
       multiSel.cols.forEach(col => {
         const row = col.closest('.row');
         col.remove();
@@ -498,16 +1519,29 @@ document.addEventListener('keydown', e => {
       clearMultiSel();
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('열 삭제');
       return;
     }
     // 다중 선택 삭제: section 다중
     if (multiSel.sections.size > 1) {
       e.preventDefault();
-      pushHistory();
-      multiSel.sections.forEach(s => s.remove());
+      const allSecs = canvasEl.querySelectorAll('.section-block');
+      // 보호 섹션 필터링 (section-protection.js)
+      const requested = [...multiSel.sections];
+      const isProtected = window.isSectionProtected || (() => false);
+      const toDelete = requested.filter(s => !isProtected(s));
+      const skipped = requested.length - toDelete.length;
+      if (skipped > 0 && typeof window.showToast === 'function') {
+        window.showToast(`🔒 보호된 섹션 ${skipped}개 제외 (메모: "삭제하지말것" 자동 감지)`);
+      }
+      if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return; }
+      ensureHistoryCheckpoint('섹션 다중 삭제 전');
+      toDelete.forEach(s => s.remove());
       clearMultiSel();
       deselectAll();
+      if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
       window.buildLayerPanel();
+      pushHistory('섹션 삭제');
       return;
     }
     const selText    = document.querySelector('.text-block.selected');
@@ -515,12 +1549,75 @@ document.addEventListener('keydown', e => {
     const selGap     = document.querySelector('.gap-block.selected');
     const selSection = document.querySelector('.section-block.selected');
 
-    const allSelBlocks = [...document.querySelectorAll('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .strip-banner-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected')];
-    if (allSelBlocks.length > 0) {
+    // group-block(프레임) selected → group-block 전체 삭제
+    const selGroup = document.querySelector('.group-block.group-selected:not(.group-editing)');
+    if (selGroup) {
       e.preventDefault();
-      pushHistory();
+      window.ensureHistoryCheckpoint?.('삭제 전');
+      selGroup.remove();
+      deselectAll();
+      window.buildLayerPanel();
+      pushHistory('프레임 삭제');
+      return;
+    }
+
+    // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
+    // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
+    const selSS = document.querySelector('.frame-block.selected');
+    if (selSS) {
+      const ssHasSelectedChild = selSS.querySelector(
+        '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+        '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+        '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
+      );
+      if (!ssHasSelectedChild) {
+        e.preventDefault();
+        const ssRow = selSS.closest('.row') || selSS;
+        ssRow.remove();
+        window._activeFrame = null;
+        deselectAll();
+        window.buildLayerPanel();
+        pushHistory('서브섹션 삭제');
+        return;
+      }
+      // 자식 블록이 선택된 경우 → 아래 allSelBlocks 삭제 로직으로 fall-through
+    }
+
+    // shape 블록 selected (단건 or 복수) + 일반 블록 혼합 일괄 삭제
+    const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
+    const allSelBlocks = [...document.querySelectorAll(CANVAS_SEL_BLOCKS)];
+    if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
+      e.preventDefault();
+      // A13: 보호섹션(메모 '삭제하지말것' 등) 내부 블록/도형 삭제 우회 차단.
+      //       선택 중 하나라도 보호섹션에 속하면 전체 차단(부분삭제 모호성 회피).
+      const _isProt = window.isSectionProtected || (() => false);
+      const _protShape = allSelShapes.some(s => { const sec = s.closest('.section-block'); return sec && _isProt(sec); });
+      const _protBlock = allSelBlocks.some(b => { const sec = b.closest('.section-block'); return sec && _isProt(sec); });
+      if (_protShape || _protBlock) {
+        if (typeof window.showToast === 'function') window.showToast('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요');
+        deselectAll();
+        return;
+      }
+      window.ensureHistoryCheckpoint?.('삭제 전');
+      // shape: 부모 ss/row 단위로 삭제
+      const ssRowsToRemove = new Set();
+      allSelShapes.forEach(shape => {
+        const ss = shape.closest('.frame-block');
+        const ssRow = ss?.closest('.row') || ss;
+        if (ssRow) ssRowsToRemove.add(ssRow); else shape.remove();
+      });
+      ssRowsToRemove.forEach(r => r.remove());
+      // 일반 블록 삭제
       const rowsToRemove = new Set();
       allSelBlocks.forEach(block => {
+        // mockup 블록: 연결된 숨김 섹션 복원
+        if (block.classList.contains('mockup-block')) {
+          const secId = block.dataset.sourceSec;
+          if (secId) {
+            const sec = document.getElementById(secId);
+            if (sec) { sec.style.display = ''; sec.dataset.mockupHidden = ''; }
+          }
+        }
         if (block.classList.contains('gap-block')) {
           block.remove();
         } else {
@@ -529,27 +1626,48 @@ document.addEventListener('keydown', e => {
         }
       });
       rowsToRemove.forEach(r => r.remove());
+      window._activeFrame = null;
       deselectAll();
       window.buildLayerPanel();
+      pushHistory('블록 삭제');
     } else {
       const selRow = document.querySelector('.row.row-active');
       if (selRow) {
         e.preventDefault();
-        pushHistory();
         selRow.remove();
         deselectAll();
         window.buildLayerPanel();
+        pushHistory('행 삭제');
       } else if (selSection) {
         e.preventDefault();
-        pushHistory();
+        const isProtected = window.isSectionProtected || (() => false);
         if (selSection.dataset.variationGroup) {
           const gid = selSection.dataset.variationGroup;
-          document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`).forEach(s => s.remove());
+          const grouped = [...document.querySelectorAll(`.section-block[data-variation-group="${gid}"]`)];
+          const toDelete = grouped.filter(s => !isProtected(s));
+          const skipped = grouped.length - toDelete.length;
+          if (skipped > 0 && typeof window.showToast === 'function') {
+            window.showToast(`🔒 보호된 섹션 ${skipped}개 제외`);
+          }
+          if (toDelete.length === 0) { deselectAll(); return; }
+          toDelete.forEach(s => s.remove());
+          deselectAll();
+          if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
+          window.buildLayerPanel();
+          pushHistory('섹션 삭제');
         } else {
+          if (isProtected(selSection)) {
+            if (typeof window.showToast === 'function') {
+              window.showToast(`🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요`);
+            }
+            return;
+          }
           selSection.remove();
+          deselectAll();
+          if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
+          window.buildLayerPanel();
+          pushHistory('섹션 삭제');
         }
-        deselectAll();
-        window.buildLayerPanel();
       }
     }
   }
@@ -582,26 +1700,29 @@ function rgbToHex(rgb) {
 
 /* ── Design Presets ── */
 // Electron에서는 preload를 통해 JSON 파일 로드, 브라우저 fallback은 하드코딩
+// FIX-PR-01: PRESET_FALLBACK을 presets/*.json 내용과 동기화 (폰트·dots 불일치 수정)
+// Electron은 readPresets() 성공 시 덮어쓰므로 fallback은 브라우저/race condition 시만 사용됨
 const PRESET_FALLBACK = [
   {
     id: 'default', name: 'Default',
     dots: ['#111111', '#555555', '#111111'],
     variables: {
-      '--preset-h1-color': '#111111', '--preset-h1-family': "'Noto Sans KR', sans-serif",
-      '--preset-h2-color': '#1a1a1a', '--preset-h2-family': "'Noto Sans KR', sans-serif",
-      '--preset-body-color': '#555555', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-h1-color': '#111111', '--preset-h1-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-h2-color': '#1a1a1a', '--preset-h2-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-h3-color': '#333333', '--preset-h3-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-body-color': '#555555', '--preset-body-family': "'Pretendard', 'Noto Sans KR', sans-serif",
       '--preset-caption-color': '#999999',
       '--preset-label-bg': '#111111', '--preset-label-color': '#ffffff', '--preset-label-radius': '8px',
     },
   },
   {
     id: 'dark', name: 'Dark',
-    dots: ['#1a1a1a', '#ffffff', '#2d6fe8'],
-    backgroundColor: '#1a1a1a',
+    dots: ['#ffffff', '#aaaaaa', '#2d6fe8'], // FIX-PR-01: dots를 dark.json과 동기화
     variables: {
-      '--preset-h1-color': '#ffffff', '--preset-h1-family': "'Noto Sans KR', sans-serif",
-      '--preset-h2-color': '#eeeeee', '--preset-h2-family': "'Noto Sans KR', sans-serif",
-      '--preset-body-color': '#aaaaaa', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-h1-color': '#ffffff', '--preset-h1-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-h2-color': '#eeeeee', '--preset-h2-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-h3-color': '#cccccc', '--preset-h3-family': "'Pretendard', 'Noto Sans KR', sans-serif",
+      '--preset-body-color': '#aaaaaa', '--preset-body-family': "'Pretendard', 'Noto Sans KR', sans-serif",
       '--preset-caption-color': '#666666',
       '--preset-label-bg': '#2d6fe8', '--preset-label-color': '#ffffff', '--preset-label-radius': '8px',
     },
@@ -612,7 +1733,8 @@ const PRESET_FALLBACK = [
     variables: {
       '--preset-h1-color': '#1a3a6b', '--preset-h1-family': "'Noto Serif KR', serif",
       '--preset-h2-color': '#2d4a7a', '--preset-h2-family': "'Noto Serif KR', serif",
-      '--preset-body-color': '#444444', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-h3-color': '#3d5a8a', '--preset-h3-family': "'Noto Serif KR', serif",
+      '--preset-body-color': '#444444', '--preset-body-family': "'Pretendard', 'Noto Sans KR', sans-serif",
       '--preset-caption-color': '#888888',
       '--preset-label-bg': '#2d6fe8', '--preset-label-color': '#ffffff', '--preset-label-radius': '8px',
     },
@@ -623,7 +1745,8 @@ const PRESET_FALLBACK = [
     variables: {
       '--preset-h1-color': '#000000', '--preset-h1-family': "'Space Grotesk', sans-serif",
       '--preset-h2-color': '#222222', '--preset-h2-family': "'Space Grotesk', sans-serif",
-      '--preset-body-color': '#666666', '--preset-body-family': "'Noto Sans KR', sans-serif",
+      '--preset-h3-color': '#444444', '--preset-h3-family': "'Space Grotesk', sans-serif",
+      '--preset-body-color': '#666666', '--preset-body-family': "'Pretendard', 'Noto Sans KR', sans-serif",
       '--preset-caption-color': '#aaaaaa',
       '--preset-label-bg': '#000000', '--preset-label-color': '#ffffff', '--preset-label-radius': '0px',
     },
@@ -643,9 +1766,16 @@ if (window.electronAPI) {
   });
 }
 
-// Electron 환경이면 JSON 파일에서 프리셋 로드
+// 버전 배지 — BETA 표기
+const _verBadge = document.getElementById('logo-version-badge');
+if (_verBadge) _verBadge.textContent = 'BETA';
+
+// Electron 환경이면 JSON 파일에서 프리셋 로드.
+// _presetsReady: race condition 방지용 Promise — showSectionProperties 등에서 await 후 UI 렌더.
+// Electron 비환경(브라우저)에서는 즉시 resolve하여 PRESET_FALLBACK 사용.
+let _presetsReady;
 if (window.electronAPI) {
-  window.electronAPI.readPresets().then(loaded => {
+  _presetsReady = window.electronAPI.readPresets().then(loaded => {
     if (loaded && loaded.length) {
       PRESETS = loaded.sort((a, b) => {
         const order = ['default', 'dark', 'brand', 'minimal'];
@@ -653,18 +1783,27 @@ if (window.electronAPI) {
       });
     }
   });
+} else {
+  _presetsReady = Promise.resolve();
 }
 
 
 function deselectAll() {
   clearMultiSel();
+  _lastClickedBlock = null;
+  // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
+  // (입력한 텍스트가 undo 복원 대상이 되도록)
+  if (!window._historyPaused) {
+    const editingBlock = canvasEl?.querySelector('.text-block.editing, .icon-text-block.editing, .label-group-block.editing');
+    if (editingBlock) pushHistory('텍스트 편집');
+  }
   // perf(qa-perf): canvas/layerPanel 범위 한정으로 document 전체 탐색 제거
   const canvas = canvasEl;
   const layerPanel = document.getElementById('layer-panel-body');
 
   // canvas 내 블록 선택 해제 (단일 querySelectorAll 순회)
   canvas.querySelectorAll('.col').forEach(c => c.classList.remove('multi-selected', 'selected'));
-  canvas.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected'));
+  canvas.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected', 'group-editing'));
   canvas.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));
   canvas.querySelectorAll('.text-block').forEach(t => {
     t.classList.remove('selected', 'editing');
@@ -674,7 +1813,15 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => b.classList.remove('selected'));
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .annotation-block, .sticker-block').forEach(b => {
+    b.classList.remove('selected');
+    // 어노테이션은 핸들도 함께 정리
+    if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
+    // 스티커도 4모서리 핸들 / highlightB 끝점 핸들 함께 제거
+    if (b.classList.contains('sticker-block')) {
+      b.querySelectorAll(':scope > .sticker-corner-handle, :scope > .hlb-handle').forEach(h => h.remove());
+    }
+  });
   canvas.querySelectorAll('.label-group-block').forEach(b => {
     b.classList.remove('selected', 'editing');
     b.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
@@ -685,7 +1832,6 @@ function deselectAll() {
     b.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable','false'));
   });
   canvas.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
-  canvas.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
 
   // 레이어 패널 선택 해제
   if (layerPanel) {
@@ -695,10 +1841,123 @@ function deselectAll() {
   }
 
   if (window.setRpIdBadge) window.setRpIdBadge(null);
-  state._lastActiveCol = null;
+  window._activeFrame = null;
+  window.hideFrameHandles?.();
+  window.hideMockupHandles?.();
+  window.hideIconHandles?.();
+  window.hideAssetRadiusHandles?.();
+  window.hideAssetResizeHandles?.();
+  window.hideCanvasRadiusHandles?.();
+  window.hideCanvasResizeHandles?.();
+  window.hideVectorResizeHandles?.();
+  window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
+  window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
+  canvas.querySelectorAll('.frame-block').forEach(s => s.classList.remove('selected'));
   window.showPageProperties();
 }
 
+
+/* ═══════════════════════════════════
+   블록 순서 이동 — Cmd+[ (위) / Cmd+] (아래)
+   이동 단위: section-inner 또는 frame-block 직속 .row / .gap-block
+═══════════════════════════════════ */
+function moveSelectedBlocks(direction) {
+  // 프레임(frame-block)이 선택된 경우 별도 처리
+  const selFrame = window._activeFrame;
+  if (selFrame && selFrame.classList.contains('selected')) {
+    const sectionInner = selFrame.closest('.section-inner');
+    if (!sectionInner) return;
+    const containerItems = [...sectionInner.children].filter(c =>
+      c.classList.contains('row') || c.classList.contains('gap-block') || c.classList.contains('frame-block')
+    );
+    const idx = containerItems.indexOf(selFrame);
+    if (direction === 'up') {
+      if (idx <= 0) return;
+      window.ensureHistoryCheckpoint?.('이동 전');
+      containerItems[idx - 1].before(selFrame);
+    } else {
+      if (idx >= containerItems.length - 1) return;
+      window.ensureHistoryCheckpoint?.('이동 전');
+      containerItems[idx + 1].after(selFrame);
+    }
+    pushHistory(direction === 'up' ? '프레임 위로 이동' : '프레임 아래로 이동');
+    window.buildLayerPanel?.();
+    // 선택 상태 복원
+    selFrame.classList.add('selected');
+    window._activeFrame = selFrame;
+    if (selFrame._layerItem) {
+      selFrame._layerItem.classList.add('active');
+      selFrame._layerItem.style.background = 'var(--ui-bg-card)';
+    }
+    return;
+  }
+
+  const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
+    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, ' +
+    '.icon-text-block.selected, .shape-block.selected';
+
+  const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
+  if (selBlocks.length === 0) return;
+
+  // 각 블록의 이동 단위(row or gap-block)를 DOM 순서대로 수집
+  const getUnit = b => b.classList.contains('gap-block')
+    ? (b.parentElement?.classList.contains('section-inner') || b.parentElement?.classList.contains('frame-block') ? b : b.closest('.row'))
+    : b.closest('.row');
+
+  const unitSet = new Set();
+  selBlocks.forEach(b => { const u = getUnit(b); if (u) unitSet.add(u); });
+  if (unitSet.size === 0) return;
+
+  // 공통 컨테이너(section-inner / frame-block)가 동일한 unit들만 처리
+  const units = [...unitSet];
+  const container = units[0].parentElement;
+  if (!units.every(u => u.parentElement === container)) return; // 다른 컨테이너 혼합 → 무시
+
+  // 컨테이너의 직속 자식(row/gap-block)만 포함하는 목록
+  const containerItems = [...container.children].filter(c =>
+    c.classList.contains('row') || c.classList.contains('gap-block')
+  );
+
+  // DOM 순서대로 정렬
+  units.sort((a, b) => containerItems.indexOf(a) - containerItems.indexOf(b));
+
+  if (direction === 'up') {
+    const firstIdx = containerItems.indexOf(units[0]);
+    if (firstIdx <= 0) return; // 이미 맨 위
+    window.ensureHistoryCheckpoint?.('이동 전');
+    const pivot = containerItems[firstIdx - 1]; // 선택 그룹 바로 위 아이템
+    pivot.before(...units); // pivot 앞에 units 통째로 삽입 (순서 유지)
+  } else {
+    const lastIdx = containerItems.indexOf(units[units.length - 1]);
+    if (lastIdx >= containerItems.length - 1) return; // 이미 맨 아래
+    window.ensureHistoryCheckpoint?.('이동 전');
+    const pivot = containerItems[lastIdx + 1]; // 선택 그룹 바로 아래 아이템
+    // pivot 뒤에 units 순서 유지하며 삽입: 마커로 삽입 위치 고정
+    const marker = document.createComment('mv');
+    pivot.after(marker);
+    units.forEach(u => marker.before(u));
+    marker.remove();
+  }
+
+  // 이동 전 선택된 블록 ID 저장
+  const selIds = selBlocks.map(b => b.id).filter(Boolean);
+
+  pushHistory(direction === 'up' ? '블록 위로 이동' : '블록 아래로 이동');
+  window.buildLayerPanel?.();
+
+  // buildLayerPanel 후 선택 상태 복원 (layer panel active 포함)
+  selIds.forEach(id => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.classList.add('selected');
+    if (b._layerItem) {
+      b._layerItem.classList.add('active');
+      b._layerItem.style.background = 'var(--ui-bg-card)';
+    }
+  });
+}
+window.moveSelectedBlocks = moveSelectedBlocks;
 
 function bindSectionDelete(sec) {
   // 삭제 버튼 제거됨 — 레이어 패널 또는 컨텍스트 메뉴에서 처리
@@ -727,6 +1986,16 @@ function bindSectionHitzone(sec) {
     e.stopPropagation();
     selectSectionWithModifier(sec, e);
   });
+  fresh.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    // 레이어 패널에서 해당 섹션 항목으로 스크롤
+    const layerEl = sec._layerSectionEl
+      || document.querySelector(`.layer-section[data-sec-id="${sec.id}"]`);
+    if (layerEl) {
+      layerEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+      layerEl.querySelector('.layer-section-header')?.classList.add('active');
+    }
+  });
 }
 
 
@@ -736,7 +2005,7 @@ document.querySelectorAll('.section-block').forEach(sec => {
     selectSectionWithModifier(sec, e);
     // deselectAll() 이후 row-active 복원
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -753,33 +2022,152 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
   if (['canvas-wrap','canvas-scaler','canvas'].includes(e.target.id)) deselectAll();
 });
 
+/* ── 트랙패드 제스쳐: 핀치(ctrl+wheel)=줌, 두손가락 드래그(wheel)=팬 ── */
+(function initTrackpadGestures() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return;
+  let accum = 0, timer = null;
+  wrap.addEventListener('wheel', (e) => {
+    if (document.body.classList.contains('preview-mode')) return;
+    if (e.ctrlKey) {
+      // 핀치 = 줌
+      e.preventDefault();
+      accum += -e.deltaY; // 핀치 아웃(확대) → deltaY 음수
+      if (timer) return;
+      // setTimeout 스로틀(~60fps) — rAF는 비포커스 윈도우에서 멈춰서 setTimeout 사용
+      timer = setTimeout(() => {
+        const d = accum; accum = 0; timer = null;
+        const step = Math.max(-30, Math.min(30, Math.round(d * 2)));
+        if (step !== 0) zoomStep(step);
+      }, 16);
+    } else {
+      // 두손가락 드래그 = 캔버스 팬. 스크롤로 흡수 가능한 만큼 스크롤하고,
+      // 흡수 못한 잔여분(콘텐츠가 뷰포트에 맞거나 스크롤 끝)은 transform(panOffset)으로 자유 팬.
+      e.preventDefault();
+      const bt = wrap.scrollTop, bl = wrap.scrollLeft;
+      wrap.scrollTop  += e.deltaY;
+      wrap.scrollLeft += e.deltaX;
+      const resY = e.deltaY - (wrap.scrollTop - bt);
+      const resX = e.deltaX - (wrap.scrollLeft - bl);
+      if (resX || resY) {
+        panOffsetX -= resX;
+        panOffsetY -= resY;
+        // over-scroll 상한: 콘텐츠 끝을 지나 최대 '반 화면'까지만 휠 팬 허용.
+        // ★휠이 실제로 민 축만 클램프(resX/resY 각각) — 세로 over-scroll이 기존 가로 오프셋(줌/스페이스팬)을
+        //   깎거나 노치를 튀게 하지 않도록(Codex 리뷰 반영). 줌/스크롤바/스페이스팬은 이 경로를 안 타므로 무영향.
+        if (resX) { const LIM_X = wrap.clientWidth  / 2; panOffsetX = Math.max(-LIM_X, Math.min(LIM_X, panOffsetX)); }
+        if (resY) { const LIM_Y = wrap.clientHeight / 2; panOffsetY = Math.max(-LIM_Y, Math.min(LIM_Y, panOffsetY)); }
+        _applyScalerTransform();
+        if (window.updateNotchPosition) window.updateNotchPosition();
+      }
+    }
+  }, { passive: false });
+})();
+
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .icon-text-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
 ═══════════════════════════════════ */
-const ASSET_SVG = `
-  <svg class="asset-icon" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1">
-    <rect x="3" y="3" width="18" height="18" rx="2"/>
-    <circle cx="8.5" cy="8.5" r="1.5"/>
-    <polyline points="21 15 16 10 5 21"/>
-  </svg>`;
 
 function getSelectedSection() {
   const secSel = document.querySelector('.section-block.selected');
   if (secSel) return secSel;
-  const selBlock = document.querySelector(
-    '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.card-block.selected, .strip-banner-block.selected, .graph-block.selected, ' +
-    '.divider-block.selected, .icon-text-block.selected'
-  );
+  // sub-section 선택 시 부모 섹션 반환
+  const selSS = document.querySelector('.frame-block.selected');
+  if (selSS) return selSS.closest('.section-block') || null;
+  const selBlock = document.querySelector(CANVAS_SEL_BLOCKS_AND_SHAPE);
   return selBlock?.closest('.section-block') || null;
 }
 
+/* ── 섹션 삭제 API ── */
+function deleteSection(secIdOrEl) {
+  const sec = typeof secIdOrEl === 'string'
+    ? document.getElementById(secIdOrEl)
+    : secIdOrEl;
+  if (!sec || !sec.classList.contains('section-block')) {
+    console.warn('[deleteSection] 유효한 섹션을 찾을 수 없음:', secIdOrEl);
+    return false;
+  }
+  // 마지막 섹션 삭제 방지
+  const allSecs = canvasEl.querySelectorAll('.section-block');
+  if (allSecs.length <= 1) {
+    console.warn('[deleteSection] 마지막 섹션은 삭제할 수 없습니다.');
+    return false;
+  }
+  pushHistory('섹션 삭제 전');
+  sec.remove();
+  deselectAll();
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return true;
+}
+window.deleteSection = deleteSection;
+
+/* ── 블록 삭제 (text/asset/gap/frame 등 일반 블록) ── */
+function deleteBlock(blockIdOrEl) {
+  const block = typeof blockIdOrEl === 'string' ? document.getElementById(blockIdOrEl) : blockIdOrEl;
+  if (!block) return false;
+  // section은 deleteSection 별도
+  if (block.classList.contains('section-block')) return false;
+  pushHistory('블록 삭제 전');
+  block.remove();
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return true;
+}
+window.deleteBlock = deleteBlock;
+
+/* ── 섹션 이동 (DOM 순서 변경, beforeId 또는 afterId) ── */
+function moveSection(sectionId, { beforeId, afterId } = {}) {
+  const sec = document.getElementById(sectionId);
+  if (!sec || !sec.classList.contains('section-block')) return false;
+  let placed = false;
+  if (beforeId) {
+    const ref = document.getElementById(beforeId);
+    if (ref && ref.classList.contains('section-block') && ref !== sec) { ref.before(sec); placed = true; }
+  } else if (afterId) {
+    const ref = document.getElementById(afterId);
+    if (ref && ref.classList.contains('section-block') && ref !== sec) { ref.after(sec); placed = true; }
+  }
+  if (!placed) return false;
+  pushHistory('섹션 이동 전');
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return true;
+}
+window.moveSection = moveSection;
+
+/* ── 특정 블록 뒤에 갭 삽입 (기존 섹션 중간 갭) ── */
+function insertGapAfterBlock(blockId, height) {
+  const block = document.getElementById(blockId);
+  if (!block) return null;
+  const gb = window.makeGapBlock?.() || (() => { const d = document.createElement('div'); d.className = 'gap-block'; d.dataset.type = 'gap'; d.id = 'gb_' + Math.random().toString(36).slice(2,8); return d; })();
+  if (height) gb.style.height = height + 'px';
+  block.after(gb);
+  if (typeof window.bindBlock === 'function') { try { window.bindBlock(gb); } catch (_) {} }
+  pushHistory('갭 삽입 전');
+  window.buildLayerPanel?.();
+  window.triggerAutoSave?.();
+  return gb.id;
+}
+window.insertGapAfterBlock = insertGapAfterBlock;
+
 /* ── 플로팅 패널 드롭다운 ── */
+function toggleFpPluginPanel() {
+  const panel = document.getElementById('fp-plugin-panel');
+  const btn   = document.getElementById('fp-plugin-btn');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  btn?.classList.toggle('active', !isOpen);
+}
+window.toggleFpPluginPanel = toggleFpPluginPanel;
+
+// 외부 클릭 시 plugin panel 닫기는 아래 document.addEventListener('click') 에서 처리
+
 function toggleFpDropdown(id) {
   const targetId = id || 'fp-text-dropdown';
   const target = document.getElementById(targetId);
@@ -791,6 +2179,13 @@ function toggleFpDropdown(id) {
 document.addEventListener('click', e => {
   if (!e.target.closest('.fp-dropdown')) {
     document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
+  }
+  // plugin panel 외부 클릭 시 닫기
+  const fpPlugin = document.getElementById('fp-plugin-panel');
+  if (fpPlugin && fpPlugin.style.display !== 'none' &&
+      !e.target.closest('#fp-plugin-panel') && !e.target.closest('#fp-plugin-btn')) {
+    fpPlugin.style.display = 'none';
+    document.getElementById('fp-plugin-btn')?.classList.remove('active');
   }
   const bdw = document.getElementById('branch-dropdown-wrap');
   if (bdw && !bdw.contains(e.target)) bdw.classList.remove('open');
@@ -905,7 +2300,7 @@ canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
   // 블록 클릭은 블록 핸들러에게 위임
-  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .card-block, .strip-banner-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) return;
+  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) return;
   // col-add 버튼/메뉴는 통과 (메뉴 열기 동작 유지)
   if (e.target.closest('.col-add-btn, .col-add-menu')) return;
 
@@ -926,38 +2321,23 @@ canvasEl.addEventListener('click', e => {
     const sec = row.closest('.section-block');
     if (sec) selectSection(sec);
     document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
-    document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
     row.classList.add('row-active');
     if (window.syncLayerRow) window.syncLayerRow(row);
     if (window.showRowProperties) window.showRowProperties(row);
-  } else {
-    // 2번 클릭: Col 활성화
-    document.querySelectorAll('.col.col-active').forEach(c => c.classList.remove('col-active'));
-    col.classList.add('col-active');
-    // Col 레이어 헤더 하이라이트
-    document.getElementById('layer-panel-body')?.querySelectorAll('.layer-col-group').forEach(wrapper => {
-      if (wrapper._dragTarget === col) {
-        wrapper.querySelector(':scope > .layer-col-header')?.classList.add('active');
-      }
-    });
-    if (window.showColProperties) window.showColProperties(col);
-    else if (window.showRowProperties) window.showRowProperties(row);
   }
   // 일반 클릭 후 lastCol 설정 (clearMultiSel 이후이므로 selectSection 호출 다음에 설정)
   multiSel.lastCol = col;
 }, true);
 // window 할당을 initApp() 보다 먼저 — save-load.js의 initApp 내부에서 참조하기 때문
-window.ASSET_SVG = ASSET_SVG;
-window.pushHistory = pushHistory;
-window.clearHistory = clearHistory;
-window.undo = undo;
-window.redo = redo;
+// pushHistory/undo/redo/clearHistory: history.js에서 window 노출 처리
 window.deselectAll = deselectAll;
 window.getBlockBreadcrumb = getBlockBreadcrumb;
 window.selectSection = selectSection;
 window.zoomStep = zoomStep;
 window.zoomFit = zoomFit;
 window.applyZoom = applyZoom;
+window.getPanOffset = () => ({ x: panOffsetX, y: panOffsetY });
+window.setPanOffset = (x, y) => { panOffsetX = x; panOffsetY = y; _applyScalerTransform(); };
 window.toggleAllSections = toggleAllSections;
 window.switchToTab = switchToTab;
 window.initFileTabToggle = initFileTabToggle;
@@ -1016,8 +2396,12 @@ window.showMultiSelPanel = showMultiSelPanel;
 })();
 
 
-// 모든 모듈 로드 후 앱 초기화
-initApp();
+// 모든 모듈 로드 후 앱 초기화 — save-load.js가 editor.js보다 늦게 평가될 수 있어
+// window.initApp 등록을 폴링으로 대기 (setTimeout 0만으로는 race가 남음)
+(function waitInitApp() {
+  if (window.initApp) window.initApp();
+  else setTimeout(waitInitApp, 10);
+})();
 
 /* ═══════════════════════════════════
    EXPORTS
@@ -1037,6 +2421,7 @@ export {
   initFileTabToggle,
   rgbToHex,
   PRESETS,
+  _presetsReady,
   bindSectionDelete,
   bindSectionOrder,
   getSelectedSection,
@@ -1047,5 +2432,6 @@ export {
   selectColWithModifier,
   clearMultiSel,
 };
+// 위 export의 pushHistory/undo/redo는 history.js에서 import된 것을 re-export함
 
 // (window 할당은 initApp() 호출 전 블록에서 처리됨)

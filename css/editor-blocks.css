@@ -1,13 +1,247 @@
 /* ═══════════════════════════════════
+   SUB-SECTION BLOCK — 섹션 안 하위 섹션
+═══════════════════════════════════ */
+.frame-block {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  cursor: default;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 60px;
+}
+.frame-block[data-text-frame] {
+  min-height: unset;
+}
+.frame-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  cursor: grab;
+}
+/* banner-preset 외곽도 통일 토큰 사용 (다른 component blocks와 일관) */
+.frame-block[data-banner-preset].selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+.frame-block:hover:not(.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 100;
+}
+/* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block, text-frame 제외) */
+/* text-frame은 항상 .selected 없음 (투명 래퍼) → 별도 규칙으로 제외 */
+/* :not(:has(.selected)) — 자손 중 selected가 있으면 차단하지 않음 (nested frame drill-in 지원) */
+.frame-block:not(.selected):not([data-text-frame]):not(:has(.selected)) *:not(.shape-block):not(.shape-handle) {
+  pointer-events: none;
+}
+/* 선택 상태: 자식 pointer-events 복원 */
+.frame-block.selected * {
+  pointer-events: auto;
+}
+.frame-block.ss-drag-over {
+  outline: 2px dashed var(--sel-color);
+}
+
+/* ── 배경 투명도(bgOpacity) — 점진 적용안 (I2) ──
+   has-bg-opacity 클래스가 있을 때만 활성. 기존 프레임은 무변경.
+   배경(색/이미지/그라데이션)을 ::before 레이어로 분리하고 그 레이어에만
+   opacity를 걸어 배경만 반투명, 콘텐츠는 불투명 유지.
+   배경 값은 --frame-bg(색) / --frame-bg-img(이미지·그라데이션) CSS변수로 전달. */
+.frame-block.has-bg-opacity {
+  background: transparent;
+}
+.frame-block.has-bg-opacity::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: var(--frame-bg, transparent);
+  background-image: var(--frame-bg-img, none);
+  background-size: cover;
+  background-position: var(--frame-bg-pos, center);
+  opacity: var(--frame-bg-opacity, 1);
+  border-radius: inherit;
+}
+/* 직속 자식이 ::before(z-index:0) 위에 오도록 보장 (free/flow 양쪽) */
+.frame-block.has-bg-opacity > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 프레임 오버레이 핸들 (Figma 방식 — #ss-handles-overlay 에 렌더링) ── */
+#ss-handles-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9990;
+}
+.ss-resize-handle {
+  position: absolute;
+  width:  7px;
+  height: 7px;
+  background: #fff;
+  border: var(--ui-handle-border-w, 1px) solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 1;
+  pointer-events: auto;
+  box-sizing: border-box;
+  cursor: nwse-resize;
+}
+.ss-resize-handle.ne,
+.ss-resize-handle.sw { cursor: nesw-resize; }
+
+/* ── Frame corner radius handles (Figma 스타일) ── */
+.ss-radius-handle {
+  position: absolute;
+  width:  7px;
+  height: 7px;
+  background: #fff;
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border-radius: 50%;
+  z-index: 1001;
+  pointer-events: auto;
+  box-sizing: border-box;
+  cursor: crosshair;
+  transition: transform 0.1s;
+}
+.ss-radius-handle:hover {
+  transform: scale(1.4);
+  background: var(--sel-color);
+}
+
+/* ── Asset Block corner radius handles (Figma 스타일) ── */
+.asset-radius-handle {
+  position: absolute;
+  width:  7px;
+  height: 7px;
+  background: #fff;
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border-radius: 50%;
+  z-index: 1001;
+  pointer-events: auto;
+  box-sizing: border-box;
+  cursor: crosshair;
+  transition: transform 0.1s;
+}
+.asset-radius-handle:hover {
+  transform: scale(1.4);
+  background: var(--sel-color);
+}
+
+/* ── Asset Block resize handles ── */
+.asset-handle {
+  position: absolute;
+  width:  7px;
+  height: 7px;
+  background: #fff;
+  border: var(--ui-handle-border-w, 1px) solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 100;
+  pointer-events: auto;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.asset-block.selected .asset-handle { opacity: 1; }
+.asset-handle.nw { top:    -3.5px; left:  -3.5px; cursor: nw-resize; }
+.asset-handle.ne { top:    -3.5px; right: -3.5px; cursor: ne-resize; }
+.asset-handle.sw { bottom: -3.5px; left:  -3.5px; cursor: sw-resize; }
+.asset-handle.se { bottom: -3.5px; right: -3.5px; cursor: se-resize; }
+
+
+/* ── Asset Block overlay resize handles (프레임 핸들과 동일 스타일) ── */
+.asset-overlay-handle {
+  position: absolute;
+  width:  7px;
+  height: 7px;
+  background: #fff;
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 9992;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+.asset-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se { cursor: se-resize; }
+
+/* ── Canvas Block overlay resize handles ── */
+.canvas-overlay-handle {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: #fff;
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 9992;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+.canvas-overlay-handle.nw { cursor: nw-resize; }
+.canvas-overlay-handle.ne { cursor: ne-resize; }
+.canvas-overlay-handle.sw { cursor: sw-resize; }
+.canvas-overlay-handle.se { cursor: se-resize; }
+
+/* ── Vector Block overlay resize handles ── */
+.vector-overlay-handle {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: #fff;
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 9992;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+.vector-overlay-handle.nw { cursor: nw-resize; }
+.vector-overlay-handle.ne { cursor: ne-resize; }
+.vector-overlay-handle.sw { cursor: sw-resize; }
+.vector-overlay-handle.se { cursor: se-resize; }
+
+/* ── Canvas Block corner radius handle ── */
+.canvas-radius-handle {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: #fff;
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border-radius: 50%;
+  z-index: 9993;
+  pointer-events: auto;
+  box-sizing: border-box;
+  cursor: crosshair;
+  transition: transform 0.1s;
+}
+.canvas-radius-handle:hover {
+  transform: scale(1.4);
+  background: var(--sel-color);
+}
+
+/* ═══════════════════════════════════
    ASSET BLOCK — 이미지 업로드 상태
 ═══════════════════════════════════ */
 .asset-block.has-image {
   padding: 0;
   margin-top: 0;
   margin-bottom: 0;
-  overflow: hidden;
+  overflow: visible; /* 핸들이 프레임 밖에 위치할 수 있도록 — 클리핑은 .asset-img-clip이 담당 */
   position: relative;
   background: transparent;
+}
+/* 이미지 클리핑 전용 래퍼 — asset-block 범위로 img를 항상 클리핑 */
+.asset-img-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
 }
 .asset-img {
   width: 100%;
@@ -18,43 +252,75 @@
 
 /* 이미지 편집 모드 */
 .asset-block.img-editing {
-  outline: 2px solid var(--sel-color) !important;
-  outline-offset: 2px;
   cursor: default;
 }
 .asset-block.img-editing .asset-img {
   cursor: move;
   user-select: none;
-  outline: 2px solid var(--sel-color);
+}
+/* 피그마 크롭 모드: 이미지 전체 경계선 (클리핑 밖으로 표시) */
+.img-boundary {
+  position: absolute;
+  outline: 1px solid var(--sel-color);
   outline-offset: -1px;
+  pointer-events: none;
+  z-index: 15;
+  box-sizing: border-box;
 }
 .img-corner-handle {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 7px;
+  height: 7px;
   background: #fff;
-  border: 2px solid var(--ui-accent-primary);
-  border-radius: 2px;
-  z-index: 20;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
-  transform: scale(var(--inv-zoom, 1));
-  transform-origin: center center;
+  border: var(--ui-handle-border-w, 1px) solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 9992;
+  box-sizing: border-box;
+  pointer-events: auto;
 }
+.img-corner-handle:hover { background: var(--sel-color); }
 .img-edge-handle {
   position: absolute;
-  width: 8px;
-  height: 8px;
-  background: #fff;
-  border: 2px solid var(--ui-accent-primary);
+  width: 7px;
+  height: 7px;
+  background: var(--sel-color);
+  border: 1px solid #fff;
   border-radius: 50%;
-  z-index: 20;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
-  transform: scale(var(--inv-zoom, 1));
-  transform-origin: center center;
+  z-index: 9992;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+/* 스냅 가이드 라인 */
+.img-snap-guide-h {
+  position: absolute;
+  height: 1px;
+  background: var(--sel-color);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 9993;
+  transform: translateY(-0.5px);
+}
+.img-snap-guide-v {
+  position: absolute;
+  width: 1px;
+  background: var(--sel-color);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 9993;
+  transform: translateX(-0.5px);
+}
+/* 회전 존 — 모서리 핸들 바깥 영역, 핸들보다 낮은 z-index */
+.img-rotate-zone {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  z-index: 9991;
+  pointer-events: auto;
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'><path d='M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z' fill='%231592fe'/></svg>") 8 8, crosshair;
 }
 .icon-circle-block.img-editing {
-  outline: 2px solid var(--sel-color) !important;
-  outline-offset: 2px;
+  outline: 2px dashed var(--sel-color) !important;
+  outline-offset: 3px;
   cursor: default;
 }
 .icon-circle-block.img-editing .icb-img {
@@ -66,18 +332,24 @@
 }
 .img-edit-hint {
   position: absolute;
-  bottom: 10px;
+  bottom: 12px;
   left: 50%;
   transform: translateX(-50%) scale(var(--inv-zoom, 1));
   transform-origin: bottom center;
-  background: rgba(0,0,0,0.55);
-  color: #fff;
-  font-size: 11px;
-  padding: 3px 10px;
+  background: rgba(18,18,18,0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgba(255,255,255,0.9);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 4px 12px;
   border-radius: 20px;
   pointer-events: none;
   white-space: nowrap;
   z-index: 20;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5);
 }
 .asset-overlay-clear {
   position: absolute;
@@ -103,7 +375,7 @@
 
 /* 이미지 포지션 드래그 모드 */
 .asset-block.pos-dragging {
-  outline: 2px solid var(--sel-color) !important;
+  outline: 1px solid var(--sel-color) !important;
   outline-offset: 2px;
   cursor: default;
 }
@@ -113,26 +385,37 @@
 }
 .asset-block.pos-dragging .asset-img:active { cursor: grabbing; }
 
+/* 배경 이미지 위치 드래그 모드 (섹션 / 서브섹션) */
+.section-block.bg-pos-dragging,
+.frame-block.bg-pos-dragging {
+  outline: 1px solid var(--sel-color) !important;
+  outline-offset: -2px;
+  cursor: grab;
+  user-select: none;
+}
+.section-block.bg-pos-dragging:active,
+.frame-block.bg-pos-dragging:active { cursor: grabbing; }
+
 /* 프로퍼티 패널 내 액션 버튼 (이미지 선택/제거) */
 .prop-action-btn {
   width: 100%;
-  height: 26px;
+  height: 24px;
   padding: 0;
   border: 1px solid var(--ui-border);
   border-radius: 4px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--ui-fs-base); /* 패널 내 다른 버튼(11px)과 통일 */
+  font-weight: var(--ui-fw-semibold);
   cursor: pointer;
-  margin-top: 5px;
+  margin-top: 6px; /* 섹션 리듬 통일 */
   letter-spacing: 0.02em;
   display: flex; align-items: center; justify-content: center;
 }
 .prop-action-btn.primary { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
-.prop-action-btn.primary:hover { background: #3d7ff8; border-color: #3d7ff8; }
+.prop-action-btn.primary:hover { background: var(--ui-accent-primary-hover); border-color: var(--ui-accent-primary-hover); }
 .prop-action-btn.secondary { background: var(--ui-bg-app); color: var(--ui-text-dim); border: 1px solid var(--ui-border); }
-.prop-action-btn.secondary:hover { border-color: var(--ui-text-dim); color: var(--ui-text-sub); }
-.prop-action-btn.danger { background: #c0392b; color: #fff; }
-.prop-action-btn.danger:hover { background: #e74c3c; }
+.prop-action-btn.secondary:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }
+.prop-action-btn.danger { background: var(--ui-danger-bg); border-color: var(--ui-danger-border); color: var(--ui-danger); }
+.prop-action-btn.danger:hover { background: var(--ui-danger-hover); border-color: var(--ui-danger-hover); color: #fff; }
 
 /* ═══════════════════════════════════
    GAP BLOCK — 섹션과 에셋 사이 여백
@@ -143,7 +426,7 @@
   position: relative;
   width: 100%; height: 50px;
   outline: 2px solid transparent;
-  transition: background 0.1s, outline 0.1s;
+  transition: background 0.1s;
 }
 .gap-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .gap-block::before { display: none; }
@@ -154,8 +437,8 @@
 .section-block.selected .section-inner > :first-child::before { display: none; }
 
 .gap-block.selected {
-  outline: 2px solid var(--sel-color);
-  outline-offset: 0;
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .gap-block.selected::before { display: block; }
 
@@ -165,7 +448,7 @@
 .row:active { cursor: grabbing; }
 .row [contenteditable="true"] { cursor: text; }
 .row [contenteditable="true"]:active { cursor: text; }
-.row.dragging, .gap-block.dragging { opacity: 0.25; pointer-events: none; cursor: grabbing; }
+.row.dragging, .gap-block.dragging, .frame-block.dragging { pointer-events: none; cursor: grabbing; }
 
 /* 캔버스 드롭 인디케이터 — 줌 보정을 위해 두껍게 */
 .drop-indicator {
@@ -173,7 +456,7 @@
   border-radius: 3px; flex-shrink: 0;
   pointer-events: none; margin: 2px 0;
   position: relative;
-  box-shadow: 0 0 8px rgba(45,111,232,0.7);
+  box-shadow: 0 0 8px var(--color-selection-glow);
 }
 .drop-indicator::before {
   content: '';
@@ -181,7 +464,7 @@
   left: -6px; top: -5px;
   width: 15px; height: 15px;
   border-radius: 50%; background: var(--ui-accent-primary);
-  box-shadow: 0 0 6px rgba(45,111,232,0.6);
+  box-shadow: 0 0 6px var(--color-selection-glow-med);
 }
 
 /* 레이어 패널 드롭 인디케이터 */
@@ -201,7 +484,7 @@
 .layer-item.layer-dragging { opacity: 0.3; }
 
 /* 섹션 드래그 상태 */
-.section-block.section-dragging { opacity: 0.25; pointer-events: none; }
+.section-block.section-dragging { pointer-events: none; }
 
 /* 섹션 간 드롭 인디케이터 (캔버스) */
 .section-drop-indicator {
@@ -209,7 +492,7 @@
   border-radius: 3px; flex-shrink: 0;
   pointer-events: none;
   position: relative;
-  box-shadow: 0 0 12px rgba(45,111,232,0.9);
+  box-shadow: 0 0 12px var(--color-selection-glow-hi);
 }
 .section-drop-indicator::before {
   content: '';
@@ -217,7 +500,7 @@
   left: -7px; top: -6px;
   width: 18px; height: 18px;
   border-radius: 50%; background: var(--ui-accent-primary);
-  box-shadow: 0 0 8px rgba(45,111,232,0.7);
+  box-shadow: 0 0 8px var(--color-selection-glow);
 }
 
 /* 레이어 패널 섹션 드롭 인디케이터 */
@@ -247,107 +530,7 @@
   vertical-align: middle;
 }
 
-/* ═══════════════════════════════════
-   FLOATING ACTION PANEL
-═══════════════════════════════════ */
-/* ── Toast ── */
-#editor-toast {
-  position: fixed; top: 50%; left: 50%;
-  transform: translate(-50%, calc(-50% + 12px));
-  background: var(--ui-bg-base); color: #f0f0f0;
-  font-size: 13px; font-weight: 500;
-  padding: 10px 18px; border-radius: 8px;
-  border: 1px solid var(--ui-border-strong);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.15s, transform 0.15s;
-  z-index: 600; white-space: nowrap;
-}
-#editor-toast.show { opacity: 1; transform: translate(-50%, -50%); }
-
-@keyframes fp-shake {
-  0%,100% { transform: translateX(-50%); }
-  20%      { transform: translateX(calc(-50% - 4px)); }
-  40%      { transform: translateX(calc(-50% + 4px)); }
-  60%      { transform: translateX(calc(-50% - 3px)); }
-  80%      { transform: translateX(calc(-50% + 3px)); }
-}
-#floating-panel.fp-shake { animation: fp-shake 0.35s ease; }
-
-#floating-panel {
-  position: fixed;
-  bottom: 28px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 500;
-
-  display: flex;
-  align-items: center;
-  gap: 4px;
-
-  background: var(--ui-bg-base);
-  border: 1px solid var(--ui-border);
-  border-radius: 12px;
-  padding: 5px 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
-}
-
-.fp-divider {
-  width: 1px; height: 18px;
-  background: var(--ui-border); margin: 0 4px;
-}
-.fp-group-label {
-  font-size: 9px; font-weight: 600; letter-spacing: 0.06em;
-  color: var(--ui-text-dim); text-transform: uppercase;
-  padding: 0 2px; pointer-events: none;
-  white-space: nowrap;
-}
-
-.fp-btn {
-  height: 30px; padding: 0 10px;
-  background: transparent; border: 1px solid transparent;
-  border-radius: 7px; color: var(--ui-text-muted);
-  font-size: 11px; font-weight: 500;
-  cursor: pointer; white-space: nowrap;
-  display: flex; align-items: center; gap: 5px;
-  transition: all 0.15s;
-}
-.fp-btn:hover { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }
-
-.fp-btn.primary {
-  background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff;
-}
-.fp-btn.primary:hover { background: var(--ui-accent-primary-hover); border-color: var(--ui-accent-primary-hover); }
-
-.fp-btn svg { flex-shrink: 0; }
-
-/* Text 드롭다운 */
-.fp-dropdown { position: relative; }
-.fp-dropdown-trigger { gap: 4px; }
-.fp-chevron { opacity: 0.5; transition: transform 0.15s; }
-.fp-dropdown.open .fp-chevron { transform: rotate(180deg); }
-.fp-dropdown-menu {
-  display: none;
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%; transform: translateX(-50%);
-  background: var(--ui-bg-base); border: 1px solid var(--ui-border);
-  border-radius: 8px; padding: 4px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-  min-width: 100px;
-}
-.fp-dropdown.open .fp-dropdown-menu { display: block; }
-.fp-menu-item {
-  display: block; width: 100%;
-  height: 28px; padding: 0 10px;
-  background: transparent; border: none;
-  border-radius: 5px; color: var(--ui-text-sub);
-  font-size: 11px; font-weight: 500;
-  cursor: pointer; text-align: left;
-  transition: background 0.1s, color 0.1s;
-}
-.fp-menu-item:hover { background: var(--ui-bg-input); color: #fff; }
-
+/* toast 스타일 → editor-toast.css 로 분리됨 (2026-06-09) */
 /* ═══════════════════════════════════
    ICON CIRCLE BLOCK
 ═══════════════════════════════════ */
@@ -357,15 +540,17 @@
   justify-content: center;
   cursor: pointer;
   border-radius: 8px;
-  transition: outline 0.1s;
+  
 }
 .icon-circle-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .icon-circle-block { position: relative; }
-.icon-circle-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.icon-circle-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 8px; }
 .icon-circle-block.drag-over .icb-circle { outline: 2px dashed var(--sel-color); }
 
 .icb-circle {
   width: 80px; height: 80px;
+  aspect-ratio: 1 / 1;          /* width만 살아있어도 정원 유지하는 안전망 — 부모 flex squash 방어 */
+  align-self: center;            /* 부모 flex stretch로 height가 늘어나는 경우 대비 */
   border-radius: 50%;
   background:
     repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
@@ -416,11 +601,16 @@
   border-radius: 6px;
   box-sizing: border-box;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
+  
 }
 .table-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.table-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.table-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 0; }
 
+.table-block .tb-table th,
+.table-block .tb-table td {
+  color: var(--tbl-text-color, inherit);
+  font-family: var(--tbl-font-family, inherit);
+}
 .tb-table {
   width: 100%;
   border-collapse: collapse;
@@ -428,387 +618,157 @@
   table-layout: fixed;
   color: #222;
 }
-.tb-table thead th { font-weight: 600; }
+.tb-table thead th { font-weight: 600; font-size: var(--tbl-header-size, inherit); }
 
 /* 기본 스타일 */
 .table-block[data-style="default"] .tb-table th,
 .table-block[data-style="default"] .tb-table td,
 .table-block:not([data-style]) .tb-table th,
 .table-block:not([data-style]) .tb-table td {
-  border: 1px solid #ccc;
+  border: 1px solid var(--tbl-line-color, #ccc);
   padding: 10px 16px;
   text-align: center;
   vertical-align: middle;
 }
+
+/* colored 스타일 — 셀 모든 border를 토글로 제어 */
+.table-block[data-style="colored"] .tb-table {
+  border-collapse: collapse;
+}
+.table-block[data-style="colored"] .tb-table th,
+.table-block[data-style="colored"] .tb-table td {
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-right: 0;
+  padding: 10px 16px;
+  vertical-align: middle;
+}
+/* 수평선 토글 (data-show-h-lines="true" 시 행 사이 border-bottom 적용) */
+.table-block[data-style="colored"][data-show-h-lines="true"] .tb-table tr {
+  border-bottom: var(--tbl-hline-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+}
+/* 수직선 토글 (data-show-v-lines="true") */
+.table-block[data-style="colored"][data-show-v-lines="true"] .tb-table th,
+.table-block[data-style="colored"][data-show-v-lines="true"] .tb-table td {
+  border-left: var(--tbl-vline-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+  border-right: var(--tbl-vline-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+}
+/* 외곽 좌우 — table 자체 border */
+.table-block[data-style="colored"][data-show-outer-x="true"] .tb-table {
+  border-left: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+  border-right: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+}
+/* 외곽 상하 */
+.table-block[data-style="colored"][data-show-outer-y="true"] .tb-table {
+  border-top: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+  border-bottom: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
+}
 .table-block[data-style="default"] .tb-table thead th,
 .table-block:not([data-style]) .tb-table thead th {
-  background: #f0f0f0;
+  background: var(--tbl-header-bg, #f0f0f0);
   font-weight: 600;
 }
 
 /* 스트라이프 스타일 */
 .table-block[data-style="stripe"] .tb-table th,
 .table-block[data-style="stripe"] .tb-table td {
-  border: 1px solid #ddd;
+  border: 1px solid var(--tbl-line-color, #ddd);
   padding: 10px 16px;
   text-align: center;
   vertical-align: middle;
 }
-.table-block[data-style="stripe"] .tb-table thead th { background: var(--ui-border); color: #fff; font-weight: 600; }
+.table-block[data-style="stripe"] .tb-table thead th { background: var(--tbl-header-bg, var(--ui-border)); color: var(--tbl-text-color, #fff); font-weight: 600; }
 .table-block[data-style="stripe"] .tb-table tbody tr:nth-child(even) td { background: #f7f7f7; }
 
 /* 보더리스 스타일 */
 .table-block[data-style="borderless"] .tb-table th,
 .table-block[data-style="borderless"] .tb-table td {
   border: none;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--tbl-line-color, #eee);
   padding: 10px 16px;
   text-align: center;
   vertical-align: middle;
 }
-.table-block[data-style="borderless"] .tb-table thead th { font-weight: 600; color: var(--ui-text-dim); }
+.table-block[data-style="borderless"] .tb-table thead th { background: var(--tbl-header-bg, transparent); font-weight: 600; color: var(--tbl-text-color, var(--ui-text-dim)); }
+
+/* ──────────────────────────────────────────────
+   라인 표시/숨김 옵션 (모든 테마 공통)
+   data-show-v-lines  : 셀 사이 세로선
+   data-show-h-lines  : 행 사이 수평선
+   data-show-outer-x  : 테이블 좌·우 외곽 테두리
+   data-show-outer-y  : 테이블 상·하 외곽 테두리
+   data-outer-width   : 외곽선 두께 (--tbl-outer-w 변수 사용)
+────────────────────────────────────────────── */
+
+/* 외곽선 두께를 변수로 적용 — 첫 행/마지막 행/첫 열/마지막 열의 외곽쪽 border-width를 변수로 */
+.table-block .tb-table tr:first-child > th,
+.table-block .tb-table tr:first-child > td { border-top-width: var(--tbl-outer-w, 1px); }
+.table-block .tb-table tr:last-child > th,
+.table-block .tb-table tr:last-child > td  { border-bottom-width: var(--tbl-outer-w, 1px); }
+.table-block .tb-table tr > th:first-child,
+.table-block .tb-table tr > td:first-child { border-left-width: var(--tbl-outer-w, 1px); }
+.table-block .tb-table tr > th:last-child,
+.table-block .tb-table tr > td:last-child  { border-right-width: var(--tbl-outer-w, 1px); }
+
+/* 1) 세로선 숨김 — 셀 사이 좌/우 경계 제거 (외곽 좌우는 별도 옵션) */
+.table-block[data-show-v-lines="false"] .tb-table tr > th:not(:last-child),
+.table-block[data-show-v-lines="false"] .tb-table tr > td:not(:last-child) {
+  border-right: none;
+}
+.table-block[data-show-v-lines="false"] .tb-table tr > th:not(:first-child),
+.table-block[data-show-v-lines="false"] .tb-table tr > td:not(:first-child) {
+  border-left: none;
+}
+
+/* 2) 수평선 숨김 — 행 사이 상/하 경계 제거 (외곽 상하는 별도 옵션) */
+.table-block[data-show-h-lines="false"] .tb-table tr:not(:last-child) > th,
+.table-block[data-show-h-lines="false"] .tb-table tr:not(:last-child) > td {
+  border-bottom: none;
+}
+.table-block[data-show-h-lines="false"] .tb-table tr:not(:first-child) > th,
+.table-block[data-show-h-lines="false"] .tb-table tr:not(:first-child) > td {
+  border-top: none;
+}
+
+/* 3) 외곽 좌우 숨김 */
+.table-block[data-show-outer-x="false"] .tb-table tr > th:first-child,
+.table-block[data-show-outer-x="false"] .tb-table tr > td:first-child {
+  border-left: none;
+}
+.table-block[data-show-outer-x="false"] .tb-table tr > th:last-child,
+.table-block[data-show-outer-x="false"] .tb-table tr > td:last-child {
+  border-right: none;
+}
+
+/* 4) 외곽 상하 숨김 */
+.table-block[data-show-outer-y="false"] .tb-table tr:first-child > th,
+.table-block[data-show-outer-y="false"] .tb-table tr:first-child > td {
+  border-top: none;
+}
+.table-block[data-show-outer-y="false"] .tb-table tr:last-child > th,
+.table-block[data-show-outer-y="false"] .tb-table tr:last-child > td {
+  border-bottom: none;
+}
+/* colored 수평선 ON 규칙(621행)이 <tr> 요소 자체에 border-bottom !important 를 박으므로,
+   셀(th/td) 제거만으로는 마지막행 하단선이 잔류한다. <tr> 요소 자체의 외곽 상/하 border 도 제거.
+   상단(first-child top)은 현재 잔류 사례 없으나 대칭/회귀방지용. */
+.table-block[data-show-outer-y="false"] .tb-table tr:last-child {
+  border-bottom: none !important;
+}
+.table-block[data-show-outer-y="false"] .tb-table tr:first-child {
+  border-top: none !important;
+}
 
 /* 셀 편집 모드 */
 .tb-table td[contenteditable="true"],
 .tb-table th[contenteditable="true"] {
-  outline: 2px solid var(--sel-color);
+  outline: 1px solid var(--sel-color);
   outline-offset: 2px;
   background: var(--sel-color-fill) !important;
   cursor: text;
 }
 
-/* ═══════════════════════════════════
-   GRAPH BLOCK
-═══════════════════════════════════ */
-.graph-block {
-  position: relative;
-  width: 100%;
-  cursor: pointer;
-  border-radius: 8px;
-  padding: 24px var(--page-padx, 20px) 16px;
-  box-sizing: border-box;
-  outline: 2px solid transparent;
-  transition: outline 0.1s;
-  background: #ffffff;
-}
-.graph-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.graph-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
-
-/* ── 세로 막대 (bar-v) ── */
-.grb-bars-v {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  height: 240px;
-  padding-bottom: 0;
-}
-.grb-bar-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-}
-.grb-bar-fill-wrap {
-  flex: 1;
-  width: 100%;
-  display: flex;
-  align-items: flex-end;
-}
-.grb-bar-fill {
-  width: 100%;
-  border-radius: 4px 4px 0 0;
-  transition: height 0.3s ease;
-  min-height: 4px;
-}
-.grb-bar-val-label {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  color: inherit;
-}
-.grb-bar-label {
-  font-size: 13px;
-  margin-top: 6px;
-  text-align: center;
-  color: inherit;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-/* ── 가로 막대 (bar-h) ── */
-.grb-bars-h {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.grb-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.grb-bar-row-label {
-  font-size: 13px;
-  width: 70px;
-  flex-shrink: 0;
-  text-align: right;
-  color: inherit;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.grb-bar-h-wrap {
-  flex: 1;
-  height: 28px;
-  background: rgba(0,0,0,0.06);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.grb-bar-h-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-  min-width: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 8px;
-  box-sizing: border-box;
-}
-.grb-bar-h-val {
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.9);
-}
-
-/* ── 프리셋별 색상 ── */
-/* default */
-.graph-block[data-preset="default"] { background: #f8f9fa; color: var(--ui-border); }
-.graph-block[data-preset="default"] .grb-bar-fill,
-.graph-block[data-preset="default"] .grb-bar-h-fill { background: var(--ui-accent-primary); }
-.graph-block[data-preset="default"] .grb-bar-val-label { color: var(--ui-accent-primary); }
-
-/* dark */
-.graph-block[data-preset="dark"] { background: #1a1a2e; color: #eee; }
-.graph-block[data-preset="dark"] .grb-bar-fill,
-.graph-block[data-preset="dark"] .grb-bar-h-fill { background: #4f8ef7; }
-.graph-block[data-preset="dark"] .grb-bar-val-label { color: #4f8ef7; }
-.graph-block[data-preset="dark"] .grb-bar-h-wrap { background: rgba(255,255,255,0.08); }
-
-/* minimal */
-.graph-block[data-preset="minimal"] { background: #fff; color: var(--ui-text-dim); }
-.graph-block[data-preset="minimal"] .grb-bar-fill,
-.graph-block[data-preset="minimal"] .grb-bar-h-fill { background: var(--ui-text-sub); border-radius: 2px 2px 0 0; }
-.graph-block[data-preset="minimal"] .grb-bar-val-label { color: #888; }
-
-/* colorful */
-.graph-block[data-preset="colorful"] { background: #fff; color: var(--ui-border); }
-.graph-block[data-preset="colorful"] .grb-bar-fill:nth-child(1),
-.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(1) .grb-bar-fill { background: #ff6b6b; }
-.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(2) .grb-bar-fill { background: #ffa94d; }
-.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(3) .grb-bar-fill { background: #69db7c; }
-.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(4) .grb-bar-fill { background: #4dabf7; }
-.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(5) .grb-bar-fill { background: #da77f2; }
-.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(6) .grb-bar-fill { background: #ff6b6b; }
-.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(1) .grb-bar-h-fill { background: #ff6b6b; }
-.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(2) .grb-bar-h-fill { background: #ffa94d; }
-.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(3) .grb-bar-h-fill { background: #69db7c; }
-.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(4) .grb-bar-h-fill { background: #4dabf7; }
-.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(5) .grb-bar-h-fill { background: #da77f2; }
-.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(6) .grb-bar-h-fill { background: #ff6b6b; }
-
-/* 프로퍼티 패널 - 데이터 편집 */
-.grb-data-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
-.grb-data-item { display: flex; align-items: center; gap: 4px; }
-.grb-data-label-input {
-  flex: 1; height: 24px; min-width: 0;
-  background: var(--ui-bg-app); border: 1px solid var(--ui-border);
-  border-radius: 4px; color: #ddd; font-size: 11px; padding: 0 6px; outline: none;
-}
-.grb-data-val-input {
-  width: 44px; height: 24px; flex-shrink: 0;
-  background: var(--ui-bg-app); border: 1px solid var(--ui-border);
-  border-radius: 4px; color: #ddd; font-size: 11px; text-align: center; outline: none;
-}
-.grb-data-label-input:focus, .grb-data-val-input:focus { border-color: var(--ui-accent-primary); }
-.grb-data-del-btn {
-  width: 20px; height: 20px; flex-shrink: 0;
-  background: none; border: 1px solid var(--ui-border-mid);
-  border-radius: 4px; color: var(--ui-text-dim); cursor: pointer; font-size: 11px;
-  display: flex; align-items: center; justify-content: center;
-}
-.grb-data-del-btn:hover { border-color: #e06060; color: #e06060; }
-
-/* ═══════════════════════════════════
-   CARD BLOCK
-═══════════════════════════════════ */
-.card-block {
-  display: flex;
-  flex-direction: column;
-  border-radius: 12px;
-  overflow: hidden;
-  cursor: pointer;
-  outline: 2px solid transparent;
-  transition: outline 0.1s;
-  width: 100%;
-  padding-left: var(--page-padx, 0px);
-  padding-right: var(--page-padx, 0px);
-}
-.card-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.card-block { position: relative; }
-.card-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
-.card-block.drag-over .cdb-image { outline: 2px dashed var(--sel-color); }
-
-.cdb-image {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  background: #e8e8e8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  position: relative;
-  flex-shrink: 0;
-}
-.cdb-img-placeholder {
-  font-size: 32px;
-  color: var(--ui-text-sub);
-  user-select: none;
-  pointer-events: none;
-}
-.cdb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.cdb-clear-btn {
-  position: absolute;
-  top: 6px; right: 6px;
-  width: 20px; height: 20px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.55);
-  color: #fff;
-  border: none; cursor: pointer;
-  font-size: 10px; line-height: 20px; text-align: center;
-  display: none;
-  padding: 0;
-  z-index: 1;
-}
-.card-block:hover .cdb-clear-btn,
-.card-block.selected .cdb-clear-btn { display: block; }
-
-.cdb-body {
-  padding: 10px 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: #f5f5f5;
-}
-.cdb-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #111;
-  outline: none;
-  line-height: 1.4;
-}
-.cdb-desc {
-  font-size: 18px;
-  color: var(--ui-text-dim);
-  outline: none;
-  line-height: 1.5;
-}
-
-/* ═══════════════════════════════════
-   STRIP BANNER BLOCK
-═══════════════════════════════════ */
-.strip-banner-block {
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  background: #f5f5f5;
-  border-radius: 0;
-  overflow: hidden;
-  cursor: pointer;
-  transition: outline 0.1s;
-  width: 100%;
-  min-height: 200px;
-}
-.strip-banner-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.strip-banner-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
-.strip-banner-block.drag-over .sbb-image { outline: 2px dashed var(--sel-color); }
-
-.sbb-image {
-  flex: 3;
-  background:
-    repeating-conic-gradient(#d8d8d8 0% 25%, #f0f0f0 0% 50%) 0 0 / 72px 72px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  position: relative;
-  flex-shrink: 0;
-}
-.sbb-img-placeholder {
-  font-size: 28px;
-  color: var(--ui-text-sub);
-  user-select: none;
-  pointer-events: none;
-}
-.sbb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.sbb-clear-btn {
-  position: absolute;
-  top: 6px; right: 6px;
-  width: 20px; height: 20px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.55);
-  color: #fff;
-  border: none; cursor: pointer;
-  font-size: 10px; line-height: 20px; text-align: center;
-  display: none;
-  padding: 0;
-  z-index: 1;
-}
-.strip-banner-block:hover .sbb-clear-btn,
-.strip-banner-block.selected .sbb-clear-btn { display: block; }
-
-.sbb-content {
-  flex: 7;
-  padding: 20px var(--page-padx, 24px);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  background: transparent;
-}
-.sbb-heading {
-  font-size: 28px;
-  font-weight: 600;
-  color: #111;
-  outline: none;
-  line-height: 1.35;
-}
-.sbb-body {
-  font-size: 20px;
-  color: var(--ui-text-dim);
-  outline: none;
-  line-height: 1.6;
-}
-
-/* 이미지 위치: left(기본) */
-.strip-banner-block[data-img-pos="left"] .sbb-image { order: 1; }
-.strip-banner-block[data-img-pos="left"] .sbb-content { order: 2; }
-/* 이미지 위치: right */
-.strip-banner-block[data-img-pos="right"] .sbb-image { order: 2; }
-.strip-banner-block[data-img-pos="right"] .sbb-content { order: 1; }
-.strip-banner-block[data-use-padx="false"] .sbb-content { padding-left: 24px; padding-right: 24px; }
 
 /* ═══════════════════════════════════
    DIVIDER BLOCK
@@ -820,10 +780,55 @@
   box-sizing: border-box;
   padding: 12px 0;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
+  
 }
 .divider-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.divider-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.divider-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
+/* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
+.row:has(.text-block.selected),
+.frame-block[data-text-frame="true"]:has(.text-block:not(.speech-bubble-block).selected) {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+/* T6: outline 2겹 픽스 — 부모 row/text-frame이 outline을 책임지면
+   .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
+   (text-block은 padding/border-box 변화로 부모와 미세 어긋남이 생겨 2겹으로 보였음) */
+.row:has(.text-block.selected) > .text-block.selected,
+.frame-block[data-text-frame="true"] > .text-block:not(.speech-bubble-block).selected {
+  outline: var(--sel-outline-w) solid transparent;
+}
+/* 버블 선택 시 frame-block outline: speech-bubble-block(z-index:2)이 outline을 덮으므로
+   ::after pseudo-element를 z-index:10으로 올려서 위에 그림 */
+.frame-block[data-text-frame="true"]:has(.speech-bubble-block.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--sel-color);
+  z-index: 10;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.label-group-block:hover:not(.selected)::after,
+.icon-circle-block:hover:not(.selected)::after,
+.table-block:hover:not(.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── 텍스트 블록 placeholder 스타일 (PPT 스타일) ── */
+/* #canvas 스코프: export 클론은 body에 첨부되므로 dim 규칙이 새어 들어가지 않게 함 */
+#canvas [data-is-placeholder="true"] {
+  opacity: 0.45;
+}
+#canvas [data-is-placeholder="true"][contenteditable="true"] {
+  opacity: 1;
+}
+
 
 /* 선택된 블록이 인접 블록의 outline을 가리지 않도록 z-index로 위로 올림 */
 .text-block.selected,
@@ -833,9 +838,8 @@
 .icon-circle-block.selected,
 .table-block.selected,
 .graph-block.selected,
-.card-block.selected,
-.strip-banner-block.selected,
-.divider-block.selected { z-index: 2; }
+.divider-block.selected,
+.mockup-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }
 
@@ -846,3 +850,1464 @@
   margin: 0;
 }
 
+/* ── Joker Block (Figma 패스스루 컴포넌트) ── */
+.joker-block {
+  position: relative;
+  width: fit-content;
+  user-select: none;
+  cursor: default;
+}
+.joker-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  z-index: 2;
+}
+.joker-block-inner {
+  overflow: hidden;
+}
+.joker-block-svg svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+
+/* ── Shape Block ── */
+.shape-block {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  cursor: default;
+}
+.shape-block:hover:not(.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 0;
+}
+.shape-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  z-index: 2;
+}
+.shape-block .shape-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* shape 선택 시 부모 overflow 해제 — shape-handle이 잘리지 않도록 */
+.frame-block:has(.shape-block.selected) {
+  overflow: visible;
+}
+
+/* 회전된 shape을 가진 frame은 항상 overflow 해제 —
+   사용자 의도: 회전 시 frame 크기는 그대로 두되 시각적 잘림은 피한다.
+   회전된 shape의 visual bounding box가 frame을 넘어가도 잘리지 않게 한다. */
+.frame-block:has(.shape-block[data-shape-rotation]) {
+  overflow: visible;
+}
+
+/* speech-bubble 포함 시 overflow 해제 — 말꼬리 SVG 클리핑 방지 */
+.frame-block:has(.speech-bubble-block) {
+  overflow: visible;
+}
+
+/* shape 리사이즈 핸들 — --inv-zoom calc()로 캔버스 배율 무관하게 고정 크기 유지 */
+.shape-handle {
+  position: absolute;
+  width:  calc(7px * var(--inv-zoom, 1));
+  height: calc(7px * var(--inv-zoom, 1));
+  background: #fff;
+  border: var(--ui-handle-border-w-round, 1.5px) solid var(--sel-color);
+  border-radius: 1px;
+  z-index: 10;
+  display: none;
+  box-sizing: border-box;
+}
+.shape-block.selected .shape-handle { display: block; }
+.shape-handle.nw { top:    calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+.shape-handle.ne { top:    calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.shape-handle.sw { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:   calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.shape-handle.se { bottom: calc(-3.5px * var(--inv-zoom, 1)); right:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+
+/* Suppress child block hover outlines & fill overlays inside unselected frames */
+.frame-block:not(.selected) .text-block:hover,
+.frame-block:not(.selected) .asset-block:hover,
+.frame-block:not(.selected) .gap-block:hover,
+.frame-block:not(.selected) .icon-circle-block:hover,
+.frame-block:not(.selected) .table-block:hover,
+.frame-block:not(.selected) .label-group-block:hover,
+.frame-block:not(.selected) .graph-block:hover,
+.frame-block:not(.selected) .divider-block:hover,
+.frame-block:not(.selected) .icon-text-block:hover,
+.frame-block:not(.selected) .shape-block:hover {
+  outline: none !important;
+}
+.frame-block:not(.selected) .gap-block:hover::after,
+.frame-block:not(.selected) .icon-circle-block:hover::after,
+.frame-block:not(.selected) .table-block:hover::after,
+.frame-block:not(.selected) .graph-block:hover::after,
+.frame-block:not(.selected) .divider-block:hover::after,
+.frame-block:not(.selected) .label-group-block:hover::after,
+.frame-block:not(.selected) .shape-block:hover::after {
+  display: none !important;
+}
+/* speech-bubble-block은 fit-content 폭 → text-block:hover::after (editor-layout.css)와
+   부모 frame-block:hover::after가 겹쳐 2겹 overlay 발생. 직접 ::after 억제. */
+.frame-block[data-text-frame="true"]:not(.selected) .speech-bubble-block:hover::after {
+  display: none !important;
+}
+.frame-block:not(.selected) .row:has(.text-block:hover),
+.frame-block:not(.selected) .frame-block[data-text-frame="true"]:has(.text-block:hover) {
+  outline: none !important;
+}
+
+/* ═══════════════════════════════════
+   SMART GUIDES — 피그마 스타일 스냅/가이드선
+═══════════════════════════════════ */
+.smart-guide {
+  position: absolute;
+  pointer-events: none;
+  z-index: 9999;
+}
+.smart-guide.vertical {
+  width: 1px;
+  background: rgba(233, 60, 60, 0.85);
+}
+.smart-guide.horizontal {
+  height: 1px;
+  background: rgba(233, 60, 60, 0.85);
+}
+.smart-guide.spacing.vertical {
+  width: 1px;
+  background: rgba(233, 60, 180, 0.75);
+  border-left: 1px dashed rgba(233, 60, 180, 0.85);
+  background: none;
+}
+.smart-guide.spacing.horizontal {
+  height: 1px;
+  background: rgba(233, 60, 180, 0.75);
+  border-top: 1px dashed rgba(233, 60, 180, 0.85);
+  background: none;
+}
+.smart-guide-label {
+  position: absolute;
+  font-size: 9px;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  color: rgb(233, 60, 180);
+  background: rgba(255, 255, 255, 0.88);
+  padding: 1px 3px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* ── Canvas Block ─────────────────────────────────────────────────────────── */
+/* ── Iconify Icon Block ──────────────────────────────────────────────────── */
+.icon-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0 auto;
+  flex-shrink: 0;
+  position: relative;
+}
+.icon-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+.icon-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.icon-block svg { display: block; }
+.icon-block img { display: block; }
+
+.canvas-block {
+  display: block;
+  position: relative;
+  margin: 0 auto;
+  cursor: pointer;
+  box-sizing: border-box;
+  user-select: none;
+}
+.canvas-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: var(--ui-sel-outline-offset-out, calc(1px * var(--inv-zoom, 1))); /* 이미지가 가장자리까지 차므로 안쪽 대신 바깥으로 빼서 겹침 방지 */
+}
+.canvas-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+
+/* banner02 — 컴포넌트 선택 표준 (배경이 가장자리까지 차므로 outline 바깥으로) */
+.banner02-block { display:block; position:relative; margin:0 auto; cursor:pointer; box-sizing:border-box; user-select:none; }
+.banner02-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: var(--ui-sel-outline-offset-out, calc(1px * var(--inv-zoom, 1)));
+}
+.banner02-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+
+/* comparison — 컴포넌트 선택 표준 (featured 카드 그림자 spill 위해 overflow visible) */
+.comparison-block { display:block; position:relative; margin:0 auto; cursor:pointer; box-sizing:border-box; user-select:none; overflow:visible; }
+.comparison-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+.comparison-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+/* 셀 편집 모드 — 브라우저 기본 포커스링(노란색, macOS 강조색) 대신 디자인 토큰 사용 */
+.comparison-block .cmp-hd[contenteditable="true"],
+.comparison-block .cmp-row[contenteditable="true"] {
+  outline: 1px solid var(--sel-color);
+  outline-offset: 2px;
+  border-radius: 4px;
+  cursor: text;
+}
+.canvas-block .cvb-inner {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* 카드 제목/설명은 클릭 가능해야 더블클릭 인라인 편집(_bindCvbDblEdit)이 동작한다.
+   cvb-inner의 pointer-events:none를 텍스트에서만 되살림 (나머지는 카드 본체로 통과). */
+.canvas-block .cvb-card-title,
+.canvas-block .cvb-card-desc {
+  pointer-events: auto;
+}
+
+/* ── Vector Block ────────────────────────────────────────────────────────── */
+.vector-block {
+  display: inline-block;
+  cursor: pointer;
+  position: relative;
+  box-sizing: border-box;
+  user-select: none;
+  margin: 0 auto;
+}
+.vector-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+.vector-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.vector-block .vb-inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.vector-block svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Canvas Block — 프로퍼티 레이어 목록 ─────────────────────────────────── */
+.cvb-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--ui-border, #e8e8e8);
+  font-size: 11px;
+}
+.cvb-layer-row:last-child { border-bottom: none; }
+.cvb-layer-icon {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--ui-text-muted, #999);
+}
+.cvb-layer-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text, #333);
+}
+.cvb-layer-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--ui-text-muted, #999);
+  background: var(--ui-bg-card, #f3f3f3);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.cvb-layer-swatch {
+  flex-shrink: 0;
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+/* ── Canvas Block — 그리드 피커 (옛날 row 그리드 피커와 동일 스타일) ─────────── */
+.grid-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  margin: 2px 0 4px;
+}
+.grid-picker-cell {
+  aspect-ratio: 1;
+  border: 1px solid var(--ui-bg-input, #333);
+  border-radius: 2px;
+  background: var(--ui-bg-2, #1c1c1c);
+  cursor: pointer;
+  transition: background .08s, border-color .08s;
+}
+.grid-picker-cell.active {
+  background: rgba(45,111,232,0.25);
+  border-color: rgba(45,111,232,0.5);
+}
+.grid-picker-label {
+  text-align: center;
+  font-size: 10px;
+  color: var(--ui-text-dim, #666);
+  height: 14px;
+}
+
+/* ── Canvas Block — 카드 항목 입력 ─────────────────────────────────────────── */
+.cvb-card-input {
+  background: #1e1e1e;
+  color: #ddd;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  box-sizing: border-box;
+  width: 100%;
+}
+.cvb-card-input::placeholder { color: var(--ui-text-dim); }
+textarea.cvb-card-input {
+  resize: none;
+  font-family: Pretendard, sans-serif;
+  margin-bottom: 4px;
+}
+.cvb-card-border-width {
+  width: 40px;
+  background: #1e1e1e;
+  color: #ddd;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.cvb-card-meta {
+  font-size: 10px;
+  color: var(--ui-text-dim);
+}
+.cvb-card-meta-label {
+  font-size: 10px;
+  color: var(--ui-text-dim);
+  font-weight: 600;
+  flex: 1;
+}
+.cvb-card-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+.cvb-card-btn-sm {
+  width: auto;
+  height: auto;
+  font-size: 10px;
+  padding: 2px 6px;
+}
+.cvb-card-btn-sm-del {
+  width: auto;
+  height: auto;
+  font-size: 10px;
+  padding: 2px 4px;
+  color: var(--ui-danger);
+}
+
+/* ── Device Mockup Block ─────────────────────────────────────────────────── */
+.mockup-block {
+  display: block;
+  position: relative;
+  margin: 0 auto;
+  cursor: pointer;
+  box-sizing: border-box;
+  user-select: none;
+}
+.mockup-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+.mockup-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.mkp-screen {
+  position: absolute;
+  overflow: hidden;
+}
+.mkp-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  line-height: 0;
+}
+
+/* ── Step Block ── */
+.step-block {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 0;
+  position: relative;
+}
+.step-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+.step-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+
+/* ── Chat Block ─────────────────────────────────────────────────────────────── */
+.chat-block {
+  position: relative;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+}
+.chat-block:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 0;
+}
+.chat-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+
+/* ── Laurel Block ──────────────────────────────────────────────────────────── */
+.laurel-block {
+  position: relative;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 0;
+}
+.laurel-block .laurel-leaf { display: block; }
+.laurel-block .laurel-text { display: inline-block; }
+/* 그리드 셀이 컨테이너 너비 안에서 자동 축소되게 (minmax(0, 1fr)와 함께)
+   + 셀 안 inner를 row height의 수직 중앙에 배치 → 같은 row의 다른 셀과 수평선 일치 */
+.laurel-block .laurel-cell {
+  min-width: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.laurel-block .laurel-inner { min-width: 0; max-width: 100%; }
+.laurel-block .laurel-text-stack { min-width: 0; flex-shrink: 1; }
+.laurel-block .laurel-text-line { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.laurel-block:hover {
+  outline: 1px dashed var(--sel-color);
+  outline-offset: -1px;
+}
+.laurel-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+.chb-msg {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+}
+.chb-msg.chb-left  { justify-content: flex-start; }
+.chb-msg.chb-right { justify-content: flex-end; }
+/* ── 카톡식 프로필 영역 (좌/우 메시지 모두) ── */
+.chb-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.chb-profile-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #b8b8b8;
+  display: block;
+}
+.chb-profile-placeholder {
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  overflow: hidden;
+}
+.chb-profile-placeholder svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* 이름은 chb-wrap 안 말풍선 위에 위치 (카톡식) */
+.chb-wrap .chb-profile-name {
+  font-weight: 500;
+  margin-bottom: 4px;
+  word-break: keep-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+.chb-wrap {
+  position: relative;
+  padding-bottom: 16px;
+  max-width: 70%;
+}
+.chb-bubble {
+  display: block;
+  padding: 10px 14px;
+  word-break: break-word;
+  white-space: pre-wrap; /* prop 입력의 Enter(\n)가 렌더 시 줄바꿈으로 보이도록 */
+  font-family: 'Pretendard', sans-serif;
+  line-height: 1.5;
+}
+/* 인라인 편집 모드: chat-block의 user-select:none 우회 — 캐럿/선택 허용 */
+.chb-bubble[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+  outline: 1px dashed var(--sel-color);
+  outline-offset: 1px;
+}
+.chb-tail {
+  position: absolute;
+  bottom: 10px;
+  width: 19px;
+  height: 16px;
+}
+.chb-msg.chb-left  .chb-tail { left: 2px; }
+.chb-msg.chb-right .chb-tail { right: 2px; }
+.stb-item {
+  display: flex;
+  align-items: stretch;
+}
+.stb-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+.stb-badge {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.stb-line {
+  flex: 1;
+  width: 2px;
+  min-height: 16px;
+}
+.stb-content {
+  flex: 1;
+  min-width: 0;
+}
+.stb-title {
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+.stb-desc {
+  margin-top: 4px;
+  line-height: 1.6;
+  opacity: 0.65;
+  word-break: keep-all;
+}
+
+/* ═══════════════════════════════════
+   SPEECH BUBBLE BLOCK — iMessage 스타일 말풍선
+═══════════════════════════════════ */
+.speech-bubble-block {
+  --bubble-bg: #e5e5ea;  /* 버블 배경색 — JS에서 이 변수를 변경 */
+  position: relative;
+  display: block;
+  width: 100%; /* 클릭 영역을 frame-block 전체로 확장 — 정렬은 tb-bubble에서 처리 */
+  padding-bottom: 16px; /* SVG 말꼬리 공간 — 아웃라인/row 높이에 포함 */
+  overflow: visible;
+}
+/* 정렬: tb-bubble에서 margin으로 처리 */
+.speech-bubble-block[data-tail="right"] .tb-bubble {
+  margin-left: auto;
+}
+.speech-bubble-block[data-tail="center"] .tb-bubble {
+  margin-left: auto;
+  margin-right: auto;
+}
+.speech-bubble-block[data-tail="center"] .tb-bubble-tail {
+  left: 50%;
+  transform: translateX(-50%);
+}
+/* 발신자 이름 레이블 — 버블 텍스트 좌우 패딩(22px)에 맞춰 정렬 */
+.tb-sender-name {
+  font-size: 16px;
+  color: #8e8d94;
+  margin-bottom: 4px;
+  font-family: 'Pretendard', sans-serif;
+  line-height: 1.3;
+}
+.speech-bubble-block[data-tail="left"] .tb-sender-name {
+  padding-left: 22px;
+}
+.speech-bubble-block[data-tail="right"] .tb-sender-name {
+  padding-right: 22px;
+  text-align: right;
+}
+.tb-bubble {
+  background: var(--bubble-bg);
+  color: #1c1c1e;
+  border-radius: 22px;
+  padding: 14px 22px;
+  font-size: 28px;
+  line-height: 1.5;
+  font-family: 'Pretendard', sans-serif;
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 80%;
+  min-width: 60px;
+  word-break: break-word;
+}
+/* SVG 말꼬리 — padding-bottom 16px 영역 안에 위치, 아웃라인에 포함됨 */
+.tb-bubble-tail {
+  position: absolute;
+  bottom: 0;
+  width: 19px;
+  height: 16px;
+  fill: var(--bubble-bg, #e5e5ea);
+}
+.speech-bubble-block[data-tail="left"] .tb-bubble-tail {
+  left: 2px;
+  bottom: 10px;
+  transform: scaleX(-1); /* Figma 원본이 우측 꼬리형 → 좌우 반전으로 좌측 꼬리 */
+}
+.speech-bubble-block[data-tail="right"] .tb-bubble-tail {
+  right: 2px;
+  bottom: 10px;
+}
+/* 선택 상태 — frame-block ::after로 outline 표시 (z-index:10, bubble 위에 렌더) */
+.speech-bubble-block.selected {
+  outline: none !important;
+}
+/* placeholder 상태에서 opacity:0.45가 tb-bubble 배경까지 투명하게 만들어 말꼬리 색과 불일치 발생.
+   배경 opacity는 1로 유지하고, 텍스트 color만 dim 처리. */
+.speech-bubble-block .tb-bubble[data-is-placeholder="true"] {
+  opacity: 1 !important;
+  color: rgba(28, 28, 30, 0.4);
+}
+/* 편집 중에는 원래 텍스트 색상 복원 */
+.speech-bubble-block .tb-bubble[data-is-placeholder="true"][contenteditable="true"] {
+  color: #1c1c1e;
+}
+
+/* ═══════════════════════════════════
+   Liner (곡선 텍스트) — SVG textPath
+═══════════════════════════════════ */
+.liner-block {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+/* 화면 표시용 SVG — 가로 100%, 내부 viewBox 비율로 높이 자동 */
+.liner-block .lnr-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  pointer-events: none; /* 클릭은 블록/미러가 받음 */
+}
+/* 편집 미러 div: 평소 숨김(폭 측정용으로 레이아웃은 유지) — absolute overlay + 투명 */
+.liner-block .tb-liner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 28px;        /* applyLiner가 이 크기를 SVG font-size로 복사 */
+  line-height: 1.2;
+  color: transparent;     /* 평소 글자 안 보임 (SVG가 표시) */
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
+}
+/* 편집 중에는 미러를 노출해 캐럿/입력이 보이게 */
+.liner-block.editing .tb-liner {
+  position: relative;
+  opacity: 1;
+  color: #111;
+  pointer-events: auto;
+  outline: none;
+}
+/* 편집 중에는 SVG를 흐리게(글자 겹침 방지) */
+.liner-block.editing .lnr-svg {
+  opacity: 0.25;
+}
+.liner-block .tb-liner[data-is-placeholder="true"] {
+  color: transparent;
+}
+.liner-block.editing .tb-liner[data-is-placeholder="true"] {
+  color: rgba(17,17,17,0.4);
+}
+.liner-block.selected {
+  outline: none !important;
+}
+
+/* ═══════════════════════════════════
+   스크래치 → 캔버스 드롭 가이드 (canvas-scratch-drop.js)
+═══════════════════════════════════ */
+.sp2c-replace-target {
+  outline: 2px solid var(--ui-accent-primary) !important;
+  outline-offset: -3px;
+  box-shadow: 0 0 12px var(--color-selection-glow);
+}
+.sp2c-badge {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ui-accent-primary);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.sp2c-badge-append {
+  top: auto;
+  bottom: 12px;
+}
+.sp2c-insert-indicator {
+  height: 5px;
+  background: var(--ui-accent-primary);
+  border-radius: 3px;
+  flex-shrink: 0;
+  pointer-events: none;
+  margin: 2px 0;
+  position: relative;
+  box-shadow: 0 0 8px var(--color-selection-glow);
+}
+.sp2c-insert-indicator::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: -5px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--ui-accent-primary);
+}
+.sp2c-section-target {
+  outline: 2px dashed var(--ui-accent-primary) !important;
+  outline-offset: -4px;
+}
+
+/* ═══════════════════════════════════
+   ANNOTATION BLOCK (펜툴 Phase 1)
+═══════════════════════════════════ */
+body.pen-mode,
+body.pen-mode #canvas-wrap,
+body.pen-mode #canvas-scaler,
+body.pen-mode .section-block,
+body.pen-mode .section-block * { cursor: crosshair !important; }
+body.pen-mode .annot-label[contenteditable="true"] { cursor: text !important; }
+
+/* HighlightB (선 형광펜) 모드 — pen-mode 와 동일하게 crosshair */
+body.hlb-mode,
+body.hlb-mode #canvas-wrap,
+body.hlb-mode #canvas-scaler,
+body.hlb-mode .section-block,
+body.hlb-mode .section-block * { cursor: crosshair !important; }
+body.hlb-mode .hlb-preview { cursor: crosshair !important; pointer-events: none; }
+
+#fp-pen-btn.active {
+  background: var(--ui-accent-primary);
+  border-color: var(--ui-accent-primary);
+  color: #fff;
+}
+
+.annotation-block {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 50;
+}
+.annot-svg {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%; height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.annot-label {
+  position: absolute;
+  /* 끝점이 라벨의 좌측 모서리 중앙에 붙음 — callout 자연스러운 위치 */
+  transform: translate(0, -50%);
+  padding: 4px 8px;
+  background: #fff;
+  border: 1px solid #1a1a1a;
+  border-radius: 4px;
+  color: #1a1a1a;
+  /* JS 인라인(makeAnnotationBlock) 우선, 인라인 없을 때 fallback — ANNOT_DEFAULTS와 동기 */
+  font-size: 20px;
+  font-family: 'Pretendard', sans-serif;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: text;
+  user-select: none;
+}
+.annot-label[contenteditable="true"] {
+  user-select: text;
+  outline: 1px solid var(--ui-accent-primary);
+  outline-offset: 1px;
+}
+
+/* 펜툴 OFF 상태에서만 드래그 가능 표시 */
+body:not(.pen-mode) .annot-label { cursor: move; }
+body:not(.pen-mode) .annot-label:hover {
+  outline: 1px dashed var(--ui-accent-primary);
+  outline-offset: 1px;
+}
+body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
+
+/* 선택 상태 */
+.annotation-block.selected .annot-label {
+  outline: 1.5px solid var(--ui-accent-primary);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--ui-accent-fill, rgba(45, 111, 232, 0.15));
+}
+.annotation-block.selected .annot-line {
+  stroke-width: 2.5;
+}
+
+/* 핸들 (각 점 드래그) */
+.annot-handle {
+  cursor: move;
+  pointer-events: auto;
+  transition: r 0.1s ease;
+}
+.annot-handle:hover { r: 6; }
+
+.annot-anchor-preview {
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #e74c3c;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 51;
+}
+
+/* ── 우측 패널: 어노테이션 속성 ──
+   디자인 시스템 공용 컴포넌트(.prop-preset-grid / .prop-align-group / .prop-textarea)로 통합.
+   기존 .annot-preset-* / .annot-shape-* / .annot-label-textarea 는 제거됨. */
+
+/* ──────────────────────────────────────────────
+   Badge (정품 인증 마크) — 이스터에그: 섹션명 'badge_' prefix
+   레이아웃: [홀로그램 정사각형(로고/부제)] [제목/본문 2단]
+────────────────────────────────────────────── */
+.badge-hologram-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 40px;
+  padding: 24px;
+}
+
+/* 정사각형 홀로그램 (내부에 로고/부제) — 기본 정적, 메탈릭 입체감 강화 */
+.badge-hologram-square {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  border-radius: 28px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* 메탈릭 베이스 + 레코드판 동심원 결 텍스처 (강화된 multi-layer) */
+  background:
+    /* 1. 미세 동심원 하이라이트 (촘촘) */
+    repeating-radial-gradient(circle at 50% 50%,
+      transparent 0px, transparent 1.2px,
+      rgba(255,255,255,0.22) 1.2px, rgba(255,255,255,0.22) 1.6px),
+    /* 2. 미세 동심원 그루브 (음각) — 살짝 어긋난 phase */
+    repeating-radial-gradient(circle at 50% 50%,
+      transparent 0px, transparent 1.6px,
+      rgba(0,0,0,0.18) 1.6px, rgba(0,0,0,0.18) 2.0px),
+    /* 3. 굵은 동심원 ring (CD 트랙 느낌) — 8px 주기 */
+    repeating-radial-gradient(circle at 50% 50%,
+      transparent 0px, transparent 7px,
+      rgba(255,255,255,0.06) 7px, rgba(255,255,255,0.06) 8px),
+    /* 4. 미색 + 보라/핑크/연두 hint conic 메탈 베이스 (채도 살짝 ↑) */
+    conic-gradient(from 210deg at 50% 50%,
+      #f0e8dc 0deg,      /* 미색 (크림) — 살짝 진해짐 */
+      #ffe8f0 40deg,     /* 핑크 hint */
+      #ccddc0 90deg,     /* 연두 hint */
+      #ebe0f5 140deg,    /* 보라 하이라이트 */
+      #b8acc8 200deg,    /* 미드 실버 보라톤 */
+      #ffffff 250deg,    /* 순백 하이라이트 */
+      #c8b8e0 310deg,    /* 라벤더 그림자 */
+      #f0e8dc 360deg);   /* 미색 (루프) */
+  box-shadow:
+    /* 외부: 깊이감 — 멀티레이어 그림자 */
+    0 14px 32px rgba(0,0,0,0.55),
+    0 4px 10px rgba(0,0,0,0.35),
+    0 1px 3px rgba(0,0,0,0.25),
+    /* 내부: 상단/좌측 하이라이트 + 하단/우측 음각 (입체감 핵심) */
+    inset 0 3px 0 rgba(255,255,255,0.95),     /* 상단 하이라이트 (두꺼움) */
+    inset 3px 0 0 rgba(255,255,255,0.55),     /* 좌측 하이라이트 */
+    inset 0 -3px 0 rgba(0,0,0,0.45),          /* 하단 음각 */
+    inset -2px 0 0 rgba(0,0,0,0.3),           /* 우측 음각 */
+    inset 0 0 0 1px rgba(255,255,255,0.25);   /* 외곽 라인 */
+  overflow: hidden;
+  isolation: isolate;
+  flex-shrink: 0;
+}
+
+/* 메탈릭 광택 레이어 — 비스듬한 빛 반사 (정적) */
+.badge-hologram-square::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    /* 좌상단 메인 광택 */
+    radial-gradient(ellipse 90% 55% at 30% 18%, rgba(255,255,255,0.55), transparent 55%),
+    /* 우하단 보조 광택 */
+    radial-gradient(ellipse 70% 45% at 75% 82%, rgba(255,255,255,0.22), transparent 60%),
+    /* 대각선 메탈 라인 (subtle) */
+    linear-gradient(135deg, transparent 45%, rgba(255,255,255,0.1) 50%, transparent 55%);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 광택 sweep 레이어 — 기본은 정지 위치, 더 크고 부드러운 그라데이션 */
+.badge-hologram-square::after {
+  content: '';
+  position: absolute;
+  top: -10%; left: -150%;
+  width: 100%; height: 120%;
+  background: linear-gradient(110deg,
+    transparent 25%,
+    rgba(255,255,255,0.5) 42%,
+    rgba(255,255,255,1) 50%,
+    rgba(255,255,255,0.5) 58%,
+    transparent 75%);
+  transform: skewX(-22deg);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* 정사각형 안의 로고 텍스트 — 깊은 검정 (음각 약화) */
+.badge-hologram-square .badge-logo {
+  position: relative;
+  z-index: 3;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 900;
+  font-size: 30px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-align: center;
+  color: #000000; /* background-clip 깨질 때 fallback */
+  background: linear-gradient(180deg, #000000 0%, #000000 50%, #0a0a0a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  /* 매우 미세한 emboss — 텍스트 가독성 안 해치는 선 */
+  text-shadow: 0 1px 0 rgba(255,255,255,0.18);
+  outline: none;
+}
+/* 부제 텍스트도 살짝 더 진하게 */
+.badge-hologram-square .badge-logo-sub {
+  color: rgba(20,20,20,0.85) !important;
+}
+.badge-hologram-square .badge-logo-sub {
+  position: relative;
+  z-index: 1;
+  margin-top: 8px;
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  color: rgba(40,40,40,0.75);
+  text-align: center;
+  outline: none;
+}
+
+/* 우측 콘텐츠 영역 (제목 + 본문) */
+.badge-hologram-row .badge-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.badge-hologram-row .badge-title {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+  line-height: 1.2;
+  outline: none;
+}
+.badge-hologram-row .badge-desc {
+  font-family: 'Pretendard', sans-serif;
+  font-weight: 400;
+  font-size: 17px;
+  color: #b0b0b0;
+  line-height: 1.6;
+  outline: none;
+  max-width: 560px;
+}
+
+/* contenteditable focus 가시화 */
+.badge-hologram-row [contenteditable="true"]:focus {
+  box-shadow: 0 0 0 1px rgba(120,170,255,0.5);
+  border-radius: 4px;
+}
+
+/* ── 모양 프리셋 ── */
+.badge-hologram-row.shape-square .badge-hologram-square { border-radius: 28px; }
+.badge-hologram-row.shape-round  .badge-hologram-square { border-radius: 16px; }
+.badge-hologram-row.shape-circle .badge-hologram-square { border-radius: 50%; }
+
+/* zigzag — 펭킹가위로 자른 듯한 톱니 가장자리 (인증서 느낌) */
+.badge-hologram-row.shape-zigzag .badge-hologram-square {
+  border-radius: 0;
+  /* 사방 20단위 톱니 */
+  clip-path: polygon(
+    /* 상단 (좌→우) */
+    0% 4%, 5% 0%, 10% 4%, 15% 0%, 20% 4%, 25% 0%, 30% 4%, 35% 0%, 40% 4%, 45% 0%, 50% 4%, 55% 0%, 60% 4%, 65% 0%, 70% 4%, 75% 0%, 80% 4%, 85% 0%, 90% 4%, 95% 0%, 100% 4%,
+    /* 우측 (상→하) */
+    96% 5%, 100% 10%, 96% 15%, 100% 20%, 96% 25%, 100% 30%, 96% 35%, 100% 40%, 96% 45%, 100% 50%, 96% 55%, 100% 60%, 96% 65%, 100% 70%, 96% 75%, 100% 80%, 96% 85%, 100% 90%, 96% 95%, 100% 96%,
+    /* 하단 (우→좌) */
+    95% 100%, 90% 96%, 85% 100%, 80% 96%, 75% 100%, 70% 96%, 65% 100%, 60% 96%, 55% 100%, 50% 96%, 45% 100%, 40% 96%, 35% 100%, 30% 96%, 25% 100%, 20% 96%, 15% 100%, 10% 96%, 5% 100%, 0% 96%,
+    /* 좌측 (하→상) */
+    4% 95%, 0% 90%, 4% 85%, 0% 80%, 4% 75%, 0% 70%, 4% 65%, 0% 60%, 4% 55%, 0% 50%, 4% 45%, 0% 40%, 4% 35%, 0% 30%, 4% 25%, 0% 20%, 4% 15%, 0% 10%, 4% 5%
+  );
+}
+/* zigzag일 때 box-shadow가 clip-path에 잘리므로 drop-shadow로 보강 */
+.badge-hologram-row.shape-zigzag .badge-hologram-square {
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.4));
+}
+/* zigzag일 때 trace SVG는 보이지 않게 (사각 path와 톱니가 안 맞음 — 추후 개선) */
+.badge-hologram-row.shape-zigzag .badge-trace-svg {
+  display: none;
+}
+
+/* ── 컬러 프리셋 (정사각형 배경 + 광택 톤) ── */
+/* silver (default) — 기본 정의 그대로 사용 */
+.badge-hologram-row.color-gold .badge-hologram-square {
+  background:
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 1.4px, rgba(255,255,255,0.1) 1.4px 1.8px),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 1.8px, rgba(80,40,0,0.08) 1.8px 2.2px),
+    conic-gradient(from 210deg at 50% 50%,
+      #d4a956 0deg, #fff3c2 40deg, #b8821a 90deg,
+      #f0d088 140deg, #a87420 200deg, #ffefa0 250deg,
+      #b88830 310deg, #d4a956 360deg);
+}
+.badge-hologram-row.color-rose .badge-hologram-square {
+  background:
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 1.4px, rgba(255,255,255,0.1) 1.4px 1.8px),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 1.8px, rgba(80,20,30,0.07) 1.8px 2.2px),
+    conic-gradient(from 210deg at 50% 50%,
+      #e0a8a0 0deg, #ffe0d8 40deg, #c88478 90deg,
+      #f0c8c0 140deg, #b07060 200deg, #ffe8e0 250deg,
+      #c08878 310deg, #e0a8a0 360deg);
+}
+.badge-hologram-row.color-pearl .badge-hologram-square {
+  background:
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 1.4px, rgba(255,255,255,0.18) 1.4px 1.8px),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 1.8px, rgba(120,60,150,0.1) 1.8px 2.2px),
+    conic-gradient(from 210deg at 50% 50%,
+      #f0d8f5 0deg, #fff0fa 40deg, #c8b0e5 90deg,
+      #fdd8f0 140deg, #a890c8 200deg, #ffffff 250deg,
+      #d8a8e5 310deg, #f0d8f5 360deg);
+}
+/* Gold 톤일 때 로고 텍스트 색 보정 */
+.badge-hologram-row.color-gold .badge-logo {
+  background: linear-gradient(180deg, #3a2400 0%, #5a3a10 45%, #806020 50%, #3a2400 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.badge-hologram-row.color-rose .badge-logo {
+  background: linear-gradient(180deg, #4a1a18 0%, #6a2828 45%, #88403a 50%, #4a1a18 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── GIF 효과 프리셋 ── */
+/* none (default) — 애니메이션 없음 */
+
+/* sweep — 좌→우 광택 sweep (빠르고 연속) */
+.badge-hologram-row.anim-sweep .badge-hologram-square::after {
+  animation: badge-shine 1.1s linear infinite;
+}
+/* rotate — conic-gradient 회전 (메탈 표면이 도는 듯) */
+.badge-hologram-row.anim-rotate .badge-hologram-square {
+  animation: badge-spin 6s linear infinite;
+}
+/* pulse — 전체 밝기 펄스 */
+.badge-hologram-row.anim-pulse .badge-hologram-square {
+  animation: badge-pulse 1.6s ease-in-out infinite;
+}
+/* trace SVG — 항상 표시(데코 테두리 2겹 + trace path 1개를 함께 담음) */
+.badge-trace-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+}
+.badge-trace-svg rect { fill: none; vector-effect: non-scaling-stroke; }
+
+/* 데코 테두리 — 굵은선(외곽) + 얇은선(내부) 인증서 느낌 */
+.badge-trace-svg rect.deco-thick {
+  stroke: rgba(0,0,0,0.5);
+  stroke-width: 1.8;
+}
+.badge-trace-svg rect.deco-thin {
+  stroke: rgba(0,0,0,0.35);
+  stroke-width: 0.7;
+}
+
+/* trace path — 기본 안 보이고 anim-trace 시만 빛 활성 */
+.badge-trace-svg rect.trace-path {
+  stroke: rgba(255,255,255,0);
+  stroke-width: 2.4;
+  filter:
+    drop-shadow(0 0 3px rgba(255,255,255,1))
+    drop-shadow(0 0 8px rgba(255,255,255,0.85))
+    drop-shadow(0 0 18px rgba(200,220,255,0.7))
+    drop-shadow(0 0 28px rgba(180,210,255,0.45));
+}
+.badge-hologram-row.anim-trace .badge-trace-svg rect.trace-path {
+  stroke: rgba(255,255,255,1);
+  stroke-linecap: round;
+  /* 단일 dash — 점선처럼 안 보이고 하나의 빛 흐름 */
+  stroke-dasharray: 18 82;
+  animation: badge-trace-stroke 0.85s linear infinite;
+}
+/* trace 활성 시 박스 밖으로 글로우 빛이 새어나가도록 overflow 해제 */
+.badge-hologram-row.anim-trace .badge-hologram-square {
+  overflow: visible;
+}
+
+@keyframes badge-shine {
+  0%   { left: -150%; }
+  100% { left: 150%; }
+}
+@keyframes badge-spin {
+  from { filter: hue-rotate(0deg); }
+  to   { filter: hue-rotate(360deg); }
+}
+@keyframes badge-pulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.12); }
+}
+
+/* 데코 테두리 on/off (체크박스 토글용) */
+.badge-hologram-row.no-deco-thick .badge-trace-svg rect.deco-thick { display: none; }
+.badge-hologram-row.no-deco-thin  .badge-trace-svg rect.deco-thin  { display: none; }
+@keyframes badge-trace-stroke {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -100; }
+}
+
+/* ── 정렬 (위치 조절) ── */
+.section-inner.badge-align-left   { justify-content: flex-start !important; }
+.section-inner.badge-align-center { justify-content: center !important; }
+.section-inner.badge-align-right  { justify-content: flex-end !important; }
+
+/* ════════════════════════════════════════════════════════════
+   텍스트 효과 이스터에그 (영화 포스터 5종)
+   트리거: 레이어명 '**text_' prefix (badge 이스터에그 패턴 동일)
+   변수: --tfx-color (메인컬러), --tfx-intensity (0~1), --tfx-grain (0~1)
+   ════════════════════════════════════════════════════════════ */
+.text-effect {
+  position: relative;
+  --tfx-color: #ff2d6e;
+  --tfx-intensity: 0.7;
+  --tfx-grain: 0.4;
+}
+
+/* 1. Neon Glow — 80s Stranger Things/Tron 풍 */
+.text-effect.tfx-neon {
+  color: var(--tfx-color) !important;
+  text-shadow:
+    0 0 calc(2px * var(--tfx-intensity)) #fff,
+    0 0 calc(6px * var(--tfx-intensity)) var(--tfx-color),
+    0 0 calc(14px * var(--tfx-intensity)) var(--tfx-color),
+    0 0 calc(28px * var(--tfx-intensity)) var(--tfx-color),
+    calc(1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(0,255,255,0.6),
+    calc(-1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(255,0,128,0.6);
+}
+
+/* 2. Metallic — silver/gold linear-gradient + 입체감 */
+.text-effect.tfx-metallic {
+  background: linear-gradient(180deg,
+    var(--tfx-color) 0%,
+    #ffffff 35%,
+    var(--tfx-color) 50%,
+    #2a2a2a 65%,
+    var(--tfx-color) 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow:
+    0 calc(1px * var(--tfx-intensity)) 0 rgba(255,255,255,0.4),
+    0 calc(2px * var(--tfx-intensity)) calc(4px * var(--tfx-intensity)) rgba(0,0,0,0.6);
+  filter: drop-shadow(0 calc(2px * var(--tfx-intensity)) calc(3px * var(--tfx-intensity)) rgba(0,0,0,0.5));
+}
+
+/* 3. Grunge Ink — 영화 포스터 distress (NEW WORLD / 탈출 / 국제시장 컨셉)
+   단색 글자 + 거친 윤곽 + 글자 표면 균열/스크래치. heavy weight 추천. */
+/* Grunge — 글자 모양 안에 texture 이미지가 색상 대신 표시됨 (background-clip: text)
+   슬라이더 없음. 텍스처 select 1개만으로 단순화.
+   은은한 drop-shadow로 글자가 떠 보이는 영화 포스터 느낌 */
+.text-effect.tfx-grunge {
+  background-image: var(--tfx-texture, url('../assets/textures/grunge-dots.png')) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  -webkit-background-clip: text !important;
+          background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.01em;
+  filter:
+    drop-shadow(0 2px 4px rgba(0,0,0,0.35))
+    drop-shadow(0 6px 14px rgba(0,0,0,0.25))
+    drop-shadow(0 0 18px rgba(0,0,0,0.18));
+}
+.text-effect.tfx-grunge.tfx-tex-dots         { --tfx-texture: url('../assets/textures/grunge-dots.png'); }
+.text-effect.tfx-grunge.tfx-tex-scratches    { --tfx-texture: url('../assets/textures/grunge-scratches.png'); }
+.text-effect.tfx-grunge.tfx-tex-paint        { --tfx-texture: url('../assets/textures/grunge-paint.png'); }
+.text-effect.tfx-grunge.tfx-tex-001          { --tfx-texture: url('../assets/textures/texture-001.png'); }
+.text-effect.tfx-grunge.tfx-tex-001-expand   { --tfx-texture: url('../assets/textures/texture-001-expand.png'); }
+.text-effect.tfx-grunge.tfx-tex-002          { --tfx-texture: url('../assets/textures/texture-002.png'); }
+.text-effect.tfx-grunge.tfx-tex-pamyo        { --tfx-texture: url('../assets/textures/texture-003-pamyo.png'); }
+.text-effect.tfx-grunge.tfx-tex-004          { --tfx-texture: url('../assets/textures/texture-004.png'); }
+.text-effect.tfx-grunge.tfx-tex-005          { --tfx-texture: url('../assets/textures/texture-005.png'); }
+.text-effect.tfx-grunge.tfx-tex-black-inv    { --tfx-texture: url('../assets/textures/texture-black-001-inv.png'); }
+
+/* 4. Vintage — 세피아 그라데이션 + 스크래치 */
+.text-effect.tfx-vintage {
+  background: linear-gradient(180deg,
+    #d4a574 0%,
+    var(--tfx-color) 50%,
+    #5c3a1e 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: sepia(calc(0.4 * var(--tfx-intensity))) contrast(calc(1 + 0.2 * var(--tfx-intensity)));
+  position: relative;
+}
+.text-effect.tfx-vintage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(95deg, transparent 0, transparent 3px, rgba(0,0,0,calc(0.15 * var(--tfx-grain))) 3px, rgba(0,0,0,calc(0.15 * var(--tfx-grain))) 4px),
+    repeating-linear-gradient(85deg, transparent 0, transparent 7px, rgba(255,255,255,calc(0.08 * var(--tfx-grain))) 7px, rgba(255,255,255,calc(0.08 * var(--tfx-grain))) 8px);
+  mix-blend-mode: overlay;
+}
+
+/* 5. Cinematic — 위→아래 그라데이션 + grain noise (모던 영화) */
+.text-effect.tfx-cinematic {
+  background: linear-gradient(180deg,
+    #ffffff 0%,
+    var(--tfx-color) 60%,
+    #1a1a1a 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: 0 calc(2px * var(--tfx-intensity)) calc(8px * var(--tfx-intensity)) rgba(0,0,0,0.5);
+  position: relative;
+}
+.text-effect.tfx-cinematic::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(0,0,0,calc(0.4 * var(--tfx-grain))) 100%),
+    repeating-radial-gradient(circle at 33% 47%, rgba(255,255,255,calc(0.05 * var(--tfx-grain))) 0px, transparent 1px, transparent 3px);
+  mix-blend-mode: overlay;
+}
+
+/* ──────────────────────────────────────────────
+   형광펜 sticker(highlight/highlightB)는 mix-blend-mode multiply로
+   z-index 무관하게 텍스트/콘텐츠 블록 위에 있어도 자연스럽게 깔리는 효과.
+   진짜 형광펜처럼 배경 색이 아래 콘텐츠와 혼합됨.
+────────────────────────────────────────────── */
+.sticker-block[data-shape="highlight"],
+.sticker-block[data-shape="highlightB"] {
+  mix-blend-mode: multiply;
+}
+
+/* ──────────────────────────────────────────────
+   Gradient Block — sticker 패턴 플로팅 오버레이
+   섹션 위에 absolute로 떠있는 그라데이션 페이드.
+   selected 시 보라색 outline (sticker와 일관성).
+────────────────────────────────────────────── */
+.gradient-block {
+  /* inline style이 cssText로 한방에 설정됨 (position/left/top/width/height/background/z-index 등)
+     여기서는 selected/hover만 보강 */
+  box-sizing: border-box;
+}
+.gradient-block.selected {
+  outline: var(--sel-outline-w) solid var(--ui-sel-overlay, #9966ff);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  /* mix-blend 이슈는 없지만 일관성 위해 isolation */
+  isolation: isolate;
+}
+
+/* ──────────────────────────────────────────────
+   텍스트 스티커 — 캔버스에 자유 배치하는 텍스트
+   block 자체에 폰트/사이즈/컬러/그림자 inline style 적용.
+   .sticker-text 는 편집 시 contenteditable 진입점 (user-select 활성화).
+────────────────────────────────────────────── */
+.sticker-block[data-shape="text"] .sticker-text[contenteditable="true"] {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+  outline: var(--sel-outline-w) dashed var(--ui-sel-overlay, #9966ff);
+  outline-offset: var(--sel-outline-w);
+}
+
+/* ──────────────────────────────────────────────
+   Sticker 선택 표시 — 일반 블록과 동일 규칙, 색만 보라색
+   (icon-circle/table/graph/card/divider와 일관성)
+   highlightB(선)는 아웃라인 없이 끝점 핸들만 (JS로 동적 inject)
+────────────────────────────────────────────── */
+.sticker-block.selected {
+  outline: var(--sel-outline-w) solid var(--ui-sel-overlay, #9966ff);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  /* mix-blend-mode 적용된 highlight/highlightB는 outline이 blend되어 안 보일 수 있음 → isolate */
+  isolation: isolate;
+}
+/* highlight(사각형)에서도 outline이 multiply blend로 안 보이지 않도록 :after로 별도 그림 */
+.sticker-block.selected[data-shape="highlight"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  outline: var(--sel-outline-w) solid var(--ui-sel-overlay, #9966ff);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+  mix-blend-mode: normal;
+  z-index: 99;
+}
+.sticker-block.selected[data-shape="highlight"] {
+  outline: none;
+}
+/* highlightB(선)는 bbox outline 없음 — 핸들만 표시 */
+.sticker-block.selected[data-shape="highlightB"] {
+  outline: none;
+}
+/* highlightB 양 끝점 핸들 (JS에서 .hlb-handle 추가) */
+.hlb-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
+  background: #ffffff;
+  border: 1.5px solid var(--ui-sel-overlay, #9966ff);
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 100;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.hlb-handle:hover { background: #f0e8ff; }
+
+/* ──────────────────────────────────────────────
+   Sticker 4모서리 리사이즈 핸들 (JS에서 .sticker-corner-handle 추가)
+   .shape-handle / .gradient-corner-handle과 동일하게 --inv-zoom calc()로
+   캔버스 배율 무관하게 화면상 7px 고정 — 색만 보라색
+   highlightB(선)는 이 핸들 대신 .hlb-handle 사용
+────────────────────────────────────────────── */
+.sticker-corner-handle {
+  position: absolute;
+  width:  calc(7px * var(--inv-zoom, 1));
+  height: calc(7px * var(--inv-zoom, 1));
+  background: #fff;
+  border: 1px solid var(--ui-sel-overlay, #9966ff);
+  border-radius: 1px;
+  pointer-events: auto;
+  z-index: 100;
+  box-sizing: border-box;
+  /* mix-blend-mode 영향 차단 */
+  mix-blend-mode: normal;
+  isolation: isolate;
+}
+/* --inv-zoom calc() 패턴 — 핸들이 모서리에서 3.5px씩 바깥쪽으로 (정사각형 7px의 절반), 줌 무관 고정 */
+.sticker-corner-handle[data-corner="tl"] { top:    calc(-3.5px * var(--inv-zoom, 1)); left:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+.sticker-corner-handle[data-corner="tr"] { top:    calc(-3.5px * var(--inv-zoom, 1)); right: calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.sticker-corner-handle[data-corner="bl"] { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.sticker-corner-handle[data-corner="br"] { bottom: calc(-3.5px * var(--inv-zoom, 1)); right: calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+.sticker-corner-handle:hover { background: #f0e8ff; }
+
+/* ──────────────────────────────────────────────
+   Gradient 4모서리 리사이즈 핸들 (JS에서 .gradient-corner-handle 추가)
+   프레임(.ss-resize-handle)·shape-handle과 동일하게 --inv-zoom calc()로
+   캔버스 배율 무관하게 화면상 7px 고정 — 색만 보라색
+────────────────────────────────────────────── */
+.gradient-corner-handle {
+  position: absolute;
+  width:  calc(7px * var(--inv-zoom, 1));
+  height: calc(7px * var(--inv-zoom, 1));
+  background: #fff;
+  border: 1px solid var(--ui-sel-overlay, #9966ff);
+  border-radius: 1px;
+  pointer-events: auto;
+  z-index: 100;
+  box-sizing: border-box;
+  mix-blend-mode: normal;
+  isolation: isolate;
+}
+.gradient-corner-handle[data-corner="tl"] { top:    calc(-3.5px * var(--inv-zoom, 1)); left:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+.gradient-corner-handle[data-corner="tr"] { top:    calc(-3.5px * var(--inv-zoom, 1)); right: calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.gradient-corner-handle[data-corner="bl"] { bottom: calc(-3.5px * var(--inv-zoom, 1)); left:  calc(-3.5px * var(--inv-zoom, 1)); cursor: nesw-resize; }
+.gradient-corner-handle[data-corner="br"] { bottom: calc(-3.5px * var(--inv-zoom, 1)); right: calc(-3.5px * var(--inv-zoom, 1)); cursor: nwse-resize; }
+.gradient-corner-handle:hover { background: #f0e8ff; }
+
+/* HighlightB SVG 라인 — 회전 svg 컨테이너 (line/wavy/marker 공통) */
+.sticker-hlb-svg {
+  display: block;
+  /* mix-blend-mode은 부모 .sticker-block[data-shape="highlightB"]에 이미 적용됨 */
+}
+.sticker-hlb-line {
+  /* path 자체 */
+  vector-effect: non-scaling-stroke;
+}

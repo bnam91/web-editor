@@ -1,0 +1,137 @@
+{
+  "area": "left-panel",
+  "version": "3.1",
+  "method": "static",
+  "scope": {
+    "selectors": [".layer-*", ".file-page-*", ".proj-tab-*", ".side-*"],
+    "files": ["css/editor-panels.css", "css/editor-base.css (탭 부분)"],
+    "note": ".side-* 셀렉터는 코드베이스에 존재하지 않음(grep 0건). 좌측패널 컨테이너는 .panel-header/.panel-body + #file-panel-body로 구현."
+  },
+  "signature": {
+    "component": {
+      "button": {
+        "radius": "2px (layer-variation-* 계열) / 3px (proj-tab-close·layer-eye·ungroup 아이콘) / 5px (tab-add-btn·tb-btn)",
+        "height": "행 아이템 28px (layer-item·layer-section-header·proj-tab·tb-btn) / 아이콘버튼 15~22px (proj-tab-close 15, file-page-del 18, ungroup 20, tab-add-btn 22)",
+        "border": "주로 none(아이콘버튼) 또는 1px solid raw-hex(variation 버튼). 토큰 border 미사용이 다수"
+      },
+      "primaryBtn": {
+        "fill": "var(--ui-accent-primary) #2d6fe8",
+        "text": "#fff",
+        "where": "tb-btn.active / ck-progress-fill / file-page-add 등 — 좌측패널엔 전용 primary CTA 거의 없음(액션은 작은 아이콘버튼)"
+      },
+      "dangerBtn": {
+        "style": "outline (transparent bg + 1px solid raw-hex border, hover 시 어두운 bg fill)",
+        "color": "border #5a3a3a / text #c87878 / hover bg #3a1a1a, text #ff9090 — 전부 raw hex, --ui-danger 미사용",
+        "exception": "file-page-del 은 hover 시 fill #c0392b + #fff (outline 아님, raw hex)",
+        "where": "layer-variation-del / layer-variant-del / file-page-del"
+      },
+      "input": {
+        "height": "24px (tpl-name-input) / inline-edit는 height 무지정(.editing 배경+padding만)",
+        "radius": "3px (인라인 .editing) / 4px (tpl-name-input) / 5px (ck-text-input)",
+        "border": "1px solid var(--ui-border), focus 시 var(--ui-accent-primary)",
+        "bg": "var(--ui-bg-app) 또는 var(--ui-bg-hover)"
+      }
+    },
+    "color": {
+      "tokenSystem": "--ui-* (editor-base.css 실사용 체계). --color-*/--bg-*/--text-* semantic 토큰은 좌측패널에서 사실상 미사용",
+      "bg": ["--ui-bg-base #1e1e1e", "--ui-bg-elevated #242424", "--ui-bg-card #252525", "--ui-bg-input #2a2a2a", "--ui-bg-hover #2e2e2e"],
+      "text": ["--ui-text #e0e0e0", "--ui-text-sub #aaaaaa", "--ui-text-muted #9e9e9e", "--ui-text-dim #969696", "단 패널 내 인라인 리터럴 #888/#bbb/#ccc/#ddd/#b0b0b0 다수 혼용"],
+      "accent": ["--ui-accent-primary #2d6fe8 (활성/선택 기준)", "--ui-accent #7cb8ff (edit/branch)", "선택 활성 텍스트는 토큰 아닌 raw #6fa3f7 (4회)"],
+      "rawHex": ["#6fa3f7 (active 텍스트 4회)", "rgba(45,111,232,*) (선택 bg/border 11회 — --ui-accent-primary 우회)", "#5a8ab8 #3a5a3a #5a3a3a #c87878 #ff9090 (variation 버튼 outline 색)", "#141e2e #1f3a60 #1a3a1a #3a1a1a (variation 버튼 bg)", "#c0392b (del fill)", "#9966ff #c084fc #f59e0b #e11d48 (체크리스트/배지)", "#161616 #141414 (패널 바 배경)", "file-page-label 5색 #e07b5a/#5aaa7b/#6c8eff/#c97be0/#e0b84a (라벨 카테고리색 — 의미색이라 일부 의도)"]
+    },
+    "spacing": {
+      "sectionPadding": "패널헤더 0 12px(h30) / panel-body 6px / file-page-item 3px 6px / layer-section-header 0 8px(h28)",
+      "rowGap": "6px (가장 흔함, gap 8/6/4 각 13회 삼분) — 행 사이는 margin-bottom 4px(layer-section) / 2px(layer-row-group)",
+      "labelWidth": "40px (file-page-label 고정폭)",
+      "itemMargin": "layer-section margin-bottom 4px / layer-variation-group margin 3px 0 / file-page-add margin 2px 8px 0",
+      "gridNote": "gap·radius 모두 4px 그리드 비배수(3·5·7px) 군집 존재 — 알려진 점진이관 부채"
+    },
+    "states": {
+      "hover": "bg 변경이 표준 — var(--ui-bg-input)/var(--ui-bg-hover)/var(--ui-bg-card)로 전환 (90회). 아이콘버튼은 display:none→flex 노출 + bg fill",
+      "focus": "focus-visible 0건. input류는 :focus 시 border-color → --ui-accent-primary (border 변경, ring 없음). 인라인 편집/탭이름은 outline:none 후 .editing bg로 대체",
+      "disabled": "opacity 0.3~0.7 + cursor default/not-allowed (2건: layer-variation-add 0.3, ai-fill-run 0.7) — 표현 불일치"
+    }
+  },
+  "violations": [
+    {
+      "id": "LP-COL-01",
+      "dimension": "color",
+      "severity": "major",
+      "where": "editor-panels.css: .layer-variation-* / .layer-variant-del / .file-page-del",
+      "what": "위험(삭제/제거) 버튼이 --ui-danger 토큰을 쓰지 않고 raw hex outline(#5a3a3a/#c87878/#ff9090)으로 직접 구현. del 하나는 fill #c0392b. danger 표현이 토큰·스타일 모두 비표준",
+      "actual": "border:1px solid #5a3a3a; color:#c87878 (outline) / file-page-del hover bg #c0392b",
+      "baseline": "--ui-danger #e06c6c (또는 --color-danger 계열) 사용, danger 스타일 통일"
+    },
+    {
+      "id": "LP-COL-02",
+      "dimension": "color",
+      "severity": "major",
+      "where": "editor-panels.css: .file-page-item.active / .layer-item.active / .layer-row-header.active / .layer-section-header.active",
+      "what": "선택/활성 상태 bg·border가 --ui-accent-primary 대신 rgba(45,111,232,*) raw 리터럴 11회 + 활성 텍스트 raw #6fa3f7 4회. 토큰 우회 군집",
+      "actual": "background: rgba(45,111,232,0.15); border-left: 2px solid rgba(45,111,232,0.4); color: #6fa3f7",
+      "baseline": "--ui-accent-primary #2d6fe8 (또는 --color-selection 계열 토큰)"
+    },
+    {
+      "id": "LP-COL-03",
+      "dimension": "color",
+      "severity": "minor",
+      "where": "editor-panels.css: .layer-section-name #ccc, .layer-item-name #b0b0b0, .file-page-name #bbb, .panel-header #888",
+      "what": "텍스트 색을 --ui-text/--ui-text-sub 토큰 대신 raw hex(#ccc/#b0b0b0/#bbb/#888)로 직접 지정 — 텍스트 토큰 우회 다발",
+      "actual": "color: #ccc / #b0b0b0 / #bbb / #888",
+      "baseline": "--ui-text #e0e0e0 / --ui-text-sub #aaaaaa / --ui-text-muted #9e9e9e"
+    },
+    {
+      "id": "LP-CSS-04",
+      "dimension": "component",
+      "severity": "minor",
+      "where": "editor-panels.css:561 .tpl-edit-overwrite:hover",
+      "what": "구문 깨진 값 — var(--ui-border)322 (토큰 뒤에 322가 붙어 무효 선언). hover 배경이 적용 안 됨",
+      "actual": "background: var(--ui-border)322;",
+      "baseline": "유효한 토큰/hex (예: var(--ui-bg-hover))"
+    },
+    {
+      "id": "LP-CMP-05",
+      "dimension": "component",
+      "severity": "minor",
+      "where": "editor-panels.css: button radius 2/3/5px, editor-base.css proj-tab 6px",
+      "what": "버튼/아이콘 radius가 2·3·5·6px로 분산 — radius 스케일(4/6/10)과 어긋남. variation 버튼 2px, 아이콘 3px, tab-add 5px, proj-tab 6px",
+      "actual": "border-radius: 2px / 3px / 5px / 6px 혼재",
+      "baseline": "--radius-sm 4px / --radius-md 6px"
+    },
+    {
+      "id": "LP-STA-06",
+      "dimension": "states",
+      "severity": "minor",
+      "where": "editor-panels.css: 전 영역 (focus-visible 0건, :focus 11건)",
+      "what": "키보드 focus-visible 미사용. input은 border-color 변경만, 클릭형 행/아이콘버튼(layer-item, file-page-item 등)은 focus 표시 자체가 없어 키보드 내비 불가시",
+      "actual": "focus-visible: 0 / 행 아이템 focus 스타일 없음",
+      "baseline": ":focus-visible 대체 링 또는 가시적 focus 표시"
+    },
+    {
+      "id": "LP-STA-07",
+      "dimension": "states",
+      "severity": "nit",
+      "where": "editor-panels.css: .layer-variation-add:disabled(0.3) vs .ai-fill-panel-run:disabled(0.7)",
+      "what": "disabled opacity 값 불일치 (0.3 vs 0.7)",
+      "actual": "opacity: 0.3 / opacity: 0.7",
+      "baseline": "disabled opacity 단일값 통일"
+    },
+    {
+      "id": "LP-SPC-08",
+      "dimension": "spacing",
+      "severity": "nit",
+      "where": "editor-panels.css: gap 3/5/7/9px, padding 1px 5px / 0 7px / 3px 6px 등",
+      "what": "4px 그리드 비배수(3·5·7·9px) gap/padding 군집 — 알려진 점진이관 부채 범위. 개별 버그 아닌 군집 1건으로 보고",
+      "actual": "gap: 5px(7회)/7px(4회)/3px/9px; padding 1px 5px(7회)",
+      "baseline": "--space-* (2/4/8/12/16) 4px 그리드"
+    }
+  ],
+  "crossAreaFlags": [
+    "danger 버튼이 좌측패널은 outline(transparent+1px raw-hex border) 스타일 — 타영역(prop-panels/topbar)은 --ui-danger fill일 가능성 높음. 결산자 비교 필요",
+    "선택/활성 색을 좌측패널은 rgba(45,111,232,*) raw 리터럴로 우회 — 타영역이 --ui-accent-primary 토큰을 쓰면 같은 파랑이라도 토큰화 수준 불일치",
+    "활성 텍스트 색 #6fa3f7 (좌측패널 고유) vs 타영역 활성 텍스트 토큰값 다를 수 있음",
+    "버튼 radius가 좌측패널은 2px(variation)~5px 소형 — 타영역 버튼 radius(4/6)와 다를 듯",
+    "행 아이템 height 28px 는 proj-tab/tb-btn과 일치 — 이 28px가 앱 전역 행 기준인지 타영역 대조 권장",
+    "focus-visible 0건은 좌측패널만의 문제 아닐 가능성 — 전 영역 공통이면 a11y 차원으로 승격"
+  ]
+}

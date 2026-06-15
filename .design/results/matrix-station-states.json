@@ -1,0 +1,239 @@
+{
+  "station": "D-states",
+  "role": "정류장 결산자 — signature.states 가로 비교 (정적 종합, 수정 금지)",
+  "generatedAt": "2026-06-11",
+  "areasCompared": 13,
+  "areas": [
+    "left-panel", "prop-panel", "canvas-block", "pm-panel", "assets-ai",
+    "toolbar", "modals", "pickers", "design-system", "graph",
+    "toast", "template-browser", "home-pages"
+  ],
+  "summary": {
+    "focus_visible_holders": ["pickers"],
+    "focus_visible_holders_count": 1,
+    "focus_visible_missing": [
+      "left-panel", "prop-panel", "canvas-block", "pm-panel", "assets-ai",
+      "toolbar", "modals", "design-system", "graph", "template-browser", "home-pages", "toast"
+    ],
+    "focus_visible_missing_count": 12,
+    "focus_visible_holders_note": "pickers(color-picker.css)만 focus-visible 보유 — .goya-cp-tab/headbtn/dropper/format-trigger:focus-visible → outline 1px accent offset -1px. 나머지 12영역 focus-visible 룰 0건(toast는 인터랙티브 타깃 미미하나 명시 룰 0건이므로 부재 집계).",
+    "disabled_opacity_distinct_values": [0.15, 0.3, 0.35, 0.4, 0.5, 0.55, 0.6, 0.7],
+    "disabled_opacity_distinct_count": 8,
+    "disabled_mechanisms": ["opacity 감쇠", "bg/색 교체(--ui-border / --ui-border-strong / #1f3a6e)", "cursor not-allowed(공통 보조)"],
+    "disabled_mechanism_count": 2,
+    "hover_mechanism_distinct_count": 5,
+    "hover_mechanisms": [
+      "bg 전환(--ui-bg-hover / --ui-bg-input / --ui-bg-card / solid accent fill)",
+      "border-color 전환(--ui-accent-primary 등)",
+      "opacity 감쇠(0.85)",
+      "raw hex 색 승격(#3a7ff5 / #3d7ff8 / #e06060 등)",
+      "display none→flex(아이콘버튼 노출) + scale(핸들 1.4)"
+    ],
+    "active_color_tokenization": "이원화 — 일부 영역 토큰(var(--ui-accent-primary)), 다수 영역 raw 리터럴(rgba(45,111,232,*) / #2d6fe8 / #6fa3f7 / #1592fe / #6b9eff / #6cf). 전역 --ui-accent-primary alpha/hover 변형 토큰 미정착."
+  },
+  "comparisonTable": [
+    {
+      "area": "left-panel",
+      "focus_visible": false,
+      "focus_mechanism": "input :focus → border-color --ui-accent-primary (ring 없음) / 인라인편집 outline:none 후 .editing bg",
+      "disabled_opacity": [0.3, 0.7],
+      "disabled_mechanism": "opacity + cursor (layer-variation-add 0.3, ai-fill-run 0.7) — 영역 내 불일치",
+      "hover_mechanism": "bg 전환(표준) + 아이콘버튼 display none→flex",
+      "active_color_token": "raw rgba(45,111,232,*) + 활성텍스트 #6fa3f7 raw",
+      "danger_style": "outline (transparent + 1px raw-hex #5a3a3a border)"
+    },
+    {
+      "area": "prop-panel",
+      "focus_visible": false,
+      "focus_mechanism": ":focus만 (전 패널), focus-visible 0건",
+      "disabled_opacity": [0.35],
+      "disabled_mechanism": "opacity 감쇠 vs 색 교체 2종 혼재 (prop-btn opacity0.35 / prop-export-btn bg --ui-border-strong + #888)",
+      "hover_mechanism": "bg/border 전환 + raw hex hover(#3d7ff8)",
+      "active_color_token": "#2d6fe8 raw (== --ui-accent-primary)",
+      "danger_style": "raw hex full (#c0392b/#e06060 + border #6b2e2e + hover bg #2a1818)"
+    },
+    {
+      "area": "canvas-block",
+      "focus_visible": false,
+      "focus_mechanism": "card-input focus/focus-visible 미정의 (없음)",
+      "disabled_opacity": [],
+      "disabled_mechanism": "명시 disabled 상태 없음",
+      "hover_mechanism": "핸들 종류 간 불일치 — radius 핸들만 :hover scale 1.4, resize/overlay 핸들 hover 무",
+      "active_color_token": "--sel-color (핸들), 제거버튼 color:var(--ui-danger) 토큰",
+      "danger_style": "toned (.cvb-card-btn-sm-del color:var(--ui-danger) 토큰만) — 토큰화/위생적"
+    },
+    {
+      "area": "pm-panel",
+      "focus_visible": false,
+      "focus_mechanism": "focus-visible 셀렉터 0개 (.cpmt-btn 등 전부 미정의)",
+      "disabled_opacity": [0.5, 0.55, 0.6],
+      "disabled_mechanism": "opacity 3종(cpm-input 0.6 / primary 0.6 #1f3a6e bg / cpm-pick-btn 0.55) — 영역 내 3값 불일치 (DSN-mpm-04)",
+      "hover_mechanism": "bg 전환 + !important 3개로 fp-btn 호스트 override",
+      "active_color_token": "#2d6fe8 raw(primary) + Claude-blue #6b9eff 고유색(15회)",
+      "danger_style": "n/a (primary 중심)"
+    },
+    {
+      "area": "assets-ai",
+      "focus_visible": false,
+      "focus_mechanism": ":focus-visible 전무 (input/textarea :focus→border accent 1건뿐, focus-visible 0건)",
+      "disabled_opacity": [0.3, 0.4],
+      "disabled_mechanism": "opacity 2종(import-footer btn 0.4 / aig-count-step 0.3) + not-allowed — 불일치 (AAI-04)",
+      "hover_mechanism": "bg 전환 + 셀 hover 2variant + 드롭존 accent 2variant",
+      "active_color_token": "accent-primary 폴백 #6cf(청록) — 타영역 #2d6fe8과 hue 충돌",
+      "danger_style": "n/a (보라 #a855f7 팔레트 고유)"
+    },
+    {
+      "area": "toolbar",
+      "focus_visible": false,
+      "focus_mechanism": ":focus-visible 룰 0건 (tb-btn/st-btn/home-btn/tab-add-btn 전부, MTX-toolbar-01)",
+      "disabled_opacity": [0.35],
+      "disabled_mechanism": "opacity 0.35 (has-commit 없을 때)",
+      "hover_mechanism": "bg --ui-bg-hover + border transparent→strong",
+      "active_color_token": "tb-btn.active solid accent 채움 / saved #4ecb7a raw (=--color-saved 중복)",
+      "danger_style": "n/a"
+    },
+    {
+      "area": "modals",
+      "focus_visible": false,
+      "focus_mechanism": ":focus-visible 룰 전무 (모달 전 인터랙티브 요소, MOD-2 high)",
+      "disabled_opacity": [0.5],
+      "disabled_mechanism": "혼재 — settings-api-test opacity0.5+not-allowed / anim-export bg --ui-border / prop-export bg --ui-border-strong+#888 (opacity vs bg교체, bg도 2종)",
+      "hover_mechanism": "raw hex hover(#3d7ff8) + bg 전환",
+      "active_color_token": "semantic raw 산재 #5bc77c/#ff6b6b/#ffb86b + toast #4caf50/#ef5350",
+      "danger_style": "raw semantic hex (#ff6b6b 등)"
+    },
+    {
+      "area": "pickers",
+      "focus_visible": true,
+      "focus_mechanism": "★보유(예외) — focus-visible → outline 1px accent offset -1px (goya-cp-tab/headbtn/dropper/format-trigger) + value-grid focus-within",
+      "disabled_opacity": [0.35],
+      "disabled_mechanism": "dropper[disabled] opacity 0.35 (prop-panel과 동일 감쇠 패턴 — 일관)",
+      "hover_mechanism": "bg 전환 + image-zone:hover",
+      "active_color_token": "focus는 --ui-accent-primary(#2d6fe8) 토큰 / grad-thumb #1592fe raw — 한 컴포넌트에 accent 2계열 공존",
+      "danger_style": "n/a"
+    },
+    {
+      "area": "design-system",
+      "focus_visible": false,
+      "focus_mechanism": ".ds-* 전 컨트롤 :focus-visible 0건 (MDS-03 major), :focus border-color만 부분 적용",
+      "disabled_opacity": [0.15],
+      "disabled_mechanism": "disabled 전무(Apply/Reset 항상 활성) — opacity 0.15는 비활성 시각 아닌 보조값",
+      "hover_mechanism": "3방식 혼재 — opacity 0.85 감쇠 / border+text 회색승격 / accent 승격 (MDS-05)",
+      "active_color_token": "color 토큰 참조(raw hex 사실상 0) — 13영역 중 토큰화 최우수",
+      "danger_style": "colorvar-del hover가 danger-red 아닌 accent-blue로 우회 (--ui-danger 부재)"
+    },
+    {
+      "area": "graph",
+      "focus_visible": false,
+      "focus_mechanism": "grb-data-* 입력/삭제 focus-visible 미정의 (입력은 :focus border만)",
+      "disabled_opacity": [],
+      "disabled_mechanism": "명시 disabled 없음",
+      "hover_mechanism": "공용 .prop-* 베이스 hover 상속 + data-del hover raw #e06060",
+      "active_color_token": "var(--ui-accent-primary) 토큰화 OK (입력 focus border) — 단 raw #ddd 텍스트",
+      "danger_style": "data-del hover raw #e06060 (→--ui-danger 권장)"
+    },
+    {
+      "area": "toast",
+      "focus_visible": false,
+      "focus_mechanism": "n/a — 인터랙티브 타깃 없음(비차단 알림), focus-visible 룰 0건",
+      "disabled_opacity": [],
+      "disabled_mechanism": "n/a",
+      "hover_mechanism": "n/a (호버 없음)",
+      "active_color_token": "상태색 미사용 — --ui-success/--color-success 양쪽 있으나 settings-toast는 raw #4caf50/#ef5350 (3중 분기)",
+      "danger_style": "settings-toast -err 보더 변형 / #editor-toast 상태변형 없음(이모지만) — 2시스템 불일치"
+    },
+    {
+      "area": "template-browser",
+      "focus_visible": false,
+      "focus_mechanism": "focus-visible 0건 — input류만 :focus border accent / 카드·insert·delete 키보드 표시 전무",
+      "disabled_opacity": [],
+      "disabled_mechanism": "명시 disabled 없음 (comp-shelf-save hover만 opacity 0.85)",
+      "hover_mechanism": "불일치 — tpl카드 bg+border 둘다 / comp-shelf 카드 border만 / comp-shelf-save opacity 0.85 / 액션버튼 bg fill",
+      "active_color_token": "raw rgba(45,111,232,*) (좌측패널과 공통 우회)",
+      "danger_style": "분열 — comp-shelf-delete 토큰 danger(bg+border+text 3중) / tpl-delete·preview-close raw #3a2020+토큰text"
+    },
+    {
+      "area": "home-pages",
+      "focus_visible": false,
+      "focus_mechanism": ":focus-visible 부재 — license.html(최초 진입 게이트) 포함 3페이지 전체 (MTX-home-X03, a11y 영향 toolbar보다 큼)",
+      "disabled_opacity": [],
+      "disabled_mechanism": "명시 disabled 없음",
+      "hover_mechanism": "bg/색 전환 (페이지별 분기)",
+      "active_color_token": "3분기 — license 통합토큰 / planning accent 초록 #22c48a fork / projects raw hex 독립",
+      "danger_style": "n/a"
+    }
+  ],
+  "crossAreaFindings": [
+    {
+      "id": "XS-01",
+      "title": "focus-visible 전역 a11y 갭 — 13영역 중 12 부재(pickers만 보유)",
+      "severity": "high",
+      "detail": "키보드 포커스 링(:focus-visible)이 13영역 중 pickers 단 1곳에만 존재(color-picker.css: outline 1px accent offset -1px). 나머지 12영역(left-panel·prop-panel·canvas-block·pm-panel·assets-ai·toolbar·modals·design-system·graph·toast·template-browser·home-pages)은 focus-visible 룰 0건. 다수 영역이 :focus border-color만 제공하거나 그조차 없음. license.html(앱 최초 진입 라이선스 게이트)·modals(MOD-2 high)에서 영향 최대. 영역별 minor가 아니라 전역 a11y 차원 1건으로 승격. pickers의 outline 1px accent 또는 pm-panel fix_hint의 ring(box-shadow) 패턴을 전역 공용 :focus-visible 유틸/토큰(--focus-ring)으로 표준화 필요.",
+      "evidence_areas_missing": 12,
+      "evidence_areas_holding": ["pickers"]
+    },
+    {
+      "id": "XS-02",
+      "title": "disabled opacity 8값 난립 + 메커니즘 2종 혼재",
+      "severity": "high",
+      "detail": "비활성 표현 opacity가 영역·요소마다 0.15/0.3/0.35/0.4/0.5/0.55/0.6/0.7 8종으로 갈리고, 한 영역 안에서도 불일치(left-panel 0.3/0.7, pm-panel 0.5/0.55/0.6, assets-ai 0.3/0.4). 메커니즘도 (a)opacity 감쇠 vs (b)bg/색 교체(--ui-border / --ui-border-strong / #1f3a6e bg+#aaa)로 갈리고 bg교체조차 --ui-border vs --ui-border-strong로 또 갈림(modals MOD-3, prop-panel). 공용 --ui-disabled-opacity 토큰 미정의가 근본. 단일 토큰(예 0.4 또는 0.5) + 단일 메커니즘 확정 필요. cursor:not-allowed만 공통.",
+      "distinct_opacity_values": [0.15, 0.3, 0.35, 0.4, 0.5, 0.55, 0.6, 0.7],
+      "distinct_count": 8,
+      "mechanism_count": 2
+    },
+    {
+      "id": "XS-03",
+      "title": "활성/선택색 토큰화 이원화 — 토큰 영역 소수, raw 리터럴 다수 + 파랑 계열 난립",
+      "severity": "high",
+      "detail": "active/selection 색 토큰화 수준 갈림. 토큰 사용: graph(var(--ui-accent-primary)), canvas-block 제거버튼(var(--ui-danger)), design-system(raw hex 사실상 0, 최우수). raw 우회: left-panel/template-browser(rgba(45,111,232,*) + 활성텍스트 #6fa3f7), prop-panel/pm-panel/pickers(#2d6fe8 raw == 토큰값), pickers grad-thumb #1592fe, pm-panel Claude-blue #6b9eff, assets-ai accent 폴백 #6cf(청록). 같은 '파랑 accent'를 #2d6fe8/#6fa3f7/#1592fe/#6b9eff/#6cf/rgba(45,111,232) 6+종 리터럴로 표현. --ui-accent-primary + alpha/hover 변형 토큰 미정착이 부채. design-system 패턴(raw 0)을 표준 삼아 일괄 토큰화 권장."
+    },
+    {
+      "id": "XS-04",
+      "title": "hover 메커니즘 5종 + 영역 내 비일관(핸들·카드·토스트)",
+      "severity": "medium",
+      "detail": "hover 표현이 (1)bg 전환 (2)border-color 전환 (3)opacity 감쇠(0.85) (4)raw hex 색 승격 (5)display none→flex/scale 1.4의 5종 분산. 영역 내 불일치도 잔존: canvas-block(radius 핸들만 hover scale, resize/overlay 핸들 hover 무), template-browser(tpl카드 bg+border / comp-shelf 카드 border만 / comp-shelf-save opacity 0.85 / 액션 bg fill 4갈래), design-system(opacity0.85 / 회색승격 / accent승격 3방식 MDS-05). hover 패턴을 역할별 2종(액션버튼=bg/opacity, 입력=border)으로 정리 권장."
+    },
+    {
+      "id": "XS-05",
+      "title": "danger(삭제) 상태 시각언어 3종 공존 — toned vs full vs outline",
+      "severity": "medium",
+      "detail": "삭제/위험 표현이 영역마다 (a)toned(색만, 토큰): canvas-block .cvb-card-btn-sm-del, comp-shelf-delete (b)full(외곽+배경, raw): prop-panel .prop-btn-danger(#6b2e2e border + #2a1818 bg), template-browser tpl-delete(#3a2020) (c)outline(transparent+1px raw border): left-panel(#5a3a3a)로 3분열. 더해 --ui-danger 토큰 부재로 design-system colorvar-del은 hover가 danger 아닌 accent-blue로 승격(삭제 신호 소실), graph data-del은 raw #e06060. canvas-block의 토큰 toned 패턴을 기준으로, --ui-danger 패밀리 신설 후 통일 필요. (D-states ↔ D-color 교차)"
+    }
+  ],
+  "consistent": [
+    {
+      "item": "cursor:not-allowed",
+      "note": "disabled 보조 신호로 disabled 상태 보유 영역(left-panel/prop-panel/pm-panel/assets-ai/toolbar/modals/pickers) 전반 공통 — 유일하게 일관된 disabled 시그널"
+    },
+    {
+      "item": "input :focus border-color → accent",
+      "note": "input류 포커스 시 border-color를 accent로 바꾸는 :focus 패턴은 left-panel·prop-panel·assets-ai·graph·template-browser·design-system 공통 (단 focus-visible 아님 — 마우스/키보드 미구분)"
+    },
+    {
+      "item": "hover bg 전환 베이스",
+      "note": "버튼/행 아이템 hover 시 bg를 --ui-bg-hover/--ui-bg-input 계열로 전환하는 것이 다수 영역 1차 hover 메커니즘"
+    },
+    {
+      "item": "pickers↔prop-panel↔toolbar disabled opacity 0.35",
+      "note": "pickers dropper[disabled]·prop-panel prop-btn:disabled·toolbar tb-btn이 동일 0.35 감쇠 — 영역 간 드문 일치"
+    }
+  ],
+  "inconsistent_count": 5,
+  "top3": [
+    {
+      "rank": 1,
+      "id": "XS-01",
+      "headline": "focus-visible 전역 부재 — 13영역 중 12 부재, pickers만 보유. 키보드 a11y 차원 승격 필요(license 게이트·modals 영향 최대)."
+    },
+    {
+      "rank": 2,
+      "id": "XS-02",
+      "headline": "disabled opacity 8값(0.15~0.7) 난립 + opacity vs bg교체 2메커니즘 혼재. --ui-disabled-opacity 토큰 부재가 근본."
+    },
+    {
+      "rank": 3,
+      "id": "XS-03",
+      "headline": "활성/선택 파랑 accent를 6+종 raw 리터럴(#2d6fe8/#6fa3f7/#1592fe/#6b9eff/#6cf/rgba)로 표현 — 토큰화 이원화. design-system(raw 0) 패턴 표준화 권장."
+    }
+  ]
+}

@@ -1,0 +1,146 @@
+{
+  "agent": "matrix-canvas-block",
+  "area": "canvas-block",
+  "dimension": "matrix-4station",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "scope": "블록 에디터 UI 크롬만 (선택 아웃라인/핸들, .cvb-* 카드 컨트롤·인라인 입력). 사용자 콘텐츠 디자인(--preset-*, 블록 내부 레이아웃/텍스트 색·크기)은 감사 제외(불가침).",
+  "scanned_files": [
+    "css/editor-blocks.css",
+    "js/block-factory.js",
+    "js/block-edit.js",
+    "js/block-drag.js",
+    "js/props/prop-simple-card.js"
+  ],
+  "owns": [".canvas-block", ".cvb-*", ".canvas-overlay-handle", ".canvas-radius-handle", "블록 선택 아웃라인/핸들"],
+  "signatures": {
+    "D-component": {
+      "selection_outline": "outline: var(--sel-outline-w) solid var(--sel-color); 토큰 사용(일관) — canvas/banner02/comparison/frame/vector 전부 동일",
+      "resize_handle": "7×7px, bg #fff, border 1.5px solid var(--sel-color), radius 1px (.canvas-overlay-handle)",
+      "radius_handle": "7×7px, bg #fff, border 1.5px solid var(--sel-color), radius 50% (.canvas-radius-handle)",
+      "card_control_btn": ".cvb-card-btn-sm — 베이스 .prop-btn 확장 후 width/height auto + font 10px + padding 2px 6px",
+      "danger_btn": ".cvb-card-btn-sm-del (이미지/아이콘 제거 ✕) — color: var(--ui-danger) 만 적용, bg/border danger 처리 없음"
+    },
+    "D-color": {
+      "outline_token": "var(--sel-color) (=--color-selection) — 토큰화 OK",
+      "handle_fill": "#fff (raw, 모든 핸들 공통 — 의도된 흰 핸들)",
+      "card_input_bg": "#1e1e1e (raw, 토큰 fallback 없음)",
+      "card_input_text": "#ddd (raw)",
+      "card_input_border": "#333 (raw)",
+      "layer_row_tokens": "var(--ui-text, #333) / var(--ui-bg-card, #f3f3f3) 형태 — fallback 동반(올바른 패턴)"
+    },
+    "D-spacing": {
+      "layer_row_gap": "6px",
+      "layer_row_pad": "4px 0",
+      "card_item_pad": "8px 0",
+      "card_btn_pad_css": ".cvb-card-btn-sm 2px 6px / .cvb-card-btn-sm-del 2px 4px",
+      "card_btn_pad_inline": "prop-simple-card.js: 3px 6px (img/icon) / 2px 8px (fit/align)",
+      "card_input_pad": "4px 6px / border-width 2px 4px"
+    },
+    "D-states": {
+      "selected": "outline 토큰, canvas는 outline-offset 바깥(calc(1px*--inv-zoom)) — 가장자리 이미지 겹침 방지 의도",
+      "hover_block": ":hover::after 반투명 var(--sel-color-fill) 오버레이",
+      "resize_handle_hover": "없음",
+      "radius_handle_hover": ":hover { transform: scale(1.4); background: var(--sel-color) }",
+      "card_btn_hover": "없음(베이스 .prop-btn:hover 상속, 단 width:auto라 시각 일관성 약함)",
+      "card_input_focus": "없음(focus/focus-visible 미정의)"
+    }
+  },
+  "findings": [
+    {
+      "id": "matrix-canvas-block-01",
+      "station": "D-color",
+      "severity": "major",
+      "title": ".cvb-card-input / .cvb-card-border-width 가 토큰 fallback 없이 raw hex만 사용",
+      "rule": "UI 크롬 bg/text/border 는 --ui-* 토큰 (혹은 최소 var(--ui-*, fallback) 형태)",
+      "evidence": "editor-blocks.css:1138-1158 .cvb-card-input { background:#1e1e1e; color:#ddd; border:1px solid #333 } / placeholder #555 / .cvb-card-border-width 동일 raw 4종. 바로 위 .cvb-layer-* / .grid-picker-* 형제는 var(--ui-text,#333)·var(--ui-bg-card,#f3f3f3) 처럼 토큰+fallback 패턴인데, 이 카드 입력 계열만 bare hex. #1e1e1e/#333/#ddd 는 --ui-bg-input/--ui-border-strong/--ui-text 근사치.",
+      "locations": ["css/editor-blocks.css:1138", "css/editor-blocks.css:1147", "css/editor-blocks.css:1155"],
+      "expected": "background:var(--ui-bg-input); color:var(--ui-text); border-color:var(--ui-border-strong) — 형제 cvb-layer/grid-picker 와 동일 토큰 패턴",
+      "disposition": "self"
+    },
+    {
+      "id": "matrix-canvas-block-02",
+      "station": "D-component",
+      "severity": "minor",
+      "title": "danger ✕ 버튼이 .prop-btn-danger 표준 danger 스타일을 따르지 않고 color 토큰만 적용",
+      "rule": "위험 버튼(제거/삭제) = danger 일관 스타일. 본 영역은 --ui-danger 토큰을 쓰므로 색은 OK이나 border/bg 처리가 표준과 갈림",
+      "evidence": "editor-blocks.css:1184-1190 .cvb-card-btn-sm-del { color:var(--ui-danger); width/height auto } — bg·border danger 처리 없음(베이스 .prop-btn 의 --ui-bg-input/--ui-border-strong 유지). prop-panel 영역의 정식 danger 버튼 .prop-btn-danger(editor-props.css:487) 는 border #6b2e2e + hover bg #2a1818 의 danger 외곽/배경을 가짐. 같은 '제거' 의미인데 시각 표현이 색만 vs 외곽까지로 갈림. (단 본 영역은 토큰 --ui-danger 사용으로 prop 영역의 raw hex보다 양호.)",
+      "locations": ["css/editor-blocks.css:1184"],
+      "expected": "danger 버튼 시각 규칙을 영역 간 통일 — color만 vs border+bg 중 1택. 이 ✕ 는 아이콘형 인라인이라 color-only 가 적절할 수 있으나, 그렇다면 .prop-btn-danger 도 toned-down 버전과 정합 필요",
+      "disposition": "verify-candidate"
+    },
+    {
+      "id": "matrix-canvas-block-03",
+      "station": "D-component",
+      "severity": "minor",
+      "title": "리사이즈 핸들 border 굵기 영역 내 1px vs 1.5px 혼재",
+      "rule": "동일 종류 핸들(리사이즈)은 border 굵기 일치",
+      "evidence": "editor-blocks.css: .ss-resize-handle(57) / .asset-handle(111) 은 border 1px, 그러나 오버레이형 .asset-overlay-handle(132) / .canvas-overlay-handle(149) / .vector-overlay-handle(166) 은 border 1.5px. radius 핸들류(.canvas-radius-handle 등)는 일괄 1.5px. 캔버스 블록이 실제 쓰는 .canvas-overlay-handle 은 1.5px 라 같은 화면에 1px(자식 asset)·1.5px(canvas) 핸들이 공존 가능.",
+      "locations": ["css/editor-blocks.css:57", "css/editor-blocks.css:111", "css/editor-blocks.css:149"],
+      "expected": "리사이즈 핸들 border-width 1.5px(또는 1px) 단일화. --sel-handle-border 토큰화 권장",
+      "disposition": "self"
+    },
+    {
+      "id": "matrix-canvas-block-04",
+      "station": "D-states",
+      "severity": "minor",
+      "title": "리사이즈/오버레이 핸들에 hover·focus 상태 없음 (radius 핸들만 hover 보유)",
+      "rule": "인터랙티브 컨트롤은 hover/focus 시그널 제공",
+      "evidence": "editor-blocks.css: .canvas-radius-handle:hover(196)·.ss-radius-handle:hover(86) 만 transform scale(1.4)+bg 채움. 반면 .canvas-overlay-handle / .asset-overlay-handle / .ss-resize-handle / .asset-handle 의 :hover·:focus 규칙 0개. 핸들 위 마우스 올려도 시각 변화 없어 어느 핸드를 잡는지 피드백 부재. cursor 만 방향별로 바뀜.",
+      "locations": ["css/editor-blocks.css:149", "css/editor-blocks.css:57", "css/editor-blocks.css:196"],
+      "expected": "리사이즈 핸들에도 radius 핸들과 동급 :hover(scale 또는 bg=var(--sel-color)) 추가해 영역·핸들 종류 간 hover 정합",
+      "disposition": "self"
+    },
+    {
+      "id": "matrix-canvas-block-05",
+      "station": "D-spacing",
+      "severity": "nit",
+      "title": "카드 컨트롤 버튼 패딩이 CSS 정의값과 인라인 style 값으로 이원화",
+      "rule": "동일 버튼 계열 패딩 일치, 인라인 style 로 CSS 덮어쓰기 지양",
+      "evidence": ".cvb-card-btn-sm 는 CSS(editor-blocks.css:1182) padding 2px 6px, .cvb-card-btn-sm-del 는 2px 4px. 그러나 prop-simple-card.js 에서 같은 버튼들에 inline style 로 padding 3px 6px(img/icon 버튼, line 43·52) / 2px 8px(fit 버튼, line 60·61) 를 다시 박아 CSS 값이 무력화. 한 카드 행 안에서 버튼 패딩이 2px 6px / 3px 6px / 2px 8px / 2px 4px 4종 공존.",
+      "locations": ["css/editor-blocks.css:1178", "js/props/prop-simple-card.js:43", "js/props/prop-simple-card.js:60"],
+      "expected": "버튼 패딩을 .cvb-card-btn-sm 한 곳으로 모으고 inline padding 제거 — 4px 그리드 정합(2px 6px 또는 4px 8px)",
+      "disposition": "self"
+    },
+    {
+      "id": "matrix-canvas-block-06",
+      "station": "D-color",
+      "severity": "nit",
+      "title": ".cvb-card-item / -meta / -meta-label 구분선·텍스트 raw hex",
+      "rule": "UI 크롬 divider/muted-text 토큰화",
+      "evidence": "editor-blocks.css:1164-1176 .cvb-card-meta(#666) / .cvb-card-meta-label(#666) / .cvb-card-item border-bottom 1px solid #2a2a2a — fallback 없는 raw. #666≈--ui-text-dim, #2a2a2a≈--ui-divider 근사치.",
+      "locations": ["css/editor-blocks.css:1164", "css/editor-blocks.css:1176"],
+      "expected": "color:var(--ui-text-dim); border-color:var(--ui-divider)",
+      "disposition": "self"
+    }
+  ],
+  "crossAreaFlags": [
+    {
+      "id": "xa-canvas-block-A",
+      "station": "D-component",
+      "title": "danger '제거' 버튼 시각 규칙이 영역 간 불일치",
+      "detail": "canvas-block ✕ 제거버튼(.cvb-card-btn-sm-del)은 color:var(--ui-danger) 토큰만 적용(외곽/배경 변화 없음). prop-panel 영역의 정식 danger 버튼(.prop-btn-danger)은 border #6b2e2e + hover bg #2a1818 의 외곽+배경 danger. → 같은 '삭제' 의미인데 영역마다 toned(색만) vs full(외곽+배경)로 갈림. 단 canvas-block 쪽이 토큰을 써서 더 위생적이고, prop-panel 쪽은 raw hex(DSN-component-01 기존 지적). 통일 시 canvas-block 패턴(토큰화)을 기준 삼는 게 맞음."
+    },
+    {
+      "id": "xa-canvas-block-B",
+      "station": "D-component",
+      "title": "리사이즈 핸들 border 굵기 영역(블록타입) 간 1px/1.5px 갈림",
+      "detail": "asset 블록 기본 핸들(.asset-handle/.ss-resize-handle)=1px vs canvas/asset/vector 오버레이 핸들=1.5px. 한 셀렉션 화면에 굵기 다른 핸들 공존 가능 → 영역 내·블록타입 간 핸들 일관성 결손. 핸들 스펙(7×7, #fff, --sel-color)은 나머지 일치하므로 border-width 만 단일화하면 됨."
+    },
+    {
+      "id": "xa-canvas-block-C",
+      "station": "D-states",
+      "title": "핸들 hover 시그널 유무가 핸들 종류 간 불일치",
+      "detail": "radius 핸들류만 :hover(scale 1.4) 보유, resize/overlay 핸들류는 hover 없음. 같은 오버레이 #ss-handles-overlay 위에 떠 있는 핸들끼리도 hover 피드백 유무가 갈림 → 사용자가 어떤 핸들이 인터랙티브한지 학습 비용 증가."
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "by_severity": {"blocker": 0, "major": 1, "minor": 3, "nit": 2},
+    "by_station": {"D-component": 2, "D-color": 2, "D-spacing": 1, "D-states": 1},
+    "verify_candidates": ["matrix-canvas-block-02"],
+    "capped": false,
+    "notes": "캔버스 블록 '에디터 UI 크롬'만 감사 — 사용자 콘텐츠(블록 내부 디자인, --preset-*, 텍스트 색·크기, 블록 내부 레이아웃)은 명세대로 전부 제외(불가침). 선택 아웃라인은 var(--sel-color)/var(--sel-outline-w) 토큰으로 잘 통일됨(canvas/banner02/comparison/vector/frame 동일) — 이탈 아님. 주요 이탈은 .cvb-card-input 계열 raw hex(D-color), danger 버튼·핸들 border 굵기 영역 간 불일치(D-component), 핸들/입력 hover·focus 부재(D-states), 버튼 패딩 CSS vs inline 이원화(D-spacing). report-only, 수정 없음."
+  }
+}

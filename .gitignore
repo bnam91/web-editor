@@ -3,3 +3,14 @@ node_modules/
 dist/
 projects/
 test-results/
+
+# Squad 디버그/평가 파일
+debug/*
+!debug/CLAUDE.md
+eval-*.js
+claude-talk-to-figma-mcp/
+
+# Local plan/scratch files (each Claude Code session)
+.tasks/
+
+.claude/worktrees/

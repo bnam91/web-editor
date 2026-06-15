@@ -1,0 +1,138 @@
+{
+  "agent": "DSN-color",
+  "version": "3.0",
+  "dimension": "color",
+  "scope": "whole-repo",
+  "method": "static",
+  "findings": [
+    {
+      "id": "DSN-color-001",
+      "title": "토큰 이원화 — 의미토큰(--color-/--bg-/--text-)과 --ui-*가 같은 값을 두 이름으로 병렬 정의",
+      "severity": "major",
+      "confidence": "confirmed",
+      "evidence_grade": "measure",
+      "where": "css/design-tokens.css:124-142 (semantic) vs css/editor-base.css:39-56 (--ui-*)",
+      "what": "design-tokens.css의 의미토큰 체계와 editor-base.css의 --ui-* 체계가 동일 값을 중복 정의. --bg-app=--ui-bg-app=#1a1a1a, --text-default=--ui-text=#e0e0e0, --border-default=--ui-border=#333333, --color-danger=--ui-danger=#e06c6c 등 거의 전 항목이 1:1 중복. 실사용은 --ui-* 1058회 vs --color-/--bg-/--text- 54회(대부분 selection 계열만)로, 의미토큰 체계는 사실상 사문화. 두 체계가 공존해 신규 코드가 어느 쪽을 써야 할지 불명확하고, 값 변경 시 두 곳을 동기화해야 함.",
+      "baseline": "단일 토큰 체계 (의미토큰이 --ui-*를 참조하거나, --ui-*만 유지하고 의미토큰 폐기)",
+      "actual": "두 체계 병렬 정의, --ui-* 1058회 / 의미토큰 54회",
+      "evidence": "grep -roh '\\-\\-ui-[a-z0-9-]*' css/*.css | wc -l → 1058; editor-base.css:39-56과 design-tokens.css:124-150 값 대조 시 동일 hex",
+      "fix_hint": "--ui-*를 의미토큰(var(--bg-app) 등)에 alias시키거나, 한 체계로 통일하고 다른 쪽을 단계적 제거. raw hex 정의는 한 곳에만.",
+      "adjudication": "verify-candidate"
+    },
+    {
+      "id": "DSN-color-002",
+      "title": "UI 크롬 텍스트/배경에 토큰 대신 raw 중립색 hex 직접 사용 (#fff/#ccc/#888/#555/#222 등)",
+      "severity": "major",
+      "confidence": "suspected",
+      "evidence_grade": "pattern",
+      "where": "css/editor-panels.css, css/editor-props.css, css/editor-extra.css (예: editor-panels.css:159 .cm-filter-tab:hover color:#888, :180 .cm-item-msg color:#ccc, editor-props.css:210/462/472 color:#ccc)",
+      "what": "패널/프롭/필터탭 등 명백한 UI 크롬에서 텍스트·배경색을 var() 없이 raw hex로 박아넣음. #ccc=--ui-text-sub(#aaaaaa 인접)/--ui-text(#e0e0e0) 자리, #888=--ui-text-muted/dim 자리, #555=--ui-text-dim(#555555 정확히 동일), #222=--ui-bg-input(#2a2a2a 인접) 자리. 토큰이 이미 존재하는데 우회.",
+      "baseline": "--ui-text-sub / --ui-text-muted / --ui-text-dim / --ui-bg-input 토큰",
+      "actual": "#fff×38, #ccc×31, #888×21, #555×9, #222×8 (props+panels+extra)",
+      "evidence": "grep -rhoiE '#[0-9a-f]{3,8}' editor-props/panels/extra | sort | uniq -c — 정의부 외 사용 확인",
+      "fix_hint": "셀렉터별로 가장 가까운 --ui-text-* / --ui-bg-* 토큰으로 치환. #555→var(--ui-text-dim)은 무손실 치환.",
+      "adjudication": "verify-candidate"
+    },
+    {
+      "id": "DSN-color-003",
+      "title": "AI/스타·브랜치 액센트 컬러 패밀리가 토큰 정의 없이 전량 raw hex (purple/amber/status-blue)",
+      "severity": "major",
+      "confidence": "suspected",
+      "evidence_grade": "pattern",
+      "where": "css/editor-extra.css:515/521/579/601/623/636 (AI purple), :1287/1304/1305/1308 (star amber), css/editor-panels.css:613/947/963 (status blue), editor-props.css:612",
+      "what": "AI 패널 보라(#c084fc/#d8b4fe/#9333ea/#7c3aed/#6d28d9/#9966ff), 즐겨찾기 별 앰버(#f5a623/#f5c518/#f59e0b), 브랜치/포커스 상태 블루(#5a8ab8/#6fa3f7/#4d7fc0)가 design-tokens.css·editor-base.css 어디에도 토큰으로 없음. 한 액센트 패밀리당 3~6종의 톤이 raw로 흩어져 일관성·다크모드 대응 불가.",
+      "baseline": "--p-purple-*/--color-ai-*, --p-amber-*/--color-star-*, --color-branch 류 토큰 (현재 부재)",
+      "actual": "purple 계열 13종, amber 3종, status-blue 3+종 모두 raw hex",
+      "evidence": "grep -niE '#c084fc|#d8b4fe|#7c3aed|#f5a623|#5a8ab8' css/*.css — 정의 0건, 사용만 다수",
+      "fix_hint": "AI/star/branch 액센트를 primitive(--p-purple-*, --p-amber-*) + semantic 토큰으로 신설 후 치환.",
+      "adjudication": "verify-candidate"
+    },
+    {
+      "id": "DSN-color-004",
+      "title": "var() fallback hex가 토큰 실제값과 불일치 — --ui-bg-hover fallback이 다른 토큰 값",
+      "severity": "minor",
+      "confidence": "confirmed",
+      "evidence_grade": "measure",
+      "where": "css/editor-props.css:172 (.font-search), css/editor-props.css:683 (.font-item:hover) — background: var(--ui-bg-hover, #252525)",
+      "what": "--ui-bg-hover 토큰값은 #2e2e2e인데 fallback에 #252525(=--ui-bg-card)를 적음. 토큰 로드 실패 시 잘못된 색으로 폴백. 나머지 fallback(--ui-text-dim,#555 등)은 토큰값과 일치해 무해하나, 이 두 건은 값 불일치.",
+      "baseline": "--ui-bg-hover = #2e2e2e (editor-base.css:44)",
+      "actual": "var(--ui-bg-hover, #252525) — fallback이 #2e2e2e가 아님",
+      "evidence": "editor-base.css:44 --ui-bg-hover:#2e2e2e; editor-props.css:172,683 fallback #252525",
+      "fix_hint": "fallback을 #2e2e2e로 정정하거나, 토큰이 항상 로드되므로 fallback 제거.",
+      "adjudication": "self"
+    },
+    {
+      "id": "DSN-color-005",
+      "title": "토큰 회색 램프 밖의 근접 중립색 난립 (#ddd/#bbb/#999/#666/#161616/#1c1c1c/#1f1f1f/#232323 등)",
+      "severity": "minor",
+      "confidence": "suspected",
+      "evidence_grade": "pattern",
+      "where": "css/editor-panels.css, css/editor-props.css, css/editor-extra.css (분포)",
+      "what": "design-tokens.css의 --p-gray-* 램프(#1a1a1a~#e0e0e0, 22단)에 없는 인접 회색이 다수. #ddd(#dddddd)는 #cccccc와 #e0e0e0 사이, #bbb는 #aaaaaa 인접, #999는 caption #999999와 동일하나 토큰 미사용, #161616/#1c1c1c/#1f1f1f/#232323/#2d2d2d는 어두운 셸 램프 중간값. 비슷한 회색이 토큰 외 ~15종 추가 존재해 램프를 사실상 무력화.",
+      "baseline": "--p-gray-* 22단 램프 (design-tokens.css:39-60)",
+      "actual": "#ddd×11, #bbb×4, #999×4, #161616×3, #666×2, #232323/#1f1f1f/#1c1c1c×2 등 ~15 시그니처",
+      "evidence": "grep -rhoiE '#(ddd|bbb|999|666|161616|1c1c1c|...)' props/panels/extra | sort | uniq -c",
+      "fix_hint": "가장 가까운 --p-gray-* 토큰으로 스냅(#ddd→가까운 단으로 통일), 신규 단이 필요하면 램프에 1단 추가 후 토큰화.",
+      "adjudication": "self"
+    },
+    {
+      "id": "DSN-color-006",
+      "title": "그래프/status에서 토큰값과 동일한 hex를 raw로 재기입 (토큰 우회)",
+      "severity": "minor",
+      "confidence": "suspected",
+      "evidence_grade": "pattern",
+      "where": "css/editor-panels.css, css/editor-extra.css, css/editor-props.css (예: #e06c6c=--ui-danger, #4ecb7a=--p-green-400, #2d6fe8=--ui-accent-primary, #3d7ff8=--p-blue-700, #383838=--p-gray-600)",
+      "what": "이미 토큰으로 정의된 값과 글자 그대로 동일한 hex를 var() 없이 직접 기입. #e06c6c(--ui-danger/--color-danger)×3, #4ecb7a(--p-green-400/--color-saved)×2, #2d6fe8(--ui-accent-primary)×1, #3d7ff8(--p-blue-700)×2. 값은 맞지만 토큰을 안 거쳐 변경 추적이 끊김.",
+      "baseline": "--ui-danger / --color-saved / --ui-accent-primary / --p-blue-700 등 동일값 토큰",
+      "actual": "동일 hex를 raw로 재기입",
+      "evidence": "uniq 시그니처와 design-tokens/editor-base 정의값 1:1 일치 대조",
+      "fix_hint": "해당 raw hex를 동일값 토큰 var()로 치환 (무손실).",
+      "adjudication": "self"
+    }
+  ],
+  "confirmed": 2,
+  "suspected": 4,
+  "grouped_overflow": [
+    {
+      "signature": "#fff 계열 (UI 크롬 흰색 텍스트/배경)",
+      "count": 38,
+      "files": ["css/editor-props.css", "css/editor-panels.css", "css/editor-extra.css"]
+    },
+    {
+      "signature": "#ccc 계열 (--ui-text-sub/--ui-text 자리 raw)",
+      "count": 31,
+      "files": ["css/editor-props.css", "css/editor-panels.css", "css/editor-extra.css"]
+    },
+    {
+      "signature": "#888 계열 (--ui-text-muted/dim 자리 raw)",
+      "count": 21,
+      "files": ["css/editor-panels.css", "css/editor-extra.css", "css/editor-props.css"]
+    },
+    {
+      "signature": "AI purple 패밀리 (#c084fc/#d8b4fe/#9333ea/#7c3aed/#6d28d9/#9966ff) — 토큰 부재",
+      "count": 25,
+      "files": ["css/editor-extra.css", "css/editor-panels.css"]
+    },
+    {
+      "signature": "근접 중립 회색 (#ddd/#bbb/#999/#666/#161616/#1c1c1c/#1f1f1f/#232323/#2d2d2d) — 램프 밖",
+      "count": 38,
+      "files": ["css/editor-panels.css", "css/editor-props.css", "css/editor-extra.css"]
+    },
+    {
+      "signature": "status-blue/amber/green 미토큰 톤 (#5a8ab8/#6fa3f7/#4d7fc0/#f5a623/#f5c518)",
+      "count": 18,
+      "files": ["css/editor-panels.css", "css/editor-extra.css", "css/editor-props.css"]
+    }
+  ],
+  "by_severity": {
+    "blocker": 0,
+    "major": 3,
+    "minor": 3,
+    "nit": 0
+  },
+  "by_adjudication": {
+    "self": 3,
+    "central-confirmed": 0,
+    "central-refuted": 0
+  }
+}

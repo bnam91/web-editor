@@ -2,8 +2,27 @@
    이미지 업로드 (Asset)
 ══════════════════════════════════════ */
 import { propPanel } from './globals.js';
+
+/* ── 이미지 업로드 로딩 오버레이 헬퍼 ── */
+export function showAssetLoading(block) {
+  const overlay = document.createElement('div');
+  overlay.className = 'asset-loading-overlay';
+  overlay.innerHTML = '<div class="asset-loading-spinner"></div>';
+  block.appendChild(overlay);
+}
+export function hideAssetLoading(block) {
+  block.querySelector('.asset-loading-overlay')?.remove();
+}
+
 /* ── 이미지 위치/스케일 복원 (로드·undo 후) ── */
 function applyImageTransform(ab) {
+  // ab 컨테이너 자체 회전 (asset-rotate.js에서 저장한 dataset.rotation) 먼저 복원
+  // — imgW 없어도(이미지 편집 안 한 상태) 컨테이너 회전은 유지돼야 함
+  const abRot = parseFloat(ab.dataset.rotation);
+  if (Number.isFinite(abRot) && abRot !== 0) {
+    ab.style.transform = `rotate(${abRot}deg)`;
+    ab.style.transformOrigin = 'center center';
+  }
   const img = ab.querySelector('.asset-img');
   if (!img) return;
   if (ab.dataset.imgPosition) {
@@ -16,6 +35,8 @@ function applyImageTransform(ab) {
   img.style.height    = 'auto';
   img.style.left      = (parseFloat(ab.dataset.imgX) || 0) + 'px';
   img.style.top       = (parseFloat(ab.dataset.imgY) || 0) + 'px';
+  const rotate = parseFloat(ab.dataset.imgRotate || 0);
+  img.style.transform = rotate ? `rotate(${rotate}deg)` : '';
 }
 
 function enterImageEditMode(ab) {
@@ -26,7 +47,6 @@ function enterImageEditMode(ab) {
   ab._imgEditing = true;
   ab.classList.add('img-editing');
   ab.draggable = false;
-  ab.style.overflow = 'visible'; // 핸들이 프레임 밖에 위치할 수 있도록
   const _row = ab.closest('.row');
   if (_row) _row.draggable = false; // 부모 row의 drag가 핸들 mousedown을 가로채지 않도록
 
@@ -157,7 +177,9 @@ function enterImageEditMode(ab) {
     if (hEl) hEl.value = Math.round(img.offsetHeight);
   }
 
-  // 8 핸들 생성 (4 모서리 + 4 변 중앙)
+  // 핸들 + 경계선 모두 오버레이에 배치 — section-inner overflow 제약 없이 표시
+  const overlay = document.getElementById('ss-handles-overlay');
+
   const HANDLES = [
     { id: 'tl', cursor: 'nwse-resize', cls: 'img-corner-handle' },
     { id: 'tc', cursor: 'ns-resize',   cls: 'img-edge-handle'   },
@@ -175,8 +197,19 @@ function enterImageEditMode(ab) {
     h.style.cursor = cursor;
     h.draggable = false;
     h.addEventListener('dragstart', e => e.preventDefault());
-    ab.appendChild(h);
+    if (overlay) overlay.appendChild(h); else ab.appendChild(h);
     cornerEls[id] = h;
+  });
+
+  // 회전 존 — 모서리 핸들 바깥 영역 (20×20px, z-index 낮음)
+  const rotateZoneEls = {};
+  ['tl','tr','bl','br'].forEach(id => {
+    const rz = document.createElement('div');
+    rz.className = 'img-rotate-zone';
+    rz.draggable = false;
+    rz.addEventListener('dragstart', e => e.preventDefault());
+    if (overlay) overlay.appendChild(rz); else ab.appendChild(rz);
+    rotateZoneEls[id] = rz;
   });
 
   const hint = document.createElement('div');
@@ -184,107 +217,220 @@ function enterImageEditMode(ab) {
   hint.textContent = '드래그: 위치 · 모서리: 크기 · Esc: 완료';
   ab.appendChild(hint);
 
-  // 핸들 위치를 이미지 8곳에 동기화
-  const HS = 5; // 핸들 절반 크기 (10px / 2)
+  const boundary = document.createElement('div');
+  boundary.className = 'img-boundary';
+  if (overlay) overlay.appendChild(boundary);
+
+  // 핸들 + 회전존 + 경계선 위치 동기화 (회전 포함)
+  const HS  = 3.5; // 핸들 절반 (7px/2)
+  const RZS = 10;  // 회전존 절반 (20px/2)
   function syncHandles() {
-    const x = parseFloat(img.style.left) || 0;
-    const y = parseFloat(img.style.top)  || 0;
-    const w = img.offsetWidth;
-    const h = img.offsetHeight;
-    const pos = {
-      tl: [x - HS,         y - HS        ],
-      tc: [x + w/2 - HS,   y - HS        ],
-      tr: [x + w - HS,     y - HS        ],
-      rc: [x + w - HS,     y + h/2 - HS  ],
-      br: [x + w - HS,     y + h - HS    ],
-      bc: [x + w/2 - HS,   y + h - HS    ],
-      bl: [x - HS,         y + h - HS    ],
-      lc: [x - HS,         y + h/2 - HS  ],
+    if (!overlay) return;
+    const abRect = ab.getBoundingClientRect();
+    const oRect  = overlay.getBoundingClientRect();
+    const zs     = (window.currentZoom || 100) / 100; // 캔버스 줌 팩터
+    const imgX   = parseFloat(img.style.left) || 0;   // 레이아웃 좌표
+    const imgY   = parseFloat(img.style.top)  || 0;
+    const imgW   = img.offsetWidth  * zs;              // 스크린 좌표로 변환
+    const imgH   = img.offsetHeight * zs;
+    const deg    = parseFloat(ab.dataset.imgRotate || 0);
+    const rad    = deg * Math.PI / 180;
+    const cos    = Math.cos(rad), sin = Math.sin(rad);
+    // 이미지 중심 (오버레이 좌표) — imgX/imgY도 zs 곱해 스크린 좌표로 통일
+    const cx = (abRect.left - oRect.left) + imgX * zs + imgW / 2;
+    const cy = (abRect.top  - oRect.top)  + imgY * zs + imgH / 2;
+    // 이미지 기준 상대 좌표를 회전 후 절대 좌표로 변환
+    const rp = (px, py) => [cx + px*cos - py*sin, cy + px*sin + py*cos];
+    const pts = {
+      tl: rp(-imgW/2, -imgH/2),
+      tc: rp(0,       -imgH/2),
+      tr: rp( imgW/2, -imgH/2),
+      rc: rp( imgW/2,  0     ),
+      br: rp( imgW/2,  imgH/2),
+      bc: rp(0,        imgH/2),
+      bl: rp(-imgW/2,  imgH/2),
+      lc: rp(-imgW/2,  0     ),
     };
-    Object.entries(pos).forEach(([id, [lx, ly]]) => {
-      cornerEls[id].style.left = lx + 'px';
-      cornerEls[id].style.top  = ly + 'px';
+    Object.entries(pts).forEach(([id, [hx, hy]]) => {
+      cornerEls[id].style.left = (hx - HS)  + 'px';
+      cornerEls[id].style.top  = (hy - HS)  + 'px';
+      if (rotateZoneEls[id]) {
+        rotateZoneEls[id].style.left = (hx - RZS) + 'px';
+        rotateZoneEls[id].style.top  = (hy - RZS) + 'px';
+      }
     });
+    // 경계선: 비회전 rect 기준으로 배치 후 동일 각도 회전
+    boundary.style.left            = (cx - imgW/2) + 'px';
+    boundary.style.top             = (cy - imgH/2) + 'px';
+    boundary.style.width           = imgW + 'px';
+    boundary.style.height          = imgH + 'px';
+    boundary.style.transform       = deg ? `rotate(${deg}deg)` : '';
+    boundary.style.transformOrigin = 'center center';
   }
   syncHandles();
 
-  // 이미지 드래그 (위치)
+  // 스냅 가이드 생성 (오버레이에 중앙 기준선 표시)
+  let _snapGuideH = null, _snapGuideV = null;
+  function _showSnapGuide(axis) {
+    const overlay = document.getElementById('ss-handles-overlay');
+    if (!overlay) return;
+    const abRect = ab.getBoundingClientRect();
+    const oRect  = overlay.getBoundingClientRect();
+    const zs = (window.currentZoom || 100) / 100;
+    if (axis === 'h' || axis === 'both') {
+      if (!_snapGuideH) {
+        _snapGuideH = document.createElement('div');
+        _snapGuideH.className = 'img-snap-guide-h';
+        overlay.appendChild(_snapGuideH);
+      }
+      const cy = (abRect.top - oRect.top) + abRect.height / 2;
+      _snapGuideH.style.top  = cy + 'px';
+      _snapGuideH.style.left = (abRect.left - oRect.left) + 'px';
+      _snapGuideH.style.width = abRect.width + 'px';
+    }
+    if (axis === 'v' || axis === 'both') {
+      if (!_snapGuideV) {
+        _snapGuideV = document.createElement('div');
+        _snapGuideV.className = 'img-snap-guide-v';
+        overlay.appendChild(_snapGuideV);
+      }
+      const cx = (abRect.left - oRect.left) + abRect.width / 2;
+      _snapGuideV.style.left = cx + 'px';
+      _snapGuideV.style.top  = (abRect.top - oRect.top) + 'px';
+      _snapGuideV.style.height = abRect.height + 'px';
+    }
+  }
+  function _hideSnapGuide(axis) {
+    if ((axis === 'h' || axis === 'both') && _snapGuideH) { _snapGuideH.remove(); _snapGuideH = null; }
+    if ((axis === 'v' || axis === 'both') && _snapGuideV) { _snapGuideV.remove(); _snapGuideV = null; }
+  }
+
+  // 이미지 드래그 (위치 + 중앙 스냅)
   function onImgDown(e) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
-    const zs = (window.currentZoom || 100) / 100;
     const sx = e.clientX, sy = e.clientY;
     const sl = parseFloat(img.style.left) || 0;
     const st = parseFloat(img.style.top)  || 0;
+    let _rafId = null;
     function onMove(e) {
-      img.style.left = (sl + (e.clientX - sx) / zs) + 'px';
-      img.style.top  = (st + (e.clientY - sy) / zs) + 'px';
-      syncHandles(); syncPanel();
+      const zs = (window.currentZoom || 100) / 100;
+      const SNAP = 12 / zs;  // 화면 12px → 레이아웃 좌표 변환
+      let newLeft = sl + (e.clientX - sx) / zs;
+      let newTop  = st + (e.clientY - sy) / zs;
+      const imgW = img.offsetWidth, imgH = img.offsetHeight;
+      const frameW = ab.offsetWidth,  frameH = ab.offsetHeight;
+      let snapH = false, snapV = false;
+      if (Math.abs((newLeft + imgW/2) - frameW/2) < SNAP) { newLeft = frameW/2 - imgW/2; snapV = true; }
+      if (Math.abs((newTop  + imgH/2) - frameH/2) < SNAP) { newTop  = frameH/2 - imgH/2; snapH = true; }
+      img.style.left = newLeft + 'px';
+      img.style.top  = newTop  + 'px';
+      if (snapH) _showSnapGuide('h'); else _hideSnapGuide('h');
+      if (snapV) _showSnapGuide('v'); else _hideSnapGuide('v');
+      if (!_rafId) _rafId = requestAnimationFrame(() => { syncHandles(); syncPanel(); _rafId = null; });
     }
     function onUp() {
+      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+      _hideSnapGuide('both');
       ab.dataset.imgX = parseFloat(img.style.left) || 0;
       ab.dataset.imgY = parseFloat(img.style.top)  || 0;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      // 드래그 직후 spurious click으로 편집 모드가 종료되는 것을 방지
+      ab._justDragged = true;
+      setTimeout(() => { ab._justDragged = false; }, 50);
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   }
 
-  // 핸들 드래그 (스케일 — 모서리 + 변 중앙)
-  function onCornerDown(e, handle) {
+  // 모서리 + 변 중앙 핸들 드래그 (스케일)
+  function onScaleDown(e, handle) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
-    const zs      = (window.currentZoom || 100) / 100;
-    const startX  = e.clientX;
-    const startY  = e.clientY;
+    const startX  = e.clientX, startY = e.clientY;
     const startIX = parseFloat(img.style.left) || 0;
     const startIY = parseFloat(img.style.top)  || 0;
-    const startW  = img.offsetWidth;
-    const startH  = img.offsetHeight;
+    const startW  = img.offsetWidth, startH = img.offsetHeight;
     const ratio   = startW / startH;
     const isLeft  = handle === 'tl' || handle === 'bl' || handle === 'lc';
     const isTop   = handle === 'tl' || handle === 'tr' || handle === 'tc';
     const isEdgeH = handle === 'lc' || handle === 'rc';
     const isEdgeV = handle === 'tc' || handle === 'bc';
-
+    let _rafId = null;
     function onMove(e) {
+      const zs = (window.currentZoom || 100) / 100;
       const rawDx = (e.clientX - startX) / zs;
       const rawDy = (e.clientY - startY) / zs;
-      let newW, newH;
       if (isEdgeH) {
-        // 좌/우 변: 가로 드래그로 너비 변경, 세로 중앙 유지
         const dx = isLeft ? -rawDx : rawDx;
-        newW = Math.max(40, startW + dx);
-        newH = newW / ratio;
+        const newW = Math.max(40, startW + dx);
+        const newH = newW / ratio;
         img.style.width = newW + 'px';
         if (isLeft) img.style.left = (startIX + (startW - newW)) + 'px';
         img.style.top = (startIY + (startH - newH) / 2) + 'px';
       } else if (isEdgeV) {
-        // 상/하 변: 세로 드래그로 높이 변경, 가로 중앙 유지
         const dy = isTop ? -rawDy : rawDy;
-        newH = Math.max(40 / ratio, startH + dy);
-        newW = newH * ratio;
+        const newH = Math.max(40/ratio, startH + dy);
+        const newW = newH * ratio;
         img.style.width = newW + 'px';
         if (isTop) img.style.top = (startIY + (startH - newH)) + 'px';
         img.style.left = (startIX + (startW - newW) / 2) + 'px';
       } else {
-        // 모서리: 대각선 드래그
+        // 모서리: 가로 기준 비례 스케일
         const dx = isLeft ? -rawDx : rawDx;
-        newW = Math.max(40, startW + dx);
-        newH = newW / ratio;
+        const newW = Math.max(40, startW + dx);
+        const newH = newW / ratio;
         img.style.width = newW + 'px';
         if (isLeft) img.style.left = (startIX + (startW - newW)) + 'px';
         if (isTop)  img.style.top  = (startIY + (startH - newH)) + 'px';
       }
-      syncHandles(); syncPanel();
+      if (!_rafId) _rafId = requestAnimationFrame(() => { syncHandles(); syncPanel(); _rafId = null; });
     }
     function onUp() {
+      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
       ab.dataset.imgW = img.offsetWidth;
       ab.dataset.imgX = parseFloat(img.style.left) || 0;
       ab.dataset.imgY = parseFloat(img.style.top)  || 0;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      // 드래그 직후 spurious click으로 편집 모드가 종료되는 것을 방지
+      ab._justDragged = true;
+      setTimeout(() => { ab._justDragged = false; }, 50);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  // 회전존 드래그 (회전)
+  function onRotateDown(e) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    // 이미지 중심 = 회전 중심 — getBoundingClientRect 중심은 줌·회전 모두 반영
+    const imgRect = img.getBoundingClientRect();
+    const centerX = imgRect.left + imgRect.width  / 2;
+    const centerY = imgRect.top  + imgRect.height / 2;
+    const startAng = Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180 / Math.PI;
+    const baseRot  = parseFloat(ab.dataset.imgRotate || 0);
+    let _rafId = null;
+    function onMove(e) {
+      const ang = Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180 / Math.PI;
+      let newRot = baseRot + (ang - startAng);
+      // 45도 단위 스냅 (5도 이내)
+      const snap = Math.round(newRot / 45) * 45;
+      if (Math.abs(newRot - snap) < 5) newRot = snap;
+      ab.dataset.imgRotate = newRot;
+      img.style.transform = `rotate(${newRot}deg)`;
+      if (!_rafId) _rafId = requestAnimationFrame(() => { syncHandles(); _rafId = null; });
+    }
+    function onUp() {
+      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+      window.triggerAutoSave?.();
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      // 드래그 직후 spurious click으로 편집 모드가 종료되는 것을 방지
+      ab._justDragged = true;
+      setTimeout(() => { ab._justDragged = false; }, 50);
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -292,21 +438,41 @@ function enterImageEditMode(ab) {
 
   img.addEventListener('mousedown', onImgDown);
   Object.entries(cornerEls).forEach(([id, el]) => {
-    el.addEventListener('mousedown', e => onCornerDown(e, id));
+    el.addEventListener('mousedown', e => onScaleDown(e, id));
+  });
+  Object.values(rotateZoneEls).forEach(rz => {
+    rz.addEventListener('mousedown', onRotateDown);
   });
 
   renderImgPanel();
+  window.showColorAdjustPanel?.(ab);
+
+  // RAF 루프 — 캔버스 패닝/줌 시에도 핸들·경계선 위치 계속 동기화
+  let _syncRafId = null;
+  function _syncLoop() { syncHandles(); _syncRafId = requestAnimationFrame(_syncLoop); }
+  _syncRafId = requestAnimationFrame(_syncLoop);
 
   ab._imgEditCleanup = () => {
+    if (_syncRafId) { cancelAnimationFrame(_syncRafId); _syncRafId = null; }
+    _hideSnapGuide('both');
     img.removeEventListener('mousedown', onImgDown);
     Object.values(cornerEls).forEach(h => h.remove());
+    Object.values(rotateZoneEls).forEach(h => h.remove());
     hint.remove();
     img.draggable = false;
     ab.draggable = false;
-    if (_row) _row.draggable = true; // row draggable 복원
+    if (_row) _row.draggable = true;
   };
 
-  ab._exitImgEdit = e => { if (!ab.contains(e.target)) exitImageEditMode(ab); };
+  ab._exitImgEdit = e => {
+    if (ab._justDragged) return; // 드래그/리사이즈 직후 spurious click 무시
+    const isOverlayHandle = e.target.classList.contains('img-corner-handle') ||
+                            e.target.classList.contains('img-edge-handle')   ||
+                            e.target.classList.contains('img-boundary')      ||
+                            e.target.classList.contains('img-rotate-zone');
+    const isColorPanel = !!e.target.closest('#color-adjust-panel'); // 색상 조정 패널 클릭은 편집 모드 유지
+    if (!ab.contains(e.target) && !isOverlayHandle && !isColorPanel) exitImageEditMode(ab);
+  };
   ab._exitImgEsc  = e => { if (e.key === 'Escape') exitImageEditMode(ab); };
   setTimeout(() => {
     document.addEventListener('click',   ab._exitImgEdit);
@@ -318,6 +484,7 @@ function exitImageEditMode(ab) {
   if (!ab._imgEditing) return;
   ab._imgEditing = false;
   ab.classList.remove('img-editing');
+  window.hideColorAdjustPanel?.();
   const img = ab.querySelector('.asset-img');
   if (img) {
     ab.dataset.imgW = img.offsetWidth;
@@ -325,7 +492,10 @@ function exitImageEditMode(ab) {
     ab.dataset.imgY = parseFloat(img.style.top)  || 0;
     img.style.objectFit = 'cover';
   }
-  ab.style.overflow = 'hidden'; // 프레임 클리핑 복원
+  // 편집 세션 종료 시 단일 커밋 — 입력/정렬/드래그/스케일 전부 포함 (undo·자동저장 choke point)
+  window.pushHistory?.('이미지 위치/크기');
+  window.scheduleAutoSave?.();
+  document.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone').forEach(el => el.remove());
   if (ab._imgEditCleanup) { ab._imgEditCleanup(); ab._imgEditCleanup = null; }
   document.removeEventListener('click',   ab._exitImgEdit);
   document.removeEventListener('keydown', ab._exitImgEsc);
@@ -349,34 +519,43 @@ function loadImageToAsset(ab, file) {
   if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
   exitImageEditMode(ab);
   pushHistory();
+  showAssetLoading(ab);
   const reader = new FileReader();
   reader.onload = ev => {
-    const src = ev.target.result;
-    ab.classList.add('has-image');
-    ab.dataset.imgSrc = src;
-    if (!ab.dataset.fit) ab.dataset.fit = 'cover';
-    // 기존 위치/크기/포지션 초기화
-    delete ab.dataset.imgW;
-    delete ab.dataset.imgX;
-    delete ab.dataset.imgY;
-    delete ab.dataset.imgPosition;
-    // 기존 overlay 내용 보존
-    const prevOverlayEl = ab.querySelector('.asset-overlay');
-    const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
-    const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
-    ab.innerHTML = `
-      <img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'">
-      <button class="asset-overlay-clear" title="이미지 제거">✕</button>
-      <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
-    ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
-      e.stopPropagation();
-      clearAssetImage(ab);
-    });
-    // overlay-tb 블록 재바인딩
-    ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
-    showAssetProperties(ab);
+    hideAssetLoading(ab);
+    setAssetImageFromSrc(ab, ev.target.result);
   };
+  reader.onerror = () => hideAssetLoading(ab);
   reader.readAsDataURL(file);
+}
+
+/* 스크래치 → 에셋 블록 이미지 적용 (loadImageToAsset의 FileReader.onload 본문 재사용)
+   ⚠️ pushHistory / showAssetProperties 호출은 caller에서 결정 (직접 적용용 헬퍼) */
+function setAssetImageFromSrc(ab, src) {
+  if (!ab || !src) return;
+  ab.classList.add('has-image');
+  ab.dataset.imgSrc = src;
+  if (!ab.dataset.fit) ab.dataset.fit = 'cover';
+  // 기존 위치/크기/포지션 초기화
+  delete ab.dataset.imgW;
+  delete ab.dataset.imgX;
+  delete ab.dataset.imgY;
+  delete ab.dataset.imgPosition;
+  // 기존 overlay 내용 보존
+  const prevOverlayEl = ab.querySelector('.asset-overlay');
+  const prevOverlayHTML = prevOverlayEl ? prevOverlayEl.innerHTML : '';
+  const prevOverlayStyle = prevOverlayEl ? prevOverlayEl.getAttribute('style') || '' : '';
+  ab.innerHTML = `
+    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
+    <button class="asset-overlay-clear" title="이미지 제거">✕</button>
+    <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
+  ab.querySelector('.asset-overlay-clear').addEventListener('click', e => {
+    e.stopPropagation();
+    clearAssetImage(ab);
+  });
+  // overlay-tb 블록 재바인딩
+  ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
+  showAssetProperties(ab);
 }
 
 function clearAssetImage(ab) {
@@ -392,11 +571,10 @@ function clearAssetImage(ab) {
   const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
   const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
   ab.innerHTML = `
-    ${ASSET_SVG}
-    <span class="asset-label">에셋을 업로드하거나 드래그하세요</span>
     <div class="asset-overlay" ${prevOverlayStyle2 ? `style="${prevOverlayStyle2}"` : ''}>${prevOverlayHTML2}</div>`;
   ab.querySelectorAll('.overlay-tb').forEach(b => { b._blockBound = false; bindBlock(b); });
   showAssetProperties(ab);
+  window.showToast?.('🗑 이미지 삭제됨 · ⌘Z로 되돌리기');
 }
 
 /* ══════════════════════════════════════
@@ -488,10 +666,104 @@ window.enterPosDragMode   = enterPosDragMode;
 window.exitPosDragMode    = exitPosDragMode;
 window.enterImageEditMode = enterImageEditMode;
 window.exitImageEditMode  = exitImageEditMode;
+
+/* ══════════════════════════════════════
+   배경 이미지 위치 드래그 모드 (섹션 / 서브섹션 공용)
+══════════════════════════════════════ */
+function enterBgPosDragMode(el) {
+  if (el._bgPosDragging) return;
+  if (!el.style.backgroundImage || el.style.backgroundImage === 'none') return;
+
+  el._bgPosDragging = true;
+  el.classList.add('bg-pos-dragging');
+  el.draggable = false;
+
+  const stored = el.dataset.bgPos || '50% 50%';
+  const parts  = stored.split(' ');
+  let posX = parseFloat(parts[0]) || 50;
+  let posY = parseFloat(parts[1]) || 50;
+
+  const applyPos = () => {
+    el.style.backgroundPosition = `${posX}% ${posY}%`;
+    el.dataset.bgPos = `${posX}% ${posY}%`;
+  };
+  applyPos();
+
+  const hint = document.createElement('div');
+  hint.className = 'img-edit-hint';
+  hint.textContent = '드래그로 배경 위치 조절 · Esc / 블록 밖: 완료';
+  el.style.position = el.style.position || 'relative';
+  el.appendChild(hint);
+
+  let isDragging = false;
+  let startX, startY, startPosX, startPosY;
+
+  function onMouseDown(e) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    isDragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startPosX = posX;   startPosY = posY;
+  }
+  function onMouseMove(e) {
+    if (!isDragging) return;
+    const zs = (window.currentZoom || 100) / 100;
+    const fw = el.offsetWidth;
+    const fh = el.offsetHeight;
+    const dx = (e.clientX - startX) / zs;
+    const dy = (e.clientY - startY) / zs;
+    posX = Math.max(0, Math.min(100, startPosX - (dx / fw * 100)));
+    posY = Math.max(0, Math.min(100, startPosY - (dy / fh * 100)));
+    applyPos();
+  }
+  function onMouseUp() {
+    if (!isDragging) return;
+    isDragging = false;
+    pushHistory();
+  }
+
+  el.addEventListener('mousedown', onMouseDown);
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup',   onMouseUp);
+
+  el._bgPosDragCleanup = () => {
+    el.removeEventListener('mousedown', onMouseDown);
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup',   onMouseUp);
+    hint.remove();
+  };
+
+  el._exitBgPosDrag    = e => { if (!el.contains(e.target)) exitBgPosDragMode(el); };
+  el._exitBgPosDragEsc = e => { if (e.key === 'Escape') exitBgPosDragMode(el); };
+  setTimeout(() => {
+    document.addEventListener('click',   el._exitBgPosDrag);
+    document.addEventListener('keydown', el._exitBgPosDragEsc);
+  }, 0);
+}
+
+function exitBgPosDragMode(el) {
+  if (!el._bgPosDragging) return;
+  el._bgPosDragging = false;
+  el.classList.remove('bg-pos-dragging');
+  el.draggable = true;
+  if (el._bgPosDragCleanup) { el._bgPosDragCleanup(); el._bgPosDragCleanup = null; }
+  document.removeEventListener('click',   el._exitBgPosDrag);
+  document.removeEventListener('keydown', el._exitBgPosDragEsc);
+  el._exitBgPosDrag    = null;
+  el._exitBgPosDragEsc = null;
+  window.scheduleAutoSave?.();
+  // 프로퍼티 패널 갱신
+  if (el.classList.contains('section-block')) window.showSectionProperties?.(el);
+  else if (el.classList.contains('frame-block')) window.showFrameProperties?.(el);
+}
+
+window.enterBgPosDragMode = enterBgPosDragMode;
+window.exitBgPosDragMode  = exitBgPosDragMode;
 window.applyImageTransform = applyImageTransform;
 window.triggerAssetUpload = triggerAssetUpload;
 window.clearAssetImage    = clearAssetImage;
 window.loadImageToAsset   = loadImageToAsset;
+window.setAssetImageFromSrc = setAssetImageFromSrc;
 
 window.triggerCircleUpload        = triggerCircleUpload;
 window.loadImageToCircle          = loadImageToCircle;
@@ -499,14 +771,6 @@ window.clearCircleImage           = clearCircleImage;
 window.applyCircleImageTransform  = applyCircleImageTransform;
 window.enterCircleImageEditMode   = enterCircleImageEditMode;
 window.exitCircleImageEditMode    = exitCircleImageEditMode;
-
-window.triggerCardImageUpload     = triggerCardImageUpload;
-window.loadImageToCard            = loadImageToCard;
-window.clearCardImage             = clearCardImage;
-
-window.triggerStripBannerImageUpload = triggerStripBannerImageUpload;
-window.loadImageToStripBanner        = loadImageToStripBanner;
-window.clearStripBannerImage         = clearStripBannerImage;
 
 /* ══════════════════════════════════════
    원형 프레임 (Icon Circle) 이미지
@@ -527,8 +791,10 @@ function loadImageToCircle(icb, file) {
   if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
   exitCircleImageEditMode(icb);
   pushHistory();
+  showAssetLoading(icb);
   const reader = new FileReader();
   reader.onload = ev => {
+    hideAssetLoading(icb);
     const src = ev.target.result;
     const circle = icb.querySelector('.icb-circle');
     icb.classList.add('has-image');
@@ -548,6 +814,7 @@ function loadImageToCircle(icb, file) {
     });
     showIconCircleProperties(icb);
   };
+  reader.onerror = () => hideAssetLoading(icb);
   reader.readAsDataURL(file);
 }
 
@@ -850,84 +1117,3 @@ function clearCircleImage(icb) {
   showIconCircleProperties(icb);
 }
 
-function triggerCardImageUpload(cdb) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.onchange = e => {
-    const file = e.target.files[0];
-    if (file) loadImageToCard(cdb, file);
-  };
-  input.click();
-}
-
-function loadImageToCard(cdb, file) {
-  if (!file || !file.type.startsWith('image/')) return;
-  pushHistory();
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const src = ev.target.result;
-    const imageArea = cdb.querySelector('.cdb-image');
-    cdb.classList.add('has-image');
-    cdb.dataset.imgSrc = src;
-    imageArea.innerHTML = `
-      <img class="cdb-img" src="${src}" draggable="false">
-      <button class="cdb-clear-btn" title="이미지 제거">✕</button>`;
-    imageArea.querySelector('.cdb-clear-btn').addEventListener('click', e => {
-      e.stopPropagation();
-      clearCardImage(cdb);
-    });
-    showCardProperties(cdb);
-  };
-  reader.readAsDataURL(file);
-}
-
-function clearCardImage(cdb) {
-  pushHistory();
-  cdb.classList.remove('has-image');
-  delete cdb.dataset.imgSrc;
-  const imageArea = cdb.querySelector('.cdb-image');
-  imageArea.innerHTML = `<span class="cdb-img-placeholder">+</span>`;
-  showCardProperties(cdb);
-}
-
-function triggerStripBannerImageUpload(sbb) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.onchange = e => {
-    const file = e.target.files[0];
-    if (file) loadImageToStripBanner(sbb, file);
-  };
-  input.click();
-}
-
-function loadImageToStripBanner(sbb, file) {
-  if (!file || !file.type.startsWith('image/')) return;
-  pushHistory();
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const src = ev.target.result;
-    const imageArea = sbb.querySelector('.sbb-image');
-    sbb.classList.add('has-image');
-    sbb.dataset.imgSrc = src;
-    imageArea.innerHTML = `
-      <img class="sbb-img" src="${src}" draggable="false">
-      <button class="sbb-clear-btn" title="이미지 제거">✕</button>`;
-    imageArea.querySelector('.sbb-clear-btn').addEventListener('click', e => {
-      e.stopPropagation();
-      clearStripBannerImage(sbb);
-    });
-    showStripBannerProperties(sbb);
-  };
-  reader.readAsDataURL(file);
-}
-
-function clearStripBannerImage(sbb) {
-  pushHistory();
-  sbb.classList.remove('has-image');
-  delete sbb.dataset.imgSrc;
-  const imageArea = sbb.querySelector('.sbb-image');
-  imageArea.innerHTML = `<span class="sbb-img-placeholder">+</span>`;
-  showStripBannerProperties(sbb);
-}

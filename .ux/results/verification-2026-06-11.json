@@ -1,0 +1,135 @@
+{
+  "verifier": "UXS-verify",
+  "version": "3.0",
+  "verified_at": "2026-06-11",
+  "candidate_rule": "(track=conformance AND severity in {blocker,major}) OR (track=judgment AND impact=high) — 중앙 정정 기준, adjudication 문자열 무관. 14건 전수.",
+  "verdicts": [
+    {
+      "id": "ERR-C1",
+      "dimension": "error",
+      "original": "blocker",
+      "verdict": "central-confirmed",
+      "refutation_attempted": "conformance 재실행: deletePage 전체 경로 직접 재추적 + main.js 페이지 수 가드 잔존 여부 grep 전수 + 히스토리 스냅샷 pages 포함 여부",
+      "reason": "재실행 일치+추가 악화 근거 발견. save-load.js:268-289 deletePage — confirm 無, pushHistory 無, 말미 scheduleAutoSave()로 즉시 영속화. 진입로 file-page-section.js:97-98 — ✕ 버튼이 복제 버튼 바로 옆 hover 노출 확인. 결정타: main.js에 page_count_reduced 가드가 0건(grep 전수) — BUG-44 주석(main.js:778-779)대로 '페이지/섹션 감소 차단 가드 제거' 완료 상태. 렌더러의 저장 거부 처리(save-load.js:131-135 '⚠️ 저장 거부: 페이지 수 감소 감지')는 main이 더 이상 반환하지 않는 사유를 기다리는 죽은 코드 — 즉 어떤 계층에서도 페이지 삭제를 막거나 되돌릴 수 없음. blocker 유지."
+    },
+    {
+      "id": "ERR-C2",
+      "dimension": "error",
+      "original": "major",
+      "verdict": "central-confirmed",
+      "refutation_attempted": "conformance 재실행: deleteTemplate 정의 + 2개 진입로 콜사이트 직접 확인, undo/soft-delete 경로 탐색",
+      "reason": "재실행 일치. deleteTemplate(template-system.js:102-110) — electronAPI.deleteTemplateCanvas 파일 삭제 + 목록 필터, 어떤 보호도 없음. 콜사이트 2곳 모두 무가드 직결: template-system.js:607-612(tpl-delete-btn), template-browser.js:349-352(tb-card-del-btn). 템플릿은 캔버스 히스토리 밖이라 undo 불가. 동종 영구 삭제 대조군(prop-frame.js:390 confirm) 실재 확인 — 내부 비일관 주장도 성립. 저빈도 영구물 → #5 가드(고빈도 Undo 대안) 비적용."
+    },
+    {
+      "id": "ERR-C3",
+      "dimension": "error",
+      "original": "major",
+      "verdict": "central-confirmed",
+      "refutation_attempted": "conformance 재실행: tpl-edit-overwrite 핸들러 직접 재독 + 비교 대상 prop-frame.js:390 confirm 원문 대조",
+      "reason": "재실행 일치. template-system.js:433-449 — '덮어쓰기' 클릭 시 선택 섹션 클론으로 saveTemplateCanvas 즉시 교체, confirm 없음, 이전 캔버스 복구 경로 없음(유일 가드는 섹션 미선택 alert뿐). 동일 패턴 배너 프리셋 변경은 confirm('프리셋을 바꾸면 현재 배너 안의 내용이 모두 사라집니다. 계속할까요?') — prop-frame.js:390 원문 확인. 비일관 사실 deterministic."
+    },
+    {
+      "id": "ERR-C4",
+      "dimension": "error",
+      "original": "major",
+      "verdict": "central-refuted",
+      "severity_adjust": "major → 휴면(dormant) 코드 부채로 강등 — 진입점 재활성화 시 재발행 조건부",
+      "refutation_attempted": "축③(의도된 숨김 여부) + 도달성 전수 재조사: CompShelf 호출처 프로젝트 전체 grep(index.html/js/pages 재귀)",
+      "reason": "무보호 deleteComponent(component-shelf.js:86-89→222-226) 자체는 코드에 실재하나, 유일한 UI 진입점 fp-comp-shelf-btn이 HTML 주석 블록 안('<!-- Component Shelf 버튼 숨김 처리', index.html:628-638)에 봉인됨. 프로젝트 전수 grep 결과 CompShelf 호출처는 그 주석 1건 외 0건 — 패널과 그 안의 🗑 버튼에 사용자가 도달할 방법이 없음(console/CDP 한정). 노출 0인 표면의 파괴 액션은 현재 UX 위반이 아님(semantics-003도 동일 표면을 '도달 불가 추정'으로 suspected 강등한 것과 정합). 의도적 숨김('시안 B' 단계 보류) → 축③ 해당. 재활성화 시 confirm 추가를 전제 조건으로 backlog 기록 권고."
+    },
+    {
+      "id": "ERR-J1",
+      "dimension": "error",
+      "original": "high",
+      "verdict": "central-confirmed",
+      "refutation_attempted": "축①(#6/#7 가속 경로 가드로 공격) + 축②(#8 미니멀리즘 충돌) + 축③(.tb-hidden-mvp 범위 재확인) + 사실관계 재실행(grep)",
+      "reason": "3축 모두 생존. 사실: index.html에 #undo-btn/#redo-btn 0건(grep 전수 — 참조는 history.js:28-29 데드코드뿐), undo/redo는 키보드 전용(editor.js:895-896), main.js에 앱 Menu 구성 없음 확인. 축①: #6 가드는 '가시적 대체 경로 존재 시 합격'인데 대체 경로가 0 — 가드가 오히려 위반을 확정. 축②: 툴바 버튼 1~2개는 업계 표준 컨트롤로 #8 비용 미미, history.js가 disabled/툴팁까지 이미 구현해 비용 최소. 축③: .tb-hidden-mvp 실범위는 Commit·Branch 계열 5건뿐(index.html:84,85,266,511,521) — undo는 숨김이 아니라 부재. 캔버스 파괴군 합격 근거(Undo 보호)가 일반 사용자에게 지각 불가라는 구조 논증도 유효."
+    },
+    {
+      "id": "UXS-semantics-001",
+      "dimension": "semantics",
+      "original": "major",
+      "verdict": "central-refuted",
+      "severity_adjust": "major → nit(문자열 1줄 수정은 여전히 권장 — UXS-semantics-012 구현용어 정비에 흡수)",
+      "refutation_attempted": "conformance 재실행(레이블 대조) + 토스트 발화 경로 도달성 전수 재조사",
+      "reason": "문자열 불일치 사실 자체는 재현됨('Canvas 블록을 사용하세요' block-factory.js:1787 vs UI 공식 레이블 'Card' index.html:617·layer-panel-items.js:148 labels 맵, 가시 'Canvas' 레이블 0건). 그러나 이 토스트의 유일한 발화 주체 addNewGridBlock은 [SEALED 2026-06-08] 봉인 함수로, 프로젝트 전수 grep 결과 콜사이트 0건(정의부+window export뿐, 주석에 'PM/MCP 등록 금지' 명시). UI의 어떤 경로로도 G1 외부 사용자에게 이 토스트가 표시될 수 없음 — '지시를 따르려는 사용자가 Canvas를 찾지 못함' friction은 발생 불가. 자동화/레거시 호출자 대상 개발자 메시지에 해당. major 근거 상실로 refute."
+    },
+    {
+      "id": "UXS-semantics-009",
+      "dimension": "semantics",
+      "original": "high",
+      "verdict": "central-confirmed",
+      "refutation_attempted": "축①(labeling 가드 — 예측 실패 시나리오 실재성) + 축②(C12 직전 개선 재변경 비용) + 축③(의도 결정 표 대조) + 드롭다운 내용물 재실행 검증",
+      "reason": "재실행 일치: index.html:89-131 — 7항목 중 내보내기 방향은 'JSON 내보내기'+'Figma 업로드' 2개뿐, 불러오기/저장/Figma Bridge/Figma 가져오기/참고 이미지 일괄 추가(스크래치패드 입력)가 'Export' 가시 레이블 아래 동거. 추가 악화 근거: '저장' 항목의 실제 동작은 saveProjectFile=JSON 파일 다운로드라 레이블-동작 이중 불일치. 축①: labeling 가드 '예측 실패 시나리오 기술 가능할 때만' — 시나리오 구체적(저장/불러오기 탐색자가 Export를 안 엶 + 핵심작업 #5 사용자가 PNG를 못 찾음, flow-006 실측과 교차 부합). 축③: profile 의도 결정 표에 없음(C12는 명칭 변경 이력일 뿐 예외 등재 아님). title='Export / Import'는 hover 한정이라 완화 불충분."
+    },
+    {
+      "id": "FB-J1",
+      "dimension": "feedback",
+      "original": "high",
+      "verdict": "central-confirmed",
+      "refutation_attempted": "measure 재추적: scheduleAutoSave 비동기 경로 + 실패 분기 + 로드 우선순위(localStorage 구제 가능성으로 공격)",
+      "reason": "코드 재추적 일치. save-load.js:1074-1075 — saveProjectToFile(snap,...) await 없이 호출 직후 동기 _setAutosaveIndicator('saved'). 실패 시 _doSaveProjectToFile catch(:139-141)가 '❌ 저장 실패' 토스트(2초 transient)를 띄우는 동안 인디케이터는 '저장됨' 유지(2.5초 후 공백, :1057-1059) — 성공·실패 신호 동시 존재 모순 확인. 반증 시도(localStorage가 구제하므로 유실 없다)는 실패: initLoad는 electronAPI.loadProject(파일) 우선(:1254)이라 파일 저장 실패분은 재기동 시 구버전으로 회귀 가능. 부가 발견: ok:false '저장 거부' 분기(:131-135)는 main.js 가드 제거로 현재 죽은 코드 — 수정 시 함께 정리 권고. high 유지."
+    },
+    {
+      "id": "UXO-J02",
+      "dimension": "onboarding",
+      "original": "high",
+      "verdict": "central-confirmed",
+      "refutation_attempted": "데이터 재실행(프로젝트 저장소 직접 재집계) + 축①(#6 가드 — 가시적 대체 경로 존재 여부 grep) + 축③(의도 결정 대조)",
+      "reason": "독립 재집계 일치: ~/Library/Application Support/Goya Design Editor/projects 실데이터 — 프로젝트 엔트리 20개 중 9개가 'Untitled*' (원보고 19중9와 정합 — 차이 1은 측정 당시 자기 생성 테스트 프로젝트 타이밍). 질적 보강 근거: 'Untitled_삭제'·'Untitled_두더지?'·'Untitled_세이프본인지?' 같은 이름들은 사용자가 식별 실패 후 의문형 접미사로 더듬은 흔적 — friction 주장(식별 불가→오조작 연쇄)을 실데이터가 지지. rename 진입로 재확인: projects.html:295·index.html:252 모두 ondblclick 단독, 가시 rename 버튼/메뉴 0건(grep). #6 가드 '가시적 대체 경로 있으면 합격' — 없음, 위반 성립. squad 테스트 산물 2건을 제외해도 8/18≈44%로 high 유지 타당."
+    },
+    {
+      "id": "UXS-layout-001",
+      "dimension": "layout",
+      "original": "high",
+      "verdict": "central-confirmed",
+      "severity_adjust": "high 유지하되 hick 축 1건 정정: '분류 없는 동급 7항목 평면 나열'은 부정확 — pub-dd-divider 3개로 구획 실재(index.html:108,117,126). 위반의 본체는 hick이 아니라 labeling/common-region(구획이 있어도 'Export' 레이블 아래 반대 방향 IO·스크래치패드 입력이 동거)",
+      "refutation_attempted": "드롭다운 DOM 재실행 검증 + 축①(hick·labeling 가드) + 축③(의도 결정 표)",
+      "reason": "내용물 재검증 일치(semantics-009와 동일 표면 — 7항목 중 Export 방향 2개, '참고 이미지 일괄 추가'는 핵심작업 #2의 입력 진입점이 Export 메뉴 안에 위치). 산출물 PNG 내보내기가 페이지 props에만 있다는 주장은 flow-006 실측과 교차 부합. 축① labeling 가드: 예측 실패 시나리오 구체적이라 성립. 단 hick 인용부는 위 정정대로 약화 — divider 존재를 놓친 것은 사실 오류이나 finding 본체(레이블-내용물 방향 불일치)는 독립적으로 생존."
+    },
+    {
+      "id": "UXS-layout-002",
+      "dimension": "layout",
+      "original": "high",
+      "verdict": "central-confirmed",
+      "severity_adjust": "high → medium 하향 제안: 최악 시나리오('빈 이름의 템플릿이 생성') 는 사실 오류 — prop-section.js:550-551 이름 가드(`if (!name) { focus(); return; }`)로 빈 이름 템플릿 생성 불가. 오클릭 비용은 '아무 일도 안 일어나고 이름 필드 포커스'로 완화됨. 단 이중 primary 경쟁 + generic '저장' 레이블은 실재",
+      "refutation_attempted": "구조 재실행(버튼 2개·색·레이블 코드 검증) + friction 시나리오 코드 반증",
+      "reason": "구조 주장 재검증 일치: '이 섹션 내보내기'(.prop-export-btn — css/editor-props.css:545-559 파랑 full-width)와 Template '저장'(#sec-tpl-save-btn .prop-action-btn.primary — css/editor-blocks.css:386 --ui-accent-primary 파랑 full-width)이 같은 컬럼에 동급 병존(prop-section.js:248, 275). 초기 레이블은 generic '저장'이며 '템플릿으로 저장'으로 바뀌는 건 저장 성공 1.5초 후뿐(:564-566) — 첫 대면 사용자에겐 항상 '저장'. figure-ground·labeling 위반 골격은 생존하나 데이터 오염 시나리오가 깨져 high 근거 약화 — medium 제안."
+    },
+    {
+      "id": "UXS-flow-001",
+      "dimension": "flow",
+      "original": "high",
+      "verdict": "central-confirmed",
+      "refutation_attempted": "축③ 정밀 재조사(지시된 핵심 분기): .tb-hidden-mvp로 '존재하되 숨김'인지 vs 미구현인지 코드로 판별 + 레이어 패널 행 버튼 재확인 + 섹션 컨텍스트 메뉴 존재 grep",
+      "reason": "축③ 판별 결과 = 미구현 (refute 조건 불성립). ① .tb-hidden-mvp 전수: index.html 5건 모두 Commit/Branch 계열(:84,85,266,511,521) — 섹션 이동·복제·삭제 컨트롤은 이 클래스로 숨겨진 것이 아님. ② 섹션 툴바 실코드(block-factory.js:909-925): ⎇(그나마 editor-panels.css:967 display:none)·✨·📝(+🔒 주입) — 이동/복제/삭제 버튼 자체가 마크업에 없음. ③ bindSectionDelete/bindSectionOrder는 본문이 비워진 채 '삭제 버튼 제거됨 — 레이어 패널 또는 컨텍스트 메뉴에서 처리' 주석만 잔존(editor.js:1737-1744)인데 약속된 섹션 컨텍스트 메뉴는 미구현(_openBlockContextMenu 블록용만, block-factory.js:4094) ④ 레이어 패널 일반 행 버튼은 eye뿐(layer-panel.js:51-52; :487 delBtn은 Variant 그룹 전용). 핵심작업 #3(매 세션 다수)의 가시 진입로 0 — confirmed."
+    },
+    {
+      "id": "UXS-flow-002",
+      "dimension": "flow",
+      "original": "high",
+      "verdict": "central-confirmed",
+      "refutation_attempted": "코드 재추적(삭제 경로 피드백 전수) + 축②(undo 토스트 제안이 #5/#8과 충돌하는지) + 타 에이전트 동적 검증과 교차 대조",
+      "reason": "재추적 일치: editor.js:1440-1445 — selSection.remove()→deselectAll()→pushHistory('섹션 삭제'), 토스트/confirm/undo 힌트 0 (피드백이 있는 유일 분기는 보호 섹션 차단 :1435-1437). U-error 동적 검증(sections 4→3→4)과 flow 실측(dialogs:[], toasts:[])이 독립 일치. 축②: 제안이 confirm이 아닌 undo 액션 토스트라 #5 가드(고빈도→Undo 표준)와 정합, ai-section-fill.js:780의 기존 'Cmd+Z 되돌리기' 안내 패턴 재사용 가능해 비용 낮음. Undo 자체가 지각 불가(ERR-J1 확정)인 상황에서 무표시 Undo-only는 일반 사용자에게 무보호와 등가 — 논증 생존."
+    },
+    {
+      "id": "UXS-flow-003",
+      "dimension": "flow",
+      "original": "high",
+      "verdict": "central-refuted",
+      "severity_adjust": "high refute. 단 부산물 1건 분리 권고(suspected/minor): _activeFrame이 freeLayout도 fullWidth도 아닌 일반 프레임으로 잔존하면 addTextBlock이 힌트 없이 silent return하는 협소 경로 실재(block-factory.js:402 '지원하지 않는 프레임 타입') — flow의 1회 관찰은 이 경로 또는 오염 세션 산물로 추정",
+      "refutation_attempted": "코드 반증(미선택 가드 구현 전수) + 타 에이전트 독립 실측과 교차 대조(같은 RUN 내 모순 발견)",
+      "reason": "주장('완전한 silent no-op — 흡수도 고지도 없음')이 이중 근거로 반증됨. ① 코드: 섹션 미선택 시 addTextBlock의 기본 분기는 showNoSelectionHint() 호출(block-factory.js:410) — 토스트 '⚠️ 섹션 또는 블록을 먼저 선택하세요' + 플로팅 패널 fp-shake 이중 신호(drag-utils.js:133-138), 동일 가드가 추가 경로 6곳+(:184,:223,:589,:663,:696)에 배선됨. ② 독립 실측: UXS-feedback 측정④가 같은 날 같은 빌드에서 정확히 이 실패 경로를 라이브 재현 — 3회 모두 토스트+shake 발화(median 26.3ms), '실패 경로 라이브 검증 — silent 아님'으로 명기. flow의 관찰은 재현 1회+오염 세션(자체 caveat: 앱 재시작·외부 프로젝트 전환 수 회)이라 증거 강도에서 열세. 주 진입로의 silent no-op 주장으로는 기각."
+    }
+  ],
+  "summary": {
+    "confirmed": 11,
+    "refuted": 3,
+    "refuted_ids": ["ERR-C4", "UXS-semantics-001", "UXS-flow-003"],
+    "severity_adjust_notes": [
+      "UXS-layout-002: high→medium 제안 (빈 이름 템플릿 생성 시나리오는 이름 가드로 사실 오류)",
+      "UXS-layout-001: high 유지, hick 축 정정 (divider 3개 실재 — 위반 본체는 labeling)",
+      "공통 근인 메모: ERR-J1·UXS-flow-002는 동일 근인(Undo 지각 불가) — 수정 시 1패키지 처리 효율적. FB-J1 수정 시 죽은 코드(저장 거부 분기 save-load.js:131-135) 동반 정리 권고"
+    ]
+  }
+}

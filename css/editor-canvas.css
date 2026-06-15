@@ -27,7 +27,7 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease, transform 0.25s ease;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  box-shadow: var(--ui-shadow-sm);
 }
 #canvas-notch-bar.visible {
   opacity: 1;
@@ -57,8 +57,143 @@
 #canvas-wrap.pan-mode.panning { cursor: grabbing; user-select: none; }
 #canvas-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
 #canvas-wrap::-webkit-scrollbar-thumb { background: var(--ui-border); border-radius: 3px; }
+#canvas-wrap.scratch-drag-over { outline: 2px dashed rgba(21,146,254,0.45); outline-offset: -6px; }
 
-#canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; }
+/* ── 스크래치패드 아이템 ── */
+.scratch-item {
+  position: absolute;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.12);
+  cursor: move;
+  user-select: none;
+  z-index: 100; /* 섹션 위에 떠 있도록 — 일반 이동/⌘드래그 모두 가시성 보장 */
+}
+.scratch-item:hover {
+  box-shadow: 0 6px 24px rgba(0,0,0,0.45), 0 0 0 2px rgba(255,255,255,0.22);
+}
+.scratch-item img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  pointer-events: none;
+  min-height: 20px;
+}
+.scratch-close {
+  position: absolute;
+  top: 4px; right: 4px;
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: top right;
+  width: 18px;
+  height: 18px;
+  background: rgba(28,28,28,0.88);
+  color: #fff;
+  border: 1.5px solid rgba(255,255,255,0.18);
+  border-radius: 50%;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+  line-height: 1;
+}
+.scratch-item:hover .scratch-close { opacity: 1; }
+.scratch-close:hover { background: var(--ui-danger-hover); border-color: var(--ui-danger-hover); }
+
+/* ── 슬라이스 버튼 + 모드 ── */
+.scratch-slice-btn {
+  position: absolute;
+  top: 4px;
+  right: calc(4px + 22px * var(--inv-zoom, 1)); /* close 너비(18) + 간격(4) 줌 보정 */
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: top right;
+  width: 18px; height: 18px;
+  background: rgba(28,28,28,0.88);
+  color: #fff;
+  border: 1.5px solid rgba(255,255,255,0.18);
+  border-radius: 50%;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+  line-height: 1;
+  padding: 0;
+}
+.scratch-item:hover .scratch-slice-btn { opacity: 1; }
+.scratch-slice-btn:hover { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); }
+
+/* ── AI 버튼 (가위 앞) ── */
+.scratch-ai-btn {
+  position: absolute;
+  top: 4px;
+  right: calc(4px + 44px * var(--inv-zoom, 1)); /* close(18) + gap(4) + slice(18) + gap(4) */
+  transform: scale(var(--inv-zoom, 1));
+  transform-origin: top right;
+  width: 18px; height: 18px;
+  background: rgba(28,28,28,0.88);
+  color: #fff;
+  border: 1.5px solid rgba(255,255,255,0.18);
+  border-radius: 50%;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+  line-height: 1;
+  padding: 0;
+}
+.scratch-item:hover .scratch-ai-btn { opacity: 1; }
+.scratch-ai-btn:hover { background: #a855f7; border-color: #a855f7; }
+
+.scratch-item.scratch-slice-mode { cursor: crosshair; }
+.scratch-item.scratch-slice-mode .scratch-close,
+.scratch-item.scratch-slice-mode .scratch-slice-btn,
+.scratch-item.scratch-slice-mode .scratch-ai-btn,
+.scratch-item.scratch-slice-mode .scratch-resize,
+.scratch-item.scratch-slice-mode .scratch-id-chip {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.scratch-item.scratch-slice-mode img { cursor: crosshair; }
+
+.scratch-slice-line {
+  position: absolute;
+  left: 0; right: 0;
+  top: 0;
+  height: 0;
+  border-top: 1px dashed rgba(231, 76, 60, 0.95);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+  pointer-events: none;
+  z-index: 11;
+}
+
+.scratch-resize {
+  position: absolute;
+  bottom: 0; right: 0;
+  transform: translate(50%, 50%) scale(var(--inv-zoom, 1));
+  transform-origin: center center;
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.88);
+  border: 1.5px solid rgba(0,0,0,0.25);
+  border-radius: 1px;
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+}
+.scratch-item:hover .scratch-resize { opacity: 1; }
+.scratch-item.scratch-selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
+
+#canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; position: relative; }
 #canvas-wrap.panning #canvas-scaler { transition: none; }
 
 #canvas {
@@ -79,19 +214,52 @@
   width: 100%;
   cursor: default;
   outline: 2px solid transparent;
-  transition: outline 0.1s;
+  z-index: 2;
 }
 .section-block:has(.section-hitzone:hover)::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-.section-block.selected { outline: 2px solid var(--sel-color); outline-offset: 0; }
+.section-block.selected {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
 
 .section-label {
-  font-size: 11px; font-weight: 500;
+  font-size: var(--ui-fs-base); font-weight: var(--ui-fw-medium);
   color: var(--ui-text-muted); letter-spacing: 0.06em; text-transform: uppercase;
   background: var(--ui-bg-input);
   padding: 3px 10px; border-radius: 4px 4px 0 0;
   pointer-events: none;
   white-space: nowrap;
-  transform: scale(var(--inv-zoom, 1));
-  transform-origin: left center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* 줌 카운터-스케일 + 우측 툴바와 안전거리 확보 */
+  max-width: calc((100% - 110px) / var(--ui-scale, 1));
+  display: inline-block;
+  transform: scale(var(--ui-scale, 1));
+  /* 라벨이 섹션 경계 바로 위에 붙도록 하단 기준 — 스케일 커져도 섹션과 분리되지 않음 */
+  transform-origin: left bottom;
 }
 
+
+/* (dead .scratch-asset-handle 제거됨 — 우클릭 메뉴로 전환) */
+
+/* ─── 스크래치 자석 스냅 가이드라인 ──────────────────
+   #scratch-snap-guides 컨테이너는 canvas-scaler 내부에 절대좌표.
+   각 라인은 width 또는 height 1px div. transform scale은 scaler 따라감. */
+.scratch-snap-guide-line {
+  position: absolute;
+  background: #ff3b6b;          /* edge/center 기본 = 빨강 실선 */
+  pointer-events: none;
+  z-index: 9999;
+  /* 1px 실선처럼 보이게 — background 색이 곧 선 색 */
+}
+.scratch-snap-guide-line.spacing {
+  /* spacing(파랑 점선) — background는 비우고 border로 점선 표현 */
+  background: transparent;
+  border-top: 1px dashed var(--ui-accent-primary);
+  height: 0 !important;
+}
+.scratch-snap-guide-line.v.spacing {
+  border-top: none;
+  border-left: 1px dashed var(--ui-accent-primary);
+  width: 0 !important;
+}

@@ -1,0 +1,83 @@
+{
+  "agent": "QA-03",
+  "version": "4.0",
+  "role": "core",
+  "scope": "card-table-graph",
+  "method": "cdp",
+  "date": "2026-06-11",
+  "section_used": "sec_3teqgt0 [QA-03] (created, tested, deleted at end; duplicate sec_1ikvnls also removed)",
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "테이블 셀 편집 + Undo",
+      "status": "pass",
+      "severity": null,
+      "steps": [
+        "addTableBlock() → tbl_hfpdj4h 생성 (16 cells, 기본 항목/내용 구조)",
+        "셀 dblclick → contenteditable 활성화 + pushHistory('셀 편집') 확인 (js/block-drag.js:820-844)",
+        "execCommand insertText '_QA03' (input 이벤트 발생) → '항목 1_QA03'",
+        "blur → contenteditable=false + pushHistory('셀 텍스트 변경') 확인 (historyStack tail: ['셀 편집','셀 텍스트 변경'])",
+        "press_key Meta+z → 셀 '항목 1'로 원복 확인"
+      ],
+      "evidence": {
+        "app_undo_path": "blur 커밋 후 press_key Meta+z → app undo() → 셀 원복 PASS (typed='항목 1_QA03' → after='항목 1')",
+        "native_undo_path": "편집 중(contenteditable focus) Cmd+Z는 앱이 의도적으로 브라우저 native undo에 위임 (js/editor.js:895 — isContentEditable이면 return). CDP 합성 키는 macOS native undo 커맨드를 발화시키지 못해 press_key로는 검증 불가(하네스 한계). 동등 경로인 document.execCommand('undo')로 원자적 검증: '항목 1_QA03' → '항목 1' 원복 PASS",
+        "note": "execCommand('undo')를 입력과 다른 evaluate 호출에서 실행하면 동시작업 DOM 변이로 native undo 스택이 무효화돼 실패함 — 입력+undo를 한 스크립트에서 원자 실행해야 재현 가능"
+      }
+    },
+    {
+      "id": 2,
+      "name": "카드 블록 클릭 → 패널 응답",
+      "status": "fail",
+      "severity": "major",
+      "adjudication": null,
+      "steps": [
+        "addCardBlock() → cdb_r9m39q0, cdb_hy97138 생성 (기본 2장, row>col>card-block 구조)",
+        "캔버스에서 카드 직접 클릭(.cdb-title/.cdb-body 포함) → 카드 selected 안 됨, 우측 패널은 row(Grid) 속성 표시",
+        "레이어 패널 확인 → 카드가 'Card'가 아닌 'Asset / Image' 항목으로 표시, 클릭 시 .col이 선택되고 'Asset Block' 패널 표시",
+        "window.showCardProperties(card) 직접 호출 → 'Card Block' 전용 패널 정상 렌더 (이미지 업로드/배경색/모서리/제목·설명 크기 등 9 controls)"
+      ],
+      "evidence": {
+        "root_cause_1": "bindBlock(js/block-drag.js:80)에 isCard 분기가 없음 — card-block은 캔버스 클릭 핸들러가 안 붙어 클릭이 row로 버블됨. table/graph는 전용 분기로 직접 클릭 시 전용 패널이 뜨는 것과 비일관",
+        "root_cause_2": "layer-panel.js appendRowToLayer(:scope > * 순회)가 row 직속 자식만 검사하는데 카드는 .col 래퍼 안에 있어 makeLayerCardItem이 호출되지 않음 → .col이 generic 'asset' 타입으로 렌더되어 클릭 시 showAssetProperties가 뜸 (js/panels/layer-panel.js:213-227)",
+        "impact": "전용 카드 속성 패널(js/props/prop-card.js showCardProperties — 배경색/radius/titleSize/descSize/이미지)이 일반 UI 경로로는 도달 불가. 부분 우회: row 선택 시 'Child Blocks' 일괄 radius/높이 컨트롤만 제공(js/props/prop-row.js:40-70)",
+        "panel_works_when_called": "showCardProperties 직접 호출 시 패널 자체는 정상 — 와이어링만 끊겨 있음"
+      }
+    },
+    {
+      "id": 3,
+      "name": "(보너스) addGraphBlock → 데이터 입력 UI",
+      "status": "pass",
+      "severity": null,
+      "steps": [
+        "addGraphBlock() → grb_dlxbu3n 생성",
+        "캔버스에서 그래프 직접 클릭 → selected + 우측 패널 'Graph Block' 표시",
+        "패널 섹션: Size / Chart Type(세로·가로 막대, 꺾은선) / Preset(기본·다크·미니멀·컬러풀) / Data",
+        "Data 섹션: 라벨+값 input 5쌍(.grb-data-label-input/.grb-data-val-input) + 항목별 ✕ 삭제 + '+ 항목 추가' 버튼",
+        "스모크: 첫 값 75→88 입력(input/change 이벤트) → 그래프 즉시 리렌더, 막대 값 88 반영 확인"
+      ],
+      "evidence": {
+        "data_ui_opens": true,
+        "live_rerender": "값 변경 즉시 차트 반영 (스크린샷에서 88/90/55/80/65 막대 확인)"
+      }
+    }
+  ],
+  "observations": [
+    {
+      "type": "ux",
+      "note": "동시작업 중 undo(전체 캔버스 스냅샷 복원, js/history.js restoreSnapshot) 부작용으로 내 섹션의 그래프 추가 이전 시점 복제본(sec_1ikvnls)이 생성됨. 멀티 에이전트/멀티 유저 환경에서 스냅샷 단위 undo는 섹션 중복·소실 위험. 단일 사용자 환경에선 영향 낮음 — 참고용",
+      "severity": "ux"
+    },
+    {
+      "type": "etiquette",
+      "note": "최초 addSection 호출 1회가 스크립트 오류로 태깅 실패 — 미태깅 stray 섹션 1개가 생겼을 수 있으나 동시작업 중 타 에이전트 섹션과 구분 불가하여 삭제하지 않음. 종료 시점 잔여: Section 01/04/06 (모두 미태깅)"
+    }
+  ],
+  "harness_limitations": [
+    "CDP 합성 Meta+z는 contenteditable 편집 중 macOS native undo를 발화시키지 못함 — execCommand('undo')로 동등 검증"
+  ],
+  "passed": 2,
+  "failed": 1,
+  "ux_issues": 1,
+  "blocker_candidates": 0
+}

@@ -1,0 +1,109 @@
+{
+  "agent": "matrix-graph",
+  "area": "graph",
+  "dimension": "matrix-4station",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "scope": "그래프 블록 편집 UI 크롬만 — 프로퍼티 패널의 그래프 전용 데이터 편집 컨트롤(.grb-data-* 입력/삭제 버튼). 그래프 차트 타입/프리셋 버튼은 공용 .prop-type-btn/.prop-preset-btn/.prop-btn-full 베이스(=prop-panel 영역 소유)를 그대로 사용하므로 graph 고유 크롬 아님. **사용자 데이터 시각화(막대/선 색·값·라벨, --preset-*, .grb-bar-*/.grb-line-* 콘텐츠 렌더)는 콘텐츠라 불가침 — 감사 제외.**",
+  "scanned_files": [
+    "css/editor-graph.css",
+    "js/props/prop-graph.js",
+    "css/editor-props.css (베이스 .prop-* 대조용 read-only)",
+    "css/editor-base.css (--ui-* 토큰 대조용 read-only)"
+  ],
+  "owns": [".grb-data-list", ".grb-data-item", ".grb-data-label-input", ".grb-data-val-input", ".grb-data-del-btn"],
+  "content_excluded": [
+    ".graph-block (블록 컨테이너 + 프리셋 bg/color)",
+    ".grb-bars-v / .grb-bar-col / .grb-bar-fill / .grb-bar-val-label / .grb-bar-label (세로막대 콘텐츠)",
+    ".grb-bars-h / .grb-bar-row / .grb-bar-h-pct / .grb-bar-h-desc / .grb-bar-h-track / .grb-bar-h-fill (가로막대 콘텐츠)",
+    ".grb-line-* (꺾은선 콘텐츠 svg/dot/label)",
+    "data-preset=default/dark/minimal/colorful 색상 오버라이드 (사용자 시각화 색 — 불가침)",
+    "prop-graph.js 의 slider/number/toggle/colorField 위젯 (공용 prop-panel 영역)"
+  ],
+  "signatures": {
+    "D-component": {
+      "data_label_input": ".grb-data-label-input — flex:1, height 24px, border 1px solid var(--ui-border), radius 4px, font 11px, padding 0 6px (그래프 고유 데이터 편집 입력)",
+      "data_val_input": ".grb-data-val-input — width 44px, height 24px, border 1px solid var(--ui-border), radius 4px, font 11px, text-align center",
+      "data_del_btn": ".grb-data-del-btn — 20×20px, bg none, border 1px solid var(--ui-border-mid), radius 4px, font 11px (✕ 항목 삭제)",
+      "shared_chrome": "차트타입(세로/가로/꺾은선) = .prop-type-btn, 프리셋(기본/다크/미니멀/컬러풀) = .prop-preset-btn[data-preset-id], 항목추가 = .prop-btn-full — 전부 공용 베이스 클래스 그대로 재사용(graph 고유 radius/height override 없음 = 일관·OK)"
+    },
+    "D-color": {
+      "data_input_bg": "var(--ui-bg-app) (=#1a1a1a, 토큰화 OK) — 단 입력요소 표준 토큰은 --ui-bg-input(#2a2a2a). 형제 ds-base-select/cvb 입력은 --ui-bg-input 사용 → graph만 app bg",
+      "data_input_text": "#ddd (raw hex) — --ui-text(#e0e0e0) 근사치인데 토큰 미사용. label/val 입력 둘 다",
+      "data_input_border": "var(--ui-border) (토큰화 OK)",
+      "data_input_focus_border": "var(--ui-accent-primary) (토큰화 OK)",
+      "data_del_border": "var(--ui-border-mid) / 텍스트 var(--ui-text-dim) (토큰화 OK)",
+      "data_del_hover": "#e06060 (raw hex, border+color 동시) — --ui-danger(#e06c6c) 미세 불일치"
+    },
+    "D-spacing": {
+      "data_list_gap": "4px / margin-bottom 8px",
+      "data_item_gap": "4px (label input — val input — del btn)",
+      "data_input_pad": "0 6px (label) — 4px 그리드 정합(가로만)",
+      "control_heights": "입력 24px / 삭제버튼 20px — 4의 배수, 정합"
+    },
+    "D-states": {
+      "data_input_focus": ":focus { border-color: var(--ui-accent-primary) } — focus만, focus-visible 분리 없음(키보드 전용 링 부재)",
+      "data_del_hover": ":hover { border-color:#e06060; color:#e06060 } (danger 강조 — 의도)",
+      "data_del_focus_visible": "없음 (키보드 포커스 표시 미정의)",
+      "data_input_hover": "없음"
+    }
+  },
+  "findings": [
+    {
+      "id": "matrix-graph-01",
+      "station": "D-color",
+      "severity": "minor",
+      "title": ".grb-data-label-input / .grb-data-val-input 텍스트 색이 raw #ddd (토큰 미사용)",
+      "rule": "UI 크롬 입력 텍스트는 --ui-text 토큰 사용 (raw hex 금지)",
+      "evidence": "editor-graph.css 데이터 편집부: .grb-data-label-input{color:#ddd}, .grb-data-val-input{color:#ddd}. #ddd 는 --ui-text(#e0e0e0)의 근사치. border/focus-border 는 이미 var(--ui-border)/var(--ui-accent-primary) 토큰을 쓰는데 텍스트 색만 bare hex 라 부분 토큰화. canvas-block 영역의 동일 패턴(matrix-canvas-block-01: .cvb-card-input color:#ddd)과 같은 계열 이탈.",
+      "locations": ["css/editor-graph.css (.grb-data-label-input)", "css/editor-graph.css (.grb-data-val-input)"],
+      "expected": "color: var(--ui-text); (형제 입력 컨트롤과 동일 토큰)",
+      "disposition": "self"
+    },
+    {
+      "id": "matrix-graph-02",
+      "station": "D-color",
+      "severity": "minor",
+      "title": ".grb-data-* 입력 배경이 --ui-bg-app(앱 최하위 bg)이라 입력요소 표준 --ui-bg-input과 불일치",
+      "rule": "input/sunken 요소 배경은 --ui-bg-input(#2a2a2a) 사용 — --ui-bg-app(#1a1a1a)은 body 최하위 전용",
+      "evidence": "editor-graph.css: .grb-data-label-input / .grb-data-val-input 둘 다 background: var(--ui-bg-app). 토큰 주석상 --ui-bg-app=#1a1a1a는 'body 최하위 배경', --ui-bg-input=#2a2a2a가 'input, sunken/active 요소'(editor-base.css:39,43). ds-base-select·ds-token-hex 등 형제 입력 위젯은 --ui-bg-input 사용. graph 데이터 입력만 app bg라 입력 어포던스(우묵함) 약화. 토큰은 쓰므로 minor.",
+      "locations": ["css/editor-graph.css (.grb-data-label-input)", "css/editor-graph.css (.grb-data-val-input)"],
+      "expected": "background: var(--ui-bg-input); (입력요소 표준 토큰)",
+      "disposition": "self"
+    },
+    {
+      "id": "matrix-graph-03",
+      "station": "D-color",
+      "severity": "minor",
+      "title": ".grb-data-del-btn:hover 가 raw #e06060 사용 (--ui-danger #e06c6c 미세 불일치)",
+      "rule": "danger 강조색은 --ui-danger / --color-danger 토큰 단일화",
+      "evidence": "editor-graph.css: .grb-data-del-btn:hover { border-color:#e06060; color:#e06060 }. 토큰 --ui-danger=#e06c6c 와 다른 값(#e06060)으로 하드코딩 — 동일 의미(삭제 hover)인데 색이 2px 단위로 어긋남. 같은 영역 신호색이 토큰과 불일치하면 danger 통일성 깨짐.",
+      "locations": ["css/editor-graph.css (.grb-data-del-btn:hover)"],
+      "expected": "border-color: var(--ui-danger); color: var(--ui-danger);",
+      "disposition": "self"
+    },
+    {
+      "id": "matrix-graph-04",
+      "station": "D-states",
+      "severity": "minor",
+      "title": ".grb-data-* 입력/삭제 버튼에 focus-visible(키보드 포커스 링) 미정의",
+      "rule": "outline:none / 커스텀 입력은 키보드 포커스 표시(:focus-visible) 필수 (A11y)",
+      "evidence": ".grb-data-label-input/.grb-data-val-input 은 outline:none + :focus 시 border-color 변경만(마우스/키보드 구분 없음). .grb-data-del-btn 은 :hover 만 있고 :focus / :focus-visible 무. 키보드 탭 이동 시 삭제 버튼 포커스 위치 식별 불가. 앱 전역 패턴(matrix-canvas-block-* card_input_focus '없음')과 동일한 영역 횡단 부재라 cross-area 신호이기도 함.",
+      "locations": ["css/editor-graph.css (.grb-data-label-input:focus)", "css/editor-graph.css (.grb-data-del-btn)"],
+      "expected": ".grb-data-del-btn:focus-visible { outline:2px solid var(--ui-accent-primary) } + 입력은 :focus-visible 분리",
+      "disposition": "self"
+    }
+  ],
+  "crossAreaFlags": [
+    {
+      "to": "prop-panel",
+      "note": "그래프 패널의 차트타입/프리셋/항목추가 버튼은 graph 고유 클래스가 아니라 공용 .prop-type-btn/.prop-preset-btn/.prop-btn-full 베이스를 그대로 사용. 이 베이스의 hover/active/포커스 일관성은 prop-panel 영역 소관 — graph는 override 없이 따름(=일관, 별도 위반 아님)."
+    },
+    {
+      "to": "canvas-block / station-states",
+      "note": "입력 컨트롤 focus-visible 부재 + 텍스트 raw #ddd 패턴이 .cvb-card-input(matrix-canvas-block-01) 과 동일. 개별 영역 minor지만 앱 전역 입력 위젯 토큰/포커스 표준화로 묶으면 1건 구조 이슈."
+    }
+  ],
+  "summary": "graph 영역 고유 UI 크롬은 프로퍼티 패널 데이터 편집 컨트롤(.grb-data-label-input/.grb-data-val-input/.grb-data-del-btn)뿐 — 차트타입/프리셋/항목추가 버튼은 공용 .prop-* 베이스를 override 없이 재사용해 일관(별도 위반 없음). **막대/선 색·값·라벨 등 사용자 데이터 시각화와 --preset-* 색은 콘텐츠라 전량 감사 제외.** 위반은 minor 4건: (1) 입력 텍스트 raw #ddd(→--ui-text), (2) 입력 배경 --ui-bg-app(→입력표준 --ui-bg-input), (3) 삭제 hover raw #e06060(→--ui-danger #e06c6c), (4) 입력·삭제버튼 focus-visible 부재. major/critical 없음. 3·4번은 canvas-block/states 영역과 동일 패턴이라 앱 전역 입력 위젯 토큰·포커스 표준화로 일괄 처리 권장."
+}

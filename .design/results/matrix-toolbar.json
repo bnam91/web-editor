@@ -1,0 +1,162 @@
+{
+  "area": "toolbar",
+  "agent": "DSN-matrix-toolbar",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "owns": {
+    "selectors": [".tb-btn", ".tb-btn--icon", ".tb-badge", ".tb-badge--pill", ".tb-badge--accent", ".zoom-btn", "#zoom-ctrl", "#zoom-display", ".zoom-sep", "#topbar", ".proj-tab", ".st-btn", ".section-toolbar", "#publish-btn", ".pub-dd-item", ".pub-dd-divider", "#home-btn", "#tab-add-btn"],
+    "files": ["css/editor-base.css (562-757 topbar/tab/badge/zoom)", "css/editor-layout.css (42-61 section-toolbar/.st-btn)", "css/editor-panels.css (802-832 publish dropdown)", "index.html (60-140 topbar markup)"]
+  },
+  "scanned_files": [
+    "css/editor-base.css",
+    "css/editor-layout.css",
+    "css/editor-panels.css",
+    "css/design-tokens.css",
+    "index.html"
+  ],
+  "signature": {
+    "D-component": {
+      "primary_button": ".tb-btn",
+      "tb_btn": {
+        "height": "28px",
+        "padding": "0 10px",
+        "radius": "5px",
+        "border": "1px solid transparent",
+        "bg": "transparent",
+        "color": "var(--ui-text-sub) #aaaaaa",
+        "font-size": "11px",
+        "display": "inline-flex"
+      },
+      "tb_btn_icon": {
+        "width": "28px (square)",
+        "padding": "0",
+        "color": "var(--ui-text-dim) #969696",
+        "note": "아이콘 전용 변형. has-commit 없으면 opacity .35 + pointer-events none (disabled 표현을 클래스로)"
+      },
+      "tb_btn_active": "background var(--ui-accent-primary) #2d6fe8, color #fff, border-color accent (= 선택/모드 활성 = 솔리드 파랑 채움)",
+      "zoom_btn": {
+        "width": "22px", "height": "22px",
+        "radius": "4px",
+        "border": "none",
+        "bg": "transparent",
+        "color": "var(--ui-text-sub)",
+        "font-size": "12px",
+        "container": "#zoom-ctrl height 28px, radius 6px, border 1px var(--ui-border-mid), bg var(--ui-bg-app), padding 0 4px"
+      },
+      "section_toolbar_btn": {
+        "selector": ".st-btn",
+        "height": "18px", "padding": "0 6px", "radius": "2px",
+        "border": "none", "bg": "transparent", "color": "#999 raw", "font-size": "10px",
+        "container": ".section-toolbar height 22px, radius 3px 3px 0 0, border 1px var(--ui-border-mid)",
+        "note": "캔버스 위 떠있는 per-section 편집 도구 바 (편집 도구 바 = 이 영역)"
+      },
+      "badges": {
+        "tb_badge": "font 10px monospace, radius 4px, padding 2px 6px, border 1px var(--ui-border-mid), bg var(--ui-bg-input), color var(--ui-text-dim)",
+        "tb_badge_pill": "radius 10px, padding 1px 6px, border transparent, bg var(--ui-border-mid), font inherit",
+        "tb_badge_accent": "bg/border var(--ui-accent-primary), color #fff"
+      },
+      "primary_style": "모드/활성 토글은 .tb-btn.active = 솔리드 accent 채움. Commit 버튼만 텍스트-accent 힌트(#topbar button[onclick=saveProject] → color var(--ui-accent), hover alpha bg)",
+      "danger_style": "툴바에는 danger 버튼 없음 (제거/삭제는 패널·캔버스 영역 책임)",
+      "icon_button_sizes": "tb-btn--icon 28x28, zoom-btn 22x22, home-btn 28x28(radius 6px), tab-add-btn 22x22(radius 5px), proj-tab-close 15x15(radius 3px). 아이콘버튼 4종이 28/22/15 + radius 6/5/4/3 으로 갈림"
+    },
+    "D-color": {
+      "token_system": "--ui-* (editor-base.css :root) — design-tokens.css의 --color-*/--bg-*/--border-* 와 병렬 이중 시스템. 툴바는 --ui-* 만 사용.",
+      "bg": "var(--ui-bg-elevated) #242424 (topbar), var(--ui-bg-app) #1a1a1a (zoom-ctrl), var(--ui-bg-card) #252525 (dropdown menu)",
+      "text": "var(--ui-text-sub) #aaaaaa (tb-btn), var(--ui-text-dim) #969696 (tb-btn--icon/badge), 그리고 raw #fff·#ccc·#888·#999 다수 인라인",
+      "accent": "var(--ui-accent-primary) #2d6fe8 (active/accent badge), var(--ui-accent) #7cb8ff (Commit 힌트)",
+      "raw_hex_in_owned": ["#fff (tb-btn:hover, active, badge-accent, icon:hover)", "#ccc (zoom-display, home-btn:hover)", "#999 (.st-btn)", "#888/#bbb/#ddd (proj-tab states)", "#4ecb7a (autosave saved — 토큰 --color-saved 미사용)", "#6a9fd8 (tab-drop indicator — 토큰 --color-tab-drop 미사용)", "rgba(106,176,255,0.12/0.35) (Commit hover — accent alpha 토큰 미존재)"],
+      "border": "var(--ui-border) #333 (topbar bottom), var(--ui-border-mid) #3a3a3a (badge/zoom-ctrl/section-toolbar), var(--ui-border-strong) #444 (tb-btn hover)"
+    },
+    "D-spacing": {
+      "topbar_padding": "0 12px (electron: padding-left 80px 신호등 확보, fullscreen 12px)",
+      "topbar_gap": "6px (버튼 간)",
+      "topbar_height": "44px",
+      "tb_btn_padding": "0 10px",
+      "zoom_ctrl": "gap 4px, padding 0 4px, height 28px",
+      "tab_bar_gap": "3px, proj-tab padding 0 8px height 28px",
+      "group_dividers": ".divider = width 1px height 20px bg var(--ui-border-mid) margin 0 2px (수직 구분선으로 그룹 분리)",
+      "section_toolbar": "padding 0 4px, gap 2px",
+      "dropdown_item": ".pub-dd-item padding 7px 9px, gap 7px, radius 5px / menu padding 4px",
+      "scale_token_usage": "--space-* 토큰 정의돼 있으나 툴바 px 리터럴(6/12/10/4/8/2)은 토큰 미이관"
+    },
+    "D-states": {
+      "hover": "tb-btn:hover = bg var(--ui-border) + color #fff + border var(--ui-border-strong). zoom-btn:hover = bg var(--ui-border)+#fff. st-btn:hover = bg var(--ui-border)+#fff. proj-tab:hover = bg var(--ui-bg-hover)+#bbb",
+      "focus_visible": "정의 없음 — 툴바 버튼 전체에 :focus-visible 링 부재 (키보드 접근성 갭)",
+      "active": "tb-btn.active = 솔리드 accent 채움(모드 토글). proj-tab.active = bg var(--ui-border)+border-strong+#ddd. :active(눌림) 상태 별도 정의 없음",
+      "disabled": "tb-btn--icon:not(.has-commit) = opacity .35 + pointer-events none (클래스 기반). 표준 [disabled] 셀렉터는 툴바에 없음 (패널의 .prop-btn:disabled 와 불일치)",
+      "transition": "all 0.15s (tb-btn, zoom-btn, home-btn), background/color 0.12s (proj-tab), 0.1s (pub-dd-item)"
+    }
+  },
+  "violations": [
+    {
+      "id": "MTX-toolbar-01",
+      "severity": "minor",
+      "dimension": "D-states",
+      "title": "툴바 버튼 전체 :focus-visible 포커스 링 부재",
+      "evidence": ".tb-btn / .zoom-btn / .st-btn / #home-btn / #tab-add-btn 어디에도 :focus-visible 룰이 없음. hover/active만 정의돼 키보드 탭 이동 시 현재 포커스 위치가 보이지 않음.",
+      "locations": ["css/editor-base.css:679-743"],
+      "expected": "툴바 인터랙티브 요소에 공통 :focus-visible outline/box-shadow 링 추가",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-toolbar-02",
+      "severity": "minor",
+      "dimension": "D-component",
+      "title": "아이콘 버튼 크기·radius 4종 분산 (28/22/15px, radius 6/5/4/3)",
+      "evidence": "tb-btn--icon 28x28(r5), home-btn 28x28(r6), zoom-btn 22x22(r4), tab-add-btn 22x22(r5), proj-tab-close 15x15(r3). 같은 topbar 안 아이콘 버튼인데 box·radius가 제각각.",
+      "locations": ["css/editor-base.css:688", "css/editor-base.css:591", "css/editor-base.css:649", "css/editor-base.css:626", "css/editor-base.css:736"],
+      "expected": "topbar 아이콘 버튼 size/radius 토큰화 후 28(주)·22(보조) 2단으로 수렴, radius는 5 또는 6 단일화",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-toolbar-03",
+      "severity": "minor",
+      "dimension": "D-color",
+      "title": "툴바 상태색이 semantic 토큰 대신 raw hex 직접 사용",
+      "evidence": "autosave saved #4ecb7a (토큰 --color-saved/--ui 미연결), tab-drop #6a9fd8 (토큰 --color-tab-drop 존재하나 미사용), Commit hover rgba(106,176,255,0.12/0.35) (accent-alpha 토큰 부재). hover/active 텍스트 #fff·#ccc·#999·#888 인라인 산재.",
+      "locations": ["css/editor-base.css:754-756", "css/editor-base.css:642-643", "css/editor-base.css:725-726", "css/editor-layout.css:59"],
+      "expected": "상태색을 --color-saved/--color-tab-drop/accent-alpha 토큰으로 치환",
+      "disposition": "self"
+    },
+    {
+      "id": "MTX-toolbar-04",
+      "severity": "nit",
+      "dimension": "D-component",
+      "title": ".tb-btn--icon 의 disabled 표현이 패널 표준과 다른 메커니즘",
+      "evidence": "툴바는 .tb-btn--icon:not(.has-commit){ opacity:.35; pointer-events:none } 로 비활성 표현. 패널 버튼은 .prop-btn:disabled{ opacity:.35; cursor:not-allowed } 처럼 [disabled] 속성 기반. opacity 값(.35)은 같으나 트리거(클래스 vs 속성)·cursor 처리가 갈림.",
+      "locations": ["css/editor-base.css:691", "css/editor-props.css:470"],
+      "expected": "비활성 트리거를 [disabled]/aria-disabled로 통일하거나 공용 disabled 토큰 적용",
+      "disposition": "self"
+    }
+  ],
+  "crossAreaFlags": [
+    {
+      "id": "MTX-toolbar-X01",
+      "to_area": "panels / prop-panels",
+      "title": "툴바 primary 버튼 .tb-btn 과 패널 버튼 .prop-btn 이 height·radius·border·primary표현 전부 다름",
+      "detail": "툴바 .tb-btn = height 28px / radius 5px / border transparent→호버시 strong / bg transparent / font 11px / active는 솔리드 accent 채움. 패널 .prop-btn = 24x24 / radius 4px / border 항상 1px strong / bg var(--ui-bg-input) / font 13px. 즉 (1)높이 28 vs 24, (2)radius 5 vs 4, (3)기본 테두리 유무, (4)기본 배경 유무가 다름. 같은 '눌러서 동작' 버튼인데 두 영역이 별도 버튼 시스템.",
+      "shared_token_gap": "두 영역 모두 전용 --ui-radius-*/--ui-btn-h 토큰 없이 raw px. matrix 합산 시 버튼 height 군집 18/22/24/28/32 5단 난립(st-btn 18, zoom 22, prop 24, tb 28, panel-tab 32)."
+    },
+    {
+      "id": "MTX-toolbar-X02",
+      "to_area": "panels (component DSN-component-04)",
+      "title": "radius off-scale 동참 — 툴바가 5px(tb-btn/tab-add)·3px(section-toolbar/proj-tab-close)·2px(st-btn) 사용",
+      "detail": "스케일 토큰은 4/6/10(--radius-sm/md/lg). 툴바 owned 요소가 5px(tb-btn:683, tab-add-btn:653)·3px(section-toolbar:48, proj-tab-close:629)·2px(st-btn:58)로 off-scale에 기여. DSN-component-04의 5px×43·3px군집에 toolbar 지분 포함.",
+      "shared_token_gap": "--ui-radius-* 부재 — 토큰 도입 시 툴바도 일괄 이관 대상"
+    },
+    {
+      "id": "MTX-toolbar-X03",
+      "to_area": "color / tokens",
+      "title": "이중 토큰 시스템 — 툴바는 --ui-* 만, design-tokens.css는 --color-*/--bg-* 정의",
+      "detail": "design-tokens.css가 2계층 primitive/semantic(--p-*, --color-*, --bg-*)을 잘 정의했으나 툴바(editor-base.css)는 자체 --ui-* 세트만 참조. 예: saved 색이 --color-saved(#4ecb7a) 토큰으로 있는데 툴바는 raw #4ecb7a 하드코딩. 두 시스템이 같은 값을 중복 정의 → 한쪽 변경 시 동기화 누락 위험.",
+      "shared_token_gap": "--ui-* 와 --color-*/--bg-* 통합(alias) 필요. 전 영역 공통 이슈."
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "by_severity": {"blocker": 0, "major": 0, "minor": 3, "nit": 1},
+    "crossAreaFlags": 3,
+    "notes": "툴바는 자체 위반은 minor/nit 수준으로 비교적 깔끔(C11/C12로 publish-btn을 tb-btn에 통일한 흔적 있음). 핵심은 cross-area: 툴바 버튼이 패널 버튼과 별개 시스템이라는 점."
+  }
+}

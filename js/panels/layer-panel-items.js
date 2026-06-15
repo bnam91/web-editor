@@ -1,0 +1,707 @@
+/* ══════════════════════════════════════
+   LAYER PANEL ITEMS — 레이어 아이템 렌더러
+   (layer-panel.js에서 분리, 2025-03-31)
+
+   buildLayerPanel이 사용하는 makeLayer* 렌더러 함수 모음.
+   외부 의존성은 모두 window.* 로 접근:
+   - window.syncSection, window.selectSection, window.deselectAll
+   - window.buildLayerPanel (재귀 재빌드 시 사용)
+   - window.highlightBlock, window.clearLayerIndicators, window.getLayerDragAfterItem
+   - window.ungroupBlock, window.pushHistory, window.state
+   - window.show*Properties, window.layerDragSrc, window.layerMultiDragTargets
+══════════════════════════════════════ */
+
+/* ═══════════════════════════════════
+   LAYER PANEL
+═══════════════════════════════════ */
+
+/* depth 들여쓰기 span 생성 헬퍼 (피그마 스타일) */
+function makeIndents(depth) {
+  const wrap = document.createElement('span');
+  wrap.className = 'layer-indents';
+  for (let i = 0; i < depth; i++) {
+    const s = document.createElement('span');
+    s.className = 'layer-indent';
+    wrap.appendChild(s);
+  }
+  return wrap;
+}
+const layerIcons = {
+  section: `<svg class="layer-section-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`,
+  heading: `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="currentColor"><text x="6" y="10" font-size="10" font-weight="700" font-family="serif" text-anchor="middle">H</text></svg>`,
+  body:    `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9" x2="7" y2="9"/></svg>`,
+  caption: `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4"/><line x1="1" y1="7" x2="8" y2="7"/></svg>`,
+  asset:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="8" height="8" rx="1"/><circle cx="4.5" cy="4.5" r="0.8"/><polyline points="10 8 7.5 5.5 4 9"/></svg>`,
+  gap:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="4" x2="11" y2="4" stroke-dasharray="2,1"/><line x1="1" y1="8" x2="11" y2="8" stroke-dasharray="2,1"/></svg>`,
+  label:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="10" height="6" rx="1.5"/></svg>`,
+  'icon-circle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="5"/><text x="3.5" y="9" font-size="6" fill="currentColor" stroke="none">★</text></svg>`,
+  table:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><line x1="1" y1="4.5" x2="11" y2="4.5"/><line x1="5" y1="4.5" x2="5" y2="11"/></svg>`,
+  divider:    `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="11" y2="6"/></svg>`,
+  'label-group': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="6" rx="1"/><rect x="7" y="3" width="4" height="6" rx="1"/></svg>`,
+  card:       `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="1" y1="7" x2="11" y2="7"/></svg>`,
+  graph:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polyline points="1,10 4,5 7,7 10,2"/></svg>`,
+  'icon-text': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="4" rx="0.8"/><line x1="7" y1="4" x2="11" y2="4"/><line x1="7" y1="7" x2="10" y2="7"/></svg>`,
+  canvas:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="2"/><rect x="3" y="3" width="3" height="6" rx="0.5" fill="currentColor" stroke="none"/><rect x="7" y="3" width="2" height="3" rx="0.5" fill="currentColor" stroke="none"/></svg>`,
+  joker:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/><text x="6" y="9" font-size="7" text-anchor="middle" fill="currentColor" stroke="none">♠</text></svg>`,
+  'shape-rectangle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="2.5" width="10" height="7" rx="0.5"/></svg>`,
+  'shape-ellipse':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="5"/></svg>`,
+  'shape-line':      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="11" y2="6"/></svg>`,
+  'shape-arrow':     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="9" y2="6"/><polyline points="7,3 11,6 7,9"/></svg>`,
+  'shape-polygon':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="6,1 11,10 1,10"/></svg>`,
+  'shape-star':      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="currentColor"><polygon points="6,1 7.3,4.3 11,4.3 8.2,6.5 9.2,10 6,7.8 2.8,10 3.8,6.5 1,4.3 4.7,4.3"/></svg>`,
+  mockup:            `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="1" width="7" height="10" rx="1.5"/><rect x="4" y="3" width="4" height="5" rx="0.5" fill="currentColor" stroke="none" opacity="0.4"/></svg>`,
+  vector:            `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="6,1 11,5 9,11 3,11 1,5"/></svg>`,
+  'speech-bubble':   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1.5" width="10" height="7" rx="2"/><path d="M3 8.5 L2 11" stroke-linecap="round"/></svg>`,
+  chat:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 2a1 1 0 011-1h8a1 1 0 011 1v6a1 1 0 01-1 1H7l-2 2V9H2a1 1 0 01-1-1V2z"/></svg>`,
+  step:              `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="2.5" cy="2.5" r="1.5"/><line x1="4.5" y1="2.5" x2="11" y2="2.5"/><circle cx="2.5" cy="6" r="1.5"/><line x1="4.5" y1="6" x2="11" y2="6"/><circle cx="2.5" cy="9.5" r="1.5"/><line x1="4.5" y1="9.5" x2="11" y2="9.5"/></svg>`,
+};
+
+/* 레이어 아이템 이름 더블클릭 인라인 편집 헬퍼 */
+function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerName') {
+  nameSpan.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    const orig = nameSpan.textContent;
+    nameSpan.contentEditable = 'true';
+    nameSpan.classList.add('editing');
+    nameSpan.focus();
+    const range = document.createRange();
+    range.selectNodeContents(nameSpan);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    const finish = () => {
+      nameSpan.contentEditable = 'false';
+      nameSpan.classList.remove('editing');
+      const newName = nameSpan.textContent.trim() || fallbackName;
+      nameSpan.textContent = newName;
+      if (newName !== fallbackName) {
+        targetEl.dataset[datasetKey] = newName;
+      } else {
+        delete targetEl.dataset[datasetKey];
+      }
+      // 이스터에그: text-block의 layer label이 '**text_'로 시작하면 텍스트 효과 적용
+      // (badge prefix와 동일 패턴, prefix는 트리거 전용 — 텍스트 콘텐츠는 건드리지 않음)
+      if (targetEl.classList?.contains('text-block') && /^\*\*text_/i.test(newName) && !targetEl.dataset.textEffect && window.isEasterEggEnabled?.('textEffect') !== false) {
+        window.applyTextEffect?.(targetEl, { ...(window.TEXT_EFFECT_DEFAULTS || {}) });
+        // 우측 패널이 이 블록을 보고 있으면 컨트롤 즉시 노출
+        if (targetEl.classList.contains('selected')) {
+          window.enhanceTextEffectPropPanel?.(targetEl);
+        }
+      }
+      // 이스터에그: canvas-block(Card) layer label이 '**icon_'로 시작하면 아이콘 모드 ON
+      // → 카드 이미지 자리에 iconify 아이콘을 넣을 수 있게 됨 (prefix는 트리거 전용)
+      if (targetEl.classList?.contains('canvas-block') && /^\*\*icon_/i.test(newName) && targetEl.dataset.iconMode !== 'true' && window.isEasterEggEnabled?.('iconMode') !== false) {
+        targetEl.dataset.iconMode = 'true';
+        window.renderCanvas?.(targetEl);
+        if (targetEl.classList.contains('selected')) {
+          window.showCanvasProperties?.(targetEl);
+        }
+      }
+      // 프로퍼티 패널이 같은 블록을 표시 중이면 이름 동기화
+      if (targetEl.classList.contains('selected')) {
+        const propName = document.querySelector('.prop-block-name');
+        if (propName) propName.textContent = newName !== fallbackName ? newName : fallbackName;
+      } else {
+        const badge = document.getElementById('rp-block-id-badge');
+        if (badge && targetEl.id && badge.textContent === targetEl.id) {
+          const propName = document.querySelector('.prop-block-name');
+          if (propName) propName.textContent = newName !== fallbackName ? newName : fallbackName;
+        }
+      }
+      window.pushHistory?.();
+    };
+    const onKeyDown = ev => {
+      if (ev.key === 'Enter')  { ev.preventDefault(); nameSpan.blur(); }
+      if (ev.key === 'Escape') { nameSpan.textContent = orig; nameSpan.blur(); }
+    };
+    nameSpan.addEventListener('keydown', onKeyDown);
+    nameSpan.addEventListener('blur', () => {
+      nameSpan.removeEventListener('keydown', onKeyDown);
+      finish();
+    }, { once: true });
+  });
+}
+
+/* 레이어 아이템 생성 (단일 블록용) */
+function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
+  const isText       = block.classList.contains('text-block');
+  const isGap        = block.classList.contains('gap-block');
+  const isIconCb     = block.classList.contains('icon-circle-block');
+  const isTable      = block.classList.contains('table-block');
+  const isLabelGroup = block.classList.contains('label-group-block');
+  const isDivider    = block.classList.contains('divider-block');
+  const isGraph      = block.classList.contains('graph-block');
+  const isIconText   = block.classList.contains('icon-text-block');
+  const isJoker      = block.classList.contains('joker-block');
+  const isShape      = block.classList.contains('shape-block');
+  const isCanvas     = block.classList.contains('canvas-block');
+  const isIconify    = block.classList.contains('icon-block');
+  const isMockup     = block.classList.contains('mockup-block');
+  const isVector     = block.classList.contains('vector-block');
+  const isStep       = block.classList.contains('step-block');
+  const isChat       = block.classList.contains('chat-block');
+  const isLaurel     = block.classList.contains('laurel-block');
+  const isGradient   = block.classList.contains('gradient-block');
+  const isBanner02   = block.classList.contains('banner02-block');
+  const isComparison = block.classList.contains('comparison-block');
+  const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
+  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isGradient ? 'gradient' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+
+  const item = document.createElement('div');
+  item.className = 'layer-item';
+  item.dataset.layerType = type;
+  const displayName = block.dataset.layerName || labels[type] || type;
+  item.innerHTML = `${layerIcons[type] || layerIcons.body}<span class="layer-item-name">${displayName}</span><span class="layer-item-type">${typeLbls[type] || 'Text'}</span>`;
+  item.prepend(makeIndents(depth));
+  // a11y(N8): 키보드 포커스/활성화 — tabindex 없는 div라 :focus-visible 규칙이 dead였음
+  item.tabIndex = 0;
+  item.setAttribute('role', 'button');
+  item.setAttribute('aria-label', `${displayName} 레이어`);
+  item.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.click(); }
+  });
+  item._dragTarget = dragTarget;
+  addLayerRename(item.querySelector('.layer-item-name'), block, labels[type] || type);
+
+  item.addEventListener('click', e => {
+    e.stopPropagation();
+    if (e.target.classList.contains('editing')) return;
+    if (e.metaKey || e.ctrlKey) {
+      // Cmd+클릭: 개별 토글
+      window.toggleBlockSelect?.(block, sec);
+      return;
+    }
+    if (e.shiftKey) {
+      // Shift+클릭: 범위 선택
+      window.rangeSelectBlocks?.(block, sec);
+      return;
+    }
+    window.deselectAll();
+    block.classList.add('selected');
+    window.syncSection(sec);
+    window.highlightBlock(block, item);
+    window.setBlockAnchor?.(block);
+    // 레이어 클릭 시 캔버스도 해당 블록으로 스크롤 (선택 아웃라인이 화면에 보이도록)
+    const _wrap = document.getElementById('canvas-wrap');
+    if (_wrap) {
+      const r = block.getBoundingClientRect();
+      const wr = _wrap.getBoundingClientRect();
+      // 블록이 뷰포트 밖이거나 가장자리에 걸쳐 있으면 스크롤
+      if (r.top < wr.top + 40 || r.bottom > wr.bottom - 40) {
+        const targetTop = r.top - wr.top + _wrap.scrollTop - 80;
+        _wrap.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+      }
+    }
+    if (isShape) window.showShapeProperties?.(block);
+    else if (isText || isIconText) window.showTextProperties(block);
+    else if (isGap) window.showGapProperties(block);
+    else if (isIconCb) window.showIconCircleProperties(block);
+    else if (isTable) window.showTableProperties(block);
+    
+    else if (isGraph) window.showGraphProperties?.(block);
+    else if (isCanvas) window.showCanvasProperties?.(block);
+    else if (isBanner02) window.showBanner02Properties?.(block);
+    else if (isComparison) window.showComparisonProperties?.(block);
+    else if (isIconify) window.showIconifyProperties?.(block);
+    else if (isMockup) window.showMockupProperties?.(block);
+    else if (isDivider) window.showDividerProperties?.(block);
+    else if (isLabelGroup) window.showLabelGroupProperties?.(block);
+    else if (isJoker) window.showJokerProperties?.(block);
+    else if (isChat) window.showChatProperties?.(block);
+    else if (isLaurel) window.showLaurelProperties?.(block);
+    else window.showAssetProperties(block);
+  });
+  block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');
+  block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
+
+  item.setAttribute('draggable', 'true');
+  item.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    if (window.state) window.state._suppressAutoSave = true;
+    window.layerDragSrc = item;
+    // 다중선택 드래그: 이 아이템이 active 상태이고 다른 active 아이템도 있으면 함께 이동
+    if (item.classList.contains('active')) {
+      const panel = document.getElementById('layer-panel-body');
+      const allActive = panel ? [...panel.querySelectorAll('.layer-item.active')] : [];
+      window.layerMultiDragTargets = allActive.length > 1
+        ? allActive.map(el => el._dragTarget).filter(Boolean)
+        : null;
+    } else {
+      window.layerMultiDragTargets = null;
+    }
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => item.classList.add('layer-dragging'));
+  });
+  item.addEventListener('dragend', () => {
+    if (window.state) window.state._suppressAutoSave = false;
+    item.classList.remove('layer-dragging');
+    window.clearLayerIndicators();
+    window.layerDragSrc = null;
+    window.layerMultiDragTargets = null;
+  });
+
+  block._layerItem = item;
+
+  return item;
+}
+
+/* 레이어 Group 아이템 생성 (group-block용) */
+function makeLayerGroupItem(groupEl, sec, appendRowFn) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'layer-row-group';
+  wrapper._dragTarget = groupEl;
+
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  const name = groupEl.dataset.name || 'Group';
+  header.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+      <rect x="1" y="1" width="10" height="10" rx="1.5"/>
+      <line x1="3" y1="4" x2="9" y2="4"/><line x1="3" y1="6.5" x2="7" y2="6.5"/><line x1="3" y1="9" x2="8" y2="9"/>
+    </svg>
+    <span class="layer-item-name">${name}</span>
+    <span class="layer-item-type">Group</span>
+    <button class="layer-ungroup-btn" title="그룹 해제">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="1" y="1" width="3.5" height="3.5" rx="0.5"/>
+        <rect x="5.5" y="1" width="3.5" height="3.5" rx="0.5"/>
+        <rect x="1" y="5.5" width="3.5" height="3.5" rx="0.5"/>
+        <rect x="5.5" y="5.5" width="3.5" height="3.5" rx="0.5"/>
+      </svg>
+    </button>`;
+  header.prepend(makeIndents(1));
+  // a11y(N8): 키보드 포커스/활성화
+  header.tabIndex = 0;
+  header.setAttribute('role', 'button');
+  header.setAttribute('aria-label', `${name} 그룹`);
+  header.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
+  });
+  addLayerRename(header.querySelector('.layer-item-name'), groupEl, 'Group', 'name');
+
+  header.addEventListener('click', e => {
+    if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+    if (e.target.closest('.layer-ungroup-btn')) {
+      window.ungroupBlock(groupEl);
+      return;
+    }
+    // 그룹 선택 — 캔버스 그룹 강조 + 섹션 선택
+    window.deselectAll();
+    groupEl.classList.add('group-selected');
+    const sec = groupEl.closest('.section-block');
+    if (sec) window.selectSection(sec);
+    document.querySelectorAll('.layer-row-group').forEach(g => g.classList.remove('active'));
+    wrapper.classList.add('active');
+  });
+
+  const groupChildren = document.createElement('div');
+  groupChildren.className = 'layer-row-children';
+
+  const groupInner = groupEl.querySelector('.group-inner');
+  if (groupInner) {
+    [...groupInner.children].forEach(child => {
+      if (child.classList.contains('row')) appendRowFn(child, groupChildren);
+      else if (child.classList.contains('gap-block')) groupChildren.appendChild(makeLayerBlockItem(child, child, sec));
+    });
+  }
+
+  wrapper.appendChild(header);
+  wrapper.appendChild(groupChildren);
+  return wrapper;
+}
+
+/* 에셋 블록 + overlay-tb 자식 포함 레이어 아이템 */
+function makeLayerAssetItem(block, dragTarget, sec, depth = 1) {
+  const overlayEl = block.querySelector('.asset-overlay');
+  const overlayChildren = overlayEl
+    ? [...overlayEl.children].filter(c =>
+        c.classList.contains('overlay-tb') ||
+        c.classList.contains('gap-block') ||
+        (c.classList.contains('row') && c.querySelector('.overlay-tb'))
+      )
+    : [];
+  if (overlayChildren.length === 0) return makeLayerBlockItem(block, dragTarget, sec, depth);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'layer-row-group';
+  wrapper._dragTarget = dragTarget;
+
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  header.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    ${layerIcons.asset}
+    <span class="layer-item-name">${block.dataset.layerName || 'Asset'}</span>
+    <span class="layer-item-type">Image + Overlay</span>`;
+  header.prepend(makeIndents(depth));
+  addLayerRename(header.querySelector('.layer-item-name'), block, 'Asset');
+
+  header.addEventListener('click', e => {
+    if (e.target.closest('.layer-chevron')) { wrapper.classList.toggle('collapsed'); return; }
+    window.deselectAll();
+    block.classList.add('selected');
+    window.syncSection(sec);
+    window.highlightBlock(block, header);
+    window.showAssetProperties(block);
+  });
+  block._layerItem = header;
+
+  header.setAttribute('draggable', 'true');
+  header.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    window.layerDragSrc = wrapper;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => wrapper.classList.add('layer-dragging'));
+  });
+  header.addEventListener('dragend', () => {
+    wrapper.classList.remove('layer-dragging');
+    window.clearLayerIndicators();
+    window.layerDragSrc = null;
+  });
+
+  const children = document.createElement('div');
+  children.className = 'layer-row-children';
+
+  const buildOverlayChildren = () => {
+    children.innerHTML = '';
+    [...overlayEl.children].forEach(child => {
+      if (child.classList.contains('gap-block')) {
+        // gap-block: use makeLayerBlockItem for consistent rendering
+        const gapItem = makeLayerBlockItem(child, child, sec, depth + 1);
+        gapItem.classList.add('layer-item-nested');
+        children.appendChild(gapItem);
+        return;
+      }
+      // row로 감싸진 overlay-tb 처리
+      if (child.classList.contains('row')) {
+        const tb = child.querySelector('.overlay-tb');
+        if (!tb) return;
+        const tbItem = makeLayerBlockItem(tb, tb, sec, depth + 1);
+        tbItem.classList.add('layer-item-nested');
+        children.appendChild(tbItem);
+        return;
+      }
+      if (!child.classList.contains('overlay-tb')) return;
+      const tbItem = makeLayerBlockItem(child, child, sec, depth + 1);
+      tbItem.classList.add('layer-item-nested');
+      children.appendChild(tbItem);
+    });
+  };
+  buildOverlayChildren();
+
+  // overlay-tb / gap-block 순서 변경 + 섹션 블록 ↔ 오버레이 크로스 드롭존
+  // rAF throttle: getBoundingClientRect 호출 최적화
+  let _overlayDragRafId = null;
+  children.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const dragTarget = window.layerDragSrc?._dragTarget;
+    if (!dragTarget) return;
+    const isOverlayContent = dragTarget.classList.contains('overlay-tb') ||
+      (dragTarget.classList.contains('gap-block') && dragTarget.closest('.asset-overlay'));
+    const isSectionRow = (dragTarget.classList.contains('row') || (dragTarget.classList.contains('frame-block') && dragTarget.dataset.textFrame === 'true')) &&
+      !dragTarget.closest('.asset-overlay') && dragTarget.querySelector('.text-block');
+    const isSectionGap = dragTarget.classList.contains('gap-block') && !dragTarget.closest('.asset-overlay');
+    if (!isOverlayContent && !isSectionRow && !isSectionGap) return;
+    if (_overlayDragRafId) return;
+    const clientY = e.clientY;
+    _overlayDragRafId = requestAnimationFrame(() => {
+      _overlayDragRafId = null;
+      window.clearLayerIndicators();
+      const after = window.getLayerDragAfterItem(children, clientY);
+      const indicator = document.createElement('div');
+      indicator.className = 'layer-drop-indicator';
+      if (after) children.insertBefore(indicator, after);
+      else children.appendChild(indicator);
+    });
+  });
+  children.addEventListener('dragleave', e => {
+    if (!children.contains(e.relatedTarget)) window.clearLayerIndicators();
+  });
+  children.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const dragEl = window.layerDragSrc?._dragTarget;
+    if (!dragEl) return;
+    const indicator = children.querySelector('.layer-drop-indicator');
+    const getNextOverlayChild = () => {
+      if (!indicator) return null;
+      const nextItem = indicator.nextElementSibling;
+      const nextTb = nextItem?._dragTarget;
+      return nextTb ? (nextTb.closest('.asset-overlay > *') || nextTb) : null;
+    };
+    const insertIntoOverlay = (el) => {
+      const nextChild = getNextOverlayChild();
+      if (nextChild) overlayEl.insertBefore(el, nextChild);
+      else overlayEl.appendChild(el);
+    };
+
+    // Cross-boundary: section row / text-frame → overlay
+    if ((dragEl.classList.contains('row') || (dragEl.classList.contains('frame-block') && dragEl.dataset.textFrame === 'true')) && !dragEl.closest('.asset-overlay')) {
+      const block = dragEl.querySelector('.text-block');
+      if (!block) { window.clearLayerIndicators(); return; }
+      block.classList.add('overlay-tb');
+      // text-frame 드래그 시: block을 row wrapper에 넣어 overlay에 삽입
+      const container = dragEl.classList.contains('row') ? dragEl : (() => {
+        const r = document.createElement('div');
+        r.className = 'row'; r.dataset.layout = 'stack';
+        r.appendChild(block);
+        return r;
+      })();
+      insertIntoOverlay(container);
+      window.clearLayerIndicators();
+      window.buildLayerPanel();
+      window.pushHistory();
+      window.layerDragSrc = null;
+      return;
+    }
+
+    // Cross-boundary: section gap-block → overlay
+    if (dragEl.classList.contains('gap-block') && !dragEl.closest('.asset-overlay')) {
+      insertIntoOverlay(dragEl);
+      window.clearLayerIndicators();
+      window.buildLayerPanel();
+      window.pushHistory();
+      window.layerDragSrc = null;
+      return;
+    }
+
+    // Within overlay: reorder overlay-tb / gap-block
+    if (!dragEl.classList.contains('overlay-tb') && !dragEl.classList.contains('gap-block')) return;
+    insertIntoOverlay(dragEl);
+    window.clearLayerIndicators();
+    window.buildLayerPanel();
+    window.pushHistory();
+    window.layerDragSrc = null;
+  });
+
+  wrapper.appendChild(header);
+  wrapper.appendChild(children);
+  return wrapper;
+}
+
+function makeLayerRowGroup(rowEl, blocks, sec) {
+  const ratioStr = rowEl.dataset.ratioStr || `${blocks.length}*1`;
+  const group = document.createElement('div');
+  group.className = 'layer-row-group';
+  group._dragTarget = rowEl;
+
+  const header = document.createElement('div');
+  header.className = 'layer-row-header';
+  header.innerHTML = `
+    <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+    <svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
+      <rect x="1" y="1" width="4" height="10" rx="0.5"/><rect x="7" y="1" width="4" height="10" rx="0.5"/>
+    </svg>
+    <span class="layer-item-name">Grid</span>
+    <span class="layer-item-type">${ratioStr}</span>`;
+  header.prepend(makeIndents(1));
+
+  const groupChildren = document.createElement('div');
+  groupChildren.className = 'layer-row-children';
+
+  header.addEventListener('click', e => {
+    if (e.target.closest('.layer-chevron')) { group.classList.toggle('collapsed'); return; }
+    window.deselectAll();
+    blocks.forEach(block => block.classList.add('selected'));
+    rowEl.classList.add('row-active');
+    window.syncSection(sec);
+    groupChildren.querySelectorAll('.layer-item').forEach(it => it.classList.add('active'));
+    header.classList.add('active');
+    window.showRowProperties(rowEl);
+  });
+
+  // Row 그룹 드래그 (섹션 내 Row 순서 변경)
+  header.setAttribute('draggable', 'true');
+  header.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    window.layerDragSrc = group;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => group.classList.add('layer-dragging'));
+  });
+  header.addEventListener('dragend', () => {
+    group.classList.remove('layer-dragging');
+    window.clearLayerIndicators();
+    window.layerDragSrc = null;
+  });
+
+  group.appendChild(header);
+  group.appendChild(groupChildren);
+  return group;
+}
+
+
+/* 레이어 Frame 아이템 생성 */
+function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'layer-item';
+  wrapper._dragTarget = ssEl;
+
+  // 직접 자식에 shape-block이 있으면 Shape 타입으로 표시 (하위 트리 전체 탐색 금지)
+  const innerShapeBlock = ssEl.querySelector(':scope > .shape-block');
+  const shapeType = innerShapeBlock ? (innerShapeBlock.dataset.shapeType || 'rectangle') : null;
+  const shapeKey  = shapeType ? `shape-${shapeType}` : null;
+  const shapeTypeLbls = { 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+
+  // 그룹 감지 (data-group) — 최우선. 레이어패널에 "Group"으로 표시
+  const isGroup = ssEl.dataset.group === 'true';
+  const GROUP_ICON = `<svg class="layer-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`;
+  // Banner preset 감지 (frame-block 변형) — shape보다 우선
+  const isBanner = !!ssEl.dataset.bannerPreset;
+  const BANNER_ICON = `<svg class="layer-item-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="4" width="12" height="8" rx="1.5"/><line x1="2" y1="7.5" x2="9" y2="7.5"/></svg>`;
+
+  const iconHtml  = isGroup
+    ? GROUP_ICON
+    : (isBanner
+      ? BANNER_ICON
+      : (shapeKey && layerIcons[shapeKey]
+        ? layerIcons[shapeKey]
+        : `<svg class="layer-item-icon" viewBox="1.5 1.5 13 13" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/></svg>`));
+  const typeLabel = isGroup ? 'Group' : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
+  const defaultName = isGroup ? (ssEl.dataset.name || 'Group') : (isBanner ? 'Banner' : (shapeKey ? (shapeTypeLbls[shapeKey] || 'Shape') : 'Frame'));
+  const name = ssEl.dataset.layerName || defaultName;
+
+  wrapper.innerHTML = `${iconHtml}<span class="layer-item-name">${name}</span><span class="layer-item-type">${typeLabel}</span>`;
+  wrapper.prepend(makeIndents(depth));
+  addLayerRename(wrapper.querySelector('.layer-item-name'), ssEl, defaultName, 'layerName');
+
+  // a11y(N8): 키보드 포커스/활성화
+  wrapper.tabIndex = 0;
+  wrapper.setAttribute('role', 'button');
+  wrapper.setAttribute('aria-label', `${name} ${typeLabel}`);
+  wrapper.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); wrapper.click(); }
+  });
+  wrapper.setAttribute('draggable', 'true');
+  wrapper.addEventListener('click', e => {
+    if (e.target.classList.contains('editing')) return;
+    window.deselectAll?.();
+    const parentSec = ssEl.closest('.section-block');
+    if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+    ssEl.classList.add('selected');
+    window._activeFrame = ssEl;
+    document.querySelectorAll('.layer-item.active').forEach(g => g.classList.remove('active'));
+    wrapper.classList.add('active');
+    window.highlightBlock?.(ssEl, wrapper);
+    window.showFrameProperties?.(ssEl);
+    const isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+    if (!isShapeFrame) window.showFrameHandles?.(ssEl);
+  });
+  wrapper.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    window.layerDragSrc = wrapper;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    requestAnimationFrame(() => wrapper.classList.add('layer-dragging'));
+  });
+  wrapper.addEventListener('dragend', () => {
+    wrapper.classList.remove('layer-dragging');
+    window.clearLayerIndicators?.();
+    window.layerDragSrc = null;
+  });
+  ssEl._layerItem = wrapper;
+
+  const ssChildren = document.createElement('div');
+  ssChildren.className = 'layer-row-children';
+
+  const ssInner = ssEl;
+  {
+    [...ssInner.children].forEach(child => {
+      if (child.classList.contains('frame-block')) {
+        if (child.dataset.textFrame === 'true') {
+          // text-frame 투명: 내부 text-block을 직접 렌더링 (drag target은 text-frame)
+          const tb = child.querySelector(':scope > .text-block');
+          if (tb) ssChildren.appendChild(makeLayerBlockItem(tb, child, sec, depth + 1));
+        } else {
+          // 중첩 프레임 — 재귀 렌더링 (depth +1)
+          ssChildren.appendChild(makeLayerFrameItem(child, sec, appendRowFn, depth + 1));
+        }
+      } else if (child.classList.contains('row')) {
+        appendRowFn(child, ssChildren, depth + 1);
+      } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
+                'table-block','graph-block','divider-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block']
+                .some(c => child.classList.contains(c))) {
+        ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
+      }
+    });
+  }
+
+  // shape-only frame이 아니고 자식이 있으면 chevron + group 구조로 반환
+  const isShapeOnly = !!ssEl.querySelector('.shape-block') &&
+                      ssInner?.children.length === 1 &&
+                      ssInner?.firstElementChild?.classList.contains('shape-block');
+
+  if (!isShapeOnly && ssChildren.children.length > 0) {
+    const group = document.createElement('div');
+    group.className = 'layer-row-group';
+    group.dataset.type = 'frame';
+    group._dragTarget = ssEl;
+
+    const header = document.createElement('div');
+    header.className = 'layer-row-header';
+
+    // innerHTML로 파싱해야 SVG 네임스페이스가 올바르게 설정됨
+    header.innerHTML = `
+      <svg class="layer-chevron" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4"/></svg>
+      ${iconHtml}
+      <span class="layer-item-name">${name}</span>
+      <span class="layer-item-type">${typeLabel}</span>`;
+    header.prepend(makeIndents(depth));
+    addLayerRename(header.querySelector('.layer-item-name'), ssEl, defaultName, 'layerName');
+    header.querySelector('.layer-chevron').addEventListener('click', e => {
+      e.stopPropagation();
+      group.classList.toggle('collapsed');
+    });
+    header.setAttribute('draggable', 'true');
+    header.addEventListener('click', e => {
+      if (e.target.closest('.layer-chevron')) return;
+      if (e.target.classList.contains('editing')) return;
+      window.deselectAll?.();
+      const parentSec = ssEl.closest('.section-block');
+      if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+      ssEl.classList.add('selected');
+      window._activeFrame = ssEl;
+      document.querySelectorAll('.layer-row-header.active').forEach(h => h.classList.remove('active'));
+      header.classList.add('active');
+      window.highlightBlock?.(ssEl, header);
+      window.showFrameProperties?.(ssEl);
+      const _isShapeFrame = !!ssEl.querySelector(':scope > .shape-block');
+      if (!_isShapeFrame) window.showFrameHandles?.(ssEl);
+    });
+    header.addEventListener('dragstart', e => {
+      e.stopPropagation();
+      window.layerDragSrc = group;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      requestAnimationFrame(() => group.classList.add('layer-dragging'));
+    });
+    header.addEventListener('dragend', () => {
+      group.classList.remove('layer-dragging');
+      window.clearLayerIndicators?.();
+      window.layerDragSrc = null;
+    });
+
+    group.appendChild(header);
+    group.appendChild(ssChildren);
+
+    ssEl._layerItem = header;
+    return group;
+  }
+
+  return wrapper;
+}
+
+export {
+  makeIndents,
+  layerIcons,
+  addLayerRename,
+  makeLayerBlockItem,
+  makeLayerGroupItem,
+  makeLayerFrameItem,
+  makeLayerAssetItem,
+};

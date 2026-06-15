@@ -1,6 +1,6 @@
 {
   "name": "sangpe-editor",
-  "version": "1.0.0",
+  "version": "0.5.0",
   "description": "상페마법사 — 상세페이지 제작용 에디터",
   "main": "main.js",
   "scripts": {
@@ -11,11 +11,13 @@
     "dev:ui-polish": "electron . --enable-logging --remote-debugging-port=9337 --remote-allow-origins=* admin",
     "dev:design-token": "electron . --enable-logging --remote-debugging-port=9338 --remote-allow-origins=* admin",
     "dev:template-tag": "electron . --enable-logging --remote-debugging-port=9339 --remote-allow-origins=* admin",
+    "dev:admin": "electron . --enable-logging --remote-debugging-port=9339 --remote-allow-origins=* admin",
     "build:mac": "electron-builder --mac --dir",
     "release:mac": "electron-builder --mac --publish always",
     "release:win": "electron-builder --win --publish always",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "figma": "bun run figma-plugin/socket.js"
   },
   "build": {
     "appId": "com.goyamkt.sangpe-editor",
@@ -75,6 +77,7 @@
   "dependencies": {
     "electron-updater": "^6.8.3",
     "mongodb": "^7.1.0",
+    "node-pty": "^1.1.0",
     "ws": "^8.20.0"
   }
 }

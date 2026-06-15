@@ -1,0 +1,194 @@
+{
+  "area": "prop-panel",
+  "owns": { "selectors": [".prop-*"], "files": ["css/editor-props.css", "css/editor-blocks.css(prop-action-btn 정의부)", "js/props/*.js"] },
+  "method": "static — 기존 prop-panel 감사 3건(widget/structure/spacing) 재사용 + 현재 코드(HEAD 1afbe91) 실측 토큰 재추출. CDP 미사용.",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "source_results": [
+    ".design/results/design-prop-panels-widget.json",
+    ".design/results/design-prop-panels-structure.json",
+    ".design/results/design-prop-panels-spacing.json"
+  ],
+  "fix_state_note": "프롬프트의 'FIX 반영(gap 4px / label 56px / btn 24px)'은 현재 HEAD 표준 CSS 값과 일치 확인. 단 input/select height는 DBG-A 주석으로 .prop-section input override(height:24px)가 '제거'되어 주석은 28px 통일을 표기하나 실제 .prop-select/.prop-input/.prop-number 개별 정의는 여전히 24px 계열 → 주석과 실값 불일치(아래 D-component 참조).",
+
+  "signature": {
+    "D-component": {
+      "button_radius": "4px (전 버튼 통일: .prop-btn, .prop-btn-full, .prop-btn-sm, .prop-action-btn, .prop-align-btn, .prop-export-btn, .prop-chain-btn 모두 border-radius:4px)",
+      "button_height": "24px 표준 (.prop-btn 24×24, .prop-btn-full h24, .prop-btn-sm h24, .prop-align-btn h24, .prop-action-btn h24, .prop-style-btn 28×24). 예외: .prop-export-btn은 height 없이 padding:5px 0 (≈24px 근사이나 명시 height 아님), .prop-chain-btn 22×22.",
+      "danger_buttons": {
+        "solid": ".prop-action-btn.danger = 채움 (background:#c0392b, color:#fff; hover #e74c3c) — editor-blocks.css:390. section/asset/sticker/frame/icon-circle/laurel 계열.",
+        "outline": ".prop-btn-danger = 아웃라인 (transparent bg, border-color:#6b2e2e, color:#e06060; hover bg #2a1818) — editor-props.css:487. chat/step/comparison/banner02 계열.",
+        "verdict": "동일 '제거/삭제' 시맨틱이 채움 vs 아웃라인으로 정반대. 둘 다 raw hex(토큰 미사용). → D-component 핵심 이탈."
+      },
+      "input_height": {
+        "prop-select": "24px (editor-props.css:127 및 :501 — 동일 셀렉터 2회 중복 정의, 둘 다 h24)",
+        "prop-input": "height 미지정 + padding:6px 8px (실효 ≈24px, box-sizing border-box)",
+        "prop-number": "28px (DBG-A 통일 의도)",
+        "prop-layout-input": "24px",
+        "prop-icon-input": "24px",
+        "section_override_state": ".prop-section input/select height override는 주석처리(105행 /* height:24px; */)로 비활성 — DBG-A 주석은 28px 통일을 명시하나 개별 .prop-select(24)/.prop-input(≈24)와 .prop-number(28)가 갈려 입력 컨트롤 높이 24 vs 28 혼재."
+      },
+      "duplicate_def": ".prop-select 가 editor-props.css 126행·500행 두 번 정의(후자에 appearance:none + 화살표 SVG 추가). 동일 셀렉터 중복."
+    },
+
+    "D-color": {
+      "bg_app": "var(--ui-bg-app) = #1a1a1a",
+      "bg_input": "var(--ui-bg-input) = #2a2a2a (입력/버튼 기본 배경)",
+      "bg_hover": "var(--ui-bg-hover) = #2e2e2e",
+      "bg_elevated": "var(--ui-bg-elevated) = #242424",
+      "bg_card": "var(--ui-bg-card) = #252525",
+      "text": "var(--ui-text) = #e0e0e0",
+      "text_sub": "var(--ui-text-sub) = #aaaaaa",
+      "text_muted": "var(--ui-text-muted) = #9e9e9e (label·title 색; AA fix 적용 ≥5.07:1)",
+      "text_dim": "var(--ui-text-dim) = #969696 (AA fix ≥4.59:1)",
+      "border": "var(--ui-border) = #333333",
+      "border_mid": "var(--ui-border-mid) = #3a3a3a (hover border)",
+      "border_strong": "var(--ui-border-strong) = #444444 (.prop-btn 기본 border)",
+      "divider": "var(--ui-divider) = #555555",
+      "accent": "var(--ui-accent-primary) = #2d6fe8 (active/primary 채움), hover #3d7ff8, active #1d5fd0",
+      "raw_hex_in_panel": "버튼 글리프색 color:#ccc(.prop-btn/.prop-btn-full/.prop-btn-sm/.prop-full-btn), color:#fff(.active/.primary/.danger/.export hover), danger raw #c0392b/#e74c3c(solid)·#6b2e2e/#e06060/#2a1818(outline). 추가로 JS 인라인 raw hex danger: prop-frame #3a2a2a/#e06c6c, prop-canvas/simple-card #e55. → danger 계열 raw hex 미토큰화가 색 일관성 최대 누수."
+    },
+
+    "D-spacing": {
+      "prop_section_padding": "0 8px 4px (editor-props.css:9 — 전 패널 일관, 인라인 우회 0건. 좋음)",
+      "prop_section_title_padding": "8px 0 4px",
+      "prop_row_gap": "4px 표준 (editor-props.css:17, FIX 반영됨). 단 JS 인라인 override 6px 14건·3px 3건·12px 1건 잔존 → 렌더 시 gap 4 vs 6 갈림(iconify/frame/mockup/table/page).",
+      "prop_row_min_height": "24px",
+      "prop_row_margin_bottom": "6px 표준 (수직 리듬). 다수 패널이 인라인 margin-top:6px(13건)로 구현 → 이중 마진 12px 행 발생 위험.",
+      "prop_label_width": "56px 표준 (editor-props.css:20, FIX 반영됨). 인라인 override 60px 4건·48px 1·40px 1(일반 라벨), 16px 4건(W/H/X/Y 1글자 — 예외).",
+      "prop_align_group_gap": "4px, .prop-align-btn flex:1 0 28px / min-width 28px",
+      "repeat_item_card": "표준 .prop-line-card(p8/mb8/gap6)·.prop-cell-card(p8/mb10) 정의되었으나 사용처 prop-laurel 1개뿐. chat=인라인 p8/mb8, step=.stb-prop-item(CSS 미정의 간격0), table/comparison/label-group=무패딩 → 반복 아이템 간격 갈림."
+    },
+
+    "D-states": {
+      "hover": "입력류(.prop-select/.prop-input/.prop-number/.prop-text/.prop-layout-input): border-color → --ui-border-mid(#3a3a3a). 버튼류(.prop-btn): background → --ui-bg-hover + color #fff. .prop-align-btn hover: border --ui-divider + color --ui-text-sub + bg --ui-bg-elevated. 일관 패턴.",
+      "focus": "입력류 :focus → border-color --ui-accent-primary(#2d6fe8). .prop-icon-input/.prop-color-field 는 :focus-within(아이콘 래퍼 보정). focus-visible 미사용(전 패널 :focus만).",
+      "active": "토글 .active → background --ui-accent-primary + color #fff (.prop-align-btn/.prop-chain-btn/.prop-type-btn). primary 버튼 동일 채움.",
+      "disabled": ".prop-btn:disabled = opacity 0.35 + not-allowed. .prop-export-btn:disabled = background --ui-border-strong + color #888. → disabled 표현 2종(opacity 감쇠 vs 색 교체) 갈림.",
+      "transition": "border-color 0.1s(입력) / background·border·color 0.12~0.15s(버튼) — duration 0.1/0.12/0.15 혼재(미세)."
+    }
+  },
+
+  "violations": [
+    {
+      "id": "MPP-01",
+      "dim": "D-component / D-color",
+      "severity": "major",
+      "title": "위험버튼 2계열 시각 정반대 — solid(.prop-action-btn.danger #c0392b 채움) vs outline(.prop-btn-danger #e06060 아웃라인)",
+      "evidence": "editor-blocks.css:390 채움 / editor-props.css:487 아웃라인. 같은 '이미지 제거/삭제'가 패널마다 채움/아웃라인으로 갈림. 둘 다 raw hex, 토큰 미사용.",
+      "from": ["design-prop-panels-widget.json#DSN-pp-widget-01", "design-prop-panels-structure.json#PPS-01"],
+      "fix_hint": "위험버튼 단일 표준(아웃라인 권장, --ui-danger 토큰 신설) 채택 후 흡수."
+    },
+    {
+      "id": "MPP-02",
+      "dim": "D-component",
+      "severity": "major",
+      "title": "풀폭 액션버튼 3계열 난립 — .prop-btn-full vs .prop-action-btn(.primary) vs .prop-export-btn",
+      "evidence": "동일 '저장/적용/선택' 슬롯이 회색 아웃라인(btn-full) / 파랑 채움(action-btn.primary·export-btn)으로 갈림. 정의가 editor-props.css·editor-blocks.css 2파일 분산. deprecated .prop-full-btn(490행) dead 잔존.",
+      "from": ["design-prop-panels-widget.json#DSN-pp-widget-02", "design-prop-panels-structure.json#PPS-04"],
+      "fix_hint": ".prop-btn-full(+.primary/.danger 변형)로 단일화, export-btn/action-btn 매핑, .prop-full-btn 삭제."
+    },
+    {
+      "id": "MPP-03",
+      "dim": "D-color",
+      "severity": "major",
+      "title": "danger raw hex 우회 — prop-frame 인라인 #3a2a2a/#e06c6c, canvas/simple-card #e55, sticker/annotation 중립(danger affordance 없음)",
+      "evidence": "표준 prop-section은 prop-action-btn danger 토큰 사용. prop-frame.js:270/562 인라인 raw hex로 우회. canvas/simple-card color:#e55. sticker/annotation '이미지 제거'는 중립 회색(파괴 신호 부재).",
+      "from": ["design-prop-panels-structure.json#PPS-01"],
+      "fix_hint": "파괴버튼 danger 패밀리 2종 중 하나로 통일, raw hex 제거."
+    },
+    {
+      "id": "MPP-04",
+      "dim": "D-spacing",
+      "severity": "major",
+      "title": "prop-row gap 4px(표준) ↔ 인라인 6px(14건) 갈림 + 행 수직리듬 margin-bottom6 ↔ margin-top6 이중마진",
+      "evidence": "표준 gap 4px인데 iconify/frame/mockup/table/page 인라인 6px 압도(14건). 수직간격은 margin-top:6px(13건)가 표준 margin-bottom:6px와 합산되어 12px 발생.",
+      "from": ["design-prop-panels-spacing.json#PP-SPACE-1", "design-prop-panels-spacing.json#PP-SPACE-2"],
+      "fix_hint": "gap·수직간격 단일 방향 수렴(터치 행만), 인라인 override 제거."
+    },
+    {
+      "id": "MPP-05",
+      "dim": "D-spacing / D-component",
+      "severity": "major",
+      "title": "반복 아이템 카드 미통일 — 표준 .prop-line-card 사용 laurel 1개뿐, chat/step/table/comparison/label-group 제각각",
+      "evidence": "chat=인라인 p8/mb8, step=.stb-prop-item(CSS 미정의 간격0), table/comparison/label-group=무패딩. 반복 편집 아이템 패딩/마진 8/0/무 갈림.",
+      "from": ["design-prop-panels-spacing.json#PP-SPACE-4"],
+      "fix_hint": "반복 아이템 .prop-line-card/.prop-cell-card 로 수렴."
+    },
+    {
+      "id": "MPP-06",
+      "dim": "D-component",
+      "severity": "minor",
+      "title": "헤더 글리프 SVG 크기 갈림 — 다수 12px, section/page 16px, gradient 14px / blockHeader 공용 빌더 부재",
+      "evidence": ".prop-block-icon(20×20) 내부 SVG가 12/14/16px 혼재. 26개 패널이 헤더 마크업 각자 재구현(_helpers에 buildBlockHeader 없음).",
+      "from": ["design-prop-panels-widget.json#DSN-pp-widget-03", "design-prop-panels-widget.json#DSN-pp-widget-04"],
+      "fix_hint": "buildBlockHeader 헬퍼에 SVG 크기(12px 다수결) 고정 후 마이그레이션."
+    },
+    {
+      "id": "MPP-07",
+      "dim": "D-component / D-states",
+      "severity": "minor",
+      "title": ".prop-align-btn 정렬 외 세그먼트 토글로 오버로드 + 인라인 padding/flex 손수 조정",
+      "evidence": "comparison flex:1 / simple-card padding:2px 8px / annotation border-style 토글 / asset '초기화' font-size:10px 인라인. active accent만 공유, 크기 제각각.",
+      "from": ["design-prop-panels-widget.json#DSN-pp-widget-05", "design-prop-panels-spacing.json#PP-SPACE-3(인라인 flex 중복)"],
+      "fix_hint": ".prop-seg-btn 전용 클래스 도입 또는 modifier 표준화."
+    },
+    {
+      "id": "MPP-08",
+      "dim": "D-component",
+      "severity": "minor",
+      "title": "prop-frame .prop-select 인라인 height:28px + raw hex 재스킨(표준 24px/토큰 무시)",
+      "evidence": "prop-frame.js:234 select에 class=prop-select 달고도 인라인 height:28px;background:#1a1a1a;border:1px solid #333 덮어씀.",
+      "from": ["design-prop-panels-widget.json#DSN-pp-widget-06"],
+      "fix_hint": "인라인 제거, .prop-select 표준 스킨 위임(width:100%만)."
+    },
+    {
+      "id": "MPP-09",
+      "dim": "D-spacing",
+      "severity": "minor",
+      "title": "prop-label 폭 56px(표준) ↔ 60/48/40px 갈림",
+      "evidence": "60px 4건(step·text-template '왼쪽/오른쪽 패딩'), 48·40 단발. 입력 시작 x좌표 패널 간 어긋남.",
+      "from": ["design-prop-panels-spacing.json#PP-SPACE-3"],
+      "fix_hint": "56px 수렴 또는 .prop-label--wide(60px) 명명 변종 1종."
+    },
+    {
+      "id": "MPP-10",
+      "dim": "D-component / D-css-health",
+      "severity": "nit",
+      "title": "dead/duplicate CSS — .prop-style-btn(JS 0참조), .prop-full-btn(deprecated 0참조), .prop-select 중복정의 2회",
+      "evidence": ".prop-style-btn 풀정의(274행) but grep 0; .prop-full-btn deprecated(490행) 0참조; .prop-select 126·500행 중복.",
+      "from": ["design-prop-panels-widget.json#DSN-pp-widget-07", "design-prop-panels-structure.json#PPS-04"],
+      "fix_hint": "미사용 dead 룰 삭제, .prop-select 중복 병합."
+    }
+  ],
+
+  "crossAreaFlags": [
+    {
+      "flag": "danger 토큰 부재 — 전역 색 시스템 영역과 교차",
+      "detail": "--ui-danger / --ui-danger-* 토큰이 design-tokens(editor-base.css :root)에 없음. prop-panel은 raw hex(#c0392b/#e06060/#e55/#3a2a2a)로 위험색을 손수 그림. color 영역(design-color.json)·전역 토큰 영역이 danger 토큰을 신설해야 prop-panel danger 2계열(MPP-01/03)을 토큰으로 수렴 가능.",
+      "to_area": "color / design-tokens"
+    },
+    {
+      "flag": "bindSlider history/autosave 타이밍 — debug-squad 교차",
+      "detail": "_helpers.bindSlider 표준 미채택 22패널 손수 slider 와이어업. 시각 회귀 아니나 pushHistory/autosave 누락 가능 → debug-squad(상태 타이밍 차원) 교차 확인 필요.",
+      "to_area": "debug-squad(state-timing)"
+    },
+    {
+      "flag": "px 리터럴 점진 이관 — 전역 spacing 부채",
+      "detail": "prop-row gap/margin/label-width 인라인 px override가 전역 px 리터럴 3078개 부채(design-tokens.css:182, SPACE-G1 군집)의 일부. spacing 영역과 토큰 이관 정책 공유.",
+      "to_area": "spacing(global)"
+    },
+    {
+      "flag": "input/select height 표준 모호(24 vs 28) — left-panel/공통 컨트롤 교차",
+      "detail": "DBG-A 주석은 28px 통일을 명시하나 prop-select/prop-input은 24, prop-number는 28로 실값 갈림. 좌측 패널·공통 폼 컨트롤 높이 표준과 정렬 필요(컨트롤 높이 단일 기준 확정).",
+      "to_area": "left-panel / form-controls"
+    }
+  ],
+
+  "summary": {
+    "by_severity": { "blocker": 0, "major": 5, "minor": 4, "nit": 1 },
+    "reused_from": 3,
+    "fix_confirmed": ["prop-row gap 4px(표준)", "prop-label width 56px", "button height 24px 표준"],
+    "fix_incomplete": ["input/select height 24 vs 28 혼재(DBG-A 주석↔실값 불일치)", "danger 토큰 미신설로 raw hex 잔존", "gap/margin 인라인 override 잔존"]
+  }
+}

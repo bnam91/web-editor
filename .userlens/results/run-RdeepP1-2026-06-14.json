@@ -1,0 +1,25 @@
+{
+  "phase": "P1 콘텐츠 라운드트립 (L2/L3/L4)",
+  "round": "2026-06-14 사각지대심층",
+  "status": "완료",
+  "method": "cdp(9334) 실주행 + 코드 교차검증",
+  "cells_verified_clean": [
+    {"area":"텍스트블록","axis":"L2","result":"✅ 클린","evidence":"편집내용 reload 후 보존, placeholder 아님"},
+    {"area":"그라데이션블록","axis":"L2","result":"✅ 클린","evidence":".grad-fill 그라데+dataset 전부 보존(래퍼 background:none은 오보, 자식 적용)"},
+    {"area":"이미지/Asset","axis":"L2","result":"✅ 클린","evidence":"ab_52ro3v8 reload 후 존재"},
+    {"area":"도형 Shape","axis":"L2","result":"✅ 클린","evidence":"shp_8qazzt7 reload 후 children5 보존"},
+    {"area":"스티커","axis":"L2","result":"✅ 클린","evidence":"stk_o01kq1 reload 후 <span.sticker-text>NEW</span> 충실복원(5→1 children은 선택핸들, 오보차단)"},
+    {"area":"컴포넌트(Table)","axis":"L2","result":"✅ 클린","evidence":"tbl_fe9i1r1 reload 후 존재"},
+    {"area":"블록 추가","axis":"L4 undo","result":"✅ 클린","evidence":"addTextBlock→window.undo() 1스텝에 제거(delta 0 복귀)"},
+    {"area":"네이티브캡처 블록(canvas/banner02/comparison/그라데/스티커/도형)","axis":"L3 export","result":"✅ 클린(추정)","evidence":"실 Electron은 electronAPI.captureSection 네이티브 캡처 사용(html2canvas는 브라우저 폴백) → 충실 렌더"}
+  ],
+  "new_findings": [
+    {
+      "id":"C18","class":"C 버그","confidence":"✅ 확정","priority":"높음","area":"Export L3 / 어노테이션",
+      "symptom":"캔버스에 펜툴로 단 주석(어노테이션)이 이미지로 내보낼 때 그대로 찍혀 나옵니다. 리뷰용 표시인데 최종 상세페이지 이미지에 박혀서, 내보내기 전에 일일이 지워야 합니다.",
+      "code_ref":"js/annotation-tool.js:181,213 sec.appendChild(주석이 섹션 내부 자식) ↔ js/io/export-image.js:182-199 (section-label/toolbar/variation-badge/placeholder만 제거, .annotation-block/.annot-label 미제거). 대조군: todo-pin은 #todo-pin-overlay(섹션 밖)라 export 안 됨=정상",
+      "oracle":"L3 코드 deterministic: 어노테이션은 export 클론 대상 sec의 자식이고 클론에서 제거 안 됨 → 캡처에 포함",
+      "status":"미착수"
+    }
+  ]
+}

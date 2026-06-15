@@ -1,0 +1,141 @@
+{
+  "dimension": "null",
+  "engine": "debug-squad v4.0 / D-null",
+  "generated_at": "2026-06-11",
+  "scope": "js/**/*.js + main.js + preload.js + services/*.js",
+  "method": "Scan(grep 패턴 12종: querySelector/closest/find/match/[0]/dataset-JSON.parse/IPC결과/getElementById 체이닝) → Trace(실제 null 입력 경로 구체화 — 빈 프로젝트/외부 spec/손상 파일/구버전 저장본) → Grade",
+  "profile_exclusions_applied": [
+    "DBG-xx tombstone", "_suppressAutoSave 분산 패턴", "S11 빈 캔버스 가드",
+    "window.* 전역 노출", "props innerHTML 교체 패턴", "localStorage/JSON.parse 가드 목적 빈 catch",
+    "addTextBlock class=undefined 자체(qa-squad 기발견·ux 분류) — 단 그 sink로 흘러드는 새 입력 경로는 보고"
+  ],
+  "summary": {
+    "overall": "코드베이스 전반이 ?. / try-catch / Array.isArray 폴백으로 매우 방어적. files[0]·find()·elementFromPoint·dataset parse 대부분 가드 확인. 확정 6건(major 2, minor 4) — 핵심은 (1) presets 손상 파일 1개가 IPC 전체를 깨뜨려 섹션 속성 패널이 세션 내내 죽는 경로, (2) goditor-api가 LLM 생성 spec의 style 값을 무검증으로 makeTextBlock에 통과시켜 class=\"undefined\" 블록이 proj.json에 영속되는 경로.",
+    "counts": { "blocker": 0, "major": 2, "minor": 4, "suspected_groups": 3 }
+  },
+  "findings": [
+    {
+      "id": "NULL-01",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "high",
+      "title": "presets 폴더의 손상 JSON 1개 → presets:read-all IPC 전체 reject → 섹션 속성 패널 영구 불능",
+      "files": [
+        "/Users/a1/web-editor/main.js:1002-1005 (presets:read-all — per-file try/catch 없음)",
+        "/Users/a1/web-editor/js/editor.js:1553 (_presetsReady = readPresets().then(...) — .catch 없음)",
+        "/Users/a1/web-editor/js/props/prop-section.js:85 (await _presetsReady — rejected면 패널 렌더 중단)",
+        "/Users/a1/web-editor/js/design-system.js:173 (applyBase 내 await readPresets() — try 없음)"
+      ],
+      "evidence": "ipcMain.handle('presets:read-all', () => fs.readdirSync(PRESETS_DIR).filter(json).map(f => JSON.parse(fs.readFileSync(...))))  — map 안에 try 없음. 같은 파일의 intake:list(984)는 per-file try+filter(Boolean)로 올바르게 처리하고 있어 비대칭.",
+      "trigger_path": "presets:save(main.js:1009)가 비원자적 fs.writeFileSync — 저장 중 크래시/전원차단으로 잘린 {pid}.json 생성, 또는 사용자가 userData/presets/*.json 수동 편집 실수. 다음 부팅부터: read-all throw → IPC promise reject → editor.js:1553 _presetsReady가 rejected 상태로 고정(catch 없음, unhandled rejection) → prop-section.js가 매번 await _presetsReady에서 throw → 섹션 클릭 시 속성 패널 미렌더. 파일을 손으로 지우기 전까지 모든 세션에서 재발.",
+      "suggested_fix": "main.js read-all을 intake:list 패턴(per-file try → null → filter(Boolean))으로 통일 + editor.js:1553에 .catch(() => {}) 추가(FALLBACK 프리셋 유지). presets:save는 tmp→rename 원자 쓰기 권장."
+    },
+    {
+      "id": "NULL-02",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "confidence": "high",
+      "title": "goditor-api: spec의 text style 무검증 통과 → makeTextBlock classMap[style]=undefined → class=\"undefined\" 블록 silent 생성·영속 (기지 사례의 살아있는 외부 입력 경로)",
+      "files": [
+        "/Users/a1/web-editor/js/goditor-api.js:81 (window.addTextBlock(block.style || 'body', ...) — falsy만 폴백, enum 검증 없음)",
+        "/Users/a1/web-editor/js/block-factory.js:59-77 (makeTextBlock — classMap/placeholder lookup 무가드)"
+      ],
+      "evidence": "makeTextBlock: const classMap = {h1,h2,h3,body,caption,label,bullet}; ... class=\"${classMap[type]}\" data-placeholder=\"${phText}\" → type='title'이면 class=\"undefined\", 본문 텍스트 'undefined'. block-factory의 다른 API 면(예: 3364 graph preset)은 {ok:false, code:'INVALID'} 검증을 하는데 이 경로만 누락된 비대칭.",
+      "trigger_path": "goditor-layout-planner(LLM)가 Spec v2에 style:'title'/'subtitle' 등 enum 밖 값을 출력 → goditor-layout-generator가 CDP로 window.goditor.buildSection(spec) 호출 → 'title'은 truthy라 || 'body' 폴백 미작동 → class=\"undefined\" 텍스트블록이 캔버스에 생기고 buildSection 끝의 triggerAutoSave()로 proj.json에 영속. 에러/경고 0. (qa-squad가 발견한 addTextBlock 무검증 sink의 실전 유입로.) 부수: cols[].blocks 배열에 null 요소가 있으면 _addBlock의 block.type에서 TypeError로 조립 중단.",
+      "suggested_fix": "goditor-api._addBlock에서 style을 VALID_STYLES Set으로 검증, 불일치 시 console.warn + 'body' 폴백. makeTextBlock에도 classMap[type] || classMap.body 최종 방어."
+    },
+    {
+      "id": "NULL-03",
+      "severity": "minor",
+      "adjudication": "self",
+      "confidence": "medium",
+      "title": "branch-system: store.branches[store.current] 존재 가드 없는 쓰기 3곳 — current가 dangling이면 TypeError",
+      "files": [
+        "/Users/a1/web-editor/js/branch-system.js:148-150 (saveCurrentBranchSnapshot)",
+        "/Users/a1/web-editor/js/branch-system.js:158-160 (switchBranch 출발 브랜치 저장)",
+        "/Users/a1/web-editor/js/branch-system.js:233+ (mergeBranch store.branches[toName])"
+      ],
+      "evidence": "store.branches[store.current].snapshot = serializeProject() — current 키 부재 시 'Cannot set property of undefined'. deleteBranch는 current/main을 막지만, initBranchStore(50-52)가 branches는 meta에서·currentBranch는 proj.json 폴백에서 혼합 조립하는 경로가 있어 두 파일이 어긋나면(과거 dual-write 이력) current가 branches에 없는 store가 만들어질 수 있음.",
+      "trigger_path": "meta._meta.json과 proj.json의 branches/currentBranch 불일치(마이그레이션 과도기 저장본). 확정 재현 시퀀스는 못 만들었으나 가드 1줄 비용 대비 위험 비대칭.",
+      "suggested_fix": "const cur = store.branches[store.current]; if (!cur) { store.current = 'main' (또는 첫 키) 보정 } 후 쓰기."
+    },
+    {
+      "id": "NULL-04",
+      "severity": "minor",
+      "adjudication": "self",
+      "confidence": "medium",
+      "title": "restoreCommit: commit.snapshot 무가드 — snapshot 없는 커밋이면 applyProjectData 내부 TypeError, 복원 무피드백 실패",
+      "files": [
+        "/Users/a1/web-editor/js/commit-system.js (restoreCommit — window.applyProjectData(commit.snapshot) 직전 가드 없음)",
+        "/Users/a1/web-editor/js/commit-system.js:369 (importProjectJSON — JSON.parse(ev.target.result) 구조 검증 없이 commits 수용)"
+      ],
+      "evidence": "applyProjectData(undefined) → data.version 접근에서 throw. try/finally(rAF)로 _suppressAutoSave는 회복되지만 restoreCommit엔 catch가 없어 토스트 없이 중단 — 모달은 이미 닫힌 뒤라 사용자에겐 '아무 일도 안 일어남'.",
+      "trigger_path": "JSON 내보내기 파일을 손으로 편집(snapshot 키 삭제/잘림)한 뒤 가져오기 → 커밋 히스토리에 표시됨 → 복원 클릭 → silent 실패.",
+      "suggested_fix": "if (!commit?.snapshot) { showToast('❌ 스냅샷 없는 커밋'); return; } + import 시 commits 요소 shape 필터."
+    },
+    {
+      "id": "NULL-05",
+      "severity": "minor",
+      "adjudication": "self",
+      "confidence": "medium",
+      "title": "pasteClipboard 단건 경로: temp.firstElementChild null 가드 누락 (multi-block 경로엔 있음)",
+      "files": [
+        "/Users/a1/web-editor/js/editor.js:~803-806 (const el = temp.firstElementChild; → el.id/el.classList 즉시 접근)"
+      ],
+      "evidence": "multi-block 분기(777)는 if (!el) return; 가드가 있는데 단건 분기는 없음. clipboard.html이 div innerHTML 컨텍스트에서 떨어지는 마크업(향후 table 파편 등 copy 대상 확장 시)이면 el=null → 붙여넣기마다 TypeError.",
+      "trigger_path": "현재 copy 소스는 전부 div 계열이라 즉발은 아님 — 방어 비대칭으로 인한 잠복. copy 대상 추가 시 점화.",
+      "suggested_fix": "단건 경로에도 if (!el) return; 1줄."
+    },
+    {
+      "id": "NULL-06",
+      "severity": "minor",
+      "adjudication": "self",
+      "confidence": "medium",
+      "title": "[금일 수정분] canvas-block _bindCvbDblEdit blur: dataset.cards JSON.parse 무가드 — 코드베이스 유일의 try 없는 cards 파싱",
+      "files": [
+        "/Users/a1/web-editor/js/blocks/canvas-block.js (오늘 diff _bindCvbDblEdit blur 핸들러: const cards = JSON.parse(block.dataset.cards || '[]'))"
+      ],
+      "evidence": "동일 데이터의 다른 파싱 지점(ai-section-fill.js:35,260 / laurel·chat 블록들)은 전부 try{}catch{} 래핑. 이 신규 핸들러만 누락. throw 시 contentEditable='false' 전환·outline 제거가 이미 실행된 뒤지만 카드 텍스트 편집 내용이 dataset에 반영 안 되고 history/autosave도 스킵 — 편집 유실.",
+      "trigger_path": "innerHTML 직렬화 왕복에서 dataset.cards가 손상된 구 저장본(히스토리 복원/외부 편집) 카드 블록을 더블클릭 편집 후 blur.",
+      "suggested_fix": "let cards; try { cards = JSON.parse(...) } catch { cards = [] } — 주변 컨벤션과 통일."
+    }
+  ],
+  "suspected": [
+    {
+      "signature": "main-process IPC 인자 무검증 (renderer 신뢰 전제)",
+      "count": 3,
+      "examples": [
+        "main.js presets:save — preset.id undefined면 'undefined.json' 생성 (BUG-12의 'undefined 키' 패턴과 동형)",
+        "main.js intake:save — data null이면 data.product_name에서 throw",
+        "main.js intake:load — filename 무검증 (path 조합)"
+      ],
+      "note": "호출자가 전부 자사 renderer 코드라 실제 null 입력 시퀀스 미확정. CDP로 외부 에이전트가 electronAPI를 직접 호출하는 운영 특성상(goditor 워커) 방어 가치는 있음."
+    },
+    {
+      "signature": "외부 JSON 요소 shape 무검증 (배열만 검증, 원소는 신뢰)",
+      "count": 2,
+      "examples": [
+        "js/io/import-figma-json.js:169+ parseFigmaImportJSON — frames:[null] 통과 → convertFrameToSectionHTML에서 frame.name TypeError",
+        "js/goditor-api.js:16-22 buildFromSpec — sections 원소 null이면 buildSection 내 section.rows 접근 throw"
+      ],
+      "note": "둘 다 외부 생성물(피그마 플러그인 출력 / LLM spec)이 입력원이라 NULL-02와 같은 계열. 단 원소-null은 도구 출력 특성상 드묾."
+    },
+    {
+      "signature": "window 노출 함수의 인자 무가드 (외부/CDP 직접 호출 면)",
+      "count": 2,
+      "examples": [
+        "js/history.js:42-54 window.restoreSnapshot(snap) — snap.canvas 무가드, CDP에서 잘못 호출 시 canvas innerHTML=undefined 문자열화",
+        "js/editor.js window.addTextBlock 등 320+ 전역 — profile 합의대로 개별 보고 생략, NULL-02의 sink 방어로 수렴"
+      ],
+      "note": "profile 9항(전역 노출은 structure 총평)에 따라 개별 버그로 올리지 않음."
+    }
+  ],
+  "negative_findings": [
+    "files[0]/find()/elementFromPoint/closest 체이닝 전수 spot-check — 전부 if(!x) 또는 ?. 가드 확인 (block-drag, image-handling, canvas-scratch-drop, scratch-pad, outpaint-overlay)",
+    "applyProjectData — S8 빈 pages 가드·Array.isArray 폴백·getCurrentPage null 조기 종료 모두 건전",
+    "ai-section-fill — res?.ok 가드, dataset parse 전부 try 래핑. AI 응답 null 경로 안전",
+    "branch 스냅샷 파싱 3곳 — try+토스트+suppress 해제 모두 처리됨",
+    "오늘 수정분 중 history.js undo tip(빈 스택 -1===-1 경로 포함), layer-panel .col 하강, block-drag isCard(_isInsideUnselectedFrame⊃_getParentFrame 일관), save-load dirty 게이트, tab-system hasUnsavedChanges, main.js will-download — null 신규 리스크 없음",
+    "prop 패널 getElementById/querySelector 직접 체이닝 126곳 — 전부 자기 패널 innerHTML 주입 직후 조회(safe-by-construction)로 확인, 미보고"
+  ]
+}

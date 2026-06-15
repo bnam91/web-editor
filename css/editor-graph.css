@@ -1,0 +1,230 @@
+/* editor-graph.css — Graph 차트 (editor-blocks.css에서 분리 2026-06-09) */
+
+/* ═══════════════════════════════════
+   GRAPH BLOCK
+═══════════════════════════════════ */
+.graph-block {
+  position: relative;
+  width: 100%;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 24px 20px 16px;
+  box-sizing: border-box;
+  outline: 2px solid transparent;
+  
+  background: #ffffff;
+}
+.graph-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.graph-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); border-radius: 0; }
+
+/* ── 세로 막대 (bar-v) ── */
+.grb-bars-v {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 240px;
+  padding-bottom: 0;
+}
+.grb-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+.grb-bar-fill-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.grb-bar-fill {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease;
+  min-height: 4px;
+}
+.grb-bar-val-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: inherit;
+}
+.grb-bar-label {
+  font-size: 13px;
+  margin-top: 6px;
+  text-align: center;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ── 가로 막대 (bar-h) ── */
+.grb-bars-h {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 8px 0;
+}
+.grb-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.grb-bar-h-pct {
+  font-weight: 700;
+  line-height: 1.1;
+  color: inherit;
+}
+.grb-bar-h-desc {
+  color: inherit;
+  font-weight: 700;
+  opacity: 0.85;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+.grb-bar-h-track {
+  width: 100%;
+  height: 24px;
+  background: #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.grb-bar-h-fill {
+  height: 100%;
+  background: #222222;
+  border-radius: 12px;
+  transition: width 0.3s ease;
+  min-width: 4px;
+}
+
+/* ── 프리셋별 색상 ── */
+/* default */
+.graph-block[data-preset="default"] { background: transparent; color: var(--ui-border); }
+.graph-block[data-preset="default"] .grb-bar-fill { background: var(--ui-accent-primary); }
+.graph-block[data-preset="default"] .grb-bar-h-fill { background: #222222; }
+.graph-block[data-preset="default"] .grb-bar-val-label { color: var(--ui-accent-primary); }
+
+/* dark */
+.graph-block[data-preset="dark"] { background: #1a1a2e; color: #eee; }
+.graph-block[data-preset="dark"] .grb-bar-fill,
+.graph-block[data-preset="dark"] .grb-bar-h-fill { background: #4f8ef7; }
+.graph-block[data-preset="dark"] .grb-bar-val-label { color: #4f8ef7; }
+.graph-block[data-preset="dark"] .grb-bar-h-track { background: rgba(255,255,255,0.12); }
+.graph-block[data-preset="dark"] .grb-bar-h-pct { color: #ffffff; }
+.graph-block[data-preset="dark"] .grb-bar-h-desc { color: rgba(255,255,255,0.75); }
+
+/* minimal */
+.graph-block[data-preset="minimal"] { background: #fff; color: var(--ui-text-dim); }
+.graph-block[data-preset="minimal"] .grb-bar-fill,
+.graph-block[data-preset="minimal"] .grb-bar-h-fill { background: var(--ui-text-sub); border-radius: 2px 2px 0 0; }
+.graph-block[data-preset="minimal"] .grb-bar-val-label { color: #888; }
+
+/* colorful */
+.graph-block[data-preset="colorful"] { background: #fff; color: var(--ui-border); }
+.graph-block[data-preset="colorful"] .grb-bar-fill:nth-child(1),
+.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(1) .grb-bar-fill { background: #ff6b6b; }
+.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(2) .grb-bar-fill { background: #ffa94d; }
+.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(3) .grb-bar-fill { background: #69db7c; }
+.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(4) .grb-bar-fill { background: #4dabf7; }
+.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(5) .grb-bar-fill { background: #da77f2; }
+.graph-block[data-preset="colorful"] .grb-bar-col:nth-child(6) .grb-bar-fill { background: #ff6b6b; }
+.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(1) .grb-bar-h-fill { background: #ff6b6b; }
+.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(2) .grb-bar-h-fill { background: #ffa94d; }
+.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(3) .grb-bar-h-fill { background: #69db7c; }
+.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(4) .grb-bar-h-fill { background: #4dabf7; }
+.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(5) .grb-bar-h-fill { background: #da77f2; }
+.graph-block[data-preset="colorful"] .grb-bar-row:nth-child(6) .grb-bar-h-fill { background: #ff6b6b; }
+
+/* ── 꺾은선 (line) ── */
+.grb-line-wrap {
+  position: relative;
+  width: 100%;
+  height: 240px;
+}
+.grb-line-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.grb-line-axis {
+  stroke: var(--ui-border, #cccccc);
+  opacity: 0.6;
+}
+.grb-line-path {
+  stroke: var(--ui-accent-primary, #2d6fe8);
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+.grb-line-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.grb-line-point-dot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--ui-accent-primary, #2d6fe8);
+  border: 1.5px solid #ffffff;
+  box-sizing: border-box;
+}
+.grb-line-vlabel,
+.grb-line-xlabel {
+  position: absolute;
+  transform: translate(-50%, 0);
+  white-space: nowrap;
+  color: inherit;
+  text-align: center;
+  line-height: 1.1;
+}
+.grb-line-vlabel { font-weight: 600; }
+.grb-line-empty {
+  width: 100%;
+  height: 100%;
+  border-bottom: 1px dashed var(--ui-border, #cccccc);
+  opacity: 0.4;
+}
+
+/* ── 프리셋별 line 색상 오버라이드 ── */
+.graph-block[data-preset="default"] .grb-line-path { stroke: var(--ui-accent-primary); }
+.graph-block[data-preset="default"] .grb-line-point-dot { background: var(--ui-accent-primary); border-color: #ffffff; }
+.graph-block[data-preset="default"] .grb-line-vlabel { color: var(--ui-accent-primary); }
+
+.graph-block[data-preset="dark"] .grb-line-path { stroke: #4f8ef7; }
+.graph-block[data-preset="dark"] .grb-line-point-dot { background: #4f8ef7; border-color: #1a1a2e; }
+.graph-block[data-preset="dark"] .grb-line-axis { stroke: rgba(255,255,255,0.2); }
+.graph-block[data-preset="dark"] .grb-line-vlabel { color: #ffffff; }
+.graph-block[data-preset="dark"] .grb-line-xlabel { color: rgba(255,255,255,0.75); }
+
+.graph-block[data-preset="minimal"] .grb-line-path { stroke: var(--ui-text-sub); }
+.graph-block[data-preset="minimal"] .grb-line-point-dot { background: var(--ui-text-sub); border-color: #ffffff; }
+.graph-block[data-preset="minimal"] .grb-line-vlabel { color: #888; }
+
+.graph-block[data-preset="colorful"] .grb-line-path { stroke: #4dabf7; }
+.graph-block[data-preset="colorful"] .grb-line-point-dot { background: #ff6b6b; border-color: #ffffff; }
+
+/* 프로퍼티 패널 - 데이터 편집 */
+.grb-data-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.grb-data-item { display: flex; align-items: center; gap: 4px; }
+.grb-data-label-input {
+  flex: 1; height: 24px; min-width: 0;
+  background: var(--ui-bg-app); border: 1px solid var(--ui-border);
+  border-radius: 4px; color: #ddd; font-size: var(--ui-fs-base); padding: 0 6px; outline: none;
+}
+.grb-data-val-input {
+  width: 44px; height: 24px; flex-shrink: 0;
+  background: var(--ui-bg-app); border: 1px solid var(--ui-border);
+  border-radius: 4px; color: #ddd; font-size: var(--ui-fs-base); text-align: center; outline: none;
+}
+.grb-data-label-input:focus, .grb-data-val-input:focus { border-color: var(--ui-accent-primary); }
+.grb-data-del-btn {
+  width: 20px; height: 20px; flex-shrink: 0;
+  background: none; border: 1px solid var(--ui-border-mid);
+  border-radius: 4px; color: var(--ui-text-dim); cursor: pointer; font-size: var(--ui-fs-base);
+  display: flex; align-items: center; justify-content: center;
+}
+.grb-data-del-btn:hover { border-color: var(--ui-danger); color: var(--ui-danger); }

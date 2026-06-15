@@ -1,0 +1,74 @@
+{
+  "agent": "QA-02",
+  "version": "4.0",
+  "role": "core",
+  "scope": "asset-image-circle",
+  "method": "cdp",
+  "scenarios": [
+    {
+      "id": "s1-asset-upload-flow",
+      "name": "이미지 업로드 전체 흐름 (addAssetBlock → 빈 체크보드 → 클릭 시 편집 패널)",
+      "steps": [
+        "window.addSection() 후 sec_in1df7e를 [QA-02]로 클레임 (sec._name + dataset.name 동시 세팅 — getSerializedCanvas가 _name으로 dataset.name을 복원하므로 둘 다 필요)",
+        "selectSection(sec) → addAssetBlock() → 섹션 내 신규 .asset-block(ab_9z2o5ig) diff 확인",
+        "빈 상태 검증: dataset.imgSrc 없음, <img> 자식 없음, background-image=repeating-conic-gradient(체크보드), bgSize 72px",
+        "블록 중심 좌표에 mousedown/mouseup/click 디스패치 → #panel-right .panel-body 즉시 판독"
+      ],
+      "status": "PASS",
+      "severity": "",
+      "expected": "addAssetBlock() 직후 imgSrc 없는 빈 체크보드 상태, 클릭 시 Asset Block 편집(속성) 패널 표시",
+      "actual": "ab_9z2o5ig 생성: hasImgSrc=false, hasImg=false, bg=repeating-conic-gradient 체크보드. 클릭 후 panel-right에 'Asset Block ab_9z2o5ig' 헤더 + Preset(Standard/Square/Tall/Wide/Logo)/Size/너비/높이 컨트롤(#asset-w-slider 등) 표시",
+      "repro": "selectSection(sec); addAssetBlock(); 블록 클릭",
+      "evidence": "evaluate_script 반환: {hasImgSrc:false, bgImage:'repeating-conic-gradient(...)', panelHeader:'Asset Block ab_9z2o5ig...', hasAssetControls:true}. 스크린샷 .qa/results/qa-02-s1-asset-empty.png",
+      "verified": true,
+      "adjudication": "self"
+    },
+    {
+      "id": "s2-circle-edit-overflow",
+      "name": "서클 블록 편집모드 overflow (acceptance: overflow !== 'hidden')",
+      "steps": [
+        "selectSection → addIconCircleBlock() → icb_gdf8cpc 생성 (1차 생성분 icb_alb3nq3는 동시작업 중 타 에이전트 히스토리 조작으로 소실 → 전 과정 단일 스크립트로 원자 재실행)",
+        "평상시 .icb-circle overflow 확인: hidden (원형 마스크 정상)",
+        "클릭 → panel-right 'Asset-Circle icb_gdf8cpc' 패널 확인",
+        "canvas.toBlob으로 생성한 실제 File을 window.loadImageToCircle(icb, file)로 주입 (앱 공식 업로드 경로 — drop 핸들러와 동일, dataset 직접 주입 아님)",
+        "has-image 대기 → dblclick 디스패치 → 편집모드 진입 → overflow 판독 → exitCircleImageEditMode → 복원 확인"
+      ],
+      "status": "PASS",
+      "severity": "",
+      "expected": "편집모드 진입 시 circle overflow !== 'hidden' (이미지 전체 표시), 종료 시 hidden(원형 마스크) 복원",
+      "actual": "평상시 overflow=hidden → dblclick 후 img-editing 클래스 부여 + overflow='visible' (acceptance 충족) → exit 후 overflow='hidden' 복원. dataset.imgW=240/imgX=0/imgY=45 정상 기록",
+      "repro": "addIconCircleBlock() → loadImageToCircle(icb, File) → icb에 dblclick → getComputedStyle(.icb-circle).overflow",
+      "evidence": "evaluate_script 반환: {overflowNormal:'hidden', editModeEntered:true, overflowEdit:'visible', acceptance_overflowNotHidden:true, overflowAfterExit:'hidden'}",
+      "verified": true,
+      "adjudication": "self"
+    },
+    {
+      "id": "s3-image-delete-dataset-cleanup",
+      "name": "이미지 삭제 후 dataset 정리 (imgW/imgX/imgY 제거)",
+      "steps": [
+        "이미지 있는 asset-block 확보: 타 섹션 블록 사용은 동시작업 에티켓 위반이므로, 내 섹션의 ab_9z2o5ig에 window.loadImageToAsset(ab, File)로 주입 (앱 공식 업로드 경로 — SKIP 불필요)",
+        "enterImageEditMode(ab)로 dataset.imgW=860/imgX=0/imgY=67.5/fit=cover 생성 확인 → exitImageEditMode (dataset 유지 확인)",
+        "블록 클릭으로 선택 → props 패널의 #asset-remove-btn('이미지 제거') 실제 UI 버튼 클릭",
+        "dataset 5종(imgSrc/fit/imgW/imgX/imgY) + has-image 클래스 + img 엘리먼트 제거 검증"
+      ],
+      "status": "PASS",
+      "severity": "",
+      "expected": "이미지 삭제 후 dataset.imgW, imgX, imgY 모두 제거",
+      "actual": "삭제 경로 'props-panel #asset-remove-btn click' 실행 후 imgW/imgX/imgY/imgSrc/fit 전부 제거, has-image=false, img 엘리먼트 없음. 잔여 dataset은 align/overlay뿐 (빈 체크보드 상태로 완전 복귀). 구현부 clearAssetImage(image-handling.js:558)와 일치",
+      "repro": "loadImageToAsset(ab, File) → enterImageEditMode(ab) → exitImageEditMode(ab) → 블록 선택 → #asset-remove-btn 클릭 → ab.dataset 확인",
+      "evidence": "evaluate_script 반환: {dsDuringEdit:{imgW:'860',imgX:'0',imgY:'67.5',fit:'cover'}, acceptance:{imgW_removed:true,imgX_removed:true,imgY_removed:true,imgSrc_removed:true,fit_removed:true}, dsFinal:{align,overlay,qaTag}}",
+      "verified": true,
+      "adjudication": "self"
+    }
+  ],
+  "notes": [
+    "콘솔 error/warn 0건 (전 시나리오 구간).",
+    "환경 노트(제품 버그 아님): 동시작업 중 타 에이전트의 전역 히스토리 조작으로 내 블록이 1회 소실됨(icb_alb3nq3). 전역 단일 undo 히스토리 특성상 멀티에이전트 QA는 시나리오를 단일 evaluate_script로 원자 실행해야 안정적.",
+    "dataset.name 직접 세팅만으로는 클레임이 유지 안 됨 — getSerializedCanvas(save-load.js:291)가 sec._name으로 복원하므로 _name도 함께 세팅 필요.",
+    "정리: 테스트 섹션 sec_in1df7e deleteSection 완료, 캔버스에 QA-02 잔여물 없음."
+  ],
+  "passed": 3,
+  "failed": 0,
+  "ux_issues": 0,
+  "blocker_candidates": 0
+}

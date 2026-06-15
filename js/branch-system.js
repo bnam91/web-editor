@@ -25,48 +25,42 @@ function saveBranchStore(store) {
 
 async function _persistBranchesToFile(store) {
   if (!activeProjectId || !IS_ELECTRON) return;
-  // BUG4: saveProjectToFile과 동시 실행 시 덮어쓰기 방지 — _isSavingToFile 진행 중이면 스킵
-  // (브랜치 메타만 업데이트하므로 saveProjectToFile의 pending 큐를 통한 재실행 불필요)
-  if (window._isSavingToFile) return;
   try {
-    const proj = await window.electronAPI.loadProject(activeProjectId);
-    if (!proj) return;
-    proj.branches = store.branches;
-    proj.currentBranch = store.current;
-    proj.updatedAt = new Date().toISOString();
-    await window.electronAPI.saveProject(proj);
-  } catch {}
+    // branches/currentBranch는 _meta.json에만 저장 (proj.json 경량화)
+    const existingMeta = await window.electronAPI.loadProjectMeta(activeProjectId);
+    const meta = {
+      ...(existingMeta || {}),
+      branches: store.branches,
+      currentBranch: store.current,
+      updatedAt: new Date().toISOString(),
+    };
+    await window.electronAPI.saveProjectMeta(activeProjectId, meta);
+  } catch (e) { console.warn('[branch] 브랜치 meta 저장 실패:', e); }
 }
 
 async function initBranchStore() {
-  // Electron: 프로젝트 파일에서 브랜치 로드
+  // Electron: _meta.json에서 브랜치 로드 (분리 저장 구조)
   if (activeProjectId && IS_ELECTRON) {
     try {
-      const proj = await window.electronAPI.loadProject(activeProjectId);
-      if (proj?.branches) {
-        const store = { current: proj.currentBranch || 'main', branches: proj.branches };
+      // meta 우선, 없으면 proj.json 폴백 (마이그레이션 전 하위 호환)
+      const [meta, proj] = await Promise.all([
+        window.electronAPI.loadProjectMeta(activeProjectId),
+        window.electronAPI.loadProject(activeProjectId),
+      ]);
+      const branches = meta?.branches || proj?.branches || null;
+      const currentBranch = meta?.currentBranch || proj?.currentBranch || null;
+      if (branches) {
+        const store = { current: currentBranch || 'main', branches };
         localStorage.setItem(getBranchKey(), JSON.stringify(store)); // 로컬 캐시
-        // 현재 브랜치 스냅샷을 캔버스에 적용
-        // BUG6: applyProjectData가 DOM 변경을 일으켜 autoSave 트리거 방지
-        const activeBranch = store.branches[store.current];
-        if (activeBranch?.snapshot) {
-          try {
-            const data = JSON.parse(activeBranch.snapshot);
-            window.state._suppressAutoSave = true;
-            applyProjectData(data);
-            window.state._suppressAutoSave = false;
-            // 초기 로드 후 히스토리 초기화 — 로드된 상태가 초기 스냅샷으로 저장됨
-            if (window.clearHistory) window.clearHistory();
-          } catch {
-            window.state._suppressAutoSave = false;
-          }
-        }
+        // initLoad()가 이미 올바른 캔버스 데이터를 로드하므로 여기서 applyProjectData 호출 금지
+        // (race condition: 두 함수가 동시에 실행되어 initLoad 결과를 덮어쓰는 버그 방지)
         updateBranchIndicator(store.current);
         applyFocusMode(store.current);
+        applyMainLock(store.current); // Electron 경로에서도 main 잠금 배너 적용
         renderBranchPanel();
         return store;
       }
-    } catch {}
+    } catch (e) { console.warn('[branch] Electron 브랜치 로드 실패, localStorage 폴백:', e); }
   }
   // localStorage 폴백 (브라우저 or 파일 없을 때)
   let store = loadBranchStore();
@@ -164,11 +158,20 @@ function switchBranch(name) {
   // 현재 브랜치 스냅샷 저장
   store.branches[store.current].snapshot = serializeProject();
   store.branches[store.current].updatedAt = Date.now();
-  // 대상 브랜치 로드
+  // 대상 브랜치 로드 — autoSave 억제를 파싱 전에 먼저 적용 (경쟁 조건 최소화)
+  window.state._suppressAutoSave = true;
   store.current = name;
   saveBranchStore(store);
-  const data = JSON.parse(store.branches[name].snapshot);
-  window.state._suppressAutoSave = true;
+  let data;
+  try {
+    const raw = store.branches[name].snapshot;
+    data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch (e) {
+    console.error('[branch] 스냅샷 파싱 실패:', e);
+    window.showToast?.('❌ 브랜치 데이터 손상 — 전환 취소');
+    window.state._suppressAutoSave = false;
+    return;
+  }
   applyProjectData(data);
   window.state._suppressAutoSave = false;
   // 브랜치 전환 시 히스토리 스택 초기화 — applyProjectData 이후 호출해야 새 브랜치 상태가 초기 스냅샷으로 저장됨
@@ -213,7 +216,12 @@ function mergeBranch(fromName) {
   if (fromName === toName) return;
 
   const fromBranch = store.branches[fromName];
-  const scope = fromBranch?.scope;
+  if (!fromBranch) {
+    console.error('[branch] 병합 소스 브랜치 없음:', fromName);
+    window.showToast?.('❌ 병합 실패: 브랜치를 찾을 수 없습니다.');
+    return;
+  }
+  const scope = fromBranch.scope;
   const confirmMsg = scope && scope.length > 0
     ? `'${fromName}' → '${toName}' 병합\n스코프 섹션(${scope.length}개)만 교체됩니다.`
     : `'${fromName}' → '${toName}' 으로 병합할까요?\n현재 브랜치의 내용이 대체됩니다.`;
@@ -225,41 +233,70 @@ function mergeBranch(fromName) {
     store.branches[toName].snapshot = fromBranch.snapshot;
   } else {
     // 섹션 단위 병합
-    const fromData = JSON.parse(fromBranch.snapshot);
-    const toData = JSON.parse(store.branches[toName].snapshot);
+    let fromData, toData;
+    try {
+      const fromRaw = fromBranch.snapshot;
+      const toRaw = store.branches[toName].snapshot;
+      fromData = typeof fromRaw === 'string' ? JSON.parse(fromRaw) : fromRaw;
+      toData   = typeof toRaw   === 'string' ? JSON.parse(toRaw)   : toRaw;
+    } catch (e) {
+      console.error('[branch] 병합 스냅샷 파싱 실패:', e);
+      window.showToast?.('❌ 병합 실패: 브랜치 데이터 손상');
+      return;
+    }
+
+    // v2 포맷 보장
+    if (!toData.version) { toData.version = 2; }
+    if (!toData.pages) { toData.pages = []; }
 
     toData.pages = toData.pages.map(toPage => {
-      const fromPage = fromData.pages.find(p => p.id === toPage.id) || fromData.pages[0];
+      // 같은 ID 우선, 없으면 인덱스 기준 대응 (첫 페이지 폴백 제거 — 데이터 오염 방지)
+      const fromPage = fromData.pages?.find(p => p.id === toPage.id);
       if (!fromPage) return toPage;
 
-      const parser = new DOMParser();
-      const toDoc = parser.parseFromString(`<div id="c">${toPage.canvas}</div>`, 'text/html');
-      const fromDoc = parser.parseFromString(`<div id="c">${fromPage.canvas}</div>`, 'text/html');
-      const toCanvas = toDoc.getElementById('c');
-      const fromCanvas = fromDoc.getElementById('c');
+      try {
+        const parser = new DOMParser();
+        const toDoc = parser.parseFromString(`<div id="c">${toPage.canvas}</div>`, 'text/html');
+        const fromDoc = parser.parseFromString(`<div id="c">${fromPage.canvas}</div>`, 'text/html');
+        const toCanvas = toDoc.getElementById('c');
+        const fromCanvas = fromDoc.getElementById('c');
+        if (!toCanvas || !fromCanvas) return toPage;
 
-      scope.forEach(sectionId => {
-        const fromSec = fromCanvas.querySelector(`#${sectionId}`);
-        const toSec = toCanvas.querySelector(`#${sectionId}`);
-        if (fromSec && toSec) {
-          toSec.replaceWith(fromSec.cloneNode(true));
-        } else if (fromSec) {
-          toCanvas.appendChild(fromSec.cloneNode(true));
-        }
-      });
+        scope.forEach(sectionId => {
+          const safeSel = CSS.escape(sectionId);
+          const fromSec = fromCanvas.querySelector(`#${safeSel}`);
+          const toSec = toCanvas.querySelector(`#${safeSel}`);
+          if (fromSec && toSec) {
+            toSec.replaceWith(fromSec.cloneNode(true));
+          } else if (fromSec) {
+            toCanvas.appendChild(fromSec.cloneNode(true));
+          }
+        });
 
-      return { ...toPage, canvas: toCanvas.innerHTML };
+        return { ...toPage, canvas: toCanvas.innerHTML };
+      } catch (e) {
+        console.error('[branch] 섹션 병합 파싱 오류:', e);
+        return toPage; // 실패 시 기존 페이지 유지
+      }
     });
 
     store.branches[toName].snapshot = JSON.stringify(toData);
   }
 
   store.branches[toName].updatedAt = Date.now();
-  store.current = toName;
+  // store.current은 이미 toName (mergeBranch 호출 시점에 현재 브랜치가 toName)
   saveBranchStore(store);
-  const data = JSON.parse(store.branches[toName].snapshot);
+  let mergedData;
+  try {
+    const raw = store.branches[toName].snapshot;
+    mergedData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch (e) {
+    console.error('[branch] 병합 결과 파싱 실패:', e);
+    window.showToast?.('❌ 병합 결과 적용 실패');
+    return;
+  }
   window.state._suppressAutoSave = true;
-  applyProjectData(data);
+  applyProjectData(mergedData);
   window.state._suppressAutoSave = false;
   // 병합 후 히스토리 초기화 — applyProjectData 이후 호출해야 병합된 상태가 초기 스냅샷으로 저장됨
   if (window.clearHistory) window.clearHistory();
@@ -592,7 +629,7 @@ function unlockMainBranch() {
 
 // 크로스 모듈 접근용 window 노출
 window.maybeAddNewSectionToScope  = maybeAddNewSectionToScope;
-window.openSectionBranchMenu      = openSectionBranchMenu;
+window.openSectionBranchMenu      = function(){}; // C21: 섹션 ⎇ 데드 제거 — inline onclick 잔존 대비 무해 가드
 window.getCurrentBranch           = getCurrentBranch;
 window.getBranchColor             = getBranchColor;
 window.renderBranchPanel          = renderBranchPanel;

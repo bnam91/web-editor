@@ -1,0 +1,43 @@
+{
+  "round": "2026-06-14 사각지대심층",
+  "method": "cdp(9334)+code cross-verify",
+  "persona": "처음 GODITOR로 상세페이지를 만들어 저장·내보내는 일반 사용자",
+  "next_ids": {"A":30,"B":15,"C":17,"D":8},
+  "findings": [
+    {
+      "id":"A30","class":"A 이상함","confidence":"✅ 확정","priority":"높음","area":"Export/Import",
+      "symptom":"디자인을 다 만들고 상단 'Export' 버튼을 눌러도 정작 이미지(PNG)로 내보내기가 없습니다. 메뉴엔 저장(JSON파일)·JSON 내보내기·Figma만 있고, 상세페이지 이미지 저장은 '아무것도 선택 안 한 빈 캔버스'일 때만 뜨는 우측 Page 속성 패널 깊숙이 숨어 있어 처음 쓰는 사람은 못 찾습니다.",
+      "code_ref":"index.html publish-dropdown-menu(이미지 항목 없음) ↔ js/io/export-image.js:597 exportAllSections를 js/props/prop-page.js:348 Page속성패널에서만 호출",
+      "oracle":"L1 라이브: Export 드롭다운/섹션툴바/전 chrome에 PNG 내보내기 affordance 0개(GIF 버튼만). exportAllSections 함수는 존재하나 Page props에만 바인딩",
+      "status":"미착수"
+    },
+    {
+      "id":"C17","class":"C 버그","confidence":"✅ 확정","priority":"보통","area":"Plugin 패널",
+      "symptom":"플러그인 패널의 'Figma Upload'·'Figma Import' 항목(둘 다 Beta 뱃지)을 눌러도 아무 일도 일어나지 않습니다. 클릭은 되는 것처럼 보이는데 모달도 안 뜨고 무반응입니다. (정작 Figma 업로드는 상단 Export 메뉴의 'Figma 업로드'로는 작동합니다.)",
+      "code_ref":"index.html:665,679 #plugin-figma-upload/#plugin-figma-import onclick 빈값 + js/ 전역에 델리게이트 리스너 0건. 정상 진입점은 openFigmaUploadModal()=Export메뉴",
+      "oracle":"L1 라이브: 플러그인 패널 열고 figma-upload 클릭 → 모달 카운트 변화 0. onclick 빈값+리스너 0 deterministic",
+      "status":"미착수"
+    },
+    {
+      "id":"A31","class":"A 이상함","confidence":"✅ 확정","priority":"낮음","area":"프로젝트 목록(런처)",
+      "symptom":"프로젝트 카드의 복제 버튼을 누르면 새 이름을 물어보지 않고 곧바로 'OOO (사본)'으로 복제됩니다. (데스크탑 앱에서 native prompt가 막혀 자동 기본이름으로 진행 — 코드 주석에 명시된 폴백) 사용자는 이름을 정할 기회 없이 복제가 끝나 당황할 수 있습니다.",
+      "code_ref":"pages/projects.html:380-401 duplicateProjectUI (Electron prompt 차단→input=null→defaultName 자동). 의도된 폴백 주석 있음 → 의도맞음 판정 가능, 현빈 결정",
+      "oracle":"코드 deterministic. 모달 기반 이름입력으로 대체하면 해소",
+      "status":"미착수"
+    }
+  ],
+  "clean_areas": [
+    {"area":"floating-panel 좌측 드롭다운(Section/Frame/Text/Asset/Shape + 메뉴 51항목)","checked":"onclick 51개 전부 정의된 함수로 연결 — 죽은 메뉴 0","status":"이상 없음"},
+    {"area":"Export 메뉴 불러오기/Figma가져오기/참고이미지 일괄추가","checked":"label이 숨은 input file 감싸 클릭 시 파일선택 정상","status":"이상 없음(오보 차단)"},
+    {"area":"프로젝트 삭제","checked":"deleteProject에 window.confirm 경고 있음","status":"이상 없음"},
+    {"area":"Iconify / Device Mockup 플러그인","checked":"패널 코드에 TODO/stub/미구현/alert 마커 0, openIconifyModal/openMockupModal 정의됨","status":"이상 없음"}
+  ],
+  "inconclusive_next_round": [
+    {"area":"Templates 브라우저","note":"openTemplateBrowser 호출 시 가시화 애매(offsetParent null)+항목 0 — 적용/저장 라운드트립(L2) 미확정. 다음 라운드 전용 드라이브 필요"},
+    {"area":"우측 패널 5탭 콘텐츠 전환","note":"실제 tab-pane 컨테이너 id 미확보로 전환·빈상태 미확정. L2(탭 기억) 미검증"},
+    {"area":"4겹 오라클 심층 라운드트립(L2 재오픈/L3 export)","note":"콘텐츠 생성 인터랙션의 persist/export 라운드트립은 CDP 단일창 직렬이라 전용 세션 필요. 방법론은 ultraplan에 박음"}
+  ],
+  "excluded_not_a_bug": [
+    {"symptom":"Export 메뉴 3항목이 onclick=closePublishDropdown만이라 죽은 줄 알았으나","reason":"label→hidden input(type=file) 구조로 파일선택 정상 작동. 핸들러 직접 호출 패턴 확인으로 오보 3건 차단"}
+  ]
+}

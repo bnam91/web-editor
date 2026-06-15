@@ -1,0 +1,128 @@
+{
+  "dimension": "rerender",
+  "engine": "debug-squad v4.0",
+  "date": "2026-06-11",
+  "scope": "js/**/*.js (rebindAll / buildLayerPanel / buildFilePageSection / showXxxProperties 호출 그래프)",
+  "method": "Scan(호출부 전수 149곳) → Trace(CDP 9334 카운터 주입 실측, proj_1775644888754 비파괴) → Grade",
+  "excluded_known_patterns": ["#12 props innerHTML 전체 교체+리스너 재부착(알려진 설계)", "DBG-11 block-drag/section-drag rAF 스로틀(기처리)", "MUT-01 동일값 dataset 쓰기 생략"],
+  "call_graph_summary": {
+    "buildLayerPanel_callsites": 80,
+    "rebindAll_callsites": 7,
+    "key_chain": "buildLayerPanel → (무조건) buildFilePageSection → (inspector 탭 활성 시) renderInspectorPanel · rebindAll → (!_historyPaused 시) clearHistory → getSerializedCanvas(캔버스 전체 cloneNode+직렬화)",
+    "cdp_measured": {
+      "goditor.buildSection(블록6개)": { "buildLayerPanel": 7, "buildFilePageSection": 7, "getSerializedCanvas": 7 },
+      "addTextBlock(단건)": { "buildLayerPanel": 1, "buildFilePageSection": 1, "getSerializedCanvas": 1 },
+      "undo(1회)": { "buildLayerPanel": 1, "rebindAll": 1, "getSerializedCanvas": 1 }
+    }
+  },
+  "findings": [
+    {
+      "id": "RR-01",
+      "severity": "major",
+      "status": "verified",
+      "review_mode": "verify-candidate",
+      "title": "goditor.buildSection/buildFromSpec — 블록 1개당 전체 패널 재구성 + 전체 캔버스 직렬화 (O(N²))",
+      "files": ["js/goditor-api.js:16-43,78-146", "js/block-factory.js (각 addXxxBlock 말미의 window.buildLayerPanel())"],
+      "evidence": "CDP 실측: 블록 6개 섹션 1개 조립 시 buildLayerPanel 7회 + buildFilePageSection 7회 + getSerializedCanvas(캔버스 전체 clone+직렬화) 7회. addXxxBlock마다 pushHistory(전체 직렬화)와 buildLayerPanel(전 섹션 풀스캔 재구성)이 실행됨. 섹션 50개 스펙(goditor-layout-generator 경로)이면 호출당 비용이 캔버스 크기에 비례해 커지므로 총 O(N²) — 대형 자동조립에서 수십 초급 정체 + 히스토리 스택(MAX 50)이 중간 상태로 가득 참.",
+      "suggestion": "buildFromSpec/buildSection 진입 시 배치 플래그(window._suppressPanelRebuild) 도입: addXxx 내부의 buildLayerPanel/pushHistory를 게이트하고, 섹션(또는 스펙) 단위로 1회만 buildLayerPanel + pushHistory 실행. ai-section-fill.js:397-411의 pushHistory noop 스왑 패턴을 일반화하면 됨."
+    },
+    {
+      "id": "RR-02",
+      "severity": "major",
+      "status": "suspected",
+      "review_mode": "verify-candidate",
+      "title": "ai-section-fill 텍스트 추가 루프 — pushHistory는 억제하면서 buildLayerPanel은 N회 그대로 실행",
+      "files": ["js/ai-section-fill.js:390-411"],
+      "evidence": "additions 루프에서 window.pushHistory를 noop으로 스왑해 히스토리 폭주는 막았지만(주석 명시), 각 window.addTextBlock(styleType,...)이 내부에서 호출하는 window.buildLayerPanel()은 억제하지 않음 → AI 채움 1회 액션에 추가 텍스트 수만큼 전체 레이어패널+파일페이지 재구성. RR-01과 동일 메커니즘(CDP로 addTextBlock 1건=빌드 1회 실측 확인).",
+      "suggestion": "동일 스왑 구간에서 window.buildLayerPanel도 noop 스왑 후 finally에서 원복 + 1회 호출."
+    },
+    {
+      "id": "RR-03",
+      "severity": "major",
+      "status": "suspected",
+      "review_mode": "verify-candidate",
+      "title": "탭 전환 1회에 buildLayerPanel 3회 (빈 캔버스 → applyProjectData → rAF 재호출)",
+      "files": ["js/tab-system.js:248,257,261", "js/io/save-load.js:383"],
+      "evidence": "switchTab 흐름: ① L248 캔버스 비운 직후 buildLayerPanel(빈 패널), ② L257 applyProjectData → save-load.js:383 buildLayerPanel(본 빌드), ③ L261 requestAnimationFrame(() => buildLayerPanel())로 한 프레임 뒤 또 전체 재구성. ②와 ③은 동일 DOM 상태에 대한 중복 풀빌드이며 각각 buildFilePageSection까지 연쇄. 파일 로드 분기(L280)는 ③이 없어 캐시 분기만 3회 — rAF 재호출이 무엇을 보정하려는 것인지 주석 부재.",
+      "suggestion": "③ rAF 재호출 제거(또는 제거 후 회귀 확인). ①은 패널 잔상 방지 목적이면 panel.innerHTML='' 직접 클리어로 대체 가능 — 풀빌드 함수 호출 불필요."
+    },
+    {
+      "id": "RR-04",
+      "severity": "major",
+      "status": "suspected",
+      "review_mode": "verify-candidate",
+      "title": "switchPage/applyProjectData — clearHistory 2중 실행 (rebindAll 내부 + 명시 호출) → 전체 캔버스 직렬화 중복",
+      "files": ["js/io/save-load.js:249,256 (switchPage)", "js/io/save-load.js:366,389 (applyProjectData)", "js/io/save-load.js:537 (rebindAll 내 clearHistory)"],
+      "evidence": "rebindAll()이 L537에서 (!_historyPaused 시) clearHistory()를 호출하고, clearHistory는 getSerializedCanvas()(캔버스 전체 cloneNode(true)+innerHTML 직렬화)를 실행. switchPage는 L249 rebindAll 후 L256에서 clearHistory를 또 호출, applyProjectData도 L366 rebindAll 후 L389에서 재호출 → 페이지/탭 전환마다 풀 직렬화 2회. 첫 번째(rebindAll 내부)는 전환 중간 상태를 스냅샷으로 적재했다가 즉시 버려지는 순수 낭비.",
+      "suggestion": "rebindAll에서 clearHistory를 분리(호출부 책임으로 이동)하거나, switchPage/applyProjectData의 명시 clearHistory를 제거하고 rebindAll 내부 1회로 통일. tombstone 주석(L536-537)은 _historyPaused 가드 사유만 설명하므로 분리해도 의도 보존됨."
+    },
+    {
+      "id": "RR-05",
+      "severity": "minor",
+      "status": "verified",
+      "review_mode": "self",
+      "title": "buildLayerPanel → buildFilePageSection 무조건 연쇄 — 80개 호출부 전부에서 페이지 리스트 재구성 증폭",
+      "files": ["js/panels/layer-panel.js:570", "js/file-page-section.js:7-148"],
+      "evidence": "buildLayerPanel 말미 L570에서 window.buildFilePageSection()을 무조건 호출(CDP 실측 7:7 일치). 블록 추가/삭제/드래그 등 페이지 목록과 무관한 액션 80곳 전부에서 페이지 아이템 DOM+리스너(드래그/더블클릭 등 아이템당 7개)를 매번 폐기·재생성. 페이지 수가 적어 개별 비용은 낮으나 구조적 증폭기.",
+      "suggestion": "buildFilePageSection 호출을 페이지 상태 변경 경로(switchPage/addPage/deletePage/복사/정렬/탭전환)로 한정하고 buildLayerPanel에서 분리."
+    },
+    {
+      "id": "RR-06",
+      "severity": "minor",
+      "status": "suspected",
+      "review_mode": "self",
+      "title": "프레임(frame-block) 드래그 1회에 buildLayerPanel 2회 — drop 핸들러 + dragend 핸들러 중복",
+      "files": ["js/block-drag.js:1675-1682 (ss dragend → buildLayerPanel)", "js/block-drag.js:1716-1841 (inner drop → buildLayerPanel)"],
+      "evidence": "프레임을 드롭하면 drop 핸들러 말미(≈L1840)에서 buildLayerPanel 실행, 직후 같은 드래그의 dragend(L1675-1680)에서 buildLayerPanel + triggerAutoSave 재실행 → 드롭 1액션에 전체 패널 풀빌드 2회(+RR-05 연쇄로 파일페이지 2회).",
+      "suggestion": "dragend는 상태 클래스 정리만 하고, 빌드는 drop 성공 경로에서 1회만. 또는 dragend에서 '직전 drop이 빌드했음' 플래그로 skip."
+    },
+    {
+      "id": "RR-07",
+      "severity": "minor",
+      "status": "suspected",
+      "review_mode": "self",
+      "title": "undo 페이지 교차 복원 시 buildFilePageSection 2회 + deselectAll 2회",
+      "files": ["js/history.js:50,56,58-59", "js/panels/layer-panel.js:570"],
+      "evidence": "restoreSnapshot에서 pageId가 다르면 L50 buildFilePageSection 직접 호출, 이어 L58 buildLayerPanel이 내부에서 buildFilePageSection을 또 호출. deselectAll도 L56과 L59 두 번. 기능 영향 없는 중복(2x 상수)이나 undo 빈발 경로.",
+      "suggestion": "L50 직접 호출 제거(아래 buildLayerPanel이 커버), deselectAll 1회로 정리."
+    },
+    {
+      "id": "RR-08",
+      "severity": "minor",
+      "status": "suspected",
+      "review_mode": "self",
+      "title": "파일 패널 페이지 dragover — rAF 스로틀 없이 이벤트당 indicator 재생성 + getBoundingClientRect",
+      "files": ["js/file-page-section.js:117-127"],
+      "evidence": "item dragover마다 컨테이너 전체 .page-drop-indicator 제거 → getBoundingClientRect → indicator 생성. 레이어패널(DBG-11)·section-drag는 rAF 스로틀 적용됐으나 이 경로만 누락. 페이지 수가 적어 실해는 낮음(일관성 이슈).",
+      "suggestion": "DBG-11과 동일한 rAF 가드 패턴 적용. 후순위."
+    },
+    {
+      "id": "RR-09",
+      "severity": "minor",
+      "status": "verified",
+      "review_mode": "self",
+      "title": "document.body 전역 subtree MutationObserver 4기 — 재귀 루프는 없음(가드 확인), 노드 추가 버스트마다 O(subtree) 스캔만 중복",
+      "files": ["js/badge-transform.js:354-368", "js/text-effect-transform.js:262-270", "js/asset-rotate.js:124-133", "js/ai-section-fill.js:894-903"],
+      "evidence": "4개 옵저버 모두 document.body {childList,subtree}로 모든 addedNode에 querySelectorAll 실행 → buildLayerPanel/innerHTML 복원 버스트 시 패널·캔버스 노드 전체를 4중 스캔. 재귀 위험은 점검 결과 없음: ensureTraceSvg(badge-transform.js:112-119)·ensureBadgeEditable·ensureTextEffect·_observeAssetBlock(_abRotateObserved 플래그)·_ensureAIFillButton 모두 멱등 가드 보유, DOM 재삽입을 유발하는 경로는 기존 노드 존재 시 early-return. autoSaveObserver(save-load.js:1173)와의 상호작용도 toolbar 필터(DEF-03)로 차단됨.",
+      "suggestion": "관찰 루트를 #canvas로 좁히거나(레이어패널 노드는 대상 셀렉터가 존재할 수 없음) 4기를 단일 디스패처 옵저버로 통합. 성능 여유 있으면 현상 유지 가능."
+    },
+    {
+      "id": "RR-10",
+      "severity": "minor",
+      "status": "suspected",
+      "review_mode": "self",
+      "title": "component-shelf 컴포넌트 삽입 — 단건 삽입에 rebindAll(전체 캔버스 재바인딩+clearHistory) 호출, 정작 buildLayerPanel은 누락",
+      "files": ["js/component-shelf.js:60-80", "js/io/save-load.js:515,537"],
+      "evidence": "insertComponent가 canvas.appendChild 후 rebindAll() 호출 → 전체 캔버스 마이그레이션/재바인딩 풀스캔 + (부작용) clearHistory로 사용자의 undo 스택 전체 소실. 반대로 buildLayerPanel은 호출하지 않아 레이어패널이 삽입 결과를 반영 못 함(과소 렌더). 폭주의 역방향이지만 동일 호출그래프 결함. undo 소실은 state 차원 교차 보고 대상.",
+      "suggestion": "삽입 노드에 한정한 부분 바인딩(bindBlock/bindSection 계열) + buildLayerPanel 1회 + scheduleAutoSave. rebindAll의 clearHistory 분리(RR-04)와 함께 처리하면 안전."
+    }
+  ],
+  "non_findings": [
+    "props 패널 innerHTML 전체 교체 — 알려진 설계 #12로 제외",
+    "block-drag/section-drag dragover rAF 스로틀 — DBG-11 기처리 확인 (section-drag.js _innerDragRafId, layer-panel.js _layerDragRafId)",
+    "autoSaveObserver → scheduleAutoSave 재귀 — MUT-01/DEF-03 필터 + debounce로 차단 확인",
+    "undo/redo 중 rebindAll의 clearHistory — _historyPaused 가드로 정상 skip (CDP 실측 undo 1회 = 빌드 1회)",
+    "단건 블록 추가(addTextBlock 등) — 빌드 1회로 정상 (CDP 실측)"
+  ],
+  "stats": { "blocker": 0, "major": 4, "minor": 6, "verified_live": ["RR-01", "RR-05(연쇄비율)", "RR-09(재귀없음)"], "verify_candidates": ["RR-01", "RR-02", "RR-03", "RR-04"] }
+}

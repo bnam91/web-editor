@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ux report 2026-06-12</title>
+
+<style>
+:root{--bg:#16181d;--panel:#1f2229;--line:#32363f;--text:#d7dae0;--muted:#9aa0aa;--accent:#5b8def}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,'Pretendard',sans-serif;padding:28px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:21px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.sub{color:var(--muted);font-size:12.5px;margin-bottom:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:10px 0}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:1px 9px;font-size:11.5px;color:var(--muted);margin:0 4px 4px 0;background:#262a33}
+.sev{font-weight:700;border-radius:4px;padding:1px 7px;font-size:11.5px;color:#16181d}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#23262e;color:var(--muted);font-weight:600}
+.kv{color:var(--muted)} .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.toggle{cursor:pointer;user-select:none;border:1px solid var(--line);border-radius:6px;padding:3px 10px;font-size:12px;background:#262a33;color:var(--text)}
+.appr{display:flex;gap:14px;align-items:center;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:12.5px}
+.appr label{cursor:pointer;color:var(--muted)} .appr .cmt{flex:1;background:#14161a;border:1px solid var(--line);border-radius:5px;color:var(--text);padding:4px 8px;font-size:12px}
+.toggle.off{opacity:.35}
+.swatch{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;border:1px solid #0008;margin-right:4px}
+img.ev{max-width:100%;border:1px solid var(--line);border-radius:6px}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ba .lab{font-size:11.5px;color:var(--muted);margin-bottom:4px}
+.foot{margin-top:34px;color:var(--muted);font-size:11.5px;border-top:1px solid var(--line);padding-top:10px}
+</style></head><body>
+
+<h1>🧭 UX 감사 리포트 — GODITOR (상페마법사 웹에디터) · 2026-06-12</h1>
+<div class="sub">ux-squad 엔진 (judgment-native) · 차원 6개 병렬 + 고등급 적대적 2층검증 · judgment 제안 39 / conformance 확정 13·의심 1</div>
+<div class="bar">
+  <span class="sev" style="background:#e0606c">impact high 10</span><span class="sev" style="background:#e0a060">impact medium 19</span><span class="sev" style="background:#8a8f98">impact low 11</span>
+  <span class="sev" style="background:#e0606c">blocker 1</span><span class="sev" style="background:#e0a060">major 4</span><span class="sev" style="background:#d8c860">minor 9</span><span class="sev" style="background:#8a8f98">nit 0</span>
+</div>
+<h2>영역별 결산 (침묵 금지 — 전원 보고)</h2>
+<table><tr><th>영역</th><th>발견</th><th>검사 항목</th><th>차원</th><th>미검사</th><th>근거 명세</th></tr><tr>
+    <td><b>toolbar</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>left-panel</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>feedback: 대표 액션 4종에 미포함 — 전 영역 실측 비현실</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>prop-panel</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>canvas-block</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>modals</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>feedback: 대표 액션 미포함<br>onboarding: 사유 미기재</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>template-browser</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>feedback: 대표 액션 미포함</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>assets-ai</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>onboarding: 사유 미기재</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>design-system</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>feedback: 대표 액션 미포함<br>onboarding: 사유 미기재</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>pm-panel</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>feedback: G5 보류 + 대표 액션 미포함<br>layout: 사유 미기재<br>onboarding: 사유 미기재</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>pickers</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>feedback: 대표 액션 미포함 (저가중 영역)<br>layout: 사유 미기재<br>onboarding: 사유 미기재</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>graph</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>feedback: 대표 액션 미포함 (저가중 영역)<br>onboarding: 사유 미기재</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>toast</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>onboarding: 사유 미기재</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>home-pages</b></td><td>0</td><td>0</td>
+    <td><span class="chip">error</span><span class="chip">feedback</span><span class="chip">layout</span><span class="chip">onboarding</span><span class="chip">semantics</span></td>
+    <td>feedback: 대표 액션 미포함</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>edit-block</b></td><td>0</td><td>0</td>
+    <td><span class="chip">flow</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>insert-asset</b></td><td>0</td><td>0</td>
+    <td><span class="chip">flow</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>section-rearrange</b></td><td>0</td><td>0</td>
+    <td><span class="chip">flow</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>export-publish</b></td><td>0</td><td>0</td>
+    <td><span class="chip">flow</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr></table>
+<h2>Root-cause 묶음 (수정 1건으로 함께 해소)</h2><div class="card"><b>terminology-glossary-missing</b> — 6건, 차원: semantics<br><span class="kv">UXS-semantics-002 · UXS-semantics-003 · UXS-semantics-004 · UXS-semantics-005 · UXS-semantics-006 · UXS-semantics-014</span></div>
+<div class="card" style="position:sticky;top:8px;z-index:5;display:flex;gap:12px;align-items:center">
+  <b>승인 시트</b><span class="kv">카드마다 결정+코멘트 → 자동 저장(localStorage)</span>
+  <span class="chip">결정 <b id="decCount">0</b>건</span>
+  <button id="exportBtn" class="toggle" style="margin-left:auto">📋 결정 내보내기 (md 복사+다운로드)</button>
+</div>
+<h2>발견 (54건) <span class="kv" style="font-size:12px">— 클릭으로 필터</span></h2>
+<div class="bar" id="filters">
+  <span class="toggle" data-k="track" data-v="judgment">judgment</span><span class="toggle" data-k="track" data-v="conformance">conformance</span>
+  <span class="toggle" data-k="dim" data-v="error">error</span><span class="toggle" data-k="dim" data-v="feedback">feedback</span><span class="toggle" data-k="dim" data-v="flow">flow</span><span class="toggle" data-k="dim" data-v="layout">layout</span><span class="toggle" data-k="dim" data-v="onboarding">onboarding</span><span class="toggle" data-k="dim" data-v="semantics">semantics</span>
+  <span class="toggle" data-k="imp" data-v="high">impact:high</span><span class="toggle" data-k="imp" data-v="medium">impact:medium</span><span class="toggle" data-k="imp" data-v="low">impact:low</span>
+  <span class="toggle" data-k="sev" data-v="blocker">blocker</span><span class="toggle" data-k="sev" data-v="major">major</span><span class="toggle" data-k="sev" data-v="minor">minor</span><span class="toggle" data-k="sev" data-v="nit">nit</span>
+  <span class="toggle" data-k="conf" data-v="confirmed">confirmed</span><span class="toggle" data-k="conf" data-v="suspected">suspected</span>
+</div>
+<div id="cards">
+  <div class="card finding" data-track="conformance" data-dim="error" data-sev="blocker" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#e0606c">blocker</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">error</span><span class="chip">deterministic</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">ERR-C1 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>복구 경로 존재 — 파괴 액션은 확인 다이얼로그 또는 Undo 중 하나 이상</td>
+    <th>실측</th><td>페이지 삭제가 무보호: confirm 없음, pushHistory 없음(히스토리는 현재 페이지 캔버스만 스냅샷 — pages 배열 미포함), 삭제 직후 scheduleAutoSave로 영속화. 페이지 안의 모든 섹션/블록이 한 클릭에 유실. 백엔드 롤링 백업(main.js projects:save의 proj_backup+history 5슬롯)은 존재하나 UI 복구 진입로 0 (커밋 복원 UI는 .tb-hidden-mvp 숨김). 과거 main 프로세스의 '페이지 수 감소 차단 가드'도 제거됨(main.js:780 주석).</td></tr></table>
+    <div class="kv">수정 방향: deletePage에 confirm 1줄 추가(저빈도 액션 — 확인 피로 우려 없음) 또는 pages 배열을 히스토리 스냅샷에 포함. 부가: ✕ 버튼이 hover 노출 + 복제 버튼 인접이라 오클릭 비용이 큼 — confirm이 이것도 흡수.</div>
+    <div class="kv">증거: js/file-page-section.js:97-98 / js/io/save-load.js:268-289 / main.js:778-780 주석</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#5-error-prevention (파괴 액션에 확인/유예), #9-recovery (복구 수단 부재)</span></div>
+    
+  <div class="appr" data-aid="ERR-C1">
+    <label><input type="radio" name="ap-ERR-C1" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ERR-C1" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ERR-C1" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="error" data-sev="" data-imp="high" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0606c">impact high</span><span class="chip">error</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">ERR-J1 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>Undo/Redo의 가시 진입로가 전무 — history.js:27-40은 #undo-btn/#redo-btn을 갱신하려 하지만 해당 버튼이 index.html 어디에도 존재하지 않음(데드 코드, 과거 제거 추정). 복구는 Cmd+Z/Shift+Cmd+Z 키보드 전용(editor.js:895-896). Electron 앱 메뉴도 미정의(main.js에 Menu 구성 없음 — 기본 Edit&gt;Undo는 네이티브 텍스트 undo라 캔버스 복구와 무관). 동적 검증 스크린샷(error-block-restored.png)에서도 툴바에 undo 컨트롤 부재 확인.</div>
+    <div class="kv">마찰: G1 확정 페르소나(외부 일반 사용자)는 블록/섹션을 지우고 복구 방법을 화면에서 찾을 수 없음. 캔버스 파괴 액션군이 confirm 없이 합격인 근거가 'Undo 존재'인데, 그 Undo가 지각 불가능하면 보호 체계 전체가 일반 사용자에게는 무보호로 체감됨.</div>
+    <div style="margin-top:6px">💡 제안: 툴바에 undo/redo 버튼 복원(#undo-btn/#redo-btn — history.js가 이미 disabled 상태·툴팁('실행 취소: 블록 삭제')까지 구현해 두어 버튼만 추가하면 작동). 부가로 삭제 직후 '삭제됨 — Cmd+Z로 되돌리기' 토스트(ai-section-fill.js:780의 기존 패턴 재사용).</div>
+    <div class="kv">트레이드오프: 툴바 1~2버튼 추가 — #8 미니멀리즘 비용 미미, 업계 표준 컨트롤. MVP 숨김 정책(.tb-hidden-mvp)과 무관한 핵심 복구 컨트롤.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#6-recognition (회상 기반 가속 경로는 '가시적 대체 경로 존재' 시에만 합격 — 현재 대체 경로 0), #9-recovery, #3-control</span></div>
+    
+  <div class="appr" data-aid="ERR-J1">
+    <label><input type="radio" name="ap-ERR-J1" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ERR-J1" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ERR-J1" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="feedback" data-sev="" data-imp="high" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0606c">impact high</span><span class="chip">feedback</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">FB-J1 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>자동저장 인디케이터(#autosave-indicator)가 실제 파일 저장 완료 전에 '저장됨'을 표시한다. js/io/save-load.js scheduleAutoSave(): debounce 발화 시 비동기 saveProjectToFile(snap)을 await 없이 호출한 직후 동기적으로 _setAutosaveIndicator('saved') 실행. Electron 파일 저장이 실패하면(catch) '❌ 저장 실패' 토스트가 2초 떴다 사라지지만 인디케이터는 '저장됨' 상태 유지(2.5초 후 소멸) — 성공 신호와 실패 신호가 동시에 존재하는 모순. 페이지 수 감소로 저장 거부(ok:false)된 경우도 동일.</div>
+    <div class="kv">마찰: 사용자가 '저장됨'을 믿고 앱을 닫으면 실패한 저장분이 유실될 수 있다. 실패의 유일한 신호가 2초 transient 토스트라 자리 비움/시선 이탈 시 인지 불가. 저장 상태 신뢰 신호가 거짓일 수 있는 구조.</div>
+    <div style="margin-top:6px">💡 제안: 'saved' 상태 전환을 saveProjectToFile resolve 이후로 이동(localStorage 성공만으로 'saved' 금지 또는 단계 분리). 실패 시 인디케이터에 지속형 'error' 상태(예: 빨강 '저장 실패 — 재시도') 추가, 토스트는 보조로 유지.</div>
+    <div class="kv">트레이드오프: '저장됨' 표시가 파일 IO 완료까지(수십~수백ms) 늦어짐 — 지각 차이는 미미. 인디케이터 상태머신에 error 상태 1개 추가되는 복잡도.</div>
+    <div class="kv">증거: js/io/save-load.js — scheduleAutoSave 내 saveProjectToFile(snap, {skipThumbnail:true}); _setAutosaveIndicator('saved'); (비동기 미대기), _doSaveProjectToFile catch에서 window.showToast?.('❌ 저장 실패: ...')</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#1-visibility</span><span class="chip">📄 nielsen-10.md#9-recovery</span></div>
+    
+  <div class="appr" data-aid="FB-J1">
+    <label><input type="radio" name="ap-FB-J1" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-FB-J1" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-FB-J1" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="flow" data-sev="" data-imp="high" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0606c">impact high</span><span class="chip">flow</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">UXS-flow-001 · 섹션 이동·복제·삭제의 가시적 진입로 전무 — 전부 은닉 경로(키보드/레이어 드래그)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">section-rearrange / 단계 2~4 (섹션 툴바·레이어 패널·컨텍스트 메뉴)</div>
+    
+    <div>섹션 선택 시 .section-toolbar 노출(확인) — 버튼은 메모/보호/AB/branch/AI 5종뿐, 이동·복제·삭제 없음. 레이어 행 버튼은 눈(숨기기)뿐. 캔버스 섹션 우클릭 컨텍스트 메뉴 없음(블록용 _openBlockContextMenu만 존재). 실제 경로: 이동=레이어 패널 드래그만(캔버스 섹션 draggable=false), 복제=Cmd+D만, 삭제=Delete/Backspace만. js/editor.js:1737 주석 '삭제 버튼 제거됨 — 레이어 패널 또는 컨텍스트 메뉴에서 처리'가 약속한 대체 UI가 미구현 상태.</div>
+    <div class="kv">마찰: 외부 일반 사용자가 '섹션 02를 위로 올리고 복제 후 옛 것을 지우는' 매 세션 다수 빈도 작업(핵심 작업 #3)을 화면 어디서도 발견할 수 없음. 섹션을 선택하고 툴바를 훑어도 해당 기능이 없어 막히며, 단축키는 어디에도 표기돼 있지 않음.</div>
+    <div style="margin-top:6px">💡 제안: 섹션 툴바(.section-toolbar)에 복제·삭제 아이콘 추가 또는 섹션 우클릭 컨텍스트 메뉴(복제/삭제/위·아래 이동) 구현 — 코드 주석이 이미 컨텍스트 메뉴를 전제함.</div>
+    <div class="kv">트레이드오프: 툴바 버튼 추가는 Hick(현재 5종→7종, 동질 그룹 구획 필요)과 충돌 가능. 컨텍스트 메뉴 쪽이 클릭뎁스 +1이지만 가시성·관례(우클릭=객체 액션) 모두 충족. 파괴 액션(삭제)은 일부러 덜 눈에 띄게 두는 설계도 정당하나(fitts 가드) '덜 눈에 띔'과 '존재하지 않음'은 다름.</div>
+    <div class="kv">증거: .ux/results/evidence/flow-rearrange-1-ctxmenu-attempt.png (우클릭 무반응), stBtns 실측값 5종, js/editor.js:1737-1744 (읽기 전용 확인)</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#progressive-disclosure</span><span class="chip">📄 nielsen-10.md#3-control</span><span class="chip">📄 profile.md#페르소나(일반 사용자·가시적 대체 경로 조건)</span></div>
+    
+  <div class="appr" data-aid="UXS-flow-001">
+    <label><input type="radio" name="ap-UXS-flow-001" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-flow-001" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-flow-001" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="flow" data-sev="" data-imp="high" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0606c">impact high</span><span class="chip">flow</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">UXS-flow-002 · 섹션 삭제 즉시 실행 — 확인·토스트·Undo 힌트 전무 (보호 방식 = 무표시 Undo-only)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">section-rearrange / 단계 4-5 (삭제→복원)</div>
+    
+    <div>섹션 선택 후 Delete → 다이얼로그 0, 토스트 0, 어떤 피드백도 없이 즉시 소멸(실측: dialogs=[], toasts=[]). Cmd+Z로 복원은 정상 동작(실측 confirmed) — 그러나 Undo 가능하다는 사실이 화면 어디에도 지각되지 않음. 대조: 전체 섹션 내보내기는 confirm 다이얼로그 사용 — 파괴 강도가 더 낮은 작업이 더 강한 확인을 받는 역전.</div>
+    <div class="kv">마찰: Delete를 잘못 누른 사용자(텍스트 수정하려다 블록 포커스 상태에서 등)는 섹션이 사라진 것을 늦게 알아채거나, 알아채도 복구 수단(Cmd+Z)을 모름. 다중 선택 삭제도 같은 경로라 피해 규모가 커질 수 있음.</div>
+    <div style="margin-top:6px">💡 제안: 삭제 직후 'N개 섹션 삭제됨 — 실행취소' 액션 토스트(Undo 버튼 포함) 표시. 확인 다이얼로그보다 흐름 차단이 없고 복구 경로를 지각시킴.</div>
+    <div class="kv">트레이드오프: 확인 다이얼로그 방식은 매 세션 다수 빈도 작업(핵심 작업 #3)에 마찰 추가 — Undo 토스트가 빈도/안전 균형점. 토스트 채널(editor-toast) 이미 존재해 구현 부담 낮음.</div>
+    <div class="kv">증거: .ux/results/evidence/flow-rearrange-4-deleted.png, 삭제 실측 {n0:5,n1:4,dialogs:[],toasts:[]} + Undo 복원 {n0:4,n1:5,restored:true}</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#3-control</span><span class="chip">📄 profile.md#MATRIX(error-convention: 파괴 액션 보호 방식)</span></div>
+    
+  <div class="appr" data-aid="UXS-flow-002">
+    <label><input type="radio" name="ap-UXS-flow-002" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-flow-002" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-flow-002" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="flow" data-sev="" data-imp="high" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0606c">impact high</span><span class="chip">flow</span>
+      <span class="chip">central-refuted</span>
+      
+      <b style="margin-left:4px">UXS-flow-003 · 선택 없는 상태에서 블록 추가 = 완전한 silent no-op</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">edit-block / 단계 2 (블록 추가 진입로 변형: 섹션 미선택)</div>
+    
+    <div>Esc로 전체 선택 해제 후 플로팅 패널 '텍스트 블록 추가→Caption' 클릭 — 블록 수 8→8, 토스트 0, 에러 0, 아무 변화 없음(실측). 드롭다운은 닫혀 사용자 액션은 소비됨. 시스템은 '타겟 섹션 미선택'을 알고 있으나 흡수(마지막/유일 섹션에 추가)도, 고지(토스트)도 하지 않음.</div>
+    <div class="kv">마찰: 신규 사용자가 첫 동작으로 하단 플로팅 패널의 블록 버튼부터 누르는 경우(섹션 선택 선행을 모름) 버튼이 '고장난 것처럼' 보임. 주 액션(핵심 작업 #1, 매 세션 수십 회)의 진입로가 보이지 않는 선행 조건에 묶여 있음.</div>
+    <div style="margin-top:6px">💡 제안: 미선택 시 (a) 마지막 활성 섹션에 자동 추가(시스템이 확실히 아는 합리적 기본값) 또는 (b) '섹션을 먼저 선택하세요' 토스트 + 해당 섹션 하이라이트. (a) 우선 — tesler 흡수.</div>
+    <div class="kv">트레이드오프: (a)는 잘못 추측 시 의도치 않은 위치에 블록 생성 — 단 추가 직후 스크롤+선택으로 보이게 하면 복구 1클릭(Delete)이라 비용 낮음. (b)는 안전하지만 사용자에게 복잡성을 떠넘김.</div>
+    <div class="kv">증거: 실측 {selAfterEsc:[], beforeCount:8, afterCount:8, toasts:[]} — 2026-06-11 재현 1회</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 interaction-laws.md#tesler</span><span class="chip">📄 nielsen-10.md#3-control</span></div>
+    
+  <div class="appr" data-aid="UXS-flow-003">
+    <label><input type="radio" name="ap-UXS-flow-003" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-flow-003" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-flow-003" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="high" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0606c">impact high</span><span class="chip">layout</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">UXS-layout-001 · Export 드롭다운에 불러오기·저장·Figma 연동·참고 이미지 추가가 혼재 — 레이블과 내용물 불일치 그룹</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">toolbar / #publish-btn → .pub-dd-* (불러오기, 저장, JSON 내보내기, Figma Bridge ON, Figma 업로드, Figma 가져오기, 참고 이미지 일괄 추가) — evidence/layout-10-publish-dropdown.png</div>
+    
+    <div>상단 우측 'Export' 버튼의 드롭다운 7항목 중 내보내기는 'JSON 내보내기' 1건뿐. 불러오기(역방향), 저장, Figma 양방향 연동, '참고 이미지 일괄 추가'(스크래치패드 입력 = 핵심작업 #2의 진입점)가 한 메뉴에 평면 나열됨. 한편 실제 산출물 내보내기(PNG/JPG/GIF)는 섹션 props와 페이지 props의 Export 그룹에 있음.</div>
+    <div class="kv">마찰: ia-principles.md#labeling — 'Export'를 누르기 전 예측되는 결과(상세페이지 산출물 내보내기)와 내용물이 불일치. 핵심작업 #5(내보내기/발행) 사용자가 Export를 열면 PNG 내보내기가 없어 막히고, 핵심작업 #2(이미지 자산 삽입) 사용자는 '참고 이미지 추가'가 Export 안에 있을 것이라 예측할 수 없음. gestalt.md#common-region — 한 경계(드롭다운) 안에 서로 다른 대상(프로젝트 파일 IO/Figma/스크래치패드)에 작용하는 컨트롤 혼재. interaction-laws.md#hick — 분류 없는 동급 7항목.</div>
+    <div style="margin-top:6px">💡 제안: 드롭다운을 기능별 재편: (a) 산출물 내보내기(전체 PNG/JPG — 현재 페이지 props에 있는 '전체 섹션 내보내기'를 이 메뉴로 승격 또는 양쪽 유지), (b) 프로젝트 파일(저장/불러오기/JSON)을 구분선으로 분리, (c) Figma 연동을 서브그룹화, (d) '참고 이미지 일괄 추가'는 자산 진입점(좌측 Assets 탭 또는 플로팅 바 이미지 그룹)으로 이동. 버튼 레이블을 내용물에 맞게 조정(예: 파일/공유).</div>
+    <div class="kv">트레이드오프: 항목 이동 시 기존 사용자(현빈·직원)의 위치 기억 무효화. 서브그룹화는 클릭 뎁스 +1 (click_depth_max=4 내 수용 가능 범위인지 flow 차원과 교차 확인 필요). 메뉴 분리로 상단 버튼이 늘면 #8-minimalist와 충돌 가능.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#labeling</span><span class="chip">📄 gestalt.md#common-region</span><span class="chip">📄 interaction-laws.md#hick</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-001">
+    <label><input type="radio" name="ap-UXS-layout-001" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-001" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-001" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="high" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0606c">impact high</span><span class="chip">layout</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">UXS-layout-002 · 섹션 속성 패널 안에 동급 primary 파랑 2개('이 섹션 내보내기'와 Template '저장') — 위계 경쟁 + 일반어 '저장'의 오인 배치</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">prop-panel / #panel-right .panel-body (섹션 선택 시): Export 그룹 '이 섹션 내보내기'(blue full-width) + Template 그룹 '저장'(blue full-width) — evidence/layout-08-section-selected.png, layout-09-prop-panel-section.png</div>
+    
+    <div>섹션 선택 시 우측 패널 하단에 파란 primary 풀폭 버튼이 2개 연속 등장: '이 섹션 내보내기'(Export 그룹)와 '저장'(Template 그룹 — 현 섹션을 템플릿으로 저장하는 폼: Test/Hero 셀렉트+템플릿 이름+태그+저장). 프로젝트 실제 저장은 자동저장(topbar '저장됨' 인디케이터)으로 무음 처리됨.</div>
+    <div class="kv">마찰: gestalt.md#figure-ground — 한 컬럼에 primary 강조 2개가 동급으로 보여 주 액션이 전경으로 분리되지 않음(주 액션 근거: 핵심작업 #1 '저장 확인', #5 '내보내기'). ia-principles.md#semantic-mapping — primary 기표가 템플릿 저장(부가 기능)에도 소모됨. ia-principles.md#labeling — 일반 사용자(G1 외부)가 작업 후 '저장'을 찾을 때 이 파란 '저장' 버튼을 프로젝트 저장으로 오인하고 클릭 → 빈 이름의 템플릿이 생성되는 시행착오 시나리오.</div>
+    <div style="margin-top:6px">💡 제안: Template 저장 폼을 기본 접힘(예: 'Template으로 저장…' 토글/링크)으로 강등하고 '저장' 레이블을 '템플릿으로 저장'으로 구체화. primary 파랑은 섹션 props 안에서 1개(내보내기)만 유지.</div>
+    <div class="kv">트레이드오프: 템플릿 저장은 내부 제작팀(현빈·직원)의 고빈도 동작일 수 있음 — 접으면 그들의 클릭 +1 (ia-principles.md#progressive-disclosure 가드: 빈도 데이터 없이 단정 금지 → 접힘 강도는 현빈 확인 필요). 레이블 변경은 semantics 차원과 교차.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 gestalt.md#figure-ground</span><span class="chip">📄 ia-principles.md#semantic-mapping</span><span class="chip">📄 ia-principles.md#labeling</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-002">
+    <label><input type="radio" name="ap-UXS-layout-002" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-002" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-002" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="onboarding" data-sev="" data-imp="high" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0606c">impact high</span><span class="chip">onboarding</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">UXO-J02 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>프로젝트 생성 시 이름 입력 단계가 없고('Untitled' 자동 부여), 이름변경 진입로가 양쪽 모두 숨은 제스처뿐이다: projects 카드는 더블클릭(title='더블클릭하여 이름 변경' — hover해야만 보임, projects.html:295), 에디터는 #project-name-display 더블클릭(index.html:252). 가시적 rename 버튼/메뉴 없음. 증거: 실사용 프로젝트 목록 19개 중 9개가 'Untitled*' (onboarding-06-projects-after.png).</div>
+    <div class="kv">마찰: 외부 사용자는 더블클릭 rename을 발견하지 못해 프로젝트가 전부 'Untitled'로 쌓인다. 전문가(내부) 사용 환경에서조차 47%가 무명 상태라는 실증이 이미 있다. 프로젝트가 3개만 돼도 어느 것이 어느 작업인지 식별 불가 → 잘못된 프로젝트 열기/삭제 위험으로 연쇄.</div>
+    <div style="margin-top:6px">💡 제안: (a) 카드/이름 hover 시 연필 아이콘 노출(가시적 대체 경로 추가 — 더블클릭은 가속 경로로 유지), (b) 생성 직후 에디터 이름 필드 인라인 포커스 + placeholder '프로젝트 이름 입력' (Esc/무시로 스킵 가능).</div>
+    <div class="kv">트레이드오프: (b)는 생성 마찰 +1단계가 될 수 있으나 스킵 가능 인라인이면 first_output_steps에 미산입. (a)는 hover 아이콘 1개 추가로 #8 영향 미미.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#6-recognition (숨은 제스처가 유일 진입로) + nielsen-10.md#5-error-prevention (식별 불가 → 오조작 유발 배치)</span></div>
+    
+  <div class="appr" data-aid="UXO-J02">
+    <label><input type="radio" name="ap-UXO-J02" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXO-J02" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXO-J02" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="semantics" data-sev="" data-imp="high" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0606c">impact high</span><span class="chip">semantics</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">UXS-semantics-009 · 'Export' 버튼 드롭다운의 7개 항목 중 5개가 내보내기가 아님 (불러오기·저장·가져오기·참고 이미지 추가)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">index.html:89-131 (#publish-btn + #publish-dropdown-menu)</div>
+    
+    <div>툴바 가시 레이블은 'Export'(보조로 title='Export / Import', aria-label='Export'). 메뉴 구성: 불러오기 / 저장 / JSON 내보내기 / Figma Bridge / Figma 업로드 / Figma 가져오기 / 참고 이미지 일괄 추가 — 내보내기 계열은 'JSON 내보내기'와 'Figma 업로드' 2개뿐. 특히 프로젝트 '불러오기'와 '저장', 스크래치패드 '참고 이미지 일괄 추가'는 Export 개념과 반대 방향</div>
+    <div class="kv">마찰: 예측 실패 시나리오: ① 프로젝트를 불러오거나 수동 저장하려는 사용자가 'Export' 레이블만 보고 이 메뉴를 열지 않음(가시적 대체 경로 없음 — 저장/불러오기의 다른 진입점 부재, Commit은 MVP 숨김) ② 핵심 작업 #5(내보내기/발행)에서 메뉴를 연 사용자가 무관 항목 5개 사이에서 'JSON 내보내기'를 골라야 함</div>
+    <div style="margin-top:6px">💡 제안: 레이블을 메뉴 실제 내용물에 맞추거나(예: 'File' 류 범용 레이블) 비-Export 항목을 분리. 정확한 명칭은 용어 사전과 함께 결정</div>
+    <div class="kv">트레이드오프: C12 주석(index.html:88)에 'Figma→Export 명칭 변경' 이력 — 직전 개선의 재변경 비용. 단 메뉴 내용물과 레이블의 방향 불일치는 명칭 변경만으로는 해소 안 됨</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#labeling</span><span class="chip">📄 nielsen-10.md#2-match</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-009">
+    <label><input type="radio" name="ap-UXS-semantics-009" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-009" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-009" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="error" data-sev="major" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">error</span><span class="chip">deterministic</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">ERR-C2 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>복구 경로 존재</td>
+    <th>실측</th><td>사용자 저장 템플릿 삭제가 무보호 — 2개 진입로(템플릿 패널 🗑, 브라우저 카드 ✕) 모두 클릭 즉시 영구 삭제(electronAPI 파일 삭제/localStorage). confirm·undo 없음. 같은 성격의 영구 삭제인 자산/AI이미지/아이콘은 모두 confirm — 내부 비일관.</td></tr></table>
+    <div class="kv">수정 방향: deleteTemplate 호출 전 confirm 추가 (assets-panel.js:375 패턴 재사용).</div>
+    <div class="kv">증거: js/panels/template-system.js:607-610, js/panels/template-browser.js:349-352, deleteTemplate js/panels/template-system.js:102-110</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#5-error-prevention, #4-consistency (동종 액션 보호 방식 비일관)</span></div>
+    
+  <div class="appr" data-aid="ERR-C2">
+    <label><input type="radio" name="ap-ERR-C2" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ERR-C2" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ERR-C2" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="error" data-sev="major" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">error</span><span class="chip">deterministic</span>
+      <span class="chip">central-confirmed</span>
+      
+      <b style="margin-left:4px">ERR-C3 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>복구 경로 존재</td>
+    <th>실측</th><td>템플릿 '덮어쓰기'가 기존 템플릿 캔버스를 선택 섹션으로 즉시 교체 — 확인 없음, 이전 내용 복구 불가. 동일 패턴인 배너 프리셋 변경(prop-frame.js:390)은 confirm으로 보호 — 비일관.</td></tr></table>
+    <div class="kv">수정 방향: prop-frame.js:390과 같은 confirm('덮어쓰면 기존 템플릿 내용이 사라집니다') 추가.</div>
+    <div class="kv">증거: js/panels/template-system.js:433-449</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#5-error-prevention</span></div>
+    
+  <div class="appr" data-aid="ERR-C3">
+    <label><input type="radio" name="ap-ERR-C3" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ERR-C3" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ERR-C3" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="error" data-sev="major" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">error</span><span class="chip">deterministic</span>
+      <span class="chip">central-refuted</span>
+      
+      <b style="margin-left:4px">ERR-C4 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>복구 경로 존재</td>
+    <th>실측</th><td>Component Shelf 컴포넌트 삭제가 무보호 — 클릭 즉시 localStorage에서 영구 제거, confirm·undo 없음.</td></tr></table>
+    <div class="kv">수정 방향: confirm 추가 또는 삭제 직후 '삭제됨 — 되돌리기' 토스트(soft delete).</div>
+    <div class="kv">증거: js/component-shelf.js:222-226, deleteComponent :86-89</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#5-error-prevention</span></div>
+    
+  <div class="appr" data-aid="ERR-C4">
+    <label><input type="radio" name="ap-ERR-C4" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ERR-C4" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ERR-C4" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="semantics" data-sev="major" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">semantics</span><span class="chip">deterministic</span>
+      <span class="chip">central-refuted</span>
+      
+      <b style="margin-left:4px">UXS-semantics-001 · 블록 공식 레이블 'Card' vs 토스트 지시어 'Canvas 블록' 불일치 — 사용자가 찾을 수 없는 이름으로 안내</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/block-factory.js:1787 ↔ index.html:617 (fp-component-menu), js/panels/layer-panel-items.js:148</div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>사용자 가시 표면 전수에서 canvas-block의 공식 명칭은 'Card' — fp-component-menu 항목(index.html:617 'Card'→addCanvasBlock()), 레이어 패널 labels/typeLbls 맵(layer-panel-items.js:148-149 canvas:'Card')</td>
+    <th>실측</th><td>토스트 'NewGrid는 봉인된 컴포넌트입니다. Canvas 블록을 사용하세요.'(block-factory.js:1787) — 'Canvas 블록'이라는 레이블은 어떤 메뉴/패널에도 존재하지 않음. 지시를 따르려는 사용자는 'Canvas'를 UI에서 찾지 못함</td></tr></table>
+    <div class="kv">수정 방향: 토스트 문구를 UI 공식 레이블로 통일: 'Card 블록을 사용하세요'. 'NewGrid/봉인된 컴포넌트' 구현 용어는 UXS-semantics-012 참조</div>
+    <div class="kv">증거: grep 전수: 'Canvas'가 사용자 가시 레이블로 등장하는 곳 0건(prop-canvas.js 내부 그룹명 'Card Spacing'으로 Card 사용), 토스트 1건만 'Canvas 블록' 지칭</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#terminology</span><span class="chip">📄 nielsen-10.md#4-consistency</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-001">
+    <label><input type="radio" name="ap-UXS-semantics-001" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-001" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-001" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="error" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">error</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">ERR-J2 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>에러 toast 문자열 전수(162건) 검토 결과 품질 이원화: 우수 — '⚠️ 확장 영역 0 — 핸들로 늘려주세요', '💻 활성 프로젝트가 없습니다. 프로젝트를 먼저 여세요.', '🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요', '⚠️ 저장 공간이 부족합니다. 오래된 프로젝트를 삭제해 주세요.'(원인+다음 행동). 미흡 — '❌ 병합 결과 적용 실패', '❌ 에셋 블록 생성 실패', '❌ 이미지 로드 실패'(원인·해결책 0), raw 기술 문자열 노출형 '❌ 저장 오류: ' + e.message, alert('GIF 생성 중 오류: ' + err.message).</div>
+    <div class="kv">마찰: 실패 시 사용자가 재시도 외 취할 행동을 알 수 없음. e.message 노출은 #9 '평문' 원칙 위반 — 일반 사용자에게 무의미.</div>
+    <div style="margin-top:6px">💡 제안: 실패 토스트 표준형 '무엇이 실패 — 무엇을 해보세요' 채택, e.message는 console로 강등하고 사용자 문구는 고정 평문화.</div>
+    <div class="kv">트레이드오프: 모든 실패에 장문 안내는 불필요(#9 가드) — 사용자 행동이 존재하는 실패에만 적용.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#9-recovery (평문·원인·건설적 해결책)</span></div>
+    
+  <div class="appr" data-aid="ERR-J2">
+    <label><input type="radio" name="ap-ERR-J2" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ERR-J2" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ERR-J2" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="error" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">error</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">ERR-J3 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>에러/확인 표시 채널이 alert()(약 20곳: variable-binding.js:256, design-system.js:458-461, branch-system.js:191,204-205, image-handling.js:516,787, animation-engine.js:502,510 등)와 showToast(162곳)에 혼용. 같은 성격의 입력 검증 오류가 어떤 곳은 OS 모달(alert — 흐름 차단·앱 스타일 무관), 어떤 곳은 토스트로 나옴. 확인류도 native confirm과 커스텀 모달 혼재.</div>
+    <div class="kv">마찰: 예측 불가한 피드백 채널 — 동일 실수에 다른 강도의 중단을 경험. native alert는 다크 UI 크롬과 시각적으로 단절.</div>
+    <div style="margin-top:6px">💡 제안: 검증 오류는 toast(또는 인라인)로 일원화, alert는 비가역 확인(confirm)에만 잔류 — 점진 치환.</div>
+    <div class="kv">트레이드오프: native confirm 자체는 파괴 액션 보호로 기능 중 — 채널 통일은 보호 약화 없이 표현만 교체할 것.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#4-consistency (동일 동작 동일 표현), #9-recovery</span></div>
+    
+  <div class="appr" data-aid="ERR-J3">
+    <label><input type="radio" name="ap-ERR-J3" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ERR-J3" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ERR-J3" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="feedback" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">feedback</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">FB-J2 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>토스트 시스템(js/drag-utils.js showToast)이 단일 엘리먼트(#editor-toast) 재사용 + 2000ms 고정 + 정보/경고/에러 무구분(스타일·지속시간 동일, 이모지 prefix만 차이). 새 토스트가 오면 clearTimeout 후 textContent를 즉시 덮어써 이전 메시지(에러 포함)가 소멸. '❌ 저장 실패', '⚠️ 저장 공간 부족' 같은 행동이 필요한 에러도 2초 후 흔적 없이 사라진다.</div>
+    <div class="kv">마찰: 에러를 놓치면 재확인 경로가 없다(로그/히스토리 부재). 연속 액션 중 에러 토스트가 후속 정보 토스트에 덮이면 실패 인지 자체가 불가능.</div>
+    <div style="margin-top:6px">💡 제안: 에러성 토스트(❌/⚠️)는 지속시간 연장(4~6초) 또는 수동 닫기 + 시각 구분(색). 큐잉 또는 최소한 에러가 비에러에 덮이지 않는 우선순위.</div>
+    <div class="kv">트레이드오프: 토스트 체류 연장은 #8 미니멀리즘과 긴장 — 에러에 한정하면 충돌 최소. 큐잉 구현 복잡도 소폭 증가.</div>
+    <div class="kv">증거: js/drag-utils.js:140-152 — showToast: 단일 #editor-toast, clearTimeout(t._timer) 후 2000ms 고정 재설정, msg 종류 무구분</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#9-recovery</span><span class="chip">📄 nielsen-10.md#1-visibility</span></div>
+    
+  <div class="appr" data-aid="FB-J2">
+    <label><input type="radio" name="ap-FB-J2" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-FB-J2" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-FB-J2" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="feedback" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">feedback</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">FB-J4 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>AI 이미지 생성(장시간 작업)의 진행 표시가 제출 버튼의 스피너+'생성 중...'+disabled 뿐(js/ai-image-gen.js:617). 경과 시간·단계·취소 수단 없음. 실패 시 '❌ (사유)' 토스트, 성공 시 '✨ N장 생성 완료 (₩비용)' 토스트는 존재 — 실패가 silent하지는 않음(코드 전 경로 확인: ok:false 모든 분기에서 토스트 발화). 단, 실제 생성 소요시간은 미실측(과금 발생 작업 — 코드 관찰 기반 평가임을 명시).</div>
+    <div class="kv">마찰: 생성이 10초 이상 걸리는 경우(외부 API 의존) 사용자는 진행 여부를 스피너 하나로만 추정해야 하고, 잘못 제출했을 때 중단할 수 없다. 모달을 닫으면 결과 수신 여부도 불확실해진다.</div>
+    <div style="margin-top:6px">💡 제안: 경과 시간 표시(초 단위) + 취소 버튼. 장기적으로 생성 요청을 모달 수명과 분리(백그라운드 + 완료 토스트는 이미 존재).</div>
+    <div class="kv">트레이드오프: 취소는 API 호출 abort 배선 필요. 경과 표시는 저비용.</div>
+    <div class="kv">증거: js/ai-image-gen.js:614-641 handleImageSubmit — submitBtn.innerHTML='&lt;span class=&quot;ai-spinner&quot;&gt;&lt;/span&gt; 생성 중...'; finally에서 복원. generateAIImage 내 실패 분기 showToast 확인(462행 이하)</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 interaction-laws.md#doherty</span><span class="chip">📄 nielsen-10.md#1-visibility</span><span class="chip">📄 nielsen-10.md#3-control</span></div>
+    
+  <div class="appr" data-aid="FB-J4">
+    <label><input type="radio" name="ap-FB-J4" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-FB-J4" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-FB-J4" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="flow" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">flow</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-flow-004 · 블록 추가 직후 선택 상태 비일관 — 새 블록이 선택되지 않거나 선택이 이탈</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">edit-block / 단계 2→3 전환</div>
+    
+    <div>1차 추가(Heading): 직후 새 블록 tb_eo2bi2f가 .selected였으나 수 초 내 다른 블록(cvb_rvw92pq)으로 선택이 이동(사용자 입력 없음, prop 패널도 Card로 전환). 2차 추가(Body): 새 블록 tb_mtcaen5는 2.4초간 관찰 내내 미선택, 섹션만 선택 유지. 결과적으로 속성 변경 전 캔버스에서 블록을 다시 클릭해야 함(+1뎁스) — 이 때문에 실측 뎁스가 명세 기대(3)보다 1 큼.</div>
+    <div class="kv">마찰: 추가한 블록이 '지금 편집 대상'이라는 신호가 없어, 사용자가 prop 패널을 보고 엉뚱한 객체(섹션/다른 블록)의 속성을 바꿀 수 있음. 1차 관찰의 선택 이탈은 재현 불확실(타 에이전트 간섭 가능성 배제 못함) — 미선택 패턴은 2차에서 명확 재현.</div>
+    <div style="margin-top:6px">💡 제안: 블록 추가 직후 해당 블록을 항상 선택 + prop 패널 동기화 + scrollIntoView. 추가→속성변경이 연속 동작이 되어 뎁스 3 회복.</div>
+    <div class="kv">트레이드오프: 연속 다중 추가 워크플로(블록 여러 개 연달아 추가)에서는 매번 선택 전환이 거슬릴 수 있으나, 추가 직후 다시 추가하는 경로는 선택 상태와 무관하게 동작하므로 충돌 없음.</div>
+    <div class="kv">증거: .ux/results/evidence/flow-editblock-4-body-added.png, 선택 타임라인 실측 ['sec_90fn0rg'×6 @0.4s 간격]</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#wayfinding</span><span class="chip">📄 nielsen-10.md#3-control</span></div>
+    
+  <div class="appr" data-aid="UXS-flow-004">
+    <label><input type="radio" name="ap-UXS-flow-004" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-flow-004" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-flow-004" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="flow" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">flow</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-flow-005 · URL 자산은 추가는 되지만 블록에 쓸 수 없는 막다른 길</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">insert-asset / 단계 2→3 (에셋 패널 URL 경로)</div>
+    
+    <div>에셋 패널 '+ URL'로 이미지 URL 자산 등록 성공(3클릭+2입력, ast_1y2bw0). 그러나 URL 자산 행은 draggable=false(파일/폴더 행은 true), 행 액션은 ✎이름변경/↗외부열기/🗑삭제뿐 — 에셋 블록에 적용할 경로가 없음. 에셋 블록의 이미지 채움은 더블클릭·'이미지 선택...'(파일 다이얼로그)·파일 드래그만 안내됨.</div>
+    <div class="kv">마찰: 사용자가 '웹에서 찾은 이미지 URL을 에셋에 넣고 블록에 쓰겠다'는 자연스러운 기대로 5단계를 수행한 뒤 적용 방법을 찾지 못하고 막힘. 패널 이름(Assets)이 '캔버스에 쓸 재료'를 함의하므로 기대 불일치가 큼.</div>
+    <div style="margin-top:6px">💡 제안: URL 자산도 드래그 가능하게 하거나(드롭 시 다운로드→임베드), 적용 불가라면 추가 시점에 '링크 보관용 — 블록 적용은 파일 자산만'을 고지.</div>
+    <div class="kv">트레이드오프: URL 핫링크 임베드는 오프라인/만료 리스크 — 추가 시점 다운로드 임베드가 안전하나 용량 비용. 고지-only 안은 비용 0이지만 기대 불일치 자체는 남음.</div>
+    <div class="kv">증거: .ux/results/evidence/flow-asset-3-added.png, 행 실측 {cls:'assets-row--url', drag:false}, prop 패널 안내 문구 '더블클릭하여 이미지 추가/또는 파일을 블록에 드래그'</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 interaction-laws.md#tesler</span><span class="chip">📄 ia-principles.md#wayfinding</span></div>
+    
+  <div class="appr" data-aid="UXS-flow-005">
+    <label><input type="radio" name="ap-UXS-flow-005" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-flow-005" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-flow-005" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="flow" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">flow</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-flow-006 · 내보내기 이중 진입로의 의미 분열 — 'Export' 버튼에 정작 주 산출물(섹션 이미지) 내보내기가 없음</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">export-publish / 단계 2-3 (톱바 #publish-btn 드롭다운 vs 우측 페이지 속성 인라인)</div>
+    
+    <div>스펙이 물은 이중 진입로 판정: 혼란 쪽. 톱바 'Export'(title: Export / Import) 드롭다운 = 불러오기/저장/JSON 내보내기/Figma 3종/참고 이미지 — 상세페이지 에디터의 최종 산출물인 섹션 PNG/이미지 내보내기가 없음. PNG 내보내기는 우측 패널 페이지 속성 최하단(빈 캔버스 클릭 시에만 표시)에 위치. 두 진입로가 서로 다른 산출물을 다루며 교차 안내 없음. 부가: 드롭다운 안 '저장' 항목은 자동저장과 의미 충돌(실제로는 JSON 다운로드).</div>
+    <div class="kv">마찰: 세션 말미 사용자는 당연히 톱바 'Export'를 먼저 열고, 원하는 'PNG로 뽑기'가 없어 JSON 내보내기를 잘못 누르거나 탐색을 반복함. 페이지 속성 경로는 '빈 캔버스 클릭'이라는 비가시 선행 조건까지 있음.</div>
+    <div style="margin-top:6px">💡 제안: 톱바 Export 드롭다운에 '전체 섹션 이미지 내보내기(PNG/JPG)' 항목 추가(클릭 시 기존 인라인 플로우 재사용) — 인라인 경로는 형식/폭 세부 제어용으로 유지(이중 진입로를 '편의'로 전환).</div>
+    <div class="kv">트레이드오프: 드롭다운 항목 +1로 Hick 부담 미증(현재 7항목, 구획선 이미 존재). 항목 중복은 '같은 작업 두 위치' 비판 가능하나 빈도 데이터상(핵심 작업 #5, 세션 말미 1회) 주 동선 회수 이득이 큼.</div>
+    <div class="kv">증거: .ux/results/evidence/flow-export-1-dropdown.png (드롭다운 항목 전수), flow-export-3-inline-done.png</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#wayfinding</span><span class="chip">📄 interaction-laws.md#hick</span></div>
+    
+  <div class="appr" data-aid="UXS-flow-006">
+    <label><input type="radio" name="ap-UXS-flow-006" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-flow-006" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-flow-006" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">layout</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-layout-003 · 앱 전체에서 가장 강한 시각 강조(파란 박스 버튼)가 Preview에 — 핵심작업 목록에 없는 기능이 최전경</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">toolbar(소유 셀렉터 #zoom-ctrl)·우측 패널 상단 / #rp-top-row: #zoom-ctrl(−/40%/+/Fit) + #rp-preview-btn(파란 박스) — evidence/layout-01-full.png 우상단</div>
+    
+    <div>우측 패널 최상단 #rp-preview-btn이 크롬 전체에서 유일하게 상시 노출되는 대형 파란 박스 버튼(40×28+ 강조). 반면 핵심작업 #5의 Export는 무채색 tb-btn, 핵심작업 #1의 블록 추가(+)는 화면 하단 플로팅 바에 있음. Preview는 profile 핵심작업 Top 5+1에 없음.</div>
+    <div class="kv">마찰: gestalt.md#figure-ground — 과업상 주 액션(블록 추가/내보내기)이 아닌 Preview가 시각적 전경을 독점. 첫 진입한 외부 사용자(G1)의 시선이 Preview로 먼저 유도되어 주 플로우(섹션/블록 추가) 발견이 지연되는 시나리오.</div>
+    <div style="margin-top:6px">💡 제안: Preview를 zoom 클러스터와 동일한 무채색 토널로 낮추거나, 강조를 유지하려면 핵심작업 진입점(새 섹션 + 또는 Export)과의 강조 위계를 재배분.</div>
+    <div class="kv">트레이드오프: 결과물 확인(Preview)이 실제로는 고빈도일 수 있음 — 빈도 실측 없이 강등 단정은 금물(figure-ground 오적용 가드). 다크크롬/라이트캔버스 의도 결정과는 무관함을 확인함.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 gestalt.md#figure-ground</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-003">
+    <label><input type="radio" name="ap-UXS-layout-003" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-003" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-003" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">layout</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-layout-004 · 섹션 툴바(A/B·메모·AI 채우기)가 캔버스 줌과 함께 축소 — 40% 줌에서 15×12px 타겟</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">canvas-block / .section-toolbar .st-btn (섹션 선택 시 섹션 우상단) — 실측 rect: A/B [877,71,18,12], 메모 [897,71,15,12], AI [913,71,15,12] @ zoom 40% — evidence/layout-08-section-selected.png</div>
+    
+    <div>.section-toolbar가 캔버스 스케일러 내부에 있어 줌 배율에 비례해 축소됨. 'Fit' 기본 작업 줌(이번 실측 40%)에서 버튼이 15×12px로 렌더링.</div>
+    <div class="kv">마찰: interaction-laws.md#fitts — 타겟 획득 시간은 크기에 반비례. 섹션 단위 AI 텍스트 채우기·메모는 섹션 작업 중 반복 사용되는 컨트롤인데, 전체 보기(저줌)에서 가장 필요할 때 가장 작아짐. min_target_px 미설정이므로 judgment로만 보고(profile 게이트 G3).</div>
+    <div style="margin-top:6px">💡 제안: 섹션 툴바를 줌 비보정 오버레이(고정 px, 캔버스 좌표만 추적)로 렌더 — 선택 핸들·오버레이(.canvas-overlay-handle)와 동일한 계층으로.</div>
+    <div class="kv">트레이드오프: 고정 크기 오버레이는 저줌에서 섹션이 화면상 작을 때 이웃 섹션 툴바와 겹칠 수 있음 — 선택된 섹션에만 표시하면 완화. 구현은 overlay 레이어 추가 비용.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 interaction-laws.md#fitts</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-004">
+    <label><input type="radio" name="ap-UXS-layout-004" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-004" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-004" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">layout</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-layout-005 · 블록 추가 플로팅 바에 Claude PM 진입 버튼 동거 — 무관 기능이 한 그룹으로 지각</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">toolbar(하단 플로팅) / #floating-panel: [+섹션(primary)] [Frame] [Text] [Image] [도형] [스티커] [컴포넌트] [Plugins] [AI 섹션 생성 ⌘K] [Claude PM 💬] — evidence/layout-05-floating-bar.png, layout-01-full.png 하단</div>
+    
+    <div>하단 중앙 플로팅 바는 '캔버스에 무언가를 추가'하는 도구 모음(섹션/프레임/텍스트/이미지/도형/스티커/컴포넌트, AI 섹션 생성까지 일관). 마지막 버튼 'Claude PM — 프로젝트 매니저'는 추가 동작이 아닌 별개 시스템 패널 토글이며 시각적 구분(구분선/간격) 없이 같은 줄에 배치됨.</div>
+    <div class="kv">마찰: gestalt.md#proximity — 기능적으로 무관한 컨트롤(PM 패널 토글)이 추가 도구들과 밀착해 한 그룹으로 지각됨. 외부 사용자가 '말풍선 블록 추가'로 오인 클릭하는 시나리오(같은 바의 다른 버튼들이 전부 블록을 만들기 때문에 동작 기대가 전이됨 — gestalt.md#similarity).</div>
+    <div style="margin-top:6px">💡 제안: PM 버튼을 구분선으로 분리하거나 토바/우측 패널 등 '패널 토글' 계열 위치로 이동. 최소 조치: 플로팅 바 내 divider 1개 추가(Plugins·AI·PM 보조 그룹 구획).</div>
+    <div class="kv">트레이드오프: PM 패널 자체의 위상은 G5 회신 대기 — 본 finding은 버튼 '배치'만 다룸(.cpm-* 스타일 판단 아님). PM 접근성을 낮추면 PM 중심 워크플로(내부)에서 클릭 거리 증가.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 gestalt.md#proximity</span><span class="chip">📄 gestalt.md#similarity</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-005">
+    <label><input type="radio" name="ap-UXS-layout-005" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-005" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-005" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">layout</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-layout-006 · 토스트가 화면 정중앙(캔버스 작업 지점 위)에 표시 — 가장자리 관례 이탈 + 작업 대상 가림</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">toast / #editor-toast — css/editor-toast.css L7-19: position:fixed; top:50%; left:50%; translate(-50%,-50%)</div>
+    
+    <div>토스트가 뷰포트 정중앙에 뜨도록 정적 정의됨. 캔버스 중앙 = 사용자가 방금 편집한 블록이 있을 확률이 가장 높은 지점.</div>
+    <div class="kv">마찰: interaction-laws.md#jakob — 토스트는 상/하단 가장자리라는 보편 관례를 이탈해, 전환 사용자가 '모달/에러 다이얼로그'로 순간 오인. gestalt.md#figure-ground — 알림이 방금 편집한 결과물(사용자가 확인하려는 전경) 바로 위를 덮어 결과 확인과 경쟁. pointer-events:none·일시 표시라 차단은 아니나 매 알림마다 반복되는 가림.</div>
+    <div style="margin-top:6px">💡 제안: 하단 중앙(플로팅 바 위쪽 여백) 또는 상단 중앙으로 이동. 플로팅 바와 겹침 회피를 위해 bottom: 88px 선.</div>
+    <div class="kv">트레이드오프: 중앙 배치는 '반드시 봐야 하는' 알림에는 유리 — 심각도별 위치 이원화(에러=중앙, 정보=가장자리)도 선택지이나 일관성(#4-consistency)과 충돌. 표시 시간/빈도의 맥락 적절성은 U-feedback 소관 — 침범하지 않음(위치만 판단).</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 interaction-laws.md#jakob</span><span class="chip">📄 gestalt.md#figure-ground</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-006">
+    <label><input type="radio" name="ap-UXS-layout-006" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-006" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-006" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">layout</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-layout-007 · 프로젝트 카드의 복제·삭제 버튼이 동형·동색·4px 밀착 — 위험도가 다른 액션의 무차별 배치</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">home-pages / pages/projects.html .card-actions(.card-duplicate ⎘ + .card-delete ✕, 22×22px, gap 4px, 휴지 상태 동일 회색 #666; 삭제의 빨강은 hover시에만) — 정적 분석 L109-124, L290-300</div>
+    
+    <div>프로젝트 카드 hover 시 우상단에 복제(⎘)와 삭제(✕)가 같은 모양·같은 색의 22px 버튼으로 4px 간격 밀착 노출. 위험 기표(빨강)는 hover 후에만 나타남.</div>
+    <div class="kv">마찰: gestalt.md#similarity — 다른 위험도의 액션이 같은 모양이라 같은 동작 계열로 지각됨. gestalt.md#proximity — 파괴 액션이 비파괴 액션과 밀착해 슬립 클릭 거리 4px. 프로젝트 삭제는 작업물 전체에 작용하는 최고 위험 액션(핵심작업 #0 진입 표면). 확인 다이얼로그 존재 여부는 U-error 전수조사 소관 — 여기서는 배치·모양만 판단.</div>
+    <div style="margin-top:6px">💡 제안: 삭제를 휴지 상태에서도 위험 기표로 구분(외곽/아이콘 색)하거나, 복제와 삭제 사이 간격을 그룹 내 간격보다 크게 벌려 별개 그룹으로 구획. 또는 삭제를 ⋯ 오버플로 메뉴로 이동.</div>
+    <div class="kv">트레이드오프: 휴지 상태부터 빨강이면 카드 그리드 전체에 danger 기표가 살포되어 늑대 소년 효과(semantic-mapping 가드) — hover 시점 구분 강화가 절충안. 오버플로 메뉴는 삭제 뎁스 +1.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 gestalt.md#similarity</span><span class="chip">📄 gestalt.md#proximity</span><span class="chip">📄 nielsen-10.md#5-error-prevention</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-007">
+    <label><input type="radio" name="ap-UXS-layout-007" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-007" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-007" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">layout</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-layout-008 · 텍스트 블록 Type 세그먼트 7개가 패널 폭에 압착되어 레이블 잘림(B…, C…) — 누르기 전 구분 불가</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">prop-panel / 텍스트 블록 선택 시 Type 그룹: H1 H2 H3 B… C… Tag List (227px 폭에 7버튼) — evidence/layout-07-prop-panel-text.png</div>
+    
+    <div>240px 우측 패널에서 텍스트 타입 세그먼트 7개 중 Body·Caption이 'B…'/'C…'로 잘려 렌더링됨(실측 스크린샷). 두 항목 모두 'B/C' 한 글자+말줄임으로만 구분됨.</div>
+    <div class="kv">마찰: ia-principles.md#labeling — 레이블은 누르기 전에 결과를 예측하게 해야 하나, 잘린 두 레이블은 시행착오 클릭을 강제. 텍스트 타입 전환은 핵심작업 #1(블록 추가→속성 변경)의 첫 단계 컨트롤. interaction-laws.md#miller 가드 확인 — 7개 자체는 위반 아님(청킹 문제 아님), 문제는 잘림.</div>
+    <div style="margin-top:6px">💡 제안: 2행 배치(4+3) 또는 아이콘+툴팁 세그먼트로 전환, 혹은 저빈도 타입(Tag/List)을 드롭다운 말미로 분리해 1행 5개 이하 유지.</div>
+    <div class="kv">트레이드오프: 2행은 패널 세로 공간 소비(현 스크롤 906/787 — 이미 약간 스크롤됨). 아이콘화는 학습 비용 — 보편 도상(H1/H2)이 있는 항목만 아이콘화하는 절충 가능.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#labeling</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-008">
+    <label><input type="radio" name="ap-UXS-layout-008" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-008" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-008" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="onboarding" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">onboarding</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXO-J01 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>새 프로젝트 에디터 진입 직후 캔버스는 완전 공백(연회색 면, 텍스트 0자). 다음 행동을 알려주는 empty state 문구/CTA가 없다. 유일한 생성 진입로는 하단 플로팅 바의 아이콘 버튼들(시각 레이블 없음, hover title만). (evidence: onboarding-02-editor-empty.png — canvasText='')</div>
+    <div class="kv">마찰: 내부 용어를 모르는 외부 사용자가 처음 진입하면 빈 회색 화면에서 시선 둘 곳이 없다. 하단 파란 '+'가 시각적으로 가장 강조돼 있어 결국 찾을 가능성은 높지만, '+'가 '섹션을 추가한다'는 것은 호버해야만(native title) 알 수 있다 — '섹션'이라는 개념 자체도 첫 대면이다.</div>
+    <div style="margin-top:6px">💡 제안: 빈 캔버스(섹션 0개) 상태에서만 캔버스 중앙에 클릭 가능한 1회성 CTA 표시: '+ 새 섹션을 추가해 시작하세요' (클릭 시 '+'와 동일 동작). 섹션이 1개라도 생기면 영구 제거.</div>
+    <div class="kv">트레이드오프: #8(미니멀리즘) 충돌은 빈 상태 한정 표시로 최소화. 자동조립 워커의 '빈 자산 체크보드 = 사용자 신호' 규약은 블록 레벨 규약으로 캔버스 레벨 CTA와 무충돌. 구현 시 빈 상태 판정 로직 1개 추가 비용.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#6-recognition (empty state가 다음 행동을 알려주는가)</span></div>
+    
+  <div class="appr" data-aid="UXO-J01">
+    <label><input type="radio" name="ap-UXO-J01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXO-J01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXO-J01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="onboarding" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">onboarding</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXO-J03 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>첫 섹션 생성 직후 우측 패널 최하단에 'Template / Test / Hero / 템플릿 이름 / 태그 / [저장]' 블록이 노출된다(onboarding-03-after-plus.png). 버튼 레이블이 generic '저장'이다. 같은 화면 상단에는 문서 자동저장('저장 중...')이 별도로 존재한다.</div>
+    <div class="kv">마찰: 외부 사용자가 '작업을 저장해야 한다'는 통념으로 화면에서 '저장'을 찾으면 이 버튼이 유일하게 보이는 '저장'이다. 누르면 작업 저장이 아니라 템플릿 라이브러리 등록이 일어난다 — 결과 예측 실패 + 템플릿 DB에 무의미 항목 누적. '소제목을 입력하세요'만 있는 빈 섹션이 'Test/Hero' 템플릿으로 등록될 수 있다.</div>
+    <div style="margin-top:6px">💡 제안: (a) 버튼 레이블을 '템플릿으로 저장'으로 구체화(다른 표면의 '블록 템플릿으로 저장'과 용어 정렬), (b) 이 블록이 제작자(admin) 기능이라면 admin 모드에서만 노출.</div>
+    <div class="kv">트레이드오프: (a) 레이블 길이 증가 미미. (b)는 해당 기능의 사용 주체 확인 필요 — 외부 사용자용 기능이면 (a)만.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#labeling (누르기 전에 결과 예측 — '저장'이 무엇을 저장하나) + nielsen-10.md#10-help (처음 보는 개념 'Template/Hero'에 맥락 도움 없음)</span></div>
+    
+  <div class="appr" data-aid="UXO-J03">
+    <label><input type="radio" name="ap-UXO-J03" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXO-J03" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXO-J03" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="semantics" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">semantics</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-semantics-010 · UI 크롬 전반의 영·한 혼용 패턴 — 그룹 제목은 영문, 필드·버튼·메시지는 한글 (단일 패널 안에서도 병존)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">전 표면 — index.html:298-498 (Page/Layers/Templates/Properties), index.html:367-446 (DS 패널 'Color' 절 vs '컬러 변수' 절, Apply/Reset), js/props/prop-frame.js:233-344 (Banner Preset/Layout/Background/Size 헤더 vs 두께/색상/너비/높이 필드), js/props/color-picker.js, js/panels/assets-panel.js</div>
+    
+    <div>구조 레이블(패널 헤더·속성 그룹 제목·블록 타입명)은 영문, 행위 레이블(버튼·토스트·placeholder)은 한글이 지배적이나 경계가 불규칙: DS 패널은 'Color' 절과 '컬러 변수' 절, '＋ New Design System'과 '＋ 변수 추가' 버튼이 같은 화면에 병존(index.html:377-412). prop-frame은 'Bg Image' 헤더 아래 '이미지 선택/위치 편집/이미지 제거' 버튼</div>
+    <div class="kv">마찰: 프로파일 G1 기준(외부 일반 사용자)에서 영문 구조 레이블('Child Align', 'Banner Position', 'Fit')은 해석 부하. 같은 추상 수준의 개념이 화면마다 다른 언어로 나타나 '다른 종류의 것'으로 오학습될 수 있음(예: 'Color' 토큰과 '컬러 변수'가 별개 시스템처럼 보임 — 실제로도 별개인지 레이블로 판별 불가)</div>
+    <div style="margin-top:6px">💡 제안: 용어 사전 신설 시 언어 선택 규칙(구조/행위 축이든 전면 한글이든)을 함께 정의하고 패널 단위로 정렬</div>
+    <div class="kv">트레이드오프: 디자인 도구 관례상 영문 전문 용어(Fit, Opacity 등)는 Figma 사용 경험자에게 오히려 친숙(jakob). 전면 한글화는 기존 사용자 재학습 비용</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#2-match</span><span class="chip">📄 nielsen-10.md#4-consistency</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-010">
+    <label><input type="radio" name="ap-UXS-semantics-010" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-010" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-010" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="semantics" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">semantics</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-semantics-011 · 'HighlightB' — 내부 버전명 관습이 그대로 메뉴 레이블로 노출</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">index.html:601 (fp-pen-menu)</div>
+    
+    <div>스티커 메뉴에 'Highlight'와 'HighlightB'가 나란히 존재. 차이(면 형광펜 vs 두 점 클릭 직선 형광펜)는 hover title에만 있음. 'B'는 개발 시안 차수 표기 관습으로, 누르기 전 결과 예측 불가</div>
+    <div class="kv">마찰: 예측 실패 시나리오: 직선 형광펜이 필요한 사용자가 'HighlightB'가 그 기능임을 레이블로 알 수 없어 둘 다 시행착오 클릭. 인접 항목 'Banner'/'Banner 2'(index.html:622-623)도 같은 패턴이나 그쪽은 시각 결과물 차이라 비용이 낮음</div>
+    <div style="margin-top:6px">💡 제안: 기능 차이를 드러내는 레이블로 교체 (예: 직선형임을 드러내는 명칭 — 확정은 용어 사전에서)</div>
+    <div class="kv">트레이드오프: 레이블 길이 증가로 메뉴 폭 영향 — 미미</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#labeling</span><span class="chip">📄 nielsen-10.md#2-match</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-011">
+    <label><input type="radio" name="ap-UXS-semantics-011" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-011" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-011" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="semantics" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">semantics</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-semantics-012 · 구현 용어의 사용자 노출 — NewGrid · 봉인된 컴포넌트 · 열(col) · 컨테이너로 전환 · Child Align · 내부 ID 표시</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/block-factory.js:1787,429 · js/props/prop-frame.js:92,326 · js/props/prop-frame.js:45 (헤더에 raw id)</div>
+    
+    <div>사용자 대면 메시지·레이블에 구현 어휘 노출: 'NewGrid는 봉인된 컴포넌트입니다'(NewGrid·봉인 모두 비공식 용어), '열(col) 안의 블록만 컨테이너로 전환할 수 있어요'(col 약어·컨테이너), prop-frame 헤더의 '프레임: ss_xxxx (W×H)' raw ID, 그룹 제목 'Child Align'(CSS 개념 직역)</div>
+    <div class="kv">마찰: G1 외부 사용자 기준 — 에러를 만난 순간(가장 도움이 필요한 시점)에 시스템 내부 언어로 답해 회복 경로를 제시하지 못함. 'NewGrid' 토스트는 사용자가 한 적 없는 개념을 들어 거부 사유를 설명</div>
+    <div style="margin-top:6px">💡 제안: 에러·안내 문구를 과업 언어로 재작성(무엇이 안 되고 → 대신 무엇을 하면 되는지). raw ID는 개발자 모드 한정 노출 검토</div>
+    <div class="kv">트레이드오프: ID 노출은 CDP 자동화·PM 협업 워크플로(현재 운영 방식)에 유용 — admin/일반 모드 분기 필요</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#2-match</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-012">
+    <label><input type="radio" name="ap-UXS-semantics-012" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-012" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-012" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="semantics" data-sev="" data-imp="medium" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#e0a060">impact medium</span><span class="chip">semantics</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-semantics-013 · 이모지 기표의 의미 불안정 — ✨가 AI와 비-AI 양쪽에, 실패가 ⚠️와 ❌ 양쪽에</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">index.html:644 (ai-btn ✨) · js/panels/assets-panel.js:439,1057,1076 · js/io/save-load.js:133 vs 143</div>
+    
+    <div>✨ = AI 기표(ai-btn 'AI 섹션 생성', '✨ AI Generate', '✨ AI가 작성 중…', '✨ 생성하기')로 확립돼 있으나, 비-AI 동작인 에셋 패널 일반 삽입 토스트도 '✨ 캔버스에 삽입됨'(assets-panel.js:439,1057), '✨ 새 섹션에 삽입됨'(1076). 실패 표기는 '❌ 저장 실패'(save-load.js:143)와 '⚠️ 저장 거부'(133)가 혼재하고 ⚠️는 차단·정보·실패 3용도에 걸침</div>
+    <div class="kv">마찰: 기표가 장식으로 소모되면 진짜 신호가 죽음(늑대 소년) — ✨를 본 사용자가 AI 동작 여부를 판별할 수 없고, ⚠️의 심각도(되돌릴 수 있는 공지인지 데이터 손실 경고인지)를 학습할 수 없음</div>
+    <div style="margin-top:6px">💡 제안: 이모지 의미 표를 1장으로 고정(✨=AI 전용, ❌=실패, ⚠️=주의/차단, ✅=성공)하고 토스트 전수 정렬</div>
+    <div class="kv">트레이드오프: 없음 — 문자열 치환 수준</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#semantic-mapping</span><span class="chip">📄 nielsen-10.md#4-consistency</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-013">
+    <label><input type="radio" name="ap-UXS-semantics-013" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-013" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-013" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="error" data-sev="minor" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">error</span><span class="chip">deterministic</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">ERR-C5 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>복구 경로 존재 + 동종 액션 동일 보호</td>
+    <th>실측</th><td>바인딩 변수 삭제(variable-binding.js)는 무보호인데, 동일 개념인 디자인시스템 컬러 변수 삭제(design-system.js:441)는 confirm — 같은 '변수 삭제'에 보호 방식이 갈림. 삭제 시 바인딩된 텍스트들의 연결이 끊김.</td></tr></table>
+    <div class="kv">수정 방향: variable-binding 삭제에도 동일 confirm 적용.</div>
+    <div class="kv">증거: js/variable-binding.js:322-330 vs js/design-system.js:441</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#5-error-prevention, #4-consistency</span></div>
+    
+  <div class="appr" data-aid="ERR-C5">
+    <label><input type="radio" name="ap-ERR-C5" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ERR-C5" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ERR-C5" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="error" data-sev="minor" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">error</span><span class="chip">deterministic</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">ERR-C6 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>복구 경로 존재</td>
+    <th>실측</th><td>체크리스트 아이템 삭제(×)와 핀 삭제가 무보호 — 즉시 영속화, confirm·undo 없음. 체크리스트 섹션 삭제는 아이템을 보존(sectionId 해제)해 상대적으로 안전.</td></tr></table>
+    <div class="kv">수정 방향: todo 1건 수준이라 confirm은 과함 — '삭제됨 · 되돌리기' 토스트가 적정.</div>
+    <div class="kv">증거: js/checklist-panel.js:571-575,182-187 (대조: :622-630)</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#5-error-prevention</span></div>
+    
+  <div class="appr" data-aid="ERR-C6">
+    <label><input type="radio" name="ap-ERR-C6" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ERR-C6" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ERR-C6" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="semantics" data-sev="minor" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">semantics</span><span class="chip">deterministic</span>
+      <span class="chip">self</span>
+      <span class="chip">root: terminology-glossary-missing</span>
+      <b style="margin-left:4px">UXS-semantics-002 · 스크래치패드 호칭 4종 혼용: 스크래치패드 / 스크래치 패드 / 스크래치 / 참고 이미지</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/scratch-pad.js:933,969,1038 · js/panels/ai-image-gallery.js:140,144 · index.html:127-129,1038 (toolbar 메뉴·AI 패널)</div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>한 개념 = 한 용어 (동일 대상: 참고 이미지 보관 영역)</td>
+    <th>실측</th><td>'스크래치패드'(scratch-pad.js:933 '스크래치패드: 20MB 이하…', index.html:127 title '이미지 폴더를 스크래치패드에 일괄 추가') / '스크래치 패드'(ai-image-gallery.js:140,144) / '스크래치'(scratch-pad.js:1038 '✅ 스크래치 N개 추가 완료', index.html:1038 '+ 스크래치에서 선택') / 진입 메뉴 레이블은 '참고 이미지 일괄 추가'(index.html:129)</td></tr></table>
+    <div class="kv">수정 방향: 용어 사전 신설 후 1개 표기로 통일 (어느 표기가 옳은지는 감사자가 정하지 않음). 진입 메뉴-목적지 패널 명칭 일치가 핵심</div>
+    <div class="kv">증거: grep 전수 — 같은 보관 영역을 toolbar 메뉴 1곳에서 '참고 이미지', 토스트 7곳+버튼 1곳에서 스크래치 계열 3가지 표기로 부름</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#terminology</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-002">
+    <label><input type="radio" name="ap-UXS-semantics-002" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-002" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-002" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="semantics" data-sev="minor" data-imp="" data-conf="suspected">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#7a86c8">suspected</span><span class="chip">semantics</span><span class="chip">deterministic</span>
+      <span class="chip">self</span>
+      <span class="chip">root: terminology-glossary-missing</span>
+      <b style="margin-left:4px">UXS-semantics-003 · '컴포넌트' 동일 용어 3개 의미: 블록 카테고리 / 봉인 블록 / 저장·재사용 단위</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">index.html:606 (fp-component-dropdown title) · js/block-factory.js:1787 · js/component-shelf.js:58,79,156,166,173</div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>한 개념 = 한 용어 (역도 성립: 다른 것을 같게 부르면 사용자는 동일시함)</td>
+    <th>실측</th><td>① '컴포넌트 블록 추가'(index.html:606) = Table/Card/Graph 등 카테고리, 레이어 typeLbl 'Component'(layer-panel-items.js:149) ② '봉인된 컴포넌트'(block-factory.js:1787) = 편집 불가 레거시 ③ component-shelf.js 토스트 '컴포넌트를 찾을 수 없습니다' 등 = 저장·재사용 단위. 단 ③의 UI 진입점(fp-comp-shelf-btn)은 주석 처리로 숨김(index.html:628-638) — 도달성 불확실하여 suspected</td></tr></table>
+    <div class="kv">수정 방향: 용어 사전에서 '컴포넌트' 의미 1개 확정. 템플릿 브라우저('템플릿'/'블록 템플릿')와의 개념 경계도 함께 정의 필요</div>
+    <div class="kv">증거: grep 전수: CompShelf 호출처가 component-shelf.js 내부 외 0건 → ③ 토스트는 현재 도달 불가 추정. ①②는 도달 가능 표면에서 의미 상이</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#terminology</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-003">
+    <label><input type="radio" name="ap-UXS-semantics-003" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-003" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-003" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="semantics" data-sev="minor" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">semantics</span><span class="chip">deterministic</span>
+      <span class="chip">self</span>
+      <span class="chip">root: terminology-glossary-missing</span>
+      <b style="margin-left:4px">UXS-semantics-004 · Label/라벨 영·한 혼용 — 동일 개념을 메뉴는 'Label', 그래프 속성·토스트는 '라벨'</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">index.html:545 (fp-text-menu) · js/panels/layer-panel-items.js:148 · js/props/prop-graph.js:59,64 · js/block-drag.js:929</div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>동일 개념 = 동일 표기 (시스템 메시지와 UI 레이블 용어 일치)</td>
+    <th>실측</th><td>블록 추가 메뉴 'Label'(index.html:545), DS 패널 'Label BG/FG/Label Radius'(index.html:398-440), 레이어 패널 'Label' ↔ 그래프 속성 '라벨'/'라벨 색상'(prop-graph.js:59,64), 토스트 '⚠️ 마지막 라벨은 삭제할 수 없어요.'(block-drag.js:929)</td></tr></table>
+    <div class="kv">수정 방향: 용어 사전에서 표기 1개 확정 (UXS-semantics-010 영·한 혼용 패턴의 구체 사례)</div>
+    <div class="kv">증거: grep 전수 — 영문 표기 5곳+, 한글 표기 3곳+</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#terminology</span><span class="chip">📄 nielsen-10.md#4-consistency</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-004">
+    <label><input type="radio" name="ap-UXS-semantics-004" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-004" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-004" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="semantics" data-sev="minor" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">semantics</span><span class="chip">deterministic</span>
+      <span class="chip">self</span>
+      <span class="chip">root: terminology-glossary-missing</span>
+      <b style="margin-left:4px">UXS-semantics-005 · '프레임' 이중 referent — 에디터 Frame 블록 vs Figma 프레임(가져오면 섹션이 됨)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">index.html:527 (addFrameBlock 'Frame 추가') · index.html:197-200 (Figma Import 모달) · js/io/import-figma-json.js:244 · js/block-factory.js:1238 · js/settings/settings-modal.js:21</div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>한 용어 = 한 referent</td>
+    <th>실측</th><td>에디터 내 '프레임/Frame' = frame-block(컨테이너): 'Frame 추가'(index.html:527), '프레임으로 감싸기'(settings-modal.js:21), '프레임으로 묶을 블록을 먼저 선택하세요'(block-factory.js:1238). Figma Import 모달의 '프레임 선택'은 Figma 프레임이며 '선택된 프레임이 현재 캔버스에 섹션으로 추가됩니다'(index.html:197) — 프레임을 가져왔는데 결과물은 '섹션'</td></tr></table>
+    <div class="kv">수정 방향: 용어 사전에서 구분 표기 정의 (예: Figma 쪽은 항상 'Figma 프레임'으로 수식 — 구체 표기는 사전에서 확정)</div>
+    <div class="kv">증거: grep 전수 — 두 의미가 같은 앱 안에서 각각 3곳+/2곳에 등장. 예측 실패 시나리오: Frame 블록을 학습한 사용자가 'Figma 프레임 가져오기'를 Frame 블록 삽입으로 오예측</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#terminology</span><span class="chip">📄 ia-principles.md#labeling</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-005">
+    <label><input type="radio" name="ap-UXS-semantics-005" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-005" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-005" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="semantics" data-sev="minor" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">semantics</span><span class="chip">deterministic</span>
+      <span class="chip">self</span>
+      <span class="chip">root: terminology-glossary-missing</span>
+      <b style="margin-left:4px">UXS-semantics-006 · 표 구조 호칭 영·한 혼용 — UI는 Row/Column, 토스트·히스토리는 행/열(col)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/props/prop-table.js:332,351,378 · js/props/prop-row.js:116 · js/block-factory.js:429 · js/editor.js:1415</div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>시스템 메시지와 UI 레이블의 용어 일치</td>
+    <th>실측</th><td>속성 패널 레이블 'Row N'/'Column N'(prop-table.js), 'Column'(prop-row.js:116) ↔ 토스트 '열(col) 안의 블록만 컨테이너로 전환할 수 있어요.'(block-factory.js:429), 히스토리 '행 삭제'(editor.js:1415)</td></tr></table>
+    <div class="kv">수정 방향: 용어 사전 확정 후 토스트·히스토리 표기를 UI 레이블과 일치</div>
+    <div class="kv">증거: grep 전수 — 동일 구조 개념이 표면별로 영/한 분리</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#terminology</span><span class="chip">📄 nielsen-10.md#4-consistency</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-006">
+    <label><input type="radio" name="ap-UXS-semantics-006" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-006" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-006" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="semantics" data-sev="minor" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">semantics</span><span class="chip">deterministic</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-semantics-007 · 토스트 경어체 혼용 — 해요체 6건 vs 합니다·하세요체 31건</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/ 전역 showToast 문자열 (예: js/block-drag.js:929 vs js/block-drag.js:684)</div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>동일 채널(토스트)의 보이스 일관</td>
+    <th>실측</th><td>같은 파일 안에서도 분기: '⚠️ 마지막 라벨은 삭제할 수 없어요.'(block-drag.js:929) vs '이미지 파일만 업로드할 수 있습니다.'(block-drag.js:684). '~할 수 없어요/보존돼요/열 수 있어요' 계열 6건, '~습니다/하세요/해주세요' 계열 31건</td></tr></table>
+    <div class="kv">수정 방향: 메시지 스타일 가이드 1줄 정의(어느 쪽이든) 후 전수 정렬</div>
+    <div class="kv">증거: grep 카운트: 해요체 6 / 합니다·하세요체 31 (showToast 문자열 한정)</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#4-consistency</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-007">
+    <label><input type="radio" name="ap-UXS-semantics-007" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-007" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-007" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="semantics" data-sev="minor" data-imp="" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#5fb36a">confirmed</span><span class="chip">semantics</span><span class="chip">deterministic</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-semantics-008 · danger 토큰의 장식적 사용 — 변수 타입 'Number' 배지가 위험/삭제 색을 점유</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-base.css:416 (.var-type-number) · js/variable-binding.js:292</div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>--ui-danger 토큰 자체 정의: '위험/삭제 (텍스트/보더)'(css/editor-base.css:53). 실제 사용처 전수에서 삭제 버튼류(.var-item-del, .tpl-delete-btn, .file-page-del, .prop-btn-danger 등)에 일관 사용</td>
+    <th>실측</th><td>.var-type-number { color: var(--ui-danger) } — 비파괴 정보 배지(변수 타입 구분: color=accent청, text=success녹, number=danger적)가 danger 기표를 장식으로 소모. 변수 목록에서 Number 타입 변수마다 삭제 경고색 노출</td></tr></table>
+    <div class="kv">수정 방향: 타입 배지 팔레트를 danger 계열 밖에서 선택 (디자인 토큰 값 선택은 design-squad 소관 — 여기선 '의미 충돌' 사실만)</div>
+    <div class="kv">증거: grep: --ui-danger 사용처 중 비파괴 용도는 .var-type-number 1건 (pm-panel .cpmt-close는 G5 보류로 제외)</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#semantic-mapping</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-008">
+    <label><input type="radio" name="ap-UXS-semantics-008" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-008" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-008" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="feedback" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">feedback</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">FB-J3 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>scheduleAutoSave의 빈 캔버스 보호 가드(S11)가 저장을 건너뛰면서도 _setAutosaveIndicator('saved')로 '저장됨'을 표시한다(console.warn만 남김). 데이터 보호 목적의 의도된 skip이지만 사용자에게는 거짓 확인 신호.</div>
+    <div class="kv">마찰: 엣지 케이스(빈 캔버스 상태로 작업 중단)에서 '저장됨'을 믿었으나 실제로는 아무것도 기록되지 않음. 발생 빈도는 낮음.</div>
+    <div style="margin-top:6px">💡 제안: skip 시 인디케이터를 무표시(또는 중립 상태)로 두기 — '저장됨' 거짓 신호만 제거. 보호 가드 자체는 유지.</div>
+    <div class="kv">트레이드오프: 없음에 가까움 — 표시 한 줄 분기.</div>
+    <div class="kv">증거: js/io/save-load.js scheduleAutoSave — if (_isAllCanvasEmpty(snapData)) { console.warn(...); _setAutosaveIndicator('saved'); return; }</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#1-visibility</span></div>
+    
+  <div class="appr" data-aid="FB-J3">
+    <label><input type="radio" name="ap-FB-J3" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-FB-J3" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-FB-J3" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="flow" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">flow</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-flow-007 · publish 드롭다운이 Esc로 닫히지 않음 (바깥 클릭만 가능)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">export-publish / 복귀·취소 지점</div>
+    
+    <div>드롭다운 열림 상태에서 Esc 디스패치 → open 유지(실측 closedByEsc:false), 바깥 클릭으로만 닫힘(closedByOutside:true). 스펙 복귀·취소 항목 '드롭다운 Esc 닫기' 불충족.</div>
+    <div class="kv">마찰: 키보드 사용자/Esc 관례 기대자가 한 번 더 헛동작. 마우스 대체 경로는 있어 손실은 작음.</div>
+    <div style="margin-top:6px">💡 제안: document keydown Esc에서 closePublishDropdown() 호출 추가(이미 외부 클릭 핸들러 존재 — 같은 자리).</div>
+    <div class="kv">트레이드오프: 없음에 가까움. 다른 오버레이의 Esc 우선순위(중첩 시 최상위만 닫기)만 정리 필요.</div>
+    <div class="kv">증거: 실측 {opened:true, closedByEsc:false, closedByOutside:true}</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#3-control</span></div>
+    
+  <div class="appr" data-aid="UXS-flow-007">
+    <label><input type="radio" name="ap-UXS-flow-007" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-flow-007" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-flow-007" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="flow" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">flow</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-flow-008 · 저장 상태 표시가 일시적 — idle 시 빈 칸이라 '저장 확인' 단계를 지각으로 닫을 수 없음</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">edit-block / 단계 5 (저장 상태 피드백) + 전 플로우 공통</div>
+    
+    <div>#autosave-indicator(톱바 1362,22)는 변경 직후 '저장 중...'→'저장됨'을 표시(실측: 속성 변경 150ms 시점 '저장 중...', 1.65s 시점 '저장됨')하나 이후 빈 문자열로 사라짐. 플로우 완료 판정 기준인 '저장 상태 피드백 가시'는 변경 직후 수 초 창에서만 성립.</div>
+    <div class="kv">마찰: 작업을 멈췄다 돌아온 사용자가 '저장된 상태인가'를 확인할 표면이 없음(빈 칸은 미저장과 구분 불가). Export 드롭다운의 '저장' 항목과 결합해 수동 저장이 필요하다는 오해 유발 가능.</div>
+    <div style="margin-top:6px">💡 제안: idle 시에도 '저장됨 · 방금/N분 전' 상시 표시(흐린 톤). 변경 중에만 강조.</div>
+    <div class="kv">트레이드오프: 톱바 상시 텍스트 +1 — 시각 소음 미미(기존 자리 재사용). 표기 신뢰성 책임 발생(flushSave 실패 시 거짓 안심 금지 — 실패 상태도 표기 필요).</div>
+    <div class="kv">증거: 실측 타임라인 {indBefore:'', indAt150ms:'저장 중...', indAt1650ms:'저장됨', 이후 ''}</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#wayfinding</span><span class="chip">📄 nielsen-10.md#3-control</span></div>
+    
+  <div class="appr" data-aid="UXS-flow-008">
+    <label><input type="radio" name="ap-UXS-flow-008" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-flow-008" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-flow-008" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="flow" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">flow</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-flow-009 · JSON 내보내기 완료 토스트에 산출물 위치 미안내 (PNG 토스트와 비일관)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">export-publish / 단계 4 (완료 피드백)</div>
+    
+    <div>PNG 경로 토스트는 '✅ 4개 섹션 내보내기 완료 — 다운로드 폴더를 확인하세요'로 위치 안내, JSON 경로는 '✅ JSON 내보내기 완료 — ux-squad-test-0611.json'으로 파일명만. 둘 다 동일하게 ~/Downloads에 저장됨(실측 확인).</div>
+    <div class="kv">마찰: JSON을 처음 내보낸 사용자가 파일이 어디 갔는지 모름 — 특히 다이얼로그 없는 silent 다운로드라 단서가 토스트뿐.</div>
+    <div style="margin-top:6px">💡 제안: JSON 토스트에도 '다운로드 폴더' 문구 통일(commit-system.js:332 한 줄).</div>
+    <div class="kv">트레이드오프: 없음.</div>
+    <div class="kv">증거: 토스트 실측 'SHOW:✅ JSON 내보내기 완료 — ux-squad-test-0611.json' + ~/Downloads 파일 생성 확인</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#wayfinding</span></div>
+    
+  <div class="appr" data-aid="UXS-flow-009">
+    <label><input type="radio" name="ap-UXS-flow-009" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-flow-009" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-flow-009" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">layout</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-layout-009 · 자동저장 인디케이터('저장됨')와 디버그 포트 배지(:9334)가 한 클러스터 — 사용자 상태 정보와 개발자 정보의 혼재</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">toolbar / #autosave-indicator + #debug-port-badge (topbar 우측, 8~14px 간격 인접) — evidence/layout-02-topbar.png</div>
+    
+    <div>topbar 우측 상태 영역에 '저장 중…/저장됨'(핵심작업 #1의 저장 확인 신호)과 ':9334' 디버그 배지가 인접 배치됨.</div>
+    <div class="kv">마찰: gestalt.md#proximity — 외부 일반 사용자(G1)에게 의미 없는 내부 정보가 저장 상태와 한 그룹으로 지각되어, 저장 확인 신호의 스캔을 방해. nielsen-10.md#8-minimalist — 무관 정보가 관련 정보(저장 상태)의 가시성과 경쟁.</div>
+    <div style="margin-top:6px">💡 제안: 배지를 dev 실행 모드에서만 표시하거나(이미 그럴 가능성 — 빌드 분기 확인 필요), 저장 인디케이터와 시각적으로 분리(구분선/간격).</div>
+    <div class="kv">트레이드오프: dev 전용 표시라면 외부 배포 빌드에서 비표시일 수 있음 — 그 경우 본 건은 무효(릴리스 빌드에서 재확인 필요, 관찰 환경이 npm run dev였음).</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 gestalt.md#proximity</span><span class="chip">📄 nielsen-10.md#8-minimalist</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-009">
+    <label><input type="radio" name="ap-UXS-layout-009" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-009" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-009" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="layout" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">layout</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-layout-010 · 좌측 패널 최상단 1차 시야를 브랜드 로고타입 + 내부 식별자(proj_ID)가 점유</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">left-panel / #project-name-bar (높이 101px: 'GOYA DESIGN EDITOR BETA' + 프로젝트명 입력 + proj_1775644888754) — evidence/layout-03-left-panel.png, layout-13-left-assets-tab.png</div>
+    
+    <div>좌측 패널 상단 101px이 브랜드명(BETA 뱃지 포함)·프로젝트명 필드·내부 프로젝트 ID 문자열로 구성. 프로젝트명 rename은 기능적이나, 브랜드 로고타입과 raw ID는 과업 정보가 아님.</div>
+    <div class="kv">마찰: nielsen-10.md#8-minimalist — 매 세션 수십 회 스캔되는 레이어 패널의 진입 시야에서 무관 정보(브랜드·내부 ID)가 PAGE/LAYERS의 가시 영역과 경쟁. proj_ID는 사용자 과업 어휘가 아닌 구현 식별자(#2-match 연계).</div>
+    <div style="margin-top:6px">💡 제안: 브랜드는 topbar 홈 버튼 영역으로 흡수하고 proj_ID는 툴팁/설정으로 강등 — 패널 상단을 프로젝트명 필드만으로 압축해 LAYERS 가시 행수를 늘림.</div>
+    <div class="kv">트레이드오프: proj_ID는 내부 디버깅·PM 연동(현빈 워크플로)에서 복사용으로 쓰일 수 있음 — 강등 전 사용 빈도 확인 필요. 브랜드 노출은 BETA 단계 의도(마케팅)일 수 있으나 profile 의도 결정 목록에는 없음.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#8-minimalist</span><span class="chip">📄 nielsen-10.md#2-match</span></div>
+    
+  <div class="appr" data-aid="UXS-layout-010">
+    <label><input type="radio" name="ap-UXS-layout-010" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-layout-010" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-layout-010" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="onboarding" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">onboarding</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXO-J04 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>하단 플로팅 바 10개 버튼 전원이 시각 레이블 없는 아이콘이며 도움은 native title 툴팁뿐(DOM 실측: hasVisibleLabel=false 9/10). T(텍스트)·이미지 아이콘은 보편 도상이나, Frame·스티커·Plugins·'Claude PM'은 첫 대면 사용자에게 자명하지 않다. 'AI 섹션 생성 (⌘K)' 단축키 안내도 title 속에만 있다.</div>
+    <div class="kv">마찰: 외부 사용자가 Frame과 섹션의 차이, 'Claude PM'이 무엇인지 알 길이 호버 외엔 없고, native title은 ~1초 지연돼 탐색 비용이 크다.</div>
+    <div style="margin-top:6px">💡 제안: 비자명 버튼(Frame/스티커/Plugins/Claude PM/AI)에 한해 즉시 표시형(≤300ms) 커스텀 툴팁 + 첫 실행 1회 코치마크 1장(플로팅 바 전체를 '여기서 추가합니다'로 묶어 안내).</div>
+    <div class="kv">트레이드오프: 툴팁 전면 살포는 #10 오적용 가드('처음 마주치는+자명하지 않은 개념에만') 위반 — T/이미지/도형 등 보편 도상은 제외해야 함. 코치마크는 1회성·dismiss 가능이 전제.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#10-help (맥락 도움이 과업 시점에 닿는가) + nielsen-10.md#6-recognition</span></div>
+    
+  <div class="appr" data-aid="UXO-J04">
+    <label><input type="radio" name="ap-UXO-J04" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXO-J04" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXO-J04" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="onboarding" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">onboarding</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXO-J05 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>빈 새 프로젝트 첫 진입 시 좌측 패널 기본 활성 탭이 Assets(자산)이고 '+ 폴더 / + 파일 / + URL'과 기본 폴더 '제품사진'이 첫 시야를 차지한다(onboarding-02-editor-empty.png). 패널 탭 4종(File/Inspector/Assets/Checklist)은 아이콘 전용 + 영문 title. 첫 섹션 생성 후에는 File 탭으로 자동 전환된다(onboarding-03).</div>
+    <div class="kv">마찰: 아무것도 만들지 않은 상태에서 첫 인상이 '파일 업로드 도구'다. 외부 사용자는 페이지/섹션 구조(File 탭)가 어디 있는지 모른 채 자산 패널에서 시작한다.</div>
+    <div style="margin-top:6px">💡 제안: 섹션 0개인 프로젝트 첫 진입 시 기본 탭을 File(구조)로. (자산 선업로드 워크플로 사용자는 탭 1클릭으로 복귀 가능.)</div>
+    <div class="kv">트레이드오프: 이미지부터 모으는 실무 워크플로(스크래치패드 선행)에는 1클릭 추가 — 빈도 데이터 없으므로 medium 이상 금지(현재 low).</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#wayfinding (첫 진입 시 현재 작업 맥락 표시) + ia-principles.md#progressive-disclosure (공개 순서가 과업 단계와 정합한가)</span></div>
+    
+  <div class="appr" data-aid="UXO-J05">
+    <label><input type="radio" name="ap-UXO-J05" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXO-J05" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXO-J05" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="onboarding" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">onboarding</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXO-J06 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div>첫 사용 경로 전 화면(projects, 에디터)에 도움말/가이드/튜토리얼 진입점이 없다. 단축키 안내(⌘K, ⌘,)는 hover title 안에만 존재.</div>
+    <div class="kv">마찰: 외부 사용자가 막혔을 때 앱 안에서 갈 곳이 없다 — G1(외부 배포) 기준 최소한의 '도움말' 진입점(메뉴 1개라도) 부재.</div>
+    <div style="margin-top:6px">💡 제안: 상단 설정(⚙) 인근에 '도움말/단축키' 항목 1개 추가(단축키 목록 모달이면 충분 — 별도 문서 사이트보다 과업 시점에 가까움).</div>
+    <div class="kv">트레이드오프: 유지비용(문서 최신화). MVP 단계 출시 우선순위와 경합 — 차기 UI 정비 때 묶음 처리 가능.</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 nielsen-10.md#10-help (필요 시 과업 중심의 짧은 도움이 검색 가능해야)</span></div>
+    
+  <div class="appr" data-aid="UXO-J06">
+    <label><input type="radio" name="ap-UXO-J06" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXO-J06" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXO-J06" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="semantics" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">semantics</span>
+      <span class="chip">self</span>
+      <span class="chip">root: terminology-glossary-missing</span>
+      <b style="margin-left:4px">UXS-semantics-014 · 기획 페이지의 '블록'(아웃라인 항목)과 에디터의 '블록'(캔버스 요소) — 동일 용어, 다른 referent</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">pages/planning.html ('블록을 드래그해 순서 변경 · ● 클릭으로 켜고 끄기', '블록을 선택하면 상세 정보가 표시됩니다')</div>
+    
+    <div>기획 아웃라인 편집기의 항목 단위도 '블록', 에디터 캔버스의 콘텐츠 단위도 '블록'. 두 페이지를 오가는 워크플로(기획→에디터)에서 같은 단어가 다른 것을 가리킴</div>
+    <div class="kv">마찰: 기획의 블록 1개가 에디터의 블록 1개로 매핑된다고 오예측 가능(실제는 기획 블록 ≈ 에디터 섹션에 가까움 — 매핑 검증은 U-flow 소관)</div>
+    <div style="margin-top:6px">💡 제안: 용어 사전에서 기획 단위의 별도 명칭 검토</div>
+    <div class="kv">트레이드오프: 기획 페이지 단독 사용 시엔 무해 — 크로스 페이지 빈도 데이터 없어 low 유지</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#terminology</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-014">
+    <label><input type="radio" name="ap-UXS-semantics-014" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-014" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-014" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="judgment" data-dim="semantics" data-sev="" data-imp="low" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#b08ae0;color:#fff">judgment</span> <span class="sev" style="background:#8a8f98">impact low</span><span class="chip">semantics</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXS-semantics-015 · 좌측 패널 탭 5종 아이콘 단독 + hover 시에만 영문 title (File/Branch/Inspector/Assets/Checklist)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">index.html:257-290 (.panel-tabs)</div>
+    
+    <div>탭 버튼이 모두 아이콘 단독이고 텍스트 레이블은 hover title뿐. Inspector 아이콘(원+선)과 Checklist 아이콘은 보편 도상 관례가 약함. Assets(폴더)·File(문서)은 관례 내</div>
+    <div class="kv">마찰: G1 외부 사용자 첫 진입 시 Inspector/Checklist 탭의 내용물을 누르기 전에 예측하기 어려움 — 단 탭 5개 전수 클릭 비용이 낮고(즉시 가역), Figma 등 디자인 도구의 아이콘 탭 관례(jakob) 존재</div>
+    <div style="margin-top:6px">💡 제안: 온보딩 가중치가 높은 현 프로파일에선 활성 탭에 한해 텍스트 병기 또는 즉시 툴팁 검토 — U-onboarding 결과와 교차 판단 권장</div>
+    <div class="kv">트레이드오프: 텍스트 병기는 패널 폭 점유 — 고밀도 좌패널과 충돌 가능. low로 유지하고 단독 수정은 비권장</div>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 ia-principles.md#labeling</span><span class="chip">📄 nielsen-10.md#6-recognition</span></div>
+    
+  <div class="appr" data-aid="UXS-semantics-015">
+    <label><input type="radio" name="ap-UXS-semantics-015" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXS-semantics-015" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXS-semantics-015" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-track="conformance" data-dim="onboarding" data-sev="pass" data-imp="" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#5b8def;color:#fff">conformance</span> <span class="sev" style="background:#888">pass</span> <span class="sev" style="background:#888">high</span><span class="chip">onboarding</span><span class="chip">measure</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">UXO-C01 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>first_output_steps_max = 7 (G3)</td>
+    <th>실측</th><td>2단계 (프로젝트 생성 클릭 1 + 새 섹션 클릭 1)</td></tr></table>
+    
+    <div class="kv">증거: .ux/results/evidence/onboarding-01-projects-page.png, onboarding-02-editor-empty.png, onboarding-03-after-plus.png</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip">📄 profile.md first_output_steps_max (G3 확정값)</span></div>
+    
+  <div class="appr" data-aid="UXO-C01">
+    <label><input type="radio" name="ap-UXO-C01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-UXO-C01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-UXO-C01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div></div>
+<script>
+(function(){
+  var on={track:new Set(),dim:new Set(),imp:new Set(),sev:new Set(),conf:new Set()};
+  document.getElementById('filters').addEventListener('click',function(e){
+    var t=e.target.closest('.toggle');if(!t)return;
+    var k=t.dataset.k,v=t.dataset.v;
+    if(on[k].has(v)){on[k].delete(v);t.classList.remove('off');}else{on[k].add(v);t.classList.add('off');}
+    document.querySelectorAll('.finding').forEach(function(c){
+      var hide=on.track.has(c.dataset.track)||on.dim.has(c.dataset.dim)||on.imp.has(c.dataset.imp)||on.sev.has(c.dataset.sev)||on.conf.has(c.dataset.conf);
+      c.style.display=hide?'none':'';
+    });
+  });
+})();
+</script>
+
+<script>
+(function(){
+  var KEY='uxs-decisions:report-2026-06-12';
+  var st={}; try{st=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
+  document.querySelectorAll('.appr').forEach(function(b){
+    var id=b.dataset.aid, s=st[id]||{};
+    if(s.d){var r=b.querySelector('input[value="'+s.d+'"]'); if(r)r.checked=true;}
+    if(s.c) b.querySelector('.cmt').value=s.c;
+    b.addEventListener('change',save); b.querySelector('.cmt').addEventListener('input',save);
+    function save(){
+      var d=(b.querySelector('input[type=radio]:checked')||{}).value||'';
+      st[id]={d:d,c:b.querySelector('.cmt').value};
+      localStorage.setItem(KEY,JSON.stringify(st));
+      var n=Object.values(st).filter(function(x){return x.d}).length;
+      document.getElementById('decCount').textContent=n;
+    }
+  });
+  document.getElementById('decCount').textContent=Object.values(st).filter(function(x){return x.d}).length;
+  document.getElementById('exportBtn').addEventListener('click',function(){
+    var lines=['# 결정 내보내기 — report-2026-06-12',''];
+    var lab={approve:'승인',hold:'보류',reject:'거부'};
+    Object.keys(st).forEach(function(id){var s=st[id]; if(!s.d&&!s.c)return;
+      lines.push('- '+id+': '+(lab[s.d]||'미결')+(s.c?' — '+s.c:''));});
+    var txt=lines.join('\n');
+    navigator.clipboard.writeText(txt).catch(function(){});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([txt],{type:'text/markdown'}));
+    a.download='decisions-report-2026-06-12.md'; a.click();
+  });
+})();
+</script>
+<div class="foot">ux-squad · md/JSON이 정본, 이 HTML은 재생성 가능한 뷰 (scripts/report-html.mjs) · 승인 시트 내보내기 md가 FIX의 유일한 입력</div>
+</body></html>

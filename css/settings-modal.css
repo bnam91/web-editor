@@ -1,0 +1,359 @@
+/* ══════════════════════════════════════
+   Settings Modal — 다크 톤 환경설정 모달
+   ══════════════════════════════════════ */
+
+.settings-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif;
+}
+
+.settings-modal-shell {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 10px;
+  width: 640px;
+  max-height: 540px;
+  display: flex;
+  flex-direction: column;
+  color: #e0e0e0;
+  box-shadow: var(--ui-shadow-xl);
+  overflow: hidden;
+}
+
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.settings-modal-title {
+  font-size: var(--ui-fs-13);
+  font-weight: var(--ui-fw-semibold);
+  color: #e0e0e0;
+}
+.settings-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-fs-20);
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.settings-modal-close:hover { background: #2a2a2a; color: #e0e0e0; }
+
+.settings-modal-body {
+  display: flex;
+  flex: 1;
+  min-height: 360px;
+  overflow: hidden;
+}
+
+.settings-tabs {
+  width: 140px;
+  background: #181818;
+  border-right: 1px solid #2a2a2a;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0;
+  gap: 2px;
+}
+.settings-tab {
+  background: transparent;
+  border: none;
+  color: var(--ui-text-sub);
+  text-align: left;
+  font-size: var(--ui-fs-12);
+  padding: 9px 16px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.settings-tab:hover { background: #222; color: #e0e0e0; }
+.settings-tab.active {
+  color: #fff;
+  background: #232323;
+  border-left-color: var(--ui-accent-primary, #2d6fe8);
+}
+
+.settings-content {
+  flex: 1;
+  padding: 18px 22px;
+  overflow-y: auto;
+}
+
+.settings-section-title {
+  font-size: var(--ui-fs-12);
+  font-weight: var(--ui-fw-semibold);
+  color: #ddd;
+  margin-bottom: 6px;
+}
+.settings-help {
+  font-size: var(--ui-fs-base);
+  color: var(--ui-text-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+/* ── API 키 탭 ── */
+.settings-api-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-api-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.settings-api-label {
+  font-size: var(--ui-fs-base);
+  color: #b0b0b0;
+}
+.settings-api-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-api-input {
+  flex: 1;
+  background: #141414;
+  border: 1px solid #333;
+  border-radius: var(--ui-radius-sm);
+  color: #e0e0e0;
+  padding: 6px 9px;
+  font-size: var(--ui-fs-12);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  outline: none;
+}
+.settings-api-input:focus { border-color: var(--ui-accent-primary, #2d6fe8); }
+.settings-api-eye,
+.settings-api-test {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  color: #ccc;
+  font-size: var(--ui-fs-base);
+  padding: 5px 9px;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+  height: 28px;
+  white-space: nowrap;
+}
+.settings-api-eye { padding: 5px 7px; }
+.settings-api-eye:hover,
+.settings-api-test:hover { background: #333; color: #fff; }
+.settings-api-test:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+
+.settings-api-status {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-muted);
+  min-height: 14px;
+  margin-left: 1px;
+}
+.settings-api-status.ok      { color: #5bc77c; }
+.settings-api-status.err     { color: #ff6b6b; }
+.settings-api-status.pending { color: #ffb86b; }
+
+/* ── 단축키 탭 ── */
+.settings-shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #181818;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+}
+.settings-shortcut-row.capturing {
+  border-color: var(--ui-accent-primary, #2d6fe8);
+  background: rgba(45, 111, 232, 0.12);
+}
+.settings-shortcut-label {
+  flex: 1;
+  font-size: var(--ui-fs-12);
+  color: #d0d0d0;
+}
+.settings-shortcut-badge {
+  font-size: var(--ui-fs-base);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  color: #fff;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  padding: 3px 9px;
+  min-width: 60px;
+  text-align: center;
+}
+.settings-shortcut-btn {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  color: #ccc;
+  font-size: var(--ui-fs-base);
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.settings-shortcut-btn:hover { background: #333; color: #fff; }
+
+.settings-shortcut-capture-hint {
+  margin-top: 14px;
+  padding: 8px 12px;
+  font-size: var(--ui-fs-base);
+  color: var(--ui-text-muted);
+  background: #181818;
+  border: 1px dashed #333;
+  border-radius: 6px;
+  text-align: center;
+  display: none;
+}
+.settings-shortcut-capture-hint.active {
+  display: block;
+  color: var(--ui-accent, #7cb8ff);
+  border-color: var(--ui-accent-primary, #2d6fe8);
+  background: rgba(45, 111, 232, 0.08);
+}
+
+/* ── Footer ── */
+.settings-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid #2a2a2a;
+  background: #1a1a1a;
+}
+.settings-btn {
+  font-size: var(--ui-fs-12);
+  padding: 6px 16px;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+  border: 1px solid #3a3a3a;
+}
+.settings-btn-secondary {
+  background: #2a2a2a;
+  color: #ccc;
+}
+.settings-btn-secondary:hover { background: #333; color: #fff; }
+.settings-btn-primary {
+  background: var(--ui-accent-primary, #2d6fe8);
+  color: #fff;
+  border-color: var(--ui-accent-primary, #2d6fe8);
+}
+.settings-btn-primary:hover { background: var(--ui-accent-primary-hover, #3a7df0); }
+
+/* ── Toast ── */
+.settings-toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translate(-50%, 20px);
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 10px 18px;
+  font-size: var(--ui-fs-12);
+  z-index: 10001;
+  opacity: 0;
+  transition: opacity 0.18s, transform 0.18s;
+  box-shadow: var(--ui-shadow-md);
+}
+.settings-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.settings-toast-ok  { border-color: #4caf50; }
+.settings-toast-err { border-color: #ef5350; }
+
+/* ── 이스터에그 탭 ───────────────────────── */
+.settings-egg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-egg-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #181818;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+}
+.settings-egg-text {
+  flex: 1;
+  min-width: 0;
+}
+.settings-egg-label {
+  font-size: var(--ui-fs-12);
+  color: #d0d0d0;
+  font-weight: 600;
+}
+.settings-egg-desc {
+  margin-top: 3px;
+  font-size: var(--ui-fs-base);
+  color: var(--ui-text-muted);
+  line-height: 1.4;
+}
+.settings-egg-trigger {
+  margin-top: 5px;
+  display: inline-block;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: var(--ui-fs-base);
+  color: #ccc;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+/* 체크박스 기반 스위치 토글 */
+.settings-egg-toggle {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  cursor: pointer;
+}
+.settings-egg-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.settings-egg-slider {
+  position: absolute;
+  inset: 0;
+  background: #3a3a3a;
+  border: 1px solid #444;
+  border-radius: 22px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.settings-egg-slider::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #d0d0d0;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+.settings-egg-toggle input:checked + .settings-egg-slider {
+  background: var(--ui-accent-primary, #2d6fe8);
+  border-color: var(--ui-accent-primary, #2d6fe8);
+}
+.settings-egg-toggle input:checked + .settings-egg-slider::before {
+  transform: translateX(18px);
+  background: #fff;
+}

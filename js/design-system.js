@@ -9,8 +9,17 @@
 'use strict';
 
 const DesignSystem = (() => {
-  const STORAGE_KEY      = 'we_design_system_v1';
-  const STORAGE_BASE_KEY = 'we_design_system_base_v1';
+  const STORAGE_KEY        = 'we_design_system_v1';
+  const STORAGE_BASE_KEY   = 'we_design_system_base_v1';
+  const STORAGE_COLORS_KEY = 'we_color_vars_v1';
+
+  // 시맨틱 컬러 변수 기본값 (피그마 Variables 유사 — 메인/보조/강조)
+  // --preset-* 계열과 충돌하지 않도록 별도 네임스페이스(--color-*) 사용.
+  const DEFAULT_COLOR_VARS = {
+    primary:   '#6b9eff',  // Claude 톤 블루
+    secondary: '#333333',
+    accent:    '#ff6b6b',
+  };
 
   // 토큰 기본값 (default 프리셋 기준)
   const DEFAULT_TOKENS = {
@@ -42,12 +51,116 @@ const DesignSystem = (() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tokens));
   }
 
+  // ── 시맨틱 컬러 변수 저장/로드 ───────────────────────
+  // 저장 위치 2곳:
+  //   1) localStorage(STORAGE_COLORS_KEY) — 단일 출처(source of truth)
+  //   2) localStorage(STORAGE_KEY).colorVars — 스펙 요구(기존 토큰과 공존). applyTokens는 이 키를 건너뜀.
+  //   3) project.meta.json.colorVars — Electron 프로젝트 저장 경로(saveProjectMeta)로 동기화
+
+  function _loadColorVars() {
+    try {
+      const raw = localStorage.getItem(STORAGE_COLORS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+    // 폴백: 기존 토큰 객체 안에 colorVars가 섞여 저장돼 있을 수 있음(스키마 통합 케이스)
+    try {
+      const embedded = _load().colorVars;
+      if (embedded && typeof embedded === 'object') return { ...embedded };
+    } catch {}
+    return { ...DEFAULT_COLOR_VARS };
+  }
+
+  function _saveColorVars(colorVars) {
+    // 1) 전용 키
+    try { localStorage.setItem(STORAGE_COLORS_KEY, JSON.stringify(colorVars)); } catch {}
+    // 2) 기존 디자인시스템 객체에도 colorVars 키로 공존 저장(스펙 요구). 기존 토큰은 보존.
+    try {
+      const tokens = _load();
+      tokens.colorVars = colorVars;
+      _save(tokens);
+    } catch {}
+    // 3) meta.json 동기화 (Electron) — 기존 meta(branches/commits/thumbnail 등) 보존 후 colorVars만 추가
+    _syncColorVarsToMeta(colorVars);
+  }
+
+  /** Electron 프로젝트 meta.json에 colorVars 동기화 (기존 필드 보존 merge) */
+  async function _syncColorVarsToMeta(colorVars) {
+    try {
+      const pid = window.activeProjectId;
+      if (!pid || !window.electronAPI?.saveProjectMeta) return; // 브라우저/프로젝트 미오픈 시 skip
+      const existing = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
+      await window.electronAPI.saveProjectMeta(pid, {
+        ...(existing || {}),
+        colorVars,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('[DesignSystem] colorVars meta 동기화 실패:', e);
+    }
+  }
+
+  // ── 시맨틱 컬러 변수 공개 API ────────────────────────
+
+  /** 현재 시맨틱 컬러 변수 맵 반환 (없으면 기본 3개) */
+  function getColorVars() {
+    return { ..._loadColorVars() };
+  }
+
+  /** 컬러 변수 추가/갱신 → :root 적용 + 저장 + 이벤트 dispatch */
+  function setColorVar(name, hex) {
+    if (!name) return getColorVars();
+    const colorVars = _loadColorVars();
+    colorVars[name] = hex;
+    _saveColorVars(colorVars);
+    applyColorVars();
+    _dispatchColorVarsChanged(colorVars);
+    return { ...colorVars };
+  }
+
+  /** 컬러 변수 삭제 → :root에서도 제거 + 저장 + 이벤트 dispatch */
+  function removeColorVar(name) {
+    const colorVars = _loadColorVars();
+    if (!(name in colorVars)) return { ...colorVars };
+    delete colorVars[name];
+    _saveColorVars(colorVars);
+    // :root에서 해당 CSS 변수 제거
+    document.documentElement.style.removeProperty('--color-' + name);
+    applyColorVars();
+    _dispatchColorVarsChanged(colorVars);
+    return { ...colorVars };
+  }
+
+  /** 각 컬러 변수를 :root에 --color-<name> 으로 적용 (applyTokens 패턴 미러) */
+  function applyColorVars() {
+    const root = document.documentElement;
+    const colorVars = _loadColorVars();
+    Object.entries(colorVars).forEach(([name, hex]) => {
+      root.style.setProperty('--color-' + name, hex);
+    });
+  }
+
+  function _dispatchColorVarsChanged(colorVars) {
+    try {
+      document.dispatchEvent(new CustomEvent('colorvars-changed', {
+        detail: { colorVars: { ...colorVars } },
+      }));
+    } catch {}
+  }
+
   // ── 캔버스 적용 ─────────────────────────────────────
 
   /** 토큰 맵을 :root CSS 변수로 적용 → 전체 캔버스 블록에 반영 */
   function applyTokens(tokens) {
     const root = document.documentElement;
-    Object.entries(tokens).forEach(([k, v]) => root.style.setProperty(k, v));
+    Object.entries(tokens).forEach(([k, v]) => {
+      // colorVars는 별도 경로(applyColorVars)에서 --color-* 로 적용하므로 토큰 맵 적용 시 건너뜀.
+      // (객체 값이 setProperty에 들어가 '[object Object]'로 오염되는 것을 방지)
+      if (k === 'colorVars' || typeof v !== 'string') return;
+      root.style.setProperty(k, v);
+    });
   }
 
   // ── 프리셋 베이스 선택 ──────────────────────────────
@@ -69,6 +182,14 @@ const DesignSystem = (() => {
     // 활성 프리셋 ID를 별도 저장 → _currentBase() 가 즉시 읽을 수 있음
     localStorage.setItem(STORAGE_BASE_KEY, presetId);
     syncPanelUI(tokens);
+    // 전체 테마 전환 시 개별 섹션에 인라인으로 적용된 --preset-* 변수를 제거.
+    // :root 변경이 섹션 인라인 변수에 가려지는 것을 방지.
+    // (사용자가 섹션별로 설정한 preset 커스터마이징도 함께 초기화됨 — 전체 테마 전환의 의도된 동작)
+    document.querySelectorAll('.section-block').forEach(sec => {
+      const style = sec.style;
+      [...style].filter(p => p.startsWith('--preset-')).forEach(p => style.removeProperty(p));
+      delete sec.dataset.preset;
+    });
   }
 
   // ── 패널 UI ─────────────────────────────────────────
@@ -124,8 +245,8 @@ const DesignSystem = (() => {
     const trimmedName = name.trim();
     const id = trimmedName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-    // 현재 토큰값 수집
-    const tokens = _load();
+    // 현재 토큰값 수집 (colorVars는 프리셋 variables에 포함하지 않음 — 별도 시스템)
+    const { colorVars: _cv, ...tokens } = _load();
     const preset = { id, name: trimmedName, variables: { ...tokens } };
 
     // electronAPI로 저장 (있을 경우)
@@ -236,11 +357,127 @@ const DesignSystem = (() => {
     panel.classList.toggle('open');
   }
 
+  // ── 프로젝트 열 때 복원 ──────────────────────────────
+
+  /**
+   * 프로젝트 meta.json의 colorVars를 복원 → localStorage 동기화 + :root 적용.
+   * 프로젝트 로드 직후 호출(branch-system.initBranchStore 패턴과 동일하게 meta 우선).
+   * meta에 colorVars가 없으면 localStorage 값(기존 동작)을 유지.
+   */
+  async function restoreColorVarsFromMeta(projectId) {
+    const pid = projectId || window.activeProjectId;
+    try {
+      if (pid && window.electronAPI?.loadProjectMeta) {
+        const meta = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
+        const cv = meta?.colorVars;
+        if (cv && typeof cv === 'object' && Object.keys(cv).length) {
+          // meta를 source of truth로 — localStorage 두 곳에 캐시
+          try { localStorage.setItem(STORAGE_COLORS_KEY, JSON.stringify(cv)); } catch {}
+          try { const t = _load(); t.colorVars = cv; _save(t); } catch {}
+          applyColorVars();
+          _dispatchColorVarsChanged(cv);
+          return cv;
+        }
+      }
+    } catch (e) {
+      console.warn('[DesignSystem] restoreColorVarsFromMeta 실패:', e);
+    }
+    // meta 없음/브라우저 → 로컬 값으로 적용 (backward compat)
+    applyColorVars();
+    return getColorVars();
+  }
+
+  // ── 컬러 변수 패널 UI (팀 B) — 같은 IIFE의 getColorVars/setColorVar 직접 사용 ────
+  // 재렌더 중 input change가 다시 setColorVar를 호출하는 무한루프 방지 플래그.
+  let _cvRendering = false;
+
+  function _cvGet() { return getColorVars() || {}; }
+  function _cvSet(name, hex) { setColorVar(name, hex); }
+  function _cvRemove(name) { removeColorVar(name); }
+
+  function renderColorVars() {
+    const list = document.getElementById('ds-colorvars-list');
+    if (!list) return;
+    _cvRendering = true;          // setProperty .value 변경이 input 이벤트를 발생시키진 않지만 이중 안전장치
+    try {
+      const vars = _cvGet();
+      const names = Object.keys(vars);
+      list.innerHTML = '';
+
+      if (names.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'ds-colorvars-empty';
+        empty.textContent = '정의된 컬러 변수가 없습니다.';
+        list.appendChild(empty);
+        return;
+      }
+
+      names.forEach((name) => {
+        const hex = vars[name] || '#000000';
+        const row = document.createElement('div');
+        row.className = 'ds-token-row ds-colorvar-row';
+        row.dataset.name = name;
+
+        const label = document.createElement('span');
+        label.className = 'ds-token-label ds-colorvar-name';
+        label.textContent = name;
+        label.title = name;
+
+        const picker = document.createElement('input');
+        picker.type = 'color';
+        picker.className = 'ds-token-picker';
+        picker.value = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#000000';
+        picker.addEventListener('input', () => {
+          if (_cvRendering) return;        // 재렌더로 인한 값 주입은 무시
+          _cvSet(name, picker.value);      // 외부 store 갱신 → colorvars-changed 이벤트
+        });
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'ds-colorvar-del';
+        del.title = '삭제';
+        del.textContent = '×';
+        del.addEventListener('click', () => {
+          if (window.confirm(`'${name}' 변수를 삭제할까요?`)) _cvRemove(name);
+        });
+
+        row.appendChild(label);
+        row.appendChild(picker);
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+    } finally {
+      _cvRendering = false;
+    }
+  }
+
+  function addColorVarFromPanel() {
+    const raw = prompt('새 컬러 변수 이름을 입력하세요 (예: primary, accent):');
+    if (raw == null) return;                 // 취소
+    const name = raw.trim();
+    if (!name) { alert('변수명을 입력하세요.'); return; }
+    const existing = _cvGet();
+    if (Object.prototype.hasOwnProperty.call(existing, name)) {
+      alert(`'${name}' 변수가 이미 존재합니다.`);
+      return;
+    }
+    _cvSet(name, '#3b82f6');                  // 기본색 — 이후 colorvars-changed가 재렌더 트리거
+  }
+
+  function _initColorVars() {
+    // 외부 변경(다른 패널/store) 반영
+    document.addEventListener('colorvars-changed', () => renderColorVars());
+    // 초기 렌더 — 팀 A 미머지 시 빈 목록
+    renderColorVars();
+  }
+
   // ── 초기화 ───────────────────────────────────────────
 
   function init() {
     const tokens = _load();
     applyTokens(tokens);
+    // 시맨틱 컬러 변수 :root 적용 (applyTokens 호출 지점 미러)
+    applyColorVars();
 
     // color picker ↔ hex 양방향 동기화
     ['ds-h1-color', 'ds-body-color', 'ds-caption-color', 'ds-label-bg', 'ds-label-color'].forEach(id => {
@@ -270,11 +507,19 @@ const DesignSystem = (() => {
     }
 
     syncPanelUI(tokens);
+
+    // 컬러 변수 섹션 초기화 (이벤트 바인딩 + 초기 렌더)
+    _initColorVars();
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI, saveNewPreset };
+  return {
+    applyBase, applyFromPanel, resetTokens, togglePanel, syncPanelUI, saveNewPreset,
+    // 시맨틱 컬러 변수 — 데이터(팀A) + 패널 UI(팀B)
+    getColorVars, setColorVar, removeColorVar, applyColorVars, restoreColorVarsFromMeta,
+    addColorVarFromPanel, renderColorVars,
+  };
 })();
 
 window.DesignSystem = DesignSystem;

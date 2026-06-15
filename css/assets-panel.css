@@ -1,0 +1,514 @@
+/* ═════════════════════════════════════
+   Assets Panel — 좌측 사이드바 Assets 탭
+   폴더/이미지/URL 트리 자산 관리
+═════════════════════════════════════ */
+
+#assets-panel-body {
+  background: var(--ui-bg-base);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-12);
+  position: relative;  /* URL popover 절대 위치 기준 */
+}
+
+/* ── 액션바 ── */
+.assets-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--ui-border);
+  background: var(--ui-bg-elevated);
+}
+.assets-action-btn {
+  height: 22px;
+  padding: 0 8px;
+  background: var(--ui-bg-card);
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-base);
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.assets-action-btn:hover {
+  background: var(--ui-bg-hover);
+  border-color: var(--ui-border-strong);
+}
+
+/* ── 트리 컨테이너 ── */
+.assets-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0 16px 0;
+  position: relative;
+}
+.assets-tree.assets-drop-target {
+  background: rgba(124, 184, 255, 0.06);
+  outline: 2px dashed var(--ui-accent);
+  outline-offset: -4px;
+}
+
+.assets-tree-empty {
+  text-align: center;
+  color: var(--ui-text-muted);
+  padding: 24px 12px;
+  font-size: var(--ui-fs-base);
+  line-height: 1.5;
+}
+
+/* ── 행 (row) ── */
+.assets-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px 0 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-12);
+  cursor: default;
+  user-select: none;
+  position: relative;
+}
+.assets-row:hover {
+  background: var(--ui-bg-hover);
+}
+.assets-row.assets-row--selected {
+  background: var(--ui-bg-input);
+  outline: 1px solid var(--ui-accent);
+  outline-offset: -1px;
+}
+.assets-row.assets-row--dragging {
+  opacity: 0.4;
+}
+.assets-row.assets-row--drop-into {
+  background: rgba(124, 184, 255, 0.12);
+}
+
+/* chevron — folder만 */
+.assets-chevron {
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-text-sub);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+  flex-shrink: 0;
+  font-size: var(--ui-fs-9);
+}
+.assets-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+.assets-chevron-spacer {
+  width: 12px;
+  flex-shrink: 0;
+}
+
+/* 썸네일 */
+.assets-row-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  object-fit: cover;
+  background: var(--ui-bg-input);
+  flex-shrink: 0;
+  display: inline-block;
+}
+.assets-row-thumb-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--ui-text-sub);
+  font-size: var(--ui-fs-12);
+}
+.assets-row--folder .assets-row-thumb-icon { color: var(--ui-accent); }
+
+/* 이름 */
+.assets-row-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.assets-row-name[contenteditable="true"] {
+  outline: 1px solid var(--ui-accent);
+  background: var(--ui-bg-input);
+  padding: 0 2px;
+}
+
+/* 액션 (hover시 표시) */
+.assets-row-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.assets-row:hover .assets-row-actions {
+  display: flex;
+}
+.assets-row-actions button {
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  color: var(--ui-text-sub);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0;
+  font-size: var(--ui-fs-12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.assets-row-actions button:hover {
+  background: var(--ui-bg-card);
+  color: var(--ui-text);
+}
+.assets-row-actions button[data-act="delete"]:hover {
+  color: var(--ui-danger);
+}
+
+/* URL 노드 보조 */
+.assets-row--url .assets-row-thumb-icon { color: #d8c878; }
+
+/* ── 드래그 ghost (캔버스 드래그용) ── */
+.assets-drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 10001;
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: var(--ui-bg-card);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--ui-border-strong);
+  opacity: 0.92;
+  transform: translate(-40px, -40px);
+}
+
+/* ── URL 추가 popover ── */
+.assets-url-popover {
+  position: absolute;
+  top: 36px;
+  left: 8px;
+  z-index: 50;
+  background: var(--ui-bg-card);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 6px;
+  padding: 10px;
+  box-shadow: var(--ui-shadow-lg);
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.assets-url-popover input,
+.assets-url-popover textarea {
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-base);
+  padding: 4px 6px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.assets-url-popover input:focus,
+.assets-url-popover textarea:focus {
+  border-color: var(--ui-accent);
+}
+.assets-url-popover textarea {
+  resize: vertical;
+  min-height: 44px;
+  max-height: 100px;
+}
+.assets-url-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 2px;
+}
+.assets-url-popover-actions button {
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  color: var(--ui-text);
+  padding: 3px 10px;
+  font-size: var(--ui-fs-base);
+  cursor: pointer;
+}
+.assets-url-popover-actions button.assets-url-popover-ok {
+  background: var(--ui-accent-primary);
+  border-color: var(--ui-accent-primary);
+  color: #fff;
+}
+.assets-url-popover-actions button:hover { background: var(--ui-bg-hover); }
+.assets-url-popover-actions button.assets-url-popover-ok:hover { background: var(--ui-accent-primary-hover); }
+
+/* ── AI Images Import 모달 ── */
+.assets-import-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.assets-import-modal {
+  width: 540px;
+  max-width: calc(100vw - 80px);
+  max-height: 70vh;
+  background: var(--ui-bg-card);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+.assets-import-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-border);
+  font-size: var(--ui-fs-12);
+  font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text);
+}
+.assets-import-close {
+  background: transparent;
+  border: none;
+  color: var(--ui-text-sub);
+  font-size: var(--ui-fs-16);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+.assets-import-close:hover { background: var(--ui-bg-hover); color: var(--ui-text); }
+.assets-import-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+.assets-import-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 32px 12px;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-fs-base);
+}
+.assets-import-cell {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 4px;
+  background: var(--ui-bg-input) center / cover no-repeat;
+  border: 1px solid var(--ui-border);
+  cursor: pointer;
+  position: relative;
+}
+.assets-import-cell:hover {
+  border-color: var(--ui-accent);
+  outline: 2px solid var(--ui-accent);
+  outline-offset: -1px;
+}
+.assets-import-cell.is-selected {
+  outline: 2px solid var(--ui-accent-primary);
+  outline-offset: -1px;
+}
+.assets-import-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ui-border);
+  font-size: var(--ui-fs-base);
+  color: var(--ui-text-sub);
+}
+.assets-import-footer-actions button {
+  background: var(--ui-accent-primary);
+  border: 1px solid var(--ui-accent-primary);
+  border-radius: 4px;
+  color: #fff;
+  padding: 5px 14px;
+  font-size: var(--ui-fs-base);
+  cursor: pointer;
+}
+.assets-import-footer-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.assets-import-footer-actions button:not(:disabled):hover {
+  background: var(--ui-accent-primary-hover);
+}
+
+/* (dead folder-context CSS 제거됨 — 진입 메타포 폐기) */
+
+/* Grid */
+.assets-grid {
+  --assets-card-size: 80px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--assets-card-size), 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+.assets-grid-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+.assets-grid-card:hover {
+  background: var(--ui-bg-hover, rgba(255,255,255,0.06));
+}
+.assets-grid-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ui-bg-input, rgba(255,255,255,0.04));
+}
+.assets-grid-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.assets-grid-thumb svg {
+  width: 70%;
+  height: 70%;
+}
+.assets-grid-card--folder .assets-grid-thumb {
+  background: transparent; /* 폴더 SVG 자체가 시각적 */
+}
+.assets-grid-name {
+  margin-top: 4px;
+  font-size: var(--ui-fs-base);
+  text-align: center;
+  color: var(--ui-text-primary, #e0e0e0);
+  width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  line-height: 1.3;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Inline grid — 폴더 행 아래 펼침 시 children grid 렌더 (folder별 토글)
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* 폴더 액션 영역의 view-toggle 아이콘 */
+.assets-row-actions .assets-view-icon {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ui-text-secondary, #888);
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.assets-row-actions .assets-view-icon:hover {
+  background: var(--ui-bg-hover, rgba(255,255,255,0.08));
+  color: var(--ui-text-primary, #e0e0e0);
+}
+.assets-row-actions .assets-view-icon.active {
+  color: var(--ui-accent-primary, #2d6fe8);
+}
+
+/* 인라인 grid wrap (폴더 펼침 시 자식 영역) */
+.assets-inline-grid-wrap {
+  padding-top: 2px;
+  padding-bottom: 6px;
+  padding-right: 8px;
+}
+
+/* slider strip */
+.assets-inline-grid-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 4px;
+  color: var(--ui-text-secondary, #888);
+  font-size: var(--ui-fs-10);
+}
+.assets-inline-grid-strip .assets-card-size {
+  flex: 0 1 90px;
+  height: 14px;
+  cursor: pointer;
+}
+.assets-inline-grid-strip .assets-card-size-val {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+/* 인라인 grid 기본 — 카드 크기 변수 사용 (가운데 정렬 X, 좌측 정렬) */
+.assets-inline-grid-wrap .assets-grid {
+  --assets-card-size: 56px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--assets-card-size), 1fr));
+  gap: 6px;
+  padding: 0;
+}
+
+/* assets image grid card 자체 드래그 — Scratch로 끌어 놓기 */
+.assets-grid-card--image {
+  cursor: grab;
+}
+.assets-grid-card--image:active { cursor: grabbing; }
+
+/* drop target highlight (scratch → folder) */
+.assets-row--drop-into,
+.assets-grid-card--folder.assets-row--drop-into {
+  outline: 2px solid var(--ui-accent-primary, #2d6fe8);
+  outline-offset: -2px;
+  background: rgba(45,111,232,0.08);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Selection — 선택 시각 표시 (row + grid card)
+   ════════════════════════════════════════════════════════════════════════ */
+
+.assets-row--selected {
+  background: rgba(45,111,232,0.15) !important;
+  outline: 1px solid var(--ui-accent-primary, #2d6fe8);
+  outline-offset: -1px;
+  border-radius: 4px;
+}
+.assets-grid-card--selected {
+  background: rgba(45,111,232,0.22) !important;
+  outline: 2px solid var(--ui-accent-primary, #2d6fe8);
+  outline-offset: -1px;
+}
+.assets-grid-card { cursor: pointer; }

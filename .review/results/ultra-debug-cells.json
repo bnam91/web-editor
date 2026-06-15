@@ -1,0 +1,236 @@
+{
+  "run": "ULTRA RUN Wave1 — uncovered cells",
+  "date": "2026-06-12",
+  "baseline": "eb8c390",
+  "agent": "ultra-debug-cells (static only, no fixes)",
+  "scope": [
+    "claude-pm x {race,memory,null,state} (main/claude-pm/* + js/claude-pm/* + preload bridge)",
+    "file-page-section module (js/file-page-section.js + save-load.js:deletePage/page-count)",
+    "blocks x race / drag x async (js/block-drag.js, js/overlay-handles.js)",
+    "eb8c390 regression spot F1 (prop-chat applyPadding)"
+  ],
+  "findings": [
+    {
+      "id": "CPM-RACE-001",
+      "module": "claude-pm",
+      "dimension": "race",
+      "severity": "major",
+      "status": "confirmed-trace",
+      "verify_candidate": true,
+      "title": "재시작(↻) kill→start 경합: main이 SIGTERM 직후 죽어가는 세션을 reused로 반환",
+      "evidence": "js/claude-pm/terminal-panel.js:539-547 (_restartActiveSession: await kill 후 즉시 start) → main/claude-pm/terminal.js:296-331 (killTerminal은 SIGTERM 후 즉시 {ok:true} 반환, _sessions/_sessionByProject 동기 제거 없음 — 제거는 onExit/1s 타이머에서만) → terminal.js:240-245 (startTerminalSession이 _sessionByProject에 남은 dying sessionId를 reused:true로 반환)",
+      "impact": "재시작 버튼이 죽어가는 세션 ID를 다시 붙임 → '[restarting…]' 직후 '[exit]' — 재시작 실패하고 죽은 터미널만 남음. SIGTERM→exit 지연이 IPC 왕복보다 거의 항상 길어 사실상 상시 재현.",
+      "suggested_fix_direction": "killTerminal에서 _sessionByProject 매핑을 동기 제거하거나, start 시 'killing' 플래그 세션은 reuse 제외 + exit 대기"
+    },
+    {
+      "id": "CPM-MEM-001",
+      "module": "claude-pm",
+      "dimension": "memory",
+      "severity": "major",
+      "status": "confirmed-trace",
+      "verify_candidate": true,
+      "title": "세션 자연종료 후 패널 재오픈 시 IPC 리스너 중복 — 터미널 출력 N중 복제 + 리스너 누수",
+      "evidence": "js/claude-pm/terminal-panel.js:510-522 (_startSessionForProject가 기존 unsubData/unsubExit 해제 없이 덮어씀) + :515-522 (onExit은 sessionId=null만 하고 unsub 안 함) + :633-634 (openClaudePMTerminalPanel이 sessionId 없으면 _stopSessionForProject 경유 없이 직접 재시작). 구·신 리스너가 동일 st 객체를 공유해 st.sessionId(새 세션) 필터를 모두 통과 → st.term.write 중복 실행",
+      "impact": "claude 자연 종료 → 사이드바 '터미널 실행' 재오픈을 반복할 때마다 data 리스너 +1 → 출력이 2배,3배… 누적. preload ipcRenderer 리스너 누수.",
+      "suggested_fix_direction": "_startSessionForProject 진입 시 기존 unsubData/unsubExit 먼저 해제 (또는 onExit에서 unsub)"
+    },
+    {
+      "id": "CPM-RACE-002",
+      "module": "claude-pm",
+      "dimension": "race",
+      "severity": "major",
+      "status": "suspected-pattern",
+      "verify_candidate": true,
+      "title": "killAllSessions가 _sessions.clear()로 자기 자신의 SIGKILL 에스컬레이션을 무력화",
+      "evidence": "main/claude-pm/terminal.js:333-339 (killTerminal 스케줄 직후 동기 _sessions.clear()) → :306-307,316-317의 1s/1.5s 타이머가 _sessions.has(sessionId)=false로 전부 조기 return → SIGKILL·강제정리 코드가 종료 경로에서 영원히 실행 안 됨. 호출처 main.js:4147 (before-quit)",
+      "impact": "claude CLI가 SIGTERM을 무시/지연하면 quit 시 에스컬레이션 없이 방치. 실제로는 main 프로세스 exit(3s 내 app.exit) 시 PTY hangup으로 대부분 정리되나, 설계된 안전망이 죽은 코드.",
+      "suggested_fix_direction": "killAllSessions에서 clear()를 제거하고 killTerminal의 자체 정리에 위임, 또는 clear 전 SIGKILL 직접 전송"
+    },
+    {
+      "id": "CPM-STATE-001",
+      "module": "claude-pm",
+      "dimension": "state",
+      "severity": "minor",
+      "status": "confirmed-trace",
+      "title": "killTerminal 강제정리 경로가 _sessionByProject 미제거 + exit 이벤트 중복 브로드캐스트 가능",
+      "evidence": "main/claude-pm/terminal.js:316-325 (_sessions만 delete, _sessionByProject 잔존 — 단 다음 start에서 _sessions.has 체크로 기능상 자가치유) + cp 백엔드는 listeners=[]라 child.on('exit') 미해제 → 늦은 exit 시 claudePM:terminal:exit 2회 브로드캐스트",
+      "impact": "renderer exit 핸들러 2회 실행(footer/메시지 중복). 기능 손상은 작음."
+    },
+    {
+      "id": "CPM-MEM-002",
+      "module": "claude-pm",
+      "dimension": "memory",
+      "severity": "minor",
+      "status": "suspected-pattern",
+      "title": "cp fallback: spawn 'error'(ENOENT 등)만 발생하고 'exit' 미발생 시 세션 엔트리 영구 좀비",
+      "evidence": "main/claude-pm/terminal.js:199-217 (onError는 데이터 브로드캐스트만, 세션 정리는 onExit 전담 — node child_process는 spawn 실패 시 exit 미발생 가능) → _sessions/_sessionByProject 잔존 → 해당 projectId 재시작 시 죽은 세션 reused 반환",
+      "impact": "pty 로드 실패 환경(fallback)에서만 해당. 좀비 매핑이 프로젝트 터미널을 영구 차단."
+    },
+    {
+      "id": "CPM-NULL-001",
+      "module": "claude-pm",
+      "dimension": "null",
+      "severity": "minor",
+      "status": "confirmed-trace",
+      "title": "preload createClaudePMFolder가 projectId를 떨어뜨림 → 수동 생성 폴더 meta에 id 부재",
+      "evidence": "preload.js:115 ({basePath, projectName}만 전달) vs main/claude-pm/ipc.js:165 (handleCreateFolder는 projectId 수용·template-generator에 전달). 모달 경로로 만든 폴더는 project.meta.json.id 없음 → ipc.js:309-327 _findFolderByProjectId 매칭 불가 → ensureFolder가 같은 프로젝트에 별도 폴더 재생성",
+      "impact": "PM 폴더 이중화/불일치(상태 정합성). 데이터 유실은 아님."
+    },
+    {
+      "id": "CPM-STATE-002",
+      "module": "claude-pm",
+      "dimension": "state",
+      "severity": "info",
+      "status": "intended-pattern-noted",
+      "title": "terminal-panel _mcpPingTimer 영구 interval — 주석으로 의도 명시('영구 5초 interval'), panel.js 쪽은 open/close 페어링 정상",
+      "evidence": "js/claude-pm/terminal-panel.js:304-325 vs js/claude-pm/panel.js:315-322,350,378",
+      "impact": "오탐 제외 처리. 참고용."
+    },
+    {
+      "id": "CPM-RACE-003",
+      "module": "claude-pm (mcp-server)",
+      "dimension": "race",
+      "severity": "minor",
+      "status": "suspected-pattern",
+      "title": "startMcpServer 동시 2회 호출 시 server 변수 할당 전 윈도우에서 이중 listen(+1 포트) 가능 + POST /mcp body 무제한 버퍼링",
+      "evidence": "main/claude-pm/mcp-server.js:5550-5581 (server는 listen 콜백에서야 할당 — 가드 통과 윈도우 존재), :5515-5517 (body 크기 제한 없음, 127.0.0.1 한정이라 위험 낮음)",
+      "impact": "실호출은 main.js 1회뿐이라 실위험 낮음. 패턴 기록."
+    },
+    {
+      "id": "FPS-INTEG-001",
+      "module": "file-page-section",
+      "dimension": "integrity",
+      "severity": "blocker",
+      "status": "confirmed-trace",
+      "verify_candidate": true,
+      "title": "H4 재확인 + 신규 악화 trace: deletePage 무보호 즉시삭제, 그리고 삭제 후 undo가 currentPageId를 유령 페이지로 만들어 이후 편집 무음 유실",
+      "evidence": "js/file-page-section.js:98 (delBtn → window.deletePage 즉시) → js/io/save-load.js:268-289 (length<=1 가드만, confirm/undo/pushHistory 전무, scheduleAutoSave로 디스크 커밋). 신규: deletePage는 pushHistory를 안 쌓는데 히스토리 스택에는 삭제된 pageId 스냅샷이 잔존 → undo 시 js/history.js:46-50 restoreSnapshot이 state.currentPageId=삭제된 id로 설정, state.pages.find=undefined(설정 미복원·페이지 미부활) → 이후 flushCurrentPage(save-load.js)가 getCurrentPage()=null로 무음 no-op → 그 캔버스에서의 모든 편집이 페이지 전환/저장 시 증발",
+      "impact": "클릭 1회로 페이지 영구소실(기존 H4) + 삭제 후 Cmd+Z 한 번이면 '편집되지만 절대 저장 안 되는' 유령 캔버스 상태 진입 — 진행성 무음 데이터 유실. Figma 바 기준 blocker.",
+      "root_cause": "페이지 데이터 안전망 0 (삭제측 가드 부재 + 저장측 보호 main 제거 + 히스토리가 페이지 수명주기 비인지)"
+    },
+    {
+      "id": "FPS-BRANCH-001",
+      "module": "file-page-section",
+      "dimension": "branch",
+      "severity": "major",
+      "status": "confirmed-trace",
+      "verify_candidate": true,
+      "title": "페이지 이름변경 keydown 핸들러가 첫 키 입력에 자기 제거 — Enter/Escape가 첫 키일 때만 동작",
+      "evidence": "js/file-page-section.js:64-68 (onKey가 Enter/Escape 여부와 무관하게 removeEventListener(self) 실행) — 글자 하나라도 먼저 치면 이후 Enter는 contentEditable 개행 삽입, Escape 되돌리기 불능",
+      "impact": "이름에 개행 혼입 가능(blur 커밋 시 textContent 그대로 저장), Escape 취소 동작 사실상 죽음. 결정적 재현.",
+      "suggested_fix_direction": "removeEventListener를 Enter/Escape 분기 안으로 이동(또는 blur에서 일괄 해제)"
+    },
+    {
+      "id": "FPS-BRANCH-002",
+      "module": "file-page-section",
+      "dimension": "branch+structure",
+      "severity": "major",
+      "status": "confirmed-deterministic",
+      "title": "§3a 재확정: page_count_reduced 가드는 main.js 0회 — renderer 분기+토스트만 잔존하는 죽은 가드(거짓 안전신호)",
+      "evidence": "grep 'page_count_reduced' → js/io/save-load.js:130-134 1곳뿐, main.js 0건. '⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨' 토스트는 영원히 안 뜸",
+      "impact": "FPS-INTEG-001과 한 쌍 — 사용자/개발자 모두에게 보호가 있는 것처럼 보이는 거짓 신호.",
+      "root_cause": "FPS-INTEG-001과 동일 root_cause로 묶음"
+    },
+    {
+      "id": "FPS-STRUCT-001",
+      "module": "file-page-section",
+      "dimension": "structure",
+      "severity": "minor",
+      "status": "confirmed-deterministic",
+      "title": "dead variable: buildFilePageSection의 bg(line 15) 계산 후 미사용 — 추출 과정에서 페이지 bg 표시 UI 소실 흔적",
+      "evidence": "js/file-page-section.js:15"
+    },
+    {
+      "id": "FPS-NULL-001",
+      "module": "file-page-section",
+      "dimension": "null",
+      "severity": "minor",
+      "status": "suspected-pattern",
+      "title": "window.scheduleAutoSave/flushCurrentPage/deletePage/switchPage 무가드 직접 호출 — 모듈 로드순서 의존",
+      "evidence": "js/file-page-section.js:38,61,80,90,98,104,142 (옵셔널 체이닝 없음; 같은 코드베이스 다른 모듈은 ?. 관례)"
+    },
+    {
+      "id": "FPS-STATE-001",
+      "module": "file-page-section",
+      "dimension": "state",
+      "severity": "low",
+      "status": "suspected-pattern",
+      "title": "페이지 복사가 canvas HTML 내부 block id/data-section-id를 재생성하지 않음 — 페이지 간 중복 id",
+      "evidence": "js/file-page-section.js:83-88 (page.id만 신규, canvas 문자열 원본 그대로). 단일 페이지만 렌더되는 구조라 현재는 무해하나 cross-page 참조 기능 추가 시 폭발 지점"
+    },
+    {
+      "id": "DRG-STATE-001",
+      "module": "drag/blocks-history",
+      "dimension": "state",
+      "severity": "major",
+      "status": "confirmed-trace",
+      "verify_candidate": true,
+      "title": "pushHistory pre/post-mutation 컨벤션 혼재 — 액션 조합에 따라 undo 1회가 2개 액션을 되돌리거나 no-op undo 발생",
+      "evidence": "pre-mutation: js/block-drag.js:1695 (frame drop), :1314 (itb 아이콘 업로드). post-mutation: js/block-drag.js:312, 1617 (커스텀 드래그 onUp), js/overlay-handles.js:192,234,324,424,527,649,705,825,927,1021 (10/10 onUp 전부). 조합례: drop(pre_drop 푸시)→핸들리사이즈(post_resize 푸시) 후 undo 1회 → tip==live라 체크포인트 미적재, pre_drop 복원 → 리사이즈+드롭 동시 롤백(중간상태 post_drop은 스택에 영원히 부재). 역조합은 중복 스냅샷→no-op undo + MAX_HISTORY(50) 낭비",
+      "impact": "드래그/리사이즈 경계에서 undo 입도 손상 — 중간 상태 도달 불가. H6(히스토리 불변식)과 인접하지만 별개의 신규 결함.",
+      "suggested_fix_direction": "전 경로 pre-mutation(조작 시작 시 push)으로 통일 또는 pushHistory에 동일 스냅샷 dedup"
+    },
+    {
+      "id": "OVH-STATE-001",
+      "module": "drag (overlay-handles)",
+      "dimension": "state+branch",
+      "severity": "minor",
+      "status": "confirmed-deterministic",
+      "title": "overlay-handles 10개 onUp 전부 moved 가드 없이 무조건 pushHistory — 핸들 클릭(드래그 0px)만으로 중복 스냅샷 적재",
+      "evidence": "js/overlay-handles.js 위 10개 라인 vs js/block-drag.js:309 ('if (moved)' 가드 존재 — 파일 간 비일관)",
+      "impact": "undo 한 번이 체감상 no-op이 되는 케이스 + 히스토리 50칸 낭비"
+    },
+    {
+      "id": "DRG-RACE-001",
+      "module": "drag (block-drag)",
+      "dimension": "race",
+      "severity": "minor",
+      "status": "suspected-pattern",
+      "title": "row 브랜치 drop에 조상 가드 부재 + pointerdown draggable 토글의 pointerup 미발화 케이스",
+      "evidence": "(a) js/block-drag.js:1705-1708 — row 통째 insertBefore에 dragSrc.contains(inner) 가드 없음(frame 브랜치 1722, else 브랜치 1783에는 있음). row 내부에 frame-block이 중첩 가능하면 자기 자손 inner로 drop 시 HierarchyRequestError → pushHistory(1695) 이후 핸들러 중단으로 인디케이터/dragSrc 정리(1810-1813) 미실행. (b) :1819-1824 — HTML5 드래그 시작 시 pointerup 대신 pointercancel 발화 → once 리스너 잔류(다음 아무 pointerup에서 자가치유)",
+      "impact": "(a)는 DOM 구조 전제 확인 필요(재현 검증 대상), (b)는 일시적 draggable=false 잔류"
+    },
+    {
+      "id": "DRG-ASYNC-001",
+      "module": "drag (block-drag)",
+      "dimension": "async",
+      "severity": "minor",
+      "status": "suspected-pattern",
+      "title": "itb 아이콘 FileReader onload가 detach 가드 없음 — 파일선택 중 블록 삭제 시 detached node에 기록 + 불필요 pushHistory/triggerAutoSave",
+      "evidence": "js/block-drag.js:1309-1325 (block.isConnected 체크 없음)",
+      "impact": "히스토리에 무의미 스냅샷 1개. 크래시 없음(detached subtree querySelector 안전)"
+    },
+    {
+      "id": "DRG-REFUTED-001",
+      "module": "drag (block-drag)",
+      "dimension": "race",
+      "severity": "refuted",
+      "status": "refuted",
+      "title": "dragover _rafId 프레임 간 공유 경합 의심 → 반증: bindFrameDropZone별 클로저 변수",
+      "evidence": "js/block-drag.js:1463 (let _rafId — 함수 스코프, 프레임 인스턴스별 독립)"
+    },
+    {
+      "id": "OVH-RACE-001",
+      "module": "drag (overlay-handles)",
+      "dimension": "race",
+      "severity": "minor",
+      "status": "suspected-pattern",
+      "title": "핸들 드래그 onUp이 mouseup만 청소(dragend 폴백 없음) — 창 밖 release 시 1회 stuck-resize; raf 위치추적 루프는 isConnected/selected 자가정리로 양호",
+      "evidence": "js/overlay-handles.js:189-196 등 (block-drag.js:315-317은 dragend 폴백 보유 — 비일관). raf 루프: :58-70 등 — 정상 패턴 확인",
+      "impact": "다음 mouseup에서 자가치유. 패턴 비일관 기록"
+    },
+    {
+      "id": "F1-REGRESSION-CHECK",
+      "module": "prop-chat (eb8c390)",
+      "dimension": "regression",
+      "severity": "none",
+      "status": "self-closed",
+      "title": "F1 applyPadding 양방향 전환 — 회귀 없음 (정적 확정)",
+      "evidence": "(1) chb-padding-val 외부 리더 0건 (grep 전역: js/props/prop-chat.js 자기 자신뿐) — 구 .textContent 의존 없음. (2) .prop-color-hex→.prop-number 교체: 유일한 위임 의존 _AUTO_SELECT_SEL(js/editor.js:8)이 두 클래스 모두 포함 → 동작 보존. (3) css/editor-props.css에 .prop-number(:68)/.prop-slider(:57) 정의 존재. (4) applyPadding(prop-chat.js:215-221) clamp 0..60, parseInt||0 — 빈값/NaN 입력 시 0 강제는 의도된 클램프(minor UX note). (5) padding 변경에 pushHistory 부재는 eb8c390 이전과 동일(pre-existing, 회귀 아님). (6) 저장경로/타입목록 미접촉 — diff 범위 밖 파급 없음",
+      "notes": "CDP 왕복 검증(F1 verify slot)은 B군 재현 세션에서 NaN/경계값 1회만 돌리면 종결 가능"
+    }
+  ],
+  "verify_candidates": ["CPM-RACE-001", "CPM-MEM-001", "CPM-RACE-002", "FPS-INTEG-001", "FPS-BRANCH-001", "DRG-STATE-001"],
+  "intended_patterns_excluded": ["_suppressAutoSave 플래그 (section-drag.js:15-16 — 명세 의도 패턴)", "terminal-panel _mcpPingTimer 영구 interval (주석 명시)", "DBG-xx 주석 제거부"],
+  "summary_counts": { "blocker": 1, "major": 5, "minor": 9, "refuted": 1, "self_closed": 1 }
+}

@@ -1,0 +1,249 @@
+/* editor-toast.css — Toast 알림 (editor-blocks.css에서 분리 2026-06-09) */
+
+/* ═══════════════════════════════════
+   FLOATING ACTION PANEL
+═══════════════════════════════════ */
+/* ── Toast ── */
+#editor-toast {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, calc(-50% + 12px));
+  background: var(--ui-bg-base); color: #f0f0f0;
+  font-size: var(--ui-fs-13); font-weight: var(--ui-fw-medium);
+  padding: 10px 18px; border-radius: 8px;
+  border: 1px solid var(--ui-border-strong);
+  box-shadow: var(--ui-shadow-md);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 600; white-space: nowrap;
+}
+#editor-toast.show { opacity: 1; transform: translate(-50%, -50%); }
+
+@keyframes fp-shake {
+  0%,100% { transform: translateX(-50%); }
+  20%      { transform: translateX(calc(-50% - 4px)); }
+  40%      { transform: translateX(calc(-50% + 4px)); }
+  60%      { transform: translateX(calc(-50% - 3px)); }
+  80%      { transform: translateX(calc(-50% + 3px)); }
+}
+#floating-panel.fp-shake { animation: fp-shake 0.35s ease; }
+
+#floating-panel {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 5px 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.fp-divider {
+  width: 1px; height: 18px;
+  background: var(--ui-border); margin: 0 4px;
+}
+.fp-group-label {
+  font-size: var(--ui-fs-9); font-weight: var(--ui-fw-semibold); letter-spacing: 0.06em;
+  color: var(--ui-text-dim); text-transform: uppercase;
+  padding: 0 2px; pointer-events: none;
+  white-space: nowrap;
+}
+
+.fp-btn {
+  height: 32px; width: 32px; padding: 0;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 7px; color: var(--ui-text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  transition: all 0.15s;
+}
+.fp-btn:hover { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }
+
+.fp-btn.primary {
+  background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff;
+}
+.fp-btn.primary:hover { background: var(--ui-accent-primary-hover); border-color: var(--ui-accent-primary-hover); }
+
+.fp-btn svg { flex-shrink: 0; }
+.fp-btn-ai { color: #c084fc; font-size: var(--ui-fs-14); }
+.fp-btn-ai:hover { background: rgba(192,132,252,0.12) !important; border-color: rgba(192,132,252,0.4) !important; color: #d8b4fe !important; }
+.fp-btn#fp-plugin-btn.active { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }
+
+/* Plugin Panel */
+#fp-plugin-panel {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 499;
+  width: 240px;
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+.fp-plugin-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px 8px;
+  border-bottom: 1px solid var(--ui-border);
+  font-size: var(--ui-fs-base);
+  font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.fp-plugin-panel-close {
+  background: none;
+  border: none;
+  color: var(--ui-text-dim);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+.fp-plugin-panel-close:hover { color: var(--ui-text); background: var(--ui-bg-input); }
+.fp-plugin-panel-body { padding: 8px 0; min-height: 60px; }
+.fp-plugin-empty {
+  padding: 20px 16px;
+  font-size: var(--ui-fs-12);
+  color: var(--ui-text-dim);
+  text-align: center;
+}
+.fp-plugin-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.1s;
+}
+.fp-plugin-item:hover { background: var(--ui-bg-hover, rgba(255,255,255,0.06)); }
+.fp-plugin-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  background: var(--ui-bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--ui-text-muted);
+}
+.fp-plugin-icon--iconify { color: #f7a41d; }
+.fp-plugin-info { flex: 1; min-width: 0; }
+.fp-plugin-name {
+  font-size: var(--ui-fs-12);
+  font-weight: var(--ui-fw-medium);
+  color: var(--ui-text);
+  line-height: 1.3;
+}
+.fp-plugin-desc {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-dim);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fp-plugin-badge {
+  font-size: var(--ui-fs-9);
+  font-weight: var(--ui-fw-semibold);
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--ui-bg-input);
+  color: var(--ui-text-dim);
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+}
+.fp-plugin-badge--new {
+  background: rgba(79, 172, 254, 0.15);
+  color: #4facfe;
+}
+.fp-plugin-divider {
+  height: 1px;
+  background: var(--ui-border);
+  margin: 4px 0;
+}
+
+/* Text 드롭다운 */
+.fp-dropdown { position: relative; }
+.fp-dropdown-trigger { width: auto; padding: 0 6px; gap: 3px; }
+/* F10: 펜모드 등 활성 시 toolbar 트리거 시각 표시 */
+.fp-dropdown-trigger.active {
+  background: var(--ui-bg-input);
+  border-color: var(--ui-border-mid);
+  color: var(--ui-text);
+}
+.fp-chevron { opacity: 0.5; transition: transform 0.15s; }
+.fp-dropdown.open .fp-chevron { transform: rotate(180deg); }
+.fp-dropdown-menu {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%; transform: translateX(-50%);
+  background: var(--ui-bg-card); border: 1px solid var(--ui-border); /* 드롭다운/팝업 전용 surface 토큰 */
+  border-radius: 8px; padding: 4px;
+  box-shadow: var(--ui-shadow-lg);
+  min-width: 100px;
+}
+.fp-dropdown.open .fp-dropdown-menu { display: block; }
+.fp-menu-item {
+  display: flex; align-items: center; width: 100%;
+  height: 28px; padding: 0 10px; line-height: 1; /* 세로 중앙 정렬 명시 */
+  background: transparent; border: none;
+  border-radius: var(--ui-radius-sm); color: var(--ui-text-sub);
+  font-size: var(--ui-fs-base); font-weight: var(--ui-fw-medium);
+  cursor: pointer; text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.fp-menu-item:hover { background: var(--ui-bg-input); color: var(--ui-text); }
+
+/* U6(a): 중앙 스티커 패널의 호버 색상 플라이아웃(.fp-submenu) 제거됨.
+   색·프리셋 선택은 우측 Properties 패널(Favorites / Text Presets)로 이관. */
+
+/* U6(c)(d): 우측 패널 — 스티커 즐겨찾기 스와치 그리드 */
+.stk-fav-grid {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
+}
+.stk-fav-swatch {
+  position: relative;
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--ui-border, #3a3a3a);
+  cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; overflow: hidden;
+}
+.stk-fav-swatch:hover { outline: 2px solid var(--ui-accent, #5a8aff); outline-offset: 1px; }
+.stk-fav-swatch .stk-fav-del {
+  position: absolute; top: -5px; right: -5px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #c0392b; color: #fff; border: none;
+  font-size: 10px; line-height: 14px; text-align: center;
+  cursor: pointer; padding: 0; display: none;
+}
+.stk-fav-swatch:hover .stk-fav-del { display: block; }
+.stk-fav-empty { font-size: 11px; color: var(--ui-text-sub, #888); padding: 4px 0; }
+
+/* U6(d): 텍스트 스티커 프리셋 버튼 */
+.stk-preset-grid { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.stk-preset-btn {
+  width: 100%; text-align: left;
+  background: var(--ui-bg-input, #2a2a2a);
+  border: 1px solid var(--ui-border, #3a3a3a);
+  border-radius: 6px; padding: 6px 10px;
+  color: var(--ui-text, #ddd); font-size: 12px; cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.stk-preset-btn:hover { background: var(--ui-bg-card, #333); border-color: var(--ui-accent, #5a8aff); }

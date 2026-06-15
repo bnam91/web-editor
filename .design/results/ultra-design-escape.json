@@ -1,0 +1,228 @@
+{
+  "schema": "design-squad v3.3.1 (ULTRA Wave1)",
+  "agent": "DSN-ultra-escape",
+  "run": "ULTRA RUN Wave1 — escape-직격 3렌즈",
+  "dimension": ["adoption+3cond", "css-health-inline-js", "component-rowCoherence"],
+  "method": "static",
+  "evidence_grade": "deterministic",
+  "project": "/Users/a1/web-editor",
+  "git_head": "eb8c390",
+  "scanned_at": "2026-06-12",
+  "plan_basis": ".design/ultraplan-2026-06-12.md §3(escape 역분류 E2/E3/E4) §6 배치B",
+  "scanned_surfaces": {
+    "js_files": 138,
+    "html": ["index.html"],
+    "css_defined_class_index": "css/*.css 16개에서 클래스 전수 추출(채택 판정 기준)",
+    "prop_rows_parsed": 270,
+    "controls_total_after_guards": 921
+  },
+  "fp_guards_applied": [
+    "native-legit input type=color/checkbox/radio/file/hidden 제외 (전 RUN 동일 기준 + hidden 추가)",
+    "fallback-aware: var(--x,#hex)/var(--x,Npx)의 fallback은 raw 미집계 (ai-image-gen #888, drag-utils #3b82f6, checklist #777, gradient-select #2d6fe8 등 제외)",
+    "JS setProperty/removeProperty 동적 토큰 미집계",
+    "캔버스 콘텐츠 불가침: js/blocks/** + banner-presets.js inline 34건 가드 제외, io/export-html.js <style>${css}는 산출물",
+    "zoom-mirror 의도 패턴: gradient-line-overlay.js 주입 CSS의 calc(Npx * var(--inv-zoom)) 제외",
+    "tfx-intensity/grain %슬라이더 = 별개 컴포넌트 — rowCoherence 제외",
+    "pending 토큰 ≠ dead (이번 렌즈 비대상이나 기준 승계)",
+    "dynamic-only inline(style 값 전체가 ${...})은 데이터 바인딩으로 분리 — static 선언 1개 이상만 위반",
+    "display:none-only inline = hidden 트리거 가드 (file input 류)"
+  ],
+  "calibration": {
+    "mode": "mini self-calibration (룰 회로 합성시드 — 풀 S1-S8 시드 워크트리는 오케스트레이터 슬롯)",
+    "results": {
+      "R1 bare-range 검출": "PASS",
+      "R2 span-readout hit/표준 prop-number miss": "PASS/PASS",
+      "R5 undefined-class-in-row 검출": "PASS",
+      "fallback-guard hex 제외/비fallback hex 유지": "PASS/PASS",
+      "E3 실탄 검증": "prop-step.js:18 stb-del-btn이 inline-violation으로 검출됨 — 지난 RUN을 통과한 바로 그 escape를 신규 정의가 잡음"
+    }
+  },
+
+  "headline": {
+    "adoption_3cond": {
+      "definition": "adopted = CSS 정의 클래스 보유 ∧ static inline-style 없음 ∧ raw값 없음 (ultraplan §3-A.1)",
+      "total": 921,
+      "adopted": 692,
+      "adoption_rate_pct": 75.1,
+      "vs_old_definition": "class-only 정의면 837/921=90.9% — 정의 강화로 inline 우회 145건이 새로 노출 (지난 RUN 80.3%와 분모기준 상이: hidden 제외 + index.html 포함)",
+      "breakdown_3class": { "bare": 73, "custom_undefined_class": 11, "inline_violation_with_class": 145 },
+      "bare_decomposition": { "id_styled_css": 13, "inline_only": 38, "true_bare_no_style": 22, "note": "true-bare 22는 조상 셀렉터(.parent button{}) 스타일 가능성 — verify-candidate" }
+    },
+    "css_health_inline_js": {
+      "definition": "JS 템플릿리터럴 style=attr + cssText + .style.X 직접대입 + createElement('style') 주입에 박힌 raw hex/px (fallback 가드 후)",
+      "raw_value_sites_total": 385,
+      "canvas_guard_excluded": 34,
+      "ui_chrome_violations": 351,
+      "distinct_raw_hex_ui_chrome": 41,
+      "blue_bypass_family_new": ["#2563eb(x5+ — iconify/mockup/figma-publish/import-figma/index.html figma모달)", "#4c8aff(commit-system.js:38)", "#5a8aff+#1a2540(prop-sticker.js:452 — st-branch 색군 재발)", "#2a3a5a+#6a9fdf(template-system.js:529)", "raw #2d6fe8(template-browser.js:541 — 정본 토큰값을 하드코딩)"],
+      "injected_style_tags": 2
+    },
+    "row_coherence": {
+      "rows_parsed": 270,
+      "range_inputs_total": 145,
+      "with_prop_slider_class": 140,
+      "violations": { "R1_range_missing_class": 0, "R2_span_readout": 0, "R3_no_readout": 0, "R4_slider_inline_style": 4, "R5_bare_control_in_row": 2 },
+      "regression_verdict": "eb8c390 슬라이더행 수동정비 회귀 없음 — span readout 0, 비클래스 range는 행 밖 5건뿐(전용클래스 3 + bare 2)",
+      "static_roof_check": ".prop-number(24) = .prop-color-hex(24) = .prop-text(24) height 일치(editor-props.css:68/79/322) — input-height 표준 충돌 없음. computed 정렬은 verify-candidate"
+    }
+  },
+
+  "findings": [
+    {
+      "id": "DSN-UESC-A1",
+      "lens": "adoption-3cond",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "verify_candidate": true,
+      "count": 145,
+      "where": "전 영역 — 핫스팟: js/props/prop-step.js(17: L18,22,26,74-75,82-85,96-99,125,129,193,204), prop-banner02.js(15), prop-chat.js(14), prop-frame.js(14), prop-section.js(10), prop-simple-card.js(10), index.html(6)",
+      "what": "표준 클래스를 보유한 컨트롤이 static inline style로 토큰을 우회 — E3(stb-del-btn)가 샌 바로 그 패턴의 전수. 대표: prop-step.js:18 class=\"prop-btn prop-btn-danger stb-del-btn\" + style=\"margin-left:auto;padding:3px 6px;line-height:0\". hex 동반 7건이 최악: prop-frame.js:234 / prop-table.js:335,344 (.prop-select/.prop-input에 background:#1a1a1a;color:#e5e5e5;border:#333), prop-simple-card.js:171-174 (color:#fff;text-shadow:#000)",
+      "decl_pattern_top": ["flex:N x52(중복정의 — .prop-slider CSS가 이미 flex:1)", "width:Npx x27", "font-size:Npx x24", "padding:Npx Npx x18", "margin-top:Npx x14", "height:Npx x12"],
+      "basis": [".design/profile.md#정본토큰(raw px/hex 금지)", "ultraplan §3 E3(adopted 정의 강화 3조건)"]
+    },
+    {
+      "id": "DSN-UESC-A2",
+      "lens": "adoption-3cond",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "verify_candidate": true,
+      "count": 73,
+      "where": "index.html(21 — 그중 id-styled 11), js/panels/assets-panel.js(9 전원 no-style), js/badge-transform.js(7 전원 inline-only), js/commit-system.js(5), js/props/color-picker.js(5), iconify-panel.js(4), prop-text-template.js(4), text-effect-transform.js(4)",
+      "what": "클래스 0 bare 컨트롤 73. 3분해: ⓐ id-styled 13(CSS가 #id 직격 — 클래스 시스템 우회지만 스타일은 존재, minor성) ⓑ inline-only 38(클래스도 CSS도 없이 inline 풀스타일 — 위반 핵심) ⓒ true-bare 22(스타일 출처 불명 — 조상 셀렉터 의존 추정, CDP computed 확인 필요). index.html:176-177 figma-cancel/upload-btn은 inline-only + #2563eb 파랑우회 중첩",
+      "basis": ["profile.md#FIX 반영 현황(bare 컨트롤 84 표준클래스 흡수 — 진행대기 항목과 정합: 73으로 감소)"]
+    },
+    {
+      "id": "DSN-UESC-A3",
+      "lens": "adoption-3cond",
+      "severity": "minor",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "count": 11,
+      "where": "js/panels/template-browser.js:533-542(tbe-name/folder/folder-new/tags/save/cancel), js/panels/template-system.js:388-470(tpl-edit-name/folder-new/tags, tpl-search-input), js/props/prop-chat.js:46(chb-profile-name-input)",
+      "what": "CSS에 정의되지 않은 전용클래스 11 — 클래스명은 붙었으나 셀렉터 정의가 0 (스타일은 전부 inline에 들어있음 = 죽은 클래스명 + inline 우회 결합형). 지난 RUN의 undefined_custom 84는 prop-align-btn 템플릿 artifact가 다수였고 artifact 제거 후 진성 11",
+      "basis": ["ultraplan §3-A.1 adopted 3조건(클래스가 CSS에 정의되어야 '표준클래스')"]
+    },
+    {
+      "id": "DSN-UESC-B1",
+      "lens": "css-health-inline-js",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "verify_candidate": true,
+      "count": 63,
+      "where": "js/badge-transform.js(23) · js/panels/iconify-panel.js(18) · js/panels/mockup-panel.js(13) · js/commit-system.js(9)",
+      "what": "CSS 파일 없이 inline style만으로 지어진 통째-inline 컴포넌트 4개(배지 변형 패널, iconify 모달, mockup 모달, 커밋 파일명 모달). 모달 셸·입력·버튼·헤더 전부 raw hex(#1a1a1a/#111/#333/#ddd/#666/#888)+raw px. 같은 모달인데 design-system 모달 토큰(--ui-*) 참조 0회 — root-cause: inline-style-bypass",
+      "basis": ["profile.md#정본토큰", "profile.md#스타일 표면(모달은 editor-extra.css 관할인데 이 4개만 JS-inline)"]
+    },
+    {
+      "id": "DSN-UESC-B2",
+      "lens": "css-health-inline-js",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "verify_candidate": true,
+      "count": 12,
+      "where": "iconify-panel.js:67,225 · mockup-panel.js:41 · io/figma-publish.js:114,213 · io/import-figma-json.js:227 · index.html:177 (#2563eb x7) / commit-system.js:38 (#4c8aff) / prop-sticker.js:452-453 (#5a8aff,#1a2540) / template-system.js:529 (#2a3a5a,#6a9fdf) / template-browser.js:541 (raw #2d6fe8)",
+      "what": "파랑 정본(--ui-accent-primary #2d6fe8) 우회 신규 5색군 — 전부 JS inline이라 지난 D-color CSS 스윕(31종)에 안 잡힌 추가분. 특히 prop-sticker.js:452 drop hover가 #5a8aff/#1a2540 = E3의 st-branch 색군(#5a8ab8/#1a2840)과 동일 계열 재발. template-browser.js:541은 정본과 같은 값을 하드코딩(토큰 참조로 교체 대상). D-color 파랑난립 31 → +5색군 cross-flag",
+      "basis": ["profile.md#정본토큰(--ui-accent-primary 파랑 정본 — 우회 폐기)", "ultraplan §3 E3(#5a8ab8/#1a2840 → D-color 추가 지시)"]
+    },
+    {
+      "id": "DSN-UESC-B3",
+      "lens": "css-health-inline-js",
+      "severity": "major",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "verify_candidate": true,
+      "count": 1,
+      "where": "js/panels/iconify-panel.js:222-227",
+      "what": "JS createElement('style') 주입 CSS에 raw hex 4종 + !important 4개: .iconify-icon-cell:hover{background:#1e1e1e !important;border-color:#444 !important} .sel{background:#1a2a4a !important;border-color:#2563eb !important} — E3(panels.css:963 st-branch raw+!important)과 동형 패턴이 CSS 파일 밖(JS 주입)에 또 존재. CSS 스윕·attr 스윕 양쪽의 사각이던 제3 표면",
+      "basis": ["ultraplan §0(inline style 축이 차원에 없다 — JS 템플릿리터럴 사각)"]
+    },
+    {
+      "id": "DSN-UESC-B4",
+      "lens": "css-health-inline-js",
+      "severity": "info",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "count": 1,
+      "where": "js/gradient-line-overlay.js:18-40 (주입 CSS)",
+      "what": "동일한 JS 주입 CSS지만 가드 통과 사례로 기록: var(--sel-color,#2d6fe8) fallback + calc(Npx*var(--inv-zoom)) zoom-mirror 의도 패턴. 잔여 raw는 핸들 background:#fff 1건 수준 — 위반 아님(대조군)",
+      "basis": ["profile.md#의도된 예외(zoom !important/--inv-zoom 경합)"]
+    },
+    {
+      "id": "DSN-UESC-B5",
+      "lens": "css-health-inline-js",
+      "severity": "minor",
+      "confidence": "medium",
+      "evidence_grade": "deterministic",
+      "count": 7,
+      "where": "js/block-factory.js:826,1042,1483,1693 외",
+      "what": "block-factory.js inline raw 7건은 캔버스 산출물(divider border #cccccc, 자산 placeholder 체커보드 #d8d8d8/#f0f0f0)과 UI 크롬이 한 파일에 혼재 — 라인 단위 가드 판정 불가로 needs-verify. 체커보드는 '빈 자산 신호' 의도 가능성 높음(불가침 추정)",
+      "basis": ["profile.md#의도된 예외(캔버스 콘텐츠 불가침)"]
+    },
+    {
+      "id": "DSN-UESC-C1",
+      "lens": "rowCoherence",
+      "severity": "minor",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "count": 4,
+      "where": "js/props/prop-chat.js:104,135,140,145 (행 시작 102/133/138/143)",
+      "what": "E2 직격 잔존: class=\"prop-slider\"는 갖췄으나 inline style=\"flex:1\" 부착 — .prop-slider CSS(editor-props.css:58)가 이미 flex:1이라 100% 중복 선언. 시각 영향 0이지만 3조건 정의 위반 + E2가 샌 바로 그 4개 슬라이더(우선순위 밀림 방지용 단독 finding 분리, ultraplan E2 보장책 이행)",
+      "basis": ["ultraplan §3 E2(inline-style 우회 별도 sub-finding 분리 지시)"]
+    },
+    {
+      "id": "DSN-UESC-C2",
+      "lens": "rowCoherence",
+      "severity": "major",
+      "confidence": "medium",
+      "evidence_grade": "deterministic",
+      "verify_candidate": true,
+      "count": 2,
+      "where": "js/props/prop-mockup.js:56 (mkp-sec-id-input) · js/props/prop-multisel.js:248 (spacing readonly)",
+      "what": "prop-row 행 내부의 bare 컨트롤 2 — 표준 24px 높이 보장 클래스 없이 inline 스타일로 행에 끼어 있어 행 내 형제(.prop-number 24px)와 높이/정렬 불일치 가능. CDP computed height 실측이 verify-candidate(Phase 3)",
+      "basis": ["profile.md#정본토큰(--ui-input-h 24, 슬라이더행 표준)", "ultraplan §3 E4(row 단위 시그니처)"]
+    },
+    {
+      "id": "DSN-UESC-C3",
+      "lens": "rowCoherence",
+      "severity": "pass",
+      "confidence": "high",
+      "evidence_grade": "deterministic",
+      "count": 0,
+      "where": "전 prop-row 270 (tfx 가드 제외)",
+      "what": "회귀 0 확인: R1(range에 prop-slider 누락) 0 · R2(span readout 잔존) 0 · R3(readout 없는 슬라이더) 0. range 145 중 140이 prop-slider, 행 밖 5건도 전용클래스(cpmt-opacity-slider/anim-opt-slider 정의 확인) 3 + bare 2(assets-panel.js:608, index.html:440 — A2에 포함). eb8c390 수동정비가 실제로 지켜졌고, 본 렌즈가 향후 회귀 감지망으로 작동함을 캘리브레이션으로 입증",
+      "basis": ["ultraplan §3 E4 보장책(row-coherence 렌즈 신설)"]
+    }
+  ],
+
+  "area_summary": {
+    "prop-panel": { "controls": 612, "adopted": 472, "inline_violation": 125, "bare": 14, "custom_undefined": 1, "inline_raw_sites": 210, "row_findings": 6, "verdict": "최악 핫스팟 — inline 우회의 86%가 여기. 컨트롤 수도 최다라 비율은 77.1%지만 절대량 압도" },
+    "index-html": { "controls": 126, "adopted": 99, "bare": 21, "inline_violation": 6, "verdict": "bare 최다 단일 파일. 단 11건은 id-styled. figma 모달 2버튼은 inline+파랑우회 중첩" },
+    "assets-ai": { "controls": 28, "adopted": 8, "bare": 19, "inline_violation": 1, "inline_raw_sites": 32, "verdict": "bare 비율 68% 최악 + iconify/mockup 통째-inline 모달 — 영역째 미이관" },
+    "misc-chrome": { "controls": 58, "adopted": 32, "bare": 13, "inline_violation": 13, "inline_raw_sites": 64, "verdict": "badge-transform/commit-system/image-handling — 루트 산재 파일들이 inline 부채 2위" },
+    "template-browser": { "controls": 24, "adopted": 14, "custom_undefined": 10, "inline_raw_sites": 10, "verdict": "undefined 클래스 11건 중 10이 여기 — 죽은 클래스명+inline 결합형" },
+    "left-panel": { "controls": 38, "adopted": 32, "bare": 6, "inline_raw_sites": 18, "verdict": "양호" },
+    "modals": { "controls": 11, "adopted": 11, "inline_raw_sites": 9, "verdict": "컨트롤 채택 100%이나 io/figma 모달류에 파랑우회 잔존" },
+    "pm-panel": { "controls": 18, "adopted": 18, "inline_raw_sites": 0, "verdict": "클린 — 유일한 무결 영역" },
+    "canvas-block(크롬분)": { "controls": 6, "adopted": 6, "inline_raw_sites": 7, "verdict": "컨트롤 클린, inline 7은 캔버스 혼재 needs-verify(B5)" },
+    "pickers": { "inline_raw_sites": 1, "verdict": "양호" },
+    "CANVAS(가드)": { "excluded_sites": 34, "verdict": "불가침 — 집계 제외" }
+  },
+
+  "root_cause_merge": {
+    "inline-style-bypass": ["DSN-UESC-A1", "DSN-UESC-A2(inline-only 38)", "DSN-UESC-B1", "DSN-UESC-B3", "DSN-UESC-C1"],
+    "blue-proliferation(+5색군)": ["DSN-UESC-B2"],
+    "dead-classname+inline": ["DSN-UESC-A3"],
+    "comment": "escape 4종 중 E2/E3/E4 직격 범위 전부 신규 렌즈가 검출 가능 상태로 전환. E1(aria-pressed)은 states×a11y 교차패스(Phase 2.5) 관할"
+  },
+
+  "verify_candidates_for_phase3": [
+    "A1/A2/B1/B2/B3: CDP getComputedStyle로 inline이 실제 토큰값과 어긋나는 정도 실측 (major 확정)",
+    "A2 true-bare 22: 조상 셀렉터 스타일 출처 추적",
+    "C2: prop-row 자식 computed height/baseline 실측 (24px 표준 대조)",
+    "B5: block-factory 7건 캔버스/크롬 경계 판정 (렌더 위치 확인)"
+  ]
+}

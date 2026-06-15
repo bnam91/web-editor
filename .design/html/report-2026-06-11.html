@@ -1,0 +1,1804 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>design report 2026-06-11</title>
+<link rel="stylesheet" href="../../css/design-tokens.css">
+  <link rel="stylesheet" href="../../css/editor-base.css">
+  <link rel="stylesheet" href="../../css/editor-props.css">
+  <link rel="stylesheet" href="../../css/editor-blocks.css">
+<style>
+:root{--bg:#16181d;--panel:#1f2229;--line:#32363f;--text:#d7dae0;--muted:#9aa0aa;--accent:#5b8def}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,'Pretendard',sans-serif;padding:28px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:21px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.sub{color:var(--muted);font-size:12.5px;margin-bottom:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:10px 0}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:1px 9px;font-size:11.5px;color:var(--muted);margin:0 4px 4px 0;background:#262a33}
+.sev{font-weight:700;border-radius:4px;padding:1px 7px;font-size:11.5px;color:#16181d}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#23262e;color:var(--muted);font-weight:600}
+.kv{color:var(--muted)} .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.toggle{cursor:pointer;user-select:none;border:1px solid var(--line);border-radius:6px;padding:3px 10px;font-size:12px;background:#262a33;color:var(--text)}
+.appr{display:flex;gap:14px;align-items:center;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:12.5px}
+.appr label{cursor:pointer;color:var(--muted)} .appr .cmt{flex:1;background:#14161a;border:1px solid var(--line);border-radius:5px;color:var(--text);padding:4px 8px;font-size:12px}
+.toggle.off{opacity:.35}
+.swatch{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;border:1px solid #0008;margin-right:4px}
+img.ev{max-width:100%;border:1px solid var(--line);border-radius:6px}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ba .lab{font-size:11.5px;color:var(--muted);margin-bottom:4px}
+.foot{margin-top:34px;color:var(--muted);font-size:11.5px;border-top:1px solid var(--line);padding-top:10px}
+</style></head><body>
+
+<h1>🎨 디자인 감사 리포트 — /Users/a1/web-editor · 2026-06-11</h1>
+<div class="sub">design-squad 엔진 · 차원 10개 병렬 + 고등급 적대적 2층검증 · 확정 2 / 의심 4</div>
+<div class="bar"><span class="sev" style="background:#e0606c">blocker 4</span><span class="sev" style="background:#e0a060">major 26</span><span class="sev" style="background:#d8c860">minor 24</span><span class="sev" style="background:#8a8f98">nit 8</span></div>
+<h2>영역별 결산 (침묵 금지 — 전원 보고)</h2>
+<table><tr><th>영역</th><th>발견</th><th>검사 항목</th><th>차원</th><th>미검사</th><th>근거 명세</th></tr><tr>
+    <td><b>prop 패널 (props/*.js)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">adoption</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>transform 패널 (badge/text-effect)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">adoption</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>index.html 모달 (figma/bcm/project)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">adoption</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>panels (assets/mockup/iconify/template/ai-gallery)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">adoption</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>pages (planning/license/projects)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">adoption</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>D-color / danger 토큰화 (FIX 대상)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">color</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>D-color / 파랑(accent) 난립 (FIX 범위 밖)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">color</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>D-component / 치수 토큰 (--ui-btn-h, --ui-input-h, --ui-radius-*)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">color</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>D-component / 상태·폼 토큰 (--ui-disabled-opacity, --ui-form-label-w, --ui-row-gap)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">color</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>D-component / danger tier (blocker vs item)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">color</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>design-tokens.css</b></td><td>0</td><td>0</td>
+    <td><span class="chip">css-health</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>editor-base.css</b></td><td>0</td><td>0</td>
+    <td><span class="chip">css-health</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>editor-extra.css</b></td><td>0</td><td>0</td>
+    <td><span class="chip">css-health</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>editor-blocks.css</b></td><td>0</td><td>0</td>
+    <td><span class="chip">css-health</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>integrity (broken/malformed)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">css-health</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>prop-panel buttons (.prop-btn/.prop-action-btn/.prop-align-btn)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">states</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>toolbar (.tb-btn/.zoom-btn)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">states</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>claude-pm (.cpm-btn/.cpm-action)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">states</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>color-var chips (.cv-chip)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">states</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>slider (.prop-slider)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">states</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>inputs (.prop-select/.prop-number)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">states</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>left panel (.layer-item/.file-page-item)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">states</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>color-picker tabs (.goya-cp-tab)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">states</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr><tr>
+    <td><b>async action buttons (loading)</b></td><td>0</td><td>0</td>
+    <td><span class="chip">states</span></td>
+    <td>—</td>
+    <td>—</td>
+  </tr></table>
+
+<div class="card" style="position:sticky;top:8px;z-index:5;display:flex;gap:12px;align-items:center">
+  <b>승인 시트</b><span class="kv">카드마다 결정+코멘트 → 자동 저장(localStorage)</span>
+  <span class="chip">결정 <b id="decCount">0</b>건</span>
+  <button id="exportBtn" class="toggle" style="margin-left:auto">📋 결정 내보내기 (md 복사+다운로드)</button>
+</div>
+<h2>발견 (69건) <span class="kv" style="font-size:12px">— 클릭으로 필터</span></h2>
+<div class="bar" id="filters">
+  <span class="toggle" data-k="dim" data-v="a11y-contrast">a11y-contrast</span><span class="toggle" data-k="dim" data-v="adoption">adoption</span><span class="toggle" data-k="dim" data-v="color">color</span><span class="toggle" data-k="dim" data-v="component">component</span><span class="toggle" data-k="dim" data-v="css-health">css-health</span><span class="toggle" data-k="dim" data-v="motion">motion</span><span class="toggle" data-k="dim" data-v="spacing">spacing</span><span class="toggle" data-k="dim" data-v="states">states</span><span class="toggle" data-k="dim" data-v="typo">typo</span><span class="toggle" data-k="dim" data-v="icon">icon</span>
+  <span class="toggle" data-k="sev" data-v="blocker">blocker</span><span class="toggle" data-k="sev" data-v="major">major</span><span class="toggle" data-k="sev" data-v="minor">minor</span><span class="toggle" data-k="sev" data-v="nit">nit</span>
+  <span class="toggle" data-k="conf" data-v="confirmed">confirmed</span><span class="toggle" data-k="conf" data-v="suspected">suspected</span>
+</div>
+<div id="cards">
+  <div class="card finding" data-dim="a11y-contrast" data-sev="blocker" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0606c">blocker</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">a11y-contrast</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">A11Y-CONTRAST-01 · --ui-text-dim (#555555) fails AA on all UI backgrounds — used as body/label/placeholder text</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: #555555 contrast: on --ui-bg-app #1a1a1a = 2.33:1; on --ui-bg-base #1e1e1e = 2.24:1; on --ui-bg-elevated #242424 = 2.08:1; on --ui-bg-card #252525 = 2.06:1; on --ui-bg-input #2a2a2a = 1.93:1; on --ui-bg-hover #2e2e2e = 1.82:1. AA-normal 4.5 FAIL on all, AA-large 3.0 FAIL on all. Used at 9-11px (normal text) so 4.5:1 applies. Largest fail margin in the system.</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="A11Y-CONTRAST-01">
+    <label><input type="radio" name="ap-A11Y-CONTRAST-01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="a11y-contrast" data-sev="blocker" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0606c">blocker</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">a11y-contrast</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">A11Y-CONTRAST-02 · --text-hint (#5a5a5a) fails AA on all UI backgrounds — prop-hint / section-title</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: #5a5a5a contrast: on #1a1a1a = 2.52:1; on #1e1e1e = 2.42:1; on #242424 = 2.25:1; on #252525 = 2.22:1; on #2a2a2a = 2.08:1; on #2e2e2e = 1.97:1. AA-normal 4.5 FAIL, AA-large 3.0 FAIL on all backgrounds. Hint/section-title text at &lt;=10px = normal text, 4.5:1 required.</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="A11Y-CONTRAST-02">
+    <label><input type="radio" name="ap-A11Y-CONTRAST-02" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-02" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-02" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="a11y-contrast" data-sev="blocker" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0606c">blocker</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">a11y-contrast</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">A11Y-CONTRAST-03 · --ui-text-muted (#777777) fails AA-normal on all UI backgrounds (passes 3:1 floor only)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: #777777 contrast: on #1a1a1a = 3.89:1; on #1e1e1e = 3.72:1; on #242424 = 3.47:1; on #252525 = 3.42:1; on #2a2a2a = 3.21:1; on #2e2e2e = 3.03:1. AA-normal 4.5 FAIL on all; AA-large/UI 3.0 PASS on all. Blocker where used as normal-size text (most usages are &lt;=12px labels); demote to OK only where verified &gt;=18px or &gt;=14px bold.</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="A11Y-CONTRAST-03">
+    <label><input type="radio" name="ap-A11Y-CONTRAST-03" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-03" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-03" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="a11y-contrast" data-sev="blocker" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0606c">blocker</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">a11y-contrast</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">A11Y-CONTRAST-04 · --ui-accent-primary (#2d6fe8) as 9px category-tag text fails AA-normal</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: #2d6fe8 contrast: on #1a1a1a = 3.77:1; on #1e1e1e = 3.61:1; on #242424 = 3.36:1; on #252525 = 3.32:1; on #2a2a2a = 3.11:1; on #2e2e2e = 2.94:1. AA-normal 4.5 FAIL everywhere; AA-large 3.0 PASS except on bg-hover #2e2e2e (2.94 FAIL). The .tpl-card-cat/.tpl-preview-cat tags are 9px = normal text -&gt; blocker. NOTE effective bg is text-on-rgba(45,111,232,0.12) tint over panel bg; center must render-measure the composited bg.</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="A11Y-CONTRAST-04">
+    <label><input type="radio" name="ap-A11Y-CONTRAST-04" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-04" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-04" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="a11y-contrast" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">a11y-contrast</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">A11Y-CONTRAST-05 · Raw #666 text literals fail AA on dark backgrounds (off-token)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: #666666 contrast: on #1a1a1a = 3.03:1; on #1e1e1e = 2.90:1; on #252525 = 2.67:1; on #2a2a2a = 2.50:1; on #2e2e2e = 2.37:1. AA-normal FAIL on all; AA-large PASS only on #1a1a1a. Hardcoded value bypasses token system AND fails contrast. editor-blocks:1166/1170 may be canvas content (excluded) -&gt; verify surface before grading.</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="A11Y-CONTRAST-05">
+    <label><input type="radio" name="ap-A11Y-CONTRAST-05" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-05" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-A11Y-CONTRAST-05" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="adoption" data-sev="major" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">adoption</span><span class="chip">deterministic</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-adoption-01 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/props/prop-text-template.js, js/props/prop-chat.js, js/badge-transform.js, js/text-effect-transform.js, js/panels/mockup-panel.js, js/panels/iconify-panel.js (+range index.html:440)</div>
+    <div>표준 .prop-number / .prop-slider 클래스를 우회한 bare input[type=number](8) · input[type=range](8). 같은 파일 인접 형제는 .prop-number를 쓰는데 일부 인스턴스만 클래스 누락 — 동일 컴포넌트 내 비일관 채택.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>prop-text-template.js:98/104/152/159 = &lt;input type=&quot;number&quot;&gt; bare (vs :112/144/196/206 = class=&quot;prop-number&quot;). prop-chat.js:104/135/140/145 = &lt;input type=&quot;range&quot; style=&quot;flex:1&quot;&gt; bare (vs .prop-slider 표준 존재).</td></tr></table>
+    
+    <div class="kv">수정 방향: bare number→class=&quot;prop-number&quot;, bare range→class=&quot;prop-slider&quot; 부여. inline style=flex:1 대신 표준 클래스 폭 규칙 사용.</div>
+    <div style="margin-top:6px">근거: <span class="chip">📄 profile.md#필수 준수 규칙(prop 패널)</span><span class="chip">📄 profile.md#D-component</span></div>
+    
+  <div class="appr" data-aid="DSN-adoption-01">
+    <label><input type="radio" name="ap-DSN-adoption-01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-adoption-01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-adoption-01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="adoption" data-sev="major" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">adoption</span><span class="chip">deterministic</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-adoption-02 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">index.html(5), js/props/color-picker.js(2), js/panels/assets-panel.js(2), pages/planning.html(2), pages/license.html(2) 외</div>
+    <div>표준 .prop-input / .ui-input 을 우회한 bare input[type=text] 20개. index.html figma/project/bcm 모달 입력은 inline style로 토큰 우회.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>index.html: figma-channel-input·project-name-input·bcm-name/folder/tags-input = &lt;input type=&quot;text&quot; style=&quot;...&quot;&gt; 클래스 없음. 표준 .prop-input(2회만 채택) 존재.</td></tr></table>
+    
+    <div class="kv">수정 방향: class=&quot;prop-input&quot; 또는 ui-input 부여, inline style 제거.</div>
+    <div style="margin-top:6px">근거: <span class="chip">📄 profile.md#D-component</span><span class="chip">📄 profile.md#핵심 구조 사실(토큰 강제)</span></div>
+    
+  <div class="appr" data-aid="DSN-adoption-02">
+    <label><input type="radio" name="ap-DSN-adoption-02" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-adoption-02" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-adoption-02" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="adoption" data-sev="major" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">adoption</span><span class="chip">deterministic</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-adoption-03 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/badge-transform.js(3), js/props/color-picker.js(3), js/text-effect-transform.js(2), index.html(1), pages/planning.html(1)</div>
+    <div>표준 .prop-select 를 우회한 bare &lt;select&gt; 10개. color-picker gradType/gradAngle/imgFit, badge align/* 등.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>color-picker.js:175/179/212 = &lt;select data-el=&quot;...&quot;&gt; 클래스 없음. 표준 .prop-select(중복정의 포함 47 채택) 존재.</td></tr></table>
+    
+    <div class="kv">수정 방향: class=&quot;prop-select&quot; 부여.</div>
+    <div style="margin-top:6px">근거: <span class="chip">📄 profile.md#D-component</span></div>
+    
+  <div class="appr" data-aid="DSN-adoption-03">
+    <label><input type="radio" name="ap-DSN-adoption-03" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-adoption-03" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-adoption-03" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="adoption" data-sev="major" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">adoption</span><span class="chip">deterministic</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-adoption-04 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">index.html(14), js/panels/assets-panel.js(6), js/commit-system.js(3), js/panels/ai-image-gallery.js(3), js/props/prop-table.js(2), mockup/iconify-panel(각2), pages/*.html(4) 외</div>
+    <div>표준 .prop-btn / .ui-btn / .prop-*-btn 계열을 우회한 bare &lt;button&gt; 38개. index.html figma 모달 버튼은 inline style(background:#2563eb 등)으로 토큰·클래스 동시 우회.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td><span class="swatch" style="background:#2563eb"></span>index.html figma-upload-btn/figma-cancel-btn/doFigmaImport = &lt;button style=&quot;background:#2563eb;border:none;border-radius:6px...&quot;&gt; 클래스 없음. 339개는 정의된 클래스 채택(채택률 73.5%, artifact 보정 시 더 높음).</td></tr></table>
+    
+    <div class="kv">수정 방향: 기본 버튼 class=&quot;prop-btn&quot;/&quot;ui-btn&quot;, 위험 버튼 class=&quot;prop-btn-danger&quot;(필수규칙), inline 색상 제거→토큰.</div>
+    <div style="margin-top:6px">근거: <span class="chip">📄 profile.md#D-component(prop 버튼 통일성)</span><span class="chip">📄 profile.md#필수 준수 규칙</span></div>
+    
+  <div class="appr" data-aid="DSN-adoption-04">
+    <label><input type="radio" name="ap-DSN-adoption-04" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-adoption-04" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-adoption-04" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="color" data-sev="major" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#5fb36a">confirmed</span>
+      <span class="chip">color</span><span class="chip">measure</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-color-001 · 토큰 이원화 — 의미토큰(--color-/--bg-/--text-)과 --ui-*가 같은 값을 두 이름으로 병렬 정의</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/design-tokens.css:124-142 (semantic) vs css/editor-base.css:39-56 (--ui-*)</div>
+    <div>design-tokens.css의 의미토큰 체계와 editor-base.css의 --ui-* 체계가 동일 값을 중복 정의. --bg-app=--ui-bg-app=#1a1a1a, --text-default=--ui-text=#e0e0e0, --border-default=--ui-border=#333333, --color-danger=--ui-danger=#e06c6c 등 거의 전 항목이 1:1 중복. 실사용은 --ui-* 1058회 vs --color-/--bg-/--text- 54회(대부분 selection 계열만)로, 의미토큰 체계는 사실상 사문화. 두 체계가 공존해 신규 코드가 어느 쪽을 써야 할지 불명확하고, 값 변경 시 두 곳을 동기화해야 함.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>단일 토큰 체계 (의미토큰이 --ui-*를 참조하거나, --ui-*만 유지하고 의미토큰 폐기)</td>
+    <th>실제</th><td>두 체계 병렬 정의, --ui-* 1058회 / 의미토큰 54회</td></tr></table>
+    <div class="kv">증거: grep -roh '\-\-ui-[a-z0-9-]*' css/*.css | wc -l → 1058; editor-base.css:39-56과 design-tokens.css:124-150 값 대조 시 동일 hex</div>
+    <div class="kv">수정 방향: --ui-*를 의미토큰(var(--bg-app) 등)에 alias시키거나, 한 체계로 통일하고 다른 쪽을 단계적 제거. raw hex 정의는 한 곳에만.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-color-001">
+    <label><input type="radio" name="ap-DSN-color-001" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-color-001" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-color-001" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="color" data-sev="major" data-conf="suspected">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#7a86c8">suspected</span>
+      <span class="chip">color</span><span class="chip">pattern</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-color-002 · UI 크롬 텍스트/배경에 토큰 대신 raw 중립색 hex 직접 사용 (#fff/#ccc/#888/#555/#222 등)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-panels.css, css/editor-props.css, css/editor-extra.css (예: editor-panels.css:159 .cm-filter-tab:hover color:#888, :180 .cm-item-msg color:#ccc, editor-props.css:210/462/472 color:#ccc)</div>
+    <div>패널/프롭/필터탭 등 명백한 UI 크롬에서 텍스트·배경색을 var() 없이 raw hex로 박아넣음. #ccc=--ui-text-sub(#aaaaaa 인접)/--ui-text(#e0e0e0) 자리, #888=--ui-text-muted/dim 자리, #555=--ui-text-dim(#555555 정확히 동일), #222=--ui-bg-input(#2a2a2a 인접) 자리. 토큰이 이미 존재하는데 우회.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>--ui-text-sub / --ui-text-muted / --ui-text-dim / --ui-bg-input 토큰</td>
+    <th>실제</th><td><span class="swatch" style="background:#fff"></span>#fff×38, #ccc×31, #888×21, #555×9, #222×8 (props+panels+extra)</td></tr></table>
+    <div class="kv">증거: grep -rhoiE '#[0-9a-f]{3,8}' editor-props/panels/extra | sort | uniq -c — 정의부 외 사용 확인</div>
+    <div class="kv">수정 방향: 셀렉터별로 가장 가까운 --ui-text-* / --ui-bg-* 토큰으로 치환. #555→var(--ui-text-dim)은 무손실 치환.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-color-002">
+    <label><input type="radio" name="ap-DSN-color-002" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-color-002" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-color-002" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="color" data-sev="major" data-conf="suspected">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#7a86c8">suspected</span>
+      <span class="chip">color</span><span class="chip">pattern</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-color-003 · AI/스타·브랜치 액센트 컬러 패밀리가 토큰 정의 없이 전량 raw hex (purple/amber/status-blue)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-extra.css:515/521/579/601/623/636 (AI purple), :1287/1304/1305/1308 (star amber), css/editor-panels.css:613/947/963 (status blue), editor-props.css:612</div>
+    <div>AI 패널 보라(#c084fc/#d8b4fe/#9333ea/#7c3aed/#6d28d9/#9966ff), 즐겨찾기 별 앰버(#f5a623/#f5c518/#f59e0b), 브랜치/포커스 상태 블루(#5a8ab8/#6fa3f7/#4d7fc0)가 design-tokens.css·editor-base.css 어디에도 토큰으로 없음. 한 액센트 패밀리당 3~6종의 톤이 raw로 흩어져 일관성·다크모드 대응 불가.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>--p-purple-*/--color-ai-*, --p-amber-*/--color-star-*, --color-branch 류 토큰 (현재 부재)</td>
+    <th>실제</th><td>purple 계열 13종, amber 3종, status-blue 3+종 모두 raw hex</td></tr></table>
+    <div class="kv">증거: grep -niE '#c084fc|#d8b4fe|#7c3aed|#f5a623|#5a8ab8' css/*.css — 정의 0건, 사용만 다수</div>
+    <div class="kv">수정 방향: AI/star/branch 액센트를 primitive(--p-purple-*, --p-amber-*) + semantic 토큰으로 신설 후 치환.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-color-003">
+    <label><input type="radio" name="ap-DSN-color-003" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-color-003" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-color-003" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">component</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">DSN-component-01 · 위험 버튼 .prop-btn-danger 가 danger 토큰 대신 raw hex 3종 사용</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: editor-props.css:485-486 .prop-btn-danger { border-color:#6b2e2e; color:#e06060 } / :hover { background:#2a1818; border-color:#e06060 }. #e06060 은 토큰 --ui-danger(#e06c6c)와 1글자 차이의 근사 하드코딩, border #6b2e2e / bg #2a1818 은 토큰 미존재.</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-component-01">
+    <label><input type="radio" name="ap-DSN-component-01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-component-01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-component-01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">component</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">DSN-component-02 · 동일 prop-button 계열 내 border 토큰 불일치 (strong vs mid)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: editor-props.css: .prop-btn(461) / .prop-btn-full(471) / .prop-btn-sm(479) / .prop-full-btn(490) 은 border 1px var(--ui-border-strong). 그러나 같은 prop 버튼 계열인 .prop-align-btn(263) / .prop-style-btn(276) 은 border 1px var(--ui-border-mid). 동일 패널·동일 height(24px) 버튼들이 두 border 토큰으로 갈림.</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-component-02">
+    <label><input type="radio" name="ap-DSN-component-02" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-component-02" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-component-02" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">component</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">DSN-component-03 · box-shadow 45종 난립 — elevation 토큰 부재</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: UI 크롬 13파일에 distinct box-shadow 레시피 45종. 모달 elevation만 봐도 0 12px 48px /.6, 0 24px 64px /.6, 0 12px 40px /.55, 0 8px 32px /.5+.3, 0 12px 36px /.55 등 동급 깊이가 5+종. 드롭다운도 0 8px 24px /.5 와 0 4px 16px /.5 혼용. 포커스/글로우 링도 0 0 0 2px 색상·알파 제각각(0.15/0.18/0.2).</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-component-03">
+    <label><input type="radio" name="ap-DSN-component-03" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-component-03" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-component-03" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">malformed · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="malformed">
+    <label><input type="radio" name="ap-malformed" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-malformed" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-malformed" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">broken · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="broken">
+    <label><input type="radio" name="ap-broken" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-broken" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-broken" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="motion" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">motion</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">MOT-01 · prefers-reduced-motion 미지원 — 전체 CSS 16파일 0회</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: grep 'prefers-reduced-motion' = 0 hits across all CSS. UI 크롬에 무한 반복 애니메이션 6개 상주(아래)인데 모션 감소 환경(전정기관 장애·멀미 사용자)을 위한 가드 전무.</div>
+    <div class="kv">수정 방향: @media (prefers-reduced-motion: reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} } 전역 가드 1블록 + 무한 애니는 별도 정지.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="MOT-01">
+    <label><input type="radio" name="ap-MOT-01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-MOT-01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-MOT-01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="spacing" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">spacing</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">PP-SPACE-1 · prop-row gap 표준 4px ↔ 인라인 6px 패널 간 갈림 (동일 역할)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="PP-SPACE-1">
+    <label><input type="radio" name="ap-PP-SPACE-1" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-PP-SPACE-1" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-PP-SPACE-1" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="spacing" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">spacing</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">PP-SPACE-2 · 행 수직 리듬 — 표준 margin-bottom:6px ↔ 인라인 margin-top:6px 혼용 (이중 마진 위험)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="PP-SPACE-2">
+    <label><input type="radio" name="ap-PP-SPACE-2" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-PP-SPACE-2" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-PP-SPACE-2" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="spacing" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">spacing</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">PP-SPACE-4 · 반복 아이템 카드 — laurel만 표준 카드 클래스, chat/step/table 등은 제각각</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="PP-SPACE-4">
+    <label><input type="radio" name="ap-PP-SPACE-4" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-PP-SPACE-4" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-PP-SPACE-4" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">PPS-01 · 위험 버튼 danger 우회 — prop-frame '이미지 제거'가 .danger 토큰 대신 raw hex (표준 prop-section과 정면 분기)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: 동일 라벨 '이미지 제거'를 두 패널이 다르게 그림. 표준 prop-section.js:115는 `class=&quot;prop-action-btn danger&quot;`(editor-blocks.css:390 토큰: bg#c0392b). prop-frame.js:270은 `class=&quot;prop-action-btn&quot;` + 인라인 `style=&quot;...background:#3a2a2a;color:#e06c6c;&quot;` — danger 토큰 우회 raw hex. 같은 파일 JS fallback prop-frame.js:562-563도 `className='prop-action-btn'` + cssText 동일 raw hex로 중복. 추가로 destructive인데 danger affordance가 아예 없는 케이스: prop-sticker.js:76 '이미지 제거' = bare `prop-action-btn`(중립), prop-annotation.js:306 '이미지 제거' = `prop-btn` + `color:var(--ui-text-muted)`(중립 회색), prop-asset.js:69 '초기화' = `prop-align-btn`(정렬버튼 클래스 전용). raw hex 변형: prop-canvas.js:36 '이미지 제거' `prop-btn` + `color:#e55`, prop-simple-card.js:50/55 '이미지/아이콘 제거' `prop-btn` + cvb-card-btn-sm-del(빨강). 표준 danger 패밀리 2종(`prop-action-btn danger`, `prop-btn prop-btn-danger`)을 올바로 쓰는 패널(asset:59, icon-circle:49, section:115, banner02, chat, comparison, step)과 대비됨.</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="PPS-01">
+    <label><input type="radio" name="ap-PPS-01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-PPS-01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-PPS-01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="major" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">component</span><span class="chip">A</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-pp-widget-01 · 위험버튼 2계열 시각 정반대 — .prop-action-btn.danger(솔리드 빨강) vs .prop-btn-danger(아웃라인 빨강)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-blocks.css:390,css/editor-props.css:485,js/props/prop-section.js:115,js/props/prop-asset.js,js/props/prop-sticker.js,js/props/prop-frame.js,js/props/prop-icon-circle.js,js/props/prop-laurel.js,js/props/prop-chat.js,js/props/prop-step.js,js/props/prop-comparison.js,js/props/prop-banner02.js</div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>동일 '제거/삭제' 시맨틱 버튼은 한 가지 위험 스타일로 통일되어야 함</td>
+    <th>실제</th><td><span class="swatch" style="background:#c0392b"></span>두 개의 경쟁 클래스가 같은 기능을 정반대로 그림. (a) .prop-action-btn.danger = 솔리드 빨강 채움(background #c0392b, color #fff) — section/asset/sticker/frame/icon-circle/laurel. (b) .prop-btn-danger = 아웃라인(transparent bg, border #6b2e2e, color #e06060) — chat/step/comparison/banner02. 둘 다 height 24px라 크기는 같지만 채움/아웃라인이 갈려 같은 '이미지 제거/삭제'가 패널마다 완전히 다른 위험도 신호로 보임.</td></tr></table>
+    <div class="kv">증거: editor-blocks.css:390 `.prop-action-btn.danger { background:#c0392b; color:#fff }`; editor-props.css:485-486 `.prop-btn-danger { border-color:#6b2e2e; color:#e06060 } :hover{ background:#2a1818 }`. raw hex 6종, 토큰 미사용.</div>
+    <div class="kv">수정 방향: 위험버튼 단일 표준 1택(아웃라인 권장, --ui-danger 토큰 사용) 후 .prop-action-btn.danger 사용처를 .prop-btn-danger로 흡수하거나 두 클래스 색을 동일화.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-pp-widget-01">
+    <label><input type="radio" name="ap-DSN-pp-widget-01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="major" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">component</span><span class="chip">A</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-pp-widget-02 · 풀폭 액션버튼 3계열 난립 — .prop-btn-full vs .prop-action-btn vs .prop-export-btn</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-props.css:469,css/editor-blocks.css:373,css/editor-props.css:543,js/props/prop-chat.js,js/props/prop-iconify.js,js/props/prop-text-template.js,js/props/prop-mockup.js,js/props/prop-label-group.js,js/props/prop-graph.js,js/props/prop-section.js:248,js/props/prop-page.js</div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>패널 하단 '적용/저장/선택' 풀폭 버튼은 단일 표준 클래스·스킨 사용</td>
+    <th>실제</th><td>같은 풀폭 액션 슬롯에 세 가지 버튼 시스템이 공존. (a) .prop-btn-full(editor-props.css) — chat/iconify/text-template/mockup/label-group/graph. (b) .prop-action-btn .primary/.secondary/.danger(editor-blocks.css, 별도 정의) — asset/section/sticker/frame/icon-circle/laurel. (c) .prop-export-btn(파란 accent 채움) — page/section. 결과적으로 '저장' 같은 동일 동작 버튼이 패널에 따라 회색 아웃라인(btn-full) / 파랑 채움(action-btn.primary, export-btn) / 빨강 채움(action-btn.danger)으로 갈림.</td></tr></table>
+    <div class="kv">증거: editor-props.css:469 `.prop-btn-full{ height:24px; background:var(--ui-bg-app); border:1px var(--ui-border-strong) }`; editor-blocks.css:373 `.prop-action-btn{ height:24px; border:1px var(--ui-border); font-weight:600 }`; editor-props.css:543 `.prop-export-btn{ background:var(--ui-accent-primary); border:none; font-weight:600 }`. 정의가 두 CSS 파일에 분산.</div>
+    <div class="kv">수정 방향: 풀폭 버튼 표준을 .prop-btn-full(+ .primary/.danger 변형)로 단일화하고 .prop-action-btn / .prop-export-btn 을 그 변형으로 매핑. deprecated .prop-full-btn(editor-props.css:488)도 함께 제거.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-pp-widget-02">
+    <label><input type="radio" name="ap-DSN-pp-widget-02" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-02" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-02" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="major" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">component</span><span class="chip">A</span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">DSN-pp-widget-03 · blockHeader 공용 빌더 부재 — 26개 패널이 prop-block-label/-icon 마크업 각자 재구현</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/props/_helpers.js,js/props/prop-section.js:160,js/props/prop-text-template.js:42,js/props/prop-asset.js:76,js/props/prop-gradient.js:45,js/props/prop-page.js:72,js/props/prop-shape.js:52,js/props/prop-frame.js:39</div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>모든 블록 헤더(아이콘+이름+breadcrumb+id)는 buildBlockHeader 같은 공용 함수 1곳에서 생성</td>
+    <th>실제</th><td>_helpers.js에는 bindSlider만 있고 헤더 빌더가 없음. 26개 패널이 `.prop-block-label &gt; .prop-block-icon + .prop-block-info(name+breadcrumb) + .prop-block-id` 구조를 각자 손으로 작성. 구조 자체는 대체로 일치하나(name+breadcrumb+id copy onclick) SVG 크기·일부 슬롯 유무가 패널마다 미세하게 갈릴 위험을 구조적으로 안고 있음(실제 04 참조).</td></tr></table>
+    <div class="kv">증거: prop-block-label 마크업이 26개 파일에 grep됨(prop-section/text-template/asset/gradient/page/shape/frame/... 전부 inline 작성). 공유 함수 호출 0건.</div>
+    <div class="kv">수정 방향: buildBlockHeader({icon, name, id, breadcrumb}) 헬퍼를 _helpers.js에 추가하고 패널들이 호출하도록 점진 마이그레이션. 우선 SVG 크기·info 슬롯을 헬퍼에 고정.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-pp-widget-03">
+    <label><input type="radio" name="ap-DSN-pp-widget-03" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-03" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-03" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="spacing" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">spacing</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">SPACE-R1 · 컨테이너/행 패딩 역할 분산 — 동일 역할에 2축 변종 8종+</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="SPACE-R1">
+    <label><input type="radio" name="ap-SPACE-R1" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-SPACE-R1" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-SPACE-R1" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="states" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">states</span><span class="chip">deterministic</span>
+      
+      
+      <b style="margin-left:4px">ST-A1 · aria-pressed 마크업 ↔ CSS 불일치: ARIA pressed 상태에 전용 스타일 훅 없음</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: js/props/color-var-chips.js:50 (class='cv-chip${active? active}' + aria-pressed='${active}'),css [aria-pressed] 셀렉터 grep = 0건,editor-props.css:449 .cv-chip.active (실제 시각 담당)</div>
+    <div class="kv">수정 방향: (택1) .cv-chip[aria-pressed='true'] 를 시각 규칙의 진짜 소스로 승격해 class=active 의존 제거 — 마크업 단일화. 또는 최소한 [aria-pressed='true']를 .active 셀렉터에 ,로 병기해 동기화 안전망 확보.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ST-A1">
+    <label><input type="radio" name="ap-ST-A1" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ST-A1" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ST-A1" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="states" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">states</span><span class="chip">deterministic</span>
+      
+      
+      <b style="margin-left:4px">ST-A2 · .prop-slider focus-visible가 thumb가 아닌 박스에 적용 — 키보드 포커스 위치 모호</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: editor-base.css:788 .prop-slider:focus-visible → 791 outline:2px(박스),::-webkit-slider-thumb / ::-moz-range-thumb 의 :focus glow 규칙 0건,editor-props.css:61 .prop-slider{outline:none} (기본 제거)</div>
+    <div class="kv">수정 방향: .prop-slider:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 3px color-mix(in srgb, var(--ui-accent-primary) 40%, transparent); } (+ ::-moz-range-thumb) 추가해 thumb 자체에 포커스 표시.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ST-A2">
+    <label><input type="radio" name="ap-ST-A2" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ST-A2" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ST-A2" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="typo" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">typo</span><span class="chip"></span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">TYPO-01 · UI 크롬 타입 스케일 토큰 부재 — font-size px 직접 405회, 21개 distinct 값 난립</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: [object Object]</div>
+    <div class="kv">수정 방향: --font-size-xs/sm/md/lg/xl + --line-height-tight/base/relaxed 토큰을 design-tokens.css에 추가하고 점진 이관. 캔버스 --preset-* 6단을 UI에 강제 적용 금지(별개 체계).</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="TYPO-01">
+    <label><input type="radio" name="ap-TYPO-01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-TYPO-01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-TYPO-01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="typo" data-sev="major" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#e0a060">major</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">typo</span><span class="chip"></span>
+      <span class="chip">verify-candidate</span>
+      
+      <b style="margin-left:4px">TYPO-02 · 9px 서브가독 UI 텍스트 36회 — UI 크롬 최소 가독성 미달 군집</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: [object Object]</div>
+    <div class="kv">수정 방향: UI 캡션 최소값을 10px로 정하고 9px→--font-size-xs(10px)로 통일. 8px 단발(editor-extra:391-397, ai-image:364)은 즉시 상향.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="TYPO-02">
+    <label><input type="radio" name="ap-TYPO-02" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-TYPO-02" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-TYPO-02" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="adoption" data-sev="minor" data-conf="medium">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888">medium</span>
+      <span class="chip">adoption</span><span class="chip">deterministic</span>
+      <span class="chip">suspected</span>
+      
+      <b style="margin-left:4px">DSN-adoption-05 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">pages/planning.html(5 SWOT/포지셔닝), js/ai-section-fill.js, js/badge-transform.js, js/commit-system.js, js/panels/assets-panel.js</div>
+    <div>표준 .prop-textarea(editor-props.css 정의) 를 우회한 bare &lt;textarea&gt; 9개. planning.html 5건은 .intake-section 부모 스코프 CSS로 스타일될 수 있어 suspected.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>planning.html:284~305 = &lt;textarea id=&quot;inp-*&quot;&gt; bare (.intake-section textarea 스코프 가능). 표준 .prop-textarea / ai-textarea 클래스 존재(채택 10).</td></tr></table>
+    
+    <div class="kv">수정 방향: 에디터 크롬 내 textarea는 .prop-textarea 부여. planning.html는 부모 스코프 스타일 여부 확인 후 판단.</div>
+    <div style="margin-top:6px">근거: <span class="chip">📄 profile.md#D-component</span></div>
+    
+  <div class="appr" data-aid="DSN-adoption-05">
+    <label><input type="radio" name="ap-DSN-adoption-05" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-adoption-05" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-adoption-05" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="adoption" data-sev="minor" data-conf="low">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888">low</span>
+      <span class="chip">adoption</span><span class="chip">deterministic</span>
+      <span class="chip">suspected</span>
+      
+      <b style="margin-left:4px">DSN-adoption-06 · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">ds-token-* / grb-data-* / ai-fill-* / tpl-* / tbe-* / goya-cp-* / cpm-* / st-* 전용클래스 군</div>
+    <div>표준 prop-*/ui-* 가 아닌 자체 전용클래스를 쓴 표준화대상 컨트롤 61개(range/number/text/select/textarea). 대부분 도메인 전용 컴포넌트(디자인시스템 패널·템플릿브라우저·컬러피커·grb 데이터블록)로 의도된 전용 컴포넌트일 수 있음 → case-by-case.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>ds-token-hex(5)·tpl-name-input(5)·goya-cp-hex(3)·ds-font-select(2)·grb-data-val-input·ai-fill-panel-*-input 등. 다수는 전용 CSS에 정의됨(=실 스타일 보유).</td></tr></table>
+    
+    <div class="kv">수정 방향: 전용 컴포넌트로 유지하되, 단순 텍스트/숫자 입력(tbe-*/tpl-* search 등)은 .prop-input/.prop-number로 수렴 검토.</div>
+    <div style="margin-top:6px">근거: <span class="chip">📄 profile.md#스타일 표면(보조 표면 CSS 다수)</span></div>
+    
+  <div class="appr" data-aid="DSN-adoption-06">
+    <label><input type="radio" name="ap-DSN-adoption-06" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-adoption-06" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-adoption-06" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="color" data-sev="minor" data-conf="confirmed">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#5fb36a">confirmed</span>
+      <span class="chip">color</span><span class="chip">measure</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">DSN-color-004 · var() fallback hex가 토큰 실제값과 불일치 — --ui-bg-hover fallback이 다른 토큰 값</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-props.css:172 (.font-search), css/editor-props.css:683 (.font-item:hover) — background: var(--ui-bg-hover, #252525)</div>
+    <div>--ui-bg-hover 토큰값은 #2e2e2e인데 fallback에 #252525(=--ui-bg-card)를 적음. 토큰 로드 실패 시 잘못된 색으로 폴백. 나머지 fallback(--ui-text-dim,#555 등)은 토큰값과 일치해 무해하나, 이 두 건은 값 불일치.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td><span class="swatch" style="background:#2e2e2e"></span>--ui-bg-hover = #2e2e2e (editor-base.css:44)</td>
+    <th>실제</th><td><span class="swatch" style="background:#252525"></span>var(--ui-bg-hover, #252525) — fallback이 #2e2e2e가 아님</td></tr></table>
+    <div class="kv">증거: editor-base.css:44 --ui-bg-hover:#2e2e2e; editor-props.css:172,683 fallback #252525</div>
+    <div class="kv">수정 방향: fallback을 #2e2e2e로 정정하거나, 토큰이 항상 로드되므로 fallback 제거.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-color-004">
+    <label><input type="radio" name="ap-DSN-color-004" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-color-004" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-color-004" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="color" data-sev="minor" data-conf="suspected">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#7a86c8">suspected</span>
+      <span class="chip">color</span><span class="chip">pattern</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">DSN-color-005 · 토큰 회색 램프 밖의 근접 중립색 난립 (#ddd/#bbb/#999/#666/#161616/#1c1c1c/#1f1f1f/#232323 등)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-panels.css, css/editor-props.css, css/editor-extra.css (분포)</div>
+    <div>design-tokens.css의 --p-gray-* 램프(#1a1a1a~#e0e0e0, 22단)에 없는 인접 회색이 다수. #ddd(#dddddd)는 #cccccc와 #e0e0e0 사이, #bbb는 #aaaaaa 인접, #999는 caption #999999와 동일하나 토큰 미사용, #161616/#1c1c1c/#1f1f1f/#232323/#2d2d2d는 어두운 셸 램프 중간값. 비슷한 회색이 토큰 외 ~15종 추가 존재해 램프를 사실상 무력화.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>--p-gray-* 22단 램프 (design-tokens.css:39-60)</td>
+    <th>실제</th><td><span class="swatch" style="background:#ddd"></span>#ddd×11, #bbb×4, #999×4, #161616×3, #666×2, #232323/#1f1f1f/#1c1c1c×2 등 ~15 시그니처</td></tr></table>
+    <div class="kv">증거: grep -rhoiE '#(ddd|bbb|999|666|161616|1c1c1c|...)' props/panels/extra | sort | uniq -c</div>
+    <div class="kv">수정 방향: 가장 가까운 --p-gray-* 토큰으로 스냅(#ddd→가까운 단으로 통일), 신규 단이 필요하면 램프에 1단 추가 후 토큰화.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-color-005">
+    <label><input type="radio" name="ap-DSN-color-005" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-color-005" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-color-005" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="color" data-sev="minor" data-conf="suspected">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#7a86c8">suspected</span>
+      <span class="chip">color</span><span class="chip">pattern</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">DSN-color-006 · 그래프/status에서 토큰값과 동일한 hex를 raw로 재기입 (토큰 우회)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-panels.css, css/editor-extra.css, css/editor-props.css (예: #e06c6c=--ui-danger, #4ecb7a=--p-green-400, #2d6fe8=--ui-accent-primary, #3d7ff8=--p-blue-700, #383838=--p-gray-600)</div>
+    <div>이미 토큰으로 정의된 값과 글자 그대로 동일한 hex를 var() 없이 직접 기입. #e06c6c(--ui-danger/--color-danger)×3, #4ecb7a(--p-green-400/--color-saved)×2, #2d6fe8(--ui-accent-primary)×1, #3d7ff8(--p-blue-700)×2. 값은 맞지만 토큰을 안 거쳐 변경 추적이 끊김.</div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>--ui-danger / --color-saved / --ui-accent-primary / --p-blue-700 등 동일값 토큰</td>
+    <th>실제</th><td>동일 hex를 raw로 재기입</td></tr></table>
+    <div class="kv">증거: uniq 시그니처와 design-tokens/editor-base 정의값 1:1 일치 대조</div>
+    <div class="kv">수정 방향: 해당 raw hex를 동일값 토큰 var()로 치환 (무손실).</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-color-006">
+    <label><input type="radio" name="ap-DSN-color-006" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-color-006" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-color-006" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">component</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">DSN-component-04 · border-radius 스케일(4/6/10) 밖 값 군집 — 169개 중 ~140개 off-scale</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: UI 크롬 off-scale 분포: 3px×50, 5px×43, 8px×26, 12px×10, 7px×7, 그 외 1/11/16/18/20/40px 산발. (2px×30은 대부분 scrollbar-thumb, 50%/999px는 pill/circle 의도라 제외). 같은 컴포넌트 계열 내 모서리 불일치 다수: 모달 8px(editor-extra:277,336,569,793) vs 10px vs 12px(:180,532), 드롭다운/메뉴 아이템 5px(panels 다수) vs 4px, 인풋/var-item 5px vs 3px vs 4px(editor-base:225,238,384 ↔ 169,272,396).</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-component-04">
+    <label><input type="radio" name="ap-DSN-component-04" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-component-04" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-component-04" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">dead-real · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="dead-real">
+    <label><input type="radio" name="ap-dead-real" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-dead-real" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-dead-real" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">duplicate-definitions · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="duplicate-definitions">
+    <label><input type="radio" name="ap-duplicate-definitions" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-duplicate-definitions" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-duplicate-definitions" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="motion" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">motion</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">MOT-02 · duration/easing 토큰 부재 — 189개 transition이 raw 리터럴</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: design-tokens.css에 --duration-* / --ease-* 토큰 0개. 실측 분포상 0.15s(89)·0.1s(69)·0.12s(56)로 3값에 84% 수렴 → 이미 사실상 표준이 있으나 토큰화 안 됨. easing은 ease(26)가 지배적.</div>
+    <div class="kv">수정 방향: --dur-fast:0.1s / --dur-base:0.12s / --dur-slow:0.15s + --ease-default:ease 토큰 도입 후 점진 이관.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="MOT-02">
+    <label><input type="radio" name="ap-MOT-02" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-MOT-02" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-MOT-02" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="motion" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">motion</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">MOT-03 · transition: all 23회 — 예측 불가 + 성능 리스크</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: transition:all 23건. editor-panels.css 9, editor-base.css 5, editor-extra.css 5, editor-props.css 3, editor-toast.css 1. 대표: editor-panels.css:157,621,735,745 / editor-base.css:595,653,683,738 / editor-extra.css:59,89,156,442.</div>
+    <div class="kv">수정 방향: 각 셀렉터의 실제 변하는 속성(주로 background/color/border-color/opacity/transform)만 나열로 교체.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="MOT-03">
+    <label><input type="radio" name="ap-MOT-03" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-MOT-03" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-MOT-03" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="motion" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">motion</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">MOT-04 · 동일 duration의 ms·s 이중 표기 — editor-layout.css 군집</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: editor-layout.css만 ms-form 사용(70,92,112,137,143,168,189,209,255). 120ms=0.12s(타 파일 56회), 180ms=0.18s, 200ms=0.2s가 같은 값을 두 형식으로 표기. editor-layout.css:112 'background 120ms, color 120ms' vs 타 파일 '0.12s'.</div>
+    <div class="kv">수정 방향: 전 파일 s-form(또는 ms-form) 단일화. 토큰 도입 시 자동 해소.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="MOT-04">
+    <label><input type="radio" name="ap-MOT-04" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-MOT-04" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-MOT-04" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="motion" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">motion</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">MOT-05 · 동일 cubic-bezier 곡선의 공백 표기 2종</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: cubic-bezier(0.4,0,0.2,1) [editor-extra.css:989,1383] vs cubic-bezier(0.4, 0, 0.2, 1) [editor-layout.css:343]. 같은 곡선(머티리얼 standard)인데 공백 유무로 grep상 다른 값처럼 분리됨. cubic-bezier(0.16, 1, 0.3, 1)도 별도 곡선(editor-layout.css:92,189)으로 공존.</div>
+    <div class="kv">수정 방향: --ease-emphasized:cubic-bezier(0.4,0,0.2,1) 토큰으로 통일.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="MOT-05">
+    <label><input type="radio" name="ap-MOT-05" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-MOT-05" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-MOT-05" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="spacing" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">spacing</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">PP-SPACE-3 · prop-label 폭 — 표준 56px ↔ 40/48/60px 패널 간 갈림</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="PP-SPACE-3">
+    <label><input type="radio" name="ap-PP-SPACE-3" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-PP-SPACE-3" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-PP-SPACE-3" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">PPS-02 · 빌드 패턴 분기 — bindSlider 표준 헬퍼 4/26 채택, 22패널 손수 slider 와이어업</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: _helpers.js의 bindSlider(slider+number 표준 hook: mousedown=pushHistory, input=apply+sync, change=autosave)가 RIGHT_PANEL_PROPS §4-4 표준으로 명시됐으나 채택은 prop-gradient/prop-frame/prop-step + _helpers 정의부뿐. slider를 쓰는 나머지 22패널(prop-section 포함, 표준 참조파일조차 라인281-326 손수 와이어업)은 각자 addEventListener input/change를 중복 구현. 시각 회귀는 아니나 history/autosave 타이밍 규약이 패널마다 손수라 drift·누락 위험(예: 일부는 change에 pushHistory 누락 가능).</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="PPS-02">
+    <label><input type="radio" name="ap-PPS-02" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-PPS-02" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-PPS-02" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">PPS-03 · 정렬그룹 full-width 분할 표준은 CSS 의존 — 일부 패널 버튼에 중복 인라인 flex:1</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: .prop-align-btn은 CSS(editor-props.css:262)에 이미 `flex:1 0 28px` 보유 → .prop-align-group 직속이면 인라인 없이 균등분할됨(label-group/section/divider가 이 방식). 그러나 prop-step.js:74-97, prop-banner02.js:144-153, prop-simple-card.js 등은 각 버튼에 `style=&quot;flex:1&quot;`을 중복 부여 — 결과는 동일하나 일부는 그렸고 일부는 안 그려 일관성 없음. CSS가 표준이므로 인라인 flex:1은 잉여. (regression 아님, 표시상 동일.)</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="PPS-03">
+    <label><input type="radio" name="ap-PPS-03" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-PPS-03" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-PPS-03" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="minor" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">component</span><span class="chip">A</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">DSN-pp-widget-04 · 헤더 아이콘 SVG 크기 갈림 — 다수 패널 12px인데 section/page 16px, gradient 14px</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/props/prop-section.js:163,js/props/prop-page.js:72,js/props/prop-gradient.js:45,js/props/prop-text-template.js:44</div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>동일한 20×20 .prop-block-icon 박스 안의 글리프 SVG 크기는 패널 간 동일해야 함</td>
+    <th>실제</th><td>.prop-block-icon(20×20px) 내부 SVG가 대부분 패널 12×12(text-template/asset/joker/mockup/sticker/divider/chat/graph/gap/label-group/iconify/row/step/table/laurel/simple-card/canvas/vector/multisel 등). 그러나 표준 참조 패널인 prop-section.js는 16×16, prop-page.js도 16×16, prop-gradient.js는 14×14. 같은 헤더 칸에서 아이콘이 패널마다 12/14/16px로 보이는 시각 크기 차.</td></tr></table>
+    <div class="kv">증거: grep 결과: prop-section 16, prop-page 16, prop-gradient 14, 그 외 24개 패널 12. 표준 prop-section 자체가 다수(12px)와 어긋난 outlier.</div>
+    <div class="kv">수정 방향: 헤더 글리프 SVG 크기를 12px 또는 14px 한 값으로 통일(다수결=12px). buildBlockHeader 헬퍼(03)에 고정하면 자동 수렴.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-pp-widget-04">
+    <label><input type="radio" name="ap-DSN-pp-widget-04" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-04" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-04" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="minor" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">component</span><span class="chip">A</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">DSN-pp-widget-05 · .prop-align-btn 가 정렬 외 범용 세그먼트 버튼으로 오버로드 + 인라인 padding/flex 손수 조정</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-props.css:261,js/props/prop-comparison.js:38,js/props/prop-simple-card.js:60,js/props/prop-annotation.js:331,js/props/prop-asset.js:69</div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>텍스트 정렬 토글 위젯 .prop-align-btn(24px, flex 1 0 28px)은 정렬 기능에만 사용</td>
+    <th>실제</th><td>.prop-align-btn이 정렬과 무관한 토글에 재사용되며 인라인으로 크기를 손봄. comparison: 'Featured 칼럼' 선택에 `style=&quot;flex:1&quot;`. simple-card: 'cover/contain' fit 토글에 `style=&quot;padding:2px 8px&quot;`(+ cvb-card-btn-sm). annotation: border-style(solid/dashed/dotted) 토글. asset: '초기화' 버튼에 `style=&quot;font-size:10px;padding:0 8px;flex-shrink:0&quot;`. 같은 .prop-align-btn 클래스인데 active=accent 색만 공유하고 크기/패딩은 패널마다 인라인으로 제각각.</td></tr></table>
+    <div class="kv">증거: grep: comparison.js:38 flex:1 인라인; simple-card.js:60-61 padding:2px 8px; annotation.js:331-337 data-style 토글; asset.js:69 font-size:10px 인라인 override.</div>
+    <div class="kv">수정 방향: 범용 세그먼트 토글 전용 클래스(.prop-seg-btn 등)를 도입하거나, .prop-align-btn 인라인 padding/flex override를 modifier 클래스로 표준화. 정렬 외 용도는 별 클래스로 분리.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-pp-widget-05">
+    <label><input type="radio" name="ap-DSN-pp-widget-05" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-05" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-05" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="minor" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">component</span><span class="chip">A</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">DSN-pp-widget-06 · prop-frame.js — .prop-select 를 인라인 height:28px + 하드코딩 색으로 재스킨(표준 24px/토큰 무시)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">js/props/prop-frame.js:234,css/editor-props.css:498</div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>.prop-select 표준 = height 24px, background var(--ui-bg-input), border 1px transparent, accent focus</td>
+    <th>실제</th><td><span class="swatch" style="background:#1a1a1a"></span>프레임(배너) 패널의 preset 셀렉트가 `class=&quot;prop-select&quot;`를 달고도 인라인으로 `height:28px; background:#1a1a1a; color:#e5e5e5; border:1px solid #333; padding:0 8px`를 덮어씀. 표준 24px·CSS변수 스킨을 무시하고 28px+raw hex로 손수 그림 → 같은 .prop-select가 이 패널에서만 키 크고 색 토큰 어긋남.</td></tr></table>
+    <div class="kv">증거: prop-frame.js:234 `&lt;select class=&quot;prop-select&quot; id=&quot;ss-banner-preset&quot; style=&quot;width:100%;height:28px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;...&quot;&gt;`. editor-props.css:498 표준은 height 24px + var(--ui-bg-input)/var(--ui-text).</div>
+    <div class="kv">수정 방향: 인라인 style 제거하고 .prop-select 표준 스킨에 위임. 풀폭이 필요하면 `style=&quot;width:100%&quot;`만 남김.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-pp-widget-06">
+    <label><input type="radio" name="ap-DSN-pp-widget-06" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-06" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-06" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="spacing" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">spacing</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">SPACE-G1 · 그리드 비배수 간격 군집 — UI 크롬 438건 (5/6/10/14/18px 등)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="SPACE-G1">
+    <label><input type="radio" name="ap-SPACE-G1" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-SPACE-G1" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-SPACE-G1" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="states" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">states</span><span class="chip">deterministic</span>
+      
+      
+      <b style="margin-left:4px">ST-A3 · :disabled 토큰 마이그레이션 미완 — 리터럴/교체식 잔존으로 값 불일치 지속</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: 토큰 채택 7건 vs 리터럴 0.6/0.4 잔존 3건 + 교체식 2건,editor-extra.css:637 opacity:0.6 / assets-panel.css:361 opacity:0.4,matrix상 disabled=false: tb-btn/zoom-btn/prop-align-btn/cpm-action/prop-action-btn 등 9/14</div>
+    <div class="kv">수정 방향: 잔존 리터럴(0.6/0.4)을 var(--ui-disabled-opacity)로 통일 + 공용 [disabled],:disabled{opacity:var(--ui-disabled-opacity);cursor:not-allowed;} 베이스 규칙으로 미커버 버튼군 일괄 보강.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ST-A3">
+    <label><input type="radio" name="ap-ST-A3" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ST-A3" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ST-A3" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="states" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">states</span><span class="chip">deterministic</span>
+      
+      
+      <b style="margin-left:4px">ST-A4 · loading / skeleton 비동기 진행 상태 시각 부재(미해소)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: grep skeleton|is-loading|spinner across css/ = 0건,비동기 버튼: editor-extra.css:637(ai-submit) / editor-panels.css:1721(ai-fill-run) / editor-extra.css:344(anim-export)</div>
+    <div class="kv">수정 방향: 비동기 트리거 버튼에 .is-loading{ pointer-events:none } + 스피너(::after rotate) 표준화. 차원 메모의 loading/skeleton 축 충족.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ST-A4">
+    <label><input type="radio" name="ap-ST-A4" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ST-A4" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ST-A4" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="typo" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">typo</span><span class="chip"></span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">TYPO-03 · line-height 기준 비일관 — unitless 9종 + px 혼용, 표준 배율 없음</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: [object Object]</div>
+    <div class="kv">수정 방향: --line-height-tight(1.2)/base(1.4)/relaxed(1.6) 3단으로 수렴. px line-height는 unitless로 교체.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="TYPO-03">
+    <label><input type="radio" name="ap-TYPO-03" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-TYPO-03" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-TYPO-03" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="typo" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">typo</span><span class="chip"></span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">TYPO-04 · font-family 스택 순서 비일관 — Pretendard 위치 제각각, UI 크롬 내 혼선</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: [object Object]</div>
+    <div class="kv">수정 방향: UI 크롬은 editor-base:552 스택('Pretendard' 우선)으로 통일하거나 --ui-font-family 토큰 1개로 일원화. smart-guide-label에 Pretendard 추가.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="TYPO-04">
+    <label><input type="radio" name="ap-TYPO-04" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-TYPO-04" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-TYPO-04" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="typo" data-sev="minor" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#d8c860">minor</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">typo</span><span class="chip"></span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">TYPO-05 · 캔버스 블록에 Pretendard 하드코딩 — content_font(Noto Sans KR/--preset-*-family) 우회</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: [object Object]</div>
+    <div class="kv">수정 방향: 캔버스 블록 font-family를 var(--preset-body-family) 등 프리셋 토큰으로 교체해 itb-text와 정렬. 단 디자인 의도(배지 영문 로고는 Pretendard 의도 가능) 확인 후.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="TYPO-05">
+    <label><input type="radio" name="ap-TYPO-05" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-TYPO-05" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-TYPO-05" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="nit" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#8a8f98">nit</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">component</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">DSN-component-05 · deprecated 중복 버튼 클래스 .prop-full-btn 잔존</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: editor-props.css:487 주석 '/* deprecated: use .prop-btn-full */' 바로 아래 .prop-full-btn(488) 이 .prop-btn-full(469)과 동일 스펙(width 100%, height 24px, border-strong, radius 4px) 중복 유지.</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-component-05">
+    <label><input type="radio" name="ap-DSN-component-05" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-component-05" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-component-05" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="nit" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#8a8f98">nit</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">pending · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="pending">
+    <label><input type="radio" name="ap-pending" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-pending" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-pending" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="nit" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#8a8f98">nit</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">set-only · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="set-only">
+    <label><input type="radio" name="ap-set-only" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-set-only" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-set-only" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="nit" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#8a8f98">nit</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">important-density · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="important-density">
+    <label><input type="radio" name="ap-important-density" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-important-density" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-important-density" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="nit" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#8a8f98">nit</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">large-files · </b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="large-files">
+    <label><input type="radio" name="ap-large-files" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-large-files" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-large-files" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="css-health" data-sev="nit" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#8a8f98">nit</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">css-health</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">PPS-04 · deprecated .prop-full-btn dead — JS 0참조, 대체 .prop-btn-full 실가동</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: editor-props.css:488-495 `.prop-full-btn`은 주석 'deprecated: use .prop-btn-full'로 표기됐고 JS/HTML 전역 grep 결과 참조 0회. 실제 사용되는 건 .prop-btn-full(prop-text-template/chat/label-group/mockup/graph/iconify 6파일). 즉 deprecated 블록(base+hover 2룰)이 완전 사망 잔존. cross-file 중복 selector는 없음(prop-number:101 'DBG-A' 주석은 의도적 정리이므로 제외).</div>
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="PPS-04">
+    <label><input type="radio" name="ap-PPS-04" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-PPS-04" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-PPS-04" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="component" data-sev="nit" data-conf="high">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#8a8f98">nit</span> <span class="sev" style="background:#888">high</span>
+      <span class="chip">component</span><span class="chip">A</span>
+      <span class="chip">self</span>
+      
+      <b style="margin-left:4px">DSN-pp-widget-07 · orphan CSS — .prop-style-btn(Bold/Italic 위젯) 정의되었으나 어느 패널도 사용 안 함</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px">css/editor-props.css:274,js/props/prop-text-template.js:139</div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>표준 위젯 목록에 .prop-style-btn(Bold/Italic 토글)이 포함</td>
+    <th>실제</th><td>.prop-style-btn(28×24px)이 editor-props.css에 풀 정의(:hover/.active 포함)되어 있으나 js/props/**.js 어디서도 사용되지 않음(grep 0건). 텍스트 패널의 굵기는 .prop-style-btn 버튼이 아니라 weight &lt;select&gt;(text-template:139, SemiBold/Bold/ExtraBold option)로 구현 → 표준 위젯과 실제 구현이 불일치하는 dead 스킨.</td></tr></table>
+    <div class="kv">증거: grep `prop-style-btn` *.js → 0 매치. prop-text-template.js:139-141은 select option으로 weight 처리.</div>
+    <div class="kv">수정 방향: 사용 안 하면 .prop-style-btn CSS 삭제, 또는 텍스트 weight UI를 select→style-btn 토글로 전환해 표준에 맞춤.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="DSN-pp-widget-07">
+    <label><input type="radio" name="ap-DSN-pp-widget-07" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-07" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-DSN-pp-widget-07" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="spacing" data-sev="nit" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#8a8f98">nit</span> <span class="sev" style="background:#888"></span>
+      <span class="chip">spacing</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">SPACE-G2 · 1px 마이크로 간격 군집 — padding:1px 5px / 1px 6px (28건)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    
+    
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="SPACE-G2">
+    <label><input type="radio" name="ap-SPACE-G2" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-SPACE-G2" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-SPACE-G2" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="icon" data-sev="" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#888"></span> <span class="sev" style="background:#888"></span>
+      <span class="chip">icon</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">ICON-01 · --icon-* 토큰 5종 전부 미사용 (정의만 있고 실사용 0회)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: design-tokens.css:174-178에 --icon-layer-size(14px)/--icon-prop-size(16px)/--icon-layer-gap-section/item/row 정의. grep 'var(--icon-' 전체 codebase(css+js+index.html) 결과 0건. 토큰이 aspirational 상태.</div>
+    <div class="kv">수정 방향: 값 일치하는 layer-section-icon/layer-item-icon(14px)는 var(--icon-layer-size)로 치환. prop-block-icon은 토큰값(16px)과 정합화 후 var(--icon-prop-size) 적용 검토.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ICON-01">
+    <label><input type="radio" name="ap-ICON-01" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ICON-01" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ICON-01" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="icon" data-sev="" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#888"></span> <span class="sev" style="background:#888"></span>
+      <span class="chip">icon</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">ICON-02 · UI 크롬 액션 버튼에 이모지 글리프와 인라인 SVG 혼합 (mixed icon-set)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: 패널 탭/툴바 액션은 인라인 SVG(stroke outline)로 통일돼 있으나, 주요 액션 버튼은 이모지 글리프 사용. SVG 아이콘과 동일 위계의 버튼에서 렌더 스타일·크기·스트로크가 OS 이모지로 빠짐.</div>
+    <div class="kv">수정 방향: 동일 outline SVG 아이콘셋으로 교체(✨→sparkle SVG, 📋→copy SVG, ⬇→download SVG, ✂️→scissors SVG). 텍스트 토스트/안내문 이모지는 예외 허용.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ICON-02">
+    <label><input type="radio" name="ap-ICON-02" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ICON-02" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ICON-02" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="icon" data-sev="" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#888"></span> <span class="sev" style="background:#888"></span>
+      <span class="chip">icon</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">ICON-03 · 닫기 버튼 글리프 비일관 — 이모지 ✕/× 4종 vs SVG X 부재</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: 모달/패널 닫기 버튼이 이모지/유니코드 글리프 ✕(U+2715)·×(U+00D7) 텍스트로 산재. SVG X 아이콘으로 통일된 곳 없음.</div>
+    <div class="kv">수정 방향: 닫기 버튼 글리프를 단일 SVG X(viewBox 12 12, stroke 1.3) 또는 단일 유니코드로 통일.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ICON-03">
+    <label><input type="radio" name="ap-ICON-03" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ICON-03" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ICON-03" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="icon" data-sev="" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#888"></span> <span class="sev" style="background:#888"></span>
+      <span class="chip">icon</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">ICON-04 · stroke-width 15종 산재 (표준 없음)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: 인라인 SVG stroke-width 값 분포: 1.3×110, 1.5×41, 1.4×34, 1.6×14, 1.8×12, 2×11, 1×5, 2.5×3, 1.2×2, 3.5/3.2/1.1/0.6 각 1. 표준 stroke-width 토큰 없음.</div>
+    <div class="kv">수정 방향: viewBox 크기별 stroke-width 규칙 명문화(예: 12px→1.4, 14px→1.3, 16px→1.5). 1.6/1.8/2.5 산발값 정리.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ICON-04">
+    <label><input type="radio" name="ap-ICON-04" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ICON-04" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ICON-04" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="icon" data-sev="" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#888"></span> <span class="sev" style="background:#888"></span>
+      <span class="chip">icon</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">ICON-05 · viewBox 표준 불일치 — 동일 위계 아이콘에 12/14/16 혼용 + width≠viewBox</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: UI 아이콘 viewBox 분포: '0 0 12 12'×80, '0 0 16 16'×57, '0 0 14 14'×53, '0 0 10 10'×16, '1.5 1.5 13 13'×3 등. 패널 탭 SVG는 width=13/height=13인데 viewBox='0 0 12 12' — 12단위 그리드를 13px로 렌더(비정수 스케일).</div>
+    <div class="kv">수정 방향: 패널 탭 아이콘 width/height를 viewBox 정합(12→12px) 또는 14px 토큰에 맞춤. 비표준 viewBox 오프셋(1.5 1.5 13 13) 정리.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ICON-05">
+    <label><input type="radio" name="ap-ICON-05" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ICON-05" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ICON-05" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="icon" data-sev="" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#888"></span> <span class="sev" style="background:#888"></span>
+      <span class="chip">icon</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">ICON-06 · prop-block-icon 내부 SVG stroke에 raw hex 산재 (currentColor 미사용)</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: layer-panel 아이콘은 stroke='currentColor'로 테마 연동되나, prop-block-icon SVG는 stroke='#888' 등 raw hex 하드코딩. props/panels에서 stroke 하드코딩: #888×36, #555×5, #3a3a3c×4, #444×2 등.</div>
+    <div class="kv">수정 방향: prop-block-icon SVG stroke를 currentColor로 통일하고 .prop-block-icon { color: var(--ui-text-sub) } 로 색 위임.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ICON-06">
+    <label><input type="radio" name="ap-ICON-06" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ICON-06" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ICON-06" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div>
+  <div class="card finding" data-dim="icon" data-sev="" data-conf="">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sev" style="background:#888"></span> <span class="sev" style="background:#888"></span>
+      <span class="chip">icon</span><span class="chip"></span>
+      
+      
+      <b style="margin-left:4px">ICON-07 · layer-panel eye(visibility) 아이콘 SVG 인라인 3회 중복</b>
+    </div>
+    <div class="mono kv" style="margin:6px 0 2px"></div>
+    <div></div>
+    <table style="margin:8px 0;width:auto"><tr><th>기준</th><td>—</td>
+    <th>실제</th><td>—</td></tr></table>
+    <div class="kv">증거: layer-panel.js:55-56,70,77 에서 동일 eye on/off SVG 마크업이 초기 렌더 + 토글 핸들러에 인라인 중복. 값은 일관(viewBox 14 14, stroke 1.3)이나 유지보수 시 동기화 누락 위험.</div>
+    <div class="kv">수정 방향: eyeOn/eyeOff SVG를 layerIcons 상수처럼 헬퍼/상수로 추출해 1곳에서 관리.</div>
+    <div style="margin-top:6px">근거: <span class="chip" style="border-color:#e0a060">⚠ no-baseline</span></div>
+    
+  <div class="appr" data-aid="ICON-07">
+    <label><input type="radio" name="ap-ICON-07" value="approve"> ✅ 승인</label>
+    <label><input type="radio" name="ap-ICON-07" value="hold"> ⏸ 보류</label>
+    <label><input type="radio" name="ap-ICON-07" value="reject"> ❌ 거부</label>
+    <input class="cmt" placeholder="코멘트...">
+  </div>
+  </div></div>
+<script>
+(function(){
+  var on={dim:new Set(),sev:new Set(),conf:new Set()};
+  document.getElementById('filters').addEventListener('click',function(e){
+    var t=e.target.closest('.toggle');if(!t)return;
+    var k=t.dataset.k,v=t.dataset.v;
+    if(on[k].has(v)){on[k].delete(v);t.classList.remove('off');}else{on[k].add(v);t.classList.add('off');}
+    document.querySelectorAll('.finding').forEach(function(c){
+      var hide=on.dim.has(c.dataset.dim)||on.sev.has(c.dataset.sev)||on.conf.has(c.dataset.conf);
+      c.style.display=hide?'none':'';
+    });
+  });
+})();
+</script>
+
+<script>
+(function(){
+  var KEY='ds-decisions:report-2026-06-11';
+  var st={}; try{st=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
+  document.querySelectorAll('.appr').forEach(function(b){
+    var id=b.dataset.aid, s=st[id]||{};
+    if(s.d){var r=b.querySelector('input[value="'+s.d+'"]'); if(r)r.checked=true;}
+    if(s.c) b.querySelector('.cmt').value=s.c;
+    b.addEventListener('change',save); b.querySelector('.cmt').addEventListener('input',save);
+    function save(){
+      var d=(b.querySelector('input[type=radio]:checked')||{}).value||'';
+      st[id]={d:d,c:b.querySelector('.cmt').value};
+      localStorage.setItem(KEY,JSON.stringify(st));
+      var n=Object.values(st).filter(function(x){return x.d}).length;
+      document.getElementById('decCount').textContent=n;
+    }
+  });
+  document.getElementById('decCount').textContent=Object.values(st).filter(function(x){return x.d}).length;
+  document.getElementById('exportBtn').addEventListener('click',function(){
+    var lines=['# 결정 내보내기 — report-2026-06-11',''];
+    var lab={approve:'승인',hold:'보류',reject:'거부'};
+    Object.keys(st).forEach(function(id){var s=st[id]; if(!s.d&&!s.c)return;
+      lines.push('- '+id+': '+(lab[s.d]||'미결')+(s.c?' — '+s.c:''));});
+    var txt=lines.join('\n');
+    navigator.clipboard.writeText(txt).catch(function(){});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([txt],{type:'text/markdown'}));
+    a.download='decisions-report-2026-06-11.md'; a.click();
+  });
+})();
+</script>
+<div class="foot">design-squad · md/JSON이 정본, 이 HTML은 재생성 가능한 뷰 (scripts/report-html.mjs)</div>
+</body></html>

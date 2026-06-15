@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Goditor Icon 68</title>
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    width: 1024px; height: 1024px;
+    background: transparent;
+  }
+  .icon {
+    position: relative;
+    width: 1024px; height: 1024px;
+    border-radius: 266px; /* 1024 × 0.26 = 266 */
+    background:
+      radial-gradient(circle at 25% 20%, rgba(255,255,255,0.10), transparent 60%),
+      radial-gradient(circle at 80% 85%, rgba(140,140,140,0.05), transparent 65%),
+      #07070a;
+    box-sizing: border-box;
+    border: 4px solid rgba(255,255,255,0.15);
+    overflow: hidden;
+  }
+  .top-highlight {
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02));
+    pointer-events: none;
+  }
+  .mark {
+    position: absolute;
+    top: 16.5%; left: 16.5%;
+    width: 67%; height: 67%;
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+  <div class="icon">
+    <div class="top-highlight"></div>
+    <svg class="mark" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="innershadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feOffset dy="0.35"/>
+          <feGaussianBlur stdDeviation="0.3" result="offset-blur"/>
+          <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/>
+          <feFlood flood-color="black" flood-opacity="0.75" result="color"/>
+          <feComposite operator="in" in="color" in2="inverse" result="shadow"/>
+          <feComposite operator="over" in="shadow" in2="SourceGraphic"/>
+        </filter>
+      </defs>
+      <path d="M8 0 Q9 7 16 8 Q9 9 8 16 Q7 9 0 8 Q7 7 8 0Z"
+            fill="#fff" fill-opacity="0.85"
+            filter="url(#innershadow)"/>
+    </svg>
+  </div>
+</body>
+</html>

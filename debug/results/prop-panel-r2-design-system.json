@@ -1,0 +1,190 @@
+{
+  "agent": "DesignSystemAudit",
+  "round": 2,
+  "date": "2026-03-31",
+  "css_vars_found": {
+    "--ui-text": "#e0e0e0",
+    "--ui-text-sub": "#aaaaaa",
+    "--ui-text-muted": "#777777",
+    "--ui-text-dim": "#555555",
+    "--ui-bg-app": "#1a1a1a",
+    "--ui-bg-base": "#1e1e1e",
+    "--ui-bg-elevated": "#242424",
+    "--ui-bg-card": "#252525",
+    "--ui-bg-input": "#2a2a2a",
+    "--ui-bg-hover": "#2e2e2e",
+    "--ui-border": "#333333",
+    "--ui-border-mid": "#3a3a3a",
+    "--ui-border-strong": "#444444",
+    "--ui-danger": "#e06c6c",
+    "--ui-success": "#7fc87f",
+    "--ui-accent": "#7cb8ff",
+    "--ui-accent-primary": "#2d6fe8",
+    "--ui-accent-primary-hover": "#3a7df0"
+  },
+  "hardcoded_replaced": [
+    {
+      "selector": ".prop-value-text",
+      "property": "color",
+      "before": "#ccc",
+      "after": "var(--ui-text-sub)",
+      "line": 22
+    },
+    {
+      "selector": ".prop-number",
+      "property": "color",
+      "before": "#ddd",
+      "after": "var(--ui-text)",
+      "line": 42
+    },
+    {
+      "selector": ".prop-select (첫번째 정의)",
+      "property": "color",
+      "before": "#ddd",
+      "after": "var(--ui-text)",
+      "line": 67
+    },
+    {
+      "selector": ".prop-layout-input",
+      "property": "color",
+      "before": "#ddd",
+      "after": "var(--ui-text)",
+      "line": 75
+    },
+    {
+      "selector": ".prop-color-hex",
+      "property": "color",
+      "before": "#ddd",
+      "after": "var(--ui-text)",
+      "line": 211
+    },
+    {
+      "selector": ".prop-block-name",
+      "property": "color",
+      "before": "#ccc",
+      "after": "var(--ui-text-sub)",
+      "line": 117
+    },
+    {
+      "selector": ".prop-select (두번째 정의, 폰트 셀렉터)",
+      "property": "color",
+      "before": "#ddd",
+      "after": "var(--ui-text)",
+      "line": 265
+    }
+  ],
+  "remaining_hardcoded": [
+    {
+      "selector": ".prop-hint",
+      "property": "color",
+      "value": "#5a5a5a",
+      "note": "--ui-text-dim(#555)에 근접하지만 완전히 동일하지 않음. 별도 토큰 필요 또는 --ui-text-dim으로 통일 검토"
+    },
+    {
+      "selector": ".prop-section-title",
+      "property": "color",
+      "value": "#6b6b6b",
+      "note": "--ui-text-muted(#777)과 근접. 별도 토큰 없음"
+    },
+    {
+      "selector": ".prop-label",
+      "property": "color",
+      "value": "#6b6b6b",
+      "note": "--ui-text-muted(#777)과 근접. 별도 토큰 없음"
+    },
+    {
+      "selector": ".prop-count-btn",
+      "property": "color",
+      "value": "#ccc",
+      "note": "--ui-text-sub(#aaa)로 교체 가능하나 약간 다름. 검토 필요"
+    },
+    {
+      "selector": ".prop-count-val",
+      "property": "color",
+      "value": "#ccc",
+      "note": "--ui-text-sub(#aaa)로 교체 가능하나 약간 다름. 검토 필요"
+    },
+    {
+      "selector": ".prop-chain-btn:hover",
+      "property": "border-color",
+      "value": "#888",
+      "note": "--ui-text-muted(#777)와 유사. 경계선 토큰 없음"
+    },
+    {
+      "selector": ".prop-block-id:hover",
+      "property": "color",
+      "value": "#999",
+      "note": "--ui-text-sub(#aaa)와 근접. hover 상태이므로 유지 가능"
+    },
+    {
+      "selector": ".prop-preset-btn (에셋 버튼)",
+      "property": "color",
+      "value": "#ccc",
+      "note": "--ui-text-sub으로 교체 가능"
+    },
+    {
+      "selector": ".prop-none-check",
+      "property": "color",
+      "value": "#888",
+      "note": "--ui-text-muted(#777)와 근접"
+    },
+    {
+      "selector": ".prop-btn",
+      "property": "color",
+      "value": "#ccc",
+      "note": "--ui-text-sub으로 교체 가능"
+    },
+    {
+      "selector": ".prop-btn-full",
+      "property": "color",
+      "value": "#ccc",
+      "note": "--ui-text-sub으로 교체 가능"
+    },
+    {
+      "selector": ".prop-full-btn",
+      "property": "color",
+      "value": "#ccc",
+      "note": "--ui-text-sub으로 교체 가능"
+    },
+    {
+      "selector": ".prop-section",
+      "property": "border-bottom",
+      "value": "#2e2e2e",
+      "note": "--ui-bg-hover(#2e2e2e)과 정확히 일치. border-bottom: 1px solid var(--ui-bg-hover)로 교체 가능. 단, bg 토큰을 border에 사용하는 것은 의미론적으로 부적절. --ui-border(#333) 사용 권장"
+    },
+    {
+      "selector": ".prop-block-icon",
+      "property": "background",
+      "value": "#222",
+      "note": "--ui-bg-elevated(#242424)과 근접하지만 동일하지 않음"
+    },
+    {
+      "selector": ".grid-picker-cell",
+      "property": "background",
+      "value": "#1c1c1c",
+      "note": "--ui-bg-app(#1a1a1a)와 근접. 별도 토큰 없음"
+    },
+    {
+      "selector": ".prop-export-btn:disabled",
+      "property": "color",
+      "value": "#888",
+      "note": "--ui-text-muted(#777)과 근접. disabled 상태이므로 수용 가능"
+    },
+    {
+      "selector": ".prop-btn-danger",
+      "property": "border-color / color / background",
+      "value": "#6b2e2e / #e06060 / #2a1818",
+      "note": "--ui-danger(#e06c6c) 계열이지만 완전히 동일하지 않음. danger 전용 파생 토큰 고려"
+    }
+  ],
+  "summary": {
+    "total_replaced": 7,
+    "total_remaining": 17,
+    "priority_next": [
+      ".prop-count-btn / .prop-count-val (color:#ccc → var(--ui-text-sub))",
+      ".prop-btn / .prop-btn-full / .prop-full-btn / .prop-preset-btn (color:#ccc → var(--ui-text-sub))",
+      ".prop-label / .prop-section-title (color:#6b6b6b → --ui-text-muted 또는 신규 --ui-text-label 토큰)",
+      ".prop-section border-bottom: #2e2e2e → var(--ui-border)"
+    ]
+  }
+}

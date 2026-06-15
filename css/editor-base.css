@@ -1,7 +1,11 @@
+@import './design-tokens.css';
+
 :root {
-  --sel-color:            #2d6fe8;
-  --sel-color-hover:      rgba(45,111,232,0.4);
-  --sel-color-fill:       rgba(45,111,232,0.08);
+  --sel-color:            var(--color-selection);
+  --sel-color-hover:      var(--color-selection-hover);
+  --sel-color-fill:       var(--color-selection-fill);
+  /* 선택 아웃라인 두께 — 캔버스 줌과 무관하게 화면상 1px 고정 (핸들과 동일 방식) */
+  --sel-outline-w:        calc(1px * var(--inv-zoom, 1));
   --preset-h1-color:      #111111;
   --preset-h1-family:     'Noto Sans KR', sans-serif;
   --preset-h2-color:      #1a1a1a;
@@ -14,6 +18,22 @@
   --preset-label-bg:      #111111;
   --preset-label-color:   #ffffff;
   --preset-label-radius:  8px;
+  /* Chat 말풍선 기본색 — 2026-05-21 토큰화 (iOS Messages 톤) */
+  --preset-chat-bg-left:    #e5e5ea;
+  --preset-chat-bg-right:   #1888fe;
+  --preset-chat-text-left:  #111111;
+  --preset-chat-text-right: #ffffff;
+  /* Step 카드 기본색 — 2026-05-21 토큰화 */
+  --preset-step-num-bg:     #222222;
+  --preset-step-num-color:  #ffffff;
+  --preset-step-title:      #222222;
+  --preset-step-desc:       #555555;
+  --preset-step-card-bg:    #f5f5f5;
+  /* Table 기본색 — 2026-05-21 토큰화 */
+  --preset-table-header-bg: #f0f0f0;
+  --preset-table-text:      #222222;
+  --preset-table-line:      #cccccc;
+  --preset-table-col-bg:    #f5f5f5;
 
   /* ── UI Shell 토큰 ── */
   --ui-bg-app:        #1a1a1a;   /* 앱 최하위 배경 (body) */
@@ -27,13 +47,97 @@
   --ui-border-strong: #444444;   /* 강조 보더, active */
   --ui-text:          #e0e0e0;   /* 기본 텍스트 */
   --ui-text-sub:      #aaaaaa;   /* 서브 텍스트 */
-  --ui-text-muted:    #777777;   /* 뮤트 텍스트 */
-  --ui-text-dim:      #555555;   /* 딤 텍스트 */
-  --ui-danger:        #e06c6c;   /* 위험/삭제 */
+  --ui-text-muted:    #9e9e9e;   /* 뮤트 텍스트 (AA: was #777 3.21:1 → #9e9e9e ≥5.07:1, 2026-06-11) */
+  --ui-text-dim:      #969696;   /* 딤 텍스트 (AA: was #555 1.93:1 → #969696 ≥4.59:1, 2026-06-11) */
+  --ui-divider:       #555555;   /* 비텍스트: 미세 보더/구분선 + 비활성 장식점(연결안됨·저장중·OFF 토글). 대비 무관 */
+  --ui-danger:        #e06c6c;   /* 위험/삭제 (텍스트/보더) */
+  --ui-danger-bg:     rgba(224,108,108,0.12); /* danger 채움 배경(정석=토큰 fill-alpha, 매트릭스 danger 4방식→1) */
+  --ui-danger-border: #e06c6c;   /* danger 보더 */
+  --ui-danger-hover:  #e74c3c;   /* danger hover */
   --ui-success:       #7fc87f;   /* 성공/병합 */
   --ui-accent:        #7cb8ff;   /* 강조/편집 (브랜치, focus, edit 계열) */
-  --ui-accent-primary: #2d6fe8; /* 주요 액션/활성 색상 */
+  --ui-accent-primary: #2d6fe8; /* 주요 액션/활성 색상 (파랑 정본 — fill/보더/배경용. #6b9eff/#6cf 등 우회 폐기 대상) */
   --ui-accent-primary-hover: #3a7df0; /* 주요 액션 hover */
+  --ui-accent-text:    #6fa3f7;  /* 다크배경 활성 텍스트 전용 액센트 (accent-primary는 텍스트로 쓰면 3.3:1 AA미달 → 6.8:1 가독판) */
+
+  /* ── 선택/AI 어포던스 보라 패밀리 토큰 (DS-10, 2026-06-14) — 일반 파랑선택(--sel-color)과 별개 패밀리. 비텍스트 장식이라 대비 무관 ── */
+  --ui-sel-overlay:   #9966ff;   /* 스티커/그라데이션/체크리스트/핀 선택 오버레이·코너핸들 보라 */
+  --ui-sel-ai:        #c084fc;   /* AI-Fill 패널/버튼 보라 어포던스 */
+  --ui-sel-outline-offset-out: calc(1px * var(--inv-zoom, 1)); /* 배경/이미지가 가장자리까지 차는 블록(canvas/banner02)의 바깥 outline offset — 겹침 방지 (DS-20) */
+  /* NOTE: rgba(153,102,255,*) 등 알파 리터럴은 이번 패스 비토큰화(보수적 보류) — 알파 토큰화는 별 이슈 */
+
+  /* ── active/선택 강조 채움 배경 (DS-12, 2026-06-14) — 파랑 0.15 표준. primitive(--p-blue-alpha-*)와 톤 일치하나 정본은 --ui-*에 정의 ── */
+  --ui-accent-fill:   rgba(45,111,232,0.15);
+
+  /* ── autosave 'saved' 상태색 (DS-23, 2026-06-14) — --ui-success(#7fc87f)보다 밝고 고채도라 success로 흡수 불가, 전용 토큰. 다크배경서 AA 충분 ── */
+  --ui-saved:         #4ecb7a;
+
+  /* ── A/B 베리에이션 카테고리 팔레트 (DS-16, 2026-06-14) — 비텍스트 뱃지 배경이라 대비 무관 ── */
+  --ui-cat-a:         var(--ui-accent-primary);  /* A=파랑(accent-primary 동치) */
+  --ui-cat-a-hover:   #1a5ac8;
+  --ui-cat-b:         #e88c2d;   /* B=주황 */
+  --ui-cat-b-hover:   #c87018;
+  --ui-cat-c:         #2db87a;   /* C=초록 */
+  --ui-cat-c-hover:   #1e9460;
+  --ui-cat-d:         #9b59b6;   /* D=보라 */
+  --ui-cat-d-hover:   #7d4394;
+  --ui-cat-e:         #e84c4c;   /* E=빨강 */
+  --ui-cat-e-hover:   #c03030;
+
+  /* ── 선택 핸들 보더 두께 (DS-19, 2026-06-14) — 의미별 2토큰(사각=얇게/원형=두껍게), 광학 의도 보존 + 출처 일원화 ── */
+  --ui-handle-border-w:       1px;     /* 사각 리사이즈 핸들 보더 */
+  --ui-handle-border-w-round: 1.5px;   /* 원형 radius/overlay 핸들 보더 */
+
+  /* ── 컴포넌트 치수/상태 토큰 (매트릭스 13영역 분열 근본처방, 2026-06-11) — 신규 UI는 반드시 이걸 사용 ── */
+  --ui-btn-h:        24px;   /* 버튼/컨트롤 표준 높이 (height 10단 난립→통일) */
+  --ui-input-h:      24px;   /* input/select 높이 */
+  --ui-radius-sm:    4px;    /* 버튼/입력 radius */
+  --ui-radius-md:    6px;    /* 카드/패널 radius */
+  --ui-radius-lg:    10px;   /* 모달/팝오버 radius */
+  --ui-form-label-w: 56px;   /* prop-row 라벨 폭 (56/62/40/32→56) */
+  --ui-row-gap:      4px;    /* 폼 행 gap (4 vs 6 충돌→4) */
+  --ui-pad-panel:    8px;    /* 패널 콘텐츠 좌우 패딩 */
+  --ui-disabled-opacity: 0.5; /* 비활성 흐림 (8값→0.5) */
+
+  /* ── 미정의로 쓰이던 토큰 → canonical 별칭 (일관성 수정, 2026-05) ──
+     이전엔 정의 없이 var() fallback으로만 쓰여 fallback이 파일마다 달라 색이 갈렸음.
+     아래 별칭으로 한 톤으로 통일. (신규 코드는 위 canonical 토큰을 직접 쓸 것) */
+  --ui-bg-panel:  var(--ui-bg-card);   /* 팝업/드롭다운(color-picker·font-picker). 충돌(#2c2c2c/#1a1a1a) → 팝업 표준 #252525로 통일 */
+  --ui-bg-2:      var(--ui-bg-base);   /* grid-picker-cell 등 어두운 셀 배경 */
+  --ui-text-base: var(--ui-text);      /* (ai-image 패널) 본문 텍스트 */
+  --ui-text-main: var(--ui-text);      /* (color-adjust 헤더) — fallback 없어 색 깨지던 것 수정 */
+  /* text — assets-panel.css var() fallback(#e0e0e0/#888)만으로 쓰이던 미정의 토큰 → canonical 별칭 (2026-06-11) */
+  --ui-text-primary:   var(--ui-text);        /* assets-panel.css:417,444 (fallback #e0e0e0 = --ui-text) 가장 또렷한 본문색 */
+  --ui-text-secondary: var(--ui-text-muted);  /* assets-panel.css:433,463 (fallback #888 3.5:1 AA미달) → muted #9e9e9e ≥5.07:1 */
+
+  /* ── shadow (elevation) 토큰 — 산재 box-shadow 리터럴을 blur 기준 4단으로 정리 (정의만, 치환은 2단계) ── */
+  --ui-shadow-sm: 0 2px 8px rgba(0,0,0,0.4);    /* 드롭다운/툴팁/소형 카드 (실측 최빈) */
+  --ui-shadow-md: 0 4px 16px rgba(0,0,0,0.5);   /* 토스트/팝오버/포커스 카드 */
+  --ui-shadow-lg: 0 8px 24px rgba(0,0,0,0.5);   /* 메뉴 팝업/패널 (최대 클러스터) */
+  --ui-shadow-xl: 0 12px 48px rgba(0,0,0,0.6);  /* 모달 다이얼로그 */
+
+  /* ── font-size (UI chrome) 토큰 — css/ 실측 분포 기반. 캔버스 콘텐츠(.tb-* 와 --preset-* 패밀리)는 별도 (정의만, 치환은 2단계) ── */
+  --ui-fs-9:    9px;    /* 실측 36회 — 최소 캡션/뱃지카운트 */
+  --ui-fs-10:   10px;   /* 실측 90회 — 보조 라벨/마이크로 텍스트 */
+  --ui-fs-base: 11px;   /* 실측 160회 (압도적 1위) — UI 크롬 기본 본문/컨트롤 */
+  --ui-fs-12:   12px;   /* 실측 58회 — 강조 라벨/섹션 텍스트 */
+  --ui-fs-13:   13px;   /* 실측 18회 — 소제목/약간 큰 라벨 */
+  --ui-fs-14:   14px;   /* 실측 10회 — 패널 헤더/로고 */
+  --ui-fs-16:   16px;   /* 실측 — 아이콘/소형 헤딩 */
+  --ui-fs-20:   20px;   /* 실측 — 모달/패널 타이틀 (18px 흡수) */
+  --ui-fs-28:   28px;   /* 실측 — icb-placeholder(이미지캔버스 빈블록 안내). 스케일 최상단 */
+
+  /* ── font-weight 토큰 — css/ 실측 분포 기반 (정의만, 치환은 2단계) ── */
+  --ui-fw-medium:   500;   /* 실측 26회 — 약강조 */
+  --ui-fw-semibold: 600;   /* 실측 87회 (1위) — 라벨/제목 표준 강조 */
+  --ui-fw-bold:     700;   /* 실측 29회 — 강한 제목/활성 */
+
+  /* ── line-height (UI chrome) 토큰 — css/ 실측 분포 기반 (정의만, 치환은 2단계). 캔버스 콘텐츠(.tb-*/--preset-*) 제외 (DS-22, 2026-06-14) ── */
+  --ui-lh-tight:    1.3;   /* 실측 5회 — 조밀 (라벨/뱃지) */
+  --ui-lh-normal:   1.4;   /* 실측 7회 — 표준 본문 */
+  --ui-lh-relaxed:  1.6;   /* 실측 9회 — 여유 본문 (1.5는 relaxed로 흡수, 후속 판단) */
+  /* NOTE: --ui-fs-18 신설 보류 — 실측 0회 + --ui-fs-20이 18 흡수(주석). 신설 시 dead 토큰 재생산.
+     preset-h*-weight는 --preset-* 캔버스 네임스페이스라 UI 크롬 토큰 범위 밖(제외). */
 }
 
 /* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)
@@ -57,8 +161,8 @@
   margin-bottom: 0;
 }
 #ds-panel-header .ds-panel-title {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--ui-fs-9);
+  font-weight: var(--ui-fw-bold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ui-text-dim);
@@ -66,7 +170,7 @@
 #ds-panel-header .ds-panel-chevron {
   color: var(--ui-text-dim);
   transition: transform 0.18s;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
 }
 #design-system-panel.open #ds-panel-header .ds-panel-chevron {
   transform: rotate(180deg);
@@ -79,8 +183,8 @@
   display: block;
 }
 .ds-section-label {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--ui-fs-9);
+  font-weight: var(--ui-fw-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ui-text-dim);
@@ -101,7 +205,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   padding: 0 6px;
   outline: none;
   cursor: pointer;
@@ -111,7 +215,7 @@
 .ds-new-preset-btn {
   flex: 1;
   padding: 4px 8px;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   background: var(--ui-bg-elevated);
   border: 1px dashed var(--ui-border);
   border-radius: 4px;
@@ -125,13 +229,13 @@
 .ds-token-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ui-row-gap);
   margin-bottom: 5px;
 }
 .ds-token-label {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-sub);
-  width: 62px;
+  width: var(--ui-form-label-w);
   flex-shrink: 0;
 }
 .ds-token-picker {
@@ -151,7 +255,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   font-family: monospace;
   padding: 0 5px;
   outline: none;
@@ -165,7 +269,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   padding: 0 4px;
   outline: none;
   cursor: pointer;
@@ -177,7 +281,7 @@
   accent-color: var(--ui-accent-primary);
 }
 .ds-slider-row span {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-sub);
   width: 28px;
   text-align: right;
@@ -194,10 +298,10 @@
   padding: 6px 0;
   background: var(--ui-accent-primary);
   border: none;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   color: #fff;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--ui-fs-base);
+  font-weight: var(--ui-fw-semibold);
   cursor: pointer;
   transition: opacity 0.15s;
 }
@@ -207,13 +311,49 @@
   padding: 5px 0;
   background: transparent;
   border: 1px solid var(--ui-border);
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   color: var(--ui-text-muted);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
 }
 .ds-reset-btn:hover { border-color: var(--ui-border-mid); color: var(--ui-text-sub); }
+/* 컬러 변수 섹션 (시맨틱 L3) */
+.ds-colorvars-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px;
+}
+.ds-colorvars-empty {
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-dim);
+  padding: 4px 0 6px;
+}
+.ds-colorvar-row { gap: 6px; }
+.ds-colorvar-name {
+  flex: 1;
+  width: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-colorvar-del {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--ui-border);
+  border-radius: 3px;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-fs-14);
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.ds-colorvar-del:hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 
 /* ══════════════════════════════════════════════════
    .var-panel — 변수 바인딩 드로어 (step2-variable-binding)
@@ -221,7 +361,7 @@
 
 /* 토글 버튼 */
 #var-toggle-btn {
-  display: flex;
+  display: none; /* VARIABLES 섹션 숨김 — 다른 패널과 단일 레벨 구조로 통일 */
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -230,9 +370,9 @@
   background: transparent;
   border: none;
   border-bottom: 1px solid #2e2e2e;
-  color: #888;
-  font-size: 11px;
-  font-weight: 600;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-fs-base);
+  font-weight: var(--ui-fw-semibold);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
@@ -276,8 +416,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--ui-fs-9);
+  font-weight: var(--ui-fw-bold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ui-text-dim);
@@ -305,7 +445,7 @@
 
 /* 변수 없음 메시지 */
 .var-empty {
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-dim);
   padding: 4px 0;
 }
@@ -317,7 +457,7 @@
   gap: 5px;
   margin-bottom: 4px;
   padding: 3px 4px;
-  border-radius: 5px;
+  border-radius: var(--ui-radius-sm);
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border);
 }
@@ -325,8 +465,8 @@
 
 /* 타입 뱃지 */
 .var-item-type {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--ui-fs-9);
+  font-weight: var(--ui-fw-bold);
   letter-spacing: 0.04em;
   padding: 1px 4px;
   border-radius: 3px;
@@ -348,7 +488,7 @@
 /* 변수 이름 */
 .var-item-name {
   flex: 1;
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   color: var(--ui-text-sub);
   white-space: nowrap;
   overflow: hidden;
@@ -365,7 +505,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 3px;
   color: var(--ui-text-sub);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   font-family: monospace;
   text-align: center;
   outline: none;
@@ -410,7 +550,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   padding: 0 7px;
   outline: none;
 }
@@ -423,7 +563,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-sub);
-  font-size: 11px;
+  font-size: var(--ui-fs-base);
   padding: 0 5px;
   outline: none;
   cursor: pointer;
@@ -439,8 +579,8 @@
   flex: 1;
   height: 24px;
   border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--ui-fs-base);
+  font-weight: var(--ui-fw-semibold);
   cursor: pointer;
   border: none;
   transition: opacity 0.13s;
@@ -469,7 +609,7 @@
   margin-bottom: 5px;
 }
 .var-bind-label {
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
   color: var(--ui-text-dim);
   width: 34px;
   flex-shrink: 0;
@@ -477,7 +617,7 @@
 .var-bind-select {
   flex: 1;
   height: 22px;
-  font-size: 10px;
+  font-size: var(--ui-fs-10);
 }
 
 /* ─────────────────────────────── */
@@ -501,10 +641,15 @@ body {
   border-bottom: 1px solid var(--ui-border);
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  gap: 12px;
+  padding: 0 12px;
+  gap: 6px;
   flex-shrink: 0;
-  z-index: 100;
+  position: relative;
+  /* Bug fix: panel-right(z-index:9999)와 동률이면 DOM 순서상 panel-right가 위에 그려져서
+     topbar의 Port 드롭다운 메뉴(z-index:999, topbar stacking context 내부)가 가려졌음.
+     topbar는 y=0~44, panel-right는 y=44~ 로 y축 겹침이 없으므로 topbar를 10000으로
+     올려도 일반 레이아웃에 영향 없음. */
+  z-index: 10000;
   -webkit-app-region: drag; /* Electron: topbar로 창 드래그 가능 */
 }
 #topbar button, #topbar label, #topbar input, #topbar select {
@@ -513,8 +658,8 @@ body {
 /* Electron: 신호등(약 80px) 영역 확보 */
 .electron-app #topbar { padding-left: 80px; }
 .electron-app.fullscreen #topbar { padding-left: 12px; }
-#topbar .logo { font-size: 14px; font-weight: 600; color: #fff; margin-right: 8px; }
-#topbar .divider { width: 1px; height: 20px; background: var(--ui-border-mid); flex-shrink: 0; }
+#topbar .logo { font-size: var(--ui-fs-14); font-weight: var(--ui-fw-semibold); color: #fff; margin-right: 8px; }
+#topbar .divider { width: 1px; height: 20px; background: var(--ui-border-mid); flex-shrink: 0; margin: 0 2px; }
 #topbar .spacer { flex: 1; }
 
 /* 홈 버튼 */
@@ -538,10 +683,10 @@ body {
 .proj-tab {
   display: flex; align-items: center; gap: 5px;
   padding: 0 8px; height: 28px;
-  width: 148px; flex-shrink: 0; /* 고정 너비 */
-  background: #272727; border: 1px solid #383838;
+  flex: 0 1 148px; min-width: 48px; /* 기본 148px, 탭 많아지면 줄어들어 한 화면에 맞춤 */
+  background: var(--ui-bg-elevated); border: 1px solid var(--ui-border);
   border-radius: 6px; cursor: pointer;
-  font-size: 12px; font-weight: 500; color: #888;
+  font-size: var(--ui-fs-12); font-weight: var(--ui-fw-medium); color: var(--ui-text-muted);
   transition: background 0.12s, color 0.12s;
   overflow: hidden;
   -webkit-app-region: no-drag;
@@ -559,14 +704,14 @@ body {
   background: transparent; border: none; border-radius: 3px;
   color: var(--ui-text-dim); cursor: pointer; transition: all 0.1s;
 }
-.proj-tab-close:hover { background: var(--ui-text-dim); color: #ccc; }
+.proj-tab-close:hover { background: var(--ui-divider); color: #ccc; }
 
 /* 탭 드래그 */
 .proj-tab.tab-dragging { opacity: 0.3; }
 .proj-tab.tab-ghost {
   position: absolute; top: 0; pointer-events: none;
   opacity: 0.85; z-index: 100; background: var(--ui-border-mid);
-  border-color: var(--ui-text-dim); color: #ddd;
+  border-color: var(--ui-divider); color: #ddd;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 .proj-tab.tab-drop-before { border-left: 2px solid #6a9fd8; }
@@ -580,37 +725,37 @@ body {
   width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid var(--ui-border);
-  border-radius: 5px; color: var(--ui-text-dim); cursor: pointer;
+  border-radius: var(--ui-radius-sm); color: var(--ui-text-dim); cursor: pointer;
   transition: all 0.12s;
 }
-#tab-add-btn:hover { background: var(--ui-bg-hover); border-color: var(--ui-text-dim); color: #ccc; }
+#tab-add-btn:hover { background: var(--ui-bg-hover); border-color: var(--ui-divider); color: #ccc; }
 #tab-add-menu {
   display: none;
   position: absolute; top: calc(100% + 6px); left: 0;
   min-width: 220px;
   background: var(--ui-bg-card); border: 1px solid var(--ui-border-mid);
   border-radius: 8px; padding: 6px 0;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: var(--ui-shadow-lg);
   z-index: 9999;
 }
 #tab-add-wrap.open #tab-add-menu { display: block; }
 .tab-add-item {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 14px; cursor: pointer;
-  font-size: 12px; color: #ccc;
+  font-size: var(--ui-fs-12); color: #ccc;
   transition: background 0.1s;
 }
 .tab-add-item:hover { background: var(--ui-bg-hover); color: #fff; }
 .tab-add-item svg { flex-shrink: 0; opacity: 0.5; }
 .tab-add-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tab-add-item-date { font-size: 10px; color: var(--ui-text-dim); flex-shrink: 0; }
-.tab-add-empty { padding: 12px 14px; font-size: 12px; color: var(--ui-text-dim); }
+.tab-add-item-date { font-size: var(--ui-fs-10); color: var(--ui-text-dim); flex-shrink: 0; }
+.tab-add-empty { padding: 12px 14px; font-size: var(--ui-fs-12); color: var(--ui-text-dim); }
 
 .tb-btn {
   height: 28px; padding: 0 10px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid transparent;
-  border-radius: 5px; color: var(--ui-text-sub); font-size: 11px;
+  border-radius: var(--ui-radius-sm); color: var(--ui-text-sub); font-size: var(--ui-fs-base);
   cursor: pointer; transition: all 0.15s;
 }
 .tb-btn:hover { background: var(--ui-border); color: #fff; border-color: var(--ui-border-strong); }
@@ -619,6 +764,43 @@ body {
 .tb-btn--icon:hover { color: #fff; }
 .tb-btn--icon.has-commit { color: var(--ui-text-sub); }
 .tb-btn--icon:not(.has-commit) { opacity: 0.35; pointer-events: none; }
+/* MVP: commit / reference 버튼 임시 숨김 - 재활성화 시 이 룰 제거 */
+.tb-hidden-mvp { display: none !important; }
+
+/* Topbar/Dropdown 안의 작은 status 배지 (debug-port, figma-bridge 등) — 토큰 통일 */
+.tb-badge {
+  display: inline-flex; align-items: center;
+  font-size: var(--ui-fs-10);
+  color: var(--ui-text-dim);
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-mid);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: monospace;
+}
+.tb-badge--pill {
+  border-radius: 10px;
+  padding: 1px 6px;
+  border-color: transparent;
+  background: var(--ui-border-mid);
+  font-family: inherit;
+}
+.tb-badge--accent {
+  color: #fff;
+  background: var(--ui-accent-primary);
+  border-color: var(--ui-accent-primary);
+}
+/* publish dropdown 내부에서 label/badge 양끝 정렬용 */
+.pub-dd-item--row { justify-content: space-between; }
+/* Commit 버튼: 저장 상태 관련 중요 액션 — accent 힌트 */
+#topbar button[onclick="saveProject()"] {
+  color: var(--ui-accent);
+}
+#topbar button[onclick="saveProject()"]:hover {
+  background: rgba(106, 176, 255, 0.12);
+  border-color: rgba(106, 176, 255, 0.35);
+  color: var(--ui-accent);
+}
 
 /* Zoom */
 #zoom-ctrl {
@@ -628,24 +810,53 @@ body {
 }
 .zoom-btn {
   width: 22px; height: 22px; background: transparent; border: none;
-  border-radius: 4px; color: var(--ui-text-sub); font-size: 14px; cursor: pointer;
+  border-radius: var(--ui-radius-sm); color: var(--ui-text-sub); font-size: var(--ui-fs-12); cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: all 0.15s;
 }
 .zoom-btn:hover { background: var(--ui-border); color: #fff; }
-#zoom-display { font-size: 11px; color: #ccc; width: 36px; text-align: center; user-select: none; }
+#zoom-display { font-size: var(--ui-fs-base); color: #ccc; width: 36px; text-align: center; user-select: none; }
 .zoom-sep { width: 1px; height: 14px; background: var(--ui-border-mid); margin: 0 2px; }
-#canvas-size-label { font-size: 11px; color: var(--ui-text-dim); }
+#canvas-size-label { font-size: var(--ui-fs-base); color: var(--ui-text-muted); letter-spacing: 0.01em; }
 
 /* ── Autosave Indicator ── */
 #autosave-indicator {
-  font-size: 10px; color: var(--ui-text-dim);
+  font-size: var(--ui-fs-10); color: var(--ui-text-dim);
   display: inline-flex; align-items: center; gap: 4px;
   opacity: 0; transition: opacity 0.3s;
   white-space: nowrap; padding: 0 4px;
 }
 #autosave-indicator.saving { opacity: 1; color: var(--ui-text-muted); }
-#autosave-indicator.saved  { opacity: 1; color: #4ecb7a; }
-#autosave-indicator.saved::before  { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #4ecb7a; }
-#autosave-indicator.saving::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ui-text-muted); animation: blink 0.8s ease infinite; }
+#autosave-indicator.saved  { opacity: 1; color: var(--ui-saved); }
+#autosave-indicator.saved::before  { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ui-saved); }
+#autosave-indicator.saving::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ui-divider); animation: blink 0.8s ease infinite; }
 @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+/* ── Keyboard focus ring (공용, a11y) ── color-picker 패턴 승격, 키보드 focus만. 입력류/캔버스/preview 제외. 2026-06-11 */
+button:focus-visible,
+.tb-btn:focus-visible,
+.prop-btn:focus-visible,
+.prop-action-btn:focus-visible,
+.cpm-btn:focus-visible,
+.cpm-action:focus-visible,
+.layer-item:focus-visible,
+.file-page-item:focus-visible,
+.file-page-add:focus-visible,
+.file-page-copy:focus-visible,
+.file-page-del:focus-visible,
+.file-page-info:focus-visible,
+.zoom-btn:focus-visible,
+.prop-align-btn:focus-visible,
+.cv-chip:focus-visible,
+.prop-slider:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 2px solid var(--ui-accent-primary, #2d6fe8);
+  outline-offset: 1px;
+}
+/* a11y(N8): overflow:hidden 컨테이너(.layer-children/.layer-row-* 등) 안의 항목은
+   바깥 outline(offset 1px)이 잘리므로 inset(음수 offset)으로 링을 요소 안쪽에 렌더한다. */
+.layer-item:focus-visible,
+.layer-row-header:focus-visible,
+.file-page-item:focus-visible {
+  outline-offset: -2px;
+}
 

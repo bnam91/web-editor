@@ -1,0 +1,64 @@
+{
+  "agent": "QA-06",
+  "version": "4.0",
+  "role": "core",
+  "scope": "drag-group-multiselect",
+  "method": "cdp",
+  "date": "2026-06-11",
+  "page": "index.html?project=proj_1775644888754",
+  "setup": {
+    "sections": ["sec_x2hu586 ([QA-06] A, 3 text blocks)", "sec_ychvg5w ([QA-06] B, 1 text block)"],
+    "note": "addTextBlock('heading')은 잘못된 type — class='undefined' 블록 생성됨(콘솔 에러 없음, silent). 올바른 type은 'h2'. 수동 보정 후 진행. minor API 견고성 이슈로 기록."
+  },
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "블록 드래그 이동 (섹션 내 순서 변경)",
+      "verdict": "PASS",
+      "severity": null,
+      "method": "mcp drag(uid→uid), 2회",
+      "evidence": "drag1: [B1,B2,B3]→[B2,B1,B3], drag2: [B2,B1,B3]→[B3,B2,B1]. .section-inner 자식 DOM 순서로 검증. HTML5 DnD(dragState.dragSrc) 기반이지만 mcp drag 도구로 정상 동작."
+    },
+    {
+      "id": 2,
+      "name": "섹션 간 블록 이동",
+      "verdict": "PASS",
+      "severity": null,
+      "method": "mcp drag(섹션A Block1 → 섹션B 블록 위)",
+      "evidence": "ss_7in3iev(QA06-Block1)가 sec_x2hu586(A)에서 제거되고 sec_ychvg5w(B) 첫 자식으로 추가됨. A=[Block3,Block2], B=[Block1,B-Block1] 확인."
+    },
+    {
+      "id": 3,
+      "name": "그룹 생성(Cmd+G) → 해제(Cmd+Shift+G)",
+      "verdict": "PASS",
+      "severity": null,
+      "method": "press_key 경로 검증 + 동시작업 race 회피 위해 select+keydown 원자 실행(synthetic keydown on document)",
+      "evidence": "그룹: frame-block[data-group=true] ss_avgtf3i 'Group 1' 생성, 두 블록(tb_fa37eaa, tb_s8je5dj) 포함, 레이어패널에 'Group 1 / Group' row-header 표시. 해제: 그룹 frame 제거 + 두 블록 별도 frame-block으로 섹션A 복원.",
+      "notes": "press_key Meta+g 단독 시도 2회는 동시작업 selection 탈취로 '그룹으로 묶을 블록을 먼저 선택하세요' 토스트만 발생 — 단축키 바인딩 자체는 press_key로 groupSelectedBlocks 도달 확인(토스트가 그 함수 내부 메시지). 그룹 로직은 원자 실행으로 검증. 환경(5-agent 동시작업) 한계이지 앱 버그 아님. 첫 press_key 시도 때 '전체 11개 섹션 내보내기' confirm 발생했으나 소스 확인 결과 #page-export-all-btn click 전용 다이얼로그 — 타 에이전트 오염으로 판정, dismiss 처리."
+    },
+    {
+      "id": 4,
+      "name": "Shift+Click 멀티선택",
+      "verdict": "PASS",
+      "severity": null,
+      "method": "evaluate_script MouseEvent(shiftKey:true) dispatch",
+      "evidence": "Block3 클릭 → .selected=[tb_fa37eaa], Block2 Shift+Click → .selected=[tb_fa37eaa, tb_s8je5dj] 동시 유지. 합성 MouseEvent로 rangeSelectBlocks 경로 정상 작동."
+    }
+  ],
+  "ux_findings": [
+    {
+      "severity": "minor",
+      "title": "addTextBlock 잘못된 type silent 실패",
+      "detail": "addTextBlock('heading') 호출 시 에러/토스트 없이 class='undefined', textContent='undefined' 블록이 생성됨. 유효 type 검증 + 콘솔 경고 권장 (자동화 API 소비자 보호)."
+    }
+  ],
+  "environment_notes": [
+    "5-agent 동시작업 중 selection 탈취 2회 관측 — 멀티스텝 단축키 테스트는 원자 실행 필요",
+    "콘솔 error/warn 0건",
+    "정리 완료: [QA-06] 섹션 2개 deleteSection()으로 제거, 잔존 0"
+  ],
+  "passed": 4,
+  "failed": 0,
+  "ux_issues": 1,
+  "blocker_candidates": 0
+}

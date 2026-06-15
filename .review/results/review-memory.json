@@ -1,0 +1,113 @@
+{
+  "dimension": "memory",
+  "engine": "debug-squad v4.0",
+  "scanned_at": "2026-06-11",
+  "scope": "js/**/*.js + main.js + preload.js + services/*.js",
+  "method": "Scan(grep signatures) → Trace(생성-해제 짝 추적) → Grade",
+  "findings": [
+    {
+      "id": "DBG-MEM-01",
+      "title": "bindGroupDrag: group-block마다 document 레벨 capture click 리스너 등록, 제거 경로 없음 — undo/redo·로드·탭전환마다 누적 + detached 그룹 서브트리 GC 차단",
+      "file": "js/section-drag.js",
+      "line": "196-204",
+      "severity": "major",
+      "grade": "confirmed",
+      "adjudication": "verify-candidate",
+      "pattern": "document.addEventListener('click', e => { ...groupEl... }, true) — removeEventListener/AbortController 없음. 가드(groupEl._groupEditOutsideBound)는 '같은 element'의 중복만 막음",
+      "trace": [
+        "section-drag.js:196-204 — 클로저가 groupEl을 영구 캡처, 해제 코드 전무 (파일 내 document.removeEventListener 0건)",
+        "save-load.js:867 — rebindAll()(515-988) 내부에서 canvasEl.querySelectorAll('.group-block').forEach(g => bindGroupDrag(g))",
+        "history.js:55 — restoreSnapshot()이 매 undo/redo마다 window.rebindAll() 호출. innerHTML 스냅샷 복원이라 group-block은 매번 새 element → _groupEditOutsideBound 가드가 항상 미적중 → 매번 새 document 리스너 추가",
+        "이전 세대 리스너들은 detached된 구세대 group 서브트리(내부 base64 asset 이미지 포함)를 클로저로 계속 핀(pin) → GC 불가",
+        "template-system.js:180,273 (템플릿 삽입), 프로젝트 로드/탭 전환(applyProjectData→rebind 경로)도 동일 누적 경로"
+      ],
+      "repro_scenario": "그룹 G개 있는 프로젝트에서 undo/redo N회 → document capture click 리스너 G×N개 잔존, detached 그룹 서브트리 (N-1)세대×G개 GC 차단. 모든 클릭마다 전체 잔존 핸들러 실행(클릭 레이턴시도 선형 증가).",
+      "suggested_fix": "document 리스너를 모듈 레벨 1개(싱글톤)로 올리고 e.target 기준으로 현재 캔버스의 .group-editing 그룹을 querySelector로 찾아 해제. 또는 bindGroupDrag에서 기존 핸들러를 모듈 변수에 저장 후 add 전에 remove.",
+      "profile_exception_check": "profile #12(props innerHTML 재부착)와 무관 — 이건 element 레벨이 아닌 document 레벨 누적이며 detached 참조 유지라 '진짜 누수' 기준 충족"
+    },
+    {
+      "id": "DBG-MEM-02",
+      "title": "window._aiImgCache: AI 이미지 base64 dataUrl Map — cap/eviction 없음, 프로젝트·탭 전환에도 clear 없이 세션 전체 누적",
+      "file": "js/panels/ai-image-gallery.js",
+      "line": "9",
+      "severity": "major",
+      "grade": "confirmed",
+      "adjudication": "verify-candidate",
+      "pattern": "누적만 하는 Map (cap 없음). 장당 1024px PNG base64 ≈ 1.5~2.5MB",
+      "trace": [
+        "ai-image-gallery.js:9 — window._aiImgCache = new Map(), .clear() 호출 전무(전 코드베이스 grep)",
+        "set 경로 3곳: ai-image-gen.js:519 (생성 시 풀해상도 dataUrl), ai-image-gallery.js:41 (갤러리 썸네일 로드 시 ai:readImage IPC 결과 — 썸네일이 아니라 풀 dataUrl), assets-panel.js:943",
+        "delete 경로 1곳뿐: ai-image-gallery.js:161 (사용자가 갤러리에서 명시 삭제할 때만)",
+        "프로젝트 전환/탭 전환/applyProjectData 어디에도 clear 없음 → 세션 중 연 모든 프로젝트의 모든 AI 이미지 dataUrl이 메모리 상주"
+      ],
+      "repro_scenario": "AI 이미지 다수 보유 프로젝트들을 오가며 갤러리 패널만 스크롤해도 이미지당 ~2MB씩 단조 증가. 50장 열람 ≈ 100MB 상주, 회수 경로 없음.",
+      "suggested_fix": "LRU cap(예: 30장) 도입 또는 프로젝트 전환 시 해당 projectId 외 엔트리 purge. 최소한 applyProjectData에서 _aiImgCache.clear().",
+      "profile_exception_check": "의도된 캐시이긴 하나 eviction이 전혀 없어 D-memory 'cap 없는 누적 Map' 기준 충족"
+    },
+    {
+      "id": "DBG-MEM-03",
+      "title": "claude-pm/terminal-panel.js _mcpPingTimer: setInterval(5s) 시작 후 clear 경로 없음 — 패널 닫아도 영구 MCP ping",
+      "file": "js/claude-pm/terminal-panel.js",
+      "line": "321-325",
+      "severity": "minor",
+      "grade": "confirmed",
+      "adjudication": "self",
+      "pattern": "setInterval clear 없음 (단, if(_mcpPingTimer) return 가드로 누적은 아님 — 싱글톤 1개 영구 잔존)",
+      "trace": [
+        "terminal-panel.js:324 — _startDotPing()에서 setInterval(_pingMcpForDot, 5000), 파일 내 clearInterval 0건",
+        "비교: 같은 패턴의 claude-pm/panel.js:320-322는 _stopMcpPing() 보유 — terminal-panel만 stop 부재",
+        "패널 close(closeClaudePMTerminalPanel)에서 term.dispose/body.remove는 하지만 ping 타이머는 계속 5초마다 IPC invoke"
+      ],
+      "repro_scenario": "터미널 패널 1회 열고 닫은 뒤에도 세션 종료까지 5초마다 claudePM:pingMcp IPC 발생.",
+      "suggested_fix": "panel.js와 동일하게 _stopDotPing() 추가하고 close 경로에서 호출."
+    },
+    {
+      "id": "DBG-MEM-04",
+      "title": "animation-engine GIF 내보내기: gif.js freeWorkers 미종료 — 내보내기당 Web Worker 2개 잔존 가능",
+      "file": "js/animation-engine.js",
+      "line": "448-494",
+      "severity": "minor",
+      "grade": "suspected",
+      "adjudication": "self",
+      "pattern": "new GIF({workers:2}) → render 완료 시 gif.js는 activeWorkers만 abort()에서 terminate, 'finished' 후 freeWorkers는 방치 (vendored gif.js 알려진 이슈)",
+      "trace": [
+        "animation-engine.js:482 'finished' 핸들러 — blob 다운로드 + revokeObjectURL은 하지만 worker terminate 없음",
+        "gif.js GIF.prototype.abort()만 worker.terminate() 호출, finishRendering()은 미호출",
+        "Chrome이 idle dedicated worker를 GC할 수도 있어 suspected로 분류"
+      ],
+      "repro_scenario": "GIF 내보내기 N회 → 최대 2N개 idle worker 잔존 가능.",
+      "suggested_fix": "gif.on('finished', ...) 내에서 gif.freeWorkers.forEach(w => w.terminate())."
+    },
+    {
+      "id": "DBG-MEM-05",
+      "title": "claude-pm/active-project-sync.js 폴링 fallback setInterval(2s) 영구 — clear 경로 없음 (싱글톤)",
+      "file": "js/claude-pm/active-project-sync.js",
+      "line": "102-108",
+      "severity": "minor",
+      "grade": "suspected",
+      "adjudication": "self",
+      "pattern": "setInterval clear 없음 — setter wrap 실패 시 fallback 설계라 의도성 있음. 누적 아님(1개), 2초마다 비교 연산만",
+      "trace": ["모듈 초기화 시 1회 시작, clearInterval 전무. 동작상 무해에 가까워 기록만."],
+      "suggested_fix": "현행 유지 가능. wrap 성공 시 폴링 미시작인지 확인만 권장."
+    }
+  ],
+  "cleared": [
+    "blob URL: createObjectURL 7개소(ai-image-gen, animation-engine, commit-system, export-html/figma-json/design-json/image) 전부 revokeObjectURL 짝 존재 — scratch-pad.js는 createObjectURL 자체 미사용(base64 dataset). 의심 이력 해소",
+    "드래그 계열 document mousemove/mouseup (block-drag, sticker-select, template-browser, overlay-handles, image-handling 22/22, color-picker, checklist-panel, reference-modal, tab-system 등): 전부 onUp에서 self-remove 짝 확인",
+    "ResizeObserver (banner02/comparison/canvas-block): 재생성 전 disconnect 가드 있음, detached 시 GC 가능 구조",
+    "MutationObserver: autoSaveObserver/asset-rotate/badge-transform/text-effect-transform/ai-section-fill — 전부 모듈 싱글톤. outpaint-overlay는 _outpaintHide에서 disconnect+clearInterval 짝 확인",
+    "preload IPC 구독: onClaudePMTerminalData/Exit는 unsubscribe 반환 + _stopSessionForProject에서 호출 확인. onFullscreenChange/onForceSaveBeforeQuit는 모듈 초기화 1회 호출",
+    "모듈 전역 DOM 참조 (_overlayFrame, _assetResizeBlock, _canvasResizeBlock, _vectorResizeBlock, _activeSectionTarget, _lastClickedBlock, _gradSnapEls 등): null 리셋 경로 + isConnected 체크(overlay-handles.js:62) 존재. 최대 직전 1노드 잔존 수준 — 누적 아님",
+    "누적 배열: historyStack MAX_HISTORY=50 cap, _scratchItems 삭제/clear 경로 있음, _pickerChips MAX_CHIPS cap, state.imageGallery는 blobPath만 저장(base64 아님), smart-guides _activeGuides 매번 clear",
+    "block-factory.js:4315 document click — IIFE 싱글톤 init 1회. assets-panel keydown — window._assetsKeydownBound 가드. props/prop-comparison·prop-banner02 document 리스너 — 모듈 레벨 1회 (profile #12 해당 패턴은 element 레벨이라 누수 아님 확인)"
+  ],
+  "summary": {
+    "confirmed": 3,
+    "suspected": 2,
+    "blocker": 0,
+    "major": 2,
+    "minor": 3,
+    "verify_candidates": ["DBG-MEM-01", "DBG-MEM-02"],
+    "headline": "진짜 누수 2건: (1) bindGroupDrag의 document capture click 리스너가 undo/redo·로드·탭전환마다 그룹 수만큼 누적되며 detached 그룹 서브트리를 영구 핀, (2) _aiImgCache가 cap/eviction 없이 풀해상도 base64를 세션 전체 누적. 나머지는 clear 없는 상시 타이머·worker 미종료 등 minor."
+  }
+}

@@ -5,6 +5,10 @@
 
 const LAST_COMMIT_KEY = 'goya-last-commit';
 const SAVE_KEY = 'web-editor-autosave';
+const MAX_COMMITS = 20; // 커밋 보존 최대 개수 — 초과 시 오래된 것부터 제거 (파일 비대화 방지)
+
+// 커밋 모달 전용 — snapshot을 DOM에 넣지 않고 메모리에서 관리
+let _cmCommits = [];
 
 function _downloadJSON(json, filename) {
   const blob = new Blob([json], { type: 'application/json' });
@@ -31,7 +35,7 @@ function showFilenameModal(defaultName, onConfirm) {
         style="width:100%;box-sizing:border-box;background:#2a2a2a;border:1px solid #555;border-radius:6px;color:#eee;font-size:13px;padding:7px 10px;outline:none;">
       <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
         <button id="filename-modal-cancel" style="padding:6px 14px;border-radius:6px;border:1px solid #444;background:#333;color:#aaa;cursor:pointer;font-size:12px;">취소</button>
-        <button id="filename-modal-ok" style="padding:6px 14px;border-radius:6px;border:none;background:#4c8aff;color:#fff;cursor:pointer;font-size:12px;">저장</button>
+        <button id="filename-modal-ok" style="padding:6px 14px;border-radius:6px;border:none;background:var(--ui-accent-primary);color:#fff;cursor:pointer;font-size:12px;">저장</button>
       </div>
     </div>`;
 
@@ -76,8 +80,12 @@ async function openCommitModal() {
 
   let commits = [];
   if (window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    commits = proj?.commits || [];
+    // commits는 _meta.json에서 로드 (proj.json 폴백: 마이그레이션 전 하위 호환)
+    const [meta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    commits = meta?.commits || proj?.commits || [];
   }
 
   const branch = (typeof window.getCurrentBranch === 'function') ? window.getCurrentBranch() : 'main';
@@ -124,6 +132,7 @@ async function openCommitModal() {
         </div>`;
       }).join('');
 
+  _cmCommits = commits; // snapshot 포함 전체 커밋 — DOM 속성에는 넣지 않음
   const historyHTML = renderItems(commits);
 
   const overlay = document.createElement('div');
@@ -141,7 +150,7 @@ async function openCommitModal() {
       </div>
       <div class="cm-body">
         <div class="cm-input-wrap">
-          <textarea id="cm-msg-input" placeholder="변경사항을 설명해주세요..." rows="2"></textarea>
+          <textarea id="cm-msg-input" placeholder="변경사항을 설명해주세요..." rows="2" maxlength="200"></textarea>
           <div class="cm-input-footer">
             <span class="cm-branch-badge" style="color:${branchColor(branch).text}">⎇ ${branch}</span>
             <button id="cm-commit-btn" onclick="doCommit()" style="background:${branchColor(branch).dot}">✔ Commit</button>
@@ -151,7 +160,7 @@ async function openCommitModal() {
           <span>히스토리</span>
         </div>
         <div class="cm-filter-tabs">${filterTabsHTML}</div>
-        <div class="cm-history" data-commits='${JSON.stringify(commits)}'>${historyHTML}</div>
+        <div class="cm-history" data-commits='${JSON.stringify(commits.map(c => ({ id: c.id, message: c.message, branch: c.branch, timestamp: c.timestamp })))}'>${historyHTML}</div>
       </div>
     </div>`;
 
@@ -222,12 +231,15 @@ async function doCommit() {
   };
 
   if (window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    if (proj) {
-      proj.commits = [...(proj.commits || []), commit];
-      proj.updatedAt = new Date().toISOString();
-      await window.electronAPI.saveProject(proj);
-    }
+    // commits는 _meta.json에 저장 (proj.json 폴백: 마이그레이션 전 하위 호환)
+    const [existingMeta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    const prevCommits = existingMeta?.commits || proj?.commits || [];
+    const newCommits = [...prevCommits, commit].slice(-MAX_COMMITS);
+    const meta = { ...(existingMeta || {}), commits: newCommits, updatedAt: new Date().toISOString() };
+    await window.electronAPI.saveProjectMeta(window.activeProjectId, meta);
   }
 
   document.getElementById('commit-modal-overlay')?.remove();
@@ -237,15 +249,24 @@ async function doCommit() {
 async function restoreCommit(id) {
   if (!confirm('이 커밋으로 복원할까요? 현재 변경사항은 자동저장으로 보존돼요.')) return;
 
-  let commit = null;
-  if (window.IS_ELECTRON && window.activeProjectId) {
-    const proj = await window.electronAPI.loadProject(window.activeProjectId);
-    commit = proj?.commits?.find(c => c.id === id);
+  // 모달이 열려있는 동안 메모리의 _cmCommits에서 먼저 조회 (snapshot 포함)
+  let commit = _cmCommits.find(c => c.id === id) || null;
+  if (!commit && window.IS_ELECTRON && window.activeProjectId) {
+    // _meta.json 우선, proj.json 폴백 (마이그레이션 전 하위 호환)
+    const [meta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    const commits = meta?.commits || proj?.commits || [];
+    commit = commits.find(c => c.id === id);
   }
   if (!commit) { window.showToast('❌ 커밋을 찾을 수 없어요'); return; }
 
   document.getElementById('commit-modal-overlay')?.remove();
+  // autoSave 억제 — applyProjectData 직후 MutationObserver가 트리거되어 복원 내용을 덮어쓰는 버그 방지
+  if (window.state) window.state._suppressAutoSave = true;
   window.applyProjectData(commit.snapshot);
+  if (window.state) window.state._suppressAutoSave = false;
 
   // DBG-11: 커밋 복원 후 현재 브랜치 스토어에도 snapshot 동기화
   // (브랜치 전환 시 복원 전 상태로 덮어쓰여지는 버그 방지)
@@ -256,15 +277,86 @@ async function restoreCommit(id) {
   window.showToast(`↩ 복원됨 — ${commit.message}`);
 }
 
-function saveProjectAs() {
-  const json = window.serializeProject();
-  localStorage.setItem(SAVE_KEY, json);
+async function saveProjectFile() {
+  // Electron: IPC 직접 호출로 즉시 파일 저장 (flushSave 모듈 클로저 우회)
+  if (window.IS_ELECTRON && window.activeProjectId) {
+    try {
+      const snap = window.serializeProject();
+      const data = JSON.parse(snap);
+      const targetId = window.activeProjectId;
+      const existing = await window.electronAPI.loadProject(targetId);
+      // branches/commits/thumbnail은 meta로 분리 — proj.json에서 제외
+      const { branches: _b, commits: _c, currentBranch: _cb, thumbnail: _t, ...dataWithoutMeta } = data;
+      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, ...existingWithoutMeta } = (existing || {});
+      const proj = {
+        ...existingWithoutMeta,
+        ...dataWithoutMeta,
+        id: targetId,
+        name: existing?.name || data.name || 'Untitled',
+        updatedAt: new Date().toISOString(),
+      };
+      await window.electronAPI.saveProject(proj);
+      // localStorage도 sync
+      localStorage.setItem('project_' + targetId, snap);
+      window.showToast?.('✅ 저장됨');
+    } catch (e) {
+      console.error('[saveProjectFile] 저장 실패:', e);
+      window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
+    }
+    return;
+  }
+  // 웹: JSON 파일 다운로드
+  const base = JSON.parse(window.serializeProject());
+  const name = window.currentFileName || window.getProjectName?.() || `web-editor-${new Date().toISOString().slice(0,10)}`;
+  _downloadJSON(JSON.stringify(base, null, 2), name);
+  window.showToast?.('✅ 저장됨 — ' + name);
+}
 
-  const defaultName = window.currentFileName || window.getProjectName() || `web-editor-${new Date().toISOString().slice(0,10)}`;
+async function exportProjectJSON() {
+  const base = JSON.parse(window.serializeProject());
+  if (window.IS_ELECTRON && window.activeProjectId) {
+    // _meta.json 우선 (proj.json 폴백: 하위 호환)
+    const [meta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    const commits       = meta?.commits       || proj?.commits       || null;
+    const branches      = meta?.branches      || proj?.branches      || null;
+    const currentBranch = meta?.currentBranch || proj?.currentBranch || null;
+    if (commits?.length)  base.commits       = commits;
+    if (branches)         base.branches       = branches;
+    if (currentBranch)    base.currentBranch  = currentBranch;
+  }
+  const name = window.getProjectName?.() || `web-editor-${new Date().toISOString().slice(0,10)}`;
+  _downloadJSON(JSON.stringify(base, null, 2), name);
+  window.showToast?.('✅ JSON 내보내기 완료 — ' + name + '.json');
+}
+
+async function saveProjectAs() {
+  const base = JSON.parse(window.serializeProject());
+
+  // Electron: 커밋/브랜치 정보 병합 후 JSON 다운로드 (_meta.json 우선, proj.json 폴백)
+  if (window.IS_ELECTRON && window.activeProjectId) {
+    const [meta, proj] = await Promise.all([
+      window.electronAPI.loadProjectMeta(window.activeProjectId),
+      window.electronAPI.loadProject(window.activeProjectId),
+    ]);
+    const commits       = meta?.commits       || proj?.commits       || null;
+    const branches      = meta?.branches      || proj?.branches      || null;
+    const currentBranch = meta?.currentBranch || proj?.currentBranch || null;
+    if (commits?.length)  base.commits       = commits;
+    if (branches)         base.branches       = branches;
+    if (currentBranch)    base.currentBranch  = currentBranch;
+  }
+
+  const json = JSON.stringify(base, null, 2);
+  localStorage.setItem(SAVE_KEY, window.serializeProject());
+
+  const defaultName = window.currentFileName || window.getProjectName?.() || `web-editor-${new Date().toISOString().slice(0,10)}`;
   showFilenameModal(defaultName, name => {
     window.currentFileName = name;
     _downloadJSON(json, window.currentFileName);
-    window.showToast('✅ 저장됨 — ' + window.currentFileName);
+    window.showToast?.('✅ 저장됨 — ' + window.currentFileName);
   });
 }
 
@@ -272,17 +364,32 @@ function loadProjectFile(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = ev => {
+  reader.onload = async ev => {
     try {
       const data = JSON.parse(ev.target.result);
       window.applyProjectData(data);
+      // Electron: 커밋/브랜치 정보가 있으면 _meta.json에 복원
+      if (window.IS_ELECTRON && window.activeProjectId) {
+        if (data.commits?.length || data.branches || data.currentBranch) {
+          const existingMeta = await window.electronAPI.loadProjectMeta(window.activeProjectId);
+          const meta = {
+            ...(existingMeta || {}),
+            ...(data.commits?.length ? { commits: data.commits }           : {}),
+            ...(data.branches        ? { branches: data.branches }          : {}),
+            ...(data.currentBranch   ? { currentBranch: data.currentBranch }: {}),
+            updatedAt: new Date().toISOString(),
+          };
+          await window.electronAPI.saveProjectMeta(window.activeProjectId, meta);
+          window.showToast?.('✅ 커밋 히스토리 복원됨');
+        }
+      }
     } catch { alert('올바른 프로젝트 파일이 아닙니다.'); }
   };
   reader.readAsText(file);
   e.target.value = ''; // 같은 파일 재선택 허용
 }
 
-export { showFilenameModal, saveProject, openCommitModal, filterCommitHistory, doCommit, restoreCommit, saveProjectAs, loadProjectFile, LAST_COMMIT_KEY };
+export { showFilenameModal, saveProject, openCommitModal, filterCommitHistory, doCommit, restoreCommit, saveProjectFile, saveProjectAs, loadProjectFile, LAST_COMMIT_KEY };
 
 window.showFilenameModal    = showFilenameModal;
 window.saveProject          = saveProject;
@@ -290,5 +397,7 @@ window.openCommitModal      = openCommitModal;
 window.filterCommitHistory  = filterCommitHistory;
 window.doCommit             = doCommit;
 window.restoreCommit        = restoreCommit;
+window.saveProjectFile      = saveProjectFile;
+window.exportProjectJSON    = exportProjectJSON;
 window.saveProjectAs        = saveProjectAs;
 window.loadProjectFile      = loadProjectFile;

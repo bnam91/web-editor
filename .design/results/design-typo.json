@@ -1,0 +1,120 @@
+{
+  "agent": "DSN-typo",
+  "dimension": "typo",
+  "method": "static",
+  "project": "/Users/a1/web-editor",
+  "git_head": "1afbe91",
+  "scanned_at": "2026-06-11",
+  "scope_note": "UI 크롬만 감사. 캔버스 콘텐츠(--preset-* / .text-block .tb-* / 블록 내부 텍스트)는 사용자 편집값이라 이탈 제외. vendor/xterm/pretendard 서드파티 제외. 토큰 정의부 제외.",
+  "baseline": {
+    "ui_font": "Pretendard (editor-base.css:552 셸 베이스)",
+    "content_font": "'Noto Sans KR' (--preset-*-family)",
+    "type_scale_tokens": "없음 — --font-size-* / --line-height-* / --font-weight-* 토큰 0개. design-tokens.css는 색/간격/radius만 토큰화, 타이포는 미토큰화.",
+    "content_scale_present": "캔버스는 6단 스케일 보유: tb-h1 104 / tb-h2 72 / tb-h3 52 / tb-body 36 / tb-caption 26 (editor-layout.css:304-308, --preset-* 사용). 캔버스엔 스케일이 있고 UI 크롬엔 없음 — 대비가 발견 자체."
+  },
+  "findings": [
+    {
+      "id": "TYPO-01",
+      "title": "UI 크롬 타입 스케일 토큰 부재 — font-size px 직접 405회, 21개 distinct 값 난립",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "method": "static",
+      "evidence": {
+        "total_declarations": 405,
+        "distinct_px_values": 21,
+        "no_rem_em_var": "전부 px 리터럴. rem/em/var(--font-size-*) 사용 0회.",
+        "distribution": {
+          "11px": 162, "10px": 90, "12px": 58, "9px": 36, "13px": 18,
+          "14px": 10, "16px": 6, "18px": 5, "28px": 3, "26px": 3, "20px": 3,
+          "36px": 2, "30px": 2, "8px": 1, "72px": 1, "52px": 1, "32px": 1,
+          "17px": 1, "15px": 1, "104px": 1
+        },
+        "token_source": "design-tokens.css / editor-base.css 어디에도 --font-size-* 정의 없음"
+      },
+      "rationale": "색·간격·radius는 2단 토큰 계층으로 잘 설계됐으나 타이포만 토큰화 누락. 17px·15px·8px 같은 단발값과 9/10/11/12/13의 1px 간격 군집은 의도된 스케일이 아니라 임의 박음의 증거. '기준 부재'가 명세에 명시된 1순위 발견.",
+      "files": ["css/editor-panels.css(105)", "css/editor-extra.css(61)", "css/editor-props.css(49)", "css/editor-base.css(35)"],
+      "fix_hint": "--font-size-xs/sm/md/lg/xl + --line-height-tight/base/relaxed 토큰을 design-tokens.css에 추가하고 점진 이관. 캔버스 --preset-* 6단을 UI에 강제 적용 금지(별개 체계)."
+    },
+    {
+      "id": "TYPO-02",
+      "title": "9px 서브가독 UI 텍스트 36회 — UI 크롬 최소 가독성 미달 군집",
+      "severity": "major",
+      "adjudication": "verify-candidate",
+      "method": "static",
+      "evidence": {
+        "total_9px": 36,
+        "ui_chrome_9px": 33,
+        "by_file": {
+          "editor-panels.css": 19, "editor-base.css": 4, "editor-props.css": 4,
+          "editor-toast.css": 2, "editor-extra.css": 2, "ai-image.css": 2, "assets-panel.css": 1
+        },
+        "smallest": "editor-extra/ai-image 8px 1회",
+        "sample_lines": ["editor-panels.css:1196 .layer-item-type 9px", "editor-props.css:187 .prop-block-id 9px", "editor-toast.css:53 9px uppercase"]
+      },
+      "rationale": "9px는 다크 UI 본문 라벨로 광범위 사용(layer-item-type, block-id, badge 등). uppercase+letter-spacing 동반이 많아 실제 가독성은 D-a11y와 교차 — CDP 실측 시 대비까지 보면 confirmed 승격 가능. 단일 라인이 아닌 36회 군집이라 시스템 이탈.",
+      "files": ["css/editor-panels.css", "css/editor-base.css", "css/editor-props.css"],
+      "fix_hint": "UI 캡션 최소값을 10px로 정하고 9px→--font-size-xs(10px)로 통일. 8px 단발(editor-extra:391-397, ai-image:364)은 즉시 상향."
+    },
+    {
+      "id": "TYPO-03",
+      "title": "line-height 기준 비일관 — unitless 9종 + px 혼용, 표준 배율 없음",
+      "severity": "minor",
+      "adjudication": "self",
+      "method": "static",
+      "evidence": {
+        "unitless_values": {"1": 35, "1.6": 11, "1.5": 9, "1.4": 7, "1.3": 5, "1.2": 3, "1.1": 3, "1.55": 1, "1.15": 1, "0": 1},
+        "px_line_heights": {"16px": 5, "18px": 2},
+        "px_mix_lines": ["editor-props.css:403 16px", "color-picker.css:17/253/289 16px", "editor-blocks.css:553 18px", "editor-layout.css:454 18px"]
+      },
+      "rationale": "본문 행간이 1.3~1.6 사이 5개 값으로 산재(1.55·1.15 같은 단발 포함). px line-height는 폰트크기와 결합되지 않아 스케일 깨짐. 명세의 '1.4~1.8 기준 비일관'에 해당하나 대부분 UI 보조 라벨이라 minor.",
+      "files": ["css/editor-props.css", "css/color-picker.css", "css/editor-layout.css"],
+      "fix_hint": "--line-height-tight(1.2)/base(1.4)/relaxed(1.6) 3단으로 수렴. px line-height는 unitless로 교체."
+    },
+    {
+      "id": "TYPO-04",
+      "title": "font-family 스택 순서 비일관 — Pretendard 위치 제각각, UI 크롬 내 혼선",
+      "severity": "minor",
+      "adjudication": "self",
+      "method": "static",
+      "evidence": {
+        "pretendard_first": ["editor-base.css:552 'Pretendard',-apple-system,...", "color-picker.css:15 Pretendard,-apple-system,'SF Pro Display','Inter'", "editor-layout.css:122/240 'Pretendard','SF Pro'"],
+        "pretendard_buried": ["claude-pm.css:41/204/382/585 -apple-system,BlinkMacSystemFont,'Pretendard'", "settings-modal.css:13 -apple-system,BlinkMacSystemFont,'Pretendard'"],
+        "no_pretendard_ui_overlay": "editor-blocks.css:962 .smart-guide-label = UI 오버레이인데 -apple-system,BlinkMacSystemFont만, Pretendard 누락"
+      },
+      "rationale": "셸 베이스(editor-base:552)는 Pretendard 우선이나 claude-pm/settings-modal은 system-ui 뒤로 밀림 → 같은 다크 UI 안에서 한글 렌더 폰트가 달라짐. smart-guide-label은 UI 오버레이인데 Pretendard 자체가 빠짐. 명세 D-typo가 지목한 'UI에 Noto/혼용' 라인.",
+      "files": ["css/claude-pm.css", "css/settings-modal.css", "css/color-picker.css", "css/editor-blocks.css"],
+      "fix_hint": "UI 크롬은 editor-base:552 스택('Pretendard' 우선)으로 통일하거나 --ui-font-family 토큰 1개로 일원화. smart-guide-label에 Pretendard 추가."
+    },
+    {
+      "id": "TYPO-05",
+      "title": "캔버스 블록에 Pretendard 하드코딩 — content_font(Noto Sans KR/--preset-*-family) 우회",
+      "severity": "minor",
+      "adjudication": "self",
+      "method": "static",
+      "evidence": {
+        "canvas_blocks_using_pretendard": [
+          "editor-blocks.css:1150 textarea.cvb-card-input",
+          "editor-blocks.css:1341 (prop 입력 렌더)",
+          "editor-blocks.css:1428 .tb-sender-name",
+          "editor-blocks.css:1445 (chat bubble 28px)",
+          "editor-blocks.css:1585 (16px)",
+          "editor-blocks.css:1738/1761 .badge-hologram-square .badge-logo",
+          "editor-blocks.css:1776/1785 .badge-hologram-row .badge-title/.badge-desc"
+        ],
+        "expected": "캔버스 콘텐츠 = 'Noto Sans KR' (--preset-*-family). itb-text(editor-extra:1648)는 올바르게 var(--preset-body-family) 사용 — 대조군"
+      },
+      "rationale": "캔버스 콘텐츠는 원칙상 불가침이나, 이 블록들은 --preset-*-family(Noto) 대신 Pretendard를 직접 박아 캔버스 폰트 일관성을 깸. MEMORY D-typo 브리핑의 '캔버스에 Pretendard 섞임' 정확 해당. 콘텐츠 폰트 변경이 아니라 토큰 우회라 suspected/self로 보고(사용자 의도일 수 있어 강제 X).",
+      "files": ["css/editor-blocks.css"],
+      "fix_hint": "캔버스 블록 font-family를 var(--preset-body-family) 등 프리셋 토큰으로 교체해 itb-text와 정렬. 단 디자인 의도(배지 영문 로고는 Pretendard 의도 가능) 확인 후."
+    }
+  ],
+  "grouped_overflow": {
+    "applied": true,
+    "note": "font-size 405회 / 9px 36회 / line-height 28회 / font-family 19선언을 per-instance로 풀지 않고 5건 그룹으로 묶음. 차원 캡(15) 이내(5건).",
+    "raw_counts": {"font_size_total": 405, "font_size_distinct": 21, " font_weight_distinct": 7, "line_height_distinct": 12, "font_family_decls": 19}
+  },
+  "confirmed": 0,
+  "suspected": 5,
+  "by_severity": {"blocker": 0, "major": 2, "minor": 3, "nit": 0},
+  "by_adjudication": {"verify-candidate": 2, "self": 3, "confirmed": 0}
+}
