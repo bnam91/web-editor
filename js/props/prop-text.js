@@ -29,7 +29,8 @@ export function showTextProperties(tb) {
 
   const isSpeechBubble = tb.classList.contains('speech-bubble-block');
   const isIconText     = tb.classList.contains('icon-text-block');
-  const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label','tb-bullet'].find(c => contentEl.classList.contains(c)) || (isSpeechBubble ? 'tb-bubble' : 'tb-body');
+  const isLiner        = tb.classList.contains('liner-block');
+  const currentClass = ['tb-h1','tb-h2','tb-h3','tb-body','tb-caption','tb-label','tb-bullet','tb-liner'].find(c => contentEl.classList.contains(c)) || (isSpeechBubble ? 'tb-bubble' : isLiner ? 'tb-liner' : 'tb-body');
   const rawBg = window.getComputedStyle(contentEl).backgroundColor;
   const currentBgColor = (!rawBg || rawBg === 'rgba(0, 0, 0, 0)' || rawBg === 'transparent') ? '#111111' : (rgbToHex(rawBg) || '#111111');
   const currentRadius = parseInt(contentEl.style.borderRadius) || 4;
@@ -135,6 +136,9 @@ export function showTextProperties(tb) {
 
   // 이스터에그: 텍스트 효과가 적용된 블록이면 우측 패널에 컨트롤 증강
   if (tb.dataset.textEffect) window.enhanceTextEffectPropPanel?.(tb);
+
+  // 라이너(곡선 텍스트): 프리셋 select + 곡률 슬라이더 증강
+  if (isLiner) window.enhanceLinerPropPanel?.(tb);
 }
 
 // Backward compat: classic scripts call these via window.*

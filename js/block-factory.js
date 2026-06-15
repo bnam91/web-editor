@@ -1769,6 +1769,47 @@ function addSpeechBubbleBlock(tail) {
   window.selectSection(sec);
 }
 
+// ─── Liner (곡선 텍스트) — SVG textPath 기반 text-block 변형 ──────────────
+// speech-bubble 동형. .text-block.liner-block, dataset.liner JSON, 숨김 미러 .tb-liner + .lnr-svg.
+// 렌더/곡률/폰트 매핑은 liner-transform.js (applyLiner/ensureLiner)가 담당.
+function makeLinerBlock(preset) {
+  preset = preset || 'arc-up';
+  const block = document.createElement('div');
+  block.className = 'text-block liner-block';
+  block.dataset.type = 'liner';
+  block.id = genId('lnr');
+  block.dataset.liner = JSON.stringify({ preset, curvature: 50 });
+  const phText = '곡선 텍스트';
+  // 미러 div(.tb-liner): 편집/폭측정용 contenteditable. 평소 숨김(CSS), 편집중만 노출.
+  // SVG(.lnr-svg): 화면 표시용 textPath. applyLiner가 viewBox/path d/font 채움.
+  block.innerHTML = `<div class="tb-liner" contenteditable="false" style="font-family:'Pretendard',sans-serif" data-placeholder="${phText}" data-is-placeholder="true">${phText}</div><svg class="lnr-svg" xmlns="http://www.w3.org/2000/svg"><defs><path fill="none"></path></defs><text text-anchor="middle"><textPath startOffset="50%"></textPath></text></svg>`;
+  return { block };
+}
+
+function addLinerBlock(preset) {
+  preset = preset || 'arc-up';
+
+  const sec = window.getSelectedSection();
+  if (!sec) { window.showNoSelectionHint?.(); return; }
+  window.pushHistory();
+
+  const { block } = makeLinerBlock(preset);
+  const tf = _makeTextFrame();
+  tf.appendChild(block);
+
+  // 텍스트프레임 빈 영역 클릭 시 내부 라이너 블록 선택 위임
+  tf.addEventListener('click', e => {
+    if (e.target === tf) block.click();
+  });
+
+  insertAfterSelected(sec, tf);
+  bindBlock(block);
+  // SVG 초기 렌더 (viewBox/path d/font/text)
+  window.applyLiner?.(block, { preset, curvature: 50 });
+  window.buildLayerPanel();
+  window.selectSection(sec);
+}
+
 // ─── update* functions for secondary blocks (MCP partial update entry points) ────────
 // divider / asset / table / icon-circle / graph / gap / speech-bubble / label-group / shape / icon-text
 
@@ -3903,6 +3944,8 @@ window.makeShapeBlock       = makeShapeBlock;
 window.addShapeBlock        = addShapeBlock;
 window.makeSpeechBubbleBlock = makeSpeechBubbleBlock;
 window.addSpeechBubbleBlock  = addSpeechBubbleBlock;
+window.makeLinerBlock        = makeLinerBlock;
+window.addLinerBlock         = addLinerBlock;
 // ─── update* exports for secondary blocks (MCP partial update bridges) ──
 window.updateDividerBlock     = updateDividerBlock;
 window.updateAssetBlock       = updateAssetBlock;

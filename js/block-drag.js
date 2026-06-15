@@ -639,6 +639,28 @@ function bindBlock(block) {
       sel.addRange(range);
     };
 
+    // ── Liner(곡선 텍스트) 전용 증분 ──
+    // 미러 div(.tb-liner) input 시 SVG textPath 동기화 + 폰트/폭 재적용.
+    // 편집 진입/복귀 캐럿 노출은 CSS(.liner-block.editing .tb-liner)로 처리 — JS 증분 최소.
+    if (block.classList.contains('liner-block')) {
+      const mirror = block.querySelector('.tb-liner');
+      if (mirror && !mirror._linerInputBound) {
+        mirror._linerInputBound = true;
+        mirror.addEventListener('input', () => {
+          window.applyLinerText?.(block);
+          window.applyLiner?.(block);
+        });
+        // blur(편집 종료) 시 placeholder 복원 등 반영 후 한번 더 동기화
+        mirror.addEventListener('blur', () => {
+          window.applyLiner?.(block);
+          window.applyLinerText?.(block);
+        });
+        // 폰트/색/크기 prop 변경은 미러 div style을 바꾼다 → SVG <text>로 재매핑
+        new MutationObserver(() => { window.applyLiner?.(block); })
+          .observe(mirror, { attributes: true, attributeFilter: ['style', 'class', 'data-is-placeholder'] });
+      }
+    }
+
   }
 
   if (isAsset) {

@@ -1522,6 +1522,60 @@ textarea.cvb-card-input {
 }
 
 /* ═══════════════════════════════════
+   Liner (곡선 텍스트) — SVG textPath
+═══════════════════════════════════ */
+.liner-block {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+/* 화면 표시용 SVG — 가로 100%, 내부 viewBox 비율로 높이 자동 */
+.liner-block .lnr-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  pointer-events: none; /* 클릭은 블록/미러가 받음 */
+}
+/* 편집 미러 div: 평소 숨김(폭 측정용으로 레이아웃은 유지) — absolute overlay + 투명 */
+.liner-block .tb-liner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 28px;        /* applyLiner가 이 크기를 SVG font-size로 복사 */
+  line-height: 1.2;
+  color: transparent;     /* 평소 글자 안 보임 (SVG가 표시) */
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
+}
+/* 편집 중에는 미러를 노출해 캐럿/입력이 보이게 */
+.liner-block.editing .tb-liner {
+  position: relative;
+  opacity: 1;
+  color: #111;
+  pointer-events: auto;
+  outline: none;
+}
+/* 편집 중에는 SVG를 흐리게(글자 겹침 방지) */
+.liner-block.editing .lnr-svg {
+  opacity: 0.25;
+}
+.liner-block .tb-liner[data-is-placeholder="true"] {
+  color: transparent;
+}
+.liner-block.editing .tb-liner[data-is-placeholder="true"] {
+  color: rgba(17,17,17,0.4);
+}
+.liner-block.selected {
+  outline: none !important;
+}
+
+/* ═══════════════════════════════════
    스크래치 → 캔버스 드롭 가이드 (canvas-scratch-drop.js)
 ═══════════════════════════════════ */
 .sp2c-replace-target {
