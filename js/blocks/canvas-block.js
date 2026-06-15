@@ -102,6 +102,45 @@ function _bindCvbDblEdit(block) {
   });
 }
 
+// 카드 이미지 영역 더블클릭 → 파일 피커로 card.imgSrc 추가/교체
+// (image-handling.js:506 triggerAssetUpload + loadImageToAsset FileReader 미러)
+function _triggerCvbCardImage(block, idx) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    if (file.size > 10 * 1024 * 1024) { alert('이미지 파일은 10MB 이하만 업로드할 수 있습니다.'); return; }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const cards = JSON.parse(block.dataset.cards || '[]');
+      if (!cards[idx]) cards[idx] = {};
+      cards[idx].imgSrc = ev.target.result;
+      if (!cards[idx].imgFit) cards[idx].imgFit = 'cover';
+      block.dataset.cards = JSON.stringify(cards);
+      window.renderCanvas?.(block);
+      window.pushHistory?.('카드 이미지');
+      window.scheduleAutoSave?.();
+      if (block.classList.contains('selected') && window.showSimpleCardProperties) window.showSimpleCardProperties(block);
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+// 이미지 없는 placeholder 영역에도 더블클릭=이미지 추가 배선
+function _bindCvbImgPlaceholder(div, block, idx) {
+  div.style.cursor = 'pointer';
+  div.style.pointerEvents = 'auto';
+  div.title = '더블클릭하여 이미지 추가';
+  div.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    _triggerCvbCardImage(block, idx);
+  });
+}
+
 function _bindCvbImgDrag(imgDiv, block, idx) {
   if (!imgDiv.style.position) imgDiv.style.position = 'relative';
   imgDiv.style.pointerEvents = 'auto';
@@ -114,11 +153,11 @@ function _bindCvbImgDrag(imgDiv, block, idx) {
     _enterCvbImgEditMode(imgDiv, block, idx);
   });
 
-  // 더블클릭 → 편집 모드 진입 (블록 선택 여부 무관)
+  // 더블클릭 → 이미지 추가/교체 (위치드래그 편집모드는 단일클릭 경로로 유지)
   imgDiv.addEventListener('dblclick', function(e) {
     e.stopPropagation();
     e.preventDefault();
-    _enterCvbImgEditMode(imgDiv, block, idx);
+    _triggerCvbCardImage(block, idx);
   });
 }
 
@@ -311,6 +350,7 @@ function renderCanvas(block) {
             const ph = document.createElement('span');
             ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
             ph.textContent = '+'; imgDiv.appendChild(ph);
+            _bindCvbImgPlaceholder(imgDiv, block, idx);
           }
           cell.appendChild(imgDiv);
 
@@ -351,6 +391,7 @@ function renderCanvas(block) {
               const ph = document.createElement('span');
               ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
               ph.textContent = '+'; div.appendChild(ph);
+              _bindCvbImgPlaceholder(div, block, idx);
             }
             return div;
           };
@@ -392,6 +433,7 @@ function renderCanvas(block) {
               const ph = document.createElement('span');
               ph.style.cssText = 'color:rgba(0,0,0,0.2);font-size:28px;font-family:sans-serif;pointer-events:none;font-weight:200;';
               ph.textContent = '+'; fullImg.appendChild(ph);
+              _bindCvbImgPlaceholder(fullImg, block, idx);
             }
             cell.appendChild(fullImg);
             if (!textHide) {
@@ -1045,5 +1087,6 @@ window.addCanvasBlock   = addCanvasBlock;
 window.renderCanvas     = renderCanvas;
 // window 노출 — banner02 패턴 미러
 window.updateCanvasBlock = updateCanvasBlock;
+window._triggerCvbCardImage = _triggerCvbCardImage;
 
 export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS };

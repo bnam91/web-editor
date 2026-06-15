@@ -668,14 +668,12 @@ function showSimpleCardProperties(block) {
     if (on) {
       block.dataset.textBgLast = block.dataset.textBg || '#f5f5f5';
       block.dataset.textBg = 'transparent';
-      // 투명 활성화 — 카드 배경이 사라지므로 #ffffff 흰 텍스트는 안 보임. 자동으로 검정으로 전환
-      const tc = (block.dataset.titleColor || '').toLowerCase();
-      const dc = (block.dataset.descColor  || '').toLowerCase();
-      if (tc === '#ffffff' || tc === '#fff') {
+      // 투명 활성화 — 카드 배경이 사라지므로 밝은 텍스트는 안 보임. 밝은 색이면 자동으로 어둡게 전환
+      if (_cvbIsLightColor(block.dataset.titleColor)) {
         block.dataset.titleColorLast = block.dataset.titleColor;
         block.dataset.titleColor = '#222222';
       }
-      if (dc === '#ffffff' || dc === '#fff') {
+      if (_cvbIsLightColor(block.dataset.descColor)) {
         block.dataset.descColorLast = block.dataset.descColor;
         block.dataset.descColor = '#222222';
       }
@@ -931,6 +929,23 @@ function showSimpleCardProperties(block) {
 // HTML 특수문자 이스케이프 (textarea/input value 안전 삽입)
 function _escHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// 색이 '밝은가' 판정 — 6자리 #hex만 파싱(상대휘도 sRGB), 임계 0.6 초과면 true.
+// rgba()/linear-gradient()/var()/transparent 등은 파싱 실패로 false → 자동전환 안 함(안전).
+function _cvbIsLightColor(hex) {
+  if (!hex) return false;
+  const v = String(hex).trim().toLowerCase();
+  if (v === '#fff' || v === '#ffffff') return true;
+  const m = /^#([0-9a-f]{6})$/.exec(v);
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  const r = ((n >> 16) & 0xff) / 255;
+  const g = ((n >> 8) & 0xff) / 255;
+  const b = (n & 0xff) / 255;
+  const lin = c => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  return L > 0.6;
 }
 
 window.showSimpleCardProperties = showSimpleCardProperties;
