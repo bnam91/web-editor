@@ -204,20 +204,40 @@
 }
 .fp-menu-item:hover { background: var(--ui-bg-input); color: var(--ui-text); }
 
-/* B13: 스티커/하이라이트 프리셋 서브 플라이아웃 */
-.fp-menu-item.fp-has-sub { position: relative; justify-content: space-between; gap: 8px; }
-.fp-sub-arrow { opacity: 0.45; font-size: 13px; }
-.fp-submenu {
-  display: none; position: absolute; left: 100%; top: -4px; margin-left: 4px;
-  background: var(--ui-bg-card); border: 1px solid var(--ui-border);
-  border-radius: 8px; padding: 6px; box-shadow: var(--ui-shadow-lg);
-  flex-wrap: wrap; width: 96px; gap: 6px; z-index: 5;
+/* U6(a): 중앙 스티커 패널의 호버 색상 플라이아웃(.fp-submenu) 제거됨.
+   색·프리셋 선택은 우측 Properties 패널(Favorites / Text Presets)로 이관. */
+
+/* U6(c)(d): 우측 패널 — 스티커 즐겨찾기 스와치 그리드 */
+.stk-fav-grid {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
 }
-.fp-menu-item.fp-has-sub:hover .fp-submenu { display: flex; }
-.fp-swatch {
-  width: 20px; height: 20px; border-radius: 50%;
-  background: var(--sw); border: 1px solid rgba(0,0,0,0.25);
+.stk-fav-swatch {
+  position: relative;
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--ui-border, #3a3a3a);
   cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; overflow: hidden;
 }
-.fp-swatch.fp-swatch-sq { border-radius: 4px; }
-.fp-swatch:hover { outline: 2px solid var(--ui-accent, #5a8aff); outline-offset: 1px; }
+.stk-fav-swatch:hover { outline: 2px solid var(--ui-accent, #5a8aff); outline-offset: 1px; }
+.stk-fav-swatch .stk-fav-del {
+  position: absolute; top: -5px; right: -5px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #c0392b; color: #fff; border: none;
+  font-size: 10px; line-height: 14px; text-align: center;
+  cursor: pointer; padding: 0; display: none;
+}
+.stk-fav-swatch:hover .stk-fav-del { display: block; }
+.stk-fav-empty { font-size: 11px; color: var(--ui-text-sub, #888); padding: 4px 0; }
+
+/* U6(d): 텍스트 스티커 프리셋 버튼 */
+.stk-preset-grid { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.stk-preset-btn {
+  width: 100%; text-align: left;
+  background: var(--ui-bg-input, #2a2a2a);
+  border: 1px solid var(--ui-border, #3a3a3a);
+  border-radius: 6px; padding: 6px 10px;
+  color: var(--ui-text, #ddd); font-size: 12px; cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.stk-preset-btn:hover { background: var(--ui-bg-card, #333); border-color: var(--ui-accent, #5a8aff); }

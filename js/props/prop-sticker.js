@@ -5,12 +5,101 @@ function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// ── U6(c): 스티커 즐겨찾기 — 프로젝트 무관 전역 localStorage ────────────────────
+const FAV_KEY = 'goditor.stickerFavorites';
+const FAV_MAX = 30;
+// 위치 종속 shape(highlightB)는 프리셋 부적합 — circle/square/text/highlight/icon만 대상.
+const FAV_ALLOWED_SHAPES = ['circle', 'square', 'text', 'highlight', 'icon'];
+
+function listStickerFavorites() {
+  try {
+    const raw = localStorage.getItem(FAV_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (_) { return []; }
+}
+function _saveStickerFavorites(arr) {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify(arr.slice(0, FAV_MAX))); } catch (_) {}
+}
+// 현재 스티커 dataset에서 스타일 토큰만 추출 (위치/절대크기/text 내용 제외)
+function _stickerStyleFromBlock(block) {
+  const d = block.dataset;
+  const shape = d.shape || 'circle';
+  const preset = { shape };
+  const put = (k) => { if (d[k] !== undefined && d[k] !== '') preset[k] = d[k]; };
+  if (shape === 'highlight') {
+    put('hlColor'); put('hlW'); put('hlH');
+  } else if (shape === 'icon') {
+    ['iconName', 'iconSvg', 'iconColor', 'size'].forEach(put);
+  } else if (shape === 'text') {
+    ['fontFamily', 'fontSize', 'fontWeight', 'textColor', 'strokeWidth', 'strokeColor',
+     'letterSpacing', 'textAlign', 'shadowOn', 'shadowX', 'shadowY', 'shadowBlur', 'shadowColor',
+     'bgColor', 'padX', 'padY'].forEach(put);
+  } else { // circle / square
+    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight'].forEach(put);
+  }
+  return preset;
+}
+function addStickerFavorite(block) {
+  const shape = block.dataset.shape || 'circle';
+  if (!FAV_ALLOWED_SHAPES.includes(shape)) {
+    window.showToast?.('⚠️ 이 모양은 즐겨찾기에 추가할 수 없습니다');
+    return false;
+  }
+  const preset = _stickerStyleFromBlock(block);
+  const favs = listStickerFavorites();
+  favs.unshift(preset);
+  _saveStickerFavorites(favs);
+  return true;
+}
+function removeStickerFavorite(idx) {
+  const favs = listStickerFavorites();
+  if (idx < 0 || idx >= favs.length) return;
+  favs.splice(idx, 1);
+  _saveStickerFavorites(favs);
+}
+window.listStickerFavorites = listStickerFavorites;
+window.addStickerFavorite = addStickerFavorite;
+window.removeStickerFavorite = removeStickerFavorite;
+
+// 즐겨찾기 스와치 1개의 미리보기 스타일/라벨
+function _favSwatchPreview(preset) {
+  const shape = preset.shape || 'circle';
+  if (shape === 'highlight') {
+    return { bg: preset.hlColor || 'rgba(255,235,70,0.7)', label: '' };
+  }
+  if (shape === 'text') {
+    return { bg: (preset.bgColor && preset.bgColor !== 'transparent') ? preset.bgColor : '#2a2a2a',
+             color: preset.textColor || '#ddd', label: 'T' };
+  }
+  if (shape === 'icon') {
+    return { bg: '#2a2a2a', color: preset.iconColor || '#ddd', label: '★', svg: preset.iconSvg || '' };
+  }
+  return { bg: preset.bgColor || '#e74c3c', color: preset.textColor || '#fff', label: 'A' };
+}
+
+// ── U6(d): 텍스트 스티커 프리셋 (코드 내 고정 배열) ───────────────────────────────
+// text 내용(dataset.text)은 보존하고 스타일만 덮어씀.
+const TEXT_PRESETS = [
+  { name: '빅 타이틀', style: { fontSize: '48', fontWeight: '900', textColor: '#222222', strokeWidth: '0', letterSpacing: '-1', shadowOn: '0', bgColor: 'transparent' } },
+  { name: '뱃지', style: { fontSize: '18', fontWeight: '700', textColor: '#ffffff', bgColor: '#e74c3c', strokeWidth: '0', padX: '14', padY: '6', shadowOn: '0' } },
+  { name: '외곽선 강조', style: { fontSize: '40', fontWeight: '800', textColor: '#ffffff', strokeWidth: '4', strokeColor: '#222222', shadowOn: '0', bgColor: 'transparent' } },
+  { name: '그림자 텍스트', style: { fontSize: '36', fontWeight: '800', textColor: '#ffffff', strokeWidth: '0', shadowOn: '1', shadowX: '0', shadowY: '3', shadowBlur: '6', shadowColor: 'rgba(0,0,0,0.5)', bgColor: 'transparent' } },
+  { name: '형광펜식', style: { fontSize: '30', fontWeight: '700', textColor: '#222222', strokeWidth: '0', shadowOn: '0', bgColor: 'rgba(255,235,70,0.7)', padX: '6', padY: '2' } },
+  { name: '심플 라벨', style: { fontSize: '14', fontWeight: '500', textColor: '#666666', strokeWidth: '0', letterSpacing: '0.5', shadowOn: '0', bgColor: 'transparent' } },
+];
+window.STICKER_TEXT_PRESETS = TEXT_PRESETS;
+
 export function showStickerProperties(block) {
   const shape      = block.dataset.shape      || 'circle';
   const isText     = shape === 'text';
   const isHl      = shape === 'highlight';
   const isHlB     = shape === 'highlightB';
   const isAnyHl   = isHl || isHlB;
+  const isIcon    = shape === 'icon';
+  // circle/square 전용 섹션(mode/text/size/colors)을 가리는 통합 플래그
+  const hideBasic = isAnyHl || isText || isIcon;
   // 기본 sticker(circle/square)에서 사용하는 값
   const size       = parseInt(block.dataset.size)       || 60;
   const text       = block.dataset.text ?? (isText ? 'Text' : 'NEW');
@@ -53,7 +142,36 @@ export function showStickerProperties(block) {
         ${block.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard?.('${block.id}')">${block.id}</span>` : ''}
       </div>
     </div>
-    <div class="prop-section" id="stk-mode-section" style="display:${(isAnyHl || isText) ? 'none' : 'block'};">
+    <div class="prop-section" id="stk-fav-section">
+      <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="prop-section-title" style="margin-bottom:0">Favorites (즐겨찾기)</div>
+        <button class="prop-action-btn" id="stk-fav-add" title="현재 스티커 스타일을 즐겨찾기에 추가"
+          style="width:auto;padding:2px 8px;font-size:12px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>
+      </div>
+      <div class="stk-fav-grid" id="stk-fav-grid"></div>
+    </div>
+    <div class="prop-section" id="stk-icon-section" style="display:${isIcon ? 'block' : 'none'};">
+      <div class="prop-section-title">Icon</div>
+      <div class="prop-row">
+        <button class="prop-action-btn secondary" id="stk-icon-replace" style="width:100%;">아이콘 교체</button>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" id="stk-icon-size" min="16" max="300" step="2" value="${parseInt(block.dataset.size) || 64}">
+        <input type="number" class="prop-number" id="stk-icon-size-num" min="16" max="600" value="${parseInt(block.dataset.size) || 64}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="stk-icon-rot" min="-180" max="180" step="1" value="${parseFloat(block.dataset.rotation) || 0}">
+        <input type="number" class="prop-number" id="stk-icon-rot-num" min="-180" max="180" step="1" value="${parseFloat(block.dataset.rotation) || 0}">
+      </div>
+      <div class="prop-color-row" style="margin-top:6px;">
+        <span class="prop-label">색상</span>
+        ${colorFieldHTML({ idPrefix: 'stk-icon-color', hex: (block.dataset.iconColor || '#222222'), alpha: parseAlphaFromColor(block.dataset.iconColor || '#222222') })}
+      </div>
+      <div class="prop-hint" style="font-size:11px;color:#888;margin-top:4px;">SVG가 currentColor를 쓰는 아이콘만 색상이 반영됩니다.</div>
+    </div>
+    <div class="prop-section" id="stk-mode-section" style="display:${hideBasic ? 'none' : 'block'};">
       <div class="prop-row">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#ccc;">
           <input type="checkbox" id="stk-mode-img" ${block.dataset.mode === 'image' ? 'checked' : ''}>
@@ -61,13 +179,13 @@ export function showStickerProperties(block) {
         </label>
       </div>
     </div>
-    <div class="prop-section" id="stk-text-section" style="display:${isAnyHl ? 'none' : (block.dataset.mode === 'image' && !isText ? 'none' : 'block')};">
+    <div class="prop-section" id="stk-text-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' && !isText ? 'none' : 'block')};">
       <div class="prop-section-title">Text</div>
       <div class="prop-row">
         <input type="text" class="prop-input" id="stk-text" value="${_esc(text)}" placeholder="텍스트">
       </div>
     </div>
-    <div class="prop-section" id="stk-image-section" style="display:${(isAnyHl || isText) ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
+    <div class="prop-section" id="stk-image-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
       <div class="prop-section-title">Image</div>
       <div id="stk-img-drop" style="border:2px dashed #444;border-radius:6px;padding:18px 10px;text-align:center;color:#888;font-size:12px;cursor:pointer;background:#1a1a1a;transition:border-color .15s,background .15s;">
         ${block.dataset.imgSrc ? `<img src="${block.dataset.imgSrc}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
@@ -150,7 +268,7 @@ export function showStickerProperties(block) {
         ${colorFieldHTML({ idPrefix: 'stk-hlb-color', hex: (block.dataset.hlColor || '#ffeb46').replace(/rgba?\(([\d.\s,]+)\).*/, '#ffeb46'), alpha: 70 })}
       </div>
     </div>
-    <div class="prop-section" id="stk-size-section" style="display:${(isAnyHl || isText) ? 'none' : 'block'};">
+    <div class="prop-section" id="stk-size-section" style="display:${hideBasic ? 'none' : 'block'};">
       <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -175,7 +293,7 @@ export function showStickerProperties(block) {
         </select>
       </div>
     </div>
-    <div class="prop-section" id="stk-colors-section" style="display:${(isAnyHl || isText) ? 'none' : 'block'};">
+    <div class="prop-section" id="stk-colors-section" style="display:${hideBasic ? 'none' : 'block'};">
       <div class="prop-section-title">Colors</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
@@ -236,6 +354,12 @@ export function showStickerProperties(block) {
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="6" y1="8" x2="14" y2="8"/><line x1="4" y1="12" x2="14" y2="12"/></svg>
           </button>
         </div>
+      </div>
+    </div>
+    <div class="prop-section" id="stk-text-presets-section" style="display:${isText ? 'block' : 'none'};">
+      <div class="prop-section-title">Text Presets</div>
+      <div class="stk-preset-grid" id="stk-preset-grid">
+        ${TEXT_PRESETS.map((p, i) => `<button class="stk-preset-btn" data-preset-idx="${i}" type="button">${_esc(p.name)}</button>`).join('')}
       </div>
     </div>
     <div class="prop-section" id="stk-text-colors-section" style="display:${isText ? 'block' : 'none'};">
@@ -507,8 +631,8 @@ export function showStickerProperties(block) {
         block.style.removeProperty('transform-origin');
       }
 
-      // 전체 패널 재렌더 (text shape는 별도 섹션 구성이라 단순 토글로는 부족)
-      if (_isTxt || prevShape === 'text') {
+      // 전체 패널 재렌더 (text/icon shape는 별도 섹션 구성이라 단순 토글로는 부족)
+      if (_isTxt || prevShape === 'text' || newShape === 'icon' || prevShape === 'icon') {
         rerender();
         window.pushHistory?.('스티커 모양'); window.scheduleAutoSave?.();
         showStickerProperties(block);
@@ -672,6 +796,97 @@ export function showStickerProperties(block) {
     initialAlpha: txtAlpha,
     onApply: (c) => { block.dataset.textColor = c; rerender(); },
     onCommit: () => { window.pushHistory?.('스티커 글자색'); window.scheduleAutoSave?.(); },
+  });
+
+  // ── U6(c): Favorites 그리드 렌더 + 이벤트 ──────────────────────────────────
+  const _renderFavGrid = () => {
+    const grid = propPanel.querySelector('#stk-fav-grid');
+    if (!grid) return;
+    const favs = listStickerFavorites();
+    if (!favs.length) {
+      grid.innerHTML = `<div class="stk-fav-empty">아직 즐겨찾기가 없습니다. ★ 추가를 눌러 현재 스타일을 저장하세요.</div>`;
+      return;
+    }
+    grid.innerHTML = favs.map((p, i) => {
+      const pv = _favSwatchPreview(p);
+      const inner = pv.svg
+        ? `<span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:${pv.color || 'inherit'};" class="stk-fav-icon"></span>`
+        : (pv.label || '');
+      return `<button class="stk-fav-swatch" data-fav-idx="${i}" type="button" title="${_esc(p.shape)} 스티커 추가"`
+        + ` style="background:${pv.bg};color:${pv.color || '#fff'};">`
+        + `${inner}<span class="stk-fav-del" data-fav-del="${i}" title="삭제">×</span></button>`;
+    }).join('');
+    // svg preview 주입 (innerHTML로 한 번에 못 넣음 — 따옴표 escape 회피)
+    grid.querySelectorAll('.stk-fav-swatch').forEach((sw, i) => {
+      const p = favs[i];
+      if (p && p.shape === 'icon' && p.iconSvg) {
+        const holder = sw.querySelector('.stk-fav-icon');
+        if (holder) {
+          holder.innerHTML = p.iconSvg;
+          const svg = holder.querySelector('svg');
+          if (svg) { svg.setAttribute('width', 18); svg.setAttribute('height', 18); svg.style.pointerEvents = 'none'; }
+        }
+      }
+    });
+    grid.querySelectorAll('.stk-fav-swatch').forEach(sw => {
+      sw.addEventListener('click', (e) => {
+        if (e.target.closest('.stk-fav-del')) return; // 삭제 버튼은 별도 처리
+        const idx = parseInt(sw.dataset.favIdx);
+        const preset = listStickerFavorites()[idx];
+        if (preset) window.addStickerBlock?.({ ...preset });
+      });
+    });
+    grid.querySelectorAll('.stk-fav-del').forEach(del => {
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeStickerFavorite(parseInt(del.dataset.favDel));
+        _renderFavGrid();
+      });
+    });
+  };
+  _renderFavGrid();
+
+  propPanel.querySelector('#stk-fav-add')?.addEventListener('click', () => {
+    if (addStickerFavorite(block)) {
+      window.showToast?.('★ 즐겨찾기에 추가됨');
+      _renderFavGrid();
+    }
+  });
+
+  // ── U6(d): Text Presets — text 내용 보존하고 스타일만 일괄 적용 ──────────────
+  propPanel.querySelectorAll('#stk-preset-grid .stk-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = TEXT_PRESETS[parseInt(btn.dataset.presetIdx)];
+      if (!preset) return;
+      window.pushHistory?.('텍스트 스티커 프리셋');
+      // text 내용(dataset.text)은 건드리지 않음 — 스타일 토큰만 덮어씀
+      Object.entries(preset.style).forEach(([k, v]) => { block.dataset[k] = v; });
+      rerender();
+      window.scheduleAutoSave?.();
+      showStickerProperties(block); // 패널 재렌더 (슬라이더/색상 동기화)
+    });
+  });
+
+  // ── U6(e): Icon 섹션 — 교체 / 크기 / 회전 / 색상 ──────────────────────────────
+  propPanel.querySelector('#stk-icon-replace')?.addEventListener('click', () => {
+    window.openIconifyModal?.((p) => {
+      window.pushHistory?.('아이콘 스티커 교체');
+      block.dataset.iconName = p.name || '';
+      block.dataset.iconSvg  = p.svg  || '';
+      if (p.size) block.dataset.size = String(p.size);
+      rerender();
+      window.scheduleAutoSave?.();
+      showStickerProperties(block);
+    });
+  });
+  // icon size / rotation — _bindTPair 패턴 재사용 (rerender 기반)
+  _bindTPair('stk-icon-size', 'stk-icon-size-num', 'size',     16,   600, 1);
+  _bindTPair('stk-icon-rot',  'stk-icon-rot-num',  'rotation', -180, 180, 1);
+  // icon color (currentColor SVG에 반영)
+  wireColorField('stk-icon-color', {
+    initialAlpha: parseAlphaFromColor(block.dataset.iconColor || '#222222'),
+    onApply: (c) => { block.dataset.iconColor = c; rerender(); },
+    onCommit: () => { window.pushHistory?.('아이콘 스티커 색'); window.scheduleAutoSave?.(); },
   });
 }
 

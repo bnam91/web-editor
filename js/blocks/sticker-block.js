@@ -99,6 +99,41 @@ function renderStickerBlock(block) {
     return;
   }
 
+  if (shape === 'icon') {
+    // U6(e): 아이콘 스티커 — Iconify SVG(또는 img fallback)를 인라인 렌더.
+    //   드래그/리사이즈/회전은 일반 스티커(circle/square)와 동일 경로(코너 핸들).
+    //   텍스트 편집 분기는 .sticker-text가 없으므로 자동 제외됨.
+    const iconSvg   = block.dataset.iconSvg || block.dataset.imgSrc || '';
+    const iconColor = block.dataset.iconColor || '';
+    const colorCss  = iconColor ? `color:${iconColor};` : '';
+    block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
+      + `background:transparent;overflow:visible;`
+      + `display:flex;align-items:center;justify-content:center;`
+      + `${colorCss}${_stkRotCss}`
+      + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
+    if (iconSvg && /^https?:\/\//.test(iconSvg)) {
+      // URL인 경우 img로 (fetch 실패 fallback 등)
+      block.innerHTML = `<img class="sticker-icon-img" src="${iconSvg}" style="width:100%;height:100%;object-fit:contain;pointer-events:none;" draggable="false">`;
+    } else if (iconSvg) {
+      block.innerHTML = iconSvg;
+      const svg = block.querySelector('svg');
+      if (svg) {
+        svg.setAttribute('width', sizeW);
+        svg.setAttribute('height', sizeH);
+        svg.style.display = 'block';
+        svg.style.pointerEvents = 'none';
+      } else {
+        // svg 파싱 실패 시 raw 문자열(예: img 태그)도 그대로 들어옴 — pointer-events만 차단
+        const inner = block.firstElementChild;
+        if (inner) inner.style.pointerEvents = 'none';
+      }
+    } else {
+      // placeholder (아이콘 미지정) — iconify-block과 동일한 빈 아이콘
+      block.innerHTML = `<svg width="${sizeW}" height="${sizeH}" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5" style="pointer-events:none;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+    }
+    return;
+  }
+
   if (shape === 'highlightB') {
     // 선 형태 형광펜 — 두 점 (x1,y1)→(x2,y2) 사이를 두께 thickness만큼 칠함
     // lineStyle: 'line' | 'wavy' | 'marker'
@@ -227,6 +262,9 @@ function rememberStickerStyle(block) {
     ['fontFamily','fontSize','fontWeight','textColor','strokeWidth','strokeColor',
      'letterSpacing','textAlign','shadowOn','shadowX','shadowY','shadowBlur','shadowColor',
      'bgColor','padX','padY'].forEach(put);
+  } else if (shape === 'icon') {
+    // U6(e): 아이콘은 색상(currentColor SVG)만 sticky — iconName/iconSvg는 매번 새로 고르므로 제외
+    put('iconColor');
   } else { // circle / square (image 모드는 imgSrc 제외 — 다음 생성은 텍스트 스타일만)
     ['bgColor','textColor','fontSize','fontWeight'].forEach(put);
   }
@@ -262,6 +300,15 @@ function makeStickerBlock(opts = {}) {
     block.dataset.amplitude = opts.amplitude ?? 6;
     block.dataset.period    = opts.period    ?? 30;
   }
+  // U6(e): 아이콘 스티커 — Iconify에서 고른 SVG/이름 보관 (size는 위 size dataset 공유)
+  if (opts.shape === 'icon') {
+    block.dataset.iconName  = opts.iconName  ?? '';
+    // 콜백 페이로드는 {name, svg, size} — svg를 iconSvg dataset에 보관(직렬화로 영속)
+    block.dataset.iconSvg   = opts.iconSvg   ?? opts.svg   ?? '';
+    block.dataset.iconColor = opts.iconColor ?? '';
+    block.dataset.size      = opts.size      ?? 64;
+    block.dataset.text      = '';  // icon은 텍스트 없음
+  }
   // 텍스트 스티커 — 풀 옵션 (폰트/사이즈/컬러/외곽선/자간/정렬/그림자/배경/회전)
   if (opts.shape === 'text') {
     block.dataset.text          = opts.text          ?? 'Text';
@@ -288,8 +335,14 @@ function makeStickerBlock(opts = {}) {
 }
 
 function addStickerBlock(opts = {}) {
-  // B12: 섹션 미선택이어도 먹통처럼 보이지 않게 — 마지막 섹션으로 폴백(텍스트 추가 동작과 일관). 섹션 0개일 때만 중단.
-  const sec = window.getSelectedSection?.() || [...document.querySelectorAll('.section-block')].pop();
+  // U6(b): "맨 아래 섹션에 추가" 버그 교정 — sec 결정 우선순위:
+  //   1) getSelectedSection() (이제 .sticker-block.selected 포함 — editor.js U6 보강)
+  //   2) 현재 선택된 sticker/일반 블록의 closest('.section-block') (명시적 회귀 방지)
+  //   3) 진짜 아무것도 선택 안됐을 때만 마지막 섹션 폴백 (B12: 먹통 방지)
+  const selectedAnyBlock = document.querySelector('.sticker-block.selected, .block.selected, [class*="-block"].selected');
+  const sec = window.getSelectedSection?.()
+    || selectedAnyBlock?.closest('.section-block')
+    || [...document.querySelectorAll('.section-block')].pop();
   if (!sec) { window.showNoSelectionHint?.(); return; }
   // B13: sticky — 호출 opts에 없는 스타일 필드는 마지막에 쓴 스타일로 보충.
   //   shape 결정: 명시 opts.shape > 마지막에 쓴 shape > 기본. 그 shape 슬롯을 깔고 opts로 덮어씀.
@@ -388,6 +441,8 @@ function updateStickerBlock(blockId, partial = {}) {
     shadowColor: block.dataset.shadowColor,
     padX: block.dataset.padX,
     padY: block.dataset.padY,
+    iconName: block.dataset.iconName,
+    iconColor: block.dataset.iconColor,
   };
 
   window.pushHistory?.('스티커 수정');
@@ -395,7 +450,7 @@ function updateStickerBlock(blockId, partial = {}) {
   const applied = {};
 
   // 공통 헬퍼
-  const _SHAPES = ['circle','square','text','highlight','highlightB'];
+  const _SHAPES = ['circle','square','text','highlight','highlightB','icon'];
   const _MODES  = ['text','image'];
   const _WEIGHTS = ['300','400','500','600','700','800','900'];
   const _ALIGNS = ['left','center','right'];
@@ -640,6 +695,20 @@ function updateStickerBlock(blockId, partial = {}) {
   _applyNum('shadowBlur', 'shadowBlur', 0, 40);
   _applyNum('padX', 'padX', 0, 400);
   _applyNum('padY', 'padY', 0, 400);
+
+  // 14-b) icon shape 전용 — iconColor / iconName / svg(iconSvg)
+  _applyColor('iconColor', 'iconColor');
+  if (partial.iconName !== undefined && partial.iconName !== null) {
+    const nm = String(partial.iconName);
+    if (nm.length <= 200) { block.dataset.iconName = nm; applied.iconName = nm; }
+  }
+  // svg / iconSvg — Iconify 교체 시 새 SVG 문자열 주입 (길이 sanity check)
+  const _svgIn = (partial.iconSvg !== undefined && partial.iconSvg !== null) ? partial.iconSvg
+               : ((partial.svg !== undefined && partial.svg !== null) ? partial.svg : undefined);
+  if (_svgIn !== undefined) {
+    const s = String(_svgIn);
+    if (s.length <= 200000) { block.dataset.iconSvg = s; applied.iconSvg = s; }
+  }
 
   // 15) 재렌더 (변경 없어도 idempotent)
   try {
