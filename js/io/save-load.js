@@ -1043,12 +1043,25 @@ function rebindAll() {
       const sec = document.getElementById(secId);
       if (sec && sec.dataset.mockupHidden === 'true') sec.style.display = 'none';
     }
+    // 가로 중앙정렬 재계산 (콘텐츠폭 초과 시 대칭 블리드 음수마진 재적용)
+    window.centerMockupBlock?.(block);
   });
 
   // step-block 로드 후 재렌더링 (data-* → DOM 복원)
   canvasEl.querySelectorAll('.step-block').forEach(block => {
     window.renderStepBlock?.(block);
   });
+
+  // 가로 중앙정렬 지연 재계산 — 로드 직후엔 canvas-scaler/zoom 레이아웃이
+  // 아직 확정 안 돼 parent.clientWidth가 잘못 측정될 수 있음(저장된 stale 음수마진
+  // 유지 버그). 레이아웃 settle 후 1프레임 뒤 다시 한 번 재계산해 보정한다.
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      canvasEl.querySelectorAll('.mockup-block').forEach(block => {
+        window.centerMockupBlock?.(block);
+      });
+    });
+  }
 
 }
 

@@ -10,6 +10,42 @@
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
+// ── 가로 중앙정렬 (대칭 블리드) ─────────────────────────────────────────────
+// 버그: `margin:0 auto`는 블럭 width가 부모(콘텐츠칸) 폭보다 넓으면 가운데정렬을
+//   못 하고(CSS 스펙상 margin-left=0으로 해소) 왼쪽에 붙어 오른쪽으로 넘침.
+// 해결: 부모 콘텐츠 폭(avail)을 실측해
+//   - width <= avail  → 기존처럼 margin:0 auto (콘텐츠칸 안 중앙)
+//   - width >  avail  → 좌우 동일 음수마진 (avail-width)/2 로 대칭 블리드 → 섹션 중앙
+//   에셋블럭의 풀블리드(margin 음수 + width calc) 패턴과 동일 원리.
+// 호출 타이밍: 블럭이 DOM에 붙은 뒤(make 직후가 아니라 insert/render/load/update 후).
+//   DOM 미부착 시 부모 폭 측정 불가 → margin:0 auto 폴백만 남기고 그냥 반환.
+function centerMockupBlock(block) {
+  if (!block) return;
+  // 자유배치 프레임(absolute) 안의 목업은 절대좌표로 배치 — margin 정렬 미적용.
+  if (block.style.position === 'absolute') return;
+  const width = parseInt(block.dataset.width) || parseInt(block.style.width) || 0;
+  const parent = block.parentElement;
+  // 부모 콘텐츠 폭(= 블럭의 containing block 가용폭). 미부착이면 측정 불가.
+  const avail = parent ? parent.clientWidth : 0;
+  if (!avail) {
+    // DOM 미부착 — 기본 중앙정렬만(폴백). 부착 후 다시 호출됨.
+    block.style.margin = '0 auto';
+    block.style.marginLeft = 'auto';
+    block.style.marginRight = 'auto';
+    return;
+  }
+  if (width > avail) {
+    // 콘텐츠폭 초과 → 좌우 대칭 음수마진으로 부모(=섹션 중앙선) 기준 중앙 유지.
+    const m = Math.round((avail - width) / 2); // 음수
+    block.style.marginLeft = m + 'px';
+    block.style.marginRight = m + 'px';
+  } else {
+    // 콘텐츠폭 이하 → 기존 auto 중앙(콘텐츠칸 안).
+    block.style.marginLeft = 'auto';
+    block.style.marginRight = 'auto';
+  }
+}
+
 function makeDeviceMockupBlock(deviceKey, width) {
   const devices = window.MOCKUP_DEVICES || {};
   const dev = devices[deviceKey];
@@ -102,6 +138,9 @@ function renderMockupBlock(block) {
   // SVG 프레임 재생성 (디바이스 변경 시)
   const frame = block.querySelector('.mkp-frame');
   if (frame) frame.innerHTML = dev.getSvg(uid);
+
+  // 가로 중앙정렬 재계산 (width 변경/디바이스 변경 후 부모 폭 대비 재정렬)
+  centerMockupBlock(block);
 }
 
 function addDeviceMockupBlock(deviceKey, width) {
@@ -120,6 +159,7 @@ function addDeviceMockupBlock(deviceKey, width) {
   const { row, block } = result;
   insertAfterSelected(sec, row);
   bindBlock(block);
+  centerMockupBlock(block); // DOM 부착 후 부모 폭 기준 중앙정렬
   window.buildLayerPanel();
   window.selectSection(sec);
 }
@@ -252,6 +292,7 @@ function addMockupBlock(opts = {}) {
   window.pushHistory?.();
   insertAfterSelected(sec, row);
   bindBlock(block);
+  centerMockupBlock(block); // DOM 부착 후 부모 폭 기준 중앙정렬
   window.buildLayerPanel?.();
   window.selectSection?.(sec);
 
@@ -361,6 +402,7 @@ window.addMockupBlock        = addMockupBlock;
 window.updateMockupBlock     = updateMockupBlock;
 window.applyMockupScreenImage = applyMockupScreenImage;
 window.applyMockupShadow     = applyMockupShadow;
+window.centerMockupBlock     = centerMockupBlock;
 
 export {
   makeDeviceMockupBlock,
@@ -370,4 +412,5 @@ export {
   updateMockupBlock,
   applyMockupScreenImage,
   applyMockupShadow,
+  centerMockupBlock,
 };
