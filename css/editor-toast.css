@@ -213,16 +213,9 @@
 /* U6(a): 중앙 스티커 패널의 호버 색상 플라이아웃(.fp-submenu) 제거됨.
    색·프리셋 선택은 우측 Properties 패널(Favorites / Text Presets)로 이관. */
 
-/* STICKERUX(2): 중앙 스티커 드롭다운(#fp-pen-menu)만 ~20% 더 크게.
-   .fp-menu-item / .fp-dropdown-menu 는 전 FP 드롭다운 공유이므로 절대 전역 변경 금지 —
-   반드시 #fp-pen-menu 스코프로만 한정해 text/shape/component 메뉴는 기존 크기 유지. */
+/* 중앙 스티커 드롭다운(#fp-pen-menu) — 다른 FP 드롭다운(text/asset/component)과 글자크기·행높이 통일.
+   (이전 STICKERUX(2)에서 ~20% 크게 했으나 타 패널과 불일치하여 표준(.fp-menu-item)으로 환원) */
 #fp-pen-menu { min-width: 130px; padding: 5px; }
-#fp-pen-menu .fp-menu-item {
-  height: 34px; padding: 0 14px;
-  font-size: var(--ui-fs-14, 14px);
-}
-/* 트리거 별 아이콘도 동반 확대(비율 유지) */
-#fp-pen-btn svg:first-child { width: 16px; height: 16px; }
 
 /* U6(c)(d): 우측 패널 — 스티커 즐겨찾기 스와치 그리드 */
 .stk-fav-grid {
