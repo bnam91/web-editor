@@ -71,11 +71,13 @@
             <button class="settings-tab active" data-tab="api">API 토큰</button>
             <button class="settings-tab" data-tab="shortcuts">단축키</button>
             <button class="settings-tab" data-tab="easter">이스터에그</button>
+            <button class="settings-tab" data-tab="market">마켓</button>
           </div>
           <div class="settings-content">
             <div class="settings-pane settings-pane-api" data-pane="api"></div>
             <div class="settings-pane settings-pane-shortcuts" data-pane="shortcuts" style="display:none"></div>
             <div class="settings-pane settings-pane-easter" data-pane="easter" style="display:none"></div>
+            <div class="settings-pane settings-pane-market" data-pane="market" style="display:none"></div>
           </div>
         </div>
         <div class="settings-modal-footer">
@@ -104,6 +106,11 @@
         modal.querySelectorAll('.settings-pane').forEach(p => {
           p.style.display = (p.dataset.pane === tab) ? 'block' : 'none';
         });
+        // 마켓 탭은 진입 시 렌더(목록 fetch는 비용 있어 지연 로드)
+        if (tab === 'market' && typeof window.renderMarketPane === 'function') {
+          const mp = modal.querySelector('.settings-pane-market');
+          if (mp) window.renderMarketPane(mp);
+        }
       });
     });
 

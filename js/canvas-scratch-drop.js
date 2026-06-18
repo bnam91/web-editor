@@ -19,6 +19,7 @@
 let _activeReplaceAb = null;     // .sp2c-replace-target 부착된 asset-block
 let _activeSectionTarget = null; // .sp2c-section-target 부착된 section-block
 let _activeIndicator = null;     // .sp2c-insert-indicator DOM 노드
+let _activeNewSection = null;    // newsection 배지 호스트(#canvas-scaler)
 
 let _rafId = null;
 let _pending = null;             // { clientX, clientY }
@@ -48,6 +49,7 @@ function _clearGuides() {
   if (_activeReplaceAb) { _clearReplaceBadge(_activeReplaceAb); _activeReplaceAb = null; }
   if (_activeSectionTarget) { _clearSectionBadge(_activeSectionTarget); _activeSectionTarget = null; }
   if (_activeIndicator) { _activeIndicator.remove(); _activeIndicator = null; }
+  if (_activeNewSection) { _activeNewSection.querySelectorAll(':scope > .sp2c-badge').forEach(b => b.remove()); _activeNewSection = null; }
   // 누수 안전망 — 외부에서 미정리된 가이드 흔적 일괄 정리
   document.querySelectorAll('.sp2c-replace-target').forEach(el => el.classList.remove('sp2c-replace-target'));
   document.querySelectorAll('.sp2c-section-target').forEach(el => el.classList.remove('sp2c-section-target'));
@@ -83,11 +85,15 @@ function _classifyDrop(clientX, clientY) {
 
   // 섹션 안에 있는가
   const sec = hit.closest('.section-block');
-  if (!sec || !sec.closest('#canvas-scaler')) return { kind: 'none' };
+  if (!sec || !sec.closest('#canvas-scaler')) {
+    // 섹션 밖이지만 메인 편집영역(#canvas-scaler) 안이면 → 새 섹션 생성
+    if (hit.closest('#canvas-scaler')) return { kind: 'newsection' };
+    return { kind: 'none' };
+  }
 
   const inner = sec.querySelector('.section-inner') || sec;
 
-  // 케이스 B: row / gap / frame 위에 있으면 사이 삽입
+  // 케이스 B: row / gap / frame 위(=섹션 본문 콘텐츠) → 블록 사이에 에셋블럭 삽입
   const rowLike = hit.closest('.row, .gap-block, .frame-block');
   if (rowLike && inner.contains(rowLike)) {
     // section-inner의 직속 자식 기준으로만 위치 계산 (frame 내부는 본 모듈 적용 X — 섹션 끝 동작이 자연스러움)
@@ -97,8 +103,8 @@ function _classifyDrop(clientX, clientY) {
     return { kind: 'insert', sec, inner, after };
   }
 
-  // 케이스 C: section-block의 빈 영역(여백) — 섹션 끝에 추가
-  return { kind: 'append', sec, inner };
+  // 케이스 C: section-block의 빈 영역/가장자리 → 섹션 배경 이미지로 설정 (드롭 위치 구분 #5b)
+  return { kind: 'sectionbg', sec, inner };
 }
 
 function _renderGuide(decision) {
@@ -120,12 +126,20 @@ function _renderGuide(decision) {
     _activeIndicator = ind;
     return;
   }
-  if (decision.kind === 'append') {
+  if (decision.kind === 'sectionbg') {
     if (_activeSectionTarget === decision.sec) return;
     _clearGuides();
     decision.sec.classList.add('sp2c-section-target');
-    _addBadge(decision.sec, '섹션 끝에 추가', true);
+    _addBadge(decision.sec, '섹션 배경으로', true);
     _activeSectionTarget = decision.sec;
+    return;
+  }
+  if (decision.kind === 'newsection') {
+    // 캔버스 빈 영역 — 별도 타깃 DOM이 없어 body에 안내 배지만 (중복 방지 위해 1회만)
+    if (_activeNewSection) return;
+    _clearGuides();
+    const scaler = document.getElementById('canvas-scaler');
+    if (scaler) { _addBadge(scaler, '새 섹션으로 추가', true); _activeNewSection = scaler; }
     return;
   }
   // kind === 'none'
@@ -195,22 +209,35 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
     window.bindBlock?.(block);
     window.setAssetImageFromSrc?.(block, src);
     window.buildLayerPanel?.();
-  } else if (decision.kind === 'append') {
-    if (typeof window.makeAssetBlock !== 'function') {
-      console.warn('[canvas-scratch-drop] makeAssetBlock 누락');
+  } else if (decision.kind === 'sectionbg') {
+    // 섹션 빈 영역/가장자리 드롭 → 섹션 배경 이미지로 설정 (#5b)
+    if (typeof window.setSectionBgImage !== 'function') {
+      console.warn('[canvas-scratch-drop] setSectionBgImage 누락');
       return false;
     }
-    const { row, block } = window.makeAssetBlock();
-    if (typeof window.insertBeforeBottomGap === 'function') {
-      window.insertBeforeBottomGap(decision.sec, row);
-    } else {
-      decision.inner.appendChild(row);
+    window.setSectionBgImage(decision.sec, src);
+  } else if (decision.kind === 'newsection') {
+    // 캔버스 빈 영역 드롭 → 새 섹션 생성 + 그 안에 에셋블럭 + 이미지 (#5a)
+    if (typeof window.addSection !== 'function') {
+      console.warn('[canvas-scratch-drop] addSection 누락');
+      return false;
     }
-    // 풀-블리드 width 먼저 적용 → 그 다음 aspect 비율로 height 계산해야 정확
-    reapplyPadX(decision.inner);
-    applyAspectSync(block);
-    window.bindBlock?.(block);
-    window.setAssetImageFromSrc?.(block, src);
+    window.addSection({ skipDefaultBlock: true });
+    const sections = document.querySelectorAll('#canvas .section-block');
+    const sec = sections[sections.length - 1];
+    if (!sec) return false;
+    window.selectSection?.(sec);
+    if (typeof window.addAssetBlock === 'function') {
+      window.addAssetBlock();
+      const blocks = sec.querySelectorAll('.asset-block');
+      const ab = blocks[blocks.length - 1];
+      if (ab) {
+        const inner = sec.querySelector('.section-inner') || sec;
+        reapplyPadX(inner);
+        applyAspectSync(ab);
+        window.setAssetImageFromSrc?.(ab, src);
+      }
+    }
     window.buildLayerPanel?.();
   }
 

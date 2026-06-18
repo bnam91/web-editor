@@ -1834,7 +1834,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateChatBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING chat block (chb_xxx) — partial update. messages는 가변 배열: messages(전체 교체) / addMessage({...msg, atIndex?}) / removeMessage(number|{index}) / editMessage({index, ...partial}). 스타일: gap/fontSize/bgLeft/bgRight/colorLeft/colorRight/radius/padding. 프로필: showProfile/showName (0|1 또는 boolean), profileSize(null이면 reset)/profileOffsetY/profileGap. layerName도 갱신 가능. 한 콜에 여러 partial 조합 가능. Returns USER_BUSY if user is editing a bubble (contenteditable=true). Get blockId from get_canvas_state or returned from add_chat_block.',
+      description: 'Edit an EXISTING chat block (chb_xxx) — partial update. messages는 가변 배열: messages(전체 교체) / addMessage({...msg, atIndex?}) / removeMessage(number|{index}) / editMessage({index, ...partial}). 스타일: gap/fontSize/bgLeft/bgRight/colorLeft/colorRight/radius/padding. 프로필: showProfile/showName (0|1 또는 boolean), profileSize(null이면 reset)/profileOffsetY/profileGap. 꼬리/레이아웃: tailScale(꼬리 크기 % 0~400), fullBleed(패딩 제외 0|1|boolean). layerName도 갱신 가능. 한 콜에 여러 partial 조합 가능. Returns USER_BUSY if user is editing a bubble (contenteditable=true). Get blockId from get_canvas_state or returned from add_chat_block.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1849,7 +1849,8 @@ function _registerDefaultTools() {
                 align:       { type: 'string', enum: ['left','right'] },
                 hideProfile: { type: 'boolean' },
                 profileImg:  { type: 'string', description: 'data:image/* | http(s) | assets/ (≤200000, no quote/newline)' },
-                profileName: { type: 'string', maxLength: 200 }
+                profileName: { type: 'string', maxLength: 200 },
+                stars:       { type: ['integer','null'], minimum: 0, maximum: 5, description: '말풍선 상단 별점 0~5. null/생략이면 별점 없음' }
               }
             }
           },
@@ -1862,6 +1863,7 @@ function _registerDefaultTools() {
               hideProfile: { type: 'boolean' },
               profileImg:  { type: 'string' },
               profileName: { type: 'string', maxLength: 200 },
+              stars:       { type: ['integer','null'], minimum: 0, maximum: 5 },
               atIndex:     { type: 'integer', minimum: 0 }
             }
           },
@@ -1881,7 +1883,8 @@ function _registerDefaultTools() {
               align:       { type: 'string', enum: ['left','right'] },
               hideProfile: { type: 'boolean' },
               profileImg:  { type: 'string' },
-              profileName: { type: 'string', maxLength: 200 }
+              profileName: { type: 'string', maxLength: 200 },
+              stars:       { type: ['integer','null'], minimum: 0, maximum: 5 }
             },
             required: ['index']
           },
@@ -1898,6 +1901,8 @@ function _registerDefaultTools() {
           profileSize:    { type: ['integer','null'], description: '프로필 크기 px (24~400). null이면 reset(자동 계산)' },
           profileOffsetY: { type: 'integer', description: '프로필 top margin px (-400~400)' },
           profileGap:     { type: 'integer', description: '프로필 ↔ 말풍선 간격 px (0~400)' },
+          tailScale:      { type: 'integer', description: '말풍선 꼬리 크기 % (0~400, 기본 100). 0이면 꼬리 숨김' },
+          fullBleed:      { description: '패딩 제외(섹션 좌우패딩 무시, full-bleed). 0|1 또는 boolean', oneOf: [{ type: 'string', enum: ['0','1'] }, { type: 'boolean' }] },
           layerName:      { type: 'string',  description: '레이어 패널 표시명 (≤200)' }
         },
         required: ['blockId']

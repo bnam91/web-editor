@@ -15,6 +15,23 @@ const CHAT_DEFAULT_MESSAGES = [
 ];
 
 const CHAT_TAIL_PATH = 'M18.3597 14.7395C9.25742 16.3944 2.32729 11.6364 0 9.05055L0.258587 1.29294C2.75826 1.81011 8.17136 2.27557 9.82631 0C9.56773 9.30914 16.5496 13.9637 18.3597 14.7395Z';
+// 꼬리 SVG 기본 크기(viewBox 단위와 동일). tailScale(%)로 width/height만 비례 조정 → path·좌측 translate는 viewBox 좌표라 무관.
+const CHAT_TAIL_W = 19;
+const CHAT_TAIL_H = 16;
+
+// full-bleed: 블록이 속한 섹션의 effective 좌우패딩(px) 해석.
+//   - closest('.section-inner')의 dataset.paddingX override가 있으면 그 값
+//   - 없으면 window.state?.pageSettings?.padX (프로젝트 globals state)
+//   - section-inner 없거나(프레임 free-layout 등) full-bleed 무의미하면 0
+// 에셋블럭(prop-asset.js:217-221)·canvas-block(_effSectionPadX) 패턴 미러.
+function _effSectionPadX(block) {
+  if (block.closest?.('.frame-block[data-free-layout="true"]')) return 0;
+  const inner = block.closest?.('.section-inner');
+  if (!inner) return 0;
+  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+  if (hasOverride) return parseInt(inner.dataset.paddingX) || 0;
+  return window.state?.pageSettings?.padX || 0;
+}
 
 function _chatToken(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -32,12 +49,21 @@ function renderChatBlock(block) {
   const colorRight  = block.dataset.colorRight || _chatToken('--preset-chat-text-right', '#ffffff');
   const radius      = parseInt(block.dataset.radius)  || 16;
   const padding     = parseInt(block.dataset.padding) || 16;
+  // 말풍선 "내부" 패딩(텍스트↔버블 경계). block.dataset.padding은 블록 "바깥" 패딩이라 별개.
+  // 하위호환: 명시적으로 설정된 경우에만 인라인 주입 → 미설정 시 CSS 기본(.chb-bubble {padding:10px 14px}) 보존.
+  const hasBubblePadding = block.dataset.bubblePadding != null && block.dataset.bubblePadding !== '';
+  const bubblePadding    = hasBubblePadding ? parseInt(block.dataset.bubblePadding) : null;
   // 카톡식 프로필 — 토글 별도 (default off). 크기는 fontSize에 비례.
   const showProfile = block.dataset.showProfile === '1';
   const showName    = block.dataset.showName === '1';
   const profileSize    = parseInt(block.dataset.profileSize)    || Math.max(48, Math.round(fontSize * 1.6));
   const profileOffsetY = parseInt(block.dataset.profileOffsetY) || 0;
   const profileGap     = (block.dataset.profileGap != null) ? parseInt(block.dataset.profileGap) : 8;
+  // 말풍선 꼬리 크기 — tailScale(%). 미설정 시 100(기본). 0이면 꼬리 숨김.
+  const tailScale = (block.dataset.tailScale != null && block.dataset.tailScale !== '')
+    ? parseInt(block.dataset.tailScale) : 100;
+  const tailW = Math.max(0, Math.round(CHAT_TAIL_W * tailScale / 100));
+  const tailH = Math.max(0, Math.round(CHAT_TAIL_H * tailScale / 100));
   block.style.padding = `${padding}px`;
 
   block.innerHTML = messages.map((msg, idx) => {
@@ -46,7 +72,8 @@ function renderChatBlock(block) {
     const color  = isLeft ? colorLeft : colorRight;
     const dir    = isLeft ? 'left' : 'right';
     const tailTransform = isLeft ? 'transform="scale(-1,1) translate(-19,0)"' : '';
-    const tail = `<svg class="chb-tail" viewBox="0 0 19 16" xmlns="http://www.w3.org/2000/svg" width="19" height="16" style="fill:${bg}"><path d="${CHAT_TAIL_PATH}" ${tailTransform}/></svg>`;
+    // width/height는 인라인 style로 — CSS(.chb-tail{width:19px;height:16px})가 presentation 속성을 덮으므로 style로만 적용돼야 시각 반영됨.
+    const tail = `<svg class="chb-tail" viewBox="0 0 19 16" xmlns="http://www.w3.org/2000/svg" style="fill:${bg};width:${tailW}px;height:${tailH}px"><path d="${CHAT_TAIL_PATH}" ${tailTransform}/></svg>`;
 
     // 프로필 영역(이미지만) + 이름은 말풍선 위에 별도 위치
     let profileHtml = '';
@@ -71,11 +98,39 @@ function renderChatBlock(block) {
       nameHtml = `<div class="chb-profile-name" style="font-size:${Math.max(11, Math.round(fontSize * 0.55))}px;color:${nameColor};text-align:${isLeft ? 'left' : 'right'};${hidden ? 'visibility:hidden;' : ''}">${msg.profileName}</div>`;
     }
 
+    // 별점(★) — msg.stars(0~5) 설정 시에만 말풍선 상단에 표시. 채운 별=주황, 빈 별=회색.
+    // contenteditable=false로 텍스트 편집(.chb-btext)과 분리 → 인라인 편집 시 별점이 텍스트에 섞이지 않음.
+    let starsHtml = '';
+    if (msg.stars != null && msg.stars !== '') {
+      const sc = Math.max(0, Math.min(5, parseInt(msg.stars) || 0));
+      const ssz = Math.round(fontSize * 1.0);
+      let st = '';
+      for (let k = 0; k < 5; k++) st += `<span style="color:${k < sc ? '#ff8a00' : '#d6d6d6'}">★</span>`;
+      starsHtml = `<div class="chb-stars" contenteditable="false" style="font-size:${ssz}px;line-height:1;letter-spacing:2px;margin-bottom:6px;user-select:none">${st}</div>`;
+    }
+
     // 좌측: profile + wrap(name+bubble+tail), 우측: wrap + profile
-    const wrapHtml = `<div class="chb-wrap">${nameHtml}<div class="chb-bubble" data-msg-idx="${idx}" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px">${msg.text}</div>${tail}</div>`;
+    // bubblePadding 미설정(null) 시엔 인라인 padding 미주입 → CSS 10px 14px 기본 보존(무회귀).
+    // 텍스트는 .chb-btext로 분리(편집 대상). data-msg-idx는 편집 타깃인 .chb-btext에 둔다.
+    const padCss = (bubblePadding != null) ? `;padding:${bubblePadding}px` : '';
+    const wrapHtml = `<div class="chb-wrap">${nameHtml}<div class="chb-bubble" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px${padCss}">${starsHtml}<div class="chb-btext" data-msg-idx="${idx}">${msg.text}</div></div>${tail}</div>`;
     const inner = isLeft ? `${profileHtml}${wrapHtml}` : `${wrapHtml}${profileHtml}`;
     return `<div class="chb-msg chb-${dir}" style="margin-bottom:${gap}px;gap:${profileGap}px">${inner}</div>`;
   }).join('');
+
+  // 패딩 제외(full-bleed): 섹션 좌우패딩 무시 — 음수마진 + calc 확장폭으로 섹션 가장자리까지 확장.
+  // 에셋블럭 패턴 미러. 매 렌더 재적용(idempotent), off면 인라인 스타일 클리어(무회귀).
+  const _fb    = block.dataset.fullBleed === 'true';
+  const _secPX = _fb ? _effSectionPadX(block) : 0;
+  if (_fb && _secPX > 0) {
+    block.style.marginLeft  = -_secPX + 'px';
+    block.style.marginRight = -_secPX + 'px';
+    block.style.width       = `calc(100% + ${_secPX * 2}px)`;
+  } else {
+    block.style.marginLeft  = '';
+    block.style.marginRight = '';
+    block.style.width       = '';
+  }
 
   // 더블클릭으로 메시지 인라인 편집 — Enter는 default(줄바꿈), ESC/blur로 종료
   // innerHTML 재생성으로 bubble 노드가 교체되므로 block에 위임(delegation)으로 1회만 바인딩
@@ -90,7 +145,7 @@ function renderChatBlock(block) {
       const idx = parseInt(bubble.dataset.msgIdx);
       const msgs = JSON.parse(block.dataset.messages || '[]');
       if (msgs[idx]) {
-        const newText = bubble.innerText;  // \n 보존
+        const newText = bubble.innerText;  // \n 보존 (.chb-btext만 편집 대상이라 별점 미포함)
         if (msgs[idx].text !== newText) {
           msgs[idx].text = newText;
           block.dataset.messages = JSON.stringify(msgs);
@@ -105,7 +160,7 @@ function renderChatBlock(block) {
     };
 
     block.addEventListener('dblclick', (e) => {
-      const bubble = e.target.closest('.chb-bubble');
+      const bubble = e.target.closest('.chb-btext');
       if (!bubble || !block.contains(bubble)) return;
       e.stopPropagation();
       if (bubble.getAttribute('contenteditable') === 'true') return;
@@ -119,14 +174,14 @@ function renderChatBlock(block) {
       try { sel.selectAllChildren(bubble); sel.collapseToEnd(); } catch(_) {}
     });
 
-    // blur 위임: focusout 이벤트로 bubble 단위 종료 감지
+    // blur 위임: focusout 이벤트로 btext 단위 종료 감지
     block.addEventListener('focusout', (e) => {
-      const bubble = e.target.closest?.('.chb-bubble');
+      const bubble = e.target.closest?.('.chb-btext');
       if (bubble && block.contains(bubble)) finishEdit(bubble);
     });
 
     block.addEventListener('keydown', (e) => {
-      const bubble = e.target.closest?.('.chb-bubble');
+      const bubble = e.target.closest?.('.chb-btext');
       if (!bubble || bubble.getAttribute('contenteditable') !== 'true') return;
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -183,7 +238,7 @@ function addChatBlock(opts = {}) {
 //
 // 지원 필드:
 //   - 메시지 배열: messages(전체 교체) / addMessage / removeMessage / editMessage
-//   - 스타일: gap, fontSize, bgLeft, bgRight, colorLeft, colorRight, radius, padding
+//   - 스타일: gap, fontSize, bgLeft, bgRight, colorLeft, colorRight, radius, padding, bubblePadding
 //   - 프로필: showProfile, showName, profileSize, profileOffsetY, profileGap
 //   - 기타: layerName
 function updateChatBlock(blockId, partial = {}) {
@@ -199,7 +254,7 @@ function updateChatBlock(blockId, partial = {}) {
     return { ok: false, code: 'INVALID', message: 'partial empty — provide at least one field' };
   }
   // 사용자가 인라인 편집(dblclick contenteditable) 중이면 USER_BUSY
-  if (block.querySelector('.chb-bubble[contenteditable="true"]')) {
+  if (block.querySelector('.chb-btext[contenteditable="true"]')) {
     return { ok: false, code: 'USER_BUSY', message: 'user is editing a bubble — try again later', retryAfter: 2000 };
   }
 
@@ -244,6 +299,12 @@ function updateChatBlock(blockId, partial = {}) {
       if ([...m.profileName].length > 200) throw new Error(`${ctx}.profileName too long (>200)`);
       o.profileName = m.profileName;
     }
+    // 별점: 0~5 정수면 표시, null/생략이면 별점 없음
+    if (m.stars !== undefined && m.stars !== null && m.stars !== '') {
+      const sv = parseInt(m.stars);
+      if (!Number.isInteger(sv) || sv < 0 || sv > 5) throw new Error(`${ctx}.stars must be integer 0~5 or null`);
+      o.stars = sv;
+    }
     return o;
   };
 
@@ -254,9 +315,11 @@ function updateChatBlock(blockId, partial = {}) {
     bgLeft: block.dataset.bgLeft, bgRight: block.dataset.bgRight,
     colorLeft: block.dataset.colorLeft, colorRight: block.dataset.colorRight,
     radius: block.dataset.radius, padding: block.dataset.padding,
+    bubblePadding: block.dataset.bubblePadding,
     showProfile: block.dataset.showProfile, showName: block.dataset.showName,
     profileSize: block.dataset.profileSize, profileOffsetY: block.dataset.profileOffsetY,
     profileGap: block.dataset.profileGap, layerName: block.dataset.layerName,
+    tailScale: block.dataset.tailScale, fullBleed: block.dataset.fullBleed,
   };
 
   window.pushHistory?.('채팅 블록 수정');
@@ -323,6 +386,7 @@ function updateChatBlock(blockId, partial = {}) {
         hideProfile: e.hideProfile !== undefined ? e.hideProfile : cur.hideProfile,
         profileImg:  e.profileImg  !== undefined ? e.profileImg  : cur.profileImg,
         profileName: e.profileName !== undefined ? e.profileName : cur.profileName,
+        stars:       e.stars       !== undefined ? e.stars       : cur.stars,
       }, 'editMessage');
     } catch (err) { return { ok: false, code: 'INVALID', message: err.message }; }
     messages[e.index] = merged;
@@ -351,6 +415,30 @@ function updateChatBlock(blockId, partial = {}) {
   err = _setInt('padding',  'padding',  0, 400); if (err) return err;
   err = _setInt('profileOffsetY', 'profileOffsetY', -400, 400); if (err) return err;
   err = _setInt('profileGap',     'profileGap',     0, 400);    if (err) return err;
+  err = _setInt('tailScale',      'tailScale',      0, 400);    if (err) return err;
+
+  // fullBleed(패딩 제외): boolean → dataset 'true'/'false'. (canvas-block과 동일 표기)
+  if (partial.fullBleed !== undefined) {
+    const fb = _normBool01(partial.fullBleed);
+    if (fb === null) return { ok: false, code: 'INVALID', message: 'fullBleed must be 0/1 or boolean' };
+    block.dataset.fullBleed = fb === '1' ? 'true' : 'false';
+    applied.fullBleed = fb === '1';
+  }
+
+  // bubblePadding: null 명시 입력 → reset (dataset에서 제거 → CSS 기본 10px 14px 복원, 무회귀)
+  if (partial.bubblePadding !== undefined) {
+    if (partial.bubblePadding === null) {
+      delete block.dataset.bubblePadding;
+      applied.bubblePadding = null;
+    } else {
+      const v = partial.bubblePadding;
+      if (!Number.isFinite(+v) || !Number.isInteger(+v)) return { ok: false, code: 'INVALID', message: 'bubblePadding must be integer or null' };
+      const n = +v;
+      if (n < 0 || n > 40) return { ok: false, code: 'INVALID', message: 'bubblePadding out of range [0,40]' };
+      block.dataset.bubblePadding = String(n);
+      applied.bubblePadding = n;
+    }
+  }
 
   // profileSize: null 명시 입력 → reset (dataset에서 제거)
   if (partial.profileSize !== undefined) {

@@ -19,6 +19,9 @@ export function showChatProperties(block) {
   const colorRight = block.dataset.colorRight           || _chatToken('--preset-chat-text-right', '#ffffff');
   const radius     = parseInt(block.dataset.radius)     || 16;
   const padding    = parseInt(block.dataset.padding)    || 16;
+  // 말풍선 내부 패딩 — UI 표시 기본 12(dataset에는 실제 조절 시에만 기록 → 미설정 블록 무회귀)
+  const bubblePadding = (block.dataset.bubblePadding != null && block.dataset.bubblePadding !== '')
+    ? parseInt(block.dataset.bubblePadding) : 12;
   // 카톡식 프로필 (default OFF — 호환성)
   const showProfile = block.dataset.showProfile === '1';
   const showName    = block.dataset.showName === '1';
@@ -26,6 +29,11 @@ export function showChatProperties(block) {
   const profileSize    = parseInt(block.dataset.profileSize) || defaultProfileSize;
   const profileOffsetY = parseInt(block.dataset.profileOffsetY) || 0;
   const profileGap     = (block.dataset.profileGap != null) ? parseInt(block.dataset.profileGap) : 8;
+  // 말풍선 꼬리 크기(%) — 미설정 시 100(기본)
+  const tailScale = (block.dataset.tailScale != null && block.dataset.tailScale !== '')
+    ? parseInt(block.dataset.tailScale) : 100;
+  // 패딩 제외(full-bleed) — 섹션 좌우패딩 무시
+  const fullBleed = block.dataset.fullBleed === 'true';
 
   function rerender() {
     window.renderChatBlock(block);
@@ -39,6 +47,18 @@ export function showChatProperties(block) {
       const hideThisProfile = m.hideProfile === true;
       const pName = (m.profileName || '').replace(/"/g, '&quot;');
       const pImg  = m.profileImg || '';
+      const hasStars = (m.stars != null && m.stars !== '');
+      const starsVal = hasStars ? Math.max(0, Math.min(5, parseInt(m.stars) || 0)) : 5;
+      const starsPreview = '★'.repeat(starsVal) + '☆'.repeat(5 - starsVal);
+      const starsRowHtml = `
+        <div class="chb-prop-stars-row" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;white-space:nowrap">
+          <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0" title="말풍선 상단에 별점 표시">
+            <input type="checkbox" class="chb-stars-toggle" data-idx="${i}" ${hasStars ? 'checked' : ''}>
+            <span>별점</span>
+          </label>
+          <input type="number" class="chb-stars-num prop-number" data-idx="${i}" min="0" max="5" value="${starsVal}" ${hasStars ? '' : 'disabled'} style="width:48px">
+          <span class="chb-stars-preview" data-idx="${i}" style="color:#ff8a00;letter-spacing:1px;${hasStars ? '' : 'opacity:0.3'}">${starsPreview}</span>
+        </div>`;
       const profileFieldsHtml = showProfileFields ? `
         <div class="chb-prop-profile-row" data-idx="${i}" style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px dashed #333;font-size:11px;white-space:nowrap">
           <div class="chb-profile-thumb" data-idx="${i}" title="클릭하여 프로필 이미지 업로드"
@@ -63,6 +83,7 @@ export function showChatProperties(block) {
           <button class="prop-btn prop-btn-danger chb-del-btn" data-idx="${i}" title="삭제" style="padding:4px 8px;font-size:11px">✕</button>
         </div>
         ${profileFieldsHtml}
+        ${starsRowHtml}
         <textarea class="prop-color-hex chb-text-input" data-idx="${i}" rows="2"
           style="width:100%;box-sizing:border-box;min-height:42px;resize:vertical;font-family:inherit;line-height:1.4;padding:6px 8px;margin-top:6px">${(m.text || '').replace(/</g, '&lt;')}</textarea>
       </div>`;
@@ -103,6 +124,23 @@ export function showChatProperties(block) {
         <span class="prop-label">패딩</span>
         <input type="range" class="prop-slider" id="chb-padding-range" min="0" max="60" value="${padding}">
         <input type="number" class="prop-number" id="chb-padding-val" min="0" max="60" value="${padding}" style="width:54px">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">말풍선 패딩</span>
+        <input type="range" class="prop-slider" id="chb-bubble-padding-range" min="0" max="40" value="${bubblePadding}">
+        <input type="number" class="prop-number" id="chb-bubble-padding-val" min="0" max="40" value="${bubblePadding}" style="width:54px">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">꼬리 크기</span>
+        <input type="range" class="prop-slider" id="chb-tail-range" min="0" max="300" value="${tailScale}">
+        <input type="number" class="prop-number" id="chb-tail-val" min="0" max="300" value="${tailScale}" style="width:54px">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="chb-fullbleed-toggle" ${fullBleed ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>
     </div>
 
@@ -222,6 +260,42 @@ export function showChatProperties(block) {
   paddingRange.addEventListener('input', () => applyPadding(paddingRange.value));
   paddingVal.addEventListener('change', () => applyPadding(paddingVal.value));
 
+  // 말풍선 내부 패딩 — .chb-bubble 인라인이라 rerender 필수(outer 패딩과 핸들러 패턴 다름).
+  // profileGap 방식 미러: input→rerender, change(드래그 놓기)→pushHistory.
+  const bpRange = propPanel.querySelector('#chb-bubble-padding-range');
+  const bpVal   = propPanel.querySelector('#chb-bubble-padding-val');
+  const applyBubblePadding = v => {
+    const n = Math.min(40, Math.max(0, parseInt(v) || 0));
+    block.dataset.bubblePadding = String(n);
+    if (bpRange) bpRange.value = String(n);
+    if (bpVal)   bpVal.value   = String(n);
+    rerender();
+  };
+  bpRange?.addEventListener('input',  () => applyBubblePadding(bpRange.value));
+  bpRange?.addEventListener('change', () => window.pushHistory?.('말풍선 패딩'));
+  bpVal?.addEventListener('change',   () => { applyBubblePadding(bpVal.value); window.pushHistory?.('말풍선 패딩'); });
+
+  // 말풍선 꼬리 크기 — range/number 동기화. profileGap 패턴 미러(input→rerender, change→pushHistory).
+  const tailRange = propPanel.querySelector('#chb-tail-range');
+  const tailVal   = propPanel.querySelector('#chb-tail-val');
+  const applyTail = v => {
+    const n = Math.min(300, Math.max(0, parseInt(v) || 0));
+    block.dataset.tailScale = String(n);
+    if (tailRange) tailRange.value = String(n);
+    if (tailVal)   tailVal.value   = String(n);
+    rerender();
+  };
+  tailRange?.addEventListener('input',  () => applyTail(tailRange.value));
+  tailRange?.addEventListener('change', () => window.pushHistory?.('꼬리 크기'));
+  tailVal?.addEventListener('change',   () => { applyTail(tailVal.value); window.pushHistory?.('꼬리 크기'); });
+
+  // 패딩 제외(full-bleed) 토글 — 섹션 좌우패딩 무시. 적용/해제 모두 renderChatBlock이 처리.
+  propPanel.querySelector('#chb-fullbleed-toggle')?.addEventListener('change', e => {
+    block.dataset.fullBleed = e.target.checked ? 'true' : 'false';
+    window.pushHistory?.('패딩 제외');
+    rerender();
+  });
+
   propPanel.querySelector('#chb-fontsize').addEventListener('input', e => {
     block.dataset.fontSize = e.target.value;
     rerender();
@@ -311,6 +385,36 @@ export function showChatProperties(block) {
         window.pushHistory?.('프로필 숨김 토글');
         rerender();
       });
+    });
+    // 별점 토글 — on이면 stars 부여(현재 num값 또는 5), off면 stars 제거
+    propPanel.querySelectorAll('.chb-stars-toggle').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const i = parseInt(cb.dataset.idx);
+        if (e.target.checked) {
+          const numEl = propPanel.querySelector(`.chb-stars-num[data-idx="${i}"]`);
+          messages[i].stars = Math.max(0, Math.min(5, parseInt(numEl?.value) || 5));
+        } else {
+          delete messages[i].stars;
+        }
+        block.dataset.messages = JSON.stringify(messages);
+        window.pushHistory?.('별점 토글');
+        rerender();
+        rebindMsgList();
+      });
+    });
+    // 별점 점수 — 0~5
+    propPanel.querySelectorAll('.chb-stars-num').forEach(inp => {
+      const apply = e => {
+        const i = parseInt(inp.dataset.idx);
+        const n = Math.max(0, Math.min(5, parseInt(e.target.value) || 0));
+        messages[i].stars = n;
+        block.dataset.messages = JSON.stringify(messages);
+        const pv = propPanel.querySelector(`.chb-stars-preview[data-idx="${i}"]`);
+        if (pv) pv.textContent = '★'.repeat(n) + '☆'.repeat(5 - n);
+        rerender();
+      };
+      inp.addEventListener('input', apply);
+      inp.addEventListener('change', () => window.pushHistory?.('별점'));
     });
     // 프로필 이름 input
     propPanel.querySelectorAll('.chb-profile-name-input').forEach(inp => {

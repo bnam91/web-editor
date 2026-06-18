@@ -70,6 +70,20 @@ function _cvbBackgroundSize(card) {
   return `${Math.round(100 * scale)}%`;
 }
 
+// 라벨 배경 그라데이션 재조립 — dataset.gradDir/gradStopPos/gradOpacity → linear-gradient 문자열.
+//   - dir==null(또는 NaN): 단색 rgba(0,0,0,op) 반환 (방향 없는 반투명 검정)
+//   - 그 외: linear-gradient(${dir}deg, transparent ${stop}%, rgba(0,0,0,${op/100}))
+// stop/op는 0~100 클램프. prop 패널·updateCanvasBlock(MCP) 양쪽이 공유.
+function _cvbBuildGrad(dir, stop, op) {
+  const o = Math.min(100, Math.max(0, Number(op) || 0)) / 100;
+  const s = Math.min(100, Math.max(0, Number(stop) || 0));
+  const alpha = Math.round(o * 100) / 100;
+  if (dir === null || dir === undefined || isNaN(Number(dir))) {
+    return `rgba(0,0,0,${alpha})`;
+  }
+  return `linear-gradient(${Number(dir)}deg, transparent ${s}%, rgba(0,0,0,${alpha}))`;
+}
+
 // 이스터에그(아이콘 모드): 카드 이미지 자리에 iconify SVG를 중앙 렌더 (currentColor로 색 제어)
 function _fillCardIcon(div, card, areaSize, opts) {
   opts = opts || {};
@@ -299,6 +313,8 @@ function renderCanvas(block) {
     const textAlign  = block.dataset.textAlign || 'left';
     const titleColor = block.dataset.titleColor || '#ffffff';
     const descColor  = block.dataset.descColor  || '#ffffff';
+    // 텍스트 세로위치(px) — 기존 padding 위에 가산. 0이면 회귀 없음(하위호환).
+    const textVOffset = Math.min(100, Math.max(0, parseInt(block.dataset.textVOffset) || 0));
     // 아이콘 모드(이스터에그) 블록 레벨 설정 — 크기(%)·색·이미지 배경
     const iconScale  = Math.min(90, Math.max(10, parseInt(block.dataset.iconScale) || 46));
     const iconColor  = block.dataset.iconColor || '#333333';
@@ -419,6 +435,7 @@ function renderCanvas(block) {
           if (!textHide) {
             const textDiv = document.createElement('div');
             textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:6px;`;
+            if (textVOffset) textDiv.style.paddingTop = Math.min(14 + textVOffset, Math.max(14, designH - 30)) + 'px';
             _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor, idx);
             cell.appendChild(textDiv);
           }
@@ -466,13 +483,17 @@ function renderCanvas(block) {
             const br = position === 'top'    ? `${radius}px ${radius}px 0 0`
                      : position === 'bottom' ? `0 0 ${radius}px ${radius}px`
                      : '0';
-            div.style.cssText = `width:100%;height:${h}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;border-radius:${br};`;
+            // 상단 라벨 배경 오버라이드: dataset.textBgTop 있으면 top 슬롯만 그 색 사용(없으면 기존 cardBg)
+            const _topBg = block.dataset.textBgTop;
+            const slotBg = (slot === 'top' && _topBg) ? _topBg : cardBg;
+            div.style.cssText = `width:100%;height:${h}px;background:${slotBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;border-radius:${br};`;
+            if (textVOffset) div.style.paddingTop = Math.min(10 + textVOffset, Math.max(10, h - 30)) + 'px';
             _appendCardTexts(div, card, titleSize, descSize, textAlign, titleColor, descColor, idx, slot || null);
             return div;
           };
 
           if (labelPos === 'top') {
-            if (!textHide) cell.appendChild(makeTextDiv(textH, 'top'));
+            if (!textHide) cell.appendChild(makeTextDiv(textH, 'top', 'top'));
             cell.appendChild(makeImgDiv());
           } else if (labelPos === 'both') {
             // 상/하단 라벨 완전 독립: 상단은 'top' 슬롯, 하단은 'bottom' 슬롯
@@ -511,6 +532,7 @@ function renderCanvas(block) {
               : labelPos === 'overlay-center' ? `top:50%;transform:translateY(-50%);`
               :                                  'bottom:0;';
               overlayDiv.style.cssText = `position:absolute;left:${sideInset}%;right:${sideInset}%;${verticalAnchor}height:${overlayH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;`;
+              if (textVOffset) overlayDiv.style.paddingTop = Math.min(10 + textVOffset, Math.max(10, overlayH - 30)) + 'px';
               cell.appendChild(overlayDiv);
             }
           } else {
@@ -830,6 +852,8 @@ function updateCanvasBlock(blockId, partial = {}) {
     imgRatio: block.dataset.imgRatio, imgShape: block.dataset.imgShape,
     labelPos: block.dataset.labelPos, textHide: block.dataset.textHide,
     textBg: block.dataset.textBg,
+    textVOffset: block.dataset.textVOffset,
+    gradDir: block.dataset.gradDir, gradOpacity: block.dataset.gradOpacity, gradStopPos: block.dataset.gradStopPos,
     titleSize: block.dataset.titleSize, descSize: block.dataset.descSize,
     textAlign: block.dataset.textAlign,
     titleColor: block.dataset.titleColor, descColor: block.dataset.descColor,
@@ -904,6 +928,10 @@ function updateCanvasBlock(blockId, partial = {}) {
     _try(_setEnumField('labelPos', 'labelPos',  ['top','bottom','both','overlay-top','overlay-bottom','overlay-center']));
     _try(_setBoolStrField('textHide','textHide'));
     _try(_setColorField('textBg',  'textBg'));
+    _try(_setIntField('textVOffset','textVOffset', 0,   100));
+    _try(_setIntField('gradOpacity','gradOpacity', 0,   100));
+    _try(_setIntField('gradStopPos','gradStopPos', 0,   100));
+    _try(_setIntField('gradDir',   'gradDir',   0,   360));
     _try(_setIntField('titleSize', 'titleSize', 4,   400));
     _try(_setIntField('descSize',  'descSize',  4,   400));
     _try(_setEnumField('textAlign','textAlign', _ALIGN_ALLOWED));
@@ -1150,6 +1178,17 @@ function updateCanvasBlock(blockId, partial = {}) {
     applied.patchLayers = appliedPatches;
   }
 
+  // grad* 미세조정만 들어오고 textBg를 직접 주지 않은 경우(MCP/자동조립) → textBg 재조립.
+  // textBg를 같이 보냈으면 사용자 의도 우선이라 덮지 않음.
+  if ((applied.gradDir !== undefined || applied.gradOpacity !== undefined || applied.gradStopPos !== undefined) && partial.textBg === undefined) {
+    const _gd = block.dataset.gradDir;
+    const _dir = (_gd === undefined || _gd === '' || isNaN(parseInt(_gd))) ? null : parseInt(_gd);
+    const _stop = parseInt(block.dataset.gradStopPos) || 0;
+    const _op   = block.dataset.gradOpacity !== undefined ? parseInt(block.dataset.gradOpacity) : 85;
+    block.dataset.textBg = _cvbBuildGrad(_dir, _stop, _op);
+    applied.textBg = block.dataset.textBg;
+  }
+
   if (Object.keys(applied).length === 0) {
     return { ok: false, code: 'INVALID', message: 'no valid fields applied' };
   }
@@ -1186,5 +1225,6 @@ window.renderCanvas     = renderCanvas;
 // window 노출 — banner02 패턴 미러
 window.updateCanvasBlock = updateCanvasBlock;
 window._triggerCvbCardImage = _triggerCvbCardImage;
+window._cvbBuildGrad = _cvbBuildGrad;
 
-export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS };
+export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS, _cvbBuildGrad };

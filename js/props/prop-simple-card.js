@@ -26,6 +26,39 @@ function showSimpleCardProperties(block) {
   const overlayHeight = parseInt(block.dataset.overlayHeight) || 140;
   const overlayWidth  = Math.min(100, Math.max(10, parseInt(block.dataset.overlayWidth) || 100));
   const isOverlay = labelPos.startsWith('overlay-');
+  // 텍스트 세로위치(px) — Text Area 슬라이더용. 0~100 클램프.
+  const textVOffset = Math.min(100, Math.max(0, parseInt(block.dataset.textVOffset) || 0));
+  // 라벨 배경 그라데이션 미세조정 상태. dataset.textBg가 실제 렌더 소스, grad*는 슬라이더 보존용.
+  // showSimpleCardProperties 진입 시 textBg(linear-gradient/rgba 단색)를 역파싱해 grad*를 back-fill →
+  // 사용자가 raw 입력으로 직접 그라데이션을 타이핑해도 슬라이더 초기값이 실제와 맞도록 desync 완화.
+  const _curTextBg = block.dataset.textBg || '';
+  const _gradM = /linear-gradient\(\s*(-?\d+(?:\.\d+)?)deg\s*,\s*transparent\s+(\d+(?:\.\d+)?)%\s*,\s*rgba\(0,\s*0,\s*0,\s*([\d.]+)\)\s*\)/i.exec(_curTextBg);
+  const _soloM = /^rgba\(0,\s*0,\s*0,\s*([\d.]+)\)$/i.exec(_curTextBg.trim());
+  let gradDir = parseInt(block.dataset.gradDir);
+  if (isNaN(gradDir)) gradDir = _gradM ? Math.round(parseFloat(_gradM[1])) : 180;
+  let gradStopPos = (block.dataset.gradStopPos !== undefined && block.dataset.gradStopPos !== '')
+    ? Math.min(100, Math.max(0, parseInt(block.dataset.gradStopPos)))
+    : (_gradM ? Math.min(100, Math.max(0, Math.round(parseFloat(_gradM[2])))) : 0);
+  let gradOpacity = (block.dataset.gradOpacity !== undefined && block.dataset.gradOpacity !== '')
+    ? Math.min(100, Math.max(0, parseInt(block.dataset.gradOpacity)))
+    : (_gradM ? Math.round(parseFloat(_gradM[3]) * 100)
+       : _soloM ? Math.round(parseFloat(_soloM[1]) * 100)
+       : 85);
+  // isGradient: linear-gradient 또는 rgba 단색(半)이면 강도 슬라이더 노출. 단색 hex/transparent는 숨김.
+  const _isLinearGrad = /linear-gradient/i.test(_curTextBg);
+  const _isSolo = !!_soloM;
+  const isGradient = _isLinearGrad || _isSolo;
+  // 레거시 회귀 방지: textBg가 그라데이션인데 grad* dataset가 비어 있으면 역파싱값을 dataset에 고정한다.
+  // (이게 없으면 _curDir()/_applyGradTextBg가 gradDir=undefined→null로 읽어, 강도/위치 슬라이더를
+  //  한 번만 건드려도 기존 linear-gradient가 방향·시작위치를 잃고 단색으로 평탄화됨.)
+  if (isGradient) {
+    if (block.dataset.gradDir === undefined || block.dataset.gradDir === '')
+      block.dataset.gradDir = _isLinearGrad ? String(gradDir) : '';
+    if (block.dataset.gradStopPos === undefined || block.dataset.gradStopPos === '')
+      block.dataset.gradStopPos = String(gradStopPos);
+    if (block.dataset.gradOpacity === undefined || block.dataset.gradOpacity === '')
+      block.dataset.gradOpacity = String(gradOpacity);
+  }
   const iconMode  = block.dataset.iconMode === 'true';
   const iconScale = Math.min(90, Math.max(10, parseInt(block.dataset.iconScale) || 46));
   const iconColor = block.dataset.iconColor || '#333333';
@@ -205,12 +238,30 @@ function showSimpleCardProperties(block) {
         </div>
         <input type="text" class="prop-color-hex" id="cvb-text-bg-raw" value="${(block.dataset.textBg || '').replace(/"/g, '&quot;')}" placeholder="hex / rgba / linear-gradient(...)" title="${(block.dataset.textBg || '').replace(/"/g, '&quot;')}">
       </div>
+      <div class="prop-color-row" title="상단 라벨(위쪽 라벨)만 별도 배경색. 비우면 '라벨 배경'을 그대로 사용.">
+        <span class="prop-label">상단 라벨 배경</span>
+        <div class="prop-color-swatch" id="cvb-text-bg-top-swatch" style="background:${(block.dataset.textBgTop || 'transparent').replace(/"/g, '&quot;')}">
+          <input type="color" id="cvb-text-bg-top-pick" value="${/^#[0-9a-fA-F]{6}$/.test(block.dataset.textBgTop || '') ? block.dataset.textBgTop : '#ffffff'}">
+        </div>
+        <input type="text" class="prop-color-hex" id="cvb-text-bg-top-raw" value="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}" placeholder="비우면 상속" title="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}">
+        <button class="prop-align-btn prop-align-btn--aux" id="cvb-text-bg-top-clear" title="해제(상속)">✕</button>
+      </div>
       <div class="prop-row" style="padding-left:60px;gap:4px;">
         <span class="prop-label" style="font-size:10px;color:var(--ui-text-sub);min-width:0;flex:0 0 auto;margin-right:4px;">그라데이션</span>
-        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(180deg, transparent, rgba(0,0,0,0.85))" title="아래로 어두워짐" style="background:linear-gradient(180deg, transparent, rgba(0,0,0,0.85));">↓</button>
-        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(0deg, transparent, rgba(0,0,0,0.85))" title="위로 어두워짐" style="background:linear-gradient(0deg, transparent, rgba(0,0,0,0.85));">↑</button>
-        <button class="prop-align-btn cvb-grad-preset" data-grad="linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.95))" title="아래 강조" style="background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.95));">⇊</button>
-        <button class="prop-align-btn cvb-grad-preset" data-grad="rgba(0,0,0,0.5)" title="반투명 검정" style="background:rgba(0,0,0,0.5);">半</button>
+        <button class="prop-align-btn cvb-grad-preset" data-graddir="180" title="아래로 어두워짐" style="background:linear-gradient(180deg, transparent, rgba(0,0,0,0.85));">↓</button>
+        <button class="prop-align-btn cvb-grad-preset" data-graddir="0" title="위로 어두워짐" style="background:linear-gradient(0deg, transparent, rgba(0,0,0,0.85));">↑</button>
+        <button class="prop-align-btn cvb-grad-preset" data-graddir="180" data-grad-strong="1" title="아래 강조" style="background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.95));">⇊</button>
+        <button class="prop-align-btn cvb-grad-preset" data-graddir="" title="반투명 검정(방향 없음)" style="background:rgba(0,0,0,0.5);">半</button>
+      </div>
+      <div class="prop-row" id="cvb-grad-op-row" style="display:${isGradient ? 'flex' : 'none'}">
+        <span class="prop-label">어둠 강도</span>
+        <input type="range" class="prop-slider" id="cvb-grad-op-slider" min="0" max="100" step="1" value="${gradOpacity}">
+        <input type="number" class="prop-number" id="cvb-grad-op-number" min="0" max="100" value="${gradOpacity}">
+      </div>
+      <div class="prop-row" id="cvb-grad-stop-row" style="display:${(isGradient && _isLinearGrad) ? 'flex' : 'none'}">
+        <span class="prop-label">시작 위치</span>
+        <input type="range" class="prop-slider" id="cvb-grad-stop-slider" min="0" max="100" step="1" value="${gradStopPos}">
+        <input type="number" class="prop-number" id="cvb-grad-stop-number" min="0" max="100" value="${gradStopPos}">
       </div>
       <div class="prop-row">
         <span class="prop-label">모서리</span>
@@ -278,6 +329,11 @@ function showSimpleCardProperties(block) {
         <span class="prop-label">설명 크기</span>
         <input type="range" class="prop-slider" id="cvb-desc-slider" min="10" max="40" step="1" value="${descSize}">
         <input type="number" class="prop-number" id="cvb-desc-number" min="10" max="40" value="${descSize}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">세로 위치</span>
+        <input type="range" class="prop-slider" id="cvb-tvoffset-slider" min="0" max="100" step="2" value="${textVOffset}">
+        <input type="number" class="prop-number" id="cvb-tvoffset-number" min="0" max="100" value="${textVOffset}">
       </div>
       <div class="prop-section-title" style="margin-top:6px;">Text Align</div>
       <div class="prop-align-group" id="cvb-align-group">
@@ -550,6 +606,22 @@ function showSimpleCardProperties(block) {
       syncSwatch(v);
       textBgRaw.title = v;
       syncTextBgUI();
+      // 사용자가 raw로 직접 그라데이션/단색을 입력 → grad 슬라이더 행 노출 재판정 + grad* 역산
+      const _lg = /linear-gradient\(\s*(-?\d+(?:\.\d+)?)deg\s*,\s*transparent\s+(\d+(?:\.\d+)?)%\s*,\s*rgba\(0,\s*0,\s*0,\s*([\d.]+)\)\s*\)/i.exec(v);
+      const _so = /^rgba\(0,\s*0,\s*0,\s*([\d.]+)\)$/i.exec((v || '').trim());
+      const isGrad = /linear-gradient/i.test(v || '') || !!_so;
+      if (_lg) {
+        block.dataset.gradDir     = String(Math.round(parseFloat(_lg[1])));
+        block.dataset.gradStopPos = String(Math.min(100, Math.max(0, Math.round(parseFloat(_lg[2])))));
+        block.dataset.gradOpacity = String(Math.round(parseFloat(_lg[3]) * 100));
+      } else if (_so) {
+        block.dataset.gradDir     = '';
+        block.dataset.gradOpacity = String(Math.round(parseFloat(_so[1]) * 100));
+      }
+      if (gOpSlider && block.dataset.gradOpacity) { gOpSlider.value = block.dataset.gradOpacity; gOpNumber.value = block.dataset.gradOpacity; }
+      if (gStopSlider && block.dataset.gradStopPos) { gStopSlider.value = block.dataset.gradStopPos; gStopNumber.value = block.dataset.gradStopPos; }
+      if (gradOpRow)   gradOpRow.style.display   = isGrad ? 'flex' : 'none';
+      if (gradStopRow) gradStopRow.style.display = (isGrad && !!_lg) ? 'flex' : 'none';
       window.renderCanvas(block);
       window.pushHistory?.('라벨 배경');
       window.scheduleAutoSave?.();
@@ -563,23 +635,130 @@ function showSimpleCardProperties(block) {
       if (textBgRaw) { textBgRaw.value = v; textBgRaw.title = v; }
       syncSwatch(v);
       syncTextBgUI();
+      // 단색 hex 선택 → 그라데이션 아님, 슬라이더 행 숨김
+      if (gradOpRow)   gradOpRow.style.display   = 'none';
+      if (gradStopRow) gradStopRow.style.display = 'none';
       window.renderCanvas(block);
     });
     textBgPick2.addEventListener('change', () => window.pushHistory?.('라벨 배경'));
   }
-  // 그라데이션 preset 버튼 — 클릭 시 자동 입력
+  // ── 상단 라벨 배경 (textBgTop) — 상단 라벨만 별도 배경색. 비우면 라벨 배경 상속 ──
+  const topRaw   = document.getElementById('cvb-text-bg-top-raw');
+  const topPick  = document.getElementById('cvb-text-bg-top-pick');
+  const topSwatch= document.getElementById('cvb-text-bg-top-swatch');
+  const topClear = document.getElementById('cvb-text-bg-top-clear');
+  const setTopBg = (v, push) => {
+    if (v) block.dataset.textBgTop = v; else delete block.dataset.textBgTop;
+    if (topSwatch) topSwatch.style.background = v || 'transparent';
+    if (topRaw) { topRaw.value = v || ''; topRaw.title = v || ''; }
+    window.renderCanvas(block);
+    if (push) { window.pushHistory?.('상단 라벨 배경'); window.scheduleAutoSave?.(); }
+  };
+  if (topRaw) {
+    topRaw.addEventListener('input', () => { if (topSwatch) topSwatch.style.background = sanitizeCss(topRaw.value.trim()) || 'transparent'; });
+    topRaw.addEventListener('change', () => {
+      const v = sanitizeCss(topRaw.value.trim());
+      if (topRaw.value.trim() && !v) { topRaw.value = ''; }
+      setTopBg(v, true);
+    });
+  }
+  if (topPick) {
+    topPick.addEventListener('input',  () => setTopBg(topPick.value, false));
+    topPick.addEventListener('change', () => window.pushHistory?.('상단 라벨 배경'));
+  }
+  if (topClear) topClear.addEventListener('click', () => setTopBg('', true));
+  // ── 그라데이션 미세조정 (방향 프리셋 + 강도/시작위치 슬라이더) ─────────────────
+  // dataset.textBg(렌더 소스) = _cvbBuildGrad(gradDir, gradStopPos, gradOpacity) 재조립.
+  // gradDir==='' (半, 방향 없음) → 단색 rgba(0,0,0,op). 그 외 → linear-gradient.
+  const gradOpRow    = document.getElementById('cvb-grad-op-row');
+  const gradStopRow  = document.getElementById('cvb-grad-stop-row');
+  const gOpSlider    = document.getElementById('cvb-grad-op-slider');
+  const gOpNumber    = document.getElementById('cvb-grad-op-number');
+  const gStopSlider  = document.getElementById('cvb-grad-stop-slider');
+  const gStopNumber  = document.getElementById('cvb-grad-stop-number');
+  const _buildGrad   = (dir, stop, op) => (window._cvbBuildGrad
+    ? window._cvbBuildGrad(dir, stop, op)
+    : (dir === null || dir === undefined || dir === '' || isNaN(Number(dir))
+        ? `rgba(0,0,0,${Math.round(Math.min(100,Math.max(0,op))) / 100})`
+        : `linear-gradient(${Number(dir)}deg, transparent ${Math.min(100,Math.max(0,stop))}%, rgba(0,0,0,${Math.round(Math.min(100,Math.max(0,op))) / 100}))`));
+  // 현재 dataset.gradDir → 슬라이더/재조립용 dir 해석(빈 문자열=null=단색)
+  const _curDir = () => {
+    const d = block.dataset.gradDir;
+    if (d === undefined || d === '') return null;
+    const n = parseInt(d);
+    return isNaN(n) ? null : n;
+  };
+  // textBg 재조립 후 공유 위젯 동기화
+  const _applyGradTextBg = (pushLabel) => {
+    const dir  = _curDir();
+    const op   = Math.min(100, Math.max(0, parseInt(block.dataset.gradOpacity) || 0));
+    const stop = Math.min(100, Math.max(0, parseInt(block.dataset.gradStopPos) || 0));
+    const grad = _buildGrad(dir, stop, op);
+    // 투명 토글 stale 방지 — 그라데이션은 투명과 공존 불가
+    if (block.dataset.textBg === 'transparent') block.dataset.textBgLast = grad;
+    block.dataset.textBg = grad;
+    if (textBgRaw) { textBgRaw.value = grad; textBgRaw.title = grad; }
+    syncSwatch(grad);
+    syncTextBgUI();
+    window.renderCanvas(block);
+    if (pushLabel) { window.pushHistory?.(pushLabel); window.scheduleAutoSave?.(); }
+  };
+
+  // 방향 프리셋 — gradDir set + (없으면) 기본 op/stop 채우고 재조립, 슬라이더 표출
   document.querySelectorAll('.cvb-grad-preset').forEach(btn => {
     btn.addEventListener('click', () => {
-      const grad = btn.dataset.grad;
-      block.dataset.textBg = grad;
-      if (textBgRaw) { textBgRaw.value = grad; textBgRaw.title = grad; }
-      syncSwatch(grad);
-      syncTextBgUI();
-      window.renderCanvas(block);
-      window.pushHistory?.('라벨 배경 그라데이션');
-      window.scheduleAutoSave?.();
+      const dirAttr = btn.dataset.graddir; // '' = 半(단색)
+      const isSolo  = dirAttr === '';
+      block.dataset.gradDir = dirAttr; // '' or deg
+      // 기본값: op 85(강조 프리셋이면 95), stop 0(강조면 30)
+      if (block.dataset.gradOpacity === undefined || block.dataset.gradOpacity === '') {
+        block.dataset.gradOpacity = btn.dataset.gradStrong ? '95' : '85';
+      } else if (btn.dataset.gradStrong) {
+        block.dataset.gradOpacity = '95';
+      }
+      if (block.dataset.gradStopPos === undefined || block.dataset.gradStopPos === '') {
+        block.dataset.gradStopPos = btn.dataset.gradStrong ? '30' : '0';
+      } else if (btn.dataset.gradStrong) {
+        block.dataset.gradStopPos = '30';
+      }
+      // 슬라이더 value 동기화
+      const opV   = Math.min(100, Math.max(0, parseInt(block.dataset.gradOpacity) || 0));
+      const stopV = Math.min(100, Math.max(0, parseInt(block.dataset.gradStopPos) || 0));
+      if (gOpSlider)   gOpSlider.value   = opV;
+      if (gOpNumber)   gOpNumber.value   = opV;
+      if (gStopSlider) gStopSlider.value = stopV;
+      if (gStopNumber) gStopNumber.value = stopV;
+      // 강도행은 항상, 시작위치행은 단색(半) 아닐 때만 표출
+      if (gradOpRow)   gradOpRow.style.display   = 'flex';
+      if (gradStopRow) gradStopRow.style.display = isSolo ? 'none' : 'flex';
+      _applyGradTextBg('라벨 배경 그라데이션');
     });
   });
+
+  // 어둠 강도 슬라이더
+  if (gOpSlider) {
+    const applyOp = v => {
+      v = Math.min(100, Math.max(0, v));
+      block.dataset.gradOpacity = v;
+      gOpSlider.value = v; gOpNumber.value = v;
+      _applyGradTextBg(null);
+    };
+    gOpSlider.addEventListener('input',  () => applyOp(parseInt(gOpSlider.value)));
+    gOpNumber.addEventListener('change', () => { applyOp(parseInt(gOpNumber.value)); window.pushHistory?.('라벨 배경 그라데이션'); window.scheduleAutoSave?.(); });
+    gOpSlider.addEventListener('change', () => { window.pushHistory?.('라벨 배경 그라데이션'); window.scheduleAutoSave?.(); });
+  }
+  // 시작 위치 슬라이더 (단색 半은 stop 무의미 — 행 숨김 상태라 미동작)
+  if (gStopSlider) {
+    const applyStop = v => {
+      v = Math.min(100, Math.max(0, v));
+      block.dataset.gradStopPos = v;
+      gStopSlider.value = v; gStopNumber.value = v;
+      _applyGradTextBg(null);
+    };
+    gStopSlider.addEventListener('input',  () => applyStop(parseInt(gStopSlider.value)));
+    gStopNumber.addEventListener('change', () => { applyStop(parseInt(gStopNumber.value)); window.pushHistory?.('라벨 배경 그라데이션'); window.scheduleAutoSave?.(); });
+    gStopSlider.addEventListener('change', () => { window.pushHistory?.('라벨 배경 그라데이션'); window.scheduleAutoSave?.(); });
+  }
 
   // ── 이미지 비율 ──────────────────────────────────────────────────────────────
   const ratioSlider = document.getElementById('cvb-img-ratio-slider');
@@ -708,6 +887,9 @@ function showSimpleCardProperties(block) {
     textBgHex.value  = v;
     if (textBgPickSwatch) textBgPickSwatch.style.background = v;
     syncTextBgUI();
+    // 단색 배경 선택 → 그라데이션 슬라이더 행 숨김 (그라데이션 상태 해제)
+    if (gradOpRow)   gradOpRow.style.display   = 'none';
+    if (gradStopRow) gradStopRow.style.display = 'none';
   };
 
   textBgTransBtn.addEventListener('click', () => {
@@ -798,6 +980,21 @@ function showSimpleCardProperties(block) {
   descSlider.addEventListener('input',  () => applyDescSize(parseInt(descSlider.value)));
   descNumber.addEventListener('change', () => { applyDescSize(parseInt(descNumber.value)); window.pushHistory?.(); });
   descSlider.addEventListener('change', () => window.pushHistory?.());
+
+  // ── 텍스트 세로위치 (px, 기존 padding 위에 가산) ─────────────────────────────
+  const tvSlider = document.getElementById('cvb-tvoffset-slider');
+  const tvNumber = document.getElementById('cvb-tvoffset-number');
+  if (tvSlider) {
+    const applyTV = v => {
+      v = Math.min(100, Math.max(0, v));
+      block.dataset.textVOffset = v;
+      window.renderCanvas(block);
+      tvSlider.value = v; tvNumber.value = v;
+    };
+    tvSlider.addEventListener('input',  () => applyTV(parseInt(tvSlider.value)));
+    tvNumber.addEventListener('change', () => { applyTV(parseInt(tvNumber.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    tvSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  }
 
   // ── 텍스트 정렬 ──────────────────────────────────────────────────────────────
   propPanel.querySelectorAll('#cvb-align-group .prop-align-btn').forEach(btn => {

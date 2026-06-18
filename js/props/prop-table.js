@@ -393,15 +393,17 @@ export function showTableProperties(block) {
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">글자크기</span>
-        <input type="range" class="prop-slider" id="tbl-header-size-slider" min="0" max="60" step="2" value="${curHeaderSize}">
-        <input type="number" class="prop-number" id="tbl-header-size-number" min="0" max="60" value="${curHeaderSize}">
-      </div>
-      <div class="prop-hint">0 = 본문 크기 상속</div>
-      <div class="prop-color-row" style="margin-top:6px;">
-        <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'tbl-header-bg', hex: _rgbToHex(curHeaderBg), alpha: curHeaderAlpha })}
+      <div id="tbl-header-controls" style="display:${curShowHeader ? '' : 'none'}">
+        <div class="prop-row">
+          <span class="prop-label">글자크기</span>
+          <input type="range" class="prop-slider" id="tbl-header-size-slider" min="0" max="60" step="2" value="${curHeaderSize}">
+          <input type="number" class="prop-number" id="tbl-header-size-number" min="0" max="60" value="${curHeaderSize}">
+        </div>
+        <div class="prop-hint">0 = 본문 크기 상속</div>
+        <div class="prop-color-row" style="margin-top:6px;">
+          <span class="prop-label">배경색</span>
+          ${colorFieldHTML({ idPrefix: 'tbl-header-bg', hex: _rgbToHex(curHeaderBg), alpha: curHeaderAlpha })}
+        </div>
       </div>
     </div>
     <div class="prop-section">
@@ -529,6 +531,9 @@ export function showTableProperties(block) {
     const show = e.target.checked;
     block.dataset.showHeader = show ? 'true' : 'false';
     if (thead) thead.style.display = show ? '' : 'none';
+    // 헤더 OFF면 하위 컨트롤(글자크기/배경색) 숨김 — 섹션 펼쳐볼 필요 없이 토글식
+    const hc = document.getElementById('tbl-header-controls');
+    if (hc) hc.style.display = show ? '' : 'none';
     window.pushHistory();
   });
 
@@ -567,8 +572,14 @@ export function showTableProperties(block) {
     _clearMergesIfAny();
     table.querySelectorAll('tr').forEach(tr => {
       const isHead = tr.closest('thead');
+      const refCell = tr.lastElementChild; // 기존 마지막 셀 = 디자인 레퍼런스
       const cell = document.createElement(isHead ? 'th' : 'td');
       cell.setAttribute('contenteditable','false');
+      // 기존 셀의 디자인(인라인 스타일/클래스) 상속 → 열 추가 후 스타일 재입힘 불필요
+      if (refCell) {
+        if (refCell.className) cell.className = refCell.className;
+        if (refCell.style.cssText) cell.style.cssText = refCell.style.cssText;
+      }
       if (isHead) cell.textContent = '항목';
       tr.appendChild(cell);
       // :img row면 새 셀도 placeholder로 자동 변환

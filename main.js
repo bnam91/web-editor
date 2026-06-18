@@ -982,6 +982,91 @@ ipcMain.handle('projects:load-meta', (event, projectId) => {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 });
 
+/* ── IPC: Marketplace (bnam91/goditor-market) ──────────────────────────────
+   현재 프로젝트를 bnam91 깃 레포에 push / 마켓 목록 list / 선택 프로젝트 pull.
+   gh CLI(인증됨) + git CLI 사용. 로컬 캐시: userData/goditor-market.
+   레포 구조: market/<account>/<projectId>.json (payload: {id,name,account,updatedAt,data}) + 루트 index.json. */
+const MARKET_SLUG = 'bnam91/goditor-market';
+function _marketDir() { return path.join(app.getPath('userData'), 'goditor-market'); }
+function _execFileP(cmd, args, opts = {}) {
+  const { execFile } = require('child_process');
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { maxBuffer: 64 * 1024 * 1024, ...opts }, (err, stdout, stderr) => {
+      if (err) reject(new Error(((stderr || '') + (err.message || '')).toString().trim()));
+      else resolve((stdout || '').toString());
+    });
+  });
+}
+async function _ensureMarketRepo() {
+  const dir = _marketDir();
+  if (!fs.existsSync(path.join(dir, '.git'))) {
+    try { await _execFileP('gh', ['repo', 'view', MARKET_SLUG]); }
+    catch { await _execFileP('gh', ['repo', 'create', MARKET_SLUG, '--public', '-d', 'goditor 프로젝트 마켓플레이스']); }
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    try {
+      await _execFileP('gh', ['repo', 'clone', MARKET_SLUG, dir]);
+    } catch (e) {
+      // 빈 레포 등 clone 실패 → 수동 init
+      fs.mkdirSync(dir, { recursive: true });
+      await _execFileP('git', ['-C', dir, 'init']);
+      await _execFileP('git', ['-C', dir, 'remote', 'add', 'origin', `https://github.com/${MARKET_SLUG}.git`]).catch(() => {});
+    }
+    await _execFileP('git', ['-C', dir, 'branch', '-M', 'main']).catch(() => {});
+    if (!fs.existsSync(path.join(dir, 'index.json'))) fs.writeFileSync(path.join(dir, 'index.json'), '[]');
+  } else {
+    await _execFileP('git', ['-C', dir, 'pull', '--ff-only']).catch(() => {});
+  }
+  return dir;
+}
+function _rebuildMarketIndex(dir) {
+  const root = path.join(dir, 'market');
+  const idx = [];
+  if (fs.existsSync(root)) {
+    for (const account of fs.readdirSync(root)) {
+      const adir = path.join(root, account);
+      try { if (!fs.statSync(adir).isDirectory()) continue; } catch { continue; }
+      for (const f of fs.readdirSync(adir)) {
+        if (!f.endsWith('.json')) continue;
+        try {
+          const o = JSON.parse(fs.readFileSync(path.join(adir, f), 'utf-8'));
+          idx.push({ account, id: o.id, name: o.name || o.id, updatedAt: o.updatedAt || null });
+        } catch {}
+      }
+    }
+  }
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(idx, null, 2));
+  return idx;
+}
+const _safe = s => String(s || '').replace(/[^\w.-]/g, '_');
+ipcMain.handle('market:push', async (_e, { account, id, name, data, updatedAt } = {}) => {
+  try {
+    if (!account || !id || !data) return { ok: false, message: 'account/id/data 필요' };
+    const dir = await _ensureMarketRepo();
+    const acc = _safe(account), pid = _safe(id);
+    const adir = path.join(dir, 'market', acc);
+    fs.mkdirSync(adir, { recursive: true });
+    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), data };
+    fs.writeFileSync(path.join(adir, `${pid}.json`), JSON.stringify(payload));
+    _rebuildMarketIndex(dir);
+    await _execFileP('git', ['-C', dir, 'add', '-A']);
+    await _execFileP('git', ['-C', dir, 'commit', '-m', `market: ${acc}/${name || pid}`]).catch(() => {});
+    await _execFileP('git', ['-C', dir, 'push', '-u', 'origin', 'main']);
+    return { ok: true, account: acc, id: pid };
+  } catch (e) { return { ok: false, message: e.message }; }
+});
+ipcMain.handle('market:list', async () => {
+  try { const dir = await _ensureMarketRepo(); return { ok: true, items: _rebuildMarketIndex(dir) }; }
+  catch (e) { return { ok: false, message: e.message }; }
+});
+ipcMain.handle('market:pull', async (_e, { account, id } = {}) => {
+  try {
+    const dir = await _ensureMarketRepo();
+    const f = path.join(dir, 'market', _safe(account), `${_safe(id)}.json`);
+    if (!fs.existsSync(f)) return { ok: false, message: '프로젝트 없음' };
+    return { ok: true, project: JSON.parse(fs.readFileSync(f, 'utf-8')) };
+  } catch (e) { return { ok: false, message: e.message }; }
+});
+
 /* ── IPC: Intake (design-bot pipeline) ── */
 const INTAKE_DIR = path.join(os.homedir(), 'Documents', 'design-bot-builder');
 if (!fs.existsSync(INTAKE_DIR)) fs.mkdirSync(INTAKE_DIR, { recursive: true });

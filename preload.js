@@ -49,6 +49,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFullscreen: () => ipcRenderer.invoke('fullscreen:get'),
   onFullscreenChange: (cb) => ipcRenderer.on('fullscreen-change', (_e, val) => cb(val)),
 
+  // Marketplace (bnam91/goditor-market)
+  market: {
+    push: (payload) => ipcRenderer.invoke('market:push', payload),
+    list: ()        => ipcRenderer.invoke('market:list'),
+    pull: (payload) => ipcRenderer.invoke('market:pull', payload),
+  },
+
   // License
   getPublicIp:        ()                   => ipcRenderer.invoke('license:get-ip'),
   getLicenseUser:     ()                   => ipcRenderer.invoke('license:find-by-ip'),

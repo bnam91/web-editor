@@ -1791,6 +1791,29 @@ window.setSectionBg = function(sectionEl, color) {
   return true;
 };
 
+// ── setSectionBgImage: 섹션 단위 배경 이미지 설정 ──
+// sectionEl: .section-block 요소 또는 섹션 id(string). src: 이미지 URL/dataURL. null/''이면 제거.
+// canvas는 innerHTML로 직렬화되므로 inline style만으로 영속됨(별도 직렬화 불필요). dataset.bgImg는 참조용.
+window.setSectionBgImage = function(sectionEl, src) {
+  const sec = typeof sectionEl === 'string' ? document.getElementById(sectionEl) : sectionEl;
+  if (!sec || !sec.classList.contains('section-block')) return false;
+  if (src) {
+    sec.style.backgroundImage    = `url("${String(src).replace(/"/g, '\\"')}")`;
+    sec.style.backgroundSize     = 'cover';
+    sec.style.backgroundPosition = 'center';
+    sec.style.backgroundRepeat   = 'no-repeat';
+    sec.dataset.bgImg = src;
+  } else {
+    sec.style.backgroundImage = '';
+    sec.style.backgroundSize = '';
+    sec.style.backgroundPosition = '';
+    sec.style.backgroundRepeat = '';
+    delete sec.dataset.bgImg;
+  }
+  window.triggerAutoSave?.();
+  return true;
+};
+
 // ── Speech Bubble Block ───────────────────────────────────────────────────────
 // iMessage 스타일 SVG 말꼬리
 // left/right: 비대칭 (right는 CSS scaleX(-1) 반전), center: 대칭 하향
