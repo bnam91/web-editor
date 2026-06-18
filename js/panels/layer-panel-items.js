@@ -87,6 +87,22 @@ function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerNam
           window.enhanceTextEffectPropPanel?.(targetEl);
         }
       }
+      // 이스터에그: laurel-block의 layer label이 '**text_'로 시작하면 텍스트 효과 적용
+      // (text-block 분기와 동일 게이트 — textEffect 키 공유, 한 토글로 양쪽 on/off)
+      // text-block 경로는 항상 DEFAULTS(grunge)지만, laurel은 이름의 _<preset> 토큰을
+      // 파싱해 cfg.preset에 주입(CDP 시나리오 **text_neon→neon 충족, T1 회귀 회피용 laurel 한정).
+      if (targetEl.classList?.contains('laurel-block') && /^\*\*text_/i.test(newName) && !targetEl.dataset.textEffect && window.isEasterEggEnabled?.('textEffect') !== false) {
+        const m = newName.match(/^\*\*text_([a-z0-9-]+)/i);
+        const presets = ['neon', 'metallic', 'grunge', 'vintage', 'cinematic'];
+        const preset = (m && presets.includes(m[1].toLowerCase()))
+          ? m[1].toLowerCase()
+          : (window.TEXT_EFFECT_DEFAULTS?.preset || 'grunge');
+        window.applyTextEffectToLaurel?.(targetEl, { ...(window.TEXT_EFFECT_DEFAULTS || {}), preset });
+        // 우측 패널이 이 블록을 보고 있으면 갱신
+        if (targetEl.classList.contains('selected')) {
+          window.showLaurelProperties?.(targetEl);
+        }
+      }
       // 이스터에그: canvas-block(Card) layer label이 '**icon_'로 시작하면 아이콘 모드 ON
       // → 카드 이미지 자리에 iconify 아이콘을 넣을 수 있게 됨 (prefix는 트리거 전용)
       if (targetEl.classList?.contains('canvas-block') && /^\*\*icon_/i.test(newName) && targetEl.dataset.iconMode !== 'true' && window.isEasterEggEnabled?.('iconMode') !== false) {

@@ -14,6 +14,7 @@ const TEXT_EFFECT_PRESETS = [
 const TEXT_EFFECT_DEFAULTS = {
   preset:    'grunge',     // 영화 포스터 distress 컨셉 — Grunge가 hero
   color:     '#ffffff',    // 단색 (영화 포스터 NEW WORLD/탈출 처럼 흰색)
+  glowColor: '#ff00ff',    // 네온 glow색 — 글자색과 분리 (neon 프리셋 전용)
   intensity: 70,
   grain:     60,           // grunge default: 표면 거칠기 강하게
   texture:   'dots'        // grunge 텍스처 — dots/scratches/paint
@@ -73,6 +74,7 @@ function clearTextEffect(textEl) {
     'tfx-tex-001', 'tfx-tex-001-expand', 'tfx-tex-002', 'tfx-tex-pamyo',
     'tfx-tex-004', 'tfx-tex-005', 'tfx-tex-black-inv');
   textEl.style.removeProperty('--tfx-color');
+  textEl.style.removeProperty('--tfx-glow-color');
   textEl.style.removeProperty('--tfx-intensity');
   textEl.style.removeProperty('--tfx-grain');
   textEl.style.removeProperty('filter');
@@ -88,6 +90,7 @@ function applyTextEffect(tb, opts) {
   clearTextEffect(textEl);
   textEl.classList.add('text-effect', 'tfx-' + cfg.preset);
   textEl.style.setProperty('--tfx-color', cfg.color);
+  textEl.style.setProperty('--tfx-glow-color', cfg.glowColor || cfg.color);
   textEl.style.setProperty('--tfx-intensity', String(cfg.intensity / 100));
   textEl.style.setProperty('--tfx-grain', String(cfg.grain / 100));
   // grunge에서만 texture 변형 클래스 적용
@@ -126,8 +129,12 @@ function ensureTextEffect(tb) {
 }
 
 // ── prop-panel 증강 ──
-function enhanceTextEffectPropPanel(tb) {
+// opts.apply(block, cfg) / opts.remove(block) — 블록 타입별 적용/제거 콜백.
+// 기본은 text-block(applyTextEffect / clearTextEffect). laurel 등은 자체 콜백 주입.
+function enhanceTextEffectPropPanel(tb, opts = {}) {
   if (!tb || !tb.dataset.textEffect) return;
+  const _apply  = opts.apply  || ((b, next) => applyTextEffect(b, next));
+  const _remove = opts.remove || ((b) => { delete b.dataset.textEffect; clearTextEffect(findTextEl(b)); });
   let cfg;
   try { cfg = JSON.parse(tb.dataset.textEffect); }
   catch (e) { cfg = { ...TEXT_EFFECT_DEFAULTS }; }
@@ -145,6 +152,7 @@ function enhanceTextEffectPropPanel(tb) {
   const isGrunge = cfg.preset === 'grunge';
   const showGrain = !isGrunge && ['vintage', 'cinematic'].includes(cfg.preset);
   const showColor = !isGrunge;
+  const showGlowColor = cfg.preset === 'neon';
   const showIntensity = !isGrunge;
   const showTexture = isGrunge;
   const textureOpts = GRUNGE_TEXTURES
@@ -173,6 +181,13 @@ function enhanceTextEffectPropPanel(tb) {
         <input type="text" id="tfx-color-hex" value="${cfg.color}" maxlength="7"
                style="flex:1;padding:3px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
       </div>
+      <div id="tfx-glow-color-row" style="display:${showGlowColor ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
+        <span style="flex:1;font-size:11px;color:#999;">네온색</span>
+        <input type="color" id="tfx-glow-color" value="${cfg.glowColor || cfg.color}"
+               style="width:32px;height:24px;border:none;padding:0;cursor:pointer;background:transparent;">
+        <input type="text" id="tfx-glow-color-hex" value="${cfg.glowColor || cfg.color}" maxlength="7"
+               style="flex:1;padding:3px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
+      </div>
       <div id="tfx-intensity-row" style="display:${showIntensity ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
         <span style="flex:1;font-size:11px;color:#999;">강도</span>
         <input type="range" class="prop-slider" id="tfx-intensity" min="0" max="100" value="${cfg.intensity}" style="flex:2;">
@@ -195,18 +210,21 @@ function enhanceTextEffectPropPanel(tb) {
     const next = {
       preset:    propPanel.querySelector('#tfx-preset').value,
       color:     propPanel.querySelector('#tfx-color').value,
+      glowColor: propPanel.querySelector('#tfx-glow-color')?.value || propPanel.querySelector('#tfx-color').value,
       intensity: parseInt(propPanel.querySelector('#tfx-intensity').value),
       grain:     parseInt(propPanel.querySelector('#tfx-grain').value),
       texture:   propPanel.querySelector('#tfx-texture')?.value || 'dots'
     };
-    applyTextEffect(tb, next);
+    _apply(tb, next);
     // 가시성 토글 — grunge는 텍스처 select만, 나머지는 컬러/강도/그레인
     const isG = next.preset === 'grunge';
     const colorRow = propPanel.querySelector('#tfx-color-row');
+    const glowColorRow = propPanel.querySelector('#tfx-glow-color-row');
     const intensityRow = propPanel.querySelector('#tfx-intensity-row');
     const grainRow = propPanel.querySelector('#tfx-grain-row');
     const textureRow = propPanel.querySelector('#tfx-texture-row');
     if (colorRow) colorRow.style.display = isG ? 'none' : 'flex';
+    if (glowColorRow) glowColorRow.style.display = (next.preset === 'neon') ? 'flex' : 'none';
     if (intensityRow) intensityRow.style.display = isG ? 'none' : 'flex';
     if (grainRow) grainRow.style.display = (!isG && ['vintage','cinematic'].includes(next.preset)) ? 'flex' : 'none';
     if (textureRow) textureRow.style.display = isG ? 'flex' : 'none';
@@ -228,6 +246,19 @@ function enhanceTextEffectPropPanel(tb) {
       window.pushHistory?.('텍스트 효과 컬러'); window.scheduleAutoSave?.();
     }
   });
+  propPanel.querySelector('#tfx-glow-color')?.addEventListener('input', e => {
+    propPanel.querySelector('#tfx-glow-color-hex').value = e.target.value;
+    read();
+  });
+  propPanel.querySelector('#tfx-glow-color')?.addEventListener('change', () => { window.pushHistory?.('텍스트 효과 네온색'); window.scheduleAutoSave?.(); });
+  propPanel.querySelector('#tfx-glow-color-hex')?.addEventListener('change', e => {
+    const v = (e.target.value || '').trim();
+    if (/^#[0-9a-f]{6}$/i.test(v)) {
+      propPanel.querySelector('#tfx-glow-color').value = v;
+      read();
+      window.pushHistory?.('텍스트 효과 네온색'); window.scheduleAutoSave?.();
+    }
+  });
   propPanel.querySelector('#tfx-intensity')?.addEventListener('input', e => {
     propPanel.querySelector('#tfx-intensity-val').textContent = e.target.value + '%';
     read();
@@ -239,8 +270,7 @@ function enhanceTextEffectPropPanel(tb) {
   });
   propPanel.querySelector('#tfx-grain')?.addEventListener('change', () => { window.pushHistory?.('텍스트 효과 그레인'); window.scheduleAutoSave?.(); });
   propPanel.querySelector('#tfx-remove')?.addEventListener('click', () => {
-    delete tb.dataset.textEffect;
-    const textEl = findTextEl(tb); clearTextEffect(textEl);
+    _remove(tb);
     propPanel.querySelector('#text-effect-controls-section')?.remove();
     window.pushHistory?.('텍스트 효과 제거'); window.scheduleAutoSave?.();
   });

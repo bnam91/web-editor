@@ -684,7 +684,7 @@ function duplicateSelected() {
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, ' +
     '.graph-block.selected, .table-block.selected, ' +
-    '.label-group-block.selected, .icon-text-block.selected'
+    '.label-group-block.selected, .icon-text-block.selected, .icon-block.selected'
   );
   const selSS = document.querySelector('.frame-block.selected:not([data-text-frame])');
   const selSection = document.querySelector('.section-block.selected');
@@ -712,10 +712,18 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block').forEach(b => {
+      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+      clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
       });
+      // 복제본 자신이 블록인 경우(absWrapper=selBlock, 즉 position:absolute 블록을 직접 복제):
+      // 위 querySelectorAll은 루트(clone)를 포함하지 않아 본인 드래그 바인딩이 누락된다.
+      // text-block은 프레임 위임 드래그가 편집(contenteditable)에 양보하므로 자체 bindBlock이 없으면 못 움직임.
+      if (clone.matches?.(_ALL_BLOCK_SEL)) {
+        delete clone._blockBound;
+        window.bindBlock?.(clone);
+      }
       clone._dragBound = false;
       clone._subSecBound = false;
       window.bindFrameDropZone?.(clone);
@@ -800,6 +808,15 @@ function copySelected() {
     const banner = rowEl.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: rowEl.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selNormal) {
+    // free-layout 프레임 내 블록: absolute 래퍼(text-frame/shape-frame) 또는 자신(absolute)을 복사해
+    // 좌표·절대배치를 보존(안 그러면 붙여넣기 시 일반 플로우로 들어가 스택됨).
+    const _flWrapper = selNormal.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]')
+      || (selNormal.style.position === 'absolute' ? selNormal : null);
+    const _flFrame = _flWrapper?.closest('.frame-block[data-free-layout]');
+    if (_flWrapper && _flFrame) {
+      clipboard = { type: 'block', html: _flWrapper.outerHTML, freeLayout: true, sourceFrameId: _flFrame.id };
+      return;
+    }
     const isGapSel = selNormal.classList.contains('gap-block');
     // 스티커/플로팅 블럭은 row 밖에 absolute로 있으므로 자체 outerHTML만 복사 (closest('.row')로 잘못 wrapping 안 함)
     const isFloating = selNormal.classList.contains('sticker-block')
@@ -862,8 +879,13 @@ function _bindPastedEl(el) {
 function _normalizePastedAbsolute(el) {
   if (!el) return;
   const parent = el.parentElement;
-  const parentIsFree = parent?.dataset?.freeLayout === 'true';
-  if (parentIsFree) return;
+  // free-layout 프레임 자식이면 absolute 좌표·offset(left/top/right/bottom, offsetX/offsetY)을
+  // 그대로 보존한다. parent 직속 dataset 우선, 없으면 closest로 보강(중첩 free-layout 프레임 대응).
+  const freeContainer = parent && (
+    parent.dataset?.freeLayout === 'true' ||
+    parent.closest?.('.frame-block[data-free-layout="true"]')
+  );
+  if (freeContainer) return;
   if (el.style.position === 'absolute') {
     el.style.position = '';
     el.style.left = '';
@@ -954,6 +976,32 @@ function pasteClipboard() {
     bindSectionDropZone(el);
     _bindPastedEl(el);
     el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
+  } else if (clipboard.freeLayout) {
+    // free-layout 프레임 내 블록 붙여넣기 — 원본(또는 선택된) free-layout 프레임에 +20px 오프셋 절대배치.
+    // duplicateSelected의 freeLayout 분기 미러.
+    const frame = (clipboard.sourceFrameId && document.getElementById(clipboard.sourceFrameId))
+      || document.querySelector('.frame-block[data-free-layout].selected')
+      || (window._activeFrame?.dataset?.freeLayout ? window._activeFrame : null);
+    if (!frame) {
+      // 대상 프레임 못 찾음 → 일반 경로 폴백(섹션 끝에 삽입)
+      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); }
+    } else {
+      el.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+      el.querySelectorAll('[id]').forEach(c => { const p = c.id.split('_')[0] || 'el'; c.id = p + '_' + Math.random().toString(36).slice(2, 9); });
+      const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
+      el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
+      el.dataset.offsetX = String(ox + 20); el.dataset.offsetY = String(oy + 20);
+      frame.appendChild(el);
+      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+      el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
+      if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
+      el._dragBound = false; el._subSecBound = false; window.bindFrameDropZone?.(el);
+      deselectAll();
+      const cb = el.querySelector('.text-block, .shape-block, .asset-block') || el;
+      cb.classList.add('selected');
+      frame.closest('.section-block')?.classList.add('selected');
+    }
   } else {
     // banner 내부 출처면 같은 banner 안에 복제
     const banner = _pasteIntoSourceBanner(el, clipboard.sourceBannerId);

@@ -74,6 +74,20 @@ function _escLaurelText(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// dataset.textEffect 읽기 (이스터에그 **text_ — text-block과 동일 key)
+// 없거나 JSON 깨짐 → null (효과 미적용 경로를 명확히 분리, 현행과 동일 렌더)
+function _readLaurelTextEffect(block) {
+  try {
+    const raw = block.dataset.textEffect;
+    if (!raw) return null;
+    const cfg = JSON.parse(raw);
+    if (!cfg || typeof cfg !== 'object') return null;
+    return cfg;
+  } catch (_) {
+    return null;
+  }
+}
+
 // 월계수 색 프리셋 — 단색(solid)은 currentColor 그대로, 그 외는 linearGradient
 // 기본 5종(클래식) + Apple 4종(절제) + Multi-stop 5종(대각선·메탈광택·복합)
 // 각 프리셋: stops + (선택) angle {x1,y1,x2,y2}로 그라데이션 방향
@@ -135,7 +149,10 @@ function _laurelLeafSvg(width, height, mirror, leafFill) {
   return `<svg class="laurel-leaf" viewBox="${LAUREL_VIEWBOX}" preserveAspectRatio="xMidYMid meet" fill="none" xmlns="http://www.w3.org/2000/svg" style="${style}">${defs}<path fill-rule="evenodd" clip-rule="evenodd" d="${LAUREL_LEFT_PATH}" fill="${fillAttr}"/></svg>`;
 }
 
-function _renderLaurelCellHtml(cell, idx) {
+// fx: 현재 textEffect cfg(또는 null) — 있으면 각 라인 span에 .text-effect/.tfx-<preset>
+//     클래스 + --tfx-* 인라인 변수를 함께 찍는다(기존 .text-effect CSS 재사용). fx 없으면
+//     현행과 100% 동일 출력(하위호환).
+function _renderLaurelCellHtml(cell, idx, fx) {
   const gap       = Number.isFinite(parseInt(cell.gap)) ? parseInt(cell.gap) : 24;
   const leafColor = cell.leafColor        || '#1a1a1a';
   const leafFill  = cell.leafFill         || 'solid';   // 'solid' | 'gold' | 'silver' | 'bronze' | 'rosegold' | 'platinum'
@@ -144,12 +161,19 @@ function _renderLaurelCellHtml(cell, idx) {
   const lines     = Array.isArray(cell.lines) && cell.lines.length > 0
     ? cell.lines
     : [{ text: '1위', fontSize: 56, fontWeight: 700, color: '#1a1a1a' }];
+  // 텍스트 효과(이스터에그) 클래스/인라인 변수 — fx 있을 때만
+  const fxClass = fx
+    ? ` text-effect tfx-${fx.preset}${(fx.preset === 'grunge' && fx.texture) ? ' tfx-tex-' + fx.texture : ''}`
+    : '';
+  const fxStyle = fx
+    ? `--tfx-color:${fx.color};--tfx-glow-color:${fx.glowColor || fx.color};--tfx-intensity:${(fx.intensity ?? 70) / 100};--tfx-grain:${(fx.grain ?? 60) / 100};`
+    : '';
   const linesHtml = lines.map((ln, lineIdx) => {
     const fs = parseInt(ln.fontSize)   || LAUREL_DEFAULTS.fontSize;
     const fw = parseInt(ln.fontWeight) || LAUREL_DEFAULTS.fontWeight;
     const cl = ln.color || LAUREL_DEFAULTS.textColor;
     const ls = (ln.letterSpacing !== undefined && ln.letterSpacing !== null && !isNaN(parseFloat(ln.letterSpacing))) ? parseFloat(ln.letterSpacing) : 0;
-    return `<span class="laurel-text-line" data-line-idx="${lineIdx}" style="font-size:${fs}px;font-weight:${fw};line-height:1.1;white-space:nowrap;color:${cl};letter-spacing:${ls}px;">${_escLaurelText(ln.text)}</span>`;
+    return `<span class="laurel-text-line${fxClass}" data-line-idx="${lineIdx}" style="font-size:${fs}px;font-weight:${fw};line-height:1.1;white-space:nowrap;color:${cl};letter-spacing:${ls}px;${fxStyle}">${_escLaurelText(ln.text)}</span>`;
   }).join('');
   return `
     <div class="laurel-cell" data-cell-idx="${idx}" style="color:${leafColor};">
@@ -184,8 +208,26 @@ function renderLaurelBlock(block) {
   block.style.gridTemplateRows     = `repeat(${rows}, auto)`;
   block.style.columnGap            = (parseInt(block.dataset.gridColGap) || 32) + 'px';
   block.style.rowGap               = (parseInt(block.dataset.gridRowGap) || 24) + 'px';
-  block.innerHTML = cells.map((c, i) => _renderLaurelCellHtml(c, i)).join('');
+  // 이스터에그 텍스트 효과 재적용 — dataset.textEffect가 있으면 신규생성/프로젝트로드
+  // (rebindAll에서 renderLaurelBlock 호출)/update 모든 리렌더 경로에서 자동 유지된다.
+  // renderLaurelBlock이 단일 진입점이라 text-block의 MutationObserver(ensureTextEffect) 불필요.
+  const fx = _readLaurelTextEffect(block);
+  block.innerHTML = cells.map((c, i) => _renderLaurelCellHtml(c, i, fx)).join('');
   _bindLaurelInlineEdit(block);
+}
+
+// ── 이스터에그: laurel 블록 텍스트 효과 적용 (**text_ prefix 트리거) ────────────
+// text-block의 applyTextEffect 미러. cfg를 dataset.textEffect에 영구 저장만 하고,
+// 실제 클래스/스타일은 renderLaurelBlock → _renderLaurelCellHtml의 span 생성부가 찍는다.
+// grunge SVG displacement 필터는 text-effect-transform.js가 window로 노출 안 함
+// (ensureTextEffectSvgDefs 미노출) → grunge는 정적 CSS fallback만, neon/metallic/
+// vintage/cinematic은 순수 CSS라 동일 동작.
+function applyTextEffectToLaurel(block, cfg) {
+  if (!block || !block.classList.contains('laurel-block')) return;
+  const merged = { ...(window.TEXT_EFFECT_DEFAULTS || {}), ...(cfg || {}) };
+  block.dataset.textEffect = JSON.stringify(merged);
+  window.ensureTextEffectSvgDefs?.();   // 노출 안 돼 있으면 no-op (grunge degraded)
+  renderLaurelBlock(block);
 }
 
 // A29: 가운데 글자(.laurel-text-line)도 표·스텝·채팅·카드처럼 더블클릭 인라인 편집.
@@ -619,12 +661,14 @@ window._readLaurelCells    = _readLaurelCells;
 window._renderLaurelCellHtml = _renderLaurelCellHtml;
 window.LAUREL_FILL_PRESETS = LAUREL_FILL_PRESETS;
 window.updateLaurelBlock   = updateLaurelBlock;
+window.applyTextEffectToLaurel = applyTextEffectToLaurel;
 
 export {
   makeLaurelBlock,
   addLaurelBlock,
   updateLaurelBlock,
   renderLaurelBlock,
+  applyTextEffectToLaurel,
   LAUREL_FILL_PRESETS,
   LAUREL_DEFAULTS,
 };

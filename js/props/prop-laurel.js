@@ -620,6 +620,15 @@ export function showLaurelProperties(block) {
       onCommit: () => window.pushHistory?.('월계수 색'),
     });
   });
+
+  // 이스터에그(**text_) 텍스트 효과가 적용된 경우 우측 패널에 "텍스트 효과 ✨" 스타일 섹션 추가.
+  // text-block과 달리 apply/remove를 laurel 전용 함수로 주입(재렌더 경로가 다름).
+  if (block.dataset.textEffect) {
+    window.enhanceTextEffectPropPanel?.(block, {
+      apply:  (b, cfg) => window.applyTextEffectToLaurel?.(b, cfg),
+      remove: (b) => { delete b.dataset.textEffect; window.renderLaurelBlock?.(b); },
+    });
+  }
 }
 
 window.showLaurelProperties = showLaurelProperties;

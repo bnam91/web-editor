@@ -146,7 +146,7 @@ export function showStickerProperties(block) {
       <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div class="prop-section-title" style="margin-bottom:0">Favorites (즐겨찾기)</div>
         <button class="prop-action-btn" id="stk-fav-add" title="현재 스티커 스타일을 즐겨찾기에 추가"
-          style="width:auto;padding:2px 8px;font-size:12px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>
+          style="width:auto;padding:2px 8px;font-size:11px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>
       </div>
       <div class="stk-fav-grid" id="stk-fav-grid"></div>
     </div>
@@ -173,7 +173,7 @@ export function showStickerProperties(block) {
     </div>
     <div class="prop-section" id="stk-mode-section" style="display:${hideBasic ? 'none' : 'block'};">
       <div class="prop-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#ccc;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
           <input type="checkbox" id="stk-mode-img" ${block.dataset.mode === 'image' ? 'checked' : ''}>
           이미지 모드
         </label>
@@ -187,7 +187,7 @@ export function showStickerProperties(block) {
     </div>
     <div class="prop-section" id="stk-image-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
       <div class="prop-section-title">Image</div>
-      <div id="stk-img-drop" style="border:2px dashed #444;border-radius:6px;padding:18px 10px;text-align:center;color:#888;font-size:12px;cursor:pointer;background:#1a1a1a;transition:border-color .15s,background .15s;">
+      <div id="stk-img-drop" style="border:2px dashed #444;border-radius:6px;padding:18px 10px;text-align:center;color:#888;font-size:11px;cursor:pointer;background:#1a1a1a;transition:border-color .15s,background .15s;">
         ${block.dataset.imgSrc ? `<img src="${block.dataset.imgSrc}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
         <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
       </div>

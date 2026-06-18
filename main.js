@@ -1016,6 +1016,9 @@ async function _ensureMarketRepo() {
   } else {
     await _execFileP('git', ['-C', dir, 'pull', '--ff-only']).catch(() => {});
   }
+  // 큰 프로젝트(이미지 data URL 인라인 → 수십 MB) push 시 HTTP 400/RPC failed 방지.
+  await _execFileP('git', ['-C', dir, 'config', 'http.postBuffer', '524288000']).catch(() => {});
+  await _execFileP('git', ['-C', dir, 'config', 'http.version', 'HTTP/1.1']).catch(() => {});
   return dir;
 }
 function _rebuildMarketIndex(dir) {

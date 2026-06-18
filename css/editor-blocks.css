@@ -2074,9 +2074,9 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   color: var(--tfx-color) !important;
   text-shadow:
     0 0 calc(2px * var(--tfx-intensity)) #fff,
-    0 0 calc(6px * var(--tfx-intensity)) var(--tfx-color),
-    0 0 calc(14px * var(--tfx-intensity)) var(--tfx-color),
-    0 0 calc(28px * var(--tfx-intensity)) var(--tfx-color),
+    0 0 calc(6px * var(--tfx-intensity)) var(--tfx-glow-color, var(--tfx-color)),
+    0 0 calc(14px * var(--tfx-intensity)) var(--tfx-glow-color, var(--tfx-color)),
+    0 0 calc(28px * var(--tfx-intensity)) var(--tfx-glow-color, var(--tfx-color)),
     calc(1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(0,255,255,0.6),
     calc(-1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(255,0,128,0.6);
 }

@@ -52,8 +52,10 @@ function listComponents() {
  * @param {string} id  컴포넌트 id
  */
 function insertComponent(id) {
-  const list = _load();
-  const comp = list.find(c => c.id === id);
+  // 내장 컴포넌트는 build()로 매번 새 HTML(새 id) 생성
+  const builtin = _BUILTINS.find(b => b.id === id);
+  const comp = builtin ? { name: builtin.name, html: builtin.build() }
+                       : _load().find(c => c.id === id);
   if (!comp) {
     window.showToast && window.showToast('컴포넌트를 찾을 수 없습니다.');
     return;
@@ -87,6 +89,30 @@ function deleteComponent(id) {
   const list = _load().filter(c => c.id !== id);
   _save(list);
 }
+
+// ── 내장(built-in) 컴포넌트 ───────────────────────────
+// 사용자가 저장한 컴포넌트 외에, 항상 제공되는 기본 컴포넌트.
+// 브릿지: 풀폭 밴드 + 상단 중앙 V홈(섹션 배경 비침) — 섹션 경계에 끼워 "아래로 이어짐" 방향 표시 커버.
+function _bridgeGenId(p) {
+  return (typeof window.genId === 'function') ? window.genId(p) : p + '_' + Math.random().toString(36).slice(2, 9);
+}
+function _buildBridgeHtml(color) {
+  const c = color || '#9a8a78';
+  const secId = _bridgeGenId('sec');
+  // viewBox 0 0 860 90, 풀폭 stretch(preserveAspectRatio=none). 상단 중앙이 (430,88)까지 파인 깔때기 V홈.
+  const path = 'M0 0 L370 0 C410 0 415 88 430 88 C445 88 450 0 490 0 L860 0 L860 90 L0 90 Z';
+  return `<div class="section-block" data-section="99" id="${secId}" data-name="Bridge" style="background-color:transparent">
+      <div class="section-hitzone"><span class="section-label">Bridge</span></div>
+      <div class="section-inner" style="padding:0">
+        <div class="bridge-cover" data-bridge-color="${c}" style="width:100%;aspect-ratio:860/90;line-height:0;font-size:0;">
+          <svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${c}"/></svg>
+        </div>
+      </div>
+    </div>`;
+}
+const _BUILTINS = [
+  { id: 'builtin_bridge', name: '브릿지 (V 커버)', builtin: true, build: () => _buildBridgeHtml() },
+];
 
 // ── 패널 UI ───────────────────────────────────────────
 
@@ -179,8 +205,20 @@ function _renderList() {
 
   const comps = listComponents();
 
+  // 내장 컴포넌트(삭제 불가, "내장" 뱃지) — 항상 상단에 표시
+  const builtinHtml = _BUILTINS.map(b => `
+    <div class="comp-shelf-card" data-id="${b.id}">
+      <div class="comp-shelf-card-info">
+        <div class="comp-shelf-card-name">${_escHtml(b.name)} <span style="font-size:9px;color:#7a9;border:1px solid #2a4a3a;border-radius:3px;padding:0 4px;margin-left:2px;">내장</span></div>
+      </div>
+      <div class="comp-shelf-card-actions">
+        <button class="comp-shelf-insert-btn" data-id="${b.id}" title="캔버스에 삽입">삽입</button>
+      </div>
+    </div>
+  `).join('');
+
   if (comps.length === 0) {
-    listEl.innerHTML = `
+    listEl.innerHTML = builtinHtml + `
       <div class="comp-shelf-empty">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#444" stroke-width="1.3">
           <rect x="3" y="3" width="10" height="10" rx="1.5"/>
@@ -191,10 +229,14 @@ function _renderList() {
         <span>저장된 컴포넌트가 없습니다.<br>섹션을 선택 후 저장해보세요.</span>
       </div>
     `;
+    // 내장 삽입 버튼 바인딩
+    listEl.querySelectorAll('.comp-shelf-insert-btn').forEach(btn => {
+      btn.addEventListener('click', () => { insertComponent(btn.dataset.id); closeShelfPanel(); });
+    });
     return;
   }
 
-  listEl.innerHTML = comps.map(c => `
+  listEl.innerHTML = builtinHtml + comps.map(c => `
     <div class="comp-shelf-card" data-id="${c.id}">
       <div class="comp-shelf-card-info">
         <div class="comp-shelf-card-name">${_escHtml(c.name)}</div>
