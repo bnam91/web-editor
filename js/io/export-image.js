@@ -167,7 +167,7 @@ function flattenCvbTransform(cvbEl) {
   cvbEl.style.height    = inner.style.height;
 }
 
-async function exportSection(sec, format, width) {
+async function exportSection(sec, format, width, opts) {
   const fmt = format || 'png';
   const w   = width  || CANVAS_W;
   const isGif     = fmt === 'gif' || fmt === 'gif-anim';
@@ -478,6 +478,10 @@ async function exportSection(sec, format, width) {
     if (!isGif) {
       // ── 기존 PNG/JPG 경로 ────────────────────────────────────────
       const outCanvas = await captureCloneToCanvas();
+      // 채점용: 다운로드 대신 dataURL 반환 (goditor ground-truth 캡처)
+      if (opts && opts.returnDataUrl) {
+        return outCanvas.toDataURL('image/png'); // clone 정리는 함수 끝 finally가 수행
+      }
       const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
       const ext  = fmt === 'jpg' ? 'jpg' : 'png';
       await new Promise((res, rej) => {

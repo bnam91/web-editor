@@ -303,7 +303,17 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       };
     }
     if (el.classList.contains('asset-block')) {
-      const sizePct   = parseInt(el.dataset.size) || 100;
+      // dataset.size 우선, 없으면 실제 렌더 폭/섹션폭으로 산출(중앙정렬 가정) — 풀블리드 오인 방지.
+      // ⚠️ offsetWidth는 detached/레이아웃前엔 0 → 인라인 style.width로 폴백(클론DOM·리로드직후 안전).
+      let sizePct = parseInt(el.dataset.size);
+      if (!sizePct) {
+        const secEl = el.closest('.section-block');
+        const renderedW = el.offsetWidth || parseFloat(el.style.width) || 0;
+        const secW = (secEl && secEl.offsetWidth) || parseFloat(secEl && secEl.style.width) || 860;
+        sizePct = (renderedW > 0 && secW > 0)
+          ? Math.max(1, Math.min(100, Math.round(renderedW / secW * 100)))
+          : 100;
+      }
       // (가) 설계: effective usePadx — dataset 명시값 우선, 미설정이면 글로벌 디폴트
       const usePadx   = typeof window.getEffectiveUsePadx === 'function'
         ? window.getEffectiveUsePadx(el)
@@ -341,22 +351,45 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       };
     }
     if (el.classList.contains('table-block')) {
-      const table    = el.querySelector('.tb-table');
-      const rowCount = (table?.querySelectorAll('tbody tr').length || 2) + 1; // +1 for header
-      const fontSize = parseInt(table?.style.fontSize) || 28;
-      const cellPad  = parseInt(el.dataset.cellPad) || 10;
-      const approxH  = rowCount * (fontSize + cellPad * 2 + 4) + 24;
+      const table   = el.querySelector('.tb-table');
+      const trEls    = table ? [...table.querySelectorAll('tr')] : [];
+      const rows = trEls.map(tr => ({
+        header: !!(tr.parentElement && tr.parentElement.tagName === 'THEAD'),
+        cells:  [...tr.querySelectorAll('th,td')].map(c => ({
+          text:  (c.innerText || '').trim(),
+          align: c.style.textAlign || el.dataset.cellAlign || 'center',
+        })),
+      }));
+      const colCount = rows.length ? Math.max(...rows.map(r => r.cells.length)) : 2;
+      const firstCell = table?.querySelector('td,th');
+      let fontSize = 28;
+      try { if (firstCell) fontSize = Math.round(parseFloat(window.getComputedStyle(firstCell).fontSize)) || 28; } catch {}
+      const realH = Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0);
       return {
-        type:    'table',
-        id:      el.id || ('tbl_' + Math.random().toString(36).slice(2, 8)),
-        height:  approxH,
-        colCount: table?.querySelector('tr')?.querySelectorAll('th,td').length || 2,
-        rowCount,
+        type:       'table',
+        id:         el.id || ('tbl_' + Math.random().toString(36).slice(2, 8)),
+        rows,
+        colCount,
+        rowCount:   rows.length,
+        showHeader: el.dataset.showHeader !== 'false',
+        showVLines: el.dataset.showVLines !== 'false',
+        showHLines: el.dataset.showHLines !== 'false',
+        lineColor:  el.dataset.lineColor  || '#cccccc',
+        headerBg:   el.dataset.headerBg   || '#f0f0f0',
+        textColor:  el.dataset.textColor  || '#222222',
+        cellAlign:  el.dataset.cellAlign  || 'center',
+        fontSize,
+        rowH:       parseInt(el.dataset.rowH) || 0,
+        height:     realH || (rows.length * (fontSize + 28) + 24),
       };
     }
     if (el.classList.contains('canvas-block')) {
       let cards = [];
       try { cards = JSON.parse(el.dataset.cards || '[]'); } catch {}
+      // cvb-inner는 캔버스 디자인공간을 섹션공간으로 scale 축소 → 폰트크기에 곱해야 실제 렌더와 일치.
+      const cvbInner = el.querySelector('.cvb-inner');
+      const sm = /scale\(([\d.]+)\)/.exec(cvbInner && cvbInner.style.transform || '');
+      const cvbScale = sm ? parseFloat(sm[1]) : 1;
       return {
         type:      'card-grid',
         id:        el.id || ('cvb_' + Math.random().toString(36).slice(2, 8)),
@@ -370,11 +403,199 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         imgRatio:  parseInt(el.dataset.imgRatio)  || 75,
         cardMode:  el.dataset.cardMode || 'simple',
         textBg:    el.dataset.textBg   || '#cccccc',
-        titleSize: parseInt(el.dataset.titleSize) || 32,
-        descSize:  parseInt(el.dataset.descSize)  || 20,
+        titleSize: Math.round((parseInt(el.dataset.titleSize) || 32) * cvbScale),
+        descSize:  Math.round((parseInt(el.dataset.descSize)  || 20) * cvbScale),
+        titleColor: el.dataset.titleColor || '',
+        descColor:  el.dataset.descColor  || '',
+        iconColor:  el.dataset.iconColor  || '',
         textAlign: el.dataset.textAlign || 'center',
         padX:      ps?.padX || 0,
         height:    Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 400),
+      };
+    }
+    if (el.classList.contains('chat-block')) {
+      let messages = [];
+      try { messages = JSON.parse(el.dataset.messages || '[]'); } catch {}
+      return {
+        type:       'chat',
+        id:         el.id || ('chb_' + Math.random().toString(36).slice(2, 8)),
+        messages:   messages.map(m => ({ text: m.text || '', align: m.align === 'right' ? 'right' : 'left' })),
+        fontSize:   parseInt(el.dataset.fontSize) || 32,
+        bgLeft:     el.dataset.bgLeft    || '#e5e5ea',
+        bgRight:    el.dataset.bgRight   || '#1888fe',
+        colorLeft:  el.dataset.colorLeft || '#111111',
+        colorRight: el.dataset.colorRight|| '#ffffff',
+        radius:     parseInt(el.dataset.radius)  || 16,
+        gap:        parseInt(el.dataset.gap)     || 8,
+        padding:    parseInt(el.dataset.padding) || 16,
+        height:     Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 200),
+      };
+    }
+    // ── ICON (icon-block) : SVG 아이콘 ──
+    if (el.classList.contains('icon-block')) {
+      const size = parseInt(el.dataset.size) || parseFloat(el.style.width) || 48;
+      return {
+        type: 'icon', id: el.id || '',
+        svg: el.dataset.iconSvg || (el.querySelector('svg')?.outerHTML) || '',
+        color: el.dataset.iconColor || '#000000',
+        size, rotation: parseInt(el.dataset.rotation) || 0,
+        height: size,
+      };
+    }
+    // ── DIVIDER (divider-block) : 선 (가로=두께가 높이, 세로=lineLength가 높이) ──
+    if (el.classList.contains('divider-block')) {
+      const padV = parseInt(el.dataset.padV) || 0;
+      const weight = parseInt(el.dataset.lineWeight) || 1;
+      const dir = el.dataset.lineDir || 'horizontal';
+      const lineLength = parseInt(el.dataset.lineLength) || 100; // 가로=% , 세로=px
+      const height = dir === 'vertical' ? (padV * 2 + lineLength) : (padV * 2 + weight);
+      return {
+        type: 'divider', id: el.id || '',
+        color: el.dataset.lineColor || '#cccccc',
+        weight, lineLength, dir, padV, height,
+      };
+    }
+    // ── GRAPH (graph-block) : 막대/라인 차트 ──
+    if (el.classList.contains('graph-block')) {
+      let items = []; try { items = JSON.parse(el.dataset.items || '[]'); } catch {}
+      return {
+        type: 'graph', id: el.id || '',
+        chartType: el.dataset.chartType || 'bar',
+        items,
+        height: parseInt(el.dataset.chartHeight) || parseFloat(el.style.height) || 300,
+      };
+    }
+    // ── SHAPE (shape-block) : 도형(선/사각/원) ──
+    if (el.classList.contains('shape-block')) {
+      return {
+        type: 'shape', id: el.id || '',
+        shapeType: el.dataset.shapeType || 'rect',
+        color: el.dataset.shapeColor || '#cccccc',
+        strokeWidth: parseInt(el.dataset.shapeStrokeWidth) || 1,
+        rotation: parseInt(el.dataset.shapeRotation) || 0,
+        width: parseFloat(el.style.width) || 75,
+        height: parseFloat(el.style.height) || 75,
+      };
+    }
+    // ── STEP (step-block) : 번호badge + 제목/설명 카드 ──
+    if (el.classList.contains('step-block')) {
+      let steps = []; try { steps = JSON.parse(el.dataset.steps || '[]'); } catch {}
+      return {
+        type: 'step', id: el.id || '',
+        steps: steps.map(s => ({ title: s.title || '', desc: s.desc || '' })),
+        startNumber: parseInt(el.dataset.startNumber) || 1,
+        numBg: el.dataset.numBg || '#222222',
+        numColor: el.dataset.numColor || '#ffffff',
+        numSize: parseInt(el.dataset.numSize) || 50,
+        titleSize: parseInt(el.dataset.titleSize) || 36,
+        descSize: parseInt(el.dataset.descSize) || 24,
+        titleColor: el.dataset.titleColor || '#222222',
+        descColor: el.dataset.descColor || '#888888',
+        cardBg: el.dataset.stepCardBg || '#ffffff',
+        badgeFormat: el.dataset.badgeFormat || 'padded',
+        badgeGap: parseInt(el.dataset.badgeGap) || 20,
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 80),
+      };
+    }
+    // ── BANNER02 (banner02-block) : 라운드 컬러박스 + 텍스트스택 + 이미지 ──
+    if (el.classList.contains('banner02-block')) {
+      let lines = []; try { lines = JSON.parse(el.dataset.lines || '[]'); } catch {}
+      return {
+        type: 'banner02', id: el.id || '',
+        bannerW: parseInt(el.dataset.bannerW) || 780,
+        bannerH: parseInt(el.dataset.bannerH) || 260,
+        radius: parseInt(el.dataset.radius) || 20,
+        bg: el.dataset.bg || '#1a1f3d',
+        textX: parseInt(el.dataset.textX) || 36,
+        textY: parseInt(el.dataset.textY) || 35,
+        textW: parseInt(el.dataset.textW) || 358,
+        lines: lines.map(l => ({ kind: l.kind, text: l.text || '', size: l.size || 16, color: l.color || '#ffffff', gapTop: l.gapTop || 0, weight: l.fontWeight || 400 })),
+        imgSrc: el.dataset.imgSrc || '',
+        imgX: parseInt(el.dataset.imgX) || 0, imgY: parseInt(el.dataset.imgY) || 0,
+        imgW: parseInt(el.dataset.imgW) || 0, imgH: parseInt(el.dataset.imgH) || 0,
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || (parseInt(el.dataset.bannerH) || 260)),
+      };
+    }
+    // comparison 행 셀: 문자열은 그대로, 객체면 텍스트 추출(예전 [object Object] 갭 방지)
+    function _cmpCell(r) {
+      if (typeof r === 'string') return r;
+      if (r && typeof r === 'object') {
+        const v = r.text ?? r.value ?? r.label ?? r.title ?? r.name;
+        if (v != null) return String(v);
+        const strs = Object.values(r).filter(x => typeof x === 'string' && x.trim());
+        return strs.join(' ');
+      }
+      return r == null ? '' : String(r);
+    }
+    // ── COMPARISON (comparison-block) : 2열 비교(헤더+행, featured 강조) ──
+    if (el.classList.contains('comparison-block')) {
+      let cols = []; try { cols = JSON.parse(el.dataset.cols || '[]'); } catch {}
+      const feat = el.dataset.featured;
+      return {
+        type: 'comparison', id: el.id || '',
+        cols: cols.map(c => ({ title: c.title || '', bg: c.bg || '', text: c.text || '', rows: (c.rows || []).map(_cmpCell) })),
+        featured: (feat !== undefined && feat !== '') ? parseInt(feat) : -1,
+        compW: parseInt(el.dataset.compW) || 720,
+        titleFont: parseInt(el.dataset.titleFont) || 38,
+        rowFont: parseInt(el.dataset.rowFont) || 32,
+        headerH: parseInt(el.dataset.headerH) || 72,
+        rowH: parseInt(el.dataset.rowH) || 74,
+        rowGap: parseInt(el.dataset.rowGap) || 12,
+        radius: parseInt(el.dataset.radius) || 20,
+        featScale: parseFloat(el.dataset.featScale) || 1.2,
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 400),
+      };
+    }
+    // ── MOCKUP (mockup-block) : 디바이스 프레임 이미지 ──
+    if (el.classList.contains('mockup-block')) {
+      const img = el.querySelector('img');
+      return {
+        type: 'mockup', id: el.id || '',
+        imgSrc: img ? img.src : '',
+        width: parseInt(el.dataset.width) || 575,
+        offsetX: parseInt(el.dataset.offsetX) || 0,
+        offsetY: parseInt(el.dataset.offsetY) || 0,
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 400),
+      };
+    }
+    // ── LINER (liner-block) : 곡선텍스트 → 렌더된 SVG 그대로 임베드 ──
+    if (el.classList.contains('liner-block')) {
+      const svg = el.querySelector('svg');
+      return {
+        type: 'liner', id: el.id || '',
+        svg: svg ? svg.outerHTML : '',
+        width: Math.round((el.id && document.getElementById(el.id)?.offsetWidth) || el.offsetWidth || 716),
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 56),
+      };
+    }
+    // ── LAUREL (laurel-block) : 월계관 잎 SVG + 중앙 텍스트 ──
+    if (el.classList.contains('laurel-block')) {
+      let cells = []; try { cells = JSON.parse(el.dataset.cells || '[]'); } catch {}
+      const leaf = el.querySelector('svg');
+      return {
+        type: 'laurel', id: el.id || '',
+        cells, leafSvg: leaf ? leaf.outerHTML : '',
+        height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 116),
+      };
+    }
+    // ── GENERIC 폴백 (잔여) ──
+    //    드롭 방지: 높이 보존 + 배경 + 내부 텍스트/아이콘 살림. (완벽 레이아웃은 후속 refinement)
+    if (/(-block)$/.test([...el.classList].find(c => c.endsWith('-block')) || '')) {
+      const w = parseInt(el.dataset.bannerW || el.dataset.compW || el.dataset.width) || parseFloat(el.style.width) || null;
+      const h = parseInt(el.dataset.bannerH || el.dataset.chartHeight) || parseFloat(el.style.height)
+                || Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0);
+      const texts = [];
+      el.querySelectorAll('[class^="tb-"], [class*=" tb-"]').forEach(t => {
+        const tx = (t.innerText || '').trim();
+        if (tx) { const cs = (typeof window.getComputedStyle === 'function') ? window.getComputedStyle(t) : {};
+          texts.push({ t: tx, fs: parseInt(cs.fontSize) || 24, color: cs.color || '#111111',
+            x: parseFloat(t.style.left) || 0, y: parseFloat(t.style.top) || 0 }); }
+      });
+      const ds = el.dataset || {};
+      return {
+        type: 'generic', id: el.id || '', kind: ds.type || '',
+        width: w, height: h || 0, bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
+        svg: el.querySelector('svg')?.outerHTML || '', texts,
       };
     }
     return null;
@@ -388,7 +609,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       return parsed ? [parsed] : [];
     }
     // col 래퍼 없이 블록이 row 직속 자식인 경우 (stack layout full-width 블록 등)
-    const DIRECT_BLOCK_SEL = ':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block';
+    const DIRECT_BLOCK_SEL = ':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block';
     const hasDirectBlocks = rowEl.querySelector(DIRECT_BLOCK_SEL);
     if (hasDirectBlocks && !rowEl.querySelector(':scope > .col')) {
       const blocks = [];
@@ -402,7 +623,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     rowEl.querySelectorAll(':scope > .col').forEach(col => {
       const w = parseInt(col.dataset.width) || 100;
       const blocks = [];
-      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block').forEach(b => {
+      col.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .graph-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block').forEach(b => {
         const parsed = _block(b, ps);
         if (parsed) blocks.push(parsed);
       });
@@ -425,11 +646,31 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
 
     const blocks = [];
     function _processFrameBlock(fb) {
-      fb.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .graph-block').forEach(b => {
+      fb.querySelectorAll(':scope > .text-block, :scope > .asset-block, :scope > .gap-block, :scope > .label-group-block, :scope > .icon-circle-block, :scope > .table-block, :scope > .canvas-block, :scope > .graph-block, :scope > .chat-block, :scope > .icon-block, :scope > .divider-block, :scope > .shape-block, :scope > .banner02-block, :scope > .step-block, :scope > .comparison-block, :scope > .mockup-block, :scope > .laurel-block, :scope > .liner-block').forEach(b => {
         const parsed = _block(b, psEx);
         if (parsed) blocks.push(parsed);
       });
       fb.querySelectorAll(':scope > .frame-block').forEach(nested => _processFrameBlock(nested));
+    }
+    // free-layout 프레임: 절대배치 구조 보존(높이·배경·자식 위치) → 렌더 충실도↑.
+    function _frameBlock(fb) {
+      const w = parseInt(fb.dataset.width) || null;
+      const h = parseInt(fb.dataset.height) || parseFloat(fb.style.height) || 0;
+      const free = fb.dataset.freeLayout === 'true';
+      const children = [];
+      [...fb.children].forEach(c => {
+        const x = parseFloat(c.style.left) || 0;
+        const y = parseFloat(c.style.top) || 0;
+        const cwRaw = (c.style.width || '').trim();
+        const cw = cwRaw.endsWith('%') ? Math.round((parseFloat(cwRaw) / 100) * (w || 716)) : (parseFloat(cwRaw) || (w || 716));
+        let innerB = c.classList.contains('frame-block') ? _frameBlock(c) : _block(c, psEx);
+        if (innerB) {
+          if (free && innerB.type === 'text') innerB.padding = { top: 0, right: 0, bottom: 0, left: 0 };
+          children.push({ x, y, w: cw, block: innerB });
+        }
+      });
+      return { type: 'frame', id: fb.id || '', width: w, height: h,
+               bg: fb.dataset.bg || '', radius: parseInt(fb.dataset.radius) || 0, free, children };
     }
     [...inner.children].forEach(child => {
       if (child.classList.contains('row')) {
@@ -441,15 +682,30 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       } else if (child.classList.contains('gap-block')) {
         blocks.push({ type: 'gap', height: parseFloat(child.style.height) || 50 });
       } else if (child.classList.contains('frame-block')) {
-        _processFrameBlock(child);
+        if (child.dataset.freeLayout === 'true') blocks.push(_frameBlock(child));
+        else _processFrameBlock(child);
+      } else if (child.matches('.text-block, .asset-block, .icon-block, .icon-circle-block, .table-block, .chat-block, .canvas-block, .graph-block, .divider-block, .shape-block, .label-group-block, .banner02-block, .step-block, .comparison-block, .mockup-block, .laurel-block, .liner-block')) {
+        // section-inner 직속 콘텐츠 블록(row/frame 미포함) — 드롭 방지.
+        const parsed = _block(child, psEx);
+        if (parsed) blocks.push(parsed);
       }
     });
-    const bg = secEl.style.backgroundColor || secEl.style.background || '';
+    const bgColor = secEl.style.backgroundColor || '';
+    const styleAttr = secEl.getAttribute('style') || '';
+    const bgImgRaw = secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '';
+    // 섹션 배경: 이미지(data URI) / 그라디언트 / 솔리드 분기
+    let bgImage = '';
+    const urlM = /url\(["']?(data:image[^"')]+)["']?\)/.exec(bgImgRaw);
+    if (urlM) bgImage = urlM[1];
+    const isGradient = /gradient/.test(bgImgRaw) && !urlM;
+    let background = (bgColor && bgColor !== 'transparent' && bgColor !== 'rgba(0, 0, 0, 0)') ? bgColor : '';
+    // 자체 bg 없는 섹션은 페이지 배경(pageSettings.bg)을 fallback — goditor exportSection과 동일.
+    // (예전엔 흰색 하드코딩이라 회색 페이지배경 섹션이 Figma에서 흰색이 되는 갭이 있었음)
+    if (!background) background = isGradient ? '#eeeeee' : (ps.bg || '#ffffff'); // 그라디언트 오버레이는 근사 솔리드
     const name = secEl.dataset.name
       || secEl.querySelector('.section-label')?.textContent?.trim()
       || 'Section';
-    // 섹션 DOM id (sec_xxx) 포함
-    return { id: secEl.id || '', name, background: bg || '#ffffff', blocks };
+    return { id: secEl.id || '', name, background, bgImage, blocks };
   }
 
   const parser = new DOMParser();

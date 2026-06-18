@@ -1163,8 +1163,8 @@ ipcMain.handle('figma:upload', (event, { channel, designJSON }) => {
     const timer = setTimeout(() => {
       child.kill();
       cleanup();
-      resolve({ success: false, logs: '❌ 타임아웃 (120초 초과)' });
-    }, 120000);
+      resolve({ success: false, logs: '❌ 타임아웃 (3600초 초과)' });
+    }, 3600000);
 
     child.on('close', (code) => {
       clearTimeout(timer);
