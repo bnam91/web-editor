@@ -700,10 +700,16 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     const urlM = /url\(["']?(data:image[^"')]+)["']?\)/.exec(bgImgRaw);
     if (urlM) bgImage = urlM[1];
     const isGradient = /gradient/.test(bgImgRaw) && !urlM;
-    let background = (bgColor && bgColor !== 'transparent' && bgColor !== 'rgba(0, 0, 0, 0)') ? bgColor : '';
-    // 자체 bg 없는 섹션은 페이지 배경(pageSettings.bg)을 fallback — goditor exportSection과 동일.
-    // (예전엔 흰색 하드코딩이라 회색 페이지배경 섹션이 Figma에서 흰색이 되는 갭이 있었음)
-    if (!background) background = isGradient ? '#eeeeee' : (ps.bg || '#ffffff'); // 그라디언트 오버레이는 근사 솔리드
+    // 섹션 실제 렌더색을 라이브 getComputedStyle로 읽는다 — .section-block{background:#fff}
+    // 클래스 때문에 흰 섹션(74개)이 흰색으로 잡힌다. 진짜 투명한 섹션만 페이지배경(ps.bg)으로 채운다.
+    // (예전엔 inline bg만 보고 흰 섹션에 ps.bg(회색)를 과적용해 Figma만 회색 되는 역갭이 있었음)
+    const _liveEl = secEl.id ? document.getElementById(secEl.id) : null;
+    const _liveBg = _liveEl ? getComputedStyle(_liveEl).backgroundColor : '';
+    const _liveOpaque = _liveBg && _liveBg !== 'transparent' && !/rgba\([^)]*,\s*0\s*\)/.test(_liveBg);
+    let background;
+    if (_liveOpaque) background = _liveBg;
+    else if (bgColor && bgColor !== 'transparent' && bgColor !== 'rgba(0, 0, 0, 0)') background = bgColor;
+    else background = isGradient ? '#eeeeee' : (ps.bg || '#ffffff'); // 진짜 투명 섹션 → 페이지 회색
     const name = secEl.dataset.name
       || secEl.querySelector('.section-label')?.textContent?.trim()
       || 'Section';
