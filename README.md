@@ -168,7 +168,26 @@ _context/                        ← 설계 문서 (DESIGN_SYSTEM.md 등)
           → Figma Plugin API
 ```
 
-**플러그인 실행**: `npm run figma` → Figma에서 플러그인 열고 채널 코드 입력
+### Figma 플러그인 연결 (Goya Talk to Figma)
+
+**① WebSocket 서버 실행** (포트 3055, 켜둔 채로):
+```bash
+npm run figma            # = bun figma-plugin/socket.js
+# 확인: lsof -nP -iTCP:3055 -sTCP:LISTEN
+```
+
+**② 플러그인 임포트 — 컴퓨터당 최초 1회만**:
+1. **Figma 데스크톱 앱**(브라우저 ❌ — localhost는 데스크톱만) 실행
+2. 상단 메뉴 **Plugins → Development → "Import plugin from manifest…"** 선택 ("New plugin…" 아님)
+3. 파일선택 창에서 **`figma-plugin/manifest.json`** 고르기 (Finder `Cmd+Shift+G`로 경로 붙여넣기 편함)
+4. → **"Goya Talk to Figma"** 가 Plugins → Development 목록에 등록됨
+
+**③ 매 세션 연결**:
+1. export 대상 Figma 파일 열기
+2. 캔버스 우클릭(또는 상단 Plugins 메뉴) → **Development → Goya Talk to Figma** 실행
+3. 플러그인 창에서 **Connect** 클릭 → **8자 채널명**이 표시됨(클릭하면 복사)
+4. 그 채널명을 업로드/스크립트(`--channel`)에 사용. 연결 확인 신호: `load_font_async` 성공
+5. ⚠️ 채널은 Connect마다 새로 생성됨. 서버(3055) 재시작/플러그인 재실행 시 재연결 필요
 
 ---
 
