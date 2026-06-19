@@ -1063,6 +1063,12 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const w = block.width || 575;
     const h = block.height || 400;
     const mx = x + (block.offsetX || 0);
+    // 디바이스 PNG 투명 화면영역이 흰 배경 비치는 것 방지: mockup 프레임 아래(z하위)에 dark 스크린 사각형 먼저 생성
+    // → PNG 화면(투명)으로 dark가 비쳐 goditor 검정화면과 일치. (set_image_fill이 fills를 replace해도 별 레이어라 안전)
+    if (block.imgSrc) {
+      const _sbg = run('create_frame', { x: mx, y: y + (block.offsetY || 0), width: w, height: h, name: `mockup_screenbg_${block.id || ''}`, parentId });
+      if (_sbg) run('set_fill_color', { nodeId: _sbg.id, color: { r: 0.07, g: 0.07, b: 0.07, a: 1 } });
+    }
     const frame = run('create_frame', { x: mx, y: y + (block.offsetY || 0), width: w, height: h, name: `mockup_${block.id || ''}`, parentId });
     if (!frame) return h;
     let b64 = '';
@@ -1074,12 +1080,8 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         b64 = block.imgSrc.split(',')[1];
       }
     } catch (e) {}
-    if (b64) {
-      // 디바이스 PNG 화면영역이 투명할 수 있어 뒤에 dark를 깔아 goditor 화면(검정)과 일치(흰 배경 비침 방지).
-      // set_image_fill이 fills를 append하면 화면=dark, replace해도 무해(기존과 동일).
-      run('set_fill_color', { nodeId: frame.id, color: { r: 0.07, g: 0.07, b: 0.07, a: 1 } });
-      run('set_image_fill', { nodeId: frame.id, imageSource: b64, sourceType: 'base64', scaleMode: 'FIT' }, { timeout: 25000 });
-    } else run('set_fill_color', { nodeId: frame.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
+    if (b64) run('set_image_fill', { nodeId: frame.id, imageSource: b64, sourceType: 'base64', scaleMode: 'FIT' }, { timeout: 25000 });
+    else run('set_fill_color', { nodeId: frame.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
     return h;
   }
 
