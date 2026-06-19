@@ -191,8 +191,11 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const frame = run('create_frame', { x: fx, y, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId });
     if (!frame) return fh;
     const bgc = (block.bg || '').trim();
-    if (bgc.startsWith('#')) run('set_fill_color', { nodeId: frame.id, color: hex(bgc) });
-    else run('set_fill_color', { nodeId: frame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+    // 프레임 배경: #hex 뿐 아니라 rgb()/rgba()도 파싱(예: 카드 rgba(255,255,255,.55) — 이전엔 미파싱→투명 드롭으로 카드 사라짐).
+    let _fc = null;
+    if (bgc.startsWith('#')) _fc = hex(bgc);
+    else { const _m = bgc.match(/rgba?\(([^)]+)\)/); if (_m) { const _p = _m[1].split(',').map(s => parseFloat(s)); _fc = { r: (_p[0] || 0) / 255, g: (_p[1] || 0) / 255, b: (_p[2] || 0) / 255, a: _p[3] !== undefined ? _p[3] : 1 }; } }
+    run('set_fill_color', { nodeId: frame.id, color: _fc || { r: 1, g: 1, b: 1, a: 0 } });
     if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
     if (block.free) {
       for (const ch of (block.children || [])) {
@@ -1071,8 +1074,12 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         b64 = block.imgSrc.split(',')[1];
       }
     } catch (e) {}
-    if (b64) run('set_image_fill', { nodeId: frame.id, imageSource: b64, sourceType: 'base64', scaleMode: 'FIT' }, { timeout: 25000 });
-    else run('set_fill_color', { nodeId: frame.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
+    if (b64) {
+      // 디바이스 PNG 화면영역이 투명할 수 있어 뒤에 dark를 깔아 goditor 화면(검정)과 일치(흰 배경 비침 방지).
+      // set_image_fill이 fills를 append하면 화면=dark, replace해도 무해(기존과 동일).
+      run('set_fill_color', { nodeId: frame.id, color: { r: 0.07, g: 0.07, b: 0.07, a: 1 } });
+      run('set_image_fill', { nodeId: frame.id, imageSource: b64, sourceType: 'base64', scaleMode: 'FIT' }, { timeout: 25000 });
+    } else run('set_fill_color', { nodeId: frame.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
     return h;
   }
 
