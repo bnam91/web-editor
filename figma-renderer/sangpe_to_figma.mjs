@@ -670,9 +670,10 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           console.log(`      · image ${availableWidth}×${imgH} → ${node.id} ✓ 이미지 적용`);
         }
       } else {
-        // 이미지 없으면 회색 플레이스홀더
-        run('set_fill_color', { nodeId: node.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
-        console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (플레이스홀더)`);
+        // 이미지 없는 빈 슬롯: goditor는 체커보드를 숨겨 투명(섹션 배경 비침)으로 렌더 →
+        // Figma도 투명(a:0)으로 둬 섹션 배경이 비치게 한다(회색박스 갭 제거, 높이는 유지). goditor 일치.
+        run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+        console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (빈 슬롯 투명)`);
       }
       if ((s.borderRadius || 0) > 0)
         run('set_corner_radius', { nodeId: node.id, radius: s.borderRadius });
