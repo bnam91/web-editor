@@ -226,7 +226,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     if (el.classList.contains('gap-block')) {
       return { type: 'gap', height: parseFloat(el.style.height) || 50 };
     }
-    if (el.classList.contains('text-block')) {
+    if (el.classList.contains('text-block') && !el.classList.contains('liner-block')) {
+      // liner-block(곡선텍스트 SVG)은 text-block 클래스도 갖지만 tb-inner가 없어
+      // 여기서 null 드롭됐었음 → liner-block 핸들러(아래)로 흘려보낸다.
       const inner = el.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label');
       if (!inner) return null;
       const padX = ps?.padX || 0;
