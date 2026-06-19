@@ -202,7 +202,7 @@ async function exportSection(sec, format, width, opts) {
   });
   // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
   // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
-  const useNative = !!window.electronAPI?.captureSection;
+  const useNative = !(opts && opts.forceH2C) && !!window.electronAPI?.captureSection;
   clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
 
   // P1 우회 부수 안정성: clone 자체를 stacking context로 격리 + 부모 transform 영향 차단
