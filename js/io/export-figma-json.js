@@ -239,9 +239,14 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         : inner.classList.contains('tb-caption') ? 'caption' : 'label';
       const style = _getTextStyle(inner, el);
 
-      // label: 텍스트 색상을 CSS 변수에서 직접 가져옴 (DOMParser에서 var() 미해석 대응)
+      // label: 개별 라벨의 라이브 computed-style(bg/색)을 우선 — 전역 ps.labelBg/labelColor 하드코딩은 흰bg/검은글자 라벨을 뒤집음(회차12 tja5ovp).
+      // 라이브 못 찾으면(클론DOM·var() 미해석) ps 폴백.
+      const _liveLabel = (variant === 'label' && el.id) ? (document.getElementById(el.id)?.querySelector('.tb-label') || null) : null;
+      const _liveLabelBg = _liveLabel ? getComputedStyle(_liveLabel).backgroundColor : '';
+      const _liveLabelColor = _liveLabel ? getComputedStyle(_liveLabel).color : '';
+      const _labelBgOpaque = _liveLabelBg && _liveLabelBg !== 'transparent' && !/rgba\([^)]*,\s*0\s*\)/.test(_liveLabelBg);
       const textColor = variant === 'label'
-        ? (ps?.labelColor || '#ffffff')
+        ? (_liveLabelColor || ps?.labelColor || '#ffffff')
         : style.color;
 
       const block = {
@@ -272,7 +277,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         // 개별 라벨의 inline borderRadius 우선, 없으면 프리셋 fallback
         const inlineRadius = parseFloat(inner.style.borderRadius);
         block.labelBox = {
-          bg:       ps?.labelBg     || '#111111',
+          bg:       _labelBgOpaque ? _liveLabelBg : (ps?.labelBg || '#111111'),
           radius:   !isNaN(inlineRadius) ? inlineRadius : (ps?.labelRadius || 8),
           paddingH: 36,
           paddingV: 11,
@@ -342,10 +347,24 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     if (el.classList.contains('icon-circle-block')) {
       const size    = parseInt(el.dataset.size) || 240;
-      // 빈 아이콘서클은 .icb-circle가 체커보드(repeating-conic-gradient)인데 goditor exportSection이 숨겨 투명 캡처됨.
-      // dataset.bgColor는 사용자가 색을 지정했을 때만 존재 → 없으면 null로 둬 sangpe가 투명 렌더(회색 #e8e8e8 하드코딩 제거, goditor 일치).
-      const bgColor = el.dataset.bgColor || null;
       const imgSrc  = el.dataset.imgSrc  || null;
+      // 빈 원 신호 = .icb-circle가 체커보드(repeating-conic-gradient) & 투명 배경(섹션bg fix와 동일 live computed-style 판정).
+      // dataset.bgColor는 빈 원도 기본 placeholder '#e8e8e8'가 박혀 있어 신호로 못 씀(회차12 imac 정정).
+      // → live .icb-circle computed-style: 체커보드면 빈 원=bgColor null(투명), 솔리드 색이면 그 색.
+      let bgColor = null;
+      const _live = el.id ? document.getElementById(el.id) : null;
+      const _circ = _live ? _live.querySelector('.icb-circle') : null;
+      if (_circ) {
+        const _cs = getComputedStyle(_circ);
+        const _checker = /repeating-conic-gradient/.test(_cs.backgroundImage || '');
+        const _bg = _cs.backgroundColor || '';
+        const _opaque = _bg && _bg !== 'transparent' && !/rgba\([^)]*,\s*0\s*\)/.test(_bg);
+        if (!_checker && _opaque) bgColor = _bg;   // 사용자가 색 지정한 원만 그 색
+      } else {
+        // live 못 찾으면(클론DOM) dataset 폴백 — 단 기본 placeholder '#e8e8e8'는 빈 원이므로 null
+        const _ds = el.dataset.bgColor;
+        bgColor = (_ds && _ds !== '#e8e8e8') ? _ds : null;
+      }
       return {
         type:    'circle',
         id:      el.id || ('icb_' + Math.random().toString(36).slice(2, 8)),

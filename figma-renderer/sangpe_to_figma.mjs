@@ -432,6 +432,10 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const s   = block.style   || {};
     const p   = block.padding || { top: 0, right: 0, bottom: 0, left: 0 };
     const textWidth = availableWidth - (p.left || 0) - (p.right || 0);
+    // ⑤ Figma 글리프 advance가 브라우저보다 미세하게 넓어 같은 폭이어도 일찍 wrap(회차12 thhvp4d 확정, 큰 폰트일수록 심함).
+    // → wrap 판정용 폭만 fontSize 비례 소량(≈반 글자) 넓혀 경계 케이스를 goditor와 맞춤. 프레임/시각폭은 그대로, 패딩 여백 내라 오버플로 없음.
+    const _wrapSlack = Math.ceil((s.fontSize || 16) * 0.14);
+    const textWrapW  = Math.min(availableWidth - (p.left || 0), textWidth + _wrapSlack);
     const totalH = (block.height && block.height > 0)
       ? block.height
       : Math.ceil((s.fontSize || 16) * (s.lineHeight || 1.4)) + (p.top || 0) + (p.bottom || 0);
@@ -460,7 +464,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       fontWeight:          s.fontWeight || 400,
       fontColor:           hex(s.color  || '#111111'),
       textAlignHorizontal: toFigmaAlign(s.textAlign),
-      width:               textWidth,
+      width:               textWrapW,
       textAutoResize:      'HEIGHT',
       name: `text_${block.id}`,
       parentId: frame.id,
@@ -478,7 +482,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       //    set_line_height가 무력화돼 행간이 좁아짐. DOM 실측 높이(totalH-패딩)로 고정해야
       //    goditor 행간(예 body 1.6)과 일치한다.
       const textBoxH = Math.max(1, totalH - (p.top || 0) - (p.bottom || 0));
-      run('resize_node', { nodeId: node.id, width: textWidth, height: textBoxH });
+      run('resize_node', { nodeId: node.id, width: textWrapW, height: textBoxH });
     }
 
     const preview = block.content.slice(0, 24) + (block.content.length > 24 ? '…' : '');
@@ -744,6 +748,10 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const rowH = Math.floor(cardH / gridRows);
 
     cards.forEach((card, i) => {
+      // 빈 placeholder 카드(기본 "카드 제목"·desc/img/icon/셀색 전무)는 goditor가 숨김 → skip(Figma에 placeholder 텍스트 안 띄움)
+      const _isPlaceholder = (!card.title || card.title === '카드 제목')
+        && !card.desc && !card.imgSrc && !(card.icon && card.icon.svg) && !card.cellBg;
+      if (_isPlaceholder) return;
       const col  = i % gridCols;
       const row  = Math.floor(i / gridCols);
       const cardX = col * (cardW + cardGap);
