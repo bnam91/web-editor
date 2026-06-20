@@ -435,7 +435,14 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     // ⑤ Figma 글리프 advance가 브라우저보다 미세하게 넓어 같은 폭이어도 일찍 wrap(회차12 thhvp4d 확정, 큰 폰트일수록 심함).
     // → wrap 판정용 폭만 fontSize 비례 소량(≈반 글자) 넓혀 경계 케이스를 goditor와 맞춤. 프레임/시각폭은 그대로, 패딩 여백 내라 오버플로 없음.
     const _wrapSlack = Math.ceil((s.fontSize || 16) * 0.14);
-    const textWrapW  = Math.min(availableWidth - (p.left || 0), textWidth + _wrapSlack);
+    // ⑤ Figma가 같은 폭에서 한글을 브라우저보다 넓게 렌더(폰트메트릭 고질) → 폭매칭만으론 명시줄이 재wrap됨.
+    // 콘텐츠에 명시적 \n이 있으면(=각 줄이 의도된 줄바꿈) 재wrap을 막아야 함 → wrap폭을 최대(availableWidth−좌패딩)로 줘 명시줄이 잘리지 않게.
+    // 자연wrap(명시\n 없음) 콘텐츠는 기존대로 liveWidth/패딩+slack 사용(과확장 방지).
+    const _hasExplicitNL = /\n/.test(block.content || '');
+    const _liveW = (block.liveWidth && block.liveWidth > textWidth) ? block.liveWidth : (textWidth + _wrapSlack);
+    const textWrapW  = _hasExplicitNL
+      ? (availableWidth - (p.left || 0))
+      : Math.min(availableWidth - (p.left || 0), _liveW);
     const totalH = (block.height && block.height > 0)
       ? block.height
       : Math.ceil((s.fontSize || 16) * (s.lineHeight || 1.4)) + (p.top || 0) + (p.bottom || 0);
@@ -595,8 +602,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const fontSize = block.fontSize || 32;
     const radius   = block.radius   || 16;
     const gap      = block.gap      || 8;
-    const padH = 14, padV = 10;
-    const lineH = Math.round(fontSize * 1.4);
+    // goditor .chb-bubble 실측: 패딩 40(전방향)·lineHeight ×1.5 (회차12 p6bwvy9 — 기존 14/10·×1.4는 버블 압축돼 수직오프셋 유발).
+    const padH = 40, padV = 40;
+    const lineH = Math.round(fontSize * 1.5);
     const maxBubbleW = Math.round(availableWidth * 0.72);
     const innerMaxW  = maxBubbleW - padH * 2;
     const charW = fontSize * 0.95;

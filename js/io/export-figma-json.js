@@ -255,6 +255,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         id: el.id || ('tb_' + Math.random().toString(36).slice(2,8)),
         content: getTextWithLineBreaks(inner),
         height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),  // 라이브 DOM 실측 높이
+        // 라이브 DOM 실측 폭 — sangpe wrap폭 정확도용(padding 폴백 72가 실제 인셋과 다를 때 텍스트 잘림 방지, 회차12 u2o2f04). 시각폭/프레임은 불변.
+        liveWidth: Math.round((el.id && document.getElementById(el.id)?.offsetWidth) || el.offsetWidth || 0),
         style: {
           fontSize:      style.fontSize,
           fontWeight:    style.fontWeight,
