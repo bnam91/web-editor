@@ -439,15 +439,25 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     if (el.classList.contains('chat-block')) {
       let messages = [];
       try { messages = JSON.parse(el.dataset.messages || '[]'); } catch {}
+      // 버블 색은 dataset 기본값(우=파랑 #1888fe)이 goditor 실제(회색)와 어긋남 → live .chb-bubble computed-style을 우선 읽음(회차12 p6bwvy9).
+      const _liveChat = el.id ? document.getElementById(el.id) : null;
+      const _bubbles = _liveChat ? [..._liveChat.querySelectorAll('.chb-bubble')] : [];
+      // 버블은 messages 순서대로 렌더 → 첫 좌/우 메시지 인덱스의 버블을 집음(가장 견고).
+      const _idxL = messages.findIndex(m => m.align !== 'right');
+      const _idxR = messages.findIndex(m => m.align === 'right');
+      const _lb = _idxL >= 0 ? _bubbles[_idxL] : _bubbles[0];
+      const _rb = _idxR >= 0 ? _bubbles[_idxR] : null;
+      const _bg = (n, fb) => { if (!n) return fb; const c = getComputedStyle(n).backgroundColor; return (c && c !== 'transparent' && !/rgba\([^)]*,\s*0\s*\)/.test(c)) ? c : fb; };
+      const _fg = (n, fb) => { if (!n) return fb; const c = getComputedStyle(n).color; return c || fb; };
       return {
         type:       'chat',
         id:         el.id || ('chb_' + Math.random().toString(36).slice(2, 8)),
         messages:   messages.map(m => ({ text: m.text || '', align: m.align === 'right' ? 'right' : 'left' })),
         fontSize:   parseInt(el.dataset.fontSize) || 32,
-        bgLeft:     el.dataset.bgLeft    || '#e5e5ea',
-        bgRight:    el.dataset.bgRight   || '#1888fe',
-        colorLeft:  el.dataset.colorLeft || '#111111',
-        colorRight: el.dataset.colorRight|| '#ffffff',
+        bgLeft:     _bg(_lb, el.dataset.bgLeft    || '#e5e5ea'),
+        bgRight:    _bg(_rb, el.dataset.bgRight   || '#1888fe'),
+        colorLeft:  _fg(_lb, el.dataset.colorLeft || '#111111'),
+        colorRight: _fg(_rb, el.dataset.colorRight|| '#ffffff'),
         radius:     parseInt(el.dataset.radius)  || 16,
         gap:        parseInt(el.dataset.gap)     || 8,
         padding:    parseInt(el.dataset.padding) || 16,
