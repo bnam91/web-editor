@@ -404,8 +404,15 @@ async function exportSection(sec, format, width, opts) {
     }
   }
 
-  const secBg   = sec.style.background || sec.style.backgroundColor || '';
-  const bgColor = (secBg && secBg !== 'transparent') ? secBg : (state.pageSettings.bg || '#ffffff');
+  // 섹션 배경: 라이브 getComputedStyle 우선. 흰색이 inline style이 아니라
+  // `.section-block { background:#fff }` 클래스에서 오는 섹션은, inline bg가 없다고
+  // pageSettings.bg(#acacac 회색)로 폴백하면 흰 섹션이 회색으로 export되는 버그가 있었음.
+  // (Figma builder 65faf33과 동일 원리.) → 라이브 computed bg가 불투명이면 그 색을 쓰고,
+  // 진짜 투명(alpha=0)일 때만 pageSettings.bg 폴백.
+  const _liveBg  = getComputedStyle(sec).backgroundColor || '';
+  const _bgm     = _liveBg.match(/^rgba?\(([^)]+)\)/);
+  const _bgAlpha = _bgm ? (_bgm[1].split(',').map(s => parseFloat(s))[3] ?? 1) : 1;
+  const bgColor  = (_bgm && _bgAlpha !== 0) ? _liveBg : (state.pageSettings.bg || '#ffffff');
 
   const secList = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
   const idx     = secList.indexOf(sec) + 1;
