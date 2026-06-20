@@ -342,7 +342,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     if (el.classList.contains('icon-circle-block')) {
       const size    = parseInt(el.dataset.size) || 240;
-      const bgColor = el.dataset.bgColor || '#e8e8e8';
+      // 빈 아이콘서클은 .icb-circle가 체커보드(repeating-conic-gradient)인데 goditor exportSection이 숨겨 투명 캡처됨.
+      // dataset.bgColor는 사용자가 색을 지정했을 때만 존재 → 없으면 null로 둬 sangpe가 투명 렌더(회색 #e8e8e8 하드코딩 제거, goditor 일치).
+      const bgColor = el.dataset.bgColor || null;
       const imgSrc  = el.dataset.imgSrc  || null;
       return {
         type:    'circle',

@@ -489,14 +489,16 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   // ── CIRCLE (icon-circle-block) ────────────────────────────────
   if (block.type === 'circle') {
     const size    = block.size || 240;
-    const bgColor = block.bgColor || '#e8e8e8';
     const circleX = x + Math.round((availableWidth - size) / 2);
+    // 빈 원: .icb-circle 체커보드(goditor 숨김=투명)라 회색 칠 금지 → 투명. 사용자가 색 지정한 원만 그 색.
+    const hasBg   = block.bgColor && block.bgColor !== 'transparent';
 
     // hex → figma RGB
     const hexToRgb = h => {
       const v = h.replace('#','');
       return { r: parseInt(v.slice(0,2),16)/255, g: parseInt(v.slice(2,4),16)/255, b: parseInt(v.slice(4,6),16)/255, a: 1 };
     };
+    const TRANSPARENT = { r: 1, g: 1, b: 1, a: 0 };
 
     const node = run('create_frame', { x: circleX, y, width: size, height: size, name: `circle_${block.id}`, parentId });
     if (node) {
@@ -505,11 +507,14 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         const sourceType  = block.src.startsWith('data:') ? 'base64' : 'url';
         const imageSource = block.src.startsWith('data:') ? block.src.split(',')[1] : block.src;
         const fillResult  = run('set_image_fill', { nodeId: node.id, imageSource, sourceType, scaleMode: 'FILL' }, { timeout: 30000 });
-        if (!fillResult) run('set_fill_color', { nodeId: node.id, color: hexToRgb(bgColor) });
-        console.log(`      · circle ${size}×${size} → ${node.id}${fillResult ? ' ✓ 이미지' : ' (배경색)'}`);
+        if (!fillResult) run('set_fill_color', { nodeId: node.id, color: hasBg ? hexToRgb(block.bgColor) : TRANSPARENT });
+        console.log(`      · circle ${size}×${size} → ${node.id}${fillResult ? ' ✓ 이미지' : (hasBg ? ' (배경색)' : ' (빈 원 투명)')}`);
+      } else if (hasBg) {
+        run('set_fill_color', { nodeId: node.id, color: hexToRgb(block.bgColor) });
+        console.log(`      · circle ${size}×${size} → ${node.id} (배경색: ${block.bgColor})`);
       } else {
-        run('set_fill_color', { nodeId: node.id, color: hexToRgb(bgColor) });
-        console.log(`      · circle ${size}×${size} → ${node.id} (배경색: ${bgColor})`);
+        run('set_fill_color', { nodeId: node.id, color: TRANSPARENT });
+        console.log(`      · circle ${size}×${size} → ${node.id} (빈 원 투명)`);
       }
     }
     return size;
@@ -992,12 +997,15 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     if (block.imgW > 0) {
       const imgF = run('create_frame', { x: block.imgX || 0, y: block.imgY || 0, width: block.imgW, height: block.imgH, name: 'banner_img', parentId: frame.id });
       if (imgF) {
-        run('set_fill_color', { nodeId: imgF.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
         run('set_corner_radius', { nodeId: imgF.id, radius: 12 });
         if (block.imgSrc) {
+          // 이미지 있을 때만 회색 베이스(로드 전) 후 이미지 적용. 빈 슬롯은 투명(goditor 체커보드 숨김 일치).
+          run('set_fill_color', { nodeId: imgF.id, color: { r: 0.84, g: 0.84, b: 0.84, a: 1 } });
           const st = block.imgSrc.startsWith('data:') ? 'base64' : 'url';
           const src = block.imgSrc.startsWith('data:') ? block.imgSrc.split(',')[1] : block.imgSrc;
           run('set_image_fill', { nodeId: imgF.id, imageSource: src, sourceType: st, scaleMode: 'FILL' }, { timeout: 15000 });
+        } else {
+          run('set_fill_color', { nodeId: imgF.id, color: { r: 1, g: 1, b: 1, a: 0 } });
         }
       }
     }
