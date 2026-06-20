@@ -1034,42 +1034,58 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   }
 
   // ── COMPARISON (comparison-block) : 2열 비교 카드(헤더+행, featured 강조) ──
+  // goditor comparison-block.js 레이아웃과 일치: featured열 폭=baseW×featScale, 인접칼럼 overlap 겹침,
+  // featured는 header/row/gap·폰트 ×featScale, muted bg=#e9ebef(회차12 imac 실측 rgb233,235,239), 공통 중심선 정렬.
   if (block.type === 'comparison') {
     const cols = block.cols || [];
-    const n = cols.length || 2;
+    const N = cols.length || 2;
     const compW = Math.min(block.compW || 720, availableWidth);
     const cx = x + Math.round((availableWidth - compW) / 2);
     const headerH = block.headerH || 72, rowH = block.rowH || 74, rowGap = block.rowGap || 12;
     const nRows = Math.max(0, ...cols.map(c => (c.rows || []).length));
-    const colGap = 16;
-    const colW = Math.floor((compW - colGap * (n - 1)) / n);
-    const baseColH = headerH + nRows * (rowH + rowGap) + 20;
     const featScale = block.featScale || 1.2;
-    const featColH = Math.round(baseColH * featScale);
+    const overlap = block.overlap || 32;
+    const baseW = Math.round((compW + overlap * (N - 1)) / ((N - 1) + featScale));
+    const featW = Math.round(baseW * featScale);
+    const titleFont = block.titleFont || 38, rowFont = block.rowFont || 32;
+    const colHeightOf = (isFeat) => {
+      const hH = isFeat ? Math.round(headerH * featScale) : headerH;
+      const gap = isFeat ? Math.round(rowGap * featScale) : rowGap;
+      let acc = hH;
+      for (let ri = 0; ri < nRows; ri++) acc += (isFeat ? Math.round(rowH * featScale) : rowH) + gap;
+      return acc + 20;
+    };
+    const featColH = colHeightOf(true);
     const totalH = block.height || featColH;
     const fontB = loadFontSafe('Pretendard', 'Bold');
     const wrap = run('create_frame', { x: cx, y, width: compW, height: totalH, name: `comparison_${block.id || ''}`, parentId });
     if (!wrap) return totalH;
     run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+    // 인접 칼럼 overlap 겹침 → x를 (폭-overlap)씩 누적. featured(보통 마지막)가 나중 생성돼 위로 올라옴.
+    let colX = 0;
     cols.forEach((col, i) => {
       const isFeat = i === block.featured;
-      const cw = isFeat ? Math.round(colW * 1.04) : colW;
-      const ch = isFeat ? featColH : baseColH;
-      const colX = i * (colW + colGap) - (isFeat ? Math.round((cw - colW) / 2) : 0);
+      const sc = isFeat ? featScale : 1;
+      const cw = isFeat ? featW : baseW;
+      const ch = colHeightOf(isFeat);
       const colY = Math.round((featColH - ch) / 2);
+      const hH = Math.round(headerH * sc), rH = Math.round(rowH * sc), gap = Math.round(rowGap * sc);
+      const tFont = Math.round(titleFont * sc), rFont = Math.round(rowFont * sc);
       const card = run('create_frame', { x: colX, y: colY, width: cw, height: ch, name: `cmp_col_${i}`, parentId: wrap.id });
-      if (!card) return;
-      run('set_fill_color', { nodeId: card.id, color: hex(col.bg || (isFeat ? '#ffffff' : '#ededed')) });
-      run('set_corner_radius', { nodeId: card.id, radius: block.radius || 20 });
-      const titleColor = isFeat ? '#111111' : '#999999';
-      const rowColor = isFeat ? '#222222' : '#aaaaaa';
-      const ht = run('create_text', { x: 0, y: Math.round((headerH - block.titleFont) / 2) + 8, width: cw, text: col.title || '', fontSize: block.titleFont || 38, fontWeight: 700, fontColor: hex(titleColor), textAlignHorizontal: 'CENTER', textAutoResize: 'HEIGHT', name: `cmp_h_${i}`, parentId: card.id });
-      if (ht) run('set_font_name', { nodeId: ht.id, family: fontB.family, style: fontB.style });
-      (col.rows || []).forEach((r, ri) => {
-        const ry = headerH + ri * (rowH + rowGap) + Math.round((rowH - block.rowFont) / 2);
-        const rt = run('create_text', { x: 0, y: ry, width: cw, text: String(r), fontSize: block.rowFont || 32, fontWeight: isFeat ? 700 : 400, fontColor: hex(rowColor), textAlignHorizontal: 'CENTER', textAutoResize: 'HEIGHT', name: `cmp_r_${i}_${ri}`, parentId: card.id });
-        if (rt) run('set_font_name', { nodeId: rt.id, family: fontB.family, style: fontB.style });
-      });
+      if (card) {
+        run('set_fill_color', { nodeId: card.id, color: hex(col.bg || (isFeat ? '#ffffff' : '#e9ebef')) });
+        run('set_corner_radius', { nodeId: card.id, radius: block.radius || 20 });
+        const titleColor = isFeat ? '#111111' : '#999999';
+        const rowColor = isFeat ? '#222222' : '#aaaaaa';
+        const ht = run('create_text', { x: 0, y: Math.round((hH - tFont) / 2) + 8, width: cw, text: col.title || '', fontSize: tFont, fontWeight: 700, fontColor: hex(titleColor), textAlignHorizontal: 'CENTER', textAutoResize: 'HEIGHT', name: `cmp_h_${i}`, parentId: card.id });
+        if (ht) run('set_font_name', { nodeId: ht.id, family: fontB.family, style: fontB.style });
+        (col.rows || []).forEach((r, ri) => {
+          const ry = hH + ri * (rH + gap) + Math.round((rH - rFont) / 2);
+          const rt = run('create_text', { x: 0, y: ry, width: cw, text: String(r), fontSize: rFont, fontWeight: isFeat ? 700 : 400, fontColor: hex(rowColor), textAlignHorizontal: 'CENTER', textAutoResize: 'HEIGHT', name: `cmp_r_${i}_${ri}`, parentId: card.id });
+          if (rt) run('set_font_name', { nodeId: rt.id, family: fontB.family, style: fontB.style });
+        });
+      }
+      colX += cw - overlap;
     });
     return totalH;
   }
