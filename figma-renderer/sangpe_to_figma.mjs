@@ -88,6 +88,23 @@ function hex(h) {
   };
 }
 
+// ─── CSS text-shadow → Figma DROP_SHADOW effects (네온 글로우 재현) ──
+function parseTextShadowToEffects(ts) {
+  if (!ts || ts === 'none') return [];
+  const parts = ts.split(/,(?![^()]*\))/).map(s => s.trim()).filter(Boolean);
+  const effects = [];
+  for (const p of parts) {
+    const colMatch = p.match(/(rgba?\([^)]*\)|#[0-9a-fA-F]{3,8})/);
+    if (!colMatch) continue;
+    const nums = (p.replace(colMatch[0], '').match(/-?\d*\.?\d+px/g) || []).map(n => parseFloat(n));
+    const c = hex(colMatch[0]);
+    if (!c) continue;
+    effects.push({ type: 'DROP_SHADOW', color: c, offset: { x: nums[0] || 0, y: nums[1] || 0 },
+      radius: nums[2] || 0, spread: 0, visible: true, blendMode: 'NORMAL' });
+  }
+  return effects.slice(0, 8);
+}
+
 // ─── textAlign 변환 ──────────────────────────────────────────────
 const ALIGN_MAP = { left: 'LEFT', center: 'CENTER', right: 'RIGHT', start: 'LEFT', end: 'RIGHT' };
 function toFigmaAlign(align) {
@@ -148,6 +165,17 @@ function loadFontSafe(family, style) {
 }
 
 // ─── 블록 렌더링 ─────────────────────────────────────────────────
+// 빈 에셋/원 placeholder 체커보드 SVG (goditor repeating-conic 36px셀 #d8d8d8/#f0f0f0, 72px타일 — 회차12 현빈 B결정)
+function checkerSvg(w, h, ellipse) {
+  const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
+  const clip = ellipse ? `<clipPath id="ck_cl"><ellipse cx="${W / 2}" cy="${H / 2}" rx="${W / 2}" ry="${H / 2}"/></clipPath>` : '';
+  const ca = ellipse ? ' clip-path="url(#ck_cl)"' : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs>`
+    + `<pattern id="ckp" width="72" height="72" patternUnits="userSpaceOnUse">`
+    + `<rect width="72" height="72" fill="#f0f0f0"/><rect width="36" height="36" fill="#d8d8d8"/><rect x="36" y="36" width="36" height="36" fill="#d8d8d8"/>`
+    + `</pattern>${clip}</defs><rect width="${W}" height="${H}" fill="url(#ckp)"${ca}/></svg>`;
+}
+
 // 반환값: 실제 점유 높이(px)
 function renderBlock(block, parentId, x, y, availableWidth) {
 
@@ -463,8 +491,12 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     run('set_fill_color', { nodeId: frame.id, color: { r: 0, g: 0, b: 0, a: 0 } });
 
     // 2. 텍스트를 프레임 자식으로 생성 (로컬 좌표)
+    // 중앙정렬 텍스트는 박스를 가운데로 둬야 함(회차12 76 본문 36px 우측시프트 fix: \n텍스트 textWrapW가 우패딩 미반영 비대칭 → center 깨짐). 폭은 유지(rewrap 회귀 방지), x만 중앙 보정.
+    const _txtX = (s.textAlign === 'center')
+      ? Math.max(0, Math.round((availableWidth - textWrapW) / 2))
+      : (p.left || 0);
     const node = run('create_text', {
-      x: p.left || 0,
+      x: _txtX,
       y: p.top  || 0,
       text:                block.content,
       fontSize:            s.fontSize   || 16,
@@ -490,6 +522,10 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       //    goditor 행간(예 body 1.6)과 일치한다.
       const textBoxH = Math.max(1, totalH - (p.top || 0) - (p.bottom || 0));
       run('resize_node', { nodeId: node.id, width: textWrapW, height: textBoxH });
+
+      // text-effect(네온 등) 글로우 — CSS text-shadow를 Figma DROP_SHADOW effect로 적용(회차12 chart 크림글로우 fix)
+      const _fx = parseTextShadowToEffects(s.textShadow);
+      if (_fx.length) run('set_effects', { nodeId: node.id, effects: _fx });
     }
 
     const preview = block.content.slice(0, 24) + (block.content.length > 24 ? '…' : '');
@@ -525,7 +561,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         console.log(`      · circle ${size}×${size} → ${node.id} (배경색: ${block.bgColor})`);
       } else {
         run('set_fill_color', { nodeId: node.id, color: TRANSPARENT });
-        console.log(`      · circle ${size}×${size} → ${node.id} (빈 원 투명)`);
+        const _ck = run('create_node_from_svg', { svg: checkerSvg(size, size, true), parentId: node.id, x: 0, y: 0 }, { timeout: 12000 });
+        if (_ck) run('resize_node', { nodeId: _ck.id, width: size, height: size });
+        console.log(`      · circle ${size}×${size} → ${node.id} (빈 원 체커)`);
       }
     }
     return size;
@@ -580,15 +618,20 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           if (vline) run('set_fill_color', { nodeId: vline.id, color: hex(lineColor) });
         }
         if (cell.text) {
+          // 셀별 live computed 색/weight/fontSize 우선(회차12 table fix: 값 파랑·800·강조56 반영), 없으면 테이블 레벨 폴백
+          const cellFs     = cell.fontSize || fontSize;
+          const cellWeight = cell.weight || (isHeader ? 700 : 400);
+          const cellColor  = cell.color || textColor;
+          const cellFont   = loadFontSafe(block.fontFamily || 'Pretendard', toFigmaFontStyle(cellWeight));
           const tn = run('create_text', {
-            x: cx + 8, y: Math.max(0, Math.round((thisRowH - fontSize * 1.3) / 2)),
+            x: cx + 8, y: Math.max(0, Math.round((thisRowH - cellFs * 1.3) / 2)),
             width: cw - 16, text: cell.text,
-            fontSize, fontWeight: isHeader ? 700 : 400,
-            fontColor: hex(textColor),
+            fontSize: cellFs, fontWeight: cellWeight,
+            fontColor: hex(cellColor),
             textAlignHorizontal: toFigmaAlign(cell.align || 'center'),
             textAutoResize: 'HEIGHT', name: `tcell_${ri}_${ci}`, parentId: rowFrame.id,
           });
-          if (tn) run('set_font_name', { nodeId: tn.id, family: (isHeader ? fontB : font).family, style: (isHeader ? fontB : font).style });
+          if (tn) run('set_font_name', { nodeId: tn.id, family: cellFont.family, style: cellFont.style });
         }
       });
     });
@@ -601,20 +644,22 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const msgs     = block.messages || [];
     const fontSize = block.fontSize || 32;
     const radius   = block.radius   || 16;
-    const gap      = block.gap      || 8;
+    const gap      = (block.gap != null) ? block.gap : 46;  // builder가 실측 버블간 간격 emit (없으면 46)
     // goditor .chb-bubble 실측: 패딩 40(전방향)·lineHeight ×1.5 (회차12 p6bwvy9 — 기존 14/10·×1.4는 버블 압축돼 수직오프셋 유발).
     const padH = 40, padV = 40;
     const lineH = Math.round(fontSize * 1.5);
-    const maxBubbleW = Math.round(availableWidth * 0.72);
+    const sidePad = 47;                            // goditor .chat-block padding 실측
+    const rowW = availableWidth - sidePad * 2;     // 실제 메시지 행 너비(~766)
+    const maxBubbleW = Math.round(rowW * 0.70);    // .chb-wrap maxWidth:70%
     const innerMaxW  = maxBubbleW - padH * 2;
-    const charW = fontSize * 0.95;
+    const charW = fontSize * 0.92;
 
     const wrap = run('create_frame', { x, y, width: availableWidth, height: block.height || 10, name: `chat_${block.id}`, parentId });
     if (!wrap) return block.height || 0;
     run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
 
     const font = loadFontSafe(block.fontFamily || 'Pretendard', 'Regular');
-    let cy = 0;
+    let cy = block.topPad || 0;  // goditor chat-block 상단 패딩 실측 반영
     msgs.forEach((m, mi) => {
       const isLeft = m.align !== 'right';
       const bg    = isLeft ? (block.bgLeft || '#e5e5ea')   : (block.bgRight || '#1888fe');
@@ -626,9 +671,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         longest = Math.max(longest, Math.min(w, innerMaxW));
         lineCount += Math.max(1, Math.ceil(w / innerMaxW));
       });
-      const bubbleW = Math.min(maxBubbleW, Math.round(longest) + padH * 2);
-      const bubbleH = lineCount * lineH + padV * 2;
-      const bx = isLeft ? 0 : (availableWidth - bubbleW);
+      const bubbleW = (m.w && m.w > 0) ? m.w : Math.min(maxBubbleW, Math.round(longest) + padH * 2);
+      const bubbleH = (m.h && m.h > 0) ? m.h : (lineCount * lineH + padV * 2);
+      const bx = isLeft ? sidePad : (availableWidth - sidePad - bubbleW);
       const bubble = run('create_frame', { x: bx, y: cy, width: bubbleW, height: bubbleH, name: `bubble_${mi}`, parentId: wrap.id });
       if (bubble) {
         run('set_fill_color', { nodeId: bubble.id, color: hex(bg) });
@@ -690,10 +735,11 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           console.log(`      · image ${availableWidth}×${imgH} → ${node.id} ✓ 이미지 적용`);
         }
       } else {
-        // 이미지 없는 빈 슬롯: goditor는 체커보드를 숨겨 투명(섹션 배경 비침)으로 렌더 →
-        // Figma도 투명(a:0)으로 둬 섹션 배경이 비치게 한다(회색박스 갭 제거, 높이는 유지). goditor 일치.
+        // 빈 슬롯 = goditor 체커보드 placeholder를 Figma에도 체커로(회차12 현빈 B결정)
         run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });
-        console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (빈 슬롯 투명)`);
+        const _ck = run('create_node_from_svg', { svg: checkerSvg(availableWidth, imgH, false), parentId: node.id, x: 0, y: 0 }, { timeout: 12000 });
+        if (_ck) run('resize_node', { nodeId: _ck.id, width: Math.round(availableWidth), height: Math.round(imgH) });
+        console.log(`      · image ${availableWidth}×${imgH} → ${node.id} (빈 슬롯 체커)`);
       }
       if ((s.borderRadius || 0) > 0)
         run('set_corner_radius', { nodeId: node.id, radius: s.borderRadius });
@@ -737,7 +783,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   if (block.type === 'card-grid') {
     const { cards = [], gridCols = 2, cardGap = 10, canvasH = 400,
             radius = 16, textBg = '#cccccc', titleSize = 32, descSize = 20,
-            textAlign = 'center', imgRatio = 75, cardMode = 'simple' } = block;
+            textAlign = 'center', imgRatio = 75, cardMode = 'simple',
+            labelPos = 'below', overlayHeight = 180, gradientBg = '' } = block;
+    const isOverlay = labelPos === 'overlay-bottom';
 
     const padX      = block.padX || 0;
     const effectiveW = availableWidth - padX * 2;
@@ -765,8 +813,8 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       const cardX = col * (cardW + cardGap);
       const cardY = row * rowH;
       const thisH = (row === gridRows - 1) ? cardH - cardY : rowH;
-      const thisImgH   = Math.round(thisH * imgRatio / 100);
-      const thisLabelH = thisH - thisImgH;
+      const thisImgH   = isOverlay ? thisH : Math.round(thisH * imgRatio / 100);
+      const thisLabelH = isOverlay ? thisH : thisH - thisImgH;
 
       // 카드 outer 프레임 (투명 배경, 전체 radius)
       const cardFrame = run('create_frame', { x: cardX, y: cardY, width: cardW, height: thisH, name: `card_${i}`, parentId: wrapper.id });
@@ -799,15 +847,42 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         }
       }
 
-      // 라벨(텍스트) 영역 — 아이콘카드는 투명, 아니면 cellBg||textBg
-      const labelBg = card.cellBg || (isIconCard ? '' : textBg);
-      const labelFrame = run('create_frame', { x: 0, y: thisImgH, width: cardW, height: thisLabelH, name: `card_label_${i}`, parentId: cardFrame.id });
+      // 라벨(텍스트) 영역 — overlay-bottom 모드면 하단 그라데이션 + 전체높이 투명 라벨,
+      // 아니면(simple) 아이콘카드는 투명, 아니면 cellBg||textBg
+      let labelFrame;
+      if (isOverlay) {
+        const ovH = Math.round(thisH * overlayHeight / canvasH);
+        const gradFrame = run('create_frame', { x: 0, y: thisH - ovH, width: cardW, height: ovH, name: `card_overlay_${i}`, parentId: cardFrame.id });
+        if (gradFrame) {
+          // 진짜 세로 linear-gradient(transparent→rgba(0,0,0,0.85)) 적용. 플러그인 set_gradient 지원.
+          const gradRes = run('set_gradient', {
+            nodeId: gradFrame.id,
+            type: 'GRADIENT_LINEAR',
+            stops: [
+              { position: 0, color: { r: 0, g: 0, b: 0, a: 0 } },
+              { position: 1, color: { r: 0, g: 0, b: 0, a: 0.85 } },
+            ],
+            // 세로(위→아래) 방향: y축을 따라 0→1
+            gradientTransform: [[0, 1, 0], [-1, 0, 1]],
+          });
+          // 그라데이션 실패 시 반투명 검정 단색 폴백
+          if (!gradRes) run('set_fill_color', { nodeId: gradFrame.id, color: { r: 0, g: 0, b: 0, a: 0.5 } });
+        }
+        labelFrame = run('create_frame', { x: 0, y: 0, width: cardW, height: thisH, name: `card_label_${i}`, parentId: cardFrame.id });
+        if (labelFrame) run('set_fill_color', { nodeId: labelFrame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+      } else {
+        const labelBg = card.cellBg || (isIconCard ? '' : textBg);
+        labelFrame = run('create_frame', { x: 0, y: thisImgH, width: cardW, height: thisLabelH, name: `card_label_${i}`, parentId: cardFrame.id });
+        if (labelFrame) {
+          if (labelBg) run('set_fill_color', { nodeId: labelFrame.id, color: hex(labelBg) });
+          else run('set_fill_color', { nodeId: labelFrame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+        }
+      }
       if (!labelFrame) return;
-      if (labelBg) run('set_fill_color', { nodeId: labelFrame.id, color: hex(labelBg) });
-      else run('set_fill_color', { nodeId: labelFrame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
 
       // 텍스트 색: 라벨 배경 명도 기준(어두우면 흰색, 밝으면 goditor 기본 #222/#888)
-      const _lum = (() => { const b = labelBg; if (!b || !/^#/.test(b)) return 1;
+      // overlay-bottom 모드는 하단이 검정 그라데이션 → 무조건 어두운 배경으로 취급(흰 텍스트)
+      const _lum = (() => { const b = isOverlay ? '#000000' : (card.cellBg || (isIconCard ? '' : textBg)); if (!b || !/^#/.test(b)) return 1;
         const h = b.replace('#',''); const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),bl=parseInt(h.slice(4,6),16);
         return (0.299*r + 0.587*g + 0.114*bl) / 255; })();
       const titleColor = block.titleColor || (_lum < 0.5 ? '#ffffff' : '#222222');
@@ -822,7 +897,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       const titleLines = card.title ? Math.max(1, Math.ceil((card.title.length * titleSize * 0.95) / Math.max(1, textW))) : 0;
       const titleBlockH = titleLines * Math.round(titleSize * 1.45);
       const totalTextH = titleBlockH + (hasDesc ? 4 + descSize * 1.45 : 0);
-      const textStartY = Math.max(padV, Math.round((thisLabelH - totalTextH) / 2));
+      const textStartY = isOverlay
+        ? Math.round(thisH * (canvasH - overlayHeight + 10) / canvasH)
+        : Math.max(padV, Math.round((thisLabelH - totalTextH) / 2));
 
       if (card.title) {
         const titleFont = loadFontSafe('Noto Sans KR', 'Bold');
@@ -892,13 +969,36 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     return block.height || (padV * 2 + lineH);
   }
 
-  // ── SHAPE (shape-block) : 도형 ──
+  // ── SHAPE (shape-block) : 도형(선/화살표/사각/원/다각형/별) — 회차12 fix: 회색박스→실제 SVG도형+회전 ──
   if (block.type === 'shape') {
-    const w = block.width || 50, h = block.height || 50;
-    const node = run('create_frame', { x, y, width: Math.max(1, w), height: Math.max(1, h), name: `shape_${block.id || ''}`, parentId });
-    if (node) {
-      if (block.shapeType === 'circle') run('set_corner_radius', { nodeId: node.id, radius: Math.round(Math.min(w, h) / 2) });
-      run('set_fill_color', { nodeId: node.id, color: hex(block.color || '#cccccc') });
+    const w = Math.max(1, block.width || 75), h = Math.max(1, block.height || 75);
+    const type = block.shapeType || 'rectangle';
+    const color = block.color || '#cccccc';
+    const sw = Number(block.strokeWidth) || 0;        // viewBox user-space 단위 (goditor와 동일)
+    const rot = Number(block.rotation) || 0;          // deg, transform-origin center
+    const half = sw / 2;
+    const inset = Math.max(0, 100 - sw);
+    const rr = Math.max(0, 50 - half);
+    const DEFS = {
+      rectangle: { vb: '0 0 100 100', fill: true,  inner: `<rect x="${half}" y="${half}" width="${inset}" height="${inset}"/>` },
+      ellipse:   { vb: '0 0 100 100', fill: true,  inner: `<ellipse cx="50" cy="50" rx="${rr}" ry="${rr}"/>` },
+      line:      { vb: '0 0 200 40',  fill: false, inner: `<line x1="10" y1="20" x2="190" y2="20" stroke-linecap="round"/>` },
+      arrow:     { vb: '0 0 200 40',  fill: false, inner: `<line x1="10" y1="20" x2="172" y2="20" stroke-linecap="round"/><polygon points="170,10 194,20 170,30" fill="${color}" stroke="none"/>` },
+      polygon:   { vb: '0 0 200 180', fill: true,  inner: `<polygon points="100,8 194,172 6,172"/>` },
+      star:      { vb: '0 0 200 190', fill: true,  inner: `<polygon points="100,8 122,70 188,70 135,110 155,172 100,132 45,172 65,110 12,70 78,70"/>` },
+    };
+    const def = DEFS[type] || DEFS.rectangle;
+    const [vbW, vbH] = def.vb.split(/\s+/).slice(2).map(Number);
+    const cxv = vbW / 2, cyv = vbH / 2;
+    const styleAttr = `color:${color};stroke-width:${sw};fill:${def.fill ? color : 'none'};stroke:${color};`;
+    const gOpen = rot ? `<g transform="rotate(${rot} ${cxv} ${cyv})">` : '';
+    const gClose = rot ? `</g>` : '';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${def.vb}" preserveAspectRatio="none" style="${styleAttr}">${gOpen}${def.inner}${gClose}</svg>`;
+    const wrap = run('create_frame', { x, y, width: w, height: h, name: `shape_${block.id || ''}`, parentId });
+    if (wrap) {
+      run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+      const node = run('create_node_from_svg', { svg, parentId: wrap.id, x: 0, y: 0 }, { timeout: 12000 });
+      if (node) run('resize_node', { nodeId: node.id, width: w, height: h });
     }
     return h;
   }
@@ -907,7 +1007,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   if (block.type === 'graph') {
     const items = block.items || [];
     const gh = block.height || 300;
-    const wrap = run('create_frame', { x, y, width: availableWidth, height: gh, name: `graph_${block.id || ''}`, parentId });
+    const gw = (block.width && block.width > 0 && block.width <= availableWidth) ? block.width : availableWidth;  // goditor 그래프 실폭(중앙정렬) — 회차12 80 차트 가로스케일 fix
+    const gx = x + Math.round((availableWidth - gw) / 2);
+    const wrap = run('create_frame', { x: gx, y, width: gw, height: gh, name: `graph_${block.id || ''}`, parentId });
     if (wrap) run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
     if (wrap && items.length) {
       const n = items.length;
@@ -919,20 +1021,20 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       const plotTop = valH, plotH = Math.max(20, gh - valH - labH);
       if (isLine) {
         // 면적+꺾은선+점 (SVG), 값/축 라벨은 Figma 텍스트
-        const padX = 30;
-        const plotW = availableWidth - padX * 2;
+        const padX = 60;  // goditor graph 내부 좌우 패딩 실측(회차12 80) — 30이면 plot이 더 넓어 점 퍼짐
+        const plotW = gw - padX * 2;
         const xs = items.map((it, i) => padX + (n > 1 ? i * (plotW / (n - 1)) : plotW / 2));
         const ys = items.map(it => plotTop + plotH * (1 - (Number(it.value) || 0) / maxV));
         const base = plotTop + plotH;
         const linePts = xs.map((x, i) => `${Math.round(x)},${Math.round(ys[i])}`).join(' ');
         const areaPts = `${Math.round(xs[0])},${base} ${linePts} ${Math.round(xs[n - 1])},${base}`;
         const dots = xs.map((x, i) => `<circle cx="${Math.round(x)}" cy="${Math.round(ys[i])}" r="7" fill="#ffffff"/>`).join('');
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${availableWidth}" height="${gh}" viewBox="0 0 ${availableWidth} ${gh}">`
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${gw}" height="${gh}" viewBox="0 0 ${gw} ${gh}">`
           + `<polygon points="${areaPts}" fill="#666666" fill-opacity="0.45"/>`
           + `<polyline points="${linePts}" fill="none" stroke="#e0e0e0" stroke-width="3" stroke-linejoin="round"/>`
           + dots + `</svg>`;
         const node = run('create_node_from_svg', { svg, parentId: wrap.id, x: 0, y: 0 }, { timeout: 15000 });
-        if (node) run('resize_node', { nodeId: node.id, width: availableWidth, height: gh });
+        if (node) run('resize_node', { nodeId: node.id, width: gw, height: gh });
         items.forEach((it, i) => {
           const vn = run('create_text', { x: Math.round(xs[i] - 60), y: Math.max(0, Math.round(ys[i]) - 40), width: 120, text: String(it.value), fontSize: 24, fontWeight: 700, fontColor: hex('#ffffff'), textAlignHorizontal: 'CENTER', textAutoResize: 'HEIGHT', name: `gval_${i}`, parentId: wrap.id });
           if (vn) run('set_font_name', { nodeId: vn.id, family: fontB.family, style: fontB.style });
@@ -941,7 +1043,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         });
       } else {
         const gap = 24;
-        const barW = Math.max(8, Math.floor((availableWidth - gap * (n + 1)) / n));
+        const barW = Math.max(8, Math.floor((gw - gap * (n + 1)) / n));
         items.forEach((it, i) => {
           const bx = gap + i * (barW + gap);
           const v = Number(it.value) || 0;
@@ -1049,18 +1151,23 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const N = cols.length || 2;
     const compW = Math.min(block.compW || 720, availableWidth);
     const cx = x + Math.round((availableWidth - compW) / 2);
+    const padX = Math.max(0, block.padX || 0);              // goditor .comparison padding (회차12 z8lg3v4)
+    const contentW = Math.max(120, compW - padX * 2);
     const headerH = block.headerH || 72, rowH = block.rowH || 74, rowGap = block.rowGap || 12;
     const nRows = Math.max(0, ...cols.map(c => (c.rows || []).length));
     const featScale = block.featScale || 1.2;
     const overlap = block.overlap || 32;
-    const baseW = Math.round((compW + overlap * (N - 1)) / ((N - 1) + featScale));
+    const baseW = Math.round((contentW + overlap * (N - 1)) / ((N - 1) + featScale));
     const featW = Math.round(baseW * featScale);
     const titleFont = block.titleFont || 38, rowFont = block.rowFont || 32;
+    // 행별 높이: 이미지행(체커보드 빈슬롯 포함)은 rowHeights[ri] 예약해야 후속 텍스트행 정렬 일치(회차12 z8lg3v4)
+    const rowHeights = Array.isArray(block.rowHeights) ? block.rowHeights : [];
+    const baseRowH = (ri) => { const o = Number(rowHeights[ri]); return (Number.isFinite(o) && o > 0) ? o : rowH; };
     const colHeightOf = (isFeat) => {
       const hH = isFeat ? Math.round(headerH * featScale) : headerH;
       const gap = isFeat ? Math.round(rowGap * featScale) : rowGap;
       let acc = hH;
-      for (let ri = 0; ri < nRows; ri++) acc += (isFeat ? Math.round(rowH * featScale) : rowH) + gap;
+      for (let ri = 0; ri < nRows; ri++) acc += (isFeat ? Math.round(baseRowH(ri) * featScale) : baseRowH(ri)) + gap;
       return acc + 20;
     };
     const featColH = colHeightOf(true);
@@ -1070,7 +1177,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     if (!wrap) return totalH;
     run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
     // 인접 칼럼 overlap 겹침 → x를 (폭-overlap)씩 누적. featured(보통 마지막)가 나중 생성돼 위로 올라옴.
-    let colX = 0;
+    let colX = padX;
     cols.forEach((col, i) => {
       const isFeat = i === block.featured;
       const sc = isFeat ? featScale : 1;
@@ -1087,10 +1194,35 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         const rowColor = isFeat ? '#222222' : '#aaaaaa';
         const ht = run('create_text', { x: 0, y: Math.round((hH - tFont) / 2) + 8, width: cw, text: col.title || '', fontSize: tFont, fontWeight: 700, fontColor: hex(titleColor), textAlignHorizontal: 'CENTER', textAutoResize: 'HEIGHT', name: `cmp_h_${i}`, parentId: card.id });
         if (ht) run('set_font_name', { nodeId: ht.id, family: fontB.family, style: fontB.style });
+        let ryAcc = hH;
         (col.rows || []).forEach((r, ri) => {
-          const ry = hH + ri * (rH + gap) + Math.round((rH - rFont) / 2);
-          const rt = run('create_text', { x: 0, y: ry, width: cw, text: String(r), fontSize: rFont, fontWeight: isFeat ? 700 : 400, fontColor: hex(rowColor), textAlignHorizontal: 'CENTER', textAutoResize: 'HEIGHT', name: `cmp_r_${i}_${ri}`, parentId: card.id });
-          if (rt) run('set_font_name', { nodeId: rt.id, family: fontB.family, style: fontB.style });
+          // 행 객체화(회차12): image 행은 텍스트 안 그림(빈슬롯=goditor 숨김)+높이는 예약(정렬), text 행만 텍스트.
+          const isObj = r && typeof r === 'object';
+          const rType = isObj ? r.type : 'text';
+          const rText = isObj ? (r.text != null ? String(r.text) : '') : String(r);
+          const effRowH = isFeat ? Math.round(baseRowH(ri) * featScale) : baseRowH(ri);
+          const ryTop = ryAcc;
+          ryAcc += effRowH + gap;
+          if (rType === 'image') {
+            const src = isObj ? (r.imgSrc || '') : '';
+            if (src) {
+              const imf = run('create_frame', { x: 0, y: ryTop, width: cw, height: effRowH, name: `cmp_img_${i}_${ri}`, parentId: card.id });
+              if (imf) {
+                let b64 = '';
+                try {
+                  if (src.startsWith('file://')) b64 = readFileSync(decodeURIComponent(src.replace('file://', ''))).toString('base64');
+                  else if (src.startsWith('data:')) b64 = src.split(',')[1];
+                } catch (e) {}
+                if (b64) run('set_image_fill', { nodeId: imf.id, imageSource: b64, sourceType: 'base64', scaleMode: (isObj && r.imgFit === 'contain') ? 'FIT' : 'FILL' }, { timeout: 25000 });
+                else run('set_fill_color', { nodeId: imf.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+              }
+            }
+            // src 없으면 placeholder 빈슬롯 → goditor처럼 아무것도 안 그림(텍스트 노출 방지)
+          } else {
+            const ry = ryTop + Math.round((effRowH - rFont) / 2);
+            const rt = run('create_text', { x: 0, y: ry, width: cw, text: rText, fontSize: rFont, fontWeight: isFeat ? 700 : 400, fontColor: hex(rowColor), textAlignHorizontal: 'CENTER', textAutoResize: 'HEIGHT', name: `cmp_r_${i}_${ri}`, parentId: card.id });
+            if (rt) run('set_font_name', { nodeId: rt.id, family: fontB.family, style: fontB.style });
+          }
         });
       }
       colX += cw - overlap;
@@ -1102,7 +1234,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   if (block.type === 'mockup') {
     const w = block.width || 575;
     const h = block.height || 400;
-    const mx = x + (block.offsetX || 0);
+    const mx = x + Math.round((availableWidth - w) / 2);  // goditor는 mockup 중앙정렬(회차12 17rm9jg/lm3x38k 실측 x=(secW-w)/2)
     // 디바이스 PNG 투명 화면영역이 흰 배경 비치는 것 방지: mockup 프레임 아래(z하위)에 dark 스크린 사각형 먼저 생성
     // → PNG 화면(투명)으로 dark가 비쳐 goditor 검정화면과 일치. (set_image_fill이 fills를 replace해도 별 레이어라 안전)
     if (block.imgSrc) {
@@ -1156,7 +1288,24 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       if (tn) run('set_font_name', { nodeId: tn.id, family: fontB.family, style: fontB.style });
       cy += Math.round((l.fontSize || 28) * 1.3);
     });
-    if (block.leafSvg) {
+    if (block.leafSvg && Array.isArray(block.leaves) && block.leaves.length) {
+      // 실측 leaf geometry 사용 + 좌우반전(scaleX -1)은 SVG 자체를 flip (플러그인 flip 명령 없음)
+      const leafColor = cell.leafColor || '#000000';
+      const baseSvg = String(block.leafSvg).replace(/currentColor/g, leafColor);
+      block.leaves.forEach((lv) => {
+        let svg = baseSvg;
+        if (lv.flip) {
+          const m = /viewBox=["']\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)/.exec(svg);
+          const vw = m ? parseFloat(m[1]) : 170;
+          svg = svg.replace(/(<svg[^>]*?>)/, `$1<g transform="translate(${vw} 0) scale(-1 1)">`)
+                   .replace(/<\/svg>\s*$/, '</g></svg>');
+        }
+        const lx = Math.round((lv.xFrac || 0) * availableWidth);
+        const lw = Math.max(8, Math.round((lv.wFrac || 0) * availableWidth));
+        const node = run('create_node_from_svg', { svg, parentId: wrap.id, x: lx, y: lv.y }, { timeout: 12000 });
+        if (node) run('resize_node', { nodeId: node.id, width: lw, height: lv.h });
+      });
+    } else if (block.leafSvg) {
       const leafColor = cell.leafColor || '#000000';
       const svg = String(block.leafSvg).replace(/currentColor/g, leafColor);
       const leafH = h, leafW = Math.max(20, Math.round(leafH * 170 / 324));

@@ -219,7 +219,15 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     }
     fontFamily = (fontFamily || 'Noto Sans KR').replace(/["']/g, '').split(',')[0].trim();
 
-    return { fontSize, fontWeight, color, lineHeight, letterSpacing, textAlign, fontFamily };
+    // text-effect(tfx-neon 등) 글로우 — Figma는 text-shadow 미지원 → live computed text-shadow를 캡처해 sangpe가 DROP_SHADOW로 적용(회차12 chart "92,000대" 크림글로우 fix)
+    let textShadow = '';
+    try {
+      const _li = (el.id && document.getElementById(el.id)?.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label')) || inner;
+      const ts = window.getComputedStyle(_li).textShadow;
+      if (ts && ts !== 'none') textShadow = ts;
+    } catch {}
+
+    return { fontSize, fontWeight, color, lineHeight, letterSpacing, textAlign, fontFamily, textShadow };
   }
 
   function _block(el, ps) {
@@ -265,6 +273,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           textAlign:     style.textAlign,
           lineHeight:    style.lineHeight,
           letterSpacing: style.letterSpacing,
+          textShadow:    style.textShadow || '',
         },
         padding: {
           top:    parseFloat(el.style.paddingTop)    || 0,
@@ -278,11 +287,15 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       if (variant === 'label') {
         // 개별 라벨의 inline borderRadius 우선, 없으면 프리셋 fallback
         const inlineRadius = parseFloat(inner.style.borderRadius);
+        // 라이브 tb-label의 실제 computed 패딩 우선(프리셋마다 다름 — 하드코딩 36/11은 알약형 27 패딩을 못 맞춰 박스가 짧아짐, 회차12 thhvp4d)
+        const _lcs = _liveLabel ? getComputedStyle(_liveLabel) : null;
+        const _padH = _lcs ? Math.round(parseFloat(_lcs.paddingLeft)) : NaN;
+        const _padV = _lcs ? Math.round(parseFloat(_lcs.paddingTop))  : NaN;
         block.labelBox = {
           bg:       _labelBgOpaque ? _liveLabelBg : (ps?.labelBg || '#111111'),
           radius:   !isNaN(inlineRadius) ? inlineRadius : (ps?.labelRadius || 8),
-          paddingH: 36,
-          paddingV: 11,
+          paddingH: !isNaN(_padH) ? _padH : 36,
+          paddingV: !isNaN(_padV) ? _padV : 11,
         };
       }
 
@@ -378,12 +391,28 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     if (el.classList.contains('table-block')) {
       const table   = el.querySelector('.tb-table');
       const trEls    = table ? [...table.querySelectorAll('tr')] : [];
-      const rows = trEls.map(tr => ({
+      const _rgbToHex = (rgb) => {
+        const m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)/.exec(rgb || '');
+        if (!m) return null;
+        const _h = n => Math.round(parseFloat(n)).toString(16).padStart(2, '0');
+        return '#' + _h(m[1]) + _h(m[2]) + _h(m[3]);
+      };
+      // 라이브 DOM 테이블(computed-style용) — el은 detached라 getComputedStyle 빈값(회차12 table fix)
+      const _liveTbl = (el.id && document.getElementById(el.id)?.querySelector('.tb-table')) || table;
+      const _liveTrs = _liveTbl ? [..._liveTbl.querySelectorAll('tr')] : [];
+      const rows = trEls.map((tr, ri) => ({
         header: !!(tr.parentElement && tr.parentElement.tagName === 'THEAD'),
-        cells:  [...tr.querySelectorAll('th,td')].map(c => ({
-          text:  (c.innerText || '').trim(),
-          align: c.style.textAlign || el.dataset.cellAlign || 'center',
-        })),
+        cells:  [...tr.querySelectorAll('th,td')].map((c, ci) => {
+          const lc = _liveTrs[ri] ? [..._liveTrs[ri].querySelectorAll('th,td')][ci] : null;
+          let cs; try { cs = lc ? window.getComputedStyle(lc) : null; } catch { cs = null; }
+          return {
+            text:     (c.innerText || '').trim(),
+            align:    (cs && cs.textAlign) || c.style.textAlign || el.dataset.cellAlign || 'center',
+            color:    (cs && _rgbToHex(cs.color)) || null,
+            weight:   (cs && parseInt(cs.fontWeight)) || null,
+            fontSize: (cs && Math.round(parseFloat(cs.fontSize))) || null,
+          };
+        }),
       }));
       const colCount = rows.length ? Math.max(...rows.map(r => r.cells.length)) : 2;
       const firstCell = table?.querySelector('td,th');
@@ -428,6 +457,11 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         imgRatio:  parseInt(el.dataset.imgRatio)  || 75,
         cardMode:  el.dataset.cardMode || 'simple',
         textBg:    el.dataset.textBg   || '#cccccc',
+        labelPos:      el.dataset.labelPos || 'below',
+        overlayHeight: parseInt(el.dataset.overlayHeight) || 180,
+        overlayWidth:  parseInt(el.dataset.overlayWidth)  || 100,
+        gradientBg:    (el.dataset.textBg && el.dataset.textBg.includes('gradient')) ? el.dataset.textBg : '',
+        imgShape:      el.dataset.imgShape || 'rect',
         titleSize: Math.round((parseInt(el.dataset.titleSize) || 32) * cvbScale),
         descSize:  Math.round((parseInt(el.dataset.descSize)  || 20) * cvbScale),
         titleColor: el.dataset.titleColor || '',
@@ -444,6 +478,11 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       // 버블 색은 dataset 기본값(우=파랑 #1888fe)이 goditor 실제(회색)와 어긋남 → live .chb-bubble computed-style을 우선 읽음(회차12 p6bwvy9).
       const _liveChat = el.id ? document.getElementById(el.id) : null;
       const _bubbles = _liveChat ? [..._liveChat.querySelectorAll('.chb-bubble')] : [];
+      const _rows = _liveChat ? [..._liveChat.querySelectorAll('.chb-msg')] : [];
+      const _topPad = _rows.length ? Math.round(_rows[0].offsetTop) : 0;
+      const _gap = (_rows.length >= 2 && _bubbles.length >= 1)
+        ? Math.max(0, Math.round((_rows[1].offsetTop - _rows[0].offsetTop) - _bubbles[0].offsetHeight))
+        : 46;
       // 버블은 messages 순서대로 렌더 → 첫 좌/우 메시지 인덱스의 버블을 집음(가장 견고).
       const _idxL = messages.findIndex(m => m.align !== 'right');
       const _idxR = messages.findIndex(m => m.align === 'right');
@@ -454,14 +493,15 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       return {
         type:       'chat',
         id:         el.id || ('chb_' + Math.random().toString(36).slice(2, 8)),
-        messages:   messages.map(m => ({ text: m.text || '', align: m.align === 'right' ? 'right' : 'left' })),
+        messages:   messages.map((m, mi) => ({ text: m.text || '', align: m.align === 'right' ? 'right' : 'left', w: _bubbles[mi] ? Math.round(_bubbles[mi].offsetWidth) : 0, h: _bubbles[mi] ? Math.round(_bubbles[mi].offsetHeight) : 0 })),
         fontSize:   parseInt(el.dataset.fontSize) || 32,
         bgLeft:     _bg(_lb, el.dataset.bgLeft    || '#e5e5ea'),
         bgRight:    _bg(_rb, el.dataset.bgRight   || '#1888fe'),
         colorLeft:  _fg(_lb, el.dataset.colorLeft || '#111111'),
         colorRight: _fg(_rb, el.dataset.colorRight|| '#ffffff'),
         radius:     parseInt(el.dataset.radius)  || 16,
-        gap:        parseInt(el.dataset.gap)     || 8,
+        gap:        _gap,
+        topPad:     _topPad,
         padding:    parseInt(el.dataset.padding) || 16,
         height:     Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 200),
       };
@@ -497,6 +537,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         type: 'graph', id: el.id || '',
         chartType: el.dataset.chartType || 'bar',
         items,
+        width: Math.round((el.id && document.getElementById(el.id)?.offsetWidth) || el.offsetWidth || 0),
         height: parseInt(el.dataset.chartHeight) || parseFloat(el.style.height) || 300,
       };
     }
@@ -562,15 +603,26 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       }
       return r == null ? '' : String(r);
     }
+    // comparison 행: image 행은 객체로 보존(placeholder 텍스트 노출 방지), 그 외 텍스트 (회차12 z8lg3v4 fix)
+    function _cmpRow(r) {
+      if (r && typeof r === 'object' && (r.type === 'image' || r.imgSrc !== undefined)) {
+        return { type: 'image', imgSrc: r.imgSrc || '', imgFit: r.imgFit || 'cover', text: r.text || '' };
+      }
+      return { type: 'text', text: _cmpCell(r) };
+    }
     // ── COMPARISON (comparison-block) : 2열 비교(헤더+행, featured 강조) ──
     if (el.classList.contains('comparison-block')) {
       let cols = []; try { cols = JSON.parse(el.dataset.cols || '[]'); } catch {}
       const feat = el.dataset.featured;
       return {
         type: 'comparison', id: el.id || '',
-        cols: cols.map(c => ({ title: c.title || '', bg: c.bg || '', text: c.text || '', rows: (c.rows || []).map(_cmpCell) })),
+        cols: cols.map(c => ({ title: c.title || '', bg: c.bg || '', text: c.text || '', rows: (c.rows || []).map(_cmpRow) })),
         featured: (feat !== undefined && feat !== '') ? parseInt(feat) : -1,
         compW: parseInt(el.dataset.compW) || 720,
+        padX: parseInt(el.dataset.padX) || 0,
+        padY: parseInt(el.dataset.padY) || 0,
+        overlap: (el.dataset.overlap !== undefined && el.dataset.overlap !== '') ? parseInt(el.dataset.overlap) : 32,
+        rowHeights: (() => { try { const a = JSON.parse(el.dataset.rowHeights || 'null'); return Array.isArray(a) ? a : []; } catch { return []; } })(),
         titleFont: parseInt(el.dataset.titleFont) || 38,
         rowFont: parseInt(el.dataset.rowFont) || 32,
         headerH: parseInt(el.dataset.headerH) || 72,
@@ -606,10 +658,25 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     // ── LAUREL (laurel-block) : 월계관 잎 SVG + 중앙 텍스트 ──
     if (el.classList.contains('laurel-block')) {
       let cells = []; try { cells = JSON.parse(el.dataset.cells || '[]'); } catch {}
-      const leaf = el.querySelector('svg');
+      const _live = (el.id && document.getElementById(el.id)) || el;
+      const _br = _live.getBoundingClientRect();
+      const _z = (_br.width / (_live.offsetWidth || 1)) || 1;
+      const _sec = _live.closest('.section-block');
+      const _sr = _sec ? _sec.getBoundingClientRect() : _br;
+      const _secW = (_sec ? _sec.offsetWidth : _live.offsetWidth) || 1;
+      const leaf = _live.querySelector('svg');
+      // 좌/우 월계관 잎의 실제 위치(섹션폭 대비 fraction)·세로위치(블록기준)·좌우반전(scaleX -1) 캡처
+      //  — 하드코딩 위치/flip누락 버그 방지(회차12 uk8ggh2). 섹션 fraction이라 sangpe 프레임폭에 무관.
+      const leaves = [..._live.querySelectorAll('.laurel-leaf-left,.laurel-leaf-right')].map(sp => {
+        const svg = sp.querySelector('svg') || sp; const r = svg.getBoundingClientRect();
+        const cs = getComputedStyle(svg);
+        const flip = /matrix\(-1|scaleX\(-1\)/.test((cs.transform || '') + (svg.style.transform || ''));
+        return { xFrac: (r.left - _sr.left) / _z / _secW, wFrac: r.width / _z / _secW,
+                 y: Math.round((r.top - _br.top) / _z), h: Math.round(r.height / _z), flip };
+      });
       return {
         type: 'laurel', id: el.id || '',
-        cells, leafSvg: leaf ? leaf.outerHTML : '',
+        cells, leafSvg: leaf ? leaf.outerHTML : '', leaves,
         height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 116),
       };
     }
