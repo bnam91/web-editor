@@ -943,7 +943,10 @@ function renderBlock(block, parentId, x, y, availableWidth) {
   // ── ICON (icon-block) : SVG 아이콘 (id 추적 위해 named 프레임으로 감쌈) ──
   if (block.type === 'icon') {
     const size = block.size || 48;
-    const ix = x + Math.round((availableWidth - size) / 2);
+    // 아이콘 실제 x 사용(회차12: goditor 위치가 좌/중 제각각 — 무조건 중앙정렬 금지). xFrac 없으면 중앙 폴백.
+    const ix = (typeof block.xFrac === 'number')
+      ? x + Math.round(block.xFrac * availableWidth)
+      : x + Math.round((availableWidth - size) / 2);
     const wrap = run('create_frame', { x: ix, y, width: size, height: size, name: `icon_${block.id || ''}`, parentId });
     if (wrap) run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
     if (block.svg && wrap) {

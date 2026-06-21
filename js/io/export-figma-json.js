@@ -509,11 +509,20 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     // ── ICON (icon-block) : SVG 아이콘 ──
     if (el.classList.contains('icon-block')) {
       const size = parseInt(el.dataset.size) || parseFloat(el.style.width) || 48;
+      // 아이콘 실제 x(섹션폭 대비 fraction) 캡처 — sangpe 무조건 중앙정렬 버그(회차12 u2o2f04 'A' 왼쪽인데 가운데로 밀림)
+      const _live = (el.id && document.getElementById(el.id)) || el;
+      const _sec = _live.closest && _live.closest('.section-block');
+      let xFrac = null;
+      if (_sec) {
+        const sr = _sec.getBoundingClientRect(); const z = (sr.width / (_sec.offsetWidth || 1)) || 1;
+        const r = _live.getBoundingClientRect();
+        xFrac = (r.left - sr.left) / z / (_sec.offsetWidth || 1);
+      }
       return {
         type: 'icon', id: el.id || '',
         svg: el.dataset.iconSvg || (el.querySelector('svg')?.outerHTML) || '',
         color: el.dataset.iconColor || '#000000',
-        size, rotation: parseInt(el.dataset.rotation) || 0,
+        size, rotation: parseInt(el.dataset.rotation) || 0, xFrac,
         height: size,
       };
     }
