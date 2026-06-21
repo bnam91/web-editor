@@ -1068,6 +1068,48 @@ window._scratchGetItemById = id => {
   return it ? { id: it.id, src: it.src } : null;
 };
 
+// ── Phase 1(마켓 동기화): 프로젝트 전 페이지 스크래치 export/import ──
+// export: 현재 페이지 미저장분 flush 후, pageIds를 진실소스로 전 페이지 IndexedDB 항목 수집.
+//   반환 [{ pageId, items:[{src,x,y,w,id}] }] (빈 페이지 제외). pageIds 미지정 시 현재 페이지만.
+window._scratchExportAll = async (projectId, pageIds) => {
+  if (!projectId) return [];
+  try { await _saveScratch(); } catch (_) {}   // 현재 페이지 in-memory분 영속화
+  const db = await _openDB();
+  const ids = Array.isArray(pageIds) && pageIds.length ? pageIds : (_currentPageId ? [_currentPageId] : []);
+  const out = [];
+  for (const pageId of ids) {
+    const key = `scratch-pad-${projectId}-${pageId}`;
+    const items = await new Promise((resolve) => {
+      const tx = db.transaction(SCRATCH_STORE, 'readonly');
+      const req = tx.objectStore(SCRATCH_STORE).get(key);
+      req.onsuccess = e => resolve(e.target.result || []);
+      req.onerror   = () => resolve([]);
+    });
+    if (items && items.length) out.push({ pageId, items });
+  }
+  return out;
+};
+
+// import: pull로 받은 스크래치 블록을 newProjectId 키로 복원(페이지id 보존 — 키가 projectId로 네임스페이스라 충돌無).
+window._scratchImportAll = async (newProjectId, scratchBlock) => {
+  if (!newProjectId || !Array.isArray(scratchBlock) || !scratchBlock.length) return 0;
+  const db = await _openDB();
+  let n = 0;
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(SCRATCH_STORE, 'readwrite');
+    const store = tx.objectStore(SCRATCH_STORE);
+    for (const { pageId, items } of scratchBlock) {
+      if (!pageId || !Array.isArray(items) || !items.length) continue;
+      const clean = items.map(({ src, x, y, w, id }) => ({ src, x, y, w, id }));
+      store.put(clean, `scratch-pad-${newProjectId}-${pageId}`);
+      n++;
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror    = e => reject(e.target.error);
+  });
+  return n;
+};
+
 // ── 스크래치 그룹화 + 스마트 그리드 정렬 (Cmd+G — editor.js 단축키 분기) ──────
 // 다중 선택된 스크래치들을 4열 그리드로 재배치 + data-scratch-group 박음.
 // 같은 그룹은 시각적 묶음 (향후 함께 이동 등 확장 가능).

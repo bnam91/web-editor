@@ -19,8 +19,14 @@
     const name = (typeof window.getProjectName === 'function' ? window.getProjectName() : '') || id;
     const data = window.serializeProject?.();
     if (!data) { _toast('⚠️ 프로젝트 직렬화 실패'); return; }
+    // Phase 1: 전 페이지 스크래치 동봉 (state.pages[].id를 진실소스로 열거)
+    let scratch = [];
+    try {
+      const pageIds = (window.state?.pages || []).map(p => p.id).filter(Boolean);
+      scratch = (await window._scratchExportAll?.(id, pageIds)) || [];
+    } catch (_) {}
     _toast('⏳ 마켓에 올리는 중…');
-    const res = await window.electronAPI.market.push({ account, id, name, data });
+    const res = await window.electronAPI.market.push({ account, id, name, data, scratch });
     if (res?.ok) _toast(`✅ 마켓 업로드 완료: ${account}/${name}`);
     else _toast(`❌ 업로드 실패: ${res?.message || '알 수 없음'}`);
     return res;
@@ -38,6 +44,12 @@
     const proj = { id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)', ...parsed,
       marketRef: { account, id, version: res.project.version || null, updatedAt: res.project.updatedAt || null, pulledAt: new Date().toISOString() } };
     const saved = await window.electronAPI.saveProject(proj);
+    // Phase 1: 받은 스크래치를 새 projectId 키로 복원
+    try {
+      let scratch = res.project.scratch;
+      if (typeof scratch === 'string') scratch = JSON.parse(scratch);
+      if (Array.isArray(scratch) && scratch.length) await window._scratchImportAll?.(newId, scratch);
+    } catch (_) {}
     if (saved?.ok !== false) _toast(`✅ 받기 완료 — 홈(프로젝트 목록)에서 "${proj.name}" 열기`);
     else _toast('❌ 저장 실패');
   }

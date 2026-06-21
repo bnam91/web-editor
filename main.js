@@ -1069,20 +1069,23 @@ function _inlineBlobs(jsonStr, dir) {
 }
 // Phase 2: blob 분리된(=data URL 비결정성 제거된) 데이터 해시. push 시 1회 박제 → 가짜충돌 방지.
 function _versionHash(deinlined) { return _crypto.createHash('sha256').update(String(deinlined)).digest('hex').slice(0, 16); }
-ipcMain.handle('market:push', async (_e, { account, id, name, data, updatedAt } = {}) => {
+ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, updatedAt } = {}) => {
   try {
     if (!account || !id || !data) return { ok: false, message: 'account/id/data 필요' };
     const dir = await _ensureMarketRepo();
     const acc = _safe(account), pid = _safe(id);
     const adir = path.join(dir, 'market', acc);
     fs.mkdirSync(adir, { recursive: true });
-    // Phase 0: 인라인 자산 분리 + 용량 가드
-    const { data: deinlined, maxBlob, count } = _extractBlobs(data, dir);
+    // Phase 0: 인라인 자산 분리(프로젝트 데이터 + Phase1 스크래치) + 용량 가드
+    const { data: deinlined, maxBlob: mb1, count: c1 } = _extractBlobs(data, dir);
+    const scratchStr = JSON.stringify(scratch || []);
+    const { data: deScratch, maxBlob: mb2, count: c2 } = _extractBlobs(scratchStr, dir);
+    const maxBlob = Math.max(mb1, mb2);
     if (maxBlob > _MAX_BYTES) return { ok: false, message: `단일 자산 ${Math.round(maxBlob / 1048576)}MB — GitHub 100MB 한도 초과 위험. 자산 용량을 줄이세요.` };
-    if (Buffer.byteLength(deinlined) > _MAX_BYTES) return { ok: false, message: `프로젝트 JSON ${Math.round(Buffer.byteLength(deinlined) / 1048576)}MB — 한도 초과` };
-    // Phase 2: 분리된 데이터로 version 해시 박제
-    const version = _versionHash(deinlined);
-    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), version, blobCount: count, data: deinlined };
+    if (Buffer.byteLength(deinlined) + Buffer.byteLength(deScratch) > _MAX_BYTES) return { ok: false, message: `프로젝트 JSON ${Math.round((Buffer.byteLength(deinlined) + Buffer.byteLength(deScratch)) / 1048576)}MB — 한도 초과` };
+    // Phase 2: 분리된 데이터(+스크래치)로 version 해시 박제
+    const version = _versionHash(deinlined + '|' + deScratch);
+    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), version, blobCount: c1 + c2, data: deinlined, scratch: deScratch };
     fs.writeFileSync(path.join(adir, `${pid}.json`), JSON.stringify(payload));
     _rebuildMarketIndex(dir);
     await _execFileP('git', ['-C', dir, 'add', '-A']);
@@ -1102,6 +1105,7 @@ ipcMain.handle('market:pull', async (_e, { account, id } = {}) => {
     if (!fs.existsSync(f)) return { ok: false, message: '프로젝트 없음' };
     const proj = JSON.parse(fs.readFileSync(f, 'utf-8'));
     proj.data = _inlineBlobs(proj.data, dir);   // Phase 0: blob 참조 → data URL 복원
+    if (proj.scratch) proj.scratch = _inlineBlobs(proj.scratch, dir);   // Phase 1: 스크래치 blob 복원
     return { ok: true, project: proj };
   } catch (e) { return { ok: false, message: e.message }; }
 });
