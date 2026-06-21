@@ -427,7 +427,14 @@ async function exportSection(sec, format, width, opts) {
   // → CDP Page.captureScreenshot + captureBeyondViewport:true 한 번 호출로 교체.
   const captureCloneToCanvas = async () => {
     if (useNative) {
-      clone.style.background = clone.style.background || bgColor;
+      // ⚠️ 'background' 단축속성으로 폴백색을 넣으면 안 됨: data-URL 이미지배경은
+      // background shorthand getter가 ''를 반환해서 `clone.style.background || bgColor`가
+      // 색을 단축속성으로 세팅 → backgroundImage(섹션 텍스처)가 initial로 리셋되어 증발함.
+      // (다크 텍스처 섹션이 흰색으로 export되던 결함.) → 인라인 배경(이미지/색)이 전혀 없을
+      // 때만 longhand backgroundColor로 폴백해서 텍스처/색을 보존한다.
+      if (!clone.style.backgroundImage && !clone.style.backgroundColor) {
+        clone.style.backgroundColor = bgColor;
+      }
       await document.fonts.ready;
       clone.getBoundingClientRect();
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
