@@ -39,6 +39,23 @@
     if (!res?.ok) { _toast(`❌ 받기 실패: ${res?.message || '없음'}`); return; }
     let parsed;
     try { parsed = JSON.parse(res.project.data); } catch { _toast('❌ 프로젝트 데이터 손상'); return; }
+    // Phase 4: 같은 마켓 프로젝트의 로컬 복사본이 있으면 섹션 diff (1차 정책 = keep-both: 복사본으로 안전 보존)
+    let divergeNote = '';
+    try {
+      if (window.marketMerge) {
+        const projs = await window.electronAPI.listProjects?.();
+        const mine = (Array.isArray(projs) ? projs : []).filter(p => p && p.marketRef && p.marketRef.id === id);
+        if (mine.length) {
+          const local = await window.electronAPI.loadProject(mine[0].id);
+          if (local && local.pages) {
+            const d = window.marketMerge.diffProjects(local, parsed);
+            divergeNote = d.diverged
+              ? ` · ⚠️분기(변경 ${d.summary.changed}·추가 ${d.summary.added}·삭제 ${d.summary.removed}) → 양쪽 보존`
+              : ' · 로컬과 동일';
+          }
+        }
+      }
+    } catch (_) {}
     const newId = 'proj_' + Date.now();
     // Phase 2: 받은 시점의 마켓 버전을 marketRef로 박제 → 이후 "내 복사본이 최신인지" 비교 근거
     const proj = { id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)', ...parsed,
@@ -50,7 +67,7 @@
       if (typeof scratch === 'string') scratch = JSON.parse(scratch);
       if (Array.isArray(scratch) && scratch.length) await window._scratchImportAll?.(newId, scratch);
     } catch (_) {}
-    if (saved?.ok !== false) _toast(`✅ 받기 완료 — 홈(프로젝트 목록)에서 "${proj.name}" 열기`);
+    if (saved?.ok !== false) _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
     else _toast('❌ 저장 실패');
   }
 
