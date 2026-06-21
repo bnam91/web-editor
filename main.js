@@ -674,7 +674,7 @@ ipcMain.handle('projects:list', () => {
         } catch {}
       }
       seen.add(data.id);
-      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail });
+      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null });
     } catch {}
   }
 
@@ -694,7 +694,7 @@ ipcMain.handle('projects:list', () => {
         } catch {}
       }
       seen.add(data.id);
-      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail });
+      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null });
     } catch {}
   }
 
@@ -1032,7 +1032,7 @@ function _rebuildMarketIndex(dir) {
         if (!f.endsWith('.json')) continue;
         try {
           const o = JSON.parse(fs.readFileSync(path.join(adir, f), 'utf-8'));
-          idx.push({ account, id: o.id, name: o.name || o.id, updatedAt: o.updatedAt || null });
+          idx.push({ account, id: o.id, name: o.name || o.id, updatedAt: o.updatedAt || null, version: o.version || null });
         } catch {}
       }
     }
@@ -1041,6 +1041,34 @@ function _rebuildMarketIndex(dir) {
   return idx;
 }
 const _safe = s => String(s || '').replace(/[^\w.-]/g, '_');
+// ── Phase 0: 자산 blob 분리 ── 인라인 data:image base64를 market/_blobs/<sha256>.b64로 분리(dedup),
+//    JSON엔 goditor-blob:<sha256> 참조만 남김. (단일 json 94.5MB→GitHub 100MB 한도 회피 + 중복 자산 1회 저장)
+const _crypto = require('crypto');
+const _BLOB_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g;
+const _MAX_BYTES = 95 * 1024 * 1024;   // GitHub 100MB 하드리밋 안전 마진
+const _BLOB_MIN = 2048;                // 이보다 작은 자산은 분리 안 함(토큰이 더 커서 역효과 + blob 클러터 방지)
+function _blobsDir(dir) { return path.join(dir, 'market', '_blobs'); }
+function _extractBlobs(jsonStr, dir) {
+  const bdir = _blobsDir(dir); fs.mkdirSync(bdir, { recursive: true });
+  let maxBlob = 0, count = 0;
+  const data = String(jsonStr).replace(_BLOB_RE, (m) => {
+    if (Buffer.byteLength(m) < _BLOB_MIN) return m;   // 작은 자산은 인라인 유지
+    const h = _crypto.createHash('sha256').update(m).digest('hex');
+    const fp = path.join(bdir, h + '.b64');
+    if (!fs.existsSync(fp)) fs.writeFileSync(fp, m);   // dedup: 동일 자산은 1회만
+    const b = Buffer.byteLength(m); if (b > maxBlob) maxBlob = b; count++;
+    return 'goditor-blob:' + h;
+  });
+  return { data, maxBlob, count };
+}
+function _inlineBlobs(jsonStr, dir) {
+  const bdir = _blobsDir(dir);
+  return String(jsonStr).replace(/goditor-blob:([a-f0-9]{64})/g, (m, h) => {
+    try { return fs.readFileSync(path.join(bdir, h + '.b64'), 'utf-8'); } catch { return m; }  // 누락 시 토큰 유지(깨짐 가시화)
+  });
+}
+// Phase 2: blob 분리된(=data URL 비결정성 제거된) 데이터 해시. push 시 1회 박제 → 가짜충돌 방지.
+function _versionHash(deinlined) { return _crypto.createHash('sha256').update(String(deinlined)).digest('hex').slice(0, 16); }
 ipcMain.handle('market:push', async (_e, { account, id, name, data, updatedAt } = {}) => {
   try {
     if (!account || !id || !data) return { ok: false, message: 'account/id/data 필요' };
@@ -1048,7 +1076,13 @@ ipcMain.handle('market:push', async (_e, { account, id, name, data, updatedAt } 
     const acc = _safe(account), pid = _safe(id);
     const adir = path.join(dir, 'market', acc);
     fs.mkdirSync(adir, { recursive: true });
-    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), data };
+    // Phase 0: 인라인 자산 분리 + 용량 가드
+    const { data: deinlined, maxBlob, count } = _extractBlobs(data, dir);
+    if (maxBlob > _MAX_BYTES) return { ok: false, message: `단일 자산 ${Math.round(maxBlob / 1048576)}MB — GitHub 100MB 한도 초과 위험. 자산 용량을 줄이세요.` };
+    if (Buffer.byteLength(deinlined) > _MAX_BYTES) return { ok: false, message: `프로젝트 JSON ${Math.round(Buffer.byteLength(deinlined) / 1048576)}MB — 한도 초과` };
+    // Phase 2: 분리된 데이터로 version 해시 박제
+    const version = _versionHash(deinlined);
+    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), version, blobCount: count, data: deinlined };
     fs.writeFileSync(path.join(adir, `${pid}.json`), JSON.stringify(payload));
     _rebuildMarketIndex(dir);
     await _execFileP('git', ['-C', dir, 'add', '-A']);
@@ -1066,7 +1100,9 @@ ipcMain.handle('market:pull', async (_e, { account, id } = {}) => {
     const dir = await _ensureMarketRepo();
     const f = path.join(dir, 'market', _safe(account), `${_safe(id)}.json`);
     if (!fs.existsSync(f)) return { ok: false, message: '프로젝트 없음' };
-    return { ok: true, project: JSON.parse(fs.readFileSync(f, 'utf-8')) };
+    const proj = JSON.parse(fs.readFileSync(f, 'utf-8'));
+    proj.data = _inlineBlobs(proj.data, dir);   // Phase 0: blob 참조 → data URL 복원
+    return { ok: true, project: proj };
   } catch (e) { return { ok: false, message: e.message }; }
 });
 

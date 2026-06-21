@@ -34,7 +34,9 @@
     let parsed;
     try { parsed = JSON.parse(res.project.data); } catch { _toast('❌ 프로젝트 데이터 손상'); return; }
     const newId = 'proj_' + Date.now();
-    const proj = { id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)', ...parsed };
+    // Phase 2: 받은 시점의 마켓 버전을 marketRef로 박제 → 이후 "내 복사본이 최신인지" 비교 근거
+    const proj = { id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)', ...parsed,
+      marketRef: { account, id, version: res.project.version || null, updatedAt: res.project.updatedAt || null, pulledAt: new Date().toISOString() } };
     const saved = await window.electronAPI.saveProject(proj);
     if (saved?.ok !== false) _toast(`✅ 받기 완료 — 홈(프로젝트 목록)에서 "${proj.name}" 열기`);
     else _toast('❌ 저장 실패');
@@ -73,6 +75,22 @@
       if (!res?.ok) { listEl.innerHTML = `<div style="color:#c66;font-size:12px;">목록 실패: ${_esc(res?.message)}</div>`; return; }
       const items = res.items || [];
       if (!items.length) { listEl.innerHTML = `<div style="color:#888;font-size:12px;padding:12px 0;">아직 올라온 프로젝트가 없습니다.</div>`; return; }
+      // Phase 2: 내 로컬 복사본 marketRef ↔ 마켓 version 비교 → 최신여부 배지
+      const localRefs = {};
+      try {
+        const projs = await window.electronAPI.listProjects?.();
+        (Array.isArray(projs) ? projs : []).forEach(p => {
+          const r = p && p.marketRef;
+          if (r && r.id && (!localRefs[r.id] || (r.pulledAt || '') > (localRefs[r.id].pulledAt || ''))) localRefs[r.id] = r;
+        });
+      } catch (_) {}
+      const _fresh = (it) => {
+        const r = localRefs[it.id]; if (!r) return '';
+        if (!it.version || !r.version) return `<span style="font-size:10px;color:#888;">받음</span>`;
+        return r.version === it.version
+          ? `<span style="font-size:10px;color:#3ec46d;" title="내 복사본이 마켓 최신과 동일">✓ 최신</span>`
+          : `<span style="font-size:10px;color:#e0b020;" title="마켓에 더 새 버전 있음(다시 받기)">⬇ 업데이트</span>`;
+      };
       // 계정별 그룹
       const byAcc = {};
       items.forEach(it => { (byAcc[it.account] = byAcc[it.account] || []).push(it); });
@@ -82,6 +100,7 @@
           ${byAcc[acc].map(it => `
             <div class="market-item" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:5px;margin-bottom:4px;">
               <span style="flex:1;font-size:12px;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(it.name)}</span>
+              ${_fresh(it)}
               <span style="font-size:10px;color:#666;">${_esc((it.updatedAt || '').slice(0, 10))}</span>
               <button class="settings-btn settings-btn-secondary market-pull-btn" data-acc="${_esc(it.account)}" data-id="${_esc(it.id)}" data-name="${_esc(it.name)}" style="height:26px;font-size:11px;">받기</button>
             </div>`).join('')}
