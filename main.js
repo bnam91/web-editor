@@ -1069,6 +1069,40 @@ function _inlineBlobs(jsonStr, dir) {
 }
 // Phase 2: blob 분리된(=data URL 비결정성 제거된) 데이터 해시. push 시 1회 박제 → 가짜충돌 방지.
 function _versionHash(deinlined) { return _crypto.createHash('sha256').update(String(deinlined)).digest('hex').slice(0, 16); }
+// Phase 3: 에러 분류 + non-ff push rebase 가드 (멀티맥 동시 push 경쟁 방지, force 절대 금지)
+function _errCode(msg) {
+  if (/non-fast-forward|fetch first|\[rejected\]|\bbehind\b/i.test(msg)) return 'conflict';
+  if (/auth|login|denied|403|permission|could not read Username/i.test(msg)) return 'auth';
+  if (/could not resolve host|network|timed out|connection|failed to connect/i.test(msg)) return 'network';
+  return 'error';
+}
+function _errMsg(msg) {
+  return ({ auth: 'GitHub 인증 필요 — 터미널에서 `gh auth login` 후 다시 시도하세요.',
+            network: '네트워크 오류 — 연결을 확인하고 다시 시도하세요.',
+            conflict: '원격에 더 새 버전이 있습니다. "목록 새로고침"으로 받은 뒤 다시 올리세요.' }[_errCode(msg)])
+         || ('업로드 실패: ' + String(msg).slice(0, 200));
+}
+async function _pushWithRebase(dir) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try { await _execFileP('git', ['-C', dir, 'push', '-u', 'origin', 'main']); return { ok: true }; }
+    catch (e) {
+      const msg = String(e.message || '');
+      if (attempt === 0 && _errCode(msg) === 'conflict') {
+        // 원격이 앞섬 → fetch + rebase 후 1회 재시도. 다른 파일(다른 프로젝트)이면 rebase 통과.
+        try {
+          await _execFileP('git', ['-C', dir, 'fetch', 'origin', 'main']);
+          await _execFileP('git', ['-C', dir, 'rebase', 'origin/main']);
+        } catch (_re) {
+          await _execFileP('git', ['-C', dir, 'rebase', '--abort']).catch(() => {});
+          return { ok: false, code: 'conflict', message: '같은 프로젝트를 다른 맥이 먼저 올렸습니다. "목록 새로고침"으로 받은 뒤 다시 올리세요.' };
+        }
+        continue;   // 재시도
+      }
+      return { ok: false, code: _errCode(msg), message: _errMsg(msg) };
+    }
+  }
+  return { ok: false, code: 'conflict', message: 'push 재시도 실패 — 먼저 받은 뒤 다시 올리세요.' };
+}
 ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, updatedAt } = {}) => {
   try {
     if (!account || !id || !data) return { ok: false, message: 'account/id/data 필요' };
@@ -1090,13 +1124,19 @@ ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, upd
     _rebuildMarketIndex(dir);
     await _execFileP('git', ['-C', dir, 'add', '-A']);
     await _execFileP('git', ['-C', dir, 'commit', '-m', `market: ${acc}/${name || pid}`]).catch(() => {});
-    await _execFileP('git', ['-C', dir, 'push', '-u', 'origin', 'main']);
-    return { ok: true, account: acc, id: pid };
+    const pr = await _pushWithRebase(dir);   // Phase 3: non-ff면 fetch+rebase 후 재시도
+    if (!pr.ok) return pr;
+    return { ok: true, account: acc, id: pid, version };
   } catch (e) { return { ok: false, message: e.message }; }
 });
 ipcMain.handle('market:list', async () => {
   try { const dir = await _ensureMarketRepo(); return { ok: true, items: _rebuildMarketIndex(dir) }; }
-  catch (e) { return { ok: false, message: e.message }; }
+  catch (e) { return { ok: false, code: _errCode(e.message), message: _errMsg(e.message) }; }
+});
+// Phase 3: gh 인증 선점검
+ipcMain.handle('market:auth', async () => {
+  try { await _execFileP('gh', ['auth', 'status']); return { ok: true }; }
+  catch { return { ok: false, code: 'auth', message: 'GitHub 미인증 — 터미널에서 `gh auth login` 후 마켓을 사용하세요.' }; }
 });
 ipcMain.handle('market:pull', async (_e, { account, id } = {}) => {
   try {

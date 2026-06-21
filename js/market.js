@@ -83,6 +83,9 @@
       const listEl = container.querySelector('#market-list');
       listEl.innerHTML = `<div style="color:#888;font-size:12px;padding:12px 0;">목록 불러오는 중…</div>`;
       if (!window.electronAPI?.market) { listEl.innerHTML = `<div style="color:#c66;font-size:12px;">마켓 API 없음 — 앱 재시작 필요</div>`; return; }
+      // Phase 3: gh 인증 선점검 (미인증이면 list/pull이 통째 죽으므로 먼저 안내)
+      const auth = await window.electronAPI.market.auth?.();
+      if (auth && auth.ok === false) { listEl.innerHTML = `<div style="color:#c66;font-size:12px;">${_esc(auth.message)}</div>`; return; }
       const res = await window.electronAPI.market.list();
       if (!res?.ok) { listEl.innerHTML = `<div style="color:#c66;font-size:12px;">목록 실패: ${_esc(res?.message)}</div>`; return; }
       const items = res.items || [];

@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     push: (payload) => ipcRenderer.invoke('market:push', payload),
     list: ()        => ipcRenderer.invoke('market:list'),
     pull: (payload) => ipcRenderer.invoke('market:pull', payload),
+    auth: ()        => ipcRenderer.invoke('market:auth'),
   },
 
   // License
