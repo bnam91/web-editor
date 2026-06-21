@@ -73,6 +73,62 @@
 
   function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+  // Phase 4b: 인터랙티브 resolve 모달 빌더 — 섹션별 [내것/원격/둘다] → applyResolve → 새 머지 프로젝트로 원자 저장(원본 불변).
+  // 데이터 fetch와 분리(테스트 가능). saveFn 주입(기본 electronAPI.saveProject).
+  function buildResolveModal(meta, local, remoteData, saveFn) {
+    if (!window.marketMerge) { _toast('⚠️ 머지 엔진 없음 (앱 재시작 필요)'); return; }
+    saveFn = saveFn || (p => window.electronAPI.saveProject(p));
+    const { account, id, name } = meta;
+    const diverged = window.marketMerge.diffProjects(local, remoteData).sections.filter(s => s.status !== 'same');
+    if (!diverged.length) { _toast('변경점 없음 — 로컬이 최신과 동일'); return; }
+    const LABELS = { changed: ['내것', '원격', '둘다'], added: ['무시', '받기', '둘다'], removed: ['유지', '삭제', '—'] };
+    const def = { changed: 'mine', added: 'theirs', removed: 'mine' };
+    const ov = document.createElement('div');
+    ov.className = 'market-resolve-modal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;';
+    ov.innerHTML = `<div style="background:#222;border:1px solid #3a3a3a;border-radius:8px;width:560px;max-height:80vh;display:flex;flex-direction:column;color:#e8e8e8;font-size:13px;">
+      <div style="padding:14px 16px;border-bottom:1px solid #3a3a3a;font-weight:600;">🔀 섹션 머지 — ${_esc(name)} (분기 ${diverged.length}섹션)</div>
+      <div id="rsv-list" style="overflow:auto;padding:8px 16px;flex:1;"></div>
+      <div style="padding:12px 16px;border-top:1px solid #3a3a3a;display:flex;gap:8px;justify-content:flex-end;">
+        <button id="rsv-cancel" class="settings-btn settings-btn-secondary">취소</button>
+        <button id="rsv-apply" class="settings-btn settings-btn-primary">머지 적용(새 프로젝트로 저장)</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#rsv-list').innerHTML = diverged.map(s => {
+      const secId = s.key.split('::').slice(-1)[0];
+      const opts = LABELS[s.status] || ['내것', '원격', '둘다'];
+      return `<div style="padding:7px 0;border-bottom:1px solid #2c2c2c;display:flex;align-items:center;gap:8px;">
+        <span style="flex:1;font-family:monospace;">${_esc(secId)} <em style="color:#888;font-style:normal;">(${s.status})</em></span>
+        ${opts.map((lbl, i) => { const v = ['mine', 'theirs', 'both'][i]; return lbl === '—' ? '' : `<label style="font-size:12px;"><input type="radio" name="r-${_esc(s.key)}" value="${v}" ${v === def[s.status] ? 'checked' : ''}> ${lbl}</label>`; }).join('')}
+      </div>`;
+    }).join('');
+    ov.querySelector('#rsv-cancel').onclick = () => ov.remove();
+    ov.querySelector('#rsv-apply').onclick = async () => {
+      const choices = {};
+      // 체크된 radio를 직접 순회(키에 '::' 포함 → 셀렉터 이스케이프 회피). name = 'r-'+key.
+      ov.querySelectorAll('#rsv-list input[type=radio]:checked').forEach(r => { choices[r.name.slice(2)] = r.value; });
+      const parsed = JSON.parse(window.marketMerge.applyResolve(local, remoteData, choices));
+      const proj = { id: 'proj_' + Date.now(), name: (name || '머지') + ' (머지)', ...parsed,
+        marketRef: { account, id, version: meta.version || null, updatedAt: meta.updatedAt || null, pulledAt: new Date().toISOString() } };
+      const saved = await saveFn(proj);
+      ov.remove();
+      _toast(saved?.ok !== false ? `✅ 머지 완료 — 홈에서 "${proj.name}" 열기` : '❌ 저장 실패');
+    };
+    return ov;
+  }
+  async function openResolveModal(account, id, name, localProjId) {
+    if (!window.marketMerge) { _toast('⚠️ 머지 엔진 없음 (앱 재시작 필요)'); return; }
+    _toast('⏳ 머지 준비 중…');
+    const res = await window.electronAPI.market.pull({ account, id });
+    if (!res?.ok) { _toast(`❌ 받기 실패: ${res?.message || ''}`); return; }
+    let remoteData; try { remoteData = JSON.parse(res.project.data); } catch { _toast('❌ 원격 데이터 손상'); return; }
+    const local = await window.electronAPI.loadProject(localProjId);
+    if (!local || !local.pages) { _toast('❌ 로컬 프로젝트 로드 실패'); return; }
+    buildResolveModal({ account, id, name, version: res.project.version, updatedAt: res.project.updatedAt }, local, remoteData);
+  }
+  window.marketOpenResolve = openResolveModal;
+  window.marketBuildResolveModal = buildResolveModal;
+
   async function renderMarketPane(container) {
     const account = getAccount();
     container.innerHTML = `
@@ -113,7 +169,7 @@
         const projs = await window.electronAPI.listProjects?.();
         (Array.isArray(projs) ? projs : []).forEach(p => {
           const r = p && p.marketRef;
-          if (r && r.id && (!localRefs[r.id] || (r.pulledAt || '') > (localRefs[r.id].pulledAt || ''))) localRefs[r.id] = r;
+          if (r && r.id && (!localRefs[r.id] || (r.pulledAt || '') > (localRefs[r.id].pulledAt || ''))) localRefs[r.id] = { ...r, _localProjId: p.id };
         });
       } catch (_) {}
       const _fresh = (it) => {
@@ -135,10 +191,14 @@
               ${_fresh(it)}
               <span style="font-size:10px;color:#666;">${_esc((it.updatedAt || '').slice(0, 10))}</span>
               <button class="settings-btn settings-btn-secondary market-pull-btn" data-acc="${_esc(it.account)}" data-id="${_esc(it.id)}" data-name="${_esc(it.name)}" style="height:26px;font-size:11px;">받기</button>
+              ${(localRefs[it.id] && it.version && localRefs[it.id].version && localRefs[it.id].version !== it.version) ? `<button class="settings-btn settings-btn-secondary market-merge-btn" data-acc="${_esc(it.account)}" data-id="${_esc(it.id)}" data-name="${_esc(it.name)}" data-local="${_esc(localRefs[it.id]._localProjId)}" style="height:26px;font-size:11px;" title="로컬 복사본과 섹션 머지">🔀머지</button>` : ''}
             </div>`).join('')}
         </div>`).join('');
       listEl.querySelectorAll('.market-pull-btn').forEach(b => {
         b.addEventListener('click', () => pullProject(b.dataset.acc, b.dataset.id, b.dataset.name));
+      });
+      listEl.querySelectorAll('.market-merge-btn').forEach(b => {
+        b.addEventListener('click', () => openResolveModal(b.dataset.acc, b.dataset.id, b.dataset.name, b.dataset.local));
       });
     }
     loadList();

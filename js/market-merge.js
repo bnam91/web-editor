@@ -66,5 +66,47 @@
     return { sections, summary: { same, changed, added, removed, total: keys.size }, diverged };
   }
 
-  window.marketMerge = { normSection, sectionMap, diffProjects };
+  // 'both' 시 원격 섹션 id 재발급(로컬과 충돌 방지)
+  function _reId(outerHTML, parser) {
+    const d = parser.parseFromString(`<div id="c">${outerHTML}</div>`, 'text/html').getElementById('c');
+    const sec = d.firstElementChild;
+    if (sec) sec.id = 'sec_m' + Math.random().toString(36).slice(2, 9);
+    return d.innerHTML;
+  }
+
+  // 섹션별 선택(choices)으로 머지된 프로젝트 데이터 생성. 원본 불변(새 객체 반환).
+  // choices: { 'pageId::secId': 'mine'|'theirs'|'both' }. 미지정 기본: changed/local-only→mine, remote-only(added)→theirs.
+  function applyResolve(localData, remoteData, choices) {
+    choices = choices || {};
+    const Lo = _asObj(localData), Ro = _asObj(remoteData);
+    const parser = new DOMParser();
+    const result = JSON.parse(JSON.stringify(Lo));
+    const Lp = Object.fromEntries((Lo.pages || []).map(p => [p.id, p]));
+    const Rp = Object.fromEntries((Ro.pages || []).map(p => [p.id, p]));
+    const pageIds = [...new Set([...(Lo.pages || []).map(p => p.id), ...(Ro.pages || []).map(p => p.id)])];
+    result.pages = pageIds.map(pid => {
+      const lpage = Lp[pid], rpage = Rp[pid];
+      const base = JSON.parse(JSON.stringify(lpage || rpage));
+      const lC = parser.parseFromString(`<div id="c">${lpage?.canvas || ''}</div>`, 'text/html').getElementById('c');
+      const rC = parser.parseFromString(`<div id="c">${rpage?.canvas || ''}</div>`, 'text/html').getElementById('c');
+      const lEls = [...lC.querySelectorAll('.section-block')], rEls = [...rC.querySelectorAll('.section-block')];
+      const lById = Object.fromEntries(lEls.map(s => [s.id, s])), rById = Object.fromEntries(rEls.map(s => [s.id, s]));
+      const order = [...lEls.map(s => s.id), ...rEls.map(s => s.id).filter(id => !(id in lById))];
+      const out = [];
+      for (const id of order) {
+        const inL = id in lById, inR = id in rById;
+        let c = choices[`${pid}::${id}`];
+        if (!c) c = (inL && inR) ? 'mine' : (inR ? 'theirs' : 'mine');
+        if (c === 'both') { if (inL) out.push(lById[id].outerHTML); if (inR) out.push(_reId(rById[id].outerHTML, parser)); }
+        else if (c === 'theirs' && inR) out.push(rById[id].outerHTML);
+        else if (c === 'mine' && inL) out.push(lById[id].outerHTML);
+        else out.push((inL ? lById[id] : rById[id]).outerHTML);
+      }
+      base.canvas = out.join('');
+      return base;
+    });
+    return JSON.stringify(result);
+  }
+
+  window.marketMerge = { normSection, sectionMap, diffProjects, applyResolve };
 })();
