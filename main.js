@@ -227,7 +227,7 @@ function createWindow() {
 
   ipcMain.handle('get-version', () => app.getVersion());
   ipcMain.handle('app:git-branch', () => getGitBranch());
-  ipcMain.handle('app:is-admin', () => process.argv.includes('admin'));
+  ipcMain.handle('app:is-admin', () => isAdminAuthorized());
   ipcMain.handle('app:debug-port', () => {
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
@@ -296,9 +296,36 @@ function createWindow() {
   }
 }
 
+/* ── admin 모드 인증 (GAP-008 심층: 라이선스/결제 우회 차단) ──
+   admin 모드 = 라이선스 검증 우회 + 라이선스 키 발급 권한. 이를 'admin' CLI 인자만으로
+   부여하면 배포 앱을 가진 누구나(인자명은 binary strings로 노출) 라이선스/결제를 우회하고
+   유료 키를 자가발급할 수 있다 → 매출 직결 보안구멍.
+   → 패키징(배포) 빌드에선 'admin' 인자 + 운영자 토큰 인증을 모두 요구한다.
+     · dev(미패키징, `electron .`): 인자만으로 허용 — 개발/검증 편의(lens 9335·지디 9334 포함).
+     · 패키징: env GODITOR_ADMIN_TOKEN 의 sha256(hex) == userData/admin.allow 파일 내용일 때만 admin.
+       admin.allow는 운영자가 관리자 머신에 로컬 배치(앱 번들·레포 미포함) → 일반 고객 빌드엔
+       부재하므로 'admin' 인자가 무력화된다(safe-by-default). */
+function isAdminAuthorized() {
+  if (!process.argv.includes('admin')) return false;
+  let packaged = true;
+  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
+  if (!packaged) return true; // dev/검증 빌드
+  try {
+    const token = process.env.GODITOR_ADMIN_TOKEN;
+    if (!token) return false;
+    const allowPath = path.join(app.getPath('userData'), 'admin.allow');
+    if (!fs.existsSync(allowPath)) return false;
+    const expected = String(fs.readFileSync(allowPath, 'utf8')).trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(expected)) return false; // sha256 hex만 허용
+    const crypto = require('crypto');
+    const actual = crypto.createHash('sha256').update(token).digest('hex');
+    return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
+  } catch (_) { return false; }
+}
+
 /* ── 라이선스 체크 + 초기 페이지 로드 ── */
 async function checkLicenseAndLoad() {
-  if (process.argv.includes('admin')) {
+  if (isAdminAuthorized()) {
     mainWindow.loadFile('pages/projects.html');
     return;
   }
@@ -340,13 +367,14 @@ ipcMain.handle('license:update-name', (event, licenseKey, userName) =>
   updateUserName(licenseKey, userName)
 );
 
-// GAP-008: 라이선스 키 발급/열람은 ★admin 빌드 전용. 일반 출시 빌드의 렌더러
+// GAP-008: 라이선스 키 발급/열람은 ★admin 권한 전용. 일반 출시 빌드의 렌더러
 // (또는 콘솔/악성 삽입 스크립트)가 window.electronAPI.createLicenseKey('pro')로
-// 유료 키를 자가발급하는 결제 우회를 차단한다. admin 신호 = process.argv 'admin'
-// (app:is-admin/부팅 로드와 동일 기준). 프로세스 단위 게이팅이라 단일 mainWindow 환경에서
-// event.sender 체크와 동치. (서버측 발급 이전·MongoDB 쓰기자격 번들 제거는 후속 과제.)
+// 유료 키를 자가발급하는 결제 우회를 차단한다. admin 판정 = isAdminAuthorized()
+// (부팅 라이선스 게이트·app:is-admin과 동일 — 패키징 빌드는 운영자 토큰까지 요구).
+// 프로세스 단위 게이팅이라 단일 mainWindow 환경에서 event.sender 체크와 동치.
+// (서버측 발급 이전·MongoDB 쓰기자격 번들 제거는 후속 과제.)
 const requireAdmin = (event) => {
-  if (process.argv.includes('admin')) return null;
+  if (isAdminAuthorized()) return null;
   try {
     const u = event && event.sender && event.sender.getURL && event.sender.getURL();
     console.warn('[license] admin-gated IPC 거부 (비-admin 빌드):', u || '');
