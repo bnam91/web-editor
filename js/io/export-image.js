@@ -439,7 +439,6 @@ async function exportSection(sec, format, width, opts) {
       clone.getBoundingClientRect();
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       const secH = clone.offsetHeight;
-      const dpr  = window.devicePixelRatio || 2;
       let pngBase64;
       if (window.electronAPI.captureSectionCdp) {
         // clone은 top:-99999px(off-screen)에 위치 — clip.y를 그 좌표로 전달해 캡쳐
@@ -454,13 +453,19 @@ async function exportSection(sec, format, width, opts) {
         // 구버전 Electron(메인 프로세스 미업데이트) 호환을 위한 명시적 실패
         throw new Error('captureSectionCdp 미지원 — Electron 재빌드 필요');
       }
+      // 게이트④/A6(현빈 확정 spec): PNG/JPG export = CSS픽셀 ★1배 고정.
+      // CDP 캡처(captureSectionCdp)는 surface device-pixel-ratio배(레티나=2x) 물리픽셀로
+      // 돌아온다(섹션 CSS 860px → 캡처 1720px). 기존엔 outCanvas도 w*dpr로 둬서 2배 PNG가
+      // 나왔고, dpr=1 머신에선 1배라 머신 간 산출물이 비결정적이었음.
+      // → 출력 캔버스를 CSS px(w×secH)로 고정하고 drawImage 시 다운스케일 → dpr 무관 결정적 1배.
       const outCanvas = document.createElement('canvas');
-      outCanvas.width  = Math.round(w    * dpr);
-      outCanvas.height = Math.round(secH * dpr);
+      outCanvas.width  = Math.round(w);
+      outCanvas.height = Math.round(secH);
       const ctx = outCanvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
       await new Promise((res, rej) => {
         const ci = new Image();
-        ci.onload  = () => { ctx.drawImage(ci, 0, 0); res(); };
+        ci.onload  = () => { ctx.drawImage(ci, 0, 0, outCanvas.width, outCanvas.height); res(); };
         ci.onerror = rej;
         ci.src = 'data:image/png;base64,' + pngBase64;
       });
