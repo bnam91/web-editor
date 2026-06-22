@@ -9,6 +9,37 @@ import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
 const SAVE_KEY_PREFIX = 'web-editor-autosave';
 const PROJECTS_KEY = 'sangpe-projects';
 
+/* GAP-006/RCE: 비신뢰 프로젝트 HTML 소독.
+   마켓플레이스/파일에서 받은 프로젝트의 canvas HTML이 DOM에 들어올 때 실행 가능한
+   벡터(on* 이벤트 핸들러·<script>·javascript: URL)를 제거한다. 정상 디자인 콘텐츠
+   (div/text/img/svg/style)는 그대로 보존 — 합법 블록엔 on 핸들러나 script가 없음.
+   <template>로 파싱해 inert(스크립트 미실행·이미지 미로드) 상태에서 정리 후 반환. */
+function sanitizeCanvasHtml(html) {
+  if (!html || typeof html !== 'string') return html || '';
+  let tpl;
+  try {
+    tpl = document.createElement('template');
+    tpl.innerHTML = html;
+  } catch (_) { return html; }
+  const root = tpl.content;
+  // 1) <script> 제거
+  root.querySelectorAll('script').forEach(el => el.remove());
+  // 2) on* 이벤트 핸들러 속성 + javascript: URL 제거
+  let stripped = 0;
+  root.querySelectorAll('*').forEach(el => {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      const val = (attr.value || '').replace(/\s+/g, '').toLowerCase();
+      if (name.startsWith('on')) { el.removeAttribute(attr.name); stripped++; continue; }
+      if ((name === 'href' || name === 'src' || name === 'xlink:href' || name === 'formaction' || name === 'action')
+          && val.startsWith('javascript:')) { el.removeAttribute(attr.name); stripped++; }
+    }
+  });
+  if (stripped) console.warn(`[sanitize] 비신뢰 canvas에서 위험 속성/요소 ${stripped}건 제거`);
+  return root.firstChild ? tpl.innerHTML : '';
+}
+if (typeof window !== 'undefined') window.sanitizeCanvasHtml = sanitizeCanvasHtml;
+
 /** 현재 activeProjectId 기준 localStorage 키 반환 */
 function getSaveKey() {
   return activeProjectId ? `${SAVE_KEY_PREFIX}__${activeProjectId}` : SAVE_KEY_PREFIX;
@@ -251,7 +282,7 @@ async function switchPage(pageId) {
   state.currentPageId = pageId;
   const page = getCurrentPage();
   if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-  canvasEl.innerHTML = page.canvas || '';
+  canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
   canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   canvasEl.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone').forEach(el => el.remove());
@@ -301,7 +332,7 @@ function deletePage(pageId) {
     state._suppressAutoSave = true;
     state.currentPageId = next.id;
     if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
-    canvasEl.innerHTML = next.canvas || '';
+    canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
     canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
     rebindAll();
     applyPageSettings();
@@ -386,7 +417,7 @@ function applyProjectData(data) {
     const page = getCurrentPage();
     if (!page) return; // S8: 여전히 undefined면 안전하게 종료
     if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-    canvasEl.innerHTML = page.canvas || '';
+    canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
     canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
     rebindAll();
     applyPageSettings();
