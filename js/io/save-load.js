@@ -75,11 +75,12 @@ async function saveProjectToFile(snapshot, opts = {}) {
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
     if (_targetId) _pendingSaves.set(_targetId, { snapshot, opts });
-    return;
+    return; // 큐잉됨 — 결과는 드레인 시점에 확정(undefined=미확정)
   }
   _isSavingToFile = true;
+  let _result;
   try {
-    await _doSaveProjectToFile(snapshot, opts);
+    _result = await _doSaveProjectToFile(snapshot, opts);
     _dirtySinceSave = false;
   } finally {
     _isSavingToFile = false;
@@ -90,6 +91,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
       await saveProjectToFile(nextSave.snapshot, nextSave.opts);
     }
   }
+  return _result; // GAP-005: 저장 결과 전파(인디케이터 정직성)
 }
 
 function _isAllCanvasEmpty(data) {
@@ -123,7 +125,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       // pages + pageSettings만 저장 — branches/commits/thumbnail은 _meta.json에서 관리
       // existing 먼저 spread 후 data로 덮어쓰기 — 레거시 필드는 data에 없으면 existing 유지
       const { branches: _b, commits: _c, currentBranch: _cb, thumbnail: _t, ...dataWithoutMeta } = data;
-      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, ...existingWithoutMeta } = (existing || {});
+      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, _recovered: _er, ...existingWithoutMeta } = (existing || {});
       const proj = {
         ...existingWithoutMeta,
         ...dataWithoutMeta,
@@ -136,16 +138,18 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       if (saveResult && saveResult.ok === false) {
         console.warn('[save-load] 저장 거부됨:', saveResult.reason, saveResult);
         window.showToast?.('⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨');
-        return;
+        return { ok: false, reason: saveResult.reason || 'rejected' };
       }
       // thumbnail은 _meta.json에 저장
       if (thumbnail) {
         const existingMeta = await window.electronAPI.loadProjectMeta(targetId);
         await window.electronAPI.saveProjectMeta(targetId, { ...(existingMeta || {}), thumbnail, updatedAt: new Date().toISOString() });
       }
+      return { ok: true }; // GAP-005: 디스크 영속 성공 시에만 ok:true
     } catch (e) {
       console.error('[save-load] Electron 저장 실패:', e);
       window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
+      return { ok: false, reason: 'exception', error: e && e.message };
     }
   } else {
     try {
@@ -158,6 +162,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         if (thumbnail) proj.thumbnail = thumbnail;
       }
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+      return { ok: true };
     } catch (e) {
       if (e.name === 'QuotaExceededError') {
         console.warn('[save-load] localStorage 용량 초과, 저장 실패');
@@ -175,6 +180,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         console.error('[save-load] localStorage 저장 오류:', e);
         window.showToast?.('❌ 저장 오류: ' + e.message);
       }
+      return { ok: false, reason: e.name === 'QuotaExceededError' ? 'quota' : 'exception', error: e && e.message };
     }
   }
 }
@@ -1147,9 +1153,13 @@ function _setAutosaveIndicator(state) {
   if (!el) return;
   clearTimeout(_autoSaveHideTimer);
   el.className = state;
-  el.textContent = state === 'saving' ? '저장 중...' : '저장됨';
+  // GAP-005: 저장 실패 시 '저장됨' 거짓표시 금지 — 'error'는 빨강·영속(자동숨김 없음).
+  el.textContent = state === 'saving' ? '저장 중...'
+                 : state === 'error' ? '⚠️ 저장 실패'
+                 : '저장됨';
+  el.style.color = state === 'error' ? '#e5484d' : '';
   if (state === 'saved') {
-    _autoSaveHideTimer = setTimeout(() => { el.className = ''; el.textContent = ''; }, 2500);
+    _autoSaveHideTimer = setTimeout(() => { el.className = ''; el.textContent = ''; el.style.color = ''; }, 2500);
   }
 }
 
@@ -1183,8 +1193,11 @@ function scheduleAutoSave() {
     } catch {}
     const saveOk = safeLocalStorageSet(getSaveKey(), snap);
     if (saveOk) localStorage.setItem(getSaveTsKey(), String(Date.now()));
-    saveProjectToFile(snap, { skipThumbnail: true }); // 자동저장은 썸네일 캡처 생략
-    _setAutosaveIndicator('saved');
+    // GAP-005: 저장 결과를 기다려 인디케이터를 정직하게 갱신.
+    // ok:false(EACCES·디스크풀·잠금 등) → '저장 실패'(빨강), 성공/큐잉 → '저장됨'.
+    Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true })) // 자동저장은 썸네일 캡처 생략
+      .then(r => _setAutosaveIndicator(r && r.ok === false ? 'error' : 'saved'))
+      .catch(() => _setAutosaveIndicator('error'));
   }, 1500);
 }
 
@@ -1370,6 +1383,11 @@ function initApp() {
         // 시맨틱 컬러 변수 복원 (meta.colorVars → localStorage + :root). 비차단.
         window.DesignSystem?.restoreColorVarsFromMeta?.(activeProjectId);
         if (proj) {
+          // GAP-004: proj.json 손상으로 백업/히스토리에서 복구된 경우 사용자에게 정직하게 통지.
+          if (proj._recovered) {
+            window.showToast?.(`⚠️ 프로젝트 파일이 손상되어 ${proj._recovered === 'history' ? '히스토리' : '백업'}에서 복구했습니다.`);
+            delete proj._recovered; // 마커는 메모리/저장에 남기지 않음
+          }
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
           if (!meta && (proj.branches || proj.commits)) {
             const migratedMeta = {

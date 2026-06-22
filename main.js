@@ -725,8 +725,39 @@ ipcMain.handle('projects:list', () => {
 
 ipcMain.handle('projects:load', (event, id) => {
   const filePath = _resolveProjectJsonPath(id);
-  if (!filePath) return null;
-  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
+  // 1) 정상 경로: proj.json
+  if (filePath) {
+    try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+    catch (e) { console.warn(`[projects:load] proj.json 손상(${id}): ${e.message} — 백업 폴백 시도`); }
+  }
+  // 2) GAP-004 폴백 체인: proj_backup.json → proj_history 최신→오래된 순.
+  //    백업 인프라(롤링백업·히스토리 5슬롯)가 옆에 유효본을 둬도 손상 시 빈 프로젝트로
+  //    로드되던 데이터손실을 차단. 첫 유효본을 반환하고 proj.json으로 자가치유 재기록.
+  const candidates = [];
+  const backupPath = _resolveBackupJsonPath(id);
+  if (backupPath) candidates.push({ path: backupPath, from: 'backup' });
+  for (const histDir of [path.join(PROJECTS_DIR, id, 'proj_history'), path.join(PROJECTS_DIR, `${id}_history`)]) {
+    try {
+      if (fs.existsSync(histDir)) {
+        const slots = fs.readdirSync(histDir).filter(f => f.endsWith('.json'))
+          .sort((a, b) => (parseInt(b) || 0) - (parseInt(a) || 0)); // 최신 우선
+        for (const s of slots) candidates.push({ path: path.join(histDir, s), from: 'history' });
+      }
+    } catch (_) {}
+  }
+  for (const c of candidates) {
+    let proj;
+    try { proj = JSON.parse(fs.readFileSync(c.path, 'utf8')); }
+    catch (_) { continue; } // 이 백업도 손상 → 다음 후보
+    console.warn(`[projects:load] ${id} 손상 → ${c.from}(${path.basename(c.path)})에서 복구`);
+    try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
+      const paths = _ensureNewLayoutPaths(id);
+      _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
+    } catch (e) { console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
+    return { ...proj, _recovered: c.from }; // _recovered: 렌더러 통지용(serialize엔 미포함)
+  }
+  // 3) proj.json·백업·히스토리 모두 부재/손상 → 복구 불가
+  return null;
 });
 
 // 섹션 수 합산 헬퍼 — 모든 페이지의 canvas HTML에서 section-block 카운트
