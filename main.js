@@ -340,11 +340,32 @@ ipcMain.handle('license:update-name', (event, licenseKey, userName) =>
   updateUserName(licenseKey, userName)
 );
 
-ipcMain.handle('license:create-key', (event, plan, memo) =>
-  createLicenseKey(plan, memo)
-);
+// GAP-008: 라이선스 키 발급/열람은 ★admin 빌드 전용. 일반 출시 빌드의 렌더러
+// (또는 콘솔/악성 삽입 스크립트)가 window.electronAPI.createLicenseKey('pro')로
+// 유료 키를 자가발급하는 결제 우회를 차단한다. admin 신호 = process.argv 'admin'
+// (app:is-admin/부팅 로드와 동일 기준). 프로세스 단위 게이팅이라 단일 mainWindow 환경에서
+// event.sender 체크와 동치. (서버측 발급 이전·MongoDB 쓰기자격 번들 제거는 후속 과제.)
+const requireAdmin = (event) => {
+  if (process.argv.includes('admin')) return null;
+  try {
+    const u = event && event.sender && event.sender.getURL && event.sender.getURL();
+    console.warn('[license] admin-gated IPC 거부 (비-admin 빌드):', u || '');
+  } catch (_) {}
+  return { ok: false, error: 'FORBIDDEN', code: 'ADMIN_REQUIRED',
+           message: '라이선스 키 발급/열람은 관리자 빌드에서만 가능합니다.' };
+};
 
-ipcMain.handle('license:list-keys', () => listLicenseKeys());
+ipcMain.handle('license:create-key', (event, plan, memo) => {
+  const denied = requireAdmin(event);
+  if (denied) return denied;
+  return createLicenseKey(plan, memo);
+});
+
+ipcMain.handle('license:list-keys', (event) => {
+  const denied = requireAdmin(event);
+  if (denied) return denied;
+  return listLicenseKeys();
+});
 
 ipcMain.handle('license:navigate-projects', () => {
   mainWindow.loadFile('pages/projects.html');
