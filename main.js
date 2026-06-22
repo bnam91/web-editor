@@ -282,6 +282,19 @@ function createWindow() {
     mainWindow.webContents.send('fullscreen-change', false);
   });
 
+  // GAP-008: 라이선스 검증 강제 — 렌더러발(發) 직접 네비게이션 우회 차단.
+  // license 화면에서 location.href='projects.html'/'../index.html' 등으로 라이선스 게이트를
+  // 건너뛰는 경로를 막는다. 인증된 진입(_editorAccessGranted)·admin일 때만 에디터 페이지 허용.
+  // (main의 loadFile은 will-navigate를 발화하지 않으므로 정상 부팅/등록 흐름엔 영향 없음.)
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (/\/(projects|index|planning)\.html(\?|#|$)/.test(url)) {
+      if (!_editorAccessGranted && !isAdminAuthorized()) {
+        event.preventDefault();
+        console.warn('[license] 미인증 에디터 네비게이션 차단:', url);
+      }
+    }
+  });
+
   // F12 → DevTools (dev 모드에서만)
   if (process.argv.includes('--enable-logging')) {
     mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -323,9 +336,16 @@ function isAdminAuthorized() {
   } catch (_) { return false; }
 }
 
+// GAP-008: 에디터(라이선스 게이트 너머) 진입 허가 플래그. 인증된 경로(부팅 라이선스 통과·
+// 키 등록 성공·admin)에서만 true로 세팅. will-navigate 가드가 이 플래그로 렌더러발(發)
+// 직접 네비게이션(location.href='projects.html' 등) 우회를 차단한다.
+let _editorAccessGranted = false;
+function _grantEditorAccess() { _editorAccessGranted = true; }
+
 /* ── 라이선스 체크 + 초기 페이지 로드 ── */
 async function checkLicenseAndLoad() {
   if (isAdminAuthorized()) {
+    _grantEditorAccess();
     mainWindow.loadFile('pages/projects.html');
     return;
   }
@@ -334,6 +354,7 @@ async function checkLicenseAndLoad() {
     if (ip) {
       const result = await findUserByIp(ip);
       if (result.found) {
+        _grantEditorAccess();
         mainWindow.loadFile('pages/projects.html');
         return;
       }
@@ -395,8 +416,22 @@ ipcMain.handle('license:list-keys', (event) => {
   return listLicenseKeys();
 });
 
-ipcMain.handle('license:navigate-projects', () => {
-  mainWindow.loadFile('pages/projects.html');
+ipcMain.handle('license:navigate-projects', async () => {
+  // GAP-008: 라이선스 검증 강제 — 인증 없이 navigate로 에디터에 진입하던 우회 차단.
+  // (기존: 무조건 projects.html 로드 → license 화면 콘솔에서 navigateToProjects() 한 줄로 우회)
+  if (isAdminAuthorized()) { _grantEditorAccess(); mainWindow.loadFile('pages/projects.html'); return { ok: true }; }
+  try {
+    const ip = await getPublicIp();
+    if (ip) {
+      const result = await findUserByIp(ip);
+      if (result && result.found) {
+        _grantEditorAccess();
+        mainWindow.loadFile('pages/projects.html');
+        return { ok: true };
+      }
+    }
+  } catch (_) {}
+  return { ok: false, code: 'LICENSE_REQUIRED' };
 });
 
 /* ── 사용자 데이터 경로 (자동업데이트 후에도 유지) ── */
