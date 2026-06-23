@@ -1154,7 +1154,9 @@ function addSection(opts = {}) {
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
-  window.buildLayerPanel();
+  // GAP-003: 전체 레이어패널 재구성(O(n)) 대신 신규 섹션 행만 증분 추가(O(1)). 미지원 시 폴백.
+  if (window.appendLayerSection) window.appendLayerSection(sec);
+  else window.buildLayerPanel();
   window.selectSection(sec);
   sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
   window.maybeAddNewSectionToScope(sec.id);
