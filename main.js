@@ -242,10 +242,11 @@ function createWindow() {
   ipcMain.handle('settings:test-key', (_e, provider, key) => testApiKey(provider, key));
 
   // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
-  registerClaudePMIPC(ipcMain);
+  // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).
+  registerClaudePMIPC(ipcMain, () => isAdminAuthorized());
 
   // Claude PM (Phase 3 F8) — 내부 터미널 패널 PTY 백엔드
-  registerTerminalIPC(ipcMain);
+  registerTerminalIPC(ipcMain, () => isAdminAuthorized());
 
   // Clipboard write — 렌더러의 navigator.clipboard 권한 거부 우회용 IPC 브리지
   ipcMain.handle('clipboard:writeText', (_e, text) => {

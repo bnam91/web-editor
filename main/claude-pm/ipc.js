@@ -596,11 +596,20 @@ async function handlePingMcp(_e) {
 }
 
 // ── 등록 진입점 ──────────────────────────────
-function registerClaudePMIPC(ipcMain) {
-  ipcMain.handle('claudePM:pickDirectory', handlePickDirectory);
-  ipcMain.handle('claudePM:createFolder', handleCreateFolder);
-  ipcMain.handle('claudePM:openInFinder', handleOpenInFinder);
-  ipcMain.handle('claudePM:spawnClaudeTerminal', handleSpawnClaudeTerminal);
+// GAP-010: spawnClaudeTerminal(외부 터미널서 셸 실행)·디렉터리/파인더 조작은 강력 권한 →
+// isAllowed(=isAdminAuthorized) 게이팅. pingMcp/setActiveProject/ensureFolder는 MCP 연동용
+// 비위험 기능이라 무게이팅 유지(고객 자동화 흐름 보존).
+function registerClaudePMIPC(ipcMain, isAllowed) {
+  const guard = fn => (e, ...a) => {
+    if (typeof isAllowed === 'function' && !isAllowed(e)) {
+      return { ok: false, error: 'FORBIDDEN', code: 'ADMIN_REQUIRED', message: '이 기능은 관리자 권한 전용입니다.' };
+    }
+    return fn(e, ...a);
+  };
+  ipcMain.handle('claudePM:pickDirectory', guard(handlePickDirectory));
+  ipcMain.handle('claudePM:createFolder', guard(handleCreateFolder));
+  ipcMain.handle('claudePM:openInFinder', guard(handleOpenInFinder));
+  ipcMain.handle('claudePM:spawnClaudeTerminal', guard(handleSpawnClaudeTerminal));
   ipcMain.handle('claudePM:pingMcp', handlePingMcp);
   ipcMain.handle('claudePM:setActiveProject', handleSetActiveProject);
   ipcMain.handle('claudePM:ensureFolder', handleEnsureClaudePMFolder);

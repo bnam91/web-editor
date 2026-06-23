@@ -338,11 +338,20 @@ function killAllSessions() {
   _sessionByProject.clear();
 }
 
-function registerTerminalIPC(ipcMain) {
-  ipcMain.handle('claudePM:terminal:start',  (_e, args) => startTerminalSession(args || {}));
-  ipcMain.handle('claudePM:terminal:write',  (_e, args) => writeToTerminal(args || {}));
-  ipcMain.handle('claudePM:terminal:resize', (_e, args) => resizeTerminal(args || {}));
-  ipcMain.handle('claudePM:terminal:kill',   (_e, args) => killTerminal(args || {}));
+// GAP-010: PTY 터미널 = 로그인 셸 임의 명령 실행 경로(RCE). 배포 빌드 렌더러(삽입/침해
+// 콘텐츠 포함)가 호출하지 못하도록 isAllowed(=isAdminAuthorized) 게이팅. 미인증 시 FORBIDDEN.
+// dev/admin(미패키징 또는 토큰 보유)에서만 동작. MCP 서버(고객 자동화 기능)는 별개로 무영향.
+function registerTerminalIPC(ipcMain, isAllowed) {
+  const guard = fn => (e, args) => {
+    if (typeof isAllowed === 'function' && !isAllowed(e)) {
+      return { ok: false, error: 'FORBIDDEN', code: 'ADMIN_REQUIRED', message: '터미널 실행은 관리자 권한 전용입니다.' };
+    }
+    return fn(args || {});
+  };
+  ipcMain.handle('claudePM:terminal:start',  guard(startTerminalSession));
+  ipcMain.handle('claudePM:terminal:write',  guard(writeToTerminal));
+  ipcMain.handle('claudePM:terminal:resize', guard(resizeTerminal));
+  ipcMain.handle('claudePM:terminal:kill',   guard(killTerminal));
 }
 
 module.exports = {
