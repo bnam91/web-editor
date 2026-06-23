@@ -625,6 +625,7 @@ function _buildLayerPanelTail(panel, collapsedSections) {
   }
 })();
 
+let _syncScrollRaf = 0;
 export function syncLayerActive(sec) {
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
   document.querySelectorAll('.layer-variation-group').forEach(g => g.classList.remove('active'));
@@ -633,17 +634,22 @@ export function syncLayerActive(sec) {
     // 섹션 선택 시 좌측 레이어 패널에서 해당 섹션으로 즉시 스크롤
     const layerEl = sec._layerSectionEl || sec._layerHeader.closest('.layer-section');
     if (layerEl) {
-      // layer-panel-body는 overflow:visible이라 scrollBody(layers-section-body)가 실제 스크롤 컨테이너
-      // scrollIntoView 전에 layerBody의 min-height를 실제 콘텐츠 높이로 갱신해야 scrollBody가 스크롤 가능해짐
-      const layerBody = document.getElementById('layer-panel-body');
-      if (layerBody) {
-        const lastSec = layerBody.querySelector('.layer-section:last-child');
-        const contentH = lastSec ? (lastSec.offsetTop + lastSec.offsetHeight) : 0;
-        if (contentH > layerBody.clientHeight) {
-          layerBody.style.minHeight = contentH + 'px';
+      // GAP-003: 강제 동기 reflow(offsetTop 읽기)+scrollIntoView를 rAF로 지연·코얼레스.
+      // add마다 패널 전체 레이아웃을 강제하던 per-add O(n) 비용을 임계경로에서 제거(연속 선택은 마지막만 스크롤).
+      // layer-panel-body는 overflow:visible이라 scrollBody가 실제 스크롤 컨테이너 — minHeight 갱신 후 스크롤.
+      if (_syncScrollRaf) cancelAnimationFrame(_syncScrollRaf);
+      _syncScrollRaf = requestAnimationFrame(() => {
+        _syncScrollRaf = 0;
+        const layerBody = document.getElementById('layer-panel-body');
+        if (layerBody) {
+          const lastSec = layerBody.querySelector('.layer-section:last-child');
+          const contentH = lastSec ? (lastSec.offsetTop + lastSec.offsetHeight) : 0;
+          if (contentH > layerBody.clientHeight) {
+            layerBody.style.minHeight = contentH + 'px';
+          }
         }
-      }
-      layerEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+        layerEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+      });
     }
   }
   if (sec && sec.dataset.variationGroup) {
