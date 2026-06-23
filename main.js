@@ -564,9 +564,17 @@ function _atomicWriteFileSync(filePath, data) {
   }
 }
 
+// GAP-009: 경로 세그먼트(파일명·프로젝트 id) 살균 — 구분자(/ \)를 '_'로, 순수 점(. .. ...)을
+// '_'로 치환해 path-traversal(상위 디렉터리 이탈) 차단. 정상 id(proj_<digits> 등 \w.- 조합)는 불변.
+const _safeSeg = s => {
+  const v = String(s || '').replace(/[^\w.-]/g, '_');
+  return (v === '' || /^\.+$/.test(v)) ? '_' : v;
+};
+
 // proj.json 경로 dual-resolve: 신 우선 → flat fallback.
 // migrator 모듈이 있으면 그쪽 사용, 없으면 동일 로직 인라인.
 function _resolveProjectJsonPath(id) {
+  id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
   if (m && typeof m.resolveProjectJsonPath === 'function') {
     return m.resolveProjectJsonPath(PROJECTS_DIR, id);
@@ -578,6 +586,7 @@ function _resolveProjectJsonPath(id) {
   return null;
 }
 function _resolveMetaJsonPath(id) {
+  id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
   if (m && typeof m.resolveMetaJsonPath === 'function') {
     return m.resolveMetaJsonPath(PROJECTS_DIR, id);
@@ -589,6 +598,7 @@ function _resolveMetaJsonPath(id) {
   return null;
 }
 function _resolveBackupJsonPath(id) {
+  id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
   if (m && typeof m.resolveBackupJsonPath === 'function') {
     return m.resolveBackupJsonPath(PROJECTS_DIR, id);
@@ -601,6 +611,7 @@ function _resolveBackupJsonPath(id) {
 }
 // 항상 신 레이아웃 경로 — write 전용. migrator 없으면 인라인 계산.
 function _ensureNewLayoutPaths(id) {
+  id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
   if (m && typeof m.ensureNewLayoutPaths === 'function') {
     return m.ensureNewLayoutPaths(PROJECTS_DIR, id);
@@ -1282,7 +1293,7 @@ ipcMain.handle('intake:save', (event, data) => {
 
 ipcMain.handle('intake:load', (event, filename) => {
   try {
-    const filePath = path.join(INTAKE_DIR, filename);
+    const filePath = path.join(INTAKE_DIR, _safeSeg(filename)); // GAP-009
     if (!fs.existsSync(filePath)) return null;
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch { return null; }
@@ -1319,13 +1330,13 @@ ipcMain.handle('presets:read-all', () => {
 });
 
 ipcMain.handle('presets:save', (event, preset) => {
-  const filePath = path.join(PRESETS_DIR, `${preset.id}.json`);
+  const filePath = path.join(PRESETS_DIR, `${_safeSeg(preset && preset.id)}.json`); // GAP-009
   fs.writeFileSync(filePath, JSON.stringify(preset, null, 2));
   return true;
 });
 
 ipcMain.handle('presets:delete', (event, presetId) => {
-  const filePath = path.join(PRESETS_DIR, `${presetId}.json`);
+  const filePath = path.join(PRESETS_DIR, `${_safeSeg(presetId)}.json`); // GAP-009
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   return true;
 });
@@ -1487,7 +1498,7 @@ ipcMain.handle('templates:load-index', () => {
     try {
       const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
       const index = old.map(({ canvas, ...meta }) => {
-        if (canvas) fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${meta.id}.html`), canvas, 'utf8');
+        if (canvas) fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(meta.id)}.html`), canvas, 'utf8'); // GAP-009
         return meta;
       });
       fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
@@ -1505,18 +1516,18 @@ ipcMain.handle('templates:save-index', (event, index) => {
 });
 
 ipcMain.handle('templates:load-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${id}.html`);
+  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
   if (!fs.existsSync(filePath)) return null;
   try { return fs.readFileSync(filePath, 'utf8'); } catch { return null; }
 });
 
 ipcMain.handle('templates:save-canvas', (event, id, html) => {
-  fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${id}.html`), html, 'utf8');
+  fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`), html, 'utf8'); // GAP-009
   return true;
 });
 
 ipcMain.handle('templates:delete-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${id}.html`);
+  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   return true;
 });
