@@ -29,6 +29,8 @@ let onActiveProjectCb = null;
 let _rendererInvoker = null;
 // main.js가 setIconifyApi({search, fetchSvg})로 주입. main 측에서 직접 fetch (SSRF/CSP 안전).
 let _iconifyApi = null;
+// main.js가 setProjectOps({duplicate})로 주입 — 프로젝트 단위 관리(복제 등). main 프로세스 fs 로직.
+let _projectOps = null;
 
 const tools = new Map();
 const toolSchemas = new Map();
@@ -107,6 +109,31 @@ function _registerDefaultTools() {
     {
       description: 'Read the currently active Goditor project JSON.',
       inputSchema: { type: 'object', properties: {}, required: [] }
+    }
+  );
+
+  registerTool(
+    'duplicate_project',
+    async ({ sourceProjectId, newName } = {}) => {
+      if (!_projectOps || typeof _projectOps.duplicate !== 'function')
+        throw new Error('project ops not initialized (setProjectOps not called)');
+      // sourceProjectId 생략 시 현재 활성 프로젝트 복제
+      const src = sourceProjectId || (onActiveProjectCb ? onActiveProjectCb() : null);
+      if (!src) throw new Error('sourceProjectId required (no active project)');
+      const r = await _projectOps.duplicate({ sourceProjectId: src, newName });
+      if (!r || r.ok === false) throw new Error((r && r.error) || 'duplicate failed');
+      return { ok: true, newProjectId: r.newProjectId, newName: r.newName };
+    },
+    {
+      description: 'Duplicate a Goditor project — full copy (proj.json + assets/images + claude-pm folder), re-keyed to a fresh project id. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sourceProjectId: { type: 'string', description: 'proj_<digits>. 생략하면 현재 활성 프로젝트.' },
+          newName: { type: 'string', description: '새 프로젝트 이름(생략 시 "원본명 (사본)").' }
+        },
+        required: []
+      }
     }
   );
 
@@ -5860,12 +5887,18 @@ function setIconifyApi(api) {
   _iconifyApi = api || null;
 }
 
+// 프로젝트 단위 관리(복제 등) 주입 — main 프로세스 fs 로직(projects:duplicate 코어).
+function setProjectOps(ops) {
+  _projectOps = ops || null;
+}
+
 module.exports = {
   startMcpServer,
   stopMcpServer,
   registerTool,
   setRendererInvoker,
   setIconifyApi,
+  setProjectOps,
   getToken,
   regenerateToken,
 };

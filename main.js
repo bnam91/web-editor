@@ -28,7 +28,7 @@ const { fillSectionTexts: anthropicFill } = require('./services/anthropicService
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
 // Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
 let currentMcpToken = null;
 
@@ -990,7 +990,8 @@ ipcMain.handle('projects:delete', (event, id) => {
   return dirOk;
 });
 
-ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {}) => {
+// 프로젝트 복제 코어 — ipcMain.handle(렌더러)와 MCP 도구(duplicate_project)가 공용.
+async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
   try {
     if (!sourceProjectId || typeof sourceProjectId !== 'string')
       return { ok: false, error: 'sourceProjectId 필수', code: 'invalid' };
@@ -1088,7 +1089,8 @@ ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {
     console.error('[projects:duplicate] 예외:', e);
     return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
   }
-});
+}
+ipcMain.handle('projects:duplicate', (_e, args = {}) => _duplicateProjectImpl(args));
 
 /* ── IPC: Projects Meta (branches/commits/thumbnail 분리 저장) ── */
 ipcMain.handle('projects:save-meta', (event, projectId, metaData) => {
@@ -1727,6 +1729,10 @@ app.whenReady().then(async () => {
     // iconify search/svg fetch는 main에서 직접 (renderer CSP/외부 fetch 우회 + SSRF 가드)
     if (typeof setMcpIconifyApi === 'function') {
       setMcpIconifyApi({ search: _doIconifySearch, fetchSvg: _fetchIconifySvg });
+    }
+    // 프로젝트 복제 코어 주입 — MCP duplicate_project 도구가 사용.
+    if (typeof setMcpProjectOps === 'function') {
+      setMcpProjectOps({ duplicate: _duplicateProjectImpl });
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
