@@ -12,6 +12,8 @@
    ⚠️ goditor 앱이 켜져 있어야 서버가 떠 있음(앱 종료 시 도구 호출 실패 반환). */
 const http = require('http');
 const BASE_PORT = parseInt(process.env.GODITOR_MCP_PORT || '9345', 10);
+// Unit B — 접속 토큰. env로 주입(GODITOR_MCP_TOKEN). 없으면 헤더 미부착(서버가 401 반환).
+const TOKEN = process.env.GODITOR_MCP_TOKEN;
 let port = null;
 
 function probe(p) {
@@ -32,7 +34,8 @@ function post(p, body) {
   return new Promise((res, rej) => {
     const data = Buffer.from(JSON.stringify(body));
     const req = http.request({ host: '127.0.0.1', port: p, path: '/mcp', method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } }, r => {
+      headers: { 'Content-Type': 'application/json', 'Content-Length': data.length,
+        ...(TOKEN ? { 'x-goditor-token': TOKEN } : {}) } }, r => {
       let d = ''; r.on('data', c => d += c);
       r.on('end', () => { try { res(d ? JSON.parse(d) : null); } catch (e) { rej(e); } });
     });

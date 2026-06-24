@@ -15,11 +15,14 @@
  */
 
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
 let server = null;
 let currentPort = null;
+// Unit B — 접속 토큰 페어링. 메모리에만 보관(파일/레포 저장 금지). 앱 생애주기 동안 유지.
+let mcpToken = null;
 let onActiveProjectCb = null;
 // Phase 2: renderer 측 write 작업(예: window.addTextBlock)을 main에서 호출하는 bridge.
 // main.js가 setRendererInvoker({addTextBlock})로 주입 (순환 의존성 회피).
@@ -32,6 +35,28 @@ const toolSchemas = new Map();
 
 const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_INFO = { name: 'goditor-claude-pm', version: '0.1.0' };
+
+// ─────────────────────────────────────────────
+// Unit B — 접속 토큰 페어링 헬퍼
+// ─────────────────────────────────────────────
+function _genToken() { return crypto.randomBytes(32).toString('hex'); }
+function getToken() { return mcpToken; }
+function regenerateToken() { mcpToken = _genToken(); return mcpToken; }
+function _extractToken(req) {
+  const h = req.headers || {};
+  const x = h['x-goditor-token'];
+  if (x) return String(x).trim();
+  const a = h['authorization'] || h['Authorization'];
+  if (a && /^Bearer\s+/i.test(a)) return a.replace(/^Bearer\s+/i, '').trim();
+  return null;
+}
+// 타이밍안전 비교 — 길이 다르면 즉시 false(timingSafeEqual은 길이 같아야 throw 안 함)
+function _tokenOk(tok) {
+  if (!mcpToken || !tok || tok.length !== mcpToken.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(mcpToken));
+  } catch (_) { return false; }
+}
 
 // ─────────────────────────────────────────────
 // Tool registration
@@ -5720,17 +5745,30 @@ function _createServer() {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
+      // Unit B — 토큰 없이 허용하되 도구목록(tools)·server 상세는 비노출(상태만).
+      // 브리지의 포트 자동탐색이 보는 status:'ok' 계약은 유지.
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         status: 'ok',
         port: currentPort,
-        server: SERVER_INFO,
-        tools: Array.from(tools.keys())
+        name: SERVER_INFO.name,
+        requiresToken: true
       }));
       return;
     }
 
     if (req.method === 'POST' && req.url && req.url.startsWith('/mcp')) {
+      // Unit B — 토큰 검증 게이트(body 파싱 전에 차단). 누락/불일치 → 401.
+      const tok = _extractToken(req);
+      if (!_tokenOk(tok)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          id: null,
+          error: { code: -32001, message: 'unauthorized: missing/invalid token' }
+        }));
+        return;
+      }
       let body = '';
       req.on('data', (chunk) => { body += chunk; });
       req.on('end', async () => {
@@ -5791,8 +5829,10 @@ function startMcpServer({ port = 9345, onActiveProject } = {}) {
       srv.listen(p, '127.0.0.1', () => {
         server = srv;
         currentPort = p;
+        // Unit B — 기동 시 토큰 생성(메모리). 이미 있으면(재기동) 동일 페어링 유지.
+        if (!mcpToken) mcpToken = _genToken();
         console.log(`[claudePM MCP] listening on http://127.0.0.1:${p}`);
-        resolve({ port: p });
+        resolve({ port: p, token: mcpToken });
       });
     };
     tryListen(port);
@@ -5826,4 +5866,6 @@ module.exports = {
   registerTool,
   setRendererInvoker,
   setIconifyApi,
+  getToken,
+  regenerateToken,
 };

@@ -94,6 +94,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   debugPort: () => ipcRenderer.invoke('app:debug-port').catch(() => null),
   getGitBranch: () => ipcRenderer.invoke('app:git-branch').catch(() => null),
 
+  // Unit B — MCP 접속 토큰(노출/재발급, admin만; main에서 게이팅)
+  getMcpToken: () => ipcRenderer.invoke('app:mcp-token').catch(() => null),
+  regenerateMcpToken: () => ipcRenderer.invoke('mcp:regenerate-token').catch(() => null),
+
   // Intake (design-bot pipeline)
   saveIntakeFile:  (data)     => ipcRenderer.invoke('intake:save', data),
   loadIntakeFile:  (filename) => ipcRenderer.invoke('intake:load', filename),
@@ -124,6 +128,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openInFinder:         (folderPath)             => ipcRenderer.invoke('claudePM:openInFinder', { folderPath }),
   spawnClaudeTerminal:  (folderPath)             => ipcRenderer.invoke('claudePM:spawnClaudeTerminal', { folderPath }),
   pingClaudePM:         ()                       => ipcRenderer.invoke('claudePM:pingMcp'),
+  getMcpInfo:           ()                       => ipcRenderer.invoke('claudePM:getMcpInfo').catch(() => null),
   setClaudePMActiveProject: (projectId)          => ipcRenderer.invoke('claudePM:setActiveProject', { projectId }),
   // 자동 PM 폴더 보장 — 신규 프로젝트 생성 직후 + 기존 프로젝트 활성화 시 호출
   ensureClaudePMFolder: ({ projectId, projectName, basePath } = {}) =>

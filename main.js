@@ -28,7 +28,9 @@ const { fillSectionTexts: anthropicFill } = require('./services/anthropicService
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
+// Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
+let currentMcpToken = null;
 
 /* ── 사용자별 Preferences (API 토큰 + 단축키) ──
    USER_DATA_DIR는 app.getPath('userData') 기반이라 app.whenReady 이후에 안전.
@@ -232,6 +234,11 @@ function createWindow() {
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
   });
+  // Unit B — MCP 접속 토큰 노출/재발급(운영자만). 토큰은 메모리 only.
+  ipcMain.handle('app:mcp-token', () =>
+    isAdminAuthorized() ? (getMcpToken ? getMcpToken() : currentMcpToken) : null);
+  ipcMain.handle('mcp:regenerate-token', () =>
+    isAdminAuthorized() ? (currentMcpToken = regenerateMcpToken()) : null);
 
   // AI 섹션 텍스트 채우기 (Gemini)
   ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
@@ -1639,12 +1646,14 @@ app.whenReady().then(async () => {
   }
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
-    const { port: actualPort } = await startMcpServer({
+    const { port: actualPort, token: mcpToken } = await startMcpServer({
       port: 9345,
       onActiveProject: () => global.currentActiveProjectId || null,
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
     setActualMcpPort(actualPort);
+    // Unit B — 접속 토큰 보관(메모리). renderer 노출은 admin 게이팅 IPC로만.
+    currentMcpToken = mcpToken || null;
     // Phase 2/3 — renderer write bridge 주입
     setMcpRendererInvoker({
       addTextBlock: _invokeRendererAddBlock,

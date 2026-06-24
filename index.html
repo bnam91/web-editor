@@ -87,6 +87,8 @@
   <div class="spacer"></div>
 <span id="autosave-indicator" title="자동저장 상태"></span>
 <span id="debug-port-badge" class="tb-badge" style="display:none;"></span>
+<span id="mcp-info-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 주소 복사"></span>
+<span id="mcp-token-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 접속 토큰 복사 / Alt+클릭 재발급"></span>
   <div class="divider tb-hidden-mvp"></div>
   <button class="tb-btn tb-hidden-mvp" onclick="saveProject()" title="Commit & 히스토리">Commit</button>
   <div class="divider"></div>
@@ -1119,6 +1121,53 @@
     if (!badge) return;
     badge.textContent = ':' + debugPort;
     badge.style.display = 'inline-block';
+  })();
+
+  // Unit B — admin 모드일 때 MCP 접속 토큰 뱃지(표시/복사/재발급). 토큰은 마스킹 표시.
+  (async function() {
+    const api = window.electronAPI;
+    if (!api?.isAdmin || !api?.getMcpToken) return;
+    const isAdmin = await api.isAdmin();
+    if (!isAdmin) return;
+    const badge = document.getElementById('mcp-token-badge');
+    if (!badge) return;
+    const render = (tok) => {
+      if (!tok) { badge.style.display = 'none'; return; }
+      // 마스킹: 앞 4 + … (전체 노출 방지). 클릭 복사 시 전체 토큰 복사.
+      badge.dataset.token = tok;
+      badge.textContent = '🔑 ' + tok.slice(0, 4) + '…';
+      badge.style.display = 'inline-block';
+    };
+    render(await api.getMcpToken());
+    badge.addEventListener('click', async (e) => {
+      if (e.altKey) {
+        // Alt+클릭 → 재발급
+        const nt = await api.regenerateMcpToken();
+        render(nt);
+        badge.title = '재발급됨 — 클릭하면 새 토큰 복사 / Alt+클릭 재발급';
+        return;
+      }
+      const tok = badge.dataset.token;
+      if (tok) { try { await api.clipboardWriteText(tok); badge.title = '복사됨 — Alt+클릭 재발급'; } catch (_) {} }
+    });
+  })();
+
+  // 현재 MCP 주소 표시 + 클릭 복사 (admin 무관 — 클로드 연결용으로 사용자가 복사)
+  (async function() {
+    const api = window.electronAPI;
+    if (!api?.getMcpInfo) return;
+    const res = await api.getMcpInfo();
+    if (!res?.ok || !res.url) return;
+    const badge = document.getElementById('mcp-info-badge');
+    if (!badge) return;
+    const label = '🔌 MCP: ' + res.url + ' [복사]';
+    badge.textContent = label;
+    badge.style.display = 'inline-block';
+    badge.onclick = async () => {
+      try { await api.clipboardWriteText(res.url); } catch (_) {}
+      badge.textContent = '🔌 복사됨';
+      setTimeout(() => { badge.textContent = label; }, 1200);
+    };
   })();
 </script>
 <script src="js/checklist-data.js"></script>
