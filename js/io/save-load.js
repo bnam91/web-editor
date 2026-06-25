@@ -1,5 +1,5 @@
 import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
-import { externalizeProjectData } from './asset-externalize.js';
+import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
@@ -166,9 +166,12 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         name: existing?.name || data.name || 'Untitled',
         updatedAt: new Date().toISOString(),
       };
-      // 이미지 외부화: canvas HTML의 인라인 base64 → assets/<hash> 분리 + goya-asset:// 참조.
-      // 구 base64 프로젝트는 첫 저장 시 점진 외부화됨. 실패 시 원본 base64 유지(데이터 손실 없음).
-      try { await externalizeProjectData(proj, targetId); }
+      // 이미지 외부화 (정책 게이팅): 기본 autosave는 new-only — 이번 세션 신규 base64만 분리하고
+      // 로드 시점에 존재하던 기존 base64는 그대로 둔다(비파괴). 기존 대량변환은 optimizeProjectImages
+      // (opts.externalizeAll) 또는 레거시 플래그(GOEDITOR_AUTO_EXTERNALIZE_LEGACY)로만 동작.
+      // 실패 시 원본 base64 유지(데이터 손실 없음).
+      const _externAll = opts.externalizeAll === true || window.GOEDITOR_AUTO_EXTERNALIZE_LEGACY === true;
+      try { await externalizeProjectData(proj, targetId, { all: _externAll }); }
       catch (e) { console.warn('[save-load] 이미지 외부화 건너뜀:', e && e.message); }
       const saveResult = await window.electronAPI.saveProject(proj);
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
@@ -430,6 +433,10 @@ function applyProjectData(data) {
       state.pages = [{ id, name: 'Page 1', label: '', pageSettings: data.pageSettings || { ...state.pageSettings }, canvas: data.canvas || '' }];
       state.currentPageId = id;
     }
+    // 정책 게이팅: 로드 시점 base64 베이스라인 기록(비파괴, 읽기만). 저장 시 new-only 모드가
+    // 이 베이스라인에 없는 신규 이미지만 외부화하고 기존 base64는 보존하도록 한다.
+    // activeProjectId는 호출 시점에 이미 대상 프로젝트로 설정됨(initLoad/탭전환 _setActId/브랜치 전환).
+    try { recordExternalizeBaseline(data, activeProjectId); } catch (_) {}
     const page = getCurrentPage();
     if (!page) return; // S8: 여전히 undefined면 안전하게 종료
     if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
