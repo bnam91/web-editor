@@ -168,6 +168,11 @@ function flattenCvbTransform(cvbEl) {
 }
 
 async function exportSection(sec, format, width, opts) {
+  // 이미지 외부화(goya-asset://) 이후: lazy 언로드된 섹션이 빈(blank) 상태로 캡처되지
+  // 않도록 export 렌더 전에 모든 섹션 이미지를 라이브 DOM에 복원한다.
+  // (lazy-sections.js가 아직 없을 수도 있으므로 방어적으로 호출)
+  if (window.materializeAllSections) window.materializeAllSections();
+
   const fmt = format || 'png';
   const w   = width  || CANVAS_W;
   const isGif     = fmt === 'gif' || fmt === 'gif-anim';
@@ -621,6 +626,10 @@ async function exportSection(sec, format, width, opts) {
 }
 
 async function exportAllSections(format, width, onProgress) {
+  // 전체 export 시작 전 lazy 언로드 섹션 전부 복원 (개별 exportSection도 호출하지만,
+  // 섹션 목록 산정/순회 전에 한 번 더 보장)
+  if (window.materializeAllSections) window.materializeAllSections();
+
   const sections = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
   const failed = [];
   for (let i = 0; i < sections.length; i++) {

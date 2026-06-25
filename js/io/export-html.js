@@ -2,13 +2,89 @@ import { canvasEl, state } from '../globals.js';
 
 const CANVAS_W = 860;
 
-function exportHTMLFile() {
+/* ── goya-asset:// → base64 data URI 재인라인 ──────────────────────────
+ * 이미지 외부화 이후 라이브 DOM의 이미지는 `goya-asset://<id>/<hash>.<ext>`
+ * 커스텀 프로토콜 참조다. 이 프로토콜은 앱(Electron) 안에서만 해석되므로,
+ * 내보낸 단독 HTML을 일반 브라우저에서 열면 이미지가 깨진다.
+ * → export 전에 clone을 순회하며 모든 goya-asset:// 참조(style background-image,
+ *   <img src>, data-* 속성)를 fetch해 base64 data: URI로 되돌려 파일을 portable하게 만든다.
+ *   (goya-asset 프로토콜은 supportFetchAPI:true 이므로 렌더러 fetch가 동작)
+ *   기존 data:image 는 그대로 둔다. fetch 실패 시 해당 URL은 건드리지 않고 넘어간다(견고성).
+ * ───────────────────────────────────────────────────────────────────── */
+function _isGoyaAsset(url) {
+  return typeof url === 'string' && url.indexOf('goya-asset://') !== -1;
+}
+
+function _extractUrl(cssOrUrl) {
+  // url("...") 형태와 raw URL 둘 다 처리
+  const m = (cssOrUrl || '').match(/url\(["']?([^"')]+)["']?\)/);
+  return m ? m[1] : cssOrUrl;
+}
+
+async function _goyaAssetToDataUri(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('asset fetch failed: ' + res.status);
+  const blob = await res.blob();
+  return await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload  = () => resolve(fr.result); // data:<mime>;base64,....
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
+}
+
+// clone 내 모든 goya-asset:// 참조를 base64 data URI로 변환 (중복 URL은 1회만 fetch)
+async function inlineGoyaAssets(root) {
+  const cache = new Map(); // url → dataURI (실패 시 null)
+  const resolve = async (url) => {
+    if (cache.has(url)) return cache.get(url);
+    let data = null;
+    try { data = await _goyaAssetToDataUri(url); }
+    catch (err) { console.warn('[export-html] asset 인라인 실패, URL 유지:', url, err); }
+    cache.set(url, data);
+    return data;
+  };
+
+  // 1) style background-image
+  for (const el of root.querySelectorAll('[style*="background-image"]')) {
+    const raw = _extractUrl(el.style.backgroundImage);
+    if (!_isGoyaAsset(raw)) continue;
+    const data = await resolve(raw);
+    if (data) el.style.backgroundImage = `url("${data}")`;
+  }
+
+  // 2) <img src>
+  for (const im of root.querySelectorAll('img')) {
+    const src = im.getAttribute('src') || '';
+    if (!_isGoyaAsset(src)) continue;
+    const data = await resolve(src);
+    if (data) im.setAttribute('src', data);
+  }
+
+  // 3) data-bg-img / data-img-src 등 goya-asset URL을 담은 모든 data-* 속성
+  for (const el of root.querySelectorAll('[data-bg-img], [data-img-src]')) {
+    for (const attr of ['data-bg-img', 'data-img-src']) {
+      const v = el.getAttribute(attr);
+      if (!_isGoyaAsset(v)) continue;
+      const data = await resolve(v);
+      if (data) el.setAttribute(attr, data);
+    }
+  }
+}
+
+async function exportHTMLFile() {
+  // 이미지 외부화 이후: lazy 언로드 섹션이 빈 상태로 직렬화되지 않도록 복원
+  if (window.materializeAllSections) window.materializeAllSections();
+
   // canvas clone — 에디터 UI 요소 제거
   const clone = canvasEl.cloneNode(true);
   clone.querySelectorAll('.section-label, .section-toolbar, .col-placeholder, .col-add-btn, .col-add-menu, .row-col-add-btn, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+
+  // goya-asset:// 참조를 base64로 재인라인 → 내보낸 HTML이 일반 브라우저에서도 portable
+  await inlineGoyaAssets(clone);
 
   const fontLink = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
