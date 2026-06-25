@@ -21,13 +21,31 @@ function _extractUrl(cssOrUrl) {
   return m ? m[1] : cssOrUrl;
 }
 
+// goya-asset://<projectId>/<filename> → { projectId, filename }
+function _parseGoyaAssetUrl(url) {
+  const m = /^goya-asset:\/\/([^/]+)\/(.+)$/.exec(url || '');
+  if (!m) return null;
+  return { projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2]) };
+}
+
 async function _goyaAssetToDataUri(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('asset fetch failed: ' + res.status);
-  const blob = await res.blob();
+  // 렌더러 fetch()는 file:// origin에서 커스텀 스킴 cross-origin이 Chromium에 하드 차단된다
+  // ("Cross origin requests are only supported for: chrome, data, http, https").
+  // → main 프로세스가 디스크에서 직접 읽어 base64를 돌려주는 IPC를 사용한다.
+  const parsed = _parseGoyaAssetUrl(url);
+  if (!parsed) throw new Error('goya-asset URL 파싱 실패: ' + url);
+  if (window.electronAPI?.assetsReadAsDataUri) {
+    const res = await window.electronAPI.assetsReadAsDataUri(parsed);
+    if (res && res.ok && res.dataUri) return res.dataUri;
+    throw new Error('asset 읽기 실패: ' + (res && res.error));
+  }
+  // 폴백(웹/IPC 미가용): fetch 시도 — file:// 외 환경에서는 동작
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('asset fetch failed: ' + r.status);
+  const blob = await r.blob();
   return await new Promise((resolve, reject) => {
     const fr = new FileReader();
-    fr.onload  = () => resolve(fr.result); // data:<mime>;base64,....
+    fr.onload  = () => resolve(fr.result);
     fr.onerror = reject;
     fr.readAsDataURL(blob);
   });

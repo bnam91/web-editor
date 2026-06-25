@@ -8,6 +8,11 @@ protocol.registerSchemesAsPrivileged([{
   scheme: 'goya-asset',
   privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
 }]);
+// goya-asset:// 응답 Content-Type 매핑 (확장자 → MIME)
+const _GOYA_ASSET_MIME = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', svg: 'image/svg+xml', avif: 'image/avif', bmp: 'image/bmp', ico: 'image/x-icon',
+};
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
@@ -744,6 +749,27 @@ ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => 
     };
   } catch (e) {
     return { ok: false, error: e.message };
+  }
+});
+
+// export HTML 포터블화용 — goya-asset:// 에셋을 base64 data URI로 읽어 반환.
+// 렌더러 fetch()는 file:// origin에서 커스텀 스킴 cross-origin이 하드 차단되므로(Chromium),
+// export-html의 inlineGoyaAssets가 이 IPC로 base64 재인라인한다. path-traversal 가드 포함.
+ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => {
+  try {
+    const pid = _safeSeg(String(projectId || ''));
+    const fn = _safeSeg(String(filename || ''));
+    if (!pid || !fn) return { ok: false, error: 'projectId/filename 필수' };
+    const safeRoot = path.join(PROJECTS_DIR, pid, 'assets');
+    const full = path.join(safeRoot, fn);
+    if (!full.startsWith(safeRoot + path.sep)) return { ok: false, error: 'forbidden' };
+    if (!fs.existsSync(full)) return { ok: false, error: 'not found' };
+    const ext = path.extname(full).slice(1).toLowerCase();
+    const mime = _GOYA_ASSET_MIME[ext] || 'application/octet-stream';
+    const b64 = fs.readFileSync(full).toString('base64');
+    return { ok: true, dataUri: `data:${mime};base64,${b64}` };
+  } catch (e) {
+    return { ok: false, error: e && e.message };
   }
 });
 
@@ -1701,6 +1727,9 @@ app.whenReady().then(async () => {
       const full = path.join(safeRoot, filename);
       if (!full.startsWith(safeRoot + path.sep)) return new Response('forbidden', { status: 403 });
       if (!fs.existsSync(full)) return new Response('not found', { status: 404 });
+      // 렌더러 Image()/lazy-load 는 이 스트림으로 동작. (단, file:// origin 렌더러의 fetch()는
+      // Chromium이 커스텀 스킴 cross-origin을 하드 차단 → export HTML 재인라인은 fetch 대신
+      // assets:readAsDataUri IPC를 사용한다. 아래 핸들러 참조.)
       return electronNet.fetch(require('url').pathToFileURL(full).toString());
     } catch (e) {
       return new Response('error: ' + (e && e.message), { status: 500 });
