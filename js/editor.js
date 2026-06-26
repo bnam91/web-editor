@@ -1374,13 +1374,13 @@ document.addEventListener('keydown', e => {
       }
     }
 
-    // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=200 (텍스트 편집 중이면 무시)
-    if (['Digit1','Digit2','Digit3','Digit4','Digit5'].includes(e.code)) {
+    // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=160, 6=200, 7=240, 8=280 (텍스트 편집 중이면 무시)
+    if (['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8'].includes(e.code)) {
       if (!document.querySelector('.text-block.editing')) {
         const gb = document.querySelector('.gap-block.selected');
         if (gb) {
           e.preventDefault();
-          const presets = { Digit1: 20, Digit2: 40, Digit3: 80, Digit4: 120, Digit5: 200 };
+          const presets = { Digit1: 20, Digit2: 40, Digit3: 80, Digit4: 120, Digit5: 160, Digit6: 200, Digit7: 240, Digit8: 280 };
           const h = presets[e.code];
           gb.style.height = h + 'px';
           const sl = document.getElementById('gap-slider');
