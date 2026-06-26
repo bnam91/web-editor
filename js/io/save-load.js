@@ -1407,8 +1407,11 @@ function initApp() {
       const heavy = _estimateHeavyProject(data);
       if (heavy) {
         window.showProjectLoadingOverlay?.();
+        const _expectedId = activeProjectId;
         // 동기 렌더 직전, 오버레이가 실제로 페인트되도록 2프레임 양보 (안 그러면 블로킹 렌더로 영영 안 보임)
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        // 양보 중 탭 전환 등으로 대상 프로젝트가 바뀌었으면 stale 데이터 적용 방지 (코덱스 b4 Item2)
+        if (activeProjectId !== _expectedId) { window.hideProjectLoadingOverlay?.(); return; }
       }
       try { applyProjectData(data); } catch(e) {
         console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
