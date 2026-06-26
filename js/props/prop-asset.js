@@ -214,6 +214,8 @@ export function showAssetProperties(ab) {
 
   document.getElementById('asset-padx-toggle').addEventListener('change', e => {
     ab.dataset.usePadx = e.target.checked ? 'true' : 'false';
+    // 패딩 토글로 폭이 재계산되면 고정폭 프리셋(a4/logo) 상태와 어긋나므로 preset 해제 (코덱스리뷰 b2-6)
+    delete ab.dataset.preset;
     // 이 블록이 속한 section-inner의 padX 값 결정
     const inner = ab.closest('.section-inner');
     const hasPadXOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;
@@ -284,8 +286,7 @@ export function showAssetProperties(ab) {
         ab.style.marginLeft  = '';
         ab.style.marginRight = '';
         ab.style.height = h + 'px';
-        ab.dataset.baseHeight = h;
-        applyH(h);          // 580
+        applyH(h);          // 580 (baseHeight는 상단에서 이미 갱신)
         applyW(w);          // 410 → width:410px + alignSelf center + 폭슬라이더 값 410
         setWSliderDisabled(false);
       } else if (isLogo) {

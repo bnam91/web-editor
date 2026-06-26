@@ -806,8 +806,8 @@
 .frame-block[data-text-frame="true"] > .text-block.selected {
   outline: var(--sel-outline-w) solid transparent;
 }
-/* 버블 선택 표시는 .tb-bubble(둥근 본체)에 표준 outline 토큰으로 부여 (하단 .speech-bubble-block.selected .tb-bubble 참조).
-   기존: 프레임 ::after 직사각 1px border → 둥근 버블/꼬리와 형태 불일치 + 표준 토큰 미사용 + row직속 버블 미커버. 제거함. */
+/* 버블 선택 표시 = 위 .row:has / .frame-block:has 표준 패턴(풀폭 사각 아웃라인)으로 통일.
+   d04ebf2의 둥근 .tb-bubble 전용 outline은 제거됨(현빈 2026-06-27: 일관성 우선). 별도 버블 selection CSS 없음. */
 .label-group-block:hover:not(.selected)::after,
 .icon-circle-block:hover:not(.selected)::after,
 .table-block:hover:not(.selected)::after {
