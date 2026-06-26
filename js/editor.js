@@ -14,7 +14,8 @@ const CANVAS_SEL_BLOCKS =
   '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
   '.step-block.selected, .laurel-block.selected, .gradient-block.selected, ' +
-  '.sticker-block.selected, .joker-block.selected, .chat-block.selected';
+  '.sticker-block.selected, .joker-block.selected, .chat-block.selected, ' +
+  '.speech-bubble-block.selected';  // 버블(sb_): 복수선택/복사/삭제/⌘X 대상 편입 (#7)
 // shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
 // 단, "캔버스에 무언가 선택됨" 판정/섹션 매핑엔 shape도 포함해야 함.
 const CANVAS_SEL_BLOCKS_AND_SHAPE = CANVAS_SEL_BLOCKS + ', .shape-block.selected';
@@ -403,7 +404,7 @@ function _updateFreeLayoutMultiSelPanel() {
  * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
  *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
 // 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected';
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
 
 function _countFlowMultiSel() {
   return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
@@ -712,7 +713,7 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
@@ -770,7 +771,7 @@ function copySelected() {
     '.graph-block.selected, .divider-block.selected, ' +
     '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
     '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-    '.laurel-block.selected, .joker-block.selected';
+    '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -844,7 +845,7 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -999,7 +1000,7 @@ function pasteClipboard() {
       el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
       el.dataset.offsetX = String(ox + 20); el.dataset.offsetY = String(oy + 20);
       frame.appendChild(el);
-      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
       if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
       el._dragBound = false; el._subSecBound = false; window.bindFrameDropZone?.(el);

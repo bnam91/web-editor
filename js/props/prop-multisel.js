@@ -365,7 +365,7 @@ const FLOW_SEL =
   '.table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, ' +
   '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, ' +
-  '.laurel-block.selected, .gradient-block.selected, .chat-block.selected';
+  '.laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
 
 // editor.js _isInFreeLayout 역미러: freeLayout 래퍼 밖(=플로우)만 true
 function _isFlowBlock(b) {
