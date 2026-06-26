@@ -14,7 +14,8 @@ const CANVAS_SEL_BLOCKS =
   '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
   '.step-block.selected, .laurel-block.selected, .gradient-block.selected, ' +
-  '.sticker-block.selected, .joker-block.selected, .chat-block.selected';
+  '.sticker-block.selected, .joker-block.selected, .chat-block.selected, ' +
+  '.speech-bubble-block.selected';  // 버블(sb_): 복수선택/복사/삭제/⌘X 대상 편입 (#7)
 // shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
 // 단, "캔버스에 무언가 선택됨" 판정/섹션 매핑엔 shape도 포함해야 함.
 const CANVAS_SEL_BLOCKS_AND_SHAPE = CANVAS_SEL_BLOCKS + ', .shape-block.selected';
@@ -403,7 +404,7 @@ function _updateFreeLayoutMultiSelPanel() {
  * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
  *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
 // 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected';
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
 
 function _countFlowMultiSel() {
   return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
@@ -712,10 +713,13 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
+        // chat-block: 편집 위임은 renderChatBlock에서 바인딩되는데 bindBlock은 드래그만 처리.
+        // 복사본은 renderChatBlock가 재호출되지 않아 더블클릭 편집이 안 됨 → 명시적 재렌더.
+        if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
       });
       // 복제본 자신이 블록인 경우(absWrapper=selBlock, 즉 position:absolute 블록을 직접 복제):
       // 위 querySelectorAll은 루트(clone)를 포함하지 않아 본인 드래그 바인딩이 누락된다.
@@ -723,6 +727,7 @@ function duplicateSelected() {
       if (clone.matches?.(_ALL_BLOCK_SEL)) {
         delete clone._blockBound;
         window.bindBlock?.(clone);
+        if (clone.matches('.chat-block')) { delete clone._chatEditBound; window.renderChatBlock?.(clone); }
       }
       clone._dragBound = false;
       clone._subSecBound = false;
@@ -766,7 +771,7 @@ function copySelected() {
     '.graph-block.selected, .divider-block.selected, ' +
     '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
     '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-    '.laurel-block.selected, .joker-block.selected';
+    '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -840,7 +845,7 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -871,6 +876,8 @@ function _bindPastedEl(el) {
     // banner02-block: renderBanner02로 ResizeObserver 재연결
     if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
     if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
+    // chat-block: 더블클릭 편집 위임 재바인딩 (복사본 수정 불가 버그 수정 — bindBlock은 드래그만 처리)
+    if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
   });
 }
 
@@ -993,7 +1000,7 @@ function pasteClipboard() {
       el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
       el.dataset.offsetX = String(ox + 20); el.dataset.offsetY = String(oy + 20);
       frame.appendChild(el);
-      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
       el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
       if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
       el._dragBound = false; el._subSecBound = false; window.bindFrameDropZone?.(el);
@@ -1125,6 +1132,15 @@ document.addEventListener('keydown', e => {
           pasteClipboard();
         }, 30);
       }
+      return;
+    }
+    if (e.key === 'x') {
+      // 잘라내기 = 복사 후 삭제 (copySelected + Delete와 동일한 삭제 로직 deleteSelectedFromCanvas 공유)
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      copySelected();
+      deleteSelectedFromCanvas();
       return;
     }
     if (e.key === 'd') {
@@ -1368,13 +1384,13 @@ document.addEventListener('keydown', e => {
       }
     }
 
-    // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=200 (텍스트 편집 중이면 무시)
-    if (['Digit1','Digit2','Digit3','Digit4','Digit5'].includes(e.code)) {
+    // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=160, 6=200, 7=240, 8=280 (텍스트 편집 중이면 무시)
+    if (['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8'].includes(e.code)) {
       if (!document.querySelector('.text-block.editing')) {
         const gb = document.querySelector('.gap-block.selected');
         if (gb) {
           e.preventDefault();
-          const presets = { Digit1: 20, Digit2: 40, Digit3: 80, Digit4: 120, Digit5: 200 };
+          const presets = { Digit1: 20, Digit2: 40, Digit3: 80, Digit4: 120, Digit5: 160, Digit6: 200, Digit7: 240, Digit8: 280 };
           const h = presets[e.code];
           gb.style.height = h + 'px';
           const sl = document.getElementById('gap-slider');
@@ -1550,18 +1566,28 @@ document.addEventListener('keydown', e => {
     // 텍스트 편집 중이거나 input에 포커스가 있으면 기본 동작 유지
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    // 캔버스 선택 삭제 — ⌘X(잘라내기)와 공유. consumed=true면 기본동작 차단.
+    if (deleteSelectedFromCanvas()) e.preventDefault();
+    return;
+  }
+});
 
+// 캔버스 선택(블록/도형/행/열/섹션/프레임) 삭제 — Delete/Backspace 핸들러와 ⌘X 잘라내기가 공유.
+// 동작보존 추출: 원래 인라인 e.preventDefault()는 consumed 플래그로 대체(호출부가 preventDefault).
+// 반환값: 무언가를 소비(삭제 시도/보호차단 등 기본동작 차단)했으면 true.
+function deleteSelectedFromCanvas() {
+  let consumed = false;
     // 이미지 편집 모드 중이면 이미지 삭제
     const imgEditBlock = document.querySelector('.asset-block.img-editing');
     if (imgEditBlock) {
-      e.preventDefault();
+      consumed = true;
       clearAssetImage(imgEditBlock);
-      return;
+      return consumed;
     }
 
     // 다중 선택 삭제: col 다중
     if (multiSel.cols.size > 1) {
-      e.preventDefault();
+      consumed = true;
       multiSel.cols.forEach(col => {
         const row = col.closest('.row');
         col.remove();
@@ -1571,11 +1597,11 @@ document.addEventListener('keydown', e => {
       deselectAll();
       window.buildLayerPanel();
       pushHistory('열 삭제');
-      return;
+      return consumed;
     }
     // 다중 선택 삭제: section 다중
     if (multiSel.sections.size > 1) {
-      e.preventDefault();
+      consumed = true;
       const allSecs = canvasEl.querySelectorAll('.section-block');
       // 보호 섹션 필터링 (section-protection.js)
       const requested = [...multiSel.sections];
@@ -1585,7 +1611,7 @@ document.addEventListener('keydown', e => {
       if (skipped > 0 && typeof window.showToast === 'function') {
         window.showToast(`🔒 보호된 섹션 ${skipped}개 제외 (메모: "삭제하지말것" 자동 감지)`);
       }
-      if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return; }
+      if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return consumed; }
       ensureHistoryCheckpoint('섹션 다중 삭제 전');
       toDelete.forEach(s => s.remove());
       clearMultiSel();
@@ -1593,7 +1619,7 @@ document.addEventListener('keydown', e => {
       if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
       window.buildLayerPanel();
       pushHistory('섹션 삭제');
-      return;
+      return consumed;
     }
     const selText    = document.querySelector('.text-block.selected');
     const selAsset   = document.querySelector('.asset-block.selected');
@@ -1603,13 +1629,13 @@ document.addEventListener('keydown', e => {
     // group-block(프레임) selected → group-block 전체 삭제
     const selGroup = document.querySelector('.group-block.group-selected:not(.group-editing)');
     if (selGroup) {
-      e.preventDefault();
+      consumed = true;
       window.ensureHistoryCheckpoint?.('삭제 전');
       selGroup.remove();
       deselectAll();
       window.buildLayerPanel();
       pushHistory('프레임 삭제');
-      return;
+      return consumed;
     }
 
     // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
@@ -1622,14 +1648,14 @@ document.addEventListener('keydown', e => {
         '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
       );
       if (!ssHasSelectedChild) {
-        e.preventDefault();
+        consumed = true;
         const ssRow = selSS.closest('.row') || selSS;
         ssRow.remove();
         window._activeFrame = null;
         deselectAll();
         window.buildLayerPanel();
         pushHistory('서브섹션 삭제');
-        return;
+        return consumed;
       }
       // 자식 블록이 선택된 경우 → 아래 allSelBlocks 삭제 로직으로 fall-through
     }
@@ -1638,7 +1664,7 @@ document.addEventListener('keydown', e => {
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
     const allSelBlocks = [...document.querySelectorAll(CANVAS_SEL_BLOCKS)];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
-      e.preventDefault();
+      consumed = true;
       // A13: 보호섹션(메모 '삭제하지말것' 등) 내부 블록/도형 삭제 우회 차단.
       //       선택 중 하나라도 보호섹션에 속하면 전체 차단(부분삭제 모호성 회피).
       const _isProt = window.isSectionProtected || (() => false);
@@ -1647,7 +1673,7 @@ document.addEventListener('keydown', e => {
       if (_protShape || _protBlock) {
         if (typeof window.showToast === 'function') window.showToast('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요');
         deselectAll();
-        return;
+        return consumed;
       }
       window.ensureHistoryCheckpoint?.('삭제 전');
       // shape: 부모 ss/row 단위로 삭제
@@ -1684,13 +1710,13 @@ document.addEventListener('keydown', e => {
     } else {
       const selRow = document.querySelector('.row.row-active');
       if (selRow) {
-        e.preventDefault();
+        consumed = true;
         selRow.remove();
         deselectAll();
         window.buildLayerPanel();
         pushHistory('행 삭제');
       } else if (selSection) {
-        e.preventDefault();
+        consumed = true;
         const isProtected = window.isSectionProtected || (() => false);
         if (selSection.dataset.variationGroup) {
           const gid = selSection.dataset.variationGroup;
@@ -1700,7 +1726,7 @@ document.addEventListener('keydown', e => {
           if (skipped > 0 && typeof window.showToast === 'function') {
             window.showToast(`🔒 보호된 섹션 ${skipped}개 제외`);
           }
-          if (toDelete.length === 0) { deselectAll(); return; }
+          if (toDelete.length === 0) { deselectAll(); return consumed; }
           toDelete.forEach(s => s.remove());
           deselectAll();
           if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
@@ -1711,7 +1737,7 @@ document.addEventListener('keydown', e => {
             if (typeof window.showToast === 'function') {
               window.showToast(`🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요`);
             }
-            return;
+            return consumed;
           }
           selSection.remove();
           deselectAll();
@@ -1721,8 +1747,8 @@ document.addEventListener('keydown', e => {
         }
       }
     }
-  }
-});
+  return consumed;
+}
 
 applyZoom(40);
 
