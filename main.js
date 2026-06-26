@@ -1,4 +1,18 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet } = require('electron');
+
+// ── 캔버스 이미지 외부화: 커스텀 프로토콜 goya-asset://<projectId>/<filename> ──
+// 캔버스 HTML에 박히던 인라인 base64를 proj_<id>/assets/<contenthash>.<ext>로 분리하고,
+// 이 프로토콜 URL로 참조한다. registerSchemesAsPrivileged는 app ready 이전 top-level 필수.
+// standard+secure: file:// origin에서 fetch/CORS 허용(html2canvas export 호환). stream: 대용량.
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'goya-asset',
+  privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
+}]);
+// goya-asset:// 응답 Content-Type 매핑 (확장자 → MIME)
+const _GOYA_ASSET_MIME = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', svg: 'image/svg+xml', avif: 'image/avif', bmp: 'image/bmp', ico: 'image/x-icon',
+};
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
@@ -700,6 +714,65 @@ ipcMain.handle('assets:deleteFile', (_e, { projectId, blobPath } = {}) => {
   }
 });
 
+// 캔버스 이미지 외부화용 — content-hash 기반 저장(자동 dedup).
+// 동일 바이트 = 동일 파일명 → 여러 참조가 한 파일 공유. 캔버스 HTML은 goya-asset:// URL만 보관.
+function _extFromMime(mime) {
+  switch (String(mime || '').toLowerCase()) {
+    case 'image/jpeg': case 'image/jpg': return 'jpg';
+    case 'image/svg+xml': return 'svg';
+    case 'image/webp': return 'webp';
+    case 'image/gif': return 'gif';
+    default: return 'png';
+  }
+}
+ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => {
+  if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (!b64) return { ok: false, error: 'b64 필수' };
+  try {
+    const crypto = require('crypto');
+    const buf = Buffer.from(b64, 'base64');
+    const hash = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
+    const ext = _extFromMime(mime);
+    const dir = _getProjectAssetsDir(projectId);
+    fs.mkdirSync(dir, { recursive: true });
+    const filename = `${hash}.${ext}`;
+    const full = path.join(dir, filename);
+    // dedup: 이미 있으면 재기록 생략
+    if (!fs.existsSync(full)) fs.writeFileSync(full, buf);
+    return {
+      ok: true,
+      hash,
+      filename,
+      blobPath: `assets/${filename}`,
+      url: `goya-asset://${projectId}/${filename}`,
+      bytes: buf.length,
+    };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// export HTML 포터블화용 — goya-asset:// 에셋을 base64 data URI로 읽어 반환.
+// 렌더러 fetch()는 file:// origin에서 커스텀 스킴 cross-origin이 하드 차단되므로(Chromium),
+// export-html의 inlineGoyaAssets가 이 IPC로 base64 재인라인한다. path-traversal 가드 포함.
+ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => {
+  try {
+    const pid = _safeSeg(String(projectId || ''));
+    const fn = _safeSeg(String(filename || ''));
+    if (!pid || !fn) return { ok: false, error: 'projectId/filename 필수' };
+    const safeRoot = path.join(PROJECTS_DIR, pid, 'assets');
+    const full = path.join(safeRoot, fn);
+    if (!full.startsWith(safeRoot + path.sep)) return { ok: false, error: 'forbidden' };
+    if (!fs.existsSync(full)) return { ok: false, error: 'not found' };
+    const ext = path.extname(full).slice(1).toLowerCase();
+    const mime = _GOYA_ASSET_MIME[ext] || 'application/octet-stream';
+    const b64 = fs.readFileSync(full).toString('base64');
+    return { ok: true, dataUri: `data:${mime};base64,${b64}` };
+  } catch (e) {
+    return { ok: false, error: e && e.message };
+  }
+});
+
 ipcMain.handle('ai:generateImage', (_e, payload) => {
   const model = String(payload?.model || 'gemini-2.5-flash-image').toLowerCase();
   const needOpenAI = payload?.outpaint || model.startsWith('gpt-');
@@ -1042,6 +1115,18 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
     }
     walkRewrite(dup);
 
+    // 캔버스 HTML 안의 goya-asset://<oldId>/ → <newId>/ 재매핑 (asset은 하드링크로 공유되지만
+    // URL의 projectId가 원본을 가리키면 프로토콜 핸들러가 원본 폴더를 읽음 → 신 id로 교정).
+    const oldUrlPrefix = `goya-asset://${sourceProjectId}/`;
+    const newUrlPrefix = `goya-asset://${newId}/`;
+    if (Array.isArray(dup.pages)) {
+      for (const pg of dup.pages) {
+        if (pg && typeof pg.canvas === 'string' && pg.canvas.includes(oldUrlPrefix)) {
+          pg.canvas = pg.canvas.split(oldUrlPrefix).join(newUrlPrefix);
+        }
+      }
+    }
+
     // 자산 폴더 복사 — tmp → rename으로 원자성
     // source 디렉터리는 항상 PROJECTS_DIR/<sourceProjectId>/ (claude-pm/images/assets 등은 이미 신 레이아웃)
     const srcDir = path.join(PROJECTS_DIR, sourceProjectId);
@@ -1050,10 +1135,22 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
     if (fs.existsSync(srcDir)) {
       try {
         fs.mkdirSync(tmpDir, { recursive: true });
-        for (const sub of ['images', 'assets']) {
-          const s = path.join(srcDir, sub);
-          if (!fs.existsSync(s)) continue;
-          fs.cpSync(s, path.join(tmpDir, sub), { recursive: true });
+        // images/: 프로젝트별 가변(AI 생성물 편집 등) → 실복사.
+        const imgSrc = path.join(srcDir, 'images');
+        if (fs.existsSync(imgSrc)) fs.cpSync(imgSrc, path.join(tmpDir, 'images'), { recursive: true });
+        // assets/: content-hash 불변 파일 → 하드링크로 공유(85MB 재복사 회피, dedup 유지).
+        //          동일 볼륨이라 linkSync 성공. 실패(크로스볼륨 등) 시 파일별 copy 폴백.
+        const astSrc = path.join(srcDir, 'assets');
+        if (fs.existsSync(astSrc)) {
+          const astDst = path.join(tmpDir, 'assets');
+          fs.mkdirSync(astDst, { recursive: true });
+          for (const ent of fs.readdirSync(astSrc, { withFileTypes: true })) {
+            if (!ent.isFile()) continue; // assets는 평면 파일만
+            const sp = path.join(astSrc, ent.name);
+            const dp = path.join(astDst, ent.name);
+            try { fs.linkSync(sp, dp); }
+            catch (_) { fs.copyFileSync(sp, dp); } // 폴백
+          }
         }
         fs.renameSync(tmpDir, dstDir);
       } catch (e) {
@@ -1618,6 +1715,27 @@ function setupAutoUpdater() {
 
 /* ── App lifecycle ── */
 app.whenReady().then(async () => {
+  // goya-asset:// 핸들러 — proj_<id>/assets/<file>을 디스크에서 직접 스트림.
+  // path-traversal 가드(assets 루트 밖 거부). 브라우저가 캐시·lazy-load 담당 → JS heap에 base64 없음.
+  protocol.handle('goya-asset', (request) => {
+    try {
+      const u = new URL(request.url); // goya-asset://<projectId>/<filename>
+      const projectId = _safeSeg(decodeURIComponent(u.hostname || ''));
+      const filename = _safeSeg(decodeURIComponent((u.pathname || '').replace(/^\/+/, '')));
+      if (!projectId || !filename) return new Response('bad request', { status: 400 });
+      const safeRoot = path.join(PROJECTS_DIR, projectId, 'assets');
+      const full = path.join(safeRoot, filename);
+      if (!full.startsWith(safeRoot + path.sep)) return new Response('forbidden', { status: 403 });
+      if (!fs.existsSync(full)) return new Response('not found', { status: 404 });
+      // 렌더러 Image()/lazy-load 는 이 스트림으로 동작. (단, file:// origin 렌더러의 fetch()는
+      // Chromium이 커스텀 스킴 cross-origin을 하드 차단 → export HTML 재인라인은 fetch 대신
+      // assets:readAsDataUri IPC를 사용한다. 아래 핸들러 참조.)
+      return electronNet.fetch(require('url').pathToFileURL(full).toString());
+    } catch (e) {
+      return new Response('error: ' + (e && e.message), { status: 500 });
+    }
+  });
+
   // 프로젝트 데이터 번들 레이아웃 마이그레이션 (flat → proj_<id>/ 디렉터리)
   // copy-then-verify 패턴이라 실패해도 flat 원본 보존 → 앱 시작 차단 X.
   // 머지 전이라 migrator 모듈이 없을 수 있어 best-effort.
