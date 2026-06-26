@@ -1479,6 +1479,10 @@ function bindBlock(block) {
     if (isText) block.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('draggable', 'false'));
 
     dragTarget.addEventListener('dragstart', e => {
+      // 복수선택 의도(Cmd/Shift/Ctrl + 클릭) 중에는 네이티브 HTML5 드래그를 억제 → 클릭 기반 다중선택이 이기게 한다.
+      // (bare draggable 플로우 블록 — 예: 복사된 버블처럼 본체에 draggable=true가 붙은 경우 — 미세이동만으로
+      //  dragstart가 발화해 modifier+클릭 선택을 가로채던 버그. 모든 블록/프레임 타입에 균일 적용.)
+      if (e.metaKey || e.shiftKey || e.ctrlKey) { e.preventDefault(); return; }
       if (block.style.position === 'absolute' || dragTarget.style.position === 'absolute') { e.preventDefault(); return; } // absolute 블록은 커스텀 mousemove drag 사용 (flow→absolute 전환 후 예외 처리)
       if (document.activeElement?.contentEditable === 'true') { e.preventDefault(); return; }
       if (block.classList.contains('editing')) { e.preventDefault(); return; }
