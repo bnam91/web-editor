@@ -52,6 +52,8 @@ function listComponents() {
  * @param {string} id  컴포넌트 id
  */
 function insertComponent(id) {
+  // 브릿지는 1급 .bridge-block(섹션 내 블록)으로 통일 — 셸프 내장도 블록 경로로 라우팅 (b3-2, 코덱스).
+  if (id === 'builtin_bridge' && typeof window.addBridgeBlock === 'function') { window.addBridgeBlock(); return; }
   // 내장 컴포넌트는 build()로 매번 새 HTML(새 id) 생성
   const builtin = _BUILTINS.find(b => b.id === id);
   const comp = builtin ? { name: builtin.name, html: builtin.build() }
@@ -81,35 +83,8 @@ function insertComponent(id) {
   window.showToast && window.showToast(`"${comp.name}" 삽입 완료`);
 }
 
-/**
- * 플로팅 컴포넌트패널 'Bridge' 버튼용 — 내장 브릿지(V 커버) 섹션 삽입.
- * Laurel 등 다른 컴포넌트 버튼과 동일 동작: 선택 섹션 뒤에 삽입(없으면 끝) + 히스토리 + 선택 + 토스트.
- * 기존 _buildBridgeHtml/insertComponent와 동일한 HTML(브릿지 V커버 섹션)을 재사용한다.
- */
-function addBridgeBlock(opts = {}) {
-  const canvas = document.getElementById('canvas');
-  if (!canvas) return;
-  // ghost 섹션 제거 (addSection 관용구와 동일)
-  canvas.querySelector('.section-block[data-ghost]')?.remove();
-  const tmp = document.createElement('div');
-  tmp.innerHTML = _buildBridgeHtml(opts.color);
-  const sec = tmp.firstElementChild;
-  if (!sec) return;
-  // 히스토리: 삽입 前 캡처 (push-before 관용구 — 첫 ⌘Z로 삭제 복원)
-  if (typeof window.pushHistory === 'function') window.pushHistory();
-  // 위치: 선택 섹션 뒤, 없으면 캔버스 끝
-  const selectedSec = document.querySelector('.section-block.selected');
-  if (selectedSec) selectedSec.after(sec);
-  else canvas.appendChild(sec);
-  // 이벤트 바인딩 — insertComponent와 동일하게 rebindAll 사용(섹션 메모버튼 등 일괄 복원)
-  if (typeof window.rebindAll === 'function') window.rebindAll();
-  // 새 섹션 선택 + 스크롤
-  if (typeof window.selectSection === 'function') window.selectSection(sec);
-  else sec.classList.add('selected');
-  sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  window.scheduleAutoSave?.();
-  window.showToast && window.showToast('"브릿지 (V 커버)" 삽입 완료');
-}
+// 컴퍼넌트패널 'Bridge' 버튼의 addBridgeBlock은 block-factory.js로 이동(b3-2: 섹션 아닌 섹션내 블록으로 삽입).
+// 컴포넌트 셸프(저장 컴포넌트 브라우저)의 내장 '브릿지(V커버)'는 아래 _buildBridgeHtml(섹션) + _BUILTINS로 유지.
 
 /**
  * 컴포넌트 삭제
@@ -337,9 +312,7 @@ function toggleShelfPanel() {
 }
 
 // ── 전역 노출 ─────────────────────────────────────────
-
-// 플로팅 컴포넌트패널 메뉴 버튼에서 직접 호출 (addLaurelBlock 등과 동일 노출 방식)
-window.addBridgeBlock = addBridgeBlock;
+// (window.addBridgeBlock은 block-factory.js가 블록 삽입판으로 노출 — b3-2)
 
 window.CompShelf = {
   saveAsComponent,

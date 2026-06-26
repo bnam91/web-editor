@@ -793,6 +793,17 @@
 .divider-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .divider-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 
+/* 브릿지(V 커버) 블록 — divider와 동일 정적 블록 패턴 (b3-2) */
+.bridge-block {
+  position: relative;
+  width: 100%;
+  cursor: pointer;
+  box-sizing: border-box;
+  outline: 2px solid transparent;
+}
+.bridge-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.bridge-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
@@ -806,8 +817,25 @@
 .frame-block[data-text-frame="true"] > .text-block.selected {
   outline: var(--sel-outline-w) solid transparent;
 }
-/* 버블 선택 표시 = 위 .row:has / .frame-block:has 표준 패턴(풀폭 사각 아웃라인)으로 통일.
-   d04ebf2의 둥근 .tb-bubble 전용 outline은 제거됨(현빈 2026-06-27: 일관성 우선). 별도 버블 selection CSS 없음. */
+/* 버블 선택 표시 = 풀폭 사각(표준 토큰) 유지하되, 부모 outline은 불투명 .tb-bubble 본체에 가려지므로
+   ::after 오버레이로 콘텐츠 위(z-index)에 그린다 (b3-1, 현빈 검증 후속). 버블 선택 시에만 스코프.
+   다른 블록은 위 표준 outline 그대로 — 콘텐츠 배경이 투명/작아서 안 가려짐. */
+.row:has(.speech-bubble-block.selected),
+.frame-block[data-text-frame="true"]:has(.speech-bubble-block.selected) {
+  outline: none !important;          /* 가려지는 부모 outline 제거(이중 방지) */
+  position: relative;                /* ::after inset 기준 */
+}
+.row:has(.speech-bubble-block.selected)::after,
+.frame-block[data-text-frame="true"]:has(.speech-bubble-block.selected)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--sel-outline-w) solid var(--sel-color);  /* 표준 두께·색 */
+  background: transparent;          /* 코덱스 b3-1: frame hover ::after(sel-color-fill)가 같은 슬롯이라 fill 비침 방지 */
+  box-sizing: border-box;
+  pointer-events: none;             /* 콘텐츠 상호작용 방해 안 함 */
+  z-index: 10;                      /* .tb-bubble 본체 위에 항상 보이게 */
+}
 .label-group-block:hover:not(.selected)::after,
 .icon-circle-block:hover:not(.selected)::after,
 .table-block:hover:not(.selected)::after {
@@ -838,6 +866,7 @@
 .table-block.selected,
 .graph-block.selected,
 .divider-block.selected,
+.bridge-block.selected,
 .mockup-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }
@@ -944,6 +973,7 @@
 .frame-block:not(.selected) .label-group-block:hover,
 .frame-block:not(.selected) .graph-block:hover,
 .frame-block:not(.selected) .divider-block:hover,
+.frame-block:not(.selected) .bridge-block:hover,
 .frame-block:not(.selected) .icon-text-block:hover,
 .frame-block:not(.selected) .shape-block:hover {
   outline: none !important;
@@ -953,6 +983,7 @@
 .frame-block:not(.selected) .table-block:hover::after,
 .frame-block:not(.selected) .graph-block:hover::after,
 .frame-block:not(.selected) .divider-block:hover::after,
+.frame-block:not(.selected) .bridge-block:hover::after,
 .frame-block:not(.selected) .label-group-block:hover::after,
 .frame-block:not(.selected) .shape-block:hover::after {
   display: none !important;

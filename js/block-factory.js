@@ -999,6 +999,83 @@ function addDividerBlock(opts = {}) {
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// ── 브릿지(V 커버) 블록 — 항상 full-bleed(섹션 너비 고정) + 파라미터화된 상단 중앙 V홈(꼬리). ──
+const BRIDGE_DEFAULTS = { color: '#9a8a78', width: 120, depth: 88, sharp: 50 };
+// V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430. width=개구부 너비, depth=홈 깊이(y),
+// sharp=0(뾰족)~100(넓고완만): 베지어 제어점 수평 위치 조절. 기본값(120/88/50)은 원본 path와 정확히 일치.
+function _buildBridgePath({ width = 120, depth = 88, sharp = 50 } = {}) {
+  const VB = 860, H = 90, cx = 430;
+  const w = Math.max(30, Math.min(760, width));
+  const d = Math.max(8, Math.min(90, depth));
+  const s = Math.max(0, Math.min(100, sharp));
+  const half = w / 2, L = cx - half, R = cx + half;
+  const f1 = 0.667 - (s - 50) / 50 * 0.30;   // s50→0.667, s0(뾰족)→0.967, s100(넓음)→0.367
+  const f2 = 0.75  - (s - 50) / 50 * 0.30;   // s50→0.75
+  const c1x = +(L + f1 * half).toFixed(1), c2x = +(L + f2 * half).toFixed(1);
+  const c3x = +(R - f2 * half).toFixed(1), c4x = +(R - f1 * half).toFixed(1);
+  return `M0 0 L${L} 0 C${c1x} 0 ${c2x} ${d} ${cx} ${d} C${c3x} ${d} ${c4x} 0 ${R} 0 L${VB} 0 L${VB} ${H} L0 ${H} Z`;
+}
+
+// data-bridge-* 를 읽어 SVG를 (재)렌더 — 생성/파라미터변경/로드 시 호출 (divider applyDividerStyle 대응).
+function renderBridgeBlock(block) {
+  if (!block) return;
+  const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;
+  const width = parseFloat(block.dataset.bridgeWidth) || BRIDGE_DEFAULTS.width;
+  const depth = parseFloat(block.dataset.bridgeDepth) || BRIDGE_DEFAULTS.depth;
+  const _sp = parseFloat(block.dataset.bridgeSharp);
+  const sharp = Number.isFinite(_sp) ? _sp : BRIDGE_DEFAULTS.sharp;  // 손상 저장값 NaN 가드 (코덱스)
+  const path = _buildBridgePath({ width, depth, sharp });
+  block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${color}"/></svg>`;
+}
+
+// 브릿지는 토글 없이 '항상' full-bleed: 섹션 좌우패딩만큼 음수마진 + calc 확장 (gradient-block 정책과 동일).
+function applyBridgeFullBleed(block) {
+  if (!block) return;
+  // free-layout(절대배치) 프레임 내부 브릿지는 섹션 패딩 맥락이 없어 full-bleed 무의미 (canvas-block _effSectionPadX 가드 미러)
+  if (block.closest('.frame-block[data-free-layout="true"]')) return;
+  const inner = block.closest('.section-inner');
+  if (!inner) return;
+  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+  const padX = hasOverride ? (parseInt(inner.dataset.paddingX) || 0) : (window.state?.pageSettings?.padX || 0);
+  if (padX > 0) {
+    block.style.marginLeft  = -padX + 'px';
+    block.style.marginRight = -padX + 'px';
+    block.style.width = `calc(100% + ${padX * 2}px)`;
+  } else {
+    block.style.marginLeft = ''; block.style.marginRight = ''; block.style.width = '100%';
+  }
+}
+
+function makeBridgeBlock(opts = {}) {
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
+  const brg = document.createElement('div');
+  brg.className = 'bridge-block'; brg.dataset.type = 'bridge';
+  brg.id = genId('brg');
+  brg.dataset.bridgeColor = opts.color || BRIDGE_DEFAULTS.color;
+  brg.dataset.bridgeWidth = String(opts.width ?? BRIDGE_DEFAULTS.width);
+  brg.dataset.bridgeDepth = String(opts.depth ?? BRIDGE_DEFAULTS.depth);
+  brg.dataset.bridgeSharp = String(opts.sharp ?? BRIDGE_DEFAULTS.sharp);
+  brg.style.width = '100%'; brg.style.aspectRatio = '860/90'; brg.style.lineHeight = '0'; brg.style.fontSize = '0';
+  renderBridgeBlock(brg);
+  row.appendChild(brg);
+  return { row, block: brg };
+}
+
+function addBridgeBlock(opts = {}) {
+  if (_insertToFlowFrame(() => makeBridgeBlock(opts))) return;
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+  const { row, block } = makeBridgeBlock(opts);
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  applyBridgeFullBleed(block);   // 항상 full-bleed
+  window.buildLayerPanel();
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 function addGhostSection() {
   const canvas = document.getElementById('canvas');
   // 이미 ghost가 있으면 중복 추가 방지
@@ -1137,7 +1214,7 @@ function addSection(opts = {}) {
     e.stopPropagation();
     window.selectSectionWithModifier(sec, e);
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .label-group-block, .icon-text-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -1150,7 +1227,7 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
@@ -1418,7 +1495,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -1596,6 +1673,8 @@ export {
   addGraphBlock,
   makeDividerBlock,
   addDividerBlock,
+  makeBridgeBlock,
+  addBridgeBlock,
   addSection,
   makeFrameBlock,
   addFrameBlock,
@@ -4025,6 +4104,11 @@ window.makeGraphBlock       = makeGraphBlock;
 window.addGraphBlock        = addGraphBlock;
 window.makeDividerBlock     = makeDividerBlock;
 window.addDividerBlock      = addDividerBlock;
+window.makeBridgeBlock      = makeBridgeBlock;
+window.addBridgeBlock       = addBridgeBlock;
+window.renderBridgeBlock    = renderBridgeBlock;
+window.applyBridgeFullBleed = applyBridgeFullBleed;
+window._buildBridgePath     = _buildBridgePath;
 window.addSection           = addSection;
 window.addGhostSection      = addGhostSection;
 window.makeFrameBlock        = makeFrameBlock;

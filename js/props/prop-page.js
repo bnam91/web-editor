@@ -44,6 +44,18 @@ function applyPadXToSection(inner, padX) {
       if (!gb.style.width || gb.style.width.includes('calc')) gb.style.width = '100%';
     }
   });
+  // bridge-block도 항상 full-bleed(섹션 너비 고정) — gradient와 동일 정책 (b3-2)
+  inner.querySelectorAll('.bridge-block').forEach(brg => {
+    if (padX > 0) {
+      brg.style.marginLeft  = -padX + 'px';
+      brg.style.marginRight = -padX + 'px';
+      brg.style.width = `calc(100% + ${padX * 2}px)`;
+    } else {
+      brg.style.marginLeft  = '';
+      brg.style.marginRight = '';
+      if (!brg.style.width || brg.style.width.includes('calc')) brg.style.width = '100%';
+    }
+  });
   // full-bleed 카드(canvas-block)는 width/margin을 직접 박지 않고 renderCanvas에 위임
   // (renderCanvas가 effective 섹션 padX를 읽어 calc 확장폭/음수마진을 통합 계산).
   inner.querySelectorAll('.canvas-block[data-full-bleed="true"]').forEach(cvb => {
