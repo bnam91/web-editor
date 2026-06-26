@@ -411,6 +411,7 @@ export function showTableProperties(block) {
       <div class="prop-row">
         <span class="prop-label">테마</span>
         <select class="prop-select" id="tbl-style-select">
+          <option value="first-col-bold" ${curStyle==='first-col-bold'?'selected':''}>첫 칼럼 볼드</option>
           <option value="default"    ${curStyle==='default'   ?'selected':''}>기본</option>
           <option value="stripe"     ${curStyle==='stripe'    ?'selected':''}>스트라이프</option>
           <option value="borderless" ${curStyle==='borderless'?'selected':''}>보더리스</option>
@@ -548,7 +549,15 @@ export function showTableProperties(block) {
     }
     // 신규 행도 row 높이 적용
     const rh = parseInt(block.dataset.rowH) || 0;
-    if (rh > 0) tr.style.height = rh + 'px';
+    if (rh > 0) {
+      tr.style.height = rh + 'px';
+    } else {
+      // rowH=0(auto)일 땐 직전(마지막) 행의 실측 높이를 상속 → 새 빈 행이 기존 행과 동일 높이로 들어옴
+      // (기존엔 auto일 때 height 미설정이라 콘텐츠 없는 새 행이 더 작게 들어오던 버그)
+      const prevRow = tbody.lastElementChild;
+      const prevH = prevRow ? prevRow.offsetHeight : 0;
+      if (prevH > 0) tr.style.height = prevH + 'px';
+    }
     tbody.appendChild(tr);
     document.getElementById('tbl-row-count').textContent = tbody.querySelectorAll('tr').length;
     window.pushHistory();
