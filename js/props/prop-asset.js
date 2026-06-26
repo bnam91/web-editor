@@ -99,6 +99,7 @@ export function showAssetProperties(ab) {
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="1032">Tall</button>
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="575">Wide</button>
         <button class="prop-preset-btn prop-type-btn" data-preset="logo" data-w="200" data-h="64">Logo</button>
+        <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="1216">A4</button>
       </div>
     </div>
     <div class="prop-section">
