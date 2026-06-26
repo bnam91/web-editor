@@ -820,6 +820,7 @@
   position: absolute;
   inset: 0;
   border: var(--sel-outline-w) solid var(--sel-color);  /* 표준 두께·색 */
+  background: transparent;          /* 코덱스 b3-1: frame hover ::after(sel-color-fill)가 같은 슬롯이라 fill 비침 방지 */
   box-sizing: border-box;
   pointer-events: none;             /* 콘텐츠 상호작용 방해 안 함 */
   z-index: 10;                      /* .tb-bubble 본체 위에 항상 보이게 */
