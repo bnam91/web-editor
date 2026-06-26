@@ -261,6 +261,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
               || child.classList.contains('label-group-block')
               || child.classList.contains('graph-block')
               || child.classList.contains('divider-block')
+              || child.classList.contains('bridge-block')
               || child.classList.contains('icon-text-block')
               || child.classList.contains('shape-block')) {
         // section-inner 직접 자식 블록 (frame-block으로 감싸지지 않은 케이스) — 안전망

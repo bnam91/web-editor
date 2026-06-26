@@ -999,6 +999,36 @@ function addDividerBlock(opts = {}) {
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// ── 브릿지(V 커버) 블록 — 풀폭 밴드 + 상단 중앙 V홈. divider처럼 섹션 내 정적 블록. ──
+function makeBridgeBlock(opts = {}) {
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
+  const c = opts.color || '#9a8a78';
+  const brg = document.createElement('div');
+  brg.className = 'bridge-block'; brg.dataset.type = 'bridge';
+  brg.id = genId('brg');
+  brg.dataset.bridgeColor = c;
+  brg.style.width = '100%'; brg.style.aspectRatio = '860/90'; brg.style.lineHeight = '0'; brg.style.fontSize = '0';
+  // V커버 SVG (component-shelf _buildBridgeHtml에서 이식): 상단 중앙이 (430,88)까지 파인 깔때기 V홈, 풀폭 stretch.
+  const path = 'M0 0 L370 0 C410 0 415 88 430 88 C445 88 450 0 490 0 L860 0 L860 90 L0 90 Z';
+  brg.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${c}"/></svg>`;
+  row.appendChild(brg);
+  return { row, block: brg };
+}
+
+function addBridgeBlock(opts = {}) {
+  if (_insertToFlowFrame(() => makeBridgeBlock(opts))) return;
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+  const { row, block } = makeBridgeBlock(opts);
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  window.buildLayerPanel();
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 function addGhostSection() {
   const canvas = document.getElementById('canvas');
   // 이미 ghost가 있으면 중복 추가 방지
@@ -1137,7 +1167,7 @@ function addSection(opts = {}) {
     e.stopPropagation();
     window.selectSectionWithModifier(sec, e);
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .label-group-block, .icon-text-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -1150,7 +1180,7 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
@@ -1418,7 +1448,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -1596,6 +1626,8 @@ export {
   addGraphBlock,
   makeDividerBlock,
   addDividerBlock,
+  makeBridgeBlock,
+  addBridgeBlock,
   addSection,
   makeFrameBlock,
   addFrameBlock,
@@ -4025,6 +4057,8 @@ window.makeGraphBlock       = makeGraphBlock;
 window.addGraphBlock        = addGraphBlock;
 window.makeDividerBlock     = makeDividerBlock;
 window.addDividerBlock      = addDividerBlock;
+window.makeBridgeBlock      = makeBridgeBlock;
+window.addBridgeBlock       = addBridgeBlock;
 window.addSection           = addSection;
 window.addGhostSection      = addGhostSection;
 window.makeFrameBlock        = makeFrameBlock;
