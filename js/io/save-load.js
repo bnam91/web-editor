@@ -948,6 +948,8 @@ function rebindAll() {
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
+    // bridge: data-bridge-*로 path 재생성 + 항상 full-bleed 재적용 (로드 후 현재 섹션 패딩 반영)
+    if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
     // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
     if (b.classList.contains('chat-block')) window.renderChatBlock?.(b);
     // banner02/comparison: scale-to-fit ResizeObserver + dblclick 편집 핸들러 재바인딩

@@ -999,19 +999,62 @@ function addDividerBlock(opts = {}) {
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// ── 브릿지(V 커버) 블록 — 풀폭 밴드 + 상단 중앙 V홈. divider처럼 섹션 내 정적 블록. ──
+// ── 브릿지(V 커버) 블록 — 항상 full-bleed(섹션 너비 고정) + 파라미터화된 상단 중앙 V홈(꼬리). ──
+const BRIDGE_DEFAULTS = { color: '#9a8a78', width: 120, depth: 88, sharp: 50 };
+// V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430. width=개구부 너비, depth=홈 깊이(y),
+// sharp=0(뾰족)~100(넓고완만): 베지어 제어점 수평 위치 조절. 기본값(120/88/50)은 원본 path와 정확히 일치.
+function _buildBridgePath({ width = 120, depth = 88, sharp = 50 } = {}) {
+  const VB = 860, H = 90, cx = 430;
+  const w = Math.max(30, Math.min(760, width));
+  const d = Math.max(8, Math.min(90, depth));
+  const s = Math.max(0, Math.min(100, sharp));
+  const half = w / 2, L = cx - half, R = cx + half;
+  const f1 = 0.667 - (s - 50) / 50 * 0.30;   // s50→0.667, s0(뾰족)→0.967, s100(넓음)→0.367
+  const f2 = 0.75  - (s - 50) / 50 * 0.30;   // s50→0.75
+  const c1x = +(L + f1 * half).toFixed(1), c2x = +(L + f2 * half).toFixed(1);
+  const c3x = +(R - f2 * half).toFixed(1), c4x = +(R - f1 * half).toFixed(1);
+  return `M0 0 L${L} 0 C${c1x} 0 ${c2x} ${d} ${cx} ${d} C${c3x} ${d} ${c4x} 0 ${R} 0 L${VB} 0 L${VB} ${H} L0 ${H} Z`;
+}
+
+// data-bridge-* 를 읽어 SVG를 (재)렌더 — 생성/파라미터변경/로드 시 호출 (divider applyDividerStyle 대응).
+function renderBridgeBlock(block) {
+  if (!block) return;
+  const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;
+  const width = parseFloat(block.dataset.bridgeWidth) || BRIDGE_DEFAULTS.width;
+  const depth = parseFloat(block.dataset.bridgeDepth) || BRIDGE_DEFAULTS.depth;
+  const sharp = block.dataset.bridgeSharp !== undefined ? parseFloat(block.dataset.bridgeSharp) : BRIDGE_DEFAULTS.sharp;
+  const path = _buildBridgePath({ width, depth, sharp });
+  block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${color}"/></svg>`;
+}
+
+// 브릿지는 토글 없이 '항상' full-bleed: 섹션 좌우패딩만큼 음수마진 + calc 확장 (gradient-block 정책과 동일).
+function applyBridgeFullBleed(block) {
+  if (!block) return;
+  const inner = block.closest('.section-inner');
+  if (!inner) return;
+  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+  const padX = hasOverride ? (parseInt(inner.dataset.paddingX) || 0) : (window.state?.pageSettings?.padX || 0);
+  if (padX > 0) {
+    block.style.marginLeft  = -padX + 'px';
+    block.style.marginRight = -padX + 'px';
+    block.style.width = `calc(100% + ${padX * 2}px)`;
+  } else {
+    block.style.marginLeft = ''; block.style.marginRight = ''; block.style.width = '100%';
+  }
+}
+
 function makeBridgeBlock(opts = {}) {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
-  const c = opts.color || '#9a8a78';
   const brg = document.createElement('div');
   brg.className = 'bridge-block'; brg.dataset.type = 'bridge';
   brg.id = genId('brg');
-  brg.dataset.bridgeColor = c;
+  brg.dataset.bridgeColor = opts.color || BRIDGE_DEFAULTS.color;
+  brg.dataset.bridgeWidth = String(opts.width ?? BRIDGE_DEFAULTS.width);
+  brg.dataset.bridgeDepth = String(opts.depth ?? BRIDGE_DEFAULTS.depth);
+  brg.dataset.bridgeSharp = String(opts.sharp ?? BRIDGE_DEFAULTS.sharp);
   brg.style.width = '100%'; brg.style.aspectRatio = '860/90'; brg.style.lineHeight = '0'; brg.style.fontSize = '0';
-  // V커버 SVG (component-shelf _buildBridgeHtml에서 이식): 상단 중앙이 (430,88)까지 파인 깔때기 V홈, 풀폭 stretch.
-  const path = 'M0 0 L370 0 C410 0 415 88 430 88 C445 88 450 0 490 0 L860 0 L860 90 L0 90 Z';
-  brg.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${c}"/></svg>`;
+  renderBridgeBlock(brg);
   row.appendChild(brg);
   return { row, block: brg };
 }
@@ -1024,6 +1067,7 @@ function addBridgeBlock(opts = {}) {
   const { row, block } = makeBridgeBlock(opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
+  applyBridgeFullBleed(block);   // 항상 full-bleed
   window.buildLayerPanel();
   try { window.selectBlock?.(block.id); } catch (_) {}
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -4059,6 +4103,9 @@ window.makeDividerBlock     = makeDividerBlock;
 window.addDividerBlock      = addDividerBlock;
 window.makeBridgeBlock      = makeBridgeBlock;
 window.addBridgeBlock       = addBridgeBlock;
+window.renderBridgeBlock    = renderBridgeBlock;
+window.applyBridgeFullBleed = applyBridgeFullBleed;
+window._buildBridgePath     = _buildBridgePath;
 window.addSection           = addSection;
 window.addGhostSection      = addGhostSection;
 window.makeFrameBlock        = makeFrameBlock;
