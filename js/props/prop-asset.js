@@ -99,7 +99,7 @@ export function showAssetProperties(ab) {
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="1032">Tall</button>
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="575">Wide</button>
         <button class="prop-preset-btn prop-type-btn" data-preset="logo" data-w="200" data-h="64">Logo</button>
-        <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="1216">A4</button>
+        <button class="prop-preset-btn prop-type-btn" data-preset="a4" data-w="410" data-h="580">A4</button>
       </div>
     </div>
     <div class="prop-section">
@@ -271,12 +271,24 @@ export function showAssetProperties(ab) {
   propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const isLogo = btn.dataset.preset === 'logo';
+      const isA4   = btn.dataset.preset === 'a4';
       const w = parseInt(btn.dataset.w);
       const h = parseInt(btn.dataset.h);
       ab.dataset.size       = '100';
       ab.dataset.baseHeight = h;  // 항상 baseHeight 갱신
 
-      if (isLogo) {
+      if (isA4) {
+        // A4 세로: 고정폭 410 + 중앙정렬 (full-bleed 아님). Logo 패턴과 유사하나 폭 슬라이더는 활성(410에서 조절 가능).
+        ab.dataset.preset = 'a4';
+        ab.dataset.align = 'center';
+        ab.style.marginLeft  = '';
+        ab.style.marginRight = '';
+        ab.style.height = h + 'px';
+        ab.dataset.baseHeight = h;
+        applyH(h);          // 580
+        applyW(w);          // 410 → width:410px + alignSelf center + 폭슬라이더 값 410
+        setWSliderDisabled(false);
+      } else if (isLogo) {
         // Logo 프리셋: 200x64 고정, usePadx 무시
         ab.dataset.preset = 'logo';
         ab.style.width    = '200px';
