@@ -440,12 +440,42 @@ function _applyFlowDistribute(blocks) {
   showFlowMultiSelPanel();
 }
 
+// 선택된 텍스트 블록들에 폰트 크기 일괄 적용 (단일 블록 '무선택 전체 적용' 경로와 동일 시맨틱).
+function _applyFlowFontSize(blocks, size) {
+  const v = Math.max(1, Math.min(800, parseInt(size, 10) || 0));
+  if (!v) return;
+  let applied = 0;
+  blocks.forEach(b => {
+    if (!b.classList.contains('text-block')) return;
+    const contentEl = b.querySelector('[contenteditable]') ||
+      b.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner');
+    if (!contentEl) return;
+    // mix 상태의 부분 font-size span 정리 후 블록 전체 사이즈 적용 (prop-text-wireup-text-edit applySizeToSel 무선택 경로 미러)
+    contentEl.querySelectorAll('span[style*="font-size"]').forEach(s => {
+      s.style.fontSize = '';
+      const styleStr = s.getAttribute('style') || '';
+      if (!styleStr.replace(/;|\s/g, '')) {
+        const parent = s.parentNode;
+        while (s.firstChild) parent.insertBefore(s.firstChild, s);
+        parent.removeChild(s);
+      }
+    });
+    contentEl.style.fontSize = v + 'px';
+    applied++;
+  });
+  if (applied) {
+    window.pushHistory?.('일괄 폰트 크기');
+    window.scheduleAutoSave?.();
+  }
+}
+
 export function showFlowMultiSelPanel() {
   if (!propPanel) return;
   const blocks = _getSelectedFlowBlocks();
   if (blocks.length < 2) return;
   const gaps = _collectInterGaps(blocks);
   const canDistribute = gaps.length >= 2;
+  const textCount = blocks.filter(b => b.classList.contains('text-block')).length;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -464,10 +494,17 @@ export function showFlowMultiSelPanel() {
         <button class="msp-align-btn" data-fdir="right"  title="오른쪽 정렬">R</button>
       </div>
     </div>
+    <div class="prop-section" style="${textCount > 0 ? '' : 'display:none;'}">
+      <div class="prop-section-title">폰트 크기 (텍스트 ${textCount}개)</div>
+      <div class="prop-row" style="gap:3px;">
+        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" placeholder="px" style="flex:1;">
+        <button class="prop-btn-sm msp-fontsize-btn" id="msp-font-size-apply" title="선택한 텍스트 블록에 일괄 적용">적용</button>
+      </div>
+    </div>
     <div class="prop-section" style="${canDistribute ? '' : 'display:none;'}">
       <div class="prop-section-title">분배</div>
       <div class="prop-row" style="gap:3px;">
-        <button class="msp-dist-btn" data-dist="v" title="세로 간격 균등">세로 균등</button>
+        <button class="prop-btn-sm msp-dist-btn" data-dist="v" title="세로 간격 균등">세로 균등</button>
       </div>
     </div>`;
 
@@ -477,6 +514,11 @@ export function showFlowMultiSelPanel() {
   propPanel.querySelectorAll('.msp-dist-btn').forEach(btn => {
     btn.addEventListener('click', () => _applyFlowDistribute(blocks));
   });
+  const fsInput = propPanel.querySelector('#msp-font-size');
+  const fsApply = propPanel.querySelector('#msp-font-size-apply');
+  const doFontSize = () => { if (fsInput && fsInput.value) _applyFlowFontSize(blocks, fsInput.value); };
+  fsApply?.addEventListener('click', doFontSize);
+  fsInput?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doFontSize(); } });
 }
 
 window.showFlowMultiSelPanel = showFlowMultiSelPanel;
