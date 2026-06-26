@@ -1022,7 +1022,8 @@ function renderBridgeBlock(block) {
   const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;
   const width = parseFloat(block.dataset.bridgeWidth) || BRIDGE_DEFAULTS.width;
   const depth = parseFloat(block.dataset.bridgeDepth) || BRIDGE_DEFAULTS.depth;
-  const sharp = block.dataset.bridgeSharp !== undefined ? parseFloat(block.dataset.bridgeSharp) : BRIDGE_DEFAULTS.sharp;
+  const _sp = parseFloat(block.dataset.bridgeSharp);
+  const sharp = Number.isFinite(_sp) ? _sp : BRIDGE_DEFAULTS.sharp;  // 손상 저장값 NaN 가드 (코덱스)
   const path = _buildBridgePath({ width, depth, sharp });
   block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${color}"/></svg>`;
 }
@@ -1030,6 +1031,8 @@ function renderBridgeBlock(block) {
 // 브릿지는 토글 없이 '항상' full-bleed: 섹션 좌우패딩만큼 음수마진 + calc 확장 (gradient-block 정책과 동일).
 function applyBridgeFullBleed(block) {
   if (!block) return;
+  // free-layout(절대배치) 프레임 내부 브릿지는 섹션 패딩 맥락이 없어 full-bleed 무의미 (canvas-block _effSectionPadX 가드 미러)
+  if (block.closest('.frame-block[data-free-layout="true"]')) return;
   const inner = block.closest('.section-inner');
   if (!inner) return;
   const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;

@@ -52,6 +52,8 @@ function listComponents() {
  * @param {string} id  컴포넌트 id
  */
 function insertComponent(id) {
+  // 브릿지는 1급 .bridge-block(섹션 내 블록)으로 통일 — 셸프 내장도 블록 경로로 라우팅 (b3-2, 코덱스).
+  if (id === 'builtin_bridge' && typeof window.addBridgeBlock === 'function') { window.addBridgeBlock(); return; }
   // 내장 컴포넌트는 build()로 매번 새 HTML(새 id) 생성
   const builtin = _BUILTINS.find(b => b.id === id);
   const comp = builtin ? { name: builtin.name, html: builtin.build() }

@@ -878,6 +878,8 @@ function _bindPastedEl(el) {
     if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
     // chat-block: 더블클릭 편집 위임 재바인딩 (복사본 수정 불가 버그 수정 — bindBlock은 드래그만 처리)
     if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
+    // bridge-block: data-bridge-*로 path 재생성 + 대상 섹션 패딩 기준 full-bleed 재적용 (붙여넣기, 코덱스 b3-2)
+    if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
   });
 }
 

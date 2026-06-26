@@ -646,7 +646,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
-                'table-block','graph-block','divider-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block']
+                'table-block','graph-block','divider-block','bridge-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block']
                 .some(c => child.classList.contains(c))) {
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
       }
