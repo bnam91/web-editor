@@ -487,11 +487,19 @@ export function showFlowMultiSelPanel() {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">수평 정렬</div>
-      <div class="prop-row" style="gap:3px;">
-        <button class="msp-align-btn" data-fdir="left"   title="왼쪽 정렬">L</button>
-        <button class="msp-align-btn" data-fdir="center" title="가운데 정렬">C</button>
-        <button class="msp-align-btn" data-fdir="right"  title="오른쪽 정렬">R</button>
+      <div class="prop-row">
+        <span class="prop-label">정렬</span>
+        <div class="prop-align-group">
+          <button class="prop-align-btn" data-align="left"   title="왼쪽 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>
+          </button>
+          <button class="prop-align-btn" data-align="center" title="가운데 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="7" y1="2" x2="7" y2="12"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>
+          </button>
+          <button class="prop-align-btn" data-align="right"  title="오른쪽 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="13" y1="2" x2="13" y2="12"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>
+          </button>
+        </div>
       </div>
     </div>
     <div class="prop-section" style="${textCount > 0 ? '' : 'display:none;'}">
@@ -508,8 +516,8 @@ export function showFlowMultiSelPanel() {
       </div>
     </div>`;
 
-  propPanel.querySelectorAll('.msp-align-btn[data-fdir]').forEach(btn => {
-    btn.addEventListener('click', () => _applyFlowAlign(blocks, btn.dataset.fdir));
+  propPanel.querySelectorAll('.prop-align-btn[data-align]').forEach(btn => {
+    btn.addEventListener('click', () => _applyFlowAlign(blocks, btn.dataset.align));
   });
   propPanel.querySelectorAll('.msp-dist-btn').forEach(btn => {
     btn.addEventListener('click', () => _applyFlowDistribute(blocks));
