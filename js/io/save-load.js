@@ -730,6 +730,9 @@ function rebindAll() {
       toolbar.querySelectorAll('.st-btn:not(.st-ab-btn):not(.st-memo-btn):not(.st-ai-fill-btn)').forEach(el => el.remove());
       // variation 툴바 버튼 복원
       if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
+      // 섹션 메모 버튼 복원 — sanitizeCanvasHtml이 on* 속성을 제거하므로 로드 후 onclick 재바인딩 필요
+      // (없으면 버튼은 보이나 클릭 무반응 = 섹션 메모 패널 안 열림 회귀)
+      if (window._ensureMemoButton) window._ensureMemoButton(sec);
     }
   });
   // row ID 복원 + paddingX 복원
