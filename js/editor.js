@@ -1133,6 +1133,15 @@ document.addEventListener('keydown', e => {
       }
       return;
     }
+    if (e.key === 'x') {
+      // 잘라내기 = 복사 후 삭제 (copySelected + Delete와 동일한 삭제 로직 deleteSelectedFromCanvas 공유)
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      copySelected();
+      deleteSelectedFromCanvas();
+      return;
+    }
     if (e.key === 'd') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
@@ -1556,18 +1565,28 @@ document.addEventListener('keydown', e => {
     // 텍스트 편집 중이거나 input에 포커스가 있으면 기본 동작 유지
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    // 캔버스 선택 삭제 — ⌘X(잘라내기)와 공유. consumed=true면 기본동작 차단.
+    if (deleteSelectedFromCanvas()) e.preventDefault();
+    return;
+  }
+});
 
+// 캔버스 선택(블록/도형/행/열/섹션/프레임) 삭제 — Delete/Backspace 핸들러와 ⌘X 잘라내기가 공유.
+// 동작보존 추출: 원래 인라인 e.preventDefault()는 consumed 플래그로 대체(호출부가 preventDefault).
+// 반환값: 무언가를 소비(삭제 시도/보호차단 등 기본동작 차단)했으면 true.
+function deleteSelectedFromCanvas() {
+  let consumed = false;
     // 이미지 편집 모드 중이면 이미지 삭제
     const imgEditBlock = document.querySelector('.asset-block.img-editing');
     if (imgEditBlock) {
-      e.preventDefault();
+      consumed = true;
       clearAssetImage(imgEditBlock);
-      return;
+      return consumed;
     }
 
     // 다중 선택 삭제: col 다중
     if (multiSel.cols.size > 1) {
-      e.preventDefault();
+      consumed = true;
       multiSel.cols.forEach(col => {
         const row = col.closest('.row');
         col.remove();
@@ -1577,11 +1596,11 @@ document.addEventListener('keydown', e => {
       deselectAll();
       window.buildLayerPanel();
       pushHistory('열 삭제');
-      return;
+      return consumed;
     }
     // 다중 선택 삭제: section 다중
     if (multiSel.sections.size > 1) {
-      e.preventDefault();
+      consumed = true;
       const allSecs = canvasEl.querySelectorAll('.section-block');
       // 보호 섹션 필터링 (section-protection.js)
       const requested = [...multiSel.sections];
@@ -1591,7 +1610,7 @@ document.addEventListener('keydown', e => {
       if (skipped > 0 && typeof window.showToast === 'function') {
         window.showToast(`🔒 보호된 섹션 ${skipped}개 제외 (메모: "삭제하지말것" 자동 감지)`);
       }
-      if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return; }
+      if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return consumed; }
       ensureHistoryCheckpoint('섹션 다중 삭제 전');
       toDelete.forEach(s => s.remove());
       clearMultiSel();
@@ -1599,7 +1618,7 @@ document.addEventListener('keydown', e => {
       if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
       window.buildLayerPanel();
       pushHistory('섹션 삭제');
-      return;
+      return consumed;
     }
     const selText    = document.querySelector('.text-block.selected');
     const selAsset   = document.querySelector('.asset-block.selected');
@@ -1609,13 +1628,13 @@ document.addEventListener('keydown', e => {
     // group-block(프레임) selected → group-block 전체 삭제
     const selGroup = document.querySelector('.group-block.group-selected:not(.group-editing)');
     if (selGroup) {
-      e.preventDefault();
+      consumed = true;
       window.ensureHistoryCheckpoint?.('삭제 전');
       selGroup.remove();
       deselectAll();
       window.buildLayerPanel();
       pushHistory('프레임 삭제');
-      return;
+      return consumed;
     }
 
     // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
@@ -1628,14 +1647,14 @@ document.addEventListener('keydown', e => {
         '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
       );
       if (!ssHasSelectedChild) {
-        e.preventDefault();
+        consumed = true;
         const ssRow = selSS.closest('.row') || selSS;
         ssRow.remove();
         window._activeFrame = null;
         deselectAll();
         window.buildLayerPanel();
         pushHistory('서브섹션 삭제');
-        return;
+        return consumed;
       }
       // 자식 블록이 선택된 경우 → 아래 allSelBlocks 삭제 로직으로 fall-through
     }
@@ -1644,7 +1663,7 @@ document.addEventListener('keydown', e => {
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
     const allSelBlocks = [...document.querySelectorAll(CANVAS_SEL_BLOCKS)];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
-      e.preventDefault();
+      consumed = true;
       // A13: 보호섹션(메모 '삭제하지말것' 등) 내부 블록/도형 삭제 우회 차단.
       //       선택 중 하나라도 보호섹션에 속하면 전체 차단(부분삭제 모호성 회피).
       const _isProt = window.isSectionProtected || (() => false);
@@ -1653,7 +1672,7 @@ document.addEventListener('keydown', e => {
       if (_protShape || _protBlock) {
         if (typeof window.showToast === 'function') window.showToast('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요');
         deselectAll();
-        return;
+        return consumed;
       }
       window.ensureHistoryCheckpoint?.('삭제 전');
       // shape: 부모 ss/row 단위로 삭제
@@ -1690,13 +1709,13 @@ document.addEventListener('keydown', e => {
     } else {
       const selRow = document.querySelector('.row.row-active');
       if (selRow) {
-        e.preventDefault();
+        consumed = true;
         selRow.remove();
         deselectAll();
         window.buildLayerPanel();
         pushHistory('행 삭제');
       } else if (selSection) {
-        e.preventDefault();
+        consumed = true;
         const isProtected = window.isSectionProtected || (() => false);
         if (selSection.dataset.variationGroup) {
           const gid = selSection.dataset.variationGroup;
@@ -1706,7 +1725,7 @@ document.addEventListener('keydown', e => {
           if (skipped > 0 && typeof window.showToast === 'function') {
             window.showToast(`🔒 보호된 섹션 ${skipped}개 제외`);
           }
-          if (toDelete.length === 0) { deselectAll(); return; }
+          if (toDelete.length === 0) { deselectAll(); return consumed; }
           toDelete.forEach(s => s.remove());
           deselectAll();
           if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
@@ -1717,7 +1736,7 @@ document.addEventListener('keydown', e => {
             if (typeof window.showToast === 'function') {
               window.showToast(`🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요`);
             }
-            return;
+            return consumed;
           }
           selSection.remove();
           deselectAll();
@@ -1727,8 +1746,8 @@ document.addEventListener('keydown', e => {
         }
       }
     }
-  }
-});
+  return consumed;
+}
 
 applyZoom(40);
 
