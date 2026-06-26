@@ -1000,19 +1000,21 @@ function addDividerBlock(opts = {}) {
 }
 
 // ── 브릿지(V 커버) 블록 — 항상 full-bleed(섹션 너비 고정) + 파라미터화된 상단 중앙 V홈(꼬리). ──
-const BRIDGE_DEFAULTS = { color: '#9a8a78', width: 120, depth: 88, sharp: 50 };
-// V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430. width=개구부 너비, depth=홈 깊이(y),
-// sharp=0(뾰족)~100(넓고완만): 베지어 제어점 수평 위치 조절. 기본값(120/88/50)은 원본 path와 정확히 일치.
-function _buildBridgePath({ width = 120, depth = 88, sharp = 50 } = {}) {
+const BRIDGE_DEFAULTS = { color: '#9a8a78', width: 120, depth: 88, sharp: 50, arc: 50, height: 90 };
+// V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430. width=개구부 너비(상한 840=섹션폭 근사, b5①),
+// depth=홈 깊이(y), sharp=측면 가파름(상단 컨트롤 c1x/c4x), arc=바닥 둥글기(하단 컨트롤 c2x/c3x, b5②:
+// 0=뾰족 점, 100=둥근 아치). 기본값(120/88/50/50)은 원본 path와 정확히 일치.
+function _buildBridgePath({ width = 120, depth = 88, sharp = 50, arc = 50 } = {}) {
   const VB = 860, H = 90, cx = 430;
-  const w = Math.max(30, Math.min(760, width));
+  const w = Math.max(30, Math.min(840, width));
   const d = Math.max(8, Math.min(90, depth));
   const s = Math.max(0, Math.min(100, sharp));
+  const a = Math.max(0, Math.min(100, arc));
   const half = w / 2, L = cx - half, R = cx + half;
-  const f1 = 0.667 - (s - 50) / 50 * 0.30;   // s50→0.667, s0(뾰족)→0.967, s100(넓음)→0.367
-  const f2 = 0.75  - (s - 50) / 50 * 0.30;   // s50→0.75
-  const c1x = +(L + f1 * half).toFixed(1), c2x = +(L + f2 * half).toFixed(1);
-  const c3x = +(R - f2 * half).toFixed(1), c4x = +(R - f1 * half).toFixed(1);
+  const f1 = 0.667 - (s - 50) / 50 * 0.30;   // 측면 가파름: s50→0.667, s0(뾰족)→0.967, s100(넓음)→0.367
+  const g  = a / 100 * 0.5;                   // 바닥 둥글기: a0→0(뾰족 점), a50→0.25(원본), a100→0.5(넓은 아치)
+  const c1x = +(L + f1 * half).toFixed(1), c4x = +(R - f1 * half).toFixed(1);
+  const c2x = +(cx - g * half).toFixed(1),  c3x = +(cx + g * half).toFixed(1);
   return `M0 0 L${L} 0 C${c1x} 0 ${c2x} ${d} ${cx} ${d} C${c3x} ${d} ${c4x} 0 ${R} 0 L${VB} 0 L${VB} ${H} L0 ${H} Z`;
 }
 
@@ -1024,7 +1026,12 @@ function renderBridgeBlock(block) {
   const depth = parseFloat(block.dataset.bridgeDepth) || BRIDGE_DEFAULTS.depth;
   const _sp = parseFloat(block.dataset.bridgeSharp);
   const sharp = Number.isFinite(_sp) ? _sp : BRIDGE_DEFAULTS.sharp;  // 손상 저장값 NaN 가드 (코덱스)
-  const path = _buildBridgePath({ width, depth, sharp });
+  const _ar = parseFloat(block.dataset.bridgeArc);
+  const arc = Number.isFinite(_ar) ? _ar : BRIDGE_DEFAULTS.arc;       // b5② 아크 (NaN 가드)
+  const _hg = parseFloat(block.dataset.bridgeHeight);
+  const height = Number.isFinite(_hg) ? _hg : BRIDGE_DEFAULTS.height;  // b5③ 높이 (NaN 가드)
+  block.style.height = height + 'px';                                  // aspect-ratio 대신 가변 높이
+  const path = _buildBridgePath({ width, depth, sharp, arc });
   block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${color}"/></svg>`;
 }
 
@@ -1056,7 +1063,9 @@ function makeBridgeBlock(opts = {}) {
   brg.dataset.bridgeWidth = String(opts.width ?? BRIDGE_DEFAULTS.width);
   brg.dataset.bridgeDepth = String(opts.depth ?? BRIDGE_DEFAULTS.depth);
   brg.dataset.bridgeSharp = String(opts.sharp ?? BRIDGE_DEFAULTS.sharp);
-  brg.style.width = '100%'; brg.style.aspectRatio = '860/90'; brg.style.lineHeight = '0'; brg.style.fontSize = '0';
+  brg.dataset.bridgeArc = String(opts.arc ?? BRIDGE_DEFAULTS.arc);
+  brg.dataset.bridgeHeight = String(opts.height ?? BRIDGE_DEFAULTS.height);
+  brg.style.width = '100%'; brg.style.lineHeight = '0'; brg.style.fontSize = '0';  // 높이는 renderBridgeBlock가 style.height로 설정(가변, b5③)
   renderBridgeBlock(brg);
   row.appendChild(brg);
   return { row, block: brg };

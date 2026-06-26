@@ -1,19 +1,21 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
-// 브릿지(V 커버) 블록 프로퍼티 — 색상 + 꼬리(V홈) 모양(프리셋 + 너비/깊이 슬라이더). 공용 prop 클래스 재사용.
-// 모양 파라미터는 data-bridge-width/depth/sharp 에 저장(직렬화) → renderBridgeBlock이 path 재생성.
+// 브릿지(V 커버) 블록 프로퍼티 — 색상 + 꼬리(V홈) 모양(프리셋 + 너비/깊이/아크 슬라이더) + 블록 높이. 공용 prop 클래스 재사용.
+// 모양 파라미터는 data-bridge-width/depth/sharp/arc/height 에 저장(직렬화) → renderBridgeBlock이 path/높이 재생성.
 const BRIDGE_PRESETS = {
-  sharp:   { width: 70,  depth: 88, sharp: 90 },  // 뾰족
-  default: { width: 120, depth: 88, sharp: 50 },  // 기본
-  wide:    { width: 220, depth: 70, sharp: 15 },  // 넓은
+  sharp:   { width: 70,  depth: 88, sharp: 90, arc: 15 },  // 뾰족 (좁고 가파르고 뾰족한 점)
+  default: { width: 120, depth: 88, sharp: 50, arc: 50 },  // 기본 (원본)
+  wide:    { width: 220, depth: 70, sharp: 15, arc: 85 },  // 넓은 (넓고 완만하고 둥근 아치)
 };
 
 export function showBridgeProperties(block) {
-  const color = block.dataset.bridgeColor || '#9a8a78';
-  const alpha = parseAlphaFromColor(color);
-  const width = parseFloat(block.dataset.bridgeWidth) || 120;
-  const depth = parseFloat(block.dataset.bridgeDepth) || 88;
+  const color  = block.dataset.bridgeColor || '#9a8a78';
+  const alpha  = parseAlphaFromColor(color);
+  const width  = parseFloat(block.dataset.bridgeWidth)  || 120;
+  const depth  = parseFloat(block.dataset.bridgeDepth)  || 88;
+  const _ar = parseFloat(block.dataset.bridgeArc);    const arc    = Number.isFinite(_ar) ? _ar : 50;
+  const _hg = parseFloat(block.dataset.bridgeHeight); const height = Number.isFinite(_hg) ? _hg : 90;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -35,6 +37,14 @@ export function showBridgeProperties(block) {
       </div>
     </div>
     <div class="prop-section">
+      <div class="prop-section-title">크기</div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="brg-h-slider" min="20" max="300" step="2" value="${height}">
+        <input type="number" class="prop-number" id="brg-h-number" min="20" max="300" value="${height}">
+      </div>
+    </div>
+    <div class="prop-section">
       <div class="prop-section-title">꼬리 (V홈)</div>
       <div class="prop-row" style="gap:3px;">
         <button class="prop-preset-btn" data-bridge-preset="sharp">뾰족</button>
@@ -43,13 +53,18 @@ export function showBridgeProperties(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="brg-w-slider" min="30" max="400" step="2" value="${width}">
-        <input type="number" class="prop-number" id="brg-w-number" min="30" max="400" value="${width}">
+        <input type="range" class="prop-slider" id="brg-w-slider" min="30" max="840" step="2" value="${width}">
+        <input type="number" class="prop-number" id="brg-w-number" min="30" max="840" value="${width}">
       </div>
       <div class="prop-row">
         <span class="prop-label">깊이</span>
         <input type="range" class="prop-slider" id="brg-d-slider" min="8" max="90" step="1" value="${depth}">
         <input type="number" class="prop-number" id="brg-d-number" min="8" max="90" value="${depth}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">아크</span>
+        <input type="range" class="prop-slider" id="brg-a-slider" min="0" max="100" step="1" value="${arc}">
+        <input type="number" class="prop-number" id="brg-a-number" min="0" max="100" value="${arc}">
       </div>
     </div>`;
 
@@ -64,21 +79,31 @@ export function showBridgeProperties(block) {
     onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
   });
 
-  const wSlider = document.getElementById('brg-w-slider');
-  const wNumber = document.getElementById('brg-w-number');
-  const dSlider = document.getElementById('brg-d-slider');
-  const dNumber = document.getElementById('brg-d-number');
+  const $ = (id) => document.getElementById(id);
+  const wSlider = $('brg-w-slider'), wNumber = $('brg-w-number');
+  const dSlider = $('brg-d-slider'), dNumber = $('brg-d-number');
+  const aSlider = $('brg-a-slider'), aNumber = $('brg-a-number');
+  const hSlider = $('brg-h-slider'), hNumber = $('brg-h-number');
 
   const rerender = () => { window.renderBridgeBlock?.(block); };
-  const setWidth = (v) => { v = Math.max(30, Math.min(400, parseInt(v) || 120)); block.dataset.bridgeWidth = String(v); wSlider.value = v; wNumber.value = v; rerender(); };
-  const setDepth = (v) => { v = Math.max(8, Math.min(90, parseInt(v) || 88)); block.dataset.bridgeDepth = String(v); dSlider.value = v; dNumber.value = v; rerender(); };
+  const setWidth  = (v) => { v = Math.max(30, Math.min(840, parseInt(v) || 120)); block.dataset.bridgeWidth  = String(v); wSlider.value = v; wNumber.value = v; rerender(); };
+  const setDepth  = (v) => { v = Math.max(8,  Math.min(90,  parseInt(v) || 88));  block.dataset.bridgeDepth  = String(v); dSlider.value = v; dNumber.value = v; rerender(); };
+  const setArc    = (v) => { v = Math.max(0,  Math.min(100, parseInt(v) || 0));   block.dataset.bridgeArc    = String(v); aSlider.value = v; aNumber.value = v; rerender(); };
+  const setHeight = (v) => { v = Math.max(20, Math.min(300, parseInt(v) || 90));  block.dataset.bridgeHeight = String(v); hSlider.value = v; hNumber.value = v; rerender(); };
+  const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
 
   wSlider.addEventListener('input', () => setWidth(wSlider.value));
-  wSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-  wNumber.addEventListener('change', () => { setWidth(wNumber.value); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  wSlider.addEventListener('change', commit);
+  wNumber.addEventListener('change', () => { setWidth(wNumber.value); commit(); });
   dSlider.addEventListener('input', () => setDepth(dSlider.value));
-  dSlider.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
-  dNumber.addEventListener('change', () => { setDepth(dNumber.value); window.pushHistory?.(); window.scheduleAutoSave?.(); });
+  dSlider.addEventListener('change', commit);
+  dNumber.addEventListener('change', () => { setDepth(dNumber.value); commit(); });
+  aSlider.addEventListener('input', () => setArc(aSlider.value));
+  aSlider.addEventListener('change', commit);
+  aNumber.addEventListener('change', () => { setArc(aNumber.value); commit(); });
+  hSlider.addEventListener('input', () => setHeight(hSlider.value));
+  hSlider.addEventListener('change', commit);
+  hNumber.addEventListener('change', () => { setHeight(hNumber.value); commit(); });
 
   propPanel.querySelectorAll('[data-bridge-preset]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -87,10 +112,12 @@ export function showBridgeProperties(block) {
       block.dataset.bridgeWidth = String(p.width);
       block.dataset.bridgeDepth = String(p.depth);
       block.dataset.bridgeSharp = String(p.sharp);
+      block.dataset.bridgeArc   = String(p.arc);
       wSlider.value = p.width; wNumber.value = p.width;
       dSlider.value = p.depth; dNumber.value = p.depth;
+      aSlider.value = p.arc;   aNumber.value = p.arc;
       rerender();
-      window.pushHistory?.(); window.scheduleAutoSave?.();
+      commit();
     });
   });
 }
