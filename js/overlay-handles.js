@@ -904,8 +904,11 @@ function _onCanvasResizeHandleMouseDown(e, cb, dir) {
   // 기존엔 860 하드코딩이라 우측 확대 시 섹션 우측패딩을 침범(좌측만 지켜 좌우 비대칭)했음.
   const _secInner = cb.closest('.section-inner') || cb.closest('.section-block');
   const _secCS = _secInner ? getComputedStyle(_secInner) : null;
-  const _padH = _secCS ? parseFloat(_secCS.paddingLeft) + parseFloat(_secCS.paddingRight) : 0;
-  const maxW = _secInner ? Math.round(_secInner.clientWidth - _padH) : 860;
+  const _padH = _secCS ? (parseFloat(_secCS.paddingLeft) || 0) + (parseFloat(_secCS.paddingRight) || 0) : 0;
+  const _innerW = _secInner ? _secInner.clientWidth : 0;
+  // 레이아웃 미확정/detached 등으로 clientWidth=0(또는 NaN)이면 860 폴백 (실제 리사이즈는 렌더된 카드에서만 발생하므로 정상 경로엔 영향 없음)
+  const _maxWcalc = Math.round(_innerW - _padH);
+  const maxW = (_innerW > 0 && _maxWcalc > 0) ? _maxWcalc : 860;
 
   function onMove(ev) {
     const scaler = document.getElementById('canvas-scaler');
