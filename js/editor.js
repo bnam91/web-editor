@@ -716,6 +716,9 @@ function duplicateSelected() {
       clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
+        // chat-block: 편집 위임은 renderChatBlock에서 바인딩되는데 bindBlock은 드래그만 처리.
+        // 복사본은 renderChatBlock가 재호출되지 않아 더블클릭 편집이 안 됨 → 명시적 재렌더.
+        if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
       });
       // 복제본 자신이 블록인 경우(absWrapper=selBlock, 즉 position:absolute 블록을 직접 복제):
       // 위 querySelectorAll은 루트(clone)를 포함하지 않아 본인 드래그 바인딩이 누락된다.
@@ -723,6 +726,7 @@ function duplicateSelected() {
       if (clone.matches?.(_ALL_BLOCK_SEL)) {
         delete clone._blockBound;
         window.bindBlock?.(clone);
+        if (clone.matches('.chat-block')) { delete clone._chatEditBound; window.renderChatBlock?.(clone); }
       }
       clone._dragBound = false;
       clone._subSecBound = false;
@@ -871,6 +875,8 @@ function _bindPastedEl(el) {
     // banner02-block: renderBanner02로 ResizeObserver 재연결
     if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
     if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
+    // chat-block: 더블클릭 편집 위임 재바인딩 (복사본 수정 불가 버그 수정 — bindBlock은 드래그만 처리)
+    if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
   });
 }
 
