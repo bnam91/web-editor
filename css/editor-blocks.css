@@ -620,15 +620,21 @@
 }
 .tb-table thead th { font-weight: 600; font-size: var(--tbl-header-size, inherit); }
 
-/* 기본 스타일 */
+/* 기본 스타일 (first-col-bold 프리셋은 기본 룩 + 첫 칼럼만 볼드 — 기본 셀룰 그대로 재사용) */
 .table-block[data-style="default"] .tb-table th,
 .table-block[data-style="default"] .tb-table td,
+.table-block[data-style="first-col-bold"] .tb-table th,
+.table-block[data-style="first-col-bold"] .tb-table td,
 .table-block:not([data-style]) .tb-table th,
 .table-block:not([data-style]) .tb-table td {
   border: 1px solid var(--tbl-line-color, #ccc);
   padding: 10px 16px;
   text-align: center;
   vertical-align: middle;
+}
+/* first-col-bold: 첫 번째 세로 칼럼(맨 왼쪽 열) 본문 셀 텍스트만 볼드 (헤더行 아님) */
+.table-block[data-style="first-col-bold"] .tb-table tbody tr > td:first-child {
+  font-weight: bold;
 }
 
 /* colored 스타일 — 셀 모든 border를 토글로 제어 */
@@ -665,6 +671,7 @@
   border-bottom: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
 }
 .table-block[data-style="default"] .tb-table thead th,
+.table-block[data-style="first-col-bold"] .tb-table thead th,
 .table-block:not([data-style]) .tb-table thead th {
   background: var(--tbl-header-bg, #f0f0f0);
   font-weight: 600;
