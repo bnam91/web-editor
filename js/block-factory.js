@@ -2501,7 +2501,7 @@ function updateTableBlock(blockId, partial = {}) {
   try { _migrateLegacyHeaderColspan(block); } catch (_) {}
 
   // ── 화이트리스트 / 정규식 가드 ──
-  const _STYLE_ENUM = ['default', 'stripe', 'borderless', 'colored'];
+  const _STYLE_ENUM = ['default', 'stripe', 'borderless', 'colored', 'first-col-bold'];
   const _ALIGN_ENUM = ['left', 'center', 'right'];
   const _FONT_FAMILY_ENUM = [
     '',
