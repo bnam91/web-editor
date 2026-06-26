@@ -173,6 +173,10 @@ function renderGraph(block) {
   const valSize    = Math.round(labelSize * 1.07);
 
   if (chartType === 'bar-v') {
+    // 값/카테고리 라벨 표시·색 — line 차트와 동일 시맨틱 (이전엔 bar에서 미반영되던 버그)
+    const _lc = block.dataset.labelColor || '';
+    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
+    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
     block.innerHTML = `
       <div class="grb-bars-v" style="height:${chartH}px">
         ${items.map(item => {
@@ -180,11 +184,11 @@ function renderGraph(block) {
           const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
           return `
             <div class="grb-bar-col">
-              <div class="grb-bar-val-label" style="font-size:${valSize}px">${item.value}</div>
+              <div class="grb-bar-val-label" style="font-size:${valSize}px;${_vCss}">${item.value}</div>
               <div class="grb-bar-fill-wrap">
                 <div class="grb-bar-fill" style="${fillStyle}"></div>
               </div>
-              <div class="grb-bar-label" style="font-size:${labelSize}px">${item.label}</div>
+              <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${item.label}</div>
             </div>`;
         }).join('')}
       </div>`;
@@ -301,6 +305,10 @@ function renderGraph(block) {
     const trackR       = Math.round(trackH / 2);
     const trackStyle   = `height:${trackH}px;border-radius:${trackR}px;`;
     const fillStyle    = `width:__PCT__;border-radius:${trackR}px;${barColor ? `background:${barColor};` : ''}`;
+    // 값/카테고리 라벨 표시·색 — line 차트와 동일 시맨틱 (이전엔 bar-h에서 미반영되던 버그)
+    const _lc = block.dataset.labelColor || '';
+    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
+    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
 
     // freeLayout 절대 배치가 아닌 경우 height 고정 해제 → 콘텐츠 크기에 따라 자동 증가
     if (block.style.position !== 'absolute') {
@@ -315,8 +323,8 @@ function renderGraph(block) {
           const hFillExtra = pct === 0 ? 'width:4px;opacity:0.25;border-style:dashed;' : '';
           return `
             <div class="grb-bar-row">
-              <div class="grb-bar-h-pct" style="font-size:${pctSize}px">${displayVal}</div>
-              <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px">${item.label}</div>
+              <div class="grb-bar-h-pct" style="font-size:${pctSize}px;${_vCss}">${displayVal}</div>
+              <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px;${_xCss}">${item.label}</div>
               <div class="grb-bar-h-track" style="${trackStyle}">
                 <div class="grb-bar-h-fill" style="${fillStyle.replace('__PCT__', pct + '%')}${hFillExtra}"></div>
               </div>
