@@ -798,17 +798,8 @@
 .frame-block[data-text-frame="true"] > .text-block:not(.speech-bubble-block).selected {
   outline: var(--sel-outline-w) solid transparent;
 }
-/* 버블 선택 시 frame-block outline: speech-bubble-block(z-index:2)이 outline을 덮으므로
-   ::after pseudo-element를 z-index:10으로 올려서 위에 그림 */
-.frame-block[data-text-frame="true"]:has(.speech-bubble-block.selected)::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--sel-color);
-  z-index: 10;
-  pointer-events: none;
-  box-sizing: border-box;
-}
+/* 버블 선택 표시는 .tb-bubble(둥근 본체)에 표준 outline 토큰으로 부여 (하단 .speech-bubble-block.selected .tb-bubble 참조).
+   기존: 프레임 ::after 직사각 1px border → 둥근 버블/꼬리와 형태 불일치 + 표준 토큰 미사용 + row직속 버블 미커버. 제거함. */
 .label-group-block:hover:not(.selected)::after,
 .icon-circle-block:hover:not(.selected)::after,
 .table-block:hover:not(.selected)::after {
@@ -1517,9 +1508,15 @@ textarea.cvb-card-input {
   right: 2px;
   bottom: 10px;
 }
-/* 선택 상태 — frame-block ::after로 outline 표시 (z-index:10, bubble 위에 렌더) */
+/* 선택 상태 — 풀폭(width:100%) 블록 자체엔 outline 없이, 실제 보이는 둥근 본체(.tb-bubble)에
+   다른 블럭과 동일한 표준 토큰 outline 부여(두께/색/offset 일치, border-radius 22px 따라 둥글게 렌더).
+   row 직속/text-frame 내부 모두 동일 동작. */
 .speech-bubble-block.selected {
   outline: none !important;
+}
+.speech-bubble-block.selected .tb-bubble {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
 }
 /* placeholder 상태에서 opacity:0.45가 tb-bubble 배경까지 투명하게 만들어 말꼬리 색과 불일치 발생.
    배경 opacity는 1로 유지하고, 텍스트 color만 dim 처리. */
