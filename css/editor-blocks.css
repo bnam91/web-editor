@@ -632,9 +632,10 @@
   text-align: center;
   vertical-align: middle;
 }
-/* first-col-bold: 첫 번째 세로 칼럼(맨 왼쪽 열) 본문 셀 텍스트만 볼드 (헤더行 아님) */
+/* first-col-bold: 첫 번째 세로 칼럼(맨 왼쪽 열) 본문 셀 텍스트만 볼드 (헤더行 아님)
+   디자인시스템 토큰 사용(--ui-fw-bold=700) — 헤더 600보다 강조해 라벨 칼럼 구분. */
 .table-block[data-style="first-col-bold"] .tb-table tbody tr > td:first-child {
-  font-weight: bold;
+  font-weight: var(--ui-fw-bold, 700);
 }
 
 /* colored 스타일 — 셀 모든 border를 토글로 제어 */
