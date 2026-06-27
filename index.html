@@ -475,6 +475,10 @@
   </div><!-- /canvas-wrap -->
   <!-- Frame resize handle overlay — handles rendered here so frame-block can use overflow:hidden -->
   <div id="ss-handles-overlay"></div>
+  <!-- [b7] 로딩 오버레이(정적) — 초기 HTML에 포함돼 에디터 첫 페인트에 함께 그려진다. 무거운 프로젝트
+       (105MB 인라인 base64)는 listProjects 파싱 + loadProject read/parse/IPC가 수~십초 메인스레드를 점유해
+       JS로 나중에 show하면 화면에 못 올라간다 → 정적으로 두고 로드 완료 시 JS가 닫는다(save-load.js). -->
+  <div id="proj-loading-overlay" class="proj-loading-overlay" role="status" aria-live="polite"><div class="proj-loading-box"><div class="proj-loading-spinner"></div><span class="proj-loading-text">불러오는 중…</span></div></div>
   </div><!-- /canvas-area -->
 
   <!-- Right: Properties -->

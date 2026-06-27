@@ -22,7 +22,8 @@ function showProjectLoadingOverlay() {
 }
 
 function hideProjectLoadingOverlay() {
-  const ov = _overlayEl;
+  // [b7] 정적 오버레이(index.html #proj-loading-overlay)도 닫을 수 있게 getElementById 폴백.
+  const ov = _overlayEl || document.getElementById('proj-loading-overlay');
   if (!ov) return;
   ov.classList.add('hiding');      // 페이드아웃(CSS transition)
   setTimeout(() => { if (ov && ov.classList.contains('hiding')) { ov.remove(); if (_overlayEl === ov) _overlayEl = null; } }, 240);

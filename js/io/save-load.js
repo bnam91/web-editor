@@ -1393,41 +1393,22 @@ function initApp() {
 
   // 프로젝트 로드 (Electron: 파일, 브라우저: localStorage)
   (async function initLoad() {
-    function _estimateHeavyProject(data) {
-      // 캔버스 HTML 총 길이로 렌더 비용 근사 — applyProjectData가 동기 렌더라 시간 임계는 무의미(블로킹 중 타이머 안 돎),
-      // 데이터 크기로 '무거움'을 사전 판단. 경량 프로젝트는 오버레이를 아예 안 띄워 깜빡임 방지.
-      try {
-        let len = 0;
-        if (data && Array.isArray(data.pages)) { for (const p of data.pages) len += (p && typeof p.canvas === 'string' ? p.canvas.length : 0); }
-        else if (data && typeof data.canvas === 'string') { len = data.canvas.length; }
-        return len > 40000; // ~40KB+ 캔버스 → 무거운 프로젝트일 때만 로딩 인디케이터
-      } catch (_) { return false; }
-    }
+    // [b7] 로딩 오버레이 = index.html의 정적 #proj-loading-overlay(기본 표시). 에디터 첫 페인트(~+0.4s)에
+    //   함께 그려져 무거운 로드 전 구간을 덮는다. JS가 show하는 방식(b4/b6)은 무거운 로드 중 새로 추가한
+    //   엘리먼트가 style/layout pass를 못 받아 컴포지터에 안 올라가 실패했다(실측: 105MB서 진입~+13s 미표시).
+    //   ▶정적 오버레이라 첫 레이아웃에 포함→첫 프레임에 present, 이후 블로킹 동안 컴포지터가 transform
+    //     스피너를 계속 회전. JS는 로드 완료/실패 시 닫기만 한다(정적 오버레이는 기본 표시라 항상 닫아야 함).
+    const _endLoadingOverlay = () => { window.hideProjectLoadingOverlay?.(); };
     async function applyAndFinish(data) {
-      const heavy = _estimateHeavyProject(data);
-      if (heavy) {
-        window.showProjectLoadingOverlay?.();
-        const _expectedId = activeProjectId;
-        // ⚠️ applyProjectData는 sanitize+innerHTML(대량 HTML 파싱)으로 수백 ms 동안 메인스레드를
-        //    동기 블로킹한다. 이 블로킹 전에 오버레이가 "화면에 실제로 표시(compositor present)"돼야 한다.
-        //    컴포지터 present는 paint commit 이후 약 1 vsync 뒤 비동기로 일어나는데, 2×rAF 양보는
-        //    continuation이 microtask로 present 직전에 실행돼 블로킹이 present를 선점한다 → 스피너가
-        //    로딩 중엔 안 보이고 끝에 잠깐 떴다 꺼지는 b4 타이밍 버그(현빈 보고). rAF로 프레임 경계에
-        //    맞춘 뒤 setTimeout(매크로태스크)으로 present가 끝날 유휴 구간(>1 vsync)을 확보하고 블로킹에
-        //    진입한다. 스피너는 transform 애니라 present 후엔 블로킹 동안에도 컴포지터에서 계속 회전한다.
-        //    (실측: 무거운 더미 3MB 캔버스에서 로딩 시작~완료까지 오버레이 유지·회전 확인)
-        await new Promise(r => requestAnimationFrame(() => setTimeout(r, 64)));
-        // 양보 중 탭 전환 등으로 대상 프로젝트가 바뀌었으면 stale 데이터 적용 방지 (코덱스 b4 Item2)
-        if (activeProjectId !== _expectedId) { window.hideProjectLoadingOverlay?.(); return; }
-      }
       try { applyProjectData(data); } catch(e) {
         console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
         initEmpty();
       } finally {
-        if (heavy) window.hideProjectLoadingOverlay?.();
+        _endLoadingOverlay();
       }
     }
     function initEmpty() {
+      _endLoadingOverlay(); // 로드 실패/빈 프로젝트 폴백 — 오버레이 닫기
       state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
       state.currentPageId = 'page_1';
       window.buildLayerPanel();
@@ -1588,7 +1569,13 @@ function initApp() {
     const saved = localStorage.getItem(getSaveKey());
     if (saved) { try { applyAndFinish(JSON.parse(saved)); return; } catch {} }
     initEmpty();
-  })();
+  })().catch(e => {
+    // [b7] 페일세이프: initLoad 본문이 예기치 못한 예외로 종료되면 정적 로딩 오버레이가 화면에
+    //   영원히 남는다(기본 표시 상태이므로). 모든 정상 경로는 applyAndFinish.finally / initEmpty에서
+    //   닫지만, 미처리 예외 시에도 반드시 닫는다.
+    console.error('[initLoad] 처리되지 않은 오류 — 로딩 오버레이 강제 종료:', e);
+    window.hideProjectLoadingOverlay?.();
+  });
 
   // class 변경은 콜백에서 필터링, data-* 등 실제 속성 변경은 감지 (DBG-11 해소)
   autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true, attributes: true });
