@@ -1000,7 +1000,7 @@ function addDividerBlock(opts = {}) {
 }
 
 // ── 브릿지(V 커버) 블록 — 항상 full-bleed(섹션 너비 고정) + 파라미터화된 상단 중앙 V홈(꼬리). ──
-const BRIDGE_DEFAULTS = { color: '#9a8a78', width: 120, depth: 88, arc: 50, height: 90 };
+const BRIDGE_DEFAULTS = { color: '#cccccc', width: 120, depth: 88, arc: 0, height: 90 };  // 기본색=구조/장식 블록 공통 중립회색(divider·shape와 일치), 곡률 0=직선 V (현빈)
 // V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430.
 //   width = 개구부 너비(상한 840=섹션폭 근사, b5①), depth = 홈 깊이(y).
 //   arc(곡률, 부호값 -100~100, 현빈 요청) = 직선 V ↔ 호. 사이드는 항상 직선.

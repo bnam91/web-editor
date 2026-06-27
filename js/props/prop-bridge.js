@@ -7,7 +7,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 //   슬라이더 양방향으로 연속 조절, 프리셋 제거(중복).
 
 export function showBridgeProperties(block) {
-  const color  = block.dataset.bridgeColor || '#9a8a78';
+  const color  = block.dataset.bridgeColor || '#cccccc';
   const alpha  = parseAlphaFromColor(color);
   const width  = parseFloat(block.dataset.bridgeWidth)  || 120;
   const depth  = parseFloat(block.dataset.bridgeDepth)  || 88;
