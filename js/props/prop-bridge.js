@@ -2,11 +2,12 @@ import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 // 브릿지(V 커버) 블록 프로퍼티 — 색상 + 꼬리(V홈) 모양(프리셋 + 너비/깊이/아크 슬라이더) + 블록 높이. 공용 prop 클래스 재사용.
-// 모양 파라미터는 data-bridge-width/depth/sharp/arc/height 에 저장(직렬화) → renderBridgeBlock이 path/높이 재생성.
+// 모양 파라미터는 data-bridge-width/depth/arc/height 에 저장(직렬화) → renderBridgeBlock이 path/높이 재생성.
+// arc(곡률): 0=직선 V(뾰족), ↑=꼭지점 지나는 호, 100=아치. (현빈 요청)
 const BRIDGE_PRESETS = {
-  sharp:   { width: 70,  depth: 88, sharp: 90, arc: 15 },  // 뾰족 (좁고 가파르고 뾰족한 점)
-  default: { width: 120, depth: 88, sharp: 50, arc: 50 },  // 기본 (원본)
-  wide:    { width: 220, depth: 70, sharp: 15, arc: 85 },  // 넓은 (넓고 완만하고 둥근 아치)
+  straight: { width: 120, depth: 88, arc: 0 },   // 직선 V (사이드 직선 + 뾰족 꼭지점)
+  default:  { width: 120, depth: 88, arc: 50 },  // 기본 (직선 사이드 + 둥근 꼭지점)
+  arch:     { width: 260, depth: 80, arc: 100 }, // 아치 (넓은 한 줄 호)
 };
 
 export function showBridgeProperties(block) {
@@ -14,8 +15,10 @@ export function showBridgeProperties(block) {
   const alpha  = parseAlphaFromColor(color);
   const width  = parseFloat(block.dataset.bridgeWidth)  || 120;
   const depth  = parseFloat(block.dataset.bridgeDepth)  || 88;
-  const _ar = parseFloat(block.dataset.bridgeArc);    const arc    = Number.isFinite(_ar) ? _ar : 50;
-  const _hg = parseFloat(block.dataset.bridgeHeight); const height = Number.isFinite(_hg) ? _hg : 90;
+  const _ar = parseFloat(block.dataset.bridgeArc);
+  const arc = Number.isFinite(_ar) ? _ar : 50;
+  const _hg = parseFloat(block.dataset.bridgeHeight);
+  const height = Number.isFinite(_hg) ? _hg : 90;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -47,9 +50,9 @@ export function showBridgeProperties(block) {
     <div class="prop-section">
       <div class="prop-section-title">꼬리 (V홈)</div>
       <div class="prop-row" style="gap:3px;">
-        <button class="prop-preset-btn" data-bridge-preset="sharp">뾰족</button>
+        <button class="prop-preset-btn" data-bridge-preset="straight">직선</button>
         <button class="prop-preset-btn" data-bridge-preset="default">기본</button>
-        <button class="prop-preset-btn" data-bridge-preset="wide">넓은</button>
+        <button class="prop-preset-btn" data-bridge-preset="arch">아치</button>
       </div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
@@ -62,7 +65,7 @@ export function showBridgeProperties(block) {
         <input type="number" class="prop-number" id="brg-d-number" min="8" max="90" value="${depth}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">아크</span>
+        <span class="prop-label">곡률</span>
         <input type="range" class="prop-slider" id="brg-a-slider" min="0" max="100" step="1" value="${arc}">
         <input type="number" class="prop-number" id="brg-a-number" min="0" max="100" value="${arc}">
       </div>
@@ -111,7 +114,6 @@ export function showBridgeProperties(block) {
       if (!p) return;
       block.dataset.bridgeWidth = String(p.width);
       block.dataset.bridgeDepth = String(p.depth);
-      block.dataset.bridgeSharp = String(p.sharp);
       block.dataset.bridgeArc   = String(p.arc);
       wSlider.value = p.width; wNumber.value = p.width;
       dSlider.value = p.depth; dNumber.value = p.depth;

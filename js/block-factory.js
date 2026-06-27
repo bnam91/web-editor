@@ -1000,22 +1000,31 @@ function addDividerBlock(opts = {}) {
 }
 
 // ── 브릿지(V 커버) 블록 — 항상 full-bleed(섹션 너비 고정) + 파라미터화된 상단 중앙 V홈(꼬리). ──
-const BRIDGE_DEFAULTS = { color: '#9a8a78', width: 120, depth: 88, sharp: 50, arc: 50, height: 90 };
-// V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430. width=개구부 너비(상한 840=섹션폭 근사, b5①),
-// depth=홈 깊이(y), sharp=측면 가파름(상단 컨트롤 c1x/c4x), arc=바닥 둥글기(하단 컨트롤 c2x/c3x, b5②:
-// 0=뾰족 점, 100=둥근 아치). 기본값(120/88/50/50)은 원본 path와 정확히 일치.
-function _buildBridgePath({ width = 120, depth = 88, sharp = 50, arc = 50 } = {}) {
+const BRIDGE_DEFAULTS = { color: '#9a8a78', width: 120, depth: 88, arc: 50, height: 90 };
+// V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430.
+//   width = 개구부 너비(상한 840=섹션폭 근사, b5①), depth = 홈 깊이(y).
+//   arc(곡률, 현빈 요청) = 직선 V ↔ 호 전환. 사이드는 항상 직선, 꼭지점(cx,d)을 "지나는" 호로 둥글린다.
+//     0   = 직선 V (사이드 직선 + 뾰족 꼭지점)
+//     중간 = 사이드 직선이 (1-a) 지점까지 내려간 뒤 꼭지점을 지나는 quadratic 호
+//     100 = 사이드 전체가 꼭지점을 지나는 한 줄 호(아치)
+//   (구 sharp = 측면 베지어 funnel은 폐지 → 직선 사이드로 대체. 구 data-bridge-sharp는 무시.)
+function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
   const VB = 860, H = 90, cx = 430;
   const w = Math.max(30, Math.min(840, width));
   const d = Math.max(8, Math.min(90, depth));
-  const s = Math.max(0, Math.min(100, sharp));
-  const a = Math.max(0, Math.min(100, arc));
-  const half = w / 2, L = cx - half, R = cx + half;
-  const f1 = 0.667 - (s - 50) / 50 * 0.30;   // 측면 가파름: s50→0.667, s0(뾰족)→0.967, s100(넓음)→0.367
-  const g  = a / 100 * 0.5;                   // 바닥 둥글기: a0→0(뾰족 점), a50→0.25(원본), a100→0.5(넓은 아치)
-  const c1x = +(L + f1 * half).toFixed(1), c4x = +(R - f1 * half).toFixed(1);
-  const c2x = +(cx - g * half).toFixed(1),  c3x = +(cx + g * half).toFixed(1);
-  return `M0 0 L${L} 0 C${c1x} 0 ${c2x} ${d} ${cx} ${d} C${c3x} ${d} ${c4x} 0 ${R} 0 L${VB} 0 L${VB} ${H} L0 ${H} Z`;
+  const a = Math.max(0, Math.min(100, arc)) / 100;
+  const half = w / 2, L = +(cx - half).toFixed(1), R = +(cx + half).toFixed(1);
+  if (a <= 0) {
+    // 직선 V — 사이드 직선 + 뾰족 꼭지점
+    return `M0 0 L${L} 0 L${cx} ${d} L${R} 0 L${VB} 0 L${VB} ${H} L0 ${H} Z`;
+  }
+  // 사이드 직선이 (1-a) 지점까지 내려간 뒤, 꼭지점(cx,d)을 지나는 대칭 quadratic.
+  // 대칭 quadratic 중점 B(0.5)=(Pl+2C+Pr)/4. B(0.5)=(cx,d) 풀면 C=(cx, d*(1+a)).
+  const Plx = +(L + (cx - L) * (1 - a)).toFixed(1);
+  const Ply = +(d * (1 - a)).toFixed(1);
+  const Prx = +(R - (R - cx) * (1 - a)).toFixed(1);
+  const cyc = +(d * (1 + a)).toFixed(1);     // 호가 꼭지점(cx,d)을 지나게 하는 컨트롤 y
+  return `M0 0 L${L} 0 L${Plx} ${Ply} Q${cx} ${cyc} ${Prx} ${Ply} L${R} 0 L${VB} 0 L${VB} ${H} L0 ${H} Z`;
 }
 
 // data-bridge-* 를 읽어 SVG를 (재)렌더 — 생성/파라미터변경/로드 시 호출 (divider applyDividerStyle 대응).
@@ -1024,14 +1033,13 @@ function renderBridgeBlock(block) {
   const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;
   const width = parseFloat(block.dataset.bridgeWidth) || BRIDGE_DEFAULTS.width;
   const depth = parseFloat(block.dataset.bridgeDepth) || BRIDGE_DEFAULTS.depth;
-  const _sp = parseFloat(block.dataset.bridgeSharp);
-  const sharp = Number.isFinite(_sp) ? _sp : BRIDGE_DEFAULTS.sharp;  // 손상 저장값 NaN 가드 (코덱스)
   const _ar = parseFloat(block.dataset.bridgeArc);
-  const arc = Number.isFinite(_ar) ? _ar : BRIDGE_DEFAULTS.arc;       // b5② 아크 (NaN 가드)
+  const arc = Number.isFinite(_ar) ? _ar : BRIDGE_DEFAULTS.arc;        // 곡률 (NaN 가드)
   const _hg = parseFloat(block.dataset.bridgeHeight);
-  const height = Number.isFinite(_hg) ? _hg : BRIDGE_DEFAULTS.height;  // b5③ 높이 (NaN 가드)
-  block.style.height = height + 'px';                                  // aspect-ratio 대신 가변 높이
-  const path = _buildBridgePath({ width, depth, sharp, arc });
+  let height = Number.isFinite(_hg) ? _hg : BRIDGE_DEFAULTS.height;    // b5③ 높이 (NaN 가드)
+  height = Math.max(20, Math.min(300, height));                       // 손상/붙여넣기 0 등 붕괴 방지 (코덱스 b5)
+  block.style.height = height + 'px';                                 // aspect-ratio 대신 가변 높이
+  const path = _buildBridgePath({ width, depth, arc });
   block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${color}"/></svg>`;
 }
 
@@ -1062,7 +1070,6 @@ function makeBridgeBlock(opts = {}) {
   brg.dataset.bridgeColor = opts.color || BRIDGE_DEFAULTS.color;
   brg.dataset.bridgeWidth = String(opts.width ?? BRIDGE_DEFAULTS.width);
   brg.dataset.bridgeDepth = String(opts.depth ?? BRIDGE_DEFAULTS.depth);
-  brg.dataset.bridgeSharp = String(opts.sharp ?? BRIDGE_DEFAULTS.sharp);
   brg.dataset.bridgeArc = String(opts.arc ?? BRIDGE_DEFAULTS.arc);
   brg.dataset.bridgeHeight = String(opts.height ?? BRIDGE_DEFAULTS.height);
   brg.style.width = '100%'; brg.style.lineHeight = '0'; brg.style.fontSize = '0';  // 높이는 renderBridgeBlock가 style.height로 설정(가변, b5③)
