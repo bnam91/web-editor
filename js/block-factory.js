@@ -1002,13 +1002,13 @@ function addDividerBlock(opts = {}) {
 // ── 브릿지(V 커버) 블록 — 항상 full-bleed(섹션 너비 고정) + 파라미터화된 상단 중앙 V홈(꼬리). ──
 const BRIDGE_DEFAULTS = { color: '#cccccc', width: 120, depth: 88, arc: 0, height: 90 };  // 기본색=구조/장식 블록 공통 중립회색(divider·shape와 일치), 곡률 0=직선 V (현빈)
 // V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430.
-//   width = 개구부 너비(상한 840=섹션폭 근사, b5①), depth = 홈 깊이(y).
-//   arc(곡률, 부호값 -100~100, 현빈 요청) = 직선 V ↔ 호. 사이드는 항상 직선.
+//   width = 개구부 너비(상한 860=섹션 풀폭, b5①), depth = 홈 깊이(y).
+//   arc(곡률, 부호값 -200~+100, 현빈 요청) = 직선 V ↔ 호. 사이드는 항상 직선.
 //     0   = 직선 V (사이드 직선 + 뾰족 꼭지점)
 //     +   = 밖으로 볼록: 사이드가 (1-a)까지 내려간 뒤 꼭지점(cx,d) 지나는 호로 아래로 볼록 → +100 한 줄 아치
-//     −   = 안으로 오목: 꼭지점(cx,d)은 뾰족하게 그대로, 양 사이드만 중심축으로 휘어 오목(현빈: 가운데 솟는 형태 아님)
+//     −   = 안으로 오목: 꼭지점(cx,d)은 뾰족하게 그대로, 양 사이드만 중심축으로 휘어 오목(현빈: 가운데 솟는 형태 아님). -200까지 더 깊게.
 //   (구 sharp = 측면 베지어 funnel은 폐지 → 직선 사이드로 대체. 구 data-bridge-sharp는 무시.)
-function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
+function _buildBridgePath({ width = 120, depth = 88, arc = 0 } = {}) {
   const VB = 860, H = 90, cx = 430;
   const w = Math.max(30, Math.min(860, width));           // 860=섹션 풀폭(viewBox)
   const d = Math.max(8, Math.min(90, depth));
@@ -1032,7 +1032,9 @@ function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
   // 각 사이드 cubic의 컨트롤을 레그(직선) 위 1/3·2/3 점에 두고 "중심축(cx)으로 수평으로만" 당긴다.
   // y는 레그값 그대로 → 0~depth 범위 내(위로 overshoot 없음 = 너비 안 줄어듦). 넓은 노치에서도 안전.
   const b = -k;                                            // 0~2 (-100→1, -200→2)
-  const s = b * 0.6;                                       // 중심축 당김 비율 (b0→0 직선V, b1(-100)→0.6, b2(-200)→1.2 깊은 휨)
+  // 중심축 당김 비율 s. s≥1이면 컨트롤이 cx를 넘어 대칭 cubic이 자기교차(코덱스 Q3) → s<1로 제한.
+  // -100=s0.6 보존, 이후 완만히 증가해 -200=s0.9 (교차 없이 더 깊게).
+  const s = b <= 1 ? b * 0.6 : 0.6 + (b - 1) * 0.3;       // b1→0.6, b2→0.9
   const ax = L + (cx - L) / 3,     ay = d / 3;            // 레그 1/3 점
   const bx = L + (cx - L) * 2 / 3, by = d * 2 / 3;        // 레그 2/3 점
   const c1x = +(ax + (cx - ax) * s).toFixed(1), c1y = +ay.toFixed(1);
@@ -1044,6 +1046,7 @@ function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
 // data-bridge-* 를 읽어 SVG를 (재)렌더 — 생성/파라미터변경/로드 시 호출 (divider applyDividerStyle 대응).
 function renderBridgeBlock(block) {
   if (!block) return;
+  if ('bridgeSharp' in block.dataset) delete block.dataset.bridgeSharp;  // 폐지된 레거시 키 정리(재직렬화 방지, 코덱스 Q5)
   const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;
   const width = parseFloat(block.dataset.bridgeWidth) || BRIDGE_DEFAULTS.width;
   const depth = parseFloat(block.dataset.bridgeDepth) || BRIDGE_DEFAULTS.depth;

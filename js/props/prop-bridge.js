@@ -9,12 +9,12 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 export function showBridgeProperties(block) {
   const color  = block.dataset.bridgeColor || '#cccccc';
   const alpha  = parseAlphaFromColor(color);
-  const width  = parseFloat(block.dataset.bridgeWidth)  || 120;
-  const depth  = parseFloat(block.dataset.bridgeDepth)  || 88;
-  const _ar = parseFloat(block.dataset.bridgeArc);
-  const arc = Number.isFinite(_ar) ? _ar : 50;
-  const _hg = parseFloat(block.dataset.bridgeHeight);
-  const height = Number.isFinite(_hg) ? _hg : 90;
+  // 초기 표시값: 손상/범위초과 저장값도 슬라이더 범위로 클램프(코덱스 Q7). 기본값은 renderBridgeBlock과 일치(arc 0).
+  const clamp = (v, lo, hi, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt; };
+  const width  = clamp(block.dataset.bridgeWidth,  30, 860, 120);
+  const depth  = clamp(block.dataset.bridgeDepth,   8,  90,  88);
+  const arc    = clamp(block.dataset.bridgeArc,  -200, 100,   0);
+  const height = clamp(block.dataset.bridgeHeight, 20, 300,  90);
 
   propPanel.innerHTML = `
     <div class="prop-section">
