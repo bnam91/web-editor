@@ -3,7 +3,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 
 // 브릿지(V 커버) 블록 프로퍼티 — 색상 + 꼬리(V홈) 모양(너비/깊이/곡률 슬라이더) + 블록 높이. 공용 prop 클래스 재사용.
 // 모양 파라미터는 data-bridge-width/depth/arc/height 에 저장(직렬화) → renderBridgeBlock이 path/높이 재생성.
-// arc(곡률, 부호 -100~100): 0=직선 V(뾰족), +밖으로 볼록(꼭지점 지나는 호→아치), −안으로 오목(중앙 솟음). (현빈 요청)
+// arc(곡률, 부호 -100~100): 0=직선 V(뾰족), +밖으로 볼록(꼭지점 지나는 호→아치), −안으로 오목(개구부 풀폭 유지·사이드만 안으로 휨, 꼭지점 뾰족). (현빈 요청)
 //   슬라이더 양방향으로 연속 조절, 프리셋 제거(중복).
 
 export function showBridgeProperties(block) {
@@ -47,8 +47,8 @@ export function showBridgeProperties(block) {
       <div class="prop-section-title">꼬리 (V홈)</div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="brg-w-slider" min="30" max="840" step="2" value="${width}">
-        <input type="number" class="prop-number" id="brg-w-number" min="30" max="840" value="${width}">
+        <input type="range" class="prop-slider" id="brg-w-slider" min="30" max="860" step="2" value="${width}">
+        <input type="number" class="prop-number" id="brg-w-number" min="30" max="860" value="${width}">
       </div>
       <div class="prop-row">
         <span class="prop-label">깊이</span>
@@ -80,7 +80,7 @@ export function showBridgeProperties(block) {
   const hSlider = $('brg-h-slider'), hNumber = $('brg-h-number');
 
   const rerender = () => { window.renderBridgeBlock?.(block); };
-  const setWidth  = (v) => { v = Math.max(30, Math.min(840, parseInt(v) || 120)); block.dataset.bridgeWidth  = String(v); wSlider.value = v; wNumber.value = v; rerender(); };
+  const setWidth  = (v) => { v = Math.max(30, Math.min(860, parseInt(v) || 120)); block.dataset.bridgeWidth  = String(v); wSlider.value = v; wNumber.value = v; rerender(); };
   const setDepth  = (v) => { v = Math.max(8,  Math.min(90,  parseInt(v) || 88));  block.dataset.bridgeDepth  = String(v); dSlider.value = v; dNumber.value = v; rerender(); };
   const setArc    = (v) => { v = parseInt(v); if (!Number.isFinite(v)) v = 0; v = Math.max(-100, Math.min(100, v)); block.dataset.bridgeArc = String(v); aSlider.value = v; aNumber.value = v; rerender(); };  // 부호값: −안으로 오목 / 0 직선 / +밖으로 볼록
   const setHeight = (v) => { v = Math.max(20, Math.min(300, parseInt(v) || 90));  block.dataset.bridgeHeight = String(v); hSlider.value = v; hNumber.value = v; rerender(); };
