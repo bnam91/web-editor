@@ -649,6 +649,57 @@ function _ensureNewLayoutPaths(id) {
   };
 }
 
+/* ── [b8] 목록 메타 캐시 ──
+   projects:list가 무거운 proj.json(인라인 base64로 최대 100MB+)을 통째 JSON.parse 하던 것을 방지.
+   목록 렌더에 필요한 경량 필드(name·type·createdAt·updatedAt·marketRef)를 proj_meta.json에 캐시하고,
+   meta가 proj.json보다 최신이면(mtime 비교) 풀파싱을 생략한다. (thumbnail은 기존대로 save-meta가 관리.) */
+function _refreshListMeta(id, src) {
+  // saveProject / 풀파싱 폴백 시 호출 — 목록 필드만 read-merge-write(다른 meta 필드 보존).
+  try {
+    const paths = _ensureNewLayoutPaths(id);
+    let merged = {};
+    try { if (fs.existsSync(paths.meta)) merged = JSON.parse(fs.readFileSync(paths.meta, 'utf8')) || {}; } catch (_) {}
+    merged = {
+      ...merged,
+      name: src.name, type: src.type || null,
+      createdAt: src.createdAt || null, updatedAt: src.updatedAt || null,
+      marketRef: src.marketRef || null, listMetaV: 1,
+    };
+    _atomicWriteFileSync(paths.meta, JSON.stringify(merged, null, 2));
+  } catch (_) { /* 메타 캐시 실패는 무해 — 다음 목록서 다시 풀파싱 */ }
+}
+// 한 프로젝트의 목록 아이템을 만든다. metaFast=true면 신 레이아웃 전용(메타 우선·풀파싱 회피),
+// 캐시 미스/구버전이면 1회 풀파싱 후 메타를 갱신해 다음부터 빨라지게 한다.
+function _listItemFor(id, projPath, metaFast) {
+  const metaPath = _resolveMetaJsonPath(id);
+  if (metaFast && metaPath) {
+    try {
+      const mStat = fs.statSync(metaPath);
+      const pStat = fs.statSync(projPath);
+      // meta가 proj.json 이상으로 최신 + 목록필드(name) 캐시됨 → 풀파싱 생략
+      if (mStat.mtimeMs >= pStat.mtimeMs) {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+        // listMetaV 마커가 있어야 b8가 기록한 목록 캐시로 신뢰(구버전 meta엔 name이 없으니
+        // 마커 없으면 풀파싱 폴백 → lazy 갱신). name도 함께 확인.
+        if (meta && meta.listMetaV && meta.name != null) {
+          return { id, name: meta.name, type: meta.type || null, createdAt: meta.createdAt || null,
+                   updatedAt: meta.updatedAt || null, thumbnail: meta.thumbnail || null, marketRef: meta.marketRef || null };
+        }
+      }
+    } catch (_) { /* stat/parse 실패 → 풀파싱 폴백 */ }
+  }
+  // 폴백: proj.json 풀파싱(현행 동작) + (신 레이아웃이면) 목록 메타 캐시 갱신
+  const data = JSON.parse(fs.readFileSync(projPath, 'utf8'));
+  if (!data.id || data.id === 'undefined') return null;
+  let thumbnail = data.thumbnail || null;
+  if (metaPath && fs.existsSync(metaPath)) {
+    try { const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); if (meta.thumbnail) thumbnail = meta.thumbnail; } catch {}
+  }
+  if (metaFast) { try { _refreshListMeta(data.id, data); } catch (_) {} }
+  return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt,
+           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null };
+}
+
 /* ── IPC: AI Image Gen ──
    이미지는 projects/<id>/images/aig_xxx.png로 디스크 분리 저장 (프로젝트 JSON에 base64 금지).
    blobPath는 프로젝트 폴더 상대경로. */
@@ -832,25 +883,19 @@ ipcMain.handle('projects:list', () => {
   try { entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true }); }
   catch { entries = []; }
 
-  // 1) 신 레이아웃 우선: proj_<id>/proj.json
+  // 1) 신 레이아웃 우선: proj_<id>/proj.json — [b8] 메타 우선(무거운 proj.json 풀파싱 회피)
   for (const ent of entries) {
     if (!ent.isDirectory()) continue;
     if (!/^proj_\d+$/.test(ent.name)) continue;
     const projPath = path.join(PROJECTS_DIR, ent.name, 'proj.json');
     if (!fs.existsSync(projPath)) continue;
+    const id = ent.name; // 신 레이아웃 불변식: 디렉터리명 = proj_<id>
+    if (seen.has(id)) continue;
     try {
-      const data = JSON.parse(fs.readFileSync(projPath, 'utf8'));
-      if (!data.id || data.id === 'undefined' || seen.has(data.id)) continue;
-      let thumbnail = data.thumbnail || null;
-      const metaPath = _resolveMetaJsonPath(data.id);
-      if (metaPath && fs.existsSync(metaPath)) {
-        try {
-          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-          if (meta.thumbnail) thumbnail = meta.thumbnail;
-        } catch {}
-      }
-      seen.add(data.id);
-      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null });
+      const item = _listItemFor(id, projPath, true);
+      if (!item) continue;
+      seen.add(item.id);
+      items.push(item);
     } catch {}
   }
 
@@ -996,6 +1041,8 @@ ipcMain.handle('projects:save', async (event, project) => {
   }
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
+  // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
+  _refreshListMeta(project.id, project);
   // claude-pm/project.meta.json title 동기화 (PM 폴더 있을 때만, best-effort)
   try { await syncClaudePmTitle(PROJECTS_DIR, project.id, project.name); } catch {}
   return { ok: true };
@@ -1016,6 +1063,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
       try { fs.copyFileSync(prevPath, paths.backup); } catch {}
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
+    _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
     // claude-pm title 동기화 — sync 경로에서는 fire-and-forget (returnValue를 막지 않음)
     Promise.resolve()
       .then(() => syncClaudePmTitle(PROJECTS_DIR, project.id, project.name))
@@ -1180,6 +1228,9 @@ async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
         _atomicWriteFileSync(targetPaths.meta, JSON.stringify(meta, null, 2));
       } catch (e) { console.warn('[projects:duplicate] meta 복사 실패:', e.message); }
     }
+    // [b8] 사본 목록 캐시는 사본 데이터 기준으로 갱신 — 원본 meta를 복사하면 createdAt 등 목록필드가
+    //   원본 값으로 stale해지므로(meta.mtime>proj.mtime라 목록서 그대로 노출됨) dup으로 덮어쓴다.
+    try { _refreshListMeta(newId, dup); } catch (_) {}
 
     return { ok: true, newProjectId: newId, newName: baseName };
   } catch (e) {
