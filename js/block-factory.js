@@ -1006,7 +1006,7 @@ const BRIDGE_DEFAULTS = { color: '#9a8a78', width: 120, depth: 88, arc: 50, heig
 //   arc(곡률, 부호값 -100~100, 현빈 요청) = 직선 V ↔ 호. 사이드는 항상 직선.
 //     0   = 직선 V (사이드 직선 + 뾰족 꼭지점)
 //     +   = 밖으로 볼록: 사이드가 (1-a)까지 내려간 뒤 꼭지점(cx,d) 지나는 호로 아래로 볼록 → +100 한 줄 아치
-//     −   = 안으로 오목: 깊은 양 어깨(cx±g, depth) 사이로 중앙이 위로 솟는 호(밴드가 안쪽으로 볼록)
+//     −   = 안으로 오목: 꼭지점(cx,d)은 뾰족하게 그대로, 양 사이드만 중심축으로 휘어 오목(현빈: 가운데 솟는 형태 아님)
 //   (구 sharp = 측면 베지어 funnel은 폐지 → 직선 사이드로 대체. 구 data-bridge-sharp는 무시.)
 function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
   const VB = 860, H = 90, cx = 430;
@@ -1028,12 +1028,13 @@ function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
     const cyc = +(d * (1 + a)).toFixed(1);                // 컨트롤 y>d → 아래(밖) 볼록, 호가 꼭지점 통과
     return `M0 0 L${L} 0 L${Plx} ${Ply} Q${cx} ${cyc} ${Prx} ${Ply} L${R} 0` + tail;
   }
-  // 안으로 오목 — 깊은 양 어깨(cx±g, depth)로 직선 하강 후, 중앙이 위로 솟는 대칭 quadratic.
+  // 안으로 오목 — 꼭지점(cx,d)은 뾰족 유지. 양 사이드 quadratic 컨트롤을 중심축(cx)으로 당겨 안으로 오목.
   const b = -k;                                            // 0~1
-  const g  = +(half * b * 0.5).toFixed(1);                 // 어깨 간격: b0→0(직선V 연속), b1→half/2
-  const Plx = +(cx - g).toFixed(1), Prx = +(cx + g).toFixed(1);
-  const cyc = +(d * (1 - b)).toFixed(1);                   // 컨트롤 y<d → 위(안)로 솟음
-  return `M0 0 L${L} 0 L${Plx} ${d} Q${cx} ${cyc} ${Prx} ${d} L${R} 0` + tail;
+  const Mlx = (L + cx) / 2, Mrx = (R + cx) / 2, My = d / 2; // 직선 사이드의 중점(=직선 컨트롤)
+  const Clx = +(Mlx + (cx - Mlx) * b).toFixed(1);          // b0→중점(직선V 연속), b1→cx(최대 오목)
+  const Crx = +(Mrx + (cx - Mrx) * b).toFixed(1);
+  const Cy  = +My.toFixed(1);
+  return `M0 0 L${L} 0 Q${Clx} ${Cy} ${cx} ${d} Q${Crx} ${Cy} ${R} 0` + tail;
 }
 
 // data-bridge-* 를 읽어 SVG를 (재)렌더 — 생성/파라미터변경/로드 시 호출 (divider applyDividerStyle 대응).
