@@ -102,10 +102,10 @@ function _bridgeGenId(p) {
   return (typeof window.genId === 'function') ? window.genId(p) : p + '_' + Math.random().toString(36).slice(2, 9);
 }
 function _buildBridgeHtml(color) {
-  const c = color || '#9a8a78';
+  const c = color || '#cccccc';   // 기본색=구조/장식 블록 공통 중립회색 (실제 블록 BRIDGE_DEFAULTS와 일치)
   const secId = _bridgeGenId('sec');
-  // viewBox 0 0 860 90, 풀폭 stretch(preserveAspectRatio=none). 상단 중앙이 (430,88)까지 파인 깔때기 V홈.
-  const path = 'M0 0 L370 0 C410 0 415 88 430 88 C445 88 450 0 490 0 L860 0 L860 90 L0 90 Z';
+  // viewBox 0 0 860 90, 풀폭 stretch. 새 기본=직선 V(곡률 0, width120/depth88) → 실제 추가되는 블록과 동일한 프리뷰.
+  const path = 'M0 0 L370 0 L430 88 L490 0 L860 0 L860 90 L0 90 Z';
   return `<div class="section-block" data-section="99" id="${secId}" data-name="Bridge" style="background-color:transparent">
       <div class="section-hitzone"><span class="section-label">Bridge</span></div>
       <div class="section-inner" style="padding:0">
