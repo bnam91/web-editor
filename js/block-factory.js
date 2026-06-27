@@ -1003,28 +1003,37 @@ function addDividerBlock(opts = {}) {
 const BRIDGE_DEFAULTS = { color: '#9a8a78', width: 120, depth: 88, arc: 50, height: 90 };
 // V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430.
 //   width = 개구부 너비(상한 840=섹션폭 근사, b5①), depth = 홈 깊이(y).
-//   arc(곡률, 현빈 요청) = 직선 V ↔ 호 전환. 사이드는 항상 직선, 꼭지점(cx,d)을 "지나는" 호로 둥글린다.
+//   arc(곡률, 부호값 -100~100, 현빈 요청) = 직선 V ↔ 호. 사이드는 항상 직선.
 //     0   = 직선 V (사이드 직선 + 뾰족 꼭지점)
-//     중간 = 사이드 직선이 (1-a) 지점까지 내려간 뒤 꼭지점을 지나는 quadratic 호
-//     100 = 사이드 전체가 꼭지점을 지나는 한 줄 호(아치)
+//     +   = 밖으로 볼록: 사이드가 (1-a)까지 내려간 뒤 꼭지점(cx,d) 지나는 호로 아래로 볼록 → +100 한 줄 아치
+//     −   = 안으로 오목: 깊은 양 어깨(cx±g, depth) 사이로 중앙이 위로 솟는 호(밴드가 안쪽으로 볼록)
 //   (구 sharp = 측면 베지어 funnel은 폐지 → 직선 사이드로 대체. 구 data-bridge-sharp는 무시.)
 function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
   const VB = 860, H = 90, cx = 430;
   const w = Math.max(30, Math.min(840, width));
   const d = Math.max(8, Math.min(90, depth));
-  const a = Math.max(0, Math.min(100, arc)) / 100;
+  const k = Math.max(-100, Math.min(100, arc)) / 100;     // 부호 곡률
   const half = w / 2, L = +(cx - half).toFixed(1), R = +(cx + half).toFixed(1);
-  if (a <= 0) {
-    // 직선 V — 사이드 직선 + 뾰족 꼭지점
-    return `M0 0 L${L} 0 L${cx} ${d} L${R} 0 L${VB} 0 L${VB} ${H} L0 ${H} Z`;
+  const tail = ` L${VB} 0 L${VB} ${H} L0 ${H} Z`;
+  if (k === 0) {
+    return `M0 0 L${L} 0 L${cx} ${d} L${R} 0` + tail;     // 직선 V (뾰족 꼭지점)
   }
-  // 사이드 직선이 (1-a) 지점까지 내려간 뒤, 꼭지점(cx,d)을 지나는 대칭 quadratic.
-  // 대칭 quadratic 중점 B(0.5)=(Pl+2C+Pr)/4. B(0.5)=(cx,d) 풀면 C=(cx, d*(1+a)).
-  const Plx = +(L + (cx - L) * (1 - a)).toFixed(1);
-  const Ply = +(d * (1 - a)).toFixed(1);
-  const Prx = +(R - (R - cx) * (1 - a)).toFixed(1);
-  const cyc = +(d * (1 + a)).toFixed(1);     // 호가 꼭지점(cx,d)을 지나게 하는 컨트롤 y
-  return `M0 0 L${L} 0 L${Plx} ${Ply} Q${cx} ${cyc} ${Prx} ${Ply} L${R} 0 L${VB} 0 L${VB} ${H} L0 ${H} Z`;
+  if (k > 0) {
+    // 밖으로 볼록 — 사이드 직선이 (1-a)까지 내려간 뒤 꼭지점(cx,d) 지나는 대칭 quadratic.
+    // 대칭 quadratic 중점 B(0.5)=(Pl+2C+Pr)/4=(cx,d) 풀면 C=(cx, d*(1+a)).
+    const a = k;
+    const Plx = +(L + (cx - L) * (1 - a)).toFixed(1);
+    const Ply = +(d * (1 - a)).toFixed(1);
+    const Prx = +(R - (R - cx) * (1 - a)).toFixed(1);
+    const cyc = +(d * (1 + a)).toFixed(1);                // 컨트롤 y>d → 아래(밖) 볼록, 호가 꼭지점 통과
+    return `M0 0 L${L} 0 L${Plx} ${Ply} Q${cx} ${cyc} ${Prx} ${Ply} L${R} 0` + tail;
+  }
+  // 안으로 오목 — 깊은 양 어깨(cx±g, depth)로 직선 하강 후, 중앙이 위로 솟는 대칭 quadratic.
+  const b = -k;                                            // 0~1
+  const g  = +(half * b * 0.5).toFixed(1);                 // 어깨 간격: b0→0(직선V 연속), b1→half/2
+  const Plx = +(cx - g).toFixed(1), Prx = +(cx + g).toFixed(1);
+  const cyc = +(d * (1 - b)).toFixed(1);                   // 컨트롤 y<d → 위(안)로 솟음
+  return `M0 0 L${L} 0 L${Plx} ${d} Q${cx} ${cyc} ${Prx} ${d} L${R} 0` + tail;
 }
 
 // data-bridge-* 를 읽어 SVG를 (재)렌더 — 생성/파라미터변경/로드 시 호출 (divider applyDividerStyle 대응).
