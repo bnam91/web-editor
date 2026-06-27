@@ -1012,7 +1012,7 @@ function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
   const VB = 860, H = 90, cx = 430;
   const w = Math.max(30, Math.min(860, width));           // 860=섹션 풀폭(viewBox)
   const d = Math.max(8, Math.min(90, depth));
-  const k = Math.max(-100, Math.min(100, arc)) / 100;     // 부호 곡률
+  const k = Math.max(-200, Math.min(100, arc)) / 100;     // 부호 곡률(안쪽 -200까지 더 깊게, 바깥 +100=아치 최대)
   const half = w / 2, L = +(cx - half).toFixed(1), R = +(cx + half).toFixed(1);
   const tail = ` L${VB} 0 L${VB} ${H} L0 ${H} Z`;
   if (k === 0) {
@@ -1031,8 +1031,8 @@ function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
   // 안으로 오목 — 개구부 모서리(L,0)/(R,0)는 그대로(풀폭 유지), 꼭지점(cx,d)도 뾰족 유지.
   // 각 사이드 cubic의 컨트롤을 레그(직선) 위 1/3·2/3 점에 두고 "중심축(cx)으로 수평으로만" 당긴다.
   // y는 레그값 그대로 → 0~depth 범위 내(위로 overshoot 없음 = 너비 안 줄어듦). 넓은 노치에서도 안전.
-  const b = -k;                                            // 0~1
-  const s = b * 0.6;                                       // 중심축 당김 비율 (b0→0 직선V 연속, b1→0.6)
+  const b = -k;                                            // 0~2 (-100→1, -200→2)
+  const s = b * 0.6;                                       // 중심축 당김 비율 (b0→0 직선V, b1(-100)→0.6, b2(-200)→1.2 깊은 휨)
   const ax = L + (cx - L) / 3,     ay = d / 3;            // 레그 1/3 점
   const bx = L + (cx - L) * 2 / 3, by = d * 2 / 3;        // 레그 2/3 점
   const c1x = +(ax + (cx - ax) * s).toFixed(1), c1y = +ay.toFixed(1);
