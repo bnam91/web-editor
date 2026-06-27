@@ -1408,8 +1408,15 @@ function initApp() {
       if (heavy) {
         window.showProjectLoadingOverlay?.();
         const _expectedId = activeProjectId;
-        // 동기 렌더 직전, 오버레이가 실제로 페인트되도록 2프레임 양보 (안 그러면 블로킹 렌더로 영영 안 보임)
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        // ⚠️ applyProjectData는 sanitize+innerHTML(대량 HTML 파싱)으로 수백 ms 동안 메인스레드를
+        //    동기 블로킹한다. 이 블로킹 전에 오버레이가 "화면에 실제로 표시(compositor present)"돼야 한다.
+        //    컴포지터 present는 paint commit 이후 약 1 vsync 뒤 비동기로 일어나는데, 2×rAF 양보는
+        //    continuation이 microtask로 present 직전에 실행돼 블로킹이 present를 선점한다 → 스피너가
+        //    로딩 중엔 안 보이고 끝에 잠깐 떴다 꺼지는 b4 타이밍 버그(현빈 보고). rAF로 프레임 경계에
+        //    맞춘 뒤 setTimeout(매크로태스크)으로 present가 끝날 유휴 구간(>1 vsync)을 확보하고 블로킹에
+        //    진입한다. 스피너는 transform 애니라 present 후엔 블로킹 동안에도 컴포지터에서 계속 회전한다.
+        //    (실측: 무거운 더미 3MB 캔버스에서 로딩 시작~완료까지 오버레이 유지·회전 확인)
+        await new Promise(r => requestAnimationFrame(() => setTimeout(r, 64)));
         // 양보 중 탭 전환 등으로 대상 프로젝트가 바뀌었으면 stale 데이터 적용 방지 (코덱스 b4 Item2)
         if (activeProjectId !== _expectedId) { window.hideProjectLoadingOverlay?.(); return; }
       }
