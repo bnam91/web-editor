@@ -1028,13 +1028,18 @@ function _buildBridgePath({ width = 120, depth = 88, arc = 50 } = {}) {
     const cyc = +(d * (1 + a)).toFixed(1);                // 컨트롤 y>d → 아래(밖) 볼록, 호가 꼭지점 통과
     return `M0 0 L${L} 0 L${Plx} ${Ply} Q${cx} ${cyc} ${Prx} ${Ply} L${R} 0` + tail;
   }
-  // 안으로 오목 — 꼭지점(cx,d)은 뾰족 유지. 양 사이드 quadratic 컨트롤을 중심축(cx)으로 당겨 안으로 오목.
+  // 안으로 오목 — 꼭지점(cx,d)은 뾰족 유지. 각 사이드를 cubic으로: 컨트롤을 레그(직선) 위 1/3·2/3에 두고
+  // 레그에 수직(안쪽)으로만 b만큼 밀어 중간이 매끈하게 휜다(끝점 접선=레그 방향 → 꼭지점 스파이크 없음). 현빈: 더 이쁘게.
   const b = -k;                                            // 0~1
-  const Mlx = (L + cx) / 2, Mrx = (R + cx) / 2, My = d / 2; // 직선 사이드의 중점(=직선 컨트롤)
-  const Clx = +(Mlx + (cx - Mlx) * b).toFixed(1);          // b0→중점(직선V 연속), b1→cx(최대 오목)
-  const Crx = +(Mrx + (cx - Mrx) * b).toFixed(1);
-  const Cy  = +My.toFixed(1);
-  return `M0 0 L${L} 0 Q${Clx} ${Cy} ${cx} ${d} Q${Crx} ${Cy} ${R} 0` + tail;
+  const dx = half, dy = d, len = Math.hypot(dx, dy) || 1;
+  const ux = dy / len, uy = -dx / len;                    // 레그 수직 단위(안쪽=중심·위 방향)
+  const off = b * len * 0.20;                             // 휨 크기 (b0→0 직선V 연속)
+  const ax = L + dx / 3,     ay = dy / 3;                 // 레그 1/3 점
+  const bx = L + 2 * dx / 3, by = 2 * dy / 3;             // 레그 2/3 점
+  const c1x = +(ax + ux * off).toFixed(1), c1y = +(ay + uy * off).toFixed(1);
+  const c2x = +(bx + ux * off).toFixed(1), c2y = +(by + uy * off).toFixed(1);
+  const m1x = +(2 * cx - c2x).toFixed(1), m2x = +(2 * cx - c1x).toFixed(1); // 오른쪽=중심축 대칭
+  return `M0 0 L${L} 0 C${c1x} ${c1y} ${c2x} ${c2y} ${cx} ${d} C${m1x} ${c2y} ${m2x} ${c1y} ${R} 0` + tail;
 }
 
 // data-bridge-* 를 읽어 SVG를 (재)렌더 — 생성/파라미터변경/로드 시 호출 (divider applyDividerStyle 대응).
