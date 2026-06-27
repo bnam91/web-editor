@@ -1393,10 +1393,31 @@ function initApp() {
 
   // 프로젝트 로드 (Electron: 파일, 브라우저: localStorage)
   (async function initLoad() {
-    function applyAndFinish(data) {
+    function _estimateHeavyProject(data) {
+      // 캔버스 HTML 총 길이로 렌더 비용 근사 — applyProjectData가 동기 렌더라 시간 임계는 무의미(블로킹 중 타이머 안 돎),
+      // 데이터 크기로 '무거움'을 사전 판단. 경량 프로젝트는 오버레이를 아예 안 띄워 깜빡임 방지.
+      try {
+        let len = 0;
+        if (data && Array.isArray(data.pages)) { for (const p of data.pages) len += (p && typeof p.canvas === 'string' ? p.canvas.length : 0); }
+        else if (data && typeof data.canvas === 'string') { len = data.canvas.length; }
+        return len > 40000; // ~40KB+ 캔버스 → 무거운 프로젝트일 때만 로딩 인디케이터
+      } catch (_) { return false; }
+    }
+    async function applyAndFinish(data) {
+      const heavy = _estimateHeavyProject(data);
+      if (heavy) {
+        window.showProjectLoadingOverlay?.();
+        const _expectedId = activeProjectId;
+        // 동기 렌더 직전, 오버레이가 실제로 페인트되도록 2프레임 양보 (안 그러면 블로킹 렌더로 영영 안 보임)
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        // 양보 중 탭 전환 등으로 대상 프로젝트가 바뀌었으면 stale 데이터 적용 방지 (코덱스 b4 Item2)
+        if (activeProjectId !== _expectedId) { window.hideProjectLoadingOverlay?.(); return; }
+      }
       try { applyProjectData(data); } catch(e) {
         console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
         initEmpty();
+      } finally {
+        if (heavy) window.hideProjectLoadingOverlay?.();
       }
     }
     function initEmpty() {
