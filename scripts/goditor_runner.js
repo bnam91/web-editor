@@ -3,7 +3,10 @@
  * Spec v2 JSON 파일을 읽어서 CDP로 에디터에 섹션을 자동 조립한다.
  *
  * 사용법:
- *   node goditor_runner.js /tmp/goditor_spec_{이름}.json [--port 9337]
+ *   node goditor_runner.js /tmp/goditor_spec_{이름}.json --port 93XX [--target-section sec_xxx]
+ *
+ * ⚠️ --port는 필수 — 자기 격리 인스턴스 포트를 명시할 것(기본 포트 없음, 금지포트 오발사 방지).
+ * 블록 어휘 = goditor-layout-planner 블록 표와 1:1 (미지원 타입은 하드페일 — 조용한 누락 금지).
  */
 
 const WebSocket = require('/Users/a1/web-editor/node_modules/ws');
@@ -12,7 +15,12 @@ const fs = require('fs');
 
 const args = process.argv.slice(2);
 const portIdx = args.indexOf('--port');
-const PORT = portIdx !== -1 ? parseInt(args[portIdx + 1]) : 9336;
+const PORT = portIdx !== -1 ? parseInt(args[portIdx + 1], 10) : NaN;
+if (!Number.isInteger(PORT) || PORT <= 0) {
+  console.error('❌ --port <포트> 필수 (자기 격리 인스턴스 포트 명시 — 기본 포트 없음)');
+  console.error('usage: node goditor_runner.js <spec.json> --port 93XX [--target-section sec_xxx]');
+  process.exit(1);
+}
 const targetSecIdx = args.indexOf('--target-section');
 const TARGET_SECTION = targetSecIdx !== -1 ? args[targetSecIdx + 1] : null;
 const specPath = args.find(a => !a.startsWith('--') && a !== String(PORT) && a !== TARGET_SECTION);
@@ -81,8 +89,15 @@ function getBlockHeight(block) {
   ws.on('message', data => {
     const msg = JSON.parse(data);
     if (msg.id && pending.has(msg.id)) {
-      pending.get(msg.id).resolve(msg.result?.result?.value ?? msg.result?.result);
+      const p = pending.get(msg.id);
       pending.delete(msg.id);
+      // 앱쪽 JS 예외를 조용히 삼키지 않는다 — 하드페일 (예: 구버전 앱에 add* 함수 없음)
+      const exc = msg.result?.exceptionDetails;
+      if (exc) {
+        p.reject(new Error('앱 JS 예외: ' + (exc.exception?.description || exc.text || '').split('\n')[0]));
+        return;
+      }
+      p.resolve(msg.result?.result?.value ?? msg.result?.result);
     }
   });
 
@@ -138,28 +153,40 @@ function getBlockHeight(block) {
       case 'gap':
         await ev(`window.addGapBlock(${block.height || 40})`);
         break;
-      case 'divider':
-        await ev(`window.addDividerBlock(${JSON.stringify({
-          color: block.color,
-          lineStyle: block.lineStyle,
-          weight: block.weight
-        })})`);
-        break;
+      // ▼ 옵션 pass-through 계열: 스펙 필드명 = API 옵션명 1:1 (planner 블록 표 기준).
+      //   부분 화이트리스트가 옵션 탈락(tick/highlightCol/smooth 등)을 낳았던 전철 방지 —
+      //   type만 떼고 전부 전달한다(add* API는 미지원 키 무시).
+      case 'divider':      // + tick 레일: lineStyle:'tick', tickGap, tickHeight, markerPos, markerColor
       case 'icon-circle':
-        await ev(`window.addIconCircleBlock(${JSON.stringify({ size: block.size, bgColor: block.bgColor })})`);
-        break;
       case 'label-group':
-        await ev(`window.addLabelGroupBlock(${JSON.stringify({ labels: block.labels })})`);
+      case 'table':        // + headers/rows/cols/rowCount/highlightCol/highlightBg/highlightFg/textColor/lineColor/headerBg/tablePadX
+      case 'graph':        // + smooth/fillArea/lineColor/fillColor/fillAlpha, bar-pair(seriesA/B, barColor/barColor2, value2)
+      case 'step':         // steps[{title, desc?}] + 색/크기/connector 옵션
+      case 'chat':         // messages[{text, align:'left'|'right'}] + 스타일 옵션
+      case 'comparison':   // cols[{title, rows[]}], featured — rows[0]={type:'image', imgSrc} 슬롯 지원
+      case 'canvas':       // cardMode:'simple', gridCols, gridRows(≤20), cards[] — 구 card의 대체
+      case 'duo':          // cols[{width, lines[]}], gap, valign
+      case 'innercard': {  // bg/radius/padding/align/shadow/border/accentBar + lines[]
+        const API = {
+          'divider': 'addDividerBlock', 'icon-circle': 'addIconCircleBlock',
+          'label-group': 'addLabelGroupBlock', 'table': 'addTableBlock',
+          'graph': 'addGraphBlock', 'step': 'addStepBlock', 'chat': 'addChatBlock',
+          'comparison': 'addComparisonBlock', 'canvas': 'addCanvasBlock',
+          'duo': 'addDuoBlock', 'innercard': 'addInnerCardBlock',
+        }[block.type];
+        const { type, ...opts } = block;
+        await ev(`window.${API}(${JSON.stringify(opts)})`);
         break;
-      case 'table':
-        await ev(`window.addTableBlock(${JSON.stringify({ showHeader: block.showHeader, cellAlign: block.cellAlign })})`);
+      }
+      case 'infocard': {   // variant 프리셋 디스패치 (planner 블록 표: countup|price|review)
+        const FN = { countup: 'addCountupBlock', price: 'addPriceCardBlock', review: 'addReviewCardBlock' }[block.variant];
+        if (!FN) throw new Error(`infocard는 variant 필수(countup|price|review): ${JSON.stringify(block.variant)}`);
+        const { type, variant, ...opts } = block;
+        await ev(`window.${FN}(${JSON.stringify(opts)})`);
         break;
+      }
       case 'card':
-        await ev(`window.addCardBlock(${block.count || 2}, ${JSON.stringify({ bgColor: block.bgColor, radius: block.radius })})`);
-        break;
-      case 'graph':
-        await ev(`window.addGraphBlock(${JSON.stringify({ chartType: block.chartType, items: block.items })})`);
-        break;
+        throw new Error(`'card' 타입 폐기(구 addCardBlock=SEALED) — 'canvas'(cardMode:'simple')로 작성하라 (planner 블록 표 참조)`);
       case 'joker':
         await ev(`window.addJokerBlock(${JSON.stringify({
           label: block.label,
@@ -231,7 +258,8 @@ function getBlockHeight(block) {
         break;
       }
       default:
-        console.warn(`⚠️ 알 수 없는 블록 타입: ${block.type}`);
+        // 조용한 누락 금지 — planner 블록 표와 어휘 불일치는 스펙/러너 버그이므로 하드페일
+        throw new Error(`미지원 블록 타입 '${block.type}' — planner 블록 표와 runner 어휘 불일치 (goditor-layout-planner skill.md 참조)`);
     }
     await delay(200);
   }
@@ -349,10 +377,13 @@ function getBlockHeight(block) {
       case 'gap':
         // gap은 y 오프셋만 증가 (DOM 추가 없음)
         return block.height || 0;
-      case 'divider':
-        await ev(`window.addDividerBlock(${JSON.stringify({ color: block.color, lineStyle: block.lineStyle, weight: block.weight })})`);
+      case 'divider': {
+        // tick 레일 등 확장 옵션 pass-through (flow 경로와 동일 원칙)
+        const { type, x: _x, y: _y, children, rotation, ...dvOpts } = block;
+        await ev(`window.addDividerBlock(${JSON.stringify(dvOpts)})`);
         await delay(200);
         return getBlockHeight(block);
+      }
       case 'icon-circle':
         await ev(`window.addIconCircleBlock(${JSON.stringify({ size: block.size, bgColor: block.bgColor })})`);
         await delay(200);
@@ -461,8 +492,8 @@ function getBlockHeight(block) {
         return subH;
       }
       default:
-        console.warn(`⚠️ frame 내부 미지원 블록: ${block.type}`);
-        return 0;
+        // frame(절대좌표) 경로는 flow 컴포넌트(step/chat/duo 등) 미지원 — 스펙 작성 오류이므로 하드페일
+        throw new Error(`frame 내부 미지원 블록 타입 '${block.type}' — frame 경로 어휘: text/image/gap/divider/icon-circle/icon-text/joker/sub-section`);
     }
   }
 
