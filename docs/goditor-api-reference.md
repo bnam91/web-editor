@@ -5,6 +5,30 @@ CDP 에이전트 및 자동화 스크립트가 에디터를 제어하기 위해 
 > **규칙**: 모든 add 함수는 섹션이 선택된 상태에서 호출해야 한다.
 > 선택된 섹션이 없으면 toast 알림만 뜨고 아무 일도 일어나지 않는다.
 
+> **검증**: 2026-07-03 add API 18종(text·table·graph·divider·bridge·gap·icon-circle·label-group·step·chat·comparison·canvas·banner02·mockup·laurel·speech-bubble·icon-text·sticker) 격리 인스턴스 CDP 전수 스모크 + 저장/재로드 라운드트립 PASS.
+
+---
+
+## CDP 워커 퀵스타트 (격리 인스턴스 병렬 빌드)
+
+메인 앱(9334)을 건드리지 않고 자기 인스턴스로 빌드하는 표준 절차. 같은 앱 다중 기동 가능(싱글 인스턴스 락 없음) — 격리는 `--user-data-dir` 하나로 충분하며 프로젝트 저장소(`userData/projects`)까지 자동 분리된다.
+
+```bash
+cd ~/web-editor
+rm -rf /tmp/goditor_93XX && mkdir -p /tmp/goditor_93XX
+nohup node_modules/.bin/electron . --enable-logging \
+  --remote-debugging-port=93XX "--remote-allow-origins=*" \
+  --user-data-dir=/tmp/goditor_93XX admin > /tmp/goditor_93XX/electron.log 2>&1 &
+sleep 7 && curl -s http://127.0.0.1:93XX/json/version   # Chrome/... 뜨면 OK
+```
+
+- 포트: 9334(메인)·9335·9336(레이아웃 스킬 관례) 피해서 자유 포트 사용.
+- zsh 함정: `--remote-allow-origins=*`의 `*`는 반드시 따옴표로 감쌀 것.
+- 프로젝트 생성: `projects.html`에서 `Page.navigate`로 `index.html` 이동 후 `await window.createNewProjectTab()` → `window.activeProjectId` 획득.
+- **신규 프로젝트는 padX 72 기본**(2026-07-03부터, 끌리젠 규격). 텍스트는 72px 인셋, asset-block은 자동 풀블리드(음수마진). 구 프로젝트를 열면 저장된 값이 유지된다.
+- 저장: `window.triggerAutoSave()` 후 2초 이상 대기(디바운스 1.5s). 빌드 완료본은 `/tmp/goditor_93XX/projects/<id>/`에서 메인 저장소(`~/Library/Application Support/Goya Design Editor/projects/`)로 복사해 이관.
+- ⚠️ 하나의 인스턴스에서 여러 프로젝트를 오갈 때는 eval 진입 시 `window.activeProjectId`가 대상 프로젝트인지 가드하고, 빌드+직렬화+저장을 단일 동기 eval로 묶을 것(로드 중 전환 레이스 방지).
+
 ---
 
 ## 세션 초기화
@@ -291,12 +315,20 @@ window.addLabelGroupBlock({ labels: ['태그1', '태그2'], shape: 'circle' })
 ```js
 window.addTableBlock()
 window.addTableBlock({ showHeader: false, cellAlign: 'left' })
+// 데이터 주입 — headers가 열 수를, rows가 행을 결정한다 (기본 2열×7행 대체)
+window.addTableBlock({
+  showHeader: true, cellAlign: 'left',
+  headers: ['항목', 'A사', '우리'],
+  rows: [['가격', '9,900', '12,900'], ['보증', 'X', '1년']]
+})
 ```
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `showHeader` | boolean | `true` | 헤더 행 표시 여부 |
 | `cellAlign` | string | `'center'` | `left` `center` `right` |
+| `headers` | string[] | — | 헤더 셀 텍스트. 배열 길이 = 열 수 |
+| `rows` | string[][] | — | 본문 행 데이터(행×열). 지정 시 기본 7행을 대체 |
 
 ---
 
@@ -546,12 +578,26 @@ window.addChatBlock({ messages: [ { text: '안녕하세요', align: 'left' }, { 
 
 > 인라인 편집(`.chb-bubble[contenteditable]`) 중이면 `USER_BUSY` 반환.
 
-### `window.addSpeechBubbleBlock()`
+### `window.addSpeechBubbleBlock(tail?)`
 
 말풍선 단일 블록 생성. (block-factory.js)
 
 ```js
-window.addSpeechBubbleBlock()
+window.addSpeechBubbleBlock()        // 기본 꼬리
+window.addSpeechBubbleBlock('left')  // 꼬리 방향: 'left' | 'right'
+```
+
+> 좌우 교차 대화(고객 니즈 말풍선 연출)는 단일 말풍선 반복보다 `addChatBlock({ messages: [{text, align:'left'|'right'}] })`이 적합하다.
+
+### `window.addIconTextBlock()`
+
+아이콘+텍스트 한 줄 블록 생성. 인자 없음 — 텍스트는 생성 후 블록의 `.itb-text` 요소에 직접 설정한다. (block-factory.js)
+
+```js
+window.addIconTextBlock()
+// 텍스트 설정: 방금 넣은 블록의 .itb-text에 주입
+const itb = document.querySelector('.section-block:last-of-type .icon-text-block:last-of-type');
+itb.querySelector('.itb-text').textContent = '무료배송';
 ```
 
 ### `window.addIconifyBlock(iconName, svgContent, size?)` / `window.updateIconifyBlock(blockId, partial)`
