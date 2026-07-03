@@ -432,7 +432,7 @@ async function assetsImportFromGallery(galleryIds, parentId = null) {
       const m = String(r.dataUrl).match(/^data:([^;]+);base64,(.*)$/);
       if (!m) continue;
       const mime = m[1], b64 = m[2];
-      const saved = await _assetsSaveFile(b64, mime, item.id + (mime === 'image/jpeg' ? '.jpg' : '.png'));
+      const saved = await _assetsSaveFile(b64, mime, item.id + (mime === 'image/jpeg' ? '.jpg' : mime === 'image/gif' ? '.gif' : mime === 'image/webp' ? '.webp' : '.png'));
       if (!saved) continue;
       const node = {
         id: saved.id,

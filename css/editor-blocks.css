@@ -373,6 +373,25 @@
 .asset-block.has-image.selected .asset-overlay-clear { opacity: 1; }
 .asset-block.drag-over { outline: 2px dashed var(--sel-color) !important; outline-offset: -3px; }
 
+/* U10: 애니메이션 GIF 인지 배지 — 에디터 전용(#canvas 스코프라 export 오프스크린 클론엔 미적용).
+   비주얼은 section-label 계열(--ui-bg-input/--ui-text-muted), --inv-zoom 카운터스케일로 줌 불변 크기. */
+#canvas .asset-block[data-motion="gif"]::after {
+  content: 'GIF';
+  position: absolute;
+  top: calc(6px * var(--inv-zoom, 1));
+  right: calc(6px * var(--inv-zoom, 1));
+  z-index: 5;
+  font-size: calc(11px * var(--inv-zoom, 1));
+  font-weight: var(--ui-fw-medium);
+  letter-spacing: 0.06em;
+  color: var(--ui-text-muted);
+  background: var(--ui-bg-input);
+  padding: calc(2px * var(--inv-zoom, 1)) calc(7px * var(--inv-zoom, 1));
+  border-radius: calc(4px * var(--inv-zoom, 1));
+  pointer-events: none;
+  opacity: 0.85;
+}
+
 /* 이미지 포지션 드래그 모드 */
 .asset-block.pos-dragging {
   outline: 1px solid var(--sel-color) !important;

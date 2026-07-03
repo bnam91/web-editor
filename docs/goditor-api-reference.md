@@ -29,6 +29,21 @@ sleep 7 && curl -s http://127.0.0.1:93XX/json/version   # Chrome/... 뜨면 OK
 - 저장: `window.triggerAutoSave()` 후 2초 이상 대기(디바운스 1.5s). 빌드 완료본은 `/tmp/goditor_93XX/projects/<id>/`에서 메인 저장소(`~/Library/Application Support/Goya Design Editor/projects/`)로 복사해 이관.
 - ⚠️ 하나의 인스턴스에서 여러 프로젝트를 오갈 때는 eval 진입 시 `window.activeProjectId`가 대상 프로젝트인지 가드하고, 빌드+직렬화+저장을 단일 동기 eval로 묶을 것(로드 중 전환 레이스 방지).
 
+### 모션/GIF 섹션 (2026-07-03 검증)
+
+**애니메이션 GIF는 파이프라인 전 구간에서 이미 동작한다** — 대표프레임 정지컷으로 대체하지 말고 **원본 GIF를 그대로 삽입**하라.
+
+```js
+window.addAssetBlock('standard');
+const ab = document.querySelector('.section-block:last-of-type .asset-block');
+window.setAssetImageFromSrc(ab, 'data:image/gif;base64,...');   // 원본 GIF dataURI
+```
+
+- 에디터 `<img>`가 GIF를 네이티브 재생하고, 블록에 `data-motion="gif"` 마커 + 우상단 GIF 배지가 자동 표시된다.
+- 저장 시 외부화도 `.gif` 바이트/확장자를 그대로 보존(`goya-asset://…/<hash>.gif`), 재인코딩 없음.
+- **HTML export = 애니 유지**(base64 재인라인). **PNG/JPG 섹션 export = 정지 1프레임**(속성상 당연). 섹션 export 포맷에 **"GIF (애니메이션)"** 옵션이 이미 있어 애니 GIF로도 내보낼 수 있다.
+- 워커 판별: `document.querySelectorAll('.asset-block[data-motion="gif"]')`.
+
 ---
 
 ## 세션 초기화
