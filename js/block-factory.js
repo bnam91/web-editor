@@ -870,8 +870,81 @@ function addIconCircleBlock(opts = {}) {
   window.selectSection(sec);
 }
 
+// ── 테이블 U3 헬퍼 (BL-CDD-05·BL-CDZ-04) ──────────────────────────────
+function _colorLuminance(str) {
+  if (!str || typeof str !== 'string') return null;
+  const s = str.trim();
+  let r, g, b;
+  let m = s.match(/^#([0-9a-fA-F]{3})$/);
+  if (m) { r = parseInt(m[1][0] + m[1][0], 16); g = parseInt(m[1][1] + m[1][1], 16); b = parseInt(m[1][2] + m[1][2], 16); }
+  if (r === undefined) {
+    m = s.match(/^#([0-9a-fA-F]{6})/);
+    if (m) { r = parseInt(m[1].slice(0, 2), 16); g = parseInt(m[1].slice(2, 4), 16); b = parseInt(m[1].slice(4, 6), 16); }
+  }
+  if (r === undefined) {
+    m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (m) { r = +m[1]; g = +m[2]; b = +m[3]; }
+  }
+  if (r === undefined) return null;
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+// 테이블 기본 텍스트색은 #222 고정이라 다크 섹션에서 안 보임(BL-CDD-05).
+// 삽입 시점 섹션 bg 휘도로 판정해, 사용자가 색을 명시하지 않았고 기본값 그대로일 때만 다크 팔레트로 전환.
+function _applyTableThemeDefaults(block, opts = {}) {
+  const sec = block.closest('.section-block');
+  if (!sec) return;
+  const bg = sec.style.backgroundColor || sec.style.background || sec.dataset.bg || '';
+  const lum = _colorLuminance(bg);
+  if (lum === null || lum >= 0.45) return; // 밝은 배경 → 기본 유지
+  const _set = (key, cssVar, darkVal, lightDefault) => {
+    if (opts[key] !== undefined) return;                          // 명시 옵션 우선
+    const cur = (block.dataset[key] || '').toLowerCase();
+    if (cur && cur !== lightDefault) return;                      // 이미 커스텀됨
+    block.dataset[key] = darkVal;
+    block.style.setProperty(cssVar, darkVal);
+  };
+  _set('textColor', '--tbl-text-color', '#e8e8e8', '#222222');
+  _set('lineColor', '--tbl-line-color', '#555555', '#cccccc');
+  _set('headerBg', '--tbl-header-bg', '#333333', '#f0f0f0');
+}
+
+// 특정 논리 열 하이라이트(BL-CDZ-04, 비교표 "우리 열" 강조). style 프리셋과 독립 —
+// data-tbl-hl 마커로 이전 적용을 정확히 걷어낸 뒤 덧칠하므로 colored 위에도 동작.
+function applyTableColHighlight(block) {
+  const table = block.querySelector('.tb-table');
+  if (!table) return;
+  block.querySelectorAll('[data-tbl-hl]').forEach(c => {
+    c.style.backgroundColor = ''; c.style.color = ''; c.style.fontWeight = '';
+    c.removeAttribute('data-tbl-hl');
+  });
+  const idx = parseInt(block.dataset.highlightCol);
+  if (!Number.isFinite(idx) || idx < 0) return;
+  const bg = block.dataset.highlightBg || '#fff3d1';
+  // fg 미지정 시 하이라이트 bg 휘도로 대비색 자동 산출 — 다크 테이블(밝은 글자) 위에
+  // 밝은 하이라이트가 얹히면 글자가 증발하는 결함 방지
+  const bgLum = _colorLuminance(bg);
+  const fg = block.dataset.highlightFg || (bgLum !== null && bgLum < 0.45 ? '#ffffff' : '#222222');
+  const paint = (cell) => {
+    cell.style.backgroundColor = bg;
+    cell.style.color = fg;
+    cell.style.fontWeight = '700';
+    cell.setAttribute('data-tbl-hl', '1');
+  };
+  table.querySelectorAll('tr').forEach(tr => {
+    let logical = 0;
+    for (const cell of tr.querySelectorAll('th, td')) {
+      const span = parseInt(cell.getAttribute('colspan') || '1', 10) || 1;
+      if (idx >= logical && idx < logical + span) { paint(cell); break; }
+      logical += span;
+    }
+  });
+}
+
 function addTableBlock(opts = {}) {
   // 2026-06-08: opts.headers + opts.rows 데이터 직접 주입 지원 (MCP add_table_block)
+  // 2026-07-03(U3): cols/rowCount 빈 그리드, textColor/lineColor/headerBg, highlightCol,
+  //   다크 섹션 테마어웨어 기본색 추가.
   const _escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const applyData = (block) => {
     if (opts.showHeader === false) {
@@ -880,22 +953,56 @@ function addTableBlock(opts = {}) {
     }
     const align = opts.cellAlign || block.dataset.cellAlign || 'center';
     if (opts.cellAlign) { block.dataset.cellAlign = opts.cellAlign; }
+    // 열/행 수 지정(데이터 없이 빈 그리드). headers/rows가 있으면 그쪽이 열 수를 결정.
+    const nCols = Number.isFinite(+opts.cols) && +opts.cols >= 1 ? Math.min(32, Math.floor(+opts.cols)) : 0;
+    const nRows = Number.isFinite(+opts.rowCount) && +opts.rowCount >= 1 ? Math.min(500, Math.floor(+opts.rowCount)) : 0;
     if (Array.isArray(opts.headers) && opts.headers.length > 0) {
       const thead = block.querySelector('thead');
       if (thead) thead.innerHTML = `<tr>${opts.headers.map(h => `<th style="text-align:${align}">${_escHtml(h)}</th>`).join('')}</tr>`;
+    } else if (nCols > 0) {
+      const thead = block.querySelector('thead');
+      if (thead) thead.innerHTML = `<tr>${Array.from({ length: nCols }, () => `<th style="text-align:${align}"></th>`).join('')}</tr>`;
     }
     if (Array.isArray(opts.rows) && opts.rows.length > 0) {
       const tbody = block.querySelector('tbody');
       if (tbody) tbody.innerHTML = opts.rows.map(r =>
         `<tr>${(Array.isArray(r) ? r : [r]).map(cell => `<td style="text-align:${align}">${_escHtml(cell)}</td>`).join('')}</tr>`
       ).join('');
+    } else if (nRows > 0) {
+      const colCount = (Array.isArray(opts.headers) && opts.headers.length) || nCols
+        || block.querySelectorAll('thead th').length || 2;
+      const tbody = block.querySelector('tbody');
+      if (tbody) tbody.innerHTML = Array.from({ length: nRows }, () =>
+        `<tr>${Array.from({ length: colCount }, () => `<td style="text-align:${align}"></td>`).join('')}</tr>`
+      ).join('');
     }
     // 정렬 일괄 (기존 셀에도)
     if (opts.cellAlign) block.querySelectorAll('td, th').forEach(c => { c.style.textAlign = opts.cellAlign; });
+    // 색 옵션 (updateTableBlock과 동일 3종을 생성 시점에도)
+    const _COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+    const _setColor = (key, cssVar) => {
+      const v = opts[key];
+      if (typeof v === 'string' && v.length <= 64 && _COLOR_RE.test(v.trim())) {
+        block.dataset[key] = v.trim();
+        block.style.setProperty(cssVar, v.trim());
+      }
+    };
+    _setColor('textColor', '--tbl-text-color');
+    _setColor('lineColor', '--tbl-line-color');
+    _setColor('headerBg', '--tbl-header-bg');
+    // 열 하이라이트
+    if (Number.isFinite(+opts.highlightCol) && +opts.highlightCol >= 0) {
+      block.dataset.highlightCol = String(Math.floor(+opts.highlightCol));
+      if (opts.highlightBg && _COLOR_RE.test(String(opts.highlightBg).trim())) block.dataset.highlightBg = String(opts.highlightBg).trim();
+      if (opts.highlightFg && _COLOR_RE.test(String(opts.highlightFg).trim())) block.dataset.highlightFg = String(opts.highlightFg).trim();
+      applyTableColHighlight(block);
+    }
   };
   if (_insertToFlowFrame(() => {
     const { row, block } = makeTableBlock();
     applyData(block);
+    // flow-frame 경로는 삽입 후 섹션 컨텍스트 확정 — 다음 틱에 테마 판정
+    setTimeout(() => { try { _applyTableThemeDefaults(block, opts); } catch (_) {} }, 0);
     return { row, block };
   })) return;
   const sec = window.getSelectedSection();
@@ -904,6 +1011,7 @@ function addTableBlock(opts = {}) {
   const { row, block } = makeTableBlock();
   applyData(block);
   insertAfterSelected(sec, row);
+  _applyTableThemeDefaults(block, opts);
   bindBlock(block);
   window.buildLayerPanel();
   // 방금 추가한 블록을 자동 선택 + 화면 안으로 스크롤 (selectSection→deselectAll로
@@ -2967,6 +3075,41 @@ function updateTableBlock(blockId, partial = {}) {
     colFgsTouched = true;
   }
 
+  // ── 열 하이라이트 (U3, BL-CDZ-04) — null/-1 = 해제 ──
+  let highlightTouched = false;
+  if (partial.highlightCol !== undefined) {
+    if (partial.highlightCol === null || partial.highlightCol === -1 || partial.highlightCol === '') {
+      delete block.dataset.highlightCol;
+      applied.highlightCol = null;
+    } else {
+      const n = Number(partial.highlightCol);
+      if (!Number.isFinite(n) || n < 0 || n > 31) {
+        return { ok: false, code: 'INVALID', message: `invalid highlightCol: ${partial.highlightCol} (0~31 또는 null=해제)` };
+      }
+      block.dataset.highlightCol = String(Math.floor(n));
+      applied.highlightCol = Math.floor(n);
+    }
+    highlightTouched = true;
+  }
+  if (partial.highlightBg !== undefined) {
+    if (partial.highlightBg && !_isColor(partial.highlightBg)) {
+      return { ok: false, code: 'INVALID', message: `invalid highlightBg: ${partial.highlightBg}` };
+    }
+    if (partial.highlightBg) block.dataset.highlightBg = partial.highlightBg.trim();
+    else delete block.dataset.highlightBg;
+    applied.highlightBg = partial.highlightBg || null;
+    highlightTouched = true;
+  }
+  if (partial.highlightFg !== undefined) {
+    if (partial.highlightFg && !_isColor(partial.highlightFg)) {
+      return { ok: false, code: 'INVALID', message: `invalid highlightFg: ${partial.highlightFg}` };
+    }
+    if (partial.highlightFg) block.dataset.highlightFg = partial.highlightFg.trim();
+    else delete block.dataset.highlightFg;
+    applied.highlightFg = partial.highlightFg || null;
+    highlightTouched = true;
+  }
+
   // ── 3) 데이터 모델 (thead/tbody) 통째 재생성 ──
   const alignForCells = applied.cellAlign || block.dataset.cellAlign || 'center';
 
@@ -3089,6 +3232,10 @@ function updateTableBlock(blockId, partial = {}) {
     }
     if ((headersTouched || rowsTouched) && !(colBgsTouched || colFgsTouched) && block.dataset.style === 'colored' && typeof window.__applyTableColColors === 'function') {
       window.__applyTableColColors(block);
+    }
+    // 열 하이라이트 재적용 — thead/tbody 재생성이 마커 셀을 지우므로 데이터 변경 시에도 항상 마지막에 덧칠
+    if (highlightTouched || ((headersTouched || rowsTouched) && block.dataset.highlightCol !== undefined)) {
+      applyTableColHighlight(block);
     }
   } catch (e) {
     return { ok: false, code: 'RENDER_ERROR', message: e.message };
@@ -4166,6 +4313,7 @@ window.addLinerBlock         = addLinerBlock;
 window.updateDividerBlock     = updateDividerBlock;
 window.updateAssetBlock       = updateAssetBlock;
 window.updateTableBlock       = updateTableBlock;
+window.applyTableColHighlight = applyTableColHighlight;
 window.updateIconCircleBlock  = updateIconCircleBlock;
 window.updateGraphBlock       = updateGraphBlock;
 window.updateGapBlock         = updateGapBlock;

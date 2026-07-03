@@ -329,6 +329,15 @@ window.addTableBlock({
 | `cellAlign` | string | `'center'` | `left` `center` `right` |
 | `headers` | string[] | — | 헤더 셀 텍스트. 배열 길이 = 열 수 |
 | `rows` | string[][] | — | 본문 행 데이터(행×열). 지정 시 기본 7행을 대체 |
+| `cols` | number | — | 빈 그리드 열 수(1~32). headers 있으면 무시 |
+| `rowCount` | number | — | 빈 그리드 행 수(1~500). rows 있으면 무시 |
+| `textColor` / `lineColor` / `headerBg` | color | 토큰 | 셀 텍스트/선/헤더 배경색 |
+| `highlightCol` | number | — | 강조할 논리 열 index(0-base). 비교표 "우리 열" 강조 |
+| `highlightBg` / `highlightFg` | color | `#fff3d1` / 자동 | 강조 열 배경/글자색. fg 미지정 시 bg 휘도로 대비색 자동 |
+
+> **다크 섹션 테마어웨어(2026-07-03)**: 어두운 배경(휘도<0.45) 섹션에 색 옵션 없이 삽입하면 textColor `#e8e8e8`·lineColor `#555`·headerBg `#333`이 자동 적용된다(구버전은 #222 고정이라 다크에서 안 보였음). `updateTableBlock`도 `highlightCol`(null=해제)/`highlightBg`/`highlightFg`를 지원하며 headers/rows 재주입 시 하이라이트가 자동 재적용된다.
+>
+> **표 폭 노트(BL-BOL-06)**: 표는 섹션 padX 인셋 안의 일반 플로우 블록이다(풀블리드 아님). 텍스트보다 넓어 보이면 `tablePadX`(0~120)로 표 내부 좌우 패딩을 추가하라.
 
 ---
 
