@@ -166,6 +166,9 @@ window.addTextBlock('h1', { content: '제목', paddingX: 60 })
 | `color` | hex | — | 텍스트 색상 (예: `'#ffffff'`) |
 | `fontSize` | number (px) | — | 폰트 크기. 2열 col처럼 공간이 좁을 때 h1 기본값(104px)을 줄이는 용도 |
 | `paddingX` | number (px) | — | 블록 좌우 여백. `.row` 요소(`.text-block`의 부모)에 `padding-left/right` 적용. `dataset.paddingX`에 저장 |
+| `fontFamily` | string | Pretendard | CSS font-family 문자열(예: `'monospace'`, `"'Noto Serif KR', serif"`). 폰트픽커와 동일하게 `dataset.rawFont` 병기 |
+| `fontWeight` | number\|string | — | `100`~`900` \| `bold` \| `normal` |
+| `strokeWidth` / `strokeColor` | number(px) / color | — | `-webkit-text-stroke` 외곽선(+`paint-order:stroke fill`). **아웃라인 전용 텍스트(고스트 넘버럴)** = `color:'transparent'` + `strokeWidth:2, strokeColor:'#8a8f84'` |
 | `x` | number (px) | — | **freeLayout Frame 전용** — text-frame의 `left` 절대좌표. 지정 시 자동 스택 대신 고정 위치 사용. `dataset.offsetX`에 저장 |
 | `y` | number (px) | — | **freeLayout Frame 전용** — text-frame의 `top` 절대좌표. 지정 시 자동 스택 대신 고정 위치 사용. `dataset.offsetY`에 저장 |
 | `width` | number (px) | — | **freeLayout Frame 전용** — text-frame의 너비. 미지정 시 `100%` |

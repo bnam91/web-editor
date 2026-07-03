@@ -306,6 +306,29 @@ function makeTableBlock() {
   return { row, block: tb };
 }
 
+// U8(BL-CDD-03/04): fontFamily·fontWeight·텍스트 스트로크 — applyTextOpts와 오버레이 분기 공용.
+// fontFamily는 폰트픽커와 동일하게 dataset.rawFont 병기(CSS가 따옴표를 정규화해도 원본 보존).
+// 아웃라인 전용 텍스트(고스트 넘버럴)는 color:'transparent' + strokeWidth/strokeColor 조합으로 만든다.
+function _applyTextExtras(contentEl, opts) {
+  if (!contentEl) return;
+  if (opts.fontFamily && typeof opts.fontFamily === 'string' && opts.fontFamily.length <= 200) {
+    contentEl.style.fontFamily = opts.fontFamily;
+    contentEl.dataset.rawFont = opts.fontFamily;
+  }
+  if (opts.fontWeight !== undefined) {
+    const w = String(opts.fontWeight);
+    if (/^(100|200|300|400|500|600|700|800|900|bold|normal)$/.test(w)) contentEl.style.fontWeight = w;
+  }
+  if (opts.strokeWidth !== undefined || opts.strokeColor !== undefined) {
+    const w = Number(opts.strokeWidth);
+    const width = Number.isFinite(w) && w > 0 ? Math.min(20, w) : 1;
+    const color = (typeof opts.strokeColor === 'string' && opts.strokeColor.length <= 64)
+      ? opts.strokeColor : (contentEl.style.color || '#222222');
+    contentEl.style.webkitTextStroke = `${width}px ${color}`;
+    contentEl.style.paintOrder = 'stroke fill';
+  }
+}
+
 function applyTextOpts(block, frame, opts, type) {
   const contentEl = block.querySelector('[class^="tb-"]');
   if (opts.content && contentEl) {
@@ -322,6 +345,7 @@ function applyTextOpts(block, frame, opts, type) {
   }
   if (opts.color && contentEl) contentEl.style.color = opts.color;
   if (opts.fontSize && contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
+  _applyTextExtras(contentEl, opts);
   if (opts.paddingX !== undefined && frame) {
     frame.style.paddingLeft  = opts.paddingX + 'px';
     frame.style.paddingRight = opts.paddingX + 'px';
@@ -360,6 +384,7 @@ function addTextBlock(type, opts = {}) {
       const contentEl = block.querySelector('[class^="tb-"]');
       if (contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
     }
+    _applyTextExtras(block.querySelector('[class^="tb-"]'), opts);
     // overlay 내 row wrapper (overlay 구조 유지용)
     const overlayRow = document.createElement('div');
     overlayRow.className = 'row'; overlayRow.dataset.layout = 'stack';

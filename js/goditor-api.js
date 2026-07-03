@@ -83,6 +83,10 @@ window.goditor = {
           align: block.align,
           color: block.color,
           fontSize: block.fontSize,
+          ...(block.fontFamily  !== undefined && { fontFamily:  block.fontFamily }),
+          ...(block.fontWeight  !== undefined && { fontWeight:  block.fontWeight }),
+          ...(block.strokeWidth !== undefined && { strokeWidth: block.strokeWidth }),
+          ...(block.strokeColor !== undefined && { strokeColor: block.strokeColor }),
         });
         break;
 
