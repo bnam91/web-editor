@@ -134,7 +134,7 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 /* gap */
 .gap-block{display:block;width:100%;}
 /* text */
-.text-block{width:100%;}
+.text-block{width:100%;word-break:keep-all;overflow-wrap:break-word;}
 .tb-h1{font-size:104px;font-weight:700;color:#111;line-height:1.1;letter-spacing:-0.02em;}
 .tb-h2{font-size:72px;font-weight:600;color:#1a1a1a;line-height:1.15;}
 .tb-body{font-size:36px;color:#555;line-height:1.6;}

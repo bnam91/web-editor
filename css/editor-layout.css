@@ -286,13 +286,16 @@
 
   padding: 0;
   width: 100%;
+  /* 한글 단어 중간 꺾임 방지 — 단어 단위 줄바꿈, 초과 장어절만 폴백 분절 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 .text-block:hover::after   { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .text-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 .text-block.editing  { outline: 1.5px dashed var(--sel-color); background: var(--sel-color-fill); }
 
 
-.text-block [contenteditable] { outline: none; cursor: inherit; caret-color: currentColor; overflow-wrap: break-word; word-break: break-word; }
+.text-block [contenteditable] { outline: none; cursor: inherit; caret-color: currentColor; overflow-wrap: break-word; word-break: keep-all; }
 
 /* 빈 텍스트 블록 placeholder */
 .text-block .tb-h1:empty::before     { content: '제목을 입력하세요';   color: #ccc; pointer-events: none; }
