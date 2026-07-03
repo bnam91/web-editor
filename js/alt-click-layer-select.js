@@ -26,6 +26,8 @@
     '.graph-block',
     '.divider-block',
     '.bridge-block',
+    '.duo-block',
+    '.infocard-block',
     '.icon-text-block',
     '.canvas-block',
     '.banner02-block, .comparison-block',

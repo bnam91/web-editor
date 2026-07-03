@@ -69,6 +69,7 @@ window.setAssetImageFromSrc(ab, 'data:image/gif;base64,...');   // 원본 GIF da
 - 저장 시 외부화도 `.gif` 바이트/확장자를 그대로 보존(`goya-asset://…/<hash>.gif`), 재인코딩 없음.
 - **HTML export = 애니 유지**(base64 재인라인). **PNG/JPG 섹션 export = 정지 1프레임**(속성상 당연). 섹션 export 포맷에 **"GIF (애니메이션)"** 옵션이 이미 있어 애니 GIF로도 내보낼 수 있다.
 - 워커 판별: `document.querySelectorAll('.asset-block[data-motion="gif"]')`.
+- ⚠️ **카운터/숫자 GIF 예외(현빈 확정 2026-07-03)**: 숫자가 올라가는 카운트업류 GIF는 모션 직삽입 대상이 **아니다** — 대표프레임은 잉크밀도가 아니라 ★**마지막 프레임(최고값)**이며, 그 최종값을 `addCountupBlock`(정적 빅넘버 스탯)으로 조립하는 것이 정답.
 
 ---
 
