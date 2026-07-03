@@ -228,3 +228,31 @@
   display: flex; align-items: center; justify-content: center;
 }
 .grb-data-del-btn:hover { border-color: var(--ui-danger); color: var(--ui-danger); }
+
+/* ── U9: 2시리즈 비교 막대 (bar-pair) ── */
+.grb-pair-wrap { gap: 6px; }
+.grb-pair-series {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+.grb-pair-series .grb-bar-fill { width: 100%; }
+.grb-pair-legend {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 8px;
+  color: inherit;
+}
+.grb-pair-legend-item { display: inline-flex; align-items: center; }
+.grb-pair-dot {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-right: 6px;
+  background: var(--ui-accent-primary);
+}

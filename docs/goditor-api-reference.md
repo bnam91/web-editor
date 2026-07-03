@@ -395,10 +395,26 @@ window.addGraphBlock({
 })
 ```
 
+```js
+// 온도 곡선(temp-curve): 곡선 보간 + 면 채우기
+window.addGraphBlock({ chartType: 'line', smooth: true, fillArea: true,
+  lineColor: '#e74c3c', fillColor: '#e74c3c', fillAlpha: 0.15,
+  items: [{ label: '0분', value: 100 }, { label: '10분', value: 55 }, { label: '30분', value: 30 }] })
+// 비교 막대(자사 vs 경쟁): 2시리즈 + 범례
+window.addGraphBlock({ chartType: 'bar-pair', seriesA: '우리', seriesB: 'A사',
+  barColor: '#2d6fe8', barColor2: '#c9c9c9',
+  items: [{ label: '보온력', value: 95, value2: 60 }, { label: '세척', value: 85, value2: 70 }] })
+```
+
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `chartType` | string | `'bar-v'` | `bar-v` (세로 막대) `bar-h` (가로 막대) |
-| `items` | `{ label, value }[]` | 5개 샘플 | value 범위: 0~100. 빈 배열이면 기본값 사용 |
+| `chartType` | string | `'bar-v'` | `bar-v` `bar-h` `line` `bar-pair`(2시리즈 비교) |
+| `items` | `{ label, value, value2? }[]` | 5개 샘플 | `value2`는 bar-pair 전용(시리즈 B). 빈 배열이면 기본값 사용 |
+| `smooth` | boolean | `false` | line 전용 — Catmull-Rom 곡선 보간(온도 곡선) |
+| `fillArea` / `fillAlpha` / `fillColor` | bool / 0~1 / color | — | line 면 채우기 |
+| `lineColor` / `barColor` / `barColor2` | color | 프리셋 | 선/시리즈A/시리즈B 색 |
+| `seriesA` / `seriesB` | string | — | bar-pair 범례 이름(지정 시 범례 표시) |
+| `chartHeight` / `labelSize` / `strokeWidth` / `pointRadius` | number | 240/20/3/5 | 크기 계열 |
 
 ---
 
