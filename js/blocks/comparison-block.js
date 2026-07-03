@@ -39,12 +39,13 @@ function normalizeRow(r) {
   if (typeof r === 'string') return { type: 'text', text: r };
   if (r && typeof r === 'object') {
     const type = r.type === 'image' ? 'image' : 'text';
+    // ...r 보존: memo(이미지 발주채널) 등 확장 필드가 편집 blur 재직렬화에서 소실되지 않게
     if (type === 'image') {
-      return { type: 'image', text: r.text != null ? String(r.text) : '',
+      return { ...r, type: 'image', text: r.text != null ? String(r.text) : '',
                imgSrc: r.imgSrc != null ? String(r.imgSrc) : '',
                imgFit: r.imgFit === 'contain' ? 'contain' : 'cover' };
     }
-    return { type: 'text', text: r.text != null ? String(r.text) : '' };
+    return { ...r, type: 'text', text: r.text != null ? String(r.text) : '' };
   }
   return { type: 'text', text: '' };
 }
@@ -56,7 +57,9 @@ function _rowHeights(d) { try { const a = JSON.parse(d.rowHeights || 'null'); re
 // cols 배열 획득 (없으면 구버전 left/right dataset → 배열로 마이그레이션). rows는 객체로 정규화.
 function getComparisonCols(d) {
   const parsed = _colsParse(d.cols);
+  // ...c 보존: titleBg/titleColor(헤더 밴드 색) 등 확장 필드가 재직렬화에서 소실되지 않게
   if (parsed) return parsed.map(c => ({
+    ...c,
     title: c.title ?? '', bg: c.bg || '', text: c.text || '',
     rows: (Array.isArray(c.rows) ? c.rows : []).map(normalizeRow)
   }));
@@ -105,24 +108,29 @@ function renderComparison(block) {
   const baseW = Math.round((contentW + overlap * (N - 1)) / ((N - 1) + featScale));
   const featW = Math.round(baseW * featScale);
 
-  // 행 인덱스 ri의 기본 높이(featScale 적용 전): rowHeights 오버라이드 있으면 그 값, 없으면 rowH.
-  const baseRowH = (ri) => {
+  // 이미지 행 기본 높이: rowHeights 오버라이드 없으면 제품컷 슬롯답게 카드폭 비례(~정방형).
+  // (구버전은 텍스트행 rowH=64로 폴백 → 이미지 슬롯이 얇은 띠로 수축하는 렌더 붕괴)
+  const imgRowDefault = () => Math.round(Math.max(120, baseW * 0.9));
+  // 행 인덱스 ri의 기본 높이(featScale 적용 전): rowHeights 오버라이드 > 이미지행 기본 > rowH.
+  const baseRowH = (ri, row) => {
     const o = rowHeights[ri];
     const n = (o == null) ? 0 : Number(o);
-    return (Number.isFinite(n) && n > 0) ? n : rowH;
+    if (Number.isFinite(n) && n > 0) return n;
+    if (row && row.type === 'image') return imgRowDefault();
+    return rowH;
   };
   // 각 칼럼 높이 (featured만 header/row/gap 확대). 각 카드 상하 padY 포함. 행별 높이 누적.
-  const colHeightOf = (rowsLen, isFeat) => {
+  const colHeightOf = (rows, isFeat) => {
     const hH  = isFeat ? Math.round(headerH * featScale) : headerH;
     const gap = isFeat ? Math.round(rowGap * featScale) : rowGap;
     let acc = padY * 2 + hH;
-    for (let ri = 0; ri < rowsLen; ri++) {
-      const rH = isFeat ? Math.round(baseRowH(ri) * featScale) : baseRowH(ri);
+    for (let ri = 0; ri < rows.length; ri++) {
+      const rH = isFeat ? Math.round(baseRowH(ri, rows[ri]) * featScale) : baseRowH(ri, rows[ri]);
       acc += rH + gap;
     }
     return acc;
   };
-  const heights = cols.map((c, i) => colHeightOf(c.rows.length, i === featuredIdx));
+  const heights = cols.map((c, i) => colHeightOf(c.rows, i === featuredIdx));
   const totalH = Math.max(...heights, 1);
   const designH = totalH + yPad * 2;
 
@@ -146,7 +154,7 @@ function renderComparison(block) {
     const tFont = isFeat ? Math.round(baseTitleFont * featScale) : baseTitleFont;
     const rFont = isFeat ? Math.round(baseRowFont * featScale) : baseRowFont;
     const rad   = isFeat ? Math.round(radius * featScale) : radius;
-    const h = colHeightOf(c.rows.length, isFeat);
+    const h = colHeightOf(c.rows, isFeat);
     const top = yPad + (totalH - h) / 2;             // 모든 칼럼을 공통 중심선에 정렬 → featured가 위·아래 overhang
     const bg = c.bg || (isFeat ? '#ffffff' : '#e9ebef');
     const textColor = c.text || (isFeat ? '#1a1a1a' : '#9aa0a8');
@@ -155,17 +163,24 @@ function renderComparison(block) {
       `z-index:${isFeat ? 2 : 1};overflow:hidden;` +
       (isFeat ? 'box-shadow:0 18px 50px rgba(0,0,0,0.22);' : '');
 
-    // 헤더
+    // featured 이웃에 겹쳐 가려지는 쪽 인셋: muted 칼럼의 헤더/텍스트가 overlap 존을 피하게 (R3)
+    const insetR = (!isFeat && idx === featuredIdx - 1) ? overlap : 0;
+    const insetL = (!isFeat && idx === featuredIdx + 1) ? overlap : 0;
+
+    // 헤더 — titleBg/titleColor(칼럼별 밴드 색) 지원. 미지정 시 기존 동작 유지.
     const hd = document.createElement('div');
     hd.className = 'cmp-hd'; hd.dataset.colIdx = idx;
     hd.textContent = c.title || '';
+    const hdBg = (typeof c.titleBg === 'string' && c.titleBg) ? `background:${c.titleBg};` : '';
+    const hdColor = (typeof c.titleColor === 'string' && c.titleColor) ? c.titleColor : textColor;
     hd.style.cssText = `height:${hH}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
-      `font-size:${tFont}px;font-weight:${isFeat ? 800 : 700};color:${textColor};padding:0 16px;box-sizing:border-box;line-height:1.2;`;
+      `font-size:${tFont}px;font-weight:${isFeat ? 800 : 700};color:${hdColor};${hdBg}` +
+      `padding:0 ${16 + insetR}px 0 ${16 + insetL}px;box-sizing:border-box;line-height:1.2;`;
     _editableTitle(hd, block, idx);
     col.appendChild(hd);
     // 행 (행 인덱스별 높이 + text/image 분기)
     c.rows.forEach((row, ri) => {
-      const effRowH = isFeat ? Math.round(baseRowH(ri) * featScale) : baseRowH(ri);
+      const effRowH = isFeat ? Math.round(baseRowH(ri, row) * featScale) : baseRowH(ri, row);
       const r = document.createElement('div');
       r.className = 'cmp-row'; r.dataset.colIdx = idx; r.dataset.rowIdx = ri;
       const isImg = row && row.type === 'image';
@@ -182,7 +197,8 @@ function renderComparison(block) {
       } else {
         r.textContent = (row && row.text != null) ? row.text : '';
         r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
-          `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};padding:0 12px;box-sizing:border-box;`;
+          `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};` +
+          `padding:0 ${12 + insetR}px 0 ${12 + insetL}px;box-sizing:border-box;`;
         _editableRow(r, block, idx, ri);
       }
       col.appendChild(r);

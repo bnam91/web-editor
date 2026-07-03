@@ -205,20 +205,42 @@ function addIconTextBlock() {
   window.selectSection(sec);
 }
 
+// label-group opts 적용 (3개 삽입 경로 공용) — 색/정렬 옵션이 조용히 탈락하던 버그 픽스.
+// opts: labels: (string | {text, bg?, color?})[], bg/color(그룹 기본 필 색), radius, shape, align: left|center|right
+function _applyLabelGroupOpts(block, opts) {
+  const groupBg    = (typeof opts.bg === 'string' && opts.bg) ? opts.bg : '#e8e8e8';
+  const groupColor = (typeof opts.color === 'string' && opts.color) ? opts.color : '#333333';
+  const radius     = Number.isFinite(Number(opts.radius)) ? Number(opts.radius) : 40;
+  if (opts.labels && opts.labels.length > 0) {
+    block.querySelectorAll('.label-item').forEach(l => l.remove());
+    const addBtn = block.querySelector('.label-group-add-btn');
+    opts.labels.forEach(lb => {
+      const item = (lb && typeof lb === 'object')
+        ? makeLabelItem(lb.text ?? '', lb.bg || groupBg, lb.color || groupColor, radius, opts.shape || 'pill')
+        : makeLabelItem(lb, groupBg, groupColor, radius, opts.shape || 'pill');
+      block.insertBefore(item, addBtn);
+    });
+  } else if (opts.bg || opts.color) {
+    // labels 없이 색만 지정 → 기본 3개 Tag 필 색만 갱신
+    block.querySelectorAll('.label-item').forEach(item => {
+      item.dataset.bg = groupBg; item.dataset.color = groupColor;
+      item.style.backgroundColor = groupBg; item.style.color = groupColor;
+    });
+  }
+  if (opts.shape) block.dataset.shape = opts.shape;
+  if (opts.align === 'left' || opts.align === 'center' || opts.align === 'right') {
+    block.dataset.align = opts.align;
+    block.style.justifyContent = opts.align === 'left' ? 'flex-start'
+      : (opts.align === 'center' ? 'center' : 'flex-end');
+  }
+}
+
 function addLabelGroupBlock(opts = {}) {
   const overlay = getSelectedOverlay();
   if (overlay) {
     window.pushHistory();
     const { row, block } = makeLabelGroupBlock();
-    if (opts.labels && opts.labels.length > 0) {
-      block.querySelectorAll('.label-item').forEach(l => l.remove());
-      const addBtn = block.querySelector('.label-group-add-btn');
-      opts.labels.forEach(text => {
-        const item = makeLabelItem(text, '#e8e8e8', '#333333', 40, opts.shape || 'pill');
-        block.insertBefore(item, addBtn);
-      });
-    }
-    if (opts.shape) block.dataset.shape = opts.shape;
+    _applyLabelGroupOpts(block, opts);
     insertIntoOverlay(overlay, row);
     bindBlock(block);
     window.buildLayerPanel();
@@ -226,27 +248,14 @@ function addLabelGroupBlock(opts = {}) {
   }
   if (_insertToFlowFrame(() => {
     const { row, block } = makeLabelGroupBlock();
-    if (opts.labels && opts.labels.length > 0) {
-      block.querySelectorAll('.label-item').forEach(l => l.remove());
-      const addBtn = block.querySelector('.label-group-add-btn');
-      opts.labels.forEach(text => { block.insertBefore(makeLabelItem(text, '#e8e8e8', '#333333', 40, opts.shape || 'pill'), addBtn); });
-    }
-    if (opts.shape) block.dataset.shape = opts.shape;
+    _applyLabelGroupOpts(block, opts);
     return { row, block };
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const { row, block } = makeLabelGroupBlock();
-  if (opts.labels && opts.labels.length > 0) {
-    block.querySelectorAll('.label-item').forEach(l => l.remove());
-    const addBtn = block.querySelector('.label-group-add-btn');
-    opts.labels.forEach(text => {
-      const item = makeLabelItem(text, '#e8e8e8', '#333333', 40, opts.shape || 'pill');
-      block.insertBefore(item, addBtn);
-    });
-  }
-  if (opts.shape) block.dataset.shape = opts.shape;
+  _applyLabelGroupOpts(block, opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
