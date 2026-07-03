@@ -1595,7 +1595,7 @@ function _registerDefaultTools() {
           bg:     { type: 'string',  description: '셀 배경색 (#hex|rgb(a)|hsl(a)|transparent). default transparent' },
           radius: { type: 'integer', description: '셀 모서리 반경 px (0~60). default 0' },
           gridCols: { type: 'integer', description: '그리드 열 수 (1~4). default 1' },
-          gridRows: { type: 'integer', description: '그리드 행 수 (1~4). default 1' },
+          gridRows: { type: 'integer', description: '그리드 행 수 (1~20). default 1. 5행+ = 장리스트(사이즈/가격표) 그리드' },
           cardGap:  { type: 'integer', description: '카드 사이 간격 px (0~48). default 12' },
           padX:     { type: 'integer', description: '좌우 패딩 px (0~80). default 0' },
           cardMode: { type: 'string', enum: ['simple', ''], description: '"simple"로 지정 시 Simple Card Mode (cards[] 사용). 미지정이면 레이어 모드 (layers[] 사용).' },
@@ -1702,7 +1702,7 @@ function _registerDefaultTools() {
           radius:    { type: 'integer', description: '셀 모서리 반경 px (0~60)' },
           layerName: { type: 'string',  description: '레이어 패널 표시명 (≤100)' },
           gridCols:  { type: 'integer', description: '그리드 열 수 (1~4). 변경 시 cards 자동 sync' },
-          gridRows:  { type: 'integer', description: '그리드 행 수 (1~4). 변경 시 cards 자동 sync' },
+          gridRows:  { type: 'integer', description: '그리드 행 수 (1~20). 변경 시 cards 자동 sync' },
           cardGap:   { type: 'integer', description: '카드 사이 간격 px (0~48)' },
           padX:      { type: 'integer', description: '좌우 패딩 px (0~80)' },
           cardMode:  { type: 'string', enum: ['simple', ''], description: '"" 또는 미지정으로 레이어 모드 복귀, "simple"로 카드 모드 전환' },
@@ -3919,7 +3919,7 @@ function _validateCanvasOpts(args, { mode } = {}) {
   _color('bg');
   _int('radius',   0, 60);
   _int('gridCols', 1, 4);
-  _int('gridRows', 1, 4);
+  _int('gridRows', 1, 20); // U6: 장리스트 그리드(사이즈/가격표) — cards 상한 64 내에서 행 확장
   _int('cardGap',  0, 48);
   _int('padX',     0, 80);
   _enum('cardMode', ['simple', '']);

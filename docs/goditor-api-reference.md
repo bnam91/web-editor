@@ -30,6 +30,31 @@ sleep 7 && curl -s http://127.0.0.1:93XX/json/version   # Chrome/... 뜨면 OK
 - 저장: `window.triggerAutoSave()` 후 2초 이상 대기(디바운스 1.5s). 빌드 완료본은 `/tmp/goditor_93XX/projects/<id>/`에서 메인 저장소(`~/Library/Application Support/Goya Design Editor/projects/`)로 복사해 이관.
 - ⚠️ 하나의 인스턴스에서 여러 프로젝트를 오갈 때는 eval 진입 시 `window.activeProjectId`가 대상 프로젝트인지 가드하고, 빌드+직렬화+저장을 단일 동기 eval로 묶을 것(로드 중 전환 레이스 방지).
 
+### 그리드 레시피 — 아이콘그리드·사이즈/가격표·리스트카드 (2026-07-03)
+
+전부 **canvas-block Simple Card Mode**로 조립한다(신규 블록 불필요). gridRows 상한 20(구 4), cards 상한 64.
+
+```js
+// (a) 아이콘 그리드 3열 — 원형 아이콘 + 제목 + 캡션 (BL-CDZ-05/BOL-02/014)
+window.addCanvasBlock({ cardMode:'simple', gridCols:3, gridRows:2,
+  imgShape:'circle', iconMode:true, iconScale:46, cardGap:16,
+  labelPos:'bottom', textAlign:'center',
+  cards:[ { icon:{svg:'<svg …>…</svg>'}, iconBg:'#eef2ff', title:'위생', desc:'열탕소독 가능' }, /* ×6 */ ] })
+
+// (b) 사이즈/가격표 그리드 — 썸네일+치수+가격 34셀 (BL-CDZ-07)
+window.addCanvasBlock({ cardMode:'simple', gridCols:2, gridRows:17,
+  imgRatio:60, labelPos:'bottom',
+  cards:[ { imgSrc:'…', title:'300×200×15', desc:'29,000원' }, /* ×34 */ ] })
+
+// (c) 리스트카드 — 체크마크 + 텍스트 행 (BL-CDZ-08)
+window.addCanvasBlock({ cardMode:'simple', gridCols:1, gridRows:5,
+  cardOrient:'landscape', imgRatio:15, iconMode:true, iconColor:'#2ecc71',
+  cards:[ { icon:{svg:'<svg…체크…>'}, title:'이런 분께 추천', desc:'' }, /* ×5 */ ] })
+```
+
+- 셀 채움/부분수정은 `updateCanvasBlock(blockId, { patchCards:[{index, …}] })`.
+- 아이콘 SVG는 `add_iconify_block`이 쓰는 api.iconify.design에서 가져오거나 인라인 SVG 직접 주입.
+
 ### 모션/GIF 섹션 (2026-07-03 검증)
 
 **애니메이션 GIF는 파이프라인 전 구간에서 이미 동작한다** — 대표프레임 정지컷으로 대체하지 말고 **원본 GIF를 그대로 삽입**하라.
