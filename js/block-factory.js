@@ -1121,22 +1121,27 @@ function makeDividerBlock() {
 }
 
 function addDividerBlock(opts = {}) {
-  if (_insertToFlowFrame(() => {
-    const { row, block } = makeDividerBlock();
+  // U7(BL-CDD-06): tick 레일 옵션 — tickGap/tickHeight/markerPos(0~100)/markerColor/markerSize
+  const _applyDividerOpts = (block) => {
     if (opts.color) block.dataset.lineColor = opts.color;
     if (opts.lineStyle) block.dataset.lineStyle = opts.lineStyle;
     if (opts.weight !== undefined) block.dataset.lineWeight = String(opts.weight);
-    if (opts.color || opts.lineStyle || opts.weight !== undefined) applyDividerStyle(block);
+    for (const k of ['tickGap', 'tickHeight', 'markerPos', 'markerSize']) {
+      if (opts[k] !== undefined && Number.isFinite(Number(opts[k]))) block.dataset[k] = String(opts[k]);
+    }
+    if (typeof opts.markerColor === 'string' && opts.markerColor.length <= 64) block.dataset.markerColor = opts.markerColor;
+    if (Object.keys(opts).length) applyDividerStyle(block);
+  };
+  if (_insertToFlowFrame(() => {
+    const { row, block } = makeDividerBlock();
+    _applyDividerOpts(block);
     return { row, block };
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const { row, block } = makeDividerBlock();
-  if (opts.color) block.dataset.lineColor = opts.color;
-  if (opts.lineStyle) block.dataset.lineStyle = opts.lineStyle;
-  if (opts.weight !== undefined) block.dataset.lineWeight = String(opts.weight);
-  if (opts.color || opts.lineStyle || opts.weight !== undefined) applyDividerStyle(block);
+  _applyDividerOpts(block);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
@@ -1481,6 +1486,32 @@ function addJokerBlock(opts = {}) {
 }
 
 /* ── Frame Block ── */
+// U7(BL-CDD-07·BL-019): 컨테이너 데코 — 테두리 카드(bordered-card)·좌측 강조바 인용(blockquote-accent)·
+// 인너카드 패딩. 인라인 스타일이라 직렬화/복붙/export에 그대로 영속.
+function _frameDecorCss(ss, opts) {
+  let css = '';
+  if (opts.border && typeof opts.border === 'object') {
+    const bw = Number(opts.border.width) || 1;
+    const bc = (typeof opts.border.color === 'string' && opts.border.color.length <= 64) ? opts.border.color : '#dddddd';
+    ss.dataset.borderW = String(bw);
+    ss.dataset.borderColor = bc;
+    css += `border:${bw}px solid ${bc};`;
+  }
+  if (opts.accentBar && typeof opts.accentBar === 'object') {
+    const aw = Number(opts.accentBar.width) || 4;
+    const ac = (typeof opts.accentBar.color === 'string' && opts.accentBar.color.length <= 64) ? opts.accentBar.color : '#2d6fe8';
+    ss.dataset.accentW = String(aw);
+    ss.dataset.accentColor = ac;
+    css += `border-left:${aw}px solid ${ac};`;
+  }
+  if (opts.padding !== undefined && Number.isFinite(Number(opts.padding))) {
+    const p = Math.max(0, Number(opts.padding));
+    ss.dataset.padding = String(p);
+    css += `padding:${p}px;`;
+  }
+  return css;
+}
+
 function makeFrameBlock(opts = {}) {
   const ss = document.createElement('div');
   ss.className = 'frame-block';
@@ -1497,6 +1528,7 @@ function makeFrameBlock(opts = {}) {
       ss.dataset.radius = String(opts.radius);
       css += `border-radius:${opts.radius}px;overflow:hidden;`;
     }
+    css += _frameDecorCss(ss, opts);
     ss.style.cssText = css;
   } else {
     // freeLayout 모드: 자유배치 프레임 (기본값) — absolute 자식
@@ -1511,6 +1543,7 @@ function makeFrameBlock(opts = {}) {
       ss.dataset.radius = String(opts.radius);
       css += `border-radius:${opts.radius}px;overflow:hidden;`;
     }
+    css += _frameDecorCss(ss, opts);
     ss.style.cssText = css;
   }
   return ss;

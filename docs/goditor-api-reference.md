@@ -25,6 +25,7 @@ sleep 7 && curl -s http://127.0.0.1:93XX/json/version   # Chrome/... 뜨면 OK
 - 포트: 9334(메인)·9335·9336(레이아웃 스킬 관례) 피해서 자유 포트 사용.
 - zsh 함정: `--remote-allow-origins=*`의 `*`는 반드시 따옴표로 감쌀 것.
 - 프로젝트 생성: `projects.html`에서 `Page.navigate`로 `index.html` 이동 후 `await window.createNewProjectTab()` → `window.activeProjectId` 획득.
+- ⚠️ **탭 10개 한도**: 한도 도달 시 `createNewProjectTab()`이 토스트만 띄우고 **조용히 no-op**(이전 프로젝트가 활성 유지 → 그 위에 빌드하는 사고). 생성 후 반드시 `activeProjectId`가 바뀌었는지 assert하고, 필요 시 `localStorage.removeItem('web-editor-open-tabs')` 후 리로드로 탭 정리.
 - **신규 프로젝트는 padX 72 기본**(2026-07-03부터, 끌리젠 규격). 텍스트는 72px 인셋, asset-block은 자동 풀블리드(음수마진). 구 프로젝트를 열면 저장된 값이 유지된다.
 - 저장: `window.triggerAutoSave()` 후 2초 이상 대기(디바운스 1.5s). 빌드 완료본은 `/tmp/goditor_93XX/projects/<id>/`에서 메인 저장소(`~/Library/Application Support/Goya Design Editor/projects/`)로 복사해 이관.
 - ⚠️ 하나의 인스턴스에서 여러 프로젝트를 오갈 때는 eval 진입 시 `window.activeProjectId`가 대상 프로젝트인지 가드하고, 빌드+직렬화+저장을 단일 동기 eval로 묶을 것(로드 중 전환 레이스 방지).
@@ -283,13 +284,19 @@ window.addGapBlock(100)    // 100px
 ```js
 window.addDividerBlock()
 window.addDividerBlock({ color: '#e0e0e0', lineStyle: 'dashed', weight: 2 })
+// 페이스라인(눈금 레일 + 강조 마커) — km 스플릿 레일 등 연결 데코
+window.addDividerBlock({ lineStyle: 'tick', color: '#b9bdb4', weight: 2,
+  tickGap: 28, tickHeight: 14, markerPos: 62, markerColor: '#c8f550' })
 ```
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `color` | hex | `'#cccccc'` | 선 색상 |
-| `lineStyle` | string | `'solid'` | `solid` `dashed` `dotted` |
-| `weight` | number (px) | `1` | 선 두께 |
+| `lineStyle` | string | `'solid'` | `solid` `dashed` `dotted` `tick`(눈금 레일) |
+| `weight` | number (px) | `1` | 선 두께(tick에선 눈금 두께) |
+| `tickGap` / `tickHeight` | number (px) | 24 / 12 | tick 전용 — 눈금 간격/높이 |
+| `markerPos` | number (0~100) | — | tick 전용 — 레일 위 강조 마커 위치(%). 생략 시 마커 없음 |
+| `markerColor` / `markerSize` | color / px | `#2d6fe8` / 10 | 마커 색/지름 |
 
 ---
 
@@ -846,6 +853,12 @@ ss.dataset.bg     = '#1e1e1e'
 
 ```js
 window.addFrameBlock({ fullWidth: true, bg: '#222222' })
+// 컨테이너 데코(2026-07-03): 테두리 카드 / 좌측 강조바 인용 / 인너카드
+window.addFrameBlock({ fullWidth: true, bg: '#ffffff', radius: 12,
+  accentBar: { width: 5, color: '#c8f550' }, padding: 28 })   // 후기 인용 카드
+window.addFrameBlock({ fullWidth: true, bg: '#f4f8ee', radius: 16,
+  border: { width: 2, color: '#c8d8b0' }, padding: 32 })       // 보증 bordered 카드
+// 다크 섹션 위 "흰 인너카드"(BL-019) = fullWidth + bg '#ffffff' + radius + padding
 // 이후 addTextBlock / addAssetBlock / addGapBlock 호출 시 frame 내부에 삽입됨
 window.addTextBlock('h1', { content: '제목', color: '#ffffff' })
 window.addAssetBlock('standard')

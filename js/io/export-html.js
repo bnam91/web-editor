@@ -97,6 +97,10 @@ async function exportHTMLFile() {
   // canvas clone — 에디터 UI 요소 제거
   const clone = canvasEl.cloneNode(true);
   clone.querySelectorAll('.section-label, .section-toolbar, .col-placeholder, .col-add-btn, .col-add-menu, .row-col-add-btn, .row-drop-indicator, .layer-section-drop-indicator').forEach(el => el.remove());
+  // BL-CD-10: label-group은 render-재생성형이 아니라 직렬 DOM 보존형 — 에디터 전용 ✕삭제/＋추가
+  // 버튼 노드가 저장 HTML에 남아 export에서 그대로 노출됐음. 노드 자체를 제거한다.
+  clone.querySelectorAll('.label-item-delete-btn, .label-group-add-btn').forEach(el => el.remove());
+  clone.querySelectorAll('.item-selected').forEach(el => el.classList.remove('item-selected'));
   clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
   clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
   clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
@@ -162,7 +166,8 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 .grb-bar-val-label{font-size:18px;font-weight:600;color:#2d6fe8;margin-bottom:2px;}
 /* label-group */
 .label-group-block{width:100%;display:flex;flex-wrap:wrap;gap:10px;padding:16px;}
-.label-item{display:inline-flex;align-items:center;padding:8px 20px;border-radius:40px;font-size:24px;}
+.label-item{display:inline-flex;align-items:center;padding:8px 20px;border-radius:40px;font-size:24px;background:var(--preset-label-bg,#e8e8e8);color:var(--preset-label-color,#333333);}
+.label-item-delete-btn,.label-group-add-btn{display:none!important;}
 /* table */
 .table-block{width:100%;overflow:hidden;}
 .tb-table{width:100%;border-collapse:collapse;font-size:28px;}

@@ -52,6 +52,7 @@ export function showDividerProperties(block) {
           <option value="solid"  ${lineStyle==='solid'  ?'selected':''}>실선</option>
           <option value="dashed" ${lineStyle==='dashed' ?'selected':''}>파선</option>
           <option value="dotted" ${lineStyle==='dotted' ?'selected':''}>점선</option>
+          <option value="tick"   ${lineStyle==='tick'   ?'selected':''}>눈금(레일)</option>
         </select>
       </div>
       <div class="prop-row">

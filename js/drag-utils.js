@@ -400,6 +400,31 @@ function applyDividerStyle(block) {
   const lineLen = parseInt(block.dataset.lineLength) || 80;
   // padH가 콘텐츠 폭의 절반보다 커도 그대로 적용 (사용자 의도). 라인은 box-sizing border-box로 음수 폭 시 안 보일 수 있음.
 
+  // U7(BL-CDD-06): 페이스라인 — 눈금 레일(tick) + 선택 마커. 수평 전용.
+  // 기존 마커는 항상 걷어낸 뒤 tick+markerPos일 때만 다시 그린다(스타일 전환 시 잔재 방지).
+  block.querySelector('.dvd-marker')?.remove();
+  if (style === 'tick' && dir !== 'vertical') {
+    const tickH   = parseInt(block.dataset.tickHeight) || 12;
+    const tickGap = parseInt(block.dataset.tickGap) || 24;
+    const w = Math.max(1, parseInt(weight) || 1);
+    hr.style.cssText = `border:none;height:${tickH}px;` +
+      `background:repeating-linear-gradient(90deg, ${color} 0 ${w}px, transparent ${w}px ${tickGap}px);`;
+    block.style.padding = `${padV}px ${padH}px`;
+    block.style.display = '';
+    block.style.position = 'relative';
+    const mp = parseFloat(block.dataset.markerPos);
+    if (Number.isFinite(mp) && mp >= 0 && mp <= 100) {
+      const mc = block.dataset.markerColor || '#2d6fe8';
+      const ms = parseInt(block.dataset.markerSize) || 10;
+      const marker = document.createElement('span');
+      marker.className = 'dvd-marker';
+      marker.style.cssText = `position:absolute;left:calc(${padH}px + (100% - ${padH * 2}px) * ${mp / 100});` +
+        `top:50%;transform:translate(-50%,-50%);width:${ms}px;height:${ms}px;border-radius:50%;` +
+        `background:${mc};pointer-events:none;`;
+      block.appendChild(marker);
+    }
+    return;
+  }
   if (dir === 'vertical') {
     hr.style.cssText = `border-left:${weight}px ${style} ${color}; border-top:none; width:0; height:${lineLen}px;`;
     block.style.padding = `${padV}px ${padH}px`;
