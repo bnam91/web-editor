@@ -1257,7 +1257,9 @@ function scheduleAutoSave() {
     if (saveOk) localStorage.setItem(getSaveTsKey(), String(Date.now()));
     // GAP-005: 저장 결과를 기다려 인디케이터를 정직하게 갱신.
     // ok:false(EACCES·디스크풀·잠금 등) → '저장 실패'(빨강), 성공/큐잉 → '저장됨'.
-    Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true })) // 자동저장은 썸네일 캡처 생략
+    // BL-CDD-08: 파일 저장 대상을 발화 시점 검증된 id로 명시 고정 — saveProjectToFile 내부의
+    // "저장 시점 activeProjectId 재읽기"에 의존하지 않는다(비동기 큐잉 중 전환 대비).
+    Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true, projectId: _saveTargetId })) // 자동저장은 썸네일 캡처 생략
       .then(r => _setAutosaveIndicator(r && r.ok === false ? 'error' : 'saved'))
       .catch(() => _setAutosaveIndicator('error'));
   }, 1500);
@@ -1399,7 +1401,18 @@ function initApp() {
     //   ▶정적 오버레이라 첫 레이아웃에 포함→첫 프레임에 present, 이후 블로킹 동안 컴포지터가 transform
     //     스피너를 계속 회전. JS는 로드 완료/실패 시 닫기만 한다(정적 오버레이는 기본 표시라 항상 닫아야 함).
     const _endLoadingOverlay = () => { window.hideProjectLoadingOverlay?.(); };
+    // BL-CDD-08: initLoad는 무거운 프로젝트에서 수 초를 await하는데, 그 사이 CDP 워커/탭 전환이
+    // activeProjectId를 바꾸면 아래 apply가 "예전 프로젝트의 DOM"을 새 활성 프로젝트 위에 그리고,
+    // 이어지는 autosave가 그 DOM을 새 프로젝트 파일에 저장해 덮어쓴다(무결성 사고).
+    // → 진입 시점 id를 캡처하고, await 이후의 모든 apply/initEmpty는 불일치 시 중단한다.
+    const _bootProjectId = activeProjectId;
+    const _bootStale = () => {
+      if (activeProjectId === _bootProjectId) return false;
+      console.warn(`[initLoad] 부트 대상 변경 감지 (boot=${_bootProjectId} now=${activeProjectId}) — 늦은 apply 중단`);
+      return true;
+    };
     async function applyAndFinish(data) {
+      if (_bootStale()) { _endLoadingOverlay(); return; }
       try { applyProjectData(data); } catch(e) {
         console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
         initEmpty();
@@ -1409,6 +1422,7 @@ function initApp() {
     }
     function initEmpty() {
       _endLoadingOverlay(); // 로드 실패/빈 프로젝트 폴백 — 오버레이 닫기
+      if (_bootStale()) return; // 다른 프로젝트가 이미 활성 — 그 상태를 빈 페이지로 리셋하면 안 됨
       state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
       state.currentPageId = 'page_1';
       window.buildLayerPanel();
