@@ -747,6 +747,18 @@ function makeCanvasBlock(data = {}) {
     block.dataset.descSize  = data.descSize  || 14;
     block.dataset.textAlign = data.textAlign || 'left';
     block.dataset.cards     = JSON.stringify(data.cards || [{ title: '카드 제목', desc: '', imgSrc: '', cellBg: '' }]);
+    // U6: 생성 시점에도 심플카드 표시 옵션 수용 — 기존엔 updateCanvasBlock로만 가능해
+    // CDP 조립 시 add 직후 update를 한 번 더 불러야 했음. 렌더는 전부 dataset 기반이라 추가 매핑만으로 동작.
+    if (data.imgShape)   block.dataset.imgShape   = data.imgShape;     // 'rect' | 'circle'
+    if (data.labelPos)   block.dataset.labelPos   = data.labelPos;
+    if (data.cardOrient) block.dataset.cardOrient = data.cardOrient;   // 'portrait' | 'landscape'
+    if (data.textHide === true || data.textHide === 'true') block.dataset.textHide = 'true';
+    if (data.iconMode === true || data.iconMode === 'true') block.dataset.iconMode = 'true';
+    if (data.iconScale  !== undefined) block.dataset.iconScale  = data.iconScale;
+    if (data.iconColor)  block.dataset.iconColor  = data.iconColor;
+    if (data.iconBg)     block.dataset.iconBg     = data.iconBg;
+    if (data.titleColor) block.dataset.titleColor = data.titleColor;
+    if (data.descColor)  block.dataset.descColor  = data.descColor;
   }
 
   const gridCols = parseInt(block.dataset.gridCols) || 1;
@@ -955,7 +967,8 @@ function updateCanvasBlock(blockId, partial = {}) {
   }
   if (partial.gridRows !== undefined) {
     const n = Number(partial.gridRows);
-    if (!_isInt(n, 1, 4)) return { ok: false, code: 'INVALID', message: `gridRows must be integer in [1,4]: ${partial.gridRows}` };
+    // U6(BL-CDZ-07): 사이즈/가격표 등 장리스트 그리드용 상한 20 (cards 상한 64와 렌더러는 원래 무제한 — UI 픽커만 4×4 유지)
+    if (!_isInt(n, 1, 20)) return { ok: false, code: 'INVALID', message: `gridRows must be integer in [1,20]: ${partial.gridRows}` };
     _pushOnce(); block.dataset.gridRows = String(n); applied.gridRows = n; needGridSync = true;
   }
 

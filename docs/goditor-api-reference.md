@@ -5,6 +5,114 @@ CDP 에이전트 및 자동화 스크립트가 에디터를 제어하기 위해 
 > **규칙**: 모든 add 함수는 섹션이 선택된 상태에서 호출해야 한다.
 > 선택된 섹션이 없으면 toast 알림만 뜨고 아무 일도 일어나지 않는다.
 
+> **검증**: 2026-07-03 add API 18종(text·table·graph·divider·bridge·gap·icon-circle·label-group·step·chat·comparison·canvas·banner02·mockup·laurel·speech-bubble·icon-text·sticker) 격리 인스턴스 CDP 전수 스모크 + 저장/재로드 라운드트립 PASS.
+
+---
+
+## CDP 워커 퀵스타트 (격리 인스턴스 병렬 빌드)
+
+메인 앱(9334)을 건드리지 않고 자기 인스턴스로 빌드하는 표준 절차. 같은 앱 다중 기동 가능(싱글 인스턴스 락 없음) — 격리는 `--user-data-dir` 하나로 충분하며 프로젝트 저장소(`userData/projects`)까지 자동 분리된다.
+
+```bash
+cd ~/web-editor
+rm -rf /tmp/goditor_93XX && mkdir -p /tmp/goditor_93XX
+nohup node_modules/.bin/electron . --enable-logging \
+  --remote-debugging-port=93XX "--remote-allow-origins=*" \
+  --user-data-dir=/tmp/goditor_93XX admin > /tmp/goditor_93XX/electron.log 2>&1 &
+sleep 7 && curl -s http://127.0.0.1:93XX/json/version   # Chrome/... 뜨면 OK
+```
+
+- 포트: 9334(메인)·9335·9336(레이아웃 스킬 관례) 피해서 자유 포트 사용.
+- zsh 함정: `--remote-allow-origins=*`의 `*`는 반드시 따옴표로 감쌀 것.
+- 프로젝트 생성: `projects.html`에서 `Page.navigate`로 `index.html` 이동 후 `await window.createNewProjectTab()` → `window.activeProjectId` 획득.
+- ⚠️ **탭 10개 한도**: 한도 도달 시 `createNewProjectTab()`이 토스트만 띄우고 **조용히 no-op**(이전 프로젝트가 활성 유지 → 그 위에 빌드하는 사고). 생성 후 반드시 `activeProjectId`가 바뀌었는지 assert하고, 필요 시 `localStorage.removeItem('web-editor-open-tabs')` 후 리로드로 탭 정리.
+- **신규 프로젝트는 padX 72 기본**(2026-07-03부터, 끌리젠 규격). 텍스트는 72px 인셋, asset-block은 자동 풀블리드(음수마진). 구 프로젝트를 열면 저장된 값이 유지된다.
+- 저장: `window.triggerAutoSave()` 후 2초 이상 대기(디바운스 1.5s). 빌드 완료본은 `/tmp/goditor_93XX/projects/<id>/`에서 메인 저장소(`~/Library/Application Support/Goya Design Editor/projects/`)로 복사해 이관.
+- ⚠️ 하나의 인스턴스에서 여러 프로젝트를 오갈 때는 eval 진입 시 `window.activeProjectId`가 대상 프로젝트인지 가드하고, 빌드+직렬화+저장을 단일 동기 eval로 묶을 것(로드 중 전환 레이스 방지).
+
+### 신규 블록 (2026-07-03) — duo · infocard · innercard
+
+```js
+// duo — 다단(2~3컬럼) 레이아웃. 좌 수치/우 설명, 좌 이미지/우 텍스트 등 정형 다단 전용
+window.addDuoBlock({ gap: 32, valign: 'middle', cols: [
+  { width: 3, align: 'center', lines: [{ type: 'h1', text: '01', color: '#2d6fe8' }, { type: 'caption', text: 'REASON' }] },
+  { width: 7, lines: [{ type: 'h2', text: '헤드라인' }, { type: 'gap', height: 8 }, { type: 'body', text: '본문…' }] },
+] })
+// 라인 타입: label|h1|h2|h3|body|caption|image({imgSrc,height?,radius?})|gap({height})
+// 수정: updateDuoBlock(id, { patchCol: { index: 1, lines: [...] } } | { cols } | { gap } | { valign })
+
+// infocard — 스탯/가격/리뷰 카드. 별칭 3종이 variant 프리셋
+window.addCountupBlock({ data: { stats: [        // ★정적 최종값 빅넘버(애니 없음), N개 가로 배치
+  { value: '1위', label: '네이버 도마' }, { value: '12,000', unit: '+', label: '누적 판매' }, { value: '4.9', label: '평점' } ] } })
+window.addCountupBlock({ data: { value: '1,260', unit: '개', label: '누적 판매', caption: '※ 2026-06 기준' } }) // 단일 스탯
+window.addPriceCardBlock({ bg: '#f7f7f4', radius: 16, padding: 32,
+  data: { label: '최종 혜택가', originalPrice: '39,900', price: '29,900', discountPct: '25%', extras: ['적립 2%', '무료배송'] } })
+window.addReviewCardBlock({ bg: '#ffffff', radius: 12, padding: 28,
+  data: { stars: 5, author: 'kim****', body: '리뷰 본문', date: '2026.06' } })
+// 수정: updateInfoCardBlock(id, { data: { stars: 4 } } | { variant } | 스타일 키)
+
+// innercard — 범용 인너카드(섹션 bg 무관 카드 컨테이너 + 텍스트 스택). 다크 위 흰카드·보증카드·후기 인용 전부 이걸로
+window.addInnerCardBlock({ bg: '#ffffff', radius: 16, padding: 44, align: 'center', lines: [
+  { type: 'h2', text: '무단 도용을 금지합니다', color: '#222222' },
+  { type: 'body', text: '본문…', color: '#555555', marginTop: 12 } ] })
+window.addInnerCardBlock({ bg: '#ededed', padding: 56, align: 'center', lines: [   // 보증카드
+  { type: 'h1', text: '제품 고장 시 100% 환불', fontSize: 52, color: '#171717' }, { type: 'caption', text: '- 대표 올림 -', marginTop: 20 } ] })
+window.addInnerCardBlock({ shadow: 'soft', accentBar: { width: 5, color: '#c8f550' }, lines: [ /* 후기 인용 */ ] })
+// 옵션: bg/radius/padding/align/shadow(none|soft|strong)/width(0=100%)/border{width,color}/accentBar{width,color}
+// 수정: updateInnerCardBlock(id, { patchLine: { index, text } } | { lines } | 스타일 키)
+```
+
+### comparison 컬럼 상단 이미지 슬롯 (kitou 23.gif류)
+
+rows 아이템은 문자열 또는 `{type:'image', imgSrc, imgFit}` — 각 컬럼 `rows[0]`을 이미지로 주면 제품컷 2장 + featured 비교표가 한 블록으로 조립된다(2026-07-03 렌더 검증).
+
+```js
+window.addComparisonBlock({ featured: 1, cols: [
+  { title: '일반 도마', rows: [{ type: 'image', imgSrc: '…' }, '녹슮', '얇음'] },
+  { title: '키토우',   rows: [{ type: 'image', imgSrc: '…' }, '무녹', '통판'] } ] })
+```
+
+### 그리드 레시피 — 아이콘그리드·사이즈/가격표·리스트카드 (2026-07-03)
+
+전부 **canvas-block Simple Card Mode**로 조립한다(신규 블록 불필요). gridRows 상한 20(구 4), cards 상한 64.
+
+```js
+// (a) 아이콘 그리드 3열 — 원형 아이콘 + 제목 + 캡션 (BL-CDZ-05/BOL-02/014)
+window.addCanvasBlock({ cardMode:'simple', gridCols:3, gridRows:2,
+  imgShape:'circle', iconMode:true, iconScale:46, cardGap:16,
+  labelPos:'bottom', textAlign:'center',
+  cards:[ { icon:{svg:'<svg …>…</svg>'}, iconBg:'#eef2ff', title:'위생', desc:'열탕소독 가능' }, /* ×6 */ ] })
+
+// (b) 사이즈/가격표 그리드 — 썸네일+치수+가격 34셀 (BL-CDZ-07)
+window.addCanvasBlock({ cardMode:'simple', gridCols:2, gridRows:17,
+  imgRatio:60, labelPos:'bottom',
+  cards:[ { imgSrc:'…', title:'300×200×15', desc:'29,000원' }, /* ×34 */ ] })
+
+// (c) 리스트카드 — 체크마크 + 텍스트 행 (BL-CDZ-08)
+window.addCanvasBlock({ cardMode:'simple', gridCols:1, gridRows:5,
+  cardOrient:'landscape', imgRatio:15, iconMode:true, iconColor:'#2ecc71',
+  cards:[ { icon:{svg:'<svg…체크…>'}, title:'이런 분께 추천', desc:'' }, /* ×5 */ ] })
+```
+
+- 셀 채움/부분수정은 `updateCanvasBlock(blockId, { patchCards:[{index, …}] })`.
+- 아이콘 SVG는 `add_iconify_block`이 쓰는 api.iconify.design에서 가져오거나 인라인 SVG 직접 주입.
+
+### 모션/GIF 섹션 (2026-07-03 검증)
+
+**애니메이션 GIF는 파이프라인 전 구간에서 이미 동작한다** — 대표프레임 정지컷으로 대체하지 말고 **원본 GIF를 그대로 삽입**하라.
+
+```js
+window.addAssetBlock('standard');
+const ab = document.querySelector('.section-block:last-of-type .asset-block');
+window.setAssetImageFromSrc(ab, 'data:image/gif;base64,...');   // 원본 GIF dataURI
+```
+
+- 에디터 `<img>`가 GIF를 네이티브 재생하고, 블록에 `data-motion="gif"` 마커 + 우상단 GIF 배지가 자동 표시된다.
+- 저장 시 외부화도 `.gif` 바이트/확장자를 그대로 보존(`goya-asset://…/<hash>.gif`), 재인코딩 없음.
+- **HTML export = 애니 유지**(base64 재인라인). **PNG/JPG 섹션 export = 정지 1프레임**(속성상 당연). 섹션 export 포맷에 **"GIF (애니메이션)"** 옵션이 이미 있어 애니 GIF로도 내보낼 수 있다.
+- 워커 판별: `document.querySelectorAll('.asset-block[data-motion="gif"]')`.
+- ⚠️ **카운터/숫자 GIF 예외(현빈 확정 2026-07-03)**: 숫자가 올라가는 카운트업류 GIF는 모션 직삽입 대상이 **아니다** — 대표프레임은 잉크밀도가 아니라 ★**마지막 프레임(최고값)**이며, 그 최종값을 `addCountupBlock`(정적 빅넘버 스탯)으로 조립하는 것이 정답.
+
 ---
 
 ## 세션 초기화
@@ -142,6 +250,9 @@ window.addTextBlock('h1', { content: '제목', paddingX: 60 })
 | `color` | hex | — | 텍스트 색상 (예: `'#ffffff'`) |
 | `fontSize` | number (px) | — | 폰트 크기. 2열 col처럼 공간이 좁을 때 h1 기본값(104px)을 줄이는 용도 |
 | `paddingX` | number (px) | — | 블록 좌우 여백. `.row` 요소(`.text-block`의 부모)에 `padding-left/right` 적용. `dataset.paddingX`에 저장 |
+| `fontFamily` | string | Pretendard | CSS font-family 문자열(예: `'monospace'`, `"'Noto Serif KR', serif"`). 폰트픽커와 동일하게 `dataset.rawFont` 병기 |
+| `fontWeight` | number\|string | — | `100`~`900` \| `bold` \| `normal` |
+| `strokeWidth` / `strokeColor` | number(px) / color | — | `-webkit-text-stroke` 외곽선(+`paint-order:stroke fill`). **아웃라인 전용 텍스트(고스트 넘버럴)** = `color:'transparent'` + `strokeWidth:2, strokeColor:'#8a8f84'` |
 | `x` | number (px) | — | **freeLayout Frame 전용** — text-frame의 `left` 절대좌표. 지정 시 자동 스택 대신 고정 위치 사용. `dataset.offsetX`에 저장 |
 | `y` | number (px) | — | **freeLayout Frame 전용** — text-frame의 `top` 절대좌표. 지정 시 자동 스택 대신 고정 위치 사용. `dataset.offsetY`에 저장 |
 | `width` | number (px) | — | **freeLayout Frame 전용** — text-frame의 너비. 미지정 시 `100%` |
@@ -241,13 +352,19 @@ window.addGapBlock(100)    // 100px
 ```js
 window.addDividerBlock()
 window.addDividerBlock({ color: '#e0e0e0', lineStyle: 'dashed', weight: 2 })
+// 페이스라인(눈금 레일 + 강조 마커) — km 스플릿 레일 등 연결 데코
+window.addDividerBlock({ lineStyle: 'tick', color: '#b9bdb4', weight: 2,
+  tickGap: 28, tickHeight: 14, markerPos: 62, markerColor: '#c8f550' })
 ```
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `color` | hex | `'#cccccc'` | 선 색상 |
-| `lineStyle` | string | `'solid'` | `solid` `dashed` `dotted` |
-| `weight` | number (px) | `1` | 선 두께 |
+| `lineStyle` | string | `'solid'` | `solid` `dashed` `dotted` `tick`(눈금 레일) |
+| `weight` | number (px) | `1` | 선 두께(tick에선 눈금 두께) |
+| `tickGap` / `tickHeight` | number (px) | 24 / 12 | tick 전용 — 눈금 간격/높이 |
+| `markerPos` | number (0~100) | — | tick 전용 — 레일 위 강조 마커 위치(%). 생략 시 마커 없음 |
+| `markerColor` / `markerSize` | color / px | `#2d6fe8` / 10 | 마커 색/지름 |
 
 ---
 
@@ -291,12 +408,29 @@ window.addLabelGroupBlock({ labels: ['태그1', '태그2'], shape: 'circle' })
 ```js
 window.addTableBlock()
 window.addTableBlock({ showHeader: false, cellAlign: 'left' })
+// 데이터 주입 — headers가 열 수를, rows가 행을 결정한다 (기본 2열×7행 대체)
+window.addTableBlock({
+  showHeader: true, cellAlign: 'left',
+  headers: ['항목', 'A사', '우리'],
+  rows: [['가격', '9,900', '12,900'], ['보증', 'X', '1년']]
+})
 ```
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `showHeader` | boolean | `true` | 헤더 행 표시 여부 |
 | `cellAlign` | string | `'center'` | `left` `center` `right` |
+| `headers` | string[] | — | 헤더 셀 텍스트. 배열 길이 = 열 수 |
+| `rows` | string[][] | — | 본문 행 데이터(행×열). 지정 시 기본 7행을 대체 |
+| `cols` | number | — | 빈 그리드 열 수(1~32). headers 있으면 무시 |
+| `rowCount` | number | — | 빈 그리드 행 수(1~500). rows 있으면 무시 |
+| `textColor` / `lineColor` / `headerBg` | color | 토큰 | 셀 텍스트/선/헤더 배경색 |
+| `highlightCol` | number | — | 강조할 논리 열 index(0-base). 비교표 "우리 열" 강조 |
+| `highlightBg` / `highlightFg` | color | `#fff3d1` / 자동 | 강조 열 배경/글자색. fg 미지정 시 bg 휘도로 대비색 자동 |
+
+> **다크 섹션 테마어웨어(2026-07-03)**: 어두운 배경(휘도<0.45) 섹션에 색 옵션 없이 삽입하면 textColor `#e8e8e8`·lineColor `#555`·headerBg `#333`이 자동 적용된다(구버전은 #222 고정이라 다크에서 안 보였음). `updateTableBlock`도 `highlightCol`(null=해제)/`highlightBg`/`highlightFg`를 지원하며 headers/rows 재주입 시 하이라이트가 자동 재적용된다.
+>
+> **표 폭 노트(BL-BOL-06)**: 표는 섹션 padX 인셋 안의 일반 플로우 블록이다(풀블리드 아님). 텍스트보다 넓어 보이면 `tablePadX`(0~120)로 표 내부 좌우 패딩을 추가하라.
 
 ---
 
@@ -336,10 +470,26 @@ window.addGraphBlock({
 })
 ```
 
+```js
+// 온도 곡선(temp-curve): 곡선 보간 + 면 채우기
+window.addGraphBlock({ chartType: 'line', smooth: true, fillArea: true,
+  lineColor: '#e74c3c', fillColor: '#e74c3c', fillAlpha: 0.15,
+  items: [{ label: '0분', value: 100 }, { label: '10분', value: 55 }, { label: '30분', value: 30 }] })
+// 비교 막대(자사 vs 경쟁): 2시리즈 + 범례
+window.addGraphBlock({ chartType: 'bar-pair', seriesA: '우리', seriesB: 'A사',
+  barColor: '#2d6fe8', barColor2: '#c9c9c9',
+  items: [{ label: '보온력', value: 95, value2: 60 }, { label: '세척', value: 85, value2: 70 }] })
+```
+
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `chartType` | string | `'bar-v'` | `bar-v` (세로 막대) `bar-h` (가로 막대) |
-| `items` | `{ label, value }[]` | 5개 샘플 | value 범위: 0~100. 빈 배열이면 기본값 사용 |
+| `chartType` | string | `'bar-v'` | `bar-v` `bar-h` `line` `bar-pair`(2시리즈 비교) |
+| `items` | `{ label, value, value2? }[]` | 5개 샘플 | `value2`는 bar-pair 전용(시리즈 B). 빈 배열이면 기본값 사용 |
+| `smooth` | boolean | `false` | line 전용 — Catmull-Rom 곡선 보간(온도 곡선) |
+| `fillArea` / `fillAlpha` / `fillColor` | bool / 0~1 / color | — | line 면 채우기 |
+| `lineColor` / `barColor` / `barColor2` | color | 프리셋 | 선/시리즈A/시리즈B 색 |
+| `seriesA` / `seriesB` | string | — | bar-pair 범례 이름(지정 시 범례 표시) |
+| `chartHeight` / `labelSize` / `strokeWidth` / `pointRadius` | number | 240/20/3/5 | 크기 계열 |
 
 ---
 
@@ -546,12 +696,26 @@ window.addChatBlock({ messages: [ { text: '안녕하세요', align: 'left' }, { 
 
 > 인라인 편집(`.chb-bubble[contenteditable]`) 중이면 `USER_BUSY` 반환.
 
-### `window.addSpeechBubbleBlock()`
+### `window.addSpeechBubbleBlock(tail?)`
 
 말풍선 단일 블록 생성. (block-factory.js)
 
 ```js
-window.addSpeechBubbleBlock()
+window.addSpeechBubbleBlock()        // 기본 꼬리
+window.addSpeechBubbleBlock('left')  // 꼬리 방향: 'left' | 'right'
+```
+
+> 좌우 교차 대화(고객 니즈 말풍선 연출)는 단일 말풍선 반복보다 `addChatBlock({ messages: [{text, align:'left'|'right'}] })`이 적합하다.
+
+### `window.addIconTextBlock()`
+
+아이콘+텍스트 한 줄 블록 생성. 인자 없음 — 텍스트는 생성 후 블록의 `.itb-text` 요소에 직접 설정한다. (block-factory.js)
+
+```js
+window.addIconTextBlock()
+// 텍스트 설정: 방금 넣은 블록의 .itb-text에 주입
+const itb = document.querySelector('.section-block:last-of-type .icon-text-block:last-of-type');
+itb.querySelector('.itb-text').textContent = '무료배송';
 ```
 
 ### `window.addIconifyBlock(iconName, svgContent, size?)` / `window.updateIconifyBlock(blockId, partial)`
@@ -757,6 +921,12 @@ ss.dataset.bg     = '#1e1e1e'
 
 ```js
 window.addFrameBlock({ fullWidth: true, bg: '#222222' })
+// 컨테이너 데코(2026-07-03): 테두리 카드 / 좌측 강조바 인용 / 인너카드
+window.addFrameBlock({ fullWidth: true, bg: '#ffffff', radius: 12,
+  accentBar: { width: 5, color: '#c8f550' }, padding: 28 })   // 후기 인용 카드
+window.addFrameBlock({ fullWidth: true, bg: '#f4f8ee', radius: 16,
+  border: { width: 2, color: '#c8d8b0' }, padding: 32 })       // 보증 bordered 카드
+// 다크 섹션 위 "흰 인너카드"(BL-019) = fullWidth + bg '#ffffff' + radius + padding
 // 이후 addTextBlock / addAssetBlock / addGapBlock 호출 시 frame 내부에 삽입됨
 window.addTextBlock('h1', { content: '제목', color: '#ffffff' })
 window.addAssetBlock('standard')

@@ -535,6 +535,10 @@ function setAssetImageFromSrc(ab, src) {
   if (!ab || !src) return;
   ab.classList.add('has-image');
   ab.dataset.imgSrc = src;
+  // U10(BL-BOL-01/016): 애니메이션 GIF 감지 마커 — <img>는 원래 GIF를 그대로 재생하므로
+  // 파이프라인 변경 없이 에디터 인지용 배지(css [data-motion])와 워커 판별에만 쓰인다.
+  if (/^data:image\/gif[;,]/i.test(src) || /\.gif([?#]|$)/i.test(src)) ab.dataset.motion = 'gif';
+  else delete ab.dataset.motion;
   if (!ab.dataset.fit) ab.dataset.fit = 'cover';
   // 기존 위치/크기/포지션 초기화
   delete ab.dataset.imgW;

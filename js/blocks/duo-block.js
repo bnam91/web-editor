@@ -1,0 +1,205 @@
+/* ═══════════════════════════════════
+   DUO BLOCK — 다단(2~3컬럼) 레이아웃 프리미티브 (BL-CDD-02)
+═══════════════════════════════════ */
+//
+// 봉인된 NewGrid(자유 중첩 그리드)의 대체가 아니라, 상세페이지에서 실제로 필요한
+// "정형 다단"(좌 수치/우 설명, 양극 게이지, 좌 이미지/우 텍스트)만 안전하게 커버한다.
+// 자식 블록 중첩 없음 — 상태는 전부 data-*(cols JSON), renderDuoBlock이 인라인 스타일로만
+// 재조립(직렬화·HTML export 그대로 생존, step/infocard 패턴).
+//
+// cols: [{ width:1, align:'left', valign:'top', bg:'', padding:0, radius:0,
+//          lines:[{ type:'label|h1|h2|h3|body|caption|image|gap',
+//                   text?, fontSize?, color?, weight?, align?, marginTop?,
+//                   imgSrc?, height?(image/gap), radius?(image) }] }]
+
+import { insertAfterSelected, genId } from '../drag-utils.js';
+import { bindBlock } from '../drag-drop.js';
+
+const DUO_DEFAULTS = {
+  gap: 24,
+  valign: 'top', // top | middle | bottom
+  cols: [
+    { width: 1, lines: [{ type: 'h2', text: '왼쪽 컬럼' }, { type: 'body', text: '내용을 입력하세요.' }] },
+    { width: 1, lines: [{ type: 'h2', text: '오른쪽 컬럼' }, { type: 'body', text: '내용을 입력하세요.' }] },
+  ],
+};
+
+// 컬럼 스케일 텍스트 롤 기본값 (풀폭 h1 104px는 다단에선 과대 — 컬럼용 축소 기준)
+const _DUO_ROLES = {
+  label:   { size: 16, weight: 600, lh: 1.4, ls: '0.04em' },
+  h1:      { size: 64, weight: 800, lh: 1.1, ls: '-0.02em' },
+  h2:      { size: 40, weight: 700, lh: 1.2, ls: '-0.01em' },
+  h3:      { size: 28, weight: 700, lh: 1.3, ls: '0' },
+  body:    { size: 22, weight: 400, lh: 1.6, ls: '0' },
+  caption: { size: 14, weight: 400, lh: 1.5, ls: '0' },
+};
+const _DUO_VALIGN = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
+const _DUO_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function _duoCols(block) {
+  let cols;
+  try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) { cols = []; }
+  if (!Array.isArray(cols) || cols.length < 2) cols = JSON.parse(JSON.stringify(DUO_DEFAULTS.cols));
+  return cols.slice(0, 3);
+}
+
+function _duoLineHtml(line, colAlign) {
+  if (!line || typeof line !== 'object') return '';
+  const mt = Number.isFinite(Number(line.marginTop)) ? Number(line.marginTop) : null;
+  const mtCss = mt !== null ? `margin-top:${mt}px;` : '';
+  if (line.type === 'gap') {
+    const h = Number(line.height) || 16;
+    return `<div class="duo-gap" style="height:${h}px;${mtCss}"></div>`;
+  }
+  if (line.type === 'image') {
+    if (!line.imgSrc) return '';
+    const h = Number(line.height) || 0;
+    const r = Number(line.radius) || 0;
+    const sizeCss = h > 0 ? `height:${h}px;object-fit:cover;` : 'height:auto;';
+    return `<img class="duo-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;${sizeCss}${r > 0 ? `border-radius:${r}px;` : ''}${mtCss}">`;
+  }
+  const role = _DUO_ROLES[line.type] || _DUO_ROLES.body;
+  const size = Number(line.fontSize) || role.size;
+  const weight = line.weight !== undefined ? String(line.weight) : String(role.weight);
+  const color = (typeof line.color === 'string' && _DUO_COLOR_RE.test(line.color.trim())) ? line.color.trim() : '';
+  const align = line.align || colAlign || 'left';
+  return `<div class="duo-line duo-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${role.lh};letter-spacing:${role.ls};text-align:${align};${color ? `color:${color};` : ''}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
+}
+
+function renderDuoBlock(block) {
+  const cols = _duoCols(block);
+  const gap = parseInt(block.dataset.gap);
+  const gapPx = Number.isFinite(gap) ? gap : DUO_DEFAULTS.gap;
+  const valign = _DUO_VALIGN[block.dataset.valign] || 'flex-start';
+
+  block.style.width = '100%';
+  block.style.boxSizing = 'border-box';
+
+  const totalW = cols.reduce((s, c) => s + (Number(c.width) > 0 ? Number(c.width) : 1), 0) || 1;
+  block.innerHTML = `<div class="duo-inner" style="display:flex;align-items:${valign};gap:${gapPx}px;width:100%;">
+    ${cols.map(col => {
+      const w = Number(col.width) > 0 ? Number(col.width) : 1;
+      const bg = (typeof col.bg === 'string' && _DUO_COLOR_RE.test(col.bg.trim())) ? col.bg.trim() : '';
+      const pad = Number(col.padding) || 0;
+      const r = Number(col.radius) || 0;
+      const cv = _DUO_VALIGN[col.valign] || '';
+      const lines = Array.isArray(col.lines) ? col.lines : [];
+      return `<div class="duo-col" style="flex:${(w / totalW * 100).toFixed(2)} 1 0;min-width:0;${bg ? `background:${bg};` : ''}${pad > 0 ? `padding:${pad}px;` : ''}${r > 0 ? `border-radius:${r}px;` : ''}${cv ? `align-self:${cv};` : ''}">
+        ${lines.map(l => _duoLineHtml(l, col.align)).join('')}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function makeDuoBlock(opts = {}) {
+  const block = document.createElement('div');
+  block.className = 'duo-block';
+  block.id = genId('duo');
+  block.dataset.type = 'duo';
+  const cols = (Array.isArray(opts.cols) && opts.cols.length >= 2) ? opts.cols.slice(0, 3) : JSON.parse(JSON.stringify(DUO_DEFAULTS.cols));
+  block.dataset.cols = JSON.stringify(cols);
+  block.dataset.gap = String(Number.isFinite(Number(opts.gap)) ? Number(opts.gap) : DUO_DEFAULTS.gap);
+  block.dataset.valign = ['top', 'middle', 'bottom'].includes(opts.valign) ? opts.valign : DUO_DEFAULTS.valign;
+  renderDuoBlock(block);
+
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.id = genId('row');
+  row.dataset.layout = 'stack';
+  row.appendChild(block);
+  return { row, block };
+}
+
+function addDuoBlock(opts = {}) {
+  const sec = window.getSelectedSection?.();
+  if (!sec) { window.showNoSelectionHint?.(); return null; }
+  window.pushHistory();
+  const { row, block } = makeDuoBlock(opts);
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  window.buildLayerPanel();
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  window.triggerAutoSave?.();
+  return { row, block };
+}
+
+// updateStepBlock/updateInfoCardBlock 미러 — validate-then-commit + before 스냅샷.
+// 지원: cols(전체 교체), patchCol {index, ...부분}(lines 교체 포함), gap, valign
+function updateDuoBlock(blockId, partial = {}) {
+  if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
+  const block = document.getElementById(String(blockId));
+  if (!block || !block.classList.contains('duo-block')) {
+    return { ok: false, code: 'NOT_FOUND', message: `duo-block not found: ${blockId}` };
+  }
+  if (partial == null || typeof partial !== 'object') {
+    return { ok: false, code: 'INVALID', message: 'partial must be object' };
+  }
+  if (Object.keys(partial).length === 0) {
+    return { ok: false, code: 'INVALID', message: 'partial is empty' };
+  }
+
+  const next = {};
+  const applied = {};
+
+  if (partial.cols !== undefined) {
+    if (!Array.isArray(partial.cols) || partial.cols.length < 2 || partial.cols.length > 3) {
+      return { ok: false, code: 'INVALID', message: 'cols must be array of 2~3 columns' };
+    }
+    next.cols = JSON.stringify(partial.cols);
+    applied.cols = partial.cols;
+  }
+  if (partial.patchCol !== undefined) {
+    if (next.cols !== undefined) return { ok: false, code: 'INVALID', message: 'cols와 patchCol 동시 지정 불가' };
+    const p = partial.patchCol;
+    if (!p || typeof p !== 'object' || !Number.isFinite(Number(p.index))) {
+      return { ok: false, code: 'INVALID', message: 'patchCol must be {index, ...}' };
+    }
+    const cols = _duoCols(block);
+    const i = Number(p.index);
+    if (i < 0 || i >= cols.length) return { ok: false, code: 'INVALID', message: `patchCol.index out of range (0~${cols.length - 1})` };
+    const { index, ...rest } = p;
+    cols[i] = Object.assign({}, cols[i], rest);
+    next.cols = JSON.stringify(cols);
+    applied.patchCol = { index: i, ...rest };
+  }
+  if (partial.gap !== undefined) {
+    const n = Number(partial.gap);
+    if (!Number.isFinite(n) || n < 0 || n > 200) return { ok: false, code: 'INVALID', message: 'gap must be 0~200' };
+    next.gap = String(Math.round(n));
+    applied.gap = Math.round(n);
+  }
+  if (partial.valign !== undefined) {
+    if (!['top', 'middle', 'bottom'].includes(partial.valign)) {
+      return { ok: false, code: 'INVALID', message: 'valign must be top|middle|bottom' };
+    }
+    next.valign = partial.valign;
+    applied.valign = partial.valign;
+  }
+
+  const before = { cols: block.dataset.cols, gap: block.dataset.gap, valign: block.dataset.valign };
+  window.pushHistory?.();
+  Object.assign(block.dataset, next);
+  try {
+    renderDuoBlock(block);
+  } catch (e) {
+    Object.assign(block.dataset, before); // rollback
+    try { renderDuoBlock(block); } catch (_) {}
+    return { ok: false, code: 'RENDER_ERROR', message: e.message };
+  }
+  if (block.classList.contains('selected')) {
+    try { window.showDuoProperties?.(block); } catch (_) {}
+  }
+  try { window.buildLayerPanel?.(); } catch (_) {}
+  window.scheduleAutoSave?.();
+  return { ok: true, blockId, before, applied };
+}
+
+window.makeDuoBlock = makeDuoBlock;
+window.addDuoBlock = addDuoBlock;
+window.updateDuoBlock = updateDuoBlock;
+window.renderDuoBlock = renderDuoBlock;
+
+// innercard-block 등 라인 스택형 블록이 같은 롤/렌더를 공유한다 (부품 공유 — 현빈 지시 2026-07-03)
+export { makeDuoBlock, addDuoBlock, updateDuoBlock, renderDuoBlock, DUO_DEFAULTS, _duoLineHtml as duoLineHtml, _DUO_ROLES as DUO_ROLES };

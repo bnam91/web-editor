@@ -101,7 +101,7 @@ function _assetsBindGlobalKeydown() {
       '.col.multi-selected, .frame-block.selected, .group-block.group-selected, ' +
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .icon-text-block.selected, ' +
+      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, ' +
       '.shape-block.selected, .speech-bubble-block.selected, .canvas-block.selected, ' +
       '.banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, ' +
@@ -432,7 +432,7 @@ async function assetsImportFromGallery(galleryIds, parentId = null) {
       const m = String(r.dataUrl).match(/^data:([^;]+);base64,(.*)$/);
       if (!m) continue;
       const mime = m[1], b64 = m[2];
-      const saved = await _assetsSaveFile(b64, mime, item.id + (mime === 'image/jpeg' ? '.jpg' : '.png'));
+      const saved = await _assetsSaveFile(b64, mime, item.id + (mime === 'image/jpeg' ? '.jpg' : mime === 'image/gif' ? '.gif' : mime === 'image/webp' ? '.webp' : '.png'));
       if (!saved) continue;
       const node = {
         id: saved.id,

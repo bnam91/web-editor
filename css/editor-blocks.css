@@ -373,6 +373,25 @@
 .asset-block.has-image.selected .asset-overlay-clear { opacity: 1; }
 .asset-block.drag-over { outline: 2px dashed var(--sel-color) !important; outline-offset: -3px; }
 
+/* U10: 애니메이션 GIF 인지 배지 — 에디터 전용(#canvas 스코프라 export 오프스크린 클론엔 미적용).
+   비주얼은 section-label 계열(--ui-bg-input/--ui-text-muted), --inv-zoom 카운터스케일로 줌 불변 크기. */
+#canvas .asset-block[data-motion="gif"]::after {
+  content: 'GIF';
+  position: absolute;
+  top: calc(6px * var(--inv-zoom, 1));
+  right: calc(6px * var(--inv-zoom, 1));
+  z-index: 5;
+  font-size: calc(11px * var(--inv-zoom, 1));
+  font-weight: var(--ui-fw-medium);
+  letter-spacing: 0.06em;
+  color: var(--ui-text-muted);
+  background: var(--ui-bg-input);
+  padding: calc(2px * var(--inv-zoom, 1)) calc(7px * var(--inv-zoom, 1));
+  border-radius: calc(4px * var(--inv-zoom, 1));
+  pointer-events: none;
+  opacity: 0.85;
+}
+
 /* 이미지 포지션 드래그 모드 */
 .asset-block.pos-dragging {
   outline: 1px solid var(--sel-color) !important;
@@ -804,6 +823,25 @@
 .bridge-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .bridge-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 
+/* ═══════════════════════════════════
+   DUO / INFOCARD BLOCK — dataset 모델 콤포짓 (U4·U5)
+═══════════════════════════════════ */
+.duo-block,
+.infocard-block,
+.innercard-block {
+  position: relative;
+  width: 100%;
+  cursor: pointer;
+  box-sizing: border-box;
+  outline: 2px solid transparent;
+}
+.duo-block:hover::after,
+.infocard-block:hover::after,
+.innercard-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.duo-block.selected,
+.infocard-block.selected,
+.innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
 .frame-block[data-text-frame="true"]:has(.text-block.selected) {
@@ -867,6 +905,9 @@
 .graph-block.selected,
 .divider-block.selected,
 .bridge-block.selected,
+.duo-block.selected,
+.infocard-block.selected,
+.innercard-block.selected,
 .mockup-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }
@@ -974,6 +1015,9 @@
 .frame-block:not(.selected) .graph-block:hover,
 .frame-block:not(.selected) .divider-block:hover,
 .frame-block:not(.selected) .bridge-block:hover,
+.frame-block:not(.selected) .duo-block:hover,
+.frame-block:not(.selected) .infocard-block:hover,
+.frame-block:not(.selected) .innercard-block:hover,
 .frame-block:not(.selected) .icon-text-block:hover,
 .frame-block:not(.selected) .shape-block:hover {
   outline: none !important;
@@ -984,6 +1028,9 @@
 .frame-block:not(.selected) .graph-block:hover::after,
 .frame-block:not(.selected) .divider-block:hover::after,
 .frame-block:not(.selected) .bridge-block:hover::after,
+.frame-block:not(.selected) .duo-block:hover::after,
+.frame-block:not(.selected) .infocard-block:hover::after,
+.frame-block:not(.selected) .innercard-block:hover::after,
 .frame-block:not(.selected) .label-group-block:hover::after,
 .frame-block:not(.selected) .shape-block:hover::after {
   display: none !important;

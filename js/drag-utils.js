@@ -78,7 +78,7 @@ function insertAfterSelected(section, el) {
     const sel = ssInner.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected'
+      '.card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected'
     );
     if (sel) {
       const ref = sel.classList.contains('gap-block') ? sel : (sel.closest('.frame-block[data-text-frame]') || sel.closest('.row') || sel);
@@ -119,7 +119,7 @@ function insertAfterSelected(section, el) {
     return;
   }
 
-  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected');
+  const sel = document.querySelector('.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .card-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .icon-block.selected, .step-block.selected, .vector-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .laurel-block.selected, .chat-block.selected');
 
   if (sel && sel.closest('.section-block') === section) {
     const isGap = sel.classList.contains('gap-block');
@@ -167,7 +167,8 @@ const GRAPH_DEFAULT_ITEMS = [
 function renderGraph(block) {
   const items      = JSON.parse(block.dataset.items || '[]');
   const chartType  = block.dataset.chartType  || 'bar-v';
-  const maxVal     = Math.max(...items.map(i => i.value), 1);
+  // bar-pair(2시리즈)의 value2까지 포함해 스케일 산출 — 타 차트는 value2 없음(0)이라 영향 없음
+  const maxVal     = Math.max(...items.flatMap(i => [i.value || 0, i.value2 || 0]), 1);
   const chartH     = parseInt(block.dataset.chartHeight) || 240;
   const labelSize  = parseInt(block.dataset.labelSize)   || 20;
   const valSize    = Math.round(labelSize * 1.07);
@@ -230,6 +231,20 @@ function renderGraph(block) {
     const points = items.map((it, i) => ({ x: xOf(i), y: yOf(it.value), v: it.value, label: it.label }));
     const polyPoints = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
+    // U9(BL-BOL-03): 곡선(스무드) 모드 — Catmull-Rom → cubic bezier. 온도 상승/냉각 곡선(temp-curve) 재현용.
+    const smooth = block.dataset.lineSmooth === '1' && points.length >= 3;
+    const _smoothD = (pts) => {
+      let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+        const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+        const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+        d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+      }
+      return d;
+    };
+    const smoothD = smooth ? _smoothD(points) : '';
+
     // %-좌표 (오버레이 HTML 점/라벨 배치용)
     const overlayItems = points.map(p => {
       const leftPct  = (p.x / innerW) * 100;
@@ -256,15 +271,20 @@ function renderGraph(block) {
     const areaEl = (fillArea && n >= 2) ? (() => {
       const firstX = points[0].x.toFixed(1);
       const lastX  = points[points.length - 1].x.toFixed(1);
-      const areaPoints = `${polyPoints} ${lastX},${baselineY} ${firstX},${baselineY}`;
       const fillAttr = fillColor
         ? `fill="${fillColor}" fill-opacity="${fillAlpha}"`
         : `fill="currentColor" fill-opacity="${fillAlpha}" style="color:var(--ui-accent-primary,#3b82f6)"`;
+      if (smooth) {
+        return `<path class="grb-line-area" d="${smoothD} L ${lastX} ${baselineY} L ${firstX} ${baselineY} Z" ${fillAttr} stroke="none"/>`;
+      }
+      const areaPoints = `${polyPoints} ${lastX},${baselineY} ${firstX},${baselineY}`;
       return `<polygon class="grb-line-area" points="${areaPoints}" ${fillAttr} stroke="none"/>`;
     })() : '';
 
     const polyEl = n >= 2
-      ? `<polyline class="grb-line-path" points="${polyPoints}" fill="none" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${colorAttr}/>`
+      ? (smooth
+        ? `<path class="grb-line-path" d="${smoothD}" fill="none" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${colorAttr}/>`
+        : `<polyline class="grb-line-path" points="${polyPoints}" fill="none" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${colorAttr}/>`)
       : '';
 
     const pointDots = overlayItems.map(o =>
@@ -294,6 +314,40 @@ function renderGraph(block) {
           ${polyEl}
         </svg>
         <div class="grb-line-overlay">${pointDots}${labelsHTML}</div>
+      </div>`;
+  } else if (chartType === 'bar-pair') {
+    // ── U9(BL-BOL-03): 2시리즈 비교 세로 막대 (자사 vs 경쟁) — items: [{label, value, value2}]
+    const _lc = block.dataset.labelColor || '';
+    const _vCss = (block.dataset.showVLabel !== '0' ? '' : 'display:none;') + ((block.dataset.vlabelColor || _lc) ? `color:${block.dataset.vlabelColor || _lc};` : '');
+    const _xCss = (block.dataset.showXLabel !== '0' ? '' : 'display:none;') + ((block.dataset.xlabelColor || _lc) ? `color:${block.dataset.xlabelColor || _lc};` : '');
+    const barColor  = block.dataset.barColor  || '';
+    const barColor2 = block.dataset.barColor2 || '#c9c9c9';
+    const sA = block.dataset.seriesA || '';
+    const sB = block.dataset.seriesB || '';
+    const legend = (sA || sB) ? `
+      <div class="grb-pair-legend" style="font-size:${labelSize}px;${_xCss}">
+        ${sA ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot"${barColor ? ` style="background:${barColor}"` : ''}></span>${sA}</span>` : ''}
+        ${sB ? `<span class="grb-pair-legend-item"><span class="grb-pair-dot" style="background:${barColor2}"></span>${sB}</span>` : ''}
+      </div>` : '';
+    const bar = (v, color, extraClass) => {
+      const pct = !v ? 0 : Math.max(1, Math.round((v / maxVal) * 100));
+      const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
+      return `
+        <div class="grb-pair-series">
+          <div class="grb-bar-val-label" style="font-size:${valSize}px;${_vCss}">${v ?? 0}</div>
+          <div class="grb-bar-fill${extraClass}" style="${fillStyle}${color ? `background:${color};` : ''}"></div>
+        </div>`;
+    };
+    block.innerHTML = `${legend}
+      <div class="grb-bars-v" style="height:${chartH}px">
+        ${items.map(item => `
+          <div class="grb-bar-col">
+            <div class="grb-bar-fill-wrap grb-pair-wrap">
+              ${bar(item.value, barColor, '')}
+              ${bar(item.value2, barColor2, ' grb-bar-fill-b')}
+            </div>
+            <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${item.label}</div>
+          </div>`).join('')}
       </div>`;
   } else {
     const barThickness = parseInt(block.dataset.barThickness) || 0;
@@ -346,6 +400,31 @@ function applyDividerStyle(block) {
   const lineLen = parseInt(block.dataset.lineLength) || 80;
   // padH가 콘텐츠 폭의 절반보다 커도 그대로 적용 (사용자 의도). 라인은 box-sizing border-box로 음수 폭 시 안 보일 수 있음.
 
+  // U7(BL-CDD-06): 페이스라인 — 눈금 레일(tick) + 선택 마커. 수평 전용.
+  // 기존 마커는 항상 걷어낸 뒤 tick+markerPos일 때만 다시 그린다(스타일 전환 시 잔재 방지).
+  block.querySelector('.dvd-marker')?.remove();
+  if (style === 'tick' && dir !== 'vertical') {
+    const tickH   = parseInt(block.dataset.tickHeight) || 12;
+    const tickGap = parseInt(block.dataset.tickGap) || 24;
+    const w = Math.max(1, parseInt(weight) || 1);
+    hr.style.cssText = `border:none;height:${tickH}px;` +
+      `background:repeating-linear-gradient(90deg, ${color} 0 ${w}px, transparent ${w}px ${tickGap}px);`;
+    block.style.padding = `${padV}px ${padH}px`;
+    block.style.display = '';
+    block.style.position = 'relative';
+    const mp = parseFloat(block.dataset.markerPos);
+    if (Number.isFinite(mp) && mp >= 0 && mp <= 100) {
+      const mc = block.dataset.markerColor || '#2d6fe8';
+      const ms = parseInt(block.dataset.markerSize) || 10;
+      const marker = document.createElement('span');
+      marker.className = 'dvd-marker';
+      marker.style.cssText = `position:absolute;left:calc(${padH}px + (100% - ${padH * 2}px) * ${mp / 100});` +
+        `top:50%;transform:translate(-50%,-50%);width:${ms}px;height:${ms}px;border-radius:50%;` +
+        `background:${mc};pointer-events:none;`;
+      block.appendChild(marker);
+    }
+    return;
+  }
   if (dir === 'vertical') {
     hr.style.cssText = `border-left:${weight}px ${style} ${color}; border-top:none; width:0; height:${lineLen}px;`;
     block.style.padding = `${padV}px ${padH}px`;
