@@ -28,6 +28,7 @@
     '.bridge-block',
     '.duo-block',
     '.infocard-block',
+    '.innercard-block',
     '.icon-text-block',
     '.canvas-block',
     '.banner02-block, .comparison-block',

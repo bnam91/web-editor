@@ -30,6 +30,48 @@ sleep 7 && curl -s http://127.0.0.1:93XX/json/version   # Chrome/... 뜨면 OK
 - 저장: `window.triggerAutoSave()` 후 2초 이상 대기(디바운스 1.5s). 빌드 완료본은 `/tmp/goditor_93XX/projects/<id>/`에서 메인 저장소(`~/Library/Application Support/Goya Design Editor/projects/`)로 복사해 이관.
 - ⚠️ 하나의 인스턴스에서 여러 프로젝트를 오갈 때는 eval 진입 시 `window.activeProjectId`가 대상 프로젝트인지 가드하고, 빌드+직렬화+저장을 단일 동기 eval로 묶을 것(로드 중 전환 레이스 방지).
 
+### 신규 블록 (2026-07-03) — duo · infocard · innercard
+
+```js
+// duo — 다단(2~3컬럼) 레이아웃. 좌 수치/우 설명, 좌 이미지/우 텍스트 등 정형 다단 전용
+window.addDuoBlock({ gap: 32, valign: 'middle', cols: [
+  { width: 3, align: 'center', lines: [{ type: 'h1', text: '01', color: '#2d6fe8' }, { type: 'caption', text: 'REASON' }] },
+  { width: 7, lines: [{ type: 'h2', text: '헤드라인' }, { type: 'gap', height: 8 }, { type: 'body', text: '본문…' }] },
+] })
+// 라인 타입: label|h1|h2|h3|body|caption|image({imgSrc,height?,radius?})|gap({height})
+// 수정: updateDuoBlock(id, { patchCol: { index: 1, lines: [...] } } | { cols } | { gap } | { valign })
+
+// infocard — 스탯/가격/리뷰 카드. 별칭 3종이 variant 프리셋
+window.addCountupBlock({ data: { stats: [        // ★정적 최종값 빅넘버(애니 없음), N개 가로 배치
+  { value: '1위', label: '네이버 도마' }, { value: '12,000', unit: '+', label: '누적 판매' }, { value: '4.9', label: '평점' } ] } })
+window.addCountupBlock({ data: { value: '1,260', unit: '개', label: '누적 판매', caption: '※ 2026-06 기준' } }) // 단일 스탯
+window.addPriceCardBlock({ bg: '#f7f7f4', radius: 16, padding: 32,
+  data: { label: '최종 혜택가', originalPrice: '39,900', price: '29,900', discountPct: '25%', extras: ['적립 2%', '무료배송'] } })
+window.addReviewCardBlock({ bg: '#ffffff', radius: 12, padding: 28,
+  data: { stars: 5, author: 'kim****', body: '리뷰 본문', date: '2026.06' } })
+// 수정: updateInfoCardBlock(id, { data: { stars: 4 } } | { variant } | 스타일 키)
+
+// innercard — 범용 인너카드(섹션 bg 무관 카드 컨테이너 + 텍스트 스택). 다크 위 흰카드·보증카드·후기 인용 전부 이걸로
+window.addInnerCardBlock({ bg: '#ffffff', radius: 16, padding: 44, align: 'center', lines: [
+  { type: 'h2', text: '무단 도용을 금지합니다', color: '#222222' },
+  { type: 'body', text: '본문…', color: '#555555', marginTop: 12 } ] })
+window.addInnerCardBlock({ bg: '#ededed', padding: 56, align: 'center', lines: [   // 보증카드
+  { type: 'h1', text: '제품 고장 시 100% 환불', fontSize: 52, color: '#171717' }, { type: 'caption', text: '- 대표 올림 -', marginTop: 20 } ] })
+window.addInnerCardBlock({ shadow: 'soft', accentBar: { width: 5, color: '#c8f550' }, lines: [ /* 후기 인용 */ ] })
+// 옵션: bg/radius/padding/align/shadow(none|soft|strong)/width(0=100%)/border{width,color}/accentBar{width,color}
+// 수정: updateInnerCardBlock(id, { patchLine: { index, text } } | { lines } | 스타일 키)
+```
+
+### comparison 컬럼 상단 이미지 슬롯 (kitou 23.gif류)
+
+rows 아이템은 문자열 또는 `{type:'image', imgSrc, imgFit}` — 각 컬럼 `rows[0]`을 이미지로 주면 제품컷 2장 + featured 비교표가 한 블록으로 조립된다(2026-07-03 렌더 검증).
+
+```js
+window.addComparisonBlock({ featured: 1, cols: [
+  { title: '일반 도마', rows: [{ type: 'image', imgSrc: '…' }, '녹슮', '얇음'] },
+  { title: '키토우',   rows: [{ type: 'image', imgSrc: '…' }, '무녹', '통판'] } ] })
+```
+
 ### 그리드 레시피 — 아이콘그리드·사이즈/가격표·리스트카드 (2026-07-03)
 
 전부 **canvas-block Simple Card Mode**로 조립한다(신규 블록 불필요). gridRows 상한 20(구 4), cards 상한 64.

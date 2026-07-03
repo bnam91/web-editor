@@ -13,7 +13,7 @@ import { propPanel } from '../globals.js';
 function _getSelectedFrameWrappers() {
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, ' +
     // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel
     '.iconify-block.selected, .chat-block.selected, .gradient-block.selected, ' +
@@ -362,7 +362,7 @@ window.hasFreeLayoutMultiSel = hasFreeLayoutMultiSel;
 // editor.js:348 FLOW_BLOCK_SEL_SELECTED와 동일 셀렉터 — SSOT
 const FLOW_SEL =
   '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, ' +
-  '.table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, ' +
+  '.table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
   '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, ' +
   '.laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';

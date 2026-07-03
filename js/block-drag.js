@@ -91,6 +91,7 @@ function bindBlock(block) {
   const isBridge      = block.classList.contains('bridge-block');
   const isDuo         = block.classList.contains('duo-block');
   const isInfoCard    = block.classList.contains('infocard-block');
+  const isInnerCard   = block.classList.contains('innercard-block');
   const isJoker      = block.classList.contains('joker-block');
   const isShape      = block.classList.contains('shape-block');
   const isCanvas     = block.classList.contains('canvas-block');
@@ -173,7 +174,7 @@ function bindBlock(block) {
           '.icon-block.selected,' +
           '.gap-block.selected,.icon-circle-block.selected,.table-block.selected,' +
           '.label-group-block.selected,.graph-block.selected,.canvas-block.selected, .banner02-block.selected, .comparison-block.selected,' +
-          '.divider-block.selected, .bridge-block.selected,.duo-block.selected,.infocard-block.selected,.mockup-block.selected,.vector-block.selected,.step-block.selected'
+          '.divider-block.selected, .bridge-block.selected,.duo-block.selected,.infocard-block.selected,.innercard-block.selected,.mockup-block.selected,.vector-block.selected,.step-block.selected'
         );
         if (hasSelected) {
           multiPeers.push({
@@ -1451,7 +1452,7 @@ function bindBlock(block) {
   }
 
   // duo/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
-  for (const [flag, showFn] of [[isDuo, 'showDuoProperties'], [isInfoCard, 'showInfoCardProperties']]) {
+  for (const [flag, showFn] of [[isDuo, 'showDuoProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -1596,7 +1597,7 @@ function bindFrameDropZone(ss) {
     // 내부 자식 블록 click은 자식 핸들러가 처리
     // FIX(T5): .mockup-block 누락 — 프레임 안 mockup 클릭 시 자식 핸들러로 위임 안 되고
     // 프레임이 선택돼버려 mockup 선택/드래그 흐름이 깨지는 문제 수정
-    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block')) return;
+    if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block')) return;
     // 내부 nested frame 자체 click 핸들러가 있어서 이미 처리됨 → 여기로 버블된 경우 무시
     const innerFrame = e.target.closest('.frame-block:not([data-text-frame])');
     if (innerFrame && innerFrame !== ss) { e.stopPropagation(); return; }
@@ -1628,7 +1629,7 @@ function bindFrameDropZone(ss) {
     // B의 mousedown이 drag를 시작할 수 있도록 (text-frame은 투명 래퍼라 드래그 시작점으로 써도 됨)
     const CHILD_BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
       '.icon-block, ' +
-      '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, ' +
+      '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, ' +
       '.icon-text-block, .shape-block, .mockup-block';
 
     ss.addEventListener('mousedown', e => {
@@ -1825,7 +1826,7 @@ function bindFrameDropZone(ss) {
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
     const isFreeLayout = ss.dataset.freeLayout === 'true';
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
     const SS_W = 860; // 캔버스 기준 너비
 
     if (!isFreeLayout) {
@@ -1953,7 +1954,7 @@ function bindFrameDropZone(ss) {
   // 직후 mousedown drag 핸들러의 selected 체크에 걸려 드래그 시작이 막힘 (asset 등 다른 블록은 정상)
   ss.addEventListener('pointerdown', e => {
     // I4-F1: .icon-block 누락 → free-layout 아이콘이 pointerdown drag-disable에서 빠져 이동 막힘. drop/multi 셀렉터(BLOCK_SEL)와 정합.
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
+    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
     if (isInnerBlock) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');

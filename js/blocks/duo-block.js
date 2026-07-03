@@ -201,4 +201,5 @@ window.addDuoBlock = addDuoBlock;
 window.updateDuoBlock = updateDuoBlock;
 window.renderDuoBlock = renderDuoBlock;
 
-export { makeDuoBlock, addDuoBlock, updateDuoBlock, renderDuoBlock, DUO_DEFAULTS };
+// innercard-block 등 라인 스택형 블록이 같은 롤/렌더를 공유한다 (부품 공유 — 현빈 지시 2026-07-03)
+export { makeDuoBlock, addDuoBlock, updateDuoBlock, renderDuoBlock, DUO_DEFAULTS, _duoLineHtml as duoLineHtml, _DUO_ROLES as DUO_ROLES };
