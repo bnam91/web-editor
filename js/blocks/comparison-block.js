@@ -38,6 +38,8 @@ function _selectAllContents(el) {
 function normalizeRow(r) {
   if (typeof r === 'string') return { type: 'text', text: r };
   if (r && typeof r === 'object') {
+    // content 별칭 수용 — planner 텍스트 어휘(content)로 쓴 행도 무손실 (2026-07-04 bench2)
+    if (r.text === undefined && r.content !== undefined) r = { ...r, text: r.content };
     const type = r.type === 'image' ? 'image' : 'text';
     // ...r 보존: memo(이미지 발주채널) 등 확장 필드가 편집 blur 재직렬화에서 소실되지 않게
     if (type === 'image') {

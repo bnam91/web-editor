@@ -46,6 +46,10 @@ function _duoCols(block) {
 
 function _duoLineHtml(line, colAlign, depth = 0) {
   if (!line || typeof line !== 'object') return '';
+  // ★필드 별칭 정규화 (2026-07-04 bench2 근본픽스): planner/generator는 텍스트블록 어휘(content)를
+  // 라인에도 쓴다 — text만 읽으면 "그릇만 있고 내용 없음"(오렌지 바에 빈 텍스트, duo 통째 미렌더).
+  // 러너는 pass-through(계약: 스펙 필드 = API 필드)이므로 파서가 별칭을 수용하는 게 1:1 계약의 근본 해법.
+  if (line.text === undefined && line.content !== undefined) line = { ...line, text: line.content };
   const mt = Number.isFinite(Number(line.marginTop)) ? Number(line.marginTop) : null;
   const mtCss = mt !== null ? `margin-top:${mt}px;` : '';
   if (line.type === 'gap') {

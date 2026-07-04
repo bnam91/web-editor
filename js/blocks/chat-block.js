@@ -273,6 +273,8 @@ function updateChatBlock(blockId, partial = {}) {
   };
   const _normMsg = (m, ctx) => {
     if (!m || typeof m !== 'object') throw new Error(`${ctx} must be object`);
+    // content 별칭 수용 — planner 텍스트 어휘로 쓴 메시지도 무손실 (2026-07-04 bench2)
+    if (m.text === undefined && m.content !== undefined) m = { ...m, text: m.content };
     const o = {};
     if (m.text !== undefined && m.text !== null) {
       if (typeof m.text !== 'string') throw new Error(`${ctx}.text must be string`);
