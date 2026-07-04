@@ -1096,7 +1096,14 @@ document.addEventListener('keydown', e => {
       }
       return;
     }
-    if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }
+    // ⌘S = 실제 저장(가드 포함 정식 경로) + 토스트. saveProject()는 commit-modal을 열지만
+    // 커밋 기능은 MVP 숨김(tb-hidden-mvp)이라 봉인된 데드 모달이 소환되던 버그 — commit-system은 봉인 유지.
+    if (e.key === 's' && !e.shiftKey)   {
+      e.preventDefault();
+      window.triggerAutoSave?.();
+      window.showToast?.('💾 저장됨');
+      return;
+    }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
     if (e.key === 'b' && !e.shiftKey) {
       if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
