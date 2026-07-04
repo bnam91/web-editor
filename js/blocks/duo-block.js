@@ -44,7 +44,7 @@ function _duoCols(block) {
   return cols.slice(0, 3);
 }
 
-function _duoLineHtml(line, colAlign) {
+function _duoLineHtml(line, colAlign, depth = 0) {
   if (!line || typeof line !== 'object') return '';
   const mt = Number.isFinite(Number(line.marginTop)) ? Number(line.marginTop) : null;
   const mtCss = mt !== null ? `margin-top:${mt}px;` : '';
@@ -53,11 +53,56 @@ function _duoLineHtml(line, colAlign) {
     return `<div class="duo-gap" style="height:${h}px;${mtCss}"></div>`;
   }
   if (line.type === 'image') {
-    if (!line.imgSrc) return '';
     const h = Number(line.height) || 0;
     const r = Number(line.radius) || 0;
+    if (!line.imgSrc) {
+      // 빈 이미지 슬롯: 발주 대기 placeholder (기존 ''=투명 소실 → 카드가 깨져 보이던 문제)
+      const ph = h > 0 ? h : 180;
+      return `<div class="duo-img duo-img-empty" style="width:100%;height:${ph}px;background:#e8e8e8;` +
+        `border-radius:${r > 0 ? r : 8}px;${mtCss}"></div>`;
+    }
     const sizeCss = h > 0 ? `height:${h}px;object-fit:cover;` : 'height:auto;';
     return `<img class="duo-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;${sizeCss}${r > 0 ? `border-radius:${r}px;` : ''}${mtCss}">`;
+  }
+  // 중첩 duo: {type:'duo', gap, valign, cols:[{width, lines[]}]} — innercard 후기카드 등 (BL-SFB-01)
+  if (line.type === 'duo') {
+    if (depth >= 2) return '';                       // 무한 중첩 가드 (2단까지)
+    const cols = Array.isArray(line.cols) ? line.cols.slice(0, 3) : [];
+    if (!cols.length) return '';
+    const gap = Number(line.gap) || 24;
+    const valign = _DUO_VALIGN[line.valign] || 'flex-start';
+    const colsHtml = cols.map(c => {
+      const w = Number(c.width) || 1;
+      const inner = (Array.isArray(c.lines) ? c.lines : [])
+        .map(l => _duoLineHtml(l, c.align || colAlign, depth + 1)).join('');
+      return `<div class="duo-nested-col" style="flex:${w};min-width:0;">${inner}</div>`;
+    }).join('');
+    return `<div class="duo-nested" style="display:flex;gap:${gap}px;align-items:${valign};${mtCss}">${colsHtml}</div>`;
+  }
+  // 중첩 graph: {type:'graph', items:[{label,value,barColor?}]} — 정적 가로바 렌더 (BL-SFB-01).
+  // bar-h 외 chartType도 카드 내부에선 동일한 가로바 표현으로 수용 (독립 그래프는 graph-block 몫).
+  if (line.type === 'graph') {
+    const items = Array.isArray(line.items) ? line.items.slice(0, 10) : [];
+    if (!items.length) return '';
+    const barColor   = (typeof line.barColor === 'string' && line.barColor) ? line.barColor : '#2d6fe8';
+    const trackColor = (typeof line.trackColor === 'string' && line.trackColor) ? line.trackColor : '#e8e8e8';
+    const valueColor = (typeof line.valueColor === 'string' && line.valueColor) ? line.valueColor : '#171717';
+    const labelColor = (typeof line.labelColor === 'string' && line.labelColor) ? line.labelColor : '#555555';
+    const labelSize  = Number(line.labelSize) || 20;
+    const valueSize  = Number(line.valueSize) || Math.round(labelSize * 1.6);
+    const rows = items.map(it => {
+      const v = Math.max(0, Math.min(100, Number(it.value) || 0));
+      const bc = (typeof it.barColor === 'string' && it.barColor) ? it.barColor : barColor;
+      return `<div class="duo-graph-item" style="margin-top:18px;">` +
+        `<div style="display:flex;align-items:baseline;gap:12px;">` +
+          `<span style="font-size:${valueSize}px;font-weight:800;color:${valueColor};line-height:1;">${v}%</span>` +
+          `<span style="font-size:${labelSize}px;color:${labelColor};line-height:1.3;word-break:keep-all;">${_esc(it.label ?? '')}</span>` +
+        `</div>` +
+        `<div style="margin-top:10px;height:18px;border-radius:9px;background:${trackColor};overflow:hidden;">` +
+          `<div style="width:${v}%;height:100%;border-radius:9px;background:${bc};"></div>` +
+        `</div></div>`;
+    }).join('');
+    return `<div class="duo-graph" style="width:100%;${mtCss}">${rows}</div>`;
   }
   const role = _DUO_ROLES[line.type] || _DUO_ROLES.body;
   const size = Number(line.fontSize) || role.size;

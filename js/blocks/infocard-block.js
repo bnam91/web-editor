@@ -22,6 +22,12 @@ const INFOCARD_DEFAULTS = {
 };
 
 const _IFC_VARIANTS = Object.keys(INFOCARD_DEFAULTS);
+// variant별 데이터 키 (톱레벨 폴백 수용용 — 스타일 키와 충돌 없음)
+const _IFC_DATA_KEYS = {
+  countup: ['value', 'unit', 'label', 'caption', 'stats'],
+  price:   ['label', 'originalPrice', 'price', 'currency', 'discountPct', 'extras'],
+  review:  ['stars', 'author', 'body', 'date'],
+};
 const _IFC_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
 
 // textContent-safe escaping (block-factory addTableBlock _escHtml 패턴)
@@ -117,7 +123,11 @@ function makeInfoCardBlock(opts = {}) {
   block.id = genId('ifc');
   block.dataset.type    = 'infocard';
   block.dataset.variant = variant;
-  const data = Object.assign({}, INFOCARD_DEFAULTS[variant],
+  // 데이터 키를 opts 톱레벨에 준 호출도 수용 — data:{} 누락 시 조용히 기본값(샘플 문구)이
+  // 그대로 렌더되던 "기본 라벨 누수" 방지. 우선순위: 기본값 < 톱레벨 < opts.data
+  const topLevel = {};
+  for (const k of _IFC_DATA_KEYS[variant]) if (opts[k] !== undefined) topLevel[k] = opts[k];
+  const data = Object.assign({}, INFOCARD_DEFAULTS[variant], topLevel,
     (opts.data && typeof opts.data === 'object' && !Array.isArray(opts.data)) ? opts.data : {});
   block.dataset.data        = JSON.stringify(data);
   block.dataset.align       = opts.align === 'left' ? 'left' : 'center';
