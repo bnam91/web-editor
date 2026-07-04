@@ -109,6 +109,17 @@ function _duoLineHtml(line, colAlign, depth = 0) {
   const weight = line.weight !== undefined ? String(line.weight) : String(role.weight);
   const color = (typeof line.color === 'string' && _DUO_COLOR_RE.test(line.color.trim())) ? line.color.trim() : '';
   const align = line.align || colAlign || 'left';
+  // 뱃지/필: line.bg 지정 시 inline-block 필로 렌더 — 지정 bg가 조용히 탈락해
+  // 카드 위 무배경 텍스트(색 반전처럼 보임)로 뭉개지던 케이스 방지 (2026-07-04 제니 발주)
+  const bg = (typeof line.bg === 'string' && _DUO_COLOR_RE.test(line.bg.trim())) ? line.bg.trim() : '';
+  if (bg) {
+    const padV = Number(line.padV) || Math.max(6, Math.round(size * 0.4));
+    const padH = Number(line.padH) || Math.max(14, Math.round(size * 1.0));
+    const rad = Number.isFinite(Number(line.radius)) ? Number(line.radius) : 999;
+    return `<div style="text-align:${align};${mtCss}"><span class="duo-badge" style="display:inline-block;background:${bg};` +
+      `font-size:${size}px;font-weight:${weight};line-height:1.2;letter-spacing:${role.ls};${color ? `color:${color};` : ''}` +
+      `padding:${padV}px ${padH}px;border-radius:${rad}px;white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</span></div>`;
+  }
   return `<div class="duo-line duo-${_esc(line.type || 'body')}" style="font-size:${size}px;font-weight:${weight};line-height:${role.lh};letter-spacing:${role.ls};text-align:${align};${color ? `color:${color};` : ''}${mtCss}white-space:pre-wrap;word-break:keep-all;">${_esc(line.text ?? '')}</div>`;
 }
 

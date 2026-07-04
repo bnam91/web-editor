@@ -336,6 +336,11 @@ function _applyTextExtras(contentEl, opts) {
     contentEl.style.webkitTextStroke = `${width}px ${color}`;
     contentEl.style.paintOrder = 'stroke fill';
   }
+  // bg — 특히 label(tb-label) 필 배경색 지정 경로 (토큰 기본값을 인라인으로 override).
+  // 지정 색이 조용히 탈락해 흰 필로 렌더되던 케이스 방지 (2026-07-04 제니 발주)
+  if (opts.bg !== undefined && typeof opts.bg === 'string' && opts.bg.length <= 64) {
+    contentEl.style.backgroundColor = opts.bg;
+  }
 }
 
 function applyTextOpts(block, frame, opts, type) {

@@ -12,7 +12,7 @@
 // renderInfoCardBlock이 dataset 기준으로 innerHTML을 인라인 스타일로만 재조립
 // (직렬화·HTML export에 그대로 살아남음, step-block 패턴).
 
-import { insertAfterSelected, genId } from '../drag-utils.js';
+import { insertAfterSelected, genId, blockContextLuminance } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
 const INFOCARD_DEFAULTS = {
@@ -47,9 +47,16 @@ function renderInfoCardBlock(block) {
 
   const align   = block.dataset.align === 'left' ? 'left' : 'center';
   const accent  = block.dataset.accentColor || '#2d6fe8';
-  const text    = block.dataset.textColor   || '#222222';
-  const sub     = block.dataset.subColor    || '#888888';
   const bg      = block.dataset.bg          || '';
+  // 테마어웨어 (2026-07-04 제니 발주): 배경 컨텍스트(자체 bg > 섹션 bg)가 다크인데 텍스트색이
+  // 라이트 기본값 그대로면 라이트 팔레트로 — 다크온다크(#222 on dark, bench S04) 방지.
+  // make가 기본값을 dataset에 굽기 때문에 "정확히 기본값 = 미지정"으로 취급(커스텀 색은 그대로).
+  const _ctxLum  = blockContextLuminance(block, bg);
+  const _ctxDark = _ctxLum !== null && _ctxLum < 0.45;
+  let text = block.dataset.textColor || '#222222';
+  let sub  = block.dataset.subColor  || '#888888';
+  if (_ctxDark && text.toLowerCase() === '#222222') text = '#f2f2f2';
+  if (_ctxDark && sub.toLowerCase() === '#888888')  sub  = '#a8a8a8';
   const radius  = parseInt(block.dataset.radius)    || 0;
   const padding = parseInt(block.dataset.padding)   || 0;
   const numSize = parseInt(block.dataset.numSize)   || 96;
@@ -156,6 +163,7 @@ function addInfoCardBlock(opts = {}) {
   window.pushHistory();
   const { row, block } = makeInfoCardBlock(opts);
   insertAfterSelected(sec, row);
+  renderInfoCardBlock(block); // 삽입 후 재렌더 — 테마어웨어는 섹션 bg를 알아야 함(make 시점엔 DOM 밖)
   bindBlock(block);
   window.buildLayerPanel();
   // 방금 추가한 블록 자동 선택 + 화면 안으로 스크롤 (step-block C9 미러)
