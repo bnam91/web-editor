@@ -7,7 +7,7 @@
 //   - bindBlock (drag-drop.js)
 //   - window._insertToFlowFrame (block-factory.js 노출 헬퍼)
 
-import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
+import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
 // slot: null | 'top' | 'bottom' — labelPos='both'일 때 상/하단 라벨이 서로 다른 내용·색을 갖도록 분리.
@@ -311,8 +311,12 @@ function renderCanvas(block) {
     const titleSize  = parseInt(block.dataset.titleSize) || 20;
     const descSize   = parseInt(block.dataset.descSize)  || 14;
     const textAlign  = block.dataset.textAlign || 'left';
-    const titleColor = block.dataset.titleColor || '#ffffff';
-    const descColor  = block.dataset.descColor  || '#ffffff';
+    // 테마어웨어 기본 텍스트색 (2026-07-04 제니 발주): 명시 색(dataset/per-card) 최우선,
+    // 미지정 시 텍스트 밴드 bg 휘도로 자동 — 구 #ffffff 고정은 라이트 카드에서 화이트온화이트 붕괴(bench S12)
+    const _bandLum   = colorLuminance(textBg);
+    const _bandDark  = _bandLum !== null && _bandLum < 0.45;
+    const titleColor = block.dataset.titleColor || (_bandDark ? '#ffffff' : '#1a1a1a');
+    const descColor  = block.dataset.descColor  || (_bandDark ? '#e0e0e0' : '#555555');
     // 텍스트 세로위치(px) — 기존 padding 위에 가산. 0이면 회귀 없음(하위호환).
     const textVOffset = Math.min(100, Math.max(0, parseInt(block.dataset.textVOffset) || 0));
     // 아이콘 모드(이스터에그) 블록 레벨 설정 — 크기(%)·색·이미지 배경

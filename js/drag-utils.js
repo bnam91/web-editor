@@ -446,6 +446,34 @@ const ASSET_PRESETS = {
   logo:     { width: 200, height: 64 },
 };
 
+// 색 문자열 → 상대 휘도(0~1). 인식 불가/투명이면 null.
+// block-factory _colorLuminance 미러 — 블록 렌더러 테마어웨어 공용 (2026-07-04 제니 발주)
+function colorLuminance(str) {
+  if (!str || typeof str !== 'string') return null;
+  const s = str.trim();
+  let r, g, b;
+  let m = s.match(/^#([0-9a-fA-F]{3})$/);
+  if (m) { r = parseInt(m[1][0] + m[1][0], 16); g = parseInt(m[1][1] + m[1][1], 16); b = parseInt(m[1][2] + m[1][2], 16); }
+  if (r === undefined) {
+    m = s.match(/^#([0-9a-fA-F]{6})/);
+    if (m) { r = parseInt(m[1].slice(0, 2), 16); g = parseInt(m[1].slice(2, 4), 16); b = parseInt(m[1].slice(4, 6), 16); }
+  }
+  if (r === undefined) {
+    m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (m) { r = +m[1]; g = +m[2]; b = +m[3]; }
+  }
+  if (r === undefined) return null;
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+// 블록의 배경 컨텍스트 휘도: 자체 bg가 유효하면 그것, 아니면 섹션 bg.
+function blockContextLuminance(block, selfBg) {
+  const own = colorLuminance(selfBg);
+  if (own !== null) return own;
+  const sec = block.closest?.('.section-block');
+  if (!sec) return null;
+  return colorLuminance(sec.style.backgroundColor || sec.style.background || sec.dataset.bg || '');
+}
+
 export {
   genId,
   clearDropIndicators,
@@ -462,6 +490,8 @@ export {
   renderGraph,
   applyDividerStyle,
   ASSET_PRESETS,
+  colorLuminance,
+  blockContextLuminance,
 };
 
 window.genId                      = genId;
