@@ -71,6 +71,10 @@ function renderStickerBlock(block) {
     const tBgColor       = block.dataset.bgColor       || 'transparent';
     const tRotation      = parseFloat(block.dataset.rotation) || 0;
     const tText          = block.dataset.text ?? 'Text';
+    // 폰트 스타일 (이탤릭) / 장식 (밑줄·취소선 — 공백 조합 허용)
+    const tFontStyle = block.dataset.fontStyle === 'italic' ? 'italic' : 'normal';
+    const _TEXT_DECOS = ['none', 'underline', 'line-through', 'underline line-through'];
+    const tTextDeco = _TEXT_DECOS.includes(block.dataset.textDecoration) ? block.dataset.textDecoration : 'none';
 
     const tPadX = parseInt(block.dataset.padX);
     const tPadY = parseInt(block.dataset.padY);
@@ -78,8 +82,11 @@ function renderStickerBlock(block) {
     const padY = Number.isFinite(tPadY) ? tPadY : 6;
     const lsStr     = Number.isFinite(tLetterSpacing) ? `${tLetterSpacing}px` : 'normal';
     const shadowStr = tShadowOn ? `${tShadowX}px ${tShadowY}px ${tShadowBlur}px ${tShadowColor}` : 'none';
+    // -webkit-text-stroke는 글리프 윤곽 '중앙 정렬'이고 paint-order:stroke fill로 안쪽 절반이
+    // fill에 덮여 실제 보이는 외곽선 두께 ≈ w/2. asset(border)/shape(SVG stroke)의 "값 N = 보이는 N px"
+    // 시맨틱과 맞추기 위해 2배로 렌더 (dataset.strokeWidth 수치 자체는 불변).
     const strokeCss = tStrokeWidth > 0
-      ? `-webkit-text-stroke:${tStrokeWidth}px ${tStrokeColor};paint-order:stroke fill;`
+      ? `-webkit-text-stroke:${tStrokeWidth * 2}px ${tStrokeColor};paint-order:stroke fill;`
       : '';
     const rotCss = tRotation !== 0 ? `transform:rotate(${tRotation}deg);transform-origin:center center;` : '';
     const safeText = String(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -88,13 +95,14 @@ function renderStickerBlock(block) {
       + `background:${tBgColor};border-radius:4px;`
       + `padding:${padY}px ${padX}px;`
       + `display:inline-block;white-space:pre-wrap;word-break:break-word;`
-      + `font-family:${tFontFamily};font-size:${tFontSize}px;font-weight:${tFontWeight};`
+      + `font-family:${tFontFamily};font-size:${tFontSize}px;font-weight:${tFontWeight};font-style:${tFontStyle};`
       + `color:${tTextColor};letter-spacing:${lsStr};text-align:${tTextAlign};`
       + `text-shadow:${shadowStr};${rotCss}`
       + `user-select:none;cursor:move;z-index:55;pointer-events:auto;line-height:1.25;`;
     // -webkit-text-stroke + paint-order는 span에 직접 적용해야 외곽선이 안정적으로 보임
     // (block 인라인-블럭에 상속만 의존하면 일부 환경에서 paint-order가 무시됨)
-    const spanStyle = `display:inline-block;outline:none;${strokeCss}`;
+    // text-decoration도 span에 직접 — span이 inline-block이라 부모 장식이 전파되지 않음.
+    const spanStyle = `display:inline-block;outline:none;text-decoration:${tTextDeco};${strokeCss}`;
     block.innerHTML = `<span class="sticker-text" style="${spanStyle}">${safeText}</span>`;
     return;
   }
@@ -259,7 +267,7 @@ function rememberStickerStyle(block) {
   } else if (shape === 'highlightB') {
     put('hlColor'); put('thickness'); put('lineStyle'); put('amplitude'); put('period');
   } else if (shape === 'text') {
-    ['fontFamily','fontSize','fontWeight','textColor','strokeWidth','strokeColor',
+    ['fontFamily','fontSize','fontWeight','fontStyle','textDecoration','textColor','strokeWidth','strokeColor',
      'letterSpacing','textAlign','shadowOn','shadowX','shadowY','shadowBlur','shadowColor',
      'bgColor','padX','padY'].forEach(put);
   } else if (shape === 'icon') {
@@ -315,6 +323,8 @@ function makeStickerBlock(opts = {}) {
     block.dataset.fontFamily    = opts.fontFamily    ?? "'Pretendard', sans-serif";
     block.dataset.fontSize      = opts.fontSize      ?? 32;
     block.dataset.fontWeight    = opts.fontWeight    ?? 700;
+    block.dataset.fontStyle     = opts.fontStyle     ?? 'normal';
+    block.dataset.textDecoration = opts.textDecoration ?? 'none';
     block.dataset.textColor     = opts.textColor     ?? '#222222';
     block.dataset.strokeWidth   = opts.strokeWidth   ?? 0;
     block.dataset.strokeColor   = opts.strokeColor   ?? '#ffffff';
@@ -384,7 +394,7 @@ function addStickerBlock(opts = {}) {
 //
 // sticker는 polymorphic 블록 — shape에 따라 활성 dataset 키가 완전히 달라짐:
 //   - circle/square: size/sizeW/sizeH/text/bgColor/textColor/fontSize/fontWeight/mode/imgSrc/rotation
-//   - text:          text/fontFamily/fontSize/fontWeight/textColor/strokeWidth/strokeColor/letterSpacing/textAlign/shadow*/bgColor/padX/padY/rotation
+//   - text:          text/fontFamily/fontSize/fontWeight/fontStyle/textDecoration/textColor/strokeWidth/strokeColor/letterSpacing/textAlign/shadow*/bgColor/padX/padY/rotation
 //   - highlight:     hlW/hlH/hlColor
 //   - highlightB:    x1/y1/x2/y2/thickness/hlColor/lineStyle/amplitude/period
 //
@@ -430,6 +440,8 @@ function updateStickerBlock(blockId, partial = {}) {
     amplitude: block.dataset.amplitude,
     period: block.dataset.period,
     fontFamily: block.dataset.fontFamily,
+    fontStyle: block.dataset.fontStyle,
+    textDecoration: block.dataset.textDecoration,
     strokeWidth: block.dataset.strokeWidth,
     strokeColor: block.dataset.strokeColor,
     letterSpacing: block.dataset.letterSpacing,
@@ -515,6 +527,8 @@ function updateStickerBlock(blockId, partial = {}) {
         const curFs = parseInt(block.dataset.fontSize);
         if (!Number.isFinite(curFs) || curFs < 8) block.dataset.fontSize = '32';
         if (!block.dataset.fontWeight)    block.dataset.fontWeight    = '700';
+        if (block.dataset.fontStyle === undefined) block.dataset.fontStyle = 'normal';
+        if (block.dataset.textDecoration === undefined) block.dataset.textDecoration = 'none';
         if (!block.dataset.textColor)     block.dataset.textColor     = '#222222';
         if (block.dataset.strokeWidth === undefined) block.dataset.strokeWidth = '0';
         if (!block.dataset.strokeColor)   block.dataset.strokeColor   = '#ffffff';
@@ -674,6 +688,8 @@ function updateStickerBlock(blockId, partial = {}) {
       applied.fontFamily = block.dataset.fontFamily;
     }
   }
+  _applyEnum('fontStyle', 'fontStyle', ['normal', 'italic']);
+  _applyEnum('textDecoration', 'textDecoration', ['none', 'underline', 'line-through', 'underline line-through']);
   _applyNum('strokeWidth', 'strokeWidth', 0, 50);
   if (partial.letterSpacing !== undefined && partial.letterSpacing !== null) {
     const n = Number(partial.letterSpacing);
