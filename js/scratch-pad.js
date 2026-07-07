@@ -1010,6 +1010,15 @@ async function initScratchPad(projectId, pageId) {
       }
       // 외부 클립보드(이미지) 복사 timestamp — Cmd+V 시 내부 클립보드와 우선순위 비교용
       window._scratchClipboardTime = Date.now();
+      // 복사 아이템의 표시 폭 메타 보존 — paste 시 원본 크기 복원용
+      // (OS 클립보드는 첫 장만 담으므로 items[0] 기준. 자연 치수는 paste 시 동일 이미지 대조 가드)
+      const copiedEl = items[0].el, copiedImg = copiedEl?.querySelector('img');
+      window._scratchCopiedMeta = {
+        w: copiedEl?.offsetWidth || items[0].w || 220,
+        natW: copiedImg?.naturalWidth || 0,
+        natH: copiedImg?.naturalHeight || 0,
+        time: window._scratchClipboardTime
+      };
       if (items.length === 1) {
         window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 Cmd+V');
       } else {
@@ -1086,8 +1095,23 @@ async function initScratchPad(projectId, pageId) {
       if (!file || file.size > 20 * 1024 * 1024) { if (file) window.showToast?.('⚠️ 스크래치패드: 20MB 이하 이미지만 지원합니다.'); return; }
       const reader = new FileReader();
       reader.onload = ev => {
-        _createItem(ev.target.result, cx - 110 + i * 24, cy - 60 + i * 24);
-        _saveScratch();
+        const dataUrl = ev.target.result;
+        // 스크래치 Cmd+C로 복사한 이미지면 원본 표시 폭 복원 (자연 치수 대조 가드 —
+        // 외부 앱에서 복사한 이미지는 치수 불일치로 걸러져 기본 220px 유지)
+        const meta = window._scratchCopiedMeta;
+        const probe = new Image();
+        probe.onload = () => {
+          let w = 220;
+          if (meta && meta.time === (window._scratchClipboardTime || 0)
+              && probe.naturalWidth === meta.natW && probe.naturalHeight === meta.natH) w = meta.w;
+          _createItem(dataUrl, cx - w / 2 + i * 24, cy - 60 + i * 24, w);
+          _saveScratch();
+        };
+        probe.onerror = () => {
+          _createItem(dataUrl, cx - 110 + i * 24, cy - 60 + i * 24);
+          _saveScratch();
+        };
+        probe.src = dataUrl;
       };
       reader.readAsDataURL(file);
     });
