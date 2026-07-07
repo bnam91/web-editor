@@ -255,13 +255,20 @@ function renderStickerBlock(block) {
     block.innerHTML = `<img class="sticker-img" src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;pointer-events:none;" draggable="false">`;
   } else {
     // 텍스트 모드 (기본)
+    // 폰트 스타일(이탤릭)/장식(밑줄·취소선) — text shape 브랜치(:85-87)와 동일 파싱 규칙
+    const bFontStyle = block.dataset.fontStyle === 'italic' ? 'italic' : 'normal';
+    const _B_TEXT_DECOS = ['none', 'underline', 'line-through', 'underline line-through'];
+    const bTextDeco = _B_TEXT_DECOS.includes(block.dataset.textDecoration) ? block.dataset.textDecoration : 'none';
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
       + `background:${bgColor};color:${textColor};border-radius:${radius};`
       + `display:flex;align-items:center;justify-content:center;`
-      + `font-size:${fontSize}px;font-weight:${fontWeight};line-height:1;`
+      + `font-size:${fontSize}px;font-weight:${fontWeight};font-style:${bFontStyle};line-height:1;`
       + `${_stkRotCss}`
       + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
-    block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;">${text}</span>`;
+    // outline:none — 더블클릭 편집(contenteditable+focus) 시 브라우저 기본 포커스링(주황 auto) 억제.
+    //   text 스티커 span(:115)과 동일 컨벤션 → 편집 중 시각 = 블럭 레벨 선택 아웃라인만 (타 블럭과 정합).
+    // text-decoration은 span에 직접 — flex 자식이라 부모 장식 전파에 의존하지 않음.
+    block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${text}</span>`;
   }
 }
 
@@ -284,7 +291,7 @@ function rememberStickerStyle(block) {
     // U6(e): 아이콘은 색상(currentColor SVG)만 sticky — iconName/iconSvg는 매번 새로 고르므로 제외
     put('iconColor');
   } else { // circle / square (image 모드는 imgSrc 제외 — 다음 생성은 텍스트 스타일만)
-    ['bgColor','textColor','fontSize','fontWeight'].forEach(put);
+    ['bgColor','textColor','fontSize','fontWeight','fontStyle','textDecoration'].forEach(put);
   }
   slot.shape = shape;
   _lastStickerStyle[shape] = slot;
@@ -304,6 +311,9 @@ function makeStickerBlock(opts = {}) {
   block.dataset.textColor  = opts.textColor  ?? STICKER_DEFAULTS.textColor;
   block.dataset.fontSize   = opts.fontSize   ?? STICKER_DEFAULTS.fontSize;
   block.dataset.fontWeight = opts.fontWeight ?? STICKER_DEFAULTS.fontWeight;
+  // 폰트 스타일/장식 — circle/square에도 유효 (sticky/즐겨찾기 승계용). 미지정 시 dataset 미생성(렌더 기본 normal/none).
+  if (opts.fontStyle      !== undefined) block.dataset.fontStyle      = opts.fontStyle;
+  if (opts.textDecoration !== undefined) block.dataset.textDecoration = opts.textDecoration;
   block.dataset.x          = opts.x          ?? STICKER_DEFAULTS.x;
   block.dataset.y          = opts.y          ?? STICKER_DEFAULTS.y;
   // highlightB (선 형광펜) 전용 데이터
@@ -412,7 +422,7 @@ function addStickerBlock(opts = {}) {
 // + renderStickerBlock 재렌더 + scheduleAutoSave.
 //
 // sticker는 polymorphic 블록 — shape에 따라 활성 dataset 키가 완전히 달라짐:
-//   - circle/square: size/sizeW/sizeH/text/bgColor/textColor/fontSize/fontWeight/mode/imgSrc/rotation
+//   - circle/square: size/sizeW/sizeH/text/bgColor/textColor/fontSize/fontWeight/fontStyle/textDecoration/mode/imgSrc/rotation
 //   - text:          text/fontFamily/fontSize/fontWeight/fontStyle/textDecoration/textColor/strokeWidth/strokeColor/letterSpacing/textAlign/shadow*/bgColor/padX/padY/rotation
 //   - highlight:     hlW/hlH/hlColor
 //   - highlightB:    x1/y1/x2/y2/thickness/hlColor/lineStyle/amplitude/period
