@@ -33,7 +33,7 @@ function _stickerStyleFromBlock(block) {
   } else if (shape === 'icon') {
     ['iconName', 'iconSvg', 'iconColor', 'size'].forEach(put);
   } else if (shape === 'text') {
-    ['fontFamily', 'fontSize', 'fontWeight', 'textColor', 'strokeWidth', 'strokeColor',
+    ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'textColor', 'strokeWidth', 'strokeColor',
      'letterSpacing', 'textAlign', 'shadowOn', 'shadowX', 'shadowY', 'shadowBlur', 'shadowColor',
      'bgColor', 'padX', 'padY'].forEach(put);
   } else { // circle / square
@@ -119,6 +119,10 @@ export function showStickerProperties(block) {
   const tStrokeAlpha   = parseAlphaFromColor(tStrokeColor);
   const tLetterSpacing = parseFloat(block.dataset.letterSpacing) || 0;
   const tTextAlign     = block.dataset.textAlign     || 'left';
+  const tFontStyle     = block.dataset.fontStyle     || 'normal';
+  const tTextDeco      = block.dataset.textDecoration || 'none';
+  const tDecoUnderline = tTextDeco.includes('underline');
+  const tDecoStrike    = tTextDeco.includes('line-through');
   const tShadowOn      = block.dataset.shadowOn === '1';
   const tShadowX       = parseFloat(block.dataset.shadowX) || 0;
   const tShadowY       = parseFloat(block.dataset.shadowY) || 2;
@@ -182,7 +186,7 @@ export function showStickerProperties(block) {
     <div class="prop-section" id="stk-text-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' && !isText ? 'none' : 'block')};">
       <div class="prop-section-title">Text</div>
       <div class="prop-row">
-        <input type="text" class="prop-input" id="stk-text" value="${_esc(text)}" placeholder="텍스트">
+        <textarea class="prop-textarea" id="stk-text" rows="2" placeholder="텍스트"></textarea>
       </div>
     </div>
     <div class="prop-section" id="stk-image-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
@@ -337,6 +341,20 @@ export function showStickerProperties(block) {
         </select>
       </div>
       <div class="prop-row">
+        <span class="prop-label">스타일</span>
+        <div class="prop-align-group" id="stk-t-style-group">
+          <button class="prop-align-btn${tFontStyle === 'italic' ? ' active' : ''}" data-style="italic" title="이탤릭">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="7" y1="3" x2="13" y2="3"/><line x1="3" y1="13" x2="9" y2="13"/><line x1="10" y1="3" x2="6" y2="13"/></svg>
+          </button>
+          <button class="prop-align-btn${tDecoUnderline ? ' active' : ''}" data-style="underline" title="밑줄">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.5 3 L4.5 7.5 A3.5 3.5 0 0 0 11.5 7.5 L11.5 3"/><line x1="3.5" y1="13.5" x2="12.5" y2="13.5"/></svg>
+          </button>
+          <button class="prop-align-btn${tDecoStrike ? ' active' : ''}" data-style="line-through" title="취소선">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11.5 4.5 C11 3.4 9.7 2.8 8 2.8 C6 2.8 4.8 3.8 4.8 5.1 C4.8 5.7 5 6.2 5.6 6.6"/><path d="M4.5 11.5 C5 12.6 6.3 13.2 8 13.2 C10 13.2 11.2 12.2 11.2 10.9 C11.2 10.5 11.1 10.1 10.9 9.8"/><line x1="2.5" y1="8" x2="13.5" y2="8"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">자간</span>
         <input type="range" class="prop-slider" id="stk-t-ls" min="-5" max="20" step="0.1" value="${tLetterSpacing}">
         <input type="number" class="prop-number" id="stk-t-ls-num" min="-10" max="40" step="0.1" value="${tLetterSpacing}">
@@ -441,8 +459,15 @@ export function showStickerProperties(block) {
 
   const rerender = () => { window.renderStickerBlock?.(block); window.rememberStickerStyle?.(block); };
 
-  // 텍스트 — input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
+  // 텍스트 — textarea(멀티라인, \n 보존). input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
+  //   초깃값은 HTML 본문 주입 대신 value 할당 — <input type=text>의 \n strip 함정 회피 +
+  //   textarea 본문 주입 시 선두 개행 소실/이스케이프 함정도 회피.
   const txt = propPanel.querySelector('#stk-text');
+  txt.value = text;
+  txt.addEventListener('keydown', ev => {
+    // 멀티라인은 text shape 전용 — circle/square 등은 Enter=커밋(인라인 편집과 동일 규칙, 개행 미주입)
+    if (ev.key === 'Enter' && block.dataset.shape !== 'text') { ev.preventDefault(); txt.blur(); }
+  });
   txt.addEventListener('input', () => {
     block.dataset.text = txt.value;
     const t = block.querySelector('.sticker-text');
@@ -499,6 +524,22 @@ export function showStickerProperties(block) {
       block.dataset.textAlign = btn.dataset.align;
       rerender();
       window.pushHistory?.('텍스트 스티커 정렬'); window.scheduleAutoSave?.();
+    });
+  });
+
+  // 텍스트 스티커 — 스타일 (이탤릭/밑줄/취소선 — 정렬 그룹과 달리 각 버튼 독립 토글)
+  propPanel.querySelectorAll('#stk-t-style-group .prop-align-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.classList.toggle('active');
+      const grp = propPanel.querySelector('#stk-t-style-group');
+      const isOn = (s) => !!grp.querySelector(`[data-style="${s}"]`)?.classList.contains('active');
+      block.dataset.fontStyle = isOn('italic') ? 'italic' : 'normal';
+      const decos = [];
+      if (isOn('underline'))    decos.push('underline');
+      if (isOn('line-through')) decos.push('line-through');
+      block.dataset.textDecoration = decos.length ? decos.join(' ') : 'none';
+      rerender();
+      window.pushHistory?.('텍스트 스티커 스타일'); window.scheduleAutoSave?.();
     });
   });
 
@@ -611,6 +652,8 @@ export function showStickerProperties(block) {
         if (!block.dataset.fontFamily)    block.dataset.fontFamily    = "'Pretendard', sans-serif";
         if (!block.dataset.fontSize || parseInt(block.dataset.fontSize) < 8) block.dataset.fontSize = 32;
         if (!block.dataset.fontWeight)    block.dataset.fontWeight    = 700;
+        if (block.dataset.fontStyle      === undefined) block.dataset.fontStyle      = 'normal';
+        if (block.dataset.textDecoration === undefined) block.dataset.textDecoration = 'none';
         if (!block.dataset.textColor)     block.dataset.textColor     = '#222222';
         if (block.dataset.strokeWidth   === undefined) block.dataset.strokeWidth   = 0;
         if (!block.dataset.strokeColor)   block.dataset.strokeColor   = '#ffffff';
