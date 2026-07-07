@@ -2,7 +2,7 @@
    Section Search — ⌘F 섹션 검색이동 팔레트
    - openSectionSearch() / closeSectionSearch() 글로벌
    - 상단 12vh 드롭다운형 커맨드 팔레트 (VSCode 스타일)
-   - 섹션명(dataset.name → .section-label → id 순)만 검색하는 read-only 네비게이션
+   - 섹션명(dataset.name → .section-label → id 순) + 섹션 ID(sec_*)를 검색하는 read-only 네비게이션
    - 블럭 ID(ab_/stk_/txt_ 등) 검색 시 소속 섹션으로 이동 + 오버레이 플래시
      (블럭 요소 자체는 미변형 — 플래시는 #canvas-scaler 위 임시 오버레이라 저장 직렬화에 안 섞임)
    - DOM/dataset 변형·저장 트리거 일절 없음
@@ -27,7 +27,7 @@
     input = document.createElement('input');
     input.className = 'ss-input';
     input.type = 'text';
-    input.placeholder = '섹션명 또는 블럭 ID로 이동…';
+    input.placeholder = '섹션명/ID 또는 블럭 ID로 이동…';
     input.setAttribute('autocomplete', 'off');
     input.setAttribute('spellcheck', 'false');
 
@@ -155,9 +155,19 @@
 
   function renderList(query) {
     const q = (query || '').toLowerCase().trim();
-    const secMatches = q
-      ? candidates.filter((c) => c.name.toLowerCase().includes(q))
-      : candidates.slice();
+    // 섹션은 이름 + 섹션 ID(sec_*) 양쪽으로 매칭 — ID로만 걸린 행은 idHit 표시해 id 병기
+    let secMatches;
+    if (q) {
+      secMatches = [];
+      candidates.forEach((c) => {
+        const nameHit = c.name.toLowerCase().includes(q);
+        const idHit = (c.el.id || '').toLowerCase().includes(q);
+        if (!nameHit && !idHit) return;
+        secMatches.push(!nameHit && idHit ? { ...c, idHit: true } : c);
+      });
+    } else {
+      secMatches = candidates.slice();
+    }
     // 블럭 ID 매칭은 2자 이상 입력부터 (빈/1자 쿼리는 기존처럼 섹션만)
     const blkMatches = q.length >= 2
       ? blockCandidates
@@ -192,6 +202,16 @@
         secSpan.textContent = '→ ' + c.secName;
         li.appendChild(idSpan);
         li.appendChild(secSpan);
+      } else if (c.idHit) {
+        // 섹션 ID로만 매치된 행 — 사용자가 친 ID가 왜 이 행인지 muted로 병기
+        li.classList.add('ss-item-sec-id');
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = c.name;
+        const idSpan = document.createElement('span');
+        idSpan.className = 'ss-sec-ref';
+        idSpan.textContent = '→ ' + (c.el.id || '');
+        li.appendChild(nameSpan);
+        li.appendChild(idSpan);
       } else {
         li.textContent = c.name;
       }
