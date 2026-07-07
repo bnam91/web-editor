@@ -464,6 +464,8 @@ function _createItem(src, x, y, w = 220, idArg, gArg) {
     const scale  = _getScale();
     const startX = e.clientX;
     const startW = el.offsetWidth;
+    // 리사이즈 undo/redo용 사전 지오메트리 스냅샷 — onMove가 w를 변형하기 전에 캡처
+    const geomBefore = _scratchGeomSnapshot([item]);
     const onMove = mv => {
       const newW = Math.max(60, startW + (mv.clientX - startX) / scale);
       el.style.width = newW + 'px';
@@ -471,6 +473,16 @@ function _createItem(src, x, y, w = 220, idArg, gArg) {
     };
     const onUp = () => {
       _saveScratch();
+      // 리사이즈 undo/redo — 실제 폭 변화가 있을 때만 history 등록 (이동과 동일 sideEffects 패턴)
+      if (item.w !== geomBefore[0].w) {
+        const geomAfter = _scratchGeomSnapshot([item]);
+        try {
+          window.pushHistory?.('스크래치 리사이즈', {
+            onUndo: () => _applyScratchGeomSnapshot(geomBefore),
+            onRedo: () => _applyScratchGeomSnapshot(geomAfter),
+          });
+        } catch (_) {}
+      }
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -526,6 +538,9 @@ function _createItem(src, x, y, w = 220, idArg, gArg) {
     const startClientX = e.clientX;
     const startClientY = e.clientY;
     dragTargets.forEach(t => { t._dragOrigX = t.x; t._dragOrigY = t.y; });
+    // 이동 undo/redo용 사전 지오메트리 스냅샷 — onMove가 x/y를 변형하기 전에 캡처
+    // (_dragOrigX/Y는 onUp 초입에서 delete되므로 재사용 불가 — 별도 스냅샷 필요)
+    const geomBefore = _scratchGeomSnapshot(dragTargets);
     let lastClientX = e.clientX;
     let lastClientY = e.clientY;
     let hasMoved = false;
@@ -828,6 +843,17 @@ function _createItem(src, x, y, w = 220, idArg, gArg) {
           t.y = parseFloat(t.el.style.top)  || t.y;
         });
         _saveScratch();
+        // 이동 undo/redo — 실제 좌표 변화가 있을 때만 history 등록 (스냅/지터로 0 이동이면 스킵)
+        // 그룹 정렬(_scratchGroupAndAlign)과 동일한 pushHistory sideEffects 패턴
+        if (dragTargets.some((t, i) => t.x !== geomBefore[i].x || t.y !== geomBefore[i].y)) {
+          const geomAfter = _scratchGeomSnapshot(dragTargets);
+          try {
+            window.pushHistory?.('스크래치 이동', {
+              onUndo: () => _applyScratchGeomSnapshot(geomBefore),
+              onRedo: () => _applyScratchGeomSnapshot(geomAfter),
+            });
+          } catch (_) {}
+        }
       }
     };
 
