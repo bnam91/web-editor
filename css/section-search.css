@@ -70,3 +70,28 @@
   color: var(--ui-text-muted, #777);
   text-align: center;
 }
+
+/* ── 블럭 ID 검색 행 ── */
+.ss-item-block { display: flex; align-items: baseline; gap: 8px; }
+.ss-item-block .ss-sec-ref {
+  color: var(--ui-text-muted, #777);
+  font-size: var(--ui-fs-12, 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 블럭 도착 플래시 오버레이 (#canvas-scaler 내부 모델좌표, 블럭 미변형) ── */
+.ss-flash-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 9999;
+  outline: var(--sel-outline-w, 1px) solid var(--sel-color, #4a9eff);
+  outline-offset: calc(-1 * var(--sel-outline-w, 1px));
+  background: var(--sel-color-fill, rgba(74, 158, 255, 0.12));
+  animation: ss-flash-pulse 0.7s ease-in-out 3;
+  opacity: 0;
+}
+@keyframes ss-flash-pulse {
+  0%, 100% { opacity: 0; }
+  40%, 70% { opacity: 1; }
+}
