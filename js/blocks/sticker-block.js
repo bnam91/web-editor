@@ -365,6 +365,14 @@ function addStickerBlock(opts = {}) {
   const sec = window.getSelectedSection?.()
     || selectedAnyBlock?.closest('.section-block');
   if (!sec) { window.showToast?.('섹션을 선택하세요'); return; }
+  // B13 가드: 값이 undefined인 키는 '지정 안 함'과 동일 취급 — spread 머지에서
+  //   undefined 키가 remembered 스타일(예: iconColor)을 덮어써 ''로 강등시키는 것 방지.
+  //   (호출자 객체 비변조 — 새 객체로 재구성)
+  {
+    const cleaned = {};
+    for (const [k, v] of Object.entries(opts)) if (v !== undefined) cleaned[k] = v;
+    opts = cleaned;
+  }
   // B13: sticky — 호출 opts에 없는 스타일 필드는 마지막에 쓴 스타일로 보충.
   //   shape 결정: 명시 opts.shape > 마지막에 쓴 shape > 기본. 그 shape 슬롯을 깔고 opts로 덮어씀.
   //   슬롯은 x/y/size/text를 안 담으므로 cascade·placeholder 분기 영향 없음.
