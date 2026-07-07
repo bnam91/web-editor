@@ -469,11 +469,12 @@ function _enterStickerEdit(block) {
 
   const finish = () => {
     textEl.removeAttribute('contenteditable');
-    const t = (textEl.textContent || '').trim();
+    // innerText로 읽어 개행 보존 (<br>/<div> 등 paste 잔재도 \n으로 정규화 — textContent는 <br> 소실)
+    const t = (textEl.innerText || textEl.textContent || '').replace(/\r/g, '').trim();
     const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
     block.dataset.text = t || fallback;
     if (!t) textEl.textContent = fallback;
-    // 우측 prop 패널의 #stk-text input도 sync
+    // 우측 prop 패널의 #stk-text textarea도 sync (textarea.value 할당은 \n 보존)
     const propInp = document.querySelector('#stk-text');
     if (propInp && document.querySelector('.sticker-block.selected') === block) {
       propInp.value = block.dataset.text;
@@ -484,7 +485,17 @@ function _enterStickerEdit(block) {
     textEl.removeEventListener('keydown', onKey);
   };
   const onKey = (ev) => {
-    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); textEl.blur(); }
+    if (ev.key === 'Enter' && !ev.shiftKey) {
+      if (block.dataset.shape === 'text') {
+        // 텍스트 스티커는 Enter = 줄바꿈 (renderer가 white-space:pre-wrap이라 \n 그대로 렌더).
+        // execCommand insertText는 editor.js Cmd+B/I 선례와 동일한 contenteditable 조작 경로.
+        ev.preventDefault();
+        document.execCommand('insertText', false, '\n');
+      } else {
+        // circle/square 등은 기존 동작 유지: Enter = 커밋
+        ev.preventDefault(); textEl.blur();
+      }
+    }
     else if (ev.key === 'Escape') { ev.stopPropagation(); textEl.blur(); }
   };
   textEl.addEventListener('blur', finish);

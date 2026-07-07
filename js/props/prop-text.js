@@ -77,6 +77,7 @@ export function showTextProperties(tb) {
   const currentWeight = rawWeight === 'bold' ? '700' : rawWeight === 'normal' ? '400' : rawWeight;
   const isBold        = currentWeight === '700' || rawWeight === 'bold';
   const isItalic      = contentEl.style.fontStyle  === 'italic';
+  const isStrike      = (contentEl.style.textDecorationLine || contentEl.style.textDecoration || '').includes('line-through');
   const currentHighlight      = tb.dataset.highlight || 'none';
   const currentHighlightColor = tb.dataset.highlightColor || '#ffeb3b';
 
@@ -108,6 +109,7 @@ export function showTextProperties(tb) {
     mix,
     shadow,
     isLiner,
+    isStrike,
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);

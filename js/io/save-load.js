@@ -711,7 +711,8 @@ function rebindAll() {
         e.stopPropagation();
         window.selectSectionWithModifier(sec, e);
         const row = e.target.closest('.row');
-        if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block')) {
+        // row 빈 여백 클릭은 row-active 제외 — 섹션 선택만 (fix(section-select), 판정=editor.js isRowMarginClick)
+        if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block')) {
           document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
           row.classList.add('row-active');
           if (window.syncLayerRow) window.syncLayerRow(row);
@@ -1627,6 +1628,10 @@ function initApp() {
       e.stopImmediatePropagation();
       if (e.altKey || window._optionKeyHeld || e.key === '©') {
         window.wrapSelectedBlocksInFrame?.();
+      } else if (typeof window._scratchHasSelection === 'function' && window._scratchHasSelection()) {
+        // 스크래치 다중 선택 상태면 스크래치 그룹 정렬 우선 — editor.js Cmd+G 분기와 동일 우선순위.
+        // (이 capture 핸들러가 stopImmediatePropagation으로 이벤트를 삼키므로 여기서 직접 분기해야 함)
+        window._scratchGroupAndAlign?.();
       } else {
         groupSelectedBlocks();
       }

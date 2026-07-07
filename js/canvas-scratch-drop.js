@@ -10,9 +10,14 @@
      D. canvas-wrap 바깥 / 섹션 밖 → 가이드 숨김 (변환 안 함)
 
    외부 API:
-     previewScratchDropAt(x, y)  — mousemove에서 호출. 가이드 렌더 + 케이스 종류 반환
-     commitScratchDropAt(x, y, src)  — mouseup에서 호출. 실제 변환 수행. boolean 반환
+     previewScratchDropAt(x, y, opts)  — mousemove에서 호출. 가이드 렌더 + 케이스 종류 반환
+     commitScratchDropAt(x, y, src, opts)  — mouseup에서 호출. 실제 변환 수행. boolean 반환
      clearScratchDropGuides()  — 드래그 종료 시 가이드 정리
+
+   opts.requireArm (기본 false — 기존 호출자 동작 100% 유지):
+     체류(dwell) 기반 '아밍' 게이트. 같은 타깃 위에 ARM_DELAY_MS 이상 머물러야
+     가이드(하이라이트)가 뜨고(=armed), commit도 armed 상태에서만 수행된다.
+     섹션을 스치기만 한 릴리즈가 오드롭되는 것을 차단 (scratch-pad 드래그용).
 ══════════════════════════════════════ */
 
 // 활성 가이드 상태 (드래그 1회 사이클 동안 유지)
@@ -20,6 +25,14 @@ let _activeReplaceAb = null;     // .sp2c-replace-target 부착된 asset-block
 let _activeSectionTarget = null; // .sp2c-section-target 부착된 section-block
 let _activeIndicator = null;     // .sp2c-insert-indicator DOM 노드
 let _activeNewSection = null;    // newsection 배지 호스트(#canvas-scaler)
+
+// ── 체류(dwell) 아밍 상태 (opts.requireArm 전용) ─────────────
+const ARM_DELAY_MS = 250;        // 같은 타깃 위 최소 체류 시간
+let _armEl = null;               // 현재 아밍 대상 엘리먼트 (replace→ab, insert/sectionbg→sec, newsection→scaler)
+let _armKind = null;             // 현재 아밍 대상 kind
+let _armSince = 0;               // 타깃 진입 시각 (performance.now())
+let _armTimer = null;            // 정지 호버 시 아밍 완료 시점에 가이드를 띄우기 위한 타이머
+let _lastPreviewArgs = null;     // 마지막 preview 좌표 (타이머 콜백에서 재분류용)
 
 let _rafId = null;
 let _pending = null;             // { clientX, clientY }
@@ -76,6 +89,9 @@ function _addBadge(host, label, posBottom) {
 function _classifyDrop(clientX, clientY) {
   const hit = document.elementFromPoint(clientX, clientY);
   if (!hit) return { kind: 'none' };
+
+  // 다른 스크래치 아이템 위 릴리즈 — scaler 자식이라 newsection으로 오분류되던 경로 차단
+  if (hit.closest('.scratch-item')) return { kind: 'none' };
 
   // 케이스 A: 에셋 블록 (이미지 교체) — 우선순위 최상
   const ab = hit.closest('.asset-block');
@@ -146,18 +162,85 @@ function _renderGuide(decision) {
   _clearGuides();
 }
 
-// mousemove 시 호출 — 가이드 렌더 + 분류 종류 반환 ('replace'|'insert'|'append'|'none')
-function previewScratchDropAt(clientX, clientY) {
+// 아밍 비교 기준이 되는 타깃 엘리먼트 산출
+function _decisionTarget(decision) {
+  if (decision.kind === 'replace') return decision.ab;
+  if (decision.kind === 'insert' || decision.kind === 'sectionbg') return decision.sec;
+  if (decision.kind === 'newsection') return document.getElementById('canvas-scaler');
+  return null;
+}
+
+function _resetArm() {
+  if (_armTimer) { clearTimeout(_armTimer); _armTimer = null; }
+  _armEl = null;
+  _armKind = null;
+  _armSince = 0;
+  _lastPreviewArgs = null;
+}
+
+// mousemove 시 호출 — 가이드 렌더 + 분류 종류 반환 ('replace'|'insert'|'sectionbg'|'newsection'|'none')
+// opts.requireArm=true면 같은 타깃 위 ARM_DELAY_MS 체류 후에만 가이드 렌더(=armed) + kind 반환.
+function previewScratchDropAt(clientX, clientY, opts = {}) {
   const decision = _classifyDrop(clientX, clientY);
-  _renderGuide(decision);
-  return decision.kind;
+
+  if (!opts.requireArm) {
+    _renderGuide(decision);
+    return decision.kind;
+  }
+
+  _lastPreviewArgs = { clientX, clientY };
+  const target = _decisionTarget(decision);
+  if (decision.kind === 'none' || !target) {
+    _resetArm();
+    _clearGuides();
+    return 'none';
+  }
+
+  const now = performance.now();
+  if (target !== _armEl || decision.kind !== _armKind) {
+    // 새 타깃 진입 — 아밍 리셋, 가이드는 숨긴 채 체류 시작
+    if (_armTimer) clearTimeout(_armTimer);
+    _armEl = target;
+    _armKind = decision.kind;
+    _armSince = now;
+    _clearGuides();
+    // 정지 호버(마우스 이동 없음) 시에도 아밍 완료 시점에 가이드가 뜨도록 예약
+    // (setTimeout은 지정 시간보다 일찍 발화하지 않으므로 발화 시점엔 경과 >= ARM_DELAY_MS 보장)
+    _armTimer = setTimeout(() => {
+      _armTimer = null;
+      if (!_lastPreviewArgs) return;
+      const d = _classifyDrop(_lastPreviewArgs.clientX, _lastPreviewArgs.clientY);
+      if (_decisionTarget(d) === _armEl && d.kind === _armKind) _renderGuide(d);
+    }, ARM_DELAY_MS);
+    return 'none';
+  }
+
+  // 같은 타깃 유지 중
+  if (now - _armSince >= ARM_DELAY_MS) {
+    // armed — 하이라이트 표시 (insert는 인디케이터 위치가 계속 갱신됨)
+    if (_armTimer) { clearTimeout(_armTimer); _armTimer = null; }
+    _renderGuide(decision);
+    return decision.kind;
+  }
+  return 'none';
 }
 
 // mouseup 시 호출 — 실제 변환 수행. 변환 성공이면 true 반환.
 // opts.naturalWidth, opts.naturalHeight — 새 asset-block의 aspect-ratio 적용용 (insert/append 케이스).
+// opts.requireArm — 아밍(같은 타깃 위 ARM_DELAY_MS 이상 체류) 상태에서만 커밋. 미아밍 릴리즈는 false.
 // history pushHistory는 호출자가 책임 (sideEffects hook과 함께 push 가능하도록).
 function commitScratchDropAt(clientX, clientY, src, opts = {}) {
   const decision = _classifyDrop(clientX, clientY);
+  if (opts.requireArm) {
+    // 커밋 시각 기준으로 경과 재평가 → '가만히 들고 있다 릴리즈' 케이스도 정상 커밋
+    const target = _decisionTarget(decision);
+    const armed = !!target
+      && target === _armEl
+      && decision.kind === _armKind
+      && (performance.now() - _armSince >= ARM_DELAY_MS);
+    _resetArm();
+    if (!armed) { _clearGuides(); return false; }
+  }
   _clearGuides();
   if (decision.kind === 'none' || !src) return false;
 
@@ -245,7 +328,7 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
   return true;
 }
 
-function clearScratchDropGuides() { _clearGuides(); }
+function clearScratchDropGuides() { _resetArm(); _clearGuides(); }
 
 export { previewScratchDropAt, commitScratchDropAt, clearScratchDropGuides };
 
