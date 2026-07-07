@@ -22,13 +22,22 @@ const STICKER_DEFAULTS = {
   y: 40,
 };
 
+const _CTL_CHARS_RE = /[\u0000-\u0008\u000B-\u001F\u007F]/g;
+// 제어문자 정화 — \b(U+0008) 등 보이지 않는 제어문자가 렌더에 잔존하면
+// contenteditable 캐럿 오프셋을 어지럽힘 (실데이터 stk_p4wfa0 선두 \b 사례).
+// \t(U+0009)·\n(U+000A)은 보존 (텍스트 스티커 Enter 줄바꿈 기능 유지). 렌더는 비파괴(dataset 불변),
+// dataset 자체는 편집 커밋(sticker-select.js finish) 시 자연 치유됨.
+function _stripCtlChars(s) {
+  return String(s).replace(_CTL_CHARS_RE, '');
+}
+
 function renderStickerBlock(block) {
   const shape      = block.dataset.shape      || STICKER_DEFAULTS.shape;
   const size       = parseInt(block.dataset.size)       || STICKER_DEFAULTS.size;
   // 모서리 핸들 리사이즈 시 W/H 독립 (sizeW/sizeH 우선, 없으면 size로 정사각)
   const sizeW      = parseInt(block.dataset.sizeW) || size;
   const sizeH      = parseInt(block.dataset.sizeH) || size;
-  const text       = block.dataset.text ?? STICKER_DEFAULTS.text;
+  const text       = _stripCtlChars(block.dataset.text ?? STICKER_DEFAULTS.text);
   const bgColor    = block.dataset.bgColor    || STICKER_DEFAULTS.bgColor;
   const textColor  = block.dataset.textColor  || STICKER_DEFAULTS.textColor;
   const fontSize   = parseInt(block.dataset.fontSize)   || STICKER_DEFAULTS.fontSize;
@@ -99,7 +108,7 @@ function renderStickerBlock(block) {
       ? `-webkit-text-stroke:${tStrokeWidth * 2}px ${tStrokeColor};paint-order:stroke fill;`
       : '';
     const rotCss = tRotation !== 0 ? `transform:rotate(${tRotation}deg);transform-origin:center center;` : '';
-    const safeText = String(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safeText = _stripCtlChars(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;`
       + `background:${tBgColor};border-radius:4px;`
