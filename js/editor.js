@@ -1121,6 +1121,15 @@ document.addEventListener('keydown', e => {
         return;
       }
     }
+    // 취소선 ⌘⇧X — Cmd+B/I 와 동일 패턴. shift 시 e.key==='X'라 아래 잘라내기(e.key==='x')와 비충돌
+    if ((e.key === 'x' || e.key === 'X') && e.shiftKey) {
+      if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
+        e.preventDefault();
+        document.execCommand('strikeThrough');
+        window.pushHistory?.();
+        return;
+      }
+    }
     if (e.key === 'c') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;

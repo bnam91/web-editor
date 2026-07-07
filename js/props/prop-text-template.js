@@ -14,6 +14,7 @@ export function buildTextPropsHtml(state) {
     mix,
     shadow,
     isLiner,
+    isStrike,
   } = state;
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
@@ -143,6 +144,10 @@ export function buildTextPropsHtml(state) {
           <option value="900" ${!_weightMixed && currentWeight==='900'?'selected':''}>Black 900</option>
         </select>
         <input type="number" class="prop-number prop-number-select" id="txt-size-number" min="8" max="800" value="${_sizeVal}" placeholder="${_sizePh}" style="flex:1;min-width:0;display:${isLiner?'none':'block'}">
+      </div>
+
+      <div class="prop-style-group" id="txt-style-group" style="margin-top:6px;display:${isLiner?'none':'flex'}">
+        <button class="prop-style-btn ${isStrike?'active':''}" id="txt-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>
       </div>
 
       <div class="prop-lhls-row">
