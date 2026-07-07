@@ -879,7 +879,7 @@ export function showStickerProperties(block) {
       rerender();
       window.scheduleAutoSave?.();
       showStickerProperties(block);
-    });
+    }, { favorites: true }); // 스티커 경로 = iconColor 소비 가능 → Favorite 탭 노출
   });
   // icon size / rotation — _bindTPair 패턴 재사용 (rerender 기반)
   _bindTPair('stk-icon-size', 'stk-icon-size-num', 'size',     16,   600, 1);

@@ -19,6 +19,8 @@ const COLLECTIONS = [
 let _modal = null;
 let _selectedIcon = null;  // { name: 'mdi:home' } (검색) 또는 { name, svg, iconColor, size } (즐겨찾기)
 let _onPick = null;        // 콜백 모드: 설정되면 블록 삽입 대신 onPick({name, svg, size, iconColor}) 호출
+let _favEnabled = false;   // Favorite 탭 노출 여부 — iconColor를 소비하는 호출자만 {favorites:true}로 오픈
+                           //   (addIconifyBlock/card 경로는 iconColor를 버려 미리보기≠삽입결과 불일치가 생기므로 숨김)
 let _searchTimer = null;
 let _currentQuery = '';
 let _currentPrefix = '';
@@ -91,16 +93,19 @@ function _createModal() {
   return el;
 }
 
-function openIconifyModal(onPick) {
+function openIconifyModal(onPick, options = {}) {
   if (!_modal) {
     _modal = _createModal();
     _bindModalEvents();
   }
   _onPick = typeof onPick === 'function' ? onPick : null;
+  _favEnabled = options?.favorites === true;
+  const favTab = _modal.querySelector('.iconify-subtab[data-subtab="favorite"]');
+  if (favTab) favTab.style.display = _favEnabled ? '' : 'none';
   _selectedIcon = null;
   _updateSelectedPreview(null);
-  _setSubTab('iconify');           // 기본 탭 = Iconify
-  _renderFavGrid();                // 프로퍼티 패널에서 추가된 최신 즐겨찾기 반영
+  _setSubTab('iconify');                 // 기본 탭 = Iconify
+  if (_favEnabled) _renderFavGrid();     // 프로퍼티 패널에서 추가된 최신 즐겨찾기 반영
   _modal.style.display = 'flex';
   setTimeout(() => document.getElementById('iconify-search-input')?.focus(), 50);
 }
@@ -115,6 +120,7 @@ window.closeIconifyModal = closeIconifyModal;
 // ── 서브패널(탭) 전환 — display 토글만 수행, 푸터는 공용 ──────────────────────
 function _setSubTab(tab) {
   if (!_modal) return;
+  if (tab === 'favorite' && !_favEnabled) tab = 'iconify'; // 비활성 오픈 모드에선 Favorite 진입 차단
   _modal.querySelectorAll('#iconify-subpanel-tabs .iconify-subtab').forEach(b => {
     b.classList.toggle('active', b.dataset.subtab === tab);
   });
@@ -192,7 +198,14 @@ function _bindModalEvents() {
   favGrid.addEventListener('click', e => {
     const del = e.target.closest('.iconify-fav-del');
     if (del) {
-      window.removeStickerFavorite?.(parseInt(del.dataset.favDel));
+      const idx = parseInt(del.dataset.favDel);
+      const p = (window.listStickerFavorites?.() || [])[idx];
+      // 선택 중인 즐겨찾기를 삭제하면 푸터 선택 상태도 해제 — 삭제된 프리셋이 삽입되는 것 방지
+      if (p && _selectedIcon?.svg && _selectedIcon.svg === p.iconSvg && _selectedIcon.name === (p.iconName || '')) {
+        _selectedIcon = null;
+        _updateSelectedPreview(null);
+      }
+      window.removeStickerFavorite?.(idx);
       _renderFavGrid();
       return;
     }
