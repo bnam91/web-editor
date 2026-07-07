@@ -82,6 +82,29 @@ async function _saveScratch() {
   });
 }
 
+// 탭 전환 즉시 호출: 이전 프로젝트 스크래치를 '동기 DOM 제거' 후 백그라운드 저장 (잔상 방지).
+// switchScratch는 currentPageId 확정(applyProjectData 이후)까지 미뤄지지만, 이전 프로젝트의
+// 저장/제거에는 새 pageId가 필요 없으므로 여기서 분리 수행한다.
+async function flushScratchForSwitch() {
+  const key  = _getScratchKey(_currentProjectId, _currentPageId);
+  // ★스냅샷은 배열 클리어 '전에' 동기 확보 — 안 그러면 빈 배열이 저장돼 데이터 유실
+  const data = _scratchItems.map(({ src, x, y, w, id, g }) => ({ src, x, y, w, id, g }));
+  _clearSelection();
+  _scratchItems.forEach(s => s.el.remove()); // 동기 제거 — 캔버스 클리어와 같은 턴에 잔상 소멸
+  _scratchItems = [];
+  // ★키 무효화 — 뒤따르는 switchScratch의 _saveScratch가 옛 키에 빈 배열을 덮어쓰지 않게 no-op화
+  _currentProjectId = null;
+  _currentPageId    = null;
+  if (!key) return; // projectId 없었으면 저장 스킵
+  const db = await _openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SCRATCH_STORE, 'readwrite');
+    tx.objectStore(SCRATCH_STORE).put(data, key);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
 function _setIdChipVisible(item, vis) {
   const chip = item?.el?.querySelector('.scratch-id-chip');
   if (chip) chip.style.display = vis ? 'block' : 'none';
@@ -1159,6 +1182,7 @@ window.loadScratchpadFolder = loadScratchpadFolder;
 window.initScratchPad    = initScratchPad;
 window.switchScratch     = switchScratch;
 window.switchScratchPage = switchScratchPage;
+window.flushScratchForSwitch = flushScratchForSwitch;
 window.clearScratchPad   = async () => {
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
