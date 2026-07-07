@@ -11,7 +11,7 @@ const SCRATCH_STORE   = 'scratch';
 let _db = null;
 let _currentProjectId = null;
 let _currentPageId = null;
-let _scratchItems = [];   // { el, src, x, y, w }
+let _scratchItems = [];   // { el, src, x, y, w, id, g? } — g = 그룹 id (선택 그룹화)
 let _selectedItems = new Set();  // 다중 선택 집합
 let _sliceMode = null;    // 슬라이스 모드 활성 item (또는 null)
 
@@ -73,7 +73,7 @@ async function _saveScratch() {
   if (!key) return; // projectId 없으면 저장 스킵
   const db   = await _openDB();
   // 스냅샷을 await 전에 미리 찍어서 비동기 구간 중 배열 변경 영향 차단
-  const data = _scratchItems.map(({ src, x, y, w, id }) => ({ src, x, y, w, id }));
+  const data = _scratchItems.map(({ src, x, y, w, id, g }) => ({ src, x, y, w, id, g }));
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
     tx.objectStore(SCRATCH_STORE).put(data, key);
@@ -114,6 +114,19 @@ function _clearSelection() {
   _selectedItems.clear();
 }
 
+// 마퀴 드래그 중 라이브 선택 동기화 — 선택 = base(shift 시 기존 선택) ∪ hits(마퀴 교차)
+function _applyMarqueeSelection(baseSet, hitSet) {
+  const next = new Set(baseSet);
+  hitSet.forEach(s => next.add(s));
+  _selectedItems.forEach(s => {
+    if (!next.has(s)) { s.el.classList.remove('scratch-selected'); _setIdChipVisible(s, false); }
+  });
+  next.forEach(s => {
+    if (!_selectedItems.has(s)) { s.el.classList.add('scratch-selected'); _setIdChipVisible(s, true); }
+  });
+  _selectedItems = next;
+}
+
 function _genScratchId() {
   return 'sp_' + Math.random().toString(36).slice(2, 8);
 }
@@ -135,8 +148,8 @@ function _removeItem(item) {
 // Cmd+Z 시 캔버스 작업이 아닌 스크래치 삭제가 먼저 되돌려지도록 별도 entry로 등록
 function _deleteScratchItemsWithHistory(items) {
   if (!items || items.length === 0) return;
-  // 삭제 전 정보 캡쳐 (복원용) — src/x/y/w/id 보존
-  const snapshots = items.map(s => ({ src: s.src, x: s.x, y: s.y, w: s.w, id: s.id }));
+  // 삭제 전 정보 캡쳐 (복원용) — src/x/y/w/id/g 보존
+  const snapshots = items.map(s => ({ src: s.src, x: s.x, y: s.y, w: s.w, id: s.id, g: s.g }));
 
   // 실제 삭제
   items.forEach(s => {
@@ -155,7 +168,7 @@ function _deleteScratchItemsWithHistory(items) {
       onUndo: async () => {
         for (let i = 0; i < snapshots.length; i++) {
           const s = snapshots[i];
-          try { await window._scratchAddAndSave?.(s.src, s.x, s.y, s.w); } catch (_) {}
+          try { await window._scratchAddAndSave?.(s.src, s.x, s.y, s.w, s.g); } catch (_) {}
           // 방금 추가된 item의 새 id 추출 (브라우저가 새 id 부여)
           const all = document.querySelectorAll('.scratch-item');
           const chip = all[all.length - 1]?.querySelector('.scratch-id-chip')?.textContent?.trim();
@@ -355,7 +368,7 @@ function _dataUrlToPngBlob(dataUrl) {
   });
 }
 
-function _createItem(src, x, y, w = 220, idArg) {
+function _createItem(src, x, y, w = 220, idArg, gArg) {
   const scaler = document.getElementById('canvas-scaler');
   if (!scaler) return null;
 
@@ -363,6 +376,7 @@ function _createItem(src, x, y, w = 220, idArg) {
   const el = document.createElement('div');
   el.className = 'scratch-item';
   el.dataset.scratchId = id;
+  if (gArg) el.dataset.scratchGroup = gArg;
   el.style.cssText = `left:${x}px; top:${y}px; width:${w}px;`;
 
   const img = document.createElement('img');
@@ -485,6 +499,17 @@ function _createItem(src, x, y, w = 220, idArg) {
     } else if (e.shiftKey) {
       _selectItem(item, true);
       return;
+    }
+
+    // 그룹 공동 선택 — 비shift 클릭 시 같은 그룹(g) 멤버 전체를 선택에 포함 → 함께 드래그
+    if (!e.shiftKey && item.g) {
+      for (const s of _scratchItems) {
+        if (s !== item && s.g === item.g && !_selectedItems.has(s)) {
+          _selectedItems.add(s);
+          s.el.classList.add('scratch-selected');
+          _setIdChipVisible(s, true);
+        }
+      }
     }
 
     // 드래그할 아이템 목록
@@ -812,7 +837,7 @@ function _createItem(src, x, y, w = 220, idArg) {
 
   scaler.appendChild(el);
 
-  const item = { el, src, x, y, w, id };
+  const item = { el, src, x, y, w, id, g: gArg || undefined };
   _scratchItems.push(item);
 
   // native HTML5 DnD 사용 안 함 — mousedown/move/up 흐름 안에서 모두 처리 (canvas-scratch-drop.js의 export API 호출)
@@ -838,9 +863,9 @@ async function _loadScratch(projectId, pageId) {
       req.onerror   = e => reject(e.target.error);
     });
     let migrated = false;
-    data.forEach(({ src, x, y, w, id }) => {
+    data.forEach(({ src, x, y, w, id, g }) => {
       if (!id) migrated = true; // 구 데이터엔 id 없음 — 자동 생성 후 재저장 트리거
-      _createItem(src, x, y, w, id);
+      _createItem(src, x, y, w, id, g);
     });
     if (migrated) _saveScratch();
   } catch(e) {
@@ -856,11 +881,100 @@ async function initScratchPad(projectId, pageId) {
   if (!wrap || wrap._scratchBound) return;
   wrap._scratchBound = true;
 
-  // canvas-wrap 빈 영역 클릭 → 전체 선택 해제
+  // canvas-wrap 빈 영역: 클릭 = 전체 선택 해제(기존 동작), 드래그 = 마퀴 다중 선택.
+  // panMode(Space)는 editor.js capture 핸들러가 stopPropagation하므로 자연 배제.
+  const MARQUEE_THRESHOLD = 4; // client px — 미만이면 단순 클릭으로 간주
   wrap.addEventListener('mousedown', e => {
-    if (!e.target.closest('.scratch-item')) {
-      _clearSelection();
+    if (e.target.closest('.scratch-item')) return;
+
+    // 마퀴 발동 조건: 좌클릭 + 캔버스 빈 영역(editor.js deselectAll과 동일 판정) + 펜/슬라이스 모드 아님
+    const isEmptyArea = e.button === 0
+      && ['canvas-wrap', 'canvas-scaler', 'canvas'].includes(e.target.id)
+      && !_sliceMode
+      && !document.body.classList.contains('pen-mode')
+      && !document.body.classList.contains('vpen-mode');
+    // 네이티브 스크롤바 클릭은 마퀴 제외 (preventDefault가 스크롤바 드래그를 막음)
+    const onScrollbar = e.target === wrap && (e.offsetX > wrap.clientWidth || e.offsetY > wrap.clientHeight);
+
+    if (!isEmptyArea || onScrollbar) {
+      _clearSelection(); // 기존 동작 유지
+      return;
     }
+
+    // shift = 기존 선택 보존(additive), 아니면 기존 동작대로 즉시 해제
+    const baseSel = e.shiftKey ? new Set(_selectedItems) : new Set();
+    if (!e.shiftKey) _clearSelection();
+    if (_scratchItems.length === 0) return; // 선택 대상 없음 — 마퀴 불필요
+
+    e.preventDefault();
+    // 포커스 잔류로 인한 단축키 가드 오작동 예방 — 입력 요소 blur
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) ae.blur();
+
+    const scalerEl = document.getElementById('canvas-scaler');
+    if (!scalerEl) return;
+    const scale = _getScale();
+    const scalerRect = scalerEl.getBoundingClientRect(); // 시작 시 캐시 (아이템 드래그와 동일 방식)
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startX = (startClientX - scalerRect.left) / scale;
+    const startY = (startClientY - scalerRect.top)  / scale;
+
+    // 아이템 AABB 캐시 (model 좌표)
+    const boxes = _scratchItems.map(s => ({
+      item: s,
+      left: s.x, top: s.y,
+      right:  s.x + (s.w || s.el.offsetWidth || 0),
+      bottom: s.y + (s.el.offsetHeight || 0),
+    }));
+
+    let marqueeEl = null;
+    let active = false;
+    let _rafId = null;
+    let lastMv = null;
+
+    const _update = () => {
+      _rafId = null;
+      if (!lastMv || !marqueeEl) return;
+      const curX = (lastMv.clientX - scalerRect.left) / scale;
+      const curY = (lastMv.clientY - scalerRect.top)  / scale;
+      const x1 = Math.min(startX, curX), x2 = Math.max(startX, curX);
+      const y1 = Math.min(startY, curY), y2 = Math.max(startY, curY);
+      marqueeEl.style.left   = x1 + 'px';
+      marqueeEl.style.top    = y1 + 'px';
+      marqueeEl.style.width  = (x2 - x1) + 'px';
+      marqueeEl.style.height = (y2 - y1) + 'px';
+      // AABB 교차 히트테스트 → 라이브 선택 동기화
+      const hits = new Set();
+      for (const b of boxes) {
+        if (b.left < x2 && b.right > x1 && b.top < y2 && b.bottom > y1) hits.add(b.item);
+      }
+      _applyMarqueeSelection(baseSel, hits);
+    };
+
+    const onMove = mv => {
+      if (!active) {
+        if (Math.max(Math.abs(mv.clientX - startClientX), Math.abs(mv.clientY - startClientY)) < MARQUEE_THRESHOLD) return;
+        active = true;
+        marqueeEl = document.createElement('div');
+        marqueeEl.className = 'scratch-marquee';
+        scalerEl.appendChild(marqueeEl);
+      }
+      lastMv = mv;
+      if (!_rafId) _rafId = requestAnimationFrame(_update);
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; _update(); }
+      marqueeEl?.remove();
+      marqueeEl = null;
+      // 임계 미만 = 단순 클릭: 위에서 이미 기존 동작(선택 해제) 수행됨
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   });
 
   // Delete / Backspace 키 → 선택 아이템 일괄 삭제 (contenteditable 포커스 중 제외)
@@ -1060,8 +1174,8 @@ window.clearScratchPad   = async () => {
 
 // CDP 스킬용 헬퍼 — 이미지를 추가하고 IndexedDB에 즉시 저장
 // ⚠️ Promise를 반환함 — 호출 시 반드시 await 사용: await window._scratchAddAndSave(...)
-window._scratchAddAndSave = async (src, x, y, w) => {
-  _createItem(src, x, y, w);
+window._scratchAddAndSave = async (src, x, y, w, g) => {
+  _createItem(src, x, y, w, undefined, g);
   await _saveScratch();
 };
 
@@ -1103,7 +1217,7 @@ window._scratchImportAll = async (newProjectId, scratchBlock) => {
     const store = tx.objectStore(SCRATCH_STORE);
     for (const { pageId, items } of scratchBlock) {
       if (!pageId || !Array.isArray(items) || !items.length) continue;
-      const clean = items.map(({ src, x, y, w, id }) => ({ src, x, y, w, id }));
+      const clean = items.map(({ src, x, y, w, id, g }) => ({ src, x, y, w, id, g }));
       store.put(clean, `scratch-pad-${newProjectId}-${pageId}`);
       n++;
     }
@@ -1127,7 +1241,7 @@ window._scratchGroupAndAlign = () => {
   // 스마트 그리드 — 220px width, 4 cols, gap 16
   const W = 220, GAP = 16, COLS = 4;
   // 그룹 id (이미 그룹 있으면 재사용 — 첫 아이템 기준)
-  const groupId = items[0].el?.dataset?.scratchGroup || ('g_' + Math.random().toString(36).slice(2, 8));
+  const groupId = items[0].g || items[0].el?.dataset?.scratchGroup || ('g_' + Math.random().toString(36).slice(2, 8));
   items.forEach((it, idx) => {
     const col = idx % COLS;
     const row = Math.floor(idx / COLS);
@@ -1135,6 +1249,7 @@ window._scratchGroupAndAlign = () => {
     const newY = minY + row * (W + GAP);
     it.x = newX;
     it.y = newY;
+    it.g = groupId; // 직렬화 대상 — 리로드 후에도 그룹 유지
     if (it.el) {
       it.el.style.left = newX + 'px';
       it.el.style.top  = newY + 'px';
@@ -1144,7 +1259,25 @@ window._scratchGroupAndAlign = () => {
     it.w = W;
   });
   _saveScratch();
+  window.showToast?.(`🧩 스크래치 ${items.length}개 그룹 정렬`);
   return { ok: true, count: items.length, groupId };
+};
+
+// 선택 중 그룹(g) 달린 아이템 존재 여부 — Cmd+Shift+G 라우팅용 (editor.js ungroup 분기)
+window._scratchHasGroupSelection = () =>
+  [..._selectedItems].some(it => it.g || it.el?.dataset?.scratchGroup);
+
+// 스크래치 언그룹 — 선택된 아이템들의 그룹 해제 (Cmd+Shift+G)
+window._scratchUngroup = () => {
+  const items = [..._selectedItems].filter(it => it.g || it.el?.dataset?.scratchGroup);
+  if (!items.length) return { ok: false, msg: '그룹 아이템 없음' };
+  items.forEach(it => {
+    delete it.g;
+    if (it.el) delete it.el.dataset.scratchGroup;
+  });
+  _saveScratch();
+  window.showToast?.(`🧩 스크래치 그룹 해제 (${items.length}개)`);
+  return { ok: true, count: items.length };
 };
 
 // ── Claude PM MCP 노출: 스크래치 아이템 메타데이터 조회 ──

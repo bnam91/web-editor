@@ -193,6 +193,15 @@
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
 
+/* 캔버스 빈 영역 마퀴 드래그 — 스크래치 다중 선택 (canvas-scaler 내부 절대좌표) */
+.scratch-marquee {
+  position: absolute;
+  border: 1px solid var(--sel-color);
+  background: var(--sel-color-fill);
+  pointer-events: none;
+  z-index: 9999;
+}
+
 #canvas-scaler { transform-origin: top center; transition: transform 0.15s ease; position: relative; }
 #canvas-wrap.panning #canvas-scaler { transition: none; }
 
