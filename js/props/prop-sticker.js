@@ -874,6 +874,8 @@ export function showStickerProperties(block) {
       block.dataset.iconName = p.name || '';
       block.dataset.iconSvg  = p.svg  || '';
       if (p.size) block.dataset.size = String(p.size);
+      // 즐겨찾기 픽(iconColor 정의됨)일 때만 색 적용 — 일반 교체는 '아이콘만 교체' 유지
+      if (p.iconColor !== undefined && p.iconColor !== '') block.dataset.iconColor = p.iconColor;
       rerender();
       window.scheduleAutoSave?.();
       showStickerProperties(block);
