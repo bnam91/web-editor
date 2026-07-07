@@ -1253,8 +1253,8 @@ window._scratchImportAll = async (newProjectId, scratchBlock) => {
   return n;
 };
 
-// ── 스크래치 그룹화 + 스마트 그리드 정렬 (Cmd+G — editor.js 단축키 분기) ──────
-// 다중 선택된 스크래치들을 4열 그리드로 재배치 + data-scratch-group 박음.
+// ── 스크래치 그룹화 (Cmd+G — editor.js 단축키 분기) ──────
+// 다중 선택된 스크래치들에 data-scratch-group만 박음 — 위치/크기는 보이는 그대로 불변.
 // 같은 그룹은 시각적 묶음 (향후 함께 이동 등 확장 가능).
 window._scratchHasSelection = () => _selectedItems.size >= 2;
 
@@ -1280,40 +1280,24 @@ function _applyScratchGeomSnapshot(snaps) {
 window._scratchGroupAndAlign = () => {
   if (_selectedItems.size < 2) return { ok: false, msg: '2개 이상 선택 필요' };
   const items = [...(_selectedItems)];
-  // 기준 좌표: 선택 중 가장 좌상단 (최소 x, 최소 y)
-  const minX = Math.min(...items.map(i => i.x));
-  const minY = Math.min(...items.map(i => i.y));
-  // 스마트 그리드 — 220px width, 4 cols, gap 16
-  const W = 220, GAP = 16, COLS = 4;
   // 그룹 id (이미 그룹 있으면 재사용 — 첫 아이템 기준)
   const groupId = items[0].g || items[0].el?.dataset?.scratchGroup || ('g_' + Math.random().toString(36).slice(2, 8));
   const before = _scratchGeomSnapshot(items); // undo용 사전 스냅샷
-  items.forEach((it, idx) => {
-    const col = idx % COLS;
-    const row = Math.floor(idx / COLS);
-    const newX = minX + col * (W + GAP);
-    const newY = minY + row * (W + GAP);
-    it.x = newX;
-    it.y = newY;
+  // 보이는 그대로 그룹 — 위치/크기는 건드리지 않고 g만 부여 (그리드 재배치 제거)
+  items.forEach(it => {
     it.g = groupId; // 직렬화 대상 — 리로드 후에도 그룹 유지
-    if (it.el) {
-      it.el.style.left = newX + 'px';
-      it.el.style.top  = newY + 'px';
-      it.el.style.width = W + 'px';
-      it.el.dataset.scratchGroup = groupId;
-    }
-    it.w = W;
+    if (it.el) it.el.dataset.scratchGroup = groupId;
   });
   _saveScratch();
   // 글로벌 history에 sideEffects entry — 캔버스는 동일 스냅샷, onUndo/onRedo가 스크래치만 복원
   const after = _scratchGeomSnapshot(items);
   try {
-    window.pushHistory?.('스크래치 그룹 정렬', {
+    window.pushHistory?.('스크래치 그룹', {
       onUndo: () => _applyScratchGeomSnapshot(before),
       onRedo: () => _applyScratchGeomSnapshot(after),
     });
   } catch (_) {}
-  window.showToast?.(`🧩 스크래치 ${items.length}개 그룹 정렬`);
+  window.showToast?.(`🧩 스크래치 ${items.length}개 그룹 설정`);
   return { ok: true, count: items.length, groupId };
 };
 
