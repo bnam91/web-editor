@@ -232,8 +232,10 @@ function _restoreViewState(tab) {
 
 async function switchTab(id) {
   if (id === _getActId()) return;
-  // 스크래치패드 전환은 currentPageId 정해진 후(applyProjectData 다음)로 미룸 —
-  // 여기서 호출하면 pageId=undefined로 키 불일치 발생해 데이터 못 찾음
+  // 스크래치패드 '로드'(switchScratch)는 currentPageId 정해진 후(applyProjectData 다음)로 미룸 —
+  // 여기서 호출하면 pageId=undefined로 키 불일치 발생해 데이터 못 찾음.
+  // 단 이전 프로젝트 스크래치의 '저장+DOM제거'는 새 pageId 불필요 → 아래 캔버스 클리어 시점에
+  // flushScratchForSwitch로 즉시 수행 (탭 전환 잔상 방지)
 
   // 현재 탭 메모리 캐시 저장 + 파일 비동기 저장
   const openTabs = _getTabs();
@@ -277,6 +279,9 @@ async function switchTab(id) {
   // propPanel 클리어 — 이전 탭의 속성 패널 내용이 잔존하지 않도록
   const propPanel = document.querySelector('#panel-right .panel-body');
   if (propPanel) propPanel.innerHTML = '';
+  // 이전 프로젝트 스크래치 즉시 제거 + 백그라운드 저장 (탭 전환 잔상 방지). 완료 대기 불필요 —
+  // IndexedDB는 같은 store의 트랜잭션을 생성 순서대로 직렬화하므로 이후 switchScratch의 read와 race 없음
+  window.flushScratchForSwitch?.().catch(e => console.warn('[switchTab] scratch flush 실패:', e));
   if (window.buildLayerPanel) window.buildLayerPanel();
 
   renderTabBar();
