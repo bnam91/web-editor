@@ -159,6 +159,10 @@ function _renderFavGrid() {
       const svg = holder.querySelector('svg');
       if (svg) { svg.setAttribute('width', 24); svg.setAttribute('height', 24); svg.style.pointerEvents = 'none'; }
     }
+    // 선택 유지 — 다른 즐겨찾기 삭제로 인한 재렌더 후 현재 선택 셀의 .sel 하이라이트 복원
+    if (_selectedIcon?.svg && p.iconSvg === _selectedIcon.svg && (p.iconName || '') === (_selectedIcon.name || '')) {
+      cell.classList.add('sel');
+    }
   });
 }
 
@@ -173,9 +177,10 @@ function _selectFavCell(cell) {
     iconColor: p.iconColor || undefined,
     size: p.size ? parseInt(p.size) : undefined,
   };
-  if (_selectedIcon.size) {
-    const sizeInput = document.getElementById('iconify-size-input');
-    if (sizeInput) sizeInput.value = _selectedIcon.size;
+  const sizeInput = document.getElementById('iconify-size-input');
+  if (sizeInput) {
+    sizeInput.max = 600;                       // 즐겨찾기(스티커) 픽=상한 600 (검색 선택 시 512로 되돌림)
+    if (_selectedIcon.size) sizeInput.value = _selectedIcon.size;
   }
   _updateSelectedPreview(_selectedIcon);
   return true;
@@ -232,7 +237,15 @@ function _bindModalEvents() {
     _setGridMessage('검색 중...');
     _searchTimer = setTimeout(() => _doSearch(_currentQuery, _currentPrefix), 400);
   });
-  searchInput.addEventListener('keydown', e => { if (e.key === 'Escape') closeIconifyModal(); });
+  // ESC 닫기 — 모달 레벨(표시 중 가드). Favorite 탭엔 포커스 인풋이 없어 검색인풋 바인딩만으론 닫히지 않음.
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _modal && _modal.style.display !== 'none') closeIconifyModal();
+  });
+
+  // 데이터 레이어 변경 통지 구독 — 우측 패널에서 즐겨찾기 삭제/추가 시 모달 fav 그리드 동기화
+  window.addEventListener('sticker-favorites-changed', () => {
+    if (_modal && _modal.style.display !== 'none' && _favEnabled) _renderFavGrid();
+  });
 
   // 컬렉션 필터
   document.getElementById('iconify-collection-filter').addEventListener('click', e => {
@@ -252,6 +265,8 @@ function _bindModalEvents() {
     document.querySelectorAll('#iconify-modal .iconify-icon-cell.sel').forEach(c => c.classList.remove('sel'));
     cell.classList.add('sel');
     _selectedIcon = { name: cell.dataset.iconName };
+    const sizeInput = document.getElementById('iconify-size-input');
+    if (sizeInput) sizeInput.max = 512;        // 검색(iconify 블록) 경로=상한 512로 복원
     _updateSelectedPreview(_selectedIcon);
   });
 
@@ -334,7 +349,9 @@ function _updateSelectedPreview(sel) {
 
 async function _doInsert() {
   if (!_selectedIcon) return;
-  const size = Math.min(512, Math.max(16, parseInt(document.getElementById('iconify-size-input').value) || 64));
+  // 즐겨찾기(스티커) 픽 경로는 패널 범위(16~600)에 맞춰 상한 600 유지, 검색(iconify 블록) 경로는 512.
+  const maxSize = _selectedIcon.svg ? 600 : 512;
+  const size = Math.min(maxSize, Math.max(16, parseInt(document.getElementById('iconify-size-input').value) || 64));
   const name = _selectedIcon.name;
   const iconColor = _selectedIcon.iconColor; // 검색 경로는 undefined → 기존 동작 불변
   const pick = _onPick; // closeIconifyModal이 _onPick을 비우므로 먼저 캡처

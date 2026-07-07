@@ -21,6 +21,9 @@ function listStickerFavorites() {
 }
 function _saveStickerFavorites(arr) {
   try { localStorage.setItem(FAV_KEY, JSON.stringify(arr.slice(0, FAV_MAX))); } catch (_) {}
+  // 데이터 변경 통지 — 모달 Favorite 그리드 ↔ 우측 패널 스트립 양방향 동기화.
+  //   (한쪽에서 삭제/추가하면 다른 쪽 렌더가 stale 인덱스로 라이브 배열을 읽는 것을 방지)
+  try { window.dispatchEvent(new CustomEvent('sticker-favorites-changed')); } catch (_) {}
 }
 // 현재 스티커 dataset에서 스타일 토큰만 추출 (위치/절대크기/text 내용 제외)
 function _stickerStyleFromBlock(block) {
@@ -62,6 +65,14 @@ function removeStickerFavorite(idx) {
 window.listStickerFavorites = listStickerFavorites;
 window.addStickerFavorite = addStickerFavorite;
 window.removeStickerFavorite = removeStickerFavorite;
+
+// 현재 표시 중인 스티커 프로퍼티 패널의 fav 스트립 리렌더러(단일 참조).
+//   'sticker-favorites-changed'가 오면 스트립을 라이브 배열로 다시 그려 stale DOM 인덱스를 소거한다.
+//   패널이 재빌드되면 참조가 교체되고, 비-스티커 선택 시엔 그리드가 없어 no-op이 되므로 리스너 누수 없음.
+let _activePanelFavRerender = null;
+window.addEventListener('sticker-favorites-changed', () => {
+  if (typeof _activePanelFavRerender === 'function') _activePanelFavRerender();
+});
 
 // 즐겨찾기 스와치 1개의 미리보기 스타일/라벨
 function _favSwatchPreview(preset) {
@@ -844,6 +855,8 @@ export function showStickerProperties(block) {
       });
     });
   };
+  // 데이터 변경 통지 구독용 활성 리렌더러로 등록 (모달·패널 삭제 양방향 동기화)
+  _activePanelFavRerender = _renderFavGrid;
   _renderFavGrid();
 
   propPanel.querySelector('#stk-fav-add')?.addEventListener('click', () => {
