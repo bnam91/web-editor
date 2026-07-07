@@ -186,7 +186,7 @@ export function showStickerProperties(block) {
     <div class="prop-section" id="stk-text-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' && !isText ? 'none' : 'block')};">
       <div class="prop-section-title">Text</div>
       <div class="prop-row">
-        <input type="text" class="prop-input" id="stk-text" value="${_esc(text)}" placeholder="텍스트">
+        <textarea class="prop-textarea" id="stk-text" rows="2" placeholder="텍스트"></textarea>
       </div>
     </div>
     <div class="prop-section" id="stk-image-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
@@ -459,8 +459,15 @@ export function showStickerProperties(block) {
 
   const rerender = () => { window.renderStickerBlock?.(block); window.rememberStickerStyle?.(block); };
 
-  // 텍스트 — input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
+  // 텍스트 — textarea(멀티라인, \n 보존). input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
+  //   초깃값은 HTML 본문 주입 대신 value 할당 — <input type=text>의 \n strip 함정 회피 +
+  //   textarea 본문 주입 시 선두 개행 소실/이스케이프 함정도 회피.
   const txt = propPanel.querySelector('#stk-text');
+  txt.value = text;
+  txt.addEventListener('keydown', ev => {
+    // 멀티라인은 text shape 전용 — circle/square 등은 Enter=커밋(인라인 편집과 동일 규칙, 개행 미주입)
+    if (ev.key === 'Enter' && block.dataset.shape !== 'text') { ev.preventDefault(); txt.blur(); }
+  });
   txt.addEventListener('input', () => {
     block.dataset.text = txt.value;
     const t = block.querySelector('.sticker-text');

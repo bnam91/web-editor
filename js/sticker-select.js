@@ -474,7 +474,7 @@ function _enterStickerEdit(block) {
     const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
     block.dataset.text = t || fallback;
     if (!t) textEl.textContent = fallback;
-    // 우측 prop 패널의 #stk-text input도 sync
+    // 우측 prop 패널의 #stk-text textarea도 sync (textarea.value 할당은 \n 보존)
     const propInp = document.querySelector('#stk-text');
     if (propInp && document.querySelector('.sticker-block.selected') === block) {
       propInp.value = block.dataset.text;

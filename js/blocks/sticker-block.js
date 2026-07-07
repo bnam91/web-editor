@@ -54,6 +54,16 @@ function renderStickerBlock(block) {
   }
 
   if (shape === 'text') {
+    // [스트로크 v2 마이그레이션] 구버전(1배 렌더 시절)에 저장된 블록은 strokeV 마커가 없다.
+    // 2배 렌더 정합화로 보이는 두께가 2배가 되는 것을 막기 위해 1회만 절반으로 환산해
+    // 기존 저장 프로젝트의 '보이는 두께'를 그대로 유지한다. 신규 블록은
+    // makeStickerBlock/updateStickerBlock(shape→text)에서 strokeV='2' 마킹되어 스킵.
+    // dataset은 직렬화로 영속 → 재로드 시 이중 환산 없음.
+    if (block.dataset.strokeV !== '2') {
+      const _legacyW = parseFloat(block.dataset.strokeWidth);
+      if (Number.isFinite(_legacyW) && _legacyW > 0) block.dataset.strokeWidth = String(_legacyW / 2);
+      block.dataset.strokeV = '2';
+    }
     // 텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (auto-size, 풀 옵션)
     const tFontFamily    = block.dataset.fontFamily    || "'Pretendard', sans-serif";
     const tFontSize      = parseInt(block.dataset.fontSize) || 32;
@@ -327,6 +337,7 @@ function makeStickerBlock(opts = {}) {
     block.dataset.textDecoration = opts.textDecoration ?? 'none';
     block.dataset.textColor     = opts.textColor     ?? '#222222';
     block.dataset.strokeWidth   = opts.strokeWidth   ?? 0;
+    block.dataset.strokeV       = '2'; // 신규 블록 = v2 시맨틱(값 N=보이는 N px) — 렌더 마이그레이션 스킵
     block.dataset.strokeColor   = opts.strokeColor   ?? '#ffffff';
     block.dataset.letterSpacing = opts.letterSpacing ?? 0;
     block.dataset.textAlign     = opts.textAlign     ?? 'left';
@@ -531,6 +542,13 @@ function updateStickerBlock(blockId, partial = {}) {
         if (block.dataset.textDecoration === undefined) block.dataset.textDecoration = 'none';
         if (!block.dataset.textColor)     block.dataset.textColor     = '#222222';
         if (block.dataset.strokeWidth === undefined) block.dataset.strokeWidth = '0';
+        // 스트로크 v2 마이그레이션 선반영 — 구버전 잔존값(과거 text→타 shape 왕복)은 절반 환산 후 마킹.
+        // 여기서 마킹해 두면 같은 호출의 partial.strokeWidth(v2 시맨틱)가 렌더에서 재환산되지 않음.
+        if (block.dataset.strokeV !== '2') {
+          const _lw = parseFloat(block.dataset.strokeWidth);
+          if (Number.isFinite(_lw) && _lw > 0) block.dataset.strokeWidth = String(_lw / 2);
+          block.dataset.strokeV = '2';
+        }
         if (!block.dataset.strokeColor)   block.dataset.strokeColor   = '#ffffff';
         if (block.dataset.letterSpacing === undefined) block.dataset.letterSpacing = '0';
         if (!block.dataset.textAlign)     block.dataset.textAlign     = 'left';
@@ -689,7 +707,16 @@ function updateStickerBlock(blockId, partial = {}) {
     }
   }
   _applyEnum('fontStyle', 'fontStyle', ['normal', 'italic']);
-  _applyEnum('textDecoration', 'textDecoration', ['none', 'underline', 'line-through', 'underline line-through']);
+  // textDecoration — 토큰 순서 무관 수용: 'line-through underline'도 정순서로 정규화 후 적용.
+  //   sort() = ['line-through','underline'] → reverse() = 정순서 'underline line-through'.
+  //   단일 토큰/none은 sort·reverse가 no-op. 중복/미지 토큰은 allowed 불일치로 기존처럼 무시.
+  if (typeof partial.textDecoration === 'string') {
+    const _decoNorm = partial.textDecoration.trim().split(/\s+/).sort().reverse().join(' ');
+    if (['none', 'underline', 'line-through', 'underline line-through'].includes(_decoNorm)) {
+      block.dataset.textDecoration = _decoNorm;
+      applied.textDecoration = _decoNorm;
+    }
+  }
   _applyNum('strokeWidth', 'strokeWidth', 0, 50);
   if (partial.letterSpacing !== undefined && partial.letterSpacing !== null) {
     const n = Number(partial.letterSpacing);
