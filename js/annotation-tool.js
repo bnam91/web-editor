@@ -1,7 +1,8 @@
 // annotation-tool.js — 펜툴 어노테이션 Phase 2 (폴리라인)
 // 펜툴 모드 진입 → 같은 섹션에서 N번 클릭 → 더블클릭 / Enter / 우클릭으로 종료
-// ESC: 그리는 중이면 취소, 아니면 모드 종료. 버튼 재클릭 = 모드 종료
-// 모드는 자동 종료되지 않음
+// ESC / V: 그리는 중(≥2점)이면 선을 확정한 뒤 모드 종료, 1점 이하면 폐기 후 모드 종료
+//          (V = 일러스트 컨벤션 "일반 포인터 복귀"). 버튼 재클릭 = 모드 종료
+// 그리는 중 점 취소는 Backspace/Delete/Cmd+Z (점 단위). 모드는 자동 종료되지 않음
 
 // ── 모듈 상태 ─────────────────────────────────────────────────────────────
 let _penMode = false;
@@ -207,7 +208,9 @@ function _updatePreviewSvg() {
 }
 
 // ── 어노테이션 확정 ──────────────────────────────────────────────────────
-function _finalizeAnnotation() {
+// enterLabelEdit=false: 라벨 자동 편집 진입 생략 (ESC/V로 "작업 종료" 커밋 시)
+// silent=true: "펜 모드 유지 중" 토스트 생략 (모드를 곧바로 종료하는 경로)
+function _finalizeAnnotation({ enterLabelEdit = true, silent = false } = {}) {
   if (!_pendingPoints) return;
   const { sec, points } = _pendingPoints;
   if (points.length < 2) { _cancelPending(); return; }
@@ -218,7 +221,7 @@ function _finalizeAnnotation() {
 
   // 라벨 즉시 편집 진입
   const label = block.querySelector('.annot-label');
-  if (label) {
+  if (label && enterLabelEdit) {
     label.setAttribute('contenteditable', 'true');
     _bindLabelEdit(label, block);
     setTimeout(() => {
@@ -236,7 +239,15 @@ function _finalizeAnnotation() {
   window.bindAnnotationSelect?.(block);
   _cancelPending();
   window.scheduleAutoSave?.();
-  window.showToast?.('✏️ 펜 모드 유지 중 — ESC로 종료');
+  if (!silent) window.showToast?.('✏️ 펜 모드 유지 중 — ESC로 종료');
+}
+
+// ESC / V 공통 — 그리던 선(≥2점)은 확정해 보존하고 펜 모드 종료 (1점 이하는 폐기)
+function _commitAndExitPenMode() {
+  const hadLine = _pendingPoints && _pendingPoints.points.length >= 2;
+  if (hadLine) _finalizeAnnotation({ enterLabelEdit: false, silent: true });
+  exitPenMode(); // 잔여 pending/미리보기는 내부 _cancelPending이 정리
+  if (hadLine) window.showToast?.('✏️ 어노테이션 확정 — 펜 모드 종료');
 }
 
 function _bindLabelEdit(label, block) {
@@ -286,15 +297,22 @@ function _onKeydown(e) {
   if (e.key === 'Escape') {
     // 라벨 편집 중 → 라벨 blur에 위임
     if (editingLabel) return;
-    // 그리는 중 → 펜딩 취소
-    if (_pendingPoints) {
-      e.stopPropagation();
-      _cancelPending();
-      return;
-    }
-    // idle → 모드 종료
+    // 그리던 선(≥2점)은 확정해 보존, 1점 이하는 폐기 → 모드 종료
     e.stopPropagation();
-    exitPenMode();
+    _commitAndExitPenMode();
+    return;
+  }
+
+  // V — 일반 포인터(선택 도구) 복귀. 일러스트 컨벤션 (highlight-line-tool과 동일)
+  if ((e.key === 'v' || e.key === 'V') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    // 입력 필드/contenteditable(라벨 편집 포함) 안에서는 글자 입력으로 통과
+    const typing = active && (
+      active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable
+    );
+    if (typing) return;
+    e.stopPropagation();
+    e.preventDefault();
+    _commitAndExitPenMode();
     return;
   }
 
