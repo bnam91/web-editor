@@ -196,7 +196,8 @@
 /* 캔버스 빈 영역 마퀴 드래그 — 스크래치 다중 선택 (canvas-scaler 내부 절대좌표) */
 .scratch-marquee {
   position: absolute;
-  border: 1px solid var(--sel-color);
+  /* 스케일되는 scaler 내부 — 화면상 1px 고정 위해 줌 보정 토큰 사용 (다른 선택 비주얼과 동일 스펙) */
+  border: var(--sel-outline-w) solid var(--sel-color);
   background: var(--sel-color-fill);
   pointer-events: none;
   z-index: 9999;

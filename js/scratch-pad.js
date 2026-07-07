@@ -1232,6 +1232,25 @@ window._scratchImportAll = async (newProjectId, scratchBlock) => {
 // 같은 그룹은 시각적 묶음 (향후 함께 이동 등 확장 가능).
 window._scratchHasSelection = () => _selectedItems.size >= 2;
 
+// 그룹/언그룹 undo·redo용 지오메트리 스냅샷 헬퍼 (Codex 리뷰 — Cmd+G가 history에 안 남던 버그)
+// snap = [{id, x, y, w, g}] — id로 살아있는 아이템을 찾아 x/y/w/g + DOM 스타일 복원 후 저장
+const _scratchGeomSnapshot = items => items.map(it => ({ id: it.id, x: it.x, y: it.y, w: it.w, g: it.g }));
+function _applyScratchGeomSnapshot(snaps) {
+  snaps.forEach(s => {
+    const it = _scratchItems.find(i => i.id === s.id);
+    if (!it) return; // 이후 삭제된 아이템은 스킵
+    it.x = s.x; it.y = s.y; it.w = s.w;
+    if (s.g === undefined) { delete it.g; if (it.el) delete it.el.dataset.scratchGroup; }
+    else { it.g = s.g; if (it.el) it.el.dataset.scratchGroup = s.g; }
+    if (it.el) {
+      it.el.style.left  = it.x + 'px';
+      it.el.style.top   = it.y + 'px';
+      it.el.style.width = it.w + 'px';
+    }
+  });
+  _saveScratch();
+}
+
 window._scratchGroupAndAlign = () => {
   if (_selectedItems.size < 2) return { ok: false, msg: '2개 이상 선택 필요' };
   const items = [...(_selectedItems)];
@@ -1242,6 +1261,7 @@ window._scratchGroupAndAlign = () => {
   const W = 220, GAP = 16, COLS = 4;
   // 그룹 id (이미 그룹 있으면 재사용 — 첫 아이템 기준)
   const groupId = items[0].g || items[0].el?.dataset?.scratchGroup || ('g_' + Math.random().toString(36).slice(2, 8));
+  const before = _scratchGeomSnapshot(items); // undo용 사전 스냅샷
   items.forEach((it, idx) => {
     const col = idx % COLS;
     const row = Math.floor(idx / COLS);
@@ -1259,6 +1279,14 @@ window._scratchGroupAndAlign = () => {
     it.w = W;
   });
   _saveScratch();
+  // 글로벌 history에 sideEffects entry — 캔버스는 동일 스냅샷, onUndo/onRedo가 스크래치만 복원
+  const after = _scratchGeomSnapshot(items);
+  try {
+    window.pushHistory?.('스크래치 그룹 정렬', {
+      onUndo: () => _applyScratchGeomSnapshot(before),
+      onRedo: () => _applyScratchGeomSnapshot(after),
+    });
+  } catch (_) {}
   window.showToast?.(`🧩 스크래치 ${items.length}개 그룹 정렬`);
   return { ok: true, count: items.length, groupId };
 };
@@ -1271,11 +1299,19 @@ window._scratchHasGroupSelection = () =>
 window._scratchUngroup = () => {
   const items = [..._selectedItems].filter(it => it.g || it.el?.dataset?.scratchGroup);
   if (!items.length) return { ok: false, msg: '그룹 아이템 없음' };
+  const before = _scratchGeomSnapshot(items); // undo용 사전 스냅샷 (g 복원)
   items.forEach(it => {
     delete it.g;
     if (it.el) delete it.el.dataset.scratchGroup;
   });
   _saveScratch();
+  const after = _scratchGeomSnapshot(items);
+  try {
+    window.pushHistory?.('스크래치 그룹 해제', {
+      onUndo: () => _applyScratchGeomSnapshot(before),
+      onRedo: () => _applyScratchGeomSnapshot(after),
+    });
+  } catch (_) {}
   window.showToast?.(`🧩 스크래치 그룹 해제 (${items.length}개)`);
   return { ok: true, count: items.length };
 };
