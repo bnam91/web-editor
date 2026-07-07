@@ -592,6 +592,8 @@ function _createItem(src, x, y, w = 220, idArg) {
     };
 
     const onMove = mv => {
+      // 미세 지터(클릭 중 1~2px 떨림)가 '드래그'로 승격되는 것 차단 — 화면좌표 기준 임계값
+      if (!hasMoved && Math.hypot(mv.clientX - startClientX, mv.clientY - startClientY) < 3) return;
       hasMoved = true;
       lastClientX = mv.clientX;
       lastClientY = mv.clientY;
@@ -721,9 +723,9 @@ function _createItem(src, x, y, w = 220, idArg) {
         } else if (guidesOverlay) {
           _resetGuides();
         }
-        // 단일 드래그면 캔버스 변환 가이드 미리보기
+        // 단일 드래그면 캔버스 변환 가이드 미리보기 (requireArm: 같은 타깃 위 체류 후에만 하이라이트=armed)
         if (isSingleDrag) {
-          try { dropKind = previewScratchDropAt(lastClientX, lastClientY); }
+          try { dropKind = previewScratchDropAt(lastClientX, lastClientY, { requireArm: true }); }
           catch (err) { dropKind = 'none'; }
         }
         _rafId = null;
@@ -755,6 +757,7 @@ function _createItem(src, x, y, w = 220, idArg) {
           committed = commitScratchDropAt(lastClientX, lastClientY, item.src, {
             naturalWidth: natW,
             naturalHeight: natH,
+            requireArm: true, // 하이라이트(armed) 없이 스친 릴리즈는 위치 이동으로만 처리
           });
         } catch (err) {
           console.warn('[ScratchPad] commit 실패:', err);
