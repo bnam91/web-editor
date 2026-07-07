@@ -345,6 +345,11 @@ function bindStickerSelect(block) {
   // 드래그 — mousedown으로 위치 이동
   block.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    // 텍스트 편집(contenteditable) 중에는 브라우저 기본동작(캐럿 배치·드래그 텍스트 선택)에 양보.
+    // 가드 없이 preventDefault/stopImmediatePropagation하면 편집 진입 후 마우스로 캐럿을
+    // 만들 방법이 없고(=더블클릭해도 커서 안 생김 체감), 드래그 시 블록이 이동하며 selection이 파괴됨.
+    // (span 밖 패딩 영역 mousedown은 기존대로 블록 이동)
+    if (e.target.closest?.('.sticker-text')?.isContentEditable) return;
     // 코너 핸들(리사이즈)·회전 핫존·hlb 끝점 위에서 누른 경우는 각자 핸들러가 처리하도록 양보
     // (이 리스너는 capture+stopImmediatePropagation이라 가드 없으면 핸들 mousedown을 삼켜 리사이즈/회전이 안 됨)
     if (e.target.closest?.('.sticker-corner-handle, .sticker-rotate-zone, .hlb-handle')) return;
@@ -448,12 +453,16 @@ function bindStickerSelect(block) {
   // 더블클릭 → 텍스트 편집 (contenteditable)
   block.addEventListener('dblclick', (e) => {
     e.stopPropagation();
-    _enterStickerEdit(block);
+    // 이미 편집 중이면 브라우저 기본 워드 선택에 양보 (재진입으로 selection 덮어쓰기 방지)
+    if (block.querySelector('.sticker-text')?.isContentEditable) return;
+    _enterStickerEdit(block, e);
   });
 }
 
 // A26: dblclick 인라인 편집 로직을 재사용 가능한 함수로 추출 — 생성 직후 프로그램적 편집 진입에도 사용.
-function _enterStickerEdit(block) {
+// ev(마우스 이벤트)가 오면 더블클릭 지점에 collapsed 캐럿을 배치("커서가 안 생김" 해소),
+// 없거나 좌표 판정 실패 시 기존 전체선택 폴백(A26 신규 스티커 'Text' 치환 타이핑 플로우 보존).
+function _enterStickerEdit(block, ev) {
   if (!block) return;
   const textEl = block.querySelector('.sticker-text');
   if (!textEl) return;
@@ -461,16 +470,33 @@ function _enterStickerEdit(block) {
   textEl.style.userSelect = 'text';
   textEl.style.cursor = 'text';
   textEl.focus();
-  const range = document.createRange();
-  range.selectNodeContents(textEl);
   const sel = window.getSelection();
   sel.removeAllRanges();
-  sel.addRange(range);
+  let caretPlaced = false;
+  if (ev && Number.isFinite(ev.clientX) && document.caretRangeFromPoint) {
+    try {
+      const r = document.caretRangeFromPoint(ev.clientX, ev.clientY);
+      if (r && textEl.contains(r.startContainer)) {
+        r.collapse(true);
+        sel.addRange(r);
+        caretPlaced = true;
+      }
+    } catch (_) {}
+  }
+  if (!caretPlaced) {
+    const range = document.createRange();
+    range.selectNodeContents(textEl);
+    sel.addRange(range);
+  }
 
   const finish = () => {
     textEl.removeAttribute('contenteditable');
     // innerText로 읽어 개행 보존 (<br>/<div> 등 paste 잔재도 \n으로 정규화 — textContent는 <br> 소실)
-    const t = (textEl.innerText || textEl.textContent || '').replace(/\r/g, '').trim();
+    // 제어문자(\b=U+0008 등)는 커밋 시 정화 — trim()은 U+0008을 안 지워 dataset에 영속되며
+    // 보이지 않는 글리프로 캐럿 오프셋을 어지럽힘. \t(U+0009)·\n(U+000A)은 보존(Enter 줄바꿈 유지).
+    const t = (textEl.innerText || textEl.textContent || '')
+      .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
+      .trim();
     const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
     block.dataset.text = t || fallback;
     if (!t) textEl.textContent = fallback;
