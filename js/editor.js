@@ -2093,13 +2093,29 @@ function bindSectionHitzone(sec) {
 }
 
 
+/* row 빈 여백(자식 콘텐츠 수평 범위 밖) 클릭 판정 — fix(section-select)
+   row는 width:100%라 블록 정렬/폭과 무관하게 히트박스가 콘텐츠 전폭을 덮음.
+   자식 envelope 밖 여백 클릭이면 row-active(래퍼 아웃라인)를 붙이지 않고 섹션 선택만 유지.
+   getBoundingClientRect/clientX 모두 viewport 좌표라 캔버스 줌 스케일 무관. */
+function isRowMarginClick(row, e) {
+  if (e.target !== row) return false;            // 자식(col/gap 등) 직접 클릭은 기존 동작 유지
+  const rects = [...row.children]
+    .map(c => c.getBoundingClientRect())
+    .filter(r => r.width > 0 && r.height > 0);
+  if (!rects.length) return false;               // 빈 row는 기존 동작 유지 (placeholder 플로우 보호)
+  const lo = Math.min(...rects.map(r => r.left));
+  const hi = Math.max(...rects.map(r => r.right));
+  return e.clientX < lo || e.clientX > hi;       // envelope 밖 = 여백 (블록 사이 gap 클릭은 envelope 안 → row 활성 유지)
+}
+window.isRowMarginClick = isRowMarginClick;
+
 document.querySelectorAll('.section-block').forEach(sec => {
   sec.addEventListener('click', e => {
     e.stopPropagation();
     selectSectionWithModifier(sec, e);
-    // deselectAll() 이후 row-active 복원
+    // deselectAll() 이후 row-active 복원 (빈 여백 클릭은 제외 — 섹션 선택만)
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
+    if (row && !isRowMarginClick(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
