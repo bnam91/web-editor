@@ -1211,6 +1211,11 @@ document.addEventListener('keydown', e => {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
+      // 스크래치 그룹 아이템 선택 상태면 스크래치 언그룹 우선 (Cmd+G 스크래치 분기와 동일 우선순위)
+      if (typeof window._scratchHasGroupSelection === 'function' && window._scratchHasGroupSelection()) {
+        window._scratchUngroup?.();
+        return;
+      }
       // 피그마식 그룹(data-group 프레임) 우선, 없으면 레거시 group-block
       const selGroup = document.querySelector('.frame-block[data-group="true"].selected')
         || document.querySelector('.group-block.group-selected');
