@@ -528,17 +528,27 @@ function seedNoteBgPatterns(bgFolder) {
   if (!Array.isArray(bgFolder.children)) bgFolder.children = [];
   let noteFolder = bgFolder.children.find(n => n && n.type === 'folder' && n.id === NOTE_BG_FOLDER_ID);
   if (!noteFolder) {
-    noteFolder = { id: NOTE_BG_FOLDER_ID, type: 'folder', name: NOTE_BG_FOLDER_NAME, children: [], collapsed: false };
+    noteFolder = { id: NOTE_BG_FOLDER_ID, type: 'folder', name: NOTE_BG_FOLDER_NAME, locked: true, children: [], collapsed: false };
     bgFolder.children.push(noteFolder);
   }
+  noteFolder.locked = true; // 마이그레이션: 기존 프로젝트의 노트패널도 보호 폴더로 승격(멱등)
   if (!Array.isArray(noteFolder.children)) noteFolder.children = [];
   for (const p of NOTE_BG_PATTERNS) {
-    if (noteFolder.children.some(n => n && n.id === p.id)) continue;
+    const existing = noteFolder.children.find(n => n && n.id === p.id);
+    if (existing) {
+      // 마이그레이션(멱등): 기존 시드 노드에 썸네일/소스 최신화 (구 시드엔 thumbSrc 없음 → 썸네일 빈네모 해소)
+      existing.src = p.src;
+      existing.thumbSrc = p.thumbSrc;
+      existing.mime = 'image/svg+xml';
+      if (!existing.name) existing.name = p.name;
+      continue;
+    }
     noteFolder.children.push({
       id: p.id,
       type: 'image',
       name: p.name,
       src: p.src,
+      thumbSrc: p.thumbSrc,
       mime: 'image/svg+xml',
       addedAt: new Date().toISOString(),
     });
