@@ -143,6 +143,10 @@ export function showStickerProperties(block) {
   const tRotation      = parseFloat(block.dataset.rotation) || 0;
   const tPadX = Number.isFinite(parseInt(block.dataset.padX)) ? parseInt(block.dataset.padX) : 10;
   const tPadY = Number.isFinite(parseInt(block.dataset.padY)) ? parseInt(block.dataset.padY) : 6;
+  // 박스 너비 — dataset.boxW 없거나 'auto'면 내용맞춤(auto). 고정 px면 그 값. 슬라이더 seed는 유효 px 우선.
+  const _tBoxWpx  = parseInt(block.dataset.boxW);
+  const tBoxWOn   = Number.isFinite(_tBoxWpx) && _tBoxWpx > 0;
+  const tBoxWVal  = tBoxWOn ? _tBoxWpx : 200;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -398,6 +402,18 @@ export function showStickerProperties(block) {
           </button>
         </div>
       </div>
+      <div class="prop-row">
+        <span class="prop-label">박스 너비</span>
+        <label class="prop-toggle" title="고정 너비 켜기(끄면 내용맞춤)" style="display:inline-flex;align-items:center;gap:4px">
+          <input type="checkbox" id="stk-t-boxw-on" ${tBoxWOn ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-row" id="stk-t-boxw-detail" style="display:${tBoxWOn ? 'flex' : 'none'}">
+        <span class="prop-label">너비</span>
+        <input type="range" class="prop-slider" id="stk-t-boxw" min="40" max="1000" step="2" value="${tBoxWVal}">
+        <input type="number" class="prop-number" id="stk-t-boxw-num" min="20" max="2000" step="1" value="${tBoxWVal}">
+      </div>
     </div>
     <div class="prop-section" id="stk-text-presets-section" style="display:${isText ? 'block' : 'none'};">
       <div class="prop-section-title">Text Presets</div>
@@ -541,6 +557,30 @@ export function showStickerProperties(block) {
   _bindTPair('stk-t-rot',   'stk-t-rot-num',   'rotation',      -180, 180, 1);
   _bindTPair('stk-t-pad-x', 'stk-t-pad-x-num', 'padX',          0,    400, 1);
   _bindTPair('stk-t-pad-y', 'stk-t-pad-y-num', 'padY',          0,    400, 1);
+  _bindTPair('stk-t-boxw',  'stk-t-boxw-num',  'boxW',          20,   2000, 1);
+
+  // 박스 너비 토글 — off = auto(내용맞춤, 기존 동작), on = 고정 px.
+  //   on 전환 시 현재 렌더 폭(offsetWidth, 줌 미영향)으로 seed → 사용자가 슬라이더로 넓힘.
+  const _boxwOn     = propPanel.querySelector('#stk-t-boxw-on');
+  const _boxwDetail = propPanel.querySelector('#stk-t-boxw-detail');
+  const _boxwS      = propPanel.querySelector('#stk-t-boxw');
+  const _boxwN      = propPanel.querySelector('#stk-t-boxw-num');
+  _boxwOn?.addEventListener('change', e => {
+    if (e.target.checked) {
+      let w = parseInt(block.dataset.boxW);
+      if (!Number.isFinite(w) || w <= 0) w = Math.round(block.offsetWidth) || 200;
+      w = Math.min(2000, Math.max(20, w));
+      block.dataset.boxW = String(w);
+      if (_boxwS) _boxwS.value = String(Math.min(1000, Math.max(40, w)));
+      if (_boxwN) _boxwN.value = String(w);
+      if (_boxwDetail) _boxwDetail.style.display = 'flex';
+    } else {
+      block.dataset.boxW = 'auto';
+      if (_boxwDetail) _boxwDetail.style.display = 'none';
+    }
+    rerender();
+    window.pushHistory?.('텍스트 스티커 박스 너비'); window.scheduleAutoSave?.();
+  });
 
   // 텍스트 스티커 — 정렬
   propPanel.querySelectorAll('#stk-t-align-group .prop-align-btn').forEach(btn => {

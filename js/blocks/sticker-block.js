@@ -109,10 +109,17 @@ function renderStickerBlock(block) {
       : '';
     const rotCss = tRotation !== 0 ? `transform:rotate(${tRotation}deg);transform-origin:center center;` : '';
     const safeText = _stripCtlChars(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // 박스 너비 — 'auto'(또는 미지정) = 내용맞춤(기존 동작), 고정 px = 그 폭 안에서 줄바꿈(원치 않는
+    // 자동 줄바꿈 해소용으로 넓힘). box-sizing:border-box로 지정 폭이 padding 포함 총 박스폭이 되게 함
+    // (패널 토글 시 offsetWidth로 seed하는 값과 일치).
+    const tBoxWraw = block.dataset.boxW;
+    const tBoxW    = parseInt(tBoxWraw);
+    const boxWCss  = (tBoxWraw && tBoxWraw !== 'auto' && Number.isFinite(tBoxW) && tBoxW > 0)
+      ? `width:${tBoxW}px;box-sizing:border-box;` : '';
 
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;`
       + `background:${tBgColor};border-radius:4px;`
-      + `padding:${padY}px ${padX}px;`
+      + `padding:${padY}px ${padX}px;${boxWCss}`
       + `display:inline-block;white-space:pre-wrap;word-break:break-word;`
       + `font-family:${tFontFamily};font-size:${tFontSize}px;font-weight:${tFontWeight};font-style:${tFontStyle};`
       + `color:${tTextColor};letter-spacing:${lsStr};text-align:${tTextAlign};`
@@ -491,6 +498,7 @@ function updateStickerBlock(blockId, partial = {}) {
     shadowColor: block.dataset.shadowColor,
     padX: block.dataset.padX,
     padY: block.dataset.padY,
+    boxW: block.dataset.boxW,
     iconName: block.dataset.iconName,
     iconColor: block.dataset.iconColor,
   };
@@ -765,6 +773,20 @@ function updateStickerBlock(blockId, partial = {}) {
   _applyNum('shadowBlur', 'shadowBlur', 0, 40);
   _applyNum('padX', 'padX', 0, 400);
   _applyNum('padY', 'padY', 0, 400);
+
+  // 14-a) 박스 너비 (text shape 전용) — 'auto'(내용맞춤) 또는 고정 px(20~2000)
+  if (partial.boxW !== undefined && partial.boxW !== null) {
+    if (partial.boxW === 'auto' || partial.boxW === '') {
+      block.dataset.boxW = 'auto';
+      applied.boxW = 'auto';
+    } else {
+      const bw = Number(partial.boxW);
+      if (Number.isFinite(bw) && bw >= 20 && bw <= 2000) {
+        block.dataset.boxW = String(Math.round(bw));
+        applied.boxW = Math.round(bw);
+      }
+    }
+  }
 
   // 14-b) icon shape 전용 — iconColor / iconName / svg(iconSvg)
   _applyColor('iconColor', 'iconColor');
