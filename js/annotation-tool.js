@@ -199,10 +199,10 @@ function _updatePreviewSvg() {
     c.setAttribute('class', 'annot-preview-dot');
     c.setAttribute('cx', p[0]);
     c.setAttribute('cy', p[1]);
-    c.setAttribute('r', idx === 0 ? 4 : 3);
+    c.setAttribute('r', idx === 0 ? 6 : 3.5);
     c.setAttribute('fill', idx === 0 ? '#e74c3c' : '#fff');
     c.setAttribute('stroke', '#e74c3c');
-    c.setAttribute('stroke-width', '1.2');
+    c.setAttribute('stroke-width', idx === 0 ? 1.5 : 1.2);
     svg.appendChild(c);
   });
 }
