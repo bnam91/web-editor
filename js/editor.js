@@ -1272,9 +1272,7 @@ document.addEventListener('keydown', e => {
           const res = await new window.EyeDropper().open();
           const hex = res?.sRGBHex;
           if (!hex) return;
-          let applied = 0;
-          eyedropTargets.forEach(tb => { if (window.applyTextBlockColor?.(tb, hex)) applied++; });
-          if (applied) window.showToast?.('🎨 글자색 추출됨');
+          eyedropTargets.forEach(tb => window.applyTextBlockColor?.(tb, hex));
         } catch (_) { /* 사용자 취소 — 조용히 무시 */ }
       })();
       return;
