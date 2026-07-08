@@ -391,6 +391,27 @@ function _dataUrlToPngBlob(dataUrl) {
   });
 }
 
+// nativeImage.createFromDataURL은 PNG/JPEG data URL만 디코드한다(webp/gif/svg → empty image).
+// 외부화 src(goya-asset://)는 main IPC로 재인라인 후, PNG/JPEG가 아니면 캔버스로 PNG 트랜스코드.
+async function _srcToPngDataUrl(src) {
+  let s = String(src || '');
+  const m = /^goya-asset:\/\/([^/]+)\/(.+)$/.exec(s);
+  if (m && window.electronAPI?.assetsReadAsDataUri) {
+    const res = await window.electronAPI.assetsReadAsDataUri({
+      projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2])
+    });
+    if (res?.ok && res.dataUri) s = res.dataUri;
+  }
+  if (/^data:image\/(png|jpe?g)[;,]/i.test(s)) return s;
+  const blob = await _dataUrlToPngBlob(s);
+  return await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload  = () => resolve(fr.result);
+    fr.onerror = () => reject(new Error('PNG 변환 실패'));
+    fr.readAsDataURL(blob);
+  });
+}
+
 function _createItem(src, x, y, w = 220, idArg, gArg) {
   const scaler = document.getElementById('canvas-scaler');
   if (!scaler) return null;
@@ -1080,12 +1101,14 @@ async function initScratchPad(projectId, pageId) {
     e.preventDefault();
     const items = [..._selectedItems];
     try {
+      // goya-asset://·webp 등 nativeImage가 못 읽는 src를 PNG data URL로 정규화
+      const srcForCopy = await _srcToPngDataUrl(items[0].src);
       // Electron 환경: 메인 프로세스 nativeImage 경유 (navigator.clipboard 권한 우회)
       if (window.electronAPI?.clipboardWriteImage) {
-        const res = await window.electronAPI.clipboardWriteImage(items[0].src);
+        const res = await window.electronAPI.clipboardWriteImage(srcForCopy);
         if (!res?.ok) throw new Error(res?.error || 'clipboard write failed');
       } else {
-        const blob = await _dataUrlToPngBlob(items[0].src);
+        const blob = await _dataUrlToPngBlob(srcForCopy);
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       }
       // 외부 클립보드(이미지) 복사 timestamp — Cmd+V 시 내부 클립보드와 우선순위 비교용
