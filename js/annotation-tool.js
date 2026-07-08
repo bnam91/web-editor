@@ -305,13 +305,16 @@ function _onKeydown(e) {
 
   // V — 일반 포인터(선택 도구) 복귀. 일러스트 컨벤션 (highlight-line-tool과 동일)
   if ((e.key === 'v' || e.key === 'V') && !e.metaKey && !e.ctrlKey && !e.altKey) {
-    // 입력 필드/contenteditable(라벨 편집 포함) 안에서는 글자 입력으로 통과
-    const typing = active && (
+    // 어노테이션 라벨(펜 플로우 자동 포커스)은 V로 "커밋 + 펜 종료" — ESC와 동일 출구.
+    // 그 외 실제 입력필드/contenteditable(다른 패널 등)에서는 글자 입력으로 통과.
+    const typingElsewhere = active && !editingLabel && (
       active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable
     );
-    if (typing) return;
+    if (typingElsewhere) return;
     e.stopPropagation();
-    e.preventDefault();
+    e.preventDefault();           // 라벨에 'v'가 끼어드는 것 방지
+    // 라벨 편집 중이면 먼저 blur로 텍스트 커밋(IME로 입력된 한글 포함) 후 펜 종료
+    if (editingLabel) { try { active.blur(); } catch (_) {} }
     _commitAndExitPenMode();
     return;
   }
