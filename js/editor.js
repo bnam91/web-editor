@@ -1121,7 +1121,9 @@ document.addEventListener('keydown', e => {
         return;
       }
     }
-    // 취소선 ⌘⇧X — Cmd+B/I 와 동일 패턴. shift 시 e.key==='X'라 아래 잘라내기(e.key==='x')와 비충돌
+    // 취소선 ⌘⇧X — 편집 중=부분 취소선, 블럭 선택=패널 S버튼과 동일한 블럭 토글.
+    // ⚠️ 한글 IME에선 shift 조합도 e.key가 'x'(소문자)로 올 수 있어 shift 조합은 여기서
+    // 반드시 소진(return)해야 아래 잘라내기(e.key==='x')로 새서 블럭이 삭제되지 않는다.
     if ((e.key === 'x' || e.key === 'X') && e.shiftKey) {
       if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
         e.preventDefault();
@@ -1129,6 +1131,11 @@ document.addEventListener('keydown', e => {
         window.pushHistory?.();
         return;
       }
+      if (document.querySelector('.text-block.selected')) {
+        e.preventDefault();
+        document.getElementById('txt-strike-btn')?.click();
+      }
+      return;
     }
     if (e.key === 'c') {
       if (document.querySelector('.text-block.editing')) return;
@@ -1155,8 +1162,9 @@ document.addEventListener('keydown', e => {
       }
       return;
     }
-    if (e.key === 'x') {
+    if (e.key === 'x' && !e.shiftKey) {
       // 잘라내기 = 복사 후 삭제 (copySelected + Delete와 동일한 삭제 로직 deleteSelectedFromCanvas 공유)
+      // shift 조합 배제 — 한글 IME에서 ⌘⇧X(취소선)가 e.key 'x'로 들어와 오삭제되는 경로 차단
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
