@@ -32,6 +32,14 @@ function _stripCtlChars(s) {
 }
 
 function renderStickerBlock(block) {
+  _renderStickerBlockInner(block);
+  // 섹션 밖 크롭(--sec-clip) 재계산 — 렌더 branch들의 cssText 대입이 인라인 스타일을 통째로
+  // 덮어써 기존 변수가 지워지므로 매 렌더 후 필수. shape별 early return과 무관하게 wrapper에서
+  // 일괄 처리, auto 폭(max-content) 측정 위해 layout 확정 후(rAF).
+  requestAnimationFrame(() => _updateStickerSecClip(block));
+}
+
+function _renderStickerBlockInner(block) {
   const shape      = block.dataset.shape      || STICKER_DEFAULTS.shape;
   const size       = parseInt(block.dataset.size)       || STICKER_DEFAULTS.size;
   // 모서리 핸들 리사이즈 시 W/H 독립 (sizeW/sizeH 우선, 없으면 size로 정사각)
@@ -291,6 +299,26 @@ function renderStickerBlock(block) {
     block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${text}</span>`;
   }
 }
+
+// 섹션 밖 크롭 — 편집 캔버스에서도 잘림(현빈 확정). 스티커 로컬 좌표(offset*)로 섹션 경계
+// 침범량을 계산해 인라인 CSS 변수 --sec-clip(inset)에 기록한다. 실제 적용/해제는 CSS가 결정:
+// .selected(조작 중)와 [data-overflow-visible=true] 섹션은 clip-path:none으로 무시.
+// 인라인 변수라 저장 HTML·미리보기·Export 클론에 그대로 복제 → 세 화면이 한 소스로 잘림.
+// 한계: rotation 스티커는 clip이 요소와 함께 회전(경계선과 불일치) — 현행 사용례 0도.
+function _updateStickerSecClip(block) {
+  const sec = block.closest('.section-block');
+  if (!sec) return;
+  const w = block.offsetWidth, h = block.offsetHeight;
+  if (!w || !h) { block.style.removeProperty('--sec-clip'); return; }
+  const x = block.offsetLeft, y = block.offsetTop;
+  const t = Math.max(0, -y);
+  const l = Math.max(0, -x);
+  const r = Math.max(0, x + w - sec.clientWidth);
+  const b = Math.max(0, y + h - sec.clientHeight);
+  if (t || l || r || b) block.style.setProperty('--sec-clip', `inset(${t}px ${r}px ${b}px ${l}px)`);
+  else block.style.removeProperty('--sec-clip');
+}
+window._updateStickerSecClip = _updateStickerSecClip;
 
 // B13: 현재 sticker의 스타일 토큰을 shape별 슬롯에 저장 (위치/절대크기/text 제외)
 function rememberStickerStyle(block) {

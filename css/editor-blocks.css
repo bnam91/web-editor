@@ -2294,6 +2294,22 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 }
 
 /* ──────────────────────────────────────────────
+   섹션 밖 크롭 — 편집 캔버스에서도 잘림(현빈 확정).
+   --sec-clip 은 렌더/드래그 시 JS(_updateStickerSecClip)가 인라인으로 계산해 넣는
+   inset() 값. 선택 중인 스티커는 조작 가능하도록 해제, '섹션 밖 보이기' 섹션도 해제.
+   미리보기/Export 클론에도 인라인 변수가 그대로 복제되어 동일하게 잘림.
+────────────────────────────────────────────── */
+.sticker-block {
+  clip-path: var(--sec-clip, none);
+}
+.sticker-block.selected {
+  clip-path: none;
+}
+.section-block[data-overflow-visible="true"] .sticker-block {
+  clip-path: none;
+}
+
+/* ──────────────────────────────────────────────
    Sticker 선택 표시 — 일반 블록과 동일 규칙, 색만 보라색
    (icon-circle/table/graph/card/divider와 일관성)
    highlightB(선)는 아웃라인 없이 끝점 핸들만 (JS로 동적 inject)
