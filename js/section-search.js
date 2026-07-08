@@ -215,7 +215,9 @@
       } else {
         li.textContent = c.name;
       }
-      li.addEventListener('mouseenter', () => setActive(i));
+      // mousemove(실제 이동시만 발화) — mouseenter는 정지 커서 밑에 항목이 재렌더돼도 발화해
+      // 팔레트 열자마자/타이핑마다 커서 밑 항목이 활성을 하이재킹함
+      li.addEventListener('mousemove', () => { if (activeIndex !== i) setActive(i); });
       li.addEventListener('mousedown', (e) => {
         // mousedown으로 처리 — overlay mousedown(배경 닫기)보다 우선, blur 방지
         e.preventDefault();
