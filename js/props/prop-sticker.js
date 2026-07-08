@@ -38,7 +38,7 @@ function _stickerStyleFromBlock(block) {
   } else if (shape === 'text') {
     ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'textColor', 'strokeWidth', 'strokeColor',
      'letterSpacing', 'textAlign', 'shadowOn', 'shadowX', 'shadowY', 'shadowBlur', 'shadowColor',
-     'bgColor', 'padX', 'padY'].forEach(put);
+     'bgColor', 'padX', 'padY', 'cornerRadius'].forEach(put);
   } else { // circle / square
     ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration'].forEach(put);
   }
@@ -143,6 +143,8 @@ export function showStickerProperties(block) {
   const tRotation      = parseFloat(block.dataset.rotation) || 0;
   const tPadX = Number.isFinite(parseInt(block.dataset.padX)) ? parseInt(block.dataset.padX) : 10;
   const tPadY = Number.isFinite(parseInt(block.dataset.padY)) ? parseInt(block.dataset.padY) : 6;
+  // 코너 라운드 — 미설정 시 4(렌더 기본값과 동일)
+  const tCornerR = Number.isFinite(parseInt(block.dataset.cornerRadius)) ? parseInt(block.dataset.cornerRadius) : 4;
   // 박스 너비 — dataset.boxW 없거나 'auto'면 내용맞춤(auto). 고정 px면 그 값. 슬라이더 seed는 유효 px 우선.
   const _tBoxWpx  = parseInt(block.dataset.boxW);
   const tBoxWOn   = Number.isFinite(_tBoxWpx) && _tBoxWpx > 0;
@@ -486,6 +488,11 @@ export function showStickerProperties(block) {
         <input type="range" class="prop-slider" id="stk-t-pad-y" min="0" max="200" step="1" value="${tPadY}">
         <input type="number" class="prop-number" id="stk-t-pad-y-num" min="0" max="400" step="1" value="${tPadY}">
       </div>
+      <div class="prop-row">
+        <span class="prop-label">코너 라운드</span>
+        <input type="range" class="prop-slider" id="stk-t-radius" min="0" max="60" step="1" value="${tCornerR}">
+        <input type="number" class="prop-number" id="stk-t-radius-num" min="0" max="400" step="1" value="${tCornerR}">
+      </div>
     </div>
     <div class="prop-section" id="stk-text-rot-section" style="display:${isText ? 'block' : 'none'};">
       <div class="prop-section-title">Rotation</div>
@@ -557,6 +564,7 @@ export function showStickerProperties(block) {
   _bindTPair('stk-t-rot',   'stk-t-rot-num',   'rotation',      -180, 180, 1);
   _bindTPair('stk-t-pad-x', 'stk-t-pad-x-num', 'padX',          0,    400, 1);
   _bindTPair('stk-t-pad-y', 'stk-t-pad-y-num', 'padY',          0,    400, 1);
+  _bindTPair('stk-t-radius', 'stk-t-radius-num', 'cornerRadius', 0,   400, 1);
   _bindTPair('stk-t-boxw',  'stk-t-boxw-num',  'boxW',          20,   2000, 1);
 
   // 박스 너비 토글 — off = auto(내용맞춤, 기존 동작), on = 고정 px.
