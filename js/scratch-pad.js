@@ -496,13 +496,18 @@ function _createItem(src, x, y, w = 220, idArg, gArg) {
     // 드래그 시작 시점의 각 멤버 지오메트리 고정 스냅샷 (누적 아닌 절대 배율 적용)
     const starts = members.map(m => ({ it: m, x: m.x, y: m.y, w: m.w }));
     const minMemberW = Math.min(...starts.map(s => s.w));
+    // 배율 기준거리 = 앵커(좌상단)에서 잡은 핸들(우변)까지. 그룹에서 잡은 아이템이
+    // 최좌측이 아니면 자기 폭(startW)보다 커서 → 배율을 startW로 뽑으면 핸들이 커서보다
+    // 빨리 달아나 그룹이 과하게 커진다. 앵커→핸들 거리로 배율을 뽑아야 핸들이 커서를 정확히 추종.
+    const gs0 = starts.find(s => s.it === item);
+    const anchorDist = Math.max(1, gs0.x + gs0.w - anchorX);
     // 리사이즈 undo/redo용 사전 지오메트리 스냅샷 — onMove가 변형하기 전에 그룹 전체 캡처
     const geomBefore = _scratchGeomSnapshot(members);
     const onMove = mv => {
-      const rawW = startW + (mv.clientX - startX) / scale;
+      const dx = (mv.clientX - startX) / scale;
       // 배율 클램프: 잡은 아이템은 최소 60(기존 관용값), 최소 멤버는 20 밑으로 붕괴 방지
       const fMin = Math.max(60 / startW, 20 / minMemberW);
-      const f = Math.max(fMin, rawW / startW);
+      const f = Math.max(fMin, (anchorDist + dx) / anchorDist);
       starts.forEach(s => {
         const w = s.w * f;
         s.it.w = w;
