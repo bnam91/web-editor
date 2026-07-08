@@ -109,16 +109,20 @@ function renderStickerBlock(block) {
       : '';
     const rotCss = tRotation !== 0 ? `transform:rotate(${tRotation}deg);transform-origin:center center;` : '';
     const safeText = _stripCtlChars(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    // 박스 너비 — 'auto'(또는 미지정) = 내용맞춤(기존 동작), 고정 px = 그 폭 안에서 줄바꿈(원치 않는
+    // 박스 너비 — 'auto'(또는 미지정) = 내용맞춤, 고정 px = 그 폭 안에서 줄바꿈(원치 않는
     // 자동 줄바꿈 해소용으로 넓힘). box-sizing:border-box로 지정 폭이 padding 포함 총 박스폭이 되게 함
     // (패널 토글 시 offsetWidth로 seed하는 값과 일치).
+    // auto는 max-content: absolute 요소의 shrink-to-fit이 섹션 우측 경계 안에서만 폭을 잡아
+    // 경계에 붙이면 줄바꿈되던 것 → 프레임처럼 섹션 밖으로 자연 오버플로우 (\n 명시 줄바꿈은 pre-wrap 보존).
     const tBoxWraw = block.dataset.boxW;
     const tBoxW    = parseInt(tBoxWraw);
     const boxWCss  = (tBoxWraw && tBoxWraw !== 'auto' && Number.isFinite(tBoxW) && tBoxW > 0)
-      ? `width:${tBoxW}px;box-sizing:border-box;` : '';
+      ? `width:${tBoxW}px;box-sizing:border-box;` : 'width:max-content;';
+    // 코너 라운드 — 미설정 시 4(기존 하드코딩 값과 동일, 무회귀)
+    const tCornerR = Number.isFinite(parseInt(block.dataset.cornerRadius)) ? parseInt(block.dataset.cornerRadius) : 4;
 
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;`
-      + `background:${tBgColor};border-radius:4px;`
+      + `background:${tBgColor};border-radius:${tCornerR}px;`
       + `padding:${padY}px ${padX}px;${boxWCss}`
       + `display:inline-block;white-space:pre-wrap;word-break:break-word;`
       + `font-family:${tFontFamily};font-size:${tFontSize}px;font-weight:${tFontWeight};font-style:${tFontStyle};`
@@ -302,7 +306,7 @@ function rememberStickerStyle(block) {
   } else if (shape === 'text') {
     ['fontFamily','fontSize','fontWeight','fontStyle','textDecoration','textColor','strokeWidth','strokeColor',
      'letterSpacing','textAlign','shadowOn','shadowX','shadowY','shadowBlur','shadowColor',
-     'bgColor','padX','padY'].forEach(put);
+     'bgColor','padX','padY','cornerRadius'].forEach(put);
   } else if (shape === 'icon') {
     // U6(e): 아이콘은 색상(currentColor SVG)만 sticky — iconName/iconSvg는 매번 새로 고르므로 제외
     put('iconColor');
@@ -373,6 +377,7 @@ function makeStickerBlock(opts = {}) {
     block.dataset.shadowBlur    = opts.shadowBlur    ?? 4;
     block.dataset.shadowColor   = opts.shadowColor   ?? 'rgba(0,0,0,0.4)';
     block.dataset.bgColor       = opts.bgColor       ?? 'transparent';
+    if (opts.cornerRadius !== undefined) block.dataset.cornerRadius = opts.cornerRadius;
     block.dataset.rotation      = opts.rotation      ?? 0;
   }
   renderStickerBlock(block);
@@ -498,6 +503,7 @@ function updateStickerBlock(blockId, partial = {}) {
     shadowColor: block.dataset.shadowColor,
     padX: block.dataset.padX,
     padY: block.dataset.padY,
+    cornerRadius: block.dataset.cornerRadius,
     boxW: block.dataset.boxW,
     iconName: block.dataset.iconName,
     iconColor: block.dataset.iconColor,
@@ -773,6 +779,7 @@ function updateStickerBlock(blockId, partial = {}) {
   _applyNum('shadowBlur', 'shadowBlur', 0, 40);
   _applyNum('padX', 'padX', 0, 400);
   _applyNum('padY', 'padY', 0, 400);
+  _applyNum('cornerRadius', 'cornerRadius', 0, 400);
 
   // 14-a) 박스 너비 (text shape 전용) — 'auto'(내용맞춤) 또는 고정 px(20~2000)
   if (partial.boxW !== undefined && partial.boxW !== null) {

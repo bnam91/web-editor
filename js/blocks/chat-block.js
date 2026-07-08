@@ -64,6 +64,14 @@ function renderChatBlock(block) {
     ? parseInt(block.dataset.tailScale) : 100;
   const tailW = Math.max(0, Math.round(CHAT_TAIL_W * tailScale / 100));
   const tailH = Math.max(0, Math.round(CHAT_TAIL_H * tailScale / 100));
+  // 꼬리 확대 시 위(말풍선 뒤)가 아니라 아래로 자라도록 — 예약공간(wrap padding-bottom)과
+  // 겹침량(tuck)을 스케일에 비례. 기본 100% = padB 16 / bottom 10 → 기존 CSS 지오메트리와 동일(무회귀).
+  const _ts = Math.max(0, tailScale) / 100;
+  const tailPadB   = Math.max(16, Math.round(16 * _ts));
+  const tailBottom = Math.round(tailPadB - 6 * _ts);
+  // 말풍선 최대폭(%) — 미설정 시 70(기존 CSS .chb-wrap max-width:70%와 동일, 무회귀)
+  const _bmwRaw = parseInt(block.dataset.bubbleMaxW);
+  const bubbleMaxW = (Number.isFinite(_bmwRaw) && _bmwRaw >= 10 && _bmwRaw <= 100) ? _bmwRaw : 70;
   block.style.padding = `${padding}px`;
 
   block.innerHTML = messages.map((msg, idx) => {
@@ -73,7 +81,7 @@ function renderChatBlock(block) {
     const dir    = isLeft ? 'left' : 'right';
     const tailTransform = isLeft ? 'transform="scale(-1,1) translate(-19,0)"' : '';
     // width/height는 인라인 style로 — CSS(.chb-tail{width:19px;height:16px})가 presentation 속성을 덮으므로 style로만 적용돼야 시각 반영됨.
-    const tail = `<svg class="chb-tail" viewBox="0 0 19 16" xmlns="http://www.w3.org/2000/svg" style="fill:${bg};width:${tailW}px;height:${tailH}px"><path d="${CHAT_TAIL_PATH}" ${tailTransform}/></svg>`;
+    const tail = `<svg class="chb-tail" viewBox="0 0 19 16" xmlns="http://www.w3.org/2000/svg" style="fill:${bg};width:${tailW}px;height:${tailH}px;bottom:${tailBottom}px"><path d="${CHAT_TAIL_PATH}" ${tailTransform}/></svg>`;
 
     // 프로필 영역(이미지만) + 이름은 말풍선 위에 별도 위치
     let profileHtml = '';
@@ -113,7 +121,7 @@ function renderChatBlock(block) {
     // bubblePadding 미설정(null) 시엔 인라인 padding 미주입 → CSS 10px 14px 기본 보존(무회귀).
     // 텍스트는 .chb-btext로 분리(편집 대상). data-msg-idx는 편집 타깃인 .chb-btext에 둔다.
     const padCss = (bubblePadding != null) ? `;padding:${bubblePadding}px` : '';
-    const wrapHtml = `<div class="chb-wrap">${nameHtml}<div class="chb-bubble" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px${padCss}">${starsHtml}<div class="chb-btext" data-msg-idx="${idx}">${msg.text}</div></div>${tail}</div>`;
+    const wrapHtml = `<div class="chb-wrap" style="padding-bottom:${tailPadB}px;max-width:${bubbleMaxW}%">${nameHtml}<div class="chb-bubble" style="background:${bg};color:${color};font-size:${fontSize}px;border-radius:${radius}px${padCss}">${starsHtml}<div class="chb-btext" data-msg-idx="${idx}">${msg.text}</div></div>${tail}</div>`;
     const inner = isLeft ? `${profileHtml}${wrapHtml}` : `${wrapHtml}${profileHtml}`;
     return `<div class="chb-msg chb-${dir}" style="margin-bottom:${gap}px;gap:${profileGap}px">${inner}</div>`;
   }).join('');
@@ -317,7 +325,7 @@ function updateChatBlock(blockId, partial = {}) {
     bgLeft: block.dataset.bgLeft, bgRight: block.dataset.bgRight,
     colorLeft: block.dataset.colorLeft, colorRight: block.dataset.colorRight,
     radius: block.dataset.radius, padding: block.dataset.padding,
-    bubblePadding: block.dataset.bubblePadding,
+    bubblePadding: block.dataset.bubblePadding, bubbleMaxW: block.dataset.bubbleMaxW,
     showProfile: block.dataset.showProfile, showName: block.dataset.showName,
     profileSize: block.dataset.profileSize, profileOffsetY: block.dataset.profileOffsetY,
     profileGap: block.dataset.profileGap, layerName: block.dataset.layerName,
@@ -418,6 +426,7 @@ function updateChatBlock(blockId, partial = {}) {
   err = _setInt('profileOffsetY', 'profileOffsetY', -400, 400); if (err) return err;
   err = _setInt('profileGap',     'profileGap',     0, 400);    if (err) return err;
   err = _setInt('tailScale',      'tailScale',      0, 400);    if (err) return err;
+  err = _setInt('bubbleMaxW',     'bubbleMaxW',     10, 100);   if (err) return err;
 
   // fullBleed(패딩 제외): boolean → dataset 'true'/'false'. (canvas-block과 동일 표기)
   if (partial.fullBleed !== undefined) {
@@ -436,7 +445,7 @@ function updateChatBlock(blockId, partial = {}) {
       const v = partial.bubblePadding;
       if (!Number.isFinite(+v) || !Number.isInteger(+v)) return { ok: false, code: 'INVALID', message: 'bubblePadding must be integer or null' };
       const n = +v;
-      if (n < 0 || n > 40) return { ok: false, code: 'INVALID', message: 'bubblePadding out of range [0,40]' };
+      if (n < 0 || n > 120) return { ok: false, code: 'INVALID', message: 'bubblePadding out of range [0,120]' };
       block.dataset.bubblePadding = String(n);
       applied.bubblePadding = n;
     }

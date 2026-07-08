@@ -22,6 +22,9 @@ export function showChatProperties(block) {
   // 말풍선 내부 패딩 — UI 표시 기본 12(dataset에는 실제 조절 시에만 기록 → 미설정 블록 무회귀)
   const bubblePadding = (block.dataset.bubblePadding != null && block.dataset.bubblePadding !== '')
     ? parseInt(block.dataset.bubblePadding) : 12;
+  // 말풍선 최대폭(%) — 미설정 시 70(기존 CSS max-width:70%와 동일)
+  const bubbleMaxW = (block.dataset.bubbleMaxW != null && block.dataset.bubbleMaxW !== '')
+    ? parseInt(block.dataset.bubbleMaxW) : 70;
   // 카톡식 프로필 (default OFF — 호환성)
   const showProfile = block.dataset.showProfile === '1';
   const showName    = block.dataset.showName === '1';
@@ -127,8 +130,13 @@ export function showChatProperties(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">말풍선 패딩</span>
-        <input type="range" class="prop-slider" id="chb-bubble-padding-range" min="0" max="40" value="${bubblePadding}">
-        <input type="number" class="prop-number" id="chb-bubble-padding-val" min="0" max="40" value="${bubblePadding}" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-bubble-padding-range" min="0" max="120" value="${bubblePadding}">
+        <input type="number" class="prop-number" id="chb-bubble-padding-val" min="0" max="120" value="${bubblePadding}" style="width:54px">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">말풍선 최대폭</span>
+        <input type="range" class="prop-slider" id="chb-bubble-maxw-range" min="10" max="100" value="${bubbleMaxW}">
+        <input type="number" class="prop-number" id="chb-bubble-maxw-val" min="10" max="100" value="${bubbleMaxW}" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">꼬리 크기</span>
@@ -153,6 +161,14 @@ export function showChatProperties(block) {
       <div class="prop-row">
         <span class="prop-label">우측 배경</span>
         ${colorFieldHTML({ idPrefix: 'chb-bg-right', hex: bgRight, alpha: bgRightAlpha })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">좌측 글자</span>
+        ${colorFieldHTML({ idPrefix: 'chb-color-left', hex: colorLeft, alpha: parseAlphaFromColor(colorLeft) })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">우측 글자</span>
+        ${colorFieldHTML({ idPrefix: 'chb-color-right', hex: colorRight, alpha: parseAlphaFromColor(colorRight) })}
       </div>
     </div>
 
@@ -265,7 +281,7 @@ export function showChatProperties(block) {
   const bpRange = propPanel.querySelector('#chb-bubble-padding-range');
   const bpVal   = propPanel.querySelector('#chb-bubble-padding-val');
   const applyBubblePadding = v => {
-    const n = Math.min(40, Math.max(0, parseInt(v) || 0));
+    const n = Math.min(120, Math.max(0, parseInt(v) || 0));
     block.dataset.bubblePadding = String(n);
     if (bpRange) bpRange.value = String(n);
     if (bpVal)   bpVal.value   = String(n);
@@ -274,6 +290,20 @@ export function showChatProperties(block) {
   bpRange?.addEventListener('input',  () => applyBubblePadding(bpRange.value));
   bpRange?.addEventListener('change', () => window.pushHistory?.('말풍선 패딩'));
   bpVal?.addEventListener('change',   () => { applyBubblePadding(bpVal.value); window.pushHistory?.('말풍선 패딩'); });
+
+  // 말풍선 최대폭(%) — bubblePadding 패턴 미러. 기존 CSS 캡(70%)을 조절 가능하게.
+  const bmwRange = propPanel.querySelector('#chb-bubble-maxw-range');
+  const bmwVal   = propPanel.querySelector('#chb-bubble-maxw-val');
+  const applyBubbleMaxW = v => {
+    const n = Math.min(100, Math.max(10, parseInt(v) || 70));
+    block.dataset.bubbleMaxW = String(n);
+    if (bmwRange) bmwRange.value = String(n);
+    if (bmwVal)   bmwVal.value   = String(n);
+    rerender();
+  };
+  bmwRange?.addEventListener('input',  () => applyBubbleMaxW(bmwRange.value));
+  bmwRange?.addEventListener('change', () => window.pushHistory?.('말풍선 최대폭'));
+  bmwVal?.addEventListener('change',   () => { applyBubbleMaxW(bmwVal.value); window.pushHistory?.('말풍선 최대폭'); });
 
   // 말풍선 꼬리 크기 — range/number 동기화. profileGap 패턴 미러(input→rerender, change→pushHistory).
   const tailRange = propPanel.querySelector('#chb-tail-range');
@@ -327,6 +357,16 @@ export function showChatProperties(block) {
   wireColorField('chb-bg-right', {
     initialAlpha: bgRightAlpha,
     onApply: (c) => { block.dataset.bgRight = c; rerender(); },
+    onCommit: () => window.pushHistory?.(),
+  });
+  wireColorField('chb-color-left', {
+    initialAlpha: parseAlphaFromColor(colorLeft),
+    onApply: (c) => { block.dataset.colorLeft = c; rerender(); },
+    onCommit: () => window.pushHistory?.(),
+  });
+  wireColorField('chb-color-right', {
+    initialAlpha: parseAlphaFromColor(colorRight),
+    onApply: (c) => { block.dataset.colorRight = c; rerender(); },
     onCommit: () => window.pushHistory?.(),
   });
 
