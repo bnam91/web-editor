@@ -199,10 +199,11 @@ function _updatePreviewSvg() {
     c.setAttribute('class', 'annot-preview-dot');
     c.setAttribute('cx', p[0]);
     c.setAttribute('cy', p[1]);
-    c.setAttribute('r', idx === 0 ? 6 : 3.5);
+    // 시작점(idx 0)은 흰 외곽선을 둘러 빨간 섹션 위에서도 식별되게(40% 줌 시인성)
+    c.setAttribute('r', idx === 0 ? 7 : 3.5);
     c.setAttribute('fill', idx === 0 ? '#e74c3c' : '#fff');
-    c.setAttribute('stroke', '#e74c3c');
-    c.setAttribute('stroke-width', idx === 0 ? 1.5 : 1.2);
+    c.setAttribute('stroke', idx === 0 ? '#ffffff' : '#e74c3c');
+    c.setAttribute('stroke-width', idx === 0 ? 2.5 : 1.2);
     svg.appendChild(c);
   });
 }
@@ -295,10 +296,10 @@ function _onKeydown(e) {
   }
 
   if (e.key === 'Escape') {
-    // 라벨 편집 중 → 라벨 blur에 위임
-    if (editingLabel) return;
-    // 그리던 선(≥2점)은 확정해 보존, 1점 이하는 폐기 → 모드 종료
+    // 안내 토스트("ESC로 종료")와 일치: 한 번의 ESC로 종료. 라벨 편집 중이면
+    // 먼저 blur로 텍스트 커밋(IME 한글 포함) 후 펜 종료 — V키와 동일 출구.
     e.stopPropagation();
+    if (editingLabel) { try { active.blur(); } catch (_) {} }
     _commitAndExitPenMode();
     return;
   }

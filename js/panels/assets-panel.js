@@ -122,7 +122,7 @@ function _assetsBindGlobalKeydown() {
     for (const id of ids) {
       // (U7) favorite/Texture 고정 보호 폴더는 다중 삭제에서도 개별 skip
       const f = assetsFindNode(id);
-      if (f && f.node && f.node.type === 'folder' && (f.node.favorite === true || f.node.texture === true)) {
+      if (f && f.node && f.node.type === 'folder' && (f.node.favorite === true || f.node.texture === true || f.node.locked === true)) {
         window.showToast?.(`📌 ${f.node.name} 폴더는 삭제할 수 없습니다.`);
         continue;
       }
@@ -244,7 +244,7 @@ function assetsMoveNode(id, newParentId, beforeId = null) {
   const src = assetsFindNode(id);
   if (!src) return;
   // (U7) favorite/Texture 고정 보호 폴더는 이동 차단
-  if (src.node && src.node.type === 'folder' && (src.node.favorite === true || src.node.texture === true)) {
+  if (src.node && src.node.type === 'folder' && (src.node.favorite === true || src.node.texture === true || src.node.locked === true)) {
     window.showToast?.(`📌 ${src.node.name} 폴더는 이동할 수 없습니다.`);
     return;
   }
@@ -416,7 +416,7 @@ async function assetsDeleteNode(id) {
   const f = assetsFindNode(id);
   if (!f) return false;
   // (U7) favorite/Texture 고정 보호 폴더는 삭제 차단
-  if (f.node.type === 'folder' && (f.node.favorite === true || f.node.texture === true)) {
+  if (f.node.type === 'folder' && (f.node.favorite === true || f.node.texture === true || f.node.locked === true)) {
     window.showToast?.(`📌 ${f.node.name} 폴더는 삭제할 수 없습니다.`);
     return false;
   }
@@ -570,10 +570,15 @@ function _renderTreeNode(node, depth, parentEl) {
     thumb.alt = '';
     thumb.draggable = false;
     row.appendChild(thumb);
-    // dataUrl 비동기 로드
-    assetsGetDataUrl(node.id).then(d => {
-      if (d) thumb.src = d;
-    });
+    // 시드 패턴 등 인라인 thumbSrc가 있으면 그걸 우선(작은 썸네일에서 무늬가 보이도록 조밀 버전)
+    if (node.thumbSrc) {
+      thumb.src = node.thumbSrc;
+    } else {
+      // dataUrl 비동기 로드
+      assetsGetDataUrl(node.id).then(d => {
+        if (d) thumb.src = d;
+      });
+    }
   }
 
   // 이름
@@ -590,11 +595,13 @@ function _renderTreeNode(node, depth, parentEl) {
   // 액션
   const actions = document.createElement('div');
   actions.className = 'assets-row-actions';
-  const btnRename = `<button data-act="rename" title="이름변경">✎</button>`;
+  // 보호 폴더(favorite/texture/locked)는 이름변경도 잠금 — 삭제·이동과 규칙 일치
+  const _isProtectedFolder = node.type === 'folder' && (node.favorite === true || node.texture === true || node.locked === true);
+  const btnRename = _isProtectedFolder ? '' : `<button data-act="rename" title="이름변경">✎</button>`;
   const btnSend = node.type === 'image' ? `<button data-act="send" title="캔버스로 보내기">↗</button>` : '';
   const btnOpen = node.type === 'url' ? `<button data-act="open" title="링크 열기">↗</button>` : '';
   // (U7) favorite/Texture 고정 보호 폴더는 삭제 버튼 숨김
-  const _isFixedFolder = node.type === 'folder' && (node.favorite === true || node.texture === true);
+  const _isFixedFolder = node.type === 'folder' && (node.favorite === true || node.texture === true || node.locked === true);
   const btnDel = _isFixedFolder ? '' : `<button data-act="delete" title="삭제">🗑</button>`;
   // 폴더 전용 — 리스트/그리드 인라인 토글 (SVG)
   let btnView = '';
@@ -709,6 +716,11 @@ function _renderTreeNode(node, depth, parentEl) {
 function _assetsBeginInlineRename(nameEl, id) {
   const f = assetsFindNode(id);
   if (!f) return;
+  // 보호 폴더(favorite/texture/locked)는 이름변경 차단(삭제/이동과 일치). 더블클릭·✎ 양 경로 방어.
+  if (f.node.type === 'folder' && (f.node.favorite === true || f.node.texture === true || f.node.locked === true)) {
+    window.showToast?.(`📌 ${f.node.name} 폴더는 이름을 바꿀 수 없습니다.`);
+    return;
+  }
   const cur = f.node.type === 'url' ? f.node.title : f.node.name;
   nameEl.setAttribute('contenteditable', 'true');
   nameEl.textContent = cur || '';
