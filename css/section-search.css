@@ -71,9 +71,11 @@
   text-align: center;
 }
 
-/* ── 블럭 ID 검색 행 ── */
-.ss-item-block { display: flex; align-items: baseline; gap: 8px; }
-.ss-item-block .ss-sec-ref {
+/* ── 블럭 ID / 섹션 ID 검색 행 ── */
+.ss-item-block,
+.ss-item-sec-id { display: flex; align-items: baseline; gap: 8px; }
+.ss-item-block .ss-sec-ref,
+.ss-item-sec-id .ss-sec-ref {
   color: var(--ui-text-muted, #777);
   font-size: var(--ui-fs-12, 12px);
   overflow: hidden;

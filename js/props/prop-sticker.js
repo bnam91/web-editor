@@ -40,7 +40,7 @@ function _stickerStyleFromBlock(block) {
      'letterSpacing', 'textAlign', 'shadowOn', 'shadowX', 'shadowY', 'shadowBlur', 'shadowColor',
      'bgColor', 'padX', 'padY'].forEach(put);
   } else { // circle / square
-    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight'].forEach(put);
+    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration'].forEach(put);
   }
   return preset;
 }
@@ -307,6 +307,20 @@ export function showStickerProperties(block) {
           <option value="900" ${fontWeight === 900 ? 'selected' : ''}>Black</option>
         </select>
       </div>
+      <div class="prop-row">
+        <span class="prop-label">스타일</span>
+        <div class="prop-align-group" id="stk-b-style-group">
+          <button class="prop-align-btn${tFontStyle === 'italic' ? ' active' : ''}" data-style="italic" title="이탤릭">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="7" y1="3" x2="13" y2="3"/><line x1="3" y1="13" x2="9" y2="13"/><line x1="10" y1="3" x2="6" y2="13"/></svg>
+          </button>
+          <button class="prop-align-btn${tDecoUnderline ? ' active' : ''}" data-style="underline" title="밑줄">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.5 3 L4.5 7.5 A3.5 3.5 0 0 0 11.5 7.5 L11.5 3"/><line x1="3.5" y1="13.5" x2="12.5" y2="13.5"/></svg>
+          </button>
+          <button class="prop-align-btn${tDecoStrike ? ' active' : ''}" data-style="line-through" title="취소선">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11.5 4.5 C11 3.4 9.7 2.8 8 2.8 C6 2.8 4.8 3.8 4.8 5.1 C4.8 5.7 5 6.2 5.6 6.6"/><path d="M4.5 11.5 C5 12.6 6.3 13.2 8 13.2 C10 13.2 11.2 12.2 11.2 10.9 C11.2 10.5 11.1 10.1 10.9 9.8"/><line x1="2.5" y1="8" x2="13.5" y2="8"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
     <div class="prop-section" id="stk-colors-section" style="display:${hideBasic ? 'none' : 'block'};">
       <div class="prop-section-title">Colors</div>
@@ -538,19 +552,23 @@ export function showStickerProperties(block) {
     });
   });
 
-  // 텍스트 스티커 — 스타일 (이탤릭/밑줄/취소선 — 정렬 그룹과 달리 각 버튼 독립 토글)
-  propPanel.querySelectorAll('#stk-t-style-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      btn.classList.toggle('active');
-      const grp = propPanel.querySelector('#stk-t-style-group');
-      const isOn = (s) => !!grp.querySelector(`[data-style="${s}"]`)?.classList.contains('active');
-      block.dataset.fontStyle = isOn('italic') ? 'italic' : 'normal';
-      const decos = [];
-      if (isOn('underline'))    decos.push('underline');
-      if (isOn('line-through')) decos.push('line-through');
-      block.dataset.textDecoration = decos.length ? decos.join(' ') : 'none';
-      rerender();
-      window.pushHistory?.('텍스트 스티커 스타일'); window.scheduleAutoSave?.();
+  // 스티커 — 스타일 (이탤릭/밑줄/취소선 — 정렬 그룹과 달리 각 버튼 독립 토글)
+  //   stk-t-style-group = text shape(Typography 섹션) / stk-b-style-group = circle·square(Size 섹션).
+  //   두 그룹은 shape에 따라 배타 노출 — 같은 dataset(fontStyle/textDecoration)에 쓰는 동일 로직 공유.
+  ['stk-t-style-group', 'stk-b-style-group'].forEach(groupId => {
+    propPanel.querySelectorAll(`#${groupId} .prop-align-btn`).forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.classList.toggle('active');
+        const grp = propPanel.querySelector(`#${groupId}`);
+        const isOn = (s) => !!grp.querySelector(`[data-style="${s}"]`)?.classList.contains('active');
+        block.dataset.fontStyle = isOn('italic') ? 'italic' : 'normal';
+        const decos = [];
+        if (isOn('underline'))    decos.push('underline');
+        if (isOn('line-through')) decos.push('line-through');
+        block.dataset.textDecoration = decos.length ? decos.join(' ') : 'none';
+        rerender();
+        window.pushHistory?.('스티커 스타일'); window.scheduleAutoSave?.();
+      });
     });
   });
 
