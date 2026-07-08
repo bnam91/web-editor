@@ -140,8 +140,8 @@ export function showChatProperties(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label">꼬리 크기</span>
-        <input type="range" class="prop-slider" id="chb-tail-range" min="0" max="300" value="${tailScale}">
-        <input type="number" class="prop-number" id="chb-tail-val" min="0" max="300" value="${tailScale}" style="width:54px">
+        <input type="range" class="prop-slider" id="chb-tail-range" min="0" max="600" value="${tailScale}">
+        <input type="number" class="prop-number" id="chb-tail-val" min="0" max="600" value="${tailScale}" style="width:54px">
       </div>
       <div class="prop-row">
         <span class="prop-label">패딩 제외</span>
@@ -309,7 +309,7 @@ export function showChatProperties(block) {
   const tailRange = propPanel.querySelector('#chb-tail-range');
   const tailVal   = propPanel.querySelector('#chb-tail-val');
   const applyTail = v => {
-    const n = Math.min(300, Math.max(0, parseInt(v) || 0));
+    const n = Math.min(600, Math.max(0, parseInt(v) || 0));
     block.dataset.tailScale = String(n);
     if (tailRange) tailRange.value = String(n);
     if (tailVal)   tailVal.value   = String(n);

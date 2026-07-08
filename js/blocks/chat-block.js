@@ -425,7 +425,7 @@ function updateChatBlock(blockId, partial = {}) {
   err = _setInt('padding',  'padding',  0, 400); if (err) return err;
   err = _setInt('profileOffsetY', 'profileOffsetY', -400, 400); if (err) return err;
   err = _setInt('profileGap',     'profileGap',     0, 400);    if (err) return err;
-  err = _setInt('tailScale',      'tailScale',      0, 400);    if (err) return err;
+  err = _setInt('tailScale',      'tailScale',      0, 600);    if (err) return err;
   err = _setInt('bubbleMaxW',     'bubbleMaxW',     10, 100);   if (err) return err;
 
   // fullBleed(패딩 제외): boolean → dataset 'true'/'false'. (canvas-block과 동일 표기)
