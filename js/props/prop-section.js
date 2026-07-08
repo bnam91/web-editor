@@ -165,7 +165,7 @@ async function showSectionProperties(sec) {
           <span class="prop-block-name">${sec._name || sec.dataset.name || 'Section'}</span>
           <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
         </div>
-        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="window._copyToClipboard?.('${sec.id}');window.showToast?.('✅ ID 복사됨')">${sec.id}</span>` : ''}
+        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="window._copyToClipboard?.('${sec.id}')">${sec.id}</span>` : ''}
       </div>
       <div class="prop-row">
         <span class="prop-label">Preset</span>
