@@ -107,7 +107,13 @@ function _assetsBindGlobalKeydown() {
       '.icon-block.selected, .vector-block.selected, .step-block.selected, ' +
       '.laurel-block.selected, .gradient-block.selected, ' +
       '.sticker-block.selected, .joker-block.selected, .chat-block.selected');
-    const canvasSelected = document.querySelector(_canvasSel);
+    // ⚠️ SSOT window.CANVAS_SEL_BLOCKS_AND_SHAPE는 '블럭 전용'이라 섹션/col/frame/group을 포함하지 않는다
+    //    (editor.js:1701 블럭 수집 용도). 섹션 선택 상태에서 Backspace 시 자산 삭제 모달이 잘못 뜨고
+    //    editor.js가 섹션을 지우는 레이스가 생기므로, 컨테이너급 선택자를 별도로 추가 확인해 양보한다.
+    const _canvasContainerSel =
+      '.section-block.selected, .section-block.multi-selected, ' +
+      '.col.multi-selected, .frame-block.selected, .group-block.group-selected';
+    const canvasSelected = document.querySelector(_canvasSel) || document.querySelector(_canvasContainerSel);
     if (canvasSelected) return;
     e.preventDefault();
     const ids = [..._assetsSelectedIds];
