@@ -429,6 +429,7 @@ function bindStickerSelect(block) {
         block.dataset.y = String(origY);
         block.style.left = origX + 'px';
         block.style.top  = origY + 'px';
+        window._updateStickerSecClip?.(block); // 부모 섹션이 바뀌었으니 새 경계 기준 재계산
         return;
       }
       // 같은 섹션 또는 섹션 밖 — 기존 섹션 유지 + clamp (⌘=clamp 없이 자유 이동)
@@ -444,10 +445,14 @@ function bindStickerSelect(block) {
       block.dataset.y = String(newY);
       block.style.left = newX + 'px';
       block.style.top  = newY + 'px';
+      // 위치 드래그는 render를 안 타므로 --sec-clip 직접 갱신
+      // (드래그 중엔 .selected라 CSS가 clip 무시 — 놓고 선택 해제되는 즉시 반영되도록 준비)
+      window._updateStickerSecClip?.(block);
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      window._updateStickerSecClip?.(block);
       window.pushHistory?.('스티커 이동');
       window.scheduleAutoSave?.();
     };
