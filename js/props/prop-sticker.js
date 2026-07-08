@@ -171,6 +171,15 @@ export function showStickerProperties(block) {
       </div>
       <div class="stk-fav-grid" id="stk-fav-grid"></div>
     </div>
+    <div class="prop-section" id="stk-crop-section">
+      <div class="prop-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
+          <input type="checkbox" id="stk-crop-sec" ${block.dataset.cropToSection === 'true' ? 'checked' : ''}>
+          섹션 밖 크롭 (미리보기·내보내기)
+        </label>
+      </div>
+      <div class="prop-hint" style="font-size:11px;color:#888;">⌘+드래그로 섹션 밖에 걸치면 자동으로 켜집니다. 편집 중에는 밖 부분이 보이고, 미리보기·내보내기에서 잘립니다.</div>
+    </div>
     <div class="prop-section" id="stk-icon-section" style="display:${isIcon ? 'block' : 'none'};">
       <div class="prop-section-title">Icon</div>
       <div class="prop-row">
@@ -653,6 +662,13 @@ export function showStickerProperties(block) {
     initialAlpha: tShadowAlpha,
     onApply: (c) => { block.dataset.shadowColor = c; rerender(); },
     onCommit: () => { window.pushHistory?.('텍스트 스티커 그림자색'); window.scheduleAutoSave?.(); },
+  });
+
+  // 섹션 밖 크롭 토글 — 에디터 표시는 안 바뀌므로(편집=보임) rerender 불필요, 플래그만 저장
+  propPanel.querySelector('#stk-crop-sec')?.addEventListener('change', e => {
+    if (e.target.checked) block.dataset.cropToSection = 'true';
+    else delete block.dataset.cropToSection;
+    window.pushHistory?.('섹션 밖 크롭'); window.scheduleAutoSave?.();
   });
 
   // Mode 체크박스 (이미지 모드 on/off)

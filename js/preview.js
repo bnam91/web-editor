@@ -64,6 +64,10 @@ function enterPreview() {
   document.body.classList.add('preview-mode');
   overlay.scrollTop = 0;
 
+  // 섹션 밖 크롭 스티커 — 미리보기에서만 경계 clip (편집 중에는 보임).
+  // preview-mode 클래스 부여 후(=overlay 표시, layout 확정) 호출해야 rect 계산이 유효.
+  if (window.applyStickerCropClips) window.applyStickerCropClips(content);
+
   const designBtn  = document.getElementById('mode-design-btn');
   const previewBtn = document.getElementById('mode-preview-btn');
   if (designBtn)  designBtn.classList.remove('active');
@@ -244,6 +248,9 @@ function _renderSBSPanel(side, pageIdx, presetVars) {
   block.appendChild(inner);
   wrap.appendChild(block);
   bodyEl.appendChild(wrap);
+
+  // 섹션 밖 크롭 스티커 — SBS 패널에도 동일 적용 (attach 후 layout 확정 상태)
+  if (window.applyStickerCropClips) window.applyStickerCropClips(bodyEl);
 }
 
 /* ── Preview Zoom ── */

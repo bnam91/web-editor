@@ -39,6 +39,20 @@ function _clampToSection(x, y, sec, blockW, blockH) {
 }
 window._clampToSection = _clampToSection;
 
+// 드래그 종료 시 섹션 경계 침범 여부로 crop 플래그 동기화 —
+// ⌘ 자유이동으로 밖에 걸치면 true(미리보기/Export에서 경계 크롭), 완전히 안으로 들어오면 해제.
+// 에디터 라이브 DOM에는 clip을 걸지 않으므로(편집=보임) 플래그만 관리한다.
+function _syncStickerCropFlag(block, sec) {
+  if (!sec || !block) return;
+  const x = parseInt(block.dataset.x) || 0;
+  const y = parseInt(block.dataset.y) || 0;
+  const w = block.offsetWidth  || 0;
+  const h = block.offsetHeight || 0;
+  const out = x < 0 || y < 0 || x + w > sec.clientWidth || y + h > sec.clientHeight;
+  if (out) block.dataset.cropToSection = 'true';
+  else delete block.dataset.cropToSection;
+}
+
 function _selectSticker(block) {
   if (!block) return;
   // 다른 selected 풀기 (deselectAll이 sticker-block도 처리)
@@ -410,8 +424,11 @@ function bindStickerSelect(block) {
     const onMove = (ev) => {
       const blockW = block.offsetWidth  || 0;
       const blockH = block.offsetHeight || 0;
+      // ⌘ 드래그 = 자유 이동: 섹션 경계 clamp·부모 섹션 변경 없이 밖으로 나갈 수 있다.
+      // 놓을 때 경계 밖에 걸치면 cropToSection 자동 세트(onUp의 _syncStickerCropFlag).
+      const freeMove = ev.metaKey;
       // 현재 마우스가 어떤 섹션 위에 있는지 탐지 (B 정책)
-      const hoverSec = window._findSectionAt ? window._findSectionAt(ev.clientX, ev.clientY) : null;
+      const hoverSec = (!freeMove && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
       if (hoverSec && hoverSec !== sec) {
         // 부모 섹션 변경 — DOM 이동 + 좌표 reset (새 섹션 기준)
         hoverSec.appendChild(block);
@@ -428,11 +445,13 @@ function bindStickerSelect(block) {
         block.style.top  = origY + 'px';
         return;
       }
-      // 같은 섹션 또는 섹션 밖 — 기존 섹션 유지 + clamp
+      // 같은 섹션 또는 섹션 밖 — 기존 섹션 유지 + clamp (⌘=clamp 없이 자유 이동)
       const secRect = sec.getBoundingClientRect();
       const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
       const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
-      const [cx, cy] = window._clampToSection(newXraw, newYraw, sec, blockW, blockH);
+      const [cx, cy] = freeMove
+        ? [newXraw, newYraw]
+        : window._clampToSection(newXraw, newYraw, sec, blockW, blockH);
       const newX = Math.round(cx);
       const newY = Math.round(cy);
       block.dataset.x = String(newX);
@@ -443,6 +462,7 @@ function bindStickerSelect(block) {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      _syncStickerCropFlag(block, sec);
       window.pushHistory?.('스티커 이동');
       window.scheduleAutoSave?.();
     };
