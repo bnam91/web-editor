@@ -487,18 +487,50 @@ function _createItem(src, x, y, w = 220, idArg, gArg) {
     const scale  = _getScale();
     const startX = e.clientX;
     const startW = el.offsetWidth;
-    // 리사이즈 undo/redo용 사전 지오메트리 스냅샷 — onMove가 w를 변형하기 전에 캡처
-    const geomBefore = _scratchGeomSnapshot([item]);
+    // 그룹이면 전 멤버를 하나의 바운딩처럼 비례 스케일 — 아니면 잡은 아이템 단독 (기존 동작)
+    const members = item.g ? _scratchItems.filter(s => s.g === item.g) : [item];
+    const isGroup = members.length > 1;
+    // 앵커 = 그룹 바운딩박스 좌상단 (핸들이 우하단이므로 좌상단 고정 → 우하단으로 성장)
+    const anchorX = Math.min(...members.map(m => m.x));
+    const anchorY = Math.min(...members.map(m => m.y));
+    // 드래그 시작 시점의 각 멤버 지오메트리 고정 스냅샷 (누적 아닌 절대 배율 적용)
+    const starts = members.map(m => ({ it: m, x: m.x, y: m.y, w: m.w }));
+    const minMemberW = Math.min(...starts.map(s => s.w));
+    // 배율 기준거리 = 앵커(좌상단)에서 잡은 핸들(우변)까지. 그룹에서 잡은 아이템이
+    // 최좌측이 아니면 자기 폭(startW)보다 커서 → 배율을 startW로 뽑으면 핸들이 커서보다
+    // 빨리 달아나 그룹이 과하게 커진다. 앵커→핸들 거리로 배율을 뽑아야 핸들이 커서를 정확히 추종.
+    const gs0 = starts.find(s => s.it === item);
+    const anchorDist = Math.max(1, gs0.x + gs0.w - anchorX);
+    // 리사이즈 undo/redo용 사전 지오메트리 스냅샷 — onMove가 변형하기 전에 그룹 전체 캡처
+    const geomBefore = _scratchGeomSnapshot(members);
     const onMove = mv => {
-      const newW = Math.max(60, startW + (mv.clientX - startX) / scale);
-      el.style.width = newW + 'px';
-      item.w = newW;
+      const dx = (mv.clientX - startX) / scale;
+      // 배율 클램프: 잡은 아이템은 최소 60(기존 관용값), 최소 멤버는 20 밑으로 붕괴 방지
+      const fMin = Math.max(60 / startW, 20 / minMemberW);
+      const f = Math.max(fMin, (anchorDist + dx) / anchorDist);
+      starts.forEach(s => {
+        const w = s.w * f;
+        s.it.w = w;
+        if (isGroup) {
+          const x = anchorX + (s.x - anchorX) * f;
+          const y = anchorY + (s.y - anchorY) * f;
+          s.it.x = x; s.it.y = y;
+          if (s.it.el) {
+            s.it.el.style.width = w + 'px';
+            s.it.el.style.left  = x + 'px';
+            s.it.el.style.top   = y + 'px';
+          }
+        } else if (s.it.el) {
+          s.it.el.style.width = w + 'px';
+        }
+      });
     };
     const onUp = () => {
       _saveScratch();
-      // 리사이즈 undo/redo — 실제 폭 변화가 있을 때만 history 등록 (이동과 동일 sideEffects 패턴)
-      if (item.w !== geomBefore[0].w) {
-        const geomAfter = _scratchGeomSnapshot([item]);
+      // 리사이즈 undo/redo — 잡은 아이템 폭 변화가 있을 때만 history 등록 (이동과 동일 sideEffects 패턴)
+      const gb0 = geomBefore.find(g => g.id === item.id);
+      if (gb0 && item.w !== gb0.w) {
+        const geomAfter = _scratchGeomSnapshot(members);
         try {
           window.pushHistory?.('스크래치 리사이즈', {
             onUndo: () => _applyScratchGeomSnapshot(geomBefore),

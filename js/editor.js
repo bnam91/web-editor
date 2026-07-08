@@ -322,10 +322,12 @@ function getBlockBreadcrumb(el) {
    클립보드 유틸 — Electron 권한 우회
 ══════════════════════════════════════ */
 function _copyToClipboard(text) {
+  const _toast = () => { try { window.showToast && window.showToast('✅ ID 복사됨'); } catch (_) {} };
   if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-    navigator.clipboard.writeText(text).catch(() => _clipboardFallback(text));
+    navigator.clipboard.writeText(text).then(_toast).catch(() => { _clipboardFallback(text); _toast(); });
   } else {
     _clipboardFallback(text);
+    _toast();
   }
 }
 function _clipboardFallback(text) {
