@@ -1055,6 +1055,11 @@ function pasteClipboard() {
 window._optionKeyHeld = false;
 document.addEventListener('keydown', e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = true; }, true);
 document.addEventListener('keyup',   e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = false; }, true);
+// ★ stuck 방지: Option을 누른 채 창 포커스/가시성을 잃으면(앱 전환·Spotlight·Alt-tab) keyup을 못 받아
+//   _optionKeyHeld가 영구 true로 남고 → ⌘G가 ⌘⌥G(프레임 묶기)로 오라우팅돼 스크래치/블록 그룹이 안 된다.
+//   포커스 이탈·창 숨김 시 해제해 재발 차단. (IME 대응 위해 flag 자체는 유지 — e.altKey는 한글IME서 신뢰불가)
+window.addEventListener('blur', () => { window._optionKeyHeld = false; });
+document.addEventListener('visibilitychange', () => { if (document.hidden) window._optionKeyHeld = false; });
 
 // 갭 블록 높이 키 조정 후 keyup 시 undo 기록
 document.addEventListener('keyup', e => {
