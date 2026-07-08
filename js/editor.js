@@ -1257,6 +1257,30 @@ document.addEventListener('keydown', e => {
       return;
     }
   }
+  // 스포이드 (i) — 편집 아님 + 텍스트블럭 선택 상태에서 화면 픽셀 색을 글자색 전체에 추출 적용.
+  // ⌘I(이탤릭)는 위 metaKey 분기에서 이미 소진되므로 여기는 modifier 없는 순수 i만 처리.
+  if (e.code === 'KeyI' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
+    if (document.querySelector('.text-block.editing')) return;
+    const eyedropTargets = Array.from(document.querySelectorAll('.text-block.selected'));
+    if (eyedropTargets.length) {
+      e.preventDefault();
+      if (!window.EyeDropper) { window.showToast?.('이 브라우저는 스포이드 미지원'); return; }
+      (async () => {
+        try {
+          const res = await new window.EyeDropper().open();
+          const hex = res?.sRGBHex;
+          if (!hex) return;
+          let applied = 0;
+          eyedropTargets.forEach(tb => { if (window.applyTextBlockColor?.(tb, hex)) applied++; });
+          if (applied) window.showToast?.('🎨 글자색 추출됨');
+        } catch (_) { /* 사용자 취소 — 조용히 무시 */ }
+      })();
+      return;
+    }
+  }
+
   // pinToggle (기본: `)
   const _isPinToggle = window._matchShortcut
     ? window._matchShortcut(e, 'pinToggle')
