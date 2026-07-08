@@ -106,6 +106,14 @@ body.preview-mode #preview-navigator { display: flex; }
 #preview-overlay .section-block {
   cursor: default;
   outline: none !important;
+  /* 섹션 밖 크롭 = 기본값(현빈 확정): 경계 밖으로 밀린 요소는 미리보기에서 잘린다.
+     (Export PNG는 캡쳐 clip rect가 섹션 사각형이라 원래부터 항상 크롭 — 미리보기를 그에 맞춤.)
+     편집 캔버스는 항상 보임 유지 — 섹션 label/toolbar가 섹션 자식이라 에디터 크롭은 UI 파손. */
+  overflow: hidden;
+}
+/* 옵트인 '섹션 밖 보이기' — 프레임/스티커를 의도적으로 경계 밖까지 보여주는 섹션만 해제 */
+#preview-overlay .section-block[data-overflow-visible="true"] {
+  overflow: visible;
 }
 #preview-overlay .section-block:hover { outline: none !important; }
 #preview-overlay .section-hitzone { display: none !important; }
