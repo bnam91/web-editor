@@ -1,0 +1,19 @@
+/* ══════════════════════════════════════
+   노트패널 배경 패턴 6종 — 인라인 data URI 애셋 시드 데이터
+   - save-load.js의 background(texture:true) 폴더 시드에서 사용
+   - 각 노드는 안정 id(ast_notebg_01~06)로 멱등 시드된다
+   - blobPath 없이 인라인 node.src(data URI) 방식 → assetsGetDataUrl 폴백이 처리
+   - 원본 SVG는 scratchpad/note_patterns/*.svg (시각 변경 금지)
+══════════════════════════════════════ */
+
+export const NOTE_BG_FOLDER_ID = "ast_notebg_folder";
+export const NOTE_BG_FOLDER_NAME = "노트패널";
+
+export const NOTE_BG_PATTERNS = [
+  { id: "ast_notebg_01", name: "모노 줄눈", src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgdmlld0JveD0iMCAwIDkwMCAxMjYwIj48ZGVmcz48cGF0dGVybiBpZD0icCIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIyOCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PGxpbmUgeDE9IjAiIHkxPSIyNy41IiB4Mj0iMTAwIiB5Mj0iMjcuNSIgc3Ryb2tlPSIjYzlkMmRlIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgZmlsbD0idXJsKCNwKSIvPjwvc3ZnPg==" },
+  { id: "ast_notebg_02", name: "공책 여백선", src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgdmlld0JveD0iMCAwIDkwMCAxMjYwIj48ZGVmcz48cGF0dGVybiBpZD0icCIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIzMCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PGxpbmUgeDE9IjAiIHkxPSIyOS41IiB4Mj0iMTAwIiB5Mj0iMjkuNSIgc3Ryb2tlPSIjY2FkNWU0IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgZmlsbD0idXJsKCNwKSIvPjxsaW5lIHgxPSI3MiIgeTE9IjAiIHgyPSI3MiIgeTI9IjEyNjAiIHN0cm9rZT0iI2U3OWE5ZSIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+" },
+  { id: "ast_notebg_03", name: "넓은 줄눈", src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgdmlld0JveD0iMCAwIDkwMCAxMjYwIj48ZGVmcz48cGF0dGVybiBpZD0icCIgd2lkdGg9IjEwMCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PGxpbmUgeDE9IjAiIHkxPSIzOS41IiB4Mj0iMTAwIiB5Mj0iMzkuNSIgc3Ryb2tlPSIjY2JkNGRmIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgZmlsbD0idXJsKCNwKSIvPjwvc3ZnPg==" },
+  { id: "ast_notebg_04", name: "점모눈", src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgdmlld0JveD0iMCAwIDkwMCAxMjYwIj48ZGVmcz48cGF0dGVybiBpZD0icCIgd2lkdGg9IjIyIiBoZWlnaHQ9IjIyIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48Y2lyY2xlIGN4PSIxLjMiIGN5PSIxLjMiIHI9IjEuMyIgZmlsbD0iI2I2YzFjZiIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjkwMCIgaGVpZ2h0PSIxMjYwIiBmaWxsPSIjZmZmZmZmIi8+PHJlY3Qgd2lkdGg9IjkwMCIgaGVpZ2h0PSIxMjYwIiBmaWxsPSJ1cmwoI3ApIi8+PC9zdmc+" },
+  { id: "ast_notebg_05", name: "모눈 일반", src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgdmlld0JveD0iMCAwIDkwMCAxMjYwIj48ZGVmcz48cGF0dGVybiBpZD0icCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNMjQgMCBIMCBWMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2QzZGJlNSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iOTAwIiBoZWlnaHQ9IjEyNjAiIGZpbGw9IiNmZmZmZmYiLz48cmVjdCB3aWR0aD0iOTAwIiBoZWlnaHQ9IjEyNjAiIGZpbGw9InVybCgjcCkiLz48L3N2Zz4=" },
+  { id: "ast_notebg_06", name: "모눈 촘촘", src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5MDAiIGhlaWdodD0iMTI2MCIgdmlld0JveD0iMCAwIDkwMCAxMjYwIj48ZGVmcz48cGF0dGVybiBpZD0icCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNMTIgMCBIMCBWMTIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q2ZGRlNyIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iOTAwIiBoZWlnaHQ9IjEyNjAiIGZpbGw9IiNmZmZmZmYiLz48cmVjdCB3aWR0aD0iOTAwIiBoZWlnaHQ9IjEyNjAiIGZpbGw9InVybCgjcCkiLz48L3N2Zz4=" },
+];

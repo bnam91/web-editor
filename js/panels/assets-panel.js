@@ -306,7 +306,13 @@ async function _assetsReadFile(blobPath) {
 async function assetsGetDataUrl(id) {
   if (window._assetsImgCache.has(id)) return window._assetsImgCache.get(id);
   const f = assetsFindNode(id);
-  if (!f || f.node.type !== 'image' || !f.node.blobPath) return null;
+  if (!f || f.node.type !== 'image') return null;
+  // 인라인 src(data URI) 노드 — blobPath 없이 시드된 애셋(노트패널 배경 패턴 등)
+  if (f.node.src && !f.node.blobPath) {
+    window._assetsImgCache.set(id, f.node.src);
+    return f.node.src;
+  }
+  if (!f.node.blobPath) return null;
   const dataUrl = await _assetsReadFile(f.node.blobPath);
   if (dataUrl) window._assetsImgCache.set(id, dataUrl);
   return dataUrl;
@@ -507,9 +513,9 @@ function _urlIcon() {
   </span>`;
 }
 
-// Texture 고정 보호 폴더 전용 아이콘 — 격자(스와치) 표식
+// background(구 Texture) 고정 보호 폴더 전용 아이콘 — 격자(스와치) 표식
 function _textureFolderIcon() {
-  return `<span class="assets-row-thumb-icon" aria-hidden="true" title="Texture">
+  return `<span class="assets-row-thumb-icon" aria-hidden="true" title="background">
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round">
       <rect x="1.8" y="1.8" width="10.4" height="10.4" rx="1.2"/>
       <path d="M1.8 5.3 H12.2 M1.8 8.7 H12.2 M5.3 1.8 V12.2 M8.7 1.8 V12.2"/>
