@@ -243,10 +243,6 @@ async function exportSection(sec, format, width, opts) {
   // 레이아웃 강제 확정 (offsetWidth/Height 정확도)
   clone.getBoundingClientRect();
 
-  // 섹션 밖 크롭 스티커(data-crop-to-section) — 클론에 경계 clip 명시 적용.
-  // native CDP 캡쳐는 clip rect(섹션 사각형)로도 잘리지만 h2c 폴백 일관성 위해 양쪽 모두 보장.
-  if (window.applyStickerCropClips) window.applyStickerCropClips(clone);
-
   // cvb(canvas-block): renderCanvas로 scale 재계산 후 transform 평탄화
   // html2canvas가 transform:scale() 내부 background-image를 잘못 렌더링하므로
   // 실제 px 값으로 변환하여 transform 제거

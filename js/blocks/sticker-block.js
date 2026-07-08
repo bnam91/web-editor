@@ -336,11 +336,6 @@ function makeStickerBlock(opts = {}) {
   if (opts.textDecoration !== undefined) block.dataset.textDecoration = opts.textDecoration;
   block.dataset.x          = opts.x          ?? STICKER_DEFAULTS.x;
   block.dataset.y          = opts.y          ?? STICKER_DEFAULTS.y;
-  // 섹션 밖 크롭 — ⌘드래그로 경계 밖에 걸친 스티커. 미리보기/Export에서만 경계 clip.
-  if (opts.cropToSection !== undefined) {
-    const _crop = opts.cropToSection === true || opts.cropToSection === 'true' || opts.cropToSection === 1 || opts.cropToSection === '1';
-    if (_crop) block.dataset.cropToSection = 'true'; else delete block.dataset.cropToSection;
-  }
   // highlightB (선 형광펜) 전용 데이터
   if (opts.shape === 'highlightB') {
     block.dataset.x1        = opts.x1        ?? 0;
@@ -512,7 +507,6 @@ function updateStickerBlock(blockId, partial = {}) {
     boxW: block.dataset.boxW,
     iconName: block.dataset.iconName,
     iconColor: block.dataset.iconColor,
-    cropToSection: block.dataset.cropToSection,
   };
 
   window.pushHistory?.('스티커 수정');
@@ -787,13 +781,6 @@ function updateStickerBlock(blockId, partial = {}) {
   _applyNum('padY', 'padY', 0, 400);
   _applyNum('cornerRadius', 'cornerRadius', 0, 400);
 
-  // cropToSection — shadowOn 패턴 미러: boolean/'true' normalize, off면 dataset 제거(기본상태 복원)
-  if (partial.cropToSection !== undefined && partial.cropToSection !== null) {
-    const on = (partial.cropToSection === true || partial.cropToSection === 'true' || partial.cropToSection === 1 || partial.cropToSection === '1');
-    if (on) block.dataset.cropToSection = 'true';
-    else delete block.dataset.cropToSection;
-    applied.cropToSection = on ? 'true' : '';
-  }
 
   // 14-a) 박스 너비 (text shape 전용) — 'auto'(내용맞춤) 또는 고정 px(20~2000)
   if (partial.boxW !== undefined && partial.boxW !== null) {
@@ -845,32 +832,6 @@ function updateStickerBlock(blockId, partial = {}) {
 }
 
 window.updateStickerBlock = updateStickerBlock;
-
-// ── 섹션 밖 크롭 (data-crop-to-section) ─────────────────────────────────────
-// ⌘드래그로 섹션 경계 밖에 걸친 스티커의 밖 부분을 부모 섹션 경계로 clip.
-// 에디터 라이브 DOM에는 호출 금지(편집=보임, 핸들 조작 가능) — 미리보기/Export 클론 전용.
-// getBoundingClientRect 비율로 zoom/scale(미리보기 zoom, SBS zoom) 보정.
-// 한계: rotation 있는 스티커는 rect가 축정렬이 아니라 inset 근사가 어긋날 수 있음(현행 사용례 rotation=0).
-function applyStickerCropClips(root) {
-  if (!root) return;
-  root.querySelectorAll('.sticker-block[data-crop-to-section="true"]').forEach(el => {
-    const sec = el.closest('.section-block');
-    if (!sec) return;
-    const er = el.getBoundingClientRect();
-    const sr = sec.getBoundingClientRect();
-    if (!er.width || !er.height) return;
-    // clip-path inset(px)은 요소 로컬 좌표 — transform scale된 rect를 로컬 px로 환산
-    const scale = (el.offsetWidth ? er.width / el.offsetWidth : 1) || 1;
-    const t = Math.max(0, (sr.top    - er.top)    / scale);
-    const l = Math.max(0, (sr.left   - er.left)   / scale);
-    const r = Math.max(0, (er.right  - sr.right)  / scale);
-    const b = Math.max(0, (er.bottom - sr.bottom) / scale);
-    if (t || l || r || b) {
-      el.style.clipPath = `inset(${Math.round(t)}px ${Math.round(r)}px ${Math.round(b)}px ${Math.round(l)}px)`;
-    }
-  });
-}
-window.applyStickerCropClips = applyStickerCropClips;
 
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeStickerBlock   = makeStickerBlock;
