@@ -533,6 +533,9 @@ window.bindStickerSelect = bindStickerSelect;
 // ESC/v로 deselect
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' && e.key !== 'v') return;
+  // ⌘V / Ctrl+V(붙여넣기)·⌥V 등 조합키는 deselect 대상 아님 — 붙여넣기 경로 보존.
+  // (bare 'v'만 Figma식 포인터툴 = 스티커 선택 해제)
+  if (e.key === 'v' && (e.metaKey || e.ctrlKey || e.altKey)) return;
   const sel = document.querySelector('.sticker-block.selected');
   if (!sel) return;
   if (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true') return;
