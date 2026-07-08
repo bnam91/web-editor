@@ -1,6 +1,7 @@
 import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
+import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -482,13 +483,13 @@ function applyProjectData(data) {
       if (prodIdx >= 0) state.assetsTree.splice(prodIdx + 1, 0, favNode);
       else state.assetsTree.unshift(favNode);
     }
-    // Texture 폴더 멱등 시드/마이그레이션 — 최상위에 texture:true 폴더가 없을 때만 삽입(고정 보호 폴더)
-    const _hasTexture = state.assetsTree.some(n => n && n.type === 'folder' && n.texture === true);
-    if (!_hasTexture) {
-      const texNode = {
+    // background(구 Texture) 폴더 멱등 시드/마이그레이션 — 최상위 texture:true 폴더가 고정 보호 폴더
+    let _texFolder = state.assetsTree.find(n => n && n.type === 'folder' && n.texture === true);
+    if (!_texFolder) {
+      _texFolder = {
         id: _astId(),
         type: 'folder',
-        name: 'Texture',
+        name: 'background',
         texture: true,
         children: [],
         collapsed: false,
@@ -497,8 +498,13 @@ function applyProjectData(data) {
       const favIdx = state.assetsTree.findIndex(n => n && n.type === 'folder' && n.favorite === true);
       const prodIdx2 = state.assetsTree.findIndex(n => n && n.type === 'folder' && n.name === '제품사진');
       const insAt = favIdx >= 0 ? favIdx + 1 : (prodIdx2 >= 0 ? prodIdx2 + 1 : 0);
-      state.assetsTree.splice(insAt, 0, texNode);
+      state.assetsTree.splice(insAt, 0, _texFolder);
+    } else if (_texFolder.name === 'Texture') {
+      // 기존 프로젝트 마이그레이션 — 구 이름 'Texture' → 'background' (멱등)
+      _texFolder.name = 'background';
     }
+    // 노트패널 하위폴더 + 배경 패턴 6종 멱등 시드 (안정 id로 재로드 중복 방지)
+    seedNoteBgPatterns(_texFolder);
     window.buildLayerPanel(); // also calls buildFilePageSection
     window.showPageProperties();
     window.renderChecklistPanel?.();
@@ -511,6 +517,31 @@ function applyProjectData(data) {
   } finally {
     // MutationObserver는 microtask 후 발화 — rAF로 한 프레임 뒤 해제해 잔여 mutation까지 흡수
     requestAnimationFrame(() => { state._suppressAutoSave = false; });
+  }
+}
+
+// 노트패널 하위폴더 + 배경 패턴 6종 멱등 시드.
+// 각 노드는 안정 id(ast_notebg_01~06)와 인라인 src(data URI)로 시드되어
+// 재로드 시 중복 생성되지 않는다(blobPath 없음 → assetsGetDataUrl 인라인 폴백이 처리).
+function seedNoteBgPatterns(bgFolder) {
+  if (!bgFolder) return;
+  if (!Array.isArray(bgFolder.children)) bgFolder.children = [];
+  let noteFolder = bgFolder.children.find(n => n && n.type === 'folder' && n.id === NOTE_BG_FOLDER_ID);
+  if (!noteFolder) {
+    noteFolder = { id: NOTE_BG_FOLDER_ID, type: 'folder', name: NOTE_BG_FOLDER_NAME, children: [], collapsed: false };
+    bgFolder.children.push(noteFolder);
+  }
+  if (!Array.isArray(noteFolder.children)) noteFolder.children = [];
+  for (const p of NOTE_BG_PATTERNS) {
+    if (noteFolder.children.some(n => n && n.id === p.id)) continue;
+    noteFolder.children.push({
+      id: p.id,
+      type: 'image',
+      name: p.name,
+      src: p.src,
+      mime: 'image/svg+xml',
+      addedAt: new Date().toISOString(),
+    });
   }
 }
 
