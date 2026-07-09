@@ -2299,13 +2299,16 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
    inset() 값. 선택 중인 스티커는 조작 가능하도록 해제, '섹션 밖 보이기' 섹션도 해제.
    미리보기/Export 클론에도 인라인 변수가 그대로 복제되어 동일하게 잘림.
 ────────────────────────────────────────────── */
-.sticker-block {
+.sticker-block,
+.mockup-block {
   clip-path: var(--sec-clip, none);
 }
-.sticker-block.selected {
+.sticker-block.selected,
+.mockup-block.selected {
   clip-path: none;
 }
-.section-block[data-overflow-visible="true"] .sticker-block {
+.section-block[data-overflow-visible="true"] .sticker-block,
+.section-block[data-overflow-visible="true"] .mockup-block {
   clip-path: none;
 }
 

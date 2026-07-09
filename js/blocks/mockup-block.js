@@ -111,6 +111,83 @@ function makeDeviceMockupBlock(deviceKey, width) {
   return { row, block };
 }
 
+// 섹션 밖 크롭(⌘드래그) — 흐름 블록은 자유좌표가 없어 translateX 오프셋으로 섹션 경계 밖으로 민다.
+// clip은 rect 기반(스티커의 offsetLeft식과 달리 translateX 반영). 편집=보임(선택 중)/미리보기·Export=크롭
+// (스티커와 동일 시스템: .mockup-block{clip-path:var(--sec-clip)} + .selected·[data-overflow-visible] 해제).
+function _updateMockupSecClip(block) {
+  const sec = block.closest('.section-block');
+  if (!sec) return;
+  const er = block.getBoundingClientRect();
+  const sr = sec.getBoundingClientRect();
+  if (!er.width || !er.height) { block.style.removeProperty('--sec-clip'); return; }
+  const scale = block.offsetWidth ? er.width / block.offsetWidth : 1;  // 캔버스 zoom 보정
+  const t = Math.max(0, (sr.top    - er.top)    / scale);
+  const l = Math.max(0, (sr.left   - er.left)   / scale);
+  const r = Math.max(0, (er.right  - sr.right)  / scale);
+  const b = Math.max(0, (er.bottom - sr.bottom) / scale);
+  if (t || l || r || b) {
+    block.style.setProperty('--sec-clip', `inset(${Math.round(t)}px ${Math.round(r)}px ${Math.round(b)}px ${Math.round(l)}px)`);
+  } else block.style.removeProperty('--sec-clip');
+}
+window._updateMockupSecClip = _updateMockupSecClip;
+
+// bindBlock(로드·생성 보편 진입)에서 호출 — 오프셋드래그 바인드 + 저장된 offsetX 반영 + clip 갱신.
+// (renderMockupBlock은 디바이스 변경 때만 호출되므로 로드/생성 경로 커버 안 됨 → 여기서 보장)
+function initMockupCrop(block) {
+  if (!block) return;
+  _bindMockupOffsetDrag(block);
+  if (block.style.position !== 'absolute') {
+    const off = parseInt(block.dataset.offsetX) || 0;
+    if (off) block.style.transform = `translateX(${off}px)`;
+  }
+  requestAnimationFrame(() => _updateMockupSecClip(block));
+}
+window.initMockupCrop = initMockupCrop;
+
+// ⌘드래그 = 가로 오프셋(translateX)으로 섹션 밖으로 밀기. 흐름 블록이라 네이티브 재배치 드래그는
+// 부모 .row(draggable=true)가 담당 → ⌘드래그 동안 row.draggable=false로 차단, 이동 있을 때만 발동해
+// ⌘+클릭 다중선택과 비충돌, 드래그 뒤 따라오는 click 1회 억제.
+function _bindMockupOffsetDrag(block) {
+  if (block._mkpOffBound) return;
+  block._mkpOffBound = true;
+  block.addEventListener('mousedown', e => {
+    if (e.button !== 0 || !e.metaKey) return;
+    if (block.style.position === 'absolute') return;  // 자유배치 프레임은 기존 절대드래그가 처리
+    const row = block.closest('.row');
+    const prevDraggable = row ? row.draggable : null;
+    if (row) row.draggable = false;
+    const scaler = document.getElementById('canvas-scaler');
+    const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+    const startX = e.clientX;
+    const startOff = parseInt(block.dataset.offsetX) || 0;
+    let moved = false;
+    const onMove = ev => {
+      const dx = (ev.clientX - startX) / scale;
+      if (!moved && Math.abs(dx) < 3) return;
+      moved = true;
+      const off = Math.round(startOff + dx);
+      block.dataset.offsetX = String(off);
+      block.style.transform = off ? `translateX(${off}px)` : '';
+      _updateMockupSecClip(block);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp, true);
+      if (row) setTimeout(() => { row.draggable = prevDraggable; }, 0);
+      if (moved) {
+        _updateMockupSecClip(block);
+        window.pushHistory?.('목업 오프셋');
+        window.scheduleAutoSave?.();
+        const killClick = ce => { ce.stopPropagation(); ce.preventDefault(); };
+        document.addEventListener('click', killClick, true);
+        setTimeout(() => document.removeEventListener('click', killClick, true), 120);
+      }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp, true);
+  });
+}
+
 function renderMockupBlock(block) {
   const deviceKey = block.dataset.device;
   const width     = parseInt(block.dataset.width) || parseInt(block.style.width) || 360;
@@ -141,6 +218,14 @@ function renderMockupBlock(block) {
 
   // 가로 중앙정렬 재계산 (width 변경/디바이스 변경 후 부모 폭 대비 재정렬)
   centerMockupBlock(block);
+
+  // 섹션 밖 오프셋(⌘드래그) — translateX. 흐름 배치일 때만(absolute 자유배치는 left/top 사용).
+  if (block.style.position !== 'absolute') {
+    const _offX = parseInt(block.dataset.offsetX) || 0;
+    block.style.transform = _offX ? `translateX(${_offX}px)` : '';
+  }
+  _bindMockupOffsetDrag(block);
+  requestAnimationFrame(() => _updateMockupSecClip(block));
 }
 
 function addDeviceMockupBlock(deviceKey, width) {
