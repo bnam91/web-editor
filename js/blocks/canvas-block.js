@@ -200,11 +200,12 @@ function _bindCvbImgDrag(imgDiv, block, idx) {
     _enterCvbImgEditMode(imgDiv, block, idx);
   });
 
-  // 더블클릭 → 이미지 추가/교체 (위치드래그 편집모드는 단일클릭 경로로 유지)
+  // 더블클릭 → 이미지 편집 모드 (일반 에디터 관행: 더블클릭=크롭/이동 편집).
+  // 이미지 교체는 프로퍼티 패널의 카드별 '이미지 교체' 버튼으로 (기존 더블클릭=교체에서 이관).
   imgDiv.addEventListener('dblclick', function(e) {
     e.stopPropagation();
     e.preventDefault();
-    _triggerCvbCardImage(block, idx);
+    _enterCvbImgEditMode(imgDiv, block, idx);
   });
 }
 
@@ -218,8 +219,10 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
 
   const hint = document.createElement('div');
   hint.style.cssText = 'position:absolute;bottom:6px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;font-size:10px;padding:3px 10px;border-radius:4px;pointer-events:none;white-space:nowrap;z-index:10;';
-  hint.textContent = '드래그로 이미지 이동 · ESC 종료';
+  hint.textContent = '드래그 이동 · 휠 확대/축소 · ESC/바깥클릭 종료';
   imgDiv.appendChild(hint);
+
+  let _wheelDirty = false; // 휠 줌 변경 여부 — 종료 시 한 번만 history push
 
   const exitMode = () => {
     if (!imgDiv._cvbEditing) return;
@@ -228,11 +231,35 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
     imgDiv.style.outline = '';
     hint.remove();
     document.removeEventListener('keydown', onKey);
+    document.removeEventListener('mousedown', onOutside, true);
     imgDiv.removeEventListener('mousedown', onDragStart);
+    imgDiv.removeEventListener('wheel', onWheel);
+    if (_wheelDirty) { window.pushHistory?.('카드 이미지 확대'); window.scheduleAutoSave?.(); }
   };
 
   const onKey = (e) => { if (e.key === 'Escape') exitMode(); };
   document.addEventListener('keydown', onKey);
+
+  // 바깥 클릭 종료 — 일반 에디터 관행 (ESC와 동일 동작)
+  const onOutside = (e) => { if (!imgDiv.contains(e.target)) exitMode(); };
+  setTimeout(() => document.addEventListener('mousedown', onOutside, true), 0);
+
+  // 휠 = 이미지 확대/축소(imgScale 100~400) — 패널 '확대' 슬라이더와 같은 필드라 상호 동기
+  const onWheel = (we) => {
+    we.preventDefault();
+    we.stopPropagation();
+    const arr = JSON.parse(block.dataset.cards || '[]');
+    const c = arr[idx];
+    if (!c) return;
+    const cur  = Math.min(400, Math.max(100, parseInt(c.imgScale) || 100));
+    const next = Math.min(400, Math.max(100, cur - Math.sign(we.deltaY) * 5));
+    if (next === cur) return;
+    c.imgScale = next;
+    block.dataset.cards = JSON.stringify(arr);
+    imgDiv.style.backgroundSize = _cvbBackgroundSize(c);
+    _wheelDirty = true;
+  };
+  imgDiv.addEventListener('wheel', onWheel, { passive: false });
 
   const onDragStart = (e) => {
     e.stopPropagation();
@@ -395,6 +422,13 @@ function renderCanvas(block) {
         const cellX  = c * (designW + GAP);
         const cellY  = r * (designH + GAP);
         const cardBg = card.cellBg || textBg;
+        // 테마어웨어 텍스트색을 '셀 실제 배경' 기준으로 — 카드별 라벨색(cellBg)을 어둡게 바꾸면
+        // 블록 기본(textBg) 휘도만 보던 기존 로직은 다크온다크로 붕괴(현빈 리포트, cvb_gs1mt76).
+        // 명시 색(dataset.titleColor / per-card 슬롯색)은 여전히 최우선. 그라데이션 등 휘도 계산
+        // 불가(null)면 기존 블록 레벨 색으로 폴백(무회귀).
+        const _cellLum  = colorLuminance(cardBg);
+        const cellTitleColor = block.dataset.titleColor || (_cellLum === null ? titleColor : (_cellLum < 0.45 ? '#ffffff' : '#1a1a1a'));
+        const cellDescColor  = block.dataset.descColor  || (_cellLum === null ? descColor  : (_cellLum < 0.45 ? '#e0e0e0' : '#555555'));
         // desc 비었으면 title 세로 중앙 정렬 (공백만 있어도 비었다고 판단)
         const descEmpty = !card.desc || card.desc.trim() === '';
         const justifyMode = descEmpty ? 'center' : 'flex-start';
@@ -440,7 +474,7 @@ function renderCanvas(block) {
             const textDiv = document.createElement('div');
             textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:6px;`;
             if (textVOffset) textDiv.style.paddingTop = Math.min(14 + textVOffset, Math.max(14, designH - 30)) + 'px';
-            _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor, idx);
+            _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, cellTitleColor, cellDescColor, idx);
             cell.appendChild(textDiv);
           }
 
@@ -492,7 +526,11 @@ function renderCanvas(block) {
             const slotBg = (slot === 'top' && _topBg) ? _topBg : cardBg;
             div.style.cssText = `width:100%;height:${h}px;background:${slotBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;border-radius:${br};`;
             if (textVOffset) div.style.paddingTop = Math.min(10 + textVOffset, Math.max(10, h - 30)) + 'px';
-            _appendCardTexts(div, card, titleSize, descSize, textAlign, titleColor, descColor, idx, slot || null);
+            // 슬롯 실제 배경(textBgTop override 포함) 휘도 기준 자동 대비 — cell과 동일 규칙
+            const _slotLum = colorLuminance(slotBg);
+            const slotTitleColor = block.dataset.titleColor || (_slotLum === null ? titleColor : (_slotLum < 0.45 ? '#ffffff' : '#1a1a1a'));
+            const slotDescColor  = block.dataset.descColor  || (_slotLum === null ? descColor  : (_slotLum < 0.45 ? '#e0e0e0' : '#555555'));
+            _appendCardTexts(div, card, titleSize, descSize, textAlign, slotTitleColor, slotDescColor, idx, slot || null);
             return div;
           };
 

@@ -170,6 +170,15 @@
   pointer-events: none;
   z-index: 11;
 }
+/* ⌘ hold 세로 절단선 — 가로 스타일을 세로로 미러 (좌/우 컷) */
+.scratch-slice-line.vert {
+  left: 50%; right: auto;
+  top: 0; bottom: 0;
+  height: auto;
+  width: 0;
+  border-top: none;
+  border-left: 1px dashed rgba(231, 76, 60, 0.95);
+}
 
 .scratch-resize {
   position: absolute;
