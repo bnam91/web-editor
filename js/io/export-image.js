@@ -314,11 +314,24 @@ async function exportSection(sec, format, width, opts) {
         imgObj.src = match[1];
         await new Promise(res => { imgObj.onload = imgObj.onerror = res; });
 
-        // background-size:cover 수동 계산
-        const scale = Math.max(divW / imgObj.naturalWidth, divH / imgObj.naturalHeight);
-        const sw = imgObj.naturalWidth  * scale;
-        const sh = imgObj.naturalHeight * scale;
-        // background-position을 % → px offset으로 변환
+        // background-size를 실제 div 스타일에서 읽어 재현 — 기존엔 항상 cover로 계산해
+        // 카드 이미지 확대(imgScale, background-size:NNN%)를 무시 → export 크롭이 캔버스와 어긋났음.
+        //   'NNN%'  → 가로 = divW×NNN%, 세로 auto(이미지 비율) : _cvbBackgroundSize(imgScale>100) 재현
+        //   'contain' → min-fit, 'cover'(기본) → max-fit
+        const _bgSize = (div.style.backgroundSize || 'cover').trim();
+        const _pctM = _bgSize.match(/^([\d.]+)%$/);
+        let sw, sh;
+        if (_pctM) {
+          sw = divW * (parseFloat(_pctM[1]) / 100);
+          sh = sw * (imgObj.naturalHeight / imgObj.naturalWidth);
+        } else if (_bgSize === 'contain') {
+          const s = Math.min(divW / imgObj.naturalWidth, divH / imgObj.naturalHeight);
+          sw = imgObj.naturalWidth * s; sh = imgObj.naturalHeight * s;
+        } else {
+          const s = Math.max(divW / imgObj.naturalWidth, divH / imgObj.naturalHeight);
+          sw = imgObj.naturalWidth * s; sh = imgObj.naturalHeight * s;
+        }
+        // background-position을 % → px offset으로 변환 (음수 오버플로우: 위치%가 오버영역 분배)
         const px = parseFloat(div.style.backgroundPositionX) || 50;
         const py = parseFloat(div.style.backgroundPositionY) || 50;
         const ox = -((sw - divW) * px / 100);
