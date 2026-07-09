@@ -99,6 +99,7 @@ function bindBlock(block) {
   const isComparison = block.classList.contains('comparison-block');
   const isIconify    = block.classList.contains('icon-block');
   const isMockup     = block.classList.contains('mockup-block');
+  if (isMockup) window.initMockupCrop?.(block);  // ⌘드래그 오프셋+섹션 밖 크롭 초기화(로드/생성 보편)
   const isVector     = block.classList.contains('vector-block');
   const isStep       = block.classList.contains('step-block');
   const isChat       = block.classList.contains('chat-block');
