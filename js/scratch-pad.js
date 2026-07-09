@@ -252,12 +252,32 @@ async function _sliceImageHorizontal(src, ratio) {
   };
 }
 
+// 세로 컷 슬라이스(⌘ hold): ratio(0~1) 위치에서 세로로 잘라 좌/우 dataURL 두 개 반환
+async function _sliceImageVertical(src, ratio) {
+  const img = await _loadImg(src);
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const cutX = Math.max(1, Math.min(W - 1, Math.round(W * ratio)));
+  const mk = (sx, sw) => {
+    const cv = document.createElement('canvas');
+    cv.width = sw; cv.height = H;
+    cv.getContext('2d').drawImage(img, sx, 0, sw, H, 0, 0, sw, H);
+    return cv.toDataURL('image/png');
+  };
+  return {
+    left:  mk(0, cutX),
+    right: mk(cutX, W - cutX),
+    cutX,
+    naturalW: W,
+  };
+}
+
 // 슬라이스 실행 — item을 두 조각으로 대체. history push 포함.
-async function _sliceItem(item, ratio) {
+// vert=true(⌘ 컷)면 세로 절단선 → 좌/우 조각, 아니면 가로 절단선 → 위/아래 조각(기존).
+async function _sliceItem(item, ratio, vert) {
   if (!item || ratio <= 0 || ratio >= 1) return;
   if (_sliceMode === item) _exitSliceMode();
   let result;
-  try { result = await _sliceImageHorizontal(item.src, ratio); }
+  try { result = vert ? await _sliceImageVertical(item.src, ratio) : await _sliceImageHorizontal(item.src, ratio); }
   catch (err) { window.showToast?.('❌ 슬라이스 실패: ' + err.message); return; }
 
   // 원본 표시 크기 계산 — display height = w * (natH / natW)
@@ -265,19 +285,34 @@ async function _sliceItem(item, ratio) {
   const natW  = imgEl?.naturalWidth || 1;
   const natH  = imgEl?.naturalHeight || 1;
   const dispH = item.w * (natH / natW);
-  const topDispH = dispH * (result.cutY / result.naturalH);
   const GAP = 6; // 분리 간격 (px, 캔버스 좌표계)
 
   const restoreInfo = { src: item.src, x: item.x, y: item.y, w: item.w, id: item.id };
+
+  // 조각 배치 계산 — 가로컷: 같은 폭으로 위/아래, 세로컷: 폭을 비율대로 나눠 좌/우
+  let pieces;
+  if (vert) {
+    const leftDispW = item.w * (result.cutX / result.naturalW);
+    pieces = [
+      { src: result.left,  x: item.x,                        y: item.y, w: leftDispW },
+      { src: result.right, x: item.x + leftDispW + GAP,      y: item.y, w: item.w - leftDispW },
+    ];
+  } else {
+    const topDispH = dispH * (result.cutY / result.naturalH);
+    pieces = [
+      { src: result.top,    x: item.x, y: item.y,                   w: item.w },
+      { src: result.bottom, x: item.x, y: item.y + topDispH + GAP,  w: item.w },
+    ];
+  }
 
   // 원본 제거
   item.el.remove();
   _scratchItems = _scratchItems.filter(s => s !== item);
   _selectedItems.delete(item);
 
-  // 두 조각 생성 (같은 위치 + GAP만큼 떨어뜨려)
-  const topItem    = _createItem(result.top,    item.x, item.y, item.w);
-  const bottomItem = _createItem(result.bottom, item.x, item.y + topDispH + GAP, item.w);
+  // 두 조각 생성
+  const topItem    = _createItem(pieces[0].src, pieces[0].x, pieces[0].y, pieces[0].w);
+  const bottomItem = _createItem(pieces[1].src, pieces[1].x, pieces[1].y, pieces[1].w);
   await _saveScratch();
 
   // history push — ★모든 복원/재생성을 원본 id로 (Codex 리뷰: id가 바뀌면
@@ -293,10 +328,10 @@ async function _sliceItem(item, ratio) {
         try { await window._scratchAddAndSave?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id); } catch (_) {}
       },
       onRedo: async () => {
-        // 복원된 원본 제거 + 두 조각 재생성 (조각 id도 최초 슬라이스 때 id 유지)
+        // 복원된 원본 제거 + 두 조각 재생성 (조각 id도 최초 슬라이스 때 id 유지, 가로/세로 배치 동일 재현)
         try { await window._scratchRemoveById?.(restoreInfo.id); } catch (_) {}
-        try { await window._scratchAddAndSave?.(result.top,    restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, topId); } catch (_) {}
-        try { await window._scratchAddAndSave?.(result.bottom, restoreInfo.x, restoreInfo.y + topDispH + GAP, restoreInfo.w, undefined, botId); } catch (_) {}
+        try { await window._scratchAddAndSave?.(pieces[0].src, pieces[0].x, pieces[0].y, pieces[0].w, undefined, topId); } catch (_) {}
+        try { await window._scratchAddAndSave?.(pieces[1].src, pieces[1].x, pieces[1].y, pieces[1].w, undefined, botId); } catch (_) {}
       },
     });
   } catch (_) {}
@@ -324,24 +359,64 @@ function _enterSliceMode(item) {
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+  // ⌘ hold = 세로 절단선(좌/우 컷), 놓으면 가로(위/아래 컷) 복귀 — 클릭 시점 방향으로 확정
+  item._sliceVert = false;
+  let _lastMx = null, _lastMy = null;
+
+  const _applyLineOrient = () => {
+    if (item._sliceVert) {
+      line.classList.add('vert');
+      line.style.top = '';
+      if (_lastMx !== null) {
+        const rect = item.el.getBoundingClientRect();
+        const ratio = clamp((_lastMx - rect.left) / rect.width, 0.02, 0.98);
+        line.style.left = (ratio * 100) + '%';
+        item._sliceRatio = ratio;
+      } else { line.style.left = '50%'; }
+    } else {
+      line.classList.remove('vert');
+      line.style.left = '';
+      if (_lastMy !== null) {
+        const rect = item.el.getBoundingClientRect();
+        const ratio = clamp((_lastMy - rect.top) / rect.height, 0.02, 0.98);
+        line.style.top = (ratio * 100) + '%';
+        item._sliceRatio = ratio;
+      } else { line.style.top = '50%'; }
+    }
+  };
+
   const onMove = mv => {
+    _lastMx = mv.clientX; _lastMy = mv.clientY;
+    const v = mv.metaKey;
+    if (v !== item._sliceVert) { item._sliceVert = v; _applyLineOrient(); return; }
     const rect = item.el.getBoundingClientRect();
-    const y = mv.clientY - rect.top;
-    const ratio = clamp(y / rect.height, 0.02, 0.98);
-    line.style.top = (ratio * 100) + '%';
+    const ratio = v
+      ? clamp((mv.clientX - rect.left) / rect.width,  0.02, 0.98)
+      : clamp((mv.clientY - rect.top)  / rect.height, 0.02, 0.98);
+    if (v) line.style.left = (ratio * 100) + '%';
+    else   line.style.top  = (ratio * 100) + '%';
     item._sliceRatio = ratio;
   };
 
   const onClickConfirm = e => {
     e.stopPropagation();
     const r = item._sliceRatio || 0.5;
+    const v = item._sliceVert;
     _exitSliceMode();
-    _sliceItem(item, r);
+    _sliceItem(item, r, v);
   };
 
   const onKeyEsc = e => {
-    if (e.key === 'Escape') _exitSliceMode();
+    if (e.key === 'Escape') { _exitSliceMode(); return; }
+    // 마우스 이동 없이 ⌘만 눌러도 방향 즉시 전환
+    if (e.key === 'Meta' && !item._sliceVert) { item._sliceVert = true; _applyLineOrient(); }
   };
+
+  const onKeyUp = e => {
+    if (e.key === 'Meta' && item._sliceVert) { item._sliceVert = false; _applyLineOrient(); }
+  };
+  document.addEventListener('keyup', onKeyUp);
+  item._sliceKeyUp = onKeyUp;
 
   const onOutsideMousedown = e => {
     const target = e.target.closest('.scratch-item');
@@ -371,6 +446,8 @@ function _exitSliceMode() {
     document.removeEventListener('keydown', h.onKeyEsc);
     document.removeEventListener('mousedown', h.onOutsideMousedown, true);
   }
+  if (item._sliceKeyUp) { document.removeEventListener('keyup', item._sliceKeyUp); item._sliceKeyUp = null; }
+  item._sliceVert = false;
   item._sliceHandlers = null;
   _sliceMode = null;
 }
@@ -508,8 +585,11 @@ function _createItem(src, x, y, w = 220, idArg, gArg) {
     const scale  = _getScale();
     const startX = e.clientX;
     const startW = el.offsetWidth;
-    // 그룹이면 전 멤버를 하나의 바운딩처럼 비례 스케일 — 아니면 잡은 아이템 단독 (기존 동작)
-    const members = item.g ? _scratchItems.filter(s => s.g === item.g) : [item];
+    // 복수 선택(⌘G 그룹 불필요) > 그룹 > 단독 순으로 스케일 대상 결정 —
+    // 드래그 이동(dragTargets)과 동일하게 선택 집합을 우선. 그룹처럼 바운딩 비례 스케일.
+    const members = (_selectedItems.size > 1 && _selectedItems.has(item))
+      ? [..._selectedItems]
+      : (item.g ? _scratchItems.filter(s => s.g === item.g) : [item]);
     const isGroup = members.length > 1;
     // 앵커 = 그룹 바운딩박스 좌상단 (핸들이 우하단이므로 좌상단 고정 → 우하단으로 성장)
     const anchorX = Math.min(...members.map(m => m.x));
