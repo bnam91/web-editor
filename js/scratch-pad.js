@@ -1323,6 +1323,7 @@ async function loadScratchpadFolder(event) {
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   if (!images.length) { window.showToast?.('⚠️ 이미지 파일을 찾지 못했습니다'); return; }
 
+  // START_X = 캔버스(섹션은 스크래치좌표 x0~860 점유) 우측으로 안전한 시작 x.
   const START_X = 960, WIDTH = 860, GAP_X = 100, GAP_Y = 100;
   let startX = START_X, startY = 0;
   if (_scratchItems.length > 0) {
@@ -1333,7 +1334,10 @@ async function loadScratchpadFolder(event) {
       const right = (s.x || 0) + w;
       if (right > maxRight) maxRight = right;
     }
-    startX = maxRight + GAP_X;
+    // ★ 하한 START_X 보장 — 기존엔 스크래치 아이템만 보고 maxRight+GAP라, 아이템이 캔버스
+    //   왼쪽(음수 x 등)에 있으면 새 컬럼이 캔버스(x0~860) 위로 얹혀 섹션과 겹치던 버그
+    //   (현빈: sp_ot4tk9가 x=-945에 있어 발생). 캔버스 우측 클리어를 항상 지킨다.
+    startX = Math.max(START_X, maxRight + GAP_X);
   }
 
   let curY = startY, added = 0;
