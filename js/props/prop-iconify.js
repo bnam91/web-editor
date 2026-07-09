@@ -335,7 +335,7 @@ export function showIconifyProperties(block) {
     if (!/\.svg$/i.test(file.name) && !/svg/i.test(file.type)) {
       window.showToast?.('⚠️ SVG 파일만 지원합니다'); return;
     }
-    if (file.size > 200000) { window.showToast?.('⚠️ SVG가 너무 큽니다(200KB 초과)'); return; }
+    if (file.size > 3000000) { window.showToast?.('⚠️ SVG가 너무 큽니다(3MB 초과)'); return; }
     let text = await file.text();
     // 보안 소독(script·on*·javascript: 제거) — 아이콘 블록은 raw SVG를 innerHTML로 렌더하므로 필수
     text = window.sanitizeCanvasHtml ? window.sanitizeCanvasHtml(text) : text;
