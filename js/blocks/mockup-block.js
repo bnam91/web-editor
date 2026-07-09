@@ -153,9 +153,13 @@ function _bindMockupOffsetDrag(block) {
   block.addEventListener('mousedown', e => {
     if (e.button !== 0 || !e.metaKey) return;
     if (block.style.position === 'absolute') return;  // 자유배치 프레임은 기존 절대드래그가 처리
+    e.preventDefault();          // 네이티브 이미지/텍스트/HTML5 드래그 시작 억제(⌘드래그 전용화)
     const row = block.closest('.row');
     const prevDraggable = row ? row.draggable : null;
     if (row) row.draggable = false;
+    // 네이티브 HTML5 재배치 드래그 확실 차단 — draggable=false 타이밍 레이스 대비 이중 방어.
+    const killDragStart = de => de.preventDefault();
+    document.addEventListener('dragstart', killDragStart, true);
     const scaler = document.getElementById('canvas-scaler');
     const scale = scaler ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
     const startX = e.clientX;
@@ -173,6 +177,7 @@ function _bindMockupOffsetDrag(block) {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp, true);
+      document.removeEventListener('dragstart', killDragStart, true);
       if (row) setTimeout(() => { row.draggable = prevDraggable; }, 0);
       if (moved) {
         _updateMockupSecClip(block);
