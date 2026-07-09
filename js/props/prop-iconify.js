@@ -32,6 +32,9 @@ export function showIconifyProperties(block) {
         <span class="prop-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#888;" title="${iconName}">${iconName || '(없음)'}</span>
         <button class="prop-btn" id="icn-replace-btn" title="Iconify에서 교체"
           style="width:auto;height:auto;padding:3px 8px;font-size:10px;">교체</button>
+        <button class="prop-btn" id="icn-svg-file-btn" title="로컬 SVG 파일 불러오기"
+          style="width:auto;height:auto;padding:3px 8px;font-size:10px;">SVG 파일</button>
+        <input type="file" id="icn-svg-file-input" accept=".svg,image/svg+xml" style="display:none">
       </div>
     </div>
 
@@ -320,6 +323,29 @@ export function showIconifyProperties(block) {
   const openModal = () => window.openIconifyModal?.();
   propPanel.querySelector('#icn-replace-btn').addEventListener('click', openModal);
   propPanel.querySelector('#icn-open-modal-btn').addEventListener('click', openModal);
+
+  // 로컬 SVG 파일 불러오기 — 파일 텍스트 읽어 소독 후 아이콘으로 적용.
+  const svgFileBtn = propPanel.querySelector('#icn-svg-file-btn');
+  const svgFileInput = propPanel.querySelector('#icn-svg-file-input');
+  svgFileBtn?.addEventListener('click', () => svgFileInput?.click());
+  svgFileInput?.addEventListener('change', async e => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일 재선택 허용
+    if (!file) return;
+    if (!/\.svg$/i.test(file.name) && !/svg/i.test(file.type)) {
+      window.showToast?.('⚠️ SVG 파일만 지원합니다'); return;
+    }
+    if (file.size > 200000) { window.showToast?.('⚠️ SVG가 너무 큽니다(200KB 초과)'); return; }
+    let text = await file.text();
+    // 보안 소독(script·on*·javascript: 제거) — 아이콘 블록은 raw SVG를 innerHTML로 렌더하므로 필수
+    text = window.sanitizeCanvasHtml ? window.sanitizeCanvasHtml(text) : text;
+    if (!/<svg[\s>]/i.test(text)) { window.showToast?.('⚠️ 유효한 SVG가 아닙니다'); return; }
+    const nm = 'local:' + file.name.replace(/\.svg$/i, '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+    const r = window.updateIconifyBlock?.(block.id, { iconName: nm, svg: text });
+    if (r && r.ok === false) { window.showToast?.('⚠️ 불러오기 실패: ' + (r.message || r.code)); return; }
+    window.showToast?.('✅ SVG 불러옴: ' + file.name);
+    window.showIconifyProperties?.(block); // 패널 갱신(iconName 표시)
+  });
 
   // 초기 색상 적용
   if (block.dataset.iconColor) block.style.color = block.dataset.iconColor;

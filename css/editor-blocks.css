@@ -578,6 +578,9 @@
   flex-shrink: 0;
   position: relative;
 }
+/* 이미지가 들어오면 체크무늬(투명 표시용 placeholder) 제거 — 투명 SVG의 투명부로 체크가 비쳐
+   Export PNG에까지 박히던 버그(현빈). 배경색(inline bgColor)이 있으면 그게, 없으면 섹션 배경이 비침. */
+.icon-circle-block.has-image .icb-circle { background-image: none; }
 .icb-placeholder {
   font-size: 28px;
   color: var(--ui-text-sub);
