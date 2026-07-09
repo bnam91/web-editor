@@ -436,6 +436,8 @@ function renderCanvas(block) {
         const cell = document.createElement('div');
         const borderW = card.borderWidth > 0 ? parseInt(card.borderWidth) : 0;
         cell.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;border-radius:${radius}px;overflow:hidden;`;
+        // 스크래치 드롭 타깃 식별용 — canvas-scratch-drop의 'cvbcard' 분류가 이 인덱스로 카드 특정
+        cell.dataset.cvbCardIdx = String(idx);
 
         if (orient === 'landscape') {
           // ── 가로 모드: 이미지 좌 / 텍스트 우 ────────────────────────────
