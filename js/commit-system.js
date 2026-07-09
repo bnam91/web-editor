@@ -59,8 +59,11 @@ function showFilenameModal(defaultName, onConfirm) {
 }
 
 /* ── 커밋 모달 ── */
+// ⚠️ 과거 saveProject()가 커밋 모달을 열었으나 커밋 기능은 MVP 숨김(tb-hidden-mvp) —
+// 외부(CDP 자동화·구 호출자)가 '저장' 의도로 부르면 봉인된 데드 모달이 소환되던 버그.
+// 이제 ⌘S와 동일한 정식 저장 경로로 위임. 모달은 openCommitModal() 명시 호출로만 열림(봉인 유지).
 async function saveProject() {
-  openCommitModal();
+  window.triggerAutoSave?.();
 }
 
 function _formatTimeAgo(ts) {
