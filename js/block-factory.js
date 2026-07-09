@@ -1200,9 +1200,11 @@ function _buildBridgePath({ width = 120, depth = 88, arc = 0 } = {}) {
   // 중심축 당김 비율 s. s≥1이면 컨트롤이 cx를 넘어 대칭 cubic이 자기교차(코덱스 Q3) → s<1로 제한.
   // -100=s0.6 보존, 이후 완만히 증가해 -200=s0.9 (교차 없이 더 깊게).
   const s = b <= 1 ? b * 0.6 : 0.6 + (b - 1) * 0.3;       // b1→0.6, b2→0.9
-  const ax = L + (cx - L) / 3,     ay = d / 3;            // 레그 1/3 점
+  const ax = L + (cx - L) / 3;                            // 레그 1/3 점(x만 사용)
   const bx = L + (cx - L) * 2 / 3, by = d * 2 / 3;        // 레그 2/3 점
-  const c1x = +(ax + (cx - ax) * s).toFixed(1), c1y = +ay.toFixed(1);
+  // 어깨(L,0)/(R,0)에서 곡선이 수평 상단선과 '접선 연속'되도록 첫 컨트롤 y=0 →
+  // 상단에서 비스듬히 꺾여 내려가던 각짐 제거(현빈: -200에서 꺾여보임). 꼭지점(cx,d)은 뾰족 유지.
+  const c1x = +(ax + (cx - ax) * s).toFixed(1), c1y = 0;
   const c2x = +(bx + (cx - bx) * s).toFixed(1), c2y = +by.toFixed(1);
   const m1x = +(2 * cx - c2x).toFixed(1), m2x = +(2 * cx - c1x).toFixed(1); // 오른쪽=중심축 대칭
   return `M0 0 L${L} 0 C${c1x} ${c1y} ${c2x} ${c2y} ${cx} ${d} C${m1x} ${c2y} ${m2x} ${c1y} ${R} 0` + tail;
