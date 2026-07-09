@@ -239,15 +239,38 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
     imgDiv.style.cursor = 'default';
     imgDiv.style.outline = '';
     hint.remove();
-    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onKey, true);
     document.removeEventListener('mousedown', onOutside, true);
     imgDiv.removeEventListener('mousedown', onDragStart);
     imgDiv.removeEventListener('wheel', onWheel);
     if (_wheelDirty) { window.pushHistory?.('카드 이미지 확대'); window.scheduleAutoSave?.(); }
   };
 
-  const onKey = (e) => { if (e.key === 'Escape') exitMode(); };
-  document.addEventListener('keydown', onKey);
+  const onKey = (e) => {
+    if (e.key === 'Escape') { exitMode(); return; }
+    // 편집모드 중 Backspace/Delete = 이 카드의 이미지만 제거.
+    // capture+stopImmediatePropagation으로 전역 '블록 삭제' 단축키 선점 —
+    // 이미지 지우려다 카드블럭 통삭제되던 사고(현빈 리포트) 방지.
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      exitMode();
+      try {
+        const arr = JSON.parse(block.dataset.cards || '[]');
+        if (arr[idx]) {
+          arr[idx].imgSrc = '';
+          delete arr[idx].imgX; delete arr[idx].imgY; delete arr[idx].imgScale; // 위치/줌도 초기화
+          block.dataset.cards = JSON.stringify(arr);
+          window.renderCanvas?.(block);
+          window.pushHistory?.('카드 이미지 제거');
+          window.scheduleAutoSave?.();
+          window.showToast?.('카드 이미지 제거됨');
+        }
+      } catch (_) {}
+    }
+  };
+  // capture 단계 등록 — 전역(bubble) 삭제 핸들러보다 먼저 실행되어야 선점 가능
+  document.addEventListener('keydown', onKey, true);
 
   // 바깥 클릭 종료 — 일반 에디터 관행 (ESC와 동일 동작)
   const onOutside = (e) => { if (!imgDiv.contains(e.target)) exitMode(); };
