@@ -219,7 +219,16 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
 
   const hint = document.createElement('div');
   hint.style.cssText = 'position:absolute;bottom:6px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;font-size:10px;padding:3px 10px;border-radius:4px;pointer-events:none;white-space:nowrap;z-index:10;';
-  hint.textContent = '드래그 이동 · 휠 확대/축소 · ESC/바깥클릭 종료';
+  // 확대 100%(cover)면 이동 여백이 거의 없어 드래그가 무효과로 느껴짐(현빈 리포트) —
+  // 상황 인지형 안내: 줌 전엔 '휠로 확대'를 앞세우고, 확대 후 일반 안내로 전환(onWheel에서 갱신).
+  const _updateHint = () => {
+    let s = 100;
+    try { s = Math.max(100, parseInt(JSON.parse(block.dataset.cards || '[]')[idx]?.imgScale) || 100); } catch (_) {}
+    hint.textContent = s <= 100
+      ? '휠로 확대하면 위치를 조절할 수 있어요 · ESC 종료'
+      : '드래그 이동 · 휠 확대/축소 · ESC/바깥클릭 종료';
+  };
+  _updateHint();
   imgDiv.appendChild(hint);
 
   let _wheelDirty = false; // 휠 줌 변경 여부 — 종료 시 한 번만 history push
@@ -256,6 +265,7 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
     if (next === cur) return;
     c.imgScale = next;
     block.dataset.cards = JSON.stringify(arr);
+    _updateHint();
     imgDiv.style.backgroundSize = _cvbBackgroundSize(c);
     _wheelDirty = true;
   };
