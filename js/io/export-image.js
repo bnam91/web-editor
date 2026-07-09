@@ -142,11 +142,19 @@ function flattenCvbTransform(cvbEl) {
   const s = parseFloat(match[1]);
   if (!s || s === 1) return;
 
-  // 순수 px 단위 값만 스케일 (%, 단위없는 값, 복합 shorthand 제외)
+  // 순수 px 단위 값만 스케일 (%, 단위없는 값 제외)
   // 예: "48px" → 스케일, "1.3"(line-height) → 건드리지 않음, "100%" → 건드리지 않음
+  // ★ border-radius 다중값 shorthand("0 0 24px 24px" 등)는 단일-px 정규식에 안 걸려
+  //   그대로 남던 버그 → 셀 radius(단일값)만 스케일되고 라벨 radius는 원본 유지되어
+  //   코너에서 라벨 라운드(R) > 셀 라운드(R·s) 미스매치 → 흰 배경 arc 노출(현빈 카드4).
+  //   borderRadius는 모든 px 토큰을 스케일해 셀·라벨 라운드를 일치시킨다.
   const scalePx = (style, props) => props.forEach(p => {
-    if (!style[p] || !/^[\d.]+px$/.test(style[p].trim())) return;
-    style[p] = (parseFloat(style[p]) * s) + 'px';
+    const v = style[p] && style[p].trim();
+    if (!v) return;
+    if (/^[\d.]+px$/.test(v)) { style[p] = (parseFloat(v) * s) + 'px'; return; }
+    if (p === 'borderRadius' && /[\d.]+px/.test(v)) {
+      style[p] = v.replace(/([\d.]+)px/g, (_m, n) => (parseFloat(n) * s) + 'px');
+    }
   });
 
   Array.from(inner.children).forEach(cell => {
