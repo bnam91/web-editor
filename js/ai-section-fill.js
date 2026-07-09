@@ -796,6 +796,18 @@ async function _openAIFillUI_impl(secEl) {
   _aiFillState.imageDataUrls = [];
   const panel = _ensureAIFillPanel();
   panel.classList.add('open');
+  // 뷰포트 밖으로 저장/기본 위치(localStorage aiFillPanelPos)가 벗어나면 패널이 화면 밖에 떠서
+  // "안 뜬다"로 보이던 버그(현빈: 창 리사이즈/드래그 후 stale). 열 때마다 화면 안으로 클램프.
+  requestAnimationFrame(() => {
+    const r = panel.getBoundingClientRect();
+    const M = 8;
+    const l = Math.min(Math.max(M, r.left), Math.max(M, window.innerWidth  - r.width  - M));
+    const t = Math.min(Math.max(M, r.top),  Math.max(M, window.innerHeight - r.height - M));
+    if (Math.round(l) !== Math.round(r.left) || Math.round(t) !== Math.round(r.top)) {
+      panel.style.left = l + 'px'; panel.style.top = t + 'px';
+      panel.style.right = 'auto'; panel.style.bottom = 'auto';
+    }
+  });
   // 섹션 이름(Section 05 등) + 내부 ID 같이 표기
   const secName = (secEl.dataset?.name || secEl.querySelector('.section-label')?.textContent || '').trim();
   panel.querySelector('#ai-fill-panel-meta').textContent =
