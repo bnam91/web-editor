@@ -21,7 +21,7 @@
   },
   "build": {
     "appId": "com.goyamkt.sangpe-editor",
-    "productName": "상페마법사",
+    "productName": "GODITOR",
     "publish": {
       "provider": "github",
       "owner": "bnam91",
