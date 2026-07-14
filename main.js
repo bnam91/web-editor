@@ -161,6 +161,9 @@ let mainWindow;
 
 /* ── Hot Reload (개발용) ── */
 function watchFiles() {
+  // 패키징(asar) 환경에선 fs.watch가 throw → whenReady 체인이 끊겨
+  // setupAutoUpdater/MCP까지 죽는 사고(v0.5.0~0.6.0). 핫리로드는 dev 전용.
+  if (app.isPackaged) return;
   const watchTargets = [
     path.join(__dirname, 'index.html'),
     path.join(__dirname, 'js'),
@@ -1810,7 +1813,8 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
-  watchFiles();
+  // watchFiles가 던져도 updater/MCP 초기화는 계속돼야 함 (0.5.0 자동업데이트 사망 원인)
+  try { watchFiles(); } catch (e) { console.error('[hot-reload] watch skipped:', e.message); }
   // 개발 모드에서는 자동업데이트 스킵
   if (!process.argv.includes('--enable-logging')) {
     setupAutoUpdater();
