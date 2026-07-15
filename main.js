@@ -102,7 +102,9 @@ function readSettings() {
   try {
     const p = getSettingsPath();
     if (!fs.existsSync(p)) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // UTF-8 BOM 제거: 외부 편집기(메모장·PS Set-Content 등)가 BOM을 붙이면
+    // JSON.parse가 throw → 설정 전체가 DEFAULT로 무시되는 사고 방지.
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^﻿/, ''));
     return {
       ...DEFAULT_SETTINGS,
       ...raw,
