@@ -17,9 +17,26 @@ const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
 // C4: 앱 이름 브랜딩 (macOS 상단 메뉴바 표시)
-app.name = 'Goya Design Editor';
+app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
+
+// userData 폴더 마이그레이션: 구 이름('Goya Design Editor') → 'GODITOR'.
+// app.name이 userData 경로를 결정하므로, 앱이 새 경로에 처음 쓰기 전(top-level)에 rename.
+// 같은 볼륨 rename이라 원자적·즉시(6GB+ copy 아님). old만 있고 new 없을 때 1회만.
+(function _migrateUserDataDir() {
+  try {
+    const appDataDir = app.getPath('appData'); // ~/Library/Application Support
+    const oldUD = path.join(appDataDir, 'Goya Design Editor');
+    const newUD = path.join(appDataDir, 'GODITOR');
+    if (fs.existsSync(oldUD) && !fs.existsSync(newUD)) {
+      fs.renameSync(oldUD, newUD);
+      console.log('[migrate] userData: "Goya Design Editor" -> "GODITOR"');
+    }
+  } catch (e) {
+    console.error('[migrate] userData rename failed:', e.message);
+  }
+})();
 
 // .env 로드 (크리덴셜 환경변수)
 function _loadEnvFile(p) {
@@ -58,6 +75,9 @@ function getSettingsPath() {
 }
 const DEFAULT_SETTINGS = {
   version: 1,
+  // pre-release(beta) 채널: 테스터 앱만 true → GitHub pre-release 자동수신·검증.
+  // 일반 사용자는 false(기본) → latest 정식 릴리스만 받음.
+  betaChannel: false,
   apiKeys: { openai: '', gemini: '', anthropic: '' },
   shortcuts: {
     addGap:       'KeyG',
@@ -1743,6 +1763,12 @@ ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, heigh
 function setupAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  // 채널 분기: settings.betaChannel=true인 테스터만 pre-release 수신.
+  // 일반 사용자(false)는 latest 정식만 → 미검증 빌드가 전파되지 않음.
+  try {
+    autoUpdater.allowPrerelease = !!readSettings().betaChannel;
+    console.log('[updater] allowPrerelease =', autoUpdater.allowPrerelease);
+  } catch (_) {}
 
   autoUpdater.on('update-available', (info) => {
     console.log('[updater] 새 버전 발견:', info.version);
