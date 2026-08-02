@@ -57,7 +57,20 @@
 }
 #panel-right { border-right: none; border-left: 1px solid var(--ui-bg-hover); position: relative; z-index: 9999; }
 
-#panel-left { position: relative; z-index: 9999; }
+/* 폭 단일 출처 = --panel-left-w (js/editor.js initPanelResize가 갱신/복원).
+   접기는 width가 아니라 margin-left 음수로 슬라이드 — 폭을 애니메이션하면 패널 내용이
+   매 프레임 리플로우되며 떨리므로, 폭은 고정한 채 밀어내고 #main의 overflow:hidden으로 잘라낸다. */
+#panel-left {
+  position: relative; z-index: 9999;
+  width: var(--panel-left-w, 240px);
+  margin-left: 0;
+}
+body.panel-anim-on #panel-left { transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+body.resizing-panel #panel-left { transition: none; }
+body.left-panel-collapsed #panel-left {
+  margin-left: calc(-1 * var(--panel-left-w, 240px));
+  pointer-events: none;
+}
 #panel-left-resize-handle {
   position: absolute; right: -3px; top: 0; bottom: 0; width: 6px;
   cursor: col-resize; z-index: 100;
@@ -67,7 +80,32 @@
   background: transparent; transition: background 0.15s;
 }
 #panel-left-resize-handle:hover::after { background: var(--ui-accent-primary); }
+body.left-panel-collapsed #panel-left-resize-handle { display: none; }
 body.resizing-panel { cursor: col-resize; user-select: none; }
+
+/* ── 좌측 패널 접기/펼치기 ── */
+#panel-left-collapse-btn svg { transition: transform 0.2s; }
+
+/* 접힌 상태에서 항상 보이는 재진입 핸들 (canvas-area 좌상단 부유) */
+#panel-left-expand-btn {
+  position: absolute; left: 8px; top: 8px; z-index: 40;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(22, 22, 22, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  color: var(--ui-text-sub);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--ui-shadow-sm);
+  opacity: 0; pointer-events: none;
+  transform: translateX(-6px);
+  transition: opacity 0.18s ease, transform 0.18s ease, background 0.15s, color 0.15s;
+}
+#panel-left-expand-btn:hover { background: rgba(40, 40, 40, 0.95); color: #fff; }
+body.left-panel-collapsed #panel-left-expand-btn {
+  opacity: 1; pointer-events: auto; transform: translateX(0);
+}
 
 #rp-top-row {
   display: flex; align-items: center; gap: 8px;

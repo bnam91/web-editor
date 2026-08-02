@@ -1080,6 +1080,13 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  // ⌘\ (Backslash) — 좌측 패널 접기/펼치기 (Figma 동일). 다른 단축키와 미충돌.
+  if ((e.metaKey || e.ctrlKey) && e.code === 'Backslash' && !e.shiftKey && !e.altKey) {
+    e.preventDefault();
+    window.toggleLeftPanel?.();
+    return;
+  }
+
   if (e.metaKey || e.ctrlKey) {
     if (e.key === '=' || e.key === '+') {
       e.preventDefault();
@@ -2523,32 +2530,48 @@ window.selectColWithModifier = selectColWithModifier;
 window.showMultiSelPanel = showMultiSelPanel;
 
 /* ═══════════════════════════════════
-   PANEL RESIZE
+   PANEL RESIZE / COLLAPSE (좌측 패널)
 ═══════════════════════════════════ */
 (function initPanelResize() {
   const MIN_W = 180;
   const MAX_W = 480;
   const LS_KEY = 'panelLeftWidth';
+  const LS_COLLAPSED = 'panelLeftCollapsed';
 
   const panel = document.getElementById('panel-left');
   const handle = document.getElementById('panel-left-resize-handle');
   if (!panel || !handle) return;
 
-  // 저장된 너비 복원
-  const saved = parseInt(localStorage.getItem(LS_KEY));
-  if (saved && saved >= MIN_W && saved <= MAX_W) panel.style.width = saved + 'px';
+  // 폭은 CSS 변수 하나로 관리 — 접기(margin-left 음수)가 같은 값을 참조해야 하므로
+  // 인라인 style.width 대신 --panel-left-w 를 쓴다.
+  const setWidth = w => document.documentElement.style.setProperty('--panel-left-w', w + 'px');
 
-  let startX, startW;
+  const saved = parseInt(localStorage.getItem(LS_KEY));
+  setWidth(saved && saved >= MIN_W && saved <= MAX_W ? saved : 240);
+
+  // 접힘 상태 복원 — 첫 페인트에 애니메이션이 돌지 않도록 panel-anim-on은 다음 프레임에 켠다.
+  const collapsed = localStorage.getItem(LS_COLLAPSED) === '1';
+  document.body.classList.toggle('left-panel-collapsed', collapsed);
+  requestAnimationFrame(() => document.body.classList.add('panel-anim-on'));
+
+  function toggleLeftPanel(force) {
+    const next = typeof force === 'boolean' ? force : !document.body.classList.contains('left-panel-collapsed');
+    document.body.classList.toggle('left-panel-collapsed', next);
+    localStorage.setItem(LS_COLLAPSED, next ? '1' : '0');
+    return next;
+  }
+  window.toggleLeftPanel = toggleLeftPanel;
+  window.isLeftPanelCollapsed = () => document.body.classList.contains('left-panel-collapsed');
 
   handle.addEventListener('mousedown', e => {
     e.preventDefault();
-    startX = e.clientX;
-    startW = panel.offsetWidth;
+    const startX = e.clientX;
+    const startW = panel.offsetWidth;
     document.body.classList.add('resizing-panel');
 
     const onMove = e => {
       const w = Math.min(MAX_W, Math.max(MIN_W, startW + (e.clientX - startX)));
-      panel.style.width = w + 'px';
+      setWidth(w);
     };
     const onUp = e => {
       document.body.classList.remove('resizing-panel');

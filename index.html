@@ -293,6 +293,14 @@
           <polyline points="3.5,6 5,7.5 8.5,4.5"/>
         </svg>
       </button>
+      <button class="panel-tab-action" id="panel-left-collapse-btn" title="패널 접기 (⌘\)"
+              onclick="window.toggleLeftPanel(true)">
+        <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="2" y1="1.8" x2="2" y2="10.2"/>
+          <polyline points="8.5,3.6 6,6 8.5,8.4"/>
+          <line x1="10.2" y1="6" x2="6" y2="6"/>
+        </svg>
+      </button>
     </div>
     <!-- File tab -->
     <div id="file-panel-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
@@ -462,6 +470,14 @@
 
   <!-- Canvas -->
   <div id="canvas-area">
+  <!-- 좌측 패널이 접혔을 때만 보이는 재진입 핸들 -->
+  <button id="panel-left-expand-btn" title="패널 펼치기 (⌘\)" onclick="window.toggleLeftPanel(false)">
+    <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="2" y1="1.8" x2="2" y2="10.2"/>
+      <polyline points="6.5,3.6 9,6 6.5,8.4"/>
+      <line x1="4.2" y1="6" x2="8.6" y2="6"/>
+    </svg>
+  </button>
   <!-- Notch Bar -->
   <div id="canvas-notch-bar" title="클릭하면 캔버스 중앙으로 이동">
     <div id="canvas-notch"></div>
