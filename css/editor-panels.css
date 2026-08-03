@@ -4,7 +4,7 @@
 /* ── 색상 조정 플로팅 패널 (이미지 편집 모드 전용) ── */
 #color-adjust-panel {
   position: fixed;
-  right: 252px; /* panel-right(240px) + 12px gap */
+  right: calc(var(--panel-right-inset, 240px) + 12px); /* panel-right 폭 + 12px gap (접히면 0 + 12) */
   bottom: 28px;
   width: 236px;
   z-index: 420;
@@ -55,7 +55,22 @@
   border-right: 1px solid var(--ui-bg-hover);
   display: flex; flex-direction: column; overflow: hidden;
 }
-#panel-right { border-right: none; border-left: 1px solid var(--ui-bg-hover); position: relative; z-index: 9999; }
+/* 우측 패널도 좌측과 같은 방식 — 폭은 고정한 채 margin-right 음수로 밀어낸다.
+   폭 조절 UI가 없으므로 --panel-right-w는 상수이고, --panel-right-inset은
+   우측 패널에 붙어 뜨는 부유패널들이 참조하는 "패널이 먹는 폭"(접히면 0). */
+body { --panel-right-w: 240px; --panel-right-inset: var(--panel-right-w); }
+body.right-panel-collapsed { --panel-right-inset: 0px; }
+#panel-right {
+  border-right: none; border-left: 1px solid var(--ui-bg-hover);
+  position: relative; z-index: 9999;
+  width: var(--panel-right-w, 240px);
+  margin-right: 0;
+}
+body.panel-anim-on #panel-right { transition: margin-right 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+body.right-panel-collapsed #panel-right {
+  margin-right: calc(-1 * var(--panel-right-w, 240px));
+  pointer-events: none;
+}
 
 /* 폭 단일 출처 = --panel-left-w (js/editor.js initPanelResize가 갱신/복원).
    접기는 width가 아니라 margin-left 음수로 슬라이드 — 폭을 애니메이션하면 패널 내용이
@@ -104,6 +119,35 @@ body.resizing-panel { cursor: col-resize; user-select: none; }
 }
 #panel-left-expand-btn:hover { background: rgba(40, 40, 40, 0.95); color: #fff; }
 body.left-panel-collapsed #panel-left-expand-btn {
+  opacity: 1; pointer-events: auto; transform: translateX(0);
+}
+
+/* ── 우측 패널 접기/펼치기 ── */
+/* Properties 헤더(높이 30) 우측 끝에 얹히는 접기 버튼 — .panel-tab-action(탭바 32px용)을
+   그대로 쓰되 헤더 높이에만 맞춘다. */
+#panel-right-collapse-btn {
+  height: 24px; width: 24px; border-left: none; border-radius: 4px;
+  margin-left: auto; margin-right: -4px;
+}
+
+/* 접힌 상태에서 항상 보이는 재진입 핸들 (canvas-area 우상단 부유) */
+#panel-right-expand-btn {
+  position: absolute; right: 8px; top: 8px; z-index: 40;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(22, 22, 22, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  color: var(--ui-text-sub);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--ui-shadow-sm);
+  opacity: 0; pointer-events: none;
+  transform: translateX(6px);
+  transition: opacity 0.18s ease, transform 0.18s ease, background 0.15s, color 0.15s;
+}
+#panel-right-expand-btn:hover { background: rgba(40, 40, 40, 0.95); color: #fff; }
+body.right-panel-collapsed #panel-right-expand-btn {
   opacity: 1; pointer-events: auto; transform: translateX(0);
 }
 
@@ -1608,7 +1652,7 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 ══════════════════════════════════════ */
 .ai-fill-panel {
   position: fixed;
-  top: 88px; right: 252px; /* panel-right(240) + 12 gap */
+  top: 88px; right: calc(var(--panel-right-inset, 240px) + 12px); /* panel-right 폭 + 12 gap (접히면 0 + 12) */
   width: 280px;
   max-height: calc(100vh - 120px);
   background: #1f1f1f;

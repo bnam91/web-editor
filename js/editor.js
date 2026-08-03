@@ -1081,9 +1081,11 @@ document.addEventListener('keydown', e => {
   }
 
   // ⌘\ (Backslash) — 좌측 패널 접기/펼치기 (Figma 동일). 다른 단축키와 미충돌.
-  if ((e.metaKey || e.ctrlKey) && e.code === 'Backslash' && !e.shiftKey && !e.altKey) {
+  // ⌘⇧\ — 우측(Properties) 패널 접기/펼치기.
+  if ((e.metaKey || e.ctrlKey) && e.code === 'Backslash' && !e.altKey) {
     e.preventDefault();
-    window.toggleLeftPanel?.();
+    if (e.shiftKey) window.toggleRightPanel?.();
+    else window.toggleLeftPanel?.();
     return;
   }
 
@@ -2582,6 +2584,28 @@ window.showMultiSelPanel = showMultiSelPanel;
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
+})();
+
+/* ═══════════════════════════════════
+   PANEL COLLAPSE (우측 패널)
+   좌측과 동일 — margin-right 음수 슬라이드. 우측은 폭 조절 UI가 없어 리사이즈 없음.
+═══════════════════════════════════ */
+(function initRightPanelCollapse() {
+  const LS_COLLAPSED = 'panelRightCollapsed';
+  if (!document.getElementById('panel-right')) return;
+
+  // 접힘 상태 복원 — 첫 페인트에 애니메이션이 돌지 않도록 panel-anim-on은 다음 프레임에 켠다.
+  document.body.classList.toggle('right-panel-collapsed', localStorage.getItem(LS_COLLAPSED) === '1');
+  requestAnimationFrame(() => document.body.classList.add('panel-anim-on'));
+
+  function toggleRightPanel(force) {
+    const next = typeof force === 'boolean' ? force : !document.body.classList.contains('right-panel-collapsed');
+    document.body.classList.toggle('right-panel-collapsed', next);
+    localStorage.setItem(LS_COLLAPSED, next ? '1' : '0');
+    return next;
+  }
+  window.toggleRightPanel = toggleRightPanel;
+  window.isRightPanelCollapsed = () => document.body.classList.contains('right-panel-collapsed');
 })();
 
 
