@@ -2566,10 +2566,18 @@ window.showMultiSelPanel = showMultiSelPanel;
   document.body.classList.toggle('left-panel-collapsed', collapsed);
   requestAnimationFrame(() => document.body.classList.add('panel-anim-on'));
 
+  // topbar 토글은 접기/펼치기 겸용이라 툴팁이 현재 상태를 따라가야 한다.
+  const syncTitle = () => {
+    const btn = document.getElementById('tb-toggle-left-panel');
+    if (btn) btn.title = (document.body.classList.contains('left-panel-collapsed') ? '좌측 패널 펼치기' : '좌측 패널 접기') + ' (⌘\\)';
+  };
+  syncTitle();
+
   function toggleLeftPanel(force) {
     const next = typeof force === 'boolean' ? force : !document.body.classList.contains('left-panel-collapsed');
     document.body.classList.toggle('left-panel-collapsed', next);
     localStorage.setItem(LS_COLLAPSED, next ? '1' : '0');
+    syncTitle();
     return next;
   }
   window.toggleLeftPanel = toggleLeftPanel;
@@ -2608,10 +2616,17 @@ window.showMultiSelPanel = showMultiSelPanel;
   document.body.classList.toggle('right-panel-collapsed', localStorage.getItem(LS_COLLAPSED) === '1');
   requestAnimationFrame(() => document.body.classList.add('panel-anim-on'));
 
+  const syncTitle = () => {
+    const btn = document.getElementById('tb-toggle-right-panel');
+    if (btn) btn.title = (document.body.classList.contains('right-panel-collapsed') ? '속성 패널 펼치기' : '속성 패널 접기') + ' (⌘⌥\\)';
+  };
+  syncTitle();
+
   function toggleRightPanel(force) {
     const next = typeof force === 'boolean' ? force : !document.body.classList.contains('right-panel-collapsed');
     document.body.classList.toggle('right-panel-collapsed', next);
     localStorage.setItem(LS_COLLAPSED, next ? '1' : '0');
+    syncTitle();
     return next;
   }
   window.toggleRightPanel = toggleRightPanel;

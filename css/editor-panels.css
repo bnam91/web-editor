@@ -98,58 +98,14 @@ body.left-panel-collapsed #panel-left {
 body.left-panel-collapsed #panel-left-resize-handle { display: none; }
 body.resizing-panel { cursor: col-resize; user-select: none; }
 
-/* ── 좌측 패널 접기/펼치기 ── */
-#panel-left-collapse-btn svg { transition: transform 0.2s; }
-
-/* 접힌 상태에서 항상 보이는 재진입 핸들 (canvas-area 좌상단 부유) */
-#panel-left-expand-btn {
-  position: absolute; left: 8px; top: 8px; z-index: 40;
-  width: 26px; height: 26px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(22, 22, 22, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 7px;
-  color: var(--ui-text-sub);
-  cursor: pointer;
-  backdrop-filter: blur(8px);
-  box-shadow: var(--ui-shadow-sm);
-  opacity: 0; pointer-events: none;
-  transform: translateX(-6px);
-  transition: opacity 0.18s ease, transform 0.18s ease, background 0.15s, color 0.15s;
-}
-#panel-left-expand-btn:hover { background: rgba(40, 40, 40, 0.95); color: #fff; }
-body.left-panel-collapsed #panel-left-expand-btn {
-  opacity: 1; pointer-events: auto; transform: translateX(0);
-}
-
-/* ── 우측 패널 접기/펼치기 ── */
-/* Properties 헤더(높이 30) 우측 끝에 얹히는 접기 버튼 — .panel-tab-action(탭바 32px용)을
-   그대로 쓰되 헤더 높이에만 맞춘다. */
-#panel-right-collapse-btn {
-  height: 24px; width: 24px; border-left: none; border-radius: 4px;
-  margin-left: auto; margin-right: -4px;
-}
-
-/* 접힌 상태에서 항상 보이는 재진입 핸들 (canvas-area 우상단 부유) */
-#panel-right-expand-btn {
-  position: absolute; right: 8px; top: 8px; z-index: 40;
-  width: 26px; height: 26px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(22, 22, 22, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 7px;
-  color: var(--ui-text-sub);
-  cursor: pointer;
-  backdrop-filter: blur(8px);
-  box-shadow: var(--ui-shadow-sm);
-  opacity: 0; pointer-events: none;
-  transform: translateX(6px);
-  transition: opacity 0.18s ease, transform 0.18s ease, background 0.15s, color 0.15s;
-}
-#panel-right-expand-btn:hover { background: rgba(40, 40, 40, 0.95); color: #fff; }
-body.right-panel-collapsed #panel-right-expand-btn {
-  opacity: 1; pointer-events: auto; transform: translateX(0);
-}
+/* ── 패널 접기/펼치기 토글 (topbar 우측 끝) ──
+   접기와 펼치기를 같은 버튼·같은 자리에서 처리한다(캔버스 부유 핸들 없음).
+   아이콘은 사이드바 글리프 — .pg-fill(채움)이 있으면 그 쪽 패널이 열려 있다는 뜻. */
+.tb-panel-toggle { width: 28px; flex-shrink: 0; padding: 0; color: var(--ui-text-dim); }
+.tb-panel-toggle:hover { color: #fff; }
+.tb-panel-toggle .pg-fill { transition: opacity 0.15s; }
+body.left-panel-collapsed  #tb-toggle-left-panel  .pg-fill,
+body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
 
 #rp-top-row {
   display: flex; align-items: center; gap: 8px;
