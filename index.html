@@ -293,12 +293,13 @@
           <polyline points="3.5,6 5,7.5 8.5,4.5"/>
         </svg>
       </button>
-      <button class="panel-tab-action" id="panel-left-collapse-btn" title="패널 접기 (⌘\)"
+      <!-- 패널 글리프(사이드바 아이콘) — 채워진 쪽이 "지금 열려 있는 패널". 방향 화살표 대신
+           상태를 보여주는 형태로, 탭 아이콘들과 같은 rect 9x9 rx1.5 기하를 공유한다. -->
+      <button class="panel-tab-action" id="panel-left-collapse-btn" title="좌측 패널 접기 (⌘\)"
               onclick="window.toggleLeftPanel(true)">
         <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="2" y1="1.8" x2="2" y2="10.2"/>
-          <polyline points="8.5,3.6 6,6 8.5,8.4"/>
-          <line x1="10.2" y1="6" x2="6" y2="6"/>
+          <rect x="1.5" y="1.5" width="9" height="9" rx="1.5"/>
+          <path d="M4.5 1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h1.5z" fill="currentColor" stroke="none"/>
         </svg>
       </button>
     </div>
@@ -471,19 +472,17 @@
   <!-- Canvas -->
   <div id="canvas-area">
   <!-- 좌측 패널이 접혔을 때만 보이는 재진입 핸들 -->
-  <button id="panel-left-expand-btn" title="패널 펼치기 (⌘\)" onclick="window.toggleLeftPanel(false)">
+  <button id="panel-left-expand-btn" title="좌측 패널 펼치기 (⌘\)" onclick="window.toggleLeftPanel(false)">
     <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="2" y1="1.8" x2="2" y2="10.2"/>
-      <polyline points="6.5,3.6 9,6 6.5,8.4"/>
-      <line x1="4.2" y1="6" x2="8.6" y2="6"/>
+      <rect x="1.5" y="1.5" width="9" height="9" rx="1.5"/>
+      <line x1="4.5" y1="1.5" x2="4.5" y2="10.5"/>
     </svg>
   </button>
   <!-- 우측 패널이 접혔을 때만 보이는 재진입 핸들 -->
-  <button id="panel-right-expand-btn" title="패널 펼치기 (⌘⇧\)" onclick="window.toggleRightPanel(false)">
+  <button id="panel-right-expand-btn" title="속성 패널 펼치기 (⌘⌥\)" onclick="window.toggleRightPanel(false)">
     <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="10" y1="1.8" x2="10" y2="10.2"/>
-      <polyline points="5.5,3.6 3,6 5.5,8.4"/>
-      <line x1="7.8" y1="6" x2="3.4" y2="6"/>
+      <rect x="1.5" y="1.5" width="9" height="9" rx="1.5"/>
+      <line x1="7.5" y1="1.5" x2="7.5" y2="10.5"/>
     </svg>
   </button>
   <!-- Notch Bar -->
@@ -529,12 +528,11 @@
         <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.5" fill="none"/>
       </svg>
       Properties
-      <button class="panel-tab-action" id="panel-right-collapse-btn" title="패널 접기 (⌘⇧\)"
+      <button class="panel-tab-action" id="panel-right-collapse-btn" title="속성 패널 접기 (⌘⌥\)"
               onclick="window.toggleRightPanel(true)">
         <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="10" y1="1.8" x2="10" y2="10.2"/>
-          <polyline points="3.5,3.6 6,6 3.5,8.4"/>
-          <line x1="1.8" y1="6" x2="6" y2="6"/>
+          <rect x="1.5" y="1.5" width="9" height="9" rx="1.5"/>
+          <path d="M7.5 1.5H9A1.5 1.5 0 0 1 10.5 3v6A1.5 1.5 0 0 1 9 10.5H7.5z" fill="currentColor" stroke="none"/>
         </svg>
       </button>
     </div>

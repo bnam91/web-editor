@@ -1080,12 +1080,22 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // ⌘\ (Backslash) — 좌측 패널 접기/펼치기 (Figma 동일). 다른 단축키와 미충돌.
-  // ⌘⇧\ — 우측(Properties) 패널 접기/펼치기.
-  if ((e.metaKey || e.ctrlKey) && e.code === 'Backslash' && !e.altKey) {
+  // 패널 접기/펼치기 — Figma 키 의미에 맞춘 배치.
+  //   ⌘\   좌측 패널      ⌘⌥\  우측(속성) 패널
+  //   ⌘⇧\  좌우 동시 = Figma의 "Minimize UI"(⌘⇧\)와 같은 의미. 우측 단독에 ⇧를 쓰면
+  //        피그마에서 전체 최소화를 기대하고 누른 손이 어긋나므로 ⌥로 뺐다.
+  if ((e.metaKey || e.ctrlKey) && e.code === 'Backslash') {
     e.preventDefault();
-    if (e.shiftKey) window.toggleRightPanel?.();
-    else window.toggleLeftPanel?.();
+    if (e.shiftKey) {
+      // 하나라도 펼쳐져 있으면 둘 다 접고, 둘 다 접혀 있으면 둘 다 펼친다.
+      const next = !(window.isLeftPanelCollapsed?.() && window.isRightPanelCollapsed?.());
+      window.toggleLeftPanel?.(next);
+      window.toggleRightPanel?.(next);
+    } else if (e.altKey) {
+      window.toggleRightPanel?.();
+    } else {
+      window.toggleLeftPanel?.();
+    }
     return;
   }
 
