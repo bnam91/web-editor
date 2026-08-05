@@ -373,6 +373,25 @@
 .asset-block.has-image.selected .asset-overlay-clear { opacity: 1; }
 .asset-block.drag-over { outline: 2px dashed var(--sel-color) !important; outline-offset: -3px; }
 
+/* U10: 애니메이션 GIF 인지 배지 — 에디터 전용(#canvas 스코프라 export 오프스크린 클론엔 미적용).
+   비주얼은 section-label 계열(--ui-bg-input/--ui-text-muted), --inv-zoom 카운터스케일로 줌 불변 크기. */
+#canvas .asset-block[data-motion="gif"]::after {
+  content: 'GIF';
+  position: absolute;
+  top: calc(6px * var(--inv-zoom, 1));
+  right: calc(6px * var(--inv-zoom, 1));
+  z-index: 5;
+  font-size: calc(11px * var(--inv-zoom, 1));
+  font-weight: var(--ui-fw-medium);
+  letter-spacing: 0.06em;
+  color: var(--ui-text-muted);
+  background: var(--ui-bg-input);
+  padding: calc(2px * var(--inv-zoom, 1)) calc(7px * var(--inv-zoom, 1));
+  border-radius: calc(4px * var(--inv-zoom, 1));
+  pointer-events: none;
+  opacity: 0.85;
+}
+
 /* 이미지 포지션 드래그 모드 */
 .asset-block.pos-dragging {
   outline: 1px solid var(--sel-color) !important;
@@ -559,6 +578,9 @@
   flex-shrink: 0;
   position: relative;
 }
+/* 이미지가 들어오면 체크무늬(투명 표시용 placeholder) 제거 — 투명 SVG의 투명부로 체크가 비쳐
+   Export PNG에까지 박히던 버그(현빈). 배경색(inline bgColor)이 있으면 그게, 없으면 섹션 배경이 비침. */
+.icon-circle-block.has-image .icb-circle { background-image: none; }
 .icb-placeholder {
   font-size: 28px;
   color: var(--ui-text-sub);
@@ -620,15 +642,22 @@
 }
 .tb-table thead th { font-weight: 600; font-size: var(--tbl-header-size, inherit); }
 
-/* 기본 스타일 */
+/* 기본 스타일 (first-col-bold 프리셋은 기본 룩 + 첫 칼럼만 볼드 — 기본 셀룰 그대로 재사용) */
 .table-block[data-style="default"] .tb-table th,
 .table-block[data-style="default"] .tb-table td,
+.table-block[data-style="first-col-bold"] .tb-table th,
+.table-block[data-style="first-col-bold"] .tb-table td,
 .table-block:not([data-style]) .tb-table th,
 .table-block:not([data-style]) .tb-table td {
   border: 1px solid var(--tbl-line-color, #ccc);
   padding: 10px 16px;
   text-align: center;
   vertical-align: middle;
+}
+/* first-col-bold: 첫 번째 세로 칼럼(맨 왼쪽 열) 본문 셀 텍스트만 볼드 (헤더行 아님)
+   디자인시스템 토큰 사용(--ui-fw-bold=700) — 헤더 600보다 강조해 라벨 칼럼 구분. */
+.table-block[data-style="first-col-bold"] .tb-table tbody tr > td:first-child {
+  font-weight: var(--ui-fw-bold, 700);
 }
 
 /* colored 스타일 — 셀 모든 border를 토글로 제어 */
@@ -665,6 +694,7 @@
   border-bottom: var(--tbl-outer-w, 1px) solid var(--tbl-line-color, #ccc) !important;
 }
 .table-block[data-style="default"] .tb-table thead th,
+.table-block[data-style="first-col-bold"] .tb-table thead th,
 .table-block:not([data-style]) .tb-table thead th {
   background: var(--tbl-header-bg, #f0f0f0);
   font-weight: 600;
@@ -785,9 +815,39 @@
 .divider-block:hover::after    { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 .divider-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 
+/* 브릿지(V 커버) 블록 — divider와 동일 정적 블록 패턴 (b3-2) */
+.bridge-block {
+  position: relative;
+  width: 100%;
+  cursor: pointer;
+  box-sizing: border-box;
+  outline: 2px solid transparent;
+}
+.bridge-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.bridge-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
+/* ═══════════════════════════════════
+   DUO / INFOCARD BLOCK — dataset 모델 콤포짓 (U4·U5)
+═══════════════════════════════════ */
+.duo-block,
+.infocard-block,
+.innercard-block {
+  position: relative;
+  width: 100%;
+  cursor: pointer;
+  box-sizing: border-box;
+  outline: 2px solid transparent;
+}
+.duo-block:hover::after,
+.infocard-block:hover::after,
+.innercard-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
+.duo-block.selected,
+.infocard-block.selected,
+.innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+
 /* ── 블록 선택 아웃라인 (hover outline 제거 — 배경만 사용) ── */
 .row:has(.text-block.selected),
-.frame-block[data-text-frame="true"]:has(.text-block:not(.speech-bubble-block).selected) {
+.frame-block[data-text-frame="true"]:has(.text-block.selected) {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
@@ -795,19 +855,27 @@
    .text-block.selected의 자체 outline은 transparent로 되돌려 한 겹만 보이게 한다.
    (text-block은 padding/border-box 변화로 부모와 미세 어긋남이 생겨 2겹으로 보였음) */
 .row:has(.text-block.selected) > .text-block.selected,
-.frame-block[data-text-frame="true"] > .text-block:not(.speech-bubble-block).selected {
+.frame-block[data-text-frame="true"] > .text-block.selected {
   outline: var(--sel-outline-w) solid transparent;
 }
-/* 버블 선택 시 frame-block outline: speech-bubble-block(z-index:2)이 outline을 덮으므로
-   ::after pseudo-element를 z-index:10으로 올려서 위에 그림 */
+/* 버블 선택 표시 = 풀폭 사각(표준 토큰) 유지하되, 부모 outline은 불투명 .tb-bubble 본체에 가려지므로
+   ::after 오버레이로 콘텐츠 위(z-index)에 그린다 (b3-1, 현빈 검증 후속). 버블 선택 시에만 스코프.
+   다른 블록은 위 표준 outline 그대로 — 콘텐츠 배경이 투명/작아서 안 가려짐. */
+.row:has(.speech-bubble-block.selected),
+.frame-block[data-text-frame="true"]:has(.speech-bubble-block.selected) {
+  outline: none !important;          /* 가려지는 부모 outline 제거(이중 방지) */
+  position: relative;                /* ::after inset 기준 */
+}
+.row:has(.speech-bubble-block.selected)::after,
 .frame-block[data-text-frame="true"]:has(.speech-bubble-block.selected)::after {
   content: '';
   position: absolute;
   inset: 0;
-  border: 1px solid var(--sel-color);
-  z-index: 10;
-  pointer-events: none;
+  border: var(--sel-outline-w) solid var(--sel-color);  /* 표준 두께·색 */
+  background: transparent;          /* 코덱스 b3-1: frame hover ::after(sel-color-fill)가 같은 슬롯이라 fill 비침 방지 */
   box-sizing: border-box;
+  pointer-events: none;             /* 콘텐츠 상호작용 방해 안 함 */
+  z-index: 10;                      /* .tb-bubble 본체 위에 항상 보이게 */
 }
 .label-group-block:hover:not(.selected)::after,
 .icon-circle-block:hover:not(.selected)::after,
@@ -839,6 +907,10 @@
 .table-block.selected,
 .graph-block.selected,
 .divider-block.selected,
+.bridge-block.selected,
+.duo-block.selected,
+.infocard-block.selected,
+.innercard-block.selected,
 .mockup-block.selected { z-index: 2; }
 .row.row-active,
 .col.col-active { z-index: 1; }
@@ -945,6 +1017,10 @@
 .frame-block:not(.selected) .label-group-block:hover,
 .frame-block:not(.selected) .graph-block:hover,
 .frame-block:not(.selected) .divider-block:hover,
+.frame-block:not(.selected) .bridge-block:hover,
+.frame-block:not(.selected) .duo-block:hover,
+.frame-block:not(.selected) .infocard-block:hover,
+.frame-block:not(.selected) .innercard-block:hover,
 .frame-block:not(.selected) .icon-text-block:hover,
 .frame-block:not(.selected) .shape-block:hover {
   outline: none !important;
@@ -954,6 +1030,10 @@
 .frame-block:not(.selected) .table-block:hover::after,
 .frame-block:not(.selected) .graph-block:hover::after,
 .frame-block:not(.selected) .divider-block:hover::after,
+.frame-block:not(.selected) .bridge-block:hover::after,
+.frame-block:not(.selected) .duo-block:hover::after,
+.frame-block:not(.selected) .infocard-block:hover::after,
+.frame-block:not(.selected) .innercard-block:hover::after,
 .frame-block:not(.selected) .label-group-block:hover::after,
 .frame-block:not(.selected) .shape-block:hover::after {
   display: none !important;
@@ -1517,10 +1597,10 @@ textarea.cvb-card-input {
   right: 2px;
   bottom: 10px;
 }
-/* 선택 상태 — frame-block ::after로 outline 표시 (z-index:10, bubble 위에 렌더) */
-.speech-bubble-block.selected {
-  outline: none !important;
-}
+/* 선택 상태 — 버블도 다른 블록과 동일한 표준 처리(풀폭 블록 사각 아웃라인).
+   부모 row/text-frame이 outline을 책임지고(상단 .row:has / .frame-block:has 패턴, 버블 제외 해제됨)
+   버블 본체 자체 outline은 transparent로 둠(상단 T6 패턴). 둥근 .tb-bubble 전용 outline(d04ebf2)은 제거.
+   현빈 결정(2026-06-27): 말풍선 양옆 빈공간까지 사각형이어도 다른 블록과 일관성 우선. */
 /* placeholder 상태에서 opacity:0.45가 tb-bubble 배경까지 투명하게 만들어 말꼬리 색과 불일치 발생.
    배경 opacity는 1로 유지하고, 텍스트 color만 dim 처리. */
 .speech-bubble-block .tb-bubble[data-is-placeholder="true"] {
@@ -2074,9 +2154,9 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   color: var(--tfx-color) !important;
   text-shadow:
     0 0 calc(2px * var(--tfx-intensity)) #fff,
-    0 0 calc(6px * var(--tfx-intensity)) var(--tfx-color),
-    0 0 calc(14px * var(--tfx-intensity)) var(--tfx-color),
-    0 0 calc(28px * var(--tfx-intensity)) var(--tfx-color),
+    0 0 calc(6px * var(--tfx-intensity)) var(--tfx-glow-color, var(--tfx-color)),
+    0 0 calc(14px * var(--tfx-intensity)) var(--tfx-glow-color, var(--tfx-color)),
+    0 0 calc(28px * var(--tfx-intensity)) var(--tfx-glow-color, var(--tfx-color)),
     calc(1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(0,255,255,0.6),
     calc(-1px * var(--tfx-intensity)) 0 calc(1px * var(--tfx-intensity)) rgba(255,0,128,0.6);
 }
@@ -2214,6 +2294,25 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
   cursor: text !important;
   outline: var(--sel-outline-w) dashed var(--ui-sel-overlay, #9966ff);
   outline-offset: var(--sel-outline-w);
+}
+
+/* ──────────────────────────────────────────────
+   섹션 밖 크롭 — 편집 캔버스에서도 잘림(현빈 확정).
+   --sec-clip 은 렌더/드래그 시 JS(_updateStickerSecClip)가 인라인으로 계산해 넣는
+   inset() 값. 선택 중인 스티커는 조작 가능하도록 해제, '섹션 밖 보이기' 섹션도 해제.
+   미리보기/Export 클론에도 인라인 변수가 그대로 복제되어 동일하게 잘림.
+────────────────────────────────────────────── */
+.sticker-block,
+.mockup-block {
+  clip-path: var(--sec-clip, none);
+}
+.sticker-block.selected,
+.mockup-block.selected {
+  clip-path: none;
+}
+.section-block[data-overflow-visible="true"] .sticker-block,
+.section-block[data-overflow-visible="true"] .mockup-block {
+  clip-path: none;
 }
 
 /* ──────────────────────────────────────────────

@@ -4,7 +4,7 @@
 /* ── 색상 조정 플로팅 패널 (이미지 편집 모드 전용) ── */
 #color-adjust-panel {
   position: fixed;
-  right: 252px; /* panel-right(240px) + 12px gap */
+  right: calc(var(--panel-right-inset, 240px) + 12px); /* panel-right 폭 + 12px gap (접히면 0 + 12) */
   bottom: 28px;
   width: 236px;
   z-index: 420;
@@ -55,9 +55,37 @@
   border-right: 1px solid var(--ui-bg-hover);
   display: flex; flex-direction: column; overflow: hidden;
 }
-#panel-right { border-right: none; border-left: 1px solid var(--ui-bg-hover); position: relative; z-index: 9999; }
+/* 우측 패널도 좌측과 같은 방식 — 폭은 고정한 채 margin-right 음수로 밀어낸다.
+   폭 조절 UI가 없으므로 --panel-right-w는 상수이고, --panel-right-inset은
+   우측 패널에 붙어 뜨는 부유패널들이 참조하는 "패널이 먹는 폭"(접히면 0). */
+body { --panel-right-w: 240px; --panel-right-inset: var(--panel-right-w); }
+body.right-panel-collapsed { --panel-right-inset: 0px; }
+#panel-right {
+  border-right: none; border-left: 1px solid var(--ui-bg-hover);
+  position: relative; z-index: 9999;
+  width: var(--panel-right-w, 240px);
+  margin-right: 0;
+}
+body.panel-anim-on #panel-right { transition: margin-right 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+body.right-panel-collapsed #panel-right {
+  margin-right: calc(-1 * var(--panel-right-w, 240px));
+  pointer-events: none;
+}
 
-#panel-left { position: relative; z-index: 9999; }
+/* 폭 단일 출처 = --panel-left-w (js/editor.js initPanelResize가 갱신/복원).
+   접기는 width가 아니라 margin-left 음수로 슬라이드 — 폭을 애니메이션하면 패널 내용이
+   매 프레임 리플로우되며 떨리므로, 폭은 고정한 채 밀어내고 #main의 overflow:hidden으로 잘라낸다. */
+#panel-left {
+  position: relative; z-index: 9999;
+  width: var(--panel-left-w, 240px);
+  margin-left: 0;
+}
+body.panel-anim-on #panel-left { transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+body.resizing-panel #panel-left { transition: none; }
+body.left-panel-collapsed #panel-left {
+  margin-left: calc(-1 * var(--panel-left-w, 240px));
+  pointer-events: none;
+}
 #panel-left-resize-handle {
   position: absolute; right: -3px; top: 0; bottom: 0; width: 6px;
   cursor: col-resize; z-index: 100;
@@ -67,7 +95,17 @@
   background: transparent; transition: background 0.15s;
 }
 #panel-left-resize-handle:hover::after { background: var(--ui-accent-primary); }
+body.left-panel-collapsed #panel-left-resize-handle { display: none; }
 body.resizing-panel { cursor: col-resize; user-select: none; }
+
+/* ── 패널 접기/펼치기 토글 (topbar 우측 끝) ──
+   접기와 펼치기를 같은 버튼·같은 자리에서 처리한다(캔버스 부유 핸들 없음).
+   아이콘은 사이드바 글리프 — .pg-fill(채움)이 있으면 그 쪽 패널이 열려 있다는 뜻. */
+.tb-panel-toggle { width: 28px; flex-shrink: 0; padding: 0; color: var(--ui-text-dim); }
+.tb-panel-toggle:hover { color: #fff; }
+.tb-panel-toggle .pg-fill { transition: opacity 0.15s; }
+body.left-panel-collapsed  #tb-toggle-left-panel  .pg-fill,
+body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
 
 #rp-top-row {
   display: flex; align-items: center; gap: 8px;
@@ -1570,7 +1608,7 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 ══════════════════════════════════════ */
 .ai-fill-panel {
   position: fixed;
-  top: 88px; right: 252px; /* panel-right(240) + 12 gap */
+  top: 88px; right: calc(var(--panel-right-inset, 240px) + 12px); /* panel-right 폭 + 12 gap (접히면 0 + 12) */
   width: 280px;
   max-height: calc(100vh - 120px);
   background: #1f1f1f;

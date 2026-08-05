@@ -38,13 +38,16 @@ function _selectAllContents(el) {
 function normalizeRow(r) {
   if (typeof r === 'string') return { type: 'text', text: r };
   if (r && typeof r === 'object') {
+    // content 별칭 수용 — planner 텍스트 어휘(content)로 쓴 행도 무손실 (2026-07-04 bench2)
+    if (r.text === undefined && r.content !== undefined) r = { ...r, text: r.content };
     const type = r.type === 'image' ? 'image' : 'text';
+    // ...r 보존: memo(이미지 발주채널) 등 확장 필드가 편집 blur 재직렬화에서 소실되지 않게
     if (type === 'image') {
-      return { type: 'image', text: r.text != null ? String(r.text) : '',
+      return { ...r, type: 'image', text: r.text != null ? String(r.text) : '',
                imgSrc: r.imgSrc != null ? String(r.imgSrc) : '',
                imgFit: r.imgFit === 'contain' ? 'contain' : 'cover' };
     }
-    return { type: 'text', text: r.text != null ? String(r.text) : '' };
+    return { ...r, type: 'text', text: r.text != null ? String(r.text) : '' };
   }
   return { type: 'text', text: '' };
 }
@@ -56,7 +59,9 @@ function _rowHeights(d) { try { const a = JSON.parse(d.rowHeights || 'null'); re
 // cols 배열 획득 (없으면 구버전 left/right dataset → 배열로 마이그레이션). rows는 객체로 정규화.
 function getComparisonCols(d) {
   const parsed = _colsParse(d.cols);
+  // ...c 보존: titleBg/titleColor(헤더 밴드 색) 등 확장 필드가 재직렬화에서 소실되지 않게
   if (parsed) return parsed.map(c => ({
+    ...c,
     title: c.title ?? '', bg: c.bg || '', text: c.text || '',
     rows: (Array.isArray(c.rows) ? c.rows : []).map(normalizeRow)
   }));
@@ -89,6 +94,13 @@ function renderComparison(block) {
   const baseTitleFont = parseInt(d.titleFont) || 26; // 제목 기본 폰트 (featured는 ×featScale)
   const baseRowFont   = parseInt(d.rowFont) || 18;   // 내용 기본 폰트 (featured는 ×featScale)
   const yPad = 24;                                   // 위/아래 그림자 여유
+  // 캡션 상단 배치 + 컬럼 스태거 (2026-07-04 제니 발주 — 원본들이 캡션을 카드 위에 얹고
+  // 좌우 카드 높이를 어긋나게 하는 패턴, bench S08/11/14/17 공통)
+  const captionPos = d.captionPos === 'top' ? 'top' : 'header'; // 'top' = 제목을 카드 밖 상단 캡션으로
+  const stagger    = Math.max(0, Math.min(400, parseInt(d.stagger) || 0)); // muted 칼럼 하향 오프셋 px
+  const capH   = captionPos === 'top' ? Math.round(baseTitleFont * 1.9) : 0; // 캡션 존 높이
+  const capGap = captionPos === 'top' ? 12 : 0;
+  const capZone = capH + capGap;
 
   // 칼럼 모델 (없으면 left/right에서 마이그레이션 → cols로 영속화)
   const cols = getComparisonCols(d);
@@ -105,26 +117,32 @@ function renderComparison(block) {
   const baseW = Math.round((contentW + overlap * (N - 1)) / ((N - 1) + featScale));
   const featW = Math.round(baseW * featScale);
 
-  // 행 인덱스 ri의 기본 높이(featScale 적용 전): rowHeights 오버라이드 있으면 그 값, 없으면 rowH.
-  const baseRowH = (ri) => {
+  // 이미지 행 기본 높이: rowHeights 오버라이드 없으면 제품컷 슬롯답게 카드폭 비례(~정방형).
+  // (구버전은 텍스트행 rowH=64로 폴백 → 이미지 슬롯이 얇은 띠로 수축하는 렌더 붕괴)
+  const imgRowDefault = () => Math.round(Math.max(120, baseW * 0.9));
+  // 행 인덱스 ri의 기본 높이(featScale 적용 전): rowHeights 오버라이드 > 이미지행 기본 > rowH.
+  const baseRowH = (ri, row) => {
     const o = rowHeights[ri];
     const n = (o == null) ? 0 : Number(o);
-    return (Number.isFinite(n) && n > 0) ? n : rowH;
+    if (Number.isFinite(n) && n > 0) return n;
+    if (row && row.type === 'image') return imgRowDefault();
+    return rowH;
   };
   // 각 칼럼 높이 (featured만 header/row/gap 확대). 각 카드 상하 padY 포함. 행별 높이 누적.
-  const colHeightOf = (rowsLen, isFeat) => {
-    const hH  = isFeat ? Math.round(headerH * featScale) : headerH;
+  // captionPos:'top'이면 헤더가 카드 밖으로 나가므로 카드 높이에서 제외.
+  const colHeightOf = (rows, isFeat) => {
+    const hH  = captionPos === 'top' ? 0 : (isFeat ? Math.round(headerH * featScale) : headerH);
     const gap = isFeat ? Math.round(rowGap * featScale) : rowGap;
     let acc = padY * 2 + hH;
-    for (let ri = 0; ri < rowsLen; ri++) {
-      const rH = isFeat ? Math.round(baseRowH(ri) * featScale) : baseRowH(ri);
+    for (let ri = 0; ri < rows.length; ri++) {
+      const rH = isFeat ? Math.round(baseRowH(ri, rows[ri]) * featScale) : baseRowH(ri, rows[ri]);
       acc += rH + gap;
     }
     return acc;
   };
-  const heights = cols.map((c, i) => colHeightOf(c.rows.length, i === featuredIdx));
+  const heights = cols.map((c, i) => colHeightOf(c.rows, i === featuredIdx));
   const totalH = Math.max(...heights, 1);
-  const designH = totalH + yPad * 2;
+  const designH = capZone + totalH + stagger + yPad * 2;
 
   block.style.position = 'relative';
   block.style.overflow = 'visible';
@@ -146,8 +164,9 @@ function renderComparison(block) {
     const tFont = isFeat ? Math.round(baseTitleFont * featScale) : baseTitleFont;
     const rFont = isFeat ? Math.round(baseRowFont * featScale) : baseRowFont;
     const rad   = isFeat ? Math.round(radius * featScale) : radius;
-    const h = colHeightOf(c.rows.length, isFeat);
-    const top = yPad + (totalH - h) / 2;             // 모든 칼럼을 공통 중심선에 정렬 → featured가 위·아래 overhang
+    const h = colHeightOf(c.rows, isFeat);
+    // 공통 중심선 정렬(featured overhang) + 캡션 존 + muted 스태거 하향
+    const top = yPad + capZone + (totalH - h) / 2 + (isFeat ? 0 : stagger);
     const bg = c.bg || (isFeat ? '#ffffff' : '#e9ebef');
     const textColor = c.text || (isFeat ? '#1a1a1a' : '#9aa0a8');
     col.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${w}px;` +
@@ -155,17 +174,42 @@ function renderComparison(block) {
       `z-index:${isFeat ? 2 : 1};overflow:hidden;` +
       (isFeat ? 'box-shadow:0 18px 50px rgba(0,0,0,0.22);' : '');
 
-    // 헤더
-    const hd = document.createElement('div');
-    hd.className = 'cmp-hd'; hd.dataset.colIdx = idx;
-    hd.textContent = c.title || '';
-    hd.style.cssText = `height:${hH}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
-      `font-size:${tFont}px;font-weight:${isFeat ? 800 : 700};color:${textColor};padding:0 16px;box-sizing:border-box;line-height:1.2;`;
-    _editableTitle(hd, block, idx);
-    col.appendChild(hd);
+    // featured 이웃에 겹쳐 가려지는 쪽 인셋: muted 칼럼의 헤더/텍스트가 overlap 존을 피하게 (R3)
+    const insetR = (!isFeat && idx === featuredIdx - 1) ? overlap : 0;
+    const insetL = (!isFeat && idx === featuredIdx + 1) ? overlap : 0;
+
+    // 헤더 — titleBg/titleColor(칼럼별 밴드 색) 지원. 미지정 시 기존 동작 유지.
+    const hdBg = (typeof c.titleBg === 'string' && c.titleBg) ? c.titleBg : '';
+    const hdColor = (typeof c.titleColor === 'string' && c.titleColor) ? c.titleColor : textColor;
+    if (captionPos === 'top') {
+      // 캡션 모드: 제목을 카드 밖 상단에 — titleBg 있으면 필(pill), 없으면 볼드 텍스트
+      const cap = document.createElement('div');
+      cap.className = 'cmp-caption'; cap.dataset.colIdx = idx;
+      cap.style.cssText = `position:absolute;left:${left}px;top:${top - capH - capGap}px;width:${w}px;` +
+        `display:flex;align-items:center;justify-content:center;text-align:center;height:${capH}px;` +
+        `z-index:${isFeat ? 2 : 1};box-sizing:border-box;`;
+      const capIn = document.createElement('div');
+      capIn.className = 'cmp-hd'; capIn.dataset.colIdx = idx;   // _editableTitle 규약 유지 (blur → cols[idx].title)
+      capIn.textContent = c.title || '';
+      capIn.style.cssText = `font-size:${tFont}px;font-weight:${isFeat ? 800 : 700};color:${hdColor};line-height:1.2;` +
+        `white-space:pre-wrap;word-break:keep-all;` +
+        (hdBg ? `background:${hdBg};padding:${Math.round(tFont * 0.35)}px ${Math.round(tFont * 0.9)}px;border-radius:999px;` : '');
+      _editableTitle(capIn, block, idx);
+      cap.appendChild(capIn);
+      inner.appendChild(cap);
+    } else {
+      const hd = document.createElement('div');
+      hd.className = 'cmp-hd'; hd.dataset.colIdx = idx;
+      hd.textContent = c.title || '';
+      hd.style.cssText = `height:${hH}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
+        `font-size:${tFont}px;font-weight:${isFeat ? 800 : 700};color:${hdColor};${hdBg ? `background:${hdBg};` : ''}` +
+        `padding:0 ${16 + insetR}px 0 ${16 + insetL}px;box-sizing:border-box;line-height:1.2;`;
+      _editableTitle(hd, block, idx);
+      col.appendChild(hd);
+    }
     // 행 (행 인덱스별 높이 + text/image 분기)
     c.rows.forEach((row, ri) => {
-      const effRowH = isFeat ? Math.round(baseRowH(ri) * featScale) : baseRowH(ri);
+      const effRowH = isFeat ? Math.round(baseRowH(ri, row) * featScale) : baseRowH(ri, row);
       const r = document.createElement('div');
       r.className = 'cmp-row'; r.dataset.colIdx = idx; r.dataset.rowIdx = ri;
       const isImg = row && row.type === 'image';
@@ -182,7 +226,8 @@ function renderComparison(block) {
       } else {
         r.textContent = (row && row.text != null) ? row.text : '';
         r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
-          `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};padding:0 12px;box-sizing:border-box;`;
+          `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};` +
+          `padding:0 ${12 + insetR}px 0 ${12 + insetL}px;box-sizing:border-box;`;
         _editableRow(r, block, idx, ri);
       }
       col.appendChild(r);
@@ -280,6 +325,8 @@ function makeComparisonBlock(data = {}) {
   block.dataset.headerH   = data.headerH ?? 72;
   block.dataset.rowH      = data.rowH ?? 64;
   block.dataset.rowGap    = data.rowGap ?? 8;
+  if (data.captionPos === 'top') block.dataset.captionPos = 'top';      // 캡션 카드 밖 상단 (2026-07-04)
+  if (Number(data.stagger) > 0) block.dataset.stagger = String(Math.min(400, Math.round(Number(data.stagger))));
   const defaultCols = [
     { title: data.leftTitle  ?? '일반 제품',        bg: data.leftBg  || '#e9ebef', text: data.leftText  || '#9aa0a8', rows: data.leftRows  || ['경쟁사 내용', '경쟁사 내용', '경쟁사 내용', '경쟁사 내용'] },
     { title: data.rightTitle ?? '브랜드 명·상품 명', bg: data.rightBg || '#ffffff', text: data.rightText || '#1a1a1a', rows: data.rightRows || ['강점 키워드 입력', '강점 키워드 입력', '강점 키워드 입력', '강점 키워드 입력'] },
@@ -405,6 +452,23 @@ function updateComparisonBlock(blockId, partial = {}) {
     }
     draft.featScale = String(n);
     applied.featScale = n;
+  }
+
+  // 캡션 상단 배치 + 컬럼 스태거 (2026-07-04)
+  if (partial.captionPos !== undefined && partial.captionPos !== null) {
+    if (!['header', 'top'].includes(partial.captionPos)) {
+      return { ok: false, code: 'INVALID', message: "captionPos must be 'header'|'top'" };
+    }
+    draft.captionPos = partial.captionPos;
+    applied.captionPos = partial.captionPos;
+  }
+  if (partial.stagger !== undefined && partial.stagger !== null) {
+    const n = Number(partial.stagger);
+    if (!Number.isFinite(n) || n < 0 || n > 400) {
+      return { ok: false, code: 'INVALID', message: 'stagger must be 0~400' };
+    }
+    draft.stagger = String(Math.round(n));
+    applied.stagger = Math.round(n);
   }
 
   // cols 전체 교체 (draft만 갱신, mutate X)

@@ -265,6 +265,55 @@ export function wireTextEditSection({ ctx, currentColorAlpha }) {
   colorAlpha.addEventListener('blur', () => { colorAlpha.value = String(_txtAlpha); });
   colorAlpha.addEventListener('change', () => { window.pushHistory?.(); });
 
+  /* ── 취소선 토글 ──
+   * 부분 선택 시: Cmd+B/I 와 동일한 execCommand 계열('strikeThrough')을 selection 복원 후 실행
+   * 무선택 시: 블록(contentEl) 전체 토글 — 인라인 textDecorationLine 기준, 내부 부분 적용 잔재는 정리 */
+  const strikeBtn = document.getElementById('txt-strike-btn');
+  if (strikeBtn) {
+    let _savedStrikeSel = null;
+    const saveStrikeSel = () => {
+      _savedStrikeSel = hasSel() ? _lastSelRange.cloneRange() : null;
+    };
+    strikeBtn.addEventListener('mousedown', saveStrikeSel);
+    strikeBtn.addEventListener('pointerdown', saveStrikeSel);
+    strikeBtn.addEventListener('click', () => {
+      if (_savedStrikeSel) {
+        // 부분 선택: 선택 영역만 취소선 토글 (execCommand가 <strike>/<s> 토글 처리)
+        applyExecCmd(_savedStrikeSel, 'strikeThrough');
+        _savedStrikeSel = null;
+        window.pushHistory?.();
+        return;
+      }
+      const el = ctx.contentEl;
+      if (!el) return;
+      const nowOn = !(el.style.textDecorationLine || el.style.textDecoration || '').includes('line-through');
+      if (nowOn) {
+        // 부분 적용 잔재 정리 (applyColorToSel 무선택 분기와 동일 패턴) — 블록 스타일이 단일 소스가 되도록
+        el.querySelectorAll('strike, s').forEach(n => {
+          const parent = n.parentNode;
+          while (n.firstChild) parent.insertBefore(n.firstChild, n);
+          parent.removeChild(n);
+        });
+        el.querySelectorAll('span[style*="line-through"]').forEach(s => {
+          s.style.textDecorationLine = '';
+          if ((s.style.textDecoration || '').includes('line-through')) s.style.textDecoration = '';
+          const styleStr = s.getAttribute('style') || '';
+          if (!styleStr.replace(/;|\s/g, '')) {
+            const parent = s.parentNode;
+            while (s.firstChild) parent.insertBefore(s.firstChild, s);
+            parent.removeChild(s);
+          }
+        });
+        el.style.textDecorationLine = 'line-through';
+      } else {
+        el.style.textDecorationLine = '';
+        if ((el.style.textDecoration || '').includes('line-through')) el.style.textDecoration = '';
+      }
+      strikeBtn.classList.toggle('active', nowOn);
+      window.pushHistory?.();
+    });
+  }
+
   /* ── 컬러 변수 칩 (L3 동적 바인딩) ──
    * 정의된 컬러 변수를 칩으로 노출하고, 클릭 시 글자색을 var(--color-<name>, #hex)로 바인딩한다.
    * 정적 hex 복사가 아니므로 변수 값이 바뀌면 자동 반영(L3 핵심).

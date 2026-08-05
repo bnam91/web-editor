@@ -93,8 +93,29 @@ export function showGraphProperties(block) {
         <button class="prop-type-btn ${chartType === 'bar-v' ? 'active' : ''}" id="grb-type-v">세로 막대</button>
         <button class="prop-type-btn ${chartType === 'bar-h' ? 'active' : ''}" id="grb-type-h">가로 막대</button>
         <button class="prop-type-btn ${chartType === 'line' ? 'active' : ''}" id="grb-type-line">꺾은선</button>
+        <button class="prop-type-btn ${chartType === 'bar-pair' ? 'active' : ''}" id="grb-type-pair">비교 막대</button>
       </div>
     </div>
+    ${chartType === 'bar-pair' ? `
+    <div class="prop-section">
+      <div class="prop-section-title">Pair Settings</div>
+      <div class="prop-row">
+        <span class="prop-label">시리즈 A</span>
+        <input type="text" class="prop-input" id="grb-series-a" value="${(block.dataset.seriesA || '').replace(/"/g, '&quot;')}" placeholder="예: 우리" style="flex:1;min-width:0">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">색상 A</span>
+        ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">시리즈 B</span>
+        <input type="text" class="prop-input" id="grb-series-b" value="${(block.dataset.seriesB || '').replace(/"/g, '&quot;')}" placeholder="예: A사" style="flex:1;min-width:0">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">색상 B</span>
+        ${colorFieldHTML({ idPrefix: 'grb-bar2', hex: block.dataset.barColor2 || '#c9c9c9', alpha: parseAlphaFromColor(block.dataset.barColor2 || '#c9c9c9') })}
+      </div>
+    </div>` : ''}
     ${chartType === 'line' ? `
     <div class="prop-section">
       <div class="prop-section-title">Line Settings</div>
@@ -116,6 +137,13 @@ export function showGraphProperties(block) {
       <div class="prop-row">
         <span class="prop-label">선 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
+      </div>
+      <div class="prop-row" title="Catmull-Rom 곡선 보간 — 온도 곡선 등 부드러운 추세선">
+        <span class="prop-label">곡선(스무드)</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-smooth-toggle" ${block.dataset.lineSmooth === '1' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>
       <div class="prop-row">
         <span class="prop-label">면 채우기</span>
@@ -178,6 +206,7 @@ export function showGraphProperties(block) {
           <div class="grb-data-item" data-index="${i}">
             <input type="text" class="grb-data-label-input" value="${item.label}" placeholder="라벨">
             <input type="number" class="grb-data-val-input" value="${item.value}" min="0" max="9999">
+            ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${item.value2 ?? 0}" min="0" max="9999" title="시리즈 B 값">` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
           </div>`).join('')}
       </div>
@@ -202,6 +231,36 @@ export function showGraphProperties(block) {
     window.renderGraph(block);
     showGraphProperties(block);
   });
+  document.getElementById('grb-type-pair').addEventListener('click', () => {
+    block.dataset.chartType = 'bar-pair';
+    window.renderGraph(block);
+    showGraphProperties(block);
+  });
+
+  // bar-pair: 시리즈명 + 색상 B
+  const seriesA = document.getElementById('grb-series-a');
+  const seriesB = document.getElementById('grb-series-b');
+  if (seriesA) seriesA.addEventListener('input', () => { block.dataset.seriesA = seriesA.value; window.renderGraph(block); });
+  if (seriesA) seriesA.addEventListener('change', () => window.pushHistory());
+  if (seriesB) seriesB.addEventListener('input', () => { block.dataset.seriesB = seriesB.value; window.renderGraph(block); });
+  if (seriesB) seriesB.addEventListener('change', () => window.pushHistory());
+  if (document.getElementById('grb-bar2-color')) {
+    wireColorField('grb-bar2', {
+      initialAlpha: parseAlphaFromColor(block.dataset.barColor2 || '#c9c9c9'),
+      onApply: (c) => { block.dataset.barColor2 = c; window.renderGraph(block); },
+      onCommit: () => window.pushHistory(),
+    });
+  }
+
+  // line: 곡선(스무드) 토글
+  const smoothToggle = document.getElementById('grb-smooth-toggle');
+  if (smoothToggle) {
+    smoothToggle.addEventListener('change', () => {
+      block.dataset.lineSmooth = smoothToggle.checked ? '1' : '0';
+      window.renderGraph(block);
+      window.pushHistory();
+    });
+  }
 
   // 프리셋
   presets.forEach(p => {
@@ -216,10 +275,18 @@ export function showGraphProperties(block) {
   function syncItems() {
     const list = document.getElementById('grb-data-list');
     if (!list) return;
-    const newItems = [...list.querySelectorAll('.grb-data-item')].map(row => ({
-      label: row.querySelector('.grb-data-label-input').value || '',
-      value: parseFloat(row.querySelector('.grb-data-val-input').value) || 0,
-    }));
+    const prevItems = JSON.parse(block.dataset.items || '[]');
+    const newItems = [...list.querySelectorAll('.grb-data-item')].map((row, i) => {
+      const it = {
+        label: row.querySelector('.grb-data-label-input').value || '',
+        value: parseFloat(row.querySelector('.grb-data-val-input').value) || 0,
+      };
+      // bar-pair 2번째 시리즈 — 입력이 없으면(타 차트 타입) 기존 value2 보존해 데이터 유실 방지
+      const v2El = row.querySelector('.grb-data-val2-input');
+      if (v2El) it.value2 = parseFloat(v2El.value) || 0;
+      else if (prevItems[i] && prevItems[i].value2 !== undefined) it.value2 = prevItems[i].value2;
+      return it;
+    });
     block.dataset.items = JSON.stringify(newItems);
     window.renderGraph(block);
   }

@@ -71,11 +71,15 @@
             <button class="settings-tab active" data-tab="api">API 토큰</button>
             <button class="settings-tab" data-tab="shortcuts">단축키</button>
             <button class="settings-tab" data-tab="easter">이스터에그</button>
+            <button class="settings-tab" data-tab="perf">성능</button>
+            <button class="settings-tab" data-tab="market">마켓</button>
           </div>
           <div class="settings-content">
             <div class="settings-pane settings-pane-api" data-pane="api"></div>
             <div class="settings-pane settings-pane-shortcuts" data-pane="shortcuts" style="display:none"></div>
             <div class="settings-pane settings-pane-easter" data-pane="easter" style="display:none"></div>
+            <div class="settings-pane settings-pane-perf" data-pane="perf" style="display:none"></div>
+            <div class="settings-pane settings-pane-market" data-pane="market" style="display:none"></div>
           </div>
         </div>
         <div class="settings-modal-footer">
@@ -104,6 +108,11 @@
         modal.querySelectorAll('.settings-pane').forEach(p => {
           p.style.display = (p.dataset.pane === tab) ? 'block' : 'none';
         });
+        // 마켓 탭은 진입 시 렌더(목록 fetch는 비용 있어 지연 로드)
+        if (tab === 'market' && typeof window.renderMarketPane === 'function') {
+          const mp = modal.querySelector('.settings-pane-market');
+          if (mp) window.renderMarketPane(mp);
+        }
       });
     });
 
@@ -249,6 +258,58 @@
     });
   }
 
+  // [b8-2] 성능 탭 — 이미지 외부화(최적화) 실행 버튼. optimizeProjectImages()는 현재 열린 프로젝트의
+  //   캔버스 인라인 base64를 외부 goya-asset 파일로 분리·저장·재로드 검증한다(백업은 projects:save가 자동).
+  //   공용 클래스 재사용(settings-section-title/help/btn-primary/api-status) → 새 CSS 없음.
+  function renderPerfPane() {
+    const pane = document.querySelector('.settings-pane-perf');
+    if (!pane) return;
+    pane.innerHTML = `
+      <div class="settings-section-title">이미지 최적화 (외부화)</div>
+      <div class="settings-help">현재 열린 프로젝트의 캔버스에 인라인된 base64 이미지를 외부 파일(goya-asset)로 분리합니다. 프로젝트 용량이 크게 줄어 다음 로딩이 빨라집니다. 변환 직전 자동 백업되지만(proj_backup) 되돌리려면 백업 복원이 필요하니 신중히 실행하세요. (열려 있는 프로젝트에만 적용)</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
+        <button class="settings-btn settings-btn-primary" id="settings-optimize-btn">이미지 최적화 실행</button>
+        <span class="settings-api-status" id="settings-optimize-status"></span>
+      </div>
+    `;
+    const btn = pane.querySelector('#settings-optimize-btn');
+    const status = pane.querySelector('#settings-optimize-status');
+    const setStatus = (msg, cls) => { status.textContent = msg; status.className = 'settings-api-status' + (cls ? ' ' + cls : ''); };
+    btn.addEventListener('click', async () => {
+      if (typeof window.optimizeProjectImages !== 'function') { setStatus('✗ 최적화 기능 미가용', 'err'); return; }
+      if (!window.activeProjectId) { setStatus('✗ 열린 프로젝트가 없습니다', 'err'); return; }
+      // 전역 in-flight 가드 — 모달을 닫았다 다시 열어 버튼이 새로 생겨도 동시 실행 차단(코덱스 b8 Q4)
+      if (window.__optimizeImagesInFlight) { setStatus('이미 최적화가 진행 중입니다…', 'pending'); return; }
+      if (!confirm('현재 프로젝트의 인라인 이미지를 외부 파일로 변환합니다.\n변환 직전 자동 백업되지만 되돌리기 어려우니 진행할까요?')) return;
+      window.__optimizeImagesInFlight = true;
+      btn.disabled = true;
+      setStatus('최적화 중… (이미지 변환·저장·검증, 큰 프로젝트는 수초~수십초 걸릴 수 있습니다)', 'pending');
+      try {
+        const r = await window.optimizeProjectImages();
+        const mb = (n) => (Number(n || 0) / 1024 / 1024).toFixed(1);
+        if (r && r.ok && r.base64After === 0) {
+          // 디스크가 실제로 완전히 외부화됨 → 새로고침으로 메모리·베이스라인을 goya-asset 상태로 맞춘다.
+          // (optimize는 디스크만 바꾸고 에디터 DOM엔 base64가 남아, 새로고침 안 하면 다음 자동저장이
+          //  base64를 다시 써서 외부화를 되돌린다 — 실측 확인. optimize가 직전에 저장을 마쳐 유실 없음.)
+          setStatus(`✓ 완료: ${mb(r.before)}MB → ${mb(r.after)}MB · 인라인 이미지 ${r.base64Before ?? '?'}→0개 — 적용을 위해 새로고침합니다…`, 'ok');
+          setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 1400);
+          return; // 새로고침 예정 — 가드/버튼은 리로드로 초기화
+        } else if (r && r.ok && r.base64After > 0) {
+          // 저장이 큐잉돼(saveProjectToFile in-flight) 외부화가 아직 디스크에 반영 안 됨 → 새로고침하면
+          // base64를 다시 로드해 무의미. 재시도 안내(코덱스 b8 Q4: queued-save 조기 검증).
+          setStatus(`⚠️ 외부화 미완료(저장 충돌 가능, 인라인 ${r.base64After}개 잔존). 잠시 후 다시 시도하세요.`, 'err');
+        } else {
+          setStatus('✗ ' + ((r && r.error) || '실패'), 'err');
+        }
+      } catch (e) {
+        setStatus('✗ ' + (e && e.message), 'err');
+      } finally {
+        window.__optimizeImagesInFlight = false;
+        btn.disabled = false;
+      }
+    });
+  }
+
   function refreshShortcutBadges() {
     const pane = document.querySelector('.settings-pane-shortcuts');
     if (!pane) return;
@@ -370,6 +431,7 @@
     renderApiPane();
     renderShortcutsPane();
     renderEasterPane();
+    renderPerfPane();
     show(modal);
     document.addEventListener('keydown', onCaptureKeydown, true);
   };

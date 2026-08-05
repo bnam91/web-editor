@@ -142,11 +142,19 @@ function flattenCvbTransform(cvbEl) {
   const s = parseFloat(match[1]);
   if (!s || s === 1) return;
 
-  // 순수 px 단위 값만 스케일 (%, 단위없는 값, 복합 shorthand 제외)
+  // 순수 px 단위 값만 스케일 (%, 단위없는 값 제외)
   // 예: "48px" → 스케일, "1.3"(line-height) → 건드리지 않음, "100%" → 건드리지 않음
+  // ★ border-radius 다중값 shorthand("0 0 24px 24px" 등)는 단일-px 정규식에 안 걸려
+  //   그대로 남던 버그 → 셀 radius(단일값)만 스케일되고 라벨 radius는 원본 유지되어
+  //   코너에서 라벨 라운드(R) > 셀 라운드(R·s) 미스매치 → 흰 배경 arc 노출(현빈 카드4).
+  //   borderRadius는 모든 px 토큰을 스케일해 셀·라벨 라운드를 일치시킨다.
   const scalePx = (style, props) => props.forEach(p => {
-    if (!style[p] || !/^[\d.]+px$/.test(style[p].trim())) return;
-    style[p] = (parseFloat(style[p]) * s) + 'px';
+    const v = style[p] && style[p].trim();
+    if (!v) return;
+    if (/^[\d.]+px$/.test(v)) { style[p] = (parseFloat(v) * s) + 'px'; return; }
+    if (p === 'borderRadius' && /[\d.]+px/.test(v)) {
+      style[p] = v.replace(/([\d.]+)px/g, (_m, n) => (parseFloat(n) * s) + 'px');
+    }
   });
 
   Array.from(inner.children).forEach(cell => {
@@ -167,7 +175,12 @@ function flattenCvbTransform(cvbEl) {
   cvbEl.style.height    = inner.style.height;
 }
 
-async function exportSection(sec, format, width) {
+async function exportSection(sec, format, width, opts) {
+  // 이미지 외부화(goya-asset://) 이후: lazy 언로드된 섹션이 빈(blank) 상태로 캡처되지
+  // 않도록 export 렌더 전에 모든 섹션 이미지를 라이브 DOM에 복원한다.
+  // (lazy-sections.js가 아직 없을 수도 있으므로 방어적으로 호출)
+  if (window.materializeAllSections) window.materializeAllSections();
+
   const fmt = format || 'png';
   const w   = width  || CANVAS_W;
   const isGif     = fmt === 'gif' || fmt === 'gif-anim';
@@ -195,14 +208,14 @@ async function exportSection(sec, format, width) {
   clone.classList.remove('selected');
   // 자식 블록의 UI 상태 클래스 전부 제거 (outline, dashed border, opacity 등 내보내기 오염 방지)
   clone.querySelectorAll(
-    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over'
+    '.selected, .img-editing, .editing, .dragging, .group-selected, .group-editing, .ss-drag-over, .drag-over, .item-selected'
   ).forEach(el => {
     el.classList.remove('selected', 'img-editing', 'editing', 'dragging',
-      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over');
+      'group-selected', 'group-editing', 'ss-drag-over', 'drag-over', 'item-selected');
   });
   // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
   // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
-  const useNative = !!window.electronAPI?.captureSection;
+  const useNative = !(opts && opts.forceH2C) && !!window.electronAPI?.captureSection;
   clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
 
   // P1 우회 부수 안정성: clone 자체를 stacking context로 격리 + 부모 transform 영향 차단
@@ -309,11 +322,24 @@ async function exportSection(sec, format, width) {
         imgObj.src = match[1];
         await new Promise(res => { imgObj.onload = imgObj.onerror = res; });
 
-        // background-size:cover 수동 계산
-        const scale = Math.max(divW / imgObj.naturalWidth, divH / imgObj.naturalHeight);
-        const sw = imgObj.naturalWidth  * scale;
-        const sh = imgObj.naturalHeight * scale;
-        // background-position을 % → px offset으로 변환
+        // background-size를 실제 div 스타일에서 읽어 재현 — 기존엔 항상 cover로 계산해
+        // 카드 이미지 확대(imgScale, background-size:NNN%)를 무시 → export 크롭이 캔버스와 어긋났음.
+        //   'NNN%'  → 가로 = divW×NNN%, 세로 auto(이미지 비율) : _cvbBackgroundSize(imgScale>100) 재현
+        //   'contain' → min-fit, 'cover'(기본) → max-fit
+        const _bgSize = (div.style.backgroundSize || 'cover').trim();
+        const _pctM = _bgSize.match(/^([\d.]+)%$/);
+        let sw, sh;
+        if (_pctM) {
+          sw = divW * (parseFloat(_pctM[1]) / 100);
+          sh = sw * (imgObj.naturalHeight / imgObj.naturalWidth);
+        } else if (_bgSize === 'contain') {
+          const s = Math.min(divW / imgObj.naturalWidth, divH / imgObj.naturalHeight);
+          sw = imgObj.naturalWidth * s; sh = imgObj.naturalHeight * s;
+        } else {
+          const s = Math.max(divW / imgObj.naturalWidth, divH / imgObj.naturalHeight);
+          sw = imgObj.naturalWidth * s; sh = imgObj.naturalHeight * s;
+        }
+        // background-position을 % → px offset으로 변환 (음수 오버플로우: 위치%가 오버영역 분배)
         const px = parseFloat(div.style.backgroundPositionX) || 50;
         const py = parseFloat(div.style.backgroundPositionY) || 50;
         const ox = -((sw - divW) * px / 100);
@@ -404,8 +430,15 @@ async function exportSection(sec, format, width) {
     }
   }
 
-  const secBg   = sec.style.background || sec.style.backgroundColor || '';
-  const bgColor = (secBg && secBg !== 'transparent') ? secBg : (state.pageSettings.bg || '#ffffff');
+  // 섹션 배경: 라이브 getComputedStyle 우선. 흰색이 inline style이 아니라
+  // `.section-block { background:#fff }` 클래스에서 오는 섹션은, inline bg가 없다고
+  // pageSettings.bg(#acacac 회색)로 폴백하면 흰 섹션이 회색으로 export되는 버그가 있었음.
+  // (Figma builder 65faf33과 동일 원리.) → 라이브 computed bg가 불투명이면 그 색을 쓰고,
+  // 진짜 투명(alpha=0)일 때만 pageSettings.bg 폴백.
+  const _liveBg  = getComputedStyle(sec).backgroundColor || '';
+  const _bgm     = _liveBg.match(/^rgba?\(([^)]+)\)/);
+  const _bgAlpha = _bgm ? (_bgm[1].split(',').map(s => parseFloat(s))[3] ?? 1) : 1;
+  const bgColor  = (_bgm && _bgAlpha !== 0) ? _liveBg : (state.pageSettings.bg || '#ffffff');
 
   const secList = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
   const idx     = secList.indexOf(sec) + 1;
@@ -420,12 +453,18 @@ async function exportSection(sec, format, width) {
   // → CDP Page.captureScreenshot + captureBeyondViewport:true 한 번 호출로 교체.
   const captureCloneToCanvas = async () => {
     if (useNative) {
-      clone.style.background = clone.style.background || bgColor;
+      // ⚠️ 'background' 단축속성으로 폴백색을 넣으면 안 됨: data-URL 이미지배경은
+      // background shorthand getter가 ''를 반환해서 `clone.style.background || bgColor`가
+      // 색을 단축속성으로 세팅 → backgroundImage(섹션 텍스처)가 initial로 리셋되어 증발함.
+      // (다크 텍스처 섹션이 흰색으로 export되던 결함.) → 인라인 배경(이미지/색)이 전혀 없을
+      // 때만 longhand backgroundColor로 폴백해서 텍스처/색을 보존한다.
+      if (!clone.style.backgroundImage && !clone.style.backgroundColor) {
+        clone.style.backgroundColor = bgColor;
+      }
       await document.fonts.ready;
       clone.getBoundingClientRect();
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       const secH = clone.offsetHeight;
-      const dpr  = window.devicePixelRatio || 2;
       let pngBase64;
       if (window.electronAPI.captureSectionCdp) {
         // clone은 top:-99999px(off-screen)에 위치 — clip.y를 그 좌표로 전달해 캡쳐
@@ -440,13 +479,19 @@ async function exportSection(sec, format, width) {
         // 구버전 Electron(메인 프로세스 미업데이트) 호환을 위한 명시적 실패
         throw new Error('captureSectionCdp 미지원 — Electron 재빌드 필요');
       }
+      // 게이트④/A6(현빈 확정 spec): PNG/JPG export = CSS픽셀 ★1배 고정.
+      // CDP 캡처(captureSectionCdp)는 surface device-pixel-ratio배(레티나=2x) 물리픽셀로
+      // 돌아온다(섹션 CSS 860px → 캡처 1720px). 기존엔 outCanvas도 w*dpr로 둬서 2배 PNG가
+      // 나왔고, dpr=1 머신에선 1배라 머신 간 산출물이 비결정적이었음.
+      // → 출력 캔버스를 CSS px(w×secH)로 고정하고 drawImage 시 다운스케일 → dpr 무관 결정적 1배.
       const outCanvas = document.createElement('canvas');
-      outCanvas.width  = Math.round(w    * dpr);
-      outCanvas.height = Math.round(secH * dpr);
+      outCanvas.width  = Math.round(w);
+      outCanvas.height = Math.round(secH);
       const ctx = outCanvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
       await new Promise((res, rej) => {
         const ci = new Image();
-        ci.onload  = () => { ctx.drawImage(ci, 0, 0); res(); };
+        ci.onload  = () => { ctx.drawImage(ci, 0, 0, outCanvas.width, outCanvas.height); res(); };
         ci.onerror = rej;
         ci.src = 'data:image/png;base64,' + pngBase64;
       });
@@ -478,6 +523,10 @@ async function exportSection(sec, format, width) {
     if (!isGif) {
       // ── 기존 PNG/JPG 경로 ────────────────────────────────────────
       const outCanvas = await captureCloneToCanvas();
+      // 채점용: 다운로드 대신 dataURL 반환 (goditor ground-truth 캡처)
+      if (opts && opts.returnDataUrl) {
+        return outCanvas.toDataURL('image/png'); // clone 정리는 함수 끝 finally가 수행
+      }
       const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
       const ext  = fmt === 'jpg' ? 'jpg' : 'png';
       await new Promise((res, rej) => {
@@ -598,6 +647,10 @@ async function exportSection(sec, format, width) {
 }
 
 async function exportAllSections(format, width, onProgress) {
+  // 전체 export 시작 전 lazy 언로드 섹션 전부 복원 (개별 exportSection도 호출하지만,
+  // 섹션 목록 산정/순회 전에 한 번 더 보장)
+  if (window.materializeAllSections) window.materializeAllSections();
+
   const sections = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
   const failed = [];
   for (let i = 0; i < sections.length; i++) {

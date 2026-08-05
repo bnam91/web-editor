@@ -716,23 +716,25 @@
 .font-item-pin:hover { background: var(--ui-bg-input); }
 
 /* ── Multi-Select Panel (freeLayout) ── */
+/* 복수선택 정렬 버튼 — 공통 .prop-btn 톤과 일관 (24px / border-strong / #ccc, hover bg-hover #fff) */
 .msp-align-btn {
   display: flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; flex-shrink: 0;
+  width: 24px; height: 24px; flex-shrink: 0;
   background: var(--ui-bg-input);
-  border: 1px solid var(--ui-border-mid);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 4px;
-  color: var(--ui-text-sub);
+  color: #ccc;
+  font-size: var(--ui-fs-13); line-height: 1;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .msp-align-btn:hover {
   background: var(--ui-bg-hover);
-  border-color: var(--ui-accent-primary);
-  color: var(--ui-accent-primary);
+  color: #fff;
 }
 .msp-align-btn:active {
   background: rgba(45,111,232,0.15);
+  border-color: var(--ui-accent-primary);
 }
 
 /* ── 공용 텍스트 영역 (멀티라인 입력) ────────────────────────────── */

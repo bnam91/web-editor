@@ -165,7 +165,7 @@ async function showSectionProperties(sec) {
           <span class="prop-block-name">${sec._name || sec.dataset.name || 'Section'}</span>
           <span class="prop-breadcrumb">${getBlockBreadcrumb(sec)}</span>
         </div>
-        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="_copyToClipboard('${sec.id}')">${sec.id}</span>` : ''}
+        ${sec.id ? `<span class="prop-block-id" title="클릭하여 복사" onclick="window._copyToClipboard?.('${sec.id}')">${sec.id}</span>` : ''}
       </div>
       <div class="prop-row">
         <span class="prop-label">Preset</span>
@@ -226,6 +226,13 @@ async function showSectionProperties(sec) {
         <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
         <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
       </div>
+      <div class="prop-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
+          <input type="checkbox" id="sec-overflow-visible" ${sec.dataset.overflowVisible === 'true' ? 'checked' : ''}>
+          섹션 밖 보이기 (미리보기)
+        </label>
+      </div>
+      <div class="prop-hint" style="font-size:11px;color:#888;">기본은 섹션 경계 밖이 잘립니다. 켜면 미리보기에서 경계 밖 요소도 보입니다. (내보내기 PNG는 항상 섹션 크기로 잘림)</div>
     </div>
     <!-- Memo: section-toolbar의 📝 버튼으로 popover 표시 (prop 패널 X) -->
     <div class="prop-section">
@@ -321,6 +328,13 @@ async function showSectionProperties(sec) {
     padBSlider.addEventListener('change', () => pushHistory());
     padBNumber.addEventListener('change', e => { applyPadB(parseInt(e.target.value)); pushHistory(); });
   }
+
+  // 섹션 밖 보이기 토글 — 미리보기 크롭(기본)을 이 섹션만 해제. 에디터 표시는 항상 보임이라 rerender 불필요.
+  document.getElementById('sec-overflow-visible')?.addEventListener('change', e => {
+    if (e.target.checked) sec.dataset.overflowVisible = 'true';
+    else delete sec.dataset.overflowVisible;
+    pushHistory();
+  });
 
   // 배경색 이벤트
   const picker = document.getElementById('sec-bg-color');

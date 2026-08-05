@@ -22,13 +22,30 @@ const STICKER_DEFAULTS = {
   y: 40,
 };
 
+const _CTL_CHARS_RE = /[\u0000-\u0008\u000B-\u001F\u007F]/g;
+// 제어문자 정화 — \b(U+0008) 등 보이지 않는 제어문자가 렌더에 잔존하면
+// contenteditable 캐럿 오프셋을 어지럽힘 (실데이터 stk_p4wfa0 선두 \b 사례).
+// \t(U+0009)·\n(U+000A)은 보존 (텍스트 스티커 Enter 줄바꿈 기능 유지). 렌더는 비파괴(dataset 불변),
+// dataset 자체는 편집 커밋(sticker-select.js finish) 시 자연 치유됨.
+function _stripCtlChars(s) {
+  return String(s).replace(_CTL_CHARS_RE, '');
+}
+
 function renderStickerBlock(block) {
+  _renderStickerBlockInner(block);
+  // 섹션 밖 크롭(--sec-clip) 재계산 — 렌더 branch들의 cssText 대입이 인라인 스타일을 통째로
+  // 덮어써 기존 변수가 지워지므로 매 렌더 후 필수. shape별 early return과 무관하게 wrapper에서
+  // 일괄 처리, auto 폭(max-content) 측정 위해 layout 확정 후(rAF).
+  requestAnimationFrame(() => _updateStickerSecClip(block));
+}
+
+function _renderStickerBlockInner(block) {
   const shape      = block.dataset.shape      || STICKER_DEFAULTS.shape;
   const size       = parseInt(block.dataset.size)       || STICKER_DEFAULTS.size;
   // 모서리 핸들 리사이즈 시 W/H 독립 (sizeW/sizeH 우선, 없으면 size로 정사각)
   const sizeW      = parseInt(block.dataset.sizeW) || size;
   const sizeH      = parseInt(block.dataset.sizeH) || size;
-  const text       = block.dataset.text ?? STICKER_DEFAULTS.text;
+  const text       = _stripCtlChars(block.dataset.text ?? STICKER_DEFAULTS.text);
   const bgColor    = block.dataset.bgColor    || STICKER_DEFAULTS.bgColor;
   const textColor  = block.dataset.textColor  || STICKER_DEFAULTS.textColor;
   const fontSize   = parseInt(block.dataset.fontSize)   || STICKER_DEFAULTS.fontSize;
@@ -54,6 +71,16 @@ function renderStickerBlock(block) {
   }
 
   if (shape === 'text') {
+    // [스트로크 v2 마이그레이션] 구버전(1배 렌더 시절)에 저장된 블록은 strokeV 마커가 없다.
+    // 2배 렌더 정합화로 보이는 두께가 2배가 되는 것을 막기 위해 1회만 절반으로 환산해
+    // 기존 저장 프로젝트의 '보이는 두께'를 그대로 유지한다. 신규 블록은
+    // makeStickerBlock/updateStickerBlock(shape→text)에서 strokeV='2' 마킹되어 스킵.
+    // dataset은 직렬화로 영속 → 재로드 시 이중 환산 없음.
+    if (block.dataset.strokeV !== '2') {
+      const _legacyW = parseFloat(block.dataset.strokeWidth);
+      if (Number.isFinite(_legacyW) && _legacyW > 0) block.dataset.strokeWidth = String(_legacyW / 2);
+      block.dataset.strokeV = '2';
+    }
     // 텍스트 스티커 — 캔버스에 자유 배치하는 텍스트 (auto-size, 풀 옵션)
     const tFontFamily    = block.dataset.fontFamily    || "'Pretendard', sans-serif";
     const tFontSize      = parseInt(block.dataset.fontSize) || 32;
@@ -71,6 +98,10 @@ function renderStickerBlock(block) {
     const tBgColor       = block.dataset.bgColor       || 'transparent';
     const tRotation      = parseFloat(block.dataset.rotation) || 0;
     const tText          = block.dataset.text ?? 'Text';
+    // 폰트 스타일 (이탤릭) / 장식 (밑줄·취소선 — 공백 조합 허용)
+    const tFontStyle = block.dataset.fontStyle === 'italic' ? 'italic' : 'normal';
+    const _TEXT_DECOS = ['none', 'underline', 'line-through', 'underline line-through'];
+    const tTextDeco = _TEXT_DECOS.includes(block.dataset.textDecoration) ? block.dataset.textDecoration : 'none';
 
     const tPadX = parseInt(block.dataset.padX);
     const tPadY = parseInt(block.dataset.padY);
@@ -78,23 +109,38 @@ function renderStickerBlock(block) {
     const padY = Number.isFinite(tPadY) ? tPadY : 6;
     const lsStr     = Number.isFinite(tLetterSpacing) ? `${tLetterSpacing}px` : 'normal';
     const shadowStr = tShadowOn ? `${tShadowX}px ${tShadowY}px ${tShadowBlur}px ${tShadowColor}` : 'none';
+    // -webkit-text-stroke는 글리프 윤곽 '중앙 정렬'이고 paint-order:stroke fill로 안쪽 절반이
+    // fill에 덮여 실제 보이는 외곽선 두께 ≈ w/2. asset(border)/shape(SVG stroke)의 "값 N = 보이는 N px"
+    // 시맨틱과 맞추기 위해 2배로 렌더 (dataset.strokeWidth 수치 자체는 불변).
     const strokeCss = tStrokeWidth > 0
-      ? `-webkit-text-stroke:${tStrokeWidth}px ${tStrokeColor};paint-order:stroke fill;`
+      ? `-webkit-text-stroke:${tStrokeWidth * 2}px ${tStrokeColor};paint-order:stroke fill;`
       : '';
     const rotCss = tRotation !== 0 ? `transform:rotate(${tRotation}deg);transform-origin:center center;` : '';
-    const safeText = String(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safeText = _stripCtlChars(tText).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // 박스 너비 — 'auto'(또는 미지정) = 내용맞춤, 고정 px = 그 폭 안에서 줄바꿈(원치 않는
+    // 자동 줄바꿈 해소용으로 넓힘). box-sizing:border-box로 지정 폭이 padding 포함 총 박스폭이 되게 함
+    // (패널 토글 시 offsetWidth로 seed하는 값과 일치).
+    // auto는 max-content: absolute 요소의 shrink-to-fit이 섹션 우측 경계 안에서만 폭을 잡아
+    // 경계에 붙이면 줄바꿈되던 것 → 프레임처럼 섹션 밖으로 자연 오버플로우 (\n 명시 줄바꿈은 pre-wrap 보존).
+    const tBoxWraw = block.dataset.boxW;
+    const tBoxW    = parseInt(tBoxWraw);
+    const boxWCss  = (tBoxWraw && tBoxWraw !== 'auto' && Number.isFinite(tBoxW) && tBoxW > 0)
+      ? `width:${tBoxW}px;box-sizing:border-box;` : 'width:max-content;';
+    // 코너 라운드 — 미설정 시 4(기존 하드코딩 값과 동일, 무회귀)
+    const tCornerR = Number.isFinite(parseInt(block.dataset.cornerRadius)) ? parseInt(block.dataset.cornerRadius) : 4;
 
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;`
-      + `background:${tBgColor};border-radius:4px;`
-      + `padding:${padY}px ${padX}px;`
+      + `background:${tBgColor};border-radius:${tCornerR}px;`
+      + `padding:${padY}px ${padX}px;${boxWCss}`
       + `display:inline-block;white-space:pre-wrap;word-break:break-word;`
-      + `font-family:${tFontFamily};font-size:${tFontSize}px;font-weight:${tFontWeight};`
+      + `font-family:${tFontFamily};font-size:${tFontSize}px;font-weight:${tFontWeight};font-style:${tFontStyle};`
       + `color:${tTextColor};letter-spacing:${lsStr};text-align:${tTextAlign};`
       + `text-shadow:${shadowStr};${rotCss}`
       + `user-select:none;cursor:move;z-index:55;pointer-events:auto;line-height:1.25;`;
     // -webkit-text-stroke + paint-order는 span에 직접 적용해야 외곽선이 안정적으로 보임
     // (block 인라인-블럭에 상속만 의존하면 일부 환경에서 paint-order가 무시됨)
-    const spanStyle = `display:inline-block;outline:none;${strokeCss}`;
+    // text-decoration도 span에 직접 — span이 inline-block이라 부모 장식이 전파되지 않음.
+    const spanStyle = `display:inline-block;outline:none;text-decoration:${tTextDeco};${strokeCss}`;
     block.innerHTML = `<span class="sticker-text" style="${spanStyle}">${safeText}</span>`;
     return;
   }
@@ -237,15 +283,42 @@ function renderStickerBlock(block) {
     block.innerHTML = `<img class="sticker-img" src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;pointer-events:none;" draggable="false">`;
   } else {
     // 텍스트 모드 (기본)
+    // 폰트 스타일(이탤릭)/장식(밑줄·취소선) — text shape 브랜치(:85-87)와 동일 파싱 규칙
+    const bFontStyle = block.dataset.fontStyle === 'italic' ? 'italic' : 'normal';
+    const _B_TEXT_DECOS = ['none', 'underline', 'line-through', 'underline line-through'];
+    const bTextDeco = _B_TEXT_DECOS.includes(block.dataset.textDecoration) ? block.dataset.textDecoration : 'none';
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
       + `background:${bgColor};color:${textColor};border-radius:${radius};`
       + `display:flex;align-items:center;justify-content:center;`
-      + `font-size:${fontSize}px;font-weight:${fontWeight};line-height:1;`
+      + `font-size:${fontSize}px;font-weight:${fontWeight};font-style:${bFontStyle};line-height:1;`
       + `${_stkRotCss}`
       + `user-select:none;cursor:move;z-index:55;pointer-events:auto;`;
-    block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;">${text}</span>`;
+    // outline:none — 더블클릭 편집(contenteditable+focus) 시 브라우저 기본 포커스링(주황 auto) 억제.
+    //   text 스티커 span(:115)과 동일 컨벤션 → 편집 중 시각 = 블럭 레벨 선택 아웃라인만 (타 블럭과 정합).
+    // text-decoration은 span에 직접 — flex 자식이라 부모 장식 전파에 의존하지 않음.
+    block.innerHTML = `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${text}</span>`;
   }
 }
+
+// 섹션 밖 크롭 — 편집 캔버스에서도 잘림(현빈 확정). 스티커 로컬 좌표(offset*)로 섹션 경계
+// 침범량을 계산해 인라인 CSS 변수 --sec-clip(inset)에 기록한다. 실제 적용/해제는 CSS가 결정:
+// .selected(조작 중)와 [data-overflow-visible=true] 섹션은 clip-path:none으로 무시.
+// 인라인 변수라 저장 HTML·미리보기·Export 클론에 그대로 복제 → 세 화면이 한 소스로 잘림.
+// 한계: rotation 스티커는 clip이 요소와 함께 회전(경계선과 불일치) — 현행 사용례 0도.
+function _updateStickerSecClip(block) {
+  const sec = block.closest('.section-block');
+  if (!sec) return;
+  const w = block.offsetWidth, h = block.offsetHeight;
+  if (!w || !h) { block.style.removeProperty('--sec-clip'); return; }
+  const x = block.offsetLeft, y = block.offsetTop;
+  const t = Math.max(0, -y);
+  const l = Math.max(0, -x);
+  const r = Math.max(0, x + w - sec.clientWidth);
+  const b = Math.max(0, y + h - sec.clientHeight);
+  if (t || l || r || b) block.style.setProperty('--sec-clip', `inset(${t}px ${r}px ${b}px ${l}px)`);
+  else block.style.removeProperty('--sec-clip');
+}
+window._updateStickerSecClip = _updateStickerSecClip;
 
 // B13: 현재 sticker의 스타일 토큰을 shape별 슬롯에 저장 (위치/절대크기/text 제외)
 function rememberStickerStyle(block) {
@@ -259,14 +332,14 @@ function rememberStickerStyle(block) {
   } else if (shape === 'highlightB') {
     put('hlColor'); put('thickness'); put('lineStyle'); put('amplitude'); put('period');
   } else if (shape === 'text') {
-    ['fontFamily','fontSize','fontWeight','textColor','strokeWidth','strokeColor',
+    ['fontFamily','fontSize','fontWeight','fontStyle','textDecoration','textColor','strokeWidth','strokeColor',
      'letterSpacing','textAlign','shadowOn','shadowX','shadowY','shadowBlur','shadowColor',
-     'bgColor','padX','padY'].forEach(put);
+     'bgColor','padX','padY','cornerRadius'].forEach(put);
   } else if (shape === 'icon') {
     // U6(e): 아이콘은 색상(currentColor SVG)만 sticky — iconName/iconSvg는 매번 새로 고르므로 제외
     put('iconColor');
   } else { // circle / square (image 모드는 imgSrc 제외 — 다음 생성은 텍스트 스타일만)
-    ['bgColor','textColor','fontSize','fontWeight'].forEach(put);
+    ['bgColor','textColor','fontSize','fontWeight','fontStyle','textDecoration'].forEach(put);
   }
   slot.shape = shape;
   _lastStickerStyle[shape] = slot;
@@ -286,6 +359,9 @@ function makeStickerBlock(opts = {}) {
   block.dataset.textColor  = opts.textColor  ?? STICKER_DEFAULTS.textColor;
   block.dataset.fontSize   = opts.fontSize   ?? STICKER_DEFAULTS.fontSize;
   block.dataset.fontWeight = opts.fontWeight ?? STICKER_DEFAULTS.fontWeight;
+  // 폰트 스타일/장식 — circle/square에도 유효 (sticky/즐겨찾기 승계용). 미지정 시 dataset 미생성(렌더 기본 normal/none).
+  if (opts.fontStyle      !== undefined) block.dataset.fontStyle      = opts.fontStyle;
+  if (opts.textDecoration !== undefined) block.dataset.textDecoration = opts.textDecoration;
   block.dataset.x          = opts.x          ?? STICKER_DEFAULTS.x;
   block.dataset.y          = opts.y          ?? STICKER_DEFAULTS.y;
   // highlightB (선 형광펜) 전용 데이터
@@ -315,8 +391,11 @@ function makeStickerBlock(opts = {}) {
     block.dataset.fontFamily    = opts.fontFamily    ?? "'Pretendard', sans-serif";
     block.dataset.fontSize      = opts.fontSize      ?? 32;
     block.dataset.fontWeight    = opts.fontWeight    ?? 700;
+    block.dataset.fontStyle     = opts.fontStyle     ?? 'normal';
+    block.dataset.textDecoration = opts.textDecoration ?? 'none';
     block.dataset.textColor     = opts.textColor     ?? '#222222';
     block.dataset.strokeWidth   = opts.strokeWidth   ?? 0;
+    block.dataset.strokeV       = '2'; // 신규 블록 = v2 시맨틱(값 N=보이는 N px) — 렌더 마이그레이션 스킵
     block.dataset.strokeColor   = opts.strokeColor   ?? '#ffffff';
     block.dataset.letterSpacing = opts.letterSpacing ?? 0;
     block.dataset.textAlign     = opts.textAlign     ?? 'left';
@@ -326,6 +405,7 @@ function makeStickerBlock(opts = {}) {
     block.dataset.shadowBlur    = opts.shadowBlur    ?? 4;
     block.dataset.shadowColor   = opts.shadowColor   ?? 'rgba(0,0,0,0.4)';
     block.dataset.bgColor       = opts.bgColor       ?? 'transparent';
+    if (opts.cornerRadius !== undefined) block.dataset.cornerRadius = opts.cornerRadius;
     block.dataset.rotation      = opts.rotation      ?? 0;
   }
   renderStickerBlock(block);
@@ -344,6 +424,14 @@ function addStickerBlock(opts = {}) {
   const sec = window.getSelectedSection?.()
     || selectedAnyBlock?.closest('.section-block');
   if (!sec) { window.showToast?.('섹션을 선택하세요'); return; }
+  // B13 가드: 값이 undefined인 키는 '지정 안 함'과 동일 취급 — spread 머지에서
+  //   undefined 키가 remembered 스타일(예: iconColor)을 덮어써 ''로 강등시키는 것 방지.
+  //   (호출자 객체 비변조 — 새 객체로 재구성)
+  {
+    const cleaned = {};
+    for (const [k, v] of Object.entries(opts)) if (v !== undefined) cleaned[k] = v;
+    opts = cleaned;
+  }
   // B13: sticky — 호출 opts에 없는 스타일 필드는 마지막에 쓴 스타일로 보충.
   //   shape 결정: 명시 opts.shape > 마지막에 쓴 shape > 기본. 그 shape 슬롯을 깔고 opts로 덮어씀.
   //   슬롯은 x/y/size/text를 안 담으므로 cascade·placeholder 분기 영향 없음.
@@ -383,8 +471,8 @@ function addStickerBlock(opts = {}) {
 // + renderStickerBlock 재렌더 + scheduleAutoSave.
 //
 // sticker는 polymorphic 블록 — shape에 따라 활성 dataset 키가 완전히 달라짐:
-//   - circle/square: size/sizeW/sizeH/text/bgColor/textColor/fontSize/fontWeight/mode/imgSrc/rotation
-//   - text:          text/fontFamily/fontSize/fontWeight/textColor/strokeWidth/strokeColor/letterSpacing/textAlign/shadow*/bgColor/padX/padY/rotation
+//   - circle/square: size/sizeW/sizeH/text/bgColor/textColor/fontSize/fontWeight/fontStyle/textDecoration/mode/imgSrc/rotation
+//   - text:          text/fontFamily/fontSize/fontWeight/fontStyle/textDecoration/textColor/strokeWidth/strokeColor/letterSpacing/textAlign/shadow*/bgColor/padX/padY/rotation
 //   - highlight:     hlW/hlH/hlColor
 //   - highlightB:    x1/y1/x2/y2/thickness/hlColor/lineStyle/amplitude/period
 //
@@ -430,6 +518,8 @@ function updateStickerBlock(blockId, partial = {}) {
     amplitude: block.dataset.amplitude,
     period: block.dataset.period,
     fontFamily: block.dataset.fontFamily,
+    fontStyle: block.dataset.fontStyle,
+    textDecoration: block.dataset.textDecoration,
     strokeWidth: block.dataset.strokeWidth,
     strokeColor: block.dataset.strokeColor,
     letterSpacing: block.dataset.letterSpacing,
@@ -441,6 +531,8 @@ function updateStickerBlock(blockId, partial = {}) {
     shadowColor: block.dataset.shadowColor,
     padX: block.dataset.padX,
     padY: block.dataset.padY,
+    cornerRadius: block.dataset.cornerRadius,
+    boxW: block.dataset.boxW,
     iconName: block.dataset.iconName,
     iconColor: block.dataset.iconColor,
   };
@@ -515,8 +607,17 @@ function updateStickerBlock(blockId, partial = {}) {
         const curFs = parseInt(block.dataset.fontSize);
         if (!Number.isFinite(curFs) || curFs < 8) block.dataset.fontSize = '32';
         if (!block.dataset.fontWeight)    block.dataset.fontWeight    = '700';
+        if (block.dataset.fontStyle === undefined) block.dataset.fontStyle = 'normal';
+        if (block.dataset.textDecoration === undefined) block.dataset.textDecoration = 'none';
         if (!block.dataset.textColor)     block.dataset.textColor     = '#222222';
         if (block.dataset.strokeWidth === undefined) block.dataset.strokeWidth = '0';
+        // 스트로크 v2 마이그레이션 선반영 — 구버전 잔존값(과거 text→타 shape 왕복)은 절반 환산 후 마킹.
+        // 여기서 마킹해 두면 같은 호출의 partial.strokeWidth(v2 시맨틱)가 렌더에서 재환산되지 않음.
+        if (block.dataset.strokeV !== '2') {
+          const _lw = parseFloat(block.dataset.strokeWidth);
+          if (Number.isFinite(_lw) && _lw > 0) block.dataset.strokeWidth = String(_lw / 2);
+          block.dataset.strokeV = '2';
+        }
         if (!block.dataset.strokeColor)   block.dataset.strokeColor   = '#ffffff';
         if (block.dataset.letterSpacing === undefined) block.dataset.letterSpacing = '0';
         if (!block.dataset.textAlign)     block.dataset.textAlign     = 'left';
@@ -674,6 +775,17 @@ function updateStickerBlock(blockId, partial = {}) {
       applied.fontFamily = block.dataset.fontFamily;
     }
   }
+  _applyEnum('fontStyle', 'fontStyle', ['normal', 'italic']);
+  // textDecoration — 토큰 순서 무관 수용: 'line-through underline'도 정순서로 정규화 후 적용.
+  //   sort() = ['line-through','underline'] → reverse() = 정순서 'underline line-through'.
+  //   단일 토큰/none은 sort·reverse가 no-op. 중복/미지 토큰은 allowed 불일치로 기존처럼 무시.
+  if (typeof partial.textDecoration === 'string') {
+    const _decoNorm = partial.textDecoration.trim().split(/\s+/).sort().reverse().join(' ');
+    if (['none', 'underline', 'line-through', 'underline line-through'].includes(_decoNorm)) {
+      block.dataset.textDecoration = _decoNorm;
+      applied.textDecoration = _decoNorm;
+    }
+  }
   _applyNum('strokeWidth', 'strokeWidth', 0, 50);
   if (partial.letterSpacing !== undefined && partial.letterSpacing !== null) {
     const n = Number(partial.letterSpacing);
@@ -695,6 +807,22 @@ function updateStickerBlock(blockId, partial = {}) {
   _applyNum('shadowBlur', 'shadowBlur', 0, 40);
   _applyNum('padX', 'padX', 0, 400);
   _applyNum('padY', 'padY', 0, 400);
+  _applyNum('cornerRadius', 'cornerRadius', 0, 400);
+
+
+  // 14-a) 박스 너비 (text shape 전용) — 'auto'(내용맞춤) 또는 고정 px(20~2000)
+  if (partial.boxW !== undefined && partial.boxW !== null) {
+    if (partial.boxW === 'auto' || partial.boxW === '') {
+      block.dataset.boxW = 'auto';
+      applied.boxW = 'auto';
+    } else {
+      const bw = Number(partial.boxW);
+      if (Number.isFinite(bw) && bw >= 20 && bw <= 2000) {
+        block.dataset.boxW = String(Math.round(bw));
+        applied.boxW = Math.round(bw);
+      }
+    }
+  }
 
   // 14-b) icon shape 전용 — iconColor / iconName / svg(iconSvg)
   _applyColor('iconColor', 'iconColor');

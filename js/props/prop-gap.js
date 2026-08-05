@@ -26,7 +26,7 @@ export function showGapProperties(gb) {
         <input type="number" class="prop-number" id="gap-number" min="0" max="400" value="${currentH}">
       </div>
       <div class="prop-row gap-preset-row">
-        ${[20,40,80,120,200].map(h => `<button class="gap-preset-btn${currentH===h?' active':''}" data-h="${h}">${h}</button>`).join('')}
+        ${[20,40,80,120,160,200,240,280].map(h => `<button class="gap-preset-btn${currentH===h?' active':''}" data-h="${h}">${h}</button>`).join('')}
       </div>
     </div>`;
 

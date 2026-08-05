@@ -15,23 +15,50 @@
  */
 
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
 let server = null;
 let currentPort = null;
+// Unit B — 접속 토큰 페어링. 메모리에만 보관(파일/레포 저장 금지). 앱 생애주기 동안 유지.
+let mcpToken = null;
 let onActiveProjectCb = null;
 // Phase 2: renderer 측 write 작업(예: window.addTextBlock)을 main에서 호출하는 bridge.
 // main.js가 setRendererInvoker({addTextBlock})로 주입 (순환 의존성 회피).
 let _rendererInvoker = null;
 // main.js가 setIconifyApi({search, fetchSvg})로 주입. main 측에서 직접 fetch (SSRF/CSP 안전).
 let _iconifyApi = null;
+// main.js가 setProjectOps({duplicate})로 주입 — 프로젝트 단위 관리(복제 등). main 프로세스 fs 로직.
+let _projectOps = null;
 
 const tools = new Map();
 const toolSchemas = new Map();
 
 const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_INFO = { name: 'goditor-claude-pm', version: '0.1.0' };
+
+// ─────────────────────────────────────────────
+// Unit B — 접속 토큰 페어링 헬퍼
+// ─────────────────────────────────────────────
+function _genToken() { return crypto.randomBytes(32).toString('hex'); }
+function getToken() { return mcpToken; }
+function regenerateToken() { mcpToken = _genToken(); return mcpToken; }
+function _extractToken(req) {
+  const h = req.headers || {};
+  const x = h['x-goditor-token'];
+  if (x) return String(x).trim();
+  const a = h['authorization'] || h['Authorization'];
+  if (a && /^Bearer\s+/i.test(a)) return a.replace(/^Bearer\s+/i, '').trim();
+  return null;
+}
+// 타이밍안전 비교 — 길이 다르면 즉시 false(timingSafeEqual은 길이 같아야 throw 안 함)
+function _tokenOk(tok) {
+  if (!mcpToken || !tok || tok.length !== mcpToken.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(mcpToken));
+  } catch (_) { return false; }
+}
 
 // ─────────────────────────────────────────────
 // Tool registration
@@ -82,6 +109,31 @@ function _registerDefaultTools() {
     {
       description: 'Read the currently active Goditor project JSON.',
       inputSchema: { type: 'object', properties: {}, required: [] }
+    }
+  );
+
+  registerTool(
+    'duplicate_project',
+    async ({ sourceProjectId, newName } = {}) => {
+      if (!_projectOps || typeof _projectOps.duplicate !== 'function')
+        throw new Error('project ops not initialized (setProjectOps not called)');
+      // sourceProjectId 생략 시 현재 활성 프로젝트 복제
+      const src = sourceProjectId || (onActiveProjectCb ? onActiveProjectCb() : null);
+      if (!src) throw new Error('sourceProjectId required (no active project)');
+      const r = await _projectOps.duplicate({ sourceProjectId: src, newName });
+      if (!r || r.ok === false) throw new Error((r && r.error) || 'duplicate failed');
+      return { ok: true, newProjectId: r.newProjectId, newName: r.newName };
+    },
+    {
+      description: 'Duplicate a Goditor project — full copy (proj.json + assets/images + claude-pm folder), re-keyed to a fresh project id. sourceProjectId optional (defaults to the active project). Use to branch a base template into a new product project. Returns {newProjectId, newName}. Does NOT open it; the user opens it in the editor.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sourceProjectId: { type: 'string', description: 'proj_<digits>. 생략하면 현재 활성 프로젝트.' },
+          newName: { type: 'string', description: '새 프로젝트 이름(생략 시 "원본명 (사본)").' }
+        },
+        required: []
+      }
     }
   );
 
@@ -1543,7 +1595,7 @@ function _registerDefaultTools() {
           bg:     { type: 'string',  description: '셀 배경색 (#hex|rgb(a)|hsl(a)|transparent). default transparent' },
           radius: { type: 'integer', description: '셀 모서리 반경 px (0~60). default 0' },
           gridCols: { type: 'integer', description: '그리드 열 수 (1~4). default 1' },
-          gridRows: { type: 'integer', description: '그리드 행 수 (1~4). default 1' },
+          gridRows: { type: 'integer', description: '그리드 행 수 (1~20). default 1. 5행+ = 장리스트(사이즈/가격표) 그리드' },
           cardGap:  { type: 'integer', description: '카드 사이 간격 px (0~48). default 12' },
           padX:     { type: 'integer', description: '좌우 패딩 px (0~80). default 0' },
           cardMode: { type: 'string', enum: ['simple', ''], description: '"simple"로 지정 시 Simple Card Mode (cards[] 사용). 미지정이면 레이어 모드 (layers[] 사용).' },
@@ -1650,7 +1702,7 @@ function _registerDefaultTools() {
           radius:    { type: 'integer', description: '셀 모서리 반경 px (0~60)' },
           layerName: { type: 'string',  description: '레이어 패널 표시명 (≤100)' },
           gridCols:  { type: 'integer', description: '그리드 열 수 (1~4). 변경 시 cards 자동 sync' },
-          gridRows:  { type: 'integer', description: '그리드 행 수 (1~4). 변경 시 cards 자동 sync' },
+          gridRows:  { type: 'integer', description: '그리드 행 수 (1~20). 변경 시 cards 자동 sync' },
           cardGap:   { type: 'integer', description: '카드 사이 간격 px (0~48)' },
           padX:      { type: 'integer', description: '좌우 패딩 px (0~80)' },
           cardMode:  { type: 'string', enum: ['simple', ''], description: '"" 또는 미지정으로 레이어 모드 복귀, "simple"로 카드 모드 전환' },
@@ -1834,7 +1886,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.updateChatBlock({ blockId, partial });
     },
     {
-      description: 'Edit an EXISTING chat block (chb_xxx) — partial update. messages는 가변 배열: messages(전체 교체) / addMessage({...msg, atIndex?}) / removeMessage(number|{index}) / editMessage({index, ...partial}). 스타일: gap/fontSize/bgLeft/bgRight/colorLeft/colorRight/radius/padding. 프로필: showProfile/showName (0|1 또는 boolean), profileSize(null이면 reset)/profileOffsetY/profileGap. layerName도 갱신 가능. 한 콜에 여러 partial 조합 가능. Returns USER_BUSY if user is editing a bubble (contenteditable=true). Get blockId from get_canvas_state or returned from add_chat_block.',
+      description: 'Edit an EXISTING chat block (chb_xxx) — partial update. messages는 가변 배열: messages(전체 교체) / addMessage({...msg, atIndex?}) / removeMessage(number|{index}) / editMessage({index, ...partial}). 스타일: gap/fontSize/bgLeft/bgRight/colorLeft/colorRight/radius/padding. 프로필: showProfile/showName (0|1 또는 boolean), profileSize(null이면 reset)/profileOffsetY/profileGap. 꼬리/레이아웃: tailScale(꼬리 크기 % 0~400), fullBleed(패딩 제외 0|1|boolean). layerName도 갱신 가능. 한 콜에 여러 partial 조합 가능. Returns USER_BUSY if user is editing a bubble (contenteditable=true). Get blockId from get_canvas_state or returned from add_chat_block.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1849,7 +1901,8 @@ function _registerDefaultTools() {
                 align:       { type: 'string', enum: ['left','right'] },
                 hideProfile: { type: 'boolean' },
                 profileImg:  { type: 'string', description: 'data:image/* | http(s) | assets/ (≤200000, no quote/newline)' },
-                profileName: { type: 'string', maxLength: 200 }
+                profileName: { type: 'string', maxLength: 200 },
+                stars:       { type: ['integer','null'], minimum: 0, maximum: 5, description: '말풍선 상단 별점 0~5. null/생략이면 별점 없음' }
               }
             }
           },
@@ -1862,6 +1915,7 @@ function _registerDefaultTools() {
               hideProfile: { type: 'boolean' },
               profileImg:  { type: 'string' },
               profileName: { type: 'string', maxLength: 200 },
+              stars:       { type: ['integer','null'], minimum: 0, maximum: 5 },
               atIndex:     { type: 'integer', minimum: 0 }
             }
           },
@@ -1881,7 +1935,8 @@ function _registerDefaultTools() {
               align:       { type: 'string', enum: ['left','right'] },
               hideProfile: { type: 'boolean' },
               profileImg:  { type: 'string' },
-              profileName: { type: 'string', maxLength: 200 }
+              profileName: { type: 'string', maxLength: 200 },
+              stars:       { type: ['integer','null'], minimum: 0, maximum: 5 }
             },
             required: ['index']
           },
@@ -1898,6 +1953,8 @@ function _registerDefaultTools() {
           profileSize:    { type: ['integer','null'], description: '프로필 크기 px (24~400). null이면 reset(자동 계산)' },
           profileOffsetY: { type: 'integer', description: '프로필 top margin px (-400~400)' },
           profileGap:     { type: 'integer', description: '프로필 ↔ 말풍선 간격 px (0~400)' },
+          tailScale:      { type: 'integer', description: '말풍선 꼬리 크기 % (0~400, 기본 100). 0이면 꼬리 숨김' },
+          fullBleed:      { description: '패딩 제외(섹션 좌우패딩 무시, full-bleed). 0|1 또는 boolean', oneOf: [{ type: 'string', enum: ['0','1'] }, { type: 'boolean' }] },
           layerName:      { type: 'string',  description: '레이어 패널 표시명 (≤200)' }
         },
         required: ['blockId']
@@ -3862,7 +3919,7 @@ function _validateCanvasOpts(args, { mode } = {}) {
   _color('bg');
   _int('radius',   0, 60);
   _int('gridCols', 1, 4);
-  _int('gridRows', 1, 4);
+  _int('gridRows', 1, 20); // U6: 장리스트 그리드(사이즈/가격표) — cards 상한 64 내에서 행 확장
   _int('cardGap',  0, 48);
   _int('padX',     0, 80);
   _enum('cardMode', ['simple', '']);
@@ -5715,17 +5772,30 @@ function _createServer() {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
+      // Unit B — 토큰 없이 허용하되 도구목록(tools)·server 상세는 비노출(상태만).
+      // 브리지의 포트 자동탐색이 보는 status:'ok' 계약은 유지.
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         status: 'ok',
         port: currentPort,
-        server: SERVER_INFO,
-        tools: Array.from(tools.keys())
+        name: SERVER_INFO.name,
+        requiresToken: true
       }));
       return;
     }
 
     if (req.method === 'POST' && req.url && req.url.startsWith('/mcp')) {
+      // Unit B — 토큰 검증 게이트(body 파싱 전에 차단). 누락/불일치 → 401.
+      const tok = _extractToken(req);
+      if (!_tokenOk(tok)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          id: null,
+          error: { code: -32001, message: 'unauthorized: missing/invalid token' }
+        }));
+        return;
+      }
       let body = '';
       req.on('data', (chunk) => { body += chunk; });
       req.on('end', async () => {
@@ -5786,8 +5856,10 @@ function startMcpServer({ port = 9345, onActiveProject } = {}) {
       srv.listen(p, '127.0.0.1', () => {
         server = srv;
         currentPort = p;
+        // Unit B — 기동 시 토큰 생성(메모리). 이미 있으면(재기동) 동일 페어링 유지.
+        if (!mcpToken) mcpToken = _genToken();
         console.log(`[claudePM MCP] listening on http://127.0.0.1:${p}`);
-        resolve({ port: p });
+        resolve({ port: p, token: mcpToken });
       });
     };
     tryListen(port);
@@ -5815,10 +5887,18 @@ function setIconifyApi(api) {
   _iconifyApi = api || null;
 }
 
+// 프로젝트 단위 관리(복제 등) 주입 — main 프로세스 fs 로직(projects:duplicate 코어).
+function setProjectOps(ops) {
+  _projectOps = ops || null;
+}
+
 module.exports = {
   startMcpServer,
   stopMcpServer,
   registerTool,
   setRendererInvoker,
   setIconifyApi,
+  setProjectOps,
+  getToken,
+  regenerateToken,
 };

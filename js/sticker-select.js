@@ -345,6 +345,11 @@ function bindStickerSelect(block) {
   // 드래그 — mousedown으로 위치 이동
   block.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    // 텍스트 편집(contenteditable) 중에는 브라우저 기본동작(캐럿 배치·드래그 텍스트 선택)에 양보.
+    // 가드 없이 preventDefault/stopImmediatePropagation하면 편집 진입 후 마우스로 캐럿을
+    // 만들 방법이 없고(=더블클릭해도 커서 안 생김 체감), 드래그 시 블록이 이동하며 selection이 파괴됨.
+    // (span 밖 패딩 영역 mousedown은 기존대로 블록 이동)
+    if (e.target.closest?.('.sticker-text')?.isContentEditable) return;
     // 코너 핸들(리사이즈)·회전 핫존·hlb 끝점 위에서 누른 경우는 각자 핸들러가 처리하도록 양보
     // (이 리스너는 capture+stopImmediatePropagation이라 가드 없으면 핸들 mousedown을 삼켜 리사이즈/회전이 안 됨)
     if (e.target.closest?.('.sticker-corner-handle, .sticker-rotate-zone, .hlb-handle')) return;
@@ -405,8 +410,11 @@ function bindStickerSelect(block) {
     const onMove = (ev) => {
       const blockW = block.offsetWidth  || 0;
       const blockH = block.offsetHeight || 0;
+      // ⌘ 드래그 = 자유 이동: 섹션 경계 clamp·부모 섹션 변경 없이 밖으로 나갈 수 있다.
+      // 밖으로 나간 부분은 섹션 크롭 기본값(미리보기/Export)에 의해 잘린다 — 섹션 '섹션 밖 보이기'로 해제.
+      const freeMove = ev.metaKey;
       // 현재 마우스가 어떤 섹션 위에 있는지 탐지 (B 정책)
-      const hoverSec = window._findSectionAt ? window._findSectionAt(ev.clientX, ev.clientY) : null;
+      const hoverSec = (!freeMove && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
       if (hoverSec && hoverSec !== sec) {
         // 부모 섹션 변경 — DOM 이동 + 좌표 reset (새 섹션 기준)
         hoverSec.appendChild(block);
@@ -421,23 +429,30 @@ function bindStickerSelect(block) {
         block.dataset.y = String(origY);
         block.style.left = origX + 'px';
         block.style.top  = origY + 'px';
+        window._updateStickerSecClip?.(block); // 부모 섹션이 바뀌었으니 새 경계 기준 재계산
         return;
       }
-      // 같은 섹션 또는 섹션 밖 — 기존 섹션 유지 + clamp
+      // 같은 섹션 또는 섹션 밖 — 기존 섹션 유지 + clamp (⌘=clamp 없이 자유 이동)
       const secRect = sec.getBoundingClientRect();
       const newXraw = (ev.clientX - secRect.left) / zoom - grabOffX;
       const newYraw = (ev.clientY - secRect.top)  / zoom - grabOffY;
-      const [cx, cy] = window._clampToSection(newXraw, newYraw, sec, blockW, blockH);
+      const [cx, cy] = freeMove
+        ? [newXraw, newYraw]
+        : window._clampToSection(newXraw, newYraw, sec, blockW, blockH);
       const newX = Math.round(cx);
       const newY = Math.round(cy);
       block.dataset.x = String(newX);
       block.dataset.y = String(newY);
       block.style.left = newX + 'px';
       block.style.top  = newY + 'px';
+      // 위치 드래그는 render를 안 타므로 --sec-clip 직접 갱신
+      // (드래그 중엔 .selected라 CSS가 clip 무시 — 놓고 선택 해제되는 즉시 반영되도록 준비)
+      window._updateStickerSecClip?.(block);
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      window._updateStickerSecClip?.(block);
       window.pushHistory?.('스티커 이동');
       window.scheduleAutoSave?.();
     };
@@ -448,12 +463,16 @@ function bindStickerSelect(block) {
   // 더블클릭 → 텍스트 편집 (contenteditable)
   block.addEventListener('dblclick', (e) => {
     e.stopPropagation();
-    _enterStickerEdit(block);
+    // 이미 편집 중이면 브라우저 기본 워드 선택에 양보 (재진입으로 selection 덮어쓰기 방지)
+    if (block.querySelector('.sticker-text')?.isContentEditable) return;
+    _enterStickerEdit(block, e);
   });
 }
 
 // A26: dblclick 인라인 편집 로직을 재사용 가능한 함수로 추출 — 생성 직후 프로그램적 편집 진입에도 사용.
-function _enterStickerEdit(block) {
+// ev(마우스 이벤트)가 오면 더블클릭 지점에 collapsed 캐럿을 배치("커서가 안 생김" 해소),
+// 없거나 좌표 판정 실패 시 기존 전체선택 폴백(A26 신규 스티커 'Text' 치환 타이핑 플로우 보존).
+function _enterStickerEdit(block, ev) {
   if (!block) return;
   const textEl = block.querySelector('.sticker-text');
   if (!textEl) return;
@@ -461,19 +480,37 @@ function _enterStickerEdit(block) {
   textEl.style.userSelect = 'text';
   textEl.style.cursor = 'text';
   textEl.focus();
-  const range = document.createRange();
-  range.selectNodeContents(textEl);
   const sel = window.getSelection();
   sel.removeAllRanges();
-  sel.addRange(range);
+  let caretPlaced = false;
+  if (ev && Number.isFinite(ev.clientX) && document.caretRangeFromPoint) {
+    try {
+      const r = document.caretRangeFromPoint(ev.clientX, ev.clientY);
+      if (r && textEl.contains(r.startContainer)) {
+        r.collapse(true);
+        sel.addRange(r);
+        caretPlaced = true;
+      }
+    } catch (_) {}
+  }
+  if (!caretPlaced) {
+    const range = document.createRange();
+    range.selectNodeContents(textEl);
+    sel.addRange(range);
+  }
 
   const finish = () => {
     textEl.removeAttribute('contenteditable');
-    const t = (textEl.textContent || '').trim();
+    // innerText로 읽어 개행 보존 (<br>/<div> 등 paste 잔재도 \n으로 정규화 — textContent는 <br> 소실)
+    // 제어문자(\b=U+0008 등)는 커밋 시 정화 — trim()은 U+0008을 안 지워 dataset에 영속되며
+    // 보이지 않는 글리프로 캐럿 오프셋을 어지럽힘. \t(U+0009)·\n(U+000A)은 보존(Enter 줄바꿈 유지).
+    const t = (textEl.innerText || textEl.textContent || '')
+      .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
+      .trim();
     const fallback = block.dataset.shape === 'text' ? 'Text' : 'NEW';
     block.dataset.text = t || fallback;
     if (!t) textEl.textContent = fallback;
-    // 우측 prop 패널의 #stk-text input도 sync
+    // 우측 prop 패널의 #stk-text textarea도 sync (textarea.value 할당은 \n 보존)
     const propInp = document.querySelector('#stk-text');
     if (propInp && document.querySelector('.sticker-block.selected') === block) {
       propInp.value = block.dataset.text;
@@ -484,7 +521,17 @@ function _enterStickerEdit(block) {
     textEl.removeEventListener('keydown', onKey);
   };
   const onKey = (ev) => {
-    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); textEl.blur(); }
+    if (ev.key === 'Enter' && !ev.shiftKey) {
+      if (block.dataset.shape === 'text') {
+        // 텍스트 스티커는 Enter = 줄바꿈 (renderer가 white-space:pre-wrap이라 \n 그대로 렌더).
+        // execCommand insertText는 editor.js Cmd+B/I 선례와 동일한 contenteditable 조작 경로.
+        ev.preventDefault();
+        document.execCommand('insertText', false, '\n');
+      } else {
+        // circle/square 등은 기존 동작 유지: Enter = 커밋
+        ev.preventDefault(); textEl.blur();
+      }
+    }
     else if (ev.key === 'Escape') { ev.stopPropagation(); textEl.blur(); }
   };
   textEl.addEventListener('blur', finish);
@@ -496,6 +543,9 @@ window.bindStickerSelect = bindStickerSelect;
 // ESC/v로 deselect
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' && e.key !== 'v') return;
+  // ⌘V / Ctrl+V(붙여넣기)·⌥V 등 조합키는 deselect 대상 아님 — 붙여넣기 경로 보존.
+  // (bare 'v'만 Figma식 포인터툴 = 스티커 선택 해제)
+  if (e.key === 'v' && (e.metaKey || e.ctrlKey || e.altKey)) return;
   const sel = document.querySelector('.sticker-block.selected');
   if (!sel) return;
   if (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true') return;

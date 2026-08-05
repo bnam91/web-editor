@@ -26,7 +26,13 @@ export function buildLayerPanel() {
 
   panel.innerHTML = '';
 
-  document.querySelectorAll('.section-block:not([data-ghost])').forEach((sec, si) => {
+  document.querySelectorAll('.section-block:not([data-ghost])').forEach((sec, si) => buildLayerSectionRow(sec, si, panel, collapsedSections));
+  _buildLayerPanelTail(panel, collapsedSections);
+}
+
+// GAP-003: per-section 레이어행 1개를 build+append. buildLayerPanel 전체루프와 appendLayerSection이 공용(본문 동일).
+// 추출 전 buildLayerPanel forEach 본문 그대로 — 동작 불변(panel/collapsedSections를 인자로 받음).
+function buildLayerSectionRow(sec, si, panel, collapsedSections) {
     const sIdx = si + 1;
     // 캔버스 섹션 data-section을 현재 인덱스로 동기화 — 값이 같으면 쓰기 생략 (MUT-01: MutationObserver 재귀 트리거 방지)
     if (sec.dataset.section !== String(sIdx)) sec.dataset.section = sIdx;
@@ -255,6 +261,10 @@ export function buildLayerPanel() {
               || child.classList.contains('label-group-block')
               || child.classList.contains('graph-block')
               || child.classList.contains('divider-block')
+              || child.classList.contains('bridge-block')
+              || child.classList.contains('duo-block')
+              || child.classList.contains('infocard-block')
+              || child.classList.contains('innercard-block')
               || child.classList.contains('icon-text-block')
               || child.classList.contains('shape-block')) {
         // section-inner 직접 자식 블록 (frame-block으로 감싸지지 않은 케이스) — 안전망
@@ -417,7 +427,10 @@ export function buildLayerPanel() {
       clearLayerSectionIndicators();
       window.layerSectionDragSrc = null;
     });
-  });
+}
+
+// GAP-003: buildLayerPanel 후처리(variation 그룹화·row-group collapse 기본값·a11y) — 전체 재빌드 경로 전용.
+function _buildLayerPanelTail(panel, collapsedSections) {
 
   // variation 그룹 포스트 처리: A/B 쌍을 wrapper로 묶기
   const varGroups = new Map();
@@ -616,6 +629,7 @@ export function buildLayerPanel() {
   }
 })();
 
+let _syncScrollRaf = 0;
 export function syncLayerActive(sec) {
   document.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
   document.querySelectorAll('.layer-variation-group').forEach(g => g.classList.remove('active'));
@@ -624,17 +638,22 @@ export function syncLayerActive(sec) {
     // 섹션 선택 시 좌측 레이어 패널에서 해당 섹션으로 즉시 스크롤
     const layerEl = sec._layerSectionEl || sec._layerHeader.closest('.layer-section');
     if (layerEl) {
-      // layer-panel-body는 overflow:visible이라 scrollBody(layers-section-body)가 실제 스크롤 컨테이너
-      // scrollIntoView 전에 layerBody의 min-height를 실제 콘텐츠 높이로 갱신해야 scrollBody가 스크롤 가능해짐
-      const layerBody = document.getElementById('layer-panel-body');
-      if (layerBody) {
-        const lastSec = layerBody.querySelector('.layer-section:last-child');
-        const contentH = lastSec ? (lastSec.offsetTop + lastSec.offsetHeight) : 0;
-        if (contentH > layerBody.clientHeight) {
-          layerBody.style.minHeight = contentH + 'px';
+      // GAP-003: 강제 동기 reflow(offsetTop 읽기)+scrollIntoView를 rAF로 지연·코얼레스.
+      // add마다 패널 전체 레이아웃을 강제하던 per-add O(n) 비용을 임계경로에서 제거(연속 선택은 마지막만 스크롤).
+      // layer-panel-body는 overflow:visible이라 scrollBody가 실제 스크롤 컨테이너 — minHeight 갱신 후 스크롤.
+      if (_syncScrollRaf) cancelAnimationFrame(_syncScrollRaf);
+      _syncScrollRaf = requestAnimationFrame(() => {
+        _syncScrollRaf = 0;
+        const layerBody = document.getElementById('layer-panel-body');
+        if (layerBody) {
+          const lastSec = layerBody.querySelector('.layer-section:last-child');
+          const contentH = lastSec ? (lastSec.offsetTop + lastSec.offsetHeight) : 0;
+          if (contentH > layerBody.clientHeight) {
+            layerBody.style.minHeight = contentH + 'px';
+          }
         }
-      }
-      layerEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+        layerEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+      });
     }
   }
   if (sec && sec.dataset.variationGroup) {
@@ -680,8 +699,38 @@ export function syncLayerRow(rowEl) {
   });
 }
 
+// GAP-003: 신규 섹션 1개만 레이어행 추가 — 전체 재구성(O(n)/call → O(n²)) 회피, per-add O(1).
+// 안전 폴백(정확성 우선): 패널 미구축 / 섹션 못찾음 / 마지막 아님(중간삽입) / variation 그룹 → 전체 재빌드.
+export function appendLayerSection(sec) {
+  const panel = document.getElementById('layer-panel-body');
+  if (!panel) return;
+  const sections = [...document.querySelectorAll('.section-block:not([data-ghost])')];
+  const si = sections.indexOf(sec);
+  if (si === -1 || si !== sections.length - 1 || (sec.dataset && sec.dataset.variationGroup) || !panel.querySelector('.layer-section')) {
+    buildLayerPanel();
+    return;
+  }
+  buildLayerSectionRow(sec, si, panel, new Set());
+  // 신규 섹션 행 한정 후처리(a11y role + row-group collapse 기본값) — 전체 panel 순회 회피
+  const el = sec._layerEl;
+  if (el) {
+    el.querySelectorAll('.layer-item, .layer-row-header').forEach(row => {
+      if (row.getAttribute('role')) return;
+      row.tabIndex = 0;
+      row.setAttribute('role', 'button');
+      const nm = row.querySelector('.layer-item-name')?.textContent?.trim();
+      const ty = row.querySelector('.layer-item-type')?.textContent?.trim();
+      if (nm) row.setAttribute('aria-label', `${nm}${ty ? ' ' + ty : ''}`);
+      row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); } });
+    });
+    el.querySelectorAll('.layer-row-group').forEach(g => { if (!g.classList.contains('collapsed')) g.classList.add('collapsed'); });
+  }
+  if (window.buildFilePageSection) window.buildFilePageSection();
+}
+
 // Backward compat
 window.buildLayerPanel = buildLayerPanel;
+window.appendLayerSection = appendLayerSection;
 window.syncLayerActive = syncLayerActive;
 window.syncLayerRow    = syncLayerRow;
 window.highlightBlock  = highlightBlock;

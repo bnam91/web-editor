@@ -7,7 +7,7 @@
 //   - bindBlock (drag-drop.js)
 //   - window._insertToFlowFrame (block-factory.js 노출 헬퍼)
 
-import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
+import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 
 // slot: null | 'top' | 'bottom' — labelPos='both'일 때 상/하단 라벨이 서로 다른 내용·색을 갖도록 분리.
@@ -68,6 +68,20 @@ function _cvbBackgroundSize(card) {
   // cover를 기준으로 확대: backgroundSize 퍼센트는 가로 기준이라 cover와 정확히 같진 않지만
   // 일반 가로>세로 카드에서 자연스러운 확대. contain도 확대 시 cover-like로 통일.
   return `${Math.round(100 * scale)}%`;
+}
+
+// 라벨 배경 그라데이션 재조립 — dataset.gradDir/gradStopPos/gradOpacity → linear-gradient 문자열.
+//   - dir==null(또는 NaN): 단색 rgba(0,0,0,op) 반환 (방향 없는 반투명 검정)
+//   - 그 외: linear-gradient(${dir}deg, transparent ${stop}%, rgba(0,0,0,${op/100}))
+// stop/op는 0~100 클램프. prop 패널·updateCanvasBlock(MCP) 양쪽이 공유.
+function _cvbBuildGrad(dir, stop, op) {
+  const o = Math.min(100, Math.max(0, Number(op) || 0)) / 100;
+  const s = Math.min(100, Math.max(0, Number(stop) || 0));
+  const alpha = Math.round(o * 100) / 100;
+  if (dir === null || dir === undefined || isNaN(Number(dir))) {
+    return `rgba(0,0,0,${alpha})`;
+  }
+  return `linear-gradient(${Number(dir)}deg, transparent ${s}%, rgba(0,0,0,${alpha}))`;
 }
 
 // 이스터에그(아이콘 모드): 카드 이미지 자리에 iconify SVG를 중앙 렌더 (currentColor로 색 제어)
@@ -186,11 +200,12 @@ function _bindCvbImgDrag(imgDiv, block, idx) {
     _enterCvbImgEditMode(imgDiv, block, idx);
   });
 
-  // 더블클릭 → 이미지 추가/교체 (위치드래그 편집모드는 단일클릭 경로로 유지)
+  // 더블클릭 → 이미지 편집 모드 (일반 에디터 관행: 더블클릭=크롭/이동 편집).
+  // 이미지 교체는 프로퍼티 패널의 카드별 '이미지 교체' 버튼으로 (기존 더블클릭=교체에서 이관).
   imgDiv.addEventListener('dblclick', function(e) {
     e.stopPropagation();
     e.preventDefault();
-    _triggerCvbCardImage(block, idx);
+    _enterCvbImgEditMode(imgDiv, block, idx);
   });
 }
 
@@ -204,8 +219,19 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
 
   const hint = document.createElement('div');
   hint.style.cssText = 'position:absolute;bottom:6px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;font-size:10px;padding:3px 10px;border-radius:4px;pointer-events:none;white-space:nowrap;z-index:10;';
-  hint.textContent = '드래그로 이미지 이동 · ESC 종료';
+  // 확대 100%(cover)면 이동 여백이 거의 없어 드래그가 무효과로 느껴짐(현빈 리포트) —
+  // 상황 인지형 안내: 줌 전엔 '휠로 확대'를 앞세우고, 확대 후 일반 안내로 전환(onWheel에서 갱신).
+  const _updateHint = () => {
+    let s = 100;
+    try { s = Math.max(100, parseInt(JSON.parse(block.dataset.cards || '[]')[idx]?.imgScale) || 100); } catch (_) {}
+    hint.textContent = s <= 100
+      ? '휠로 확대하면 위치를 조절할 수 있어요 · ESC 종료'
+      : '드래그 이동 · 휠 확대/축소 · ESC/바깥클릭 종료';
+  };
+  _updateHint();
   imgDiv.appendChild(hint);
+
+  let _wheelDirty = false; // 휠 줌 변경 여부 — 종료 시 한 번만 history push
 
   const exitMode = () => {
     if (!imgDiv._cvbEditing) return;
@@ -213,12 +239,60 @@ function _enterCvbImgEditMode(imgDiv, block, idx) {
     imgDiv.style.cursor = 'default';
     imgDiv.style.outline = '';
     hint.remove();
-    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('mousedown', onOutside, true);
     imgDiv.removeEventListener('mousedown', onDragStart);
+    imgDiv.removeEventListener('wheel', onWheel);
+    if (_wheelDirty) { window.pushHistory?.('카드 이미지 확대'); window.scheduleAutoSave?.(); }
   };
 
-  const onKey = (e) => { if (e.key === 'Escape') exitMode(); };
-  document.addEventListener('keydown', onKey);
+  const onKey = (e) => {
+    if (e.key === 'Escape') { exitMode(); return; }
+    // 편집모드 중 Backspace/Delete = 이 카드의 이미지만 제거.
+    // capture+stopImmediatePropagation으로 전역 '블록 삭제' 단축키 선점 —
+    // 이미지 지우려다 카드블럭 통삭제되던 사고(현빈 리포트) 방지.
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      exitMode();
+      try {
+        const arr = JSON.parse(block.dataset.cards || '[]');
+        if (arr[idx]) {
+          arr[idx].imgSrc = '';
+          delete arr[idx].imgX; delete arr[idx].imgY; delete arr[idx].imgScale; // 위치/줌도 초기화
+          block.dataset.cards = JSON.stringify(arr);
+          window.renderCanvas?.(block);
+          window.pushHistory?.('카드 이미지 제거');
+          window.scheduleAutoSave?.();
+          window.showToast?.('카드 이미지 제거됨');
+        }
+      } catch (_) {}
+    }
+  };
+  // capture 단계 등록 — 전역(bubble) 삭제 핸들러보다 먼저 실행되어야 선점 가능
+  document.addEventListener('keydown', onKey, true);
+
+  // 바깥 클릭 종료 — 일반 에디터 관행 (ESC와 동일 동작)
+  const onOutside = (e) => { if (!imgDiv.contains(e.target)) exitMode(); };
+  setTimeout(() => document.addEventListener('mousedown', onOutside, true), 0);
+
+  // 휠 = 이미지 확대/축소(imgScale 100~400) — 패널 '확대' 슬라이더와 같은 필드라 상호 동기
+  const onWheel = (we) => {
+    we.preventDefault();
+    we.stopPropagation();
+    const arr = JSON.parse(block.dataset.cards || '[]');
+    const c = arr[idx];
+    if (!c) return;
+    const cur  = Math.min(400, Math.max(100, parseInt(c.imgScale) || 100));
+    const next = Math.min(400, Math.max(100, cur - Math.sign(we.deltaY) * 5));
+    if (next === cur) return;
+    c.imgScale = next;
+    block.dataset.cards = JSON.stringify(arr);
+    _updateHint();
+    imgDiv.style.backgroundSize = _cvbBackgroundSize(c);
+    _wheelDirty = true;
+  };
+  imgDiv.addEventListener('wheel', onWheel, { passive: false });
 
   const onDragStart = (e) => {
     e.stopPropagation();
@@ -297,8 +371,14 @@ function renderCanvas(block) {
     const titleSize  = parseInt(block.dataset.titleSize) || 20;
     const descSize   = parseInt(block.dataset.descSize)  || 14;
     const textAlign  = block.dataset.textAlign || 'left';
-    const titleColor = block.dataset.titleColor || '#ffffff';
-    const descColor  = block.dataset.descColor  || '#ffffff';
+    // 테마어웨어 기본 텍스트색 (2026-07-04 제니 발주): 명시 색(dataset/per-card) 최우선,
+    // 미지정 시 텍스트 밴드 bg 휘도로 자동 — 구 #ffffff 고정은 라이트 카드에서 화이트온화이트 붕괴(bench S12)
+    const _bandLum   = colorLuminance(textBg);
+    const _bandDark  = _bandLum !== null && _bandLum < 0.45;
+    const titleColor = block.dataset.titleColor || (_bandDark ? '#ffffff' : '#1a1a1a');
+    const descColor  = block.dataset.descColor  || (_bandDark ? '#e0e0e0' : '#555555');
+    // 텍스트 세로위치(px) — 기존 padding 위에 가산. 0이면 회귀 없음(하위호환).
+    const textVOffset = Math.min(100, Math.max(0, parseInt(block.dataset.textVOffset) || 0));
     // 아이콘 모드(이스터에그) 블록 레벨 설정 — 크기(%)·색·이미지 배경
     const iconScale  = Math.min(90, Math.max(10, parseInt(block.dataset.iconScale) || 46));
     const iconColor  = block.dataset.iconColor || '#333333';
@@ -375,6 +455,13 @@ function renderCanvas(block) {
         const cellX  = c * (designW + GAP);
         const cellY  = r * (designH + GAP);
         const cardBg = card.cellBg || textBg;
+        // 테마어웨어 텍스트색을 '셀 실제 배경' 기준으로 — 카드별 라벨색(cellBg)을 어둡게 바꾸면
+        // 블록 기본(textBg) 휘도만 보던 기존 로직은 다크온다크로 붕괴(현빈 리포트, cvb_gs1mt76).
+        // 명시 색(dataset.titleColor / per-card 슬롯색)은 여전히 최우선. 그라데이션 등 휘도 계산
+        // 불가(null)면 기존 블록 레벨 색으로 폴백(무회귀).
+        const _cellLum  = colorLuminance(cardBg);
+        const cellTitleColor = block.dataset.titleColor || (_cellLum === null ? titleColor : (_cellLum < 0.45 ? '#ffffff' : '#1a1a1a'));
+        const cellDescColor  = block.dataset.descColor  || (_cellLum === null ? descColor  : (_cellLum < 0.45 ? '#e0e0e0' : '#555555'));
         // desc 비었으면 title 세로 중앙 정렬 (공백만 있어도 비었다고 판단)
         const descEmpty = !card.desc || card.desc.trim() === '';
         const justifyMode = descEmpty ? 'center' : 'flex-start';
@@ -382,6 +469,8 @@ function renderCanvas(block) {
         const cell = document.createElement('div');
         const borderW = card.borderWidth > 0 ? parseInt(card.borderWidth) : 0;
         cell.style.cssText = `position:absolute;left:${cellX}px;top:${cellY}px;width:${designW}px;height:${designH}px;border-radius:${radius}px;overflow:hidden;`;
+        // 스크래치 드롭 타깃 식별용 — canvas-scratch-drop의 'cvbcard' 분류가 이 인덱스로 카드 특정
+        cell.dataset.cvbCardIdx = String(idx);
 
         if (orient === 'landscape') {
           // ── 가로 모드: 이미지 좌 / 텍스트 우 ────────────────────────────
@@ -419,7 +508,8 @@ function renderCanvas(block) {
           if (!textHide) {
             const textDiv = document.createElement('div');
             textDiv.style.cssText = `position:absolute;left:${imgW}px;top:0;width:${textW}px;height:${designH}px;background:${cardBg};box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:6px;`;
-            _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, titleColor, descColor, idx);
+            if (textVOffset) textDiv.style.paddingTop = Math.min(14 + textVOffset, Math.max(14, designH - 30)) + 'px';
+            _appendCardTexts(textDiv, card, titleSize, descSize, textAlign, cellTitleColor, cellDescColor, idx);
             cell.appendChild(textDiv);
           }
 
@@ -466,13 +556,21 @@ function renderCanvas(block) {
             const br = position === 'top'    ? `${radius}px ${radius}px 0 0`
                      : position === 'bottom' ? `0 0 ${radius}px ${radius}px`
                      : '0';
-            div.style.cssText = `width:100%;height:${h}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;border-radius:${br};`;
-            _appendCardTexts(div, card, titleSize, descSize, textAlign, titleColor, descColor, idx, slot || null);
+            // 상단 라벨 배경 오버라이드: dataset.textBgTop 있으면 top 슬롯만 그 색 사용(없으면 기존 cardBg)
+            const _topBg = block.dataset.textBgTop;
+            const slotBg = (slot === 'top' && _topBg) ? _topBg : cardBg;
+            div.style.cssText = `width:100%;height:${h}px;background:${slotBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;border-radius:${br};`;
+            if (textVOffset) div.style.paddingTop = Math.min(10 + textVOffset, Math.max(10, h - 30)) + 'px';
+            // 슬롯 실제 배경(textBgTop override 포함) 휘도 기준 자동 대비 — cell과 동일 규칙
+            const _slotLum = colorLuminance(slotBg);
+            const slotTitleColor = block.dataset.titleColor || (_slotLum === null ? titleColor : (_slotLum < 0.45 ? '#ffffff' : '#1a1a1a'));
+            const slotDescColor  = block.dataset.descColor  || (_slotLum === null ? descColor  : (_slotLum < 0.45 ? '#e0e0e0' : '#555555'));
+            _appendCardTexts(div, card, titleSize, descSize, textAlign, slotTitleColor, slotDescColor, idx, slot || null);
             return div;
           };
 
           if (labelPos === 'top') {
-            if (!textHide) cell.appendChild(makeTextDiv(textH, 'top'));
+            if (!textHide) cell.appendChild(makeTextDiv(textH, 'top', 'top'));
             cell.appendChild(makeImgDiv());
           } else if (labelPos === 'both') {
             // 상/하단 라벨 완전 독립: 상단은 'top' 슬롯, 하단은 'bottom' 슬롯
@@ -511,6 +609,7 @@ function renderCanvas(block) {
               : labelPos === 'overlay-center' ? `top:50%;transform:translateY(-50%);`
               :                                  'bottom:0;';
               overlayDiv.style.cssText = `position:absolute;left:${sideInset}%;right:${sideInset}%;${verticalAnchor}height:${overlayH}px;background:${cardBg};box-sizing:border-box;padding:10px 14px;display:flex;flex-direction:column;justify-content:${justifyMode};gap:4px;`;
+              if (textVOffset) overlayDiv.style.paddingTop = Math.min(10 + textVOffset, Math.max(10, overlayH - 30)) + 'px';
               cell.appendChild(overlayDiv);
             }
           } else {
@@ -725,6 +824,18 @@ function makeCanvasBlock(data = {}) {
     block.dataset.descSize  = data.descSize  || 14;
     block.dataset.textAlign = data.textAlign || 'left';
     block.dataset.cards     = JSON.stringify(data.cards || [{ title: '카드 제목', desc: '', imgSrc: '', cellBg: '' }]);
+    // U6: 생성 시점에도 심플카드 표시 옵션 수용 — 기존엔 updateCanvasBlock로만 가능해
+    // CDP 조립 시 add 직후 update를 한 번 더 불러야 했음. 렌더는 전부 dataset 기반이라 추가 매핑만으로 동작.
+    if (data.imgShape)   block.dataset.imgShape   = data.imgShape;     // 'rect' | 'circle'
+    if (data.labelPos)   block.dataset.labelPos   = data.labelPos;
+    if (data.cardOrient) block.dataset.cardOrient = data.cardOrient;   // 'portrait' | 'landscape'
+    if (data.textHide === true || data.textHide === 'true') block.dataset.textHide = 'true';
+    if (data.iconMode === true || data.iconMode === 'true') block.dataset.iconMode = 'true';
+    if (data.iconScale  !== undefined) block.dataset.iconScale  = data.iconScale;
+    if (data.iconColor)  block.dataset.iconColor  = data.iconColor;
+    if (data.iconBg)     block.dataset.iconBg     = data.iconBg;
+    if (data.titleColor) block.dataset.titleColor = data.titleColor;
+    if (data.descColor)  block.dataset.descColor  = data.descColor;
   }
 
   const gridCols = parseInt(block.dataset.gridCols) || 1;
@@ -830,6 +941,8 @@ function updateCanvasBlock(blockId, partial = {}) {
     imgRatio: block.dataset.imgRatio, imgShape: block.dataset.imgShape,
     labelPos: block.dataset.labelPos, textHide: block.dataset.textHide,
     textBg: block.dataset.textBg,
+    textVOffset: block.dataset.textVOffset,
+    gradDir: block.dataset.gradDir, gradOpacity: block.dataset.gradOpacity, gradStopPos: block.dataset.gradStopPos,
     titleSize: block.dataset.titleSize, descSize: block.dataset.descSize,
     textAlign: block.dataset.textAlign,
     titleColor: block.dataset.titleColor, descColor: block.dataset.descColor,
@@ -904,6 +1017,10 @@ function updateCanvasBlock(blockId, partial = {}) {
     _try(_setEnumField('labelPos', 'labelPos',  ['top','bottom','both','overlay-top','overlay-bottom','overlay-center']));
     _try(_setBoolStrField('textHide','textHide'));
     _try(_setColorField('textBg',  'textBg'));
+    _try(_setIntField('textVOffset','textVOffset', 0,   100));
+    _try(_setIntField('gradOpacity','gradOpacity', 0,   100));
+    _try(_setIntField('gradStopPos','gradStopPos', 0,   100));
+    _try(_setIntField('gradDir',   'gradDir',   0,   360));
     _try(_setIntField('titleSize', 'titleSize', 4,   400));
     _try(_setIntField('descSize',  'descSize',  4,   400));
     _try(_setEnumField('textAlign','textAlign', _ALIGN_ALLOWED));
@@ -927,7 +1044,8 @@ function updateCanvasBlock(blockId, partial = {}) {
   }
   if (partial.gridRows !== undefined) {
     const n = Number(partial.gridRows);
-    if (!_isInt(n, 1, 4)) return { ok: false, code: 'INVALID', message: `gridRows must be integer in [1,4]: ${partial.gridRows}` };
+    // U6(BL-CDZ-07): 사이즈/가격표 등 장리스트 그리드용 상한 20 (cards 상한 64와 렌더러는 원래 무제한 — UI 픽커만 4×4 유지)
+    if (!_isInt(n, 1, 20)) return { ok: false, code: 'INVALID', message: `gridRows must be integer in [1,20]: ${partial.gridRows}` };
     _pushOnce(); block.dataset.gridRows = String(n); applied.gridRows = n; needGridSync = true;
   }
 
@@ -1150,6 +1268,17 @@ function updateCanvasBlock(blockId, partial = {}) {
     applied.patchLayers = appliedPatches;
   }
 
+  // grad* 미세조정만 들어오고 textBg를 직접 주지 않은 경우(MCP/자동조립) → textBg 재조립.
+  // textBg를 같이 보냈으면 사용자 의도 우선이라 덮지 않음.
+  if ((applied.gradDir !== undefined || applied.gradOpacity !== undefined || applied.gradStopPos !== undefined) && partial.textBg === undefined) {
+    const _gd = block.dataset.gradDir;
+    const _dir = (_gd === undefined || _gd === '' || isNaN(parseInt(_gd))) ? null : parseInt(_gd);
+    const _stop = parseInt(block.dataset.gradStopPos) || 0;
+    const _op   = block.dataset.gradOpacity !== undefined ? parseInt(block.dataset.gradOpacity) : 85;
+    block.dataset.textBg = _cvbBuildGrad(_dir, _stop, _op);
+    applied.textBg = block.dataset.textBg;
+  }
+
   if (Object.keys(applied).length === 0) {
     return { ok: false, code: 'INVALID', message: 'no valid fields applied' };
   }
@@ -1186,5 +1315,6 @@ window.renderCanvas     = renderCanvas;
 // window 노출 — banner02 패턴 미러
 window.updateCanvasBlock = updateCanvasBlock;
 window._triggerCvbCardImage = _triggerCvbCardImage;
+window._cvbBuildGrad = _cvbBuildGrad;
 
-export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS };
+export { makeCanvasBlock, addCanvasBlock, updateCanvasBlock, renderCanvas, CARD_DEFAULT_OPTS, _cvbBuildGrad };

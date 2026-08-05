@@ -180,8 +180,8 @@ function updateIconifyBlock(blockId, partial = {}) {
     if (typeof partial.svg !== 'string') {
       return { ok: false, code: 'INVALID', message: 'svg must be string' };
     }
-    if (partial.svg.length > 200000) {
-      return { ok: false, code: 'TOO_LARGE', message: 'svg too long (>200000)' };
+    if (partial.svg.length > 3000000) {
+      return { ok: false, code: 'TOO_LARGE', message: 'svg too long (>3MB)' };
     }
     nextSvg = partial.svg;
   }

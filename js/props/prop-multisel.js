@@ -13,7 +13,7 @@ import { propPanel } from '../globals.js';
 function _getSelectedFrameWrappers() {
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, ' +
     // 누락 블록 추가 (2026-06-09): iconify/chat/gradient/sticker/laurel
     '.iconify-block.selected, .chat-block.selected, .gradient-block.selected, ' +
@@ -362,10 +362,10 @@ window.hasFreeLayoutMultiSel = hasFreeLayoutMultiSel;
 // editor.js:348 FLOW_BLOCK_SEL_SELECTED와 동일 셀렉터 — SSOT
 const FLOW_SEL =
   '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, ' +
-  '.table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, ' +
+  '.table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
   '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, ' +
-  '.laurel-block.selected, .gradient-block.selected, .chat-block.selected';
+  '.laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
 
 // editor.js _isInFreeLayout 역미러: freeLayout 래퍼 밖(=플로우)만 true
 function _isFlowBlock(b) {
@@ -440,12 +440,42 @@ function _applyFlowDistribute(blocks) {
   showFlowMultiSelPanel();
 }
 
+// 선택된 텍스트 블록들에 폰트 크기 일괄 적용 (단일 블록 '무선택 전체 적용' 경로와 동일 시맨틱).
+function _applyFlowFontSize(blocks, size) {
+  const v = Math.max(1, Math.min(800, parseInt(size, 10) || 0));
+  if (!v) return;
+  let applied = 0;
+  blocks.forEach(b => {
+    if (!b.classList.contains('text-block')) return;
+    const contentEl = b.querySelector('[contenteditable]') ||
+      b.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner');
+    if (!contentEl) return;
+    // mix 상태의 부분 font-size span 정리 후 블록 전체 사이즈 적용 (prop-text-wireup-text-edit applySizeToSel 무선택 경로 미러)
+    contentEl.querySelectorAll('span[style*="font-size"]').forEach(s => {
+      s.style.fontSize = '';
+      const styleStr = s.getAttribute('style') || '';
+      if (!styleStr.replace(/;|\s/g, '')) {
+        const parent = s.parentNode;
+        while (s.firstChild) parent.insertBefore(s.firstChild, s);
+        parent.removeChild(s);
+      }
+    });
+    contentEl.style.fontSize = v + 'px';
+    applied++;
+  });
+  if (applied) {
+    window.pushHistory?.('일괄 폰트 크기');
+    window.scheduleAutoSave?.();
+  }
+}
+
 export function showFlowMultiSelPanel() {
   if (!propPanel) return;
   const blocks = _getSelectedFlowBlocks();
   if (blocks.length < 2) return;
   const gaps = _collectInterGaps(blocks);
   const canDistribute = gaps.length >= 2;
+  const textCount = blocks.filter(b => b.classList.contains('text-block')).length;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -457,26 +487,46 @@ export function showFlowMultiSelPanel() {
       </div>
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">수평 정렬</div>
+      <div class="prop-row">
+        <span class="prop-label">정렬</span>
+        <div class="prop-align-group">
+          <button class="prop-align-btn" data-align="left"   title="왼쪽 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="2" x2="1" y2="12"/><rect x="3" y="4" width="5" height="6" rx="1"/></svg>
+          </button>
+          <button class="prop-align-btn" data-align="center" title="가운데 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="7" y1="2" x2="7" y2="12"/><rect x="3" y="4" width="8" height="6" rx="1"/></svg>
+          </button>
+          <button class="prop-align-btn" data-align="right"  title="오른쪽 정렬">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="13" y1="2" x2="13" y2="12"/><rect x="6" y="4" width="5" height="6" rx="1"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section" style="${textCount > 0 ? '' : 'display:none;'}">
+      <div class="prop-section-title">폰트 크기 (텍스트 ${textCount}개)</div>
       <div class="prop-row" style="gap:3px;">
-        <button class="msp-align-btn" data-fdir="left"   title="왼쪽 정렬">L</button>
-        <button class="msp-align-btn" data-fdir="center" title="가운데 정렬">C</button>
-        <button class="msp-align-btn" data-fdir="right"  title="오른쪽 정렬">R</button>
+        <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" placeholder="px" style="flex:1;">
+        <button class="prop-btn-sm msp-fontsize-btn" id="msp-font-size-apply" title="선택한 텍스트 블록에 일괄 적용">적용</button>
       </div>
     </div>
     <div class="prop-section" style="${canDistribute ? '' : 'display:none;'}">
       <div class="prop-section-title">분배</div>
       <div class="prop-row" style="gap:3px;">
-        <button class="msp-dist-btn" data-dist="v" title="세로 간격 균등">세로 균등</button>
+        <button class="prop-btn-sm msp-dist-btn" data-dist="v" title="세로 간격 균등">세로 균등</button>
       </div>
     </div>`;
 
-  propPanel.querySelectorAll('.msp-align-btn[data-fdir]').forEach(btn => {
-    btn.addEventListener('click', () => _applyFlowAlign(blocks, btn.dataset.fdir));
+  propPanel.querySelectorAll('.prop-align-btn[data-align]').forEach(btn => {
+    btn.addEventListener('click', () => _applyFlowAlign(blocks, btn.dataset.align));
   });
   propPanel.querySelectorAll('.msp-dist-btn').forEach(btn => {
     btn.addEventListener('click', () => _applyFlowDistribute(blocks));
   });
+  const fsInput = propPanel.querySelector('#msp-font-size');
+  const fsApply = propPanel.querySelector('#msp-font-size-apply');
+  const doFontSize = () => { if (fsInput && fsInput.value) _applyFlowFontSize(blocks, fsInput.value); };
+  fsApply?.addEventListener('click', doFontSize);
+  fsInput?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doFontSize(); } });
 }
 
 window.showFlowMultiSelPanel = showFlowMultiSelPanel;

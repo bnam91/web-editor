@@ -22,8 +22,10 @@ function openTemplateBrowser() {
   _browserOpen = true;
   panel.style.display = 'flex';
   if (!panel.dataset.userMoved) {
+    // 좌측 패널의 오른쪽 끝 기준 — 패널이 접히면(margin-left 음수) right가 0이 되어
+    // 브라우저도 화면 왼쪽에 붙는다. width 기준이면 접힘 상태에서 240px 떠버림.
     const leftPanel = document.getElementById('panel-left');
-    const leftW = leftPanel ? leftPanel.getBoundingClientRect().width : 240;
+    const leftW = leftPanel ? Math.max(0, leftPanel.getBoundingClientRect().right) : 240;
     panel.style.left = (leftW + 4) + 'px';
     panel.style.top = '44px';
   }

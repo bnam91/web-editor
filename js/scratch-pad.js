@@ -11,9 +11,16 @@ const SCRATCH_STORE   = 'scratch';
 let _db = null;
 let _currentProjectId = null;
 let _currentPageId = null;
-let _scratchItems = [];   // { el, src, x, y, w }
+let _scratchItems = [];   // { el, src, x, y, w, id, g? } — g = 그룹 id (선택 그룹화)
 let _selectedItems = new Set();  // 다중 선택 집합
 let _sliceMode = null;    // 슬라이스 모드 활성 item (또는 null)
+// ★탭 고속 전환(A→B→C) race 가드 (Codex 리뷰) —
+// _scratchLoadGen: 로드 세대 토큰. flush/새 로드가 bump → 늦게 도착한 IndexedDB read가
+//                  새 컨텍스트에 이전 프로젝트 아이템을 섞거나 엉뚱한 키에 저장하는 것 차단.
+// _scratchLoaded:  현재 컨텍스트의 로드 완료 여부. 미완료 상태에서 _saveScratch/flush가
+//                  빈 _scratchItems를 그 키에 덮어써 데이터를 지우는 것 차단.
+let _scratchLoadGen = 0;
+let _scratchLoaded = true;
 
 function _openDB() {
   if (_db) return Promise.resolve(_db);
@@ -69,11 +76,40 @@ function _getScratchKey(projectId, pageId) {
 }
 
 async function _saveScratch() {
+  if (!_scratchLoaded) return; // ★로드 미완료 컨텍스트 — 빈/불완전 배열로 기존 데이터 덮어쓰기 방지
   const key = _getScratchKey(_currentProjectId, _currentPageId);
   if (!key) return; // projectId 없으면 저장 스킵
   const db   = await _openDB();
   // 스냅샷을 await 전에 미리 찍어서 비동기 구간 중 배열 변경 영향 차단
-  const data = _scratchItems.map(({ src, x, y, w, id }) => ({ src, x, y, w, id }));
+  const data = _scratchItems.map(({ src, x, y, w, id, g }) => ({ src, x, y, w, id, g }));
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SCRATCH_STORE, 'readwrite');
+    tx.objectStore(SCRATCH_STORE).put(data, key);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+// 탭 전환 즉시 호출: 이전 프로젝트 스크래치를 '동기 DOM 제거' 후 백그라운드 저장 (잔상 방지).
+// switchScratch는 currentPageId 확정(applyProjectData 이후)까지 미뤄지지만, 이전 프로젝트의
+// 저장/제거에는 새 pageId가 필요 없으므로 여기서 분리 수행한다.
+async function flushScratchForSwitch() {
+  _scratchLoadGen++; // ★진행 중인 _loadScratch 무효화 — 늦은 read가 다음 컨텍스트를 오염시키지 않게
+  // ★로드 미완료(A→B→C 고속 전환 중 B의 read 미도착)면 저장 금지 —
+  //   빈 _scratchItems를 B의 키에 덮어써 B 데이터가 지워지는 race 차단
+  const wasLoaded = _scratchLoaded;
+  const key  = _getScratchKey(_currentProjectId, _currentPageId);
+  // ★스냅샷은 배열 클리어 '전에' 동기 확보 — 안 그러면 빈 배열이 저장돼 데이터 유실
+  const data = _scratchItems.map(({ src, x, y, w, id, g }) => ({ src, x, y, w, id, g }));
+  _clearSelection();
+  _scratchItems.forEach(s => s.el.remove()); // 동기 제거 — 캔버스 클리어와 같은 턴에 잔상 소멸
+  _scratchItems = [];
+  // ★키 무효화 — 뒤따르는 switchScratch의 _saveScratch가 옛 키에 빈 배열을 덮어쓰지 않게 no-op화
+  _currentProjectId = null;
+  _currentPageId    = null;
+  _scratchLoaded    = true; // 빈 컨텍스트 = 일관 상태 (key가 null이라 이후 save는 어차피 no-op)
+  if (!key || !wasLoaded) return; // projectId 없었거나 로드 미완료였으면 저장 스킵
+  const db = await _openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
     tx.objectStore(SCRATCH_STORE).put(data, key);
@@ -114,6 +150,19 @@ function _clearSelection() {
   _selectedItems.clear();
 }
 
+// 마퀴 드래그 중 라이브 선택 동기화 — 선택 = base(shift 시 기존 선택) ∪ hits(마퀴 교차)
+function _applyMarqueeSelection(baseSet, hitSet) {
+  const next = new Set(baseSet);
+  hitSet.forEach(s => next.add(s));
+  _selectedItems.forEach(s => {
+    if (!next.has(s)) { s.el.classList.remove('scratch-selected'); _setIdChipVisible(s, false); }
+  });
+  next.forEach(s => {
+    if (!_selectedItems.has(s)) { s.el.classList.add('scratch-selected'); _setIdChipVisible(s, true); }
+  });
+  _selectedItems = next;
+}
+
 function _genScratchId() {
   return 'sp_' + Math.random().toString(36).slice(2, 8);
 }
@@ -135,8 +184,8 @@ function _removeItem(item) {
 // Cmd+Z 시 캔버스 작업이 아닌 스크래치 삭제가 먼저 되돌려지도록 별도 entry로 등록
 function _deleteScratchItemsWithHistory(items) {
   if (!items || items.length === 0) return;
-  // 삭제 전 정보 캡쳐 (복원용) — src/x/y/w/id 보존
-  const snapshots = items.map(s => ({ src: s.src, x: s.x, y: s.y, w: s.w, id: s.id }));
+  // 삭제 전 정보 캡쳐 (복원용) — src/x/y/w/id/g 보존
+  const snapshots = items.map(s => ({ src: s.src, x: s.x, y: s.y, w: s.w, id: s.id, g: s.g }));
 
   // 실제 삭제
   items.forEach(s => {
@@ -148,26 +197,19 @@ function _deleteScratchItemsWithHistory(items) {
 
   // 글로벌 history에 sideEffects entry 추가 — 캔버스 스냅샷은 동일 상태로 push되어
   // restoreSnapshot은 캔버스에 영향을 주지 않고 onUndo가 스크래치만 복원
-  // onUndo가 새로 추가한 item들의 id를 기억해야 redo가 그것들을 다시 지울 수 있음
-  const undoNewIds = new Array(snapshots.length).fill(null);
+  // ★원본 id로 복원 (Codex 리뷰) — id가 바뀌면 이동/리사이즈 history 스냅샷이
+  //   아이템을 못 찾아 undo 체인이 끊기므로 s.id 그대로 재사용. redo도 같은 id로 제거.
   try {
     window.pushHistory?.('스크래치 삭제', {
       onUndo: async () => {
-        for (let i = 0; i < snapshots.length; i++) {
-          const s = snapshots[i];
-          try { await window._scratchAddAndSave?.(s.src, s.x, s.y, s.w); } catch (_) {}
-          // 방금 추가된 item의 새 id 추출 (브라우저가 새 id 부여)
-          const all = document.querySelectorAll('.scratch-item');
-          const chip = all[all.length - 1]?.querySelector('.scratch-id-chip')?.textContent?.trim();
-          undoNewIds[i] = chip ? chip.replace(/^#/, '') : null;
+        for (const s of snapshots) {
+          try { await window._scratchAddAndSave?.(s.src, s.x, s.y, s.w, s.g, s.id); } catch (_) {}
         }
       },
       onRedo: async () => {
-        // 복원했던 item들을 다시 제거
-        for (let i = 0; i < undoNewIds.length; i++) {
-          const id = undoNewIds[i];
-          if (id) { try { await window._scratchRemoveById?.(id); } catch (_) {} }
-          undoNewIds[i] = null;
+        // 복원했던 item들을 다시 제거 (id 보존이므로 원본 id로 직접 제거)
+        for (const s of snapshots) {
+          try { await window._scratchRemoveById?.(s.id); } catch (_) {}
         }
       },
     });
@@ -210,12 +252,32 @@ async function _sliceImageHorizontal(src, ratio) {
   };
 }
 
+// 세로 컷 슬라이스(⌘ hold): ratio(0~1) 위치에서 세로로 잘라 좌/우 dataURL 두 개 반환
+async function _sliceImageVertical(src, ratio) {
+  const img = await _loadImg(src);
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const cutX = Math.max(1, Math.min(W - 1, Math.round(W * ratio)));
+  const mk = (sx, sw) => {
+    const cv = document.createElement('canvas');
+    cv.width = sw; cv.height = H;
+    cv.getContext('2d').drawImage(img, sx, 0, sw, H, 0, 0, sw, H);
+    return cv.toDataURL('image/png');
+  };
+  return {
+    left:  mk(0, cutX),
+    right: mk(cutX, W - cutX),
+    cutX,
+    naturalW: W,
+  };
+}
+
 // 슬라이스 실행 — item을 두 조각으로 대체. history push 포함.
-async function _sliceItem(item, ratio) {
+// vert=true(⌘ 컷)면 세로 절단선 → 좌/우 조각, 아니면 가로 절단선 → 위/아래 조각(기존).
+async function _sliceItem(item, ratio, vert) {
   if (!item || ratio <= 0 || ratio >= 1) return;
   if (_sliceMode === item) _exitSliceMode();
   let result;
-  try { result = await _sliceImageHorizontal(item.src, ratio); }
+  try { result = vert ? await _sliceImageVertical(item.src, ratio) : await _sliceImageHorizontal(item.src, ratio); }
   catch (err) { window.showToast?.('❌ 슬라이스 실패: ' + err.message); return; }
 
   // 원본 표시 크기 계산 — display height = w * (natH / natW)
@@ -223,44 +285,53 @@ async function _sliceItem(item, ratio) {
   const natW  = imgEl?.naturalWidth || 1;
   const natH  = imgEl?.naturalHeight || 1;
   const dispH = item.w * (natH / natW);
-  const topDispH = dispH * (result.cutY / result.naturalH);
   const GAP = 6; // 분리 간격 (px, 캔버스 좌표계)
 
   const restoreInfo = { src: item.src, x: item.x, y: item.y, w: item.w, id: item.id };
+
+  // 조각 배치 계산 — 가로컷: 같은 폭으로 위/아래, 세로컷: 폭을 비율대로 나눠 좌/우
+  let pieces;
+  if (vert) {
+    const leftDispW = item.w * (result.cutX / result.naturalW);
+    pieces = [
+      { src: result.left,  x: item.x,                        y: item.y, w: leftDispW },
+      { src: result.right, x: item.x + leftDispW + GAP,      y: item.y, w: item.w - leftDispW },
+    ];
+  } else {
+    const topDispH = dispH * (result.cutY / result.naturalH);
+    pieces = [
+      { src: result.top,    x: item.x, y: item.y,                   w: item.w },
+      { src: result.bottom, x: item.x, y: item.y + topDispH + GAP,  w: item.w },
+    ];
+  }
 
   // 원본 제거
   item.el.remove();
   _scratchItems = _scratchItems.filter(s => s !== item);
   _selectedItems.delete(item);
 
-  // 두 조각 생성 (같은 위치 + GAP만큼 떨어뜨려)
-  const topItem    = _createItem(result.top,    item.x, item.y, item.w);
-  const bottomItem = _createItem(result.bottom, item.x, item.y + topDispH + GAP, item.w);
+  // 두 조각 생성
+  const topItem    = _createItem(pieces[0].src, pieces[0].x, pieces[0].y, pieces[0].w);
+  const bottomItem = _createItem(pieces[1].src, pieces[1].x, pieces[1].y, pieces[1].w);
   await _saveScratch();
 
-  // history push
+  // history push — ★모든 복원/재생성을 원본 id로 (Codex 리뷰: id가 바뀌면
+  //   이동/리사이즈 history 스냅샷이 아이템을 못 찾아 undo 체인이 끊김)
   try {
-    let newTopId = topItem?.id || null;
-    let newBotId = bottomItem?.id || null;
-    let restoredId = null;
+    const topId = topItem?.id || null;
+    const botId = bottomItem?.id || null;
     window.pushHistory?.('스크래치 슬라이스', {
       onUndo: async () => {
-        // 두 조각 제거 + 원본 복원
-        if (newTopId) { try { await window._scratchRemoveById?.(newTopId); } catch (_) {} }
-        if (newBotId) { try { await window._scratchRemoveById?.(newBotId); } catch (_) {} }
-        try { await window._scratchAddAndSave?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w); } catch (_) {}
-        const last = document.querySelectorAll('.scratch-item');
-        const chip = last[last.length - 1]?.querySelector('.scratch-id-chip')?.textContent?.trim();
-        if (chip) restoredId = chip.replace(/^#/, '');
+        // 두 조각 제거 + 원본 복원 (원본 id 유지)
+        if (topId) { try { await window._scratchRemoveById?.(topId); } catch (_) {} }
+        if (botId) { try { await window._scratchRemoveById?.(botId); } catch (_) {} }
+        try { await window._scratchAddAndSave?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id); } catch (_) {}
       },
       onRedo: async () => {
-        // 복원된 원본 제거 + 두 조각 재생성
-        if (restoredId) { try { await window._scratchRemoveById?.(restoredId); } catch (_) {} restoredId = null; }
-        try { await window._scratchAddAndSave?.(result.top,    item.x, item.y, item.w); } catch (_) {}
-        try { await window._scratchAddAndSave?.(result.bottom, item.x, item.y + topDispH + GAP, item.w); } catch (_) {}
-        const all = document.querySelectorAll('.scratch-item');
-        newBotId = all[all.length - 1]?.querySelector('.scratch-id-chip')?.textContent?.trim()?.replace(/^#/, '') || null;
-        newTopId = all[all.length - 2]?.querySelector('.scratch-id-chip')?.textContent?.trim()?.replace(/^#/, '') || null;
+        // 복원된 원본 제거 + 두 조각 재생성 (조각 id도 최초 슬라이스 때 id 유지, 가로/세로 배치 동일 재현)
+        try { await window._scratchRemoveById?.(restoreInfo.id); } catch (_) {}
+        try { await window._scratchAddAndSave?.(pieces[0].src, pieces[0].x, pieces[0].y, pieces[0].w, undefined, topId); } catch (_) {}
+        try { await window._scratchAddAndSave?.(pieces[1].src, pieces[1].x, pieces[1].y, pieces[1].w, undefined, botId); } catch (_) {}
       },
     });
   } catch (_) {}
@@ -288,24 +359,64 @@ function _enterSliceMode(item) {
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+  // ⌘ hold = 세로 절단선(좌/우 컷), 놓으면 가로(위/아래 컷) 복귀 — 클릭 시점 방향으로 확정
+  item._sliceVert = false;
+  let _lastMx = null, _lastMy = null;
+
+  const _applyLineOrient = () => {
+    if (item._sliceVert) {
+      line.classList.add('vert');
+      line.style.top = '';
+      if (_lastMx !== null) {
+        const rect = item.el.getBoundingClientRect();
+        const ratio = clamp((_lastMx - rect.left) / rect.width, 0.02, 0.98);
+        line.style.left = (ratio * 100) + '%';
+        item._sliceRatio = ratio;
+      } else { line.style.left = '50%'; }
+    } else {
+      line.classList.remove('vert');
+      line.style.left = '';
+      if (_lastMy !== null) {
+        const rect = item.el.getBoundingClientRect();
+        const ratio = clamp((_lastMy - rect.top) / rect.height, 0.02, 0.98);
+        line.style.top = (ratio * 100) + '%';
+        item._sliceRatio = ratio;
+      } else { line.style.top = '50%'; }
+    }
+  };
+
   const onMove = mv => {
+    _lastMx = mv.clientX; _lastMy = mv.clientY;
+    const v = mv.metaKey;
+    if (v !== item._sliceVert) { item._sliceVert = v; _applyLineOrient(); return; }
     const rect = item.el.getBoundingClientRect();
-    const y = mv.clientY - rect.top;
-    const ratio = clamp(y / rect.height, 0.02, 0.98);
-    line.style.top = (ratio * 100) + '%';
+    const ratio = v
+      ? clamp((mv.clientX - rect.left) / rect.width,  0.02, 0.98)
+      : clamp((mv.clientY - rect.top)  / rect.height, 0.02, 0.98);
+    if (v) line.style.left = (ratio * 100) + '%';
+    else   line.style.top  = (ratio * 100) + '%';
     item._sliceRatio = ratio;
   };
 
   const onClickConfirm = e => {
     e.stopPropagation();
     const r = item._sliceRatio || 0.5;
+    const v = item._sliceVert;
     _exitSliceMode();
-    _sliceItem(item, r);
+    _sliceItem(item, r, v);
   };
 
   const onKeyEsc = e => {
-    if (e.key === 'Escape') _exitSliceMode();
+    if (e.key === 'Escape') { _exitSliceMode(); return; }
+    // 마우스 이동 없이 ⌘만 눌러도 방향 즉시 전환
+    if (e.key === 'Meta' && !item._sliceVert) { item._sliceVert = true; _applyLineOrient(); }
   };
+
+  const onKeyUp = e => {
+    if (e.key === 'Meta' && item._sliceVert) { item._sliceVert = false; _applyLineOrient(); }
+  };
+  document.addEventListener('keyup', onKeyUp);
+  item._sliceKeyUp = onKeyUp;
 
   const onOutsideMousedown = e => {
     const target = e.target.closest('.scratch-item');
@@ -335,6 +446,8 @@ function _exitSliceMode() {
     document.removeEventListener('keydown', h.onKeyEsc);
     document.removeEventListener('mousedown', h.onOutsideMousedown, true);
   }
+  if (item._sliceKeyUp) { document.removeEventListener('keyup', item._sliceKeyUp); item._sliceKeyUp = null; }
+  item._sliceVert = false;
   item._sliceHandlers = null;
   _sliceMode = null;
 }
@@ -355,7 +468,28 @@ function _dataUrlToPngBlob(dataUrl) {
   });
 }
 
-function _createItem(src, x, y, w = 220, idArg) {
+// nativeImage.createFromDataURL은 PNG/JPEG data URL만 디코드한다(webp/gif/svg → empty image).
+// 외부화 src(goya-asset://)는 main IPC로 재인라인 후, PNG/JPEG가 아니면 캔버스로 PNG 트랜스코드.
+async function _srcToPngDataUrl(src) {
+  let s = String(src || '');
+  const m = /^goya-asset:\/\/([^/]+)\/(.+)$/.exec(s);
+  if (m && window.electronAPI?.assetsReadAsDataUri) {
+    const res = await window.electronAPI.assetsReadAsDataUri({
+      projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2])
+    });
+    if (res?.ok && res.dataUri) s = res.dataUri;
+  }
+  if (/^data:image\/(png|jpe?g)[;,]/i.test(s)) return s;
+  const blob = await _dataUrlToPngBlob(s);
+  return await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload  = () => resolve(fr.result);
+    fr.onerror = () => reject(new Error('PNG 변환 실패'));
+    fr.readAsDataURL(blob);
+  });
+}
+
+function _createItem(src, x, y, w = 220, idArg, gArg) {
   const scaler = document.getElementById('canvas-scaler');
   if (!scaler) return null;
 
@@ -363,6 +497,7 @@ function _createItem(src, x, y, w = 220, idArg) {
   const el = document.createElement('div');
   el.className = 'scratch-item';
   el.dataset.scratchId = id;
+  if (gArg) el.dataset.scratchGroup = gArg;
   el.style.cssText = `left:${x}px; top:${y}px; width:${w}px;`;
 
   const img = document.createElement('img');
@@ -450,13 +585,60 @@ function _createItem(src, x, y, w = 220, idArg) {
     const scale  = _getScale();
     const startX = e.clientX;
     const startW = el.offsetWidth;
+    // 복수 선택(⌘G 그룹 불필요) > 그룹 > 단독 순으로 스케일 대상 결정 —
+    // 드래그 이동(dragTargets)과 동일하게 선택 집합을 우선. 그룹처럼 바운딩 비례 스케일.
+    const members = (_selectedItems.size > 1 && _selectedItems.has(item))
+      ? [..._selectedItems]
+      : (item.g ? _scratchItems.filter(s => s.g === item.g) : [item]);
+    const isGroup = members.length > 1;
+    // 앵커 = 그룹 바운딩박스 좌상단 (핸들이 우하단이므로 좌상단 고정 → 우하단으로 성장)
+    const anchorX = Math.min(...members.map(m => m.x));
+    const anchorY = Math.min(...members.map(m => m.y));
+    // 드래그 시작 시점의 각 멤버 지오메트리 고정 스냅샷 (누적 아닌 절대 배율 적용)
+    const starts = members.map(m => ({ it: m, x: m.x, y: m.y, w: m.w }));
+    const minMemberW = Math.min(...starts.map(s => s.w));
+    // 배율 기준거리 = 앵커(좌상단)에서 잡은 핸들(우변)까지. 그룹에서 잡은 아이템이
+    // 최좌측이 아니면 자기 폭(startW)보다 커서 → 배율을 startW로 뽑으면 핸들이 커서보다
+    // 빨리 달아나 그룹이 과하게 커진다. 앵커→핸들 거리로 배율을 뽑아야 핸들이 커서를 정확히 추종.
+    const gs0 = starts.find(s => s.it === item);
+    const anchorDist = Math.max(1, gs0.x + gs0.w - anchorX);
+    // 리사이즈 undo/redo용 사전 지오메트리 스냅샷 — onMove가 변형하기 전에 그룹 전체 캡처
+    const geomBefore = _scratchGeomSnapshot(members);
     const onMove = mv => {
-      const newW = Math.max(60, startW + (mv.clientX - startX) / scale);
-      el.style.width = newW + 'px';
-      item.w = newW;
+      const dx = (mv.clientX - startX) / scale;
+      // 배율 클램프: 잡은 아이템은 최소 60(기존 관용값), 최소 멤버는 20 밑으로 붕괴 방지
+      const fMin = Math.max(60 / startW, 20 / minMemberW);
+      const f = Math.max(fMin, (anchorDist + dx) / anchorDist);
+      starts.forEach(s => {
+        const w = s.w * f;
+        s.it.w = w;
+        if (isGroup) {
+          const x = anchorX + (s.x - anchorX) * f;
+          const y = anchorY + (s.y - anchorY) * f;
+          s.it.x = x; s.it.y = y;
+          if (s.it.el) {
+            s.it.el.style.width = w + 'px';
+            s.it.el.style.left  = x + 'px';
+            s.it.el.style.top   = y + 'px';
+          }
+        } else if (s.it.el) {
+          s.it.el.style.width = w + 'px';
+        }
+      });
     };
     const onUp = () => {
       _saveScratch();
+      // 리사이즈 undo/redo — 잡은 아이템 폭 변화가 있을 때만 history 등록 (이동과 동일 sideEffects 패턴)
+      const gb0 = geomBefore.find(g => g.id === item.id);
+      if (gb0 && item.w !== gb0.w) {
+        const geomAfter = _scratchGeomSnapshot(members);
+        try {
+          window.pushHistory?.('스크래치 리사이즈', {
+            onUndo: () => _applyScratchGeomSnapshot(geomBefore),
+            onRedo: () => _applyScratchGeomSnapshot(geomAfter),
+          });
+        } catch (_) {}
+      }
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -487,6 +669,17 @@ function _createItem(src, x, y, w = 220, idArg) {
       return;
     }
 
+    // 그룹 공동 선택 — 비shift 클릭 시 같은 그룹(g) 멤버 전체를 선택에 포함 → 함께 드래그
+    if (!e.shiftKey && item.g) {
+      for (const s of _scratchItems) {
+        if (s !== item && s.g === item.g && !_selectedItems.has(s)) {
+          _selectedItems.add(s);
+          s.el.classList.add('scratch-selected');
+          _setIdChipVisible(s, true);
+        }
+      }
+    }
+
     // 드래그할 아이템 목록
     const dragTargets = _selectedItems.size > 0 ? [..._selectedItems] : [item];
     // 단일 드래그인 경우만 캔버스 변환 모드 활성 (다중은 위치 이동만)
@@ -501,6 +694,9 @@ function _createItem(src, x, y, w = 220, idArg) {
     const startClientX = e.clientX;
     const startClientY = e.clientY;
     dragTargets.forEach(t => { t._dragOrigX = t.x; t._dragOrigY = t.y; });
+    // 이동 undo/redo용 사전 지오메트리 스냅샷 — onMove가 x/y를 변형하기 전에 캡처
+    // (_dragOrigX/Y는 onUp 초입에서 delete되므로 재사용 불가 — 별도 스냅샷 필요)
+    const geomBefore = _scratchGeomSnapshot(dragTargets);
     let lastClientX = e.clientX;
     let lastClientY = e.clientY;
     let hasMoved = false;
@@ -592,6 +788,8 @@ function _createItem(src, x, y, w = 220, idArg) {
     };
 
     const onMove = mv => {
+      // 미세 지터(클릭 중 1~2px 떨림)가 '드래그'로 승격되는 것 차단 — 화면좌표 기준 임계값
+      if (!hasMoved && Math.hypot(mv.clientX - startClientX, mv.clientY - startClientY) < 3) return;
       hasMoved = true;
       lastClientX = mv.clientX;
       lastClientY = mv.clientY;
@@ -721,9 +919,9 @@ function _createItem(src, x, y, w = 220, idArg) {
         } else if (guidesOverlay) {
           _resetGuides();
         }
-        // 단일 드래그면 캔버스 변환 가이드 미리보기
+        // 단일 드래그면 캔버스 변환 가이드 미리보기 (requireArm: 같은 타깃 위 체류 후에만 하이라이트=armed)
         if (isSingleDrag) {
-          try { dropKind = previewScratchDropAt(lastClientX, lastClientY); }
+          try { dropKind = previewScratchDropAt(lastClientX, lastClientY, { requireArm: true }); }
           catch (err) { dropKind = 'none'; }
         }
         _rafId = null;
@@ -743,8 +941,8 @@ function _createItem(src, x, y, w = 220, idArg) {
       // 단일 드래그 + 움직임 있었으면 마지막 좌표에서 변환 시도
       // (pointer-events:none을 commit 전까지 유지해야 elementFromPoint가 underneath 캔버스를 잡음)
       let committed = false;
-      // Undo 복원용 — 변환 전에 캡쳐
-      const restoreInfo = { src: item.src, x: item.x, y: item.y, w: item.w };
+      // Undo 복원용 — 변환 전에 캡쳐 (id 포함 — 복원 시 원본 id 유지해야 이동 undo 체인 안 끊김)
+      const restoreInfo = { src: item.src, x: item.x, y: item.y, w: item.w, id: item.id };
       // 이미지 자연 비율 (insert/append 케이스용)
       const imgEl = item.el.querySelector('img');
       const natW = imgEl?.naturalWidth || 0;
@@ -755,6 +953,7 @@ function _createItem(src, x, y, w = 220, idArg) {
           committed = commitScratchDropAt(lastClientX, lastClientY, item.src, {
             naturalWidth: natW,
             naturalHeight: natH,
+            requireArm: true, // 하이라이트(armed) 없이 스친 릴리즈는 위치 이동으로만 처리
           });
         } catch (err) {
           console.warn('[ScratchPad] commit 실패:', err);
@@ -768,22 +967,15 @@ function _createItem(src, x, y, w = 220, idArg) {
       if (committed) {
         try { await window._scratchRemoveById?.(item.id); } catch (_) {}
         // 변환 후 상태 push + Undo/Redo 시 스크래치 복원/재제거 hook
-        // restoredId: onUndo가 새로 추가한 item의 id (브라우저가 새 id 부여) — onRedo에서 제거 대상
-        let restoredId = null;
+        // ★원본 id로 복원 (Codex 리뷰) — id가 바뀌면 이동/리사이즈 history 스냅샷이
+        //   아이템을 못 찾아 undo 체인이 끊기므로 restoreInfo.id 그대로 재사용
         try {
           window.pushHistory?.('스크래치→섹션 변환', {
             onUndo: async () => {
-              try { await window._scratchAddAndSave?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w); } catch (_) {}
-              // 방금 추가된 item id 추출 — 마지막 .scratch-item의 chip 텍스트 '#sp_xxx' → 'sp_xxx'
-              const last = document.querySelectorAll('.scratch-item');
-              const chip = last[last.length - 1]?.querySelector('.scratch-id-chip')?.textContent?.trim();
-              if (chip) restoredId = chip.replace(/^#/, '');
+              try { await window._scratchAddAndSave?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id); } catch (_) {}
             },
             onRedo: async () => {
-              if (restoredId) {
-                try { await window._scratchRemoveById?.(restoredId); } catch (_) {}
-                restoredId = null;
-              }
+              try { await window._scratchRemoveById?.(restoreInfo.id); } catch (_) {}
             },
           });
         } catch (_) {}
@@ -800,6 +992,17 @@ function _createItem(src, x, y, w = 220, idArg) {
           t.y = parseFloat(t.el.style.top)  || t.y;
         });
         _saveScratch();
+        // 이동 undo/redo — 실제 좌표 변화가 있을 때만 history 등록 (스냅/지터로 0 이동이면 스킵)
+        // 그룹 정렬(_scratchGroupAndAlign)과 동일한 pushHistory sideEffects 패턴
+        if (dragTargets.some((t, i) => t.x !== geomBefore[i].x || t.y !== geomBefore[i].y)) {
+          const geomAfter = _scratchGeomSnapshot(dragTargets);
+          try {
+            window.pushHistory?.('스크래치 이동', {
+              onUndo: () => _applyScratchGeomSnapshot(geomBefore),
+              onRedo: () => _applyScratchGeomSnapshot(geomAfter),
+            });
+          } catch (_) {}
+        }
       }
     };
 
@@ -809,7 +1012,7 @@ function _createItem(src, x, y, w = 220, idArg) {
 
   scaler.appendChild(el);
 
-  const item = { el, src, x, y, w, id };
+  const item = { el, src, x, y, w, id, g: gArg || undefined };
   _scratchItems.push(item);
 
   // native HTML5 DnD 사용 안 함 — mousedown/move/up 흐름 안에서 모두 처리 (canvas-scratch-drop.js의 export API 호출)
@@ -819,28 +1022,34 @@ function _createItem(src, x, y, w = 220, idArg) {
 }
 
 async function _loadScratch(projectId, pageId) {
+  const gen = ++_scratchLoadGen; // ★이 로드의 세대 토큰 — 이후 flush/새 로드가 bump하면 stale
+  _scratchLoaded    = false;     // 로드 완료 전 save/flush의 빈 배열 덮어쓰기 차단
   _currentProjectId = projectId;
   _currentPageId    = pageId || null;
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
   const key = _getScratchKey(projectId, pageId);
-  if (!key) return; // projectId 없으면 로드 스킵
+  if (!key) { _scratchLoaded = true; return; } // projectId 없으면 로드 스킵 (빈 컨텍스트 = 일관 상태)
   try {
     const db   = await _openDB();
+    if (gen !== _scratchLoadGen) return; // ★stale — 다른 컨텍스트로 이미 전환됨
     const data = await new Promise((resolve, reject) => {
       const tx  = db.transaction(SCRATCH_STORE, 'readonly');
       const req = tx.objectStore(SCRATCH_STORE).get(key);
       req.onsuccess = e => resolve(e.target.result || []);
       req.onerror   = e => reject(e.target.error);
     });
+    if (gen !== _scratchLoadGen) return; // ★stale — DOM/배열 오염·엉뚱한 키 저장 금지
     let migrated = false;
-    data.forEach(({ src, x, y, w, id }) => {
+    data.forEach(({ src, x, y, w, id, g }) => {
       if (!id) migrated = true; // 구 데이터엔 id 없음 — 자동 생성 후 재저장 트리거
-      _createItem(src, x, y, w, id);
+      _createItem(src, x, y, w, id, g);
     });
+    _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
     if (migrated) _saveScratch();
   } catch(e) {
+    if (gen === _scratchLoadGen) _scratchLoaded = true; // 기존 동작 유지 — 세션 중 작업/저장은 가능
     console.warn('[ScratchPad] load error:', e);
     window.showToast?.('⚠️ 스크래치패드 복원 실패 (세션 중에는 정상 동작)');
   }
@@ -853,11 +1062,100 @@ async function initScratchPad(projectId, pageId) {
   if (!wrap || wrap._scratchBound) return;
   wrap._scratchBound = true;
 
-  // canvas-wrap 빈 영역 클릭 → 전체 선택 해제
+  // canvas-wrap 빈 영역: 클릭 = 전체 선택 해제(기존 동작), 드래그 = 마퀴 다중 선택.
+  // panMode(Space)는 editor.js capture 핸들러가 stopPropagation하므로 자연 배제.
+  const MARQUEE_THRESHOLD = 4; // client px — 미만이면 단순 클릭으로 간주
   wrap.addEventListener('mousedown', e => {
-    if (!e.target.closest('.scratch-item')) {
-      _clearSelection();
+    if (e.target.closest('.scratch-item')) return;
+
+    // 마퀴 발동 조건: 좌클릭 + 캔버스 빈 영역(editor.js deselectAll과 동일 판정) + 펜/슬라이스 모드 아님
+    const isEmptyArea = e.button === 0
+      && ['canvas-wrap', 'canvas-scaler', 'canvas'].includes(e.target.id)
+      && !_sliceMode
+      && !document.body.classList.contains('pen-mode')
+      && !document.body.classList.contains('vpen-mode');
+    // 네이티브 스크롤바 클릭은 마퀴 제외 (preventDefault가 스크롤바 드래그를 막음)
+    const onScrollbar = e.target === wrap && (e.offsetX > wrap.clientWidth || e.offsetY > wrap.clientHeight);
+
+    if (!isEmptyArea || onScrollbar) {
+      _clearSelection(); // 기존 동작 유지
+      return;
     }
+
+    // shift = 기존 선택 보존(additive), 아니면 기존 동작대로 즉시 해제
+    const baseSel = e.shiftKey ? new Set(_selectedItems) : new Set();
+    if (!e.shiftKey) _clearSelection();
+    if (_scratchItems.length === 0) return; // 선택 대상 없음 — 마퀴 불필요
+
+    e.preventDefault();
+    // 포커스 잔류로 인한 단축키 가드 오작동 예방 — 입력 요소 blur
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) ae.blur();
+
+    const scalerEl = document.getElementById('canvas-scaler');
+    if (!scalerEl) return;
+    const scale = _getScale();
+    const scalerRect = scalerEl.getBoundingClientRect(); // 시작 시 캐시 (아이템 드래그와 동일 방식)
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startX = (startClientX - scalerRect.left) / scale;
+    const startY = (startClientY - scalerRect.top)  / scale;
+
+    // 아이템 AABB 캐시 (model 좌표)
+    const boxes = _scratchItems.map(s => ({
+      item: s,
+      left: s.x, top: s.y,
+      right:  s.x + (s.w || s.el.offsetWidth || 0),
+      bottom: s.y + (s.el.offsetHeight || 0),
+    }));
+
+    let marqueeEl = null;
+    let active = false;
+    let _rafId = null;
+    let lastMv = null;
+
+    const _update = () => {
+      _rafId = null;
+      if (!lastMv || !marqueeEl) return;
+      const curX = (lastMv.clientX - scalerRect.left) / scale;
+      const curY = (lastMv.clientY - scalerRect.top)  / scale;
+      const x1 = Math.min(startX, curX), x2 = Math.max(startX, curX);
+      const y1 = Math.min(startY, curY), y2 = Math.max(startY, curY);
+      marqueeEl.style.left   = x1 + 'px';
+      marqueeEl.style.top    = y1 + 'px';
+      marqueeEl.style.width  = (x2 - x1) + 'px';
+      marqueeEl.style.height = (y2 - y1) + 'px';
+      // AABB 교차 히트테스트 → 라이브 선택 동기화
+      const hits = new Set();
+      for (const b of boxes) {
+        if (b.left < x2 && b.right > x1 && b.top < y2 && b.bottom > y1) hits.add(b.item);
+      }
+      _applyMarqueeSelection(baseSel, hits);
+    };
+
+    const onMove = mv => {
+      if (!active) {
+        if (Math.max(Math.abs(mv.clientX - startClientX), Math.abs(mv.clientY - startClientY)) < MARQUEE_THRESHOLD) return;
+        active = true;
+        marqueeEl = document.createElement('div');
+        marqueeEl.className = 'scratch-marquee';
+        scalerEl.appendChild(marqueeEl);
+      }
+      lastMv = mv;
+      if (!_rafId) _rafId = requestAnimationFrame(_update);
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; _update(); }
+      marqueeEl?.remove();
+      marqueeEl = null;
+      // 임계 미만 = 단순 클릭: 위에서 이미 기존 동작(선택 해제) 수행됨
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   });
 
   // Delete / Backspace 키 → 선택 아이템 일괄 삭제 (contenteditable 포커스 중 제외)
@@ -883,16 +1181,27 @@ async function initScratchPad(projectId, pageId) {
     e.preventDefault();
     const items = [..._selectedItems];
     try {
+      // goya-asset://·webp 등 nativeImage가 못 읽는 src를 PNG data URL로 정규화
+      const srcForCopy = await _srcToPngDataUrl(items[0].src);
       // Electron 환경: 메인 프로세스 nativeImage 경유 (navigator.clipboard 권한 우회)
       if (window.electronAPI?.clipboardWriteImage) {
-        const res = await window.electronAPI.clipboardWriteImage(items[0].src);
+        const res = await window.electronAPI.clipboardWriteImage(srcForCopy);
         if (!res?.ok) throw new Error(res?.error || 'clipboard write failed');
       } else {
-        const blob = await _dataUrlToPngBlob(items[0].src);
+        const blob = await _dataUrlToPngBlob(srcForCopy);
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       }
       // 외부 클립보드(이미지) 복사 timestamp — Cmd+V 시 내부 클립보드와 우선순위 비교용
       window._scratchClipboardTime = Date.now();
+      // 복사 아이템의 표시 폭 메타 보존 — paste 시 원본 크기 복원용
+      // (OS 클립보드는 첫 장만 담으므로 items[0] 기준. 자연 치수는 paste 시 동일 이미지 대조 가드)
+      const copiedEl = items[0].el, copiedImg = copiedEl?.querySelector('img');
+      window._scratchCopiedMeta = {
+        w: copiedEl?.offsetWidth || items[0].w || 220,
+        natW: copiedImg?.naturalWidth || 0,
+        natH: copiedImg?.naturalHeight || 0,
+        time: window._scratchClipboardTime
+      };
       if (items.length === 1) {
         window.showToast?.('📋 이미지 복사됨 — 모달 프롬프트에 Cmd+V');
       } else {
@@ -969,8 +1278,23 @@ async function initScratchPad(projectId, pageId) {
       if (!file || file.size > 20 * 1024 * 1024) { if (file) window.showToast?.('⚠️ 스크래치패드: 20MB 이하 이미지만 지원합니다.'); return; }
       const reader = new FileReader();
       reader.onload = ev => {
-        _createItem(ev.target.result, cx - 110 + i * 24, cy - 60 + i * 24);
-        _saveScratch();
+        const dataUrl = ev.target.result;
+        // 스크래치 Cmd+C로 복사한 이미지면 원본 표시 폭 복원 (자연 치수 대조 가드 —
+        // 외부 앱에서 복사한 이미지는 치수 불일치로 걸러져 기본 220px 유지)
+        const meta = window._scratchCopiedMeta;
+        const probe = new Image();
+        probe.onload = () => {
+          let w = 220;
+          if (meta && meta.time === (window._scratchClipboardTime || 0)
+              && probe.naturalWidth === meta.natW && probe.naturalHeight === meta.natH) w = meta.w;
+          _createItem(dataUrl, cx - w / 2 + i * 24, cy - 60 + i * 24, w);
+          _saveScratch();
+        };
+        probe.onerror = () => {
+          _createItem(dataUrl, cx - 110 + i * 24, cy - 60 + i * 24);
+          _saveScratch();
+        };
+        probe.src = dataUrl;
       };
       reader.readAsDataURL(file);
     });
@@ -999,6 +1323,7 @@ async function loadScratchpadFolder(event) {
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   if (!images.length) { window.showToast?.('⚠️ 이미지 파일을 찾지 못했습니다'); return; }
 
+  // START_X = 캔버스(섹션은 스크래치좌표 x0~860 점유) 우측으로 안전한 시작 x.
   const START_X = 960, WIDTH = 860, GAP_X = 100, GAP_Y = 100;
   let startX = START_X, startY = 0;
   if (_scratchItems.length > 0) {
@@ -1009,7 +1334,10 @@ async function loadScratchpadFolder(event) {
       const right = (s.x || 0) + w;
       if (right > maxRight) maxRight = right;
     }
-    startX = maxRight + GAP_X;
+    // ★ 하한 START_X 보장 — 기존엔 스크래치 아이템만 보고 maxRight+GAP라, 아이템이 캔버스
+    //   왼쪽(음수 x 등)에 있으면 새 컬럼이 캔버스(x0~860) 위로 얹혀 섹션과 겹치던 버그
+    //   (현빈: sp_ot4tk9가 x=-945에 있어 발생). 캔버스 우측 클리어를 항상 지킨다.
+    startX = Math.max(START_X, maxRight + GAP_X);
   }
 
   let curY = startY, added = 0;
@@ -1042,6 +1370,7 @@ window.loadScratchpadFolder = loadScratchpadFolder;
 window.initScratchPad    = initScratchPad;
 window.switchScratch     = switchScratch;
 window.switchScratchPage = switchScratchPage;
+window.flushScratchForSwitch = flushScratchForSwitch;
 window.clearScratchPad   = async () => {
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
@@ -1057,8 +1386,10 @@ window.clearScratchPad   = async () => {
 
 // CDP 스킬용 헬퍼 — 이미지를 추가하고 IndexedDB에 즉시 저장
 // ⚠️ Promise를 반환함 — 호출 시 반드시 await 사용: await window._scratchAddAndSave(...)
-window._scratchAddAndSave = async (src, x, y, w) => {
-  _createItem(src, x, y, w);
+// id(선택): 삭제 undo 등 '복원' 경로에서 원본 id 유지용 (Codex 리뷰 — id가 바뀌면
+//           이동/리사이즈 history의 지오메트리 스냅샷이 아이템을 못 찾아 undo 체인이 끊김)
+window._scratchAddAndSave = async (src, x, y, w, g, id) => {
+  _createItem(src, x, y, w, id, g);
   await _saveScratch();
 };
 
@@ -1068,38 +1399,119 @@ window._scratchGetItemById = id => {
   return it ? { id: it.id, src: it.src } : null;
 };
 
-// ── 스크래치 그룹화 + 스마트 그리드 정렬 (Cmd+G — editor.js 단축키 분기) ──────
-// 다중 선택된 스크래치들을 4열 그리드로 재배치 + data-scratch-group 박음.
+// ── Phase 1(마켓 동기화): 프로젝트 전 페이지 스크래치 export/import ──
+// export: 현재 페이지 미저장분 flush 후, pageIds를 진실소스로 전 페이지 IndexedDB 항목 수집.
+//   반환 [{ pageId, items:[{src,x,y,w,id}] }] (빈 페이지 제외). pageIds 미지정 시 현재 페이지만.
+window._scratchExportAll = async (projectId, pageIds) => {
+  if (!projectId) return [];
+  try { await _saveScratch(); } catch (_) {}   // 현재 페이지 in-memory분 영속화
+  const db = await _openDB();
+  const ids = Array.isArray(pageIds) && pageIds.length ? pageIds : (_currentPageId ? [_currentPageId] : []);
+  const out = [];
+  for (const pageId of ids) {
+    const key = `scratch-pad-${projectId}-${pageId}`;
+    const items = await new Promise((resolve) => {
+      const tx = db.transaction(SCRATCH_STORE, 'readonly');
+      const req = tx.objectStore(SCRATCH_STORE).get(key);
+      req.onsuccess = e => resolve(e.target.result || []);
+      req.onerror   = () => resolve([]);
+    });
+    if (items && items.length) out.push({ pageId, items });
+  }
+  return out;
+};
+
+// import: pull로 받은 스크래치 블록을 newProjectId 키로 복원(페이지id 보존 — 키가 projectId로 네임스페이스라 충돌無).
+window._scratchImportAll = async (newProjectId, scratchBlock) => {
+  if (!newProjectId || !Array.isArray(scratchBlock) || !scratchBlock.length) return 0;
+  const db = await _openDB();
+  let n = 0;
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(SCRATCH_STORE, 'readwrite');
+    const store = tx.objectStore(SCRATCH_STORE);
+    for (const { pageId, items } of scratchBlock) {
+      if (!pageId || !Array.isArray(items) || !items.length) continue;
+      const clean = items.map(({ src, x, y, w, id, g }) => ({ src, x, y, w, id, g }));
+      store.put(clean, `scratch-pad-${newProjectId}-${pageId}`);
+      n++;
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror    = e => reject(e.target.error);
+  });
+  return n;
+};
+
+// ── 스크래치 그룹화 (Cmd+G — editor.js 단축키 분기) ──────
+// 다중 선택된 스크래치들에 data-scratch-group만 박음 — 위치/크기는 보이는 그대로 불변.
 // 같은 그룹은 시각적 묶음 (향후 함께 이동 등 확장 가능).
 window._scratchHasSelection = () => _selectedItems.size >= 2;
+
+// 그룹/언그룹 undo·redo용 지오메트리 스냅샷 헬퍼 (Codex 리뷰 — Cmd+G가 history에 안 남던 버그)
+// snap = [{id, x, y, w, g}] — id로 살아있는 아이템을 찾아 x/y/w/g + DOM 스타일 복원 후 저장
+const _scratchGeomSnapshot = items => items.map(it => ({ id: it.id, x: it.x, y: it.y, w: it.w, g: it.g }));
+function _applyScratchGeomSnapshot(snaps) {
+  snaps.forEach(s => {
+    const it = _scratchItems.find(i => i.id === s.id);
+    if (!it) return; // 이후 삭제된 아이템은 스킵
+    it.x = s.x; it.y = s.y; it.w = s.w;
+    if (s.g === undefined) { delete it.g; if (it.el) delete it.el.dataset.scratchGroup; }
+    else { it.g = s.g; if (it.el) it.el.dataset.scratchGroup = s.g; }
+    if (it.el) {
+      it.el.style.left  = it.x + 'px';
+      it.el.style.top   = it.y + 'px';
+      it.el.style.width = it.w + 'px';
+    }
+  });
+  _saveScratch();
+}
 
 window._scratchGroupAndAlign = () => {
   if (_selectedItems.size < 2) return { ok: false, msg: '2개 이상 선택 필요' };
   const items = [...(_selectedItems)];
-  // 기준 좌표: 선택 중 가장 좌상단 (최소 x, 최소 y)
-  const minX = Math.min(...items.map(i => i.x));
-  const minY = Math.min(...items.map(i => i.y));
-  // 스마트 그리드 — 220px width, 4 cols, gap 16
-  const W = 220, GAP = 16, COLS = 4;
   // 그룹 id (이미 그룹 있으면 재사용 — 첫 아이템 기준)
-  const groupId = items[0].el?.dataset?.scratchGroup || ('g_' + Math.random().toString(36).slice(2, 8));
-  items.forEach((it, idx) => {
-    const col = idx % COLS;
-    const row = Math.floor(idx / COLS);
-    const newX = minX + col * (W + GAP);
-    const newY = minY + row * (W + GAP);
-    it.x = newX;
-    it.y = newY;
-    if (it.el) {
-      it.el.style.left = newX + 'px';
-      it.el.style.top  = newY + 'px';
-      it.el.style.width = W + 'px';
-      it.el.dataset.scratchGroup = groupId;
-    }
-    it.w = W;
+  const groupId = items[0].g || items[0].el?.dataset?.scratchGroup || ('g_' + Math.random().toString(36).slice(2, 8));
+  const before = _scratchGeomSnapshot(items); // undo용 사전 스냅샷
+  // 보이는 그대로 그룹 — 위치/크기는 건드리지 않고 g만 부여 (그리드 재배치 제거)
+  items.forEach(it => {
+    it.g = groupId; // 직렬화 대상 — 리로드 후에도 그룹 유지
+    if (it.el) it.el.dataset.scratchGroup = groupId;
   });
   _saveScratch();
+  // 글로벌 history에 sideEffects entry — 캔버스는 동일 스냅샷, onUndo/onRedo가 스크래치만 복원
+  const after = _scratchGeomSnapshot(items);
+  try {
+    window.pushHistory?.('스크래치 그룹', {
+      onUndo: () => _applyScratchGeomSnapshot(before),
+      onRedo: () => _applyScratchGeomSnapshot(after),
+    });
+  } catch (_) {}
+  window.showToast?.(`🧩 스크래치 ${items.length}개 그룹 설정`);
   return { ok: true, count: items.length, groupId };
+};
+
+// 선택 중 그룹(g) 달린 아이템 존재 여부 — Cmd+Shift+G 라우팅용 (editor.js ungroup 분기)
+window._scratchHasGroupSelection = () =>
+  [..._selectedItems].some(it => it.g || it.el?.dataset?.scratchGroup);
+
+// 스크래치 언그룹 — 선택된 아이템들의 그룹 해제 (Cmd+Shift+G)
+window._scratchUngroup = () => {
+  const items = [..._selectedItems].filter(it => it.g || it.el?.dataset?.scratchGroup);
+  if (!items.length) return { ok: false, msg: '그룹 아이템 없음' };
+  const before = _scratchGeomSnapshot(items); // undo용 사전 스냅샷 (g 복원)
+  items.forEach(it => {
+    delete it.g;
+    if (it.el) delete it.el.dataset.scratchGroup;
+  });
+  _saveScratch();
+  const after = _scratchGeomSnapshot(items);
+  try {
+    window.pushHistory?.('스크래치 그룹 해제', {
+      onUndo: () => _applyScratchGeomSnapshot(before),
+      onRedo: () => _applyScratchGeomSnapshot(after),
+    });
+  } catch (_) {}
+  window.showToast?.(`🧩 스크래치 그룹 해제 (${items.length}개)`);
+  return { ok: true, count: items.length };
 };
 
 // ── Claude PM MCP 노출: 스크래치 아이템 메타데이터 조회 ──

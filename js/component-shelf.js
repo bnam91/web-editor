@@ -52,8 +52,12 @@ function listComponents() {
  * @param {string} id  컴포넌트 id
  */
 function insertComponent(id) {
-  const list = _load();
-  const comp = list.find(c => c.id === id);
+  // 브릿지는 1급 .bridge-block(섹션 내 블록)으로 통일 — 셸프 내장도 블록 경로로 라우팅 (b3-2, 코덱스).
+  if (id === 'builtin_bridge' && typeof window.addBridgeBlock === 'function') { window.addBridgeBlock(); return; }
+  // 내장 컴포넌트는 build()로 매번 새 HTML(새 id) 생성
+  const builtin = _BUILTINS.find(b => b.id === id);
+  const comp = builtin ? { name: builtin.name, html: builtin.build() }
+                       : _load().find(c => c.id === id);
   if (!comp) {
     window.showToast && window.showToast('컴포넌트를 찾을 수 없습니다.');
     return;
@@ -79,6 +83,9 @@ function insertComponent(id) {
   window.showToast && window.showToast(`"${comp.name}" 삽입 완료`);
 }
 
+// 컴퍼넌트패널 'Bridge' 버튼의 addBridgeBlock은 block-factory.js로 이동(b3-2: 섹션 아닌 섹션내 블록으로 삽입).
+// 컴포넌트 셸프(저장 컴포넌트 브라우저)의 내장 '브릿지(V커버)'는 아래 _buildBridgeHtml(섹션) + _BUILTINS로 유지.
+
 /**
  * 컴포넌트 삭제
  * @param {string} id  컴포넌트 id
@@ -87,6 +94,30 @@ function deleteComponent(id) {
   const list = _load().filter(c => c.id !== id);
   _save(list);
 }
+
+// ── 내장(built-in) 컴포넌트 ───────────────────────────
+// 사용자가 저장한 컴포넌트 외에, 항상 제공되는 기본 컴포넌트.
+// 브릿지: 풀폭 밴드 + 상단 중앙 V홈(섹션 배경 비침) — 섹션 경계에 끼워 "아래로 이어짐" 방향 표시 커버.
+function _bridgeGenId(p) {
+  return (typeof window.genId === 'function') ? window.genId(p) : p + '_' + Math.random().toString(36).slice(2, 9);
+}
+function _buildBridgeHtml(color) {
+  const c = color || '#cccccc';   // 기본색=구조/장식 블록 공통 중립회색 (실제 블록 BRIDGE_DEFAULTS와 일치)
+  const secId = _bridgeGenId('sec');
+  // viewBox 0 0 860 90, 풀폭 stretch. 새 기본=직선 V(곡률 0, width120/depth88) → 실제 추가되는 블록과 동일한 프리뷰.
+  const path = 'M0 0 L370 0 L430 88 L490 0 L860 0 L860 90 L0 90 Z';
+  return `<div class="section-block" data-section="99" id="${secId}" data-name="Bridge" style="background-color:transparent">
+      <div class="section-hitzone"><span class="section-label">Bridge</span></div>
+      <div class="section-inner" style="padding:0">
+        <div class="bridge-cover" data-bridge-color="${c}" style="width:100%;aspect-ratio:860/90;line-height:0;font-size:0;">
+          <svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${c}"/></svg>
+        </div>
+      </div>
+    </div>`;
+}
+const _BUILTINS = [
+  { id: 'builtin_bridge', name: '브릿지 (V 커버)', builtin: true, build: () => _buildBridgeHtml() },
+];
 
 // ── 패널 UI ───────────────────────────────────────────
 
@@ -179,8 +210,20 @@ function _renderList() {
 
   const comps = listComponents();
 
+  // 내장 컴포넌트(삭제 불가, "내장" 뱃지) — 항상 상단에 표시
+  const builtinHtml = _BUILTINS.map(b => `
+    <div class="comp-shelf-card" data-id="${b.id}">
+      <div class="comp-shelf-card-info">
+        <div class="comp-shelf-card-name">${_escHtml(b.name)} <span style="font-size:9px;color:#7a9;border:1px solid #2a4a3a;border-radius:3px;padding:0 4px;margin-left:2px;">내장</span></div>
+      </div>
+      <div class="comp-shelf-card-actions">
+        <button class="comp-shelf-insert-btn" data-id="${b.id}" title="캔버스에 삽입">삽입</button>
+      </div>
+    </div>
+  `).join('');
+
   if (comps.length === 0) {
-    listEl.innerHTML = `
+    listEl.innerHTML = builtinHtml + `
       <div class="comp-shelf-empty">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#444" stroke-width="1.3">
           <rect x="3" y="3" width="10" height="10" rx="1.5"/>
@@ -191,10 +234,14 @@ function _renderList() {
         <span>저장된 컴포넌트가 없습니다.<br>섹션을 선택 후 저장해보세요.</span>
       </div>
     `;
+    // 내장 삽입 버튼 바인딩
+    listEl.querySelectorAll('.comp-shelf-insert-btn').forEach(btn => {
+      btn.addEventListener('click', () => { insertComponent(btn.dataset.id); closeShelfPanel(); });
+    });
     return;
   }
 
-  listEl.innerHTML = comps.map(c => `
+  listEl.innerHTML = builtinHtml + comps.map(c => `
     <div class="comp-shelf-card" data-id="${c.id}">
       <div class="comp-shelf-card-info">
         <div class="comp-shelf-card-name">${_escHtml(c.name)}</div>
@@ -265,6 +312,7 @@ function toggleShelfPanel() {
 }
 
 // ── 전역 노출 ─────────────────────────────────────────
+// (window.addBridgeBlock은 block-factory.js가 블록 삽입판으로 노출 — b3-2)
 
 window.CompShelf = {
   saveAsComponent,

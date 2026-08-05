@@ -10,11 +10,12 @@ import { pushHistory, undo, redo, clearHistory, restoreSnapshot } from './histor
 const CANVAS_SEL_BLOCKS =
   '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
   '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-  '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, ' +
+  '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, ' +
   '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
   '.step-block.selected, .laurel-block.selected, .gradient-block.selected, ' +
-  '.sticker-block.selected, .joker-block.selected, .chat-block.selected';
+  '.sticker-block.selected, .joker-block.selected, .chat-block.selected, ' +
+  '.speech-bubble-block.selected';  // 버블(sb_): 복수선택/복사/삭제/⌘X 대상 편입 (#7)
 // shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
 // 단, "캔버스에 무언가 선택됨" 판정/섹션 매핑엔 shape도 포함해야 함.
 const CANVAS_SEL_BLOCKS_AND_SHAPE = CANVAS_SEL_BLOCKS + ', .shape-block.selected';
@@ -228,7 +229,7 @@ function zoomStep(delta) {
   const selectedBlock = delta > 0 && document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected, .speech-bubble-block.selected'
   );
   let targetEl = selectedBlock ? (selectedBlock.closest('.section-block') || selectedBlock) : null;
@@ -321,10 +322,12 @@ function getBlockBreadcrumb(el) {
    클립보드 유틸 — Electron 권한 우회
 ══════════════════════════════════════ */
 function _copyToClipboard(text) {
+  const _toast = () => { try { window.showToast && window.showToast('✅ ID 복사됨'); } catch (_) {} };
   if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-    navigator.clipboard.writeText(text).catch(() => _clipboardFallback(text));
+    navigator.clipboard.writeText(text).then(_toast).catch(() => { _clipboardFallback(text); _toast(); });
   } else {
     _clipboardFallback(text);
+    _toast();
   }
 }
 function _clipboardFallback(text) {
@@ -349,7 +352,7 @@ let clipboard = null;
    - Shift+click: range select from last clicked
 ═══════════════════════════════════ */
 const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .graph-block, .divider-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, ' +
   '.icon-text-block, .shape-block';
 
 let _lastClickedBlock = null;
@@ -403,7 +406,7 @@ function _updateFreeLayoutMultiSelPanel() {
  * — freeLayout 블록은 X/Y/W/H 좌표가 있어 전용 패널로 위임,
  *   세로로 쌓인 일반 블록은 좌표가 없어 '몇 개 선택됨' 카운트 패널만 제공 */
 // 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected';
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .chat-block.selected, .speech-bubble-block.selected';
 
 function _countFlowMultiSel() {
   return [...document.querySelectorAll(FLOW_BLOCK_SEL_SELECTED)].filter(b => !_isInFreeLayout(b)).length;
@@ -451,7 +454,7 @@ function toggleBlockSelect(block, sec) {
  */
 const SIBLING_MULTI_SEL =
   '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .graph-block, .divider-block, ' +
+  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, ' +
   '.icon-text-block, .shape-block, .frame-block, ' +
   // 누락 블록 추가 (#14): divider + 카드/말풍선/배너02/비교/목업/벡터/스텝/조커/캔버스 다중선택 지원
   '.speech-bubble-block, .banner02-block, .comparison-block, ' +
@@ -682,9 +685,9 @@ function duplicateSelected() {
   // freeLayout 프레임 내 블록 복제 (absolute 배치)
   const selBlock = document.querySelector(
     '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, ' +
+    '.icon-circle-block.selected, .shape-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
     '.graph-block.selected, .table-block.selected, ' +
-    '.label-group-block.selected, .icon-text-block.selected'
+    '.label-group-block.selected, .icon-text-block.selected, .icon-block.selected'
   );
   const selSS = document.querySelector('.frame-block.selected:not([data-text-frame])');
   const selSection = document.querySelector('.section-block.selected');
@@ -712,10 +715,22 @@ function duplicateSelected() {
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
       // 이벤트 재바인딩
-      clone.querySelectorAll('.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block').forEach(b => {
+      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
         delete b._blockBound;
         window.bindBlock?.(b);
+        // chat-block: 편집 위임은 renderChatBlock에서 바인딩되는데 bindBlock은 드래그만 처리.
+        // 복사본은 renderChatBlock가 재호출되지 않아 더블클릭 편집이 안 됨 → 명시적 재렌더.
+        if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
       });
+      // 복제본 자신이 블록인 경우(absWrapper=selBlock, 즉 position:absolute 블록을 직접 복제):
+      // 위 querySelectorAll은 루트(clone)를 포함하지 않아 본인 드래그 바인딩이 누락된다.
+      // text-block은 프레임 위임 드래그가 편집(contenteditable)에 양보하므로 자체 bindBlock이 없으면 못 움직임.
+      if (clone.matches?.(_ALL_BLOCK_SEL)) {
+        delete clone._blockBound;
+        window.bindBlock?.(clone);
+        if (clone.matches('.chat-block')) { delete clone._chatEditBound; window.renderChatBlock?.(clone); }
+      }
       clone._dragBound = false;
       clone._subSecBound = false;
       window.bindFrameDropZone?.(clone);
@@ -755,10 +770,10 @@ function copySelected() {
 
   const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
     '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
     '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-    '.laurel-block.selected, .joker-block.selected';
+    '.laurel-block.selected, .joker-block.selected, .speech-bubble-block.selected';
 
   const allSel = [...document.querySelectorAll(MULTI_SEL)];
 
@@ -800,6 +815,15 @@ function copySelected() {
     const banner = rowEl.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: rowEl.outerHTML, sourceBannerId: banner?.id || null };
   } else if (selNormal) {
+    // free-layout 프레임 내 블록: absolute 래퍼(text-frame/shape-frame) 또는 자신(absolute)을 복사해
+    // 좌표·절대배치를 보존(안 그러면 붙여넣기 시 일반 플로우로 들어가 스택됨).
+    const _flWrapper = selNormal.closest('.frame-block[data-text-frame], .frame-block[data-shape-frame]')
+      || (selNormal.style.position === 'absolute' ? selNormal : null);
+    const _flFrame = _flWrapper?.closest('.frame-block[data-free-layout]');
+    if (_flWrapper && _flFrame) {
+      clipboard = { type: 'block', html: _flWrapper.outerHTML, freeLayout: true, sourceFrameId: _flFrame.id };
+      return;
+    }
     const isGapSel = selNormal.classList.contains('gap-block');
     // 스티커/플로팅 블럭은 row 밖에 absolute로 있으므로 자체 outerHTML만 복사 (closest('.row')로 잘못 wrapping 안 함)
     const isFloating = selNormal.classList.contains('sticker-block')
@@ -823,7 +847,7 @@ function copySelected() {
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   el.querySelectorAll('[id]').forEach(child => {
@@ -854,6 +878,13 @@ function _bindPastedEl(el) {
     // banner02-block: renderBanner02로 ResizeObserver 재연결
     if (b.classList.contains('banner02-block')) window.renderBanner02?.(b);
     if (b.classList.contains('comparison-block')) window.renderComparison?.(b);
+    // chat-block: 더블클릭 편집 위임 재바인딩 (복사본 수정 불가 버그 수정 — bindBlock은 드래그만 처리)
+    if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
+    // bridge-block: data-bridge-*로 path 재생성 + 대상 섹션 패딩 기준 full-bleed 재적용 (붙여넣기, 코덱스 b3-2)
+    if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
+    if (b.classList.contains('duo-block')) window.renderDuoBlock?.(b);
+    if (b.classList.contains('infocard-block')) window.renderInfoCardBlock?.(b);
+    if (b.classList.contains('innercard-block')) window.renderInnerCardBlock?.(b);
   });
 }
 
@@ -862,8 +893,13 @@ function _bindPastedEl(el) {
 function _normalizePastedAbsolute(el) {
   if (!el) return;
   const parent = el.parentElement;
-  const parentIsFree = parent?.dataset?.freeLayout === 'true';
-  if (parentIsFree) return;
+  // free-layout 프레임 자식이면 absolute 좌표·offset(left/top/right/bottom, offsetX/offsetY)을
+  // 그대로 보존한다. parent 직속 dataset 우선, 없으면 closest로 보강(중첩 free-layout 프레임 대응).
+  const freeContainer = parent && (
+    parent.dataset?.freeLayout === 'true' ||
+    parent.closest?.('.frame-block[data-free-layout="true"]')
+  );
+  if (freeContainer) return;
   if (el.style.position === 'absolute') {
     el.style.position = '';
     el.style.left = '';
@@ -954,6 +990,32 @@ function pasteClipboard() {
     bindSectionDropZone(el);
     _bindPastedEl(el);
     el.addEventListener('click', e2 => { e2.stopPropagation(); selectSectionWithModifier(el, e2); });
+  } else if (clipboard.freeLayout) {
+    // free-layout 프레임 내 블록 붙여넣기 — 원본(또는 선택된) free-layout 프레임에 +20px 오프셋 절대배치.
+    // duplicateSelected의 freeLayout 분기 미러.
+    const frame = (clipboard.sourceFrameId && document.getElementById(clipboard.sourceFrameId))
+      || document.querySelector('.frame-block[data-free-layout].selected')
+      || (window._activeFrame?.dataset?.freeLayout ? window._activeFrame : null);
+    if (!frame) {
+      // 대상 프레임 못 찾음 → 일반 경로 폴백(섹션 끝에 삽입)
+      const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
+      if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); }
+    } else {
+      el.id = 'ss_' + Math.random().toString(36).slice(2, 9);
+      el.querySelectorAll('[id]').forEach(c => { const p = c.id.split('_')[0] || 'el'; c.id = p + '_' + Math.random().toString(36).slice(2, 9); });
+      const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
+      el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
+      el.dataset.offsetX = String(ox + 20); el.dataset.offsetY = String(oy + 20);
+      frame.appendChild(el);
+      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block';
+      el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
+      if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
+      el._dragBound = false; el._subSecBound = false; window.bindFrameDropZone?.(el);
+      deselectAll();
+      const cb = el.querySelector('.text-block, .shape-block, .asset-block') || el;
+      cb.classList.add('selected');
+      frame.closest('.section-block')?.classList.add('selected');
+    }
   } else {
     // banner 내부 출처면 같은 banner 안에 복제
     const banner = _pasteIntoSourceBanner(el, clipboard.sourceBannerId);
@@ -993,6 +1055,11 @@ function pasteClipboard() {
 window._optionKeyHeld = false;
 document.addEventListener('keydown', e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = true; }, true);
 document.addEventListener('keyup',   e => { if (e.code === 'AltLeft' || e.code === 'AltRight') window._optionKeyHeld = false; }, true);
+// ★ stuck 방지: Option을 누른 채 창 포커스/가시성을 잃으면(앱 전환·Spotlight·Alt-tab) keyup을 못 받아
+//   _optionKeyHeld가 영구 true로 남고 → ⌘G가 ⌘⌥G(프레임 묶기)로 오라우팅돼 스크래치/블록 그룹이 안 된다.
+//   포커스 이탈·창 숨김 시 해제해 재발 차단. (IME 대응 위해 flag 자체는 유지 — e.altKey는 한글IME서 신뢰불가)
+window.addEventListener('blur', () => { window._optionKeyHeld = false; });
+document.addEventListener('visibilitychange', () => { if (document.hidden) window._optionKeyHeld = false; });
 
 // 갭 블록 높이 키 조정 후 keyup 시 undo 기록
 document.addEventListener('keyup', e => {
@@ -1010,6 +1077,25 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.code === 'Comma' && !e.shiftKey && !e.altKey) {
     e.preventDefault();
     if (typeof window.openSettingsModal === 'function') window.openSettingsModal();
+    return;
+  }
+
+  // 패널 접기/펼치기 — Figma 키 의미에 맞춘 배치.
+  //   ⌘\   좌측 패널      ⌘⌥\  우측(속성) 패널
+  //   ⌘⇧\  좌우 동시 = Figma의 "Minimize UI"(⌘⇧\)와 같은 의미. 우측 단독에 ⇧를 쓰면
+  //        피그마에서 전체 최소화를 기대하고 누른 손이 어긋나므로 ⌥로 뺐다.
+  if ((e.metaKey || e.ctrlKey) && e.code === 'Backslash') {
+    e.preventDefault();
+    if (e.shiftKey) {
+      // 하나라도 펼쳐져 있으면 둘 다 접고, 둘 다 접혀 있으면 둘 다 펼친다.
+      const next = !(window.isLeftPanelCollapsed?.() && window.isRightPanelCollapsed?.());
+      window.toggleLeftPanel?.(next);
+      window.toggleRightPanel?.(next);
+    } else if (e.altKey) {
+      window.toggleRightPanel?.();
+    } else {
+      window.toggleLeftPanel?.();
+    }
     return;
   }
 
@@ -1036,7 +1122,14 @@ document.addEventListener('keydown', e => {
       }
       return;
     }
-    if (e.key === 's' && !e.shiftKey)   { e.preventDefault(); saveProject(); return; }
+    // ⌘S = 실제 저장(가드 포함 정식 경로) + 토스트. saveProject()는 commit-modal을 열지만
+    // 커밋 기능은 MVP 숨김(tb-hidden-mvp)이라 봉인된 데드 모달이 소환되던 버그 — commit-system은 봉인 유지.
+    if (e.key === 's' && !e.shiftKey)   {
+      e.preventDefault();
+      window.triggerAutoSave?.();
+      window.showToast?.('💾 저장됨');
+      return;
+    }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
     if (e.key === 'b' && !e.shiftKey) {
       if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
@@ -1053,6 +1146,22 @@ document.addEventListener('keydown', e => {
         window.pushHistory?.();
         return;
       }
+    }
+    // 취소선 ⌘⇧X — 편집 중=부분 취소선, 블럭 선택=패널 S버튼과 동일한 블럭 토글.
+    // ⚠️ 한글 IME에선 shift 조합도 e.key가 'x'(소문자)로 올 수 있어 shift 조합은 여기서
+    // 반드시 소진(return)해야 아래 잘라내기(e.key==='x')로 새서 블럭이 삭제되지 않는다.
+    if ((e.key === 'x' || e.key === 'X') && e.shiftKey) {
+      if (document.activeElement?.isContentEditable || document.querySelector('.text-block.editing')) {
+        e.preventDefault();
+        document.execCommand('strikeThrough');
+        window.pushHistory?.();
+        return;
+      }
+      if (document.querySelector('.text-block.selected')) {
+        e.preventDefault();
+        document.getElementById('txt-strike-btn')?.click();
+      }
+      return;
     }
     if (e.key === 'c') {
       if (document.querySelector('.text-block.editing')) return;
@@ -1077,6 +1186,16 @@ document.addEventListener('keydown', e => {
           pasteClipboard();
         }, 30);
       }
+      return;
+    }
+    if (e.key === 'x' && !e.shiftKey) {
+      // 잘라내기 = 복사 후 삭제 (copySelected + Delete와 동일한 삭제 로직 deleteSelectedFromCanvas 공유)
+      // shift 조합 배제 — 한글 IME에서 ⌘⇧X(취소선)가 e.key 'x'로 들어와 오삭제되는 경로 차단
+      if (document.querySelector('.text-block.editing')) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+      e.preventDefault();
+      copySelected();
+      deleteSelectedFromCanvas();
       return;
     }
     if (e.key === 'd') {
@@ -1135,6 +1254,11 @@ document.addEventListener('keydown', e => {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
+      // 스크래치 그룹 아이템 선택 상태면 스크래치 언그룹 우선 (Cmd+G 스크래치 분기와 동일 우선순위)
+      if (typeof window._scratchHasGroupSelection === 'function' && window._scratchHasGroupSelection()) {
+        window._scratchUngroup?.();
+        return;
+      }
       // 피그마식 그룹(data-group 프레임) 우선, 없으면 레거시 group-block
       const selGroup = document.querySelector('.frame-block[data-group="true"].selected')
         || document.querySelector('.group-block.group-selected');
@@ -1150,13 +1274,35 @@ document.addEventListener('keydown', e => {
       if (activeSec) {
         const allBlocks = activeSec.querySelectorAll(
           '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, ' +
-          '.label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block'
+          '.label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block'
         );
         allBlocks.forEach(b => b.classList.add('selected'));
       }
       return;
     }
   }
+  // 스포이드 (i) — 편집 아님 + 텍스트블럭 선택 상태에서 화면 픽셀 색을 글자색 전체에 추출 적용.
+  // ⌘I(이탤릭)는 위 metaKey 분기에서 이미 소진되므로 여기는 modifier 없는 순수 i만 처리.
+  if (e.code === 'KeyI' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
+    if (document.querySelector('.text-block.editing')) return;
+    const eyedropTargets = Array.from(document.querySelectorAll('.text-block.selected'));
+    if (eyedropTargets.length) {
+      e.preventDefault();
+      if (!window.EyeDropper) { window.showToast?.('이 브라우저는 스포이드 미지원'); return; }
+      (async () => {
+        try {
+          const res = await new window.EyeDropper().open();
+          const hex = res?.sRGBHex;
+          if (!hex) return;
+          eyedropTargets.forEach(tb => window.applyTextBlockColor?.(tb, hex));
+        } catch (_) { /* 사용자 취소 — 조용히 무시 */ }
+      })();
+      return;
+    }
+  }
+
   // pinToggle (기본: `)
   const _isPinToggle = window._matchShortcut
     ? window._matchShortcut(e, 'pinToggle')
@@ -1269,7 +1415,7 @@ document.addEventListener('keydown', e => {
     const sel = document.querySelector(
       '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
       '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, ' +
+      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
       '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
       '.icon-block.selected, .vector-block.selected, .step-block.selected, .shape-block.selected'
     );
@@ -1320,13 +1466,13 @@ document.addEventListener('keydown', e => {
       }
     }
 
-    // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=200 (텍스트 편집 중이면 무시)
-    if (['Digit1','Digit2','Digit3','Digit4','Digit5'].includes(e.code)) {
+    // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=160, 6=200, 7=240, 8=280 (텍스트 편집 중이면 무시)
+    if (['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8'].includes(e.code)) {
       if (!document.querySelector('.text-block.editing')) {
         const gb = document.querySelector('.gap-block.selected');
         if (gb) {
           e.preventDefault();
-          const presets = { Digit1: 20, Digit2: 40, Digit3: 80, Digit4: 120, Digit5: 200 };
+          const presets = { Digit1: 20, Digit2: 40, Digit3: 80, Digit4: 120, Digit5: 160, Digit6: 200, Digit7: 240, Digit8: 280 };
           const h = presets[e.code];
           gb.style.height = h + 'px';
           const sl = document.getElementById('gap-slider');
@@ -1502,18 +1648,28 @@ document.addEventListener('keydown', e => {
     // 텍스트 편집 중이거나 input에 포커스가 있으면 기본 동작 유지
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    // 캔버스 선택 삭제 — ⌘X(잘라내기)와 공유. consumed=true면 기본동작 차단.
+    if (deleteSelectedFromCanvas()) e.preventDefault();
+    return;
+  }
+});
 
+// 캔버스 선택(블록/도형/행/열/섹션/프레임) 삭제 — Delete/Backspace 핸들러와 ⌘X 잘라내기가 공유.
+// 동작보존 추출: 원래 인라인 e.preventDefault()는 consumed 플래그로 대체(호출부가 preventDefault).
+// 반환값: 무언가를 소비(삭제 시도/보호차단 등 기본동작 차단)했으면 true.
+function deleteSelectedFromCanvas() {
+  let consumed = false;
     // 이미지 편집 모드 중이면 이미지 삭제
     const imgEditBlock = document.querySelector('.asset-block.img-editing');
     if (imgEditBlock) {
-      e.preventDefault();
+      consumed = true;
       clearAssetImage(imgEditBlock);
-      return;
+      return consumed;
     }
 
     // 다중 선택 삭제: col 다중
     if (multiSel.cols.size > 1) {
-      e.preventDefault();
+      consumed = true;
       multiSel.cols.forEach(col => {
         const row = col.closest('.row');
         col.remove();
@@ -1523,11 +1679,11 @@ document.addEventListener('keydown', e => {
       deselectAll();
       window.buildLayerPanel();
       pushHistory('열 삭제');
-      return;
+      return consumed;
     }
     // 다중 선택 삭제: section 다중
     if (multiSel.sections.size > 1) {
-      e.preventDefault();
+      consumed = true;
       const allSecs = canvasEl.querySelectorAll('.section-block');
       // 보호 섹션 필터링 (section-protection.js)
       const requested = [...multiSel.sections];
@@ -1537,7 +1693,7 @@ document.addEventListener('keydown', e => {
       if (skipped > 0 && typeof window.showToast === 'function') {
         window.showToast(`🔒 보호된 섹션 ${skipped}개 제외 (메모: "삭제하지말것" 자동 감지)`);
       }
-      if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return; }
+      if (toDelete.length === 0) { clearMultiSel(); deselectAll(); return consumed; }
       ensureHistoryCheckpoint('섹션 다중 삭제 전');
       toDelete.forEach(s => s.remove());
       clearMultiSel();
@@ -1545,7 +1701,7 @@ document.addEventListener('keydown', e => {
       if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
       window.buildLayerPanel();
       pushHistory('섹션 삭제');
-      return;
+      return consumed;
     }
     const selText    = document.querySelector('.text-block.selected');
     const selAsset   = document.querySelector('.asset-block.selected');
@@ -1555,13 +1711,13 @@ document.addEventListener('keydown', e => {
     // group-block(프레임) selected → group-block 전체 삭제
     const selGroup = document.querySelector('.group-block.group-selected:not(.group-editing)');
     if (selGroup) {
-      e.preventDefault();
+      consumed = true;
       window.ensureHistoryCheckpoint?.('삭제 전');
       selGroup.remove();
       deselectAll();
       window.buildLayerPanel();
       pushHistory('프레임 삭제');
-      return;
+      return consumed;
     }
 
     // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
@@ -1571,17 +1727,17 @@ document.addEventListener('keydown', e => {
       const ssHasSelectedChild = selSS.querySelector(
         '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
         '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-        '.graph-block.selected, .divider-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
+        '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected'
       );
       if (!ssHasSelectedChild) {
-        e.preventDefault();
+        consumed = true;
         const ssRow = selSS.closest('.row') || selSS;
         ssRow.remove();
         window._activeFrame = null;
         deselectAll();
         window.buildLayerPanel();
         pushHistory('서브섹션 삭제');
-        return;
+        return consumed;
       }
       // 자식 블록이 선택된 경우 → 아래 allSelBlocks 삭제 로직으로 fall-through
     }
@@ -1590,7 +1746,7 @@ document.addEventListener('keydown', e => {
     const allSelShapes = [...document.querySelectorAll('.shape-block.selected')];
     const allSelBlocks = [...document.querySelectorAll(CANVAS_SEL_BLOCKS)];
     if (allSelShapes.length > 0 || allSelBlocks.length > 0) {
-      e.preventDefault();
+      consumed = true;
       // A13: 보호섹션(메모 '삭제하지말것' 등) 내부 블록/도형 삭제 우회 차단.
       //       선택 중 하나라도 보호섹션에 속하면 전체 차단(부분삭제 모호성 회피).
       const _isProt = window.isSectionProtected || (() => false);
@@ -1599,7 +1755,7 @@ document.addEventListener('keydown', e => {
       if (_protShape || _protBlock) {
         if (typeof window.showToast === 'function') window.showToast('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요');
         deselectAll();
-        return;
+        return consumed;
       }
       window.ensureHistoryCheckpoint?.('삭제 전');
       // shape: 부모 ss/row 단위로 삭제
@@ -1636,13 +1792,13 @@ document.addEventListener('keydown', e => {
     } else {
       const selRow = document.querySelector('.row.row-active');
       if (selRow) {
-        e.preventDefault();
+        consumed = true;
         selRow.remove();
         deselectAll();
         window.buildLayerPanel();
         pushHistory('행 삭제');
       } else if (selSection) {
-        e.preventDefault();
+        consumed = true;
         const isProtected = window.isSectionProtected || (() => false);
         if (selSection.dataset.variationGroup) {
           const gid = selSection.dataset.variationGroup;
@@ -1652,7 +1808,7 @@ document.addEventListener('keydown', e => {
           if (skipped > 0 && typeof window.showToast === 'function') {
             window.showToast(`🔒 보호된 섹션 ${skipped}개 제외`);
           }
-          if (toDelete.length === 0) { deselectAll(); return; }
+          if (toDelete.length === 0) { deselectAll(); return consumed; }
           toDelete.forEach(s => s.remove());
           deselectAll();
           if (!canvasEl.querySelector('.section-block')) window.addGhostSection?.();
@@ -1663,7 +1819,7 @@ document.addEventListener('keydown', e => {
             if (typeof window.showToast === 'function') {
               window.showToast(`🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요`);
             }
-            return;
+            return consumed;
           }
           selSection.remove();
           deselectAll();
@@ -1673,8 +1829,8 @@ document.addEventListener('keydown', e => {
         }
       }
     }
-  }
-});
+  return consumed;
+}
 
 applyZoom(40);
 
@@ -1816,7 +1972,7 @@ function deselectAll() {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .annotation-block, .sticker-block').forEach(b => {
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .annotation-block, .sticker-block').forEach(b => {
     b.classList.remove('selected');
     // 어노테이션은 핸들도 함께 정리
     if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
@@ -1897,7 +2053,7 @@ function moveSelectedBlocks(direction) {
 
   const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
     '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, ' +
+    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .duo-block.selected, .infocard-block.selected, .innercard-block.selected, ' +
     '.icon-text-block.selected, .shape-block.selected';
 
   const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
@@ -2002,13 +2158,29 @@ function bindSectionHitzone(sec) {
 }
 
 
+/* row 빈 여백(자식 콘텐츠 수평 범위 밖) 클릭 판정 — fix(section-select)
+   row는 width:100%라 블록 정렬/폭과 무관하게 히트박스가 콘텐츠 전폭을 덮음.
+   자식 envelope 밖 여백 클릭이면 row-active(래퍼 아웃라인)를 붙이지 않고 섹션 선택만 유지.
+   getBoundingClientRect/clientX 모두 viewport 좌표라 캔버스 줌 스케일 무관. */
+function isRowMarginClick(row, e) {
+  if (e.target !== row) return false;            // 자식(col/gap 등) 직접 클릭은 기존 동작 유지
+  const rects = [...row.children]
+    .map(c => c.getBoundingClientRect())
+    .filter(r => r.width > 0 && r.height > 0);
+  if (!rects.length) return false;               // 빈 row는 기존 동작 유지 (placeholder 플로우 보호)
+  const lo = Math.min(...rects.map(r => r.left));
+  const hi = Math.max(...rects.map(r => r.right));
+  return e.clientX < lo || e.clientX > hi;       // envelope 밖 = 여백 (블록 사이 gap 클릭은 envelope 안 → row 활성 유지)
+}
+window.isRowMarginClick = isRowMarginClick;
+
 document.querySelectorAll('.section-block').forEach(sec => {
   sec.addEventListener('click', e => {
     e.stopPropagation();
     selectSectionWithModifier(sec, e);
-    // deselectAll() 이후 row-active 복원
+    // deselectAll() 이후 row-active 복원 (빈 여백 클릭은 제외 — 섹션 선택만)
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
+    if (row && !isRowMarginClick(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -2069,7 +2241,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => window.bindBlock(b));
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => window.bindBlock(b));
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가
@@ -2313,7 +2485,7 @@ canvasEl.addEventListener('click', e => {
   const col = e.target.closest('.col');
   if (!col) return;
   // 블록 클릭은 블록 핸들러에게 위임
-  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) return;
+  if (e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .vector-block')) return;
   // col-add 버튼/메뉴는 통과 (메뉴 열기 동작 유지)
   if (e.target.closest('.col-add-btn, .col-add-menu')) return;
 
@@ -2370,32 +2542,56 @@ window.selectColWithModifier = selectColWithModifier;
 window.showMultiSelPanel = showMultiSelPanel;
 
 /* ═══════════════════════════════════
-   PANEL RESIZE
+   PANEL RESIZE / COLLAPSE (좌측 패널)
 ═══════════════════════════════════ */
 (function initPanelResize() {
   const MIN_W = 180;
   const MAX_W = 480;
   const LS_KEY = 'panelLeftWidth';
+  const LS_COLLAPSED = 'panelLeftCollapsed';
 
   const panel = document.getElementById('panel-left');
   const handle = document.getElementById('panel-left-resize-handle');
   if (!panel || !handle) return;
 
-  // 저장된 너비 복원
-  const saved = parseInt(localStorage.getItem(LS_KEY));
-  if (saved && saved >= MIN_W && saved <= MAX_W) panel.style.width = saved + 'px';
+  // 폭은 CSS 변수 하나로 관리 — 접기(margin-left 음수)가 같은 값을 참조해야 하므로
+  // 인라인 style.width 대신 --panel-left-w 를 쓴다.
+  const setWidth = w => document.documentElement.style.setProperty('--panel-left-w', w + 'px');
 
-  let startX, startW;
+  const saved = parseInt(localStorage.getItem(LS_KEY));
+  setWidth(saved && saved >= MIN_W && saved <= MAX_W ? saved : 240);
+
+  // 접힘 상태 복원 — 첫 페인트에 애니메이션이 돌지 않도록 panel-anim-on은 다음 프레임에 켠다.
+  const collapsed = localStorage.getItem(LS_COLLAPSED) === '1';
+  document.body.classList.toggle('left-panel-collapsed', collapsed);
+  requestAnimationFrame(() => document.body.classList.add('panel-anim-on'));
+
+  // topbar 토글은 접기/펼치기 겸용이라 툴팁이 현재 상태를 따라가야 한다.
+  const syncTitle = () => {
+    const btn = document.getElementById('tb-toggle-left-panel');
+    if (btn) btn.title = (document.body.classList.contains('left-panel-collapsed') ? '좌측 패널 펼치기' : '좌측 패널 접기') + ' (⌘\\)';
+  };
+  syncTitle();
+
+  function toggleLeftPanel(force) {
+    const next = typeof force === 'boolean' ? force : !document.body.classList.contains('left-panel-collapsed');
+    document.body.classList.toggle('left-panel-collapsed', next);
+    localStorage.setItem(LS_COLLAPSED, next ? '1' : '0');
+    syncTitle();
+    return next;
+  }
+  window.toggleLeftPanel = toggleLeftPanel;
+  window.isLeftPanelCollapsed = () => document.body.classList.contains('left-panel-collapsed');
 
   handle.addEventListener('mousedown', e => {
     e.preventDefault();
-    startX = e.clientX;
-    startW = panel.offsetWidth;
+    const startX = e.clientX;
+    const startW = panel.offsetWidth;
     document.body.classList.add('resizing-panel');
 
     const onMove = e => {
       const w = Math.min(MAX_W, Math.max(MIN_W, startW + (e.clientX - startX)));
-      panel.style.width = w + 'px';
+      setWidth(w);
     };
     const onUp = e => {
       document.body.classList.remove('resizing-panel');
@@ -2406,6 +2602,35 @@ window.showMultiSelPanel = showMultiSelPanel;
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
+})();
+
+/* ═══════════════════════════════════
+   PANEL COLLAPSE (우측 패널)
+   좌측과 동일 — margin-right 음수 슬라이드. 우측은 폭 조절 UI가 없어 리사이즈 없음.
+═══════════════════════════════════ */
+(function initRightPanelCollapse() {
+  const LS_COLLAPSED = 'panelRightCollapsed';
+  if (!document.getElementById('panel-right')) return;
+
+  // 접힘 상태 복원 — 첫 페인트에 애니메이션이 돌지 않도록 panel-anim-on은 다음 프레임에 켠다.
+  document.body.classList.toggle('right-panel-collapsed', localStorage.getItem(LS_COLLAPSED) === '1');
+  requestAnimationFrame(() => document.body.classList.add('panel-anim-on'));
+
+  const syncTitle = () => {
+    const btn = document.getElementById('tb-toggle-right-panel');
+    if (btn) btn.title = (document.body.classList.contains('right-panel-collapsed') ? '속성 패널 펼치기' : '속성 패널 접기') + ' (⌘⌥\\)';
+  };
+  syncTitle();
+
+  function toggleRightPanel(force) {
+    const next = typeof force === 'boolean' ? force : !document.body.classList.contains('right-panel-collapsed');
+    document.body.classList.toggle('right-panel-collapsed', next);
+    localStorage.setItem(LS_COLLAPSED, next ? '1' : '0');
+    syncTitle();
+    return next;
+  }
+  window.toggleRightPanel = toggleRightPanel;
+  window.isRightPanelCollapsed = () => document.body.classList.contains('right-panel-collapsed');
 })();
 
 

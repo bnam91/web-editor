@@ -1,4 +1,7 @@
 import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
+import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
+import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
+import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
 
 /* ══════════════════════════════════════
@@ -8,6 +11,37 @@ import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
 // 전역 키('web-editor-autosave')는 더 이상 사용하지 않음
 const SAVE_KEY_PREFIX = 'web-editor-autosave';
 const PROJECTS_KEY = 'sangpe-projects';
+
+/* GAP-006/RCE: 비신뢰 프로젝트 HTML 소독.
+   마켓플레이스/파일에서 받은 프로젝트의 canvas HTML이 DOM에 들어올 때 실행 가능한
+   벡터(on* 이벤트 핸들러·<script>·javascript: URL)를 제거한다. 정상 디자인 콘텐츠
+   (div/text/img/svg/style)는 그대로 보존 — 합법 블록엔 on 핸들러나 script가 없음.
+   <template>로 파싱해 inert(스크립트 미실행·이미지 미로드) 상태에서 정리 후 반환. */
+function sanitizeCanvasHtml(html) {
+  if (!html || typeof html !== 'string') return html || '';
+  let tpl;
+  try {
+    tpl = document.createElement('template');
+    tpl.innerHTML = html;
+  } catch (_) { return html; }
+  const root = tpl.content;
+  // 1) <script> 제거
+  root.querySelectorAll('script').forEach(el => el.remove());
+  // 2) on* 이벤트 핸들러 속성 + javascript: URL 제거
+  let stripped = 0;
+  root.querySelectorAll('*').forEach(el => {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      const val = (attr.value || '').replace(/\s+/g, '').toLowerCase();
+      if (name.startsWith('on')) { el.removeAttribute(attr.name); stripped++; continue; }
+      if ((name === 'href' || name === 'src' || name === 'xlink:href' || name === 'formaction' || name === 'action')
+          && val.startsWith('javascript:')) { el.removeAttribute(attr.name); stripped++; }
+    }
+  });
+  if (stripped) console.warn(`[sanitize] 비신뢰 canvas에서 위험 속성/요소 ${stripped}건 제거`);
+  return root.firstChild ? tpl.innerHTML : '';
+}
+if (typeof window !== 'undefined') window.sanitizeCanvasHtml = sanitizeCanvasHtml;
 
 /** 현재 activeProjectId 기준 localStorage 키 반환 */
 function getSaveKey() {
@@ -75,11 +109,12 @@ async function saveProjectToFile(snapshot, opts = {}) {
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
     if (_targetId) _pendingSaves.set(_targetId, { snapshot, opts });
-    return;
+    return; // 큐잉됨 — 결과는 드레인 시점에 확정(undefined=미확정)
   }
   _isSavingToFile = true;
+  let _result;
   try {
-    await _doSaveProjectToFile(snapshot, opts);
+    _result = await _doSaveProjectToFile(snapshot, opts);
     _dirtySinceSave = false;
   } finally {
     _isSavingToFile = false;
@@ -90,6 +125,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
       await saveProjectToFile(nextSave.snapshot, nextSave.opts);
     }
   }
+  return _result; // GAP-005: 저장 결과 전파(인디케이터 정직성)
 }
 
 function _isAllCanvasEmpty(data) {
@@ -123,7 +159,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       // pages + pageSettings만 저장 — branches/commits/thumbnail은 _meta.json에서 관리
       // existing 먼저 spread 후 data로 덮어쓰기 — 레거시 필드는 data에 없으면 existing 유지
       const { branches: _b, commits: _c, currentBranch: _cb, thumbnail: _t, ...dataWithoutMeta } = data;
-      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, ...existingWithoutMeta } = (existing || {});
+      const { branches: _eb, commits: _ec, currentBranch: _ecb, thumbnail: _et, _recovered: _er, ...existingWithoutMeta } = (existing || {});
       const proj = {
         ...existingWithoutMeta,
         ...dataWithoutMeta,
@@ -131,21 +167,30 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         name: existing?.name || data.name || 'Untitled',
         updatedAt: new Date().toISOString(),
       };
+      // 이미지 외부화 (정책 게이팅): 기본 autosave는 new-only — 이번 세션 신규 base64만 분리하고
+      // 로드 시점에 존재하던 기존 base64는 그대로 둔다(비파괴). 기존 대량변환은 optimizeProjectImages
+      // (opts.externalizeAll) 또는 레거시 플래그(GOEDITOR_AUTO_EXTERNALIZE_LEGACY)로만 동작.
+      // 실패 시 원본 base64 유지(데이터 손실 없음).
+      const _externAll = opts.externalizeAll === true || window.GOEDITOR_AUTO_EXTERNALIZE_LEGACY === true;
+      try { await externalizeProjectData(proj, targetId, { all: _externAll }); }
+      catch (e) { console.warn('[save-load] 이미지 외부화 건너뜀:', e && e.message); }
       const saveResult = await window.electronAPI.saveProject(proj);
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
       if (saveResult && saveResult.ok === false) {
         console.warn('[save-load] 저장 거부됨:', saveResult.reason, saveResult);
         window.showToast?.('⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨');
-        return;
+        return { ok: false, reason: saveResult.reason || 'rejected' };
       }
       // thumbnail은 _meta.json에 저장
       if (thumbnail) {
         const existingMeta = await window.electronAPI.loadProjectMeta(targetId);
         await window.electronAPI.saveProjectMeta(targetId, { ...(existingMeta || {}), thumbnail, updatedAt: new Date().toISOString() });
       }
+      return { ok: true }; // GAP-005: 디스크 영속 성공 시에만 ok:true
     } catch (e) {
       console.error('[save-load] Electron 저장 실패:', e);
       window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
+      return { ok: false, reason: 'exception', error: e && e.message };
     }
   } else {
     try {
@@ -158,6 +203,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         if (thumbnail) proj.thumbnail = thumbnail;
       }
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+      return { ok: true };
     } catch (e) {
       if (e.name === 'QuotaExceededError') {
         console.warn('[save-load] localStorage 용량 초과, 저장 실패');
@@ -175,6 +221,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         console.error('[save-load] localStorage 저장 오류:', e);
         window.showToast?.('❌ 저장 오류: ' + e.message);
       }
+      return { ok: false, reason: e.name === 'QuotaExceededError' ? 'quota' : 'exception', error: e && e.message };
     }
   }
 }
@@ -245,7 +292,7 @@ async function switchPage(pageId) {
   state.currentPageId = pageId;
   const page = getCurrentPage();
   if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-  canvasEl.innerHTML = page.canvas || '';
+  canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
   canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
   canvasEl.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   canvasEl.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone').forEach(el => el.remove());
@@ -254,6 +301,7 @@ async function switchPage(pageId) {
   const propPanel = document.querySelector('#panel-right .panel-body');
   if (propPanel) propPanel.innerHTML = '';
   rebindAll();
+  refreshLazyObservation(); // 새 페이지의 section-block을 lazy 관찰 등록 (innerHTML 교체 후)
   applyPageSettings();
   window.deselectAll();
   window.showPageProperties();
@@ -295,7 +343,7 @@ function deletePage(pageId) {
     state._suppressAutoSave = true;
     state.currentPageId = next.id;
     if (next.pageSettings) Object.assign(state.pageSettings, next.pageSettings);
-    canvasEl.innerHTML = next.canvas || '';
+    canvasEl.innerHTML = sanitizeCanvasHtml(next.canvas || '');
     canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
     rebindAll();
     applyPageSettings();
@@ -314,14 +362,25 @@ function getSerializedCanvas() {
   });
   // 핸들/힌트 등 상태 요소는 직렬화에서 제외
   const clone = canvasEl.cloneNode(true);
+  // LAZY: 뷰포트 가상화로 언로드된 섹션은 라이브 style.backgroundImage가 'none'이고
+  // 원본은 data-lazy-bg에 보관돼 있다. 직렬화는 *클론*에서만 원복해 라이브 DOM을 건드리지
+  // 않으면서(재렌더/observer 교란 없음) 저장 HTML에 배경 이미지가 항상 정확히 들어가게 한다.
+  // (data-bg-img/data-img-src 진실 소스는 애초에 손대지 않음 — 여긴 렌더 레이어 보정용)
+  clone.querySelectorAll('[data-lazy-bg]').forEach(el => {
+    el.style.backgroundImage = el.getAttribute('data-lazy-bg');
+    el.removeAttribute('data-lazy-bg');
+  });
+  clone.querySelectorAll('.section-block.lazy-unloaded').forEach(el => el.classList.remove('lazy-unloaded'));
   // ghost 섹션은 저장에서 제외
   clone.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
   clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay').forEach(el => el.remove());
-  // sticker 선택 상태 제거 — selected 클래스가 저장에 포함되면 outline 잔존 가능
-  clone.querySelectorAll('.sticker-block.selected').forEach(s => s.classList.remove('selected'));
+  // UI 상태 클래스 전면 제거 — 구버전은 sticker/gradient만 벗겨 text-block 등 일반 블록의
+  // selected가 저장 canvas에 잔존 → 독립렌더/export에 파란 아웃라인 유출 (bench2 재현, 2026-07-04)
+  clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+  clone.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
+  clone.querySelectorAll('.row-active').forEach(el => el.classList.remove('row-active'));
+  clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
   clone.querySelectorAll('.sticker-block.tiny').forEach(s => s.classList.remove('tiny'));
-  // gradient 선택 상태 제거
-  clone.querySelectorAll('.gradient-block.selected').forEach(g => g.classList.remove('selected'));
   clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
   clone.querySelectorAll('.ci-selected').forEach(el => el.classList.remove('ci-selected'));
   clone.querySelectorAll('.ci-active').forEach(el => el.classList.remove('ci-active'));
@@ -377,12 +436,18 @@ function applyProjectData(data) {
       state.pages = [{ id, name: 'Page 1', label: '', pageSettings: data.pageSettings || { ...state.pageSettings }, canvas: data.canvas || '' }];
       state.currentPageId = id;
     }
+    // 정책 게이팅: 로드 시점 base64 베이스라인 기록(비파괴, 읽기만). 저장 시 new-only 모드가
+    // 이 베이스라인에 없는 신규 이미지만 외부화하고 기존 base64는 보존하도록 한다.
+    // activeProjectId는 호출 시점에 이미 대상 프로젝트로 설정됨(initLoad/탭전환 _setActId/브랜치 전환).
+    try { recordExternalizeBaseline(data, activeProjectId); } catch (_) {}
     const page = getCurrentPage();
     if (!page) return; // S8: 여전히 undefined면 안전하게 종료
     if (page.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-    canvasEl.innerHTML = page.canvas || '';
+    canvasEl.innerHTML = sanitizeCanvasHtml(page.canvas || '');
     canvasEl.querySelectorAll('.text-block-label, .asset-block-label').forEach(el => el.remove());
     rebindAll();
+    initLazySections();       // 멱등 — 최초 1회만 IntersectionObserver 생성
+    refreshLazyObservation(); // innerHTML 교체 후 새 section-block 관찰 등록
     applyPageSettings();
     window.deselectAll?.(); // DBG-10: 브랜치 전환 시 이전 선택 상태 클리어
     window._ckItems    = Array.isArray(data.checklistItems)    ? data.checklistItems    : [];
@@ -418,13 +483,13 @@ function applyProjectData(data) {
       if (prodIdx >= 0) state.assetsTree.splice(prodIdx + 1, 0, favNode);
       else state.assetsTree.unshift(favNode);
     }
-    // Texture 폴더 멱등 시드/마이그레이션 — 최상위에 texture:true 폴더가 없을 때만 삽입(고정 보호 폴더)
-    const _hasTexture = state.assetsTree.some(n => n && n.type === 'folder' && n.texture === true);
-    if (!_hasTexture) {
-      const texNode = {
+    // background(구 Texture) 폴더 멱등 시드/마이그레이션 — 최상위 texture:true 폴더가 고정 보호 폴더
+    let _texFolder = state.assetsTree.find(n => n && n.type === 'folder' && n.texture === true);
+    if (!_texFolder) {
+      _texFolder = {
         id: _astId(),
         type: 'folder',
-        name: 'Texture',
+        name: 'background',
         texture: true,
         children: [],
         collapsed: false,
@@ -433,8 +498,13 @@ function applyProjectData(data) {
       const favIdx = state.assetsTree.findIndex(n => n && n.type === 'folder' && n.favorite === true);
       const prodIdx2 = state.assetsTree.findIndex(n => n && n.type === 'folder' && n.name === '제품사진');
       const insAt = favIdx >= 0 ? favIdx + 1 : (prodIdx2 >= 0 ? prodIdx2 + 1 : 0);
-      state.assetsTree.splice(insAt, 0, texNode);
+      state.assetsTree.splice(insAt, 0, _texFolder);
+    } else if (_texFolder.name === 'Texture') {
+      // 기존 프로젝트 마이그레이션 — 구 이름 'Texture' → 'background' (멱등)
+      _texFolder.name = 'background';
     }
+    // 노트패널 하위폴더 + 배경 패턴 6종 멱등 시드 (안정 id로 재로드 중복 방지)
+    seedNoteBgPatterns(_texFolder);
     window.buildLayerPanel(); // also calls buildFilePageSection
     window.showPageProperties();
     window.renderChecklistPanel?.();
@@ -447,6 +517,41 @@ function applyProjectData(data) {
   } finally {
     // MutationObserver는 microtask 후 발화 — rAF로 한 프레임 뒤 해제해 잔여 mutation까지 흡수
     requestAnimationFrame(() => { state._suppressAutoSave = false; });
+  }
+}
+
+// 노트패널 하위폴더 + 배경 패턴 6종 멱등 시드.
+// 각 노드는 안정 id(ast_notebg_01~06)와 인라인 src(data URI)로 시드되어
+// 재로드 시 중복 생성되지 않는다(blobPath 없음 → assetsGetDataUrl 인라인 폴백이 처리).
+function seedNoteBgPatterns(bgFolder) {
+  if (!bgFolder) return;
+  if (!Array.isArray(bgFolder.children)) bgFolder.children = [];
+  let noteFolder = bgFolder.children.find(n => n && n.type === 'folder' && n.id === NOTE_BG_FOLDER_ID);
+  if (!noteFolder) {
+    noteFolder = { id: NOTE_BG_FOLDER_ID, type: 'folder', name: NOTE_BG_FOLDER_NAME, locked: true, children: [], collapsed: false };
+    bgFolder.children.push(noteFolder);
+  }
+  noteFolder.locked = true; // 마이그레이션: 기존 프로젝트의 노트패널도 보호 폴더로 승격(멱등)
+  if (!Array.isArray(noteFolder.children)) noteFolder.children = [];
+  for (const p of NOTE_BG_PATTERNS) {
+    const existing = noteFolder.children.find(n => n && n.id === p.id);
+    if (existing) {
+      // 마이그레이션(멱등): 기존 시드 노드에 썸네일/소스 최신화 (구 시드엔 thumbSrc 없음 → 썸네일 빈네모 해소)
+      existing.src = p.src;
+      existing.thumbSrc = p.thumbSrc;
+      existing.mime = 'image/svg+xml';
+      if (!existing.name) existing.name = p.name;
+      continue;
+    }
+    noteFolder.children.push({
+      id: p.id,
+      type: 'image',
+      name: p.name,
+      src: p.src,
+      thumbSrc: p.thumbSrc,
+      mime: 'image/svg+xml',
+      addedAt: new Date().toISOString(),
+    });
   }
 }
 
@@ -647,7 +752,8 @@ function rebindAll() {
         e.stopPropagation();
         window.selectSectionWithModifier(sec, e);
         const row = e.target.closest('.row');
-        if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block, .canvas-block')) {
+        // row 빈 여백 클릭은 row-active 제외 — 섹션 선택만 (fix(section-select), 판정=editor.js isRowMarginClick)
+        if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block, .canvas-block')) {
           document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
           row.classList.add('row-active');
           if (window.syncLayerRow) window.syncLayerRow(row);
@@ -668,6 +774,9 @@ function rebindAll() {
       toolbar.querySelectorAll('.st-btn:not(.st-ab-btn):not(.st-memo-btn):not(.st-ai-fill-btn)').forEach(el => el.remove());
       // variation 툴바 버튼 복원
       if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
+      // 섹션 메모 버튼 복원 — sanitizeCanvasHtml이 on* 속성을 제거하므로 로드 후 onclick 재바인딩 필요
+      // (없으면 버튼은 보이나 클릭 무반응 = 섹션 메모 패널 안 열림 회귀)
+      if (window._ensureMemoButton) window._ensureMemoButton(sec);
     }
   });
   // row ID 복원 + paddingX 복원
@@ -860,7 +969,7 @@ function rebindAll() {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block').forEach(b => {
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -878,10 +987,20 @@ function rebindAll() {
         : b.classList.contains('vector-block') ? 'vb'
         : b.classList.contains('chat-block') ? 'chb'
         : b.classList.contains('laurel-block') ? 'lrb'
-        : b.classList.contains('divider-block') ? 'dvd' : 'tbl';
+        : b.classList.contains('divider-block') ? 'dvd'
+        : b.classList.contains('bridge-block') ? 'brg'
+        : b.classList.contains('duo-block') ? 'duo'
+        : b.classList.contains('infocard-block') ? 'ifc'
+        : b.classList.contains('innercard-block') ? 'icd' : 'tbl';
       b.id = prefix + '_' + Math.random().toString(36).slice(2, 9);
     }
     if (b.classList.contains('laurel-block')) window.renderLaurelBlock?.(b);
+    // bridge: data-bridge-*로 path 재생성 + 항상 full-bleed 재적용 (로드 후 현재 섹션 패딩 반영)
+    if (b.classList.contains('bridge-block')) { window.renderBridgeBlock?.(b); window.applyBridgeFullBleed?.(b); }
+    // duo/infocard: dataset 모델로 재렌더 (직렬 HTML은 스냅샷일 뿐 — 로드 시 dataset이 진실)
+    if (b.classList.contains('duo-block')) window.renderDuoBlock?.(b);
+    if (b.classList.contains('infocard-block')) window.renderInfoCardBlock?.(b);
+    if (b.classList.contains('innercard-block')) window.renderInnerCardBlock?.(b);
     // chat-block: 저장본 innerHTML은 정적이라 dblclick 편집 핸들러가 없음 → 재렌더로 위임 바인딩
     if (b.classList.contains('chat-block')) window.renderChatBlock?.(b);
     // banner02/comparison: scale-to-fit ResizeObserver + dblclick 편집 핸들러 재바인딩
@@ -1147,9 +1266,13 @@ function _setAutosaveIndicator(state) {
   if (!el) return;
   clearTimeout(_autoSaveHideTimer);
   el.className = state;
-  el.textContent = state === 'saving' ? '저장 중...' : '저장됨';
+  // GAP-005: 저장 실패 시 '저장됨' 거짓표시 금지 — 'error'는 빨강·영속(자동숨김 없음).
+  el.textContent = state === 'saving' ? '저장 중...'
+                 : state === 'error' ? '⚠️ 저장 실패'
+                 : '저장됨';
+  el.style.color = state === 'error' ? '#e5484d' : '';
   if (state === 'saved') {
-    _autoSaveHideTimer = setTimeout(() => { el.className = ''; el.textContent = ''; }, 2500);
+    _autoSaveHideTimer = setTimeout(() => { el.className = ''; el.textContent = ''; el.style.color = ''; }, 2500);
   }
 }
 
@@ -1183,8 +1306,13 @@ function scheduleAutoSave() {
     } catch {}
     const saveOk = safeLocalStorageSet(getSaveKey(), snap);
     if (saveOk) localStorage.setItem(getSaveTsKey(), String(Date.now()));
-    saveProjectToFile(snap, { skipThumbnail: true }); // 자동저장은 썸네일 캡처 생략
-    _setAutosaveIndicator('saved');
+    // GAP-005: 저장 결과를 기다려 인디케이터를 정직하게 갱신.
+    // ok:false(EACCES·디스크풀·잠금 등) → '저장 실패'(빨강), 성공/큐잉 → '저장됨'.
+    // BL-CDD-08: 파일 저장 대상을 발화 시점 검증된 id로 명시 고정 — saveProjectToFile 내부의
+    // "저장 시점 activeProjectId 재읽기"에 의존하지 않는다(비동기 큐잉 중 전환 대비).
+    Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true, projectId: _saveTargetId })) // 자동저장은 썸네일 캡처 생략
+      .then(r => _setAutosaveIndicator(r && r.ok === false ? 'error' : 'saved'))
+      .catch(() => _setAutosaveIndicator('error'));
   }, 1500);
 }
 
@@ -1318,13 +1446,34 @@ function initApp() {
 
   // 프로젝트 로드 (Electron: 파일, 브라우저: localStorage)
   (async function initLoad() {
-    function applyAndFinish(data) {
+    // [b7] 로딩 오버레이 = index.html의 정적 #proj-loading-overlay(기본 표시). 에디터 첫 페인트(~+0.4s)에
+    //   함께 그려져 무거운 로드 전 구간을 덮는다. JS가 show하는 방식(b4/b6)은 무거운 로드 중 새로 추가한
+    //   엘리먼트가 style/layout pass를 못 받아 컴포지터에 안 올라가 실패했다(실측: 105MB서 진입~+13s 미표시).
+    //   ▶정적 오버레이라 첫 레이아웃에 포함→첫 프레임에 present, 이후 블로킹 동안 컴포지터가 transform
+    //     스피너를 계속 회전. JS는 로드 완료/실패 시 닫기만 한다(정적 오버레이는 기본 표시라 항상 닫아야 함).
+    const _endLoadingOverlay = () => { window.hideProjectLoadingOverlay?.(); };
+    // BL-CDD-08: initLoad는 무거운 프로젝트에서 수 초를 await하는데, 그 사이 CDP 워커/탭 전환이
+    // activeProjectId를 바꾸면 아래 apply가 "예전 프로젝트의 DOM"을 새 활성 프로젝트 위에 그리고,
+    // 이어지는 autosave가 그 DOM을 새 프로젝트 파일에 저장해 덮어쓴다(무결성 사고).
+    // → 진입 시점 id를 캡처하고, await 이후의 모든 apply/initEmpty는 불일치 시 중단한다.
+    const _bootProjectId = activeProjectId;
+    const _bootStale = () => {
+      if (activeProjectId === _bootProjectId) return false;
+      console.warn(`[initLoad] 부트 대상 변경 감지 (boot=${_bootProjectId} now=${activeProjectId}) — 늦은 apply 중단`);
+      return true;
+    };
+    async function applyAndFinish(data) {
+      if (_bootStale()) { _endLoadingOverlay(); return; }
       try { applyProjectData(data); } catch(e) {
         console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
         initEmpty();
+      } finally {
+        _endLoadingOverlay();
       }
     }
     function initEmpty() {
+      _endLoadingOverlay(); // 로드 실패/빈 프로젝트 폴백 — 오버레이 닫기
+      if (_bootStale()) return; // 다른 프로젝트가 이미 활성 — 그 상태를 빈 페이지로 리셋하면 안 됨
       state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
       state.currentPageId = 'page_1';
       window.buildLayerPanel();
@@ -1370,6 +1519,11 @@ function initApp() {
         // 시맨틱 컬러 변수 복원 (meta.colorVars → localStorage + :root). 비차단.
         window.DesignSystem?.restoreColorVarsFromMeta?.(activeProjectId);
         if (proj) {
+          // GAP-004: proj.json 손상으로 백업/히스토리에서 복구된 경우 사용자에게 정직하게 통지.
+          if (proj._recovered) {
+            window.showToast?.(`⚠️ 프로젝트 파일이 손상되어 ${proj._recovered === 'history' ? '히스토리' : '백업'}에서 복구했습니다.`);
+            delete proj._recovered; // 마커는 메모리/저장에 남기지 않음
+          }
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
           if (!meta && (proj.branches || proj.commits)) {
             const migratedMeta = {
@@ -1480,7 +1634,13 @@ function initApp() {
     const saved = localStorage.getItem(getSaveKey());
     if (saved) { try { applyAndFinish(JSON.parse(saved)); return; } catch {} }
     initEmpty();
-  })();
+  })().catch(e => {
+    // [b7] 페일세이프: initLoad 본문이 예기치 못한 예외로 종료되면 정적 로딩 오버레이가 화면에
+    //   영원히 남는다(기본 표시 상태이므로). 모든 정상 경로는 applyAndFinish.finally / initEmpty에서
+    //   닫지만, 미처리 예외 시에도 반드시 닫는다.
+    console.error('[initLoad] 처리되지 않은 오류 — 로딩 오버레이 강제 종료:', e);
+    window.hideProjectLoadingOverlay?.();
+  });
 
   // class 변경은 콜백에서 필터링, data-* 등 실제 속성 변경은 감지 (DBG-11 해소)
   autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true, attributes: true });
@@ -1509,6 +1669,10 @@ function initApp() {
       e.stopImmediatePropagation();
       if (e.altKey || window._optionKeyHeld || e.key === '©') {
         window.wrapSelectedBlocksInFrame?.();
+      } else if (typeof window._scratchHasSelection === 'function' && window._scratchHasSelection()) {
+        // 스크래치 다중 선택 상태면 스크래치 그룹 정렬 우선 — editor.js Cmd+G 분기와 동일 우선순위.
+        // (이 capture 핸들러가 stopImmediatePropagation으로 이벤트를 삼키므로 여기서 직접 분기해야 함)
+        window._scratchGroupAndAlign?.();
       } else {
         groupSelectedBlocks();
       }

@@ -1,17 +1,26 @@
 name: Release Windows
 
-# Goditor Windows 빌드 (NSIS .exe) — macOS에서 cross-compile하지 않고
+# GODITOR Windows 빌드 (NSIS .exe) — macOS에서 cross-compile하지 않고
 # 진짜 Windows runner에서 빌드 후 GitHub Releases에 자산 추가.
 #
 # 트리거:
-# - workflow_dispatch: 수동 (ref=v0.5.0 같은 tag 지정해서 그 시점 코드로 빌드)
-# - tag push: v* 태그 푸시 시 자동
+# - tag push (v*): 자동으로 빌드 + 게시. 릴리스 흐름의 정규 경로.
+# - workflow_dispatch: 수동. 기본은 "게시 안 함"(빌드 검증만) — 태그를 내지 않고도
+#   워크플로가 살아있는지 확인할 수 있게. 게시까지 하려면 publish 입력을 켠다.
+#
+# ⚠️ 이 워크플로가 켜진 뒤로는 릴리스 때 로컬에서 `npm run release:win`을 돌리지 말 것.
+#    같은 릴리스에 같은 자산을 양쪽에서 올리면 충돌한다. 맥은 로컬, 윈도우는 여기.
 #
 # 미서명: Windows 코드서명 인증서 없음. SmartScreen 경고는 사용자가 1회 수락.
 # 자동업데이트: electron-updater + NSIS는 미서명에서도 동작.
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'GitHub Releases에 게시까지 할지 (끄면 빌드 검증만)'
+        type: boolean
+        default: false
   push:
     tags:
       - 'v*'
@@ -19,31 +28,55 @@ on:
 permissions:
   contents: write
 
+# 같은 ref에 대해 중복 실행 방지(태그 푸시 + 수동이 겹칠 때)
+concurrency:
+  group: release-win-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-win:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
 
+      # npm ci는 package.json↔package-lock.json이 어긋나면 즉시 죽는다(2026-05-28 실패 원인).
+      # 결정성을 위해 ci를 유지하되, 어긋났을 때 원인이 로그에 바로 보이게 둔다.
       - name: Install deps
         run: npm ci
 
-      - name: Build & publish Windows
-        run: npm run release:win
+      # ⚠️ -c.npmRebuild=false 인 이유:
+      #   node-pty는 win32-x64 prebuild(N-API, node-addon-api)를 동봉하고 install 스크립트도
+      #   `prebuild.js || node-gyp rebuild` 순서라 소스 빌드가 필요 없다. 그런데 electron-builder의
+      #   리빌드 단계는 그걸 무시하고 node-gyp을 강제해 러너에서 Visual Studio를 찾다가 죽는다.
+      #   맥에서 --win으로 크로스컴파일하던 기존 배포본도 어차피 이 prebuild를 그대로 담아 나갔으므로,
+      #   여기서 리빌드를 끄는 것이 지금 배포되는 exe와 같은 구성을 만든다.
+      #   ★ 네이티브 의존성을 새로 추가하면 이 전제가 깨진다 — 그땐 러너에 빌드툴을 깔아야 한다.
+      #   ⚠️ shell: bash 인 이유 — 러너 기본 셸(PowerShell)은 `-c.npmRebuild=false`를
+      #      `-c` + `.npmRebuild=false`로 쪼개 버려서 electron-builder가 그걸 설정파일
+      #      경로로 읽고 ENOENT로 죽는다. yargs 자체는 두 표기 다 정상 파싱한다(실측).
+      - name: Build only (게시 안 함)
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
+        shell: bash
+        run: npx electron-builder --win --publish never -c.npmRebuild=false
+
+      - name: Build & publish
+        if: ${{ github.event_name == 'push' || inputs.publish }}
+        shell: bash
+        run: npx electron-builder --win --publish always -c.npmRebuild=false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifact (backup)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: win-dist
           path: |

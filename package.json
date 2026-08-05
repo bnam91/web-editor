@@ -1,6 +1,6 @@
 {
   "name": "sangpe-editor",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "description": "상페마법사 — 상세페이지 제작용 에디터",
   "main": "main.js",
   "scripts": {
@@ -21,7 +21,7 @@
   },
   "build": {
     "appId": "com.goyamkt.sangpe-editor",
-    "productName": "상페마법사",
+    "productName": "GODITOR",
     "publish": {
       "provider": "github",
       "owner": "bnam91",
@@ -29,9 +29,21 @@
     },
     "mac": {
       "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true,
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "arm64",
             "x64"

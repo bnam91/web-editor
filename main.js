@@ -1,11 +1,42 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet } = require('electron');
+
+// ── 캔버스 이미지 외부화: 커스텀 프로토콜 goya-asset://<projectId>/<filename> ──
+// 캔버스 HTML에 박히던 인라인 base64를 proj_<id>/assets/<contenthash>.<ext>로 분리하고,
+// 이 프로토콜 URL로 참조한다. registerSchemesAsPrivileged는 app ready 이전 top-level 필수.
+// standard+secure: file:// origin에서 fetch/CORS 허용(html2canvas export 호환). stream: 대용량.
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'goya-asset',
+  privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
+}]);
+// goya-asset:// 응답 Content-Type 매핑 (확장자 → MIME)
+const _GOYA_ASSET_MIME = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', svg: 'image/svg+xml', avif: 'image/avif', bmp: 'image/bmp', ico: 'image/x-icon',
+};
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
 // C4: 앱 이름 브랜딩 (macOS 상단 메뉴바 표시)
-app.name = 'Goya Design Editor';
+app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
+
+// userData 폴더 마이그레이션: 구 이름('Goya Design Editor') → 'GODITOR'.
+// app.name이 userData 경로를 결정하므로, 앱이 새 경로에 처음 쓰기 전(top-level)에 rename.
+// 같은 볼륨 rename이라 원자적·즉시(6GB+ copy 아님). old만 있고 new 없을 때 1회만.
+(function _migrateUserDataDir() {
+  try {
+    const appDataDir = app.getPath('appData'); // ~/Library/Application Support
+    const oldUD = path.join(appDataDir, 'Goya Design Editor');
+    const newUD = path.join(appDataDir, 'GODITOR');
+    if (fs.existsSync(oldUD) && !fs.existsSync(newUD)) {
+      fs.renameSync(oldUD, newUD);
+      console.log('[migrate] userData: "Goya Design Editor" -> "GODITOR"');
+    }
+  } catch (e) {
+    console.error('[migrate] userData rename failed:', e.message);
+  }
+})();
 
 // .env 로드 (크리덴셜 환경변수)
 function _loadEnvFile(p) {
@@ -28,7 +59,9 @@ const { fillSectionTexts: anthropicFill } = require('./services/anthropicService
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
+// Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
+let currentMcpToken = null;
 
 /* ── 사용자별 Preferences (API 토큰 + 단축키) ──
    USER_DATA_DIR는 app.getPath('userData') 기반이라 app.whenReady 이후에 안전.
@@ -42,6 +75,9 @@ function getSettingsPath() {
 }
 const DEFAULT_SETTINGS = {
   version: 1,
+  // pre-release(beta) 채널: 테스터 앱만 true → GitHub pre-release 자동수신·검증.
+  // 일반 사용자는 false(기본) → latest 정식 릴리스만 받음.
+  betaChannel: false,
   apiKeys: { openai: '', gemini: '', anthropic: '' },
   shortcuts: {
     addGap:       'KeyG',
@@ -66,7 +102,9 @@ function readSettings() {
   try {
     const p = getSettingsPath();
     if (!fs.existsSync(p)) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // UTF-8 BOM 제거: 외부 편집기(메모장·PS Set-Content 등)가 BOM을 붙이면
+    // JSON.parse가 throw → 설정 전체가 DEFAULT로 무시되는 사고 방지.
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^﻿/, ''));
     return {
       ...DEFAULT_SETTINGS,
       ...raw,
@@ -145,6 +183,9 @@ let mainWindow;
 
 /* ── Hot Reload (개발용) ── */
 function watchFiles() {
+  // 패키징(asar) 환경에선 fs.watch가 throw → whenReady 체인이 끊겨
+  // setupAutoUpdater/MCP까지 죽는 사고(v0.5.0~0.6.0). 핫리로드는 dev 전용.
+  if (app.isPackaged) return;
   const watchTargets = [
     path.join(__dirname, 'index.html'),
     path.join(__dirname, 'js'),
@@ -227,11 +268,16 @@ function createWindow() {
 
   ipcMain.handle('get-version', () => app.getVersion());
   ipcMain.handle('app:git-branch', () => getGitBranch());
-  ipcMain.handle('app:is-admin', () => process.argv.includes('admin'));
+  ipcMain.handle('app:is-admin', () => isAdminAuthorized());
   ipcMain.handle('app:debug-port', () => {
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
   });
+  // Unit B — MCP 접속 토큰 노출/재발급(운영자만). 토큰은 메모리 only.
+  ipcMain.handle('app:mcp-token', () =>
+    isAdminAuthorized() ? (getMcpToken ? getMcpToken() : currentMcpToken) : null);
+  ipcMain.handle('mcp:regenerate-token', () =>
+    isAdminAuthorized() ? (currentMcpToken = regenerateMcpToken()) : null);
 
   // AI 섹션 텍스트 채우기 (Gemini)
   ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
@@ -242,10 +288,11 @@ function createWindow() {
   ipcMain.handle('settings:test-key', (_e, provider, key) => testApiKey(provider, key));
 
   // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
-  registerClaudePMIPC(ipcMain);
+  // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).
+  registerClaudePMIPC(ipcMain, () => isAdminAuthorized());
 
   // Claude PM (Phase 3 F8) — 내부 터미널 패널 PTY 백엔드
-  registerTerminalIPC(ipcMain);
+  registerTerminalIPC(ipcMain, () => isAdminAuthorized());
 
   // Clipboard write — 렌더러의 navigator.clipboard 권한 거부 우회용 IPC 브리지
   ipcMain.handle('clipboard:writeText', (_e, text) => {
@@ -282,6 +329,19 @@ function createWindow() {
     mainWindow.webContents.send('fullscreen-change', false);
   });
 
+  // GAP-008: 라이선스 검증 강제 — 렌더러발(發) 직접 네비게이션 우회 차단.
+  // license 화면에서 location.href='projects.html'/'../index.html' 등으로 라이선스 게이트를
+  // 건너뛰는 경로를 막는다. 인증된 진입(_editorAccessGranted)·admin일 때만 에디터 페이지 허용.
+  // (main의 loadFile은 will-navigate를 발화하지 않으므로 정상 부팅/등록 흐름엔 영향 없음.)
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (/\/(projects|index|planning)\.html(\?|#|$)/.test(url)) {
+      if (!_editorAccessGranted && !isAdminAuthorized()) {
+        event.preventDefault();
+        console.warn('[license] 미인증 에디터 네비게이션 차단:', url);
+      }
+    }
+  });
+
   // F12 → DevTools (dev 모드에서만)
   if (process.argv.includes('--enable-logging')) {
     mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -296,9 +356,43 @@ function createWindow() {
   }
 }
 
+/* ── admin 모드 인증 (GAP-008 심층: 라이선스/결제 우회 차단) ──
+   admin 모드 = 라이선스 검증 우회 + 라이선스 키 발급 권한. 이를 'admin' CLI 인자만으로
+   부여하면 배포 앱을 가진 누구나(인자명은 binary strings로 노출) 라이선스/결제를 우회하고
+   유료 키를 자가발급할 수 있다 → 매출 직결 보안구멍.
+   → 패키징(배포) 빌드에선 'admin' 인자 + 운영자 토큰 인증을 모두 요구한다.
+     · dev(미패키징, `electron .`): 인자만으로 허용 — 개발/검증 편의(lens 9335·지디 9334 포함).
+     · 패키징: env GODITOR_ADMIN_TOKEN 의 sha256(hex) == userData/admin.allow 파일 내용일 때만 admin.
+       admin.allow는 운영자가 관리자 머신에 로컬 배치(앱 번들·레포 미포함) → 일반 고객 빌드엔
+       부재하므로 'admin' 인자가 무력화된다(safe-by-default). */
+function isAdminAuthorized() {
+  if (!process.argv.includes('admin')) return false;
+  let packaged = true;
+  try { packaged = app.isPackaged; } catch (_) { packaged = false; }
+  if (!packaged) return true; // dev/검증 빌드
+  try {
+    const token = process.env.GODITOR_ADMIN_TOKEN;
+    if (!token) return false;
+    const allowPath = path.join(app.getPath('userData'), 'admin.allow');
+    if (!fs.existsSync(allowPath)) return false;
+    const expected = String(fs.readFileSync(allowPath, 'utf8')).trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(expected)) return false; // sha256 hex만 허용
+    const crypto = require('crypto');
+    const actual = crypto.createHash('sha256').update(token).digest('hex');
+    return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
+  } catch (_) { return false; }
+}
+
+// GAP-008: 에디터(라이선스 게이트 너머) 진입 허가 플래그. 인증된 경로(부팅 라이선스 통과·
+// 키 등록 성공·admin)에서만 true로 세팅. will-navigate 가드가 이 플래그로 렌더러발(發)
+// 직접 네비게이션(location.href='projects.html' 등) 우회를 차단한다.
+let _editorAccessGranted = false;
+function _grantEditorAccess() { _editorAccessGranted = true; }
+
 /* ── 라이선스 체크 + 초기 페이지 로드 ── */
 async function checkLicenseAndLoad() {
-  if (process.argv.includes('admin')) {
+  if (isAdminAuthorized()) {
+    _grantEditorAccess();
     mainWindow.loadFile('pages/projects.html');
     return;
   }
@@ -307,6 +401,7 @@ async function checkLicenseAndLoad() {
     if (ip) {
       const result = await findUserByIp(ip);
       if (result.found) {
+        _grantEditorAccess();
         mainWindow.loadFile('pages/projects.html');
         return;
       }
@@ -340,14 +435,50 @@ ipcMain.handle('license:update-name', (event, licenseKey, userName) =>
   updateUserName(licenseKey, userName)
 );
 
-ipcMain.handle('license:create-key', (event, plan, memo) =>
-  createLicenseKey(plan, memo)
-);
+// GAP-008: 라이선스 키 발급/열람은 ★admin 권한 전용. 일반 출시 빌드의 렌더러
+// (또는 콘솔/악성 삽입 스크립트)가 window.electronAPI.createLicenseKey('pro')로
+// 유료 키를 자가발급하는 결제 우회를 차단한다. admin 판정 = isAdminAuthorized()
+// (부팅 라이선스 게이트·app:is-admin과 동일 — 패키징 빌드는 운영자 토큰까지 요구).
+// 프로세스 단위 게이팅이라 단일 mainWindow 환경에서 event.sender 체크와 동치.
+// (서버측 발급 이전·MongoDB 쓰기자격 번들 제거는 후속 과제.)
+const requireAdmin = (event) => {
+  if (isAdminAuthorized()) return null;
+  try {
+    const u = event && event.sender && event.sender.getURL && event.sender.getURL();
+    console.warn('[license] admin-gated IPC 거부 (비-admin 빌드):', u || '');
+  } catch (_) {}
+  return { ok: false, error: 'FORBIDDEN', code: 'ADMIN_REQUIRED',
+           message: '라이선스 키 발급/열람은 관리자 빌드에서만 가능합니다.' };
+};
 
-ipcMain.handle('license:list-keys', () => listLicenseKeys());
+ipcMain.handle('license:create-key', (event, plan, memo) => {
+  const denied = requireAdmin(event);
+  if (denied) return denied;
+  return createLicenseKey(plan, memo);
+});
 
-ipcMain.handle('license:navigate-projects', () => {
-  mainWindow.loadFile('pages/projects.html');
+ipcMain.handle('license:list-keys', (event) => {
+  const denied = requireAdmin(event);
+  if (denied) return denied;
+  return listLicenseKeys();
+});
+
+ipcMain.handle('license:navigate-projects', async () => {
+  // GAP-008: 라이선스 검증 강제 — 인증 없이 navigate로 에디터에 진입하던 우회 차단.
+  // (기존: 무조건 projects.html 로드 → license 화면 콘솔에서 navigateToProjects() 한 줄로 우회)
+  if (isAdminAuthorized()) { _grantEditorAccess(); mainWindow.loadFile('pages/projects.html'); return { ok: true }; }
+  try {
+    const ip = await getPublicIp();
+    if (ip) {
+      const result = await findUserByIp(ip);
+      if (result && result.found) {
+        _grantEditorAccess();
+        mainWindow.loadFile('pages/projects.html');
+        return { ok: true };
+      }
+    }
+  } catch (_) {}
+  return { ok: false, code: 'LICENSE_REQUIRED' };
 });
 
 /* ── 사용자 데이터 경로 (자동업데이트 후에도 유지) ── */
@@ -480,9 +611,17 @@ function _atomicWriteFileSync(filePath, data) {
   }
 }
 
+// GAP-009: 경로 세그먼트(파일명·프로젝트 id) 살균 — 구분자(/ \)를 '_'로, 순수 점(. .. ...)을
+// '_'로 치환해 path-traversal(상위 디렉터리 이탈) 차단. 정상 id(proj_<digits> 등 \w.- 조합)는 불변.
+const _safeSeg = s => {
+  const v = String(s || '').replace(/[^\w.-]/g, '_');
+  return (v === '' || /^\.+$/.test(v)) ? '_' : v;
+};
+
 // proj.json 경로 dual-resolve: 신 우선 → flat fallback.
 // migrator 모듈이 있으면 그쪽 사용, 없으면 동일 로직 인라인.
 function _resolveProjectJsonPath(id) {
+  id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
   if (m && typeof m.resolveProjectJsonPath === 'function') {
     return m.resolveProjectJsonPath(PROJECTS_DIR, id);
@@ -494,6 +633,7 @@ function _resolveProjectJsonPath(id) {
   return null;
 }
 function _resolveMetaJsonPath(id) {
+  id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
   if (m && typeof m.resolveMetaJsonPath === 'function') {
     return m.resolveMetaJsonPath(PROJECTS_DIR, id);
@@ -505,6 +645,7 @@ function _resolveMetaJsonPath(id) {
   return null;
 }
 function _resolveBackupJsonPath(id) {
+  id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
   if (m && typeof m.resolveBackupJsonPath === 'function') {
     return m.resolveBackupJsonPath(PROJECTS_DIR, id);
@@ -517,6 +658,7 @@ function _resolveBackupJsonPath(id) {
 }
 // 항상 신 레이아웃 경로 — write 전용. migrator 없으면 인라인 계산.
 function _ensureNewLayoutPaths(id) {
+  id = _safeSeg(id); // GAP-009
   const m = _getMigrator();
   if (m && typeof m.ensureNewLayoutPaths === 'function') {
     return m.ensureNewLayoutPaths(PROJECTS_DIR, id);
@@ -530,6 +672,57 @@ function _ensureNewLayoutPaths(id) {
     meta:    path.join(dir, 'proj_meta.json'),
     history: path.join(dir, 'proj_history'),
   };
+}
+
+/* ── [b8] 목록 메타 캐시 ──
+   projects:list가 무거운 proj.json(인라인 base64로 최대 100MB+)을 통째 JSON.parse 하던 것을 방지.
+   목록 렌더에 필요한 경량 필드(name·type·createdAt·updatedAt·marketRef)를 proj_meta.json에 캐시하고,
+   meta가 proj.json보다 최신이면(mtime 비교) 풀파싱을 생략한다. (thumbnail은 기존대로 save-meta가 관리.) */
+function _refreshListMeta(id, src) {
+  // saveProject / 풀파싱 폴백 시 호출 — 목록 필드만 read-merge-write(다른 meta 필드 보존).
+  try {
+    const paths = _ensureNewLayoutPaths(id);
+    let merged = {};
+    try { if (fs.existsSync(paths.meta)) merged = JSON.parse(fs.readFileSync(paths.meta, 'utf8')) || {}; } catch (_) {}
+    merged = {
+      ...merged,
+      name: src.name, type: src.type || null,
+      createdAt: src.createdAt || null, updatedAt: src.updatedAt || null,
+      marketRef: src.marketRef || null, listMetaV: 1,
+    };
+    _atomicWriteFileSync(paths.meta, JSON.stringify(merged, null, 2));
+  } catch (_) { /* 메타 캐시 실패는 무해 — 다음 목록서 다시 풀파싱 */ }
+}
+// 한 프로젝트의 목록 아이템을 만든다. metaFast=true면 신 레이아웃 전용(메타 우선·풀파싱 회피),
+// 캐시 미스/구버전이면 1회 풀파싱 후 메타를 갱신해 다음부터 빨라지게 한다.
+function _listItemFor(id, projPath, metaFast) {
+  const metaPath = _resolveMetaJsonPath(id);
+  if (metaFast && metaPath) {
+    try {
+      const mStat = fs.statSync(metaPath);
+      const pStat = fs.statSync(projPath);
+      // meta가 proj.json 이상으로 최신 + 목록필드(name) 캐시됨 → 풀파싱 생략
+      if (mStat.mtimeMs >= pStat.mtimeMs) {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+        // listMetaV 마커가 있어야 b8가 기록한 목록 캐시로 신뢰(구버전 meta엔 name이 없으니
+        // 마커 없으면 풀파싱 폴백 → lazy 갱신). name도 함께 확인.
+        if (meta && meta.listMetaV && meta.name != null) {
+          return { id, name: meta.name, type: meta.type || null, createdAt: meta.createdAt || null,
+                   updatedAt: meta.updatedAt || null, thumbnail: meta.thumbnail || null, marketRef: meta.marketRef || null };
+        }
+      }
+    } catch (_) { /* stat/parse 실패 → 풀파싱 폴백 */ }
+  }
+  // 폴백: proj.json 풀파싱(현행 동작) + (신 레이아웃이면) 목록 메타 캐시 갱신
+  const data = JSON.parse(fs.readFileSync(projPath, 'utf8'));
+  if (!data.id || data.id === 'undefined') return null;
+  let thumbnail = data.thumbnail || null;
+  if (metaPath && fs.existsSync(metaPath)) {
+    try { const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); if (meta.thumbnail) thumbnail = meta.thumbnail; } catch {}
+  }
+  if (metaFast) { try { _refreshListMeta(data.id, data); } catch (_) {} }
+  return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt,
+           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null };
 }
 
 /* ── IPC: AI Image Gen ──
@@ -597,6 +790,65 @@ ipcMain.handle('assets:deleteFile', (_e, { projectId, blobPath } = {}) => {
   }
 });
 
+// 캔버스 이미지 외부화용 — content-hash 기반 저장(자동 dedup).
+// 동일 바이트 = 동일 파일명 → 여러 참조가 한 파일 공유. 캔버스 HTML은 goya-asset:// URL만 보관.
+function _extFromMime(mime) {
+  switch (String(mime || '').toLowerCase()) {
+    case 'image/jpeg': case 'image/jpg': return 'jpg';
+    case 'image/svg+xml': return 'svg';
+    case 'image/webp': return 'webp';
+    case 'image/gif': return 'gif';
+    default: return 'png';
+  }
+}
+ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => {
+  if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (!b64) return { ok: false, error: 'b64 필수' };
+  try {
+    const crypto = require('crypto');
+    const buf = Buffer.from(b64, 'base64');
+    const hash = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
+    const ext = _extFromMime(mime);
+    const dir = _getProjectAssetsDir(projectId);
+    fs.mkdirSync(dir, { recursive: true });
+    const filename = `${hash}.${ext}`;
+    const full = path.join(dir, filename);
+    // dedup: 이미 있으면 재기록 생략
+    if (!fs.existsSync(full)) fs.writeFileSync(full, buf);
+    return {
+      ok: true,
+      hash,
+      filename,
+      blobPath: `assets/${filename}`,
+      url: `goya-asset://${projectId}/${filename}`,
+      bytes: buf.length,
+    };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// export HTML 포터블화용 — goya-asset:// 에셋을 base64 data URI로 읽어 반환.
+// 렌더러 fetch()는 file:// origin에서 커스텀 스킴 cross-origin이 하드 차단되므로(Chromium),
+// export-html의 inlineGoyaAssets가 이 IPC로 base64 재인라인한다. path-traversal 가드 포함.
+ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => {
+  try {
+    const pid = _safeSeg(String(projectId || ''));
+    const fn = _safeSeg(String(filename || ''));
+    if (!pid || !fn) return { ok: false, error: 'projectId/filename 필수' };
+    const safeRoot = path.join(PROJECTS_DIR, pid, 'assets');
+    const full = path.join(safeRoot, fn);
+    if (!full.startsWith(safeRoot + path.sep)) return { ok: false, error: 'forbidden' };
+    if (!fs.existsSync(full)) return { ok: false, error: 'not found' };
+    const ext = path.extname(full).slice(1).toLowerCase();
+    const mime = _GOYA_ASSET_MIME[ext] || 'application/octet-stream';
+    const b64 = fs.readFileSync(full).toString('base64');
+    return { ok: true, dataUri: `data:${mime};base64,${b64}` };
+  } catch (e) {
+    return { ok: false, error: e && e.message };
+  }
+});
+
 ipcMain.handle('ai:generateImage', (_e, payload) => {
   const model = String(payload?.model || 'gemini-2.5-flash-image').toLowerCase();
   const needOpenAI = payload?.outpaint || model.startsWith('gpt-');
@@ -656,25 +908,19 @@ ipcMain.handle('projects:list', () => {
   try { entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true }); }
   catch { entries = []; }
 
-  // 1) 신 레이아웃 우선: proj_<id>/proj.json
+  // 1) 신 레이아웃 우선: proj_<id>/proj.json — [b8] 메타 우선(무거운 proj.json 풀파싱 회피)
   for (const ent of entries) {
     if (!ent.isDirectory()) continue;
     if (!/^proj_\d+$/.test(ent.name)) continue;
     const projPath = path.join(PROJECTS_DIR, ent.name, 'proj.json');
     if (!fs.existsSync(projPath)) continue;
+    const id = ent.name; // 신 레이아웃 불변식: 디렉터리명 = proj_<id>
+    if (seen.has(id)) continue;
     try {
-      const data = JSON.parse(fs.readFileSync(projPath, 'utf8'));
-      if (!data.id || data.id === 'undefined' || seen.has(data.id)) continue;
-      let thumbnail = data.thumbnail || null;
-      const metaPath = _resolveMetaJsonPath(data.id);
-      if (metaPath && fs.existsSync(metaPath)) {
-        try {
-          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-          if (meta.thumbnail) thumbnail = meta.thumbnail;
-        } catch {}
-      }
-      seen.add(data.id);
-      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail });
+      const item = _listItemFor(id, projPath, true);
+      if (!item) continue;
+      seen.add(item.id);
+      items.push(item);
     } catch {}
   }
 
@@ -694,7 +940,7 @@ ipcMain.handle('projects:list', () => {
         } catch {}
       }
       seen.add(data.id);
-      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail });
+      items.push({ id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt, updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null });
     } catch {}
   }
 
@@ -704,8 +950,39 @@ ipcMain.handle('projects:list', () => {
 
 ipcMain.handle('projects:load', (event, id) => {
   const filePath = _resolveProjectJsonPath(id);
-  if (!filePath) return null;
-  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
+  // 1) 정상 경로: proj.json
+  if (filePath) {
+    try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+    catch (e) { console.warn(`[projects:load] proj.json 손상(${id}): ${e.message} — 백업 폴백 시도`); }
+  }
+  // 2) GAP-004 폴백 체인: proj_backup.json → proj_history 최신→오래된 순.
+  //    백업 인프라(롤링백업·히스토리 5슬롯)가 옆에 유효본을 둬도 손상 시 빈 프로젝트로
+  //    로드되던 데이터손실을 차단. 첫 유효본을 반환하고 proj.json으로 자가치유 재기록.
+  const candidates = [];
+  const backupPath = _resolveBackupJsonPath(id);
+  if (backupPath) candidates.push({ path: backupPath, from: 'backup' });
+  for (const histDir of [path.join(PROJECTS_DIR, id, 'proj_history'), path.join(PROJECTS_DIR, `${id}_history`)]) {
+    try {
+      if (fs.existsSync(histDir)) {
+        const slots = fs.readdirSync(histDir).filter(f => f.endsWith('.json'))
+          .sort((a, b) => (parseInt(b) || 0) - (parseInt(a) || 0)); // 최신 우선
+        for (const s of slots) candidates.push({ path: path.join(histDir, s), from: 'history' });
+      }
+    } catch (_) {}
+  }
+  for (const c of candidates) {
+    let proj;
+    try { proj = JSON.parse(fs.readFileSync(c.path, 'utf8')); }
+    catch (_) { continue; } // 이 백업도 손상 → 다음 후보
+    console.warn(`[projects:load] ${id} 손상 → ${c.from}(${path.basename(c.path)})에서 복구`);
+    try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
+      const paths = _ensureNewLayoutPaths(id);
+      _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
+    } catch (e) { console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
+    return { ...proj, _recovered: c.from }; // _recovered: 렌더러 통지용(serialize엔 미포함)
+  }
+  // 3) proj.json·백업·히스토리 모두 부재/손상 → 복구 불가
+  return null;
 });
 
 // 섹션 수 합산 헬퍼 — 모든 페이지의 canvas HTML에서 section-block 카운트
@@ -789,6 +1066,8 @@ ipcMain.handle('projects:save', async (event, project) => {
   }
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
+  // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
+  _refreshListMeta(project.id, project);
   // claude-pm/project.meta.json title 동기화 (PM 폴더 있을 때만, best-effort)
   try { await syncClaudePmTitle(PROJECTS_DIR, project.id, project.name); } catch {}
   return { ok: true };
@@ -809,6 +1088,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
       try { fs.copyFileSync(prevPath, paths.backup); } catch {}
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
+    _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
     // claude-pm title 동기화 — sync 경로에서는 fire-and-forget (returnValue를 막지 않음)
     Promise.resolve()
       .then(() => syncClaudePmTitle(PROJECTS_DIR, project.id, project.name))
@@ -856,7 +1136,8 @@ ipcMain.handle('projects:delete', (event, id) => {
   return dirOk;
 });
 
-ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {}) => {
+// 프로젝트 복제 코어 — ipcMain.handle(렌더러)와 MCP 도구(duplicate_project)가 공용.
+async function _duplicateProjectImpl({ sourceProjectId, newName } = {}) {
   try {
     if (!sourceProjectId || typeof sourceProjectId !== 'string')
       return { ok: false, error: 'sourceProjectId 필수', code: 'invalid' };
@@ -907,6 +1188,18 @@ ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {
     }
     walkRewrite(dup);
 
+    // 캔버스 HTML 안의 goya-asset://<oldId>/ → <newId>/ 재매핑 (asset은 하드링크로 공유되지만
+    // URL의 projectId가 원본을 가리키면 프로토콜 핸들러가 원본 폴더를 읽음 → 신 id로 교정).
+    const oldUrlPrefix = `goya-asset://${sourceProjectId}/`;
+    const newUrlPrefix = `goya-asset://${newId}/`;
+    if (Array.isArray(dup.pages)) {
+      for (const pg of dup.pages) {
+        if (pg && typeof pg.canvas === 'string' && pg.canvas.includes(oldUrlPrefix)) {
+          pg.canvas = pg.canvas.split(oldUrlPrefix).join(newUrlPrefix);
+        }
+      }
+    }
+
     // 자산 폴더 복사 — tmp → rename으로 원자성
     // source 디렉터리는 항상 PROJECTS_DIR/<sourceProjectId>/ (claude-pm/images/assets 등은 이미 신 레이아웃)
     const srcDir = path.join(PROJECTS_DIR, sourceProjectId);
@@ -915,10 +1208,22 @@ ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {
     if (fs.existsSync(srcDir)) {
       try {
         fs.mkdirSync(tmpDir, { recursive: true });
-        for (const sub of ['images', 'assets']) {
-          const s = path.join(srcDir, sub);
-          if (!fs.existsSync(s)) continue;
-          fs.cpSync(s, path.join(tmpDir, sub), { recursive: true });
+        // images/: 프로젝트별 가변(AI 생성물 편집 등) → 실복사.
+        const imgSrc = path.join(srcDir, 'images');
+        if (fs.existsSync(imgSrc)) fs.cpSync(imgSrc, path.join(tmpDir, 'images'), { recursive: true });
+        // assets/: content-hash 불변 파일 → 하드링크로 공유(85MB 재복사 회피, dedup 유지).
+        //          동일 볼륨이라 linkSync 성공. 실패(크로스볼륨 등) 시 파일별 copy 폴백.
+        const astSrc = path.join(srcDir, 'assets');
+        if (fs.existsSync(astSrc)) {
+          const astDst = path.join(tmpDir, 'assets');
+          fs.mkdirSync(astDst, { recursive: true });
+          for (const ent of fs.readdirSync(astSrc, { withFileTypes: true })) {
+            if (!ent.isFile()) continue; // assets는 평면 파일만
+            const sp = path.join(astSrc, ent.name);
+            const dp = path.join(astDst, ent.name);
+            try { fs.linkSync(sp, dp); }
+            catch (_) { fs.copyFileSync(sp, dp); } // 폴백
+          }
         }
         fs.renameSync(tmpDir, dstDir);
       } catch (e) {
@@ -948,13 +1253,17 @@ ipcMain.handle('projects:duplicate', async (_e, { sourceProjectId, newName } = {
         _atomicWriteFileSync(targetPaths.meta, JSON.stringify(meta, null, 2));
       } catch (e) { console.warn('[projects:duplicate] meta 복사 실패:', e.message); }
     }
+    // [b8] 사본 목록 캐시는 사본 데이터 기준으로 갱신 — 원본 meta를 복사하면 createdAt 등 목록필드가
+    //   원본 값으로 stale해지므로(meta.mtime>proj.mtime라 목록서 그대로 노출됨) dup으로 덮어쓴다.
+    try { _refreshListMeta(newId, dup); } catch (_) {}
 
     return { ok: true, newProjectId: newId, newName: baseName };
   } catch (e) {
     console.error('[projects:duplicate] 예외:', e);
     return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
   }
-});
+}
+ipcMain.handle('projects:duplicate', (_e, args = {}) => _duplicateProjectImpl(args));
 
 /* ── IPC: Projects Meta (branches/commits/thumbnail 분리 저장) ── */
 ipcMain.handle('projects:save-meta', (event, projectId, metaData) => {
@@ -982,6 +1291,174 @@ ipcMain.handle('projects:load-meta', (event, projectId) => {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return null; }
 });
 
+/* ── IPC: Marketplace (bnam91/goditor-market) ──────────────────────────────
+   현재 프로젝트를 bnam91 깃 레포에 push / 마켓 목록 list / 선택 프로젝트 pull.
+   gh CLI(인증됨) + git CLI 사용. 로컬 캐시: userData/goditor-market.
+   레포 구조: market/<account>/<projectId>.json (payload: {id,name,account,updatedAt,data}) + 루트 index.json. */
+const MARKET_SLUG = 'bnam91/goditor-market';
+function _marketDir() { return path.join(app.getPath('userData'), 'goditor-market'); }
+function _execFileP(cmd, args, opts = {}) {
+  const { execFile } = require('child_process');
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { maxBuffer: 64 * 1024 * 1024, ...opts }, (err, stdout, stderr) => {
+      if (err) reject(new Error(((stderr || '') + (err.message || '')).toString().trim()));
+      else resolve((stdout || '').toString());
+    });
+  });
+}
+async function _ensureMarketRepo() {
+  const dir = _marketDir();
+  if (!fs.existsSync(path.join(dir, '.git'))) {
+    try { await _execFileP('gh', ['repo', 'view', MARKET_SLUG]); }
+    catch { await _execFileP('gh', ['repo', 'create', MARKET_SLUG, '--public', '-d', 'goditor 프로젝트 마켓플레이스']); }
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    try {
+      await _execFileP('gh', ['repo', 'clone', MARKET_SLUG, dir]);
+    } catch (e) {
+      // 빈 레포 등 clone 실패 → 수동 init
+      fs.mkdirSync(dir, { recursive: true });
+      await _execFileP('git', ['-C', dir, 'init']);
+      await _execFileP('git', ['-C', dir, 'remote', 'add', 'origin', `https://github.com/${MARKET_SLUG}.git`]).catch(() => {});
+    }
+    await _execFileP('git', ['-C', dir, 'branch', '-M', 'main']).catch(() => {});
+    if (!fs.existsSync(path.join(dir, 'index.json'))) fs.writeFileSync(path.join(dir, 'index.json'), '[]');
+  } else {
+    await _execFileP('git', ['-C', dir, 'pull', '--ff-only']).catch(() => {});
+  }
+  // 큰 프로젝트(이미지 data URL 인라인 → 수십 MB) push 시 HTTP 400/RPC failed 방지.
+  await _execFileP('git', ['-C', dir, 'config', 'http.postBuffer', '524288000']).catch(() => {});
+  await _execFileP('git', ['-C', dir, 'config', 'http.version', 'HTTP/1.1']).catch(() => {});
+  return dir;
+}
+function _rebuildMarketIndex(dir) {
+  const root = path.join(dir, 'market');
+  const idx = [];
+  if (fs.existsSync(root)) {
+    for (const account of fs.readdirSync(root)) {
+      const adir = path.join(root, account);
+      try { if (!fs.statSync(adir).isDirectory()) continue; } catch { continue; }
+      for (const f of fs.readdirSync(adir)) {
+        if (!f.endsWith('.json')) continue;
+        try {
+          const o = JSON.parse(fs.readFileSync(path.join(adir, f), 'utf-8'));
+          idx.push({ account, id: o.id, name: o.name || o.id, updatedAt: o.updatedAt || null, version: o.version || null });
+        } catch {}
+      }
+    }
+  }
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(idx, null, 2));
+  return idx;
+}
+const _safe = s => String(s || '').replace(/[^\w.-]/g, '_');
+// ── Phase 0: 자산 blob 분리 ── 인라인 data:image base64를 market/_blobs/<sha256>.b64로 분리(dedup),
+//    JSON엔 goditor-blob:<sha256> 참조만 남김. (단일 json 94.5MB→GitHub 100MB 한도 회피 + 중복 자산 1회 저장)
+const _crypto = require('crypto');
+const _BLOB_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g;
+const _MAX_BYTES = 95 * 1024 * 1024;   // GitHub 100MB 하드리밋 안전 마진
+const _BLOB_MIN = 2048;                // 이보다 작은 자산은 분리 안 함(토큰이 더 커서 역효과 + blob 클러터 방지)
+function _blobsDir(dir) { return path.join(dir, 'market', '_blobs'); }
+function _extractBlobs(jsonStr, dir) {
+  const bdir = _blobsDir(dir); fs.mkdirSync(bdir, { recursive: true });
+  let maxBlob = 0, count = 0;
+  const data = String(jsonStr).replace(_BLOB_RE, (m) => {
+    if (Buffer.byteLength(m) < _BLOB_MIN) return m;   // 작은 자산은 인라인 유지
+    const h = _crypto.createHash('sha256').update(m).digest('hex');
+    const fp = path.join(bdir, h + '.b64');
+    if (!fs.existsSync(fp)) fs.writeFileSync(fp, m);   // dedup: 동일 자산은 1회만
+    const b = Buffer.byteLength(m); if (b > maxBlob) maxBlob = b; count++;
+    return 'goditor-blob:' + h;
+  });
+  return { data, maxBlob, count };
+}
+function _inlineBlobs(jsonStr, dir) {
+  const bdir = _blobsDir(dir);
+  return String(jsonStr).replace(/goditor-blob:([a-f0-9]{64})/g, (m, h) => {
+    try { return fs.readFileSync(path.join(bdir, h + '.b64'), 'utf-8'); } catch { return m; }  // 누락 시 토큰 유지(깨짐 가시화)
+  });
+}
+// Phase 2: blob 분리된(=data URL 비결정성 제거된) 데이터 해시. push 시 1회 박제 → 가짜충돌 방지.
+function _versionHash(deinlined) { return _crypto.createHash('sha256').update(String(deinlined)).digest('hex').slice(0, 16); }
+// Phase 3: 에러 분류 + non-ff push rebase 가드 (멀티맥 동시 push 경쟁 방지, force 절대 금지)
+function _errCode(msg) {
+  if (/non-fast-forward|fetch first|\[rejected\]|\bbehind\b/i.test(msg)) return 'conflict';
+  if (/auth|login|denied|403|permission|could not read Username/i.test(msg)) return 'auth';
+  if (/could not resolve host|network|timed out|connection|failed to connect/i.test(msg)) return 'network';
+  return 'error';
+}
+function _errMsg(msg) {
+  return ({ auth: 'GitHub 인증 필요 — 터미널에서 `gh auth login` 후 다시 시도하세요.',
+            network: '네트워크 오류 — 연결을 확인하고 다시 시도하세요.',
+            conflict: '원격에 더 새 버전이 있습니다. "목록 새로고침"으로 받은 뒤 다시 올리세요.' }[_errCode(msg)])
+         || ('업로드 실패: ' + String(msg).slice(0, 200));
+}
+async function _pushWithRebase(dir) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try { await _execFileP('git', ['-C', dir, 'push', '-u', 'origin', 'main']); return { ok: true }; }
+    catch (e) {
+      const msg = String(e.message || '');
+      if (attempt === 0 && _errCode(msg) === 'conflict') {
+        // 원격이 앞섬 → fetch + rebase 후 1회 재시도. 다른 파일(다른 프로젝트)이면 rebase 통과.
+        try {
+          await _execFileP('git', ['-C', dir, 'fetch', 'origin', 'main']);
+          await _execFileP('git', ['-C', dir, 'rebase', 'origin/main']);
+        } catch (_re) {
+          await _execFileP('git', ['-C', dir, 'rebase', '--abort']).catch(() => {});
+          return { ok: false, code: 'conflict', message: '같은 프로젝트를 다른 맥이 먼저 올렸습니다. "목록 새로고침"으로 받은 뒤 다시 올리세요.' };
+        }
+        continue;   // 재시도
+      }
+      return { ok: false, code: _errCode(msg), message: _errMsg(msg) };
+    }
+  }
+  return { ok: false, code: 'conflict', message: 'push 재시도 실패 — 먼저 받은 뒤 다시 올리세요.' };
+}
+ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, updatedAt } = {}) => {
+  try {
+    if (!account || !id || !data) return { ok: false, message: 'account/id/data 필요' };
+    const dir = await _ensureMarketRepo();
+    const acc = _safe(account), pid = _safe(id);
+    const adir = path.join(dir, 'market', acc);
+    fs.mkdirSync(adir, { recursive: true });
+    // Phase 0: 인라인 자산 분리(프로젝트 데이터 + Phase1 스크래치) + 용량 가드
+    const { data: deinlined, maxBlob: mb1, count: c1 } = _extractBlobs(data, dir);
+    const scratchStr = JSON.stringify(scratch || []);
+    const { data: deScratch, maxBlob: mb2, count: c2 } = _extractBlobs(scratchStr, dir);
+    const maxBlob = Math.max(mb1, mb2);
+    if (maxBlob > _MAX_BYTES) return { ok: false, message: `단일 자산 ${Math.round(maxBlob / 1048576)}MB — GitHub 100MB 한도 초과 위험. 자산 용량을 줄이세요.` };
+    if (Buffer.byteLength(deinlined) + Buffer.byteLength(deScratch) > _MAX_BYTES) return { ok: false, message: `프로젝트 JSON ${Math.round((Buffer.byteLength(deinlined) + Buffer.byteLength(deScratch)) / 1048576)}MB — 한도 초과` };
+    // Phase 2: 분리된 데이터(+스크래치)로 version 해시 박제
+    const version = _versionHash(deinlined + '|' + deScratch);
+    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), version, blobCount: c1 + c2, data: deinlined, scratch: deScratch };
+    fs.writeFileSync(path.join(adir, `${pid}.json`), JSON.stringify(payload));
+    _rebuildMarketIndex(dir);
+    await _execFileP('git', ['-C', dir, 'add', '-A']);
+    await _execFileP('git', ['-C', dir, 'commit', '-m', `market: ${acc}/${name || pid}`]).catch(() => {});
+    const pr = await _pushWithRebase(dir);   // Phase 3: non-ff면 fetch+rebase 후 재시도
+    if (!pr.ok) return pr;
+    return { ok: true, account: acc, id: pid, version };
+  } catch (e) { return { ok: false, message: e.message }; }
+});
+ipcMain.handle('market:list', async () => {
+  try { const dir = await _ensureMarketRepo(); return { ok: true, items: _rebuildMarketIndex(dir) }; }
+  catch (e) { return { ok: false, code: _errCode(e.message), message: _errMsg(e.message) }; }
+});
+// Phase 3: gh 인증 선점검
+ipcMain.handle('market:auth', async () => {
+  try { await _execFileP('gh', ['auth', 'status']); return { ok: true }; }
+  catch { return { ok: false, code: 'auth', message: 'GitHub 미인증 — 터미널에서 `gh auth login` 후 마켓을 사용하세요.' }; }
+});
+ipcMain.handle('market:pull', async (_e, { account, id } = {}) => {
+  try {
+    const dir = await _ensureMarketRepo();
+    const f = path.join(dir, 'market', _safe(account), `${_safe(id)}.json`);
+    if (!fs.existsSync(f)) return { ok: false, message: '프로젝트 없음' };
+    const proj = JSON.parse(fs.readFileSync(f, 'utf-8'));
+    proj.data = _inlineBlobs(proj.data, dir);   // Phase 0: blob 참조 → data URL 복원
+    if (proj.scratch) proj.scratch = _inlineBlobs(proj.scratch, dir);   // Phase 1: 스크래치 blob 복원
+    return { ok: true, project: proj };
+  } catch (e) { return { ok: false, message: e.message }; }
+});
+
 /* ── IPC: Intake (design-bot pipeline) ── */
 const INTAKE_DIR = path.join(os.homedir(), 'Documents', 'design-bot-builder');
 if (!fs.existsSync(INTAKE_DIR)) fs.mkdirSync(INTAKE_DIR, { recursive: true });
@@ -999,7 +1476,7 @@ ipcMain.handle('intake:save', (event, data) => {
 
 ipcMain.handle('intake:load', (event, filename) => {
   try {
-    const filePath = path.join(INTAKE_DIR, filename);
+    const filePath = path.join(INTAKE_DIR, _safeSeg(filename)); // GAP-009
     if (!fs.existsSync(filePath)) return null;
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch { return null; }
@@ -1036,13 +1513,13 @@ ipcMain.handle('presets:read-all', () => {
 });
 
 ipcMain.handle('presets:save', (event, preset) => {
-  const filePath = path.join(PRESETS_DIR, `${preset.id}.json`);
+  const filePath = path.join(PRESETS_DIR, `${_safeSeg(preset && preset.id)}.json`); // GAP-009
   fs.writeFileSync(filePath, JSON.stringify(preset, null, 2));
   return true;
 });
 
 ipcMain.handle('presets:delete', (event, presetId) => {
-  const filePath = path.join(PRESETS_DIR, `${presetId}.json`);
+  const filePath = path.join(PRESETS_DIR, `${_safeSeg(presetId)}.json`); // GAP-009
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   return true;
 });
@@ -1075,8 +1552,8 @@ ipcMain.handle('figma:upload', (event, { channel, designJSON }) => {
     const timer = setTimeout(() => {
       child.kill();
       cleanup();
-      resolve({ success: false, logs: '❌ 타임아웃 (120초 초과)' });
-    }, 120000);
+      resolve({ success: false, logs: '❌ 타임아웃 (3600초 초과)' });
+    }, 3600000);
 
     child.on('close', (code) => {
       clearTimeout(timer);
@@ -1204,7 +1681,7 @@ ipcMain.handle('templates:load-index', () => {
     try {
       const old = JSON.parse(fs.readFileSync(oldFile, 'utf8'));
       const index = old.map(({ canvas, ...meta }) => {
-        if (canvas) fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${meta.id}.html`), canvas, 'utf8');
+        if (canvas) fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(meta.id)}.html`), canvas, 'utf8'); // GAP-009
         return meta;
       });
       fs.writeFileSync(TEMPLATES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8');
@@ -1222,18 +1699,18 @@ ipcMain.handle('templates:save-index', (event, index) => {
 });
 
 ipcMain.handle('templates:load-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${id}.html`);
+  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
   if (!fs.existsSync(filePath)) return null;
   try { return fs.readFileSync(filePath, 'utf8'); } catch { return null; }
 });
 
 ipcMain.handle('templates:save-canvas', (event, id, html) => {
-  fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${id}.html`), html, 'utf8');
+  fs.writeFileSync(path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`), html, 'utf8'); // GAP-009
   return true;
 });
 
 ipcMain.handle('templates:delete-canvas', (event, id) => {
-  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${id}.html`);
+  const filePath = path.join(TEMPLATES_CANVAS_DIR, `${_safeSeg(id)}.html`); // GAP-009
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   return true;
 });
@@ -1288,6 +1765,12 @@ ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, heigh
 function setupAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  // 채널 분기: settings.betaChannel=true인 테스터만 pre-release 수신.
+  // 일반 사용자(false)는 latest 정식만 → 미검증 빌드가 전파되지 않음.
+  try {
+    autoUpdater.allowPrerelease = !!readSettings().betaChannel;
+    console.log('[updater] allowPrerelease =', autoUpdater.allowPrerelease);
+  } catch (_) {}
 
   autoUpdater.on('update-available', (info) => {
     console.log('[updater] 새 버전 발견:', info.version);
@@ -1314,6 +1797,27 @@ function setupAutoUpdater() {
 
 /* ── App lifecycle ── */
 app.whenReady().then(async () => {
+  // goya-asset:// 핸들러 — proj_<id>/assets/<file>을 디스크에서 직접 스트림.
+  // path-traversal 가드(assets 루트 밖 거부). 브라우저가 캐시·lazy-load 담당 → JS heap에 base64 없음.
+  protocol.handle('goya-asset', (request) => {
+    try {
+      const u = new URL(request.url); // goya-asset://<projectId>/<filename>
+      const projectId = _safeSeg(decodeURIComponent(u.hostname || ''));
+      const filename = _safeSeg(decodeURIComponent((u.pathname || '').replace(/^\/+/, '')));
+      if (!projectId || !filename) return new Response('bad request', { status: 400 });
+      const safeRoot = path.join(PROJECTS_DIR, projectId, 'assets');
+      const full = path.join(safeRoot, filename);
+      if (!full.startsWith(safeRoot + path.sep)) return new Response('forbidden', { status: 403 });
+      if (!fs.existsSync(full)) return new Response('not found', { status: 404 });
+      // 렌더러 Image()/lazy-load 는 이 스트림으로 동작. (단, file:// origin 렌더러의 fetch()는
+      // Chromium이 커스텀 스킴 cross-origin을 하드 차단 → export HTML 재인라인은 fetch 대신
+      // assets:readAsDataUri IPC를 사용한다. 아래 핸들러 참조.)
+      return electronNet.fetch(require('url').pathToFileURL(full).toString());
+    } catch (e) {
+      return new Response('error: ' + (e && e.message), { status: 500 });
+    }
+  });
+
   // 프로젝트 데이터 번들 레이아웃 마이그레이션 (flat → proj_<id>/ 디렉터리)
   // copy-then-verify 패턴이라 실패해도 flat 원본 보존 → 앱 시작 차단 X.
   // 머지 전이라 migrator 모듈이 없을 수 있어 best-effort.
@@ -1337,19 +1841,22 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
-  watchFiles();
+  // watchFiles가 던져도 updater/MCP 초기화는 계속돼야 함 (0.5.0 자동업데이트 사망 원인)
+  try { watchFiles(); } catch (e) { console.error('[hot-reload] watch skipped:', e.message); }
   // 개발 모드에서는 자동업데이트 스킵
   if (!process.argv.includes('--enable-logging')) {
     setupAutoUpdater();
   }
   // Claude PM MCP 서버 (포트 9345, port-status 표 9345+ 신규 자유)
   try {
-    const { port: actualPort } = await startMcpServer({
+    const { port: actualPort, token: mcpToken } = await startMcpServer({
       port: 9345,
       onActiveProject: () => global.currentActiveProjectId || null,
     });
     // EADDRINUSE fallback이 일어나도 ipc 핸들러가 올바른 포트로 ping
     setActualMcpPort(actualPort);
+    // Unit B — 접속 토큰 보관(메모리). renderer 노출은 admin 게이팅 IPC로만.
+    currentMcpToken = mcpToken || null;
     // Phase 2/3 — renderer write bridge 주입
     setMcpRendererInvoker({
       addTextBlock: _invokeRendererAddBlock,
@@ -1423,6 +1930,10 @@ app.whenReady().then(async () => {
     // iconify search/svg fetch는 main에서 직접 (renderer CSP/외부 fetch 우회 + SSRF 가드)
     if (typeof setMcpIconifyApi === 'function') {
       setMcpIconifyApi({ search: _doIconifySearch, fetchSvg: _fetchIconifySvg });
+    }
+    // 프로젝트 복제 코어 주입 — MCP duplicate_project 도구가 사용.
+    if (typeof setMcpProjectOps === 'function') {
+      setMcpProjectOps({ duplicate: _duplicateProjectImpl });
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);

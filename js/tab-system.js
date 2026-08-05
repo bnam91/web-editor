@@ -198,17 +198,44 @@ function _bindTabDrag(el, bar) {
   });
 }
 
+// 복원 세대 카운터 — 빠른 탭 전환 시 이전 탭의 지연 재시도(rAF/setTimeout)가
+// 새 탭 적용 후 실행되어 stale scrollTop/scrollLeft를 덮어쓰는 것을 방지 (Codex 리뷰)
+let _viewRestoreGen = 0;
+
 function _restoreViewState(tab) {
+  const gen = ++_viewRestoreGen; // 새 복원 시작 = 이전 탭의 pending 재시도 전부 무효화
   if (!tab?._viewState) return;
-  const { zoom, panX, panY } = tab._viewState;
+  const { zoom, panX, panY, scrollTop = 0, scrollLeft = 0 } = tab._viewState;
+  // applyZoom → _syncScalerHeight가 scaler 레이아웃 높이를 동기화(reflow)해
+  // scrollHeight가 확보된 뒤 스크롤을 세팅할 수 있다 (editor.js C20 참조)
   if (window.applyZoom) window.applyZoom(zoom);
   if (window.setPanOffset) window.setPanOffset(panX, panY);
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return;
+  wrap.scrollTop = scrollTop;
+  wrap.scrollLeft = scrollLeft;
+  // 이미지 비동기 로드/lazy-sections로 scrollHeight가 늦게 늘어나 세팅이 클램프됐을 때만 재적용.
+  // '세팅 직후 클램프 증거'가 있을 때만 재시도 — 복원 성공 후 사용자가 스크롤한 값은 덮어쓰지 않음.
+  let needRetry = Math.abs(wrap.scrollTop - scrollTop) > 1;
+  const retry = () => {
+    if (gen !== _viewRestoreGen) return; // 다른 탭 복원이 시작됨 — stale 재시도 무효
+    if (!needRetry) return;
+    if (wrap.scrollHeight - wrap.clientHeight >= scrollTop) {
+      wrap.scrollTop = scrollTop;
+      wrap.scrollLeft = scrollLeft;
+      needRetry = Math.abs(wrap.scrollTop - scrollTop) > 1;
+    }
+  };
+  requestAnimationFrame(retry);
+  setTimeout(retry, 150);
 }
 
 async function switchTab(id) {
   if (id === _getActId()) return;
-  // 스크래치패드 전환은 currentPageId 정해진 후(applyProjectData 다음)로 미룸 —
-  // 여기서 호출하면 pageId=undefined로 키 불일치 발생해 데이터 못 찾음
+  // 스크래치패드 '로드'(switchScratch)는 currentPageId 정해진 후(applyProjectData 다음)로 미룸 —
+  // 여기서 호출하면 pageId=undefined로 키 불일치 발생해 데이터 못 찾음.
+  // 단 이전 프로젝트 스크래치의 '저장+DOM제거'는 새 pageId 불필요 → 아래 캔버스 클리어 시점에
+  // flushScratchForSwitch로 즉시 수행 (탭 전환 잔상 방지)
 
   // 현재 탭 메모리 캐시 저장 + 파일 비동기 저장
   const openTabs = _getTabs();
@@ -220,12 +247,19 @@ async function switchTab(id) {
     if (window.hasUnsavedChanges?.() ?? true) {
       window.saveProjectToFile(curTab._cache, { skipThumbnail: true, projectId: prevProjectId }); // 파일 저장은 await 안 함 (비동기)
     }
-    // 캔버스 뷰 상태 저장 (줌 + 팬 오프셋)
+    // 캔버스 뷰 상태 저장 (줌 + 팬 오프셋 + 스크롤 위치)
+    // 스크롤의 1차 저장소는 #canvas-wrap.scrollTop/Left (휠 핸들러가 pan보다 먼저 흡수) —
+    // 아래 canvasEl.innerHTML='' 로 콘텐츠가 비면 scrollTop이 0으로 클램프되므로 여기서 미리 캡처
     const pan = window.getPanOffset?.() || { x: 0, y: 0 };
-    curTab._viewState = { zoom: window.currentZoom || 40, panX: pan.x, panY: pan.y };
+    const curWrap = document.getElementById('canvas-wrap');
+    curTab._viewState = {
+      zoom: window.currentZoom || 40, panX: pan.x, panY: pan.y,
+      scrollTop: curWrap?.scrollTop || 0, scrollLeft: curWrap?.scrollLeft || 0
+    };
   }
 
   _setActId(id);
+  _viewRestoreGen++; // 활성 탭 변경 즉시 이전 탭의 pending 스크롤 재시도 무효화 (proj 없는 분기 포함)
   history.replaceState(null, '', '?project=' + id);
 
   // 이미지 편집 모드 리스너 정리 (메모리 누수 방지)
@@ -245,6 +279,9 @@ async function switchTab(id) {
   // propPanel 클리어 — 이전 탭의 속성 패널 내용이 잔존하지 않도록
   const propPanel = document.querySelector('#panel-right .panel-body');
   if (propPanel) propPanel.innerHTML = '';
+  // 이전 프로젝트 스크래치 즉시 제거 + 백그라운드 저장 (탭 전환 잔상 방지). 완료 대기 불필요 —
+  // IndexedDB는 같은 store의 트랜잭션을 생성 순서대로 직렬화하므로 이후 switchScratch의 read와 race 없음
+  window.flushScratchForSwitch?.().catch(e => console.warn('[switchTab] scratch flush 실패:', e));
   if (window.buildLayerPanel) window.buildLayerPanel();
 
   renderTabBar();
@@ -334,14 +371,14 @@ async function createNewProjectTab() {
   const now = new Date().toISOString();
   const emptySnap = JSON.stringify({
     version: 2, currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 32, padY: 32 }, canvas: '' }]
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }]
   });
   const proj = {
     id, name: 'Untitled',
     createdAt: now, updatedAt: now,
     version: 2,
     currentPageId: 'page_1',
-    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 32, padY: 32 }, canvas: '' }],
+    pages: [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { bg: '#9b9b9b', gap: 100, padX: 72, padY: 32, padXExcludesAsset: true }, canvas: '' }],
     currentBranch: 'dev',
     branches: {
       main: { snapshot: emptySnap, createdAt: Date.now(), updatedAt: Date.now() },

@@ -205,20 +205,42 @@ function addIconTextBlock() {
   window.selectSection(sec);
 }
 
+// label-group opts 적용 (3개 삽입 경로 공용) — 색/정렬 옵션이 조용히 탈락하던 버그 픽스.
+// opts: labels: (string | {text, bg?, color?})[], bg/color(그룹 기본 필 색), radius, shape, align: left|center|right
+function _applyLabelGroupOpts(block, opts) {
+  const groupBg    = (typeof opts.bg === 'string' && opts.bg) ? opts.bg : '#e8e8e8';
+  const groupColor = (typeof opts.color === 'string' && opts.color) ? opts.color : '#333333';
+  const radius     = Number.isFinite(Number(opts.radius)) ? Number(opts.radius) : 40;
+  if (opts.labels && opts.labels.length > 0) {
+    block.querySelectorAll('.label-item').forEach(l => l.remove());
+    const addBtn = block.querySelector('.label-group-add-btn');
+    opts.labels.forEach(lb => {
+      const item = (lb && typeof lb === 'object')
+        ? makeLabelItem(lb.text ?? '', lb.bg || groupBg, lb.color || groupColor, radius, opts.shape || 'pill')
+        : makeLabelItem(lb, groupBg, groupColor, radius, opts.shape || 'pill');
+      block.insertBefore(item, addBtn);
+    });
+  } else if (opts.bg || opts.color) {
+    // labels 없이 색만 지정 → 기본 3개 Tag 필 색만 갱신
+    block.querySelectorAll('.label-item').forEach(item => {
+      item.dataset.bg = groupBg; item.dataset.color = groupColor;
+      item.style.backgroundColor = groupBg; item.style.color = groupColor;
+    });
+  }
+  if (opts.shape) block.dataset.shape = opts.shape;
+  if (opts.align === 'left' || opts.align === 'center' || opts.align === 'right') {
+    block.dataset.align = opts.align;
+    block.style.justifyContent = opts.align === 'left' ? 'flex-start'
+      : (opts.align === 'center' ? 'center' : 'flex-end');
+  }
+}
+
 function addLabelGroupBlock(opts = {}) {
   const overlay = getSelectedOverlay();
   if (overlay) {
     window.pushHistory();
     const { row, block } = makeLabelGroupBlock();
-    if (opts.labels && opts.labels.length > 0) {
-      block.querySelectorAll('.label-item').forEach(l => l.remove());
-      const addBtn = block.querySelector('.label-group-add-btn');
-      opts.labels.forEach(text => {
-        const item = makeLabelItem(text, '#e8e8e8', '#333333', 40, opts.shape || 'pill');
-        block.insertBefore(item, addBtn);
-      });
-    }
-    if (opts.shape) block.dataset.shape = opts.shape;
+    _applyLabelGroupOpts(block, opts);
     insertIntoOverlay(overlay, row);
     bindBlock(block);
     window.buildLayerPanel();
@@ -226,27 +248,14 @@ function addLabelGroupBlock(opts = {}) {
   }
   if (_insertToFlowFrame(() => {
     const { row, block } = makeLabelGroupBlock();
-    if (opts.labels && opts.labels.length > 0) {
-      block.querySelectorAll('.label-item').forEach(l => l.remove());
-      const addBtn = block.querySelector('.label-group-add-btn');
-      opts.labels.forEach(text => { block.insertBefore(makeLabelItem(text, '#e8e8e8', '#333333', 40, opts.shape || 'pill'), addBtn); });
-    }
-    if (opts.shape) block.dataset.shape = opts.shape;
+    _applyLabelGroupOpts(block, opts);
     return { row, block };
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const { row, block } = makeLabelGroupBlock();
-  if (opts.labels && opts.labels.length > 0) {
-    block.querySelectorAll('.label-item').forEach(l => l.remove());
-    const addBtn = block.querySelector('.label-group-add-btn');
-    opts.labels.forEach(text => {
-      const item = makeLabelItem(text, '#e8e8e8', '#333333', 40, opts.shape || 'pill');
-      block.insertBefore(item, addBtn);
-    });
-  }
-  if (opts.shape) block.dataset.shape = opts.shape;
+  _applyLabelGroupOpts(block, opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
@@ -306,6 +315,34 @@ function makeTableBlock() {
   return { row, block: tb };
 }
 
+// U8(BL-CDD-03/04): fontFamily·fontWeight·텍스트 스트로크 — applyTextOpts와 오버레이 분기 공용.
+// fontFamily는 폰트픽커와 동일하게 dataset.rawFont 병기(CSS가 따옴표를 정규화해도 원본 보존).
+// 아웃라인 전용 텍스트(고스트 넘버럴)는 color:'transparent' + strokeWidth/strokeColor 조합으로 만든다.
+function _applyTextExtras(contentEl, opts) {
+  if (!contentEl) return;
+  if (opts.fontFamily && typeof opts.fontFamily === 'string' && opts.fontFamily.length <= 200) {
+    contentEl.style.fontFamily = opts.fontFamily;
+    contentEl.dataset.rawFont = opts.fontFamily;
+  }
+  if (opts.fontWeight !== undefined) {
+    const w = String(opts.fontWeight);
+    if (/^(100|200|300|400|500|600|700|800|900|bold|normal)$/.test(w)) contentEl.style.fontWeight = w;
+  }
+  if (opts.strokeWidth !== undefined || opts.strokeColor !== undefined) {
+    const w = Number(opts.strokeWidth);
+    const width = Number.isFinite(w) && w > 0 ? Math.min(20, w) : 1;
+    const color = (typeof opts.strokeColor === 'string' && opts.strokeColor.length <= 64)
+      ? opts.strokeColor : (contentEl.style.color || '#222222');
+    contentEl.style.webkitTextStroke = `${width}px ${color}`;
+    contentEl.style.paintOrder = 'stroke fill';
+  }
+  // bg — 특히 label(tb-label) 필 배경색 지정 경로 (토큰 기본값을 인라인으로 override).
+  // 지정 색이 조용히 탈락해 흰 필로 렌더되던 케이스 방지 (2026-07-04 제니 발주)
+  if (opts.bg !== undefined && typeof opts.bg === 'string' && opts.bg.length <= 64) {
+    contentEl.style.backgroundColor = opts.bg;
+  }
+}
+
 function applyTextOpts(block, frame, opts, type) {
   const contentEl = block.querySelector('[class^="tb-"]');
   if (opts.content && contentEl) {
@@ -322,6 +359,7 @@ function applyTextOpts(block, frame, opts, type) {
   }
   if (opts.color && contentEl) contentEl.style.color = opts.color;
   if (opts.fontSize && contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
+  _applyTextExtras(contentEl, opts);
   if (opts.paddingX !== undefined && frame) {
     frame.style.paddingLeft  = opts.paddingX + 'px';
     frame.style.paddingRight = opts.paddingX + 'px';
@@ -360,6 +398,7 @@ function addTextBlock(type, opts = {}) {
       const contentEl = block.querySelector('[class^="tb-"]');
       if (contentEl) contentEl.style.fontSize = opts.fontSize + 'px';
     }
+    _applyTextExtras(block.querySelector('[class^="tb-"]'), opts);
     // overlay 내 row wrapper (overlay 구조 유지용)
     const overlayRow = document.createElement('div');
     overlayRow.className = 'row'; overlayRow.dataset.layout = 'stack';
@@ -870,8 +909,81 @@ function addIconCircleBlock(opts = {}) {
   window.selectSection(sec);
 }
 
+// ── 테이블 U3 헬퍼 (BL-CDD-05·BL-CDZ-04) ──────────────────────────────
+function _colorLuminance(str) {
+  if (!str || typeof str !== 'string') return null;
+  const s = str.trim();
+  let r, g, b;
+  let m = s.match(/^#([0-9a-fA-F]{3})$/);
+  if (m) { r = parseInt(m[1][0] + m[1][0], 16); g = parseInt(m[1][1] + m[1][1], 16); b = parseInt(m[1][2] + m[1][2], 16); }
+  if (r === undefined) {
+    m = s.match(/^#([0-9a-fA-F]{6})/);
+    if (m) { r = parseInt(m[1].slice(0, 2), 16); g = parseInt(m[1].slice(2, 4), 16); b = parseInt(m[1].slice(4, 6), 16); }
+  }
+  if (r === undefined) {
+    m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (m) { r = +m[1]; g = +m[2]; b = +m[3]; }
+  }
+  if (r === undefined) return null;
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+// 테이블 기본 텍스트색은 #222 고정이라 다크 섹션에서 안 보임(BL-CDD-05).
+// 삽입 시점 섹션 bg 휘도로 판정해, 사용자가 색을 명시하지 않았고 기본값 그대로일 때만 다크 팔레트로 전환.
+function _applyTableThemeDefaults(block, opts = {}) {
+  const sec = block.closest('.section-block');
+  if (!sec) return;
+  const bg = sec.style.backgroundColor || sec.style.background || sec.dataset.bg || '';
+  const lum = _colorLuminance(bg);
+  if (lum === null || lum >= 0.45) return; // 밝은 배경 → 기본 유지
+  const _set = (key, cssVar, darkVal, lightDefault) => {
+    if (opts[key] !== undefined) return;                          // 명시 옵션 우선
+    const cur = (block.dataset[key] || '').toLowerCase();
+    if (cur && cur !== lightDefault) return;                      // 이미 커스텀됨
+    block.dataset[key] = darkVal;
+    block.style.setProperty(cssVar, darkVal);
+  };
+  _set('textColor', '--tbl-text-color', '#e8e8e8', '#222222');
+  _set('lineColor', '--tbl-line-color', '#555555', '#cccccc');
+  _set('headerBg', '--tbl-header-bg', '#333333', '#f0f0f0');
+}
+
+// 특정 논리 열 하이라이트(BL-CDZ-04, 비교표 "우리 열" 강조). style 프리셋과 독립 —
+// data-tbl-hl 마커로 이전 적용을 정확히 걷어낸 뒤 덧칠하므로 colored 위에도 동작.
+function applyTableColHighlight(block) {
+  const table = block.querySelector('.tb-table');
+  if (!table) return;
+  block.querySelectorAll('[data-tbl-hl]').forEach(c => {
+    c.style.backgroundColor = ''; c.style.color = ''; c.style.fontWeight = '';
+    c.removeAttribute('data-tbl-hl');
+  });
+  const idx = parseInt(block.dataset.highlightCol);
+  if (!Number.isFinite(idx) || idx < 0) return;
+  const bg = block.dataset.highlightBg || '#fff3d1';
+  // fg 미지정 시 하이라이트 bg 휘도로 대비색 자동 산출 — 다크 테이블(밝은 글자) 위에
+  // 밝은 하이라이트가 얹히면 글자가 증발하는 결함 방지
+  const bgLum = _colorLuminance(bg);
+  const fg = block.dataset.highlightFg || (bgLum !== null && bgLum < 0.45 ? '#ffffff' : '#222222');
+  const paint = (cell) => {
+    cell.style.backgroundColor = bg;
+    cell.style.color = fg;
+    cell.style.fontWeight = '700';
+    cell.setAttribute('data-tbl-hl', '1');
+  };
+  table.querySelectorAll('tr').forEach(tr => {
+    let logical = 0;
+    for (const cell of tr.querySelectorAll('th, td')) {
+      const span = parseInt(cell.getAttribute('colspan') || '1', 10) || 1;
+      if (idx >= logical && idx < logical + span) { paint(cell); break; }
+      logical += span;
+    }
+  });
+}
+
 function addTableBlock(opts = {}) {
   // 2026-06-08: opts.headers + opts.rows 데이터 직접 주입 지원 (MCP add_table_block)
+  // 2026-07-03(U3): cols/rowCount 빈 그리드, textColor/lineColor/headerBg, highlightCol,
+  //   다크 섹션 테마어웨어 기본색 추가.
   const _escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const applyData = (block) => {
     if (opts.showHeader === false) {
@@ -880,22 +992,56 @@ function addTableBlock(opts = {}) {
     }
     const align = opts.cellAlign || block.dataset.cellAlign || 'center';
     if (opts.cellAlign) { block.dataset.cellAlign = opts.cellAlign; }
+    // 열/행 수 지정(데이터 없이 빈 그리드). headers/rows가 있으면 그쪽이 열 수를 결정.
+    const nCols = Number.isFinite(+opts.cols) && +opts.cols >= 1 ? Math.min(32, Math.floor(+opts.cols)) : 0;
+    const nRows = Number.isFinite(+opts.rowCount) && +opts.rowCount >= 1 ? Math.min(500, Math.floor(+opts.rowCount)) : 0;
     if (Array.isArray(opts.headers) && opts.headers.length > 0) {
       const thead = block.querySelector('thead');
       if (thead) thead.innerHTML = `<tr>${opts.headers.map(h => `<th style="text-align:${align}">${_escHtml(h)}</th>`).join('')}</tr>`;
+    } else if (nCols > 0) {
+      const thead = block.querySelector('thead');
+      if (thead) thead.innerHTML = `<tr>${Array.from({ length: nCols }, () => `<th style="text-align:${align}"></th>`).join('')}</tr>`;
     }
     if (Array.isArray(opts.rows) && opts.rows.length > 0) {
       const tbody = block.querySelector('tbody');
       if (tbody) tbody.innerHTML = opts.rows.map(r =>
         `<tr>${(Array.isArray(r) ? r : [r]).map(cell => `<td style="text-align:${align}">${_escHtml(cell)}</td>`).join('')}</tr>`
       ).join('');
+    } else if (nRows > 0) {
+      const colCount = (Array.isArray(opts.headers) && opts.headers.length) || nCols
+        || block.querySelectorAll('thead th').length || 2;
+      const tbody = block.querySelector('tbody');
+      if (tbody) tbody.innerHTML = Array.from({ length: nRows }, () =>
+        `<tr>${Array.from({ length: colCount }, () => `<td style="text-align:${align}"></td>`).join('')}</tr>`
+      ).join('');
     }
     // 정렬 일괄 (기존 셀에도)
     if (opts.cellAlign) block.querySelectorAll('td, th').forEach(c => { c.style.textAlign = opts.cellAlign; });
+    // 색 옵션 (updateTableBlock과 동일 3종을 생성 시점에도)
+    const _COLOR_RE = /^(#[0-9a-fA-F]{3,8}|transparent)$|^(rgb|rgba|hsl|hsla)\(\s*[\d.,\s%/]+\)$/;
+    const _setColor = (key, cssVar) => {
+      const v = opts[key];
+      if (typeof v === 'string' && v.length <= 64 && _COLOR_RE.test(v.trim())) {
+        block.dataset[key] = v.trim();
+        block.style.setProperty(cssVar, v.trim());
+      }
+    };
+    _setColor('textColor', '--tbl-text-color');
+    _setColor('lineColor', '--tbl-line-color');
+    _setColor('headerBg', '--tbl-header-bg');
+    // 열 하이라이트
+    if (Number.isFinite(+opts.highlightCol) && +opts.highlightCol >= 0) {
+      block.dataset.highlightCol = String(Math.floor(+opts.highlightCol));
+      if (opts.highlightBg && _COLOR_RE.test(String(opts.highlightBg).trim())) block.dataset.highlightBg = String(opts.highlightBg).trim();
+      if (opts.highlightFg && _COLOR_RE.test(String(opts.highlightFg).trim())) block.dataset.highlightFg = String(opts.highlightFg).trim();
+      applyTableColHighlight(block);
+    }
   };
   if (_insertToFlowFrame(() => {
     const { row, block } = makeTableBlock();
     applyData(block);
+    // flow-frame 경로는 삽입 후 섹션 컨텍스트 확정 — 다음 틱에 테마 판정
+    setTimeout(() => { try { _applyTableThemeDefaults(block, opts); } catch (_) {} }, 0);
     return { row, block };
   })) return;
   const sec = window.getSelectedSection();
@@ -904,6 +1050,7 @@ function addTableBlock(opts = {}) {
   const { row, block } = makeTableBlock();
   applyData(block);
   insertAfterSelected(sec, row);
+  _applyTableThemeDefaults(block, opts);
   bindBlock(block);
   window.buildLayerPanel();
   // 방금 추가한 블록을 자동 선택 + 화면 안으로 스크롤 (selectSection→deselectAll로
@@ -931,21 +1078,34 @@ function makeGraphBlock() {
 }
 
 function addGraphBlock(opts = {}) {
+  // U9(BL-BOL-03): 스타일/시리즈 옵션 → dataset 일괄 매핑 (smooth=곡선, bar-pair 2시리즈용 barColor2 등)
+  const _applyGraphOpts = (block) => {
+    if (opts.chartType) block.dataset.chartType = opts.chartType; // 'bar-v' | 'bar-h' | 'line' | 'bar-pair'
+    const map = { smooth: 'lineSmooth', fillArea: 'fillArea' };
+    for (const [opt, key] of Object.entries(map)) {
+      if (opts[opt] !== undefined) block.dataset[key] = opts[opt] ? '1' : '0';
+    }
+    for (const k of ['lineColor', 'fillColor', 'barColor', 'barColor2', 'seriesA', 'seriesB', 'labelColor', 'vlabelColor', 'xlabelColor']) {
+      if (typeof opts[k] === 'string' && opts[k].length <= 64) block.dataset[k] = opts[k];
+    }
+    for (const k of ['chartHeight', 'labelSize', 'strokeWidth', 'pointRadius']) {
+      const n = Number(opts[k]);
+      if (Number.isFinite(n) && n >= 0) block.dataset[k] = String(Math.floor(n));
+    }
+    if (typeof opts.fillAlpha === 'number') block.dataset.fillAlpha = String(Math.max(0, Math.min(1, opts.fillAlpha)));
+    if (opts.items && opts.items.length > 0) block.dataset.items = JSON.stringify(opts.items);
+    renderGraph(block);
+  };
   if (_insertToFlowFrame(() => {
     const { row, block } = makeGraphBlock();
-    if (opts.chartType) block.dataset.chartType = opts.chartType;
-    if (opts.items && opts.items.length > 0) { block.dataset.items = JSON.stringify(opts.items); renderGraph(block); }
+    _applyGraphOpts(block);
     return { row, block };
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const { row, block } = makeGraphBlock();
-  if (opts.chartType) block.dataset.chartType = opts.chartType;
-  if (opts.items && opts.items.length > 0) {
-    block.dataset.items = JSON.stringify(opts.items);
-    renderGraph(block);
-  }
+  _applyGraphOpts(block);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
@@ -975,26 +1135,143 @@ function makeDividerBlock() {
 }
 
 function addDividerBlock(opts = {}) {
-  if (_insertToFlowFrame(() => {
-    const { row, block } = makeDividerBlock();
+  // U7(BL-CDD-06): tick 레일 옵션 — tickGap/tickHeight/markerPos(0~100)/markerColor/markerSize
+  const _applyDividerOpts = (block) => {
     if (opts.color) block.dataset.lineColor = opts.color;
     if (opts.lineStyle) block.dataset.lineStyle = opts.lineStyle;
     if (opts.weight !== undefined) block.dataset.lineWeight = String(opts.weight);
-    if (opts.color || opts.lineStyle || opts.weight !== undefined) applyDividerStyle(block);
+    for (const k of ['tickGap', 'tickHeight', 'markerPos', 'markerSize']) {
+      if (opts[k] !== undefined && Number.isFinite(Number(opts[k]))) block.dataset[k] = String(opts[k]);
+    }
+    if (typeof opts.markerColor === 'string' && opts.markerColor.length <= 64) block.dataset.markerColor = opts.markerColor;
+    if (Object.keys(opts).length) applyDividerStyle(block);
+  };
+  if (_insertToFlowFrame(() => {
+    const { row, block } = makeDividerBlock();
+    _applyDividerOpts(block);
     return { row, block };
   })) return;
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
   window.pushHistory();
   const { row, block } = makeDividerBlock();
-  if (opts.color) block.dataset.lineColor = opts.color;
-  if (opts.lineStyle) block.dataset.lineStyle = opts.lineStyle;
-  if (opts.weight !== undefined) block.dataset.lineWeight = String(opts.weight);
-  if (opts.color || opts.lineStyle || opts.weight !== undefined) applyDividerStyle(block);
+  _applyDividerOpts(block);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
   // 방금 추가한 블록을 자동 선택 + 화면 안으로 스크롤 (A1 패턴과 동일)
+  try { window.selectBlock?.(block.id); } catch (_) {}
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── 브릿지(V 커버) 블록 — 항상 full-bleed(섹션 너비 고정) + 파라미터화된 상단 중앙 V홈(꼬리). ──
+const BRIDGE_DEFAULTS = { color: '#cccccc', width: 120, depth: 88, arc: 0, height: 90 };  // 기본색=구조/장식 블록 공통 중립회색(divider·shape와 일치), 곡률 0=직선 V (현빈)
+// V홈 path 동적 생성. viewBox 860x90 고정, 중앙 cx=430.
+//   width = 개구부 너비(상한 860=섹션 풀폭, b5①), depth = 홈 깊이(y).
+//   arc(곡률, 부호값 -200~+100, 현빈 요청) = 직선 V ↔ 호. 사이드는 항상 직선.
+//     0   = 직선 V (사이드 직선 + 뾰족 꼭지점)
+//     +   = 밖으로 볼록: 사이드가 (1-a)까지 내려간 뒤 꼭지점(cx,d) 지나는 호로 아래로 볼록 → +100 한 줄 아치
+//     −   = 안으로 오목: 꼭지점(cx,d)은 뾰족하게 그대로, 양 사이드만 중심축으로 휘어 오목(현빈: 가운데 솟는 형태 아님). -200까지 더 깊게.
+//   (구 sharp = 측면 베지어 funnel은 폐지 → 직선 사이드로 대체. 구 data-bridge-sharp는 무시.)
+function _buildBridgePath({ width = 120, depth = 88, arc = 0 } = {}) {
+  const VB = 860, H = 90, cx = 430;
+  const w = Math.max(30, Math.min(860, width));           // 860=섹션 풀폭(viewBox)
+  const d = Math.max(8, Math.min(90, depth));
+  const k = Math.max(-200, Math.min(100, arc)) / 100;     // 부호 곡률(안쪽 -200까지 더 깊게, 바깥 +100=아치 최대)
+  const half = w / 2, L = +(cx - half).toFixed(1), R = +(cx + half).toFixed(1);
+  const tail = ` L${VB} 0 L${VB} ${H} L0 ${H} Z`;
+  if (k === 0) {
+    return `M0 0 L${L} 0 L${cx} ${d} L${R} 0` + tail;     // 직선 V (뾰족 꼭지점)
+  }
+  if (k > 0) {
+    // 밖으로 볼록 — 사이드 직선이 (1-a)까지 내려간 뒤 꼭지점(cx,d) 지나는 대칭 quadratic.
+    // 대칭 quadratic 중점 B(0.5)=(Pl+2C+Pr)/4=(cx,d) 풀면 C=(cx, d*(1+a)).
+    const a = k;
+    const Plx = +(L + (cx - L) * (1 - a)).toFixed(1);
+    const Ply = +(d * (1 - a)).toFixed(1);
+    const Prx = +(R - (R - cx) * (1 - a)).toFixed(1);
+    const cyc = +(d * (1 + a)).toFixed(1);                // 컨트롤 y>d → 아래(밖) 볼록, 호가 꼭지점 통과
+    return `M0 0 L${L} 0 L${Plx} ${Ply} Q${cx} ${cyc} ${Prx} ${Ply} L${R} 0` + tail;
+  }
+  // 안으로 오목 — 개구부 모서리(L,0)/(R,0)는 그대로(풀폭 유지), 꼭지점(cx,d)도 뾰족 유지.
+  // 각 사이드 cubic의 컨트롤을 레그(직선) 위 1/3·2/3 점에 두고 "중심축(cx)으로 수평으로만" 당긴다.
+  // y는 레그값 그대로 → 0~depth 범위 내(위로 overshoot 없음 = 너비 안 줄어듦). 넓은 노치에서도 안전.
+  const b = -k;                                            // 0~2 (-100→1, -200→2)
+  // 중심축 당김 비율 s. s≥1이면 컨트롤이 cx를 넘어 대칭 cubic이 자기교차(코덱스 Q3) → s<1로 제한.
+  // -100=s0.6 보존, 이후 완만히 증가해 -200=s0.9 (교차 없이 더 깊게).
+  const s = b <= 1 ? b * 0.6 : 0.6 + (b - 1) * 0.3;       // b1→0.6, b2→0.9
+  const ax = L + (cx - L) / 3;                            // 레그 1/3 점(x만 사용)
+  const bx = L + (cx - L) * 2 / 3, by = d * 2 / 3;        // 레그 2/3 점
+  // 어깨(L,0)/(R,0)에서 곡선이 수평 상단선과 '접선 연속'되도록 첫 컨트롤 y=0 →
+  // 상단에서 비스듬히 꺾여 내려가던 각짐 제거(현빈: -200에서 꺾여보임). 꼭지점(cx,d)은 뾰족 유지.
+  const c1x = +(ax + (cx - ax) * s).toFixed(1), c1y = 0;
+  const c2x = +(bx + (cx - bx) * s).toFixed(1), c2y = +by.toFixed(1);
+  const m1x = +(2 * cx - c2x).toFixed(1), m2x = +(2 * cx - c1x).toFixed(1); // 오른쪽=중심축 대칭
+  return `M0 0 L${L} 0 C${c1x} ${c1y} ${c2x} ${c2y} ${cx} ${d} C${m1x} ${c2y} ${m2x} ${c1y} ${R} 0` + tail;
+}
+
+// data-bridge-* 를 읽어 SVG를 (재)렌더 — 생성/파라미터변경/로드 시 호출 (divider applyDividerStyle 대응).
+function renderBridgeBlock(block) {
+  if (!block) return;
+  if ('bridgeSharp' in block.dataset) delete block.dataset.bridgeSharp;  // 폐지된 레거시 키 정리(재직렬화 방지, 코덱스 Q5)
+  const color = block.dataset.bridgeColor || BRIDGE_DEFAULTS.color;
+  const width = parseFloat(block.dataset.bridgeWidth) || BRIDGE_DEFAULTS.width;
+  const depth = parseFloat(block.dataset.bridgeDepth) || BRIDGE_DEFAULTS.depth;
+  const _ar = parseFloat(block.dataset.bridgeArc);
+  const arc = Number.isFinite(_ar) ? _ar : BRIDGE_DEFAULTS.arc;        // 곡률 (NaN 가드)
+  const _hg = parseFloat(block.dataset.bridgeHeight);
+  let height = Number.isFinite(_hg) ? _hg : BRIDGE_DEFAULTS.height;    // b5③ 높이 (NaN 가드)
+  height = Math.max(20, Math.min(300, height));                       // 손상/붙여넣기 0 등 붕괴 방지 (코덱스 b5)
+  block.style.height = height + 'px';                                 // aspect-ratio 대신 가변 높이
+  const path = _buildBridgePath({ width, depth, arc });
+  block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${color}"/></svg>`;
+}
+
+// 브릿지는 토글 없이 '항상' full-bleed: 섹션 좌우패딩만큼 음수마진 + calc 확장 (gradient-block 정책과 동일).
+function applyBridgeFullBleed(block) {
+  if (!block) return;
+  // free-layout(절대배치) 프레임 내부 브릿지는 섹션 패딩 맥락이 없어 full-bleed 무의미 (canvas-block _effSectionPadX 가드 미러)
+  if (block.closest('.frame-block[data-free-layout="true"]')) return;
+  const inner = block.closest('.section-inner');
+  if (!inner) return;
+  const hasOverride = inner.dataset.paddingX !== '' && inner.dataset.paddingX !== undefined;
+  const padX = hasOverride ? (parseInt(inner.dataset.paddingX) || 0) : (window.state?.pageSettings?.padX || 0);
+  if (padX > 0) {
+    block.style.marginLeft  = -padX + 'px';
+    block.style.marginRight = -padX + 'px';
+    block.style.width = `calc(100% + ${padX * 2}px)`;
+  } else {
+    block.style.marginLeft = ''; block.style.marginRight = ''; block.style.width = '100%';
+  }
+}
+
+function makeBridgeBlock(opts = {}) {
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
+  const brg = document.createElement('div');
+  brg.className = 'bridge-block'; brg.dataset.type = 'bridge';
+  brg.id = genId('brg');
+  brg.dataset.bridgeColor = opts.color || BRIDGE_DEFAULTS.color;
+  brg.dataset.bridgeWidth = String(opts.width ?? BRIDGE_DEFAULTS.width);
+  brg.dataset.bridgeDepth = String(opts.depth ?? BRIDGE_DEFAULTS.depth);
+  brg.dataset.bridgeArc = String(opts.arc ?? BRIDGE_DEFAULTS.arc);
+  brg.dataset.bridgeHeight = String(opts.height ?? BRIDGE_DEFAULTS.height);
+  brg.style.width = '100%'; brg.style.lineHeight = '0'; brg.style.fontSize = '0';  // 높이는 renderBridgeBlock가 style.height로 설정(가변, b5③)
+  renderBridgeBlock(brg);
+  row.appendChild(brg);
+  return { row, block: brg };
+}
+
+function addBridgeBlock(opts = {}) {
+  if (_insertToFlowFrame(() => makeBridgeBlock(opts))) return;
+  const sec = window.getSelectedSection();
+  if (!sec) { showNoSelectionHint(); return; }
+  window.pushHistory();
+  const { row, block } = makeBridgeBlock(opts);
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  applyBridgeFullBleed(block);   // 항상 full-bleed
+  window.buildLayerPanel();
   try { window.selectBlock?.(block.id); } catch (_) {}
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -1137,7 +1414,8 @@ function addSection(opts = {}) {
     e.stopPropagation();
     window.selectSectionWithModifier(sec, e);
     const row = e.target.closest('.row');
-    if (row && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .label-group-block, .icon-text-block')) {
+    // row 빈 여백 클릭은 row-active 제외 — 섹션 선택만 (fix(section-select), 판정=editor.js isRowMarginClick)
+    if (row && !window.isRowMarginClick?.(row, e) && !e.target.closest('.text-block, .asset-block, .gap-block, .col-placeholder, .icon-circle-block, .table-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .label-group-block, .icon-text-block')) {
       document.querySelectorAll('.row.row-active').forEach(r => r.classList.remove('row-active'));
       row.classList.add('row-active');
       if (window.syncLayerRow) window.syncLayerRow(row);
@@ -1150,11 +1428,13 @@ function addSection(opts = {}) {
   // 반드시 bindSectionHitzone 이후에 bindSectionDrag를 호출해야 함 (FIX-SD-01)
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
   bindSectionDrag(sec);
-  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
+  sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .shape-block, .vector-block, .step-block, .chat-block, .laurel-block').forEach(b => bindBlock(b));
   sec.querySelectorAll('.frame-block').forEach(ss => window.bindFrameDropZone?.(ss));
   if (window.bindVariationToolbarBtn) window.bindVariationToolbarBtn(sec);
 
-  window.buildLayerPanel();
+  // GAP-003: 전체 레이어패널 재구성(O(n)) 대신 신규 섹션 행만 증분 추가(O(1)). 미지원 시 폴백.
+  if (window.appendLayerSection) window.appendLayerSection(sec);
+  else window.buildLayerPanel();
   window.selectSection(sec);
   sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
   window.maybeAddNewSectionToScope(sec.id);
@@ -1223,6 +1503,32 @@ function addJokerBlock(opts = {}) {
 }
 
 /* ── Frame Block ── */
+// U7(BL-CDD-07·BL-019): 컨테이너 데코 — 테두리 카드(bordered-card)·좌측 강조바 인용(blockquote-accent)·
+// 인너카드 패딩. 인라인 스타일이라 직렬화/복붙/export에 그대로 영속.
+function _frameDecorCss(ss, opts) {
+  let css = '';
+  if (opts.border && typeof opts.border === 'object') {
+    const bw = Number(opts.border.width) || 1;
+    const bc = (typeof opts.border.color === 'string' && opts.border.color.length <= 64) ? opts.border.color : '#dddddd';
+    ss.dataset.borderW = String(bw);
+    ss.dataset.borderColor = bc;
+    css += `border:${bw}px solid ${bc};`;
+  }
+  if (opts.accentBar && typeof opts.accentBar === 'object') {
+    const aw = Number(opts.accentBar.width) || 4;
+    const ac = (typeof opts.accentBar.color === 'string' && opts.accentBar.color.length <= 64) ? opts.accentBar.color : '#2d6fe8';
+    ss.dataset.accentW = String(aw);
+    ss.dataset.accentColor = ac;
+    css += `border-left:${aw}px solid ${ac};`;
+  }
+  if (opts.padding !== undefined && Number.isFinite(Number(opts.padding))) {
+    const p = Math.max(0, Number(opts.padding));
+    ss.dataset.padding = String(p);
+    css += `padding:${p}px;`;
+  }
+  return css;
+}
+
 function makeFrameBlock(opts = {}) {
   const ss = document.createElement('div');
   ss.className = 'frame-block';
@@ -1239,6 +1545,7 @@ function makeFrameBlock(opts = {}) {
       ss.dataset.radius = String(opts.radius);
       css += `border-radius:${opts.radius}px;overflow:hidden;`;
     }
+    css += _frameDecorCss(ss, opts);
     ss.style.cssText = css;
   } else {
     // freeLayout 모드: 자유배치 프레임 (기본값) — absolute 자식
@@ -1253,6 +1560,7 @@ function makeFrameBlock(opts = {}) {
       ss.dataset.radius = String(opts.radius);
       css += `border-radius:${opts.radius}px;overflow:hidden;`;
     }
+    css += _frameDecorCss(ss, opts);
     ss.style.cssText = css;
   }
   return ss;
@@ -1416,7 +1724,7 @@ function _nextGroupName() {
 function wrapSelectedBlocksInFrame(opts = {}) {
   const asGroup = opts.asGroup === true;
   // 그룹은 freeLayout 절대블록 전부 대상 (joker/shape/vector/frame-block 서브섹션·중첩그룹 포함)
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block, .joker-block, .shape-block, .vector-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .chat-block, .laurel-block, .step-block, .frame-block';
   let selected = [...document.querySelectorAll(
     BLOCK_SEL.split(',').map(s => s.trim() + '.selected').join(', ')
   )];
@@ -1594,6 +1902,8 @@ export {
   addGraphBlock,
   makeDividerBlock,
   addDividerBlock,
+  makeBridgeBlock,
+  addBridgeBlock,
   addSection,
   makeFrameBlock,
   addFrameBlock,
@@ -1786,6 +2096,29 @@ window.setSectionBg = function(sectionEl, color) {
   } else {
     sec.style.backgroundColor = '';
     delete sec.dataset.bg;
+  }
+  window.triggerAutoSave?.();
+  return true;
+};
+
+// ── setSectionBgImage: 섹션 단위 배경 이미지 설정 ──
+// sectionEl: .section-block 요소 또는 섹션 id(string). src: 이미지 URL/dataURL. null/''이면 제거.
+// canvas는 innerHTML로 직렬화되므로 inline style만으로 영속됨(별도 직렬화 불필요). dataset.bgImg는 참조용.
+window.setSectionBgImage = function(sectionEl, src) {
+  const sec = typeof sectionEl === 'string' ? document.getElementById(sectionEl) : sectionEl;
+  if (!sec || !sec.classList.contains('section-block')) return false;
+  if (src) {
+    sec.style.backgroundImage    = `url("${String(src).replace(/"/g, '\\"')}")`;
+    sec.style.backgroundSize     = 'cover';
+    sec.style.backgroundPosition = 'center';
+    sec.style.backgroundRepeat   = 'no-repeat';
+    sec.dataset.bgImg = src;
+  } else {
+    sec.style.backgroundImage = '';
+    sec.style.backgroundSize = '';
+    sec.style.backgroundPosition = '';
+    sec.style.backgroundRepeat = '';
+    delete sec.dataset.bgImg;
   }
   window.triggerAutoSave?.();
   return true;
@@ -2476,7 +2809,7 @@ function updateTableBlock(blockId, partial = {}) {
   try { _migrateLegacyHeaderColspan(block); } catch (_) {}
 
   // ── 화이트리스트 / 정규식 가드 ──
-  const _STYLE_ENUM = ['default', 'stripe', 'borderless', 'colored'];
+  const _STYLE_ENUM = ['default', 'stripe', 'borderless', 'colored', 'first-col-bold'];
   const _ALIGN_ENUM = ['left', 'center', 'right'];
   const _FONT_FAMILY_ENUM = [
     '',
@@ -2830,6 +3163,41 @@ function updateTableBlock(blockId, partial = {}) {
     colFgsTouched = true;
   }
 
+  // ── 열 하이라이트 (U3, BL-CDZ-04) — null/-1 = 해제 ──
+  let highlightTouched = false;
+  if (partial.highlightCol !== undefined) {
+    if (partial.highlightCol === null || partial.highlightCol === -1 || partial.highlightCol === '') {
+      delete block.dataset.highlightCol;
+      applied.highlightCol = null;
+    } else {
+      const n = Number(partial.highlightCol);
+      if (!Number.isFinite(n) || n < 0 || n > 31) {
+        return { ok: false, code: 'INVALID', message: `invalid highlightCol: ${partial.highlightCol} (0~31 또는 null=해제)` };
+      }
+      block.dataset.highlightCol = String(Math.floor(n));
+      applied.highlightCol = Math.floor(n);
+    }
+    highlightTouched = true;
+  }
+  if (partial.highlightBg !== undefined) {
+    if (partial.highlightBg && !_isColor(partial.highlightBg)) {
+      return { ok: false, code: 'INVALID', message: `invalid highlightBg: ${partial.highlightBg}` };
+    }
+    if (partial.highlightBg) block.dataset.highlightBg = partial.highlightBg.trim();
+    else delete block.dataset.highlightBg;
+    applied.highlightBg = partial.highlightBg || null;
+    highlightTouched = true;
+  }
+  if (partial.highlightFg !== undefined) {
+    if (partial.highlightFg && !_isColor(partial.highlightFg)) {
+      return { ok: false, code: 'INVALID', message: `invalid highlightFg: ${partial.highlightFg}` };
+    }
+    if (partial.highlightFg) block.dataset.highlightFg = partial.highlightFg.trim();
+    else delete block.dataset.highlightFg;
+    applied.highlightFg = partial.highlightFg || null;
+    highlightTouched = true;
+  }
+
   // ── 3) 데이터 모델 (thead/tbody) 통째 재생성 ──
   const alignForCells = applied.cellAlign || block.dataset.cellAlign || 'center';
 
@@ -2952,6 +3320,10 @@ function updateTableBlock(blockId, partial = {}) {
     }
     if ((headersTouched || rowsTouched) && !(colBgsTouched || colFgsTouched) && block.dataset.style === 'colored' && typeof window.__applyTableColColors === 'function') {
       window.__applyTableColColors(block);
+    }
+    // 열 하이라이트 재적용 — thead/tbody 재생성이 마커 셀을 지우므로 데이터 변경 시에도 항상 마지막에 덧칠
+    if (highlightTouched || ((headersTouched || rowsTouched) && block.dataset.highlightCol !== undefined)) {
+      applyTableColHighlight(block);
     }
   } catch (e) {
     return { ok: false, code: 'RENDER_ERROR', message: e.message };
@@ -4000,6 +4372,11 @@ window.makeGraphBlock       = makeGraphBlock;
 window.addGraphBlock        = addGraphBlock;
 window.makeDividerBlock     = makeDividerBlock;
 window.addDividerBlock      = addDividerBlock;
+window.makeBridgeBlock      = makeBridgeBlock;
+window.addBridgeBlock       = addBridgeBlock;
+window.renderBridgeBlock    = renderBridgeBlock;
+window.applyBridgeFullBleed = applyBridgeFullBleed;
+window._buildBridgePath     = _buildBridgePath;
 window.addSection           = addSection;
 window.addGhostSection      = addGhostSection;
 window.makeFrameBlock        = makeFrameBlock;
@@ -4024,6 +4401,7 @@ window.addLinerBlock         = addLinerBlock;
 window.updateDividerBlock     = updateDividerBlock;
 window.updateAssetBlock       = updateAssetBlock;
 window.updateTableBlock       = updateTableBlock;
+window.applyTableColHighlight = applyTableColHighlight;
 window.updateIconCircleBlock  = updateIconCircleBlock;
 window.updateGraphBlock       = updateGraphBlock;
 window.updateGapBlock         = updateGapBlock;

@@ -37,6 +37,10 @@ const layerIcons = {
   'icon-circle': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="5"/><text x="3.5" y="9" font-size="6" fill="currentColor" stroke="none">★</text></svg>`,
   table:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1"/><line x1="1" y1="4.5" x2="11" y2="4.5"/><line x1="5" y1="4.5" x2="5" y2="11"/></svg>`,
   divider:    `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="6" x2="11" y2="6"/></svg>`,
+  bridge:     `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1 4 H4.5 Q5.2 4 6 7 Q6.8 4 7.5 4 H11"/></svg>`,
+  duo:        `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="2" width="4.5" height="8" rx="1"/><rect x="6.5" y="2" width="4.5" height="8" rx="1"/></svg>`,
+  infocard:   `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2" width="9" height="8" rx="1.5"/><path d="M3.5 7.5 H8.5 M3.5 5 H6.5"/></svg>`,
+  innercard:  `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="1.5" width="9" height="9" rx="2"/><path d="M4 5 H8 M4 7 H6.5"/></svg>`,
   'label-group': `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="3" width="4" height="6" rx="1"/><rect x="7" y="3" width="4" height="6" rx="1"/></svg>`,
   card:       `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="1" y1="7" x2="11" y2="7"/></svg>`,
   graph:      `<svg class="layer-item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><polyline points="1,10 4,5 7,7 10,2"/></svg>`,
@@ -85,6 +89,22 @@ function addLayerRename(nameSpan, targetEl, fallbackName, datasetKey = 'layerNam
         // 우측 패널이 이 블록을 보고 있으면 컨트롤 즉시 노출
         if (targetEl.classList.contains('selected')) {
           window.enhanceTextEffectPropPanel?.(targetEl);
+        }
+      }
+      // 이스터에그: laurel-block의 layer label이 '**text_'로 시작하면 텍스트 효과 적용
+      // (text-block 분기와 동일 게이트 — textEffect 키 공유, 한 토글로 양쪽 on/off)
+      // text-block 경로는 항상 DEFAULTS(grunge)지만, laurel은 이름의 _<preset> 토큰을
+      // 파싱해 cfg.preset에 주입(CDP 시나리오 **text_neon→neon 충족, T1 회귀 회피용 laurel 한정).
+      if (targetEl.classList?.contains('laurel-block') && /^\*\*text_/i.test(newName) && !targetEl.dataset.textEffect && window.isEasterEggEnabled?.('textEffect') !== false) {
+        const m = newName.match(/^\*\*text_([a-z0-9-]+)/i);
+        const presets = ['neon', 'metallic', 'grunge', 'vintage', 'cinematic'];
+        const preset = (m && presets.includes(m[1].toLowerCase()))
+          ? m[1].toLowerCase()
+          : (window.TEXT_EFFECT_DEFAULTS?.preset || 'grunge');
+        window.applyTextEffectToLaurel?.(targetEl, { ...(window.TEXT_EFFECT_DEFAULTS || {}), preset });
+        // 우측 패널이 이 블록을 보고 있으면 갱신
+        if (targetEl.classList.contains('selected')) {
+          window.showLaurelProperties?.(targetEl);
         }
       }
       // 이스터에그: canvas-block(Card) layer label이 '**icon_'로 시작하면 아이콘 모드 ON
@@ -143,10 +163,17 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   const isGradient   = block.classList.contains('gradient-block');
   const isBanner02   = block.classList.contains('banner02-block');
   const isComparison = block.classList.contains('comparison-block');
+  // 버블(sb_)은 className에 'text-block'을 함께 가짐 → isText보다 먼저 판정해야 레이어가 'speech-bubble'로 렌더됨.
+  // (isText가 먼저 걸리면 dataset.type 누락된 레거시 버블이 'body'로 오렌더 = 다른 아웃라인과 불일치, #7)
+  const isBubble     = block.classList.contains('speech-bubble-block');
+  const isBridge     = block.classList.contains('bridge-block');
+  const isDuo        = block.classList.contains('duo-block');
+  const isInfoCard   = block.classList.contains('infocard-block');
+  const isInnerCard  = block.classList.contains('innercard-block');
   const shapeType    = isShape ? (block.dataset.shapeType || 'rectangle') : null;
-  const type     = isShape ? `shape-${shapeType}` : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isGradient ? 'gradient' : 'asset';
-  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
-  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
+  const type     = isShape ? `shape-${shapeType}` : isBubble ? 'speech-bubble' : isText ? (block.dataset.type || 'body') : isGap ? 'gap' : isIconCb ? 'icon-circle' : isTable ? 'table' : isLabelGroup ? 'label-group' : isDivider ? 'divider' : isBridge ? 'bridge' : isDuo ? 'duo' : isInfoCard ? 'infocard' : isInnerCard ? 'innercard' : isGraph ? 'graph' : isIconText ? 'icon-text' : isJoker ? 'joker' : isCanvas ? 'canvas' : isBanner02 ? 'banner02' : isComparison ? 'comparison' : isIconify ? 'iconify' : isMockup ? 'mockup' : isVector ? 'vector' : isStep ? 'step' : isChat ? 'chat' : isLaurel ? 'laurel' : isGradient ? 'gradient' : 'asset';
+  const labels    = { heading:'Heading', body:'Body', caption:'Caption', label:'Label', bullet:'Bullet', asset:'Asset', gap:'Gap', 'icon-circle':'Asset-Circle', table:'Table', 'label-group':'Tags', divider:'Divider', bridge:'Bridge', duo:'Duo', infocard:'Info Card', innercard:'Inner Card', graph:'Graph', 'icon-text':'Icon Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Comparison', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Step', chat:'Chat', laurel:'Laurel', gradient:'Gradient', 'speech-bubble':'Bubble', 'shape-rectangle':'Rectangle', 'shape-ellipse':'Ellipse', 'shape-line':'Line', 'shape-arrow':'Arrow', 'shape-polygon':'Polygon', 'shape-star':'Star' };
+  const typeLbls  = { heading:'Text',    body:'Text',  caption:'Text',   label:'Label', bullet:'Text', asset:'Image', gap:'Gap', 'icon-circle':'Image', table:'Component', 'label-group':'Tags', divider:'Divider', bridge:'Component', duo:'Component', infocard:'Component', innercard:'Component', graph:'Component', 'icon-text':'Text', joker:'Joker', canvas:'Card', banner02:'Banner', comparison:'Component', iconify:'Icon', mockup:'Mockup', vector:'Vector', step:'Component', chat:'Component', laurel:'Component', gradient:'Sticker', 'speech-bubble':'Text', 'shape-rectangle':'Shape', 'shape-ellipse':'Shape', 'shape-line':'Shape', 'shape-arrow':'Shape', 'shape-polygon':'Shape', 'shape-star':'Shape' };
 
   const item = document.createElement('div');
   item.className = 'layer-item';
@@ -206,6 +233,10 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     else if (isIconify) window.showIconifyProperties?.(block);
     else if (isMockup) window.showMockupProperties?.(block);
     else if (isDivider) window.showDividerProperties?.(block);
+    else if (isBridge) window.showBridgeProperties?.(block);
+    else if (isDuo) window.showDuoProperties?.(block);
+    else if (isInfoCard) window.showInfoCardProperties?.(block);
+    else if (isInnerCard) window.showInnerCardProperties?.(block);
     else if (isLabelGroup) window.showLabelGroupProperties?.(block);
     else if (isJoker) window.showJokerProperties?.(block);
     else if (isChat) window.showChatProperties?.(block);
@@ -624,7 +655,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       } else if (child.classList.contains('row')) {
         appendRowFn(child, ssChildren, depth + 1);
       } else if (['gap-block','joker-block','text-block','asset-block','icon-circle-block',
-                'table-block','graph-block','divider-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block']
+                'table-block','graph-block','divider-block','bridge-block','duo-block','infocard-block','innercard-block','label-group-block','shape-block','canvas-block','banner02-block','comparison-block','step-block','chat-block']
                 .some(c => child.classList.contains(c))) {
         ssChildren.appendChild(makeLayerBlockItem(child, child, sec, depth + 1));
       }

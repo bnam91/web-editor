@@ -796,6 +796,18 @@ async function _openAIFillUI_impl(secEl) {
   _aiFillState.imageDataUrls = [];
   const panel = _ensureAIFillPanel();
   panel.classList.add('open');
+  // 뷰포트 밖으로 저장/기본 위치(localStorage aiFillPanelPos)가 벗어나면 패널이 화면 밖에 떠서
+  // "안 뜬다"로 보이던 버그(현빈: 창 리사이즈/드래그 후 stale). 열 때마다 화면 안으로 클램프.
+  requestAnimationFrame(() => {
+    const r = panel.getBoundingClientRect();
+    const M = 8;
+    const l = Math.min(Math.max(M, r.left), Math.max(M, window.innerWidth  - r.width  - M));
+    const t = Math.min(Math.max(M, r.top),  Math.max(M, window.innerHeight - r.height - M));
+    if (Math.round(l) !== Math.round(r.left) || Math.round(t) !== Math.round(r.top)) {
+      panel.style.left = l + 'px'; panel.style.top = t + 'px';
+      panel.style.right = 'auto'; panel.style.bottom = 'auto';
+    }
+  });
   // 섹션 이름(Section 05 등) + 내부 ID 같이 표기
   const secName = (secEl.dataset?.name || secEl.querySelector('.section-label')?.textContent || '').trim();
   panel.querySelector('#ai-fill-panel-meta').textContent =
@@ -874,8 +886,16 @@ function _ensureAIFillButton(sec) {
     btn.className = 'st-btn st-ai-fill-btn';
     btn.title = 'AI로 섹션 텍스트 채우기';
     btn.textContent = '✨';
-    btn.setAttribute('onclick', 'openAIFillUI(this)');
   }
+  // ⚠️ onclick 인라인 핸들러는 로드 시 보안 소독(GAP-006, 비신뢰 HTML)이 제거한다 →
+  //   저장·재로드된 버튼은 onclick=null이 되어 실클릭 무반응(현빈). 기존 코드는 신규 생성 시만
+  //   onclick을 달아서(if(!btn)) 이미 있는(소독된) 버튼엔 재부여 안 됨.
+  //   → 신규/기존 무관하게 addEventListener 실핸들러로 보장(소독에 안 벗겨짐, 중복방지 플래그).
+  if (!btn._aiFillBound) {
+    btn._aiFillBound = true;
+    btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); window.openAIFillUI?.(btn); });
+  }
+  btn.removeAttribute('onclick'); // 남은 인라인 핸들러 제거(소독 대상·중복 방지)
   // 기존 위치에 있든 새로 만들든 항상 마지막으로 이동 → 시각상 우측 끝
   tb.appendChild(btn);
 }

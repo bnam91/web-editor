@@ -49,6 +49,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFullscreen: () => ipcRenderer.invoke('fullscreen:get'),
   onFullscreenChange: (cb) => ipcRenderer.on('fullscreen-change', (_e, val) => cb(val)),
 
+  // Marketplace (bnam91/goditor-market)
+  market: {
+    push: (payload) => ipcRenderer.invoke('market:push', payload),
+    list: ()        => ipcRenderer.invoke('market:list'),
+    pull: (payload) => ipcRenderer.invoke('market:pull', payload),
+    auth: ()        => ipcRenderer.invoke('market:auth'),
+  },
+
   // License
   getPublicIp:        ()                   => ipcRenderer.invoke('license:get-ip'),
   getLicenseUser:     ()                   => ipcRenderer.invoke('license:find-by-ip'),
@@ -73,6 +81,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   assetsSaveFile:   ({ projectId, b64, mime, originalName }) => ipcRenderer.invoke('assets:saveFile',   { projectId, b64, mime, originalName }),
   assetsReadFile:   ({ projectId, blobPath })                => ipcRenderer.invoke('assets:readFile',   { projectId, blobPath }),
   assetsDeleteFile: ({ projectId, blobPath })                => ipcRenderer.invoke('assets:deleteFile', { projectId, blobPath }),
+  // 캔버스 이미지 외부화 — content-hash dedup 저장, goya-asset:// URL 반환
+  assetsSaveCanvasImage: ({ projectId, b64, mime })          => ipcRenderer.invoke('assets:saveCanvasImage', { projectId, b64, mime }),
+  assetsReadAsDataUri:   ({ projectId, filename })           => ipcRenderer.invoke('assets:readAsDataUri', { projectId, filename }),
 
   // 사용자별 Preferences (API 키 + 단축키)
   getSettings:  ()              => ipcRenderer.invoke('settings:get'),
@@ -85,6 +96,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isAdmin: () => ipcRenderer.invoke('app:is-admin').catch(() => false),
   debugPort: () => ipcRenderer.invoke('app:debug-port').catch(() => null),
   getGitBranch: () => ipcRenderer.invoke('app:git-branch').catch(() => null),
+
+  // Unit B — MCP 접속 토큰(노출/재발급, admin만; main에서 게이팅)
+  getMcpToken: () => ipcRenderer.invoke('app:mcp-token').catch(() => null),
+  regenerateMcpToken: () => ipcRenderer.invoke('mcp:regenerate-token').catch(() => null),
 
   // Intake (design-bot pipeline)
   saveIntakeFile:  (data)     => ipcRenderer.invoke('intake:save', data),
@@ -116,6 +131,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openInFinder:         (folderPath)             => ipcRenderer.invoke('claudePM:openInFinder', { folderPath }),
   spawnClaudeTerminal:  (folderPath)             => ipcRenderer.invoke('claudePM:spawnClaudeTerminal', { folderPath }),
   pingClaudePM:         ()                       => ipcRenderer.invoke('claudePM:pingMcp'),
+  getMcpInfo:           ()                       => ipcRenderer.invoke('claudePM:getMcpInfo').catch(() => null),
   setClaudePMActiveProject: (projectId)          => ipcRenderer.invoke('claudePM:setActiveProject', { projectId }),
   // 자동 PM 폴더 보장 — 신규 프로젝트 생성 직후 + 기존 프로젝트 활성화 시 호출
   ensureClaudePMFolder: ({ projectId, projectName, basePath } = {}) =>

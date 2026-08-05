@@ -99,6 +99,7 @@ export function showAssetProperties(ab) {
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="1032">Tall</button>
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="575">Wide</button>
         <button class="prop-preset-btn prop-type-btn" data-preset="logo" data-w="200" data-h="64">Logo</button>
+        <button class="prop-preset-btn prop-type-btn" data-preset="a4" data-w="410" data-h="580">A4</button>
       </div>
     </div>
     <div class="prop-section">
@@ -213,6 +214,8 @@ export function showAssetProperties(ab) {
 
   document.getElementById('asset-padx-toggle').addEventListener('change', e => {
     ab.dataset.usePadx = e.target.checked ? 'true' : 'false';
+    // 패딩 토글로 폭이 재계산되면 고정폭 프리셋(a4/logo) 상태와 어긋나므로 preset 해제 (코덱스리뷰 b2-6)
+    delete ab.dataset.preset;
     // 이 블록이 속한 section-inner의 padX 값 결정
     const inner = ab.closest('.section-inner');
     const hasPadXOverride = inner?.dataset.paddingX !== '' && inner?.dataset.paddingX !== undefined;
@@ -270,12 +273,23 @@ export function showAssetProperties(ab) {
   propPanel.querySelectorAll('.prop-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const isLogo = btn.dataset.preset === 'logo';
+      const isA4   = btn.dataset.preset === 'a4';
       const w = parseInt(btn.dataset.w);
       const h = parseInt(btn.dataset.h);
       ab.dataset.size       = '100';
       ab.dataset.baseHeight = h;  // 항상 baseHeight 갱신
 
-      if (isLogo) {
+      if (isA4) {
+        // A4 세로: 고정폭 410 + 중앙정렬 (full-bleed 아님). Logo 패턴과 유사하나 폭 슬라이더는 활성(410에서 조절 가능).
+        ab.dataset.preset = 'a4';
+        ab.dataset.align = 'center';
+        ab.style.marginLeft  = '';
+        ab.style.marginRight = '';
+        ab.style.height = h + 'px';
+        applyH(h);          // 580 (baseHeight는 상단에서 이미 갱신)
+        applyW(w);          // 410 → width:410px + alignSelf center + 폭슬라이더 값 410
+        setWSliderDisabled(false);
+      } else if (isLogo) {
         // Logo 프리셋: 200x64 고정, usePadx 무시
         ab.dataset.preset = 'logo';
         ab.style.width    = '200px';

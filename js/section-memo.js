@@ -186,8 +186,10 @@
       btn.className = 'st-btn st-memo-btn';
       btn.title = '섹션 메모';
       btn.textContent = '📝';
-      btn.setAttribute('onclick', 'window.toggleSectionMemoPopover(this)');
     }
+    // onclick은 직렬화(sanitizeCanvasHtml)가 on* 속성을 제거하므로 로드마다 항상 재설정.
+    // 안 하면 버튼은 보이나 클릭 무반응 = "섹션 메모 패널 안 열림" 회귀.
+    btn.setAttribute('onclick', 'window.toggleSectionMemoPopover(this)');
     // toolbar 맨 왼쪽으로 이동 — 항상 첫 자식
     if (tb.firstChild !== btn) tb.insertBefore(btn, tb.firstChild);
   }

@@ -106,6 +106,14 @@ body.preview-mode #preview-navigator { display: flex; }
 #preview-overlay .section-block {
   cursor: default;
   outline: none !important;
+  /* 섹션 밖 크롭 = 기본값(현빈 확정): 경계 밖으로 밀린 요소는 미리보기에서 잘린다.
+     (Export PNG는 캡쳐 clip rect가 섹션 사각형이라 원래부터 항상 크롭 — 미리보기를 그에 맞춤.)
+     편집 캔버스는 항상 보임 유지 — 섹션 label/toolbar가 섹션 자식이라 에디터 크롭은 UI 파손. */
+  overflow: hidden;
+}
+/* 옵트인 '섹션 밖 보이기' — 프레임/스티커를 의도적으로 경계 밖까지 보여주는 섹션만 해제 */
+#preview-overlay .section-block[data-overflow-visible="true"] {
+  overflow: visible;
 }
 #preview-overlay .section-block:hover { outline: none !important; }
 #preview-overlay .section-hitzone { display: none !important; }
@@ -1687,3 +1695,33 @@ body.preview-mode #preview-navigator { display: flex; }
   animation: asset-spin 0.7s linear infinite;
 }
 @keyframes asset-spin { to { transform: rotate(360deg); } }
+
+/* 무거운 프로젝트 로딩 인디케이터 (batch-4) — #canvas-area 위 반투명 오버레이.
+   토스트와 동일 비주얼 언어(--ui-bg-base/border-strong/shadow-md/radius) + asset-spin keyframes 재사용. */
+.proj-loading-overlay {
+  position: absolute; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.28);
+  opacity: 1; transition: opacity 0.22s ease;
+  pointer-events: none;
+}
+.proj-loading-overlay.hiding { opacity: 0; }
+.proj-loading-box {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 18px 24px;
+  background: var(--ui-bg-base);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-lg, 10px);
+  box-shadow: var(--ui-shadow-md);
+}
+.proj-loading-spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid var(--ui-border-strong);
+  border-top-color: var(--ui-accent-primary);
+  animation: asset-spin 0.7s linear infinite;
+}
+.proj-loading-text {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-13);
+  font-weight: var(--ui-fw-medium);
+}

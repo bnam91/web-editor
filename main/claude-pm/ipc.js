@@ -79,6 +79,11 @@ function setActualMcpPort(p) {
 function _mcpHealthUrl() {
   return `http://localhost:${MCP_PORT}/health`;
 }
+// renderer 표시용 MCP 엔드포인트 — 목표 문구가 127.0.0.1 표기를 명시.
+// health는 localhost지만 동일 루프백이라 기능 무관.
+function _mcpUrl() {
+  return `http://127.0.0.1:${MCP_PORT}/mcp`;
+}
 
 // ── 경로 헬퍼 ────────────────────────────────
 // '~/Documents/foo' → '/Users/.../Documents/foo'
@@ -595,13 +600,29 @@ async function handlePingMcp(_e) {
   }
 }
 
+// 현재 MCP 연결정보 노출 (포트번호만 — 자격증명/토큰 아님 → 무게이팅).
+// MCP_PORT는 setActualMcpPort로 EADDRINUSE fallback 반영된 실제 포트.
+async function handleGetMcpInfo() {
+  return { ok: true, port: MCP_PORT, url: _mcpUrl() };
+}
+
 // ── 등록 진입점 ──────────────────────────────
-function registerClaudePMIPC(ipcMain) {
-  ipcMain.handle('claudePM:pickDirectory', handlePickDirectory);
-  ipcMain.handle('claudePM:createFolder', handleCreateFolder);
-  ipcMain.handle('claudePM:openInFinder', handleOpenInFinder);
-  ipcMain.handle('claudePM:spawnClaudeTerminal', handleSpawnClaudeTerminal);
+// GAP-010: spawnClaudeTerminal(외부 터미널서 셸 실행)·디렉터리/파인더 조작은 강력 권한 →
+// isAllowed(=isAdminAuthorized) 게이팅. pingMcp/setActiveProject/ensureFolder는 MCP 연동용
+// 비위험 기능이라 무게이팅 유지(고객 자동화 흐름 보존).
+function registerClaudePMIPC(ipcMain, isAllowed) {
+  const guard = fn => (e, ...a) => {
+    if (typeof isAllowed === 'function' && !isAllowed(e)) {
+      return { ok: false, error: 'FORBIDDEN', code: 'ADMIN_REQUIRED', message: '이 기능은 관리자 권한 전용입니다.' };
+    }
+    return fn(e, ...a);
+  };
+  ipcMain.handle('claudePM:pickDirectory', guard(handlePickDirectory));
+  ipcMain.handle('claudePM:createFolder', guard(handleCreateFolder));
+  ipcMain.handle('claudePM:openInFinder', guard(handleOpenInFinder));
+  ipcMain.handle('claudePM:spawnClaudeTerminal', guard(handleSpawnClaudeTerminal));
   ipcMain.handle('claudePM:pingMcp', handlePingMcp);
+  ipcMain.handle('claudePM:getMcpInfo', handleGetMcpInfo);
   ipcMain.handle('claudePM:setActiveProject', handleSetActiveProject);
   ipcMain.handle('claudePM:ensureFolder', handleEnsureClaudePMFolder);
 }

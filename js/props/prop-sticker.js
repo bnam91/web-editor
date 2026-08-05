@@ -21,6 +21,9 @@ function listStickerFavorites() {
 }
 function _saveStickerFavorites(arr) {
   try { localStorage.setItem(FAV_KEY, JSON.stringify(arr.slice(0, FAV_MAX))); } catch (_) {}
+  // 데이터 변경 통지 — 모달 Favorite 그리드 ↔ 우측 패널 스트립 양방향 동기화.
+  //   (한쪽에서 삭제/추가하면 다른 쪽 렌더가 stale 인덱스로 라이브 배열을 읽는 것을 방지)
+  try { window.dispatchEvent(new CustomEvent('sticker-favorites-changed')); } catch (_) {}
 }
 // 현재 스티커 dataset에서 스타일 토큰만 추출 (위치/절대크기/text 내용 제외)
 function _stickerStyleFromBlock(block) {
@@ -33,11 +36,11 @@ function _stickerStyleFromBlock(block) {
   } else if (shape === 'icon') {
     ['iconName', 'iconSvg', 'iconColor', 'size'].forEach(put);
   } else if (shape === 'text') {
-    ['fontFamily', 'fontSize', 'fontWeight', 'textColor', 'strokeWidth', 'strokeColor',
+    ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'textColor', 'strokeWidth', 'strokeColor',
      'letterSpacing', 'textAlign', 'shadowOn', 'shadowX', 'shadowY', 'shadowBlur', 'shadowColor',
-     'bgColor', 'padX', 'padY'].forEach(put);
+     'bgColor', 'padX', 'padY', 'cornerRadius'].forEach(put);
   } else { // circle / square
-    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight'].forEach(put);
+    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration'].forEach(put);
   }
   return preset;
 }
@@ -62,6 +65,14 @@ function removeStickerFavorite(idx) {
 window.listStickerFavorites = listStickerFavorites;
 window.addStickerFavorite = addStickerFavorite;
 window.removeStickerFavorite = removeStickerFavorite;
+
+// 현재 표시 중인 스티커 프로퍼티 패널의 fav 스트립 리렌더러(단일 참조).
+//   'sticker-favorites-changed'가 오면 스트립을 라이브 배열로 다시 그려 stale DOM 인덱스를 소거한다.
+//   패널이 재빌드되면 참조가 교체되고, 비-스티커 선택 시엔 그리드가 없어 no-op이 되므로 리스너 누수 없음.
+let _activePanelFavRerender = null;
+window.addEventListener('sticker-favorites-changed', () => {
+  if (typeof _activePanelFavRerender === 'function') _activePanelFavRerender();
+});
 
 // 즐겨찾기 스와치 1개의 미리보기 스타일/라벨
 function _favSwatchPreview(preset) {
@@ -119,6 +130,10 @@ export function showStickerProperties(block) {
   const tStrokeAlpha   = parseAlphaFromColor(tStrokeColor);
   const tLetterSpacing = parseFloat(block.dataset.letterSpacing) || 0;
   const tTextAlign     = block.dataset.textAlign     || 'left';
+  const tFontStyle     = block.dataset.fontStyle     || 'normal';
+  const tTextDeco      = block.dataset.textDecoration || 'none';
+  const tDecoUnderline = tTextDeco.includes('underline');
+  const tDecoStrike    = tTextDeco.includes('line-through');
   const tShadowOn      = block.dataset.shadowOn === '1';
   const tShadowX       = parseFloat(block.dataset.shadowX) || 0;
   const tShadowY       = parseFloat(block.dataset.shadowY) || 2;
@@ -128,6 +143,12 @@ export function showStickerProperties(block) {
   const tRotation      = parseFloat(block.dataset.rotation) || 0;
   const tPadX = Number.isFinite(parseInt(block.dataset.padX)) ? parseInt(block.dataset.padX) : 10;
   const tPadY = Number.isFinite(parseInt(block.dataset.padY)) ? parseInt(block.dataset.padY) : 6;
+  // 코너 라운드 — 미설정 시 4(렌더 기본값과 동일)
+  const tCornerR = Number.isFinite(parseInt(block.dataset.cornerRadius)) ? parseInt(block.dataset.cornerRadius) : 4;
+  // 박스 너비 — dataset.boxW 없거나 'auto'면 내용맞춤(auto). 고정 px면 그 값. 슬라이더 seed는 유효 px 우선.
+  const _tBoxWpx  = parseInt(block.dataset.boxW);
+  const tBoxWOn   = Number.isFinite(_tBoxWpx) && _tBoxWpx > 0;
+  const tBoxWVal  = tBoxWOn ? _tBoxWpx : 200;
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -146,7 +167,7 @@ export function showStickerProperties(block) {
       <div class="prop-section-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div class="prop-section-title" style="margin-bottom:0">Favorites (즐겨찾기)</div>
         <button class="prop-action-btn" id="stk-fav-add" title="현재 스티커 스타일을 즐겨찾기에 추가"
-          style="width:auto;padding:2px 8px;font-size:12px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>
+          style="width:auto;padding:2px 8px;font-size:11px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>
       </div>
       <div class="stk-fav-grid" id="stk-fav-grid"></div>
     </div>
@@ -173,7 +194,7 @@ export function showStickerProperties(block) {
     </div>
     <div class="prop-section" id="stk-mode-section" style="display:${hideBasic ? 'none' : 'block'};">
       <div class="prop-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#ccc;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
           <input type="checkbox" id="stk-mode-img" ${block.dataset.mode === 'image' ? 'checked' : ''}>
           이미지 모드
         </label>
@@ -182,12 +203,12 @@ export function showStickerProperties(block) {
     <div class="prop-section" id="stk-text-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' && !isText ? 'none' : 'block')};">
       <div class="prop-section-title">Text</div>
       <div class="prop-row">
-        <input type="text" class="prop-input" id="stk-text" value="${_esc(text)}" placeholder="텍스트">
+        <textarea class="prop-textarea" id="stk-text" rows="2" placeholder="텍스트"></textarea>
       </div>
     </div>
     <div class="prop-section" id="stk-image-section" style="display:${hideBasic ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
       <div class="prop-section-title">Image</div>
-      <div id="stk-img-drop" style="border:2px dashed #444;border-radius:6px;padding:18px 10px;text-align:center;color:#888;font-size:12px;cursor:pointer;background:#1a1a1a;transition:border-color .15s,background .15s;">
+      <div id="stk-img-drop" style="border:2px dashed #444;border-radius:6px;padding:18px 10px;text-align:center;color:#888;font-size:11px;cursor:pointer;background:#1a1a1a;transition:border-color .15s,background .15s;">
         ${block.dataset.imgSrc ? `<img src="${block.dataset.imgSrc}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
         <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
       </div>
@@ -292,6 +313,20 @@ export function showStickerProperties(block) {
           <option value="900" ${fontWeight === 900 ? 'selected' : ''}>Black</option>
         </select>
       </div>
+      <div class="prop-row">
+        <span class="prop-label">스타일</span>
+        <div class="prop-align-group" id="stk-b-style-group">
+          <button class="prop-align-btn${tFontStyle === 'italic' ? ' active' : ''}" data-style="italic" title="이탤릭">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="7" y1="3" x2="13" y2="3"/><line x1="3" y1="13" x2="9" y2="13"/><line x1="10" y1="3" x2="6" y2="13"/></svg>
+          </button>
+          <button class="prop-align-btn${tDecoUnderline ? ' active' : ''}" data-style="underline" title="밑줄">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.5 3 L4.5 7.5 A3.5 3.5 0 0 0 11.5 7.5 L11.5 3"/><line x1="3.5" y1="13.5" x2="12.5" y2="13.5"/></svg>
+          </button>
+          <button class="prop-align-btn${tDecoStrike ? ' active' : ''}" data-style="line-through" title="취소선">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11.5 4.5 C11 3.4 9.7 2.8 8 2.8 C6 2.8 4.8 3.8 4.8 5.1 C4.8 5.7 5 6.2 5.6 6.6"/><path d="M4.5 11.5 C5 12.6 6.3 13.2 8 13.2 C10 13.2 11.2 12.2 11.2 10.9 C11.2 10.5 11.1 10.1 10.9 9.8"/><line x1="2.5" y1="8" x2="13.5" y2="8"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
     <div class="prop-section" id="stk-colors-section" style="display:${hideBasic ? 'none' : 'block'};">
       <div class="prop-section-title">Colors</div>
@@ -337,6 +372,20 @@ export function showStickerProperties(block) {
         </select>
       </div>
       <div class="prop-row">
+        <span class="prop-label">스타일</span>
+        <div class="prop-align-group" id="stk-t-style-group">
+          <button class="prop-align-btn${tFontStyle === 'italic' ? ' active' : ''}" data-style="italic" title="이탤릭">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="7" y1="3" x2="13" y2="3"/><line x1="3" y1="13" x2="9" y2="13"/><line x1="10" y1="3" x2="6" y2="13"/></svg>
+          </button>
+          <button class="prop-align-btn${tDecoUnderline ? ' active' : ''}" data-style="underline" title="밑줄">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.5 3 L4.5 7.5 A3.5 3.5 0 0 0 11.5 7.5 L11.5 3"/><line x1="3.5" y1="13.5" x2="12.5" y2="13.5"/></svg>
+          </button>
+          <button class="prop-align-btn${tDecoStrike ? ' active' : ''}" data-style="line-through" title="취소선">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11.5 4.5 C11 3.4 9.7 2.8 8 2.8 C6 2.8 4.8 3.8 4.8 5.1 C4.8 5.7 5 6.2 5.6 6.6"/><path d="M4.5 11.5 C5 12.6 6.3 13.2 8 13.2 C10 13.2 11.2 12.2 11.2 10.9 C11.2 10.5 11.1 10.1 10.9 9.8"/><line x1="2.5" y1="8" x2="13.5" y2="8"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="prop-row">
         <span class="prop-label">자간</span>
         <input type="range" class="prop-slider" id="stk-t-ls" min="-5" max="20" step="0.1" value="${tLetterSpacing}">
         <input type="number" class="prop-number" id="stk-t-ls-num" min="-10" max="40" step="0.1" value="${tLetterSpacing}">
@@ -355,11 +404,26 @@ export function showStickerProperties(block) {
           </button>
         </div>
       </div>
+      <div class="prop-row">
+        <span class="prop-label">박스 너비</span>
+        <label class="prop-toggle" title="고정 너비 켜기(끄면 내용맞춤)" style="display:inline-flex;align-items:center;gap:4px">
+          <input type="checkbox" id="stk-t-boxw-on" ${tBoxWOn ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-row" id="stk-t-boxw-detail" style="display:${tBoxWOn ? 'flex' : 'none'}">
+        <span class="prop-label">너비</span>
+        <input type="range" class="prop-slider" id="stk-t-boxw" min="40" max="1000" step="2" value="${tBoxWVal}">
+        <input type="number" class="prop-number" id="stk-t-boxw-num" min="20" max="2000" step="1" value="${tBoxWVal}">
+      </div>
     </div>
     <div class="prop-section" id="stk-text-presets-section" style="display:${isText ? 'block' : 'none'};">
       <div class="prop-section-title">Text Presets</div>
-      <div class="stk-preset-grid" id="stk-preset-grid">
-        ${TEXT_PRESETS.map((p, i) => `<button class="stk-preset-btn" data-preset-idx="${i}" type="button">${_esc(p.name)}</button>`).join('')}
+      <div class="prop-row">
+        <select class="prop-select" id="stk-preset-select" style="flex:1;min-width:0;">
+          <option value="">프리셋 선택...</option>
+          ${TEXT_PRESETS.map((p, i) => `<option value="${i}">${_esc(p.name)}</option>`).join('')}
+        </select>
       </div>
     </div>
     <div class="prop-section" id="stk-text-colors-section" style="display:${isText ? 'block' : 'none'};">
@@ -427,6 +491,11 @@ export function showStickerProperties(block) {
         <input type="range" class="prop-slider" id="stk-t-pad-y" min="0" max="200" step="1" value="${tPadY}">
         <input type="number" class="prop-number" id="stk-t-pad-y-num" min="0" max="400" step="1" value="${tPadY}">
       </div>
+      <div class="prop-row">
+        <span class="prop-label">코너 라운드</span>
+        <input type="range" class="prop-slider" id="stk-t-radius" min="0" max="60" step="1" value="${tCornerR}">
+        <input type="number" class="prop-number" id="stk-t-radius-num" min="0" max="400" step="1" value="${tCornerR}">
+      </div>
     </div>
     <div class="prop-section" id="stk-text-rot-section" style="display:${isText ? 'block' : 'none'};">
       <div class="prop-section-title">Rotation</div>
@@ -441,8 +510,15 @@ export function showStickerProperties(block) {
 
   const rerender = () => { window.renderStickerBlock?.(block); window.rememberStickerStyle?.(block); };
 
-  // 텍스트 — input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
+  // 텍스트 — textarea(멀티라인, \n 보존). input에선 .sticker-text textContent만 직접 갱신(rerender 시 캐럿 보존 X)
+  //   초깃값은 HTML 본문 주입 대신 value 할당 — <input type=text>의 \n strip 함정 회피 +
+  //   textarea 본문 주입 시 선두 개행 소실/이스케이프 함정도 회피.
   const txt = propPanel.querySelector('#stk-text');
+  txt.value = text;
+  txt.addEventListener('keydown', ev => {
+    // 멀티라인은 text shape 전용 — circle/square 등은 Enter=커밋(인라인 편집과 동일 규칙, 개행 미주입)
+    if (ev.key === 'Enter' && block.dataset.shape !== 'text') { ev.preventDefault(); txt.blur(); }
+  });
   txt.addEventListener('input', () => {
     block.dataset.text = txt.value;
     const t = block.querySelector('.sticker-text');
@@ -491,6 +567,31 @@ export function showStickerProperties(block) {
   _bindTPair('stk-t-rot',   'stk-t-rot-num',   'rotation',      -180, 180, 1);
   _bindTPair('stk-t-pad-x', 'stk-t-pad-x-num', 'padX',          0,    400, 1);
   _bindTPair('stk-t-pad-y', 'stk-t-pad-y-num', 'padY',          0,    400, 1);
+  _bindTPair('stk-t-radius', 'stk-t-radius-num', 'cornerRadius', 0,   400, 1);
+  _bindTPair('stk-t-boxw',  'stk-t-boxw-num',  'boxW',          20,   2000, 1);
+
+  // 박스 너비 토글 — off = auto(내용맞춤, 기존 동작), on = 고정 px.
+  //   on 전환 시 현재 렌더 폭(offsetWidth, 줌 미영향)으로 seed → 사용자가 슬라이더로 넓힘.
+  const _boxwOn     = propPanel.querySelector('#stk-t-boxw-on');
+  const _boxwDetail = propPanel.querySelector('#stk-t-boxw-detail');
+  const _boxwS      = propPanel.querySelector('#stk-t-boxw');
+  const _boxwN      = propPanel.querySelector('#stk-t-boxw-num');
+  _boxwOn?.addEventListener('change', e => {
+    if (e.target.checked) {
+      let w = parseInt(block.dataset.boxW);
+      if (!Number.isFinite(w) || w <= 0) w = Math.round(block.offsetWidth) || 200;
+      w = Math.min(2000, Math.max(20, w));
+      block.dataset.boxW = String(w);
+      if (_boxwS) _boxwS.value = String(Math.min(1000, Math.max(40, w)));
+      if (_boxwN) _boxwN.value = String(w);
+      if (_boxwDetail) _boxwDetail.style.display = 'flex';
+    } else {
+      block.dataset.boxW = 'auto';
+      if (_boxwDetail) _boxwDetail.style.display = 'none';
+    }
+    rerender();
+    window.pushHistory?.('텍스트 스티커 박스 너비'); window.scheduleAutoSave?.();
+  });
 
   // 텍스트 스티커 — 정렬
   propPanel.querySelectorAll('#stk-t-align-group .prop-align-btn').forEach(btn => {
@@ -499,6 +600,26 @@ export function showStickerProperties(block) {
       block.dataset.textAlign = btn.dataset.align;
       rerender();
       window.pushHistory?.('텍스트 스티커 정렬'); window.scheduleAutoSave?.();
+    });
+  });
+
+  // 스티커 — 스타일 (이탤릭/밑줄/취소선 — 정렬 그룹과 달리 각 버튼 독립 토글)
+  //   stk-t-style-group = text shape(Typography 섹션) / stk-b-style-group = circle·square(Size 섹션).
+  //   두 그룹은 shape에 따라 배타 노출 — 같은 dataset(fontStyle/textDecoration)에 쓰는 동일 로직 공유.
+  ['stk-t-style-group', 'stk-b-style-group'].forEach(groupId => {
+    propPanel.querySelectorAll(`#${groupId} .prop-align-btn`).forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.classList.toggle('active');
+        const grp = propPanel.querySelector(`#${groupId}`);
+        const isOn = (s) => !!grp.querySelector(`[data-style="${s}"]`)?.classList.contains('active');
+        block.dataset.fontStyle = isOn('italic') ? 'italic' : 'normal';
+        const decos = [];
+        if (isOn('underline'))    decos.push('underline');
+        if (isOn('line-through')) decos.push('line-through');
+        block.dataset.textDecoration = decos.length ? decos.join(' ') : 'none';
+        rerender();
+        window.pushHistory?.('스티커 스타일'); window.scheduleAutoSave?.();
+      });
     });
   });
 
@@ -611,6 +732,8 @@ export function showStickerProperties(block) {
         if (!block.dataset.fontFamily)    block.dataset.fontFamily    = "'Pretendard', sans-serif";
         if (!block.dataset.fontSize || parseInt(block.dataset.fontSize) < 8) block.dataset.fontSize = 32;
         if (!block.dataset.fontWeight)    block.dataset.fontWeight    = 700;
+        if (block.dataset.fontStyle      === undefined) block.dataset.fontStyle      = 'normal';
+        if (block.dataset.textDecoration === undefined) block.dataset.textDecoration = 'none';
         if (!block.dataset.textColor)     block.dataset.textColor     = '#222222';
         if (block.dataset.strokeWidth   === undefined) block.dataset.strokeWidth   = 0;
         if (!block.dataset.strokeColor)   block.dataset.strokeColor   = '#ffffff';
@@ -844,6 +967,8 @@ export function showStickerProperties(block) {
       });
     });
   };
+  // 데이터 변경 통지 구독용 활성 리렌더러로 등록 (모달·패널 삭제 양방향 동기화)
+  _activePanelFavRerender = _renderFavGrid;
   _renderFavGrid();
 
   propPanel.querySelector('#stk-fav-add')?.addEventListener('click', () => {
@@ -853,18 +978,16 @@ export function showStickerProperties(block) {
     }
   });
 
-  // ── U6(d): Text Presets — text 내용 보존하고 스타일만 일괄 적용 ──────────────
-  propPanel.querySelectorAll('#stk-preset-grid .stk-preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const preset = TEXT_PRESETS[parseInt(btn.dataset.presetIdx)];
-      if (!preset) return;
-      window.pushHistory?.('텍스트 스티커 프리셋');
-      // text 내용(dataset.text)은 건드리지 않음 — 스타일 토큰만 덮어씀
-      Object.entries(preset.style).forEach(([k, v]) => { block.dataset[k] = v; });
-      rerender();
-      window.scheduleAutoSave?.();
-      showStickerProperties(block); // 패널 재렌더 (슬라이더/색상 동기화)
-    });
+  // ── U6(d): Text Presets — text 내용 보존하고 스타일만 일괄 적용 (그리드→드롭다운) ──
+  propPanel.querySelector('#stk-preset-select')?.addEventListener('change', e => {
+    const preset = TEXT_PRESETS[parseInt(e.target.value)];
+    if (!preset) return;
+    window.pushHistory?.('텍스트 스티커 프리셋');
+    // text 내용(dataset.text)은 건드리지 않음 — 스타일 토큰만 덮어씀
+    Object.entries(preset.style).forEach(([k, v]) => { block.dataset[k] = v; });
+    rerender();
+    window.scheduleAutoSave?.();
+    showStickerProperties(block); // 패널 재렌더 (슬라이더/색상 동기화)
   });
 
   // ── U6(e): Icon 섹션 — 교체 / 크기 / 회전 / 색상 ──────────────────────────────
@@ -874,10 +997,12 @@ export function showStickerProperties(block) {
       block.dataset.iconName = p.name || '';
       block.dataset.iconSvg  = p.svg  || '';
       if (p.size) block.dataset.size = String(p.size);
+      // 즐겨찾기 픽(iconColor 정의됨)일 때만 색 적용 — 일반 교체는 '아이콘만 교체' 유지
+      if (p.iconColor !== undefined && p.iconColor !== '') block.dataset.iconColor = p.iconColor;
       rerender();
       window.scheduleAutoSave?.();
       showStickerProperties(block);
-    });
+    }, { favorites: true }); // 스티커 경로 = iconColor 소비 가능 → Favorite 탭 노출
   });
   // icon size / rotation — _bindTPair 패턴 재사용 (rerender 기반)
   _bindTPair('stk-icon-size', 'stk-icon-size-num', 'size',     16,   600, 1);
