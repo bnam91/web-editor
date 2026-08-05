@@ -59,12 +59,17 @@ jobs:
       #   맥에서 --win으로 크로스컴파일하던 기존 배포본도 어차피 이 prebuild를 그대로 담아 나갔으므로,
       #   여기서 리빌드를 끄는 것이 지금 배포되는 exe와 같은 구성을 만든다.
       #   ★ 네이티브 의존성을 새로 추가하면 이 전제가 깨진다 — 그땐 러너에 빌드툴을 깔아야 한다.
+      #   ⚠️ shell: bash 인 이유 — 러너 기본 셸(PowerShell)은 `-c.npmRebuild=false`를
+      #      `-c` + `.npmRebuild=false`로 쪼개 버려서 electron-builder가 그걸 설정파일
+      #      경로로 읽고 ENOENT로 죽는다. yargs 자체는 두 표기 다 정상 파싱한다(실측).
       - name: Build only (게시 안 함)
         if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
+        shell: bash
         run: npx electron-builder --win --publish never -c.npmRebuild=false
 
       - name: Build & publish
         if: ${{ github.event_name == 'push' || inputs.publish }}
+        shell: bash
         run: npx electron-builder --win --publish always -c.npmRebuild=false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
