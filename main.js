@@ -223,7 +223,7 @@ function getGitBranch() {
 function createWindow() {
   const isMac = process.platform === 'darwin';
   const gitBranch = getGitBranch();
-  const windowTitle = gitBranch ? `GOYA DESIGN EDITOR [${gitBranch}]` : 'GOYA DESIGN EDITOR';
+  const windowTitle = gitBranch ? `GODITOR [${gitBranch}]` : 'GODITOR';
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
