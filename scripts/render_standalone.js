@@ -22,10 +22,13 @@ const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const WebSocket = require('/Users/a1/web-editor/node_modules/ws');
+// ws는 레포 dependencies. 특정 맥의 클론 경로를 하드코딩하면 다른 맥·worktree에서 죽는다.
+const WebSocket = require('ws');
 
 const WE = path.resolve(__dirname, '..');
-const PROJ_DIR = `${process.env.HOME}/Library/Application Support/Goya Design Editor/projects`;
+// app.name='GODITOR'(main.js)이 userData 경로를 결정한다. 구 'Goya Design Editor'
+// 폴더는 main.js의 _migrateUserDataDir가 'GODITOR'로 rename해 더 이상 존재하지 않는다.
+const PROJ_DIR = `${process.env.HOME}/Library/Application Support/GODITOR/projects`;
 const CHROME = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const CSS = ['design-tokens.css', 'editor-base.css', 'editor-layout.css', 'editor-canvas.css',
              'editor-blocks.css', 'editor-graph.css', 'editor-extra.css'];

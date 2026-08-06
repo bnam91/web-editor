@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # snapshot-projects-dir.sh
 # ─────────────────────────────────────────────────────────────────────────
-# Goditor PROJECTS_DIR(=Application Support/Goya Design Editor/projects)을
+# Goditor PROJECTS_DIR(=Application Support/GODITOR/projects)을
 # 검증용 사본으로 안전 복제한다.
 #
 # 사용:
@@ -21,7 +21,9 @@
 
 set -euo pipefail
 
-SRC="${HOME}/Library/Application Support/Goya Design Editor/projects"
+# app.name='GODITOR'(main.js)이 userData 경로를 결정한다. 구 'Goya Design Editor'
+# 폴더는 main.js의 _migrateUserDataDir가 'GODITOR'로 rename해 더 이상 존재하지 않는다.
+SRC="${HOME}/Library/Application Support/GODITOR/projects"
 DEFAULT_DST="${HOME}/web-editor-projects-snapshot-$(date +%Y%m%d-%H%M%S)"
 DST="${1:-$DEFAULT_DST}"
 
