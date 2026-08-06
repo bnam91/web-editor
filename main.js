@@ -52,7 +52,7 @@ _loadEnvFile(path.join(__dirname, '.env'));
 // 외부 자격증명 저장소(로컬 공유 시크릿) — GEMINI_API_KEY 등. iCloud dataless(EDEADLK) 회피 위해 ~/.config/secrets 로 일원화
 _loadEnvFile(path.join(os.homedir(), '.config/secrets/.env'));
 const { spawn } = require('child_process');
-const { getPublicIp, findUserByIp, registerLicense, removeIp, updateIpAlias, updateUserName, createLicenseKey, listLicenseKeys } = require('./services/licenseService');
+const { login: authLogin, verifySession: authVerifySession, SIGNUP_URL, PRICING_URL, API_BASE: AUTH_API_BASE } = require('./services/authService');
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
@@ -263,8 +263,8 @@ function createWindow() {
     callback(false);
   });
 
-  // 라이선스 체크 후 페이지 결정
-  checkLicenseAndLoad();
+  // 로그인 상태 체크 후 페이지 결정
+  checkAuthAndLoad();
 
   ipcMain.handle('get-version', () => app.getVersion());
   ipcMain.handle('app:git-branch', () => getGitBranch());
@@ -356,6 +356,54 @@ function createWindow() {
   }
 }
 
+/* ── 계정 로그인 상태 저장 (userData/auth.json) ──
+   로그인 성공 시 {email, plan, accessUntil, sessionToken}만 저장한다.
+   ⚠️ 비밀번호는 절대 저장하지 않는다.
+   accessUntil까지는 서버에 묻지 않고 통과시킨다 → 백엔드가 죽어도, 오프라인이어도
+   인증했던 사용자가 잠기지 않는다(2026-08-05 백엔드 다운 사고 재발 방지).
+   settings.json과 분리한 이유: 설정은 사용자가 편집·동기화하는 파일이고,
+   인증 상태는 로그아웃 시 통째로 지워야 하는 별개 수명의 데이터라서. */
+let _AUTH_PATH_CACHE = null;
+function getAuthPath() {
+  if (_AUTH_PATH_CACHE) return _AUTH_PATH_CACHE;
+  _AUTH_PATH_CACHE = path.join(app.getPath('userData'), 'auth.json');
+  return _AUTH_PATH_CACHE;
+}
+function readAuth() {
+  try {
+    const p = getAuthPath();
+    if (!fs.existsSync(p)) return null;
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^﻿/, ''));
+    if (!raw || typeof raw !== 'object' || !raw.email || !raw.accessUntil) return null;
+    return raw;
+  } catch (_) {
+    return null;
+  }
+}
+function writeAuth(record) {
+  const next = {
+    email:        String(record.email || ''),
+    plan:         String(record.plan || ''),
+    accessUntil:  String(record.accessUntil || ''),
+    sessionToken: String(record.sessionToken || ''),
+    savedAt:      new Date().toISOString(),
+  };
+  try {
+    fs.writeFileSync(getAuthPath(), JSON.stringify(next, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('[auth] 상태 저장 실패:', e.message);
+  }
+  return next;
+}
+function clearAuth() {
+  try { fs.unlinkSync(getAuthPath()); } catch (_) {}
+}
+/** accessUntil이 아직 안 지났는가. 파싱 불가면 false(=만료 취급). */
+function authAccessValid(a) {
+  const t = Date.parse(a?.accessUntil);
+  return Number.isFinite(t) && t > Date.now();
+}
+
 /* ── admin 모드 인증 (GAP-008 심층: 라이선스/결제 우회 차단) ──
    admin 모드 = 라이선스 검증 우회 + 라이선스 키 발급 권한. 이를 'admin' CLI 인자만으로
    부여하면 배포 앱을 가진 누구나(인자명은 binary strings로 노출) 라이선스/결제를 우회하고
@@ -389,95 +437,111 @@ function isAdminAuthorized() {
 let _editorAccessGranted = false;
 function _grantEditorAccess() { _editorAccessGranted = true; }
 
-/* ── 라이선스 체크 + 초기 페이지 로드 ── */
-async function checkLicenseAndLoad() {
+/* ── 로그인 상태 체크 + 초기 페이지 로드 ──
+   구버전은 매 실행마다 공인 IP를 조회해 서버에 물었다 → 서버가 죽으면 인증했던
+   사용자까지 잠겼다. 지금은 저장된 로그인 상태(accessUntil)만 보고 통과시키고,
+   서버 확인은 뒤에서 비차단으로 돌린다. */
+async function checkAuthAndLoad() {
   if (isAdminAuthorized()) {
     _grantEditorAccess();
     mainWindow.loadFile('pages/projects.html');
     return;
   }
-  try {
-    const ip = await getPublicIp();
-    if (ip) {
-      const result = await findUserByIp(ip);
-      if (result.found) {
-        _grantEditorAccess();
-        mainWindow.loadFile('pages/projects.html');
-        return;
-      }
-    }
-  } catch {}
+  const auth = readAuth();
+  if (auth && authAccessValid(auth)) {
+    _grantEditorAccess();
+    mainWindow.loadFile('pages/projects.html');
+    silentRefresh(auth); // 네트워크 없으면 조용히 포기 — 부팅을 막지 않는다
+    return;
+  }
+  // 저장된 계정이 있으면 license.html이 만료 화면으로, 없으면 로그인 화면으로 뜬다
+  // (렌더러가 auth:state를 물어서 분기).
   mainWindow.loadFile('pages/license.html');
 }
 
-/* ── IPC: License ── */
-ipcMain.handle('license:get-ip', () => getPublicIp());
-
-ipcMain.handle('license:find-by-ip', async () => {
-  const ip = await getPublicIp();
-  if (!ip) return { found: false };
-  return findUserByIp(ip);
-});
-
-ipcMain.handle('license:register', (event, licenseKey, ip, userId) =>
-  registerLicense(licenseKey, ip, userId)
-);
-
-ipcMain.handle('license:remove-ip', (event, licenseKey, ip) =>
-  removeIp(licenseKey, ip)
-);
-
-ipcMain.handle('license:update-alias', (event, licenseKey, ip, alias) =>
-  updateIpAlias(licenseKey, ip, alias)
-);
-
-ipcMain.handle('license:update-name', (event, licenseKey, userName) =>
-  updateUserName(licenseKey, userName)
-);
-
-// GAP-008: 라이선스 키 발급/열람은 ★admin 권한 전용. 일반 출시 빌드의 렌더러
-// (또는 콘솔/악성 삽입 스크립트)가 window.electronAPI.createLicenseKey('pro')로
-// 유료 키를 자가발급하는 결제 우회를 차단한다. admin 판정 = isAdminAuthorized()
-// (부팅 라이선스 게이트·app:is-admin과 동일 — 패키징 빌드는 운영자 토큰까지 요구).
-// 프로세스 단위 게이팅이라 단일 mainWindow 환경에서 event.sender 체크와 동치.
-// (서버측 발급 이전·MongoDB 쓰기자격 번들 제거는 후속 과제.)
-const requireAdmin = (event) => {
-  if (isAdminAuthorized()) return null;
+/** 온라인이면 접근권한을 조용히 갱신. 실패·판단불가는 전부 무시(캐시 유지). */
+async function silentRefresh(auth) {
   try {
-    const u = event && event.sender && event.sender.getURL && event.sender.getURL();
-    console.warn('[license] admin-gated IPC 거부 (비-admin 빌드):', u || '');
+    const r = await authVerifySession(auth.email, auth.sessionToken);
+    if (!r) return;                    // 오프라인 또는 엔드포인트 미구현 → 유예 유지
+    if (r.ok && r.accessUntil) {
+      writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil });
+      return;
+    }
+    if (r.reason === 'expired' && r.accessUntil) {
+      // 세션 중에는 쫓아내지 않는다. 다음 실행부터 만료 화면.
+      writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil });
+      return;
+    }
+    if (r.reason === 'invalid_session') clearAuth();
   } catch (_) {}
-  return { ok: false, error: 'FORBIDDEN', code: 'ADMIN_REQUIRED',
-           message: '라이선스 키 발급/열람은 관리자 빌드에서만 가능합니다.' };
-};
+}
 
-ipcMain.handle('license:create-key', (event, plan, memo) => {
-  const denied = requireAdmin(event);
-  if (denied) return denied;
-  return createLicenseKey(plan, memo);
+/* ── IPC: 계정 인증 ── */
+
+// 로그인 화면/만료 화면 분기용 현재 상태. 비밀번호·세션토큰은 렌더러에 넘기지 않는다.
+ipcMain.handle('auth:state', () => {
+  const auth = readAuth();
+  const valid = !!auth && authAccessValid(auth);
+  return {
+    signedIn:    valid,
+    expired:     !!auth && !valid,
+    email:       auth?.email || '',
+    plan:        auth?.plan || '',
+    accessUntil: auth?.accessUntil || '',
+    purchaseUrl: PRICING_URL,
+    signupUrl:   SIGNUP_URL,
+  };
 });
 
-ipcMain.handle('license:list-keys', (event) => {
-  const denied = requireAdmin(event);
-  if (denied) return denied;
-  return listLicenseKeys();
+ipcMain.handle('auth:login', async (_event, email, password) => {
+  const r = await authLogin(String(email || '').trim(), String(password || ''));
+  if (r.ok) {
+    writeAuth({
+      email: r.email, plan: r.plan, accessUntil: r.accessUntil, sessionToken: r.sessionToken,
+    });
+    // 세션토큰은 반환하지 않는다(렌더러 노출 최소화).
+    return { ok: true, email: r.email, plan: r.plan, accessUntil: r.accessUntil };
+  }
+  if (r.reason === 'expired') {
+    // 자격증명은 맞는데 이용기간이 끝난 계정 — 다음 실행에서도 만료 화면이 뜨도록 기록.
+    // (sessionToken 없음)
+    writeAuth({ email: String(email || '').trim(), plan: r.plan, accessUntil: r.accessUntil, sessionToken: '' });
+  }
+  return r;
 });
 
-ipcMain.handle('license:navigate-projects', async () => {
-  // GAP-008: 라이선스 검증 강제 — 인증 없이 navigate로 에디터에 진입하던 우회 차단.
+ipcMain.handle('auth:logout', () => {
+  clearAuth();
+  return { ok: true };
+});
+
+// 가입/요금제 링크를 외부 브라우저로. ★임의 URL 오픈은 허용하지 않는다
+// (렌더러 주입 스크립트가 shell.openExternal을 범용 실행 경로로 쓰는 것을 차단).
+ipcMain.handle('auth:open-external', (_event, url) => {
+  try {
+    const u = new URL(String(url || ''));
+    if (u.protocol !== 'https:' || u.origin !== AUTH_API_BASE) {
+      console.warn('[auth] 외부 링크 차단:', u.origin);
+      return { ok: false, error: 'BLOCKED' };
+    }
+    shell.openExternal(u.toString());
+    return { ok: true };
+  } catch (_) {
+    return { ok: false, error: 'BAD_URL' };
+  }
+});
+
+ipcMain.handle('license:navigate-projects', () => {
+  // GAP-008: 인증 검증 강제 — 인증 없이 navigate로 에디터에 진입하던 우회 차단.
   // (기존: 무조건 projects.html 로드 → license 화면 콘솔에서 navigateToProjects() 한 줄로 우회)
   if (isAdminAuthorized()) { _grantEditorAccess(); mainWindow.loadFile('pages/projects.html'); return { ok: true }; }
-  try {
-    const ip = await getPublicIp();
-    if (ip) {
-      const result = await findUserByIp(ip);
-      if (result && result.found) {
-        _grantEditorAccess();
-        mainWindow.loadFile('pages/projects.html');
-        return { ok: true };
-      }
-    }
-  } catch (_) {}
+  const auth = readAuth();
+  if (auth && authAccessValid(auth)) {
+    _grantEditorAccess();
+    mainWindow.loadFile('pages/projects.html');
+    return { ok: true };
+  }
   return { ok: false, code: 'LICENSE_REQUIRED' };
 });
 

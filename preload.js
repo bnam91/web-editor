@@ -57,16 +57,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     auth: ()        => ipcRenderer.invoke('market:auth'),
   },
 
-  // License
-  getPublicIp:        ()                   => ipcRenderer.invoke('license:get-ip'),
-  getLicenseUser:     ()                   => ipcRenderer.invoke('license:find-by-ip'),
-  registerLicense:    (key, ip, userId)    => ipcRenderer.invoke('license:register', key, ip, userId),
-  removeLicenseIp:    (key, ip)            => ipcRenderer.invoke('license:remove-ip', key, ip),
-  updateLicenseAlias: (key, ip, alias)     => ipcRenderer.invoke('license:update-alias', key, ip, alias),
-  updateLicenseName:  (key, userName)      => ipcRenderer.invoke('license:update-name', key, userName),
+  // Account auth (라이선스 키 제도 폐지 → 홈페이지 계정 로그인)
+  getAuthState:       ()                   => ipcRenderer.invoke('auth:state'),
+  authLogin:          (email, password)    => ipcRenderer.invoke('auth:login', email, password),
+  authLogout:         ()                   => ipcRenderer.invoke('auth:logout'),
+  openExternalUrl:    (url)                => ipcRenderer.invoke('auth:open-external', url),
   navigateToProjects: ()                   => ipcRenderer.invoke('license:navigate-projects'),
-  createLicenseKey:   (plan, memo)         => ipcRenderer.invoke('license:create-key', plan, memo),
-  listLicenseKeys:    ()                   => ipcRenderer.invoke('license:list-keys'),
 
   // AI section text fill (Gemini)
   aiFillSectionTexts: (payload) => ipcRenderer.invoke('ai:fillSectionTexts', payload),
