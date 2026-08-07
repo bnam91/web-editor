@@ -187,7 +187,7 @@ export function showIconifyProperties(block) {
     _presetCategories = res.categories || [];
     presetCatSelect.innerHTML = _presetCategories.length
       ? _presetCategories.map(c => `<option value="${c.name}">${c.name} (${c.items.length})</option>`).join('')
-      : '<option value="">(폴더 비어있음 — Application Support/Goya Design Editor/svg-presets/ 에 폴더+SVG 추가)</option>';
+      : '<option value="">(폴더 비어있음 — Application Support/GODITOR/svg-presets/ 에 폴더+SVG 추가)</option>';
     if (_presetCategories.length > 0) {
       presetCatSelect.value = _presetCategories[0].name;
       renderPresetGrid(_presetCategories[0].name);

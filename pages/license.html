@@ -5,7 +5,7 @@
   <!-- GAP-006 CSP(Phase1): 원격 스크립트·eval·플러그인 차단. strict(주입 on* 완전차단)은 Phase2. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' https: ws://localhost:* http://localhost:*; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https:; object-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GOYA DESIGN EDITOR — 라이선스 인증</title>
+  <title>GODITOR — 로그인</title>
   <link rel="stylesheet" href="../assets/fonts/pretendard.css">
   <link rel="stylesheet" href="../css/design-tokens.css">
   <style>
@@ -108,14 +108,9 @@
       text-transform: uppercase;
     }
 
-    .label-optional {
-      color: var(--ui-text-dim);
-      font-size: 11px;
-      text-transform: none;
-      font-weight: 400;
-    }
-
-    input[type="text"] {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
       width: 100%;
       background: var(--ui-bg-input);
       border: 1px solid var(--ui-border);
@@ -126,13 +121,16 @@
       outline: none;
       transition: border-color 0.15s;
       font-family: inherit;
+      user-select: text;
     }
 
-    input[type="text"]:focus {
+    input[type="text"]:focus,
+    input[type="email"]:focus,
+    input[type="password"]:focus {
       border-color: var(--ui-accent-primary);
     }
 
-    input[type="text"]::placeholder {
+    input::placeholder {
       color: var(--ui-text-dim);
     }
 
@@ -152,65 +150,12 @@
       cursor: pointer;
       margin-top: 8px;
       transition: background 0.15s, opacity 0.15s;
+      font-family: inherit;
     }
 
     .btn:hover { background: var(--ui-accent-primary-hover); }
     .btn:active { background: var(--ui-accent-primary-active); }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .status {
-      margin-top: 14px;
-      font-size: 13px;
-      min-height: 18px;
-      text-align: center;
-    }
-
-    .status.error { color: var(--ui-danger); }
-    .status.success { color: var(--ui-success); }
-    .status.info { color: var(--ui-text-muted); }
-
-    /* IP 한도 초과 화면 */
-    .ip-list-section {
-      display: none;
-    }
-
-    .ip-list-section.visible {
-      display: block;
-    }
-
-    .ip-list {
-      list-style: none;
-      margin: 12px 0 16px;
-    }
-
-    .ip-list li {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: var(--ui-bg-card);
-      border: 1px solid var(--ui-border);
-      border-radius: 6px;
-      padding: 10px 14px;
-      margin-bottom: 6px;
-      font-size: 13px;
-    }
-
-    .ip-list .ip-addr { color: var(--ui-text); font-family: monospace; }
-    .ip-list .ip-alias { color: var(--ui-text-muted); font-size: 12px; margin-left: 8px; }
-    .ip-list .ip-date { color: var(--ui-text-dim); font-size: 11px; }
-
-    .btn-delete {
-      background: none;
-      border: 1px solid var(--ui-border-mid);
-      border-radius: 4px;
-      color: var(--ui-danger);
-      font-size: 12px;
-      padding: 4px 10px;
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-
-    .btn-delete:hover { background: rgba(255,107,107,0.1); }
 
     .btn-back {
       background: var(--ui-bg-card);
@@ -219,6 +164,69 @@
     }
 
     .btn-back:hover { background: var(--ui-bg-hover); }
+
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      min-height: 18px;
+      text-align: center;
+      line-height: 1.5;
+      word-break: keep-all;
+    }
+
+    .status.error { color: var(--ui-danger); }
+    .status.success { color: var(--ui-success); }
+    .status.info { color: var(--ui-text-muted); }
+
+    /* 계정 찾기·가입 한 줄. ★홈페이지 login.html의 .auth-links와 «같은 구성»이다
+       (이메일 찾기 | 비밀번호 찾기 | 회원가입). 앱과 웹이 다른 문구·다른 배치를 쓰면
+       같은 서비스로 안 보인다. 색도 홈페이지 기준을 따라 담백하게 — 강조색을 쓰면
+       [로그인] 버튼과 시선을 다툰다. */
+    .auth-links {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid var(--ui-border);
+      font-size: 12px;
+    }
+
+    .auth-links .sep { color: var(--ui-border-mid); }
+
+    .link {
+      color: var(--ui-text-muted);
+      cursor: pointer;
+      font-weight: 500;
+      text-decoration: none;
+    }
+
+    .link:hover { color: var(--ui-text); text-decoration: underline; }
+
+    /* 만료(이벤트 종료) 화면 */
+    .screen { display: none; }
+    .screen.visible { display: block; }
+
+    .account-box {
+      background: var(--ui-bg-card);
+      border: 1px solid var(--ui-border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+
+    .account-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .account-row:last-child { margin-bottom: 0; }
+    .account-row .k { color: var(--ui-text-dim); font-size: 12px; }
+    .account-row .v { color: var(--ui-text); }
 
     .spinner {
       display: inline-block;
@@ -242,215 +250,203 @@
   <div class="logo">
     <div class="logo-icon">✦</div>
     <div>
-      <div class="logo-text">GOYA DESIGN EDITOR</div>
-      <div class="logo-sub">License Activation</div>
+      <div class="logo-text">GODITOR</div>
+      <div class="logo-sub" id="logoSub">Sign in</div>
     </div>
   </div>
 
-  <!-- 기본 라이선스 입력 화면 -->
-  <div id="mainSection">
-    <h2>라이선스 인증</h2>
-    <p class="desc">이 기기에서 처음 실행 중입니다.<br>발급받은 라이선스 키를 입력해 주세요.</p>
+  <!-- 로그인 화면 -->
+  <div id="loginScreen" class="screen visible">
+    <h2>로그인</h2>
+    <p class="desc">홈페이지에서 가입한 계정으로 로그인해 주세요.</p>
 
     <div class="field">
-      <label>라이선스 키</label>
-      <input type="text" id="licenseKey" placeholder="WE-XXXXXX" maxlength="9" autocomplete="off" spellcheck="false">
+      <label for="email">이메일</label>
+      <input type="email" id="email" placeholder="you@example.com" autocomplete="username" spellcheck="false" autocapitalize="off">
     </div>
 
     <div class="field">
-      <label>사용자명 <span class="label-optional">(선택)</span></label>
-      <input type="text" id="userId" placeholder="홍길동" maxlength="20" autocomplete="off">
+      <label for="password">비밀번호</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
     </div>
 
-    <button class="btn" id="registerBtn" onclick="handleRegister()">인증하기</button>
-    <div class="status info" id="statusMsg">
-      현재 공인 IP를 확인하는 중...
+    <button class="btn" id="loginBtn">로그인</button>
+    <div class="status info" id="statusMsg"></div>
+
+    <!-- 홈페이지 login.html과 같은 한 줄. 순서·문구·구분자까지 맞춘다. -->
+    <div class="auth-links">
+      <span class="link" id="findEmailLink">이메일 찾기</span>
+      <span class="sep">|</span>
+      <span class="link" id="findPwLink">비밀번호 찾기</span>
+      <span class="sep">|</span>
+      <span class="link" id="signupLink">회원가입</span>
     </div>
   </div>
 
-  <!-- IP 한도 초과 화면 -->
-  <div id="ipLimitSection" class="ip-list-section">
-    <h2>기기 한도 초과</h2>
-    <p class="desc">이 라이선스에 최대 3대의 기기가 등록되어 있습니다.<br>기존 기기를 삭제하고 현재 기기를 등록하세요.</p>
+  <!-- 만료(이벤트 종료) 화면 -->
+  <div id="expiredScreen" class="screen">
+    <h2>이벤트가 종료됐습니다</h2>
+    <p class="desc">무료 이용 기간이 끝났습니다.<br>계속 사용하시려면 요금제를 확인해 주세요.</p>
 
-    <ul class="ip-list" id="ipList"></ul>
+    <div class="account-box">
+      <div class="account-row"><span class="k">계정</span><span class="v" id="expEmail">—</span></div>
+      <div class="account-row"><span class="k">이용 기간</span><span class="v" id="expUntil">—</span></div>
+    </div>
 
-    <button class="btn" id="retryBtn" onclick="retryAfterDelete()">등록 재시도</button>
-    <button class="btn btn-back" onclick="showMain()">← 돌아가기</button>
-    <div class="status error" id="ipLimitStatus"></div>
+    <button class="btn" id="purchaseBtn">요금제 보기</button>
+    <button class="btn btn-back" id="backToLoginBtn">다른 계정으로 로그인</button>
+    <div class="status info" id="expiredStatus"></div>
   </div>
 </div>
 
 <script>
-  let currentIp = null;
-  let currentLicenseKey = null;
+  const api = window.electronAPI || {};
+  // 아래 값들은 auth:state가 실어 보내는 것(services/authService.js가 원본)으로 덮인다.
+  // 여기 문자열은 IPC를 못 받았을 때의 최후 fallback일 뿐 — 주소를 바꿀 일이 있으면
+  // authService.js의 API_BASE 한 곳만 고친다.
+  let signupUrl = 'https://hompageapp.vercel.app/signup.html';
+  let purchaseUrl = 'https://hompageapp.vercel.app/pricing.html';
+  let findEmailUrl = 'https://hompageapp.vercel.app/find-email.html';
+  let findPasswordUrl = 'https://hompageapp.vercel.app/find-password.html';
+
+  const $ = (id) => document.getElementById(id);
+
+  function fmtDate(iso) {
+    const t = Date.parse(iso);
+    if (!Number.isFinite(t)) return '—';
+    return new Date(t).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  function showScreen(name) {
+    $('loginScreen').classList.toggle('visible', name === 'login');
+    $('expiredScreen').classList.toggle('visible', name === 'expired');
+    $('logoSub').textContent = name === 'expired' ? 'Subscription' : 'Sign in';
+    if (name === 'login') $('email').focus();
+  }
+
+  function setStatus(el, text, kind) {
+    el.textContent = text;
+    el.className = 'status' + (kind ? ' ' + kind : '');
+  }
 
   async function init() {
     try {
-      currentIp = await window.electronAPI.getPublicIp();
-      if (currentIp) {
-        document.getElementById('statusMsg').textContent = `현재 IP: ${currentIp}`;
-      } else {
-        document.getElementById('statusMsg').textContent = '네트워크 연결을 확인해 주세요.';
-        document.getElementById('statusMsg').className = 'status error';
+      const st = await api.getAuthState?.();
+      if (st) {
+        if (st.signupUrl) signupUrl = st.signupUrl;
+        if (st.purchaseUrl) purchaseUrl = st.purchaseUrl;
+        if (st.findEmailUrl) findEmailUrl = st.findEmailUrl;
+        if (st.findPasswordUrl) findPasswordUrl = st.findPasswordUrl;
+        if (st.expired) {
+          $('expEmail').textContent = st.email || '—';
+          $('expUntil').textContent = fmtDate(st.accessUntil) + ' 까지';
+          $('email').value = st.email || '';
+          showScreen('expired');
+          return;
+        }
+        if (st.email) $('email').value = st.email;
       }
-    } catch (e) {
-      document.getElementById('statusMsg').textContent = '오류: ' + e.message;
-      document.getElementById('statusMsg').className = 'status error';
-    }
+    } catch (_) {}
+    showScreen('login');
   }
 
-  async function handleRegister() {
-    const key = document.getElementById('licenseKey').value.trim().toUpperCase();
-    const userId = document.getElementById('userId').value.trim();
-    const btn = document.getElementById('registerBtn');
-    const statusEl = document.getElementById('statusMsg');
+  async function handleLogin() {
+    const email = $('email').value.trim();
+    const password = $('password').value;
+    const btn = $('loginBtn');
+    const statusEl = $('statusMsg');
 
-    if (!key) {
-      statusEl.textContent = '라이선스 키를 입력해 주세요.';
-      statusEl.className = 'status error';
-      return;
-    }
-
-    if (!currentIp) {
-      statusEl.textContent = '공인 IP를 확인할 수 없습니다. 네트워크를 확인해 주세요.';
-      statusEl.className = 'status error';
-      return;
-    }
+    if (!email) { setStatus(statusEl, '이메일을 입력해 주세요.', 'error'); return; }
+    if (!password) { setStatus(statusEl, '비밀번호를 입력해 주세요.', 'error'); return; }
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span>인증 중...';
-    statusEl.textContent = '';
-    statusEl.className = 'status';
+    btn.innerHTML = '<span class="spinner"></span>로그인 중...';
+    setStatus(statusEl, '', '');
 
     try {
-      const result = await window.electronAPI.registerLicense(key, currentIp, userId);
+      const result = await api.authLogin(email, password);
 
-      if (result.success) {
-        statusEl.textContent = '인증 완료! 잠시 후 이동합니다...';
-        statusEl.className = 'status success';
-        setTimeout(() => {
-          window.electronAPI.navigateToProjects();
-        }, 800);
+      if (result && result.ok) {
+        setStatus(statusEl, '로그인 완료! 잠시 후 이동합니다...', 'success');
+        setTimeout(() => { api.navigateToProjects(); }, 600);
         return;
       }
 
-      switch (result.reason) {
-        case 'invalid_key':
-          statusEl.textContent = '유효하지 않은 라이선스 키입니다.';
-          break;
-        case 'inactive':
-          statusEl.textContent = '비활성화된 라이선스입니다. 관리자에게 문의하세요.';
-          break;
-        case 'expired':
-          statusEl.textContent = '만료된 라이선스입니다.';
-          break;
-        case 'userId_reserved':
-          statusEl.textContent = '사용할 수 없는 사용자명입니다.';
-          break;
-        case 'userId_taken':
-          statusEl.textContent = '이미 사용 중인 사용자명입니다.';
-          break;
-        case 'ip_limit':
-          currentLicenseKey = key;
-          showIpLimitScreen(result.allowedIps);
-          return;
-        default:
-          statusEl.textContent = '오류가 발생했습니다. 다시 시도해 주세요.';
+      // ★만료는 HTTP 200 + ok:false 로 온다 — 에러가 아니라 구매 안내 분기.
+      if (result && result.reason === 'expired') {
+        if (result.purchaseUrl) purchaseUrl = result.purchaseUrl;
+        $('expEmail').textContent = email;
+        $('expUntil').textContent = fmtDate(result.accessUntil) + ' 까지';
+        $('password').value = '';
+        showScreen('expired');
+        return;
       }
-      statusEl.className = 'status error';
+
+      switch (result && result.reason) {
+        case 'invalid_credentials':
+          setStatus(statusEl, '이메일 또는 비밀번호가 올바르지 않습니다.', 'error');
+          break;
+        case 'email_not_verified':
+          setStatus(statusEl, '이메일 인증이 완료되지 않았습니다. 받은 메일함의 인증 링크를 확인해 주세요.', 'error');
+          break;
+        case 'network':
+          setStatus(statusEl, '서버에 연결할 수 없습니다. 네트워크를 확인하고 다시 시도해 주세요.', 'error');
+          break;
+        case 'server':
+          setStatus(statusEl, `서버 오류가 발생했습니다 (${result.status || '?'}). 잠시 후 다시 시도해 주세요.`, 'error');
+          break;
+        default:
+          setStatus(statusEl, '로그인에 실패했습니다. 다시 시도해 주세요.', 'error');
+      }
     } catch (e) {
-      statusEl.textContent = '연결 오류: ' + e.message;
-      statusEl.className = 'status error';
+      setStatus(statusEl, '연결 오류: ' + e.message, 'error');
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '인증하기';
+      btn.textContent = '로그인';
     }
   }
 
-  function showIpLimitScreen(ips) {
-    document.getElementById('mainSection').style.display = 'none';
-    const section = document.getElementById('ipLimitSection');
-    section.classList.add('visible');
-
-    const ul = document.getElementById('ipList');
-    ul.innerHTML = '';
-    ips.forEach(entry => {
-      const date = new Date(entry.registeredAt).toLocaleDateString('ko-KR');
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <div>
-          <span class="ip-addr">${entry.ip}</span>
-          ${entry.alias ? `<span class="ip-alias">${entry.alias}</span>` : ''}
-          <br><span class="ip-date">${date} 등록</span>
-        </div>
-        <button class="btn-delete" onclick="deleteIp('${entry.ip}')">삭제</button>
-      `;
-      ul.appendChild(li);
-    });
-  }
-
-  async function deleteIp(ip) {
-    const statusEl = document.getElementById('ipLimitStatus');
-    statusEl.textContent = '삭제 중...';
-    statusEl.className = 'status info';
-
+  async function openExternal(url, statusEl) {
     try {
-      const result = await window.electronAPI.removeLicenseIp(currentLicenseKey, ip);
-      if (result.success) {
-        // 해당 li 제거
-        const btns = document.querySelectorAll('.btn-delete');
-        btns.forEach(btn => {
-          if (btn.getAttribute('onclick').includes(ip)) {
-            btn.closest('li').remove();
-          }
-        });
-        statusEl.textContent = `${ip} 삭제 완료. 이제 등록 재시도를 클릭하세요.`;
-        statusEl.className = 'status success';
-      } else {
-        statusEl.textContent = '삭제 실패: ' + (result.error || result.reason);
-        statusEl.className = 'status error';
+      const r = await api.openExternalUrl?.(url);
+      if (r && r.ok === false && statusEl) {
+        // NOT_READY = 주소는 맞는데 홈페이지에 아직 그 페이지가 없다(main.js가 열기 전에 확인).
+        // 「열지 못했습니다」로 뭉뚱그리면 사용자가 자기 탓·네트워크 탓으로 오해한다.
+        if (r.error === 'NOT_READY') {
+          setStatus(statusEl, '아직 준비 중인 기능입니다. 조금만 기다려 주세요.', 'info');
+        } else {
+          setStatus(statusEl, '링크를 열지 못했습니다: ' + url, 'error');
+        }
       }
-    } catch (e) {
-      statusEl.textContent = '오류: ' + e.message;
-      statusEl.className = 'status error';
+    } catch (_) {
+      if (statusEl) setStatus(statusEl, '링크를 열지 못했습니다: ' + url, 'error');
     }
   }
 
-  async function retryAfterDelete() {
-    showMain();
-    // 잠깐 후 자동 재시도
-    setTimeout(() => handleRegister(), 100);
-  }
-
-  function showMain() {
-    document.getElementById('mainSection').style.display = 'block';
-    document.getElementById('ipLimitSection').classList.remove('visible');
-    document.getElementById('licenseKey').value = currentLicenseKey || '';
-  }
-
-  // Enter 키 바인딩
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      const section = document.getElementById('ipLimitSection');
-      if (section.classList.contains('visible')) return;
-      handleRegister();
-    }
+  $('loginBtn').addEventListener('click', handleLogin);
+  $('signupLink').addEventListener('click', () => openExternal(signupUrl, $('statusMsg')));
+  $('findEmailLink').addEventListener('click', () => openExternal(findEmailUrl, $('statusMsg')));
+  $('findPwLink').addEventListener('click', () => openExternal(findPasswordUrl, $('statusMsg')));
+  $('purchaseBtn').addEventListener('click', () => openExternal(purchaseUrl, $('expiredStatus')));
+  $('backToLoginBtn').addEventListener('click', () => {
+    setStatus($('statusMsg'), '', '');
+    showScreen('login');
   });
 
-  // 라이선스 키 자동 대문자 + 하이픈 포맷팅
-  document.getElementById('licenseKey').addEventListener('input', (e) => {
-    let v = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-    e.target.value = v;
+  // Enter 키 = 로그인 (로그인 화면에서만)
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    if (!$('loginScreen').classList.contains('visible')) return;
+    handleLogin();
   });
 
   // Electron 신호등(트래픽 라이트) 영역 회피용 클래스 토글
-  if (window.electronAPI?.isElectron) {
+  if (api.isElectron) {
     document.body.classList.add('electron-app');
-    window.electronAPI.getFullscreen?.().then(isFullscreen => {
+    api.getFullscreen?.().then(isFullscreen => {
       document.body.classList.toggle('fullscreen', isFullscreen);
     });
-    window.electronAPI.onFullscreenChange?.(isFullscreen => {
+    api.onFullscreenChange?.(isFullscreen => {
       document.body.classList.toggle('fullscreen', isFullscreen);
     });
   }
