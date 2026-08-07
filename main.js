@@ -519,6 +519,18 @@ ipcMain.handle('auth:login', async (_event, email, password) => {
   return r;
 });
 
+// ★「새로고침」 — 등급이 «앱 밖에서» 바뀌기 때문에 필요하다.
+//   입금 승인도, 베타 종료도 서버에서 일어난다. 앱을 다시 켜야만 반영되면 사용자는 안 켠다.
+//   ⚠️ 오프라인이면 verifySession 이 null 을 준다 — 그때는 «기존 상태를 유지»한다(못 쓰게 만들지 않는다).
+ipcMain.handle('auth:refresh', async () => {
+  const auth = readAuth();
+  if (!auth?.email || !auth?.sessionToken) return { ok: false, reason: 'not_signed_in' };
+  const r = await authVerifySession(auth.email, auth.sessionToken);
+  if (!r) return { ok: false, reason: 'offline' };          // 유예 유지 — auth.json 을 안 건드린다
+  writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil || auth.accessUntil });
+  return { ok: true, plan: r.plan || '', accessUntil: r.accessUntil || '' };
+});
+
 ipcMain.handle('auth:logout', () => {
   clearAuth();
   return { ok: true };

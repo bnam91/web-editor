@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Account auth (라이선스 키 제도 폐지 → 홈페이지 계정 로그인)
   getAuthState:       ()                   => ipcRenderer.invoke('auth:state'),
+  refreshAuth:        ()                   => ipcRenderer.invoke('auth:refresh'),
   authLogin:          (email, password)    => ipcRenderer.invoke('auth:login', email, password),
   authLogout:         ()                   => ipcRenderer.invoke('auth:logout'),
   openExternalUrl:    (url)                => ipcRenderer.invoke('auth:open-external', url),

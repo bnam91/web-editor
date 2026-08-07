@@ -78,6 +78,32 @@ body {
   display: flex; align-items: center; gap: 8px;
 }
 
+/* ── 내 계정 — 기존 헤더 버튼(높이 32 · radius 7 · 12px) 규격을 그대로 쓴다 ── */
+#acct {
+  display: none; align-items: center; gap: 8px;
+  height: 32px; padding: 0 10px 0 8px;
+  background: #2a2a2a; border: 1px solid #444; border-radius: 7px;
+  font-size: 12px; color: #aaa;
+}
+#acct-mail  { color: #e0e0e0; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#acct-until { color: #9e9e9e; }
+/* 배지는 이 파일의 .planning-badge 와 같은 꼴을 따른다 — 새 룩을 만들지 않는다 */
+.acct-badge {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 700; letter-spacing: .02em;
+  border-radius: 4px; padding: 2px 7px;
+  color: #9e9e9e; background: rgba(255,255,255,0.06); border: 1px solid #444;
+}
+.acct-badge.is-beta { color: #6fa3f7; background: rgba(45,111,232,0.18); border-color: rgba(45,111,232,0.45); }
+.acct-badge.is-paid { color: #7fc87f; background: rgba(127,200,127,0.15); border-color: rgba(127,200,127,0.40); }
+#acct button {
+  height: 22px; padding: 0 9px;
+  background: #333; border: 1px solid #4a4a4a; border-radius: 5px;
+  color: #ddd; font-size: 11px; cursor: pointer;
+}
+#acct button:hover    { background: #3d3d3d; border-color: #5a5a5a; }
+#acct button:disabled { opacity: .5; cursor: default; }
+
 /* ── Grid ── */
 #project-grid {
   display: grid;
@@ -204,6 +230,15 @@ body {
         </svg>
         디자인 프로젝트 만들기
       </button>
+      <!-- ★내 계정 — 지금 앱엔 자기 등급을 볼 방법이 «아예 없다».
+           등급은 앱 «밖»(입금 승인·베타 종료)에서 바뀌므로 [새로고침]이 함께 있어야 한다. -->
+      <div id="acct" title="내 계정">
+        <span id="acct-plan" class="acct-badge"></span>
+        <span id="acct-mail"></span>
+        <span id="acct-until"></span>
+        <button id="acct-refresh" title="서버에서 등급을 다시 읽는다">새로고침</button>
+        <button id="acct-upgrade" title="요금제를 브라우저로 연다">등급 올리기</button>
+      </div>
     </div>
   </div>
   <div id="project-grid"></div>
@@ -551,6 +586,66 @@ function renderHomeTabs() {
    실제 흐름은 js/io/gdt-import.js가 갖고 있다(편집기 페이지와 공용). 여기선
    «불러온 뒤 목록을 다시 그리는 것»만 등록한다 — 안 하면 새 프로젝트가 새로고침 전까지 안 보인다. */
 window.__gdtOnImported = async () => { await renderGrid(); };
+
+/* ── 내 계정 ────────────────────────────────────────────────────────────
+ * 지금 앱엔 자기 등급을 볼 방법이 «아예 없어서», 등급이 제대로 내려왔는지
+ * 확인하려면 DB 를 열어봐야 했다. 이 한 줄이 그걸 대신한다.
+ *
+ * ★표시명과 코드값을 가른다 — 서버가 주는 건 코드값(beta/free/starter/pro/promax),
+ *   화면에 쓰는 건 표시명이다. 코드값을 그대로 그리면 서버가 이름을 바꾸는 순간 깨진다.
+ * ★event_free 는 «옛 서버»가 주던 값이다. 뜻이 지금의 beta 와 같으므로 같이 받아준다.
+ */
+const PLAN_LABEL = {
+  beta: 'BETA', event_free: 'BETA',
+  free: 'FREE', starter: 'STARTER', pro: 'PRO', promax: 'PRO MAX',
+};
+const PLAN_CLASS = { beta: 'is-beta', event_free: 'is-beta', starter: 'is-paid', pro: 'is-paid', promax: 'is-paid' };
+
+function paintAcct(st) {
+  const box = document.getElementById('acct');
+  if (!box) return;
+  if (!st || !st.signedIn) { box.style.display = 'none'; return; }
+  const code = String(st.plan || '').toLowerCase();
+  const badge = document.getElementById('acct-plan');
+  // ★모르는 코드값이면 «그 값을 그대로» 보여준다. 빈칸으로 두면 서버가 뭘 줬는지 알 수 없다.
+  badge.textContent = PLAN_LABEL[code] || (code ? code.toUpperCase() : '—');
+  badge.className = 'acct-badge ' + (PLAN_CLASS[code] || '');
+  document.getElementById('acct-mail').textContent = st.email || '';
+  let until = '';
+  if (st.accessUntil) {
+    const d = new Date(st.accessUntil);
+    if (!isNaN(d)) {
+      const left = Math.ceil((d - Date.now()) / 86400000);
+      until = d.toISOString().slice(0, 10) + ' 까지' + (left >= 0 && left <= 30 ? ' · ' + left + '일 남음' : '');
+    }
+  }
+  document.getElementById('acct-until').textContent = until;
+  box.style.display = 'flex';
+}
+
+(async () => {
+  const api = window.electronAPI;
+  if (!api || !api.getAuthState) return;          // 브라우저에서 열었을 때 — 조용히 생략
+  paintAcct(await api.getAuthState());
+
+  const rf = document.getElementById('acct-refresh');
+  if (rf) rf.addEventListener('click', async () => {
+    rf.disabled = true; const was = rf.textContent; rf.textContent = '확인 중…';
+    try {
+      const r = await (api.refreshAuth ? api.refreshAuth() : null);
+      paintAcct(await api.getAuthState());
+      // ★오프라인이면 «조용히 실패»하면 안 된다 — 눌렀는데 아무 일도 안 일어난 걸로 보인다.
+      rf.textContent = (r && r.ok) ? '갱신됨' : (r && r.reason === 'offline' ? '오프라인' : was);
+    } catch (_) { rf.textContent = was; }
+    setTimeout(() => { rf.textContent = was; rf.disabled = false; }, 1600);
+  });
+
+  const up = document.getElementById('acct-upgrade');
+  if (up) up.addEventListener('click', async () => {
+    const st = await api.getAuthState();
+    if (st && st.purchaseUrl && api.openExternalUrl) await api.openExternalUrl(st.purchaseUrl);
+  });
+})();
 </script>
 <script src="../js/io/gdt-import.js"></script>
 </body>
