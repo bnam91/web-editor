@@ -1926,6 +1926,17 @@ app.whenReady().then(async () => {
     // 실패해도 앱은 계속 — IPC 핸들러의 flat fallback이 read 경로 보장
   }
 
+  // .gdt 내보내기 — IPC + 애플리케이션 메뉴.
+  // ★메뉴는 이 앱에 원래 없어서 Electron 기본 메뉴가 ⌘C/⌘V를 대신하고 있었다.
+  //   표준 role 템플릿 위에 「파일」을 얹는 방식이라 기본 편집 단축키가 유지된다.
+  try {
+    const { registerGdtIpc, buildAppMenu } = require('./main/gdt/wire');
+    registerGdtIpc({ projectsDir: PROJECTS_DIR, resolveProjectJsonPath: _resolveProjectJsonPath });
+    buildAppMenu();
+  } catch (e) {
+    console.error('[gdt] 초기화 실패 — 메뉴 없이 계속:', e);
+  }
+
   createWindow();
   // watchFiles가 던져도 updater/MCP 초기화는 계속돼야 함 (0.5.0 자동업데이트 사망 원인)
   try { watchFiles(); } catch (e) { console.error('[hot-reload] watch skipped:', e.message); }
