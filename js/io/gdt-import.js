@@ -142,11 +142,21 @@
       // ★폰트 경고는 «열 때» 알린다(§7)
       const { missing, unknown } = missingFonts(result.fonts);
       let msg = `✅ 불러옴 — ${result.name} · 이미지 ${result.images}장`;
-      if (missing.length) msg += ` · ⚠️ 이 기기에 없는 폰트: ${missing.join(', ')}`;
+      if (missing.length) msg += ` · ⚠️ 이 기기에 없는 폰트 ${missing.length}개 — 대체할 글꼴을 고르세요`;
       else if (unknown.length) msg += ` · 폰트 확인 불가: ${unknown.join(', ')}`;
       window.showToast?.(msg);
 
       if (typeof opts.onDone === 'function') await opts.onDone(result);
+
+      /* ★없는 글꼴은 «토스트로 흘려보내지 않는다» — 어디에 몇 군데인지 보여주고 대체를 고르게 한다.
+       *   await 하지 않는다: .gdt 를 여러 개 연 경우 대화상자가 다음 불러오기를 막으면 안 된다.
+       *   (겹칠 땐 두 번째는 기록만 남고, 목록 카드의 「없는 글꼴」 배지로 다시 열 수 있다.) */
+      if (missing.length) {
+        window.openFontSubstitute?.({
+          projectId: result.projectId, projectName: result.name,
+          seedFonts: result.fonts, silentIfNone: true,
+        })?.catch?.((e) => console.warn('[gdt] 글꼴 대체 대화상자 실패:', e));
+      }
       return result;
     } finally {
       _busy = false;
