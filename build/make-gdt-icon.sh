@@ -12,18 +12,26 @@ cd "$(dirname "$0")"
 OUT_PNG=gdt-icon-1024.png
 S=1024
 
-# 문서 형태 — 세로 페이지 + 우상단 접힘. 마크는 앱 아이콘과 같은 검정.
+# 문서 형태 — 세로 페이지 + 우상단 접힘.
+# ★1판은 «흰 페이지 + 검은 마크»였는데 탐색기 흰 배경에서 면이 묻혔다
+#   (실측: 불투명 픽셀 평균 RGB 235,235,236 · 밝은 픽셀 92.3% → 16px 에선 마크만 남아 «점»).
+#   ⇒ 면을 앱 아이콘과 «같은 검정»(#1C1C1E)으로 채우고 마크를 흰색으로 반전한다.
+#   새 룩어라이크가 아니라 앱 아이콘의 색 관계(검정 바탕 + 밝은 스파클)를 문서 형태로 옮긴 것.
 PAGE_X1=176; PAGE_Y1=64; PAGE_X2=848; PAGE_Y2=960
 FOLD=168                                  # 접히는 모서리 한 변
 CX=512; CY=560; R=210                     # 스파클 중심·반지름
 K=$((R * 13 / 100))                        # 오목 제어점 거리(≈0.13R)
+BODY='#1C1C1E'                            # 앱 아이콘 바탕과 동일
+FOLDC='#3A3A3E'                           # 접힘면 — 본체보다 밝게 해 모서리가 읽히게
+EDGE='#0A0A0B'                            # 외곽선 — 어두운 배경에서도 형태가 남게
+MARK='#F2F2F3'                            # 마크(앱 아이콘의 밝은 스파클과 같은 계열)
 
 magick -size ${S}x${S} xc:none \
-  -fill white -stroke '#D3D6DE' -strokewidth 6 \
+  -fill "$BODY" -stroke "$EDGE" -strokewidth 6 \
   -draw "path 'M $((PAGE_X1+28)),${PAGE_Y1} L $((PAGE_X2-FOLD)),${PAGE_Y1} L ${PAGE_X2},$((PAGE_Y1+FOLD)) L ${PAGE_X2},$((PAGE_Y2-28)) Q ${PAGE_X2},${PAGE_Y2} $((PAGE_X2-28)),${PAGE_Y2} L $((PAGE_X1+28)),${PAGE_Y2} Q ${PAGE_X1},${PAGE_Y2} ${PAGE_X1},$((PAGE_Y2-28)) L ${PAGE_X1},$((PAGE_Y1+28)) Q ${PAGE_X1},${PAGE_Y1} $((PAGE_X1+28)),${PAGE_Y1} Z'" \
-  -fill '#E7E9EF' -stroke '#D3D6DE' -strokewidth 6 \
+  -fill "$FOLDC" -stroke "$EDGE" -strokewidth 6 \
   -draw "path 'M $((PAGE_X2-FOLD)),${PAGE_Y1} L ${PAGE_X2},$((PAGE_Y1+FOLD)) L $((PAGE_X2-FOLD)),$((PAGE_Y1+FOLD)) Z'" \
-  -fill '#1C1C1E' -stroke none \
+  -fill "$MARK" -stroke none \
   -draw "path 'M ${CX},$((CY-R)) Q $((CX+K)),$((CY-K)) $((CX+R)),${CY} Q $((CX+K)),$((CY+K)) ${CX},$((CY+R)) Q $((CX-K)),$((CY+K)) $((CX-R)),${CY} Q $((CX-K)),$((CY-K)) ${CX},$((CY-R)) Z'" \
   "$OUT_PNG"
 # ★글자 라벨은 넣지 않는다 — 16px에서 못 읽고, magick이 시스템 폰트를 못 찾으면

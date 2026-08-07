@@ -1,0 +1,100 @@
+/* font-substitute.css — 「이 기기에 없는 글꼴」 대체 모달
+ *
+ * ★껍데기·버튼·셀렉트는 «기존 공용 클래스 그대로»다:
+ *     .settings-modal-overlay / -shell / -header / -title / -close / -body / -footer  (settings-modal.css)
+ *     .settings-btn / .settings-btn-primary / .settings-btn-secondary                 (settings-modal.css)
+ *     .ds-font-select  (editor-base.css — 「글꼴 고르는 셀렉트」 그 용도 그대로)
+ *   여기 있는 건 «새 내용의 행 배치»뿐이다. 룩어라이크를 새로 짓지 않는다.
+ * ★색·크기는 전부 --ui-* 토큰. 폴백 hex를 병기하지 «않는다» — 토큰이 바뀌면 같이 바뀌어야 한다.
+ *   (그래서 이 파일을 쓰는 페이지는 editor-base.css를 반드시 물어야 한다: index.html·pages/projects.html 둘 다 링크됨)
+ */
+
+.fsub-shell { width: 620px; max-height: 560px; }
+
+/* .settings-modal-body는 탭 배치(가로 flex)라 세로/스크롤로 되돌린다 */
+.fsub-body {
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 18px 18px;
+  gap: 10px;
+}
+
+.fsub-intro {
+  font-size: var(--ui-fs-12);
+  color: var(--ui-text-sub);
+  line-height: 1.65;
+}
+.fsub-dim { color: var(--ui-text-muted); }
+
+.fsub-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+.fsub-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 5px 14px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--ui-bg-app);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.fsub-name {
+  grid-column: 1;
+  display: flex; align-items: center; gap: 7px; min-width: 0;
+  font-size: var(--ui-fs-12);
+  font-weight: var(--ui-fw-semibold);
+  color: var(--ui-text);
+}
+.fsub-family { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 「몇 군데」 — 없는 글꼴이라 danger 톤(토큰 그대로) */
+.fsub-count {
+  flex-shrink: 0;
+  font-size: var(--ui-fs-10);
+  font-weight: var(--ui-fw-semibold);
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: var(--ui-danger-bg);
+  border: 1px solid var(--ui-danger-border);
+  color: var(--ui-danger);
+  cursor: help;
+}
+
+.fsub-where {
+  grid-column: 1;
+  font-size: var(--ui-fs-base);
+  color: var(--ui-text-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.fsub-pick { grid-column: 2; grid-row: 1 / span 2; }
+.fsub-select { width: 100%; height: var(--ui-input-h); font-size: var(--ui-fs-base); }
+
+.fsub-spacer { flex: 1; }
+.fsub-status { font-size: var(--ui-fs-base); color: var(--ui-text-muted); }
+
+/* ── 프로젝트 카드의 「없는 글꼴」 배지 (나중에 다시 열기) ── */
+.fsub-card-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 5px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  font-size: var(--ui-fs-10);
+  font-weight: var(--ui-fw-semibold);
+  background: var(--ui-danger-bg);
+  border: 1px solid var(--ui-danger-border);
+  color: var(--ui-danger);
+  cursor: pointer;
+}
+.fsub-card-badge:hover { border-color: var(--ui-danger-hover); color: var(--ui-danger-hover); }
+
+/* 이미 대체해 둔 상태 — 경고가 아니라 «다시 고를 수 있다»는 표시라 톤을 낮춘다 */
+.fsub-card-badge.is-done {
+  background: transparent;
+  border-color: var(--ui-border-strong);
+  color: var(--ui-text-muted);
+}
+.fsub-card-badge.is-done:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }

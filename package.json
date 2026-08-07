@@ -1,6 +1,6 @@
 {
   "name": "sangpe-editor",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "상페마법사 — 상세페이지 제작용 에디터",
   "main": "main.js",
   "scripts": {
@@ -53,7 +53,7 @@
       "fileAssociations": [
         {
           "ext": "gdt",
-          "name": "GODITOR Project",
+          "name": "GODITOR.Project",
           "description": "GODITOR 프로젝트 파일",
           "role": "Editor",
           "mimeType": "application/x-goditor-project",
@@ -74,7 +74,7 @@
       "fileAssociations": [
         {
           "ext": "gdt",
-          "name": "GODITOR Project",
+          "name": "GODITOR.Project",
           "description": "GODITOR 프로젝트 파일",
           "role": "Editor",
           "mimeType": "application/x-goditor-project",

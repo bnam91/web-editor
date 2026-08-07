@@ -259,6 +259,8 @@
   <div id="loginScreen" class="screen visible">
     <h2>로그인</h2>
     <p class="desc">홈페이지에서 가입한 계정으로 로그인해 주세요.</p>
+    <!-- .gdt 를 더블클릭해 들어왔을 때만 보인다. 사용자가 「내 파일이 어디 갔지」로 놀라지 않게. -->
+    <div class="status info" id="pendingGdtMsg" style="display:none"></div>
 
     <div class="field">
       <label for="email">이메일</label>
@@ -301,6 +303,27 @@
 
 <script>
   const api = window.electronAPI || {};
+
+  /* ── .gdt 를 더블클릭해 들어온 경우 ──
+   * 비로그인이면 이 화면이 뜨는데, 파일 대기열을 «비우는» 코드가 이 페이지엔 없다.
+   * 즉 파일은 유실이 아니라 «대기»했다가 로그인 뒤 projects.html 에서 열린다.
+   * ★그런데 사용자는 그걸 알 방법이 없어서 「내 파일이 어디 갔지」가 된다 — 한 줄로 알린다.
+   * ★반드시 peek(비우지 않음)을 쓴다. take 를 쓰면 여기서 큐가 비어 정작 안 열린다.
+   */
+  (async () => {
+    try {
+      const pending = await api.gdtPeekPendingOpen?.();
+      const list = Array.isArray(pending) ? pending : (pending ? [pending] : []);
+      if (!list.length) return;
+      const el = document.getElementById('pendingGdtMsg');
+      if (!el) return;
+      const names = list.map(p => String(p).split('/').pop().split('\\').pop());
+      el.textContent = names.length === 1
+        ? `로그인하면 〈${names[0]}〉를 엽니다.`
+        : `로그인하면 파일 ${names.length}개를 엽니다 — ${names.join(', ')}`;
+      el.style.display = '';
+    } catch (_) { /* 구버전 preload 등 — 표시만 생략하고 동작엔 영향 없다 */ }
+  })();
   // 아래 값들은 auth:state가 실어 보내는 것(services/authService.js가 원본)으로 덮인다.
   // 여기 문자열은 IPC를 못 받았을 때의 최후 fallback일 뿐 — 주소를 바꿀 일이 있으면
   // authService.js의 API_BASE 한 곳만 고친다.

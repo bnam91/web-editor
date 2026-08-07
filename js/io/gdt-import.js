@@ -87,18 +87,41 @@
     image_decode_failed:        '이미지를 열 수 없습니다. 파일이 손상됐습니다.',
     verify_exception:           '파일을 검사하는 중 오류가 났습니다.',
     import_failed:              '불러오기에 실패했습니다.',
+    // ★입력 상한(§11) — 「손상」이 아니라 「너무 크다·이상하다」로 구분해 알린다.
+    //   정상 프로젝트로는 이 값에 닿지 않는다(실측 최대의 9~90배로 잡았다).
+    too_many_entries:           '파일 구성이 비정상적으로 많습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    too_many_images:            '이미지가 비정상적으로 많습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    too_many_references:        '파일 내부 참조가 비정상적으로 많습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    reference_count_mismatch:   '파일 내부 구조가 맞지 않습니다. 손상됐거나 정상적으로 만들어진 파일이 아닙니다.',
+    unexpected_entry:           '파일에 예상치 못한 내용이 들어 있습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    duplicate_manifest_entry:   '파일 목록에 중복이 있습니다. 정상적으로 만들어진 파일이 아닙니다.',
+    duplicate_entry:            '파일 안에 같은 이름이 중복돼 있습니다. 정상적으로 만들어진 파일이 아닙니다.',
+    unsafe_entry:               '파일 안에 허용되지 않는 이름이 있습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    entry_too_large:            '파일 안의 항목 하나가 너무 큽니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    archive_too_large:          '압축을 풀면 너무 커집니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    output_too_large:           '복원 결과가 너무 커져 중단했습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    timeout:                    '시간이 너무 오래 걸려 중단했습니다.',
   };
   function rejectMessage(result) {
     const base = REJECT_MESSAGE[result?.code] || '불러올 수 없는 파일입니다.';
     return `${base} 기존 프로젝트는 그대로입니다.`;   // 부분 복원이 없다는 걸 사용자에게 알린다
   }
 
+  // ★진행 중이면 «거절»하지 않고 «줄 세운다».
+  //   거절하면 파인더에서 여러 .gdt 를 한 번에 연 사용자가 「하나만 열렸다」를 겪는다 —
+  //   main 쪽 대기열을 큐로 고쳐놨는데 여기서 떨구면 같은 유실이 그대로 난다.
+  let _chain = Promise.resolve();
   let _busy = false;
 
-  async function gdtImportFlow(opts = {}) {
+  function gdtImportFlow(opts = {}) {
+    const run = () => _gdtImportOne(opts);
+    _chain = _chain.then(run, run);
+    return _chain;
+  }
+
+  async function _gdtImportOne(opts = {}) {
     const api = API();
     if (!api?.gdtImport) { window.showToast?.('⚠️ 불러오기는 데스크톱 앱에서만 됩니다'); return null; }
-    if (_busy) { window.showToast?.('⏳ 불러오기가 이미 진행 중입니다'); return null; }
     _busy = true;
     try {
       window.showProjectLoadingOverlay?.();
@@ -119,11 +142,21 @@
       // ★폰트 경고는 «열 때» 알린다(§7)
       const { missing, unknown } = missingFonts(result.fonts);
       let msg = `✅ 불러옴 — ${result.name} · 이미지 ${result.images}장`;
-      if (missing.length) msg += ` · ⚠️ 이 기기에 없는 폰트: ${missing.join(', ')}`;
+      if (missing.length) msg += ` · ⚠️ 이 기기에 없는 폰트 ${missing.length}개 — 대체할 글꼴을 고르세요`;
       else if (unknown.length) msg += ` · 폰트 확인 불가: ${unknown.join(', ')}`;
       window.showToast?.(msg);
 
       if (typeof opts.onDone === 'function') await opts.onDone(result);
+
+      /* ★없는 글꼴은 «토스트로 흘려보내지 않는다» — 어디에 몇 군데인지 보여주고 대체를 고르게 한다.
+       *   await 하지 않는다: .gdt 를 여러 개 연 경우 대화상자가 다음 불러오기를 막으면 안 된다.
+       *   (겹칠 땐 두 번째는 기록만 남고, 목록 카드의 「없는 글꼴」 배지로 다시 열 수 있다.) */
+      if (missing.length) {
+        window.openFontSubstitute?.({
+          projectId: result.projectId, projectName: result.name,
+          seedFonts: result.fonts, silentIfNone: true,
+        })?.catch?.((e) => console.warn('[gdt] 글꼴 대체 대화상자 실패:', e));
+      }
       return result;
     } finally {
       _busy = false;
@@ -149,8 +182,10 @@
   });
   (async () => {
     try {
+      // ★배열로 온다(다중선택). 옛 형태(문자열 하나)도 받아준다.
       const pending = await API()?.gdtTakePendingOpen?.();
-      if (pending) gdtImportFlow({ filePath: pending, onDone: window.__gdtOnImported });
+      const list = Array.isArray(pending) ? pending : (pending ? [pending] : []);
+      for (const filePath of list) gdtImportFlow({ filePath, onDone: window.__gdtOnImported });
     } catch (_) { /* 미지원 환경 */ }
   })();
 })();

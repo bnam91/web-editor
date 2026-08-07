@@ -24,19 +24,39 @@ function safeFileName(name) {
  *           단일 인스턴스 잠금 + `second-instance` 이벤트로 받아야 한다.
  * ⇒ 「앱이 꺼진 상태」와 「켜진 상태」가 서로 다른 코드 경로다. 둘 다 큐로 모은다.
  */
-let _pendingOpenPath = null;
+/* ★슬롯 하나가 아니라 «큐»여야 한다.
+ * 재현(2026-08-07): 파인더에서 .gdt 둘을 다중선택해 Enter 하면 open-file 이 창보다 «먼저»
+ *   연달아 두 번 뜬다. 슬롯 하나면 뒤엣것이 앞엣것을 덮어 «A 가 조용히 사라진다».
+ *   윈도우도 같다 — argv 에 두 경로가 실려 오는데 첫 번째만 집으면 B 가 사라진다.
+ *   id 충돌이 아니라 «사용자가 더블클릭한 파일이 아무 말 없이 안 열리는» 문제라 더 나쁘다.
+ */
+const _pendingOpenPaths = [];
+const MAX_PENDING = 20;      // 다중선택이라도 이 이상은 실수다
 
-function _gdtPathFromArgv(argv) {
+function _queue(p) {
+  if (!p || _pendingOpenPaths.includes(p)) return;   // 같은 파일 두 번은 한 번으로
+  if (_pendingOpenPaths.length >= MAX_PENDING) {
+    console.warn(`[gdt] 대기열이 가득 차 무시: ${p}`);
+    return;
+  }
+  _pendingOpenPaths.push(p);
+}
+
+/** argv 에서 «모든» .gdt 경로를 집는다. */
+function _gdtPathsFromArgv(argv) {
+  const out = [];
   for (const a of argv || []) {
     if (typeof a !== 'string' || !a.toLowerCase().endsWith('.gdt')) continue;
-    if (fs.existsSync(a)) return a;
+    if (fs.existsSync(a)) { out.push(a); continue; }
     // ★.gdt처럼 생겼는데 파일이 없다 — 네트워크 드라이브 미마운트·권한 등.
-    //   반환은 계속 null이다(존재하지 않는 경로를 넘기면 더 나쁜 실패가 난다).
+    //   넘기지는 않는다(존재하지 않는 경로를 넘기면 더 나쁜 실패가 난다).
     //   다만 «조용히» 사라지면 원인을 못 찾으므로 로그는 남긴다.
     console.warn(`[gdt] argv의 .gdt 경로에 접근할 수 없어 무시: ${a}`);
   }
-  return null;
+  return out;
 }
+// 기존 계약 유지(첫 경로 또는 null) — 두장 검증 스크립트가 이 형태를 쓴다
+function _gdtPathFromArgv(argv) { return _gdtPathsFromArgv(argv)[0] || null; }
 
 function _deliver(p) {
   if (!p) return;
@@ -45,12 +65,12 @@ function _deliver(p) {
     if (win.isMinimized()) win.restore();
     win.focus();
     win.webContents.send('gdt:open-file', p);
-    _pendingOpenPath = null;
   } else {
     // 창이 아직 없다(콜드 스타트). 렌더러가 준비되면 «가져간다» — push는 경합에 진다.
-    _pendingOpenPath = p;
+    _queue(p);
   }
 }
+function _deliverAll(paths) { for (const p of paths) _deliver(p); }
 
 /* ★app ready «이전»에 불러야 한다 — 맥 open-file은 ready 전에도 뜬다. */
 function registerGdtFileAssociations() {
@@ -68,21 +88,25 @@ function registerGdtFileAssociations() {
     //   두 번째 인스턴스가 창을 띄우거나 마이그레이터를 도는 사이 경합이 난다.
     //   이 인스턴스는 아직 아무것도 안 했으므로 즉시 끊는 게 안전하다.
     if (!app.requestSingleInstanceLock()) { app.exit(0); return; }
-    app.on('second-instance', (_e, argv) => _deliver(_gdtPathFromArgv(argv)));
+    app.on('second-instance', (_e, argv) => _deliverAll(_gdtPathsFromArgv(argv)));
   }
 
-  // 콜드 스타트(윈도우): 최초 argv에 경로가 실려 온다
-  const initial = _gdtPathFromArgv(process.argv.slice(1));
-  if (initial) _pendingOpenPath = initial;
+  // 콜드 스타트(윈도우): 최초 argv에 «여러» 경로가 실려 올 수 있다(다중선택)
+  for (const p of _gdtPathsFromArgv(process.argv.slice(1))) _queue(p);
 }
 
 function registerGdtIpc({ projectsDir, resolveProjectJsonPath }) {
   // 렌더러가 준비된 뒤 «가져간다». push 방식은 렌더러가 리스너를 걸기 전에 도착하면 유실된다.
   ipcMain.handle('gdt:takePendingOpen', () => {
-    const p = _pendingOpenPath;
-    _pendingOpenPath = null;
-    return p;
+    // ★배열로 «전부» 넘기고 비운다. 하나씩 주면 렌더러가 나머지를 못 가져간다.
+    const all = _pendingOpenPaths.slice();
+    _pendingOpenPaths.length = 0;
+    return all;
   });
+
+  // ★«비우지 않고» 들여다본다 — 로그인 화면처럼 «아직 열 수 없는» 페이지가 쓴다.
+  //   여기서 take 를 쓰면 큐가 비어 로그인 뒤 정작 파일이 안 열린다.
+  ipcMain.handle('gdt:peekPendingOpen', () => _pendingOpenPaths.slice());
 
   ipcMain.handle('gdt:export', async (event, { projectId, projectName } = {}) => {
     try {
@@ -232,5 +256,5 @@ function buildAppMenu() {
 module.exports = {
   registerGdtIpc, registerGdtFileAssociations, buildAppMenu, safeFileName,
   // 테스트용 — 파일 연결 경로는 GUI 더블클릭 없이는 재현이 어려워 상태를 들여다볼 창구를 둔다
-  _gdtPathFromArgv, getPendingOpenPath: () => _pendingOpenPath,
+  _gdtPathFromArgv, _gdtPathsFromArgv, getPendingOpenPath: () => _pendingOpenPaths.slice(),
 };

@@ -16,16 +16,32 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const yauzl = require('yauzl');
-const { verifyGdt, FORMAT_VERSION } = require('./export');
+const { verifyGdt, FORMAT_VERSION, ENTRY_NAME_RE } = require('./export');
+const { LIMITS, LimitError, makeDeadline, fmtMB } = require('./limits');
 
-/* ── 엔트리명 안전성 (§9) ──
- * 경로 탈출·비ASCII를 거부한다. 정상 .gdt의 엔트리명은 전부 ASCII다(§1).
+/* ── 엔트리명 안전성 (§9) — ★«금지목록»이 아니라 «허용목록» ──
+ *
+ * 이전 판은 `images/[A-Za-z0-9._-]{1,64}` + `..`·`\` 금지였다. 통과하는 이름이 넓어서
+ * 아래가 전부 뚫렸다. 허용목록 하나로 «구조적으로» 사라진다 — 크기 상한 대신 불변식을
+ * 쓴 증폭 방어와 같은 결이다. 「나쁜 걸 세는」 대신 「좋은 것만 통과시킨다」.
+ *
+ *   대소문자 충돌   img_0001.PNG + img_0001.png → 맥·윈 기본 FS가 무시해 뒤엣것이 덮는다
+ *                  ⇒ 확장자를 소문자로 고정하니 .PNG 자체가 거부된다
+ *   NFC/NFD 충돌   같은 한글 이름이 다른 바이트로 두 엔트리
+ *                  ⇒ ASCII 전용이라 한글이 아예 못 들어온다
+ *   제어문자·NUL    도구가 조용히 실패한다(오늘 wire.js 에서 실제로 당했다)
+ *                  ⇒ \d 와 고정 리터럴만 허용
+ *   윈도우 예약명   CON·PRN·AUX·NUL·COM1~9·LPT1~9, 끝의 공백·마침표
+ *                  ⇒ 이름이 `img_<숫자>.<확장자>` 로 못 나온다. 예약어 목록이 «필요 없다»
+ *   경로 탈출      `..`·`\`·절대경로 ⇒ 패턴에 `/` 가 `images/` 한 곳뿐이라 불가능
+ *
+ * ★패턴은 export.js 가 «소유»한다(ENTRY_NAME_RE). 이름을 만드는 쪽과 검사하는 쪽이
+ *   따로 하드코딩하면 어긋나고, 어긋나면 «정상 파일이 안 열린다» — 허용목록의 최악 실패다.
+ *   확장자 목록도 MIME_EXT 에서 파생돼 드리프트가 없다.
+ *   호환 확인: 실제 .gdt 5개·엔트리 194개 전부 통과(오탐 0).
  */
-const SAFE_ENTRY = /^(manifest\.json|project\.json|images\/[A-Za-z0-9._-]{1,64})$/;
 function isSafeEntry(name) {
-  if (!SAFE_ENTRY.test(name)) return false;
-  if (name.includes('..') || name.includes('\\')) return false;
-  return true;
+  return ENTRY_NAME_RE.test(name);
 }
 
 /* ── 새 프로젝트 id 발급 (§7) ──
@@ -38,6 +54,28 @@ function allocateProjectId(projectsDir) {
     const id = `proj_${n + i}`;
     if (!fs.existsSync(path.join(projectsDir, id)) && !fs.existsSync(path.join(projectsDir, `${id}.json`))) {
       return id;
+    }
+  }
+  throw new Error('새 프로젝트 id 발급 실패');
+}
+
+/* ★§11-3 TOCTOU: 「비었나 확인」과 「실제 생성(rename)」 사이가 수백ms~수초다.
+ *   그 사이 다른 불러오기가 같은 id 를 집으면 뒤엣놈이 rename 에서 ENOTEMPTY 로 죽고,
+ *   `import_failed` 로 뭉개져 «원인을 알 수 없는» 실패가 된다.
+ * ⇒ mkdir 로 «선점»한다. mkdir 는 원자적이라(recursive:false) 이미 있으면 EEXIST 로 튕긴다.
+ *   빈 디렉터리를 잡아두고, 마지막에 지운 직후 rename 한다 — 창이 마이크로초로 줄어든다.
+ */
+function reserveProjectId(projectsDir) {
+  let n = Date.now();
+  for (let i = 0; i < 10000; i++) {
+    const id = `proj_${n + i}`;
+    if (fs.existsSync(path.join(projectsDir, `${id}.json`))) continue;   // flat 레거시와도 충돌 회피
+    try {
+      fs.mkdirSync(path.join(projectsDir, id));                          // 원자적 선점
+      return id;
+    } catch (e) {
+      if (e.code === 'EEXIST') continue;
+      throw e;
     }
   }
   throw new Error('새 프로젝트 id 발급 실패');
@@ -63,7 +101,7 @@ function replaceTopLevelId(buf, newId) {
  * project.json 자체는 작다(실측 0.13~0.51MB)라 메모리에 올려도 되지만, «출력»은 80~108MB다.
  * 이미지는 한 장씩 읽어 인코딩해 흘려보낸다 ⇒ 상주 메모리는 「가장 큰 이미지 하나」뿐.
  */
-async function writeRestoredProjJson({ projectJsonBuf, stageDir, mimeByEntry, outPath, onProgress }) {
+async function writeRestoredProjJson({ projectJsonBuf, stageDir, mimeByEntry, outPath, onProgress, deadline }) {
   const out = fs.createWriteStream(outPath);
   const failed = new Promise((_, rej) => out.on('error', rej));
 
@@ -76,8 +114,22 @@ async function writeRestoredProjJson({ projectJsonBuf, stageDir, mimeByEntry, ou
   let pos = 0, m, restored = 0, bytesOut = 0;
   const total = Object.keys(mimeByEntry).length;
 
+  // ★§11-1ⓒ 같은 엔트리 재읽기 캐시 — 증폭을 완화하고 정상 경로도 빨라진다.
+  //   캐시 자체가 메모리를 먹으므로 총량 상한을 둔다(넘으면 그 뒤로는 매번 읽는다).
+  const uriCache = new Map();
+  let cacheBytes = 0;
+  const uriFor = (entry, mime) => {
+    const hit = uriCache.get(entry);
+    if (hit) return hit;
+    const bin = fs.readFileSync(path.join(stageDir, entry));
+    const uri = Buffer.from(`data:${mime};base64,${bin.toString('base64')}`, 'latin1');
+    if (cacheBytes + uri.length <= LIMITS.SINGLE_ENTRY_BYTES) { uriCache.set(entry, uri); cacheBytes += uri.length; }
+    return uri;
+  };
+
   try {
     while ((m = RE.exec(text)) !== null) {
+      deadline?.check('restore');
       const entry = m[1];
       const mime = mimeByEntry[entry];
       if (!mime) throw new Error(`manifest에 없는 이미지 참조: ${entry}`);
@@ -86,13 +138,19 @@ async function writeRestoredProjJson({ projectJsonBuf, stageDir, mimeByEntry, ou
       await Promise.race([write(head), failed]); bytesOut += head.length;
 
       // ★원본 바이트를 그대로 base64로 되돌린다(재인코딩·재압축 없음).
-      //   한 장씩 읽고 즉시 흘려보내 상주 메모리를 「가장 큰 이미지 하나」로 묶는다.
-      const bin = fs.readFileSync(path.join(stageDir, entry));
-      const uri = Buffer.from(`data:${mime};base64,${bin.toString('base64')}`, 'latin1');
+      const uri = uriFor(entry, mime);
+
+      // ★★§11-1ⓑ 출력 누적 상한 — «쓰는 중»에 본다.
+      //   다 쓰고 개수를 세면 늦다: 실측으로 4,042B 짜리 .gdt 가 디스크에 63,507,495B 를
+      //   «이미 쓴 뒤» 개수 불일치로 실패했다. 여기서 끊으면 그 바이트가 아예 안 나간다.
+      if (bytesOut + uri.length > LIMITS.OUTPUT_BYTES) {
+        throw new LimitError('output_too_large', `${fmtMB(bytesOut)} 지점, 참조 ${restored + 1}번째`);
+      }
       await Promise.race([write(uri), failed]); bytesOut += uri.length;
 
       pos = m.index + m[0].length;
       restored += 1;
+      if (restored > LIMITS.REF_TOTAL) throw new LimitError('too_many_references', String(restored));
       if (onProgress) onProgress({ phase: 'restore', imagesDone: restored, imagesTotal: total });
     }
     const tail = Buffer.from(text.slice(pos), 'latin1');
@@ -106,14 +164,29 @@ async function writeRestoredProjJson({ projectJsonBuf, stageDir, mimeByEntry, ou
 }
 
 /* ── 스테이징 디렉터리로 전개 ── */
-function extractAll(gdtPath, stageDir) {
+function extractAll(gdtPath, stageDir, deadline) {
   return new Promise((resolve, reject) => {
     yauzl.open(gdtPath, { lazyEntries: true, autoClose: true }, (err, zf) => {
       if (err) return reject(new Error(`zip_open_failed: ${err.message}`));
       const names = [];
+      const seen = new Set();
+      let count = 0, totalOut = 0;
       zf.on('error', reject);
       zf.on('entry', (entry) => {
-        if (!isSafeEntry(entry.fileName)) return reject(new Error(`unsafe_entry: ${entry.fileName}`));
+        try { deadline?.check('extract'); } catch (e) { return reject(e); }
+        if (!isSafeEntry(entry.fileName)) return reject(new LimitError('unsafe_entry', entry.fileName));
+        // ★zip 은 같은 이름을 «여러 번» 담을 수 있다. 그대로 전개하면 뒤엣것이 앞엣것을
+        //   덮어 「검증한 파일」과 「디스크에 남은 파일」이 달라진다.
+        if (seen.has(entry.fileName)) return reject(new LimitError('duplicate_entry', entry.fileName));
+        seen.add(entry.fileName);
+        if (++count > LIMITS.ENTRY_COUNT) return reject(new LimitError('too_many_entries', String(count)));
+
+        // ★§11-2 압축 폭탄: 헤더의 «압축 해제 후» 크기를 «풀기 전»에 본다.
+        //   단, 헤더 값은 남이 쓴 것이라 그것만 믿지 않고 스트리밍 중에도 실제 바이트를 센다.
+        const declared = entry.uncompressedSize || 0;
+        if (declared > LIMITS.SINGLE_ENTRY_BYTES) return reject(new LimitError('entry_too_large', `${entry.fileName}:${fmtMB(declared)}`));
+        if (totalOut + declared > LIMITS.TOTAL_UNCOMPRESSED) return reject(new LimitError('archive_too_large', fmtMB(totalOut + declared)));
+
         const dest = path.join(stageDir, entry.fileName);
         // path traversal 2차 방어 — 정규화 후에도 stageDir 안이어야 한다
         if (!path.resolve(dest).startsWith(path.resolve(stageDir) + path.sep)) {
@@ -123,6 +196,14 @@ function extractAll(gdtPath, stageDir) {
         zf.openReadStream(entry, (e2, rs) => {
           if (e2) return reject(e2);
           const ws = fs.createWriteStream(dest);
+          let n = 0;
+          rs.on('data', (d) => {
+            n += d.length; totalOut += d.length;
+            if (n > LIMITS.SINGLE_ENTRY_BYTES || totalOut > LIMITS.TOTAL_UNCOMPRESSED) {
+              rs.destroy(); ws.destroy();
+              reject(new LimitError('archive_too_large', `${entry.fileName} 전개 중 ${fmtMB(totalOut)}`));
+            }
+          });
           rs.on('error', reject);
           ws.on('error', reject);
           ws.on('close', () => { names.push(entry.fileName); zf.readEntry(); });
@@ -162,21 +243,25 @@ async function importGdt({ gdtPath, projectsDir, onProgress = null }) {
     return { ok: false, code: v.code, error: `불러올 수 없는 파일입니다: ${v.code}${v.detail ? ` (${v.detail})` : ''}` };
   }
 
+  const deadline = makeDeadline();
   const tmpName = `.import_${Date.now()}_${crypto.randomBytes(3).toString('hex')}.tmp`;
   const stageDir = path.join(projectsDir, tmpName);
+  let reservedId = null;   // 실패 시 선점 디렉터리도 같이 지워야 한다
 
   try {
     fs.mkdirSync(stageDir, { recursive: true });
     if (onProgress) onProgress({ phase: 'extract' });
-    await extractAll(gdtPath, stageDir);
+    await extractAll(gdtPath, stageDir, deadline);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(stageDir, 'manifest.json'), 'utf8'));
     if (manifest.formatVersion > FORMAT_VERSION) throw new Error(`format_version_future: ${manifest.formatVersion}`);
+    if ((manifest.images || []).length > LIMITS.IMAGE_COUNT) throw new LimitError('too_many_images', String(manifest.images.length));
     const mimeByEntry = {};
     for (const img of manifest.images || []) mimeByEntry[img.entry] = img.mime;
 
-    // 2) 새 id 발급 — ★sourceId 를 쓰지 않는다(§7-4)
-    const newId = allocateProjectId(projectsDir);
+    // 2) 새 id 발급 — ★sourceId 를 쓰지 않는다(§7-4) · ★§11-3 선점으로 TOCTOU 창을 닫는다
+    const newId = reserveProjectId(projectsDir);
+    reservedId = newId;
 
     // 3) project.json 읽기 — 메타는 «읽기만» 하고, 쓰기는 바이트 치환으로 한다
     const projectJsonPath = path.join(stageDir, 'project.json');
@@ -193,7 +278,7 @@ async function importGdt({ gdtPath, projectsDir, onProgress = null }) {
     if (onProgress) onProgress({ phase: 'restore', imagesDone: 0, imagesTotal: manifest.images.length });
     const projOut = path.join(stageDir, 'proj.json');
     const r = await writeRestoredProjJson({
-      projectJsonBuf: projBuf, stageDir, mimeByEntry, outPath: projOut, onProgress,
+      projectJsonBuf: projBuf, stageDir, mimeByEntry, outPath: projOut, onProgress, deadline,
     });
     if (r.restored !== (manifest.images || []).length) {
       throw new Error(`이미지 원복 수 불일치: ${r.restored} ≠ ${manifest.images.length}`);
@@ -220,8 +305,11 @@ async function importGdt({ gdtPath, projectsDir, onProgress = null }) {
     fs.rmSync(path.join(stageDir, 'manifest.json'), { force: true });
 
     // 7) ★단 한 번의 rename 으로 확정 (부분 복원 불가)
+    //    선점해둔 «빈» 디렉터리를 지운 직후 rename 한다 — 창이 마이크로초로 줄어든다.
     const finalDir = path.join(projectsDir, newId);
+    fs.rmdirSync(finalDir);                 // 비어 있을 때만 성공 — 누가 채웠으면 여기서 막힌다
     fs.renameSync(stageDir, finalDir);
+    reservedId = null;                       // 확정됐으니 정리 대상에서 뺀다
 
     clearInterval(rssTimer);
     const result = {
@@ -238,12 +326,16 @@ async function importGdt({ gdtPath, projectsDir, onProgress = null }) {
     if (onProgress) onProgress({ phase: 'done', result });
     return result;
   } catch (e) {
-    // ★어떤 실패든 임시 디렉터리를 통째로 지운다 — 반쯤 들어온 프로젝트를 남기지 않는다
+    // ★어떤 실패든 임시 디렉터리를 통째로 지운다 — 반쯤 들어온 프로젝트를 남기지 않는다.
+    //   ★상한에 걸려 죽어도 이 보장은 그대로다(§11-5). 선점해둔 빈 디렉터리도 같이 거둔다.
     try { fs.rmSync(stageDir, { recursive: true, force: true }); } catch (_) {}
+    if (reservedId) { try { fs.rmdirSync(path.join(projectsDir, reservedId)); } catch (_) {} }
+    // 상한 위반은 «전용 코드»로 올린다 — import_failed 로 뭉개면 원인을 알 수 없다
+    if (e instanceof LimitError) return { ok: false, code: e.code, error: e.message };
     return { ok: false, code: 'import_failed', error: (e && e.message) || String(e) };
   } finally {
     clearInterval(rssTimer);
   }
 }
 
-module.exports = { importGdt, allocateProjectId, replaceTopLevelId, isSafeEntry };
+module.exports = { importGdt, allocateProjectId, reserveProjectId, replaceTopLevelId, isSafeEntry };

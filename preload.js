@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Account auth (라이선스 키 제도 폐지 → 홈페이지 계정 로그인)
   getAuthState:       ()                   => ipcRenderer.invoke('auth:state'),
+  refreshAuth:        ()                   => ipcRenderer.invoke('auth:refresh'),
   authLogin:          (email, password)    => ipcRenderer.invoke('auth:login', email, password),
   authLogout:         ()                   => ipcRenderer.invoke('auth:logout'),
   openExternalUrl:    (url)                => ipcRenderer.invoke('auth:open-external', url),
@@ -126,6 +127,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 파일 연결(.gdt 더블클릭) — 켜진 상태는 push, 꺼진 상태(콜드 스타트)는 pull로 받는다.
   onGdtOpenFile:    (cb)   => ipcRenderer.on('gdt:open-file', (_e, p) => cb(p)),
   gdtTakePendingOpen: ()   => ipcRenderer.invoke('gdt:takePendingOpen'),
+  // 비우지 않고 조회만 — 로그인 화면이 「로그인하면 이 파일을 엽니다」를 보여줄 때 쓴다
+  gdtPeekPendingOpen: ()   => ipcRenderer.invoke('gdt:peekPendingOpen'),
   quitReady: () => ipcRenderer.send('quit-ready'),
 
   // Clipboard (Electron 메인 프로세스 경유 — navigator.clipboard 권한 거부 우회)
