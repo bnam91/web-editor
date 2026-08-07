@@ -369,7 +369,9 @@
   }
 
   /* ── 모달 ─────────────────────────────────────────────────────────── */
-  let _open = false;
+  /* ★어떤 «프로젝트»의 모달인지 들고 있어야 한다. 예전엔 true/false 뿐이라
+   *   모달을 열어둔 채 탭을 옮기면 「A에 대해 내린 결정」이 B에 적용됐다(실측 재현). */
+  let _openCtx = null;   // { projectId, live } | null
 
   function _el(id) { return document.getElementById(id); }
 
@@ -403,7 +405,7 @@
   function _closeModal() {
     const ov = _el('fsub-overlay');
     if (ov) ov.style.display = 'none';
-    _open = false;
+    _openCtx = null;
   }
 
   function _optionsHtml(installed, docFonts, current) {
@@ -435,7 +437,7 @@
     if (!projectId) return { shown: false, missing: 0 };
     // ★이미 떠 있으면 두 번째를 겹쳐 띄우지 않는다(.gdt 여러 개를 한 번에 열었을 때).
     //   기록은 남으니 목록 카드의 「글꼴」 배지로 다시 열 수 있다.
-    if (_open) { await _record(projectId, o); return { shown: false, missing: -1 }; }
+    if (_openCtx) { await _record(projectId, o); return { shown: false, missing: -1 }; }
 
     /* ★이 문서가 «편집기에 열려 있는» 그 프로젝트면 디스크가 아니라 «편집기 상태»를 본다.
      *   디스크를 읽으면 아직 저장 안 된 편집 내용을 못 보고, 고칠 때도 자동저장과 부딪친다. */
@@ -528,7 +530,7 @@
 
     _el('fsub-status').textContent = '';
     ov.style.display = 'flex';
-    _open = true;
+    _openCtx = { projectId, live };
 
     /* ★셀렉트를 «펼치는 순간» 설치 글꼴을 한 번 더 물어본다 — 그때는 창이 확실히 보이므로
      *   불러오기 직후(창이 가려져 SecurityError)에 못 받아온 목록이 여기서 채워진다.
@@ -573,6 +575,16 @@
           family: row.dataset.family,
           sub: row.querySelector('.fsub-select').value || null,
         }));
+        /* ★쓰기 «직전»에 다시 판정한다 — 모달을 열어둔 채 탭을 옮기면
+         *   화면(=다른 프로젝트)과 이 모달이 가리키는 프로젝트가 어긋난다.
+         *   실측 재현: A의 모달을 띄운 채 B로 전환 후 적용 → B 문서가 17곳 고쳐지고 기록은 A에 남았다.
+         *   ⇒ 어긋나면 «조용히 다른 경로로 새지 않고» 멈추고 알린다. */
+        if (live !== isLiveProject(projectId)) {
+          _el('fsub-status').textContent = '다른 프로젝트로 옮겨서 적용하지 않았습니다. 다시 열어 주세요.';
+          window.showToast?.('⚠️ 다른 프로젝트로 옮겨서 글꼴 대체를 적용하지 않았습니다');
+          setTimeout(() => _closeModal(), 1500);
+          return;
+        }
         // 열려 있는 문서면 편집기 상태를, 아니면 파일을 고친다(같은 계획·같은 규칙)
         const n = live ? await applyLiveSubstitutions(projectId, picks)
                        : await applySubstitutions(projectId, picks);
@@ -699,6 +711,9 @@
   async function applyLiveSubstitutions(projectId, picks) {
     const canvasEl = document.getElementById('canvas');
     if (!canvasEl || !window.state) throw new Error('편집기 상태가 없습니다');
+    // ★화면에 떠 있는 문서가 «그 프로젝트»가 맞는지 여기서도 확인한다.
+    //   호출부(UI)가 확인해도, UI 를 우회한 호출이 남의 문서를 고치면 안 된다.
+    if (!isLiveProject(projectId)) throw new Error('project_changed');
 
     const prev = report.get(projectId) || {};
     const subs = { ...(prev.subs || {}) };
@@ -792,6 +807,9 @@
   /** 프로젝트를 «열 때» 부른다(applyProjectData 꼬리 — 최초 로드·탭 전환·브랜치 전환 공통). */
   function checkEditorDocument(opts = {}) {
     const pid = window.activeProjectId;
+    /* ★다른 프로젝트의 모달이 떠 있으면 «먼저 닫는다» — 탭 전환이 이 자리를 지난다.
+     *   열어둔 채 두면 A 화면에서 고른 대체를 B 문서에 적용하게 된다(실측 재현). */
+    if (_openCtx && _openCtx.live && _openCtx.projectId !== pid) _closeModal();
     if (!isLiveProject(pid)) return;
     // ★무거운 문서에서 로드 직후를 더 무겁게 만들지 않는다 — 한가할 때 센다.
     const run = () => {
@@ -819,5 +837,7 @@
   window.gdtFontReport      = report;
   window.gdtFontScan        = scanProject;      // 검증·자동화용
   window.gdtFontRewriteHtml = rewriteHtml;      // 검증·자동화용
-  window.gdtFontApply       = applySubstitutions; // 검증·자동화용 (UI 없이 적용 경로를 그대로 탄다)
+  window.gdtFontApply       = applySubstitutions;     // 검증·자동화용 (UI 없이 디스크 경로를 그대로 탄다)
+  window.gdtFontApplyLive   = applyLiveSubstitutions; // 검증·자동화용 (편집기 경로. 대상이 화면의 그 문서가 아니면 거부한다)
+  window.gdtFontOpenCtx     = () => (_openCtx ? { ...(_openCtx) } : null);  // 검증용 — 지금 뜬 모달이 «어느» 프로젝트 것인지
 })();
