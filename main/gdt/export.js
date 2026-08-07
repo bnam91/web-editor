@@ -280,6 +280,15 @@ function verifyGdt(gdtPath) {
           if (manifest.formatVersion > FORMAT_VERSION) return fail('format_version_future', String(manifest.formatVersion));
           if ((manifest.images || []).length > LIMITS.IMAGE_COUNT) return fail('too_many_images', String(manifest.images.length));
 
+          // ★manifest.images 에 «같은 entry 를 여러 번» 나열하는 우회를 직접 막는다.
+          //   두장 2차 실증: 이미지 1개를 1000번 나열하면 「원복 수 == images.length」가
+          //   성립해 개수 검사를 «통과의 열쇠»로 바꿔버린다(82KB → 101MB, 1,233배).
+          //   ⇒ 개수 검사는 방어가 아니다. entry 는 «유일»해야 한다.
+          const imgEntries = (manifest.images || []).map(i => i && i.entry);
+          if (new Set(imgEntries).size !== imgEntries.length) {
+            return fail('duplicate_manifest_entry', `${imgEntries.length}개 중 고유 ${new Set(imgEntries).size}개`);
+          }
+
           // project.json 은 외부화 후 작다(실측 0.13~0.51MB). 그래서 풀파싱하되,
           // ★공격자는 1GB 로 만들 수 있으므로 «크기 상한을 걸고» 읽는다.
           const projRaw = (await readEntry('project.json', LIMITS.PROJECT_JSON_BYTES)).toString('utf8');
