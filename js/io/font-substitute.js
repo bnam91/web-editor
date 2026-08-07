@@ -527,7 +527,7 @@
       const prev = report.get(projectId) || {};
       report.set(projectId, {
         name: o.projectName || data.name || '',
-        families: [...scan.values()].map(e => e.family),
+        families: [...scan.values()].map(e => e.family).slice(0, MAX_FAMILIES),
         subs: prev.subs || {}, at: Date.now(),
       });
     } catch (_) {}
@@ -585,7 +585,7 @@
     //   되돌린 글꼴 이름이 목록에 남는다(배지 계산이 실제 문서와 어긋난다).
     report.set(projectId, {
       name: prev.name || data.name || '',
-      families: [...scanProject(data).values()].map(e => e.family),
+      families: [...scanProject(data).values()].map(e => e.family).slice(0, MAX_FAMILIES),
       subs, at: Date.now(),
     });
     return changed;
