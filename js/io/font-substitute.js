@@ -49,10 +49,31 @@
   function _tokens(decl) {
     return String(decl).split(',').map(t => t.trim()).filter(t => t.length);
   }
+
+  /* ★글꼴 «이름»의 정본 검사 — 우리가 문서에 «써넣어도 되는» 이름인가.
+   *
+   *   재현(2026-08-08, adversarial/fonts/font_quote2.gdt): manifest.fonts 는 «남이 준 값»인데
+   *   예전엔 그대로 후보 목록에 실렸다. `Arial"` 를 고르면 우리가 만든 선언이
+   *       style="font-family: X, 'Arial"', sans-serif; a:b onmouseover=alert(1) c:d"
+   *   가 되어 ①style 속성이 «중간에 끊기고»(색 등 나머지 인라인 스타일 소실)
+   *          ②뒤 텍스트가 «속성으로 승격»돼 onmouseover 가 진짜 이벤트 핸들러가 됐다.
+   *   (실행까지는 캔버스 소독기 sanitizeCanvasHtml 이 막았지만, 그건 «다른» 방어선이다.
+   *    쓰는 쪽에서 막지 않으면 소독기를 안 거치는 소비자가 하나만 생겨도 무너진다.)
+   *
+   * ⇒ 이름은 «따옴표 없이 CSS 패밀리로 쓸 수 있는 것»만 허용한다. 실제 글꼴 이름은 이 안에 든다.
+   */
+  //   제어문자에 «양방향 재정의·폭 없는 문자»까지 넣는다 — 실제 글꼴 이름엔 없고,
+  //   이름 표시를 거꾸로 뒤집어 다른 글꼴처럼 보이게 하는 데만 쓰인다.
+  const UNSAFE_CH = /["'\\;{}<>=&]|[\u0000-\u001f\u007f]|[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
+  function isSafeFamily(f) {
+    const s = String(f == null ? '' : f).trim();
+    return !!s && s.length <= 64 && !UNSAFE_CH.test(s);
+  }
+
   function _familiesOf(decl) {
     return _tokens(decl)
       .map(t => t.replace(/["']/g, '').trim())
-      .filter(t => t && !/[&;<>={}]/.test(t) && t.length <= 64);
+      .filter(isSafeFamily);
   }
 
   /* ── 스캔: 어떤 글꼴이 «어디에 몇 군데» ────────────────────────────────
@@ -124,9 +145,11 @@
    *   지우면 사용자가 고른 폴백이 사라진다(예: 거의 모든 체인에 있는 Pretendard).
    */
   function rewriteHtml(html, plan) {
-    if (!html) return { html, changed: 0 };
+    if (!html) return { html, changed: 0, inserted: new Set() };
     let changed = 0;
-    const out = html.replace(DECL_RE(), (full, val) => {
+    const inserted = new Set();
+
+    const rewriteDecls = (tag) => tag.replace(DECL_RE(), (full, val) => {
       const toks = _tokens(val);
       const next = [];
       let touched = false;
@@ -135,15 +158,17 @@
         next.push(tk);
         const p = plan.get(norm(_decodeEntities(tk)));
         if (!p) continue;
-        // ① 직전에 끼운 대체 글꼴을 걷어낸다(바로 뒤 한 개만)
+        // ① 직전에 «우리가» 끼운 대체 글꼴을 걷어낸다(바로 뒤 한 개만)
         if (p.drop && toks[i + 1] && norm(_decodeEntities(toks[i + 1])) === norm(p.drop)) {
           i++; touched = true;
         }
         // ② 새 대체 글꼴을 바로 뒤에 끼운다 (이미 그 자리에 있으면 그대로 둔다 — 멱등)
-        if (p.insert) {
+        //    ★이름 검사를 여기서 «한 번 더» 한다 — 이 함수가 문서에 글자를 쓰는 마지막 지점이다.
+        if (p.insert && isSafeFamily(p.insert)) {
           const after = toks[i + 1];
           if (!after || norm(_decodeEntities(after)) !== norm(p.insert)) {
-            next.push(`'${String(p.insert).replace(/['\\]/g, '')}'`);
+            next.push(`'${p.insert}'`);
+            inserted.add(norm(_decodeEntities(tk)));
             touched = true;
           }
         }
@@ -152,22 +177,32 @@
       changed++;
       return `font-family: ${next.join(', ')}`;
     });
-    return { html: out, changed };
+
+    /* ★고치는 범위 = «여는 태그 안»뿐이다. 세는 범위(scanHtml)와 같아야 한다.
+     *   재현(adversarial/fonts/font_textnode.gdt): 본문에 「예시: font-family: X, sans-serif」라고
+     *   «글로 써둔» 문서에서 「1곳」이라 보여주고 «2곳»을 고쳤다 — 사용자 본문이 조용히 바뀌었다.
+     *   보여준 숫자와 실제로 손대는 범위가 다르면 그건 동의를 받은 편집이 아니다. */
+    const out = html.replace(TAG_RE(), (tag) =>
+      (tag.indexOf('font-family') === -1 ? tag : rewriteDecls(tag)));
+
+    return { html: out, changed, inserted };
   }
 
   /** 프로젝트 데이터에 계획을 적용한다(pages[].canvas만 고친다 — data-raw-font는 불변). */
   function rewriteProject(data, plan) {
     let changed = 0;
+    const inserted = new Set();
+    const take = (r) => { changed += r.changed; r.inserted.forEach(k => inserted.add(k)); };
     if (data && data.version === 2 && Array.isArray(data.pages)) {
       for (const p of data.pages) {
         const r = rewriteHtml(p.canvas || '', plan);
-        p.canvas = r.html; changed += r.changed;
+        p.canvas = r.html; take(r);
       }
     } else if (data) {
       const r = rewriteHtml(data.canvas || '', plan);
-      data.canvas = r.html; changed += r.changed;
+      data.canvas = r.html; take(r);
     }
-    return changed;
+    return { changed, inserted };
   }
 
   /* ── 기록(닫아도 남는다) ──────────────────────────────────────────────
@@ -247,6 +282,12 @@
   // 앱이 «항상 갖고 있는» 글꼴 — Pretendard는 번들(@font-face), 나머지는 편집기가 로드하는 웹폰트.
   // ★설치 여부로 거르지 않는다: 목록 페이지는 이 폰트들의 CSS를 안 불러와서 「없음」으로 나온다.
   const BUNDLED = ['Pretendard', 'Noto Sans KR', 'Noto Serif KR', 'Inter', 'Space Grotesk', 'Playfair Display'];
+
+  /* ★상한 — manifest.fonts 는 남이 준 값이고 §11(limits.js)에 폰트 항목이 «없다».
+   *   개수 제한이 없으면 5.6KB 파일이 대화상자를 9초 멈추고, 그 목록이 localStorage 에 남아
+   *   목록 페이지를 열 때마다 되살아난다(지속형). 화면에 그리는 것과 기록하는 것 둘 다 자른다. */
+  const MAX_ROWS = 30;        // 한 번에 고를 수 있는 없는 글꼴 수(나머지는 개수만 알린다)
+  const MAX_FAMILIES = 200;   // 기록(localStorage)에 남기는 글꼴 이름 수
   const BUNDLED_KEYS = new Set(BUNDLED.map(norm));
 
   /* ★「없는 글꼴」 판정의 정본 —  gdtMissingFonts()에서 «앱이 주는 글꼴»을 뺀다.
@@ -301,8 +342,9 @@
       `<option value="${_esc(v)}"${norm(v) === norm(current) ? ' selected' : ''}>${_esc(label || v)}</option>`;
     // 같은 글꼴이 두 그룹에 겹쳐 나오지 않게 앞 그룹이 이긴다(문서 글꼴 Pretendard = 앱 기본 Pretendard)
     const seen = new Set();
+    // ★마지막 관문 — 목록에 오르는 값은 «문서에 써넣어도 되는 이름»뿐이다.
     const group = (label, list) => {
-      const items = list.filter(f => f && !seen.has(norm(f)) && seen.add(norm(f)));
+      const items = list.filter(f => isSafeFamily(f) && !seen.has(norm(f)) && seen.add(norm(f)));
       return items.length ? `<optgroup label="${label}">${items.map(f => opt(f)).join('')}</optgroup>` : '';
     };
     let html = `<option value=""${current ? '' : ' selected'}>대체 안 함</option>`;
@@ -346,7 +388,8 @@
     const subs = prev.subs || {};
 
     report.set(projectId, {
-      name: o.projectName || data.name || '', families, subs, at: Date.now(),
+      name: o.projectName || data.name || '', families: families.slice(0, MAX_FAMILIES),
+      subs, at: Date.now(),
     });
 
     if (!missing.length) {
@@ -354,39 +397,57 @@
       return { shown: false, missing: 0 };
     }
 
-    const rows = missing
+    /* ★행 수에 상한을 둔다. 재현(adversarial/fonts/font_flood.gdt): 5.6KB 짜리 .gdt 가
+     *   manifest.fonts 에 없는 글꼴 2,000개를 싣자 대화상자가 «셀렉트 2,001개»(옵션 44만 개)를
+     *   그리느라 9.3초를 멈췄다. manifest 는 남이 준 값이고 §11 상한에도 폰트 항목이 없다.
+     *   많이 쓰인 순으로 자르고 «몇 개 더 있는지»는 알려준다 — 숨기지는 않는다. */
+    const allRows = missing
       .map(f => scan.get(norm(f)))
       .filter(Boolean)
       .sort((a, b) => b.elements - a.elements);
+    const rows = allRows.slice(0, MAX_ROWS);
+    const overflow = allRows.length - rows.length;
 
+    /* ★후보 목록에는 «안전한 이름»만 올린다 — 여기가 남이 준 값이 사용자의 선택지로 바뀌는 자리다.
+     *   (문서에서 긁은 이름은 _familiesOf 가 이미 걸렀지만, manifest 에서 «씨앗»으로 들어온
+     *    이름은 안 거쳤다. font_quote.gdt 의 `Arial"` 가 그 틈으로 목록에 올랐다.) */
     const docFonts = [...scan.values()]
       .map(e => e.family)
-      .filter(f => !missing.some(m => norm(m) === norm(f)))
+      .filter(f => isSafeFamily(f) && !missing.some(m => norm(m) === norm(f)))
       .sort((a, b) => a.localeCompare(b, 'ko'));
     const installed = await _installedFonts();
 
     const ov = _ensureModal();
     _el('fsub-intro').innerHTML =
-      `「<b>${_esc(o.projectName || data.name || '프로젝트')}</b>」에 쓰인 글꼴 <b>${rows.length}개</b>가 이 기기에 없습니다. ` +
+      `「<b>${_esc(o.projectName || data.name || '프로젝트')}</b>」에 쓰인 글꼴 <b>${allRows.length}개</b>가 이 기기에 없습니다. ` +
+      (overflow ? `많이 쓰인 <b>${rows.length}개</b>만 보여줍니다(나머지 ${overflow}개는 그대로 둡니다). ` : '') +
       `대체할 글꼴을 고르면 그 글꼴로 보입니다. ` +
       `<span class="fsub-dim">원본 글꼴 이름은 그대로 남아, 그 글꼴이 있는 기기에서 열면 원래대로 보입니다. 「대체 안 함」으로 두어도 됩니다.</span>`;
 
+    // ★옵션 목록은 «한 번만» 만들어 돌려쓴다(행마다 수백 개를 다시 만들면 그게 곧 멈춤이다).
+    //   고른 값은 DOM 을 만든 뒤 select.value 로 넣는다.
+    const optsHtml = _optionsHtml(installed, docFonts, '');
     _el('fsub-list').innerHTML = rows.map(r => {
-      const cur = (subs[norm(r.family)] || {}).sub || '';
       const where = _whereText(r);
       const total = r.decls + r.raws;
+      const shown = r.family.length > 64 ? r.family.slice(0, 64) + '…' : r.family;
       return `
         <div class="fsub-row" data-family="${_esc(r.family)}">
           <div class="fsub-name">
-            <span class="fsub-family" title="${_esc(r.family)}">${_esc(r.family)}</span>
+            <span class="fsub-family" title="${_esc(shown)}">${_esc(shown)}</span>
             <span class="fsub-count" title="글꼴 지정 ${r.decls}곳 · 원본 이름 표기 ${r.raws}곳 = 출현 ${total}회">${r.elements}곳</span>
           </div>
           <div class="fsub-where">${where}</div>
           <div class="fsub-pick">
-            <select class="ds-font-select fsub-select">${_optionsHtml(installed, docFonts, cur)}</select>
+            <select class="ds-font-select fsub-select">${optsHtml}</select>
           </div>
         </div>`;
     }).join('');
+    // 이전에 고른 값 복원 — 없는 값이면 select.value 가 ''(대체 안 함)로 남는다
+    rows.forEach((r, i) => {
+      const cur = (subs[norm(r.family)] || {}).sub || '';
+      if (cur) ov.querySelectorAll('.fsub-select')[i].value = cur;
+    });
 
     _el('fsub-status').textContent = '';
     ov.style.display = 'flex';
@@ -487,17 +548,21 @@
     const subs = { ...(prev.subs || {}) };
 
     const plan = new Map();
+    const rejected = [];
     for (const p of picks) {
       const k = norm(p.family);
+      // ★대체 «값»은 문서에 써넣을 글자다 — 안전한 이름이 아니면 아예 계획에 안 넣는다.
+      if (p.sub && !isSafeFamily(p.sub)) { rejected.push(p.sub); continue; }
       const before = subs[k] || {};
-      // 직전에 «우리가 끼운» 글꼴만 걷어낸다. 원래 체인에 있던 이름은 건드리지 않는다.
+      // 직전에 «우리가 진짜로 끼운» 글꼴만 걷어낸다. 원래 체인에 있던 이름은 건드리지 않는다.
       const drop = (before.inserted && before.sub && norm(before.sub) !== norm(p.sub || '')) ? before.sub : null;
       if (!p.sub && !drop) { continue; }              // 대체 안 함 → 그대로 (정당한 선택)
       plan.set(k, { insert: p.sub || null, drop });
     }
+    if (rejected.length) console.warn('[fsub] 안전하지 않은 글꼴 이름이라 적용하지 않음:', rejected);
     if (!plan.size) return 0;
 
-    const changed = rewriteProject(data, plan);
+    const { changed, inserted } = rewriteProject(data, plan);
 
     if (changed) {
       data.updatedAt = new Date().toISOString();
@@ -505,10 +570,16 @@
       if (res && res.ok === false) throw new Error(res.error || 'save_failed');
     }
 
+    /* ★`inserted` 는 「대체를 골랐다」가 아니라 「우리가 체인에 «진짜로» 끼웠다」여야 한다.
+     *   재현(adversarial/fonts/font_prefallback.gdt): 문서가 원래부터 `X, 'Noto Sans KR'` 였는데
+     *   사용자가 대체로 Noto Sans KR 을 고르면 이미 그 자리에 있어 삽입이 «안 일어난다».
+     *   그런데 예전엔 inserted:true 로 적어둬서, 다음에 Inter 로 바꿀 때
+     *   «사용자 원본 폴백» Noto Sans KR 을 우리 것으로 오인해 걷어냈다(되돌릴 수 없는 손실). */
     for (const p of picks) {
       const k = norm(p.family);
-      if (p.sub) subs[k] = { sub: p.sub, inserted: true };
-      else delete subs[k];
+      if (!p.sub || !isSafeFamily(p.sub)) { delete subs[k]; continue; }
+      const prevSame = subs[k] && norm(subs[k].sub) === norm(p.sub) && subs[k].inserted;
+      subs[k] = { sub: p.sub, inserted: inserted.has(k) || !!prevSame };
     }
     // ★families는 «고친 뒤»의 문서에서 다시 뽑는다 — 예전 목록을 재활용하면 대체로 끼웠다가
     //   되돌린 글꼴 이름이 목록에 남는다(배지 계산이 실제 문서와 어긋난다).
@@ -525,4 +596,5 @@
   window.gdtFontReport      = report;
   window.gdtFontScan        = scanProject;      // 검증·자동화용
   window.gdtFontRewriteHtml = rewriteHtml;      // 검증·자동화용
+  window.gdtFontApply       = applySubstitutions; // 검증·자동화용 (UI 없이 적용 경로를 그대로 탄다)
 })();
