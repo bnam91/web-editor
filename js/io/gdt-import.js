@@ -107,12 +107,21 @@
     return `${base} 기존 프로젝트는 그대로입니다.`;   // 부분 복원이 없다는 걸 사용자에게 알린다
   }
 
+  // ★진행 중이면 «거절»하지 않고 «줄 세운다».
+  //   거절하면 파인더에서 여러 .gdt 를 한 번에 연 사용자가 「하나만 열렸다」를 겪는다 —
+  //   main 쪽 대기열을 큐로 고쳐놨는데 여기서 떨구면 같은 유실이 그대로 난다.
+  let _chain = Promise.resolve();
   let _busy = false;
 
-  async function gdtImportFlow(opts = {}) {
+  function gdtImportFlow(opts = {}) {
+    const run = () => _gdtImportOne(opts);
+    _chain = _chain.then(run, run);
+    return _chain;
+  }
+
+  async function _gdtImportOne(opts = {}) {
     const api = API();
     if (!api?.gdtImport) { window.showToast?.('⚠️ 불러오기는 데스크톱 앱에서만 됩니다'); return null; }
-    if (_busy) { window.showToast?.('⏳ 불러오기가 이미 진행 중입니다'); return null; }
     _busy = true;
     try {
       window.showProjectLoadingOverlay?.();
@@ -163,8 +172,10 @@
   });
   (async () => {
     try {
+      // ★배열로 온다(다중선택). 옛 형태(문자열 하나)도 받아준다.
       const pending = await API()?.gdtTakePendingOpen?.();
-      if (pending) gdtImportFlow({ filePath: pending, onDone: window.__gdtOnImported });
+      const list = Array.isArray(pending) ? pending : (pending ? [pending] : []);
+      for (const filePath of list) gdtImportFlow({ filePath, onDone: window.__gdtOnImported });
     } catch (_) { /* 미지원 환경 */ }
   })();
 })();
