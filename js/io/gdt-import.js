@@ -66,6 +66,31 @@
     return { missing, unknown };
   }
 
+  /* ── 거부 코드 → 사용자 문구 ──
+   * ★`importGdt`는 throw하지 않고 `{ok:false, code}`를 «반환»한다. 호출부가 ok를 안 보면
+   *   「거부됐는데 성공한 줄 아는」 버그가 난다. 그리고 코드를 그대로 띄우면 안 된다 —
+   *   `sha256_mismatch`는 사용자에게 아무 뜻이 없다.
+   */
+  const REJECT_MESSAGE = {
+    zip_open_failed:            '이 파일은 GODITOR 프로젝트 파일이 아니거나 손상됐습니다.',
+    zip_read_failed:            '파일을 읽는 중 오류가 났습니다. 파일이 손상된 것 같습니다.',
+    manifest_missing:           'GODITOR 프로젝트 파일이 아닙니다.',
+    project_json_missing:       '프로젝트 내용이 없습니다. 파일이 손상됐습니다.',
+    project_json_unparsable:    '프로젝트 내용이 손상돼 읽을 수 없습니다.',
+    format_version_future:      '더 새로운 버전의 GODITOR에서 만든 파일입니다. 앱을 업데이트해 주세요.',
+    referenced_image_missing:   '이미지가 빠져 있습니다. 파일이 손상됐습니다.',
+    manifest_image_missing:     '이미지가 빠져 있습니다. 파일이 손상됐습니다.',
+    base64_left_in_project_json:'파일 형식이 올바르지 않습니다.',
+    sha256_mismatch:            '파일이 손상됐습니다(이미지가 전송 중 깨진 것 같습니다).',
+    image_decode_failed:        '이미지를 열 수 없습니다. 파일이 손상됐습니다.',
+    verify_exception:           '파일을 검사하는 중 오류가 났습니다.',
+    import_failed:              '불러오기에 실패했습니다.',
+  };
+  function rejectMessage(result) {
+    const base = REJECT_MESSAGE[result?.code] || '불러올 수 없는 파일입니다.';
+    return `${base} 기존 프로젝트는 그대로입니다.`;   // 부분 복원이 없다는 걸 사용자에게 알린다
+  }
+
   let _busy = false;
 
   async function gdtImportFlow(opts = {}) {
@@ -82,9 +107,10 @@
       window.__gdtLastImport = result;      // 완료 훅(§8) — 외부 자동화용
 
       if (result?.canceled) return null;
+      // ★반드시 ok를 본다 — 거부는 예외가 아니라 «반환값»으로 온다.
       if (!result?.ok) {
-        // ★손상 파일은 거부한다. 부분 복원이 없으므로 목록에 아무것도 안 생긴다.
-        window.showToast?.(`⚠️ 불러오기 실패: ${result?.error || '알 수 없는 오류'}`);
+        console.warn('[gdt] 불러오기 거부:', result?.code, result?.error);   // 원인 코드는 로그로
+        window.showToast?.(`⚠️ ${rejectMessage(result)}`);                    // 사용자에겐 번역해서
         return result;
       }
 
@@ -105,9 +131,24 @@
 
   window.gdtImportFlow = gdtImportFlow;
   window.gdtMissingFonts = missingFonts;
+  window.gdtRejectMessage = rejectMessage;
 
   // 메뉴 배선 — 페이지가 onDone을 미리 등록해두면 그걸 쓴다(목록 페이지=renderGrid).
   API()?.onGdtMenuImport?.(() => {
     gdtImportFlow({ onDone: window.__gdtOnImported });
   });
+
+  /* ── 파일 연결(.gdt 더블클릭) ──
+   * 켜진 상태 = main이 push. 꺼진 상태(콜드 스타트) = 렌더러가 준비된 뒤 «가져간다».
+   * ★pull이 필요한 이유: 콜드 스타트에선 경로가 창보다 «먼저» 도착해서 push는 유실된다.
+   */
+  API()?.onGdtOpenFile?.((filePath) => {
+    if (filePath) gdtImportFlow({ filePath, onDone: window.__gdtOnImported });
+  });
+  (async () => {
+    try {
+      const pending = await API()?.gdtTakePendingOpen?.();
+      if (pending) gdtImportFlow({ filePath: pending, onDone: window.__gdtOnImported });
+    } catch (_) { /* 미지원 환경 */ }
+  })();
 })();

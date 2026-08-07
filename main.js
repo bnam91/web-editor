@@ -21,6 +21,12 @@ app.name = 'GODITOR';
 const fs = require('fs');
 const os = require('os');
 
+// .gdt 파일 연결 — ★app ready «이전»에 걸어야 한다.
+// 맥은 파인더에서 더블클릭한 경로를 `open-file` 이벤트로 주는데, 콜드 스타트에선
+// 그 이벤트가 whenReady보다 «먼저» 뜬다. ready 안에서 등록하면 첫 더블클릭을 놓친다.
+try { require('./main/gdt/wire').registerGdtFileAssociations(); }
+catch (e) { console.error('[gdt] 파일 연결 등록 실패:', e); }
+
 // userData 폴더 마이그레이션: 구 이름('Goya Design Editor') → 'GODITOR'.
 // app.name이 userData 경로를 결정하므로, 앱이 새 경로에 처음 쓰기 전(top-level)에 rename.
 // 같은 볼륨 rename이라 원자적·즉시(6GB+ copy 아님). old만 있고 new 없을 때 1회만.
