@@ -16,17 +16,32 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const yauzl = require('yauzl');
-const { verifyGdt, FORMAT_VERSION } = require('./export');
+const { verifyGdt, FORMAT_VERSION, ENTRY_NAME_RE } = require('./export');
 const { LIMITS, LimitError, makeDeadline, fmtMB } = require('./limits');
 
-/* ── 엔트리명 안전성 (§9) ──
- * 경로 탈출·비ASCII를 거부한다. 정상 .gdt의 엔트리명은 전부 ASCII다(§1).
+/* ── 엔트리명 안전성 (§9) — ★«금지목록»이 아니라 «허용목록» ──
+ *
+ * 이전 판은 `images/[A-Za-z0-9._-]{1,64}` + `..`·`\` 금지였다. 통과하는 이름이 넓어서
+ * 아래가 전부 뚫렸다. 허용목록 하나로 «구조적으로» 사라진다 — 크기 상한 대신 불변식을
+ * 쓴 증폭 방어와 같은 결이다. 「나쁜 걸 세는」 대신 「좋은 것만 통과시킨다」.
+ *
+ *   대소문자 충돌   img_0001.PNG + img_0001.png → 맥·윈 기본 FS가 무시해 뒤엣것이 덮는다
+ *                  ⇒ 확장자를 소문자로 고정하니 .PNG 자체가 거부된다
+ *   NFC/NFD 충돌   같은 한글 이름이 다른 바이트로 두 엔트리
+ *                  ⇒ ASCII 전용이라 한글이 아예 못 들어온다
+ *   제어문자·NUL    도구가 조용히 실패한다(오늘 wire.js 에서 실제로 당했다)
+ *                  ⇒ \d 와 고정 리터럴만 허용
+ *   윈도우 예약명   CON·PRN·AUX·NUL·COM1~9·LPT1~9, 끝의 공백·마침표
+ *                  ⇒ 이름이 `img_<숫자>.<확장자>` 로 못 나온다. 예약어 목록이 «필요 없다»
+ *   경로 탈출      `..`·`\`·절대경로 ⇒ 패턴에 `/` 가 `images/` 한 곳뿐이라 불가능
+ *
+ * ★패턴은 export.js 가 «소유»한다(ENTRY_NAME_RE). 이름을 만드는 쪽과 검사하는 쪽이
+ *   따로 하드코딩하면 어긋나고, 어긋나면 «정상 파일이 안 열린다» — 허용목록의 최악 실패다.
+ *   확장자 목록도 MIME_EXT 에서 파생돼 드리프트가 없다.
+ *   호환 확인: 실제 .gdt 5개·엔트리 194개 전부 통과(오탐 0).
  */
-const SAFE_ENTRY = /^(manifest\.json|project\.json|images\/[A-Za-z0-9._-]{1,64})$/;
 function isSafeEntry(name) {
-  if (!SAFE_ENTRY.test(name)) return false;
-  if (name.includes('..') || name.includes('\\')) return false;
-  return true;
+  return ENTRY_NAME_RE.test(name);
 }
 
 /* ── 새 프로젝트 id 발급 (§7) ──
@@ -154,11 +169,16 @@ function extractAll(gdtPath, stageDir, deadline) {
     yauzl.open(gdtPath, { lazyEntries: true, autoClose: true }, (err, zf) => {
       if (err) return reject(new Error(`zip_open_failed: ${err.message}`));
       const names = [];
+      const seen = new Set();
       let count = 0, totalOut = 0;
       zf.on('error', reject);
       zf.on('entry', (entry) => {
         try { deadline?.check('extract'); } catch (e) { return reject(e); }
-        if (!isSafeEntry(entry.fileName)) return reject(new Error(`unsafe_entry: ${entry.fileName}`));
+        if (!isSafeEntry(entry.fileName)) return reject(new LimitError('unsafe_entry', entry.fileName));
+        // ★zip 은 같은 이름을 «여러 번» 담을 수 있다. 그대로 전개하면 뒤엣것이 앞엣것을
+        //   덮어 「검증한 파일」과 「디스크에 남은 파일」이 달라진다.
+        if (seen.has(entry.fileName)) return reject(new LimitError('duplicate_entry', entry.fileName));
+        seen.add(entry.fileName);
         if (++count > LIMITS.ENTRY_COUNT) return reject(new LimitError('too_many_entries', String(count)));
 
         // ★§11-2 압축 폭탄: 헤더의 «압축 해제 후» 크기를 «풀기 전»에 본다.

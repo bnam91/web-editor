@@ -42,6 +42,15 @@ const MIME_EXT = {
 // ★§5: 확장자는 mime을 따라간다. SVG는 텍스트라 확장자가 틀리면 못 연다.
 const extForMime = (m) => MIME_EXT[String(m || '').toLowerCase()] || 'png';
 
+/* ── 아카이브 엔트리 이름의 «정본» ──
+ * ★이름을 «만드는» 쪽에서 패턴도 함께 정한다. 불러오기가 따로 하드코딩하면 둘이 어긋나고,
+ *   어긋나는 순간 «정상 파일이 안 열린다»(허용목록에서 가장 위험한 실패 모드).
+ *   확장자 목록은 MIME_EXT 에서 «파생»시켜 드리프트를 원천 차단한다.
+ *   `jpeg` 는 우리가 쓰지 않지만 읽을 땐 받아준다(만드는 건 엄격, 읽는 건 관대).
+ */
+const ENTRY_EXTS = [...new Set([...Object.values(MIME_EXT), 'jpeg'])].sort();
+const ENTRY_NAME_RE = new RegExp(`^(manifest\\.json|project\\.json|images/img_\\d{4,8}\\.(?:${ENTRY_EXTS.join('|')}))$`);
+
 // ★§4-1: 맨 문자열 검색 금지 — base64 안의 우연한 일치를 긁는다(A2Z: 맨 276회 vs 진짜 17회).
 //   공백·하이픈·콜론은 base64 알파벳에 없으므로 컨텍스트가 붙으면 안전하다.
 //   덧붙여 이 스캐너는 base64 «구간 밖»만 본다(2중 면역).
@@ -235,8 +244,19 @@ function verifyGdt(gdtPath) {
       if (err) return fail('zip_open_failed', err.message);
       zfRef = zf;
       const entries = new Map();
+      let emitted = 0, badName = null, dupName = null;
       zf.on('error', (e) => fail('zip_read_failed', e.message));
-      zf.on('entry', (entry) => { entries.set(entry.fileName, entry); zf.readEntry(); });
+      zf.on('entry', (entry) => {
+        emitted += 1;
+        // ★이름 허용목록 — 검증 단계에서도 본다. 불러오기만 막으면 「검증은 통과인데
+        //   열리진 않는」 상태가 되고, 그건 원인을 못 찾는 실패다.
+        if (!ENTRY_NAME_RE.test(entry.fileName) && !badName) badName = entry.fileName;
+        // ★zip 은 같은 이름을 여러 번 담을 수 있다. Map 은 조용히 마지막 것만 남긴다 —
+        //   그래서 «방출 횟수»와 «고유 개수»를 따로 세야 중복을 알 수 있다.
+        if (entries.has(entry.fileName) && !dupName) dupName = entry.fileName;
+        entries.set(entry.fileName, entry);
+        zf.readEntry();
+      });
       zf.on('end', async () => {
         const deadline = makeDeadline();
         try {
@@ -262,6 +282,8 @@ function verifyGdt(gdtPath) {
           });
 
           // 구조 상한 — 파싱 전에 본다
+          if (badName) return fail('unsafe_entry', badName);
+          if (dupName || emitted !== entries.size) return fail('duplicate_entry', dupName || `${emitted}개 중 고유 ${entries.size}개`);
           if (entries.size > LIMITS.ENTRY_COUNT) return fail('too_many_entries', String(entries.size));
           let totalUncompressed = 0;
           for (const [name, e] of entries) {
@@ -438,4 +460,4 @@ async function exportGdt({ srcProjJson, outPath, meta = {}, onProgress = null, t
   }
 }
 
-module.exports = { exportGdt, verifyGdt, transformProjectJson, FORMAT_VERSION, extForMime };
+module.exports = { exportGdt, verifyGdt, transformProjectJson, FORMAT_VERSION, extForMime, ENTRY_NAME_RE, ENTRY_EXTS };
