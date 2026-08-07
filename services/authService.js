@@ -102,7 +102,10 @@ async function urlIsLive(url, onResult) {
 async function login(email, password) {
   let r;
   try {
-    r = await postJson(LOGIN_URL, { email, password });
+    // ★app 식별자: 지금은 앱과 홈페이지가 «완전히 같은 body»를 보내 서버가 둘을 구분하지 못한다.
+    //   등급 관리의 「앱 첫 로그인 = 고디터 유저 등록」이 이 필드에 걸려 있다.
+    //   서버는 app 이 없으면 예전대로 동작하므로 구버전 앱과의 호환성은 그대로다.
+    r = await postJson(LOGIN_URL, { email, password, app: 'goditor' });
   } catch (e) {
     return { ok: false, reason: 'network', message: e?.message || String(e) };
   }

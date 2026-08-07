@@ -104,6 +104,10 @@ function registerGdtIpc({ projectsDir, resolveProjectJsonPath }) {
     return all;
   });
 
+  // ★«비우지 않고» 들여다본다 — 로그인 화면처럼 «아직 열 수 없는» 페이지가 쓴다.
+  //   여기서 take 를 쓰면 큐가 비어 로그인 뒤 정작 파일이 안 열린다.
+  ipcMain.handle('gdt:peekPendingOpen', () => _pendingOpenPaths.slice());
+
   ipcMain.handle('gdt:export', async (event, { projectId, projectName } = {}) => {
     try {
       if (!projectId) return { ok: false, error: 'projectId 필수' };
