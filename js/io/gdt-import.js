@@ -87,6 +87,17 @@
     image_decode_failed:        '이미지를 열 수 없습니다. 파일이 손상됐습니다.',
     verify_exception:           '파일을 검사하는 중 오류가 났습니다.',
     import_failed:              '불러오기에 실패했습니다.',
+    // ★입력 상한(§11) — 「손상」이 아니라 「너무 크다·이상하다」로 구분해 알린다.
+    //   정상 프로젝트로는 이 값에 닿지 않는다(실측 최대의 9~90배로 잡았다).
+    too_many_entries:           '파일 구성이 비정상적으로 많습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    too_many_images:            '이미지가 비정상적으로 많습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    too_many_references:        '파일 내부 참조가 비정상적으로 많습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    reference_count_mismatch:   '파일 내부 구조가 맞지 않습니다. 손상됐거나 정상적으로 만들어진 파일이 아닙니다.',
+    unexpected_entry:           '파일에 예상치 못한 내용이 들어 있습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    entry_too_large:            '파일 안의 항목 하나가 너무 큽니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    archive_too_large:          '압축을 풀면 너무 커집니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    output_too_large:           '복원 결과가 너무 커져 중단했습니다. 신뢰할 수 있는 파일인지 확인해 주세요.',
+    timeout:                    '시간이 너무 오래 걸려 중단했습니다.',
   };
   function rejectMessage(result) {
     const base = REJECT_MESSAGE[result?.code] || '불러올 수 없는 파일입니다.';

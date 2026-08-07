@@ -19,6 +19,7 @@ const crypto = require('crypto');
 const yazl = require('yazl');
 const yauzl = require('yauzl');
 const { probeImage } = require('./media-probe');
+const { LIMITS, makeDeadline, fmtMB } = require('./limits');
 
 const FORMAT_VERSION = 1;
 const CHUNK = 1 << 20;                       // 1MB
@@ -237,34 +238,87 @@ function verifyGdt(gdtPath) {
       zf.on('error', (e) => fail('zip_read_failed', e.message));
       zf.on('entry', (entry) => { entries.set(entry.fileName, entry); zf.readEntry(); });
       zf.on('end', async () => {
+        const deadline = makeDeadline();
         try {
-          const readEntry = (name) => new Promise((res, rej) => {
+          // ★엔트리를 통째 Buffer 로 올린다 ⇒ 압축 폭탄이 디스크가 아니라 RSS 를 친다.
+          //   압축 해제 «전»에 uncompressedSize 로 거르고, 스트리밍 중에도 누적 검사한다
+          //   (헤더의 크기는 «남이 쓴 값»이라 그것만 믿으면 안 된다).
+          const readEntry = (name, cap = LIMITS.SINGLE_ENTRY_BYTES) => new Promise((res, rej) => {
             const e = entries.get(name);
             if (!e) return rej(new Error(`entry_missing:${name}`));
+            if (e.uncompressedSize > cap) return rej(new Error(`entry_too_large:${name}:${fmtMB(e.uncompressedSize)}`));
             zf.openReadStream(e, (er, rs) => {
               if (er) return rej(er);
               const bufs = [];
-              rs.on('data', (d) => bufs.push(d));
+              let n = 0;
+              rs.on('data', (d) => {
+                n += d.length;
+                if (n > cap) { rs.destroy(); rej(new Error(`entry_too_large:${name}`)); return; }
+                bufs.push(d);
+              });
               rs.on('error', rej);
               rs.on('end', () => res(Buffer.concat(bufs)));
             });
           });
+
+          // 구조 상한 — 파싱 전에 본다
+          if (entries.size > LIMITS.ENTRY_COUNT) return fail('too_many_entries', String(entries.size));
+          let totalUncompressed = 0;
+          for (const [name, e] of entries) {
+            const sz = e.uncompressedSize || 0;
+            // ★모든 엔트리에 단일 상한을 건다 — 우리가 «읽는» 엔트리만 보면
+            //   manifest 에 없는 엔트리에 폭탄을 숨길 수 있다(실측으로 실제 통과했다).
+            if (sz > LIMITS.SINGLE_ENTRY_BYTES) return fail('entry_too_large', `${name}:${fmtMB(sz)}`);
+            totalUncompressed += sz;
+          }
+          if (totalUncompressed > LIMITS.TOTAL_UNCOMPRESSED) return fail('archive_too_large', fmtMB(totalUncompressed));
 
           if (!entries.has('manifest.json')) return fail('manifest_missing');
           if (!entries.has('project.json')) return fail('project_json_missing');
 
           const manifest = JSON.parse((await readEntry('manifest.json')).toString('utf8'));
           if (manifest.formatVersion > FORMAT_VERSION) return fail('format_version_future', String(manifest.formatVersion));
+          if ((manifest.images || []).length > LIMITS.IMAGE_COUNT) return fail('too_many_images', String(manifest.images.length));
 
-          // project.json은 외부화 후 작아서(실측 0.13~0.51MB) 여기선 정직하게 풀파싱한다.
-          const projRaw = (await readEntry('project.json')).toString('utf8');
+          // project.json 은 외부화 후 작다(실측 0.13~0.51MB). 그래서 풀파싱하되,
+          // ★공격자는 1GB 로 만들 수 있으므로 «크기 상한을 걸고» 읽는다.
+          const projRaw = (await readEntry('project.json', LIMITS.PROJECT_JSON_BYTES)).toString('utf8');
           let proj;
           try { proj = JSON.parse(projRaw); } catch (e) { return fail('project_json_unparsable', e.message); }
 
           // 참조 ↔ 엔트리 대조: project.json이 가리키는 gdt:// 가 전부 실존해야 한다
           const refs = [...projRaw.matchAll(/gdt:\/\/(images\/[A-Za-z0-9._-]+)/g)].map(m => m[1]);
+          // ★★§11-1 참조 증폭: 여기서 «고유»만 보던 게 구멍이었다. 이미지 1장 + 참조 10만 개면
+          //   고유는 1개라 통과하고, 불러오기가 10만 번 원복해 수 GB 를 쓴다.
+          //   실측 재현: 4,042B 입력 → 디스크에 63,507,495B (15,712배). ⇒ «전체» 개수를 본다.
+          if (refs.length > LIMITS.REF_TOTAL) return fail('too_many_references', String(refs.length));
+
+          // ★★§11-1ⓐ 증폭의 «근본» 방어: formatVersion 1 의 내보내기는 base64 출현 «하나»마다
+          //   엔트리를 «하나» 만든다(dedup 없음) ⇒ 정상 파일은 항상
+          //       refs 개수 == manifest.images 개수 == 고유 참조 개수
+          //   가 성립한다(실측: 46/46/46 · 54/54/54 · 38/38/38 · 0/0/0 · 46/46/46).
+          //   증폭 공격은 이 등식을 반드시 깬다(이미지 1 : 참조 N). 크기와 무관하게 잡힌다.
+          //   ⇒ 기존의 「원복 수 불일치」 검사를 «쓰기 전»으로 끌어올린 것이기도 하다.
+          const nImages = (manifest.images || []).length;
+          const nUnique = new Set(refs).size;
+          if (refs.length !== nImages || nUnique !== refs.length) {
+            return fail('reference_count_mismatch', `refs=${refs.length} unique=${nUnique} images=${nImages}`);
+          }
+          // 원복 시 출력 예상치도 미리 막는다(base64 는 4/3 로 부푼다)
+          const bytesByEntry = new Map([...entries].map(([k, e]) => [k, e.uncompressedSize || 0]));
+          let projectedOut = projRaw.length;
+          for (const r of refs) projectedOut += Math.ceil((bytesByEntry.get(r) || 0) * 4 / 3);
+          if (projectedOut > LIMITS.OUTPUT_BYTES) return fail('output_too_large', fmtMB(projectedOut));
+
           const missing = [...new Set(refs)].filter(r => !entries.has(r));
           if (missing.length) return fail('referenced_image_missing', missing.slice(0, 5).join(','));
+
+          // ★엔트리 화이트리스트: 정상 .gdt 는 manifest.json + project.json + manifest 의 이미지가 «전부»다.
+          //   그 밖의 엔트리는 «밀반입»이다 — 실측에서 manifest 에 없는 200MB 폭탄이 이 검사가 없어 통과했다.
+          //   isSafeEntry(불러오기)와 같은 화이트리스트 원칙을 검증 단계에도 세운다.
+          const allowed = new Set(['manifest.json', 'project.json', ...(manifest.images || []).map(i => i.entry)]);
+          const stowaways = [...entries.keys()].filter(n => !allowed.has(n));
+          if (stowaways.length) return fail('unexpected_entry', stowaways.slice(0, 5).join(','));
 
           // 남은 base64가 있으면 외부화가 덜 된 것 — 단, 평문 URI는 «남는 게 정상»이다(§2)
           const leftoverB64 = (projRaw.match(/data:image\/[a-zA-Z0-9.+-]+;base64,/g) || []).length;
@@ -273,6 +327,7 @@ function verifyGdt(gdtPath) {
           // 이미지 전량: sha256 대조 + ★래스터/SVG 분리 디코드 검사(§5)
           const badHash = [], badDecode = [];
           for (const img of manifest.images) {
+            deadline.check('verify:images');
             if (!entries.has(img.entry)) return fail('manifest_image_missing', img.entry);
             const buf = await readEntry(img.entry);
             if (crypto.createHash('sha256').update(buf).digest('hex') !== img.sha256) badHash.push(img.entry);
@@ -293,7 +348,11 @@ function verifyGdt(gdtPath) {
             projectJsonBytes: Buffer.byteLength(projRaw),
           });
         } catch (e) {
-          fail('verify_exception', e && e.message);
+          const msg = (e && e.message) || String(e);
+          // 상한 위반은 «전용 코드»로 올린다 — 사용자 문구가 달라야 하고, 원인을 뭉개면 안 된다.
+          if (/^entry_too_large/.test(msg)) return fail('entry_too_large', msg.split(':').slice(1).join(':'));
+          if (e && e.code === 'timeout') return fail('timeout', e.detail);
+          fail('verify_exception', msg);
         }
       });
       zf.readEntry();
