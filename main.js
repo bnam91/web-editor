@@ -52,7 +52,7 @@ _loadEnvFile(path.join(__dirname, '.env'));
 // 외부 자격증명 저장소(로컬 공유 시크릿) — GEMINI_API_KEY 등. iCloud dataless(EDEADLK) 회피 위해 ~/.config/secrets 로 일원화
 _loadEnvFile(path.join(os.homedir(), '.config/secrets/.env'));
 const { spawn } = require('child_process');
-const { login: authLogin, verifySession: authVerifySession, SIGNUP_URL, PRICING_URL, API_BASE: AUTH_API_BASE } = require('./services/authService');
+const { login: authLogin, verifySession: authVerifySession, urlIsLive: authUrlIsLive, SIGNUP_URL, PRICING_URL, FIND_EMAIL_URL, FIND_PASSWORD_URL, API_BASE: AUTH_API_BASE } = require('./services/authService');
 const { fillSectionTexts: geminiFill } = require('./services/geminiService');
 const { fillSectionTexts: openaiFill } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
@@ -491,6 +491,8 @@ ipcMain.handle('auth:state', () => {
     accessUntil: auth?.accessUntil || '',
     purchaseUrl: PRICING_URL,
     signupUrl:   SIGNUP_URL,
+    findEmailUrl:    FIND_EMAIL_URL,
+    findPasswordUrl: FIND_PASSWORD_URL,
   };
 });
 
@@ -516,20 +518,33 @@ ipcMain.handle('auth:logout', () => {
   return { ok: true };
 });
 
-// 가입/요금제 링크를 외부 브라우저로. ★임의 URL 오픈은 허용하지 않는다
+// 가입/요금제/계정찾기 링크를 외부 브라우저로. ★임의 URL 오픈은 허용하지 않는다
 // (렌더러 주입 스크립트가 shell.openExternal을 범용 실행 경로로 쓰는 것을 차단).
-ipcMain.handle('auth:open-external', (_event, url) => {
+//
+// ★열기 «전에» 그 주소가 살아 있는지 확인한다. 확인 없이 열면 사용자는 「이메일 찾기」를
+//   눌러서 404를 본다 — 링크가 없는 것보다 나쁘다. 2026-08-07 오전엔 찾기 두 페이지가
+//   실제로 404였고(배포 전), 같은 날 홈페이지 정적 페이지가 통째로 404가 되는 배포 구간도
+//   있었다. 그래서 이 확인은 「배포될 때까지의 임시 조치」가 아니라 상시 안전장치다.
+// 판단 불가(오프라인·타임아웃)는 막지 않는다 — authService.urlIsLive 주석 참고.
+ipcMain.handle('auth:open-external', async (_event, url) => {
+  let u;
   try {
-    const u = new URL(String(url || ''));
-    if (u.protocol !== 'https:' || u.origin !== AUTH_API_BASE) {
-      console.warn('[auth] 외부 링크 차단:', u.origin);
-      return { ok: false, error: 'BLOCKED' };
-    }
-    shell.openExternal(u.toString());
-    return { ok: true };
+    u = new URL(String(url || ''));
   } catch (_) {
     return { ok: false, error: 'BAD_URL' };
   }
+  if (u.protocol !== 'https:' || u.origin !== AUTH_API_BASE) {
+    console.warn('[auth] 외부 링크 차단:', u.origin);
+    return { ok: false, error: 'BLOCKED' };
+  }
+  let seenStatus = null;
+  const live = await authUrlIsLive(u.toString(), (_url, status) => { seenStatus = status; });
+  if (live === false) {
+    console.warn(`[auth] 아직 배포되지 않은 페이지 — 열지 않음: ${u.pathname} (HTTP ${seenStatus})`);
+    return { ok: false, error: 'NOT_READY', status: seenStatus };
+  }
+  shell.openExternal(u.toString());
+  return { ok: true };
 });
 
 ipcMain.handle('license:navigate-projects', () => {

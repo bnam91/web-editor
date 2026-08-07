@@ -178,24 +178,31 @@
     .status.success { color: var(--ui-success); }
     .status.info { color: var(--ui-text-muted); }
 
-    /* 가입 안내 — 키를 어디서 받는지 알 수 없던 문제를 메운다 */
-    .signup-hint {
+    /* 계정 찾기·가입 한 줄. ★홈페이지 login.html의 .auth-links와 «같은 구성»이다
+       (이메일 찾기 | 비밀번호 찾기 | 회원가입). 앱과 웹이 다른 문구·다른 배치를 쓰면
+       같은 서비스로 안 보인다. 색도 홈페이지 기준을 따라 담백하게 — 강조색을 쓰면
+       [로그인] 버튼과 시선을 다툰다. */
+    .auth-links {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
       margin-top: 18px;
       padding-top: 16px;
       border-top: 1px solid var(--ui-border);
       font-size: 12px;
-      color: var(--ui-text-muted);
-      text-align: center;
     }
 
+    .auth-links .sep { color: var(--ui-border-mid); }
+
     .link {
-      color: var(--ui-accent-primary);
+      color: var(--ui-text-muted);
       cursor: pointer;
       font-weight: 500;
       text-decoration: none;
     }
 
-    .link:hover { text-decoration: underline; }
+    .link:hover { color: var(--ui-text); text-decoration: underline; }
 
     /* 만료(이벤트 종료) 화면 */
     .screen { display: none; }
@@ -266,8 +273,13 @@
     <button class="btn" id="loginBtn">로그인</button>
     <div class="status info" id="statusMsg"></div>
 
-    <div class="signup-hint">
-      계정이 없으신가요? <span class="link" id="signupLink">가입하기</span>
+    <!-- 홈페이지 login.html과 같은 한 줄. 순서·문구·구분자까지 맞춘다. -->
+    <div class="auth-links">
+      <span class="link" id="findEmailLink">이메일 찾기</span>
+      <span class="sep">|</span>
+      <span class="link" id="findPwLink">비밀번호 찾기</span>
+      <span class="sep">|</span>
+      <span class="link" id="signupLink">회원가입</span>
     </div>
   </div>
 
@@ -289,8 +301,13 @@
 
 <script>
   const api = window.electronAPI || {};
+  // 아래 값들은 auth:state가 실어 보내는 것(services/authService.js가 원본)으로 덮인다.
+  // 여기 문자열은 IPC를 못 받았을 때의 최후 fallback일 뿐 — 주소를 바꿀 일이 있으면
+  // authService.js의 API_BASE 한 곳만 고친다.
   let signupUrl = 'https://hompageapp.vercel.app/signup.html';
   let purchaseUrl = 'https://hompageapp.vercel.app/pricing.html';
+  let findEmailUrl = 'https://hompageapp.vercel.app/find-email.html';
+  let findPasswordUrl = 'https://hompageapp.vercel.app/find-password.html';
 
   const $ = (id) => document.getElementById(id);
 
@@ -318,6 +335,8 @@
       if (st) {
         if (st.signupUrl) signupUrl = st.signupUrl;
         if (st.purchaseUrl) purchaseUrl = st.purchaseUrl;
+        if (st.findEmailUrl) findEmailUrl = st.findEmailUrl;
+        if (st.findPasswordUrl) findPasswordUrl = st.findPasswordUrl;
         if (st.expired) {
           $('expEmail').textContent = st.email || '—';
           $('expUntil').textContent = fmtDate(st.accessUntil) + ' 까지';
@@ -391,7 +410,13 @@
     try {
       const r = await api.openExternalUrl?.(url);
       if (r && r.ok === false && statusEl) {
-        setStatus(statusEl, '링크를 열지 못했습니다: ' + url, 'error');
+        // NOT_READY = 주소는 맞는데 홈페이지에 아직 그 페이지가 없다(main.js가 열기 전에 확인).
+        // 「열지 못했습니다」로 뭉뚱그리면 사용자가 자기 탓·네트워크 탓으로 오해한다.
+        if (r.error === 'NOT_READY') {
+          setStatus(statusEl, '아직 준비 중인 기능입니다. 조금만 기다려 주세요.', 'info');
+        } else {
+          setStatus(statusEl, '링크를 열지 못했습니다: ' + url, 'error');
+        }
       }
     } catch (_) {
       if (statusEl) setStatus(statusEl, '링크를 열지 못했습니다: ' + url, 'error');
@@ -400,6 +425,8 @@
 
   $('loginBtn').addEventListener('click', handleLogin);
   $('signupLink').addEventListener('click', () => openExternal(signupUrl, $('statusMsg')));
+  $('findEmailLink').addEventListener('click', () => openExternal(findEmailUrl, $('statusMsg')));
+  $('findPwLink').addEventListener('click', () => openExternal(findPasswordUrl, $('statusMsg')));
   $('purchaseBtn').addEventListener('click', () => openExternal(purchaseUrl, $('expiredStatus')));
   $('backToLoginBtn').addEventListener('click', () => {
     setStatus($('statusMsg'), '', '');

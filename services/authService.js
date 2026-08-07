@@ -20,8 +20,19 @@ const LOGIN_URL     = `${API_BASE}/api/license/login`;
 const SESSION_URL   = `${API_BASE}/api/license/session`;
 const SIGNUP_URL    = `${API_BASE}/signup.html`;
 const PRICING_URL   = `${API_BASE}/pricing.html`;
+// 계정 찾기.
+// ★이 링크를 넣던 2026-08-07 오전엔 두 페이지가 라이브에 «없었다»(404). 대성 브랜치(c6a9a9b)에만
+//   있었고, 같은 날 10:41경 배포되면서 200이 됐다(확인함). 그 사이 홈페이지 정적 페이지가
+//   통째로 404가 되는 구간도 있었다 — 배포 중에는 멀쩡하던 signup/pricing까지 죽는다.
+//   그래서 링크는 화면에 두되, 여는 쪽(main.js 'auth:open-external')이 열기 전에 실제 응답을
+//   확인해 죽어 있으면 브라우저를 띄우지 않는다. 「있다고 해놓고 404」가 「없다」보다 나쁘다.
+//   지금은 통과하지만 가드는 남긴다 — 홈페이지는 다시 깨질 수 있고, 실제로 그날 깨졌다.
+const FIND_EMAIL_URL    = `${API_BASE}/find-email.html`;
+const FIND_PASSWORD_URL = `${API_BASE}/find-password.html`;
 
 const TIMEOUT_MS = 10000;
+// 링크 생사 확인은 클릭 직후에 돌아 «체감 지연»이 된다. 로그인 요청보다 짧게 잡는다.
+const LINK_CHECK_TIMEOUT_MS = 4000;
 
 /** JSON POST. 네트워크/타임아웃은 throw, HTTP 오류는 status와 함께 반환. */
 async function postJson(url, body) {
@@ -39,6 +50,39 @@ async function postJson(url, body) {
     return { status: res.status, json };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * 그 주소에 «진짜 페이지가 있는지» 확인한다. 죽은 링크로 사용자를 내보내지 않기 위한 것.
+ *
+ * ★반환값은 3갈래다 — true / false / null.
+ *   null 은 «판단 불가»(오프라인·타임아웃·요청 자체 실패)이고, false 와 다르게 다뤄야 한다.
+ *   판단 불가를 막아버리면 네트워크가 잠깐 흔들릴 때 멀쩡한 가입 링크까지 죽는다.
+ *   그래서 호출부는 null 이면 그냥 열어준다(관대한 쪽으로).
+ *
+ * ★GET 을 쓴다. HEAD 가 아니다 —
+ *   Electron main 의 fetch 는 Chromium net 스택이라 HEAD 응답의 status 를
+ *   그대로 돌려주지 않는 경우가 있었다(2026-08-07: 200 인 주소가 전부 막혔다).
+ *   본문을 안 읽고 즉시 취소하면 GET 이어도 비용은 헤더 몇 줄 수준이다.
+ *
+ * @param {(url:string, status:number|null)=>void} [onResult] 진단 로그용 훅.
+ *   막혔을 때 «몇이 와서» 막혔는지 남기지 않으면 다음 사람이 원인을 못 찾는다.
+ */
+async function urlIsLive(url, onResult) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), LINK_CHECK_TIMEOUT_MS);
+  let status = null;
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: ctl.signal });
+    status = res.status;
+    return status >= 200 && status < 400;
+  } catch (_) {
+    return null; // 오프라인·타임아웃 → 판단 불가
+  } finally {
+    clearTimeout(timer);
+    ctl.abort();            // 본문은 받지 않는다
+    if (onResult) { try { onResult(url, status); } catch (_) {} }
   }
 }
 
@@ -117,4 +161,7 @@ module.exports = {
   API_BASE,
   SIGNUP_URL,
   PRICING_URL,
+  FIND_EMAIL_URL,
+  FIND_PASSWORD_URL,
+  urlIsLive,
 };
