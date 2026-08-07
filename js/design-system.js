@@ -303,8 +303,12 @@ const DesignSystem = (() => {
 
     const headingFont = get('ds-heading-font');
     const bodyFont    = get('ds-body-font');
-    const headingFontVal = `'${headingFont}', sans-serif`;
-    const bodyFontVal    = `'${bodyFont}', sans-serif`;
+    // 폰트 체인은 prop-text-utils의 fontChain()이 단일 소유(중복 규칙 금지).
+    // classic script라 import를 못 써 전역으로 받는다. 미로드 시 기존 동작으로 폴백.
+    // ★기존엔 Noto Serif KR을 골라도 `', sans-serif'`가 붙어 serif가 sans로 떨어졌다.
+    const _chain = (f) => window.goditorFontChain?.(f) ?? `'${f}', sans-serif`;
+    const headingFontVal = _chain(headingFont);
+    const bodyFontVal    = _chain(bodyFont);
     const radius = (get('ds-label-radius') || '8') + 'px';
 
     const h1Color = get('ds-h1-color');
