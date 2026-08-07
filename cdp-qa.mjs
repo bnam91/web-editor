@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 
-const targetTitle = process.argv[2] || 'Goya Web Design Editor';
+const targetTitle = process.argv[2] || 'GODITOR';
 const script = process.argv[3] || 'return 1+1';
 
 const r = await fetch('http://localhost:9335/json');
