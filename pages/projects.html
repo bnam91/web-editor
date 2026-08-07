@@ -546,6 +546,12 @@ function renderHomeTabs() {
       </div>`).join('');
   } catch {}
 }
+
+/* ── .gdt 불러오기 (「파일 → 프로젝트 불러오기…」) ──
+   실제 흐름은 js/io/gdt-import.js가 갖고 있다(편집기 페이지와 공용). 여기선
+   «불러온 뒤 목록을 다시 그리는 것»만 등록한다 — 안 하면 새 프로젝트가 새로고침 전까지 안 보인다. */
+window.__gdtOnImported = async () => { await renderGrid(); };
 </script>
+<script src="../js/io/gdt-import.js"></script>
 </body>
 </html>

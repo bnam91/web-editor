@@ -115,6 +115,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 종료 전 강제 저장
   onForceSaveBeforeQuit: (cb) => ipcRenderer.on('force-save-before-quit', () => cb()),
+
+  // ── .gdt 프로젝트 내보내기 ──
+  // gdtExport는 «왕복 검증까지 끝난 뒤» resolve한다 — 성공 = 파일이 실제로 다시 열렸다는 뜻.
+  gdtExport:        (args) => ipcRenderer.invoke('gdt:export', args),
+  gdtImport:        (args) => ipcRenderer.invoke('gdt:import', args || {}),
+  onGdtProgress:    (cb)   => ipcRenderer.on('gdt:progress', (_e, p) => cb(p)),
+  onGdtMenuExport:  (cb)   => ipcRenderer.on('gdt:menu-export', () => cb()),
+  onGdtMenuImport:  (cb)   => ipcRenderer.on('gdt:menu-import', () => cb()),
+  // 파일 연결(.gdt 더블클릭) — 켜진 상태는 push, 꺼진 상태(콜드 스타트)는 pull로 받는다.
+  onGdtOpenFile:    (cb)   => ipcRenderer.on('gdt:open-file', (_e, p) => cb(p)),
+  gdtTakePendingOpen: ()   => ipcRenderer.invoke('gdt:takePendingOpen'),
   quitReady: () => ipcRenderer.send('quit-ready'),
 
   // Clipboard (Electron 메인 프로세스 경유 — navigator.clipboard 권한 거부 우회)
