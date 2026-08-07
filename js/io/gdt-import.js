@@ -72,6 +72,8 @@
    *   `sha256_mismatch`는 사용자에게 아무 뜻이 없다.
    */
   const REJECT_MESSAGE = {
+    // ★「못 찾음」을 「손상」과 구분한다 — 뭉뚱그리면 멀쩡한 파일을 사용자가 의심한다.
+    file_not_found:             '파일을 찾을 수 없습니다. 외장·네트워크 드라이브면 연결을 확인해 주세요.',
     zip_open_failed:            '이 파일은 GODITOR 프로젝트 파일이 아니거나 손상됐습니다.',
     zip_read_failed:            '파일을 읽는 중 오류가 났습니다. 파일이 손상된 것 같습니다.',
     manifest_missing:           'GODITOR 프로젝트 파일이 아닙니다.',

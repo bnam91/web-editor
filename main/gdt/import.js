@@ -146,6 +146,14 @@ async function importGdt({ gdtPath, projectsDir, onProgress = null }) {
   let peakRss = process.memoryUsage().rss;
   const rssTimer = setInterval(() => { peakRss = Math.max(peakRss, process.memoryUsage().rss); }, 50);
 
+  // 0) 접근 가능한 파일인가 — 없거나 못 읽으면 «손상»이 아니라 «못 찾음»으로 구분해 알린다.
+  //    (네트워크 드라이브 미마운트·권한 등. 「손상됐습니다」로 뭉뚱그리면 사용자가 파일을 의심한다.)
+  try { fs.accessSync(gdtPath, fs.constants.R_OK); }
+  catch (_) {
+    clearInterval(rssTimer);
+    return { ok: false, code: 'file_not_found', error: `파일에 접근할 수 없습니다: ${gdtPath}` };
+  }
+
   // 1) ★먼저 «거부 판정». 이 시점까지 디스크에 아무것도 안 쓴다.
   if (onProgress) onProgress({ phase: 'validate' });
   const v = await verifyGdt(gdtPath);
