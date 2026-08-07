@@ -66,6 +66,9 @@ function restoreSnapshot(snap) {
   window.deselectAll();
   _historyPaused = false;
   _updateUndoRedoBtns();
+  // 캔버스가 통째로 바뀌었으니 「없는 글꼴」 표시도 다시 센다 —
+  // 안 하면 ⌘Z로 대체를 되돌린 뒤에도 상단바가 「대체됨」이라고 거짓말한다(실측 2026-08-08).
+  window.gdtFontPaintBadge?.();
   // _suppressAutoSave는 한 프레임 뒤 해제 — MutationObserver는 microtask 후 발화하므로
   // 동기 해제 시 잔여 mutation이 새어 부분저장을 유발. (applyProjectData와 동일 패턴)
   requestAnimationFrame(() => { state._suppressAutoSave = false; });

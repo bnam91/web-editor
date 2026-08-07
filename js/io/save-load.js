@@ -514,6 +514,10 @@ function applyProjectData(data) {
     // D1: 페이지간 히스토리(stash Map)도 전부 비워 프로젝트 격리 (프로젝트 B 로드 시 A stash 오염 방지)
     window.resetAllPageHistory?.();
     window.clearHistory?.();
+    /* ★문서를 «열 때» 없는 글꼴을 알린다(일러스트·피그마와 같은 시점).
+       여기가 최초 로드·탭 전환·브랜치 전환이 모두 지나가는 자리다.
+       한가할 때 세고(requestIdleCallback) 읽기만 하므로 이 저장 억제 구간과 부딪치지 않는다. */
+    window.gdtFontCheckDocument?.();
   } finally {
     // MutationObserver는 microtask 후 발화 — rAF로 한 프레임 뒤 해제해 잔여 mutation까지 흡수
     requestAnimationFrame(() => { state._suppressAutoSave = false; });

@@ -87,6 +87,8 @@
   <button class="tb-btn" id="mode-preview-btn" onclick="enterPreview()" style="display:none">Preview</button>
   <div class="spacer"></div>
 <span id="autosave-indicator" title="자동저장 상태"></span>
+<!-- 이 문서에 «이 기기에 없는 글꼴»이 있을 때만 보인다. 닫아도 남는 자리(상단바 공용 .tb-badge 재사용) -->
+<span id="fsub-topbar-badge" class="tb-badge" style="display:none;cursor:pointer;"></span>
 <span id="debug-port-badge" class="tb-badge" style="display:none;"></span>
 <span id="mcp-info-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 주소 복사"></span>
 <span id="mcp-token-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 접속 토큰 복사 / Alt+클릭 재발급"></span>
