@@ -165,9 +165,12 @@
         // ② 새 대체 글꼴을 바로 뒤에 끼운다 (이미 그 자리에 있으면 그대로 둔다 — 멱등)
         //    ★이름 검사를 여기서 «한 번 더» 한다 — 이 함수가 문서에 글자를 쓰는 마지막 지점이다.
         if (p.insert && isSafeFamily(p.insert)) {
+          // ★검사는 trim 한 값으로 하는데 삽입이 원본이면 'Arial\n' 이 CSS 문자열 안에 날 개행으로 들어간다.
+          //   여기서 «그 자리에» 정규화한다 — 헬퍼로 빼면 이 함수만 떼어 쓰는 하네스에서 범위 밖이 된다.
+          const ins = String(p.insert).trim();
           const after = toks[i + 1];
-          if (!after || norm(_decodeEntities(after)) !== norm(p.insert)) {
-            next.push(`'${p.insert}'`);
+          if (!after || norm(_decodeEntities(after)) !== norm(ins)) {
+            next.push(`'${ins}'`);
             inserted.add(norm(_decodeEntities(tk)));
             touched = true;
           }
