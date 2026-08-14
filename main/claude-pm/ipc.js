@@ -605,13 +605,15 @@ async function handlePingMcp(_e) {
 // Unit B-2 — 「환경설정 → 개발자」 탭이 한 번에 쓰도록 토큰 파일/브리지 경로도 같이 준다.
 //   ⛔토큰 «값»은 여기 안 넣는다 — 값은 app:mcp-token 한 곳에서만 나간다.
 async function handleGetMcpInfo() {
-  let tokenFile = null, bridgePath = null;
+  let tokenFile = null, bridgePath = null, bridgeError = null;
   try {
     const m = require('./mcp-server');
     tokenFile = (m.getTokenFilePath && m.getTokenFilePath()) || null;
     bridgePath = (m.getBridgePath && m.getBridgePath()) || null;
+    // 복사 실패를 조용히 넘기면 화면의 연결 안내가 거짓이 된다 — 사유를 그대로 올린다.
+    bridgeError = (m.getBridgeError && m.getBridgeError()) || null;
   } catch (_) {}
-  return { ok: true, port: MCP_PORT, url: _mcpUrl(), tokenFile, bridgePath };
+  return { ok: true, port: MCP_PORT, url: _mcpUrl(), tokenFile, bridgePath, bridgeError };
 }
 
 // ── 등록 진입점 ──────────────────────────────

@@ -76,6 +76,7 @@ function _tokenOk(tok) {
 // ─────────────────────────────────────────────
 let _tokenFilePath = null;
 let _bridgeCopyPath = null;
+let _bridgeCopyError = null;
 
 function _getUserDataDir() {
   try {
@@ -88,6 +89,7 @@ function _getUserDataDir() {
 function _stateDir() { return path.join(_getUserDataDir(), 'claude-pm'); }
 function getTokenFilePath() { return _tokenFilePath; }
 function getBridgePath() { return _bridgeCopyPath; }
+function getBridgeError() { return _bridgeCopyError; }
 
 function _write0600(file, data) {
   // ⚠️writeFileSync의 mode는 «새로 만들 때»만 먹는다. 이미 있던 파일(644)은 그대로라
@@ -133,19 +135,43 @@ function _removeTokenFile() {
 // 브리지 스크립트를 userData로 복사한다.
 // ⚠️패키징하면 브리지는 app.asar «안»에 들어가서 `node <asar경로>` 로는 실행이 안 된다.
 //   그래서 사용자에게 안내할 경로는 항상 이 복사본이어야 한다(개발/배포 동일).
+// ★조건 1 — 복사본이 앱 버전과 «어긋나면 안 된다».
+//   내용 해시가 다르면 무조건 덮어쓴다. 안 그러면 앱을 업데이트해도 낡은 브리지가 남아
+//   「업데이트했는데 안 고쳐진다」가 된다.
+// ★조건 2 — 실패를 «조용히 넘기지 않는다».
+//   복사가 실패하면 개발자 탭이 안내하는 연결 경로가 통째로 거짓이 된다. 그래서 사유를
+//   _bridgeCopyError 에 남기고 getMcpInfo 로 올려 화면에 드러낸다.
 function _copyBridge() {
+  const dst0 = path.join(_stateDir(), 'mcp-stdio-bridge.cjs');
   try {
     const src = path.join(__dirname, 'mcp-stdio-bridge.cjs');
-    if (!fs.existsSync(src)) return null;
+    if (!fs.existsSync(src)) {
+      _bridgeCopyPath = null;
+      _bridgeCopyError = `브리지 원본을 찾을 수 없습니다: ${src}`;
+      console.error('[claudePM MCP] bridge source missing:', src);
+      return null;
+    }
     const dir = _stateDir();
     fs.mkdirSync(dir, { recursive: true });
-    const dst = path.join(dir, 'mcp-stdio-bridge.cjs');
-    fs.writeFileSync(dst, fs.readFileSync(src));
-    try { fs.chmodSync(dst, 0o755); } catch (_) {}
-    _bridgeCopyPath = dst;
-    return dst;
+    const buf = fs.readFileSync(src);
+    const srcHash = crypto.createHash('sha256').update(buf).digest('hex');
+    let dstHash = null;
+    try { dstHash = crypto.createHash('sha256').update(fs.readFileSync(dst0)).digest('hex'); } catch (_) {}
+    if (dstHash !== srcHash) {
+      fs.writeFileSync(dst0, buf);
+      console.log(`[claudePM MCP] bridge copy updated (${dstHash ? 'stale→fresh' : 'new'}): ${dst0}`);
+    }
+    try { fs.chmodSync(dst0, 0o755); } catch (_) {}
+    // 쓴 뒤 실제로 같은지 다시 읽어 확인한다 — 「썼다」와 「있다」는 다르다.
+    const after = crypto.createHash('sha256').update(fs.readFileSync(dst0)).digest('hex');
+    if (after !== srcHash) throw new Error('복사본 해시가 원본과 다릅니다(디스크 쓰기 실패 의심)');
+    _bridgeCopyPath = dst0;
+    _bridgeCopyError = null;
+    return dst0;
   } catch (e) {
-    console.error('[claudePM MCP] bridge copy failed:', e.message);
+    _bridgeCopyPath = null;
+    _bridgeCopyError = `브리지 복사 실패(${dst0}): ${e.message} — MCP 연결 안내 경로를 쓸 수 없습니다.`;
+    console.error('[claudePM MCP] bridge copy FAILED:', e.message);
     return null;
   }
 }
@@ -212,7 +238,9 @@ function _registerDefaultTools() {
       const pid = _activeProjectId();
       if (!pid) throw new Error('no active project');
       const proj = _readProjectFile(pid);
-      return { projectId: pid, project: proj };
+      // ok 를 붙인다 — 나머지 도구가 전부 {ok:…} 라 이것만 없으면 ok 를 보는 클라이언트가
+      // «성공을 실패로» 읽는다. 필드 추가라 기존 사용처는 안 깨진다.
+      return { ok: true, projectId: pid, project: proj };
     },
     {
       description: 'Read the currently active Goditor project JSON.',
@@ -249,26 +277,23 @@ function _registerDefaultTools() {
     'read_section',
     async ({ sectionId } = {}) => {
       if (!sectionId) throw new Error('sectionId required');
-      const pid = _activeProjectId();
-      if (!pid) throw new Error('no active project');
-      const proj = _readProjectFile(pid);
-      const sections = (proj && (proj.sections || proj.data?.sections)) || [];
-      const sec = sections.find(s => s.id === sectionId);
+      /* ⚠️실측(08-15): 이 도구는 «존재한 적 없는» 스키마를 뒤지고 있었다.
+       *   프로젝트 파일에 sections 배열은 없다 — 섹션은 pages[].canvas 안 «HTML 문자열»이다.
+       *   그래서 proj.sections 는 늘 [] 였고, get_canvas_state 가 방금 준 sectionId 를 넣어도
+       *   'section not found' 만 났다(실측으로 확인).
+       *   ⇒ 지금 열려 있는 캔버스가 정본이다. get_canvas_state 와 «같은 경로»로 읽는다. */
+      if (!_rendererInvoker || typeof _rendererInvoker.getCanvasState !== 'function') {
+        throw new Error('editor not running — read_section은 편집기 창이 열려 있어야 합니다(캔버스가 정본).');
+      }
+      const r = await _rendererInvoker.getCanvasState({ sectionId });
+      if (r && r.ok === false) return r;   // USER_BUSY 등은 그대로 올린다
+      const sections = (r && r.sections) || [];
+      const sec = sections.find(s => s.sectionId === sectionId || s.id === sectionId);
       if (!sec) throw new Error(`section not found: ${sectionId}`);
-
-      // 텍스트 추출 (depth-first)
-      const texts = [];
-      const walk = (node) => {
-        if (!node || typeof node !== 'object') return;
-        if (typeof node.text === 'string') texts.push(node.text);
-        if (typeof node.content === 'string') texts.push(node.content);
-        if (Array.isArray(node.children)) node.children.forEach(walk);
-        if (Array.isArray(node.blocks)) node.blocks.forEach(walk);
-        if (Array.isArray(node.rows)) node.rows.forEach(walk);
-        if (Array.isArray(node.cols)) node.cols.forEach(walk);
-      };
-      walk(sec);
-      return { sectionId, section: sec, texts };
+      const texts = (sec.blocks || [])
+        .map(b => (b && typeof b.text === 'string') ? b.text : '')
+        .filter(Boolean);
+      return { ok: true, sectionId, section: sec, texts };
     },
     {
       description: 'Read a specific section by id and extract its text content.',
@@ -5961,7 +5986,11 @@ function startMcpServer({ port = 9345, onActiveProject } = {}) {
       const srv = _createServer();
       srv.once('error', (err) => {
         if (err.code === 'EADDRINUSE') {
-          console.warn(`[claudePM MCP] port ${p} busy — trying ${p + 1}`);
+          // ⚠️이 대역(9345~)은 사내 CDP(원격디버깅) 포트 관행과 «겹친다».
+          //   여기서 밀려난 포트가 남의 chrome-devtools MCP 포트를 먹을 수 있고, 그러면
+          //   다른 사람이 「CDP가 이상하다」로 오진한다. 대역 이전은 릴리스 직후 첫 작업.
+          console.warn(`[claudePM MCP] port ${p} busy — trying ${p + 1}`
+            + ' (⚠️이 대역은 CDP 관행 포트와 겹칩니다 — CDP 이상으로 오진하지 마세요)');
           srv.close();
           if (p - port > 20) return reject(new Error('no free port within 20 of base'));
           tryListen(p + 1);
@@ -6024,4 +6053,5 @@ module.exports = {
   regenerateToken,
   getTokenFilePath,
   getBridgePath,
+  getBridgeError,
 };

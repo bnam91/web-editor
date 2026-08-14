@@ -175,7 +175,18 @@ function whichText() {
 
 let buf = '';
 let pending = 0, ended = false;
-const maybeExit = () => { if (ended && pending === 0 && buf.indexOf('\n') < 0) process.exit(0); };
+/* ★process.exit() 는 stdout 이 파이프일 때 «버퍼에 남은 것을 버린다».
+ *   실측(08-15): read_project 같은 큰 응답(0.4MB)이 매번 정확히 62471바이트에서 잘려
+ *   클라이언트가 깨진 JSON 을 받았다(3/3 재현). 응답이 클수록 확실히 터진다.
+ *   ⇒ 쓰기 완료 콜백을 세어, «다 나간 뒤에» 나간다. */
+let writing = 0;
+const maybeExit = () => {
+  if (ended && pending === 0 && writing === 0 && buf.indexOf('\n') < 0) process.exit(0);
+};
+function writeOut(obj) {
+  writing++;
+  process.stdout.write(JSON.stringify(obj) + '\n', () => { writing--; maybeExit(); });
+}
 
 // 줄이 한꺼번에 들어오면 handle()이 동시에 여러 개 돈다. 탐색을 그대로 두면 인스턴스 스캔이
 // 메시지 수만큼 중복 실행된다 — 진행 중인 탐색 하나를 공유한다.
@@ -203,7 +214,7 @@ async function _connect() {
 // 첫 응답 후 둘째 줄을 처리하기 전에 조기 종료되던 버그 방지.
 async function handle(msg) {
   const isReq = msg.id !== undefined && msg.id !== null;
-  const reply = (obj) => { if (isReq) process.stdout.write(JSON.stringify(obj) + '\n'); };
+  const reply = (obj) => { if (isReq) writeOut(obj); };
   try {
     if (!(await ensureConnected())) {
       reply({ jsonrpc: '2.0', id: msg.id,
