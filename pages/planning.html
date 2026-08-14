@@ -237,6 +237,27 @@
     }
     .toggle-btn.on { background: var(--ui-bg-input); border-color: var(--ui-accent); color: var(--ui-accent); }
   </style>
+  <script>
+  /* ★기획 프로젝트는 배포빌드에 «없는 기능»이다.
+   *   projects.html 이 「기획 프로젝트 만들기」 버튼을 숨기는 것만으론 부족하다 —
+   *   이 주소로 «직접 들어오면» 그대로 열린다(2026-08-15 실측: 비-admin 인스턴스에서
+   *   planning.html?project=… 가 관리자 화면까지 통째로 떴다).
+   *   ⇒ 화면을 숨기는 쪽이 아니라 «페이지 자신»이 막는다. 입구가 하나여야 한다.
+   *
+   * ★판정이 끝날 때까지 그린 다음 지우면 «한 프레임» 보인다 — 그 한 프레임이 스크린샷에 남는다.
+   *   그래서 먼저 감추고, admin 이 확인되면 그때 보여준다(관리자에겐 깜빡임이 없다).
+   * ★판단 불가(비-Electron·IPC 실패)는 «막는 쪽»으로 넘긴다. 여기선 열어주는 쪽이 더 위험하다. */
+  (function () {
+    const de = document.documentElement;
+    de.style.visibility = 'hidden';
+    const bail = () => location.replace('projects.html');   // replace = 뒤로가기로도 못 들어온다
+    const api = window.electronAPI;
+    if (!api || typeof api.isAdmin !== 'function') { bail(); return; }
+    api.isAdmin()
+      .then(ok => { if (ok) de.style.visibility = ''; else bail(); })
+      .catch(bail);
+  })();
+  </script>
 </head>
 <body>
   <!-- Toolbar -->
