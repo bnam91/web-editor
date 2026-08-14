@@ -633,6 +633,11 @@
       tokenInput.value = token || '';
       // 경로에 공백이 있어도 그대로 붙여넣을 수 있게 따옴표로 감싼다.
       $('dev-cmd').value = info?.bridgePath ? `claude mcp add goditor -- node "${info.bridgePath}"` : '';
+      /* ★브리지 복사 실패는 «조용히» 넘어가면 안 된다 — 그 순간 이 탭의 연결 안내가
+       *   통째로 거짓이 된다(있지도 않은 경로를 붙여넣으라고 시킨다).
+       *   패키징하면 원본이 app.asar 안이라 실행이 안 돼서 userData 복사본을 안내하는데,
+       *   그 복사가 실패하면 사용자는 「명령을 붙여넣었는데 안 붙는다」만 겪는다. */
+      if (info?.bridgeError) setStatus('✗ ' + info.bridgeError, 'err');
     };
 
     (async () => {
