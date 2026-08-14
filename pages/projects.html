@@ -495,7 +495,15 @@ async function shareProjectUI(e, id) {
   if (!src) return;
   if (!confirm(`"${src.name || '이름 없음'}" 을(를) 원격으로 올릴까요?\n\n올리면 이메일로 다른 사람을 초대해 «같이» 편집할 수 있습니다.\n초대·끊기는 환경설정 › 협업 에서 관리합니다.`)) return;
 
-  const actorId = (() => { try { return localStorage.getItem('goditor.actorId') || ''; } catch (_) { return ''; } })();
+  // ★없으면 «만들어서» 보낸다 — 빈 actorId 를 넘기면 서버가 내 패치를 못 걸러낸다.
+  //   키·형식은 js/drag-utils.js getActorId 와 «같다»(블록 ID 에 박히는 값과 같아야 한다).
+  const actorId = (() => {
+    try {
+      let v = localStorage.getItem('goditor.actorId') || '';
+      if (!/^[a-z0-9]{4,8}$/.test(v)) { v = Math.random().toString(36).slice(2, 7); localStorage.setItem('goditor.actorId', v); }
+      return v;
+    } catch (_) { return ''; }
+  })();
   const r = await window.electronAPI.collab.register({ projectId: id, name: src.name || '이름 없음', actorId });
   if (!r?.ok) { alert('원격으로 올리지 못했습니다: ' + collabReasonText(r?.reason, r)); return; }
 

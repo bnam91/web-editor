@@ -14,7 +14,11 @@
 
 const { API_BASE } = require('../../services/authService');
 
-const BASE = `${API_BASE}/api/collab`;
+/* ★주소를 갈아끼울 수 있어야 한다.
+ *   - 프리뷰 배포는 커밋마다 URL 이 바뀐다(브랜치 별칭이 이 프로젝트엔 안 열려 있다).
+ *   - 2인 동시편집은 «가짜 서버»로 먼저 검증하는 게 빠르고 안전하다(프로덕션 DB 안 건드림).
+ *   기본값은 프로덕션이다 — 사용자는 아무것도 안 해도 된다. */
+const BASE = `${process.env.GODITOR_COLLAB_API || API_BASE}/api/collab`;
 const TIMEOUT_MS = 12000;
 
 /**

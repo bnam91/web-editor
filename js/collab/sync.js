@@ -40,6 +40,21 @@
   const api = () => (window.electronAPI && window.electronAPI.collab) || null;
   const mm  = () => window.marketMerge || null;
 
+  /* ★actorId 를 «읽기만» 하면 안 된다 — 아직 블록을 하나도 안 만든 사용자는 값이 없다.
+   *   빈 actorId 로 pull 하면 서버가 내 패치를 못 걸러내고, 내가 보낸 걸 내가 다시 받는다.
+   *   drag-utils 의 getActorId 가 정본이다(블록 ID 에 박히는 값과 «같은 값»이어야 한다).
+   *   그게 아직 없으면 같은 키·같은 형식으로 여기서 만든다 — 나중에 drag-utils 가 그걸 읽는다. */
+  function actorId() {
+    if (typeof window.getActorId === 'function') return window.getActorId();
+    let v = '';
+    try { v = localStorage.getItem('goditor.actorId') || ''; } catch (_) {}
+    if (!/^[a-z0-9]{4,8}$/.test(v)) {
+      v = Math.random().toString(36).slice(2, 7);
+      try { localStorage.setItem('goditor.actorId', v); } catch (_) {}
+    }
+    return v;
+  }
+
   function emit(evt) {
     for (const fn of _listeners) { try { fn(evt); } catch (_) {} }
   }
@@ -225,9 +240,7 @@
     const r = await c.ref({ projectId });
     const ref = r && r.ref;
     if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
-    let actorId = '';
-    try { actorId = localStorage.getItem('goditor.actorId') || ''; } catch (_) {}
-    _cfg = { projectId, collabId: ref.collabId, actorId, seq: ref.seq || 0 };
+    _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0 };
     _sent = Object.create(null);
     _deferred = new Map();
     _timer = setInterval(tick, POLL_MS);
