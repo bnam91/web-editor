@@ -1001,8 +1001,12 @@ function pasteClipboard() {
       const sec = getSelectedSection() || document.querySelector('.section-block:last-child');
       if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); }
     } else {
-      el.id = 'ss_' + Math.random().toString(36).slice(2, 9);
-      el.querySelectorAll('[id]').forEach(c => { const p = c.id.split('_')[0] || 'el'; c.id = p + '_' + Math.random().toString(36).slice(2, 9); });
+      // ★붙여넣기도 «새 블록»이다 — 전역 genId 를 써야 actorId 조각이 붙는다.
+      const _gid = (p) => (typeof window.genId === 'function'
+        ? window.genId(p)
+        : p + '_' + Math.random().toString(36).slice(2, 9));
+      el.id = _gid('ss');
+      el.querySelectorAll('[id]').forEach(c => { const p = c.id.split('_')[0] || 'el'; c.id = _gid(p); });
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
       el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
       el.dataset.offsetX = String(ox + 20); el.dataset.offsetY = String(oy + 20);

@@ -3,7 +3,11 @@
 // 분리 사유: block-factory.js(4400+줄) 책임 분해 — 어노테이션 생성/렌더 SVG 헬퍼는 자기완결 단위.
 // 외부 의존: window.genId 하나(전역). window.* 노출은 기존과 동일 유지(annotation-tool.js / prop-annotation.js 호환).
 
-const genId = window.genId || ((p) => p + '_' + Math.random().toString(36).slice(2, 9));
+// ★«부를 때» 찾는다 — 모듈 로드 시점에 잡아두면 drag-utils 가 아직 window.genId 를
+//   안 심었을 때 폴백에 고정돼, 여기서 만든 블록만 actorId 조각이 빠진다(협업에서 출처 불명).
+const genId = (p) => (typeof window.genId === 'function'
+  ? window.genId(p)
+  : p + '_' + Math.random().toString(36).slice(2, 9));
 
 const ANNOT_DEFAULTS = {
   strokeColor:     '#1a1a1a',    // 디폴트: 검정 (프리셋에서 빨강/파랑 등 선택 가능)
