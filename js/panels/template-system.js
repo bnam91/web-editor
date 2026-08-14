@@ -201,7 +201,10 @@ async function insertTemplate(tpl) {
   if (!sec || !sec.classList.contains('section-block')) return;
 
   // 모든 ID 재생성 (동일 템플릿 2회 삽입 시 중복 ID 방지)
-  const genId = (prefix) => prefix + '_' + Math.random().toString(36).slice(2, 9);
+  // ★자체 생성기를 두지 마라 — actorId 조각이 빠져 협업에서 출처를 못 가린다. 전역을 쓴다.
+  const genId = (prefix) => (typeof window.genId === 'function'
+    ? window.genId(prefix)
+    : prefix + '_' + Math.random().toString(36).slice(2, 9));
   sec.id = genId('sec');
   sec.querySelectorAll('[id]').forEach(el => {
     const prefix = el.id.split('_')[0] || 'el';

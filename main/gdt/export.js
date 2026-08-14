@@ -302,6 +302,19 @@ function verifyGdt(gdtPath) {
           if (manifest.formatVersion > FORMAT_VERSION) return fail('format_version_future', String(manifest.formatVersion));
           if ((manifest.images || []).length > LIMITS.IMAGE_COUNT) return fail('too_many_images', String(manifest.images.length));
 
+          /* ★§11-2 폰트 목록 — 여기가 «경계»다.
+           *   이 값은 그대로 렌더러로 넘어가 ①화면에 그려지고 ②사용자의 «선택지»가 되고
+           *   ③고른 값이 프로젝트 파일에 글자로 써진다. 남이 준 값이 우리 문서의 문법이 되는 길이라
+           *   개수·길이·타입을 여기서 끊는다. ★자르지 않고 «거부»한다 — 부분 복원 금지 원칙.
+           *   (문자열 아닌 값은 우리 내보내기가 만들지 않는다. 형식이 바뀌면 formatVersion 이 막는다.) */
+          const fonts = manifest.fonts;
+          if (fonts != null && !Array.isArray(fonts)) return fail('fonts_malformed', `타입 ${typeof fonts}`);
+          if ((fonts || []).length > LIMITS.FONT_COUNT) return fail('too_many_fonts', String(fonts.length));
+          for (const f of fonts || []) {
+            if (typeof f !== 'string') return fail('fonts_malformed', `항목 타입 ${f === null ? 'null' : typeof f}`);
+            if (f.length > LIMITS.FONT_NAME_CHARS) return fail('font_name_too_long', `${f.length}자`);
+          }
+
           // ★manifest.images 에 «같은 entry 를 여러 번» 나열하는 우회를 직접 막는다.
           //   두장 2차 실증: 이미지 1개를 1000번 나열하면 「원복 수 == images.length」가
           //   성립해 개수 검사를 «통과의 열쇠»로 바꿔버린다(82KB → 101MB, 1,233배).

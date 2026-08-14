@@ -155,8 +155,17 @@ async function verifySession(email, sessionToken) {
   } catch (_) {
     return null; // 오프라인 — 유예 유지
   }
-  if (r.status !== 200 || !r.json || typeof r.json.ok !== 'boolean') return null; // 미구현(404)·서버오류
+  // ★「거절」과 「판단 불가」를 가른다.
+  //   서버는 세션이 죽었을 때 401(invalid_session)·403(email_not_verified)로 «대답»한다 —
+  //   그건 오프라인이 아니라 답이다. 예전엔 200 이 아니면 전부 null(판단 불가)로 뭉갰고,
+  //   그 결과 ⑴ 화면엔 「오프라인」이 뜨고 ⑵ silentRefresh 의 invalid_session 분기가
+  //   «도달 불가»가 됐다(폐기된 세션이 영영 안 지워진다).
+  //   판단 불가로 남겨야 하는 건 «서버가 말을 안 한 경우»뿐이다 — 네트워크 실패(위 catch),
+  //   엔드포인트 부재(404), 서버오류(5xx), 그리고 형식이 깨진 응답.
   const j = r.json;
+  const spoke = (r.status === 200 || r.status === 401 || r.status === 403)
+             && j && typeof j.ok === 'boolean';
+  if (!spoke) return null;
   if (j.ok) return { ok: true, plan: j.plan || '', accessUntil: j.accessUntil || '' };
   return { ok: false, reason: j.reason || 'unknown', plan: j.plan || '', accessUntil: j.accessUntil || '' };
 }

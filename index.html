@@ -87,6 +87,12 @@
   <button class="tb-btn" id="mode-preview-btn" onclick="enterPreview()" style="display:none">Preview</button>
   <div class="spacer"></div>
 <span id="autosave-indicator" title="자동저장 상태"></span>
+<!-- 이 문서에 «이 기기에 없는 글꼴»이 있을 때만 보인다. 닫아도 남는 자리(상단바 공용 .tb-badge 재사용) -->
+<span id="fsub-topbar-badge" class="tb-badge" style="display:none;cursor:pointer;"></span>
+<!-- 공동작업 중일 때만 보인다. 「누가 어느 섹션을 만지고 있나」 — 상단바 공용 .tb-badge 재사용 -->
+<span id="collab-topbar-badge" class="tb-badge" style="display:none;cursor:default;"></span>
+<!-- 받은 초대가 있을 때만. 클릭 → 환경설정 › 협업 -->
+<span id="collab-invite-badge" class="tb-badge" style="display:none;cursor:pointer;" title="받은 공동작업 초대"></span>
 <span id="debug-port-badge" class="tb-badge" style="display:none;"></span>
 <span id="mcp-info-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 주소 복사"></span>
 <span id="mcp-token-badge" class="tb-badge" style="display:none;cursor:pointer;" title="클릭하면 MCP 접속 토큰 복사 / Alt+클릭 재발급"></span>
@@ -861,6 +867,9 @@
 <!-- Settings (다른 js보다 먼저 — _matchShortcut/getShortcut 글로벌 등록) -->
 <script src="js/settings/settings-store.js"></script>
 <script src="js/market-merge.js"></script>
+<!-- 협업 동기화 루프. market-merge «뒤»여야 한다 — 섹션 해시를 그걸 빌려 쓴다. -->
+<script src="js/collab/sync.js"></script>
+<script src="js/collab/invites-badge.js"></script>
 <script src="js/market.js"></script>
 <script src="js/settings/settings-modal.js"></script>
 <!-- Section Search (⌘F 팔레트) — editor.js(module) 이전에 window.openSectionSearch 정의 -->

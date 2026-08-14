@@ -57,6 +57,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     auth: ()        => ipcRenderer.invoke('market:auth'),
   },
 
+  // 원격 동시협업 (main/collab/*). ★네트워크·sessionToken 은 main 에만 있다 —
+  // 렌더러는 여기 열린 문으로만 말한다(CSP·토큰 격리).
+  collab: {
+    ref:      (payload) => ipcRenderer.invoke('collab:ref',      payload),
+    seq:      (payload) => ipcRenderer.invoke('collab:seq',      payload),
+    register: (payload) => ipcRenderer.invoke('collab:register', payload),
+    leave:    (payload) => ipcRenderer.invoke('collab:leave',    payload),
+    invite:   (payload) => ipcRenderer.invoke('collab:invite',   payload),
+    invites:  (payload) => ipcRenderer.invoke('collab:invites',  payload),
+    respond:  (payload) => ipcRenderer.invoke('collab:respond',  payload),
+    push:     (payload) => ipcRenderer.invoke('collab:push',     payload),
+    pull:     (payload) => ipcRenderer.invoke('collab:pull',     payload),
+  },
+
   // Account auth (라이선스 키 제도 폐지 → 홈페이지 계정 로그인)
   getAuthState:       ()                   => ipcRenderer.invoke('auth:state'),
   refreshAuth:        ()                   => ipcRenderer.invoke('auth:refresh'),
@@ -94,7 +108,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   debugPort: () => ipcRenderer.invoke('app:debug-port').catch(() => null),
   getGitBranch: () => ipcRenderer.invoke('app:git-branch').catch(() => null),
 
-  // Unit B — MCP 접속 토큰(노출/재발급, admin만; main에서 게이팅)
+  // Unit B-2 — MCP 접속 토큰(노출/재발급). ★admin 전용이 «아니다» — MCP를 일반 사용자에게
+  // 개방하면서 게이팅을 풀었다(환경설정 › 개발자 탭에서 누구나 자기 토큰을 꺼낸다).
+  // 토큰은 메모리 + userData/claude-pm/mcp-<port>.json(0600)에만 산다.
   getMcpToken: () => ipcRenderer.invoke('app:mcp-token').catch(() => null),
   regenerateMcpToken: () => ipcRenderer.invoke('mcp:regenerate-token').catch(() => null),
 
@@ -142,6 +158,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   spawnClaudeTerminal:  (folderPath)             => ipcRenderer.invoke('claudePM:spawnClaudeTerminal', { folderPath }),
   pingClaudePM:         ()                       => ipcRenderer.invoke('claudePM:pingMcp'),
   getMcpInfo:           ()                       => ipcRenderer.invoke('claudePM:getMcpInfo').catch(() => null),
+  // ⚠️실측(08-15): 이걸 «부르는 렌더러 코드가 없다». 그래서 global.currentActiveProjectId는
+  //   늘 null이었고 read_project·read_section·duplicate_project가 항상 죽었다.
+  //   지금은 mcp-server의 _activeProjectId()가 편집기 창 URL을 폴백으로 읽어 살려뒀다.
+  //   여길 실제로 부르게 만들면 그 폴백보다 우선한다.
   setClaudePMActiveProject: (projectId)          => ipcRenderer.invoke('claudePM:setActiveProject', { projectId }),
   // 자동 PM 폴더 보장 — 신규 프로젝트 생성 직후 + 기존 프로젝트 활성화 시 호출
   ensureClaudePMFolder: ({ projectId, projectName, basePath } = {}) =>

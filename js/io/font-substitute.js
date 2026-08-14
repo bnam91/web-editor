@@ -83,6 +83,11 @@
    *   raws     = `data-raw-font` 속성 수
    * (검증 오라클: 두장군 A2Z = elements 17 · decls 17 · raws 17 → 출현 34)
    */
+  /** 스캔 항목 한 개 — scanHtml(문자열)·scanDom(화면)이 «같은 모양»을 만든다. */
+  function _newEntry(family) {
+    return { family, elements: 0, decls: 0, raws: 0, pages: {}, samples: [], with: new Set() };
+  }
+
   function scanHtml(html, pageName, acc) {
     const out = acc || new Map();
     if (!html) return out;
@@ -106,11 +111,14 @@
         const k = norm(fam);
         if (NOT_A_FONT.has(k)) continue;
         let e = out.get(k);
-        if (!e) { e = { family: fam, elements: 0, decls: 0, raws: 0, pages: {}, samples: [] }; out.set(k, e); }
+        if (!e) { e = _newEntry(fam); out.set(k, e); }
         e.elements++;
         if (hitsDecl.has(fam)) e.decls++;
         if (hitsRaw.has(fam)) e.raws++;
         e.pages[pageName] = (e.pages[pageName] || 0) + 1;
+        // ★같은 «선언 안에» 함께 있는 글꼴을 기억한다 — 「대체가 실제로 문서에 들어 있나」의 근거.
+        //   기록(localStorage)만 믿으면 되돌리기(⌘Z) 후에도 「대체됨」이라고 거짓말한다(실측).
+        hitsDecl.forEach(o => { if (norm(o) !== k) e.with.add(norm(o)); });
         // 「어디에」 — 태그 바로 뒤 텍스트를 조금 떠서 보여준다(있으면).
         if (e.samples.length < 3) {
           const s = _snippet(html, m.index + raw.length);
@@ -129,13 +137,60 @@
     return text.length > 16 ? text.slice(0, 16) + '…' : text;
   }
 
-  /** 프로젝트 데이터(v1/v2) 전체를 훑는다. */
+  /** 프로젝트 데이터(v1/v2/편집기 state) 전체를 훑는다.
+   *  ★version 이 아니라 «pages 배열이 있느냐»로 가른다 — 편집기의 window.state 에는
+   *    version 필드가 없어서 version===2 로 보면 열려 있는 문서를 통째로 놓친다. */
   function scanProject(data) {
     const acc = new Map();
-    const pages = (data && data.version === 2 && Array.isArray(data.pages))
+    const pages = (data && Array.isArray(data.pages) && data.pages.length)
       ? data.pages
       : [{ name: 'Page 1', canvas: (data && data.canvas) || '' }];
     pages.forEach((p, i) => scanHtml(p.canvas || '', p.name || `Page ${i + 1}`, acc));
+    return acc;
+  }
+
+  /* ── DOM 스캔 — «편집기에 열려 있는» 페이지용 ──
+   * 같은 내용을 문자열로 다시 훑으면 108MB 캔버스에서 그 값을 다 읽어야 한다.
+   * 화면에 이미 파싱돼 있으니 요소를 직접 센다. 숫자 정의는 scanHtml 과 «같다»
+   * (elements=요소 수 · decls=font-family 지정 수 · raws=data-raw-font 수).
+   */
+  function scanDom(root, pageName, acc) {
+    const out = acc || new Map();
+    if (!root) return out;
+    for (const el of root.querySelectorAll('[style*="font-family"],[data-raw-font]')) {
+      const hitsDecl = new Set(), hitsRaw = new Set();
+      const ff = el.style && el.style.fontFamily;
+      if (ff) _familiesOf(ff).forEach(f => hitsDecl.add(f));
+      const rawF = el.dataset && el.dataset.rawFont;
+      if (rawF) _familiesOf(rawF).forEach(f => hitsRaw.add(f));
+      for (const fam of new Set([...hitsDecl, ...hitsRaw])) {
+        const k = norm(fam);
+        if (NOT_A_FONT.has(k)) continue;
+        let e = out.get(k);
+        if (!e) { e = _newEntry(fam); out.set(k, e); }
+        e.elements++;
+        if (hitsDecl.has(fam)) e.decls++;
+        if (hitsRaw.has(fam)) e.raws++;
+        e.pages[pageName] = (e.pages[pageName] || 0) + 1;
+        hitsDecl.forEach(o => { if (norm(o) !== k) e.with.add(norm(o)); });
+        if (e.samples.length < 3) {
+          const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+          const s = t.length > 16 ? t.slice(0, 16) + '…' : t;
+          if (s && !e.samples.includes(s)) e.samples.push(s);
+        }
+      }
+    }
+    return out;
+  }
+
+  /** 편집기에 열려 있는 «문서 전체» — 현재 페이지는 DOM 으로, 나머지는 문자열로. */
+  function scanEditorDocument() {
+    const acc = new Map();
+    const canvasEl = document.getElementById('canvas');
+    const cur = window.getCurrentPage && window.getCurrentPage();
+    scanDom(canvasEl, (cur && cur.name) || 'Page 1', acc);
+    const pages = (window.state && Array.isArray(window.state.pages)) ? window.state.pages : [];
+    pages.forEach((p, i) => { if (p !== cur) scanHtml(p.canvas || '', p.name || `Page ${i + 1}`, acc); });
     return acc;
   }
 
@@ -144,41 +199,52 @@
    * ★drop은 «우리가 끼운 것»으로 기록된 경우에만 넘어온다 — 원래 체인에 있던 이름을
    *   지우면 사용자가 고른 폴백이 사라진다(예: 거의 모든 체인에 있는 Pretendard).
    */
+  /* ── 폰트 «목록 한 줄»을 다시 쓴다 (문서든 DOM 이든 여기 하나를 쓴다) ──
+   * ★HTML 문자열 경로(rewriteHtml)와 편집기 DOM 경로(applyLive)가 «같은 규칙»을 써야 한다.
+   *   둘이 갈리면 「목록에서 고친 문서」와 「편집기에서 고친 문서」가 서로 다른 모양이 된다.
+   * @returns {{value:string, touched:boolean, inserted:Set<string>}}
+   */
+  function rewriteFamilyList(val, plan) {
+    const toks = _tokens(val);
+    const next = [];
+    const inserted = new Set();
+    let touched = false;
+    for (let i = 0; i < toks.length; i++) {
+      const tk = toks[i];
+      next.push(tk);
+      const p = plan.get(norm(_decodeEntities(tk)));
+      if (!p) continue;
+      // ① 직전에 «우리가» 끼운 대체 글꼴을 걷어낸다(바로 뒤 한 개만)
+      if (p.drop && toks[i + 1] && norm(_decodeEntities(toks[i + 1])) === norm(p.drop)) {
+        i++; touched = true;
+      }
+      // ② 새 대체 글꼴을 바로 뒤에 끼운다 (이미 그 자리에 있으면 그대로 둔다 — 멱등)
+      //    ★이름 검사를 여기서 «한 번 더» 한다 — 문서에 글자를 쓰는 마지막 지점이다.
+      if (p.insert && isSafeFamily(p.insert)) {
+        // ★검사는 trim 한 값으로 하는데 삽입이 원본이면 'Arial\n' 이 CSS 문자열 안에 날 개행으로 들어간다.
+        const ins = String(p.insert).trim();
+        const after = toks[i + 1];
+        if (!after || norm(_decodeEntities(after)) !== norm(ins)) {
+          next.push(`'${ins}'`);
+          inserted.add(norm(_decodeEntities(tk)));
+          touched = true;
+        }
+      }
+    }
+    return { value: next.join(', '), touched, inserted };
+  }
+
   function rewriteHtml(html, plan) {
     if (!html) return { html, changed: 0, inserted: new Set() };
     let changed = 0;
     const inserted = new Set();
 
     const rewriteDecls = (tag) => tag.replace(DECL_RE(), (full, val) => {
-      const toks = _tokens(val);
-      const next = [];
-      let touched = false;
-      for (let i = 0; i < toks.length; i++) {
-        const tk = toks[i];
-        next.push(tk);
-        const p = plan.get(norm(_decodeEntities(tk)));
-        if (!p) continue;
-        // ① 직전에 «우리가» 끼운 대체 글꼴을 걷어낸다(바로 뒤 한 개만)
-        if (p.drop && toks[i + 1] && norm(_decodeEntities(toks[i + 1])) === norm(p.drop)) {
-          i++; touched = true;
-        }
-        // ② 새 대체 글꼴을 바로 뒤에 끼운다 (이미 그 자리에 있으면 그대로 둔다 — 멱등)
-        //    ★이름 검사를 여기서 «한 번 더» 한다 — 이 함수가 문서에 글자를 쓰는 마지막 지점이다.
-        if (p.insert && isSafeFamily(p.insert)) {
-          // ★검사는 trim 한 값으로 하는데 삽입이 원본이면 'Arial\n' 이 CSS 문자열 안에 날 개행으로 들어간다.
-          //   여기서 «그 자리에» 정규화한다 — 헬퍼로 빼면 이 함수만 떼어 쓰는 하네스에서 범위 밖이 된다.
-          const ins = String(p.insert).trim();
-          const after = toks[i + 1];
-          if (!after || norm(_decodeEntities(after)) !== norm(ins)) {
-            next.push(`'${ins}'`);
-            inserted.add(norm(_decodeEntities(tk)));
-            touched = true;
-          }
-        }
-      }
-      if (!touched) return full;
+      const r = rewriteFamilyList(val, plan);
+      if (!r.touched) return full;
       changed++;
-      return `font-family: ${next.join(', ')}`;
+      r.inserted.forEach(k => inserted.add(k));
+      return `font-family: ${r.value}`;
     });
 
     /* ★고치는 범위 = «여는 태그 안»뿐이다. 세는 범위(scanHtml)와 같아야 한다.
@@ -196,7 +262,7 @@
     let changed = 0;
     const inserted = new Set();
     const take = (r) => { changed += r.changed; r.inserted.forEach(k => inserted.add(k)); };
-    if (data && data.version === 2 && Array.isArray(data.pages)) {
+    if (data && Array.isArray(data.pages) && data.pages.length) {
       for (const p of data.pages) {
         const r = rewriteHtml(p.canvas || '', plan);
         p.canvas = r.html; take(r);
@@ -303,7 +369,9 @@
   }
 
   /* ── 모달 ─────────────────────────────────────────────────────────── */
-  let _open = false;
+  /* ★어떤 «프로젝트»의 모달인지 들고 있어야 한다. 예전엔 true/false 뿐이라
+   *   모달을 열어둔 채 탭을 옮기면 「A에 대해 내린 결정」이 B에 적용됐다(실측 재현). */
+  let _openCtx = null;   // { projectId, live } | null
 
   function _el(id) { return document.getElementById(id); }
 
@@ -337,7 +405,7 @@
   function _closeModal() {
     const ov = _el('fsub-overlay');
     if (ov) ov.style.display = 'none';
-    _open = false;
+    _openCtx = null;
   }
 
   function _optionsHtml(installed, docFonts, current) {
@@ -369,20 +437,28 @@
     if (!projectId) return { shown: false, missing: 0 };
     // ★이미 떠 있으면 두 번째를 겹쳐 띄우지 않는다(.gdt 여러 개를 한 번에 열었을 때).
     //   기록은 남으니 목록 카드의 「글꼴」 배지로 다시 열 수 있다.
-    if (_open) { await _record(projectId, o); return { shown: false, missing: -1 }; }
+    if (_openCtx) { await _record(projectId, o); return { shown: false, missing: -1 }; }
 
+    /* ★이 문서가 «편집기에 열려 있는» 그 프로젝트면 디스크가 아니라 «편집기 상태»를 본다.
+     *   디스크를 읽으면 아직 저장 안 된 편집 내용을 못 보고, 고칠 때도 자동저장과 부딪친다. */
+    const live = isLiveProject(projectId);
     const api = API();
-    if (!api || !api.loadProject) return { shown: false, missing: 0 };
     let data = null;
-    try { data = await api.loadProject(projectId); } catch (_) {}
+    if (live) {
+      window.flushCurrentPage?.();
+      data = { name: window.getProjectName?.() || '', pages: window.state?.pages || [] };
+    } else {
+      if (!api || !api.loadProject) return { shown: false, missing: 0 };
+      try { data = await api.loadProject(projectId); } catch (_) {}
+    }
     if (!data) return { shown: false, missing: 0 };
 
-    const scan = scanProject(data);
+    const scan = live ? scanEditorDocument() : scanProject(data);
     // manifest가 준 목록(§7의 판정 근거)도 합친다 — 문서에서 못 찾아도 알려는 준다.
     for (const f of o.seedFonts || []) {
       const k = norm(f);
       if (!k || NOT_A_FONT.has(k) || scan.has(k)) continue;
-      scan.set(k, { family: f, elements: 0, decls: 0, raws: 0, pages: {}, samples: [] });
+      scan.set(k, _newEntry(f));
     }
 
     const families = [...scan.values()].map(e => e.family);
@@ -454,7 +530,7 @@
 
     _el('fsub-status').textContent = '';
     ov.style.display = 'flex';
-    _open = true;
+    _openCtx = { projectId, live };
 
     /* ★셀렉트를 «펼치는 순간» 설치 글꼴을 한 번 더 물어본다 — 그때는 창이 확실히 보이므로
      *   불러오기 직후(창이 가려져 SecurityError)에 못 받아온 목록이 여기서 채워진다.
@@ -476,9 +552,19 @@
       sel.addEventListener('focus', refill, { once: true });
     });
 
-    _el('fsub-close').onclick = () => _closeModal();
-    _el('fsub-later').onclick = () => _closeModal();
-    ov.onmousedown = (e) => { if (e.target === ov) _closeModal(); };
+    /* ★「나중에」 = «지금 이 목록»에 대해서만 다시 안 띄운다. 상단바 배지는 그대로 남는다
+     *   (닫았다고 조용해지면 안 된다 — 그게 예전에 프로젝트를 열어도 아무 말 없던 이유다). */
+    const dismiss = () => {
+      if (o.dismissSig) {
+        const r = report.get(projectId) || {};
+        report.set(projectId, { ...r, dismissed: o.dismissSig });
+      }
+      _closeModal();
+      paintTopbarBadge();
+    };
+    _el('fsub-close').onclick = dismiss;
+    _el('fsub-later').onclick = dismiss;
+    ov.onmousedown = (e) => { if (e.target === ov) dismiss(); };
 
     _el('fsub-apply').onclick = async () => {
       const btn = _el('fsub-apply');
@@ -489,10 +575,22 @@
           family: row.dataset.family,
           sub: row.querySelector('.fsub-select').value || null,
         }));
-        const n = await applySubstitutions(projectId, picks);
+        /* ★쓰기 «직전»에 다시 판정한다 — 모달을 열어둔 채 탭을 옮기면
+         *   화면(=다른 프로젝트)과 이 모달이 가리키는 프로젝트가 어긋난다.
+         *   실측 재현: A의 모달을 띄운 채 B로 전환 후 적용 → B 문서가 17곳 고쳐지고 기록은 A에 남았다.
+         *   ⇒ 어긋나면 «조용히 다른 경로로 새지 않고» 멈추고 알린다. */
+        if (live !== isLiveProject(projectId)) {
+          _el('fsub-status').textContent = '다른 프로젝트로 옮겨서 적용하지 않았습니다. 다시 열어 주세요.';
+          window.showToast?.('⚠️ 다른 프로젝트로 옮겨서 글꼴 대체를 적용하지 않았습니다');
+          setTimeout(() => _closeModal(), 1500);
+          return;
+        }
+        // 열려 있는 문서면 편집기 상태를, 아니면 파일을 고친다(같은 계획·같은 규칙)
+        const n = live ? await applyLiveSubstitutions(projectId, picks)
+                       : await applySubstitutions(projectId, picks);
         _el('fsub-status').textContent = n ? `${n}곳에 적용했습니다` : '바뀐 곳이 없습니다';
         window.showToast?.(n ? `✅ 대체 글꼴을 ${n}곳에 적용했습니다` : 'ℹ️ 바뀐 곳이 없습니다');
-        setTimeout(() => { _closeModal(); window.__gdtOnImported?.(); }, 700);
+        setTimeout(() => { _closeModal(); window.__gdtOnImported?.(); paintTopbarBadge(); }, 700);
       } catch (e) {
         console.error('[fsub] 적용 실패:', e);
         _el('fsub-status').textContent = '적용에 실패했습니다';
@@ -542,14 +640,8 @@
    * @param {{family:string, sub:string|null}[]} picks
    * @returns {Promise<number>} 바뀐 선언 수
    */
-  async function applySubstitutions(projectId, picks) {
-    const api = API();
-    const data = await api.loadProject(projectId);
-    if (!data) throw new Error('프로젝트를 읽을 수 없습니다');
-
-    const prev = report.get(projectId) || {};
-    const subs = { ...(prev.subs || {}) };
-
+  /** 고른 것 → 다시쓰기 계획. 「대체 안 함」과 「안전하지 않은 이름」을 여기서 거른다. */
+  function buildPlan(picks, subs) {
     const plan = new Map();
     const rejected = [];
     for (const p of picks) {
@@ -559,10 +651,37 @@
       const before = subs[k] || {};
       // 직전에 «우리가 진짜로 끼운» 글꼴만 걷어낸다. 원래 체인에 있던 이름은 건드리지 않는다.
       const drop = (before.inserted && before.sub && norm(before.sub) !== norm(p.sub || '')) ? before.sub : null;
-      if (!p.sub && !drop) { continue; }              // 대체 안 함 → 그대로 (정당한 선택)
+      if (!p.sub && !drop) continue;                  // 대체 안 함 → 그대로 (정당한 선택)
       plan.set(k, { insert: p.sub || null, drop });
     }
     if (rejected.length) console.warn('[fsub] 안전하지 않은 글꼴 이름이라 적용하지 않음:', rejected);
+    return plan;
+  }
+
+  /* ★`inserted` 는 「대체를 골랐다」가 아니라 「우리가 체인에 «진짜로» 끼웠다」여야 한다.
+   *   재현(adversarial/fonts/font_prefallback.gdt): 문서가 원래부터 `X, 'Noto Sans KR'` 였는데
+   *   사용자가 대체로 Noto Sans KR 을 고르면 이미 그 자리에 있어 삽입이 «안 일어난다».
+   *   그런데 예전엔 inserted:true 로 적어둬서, 다음에 Inter 로 바꿀 때
+   *   «사용자 원본 폴백» Noto Sans KR 을 우리 것으로 오인해 걷어냈다(되돌릴 수 없는 손실). */
+  function recordPicks(picks, subs, inserted) {
+    for (const p of picks) {
+      const k = norm(p.family);
+      if (!p.sub || !isSafeFamily(p.sub)) { delete subs[k]; continue; }
+      const prevSame = subs[k] && norm(subs[k].sub) === norm(p.sub) && subs[k].inserted;
+      subs[k] = { sub: p.sub, inserted: inserted.has(k) || !!prevSame };
+    }
+    return subs;
+  }
+
+  /** 디스크 경로 — 프로젝트가 «열려 있지 않을 때»(목록 페이지·불러오기 직후). */
+  async function applySubstitutions(projectId, picks) {
+    const api = API();
+    const data = await api.loadProject(projectId);
+    if (!data) throw new Error('프로젝트를 읽을 수 없습니다');
+
+    const prev = report.get(projectId) || {};
+    const subs = { ...(prev.subs || {}) };
+    const plan = buildPlan(picks, subs);
     if (!plan.size) return 0;
 
     const { changed, inserted } = rewriteProject(data, plan);
@@ -573,31 +692,152 @@
       if (res && res.ok === false) throw new Error(res.error || 'save_failed');
     }
 
-    /* ★`inserted` 는 「대체를 골랐다」가 아니라 「우리가 체인에 «진짜로» 끼웠다」여야 한다.
-     *   재현(adversarial/fonts/font_prefallback.gdt): 문서가 원래부터 `X, 'Noto Sans KR'` 였는데
-     *   사용자가 대체로 Noto Sans KR 을 고르면 이미 그 자리에 있어 삽입이 «안 일어난다».
-     *   그런데 예전엔 inserted:true 로 적어둬서, 다음에 Inter 로 바꿀 때
-     *   «사용자 원본 폴백» Noto Sans KR 을 우리 것으로 오인해 걷어냈다(되돌릴 수 없는 손실). */
-    for (const p of picks) {
-      const k = norm(p.family);
-      if (!p.sub || !isSafeFamily(p.sub)) { delete subs[k]; continue; }
-      const prevSame = subs[k] && norm(subs[k].sub) === norm(p.sub) && subs[k].inserted;
-      subs[k] = { sub: p.sub, inserted: inserted.has(k) || !!prevSame };
-    }
     // ★families는 «고친 뒤»의 문서에서 다시 뽑는다 — 예전 목록을 재활용하면 대체로 끼웠다가
     //   되돌린 글꼴 이름이 목록에 남는다(배지 계산이 실제 문서와 어긋난다).
     report.set(projectId, {
       name: prev.name || data.name || '',
       families: [...scanProject(data).values()].map(e => e.family).slice(0, MAX_FAMILIES),
-      subs, at: Date.now(),
+      subs: recordPicks(picks, subs, inserted), at: Date.now(),
     });
     return changed;
   }
 
+  /* ── 편집기 경로 — 문서가 «열려 있을 때» ────────────────────────────────
+   * ★디스크를 뒤에서 고치면 안 된다. 편집기는 자기 캔버스를 기준으로 자동저장하므로
+   *   파일만 바꿔놔도 다음 저장에 덮여 사라지거나, 최악엔 두 상태가 섞인다.
+   *   ⇒ «편집기 자신의 상태»를 고치고 평소 저장 경로를 그대로 타게 한다. 경쟁이 안 난다.
+   *   현재 페이지는 DOM 을, 나머지 페이지는 state 문자열을 고친다.
+   */
+  async function applyLiveSubstitutions(projectId, picks) {
+    const canvasEl = document.getElementById('canvas');
+    if (!canvasEl || !window.state) throw new Error('편집기 상태가 없습니다');
+    // ★화면에 떠 있는 문서가 «그 프로젝트»가 맞는지 여기서도 확인한다.
+    //   호출부(UI)가 확인해도, UI 를 우회한 호출이 남의 문서를 고치면 안 된다.
+    if (!isLiveProject(projectId)) throw new Error('project_changed');
+
+    const prev = report.get(projectId) || {};
+    const subs = { ...(prev.subs || {}) };
+    const plan = buildPlan(picks, subs);
+    if (!plan.size) return 0;
+
+    window.pushHistory?.('글꼴 대체');        // ★되돌리기 한 번으로 원복되게 — 고치기 «전»에 찍는다
+
+    let changed = 0;
+    const inserted = new Set();
+    // ① 현재 페이지 = 화면에 있는 요소를 직접 고친다(innerHTML 통째 교체 금지 — 선택/관찰자가 날아간다)
+    for (const el of canvasEl.querySelectorAll('[style*="font-family"]')) {
+      const cur = el.style.fontFamily;
+      if (!cur) continue;
+      const r = rewriteFamilyList(cur, plan);
+      if (!r.touched) continue;
+      el.style.fontFamily = r.value;         // ★data-raw-font 는 건드리지 않는다(원본 이름의 자리)
+      r.inserted.forEach(k => inserted.add(k));
+      changed++;
+    }
+    window.flushCurrentPage?.();             // DOM → state.pages[현재].canvas
+
+    // ② 나머지 페이지 = 문자열로
+    const cur = window.getCurrentPage && window.getCurrentPage();
+    for (const p of (window.state.pages || [])) {
+      if (p === cur) continue;
+      const r = rewriteHtml(p.canvas || '', plan);
+      p.canvas = r.html; changed += r.changed;
+      r.inserted.forEach(k => inserted.add(k));
+    }
+
+    if (changed) window.scheduleAutoSave?.();  // 평소 저장 경로 — 편집기가 자기 상태를 저장한다
+
+    report.set(projectId, {
+      name: prev.name || window.getProjectName?.() || '',
+      families: [...scanEditorDocument().values()].map(e => e.family).slice(0, MAX_FAMILIES),
+      subs: recordPicks(picks, subs, inserted), at: Date.now(),
+      dismissed: null,                        // 적용했으니 「나중에」 기억은 지운다
+    });
+    return changed;
+  }
+
+  /* ── 편집기 진입 알림 ────────────────────────────────────────────────
+   * 현빈 지적: 「없는 글꼴 모달은 프로젝트 들어갈 때 보여져야 되는 거 아닌가?」
+   *   예전엔 .gdt 를 «불러온 직후»와 목록 카드 배지에서만 떴다. 그래서 불러올 때 닫아버리면
+   *   프로젝트를 열어도 «아무 경고 없이» 틀린 글꼴로 편집하게 됐다. 일러스트·피그마는 열 때 띄운다.
+   *
+   * ★띄우되 «두 번 다시 안 보이게»는 하지 않는다 — 「나중에」를 눌러도 상단바 배지는 남는다.
+   *   아무 말도 안 하는 상태가 제일 나쁘다.
+   */
+  function isLiveProject(projectId) {
+    return !!(projectId && window.state && document.getElementById('canvas')
+              && window.activeProjectId === projectId);
+  }
+
+  /** 지금 열려 있는 문서의 없는 글꼴 — {missing:[], places:n, unresolved:[]}
+   *  ★「해결됐다」의 근거는 기록이 아니라 «문서»다. 고른 대체가 실제로 그 글꼴의 선언 안에
+   *    들어 있어야 해결이다. 기록만 믿으면 ⌘Z 로 되돌린 뒤에도 「대체됨」이라고 거짓말한다(실측). */
+  function editorMissing() {
+    const scan = scanEditorDocument();
+    const subs = (report.get(window.activeProjectId) || {}).subs || {};
+    const missing = missingOf([...scan.values()].map(e => e.family));
+    const places = missing.reduce((s, f) => s + ((scan.get(norm(f)) || {}).elements || 0), 0);
+    const unresolved = missing.filter(f => {
+      const k = norm(f);
+      const sub = subs[k] && subs[k].sub;
+      if (!sub) return true;
+      const e = scan.get(k);
+      return !(e && e.with && e.with.has(norm(sub)));   // 문서에 실제로 들어 있나
+    });
+    return { scan, missing, places, unresolved };
+  }
+
+  function paintTopbarBadge() {
+    const el = _el('fsub-topbar-badge');
+    if (!el) return;
+    const pid = window.activeProjectId;
+    if (!isLiveProject(pid)) { el.style.display = 'none'; return; }
+    const { missing, places, unresolved } = editorMissing();
+    if (!missing.length) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.classList.toggle('tb-badge--warn', unresolved.length > 0);
+    el.classList.toggle('tb-badge--muted', unresolved.length === 0);
+    el.textContent = unresolved.length ? `없는 글꼴 ${unresolved.length}` : `글꼴 대체됨 ${missing.length}`;
+    el.title = unresolved.length
+      ? `이 문서에 이 기기에 없는 글꼴이 ${unresolved.length}개(${places}곳) 있습니다 — 눌러서 대체할 글꼴 고르기`
+      : `없는 글꼴 ${missing.length}개를 대체해 두었습니다 — 눌러서 다시 고르기`;
+    el.onclick = () => openFontSubstitute({ projectId: pid, projectName: window.getProjectName?.() || '' });
+  }
+
+  /** 프로젝트를 «열 때» 부른다(applyProjectData 꼬리 — 최초 로드·탭 전환·브랜치 전환 공통). */
+  function checkEditorDocument(opts = {}) {
+    const pid = window.activeProjectId;
+    /* ★다른 프로젝트의 모달이 떠 있으면 «먼저 닫는다» — 탭 전환이 이 자리를 지난다.
+     *   열어둔 채 두면 A 화면에서 고른 대체를 B 문서에 적용하게 된다(실측 재현). */
+    if (_openCtx && _openCtx.live && _openCtx.projectId !== pid) _closeModal();
+    if (!isLiveProject(pid)) return;
+    // ★무거운 문서에서 로드 직후를 더 무겁게 만들지 않는다 — 한가할 때 센다.
+    const run = () => {
+      try {
+        const { missing, places, unresolved } = editorMissing();
+        paintTopbarBadge();
+        if (!missing.length) return;
+        const rep = report.get(pid) || {};
+        if (!unresolved.length) return;                       // 이미 다 대체해 뒀다
+        // ★「나중에」는 «그때 본 목록»에 대해서만 기억한다 — 없는 글꼴이 달라지면 다시 알린다.
+        const sig = unresolved.map(f => norm(f)).sort().join('|');
+        if (!opts.force && rep.dismissed === sig) return;
+        window.showToast?.(`⚠️ 이 문서에 이 기기에 없는 글꼴 ${unresolved.length}개 · ${places}곳`);
+        openFontSubstitute({ projectId: pid, projectName: window.getProjectName?.() || '', dismissSig: sig });
+      } catch (e) { console.warn('[fsub] 문서 글꼴 점검 실패:', e); }
+    };
+    if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 3000 });
+    else setTimeout(run, 800);
+  }
+
   /* ── 공개 ── */
+  window.gdtFontCheckDocument = checkEditorDocument;   // save-load.js applyProjectData 꼬리에서 호출
+  window.gdtFontPaintBadge    = paintTopbarBadge;
   window.openFontSubstitute = openFontSubstitute;
   window.gdtFontReport      = report;
   window.gdtFontScan        = scanProject;      // 검증·자동화용
   window.gdtFontRewriteHtml = rewriteHtml;      // 검증·자동화용
-  window.gdtFontApply       = applySubstitutions; // 검증·자동화용 (UI 없이 적용 경로를 그대로 탄다)
+  window.gdtFontApply       = applySubstitutions;     // 검증·자동화용 (UI 없이 디스크 경로를 그대로 탄다)
+  window.gdtFontApplyLive   = applyLiveSubstitutions; // 검증·자동화용 (편집기 경로. 대상이 화면의 그 문서가 아니면 거부한다)
+  window.gdtFontOpenCtx     = () => (_openCtx ? { ...(_openCtx) } : null);  // 검증용 — 지금 뜬 모달이 «어느» 프로젝트 것인지
 })();

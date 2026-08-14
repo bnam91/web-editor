@@ -73,6 +73,8 @@
             <button class="settings-tab" data-tab="easter">이스터에그</button>
             <button class="settings-tab" data-tab="perf">성능</button>
             <button class="settings-tab" data-tab="market">마켓</button>
+            <button class="settings-tab" data-tab="collab">협업</button>
+            <button class="settings-tab" data-tab="dev">개발자</button>
           </div>
           <div class="settings-content">
             <div class="settings-pane settings-pane-api" data-pane="api"></div>
@@ -80,6 +82,8 @@
             <div class="settings-pane settings-pane-easter" data-pane="easter" style="display:none"></div>
             <div class="settings-pane settings-pane-perf" data-pane="perf" style="display:none"></div>
             <div class="settings-pane settings-pane-market" data-pane="market" style="display:none"></div>
+            <div class="settings-pane settings-pane-collab" data-pane="collab" style="display:none"></div>
+            <div class="settings-pane settings-pane-dev" data-pane="dev" style="display:none"></div>
           </div>
         </div>
         <div class="settings-modal-footer">
@@ -113,6 +117,8 @@
           const mp = modal.querySelector('.settings-pane-market');
           if (mp) window.renderMarketPane(mp);
         }
+        // 협업 탭도 같은 이유로 진입 시 다시 읽는다 — 초대는 «지금» 와 있을 수 있다.
+        if (tab === 'collab') renderCollabPane();
       });
     });
 
@@ -419,7 +425,247 @@
     toast('기본값으로 복원되었습니다. (저장 버튼을 눌러야 반영됨)', 'info');
   }
 
-  window.openSettingsModal = function () {
+  // ── 개발자 탭 — MCP 연결 ─────────────────────────────
+  //   지금까지 접속 토큰은 상단바 배지(admin 전용)에만 있어서 «일반 사용자는 토큰을 꺼낼 방법이
+  //   없었다». MCP를 공개하려면 여기가 열려야 한다. 공용 클래스만 재사용(새 CSS 0줄):
+  //   settings-section-title / settings-help / settings-api-list / settings-api-row /
+  //   settings-api-label / settings-api-input-wrap / settings-api-input / settings-api-eye /
+  //   settings-api-test / settings-api-status.
+  /* ── 협업 탭 ─────────────────────────────────────────────────────────────
+   * 받은 초대 · 참여 중인 프로젝트 · 초대 보내기 · 연결 끊기.
+   * ★여기가 초대의 «유일한 창구»다: Electron 은 native prompt() 를 «차단»한다
+   *   (복제 기능이 그것 때문에 한 번 죽었다) → 카드에서 이메일을 받을 수 없다.
+   * ★새 CSS 0줄 — 개발자 탭이 쓴 공용 클래스를 그대로 쓴다(디자인 게이트).
+   * ★수락/거절/끊기는 «되돌리기 어려운» 동작이다. 눌린 즉시 버튼을 잠그고,
+   *   끝나면 목록을 다시 읽는다(낙관적 UI 로 「된 것처럼」 그리지 않는다 —
+   *   서버가 거절했는데 화면만 성공해 보이는 게 제일 나쁘다).
+   */
+  /* ★렌더 토큰 — 이 pane 은 «두 번 연속» 그려질 수 있다(모달 열 때 한 번 + 탭 클릭 때 한 번).
+   *   그런데 아래 비동기 꼬리들은 «resolve 되는 시점»의 DOM 을 다시 찾아 리스너를 건다.
+   *   그래서 1차 렌더의 꼬리가 2차 렌더가 만든 버튼에 리스너를 «또» 걸어버린다.
+   *   ⇒ 클릭 한 번에 초대가 «두 번» 나간다. 실측으로 잡았다(초대 1번 눌렀는데 iv2·iv3 두 개 생성).
+   *   각 렌더는 자기 번호를 들고, 번호가 밀렸으면 아무것도 안 한다. */
+  let _collabRender = 0;
+  function renderCollabPane() {
+    const pane = document.querySelector('.settings-pane-collab');
+    if (!pane) return;
+    const myRender = ++_collabRender;
+    const stale = () => myRender !== _collabRender;
+    pane.innerHTML = `
+      <div class="settings-section-title">받은 초대</div>
+      <div class="settings-api-list" id="collab-invites"><div class="settings-help">불러오는 중…</div></div>
+      <div class="settings-section-title" style="margin-top:18px">참여 중인 공동작업</div>
+      <div class="settings-api-list" id="collab-projects"><div class="settings-help">불러오는 중…</div></div>
+      <div class="settings-section-title" style="margin-top:18px">초대 보내기</div>
+      <div class="settings-api-list">
+        <div class="settings-api-row">
+          <div class="settings-api-label">이 프로젝트에 초대할 이메일</div>
+          <div class="settings-api-input-wrap">
+            <input class="settings-api-input" id="collab-invite-email" placeholder="name@example.com" spellcheck="false" />
+            <button class="settings-api-test" id="collab-invite-send">초대</button>
+          </div>
+          <div class="settings-help" id="collab-invite-help">지금 열려 있는 프로젝트를 먼저 「원격으로 올리기」 해야 초대할 수 있습니다.</div>
+        </div>
+      </div>
+      <div class="settings-api-status" id="collab-status" style="margin-top:12px"></div>
+    `;
+
+    const $ = (id) => pane.querySelector('#' + id);
+    const status = $('collab-status');
+    const setStatus = (m, cls) => { status.textContent = m; status.className = 'settings-api-status' + (cls ? ' ' + cls : ''); };
+    const api = window.electronAPI && window.electronAPI.collab;
+    if (!api) { setStatus('공동작업은 데스크탑 앱에서만 사용할 수 있습니다', 'err'); return; }
+
+    // 서버 reason → 사람이 다음에 뭘 할지 아는 문장. 코드값을 그대로 보여주면 아무것도 못 한다.
+    const reasonText = (r) => ({
+      not_signed_in: '로그인이 필요합니다.',
+      invalid_session: '로그인이 만료됐습니다. 다시 로그인해 주세요.',
+      offline: '서버에 닿지 못했습니다.',
+      not_deployed: '서버에 공동작업 기능이 아직 배포되지 않았습니다.',
+      not_a_member: '접근 권한이 없습니다(이미 끊겼을 수 있습니다).',
+      already_member: '이미 참여 중인 사람입니다.',
+      self_invite: '자기 자신은 초대할 수 없습니다.',
+      not_linked: '이 프로젝트는 아직 원격으로 올리지 않았습니다.',
+    }[r] || r || '알 수 없는 오류');
+
+    const row = (label, help, buttons) => `
+      <div class="settings-api-row">
+        <div class="settings-api-label">${label}</div>
+        <div class="settings-api-input-wrap">
+          <input class="settings-api-input" readonly value="${help || ''}" spellcheck="false" />
+          ${buttons}
+        </div>
+      </div>`;
+
+    async function load() {
+      const r = await api.invites({});
+      if (stale()) return;
+      const inv = $('collab-invites'); const prj = $('collab-projects');
+      if (!r || !r.ok) {
+        const msg = `<div class="settings-help">불러오지 못했습니다 — ${reasonText(r && r.reason)}</div>`;
+        inv.innerHTML = msg; prj.innerHTML = msg;
+        return;
+      }
+      const invites = r.invites || [];
+      const projects = r.projects || [];
+      inv.innerHTML = invites.length
+        ? invites.map(i => row(i.name || i.collabId, '초대를 받았습니다',
+            `<button class="settings-api-test" data-accept="${i.inviteId}">수락</button>
+             <button class="settings-api-test" data-decline="${i.inviteId}">거절</button>`)).join('')
+        : '<div class="settings-help">받은 초대가 없습니다.</div>';
+      prj.innerHTML = projects.length
+        ? projects.map(p => row(p.name || p.collabId, p.role === 'owner' ? '내가 올린 공동작업본' : '초대받아 참여 중',
+            `<button class="settings-api-test" data-leave="${p.collabId}">연결 끊기</button>`)).join('')
+        : '<div class="settings-help">참여 중인 공동작업이 없습니다.</div>';
+
+      pane.querySelectorAll('[data-accept],[data-decline],[data-leave]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const lock = () => { btn.disabled = true; btn.textContent = '…'; };
+          if (btn.dataset.leave) {
+            // ⚠️되돌릴 수 없다 — 다시 들어오려면 상대가 «다시 초대»해야 한다. 그래서 묻는다.
+            if (!confirm('이 공동작업 연결을 끊을까요?\n\n로컬 프로젝트는 그대로 남습니다.\n다시 참여하려면 상대가 다시 초대해야 합니다.')) return;
+            lock();
+            const rr = await api.leave({ collabId: btn.dataset.leave });
+            setStatus(rr && rr.ok ? '✓ 연결을 끊었습니다' : '✗ ' + reasonText(rr && rr.reason), rr && rr.ok ? 'ok' : 'err');
+          } else {
+            const accept = !!btn.dataset.accept;
+            lock();
+            const rr = await api.respond({ inviteId: btn.dataset.accept || btn.dataset.decline, action: accept ? 'accept' : 'decline' });
+            setStatus(rr && rr.ok ? (accept ? '✓ 참여했습니다' : '거절했습니다') : '✗ ' + reasonText(rr && rr.reason), rr && rr.ok ? 'ok' : 'err');
+          }
+          load();                                   // 낙관적으로 그리지 않는다 — 서버에 다시 물어본다
+          if (window.collabInvites) window.collabInvites.refresh();
+        });
+      });
+    }
+
+    /* 초대는 «지금 열려 있는 프로젝트»에 대해서만 보낸다.
+     * 목록에서 아무 프로젝트나 고르게 하면 「어느 걸 초대했지」가 흐려진다. */
+    (async () => {
+      let pid = '';
+      try { pid = new URLSearchParams(location.search).get('project') || ''; } catch (_) {}
+      const refR = pid ? await api.ref({ projectId: pid }) : null;
+      if (stale()) return;                        // 내가 그린 pane 이 이미 갈렸다 — 남의 버튼에 리스너를 걸지 않는다
+      const ref = refR && refR.ref;
+      const btn = $('collab-invite-send'); const input = $('collab-invite-email'); const help = $('collab-invite-help');
+      if (!ref || !ref.collabId) {
+        btn.disabled = true; input.disabled = true;
+        help.textContent = pid
+          ? '이 프로젝트는 아직 원격으로 올리지 않았습니다. 프로젝트 목록에서 👥 버튼으로 먼저 올려 주세요.'
+          : '프로젝트를 연 상태에서만 초대할 수 있습니다.';
+        return;
+      }
+      help.textContent = '초대한 사람의 앱 상단바에 알림이 뜹니다. (초대 메일 발송은 아직 준비 중입니다 — 앱 알림이 정본입니다.)';
+      btn.addEventListener('click', async () => {
+        const email = (input.value || '').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setStatus('✗ 이메일 형식이 아닙니다', 'err'); return; }
+        btn.disabled = true;
+        const rr = await api.invite({ collabId: ref.collabId, email });
+        btn.disabled = false;
+        if (rr && rr.ok) { input.value = ''; setStatus('✓ 초대했습니다 — 상대가 앱에서 수락하면 참여합니다', 'ok'); }
+        else setStatus('✗ ' + reasonText(rr && rr.reason), 'err');
+      });
+    })();
+
+    load();
+  }
+
+  function renderDevPane() {
+    const pane = document.querySelector('.settings-pane-dev');
+    if (!pane) return;
+    const row = (id, label, help) => `
+      <div class="settings-api-row">
+        <div class="settings-api-label">${label}</div>
+        <div class="settings-api-input-wrap">
+          <input class="settings-api-input" id="dev-${id}" readonly value="" spellcheck="false" />
+          <button class="settings-api-test" data-copy="dev-${id}">복사</button>
+        </div>
+        ${help ? `<div class="settings-help">${help}</div>` : ''}
+      </div>`;
+    pane.innerHTML = `
+      <div class="settings-section-title">MCP 연결 (Claude 연동)</div>
+      <div class="settings-help">GODITOR는 Claude(데스크톱 / Claude Code)가 이 앱을 직접 조작할 수 있는 MCP 서버를 내장하고 있습니다. 아래 「연결 명령」을 터미널에 한 번만 붙여넣으면 등록됩니다. <b>앱을 재시작해도 다시 등록할 필요는 없습니다</b> — 브리지가 토큰을 그때그때 다시 읽습니다.</div>
+      <div class="settings-api-list" style="margin-top:14px">
+        ${row('cmd', '연결 명령 (Claude Code · 터미널에 붙여넣기)', '데스크톱 앱은 claude_desktop_config.json 의 mcpServers 에 <code>{"goditor":{"command":"node","args":["&lt;브리지 경로&gt;"]}}</code> 로 넣으세요. 토큰은 넣지 않아도 됩니다.')}
+        ${row('url', 'MCP 주소')}
+        <div class="settings-api-row">
+          <div class="settings-api-label">접속 토큰</div>
+          <div class="settings-api-input-wrap">
+            <input class="settings-api-input" id="dev-token" readonly type="password" value="" spellcheck="false" />
+            <button class="settings-api-eye" id="dev-token-eye" title="보기/숨기기">👁</button>
+            <button class="settings-api-test" data-copy="dev-token">복사</button>
+            <button class="settings-api-test" id="dev-token-regen">재발급</button>
+          </div>
+          <div class="settings-help">이 토큰이 있어야 외부에서 MCP를 호출할 수 있습니다. 앱을 켤 때마다 새로 만들어지며 아래 파일(소유자만 읽기)에 보관됩니다. <b>남에게 주지 마세요.</b></div>
+        </div>
+        ${row('tokenfile', '토큰 파일 (권한 0600)')}
+        ${row('bridge', '브리지 스크립트 경로')}
+      </div>
+      <div class="settings-api-status" id="dev-status" style="margin-top:12px"></div>
+    `;
+
+    const $ = (id) => pane.querySelector('#' + id);
+    const status = $('dev-status');
+    const setStatus = (m, cls) => { status.textContent = m; status.className = 'settings-api-status' + (cls ? ' ' + cls : ''); };
+
+    // 복사 버튼(공통)
+    pane.querySelectorAll('[data-copy]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const input = pane.querySelector('#' + btn.dataset.copy);
+        if (!input || !input.value) { setStatus('✗ 복사할 값이 없습니다', 'err'); return; }
+        try {
+          if (window.electronAPI?.clipboardWriteText) await window.electronAPI.clipboardWriteText(input.value);
+          else await navigator.clipboard.writeText(input.value);
+          setStatus('✓ 복사됨', 'ok');
+        } catch (e) { setStatus('✗ 복사 실패: ' + e.message, 'err'); }
+      });
+    });
+
+    const tokenInput = $('dev-token');
+    $('dev-token-eye').addEventListener('click', () => {
+      tokenInput.type = tokenInput.type === 'password' ? 'text' : 'password';
+    });
+
+    const fill = (info, token) => {
+      $('dev-url').value = info?.url || '';
+      $('dev-tokenfile').value = info?.tokenFile || '(앱 재시작 필요 — 아직 기록되지 않음)';
+      $('dev-bridge').value = info?.bridgePath || '';
+      tokenInput.value = token || '';
+      // 경로에 공백이 있어도 그대로 붙여넣을 수 있게 따옴표로 감싼다.
+      $('dev-cmd').value = info?.bridgePath ? `claude mcp add goditor -- node "${info.bridgePath}"` : '';
+      /* ★브리지 복사 실패는 «조용히» 넘어가면 안 된다 — 그 순간 이 탭의 연결 안내가
+       *   통째로 거짓이 된다(있지도 않은 경로를 붙여넣으라고 시킨다).
+       *   패키징하면 원본이 app.asar 안이라 실행이 안 돼서 userData 복사본을 안내하는데,
+       *   그 복사가 실패하면 사용자는 「명령을 붙여넣었는데 안 붙는다」만 겪는다. */
+      if (info?.bridgeError) setStatus('✗ ' + info.bridgeError, 'err');
+    };
+
+    (async () => {
+      const api = window.electronAPI;
+      if (!api?.getMcpInfo) { setStatus('앱(Electron) 환경에서만 표시됩니다', 'err'); return; }
+      try {
+        const [info, token] = await Promise.all([api.getMcpInfo(), api.getMcpToken ? api.getMcpToken() : null]);
+        if (!info?.ok) { setStatus('✗ MCP 서버가 아직 시작되지 않았습니다', 'err'); return; }
+        fill(info, token);
+        setStatus(token ? `MCP 서버 실행 중 · 포트 ${info.port}` : `MCP 서버 실행 중 · 포트 ${info.port} (토큰 미발급)`, token ? 'ok' : 'err');
+        $('dev-token-regen').addEventListener('click', async () => {
+          if (!confirm('접속 토큰을 새로 발급합니다.\n이미 연결된 Claude 세션은 다음 호출부터 새 토큰으로 자동 재연결되지만,\n토큰을 직접 설정에 적어둔 경우에는 그 값을 바꿔야 합니다.\n\n계속할까요?')) return;
+          try {
+            const nt = await api.regenerateMcpToken();
+            if (!nt) { setStatus('✗ 재발급 실패', 'err'); return; }
+            tokenInput.value = nt;
+            const fresh = await api.getMcpInfo();
+            if (fresh?.ok) $('dev-tokenfile').value = fresh.tokenFile || $('dev-tokenfile').value;
+            setStatus('✓ 새 토큰이 발급되어 토큰 파일에 기록되었습니다', 'ok');
+          } catch (e) { setStatus('✗ 재발급 실패: ' + e.message, 'err'); }
+        });
+      } catch (e) {
+        setStatus('✗ 정보를 읽지 못했습니다: ' + e.message, 'err');
+      }
+    })();
+  }
+
+  window.openSettingsModal = function (initialTab) {
     const modal = ensureModal();
     // 현재 settings → draft 복사
     const cur = window._settings || { apiKeys: {}, shortcuts: {}, easterEggs: {} };
@@ -432,7 +678,16 @@
     renderShortcutsPane();
     renderEasterPane();
     renderPerfPane();
+    // ★협업 탭은 «열 때» 안 그린다 — 탭을 눌러야 그린다(마켓 탭과 같은 지연 로드).
+    //   초대 목록은 네트워크를 타므로, 안 볼 탭 때문에 매번 서버를 두드릴 이유가 없다.
+    renderDevPane();
     show(modal);
+    // ★특정 탭으로 바로 열 수 있어야 한다 — 상단바 「초대 N건」 배지가 여기로 보낸다.
+    //   눌렀는데 엉뚱한 탭이 열리면 사용자는 초대를 못 찾는다.
+    if (initialTab) {
+      const t = modal.querySelector(`.settings-tab[data-tab="${initialTab}"]`);
+      if (t) t.click();
+    }
     document.addEventListener('keydown', onCaptureKeydown, true);
   };
 

@@ -777,6 +777,10 @@ body {
   border-radius: 4px;
   padding: 2px 6px;
   font-family: monospace;
+  /* 상단바는 가로가 좁다 — 두 줄로 접히면 배지가 깨져 보인다(한글 문구에서 실측).
+     옆의 #autosave-indicator 와 같은 규칙. */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tb-badge--pill {
   border-radius: 10px;
@@ -790,6 +794,15 @@ body {
   background: var(--ui-accent-primary);
   border-color: var(--ui-accent-primary);
 }
+/* 이 문서에 「없는 글꼴」이 남아 있음 — 한글 문구라 monospace 를 풀고 danger 톤을 쓴다 */
+.tb-badge--warn {
+  font-family: inherit;
+  color: var(--ui-danger);
+  background: var(--ui-danger-bg);
+  border-color: var(--ui-danger-border);
+}
+/* 대체를 끝낸 상태 — 경고가 아니라 «다시 고를 수 있다»는 표시 */
+.tb-badge--muted { font-family: inherit; color: var(--ui-text-muted); }
 /* publish dropdown 내부에서 label/badge 양끝 정렬용 */
 .pub-dd-item--row { justify-content: space-between; }
 /* Commit 버튼: 저장 상태 관련 중요 액션 — accent 힌트 */

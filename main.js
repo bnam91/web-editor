@@ -279,11 +279,11 @@ function createWindow() {
     const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
     return a ? a.split('=')[1] : null;
   });
-  // Unit B — MCP 접속 토큰 노출/재발급(운영자만). 토큰은 메모리 only.
-  ipcMain.handle('app:mcp-token', () =>
-    isAdminAuthorized() ? (getMcpToken ? getMcpToken() : currentMcpToken) : null);
-  ipcMain.handle('mcp:regenerate-token', () =>
-    isAdminAuthorized() ? (currentMcpToken = regenerateMcpToken()) : null);
+  // Unit B-2 — MCP 접속 토큰 노출/재발급. ★admin 게이팅 해제:
+  //   MCP를 일반 사용자에게 개방하려면 사용자가 자기 토큰을 꺼낼 수 있어야 한다
+  //   (환경설정 → 개발자 탭). 토큰은 메모리 + userData 0600 파일에만 있다.
+  ipcMain.handle('app:mcp-token', () => (getMcpToken ? getMcpToken() : currentMcpToken));
+  ipcMain.handle('mcp:regenerate-token', () => (currentMcpToken = regenerateMcpToken()));
 
   // AI 섹션 텍스트 채우기 (Gemini)
   ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
@@ -522,12 +522,22 @@ ipcMain.handle('auth:login', async (_event, email, password) => {
 // ★「새로고침」 — 등급이 «앱 밖에서» 바뀌기 때문에 필요하다.
 //   입금 승인도, 베타 종료도 서버에서 일어난다. 앱을 다시 켜야만 반영되면 사용자는 안 켠다.
 //   ⚠️ 오프라인이면 verifySession 이 null 을 준다 — 그때는 «기존 상태를 유지»한다(못 쓰게 만들지 않는다).
+//   ★반대로 서버가 «죽었다고 대답»한 경우(invalid_session·email_not_verified)는 유예가 아니다.
+//     그걸 오프라인과 같이 다루면 폐기된 세션이 영영 안 지워진다 — 다른 기기에서 로그인해
+//     토큰이 갈린 사용자는 이 앱에서 옛 등급을 계속 보게 된다.
+//   ★만료(expired)는 «대답은 왔지만 ok 는 아닌» 세 번째 갈래다. 토큰은 살아 있으므로 지우지
+//     않고 값만 갱신하되, 화면엔 「갱신됨」이 아니라 만료라고 알려야 한다.
 ipcMain.handle('auth:refresh', async () => {
   const auth = readAuth();
   if (!auth?.email || !auth?.sessionToken) return { ok: false, reason: 'not_signed_in' };
   const r = await authVerifySession(auth.email, auth.sessionToken);
   if (!r) return { ok: false, reason: 'offline' };          // 유예 유지 — auth.json 을 안 건드린다
+  if (r.ok === false && (r.reason === 'invalid_session' || r.reason === 'email_not_verified')) {
+    clearAuth();
+    return { ok: false, reason: r.reason };
+  }
   writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil || auth.accessUntil });
+  if (r.ok === false) return { ok: false, reason: r.reason || 'unknown', plan: r.plan || '', accessUntil: r.accessUntil || '' };
   return { ok: true, plan: r.plan || '', accessUntil: r.accessUntil || '' };
 });
 
@@ -812,7 +822,8 @@ function _listItemFor(id, projPath, metaFast) {
         // 마커 없으면 풀파싱 폴백 → lazy 갱신). name도 함께 확인.
         if (meta && meta.listMetaV && meta.name != null) {
           return { id, name: meta.name, type: meta.type || null, createdAt: meta.createdAt || null,
-                   updatedAt: meta.updatedAt || null, thumbnail: meta.thumbnail || null, marketRef: meta.marketRef || null };
+                   updatedAt: meta.updatedAt || null, thumbnail: meta.thumbnail || null, marketRef: meta.marketRef || null,
+                   collabRef: meta.collabRef || null };
         }
       }
     } catch (_) { /* stat/parse 실패 → 풀파싱 폴백 */ }
@@ -821,12 +832,19 @@ function _listItemFor(id, projPath, metaFast) {
   const data = JSON.parse(fs.readFileSync(projPath, 'utf8'));
   if (!data.id || data.id === 'undefined') return null;
   let thumbnail = data.thumbnail || null;
+  // ★collabRef 는 proj.json 이 아니라 meta 에만 산다(원격 연결은 «문서»가 아니라 «이 설치»의 상태다).
+  //   그래서 풀파싱 폴백 경로에서도 meta 를 읽어 와야 배지가 안 사라진다.
+  let collabRef = null;
   if (metaPath && fs.existsSync(metaPath)) {
-    try { const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); if (meta.thumbnail) thumbnail = meta.thumbnail; } catch {}
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      if (meta.thumbnail) thumbnail = meta.thumbnail;
+      collabRef = meta.collabRef || null;
+    } catch {}
   }
   if (metaFast) { try { _refreshListMeta(data.id, data); } catch (_) {} }
   return { id: data.id, name: data.name, type: data.type || null, createdAt: data.createdAt,
-           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null };
+           updatedAt: data.updatedAt, thumbnail, marketRef: data.marketRef || null, collabRef };
 }
 
 /* ── IPC: AI Image Gen ──
@@ -1561,6 +1579,27 @@ ipcMain.handle('market:pull', async (_e, { account, id } = {}) => {
     if (proj.scratch) proj.scratch = _inlineBlobs(proj.scratch, dir);   // Phase 1: 스크래치 blob 복원
     return { ok: true, project: proj };
   } catch (e) { return { ok: false, message: e.message }; }
+});
+
+/* ── IPC: 원격 동시협업 ──
+   구현은 main/collab/* 에 있다. 여기엔 «주입»만 둔다 — 협업이 커져도 main.js 가 안 붓게.
+   ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다(렌더러엔 collab:* 결과만 간다). */
+require('./main/collab').init(ipcMain, {
+  readAuth,
+  readMeta: (id) => {
+    try {
+      const p = _resolveMetaJsonPath(id);
+      if (!p || !fs.existsSync(p)) return {};
+      return JSON.parse(fs.readFileSync(p, 'utf8')) || {};
+    } catch (_) { return {}; }
+  },
+  writeMeta: (id, patch) => {
+    // read-merge-write — 목록 캐시(name·thumbnail 등)를 날리지 않는다.
+    const paths = _ensureNewLayoutPaths(id);
+    let merged = {};
+    try { if (fs.existsSync(paths.meta)) merged = JSON.parse(fs.readFileSync(paths.meta, 'utf8')) || {}; } catch (_) {}
+    _atomicWriteFileSync(paths.meta, JSON.stringify({ ...merged, ...patch }, null, 2));
+  },
 });
 
 /* ── IPC: Intake (design-bot pipeline) ── */

@@ -80,6 +80,19 @@ body {
   background: rgba(34,196,138,0.12); border: 1px solid rgba(34,196,138,0.3);
   border-radius: 4px; padding: 1px 6px; margin-bottom: 4px;
 }
+/* ── 공동작업 카드 ──
+ * ★위 .planning-card / .planning-badge 와 «같은 뼈대»를 쓴다(테두리 3px + 작은 배지).
+ *   새 룩을 만들지 않는다 — 색만 계정 배지의 파랑(.acct-badge.is-beta)과 맞췄다.
+ * 이 배지가 있는 카드는 「내 것만이 아니다」는 뜻이다. 로컬본과 눈으로 갈려야 한다. */
+.project-card.collab-card {
+  border-left: 3px solid #2d6fe8;
+}
+.collab-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700; color: #6fa3f7;
+  background: rgba(45,111,232,0.18); border: 1px solid rgba(45,111,232,0.45);
+  border-radius: 4px; padding: 1px 6px; margin-bottom: 4px;
+}
 .header-actions {
   display: flex; align-items: center; gap: 8px;
 }
@@ -318,8 +331,9 @@ async function renderGrid() {
 
   list.forEach(proj => {
     const isPlanning = proj.type === 'planning';
+    const isCollab   = !!(proj.collabRef && proj.collabRef.collabId);
     const card = document.createElement('div');
-    card.className = 'project-card' + (isPlanning ? ' planning-card' : '');
+    card.className = 'project-card' + (isPlanning ? ' planning-card' : '') + (isCollab ? ' collab-card' : '');
     card.dataset.id = proj.id;
     // DBG-10: thumbnail 필드가 있으면 실제 이미지 표시, 없으면 기본 SVG
     const thumbContent = proj.thumbnail
@@ -327,12 +341,20 @@ async function renderGrid() {
       : (isPlanning
         ? `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c48a" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>`
         : `<svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#555" stroke-width="1.2"><rect x="5" y="5" width="30" height="30" rx="2"/><line x1="11" y1="15" x2="29" y2="15"/><line x1="11" y1="21" x2="29" y2="21"/><line x1="11" y1="27" x2="22" y2="27"/></svg>`);
-    const badgeHtml = isPlanning ? `<div class="planning-badge">📋 기획</div>` : '';
+    // 배지는 «둘 다» 붙을 수 있다(기획 프로젝트를 공유하는 경우) — 하나로 뭉치지 않는다.
+    const badgeHtml = (isPlanning ? `<div class="planning-badge">📋 기획</div>` : '')
+      + (isCollab ? `<div class="collab-badge" title="${proj.collabRef.role === 'owner' ? '내가 올린 공동작업본' : '초대받아 참여 중'}">👥 공동작업</div>` : '');
     /* ★「없는 글꼴」 배지는 카드를 다 그린 «뒤에» 따로 칠한다 — paintFontBadges() 참고
        (이 인라인 스크립트는 font-substitute.js보다 «먼저» 실행된다) */
     const duplicateBtnHtml = isPlanning
       ? ''
       : `<button class="card-action card-duplicate" onclick="duplicateProjectUI(event, '${proj.id}')" title="복제">⎘</button>`;
+    // ★「원격으로 올리기」는 «아직 안 올린 카드»에만 뜬다. 이미 올린 카드에서 또 누르면
+    //   무슨 일이 나는지 사용자가 알 수 없다 — 버튼을 없애서 그 질문 자체를 없앴다.
+    //   (끊기·초대 관리는 환경설정 「협업」 탭이 맡는다. 카드에 다 넣으면 카드가 도구상자가 된다.)
+    const shareBtnHtml = (isCollab || !window.electronAPI?.collab)
+      ? ''
+      : `<button class="card-action card-share" onclick="shareProjectUI(event, '${proj.id}')" title="원격으로 올리기 — 다른 사람을 초대해 같이 편집합니다">👥</button>`;
     card.innerHTML = `
       <div class="card-thumb">${thumbContent}</div>
       <div class="card-body">
@@ -341,6 +363,7 @@ async function renderGrid() {
         <div class="card-date">${formatDate(proj.updatedAt)}</div>
       </div>
       <div class="card-actions">
+        ${shareBtnHtml}
         ${duplicateBtnHtml}
         <button class="card-action card-delete" onclick="deleteProject(event, '${proj.id}')" title="삭제">✕</button>
       </div>
@@ -451,6 +474,61 @@ async function deleteProject(e, id) {
   await removeProject(id);
   window.gdtFontReport?.clear?.(id);   // 글꼴 기록도 같이 거둔다(안 지우면 localStorage에 계속 쌓인다)
   renderGrid();
+}
+
+/* ── 원격으로 올리기 ────────────────────────────────────────────────────────
+ * 이 프로젝트를 «방»으로 만든다. 내용은 여기서 안 올라간다 —
+ * 에디터를 열어 동기화 루프가 섹션을 한 개씩 올린다.
+ *   왜: proj.json 은 캔버스에 base64 이미지가 인라인돼 수십 MB 까지 간다(실측 85MB).
+ *   서버리스 본문 한도(≈4.5MB)로는 통째 업로드가 «구조적으로» 불가능하다.
+ * ★초대는 여기서 안 받는다 — Electron 은 native prompt() 를 «차단»한다(복제 기능이
+ *   그것 때문에 한 번 죽었다, duplicateProjectUI 주석 참고). 초대는 환경설정 「협업」 탭.
+ */
+async function shareProjectUI(e, id) {
+  e.stopPropagation();
+  if (!window.electronAPI?.collab) { alert('공동작업은 데스크탑 앱에서만 사용할 수 있습니다.'); return; }
+  const st = await window.electronAPI.getAuthState?.();
+  if (!st || !st.signedIn) { alert('공동작업은 로그인한 뒤에 쓸 수 있습니다.\n(계정이 있어야 상대를 초대할 수 있습니다.)'); return; }
+
+  const list = await loadProjects();
+  const src = list.find(p => p.id === id);
+  if (!src) return;
+  if (!confirm(`"${src.name || '이름 없음'}" 을(를) 원격으로 올릴까요?\n\n올리면 이메일로 다른 사람을 초대해 «같이» 편집할 수 있습니다.\n초대·끊기는 환경설정 › 협업 에서 관리합니다.`)) return;
+
+  // ★없으면 «만들어서» 보낸다 — 빈 actorId 를 넘기면 서버가 내 패치를 못 걸러낸다.
+  //   키·형식은 js/drag-utils.js getActorId 와 «같다»(블록 ID 에 박히는 값과 같아야 한다).
+  const actorId = (() => {
+    try {
+      let v = localStorage.getItem('goditor.actorId') || '';
+      if (!/^[a-z0-9]{4,8}$/.test(v)) { v = Math.random().toString(36).slice(2, 7); localStorage.setItem('goditor.actorId', v); }
+      return v;
+    } catch (_) { return ''; }
+  })();
+  const r = await window.electronAPI.collab.register({ projectId: id, name: src.name || '이름 없음', actorId });
+  if (!r?.ok) { alert('원격으로 올리지 못했습니다: ' + collabReasonText(r?.reason, r)); return; }
+
+  await renderGrid();
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`.project-card[data-id="${id}"]`);
+    if (card) { card.style.outline = '2px solid #2d6fe8'; setTimeout(() => { card.style.outline = ''; }, 1500); }
+  });
+}
+
+/* 서버가 준 reason 을 «사용자가 다음에 뭘 할지 아는» 문장으로. 코드값을 그대로 보여주면
+ * 사용자는 아무것도 못 한다. 모르는 값은 그대로 노출한다(빈칸이면 무슨 일인지조차 모른다). */
+function collabReasonText(reason, r) {
+  switch (reason) {
+    case 'not_signed_in':  return '로그인이 필요합니다.';
+    case 'invalid_session':return '로그인이 만료됐습니다. 다시 로그인해 주세요.';
+    case 'offline':        return '서버에 닿지 못했습니다. 네트워크를 확인해 주세요.';
+    case 'not_deployed':   return '서버에 공동작업 기능이 아직 배포되지 않았습니다.';
+    case 'not_a_member':   return '이 공동작업본에 접근 권한이 없습니다.';
+    case 'too_large':
+    case 'section_too_large': return '섹션 하나가 너무 큽니다(이미지가 인라인으로 박혀 있습니다).';
+    case 'server':         return `서버 오류(${r?.status || '5xx'}) — 잠시 뒤 다시 시도해 주세요.`;
+    case 'bad_response':   return `서버가 알 수 없는 응답을 보냈습니다(${r?.status || '?'}).`;
+    default:               return reason || '알 수 없는 오류';
+  }
 }
 
 async function duplicateProjectUI(e, id) {
@@ -683,9 +761,20 @@ function paintAcct(st) {
     rf.disabled = true; const was = rf.textContent; rf.textContent = '확인 중…';
     try {
       const r = await (api.refreshAuth ? api.refreshAuth() : null);
+      // ★세션이 폐기됐으면(다른 기기 로그인 등) 이 화면에 머물게 두면 안 된다 —
+      //   등급 표시가 사라진 채 「왜 안 되지」로 남는다. 만료 화면으로 넘겨서 다시 로그인하게 한다.
+      if (r && r.reason === 'invalid_session') {
+        rf.textContent = '다시 로그인';
+        setTimeout(() => { window.location.href = 'license.html'; }, 900);
+        return;
+      }
       paintAcct(await api.getAuthState());
       // ★오프라인이면 «조용히 실패»하면 안 된다 — 눌렀는데 아무 일도 안 일어난 걸로 보인다.
-      rf.textContent = (r && r.ok) ? '갱신됨' : (r && r.reason === 'offline' ? '오프라인' : was);
+      //   만료도 마찬가지다 — 서버는 대답했는데 「갱신됨」이라고 쓰면 거짓말이 된다.
+      rf.textContent = (r && r.ok) ? '갱신됨'
+                     : (r && r.reason === 'offline') ? '오프라인'
+                     : (r && r.reason === 'expired') ? '기간만료'
+                     : was;
     } catch (_) { rf.textContent = was; }
     setTimeout(() => { rf.textContent = was; rf.disabled = false; }, 1600);
   });

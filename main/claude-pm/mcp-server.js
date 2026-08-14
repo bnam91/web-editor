@@ -17,6 +17,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 let server = null;
@@ -43,7 +44,11 @@ const SERVER_INFO = { name: 'goditor-claude-pm', version: '0.1.0' };
 // ─────────────────────────────────────────────
 function _genToken() { return crypto.randomBytes(32).toString('hex'); }
 function getToken() { return mcpToken; }
-function regenerateToken() { mcpToken = _genToken(); return mcpToken; }
+function regenerateToken() {
+  mcpToken = _genToken();
+  if (currentPort != null) _writeTokenFile(currentPort, mcpToken);
+  return mcpToken;
+}
 function _extractToken(req) {
   const h = req.headers || {};
   const x = h['x-goditor-token'];
@@ -58,6 +63,117 @@ function _tokenOk(tok) {
   try {
     return crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(mcpToken));
   } catch (_) { return false; }
+}
+
+// ─────────────────────────────────────────────
+// Unit B-2 — 토큰 «내구화»
+//   문제: 토큰은 부팅마다 새로 생긴다. 그래서 클라이언트 설정(claude_desktop_config 등)에
+//   토큰을 박아두면 앱을 재시작하는 순간 401이 되고, 사용자가 매번 손으로 갈아끼워야 했다.
+//   해법: «현재 토큰»을 userData/claude-pm/ 아래 0600 파일로 적어두고, /health가 그 «경로»를
+//   알려준다. stdio 브리지는 붙을 포트의 /health가 준 경로를 읽어 매번 최신 토큰을 쓴다.
+//   ⚠️파일은 포트별(mcp-<port>.json)이 정본이다 — 인스턴스를 2개 띄워도 서로 안 덮는다.
+//   ⛔토큰 값 자체는 로그에 찍지 않는다(경로만).
+// ─────────────────────────────────────────────
+let _tokenFilePath = null;
+let _bridgeCopyPath = null;
+let _bridgeCopyError = null;
+
+function _getUserDataDir() {
+  try {
+    const { app } = require('electron');
+    if (app && app.getPath) return app.getPath('userData');
+  } catch (_) {}
+  // 단독(non-Electron) 실행 폴백. ⛔레포 안에 두면 토큰 파일이 커밋될 수 있다 → tmp로 뺀다.
+  return path.join(os.tmpdir(), 'goditor-mcp');
+}
+function _stateDir() { return path.join(_getUserDataDir(), 'claude-pm'); }
+function getTokenFilePath() { return _tokenFilePath; }
+function getBridgePath() { return _bridgeCopyPath; }
+function getBridgeError() { return _bridgeCopyError; }
+
+function _write0600(file, data) {
+  // ⚠️writeFileSync의 mode는 «새로 만들 때»만 먹는다. 이미 있던 파일(644)은 그대로라
+  //   쓴 뒤에 chmod를 한 번 더 해야 실제로 0600이 된다.
+  fs.writeFileSync(file, data, { encoding: 'utf8', mode: 0o600 });
+  try { fs.chmodSync(file, 0o600); } catch (_) {}
+}
+
+function _writeTokenFile(port, token) {
+  try {
+    const dir = _stateDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const userData = _getUserDataDir();
+    const payload = JSON.stringify({
+      port,
+      token,
+      pid: process.pid,
+      instance: path.basename(userData),
+      userData,
+      name: SERVER_INFO.name,
+      startedAt: new Date().toISOString(),
+    }, null, 2);
+    const perPort = path.join(dir, `mcp-${port}.json`);
+    // mcp.json = 「마지막에 뜬 인스턴스」 편의 사본. /health가 경로를 못 주는 구버전 대비 폴백.
+    _write0600(perPort, payload);
+    _write0600(path.join(dir, 'mcp.json'), payload);
+    _tokenFilePath = perPort;
+    console.log(`[claudePM MCP] token file: ${perPort} (0600)`);
+    return perPort;
+  } catch (e) {
+    console.error('[claudePM MCP] token file write failed:', e.message);
+    _tokenFilePath = null;
+    return null;
+  }
+}
+
+function _removeTokenFile() {
+  if (!_tokenFilePath) return;
+  try { fs.unlinkSync(_tokenFilePath); } catch (_) {}
+  _tokenFilePath = null;
+}
+
+// 브리지 스크립트를 userData로 복사한다.
+// ⚠️패키징하면 브리지는 app.asar «안»에 들어가서 `node <asar경로>` 로는 실행이 안 된다.
+//   그래서 사용자에게 안내할 경로는 항상 이 복사본이어야 한다(개발/배포 동일).
+// ★조건 1 — 복사본이 앱 버전과 «어긋나면 안 된다».
+//   내용 해시가 다르면 무조건 덮어쓴다. 안 그러면 앱을 업데이트해도 낡은 브리지가 남아
+//   「업데이트했는데 안 고쳐진다」가 된다.
+// ★조건 2 — 실패를 «조용히 넘기지 않는다».
+//   복사가 실패하면 개발자 탭이 안내하는 연결 경로가 통째로 거짓이 된다. 그래서 사유를
+//   _bridgeCopyError 에 남기고 getMcpInfo 로 올려 화면에 드러낸다.
+function _copyBridge() {
+  const dst0 = path.join(_stateDir(), 'mcp-stdio-bridge.cjs');
+  try {
+    const src = path.join(__dirname, 'mcp-stdio-bridge.cjs');
+    if (!fs.existsSync(src)) {
+      _bridgeCopyPath = null;
+      _bridgeCopyError = `브리지 원본을 찾을 수 없습니다: ${src}`;
+      console.error('[claudePM MCP] bridge source missing:', src);
+      return null;
+    }
+    const dir = _stateDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const buf = fs.readFileSync(src);
+    const srcHash = crypto.createHash('sha256').update(buf).digest('hex');
+    let dstHash = null;
+    try { dstHash = crypto.createHash('sha256').update(fs.readFileSync(dst0)).digest('hex'); } catch (_) {}
+    if (dstHash !== srcHash) {
+      fs.writeFileSync(dst0, buf);
+      console.log(`[claudePM MCP] bridge copy updated (${dstHash ? 'stale→fresh' : 'new'}): ${dst0}`);
+    }
+    try { fs.chmodSync(dst0, 0o755); } catch (_) {}
+    // 쓴 뒤 실제로 같은지 다시 읽어 확인한다 — 「썼다」와 「있다」는 다르다.
+    const after = crypto.createHash('sha256').update(fs.readFileSync(dst0)).digest('hex');
+    if (after !== srcHash) throw new Error('복사본 해시가 원본과 다릅니다(디스크 쓰기 실패 의심)');
+    _bridgeCopyPath = dst0;
+    _bridgeCopyError = null;
+    return dst0;
+  } catch (e) {
+    _bridgeCopyPath = null;
+    _bridgeCopyError = `브리지 복사 실패(${dst0}): ${e.message} — MCP 연결 안내 경로를 쓸 수 없습니다.`;
+    console.error('[claudePM MCP] bridge copy FAILED:', e.message);
+    return null;
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -97,18 +213,73 @@ function _readProjectFile(projectId) {
 // ─────────────────────────────────────────────
 // Default tools
 // ─────────────────────────────────────────────
+// 「지금 열려 있는 프로젝트」의 근거.
+// ⚠️실측: onActiveProjectCb가 읽는 global.currentActiveProjectId는 renderer가
+//   claudePM:setActiveProject를 «부르는 곳이 아예 없어서» 항상 null이다(preload에만 노출돼 있다).
+//   그 결과 read_project·read_section·duplicate_project가 늘 'no active project'로 죽었다.
+//   편집기 창 URL(index.html?project=proj_xxx)이 실제로 열린 프로젝트의 유일한 근거라 이걸 폴백으로 쓴다.
+function _activeProjectId() {
+  try { const p = onActiveProjectCb ? onActiveProjectCb() : null; if (p) return p; } catch (_) {}
+  try {
+    const { BrowserWindow } = require('electron');
+    for (const w of BrowserWindow.getAllWindows()) {
+      const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
+      const m = u && u.match(/[?&]project=([^&#]+)/);
+      if (m) return decodeURIComponent(m[1]);
+    }
+  } catch (_) {}
+  return null;
+}
+
 function _registerDefaultTools() {
   registerTool(
     'read_project',
-    async () => {
-      const pid = onActiveProjectCb ? onActiveProjectCb() : null;
+    async ({ includeFull = false } = {}) => {
+      const pid = _activeProjectId();
       if (!pid) throw new Error('no active project');
       const proj = _readProjectFile(pid);
-      return { projectId: pid, project: proj };
+      const projectSize = Buffer.byteLength(JSON.stringify(proj), 'utf8');
+      // ok 를 붙인다 — 나머지 도구가 전부 {ok:…} 라 이것만 없으면 ok 를 보는 클라이언트가
+      // «성공을 실패로» 읽는다. 필드 추가라 기존 사용처는 안 깨진다.
+      if (includeFull) return { ok: true, projectId: pid, projectSize, truncated: false, project: proj };
+
+      /* ★기본은 «목차»다 — read_scratch_item 과 같은 규약(기본 잘라 주고, 전체는 명시 요청일 때만).
+       *   pages[].canvas 는 인라인 base64 이미지를 통째로 물고 있어 실측 85MB 까지 간다.
+       *   그걸 기본으로 뱉으면 부르는 AI 의 컨텍스트가 한 번에 날아간다.
+       *   ⚠️자른 사실과 «원래 크기»를 같이 준다 — 조용히 자르면 AI 가 이게 전부인 줄 안다. */
+      const pages = (proj.pages || []).map(pg => {
+        const canvas = typeof pg.canvas === 'string' ? pg.canvas : '';
+        const sectionIds = [...canvas.matchAll(/id="(sec_[A-Za-z0-9_-]+)"/g)].map(m => m[1]);
+        return {
+          id: pg.id,
+          name: pg.name || pg.label || '',
+          canvasSize: Buffer.byteLength(canvas, 'utf8'),
+          sectionCount: sectionIds.length,
+          sectionIds,
+        };
+      });
+      return {
+        ok: true, projectId: pid, projectSize, truncated: true,
+        summary: {
+          name: proj.name, version: proj.version,
+          currentPageId: proj.currentPageId, updatedAt: proj.updatedAt,
+          pageCount: pages.length, pages,
+        },
+        hint: 'Summary only — the full project JSON was omitted to avoid token blowup (projectSize tells you how big it is). '
+          + 'Pass includeFull=true for the whole JSON (can be tens of MB). For canvas content prefer get_canvas_state / read_section.',
+      };
     },
     {
-      description: 'Read the currently active Goditor project JSON.',
-      inputSchema: { type: 'object', properties: {}, required: [] }
+      description: 'Read the currently active Goditor project. By default returns a SUMMARY only (page/section index + sizes) to avoid token blowup; '
+        + 'pass includeFull=true to get the whole project JSON, which can be tens of MB. '
+        + 'Response always carries projectSize (bytes) and truncated. For canvas content prefer get_canvas_state.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          includeFull: { type: 'boolean', description: 'If true, return the full project JSON (may be tens of MB). Default: false (summary index only).', default: false }
+        },
+        required: []
+      }
     }
   );
 
@@ -118,7 +289,7 @@ function _registerDefaultTools() {
       if (!_projectOps || typeof _projectOps.duplicate !== 'function')
         throw new Error('project ops not initialized (setProjectOps not called)');
       // sourceProjectId 생략 시 현재 활성 프로젝트 복제
-      const src = sourceProjectId || (onActiveProjectCb ? onActiveProjectCb() : null);
+      const src = sourceProjectId || (_activeProjectId());
       if (!src) throw new Error('sourceProjectId required (no active project)');
       const r = await _projectOps.duplicate({ sourceProjectId: src, newName });
       if (!r || r.ok === false) throw new Error((r && r.error) || 'duplicate failed');
@@ -141,26 +312,23 @@ function _registerDefaultTools() {
     'read_section',
     async ({ sectionId } = {}) => {
       if (!sectionId) throw new Error('sectionId required');
-      const pid = onActiveProjectCb ? onActiveProjectCb() : null;
-      if (!pid) throw new Error('no active project');
-      const proj = _readProjectFile(pid);
-      const sections = (proj && (proj.sections || proj.data?.sections)) || [];
-      const sec = sections.find(s => s.id === sectionId);
+      /* ⚠️실측(08-15): 이 도구는 «존재한 적 없는» 스키마를 뒤지고 있었다.
+       *   프로젝트 파일에 sections 배열은 없다 — 섹션은 pages[].canvas 안 «HTML 문자열»이다.
+       *   그래서 proj.sections 는 늘 [] 였고, get_canvas_state 가 방금 준 sectionId 를 넣어도
+       *   'section not found' 만 났다(실측으로 확인).
+       *   ⇒ 지금 열려 있는 캔버스가 정본이다. get_canvas_state 와 «같은 경로»로 읽는다. */
+      if (!_rendererInvoker || typeof _rendererInvoker.getCanvasState !== 'function') {
+        throw new Error('editor not running — read_section은 편집기 창이 열려 있어야 합니다(캔버스가 정본).');
+      }
+      const r = await _rendererInvoker.getCanvasState({ sectionId });
+      if (r && r.ok === false) return r;   // USER_BUSY 등은 그대로 올린다
+      const sections = (r && r.sections) || [];
+      const sec = sections.find(s => s.sectionId === sectionId || s.id === sectionId);
       if (!sec) throw new Error(`section not found: ${sectionId}`);
-
-      // 텍스트 추출 (depth-first)
-      const texts = [];
-      const walk = (node) => {
-        if (!node || typeof node !== 'object') return;
-        if (typeof node.text === 'string') texts.push(node.text);
-        if (typeof node.content === 'string') texts.push(node.content);
-        if (Array.isArray(node.children)) node.children.forEach(walk);
-        if (Array.isArray(node.blocks)) node.blocks.forEach(walk);
-        if (Array.isArray(node.rows)) node.rows.forEach(walk);
-        if (Array.isArray(node.cols)) node.cols.forEach(walk);
-      };
-      walk(sec);
-      return { sectionId, section: sec, texts };
+      const texts = (sec.blocks || [])
+        .map(b => (b && typeof b.text === 'string') ? b.text : '')
+        .filter(Boolean);
+      return { ok: true, sectionId, section: sec, texts };
     },
     {
       description: 'Read a specific section by id and extract its text content.',
@@ -5775,11 +5943,19 @@ function _createServer() {
       // Unit B — 토큰 없이 허용하되 도구목록(tools)·server 상세는 비노출(상태만).
       // 브리지의 포트 자동탐색이 보는 status:'ok' 계약은 유지.
       res.writeHead(200, { 'Content-Type': 'application/json' });
+      // tokenFile/instance/pid는 «어느 인스턴스인지»와 «토큰을 어디서 읽을지»만 알려준다.
+      // 토큰 값은 절대 여기 싣지 않는다(무인증 엔드포인트).
       res.end(JSON.stringify({
         status: 'ok',
         port: currentPort,
         name: SERVER_INFO.name,
-        requiresToken: true
+        requiresToken: true,
+        pid: process.pid,
+        instance: path.basename(_getUserDataDir()),
+        // 인스턴스를 2개 띄우면 포트·pid만으론 «사람이» 어느 창인지 못 알아본다.
+        // 열려 있는 프로젝트가 제일 알아보기 쉬운 표식이라 같이 준다.
+        activeProject: (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
+        tokenFile: _tokenFilePath
       }));
       return;
     }
@@ -5845,7 +6021,11 @@ function startMcpServer({ port = 9345, onActiveProject } = {}) {
       const srv = _createServer();
       srv.once('error', (err) => {
         if (err.code === 'EADDRINUSE') {
-          console.warn(`[claudePM MCP] port ${p} busy — trying ${p + 1}`);
+          // ⚠️이 대역(9345~)은 사내 CDP(원격디버깅) 포트 관행과 «겹친다».
+          //   여기서 밀려난 포트가 남의 chrome-devtools MCP 포트를 먹을 수 있고, 그러면
+          //   다른 사람이 「CDP가 이상하다」로 오진한다. 대역 이전은 릴리스 직후 첫 작업.
+          console.warn(`[claudePM MCP] port ${p} busy — trying ${p + 1}`
+            + ' (⚠️이 대역은 CDP 관행 포트와 겹칩니다 — CDP 이상으로 오진하지 마세요)');
           srv.close();
           if (p - port > 20) return reject(new Error('no free port within 20 of base'));
           tryListen(p + 1);
@@ -5858,8 +6038,11 @@ function startMcpServer({ port = 9345, onActiveProject } = {}) {
         currentPort = p;
         // Unit B — 기동 시 토큰 생성(메모리). 이미 있으면(재기동) 동일 페어링 유지.
         if (!mcpToken) mcpToken = _genToken();
+        // Unit B-2 — 토큰을 0600 파일로 내려써야 브리지가 재시작 후에도 붙는다.
+        _writeTokenFile(p, mcpToken);
+        _copyBridge();
         console.log(`[claudePM MCP] listening on http://127.0.0.1:${p}`);
-        resolve({ port: p, token: mcpToken });
+        resolve({ port: p, token: mcpToken, tokenFile: _tokenFilePath, bridgePath: _bridgeCopyPath });
       });
     };
     tryListen(port);
@@ -5869,6 +6052,8 @@ function startMcpServer({ port = 9345, onActiveProject } = {}) {
 function stopMcpServer() {
   return new Promise((resolve) => {
     if (!server) return resolve();
+    // 죽은 인스턴스의 토큰 파일이 남아 있으면 브리지가 이미 없는 포트를 붙들게 된다.
+    _removeTokenFile();
     server.close(() => {
       server = null;
       currentPort = null;
@@ -5901,4 +6086,7 @@ module.exports = {
   setProjectOps,
   getToken,
   regenerateToken,
+  getTokenFilePath,
+  getBridgePath,
+  getBridgeError,
 };

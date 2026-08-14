@@ -3,8 +3,38 @@
 ═══════════════════════════════════ */
 import { state } from './globals.js';
 
+/* ── actorId — «누가 만든 블록인가» ────────────────────────────────────────
+ * 원격 동시협업에서는 두 사람의 앱이 «같은 문서»에 블록을 만든다. 기존 ID 는
+ * prefix + 7자 난수뿐이라 ⑴ 누가 만들었는지 알 수 없고 ⑵ 충돌 때 keep-both 로
+ * 둘 다 남길 때 구분할 근거가 없다.
+ *
+ * ⇒ ID 한가운데에 actor 조각을 넣는다:  b_k3fa9_x8s2m1
+ *   - prefix 는 «그대로 첫 칸»이다 → 기존 `id.split('_')[0]` 코드(editor.js·
+ *     section-variation.js·template-system.js)가 손 안 대고 그대로 산다.
+ *   - 옛 프로젝트의 옛 ID(`b_x8s2m1`)도 그대로 유효하다. 형식을 «강제»하지 않는다 —
+ *     읽는 쪽은 actor 조각이 없어도 동작해야 한다(마이그레이션 없음).
+ *
+ * ★actorId 는 «설치(userData)» 단위다. 계정 단위가 아니다 — 같은 사람이 두 기기에서
+ *   편집하면 그건 실제로 두 편집자이고, 충돌도 둘 사이에서 난다.
+ *   (그래서 격리 인스턴스로 A·B 검증하면 actorId 도 실제로 갈린다.)
+ */
+const ACTOR_KEY = 'goditor.actorId';
+let _actorId = null;
+function getActorId() {
+  if (_actorId) return _actorId;
+  let v = '';
+  try { v = localStorage.getItem(ACTOR_KEY) || ''; } catch (_) { v = ''; }
+  if (!/^[a-z0-9]{4,8}$/.test(v)) {
+    v = Math.random().toString(36).slice(2, 7);
+    // localStorage 가 막혀 있으면(파일 프로토콜·시크릿) 저장은 실패해도 «이번 세션»은 굴러가야 한다.
+    try { localStorage.setItem(ACTOR_KEY, v); } catch (_) {}
+  }
+  _actorId = v;
+  return _actorId;
+}
+
 function genId(prefix) {
-  return (prefix || 'b') + '_' + Math.random().toString(36).slice(2, 9);
+  return (prefix || 'b') + '_' + getActorId() + '_' + Math.random().toString(36).slice(2, 9);
 }
 
 function clearDropIndicators() {
@@ -476,6 +506,7 @@ function blockContextLuminance(block, selfBg) {
 
 export {
   genId,
+  getActorId,
   clearDropIndicators,
   clearLayerIndicators,
   clearSectionIndicators,
@@ -495,6 +526,7 @@ export {
 };
 
 window.genId                      = genId;
+window.getActorId                 = getActorId;
 window.clearDropIndicators        = clearDropIndicators;
 window.clearLayerIndicators       = clearLayerIndicators;
 window.clearSectionIndicators     = clearSectionIndicators;
