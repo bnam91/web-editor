@@ -224,6 +224,20 @@
     });
     if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; emit({ type: 'pull_error', reason: _lastError }); return; }
     _lastError = null;
+
+    /* ★서버가 「네가 요구하는 구간은 이미 지웠다」(resync)고 말할 수 있다 —
+     *   collab_patches 는 무한히 안 쌓이고 오래된 것부터 정리된다.
+     *   ⛔이걸 무시하고 seq 만 올리면 «조용히 어긋난 채로» 계속 산다. 그게 제일 나쁘다.
+     *   서버엔 그 구간의 내용이 «없다»(목차만 있다) → 복구는 두 갈래뿐이다:
+     *     ⑴ 내가 가진 섹션은 다시 올려서 서버를 채운다(_sent 를 비운다).
+     *     ⑵ 내가 못 받은 남의 변경은 되찾을 길이 없다 → 사람에게 «말한다». */
+    if (r.resync) {
+      _sent = Object.create(null);
+      _cfg.seq = typeof r.serverSeq === 'number' ? r.serverSeq : _cfg.seq;
+      emit({ type: 'resync_required', reason: r.reason || 'patches_pruned', patchFloorSeq: r.patchFloorSeq });
+      console.warn('[collab] 서버가 오래된 변경분을 정리했다 — 내 섹션은 다시 올리고, 못 받은 남의 변경은 되찾을 수 없다.');
+      return;
+    }
     for (const p of (r.patches || [])) {
       applyPatch(p);
       // ★적용한 것은 「내가 보낸 것」으로도 기록한다 — 안 그러면 받은 내용을 그대로 되쏜다.
@@ -232,6 +246,9 @@
     if (typeof r.seq === 'number') _cfg.seq = r.seq;
     paintPresence(r.presence || []);
     emit({ type: 'pulled', presence: r.presence || [], applied: (r.patches || []).length, deferred: _deferred.size });
+    // ★서버가 한 번에 주는 양엔 천장이 있다(hasMore). 남았으면 2초를 기다리지 않는다 —
+    //   밀린 상태에서 2초씩 쉬면 따라잡는 데 분 단위가 걸린다.
+    if (r.hasMore) setTimeout(tick, 0);
   }
 
   /* ── 수명 ──────────────────────────────────────────────────────────────── */
