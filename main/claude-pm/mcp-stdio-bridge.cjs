@@ -156,15 +156,17 @@ const WHICH_TOOL = {
 
 function whichText() {
   const lines = [];
-  lines.push(`연결됨: 127.0.0.1:${port}  (인스턴스 ${health && health.instance || '?'}, pid ${health && health.pid || '?'})`);
+  lines.push(`연결됨: 127.0.0.1:${port}  (인스턴스 ${health && health.instance || '?'}, pid ${health && health.pid || '?'}`
+    + `, 열린 프로젝트 ${health && health.activeProject || '없음'})`);
   lines.push(`토큰 출처: ${tokenSource || '(없음 — 401이 납니다)'}`);
   lines.push(`포트 선택: ${PINNED_PORT ? `GODITOR_MCP_PORT=${PINNED_PORT} 로 고정됨` : `${SCAN_FROM}~${SCAN_TO} 자동 탐색`}`);
   if (candidates.length > 1) {
     lines.push(`⚠️ 살아있는 인스턴스가 ${candidates.length}개입니다:`);
     for (const c of candidates) {
-      lines.push(`   - :${c.p}  ${c.h.instance || '?'}  pid ${c.h.pid || '?'}${c.p === port ? '   ← 지금 연결됨' : ''}`);
+      lines.push(`   - :${c.p}  ${c.h.instance || '?'}  pid ${c.h.pid || '?'}  프로젝트 ${c.h.activeProject || '없음'}${c.p === port ? '   ← 지금 연결됨' : ''}`);
     }
-    lines.push('   다른 쪽에 붙이려면 MCP 설정 env에 GODITOR_MCP_PORT=<포트> 를 넣고 클라이언트를 재시작하세요.');
+    lines.push('   앱 상단바 MCP 배지에 그 창의 «실제 포트»가 찍혀 있습니다 — 붙이고 싶은 창의 포트를 거기서 확인하세요.');
+    lines.push('   그 다음 MCP 설정 env에 GODITOR_MCP_PORT=<포트> 를 넣고 클라이언트를 재시작하면 그 창에 고정됩니다.');
   } else {
     lines.push('살아있는 인스턴스: 1개');
   }
@@ -192,7 +194,7 @@ async function _connect() {
   health = inst.h;
   resolveToken(inst);
   // ⛔토큰 값은 찍지 않는다. 경로/포트/인스턴스만.
-  logErr(`연결 127.0.0.1:${port} (인스턴스 ${health.instance || '?'}, pid ${health.pid || '?'}) · 토큰출처 ${tokenSource || '없음'}`
+  logErr(`연결 127.0.0.1:${port} (인스턴스 ${health.instance || '?'}, pid ${health.pid || '?'}, 프로젝트 ${health.activeProject || '없음'}) · 토큰출처 ${tokenSource || '없음'}`
     + (candidates.length > 1 ? ` · ⚠️인스턴스 ${candidates.length}개 감지 — goditor_which_instance 로 확인` : ''));
   return true;
 }

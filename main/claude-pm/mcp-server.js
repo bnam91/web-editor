@@ -187,11 +187,29 @@ function _readProjectFile(projectId) {
 // ─────────────────────────────────────────────
 // Default tools
 // ─────────────────────────────────────────────
+// 「지금 열려 있는 프로젝트」의 근거.
+// ⚠️실측: onActiveProjectCb가 읽는 global.currentActiveProjectId는 renderer가
+//   claudePM:setActiveProject를 «부르는 곳이 아예 없어서» 항상 null이다(preload에만 노출돼 있다).
+//   그 결과 read_project·read_section·duplicate_project가 늘 'no active project'로 죽었다.
+//   편집기 창 URL(index.html?project=proj_xxx)이 실제로 열린 프로젝트의 유일한 근거라 이걸 폴백으로 쓴다.
+function _activeProjectId() {
+  try { const p = onActiveProjectCb ? onActiveProjectCb() : null; if (p) return p; } catch (_) {}
+  try {
+    const { BrowserWindow } = require('electron');
+    for (const w of BrowserWindow.getAllWindows()) {
+      const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
+      const m = u && u.match(/[?&]project=([^&#]+)/);
+      if (m) return decodeURIComponent(m[1]);
+    }
+  } catch (_) {}
+  return null;
+}
+
 function _registerDefaultTools() {
   registerTool(
     'read_project',
     async () => {
-      const pid = onActiveProjectCb ? onActiveProjectCb() : null;
+      const pid = _activeProjectId();
       if (!pid) throw new Error('no active project');
       const proj = _readProjectFile(pid);
       return { projectId: pid, project: proj };
@@ -208,7 +226,7 @@ function _registerDefaultTools() {
       if (!_projectOps || typeof _projectOps.duplicate !== 'function')
         throw new Error('project ops not initialized (setProjectOps not called)');
       // sourceProjectId 생략 시 현재 활성 프로젝트 복제
-      const src = sourceProjectId || (onActiveProjectCb ? onActiveProjectCb() : null);
+      const src = sourceProjectId || (_activeProjectId());
       if (!src) throw new Error('sourceProjectId required (no active project)');
       const r = await _projectOps.duplicate({ sourceProjectId: src, newName });
       if (!r || r.ok === false) throw new Error((r && r.error) || 'duplicate failed');
@@ -231,7 +249,7 @@ function _registerDefaultTools() {
     'read_section',
     async ({ sectionId } = {}) => {
       if (!sectionId) throw new Error('sectionId required');
-      const pid = onActiveProjectCb ? onActiveProjectCb() : null;
+      const pid = _activeProjectId();
       if (!pid) throw new Error('no active project');
       const proj = _readProjectFile(pid);
       const sections = (proj && (proj.sections || proj.data?.sections)) || [];
@@ -5874,6 +5892,9 @@ function _createServer() {
         requiresToken: true,
         pid: process.pid,
         instance: path.basename(_getUserDataDir()),
+        // 인스턴스를 2개 띄우면 포트·pid만으론 «사람이» 어느 창인지 못 알아본다.
+        // 열려 있는 프로젝트가 제일 알아보기 쉬운 표식이라 같이 준다.
+        activeProject: (() => { try { return _activeProjectId(); } catch (_) { return null; } })(),
         tokenFile: _tokenFilePath
       }));
       return;
