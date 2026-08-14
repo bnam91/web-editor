@@ -234,17 +234,52 @@ function _activeProjectId() {
 function _registerDefaultTools() {
   registerTool(
     'read_project',
-    async () => {
+    async ({ includeFull = false } = {}) => {
       const pid = _activeProjectId();
       if (!pid) throw new Error('no active project');
       const proj = _readProjectFile(pid);
+      const projectSize = Buffer.byteLength(JSON.stringify(proj), 'utf8');
       // ok 를 붙인다 — 나머지 도구가 전부 {ok:…} 라 이것만 없으면 ok 를 보는 클라이언트가
       // «성공을 실패로» 읽는다. 필드 추가라 기존 사용처는 안 깨진다.
-      return { ok: true, projectId: pid, project: proj };
+      if (includeFull) return { ok: true, projectId: pid, projectSize, truncated: false, project: proj };
+
+      /* ★기본은 «목차»다 — read_scratch_item 과 같은 규약(기본 잘라 주고, 전체는 명시 요청일 때만).
+       *   pages[].canvas 는 인라인 base64 이미지를 통째로 물고 있어 실측 85MB 까지 간다.
+       *   그걸 기본으로 뱉으면 부르는 AI 의 컨텍스트가 한 번에 날아간다.
+       *   ⚠️자른 사실과 «원래 크기»를 같이 준다 — 조용히 자르면 AI 가 이게 전부인 줄 안다. */
+      const pages = (proj.pages || []).map(pg => {
+        const canvas = typeof pg.canvas === 'string' ? pg.canvas : '';
+        const sectionIds = [...canvas.matchAll(/id="(sec_[A-Za-z0-9_-]+)"/g)].map(m => m[1]);
+        return {
+          id: pg.id,
+          name: pg.name || pg.label || '',
+          canvasSize: Buffer.byteLength(canvas, 'utf8'),
+          sectionCount: sectionIds.length,
+          sectionIds,
+        };
+      });
+      return {
+        ok: true, projectId: pid, projectSize, truncated: true,
+        summary: {
+          name: proj.name, version: proj.version,
+          currentPageId: proj.currentPageId, updatedAt: proj.updatedAt,
+          pageCount: pages.length, pages,
+        },
+        hint: 'Summary only — the full project JSON was omitted to avoid token blowup (projectSize tells you how big it is). '
+          + 'Pass includeFull=true for the whole JSON (can be tens of MB). For canvas content prefer get_canvas_state / read_section.',
+      };
     },
     {
-      description: 'Read the currently active Goditor project JSON.',
-      inputSchema: { type: 'object', properties: {}, required: [] }
+      description: 'Read the currently active Goditor project. By default returns a SUMMARY only (page/section index + sizes) to avoid token blowup; '
+        + 'pass includeFull=true to get the whole project JSON, which can be tens of MB. '
+        + 'Response always carries projectSize (bytes) and truncated. For canvas content prefer get_canvas_state.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          includeFull: { type: 'boolean', description: 'If true, return the full project JSON (may be tens of MB). Default: false (summary index only).', default: false }
+        },
+        required: []
+      }
     }
   );
 
