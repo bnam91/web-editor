@@ -73,6 +73,7 @@
             <button class="settings-tab" data-tab="easter">이스터에그</button>
             <button class="settings-tab" data-tab="perf">성능</button>
             <button class="settings-tab" data-tab="market">마켓</button>
+            <button class="settings-tab" data-tab="dev">개발자</button>
           </div>
           <div class="settings-content">
             <div class="settings-pane settings-pane-api" data-pane="api"></div>
@@ -80,6 +81,7 @@
             <div class="settings-pane settings-pane-easter" data-pane="easter" style="display:none"></div>
             <div class="settings-pane settings-pane-perf" data-pane="perf" style="display:none"></div>
             <div class="settings-pane settings-pane-market" data-pane="market" style="display:none"></div>
+            <div class="settings-pane settings-pane-dev" data-pane="dev" style="display:none"></div>
           </div>
         </div>
         <div class="settings-modal-footer">
@@ -419,6 +421,102 @@
     toast('기본값으로 복원되었습니다. (저장 버튼을 눌러야 반영됨)', 'info');
   }
 
+  // ── 개발자 탭 — MCP 연결 ─────────────────────────────
+  //   지금까지 접속 토큰은 상단바 배지(admin 전용)에만 있어서 «일반 사용자는 토큰을 꺼낼 방법이
+  //   없었다». MCP를 공개하려면 여기가 열려야 한다. 공용 클래스만 재사용(새 CSS 0줄):
+  //   settings-section-title / settings-help / settings-api-list / settings-api-row /
+  //   settings-api-label / settings-api-input-wrap / settings-api-input / settings-api-eye /
+  //   settings-api-test / settings-api-status.
+  function renderDevPane() {
+    const pane = document.querySelector('.settings-pane-dev');
+    if (!pane) return;
+    const row = (id, label, help) => `
+      <div class="settings-api-row">
+        <div class="settings-api-label">${label}</div>
+        <div class="settings-api-input-wrap">
+          <input class="settings-api-input" id="dev-${id}" readonly value="" spellcheck="false" />
+          <button class="settings-api-test" data-copy="dev-${id}">복사</button>
+        </div>
+        ${help ? `<div class="settings-help">${help}</div>` : ''}
+      </div>`;
+    pane.innerHTML = `
+      <div class="settings-section-title">MCP 연결 (Claude 연동)</div>
+      <div class="settings-help">GODITOR는 Claude(데스크톱 / Claude Code)가 이 앱을 직접 조작할 수 있는 MCP 서버를 내장하고 있습니다. 아래 「연결 명령」을 터미널에 한 번만 붙여넣으면 등록됩니다. <b>앱을 재시작해도 다시 등록할 필요는 없습니다</b> — 브리지가 토큰을 그때그때 다시 읽습니다.</div>
+      <div class="settings-api-list" style="margin-top:14px">
+        ${row('cmd', '연결 명령 (Claude Code · 터미널에 붙여넣기)', '데스크톱 앱은 claude_desktop_config.json 의 mcpServers 에 <code>{"goditor":{"command":"node","args":["&lt;브리지 경로&gt;"]}}</code> 로 넣으세요. 토큰은 넣지 않아도 됩니다.')}
+        ${row('url', 'MCP 주소')}
+        <div class="settings-api-row">
+          <div class="settings-api-label">접속 토큰</div>
+          <div class="settings-api-input-wrap">
+            <input class="settings-api-input" id="dev-token" readonly type="password" value="" spellcheck="false" />
+            <button class="settings-api-eye" id="dev-token-eye" title="보기/숨기기">👁</button>
+            <button class="settings-api-test" data-copy="dev-token">복사</button>
+            <button class="settings-api-test" id="dev-token-regen">재발급</button>
+          </div>
+          <div class="settings-help">이 토큰이 있어야 외부에서 MCP를 호출할 수 있습니다. 앱을 켤 때마다 새로 만들어지며 아래 파일(소유자만 읽기)에 보관됩니다. <b>남에게 주지 마세요.</b></div>
+        </div>
+        ${row('tokenfile', '토큰 파일 (권한 0600)')}
+        ${row('bridge', '브리지 스크립트 경로')}
+      </div>
+      <div class="settings-api-status" id="dev-status" style="margin-top:12px"></div>
+    `;
+
+    const $ = (id) => pane.querySelector('#' + id);
+    const status = $('dev-status');
+    const setStatus = (m, cls) => { status.textContent = m; status.className = 'settings-api-status' + (cls ? ' ' + cls : ''); };
+
+    // 복사 버튼(공통)
+    pane.querySelectorAll('[data-copy]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const input = pane.querySelector('#' + btn.dataset.copy);
+        if (!input || !input.value) { setStatus('✗ 복사할 값이 없습니다', 'err'); return; }
+        try {
+          if (window.electronAPI?.clipboardWriteText) await window.electronAPI.clipboardWriteText(input.value);
+          else await navigator.clipboard.writeText(input.value);
+          setStatus('✓ 복사됨', 'ok');
+        } catch (e) { setStatus('✗ 복사 실패: ' + e.message, 'err'); }
+      });
+    });
+
+    const tokenInput = $('dev-token');
+    $('dev-token-eye').addEventListener('click', () => {
+      tokenInput.type = tokenInput.type === 'password' ? 'text' : 'password';
+    });
+
+    const fill = (info, token) => {
+      $('dev-url').value = info?.url || '';
+      $('dev-tokenfile').value = info?.tokenFile || '(앱 재시작 필요 — 아직 기록되지 않음)';
+      $('dev-bridge').value = info?.bridgePath || '';
+      tokenInput.value = token || '';
+      // 경로에 공백이 있어도 그대로 붙여넣을 수 있게 따옴표로 감싼다.
+      $('dev-cmd').value = info?.bridgePath ? `claude mcp add goditor -- node "${info.bridgePath}"` : '';
+    };
+
+    (async () => {
+      const api = window.electronAPI;
+      if (!api?.getMcpInfo) { setStatus('앱(Electron) 환경에서만 표시됩니다', 'err'); return; }
+      try {
+        const [info, token] = await Promise.all([api.getMcpInfo(), api.getMcpToken ? api.getMcpToken() : null]);
+        if (!info?.ok) { setStatus('✗ MCP 서버가 아직 시작되지 않았습니다', 'err'); return; }
+        fill(info, token);
+        setStatus(token ? `MCP 서버 실행 중 · 포트 ${info.port}` : `MCP 서버 실행 중 · 포트 ${info.port} (토큰 미발급)`, token ? 'ok' : 'err');
+        $('dev-token-regen').addEventListener('click', async () => {
+          if (!confirm('접속 토큰을 새로 발급합니다.\n이미 연결된 Claude 세션은 다음 호출부터 새 토큰으로 자동 재연결되지만,\n토큰을 직접 설정에 적어둔 경우에는 그 값을 바꿔야 합니다.\n\n계속할까요?')) return;
+          try {
+            const nt = await api.regenerateMcpToken();
+            if (!nt) { setStatus('✗ 재발급 실패', 'err'); return; }
+            tokenInput.value = nt;
+            const fresh = await api.getMcpInfo();
+            if (fresh?.ok) $('dev-tokenfile').value = fresh.tokenFile || $('dev-tokenfile').value;
+            setStatus('✓ 새 토큰이 발급되어 토큰 파일에 기록되었습니다', 'ok');
+          } catch (e) { setStatus('✗ 재발급 실패: ' + e.message, 'err'); }
+        });
+      } catch (e) {
+        setStatus('✗ 정보를 읽지 못했습니다: ' + e.message, 'err');
+      }
+    })();
+  }
+
   window.openSettingsModal = function () {
     const modal = ensureModal();
     // 현재 settings → draft 복사
@@ -432,6 +530,7 @@
     renderShortcutsPane();
     renderEasterPane();
     renderPerfPane();
+    renderDevPane();
     show(modal);
     document.addEventListener('keydown', onCaptureKeydown, true);
   };

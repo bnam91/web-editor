@@ -17,6 +17,7 @@
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 let server = null;
@@ -43,7 +44,11 @@ const SERVER_INFO = { name: 'goditor-claude-pm', version: '0.1.0' };
 // ─────────────────────────────────────────────
 function _genToken() { return crypto.randomBytes(32).toString('hex'); }
 function getToken() { return mcpToken; }
-function regenerateToken() { mcpToken = _genToken(); return mcpToken; }
+function regenerateToken() {
+  mcpToken = _genToken();
+  if (currentPort != null) _writeTokenFile(currentPort, mcpToken);
+  return mcpToken;
+}
 function _extractToken(req) {
   const h = req.headers || {};
   const x = h['x-goditor-token'];
@@ -58,6 +63,91 @@ function _tokenOk(tok) {
   try {
     return crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(mcpToken));
   } catch (_) { return false; }
+}
+
+// ─────────────────────────────────────────────
+// Unit B-2 — 토큰 «내구화»
+//   문제: 토큰은 부팅마다 새로 생긴다. 그래서 클라이언트 설정(claude_desktop_config 등)에
+//   토큰을 박아두면 앱을 재시작하는 순간 401이 되고, 사용자가 매번 손으로 갈아끼워야 했다.
+//   해법: «현재 토큰»을 userData/claude-pm/ 아래 0600 파일로 적어두고, /health가 그 «경로»를
+//   알려준다. stdio 브리지는 붙을 포트의 /health가 준 경로를 읽어 매번 최신 토큰을 쓴다.
+//   ⚠️파일은 포트별(mcp-<port>.json)이 정본이다 — 인스턴스를 2개 띄워도 서로 안 덮는다.
+//   ⛔토큰 값 자체는 로그에 찍지 않는다(경로만).
+// ─────────────────────────────────────────────
+let _tokenFilePath = null;
+let _bridgeCopyPath = null;
+
+function _getUserDataDir() {
+  try {
+    const { app } = require('electron');
+    if (app && app.getPath) return app.getPath('userData');
+  } catch (_) {}
+  // 단독(non-Electron) 실행 폴백. ⛔레포 안에 두면 토큰 파일이 커밋될 수 있다 → tmp로 뺀다.
+  return path.join(os.tmpdir(), 'goditor-mcp');
+}
+function _stateDir() { return path.join(_getUserDataDir(), 'claude-pm'); }
+function getTokenFilePath() { return _tokenFilePath; }
+function getBridgePath() { return _bridgeCopyPath; }
+
+function _write0600(file, data) {
+  // ⚠️writeFileSync의 mode는 «새로 만들 때»만 먹는다. 이미 있던 파일(644)은 그대로라
+  //   쓴 뒤에 chmod를 한 번 더 해야 실제로 0600이 된다.
+  fs.writeFileSync(file, data, { encoding: 'utf8', mode: 0o600 });
+  try { fs.chmodSync(file, 0o600); } catch (_) {}
+}
+
+function _writeTokenFile(port, token) {
+  try {
+    const dir = _stateDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const userData = _getUserDataDir();
+    const payload = JSON.stringify({
+      port,
+      token,
+      pid: process.pid,
+      instance: path.basename(userData),
+      userData,
+      name: SERVER_INFO.name,
+      startedAt: new Date().toISOString(),
+    }, null, 2);
+    const perPort = path.join(dir, `mcp-${port}.json`);
+    // mcp.json = 「마지막에 뜬 인스턴스」 편의 사본. /health가 경로를 못 주는 구버전 대비 폴백.
+    _write0600(perPort, payload);
+    _write0600(path.join(dir, 'mcp.json'), payload);
+    _tokenFilePath = perPort;
+    console.log(`[claudePM MCP] token file: ${perPort} (0600)`);
+    return perPort;
+  } catch (e) {
+    console.error('[claudePM MCP] token file write failed:', e.message);
+    _tokenFilePath = null;
+    return null;
+  }
+}
+
+function _removeTokenFile() {
+  if (!_tokenFilePath) return;
+  try { fs.unlinkSync(_tokenFilePath); } catch (_) {}
+  _tokenFilePath = null;
+}
+
+// 브리지 스크립트를 userData로 복사한다.
+// ⚠️패키징하면 브리지는 app.asar «안»에 들어가서 `node <asar경로>` 로는 실행이 안 된다.
+//   그래서 사용자에게 안내할 경로는 항상 이 복사본이어야 한다(개발/배포 동일).
+function _copyBridge() {
+  try {
+    const src = path.join(__dirname, 'mcp-stdio-bridge.cjs');
+    if (!fs.existsSync(src)) return null;
+    const dir = _stateDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const dst = path.join(dir, 'mcp-stdio-bridge.cjs');
+    fs.writeFileSync(dst, fs.readFileSync(src));
+    try { fs.chmodSync(dst, 0o755); } catch (_) {}
+    _bridgeCopyPath = dst;
+    return dst;
+  } catch (e) {
+    console.error('[claudePM MCP] bridge copy failed:', e.message);
+    return null;
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -5775,11 +5865,16 @@ function _createServer() {
       // Unit B — 토큰 없이 허용하되 도구목록(tools)·server 상세는 비노출(상태만).
       // 브리지의 포트 자동탐색이 보는 status:'ok' 계약은 유지.
       res.writeHead(200, { 'Content-Type': 'application/json' });
+      // tokenFile/instance/pid는 «어느 인스턴스인지»와 «토큰을 어디서 읽을지»만 알려준다.
+      // 토큰 값은 절대 여기 싣지 않는다(무인증 엔드포인트).
       res.end(JSON.stringify({
         status: 'ok',
         port: currentPort,
         name: SERVER_INFO.name,
-        requiresToken: true
+        requiresToken: true,
+        pid: process.pid,
+        instance: path.basename(_getUserDataDir()),
+        tokenFile: _tokenFilePath
       }));
       return;
     }
@@ -5858,8 +5953,11 @@ function startMcpServer({ port = 9345, onActiveProject } = {}) {
         currentPort = p;
         // Unit B — 기동 시 토큰 생성(메모리). 이미 있으면(재기동) 동일 페어링 유지.
         if (!mcpToken) mcpToken = _genToken();
+        // Unit B-2 — 토큰을 0600 파일로 내려써야 브리지가 재시작 후에도 붙는다.
+        _writeTokenFile(p, mcpToken);
+        _copyBridge();
         console.log(`[claudePM MCP] listening on http://127.0.0.1:${p}`);
-        resolve({ port: p, token: mcpToken });
+        resolve({ port: p, token: mcpToken, tokenFile: _tokenFilePath, bridgePath: _bridgeCopyPath });
       });
     };
     tryListen(port);
@@ -5869,6 +5967,8 @@ function startMcpServer({ port = 9345, onActiveProject } = {}) {
 function stopMcpServer() {
   return new Promise((resolve) => {
     if (!server) return resolve();
+    // 죽은 인스턴스의 토큰 파일이 남아 있으면 브리지가 이미 없는 포트를 붙들게 된다.
+    _removeTokenFile();
     server.close(() => {
       server = null;
       currentPort = null;
@@ -5901,4 +6001,6 @@ module.exports = {
   setProjectOps,
   getToken,
   regenerateToken,
+  getTokenFilePath,
+  getBridgePath,
 };

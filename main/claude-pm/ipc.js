@@ -600,10 +600,18 @@ async function handlePingMcp(_e) {
   }
 }
 
-// 현재 MCP 연결정보 노출 (포트번호만 — 자격증명/토큰 아님 → 무게이팅).
+// 현재 MCP 연결정보 노출.
 // MCP_PORT는 setActualMcpPort로 EADDRINUSE fallback 반영된 실제 포트.
+// Unit B-2 — 「환경설정 → 개발자」 탭이 한 번에 쓰도록 토큰 파일/브리지 경로도 같이 준다.
+//   ⛔토큰 «값»은 여기 안 넣는다 — 값은 app:mcp-token 한 곳에서만 나간다.
 async function handleGetMcpInfo() {
-  return { ok: true, port: MCP_PORT, url: _mcpUrl() };
+  let tokenFile = null, bridgePath = null;
+  try {
+    const m = require('./mcp-server');
+    tokenFile = (m.getTokenFilePath && m.getTokenFilePath()) || null;
+    bridgePath = (m.getBridgePath && m.getBridgePath()) || null;
+  } catch (_) {}
+  return { ok: true, port: MCP_PORT, url: _mcpUrl(), tokenFile, bridgePath };
 }
 
 // ── 등록 진입점 ──────────────────────────────
