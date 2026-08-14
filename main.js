@@ -522,12 +522,22 @@ ipcMain.handle('auth:login', async (_event, email, password) => {
 // ★「새로고침」 — 등급이 «앱 밖에서» 바뀌기 때문에 필요하다.
 //   입금 승인도, 베타 종료도 서버에서 일어난다. 앱을 다시 켜야만 반영되면 사용자는 안 켠다.
 //   ⚠️ 오프라인이면 verifySession 이 null 을 준다 — 그때는 «기존 상태를 유지»한다(못 쓰게 만들지 않는다).
+//   ★반대로 서버가 «죽었다고 대답»한 경우(invalid_session·email_not_verified)는 유예가 아니다.
+//     그걸 오프라인과 같이 다루면 폐기된 세션이 영영 안 지워진다 — 다른 기기에서 로그인해
+//     토큰이 갈린 사용자는 이 앱에서 옛 등급을 계속 보게 된다.
+//   ★만료(expired)는 «대답은 왔지만 ok 는 아닌» 세 번째 갈래다. 토큰은 살아 있으므로 지우지
+//     않고 값만 갱신하되, 화면엔 「갱신됨」이 아니라 만료라고 알려야 한다.
 ipcMain.handle('auth:refresh', async () => {
   const auth = readAuth();
   if (!auth?.email || !auth?.sessionToken) return { ok: false, reason: 'not_signed_in' };
   const r = await authVerifySession(auth.email, auth.sessionToken);
   if (!r) return { ok: false, reason: 'offline' };          // 유예 유지 — auth.json 을 안 건드린다
+  if (r.ok === false && (r.reason === 'invalid_session' || r.reason === 'email_not_verified')) {
+    clearAuth();
+    return { ok: false, reason: r.reason };
+  }
   writeAuth({ ...auth, plan: r.plan || auth.plan, accessUntil: r.accessUntil || auth.accessUntil });
+  if (r.ok === false) return { ok: false, reason: r.reason || 'unknown', plan: r.plan || '', accessUntil: r.accessUntil || '' };
   return { ok: true, plan: r.plan || '', accessUntil: r.accessUntil || '' };
 });
 

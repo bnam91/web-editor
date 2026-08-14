@@ -683,9 +683,20 @@ function paintAcct(st) {
     rf.disabled = true; const was = rf.textContent; rf.textContent = '확인 중…';
     try {
       const r = await (api.refreshAuth ? api.refreshAuth() : null);
+      // ★세션이 폐기됐으면(다른 기기 로그인 등) 이 화면에 머물게 두면 안 된다 —
+      //   등급 표시가 사라진 채 「왜 안 되지」로 남는다. 만료 화면으로 넘겨서 다시 로그인하게 한다.
+      if (r && r.reason === 'invalid_session') {
+        rf.textContent = '다시 로그인';
+        setTimeout(() => { window.location.href = 'license.html'; }, 900);
+        return;
+      }
       paintAcct(await api.getAuthState());
       // ★오프라인이면 «조용히 실패»하면 안 된다 — 눌렀는데 아무 일도 안 일어난 걸로 보인다.
-      rf.textContent = (r && r.ok) ? '갱신됨' : (r && r.reason === 'offline' ? '오프라인' : was);
+      //   만료도 마찬가지다 — 서버는 대답했는데 「갱신됨」이라고 쓰면 거짓말이 된다.
+      rf.textContent = (r && r.ok) ? '갱신됨'
+                     : (r && r.reason === 'offline') ? '오프라인'
+                     : (r && r.reason === 'expired') ? '기간만료'
+                     : was;
     } catch (_) { rf.textContent = was; }
     setTimeout(() => { rf.textContent = was; rf.disabled = false; }, 1600);
   });
