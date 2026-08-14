@@ -1315,7 +1315,15 @@ function scheduleAutoSave() {
     // BL-CDD-08: 파일 저장 대상을 발화 시점 검증된 id로 명시 고정 — saveProjectToFile 내부의
     // "저장 시점 activeProjectId 재읽기"에 의존하지 않는다(비동기 큐잉 중 전환 대비).
     Promise.resolve(saveProjectToFile(snap, { skipThumbnail: true, projectId: _saveTargetId })) // 자동저장은 썸네일 캡처 생략
-      .then(r => _setAutosaveIndicator(r && r.ok === false ? 'error' : 'saved'))
+      .then(r => {
+        _setAutosaveIndicator(r && r.ok === false ? 'error' : 'saved');
+        // ★협업 동기화 훅 — 저장이 «끝난 뒤»에만 알린다. 저장 전에 쏘면 내 디스크에도
+        //   없는 것을 남에게 주게 된다. 실패했으면 안 쏜다(공유는 저장의 «다음» 단계다).
+        //   이벤트로 가른 이유: save-load 가 협업을 몰라도 되게 — 협업이 없으면 아무도 안 듣는다.
+        if (!(r && r.ok === false)) {
+          try { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { projectId: _saveTargetId, snap } })); } catch (_) {}
+        }
+      })
       .catch(() => _setAutosaveIndicator('error'));
   }, 1500);
 }

@@ -108,5 +108,7 @@
     return JSON.stringify(result);
   }
 
-  window.marketMerge = { normSection, sectionMap, diffProjects, applyResolve };
+  // ★hash 도 내보낸다 — 협업 동기화(js/collab/sync.js)가 «같은 해시»를 써야
+  //   마켓 머지와 협업이 「바뀌었다」를 다르게 판정하지 않는다. 복붙 구현 금지.
+  window.marketMerge = { normSection, sectionMap, diffProjects, applyResolve, hash: _hash };
 })();

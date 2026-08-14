@@ -1,0 +1,277 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   collab/sync.js — 원격 동시협업의 «루프».
+   ───────────────────────────────────────────────────────────────────────────
+   ★동기화 단위는 «섹션 1개»다.
+     캔버스가 HTML 문자열이라 CRDT 를 못 얹는다(중앙 store 도 없다). 그래서 문자 단위가
+     아니라 섹션 단위로 «통째 교체»한다. 대신 섹션이 작을수록 충돌이 줄어든다.
+
+   ★보내는 시점 = 「저장이 «끝난» 뒤」
+     저장 전에 보내면 «내 디스크엔 없는 것»을 남에게 준다. save-load 가 자동저장을 마치고
+     쏘는 gd:project-saved 를 듣는다.
+
+   ★받는 시점 = 2초 폴링
+     Vercel 서버리스가 WebSocket 을 못 받는다. 전송계층(main/collab/transport.js)만
+     갈아끼우면 WS 로 옮길 수 있게 여기서는 「부르면 온다」만 안다.
+
+   ★에코 가드가 2겹이다 — 하나로는 못 막는다
+     ⑴ 서버가 내 actorId 패치를 빼고 준다.
+     ⑵ 원격 패치를 DOM 에 붙일 땐 state._suppressAutoSave 를 세운다.
+        안 세우면 MutationObserver → scheduleAutoSave → 다시 push 로 «무한 왕복»한다.
+        해제는 requestAnimationFrame 뒤에 — 동기 해제하면 잔여 mutation 이 샌다
+        (history.js restoreSnapshot 이 같은 이유로 같은 패턴을 쓴다).
+
+   ★내가 만지고 있는 섹션엔 원격 패치를 «지금» 안 붙인다 (USER_BUSY)
+     타이핑 중에 문단이 통째로 바뀌면 커서와 입력이 날아간다. 미뤘다가 손을 뗀 뒤 붙인다.
+     ⚠️미루기만 하고 «다시 붙이는 길»이 없으면 그 섹션은 영영 안 갱신된다 — 그래서
+       보류함(_deferred)을 두고 매 폴링마다 다시 시도한다.
+═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  const POLL_MS = 2000;
+  const BUSY_KEY_WINDOW_MS = 1200;   // 마지막 키 입력 후 이 시간 안이면 「편집 중」
+
+  let _cfg = null;                    // { projectId, collabId, actorId, seq }
+  let _timer = null;
+  let _sent = Object.create(null);    // 'pageId::secId' → 마지막으로 보낸 hash
+  let _deferred = new Map();          // sectionId → patch (USER_BUSY 로 미뤄둔 것)
+  let _inFlight = false;
+  let _lastError = null;
+  const _listeners = new Set();       // 상태 변화 구독(탑바 표시 등)
+
+  const api = () => (window.electronAPI && window.electronAPI.collab) || null;
+  const mm  = () => window.marketMerge || null;
+
+  function emit(evt) {
+    for (const fn of _listeners) { try { fn(evt); } catch (_) {} }
+  }
+
+  /* ── 「사용자가 지금 이 섹션을 만지고 있나」 ──────────────────────────────
+   * main.js 의 USER_BUSY 가드와 «같은 판정»을 쓴다(activeElement + 최근 키 입력).
+   * 두 곳이 다르게 판정하면 MCP 는 막히는데 협업은 밀어넣는 상황이 생긴다. */
+  function isUserBusyIn(sectionEl) {
+    if (!sectionEl) return false;
+    const ae = document.activeElement;
+    const editing = !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA'));
+    if (editing && sectionEl.contains(ae)) return true;
+    // 선택만 해둔 상태도 「만지는 중」으로 본다 — 속성패널로 값을 바꾸는 중일 수 있다.
+    if (sectionEl.querySelector('.selected, .editing, .img-editing, .group-selected')) return true;
+    if (sectionEl.classList.contains('selected')) return true;
+    const lastKey = window._lastUserKeydown || 0;
+    if (Date.now() - lastKey < BUSY_KEY_WINDOW_MS && editing) return true;
+    return false;
+  }
+
+  function currentEditingSectionId() {
+    const ae = document.activeElement;
+    const sec = (ae && ae.closest) ? ae.closest('.section-block') : null;
+    if (sec && sec.id) return sec.id;
+    const sel = document.querySelector('.section-block .selected, .section-block.selected');
+    const s2 = sel ? (sel.closest ? sel.closest('.section-block') : null) : null;
+    return s2 && s2.id ? s2.id : null;
+  }
+
+  /* ── 프로젝트 → 섹션 목록(내용 포함) ────────────────────────────────────
+   * 해시는 marketMerge 것을 «그대로» 쓴다. 같은 판정을 두 번 구현하면 언젠가 갈린다. */
+  function collectSections(obj) {
+    const out = [];
+    const M = mm();
+    if (!M) return out;
+    const parser = new DOMParser();
+    for (const pg of (obj.pages || [])) {
+      const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
+      const root = doc.getElementById('c');
+      let i = 0;
+      root.querySelectorAll('.section-block').forEach(sec => {
+        const sectionId = sec.id || ('noid_' + (i++));
+        out.push({
+          key: pg.id + '::' + sectionId,
+          pageId: pg.id,
+          sectionId,
+          html: sec.outerHTML,
+          hash: M.hash(M.normSection(sec)),
+        });
+      });
+    }
+    return out;
+  }
+
+  /* ── 보내기 ────────────────────────────────────────────────────────────── */
+  async function pushChanged(snapStr) {
+    if (!_cfg || _inFlight) return;
+    const c = api(); if (!c) return;
+    let obj;
+    try { obj = typeof snapStr === 'string' ? JSON.parse(snapStr) : snapStr; } catch (_) { return; }
+
+    const secs = collectSections(obj);
+    const changed = secs.filter(s => _sent[s.key] !== s.hash);
+    if (!changed.length) return;
+
+    _inFlight = true;
+    try {
+      // ★한 요청에 한 섹션이다. 합쳐 보내면 큰 섹션 하나 때문에 «멀쩡한 섹션까지» 같이 막힌다.
+      for (const s of changed) {
+        const r = await c.push({
+          collabId: _cfg.collabId,
+          patches: [{
+            pageId: s.pageId, sectionId: s.sectionId, html: s.html, hash: s.hash,
+            baseSeq: _cfg.seq, actorId: _cfg.actorId, ts: new Date().toISOString(),
+          }],
+        });
+        if (r && r.ok) {
+          _sent[s.key] = s.hash;
+          if (typeof r.seq === 'number') _cfg.seq = r.seq;
+          _lastError = null;
+          if (r.conflicts && r.conflicts.length) emit({ type: 'conflict', conflicts: r.conflicts });
+        } else {
+          _lastError = (r && r.reason) || 'unknown';
+          // ★섹션 하나가 한도를 넘은 건 «그 섹션만»의 문제다 — 루프를 멈추지 않는다.
+          //   대신 어떤 섹션이 왜 막혔는지 위로 올린다(사용자에게 짚어줘야 한다).
+          if (_lastError === 'section_too_large' || _lastError === 'too_large') {
+            emit({ type: 'section_too_large', sectionId: s.sectionId, detail: r });
+            continue;
+          }
+          break; // 세션·오프라인·서버오류면 이번 턴은 접는다. 다음 저장에서 다시 온다.
+        }
+      }
+    } finally {
+      _inFlight = false;
+      emit({ type: 'pushed', error: _lastError });
+    }
+  }
+
+  /* ── 받기 ──────────────────────────────────────────────────────────────── */
+  function findSectionEl(sectionId) {
+    const canvas = document.getElementById('canvas');
+    if (!canvas || !sectionId) return null;
+    // id 에 CSS 특수문자가 들어갈 수 있다 — querySelector 대신 getElementById 로 찾고 캔버스 안인지 본다.
+    const el = document.getElementById(sectionId);
+    return (el && canvas.contains(el) && el.classList.contains('section-block')) ? el : null;
+  }
+
+  /** 한 패치를 지금 붙일 수 있으면 붙이고, 사용자가 만지는 중이면 보류함에 넣는다. */
+  function applyPatch(p) {
+    const st = window.state;
+    if (!st || !p || !p.html) return false;
+
+    // 다른 페이지의 섹션이면 DOM 이 아니라 state.pages[].canvas 문자열을 고친다.
+    if (p.pageId && p.pageId !== st.currentPageId) {
+      const page = (st.pages || []).find(x => x.id === p.pageId);
+      if (!page) return false;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(`<div id="c">${page.canvas || ''}</div>`, 'text/html');
+      const root = doc.getElementById('c');
+      const target = root.querySelector('#' + CSS.escape(p.sectionId));
+      if (target) target.outerHTML = p.html; else root.insertAdjacentHTML('beforeend', p.html);
+      page.canvas = root.innerHTML;
+      return true;
+    }
+
+    const el = findSectionEl(p.sectionId);
+    if (el && isUserBusyIn(el)) { _deferred.set(p.sectionId, p); return false; }
+
+    st._suppressAutoSave = true;
+    try {
+      if (el) {
+        el.outerHTML = p.html;
+      } else {
+        const canvas = document.getElementById('canvas');
+        if (!canvas) return false;
+        canvas.insertAdjacentHTML('beforeend', p.html);   // 상대가 «새로 만든» 섹션
+      }
+      // restoreSnapshot 과 같은 순서 — 다만 캔버스 전체가 아니라 이 섹션만 바뀐 상태에서.
+      window.rebindAll && window.rebindAll();
+      window.deselectAll && window.deselectAll();
+      window.buildLayerPanel && window.buildLayerPanel();
+      window.gdtFontPaintBadge && window.gdtFontPaintBadge();
+    } finally {
+      requestAnimationFrame(() => { st._suppressAutoSave = false; });
+    }
+    _deferred.delete(p.sectionId);
+    return true;
+  }
+
+  function flushDeferred() {
+    if (!_deferred.size) return;
+    for (const [sid, p] of [..._deferred]) {
+      const el = findSectionEl(sid);
+      if (!el || !isUserBusyIn(el)) { _deferred.delete(sid); applyPatch(p); }
+    }
+  }
+
+  async function tick() {
+    if (!_cfg) return;
+    const c = api(); if (!c) return;
+    flushDeferred();                              // ★손 뗀 섹션부터 먼저 갚는다
+    const r = await c.pull({
+      collabId: _cfg.collabId,
+      sinceSeq: _cfg.seq,
+      actorId: _cfg.actorId,
+      editingSectionId: currentEditingSectionId(),
+    });
+    if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; emit({ type: 'pull_error', reason: _lastError }); return; }
+    _lastError = null;
+    for (const p of (r.patches || [])) {
+      applyPatch(p);
+      // ★적용한 것은 「내가 보낸 것」으로도 기록한다 — 안 그러면 받은 내용을 그대로 되쏜다.
+      if (p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
+    }
+    if (typeof r.seq === 'number') _cfg.seq = r.seq;
+    emit({ type: 'pulled', presence: r.presence || [], applied: (r.patches || []).length, deferred: _deferred.size });
+  }
+
+  /* ── 수명 ──────────────────────────────────────────────────────────────── */
+  async function start(projectId) {
+    stop();
+    const c = api(); if (!c || !projectId) return { ok: false, reason: 'unavailable' };
+    const r = await c.ref({ projectId });
+    const ref = r && r.ref;
+    if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
+    let actorId = '';
+    try { actorId = localStorage.getItem('goditor.actorId') || ''; } catch (_) {}
+    _cfg = { projectId, collabId: ref.collabId, actorId, seq: ref.seq || 0 };
+    _sent = Object.create(null);
+    _deferred = new Map();
+    _timer = setInterval(tick, POLL_MS);
+    tick();
+    emit({ type: 'started', collabId: ref.collabId });
+    return { ok: true, collabId: ref.collabId };
+  }
+
+  function stop() {
+    if (_timer) clearInterval(_timer);
+    _timer = null; _cfg = null; _deferred.clear();
+    emit({ type: 'stopped' });
+  }
+
+  // 자동저장이 «끝난 뒤» 발화한다(save-load.js). 저장 안 된 걸 남에게 보내지 않기 위해서다.
+  window.addEventListener('gd:project-saved', (e) => {
+    if (!_cfg) return;
+    const d = e.detail || {};
+    if (d.projectId && _cfg.projectId && d.projectId !== _cfg.projectId) return;  // 탭 전환 레이스
+    pushChanged(d.snap);
+  });
+
+  /* 열린 프로젝트가 «올려진 것»이면 알아서 붙는다. 아니면 조용히 아무것도 안 한다.
+   * projectId 를 URL 에서 읽는 이유: 에디터는 index.html?project=<id> 로 열리고,
+   * activeProjectId 는 save-load 의 모듈 지역변수라 여기서 못 본다(전역으로 끌어내면
+   * 「누가 주인인가」가 흐려진다 — 이미 있는 경계를 존중한다). */
+  function autoStart() {
+    let id = '';
+    try { id = new URLSearchParams(location.search).get('project') || ''; } catch (_) {}
+    if (!id || !api()) return;
+    start(id).then(r => {
+      if (r && r.ok) console.info('[collab] 동기화 시작 —', r.collabId);
+    });
+  }
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', autoStart);
+  else autoStart();
+  window.addEventListener('beforeunload', stop);
+
+  window.collabSync = {
+    start, stop, tick, autoStart,
+    isActive: () => !!_cfg,
+    status: () => ({ ..._cfg, deferred: _deferred.size, lastError: _lastError }),
+    onEvent: (fn) => { _listeners.add(fn); return () => _listeners.delete(fn); },
+    // 검증용 — 테스트에서 폴링을 기다리지 않고 즉시 한 바퀴 돌린다.
+    _internals: { collectSections, applyPatch, isUserBusyIn },
+  };
+})();
