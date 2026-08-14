@@ -31,7 +31,9 @@
 
   let _cfg = null;                    // { projectId, collabId, actorId, seq }
   let _timer = null;
-  let _sent = Object.create(null);    // 'pageId::secId' → 마지막으로 보낸 hash
+  let _sent = Object.create(null);    // 'pageId::secId' → «서버가 아는» hash(목차·수신분 포함)
+  let _localSnap = Object.create(null); // 'pageId::secId' → «마지막 자동저장 스냅샷»의 hash
+                                        //   (덮어쓰기 경고 기준 — 서버 해시와 «같은 재료»로 계산돼야 비교가 성립한다)
   let _deferred = new Map();          // sectionId → patch (USER_BUSY 로 미뤄둔 것)
   let _inFlight = false;
   let _lastError = null;
@@ -123,6 +125,17 @@
     return out;
   }
 
+  /* ★충돌은 «반드시 보여야» 한다.
+   *   서버는 keep-both 로 둘 다 보관하지만 화면엔 나중에 적용된 쪽만 뜬다.
+   *   조용히 넘기면 사용자는 「내가 쓴 게 어디 갔지」를 영영 모른다.
+   *   (고르는 UI 는 아직 없다 — 그래서 최소한 «있었다»는 사실은 알린다.) */
+  function notifyConflict(conflicts) {
+    const ids = conflicts.map(c => c.sectionId).filter(Boolean);
+    const msg = `⚠️ 같은 섹션을 동시에 고쳤습니다 (${ids.slice(0, 3).join(', ')}${ids.length > 3 ? ' 외 ' + (ids.length - 3) : ''}) — 상대 내용이 보일 수 있습니다. 서버엔 양쪽 다 남아 있습니다.`;
+    if (typeof window.showToast === 'function') { try { window.showToast(msg); return; } catch (_) {} }
+    console.warn('[collab]', msg);
+  }
+
   /* ── 보내기 ────────────────────────────────────────────────────────────── */
   async function pushChanged(snapStr) {
     if (!_cfg || _inFlight) return;
@@ -131,6 +144,9 @@
     try { obj = typeof snapStr === 'string' ? JSON.parse(snapStr) : snapStr; } catch (_) { return; }
 
     const secs = collectSections(obj);
+    // ★모든 섹션의 «스냅샷 해시»를 기록해 둔다(바뀐 것만이 아니라). 덮어쓰기 경고가
+    //   이걸 서버 해시와 비교한다 — 라이브 DOM 으로 계산하면 재료가 달라 오경보가 난다.
+    for (const s of secs) _localSnap[s.key] = s.hash;
     const changed = secs.filter(s => _sent[s.key] !== s.hash);
     if (!changed.length) return;
 
@@ -149,7 +165,7 @@
           _sent[s.key] = s.hash;
           if (typeof r.seq === 'number') _cfg.seq = r.seq;
           _lastError = null;
-          if (r.conflicts && r.conflicts.length) emit({ type: 'conflict', conflicts: r.conflicts });
+          if (r.conflicts && r.conflicts.length) { emit({ type: 'conflict', conflicts: r.conflicts }); notifyConflict(r.conflicts); }
         } else {
           _lastError = (r && r.reason) || 'unknown';
           // ★섹션 하나가 한도를 넘은 건 «그 섹션만»의 문제다 — 루프를 멈추지 않는다.
@@ -196,6 +212,25 @@
 
     const el = findSectionEl(p.sectionId);
     if (el && isUserBusyIn(el)) { _deferred.set(p.sectionId, p); return false; }
+
+    /* ⚠️★덮어쓰기 경고 — 이쪽이 더 위험한 쪽이다.
+     *   충돌을 «올린 사람»은 서버 응답으로 알게 되지만, «덮이는 사람»은 자기 화면의 글이
+     *   말없이 남의 것으로 바뀐다. 아무 신호가 없으면 「내가 쓴 게 어디 갔지」로 끝난다.
+     *   판정: 마지막으로 «올린» 해시와 지금 로컬 해시가 다르면 = 아직 못 올린 내 변경이 있다. */
+    if (el) {
+      const M = mm();
+      /* ★비교는 «같은 재료»끼리 해야 한다.
+       *   서버 해시는 «저장 스냅샷»에서 나왔다. 라이브 DOM 으로 계산해 비교하면 미세한 차이로
+       *   손도 안 댄 섹션까지 경고가 뜬다(실측: 무관한 섹션 1건 오경보). 경고가 늑대소년이 되면
+       *   진짜 충돌 때 아무도 안 본다.
+       *   ⇒ 마지막 자동저장 스냅샷 해시(_localSnap)와 서버가 아는 해시(_sent)를 비교한다.
+       *      다르면 = 아직 서버에 못 올린 내 작업이 이 섹션에 있다 → 지금 덮인다. */
+      const key = (p.pageId || '') + '::' + p.sectionId;
+      const mine = _localSnap[key];
+      if (mine && mine !== _sent[key] && mine !== p.hash) {
+        notifyConflict([{ sectionId: p.sectionId, otherActor: p.actorId }]);
+      }
+    }
 
     st._suppressAutoSave = true;
     try {
@@ -247,6 +282,7 @@
      *     ⑵ 내가 못 받은 남의 변경은 되찾을 길이 없다 → 사람에게 «말한다». */
     if (r.resync) {
       _sent = Object.create(null);
+      _localSnap = Object.create(null);
       _cfg.seq = typeof r.serverSeq === 'number' ? r.serverSeq : _cfg.seq;
       emit({ type: 'resync_required', reason: r.reason || 'patches_pruned', patchFloorSeq: r.patchFloorSeq });
       console.warn('[collab] 서버가 오래된 변경분을 정리했다 — 내 섹션은 다시 올리고, 못 받은 남의 변경은 되찾을 수 없다.');
@@ -265,6 +301,43 @@
     if (r.hasMore) setTimeout(tick, 0);
   }
 
+  /* ── 재개 ────────────────────────────────────────────────────────────────
+   * ⚠️★실측으로 잡은 데이터 유실: 연결이 끊긴 «동안»(앱 종료·오프라인·수동 정지) 내가 한 편집은
+   *   push 되지 못한 채 남아 있는데, 재개하자마자 pull 이 상대 패치를 그 섹션에 덮어썼다.
+   *   내 작업이 «조용히» 사라진다 — 서버 기록에도 안 남아서 되찾을 길이 없다.
+   *
+   * ⇒ 재개 순서를 뒤집는다: ①서버 목차를 먼저 받아 «서버가 아는 해시»를 _sent 에 심고
+   *   ②내 로컬이 그와 다르면 push 한다(서버가 baseSeq 로 충돌을 판정해 keep-both 로 «둘 다» 보관)
+   *   ③그제서야 남의 패치를 적용한다.
+   *
+   * ⚠️남은 한계(정직하게): 화면에는 결국 «나중에 적용된 쪽»이 뜬다. 서버엔 둘 다 남지만
+   *   고르는 UI 는 아직 없다 — 그래서 충돌은 반드시 사용자에게 «보이게» 알린다.
+   */
+  async function resumeSafely() {
+    const c = api(); if (!c || !_cfg) return;
+    let r;
+    try {
+      r = await c.pull({ collabId: _cfg.collabId, sinceSeq: _cfg.seq, actorId: _cfg.actorId, wantSections: true });
+    } catch (_) { return; }
+    if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; return; }
+
+    // ① 서버가 아는 해시를 «이미 보낸 것»으로 심는다 → 안 바뀐 섹션은 다시 안 올라간다.
+    for (const s of (r.sections || [])) {
+      if (s && s.sectionId && s.hash) _sent[(s.pageId || '') + '::' + s.sectionId] = s.hash;
+    }
+    // ② 내가 그 사이 바꾼 것만 올라간다.
+    if (typeof window.serializeProject === 'function') {
+      try { await pushChanged(window.serializeProject()); } catch (_) {}
+    }
+    // ③ 이제 남의 것을 적용한다.
+    for (const p of (r.patches || [])) {
+      applyPatch(p);
+      if (p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
+    }
+    if (typeof r.seq === 'number') _cfg.seq = r.seq;
+    paintPresence(r.presence || []);
+  }
+
   /* ── 수명 ──────────────────────────────────────────────────────────────── */
   async function start(projectId) {
     stop();
@@ -275,10 +348,11 @@
     _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0 };
     _seqSaved = ref.seq || 0;
     _sent = Object.create(null);
+    _localSnap = Object.create(null);
     _deferred = new Map();
+    await resumeSafely();                         // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
     _timer = setInterval(tick, POLL_MS);
     _seqTimer = setInterval(flushSeq, 10000);
-    tick();
     emit({ type: 'started', collabId: ref.collabId });
     return { ok: true, collabId: ref.collabId };
   }
@@ -346,6 +420,7 @@
     status: () => ({ ..._cfg, deferred: _deferred.size, lastError: _lastError }),
     onEvent: (fn) => { _listeners.add(fn); return () => _listeners.delete(fn); },
     // 검증용 — 테스트에서 폴링을 기다리지 않고 즉시 한 바퀴 돌린다.
-    _internals: { collectSections, applyPatch, isUserBusyIn },
+    // 검증용 — 「왜 경고가 안 떴나」를 추측하지 않고 «상태를 보고» 판정하기 위한 창구.
+    _internals: { collectSections, applyPatch, isUserBusyIn, maps: () => ({ sent: { ..._sent }, localSnap: { ..._localSnap } }) },
   };
 })();
