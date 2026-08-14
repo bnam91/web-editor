@@ -230,6 +230,7 @@
       if (p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
     }
     if (typeof r.seq === 'number') _cfg.seq = r.seq;
+    paintPresence(r.presence || []);
     emit({ type: 'pulled', presence: r.presence || [], applied: (r.patches || []).length, deferred: _deferred.size });
   }
 
@@ -252,6 +253,8 @@
   function stop() {
     if (_timer) clearInterval(_timer);
     _timer = null; _cfg = null; _deferred.clear();
+    const el = document.getElementById('collab-topbar-badge');
+    if (el) { el.style.display = 'none'; el.textContent = ''; }
     emit({ type: 'stopped' });
   }
 
@@ -262,6 +265,29 @@
     if (d.projectId && _cfg.projectId && d.projectId !== _cfg.projectId) return;  // 탭 전환 레이스
     pushChanged(d.snap);
   });
+
+  /* ── 「상대가 지금 뭘 하고 있나」 상단바 표시 ─────────────────────────────
+   * ★자리를 새로 만들지 않는다 — 상단바 공용 .tb-badge 를 쓴다(글꼴대체·MCP 배지와 같은 줄).
+   * ★없는 정보를 지어내지 않는다: presence 는 상대가 «폴링한» 순간의 기록이다.
+   *   10초 넘게 소식이 없으면 「접속 중」이라고 말하지 않는다(거짓 안심을 준다).
+   * ★[hidden] 대신 style.display 로 껐다 켠다 — display 를 가진 클래스에 [hidden] 이 지는
+   *   사고가 이 조직에서 실제로 있었다(죽은 버튼이 라이브 직전까지 갔다). */
+  const PRESENCE_STALE_MS = 10000;
+  function paintPresence(presence) {
+    const el = document.getElementById('collab-topbar-badge');
+    if (!el) return;
+    const me = _cfg && _cfg.actorId;
+    const now = Date.now();
+    const others = (presence || []).filter(p => p.actorId && p.actorId !== me
+      && (now - new Date(p.lastSeenAt || 0).getTime()) < PRESENCE_STALE_MS);
+    if (!_cfg || !others.length) { el.style.display = 'none'; el.textContent = ''; return; }
+    const editing = others.filter(p => p.editingSectionId);
+    el.textContent = editing.length
+      ? `👥 ${others.length}명 · ${editing.length}명 편집 중`
+      : `👥 ${others.length}명 접속`;
+    el.title = others.map(p => `${p.email || p.actorId}${p.editingSectionId ? ' — ' + p.editingSectionId + ' 편집 중' : ''}`).join('\n');
+    el.style.display = '';
+  }
 
   /* 열린 프로젝트가 «올려진 것»이면 알아서 붙는다. 아니면 조용히 아무것도 안 한다.
    * projectId 를 URL 에서 읽는 이유: 에디터는 index.html?project=<id> 로 열리고,
