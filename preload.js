@@ -57,6 +57,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     auth: ()        => ipcRenderer.invoke('market:auth'),
   },
 
+  // 원격 동시협업 (main/collab/*). ★네트워크·sessionToken 은 main 에만 있다 —
+  // 렌더러는 여기 열린 문으로만 말한다(CSP·토큰 격리).
+  collab: {
+    ref:      (payload) => ipcRenderer.invoke('collab:ref',      payload),
+    register: (payload) => ipcRenderer.invoke('collab:register', payload),
+    leave:    (payload) => ipcRenderer.invoke('collab:leave',    payload),
+    invite:   (payload) => ipcRenderer.invoke('collab:invite',   payload),
+    invites:  (payload) => ipcRenderer.invoke('collab:invites',  payload),
+    respond:  (payload) => ipcRenderer.invoke('collab:respond',  payload),
+    push:     (payload) => ipcRenderer.invoke('collab:push',     payload),
+    pull:     (payload) => ipcRenderer.invoke('collab:pull',     payload),
+  },
+
   // Account auth (라이선스 키 제도 폐지 → 홈페이지 계정 로그인)
   getAuthState:       ()                   => ipcRenderer.invoke('auth:state'),
   refreshAuth:        ()                   => ipcRenderer.invoke('auth:refresh'),
