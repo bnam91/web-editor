@@ -120,6 +120,16 @@ function init(ipcMain, deps) {
   ipcMain.handle('collab:push',     (_e, p = {}) => push(p));
   ipcMain.handle('collab:pull',     (_e, p = {}) => pull(p));
   ipcMain.handle('collab:ref',      (_e, p = {}) => ({ ok: true, ref: getRef(p.projectId) }));
+  /* ★진도(seq)를 «남긴다». 안 남기면 앱을 껐다 켤 때마다 0 부터 다시 받아
+   *   이미 반영한 변경을 통째로 되받는다(느리고, 지운 섹션이 되살아난다).
+   *   합쳐 쓰기 — 다른 meta 필드를 날리지 않게 collabRef 만 갈아끼운다. */
+  ipcMain.handle('collab:seq', (_e, p = {}) => {
+    const ref = getRef(p.projectId);
+    if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
+    if (typeof p.seq !== 'number' || p.seq <= (ref.seq || 0)) return { ok: true, seq: ref.seq || 0 };
+    setRef(p.projectId, { ...ref, seq: p.seq });
+    return { ok: true, seq: p.seq };
+  });
 }
 
 module.exports = { init, register, leave, invite, invites, respond, push, pull, getRef, setRef };

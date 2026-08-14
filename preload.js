@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 렌더러는 여기 열린 문으로만 말한다(CSP·토큰 격리).
   collab: {
     ref:      (payload) => ipcRenderer.invoke('collab:ref',      payload),
+    seq:      (payload) => ipcRenderer.invoke('collab:seq',      payload),
     register: (payload) => ipcRenderer.invoke('collab:register', payload),
     leave:    (payload) => ipcRenderer.invoke('collab:leave',    payload),
     invite:   (payload) => ipcRenderer.invoke('collab:invite',   payload),

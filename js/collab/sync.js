@@ -35,6 +35,8 @@
   let _deferred = new Map();          // sectionId → patch (USER_BUSY 로 미뤄둔 것)
   let _inFlight = false;
   let _lastError = null;
+  let _seqSaved = 0;                  // 디스크에 남긴 진도
+  let _seqTimer = null;
   const _listeners = new Set();       // 상태 변화 구독(탑바 표시 등)
 
   const api = () => (window.electronAPI && window.electronAPI.collab) || null;
@@ -57,6 +59,18 @@
 
   function emit(evt) {
     for (const fn of _listeners) { try { fn(evt); } catch (_) {} }
+  }
+
+  /* ★진도(seq)를 디스크에 남긴다 — 안 남기면 앱을 껐다 켤 때마다 0 부터 다시 받아
+   *   이미 반영한 남의 변경을 통째로 되받는다(느리고, 지운 섹션이 되살아난다).
+   * ★매 틱마다 쓰진 않는다: 2초마다 파일을 건드릴 값이 아니다. 10초에 한 번 + 닫을 때 한 번.
+   *   중간에 죽어도 손해는 «몇 초치를 다시 받는 것»뿐이다 — 되받는 건 안전한 쪽 실패다. */
+  function flushSeq() {
+    const c = api();
+    if (!c || !_cfg || !c.seq) return;
+    if (_cfg.seq <= _seqSaved) return;
+    const v = _cfg.seq;
+    c.seq({ projectId: _cfg.projectId, seq: v }).then(() => { _seqSaved = v; }).catch(() => {});
   }
 
   /* ── 「사용자가 지금 이 섹션을 만지고 있나」 ──────────────────────────────
@@ -259,17 +273,21 @@
     const ref = r && r.ref;
     if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
     _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0 };
+    _seqSaved = ref.seq || 0;
     _sent = Object.create(null);
     _deferred = new Map();
     _timer = setInterval(tick, POLL_MS);
+    _seqTimer = setInterval(flushSeq, 10000);
     tick();
     emit({ type: 'started', collabId: ref.collabId });
     return { ok: true, collabId: ref.collabId };
   }
 
   function stop() {
+    flushSeq();                                   // 닫기 전에 진도부터 남긴다
     if (_timer) clearInterval(_timer);
-    _timer = null; _cfg = null; _deferred.clear();
+    if (_seqTimer) clearInterval(_seqTimer);
+    _timer = null; _seqTimer = null; _cfg = null; _deferred.clear();
     const el = document.getElementById('collab-topbar-badge');
     if (el) { el.style.display = 'none'; el.textContent = ''; }
     emit({ type: 'stopped' });
