@@ -195,3 +195,18 @@ h-b5n2-realdebounce 재실행(runs/fix4): 서버 raw 타임라인에서 **seq6(�
 ### C2-B2 — 원인 재조사 (SEPARATE_CAUSE, 진위 «측정 필요»)
 verdict=SEPARATE_CAUSE(_historyPaused·_suppressAutoSave 정상인데 checkpointLeft:false, editChanged:true). ★독해 발견: **editor.js·block-factory.js 어디에도 «텍스트 타이핑(contenteditable input)→pushHistory» 리스너가 없다** — pushHistory는 전부 명령형 동작(타입변경 editor.js:1504·블록추가·삭제)에만. editor.js에 collab 인식 0건(협업이 pushHistory를 명시 억제하는 코드 없음). 하네스 editText(lib/ops.js:63)는 편집진입 없이 textContent 직접설정+합성 InputEvent.
 ⇒ ★3갈래 미확정: ⑴진짜 협업 버그 ⑵하네스 합성이벤트 아티팩트(실제 네이티브 편집 아님) ⑶설계(텍스트=브라우저 네이티브 undo, 협업 outerHTML 교체가 그 스택을 날림). **정밀 측정(비협업 대조 + 실제 키 편집 undo가 화면텍스트를 되돌리나) 후 수정 여부 결정.** ⛔원인 확정 전 수정 금지.
+
+## C2-B2 정밀측정 — 판정 «닫음»: 스코프 오류(협업무관 설계갭) + C7 신규 치명② 발견
+**측정(runs/fix5 · CDP 네이티브 Input.insertText + 진짜 Meta+Z)**:
+- A 협업/비협업 대조: 둘 다 checkpointLeft:false 동일 → 협업 무관(둘 다 처음부터 깨짐).
+- B 합성vs실제: 실제 네이티브 삽입+네이티브 ⌘Z도 실패(nativeUndoReverted:false, blur 유무 무관). ★타이핑이 window.state.pages[].canvas에 반영 안 됨(stateBeforeBlur/After:false).
+- ⇒ ⑴기각(협업무관) ⑵기각(실제도 실패, 하네스 탓 아님) ⑶전제틀림(네이티브undo가 협업무관하게 애초에 작동한 적 없음).
+
+**판정**: C2-B2(협업 중 텍스트 undo)는 «협업 특정 버그 아님». 실제 = 타이핑이 앱 undo 시스템 어디에도 안 걸리는 **전사적 설계 갭**(협업 무관·항상). ⇒ 「협업 중 텍스트 undo」로 좁힌 별도 수정 = 과녁 오류 → **기각/재정의**.
+⚠️미확인: 「타이핑 저장 유실」 여부. 저장은 getSerializedCanvas가 DOM을 읽으므로 유실 아닐 것(독해)이나 실측 예정 — 유실이면 치명①.
+
+## C7 — [치명②] 원격패치 수신이 historyStack을 통째 리셋 ★신규 확정
+- **측정(runs/fix5)**: 원격패치(다른 섹션 outerHTML 교체) 수신 직후 historyStack len 12→1, pos 10→0. seed 42/77 2회 정확히 동일 재현.
+- **원인 확정(독해)**: applyPatch(`sync.js:245` rebindAll 호출) → rebindAll(`save-load.js:702`) `if(!window._historyPaused) window.clearHistory?.()`. 원격 수신 시 _historyPaused=false라 clearHistory 실행 → 스택 리셋. 가드는 «undo/redo 복원(_historyPaused)»만 예외로 하고 «협업 수신」은 예외 없음(주석 L701이 정확히 이 위험을 알지만 협업 경로 미포함).
+- **harm**: 협업 중 커맨드 기반 편집(섹션 추가/삭제 등)의 undo 이력이 원격 패치 하나에 통째로 사라진다 = 협업 중 undo 오작동(치명②).
+- **수정 제안(제안만·정식 단계에서)**: applyPatch의 rebindAll 구간을 restoreSnapshot과 대칭으로 «히스토리 보존」 처리 — rebindAll clearHistory 가드를 «_historyPaused || 협업적용중»으로 확장하거나 applyPatch가 rebindAll 전 보존 플래그 세움. ⛔C2-B2 측정 중 발견이므로 그 자리서 안 고침(범위 추적).
