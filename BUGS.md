@@ -188,3 +188,10 @@
 **대기 순서**: exec가 B1 검증 후 → `h-b2-c1-root`(C2-B2 판정) + `h-b5n2-realdebounce`(N2 재판정) → A7 탐지(별도 마음가짐) → 전체 회귀.
 
 **forceSave 범위 조사(server-manager 요청 — N2 미구동이 다른 하네스에도 있나)**: forceSave/flushSave로 «로컬→원격 push/수렴»을 판정한 하네스 = **h-b5n2-cleanduo(N2/B5)뿐**. h-a5-collab은 방향이 원격→로컬(ghostPush로 서버 채움 · serverHasGhost/I8.1-converge = 원격→로컬 반영 확인)이라 미구동과 무관. h-a1/a4/a8은 server-has류 단언 0건(로컬 저장-로드·계측). ⇒ ★미구동 초록 범위 = N2/B5 하나, 이미 h-b5n2-realdebounce로 정정됨. 새로 무효화될 «확정 치명» 없음.
+
+### N2 검증 — 초록(실데이터) ✅ 수정 `d8d7169`
+h-b5n2-realdebounce 재실행(runs/fix4): 서버 raw 타임라인에서 **seq6(앱 stale 재-push) «완전 소멸»**(seq1→seq5로 끝), sentPoisoned:false 3시드. 양성대조: B5 수렴·정상 push 유지(applied 가드가 정상 적용경로 안 막음). sanity(gd:project-saved 실발화 savedReceipts ok) 통과. ⇒ N2 = 치명① 확정→수정→검증초록.
+
+### C2-B2 — 원인 재조사 (SEPARATE_CAUSE, 진위 «측정 필요»)
+verdict=SEPARATE_CAUSE(_historyPaused·_suppressAutoSave 정상인데 checkpointLeft:false, editChanged:true). ★독해 발견: **editor.js·block-factory.js 어디에도 «텍스트 타이핑(contenteditable input)→pushHistory» 리스너가 없다** — pushHistory는 전부 명령형 동작(타입변경 editor.js:1504·블록추가·삭제)에만. editor.js에 collab 인식 0건(협업이 pushHistory를 명시 억제하는 코드 없음). 하네스 editText(lib/ops.js:63)는 편집진입 없이 textContent 직접설정+합성 InputEvent.
+⇒ ★3갈래 미확정: ⑴진짜 협업 버그 ⑵하네스 합성이벤트 아티팩트(실제 네이티브 편집 아님) ⑶설계(텍스트=브라우저 네이티브 undo, 협업 outerHTML 교체가 그 스택을 날림). **정밀 측정(비협업 대조 + 실제 키 편집 undo가 화면텍스트를 되돌리나) 후 수정 여부 결정.** ⛔원인 확정 전 수정 금지.
