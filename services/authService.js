@@ -12,7 +12,7 @@
  *   throw/네트워크 오류와 구분해서 "이벤트 종료 → 구매 안내"로 분기해야 한다.
  */
 
-const API_BASE      = 'https://hompageapp.vercel.app';
+const API_BASE      = 'https://blacksheepwall.kr';
 const LOGIN_URL     = `${API_BASE}/api/license/login`;
 // 세션 조용한 갱신용. 2026-08-06 현재 백엔드 미구현(404) — 응답을 못 받으면
 // "판단 불가"로 처리하고 로컬 캐시를 그대로 신뢰한다(=오프라인 유예와 동일 경로).
