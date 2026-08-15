@@ -268,3 +268,14 @@ sanity 통과(정적 6스펙 스캔, 런타임 격리 9392 실붙음).
 non-blocker: A7 ⑶깨진이미지침묵·⑤export URL잔존 · secE(편집중 즉시⌘Z) · E2E addCardBlock 스테일 · N1/N3/N4(사이클1).
 커버리지: P1~P3 전영역(A7·E2E 포함) 최소 1회 완료. 크래시 3채널 무이상.
 남은 것: C8 수정(현빈 결정) → 전체 회귀 사이클 1회(§11 종료) → latest 승격·드라이브 교체(현빈 게이트).
+
+### C8 근본수정 — «구현 완료»(harm 인수시험 대기) 🟡 branch feat/collab-undo-op
+설계=피그마식 로컬 스코프 ⒝(섹션 스냅샷 diff + remoteKeys + 라이브 가드). notes-PLAN-collab-undo.md 6단계.
+- **P1** sync.js: applyPatch «실적용 성공» 두 경로에서 gd:collab-remote-applied 발화(N2 대칭 — 보류/실패 미발화). resumeSafely 잠복 N2 미접촉.
+- **P2** history.js: 항목에 remoteKeys 수집. pushHistory·ensureHistoryCheckpoint «양쪽» 드레인(R3). clearHistory 리셋.
+- **P3** section-serialize.js(세척 단일진실원 — getSerializedCanvas 위임, 바이트 동일)·history-diff.js(diffSnapshots=raw outerHTML=R2, sectionGuardHash=세척 후 정규화=R1).
+- **P4** restoreSnapshotScoped: 협업 활성+같은 페이지 undo/redo 를 «내 섹션만» 되돌림. remoteKeys(undo=leaving S[n]/redo=new S[n+1], [redo★])·라이브 가드로 상대 섹션 스킵+토스트. C2-A9·C7·B1 규율 준수. 킬스위치 _collabScopedUndo(off=C8 복귀 경고). 비협업=기존 restoreSnapshot 바이트 동일.
+- **P5** 순서 reorder op(앵커 체인, 전체 재구성 없음)·크로스페이지 스코프 미도달 계측(crossPageFull).
+- **재전파 차단**: sync.js pushChanged 무수정 — 스코프 undo 는 내 섹션만 DOM 변경 → collectSections 가 상대 섹션을 changed 로 안 봄 → 구버전 재업로드 구조적 불가.
+- **자체검증**: tests/e2e/10-collab-undo-diff.spec.js 단위 10건 green(R1 해시동일성·R2·[redo★]·라이브가드·R6 noid·P5 reorder 등, 실소스 주입).
+- ⏳**대기**: 2-instance harm 인수시험(B 디스크 B-OWN-WORK-2 잔존·구버전 재업로드 0·양성대조)은 지디 검증에이전트가 §7 ⑵ 절차로 실행 후 «초록» 판정 — 그전엔 «green 아님».
