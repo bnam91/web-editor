@@ -48,30 +48,39 @@ function restoreSnapshot(snap) {
   // 복원 도중(rebindAll/applyPageSettings 중간 DOM)에 부분 상태가 저장되는 레이스를 봉쇄.
   // switchPage / applyProjectData와 동일 가드. (DBG-SEC-LOSS)
   state._suppressAutoSave = true;
-  // 페이지가 다르면 현재 페이지 flush 후 대상 페이지로 전환
-  if (snap.pageId && snap.pageId !== state.currentPageId) {
-    if (window.flushCurrentPage) window.flushCurrentPage();
-    state.currentPageId = snap.pageId;
-    const page = state.pages?.find(p => p.id === snap.pageId);
-    if (page?.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
-    if (window.buildFilePageSection) window.buildFilePageSection();
+  // ★C2-A9: 봉쇄구간(innerHTML/rebindAll/applyPageSettings)에서 «예외»가 나도 두 가드를
+  // 반드시 해제하도록 try/finally로 감싼다. 안 그러면 예외 시 _historyPaused·_suppressAutoSave가
+  // 영구 고착 → 이후 모든 편집이 히스토리 체크포인트도 자동저장도 못 남기고 undo 전면 무동작
+  // + 데이터 유실(치명③, 재기동 시 소실). 예외 자체는 삼키지 않고 그대로 전파한다.
+  try {
+    // 페이지가 다르면 현재 페이지 flush 후 대상 페이지로 전환
+    if (snap.pageId && snap.pageId !== state.currentPageId) {
+      if (window.flushCurrentPage) window.flushCurrentPage();
+      state.currentPageId = snap.pageId;
+      const page = state.pages?.find(p => p.id === snap.pageId);
+      if (page?.pageSettings) Object.assign(state.pageSettings, page.pageSettings);
+      if (window.buildFilePageSection) window.buildFilePageSection();
+    }
+    Object.assign(state.pageSettings, snap.settings);
+    const canvasEl = document.getElementById('canvas');
+    canvasEl.innerHTML = snap.canvas;
+    window.rebindAll();
+    window.deselectAll();
+    window.applyPageSettings();
+    if (window.buildLayerPanel) window.buildLayerPanel();
+    window.deselectAll();
+  } finally {
+    // ★가드 해제를 UI 갱신보다 «먼저» — 아래 _updateUndoRedoBtns/gdtFontPaintBadge가
+    // 던져도 두 플래그는 이미 안전하게 풀린 상태가 되도록.
+    _historyPaused = false;
+    // _suppressAutoSave는 한 프레임 뒤 해제 — MutationObserver는 microtask 후 발화하므로
+    // 동기 해제 시 잔여 mutation이 새어 부분저장을 유발. (applyProjectData와 동일 패턴)
+    requestAnimationFrame(() => { state._suppressAutoSave = false; });
+    _updateUndoRedoBtns();
+    // 캔버스가 통째로 바뀌었으니 「없는 글꼴」 표시도 다시 센다 —
+    // 안 하면 ⌘Z로 대체를 되돌린 뒤에도 상단바가 「대체됨」이라고 거짓말한다(실측 2026-08-08).
+    window.gdtFontPaintBadge?.();
   }
-  Object.assign(state.pageSettings, snap.settings);
-  const canvasEl = document.getElementById('canvas');
-  canvasEl.innerHTML = snap.canvas;
-  window.rebindAll();
-  window.deselectAll();
-  window.applyPageSettings();
-  if (window.buildLayerPanel) window.buildLayerPanel();
-  window.deselectAll();
-  _historyPaused = false;
-  _updateUndoRedoBtns();
-  // 캔버스가 통째로 바뀌었으니 「없는 글꼴」 표시도 다시 센다 —
-  // 안 하면 ⌘Z로 대체를 되돌린 뒤에도 상단바가 「대체됨」이라고 거짓말한다(실측 2026-08-08).
-  window.gdtFontPaintBadge?.();
-  // _suppressAutoSave는 한 프레임 뒤 해제 — MutationObserver는 microtask 후 발화하므로
-  // 동기 해제 시 잔여 mutation이 새어 부분저장을 유발. (applyProjectData와 동일 패턴)
-  requestAnimationFrame(() => { state._suppressAutoSave = false; });
 }
 
 function undo() {
