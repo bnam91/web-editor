@@ -13,11 +13,31 @@ let _historyPaused = false;
 // 페이지를 떠날 때만 여기에 스냅샷을 보관/복원하는 보조 저장소로 사용.
 const pageHistories = new Map(); // pageId -> { stack, pos }
 
+/* ── 협업 undo 스코프용: «이 체크포인트 이후 도착한 원격 패치»의 섹션 키 수집 ──
+ * sync.js applyPatch 가 «실제 적용 성공 시»에만 쏘는 gd:collab-remote-applied 를 듣고
+ * 'pageId::secId' 를 누적한다. 새 히스토리 항목을 만들 때(pushHistory·ensureHistoryCheckpoint
+ * «양쪽») remoteKeys 로 «드레인»(비우고 항목에 귀속)해, 그 항목이 담는 diff 중 원격 기여분을
+ * 스코프 undo 가 제외할 수 있게 한다. 협업 비활성이면 이벤트가 안 와 항상 빈 셋 → 회귀 0.
+ * (드레인=누적분을 항목에 옮기고 셋을 새로 시작 — 항목마다 «그 구간의 원격분»만 담기게.) */
+let _remoteSinceCheckpoint = new Set();
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('gd:collab-remote-applied', (e) => {
+    const k = e && e.detail && e.detail.key;
+    if (k) _remoteSinceCheckpoint.add(k);
+  });
+}
+function _drainRemoteKeys() {
+  const s = _remoteSinceCheckpoint;
+  _remoteSinceCheckpoint = new Set();
+  return s;
+}
+
 function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
   historyStack = historyStack.slice(0, historyPos + 1);
   // sideEffects: { onUndo?: fn, onRedo?: fn } — DOM 외 상태(예: 스크래치패드 IDB) 복원용
-  historyStack.push({ canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects });
+  // remoteKeys: 직전 체크포인트 이후 적용된 원격 섹션 키 셋(스코프 undo 가 제외에 사용)
+  historyStack.push({ canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action, pageId: state.currentPageId, sideEffects, remoteKeys: _drainRemoteKeys() });
   if (historyStack.length > MAX_HISTORY) {
     historyStack.shift(); // 가장 오래된 항목 제거
     historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
@@ -107,7 +127,9 @@ function redo() {
 
 function clearHistory() {
   // 초기 상태를 스냅샷으로 저장해 첫 번째 액션도 Undo 가능하게 함
-  const init = { canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId };
+  // 프로젝트 격리: 이전 프로젝트에서 누적된 원격 키 잔량을 버린다(빈 셋으로 초기화).
+  _remoteSinceCheckpoint = new Set();
+  const init = { canvas: window.getSerializedCanvas(), settings: { ...state.pageSettings }, action: '초기 상태', pageId: state.currentPageId, remoteKeys: new Set() };
   historyStack = [init];
   historyPos   = 0;
   state._canvasDirty = false;
@@ -157,7 +179,9 @@ function ensureHistoryCheckpoint(action = 'checkpoint') {
   if (!current) return;
   if (historyStack[historyPos]?.canvas !== current) {
     historyStack = historyStack.slice(0, historyPos + 1);
-    historyStack.push({ canvas: current, settings: { ...state.pageSettings }, action, pageId: state.currentPageId });
+    // ★R3: remoteKeys 드레인은 pushHistory 와 «양쪽» 다 — undo 첫 스텝은 ensure 경유로
+    //   현재상태를 선적재(DEF-01)하므로 여기서 안 비우면 원격분이 그 항목 diff 에 섞여 C8 재발.
+    historyStack.push({ canvas: current, settings: { ...state.pageSettings }, action, pageId: state.currentPageId, remoteKeys: _drainRemoteKeys() });
     if (historyStack.length > MAX_HISTORY) {
       historyStack.shift(); // 가장 오래된 항목 제거
       historyPos = MAX_HISTORY - 1; // shift로 인덱스가 당겨지므로 포인터 보정
