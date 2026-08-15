@@ -270,3 +270,6 @@ sanity 통과(정적 6스펙 스캔, 런타임 격리 9392 실붙음).
 non-blocker: A7 ⑶깨진이미지침묵·⑤export URL잔존 · secE(편집중 즉시⌘Z) · E2E addCardBlock 스테일 · N1/N3/N4(사이클1).
 커버리지: P1~P3 전영역(A7·E2E 포함) 최소 1회 완료. 크래시 3채널 무이상.
 남은 것: C8 수정(현빈 결정) → 전체 회귀 사이클 1회(§11 종료) → latest 승격·드라이브 교체(현빈 게이트).
+
+### 별건(플랜 밖) — resumeSafely _sent 무조건 기록 (N2 계열, ★미수정·등록만)
+Reviewer(C8 플랜 검증) 발견: `js/collab/sync.js` resumeSafely ③루프(≈346-349)가 tick(294)과 달리 applyPatch 반환값 확인 없이 **무조건 `_sent[key]=p.hash`**. 시작 직후 USER_BUSY 보류 시 N2와 같은 stale 재전파 구멍(화면=구버전·_sent=신버전 → 나중 저장 시 상대 덮음). ★기존 코드, C8 플랜 소관 아님. 수정=N2와 대칭 `const applied=applyPatch(p); if(applied) _sent[...]`. ⛔지금 안 고침(별건 등록만) — collab-undo 브랜치 P1에서 함께 or dev 별도 수정, 현빈 우선순위 후.
