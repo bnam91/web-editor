@@ -13,8 +13,8 @@
     "dev:template-tag": "electron . --enable-logging --remote-debugging-port=9339 --remote-allow-origins=* admin",
     "dev:admin": "electron . --enable-logging --remote-debugging-port=9339 --remote-allow-origins=* admin",
     "build:mac": "electron-builder --mac --dir",
-    "release:mac": "electron-builder --mac --publish always",
-    "release:win": "electron-builder --win --publish always",
+    "release:mac": "node tools/deploy-gate.js && electron-builder --mac --publish always",
+    "release:win": "node tools/deploy-gate.js && electron-builder --win --publish always",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "figma": "bun run figma-plugin/socket.js"
