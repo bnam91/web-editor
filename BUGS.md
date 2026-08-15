@@ -214,3 +214,16 @@ verdict=SEPARATE_CAUSE(_historyPaused·_suppressAutoSave 정상인데 checkpoint
 ### ⚠️ C2-B2 판정 정정 — 「스코프오류/설계갭」 보류, 재측정 (deselectAll 경로 발견)
 _historyPaused 전수 훑기(C7 수정 준비) 중 **editor.js:1959-1961** 발견: 텍스트 편집 체크포인트는 «blur»가 아니라 **deselectAll 시 .editing 블록 pushHistory('텍스트 편집')**로 남는다(주석: "입력한 텍스트가 undo 복원 대상이 되도록"). ★이전 measure(runs/fix5)는 blur만 쐈지 «.editing 편집모드 진입 + deselectAll»을 안 태웠을 수 있다 → editingBlock=null이면 pushHistory 안 됨 = checkpointLeft:false가 «측정이 실제 편집흐름을 안 태운 아티팩트」일 가능성.
 ⇒ C2-B2 «전사적 설계갭/과녁오류」 판정 **보류**. 진짜 사용자 흐름(.editing 진입→네이티브 타이핑→deselectAll→⌘Z)으로 재측정(runs/fix7). ★교훈: 「내가 만든 틀은 내가 못 본다」 — 이번엔 measure 설계가 틀이었고 «독해(전수 훑기)»가 그 틀을 깼다(측정만 틀을 깨는 게 아니다). ⛔치명① 배제(타이핑 저장 보존)는 유효 — 저장은 DOM 직렬화라 undo 여부와 무관.
+
+### C2-B2 재측정 — 최종: 측정 아티팩트(실 undo 정상) ✅ runs/fix7
+진짜 흐름(CDP 더블클릭→.editing 진입→네이티브 타이핑→deselectAll→⌘Z): .editing 진입성공·deselectAll 후 len 증가(dblclick 1회 block-drag.js:606 + deselect 1회 editor.js:1959 = 2체크포인트)·⌘Z 텍스트 실복원·window.undo() 동일·협업무관. 3런 일관. **이전 measure 실패원인**: contenteditable 직접세팅+포커스만(실제 편집진입 미태움) + blur 후 contenteditable=true라 Cmd+Z가 editor.js:1116 isContentEditable 가드에 걸려 undo() 미호출·네이티브 양보. ⇒ ★C2-B2 = 제품결함 아님, 이전 계측 결함. **별도수정 불필요.** 사이클2 「치명② 확정」도 같은 편집방식 아티팩트였음이 소급 확인.
+- non-blocker: secE(편집 중 포커스 유지한 채 즉시 ⌘Z) = isContentEditable=true 동안 앱이 네이티브 undo에 의도적 양보(editor.js:1116). 좁은 서브케이스, 표준 흐름 무관.
+
+### C7 수정 — rebindAll preserveHistory 가드 (치명②)
+save-load.js rebindAll(opts) + L702 `!opts.preserveHistory` 가드 + sync.js applyPatch가 rebindAll({preserveHistory:true}). 협업 수신 시 clearHistory 스킵→historyStack 보존. 로드/전환/restoreSnapshot(_historyPaused=true) 등 다른 경로는 인자 없어 기존대로 clearHistory. _historyPaused 오버로드 회피(별도 플래그). 검증 대기.
+
+### _historyPaused 전수 결론 (server-manager 지적 — 공통축 세번째 확인)
+사용처 3: ①history.js(정의·pushHistory/ensureHistoryCheckpoint 가드·restoreSnapshot try/finally=C2-A9) ②editor.js:1959(deselectAll 텍스트 체크포인트 — _historyPaused 가드 «정상», undo복원 중 편집체크포인트 안 남기려는 의도) ③save-load.js:702(rebindAll clearHistory=C7). ⇒ 세 번째 결함 «없음», C7만 협업 미가드. C2-A9(해제보장)·C7(협업 미가드)이 같은 변수의 다른 실패면.
+
+### 수정 페이즈 확정 치명 총괄
+✅ C2-A9(치명③) · ✅ B1(치명①) · ✅ N2(치명①) · 🔄 C7(치명②·검증중). C2-B2 = 아티팩트(제외). 타이핑 저장유실(치명①) 배제됨.
