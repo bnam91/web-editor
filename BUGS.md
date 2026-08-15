@@ -178,7 +178,7 @@
 
 **수정 진행(dev, 단계별 커밋·한버그마다 회귀·새결함은 BUGS만)**:
 - ✅ **C2-A9 치명③** = `44c91ed`. restoreSnapshot try/finally — 봉쇄구간 예외 시 _historyPaused·_suppressAutoSave 영구고착 방지, 예외는 그대로 전파, 가드해제를 UI갱신보다 앞당김. **검증 초록(실데이터)**: baseline seed=77에서 undo가 실제 예외를 탔는데도(undoThrew:true) suppressStuck=false + 원시 proj.json에 편집 마커 실재. 양성대조 회귀0.
-- 🔄 **B1 치명①** = `b1bc7e3`. applyPatch other-page 경로에 `scheduleAutoSave()` — DOM 미경유(→MutationObserver 미발화)로 자동저장 미트리거되던 수신 변경을 디스크에 남긴다. echo 안전: 디바운스라 _sent 기록 뒤 저장→pushChanged, _sent[key]===hash로 재전파 없음(독해 확정, h-b1 실측 중).
+- ✅ **B1 치명①** = `b1bc7e3`. applyPatch other-page 경로에 `scheduleAutoSave()` — DOM 미경유(→MutationObserver 미발화)로 자동저장 미트리거되던 수신 변경을 디스크에 남긴다. **검증 초록(실데이터)**: baseline 3시드(otherpage-survives-reload:false) → 수정 후 전부 반전, 원시 proj.json에 다른-페이지 마커(REMOTE-B1-*) 실재. ★**echo 없음(실측)**: 서버 타임라인에서 ghost push 이후 앱 재-push 기록 3시드 전부 0건(디바운스라 _sent 선기록 뒤 저장→pushChanged, _sent[key]===hash로 재전파 없음 — 독해가 실측으로 확증). 양성대조 회귀0.
 
 **gen-c3 하네스 5개 완료(코드작성만·미기동·node --check 통과)**:
 - `h-b2-c1-root`(C2-B2 판정) — 매 경계 _historyPaused(getter :184)·_suppressAutoSave·len/pos 동기 실독. `extra.C2B2_verdict` 한 줄 산출: RESOLVED / ROOT_IS_HISTORYPAUSED_STICK / SEPARATE_CAUSE / CHECKPOINT_LEFT_BUT_UNDO_STILL_WRONG.
@@ -186,3 +186,5 @@
 - `h-a7-assets`(A7 ①③), `h-e2e`(E2E ④+회귀·정적감사+격리런타임), `h-a9-c6`(C6 SIGKILL 중 proj.json 유효성 ③④, expected-kill 창 K4 자동제외).
 
 **대기 순서**: exec가 B1 검증 후 → `h-b2-c1-root`(C2-B2 판정) + `h-b5n2-realdebounce`(N2 재판정) → A7 탐지(별도 마음가짐) → 전체 회귀.
+
+**forceSave 범위 조사(server-manager 요청 — N2 미구동이 다른 하네스에도 있나)**: forceSave/flushSave로 «로컬→원격 push/수렴»을 판정한 하네스 = **h-b5n2-cleanduo(N2/B5)뿐**. h-a5-collab은 방향이 원격→로컬(ghostPush로 서버 채움 · serverHasGhost/I8.1-converge = 원격→로컬 반영 확인)이라 미구동과 무관. h-a1/a4/a8은 server-has류 단언 0건(로컬 저장-로드·계측). ⇒ ★미구동 초록 범위 = N2/B5 하나, 이미 h-b5n2-realdebounce로 정정됨. 새로 무효화될 «확정 치명» 없음.
