@@ -87,11 +87,80 @@
   function snapshotSectionHash(canvasStr, sectionId) {
     const M = window.marketMerge;
     if (!M || !sectionId) return null;
-    const doc = _parser().parseFromString(`<div id="c">${canvasStr || ''}</div>`, 'text/html');
-    const sec = doc.getElementById(sectionId);
+    const doc = _parser().parseFromString(`<div id="__hdroot__">${canvasStr || ''}</div>`, 'text/html');
+    const root = doc.getElementById('__hdroot__');
+    if (!root) return null;
+    // ★root 스코프 querySelector 는 descendant 만 본다 → 래퍼 id 와의 충돌 불가.
+    //   (getElementById(sectionId) 는 섹션 id 가 래퍼와 겹치면 래퍼를 반환하는 버그가 있었다.)
+    let sec = null;
+    try { sec = root.querySelector('#' + CSS.escape(sectionId)); } catch (_) {}
+    if (!sec) sec = [...root.querySelectorAll('.section-block')].find(s => s.id === sectionId) || null;
     if (!sec || !sec.classList.contains('section-block')) return null;
     return M.hash(M.normSection(sec));
   }
 
-  window.historyDiff = { parseSections, diffSnapshots, sectionGuardHash, snapshotSectionHash };
+  /* ── 스코프 복원 «계획» — 순수함수(DOM 미접촉, 테스트 가능) ──────────────────
+   * fromStr→toStr 로 라이브를 옮기기 위한 «연산 목록»과 스킵 건수를 낸다. DOM 수술은
+   * 호출측(history.js)이 이 계획을 «실행»만 한다 — 결정 로직을 여기 모아 단위테스트한다.
+   *
+   * env(호출측이 주입):
+   *   remoteHas(secId) → 이 섹션이 «그 스텝의 원격 기여분»인가(later 항목 remoteKeys 조회).
+   *                      ★[redo★] 대칭은 호출측이 어느 항목의 remoteKeys 를 넘기냐로 결정 —
+   *                        undo=leaving(S[n]), redo=new(S[n+1]). 여기선 remoteHas 만 본다.
+   *   liveHashOf(secId) → 라이브 섹션의 세척·정규화 해시(없거나 계산불가면 null).
+   *   liveExists(secId) → 라이브에 그 id 섹션이 실재하나.
+   *
+   * 라이브 가드(R1): changed/removed 는 라이브가 fromStr 상태와 같아야 «내 것»으로 확정.
+   *   liveHashOf==null 이거나 fromStr 해시와 다르면 = 체크포인트 후 원격변경 → 스킵(보호).
+   * 반환: { ops:[{op:'remove'|'replace'|'insert', id, html?, anchorAfterId?}], skipped, diff }.
+   *   ⛔전체 innerHTML 재구성 없음(C8 재도입 금지) — 섹션 단위 연산만. */
+  function planScopedUndo(fromStr, toStr, env) {
+    env = env || {};
+    const remoteHas  = typeof env.remoteHas  === 'function' ? env.remoteHas  : () => false;
+    const liveHashOf = typeof env.liveHashOf === 'function' ? env.liveHashOf : () => null;
+    const liveExists = typeof env.liveExists === 'function' ? env.liveExists : () => false;
+    const diff = diffSnapshots(fromStr, toStr);
+    const ops = [];
+    let skipped = 0;
+
+    const guardOk = (secId) => {
+      const lh = liveHashOf(secId);
+      const fh = snapshotSectionHash(fromStr, secId);
+      if (lh == null || fh == null) return false;   // 비교불가 → 보수적 스킵(원격 보호 우선)
+      return lh === fh;
+    };
+
+    // removed: from 에만 = 이 스텝에서 «내가 추가» → 라이브에서 제거
+    for (const key of diff.removed) {
+      const m = diff.from.get(key);
+      if (!m || m.noid) { skipped++; continue; }          // R6: id 없으면 미접촉
+      if (remoteHas(m.id) || !guardOk(m.id)) { skipped++; continue; }
+      ops.push({ op: 'remove', id: m.id });
+    }
+    // changed: 양쪽 + html 다름 = «내가 편집» → toSnap 내용으로 교체
+    for (const key of diff.changed) {
+      const m = diff.to.get(key);
+      if (!m || m.noid) { skipped++; continue; }
+      if (remoteHas(m.id) || !guardOk(m.id)) { skipped++; continue; }   // 원격분/체크포인트후 변경 보호
+      ops.push({ op: 'replace', id: m.id, html: m.html });
+    }
+    // added: to 에만 = 이 스텝에서 «내가 삭제» → 앵커 재삽입
+    const order = diff.toOrder || [];
+    for (const key of diff.added) {
+      const m = diff.to.get(key);
+      if (!m || m.noid) { skipped++; continue; }
+      if (liveExists(m.id)) { skipped++; continue; }       // 이미 존재(원격 재생성) — 중복금지
+      let anchorAfterId = null;
+      const idx = order.indexOf(key);
+      for (let i = idx - 1; i >= 0; i--) {
+        const pm = diff.to.get(order[i]);
+        if (!pm || pm.noid) continue;
+        if (liveExists(pm.id)) { anchorAfterId = pm.id; break; }
+      }
+      ops.push({ op: 'insert', id: m.id, html: m.html, anchorAfterId });
+    }
+    return { ops, skipped, diff: { changed: diff.changed.length, added: diff.added.length, removed: diff.removed.length, orderChanged: diff.orderChanged } };
+  }
+
+  window.historyDiff = { parseSections, diffSnapshots, sectionGuardHash, snapshotSectionHash, planScopedUndo };
 })();

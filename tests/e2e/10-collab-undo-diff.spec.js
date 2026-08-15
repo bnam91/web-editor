@@ -158,3 +158,109 @@ test.describe('collab-undo P3 순수유틸', () => {
     expect(r.d.added).toContain('noid_2');   // to 의 B(다른 키라 «추가»로 — 스코프 복원은 id 없어 미접촉)
   });
 });
+
+test.describe('collab-undo P4 planScopedUndo(순수 결정로직)', () => {
+  // undo: from=leaving(S[n]) → to=target(S[n-1]). «내가 편집한 a» 는 replace, 상대분은 skip.
+  test('기본 undo 계획: replace/remove/insert + 앵커', async ({ page }) => {
+    await loadUtils(page);
+    const r = await page.evaluate(() => {
+      const HD = window.historyDiff;
+      // S[n](from): a=편집됨, c=내가추가.   S[n-1](to): a=원래, b=원래(내가 지웠던 것).
+      const from = `<section class="section-block" id="a"><p>a-edited</p></section>` +
+                   `<section class="section-block" id="c"><p>c-new</p></section>`;
+      const to   = `<section class="section-block" id="a"><p>a-orig</p></section>` +
+                   `<section class="section-block" id="b"><p>b-orig</p></section>`;
+      // 라이브 = from 상태. guard 는 liveHashOf==from 해시면 통과.
+      const env = {
+        remoteHas: () => false,
+        liveHashOf: (id) => HD.snapshotSectionHash(from, id),
+        liveExists: (id) => id === 'a' || id === 'c',   // 라이브엔 a,c 존재(b 는 지워져 없음)
+      };
+      return HD.planScopedUndo(from, to, env);
+    });
+    const byOp = (o) => r.ops.filter(x => x.op === o);
+    // a: 편집 되돌림 → replace to a-orig
+    const rep = byOp('replace'); expect(rep.length).toBe(1); expect(rep[0].id).toBe('a'); expect(rep[0].html).toContain('a-orig');
+    // c: 내가 추가한 것 → remove
+    const rem = byOp('remove'); expect(rem.length).toBe(1); expect(rem[0].id).toBe('c');
+    // b: 내가 지운 것 → 재삽입. 앵커=a(toOrder 상 앞 이웃이자 라이브 실재)
+    const ins = byOp('insert'); expect(ins.length).toBe(1); expect(ins[0].id).toBe('b'); expect(ins[0].anchorAfterId).toBe('a');
+    expect(r.skipped).toBe(0);
+  });
+
+  // [redo★]/R2 대칭 핵심: undo↔redo 사이에 B 가 그 섹션을 «재편집»(원격) → remoteHas(B)=true →
+  //   그 섹션은 되돌리지 않는다(skip). from 만 쓰면 이 보호가 없어 C8 재발.
+  test('[redo★] 원격 기여 섹션은 스킵(그 스텝에 낀 원격분 보호)', async ({ page }) => {
+    await loadUtils(page);
+    const r = await page.evaluate(() => {
+      const HD = window.historyDiff;
+      // 이 스텝에서 a(내 편집)·b(원격 B 가 편집) 둘 다 바뀜.
+      const from = `<section class="section-block" id="a"><p>a2</p></section>` +
+                   `<section class="section-block" id="b"><p>b-remote</p></section>`;
+      const to   = `<section class="section-block" id="a"><p>a1</p></section>` +
+                   `<section class="section-block" id="b"><p>b-old</p></section>`;
+      const env = {
+        remoteHas: (id) => id === 'b',                    // later 항목 remoteKeys 에 b 기록됨
+        liveHashOf: (id) => HD.snapshotSectionHash(from, id),
+        liveExists: () => true,
+      };
+      return HD.planScopedUndo(from, to, env);
+    });
+    const rep = r.ops.filter(x => x.op === 'replace');
+    expect(rep.map(x => x.id)).toEqual(['a']);   // a 만 되돌림
+    expect(rep.map(x => x.id)).not.toContain('b'); // b(원격)는 서버 최신 유지
+    expect(r.skipped).toBe(1);                     // b 스킵 1건 → 토스트 트리거
+  });
+
+  // 라이브 가드: 체크포인트 «후» 원격이 그 섹션을 바꿈(liveHashOf ≠ fromHash) → 스킵(보호).
+  test('라이브 가드: 체크포인트 후 원격변경 섹션은 스킵', async ({ page }) => {
+    await loadUtils(page);
+    const r = await page.evaluate(() => {
+      const HD = window.historyDiff;
+      const from = `<section class="section-block" id="a"><p>a2</p></section>`;
+      const to   = `<section class="section-block" id="a"><p>a1</p></section>`;
+      const env = {
+        remoteHas: () => false,
+        liveHashOf: () => 'deadbeef',   // fromHash 와 불일치 → 가드 실패
+        liveExists: () => true,
+      };
+      return HD.planScopedUndo(from, to, env);
+    });
+    expect(r.ops.length).toBe(0);
+    expect(r.skipped).toBe(1);
+  });
+
+  // R2(협업 활성 시나리오): annotation-block 만 바뀐 섹션도 undo 대상(raw diff 라 잡힘).
+  test('R2: 협업 스코프에서 주석블록 변경 undo(replace) 가능', async ({ page }) => {
+    await loadUtils(page);
+    const r = await page.evaluate(() => {
+      const HD = window.historyDiff;
+      const from = `<section class="section-block" id="a"><div class="annotation-block">고친주석</div><p>x</p></section>`;
+      const to   = `<section class="section-block" id="a"><div class="annotation-block">원래주석</div><p>x</p></section>`;
+      const env = {
+        remoteHas: () => false,
+        liveHashOf: (id) => HD.snapshotSectionHash(from, id),
+        liveExists: () => true,
+      };
+      return HD.planScopedUndo(from, to, env);
+    });
+    expect(r.ops.length).toBe(1);
+    expect(r.ops[0].op).toBe('replace');
+    expect(r.ops[0].html).toContain('원래주석');
+  });
+
+  // R6: noid 섹션은 어떤 연산도 만들지 않는다(엉뚱한 물리섹션 오염 방지).
+  test('R6: noid 변경/추가/삭제는 op 0 (미접촉)', async ({ page }) => {
+    await loadUtils(page);
+    const r = await page.evaluate(() => {
+      const HD = window.historyDiff;
+      const from = `<section class="section-block"><p>B</p></section>`;             // noid, from 에만
+      const to   = `<section class="section-block"><p>Bx</p></section>` +           // noid, to
+                   `<section class="section-block"><p>C</p></section>`;             // noid, to 신규
+      const env = { remoteHas: () => false, liveHashOf: () => 'x', liveExists: () => true };
+      return HD.planScopedUndo(from, to, env);
+    });
+    expect(r.ops.length).toBe(0);   // noid 는 전부 스킵
+    expect(r.skipped).toBeGreaterThan(0);
+  });
+});

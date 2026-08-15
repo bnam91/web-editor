@@ -103,6 +103,119 @@ function restoreSnapshot(snap) {
   }
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   협업 «로컬 스코프» undo/redo (P4) — C8 치명① 근본수정
+   ────────────────────────────────────────────────────────────────────────
+   설계: PLAN §3~§5. 협업 활성 + 같은 페이지일 때, undo/redo 를 «캔버스 전체 교체»가
+   아니라 «내가 바꾼 섹션만» 되돌린다. 상대가 바꾼 섹션(remoteKeys·라이브 가드)은
+   서버 최신 그대로 두어, 그 섹션이 재저장→재전파로 상대 디스크에서 삭제되는 harm 을
+   원천 차단한다(sync.js pushChanged 는 무수정 — 내 섹션만 DOM 이 바뀌어 그것만 push).
+   비협업/킬스위치 off/크로스페이지는 기존 restoreSnapshot 경로 그대로(바이트 동일).
+════════════════════════════════════════════════════════════════════════ */
+
+// 검증 계측(§7): 비협업 시 스코프 도달 0회를 CDP 로 확인. 스킵/최근 diff 노출.
+const _collabScopedUndoStats = { scopedCalls: 0, fullCalls: 0, lastSkipped: 0, lastDiff: null };
+if (typeof window !== 'undefined') window._collabScopedUndoStats = _collabScopedUndoStats;
+
+/* 킬스위치(R7): 기본 on. window._collabScopedUndo===false 또는
+ * localStorage 'goditor.collabScopedUndo'∈{'0','false'} 이면 off → 기존 전체복원(C8 포함) 복귀.
+ * off 는 «C8 동작으로 되돌아감»이라 콘솔 경고 1줄을 남긴다. */
+function _scopedEnabled() {
+  if (typeof window !== 'undefined' && window._collabScopedUndo === false) {
+    console.warn('[history] 협업 스코프 undo OFF(window) — 전체복원 경로(C8 동작 포함)로 되돌아간다.');
+    return false;
+  }
+  if (typeof window !== 'undefined' && window._collabScopedUndo === true) return true;
+  try {
+    const v = localStorage.getItem('goditor.collabScopedUndo');
+    if (v === '0' || v === 'false') {
+      console.warn('[history] 협업 스코프 undo OFF(localStorage) — 전체복원 경로(C8 동작 포함)로 되돌아간다.');
+      return false;
+    }
+  } catch (_) {}
+  return true;
+}
+
+/* fromSnap→toSnap 이 «스코프 경로»를 탈 자격이 되나. 하나라도 아니면 false → 기존 full 경로. */
+function _useScoped(fromSnap, toSnap) {
+  if (!_scopedEnabled()) return false;
+  const cs = (typeof window !== 'undefined') ? window.collabSync : null;
+  if (!cs || typeof cs.isActive !== 'function' || !cs.isActive()) return false;   // 비협업/킬스위치(COLLAB) 존중
+  if (!window.historyDiff || typeof window.historyDiff.diffSnapshots !== 'function') return false;
+  if (!fromSnap || !toSnap) return false;
+  if (typeof fromSnap.canvas !== 'string' || typeof toSnap.canvas !== 'string') return false;
+  // P4: 같은 페이지 + 현재 페이지만. 크로스페이지는 기존 full 경로(P5 에서 좁힘).
+  if (!fromSnap.pageId || fromSnap.pageId !== toSnap.pageId) return false;
+  if (fromSnap.pageId !== state.currentPageId) return false;
+  return true;
+}
+
+/* 섹션 단위 스코프 복원(순수 계획 실행). 스킵 건수 반환.
+ * 결정 로직은 historyDiff.planScopedUndo(순수함수·단위테스트 대상). 여기선 DOM 수술만 한다.
+ * laterSnap = from/to 중 «나중» 항목(undo: leaving=S[n], redo: new=S[n+1]) — 그 항목의
+ *   remoteKeys 에 «그 스텝에 낀 원격 기여분»이 기록돼 있다([redo★] 대칭). */
+function _applyScopedDiff(fromSnap, toSnap, laterSnap) {
+  const HD = window.historyDiff;
+  const pageId = toSnap.pageId;
+  const canvasEl = document.getElementById('canvas');
+  const remoteSet = (laterSnap && laterSnap.remoteKeys instanceof Set) ? laterSnap.remoteKeys : new Set();
+  const inCanvas = (id) => { const el = document.getElementById(id); return !!(el && canvasEl.contains(el)); };
+
+  const plan = HD.planScopedUndo(fromSnap.canvas, toSnap.canvas, {
+    remoteHas:  (id) => remoteSet.has(pageId + '::' + id),
+    // ★같은 재료 비교(R1): 라이브는 serializeSectionClone 세척 후 정규화(sectionGuardHash).
+    liveHashOf: (id) => { const el = document.getElementById(id); return (el && canvasEl.contains(el)) ? HD.sectionGuardHash(el) : null; },
+    liveExists: inCanvas,
+  });
+
+  for (const op of plan.ops) {
+    if (op.op === 'remove') {
+      const el = document.getElementById(op.id);
+      if (el && canvasEl.contains(el)) el.remove();
+    } else if (op.op === 'replace') {
+      const el = document.getElementById(op.id);
+      if (el && canvasEl.contains(el)) el.outerHTML = op.html;
+    } else if (op.op === 'insert') {
+      const anchor = op.anchorAfterId ? document.getElementById(op.anchorAfterId) : null;
+      if (anchor && canvasEl.contains(anchor)) anchor.insertAdjacentHTML('afterend', op.html);
+      else canvasEl.insertAdjacentHTML('afterbegin', op.html);   // ⛔전체 재구성 아님 — 맨앞 삽입만
+    }
+  }
+
+  _collabScopedUndoStats.lastSkipped = plan.skipped;
+  _collabScopedUndoStats.lastDiff = { ...plan.diff, skipped: plan.skipped };
+  return plan.skipped;
+}
+
+/* 스코프 복원 골격 — restoreSnapshot 과 «동일 규율»(C2-A9 try/finally, _historyPaused +
+ * _suppressAutoSave, rebindAll 은 _historyPaused=true 라 clearHistory 자동 스킵=C7 별경로).
+ * 다만 캔버스 전체가 아니라 diff 섹션만 수술한다. */
+function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
+  _historyPaused = true;
+  state._suppressAutoSave = true;
+  let skipped = 0;
+  try {
+    Object.assign(state.pageSettings, toSnap.settings || {});
+    skipped = _applyScopedDiff(fromSnap, toSnap, laterSnap);
+    window.rebindAll();
+    window.deselectAll();
+    window.applyPageSettings();
+    if (window.buildLayerPanel) window.buildLayerPanel();
+    window.deselectAll();
+  } finally {
+    _historyPaused = false;
+    // ★스코프 수술의 mutation 은 suppress 구간에 흡수된다 → 저장을 «명시 예약»해야 결과가
+    //   디스크·서버(내 섹션만)에 남는다(B1 교훈). full-restore 와 달리 여긴 명시적으로 건다.
+    requestAnimationFrame(() => { state._suppressAutoSave = false; window.scheduleAutoSave?.(); });
+    _updateUndoRedoBtns();
+    window.gdtFontPaintBadge?.();
+    // 스킵 정책은 «침묵하지 않는다»(notifyConflict 철학) — 되돌리지 않은 섹션을 사용자에 알린다.
+    if (skipped > 0 && typeof window.showToast === 'function') {
+      try { window.showToast(`상대가 수정한 섹션 ${skipped}건은 되돌리지 않았습니다 — 서버 최신을 유지합니다.`); } catch (_) {}
+    }
+  }
+}
+
 function undo() {
   // 스택 끝에서 undo 시작 시 라이브 상태(tip)가 스택에 없으면 먼저 적재 —
   // 없으면 첫 undo가 마지막 액션 이후 상태를 폐기해 redo로도 복원 불가 (DEF-01)
@@ -113,14 +226,33 @@ function undo() {
   // 떠나는 snap의 onUndo (예: 스크래치 복원) — 캔버스 복원 *후* 실행해서 DOM 안정 상태에서 처리
   const leavingSnap = historyStack[historyPos];
   historyPos--;
-  restoreSnapshot(historyStack[historyPos]);
+  const targetSnap = historyStack[historyPos];
+  // ★스코프 경로: from=leavingSnap(S[n]), to=targetSnap(S[n-1]). remoteKeys 는 «나중» 항목
+  //   =leavingSnap(S[n]) 에서 읽는다([redo★] 대칭 — 그 스텝에 낀 원격분이 도착항목에 기록됨).
+  if (_useScoped(leavingSnap, targetSnap)) {
+    _collabScopedUndoStats.scopedCalls++;
+    restoreSnapshotScoped(leavingSnap, targetSnap, leavingSnap);
+  } else {
+    _collabScopedUndoStats.fullCalls++;
+    restoreSnapshot(targetSnap);
+  }
   try { leavingSnap?.sideEffects?.onUndo?.(); } catch (e) { console.warn('[history] onUndo err:', e); }
 }
 
 function redo() {
   if (historyPos >= historyStack.length - 1) return;
+  const currentSnap = historyStack[historyPos];
   historyPos++;
   const newSnap = historyStack[historyPos];
+  // ★스코프 경로: from=currentSnap(S[n]), to=newSnap(S[n+1]). remoteKeys 는 «나중»
+  //   =newSnap(S[n+1]) 에서 읽는다(redo 방향의 도착항목).
+  if (_useScoped(currentSnap, newSnap)) {
+    _collabScopedUndoStats.scopedCalls++;
+    restoreSnapshotScoped(currentSnap, newSnap, newSnap);
+    try { newSnap?.sideEffects?.onRedo?.(); } catch (e) { console.warn('[history] onRedo err:', e); }
+    return;
+  }
+  _collabScopedUndoStats.fullCalls++;
   restoreSnapshot(newSnap);
   try { newSnap?.sideEffects?.onRedo?.(); } catch (e) { console.warn('[history] onRedo err:', e); }
 }
