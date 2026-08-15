@@ -207,6 +207,12 @@
       const target = root.querySelector('#' + CSS.escape(p.sectionId));
       if (target) target.outerHTML = p.html; else root.insertAdjacentHTML('beforeend', p.html);
       page.canvas = root.innerHTML;
+      // ★B1: 다른 페이지 섹션은 DOM(→MutationObserver→scheduleAutoSave) 경로를 타지 않는다.
+      //   여기서 자동저장을 «명시적으로» 예약하지 않으면 이 수신 변경이 디스크에 안 남아
+      //   재기동 시 조용히 유실된다(치명①). scheduleAutoSave는 디바운스라, tick 루프가
+      //   수신 직후 _sent[key]=p.hash 를 기록한 «뒤»에 저장→pushChanged 가 돌고,
+      //   그때 _sent[key]===hash 이므로 받은 걸 되쏘는 echo 는 나지 않는다.
+      if (window.scheduleAutoSave) window.scheduleAutoSave();
       return true;
     }
 
