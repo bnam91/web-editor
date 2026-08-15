@@ -273,3 +273,25 @@ non-blocker: A7 ⑶깨진이미지침묵·⑤export URL잔존 · secE(편집중 
 
 ### 별건(플랜 밖) — resumeSafely _sent 무조건 기록 (N2 계열, ★미수정·등록만)
 Reviewer(C8 플랜 검증) 발견: `js/collab/sync.js` resumeSafely ③루프(≈346-349)가 tick(294)과 달리 applyPatch 반환값 확인 없이 **무조건 `_sent[key]=p.hash`**. 시작 직후 USER_BUSY 보류 시 N2와 같은 stale 재전파 구멍(화면=구버전·_sent=신버전 → 나중 저장 시 상대 덮음). ★기존 코드, C8 플랜 소관 아님. 수정=N2와 대칭 `const applied=applyPatch(p); if(applied) _sent[...]`. ⛔지금 안 고침(별건 등록만) — collab-undo 브랜치 P1에서 함께 or dev 별도 수정, 현빈 우선순위 후.
+
+### C8 근본수정 — «구현 완료»(harm 인수시험 대기) 🟡 branch feat/collab-undo-op
+설계=피그마식 로컬 스코프 ⒝(섹션 스냅샷 diff + remoteKeys + 라이브 가드). notes-PLAN-collab-undo.md 6단계.
+- **P1** sync.js: applyPatch «실적용 성공» 두 경로에서 gd:collab-remote-applied 발화(N2 대칭 — 보류/실패 미발화). resumeSafely 잠복 N2 미접촉.
+- **P2** history.js: 항목에 remoteKeys 수집. pushHistory·ensureHistoryCheckpoint «양쪽» 드레인(R3). clearHistory 리셋.
+- **P3** section-serialize.js(세척 단일진실원 — getSerializedCanvas 위임, 바이트 동일)·history-diff.js(diffSnapshots=raw outerHTML=R2, sectionGuardHash=세척 후 정규화=R1).
+- **P4** restoreSnapshotScoped: 협업 활성+같은 페이지 undo/redo 를 «내 섹션만» 되돌림. remoteKeys(undo=leaving S[n]/redo=new S[n+1], [redo★])·라이브 가드로 상대 섹션 스킵+토스트. C2-A9·C7·B1 규율 준수. 킬스위치 _collabScopedUndo(off=C8 복귀 경고). 비협업=기존 restoreSnapshot 바이트 동일.
+- **P5** 순서 reorder op(앵커 체인, 전체 재구성 없음)·크로스페이지 스코프 미도달 계측(crossPageFull).
+- **재전파 차단**: sync.js pushChanged 무수정 — 스코프 undo 는 내 섹션만 DOM 변경 → collectSections 가 상대 섹션을 changed 로 안 봄 → 구버전 재업로드 구조적 불가.
+- **자체검증**: tests/e2e/10-collab-undo-diff.spec.js 단위 10건 green(R1 해시동일성·R2·[redo★]·라이브가드·R6 noid·P5 reorder 등, 실소스 주입).
+- ⏳**대기**: 2-instance harm 인수시험(B 디스크 B-OWN-WORK-2 잔존·구버전 재업로드 0·양성대조)은 지디 검증에이전트가 §7 ⑵ 절차로 실행 후 «초록» 판정 — 그전엔 «green 아님».
+
+## C8 정통 수정 — 검증 GREEN (harm RESOLVED) ✅ runs/c8-verify
+독립 harm 검증(구현자 아닌 별도 에이전트, worktree 앱 2인스턴스·실멤버십·진짜 디바운스):
+- ★B proj.json에 B-OWN-WORK 잔존(diskBHasMarker=true. baseline runs/c8=false=FATAL_1_CONFIRMED). B 작업이 B 디스크에 산다.
+- A undo가 B마커 A화면 안 지움(bMarkerSurvivesUndoOnA=true) · A 재전파에 B 구버전 재업로드 0(repropagationHappened=false). verdict=C8_RESOLVED_B_WORK_SURVIVES_ON_DISK, 2시드 결정적.
+- 양성대조 ⑶: A 자기섹션 undo 정상 되돌림(스코프가 상대만 제외). ⑷ 비협업 회귀0(scopedCalls=0). ⑸ redo 경유 재발 없음(B marker2 보존·재업로드0·B디스크 잔존). sanity: forceSave 미사용·실멤버십·distinct actorId.
+- ⚠️갭 ⑹: undo mid-USER_BUSY/멀티페이지 전용 하네스 미작성(코드독해 정합·인접회귀 PASS, 독립 미검증). 더 엄격 원하면 추가.
+⇒ C8 = harm RESOLVED. ⛔머지·릴리스·latest = 현빈 게이트(검증 green도 안 밈).
+
+## 별건 — snapshotSectionHash id='c' 충돌 (이번 P3서 자가수정, dev 무해)
+history-diff.js:87 snapshotSectionHash가 파싱 doc에서 getElementById(sectionId)로 섹션을 찾을 때 sectionId='c'면 wrapper(div id=c)를 반환하던 함정. P3 커밋서 root-스코프 querySelector로 수정(단위테스트가 노출 — 「회귀 먼저 쓰는 값」). ★dev 무해: dev의 div id=c는 «wrapper 찾기»(sectionId 아님)·findSectionEl은 라이브DOM(wrapper 없음). ⇒ dev 코드 수정 불필요. 이번 C8 수정과 «별건»으로 기록(안 묻힘, server-manager 지시).

@@ -129,6 +129,21 @@
    *   서버는 keep-both 로 둘 다 보관하지만 화면엔 나중에 적용된 쪽만 뜬다.
    *   조용히 넘기면 사용자는 「내가 쓴 게 어디 갔지」를 영영 모른다.
    *   (고르는 UI 는 아직 없다 — 그래서 최소한 «있었다»는 사실은 알린다.) */
+  /* ★원격 패치를 «실제로 적용했다»는 사실만 밖으로 알린다(협업 undo 스코프가 청취).
+   *   ⚠️N2 대칭: 이 발화는 applyPatch 의 «적용 성공» 경로에서«만» 불린다 —
+   *   USER_BUSY 보류(return false)나 실패 경로에선 부르지 않는다. 보류분까지 알리면
+   *   화면엔 아직 안 붙은 원격분이 히스토리 remoteKeys 를 오염시켜, 그 섹션을 「내가
+   *   안 만졌다」로 잘못 스킵하게 된다(C8 재발 경로). 보류가 풀려 flushDeferred→applyPatch
+   *   가 «실제 적용»할 때 그때 이 함수가 불린다(N2 의미론과 정합). */
+  function emitRemoteApplied(p) {
+    if (!p || !p.pageId || !p.sectionId) return;
+    try {
+      window.dispatchEvent(new CustomEvent('gd:collab-remote-applied', {
+        detail: { key: p.pageId + '::' + p.sectionId, hash: p.hash, pageId: p.pageId, sectionId: p.sectionId },
+      }));
+    } catch (_) {}
+  }
+
   function notifyConflict(conflicts) {
     const ids = conflicts.map(c => c.sectionId).filter(Boolean);
     const msg = `⚠️ 같은 섹션을 동시에 고쳤습니다 (${ids.slice(0, 3).join(', ')}${ids.length > 3 ? ' 외 ' + (ids.length - 3) : ''}) — 상대 내용이 보일 수 있습니다. 서버엔 양쪽 다 남아 있습니다.`;
@@ -213,6 +228,7 @@
       //   수신 직후 _sent[key]=p.hash 를 기록한 «뒤»에 저장→pushChanged 가 돌고,
       //   그때 _sent[key]===hash 이므로 받은 걸 되쏘는 echo 는 나지 않는다.
       if (window.scheduleAutoSave) window.scheduleAutoSave();
+      emitRemoteApplied(p);
       return true;
     }
 
@@ -258,6 +274,7 @@
       requestAnimationFrame(() => { st._suppressAutoSave = false; });
     }
     _deferred.delete(p.sectionId);
+    emitRemoteApplied(p);
     return true;
   }
 
