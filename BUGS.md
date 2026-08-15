@@ -210,3 +210,7 @@ verdict=SEPARATE_CAUSE(_historyPaused·_suppressAutoSave 정상인데 checkpoint
 - **원인 확정(독해)**: applyPatch(`sync.js:245` rebindAll 호출) → rebindAll(`save-load.js:702`) `if(!window._historyPaused) window.clearHistory?.()`. 원격 수신 시 _historyPaused=false라 clearHistory 실행 → 스택 리셋. 가드는 «undo/redo 복원(_historyPaused)»만 예외로 하고 «협업 수신」은 예외 없음(주석 L701이 정확히 이 위험을 알지만 협업 경로 미포함).
 - **harm**: 협업 중 커맨드 기반 편집(섹션 추가/삭제 등)의 undo 이력이 원격 패치 하나에 통째로 사라진다 = 협업 중 undo 오작동(치명②).
 - **수정 제안(제안만·정식 단계에서)**: applyPatch의 rebindAll 구간을 restoreSnapshot과 대칭으로 «히스토리 보존」 처리 — rebindAll clearHistory 가드를 «_historyPaused || 협업적용중»으로 확장하거나 applyPatch가 rebindAll 전 보존 플래그 세움. ⛔C2-B2 측정 중 발견이므로 그 자리서 안 고침(범위 추적).
+
+### ⚠️ C2-B2 판정 정정 — 「스코프오류/설계갭」 보류, 재측정 (deselectAll 경로 발견)
+_historyPaused 전수 훑기(C7 수정 준비) 중 **editor.js:1959-1961** 발견: 텍스트 편집 체크포인트는 «blur»가 아니라 **deselectAll 시 .editing 블록 pushHistory('텍스트 편집')**로 남는다(주석: "입력한 텍스트가 undo 복원 대상이 되도록"). ★이전 measure(runs/fix5)는 blur만 쐈지 «.editing 편집모드 진입 + deselectAll»을 안 태웠을 수 있다 → editingBlock=null이면 pushHistory 안 됨 = checkpointLeft:false가 «측정이 실제 편집흐름을 안 태운 아티팩트」일 가능성.
+⇒ C2-B2 «전사적 설계갭/과녁오류」 판정 **보류**. 진짜 사용자 흐름(.editing 진입→네이티브 타이핑→deselectAll→⌘Z)으로 재측정(runs/fix7). ★교훈: 「내가 만든 틀은 내가 못 본다」 — 이번엔 measure 설계가 틀이었고 «독해(전수 훑기)»가 그 틀을 깼다(측정만 틀을 깨는 게 아니다). ⛔치명① 배제(타이핑 저장 보존)는 유효 — 저장은 DOM 직렬화라 undo 여부와 무관.
