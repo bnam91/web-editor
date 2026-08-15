@@ -243,3 +243,14 @@ C7 검증 부수관찰: 원격패치 수신 후 내 커맨드 편집을 undo하�
 - ⑤ export 재인라인: 없는 자산이 goya-asset:// URL로 export HTML에 잔존(경고없음). non-blocker.
 - 부수: location.reload는 Chromium 캐시가 삭제파일 서빙 → Electron 완전 재기동해야 콜드리드(재현 유의점).
 ⇒ ★치명①②③④ 문턱 안 넘음. 새 치명 아님. ⑶⑤ = 검증된 UX-신뢰성 non-blocker(수정제안: onerror 인라인 대신 로드후 addEventListener 프로그래매틱 재부착).
+
+## C8 — 치명① 확정: 재전파로 «남의 작업» 영구소실 ★신규 (runs/c8)
+두 진짜 Electron 인스턴스(A:9392·B:9393·공유 스텁 8798)로 재전파 끝까지 태워 확정 = **FATAL_1_CONFIRMED_B_DISK_LOSS.** seed=1은 계측 스크립트 버그(actorId vs email 오판)→수정 후 seed=2 정정(⛔리포 무수정, scratchpad 스크립트만).
+- **절차**: A·B가 같은 sectionId 공유 → B가 편집(B-OWN-WORK-2)→진짜 디바운스 저장→서버 seq2 실림 → A가 커맨드편집(체크포인트)+B patch pull → A ⌘Z(undo, B마커 A화면서 소실) → ★재전파: A 디바운스 저장→서버 seq3에 «undo로 되돌아간 구버전»(seq1과 동일 해시 bd355546) 재업로드 → ★★B pull → B 라이브서 자기마커 소실 → B 디바운스 저장 → **B proj.json grep "B-OWN-WORK-2" = 0건**(BASE-X만 남음). B 작업 영구소실.
+- **sanity**: 서버멤버십(hasB:true)·B push 서버 실림·A/B gd:project-saved 실발화 전부 확인, forceSave 미사용(N2교훈), 재전파 실발생 확인 → 판정 유효(미구동 초록 아님).
+- ★**추가**: conflicts:[] — 경고/충돌 알림 0. B는 자기 작업이 언제 왜 사라졌는지 알 방법 없음(되돌릴수없음+무자각 = 치명 정면).
+- **원인**: B2/C7과 같은 근본(applyPatch·undo 스냅샷 기반이 원격 반영분을 체크포인트 없이 삼킴)의 종착 harm. ★수정 근본적·위험(협업+undo 아키텍처) → 방향 정독 후 착수.
+- (참고: 재현에 N4=초대수락 collabRef 미기록(main/collab/index.js respond가 setRef 미호출)을 IPC로 메꿈 — N4는 기능 미작동, 별개.)
+
+### 확정 치명 총괄 (갱신)
+✅ C2-A9(치명③)·B1(치명①)·N2(치명①)·C7(치명②) 수정·초록 · 🔴 **C8(치명①·신규, 수정대기).** C2-B2=아티팩트, A7=무해(⑶⑤ non-blocker), 치명①(타이핑저장)=배제.
