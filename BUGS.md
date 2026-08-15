@@ -15,9 +15,9 @@
 | B2 | applyPatch 무(無)히스토리 체크포인트 → 협업 중 undo 오작동 | 치명②(소스확정, 런타임 재현필요) | **소스확정·재현필요** | sync.js 정독 + undo-untouched 3/3(런타임 근거 불명확) |
 | B3 | serialize↔load 비멱등 (serializeProject/applyProjectData 왕복이 고정점 아님) | 재현필요(대부분 정규화 아티팩트로 판정) | **기각(아티팩트)** | a1 basic/race/pages, a3 roundtrip/step |
 | B4 | A3 overflow 무동작 undo(dead-undo) | 재현필요 | **재현필요** | a3-ovf 6+ dead spots(정규화 오염 의심) |
-| B5 | A5 duo 콘텐츠 수렴 실패 | 재현필요 | **기각(누적아티팩트)** | duo 42/4242/99 (방 미리셋·섹션 8→12→16 누적) |
+| B5 | A5 duo 콘텐츠 수렴 실패 | 재현필요 | **재현필요(★Reviewer가 기각 반려)** | duo 42/4242/99 + N2 기전 |
 | N1 | A4 `gd:project-saved` 미발화 | non-blocker | 기록 | a4-5 r1/r2/r3/r7 |
-| N2 | busy 보류패치 `_sent` 오염 | non-blocker | 기록 | sync.js:294, duo 3/3 |
+| N2 | busy 보류패치 `_sent` 오염 → stale 재전파 | **치명① 후보(재검)** | ★승격 대상 | sync.js:294 실독, duo 3/3 |
 | N3 | resync 분기 미검증(스텁 무 prune) | non-blocker | SKIPPED | 전 duo/resync |
 | N4 | 초대 수락에 collabRef 미기록 | non-blocker | 기록(사이클로그) | main/collab/index.js respond |
 
@@ -36,7 +36,8 @@
   해당 분기는 `state.pages[].canvas` 문자열만 갱신하고 **DOM 을 안 만진다** → MutationObserver(autoSaveObserver) 미발화 → `scheduleAutoSave` 미호출 → `dirty=false` 유지 → 디스크 미기록.
   한편 `tick()`(sync.js) 은 수신분마다 `_cfg.seq` 를 전진시켜 meta 에 진도를 남긴다 → 재기동 시 `sinceSeq` 가 그 패치를 이미 지나쳐 재수신 안 됨.
 - **원인 영역 그룹**: γ. 협업 수신 경로의 «비-현재 페이지» 영속화 누락.
-- **전제(정직)**: 수신 후 «현재 페이지에 추가 편집»이 한 번이라도 나면 그 autosave 가 전 페이지를 flush 해 살아남는다. 소실은 «수동적 수신자가 그대로 종료» 시나리오에서 발생 — 실사용에서 충분히 흔함.
+- **전제(정직)**: 수신 후 «현재 페이지에 추가 편집»이 한 번이라도 나면 그 autosave 가 전 페이지를 flush 해 살아남는다. 소실은 «수동적 수신자가 그대로 종료» 시나리오에서 발생 — 실사용에서 충분히 흔함. (Reviewer 감사: 이 전제는 «약화»가 아니라 정직성 — 상대가 고치는 다른 페이지를 안 보는 게 정상값이라 오히려 흔한 시나리오.)
+- **★확산 경로(Reviewer 추가)**: 재기동 후 `resumeSafely` ②가 stale page_2 섹션(로컬≠서버 해시)을 **서버로 되쏜다**. `flushSeq` 로 영속된 seq 가 이미 그 패치를 지나 있어 서버가 충돌로 판정하기도 어렵다 → «내 쪽 소실»이 «작성자 원본까지 서버에서 되돌리는 능동 전파»로 번질 수 있다. 등급은 이미 치명①이라 불변 — 서술 강화. 재검 시 «재기동→settle 후 서버·상대 쪽 내용» 어서션 1줄 추가.
 - **수정 제안(제안만)**: 다른-페이지 분기에서 `page.canvas` 갱신 후 dirty 마킹/`scheduleAutoSave()`(또는 `state._dirtySinceSave=true` + 협업 전용 flush)를 태워 디스크에 반영. 현재-페이지 분기와 영속화 대칭을 맞출 것.
 
 ## B2 — [치명②·소스확정/런타임 재현필요] applyPatch 가 히스토리 체크포인트를 안 남긴다
@@ -63,14 +64,18 @@
 - **재현 요청**: dead spot 의 두 히스토리 엔트리 raw canvas 를 «정규화 없이» 바이트 비교. 동일하면 무동작 undo(치명② 확정), 다르면 정규화 가짜양성.
 - **원인 영역**: β + α 교차. `js/history.js` 21–26·145–160(MAX_HISTORY shift 보정).
 
-## B5 — [기각·누적아티팩트] A5 duo 콘텐츠 수렴 실패
+## B5 — [재현필요] A5 duo 콘텐츠 수렴 실패 (★Reviewer 반려로 «기각»→«재현필요» 강등)
 
-- **판정**: 기각(테스트 아티팩트). duo 섹션수가 seed 별 8→12→16 으로 단조 증가 = **방 미리셋·상태 누적**. `differing`(같은 섹션 다른 내용)은 인스턴스 A 가 duo 직전까지 편집/undo 케이스를 돌며 만든 «미push 로컬 편집»이 B 로 전파 안 된 것으로 설명됨(수렴 알고리즘 결함 아님). seed42 의 2섹션 divergence 도 이미 8섹션 누적된 더러운 방 위라 «깨끗한 표본»이 아님.
-- **재현 요청**: 방을 리셋한 신규 room 에서, A·B 각 1편집 → 충분한 폴링 settle → 수렴 비교하는 clean-duo 하네스로 재검. 그때도 differing 이면 치명① 승격.
+- **판정**: 재현필요. 1차 Evaluator 는 «누적 아티팩트»로 기각했으나 **Reviewer 가 반례 2개로 그 기각을 반려**했다:
+  - ⑴ **재기동 치유 모순**: duo 3런은 각각 앱 재기동으로 시작하고 `resumeSafely` ②가 «로컬≠서버 섹션을 push»하므로, 이전 런의 미push 편집은 다음 런 시작 시 «치유»됐어야 한다. 그런데 실측은 `differing` 이 2→7→11 로 자라고 **같은 섹션이 같은 before/after 해시로 세 seed 에 반복**(ljf5ulm 9f4eb2ea→91bdceda ×3 등) = «한 번도 안 치유됨». 순수 테스트 먼지로는 «왜 재기동 3번을 지나도 안 낫는가»가 규명 안 된다.
+  - ⑵ **N2 가 기전을 제공한다**(아래 N2 참조): 보류 패치가 `_sent` 에 기록되면 stale 재전파가 일어난다 — 그게 수렴 실패의 원인일 수 있다.
+- **재현 요청(clean-duo + N2 계측 통합)**: 방을 리셋한 신규 room 에서 A·B 각 1편집 → 충분한 settle → 수렴 비교. **동시에 N2 기전 계측**: 보류 섹션 유지(`.selected` 고정으로 isUserBusyIn=busy) × `_sent` 기록값 × 후속 push 내용 추적. 결과 분기 — stale 재전파 확인 시 N2 치명① 승격 / 수렴만 깨지면 B5 치명① 승격 / 둘 다 깨끗하면 그때 기각.
 
 ## non-blocker (기록만)
 - **N1** A4 `gd:project-saved` 미발화(a4-5 r1/r2/r3/r7, fatal=false): 협업 push 트리거 신뢰성 이슈. 원인 미확정.
-- **N2** busy 보류(미적용) 패치가 `_sent[key]=hash` 로 기록(`sync.js:294`): 덮어쓰기 경고 기준선 오염(늑대소년화). duo 3/3 재현.
+- **N2 → ★치명① 후보 (재검 대상, Reviewer 승격 요구)** busy 보류(미적용) 패치가 `_sent[key]=hash` 로 기록(`sync.js:294` 실독 — `applyPatch(p)` 가 USER_BUSY 로 `_deferred` 에 넣고 `return false` 해도, 다음 줄이 **반환값을 무시하고** `_sent` 를 무조건 기록).
+  ★**stale 재전파 경로**: 화면/로컬 = 구버전(보류라 미반영), `_sent` = 신버전(p.hash). 나중에 그 섹션을 편집·저장하면 `collectSections` 가 구버전 해시를 만들고 `_sent(신)≠구버전`이라 changed 판정 → **내 구버전을 서버로 push → 상대의 패치를 덮어쓴다**(치명① — 남의 작업 능동 소실). 프로덕션 재현: 섹션을 선택한 채 방치(=`isUserBusyIn` 이 `.selected` 를 busy 로 판정, `sync.js:81-92`) = 영구 보류 + 오염. duo 3/3 `busy-sent-not-poisoned` FAIL.
+  - **수정 제안(제안만)**: `applyPatch` 반환값이 false(보류)면 `_sent` 를 기록하지 않는다 — 보류가 풀려 실제 적용될 때 기록. tick 의 `_sent[...] = p.hash` 를 `if (applyPatch(p)) _sent[...]=p.hash` 로 가드.
 - **N3** resync 분기(`sync.js:283`) 미검증: 스텁에 prune 라우트 없어 SKIPPED. 스텁 확장 후 재검 필요.
 - **N4** 초대 수락 경로에 collabRef 미기록(`main/collab/index.js` respond): 초대받은 쪽이 수락해도 협업 start 못 함(기능 미작동, 치명 4분류 밖).
 
