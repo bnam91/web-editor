@@ -249,6 +249,31 @@ test.describe('collab-undo P4 planScopedUndo(순수 결정로직)', () => {
     expect(r.ops[0].html).toContain('원래주석');
   });
 
+  // P5 순서 정밀화: 순서만 바뀐 스텝은 공통 섹션을 toSnap 순서로 되돌리는 reorder op.
+  test('P5: 순서변경 undo → 공통 섹션 reorder op(원격 신규는 미제거)', async ({ page }) => {
+    await loadUtils(page);
+    const r = await page.evaluate(() => {
+      const HD = window.historyDiff;
+      // from(S[n]): a,b 순서 뒤바꿈.  to(S[n-1]): 원래 순서 a,b.  내용 동일 → 순서만 바뀜.
+      const from = `<section class="section-block" id="b"><p>B</p></section>` +
+                   `<section class="section-block" id="a"><p>A</p></section>`;
+      const to   = `<section class="section-block" id="a"><p>A</p></section>` +
+                   `<section class="section-block" id="b"><p>B</p></section>`;
+      const env = {
+        remoteHas: () => false,
+        liveHashOf: (id) => HD.snapshotSectionHash(from, id),
+        liveExists: () => true,
+      };
+      return HD.planScopedUndo(from, to, env);
+    });
+    // 내용 안 바뀌었으니 replace/remove/insert 없음, reorder 1건(공통 a,b)
+    const ro = r.ops.filter(x => x.op === 'reorder');
+    expect(ro.length).toBe(1);
+    expect(ro[0].ids).toEqual(['a', 'b']);   // toSnap 순서
+    expect(r.ops.filter(x => x.op === 'replace').length).toBe(0);
+    expect(r.diff.orderChanged).toBe(true);
+  });
+
   // R6: noid 섹션은 어떤 연산도 만들지 않는다(엉뚱한 물리섹션 오염 방지).
   test('R6: noid 변경/추가/삭제는 op 0 (미접촉)', async ({ page }) => {
     await loadUtils(page);

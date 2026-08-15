@@ -159,6 +159,18 @@
       }
       ops.push({ op: 'insert', id: m.id, html: m.html, anchorAfterId });
     }
+    // 순서 정밀화(P5): 이 스텝이 «순서»를 바꿨으면 공통 섹션을 toSnap 순서로 재배열한다.
+    //   ⛔전체 innerHTML 재구성 금지 — 공통 섹션만 앵커 체인으로 옮긴다(원격 신규 섹션은 제거
+    //   하지 않고 그 사이에 남는다). 첫 공통 섹션은 앵커로 두고 나머지를 그 뒤로 체인(remote
+    //   섹션을 앞으로 넘겨 삼키지 않도록). noid·라이브 부재 섹션은 제외(R6).
+    if (diff.orderChanged) {
+      const ids = (diff.toOrder || [])
+        .filter(k => diff.from.has(k))
+        .map(k => diff.to.get(k))
+        .filter(m => m && !m.noid && liveExists(m.id))
+        .map(m => m.id);
+      if (ids.length >= 2) ops.push({ op: 'reorder', ids });
+    }
     return { ops, skipped, diff: { changed: diff.changed.length, added: diff.added.length, removed: diff.removed.length, orderChanged: diff.orderChanged } };
   }
 

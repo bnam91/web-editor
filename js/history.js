@@ -114,7 +114,9 @@ function restoreSnapshot(snap) {
 ════════════════════════════════════════════════════════════════════════ */
 
 // 검증 계측(§7): 비협업 시 스코프 도달 0회를 CDP 로 확인. 스킵/최근 diff 노출.
-const _collabScopedUndoStats = { scopedCalls: 0, fullCalls: 0, lastSkipped: 0, lastDiff: null };
+// crossPageFull: 크로스페이지 undo/redo 가 스코프 대신 full 경로로 간 횟수(P5 계측 —
+//   [P4/P5] 가드레일: 크로스페이지는 스코프에 «도달하지 않음»을 수치로 보인다).
+const _collabScopedUndoStats = { scopedCalls: 0, fullCalls: 0, crossPageFull: 0, lastSkipped: 0, lastDiff: null };
 if (typeof window !== 'undefined') window._collabScopedUndoStats = _collabScopedUndoStats;
 
 /* 킬스위치(R7): 기본 on. window._collabScopedUndo===false 또는
@@ -144,9 +146,11 @@ function _useScoped(fromSnap, toSnap) {
   if (!window.historyDiff || typeof window.historyDiff.diffSnapshots !== 'function') return false;
   if (!fromSnap || !toSnap) return false;
   if (typeof fromSnap.canvas !== 'string' || typeof toSnap.canvas !== 'string') return false;
-  // P4: 같은 페이지 + 현재 페이지만. 크로스페이지는 기존 full 경로(P5 에서 좁힘).
+  // 같은 페이지 + 현재 페이지만 스코프. 크로스페이지(스냅 pageId ≠ 현재)는 기존 full 경로로
+  //   두고 «스코프 미도달»을 계측한다(P5). D1 페이지별 스택이라 현재 스택 항목의 pageId 는
+  //   현재 페이지와 일치하는 게 정상 → 이 카운터는 사실상 0(측정으로 확인).
   if (!fromSnap.pageId || fromSnap.pageId !== toSnap.pageId) return false;
-  if (fromSnap.pageId !== state.currentPageId) return false;
+  if (fromSnap.pageId !== state.currentPageId) { _collabScopedUndoStats.crossPageFull++; return false; }
   return true;
 }
 
@@ -179,6 +183,16 @@ function _applyScopedDiff(fromSnap, toSnap, laterSnap) {
       const anchor = op.anchorAfterId ? document.getElementById(op.anchorAfterId) : null;
       if (anchor && canvasEl.contains(anchor)) anchor.insertAdjacentHTML('afterend', op.html);
       else canvasEl.insertAdjacentHTML('afterbegin', op.html);   // ⛔전체 재구성 아님 — 맨앞 삽입만
+    } else if (op.op === 'reorder') {
+      // P5 순서 정밀화: 첫 공통 섹션은 제자리 앵커, 나머지를 그 뒤로 체인 이동(요소 재사용 —
+      // outerHTML 재파싱 안 함 → 리스너/상태 보존). ⛔전체 재구성 아님.
+      let prev = null;
+      for (const id of op.ids) {
+        const el = document.getElementById(id);
+        if (!el || !canvasEl.contains(el)) continue;
+        if (prev) prev.insertAdjacentElement('afterend', el);
+        prev = el;
+      }
     }
   }
 
