@@ -867,6 +867,11 @@
 <!-- Settings (다른 js보다 먼저 — _matchShortcut/getShortcut 글로벌 등록) -->
 <script src="js/settings/settings-store.js"></script>
 <script src="js/market-merge.js"></script>
+<!-- 캔버스 직렬화 세척 단일 진실원. save-load(module)·history-diff 가 window.serializeCleanRoot/
+     serializeSectionClone 를 쓴다. 플레인 스크립트라 module 보다 먼저 실행된다. -->
+<script src="js/io/section-serialize.js"></script>
+<!-- 협업 undo 섹션 diff 유틸. market-merge(해시)·section-serialize(세척) «뒤». -->
+<script src="js/history-diff.js"></script>
 <!-- 협업 동기화 루프. market-merge «뒤»여야 한다 — 섹션 해시를 그걸 빌려 쓴다. -->
 <script src="js/collab/sync.js"></script>
 <script src="js/collab/invites-badge.js"></script>

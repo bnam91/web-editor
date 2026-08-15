@@ -362,46 +362,11 @@ function getSerializedCanvas() {
   });
   // 핸들/힌트 등 상태 요소는 직렬화에서 제외
   const clone = canvasEl.cloneNode(true);
-  // LAZY: 뷰포트 가상화로 언로드된 섹션은 라이브 style.backgroundImage가 'none'이고
-  // 원본은 data-lazy-bg에 보관돼 있다. 직렬화는 *클론*에서만 원복해 라이브 DOM을 건드리지
-  // 않으면서(재렌더/observer 교란 없음) 저장 HTML에 배경 이미지가 항상 정확히 들어가게 한다.
-  // (data-bg-img/data-img-src 진실 소스는 애초에 손대지 않음 — 여긴 렌더 레이어 보정용)
-  clone.querySelectorAll('[data-lazy-bg]').forEach(el => {
-    el.style.backgroundImage = el.getAttribute('data-lazy-bg');
-    el.removeAttribute('data-lazy-bg');
-  });
-  clone.querySelectorAll('.section-block.lazy-unloaded').forEach(el => el.classList.remove('lazy-unloaded'));
-  // ghost 섹션은 저장에서 제외
-  clone.querySelectorAll('.section-block[data-ghost]').forEach(el => el.remove());
-  clone.querySelectorAll('.block-resize-handle, .img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ci-handle, .shape-handle, .sticker-corner-handle, .gradient-corner-handle, .hlb-handle, .grad-line-overlay, .vpen-preview, .vpen-edit-overlay').forEach(el => el.remove());
-  // UI 상태 클래스 전면 제거 — 구버전은 sticker/gradient만 벗겨 text-block 등 일반 블록의
-  // selected가 저장 canvas에 잔존 → 독립렌더/export에 파란 아웃라인 유출 (bench2 재현, 2026-07-04)
-  clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
-  clone.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
-  clone.querySelectorAll('.row-active').forEach(el => el.classList.remove('row-active'));
-  clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
-  clone.querySelectorAll('.sticker-block.tiny').forEach(s => s.classList.remove('tiny'));
-  clone.querySelectorAll('.img-editing').forEach(el => el.classList.remove('img-editing'));
-  clone.querySelectorAll('.ci-selected').forEach(el => el.classList.remove('ci-selected'));
-  clone.querySelectorAll('.ci-active').forEach(el => el.classList.remove('ci-active'));
-  // 편집 상태 속성 제거 — contenteditable/editing 상태가 저장되지 않도록
-  clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
-  clone.querySelectorAll('.editing').forEach(el => el.classList.remove('editing'));
-  // 드래그 중단 시 고착된 상태 제거
-  clone.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
-  clone.querySelectorAll('.ss-drag-over').forEach(el => el.classList.remove('ss-drag-over'));
-  // group-block 선택/편집 상태 제거 — 저장 후 리로드 시 초기 상태로 복원되도록
-  clone.querySelectorAll('.group-block').forEach(g => g.classList.remove('group-selected', 'group-editing'));
-  clone.querySelectorAll('.drop-indicator').forEach(el => el.remove());
-  // 섹션 임시 스타일 제거 — 미리보기/썸네일용 scale transform이 저장에 포함되지 않도록
-  clone.querySelectorAll('.section-block').forEach(sec => {
-    sec.style.transform       = '';
-    sec.style.transformOrigin = '';
-    sec.style.position        = '';
-    sec.style.left            = '';
-    sec.style.pointerEvents   = '';
-    sec.style.userSelect      = '';
-  });
+  // ★세척 파이프라인은 js/io/section-serialize.js 의 serializeCleanRoot 단일 진실원에 있다
+  //   (협업 undo 라이브 가드가 «섹션 1개»에 같은 세척을 적용해야 하므로 코드를 공유 —
+  //   목록이 갈리면 오경보가 난다). 여기선 클론에 그대로 적용해 innerHTML 을 반환한다
+  //   (연산·순서 동일 → 출력 바이트 동일). 플레인 스크립트라 이 모듈보다 먼저 로드된다.
+  window.serializeCleanRoot(clone);
   return clone.innerHTML;
 }
 
