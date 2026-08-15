@@ -254,3 +254,17 @@ C7 검증 부수관찰: 원격패치 수신 후 내 커맨드 편집을 undo하�
 
 ### 확정 치명 총괄 (갱신)
 ✅ C2-A9(치명③)·B1(치명①)·N2(치명①)·C7(치명②) 수정·초록 · 🔴 **C8(치명①·신규, 수정대기).** C2-B2=아티팩트, A7=무해(⑶⑤ non-blocker), 치명①(타이핑저장)=배제.
+
+### E2E 커버리지(P3) — 런타임 신규 치명 없음, non-blocker 2 ✅ runs/e2e
+sanity 통과(정적 6스펙 스캔, 런타임 격리 9392 실붙음).
+- 정적감사: 6스펙 전부 connectApp(9334) 사람의존(CI불가)·launchApp 미사용·window.X?.() 가드전역 25건(부재시 no-op 위험).
+- 런타임: E2E.reload-survives-flow PASS(블록추가·멀티페이지·autosave 흐름 후 재기동 유실0)·K4-no-crash PASS(3채널 무이상). ★런타임 신규 치명①~④ 없음.
+- non-blocker(E2E 스위트 결함, 앱 정상): addCardBlock 스테일 네이밍(실제는 addInfoCardBlock/addPriceCardBlock/addReviewCardBlock/addInnerCardBlock). 02-block-operations.spec.js:41 가드없이 호출→TypeError 실측(데드 테스트), 05-export.spec.js:14 가드돼 vacuous pass. 리팩터 후 테스트 미추종.
+- (하네스 부정확 참고: h-e2e exportSurface가 잘못된 이름 체크, 실제 exportHTMLFile/exportDesignJSON/gdtExport 정상 존재 — export 무해.)
+⇒ P3 최소 1회 커버리지 완료(블록·멀티페이지·autosave·재기동생존·export표면). 신규 치명 없음.
+
+### 수정 페이즈 총괄 (E2E까지)
+확정 치명 5: ✅C2-A9·B1·N2·C7(수정·초록) · 🔴C8(치명①, ★현빈 수정방향 결정 대기).
+non-blocker: A7 ⑶깨진이미지침묵·⑤export URL잔존 · secE(편집중 즉시⌘Z) · E2E addCardBlock 스테일 · N1/N3/N4(사이클1).
+커버리지: P1~P3 전영역(A7·E2E 포함) 최소 1회 완료. 크래시 3채널 무이상.
+남은 것: C8 수정(현빈 결정) → 전체 회귀 사이클 1회(§11 종료) → latest 승격·드라이브 교체(현빈 게이트).
