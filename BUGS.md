@@ -114,6 +114,7 @@
 - **원인 영역 그룹**: β. undo/히스토리 체크포인트(협업 경로).
 - **사이클1 관계**: ★**사이클1 undo-untouched(재현필요)의 런타임 정체를 이걸로 확정** — 그때 로컬 편집이 undo로 안 되돌아간 건 «편집이 체크포인트를 안 남겨서»였다. 단 사이클1 B2(applyPatch 원격 무체크포인트)와는 «별개» — 이 런에서 `B2.patch-no-checkpoint` 는 PASS(undo가 remoteSec을 안 되돌림=undo가 애초에 무동작). 즉 원격-되돌림 harm 은 이번에도 미재현. 로컬-편집-무체크포인트가 새 확정 건.
 - **수정 제안(제안만)**: 협업 활성 상태에서도 로컬 편집 커밋 경로가 pushHistory 를 타도록 보장(억제 플래그가 로컬 편집엔 안 걸리게). collab start 가 clearHistory 로 기존 스택을 버리지 않게.
+- **★사이클3 계측 요청(Reviewer)**: undo()가 tip 에서 «항상» ensureHistoryCheckpoint 를 시도하므로(history.js:80–82) 편집 체크포인트가 0이어도 ⌘Z 한 번이면 정상 복귀해야 한다. histLen 1·pos 0 고정 + undo 완전 무동작 = ensureHistoryCheckpoint «까지» 죽음 → 유력 용의자 **`_historyPaused` 고착**(window getter 노출 history.js:184). ⇒ b2 하네스 재현에 `_historyPaused`·`_suppressAutoSave` 기록 한 줄 추가하면 루트가 한 방에 갈린다(C2-A9 동반결함과 같은 뿌리 가능성).
 
 ## C2-A9 — [치명③] restoreSnapshot 예외 시 자동저장 영구사망 + ⌘S 초록거짓말 ★확정(구조결함)
 - **재현 최소 단계(주입)**: undo 중 `restoreSnapshot`(history.js:45–75)의 동기 본문(innerHTML/rebindAll/applyPageSettings)이 예외 → `requestAnimationFrame(:74)`의 `_suppressAutoSave=false` 해제에 못 감 → 플래그 true 고착 → 이후 «모든» 편집이 자동저장 안 됨(디스크 미기록). 그 상태에서 ⌘S 는 editor.js:1128 이 무조건 «💾 저장됨» 토스트 → 저장실패를 초록으로 은폐.
@@ -121,6 +122,8 @@
 - **표본/계측**: a9-77 `suppressStuck:true`, `autosaveAfterStuck ok:false`(6.1s 대기·미저장), `diskHasMarker:false`, `savedToastFired:true`. control(주입 없음)에선 `_suppressAutoSave` 정상 복구+저장됨 → «가짜 빨강» 아님.
 - **원인 파일:라인**: `js/history.js:45–75 restoreSnapshot`(try/finally 부재 — 해제가 본문 끝 rAF에만 있음) · `js/io/save-load.js`(autosave가 `_suppressAutoSave` 게이트) · `js/editor.js:1128`(⌘S 무조건 초록 토스트). 장영실 정적감사가 지목한 «try/finally 없는 6곳»(tab-system.js:277·branch-system.js:162,298 등)의 동일 패턴을 restoreSnapshot에서 동적 확정.
 - **원인 영역 그룹**: δ. 억제 플래그 해제 무결성(예외 안전).
+- **★동반 결함(Reviewer 감사 추가) — `_historyPaused` 도 같이 고착된다(치명② 동반)**: `restoreSnapshot`(history.js:46 `_historyPaused=true` → 해제 :67)의 해제도 «예외 지점 뒤»라, 본문 예외 시 `_suppressAutoSave` 와 «함께» 고착된다. 그러면 `pushHistory`(:16 `if(_historyPaused)return`)·`ensureHistoryCheckpoint`(:146) 가 전면 차단 = **자동저장 사망 + 히스토리 사망 동반**. ★이 용의선은 C2-B2 의 「협업 중 체크포인트 안 남김」루트(_historyPaused 고착 가설)와 만난다 — 사이클3 계측에서 함께 확인.
+- **★「영구」 서술 정정(Reviewer)**: `_suppressAutoSave` 고착은 «영구»가 아니라 **«다음 복구 이벤트까지의 창»**이다 — 복구 경로가 소스에 여럿(탭전환 tab-system:295·324, 프로젝트 로드 save-load:309·523, 원격 패치 sync:250, 드래그 ESC). 정확히는 «그 창 안의 편집분이 ⌘S 초록거짓말 뒤에서 조용히 유실, 그 창에서 종료하면 확정 유실». 단 `_historyPaused` 쪽은 후속 undo/redo 성공 시에만 복구되고 손상 스냅샷이 원인이면 같은 throw 반복 = 그쪽은 진짜 영구. 치명③ 등급엔 지장 없음 — 서술만 정직화.
 - **⚠️등급 근거·한계**: 예외를 «주입»해 발현시켰다. 실사용 트리거(비주입으로 restoreSnapshot 본문이 던지는 입력: 손상 스냅샷/자산·rebindAll 엣지)는 아직 못 찾음. 그럼에도 **확정**으로 등급: ⑴누락된 try/finally 는 실코드의 구조결함이고 restoreSnapshot 은 매 undo/redo마다 실행되며 내부 호출들이 던질 수 있다(트리거 존재 개연성 높음), ⑵⌘S 무조건 초록 토스트는 트리거 무관하게 실재. ★엄격 기준을 원하면 «비주입 트리거 확보 시 확정»의 재현필요로 강등 가능.
 - **수정 제안(제안만)**: restoreSnapshot 동기 본문을 try/finally 로 감싸 예외 시에도 `_suppressAutoSave=false` 보장(6곳 동일 패치). ⌘S 는 저장 결과(ok)로 토스트 색을 정직화.
 
@@ -158,30 +161,11 @@
 - **이번 사이클 새 확정 치명 = 2건 (C2-B2 치명②, C2-A9 치명③).** ★A9 를 «주입트리거»로 엄격 강등하면 **1건(B2)**. 재현필요=N2, 기각=B5·A9K, 재분류 non-blocker=B4.
 - **연속 2사이클 새 치명 = 사이클1 1건 + 사이클2 2건 → 0 아님. 카운터 리셋 유지, 종료 불성립.** (P2 셀 다수 이번에 첫 실행 — 커버리지도 아직 미완, P3 잔여.)
 
----
+## 사이클 3 계획 (Reviewer 감사 반영)
+- **P3 미실행 셀**: A7(자산 외부화·goya-asset 참조 유실 → 로드후 유실 치명①) · E2E(Playwright, 단 CDP 의존 하네스라 재설계 필요).
+- **재현 3건 계측**: ⑴C2-B2 — b2 하네스에 `_historyPaused`/`_suppressAutoSave` 기록 추가(루트 한 방에 갈림) ⑵C2-N2/B5 — clean-duo 를 «진짜 디바운스 자동저장»(scheduleAutoSave→gd:project-saved) 경로로 태워 push 실구동(forceSave 우회 아님) → secX 재전파·secY 서버수렴 유효판정 ⑶C6 — 하네스에 «expected-kill 창» 플래그로 그 창의 target_destroyed 는 K4 자동제외.
+- **종료 조건**: 사이클3 치명 0이면 «연속 1회». 사이클4도 0이어야 «연속 2회» 성립(+P3 실행 완료). 지금 카운터 = 리셋 상태.
 
-# 사이클 2 — Planner 판정 (Evaluator 세션한도 사망으로 Planner 소스규명 + Reviewer 감사 대행)
-
-⚠️eval-c1 이 세션 한도로 죽어(13:20 리셋) 재스폰 위험. 소스로 확정되는 판정은 Planner 가, 견제는 Reviewer 가 Evaluator 역할 겸해 감사.
-
-| # | 버그 | 심각도 | 판정 | 근거 |
-|---|---|---|---|---|
-| C1 | B2 협업 중 로컬 텍스트편집이 히스토리 체크포인트 안 남김 → 영영 undo 불가 | 치명② | **확정** | b2 3/3, histBeforeLen 1→histAfterEditLen 1(편집했는데 스택 안 늘어남) |
-| C2 | B4 overflow 무동작 undo | 치명② | **확정** | b4 42·77 raw canvas 바이트 동일(정규화 아님, 진짜 dead undo). 123 clean |
-| C3 | A9 restoreSnapshot 예외 후 `_suppressAutoSave` 고착 = 자동저장 영구사망 + ⌘S green-lie | 치명③ | **확정** | a9 seed77, control 정상복구 확인 후 주입 실발화. ★장영실 정적감사① 동적 확정 |
-| C4 | N2 보류 패치 `_sent` 오염(sync.js:294) | 치명① 후보 | **오염 확정·완전손실 미관측** | N2.sent-not-poisoned+collectSections-false-changed 3/3. 단 no-stale-repropagation 3/3 PASS |
-| C5 | B5 협업 두 편집이 서버에서 둘 다 안 남음(수렴 실패) | 치명① 후보 | **재현확정·인과 재규명** | server-has-both 3/3: A의 secY 최신(fdd8c5c8)이 서버엔 구버전(5c8c90da) — A 편집 서버 미반영. N2 여파인지 push 타이밍인지 별개인지 소스추적 필요 |
-| C6 | A9 --kill-during K4-no-crash fatal④ | 기각 후보 | **하네스 SIGKILL 오판 의심** | disk-valid-after-kill PASS. 하네스 스스로 SIGKILL 한 CDP 종료를 크래시로 주움 |
-| C7 | A6 붙여넣기 자식이 2-part ID(actor 탈락) | non-blocker | 기록 | pasted-children-keep-actor: editor.js:854 _bindPastedEl 이 _gid(3-part)를 prefix_rand(2-part)로 덮음. 전역 중복ID(치명①)는 없음(clean) |
-| C8 | A8 PNG 전체섹션이 현재페이지만 · A2 compact .gdt 명확거부 | non-blocker | 기록 | 장영실⑤ / import.js 바이트열 형식 취약 |
-
-## 중복 제거 (사이클1과의 관계)
-- ★**사이클1 B2(applyPatch 무체크포인트, 재현필요) = C1 과 «같은 뿌리»** — 둘 다 «협업 수신·편집이 undo 스택에 안 남는다». C1 이 사이클1 B2 를 «확정»한다(1건으로 합침, 치명②).
-- ★**사이클1 B4(재현필요) = C2 로 확정**(raw 바이트 동일 = 진짜 dead undo).
-- ★**사이클1 B5(재현필요)+N2 = C4·C5 로 분해** — 오염(C4 확정)과 수렴실패(C5 재현확정·인과규명)는 별개 축.
-- 사이클1 B1(확정)은 사이클2 재확인, 확산은 PASS(미발생).
-
-## 종료 카운터 입력
-- **이번 사이클 새 확정 치명 = 3건 (C1 치명②·C2 치명②·C3 치명③).** + C4·C5 는 치명① «후보»(오염/수렴 확정이나 완전손실 인과 재규명 대기 → 카운터엔 «미포함»). C6 기각후보, C7·C8 non-blocker.
-- ⇒ **연속-2사이클-0 판정: 사이클1(B1 1건)·사이클2(3건) 둘 다 «0 아님» → 카운터 리셋. 사이클 3 필요.**
-- **전 셀 조건**: P1(사이클1)·P2(사이클2) 실행 완료. P3(A7 자산외부화·E2E) 미실행 → 종료 이중전제 미충족.
+## 종료 카운터 (정정 — Planner 대행판정 철회, eval-c1 정본 채택)
+⚠️Planner(지디)가 eval-c1 세션한도 사망을 «판정 못 하고 죽음»으로 오판해 대행 판정(3건)을 덧붙였으나, eval-c1 은 죽기 전 판정을 완성해 위 «사이클2» 섹션에 남겼다. Reviewer 감사로 그 정본을 채택하고 대행분(45dba25 하단)은 철회했다. **정본 = 새 확정 치명 2건(C2-B2 치명②·C2-A9 치명③).** 사이클1(1)+사이클2(2)=0 아님 → 카운터 리셋, 사이클3 필요.
+★교훈: 서브에이전트가 «세션한도로 죽었다»고 그 «산출물이 없다»고 가정하지 마라 — 파일부터 확인. (오늘 「상태를 읽고 행동」 규율의 Planner 판.)
