@@ -227,3 +227,10 @@ save-load.js rebindAll(opts) + L702 `!opts.preserveHistory` 가드 + sync.js app
 
 ### 수정 페이즈 확정 치명 총괄
 ✅ C2-A9(치명③) · ✅ B1(치명①) · ✅ N2(치명①) · 🔄 C7(치명②·검증중). C2-B2 = 아티팩트(제외). 타이핑 저장유실(치명①) 배제됨.
+
+### C7 검증 — 초록(실데이터) ✅ 수정 d6c9b31
+runs/fix8: 원격패치 수신 시 lenPreserved:true·lenResetToOne:false(baseline 12→1과 반전, 4시도). undo 실동작: 원격패치 후 undoRemovedNewSection:true(추가 섹션 화면서 실제 사라짐, 실 DOM). 양성대조: 새 페이지전환·재로드 시 clearHistory 정상 발화(resetHappened:true, preserveHistory가 협업만 스킵)+재기동 후 addSection으로 스택 살아있음 → 회귀0. sanity(patchApplied) 통과.
+⇒ ★확정 치명 4건 전부 실데이터 초록: **C2-A9·B1·N2·C7.**
+
+### C8 후보 — [B2 계열·측정필요] undo가 원격패치를 함께 되돌린다
+C7 검증 부수관찰: 원격패치 수신 후 내 커맨드 편집을 undo하면 remoteMarkerSurvivesUndo:false — 원격패치 내용도 함께 사라진다. 스냅샷 기반 undo(그 시점 캔버스 전체 복원) 설계의 부수효과. ★C7이 만든 게 아님(C7 전엔 len 리셋으로 undo 무의미해 관측조건 자체가 없었음). 원래 B2(사이클1: applyPatch가 pushHistory 미호출 → undo가 손 안 댄 remoteSec을 패치 이전으로 되돌림)와 같은 자리. harm 가설: 협업 중 ⌘Z가 상대 변경 되돌리고 재전파되면 상대 작업 소실(치명① 가능). ⛔수정 중 발견이라 그 자리서 안 고침 — 측정 필요로 등록.
