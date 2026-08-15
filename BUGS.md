@@ -234,3 +234,12 @@ runs/fix8: 원격패치 수신 시 lenPreserved:true·lenResetToOne:false(baseli
 
 ### C8 후보 — [B2 계열·측정필요] undo가 원격패치를 함께 되돌린다
 C7 검증 부수관찰: 원격패치 수신 후 내 커맨드 편집을 undo하면 remoteMarkerSurvivesUndo:false — 원격패치 내용도 함께 사라진다. 스냅샷 기반 undo(그 시점 캔버스 전체 복원) 설계의 부수효과. ★C7이 만든 게 아님(C7 전엔 len 리셋으로 undo 무의미해 관측조건 자체가 없었음). 원래 B2(사이클1: applyPatch가 pushHistory 미호출 → undo가 손 안 댄 remoteSec을 패치 이전으로 되돌림)와 같은 자리. harm 가설: 협업 중 ⌘Z가 상대 변경 되돌리고 재전파되면 상대 작업 소실(치명① 가능). ⛔수정 중 발견이라 그 자리서 안 고침 — 측정 필요로 등록.
+
+### A7 자산외부화 탐지 — 새 치명 없음, ⑶⑤ non-blocker ✅ runs/a7
+★패키지 하네스 h-a7-assets.cjs 자체 버그로 판정불가(addAssetBlock('standard',{src})인데 앱은 opts.imgSrc만 소비→빈 asset-block; inlineCount sanity도 imageGallery 프리셋 svg에 오탐→EXTERNALIZE_DID_NOT_HAPPEN 종료4). ⇒ 하네스 결함·앱 정상. **올바른 API(setAssetImageFromSrc) CDP 수동재현으로 4시나리오 완주(코드수정0)**:
+- ①② 외부화·참조축: 무해. base64 8→0, goya-asset 참조 재기동 후 실재·정상렌더·dedup 정상. **치명① 아님.**
+- ⑵ 자산삭제가 섹션 삼키나: 무해(섹션 보존).
+- ⑶ 깨진이미지 = ★침묵 확정(non-blocker). onerror 폴백을 sanitizeCanvasHtml(GAP-006 RCE방지 line36 on* 제거)이 매 저장→재로드마다 무력화 — 앱 보안소독기가 앱 폴백을 지운다. 데이터유실 아님(섹션·proj.json 유효).
+- ⑤ export 재인라인: 없는 자산이 goya-asset:// URL로 export HTML에 잔존(경고없음). non-blocker.
+- 부수: location.reload는 Chromium 캐시가 삭제파일 서빙 → Electron 완전 재기동해야 콜드리드(재현 유의점).
+⇒ ★치명①②③④ 문턱 안 넘음. 새 치명 아님. ⑶⑤ = 검증된 UX-신뢰성 non-blocker(수정제안: onerror 인라인 대신 로드후 addEventListener 프로그래매틱 재부착).
