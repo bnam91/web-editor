@@ -295,9 +295,14 @@
       return;
     }
     for (const p of (r.patches || [])) {
-      applyPatch(p);
-      // ★적용한 것은 「내가 보낸 것」으로도 기록한다 — 안 그러면 받은 내용을 그대로 되쏜다.
-      if (p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
+      const applied = applyPatch(p);
+      // ★적용한 것«만» 「내가 보낸 것」으로 기록한다 — 안 그러면 받은 내용을 그대로 되쏜다.
+      //   ★N2(치명①): applyPatch 가 USER_BUSY 로 보류(=false)한 패치까지 기록하면
+      //   화면/로컬=구버전인데 _sent=신버전이 되어, 나중에 그 섹션을 저장할 때
+      //   collectSections 가 로컬 구버전을 changed 로 오판 → 내 구버전을 서버로 push 해
+      //   상대의 신버전을 덮는다(남의 작업 능동 소실). 보류가 풀려 실제 적용될 때
+      //   (flushDeferred→applyPatch=true) 기록된다.
+      if (applied && p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
     }
     if (typeof r.seq === 'number') _cfg.seq = r.seq;
     paintPresence(r.presence || []);
