@@ -73,7 +73,7 @@
             <button class="settings-tab" data-tab="easter">이스터에그</button>
             <button class="settings-tab" data-tab="perf">성능</button>
             <button class="settings-tab" data-tab="market">마켓</button>
-            <button class="settings-tab" data-tab="collab">협업</button>
+            ${window.COLLAB_ENABLED ? '<button class="settings-tab" data-tab="collab">협업</button>' : ''}
             <button class="settings-tab" data-tab="dev">개발자</button>
           </div>
           <div class="settings-content">
@@ -82,7 +82,7 @@
             <div class="settings-pane settings-pane-easter" data-pane="easter" style="display:none"></div>
             <div class="settings-pane settings-pane-perf" data-pane="perf" style="display:none"></div>
             <div class="settings-pane settings-pane-market" data-pane="market" style="display:none"></div>
-            <div class="settings-pane settings-pane-collab" data-pane="collab" style="display:none"></div>
+            ${window.COLLAB_ENABLED ? '<div class="settings-pane settings-pane-collab" data-pane="collab" style="display:none"></div>' : ''}
             <div class="settings-pane settings-pane-dev" data-pane="dev" style="display:none"></div>
           </div>
         </div>

@@ -20,3 +20,12 @@ export const state = {
   _suppressAutoSave: false,
 };
 window.state = state;
+
+/* ── ★협업 임시 킬스위치 ──────────────────────────────────────────────
+ * false면 협업 진입(autoStart·start·환경설정 협업 탭·초대 폴링)이 «전부» 막힌다.
+ * 사유: C8(협업 undo가 상대 작업 재전파로 영구삭제) 미수정 — 정통 수정은
+ *   feat/collab-undo-op 브랜치. 그 완성·머지 전까지 배포용으로 협업을 «안 켠다».
+ * ★되돌리기 = true 하나. (collabRef 포함 proj_meta 전수 스캔 0 → 데이터 영향 없음)
+ * ★true로 두면 아래 진입점 가드가 전부 통과해 기존 협업 동작이 그대로 복원된다. */
+export const COLLAB_ENABLED = false;
+window.COLLAB_ENABLED = COLLAB_ENABLED;

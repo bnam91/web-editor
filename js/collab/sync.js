@@ -353,6 +353,7 @@
 
   /* ── 수명 ──────────────────────────────────────────────────────────────── */
   async function start(projectId) {
+    if (!window.COLLAB_ENABLED) return { ok: false, reason: 'collab_disabled' };  // ★킬스위치: 협업 비활성 시 동기화 시작 안 함
     stop();
     const c = api(); if (!c || !projectId) return { ok: false, reason: 'unavailable' };
     const r = await c.ref({ projectId });
@@ -416,6 +417,7 @@
    * activeProjectId 는 save-load 의 모듈 지역변수라 여기서 못 본다(전역으로 끌어내면
    * 「누가 주인인가」가 흐려진다 — 이미 있는 경계를 존중한다). */
   function autoStart() {
+    if (!window.COLLAB_ENABLED) return;   // ★킬스위치: 협업 비활성 시 프로젝트 열어도 동기화 시작 안 함
     let id = '';
     try { id = new URLSearchParams(location.search).get('project') || ''; } catch (_) {}
     if (!id || !api()) return;

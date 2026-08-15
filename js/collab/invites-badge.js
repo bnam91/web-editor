@@ -56,6 +56,7 @@
   }
 
   function boot() {
+    if (!window.COLLAB_ENABLED) return;   // ★킬스위치: 협업 비활성 시 초대 폴링·배지 안 뜸
     const el = document.getElementById('collab-invite-badge');
     if (el) el.addEventListener('click', openCollabSettings);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
