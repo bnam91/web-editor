@@ -169,3 +169,20 @@
 ## 종료 카운터 (정정 — Planner 대행판정 철회, eval-c1 정본 채택)
 ⚠️Planner(지디)가 eval-c1 세션한도 사망을 «판정 못 하고 죽음»으로 오판해 대행 판정(3건)을 덧붙였으나, eval-c1 은 죽기 전 판정을 완성해 위 «사이클2» 섹션에 남겼다. Reviewer 감사로 그 정본을 채택하고 대행분(45dba25 하단)은 철회했다. **정본 = 새 확정 치명 2건(C2-B2 치명②·C2-A9 치명③).** 사이클1(1)+사이클2(2)=0 아님 → 카운터 리셋, 사이클3 필요.
 ★교훈: 서브에이전트가 «세션한도로 죽었다»고 그 «산출물이 없다»고 가정하지 마라 — 파일부터 확인. (오늘 「상태를 읽고 행동」 규율의 Planner 판.)
+
+---
+
+## 사이클 3 — 수정 페이즈 전환(현빈 ⑵) + 재판정 무장
+
+**결정**: 현빈 ⑵ — 「지금 고치기 + 안 본 영역(A7·E2E) 마저」. **사이클 4·5 취소.** 탐지→수정 전환. 종료조건은 §11(수정 페이즈: 확정 3건 빨강→초록을 «실데이터»로 + 양성대조 + 전체사이클 1회 회귀0).
+
+**수정 진행(dev, 단계별 커밋·한버그마다 회귀·새결함은 BUGS만)**:
+- ✅ **C2-A9 치명③** = `44c91ed`. restoreSnapshot try/finally — 봉쇄구간 예외 시 _historyPaused·_suppressAutoSave 영구고착 방지, 예외는 그대로 전파, 가드해제를 UI갱신보다 앞당김. **검증 초록(실데이터)**: baseline seed=77에서 undo가 실제 예외를 탔는데도(undoThrew:true) suppressStuck=false + 원시 proj.json에 편집 마커 실재. 양성대조 회귀0.
+- 🔄 **B1 치명①** = `b1bc7e3`. applyPatch other-page 경로에 `scheduleAutoSave()` — DOM 미경유(→MutationObserver 미발화)로 자동저장 미트리거되던 수신 변경을 디스크에 남긴다. echo 안전: 디바운스라 _sent 기록 뒤 저장→pushChanged, _sent[key]===hash로 재전파 없음(독해 확정, h-b1 실측 중).
+
+**gen-c3 하네스 5개 완료(코드작성만·미기동·node --check 통과)**:
+- `h-b2-c1-root`(C2-B2 판정) — 매 경계 _historyPaused(getter :184)·_suppressAutoSave·len/pos 동기 실독. `extra.C2B2_verdict` 한 줄 산출: RESOLVED / ROOT_IS_HISTORYPAUSED_STICK / SEPARATE_CAUSE / CHECKPOINT_LEFT_BUT_UNDO_STILL_WRONG.
+- `h-b5n2-realdebounce`(N2 재판정) — ★사이클2 N2 `no-stale-repropagation` PASS가 «안전»이 아니라 «미구동»(forceSave=flushSave가 gd:project-saved 미발화 → pushChanged 원천 미구동)이었음을 코드로 재확정. triggerAutoSave→gd:project-saved→pushChanged 진짜 경로로 정정 → N2 치명① 유효판정 가능. Executor 재실행 필수.
+- `h-a7-assets`(A7 ①③), `h-e2e`(E2E ④+회귀·정적감사+격리런타임), `h-a9-c6`(C6 SIGKILL 중 proj.json 유효성 ③④, expected-kill 창 K4 자동제외).
+
+**대기 순서**: exec가 B1 검증 후 → `h-b2-c1-root`(C2-B2 판정) + `h-b5n2-realdebounce`(N2 재판정) → A7 탐지(별도 마음가짐) → 전체 회귀.
