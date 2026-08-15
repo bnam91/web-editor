@@ -248,7 +248,9 @@
         canvas.insertAdjacentHTML('beforeend', p.html);   // 상대가 «새로 만든» 섹션
       }
       // restoreSnapshot 과 같은 순서 — 다만 캔버스 전체가 아니라 이 섹션만 바뀐 상태에서.
-      window.rebindAll && window.rebindAll();
+      // ★C7: 원격 수신은 로컬 undo 이력을 보존해야 한다 — rebindAll 이 clearHistory 를 부르지 않도록
+      //   preserveHistory 를 넘긴다(안 그러면 원격 패치 하나가 로컬 커맨드 스택을 통째로 리셋).
+      window.rebindAll && window.rebindAll({ preserveHistory: true });
       window.deselectAll && window.deselectAll();
       window.buildLayerPanel && window.buildLayerPanel();
       window.gdtFontPaintBadge && window.gdtFontPaintBadge();

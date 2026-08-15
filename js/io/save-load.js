@@ -677,7 +677,7 @@ function migrateColsFromDOM(canvasEl) {
   });
 }
 
-function rebindAll() {
+function rebindAll(opts = {}) {
   migrateColsFromDOM(canvasEl);
   // 구버전 마이그레이션: .asset-img-clip 래퍼 없는 경우 추가 (undo/redo 복원 후에도 항상 실행)
   canvasEl.querySelectorAll('.asset-block.has-image > .asset-img').forEach(img => {
@@ -698,8 +698,12 @@ function rebindAll() {
     }
     ab.style.aspectRatio = '';
   });
-  // undo/redo 복원 중(_historyPaused)에는 clearHistory 금지 — 호출 시 히스토리 스택 전체 초기화되어 1스텝만 undo 가능해지는 버그
-  if (!window._historyPaused) window.clearHistory?.();
+  // undo/redo 복원 중(_historyPaused) 또는 «협업 수신 적용 중»(opts.preserveHistory)에는 clearHistory 금지 —
+  // 호출 시 히스토리 스택 전체 초기화되어 1스텝만 undo 가능해지는 버그.
+  // ★C7(치명②): 원격패치 applyPatch(sync.js)가 rebindAll을 _historyPaused=false로 부르면 여기서
+  // clearHistory가 실행돼 로컬 커맨드 undo 이력이 통째로 사라진다(len 12→1 재현). 협업 수신은
+  // undo/redo 복원과 «다른 이유»로 스택을 보존해야 하므로 별도 플래그로 가드(_historyPaused 오버로드 회피).
+  if (!window._historyPaused && !opts.preserveHistory) window.clearHistory?.();
   // undo/redo 복원 후 색상 조정 SVG 필터 재적용
   // (data-adj-* 속성은 HTML에 포함되어 복원되지만 SVG 필터 매트릭스는 별도 DOM이므로 재동기화 필요)
   if (window.restoreImgColorAdjust) {
