@@ -322,14 +322,29 @@
     rbBtn.addEventListener('click', async () => {
       if (!window.activeProjectId) return;
       if (window.__optimizeImagesInFlight) { setStatus('다른 작업이 진행 중입니다…', 'pending'); return; }
-      if (!confirm('변환 전 원본(proj_pre-externalize.json)으로 되돌립니다.\n현재 상태는 proj_backup.json에 보관됩니다. 진행할까요?')) return;
+      // F2: 되돌리면 사라질 작업의 «실수치»를 경고에 담는다(dryRun 진단). 진단 실패해도 되돌리기는 진행 가능.
+      let diag = null;
+      try { diag = await window.electronAPI.externalizeRollback({ projectId: window.activeProjectId, dryRun: true }); } catch (_) {}
+      let warn = '변환 전 원본으로 되돌립니다.';
+      if (diag && diag.ok) {
+        if (diag.ageDays != null) warn += `\n이 변환은 약 ${diag.ageDays}일 전입니다 — 그 이후의 편집이 사라집니다.`;
+        if (diag.currentSections != null && diag.restoreSections != null && diag.currentSections !== diag.restoreSections)
+          warn += `\n섹션 ${diag.currentSections}개 → ${diag.restoreSections}개로 바뀝니다.`;
+      }
+      warn += '\n(되돌린 직후의 현재 상태는 proj_pre-rollback.json에 보관되어 실수 시 수동 복구할 수 있습니다.)\n진행할까요?';
+      if (!confirm(warn)) return;
       window.__optimizeImagesInFlight = true; rbBtn.disabled = true; btn.disabled = true;
       setStatus('되돌리는 중…', 'pending');
+      // F4: 큐잉된 autosave가 복원된 파일을 다시 덮지 못하게 봉인(리로드 예정이라 flush 불요).
+      //     성공 시 봉인은 유지한 채 새로고침이 리셋하고, 실패 시에만 다시 푼다(파일 무변경이므로 안전).
+      const _unseal = () => { try { if (window.state) window.state._suppressAutoSave = false; } catch (_) {} };
+      try { window.cancelPendingAutoSaveForReload?.(); } catch (_) {}
       try {
         const r = await window.electronAPI.externalizeRollback({ projectId: window.activeProjectId });
         if (r && r.ok) { setStatus('✓ 원본으로 되돌렸습니다 — 적용을 위해 새로고침합니다…', 'ok'); setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 1200); return; }
+        _unseal();
         setStatus('✗ ' + ((r && (r.reason || r.error)) || '되돌리기 실패'), 'err');
-      } catch (e) { setStatus('✗ ' + (e && e.message), 'err'); }
+      } catch (e) { _unseal(); setStatus('✗ ' + (e && e.message), 'err'); }
       finally { window.__optimizeImagesInFlight = false; rbBtn.disabled = false; btn.disabled = false; }
     });
     btn.addEventListener('click', async () => {
