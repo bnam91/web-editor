@@ -138,6 +138,7 @@ function registerGdtIpc({ projectsDir, resolveProjectJsonPath }) {
         outPath: filePath,
         meta: { name: projectName || projectId, sourceId: projectId, appVersion: app.getVersion() },
         onProgress,
+        projectsDir,   // goya-asset://<pid>/<file> → <projectsDir>/<pid>/assets/<file> 동봉
       });
       return result;
     } catch (e) {

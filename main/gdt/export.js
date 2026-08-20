@@ -9,6 +9,10 @@
  *      ASCII 바이트가 못 들어간다).
  *
  * 메모리: 청크(1MB) + 「가장 큰 이미지 하나」만 상주한다. 입력 크기에 비례하지 않는다.
+ *
+ * ★v0.8.0~ 외부화 프로젝트: 이미지가 `goya-asset://<pid>/<hash>.<ext>` 참조로 바뀌었다. 같은 스캐너가
+ *   이 토큰도 잡아 `<projectsDir>/<pid>/assets/` 의 바이트를 images/ 로 동봉한다(아래 GOYA_PREFIX 참조).
+ *   .gdt 안에서는 둘 다 `gdt://images/img_NNNN.<ext>` 로 «구분되지 않는다» ⇒ 불러오기 포맷은 그대로다.
  */
 'use strict';
 
@@ -41,6 +45,24 @@ const MIME_EXT = {
 };
 // ★§5: 확장자는 mime을 따라간다. SVG는 텍스트라 확장자가 틀리면 못 연다.
 const extForMime = (m) => MIME_EXT[String(m || '').toLowerCase()] || 'png';
+// 역방향(확장자 → mime) — goya-asset 파일명은 확장자만 들고 있다(`<hash>.<ext>`, externalizer.extFromMime).
+//   MIME_EXT 에서 «파생»시켜 드리프트를 막는다. 여기 없는 확장자는 probeImage 도 못 열므로 동봉하지 않는다.
+const EXT_MIME = Object.entries(MIME_EXT).reduce((o, [m, e]) => { if (!o[e]) o[e] = m; return o; }, { jpeg: 'image/jpeg' });
+
+/* ── goya-asset:// 토큰 (v0.8.0~ 외부화 에셋 참조) ──
+ * ★캔버스 이미지는 `goya-asset://<projectId>/<hash>.<ext>` 로 참조되고 바이트는
+ *   `<projectsDir>/<projectId>/assets/<hash>.<ext>` 에 있다. 스캐너가 이 토큰을 «그대로 통과»시키면
+ *   다른 맥에서 불러올 때 에셋이 없어 404 다 — 그래서 base64 와 «똑같이» images/ 로 빼고
+ *   자리에 `gdt://images/img_NNNN.<ext>` 를 써넣는다. 불러오기는 바꾸지 않는다(base64 원복 = 구버전 호환).
+ * ★토큰 문자 집합은 externalizer 의 GOYA_RE(`[\w.-]`)와 같다. base64 알파벳과 달리 `/` 가 들어가지만
+ *   base64 «구간 밖»만 스캔하므로(2중 면역) base64 안의 우연한 일치는 못 긁는다.
+ * ★dedup 은 «하지 않는다» — formatVersion 1 의 불변식(refs == images == unique, verifyGdt §11-1ⓐ)이
+ *   「출현 하나 = 엔트리 하나」를 전제한다. 같은 에셋이 N번 나오면 엔트리 N개(바이트·sha 동일)다.
+ */
+const GOYA_PREFIX = Buffer.from('goya-asset://');
+const GOYA_SEG_MAX = 64;                     // pid·파일명 각각의 상한 — 넘으면 토큰이 아니다(carry 무한증식 차단)
+const isSegByte = (b) =>
+  (b >= 48 && b <= 57) || (b >= 65 && b <= 90) || (b >= 97 && b <= 122) || b === 95 || b === 46 || b === 45;
 
 /* ── 아카이브 엔트리 이름의 «정본» ──
  * ★이름을 «만드는» 쪽에서 패턴도 함께 정한다. 불러오기가 따로 하드코딩하면 둘이 어긋나고,
@@ -104,10 +126,12 @@ class FontCollector {
 }
 
 /* ── 1단계: proj.json 스트리밍 변환 ──
- * base64 data URI를 스테이징 디렉터리의 파일로 빼고, 자리에 gdt://images/… 를 써넣는다.
- * @returns {Promise<{images, fonts, projectJsonPath, bytesIn, inlineRetained}>}
+ * base64 data URI 와 goya-asset:// 참조를 스테이징 디렉터리의 파일로 빼고, 자리에 gdt://images/… 를 써넣는다.
+ * @param {string|null} projectsDir  goya-asset 해석 루트(`<projectsDir>/<pid>/assets/`). 없으면 goya 토큰은 전부 누락 처리.
+ * @param {number}      chunkSize    읽기 청크(기본 1MB). 테스트가 청크 경계를 강제할 때만 바꾼다.
+ * @returns {Promise<{images, fonts, projectJsonPath, bytesIn, inlineRetained, goyaAssets, missingAssets}>}
  */
-function transformProjectJson({ srcPath, stageDir, onProgress }) {
+function transformProjectJson({ srcPath, stageDir, onProgress, projectsDir = null, chunkSize = CHUNK }) {
   return new Promise((resolve, reject) => {
     const imagesDir = path.join(stageDir, 'images');
     fs.mkdirSync(imagesDir, { recursive: true });
@@ -117,9 +141,11 @@ function transformProjectJson({ srcPath, stageDir, onProgress }) {
 
     const totalBytes = fs.statSync(srcPath).size;
     const images = [];
-    let bytesIn = 0, order = 0, inlinePlain = 0, maxUri = 0;
+    const missingAssets = [];                  // goya 토큰 중 동봉 못 한 것 — ★조용히 삼키지 않고 호출측에 올린다
+    let bytesIn = 0, order = 0, inlinePlain = 0, maxUri = 0, goyaAssets = 0;
     let carry = Buffer.alloc(0);
     let failed = null;
+    const projectsRoot = projectsDir ? path.resolve(projectsDir) : null;
 
     // 평문(URL인코딩) data URI 계수 — 「인라인으로 남았다」를 manifest에 적기 위한 것뿐이다.
     const PLAIN_RE = /data:image\/[a-zA-Z0-9.+-]+,/g;
@@ -133,9 +159,8 @@ function transformProjectJson({ srcPath, stageDir, onProgress }) {
       countPlain(t);
     };
 
-    const writeImage = (mime, b64buf) => {
-      // ★§6: base64를 디코드한 «원본 바이트를 그대로» 쓴다. 재인코딩·재압축 없음.
-      const bin = Buffer.from(b64buf.toString('latin1'), 'base64');
+    // 원본 바이트 → images/img_NNNN.<ext> 엔트리. base64·goya 두 경로가 «같은» 엔트리 규약을 쓴다.
+    const writeImageBytes = (mime, bin, extra) => {
       order += 1;
       const ext = extForMime(mime);
       const entry = `images/img_${String(order).padStart(4, '0')}.${ext}`;
@@ -143,18 +168,83 @@ function transformProjectJson({ srcPath, stageDir, onProgress }) {
       images.push({
         entry, mime: String(mime).toLowerCase(),
         sha256: crypto.createHash('sha256').update(bin).digest('hex'),   // ★§4-2 원본 바이너리 기준
-        bytes: bin.length, order,
+        bytes: bin.length, order, ...(extra || {}),
       });
-      maxUri = Math.max(maxUri, b64buf.length);
       return Buffer.from(`gdt://${entry}`);
+    };
+
+    const writeImage = (mime, b64buf) => {
+      // ★§6: base64를 디코드한 «원본 바이트를 그대로» 쓴다. 재인코딩·재압축 없음.
+      const bin = Buffer.from(b64buf.toString('latin1'), 'base64');
+      maxUri = Math.max(maxUri, b64buf.length);
+      return writeImageBytes(mime, bin);
+    };
+
+    /* goya-asset://<pid>/<file> → 에셋 파일을 읽어 엔트리로. 못 읽으면 null(토큰은 그대로 남기고 missingAssets 에 기록).
+     * ★경로 탈출 가드 — pid·file 은 스캐너가 [\w.-] 만 통과시키지만 `..` 도 그 집합이다.
+     *   resolve 후 «assets 루트 안»인지, assets 루트가 «projectsDir 안»인지 둘 다 본다. 심볼릭 링크도 realpath 로 거른다. */
+    const stageGoyaAsset = (pid, file) => {
+      const url = `goya-asset://${pid}/${file}`;
+      const miss = (reason) => { missingAssets.push({ url, reason }); return null; };
+      if (!projectsRoot) return miss('no_projects_dir');
+      const dot = file.lastIndexOf('.');
+      const mime = dot > 0 ? EXT_MIME[file.slice(dot + 1).toLowerCase()] : null;
+      if (!mime) return miss('unsupported_ext');
+      const assetsRoot = path.resolve(projectsRoot, pid, 'assets');
+      const full = path.resolve(assetsRoot, file);
+      if (!assetsRoot.startsWith(projectsRoot + path.sep) || !full.startsWith(assetsRoot + path.sep)) return miss('unsafe_path');
+      let bin;
+      try {
+        const real = fs.realpathSync(full);
+        if (!real.startsWith(fs.realpathSync(assetsRoot) + path.sep)) return miss('unsafe_path');
+        bin = fs.readFileSync(real);
+      } catch (e) {
+        return miss(e && e.code === 'ENOENT' ? 'not_found' : 'read_failed');
+      }
+      if (!bin.length) return miss('empty');
+      goyaAssets += 1;
+      return writeImageBytes(mime, bin, { goya: `${pid}/${file}` });
+    };
+
+    /* goya 토큰 파싱 — i 는 GOYA_PREFIX 위치. 세그먼트는 [\w.-]{1,64} 둘을 `/` 로 잇는다.
+     * @returns {{end, pid, file}|'carry'|null}  null = 토큰이 아니다(그대로 둔다), 'carry' = 경계에 걸렸다 */
+    const parseGoya = (buf, i, isLast) => {
+      const p = i + GOYA_PREFIX.length;
+      let q = p;
+      while (q < buf.length && q - p <= GOYA_SEG_MAX && isSegByte(buf[q])) q++;
+      if (q === buf.length && !isLast) return 'carry';
+      if (q === p || q - p > GOYA_SEG_MAX || buf[q] !== 0x2f /* / */) return null;
+      const r = q + 1;
+      let s = r;
+      while (s < buf.length && s - r <= GOYA_SEG_MAX && isSegByte(buf[s])) s++;
+      if (s === buf.length && !isLast) return 'carry';
+      if (s === r || s - r > GOYA_SEG_MAX) return null;
+      return { end: s, pid: buf.toString('latin1', p, q), file: buf.toString('latin1', r, s) };
     };
 
     // 확정 구간은 내보내고 미확정 꼬리를 돌려준다.
     const transform = (buf, isLast) => {
       let pos = 0, scan = 0;
+      // 두 토큰의 다음 위치를 각각 기억한다 — 매 반복마다 둘 다 다시 찾으면 버퍼 길이 × 매치 수로 는다.
+      let ib = -2, ig = -2;
       while (true) {
-        const i = buf.indexOf(PREFIX, scan);
-        if (i === -1) break;
+        if (ib !== -1 && ib < scan) ib = buf.indexOf(PREFIX, scan);
+        if (ig !== -1 && ig < scan) ig = buf.indexOf(GOYA_PREFIX, scan);
+        if (ib === -1 && ig === -1) break;
+
+        // ── goya-asset:// 가 더 앞이면 그것부터 (위치 순서대로 처리해야 pos/scan 이 단조 증가한다)
+        if (ig !== -1 && (ib === -1 || ig < ib)) {
+          const g = parseGoya(buf, ig, isLast);
+          if (g === 'carry') break;                       // 토큰이 청크 경계를 넘음 → carry
+          if (g === null) { scan = ig + GOYA_PREFIX.length; continue; }   // 토큰 아님 → 그대로 둔다
+          const rep = stageGoyaAsset(g.pid, g.file);
+          emitText(buf.subarray(pos, ig));
+          out.write(rep || buf.subarray(ig, g.end));     // 누락이면 토큰을 «그대로» 남긴다
+          pos = g.end; scan = g.end;
+          continue;
+        }
+
+        const i = ib;
         const j = buf.indexOf(B64MARK, i);
         if (j === -1 || j - i > MIME_MAX) {
           // 경계가 아직 안 보이면 carry로 넘긴다. 아니면 평문 URI라 «그대로 둔다».
@@ -180,7 +270,7 @@ function transformProjectJson({ srcPath, stageDir, onProgress }) {
       return buf.subarray(pos);
     };
 
-    const rs = fs.createReadStream(srcPath, { highWaterMark: CHUNK });
+    const rs = fs.createReadStream(srcPath, { highWaterMark: chunkSize });
     rs.on('error', reject);
     out.on('error', reject);
     rs.on('data', (chunk) => {
@@ -199,7 +289,8 @@ function transformProjectJson({ srcPath, stageDir, onProgress }) {
       if (failed) { out.destroy(); reject(failed); return; }
       out.end(() => resolve({
         images, fonts: fonts.result(), projectJsonPath: outPath,
-        bytesIn, inlineRetained: { plainDataUri: inlinePlain }, maxUriBytes: maxUri,
+        bytesIn, inlineRetained: { plainDataUri: inlinePlain, goyaAssetMissing: missingAssets.length }, maxUriBytes: maxUri,
+        goyaAssets, missingAssets,
       }));
     });
   });
@@ -409,19 +500,26 @@ function verifyGdt(gdtPath) {
  * @param {string} outPath       최종 .gdt 경로
  * @param {object} meta          { name, sourceId, appVersion }
  * @param {function} onProgress  ({phase, ...}) => void
+ * @param {string}   projectsDir  goya-asset:// 해석 루트. 없으면 `<projectsDir>/<pid>/proj.json` 배치를 가정해 src 에서 유도한다.
  *
  * ★§8 완료 훅: `<out>.part`에 쓰고 «검증 통과 후에만» rename한다.
  *   ⇒ 최종 경로에 파일이 «존재한다» = 완료됐고 검증도 통과했다. 부분 파일은 관측될 수 없다.
+ * ★goya 에셋 누락은 «실패가 아니라 경고»다 — 원본 맥에서도 이미 깨진 참조라 내보내기를 막을 이유가 없다.
+ *   대신 result.missingAssets · manifest.missingAssets 에 전부 적어 호출측이 알리게 한다.
  */
-async function exportGdt({ srcProjJson, outPath, meta = {}, onProgress = null, tmpDir = null }) {
+async function exportGdt({ srcProjJson, outPath, meta = {}, onProgress = null, tmpDir = null, projectsDir = null, chunkSize = CHUNK }) {
   const t0 = Date.now();
   const stageDir = fs.mkdtempSync(path.join(tmpDir || os.tmpdir(), 'goditor-gdt-'));
   const partPath = outPath + '.part';
   let peakRss = process.memoryUsage().rss;
   const rssTimer = setInterval(() => { peakRss = Math.max(peakRss, process.memoryUsage().rss); }, 50);
+  if (!projectsDir) {
+    // 디렉터리 레이아웃 `<projectsDir>/<pid>/proj.json` 이면 두 단계 위, flat 레거시 `<projectsDir>/proj_<id>.json` 이면 한 단계 위
+    projectsDir = path.basename(srcProjJson) === 'proj.json' ? path.dirname(path.dirname(srcProjJson)) : path.dirname(srcProjJson);
+  }
 
   try {
-    const t = await transformProjectJson({ srcPath: srcProjJson, stageDir, onProgress });
+    const t = await transformProjectJson({ srcPath: srcProjJson, stageDir, onProgress, projectsDir, chunkSize });
 
     const manifest = {
       formatVersion: FORMAT_VERSION,
@@ -435,6 +533,8 @@ async function exportGdt({ srcProjJson, outPath, meta = {}, onProgress = null, t
       images: t.images,
       // ★§2: 평문 data URI는 인라인으로 «남는 게 정상». 안 적으면 검증이 «유실»로 오판한다.
       inlineRetained: t.inlineRetained,
+      // goya-asset 중 동봉 못 한 참조(원본 맥에서 에셋 파일이 없던 것). 불러오는 쪽이 「왜 깨졌나」를 파일만 보고 안다.
+      missingAssets: t.missingAssets,
     };
 
     if (onProgress) onProgress({ phase: 'zip', entriesDone: 0, entriesTotal: t.images.length });
@@ -455,6 +555,8 @@ async function exportGdt({ srcProjJson, outPath, meta = {}, onProgress = null, t
       bytes: fs.statSync(outPath).size,
       sourceBytes: t.bytesIn,
       images: t.images.length,
+      goyaAssets: t.goyaAssets,            // images 중 goya-asset:// 에서 동봉한 수
+      missingAssets: t.missingAssets,      // [{url, reason}] — 비어 있지 않으면 호출측이 경고해야 한다
       fonts: t.fonts,
       inlineRetained: t.inlineRetained,
       projectJsonBytes: verify.projectJsonBytes,
