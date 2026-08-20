@@ -135,6 +135,32 @@ v0.8.0에 들어간 이미지 외부화(`goya-asset://`, content-hash)는 «신�
 
 커밋 순서: `dd3fe61` 설계 → `cbb3157` U1 → `0af1f31` U2 → `0f9d93d` U3 → `e63f5c4` export 타이밍(D) → `b71b005` 협업 force+§9-1 → `9a7e9f7` U6(Figma) → `af085ef` U5(.gdt). 머지 금지 유지.
 
+### 9-3. 데이터손실 수정 사이클 (2026-08-20, 독립 적대적 리뷰 `REVIEW-data-loss-20260820.md` 대응 · 태양)
+독립 리뷰가 치명2·높음4·낮음5를 제기. 각 발견을 코드에서 재확인(럽버스탬프 금지)해 트리아지하고, 확정건을 수정.
+
+**트리아지 표**
+| # | 심각도 | 판정 | 근거(코드 재확인) | 조치 |
+|---|---|---|---|---|
+| **F1** | 치명 | **진짜(설계 위반 회귀)** | main.js 폴백 체인이 `backup → pre-externalize → history` 순 — 첫 파싱성공본 채택(mtime 비교 0). DESIGN §3-1은 "체인 **맨 끝**에 pre-externalize"라 명시. pre-externalize는 변환 시점 고정본(안 늙음 아님, **늙음**) → 잘린 backup 뒤에서 한 달 늙은 원본이 최신 history를 이겨 덮어씀. | pre-externalize push를 **history 루프 뒤로** 이동(설계와 일치). `main.js:1127-1153`. 복구 토스트에 pre-externalize=«오래된 상태일 수 있음» 명시(`save-load.js`). |
+| **F2** | 치명 | **진짜** | rollbackExternalize가 현재 proj.json(=변환 이후 작업)을 **롤링 proj_backup.json**(다음 autosave가 1.5초 뒤 덮음)에만 남김. 파일 헤더가 스스로 "롤링은 되돌리기 지점 불가"라 적고도 유일 보관처로 씀. | 보관처를 **전용 `proj_pre-rollback.json`**(autosave 무접촉)으로. dryRun 진단(ageDays·섹션 현재→복원)을 반환해 확인창이 «며칠 전·섹션 N→M개 사라짐»을 실수치로 경고. `externalizer.js:259-`, `settings-modal.js`, preload/main 배선. |
+| **F3** | 높음 | **진짜(자동경로 한정)** | externalizeProjectFile이 updatedAt 미갱신 → 열 때 자동변환 후 fileTs=마지막 autosave. initLoad의 `lsTs+500>fileTs`가 성립해 base64 남은 LS 스냅샷 우선 → DOM base64 복원 → recordExternalizeBaseline이 base64 베이스라인 → 다음 autosave가 외부화 무효화. 회전본(`proj_pre-externalize.<ts>.json`)도 상한 없이 적립. | 변환 시 **updatedAt=변환시각 갱신**(fileTs>lsTs → 파일 우선). 마커 `at`도 opts.now 일치. 회전본 **상한 2**. `externalizer.js`. |
+| **F4** | 높음 | **진짜** | 되돌리기 UI에 flush/autosave 억제 없음. 큐잉된 autoSaveTimer는 발화 콜백이 `_suppressAutoSave`를 **재검사 안 함** → 되돌리기가 파일 복원+백업 unlink 후 큐가 터져 외부화본 재기록(파일 안 되돌아감·복구지점 소멸). | 되돌리기 직전 `cancelPendingAutoSaveForReload()`(타이머 취소+suppress+dirty 해제) 신설·호출. 성공 시 봉인 유지→reload가 리셋, 실패 시 해제. `save-load.js`·`settings-modal.js`. |
+| **F5** | 높음 | **진짜(좁음)** | 협업 게이트가 `try{...collabRef...}catch(_){}` — meta 파싱실패 시 collabRef=null→변환 진행(fail-open). meta는 수시 재기록돼 잘릴 수 있음. | **fail-closed** — meta가 «존재하는데 못 읽으면» 보류(부재=정상 비협업은 진행). 자동=`meta_unreadable` 힌트, 수동=collab로 간주(force override 가능). `main.js`·`asset-externalize.js`. |
+| **F6** | 높음 | **진짜(데이터손실 아님·정직성)** | skipped>0(일부 저장 실패로 base64 잔존)에도 ok:true→`externalized` 성공 이벤트→토스트가 «완료»로 표시. `remaining`은 계산만 하고 미검사(dead). ※같은 정규식이라 «미수집» 누수는 실제로 불가하나 방어 게이트로 남김. | `remaining`을 **실게이트**로(치환 후 잔존=skippedURI 등장횟수와 정확히 일치, 초과 시 막음). skipped>0이면 자동 토스트가 «N장 변환 실패로 원본 유지» 부분완료 통지. `externalizer.js`·`asset-externalize.js`. (수동 경로는 기존에 이미 skipped>0 경고함.) |
+| F7~F11 | 낮음 | 보류(이번 사이클 미착수) | atomicWrite ENOSPC .tmp 누수(상위 catch가 원본계약 지킴)·flat 레이아웃·복제 유령마커·prefix 치환(성립조건 좁음)·에셋 무결성 size>0뿐. | 데이터손실 아님 → 별건. |
+
+**재리허설(실재현) — `_context/rehearsals/data-loss-fix-rehearse.js` · Electron 없이 데이터손실 경로만, 27/27 PASS**
+격리 리허설이 「전항목 PASS」로 놓쳤던 이유(격리 user-data-dir라 LS 비었고 수동 flush가 updatedAt 갱신)를 겨냥해 **실재현**으로 보강:
+| 시나리오 | 재현 | 결과 |
+|---|---|---|
+| F1 크래시 창 | proj.json 잘림 + 롤링 backup 잘림(copyFileSync 중 크래시) + 늙은 pre-externalize + 최신 history | **최신 history 복구**(늙은 pre-externalize 아님) ✓ |
+| F2 한 달 후 되돌리기 | 변환(opts.now=한달전)→섹션 추가 편집→dryRun 진단(ageDays 31·섹션 3→2)→되돌리기 | 현재작업이 **proj_pre-rollback.json** 보존·원본 복원·백업 소비 ✓ |
+| F3 LS 채운 자동경로 | initLoad의 `lsTs+500>fileTs` 판정 복제 | 수정 전=LS(base64) 우선(버그 재현)·**수정 후=파일(goya) 우선** ✓ |
+| F3 updatedAt/회전 | 변환 후 updatedAt 갱신·회전본 상한 2 | ✓ |
+| F6 부분실패 | 유효+빈(`base64,A`) 혼합 | ok:true·**skipped≥1**·성공분만 치환 ✓ |
+| 왕복 | 변환→되돌리기 | 섹션/base64 원상 ✓ |
+> ⚠️ F4(렌더러 autosave 봉인)·F5 UI 토스트는 Electron/CDP 필요분 — 모듈·판정 로직 레벨로 검증. 기본 OFF 유지·G2 미상신.
+
 ### 10. G2(기본 ON) 상신 전 남은 것 / 인계
 - **현빈 G2 결정 자료** = 이 문서 §9. 기본 ON은 `DEFAULT_SETTINGS.autoExternalizeOnOpen`(main.js)와 settings-store FALLBACK 두 곳만 true로 바꾸면 된다(1커밋).
 - ⚠️ 외부 스킬 `goditor-figma-loop/figma_export.py`는 아직 `window.buildFigmaExportJSON`(비인라인)을 CDP로 부른다 → `await window.buildFigmaExportJSONInlined(ids,nodeMap).then(r=>r.json)`으로 교체 필요(지디 소유).
