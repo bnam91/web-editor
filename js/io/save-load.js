@@ -1502,7 +1502,10 @@ function initApp() {
         if (proj) {
           // GAP-004: proj.json 손상으로 백업/히스토리에서 복구된 경우 사용자에게 정직하게 통지.
           if (proj._recovered) {
-            window.showToast?.(`⚠️ 프로젝트 파일이 손상되어 ${proj._recovered === 'history' ? '히스토리' : '백업'}에서 복구했습니다.`);
+            const _recLbl = proj._recovered === 'history' ? '히스토리'
+                          : proj._recovered === 'pre-externalize' ? '변환 전 원본(오래된 상태일 수 있음)'
+                          : '백업';
+            window.showToast?.(`⚠️ 프로젝트 파일이 손상되어 ${_recLbl}에서 복구했습니다.`);
             delete proj._recovered; // 마커는 메모리/저장에 남기지 않음
           }
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
@@ -1790,6 +1793,15 @@ window.flushSave = async function() {
 };
 // DEF-03: 탭 전환 등에서 "변경 없으면 저장 생략" 판정용
 window.hasUnsavedChanges = () => _dirtySinceSave || !!autoSaveTimer || _isSavingToFile;
+// [externalize] 되돌리기/리로드 직전 «autosave 봉인»(F4) — 큐잉된 autoSaveTimer는 발화 콜백이
+// _suppressAutoSave를 재검사하지 않아 그냥 터진다. 되돌리기가 파일을 복원한 뒤 이 큐가 터지면
+// 되돌린 파일을 다시 덮고(=되돌리기 무효), 그 사이 backup은 이미 소비돼 복구 지점이 사라진다.
+// 되돌리기는 «현재 작업을 의도적으로 버리는» 동작이므로 flush 없이 타이머만 취소하고 dirty를 내린다.
+window.cancelPendingAutoSaveForReload = () => {
+  try { state._suppressAutoSave = true; } catch (_) {}
+  clearTimeout(autoSaveTimer); autoSaveTimer = null;
+  _dirtySinceSave = false;
+};
 window.initApp = initApp;
 
 // branch-system.js, commit-system.js 등 다른 모듈에서 참조하는 변수들 노출
