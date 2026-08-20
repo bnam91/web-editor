@@ -18,6 +18,7 @@
       ungroup:     'Meta+Shift+KeyG',
       wrapInFrame: 'Meta+Alt+KeyG',
     },
+    autoExternalizeOnOpen: false, // [externalize] 열 때 레거시 base64 일괄 외부화(기본 OFF)
     easterEggs: {
       fkeyHotkeys:      true,
       jokerBlock:       true,

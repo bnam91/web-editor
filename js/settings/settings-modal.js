@@ -264,23 +264,74 @@
     });
   }
 
-  // [b8-2] 성능 탭 — 이미지 외부화(최적화) 실행 버튼. optimizeProjectImages()는 현재 열린 프로젝트의
-  //   캔버스 인라인 base64를 외부 goya-asset 파일로 분리·저장·재로드 검증한다(백업은 projects:save가 자동).
-  //   공용 클래스 재사용(settings-section-title/help/btn-primary/api-status) → 새 CSS 없음.
+  // [b8-2] 성능 탭 — 이미지 외부화(최적화). 변환 구현은 main(projects:externalize) 한 곳이고 여기는 트리거·상태만.
+  //   [externalize] 추가: «열 때 자동 최적화» 토글(기본 OFF, 저장 버튼으로 반영) + 현재 프로젝트 상태(인라인 장수·
+  //   용량·백업 유무) + 「변환 되돌리기」(proj_pre-externalize.json이 있을 때만 표시).
+  //   공용 클래스 재사용(settings-section-title/help/btn-primary/api-status/egg-row/egg-toggle) → 새 CSS 없음.
+  const _fmtMB = (n) => (Number(n || 0) / 1024 / 1024).toFixed(1) + 'MB';
   function renderPerfPane() {
     const pane = document.querySelector('.settings-pane-perf');
     if (!pane) return;
     pane.innerHTML = `
       <div class="settings-section-title">이미지 최적화 (외부화)</div>
-      <div class="settings-help">현재 열린 프로젝트의 캔버스에 인라인된 base64 이미지를 외부 파일(goya-asset)로 분리합니다. 프로젝트 용량이 크게 줄어 다음 로딩이 빨라집니다. 변환 직전 자동 백업되지만(proj_backup) 되돌리려면 백업 복원이 필요하니 신중히 실행하세요. (열려 있는 프로젝트에만 적용)</div>
+      <div class="settings-help">캔버스에 인라인된 base64 이미지를 외부 파일(goya-asset)로 분리합니다. 프로젝트 용량이 크게 줄어 로딩·저장이 빨라집니다. 변환 직전 원본 파일을 <code>proj_pre-externalize.json</code>으로 보존하며, 아래 「변환 되돌리기」로 복원할 수 있습니다.</div>
+      <div class="settings-egg-list">
+        <div class="settings-egg-row" data-egg="autoExternalizeOnOpen">
+          <div class="settings-egg-text">
+            <div class="settings-egg-label">프로젝트 열 때 자동 최적화 (베타)</div>
+            <div class="settings-egg-desc">켜면 인라인 이미지가 남아 있는 프로젝트를 열 때 자동으로 분리합니다. 협업 중인 프로젝트는 건너뜁니다. (저장 버튼을 눌러야 반영됨)</div>
+          </div>
+          <label class="settings-egg-toggle">
+            <input type="checkbox" id="settings-auto-externalize" />
+            <span class="settings-egg-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="settings-help" id="settings-externalize-state" style="margin-top:12px"></div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
         <button class="settings-btn settings-btn-primary" id="settings-optimize-btn">이미지 최적화 실행</button>
+        <button class="settings-btn" id="settings-externalize-rollback-btn" style="display:none">변환 되돌리기</button>
         <span class="settings-api-status" id="settings-optimize-status"></span>
       </div>
     `;
     const btn = pane.querySelector('#settings-optimize-btn');
     const status = pane.querySelector('#settings-optimize-status');
     const setStatus = (msg, cls) => { status.textContent = msg; status.className = 'settings-api-status' + (cls ? ' ' + cls : ''); };
+
+    // 토글 — draft에만 쓰고, 저장 버튼(onSave)이 main settings에 반영한다(다른 탭과 같은 규율)
+    const toggle = pane.querySelector('#settings-auto-externalize');
+    toggle.checked = !!(_draft && _draft.autoExternalizeOnOpen);
+    toggle.addEventListener('change', () => { if (_draft) _draft.autoExternalizeOnOpen = toggle.checked; });
+
+    // 현재 프로젝트 상태 (main scan: 파싱 없이 수치) + 되돌리기 버튼 노출
+    const stateEl = pane.querySelector('#settings-externalize-state');
+    const rbBtn = pane.querySelector('#settings-externalize-rollback-btn');
+    async function refreshState() {
+      const pid = window.activeProjectId;
+      if (!pid || !window.electronAPI?.externalizeScan) { stateEl.textContent = '열린 프로젝트가 없습니다.'; rbBtn.style.display = 'none'; return; }
+      let s = null;
+      try { s = await window.electronAPI.externalizeScan({ projectId: pid }); } catch (_) {}
+      if (!s || !s.exists) { stateEl.textContent = '프로젝트 파일 상태를 읽지 못했습니다.'; rbBtn.style.display = 'none'; return; }
+      const parts = [`현재 프로젝트: ${_fmtMB(s.bytes)}`, `인라인 이미지 ${s.base64Refs}개`, `분리된 참조 ${s.goyaRefs}개`];
+      if (s.externalized && s.externalized.at) parts.push(`마지막 변환 ${new Date(s.externalized.at).toLocaleString()} (${_fmtMB(s.externalized.before)} → ${_fmtMB(s.externalized.after)})`);
+      stateEl.textContent = parts.join(' · ');
+      rbBtn.style.display = s.hasBackup ? '' : 'none';
+    }
+    refreshState();
+
+    rbBtn.addEventListener('click', async () => {
+      if (!window.activeProjectId) return;
+      if (window.__optimizeImagesInFlight) { setStatus('다른 작업이 진행 중입니다…', 'pending'); return; }
+      if (!confirm('변환 전 원본(proj_pre-externalize.json)으로 되돌립니다.\n현재 상태는 proj_backup.json에 보관됩니다. 진행할까요?')) return;
+      window.__optimizeImagesInFlight = true; rbBtn.disabled = true; btn.disabled = true;
+      setStatus('되돌리는 중…', 'pending');
+      try {
+        const r = await window.electronAPI.externalizeRollback({ projectId: window.activeProjectId });
+        if (r && r.ok) { setStatus('✓ 원본으로 되돌렸습니다 — 적용을 위해 새로고침합니다…', 'ok'); setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 1200); return; }
+        setStatus('✗ ' + ((r && (r.reason || r.error)) || '되돌리기 실패'), 'err');
+      } catch (e) { setStatus('✗ ' + (e && e.message), 'err'); }
+      finally { window.__optimizeImagesInFlight = false; rbBtn.disabled = false; btn.disabled = false; }
+    });
     btn.addEventListener('click', async () => {
       if (typeof window.optimizeProjectImages !== 'function') { setStatus('✗ 최적화 기능 미가용', 'err'); return; }
       if (!window.activeProjectId) { setStatus('✗ 열린 프로젝트가 없습니다', 'err'); return; }
@@ -293,7 +344,9 @@
       try {
         const r = await window.optimizeProjectImages();
         const mb = (n) => (Number(n || 0) / 1024 / 1024).toFixed(1);
-        if (r && r.ok && r.base64After === 0) {
+        if (r && r.ok && r.noop) {
+          setStatus('✓ 이미 최적화된 프로젝트입니다 (인라인 이미지 0개)', 'ok');
+        } else if (r && r.ok && r.base64After === 0) {
           // 디스크가 실제로 완전히 외부화됨 → 새로고침으로 메모리·베이스라인을 goya-asset 상태로 맞춘다.
           // (optimize는 디스크만 바꾸고 에디터 DOM엔 base64가 남아, 새로고침 안 하면 다음 자동저장이
           //  base64를 다시 써서 외부화를 되돌린다 — 실측 확인. optimize가 직전에 저장을 마쳐 유실 없음.)
@@ -399,6 +452,7 @@
         apiKeys: _draft.apiKeys,
         shortcuts: _draft.shortcuts,
         easterEggs: _draft.easterEggs,
+        autoExternalizeOnOpen: _draft.autoExternalizeOnOpen === true,
       });
       toast('저장되었습니다.', 'ok');
       closeSettingsModal();
@@ -673,6 +727,7 @@
       apiKeys:   { openai: '', gemini: '', anthropic: '', ...(cur.apiKeys || {}) },
       shortcuts: { ...(cur.shortcuts || {}) },
       easterEggs: { ...defaultEggEnabled, ...(cur.easterEggs || {}) },
+      autoExternalizeOnOpen: cur.autoExternalizeOnOpen === true, // [externalize] 기본 OFF
     };
     renderApiPane();
     renderShortcutsPane();
