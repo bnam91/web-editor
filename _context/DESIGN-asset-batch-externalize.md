@@ -184,6 +184,29 @@ v0.8.0에 들어간 이미지 외부화(`goya-asset://`, content-hash)는 «신�
 
 **커밋(라운드2)**: 단위테스트 갱신 · externalizer(F6 절단 skip·F2 회전) · save-load(F4 async 봉인/드레인+실패복구) · settings-modal(await 봉인·ageDays 강경고·실패 resume) · 리허설 32/32 + 본 §9-4. 머지 금지·기본 OFF 유지.
 
+### 9-5. 라운드3 — «3차» 재검증 대응 (마지막 머지 블로커) (2026-08-20, `REVIEW-3-verify3-20260820.md` · 태양)
+3차 재검증이 ③·①·F2 «막힘» 확인 + ②(F4 큐)는 «절반»(구멍 2개, 하나는 ②가 막으려던 그 데이터손실). 필수 2건 + 권장 2건 조치.
+
+**머지 전 반드시(2) — 완료**
+| # | 구멍 | 조치 | 검증 |
+|---|---|---|---|
+| 구멍1 | **(높음·데이터손실)** 드레인 타임아웃 반환값을 호출측이 버림. `save-load.js`가 `!_isSavingToFile` 반환하지만 `settings-modal.js:342`가 값 무시 → 5s 초과(대형 autosave 1회가 넘길 수 있음) 시 in-flight 저장 살아있는 채 rollback IPC 나감 → 복원본 재덮음·backup 이미 unlink. | 되돌리기 핸들러가 반환값 사용 — **false면 rollback IPC 안 내보내고** 「저장 중이라 되돌리지 못했습니다, 잠시 후 재시도」로 중단+`_unseal`. | `save-reload-seal.test.mjs` 구멍1 케이스 + 리허설. |
+| 구멍2 | **(중·신규손실)** `_pendingSaves.clear()`가 «다른 프로젝트» 대기분까지 버림. 탭A 편집→탭B 전환(A 큐 적재)→B서 되돌리기→clear로 A 폐기→A 마지막 ≤1.5s 편집이 파일·LS 양쪽에 소실. | 전체 clear 대신 **`activeProjectId`(되돌리기 대상)만 삭제**. 순수 함수 `clearPendingForReload(map, targetId)`로 분리(실코드 테스트 대상). | `save-reload-seal.test.mjs` 구멍2(타 프로젝트 보존) + 통합 케이스. |
+
+**머지 전 권장(2) — 완료**
+| 지적 | 조치 |
+|---|---|
+| **테스트 공백**: ②③은 단위테스트 0건, 리허설 F4는 «손으로 쓴 seal 가짜모델»이라 구멍을 원리적으로 못 잡음 | F4 봉인 결정 2개를 순수 ESM 모듈 `js/io/save-reload-seal.js`로 분리(save-load.js가 실제 import·호출) → **실소스를 그대로 import 하는** 단위테스트 `tests/unit/save-reload-seal.test.mjs`(구멍1·2 회귀방지). ⚠️렌더러는 ESM `.js`(형제 모듈과 동일 로드, 무위험), Node는 package type=commonjs라 직접 import 불가 → 테스트가 «바이트 동일 .mjs 별칭»으로 복사해 import(내용 동일). 리허설 F4 모델도 라운드3 동작으로 교정. |
+| ③ `resumeAutoSaveAfterAbortedReload`가 dirty 무조건 true → DEF-03(무편집 방문 오염방지) 되돌림 + 협업 발화 / 「성공인데 reload 막힘」 시 suppress 영구고착 | dirty를 **봉인 직전값으로만 복원**(무편집이면 재저장 안 함). 성공 후 **3s 백스톱** — reload가 실패/차단돼 페이지 살아있으면 `resume` 호출(suppress 고착·편집 무증상 소실 방지). |
+
+**막힘 확인(재작업 불요, 3차 명시)**: 필수③ dirty복구(실패·예외 양쪽 resume ✔)·필수① 테스트(:166 강화·:173 정당·신규3 ✔)·F2 회전(원본3종 무접촉 ✔)·② 데드락 없음·순서 정상 ✔.
+
+**테스트/리허설**: `node --test` 전체 **33/33**(externalizer 16·figma 8·gdt 4·save-reload-seal **5**). 리허설 **33/33**(F4 전체 플로우: 구멍1 중단·구멍2 타프로젝트 보존·③ dirty복원). ⚠️gdt는 `yauzl`(node_modules 심링크 후 실행, 작업 후 제거).
+
+**G2-scope(머지 후·별건, 3차 확인)**: F6 렌더러 new-only 절단 corruption(`asset-externalize.js`, ★기존 잠복·이 브랜치 회귀 아님)·F6 수동경로 UX(절단분 skipped 합산→「재시도」+새로고침 안 함=절대완료 안 됨 → truncated/save-fail 사유 분리)·noop 매오픈 힌트·대형 2건(108/94.5MB) 실측+절단 skip 앱 실측.
+
+**커밋(라운드3)**: save-reload-seal 모듈+save-load 배선(구멍1·2·③) · settings-modal(반환값 사용·백스톱) · 실코드 단위테스트 · 리허설 교정+§9-5. **머지(기본 OFF): 위 2줄로 조건 충족**(지디 diff 검증 후). 머지 금지·기본 OFF 유지.
+
 ### 10. G2(기본 ON) 상신 전 남은 것 / 인계
 - **현빈 G2 결정 자료** = 이 문서 §9. 기본 ON은 `DEFAULT_SETTINGS.autoExternalizeOnOpen`(main.js)와 settings-store FALLBACK 두 곳만 true로 바꾸면 된다(1커밋).
 - ⚠️ 외부 스킬 `goditor-figma-loop/figma_export.py`는 아직 `window.buildFigmaExportJSON`(비인라인)을 CDP로 부른다 → `await window.buildFigmaExportJSONInlined(ids,nodeMap).then(r=>r.json)`으로 교체 필요(지디 소유).

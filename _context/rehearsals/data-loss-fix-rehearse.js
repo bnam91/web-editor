@@ -171,32 +171,40 @@ console.log('\n[F3-LS] LS 채운 자동경로: 변환 후 fileTs>lsTs → 파일
   ok(decideLSWins(lsTs, fileTsAfter) === false, '★수정 후 파일(goya) 우선 → base64 되돌림 루프 차단');
 }
 
-/* ── F4: 되돌리기 전 큐 봉인·드레인 모델 (save-load.js cancelPendingAutoSaveForReload / resumeAutoSave…) ── */
-console.log('\n[F4] 되돌리기 큐 봉인: 대기열 비우기 + in-flight 드레인 대기 + 실패시 dirty 복구');
+/* ── F4: 되돌리기 봉인 «전체 플로우» 모델 (라운드3 반영). ★핵심 결정 2개(대상만 제거·드레인 반환)의
+ *   회귀방지 «실코드» 단위테스트는 tests/unit/save-reload-seal.test.mjs (js/io/save-reload-seal.js를 직접 import).
+ *   여기서는 그 결정들이 되돌리기 핸들러 흐름에서 어떻게 쓰이는지(구멍1 중단·구멍2 타프로젝트 보존·③ dirty복원)를 모델링. ── */
+console.log('\n[F4] 되돌리기 봉인 전체 플로우: 대상만 제거·드레인 반환값 사용·dirty 봉인직전값 복원');
 {
-  // save-load.js 알고리즘 모델: 타이머·_pendingSaves·_isSavingToFile 세 경로를 모두 봉인해야
-  // in-flight/큐 저장이 되돌리기로 복원된 proj.json을 재덮지 못한다.
-  const makeState = () => ({ suppress: false, timer: 1, pending: new Map([['p1', 1], ['p2', 1]]), dirty: true, saving: true });
-  // 알고리즘 모델(동기): 봉인은 타이머·대기열·dirty를 즉시 정리하고 in-flight이 끝날 때까지 대기.
-  // savingResolves=true면 드레인 완료(정지), false면 상한 초과로 미정지(false 반환) — 무한대기 방지.
-  function seal(st, savingResolves) {
-    st.suppress = true; st.timer = null; st.pending.clear(); st.dirty = false; // ⓐ타이머 ⓑ대기열 ⓒdirty
-    if (savingResolves) st.saving = false;   // in-flight 드레인 완료
-    st.pending.clear();                      // 드레인 중 재적재분 재정리
-    return !st.saving;
+  // save-load 봉인 모델(라운드3): 대기열은 «되돌리기 대상만» 삭제, dirty는 봉인 직전값 캡처, 반환=드레인완료여부.
+  const makeState = (dirty0) => ({ suppress: false, timer: 1, pending: new Map([['A', 1], ['B', 1]]), dirty: dirty0, dirtyBeforeSeal: false, saving: true });
+  function seal(st, targetId, savingResolves) {
+    st.suppress = true; st.timer = null;
+    st.dirtyBeforeSeal = st.dirty;                 // ③ 봉인 직전값 캡처
+    if (targetId) st.pending.delete(targetId); else st.pending.clear(); // ★구멍2: 대상만
+    st.dirty = false;
+    if (savingResolves) st.saving = false;
+    if (targetId) st.pending.delete(targetId); else st.pending.clear();
+    return !st.saving;                             // ★구멍1: 드레인 완료여부 반환
   }
-  const st = makeState();
-  const drained = seal(st, true);
-  ok(st.pending.size === 0, '봉인: 대기열(_pendingSaves) 비움 → 큐 드레인이 복원본 재덮기 차단');
-  ok(st.dirty === false && st.suppress === true, '봉인: dirty 내림 + suppress 올림');
-  ok(drained === true, '봉인: in-flight(_isSavingToFile) 완료까지 드레인 대기');
-  // 되돌리기 «실패» 시 resume: suppress 해제 + dirty 복구 + autosave 재무장(Cmd+R 편집소실 방지)
-  let rearmed = false;
-  const resume = (s) => { s.suppress = false; s.dirty = true; rearmed = true; };
-  resume(st);
-  ok(st.dirty === true && st.suppress === false && rearmed, '실패복구: dirty 재표시·suppress 해제·autosave 재무장');
-  // in-flight이 끝나지 않으면(상한 초과) 안전하게 false 반환
-  ok(seal(makeState(), false) === false, '드레인 타임아웃 시 false 반환(무한대기 방지)');
+  const resume = (st) => { st.suppress = false; st.dirty = st.dirtyBeforeSeal; }; // ③ 봉인직전값 복원
+
+  // 구멍2: 탭A 되돌리기 봉인 → A 큐만 제거, B(타 프로젝트) 저장 보존
+  const st = makeState(true);
+  const drained = seal(st, 'A', true);
+  ok(!st.pending.has('A'), '봉인: 되돌리기 대상 A 큐 제거');
+  ok(st.pending.has('B'), '★구멍2: 타 프로젝트 B 큐 보존(마지막 편집 미유실)');
+  ok(drained === true && st.suppress === true, '봉인: 드레인 완료 true 반환·suppress 올림');
+
+  // 구멍1: in-flight이 5s 내 안 끝나면 false → 호출측이 되돌리기 중단
+  const stuck = makeState(true);
+  ok(seal(stuck, 'A', false) === false, '★구멍1: 드레인 타임아웃 false → 되돌리기 중단(복원본 재덮기 차단)');
+
+  // ③ dirty 봉인직전값 복원: 편집 있던 경우 복원 시 dirty=true, 무편집이었으면 false(오염 방지)
+  const dirtyCase = makeState(true); seal(dirtyCase, 'A', false); resume(dirtyCase);
+  ok(dirtyCase.dirty === true && dirtyCase.suppress === false, '실패복구(편집有): dirty=true 복원·suppress 해제');
+  const cleanCase = makeState(false); seal(cleanCase, 'A', false); resume(cleanCase);
+  ok(cleanCase.dirty === false, '③ 실패복구(편집無): dirty=false 유지 → updatedAt 오염·협업 발화 방지');
 }
 
 console.log(`\n=== 리허설 결과: ${pass} PASS · ${fail} FAIL ===`);
