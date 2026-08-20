@@ -171,6 +171,34 @@ console.log('\n[F3-LS] LS 채운 자동경로: 변환 후 fileTs>lsTs → 파일
   ok(decideLSWins(lsTs, fileTsAfter) === false, '★수정 후 파일(goya) 우선 → base64 되돌림 루프 차단');
 }
 
+/* ── F4: 되돌리기 전 큐 봉인·드레인 모델 (save-load.js cancelPendingAutoSaveForReload / resumeAutoSave…) ── */
+console.log('\n[F4] 되돌리기 큐 봉인: 대기열 비우기 + in-flight 드레인 대기 + 실패시 dirty 복구');
+{
+  // save-load.js 알고리즘 모델: 타이머·_pendingSaves·_isSavingToFile 세 경로를 모두 봉인해야
+  // in-flight/큐 저장이 되돌리기로 복원된 proj.json을 재덮지 못한다.
+  const makeState = () => ({ suppress: false, timer: 1, pending: new Map([['p1', 1], ['p2', 1]]), dirty: true, saving: true });
+  // 알고리즘 모델(동기): 봉인은 타이머·대기열·dirty를 즉시 정리하고 in-flight이 끝날 때까지 대기.
+  // savingResolves=true면 드레인 완료(정지), false면 상한 초과로 미정지(false 반환) — 무한대기 방지.
+  function seal(st, savingResolves) {
+    st.suppress = true; st.timer = null; st.pending.clear(); st.dirty = false; // ⓐ타이머 ⓑ대기열 ⓒdirty
+    if (savingResolves) st.saving = false;   // in-flight 드레인 완료
+    st.pending.clear();                      // 드레인 중 재적재분 재정리
+    return !st.saving;
+  }
+  const st = makeState();
+  const drained = seal(st, true);
+  ok(st.pending.size === 0, '봉인: 대기열(_pendingSaves) 비움 → 큐 드레인이 복원본 재덮기 차단');
+  ok(st.dirty === false && st.suppress === true, '봉인: dirty 내림 + suppress 올림');
+  ok(drained === true, '봉인: in-flight(_isSavingToFile) 완료까지 드레인 대기');
+  // 되돌리기 «실패» 시 resume: suppress 해제 + dirty 복구 + autosave 재무장(Cmd+R 편집소실 방지)
+  let rearmed = false;
+  const resume = (s) => { s.suppress = false; s.dirty = true; rearmed = true; };
+  resume(st);
+  ok(st.dirty === true && st.suppress === false && rearmed, '실패복구: dirty 재표시·suppress 해제·autosave 재무장');
+  // in-flight이 끝나지 않으면(상한 초과) 안전하게 false 반환
+  ok(seal(makeState(), false) === false, '드레인 타임아웃 시 false 반환(무한대기 방지)');
+}
+
 console.log(`\n=== 리허설 결과: ${pass} PASS · ${fail} FAIL ===`);
 fs.rmSync(ROOT, { recursive: true, force: true });
 process.exit(fail ? 1 : 0);

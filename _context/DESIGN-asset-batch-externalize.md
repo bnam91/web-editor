@@ -161,6 +161,29 @@ v0.8.0에 들어간 이미지 외부화(`goya-asset://`, content-hash)는 «신�
 | 왕복 | 변환→되돌리기 | 섹션/base64 원상 ✓ |
 > ⚠️ F4(렌더러 autosave 봉인)·F5 UI 토스트는 Electron/CDP 필요분 — 모듈·판정 로직 레벨로 검증. 기본 OFF 유지·G2 미상신.
 
+### 9-4. 라운드2 — 독립 «재검증» 대응 (2026-08-20, `REVIEW-2-reverify-20260820.md` · 태양)
+재검증이 F1·F3·F5 «막힘» 확인 + F2·F4·F6 «부분»·신규손실 2건·깨진 단위테스트 1건 지적. 머지 전 필수 3건 + 권장 2건 모두 조치.
+
+**머지 전 반드시(3) — 완료**
+| # | 지적 | 조치 | 검증 |
+|---|---|---|---|
+| ① | **깨진 단위테스트**(수정자가 기존 스위트 미실행). `externalizer.test.js:166`(F2로 무효)·`:173`(F3 updatedAt로 불성립) | :166→`proj_pre-rollback.json` 확인+`proj_backup.json` 미접촉 단언, :173→updatedAt 필드만 제외하고 deepEqual. | `node --test` **전체 스위트 28/28**(externalizer 16·figma 8·gdt 4). ★gdt는 `yauzl` 필요 → node_modules 심링크 후 실행(작업 후 제거). |
+| ② | **(높음·데이터손실) F4 큐 경로**: 봉인이 타이머·beforeunload는 막지만 `_pendingSaves` 대기열·`_isSavingToFile` in-flight는 안 비워 → 되돌리기 중 저장이 복원본 재덮음, backup 이미 unlink → 복구지점 소멸·UI는 「✓」. | `cancelPendingAutoSaveForReload`를 async로: ⓐ타이머 취소 ⓑ`_pendingSaves.clear()` ⓒ`_isSavingToFile` **드레인 대기**(상한 5s). 되돌리기 핸들러가 rollback IPC 전 `await`. | 리허설 F4 모델(봉인 3경로·드레인·타임아웃) PASS. |
+| ③ | **(신규회귀) 되돌리기 실패시 dirty 미복구**: `_unseal`이 suppress만 되돌리고 `_dirtySinceSave`=true 복구 안 함 → 봉인때 타이머취소로 LS도 없어 실패직전 편집이 DOM에만 존재 → Cmd+R 시 1305가드 조기return→소실. | `resumeAutoSaveAfterAbortedReload` 신설(suppress 해제 + dirty 재표시 + `scheduleAutoSave()` 재무장), 실패 경로 `_unseal`이 호출. | 리허설 F4 실패복구 모델 PASS. |
+
+**G2 전 권장(2) — 완료**
+| 지적 | 조치 |
+|---|---|
+| **F2 pre-rollback 무회전**(변환→되돌리기→재변환→되돌리기면 2차가 1차 보관본 덮음)·ageDays null이면 경고 최약 | rollback이 기존 `proj_pre-rollback.json`을 타임스탬프로 **회전**(상한 2). 확인창에 ageDays null이면 「⚠️ 변환 시점 불명 — 이후 모든 편집 사라질 수 있음」 강경고 추가. |
+| **F6 절단클래스**(base64 중간 개행→strict 정규식이 앞절반만 잡아 반토막 저장·「완료」 오보) | 매치 직후가 «공백+base64»면 절단으로 판정 → **건드리지 않고** 원본 인라인 유지·skipped 집계(정직 통지). 절단분만 있으면 `all_base64_truncated`로 정직 실패(원본 무손상). ★공유-계약 정규식은 불변(post-match peek만 추가). |
+
+**재검증이 짚은 경미/잔여**
+- F5 수동경로가 meta손상을 「협업중」으로 안내(정확히는 불명) — 보수적 차단 유지(force override 가능), 문구는 협업 톤. G2 영향 없음.
+- F3 시계역행(NTP) 경계 — 좁은 여지, 미대응. 홈목록 sort 최상단 점프+날짜 오늘(1회성, 무해).
+- **★G2(기본 ON) 여전히 불가**: 대형 2건(108MB·94.5MB) 표본 밖 + 절단클래스는 skip으로 «막았»으나 대형 실측 미완. G2 재상신 전 「대형2건 실측 + 절단 skip 실측」 필요.
+
+**커밋(라운드2)**: 단위테스트 갱신 · externalizer(F6 절단 skip·F2 회전) · save-load(F4 async 봉인/드레인+실패복구) · settings-modal(await 봉인·ageDays 강경고·실패 resume) · 리허설 32/32 + 본 §9-4. 머지 금지·기본 OFF 유지.
+
 ### 10. G2(기본 ON) 상신 전 남은 것 / 인계
 - **현빈 G2 결정 자료** = 이 문서 §9. 기본 ON은 `DEFAULT_SETTINGS.autoExternalizeOnOpen`(main.js)와 settings-store FALLBACK 두 곳만 true로 바꾸면 된다(1커밋).
 - ⚠️ 외부 스킬 `goditor-figma-loop/figma_export.py`는 아직 `window.buildFigmaExportJSON`(비인라인)을 CDP로 부른다 → `await window.buildFigmaExportJSONInlined(ids,nodeMap).then(r=>r.json)`으로 교체 필요(지디 소유).
