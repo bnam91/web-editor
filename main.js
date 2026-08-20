@@ -1100,9 +1100,17 @@ function _externalizeOnOpen(event, id) {
   const scan = X.scanProjectFile(PROJECTS_DIR, safeId);
   if (!scan.exists || scan.base64Refs === 0) return;
   const send = (ch, payload) => { try { event.sender.send(ch, payload); } catch (_) {} };
-  let collabRef = null;
-  try { const m = _resolveMetaJsonPath(safeId); if (m) collabRef = (JSON.parse(fs.readFileSync(m, 'utf8')) || {}).collabRef || null; } catch (_) {}
-  if (collabRef) { send('projects:externalize-hint', { projectId: safeId, reason: 'collab', bytes: scan.bytes, base64Refs: scan.base64Refs }); return; }
+  // [F5] 협업 제외 게이트는 fail-closed — meta가 «존재하는데 못 읽으면»(잘림·경합) 협업 여부 불명이므로
+  //   변환을 보류한다(협업 프로젝트를 잘못 변환하면 상대 화면에서 이미지가 깨진다). meta 부재(정상 비협업)는 진행.
+  let collabRef = null, metaUnreadable = false;
+  try {
+    const m = _resolveMetaJsonPath(safeId);
+    if (m) {
+      try { collabRef = (JSON.parse(fs.readFileSync(m, 'utf8')) || {}).collabRef || null; }
+      catch (_) { try { if (fs.existsSync(m)) metaUnreadable = true; } catch (_2) {} }
+    }
+  } catch (_) {}
+  if (collabRef || metaUnreadable) { send('projects:externalize-hint', { projectId: safeId, reason: collabRef ? 'collab' : 'meta_unreadable', bytes: scan.bytes, base64Refs: scan.base64Refs }); return; }
   if (readSettings().autoExternalizeOnOpen === true) {
     const r = X.externalizeProjectFile(PROJECTS_DIR, safeId, { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
     console.log(`[externalize] on-open ${safeId}:`, JSON.stringify(r));
@@ -1127,11 +1135,6 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   const candidates = [];
   const backupPath = _resolveBackupJsonPath(id);
   if (backupPath) candidates.push({ path: backupPath, from: 'backup' });
-  // [externalize] 최후 보루: 일괄 외부화 직전 원본(rename 보존본). 롤링·히스토리가 다 죽어도 이건 남는다.
-  try {
-    const preExt = path.join(PROJECTS_DIR, _safeSeg(id), 'proj_pre-externalize.json');
-    if (fs.existsSync(preExt)) candidates.push({ path: preExt, from: 'pre-externalize' });
-  } catch (_) {}
   for (const histDir of [path.join(PROJECTS_DIR, id, 'proj_history'), path.join(PROJECTS_DIR, `${id}_history`)]) {
     try {
       if (fs.existsSync(histDir)) {
@@ -1141,6 +1144,14 @@ ipcMain.handle('projects:load', (event, id, opts) => {
       }
     } catch (_) {}
   }
+  // [externalize] 최후 보루: 일괄 외부화 직전 원본(rename 보존본). ★반드시 체인 «맨 끝»(DESIGN §3-1) —
+  //   pre-externalize는 변환 시점에 고정돼 갱신되지 않으므로(늙는다), backup·history보다 앞에 두면
+  //   한 달 늙은 원본이 최신 백업/히스토리를 이겨 덮어쓰는 데이터손실(F1)이 난다. 롤링·히스토리가 다
+  //   죽었을 때만 쓰는 절대 최후 보루로만 남긴다.
+  try {
+    const preExt = path.join(PROJECTS_DIR, _safeSeg(id), 'proj_pre-externalize.json');
+    if (fs.existsSync(preExt)) candidates.push({ path: preExt, from: 'pre-externalize' });
+  } catch (_) {}
   for (const c of candidates) {
     let proj;
     try { proj = JSON.parse(fs.readFileSync(c.path, 'utf8')); }
@@ -1166,19 +1177,23 @@ ipcMain.handle('projects:externalize', (_e, { projectId, force } = {}) => {
   if (!force) {
     try {
       const m = _resolveMetaJsonPath(_safeSeg(projectId));
-      if (m && (JSON.parse(fs.readFileSync(m, 'utf8')) || {}).collabRef) return { ok: false, reason: 'collab' };
+      if (m) {
+        try { if ((JSON.parse(fs.readFileSync(m, 'utf8')) || {}).collabRef) return { ok: false, reason: 'collab' }; }
+        // [F5] meta 존재하나 못 읽음 → 협업 여부 불명. 보수적으로 협업으로 간주해 막는다(force로 override 가능).
+        catch (_) { try { if (fs.existsSync(m)) return { ok: false, reason: 'collab' }; } catch (_2) {} }
+      }
     } catch (_) {}
   }
   const r = X.externalizeProjectFile(PROJECTS_DIR, _safeSeg(projectId), { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
   console.log(`[externalize] manual ${projectId}:`, JSON.stringify(r));
   return r;
 });
-ipcMain.handle('projects:externalize-rollback', (_e, { projectId } = {}) => {
+ipcMain.handle('projects:externalize-rollback', (_e, { projectId, dryRun } = {}) => {
   const X = _getExternalizer();
   if (!X) return { ok: false, reason: 'module_missing' };
   if (!projectId) return { ok: false, reason: 'projectId 필수' };
-  const r = X.rollbackExternalize(PROJECTS_DIR, _safeSeg(projectId), { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
-  console.log(`[externalize] rollback ${projectId}:`, JSON.stringify(r));
+  const r = X.rollbackExternalize(PROJECTS_DIR, _safeSeg(projectId), { dryRun: dryRun === true, afterWrite: (pid, data) => _refreshListMeta(pid, data) });
+  if (!dryRun) console.log(`[externalize] rollback ${projectId}:`, JSON.stringify(r));
   return r;
 });
 ipcMain.handle('projects:externalize-scan', (_e, { projectId } = {}) => {
