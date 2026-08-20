@@ -1,8 +1,9 @@
 import { canvasEl, state } from '../globals.js';
+import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-inline.js';
 
 const CANVAS_W = 860;
 
-function exportFigmaJSON() {
+async function exportFigmaJSON() {
   // 현재 페이지를 pages 배열에 반영
   window.flushCurrentPage();
 
@@ -145,6 +146,10 @@ function exportFigmaJSON() {
     version: 1,
     pages:   exportPages,
   };
+
+  // goya-asset:// → data URI 재인라인 (앱 밖에서는 커스텀 스킴을 못 읽는다)
+  const { unresolvedAssets } = await inlineGoyaAssetsInJSON(output, makeElectronAssetReader());
+  if (unresolvedAssets) console.warn('[export-figma-json] 재인라인 실패 에셋', unresolvedAssets, '건 — 원본 URL 유지');
 
   const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -804,9 +809,10 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     const bgColor = secEl.style.backgroundColor || '';
     const styleAttr = secEl.getAttribute('style') || '';
     const bgImgRaw = secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '';
-    // 섹션 배경: 이미지(data URI) / 그라디언트 / 솔리드 분기
+    // 섹션 배경: 이미지(data URI 또는 goya-asset://) / 그라디언트 / 솔리드 분기
+    // ★goya-asset URL은 buildFigmaExportJSONInlined 후처리에서 data URI로 치환된다.
     let bgImage = '';
-    const urlM = /url\(["']?(data:image[^"')]+)["']?\)/.exec(bgImgRaw);
+    const urlM = /url\(["']?((?:data:image|goya-asset:\/\/)[^"')]+)["']?\)/.exec(bgImgRaw);
     if (urlM) bgImage = urlM[1];
     const isGradient = /gradient/.test(bgImgRaw) && !urlM;
     // 섹션 실제 렌더색을 라이브 getComputedStyle로 읽는다 — .section-block{background:#fff}
@@ -864,10 +870,26 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
   };
 }
 
+/**
+ * buildFigmaExportJSON + goya-asset:// → data URI 재인라인(후처리).
+ * 빌드 함수는 동기 DOM 순회라 그대로 두고, 결과 JSON에서 goya-asset URL을 모아
+ * IPC(assets:readAsDataUri)로 1회씩 읽어 치환한다. 피그마 플러그인은 커스텀 스킴을 못 가져오므로
+ * 업로드 경로(figma-publish.js doFigmaUpload)는 이 함수를 써야 이미지가 빠지지 않는다.
+ * ⚠️ 실패(IPC 없음=웹·파일 없음)는 원본 URL 유지 + unresolvedAssets 로 보고 → 호출측이 토스트.
+ * @returns {Promise<{ json, totalAssets, resolvedAssets, unresolvedAssets, unresolvedUrls }>}
+ */
+async function buildFigmaExportJSONInlined(selectedIds, nodeMap) {
+  const json = buildFigmaExportJSON(selectedIds, nodeMap);
+  const r = await inlineGoyaAssetsInJSON(json, makeElectronAssetReader());
+  if (r.unresolvedAssets) console.warn('[export-figma-json] 재인라인 실패 에셋', r.unresolvedAssets, '건 — 원본 URL 유지', r.unresolvedUrls);
+  return r;
+}
+
 export {
   exportFigmaJSON,
   getTextWithLineBreaks,
   buildFigmaExportJSON,
+  buildFigmaExportJSONInlined,
 };
 
 // Backward compat
@@ -875,3 +897,4 @@ export {
 window.exportFigmaJSON       = exportFigmaJSON;
 window.getTextWithLineBreaks = getTextWithLineBreaks;
 window.buildFigmaExportJSON  = buildFigmaExportJSON;
+window.buildFigmaExportJSONInlined = buildFigmaExportJSONInlined;

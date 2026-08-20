@@ -190,7 +190,11 @@ async function doFigmaUpload() {
     : {};
 
   window.flushCurrentPage();
-  const designJSON = window.buildFigmaExportJSON(selectedIds, nodeMap);
+  // goya-asset:// 이미지는 피그마 플러그인이 못 가져온다 → data URI로 재인라인한 JSON을 올린다.
+  // 읽기 실패분은 원본 URL 그대로(업로드는 진행) + 토스트로 정직하게 알린다.
+  const _built = await window.buildFigmaExportJSONInlined(selectedIds, nodeMap);
+  const designJSON = _built.json;
+  if (_built.unresolvedAssets) window.showToast?.(`⚠️ 이미지 ${_built.unresolvedAssets}개를 읽지 못해 피그마에서 빠질 수 있습니다`);
 
   function showDone(success, text) {
     spinnerEl.style.display = 'none';

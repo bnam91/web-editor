@@ -1,4 +1,5 @@
 import { canvasEl, state } from '../globals.js';
+import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl } from './goya-asset-inline.js';
 
 const CANVAS_W = 860;
 
@@ -10,22 +11,12 @@ const CANVAS_W = 860;
  *   <img src>, data-* 속성)를 fetch해 base64 data: URI로 되돌려 파일을 portable하게 만든다.
  *   (goya-asset 프로토콜은 supportFetchAPI:true 이므로 렌더러 fetch가 동작)
  *   기존 data:image 는 그대로 둔다. fetch 실패 시 해당 URL은 건드리지 않고 넘어간다(견고성).
+ *   URL 판별/파싱 헬퍼는 goya-asset-inline.js(Figma JSON 재인라인과 공유)에서 가져온다.
  * ───────────────────────────────────────────────────────────────────── */
-function _isGoyaAsset(url) {
-  return typeof url === 'string' && url.indexOf('goya-asset://') !== -1;
-}
-
 function _extractUrl(cssOrUrl) {
   // url("...") 형태와 raw URL 둘 다 처리
   const m = (cssOrUrl || '').match(/url\(["']?([^"')]+)["']?\)/);
   return m ? m[1] : cssOrUrl;
-}
-
-// goya-asset://<projectId>/<filename> → { projectId, filename }
-function _parseGoyaAssetUrl(url) {
-  const m = /^goya-asset:\/\/([^/]+)\/(.+)$/.exec(url || '');
-  if (!m) return null;
-  return { projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2]) };
 }
 
 async function _goyaAssetToDataUri(url) {
