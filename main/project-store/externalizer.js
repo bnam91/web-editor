@@ -170,6 +170,7 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
 
   // 2) 고유 URI 수집 + 검증 기준값
   const uris = new Set();
+  const truncated = new Set(); // [F6 절단클래스] 개행으로 잘린 base64(MIME 76자 wrapping 등)
   let sectionsBefore = 0;
   for (const s of slots) {
     const html = s.get();
@@ -177,9 +178,19 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
     if (html.indexOf('data:image') === -1) continue;
     DATA_URI_RE.lastIndex = 0;
     let m;
-    while ((m = DATA_URI_RE.exec(html)) !== null) uris.add(m[0]);
+    while ((m = DATA_URI_RE.exec(html)) !== null) {
+      // strict 정규식은 base64 알파벳만 먹으므로, 중간에 개행/공백이 낀 wrapping된 data URI는 «앞부분만» 잡힌다.
+      // 매치 직후가 «공백 + 또다시 base64»면 절단된 것 → 앞부분만 저장하면 깨진 이미지가 되고 뒤는 캔버스에
+      // 쓰레기로 남는다. 안전하게 «건드리지 않고» 원본 인라인 전체를 그대로 둔다(변환 대상에서 제외).
+      if (/^\s+[A-Za-z0-9+/]/.test(html.slice(DATA_URI_RE.lastIndex))) { truncated.add(m[0]); continue; }
+      uris.add(m[0]);
+    }
   }
-  if (uris.size === 0) return { ok: true, noop: true, before, after: before, refs: 0, images: 0, sections: sectionsBefore, ms: Date.now() - t0 };
+  // 변환할 온전한 이미지가 하나도 없으면: 절단분만 있으면 정직하게 실패(원본 무손상), 아니면 noop.
+  if (uris.size === 0) {
+    if (truncated.size > 0) return { ok: false, reason: 'all_base64_truncated', skipped: truncated.size, before, sections: sectionsBefore, ms: Date.now() - t0 };
+    return { ok: true, noop: true, before, after: before, refs: 0, images: 0, sections: sectionsBefore, ms: Date.now() - t0 };
+  }
   let refs = 0;
   for (const s of slots) refs += countMatches(s.get(), DATA_URI_RE);
   if (opts.dryRun) return { ok: true, dryRun: true, before, refs, images: uris.size, sections: sectionsBefore, ms: Date.now() - t0 };
@@ -200,6 +211,8 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
       images++; if (r.reused) reused++;
     } catch (_) { skipped++; skippedUris.add(uri); }
   }
+  // 절단분(건드리지 않음)도 «변환 안 된 이미지»이므로 skipped로 정직하게 집계 + remaining 게이트가 인지하게 한다.
+  for (const u of truncated) { skippedUris.add(u); skipped++; }
   if (cache.size === 0) return { ok: false, reason: 'no_asset_written', before, refs, skipped, ms: Date.now() - t0 };
 
   // 4) 치환 — 긴 URI부터(부분일치 방지). URI는 고유 토큰이라 split/join이 안전.
@@ -309,7 +322,21 @@ function rollbackExternalize(projectsDir, projectId, opts = {}) {
   const diag = rollbackDiag(p, raw);
   if (opts.dryRun) return { ok: true, dryRun: true, ...diag };
   // 현재 proj.json(=변환 이후 작업)을 «전용» 보관처로 보존(F2). 롤링 슬롯이 아니라 아무도 안 덮는 파일.
-  try { if (fs.existsSync(p.proj)) fs.copyFileSync(p.proj, p.preRollback); } catch (_) {}
+  // ★2차 되돌리기(변환→되돌리기→재변환→되돌리기)가 1차 보관본을 덮지 않도록, 있으면 타임스탬프로 회전(상한).
+  try {
+    if (fs.existsSync(p.proj)) {
+      if (fs.existsSync(p.preRollback)) {
+        try {
+          fs.renameSync(p.preRollback, path.join(p.dir, `proj_pre-rollback.${Date.now()}.json`));
+          const rots = fs.readdirSync(p.dir)
+            .filter(f => /^proj_pre-rollback\.\d+\.json$/.test(f))
+            .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
+          for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
+        } catch (_) {}
+      }
+      fs.copyFileSync(p.proj, p.preRollback);
+    }
+  } catch (_) {}
   try { atomicWrite(p.proj, raw); }
   catch (e) { return { ok: false, reason: 'write_failed', error: e.message }; }
   try { fs.unlinkSync(p.backup); } catch (_) {}
