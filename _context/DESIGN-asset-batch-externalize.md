@@ -121,4 +121,23 @@ v0.8.0에 들어간 이미지 외부화(`goya-asset://`, content-hash)는 «신�
 | + | 정책 OFF 힌트 1회 · 협업 제외+힌트 · 소형 noop · 신규 이미지 자동 외부화 회귀(공유 저장함수) | PASS |
 | + | 설정>성능 UI 디자인 일관성(이스터에그 토글과 동일 클래스·신규 CSS 0) | PASS (스크린샷 u3-perf-*.png) |
 발견·수정: ⓐ scan이 assetsTree 썸네일(8KB)까지 세어 변환완료본이 «인라인 12개»로 보임 → 캔버스만 집계 ⓑ D(export 타이밍) ⓒ 협업 수동 경로 force 게이트.
-### 9-2. 최종 (U5·U6 후 새 사본으로 전체 재실행) — _(대기)_
+### 9-2. 최종 (2026-08-20, U5·U6 포함 `af085ef` 시점 · 사본 리셋 후 전체 재실행 · 격리 9360) — **전항목 PASS**
+| 드라이버 | 결과 |
+|---|---|
+| qa-u4.mjs (S1~S9: OFF 힌트·수동변환·reload·autosave·되돌리기·재변환·ON 자동변환 3종·협업 제외·noop·복제) | **36/36** |
+| qa-tabs-shot.mjs (탭 왕복 캐시 복원·올바른 탭 저장·설정 UI 상태/되돌리기 노출/noop) | **8/8** |
+| qa-export-cold.mjs (캐시 비우고 열자마자 PNG export ×2) | 2라운드 바이트 동일(3,162,042 / 3,415,158) |
+| .gdt 왕복(함수 직접 호출, 사본) | goya 22 동봉·누락 0 → import 후 base64 22 복원·섹션 46=46·참조 에셋 11/11 바이트 동일 |
+| Figma 인라인(인앱) | 46섹션 goya 11→0, data URI 11, 10/10 해결 |
+| 단위 하네스 | externalizer 13 · gdt-goya 4 · figma-goya 8 = 25/25 |
+| 열 때 변환 시간(main 동기) | 94.5MB 1.70s · 50.4MB 0.81s · 12.1MB 0.24s · 108MB 수동 2.8s(첫 실행)/1.4s(재변환) |
+| 렌더러 콘솔 오류(uncaught/TypeError/ReferenceError) | 0 |
+
+커밋 순서: `dd3fe61` 설계 → `cbb3157` U1 → `0af1f31` U2 → `0f9d93d` U3 → `e63f5c4` export 타이밍(D) → `b71b005` 협업 force+§9-1 → `9a7e9f7` U6(Figma) → `af085ef` U5(.gdt). 머지 금지 유지.
+
+### 10. G2(기본 ON) 상신 전 남은 것 / 인계
+- **현빈 G2 결정 자료** = 이 문서 §9. 기본 ON은 `DEFAULT_SETTINGS.autoExternalizeOnOpen`(main.js)와 settings-store FALLBACK 두 곳만 true로 바꾸면 된다(1커밋).
+- ⚠️ 외부 스킬 `goditor-figma-loop/figma_export.py`는 아직 `window.buildFigmaExportJSON`(비인라인)을 CDP로 부른다 → `await window.buildFigmaExportJSONInlined(ids,nodeMap).then(r=>r.json)`으로 교체 필요(지디 소유).
+- 협업(C)의 근본해결(서버 에셋 제공자)은 신규 웹고디터 P2.
+- 변환된 프로젝트를 0.7.x 앱으로 열면 이미지 공백(goya-asset 미지원) — 자동업데이트로 0.8.x 통일 전제.
+- `proj_history`(2.2GB base64)는 건드리지 않았다(자연 교체).
