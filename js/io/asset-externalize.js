@@ -224,7 +224,11 @@ function _bindExternalizeEvents() {
   if (!api || !api.onProjectExternalized) return;
   api.onProjectExternalized((p) => {
     if (!p || !p.projectId) return;
-    window.showToast?.(`🗜️ 이미지 ${p.images}장을 외부 파일로 분리했습니다 · ${_fmtMB(p.before)} → ${_fmtMB(p.after)} (원본은 proj_pre-externalize.json에 보존)`);
+    // [F6] skipped>0 = 저장에 실패해 원본 base64로 남은 장수 → «완료»로 속이지 않고 정직하게 «부분 완료» 통지.
+    const skipped = Number(p.skipped || 0);
+    const base = `🗜️ 이미지 ${p.images}장을 외부 파일로 분리했습니다 · ${_fmtMB(p.before)} → ${_fmtMB(p.after)}`;
+    if (skipped > 0) window.showToast?.(`${base} — ⚠️ ${skipped}장은 변환 실패로 원본 그대로 남았습니다`);
+    else window.showToast?.(`${base} (원본은 proj_pre-externalize.json에 보존)`);
   });
   api.onExternalizeHint((p) => {
     if (!p || !p.projectId) return;
@@ -233,6 +237,9 @@ function _bindExternalizeEvents() {
     try { if (localStorage.getItem(key)) return; localStorage.setItem(key, String(Date.now())); } catch (_) {}
     if (p.reason === 'collab') {
       window.showToast?.(`ℹ️ 협업 중인 프로젝트라 이미지 자동 최적화를 건너뜁니다 (인라인 이미지 ${p.base64Refs}개 · ${_fmtMB(p.bytes)})`);
+    } else if (p.reason === 'meta_unreadable') {
+      // [F5] 협업 여부 불명(meta 손상)이라 안전하게 보류 — 사용자가 원인을 알 수 있게 별도 안내.
+      window.showToast?.(`ℹ️ 프로젝트 메타 정보를 읽지 못해 이미지 자동 최적화를 보류했습니다 — 설정 > 성능에서 수동으로 실행할 수 있어요`);
     } else {
       window.showToast?.(`💡 이 프로젝트는 이미지 ${p.base64Refs}개가 내장돼 ${_fmtMB(p.bytes)}입니다 — 설정 > 성능에서 「이미지 최적화」로 줄일 수 있어요`);
     }
