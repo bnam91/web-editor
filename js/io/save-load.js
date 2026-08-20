@@ -1,5 +1,6 @@
 import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
+import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
@@ -1800,24 +1801,29 @@ window.hasUnsavedChanges = () => _dirtySinceSave || !!autoSaveTimer || _isSaving
 // 이 셋을 안 비우면: 되돌리기가 파일 복원+backup unlink 후 in-flight/큐 저장이 도착 → 복원 proj.json을
 //   변환본으로 재덮고(=되돌리기 조용히 무효), backup은 이미 소비돼 복구 지점이 영구 소멸한다.
 // 되돌리기는 «현재 작업을 의도적으로 버리는» 동작이라 flush 없이 봉인만 한다. async — 호출측이 await.
-window.cancelPendingAutoSaveForReload = async () => {
+// 봉인 직전 dirty 값 — 되돌리기 실패/reload 차단 시 «봉인 전 상태»로 정확히 복원(무편집이었으면 재저장 안 함).
+let _dirtyBeforeSeal = false;
+window.cancelPendingAutoSaveForReload = async (targetId) => {
   try { state._suppressAutoSave = true; } catch (_) {}
   clearTimeout(autoSaveTimer); autoSaveTimer = null;
-  _pendingSaves.clear();     // ⓑ 큐잉된 저장 폐기(복원본 재덮기 차단)
+  _dirtyBeforeSeal = _dirtySinceSave;                     // 봉인 직전 값 캡처(③ 부작용 방지)
+  clearPendingForReload(_pendingSaves, targetId);         // ⓑ ★되돌리기 대상만 폐기(타 프로젝트 저장 보존, 구멍2)
   _dirtySinceSave = false;
   // ⓒ in-flight 저장 드레인 대기(상한 5s — 무한대기 방지). 봉인 상태라 새 저장은 큐잉 안 됨.
   const _deadline = Date.now() + 5000;
   while (_isSavingToFile && Date.now() < _deadline) { await new Promise(r => setTimeout(r, 25)); }
-  _pendingSaves.clear();     // 드레인 도중 in-flight finally가 재적재했을 여지 → 한 번 더 비운다
-  return !_isSavingToFile;   // true=완전 정지(안전), false=드레인 타임아웃(호출측이 판단)
+  clearPendingForReload(_pendingSaves, targetId);         // 드레인 도중 재적재분 → 대상만 한 번 더
+  return isDrainSettled(_isSavingToFile);                 // ★false=드레인 타임아웃 → 호출측이 되돌리기 중단(구멍1)
 };
-// [externalize] 되돌리기 «실패» 시 봉인 해제 + 편집 복구(F4 후속·신규회귀 방지) — 봉인이 타이머 취소로
-//   LS 기록도 없앴으므로, 실패로 DOM에만 남은 직전 편집을 다시 dirty로 표시하고 autosave를 재무장한다.
-//   안 하면 beforeunload 가드(!_dirtySinceSave && !autoSaveTimer)가 조기 return → Cmd+R 시 편집 소실.
+// [externalize] 되돌리기 «실패»·«성공인데 reload 차단» 시 봉인 해제 + 편집 복구(F4 후속·신규회귀 방지) —
+//   봉인이 타이머 취소로 LS 기록도 없앴으므로, DOM에만 남은 직전 편집을 다시 dirty로 표시하고 autosave를
+//   재무장한다. 안 하면 beforeunload 가드(!_dirtySinceSave && !autoSaveTimer)가 조기 return → Cmd+R 시 소실.
+//   ★dirty는 «봉인 직전 값»으로만 복원한다(무조건 true면 무편집 방문도 updatedAt 오염+협업 발화 — ③ 부작용).
 window.resumeAutoSaveAfterAbortedReload = () => {
   try { state._suppressAutoSave = false; } catch (_) {}
-  _dirtySinceSave = true;
-  try { scheduleAutoSave(); } catch (_) {}
+  _dirtySinceSave = _dirtyBeforeSeal;
+  if (_dirtyBeforeSeal) { try { scheduleAutoSave(); } catch (_) {} }  // 편집이 있었을 때만 재무장
+  _dirtyBeforeSeal = false;
 };
 window.initApp = initApp;
 

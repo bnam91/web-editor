@@ -339,10 +339,20 @@
       // F4: 되돌리기 전 autosave 3경로(타이머·대기열·in-flight)를 모두 봉인·드레인해 복원본 재덮기를 막는다.
       //     성공 시 봉인 유지→새로고침이 리셋, 실패 시 봉인 해제+편집 복구(dirty 재표시·autosave 재무장).
       const _unseal = () => { try { window.resumeAutoSaveAfterAbortedReload?.(); } catch (_) {} };
-      try { await window.cancelPendingAutoSaveForReload?.(); } catch (_) {}
+      // ★구멍1: 봉인이 in-flight 저장을 5s 안에 못 끝내면(드레인 타임아웃, 대형 프로젝트서 현실적) 되돌리기를
+      //   «내보내지 않는다» — 살아있는 저장이 복원본을 재덮고 backup은 이미 삭제돼 복구지점이 사라지기 때문.
+      let _sealed = true;
+      try { _sealed = await window.cancelPendingAutoSaveForReload?.(window.activeProjectId); } catch (_) {}
+      if (_sealed === false) { _unseal(); setStatus('저장 중이라 되돌리지 못했습니다. 잠시 후 다시 시도하세요.', 'err'); return; }
       try {
         const r = await window.electronAPI.externalizeRollback({ projectId: window.activeProjectId });
-        if (r && r.ok) { setStatus('✓ 원본으로 되돌렸습니다 — 적용을 위해 새로고침합니다…', 'ok'); setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 1200); return; }
+        if (r && r.ok) {
+          setStatus('✓ 원본으로 되돌렸습니다 — 적용을 위해 새로고침합니다…', 'ok');
+          setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 1200);
+          // 백스톱: 3s 뒤에도 페이지가 살아있으면(reload 실패/차단) 봉인 해제 — suppress 영구고착·편집 무증상 소실 방지.
+          setTimeout(() => { try { window.resumeAutoSaveAfterAbortedReload?.(); } catch (_) {} }, 3000);
+          return;
+        }
         _unseal();
         setStatus('✗ ' + ((r && (r.reason || r.error)) || '되돌리기 실패'), 'err');
       } catch (e) { _unseal(); setStatus('✗ ' + (e && e.message), 'err'); }
