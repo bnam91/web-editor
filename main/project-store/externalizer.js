@@ -26,6 +26,7 @@ const DATA_URI_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*/g;
 const GOYA_RE = /goya-asset:\/\/([\w.-]+)\/([\w.-]+)/g;
 const BACKUP_NAME = 'proj_pre-externalize.json';
 const SCHEMA = 1;
+const MAX_PRE_EXT_ROTATIONS = 2; // [F3] proj_pre-externalize.<ts>.json 회전본 보관 상한(가장 최근 N개)
 
 /* ── 공용 소품 ───────────────────────────────────────────────────────────── */
 function safeSeg(s) {
@@ -56,6 +57,7 @@ function pathsFor(projectsDir, projectId) {
     proj:   path.join(dir, 'proj.json'),
     backup: path.join(dir, BACKUP_NAME),
     rolling: path.join(dir, 'proj_backup.json'),
+    preRollback: path.join(dir, 'proj_pre-rollback.json'), // 되돌리기가 버리는 «변환 이후 작업»의 전용 보관처(F2)
     meta:   path.join(dir, 'proj_meta.json'),
     assets: path.join(dir, 'assets'),
   };
@@ -184,18 +186,19 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
 
   // 3) 에셋 저장 (실패한 URI는 원본 base64 유지 = 데이터 손실 없음)
   const cache = new Map(); // uri → url
+  const skippedUris = new Set(); // [F6] 저장 실패해 원본 base64로 남는 URI(정직한 게이트·통지용)
   let images = 0, reused = 0, skipped = 0;
   const urls = [];
   for (const uri of uris) {
     const parsed = parseDataUri(uri);
-    if (!parsed) { skipped++; continue; }
+    if (!parsed) { skipped++; skippedUris.add(uri); continue; }
     try {
       const buf = Buffer.from(parsed.b64, 'base64');
-      if (buf.length === 0) { skipped++; continue; }
+      if (buf.length === 0) { skipped++; skippedUris.add(uri); continue; }
       const r = saveImageBytes(projectsDir, p.id, buf, parsed.mime);
       cache.set(uri, r.url); urls.push(r);
       images++; if (r.reused) reused++;
-    } catch (_) { skipped++; }
+    } catch (_) { skipped++; skippedUris.add(uri); }
   }
   if (cache.size === 0) return { ok: false, reason: 'no_asset_written', before, refs, skipped, ms: Date.now() - t0 };
 
@@ -214,11 +217,21 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
   if (sectionsAfter !== sectionsBefore) return { ok: false, reason: `section_count_changed ${sectionsBefore}->${sectionsAfter}`, before };
   // 남은 base64는 «저장 실패분»만이어야 한다(성공한 URI가 남아 있으면 치환 누락)
   for (const uri of cache.keys()) for (const s of slots) if (s.get().indexOf(uri) !== -1) return { ok: false, reason: 'replace_incomplete', before };
+  // [F6] remaining을 실게이트로 — 치환 후 남은 base64는 «저장 실패한 URI(skippedUris)»의 등장횟수와
+  //   정확히 같아야 한다. 더 많으면 수집(정규식)이 놓친 base64가 있다는 뜻이므로 성공으로 보고하지 않고 막는다
+  //   (원본 rename 전이라 데이터 무손상). skipped URI가 여러 번 등장할 수 있어 «횟수»로 비교한다.
+  let expectedRemaining = 0;
+  for (const uri of skippedUris) for (const s of slots) expectedRemaining += (s.get().split(uri).length - 1);
+  if (remaining > expectedRemaining) return { ok: false, reason: `base64_uncollected remaining=${remaining} expected=${expectedRemaining}`, before };
   for (const u of urls) {
     const full = path.join(p.assets, u.filename);
     let st = null; try { st = fs.statSync(full); } catch (_) {}
     if (!st || st.size <= 0) return { ok: false, reason: `asset_missing ${u.filename}`, before };
   }
+  // [F3] updatedAt 갱신 — 이 파일이 «가장 최신»임을 명시한다. 안 하면 «열 때 자동변환» 후에도 fileTs가
+  //   마지막 autosave 시각에 머물러, 렌더러 initLoad의 localStorage 우선 로직(lsTs+500>fileTs)이
+  //   base64가 남아 있는 LS 스냅샷을 이겨 DOM을 base64로 되돌리고 → 다음 autosave가 외부화를 무효화한다(F3).
+  try { const nowIso = new Date(opts.now ? opts.now() : Date.now()).toISOString(); if (data && typeof data === 'object') data.updatedAt = nowIso; } catch (_) {}
   let out;
   try { out = JSON.stringify(data, null, 2); JSON.parse(out); } catch (e) { return { ok: false, reason: 'reserialize_failed', error: e.message, before }; }
   const after = Buffer.byteLength(out);
@@ -230,6 +243,13 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
     if (fs.existsSync(p.backup)) {
       const rotated = path.join(p.dir, `proj_pre-externalize.${Date.now()}.json`);
       fs.renameSync(p.backup, rotated);
+      // [F3] 회전본 상한 — 반복 변환으로 회전본이 무한 적립되던 것 방지(가장 최근 N개만 남긴다).
+      try {
+        const rots = fs.readdirSync(p.dir)
+          .filter(f => /^proj_pre-externalize\.\d+\.json$/.test(f))
+          .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
+        for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
+      } catch (_) {}
     }
     fs.renameSync(p.proj, p.backup);
   } catch (e) { return { ok: false, reason: 'backup_failed', error: e.message, before }; }
@@ -242,19 +262,43 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
   }
 
   // 8) meta 마커(+ 호출측 목록캐시 갱신 훅). proj.json 다음에 써서 meta.mtime ≥ proj.mtime 불변식 유지.
-  const marker = { schema: SCHEMA, at: new Date().toISOString(), before, after, refs, images, reused, skipped, backup: BACKUP_NAME };
+  const marker = { schema: SCHEMA, at: new Date(opts.now ? opts.now() : Date.now()).toISOString(), before, after, refs, images, reused, skipped, backup: BACKUP_NAME };
   try { if (typeof opts.afterWrite === 'function') opts.afterWrite(p.id, data); } catch (_) {}
   try { patchMeta(p.meta, { externalized: marker }); } catch (_) { /* 마커 실패는 무해 */ }
 
   return { ok: true, before, after, refs, images, reused, skipped, sections: sectionsAfter, backupPath, ms: Date.now() - t0 };
 }
 
+/** 되돌리기 진단 — 버려질 «현재 작업»과 복원될 «변환 전 원본»의 격차(UI 경고용, 비파괴). */
+function rollbackDiag(p, backupRaw) {
+  const out = { restoreBytes: Buffer.byteLength(backupRaw), currentBytes: 0, currentSections: 0, restoreSections: 0, convertedAt: null, ageDays: null };
+  try {
+    const cur = fs.readFileSync(p.proj, 'utf8');
+    out.currentBytes = Buffer.byteLength(cur);
+    const cd = JSON.parse(cur);
+    for (const s of canvasSlots(cd)) out.currentSections += countSections(s.get());
+  } catch (_) {}
+  try { const bd = JSON.parse(backupRaw); for (const s of canvasSlots(bd)) out.restoreSections += countSections(s.get()); } catch (_) {}
+  try {
+    const meta = readJsonOrNull(p.meta);
+    if (meta && meta.externalized && meta.externalized.at) {
+      out.convertedAt = meta.externalized.at;
+      out.ageDays = Math.max(0, Math.round((Date.now() - new Date(meta.externalized.at).getTime()) / 86400000));
+    }
+  } catch (_) {}
+  return out;
+}
+
 /**
  * 되돌리기 — proj_pre-externalize.json을 proj.json으로 복원한다.
- * 현재 proj.json은 proj_backup.json(롤링)으로 밀어 «어떤 상태도 버리지 않는다».
- * 복원 후 백업 파일은 «소비»한다(지운다) — 안 지우면 몇 주 뒤 재변환 때 옛 원본이 남아
+ * ★F2: 되돌리면 «변환 이후 작업»이 통째로 사라진다(pre-externalize는 변환 시점 고정본이므로).
+ *   그 작업을 «전용» 파일 proj_pre-rollback.json에 보존한다 — 롤링 proj_backup.json은 다음 autosave가
+ *   1.5초 뒤 덮어써 되돌리기-취소용으로 못 쓴다(이 파일 헤더가 스스로 경고했던 함정). 전용 파일은
+ *   autosave·저장 경로가 절대 건드리지 않으므로 실수 되돌리기 후에도 복구할 여지를 남긴다.
+ * 복원 후 backup(pre-externalize)은 «소비»한다(지운다) — 안 지우면 몇 주 뒤 재변환 때 옛 원본이 남아
  * 다음 되돌리기가 몇 주 전 상태로 돌아가는 사고가 난다. 에셋 파일은 남긴다(다른 참조 가능, 해시라 무해).
- * @returns {{ok:boolean, reason?:string, restoredBytes?:number}}
+ * @param {{dryRun?:boolean, afterWrite?:Function}} [opts] dryRun=진단만 반환(파일 무변경).
+ * @returns {{ok:boolean, reason?:string, restoredBytes?:number, ageDays?:number|null, currentSections?:number, restoreSections?:number, preRollback?:string}}
  */
 function rollbackExternalize(projectsDir, projectId, opts = {}) {
   const p = pathsFor(projectsDir, projectId);
@@ -262,7 +306,10 @@ function rollbackExternalize(projectsDir, projectId, opts = {}) {
   let raw;
   try { raw = fs.readFileSync(p.backup, 'utf8'); JSON.parse(raw); }
   catch (e) { return { ok: false, reason: 'backup_corrupt', error: e.message }; }
-  try { if (fs.existsSync(p.proj)) fs.copyFileSync(p.proj, p.rolling); } catch (_) {}
+  const diag = rollbackDiag(p, raw);
+  if (opts.dryRun) return { ok: true, dryRun: true, ...diag };
+  // 현재 proj.json(=변환 이후 작업)을 «전용» 보관처로 보존(F2). 롤링 슬롯이 아니라 아무도 안 덮는 파일.
+  try { if (fs.existsSync(p.proj)) fs.copyFileSync(p.proj, p.preRollback); } catch (_) {}
   try { atomicWrite(p.proj, raw); }
   catch (e) { return { ok: false, reason: 'write_failed', error: e.message }; }
   try { fs.unlinkSync(p.backup); } catch (_) {}
@@ -274,7 +321,7 @@ function rollbackExternalize(projectsDir, projectId, opts = {}) {
     const meta = readJsonOrNull(p.meta);
     if (meta && meta.externalized) { const { externalized: _x, ...rest } = meta; atomicWrite(p.meta, JSON.stringify({ ...rest, externalizedRolledBackAt: new Date().toISOString() }, null, 2)); }
   } catch (_) {}
-  return { ok: true, restoredBytes: Buffer.byteLength(raw) };
+  return { ok: true, restoredBytes: Buffer.byteLength(raw), preRollback: 'proj_pre-rollback.json', ...diag };
 }
 
 module.exports = {
