@@ -112,19 +112,31 @@ function saveImageBytes(projectsDir, projectId, buf, mime) {
   return { filename, url: `goya-asset://${p.id}/${filename}`, bytes: buf.length, reused };
 }
 
-/* ── 가벼운 스캔 (파싱 없음) — 힌트 토스트·리허설 계측용 ────────────────────── */
+/* ── 스캔 — 힌트 토스트·설정 상태·리허설 계측용 ──────────────────────────────
+ * base64Refs = «캔버스 안» base64만 센다(변환기의 대상과 같은 정의). assetsTree 썸네일 같은 캔버스 밖
+ * 소형 base64(실측 프로젝트당 ~8KB)는 대상이 아니라 세지 않는다 — 안 그러면 변환 완료본이 «인라인 12개»로
+ * 보여 사용자를 속인다(리허설 U3에서 실측). 캔버스 밖 수치는 base64RefsAll로 따로 준다.
+ * 비용: data:image가 없으면 파싱 없이 0. 있으면 JSON.parse 1회(108MB ≈ 1s, 열 때 1회뿐). */
 /**
- * @returns {{exists:boolean, bytes:number, base64Refs:number, goyaRefs:number, hasBackup:boolean, externalized:object|null}}
+ * @returns {{exists:boolean, bytes:number, base64Refs:number, base64RefsAll:number, goyaRefs:number, hasBackup:boolean, externalized:object|null}}
  */
 function scanProjectFile(projectsDir, projectId) {
   const p = pathsFor(projectsDir, projectId);
-  if (!fs.existsSync(p.proj)) return { exists: false, bytes: 0, base64Refs: 0, goyaRefs: 0, hasBackup: false, externalized: null };
+  if (!fs.existsSync(p.proj)) return { exists: false, bytes: 0, base64Refs: 0, base64RefsAll: 0, goyaRefs: 0, hasBackup: false, externalized: null };
   const raw = fs.readFileSync(p.proj, 'utf8');
   const meta = readJsonOrNull(p.meta);
+  let base64RefsAll = 0, base64Refs = 0;
+  if (raw.indexOf('data:image') !== -1) {
+    base64RefsAll = countMatches(raw, DATA_URI_RE);
+    try {
+      const data = JSON.parse(raw);
+      for (const s of canvasSlots(data)) base64Refs += countMatches(s.get(), DATA_URI_RE);
+    } catch (_) { base64Refs = base64RefsAll; } // 손상이면 보수적으로 전체값
+  }
   return {
     exists: true,
     bytes: Buffer.byteLength(raw),
-    base64Refs: raw.indexOf('data:image') === -1 ? 0 : countMatches(raw, DATA_URI_RE),
+    base64Refs, base64RefsAll,
     goyaRefs: raw.indexOf('goya-asset://') === -1 ? 0 : countMatches(raw, GOYA_RE),
     hasBackup: fs.existsSync(p.backup),
     externalized: (meta && meta.externalized) || null,

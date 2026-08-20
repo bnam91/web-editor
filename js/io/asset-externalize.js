@@ -174,46 +174,70 @@ function _countSections(data) {
 }
 
 /**
- * 명시적 "이미지 최적화" 액션 — 현재 프로젝트의 **모든** 캔버스 base64를 즉시 외부화(대량변환)하고
- * 저장 후 디스크 재로드로 검증. 메뉴/버튼/콘솔(window.optimizeProjectImages())에서 호출.
- * 백업은 main `projects:save`가 자동(proj_backup.json + history slot)하므로 별도 백업 불필요.
- * @returns {Promise<{ok:boolean, before?:number, after?:number, base64Before?:number, base64After?:number, error?:string}>}
+ * 명시적 "이미지 최적화" 액션 — 현재 프로젝트의 **모든** 캔버스 base64를 일괄 외부화.
+ * 메뉴/버튼/콘솔(window.optimizeProjectImages())에서 호출.
+ *
+ * ★구현은 main(`projects:externalize`, main/project-store/externalizer.js) 한 곳이다 — 열 때 자동변환과
+ *   같은 코드가 돈다. 여기서는 ① 편집 중인 내용을 먼저 디스크에 flush(유실 0) ② main 변환 ③ 결과 반환.
+ *   DOM엔 여전히 base64가 남아 있으므로 호출측(설정>성능)은 성공 시 새로고침한다 — 안 하면 다음
+ *   autosave가 base64를 다시 쓴다(실측 함정). flush 직후라 `_dirtySinceSave`가 false → beforeunload 동기저장은
+ *   재기록하지 않는다(리허설 §6-5).
+ * 원본은 main이 `proj_pre-externalize.json`으로 rename 보존한다(되돌리기: externalizeRollback).
+ * @returns {Promise<{ok:boolean, before?:number, after?:number, base64Before?:number, base64After?:number, sections?:number, error?:string}>}
  */
 async function optimizeProjectImages() {
   try {
     if (!window.serializeProject || !window.saveProjectToFile) {
       return { ok: false, error: 'serialize/save 미가용' };
     }
-    if (!window.electronAPI?.assetsSaveCanvasImage) {
+    if (!window.electronAPI?.externalizeProject) {
       return { ok: false, error: 'Electron 전용 기능 (웹에서는 외부화 불가)' };
     }
     const projectId = window.activeProjectId;
     if (!projectId) return { ok: false, error: 'activeProjectId 없음' };
 
+    // ① flush — 지금 화면의 상태를 먼저 디스크에(백업은 projects:save가 자동). 실패면 변환하지 않는다.
     const snap = window.serializeProject();
-    const before = (typeof snap === 'string' ? snap : JSON.stringify(snap)).length;
-    const base64Before = _countBase64(snap);
-    const secBefore = _countSections(snap);
+    const r0 = await window.saveProjectToFile(snap, { skipThumbnail: true, projectId });
+    if (r0 && r0.ok === false) return { ok: false, error: 'flush 저장 실패: ' + (r0.reason || '') };
 
-    // externalizeAll:true → _doSaveProjectToFile가 all-mode로 전부 외부화. 백업은 main이 자동.
-    const r = await window.saveProjectToFile(snap, { externalizeAll: true, skipThumbnail: true });
-    if (r && r.ok === false) return { ok: false, error: r.reason || '저장 실패', before, base64Before };
-
-    // 검증: 디스크에서 재로드 → 섹션 수 보존 + base64 감소 확인
-    let fresh = null;
-    try { fresh = await window.electronAPI.loadProject(projectId); } catch (_) {}
-    if (!fresh) return { ok: false, error: '검증 재로드 실패(저장은 완료됨)', before, base64Before };
-    const after = JSON.stringify(fresh).length;
-    const base64After = _countBase64(fresh);
-    const secAfter = _countSections(fresh);
-    if (secAfter < secBefore) {
-      return { ok: false, error: `섹션 수 감소 ${secBefore}→${secAfter}`, before, after, base64Before, base64After };
-    }
-    return { ok: true, before, after, base64Before, base64After, sections: secAfter };
+    // ② main 파일수준 변환
+    const r = await window.electronAPI.externalizeProject({ projectId });
+    if (!r || r.ok === false) return { ok: false, error: (r && (r.reason || r.error)) || '변환 실패' };
+    if (r.noop) return { ok: true, before: r.before, after: r.after, base64Before: 0, base64After: 0, sections: r.sections, noop: true };
+    // skipped = 저장에 실패해 원본 base64로 남긴 장수(데이터 손실 없음)
+    return { ok: true, before: r.before, after: r.after, base64Before: r.refs, base64After: r.skipped || 0, sections: r.sections, images: r.images, ms: r.ms };
   } catch (e) {
     return { ok: false, error: e && e.message };
   }
 }
+
+/* ── 열 때 알림 (main → 렌더러 이벤트) ──
+ * projects:externalized : 자동변환 완료 — 수치 토스트(무엇이 바뀌었는지 정직하게).
+ * projects:externalize-hint : 변환 안 함 + 이유. legacy(기본 OFF·대형)=프로젝트당 1회만 안내,
+ *                             collab(협업 등록 → 자동변환 제외)=1회 안내, failed=매번(사용자가 알아야 한다). */
+const _HINT_KEY = (pid, reason) => `goya-ext-hint:${reason}:${pid}`;
+function _fmtMB(n) { return (Number(n || 0) / 1024 / 1024).toFixed(1) + 'MB'; }
+function _bindExternalizeEvents() {
+  const api = window.electronAPI;
+  if (!api || !api.onProjectExternalized) return;
+  api.onProjectExternalized((p) => {
+    if (!p || !p.projectId) return;
+    window.showToast?.(`🗜️ 이미지 ${p.images}장을 외부 파일로 분리했습니다 · ${_fmtMB(p.before)} → ${_fmtMB(p.after)} (원본은 proj_pre-externalize.json에 보존)`);
+  });
+  api.onExternalizeHint((p) => {
+    if (!p || !p.projectId) return;
+    if (p.reason === 'failed') { window.showToast?.(`⚠️ 이미지 자동 최적화 실패(${p.error || '?'}) — 프로젝트는 원본 그대로 열립니다`); return; }
+    const key = _HINT_KEY(p.projectId, p.reason);
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, String(Date.now())); } catch (_) {}
+    if (p.reason === 'collab') {
+      window.showToast?.(`ℹ️ 협업 중인 프로젝트라 이미지 자동 최적화를 건너뜁니다 (인라인 이미지 ${p.base64Refs}개 · ${_fmtMB(p.bytes)})`);
+    } else {
+      window.showToast?.(`💡 이 프로젝트는 이미지 ${p.base64Refs}개가 내장돼 ${_fmtMB(p.bytes)}입니다 — 설정 > 성능에서 「이미지 최적화」로 줄일 수 있어요`);
+    }
+  });
+}
+_bindExternalizeEvents();
 
 window.externalizeCanvasHtml = externalizeCanvasHtml;
 window.externalizeProjectData = externalizeProjectData;

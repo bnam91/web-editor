@@ -3,7 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   // Projects (파일 기반)
   listProjects:   ()        => ipcRenderer.invoke('projects:list'),
-  loadProject:    (id)      => ipcRenderer.invoke('projects:load', id),
+  // opts.open=true → «프로젝트를 연다»는 로드(열 때 외부화 정책이 여기서만 돈다). 저장 경로의 병합용 로드는 opts 없이.
+  loadProject:    (id, opts) => ipcRenderer.invoke('projects:load', id, opts),
   saveProject:    (project) => ipcRenderer.invoke('projects:save', project),
   // BUG-44: beforeunload용 동기 저장 — async를 await할 수 없는 새로고침/탭닫기 시점에 호출
   saveProjectSync:(project) => ipcRenderer.sendSync('projects:save-sync', project),
@@ -95,6 +96,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 캔버스 이미지 외부화 — content-hash dedup 저장, goya-asset:// URL 반환
   assetsSaveCanvasImage: ({ projectId, b64, mime })          => ipcRenderer.invoke('assets:saveCanvasImage', { projectId, b64, mime }),
   assetsReadAsDataUri:   ({ projectId, filename })           => ipcRenderer.invoke('assets:readAsDataUri', { projectId, filename }),
+  // [externalize] 일괄 외부화 — 수동 변환 / 되돌리기 / 상태조회 + 열 때 알림(이벤트)
+  externalizeProject:     ({ projectId }) => ipcRenderer.invoke('projects:externalize', { projectId }),
+  externalizeRollback:    ({ projectId }) => ipcRenderer.invoke('projects:externalize-rollback', { projectId }),
+  externalizeScan:        ({ projectId }) => ipcRenderer.invoke('projects:externalize-scan', { projectId }),
+  onProjectExternalized:  (cb) => ipcRenderer.on('projects:externalized', (_e, p) => cb(p)),
+  onExternalizeHint:      (cb) => ipcRenderer.on('projects:externalize-hint', (_e, p) => cb(p)),
 
   // 사용자별 Preferences (API 키 + 단축키)
   getSettings:  ()              => ipcRenderer.invoke('settings:get'),

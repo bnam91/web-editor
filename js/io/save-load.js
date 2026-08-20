@@ -1493,7 +1493,7 @@ function initApp() {
         } catch (_) {}
         // proj + meta 병렬 로드 — meta 실패해도 proj는 사용해야 하므로 독립 처리
         let proj = null;
-        try { proj = await window.electronAPI.loadProject(activeProjectId); } catch(e) {
+        try { proj = await window.electronAPI.loadProject(activeProjectId, { open: true }); } catch(e) { // {open:true}: 열 때 외부화 정책 대상
           console.error('[initLoad] loadProject 실패:', e);
         }
         const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);

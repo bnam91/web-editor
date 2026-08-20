@@ -301,10 +301,10 @@ async function switchTab(id) {
     return;
   }
 
-  // 최초 로드: 파일에서 읽기
+  // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
   let proj = null;
   if (window.IS_ELECTRON) {
-    proj = await window.electronAPI.loadProject(id);
+    proj = await window.electronAPI.loadProject(id, { open: true });
     if (targetTab && proj?.name) targetTab.name = proj.name;
     renderTabBar();
   } else {

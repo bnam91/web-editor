@@ -187,14 +187,18 @@ test('백업이 이미 있으면 덮지 않고 회전', () => {
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, X.BACKUP_NAME), 'utf8')), legacyV2(id));
 });
 
-test('scanProjectFile: 파싱 없이 수치', () => {
+test('scanProjectFile: 캔버스 base64만 센다(assetsTree 썸네일 제외)', () => {
   const root = mkRoot(); const id = 'proj_scan';
-  writeProj(root, id, legacyV2(id));
+  const obj = legacyV2(id); obj.assetsTree = [{ type: 'folder', children: [{ type: 'file', thumbSrc: GIF }] }];
+  writeProj(root, id, obj);
+  assert.equal(X.scanProjectFile(root, id).base64RefsAll, 5);
   const s1 = X.scanProjectFile(root, id);
   assert.equal(s1.exists, true); assert.equal(s1.base64Refs, 4); assert.equal(s1.goyaRefs, 0); assert.equal(s1.hasBackup, false);
   X.externalizeProjectFile(root, id);
   const s2 = X.scanProjectFile(root, id);
-  assert.equal(s2.base64Refs, 0); assert.equal(s2.goyaRefs, 4); assert.equal(s2.hasBackup, true); assert.equal(s2.externalized.images, 2);
+  assert.equal(s2.base64Refs, 0); assert.equal(s2.base64RefsAll, 1); assert.equal(s2.goyaRefs, 4); assert.equal(s2.hasBackup, true); assert.equal(s2.externalized.images, 2);
+  // 변환 후 assetsTree 썸네일은 그대로(범위 밖)
+  assert.ok(JSON.stringify(readProj(root, id).assetsTree).includes('data:image/gif'));
   assert.equal(X.scanProjectFile(root, 'nope').exists, false);
 });
 
