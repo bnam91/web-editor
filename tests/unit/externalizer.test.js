@@ -155,22 +155,29 @@ test('부분 실패: 깨진 base64 한 장은 원본 유지, 나머지는 변환
   assert.ok(c.includes('goya-asset://')); assert.ok(c.includes("data:image/png;base64,A\""));
 });
 
-test('되돌리기: 원본 복원 · 현재본은 롤링 백업으로 · 백업 소비 · 마커 제거 · 재변환 가능', () => {
+test('되돌리기: 원본 복원 · 현재본은 «전용» proj_pre-rollback.json으로(F2) · 백업 소비 · 마커 제거 · 재변환(updatedAt만 다름)', () => {
   const root = mkRoot(); const id = 'proj_rb';
   writeProj(root, id, legacyV2(id), { name: 'legacy' });
   assert.equal(X.externalizeProjectFile(root, id).ok, true);
   const converted = fs.readFileSync(path.join(root, id, 'proj.json'), 'utf8');
   const rb = X.rollbackExternalize(root, id);
   assert.equal(rb.ok, true);
-  assert.deepEqual(readProj(root, id), legacyV2(id));
-  assert.equal(fs.readFileSync(path.join(root, id, 'proj_backup.json'), 'utf8'), converted);
+  // 원본 복원(단 F3로 updatedAt이 갱신돼 있었으므로 그 필드만 무시하고 비교)
+  const restored = readProj(root, id); delete restored.updatedAt;
+  assert.deepEqual(restored, legacyV2(id));
+  // ★F2: 되돌리기 직전 현재본은 롤링 proj_backup.json이 아니라 «전용» proj_pre-rollback.json에 보존된다
+  assert.equal(fs.readFileSync(path.join(root, id, 'proj_pre-rollback.json'), 'utf8'), converted);
+  assert.equal(fs.existsSync(path.join(root, id, 'proj_backup.json')), false); // 롤링 슬롯은 되돌리기가 안 건드린다
+  assert.equal(rb.preRollback, 'proj_pre-rollback.json');
   assert.equal(fs.existsSync(path.join(root, id, X.BACKUP_NAME)), false);
   const meta = JSON.parse(fs.readFileSync(path.join(root, id, 'proj_meta.json'), 'utf8'));
   assert.equal(meta.externalized, undefined); assert.equal(meta.name, 'legacy'); assert.ok(meta.externalizedRolledBackAt);
-  // 재변환 → 동일 결과(에셋 재사용)
+  // 재변환 → 에셋 재사용·구조 동일. ★F3로 updatedAt은 변환시각으로 갱신되므로 그 필드만 무시하고 동일성 검증.
   const r2 = X.externalizeProjectFile(root, id);
   assert.equal(r2.ok, true); assert.equal(r2.images, 2); assert.equal(r2.reused, 2);
-  assert.equal(fs.readFileSync(path.join(root, id, 'proj.json'), 'utf8'), converted);
+  const reconverted = readProj(root, id); const convertedObj = JSON.parse(converted);
+  delete reconverted.updatedAt; delete convertedObj.updatedAt;
+  assert.deepEqual(reconverted, convertedObj);
   // 백업 없으면 되돌리기 거부
   assert.equal(X.rollbackExternalize(root, 'proj_none').ok, false);
 });
@@ -207,4 +214,48 @@ test('path traversal: projectId 살균', () => {
   const r = X.externalizeProjectFile(root, '../../etc');
   assert.equal(r.ok, false); assert.equal(r.reason, 'no_proj_json');
   assert.equal(X._internal.pathsFor(root, '../x').id, '.._x');
+});
+
+// [F6 절단클래스] 개행으로 잘린 base64는 «건드리지 않고» 원본 인라인 유지(반토막 저장·쓰레기 잔존 방지)
+const WRAPPED = `data:image/png;base64,${PNG_B64.slice(0, 20)}\n${PNG_B64.slice(20)}`;
+test('절단(개행 낀) base64: 온전한 것만 변환, 잘린 것은 인라인 유지·skipped 집계', () => {
+  const root = mkRoot(); const id = 'proj_trunc';
+  writeProj(root, id, { version: 2, id, pages: [{ id: 'p1', canvas: section(`<img src="${PNG}"><img src="${WRAPPED}">`) }] });
+  const r = X.externalizeProjectFile(root, id);
+  assert.equal(r.ok, true);
+  assert.equal(r.images, 1);          // 온전한 PNG만 변환
+  assert.equal(r.skipped, 1);         // 절단분은 skipped
+  const c = readProj(root, id).pages[0].canvas;
+  assert.ok(c.includes('goya-asset://'));                        // PNG는 치환됨
+  assert.ok(c.includes(`data:image/png;base64,${PNG_B64.slice(0, 20)}`)); // 절단 원본 그대로 인라인
+  assert.ok(c.includes(PNG_B64.slice(20).slice(0, 12)));         // 뒷절반도 남아있음(쓰레기 아님·원본 유지)
+  const assets = fs.readdirSync(path.join(root, id, 'assets'));
+  assert.equal(assets.length, 1);     // 절단분은 에셋으로 저장 안 됨(깨진 파일 방지)
+});
+test('절단분만 있으면: 변환 안 하고 정직하게 실패(원본 무손상)', () => {
+  const root = mkRoot(); const id = 'proj_trunc_only';
+  const dir = writeProj(root, id, { version: 2, id, pages: [{ id: 'p1', canvas: section(`<img src="${WRAPPED}">`) }] });
+  const before = fs.readFileSync(path.join(dir, 'proj.json'), 'utf8');
+  const r = X.externalizeProjectFile(root, id);
+  assert.equal(r.ok, false); assert.equal(r.reason, 'all_base64_truncated'); assert.equal(r.skipped, 1);
+  assert.equal(fs.readFileSync(path.join(dir, 'proj.json'), 'utf8'), before);   // 무손상
+  assert.equal(fs.existsSync(path.join(dir, X.BACKUP_NAME)), false);
+});
+
+// [F2 회전] 2차 되돌리기가 1차 보관본(proj_pre-rollback.json)을 덮지 않고 회전
+test('되돌리기: 기존 pre-rollback 있으면 회전(1차 보관본 보존)', () => {
+  const root = mkRoot(); const id = 'proj_rb_rot';
+  const dir = writeProj(root, id, legacyV2(id), { name: 'legacy' });
+  assert.equal(X.externalizeProjectFile(root, id).ok, true);
+  const converted = fs.readFileSync(path.join(dir, 'proj.json'), 'utf8');
+  // 1차 되돌리기 흉내: 기존 pre-rollback(과거 보관본)이 이미 있다고 두고 되돌리기
+  fs.writeFileSync(path.join(dir, 'proj_pre-rollback.json'), '{"prev-rollback":"WORK-A"}');
+  const rb = X.rollbackExternalize(root, id);
+  assert.equal(rb.ok, true);
+  // 새 보관본 = 되돌리기 직전 현재본(converted)
+  assert.equal(fs.readFileSync(path.join(dir, 'proj_pre-rollback.json'), 'utf8'), converted);
+  // 1차 WORK-A는 삭제되지 않고 타임스탬프로 회전 보존됨
+  const rots = fs.readdirSync(dir).filter(f => /^proj_pre-rollback\.\d+\.json$/.test(f));
+  assert.equal(rots.length, 1);
+  assert.equal(fs.readFileSync(path.join(dir, rots[0]), 'utf8'), '{"prev-rollback":"WORK-A"}');
 });
