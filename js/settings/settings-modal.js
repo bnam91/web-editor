@@ -328,6 +328,7 @@
       let warn = '변환 전 원본으로 되돌립니다.';
       if (diag && diag.ok) {
         if (diag.ageDays != null) warn += `\n이 변환은 약 ${diag.ageDays}일 전입니다 — 그 이후의 편집이 사라집니다.`;
+        else warn += `\n⚠️ 변환 시점을 알 수 없습니다 — 변환 이후의 모든 편집이 사라질 수 있습니다.`;
         if (diag.currentSections != null && diag.restoreSections != null && diag.currentSections !== diag.restoreSections)
           warn += `\n섹션 ${diag.currentSections}개 → ${diag.restoreSections}개로 바뀝니다.`;
       }
@@ -335,10 +336,10 @@
       if (!confirm(warn)) return;
       window.__optimizeImagesInFlight = true; rbBtn.disabled = true; btn.disabled = true;
       setStatus('되돌리는 중…', 'pending');
-      // F4: 큐잉된 autosave가 복원된 파일을 다시 덮지 못하게 봉인(리로드 예정이라 flush 불요).
-      //     성공 시 봉인은 유지한 채 새로고침이 리셋하고, 실패 시에만 다시 푼다(파일 무변경이므로 안전).
-      const _unseal = () => { try { if (window.state) window.state._suppressAutoSave = false; } catch (_) {} };
-      try { window.cancelPendingAutoSaveForReload?.(); } catch (_) {}
+      // F4: 되돌리기 전 autosave 3경로(타이머·대기열·in-flight)를 모두 봉인·드레인해 복원본 재덮기를 막는다.
+      //     성공 시 봉인 유지→새로고침이 리셋, 실패 시 봉인 해제+편집 복구(dirty 재표시·autosave 재무장).
+      const _unseal = () => { try { window.resumeAutoSaveAfterAbortedReload?.(); } catch (_) {} };
+      try { await window.cancelPendingAutoSaveForReload?.(); } catch (_) {}
       try {
         const r = await window.electronAPI.externalizeRollback({ projectId: window.activeProjectId });
         if (r && r.ok) { setStatus('✓ 원본으로 되돌렸습니다 — 적용을 위해 새로고침합니다…', 'ok'); setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 1200); return; }

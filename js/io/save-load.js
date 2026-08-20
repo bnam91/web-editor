@@ -1793,14 +1793,31 @@ window.flushSave = async function() {
 };
 // DEF-03: 탭 전환 등에서 "변경 없으면 저장 생략" 판정용
 window.hasUnsavedChanges = () => _dirtySinceSave || !!autoSaveTimer || _isSavingToFile;
-// [externalize] 되돌리기/리로드 직전 «autosave 봉인»(F4) — 큐잉된 autoSaveTimer는 발화 콜백이
-// _suppressAutoSave를 재검사하지 않아 그냥 터진다. 되돌리기가 파일을 복원한 뒤 이 큐가 터지면
-// 되돌린 파일을 다시 덮고(=되돌리기 무효), 그 사이 backup은 이미 소비돼 복구 지점이 사라진다.
-// 되돌리기는 «현재 작업을 의도적으로 버리는» 동작이므로 flush 없이 타이머만 취소하고 dirty를 내린다.
-window.cancelPendingAutoSaveForReload = () => {
+// [externalize] 되돌리기/리로드 직전 «autosave 봉인»(F4) — 세 경로를 모두 막아야 복원본이 안 덮인다:
+//   ⓐ 큐잉된 autoSaveTimer(발화 콜백이 _suppressAutoSave를 재검사 안 함) → clearTimeout.
+//   ⓑ 대기열 _pendingSaves(in-flight의 finally가 FIFO 드레인) → clear.
+//   ⓒ ★in-flight _isSavingToFile(진행 중 저장이 IPC await 중) → 완료까지 «드레인 대기».
+// 이 셋을 안 비우면: 되돌리기가 파일 복원+backup unlink 후 in-flight/큐 저장이 도착 → 복원 proj.json을
+//   변환본으로 재덮고(=되돌리기 조용히 무효), backup은 이미 소비돼 복구 지점이 영구 소멸한다.
+// 되돌리기는 «현재 작업을 의도적으로 버리는» 동작이라 flush 없이 봉인만 한다. async — 호출측이 await.
+window.cancelPendingAutoSaveForReload = async () => {
   try { state._suppressAutoSave = true; } catch (_) {}
   clearTimeout(autoSaveTimer); autoSaveTimer = null;
+  _pendingSaves.clear();     // ⓑ 큐잉된 저장 폐기(복원본 재덮기 차단)
   _dirtySinceSave = false;
+  // ⓒ in-flight 저장 드레인 대기(상한 5s — 무한대기 방지). 봉인 상태라 새 저장은 큐잉 안 됨.
+  const _deadline = Date.now() + 5000;
+  while (_isSavingToFile && Date.now() < _deadline) { await new Promise(r => setTimeout(r, 25)); }
+  _pendingSaves.clear();     // 드레인 도중 in-flight finally가 재적재했을 여지 → 한 번 더 비운다
+  return !_isSavingToFile;   // true=완전 정지(안전), false=드레인 타임아웃(호출측이 판단)
+};
+// [externalize] 되돌리기 «실패» 시 봉인 해제 + 편집 복구(F4 후속·신규회귀 방지) — 봉인이 타이머 취소로
+//   LS 기록도 없앴으므로, 실패로 DOM에만 남은 직전 편집을 다시 dirty로 표시하고 autosave를 재무장한다.
+//   안 하면 beforeunload 가드(!_dirtySinceSave && !autoSaveTimer)가 조기 return → Cmd+R 시 편집 소실.
+window.resumeAutoSaveAfterAbortedReload = () => {
+  try { state._suppressAutoSave = false; } catch (_) {}
+  _dirtySinceSave = true;
+  try { scheduleAutoSave(); } catch (_) {}
 };
 window.initApp = initApp;
 
