@@ -1,7 +1,9 @@
 # 설계: 기존 프로젝트 base64 «일괄 외부화» — 현행고디터
 
 브랜치 `feature/asset-batch-externalize` · worktree `/Users/a1/web-editor-taeyang` · base dev `1ec78f0`
-작성 태양 2026-08-20 · 검토 지디 · **구현 전 게이트(1차 보고) 대기** · 기본 ON 전환은 현빈 G2 별도 상신
+작성 태양 2026-08-20 · 검토 지디 · **1차 게이트 승인(지디, 2026-08-20)** · 기본 ON 전환은 리허설 §9 채운 뒤 지디 경유 현빈 G2
+
+> **지디 결정(2026-08-20)**: ①설계 승인 ②A(.gdt)·B(Figma) 포함 — 단 U5/U6는 «별도 커밋»(필요시 분리 가능) ③C = ⓑ 채택: 협업 등록 프로젝트는 자동변환 제외·토스트만. 근본해결(서버 에셋 제공자)은 신규 웹고디터 P2로 이관(이 브랜치 범위 아님). 머지 금지 유지.
 
 ## 0. 한 줄
 v0.8.0에 들어간 이미지 외부화(`goya-asset://`, content-hash)는 «신규 이미지만» 자동이고 기존 base64는 수동 버튼뿐이다. 이 설계는 **변환기를 main 프로세스(파일 수준)로 옮겨 «프로젝트 열 때» 백업 후 일괄 변환**할 수 있게 하되, **기본은 OFF**로 두고, 되돌리기 경로와 리허설을 갖춘다.
@@ -58,7 +60,9 @@ v0.8.0에 들어간 이미지 외부화(`goya-asset://`, content-hash)는 «신�
 | A | **.gdt 내보내기** `main/gdt/export.js` | 스캐너가 `data:image/…;base64,`만 외부화. `goya-asset://` URL은 그대로 통과 → 다른 맥에서 import 시 이미지 404 | 스캐너에 `goya-asset://<pid>/<file>` 토큰 추가 → `assets/`에서 읽어 `images/`로 동봉, import는 현행대로 base64 복원(구버전 호환) | 中 (export.js 스트리밍 스캐너 확장 + 왕복검증 기존 인프라 재사용) |
 | B | **Figma 내보내기** `js/io/export-figma-json.js` + `figma-renderer/sangpe_to_figma.mjs:832` | `imgSrc.startsWith('data:')`만 base64, 아니면 `'url'` 타입으로 플러그인에 전달 → goya-asset URL은 피그마가 못 받음 | export 직전 goya-asset → `assetsReadAsDataUri`로 재인라인(export-html의 `inlineGoyaAssets` 재사용) | 小 |
 | C | **협업** `js/collab/sync.js:120` | 섹션 `outerHTML`을 그대로 푸시 → 상대 디스크엔 그 에셋이 없음 → 깨진 이미지 | 근본 = 서버 에셋 업로드(= 웹고디터 P2 «에셋 제공자»와 같은 문제). 단기 선택지: ⓐ푸시 시 base64 재인라인(용량↑, 폴링 한계) ⓑ협업 중 프로젝트는 자동변환 제외 ⓒ보류 | **결정 필요** |
-- 태양 권고: **A·B는 이 브랜치에 포함**(없으면 G2 상신 자체가 정직하지 않다). **C는 지디·현빈 결정** — 기본값은 ⓑ(협업 등록된 프로젝트는 ① 자동변환 건너뛰고 토스트로만 안내).
+- 결정(지디): **A·B 포함(각각 별도 커밋 U5/U6)**. **C = ⓑ**: 협업 등록 프로젝트는 ① 자동변환 제외·토스트 안내. 근본해결은 웹고디터 P2.
+  - 구현 보완: 수동 버튼도 협업 프로젝트면 한 번 막고(`reason:'collab'`), 경고 확인 후 `force`로만 진행(상대 화면에 이미지가 안 보일 수 있음을 사용자가 읽게).
+| D | **PNG export 타이밍** `js/io/export-image.js` | 리허설 실측: 외부화 프로젝트를 연 «직후»(콜드 캐시) 첫 export가 78KB(이미지 누락) → 같은 섹션 재export 3.16MB. base64는 동기라 없던 구멍 | 캡처 전 clone의 `<img>` decode()·inline background-image 프리로드 대기(8s 상한, CDP·html2canvas 둘 다) — `e63f5c4` | 小 (수정 완료·캐시 비우고 즉시 export 2회 정상) |
 
 ## 5. 기능 단위 (Planner→Generator→Evaluator)
 | 유닛 | 내용 | 의존 |
@@ -69,7 +73,7 @@ v0.8.0에 들어간 이미지 외부화(`goya-asset://`, content-hash)는 «신�
 | U4 | 리허설 스크립트(격리 user-data-dir + 9360) + 결과표 | U2 |
 | U5 | .gdt goya-asset 동봉 (권고 포함) | — (병렬) |
 | U6 | Figma 재인라인 (권고 포함) | — (병렬) |
-| U7 | 협업 정책 | **결정 대기** |
+| U7 | 협업 정책 = ⓑ 확정: `projects:load` 자동변환 분기에서 협업 등록 프로젝트 제외 + 토스트(U2에 흡수) | U2 |
 
 ## 6. 리허설 계획 (반드시 통과 · 라이브 무접촉)
 - 격리: 레거시 대표 프로젝트 **사본**을 `/tmp/goya-batch-rehearsal/projects/`로 복사 → `electron . --user-data-dir=/tmp/goya-batch-rehearsal --remote-debugging-port=9360`(SMOKE 문서 커맨드). 9334/9335·원본 폴더 미접촉. 정리는 user-data-dir 기준(notes 함정 참조).
@@ -100,5 +104,21 @@ v0.8.0에 들어간 이미지 외부화(`goya-asset://`, content-hash)는 «신�
 - 기능 전체: feature 브랜치 미머지. 설정 기본 OFF라 머지돼도 사용자 무영향.
 - 프로젝트 단위: §3-2 ③ 되돌리기(UI) 또는 수동 `mv proj_pre-externalize.json proj.json`.
 
-## 9. 리허설 결과 (U4 후 기입)
-_(대기)_
+## 9. 리허설 결과
+### 9-1. 1차 (2026-08-20, 격리 9360 · 라이브 사본 6개 · U1~U3 커밋 시점) — 35/37 → 정정 후 전항목 PASS
+| # | 항목 | 결과 |
+|---|---|---|
+| 1 | 디스크 base64 0 · 섹션/페이지 수 동일 · 참조 에셋 존재 | PASS — 108MB→0.22MB(섹션 33) · 94.5MB→0.50MB(102) · 50.4MB→0.25MB(46) · 12.1MB→0.49MB(51) |
+| 2 | 렌더러에서 goya-asset 전부 로드 | PASS — 16/16 · 11/11 · 11/11 · 15/15 |
+| 3 | 변환 전/후 PNG export 동일 | PASS — 섹션1 바이트 동일(46,130B md5 일치) · 섹션2 레거시=재변환 3,162,041B 동일. ★첫 export(콜드)만 78KB → D 발견·수정(`e63f5c4`) 후 캐시 비우고 즉시 export 2회 정상 |
+| 4 | 변환 후 편집→autosave→base64 재유입 0 | PASS (4프로젝트) |
+| 5 | 수동 변환→reload 시 beforeunload 동기저장 무해 | PASS |
+| 6 | 탭 전환(변환본↔변환본, 캐시 복원) 후 저장 → 유지·올바른 탭에 저장 | PASS |
+| 7 | 되돌리기 → 변환 전 상태·백업 소비·마커 제거 → 재변환 멱등(에셋 16/16 재사용) | PASS (수동 경로는 flush→변환이라 백업=변환 직전 상태, 원본과 updatedAt만 다름 — 의도) |
+| 8 | 복제 → 하드링크 공유·URL 재매핑 | PASS (inode 동일, 구 id 참조 0) |
+| 9 | .gdt export→import 이미지 수 일치 | U5 후 기입 |
+| 10 | 시간·블로킹 | 108MB 수동 1.6s · 94.5MB 열 때 1.3s · 50MB 0.76s · 12MB 0.26s(main 동기, 로딩 오버레이 중) · RSS 피크 +~600MB 일시 → worker 불필요 |
+| + | 정책 OFF 힌트 1회 · 협업 제외+힌트 · 소형 noop · 신규 이미지 자동 외부화 회귀(공유 저장함수) | PASS |
+| + | 설정>성능 UI 디자인 일관성(이스터에그 토글과 동일 클래스·신규 CSS 0) | PASS (스크린샷 u3-perf-*.png) |
+발견·수정: ⓐ scan이 assetsTree 썸네일(8KB)까지 세어 변환완료본이 «인라인 12개»로 보임 → 캔버스만 집계 ⓑ D(export 타이밍) ⓒ 협업 수동 경로 force 게이트.
+### 9-2. 최종 (U5·U6 후 새 사본으로 전체 재실행) — _(대기)_

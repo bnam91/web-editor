@@ -97,7 +97,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   assetsSaveCanvasImage: ({ projectId, b64, mime })          => ipcRenderer.invoke('assets:saveCanvasImage', { projectId, b64, mime }),
   assetsReadAsDataUri:   ({ projectId, filename })           => ipcRenderer.invoke('assets:readAsDataUri', { projectId, filename }),
   // [externalize] 일괄 외부화 — 수동 변환 / 되돌리기 / 상태조회 + 열 때 알림(이벤트)
-  externalizeProject:     ({ projectId }) => ipcRenderer.invoke('projects:externalize', { projectId }),
+  externalizeProject:     ({ projectId, force }) => ipcRenderer.invoke('projects:externalize', { projectId, force: force === true }),
   externalizeRollback:    ({ projectId }) => ipcRenderer.invoke('projects:externalize-rollback', { projectId }),
   externalizeScan:        ({ projectId }) => ipcRenderer.invoke('projects:externalize-scan', { projectId }),
   onProjectExternalized:  (cb) => ipcRenderer.on('projects:externalized', (_e, p) => cb(p)),

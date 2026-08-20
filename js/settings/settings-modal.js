@@ -342,7 +342,12 @@
       btn.disabled = true;
       setStatus('최적화 중… (이미지 변환·저장·검증, 큰 프로젝트는 수초~수십초 걸릴 수 있습니다)', 'pending');
       try {
-        const r = await window.optimizeProjectImages();
+        let r = await window.optimizeProjectImages();
+        // 협업 등록 프로젝트 — 상대에게는 분리된 이미지가 안 보일 수 있다. 경고 확인 후에만 강행.
+        if (r && r.ok === false && r.reason === 'collab') {
+          if (!confirm('이 프로젝트는 협업 중입니다.\n이미지를 외부 파일로 분리하면 함께 작업하는 상대 화면에는 그 이미지가 보이지 않을 수 있습니다.\n그래도 진행할까요?')) { setStatus('취소됨 (협업 중인 프로젝트)', ''); return; }
+          r = await window.optimizeProjectImages({ force: true });
+        }
         const mb = (n) => (Number(n || 0) / 1024 / 1024).toFixed(1);
         if (r && r.ok && r.noop) {
           setStatus('✓ 이미 최적화된 프로젝트입니다 (인라인 이미지 0개)', 'ok');

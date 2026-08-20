@@ -1157,10 +1157,18 @@ ipcMain.handle('projects:load', (event, id, opts) => {
 });
 
 /* ── [externalize] 수동 변환 · 되돌리기 · 상태 조회 (설정>성능) ── */
-ipcMain.handle('projects:externalize', (_e, { projectId } = {}) => {
+ipcMain.handle('projects:externalize', (_e, { projectId, force } = {}) => {
   const X = _getExternalizer();
   if (!X) return { ok: false, reason: 'module_missing' };
   if (!projectId) return { ok: false, reason: 'projectId 필수' };
+  // 협업 등록 프로젝트: 자동뿐 아니라 수동도 한 번 막는다(상대 디스크엔 에셋이 없어 깨진 이미지가 간다).
+  // 사용자가 경고를 보고 force로 다시 부르면 진행(지디 결정 ⓑ의 수동 경로 보완).
+  if (!force) {
+    try {
+      const m = _resolveMetaJsonPath(_safeSeg(projectId));
+      if (m && (JSON.parse(fs.readFileSync(m, 'utf8')) || {}).collabRef) return { ok: false, reason: 'collab' };
+    } catch (_) {}
+  }
   const r = X.externalizeProjectFile(PROJECTS_DIR, _safeSeg(projectId), { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
   console.log(`[externalize] manual ${projectId}:`, JSON.stringify(r));
   return r;

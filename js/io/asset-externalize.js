@@ -185,7 +185,7 @@ function _countSections(data) {
  * 원본은 main이 `proj_pre-externalize.json`으로 rename 보존한다(되돌리기: externalizeRollback).
  * @returns {Promise<{ok:boolean, before?:number, after?:number, base64Before?:number, base64After?:number, sections?:number, error?:string}>}
  */
-async function optimizeProjectImages() {
+async function optimizeProjectImages(opts = {}) {
   try {
     if (!window.serializeProject || !window.saveProjectToFile) {
       return { ok: false, error: 'serialize/save 미가용' };
@@ -202,7 +202,8 @@ async function optimizeProjectImages() {
     if (r0 && r0.ok === false) return { ok: false, error: 'flush 저장 실패: ' + (r0.reason || '') };
 
     // ② main 파일수준 변환
-    const r = await window.electronAPI.externalizeProject({ projectId });
+    const r = await window.electronAPI.externalizeProject({ projectId, force: opts.force === true });
+    if (r && r.ok === false && r.reason === 'collab') return { ok: false, reason: 'collab', error: '협업 중인 프로젝트' };
     if (!r || r.ok === false) return { ok: false, error: (r && (r.reason || r.error)) || '변환 실패' };
     if (r.noop) return { ok: true, before: r.before, after: r.after, base64Before: 0, base64After: 0, sections: r.sections, noop: true };
     // skipped = 저장에 실패해 원본 base64로 남긴 장수(데이터 손실 없음)
