@@ -1,5 +1,6 @@
 import { canvasEl, canvasWrap, state, PAGE_LABELS } from '../globals.js';
 import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
+import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
 import { initLazySections, refreshLazyObservation } from './lazy-sections.js';
 import { NOTE_BG_FOLDER_ID, NOTE_BG_FOLDER_NAME, NOTE_BG_PATTERNS } from '../data/note-bg-patterns.js';
 // 탭 함수는 tab-system.js에서 window.* 노출 (saveTabState, renderTabBar, switchTab 등)
@@ -1493,7 +1494,7 @@ function initApp() {
         } catch (_) {}
         // proj + meta 병렬 로드 — meta 실패해도 proj는 사용해야 하므로 독립 처리
         let proj = null;
-        try { proj = await window.electronAPI.loadProject(activeProjectId); } catch(e) {
+        try { proj = await window.electronAPI.loadProject(activeProjectId, { open: true }); } catch(e) { // {open:true}: 열 때 외부화 정책 대상
           console.error('[initLoad] loadProject 실패:', e);
         }
         const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);
@@ -1502,7 +1503,10 @@ function initApp() {
         if (proj) {
           // GAP-004: proj.json 손상으로 백업/히스토리에서 복구된 경우 사용자에게 정직하게 통지.
           if (proj._recovered) {
-            window.showToast?.(`⚠️ 프로젝트 파일이 손상되어 ${proj._recovered === 'history' ? '히스토리' : '백업'}에서 복구했습니다.`);
+            const _recLbl = proj._recovered === 'history' ? '히스토리'
+                          : proj._recovered === 'pre-externalize' ? '변환 전 원본(오래된 상태일 수 있음)'
+                          : '백업';
+            window.showToast?.(`⚠️ 프로젝트 파일이 손상되어 ${_recLbl}에서 복구했습니다.`);
             delete proj._recovered; // 마커는 메모리/저장에 남기지 않음
           }
           // 마이그레이션: proj.json에 branches/commits가 남아있으면 meta로 이전
@@ -1790,6 +1794,37 @@ window.flushSave = async function() {
 };
 // DEF-03: 탭 전환 등에서 "변경 없으면 저장 생략" 판정용
 window.hasUnsavedChanges = () => _dirtySinceSave || !!autoSaveTimer || _isSavingToFile;
+// [externalize] 되돌리기/리로드 직전 «autosave 봉인»(F4) — 세 경로를 모두 막아야 복원본이 안 덮인다:
+//   ⓐ 큐잉된 autoSaveTimer(발화 콜백이 _suppressAutoSave를 재검사 안 함) → clearTimeout.
+//   ⓑ 대기열 _pendingSaves(in-flight의 finally가 FIFO 드레인) → clear.
+//   ⓒ ★in-flight _isSavingToFile(진행 중 저장이 IPC await 중) → 완료까지 «드레인 대기».
+// 이 셋을 안 비우면: 되돌리기가 파일 복원+backup unlink 후 in-flight/큐 저장이 도착 → 복원 proj.json을
+//   변환본으로 재덮고(=되돌리기 조용히 무효), backup은 이미 소비돼 복구 지점이 영구 소멸한다.
+// 되돌리기는 «현재 작업을 의도적으로 버리는» 동작이라 flush 없이 봉인만 한다. async — 호출측이 await.
+// 봉인 직전 dirty 값 — 되돌리기 실패/reload 차단 시 «봉인 전 상태»로 정확히 복원(무편집이었으면 재저장 안 함).
+let _dirtyBeforeSeal = false;
+window.cancelPendingAutoSaveForReload = async (targetId) => {
+  try { state._suppressAutoSave = true; } catch (_) {}
+  clearTimeout(autoSaveTimer); autoSaveTimer = null;
+  _dirtyBeforeSeal = _dirtySinceSave;                     // 봉인 직전 값 캡처(③ 부작용 방지)
+  clearPendingForReload(_pendingSaves, targetId);         // ⓑ ★되돌리기 대상만 폐기(타 프로젝트 저장 보존, 구멍2)
+  _dirtySinceSave = false;
+  // ⓒ in-flight 저장 드레인 대기(상한 5s — 무한대기 방지). 봉인 상태라 새 저장은 큐잉 안 됨.
+  const _deadline = Date.now() + 5000;
+  while (_isSavingToFile && Date.now() < _deadline) { await new Promise(r => setTimeout(r, 25)); }
+  clearPendingForReload(_pendingSaves, targetId);         // 드레인 도중 재적재분 → 대상만 한 번 더
+  return isDrainSettled(_isSavingToFile);                 // ★false=드레인 타임아웃 → 호출측이 되돌리기 중단(구멍1)
+};
+// [externalize] 되돌리기 «실패»·«성공인데 reload 차단» 시 봉인 해제 + 편집 복구(F4 후속·신규회귀 방지) —
+//   봉인이 타이머 취소로 LS 기록도 없앴으므로, DOM에만 남은 직전 편집을 다시 dirty로 표시하고 autosave를
+//   재무장한다. 안 하면 beforeunload 가드(!_dirtySinceSave && !autoSaveTimer)가 조기 return → Cmd+R 시 소실.
+//   ★dirty는 «봉인 직전 값»으로만 복원한다(무조건 true면 무편집 방문도 updatedAt 오염+협업 발화 — ③ 부작용).
+window.resumeAutoSaveAfterAbortedReload = () => {
+  try { state._suppressAutoSave = false; } catch (_) {}
+  _dirtySinceSave = _dirtyBeforeSeal;
+  if (_dirtyBeforeSeal) { try { scheduleAutoSave(); } catch (_) {} }  // 편집이 있었을 때만 재무장
+  _dirtyBeforeSeal = false;
+};
 window.initApp = initApp;
 
 // branch-system.js, commit-system.js 등 다른 모듈에서 참조하는 변수들 노출

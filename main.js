@@ -84,6 +84,9 @@ const DEFAULT_SETTINGS = {
   // pre-release(beta) 채널: 테스터 앱만 true → GitHub pre-release 자동수신·검증.
   // 일반 사용자는 false(기본) → latest 정식 릴리스만 받음.
   betaChannel: false,
+  // [externalize] 프로젝트를 «열 때» 레거시 base64 이미지를 goya-asset 에셋으로 일괄 외부화(기본 OFF).
+  // 기본값 ON 전환은 리허설 통과 후 현빈 G2 게이트(DESIGN-asset-batch-externalize.md §3-3).
+  autoExternalizeOnOpen: false,
   apiKeys: { openai: '', gemini: '', anthropic: '' },
   shortcuts: {
     addGap:       'KeyG',
@@ -711,6 +714,11 @@ function _getMigrator() {
   try { return require('./main/project-store/migrator'); }
   catch (_) { return null; }
 }
+// [externalize] 파일수준 일괄 외부화 모듈(DESIGN-asset-batch-externalize.md). 없어도 앱은 뜬다(best-effort).
+function _getExternalizer() {
+  try { return require('./main/project-store/externalizer'); }
+  catch (_) { return null; }
+}
 
 // Atomic write: temp 파일 → rename으로 partial-write 위험 제거.
 // 동일 파일시스템 가정(userData 안이라 OK).
@@ -927,22 +935,29 @@ ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => 
   if (!projectId) return { ok: false, error: 'projectId 필수' };
   if (!b64) return { ok: false, error: 'b64 필수' };
   try {
-    const crypto = require('crypto');
     const buf = Buffer.from(b64, 'base64');
-    const hash = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
-    const ext = _extFromMime(mime);
-    const dir = _getProjectAssetsDir(projectId);
-    fs.mkdirSync(dir, { recursive: true });
-    const filename = `${hash}.${ext}`;
-    const full = path.join(dir, filename);
-    // dedup: 이미 있으면 재기록 생략
-    if (!fs.existsSync(full)) fs.writeFileSync(full, buf);
+    // [externalize] 저장 규약(sha256 16hex + mime 확장자·dedup)은 externalizer.saveImageBytes 한 곳이 정본 —
+    // 렌더러 신규 외부화와 main 일괄 외부화가 «같은 바이트 = 같은 파일명»이어야 dedup이 성립한다.
+    const X = _getExternalizer();
+    let filename, url;
+    if (X) {
+      ({ filename, url } = X.saveImageBytes(PROJECTS_DIR, _safeSeg(projectId), buf, mime));
+    } else {
+      const crypto = require('crypto');
+      const hash = crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
+      const dir = _getProjectAssetsDir(projectId);
+      fs.mkdirSync(dir, { recursive: true });
+      filename = `${hash}.${_extFromMime(mime)}`;
+      const full = path.join(dir, filename);
+      if (!fs.existsSync(full)) fs.writeFileSync(full, buf); // dedup: 이미 있으면 재기록 생략
+      url = `goya-asset://${projectId}/${filename}`;
+    }
     return {
       ok: true,
-      hash,
+      hash: filename.split('.')[0],
       filename,
       blobPath: `assets/${filename}`,
-      url: `goya-asset://${projectId}/${filename}`,
+      url,
       bytes: buf.length,
     };
   } catch (e) {
@@ -1070,7 +1085,44 @@ ipcMain.handle('projects:list', () => {
   return items;
 });
 
-ipcMain.handle('projects:load', (event, id) => {
+/* ── [externalize] 열 때 정책 (DESIGN-asset-batch-externalize.md §3-2 ①·§3-3·§4-C) ──
+   렌더러가 «프로젝트를 연다»고 알린 로드(opts.open)에서만 동작. 저장 경로의 loadProject(기존본 병합)에선 안 돈다.
+   - 협업 등록(meta.collabRef) 프로젝트: 자동변환 제외, 안내만(상대 디스크엔 에셋이 없다 — 지디 결정 ⓑ).
+   - settings.autoExternalizeOnOpen=true: 변환 → 렌더러는 처음부터 goya-asset 본을 받는다(새로고침·경합 없음).
+   - OFF(기본): 대형 레거시(≥20MB)면 힌트 이벤트만. 렌더러가 프로젝트당 1회 토스트.
+   알림은 반환 객체에 필드를 섞지 않고 이벤트로 보낸다 — loadProject→saveProject로 그대로 되쓰는 호출부가
+   여럿이라(이름변경 등) 마커가 proj.json에 새는 것을 막는다. */
+const EXTERNALIZE_HINT_MIN_BYTES = 20 * 1024 * 1024;
+function _externalizeOnOpen(event, id) {
+  const X = _getExternalizer();
+  if (!X) return;
+  const safeId = _safeSeg(id);
+  const scan = X.scanProjectFile(PROJECTS_DIR, safeId);
+  if (!scan.exists || scan.base64Refs === 0) return;
+  const send = (ch, payload) => { try { event.sender.send(ch, payload); } catch (_) {} };
+  // [F5] 협업 제외 게이트는 fail-closed — meta가 «존재하는데 못 읽으면»(잘림·경합) 협업 여부 불명이므로
+  //   변환을 보류한다(협업 프로젝트를 잘못 변환하면 상대 화면에서 이미지가 깨진다). meta 부재(정상 비협업)는 진행.
+  let collabRef = null, metaUnreadable = false;
+  try {
+    const m = _resolveMetaJsonPath(safeId);
+    if (m) {
+      try { collabRef = (JSON.parse(fs.readFileSync(m, 'utf8')) || {}).collabRef || null; }
+      catch (_) { try { if (fs.existsSync(m)) metaUnreadable = true; } catch (_2) {} }
+    }
+  } catch (_) {}
+  if (collabRef || metaUnreadable) { send('projects:externalize-hint', { projectId: safeId, reason: collabRef ? 'collab' : 'meta_unreadable', bytes: scan.bytes, base64Refs: scan.base64Refs }); return; }
+  if (readSettings().autoExternalizeOnOpen === true) {
+    const r = X.externalizeProjectFile(PROJECTS_DIR, safeId, { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
+    console.log(`[externalize] on-open ${safeId}:`, JSON.stringify(r));
+    if (r && r.ok && !r.noop) send('projects:externalized', { projectId: safeId, ...r });
+    else if (r && !r.ok) send('projects:externalize-hint', { projectId: safeId, reason: 'failed', error: r.reason, bytes: scan.bytes, base64Refs: scan.base64Refs });
+    return;
+  }
+  if (scan.bytes >= EXTERNALIZE_HINT_MIN_BYTES) send('projects:externalize-hint', { projectId: safeId, reason: 'legacy', bytes: scan.bytes, base64Refs: scan.base64Refs });
+}
+
+ipcMain.handle('projects:load', (event, id, opts) => {
+  if (opts && opts.open === true) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
   const filePath = _resolveProjectJsonPath(id);
   // 1) 정상 경로: proj.json
   if (filePath) {
@@ -1092,6 +1144,14 @@ ipcMain.handle('projects:load', (event, id) => {
       }
     } catch (_) {}
   }
+  // [externalize] 최후 보루: 일괄 외부화 직전 원본(rename 보존본). ★반드시 체인 «맨 끝»(DESIGN §3-1) —
+  //   pre-externalize는 변환 시점에 고정돼 갱신되지 않으므로(늙는다), backup·history보다 앞에 두면
+  //   한 달 늙은 원본이 최신 백업/히스토리를 이겨 덮어쓰는 데이터손실(F1)이 난다. 롤링·히스토리가 다
+  //   죽었을 때만 쓰는 절대 최후 보루로만 남긴다.
+  try {
+    const preExt = path.join(PROJECTS_DIR, _safeSeg(id), 'proj_pre-externalize.json');
+    if (fs.existsSync(preExt)) candidates.push({ path: preExt, from: 'pre-externalize' });
+  } catch (_) {}
   for (const c of candidates) {
     let proj;
     try { proj = JSON.parse(fs.readFileSync(c.path, 'utf8')); }
@@ -1105,6 +1165,41 @@ ipcMain.handle('projects:load', (event, id) => {
   }
   // 3) proj.json·백업·히스토리 모두 부재/손상 → 복구 불가
   return null;
+});
+
+/* ── [externalize] 수동 변환 · 되돌리기 · 상태 조회 (설정>성능) ── */
+ipcMain.handle('projects:externalize', (_e, { projectId, force } = {}) => {
+  const X = _getExternalizer();
+  if (!X) return { ok: false, reason: 'module_missing' };
+  if (!projectId) return { ok: false, reason: 'projectId 필수' };
+  // 협업 등록 프로젝트: 자동뿐 아니라 수동도 한 번 막는다(상대 디스크엔 에셋이 없어 깨진 이미지가 간다).
+  // 사용자가 경고를 보고 force로 다시 부르면 진행(지디 결정 ⓑ의 수동 경로 보완).
+  if (!force) {
+    try {
+      const m = _resolveMetaJsonPath(_safeSeg(projectId));
+      if (m) {
+        try { if ((JSON.parse(fs.readFileSync(m, 'utf8')) || {}).collabRef) return { ok: false, reason: 'collab' }; }
+        // [F5] meta 존재하나 못 읽음 → 협업 여부 불명. 보수적으로 협업으로 간주해 막는다(force로 override 가능).
+        catch (_) { try { if (fs.existsSync(m)) return { ok: false, reason: 'collab' }; } catch (_2) {} }
+      }
+    } catch (_) {}
+  }
+  const r = X.externalizeProjectFile(PROJECTS_DIR, _safeSeg(projectId), { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
+  console.log(`[externalize] manual ${projectId}:`, JSON.stringify(r));
+  return r;
+});
+ipcMain.handle('projects:externalize-rollback', (_e, { projectId, dryRun } = {}) => {
+  const X = _getExternalizer();
+  if (!X) return { ok: false, reason: 'module_missing' };
+  if (!projectId) return { ok: false, reason: 'projectId 필수' };
+  const r = X.rollbackExternalize(PROJECTS_DIR, _safeSeg(projectId), { dryRun: dryRun === true, afterWrite: (pid, data) => _refreshListMeta(pid, data) });
+  if (!dryRun) console.log(`[externalize] rollback ${projectId}:`, JSON.stringify(r));
+  return r;
+});
+ipcMain.handle('projects:externalize-scan', (_e, { projectId } = {}) => {
+  const X = _getExternalizer();
+  if (!X || !projectId) return null;
+  try { return X.scanProjectFile(PROJECTS_DIR, _safeSeg(projectId)); } catch (_) { return null; }
 });
 
 // 섹션 수 합산 헬퍼 — 모든 페이지의 canvas HTML에서 section-block 카운트

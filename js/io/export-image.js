@@ -175,6 +175,42 @@ function flattenCvbTransform(cvbEl) {
   cvbEl.style.height    = inner.style.height;
 }
 
+/* ── export 직전 «이미지 준비» 대기 ──
+ * goya-asset:// 외부화 이후 이미지는 디스크에서 비동기로 온다. 프로젝트를 연 «직후»(콜드 캐시)에 export하면
+ * 아직 디코드 안 된 <img>·background-image가 빈 채로 캡처된다(리허설 실측: 같은 섹션이 첫 export 78KB →
+ * 재export 3.16MB). 기존 base64는 동기라 이 구멍이 없었고, 일괄 외부화가 이를 보편화한다.
+ * clone 안의 <img>는 decode()/onload, 인라인 style background-image url()은 Image() 프리로드로 기다린다.
+ * 타임아웃(기본 8s) 안에 못 오면 그냥 진행한다 — export를 영원히 막지 않는다(실패한 이미지는 어차피 빈 칸). */
+async function _waitImagesReady(root, timeoutMs = 8000) {
+  const waits = [];
+  const imgs = root.querySelectorAll('img');
+  imgs.forEach(im => {
+    if (!im.getAttribute('src')) return;
+    if (im.complete && im.naturalWidth > 0) return;
+    waits.push(new Promise(res => {
+      const done = () => res();
+      if (typeof im.decode === 'function') im.decode().then(done, done);
+      else { im.addEventListener('load', done, { once: true }); im.addEventListener('error', done, { once: true }); }
+    }));
+  });
+  const urlRe = /url\(["']?([^"')]+)["']?\)/g;
+  const seen = new Set();
+  const els = [root, ...root.querySelectorAll('[style*="background"]')];
+  els.forEach(el => {
+    const bg = el.style && el.style.backgroundImage;
+    if (!bg || bg === 'none') return;
+    let m; urlRe.lastIndex = 0;
+    while ((m = urlRe.exec(bg)) !== null) {
+      const u = m[1];
+      if (!u || u.startsWith('data:') || seen.has(u)) continue; // data:는 동기, 중복은 1회
+      seen.add(u);
+      waits.push(new Promise(res => { const pi = new Image(); pi.onload = pi.onerror = () => res(); pi.src = u; }));
+    }
+  });
+  if (!waits.length) return;
+  await Promise.race([Promise.all(waits), new Promise(res => setTimeout(res, timeoutMs))]);
+}
+
 async function exportSection(sec, format, width, opts) {
   // 이미지 외부화(goya-asset://) 이후: lazy 언로드된 섹션이 빈(blank) 상태로 캡처되지
   // 않도록 export 렌더 전에 모든 섹션 이미지를 라이브 DOM에 복원한다.
@@ -462,6 +498,7 @@ async function exportSection(sec, format, width, opts) {
         clone.style.backgroundColor = bgColor;
       }
       await document.fonts.ready;
+      await _waitImagesReady(clone); // goya-asset 이미지 디코드 대기(콜드 캐시 빈 캡처 방지)
       clone.getBoundingClientRect();
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       const secH = clone.offsetHeight;
@@ -498,6 +535,7 @@ async function exportSection(sec, format, width, opts) {
       return outCanvas;
     }
     // html2canvas 폴백
+    await _waitImagesReady(clone);
     return await html2canvas(clone, {
       scale: 1,
       useCORS: true,
