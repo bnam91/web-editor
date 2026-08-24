@@ -1115,16 +1115,28 @@ function mergeSelectedGaps() {
   let merged = false;
   let firstKept = null; // 병합 후 선택 유지할 대표 갭
 
+  // #8 보정(현빈 실데이터) — 두 갭 «사이»에 «보이지 않는» 팬텀 블록(0높이 or display:none)이 끼면
+  // 이전엔 DOM 인덱스차>1로 «비인접» 판정해 ⌘M 병합을 거부했다(예: 높이0·빈 frame-block).
+  // 팬텀은 «사이»로 세지 말고 건너뛰어 인접으로 본다. 갭은 팬텀에서 제외(미선택 갭은 그대로 경계).
+  const _isPhantom = (el) => !el.classList.contains('gap-block') && el.offsetHeight === 0;
+  // 흡수 제거 대상 = 팬텀 중 «빈»것(텍스트·미디어·입력 없음). display:none이라도 내용 있으면 보존(데이터 손실 방지).
+  const _isEmptyPhantom = (el) => _isPhantom(el)
+    && !el.textContent.trim()
+    && !el.querySelector('img,svg,canvas,video,input,textarea,select');
+
   for (const [parent, groupGaps] of byParent) {
     if (groupGaps.length < 2) continue;
     const kids = [...parent.children];
     // DOM 순서 정렬
     groupGaps.sort((a, b) => kids.indexOf(a) - kids.indexOf(b));
-    // 연속(인접 element sibling) 런으로 분해: 인덱스 차 1이면 같은 런
+    // 연속(인접) 런으로 분해 — 두 갭 사이 형제가 «전부 팬텀»이면 같은 런(팬텀 건너뛰기)
     const runs = [];
     let run = [groupGaps[0]];
     for (let i = 1; i < groupGaps.length; i++) {
-      if (kids.indexOf(groupGaps[i]) === kids.indexOf(groupGaps[i - 1]) + 1) {
+      const prevIdx = kids.indexOf(groupGaps[i - 1]);
+      const curIdx  = kids.indexOf(groupGaps[i]);
+      const between = kids.slice(prevIdx + 1, curIdx); // 두 갭 사이 형제들(빈 배열=직접 인접)
+      if (between.every(_isPhantom)) {
         run.push(groupGaps[i]);
       } else {
         runs.push(run);
@@ -1135,14 +1147,21 @@ function mergeSelectedGaps() {
 
     for (const r of runs) {
       if (r.length < 2) continue; // 길이 1은 병합 대상 아님(그대로 둠)
-      // 각 갭의 실제 렌더 높이 합산(offsetHeight = CSS/inline 반영된 실측)
+      const head = r[0], last = r[r.length - 1];
+      const hi = kids.indexOf(head), li = kids.indexOf(last);
+      const span = kids.slice(hi, li + 1); // head..last 포함(사이 팬텀도 포함)
+      // 각 갭의 실제 렌더 높이 합산(offsetHeight = CSS/inline 반영된 실측). 팬텀은 0높이라 무영향.
       const total = r.reduce((sum, g) => sum + (g.offsetHeight || parseInt(g.style.height, 10) || 0), 0);
-      const head = r[0];
       head.style.height = total + 'px';
-      // 나머지 갭 제거(선택 해제 후 DOM 제거). 갭은 section-inner/row 직속이라 갭만 제거하면 됨
-      for (let i = 1; i < r.length; i++) {
-        r[i].classList.remove('selected');
-        r[i].remove();
+      // head 이후 span: 나머지 런 갭 제거 + 빈 0높이 팬텀 흡수 제거(지디 권장). 내용 있는 팬텀은 보존.
+      for (const el of span) {
+        if (el === head) continue;
+        if (el.classList.contains('gap-block')) {
+          el.classList.remove('selected');
+          el.remove();
+        } else if (_isEmptyPhantom(el)) {
+          el.remove();
+        }
       }
       merged = true;
       if (!firstKept) firstKept = head; // 첫 병합 런의 대표 갭
