@@ -217,6 +217,8 @@ async function insertTemplate(tpl) {
   sec.dataset.section = newIdx;
   // 섹션 이름을 템플릿 이름으로 설정
   sec.dataset.name = tpl.name;
+  // 템플릿 태그를 섹션에 스탬프 (data-tags로 직렬화 → 저장/로드 왕복 보존, 칩 렌더 소스)
+  if (Array.isArray(tpl.tags) && tpl.tags.length) sec.dataset.tags = tpl.tags.join(',');
   const labelEl = sec.querySelector('.section-label');
   if (labelEl) {
     labelEl.textContent = tpl.name;
@@ -263,6 +265,7 @@ async function insertTemplate(tpl) {
   bindSectionDelete(sec);
   bindSectionOrder(sec);
   if (window.bindSectionHitzone) window.bindSectionHitzone(sec);
+  renderSectionTags(sec);   // 태그 칩 렌더 (bindSectionHitzone 래퍼가 로드 시 재생성하나, 삽입 즉시 표시 보장)
   bindSectionDrag(sec);
   bindSectionDropZone(sec);
   sec.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .duo-block, .infocard-block, .innercard-block, .icon-text-block').forEach(b => bindBlock(b));
@@ -283,6 +286,53 @@ async function insertTemplate(tpl) {
 
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/**
+ * 섹션 태그 칩 렌더 — sec.dataset.tags(쉼표 구분)를 읽어 .section-hitzone 안(섹션 라벨 옆)에
+ * .section-tags 칩 그룹을 그린다. 멱등(기존 칩 제거 후 재생성)이라 로드 시 재호출해도 안전.
+ * 태그가 없으면 칩을 그리지 않는다. data-tags가 소스이며 칩 DOM은 파생 뷰.
+ */
+function renderSectionTags(sec) {
+  if (!sec || !sec.classList?.contains('section-block')) return;
+  const hz = sec.querySelector('.section-hitzone');
+  if (!hz) return;                                       // hitzone 없으면 렌더 위치 없음
+  // 기존 칩 그룹 제거 (멱등 — 직렬화되어 되살아난 칩/이전 렌더 정리)
+  hz.querySelectorAll(':scope > .section-tags').forEach(el => el.remove());
+  const tags = (sec.dataset.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+  if (!tags.length) return;
+  const group = document.createElement('span');
+  group.className = 'section-tags';
+  group.innerHTML = tags.map(t => `<span class="section-tag-chip">${escHtml(t)}</span>`).join('');
+  const label = hz.querySelector(':scope > .section-label');
+  if (label && label.nextSibling) hz.insertBefore(group, label.nextSibling);
+  else                            hz.appendChild(group);
+}
+
+/**
+ * bindSectionHitzone(editor.js) 래핑 — 섹션 hitzone 바인딩 직후 태그 칩을 재생성한다.
+ * rebindAll(save-load.js)이 로드/undo·redo/협업 수신 때마다 bindSectionHitzone을 호출하므로
+ * 이 래퍼 하나로 «로드 왕복 후 칩 복원»이 자동 처리된다. editor.js는 template-system.js보다
+ * 나중에 로드되므로(window.bindSectionHitzone 미정의 시점) DOMContentLoaded 이후 설치한다.
+ */
+function _installSectionTagHook() {
+  if (window.__sectionTagHookInstalled) return true;
+  const orig = window.bindSectionHitzone;
+  if (typeof orig !== 'function') return false;
+  window.bindSectionHitzone = function (sec) {
+    const r = orig.apply(this, arguments);
+    try { renderSectionTags(sec); } catch (_) {}
+    return r;
+  };
+  window.__sectionTagHookInstalled = true;
+  return true;
+}
+if (!_installSectionTagHook()) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _installSectionTagHook, { once: true });
+  } else {
+    _installSectionTagHook();
+  }
 }
 
 const TPL_FOLDER_KEY = 'tpl-folder-state';
@@ -692,6 +742,7 @@ window.saveAsTemplate       = saveAsTemplate;
 window.saveBlockAsTemplate  = saveBlockAsTemplate;
 window.deleteTemplate       = deleteTemplate;
 window.insertTemplate       = insertTemplate;
+window.renderSectionTags    = renderSectionTags;
 window.renderTemplatePanel  = renderTemplatePanel;
 window.initTemplates        = initTemplates;
 window._loadCanvas          = _loadCanvas;

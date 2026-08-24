@@ -1371,6 +1371,40 @@ body.preview-mode #preview-navigator { display: flex; }
   cursor: default;
 }
 
+/* ── 섹션 태그 칩 (U11) ──
+   템플릿 태그를 섹션 라벨 옆(hitzone)에 표시하는 «패시브» 메타데이터 칩.
+   앱의 기존 태그칩 어휘(.tb-tag-chip)와 동일 토큰/필(pill) 형태를 재사용하되,
+   필터 칩이 아니므로 인터랙션(cursor/hover/active)은 뺀다. 라벨과 동일한
+   줌 카운터-스케일(--ui-scale, origin left bottom)로 줌 불변 크기 유지. */
+.section-tags {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  margin-left: 5px;
+  max-width: calc((100% - 130px) / var(--ui-scale, 1));
+  overflow: hidden;
+  pointer-events: none;
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: left bottom;
+}
+.section-tag-chip {
+  flex: 0 0 auto;
+  max-width: 120px;
+  padding: 1px 7px;
+  background: var(--ui-bg-card);
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+  color: var(--ui-text-dim);
+  font-size: var(--ui-fs-10);
+  font-weight: var(--ui-fw-medium);
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ══════════════════════════════════════
    COMPONENT SHELF PANEL (step2)
 ══════════════════════════════════════ */
