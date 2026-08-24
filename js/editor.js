@@ -1603,6 +1603,17 @@ document.addEventListener('keydown', e => {
   // 블록 추가 단축키: addGap/addText/addAsset (사용자 설정 가능, 기본 G/T/A — IME 안전: e.code 사용)
   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+    // #13 ⌥+a/s/d → 선택 블록을 부모 섹션(section-inner) 기준 좌/중/우 정렬(a=좌·s=중·d=우).
+    //   숫자 네임스페이스(갭 프리셋 1~8·텍스트타입 1~4) 충돌 회피 위해 ⌥+숫자에서 ⌥+글자로 이전(현빈 지시).
+    //   ★add-asset(plain A)·add-section(plain S)보다 «먼저» 선점 — alt 요구라 plain A/S/D는 이 분기를 스킵해 기존 동작 유지.
+    //   ★preventDefault로 맥 Option+letter 특수문자(å/ß/∂) 삽입 억제. 편집 중은 상단(1183 contentEditable 가드)에서 이미 차단.
+    if (e.altKey && ['KeyA', 'KeyS', 'KeyD'].includes(e.code) && !document.querySelector('.text-block.editing')) {
+      e.preventDefault();
+      alignSelectedToParent({ KeyA: 'left', KeyS: 'center', KeyD: 'right' }[e.code]);
+      return;
+    }
+
     const _ms = window._matchShortcut;
     const _isAddGap   = _ms ? _ms(e, 'addGap')   : (e.code === 'KeyG');
     const _isAddText  = _ms ? _ms(e, 'addText')  : (e.code === 'KeyT');
@@ -1621,16 +1632,8 @@ document.addEventListener('keydown', e => {
       }
     }
 
-    // #13 ⌥+1/2/3 → 선택 블록을 부모 섹션 기준 좌/중/우 정렬. 갭/텍스트타입 프리셋보다 «먼저» 선점.
-    // (여기 도달 = !meta && !ctrl && !shift. alt 눌리면 아래 digit 프리셋들은 !e.altKey 가드로 스킵)
-    if (e.altKey && ['Digit1','Digit2','Digit3'].includes(e.code) && !document.querySelector('.text-block.editing')) {
-      e.preventDefault();
-      alignSelectedToParent({ Digit1: 'left', Digit2: 'center', Digit3: 'right' }[e.code]);
-      return;
-    }
-
     // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=160, 6=200, 7=240, 8=280 (텍스트 편집 중이면 무시)
-    // !e.altKey 가드(필수): 이게 없으면 ⌥+1이 #13 부모정렬과 «동시에» 갭 높이(20px)까지 조용히 바꾼다(이중발동).
+    // !e.altKey 가드(유지): 정렬이 ⌥+a/s/d로 이전됐어도 ⌥+숫자는 «inert»로 둔다(Option+digit 특수문자·오발동 방지). plain 숫자는 정상.
     if (!e.altKey && ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8'].includes(e.code)) {
       if (!document.querySelector('.text-block.editing')) {
         const gb = document.querySelector('.gap-block.selected');
@@ -1654,7 +1657,7 @@ document.addEventListener('keydown', e => {
     }
 
     // 텍스트 타입 단축키: 1=H1, 2=H2, 3=H3, 4=Body (텍스트 편집 중이면 무시)
-    // !e.altKey 가드(필수): 없으면 ⌥+1이 #13 부모정렬과 «동시에» 텍스트 타입까지 바꾼다(이중발동).
+    // !e.altKey 가드(유지): 정렬이 ⌥+a/s/d로 이전됐어도 ⌥+숫자는 inert로 둔다(오발동 방지). plain 숫자는 정상.
     if (!e.altKey && ['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
       if (document.querySelector('.text-block.editing')) return; // 편집 중 차단
       const tb = document.querySelector('.text-block.selected');
