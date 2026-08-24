@@ -207,6 +207,7 @@ export function showGraphProperties(block) {
             <input type="text" class="grb-data-label-input" value="${item.label}" placeholder="라벨">
             <input type="number" class="grb-data-val-input" value="${item.value}" min="0" max="9999">
             ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${item.value2 ?? 0}" min="0" max="9999" title="시리즈 B 값">` : ''}
+            ${(chartType === 'bar-v' || chartType === 'bar-h') ? `<div class="prop-color-swatch grb-data-color${item.color ? '' : ' swatch-none'}" title="바 색상 (미지정 시 프리셋 색)"${item.color ? ` style="background:${item.color}"` : ''}><input type="color" value="${item.color || '#4dabf7'}"></div>` : ''}
             <button class="grb-data-del-btn" data-index="${i}">✕</button>
           </div>`).join('')}
       </div>
@@ -285,6 +286,13 @@ export function showGraphProperties(block) {
       const v2El = row.querySelector('.grb-data-val2-input');
       if (v2El) it.value2 = parseFloat(v2El.value) || 0;
       else if (prevItems[i] && prevItems[i].value2 !== undefined) it.value2 = prevItems[i].value2;
+      // 바 개별색 — swatch가 지정 상태(.swatch-none 아님)면 반영, 스와치 없거나(타입 line/pair) 미지정이면 기존 color 보존
+      const sw = row.querySelector('.grb-data-color');
+      if (sw && !sw.classList.contains('swatch-none')) {
+        it.color = sw.querySelector('input[type="color"]').value;
+      } else if (prevItems[i] && prevItems[i].color) {
+        it.color = prevItems[i].color;
+      }
       return it;
     });
     block.dataset.items = JSON.stringify(newItems);
@@ -292,6 +300,23 @@ export function showGraphProperties(block) {
   }
 
   const dataList = document.getElementById('grb-data-list');
+  // 바 개별색 스와치 — 사용자가 색을 고르면 .swatch-none 해제(→ syncItems가 반영) + 미리보기.
+  // capture 단계라 버블단계 syncItems보다 먼저 실행돼, syncItems가 갱신된 상태를 읽는다.
+  dataList.addEventListener('input', (e) => {
+    const inp = e.target;
+    if (!(inp instanceof HTMLInputElement) || inp.type !== 'color') return;
+    const sw = inp.closest('.grb-data-color');
+    if (!sw) return;
+    sw.classList.remove('swatch-none');
+    sw.style.background = inp.value;
+  }, true);
+  // 색 확정(피커 커밋) 시 히스토리 적재
+  dataList.addEventListener('change', (e) => {
+    const inp = e.target;
+    if (inp instanceof HTMLInputElement && inp.type === 'color' && inp.closest('.grb-data-color')) {
+      window.pushHistory();
+    }
+  });
   dataList.addEventListener('input', syncItems);
   dataList.addEventListener('click', e => {
     const btn = e.target.closest('.grb-data-del-btn');
