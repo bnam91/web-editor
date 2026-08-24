@@ -1768,3 +1768,32 @@ body.preview-mode #preview-navigator { display: flex; }
   font-size: var(--ui-fs-13);
   font-weight: var(--ui-fw-medium);
 }
+
+/* ═══════════════════════════════════════════════
+   #16 스크래치패드↔섹션 노드연결 오버레이 (P2)
+   · #canvas-wrap 안·#canvas-scaler 밖 = 스크린/콘텐츠 좌표(줌 transform 미적용). export 오염0.
+   · 사이드카 컨테이너는 pointer-events:none, 카드/그룹만 auto(캔버스 클릭 방해 금지).
+═══════════════════════════════════════════════ */
+.spl-edges { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; }
+.spl-edges line { stroke: var(--ui-accent, #4f6bed); stroke-width: 2; stroke-dasharray: 5 5; opacity: .55; }
+.spl-sidecar { position: absolute; top: 0; left: 0; z-index: 7; pointer-events: none; }
+.spl-note-group {
+  position: absolute; width: 220px; display: flex; flex-direction: column; gap: 9px;
+  pointer-events: auto; transition: top .3s cubic-bezier(.4,0,.2,1);
+}
+.spl-refimg {
+  background: var(--ui-bg-card, #fff); border: 1px solid var(--ui-border, #c9d0da);
+  border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(20,25,40,.16);
+}
+.spl-thumb { max-height: 130px; overflow: hidden; background: var(--ui-bg-input, #eef1f5); }
+.spl-thumb img { width: 100%; display: block; object-fit: cover; }
+.spl-refimg.collapsed .spl-thumb { display: none; }
+.spl-cap { display: flex; gap: 4px; padding: 5px 7px; justify-content: flex-end; align-items: center; }
+.spl-ic {
+  width: 22px; height: 22px; border: none; background: var(--ui-bg-input, #eef1f5);
+  border-radius: 6px; cursor: pointer; color: var(--ui-text-sub, #55606f);
+  font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.spl-ic:hover { background: var(--ui-border, #dfe4ea); }
+/* 연결 모드: 섹션 클릭 가능 표시(P3에서 body.spl-linking 토글) */
+body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed); outline-offset: 2px; cursor: pointer; }

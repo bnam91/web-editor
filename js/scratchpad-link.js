@@ -116,9 +116,206 @@
     return true;
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // [P2 = 오버레이 렌더]  사이드카(note-group·refimg 카드) + 연결선(SVG edges).
+  //   · 오버레이는 #canvas-wrap «안», #canvas-scaler(줌/팬 transform) «밖»에 둔다(스크린 좌표).
+  //     → serializeCleanRoot(#canvas 대상)가 못 봐서 export 오염0. 위치는 getBoundingClientRect
+  //       (post-transform)로 계산 → 줌/팬/스크롤이 rect에 이미 반영돼 «자동 추종».
+  //   · 스크래치 pane 필터: 연결된 .scratch-item[data-scratch-id]는 캔버스에서 display:none
+  //     (데이터는 ScratchPadDB 그대로 → 해제 시 자동 복귀). 미연결만 캔버스에 남는다.
+  //   · 이미지 src는 라이브 .scratch-item 의 <img>에서 «참조»(중복저장0).
+  // ═══════════════════════════════════════════════════════════════════
+  let _showEdges = true;              // 기어 토글(연결선 표시)
+  let _relayoutRAF = null;
+
+  function _wrap()    { return document.getElementById('canvas-wrap'); }
+  function _scaler()  { return document.getElementById('canvas-scaler'); }
+
+  function _ensureOverlay() {
+    const wrap = _wrap();
+    if (!wrap) return null;
+    let edges = document.getElementById('link-edges');
+    let side  = document.getElementById('link-sidecar');
+    if (!edges) {
+      edges = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      edges.id = 'link-edges'; edges.setAttribute('class', 'spl-edges');
+      wrap.appendChild(edges);
+    }
+    if (!side) {
+      side = document.createElement('div');
+      side.id = 'link-sidecar'; side.className = 'spl-sidecar';
+      wrap.appendChild(side);
+    }
+    return { edges, side };
+  }
+
+  // 라이브 스크래치 아이템의 이미지 src(참조). 없으면 null.
+  function _scratchSrc(scratchId) {
+    const it = document.querySelector('.scratch-item[data-scratch-id="' + (window.CSS && CSS.escape ? CSS.escape(scratchId) : scratchId) + '"] img');
+    return it ? it.getAttribute('src') : null;
+  }
+
+  // 스크래치 pane 필터 — 연결된 아이템은 캔버스에서 숨김(데이터 무손상).
+  function _filterScratchPane() {
+    const linked = new Set(linkedScratchIds());
+    document.querySelectorAll('.scratch-item').forEach(el => {
+      const id = el.dataset.scratchId;
+      if (linked.has(id)) { if (el.style.display !== 'none') { el.dataset.splHidden = '1'; el.style.display = 'none'; } }
+      else if (el.dataset.splHidden) { el.style.display = ''; delete el.dataset.splHidden; } // 우리가 숨긴 것만 복구
+    });
+  }
+
+  // 사이드카 카드/그룹 재구성(데모 reconcile 포팅). 그룹=섹션별, 카드=refimg.
+  function _renderSidecar() {
+    const ov = _ensureOverlay(); if (!ov) return;
+    const side = ov.side;
+    const bySec = new Map(); // secId → [{scratchId,collapsed}]
+    for (const sec of _allSecs()) {
+      const ls = _parse(sec);
+      if (ls.length) bySec.set(sec.id, ls);
+    }
+    const wantG = new Set();
+    bySec.forEach((ls, secId) => {
+      wantG.add(secId);
+      let g = side.querySelector(':scope > .spl-note-group[data-sec="' + secId + '"]');
+      if (!g) { g = document.createElement('div'); g.className = 'spl-note-group'; g.dataset.sec = secId; side.appendChild(g); }
+      const wantC = new Set();
+      ls.forEach(l => {
+        wantC.add(l.scratchId);
+        let card = g.querySelector(':scope > .spl-refimg[data-scratch-id="' + l.scratchId + '"]');
+        if (!card) {
+          card = document.createElement('div');
+          card.dataset.scratchId = l.scratchId;
+          g.appendChild(card);
+        }
+        card.className = 'spl-refimg' + (l.collapsed ? ' collapsed' : '');
+        const src = _scratchSrc(l.scratchId) || '';
+        card.innerHTML =
+          '<div class="spl-thumb"><img src="' + src.replace(/"/g, '&quot;') + '" draggable="false"></div>' +
+          '<div class="spl-cap">' +
+            '<button class="spl-ic" data-a="fold" title="' + (l.collapsed ? '펼치기' : '접기') + '">' + (l.collapsed ? '＋' : '－') + '</button>' +
+            '<button class="spl-ic" data-a="unlink" title="연결 해제(스크래치로 복귀)">⛌</button>' +
+          '</div>';
+        card.querySelector('[data-a=fold]').onclick   = e => { e.stopPropagation(); setCollapsed(l.scratchId, !l.collapsed); };
+        card.querySelector('[data-a=unlink]').onclick = e => { e.stopPropagation(); removeLink(l.scratchId); };
+      });
+      // 사라진 카드 제거
+      g.querySelectorAll(':scope > .spl-refimg').forEach(card => { if (!wantC.has(card.dataset.scratchId)) card.remove(); });
+    });
+    // 사라진 그룹 제거
+    side.querySelectorAll(':scope > .spl-note-group').forEach(g => { if (!wantG.has(g.dataset.sec)) g.remove(); });
+  }
+
+  // 댓글 레일 push-down(데모 positionTops 포팅) — 섹션 top에 붙되 위 그룹과 안 겹치게 밀어냄.
+  function _positionTops() {
+    const wrap = _wrap(); const side = document.getElementById('link-sidecar');
+    if (!wrap || !side) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    const scaler = _scaler();
+    // 사이드카 x = 캔버스(#canvas) 우변 + gap (스크린 좌표를 wrap 기준 상대로)
+    const canvas = document.getElementById('canvas');
+    const cRect = (canvas || scaler || wrap).getBoundingClientRect();
+    const leftPx = Math.round(cRect.right - wrapRect.left + wrap.scrollLeft + 16); // content-space
+
+    let minTop = -1e9;
+    // DOM 순서(=섹션 순서)대로 그룹 배치
+    _allSecs().forEach(sec => {
+      const g = side.querySelector(':scope > .spl-note-group[data-sec="' + sec.id + '"]');
+      if (!g) return;
+      const secRect = sec.getBoundingClientRect();
+      const secTop = secRect.top - wrapRect.top + wrap.scrollTop;
+      const top = Math.max(secTop, minTop);
+      g.style.left = leftPx + 'px';
+      g.style.top  = top + 'px';
+      minTop = top + g.offsetHeight + 12;
+    });
+  }
+
+  function _drawEdges() {
+    const wrap = _wrap(); const edges = document.getElementById('link-edges');
+    if (!wrap || !edges) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    const W = Math.max(wrap.scrollWidth, wrapRect.width), H = Math.max(wrap.scrollHeight, wrapRect.height); // content-space 전체
+    edges.setAttribute('width', W); edges.setAttribute('height', H);
+    edges.style.width = W + 'px'; edges.style.height = H + 'px';
+    if (!_showEdges) { edges.innerHTML = ''; return; }
+    let s = '';
+    for (const { sectionId, scratchId } of allLinks()) {
+      const sec = document.getElementById(sectionId);
+      const card = document.querySelector('#link-sidecar .spl-refimg[data-scratch-id="' + scratchId + '"]');
+      if (!sec || !card) continue;
+      const sr = sec.getBoundingClientRect(), nr = card.getBoundingClientRect();
+      const x1 = sr.right - wrapRect.left + wrap.scrollLeft, y1 = sr.top + sr.height / 2 - wrapRect.top + wrap.scrollTop;
+      const x2 = nr.left - wrapRect.left + wrap.scrollLeft,  y2 = nr.top + Math.min(nr.height, 52) / 2 + 2 - wrapRect.top + wrap.scrollTop;
+      s += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"/>';
+    }
+    edges.innerHTML = s;
+  }
+
+  function _relayout() { _positionTops(); _drawEdges(); }
+  function _scheduleRelayout() {
+    if (_relayoutRAF) return;
+    _relayoutRAF = requestAnimationFrame(() => { _relayoutRAF = null; _relayout(); });
+  }
+
+  // 전체 재렌더(P1 CRUD·로드·undo/redo·협업이 호출) — 필터 + 사이드카 + 레이아웃.
+  function __spLinkRerender() {
+    try {
+      _filterScratchPane();
+      _renderSidecar();
+      _relayout();
+    } catch (e) { console.warn('[spl] rerender err:', e); }
+  }
+  window.__spLinkRerender = __spLinkRerender;
+  window.__spLinkRelayout = _scheduleRelayout; // 줌/팬 코드가 호출 가능
+  function setShowEdges(v) { _showEdges = !!v; _drawEdges(); }
+
+  // ── 추종 트리거: 스크롤/리사이즈/스케일러 transform 변화 → rAF 스로틀 relayout ──
+  function _installFollow() {
+    const wrap = _wrap(); if (!wrap || wrap.__splFollow) return true;
+    wrap.__splFollow = true;
+    wrap.addEventListener('scroll', _scheduleRelayout, { passive: true });
+    window.addEventListener('resize', _scheduleRelayout, { passive: true });
+    const scaler = _scaler();
+    if (scaler) {
+      // 줌/팬 = #canvas-scaler style.transform 변경 → 감지해 추종
+      const mo = new MutationObserver(_scheduleRelayout);
+      mo.observe(scaler, { attributes: true, attributeFilter: ['style'] });
+    }
+    return true;
+  }
+
+  // ── 재렌더 훅: bindSectionHitzone 래퍼(로드/undo/redo/협업) — #11 태그 패턴 ──
+  let _rerenderDebounce = null;
+  function _scheduleRerender() {
+    if (_rerenderDebounce) return;
+    _rerenderDebounce = setTimeout(() => { _rerenderDebounce = null; __spLinkRerender(); }, 0);
+  }
+  function _installSectionHook() {
+    if (window.__splSectionHook) return true;
+    const orig = window.bindSectionHitzone;
+    if (typeof orig !== 'function') return false;
+    window.bindSectionHitzone = function (sec) {
+      const r = orig.apply(this, arguments);
+      try { _scheduleRerender(); } catch (_) {}
+      return r;
+    };
+    window.__splSectionHook = true;
+    return true;
+  }
+
+  function _boot() {
+    _installFollow();
+    if (!_installSectionHook()) setTimeout(_installSectionHook, 300);
+    __spLinkRerender();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(_boot, 200));
+  else setTimeout(_boot, 200);
+
   window.SPLink = {
     linksForSection, sectionIdOf, isLinked, linkedScratchIds, allLinks,
-    addLink, removeLink, setCollapsed,
+    addLink, removeLink, setCollapsed, setShowEdges,
+    rerender: __spLinkRerender,
     // 내부 유틸(P2 렌더/테스트용)
     _parse, _write,
   };

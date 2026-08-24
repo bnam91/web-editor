@@ -1048,6 +1048,8 @@ async function _loadScratch(projectId, pageId) {
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
     if (migrated) _saveScratch();
+    // #16: 스크래치 로드 완료 → 연결(refLinks)된 아이템 pane 필터 + 사이드카 재렌더(P2 오버레이).
+    try { window.__spLinkRerender && window.__spLinkRerender(); } catch (_) {}
   } catch(e) {
     if (gen === _scratchLoadGen) _scratchLoaded = true; // 기존 동작 유지 — 세션 중 작업/저장은 가능
     console.warn('[ScratchPad] load error:', e);
