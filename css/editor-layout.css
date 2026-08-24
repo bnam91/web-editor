@@ -306,7 +306,20 @@
 .text-block .tb-label:empty::before  { content: 'Label';             color: #ccc; pointer-events: none; }
 
 .text-block .tb-h1     { font-size: 104px; font-weight: 700; color: var(--preset-h1-color); font-family: var(--preset-h1-family); line-height: 1.1; letter-spacing: -0.02em; }
-.text-block .tb-h2     { font-size: 72px;  font-weight: 600; color: var(--preset-h2-color); font-family: var(--preset-h2-family); line-height: 1.15; }
+.text-block .tb-h2 {
+  font-size: 72px; font-weight: 600;
+  color: var(--preset-h2-color); font-family: var(--preset-h2-family);
+  line-height: 1.15;
+  /* U7 #7 — 상하 여백 대칭. 원인은 명시 padding이 아니라 half-leading + 폰트 baseline
+     비대칭(box-top→cap 간격 ≠ baseline→box-bottom 간격). CSS half-leading은 이미 상하 균등이라
+     margin/padding 하드코딩으로는 못 잡고, --preset-h2-family가 프리셋마다 바뀌는 변수라 폰트별 fudge는 취약.
+     text-box-trim으로 실제 폰트 메트릭(cap 위 / alphabetic 아래)까지 트림해 상하 leading을 0으로 균일화 → 대칭.
+     Chromium 140(Electron 41) 기본 지원(Chrome 133+). 구버전은 미지원 속성을 무시(현행 렌더 유지)해 안전 열화.
+     line-height는 다줄 소제목 줄간격 위해 유지. padding-block:0은 상속/기본값 제거 명시(인라인 박스 프리셋 style은 우선순위상 그대로 승리). */
+  padding-block: 0;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
 .text-block .tb-h3     { font-size: 52px;  font-weight: 600; color: var(--preset-h3-color); font-family: var(--preset-h3-family); line-height: 1.2; }
 .text-block .tb-body   { font-size: 36px;  color: var(--preset-body-color);    font-family: var(--preset-body-family);   line-height: 1.6; }
 .text-block .tb-caption { font-size: 26px; color: var(--preset-caption-color); font-family: var(--preset-body-family);   line-height: 1.6; letter-spacing: 0.01em; }
