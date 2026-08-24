@@ -1178,6 +1178,17 @@
     badge.style.display = 'inline-block';
   })();
 
+  // #2 dev-gate — 비admin(패키지빌드 일반사용자)이면 개발용 플로팅 버튼 숨김.
+  // 기존 admin 배지 IIFE와 동일 패턴. 인라인 onclick·⌘K 단축키는 유지(숨김만).
+  (async () => {
+    try {
+      if (window.electronAPI?.isAdmin && !(await window.electronAPI.isAdmin())) {
+        document.querySelector('#ai-btn.fp-btn-ai')?.style.setProperty('display', 'none');
+        document.getElementById('claude-pm-btn')?.style.setProperty('display', 'none');
+      }
+    } catch (_) {}
+  })();
+
   // Unit B — admin 모드일 때 MCP 접속 토큰 뱃지(표시/복사/재발급). 토큰은 마스킹 표시.
   (async function() {
     const api = window.electronAPI;
