@@ -1072,6 +1072,26 @@ document.addEventListener('keyup', e => {
   if (document.querySelector('.gap-block.selected')) pushHistory();
 });
 
+/* #13 ⌥+숫자: 현재 선택 블록들을 «부모 섹션(section-inner) 기준»으로 좌/중/우 정렬.
+   ⌥의 기준은 항상 «블록이 속한 부모 섹션»이다(페이지/캔버스 아님).
+   section-inner는 flex-direction:column이라 자식의 가로 위치는 align-self가 지배(#10 prop-text-wireup-align 참고):
+   left→flex-start, center→center, right→flex-end.
+   폭 100% 블록(text-block 기본 width:100%)은 align-self로 시각 변화가 없다 — 무해.
+   asset/frame/shape 등 커스텀 폭(<100%) 블록에서만 실제 좌우 이동이 보인다.
+   섹션 자신을 선택한 경우는 부모가 캔버스라 여기 대상 셀렉터에 안 잡힘 → no-op. 대상 0개도 no-op. */
+function alignSelectedToParent(dir) {
+  const map = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  const val = map[dir];
+  if (!val) return;
+  // 선택 집합 규약: FLOW_BLOCK_SEL_SELECTED(SSOT) + shape/frame. 각 블록은 부모 섹션이 있어야 대상.
+  const ALIGN_SEL = FLOW_BLOCK_SEL_SELECTED + ', .shape-block.selected, .frame-block.selected';
+  const blocks = [...document.querySelectorAll(ALIGN_SEL)].filter(b => b.closest('.section-block'));
+  if (!blocks.length) return; // 섹션만 선택/무선택 등 대상 없으면 no-op
+  blocks.forEach(b => { b.style.alignSelf = val; }); // 선택 상태(.selected)는 그대로 유지
+  window.pushHistory?.('부모 기준 정렬');
+  window.scheduleAutoSave?.();
+}
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -1498,8 +1518,17 @@ document.addEventListener('keydown', e => {
       }
     }
 
+    // #13 ⌥+1/2/3 → 선택 블록을 부모 섹션 기준 좌/중/우 정렬. 갭/텍스트타입 프리셋보다 «먼저» 선점.
+    // (여기 도달 = !meta && !ctrl && !shift. alt 눌리면 아래 digit 프리셋들은 !e.altKey 가드로 스킵)
+    if (e.altKey && ['Digit1','Digit2','Digit3'].includes(e.code) && !document.querySelector('.text-block.editing')) {
+      e.preventDefault();
+      alignSelectedToParent({ Digit1: 'left', Digit2: 'center', Digit3: 'right' }[e.code]);
+      return;
+    }
+
     // 갭 블록 프리셋: 1=20, 2=40, 3=80, 4=120, 5=160, 6=200, 7=240, 8=280 (텍스트 편집 중이면 무시)
-    if (['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8'].includes(e.code)) {
+    // !e.altKey 가드(필수): 이게 없으면 ⌥+1이 #13 부모정렬과 «동시에» 갭 높이(20px)까지 조용히 바꾼다(이중발동).
+    if (!e.altKey && ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8'].includes(e.code)) {
       if (!document.querySelector('.text-block.editing')) {
         const gb = document.querySelector('.gap-block.selected');
         if (gb) {
@@ -1522,7 +1551,8 @@ document.addEventListener('keydown', e => {
     }
 
     // 텍스트 타입 단축키: 1=H1, 2=H2, 3=H3, 4=Body (텍스트 편집 중이면 무시)
-    if (['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
+    // !e.altKey 가드(필수): 없으면 ⌥+1이 #13 부모정렬과 «동시에» 텍스트 타입까지 바꾼다(이중발동).
+    if (!e.altKey && ['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
       if (document.querySelector('.text-block.editing')) return; // 편집 중 차단
       const tb = document.querySelector('.text-block.selected');
       if (!tb) return;
