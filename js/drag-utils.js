@@ -1,3 +1,14 @@
+
+// [v0.8 #4 보안] 그래프 바 color/라벨은 innerHTML 주입 → 화이트리스트·이스케이프(저장형 XSS 차단·고디터QA BUG-P2-1 S2)
+function _safeGraphColor(c) {
+  if (typeof c !== 'string') return '';
+  const s = c.trim();
+  return (/^#[0-9a-fA-F]{3,8}$/.test(s) || /^rgba?\(\s*[\d.,\s%]+\)$/i.test(s) || /^hsla?\(\s*[\d.,\s%]+\)$/i.test(s) || /^[a-zA-Z]+$/.test(s)) ? s : '';
+}
+function _escGraphHtml(v) {
+  return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 /* ═══════════════════════════════════
    DRAG UTILITIES — pure helpers, no drag state
 ═══════════════════════════════════ */
@@ -214,14 +225,14 @@ function renderGraph(block) {
           const pct = item.value === 0 ? 0 : Math.max(1, Math.round((item.value / maxVal) * 100));
           const fillStyle = pct === 0 ? 'height:4px;opacity:0.25;border-style:dashed;' : `height:${pct}%;`;
           // 바 개별색 — item.color 있으면 인라인 background로 CSS 프리셋(colorful nth-child 포함) 우선
-          const colorStyle = item.color ? `background:${item.color};` : '';
+          const _bc = _safeGraphColor(item.color); const colorStyle = _bc ? `background:${_bc};` : '';
           return `
             <div class="grb-bar-col">
-              <div class="grb-bar-val-label" style="font-size:${valSize}px;${_vCss}">${item.value}</div>
+              <div class="grb-bar-val-label" style="font-size:${valSize}px;${_vCss}">${_escGraphHtml(item.value)}</div>
               <div class="grb-bar-fill-wrap">
                 <div class="grb-bar-fill" style="${fillStyle}${colorStyle}"></div>
               </div>
-              <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${item.label}</div>
+              <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${_escGraphHtml(item.label)}</div>
             </div>`;
         }).join('')}
       </div>`;
@@ -378,7 +389,7 @@ function renderGraph(block) {
               ${bar(item.value, barColor, '')}
               ${bar(item.value2, barColor2, ' grb-bar-fill-b')}
             </div>
-            <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${item.label}</div>
+            <div class="grb-bar-label" style="font-size:${labelSize}px;${_xCss}">${_escGraphHtml(item.label)}</div>
           </div>`).join('')}
       </div>`;
   } else {
@@ -408,11 +419,11 @@ function renderGraph(block) {
           const displayVal = Number.isInteger(item.value) ? item.value + '%' : item.value;
           const hFillExtra = pct === 0 ? 'width:4px;opacity:0.25;border-style:dashed;' : '';
           // 바 개별색 — item.color가 블록단위 barColor·CSS 프리셋보다 우선(뒤 선언이 이김)
-          const colorStyle = item.color ? `background:${item.color};` : '';
+          const _bc = _safeGraphColor(item.color); const colorStyle = _bc ? `background:${_bc};` : '';
           return `
             <div class="grb-bar-row">
               <div class="grb-bar-h-pct" style="font-size:${pctSize}px;${_vCss}">${displayVal}</div>
-              <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px;${_xCss}">${item.label}</div>
+              <div class="grb-bar-h-desc" style="font-size:${Math.round(labelSize * 1.4)}px;${_xCss}">${_escGraphHtml(item.label)}</div>
               <div class="grb-bar-h-track" style="${trackStyle}">
                 <div class="grb-bar-h-fill" style="${fillStyle.replace('__PCT__', pct + '%')}${hFillExtra}${colorStyle}"></div>
               </div>

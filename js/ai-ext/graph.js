@@ -33,8 +33,8 @@
         }
       }
       // 바 개별색 유실 방지 — AI가 color를 주면 그걸, 아니면 기존 색(인덱스 매칭)을 보존
-      if (it && typeof it === 'object' && typeof it.color === 'string' && it.color) {
-        out.color = it.color;
+      if (it && typeof it === 'object' && typeof it.color === 'string' && /^(#[0-9a-fA-F]{3,8}|rgba?\([\d.,\s%]+\)|hsla?\([\d.,\s%]+\)|[a-zA-Z]+)$/.test(it.color.trim())) {
+        out.color = it.color.trim();  // [v0.8 #4 보안] AI 응답 비신뢰 → 화이트리스트만
       } else if (prev[i] && typeof prev[i].color === 'string' && prev[i].color) {
         out.color = prev[i].color;
       }
